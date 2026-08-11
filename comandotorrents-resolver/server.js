@@ -3,74 +3,74 @@ const http = require('node:http');
 const PORT = Number(process.env.PORT || 8701);
 const TIMEOUT_MS = 15_000;
 const MAX_HOPS = 6;
-const USER_AGENT =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36';
-const ALLOWED_SUFFIXES = [
-  'comandotorrents.to',
-  'systemads1.com',
-  'systemads.net',
-  'videosad.net',
-  'canalfutebol.com',
-];
+const MAX_POSTS = 5;
+const CONCURRENCY = 3;
+const POST_CACHE_MS = 10 * 60_000;
+const SELF_URL = (process.env.SELF_URL || 'http://comandotorrents-resolver:8701').replace(/\/$/, '');
+const SITE_URL = (process.env.SITE_URL || 'https://comandotorrents.to').replace(/\/$/, '');
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36';
+const ALLOWED_SUFFIXES = ['comandotorrents.to', 'systemads1.com', 'systemads.net', 'videosad.net', 'canalfutebol.com'];
+const postCache = new Map();
 
 function decodeEntities(value = '') {
-  return String(value)
-    .replace(/&#0?38;|&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#8217;|&#039;|&apos;/gi, "'");
+  return String(value).replace(/&#0?38;|&amp;/gi, '&').replace(/&quot;/gi, '"').replace(/&#8217;|&#039;|&apos;/gi, "'");
 }
-
+function stripTags(value = '') { return decodeEntities(String(value).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim(); }
+function escapeHtml(value = '') { return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function attribute(tag, name) { return String(tag).match(new RegExp(`\\b${name}=["']([^"']*)["']`, 'i'))?.[1] || null; }
 function assertAllowedUrl(value) {
   const url = new URL(value);
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('unsupported_protocol');
   const hostname = url.hostname.toLowerCase();
-  const allowed = ALLOWED_SUFFIXES.some(
-    (suffix) => hostname === suffix || hostname.endsWith(`.${suffix}`),
-  );
-  if (!allowed) throw new Error('blocked_host');
+  if (!ALLOWED_SUFFIXES.some((suffix) => hostname === suffix || hostname.endsWith(`.${suffix}`))) throw new Error('blocked_host');
   return url;
 }
+function normalizeQuery(value) { return String(value || '').replace(/[sS]\d{1,2}(?:[eE]\d{1,2})?/g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim(); }
+function extractMagnet(html) { const match = String(html).match(/magnet:\?[^"'<>\s]+/i); return match ? decodeEntities(match[0]) : null; }
 
-function extractMagnet(html) {
-  const match = String(html).match(/magnet:\?[^"'<>\s]+/i);
-  return match ? decodeEntities(match[0]) : null;
+function parsePosts(html) {
+  const posts = [];
+  const article = /<article\b[^>]*class=["'][^"']*\bblog-view\b[^"']*["'][^>]*>([\s\S]*?)<\/article>/gi;
+  let match;
+  while ((match = article.exec(html))) {
+    const anchor = match[1].match(/<h2\b[^>]*class=["'][^"']*\bentry-title\b[^"']*["'][^>]*>\s*<a\b([^>]*)>([\s\S]*?)<\/a>/i);
+    if (!anchor) continue;
+    const url = attribute(anchor[1], 'href');
+    if (!url) continue;
+    const image = match[1].match(/<img\b[^>]*src=["']([^"']+)["']/i)?.[1] || null;
+    posts.push({ url: new URL(decodeEntities(url), SITE_URL).href, title: stripTags(attribute(anchor[1], 'title') || anchor[2]), poster: image && decodeEntities(image) });
+  }
+  return [...new Map(posts.map((post) => [post.url, post])).values()];
 }
 
-function rankProtectedLinks(html, baseUrl) {
+function parseDownloadLinks(html, baseUrl) {
   const links = [];
-  const pattern = /<a\b[^>]*href=["']([^"']*(?:systemads|videosad)[^"']*)["'][^>]*>/gi;
+  const pattern = /<a\b[^>]*href=["']([^"']*(?:systemads|videosad|canalfutebol)[^"']*)["'][^>]*>/gi;
   let match;
   let cursor = 0;
-
   while ((match = pattern.exec(html))) {
-    const context = decodeEntities(html.slice(cursor, match.index)).replace(/<[^>]+>/g, ' ').toUpperCase();
+    const context = stripTags(html.slice(cursor, match.index)).slice(-900).toUpperCase();
     cursor = pattern.lastIndex;
-    let score = 0;
-    if (/DUBLAD|DUAL\s*ÁUDIO|PORTUGU[ÊE]S/.test(context)) score += 100;
-    if (/LEGENDAD/.test(context)) score -= 100;
-    if (/2160P|4K/.test(context)) score += 30;
-    else if (/1080P/.test(context)) score += 20;
-    else if (/720P/.test(context)) score += 10;
-    links.push({ url: new URL(decodeEntities(match[1]), baseUrl).href, score, position: links.length });
+    const quality = [...context.matchAll(/(?:\b(\d{3,4})\s*P\b|\b(4K)\b)/g)].pop();
+    const size = [...context.matchAll(/([\d.,]+)\s*(TB|GB|MB|KB)\b/g)].pop();
+    const audio = [...context.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*|PORTUGU[ÊE]S)/g)].pop();
+    const source = [...context.matchAll(/(REMUX|BLU[- ]?RAY|WEB[-. ]?DL|WEB[-. ]?RIP|HDTV|CAMRIP|CAM)/g)].pop();
+    links.push({
+      url: new URL(decodeEntities(match[1]), baseUrl).href,
+      quality: quality ? (quality[1] ? Number(quality[1]) : 2160) : null,
+      size: size ? `${size[1]} ${size[2]}` : null,
+      audio: audio ? (/LEGENDAD/.test(audio[1]) ? 'legendado' : 'dublado') : 'desconhecido',
+      source: source ? source[1].replace(/[. ]/g, '-') : null,
+    });
   }
-
-  return links.sort((a, b) => b.score - a.score || a.position - b.position);
+  return links;
 }
 
-async function fetchFollowingAllowed(url, referer) {
-  let current = assertAllowedUrl(url);
+async function fetchFollowingAllowed(value, referer) {
+  let current = assertAllowedUrl(value);
   let previousReferer = referer;
-
   for (let hop = 0; hop <= MAX_HOPS; hop += 1) {
-    const response = await fetch(current, {
-      redirect: 'manual',
-      headers: {
-        'User-Agent': USER_AGENT,
-        Accept: 'text/html,application/xhtml+xml',
-        ...(previousReferer ? { Referer: previousReferer } : {}),
-      },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+    const response = await fetch(current, { redirect: 'manual', headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml', ...(previousReferer ? { Referer: previousReferer } : {}) }, signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location');
       if (!location) throw new Error('missing_redirect');
@@ -79,11 +79,9 @@ async function fetchFollowingAllowed(url, referer) {
       continue;
     }
     if (!response.ok) throw new Error(`http_${response.status}`);
-
     const html = await response.text();
     const magnet = extractMagnet(html);
     if (magnet) return magnet;
-
     const refresh = html.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]+content=["'][^"']*url=([^"'>\s]+)/i);
     if (!refresh) throw new Error('no_magnet');
     previousReferer = current.href;
@@ -92,44 +90,81 @@ async function fetchFollowingAllowed(url, referer) {
   throw new Error('too_many_redirects');
 }
 
-async function resolvePost(postUrl) {
+async function getPostLinks(postUrl) {
   const post = assertAllowedUrl(postUrl);
   if (!post.hostname.endsWith('comandotorrents.to')) throw new Error('not_detail_page');
-  const response = await fetch(post, {
-    headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
+  const cached = postCache.get(post.href);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const response = await fetch(post, { headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!response.ok) throw new Error(`http_${response.status}`);
-  const links = rankProtectedLinks(await response.text(), post.href);
-  if (links.length === 0) throw new Error('no_protector');
-
+  const value = { post, links: parseDownloadLinks(await response.text(), post.href) };
+  postCache.set(post.href, { value, expiresAt: Date.now() + POST_CACHE_MS });
+  if (postCache.size > 100) postCache.delete(postCache.keys().next().value);
+  return value;
+}
+function scoreLink(link) { return (link.audio === 'dublado' ? 100_000 : link.audio === 'legendado' ? 0 : 50_000) + (link.quality || 0); }
+async function resolveBest(postUrl) {
+  const { post, links } = await getPostLinks(postUrl);
   let lastError;
-  for (const link of links) {
-    try {
-      return await fetchFollowingAllowed(link.url, post.href);
-    } catch (error) {
-      lastError = error;
-    }
+  for (const link of [...links].sort((a, b) => scoreLink(b) - scoreLink(a))) {
+    try { return await fetchFollowingAllowed(link.url, post.href); } catch (error) { lastError = error; }
   }
   throw lastError || new Error('no_magnet');
 }
-
-function reply(response, status, body) {
-  response.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-  response.end(body);
+async function resolveButton(postUrl, index) {
+  const { post, links } = await getPostLinks(postUrl);
+  if (!Number.isInteger(index) || index < 0 || !links[index]) throw new Error('no_such_button');
+  return fetchFollowingAllowed(links[index].url, post.href);
+}
+async function mapLimit(items, fn) {
+  const output = new Array(items.length); let next = 0;
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
+    while (next < items.length) { const index = next++; try { output[index] = await fn(items[index]); } catch { output[index] = null; } }
+  }));
+  return output.filter(Boolean);
+}
+function releaseTitle(post, link, index) { const tags = [link.quality ? `${link.quality}p` : null, link.source, link.audio !== 'desconhecido' ? link.audio.toUpperCase() : null, link.size || `opção ${index + 1}`].filter(Boolean); return tags.length ? `${post.title} [${tags.join(' ')}]` : post.title; }
+function searchPageHtml(items) {
+  const rows = items.map(({ post, link, index }) => {
+    const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
+    return `<div class="release"><div class="title"><a href="${escapeHtml(download)}">${escapeHtml(releaseTitle(post, link, index))}</a></div><div class="size">${escapeHtml(link.size || '0 B')}</div>${post.poster ? `<div class="poster"><img src="${escapeHtml(post.poster)}"></div>` : ''}<div class="description">${escapeHtml(post.title)}</div><div class="seeders">1</div></div>`;
+  }).join('');
+  return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
+}
+function reply(response, status, body, type = 'text/plain; charset=utf-8') { response.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' }); response.end(body); }
+function unwrapResolverUrl(value) {
+  const inner = new URL(value, SELF_URL);
+  if (inner.origin === SELF_URL && inner.pathname === '/resolve') return { url: inner.searchParams.get('url'), index: inner.searchParams.get('i') };
+  return { url: value, index: null };
 }
 
-http
-  .createServer(async (request, response) => {
-    const url = new URL(request.url, `http://${request.headers.host}`);
-    if (request.method === 'GET' && url.pathname === '/health') return reply(response, 200, 'ok');
-    if (request.method !== 'GET' || url.pathname !== '/resolve') return reply(response, 404, 'not_found');
-    const postUrl = url.searchParams.get('url');
-    if (!postUrl || postUrl.length > 4096) return reply(response, 400, 'invalid_url');
+http.createServer(async (request, response) => {
+  const url = new URL(request.url, `http://${request.headers.host}`);
+  if (request.method !== 'GET') return reply(response, 404, 'not_found');
+  if (url.pathname === '/health') return reply(response, 200, 'ok');
+  if (url.pathname === '/search') {
+    const query = normalizeQuery(url.searchParams.get('q'));
+    if (!query) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
     try {
-      return reply(response, 200, await resolvePost(postUrl));
-    } catch (error) {
-      return reply(response, 502, error.message);
-    }
-  })
-  .listen(PORT, '0.0.0.0');
+      const source = await fetch(`${SITE_URL}/?s=${encodeURIComponent(query)}`, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      if (!source.ok) throw new Error(`http_${source.status}`);
+      const posts = parsePosts(await source.text()).slice(0, MAX_POSTS);
+      const chunks = await mapLimit(posts, async (post) => { const { links } = await getPostLinks(post.url); return links.map((link, index) => ({ post, link, index })); });
+      const items = chunks.flat();
+      console.log(`[search] ${posts.length} post(s) -> ${items.length} release(s)`);
+      return reply(response, 200, searchPageHtml(items), 'text/html; charset=utf-8');
+    } catch (error) { return reply(response, 502, error.message); }
+  }
+  if (url.pathname === '/resolve') {
+    const value = url.searchParams.get('url');
+    if (!value || value.length > 4096) return reply(response, 400, 'invalid_url');
+    try {
+      const unwrapped = unwrapResolverUrl(value);
+      const index = unwrapped.index == null ? null : Number(unwrapped.index);
+      return reply(response, 200, index == null ? await resolveBest(unwrapped.url) : await resolveButton(unwrapped.url, index));
+    } catch (error) { return reply(response, 502, error.message); }
+  }
+  return reply(response, 404, 'not_found');
+}).listen(PORT, '0.0.0.0');
+
+module.exports = { parsePosts, parseDownloadLinks, releaseTitle, searchPageHtml };

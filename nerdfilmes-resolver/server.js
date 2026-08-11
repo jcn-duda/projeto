@@ -285,13 +285,24 @@ function escapeXml(value = '') {
     .replace(/"/g, '&quot;');
 }
 
-function releaseTitle(postTitle, link) {
+function releaseTitle(postTitle, link, index = null) {
   const tags = [
     link.quality ? `${link.quality}p` : null,
     link.source,
     link.audio !== 'desconhecido' ? link.audio.toUpperCase() : null,
+    link.size || (index == null ? null : `opção ${index + 1}`),
   ].filter(Boolean);
   return tags.length ? `${postTitle} [${tags.join(' ')}]` : postTitle;
+}
+
+function searchPageHtml(items) {
+  const rows = items
+    .map(({ post, link, index }) => {
+      const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
+      return `<div class="release"><div class="title"><a href="${escapeXml(download)}">${escapeXml(releaseTitle(post.title, link, index))}</a></div><div class="size">${escapeXml(link.size || '0 B')}</div>${post.date ? `<div class="date">${escapeXml(post.date)}</div>` : ''}<div class="description">${escapeXml(post.title)}</div><div class="seeders">1</div></div>`;
+    })
+    .join('');
+  return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
 }
 
 function pubDate(post) {
@@ -398,17 +409,59 @@ async function handleApi(url, response) {
   }
 }
 
+async function handleSearch(url, response) {
+  const rawQuery = String(url.searchParams.get('q') || '');
+  const requestedSeason = rawQuery.match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
+  const query = rawQuery
+    .replace(/[sS]\d{1,2}(?:[eE]\d{1,2})?/g, ' ')
+    .replace(/:/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!query) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
+  try {
+    const html = await cached(`search-html:${rawQuery}`, SEARCH_CACHE_MS, async () => {
+      const { html: source } = await fetchText(`${SITE_URL}/?s=${encodeURIComponent(query)}`);
+      let posts = parsePosts(source).slice(0, MAX_POSTS);
+      if (requestedSeason) {
+        posts = posts.filter((post) => {
+          const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
+          return !season || Number(season[1] || season[2]) === Number(requestedSeason[1]);
+        });
+      }
+      const chunks = await mapLimit(posts, CONCURRENCY, async (post) => {
+        const { links, date } = await getPostLinks(post.url);
+        return links.map((link, index) => ({ post: { ...post, date }, link, index }));
+      });
+      const items = chunks.flat();
+      console.log(`[search] "${query}" → ${posts.length} post(s), ${items.length} release(s)`);
+      return searchPageHtml(items);
+    });
+    return reply(response, 200, html, 'text/html; charset=utf-8');
+  } catch (error) {
+    return reply(response, 502, error.message);
+  }
+}
+
 function createServer() {
   return http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host}`);
     if (request.method !== 'GET') return reply(response, 404, 'not_found');
     if (url.pathname === '/health') return reply(response, 200, 'ok');
     if (url.pathname === '/api') return handleApi(url, response);
+    if (url.pathname === '/search') return handleSearch(url, response);
     if (url.pathname === '/resolve') {
-      const postUrl = url.searchParams.get('url');
+      let postUrl = url.searchParams.get('url');
       if (!postUrl || postUrl.length > 4096) return reply(response, 400, 'invalid_url');
       try {
-        return reply(response, 200, await resolveBest(postUrl));
+        let index = url.searchParams.get('i');
+        const inner = new URL(postUrl, SELF_URL);
+        if (inner.origin === SELF_URL && inner.pathname === '/resolve') {
+          postUrl = inner.searchParams.get('url') || postUrl;
+          index = inner.searchParams.get('i') || index;
+        }
+        const button = index == null ? null : Number(index);
+        if (button != null && (!Number.isInteger(button) || button < 0)) throw new Error('invalid_index');
+        return reply(response, 200, button == null ? await resolveBest(postUrl) : await resolveButton(postUrl, button));
       } catch (error) {
         return reply(response, 502, error.message);
       }
@@ -445,4 +498,5 @@ module.exports = {
   parseSize,
   releaseTitle,
   pubDate,
+  searchPageHtml,
 };

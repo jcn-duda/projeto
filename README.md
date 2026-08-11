@@ -152,28 +152,22 @@ Depois da primeira inclusão do Bludv na UI, o estado continua persistido em
 
 O card **ComandoTorrents** é incluído na mesma imagem do Jackett. Adicione-o
 pela UI do Jackett depois de subir a stack. O `comandotorrents-resolver` segue
-o protetor de links, prioriza a versão dublada/dual áudio e entrega o magnet ao
-Jackett; ele também não expõe portas na rede local.
+o protetor de links e expande cada botão de qualidade/áudio em uma release do
+Jackett; ele não expõe portas na rede local.
 
 #### Card NerdFilmesTorrent / XNerdFilmes
 
 O card **NerdFilmesTorrent / XNerdFilmes** também é incluído na imagem local do Jackett.
 Adicione-o pela UI após reconstruir a stack. O resolver acompanha o domínio
-atual `xnerdfilmes.net`, segue o protetor de links e prioriza a melhor versão
-dublada/dual áudio.
-
-Para expor cada qualidade como uma release separada, adicione no Jackett um
-indexador **Torznab customizado** com a URL interna
-`http://nerdfilmes-resolver:8702/api`. O serviço não publica porta no host.
+atual `xnerdfilmes.net`, segue o protetor de links e expande cada qualidade e
+áudio como uma release separada. O serviço não publica porta no host.
 
 #### Card TorrentDosFilmes V2
 
 O card **TorrentDosFilmes V2** está incluído na imagem local do Jackett e
-prioriza a melhor versão dublada/dual áudio. Para a listagem completa — uma
-release por botão de qualidade/áudio — o resolver oferece o feed Torznab interno
-em
-`http://torrentdosfilmes-resolver:8703/api`. O serviço trata magnets diretos,
-o protetor SystemAds e a página JavaScript `DEST_URL`, sem expor porta no host.
+expande cada botão de qualidade/áudio em uma release do Jackett. O serviço trata
+magnets diretos, o protetor SystemAds e a página JavaScript `DEST_URL`, sem
+expor porta no host.
 
 ### Prowlarr (opcional)
 

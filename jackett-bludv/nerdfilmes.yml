@@ -31,27 +31,34 @@ search:
       args: ["\\s+", " "]
     - name: trim
   paths:
-    - path: "?s={{ .Keywords }}"
+    - path: "http://nerdfilmes-resolver:8702/search?q={{ .Query.Keywords }}"
 
   rows:
-    selector: "article.col"
+    selector: "div.posts > div.release"
 
   fields:
     title:
-      selector: ".image > a"
-      attribute: title
+      selector: "div.title > a"
     details:
-      selector: ".image > a"
+      selector: "div.title > a"
       attribute: href
     download:
-      selector: ".image > a"
+      selector: "div.title > a"
       attribute: href
     category:
       text: media
     poster:
       optional: true
-      selector: ".image img"
+      selector: "div.poster img"
       attribute: src
+    size:
+      selector: "div.size"
+      optional: true
+      filters:
+        - name: regexp
+          args: "([\\d.,]+\\s*(?:TB|GB|MB|KB))"
+        - name: re_replace
+          args: [",", "."]
     date:
       text: now
     seeders:
@@ -63,8 +70,7 @@ search:
     uploadvolumefactor:
       text: 1
 
-# Compatibilidade com o card do Jackett: retorna a melhor release dublada.
-# Para uma release por qualidade, adicione também o Torznab interno documentado.
+# O resolver produz uma linha por botão/qualidade e preserva `i` até o magnet.
 download:
   before:
     path: "http://nerdfilmes-resolver:8702/resolve"

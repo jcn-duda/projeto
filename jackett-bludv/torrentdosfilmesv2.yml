@@ -29,23 +29,28 @@ search:
       args: ["\\s+", " "]
     - name: trim
   paths:
-    - path: "?s={{ .Keywords }}"
+    - path: "http://torrentdosfilmes-resolver:8703/search?q={{ .Query.Keywords }}"
   rows:
-    selector: "main .post"
+    selector: "div.posts > div.release"
   fields:
     title:
-      selector: ".title > a"
-      attribute: title
+      selector: "div.title > a"
     details:
-      selector: ".title > a"
+      selector: "div.title > a"
       attribute: href
     download:
-      selector: ".title > a"
+      selector: "div.title > a"
       attribute: href
     category:
       text: media
     size:
-      text: "0 B"
+      selector: "div.size"
+      optional: true
+      filters:
+        - name: regexp
+          args: "([\\d.,]+\\s*(?:TB|GB|MB|KB))"
+        - name: re_replace
+          args: [",", "."]
     date:
       text: now
     seeders:
@@ -57,8 +62,7 @@ search:
     uploadvolumefactor:
       text: 1
 
-# Compatibilidade Jackett: uma melhor release por post. Para listar cada botão
-# como release individual, use o Torznab interno do resolver documentado no README.
+# O resolver expande cada botão como release separada e mantém `i` até o magnet.
 download:
   before:
     path: "http://torrentdosfilmes-resolver:8703/resolve"

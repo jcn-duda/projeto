@@ -30,32 +30,34 @@ search:
       args: ["\\s+", " "]
     - name: trim
   paths:
-    - path: "?s={{ .Keywords }}"
+    - path: "http://comandotorrents-resolver:8701/search?q={{ .Query.Keywords }}"
 
   rows:
-    selector: "article.blog-view"
+    selector: "div.posts > div.release"
 
   fields:
     title:
-      selector: "h2.entry-title > a"
+      selector: "div.title > a"
     details:
-      selector: "h2.entry-title > a"
+      selector: "div.title > a"
       attribute: href
     download:
-      selector: "h2.entry-title > a"
+      selector: "div.title > a"
       attribute: href
     category:
       text: media
     poster:
       optional: true
-      selector: ".entry-content img"
+      selector: "div.poster img"
       attribute: src
     size:
       optional: true
-      selector: ".entry-content"
+      selector: "div.size"
       filters:
         - name: regexp
-          args: "(?is).*?Tamanho\\s*:?[\\s\\S]{0,100}?([\\d.,]+\\s*(?:TB|GB|MB|KB)).*"
+          args: "([\\d.,]+\\s*(?:TB|GB|MB|KB))"
+        - name: re_replace
+          args: [",", "."]
     date:
       text: now
     seeders:
@@ -68,8 +70,8 @@ search:
     uploadvolumefactor:
       text: 1
 
-# O resolver prioriza links dublados/dual áudio e, depois, a melhor qualidade.
-# Cardigann emite uma release por post; não há expansão 1:N de links no formato.
+# O resolver expande cada botão em uma linha de busca, preservando o índice
+# exato em `i` até a resolução do magnet.
 download:
   before:
     path: "http://comandotorrents-resolver:8701/resolve"
