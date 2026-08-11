@@ -1,0 +1,77 @@
+---
+id: bludv-cardigann
+name: Bludv
+description: "BLUDV Filmes — torrents dublados e dual áudio em português"
+language: pt-BR
+type: public
+encoding: UTF-8
+requestDelay: 3
+links:
+  - https://bludvfilmes.xyz/
+
+caps:
+  categorymappings:
+    # O site não distingue séries na página de busca; exponha seus posts para
+    # ambas as categorias para que movie-search e tv-search não sejam filtrados.
+    - {id: media, cat: Movies, desc: Movies and TV}
+    - {id: media, cat: TV, desc: Movies and TV}
+  modes:
+    search: [q]
+    tv-search: [q, season, ep]
+    movie-search: [q]
+  allowrawsearch: true
+
+settings: []
+
+# Cada resultado é um post do WordPress. O primeiro botão Magnet-Link do post
+# é seguido até a página final, cujo JavaScript contém o magnet em `DEST_URL`.
+search:
+  paths:
+    - path: "?s={{ .Keywords }}"
+
+  rows:
+    selector: "div.posts > div.post"
+
+  fields:
+    title:
+      selector: "div.title > a"
+    details:
+      selector: "div.title > a"
+      attribute: href
+    download:
+      selector: "div.title > a"
+      attribute: href
+    category:
+      text: media
+    size:
+      text: "0 B"
+    date:
+      selector: ".icon .infos"
+      filters:
+        - name: regexp
+          args: "(\\d{2}/\\d{2}/\\d{4}).*"
+        - name: dateparse
+          args: "dd/MM/yyyy"
+    seeders:
+      # O BLUDV não publica seeds. Um valor neutro permite que clientes com
+      # MIN_SEEDERS=1 não descartem a release antes de consultar o swarm.
+      text: 1
+    leechers:
+      text: 0
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1
+
+download:
+  before:
+    # O resolver segue os redirects do protetor e devolve o magnet como texto.
+    path: "http://bludv-resolver:8700/resolve"
+    inputs:
+      url: "{{ .DownloadUri.AbsoluteUri }}"
+  selectors:
+    - selector: body
+      usebeforeresponse: true
+      filters:
+        - name: regexp
+          args: "(magnet:.+)"

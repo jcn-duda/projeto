@@ -1,0 +1,7 @@
+comet.seudominio.com {
+	reverse_proxy comet:8000
+}
+
+adom.seudominio.com {
+	reverse_proxy addon:7000
+}

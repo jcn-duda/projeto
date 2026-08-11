@@ -1,0 +1,94 @@
+# Stack: Adom (torrents + debrid próprio) + Jackett.
+# Antes de expor a stack, aponte adom.seudominio.com para a VPS e
+# substitua o domínio no Caddyfile.
+services:
+  addon:
+    build: .
+    container_name: stremio-adom
+    restart: unless-stopped
+    ports:
+      # Exposto na LAN pro Fire TV alcançar (127.0.0.1 só serviria a esta máquina).
+      - "${PORT:-7000}:7000"
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 7000
+      JACKETT_URL: http://jackett:9117
+      PROWLARR_URL: http://prowlarr:9696
+    depends_on:
+      - jackett
+    networks:
+      - adom
+
+  jackett:
+    build:
+      context: ./jackett-bludv
+    image: stremio-adom-jackett:local
+    container_name: stremio-adom-jackett
+    restart: unless-stopped
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: America/Sao_Paulo
+      # Atualizações no container poderiam sobrescrever a definição local Bludv.
+      # Atualize com `docker compose build --pull jackett && docker compose up -d jackett`.
+      AUTO_UPDATE: "false"
+    volumes:
+      - ./docker-data/jackett:/config
+      - ./docker-data/downloads:/downloads
+    ports:
+      - "127.0.0.1:9117:9117"
+    depends_on:
+      - bludv-resolver
+    networks:
+      - adom
+
+  bludv-resolver:
+    build:
+      context: ./bludv-resolver
+    container_name: stremio-adom-bludv-resolver
+    restart: unless-stopped
+    networks:
+      - adom
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: stremio-adom-prowlarr
+    restart: unless-stopped
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: America/Sao_Paulo
+    volumes:
+      - ./docker-data/prowlarr:/config
+    ports:
+      - "127.0.0.1:9696:9696"
+    networks:
+      - adom
+    profiles:
+      - full
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: stremio-adom-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - addon
+    networks:
+      - adom
+
+networks:
+  adom:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

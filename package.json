@@ -1,0 +1,29 @@
+{
+  "name": "stremio-adom",
+  "version": "1.0.0",
+  "description": "Addon Stremio self-hosted: torrents via Jackett/Prowlarr + Docker",
+  "main": "src/addon.js",
+  "scripts": {
+    "start": "node src/addon.js",
+    "dev": "node --watch src/addon.js",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f addon"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "stremio",
+    "addon",
+    "torrent",
+    "jackett",
+    "prowlarr",
+    "docker"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "stremio-addon-sdk": "^1.6.10"
+  }
+}
