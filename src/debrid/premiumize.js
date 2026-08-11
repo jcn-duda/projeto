@@ -1,5 +1,6 @@
 const config = require('../config');
 const { TRACKERS } = require('../utils/format');
+const { opts } = require('../runtime');
 
 const API = 'https://www.premiumize.me/api';
 
@@ -10,7 +11,7 @@ function magnetFor(infoHash) {
 
 async function call(path, { method = 'GET', params = {}, body } = {}) {
   const url = new URL(`${API}${path}`);
-  url.searchParams.set('apikey', config.debrid.apiKey);
+  url.searchParams.set('apikey', opts().debridApiKey);
   for (const [k, v] of Object.entries(params)) {
     if (Array.isArray(v)) v.forEach((item) => url.searchParams.append(k, item));
     else url.searchParams.set(k, v);
@@ -36,7 +37,7 @@ async function call(path, { method = 'GET', params = {}, body } = {}) {
  * Retorna um Set com os hashes disponíveis.
  */
 async function checkCached(infoHashes) {
-  if (!config.debrid.apiKey || infoHashes.length === 0) return new Set();
+  if (!opts().debridApiKey || infoHashes.length === 0) return new Set();
 
   const cached = new Set();
   // A API aceita lote; mantemos blocos pra não montar URLs gigantes.
@@ -83,7 +84,7 @@ function pickFile(files, { season, episode } = {}) {
  * directdl é caro demais pra rodar em cima da lista inteira de torrents.
  */
 async function resolveLink(infoHash, { season, episode } = {}) {
-  if (!config.debrid.apiKey) return null;
+  if (!opts().debridApiKey) return null;
 
   const body = new URLSearchParams({ src: magnetFor(infoHash) });
   const data = await call('/transfer/directdl', { method: 'POST', params: {}, body });

@@ -14,6 +14,7 @@ const {
 const cache = require('../utils/cache');
 const premiumize = require('../debrid/premiumize');
 const tmdb = require('../utils/tmdb');
+const { opts, prefix } = require('../runtime');
 
 /**
  * Fontes BR não publicam seeders, então ficam no fim da ordenação e caem fora
@@ -21,12 +22,12 @@ const tmdb = require('../utils/tmdb');
  * vagas pra elas antes de aplicar MAX_RESULTS.
  */
 function limitReservingBr(streams) {
-  const isBr = (s) => /BLUDV|DUBLADO/i.test(s.title || '');
-  const br = streams.filter(isBr).slice(0, config.brReservedSlots);
-  if (br.length === 0) return streams.slice(0, config.maxResults);
-
-  const rest = streams.filter((s) => !br.includes(s));
-  return [...br, ...rest].slice(0, config.maxResults);
+  const { brReservedSlots, maxResults, brOnly } = opts();
+  const pool = brOnly ? streams.filter((s) => s._br) : streams;
+  const reserved = new Set(pool.filter((s) => s._br).slice(0, brReservedSlots));
+  const ordered = reserved.size ? [...reserved, ...pool.filter((s) => !reserved.has(s))] : pool;
+  // `_br` é interno; não pode vazar no objeto que vai pro Stremio.
+  return ordered.slice(0, maxResults).map(({ _br, ...stream }) => stream);
 }
 
 /**
@@ -34,10 +35,15 @@ function limitReservingBr(streams) {
  * link de play que passa pela nossa rota /resolve.
  */
 async function applyDebrid(streams, { season, episode }) {
-  const { service, cachedOnly, publicUrl } = config.debrid;
+  const { debridService: service, debridCachedOnly: cachedOnly } = opts();
+  const { publicUrl } = config.debrid;
   if (service !== 'premiumize' || streams.length === 0) return streams;
 
-  const cached = await premiumize.checkCached(streams.map((s) => s.infoHash));
+  // Só quem ainda é torrent tem hash pra consultar; stream já resolvido não entra no lote.
+  const hashes = streams.map((s) => s.infoHash).filter(Boolean);
+  if (hashes.length === 0) return streams;
+
+  const cached = await premiumize.checkCached(hashes);
   console.log(`[debrid] ${cached.size}/${streams.length} em cache no premiumize`);
 
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
@@ -52,7 +58,7 @@ async function applyDebrid(streams, { season, episode }) {
     out.push({
       ...s,
       name: s.name.replace('Adom', 'Adom ⚡'),
-      url: `${publicUrl}/resolve/${s.infoHash}${ep}`,
+      url: `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}`,
       infoHash: undefined,
       sources: undefined,
     });
@@ -64,15 +70,18 @@ async function applyDebrid(streams, { season, episode }) {
 const inFlight = new Map();
 
 async function collectRaw(query, type, imdbId, ptQuery) {
-  const mode = config.provider;
+  const { providers } = opts();
+  const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
   const tasks = [];
 
   if (mode === 'demo') {
     return demo.search({ type, imdbId });
   }
 
+  const wants = (name) => mode === 'both' || providers.includes(name);
+
   // demo sempre disponível como fallback de teste se quiser both+demo — aqui só jackett/prowlarr
-  if (mode === 'jackett' || mode === 'both') {
+  if (wants('jackett')) {
     if (config.jackett.indexers.length === 0) {
       tasks.push(jackett.search(query, type));
     } else {
@@ -86,7 +95,7 @@ async function collectRaw(query, type, imdbId, ptQuery) {
       if (brIndexers.length) tasks.push(jackett.search(ptQuery || query, type, brIndexers));
     }
   }
-  if (mode === 'prowlarr' || mode === 'both') {
+  if (wants('prowlarr')) {
     tasks.push(prowlarr.search(query));
   }
 
@@ -116,7 +125,10 @@ async function findStreams({ type, id }) {
     return [];
   }
 
-  const cacheKey = `streams:${type}:${id}:${config.provider}`;
+  // A config do usuário entra na chave: dois install URLs com qualidades ou
+  // debrid diferentes não podem compartilhar o mesmo resultado cacheado.
+  const { debridApiKey, ...shape } = opts();
+  const cacheKey = `streams:${type}:${id}:${JSON.stringify(shape)}:${debridApiKey ? 'dk' : ''}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
@@ -143,6 +155,7 @@ async function findStreams({ type, id }) {
 }
 
 async function doSearch({ type, id, cacheKey }) {
+  const isDemo = opts().providers.includes('demo');
   const { imdbId, season, episode } = parseStremioId(id);
   // Cinemeta e TMDB em paralelo: o título pt-BR não pode atrasar a busca.
   const [meta, titles] = await Promise.all([getMeta(type, imdbId), tmdb.getTitles(imdbId)]);
@@ -155,24 +168,31 @@ async function doSearch({ type, id, cacheKey }) {
       : null;
 
   console.log(
-    `[search] ${type} ${id} → "${query}"${ptQuery ? ` | pt-BR: "${ptQuery}"` : ''} via ${config.provider}`,
+    `[search] ${type} ${id} → "${query}"${ptQuery ? ` | pt-BR: "${ptQuery}"` : ''} via ${opts().providers.join('+')}`,
   );
 
   let raw = await collectRaw(query, type, imdbId, ptQuery);
 
   // Série sem resultado por episódio: tenta o pack da temporada (ex.: "Nome S01").
-  if (raw.length === 0 && season != null && config.provider !== 'demo') {
-    const packQuery = `${meta?.name || imdbId} S${String(season).padStart(2, '0')}`;
-    console.log(`[search] sem resultados; tentando pack "${packQuery}"`);
-    raw = await collectRaw(packQuery, type, imdbId);
+  if (raw.length === 0 && season != null && !isDemo) {
+    const s = String(season).padStart(2, '0');
+    const packQuery = `${meta?.name || imdbId} S${s}`;
+    // O fallback também precisa do título pt-BR: é justamente aqui, quando a
+    // busca por episódio falhou, que as fontes BR (que só publicam pack de
+    // temporada) teriam algo — e elas não indexam pelo nome em inglês.
+    const ptPackQuery = ptQuery && titles?.pt ? `${titles.pt} S${s}` : null;
+    console.log(
+      `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
+    );
+    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery);
   }
 
   // No modo demo, se não for BBB, lista vazia (esperado)
-  if (config.provider === 'demo' && raw.length === 0) {
+  if (isDemo && raw.length === 0) {
     console.log('[search] modo demo: só tt1254207 (Big Buck Bunny) tem stream de teste');
   }
 
-  if (meta?.name && config.provider !== 'demo') {
+  if (meta?.name && !isDemo) {
     // Aceita qualquer um dos nomes: release BR vem como "Coringa", a do Jackett
     // como "Joker" — filtrar só pelo inglês jogaria fora a fonte dublada.
     const names = [meta.name, titles?.pt, titles?.original].filter(Boolean);
@@ -183,10 +203,11 @@ async function doSearch({ type, id, cacheKey }) {
 
   // Pool maior que MAX_RESULTS: o corte final é DEPOIS do debrid, senão fontes
   // sem seeders publicados (BLUDV) e não-cacheados ocupariam as vagas e sumiriam.
+  const { minSeeders, maxResults, qualities } = opts();
   let streams = sortAndLimit(raw.map(toStremioStream), {
-    minSeeders: config.minSeeders,
-    maxResults: config.maxResults * config.candidatePoolFactor,
-    qualityFilter: config.qualityFilter,
+    minSeeders,
+    maxResults: maxResults * config.candidatePoolFactor,
+    qualityFilter: qualities,
   });
 
   streams = limitReservingBr(await applyDebrid(streams, { season, episode }));

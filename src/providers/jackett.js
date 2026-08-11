@@ -1,7 +1,11 @@
 const config = require('../config');
 const { matchesName } = require('../utils/format');
 
-function mapResults(data) {
+// Abaixo disso não vale abrir mais um salto de protetor de link: a requisição
+// abortaria no meio e ainda gastaria o resto do orçamento.
+const MIN_RESOLVE_BUDGET = 400;
+
+function mapResults(data, { isBr = false } = {}) {
   const results = Array.isArray(data?.Results) ? data.Results : Array.isArray(data) ? data : [];
   return results.map((r) => ({
     title: r.Title,
@@ -11,6 +15,7 @@ function mapResults(data) {
     size: r.Size,
     tracker: r.Tracker || r.TrackerId,
     downloadUrl: r.Link,
+    isBr,
   }));
 }
 
@@ -31,12 +36,12 @@ async function mapLimit(items, limit, fn) {
   return output;
 }
 
-async function resolveDownloadMagnet(url) {
+async function resolveDownloadMagnet(url, budgetMs) {
   if (!url) return null;
   const response = await fetch(url, {
     redirect: 'manual',
     headers: { Accept: 'text/plain,application/x-bittorrent' },
-    signal: AbortSignal.timeout(config.jackett.downloadTimeout),
+    signal: AbortSignal.timeout(Math.min(config.jackett.downloadTimeout, budgetMs)),
   });
   const location = response.headers.get('location');
   if (location && /^magnet:\?/i.test(location)) return location;
@@ -46,8 +51,17 @@ async function resolveDownloadMagnet(url) {
   return match ? match[0].replace(/&amp;/gi, '&') : null;
 }
 
-async function resolveCardigannDownloads(indexer, items, query) {
+/** Milissegundos restantes do orçamento do indexer, ou 0 se já estourou. */
+function remaining(deadline) {
+  return Math.max(0, deadline - Date.now());
+}
+
+async function resolveCardigannDownloads(indexer, items, query, deadline) {
   if (!config.jackett.resolveDownloadIndexers.includes(indexer)) return items;
+  if (remaining(deadline) <= MIN_RESOLVE_BUDGET) {
+    console.warn(`[jackett] ${indexer}: sem orçamento para resolver magnets`);
+    return items;
+  }
   // WordPress costuma devolver posts apenas relacionados. Antes de seguir
   // protetores caros, descarta o que claramente não casa com a busca.
   const wanted = String(query || '')
@@ -66,7 +80,11 @@ async function resolveCardigannDownloads(indexer, items, query) {
     .slice(0, config.jackett.maxDownloadResolves);
   const resolved = await mapLimit(candidates, config.jackett.resolveConcurrency, async (item) => {
     if (item.infoHash || /^magnet:\?/i.test(item.magnet || '')) return item;
-    const magnet = await resolveDownloadMagnet(item.downloadUrl);
+    // Cada salto cabe no que sobrou do orçamento: um protetor de link lento não
+    // pode empurrar o indexer inteiro além do REPLY_DEADLINE.
+    const budget = remaining(deadline);
+    if (budget <= MIN_RESOLVE_BUDGET) return item;
+    const magnet = await resolveDownloadMagnet(item.downloadUrl, budget);
     return magnet ? { ...item, magnet } : item;
   });
   const count = resolved.filter((item) => /^magnet:\?/i.test(item.magnet || '')).length;
@@ -85,17 +103,28 @@ async function queryIndexer(indexer, query, type) {
 
   // Indexers BR raspam WordPress e ainda seguem protetores de link; com o
   // prazo dos globais eles eram descartados DEPOIS de já ter feito o trabalho.
-  const isBr = config.jackett.ptBrIndexers.includes(indexer) || config.jackett.slowIndexers.includes(indexer);
-  const timeout = isBr ? config.jackett.brIndexerTimeout : config.jackett.indexerTimeout;
+  const isSlow =
+    config.jackett.ptBrIndexers.includes(indexer) || config.jackett.slowIndexers.includes(indexer);
+  // Orçamento TOTAL do indexer (busca + resolução de magnets), não só do fetch:
+  // o resolve roda fora do AbortSignal da busca e somava o próprio timeout por
+  // cima, estourando o REPLY_DEADLINE e zerando o resultado.
+  const timeout = isSlow ? config.jackett.brIndexerTimeout : config.jackett.indexerTimeout;
 
   const started = Date.now();
+  const deadline = started + timeout;
   const res = await fetch(endpoint, {
     headers: { Accept: 'application/json', 'User-Agent': 'stremio-adom/1.0' },
     signal: AbortSignal.timeout(timeout),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-  const items = await resolveCardigannDownloads(indexer, mapResults(await res.json()), query);
+  const isBr = config.jackett.ptBrIndexers.includes(indexer);
+  const items = await resolveCardigannDownloads(
+    indexer,
+    mapResults(await res.json(), { isBr }),
+    query,
+    deadline,
+  );
   return { indexer, items, ms: Date.now() - started };
 }
 

@@ -37,10 +37,11 @@ const config = {
     ptBrIndexers: list(
       process.env.JACKETT_PT_BR_INDEXERS || 'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2',
     ),
-    // Prazo maior para os que raspam site + resolvem protetor de link, mas
-    // ainda MENOR que REPLY_DEADLINE_MS: acima dele a busca inteira espera
-    // pelos BR, estoura o deadline e devolve lista vazia.
-    brIndexerTimeout: num(process.env.JACKETT_BR_INDEXER_TIMEOUT_MS, 6500),
+    // Orçamento TOTAL (busca + resolução de magnets) dos que raspam site e
+    // seguem protetor de link. Precisa ser MENOR que REPLY_DEADLINE_MS: acima
+    // dele a busca inteira espera pelos BR, estoura o deadline e devolve lista
+    // vazia. JACKETT_DOWNLOAD_TIMEOUT_MS é o teto por salto DENTRO deste.
+    brIndexerTimeout: num(process.env.JACKETT_BR_INDEXER_TIMEOUT_MS, 7500),
     // Lentos porém úteis: medidos em 8-9s, perdiam o prazo dos globais.
     slowIndexers: list(
       process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent,apachetorrent',

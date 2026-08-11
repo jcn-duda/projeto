@@ -1,4 +1,5 @@
 const config = require('../config');
+const { opts } = require('../runtime');
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
@@ -123,7 +124,7 @@ async function collectFromPost(post) {
   const html = await get(post.url, config.bludv.baseUrl);
   let links = parseDownloadLinks(html);
 
-  if (config.bludv.dubbedOnly) {
+  if (opts().dubbedOnly) {
     links = links.filter((l) => l.audio !== 'legendado');
   }
   links = links.slice(0, config.bludv.maxLinksPerPost);
@@ -144,6 +145,7 @@ async function collectFromPost(post) {
       size: link.size ? parseSize(link.size) : null,
       tracker: 'BLUDV',
       audio: link.audio,
+      isBr: true,
     };
   });
 

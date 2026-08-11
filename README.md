@@ -59,11 +59,43 @@ npm start
 
 ### 3. Instalar no Stremio
 
-1. Abra o Stremio  
-2. **Addons** → caixinha de busca / “Addon repository URL”  
-3. Cole: `http://127.0.0.1:7000/manifest.json`  
-4. Instale **Stremio Adom**  
-5. Busque o filme **Big Buck Bunny** e abra os streams  
+Abra **`http://127.0.0.1:7000/configure`** no navegador, escolha as opções e
+clique em **Instalar no Stremio**.
+
+Ou, para instalar com os padrões do `.env`, cole
+`http://127.0.0.1:7000/manifest.json` em **Addons → Addon repository URL**.
+
+Depois, busque o filme **Big Buck Bunny** e abra os streams.
+
+---
+
+## Página de configuração
+
+Igual ao Torrentio: as opções ficam **codificadas no próprio install URL**
+(`/<config>/manifest.json`), então o servidor não guarda estado e cada pessoa da
+casa pode instalar com preferências diferentes na mesma instância.
+
+Dá pra ajustar:
+
+| Opção | O que faz |
+|---|---|
+| Fontes | Jackett, Prowlarr ou modo demo |
+| Qualidade | Filtra 4K / 1080p / 720p / 480p |
+| Vagas BR | Quantos slots ficam garantidos para fontes brasileiras |
+| Somente dublado | Descarta as versões legendadas dos posts BR |
+| Só fontes BR | Esconde tudo que não vier dos indexers brasileiros |
+| Máx. streams · mín. seeders | Tamanho e piso do resultado |
+| Debrid | Serviço + API key, e se mostra só o que já está em cache |
+
+Para mudar depois, abra o **botão de engrenagem** do addon no Stremio — ele volta
+para a página já preenchida com a sua configuração atual.
+
+> A API key do debrid viaja **dentro** do install URL. Trate esse link como
+> senha e não compartilhe.
+
+> Sem configuração na URL, o addon usa o `.env` — **inclusive a `DEBRID_API_KEY`
+> do operador**. Se for expor a instância publicamente, deixe `DEBRID_API_KEY`
+> vazia e peça que cada pessoa coloque a sua na página.
 
 ---
 

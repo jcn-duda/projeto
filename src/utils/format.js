@@ -89,6 +89,10 @@ function toStremioStream(item) {
     },
     _seeders: seeders,
     _quality: quality,
+    // Origem BR vem marcada pelo provider, não deduzida do título: releases de
+    // comandotorrents/nerdfilmes/torrentdosfilmes não citam "BLUDV" nem
+    // "DUBLADO" e ficavam de fora das vagas reservadas.
+    _br: Boolean(item.isBr),
   };
 }
 
@@ -121,7 +125,15 @@ function dedupeByHash(streams) {
   for (const s of streams) {
     if (!s) continue;
     const prev = best.get(s.infoHash);
-    if (!prev || (s._seeders || 0) > (prev._seeders || 0)) best.set(s.infoHash, s);
+    if (!prev) {
+      best.set(s.infoHash, s);
+      continue;
+    }
+    // A mesma release pode vir de um indexer global (com seeders) e de um BR.
+    // Fica a de mais seeders, mas a marca de origem BR não pode se perder no
+    // desempate, senão a vaga reservada deixa de proteger a fonte dublada.
+    const winner = (s._seeders || 0) > (prev._seeders || 0) ? s : prev;
+    best.set(s.infoHash, { ...winner, _br: winner._br || s._br || prev._br });
   }
   return [...best.values()];
 }

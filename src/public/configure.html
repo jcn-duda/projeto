@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Stremio Adom — Configurar</title>
+<style>
+  :root {
+    --bg: #0d0b16;
+    --bg-glow: #1b1430;
+    --surface: rgba(255, 255, 255, 0.045);
+    --surface-2: rgba(255, 255, 255, 0.07);
+    --border: rgba(255, 255, 255, 0.09);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --text: #f2f0f7;
+    --muted: #a09bb4;
+    --accent: #8c5cf6;
+    --accent-2: #c65cf6;
+    --accent-soft: rgba(140, 92, 246, 0.16);
+    --green: #46d39a;
+    --radius: 14px;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 0 20px 96px;
+    background:
+      radial-gradient(1100px 620px at 50% -12%, var(--bg-glow) 0%, transparent 62%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  /* ---------- cabeçalho ---------- */
+  header { padding: 60px 0 36px; text-align: center; }
+
+  .logo {
+    width: 62px; height: 62px;
+    margin: 0 auto 20px;
+    display: grid; place-items: center;
+    border-radius: 18px;
+    background: linear-gradient(145deg, var(--accent), var(--accent-2));
+    box-shadow: 0 14px 40px -10px rgba(140, 92, 246, 0.65);
+    font-size: 30px;
+  }
+
+  h1 {
+    margin: 0 0 10px;
+    font-size: clamp(28px, 5vw, 38px);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+
+  .tagline { margin: 0; color: var(--muted); font-size: 16px; }
+
+  .badges {
+    margin-top: 18px;
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  }
+  .badge {
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+  .badge b { color: var(--text); font-weight: 600; }
+
+  /* ---------- seções ---------- */
+  section {
+    margin-bottom: 16px;
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .sec-head { margin-bottom: 18px; }
+  .sec-head h2 {
+    margin: 0 0 4px;
+    font-size: 16px; font-weight: 650; letter-spacing: -0.01em;
+  }
+  .sec-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
+
+  /* ---------- chips ---------- */
+  .chips { display: flex; flex-wrap: wrap; gap: 9px; }
+
+  .chip {
+    position: relative;
+    padding: 9px 15px;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit; font-size: 13.5px; font-weight: 550;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s, transform .1s;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip:active { transform: scale(.97); }
+  .chip[aria-pressed="true"] {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  /* ---------- toggles ---------- */
+  .row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 0;
+    border-top: 1px solid var(--border);
+  }
+  .row:first-child { border-top: 0; padding-top: 0; }
+  .row-text { flex: 1; min-width: 0; }
+  .row-text strong { display: block; font-size: 14px; font-weight: 600; }
+  .row-text span { color: var(--muted); font-size: 13px; }
+
+  .switch {
+    flex-shrink: 0;
+    width: 46px; height: 27px;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: rgba(255,255,255,.06);
+    cursor: pointer;
+    transition: background .18s, border-color .18s;
+  }
+  .switch::after {
+    content: "";
+    display: block;
+    width: 19px; height: 19px;
+    margin-left: 3px;
+    border-radius: 50%;
+    background: #cfc9de;
+    transition: transform .18s, background .18s;
+  }
+  .switch[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .switch[aria-pressed="true"]::after { transform: translateX(19px); background: #fff; }
+
+  /* ---------- sliders / inputs ---------- */
+  .field { padding: 14px 0; border-top: 1px solid var(--border); }
+  .field:first-child { border-top: 0; padding-top: 0; }
+
+  .field-label {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    margin-bottom: 10px;
+  }
+  .field-label strong { font-size: 14px; font-weight: 600; }
+  .field-label output {
+    padding: 2px 9px;
+    border-radius: 7px;
+    background: var(--accent-soft);
+    color: #cbb4ff;
+    font-size: 13px; font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .field-hint { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 5px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.11);
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 17px; height: 17px;
+    border: 0; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(140,92,246,.22);
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 17px; height: 17px;
+    border: 0; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(140,92,246,.22);
+    cursor: pointer;
+  }
+
+  input[type="text"], input[type="password"], select {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: rgba(0,0,0,.28);
+    color: var(--text);
+    font: inherit; font-size: 14px;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  input::placeholder { color: #6d6784; }
+
+  select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a09bb4' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 13px center;
+    padding-right: 36px;
+  }
+
+  /* ---------- barra de instalação ---------- */
+  .install {
+    position: sticky; bottom: 16px;
+    margin-top: 26px;
+    padding: 20px;
+    border: 1px solid rgba(140,92,246,.38);
+    border-radius: var(--radius);
+    background: linear-gradient(160deg, rgba(140,92,246,.16), rgba(20,16,34,.94));
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 50px -18px rgba(0,0,0,.85);
+  }
+
+  .url {
+    display: block;
+    margin-bottom: 14px;
+    padding: 11px 13px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: rgba(0,0,0,.42);
+    color: #bfb6e0;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    word-break: break-all;
+    max-height: 62px;
+    overflow-y: auto;
+  }
+
+  .actions { display: flex; gap: 10px; }
+
+  .btn {
+    flex: 1;
+    padding: 13px 18px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    font: inherit; font-size: 14.5px; font-weight: 650;
+    text-align: center; text-decoration: none;
+    cursor: pointer;
+    transition: filter .15s, transform .1s, background .15s;
+  }
+  .btn:active { transform: scale(.985); }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    box-shadow: 0 8px 26px -8px rgba(140,92,246,.75);
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+
+  .btn-ghost {
+    flex: 0 0 auto;
+    min-width: 116px;
+    border-color: var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .btn-ghost:hover { border-color: var(--accent); }
+  .btn-ghost.ok { border-color: var(--green); color: var(--green); }
+
+  footer {
+    margin-top: 34px;
+    color: var(--muted);
+    font-size: 12.5px;
+    text-align: center;
+  }
+  footer code {
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: var(--surface-2);
+    font-size: 11.5px;
+  }
+
+  @media (max-width: 560px) {
+    header { padding-top: 40px; }
+    section { padding: 20px 17px; }
+    .actions { flex-direction: column; }
+    .btn-ghost { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">🇧🇷</div>
+    <h1>Stremio Adom</h1>
+    <p class="tagline">Torrents self-hosted com prioridade para conteúdo brasileiro dublado.</p>
+    <div class="badges">
+      <span class="badge">Jackett · Prowlarr</span>
+      <span class="badge">Premiumize</span>
+      <span class="badge">Fontes BR: <b>BLUDV · Comando · NerdFilmes</b></span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>Fontes</h2>
+      <p>De onde os torrents são buscados. As fontes BR entram sempre, em paralelo.</p>
+    </div>
+    <div class="chips" id="providers">
+      <button type="button" class="chip" data-value="jackett">Jackett</button>
+      <button type="button" class="chip" data-value="prowlarr">Prowlarr</button>
+      <button type="button" class="chip" data-value="demo">Demo (teste)</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Qualidade</h2>
+      <p>Nenhuma marcada = todas as qualidades entram no resultado.</p>
+    </div>
+    <div class="chips" id="qualities">
+      <button type="button" class="chip" data-value="2160p">4K · 2160p</button>
+      <button type="button" class="chip" data-value="1080p">1080p</button>
+      <button type="button" class="chip" data-value="720p">720p</button>
+      <button type="button" class="chip" data-value="480p">480p</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Preferência brasileira</h2>
+      <p>Sites BR não publicam seeders, então perderiam todas as vagas para releases
+         internacionais. As vagas reservadas garantem que elas apareçam.</p>
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <strong>Vagas garantidas para fontes BR</strong>
+        <output id="outBr">6</output>
+      </div>
+      <input type="range" id="brSlots" min="0" max="20" step="1" value="6" />
+      <p class="field-hint">0 desliga a reserva — as fontes BR passam a competir por seeders.</p>
+    </div>
+
+    <div class="row">
+      <div class="row-text">
+        <strong>Somente áudio dublado</strong>
+        <span>Descarta as versões legendadas dos posts BR.</span>
+      </div>
+      <button type="button" class="switch" id="dubbedOnly" aria-pressed="true"></button>
+    </div>
+
+    <div class="row">
+      <div class="row-text">
+        <strong>Só fontes brasileiras</strong>
+        <span>Esconde tudo que não vier dos indexers BR. Reduz muito o resultado.</span>
+      </div>
+      <button type="button" class="switch" id="brOnly" aria-pressed="false"></button>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Resultados</h2>
+      <p>Quanto o addon devolve por título e o piso de saúde do torrent.</p>
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <strong>Máximo de streams</strong>
+        <output id="outMax">40</output>
+      </div>
+      <input type="range" id="maxResults" min="5" max="100" step="5" value="40" />
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <strong>Mínimo de seeders</strong>
+        <output id="outSeed">1</output>
+      </div>
+      <input type="range" id="minSeeders" min="0" max="50" step="1" value="1" />
+      <p class="field-hint">Fontes BR entram com 1 seeder fixo; acima disso elas somem.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Debrid</h2>
+      <p>Play instantâneo, sem P2P local. A chave fica só no seu link de instalação.</p>
+    </div>
+
+    <div class="field">
+      <div class="field-label"><strong>Serviço</strong></div>
+      <select id="debridService">
+        <option value="">Nenhum — P2P direto</option>
+        <option value="premiumize">Premiumize</option>
+      </select>
+    </div>
+
+    <div class="field" id="debridKeyField" hidden>
+      <div class="field-label"><strong>API key</strong></div>
+      <input type="password" id="debridApiKey" placeholder="cole sua API key" autocomplete="off" spellcheck="false" />
+      <p class="field-hint">Fica codificada na URL do addon. Não compartilhe esse link.</p>
+    </div>
+
+    <div class="row" id="cachedOnlyRow" hidden>
+      <div class="row-text">
+        <strong>Somente já em cache</strong>
+        <span>Esconde o que exigiria download no debrid antes de tocar.</span>
+      </div>
+      <button type="button" class="switch" id="debridCachedOnly" aria-pressed="true"></button>
+    </div>
+  </section>
+
+  <div class="install">
+    <code class="url" id="installUrl">…</code>
+    <div class="actions">
+      <a class="btn btn-primary" id="installBtn" href="#">Instalar no Stremio</a>
+      <button type="button" class="btn btn-ghost" id="copyBtn">Copiar link</button>
+    </div>
+  </div>
+
+  <footer>
+    Padrões vêm do <code>.env</code> desta instância. Suas escolhas viajam codificadas
+    na URL — o servidor não guarda nada.
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Chaves curtas: a config inteira vira um segmento de URL, então nome longo
+  // custa caro. Precisa bater com SCHEMA em src/runtime.js.
+  var KEYS = {
+    providers: "p", qualities: "q", maxResults: "m", minSeeders: "s",
+    brReservedSlots: "b", brOnly: "o", dubbedOnly: "d",
+    debridService: "ds", debridApiKey: "dk", debridCachedOnly: "dc"
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var el = {
+    providers: $("providers"), qualities: $("qualities"),
+    brSlots: $("brSlots"), outBr: $("outBr"),
+    maxResults: $("maxResults"), outMax: $("outMax"),
+    minSeeders: $("minSeeders"), outSeed: $("outSeed"),
+    brOnly: $("brOnly"), dubbedOnly: $("dubbedOnly"),
+    debridService: $("debridService"), debridApiKey: $("debridApiKey"),
+    debridKeyField: $("debridKeyField"),
+    debridCachedOnly: $("debridCachedOnly"), cachedOnlyRow: $("cachedOnlyRow"),
+    installUrl: $("installUrl"), installBtn: $("installBtn"), copyBtn: $("copyBtn")
+  };
+
+  /* ---------- helpers de estado ---------- */
+
+  function chipsSelected(group) {
+    return Array.prototype.filter
+      .call(group.querySelectorAll(".chip"), function (c) { return c.getAttribute("aria-pressed") === "true"; })
+      .map(function (c) { return c.dataset.value; });
+  }
+
+  function setChips(group, values) {
+    Array.prototype.forEach.call(group.querySelectorAll(".chip"), function (c) {
+      c.setAttribute("aria-pressed", values.indexOf(c.dataset.value) !== -1 ? "true" : "false");
+    });
+  }
+
+  function isOn(sw) { return sw.getAttribute("aria-pressed") === "true"; }
+  function setOn(sw, on) { sw.setAttribute("aria-pressed", on ? "true" : "false"); }
+
+  /* ---------- base64url: mesma codificação que o servidor decodifica ---------- */
+
+  function encodeConfig(obj) {
+    var json = JSON.stringify(obj);
+    var b64 = btoa(unescape(encodeURIComponent(json)));
+    return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function decodeConfig(segment) {
+    try {
+      var b64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      return JSON.parse(decodeURIComponent(escape(atob(b64))));
+    } catch (e) { return null; }
+  }
+
+  /* ---------- montagem da URL ---------- */
+
+  function collect() {
+    var cfg = {};
+    cfg[KEYS.providers] = chipsSelected(el.providers).join(",");
+    cfg[KEYS.qualities] = chipsSelected(el.qualities).join(",");
+    cfg[KEYS.maxResults] = Number(el.maxResults.value);
+    cfg[KEYS.minSeeders] = Number(el.minSeeders.value);
+    cfg[KEYS.brReservedSlots] = Number(el.brSlots.value);
+    cfg[KEYS.brOnly] = isOn(el.brOnly) ? 1 : 0;
+    cfg[KEYS.dubbedOnly] = isOn(el.dubbedOnly) ? 1 : 0;
+    cfg[KEYS.debridService] = el.debridService.value;
+    cfg[KEYS.debridCachedOnly] = isOn(el.debridCachedOnly) ? 1 : 0;
+    // Chave vazia não entra: evita gravar "dk":"" no link à toa.
+    if (el.debridService.value && el.debridApiKey.value.trim()) {
+      cfg[KEYS.debridApiKey] = el.debridApiKey.value.trim();
+    }
+    return cfg;
+  }
+
+  function render() {
+    el.outBr.textContent = el.brSlots.value;
+    el.outMax.textContent = el.maxResults.value;
+    el.outSeed.textContent = el.minSeeders.value === "0" ? "sem filtro" : el.minSeeders.value;
+
+    var hasDebrid = !!el.debridService.value;
+    el.debridKeyField.hidden = !hasDebrid;
+    el.cachedOnlyRow.hidden = !hasDebrid;
+
+    var url = location.origin + "/" + encodeConfig(collect()) + "/manifest.json";
+    el.installUrl.textContent = url;
+    el.installBtn.href = url.replace(/^https?:/, "stremio:");
+    el.copyBtn.dataset.url = url;
+  }
+
+  /* ---------- eventos ---------- */
+
+  [el.providers, el.qualities].forEach(function (group) {
+    group.addEventListener("click", function (ev) {
+      var chip = ev.target.closest(".chip");
+      if (!chip) return;
+      // Fonte é escolha exclusiva por natureza (demo substitui os indexers reais),
+      // mas manter multi permite jackett+prowlarr juntos.
+      if (group === el.providers && chip.dataset.value === "demo") {
+        setChips(group, isOn(chip) ? [] : ["demo"]);
+      } else {
+        if (group === el.providers) setOn($("providers").querySelector('[data-value="demo"]'), false);
+        setOn(chip, !isOn(chip));
+      }
+      render();
+    });
+  });
+
+  [el.brOnly, el.dubbedOnly, el.debridCachedOnly].forEach(function (sw) {
+    sw.addEventListener("click", function () { setOn(sw, !isOn(sw)); render(); });
+  });
+
+  [el.brSlots, el.maxResults, el.minSeeders].forEach(function (r) {
+    r.addEventListener("input", render);
+  });
+
+  el.debridService.addEventListener("change", render);
+  el.debridApiKey.addEventListener("input", render);
+
+  el.copyBtn.addEventListener("click", function () {
+    var url = el.copyBtn.dataset.url;
+    var done = function () {
+      el.copyBtn.textContent = "Copiado ✓";
+      el.copyBtn.classList.add("ok");
+      setTimeout(function () {
+        el.copyBtn.textContent = "Copiar link";
+        el.copyBtn.classList.remove("ok");
+      }, 1800);
+    };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(done, done);
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = url; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta);
+      done();
+    }
+  });
+
+  /* ---------- estado inicial ---------- */
+
+  function apply(state) {
+    setChips(el.providers, state.providers || []);
+    setChips(el.qualities, state.qualities || []);
+    el.maxResults.value = state.maxResults;
+    el.minSeeders.value = state.minSeeders;
+    el.brSlots.value = state.brReservedSlots;
+    setOn(el.brOnly, state.brOnly);
+    setOn(el.dubbedOnly, state.dubbedOnly);
+    el.debridService.value = state.debridService || "";
+    el.debridApiKey.value = state.debridApiKey || "";
+    setOn(el.debridCachedOnly, state.debridCachedOnly);
+    render();
+  }
+
+  // Reabrir /<config>/configure repopula o formulário com o que o usuário já
+  // tinha instalado, em vez de voltar aos defaults e perder a configuração.
+  function fromUrl() {
+    var seg = location.pathname.split("/").filter(Boolean)[0];
+    if (!seg || seg === "configure") return null;
+    var raw = decodeConfig(seg);
+    if (!raw) return null;
+    var toList = function (v) { return v ? String(v).split(",").filter(Boolean) : []; };
+    return {
+      providers: toList(raw[KEYS.providers]),
+      qualities: toList(raw[KEYS.qualities]),
+      maxResults: raw[KEYS.maxResults], minSeeders: raw[KEYS.minSeeders],
+      brReservedSlots: raw[KEYS.brReservedSlots],
+      brOnly: !!raw[KEYS.brOnly], dubbedOnly: !!raw[KEYS.dubbedOnly],
+      debridService: raw[KEYS.debridService], debridApiKey: raw[KEYS.debridApiKey],
+      debridCachedOnly: !!raw[KEYS.debridCachedOnly]
+    };
+  }
+
+  fetch("/defaults.json")
+    .then(function (r) { return r.json(); })
+    .catch(function () { return {
+      providers: ["jackett"], qualities: [], maxResults: 40, minSeeders: 1,
+      brReservedSlots: 6, brOnly: false, dubbedOnly: true,
+      debridService: "", debridApiKey: "", debridCachedOnly: true
+    }; })
+    .then(function (defaults) {
+      var saved = fromUrl();
+      apply(Object.assign(defaults, saved || {}));
+    });
+})();
+</script>
+</body>
+</html>

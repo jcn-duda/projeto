@@ -1,8 +1,10 @@
+const path = require('path');
 const express = require('express');
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const config = require('./config');
 const { findStreams } = require('./providers');
 const premiumize = require('./debrid/premiumize');
+const runtime = require('./runtime');
 
 const manifest = {
   id: config.addonId,
@@ -17,7 +19,8 @@ const manifest = {
   catalogs: [],
   behaviorHints: {
     adult: false,
-    configurable: false,
+    // Liga o botão de engrenagem do Stremio, que aponta pra /configure.
+    configurable: true,
     configurationRequired: false,
   },
 };
@@ -46,13 +49,13 @@ builder.defineStreamHandler(async (args) => {
 
 const addonInterface = builder.getInterface();
 
-// Servidor próprio em vez de serveHTTP: precisamos da rota /resolve ao lado
-// das rotas do SDK.
+// Servidor próprio em vez de serveHTTP: precisamos das rotas /resolve e
+// /configure ao lado das rotas do SDK.
 const app = express();
 
 // O Stremio chama isso ao dar play num stream de debrid. Resolver aqui (e não
 // na listagem) evita um directdl por torrent na hora da busca.
-app.get('/resolve/:infoHash', async (req, res) => {
+async function resolveHandler(req, res) {
   const { infoHash } = req.params;
   if (!/^[a-f0-9]{40}$/i.test(infoHash)) {
     return res.status(400).send('infoHash inválido');
@@ -68,10 +71,44 @@ app.get('/resolve/:infoHash', async (req, res) => {
     console.error('[resolve]', err.message);
     return res.status(502).send('falha ao resolver no debrid');
   }
-});
+}
+
+const CONFIGURE_PAGE = path.join(__dirname, 'public', 'configure.html');
+const sendConfigure = (_, res) => res.sendFile(CONFIGURE_PAGE);
 
 app.get('/health', (_, res) => res.json({ ok: true }));
+app.get('/', (_, res) => res.redirect(302, '/configure'));
+app.get('/configure', sendConfigure);
+
+// Defaults do .env, para a página abrir já refletindo a instância. A chave do
+// debrid NUNCA vai junto: a página é pública e o .env é do operador, não de
+// quem está instalando.
+app.get('/defaults.json', (_, res) => {
+  const { debridApiKey, ...safe } = runtime.defaults();
+  res.json({ ...safe, debridApiKey: '' });
+});
+
+app.get('/resolve/:infoHash', resolveHandler);
+// Rotas sem config: usam o .env puro. Vêm ANTES do prefixo genérico, senão
+// "/manifest.json" seria lido como um segmento de configuração.
 app.use(getRouter(addonInterface));
+
+/**
+ * Instalação configurada, no modelo do Torrentio: `/<config>/manifest.json`.
+ * O segmento é validado por `decode` — se não for uma config, cai no 404 normal
+ * em vez de virar uma rota fantasma.
+ */
+app.use('/:userConfig', (req, res, next) => {
+  const parsed = runtime.decode(req.params.userConfig);
+  // Sem 404 aqui, QUALQUER caminho de um segmento viraria um manifest válido
+  // servindo a config do .env — inclusive erro de digitação no install URL.
+  if (!parsed) return res.status(404).send('configuração inválida');
+  runtime.run({ opts: parsed, encoded: req.params.userConfig }, () => next());
+});
+
+app.get('/:userConfig/configure', sendConfigure);
+app.get('/:userConfig/resolve/:infoHash', resolveHandler);
+app.use('/:userConfig', getRouter(addonInterface));
 
 app.listen(config.port, config.host, () => {
   const local = `http://127.0.0.1:${config.port}/manifest.json`;
