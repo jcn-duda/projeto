@@ -83,10 +83,15 @@ async function queryIndexer(indexer, query, type) {
   if (type === 'movie') endpoint.searchParams.append('Category[]', '2000');
   if (type === 'series') endpoint.searchParams.append('Category[]', '5000');
 
+  // Indexers BR raspam WordPress e ainda seguem protetores de link; com o
+  // prazo dos globais eles eram descartados DEPOIS de já ter feito o trabalho.
+  const isBr = config.jackett.ptBrIndexers.includes(indexer) || config.jackett.slowIndexers.includes(indexer);
+  const timeout = isBr ? config.jackett.brIndexerTimeout : config.jackett.indexerTimeout;
+
   const started = Date.now();
   const res = await fetch(endpoint, {
     headers: { Accept: 'application/json', 'User-Agent': 'stremio-adom/1.0' },
-    signal: AbortSignal.timeout(config.jackett.indexerTimeout),
+    signal: AbortSignal.timeout(timeout),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
