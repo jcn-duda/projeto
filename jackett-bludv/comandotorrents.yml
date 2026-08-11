@@ -1,0 +1,83 @@
+---
+id: comandotorrents
+name: ComandoTorrents
+description: "ComandoTorrents — filmes e séries torrent em português"
+language: pt-BR
+type: public
+encoding: UTF-8
+# Uma única página mantém a resposta dentro do orçamento de 4 s do addon.
+requestDelay: 1
+links:
+  - https://comandotorrents.to/
+
+caps:
+  categorymappings:
+    - {id: media, cat: Movies, desc: Movies and TV}
+    - {id: media, cat: TV, desc: Movies and TV}
+  modes:
+    search: [q]
+    tv-search: [q, season, ep]
+    movie-search: [q]
+  allowrawsearch: true
+
+settings: []
+
+search:
+  keywordsfilters:
+    - name: re_replace
+      args: ["[:]+", " "]
+    - name: re_replace
+      args: ["\\s+", " "]
+    - name: trim
+  paths:
+    - path: "?s={{ .Keywords }}"
+
+  rows:
+    selector: "article.blog-view"
+
+  fields:
+    title:
+      selector: "h2.entry-title > a"
+    details:
+      selector: "h2.entry-title > a"
+      attribute: href
+    download:
+      selector: "h2.entry-title > a"
+      attribute: href
+    category:
+      text: media
+    poster:
+      optional: true
+      selector: ".entry-content img"
+      attribute: src
+    size:
+      optional: true
+      selector: ".entry-content"
+      filters:
+        - name: regexp
+          args: "(?is).*?Tamanho\\s*:?[\\s\\S]{0,100}?([\\d.,]+\\s*(?:TB|GB|MB|KB)).*"
+    date:
+      text: now
+    seeders:
+      # O tracker não divulga swarm; preserve a release quando MIN_SEEDERS=1.
+      text: 1
+    leechers:
+      text: 0
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1
+
+# O resolver prioriza links dublados/dual áudio e, depois, a melhor qualidade.
+# Cardigann emite uma release por post; não há expansão 1:N de links no formato.
+download:
+  before:
+    path: "http://comandotorrents-resolver:8701/resolve"
+    inputs:
+      url: "{{ .DownloadUri.AbsoluteUri }}"
+  selectors:
+    - selector: body
+      usebeforeresponse: true
+      filters:
+        - name: regexp
+          args: "(magnet:\\?[^\\s\"'<>]+)"

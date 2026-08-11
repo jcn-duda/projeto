@@ -1,0 +1,78 @@
+---
+id: nerdfilmes
+name: NerdFilmesTorrent / XNerdFilmes
+description: "NerdFilmesTorrent / XNerdFilmes — filmes e séries em português"
+language: pt-BR
+type: public
+encoding: UTF-8
+requestDelay: 3
+links:
+  - https://www.xnerdfilmes.net/
+
+caps:
+  categorymappings:
+    - {id: media, cat: Movies, desc: Movies and TV}
+    - {id: media, cat: TV, desc: Movies and TV}
+  modes:
+    search: [q]
+    tv-search: [q, season, ep]
+    movie-search: [q]
+  allowrawsearch: true
+
+settings: []
+
+search:
+  keywordsfilters:
+    - name: re_replace
+      args: ["[sS]\\d{1,2}(?:[eE]\\d{1,2})?", " "]
+    - name: re_replace
+      args: ["[:]+", " "]
+    - name: re_replace
+      args: ["\\s+", " "]
+    - name: trim
+  paths:
+    - path: "?s={{ .Keywords }}"
+
+  rows:
+    selector: "article.col"
+
+  fields:
+    title:
+      selector: ".image > a"
+      attribute: title
+    details:
+      selector: ".image > a"
+      attribute: href
+    download:
+      selector: ".image > a"
+      attribute: href
+    category:
+      text: media
+    poster:
+      optional: true
+      selector: ".image img"
+      attribute: src
+    date:
+      text: now
+    seeders:
+      text: 1
+    leechers:
+      text: 0
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1
+
+# Compatibilidade com o card do Jackett: retorna a melhor release dublada.
+# Para uma release por qualidade, adicione também o Torznab interno documentado.
+download:
+  before:
+    path: "http://nerdfilmes-resolver:8702/resolve"
+    inputs:
+      url: "{{ .DownloadUri.AbsoluteUri }}"
+  selectors:
+    - selector: body
+      usebeforeresponse: true
+      filters:
+        - name: regexp
+          args: "(magnet:\\?[^\\s\"'<>&]+)"

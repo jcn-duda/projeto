@@ -73,7 +73,18 @@ async function collectRaw(query, type, imdbId, ptQuery) {
 
   // demo sempre disponível como fallback de teste se quiser both+demo — aqui só jackett/prowlarr
   if (mode === 'jackett' || mode === 'both') {
-    tasks.push(jackett.search(query, type));
+    if (config.jackett.indexers.length === 0) {
+      tasks.push(jackett.search(query, type));
+    } else {
+      const brIndexers = config.jackett.indexers.filter((indexer) =>
+        config.jackett.ptBrIndexers.includes(indexer),
+      );
+      const globalIndexers = config.jackett.indexers.filter(
+        (indexer) => !brIndexers.includes(indexer),
+      );
+      tasks.push(jackett.search(query, type, globalIndexers));
+      if (brIndexers.length) tasks.push(jackett.search(ptQuery || query, type, brIndexers));
+    }
   }
   if (mode === 'prowlarr' || mode === 'both') {
     tasks.push(prowlarr.search(query));

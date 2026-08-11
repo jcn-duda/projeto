@@ -1,0 +1,72 @@
+---
+id: torrentdosfilmesv2
+name: TorrentDosFilmes V2
+description: "TorrentDosFilmes V2 — filmes e séries torrent em português"
+language: pt-BR
+type: public
+encoding: UTF-8
+requestDelay: 1
+links:
+  - https://torrentdosfilmes-v2.xyz/
+
+caps:
+  categorymappings:
+    - {id: media, cat: Movies, desc: Movies and TV}
+    - {id: media, cat: TV, desc: Movies and TV}
+  modes:
+    search: [q]
+    tv-search: [q, season, ep]
+    movie-search: [q]
+  allowrawsearch: true
+
+settings: []
+
+search:
+  keywordsfilters:
+    - name: re_replace
+      args: ["[:]+", " "]
+    - name: re_replace
+      args: ["\\s+", " "]
+    - name: trim
+  paths:
+    - path: "?s={{ .Keywords }}"
+  rows:
+    selector: "main .post"
+  fields:
+    title:
+      selector: ".title > a"
+      attribute: title
+    details:
+      selector: ".title > a"
+      attribute: href
+    download:
+      selector: ".title > a"
+      attribute: href
+    category:
+      text: media
+    size:
+      text: "0 B"
+    date:
+      text: now
+    seeders:
+      text: 1
+    leechers:
+      text: 0
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1
+
+# Compatibilidade Jackett: uma melhor release por post. Para listar cada botão
+# como release individual, use o Torznab interno do resolver documentado no README.
+download:
+  before:
+    path: "http://torrentdosfilmes-resolver:8703/resolve"
+    inputs:
+      url: "{{ .DownloadUri.AbsoluteUri }}"
+  selectors:
+    - selector: body
+      usebeforeresponse: true
+      filters:
+        - name: regexp
+          args: "(magnet:\\?[^\\s\"'<>]+)"

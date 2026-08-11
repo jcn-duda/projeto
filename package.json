@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/addon.js",
     "dev": "node --watch src/addon.js",
+    "test:nerdfilmes": "node nerdfilmes-resolver/test.js",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f addon"

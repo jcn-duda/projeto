@@ -26,6 +26,17 @@ const config = {
     // Consultados em paralelo, um timeout por indexer. Vazio = agregado /all.
     indexers: list(process.env.JACKETT_INDEXERS),
     indexerTimeout: num(process.env.JACKETT_INDEXER_TIMEOUT_MS, 4000),
+    // Cardigann pode entregar o magnet apenas no endpoint Link. Resolvemos
+    // sob demanda somente nos indexadores locais explicitamente permitidos.
+    resolveDownloadIndexers: list(
+      process.env.JACKETT_RESOLVE_DOWNLOAD_INDEXERS || 'comandotorrents,nerdfilmes',
+    ),
+    resolveConcurrency: num(process.env.JACKETT_RESOLVE_CONCURRENCY, 6),
+    maxDownloadResolves: num(process.env.JACKETT_MAX_DOWNLOAD_RESOLVES, 20),
+    downloadTimeout: num(process.env.JACKETT_DOWNLOAD_TIMEOUT_MS, 8000),
+    ptBrIndexers: list(
+      process.env.JACKETT_PT_BR_INDEXERS || 'comandotorrents,nerdfilmes,torrentdosfilmesv2',
+    ),
   },
   prowlarr: {
     url: (process.env.PROWLARR_URL || 'http://127.0.0.1:9696').replace(/\/$/, ''),

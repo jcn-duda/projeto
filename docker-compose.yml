@@ -41,6 +41,9 @@ services:
       - "127.0.0.1:9117:9117"
     depends_on:
       - bludv-resolver
+      - comandotorrents-resolver
+      - nerdfilmes-resolver
+      - torrentdosfilmes-resolver
     networks:
       - adom
 
@@ -48,6 +51,35 @@ services:
     build:
       context: ./bludv-resolver
     container_name: stremio-adom-bludv-resolver
+    restart: unless-stopped
+    networks:
+      - adom
+
+  comandotorrents-resolver:
+    build:
+      context: ./comandotorrents-resolver
+    container_name: stremio-adom-comandotorrents-resolver
+    restart: unless-stopped
+    networks:
+      - adom
+
+  nerdfilmes-resolver:
+    build:
+      context: ./nerdfilmes-resolver
+    container_name: stremio-adom-nerdfilmes-resolver
+    restart: unless-stopped
+    environment:
+      SITE_URL: ${NERDFILMES_URL:-https://www.xnerdfilmes.net}
+      SEARCH_CACHE_MS: ${NERDFILMES_SEARCH_CACHE_MS:-120000}
+      POST_CACHE_MS: ${NERDFILMES_POST_CACHE_MS:-600000}
+      MAGNET_CACHE_MS: ${NERDFILMES_MAGNET_CACHE_MS:-1800000}
+    networks:
+      - adom
+
+  torrentdosfilmes-resolver:
+    build:
+      context: ./torrentdosfilmes-resolver
+    container_name: stremio-adom-torrentdosfilmes-resolver
     restart: unless-stopped
     networks:
       - adom
