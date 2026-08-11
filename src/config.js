@@ -31,6 +31,11 @@ const config = {
     url: (process.env.PROWLARR_URL || 'http://127.0.0.1:9696').replace(/\/$/, ''),
     apiKey: process.env.PROWLARR_API_KEY || '',
   },
+  tmdb: {
+    apiKey: process.env.TMDB_API_KEY || '',
+    timeout: num(process.env.TMDB_TIMEOUT_MS, 5000),
+    cacheTtl: num(process.env.TMDB_CACHE_TTL, 604800), // 7 dias
+  },
   bludv: {
     enabled: String(process.env.BLUDV_ENABLED || 'false') === 'true',
     // bludv.net é o alias estável; o site troca de domínio com frequência.
@@ -44,6 +49,10 @@ const config = {
   qualityFilter: list(process.env.QUALITY_FILTER),
   minSeeders: num(process.env.MIN_SEEDERS, 1),
   maxResults: num(process.env.MAX_RESULTS, 40),
+  // Quantos candidatos considerar antes do filtro do debrid.
+  candidatePoolFactor: num(process.env.CANDIDATE_POOL_FACTOR, 4),
+  // Vagas garantidas para fontes BR dubladas no resultado final.
+  brReservedSlots: num(process.env.BR_RESERVED_SLOTS, 6),
   cacheTtl: num(process.env.CACHE_TTL, 900),
   debrid: {
     // Só premiumize por enquanto; vazio = modo P2P puro (infoHash direto).

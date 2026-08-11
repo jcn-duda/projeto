@@ -52,6 +52,20 @@ services:
     networks:
       - adom
 
+  # Resolve desafios Cloudflare para os indexers que exigem (1337x, eztv,
+  # kickasstorrents). É um Chromium headless: pesa mais que o Jackett inteiro.
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: stremio-adom-flaresolverr
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: info
+      TZ: America/Sao_Paulo
+    ports:
+      - "127.0.0.1:8191:8191"
+    networks:
+      - adom
+
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: stremio-adom-prowlarr

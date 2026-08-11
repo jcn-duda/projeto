@@ -138,7 +138,9 @@ async function collectFromPost(post) {
         .filter(Boolean)
         .join(' '),
       magnet,
-      seeders: 0,
+      // O site não publica seeds. 0 faria o filtro MIN_SEEDERS descartar a
+      // release antes de consultar o swarm; 1 é o valor neutro.
+      seeders: 1,
       size: link.size ? parseSize(link.size) : null,
       tracker: 'BLUDV',
       audio: link.audio,

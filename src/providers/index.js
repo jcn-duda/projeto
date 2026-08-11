@@ -13,6 +13,21 @@ const {
 } = require('../utils/format');
 const cache = require('../utils/cache');
 const premiumize = require('../debrid/premiumize');
+const tmdb = require('../utils/tmdb');
+
+/**
+ * Fontes BR não publicam seeders, então ficam no fim da ordenação e caem fora
+ * do corte competindo com releases de centenas de seeders. Reserva algumas
+ * vagas pra elas antes de aplicar MAX_RESULTS.
+ */
+function limitReservingBr(streams) {
+  const isBr = (s) => /BLUDV|DUBLADO/i.test(s.title || '');
+  const br = streams.filter(isBr).slice(0, config.brReservedSlots);
+  if (br.length === 0) return streams.slice(0, config.maxResults);
+
+  const rest = streams.filter((s) => !br.includes(s));
+  return [...br, ...rest].slice(0, config.maxResults);
+}
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -48,7 +63,7 @@ async function applyDebrid(streams, { season, episode }) {
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
 
-async function collectRaw(query, type, imdbId) {
+async function collectRaw(query, type, imdbId, ptQuery) {
   const mode = config.provider;
   const tasks = [];
 
@@ -72,10 +87,8 @@ async function collectRaw(query, type, imdbId) {
   // Fonte BR dublada, independente do PROVIDER: entra no mesmo allSettled,
   // então se o site cair ou demorar, o resto da busca sai normalmente.
   if (config.bludv.enabled) {
-    // TODO: os sites BR indexam por título pt-BR ("Coringa", não "Joker").
-    // Enquanto não houver resolvedor via TMDB, só acha o que casa em inglês
-    // ou títulos iguais nos dois idiomas.
-    tasks.push(bludv.search(query));
+    // Sites BR indexam por título pt-BR ("Coringa", não "Joker").
+    tasks.push(bludv.search(ptQuery || query));
   }
 
   // allSettled: um indexer fora do ar não pode derrubar a busca inteira no modo "both".
@@ -120,12 +133,21 @@ async function findStreams({ type, id }) {
 
 async function doSearch({ type, id, cacheKey }) {
   const { imdbId, season, episode } = parseStremioId(id);
-  const meta = await getMeta(type, imdbId);
+  // Cinemeta e TMDB em paralelo: o título pt-BR não pode atrasar a busca.
+  const [meta, titles] = await Promise.all([getMeta(type, imdbId), tmdb.getTitles(imdbId)]);
   const query = buildSearchQuery(meta || { name: imdbId }, { season, episode });
 
-  console.log(`[search] ${type} ${id} → "${query}" via ${config.provider}`);
+  // Só vale uma query separada quando o título PT difere do original.
+  const ptQuery =
+    titles?.pt && titles.pt !== titles.original
+      ? buildSearchQuery({ name: titles.pt, year: titles.year }, { season, episode })
+      : null;
 
-  let raw = await collectRaw(query, type, imdbId);
+  console.log(
+    `[search] ${type} ${id} → "${query}"${ptQuery ? ` | pt-BR: "${ptQuery}"` : ''} via ${config.provider}`,
+  );
+
+  let raw = await collectRaw(query, type, imdbId, ptQuery);
 
   // Série sem resultado por episódio: tenta o pack da temporada (ex.: "Nome S01").
   if (raw.length === 0 && season != null && config.provider !== 'demo') {
@@ -140,18 +162,23 @@ async function doSearch({ type, id, cacheKey }) {
   }
 
   if (meta?.name && config.provider !== 'demo') {
+    // Aceita qualquer um dos nomes: release BR vem como "Coringa", a do Jackett
+    // como "Joker" — filtrar só pelo inglês jogaria fora a fonte dublada.
+    const names = [meta.name, titles?.pt, titles?.original].filter(Boolean);
     const before = raw.length;
-    raw = raw.filter((r) => matchesName(r.title || r.Title || '', meta.name));
+    raw = raw.filter((r) => names.some((n) => matchesName(r.title || r.Title || '', n)));
     if (before !== raw.length) console.log(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
   }
 
+  // Pool maior que MAX_RESULTS: o corte final é DEPOIS do debrid, senão fontes
+  // sem seeders publicados (BLUDV) e não-cacheados ocupariam as vagas e sumiriam.
   let streams = sortAndLimit(raw.map(toStremioStream), {
     minSeeders: config.minSeeders,
-    maxResults: config.maxResults,
+    maxResults: config.maxResults * config.candidatePoolFactor,
     qualityFilter: config.qualityFilter,
   });
 
-  streams = await applyDebrid(streams, { season, episode });
+  streams = limitReservingBr(await applyDebrid(streams, { season, episode }));
 
   // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco tempo.
   cache.set(cacheKey, streams, streams.length ? config.cacheTtl : Math.min(config.cacheTtl, 60));

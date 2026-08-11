@@ -126,12 +126,15 @@ docker compose up -d --build addon
 
 O card está em `jackett-bludv/bludv-cardigann.yml` e é copiado para a imagem do Jackett
 em `jackett-bludv/Dockerfile`. Ele consulta o buscador WordPress do BLUDV e
-resolve o primeiro `Magnet-Link` de cada post. O serviço interno
-`bludv-resolver` processa os redirects do protetor de links e o JavaScript que
-contém o magnet; ele não expõe nenhuma porta na rede local. O BLUDV não informa seeds; o
-card usa `1` para evitar que filtros mínimos descartem a release antes da
-consulta ao swarm. Como o site troca de domínio com frequência, atualize
-`links` no YAML se o teste do indexer falhar.
+extrai de cada card o título (sem o rótulo "Torrent"), o tamanho real, o
+poster e o título original em inglês. No download, o serviço interno
+`bludv-resolver` escolhe o **melhor** botão `Magnet-Link` do post —
+dublado/dual primeiro, maior qualidade depois — e segue os redirects do
+protetor de links até o magnet; ele não expõe nenhuma porta na rede local e
+aceita `?audio=dublado|legendado` e `?quality=720|1080|2160` para forçar a
+escolha. O BLUDV não informa seeds; o card usa `1` para evitar que filtros
+mínimos descartem a release antes da consulta ao swarm. Como o site troca de
+domínio com frequência, atualize `links` no YAML se o teste do indexer falhar.
 
 Para atualizar o Jackett sem perder o card, atualize o digest base em
 `jackett-bludv/Dockerfile` e reconstrua a imagem em vez de usar o auto-update

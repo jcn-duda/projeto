@@ -23,8 +23,9 @@ caps:
 
 settings: []
 
-# Cada resultado é um post do WordPress. O primeiro botão Magnet-Link do post
-# é seguido até a página final, cujo JavaScript contém o magnet em `DEST_URL`.
+# Cada resultado é um post do WordPress. No download, o resolver escolhe o
+# MELHOR botão Magnet-Link do post (dublado/dual, maior qualidade) e o segue
+# até a página final, cujo JavaScript contém o magnet.
 search:
   paths:
     - path: "?s={{ .Keywords }}"
@@ -35,6 +36,13 @@ search:
   fields:
     title:
       selector: "div.title > a"
+      filters:
+        # "Coringa Torrent – BluRay ..." → "Coringa BluRay ...": o rótulo
+        # "Torrent" só atrapalha quem casa o título com o nome do filme.
+        - name: re_replace
+          args: ["(?i)\\s*Torrent\\s*(?:[–-]|&#8211;)\\s*", " "]
+        - name: re_replace
+          args: ["(?i)\\s+Torrent\\b", ""]
     details:
       selector: "div.title > a"
       attribute: href
@@ -44,7 +52,26 @@ search:
     category:
       text: media
     size:
-      text: "0 B"
+      # "Tamanho: 2.49 GB" no bloco de informações do card de busca.
+      selector: "div.content"
+      optional: true
+      filters:
+        - name: regexp
+          args: "Tamanho:(?:[^0-9]{0,200})([\\d.,]+\\s*(?:GB|MB|TB))"
+        # O site usa vírgula decimal em alguns posts; o parser do Jackett quer ponto.
+        - name: re_replace
+          args: [",", "."]
+    poster:
+      selector: "div.content img"
+      attribute: src
+      optional: true
+    description:
+      # Título original em inglês, útil pra identificar o filme na UI do Jackett.
+      selector: "div.content"
+      optional: true
+      filters:
+        - name: regexp
+          args: "Título Original:(?:\\s*</?[a-zA-Z]+[^>]*>)*\\s*([^<\\n]+)"
     date:
       selector: ".icon .infos"
       filters:
