@@ -16,7 +16,7 @@ function list(value) {
 const config = {
   port: num(process.env.PORT, 7000),
   host: process.env.HOST || '0.0.0.0',
-  addonName: process.env.ADDON_NAME || 'Stremio Adom',
+  addonName: process.env.ADDON_NAME || 'Adom Power-Movie',
   addonId: process.env.ADDON_ID || 'community.stremio.adom',
   version: '1.0.0',
   provider: (process.env.PROVIDER || 'demo').toLowerCase(),
@@ -75,7 +75,8 @@ const config = {
   brReservedSlots: num(process.env.BR_RESERVED_SLOTS, 6),
   cacheTtl: num(process.env.CACHE_TTL, 900),
   debrid: {
-    // Só premiumize por enquanto; vazio = modo P2P puro (infoHash direto).
+    // premiumize | realdebrid | alldebrid | torbox | debridlink
+    // Vazio = modo P2P puro (infoHash direto). A lista viva está em src/debrid/index.js.
     service: (process.env.DEBRID_SERVICE || '').toLowerCase(),
     apiKey: process.env.DEBRID_API_KEY || '',
     cachedOnly: String(process.env.DEBRID_CACHED_ONLY || 'true') === 'true',

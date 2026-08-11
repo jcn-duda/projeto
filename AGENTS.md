@@ -1,4 +1,4 @@
-# AGENTS.md — Stremio Adom
+# AGENTS.md — Adom Power-Movie
 
 Guia para agentes de código trabalhando neste repositório. Assume que você já
 leu o `README.md` (que é voltado ao **usuário**); este arquivo é sobre **como o
@@ -94,6 +94,36 @@ de `app.use('/:userConfig', ...)`, senão `/manifest.json` seria interpretado co
 segmento de configuração. Segmento que não decodifica devolve 404 — sem isso,
 qualquer caminho de um segmento viraria um manifest válido servindo o `.env`.
 
+### Camada de debrid (`src/debrid/`)
+
+Registry de adaptadores; nada no resto do código conhece um serviço específico.
+Cada adaptador exporta a mesma forma:
+
+```js
+{ id, label, cacheCheck, keyUrl, checkCached(apiKey, hashes), resolveLink(apiKey, hash, ep) }
+```
+
+**`cacheCheck` é a distinção que mais importa.** Real-Debrid, AllDebrid e
+Debrid-Link aposentaram os endpoints de disponibilidade instantânea; só
+Premiumize e TorBox ainda respondem em lote. Por isso `debrid.checkCached()`
+devolve `{ cached, known }`:
+
+- `known: true` → dá pra confiar; cacheados ganham ⚡ e o filtro `cachedOnly` vale.
+- `known: false` → **não é "nada em cache"**. Todos os streams passam pelo
+  debrid, sem ⚡, e `cachedOnly` é ignorado.
+
+Confundir os dois esconde a lista inteira. Foi por isso que `batched()` (em
+`common.js`) **propaga o erro quando todos os lotes falham**: token inválido
+retornando "nenhum cacheado" com `cachedOnly` ligado zerava o resultado sem
+nenhuma pista do motivo.
+
+Para adicionar um serviço: crie o adaptador, registre em `ADAPTERS` e pronto —
+`SERVICES` alimenta o seletor da página automaticamente. Declare `cacheCheck`
+com honestidade; declarar `true` sem endpoint funcional é o pior dos mundos.
+
+Resolução acontece **só no play** (rota `/resolve`), nunca na listagem: é uma
+sequência de chamadas por torrent e não caberia no orçamento de busca.
+
 ### Os quatro invariantes que mais quebram
 
 **1. O orçamento de tempo é sagrado.**
@@ -159,7 +189,9 @@ senão a release dublada seria descartada por não bater com o título em inglê
 | `src/providers/prowlarr.js` | Alternativa ao Jackett |
 | `src/providers/bludv.js` | Scraper direto do BLUDV (fora do Jackett) |
 | `src/providers/demo.js` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
-| `src/debrid/premiumize.js` | `cache/check` na listagem, `directdl` só no play |
+| `src/debrid/index.js` | Registry de serviços de debrid + seleção por requisição |
+| `src/debrid/common.js` | `magnetFor`, fetch JSON, `pickFile`, lotes de cache |
+| `src/debrid/*.js` | Um adaptador por serviço (premiumize, realdebrid, …) |
 | `src/utils/format.js` | Normalização, dedupe, ordenação, `matchesName` — **lógica pura** |
 | `src/utils/tmdb.js` | Título pt-BR a partir do IMDb id |
 | `src/utils/cinemeta.js` | Título/ano oficiais do ecossistema Stremio |

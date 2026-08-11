@@ -12,7 +12,7 @@ const {
   matchesName,
 } = require('../utils/format');
 const cache = require('../utils/cache');
-const premiumize = require('../debrid/premiumize');
+const debrid = require('../debrid');
 const tmdb = require('../utils/tmdb');
 const { opts, prefix } = require('../runtime');
 
@@ -35,33 +35,43 @@ function limitReservingBr(streams) {
  * link de play que passa pela nossa rota /resolve.
  */
 async function applyDebrid(streams, { season, episode }) {
-  const { debridService: service, debridCachedOnly: cachedOnly } = opts();
+  const adapter = debrid.current();
+  if (!adapter || streams.length === 0) return streams;
+
+  const { debridCachedOnly: cachedOnly } = opts();
   const { publicUrl } = config.debrid;
-  if (service !== 'premiumize' || streams.length === 0) return streams;
 
   // Só quem ainda é torrent tem hash pra consultar; stream já resolvido não entra no lote.
   const hashes = streams.map((s) => s.infoHash).filter(Boolean);
   if (hashes.length === 0) return streams;
 
-  const cached = await premiumize.checkCached(hashes);
-  console.log(`[debrid] ${cached.size}/${streams.length} em cache no premiumize`);
-
+  const { cached, known } = await debrid.checkCached(hashes);
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
+  const viaDebrid = (s, instant) => ({
+    ...s,
+    name: instant ? s.name.replace('Adom', 'Adom ⚡') : s.name,
+    url: `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}`,
+    infoHash: undefined,
+    sources: undefined,
+  });
+
+  // Serviço que não sabe informar cache (Real-Debrid, AllDebrid, Debrid-Link):
+  // filtrar por "somente em cache" esconderia a lista inteira. Mandamos tudo
+  // pelo debrid, sem o ⚡ — a resolução no play dirá se toca ou não.
+  if (!known) {
+    console.log(`[debrid] ${adapter.label} não informa cache; ${streams.length} stream(s) via debrid`);
+    return streams.map((s) => viaDebrid(s, false));
+  }
+
+  console.log(`[debrid] ${cached.size}/${streams.length} em cache no ${adapter.label}`);
   const out = [];
   for (const s of streams) {
-    const isCached = cached.has(s.infoHash);
-    if (!isCached) {
-      // Sem cache: mantém como torrent P2P, a não ser que o usuário só queira cacheado.
-      if (!cachedOnly) out.push(s);
+    if (cached.has(s.infoHash)) {
+      out.push(viaDebrid(s, true));
       continue;
     }
-    out.push({
-      ...s,
-      name: s.name.replace('Adom', 'Adom ⚡'),
-      url: `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}`,
-      infoHash: undefined,
-      sources: undefined,
-    });
+    // Sem cache: mantém como torrent P2P, a não ser que o usuário só queira cacheado.
+    if (!cachedOnly) out.push(s);
   }
   return out;
 }

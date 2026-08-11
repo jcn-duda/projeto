@@ -3,7 +3,7 @@ const express = require('express');
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const config = require('./config');
 const { findStreams } = require('./providers');
-const premiumize = require('./debrid/premiumize');
+const debrid = require('./debrid');
 const runtime = require('./runtime');
 
 const manifest = {
@@ -61,7 +61,7 @@ async function resolveHandler(req, res) {
     return res.status(400).send('infoHash inválido');
   }
   try {
-    const link = await premiumize.resolveLink(infoHash, {
+    const link = await debrid.resolveLink(infoHash, {
       season: req.query.s ? Number(req.query.s) : null,
       episode: req.query.e ? Number(req.query.e) : null,
     });
@@ -85,7 +85,9 @@ app.get('/configure', sendConfigure);
 // quem está instalando.
 app.get('/defaults.json', (_, res) => {
   const { debridApiKey, ...safe } = runtime.defaults();
-  res.json({ ...safe, debridApiKey: '' });
+  // `services` monta o seletor de debrid na página: a lista de serviços mora no
+  // registry, não duplicada no HTML.
+  res.json({ ...safe, debridApiKey: '', services: debrid.SERVICES });
 });
 
 app.get('/resolve/:infoHash', resolveHandler);

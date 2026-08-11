@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="dark" />
-<title>Stremio Adom — Configurar</title>
+<title>Adom Power-Movie — Configurar</title>
 <style>
   :root {
     --bg: #0d0b16;
@@ -170,6 +170,26 @@
   }
   .field-hint { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
 
+  .field-link {
+    color: var(--accent);
+    font-size: 12.5px; font-weight: 550;
+    text-decoration: none;
+  }
+  .field-link:hover { text-decoration: underline; }
+
+  .notice {
+    margin: 14px 0 0;
+    padding: 11px 13px;
+    border: 1px solid rgba(230, 175, 90, .3);
+    border-left-width: 3px;
+    border-radius: 9px;
+    background: rgba(230, 175, 90, .07);
+    color: #dcc39a;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .notice em { color: #f0e2c8; font-style: normal; font-weight: 600; }
+
   input[type="range"] {
     -webkit-appearance: none; appearance: none;
     width: 100%; height: 5px;
@@ -301,7 +321,7 @@
 
   <header>
     <div class="logo">🇧🇷</div>
-    <h1>Stremio Adom</h1>
+    <h1>Adom Power-Movie</h1>
     <p class="tagline">Torrents self-hosted com prioridade para conteúdo brasileiro dublado.</p>
     <div class="badges">
       <span class="badge">Jackett · Prowlarr</span>
@@ -402,12 +422,14 @@
       <div class="field-label"><strong>Serviço</strong></div>
       <select id="debridService">
         <option value="">Nenhum — P2P direto</option>
-        <option value="premiumize">Premiumize</option>
       </select>
     </div>
 
     <div class="field" id="debridKeyField" hidden>
-      <div class="field-label"><strong>API key</strong></div>
+      <div class="field-label">
+        <strong>API key</strong>
+        <a id="keyLink" class="field-link" href="#" target="_blank" rel="noopener">obter chave ↗</a>
+      </div>
       <input type="password" id="debridApiKey" placeholder="cole sua API key" autocomplete="off" spellcheck="false" />
       <p class="field-hint">Fica codificada na URL do addon. Não compartilhe esse link.</p>
     </div>
@@ -419,6 +441,12 @@
       </div>
       <button type="button" class="switch" id="debridCachedOnly" aria-pressed="true"></button>
     </div>
+
+    <p class="notice" id="noCacheNotice" hidden>
+      Este serviço aposentou a consulta de cache, então não dá para saber de
+      antemão o que toca na hora. Todos os resultados passam pelo debrid e o
+      filtro <em>somente em cache</em> fica desligado.
+    </p>
   </section>
 
   <div class="install">
@@ -457,10 +485,18 @@
     minSeeders: $("minSeeders"), outSeed: $("outSeed"),
     brOnly: $("brOnly"), dubbedOnly: $("dubbedOnly"),
     debridService: $("debridService"), debridApiKey: $("debridApiKey"),
-    debridKeyField: $("debridKeyField"),
+    debridKeyField: $("debridKeyField"), keyLink: $("keyLink"),
     debridCachedOnly: $("debridCachedOnly"), cachedOnlyRow: $("cachedOnlyRow"),
+    noCacheNotice: $("noCacheNotice"),
     installUrl: $("installUrl"), installBtn: $("installBtn"), copyBtn: $("copyBtn")
   };
+
+  // Preenchido por /defaults.json a partir do registry do servidor.
+  var services = [];
+  function serviceById(id) {
+    for (var i = 0; i < services.length; i++) if (services[i].id === id) return services[i];
+    return null;
+  }
 
   /* ---------- helpers de estado ---------- */
 
@@ -520,9 +556,18 @@
     el.outMax.textContent = el.maxResults.value;
     el.outSeed.textContent = el.minSeeders.value === "0" ? "sem filtro" : el.minSeeders.value;
 
-    var hasDebrid = !!el.debridService.value;
-    el.debridKeyField.hidden = !hasDebrid;
-    el.cachedOnlyRow.hidden = !hasDebrid;
+    var svc = serviceById(el.debridService.value);
+    el.debridKeyField.hidden = !svc;
+    // Sem consulta de cache o filtro não teria como funcionar: em vez de
+    // oferecer um controle que não faz nada, esconde e explica.
+    el.cachedOnlyRow.hidden = !svc || !svc.cacheCheck;
+    el.noCacheNotice.hidden = !svc || svc.cacheCheck;
+    if (svc && svc.keyUrl) {
+      el.keyLink.href = svc.keyUrl;
+      el.keyLink.hidden = false;
+    } else {
+      el.keyLink.hidden = true;
+    }
 
     var url = location.origin + "/" + encodeConfig(collect()) + "/manifest.json";
     el.installUrl.textContent = url;
@@ -581,6 +626,16 @@
 
   /* ---------- estado inicial ---------- */
 
+  function fillServices(list) {
+    services = list || [];
+    services.forEach(function (svc) {
+      var opt = document.createElement("option");
+      opt.value = svc.id;
+      opt.textContent = svc.cacheCheck ? svc.label : svc.label + " (sem consulta de cache)";
+      el.debridService.appendChild(opt);
+    });
+  }
+
   function apply(state) {
     setChips(el.providers, state.providers || []);
     setChips(el.qualities, state.qualities || []);
@@ -619,9 +674,10 @@
     .catch(function () { return {
       providers: ["jackett"], qualities: [], maxResults: 40, minSeeders: 1,
       brReservedSlots: 6, brOnly: false, dubbedOnly: true,
-      debridService: "", debridApiKey: "", debridCachedOnly: true
+      debridService: "", debridApiKey: "", debridCachedOnly: true, services: []
     }; })
     .then(function (defaults) {
+      fillServices(defaults.services);
       var saved = fromUrl();
       apply(Object.assign(defaults, saved || {}));
     });

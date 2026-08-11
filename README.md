@@ -1,4 +1,4 @@
-# Stremio Adom
+# Adom Power-Movie
 
 Stack de addons Stremio pronta para Docker: **Comet + Real-Debrid** como
 addon principal sem download P2P local, e **Adom** mantido como addon próprio
@@ -86,6 +86,23 @@ Dá pra ajustar:
 | Só fontes BR | Esconde tudo que não vier dos indexers brasileiros |
 | Máx. streams · mín. seeders | Tamanho e piso do resultado |
 | Debrid | Serviço + API key, e se mostra só o que já está em cache |
+
+### Serviços de debrid suportados
+
+| Serviço | Consulta de cache |
+|---|---|
+| Premiumize | sim |
+| TorBox | sim |
+| Real-Debrid | não |
+| AllDebrid | não |
+| Debrid-Link | não |
+
+Real-Debrid, AllDebrid e Debrid-Link aposentaram os endpoints de disponibilidade
+instantânea, então **não dá para saber de antemão** o que toca na hora. Nesses
+serviços todos os resultados passam pelo debrid, sem o ⚡, e a opção *somente em
+cache* fica desligada — se o torrent não estiver em cache, o play falha e você
+escolhe outro. Com Premiumize ou TorBox o comportamento antigo continua: ⚡ nos
+que tocam na hora e filtro funcionando.
 
 Para mudar depois, abra o **botão de engrenagem** do addon no Stremio — ele volta
 para a página já preenchida com a sua configuração atual.
