@@ -104,8 +104,9 @@ app.get('/configure', sendConfigure);
 app.get('/defaults.json', (_, res) => {
   const { debridApiKey, ...safe } = runtime.defaults();
   // `services` monta o seletor de debrid na página: a lista de serviços mora no
-  // registry, não duplicada no HTML.
-  res.json({ ...safe, debridApiKey: '', services: debrid.SERVICES });
+  // registry, não duplicada no HTML. `addonName` evita hardcodear a marca no
+  // HTML — a página exibe o nome que vier da config.
+  res.json({ ...safe, debridApiKey: '', services: debrid.SERVICES, addonName: config.addonName });
 });
 
 app.get('/resolve/:infoHash', resolveHandler);

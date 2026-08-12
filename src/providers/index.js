@@ -54,7 +54,7 @@ async function applyDebrid(streams, { season, episode }) {
     const sig = signResolve(s.infoHash, ep);
     return {
       ...s,
-      name: instant ? s.name.replace('PowerM', 'PowerM ⚡') : s.name,
+      name: instant ? `${s.name} ⚡` : s.name,
       url: `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}${ep ? '&' : '?'}sig=${sig}`,
       infoHash: undefined,
       sources: undefined,

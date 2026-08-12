@@ -9,6 +9,7 @@ const {
   bytesToSize,
   extractInfoHash,
   qualityFromTitle,
+  audioFromTitle,
   matchesQualityFilter,
   toStremioStream,
   normalizeTitle,
@@ -18,6 +19,7 @@ const {
   parseStremioId,
   buildSearchQuery,
 } = require('../src/utils/format');
+const config = require('../src/config');
 
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
@@ -50,15 +52,15 @@ test('qualityFromTitle casa os rótulos comuns', () => {
 test('sourceFromTitle alimenta o bingeGroup via toStremioStream', () => {
   assert.equal(
     toStremioStream({ title: 'Movie BluRay 1080p', infoHash: HASH }).behaviorHints.bingeGroup,
-    'adom-1080p-BluRay',
+    'powerm-1080p-BluRay',
   );
   assert.equal(
     toStremioStream({ title: 'Movie WEB-DL 720p', infoHash: HASH }).behaviorHints.bingeGroup,
-    'adom-720p-WEB-DL',
+    'powerm-720p-WEB-DL',
   );
   assert.equal(
     toStremioStream({ title: 'Movie sem fonte', infoHash: HASH }).behaviorHints.bingeGroup,
-    'adom-SD-any',
+    'powerm-SD-any',
   );
 });
 
@@ -82,9 +84,23 @@ test('toStremioStream normaliza e guarda campos internos', () => {
   assert.equal(s._br, false);
   assert.ok(s.title.includes('2.00 GB'));
   assert.ok(s.title.includes('1337x'));
+  // Marca vem da config (nunca hardcodeada) e a 2ª linha do name leva
+  // qualidade + seeders, que é o que o cliente renderiza literal.
+  assert.ok(s.name.startsWith(`${config.addonName}\n1080p`));
+  assert.ok(s.name.includes('👤 42'));
   assert.ok(Array.isArray(s.sources) && s.sources.length > 0);
   // Sem hash não há stream.
   assert.equal(toStremioStream({ title: 'sem magnet' }), null);
+});
+
+test('audioFromTitle detecta dublado/dual/legendado e entra na linha', () => {
+  assert.equal(audioFromTitle('Coringa Dublado 1080p'), 'Dublado');
+  assert.equal(audioFromTitle('Filme Dual Audio 720p'), 'Dual');
+  assert.equal(audioFromTitle('Serie Legendada 1080p'), 'Legendado');
+  assert.equal(audioFromTitle('Movie 1080p'), '');
+  const s = toStremioStream({ title: 'Coringa Dublado 1080p', infoHash: HASH, seeders: 1 });
+  assert.ok(s.name.includes('1080p Dublado'));
+  assert.ok(s.title.includes('Dublado'));
 });
 
 test('toStremioStream preserva a marca de origem BR do provider', () => {

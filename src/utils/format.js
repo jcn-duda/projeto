@@ -1,3 +1,5 @@
+const config = require('../config');
+
 const TRACKERS = [
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
@@ -69,6 +71,18 @@ function sourceFromTitle(title = '') {
   return '';
 }
 
+/**
+ * Áudio é a informação que mais importa neste addon (foco em dublado) e os
+ * sites BR a escrevem no título. Sem ela o usuário abre o torrent pra descobrir.
+ */
+function audioFromTitle(title = '') {
+  const t = title.toUpperCase();
+  if (/\b(DUAL|DOUBLE)\b/.test(t)) return 'Dual';
+  if (/DUBLAD/.test(t)) return 'Dublado';
+  if (/LEGENDAD/.test(t)) return 'Legendado';
+  return '';
+}
+
 function matchesQualityFilter(title, filters) {
   if (!filters || filters.length === 0) return true;
   const upper = String(title).toUpperCase();
@@ -88,6 +102,7 @@ function toStremioStream(item) {
   const tracker = item.tracker || item.Tracker || item.Indexer || item.indexer || '';
   const quality = qualityFromTitle(title);
   const source = sourceFromTitle(title);
+  const audio = audioFromTitle(title);
 
   // Convenção do Torrentio: 👤 seeders, 💾 tamanho, ⚙️ indexer. Os clientes
   // (Stremio e Power Movie) reconhecem esses marcadores e montam a linha de
@@ -96,14 +111,17 @@ function toStremioStream(item) {
     `👤 ${seeders}`,
     size ? `💾 ${size}` : null,
     tracker ? `⚙️ ${tracker}` : null,
+    audio || null,
     source || null,
   ].filter(Boolean);
 
   return {
-    // Os seeds vão no `name` porque é o único bloco nosso que o Power Movie
-    // renderiza literal: os badges da linha de baixo ele deriva do nome do
-    // arquivo, então o 👤 do `title` (padrão Torrentio) não aparecia lá.
-    name: `PowerM\n${quality}${seeders ? ` · 👤 ${seeders}` : ''}`,
+    // Marca vem da config, nunca hardcodeada: renomear o addon no .env tem
+    // que refletir aqui. Os seeds vão no `name` porque é o único bloco nosso
+    // que o Power Movie renderiza literal: os badges da linha de baixo ele
+    // deriva do nome do arquivo, então o 👤 do `title` (padrão Torrentio)
+    // não aparecia lá.
+    name: `${config.addonName}\n${quality}${audio ? ` ${audio}` : ''}${seeders ? ` · 👤 ${seeders}` : ''}`,
     title: `${title}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
@@ -201,6 +219,8 @@ module.exports = {
   bytesToSize,
   extractInfoHash,
   qualityFromTitle,
+  sourceFromTitle,
+  audioFromTitle,
   toStremioStream,
   sortAndLimit,
   parseStremioId,

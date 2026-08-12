@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="dark" />
-<title>PowerM — Configurar</title>
+<title>Configurar</title>
 <!-- Oswald/Manrope são as fontes do Power Movie. Se a página abrir sem
      internet, o fallback do stack assume sem quebrar o layout. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -349,7 +349,7 @@
 
   <header>
     <div class="logo">🇧🇷</div>
-    <h1>PowerM</h1>
+    <h1 id="addonName"></h1>
     <p class="tagline">Torrents self-hosted com prioridade para conteúdo brasileiro dublado.</p>
     <div class="badges">
       <span class="badge">Jackett · Prowlarr</span>
@@ -705,6 +705,12 @@
       debridService: "", debridApiKey: "", debridCachedOnly: true, services: []
     }; })
     .then(function (defaults) {
+      // A marca vem do servidor: renomear o addon no .env reflete na página
+      // sem tocar no HTML.
+      var brand = defaults.addonName || "Adom Power-Movie";
+      document.title = brand + " — Configurar";
+      var h1 = document.getElementById("addonName");
+      if (h1) h1.textContent = brand;
       fillServices(defaults.services);
       var saved = fromUrl();
       apply(Object.assign(defaults, saved || {}));
