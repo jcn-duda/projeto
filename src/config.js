@@ -23,6 +23,9 @@ const config = {
   jackett: {
     url: (process.env.JACKETT_URL || 'http://127.0.0.1:9117').replace(/\/$/, ''),
     apiKey: process.env.JACKETT_API_KEY || '',
+    // Credencial separada para a rota operacional que executa buscas reais.
+    // Vazio desliga o endpoint; nunca reutilizamos nem expomos a API key.
+    testToken: process.env.JACKETT_TEST_TOKEN || '',
     // Consultados em paralelo, um timeout por indexer. Vazio = agregado /all.
     indexers: list(process.env.JACKETT_INDEXERS),
     indexerTimeout: num(process.env.JACKETT_INDEXER_TIMEOUT_MS, 4000),

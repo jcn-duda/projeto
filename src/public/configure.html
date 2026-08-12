@@ -998,12 +998,14 @@
     else slot.detail.textContent = "nenhum resultado";
   }
 
-  async function runIndexerTests() {
+  function runIndexerTests() {
     // Testa o que está marcado; nada marcado = todos, que é o mesmo critério da
     // busca real quando o usuário não escolhe indexador.
     var ids = chipsSelected(el.jackettIndexers);
     if (ids.length === 0) ids = allJackettIndexerIds();
     if (ids.length === 0) return;
+    var token = window.prompt("Token de diagnóstico configurado em JACKETT_TEST_TOKEN:");
+    if (!token) return;
 
     el.testIndexers.disabled = true;
     el.testIndexers.textContent = "Testando…";
@@ -1013,20 +1015,29 @@
     jackettIndexers.forEach(function (item) { byId[item.id] = item; });
 
     // Um por vez de propósito: em paralelo os indexers BR disputam o mesmo
-    // Jackett e o teste mediria a fila, não o indexador.
-    for (var i = 0; i < ids.length; i++) {
+    // Jackett e o teste mediria a fila, não o indexador. A cadeia de promises
+    // mantém a página em ES5 para os WebViews antigos de TV.
+    var i = 0;
+    function next() {
+      if (i >= ids.length) {
+        el.testIndexers.disabled = false;
+        el.testIndexers.textContent = "Testar indexadores";
+        return;
+      }
       var item = byId[ids[i]];
       var slot = testLine((item ? item.label : ids[i]) + (item && item.isBr ? " · BR" : ""));
-      try {
-        var res = await fetch("/test-indexer.json?id=" + encodeURIComponent(ids[i]));
-        showResult(slot, await res.json());
-      } catch (err) {
-        showResult(slot, { ok: false, error: String(err && err.message ? err.message : err) });
-      }
+      i += 1;
+      fetch("/test-indexer.json?id=" + encodeURIComponent(ids[i - 1]), {
+        headers: { "X-Indexer-Test-Token": token }
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) { showResult(slot, data); })
+        .catch(function (err) {
+          showResult(slot, { ok: false, error: String(err && err.message ? err.message : err) });
+        })
+        .then(next);
     }
-
-    el.testIndexers.disabled = false;
-    el.testIndexers.textContent = "Testar indexadores";
+    next();
   }
 
   el.testIndexers.addEventListener("click", runIndexerTests);

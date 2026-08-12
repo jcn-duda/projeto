@@ -9,6 +9,9 @@ const brResolvers = require('./br-resolvers');
 const { verifyResolve } = require('./utils/sign');
 const jackettCatalog = require('./providers/jackett-catalog');
 const jackett = require('./providers/jackett');
+const { authorized, createDiagnosticGate } = require('./utils/diagnostic-guard');
+
+const diagnosticGate = createDiagnosticGate();
 
 const manifest = {
   id: config.addonId,
@@ -129,16 +132,29 @@ app.get('/defaults.json', async (_, res) => {
  * isso qualquer string viraria um caminho na API do Jackett.
  */
 app.get('/test-indexer.json', async (req, res) => {
-  const id = String(req.query.id || '');
-  const catalog = await jackettCatalog.load();
-  if (!catalog.some((indexer) => indexer.id === id)) {
-    return res.status(400).json({ ok: false, error: 'indexador desconhecido' });
+  if (!config.jackett.testToken) {
+    return res.status(503).json({ ok: false, error: 'diagnóstico desativado pelo operador' });
   }
-  // Sem `q`, quem escolhe o termo é o provider: indexer BR recebe o título em
-  // português e o global o original. O teste é do indexer, não da query.
-  const query = req.query.q ? String(req.query.q).slice(0, 80) : '';
-  const type = req.query.type === 'series' ? 'series' : 'movie';
-  return res.json(await jackett.test(id, query, type));
+  if (!authorized(config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
+    return res.status(401).json({ ok: false, error: 'token de diagnóstico inválido' });
+  }
+  const admission = diagnosticGate.enter(req.ip);
+  if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
+
+  try {
+    const id = String(req.query.id || '');
+    const catalog = await jackettCatalog.load();
+    if (!catalog.some((indexer) => indexer.id === id)) {
+      return res.status(400).json({ ok: false, error: 'indexador desconhecido' });
+    }
+    // Sem `q`, quem escolhe o termo é o provider: indexer BR recebe o título em
+    // português e o global o original. O teste é do indexer, não da query.
+    const query = req.query.q ? String(req.query.q).slice(0, 80) : '';
+    const type = req.query.type === 'series' ? 'series' : 'movie';
+    return res.json(await jackett.test(id, query, type));
+  } finally {
+    admission.release();
+  }
 });
 
 app.get('/resolve/:infoHash', resolveHandler);
