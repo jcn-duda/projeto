@@ -42,3 +42,12 @@ test('parseXml decodifica entidades em atributos do catálogo', () => {
   `);
   assert.equal(items[0].label, 'HD & Filmes – "Oficial"');
 });
+
+test('parseXml preserva entidade inválida e não decodifica duas vezes', () => {
+  const items = parseXml(`
+    <indexers>
+      <indexer id="seguro" name="A &#x2FFFFD; &#38;amp; B&nbsp;C"></indexer>
+    </indexers>
+  `);
+  assert.equal(items[0].label, 'A &#x2FFFFD; &amp; B C');
+});

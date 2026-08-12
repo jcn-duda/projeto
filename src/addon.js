@@ -120,6 +120,7 @@ app.get('/defaults.json', async (_, res) => {
     debridApiKey: '',
     services: debrid.SERVICES,
     addonName: config.addonName,
+    indexerTestEnabled: Boolean(config.jackett.testToken),
   });
 });
 
@@ -138,7 +139,9 @@ app.get('/test-indexer.json', async (req, res) => {
   if (!authorized(config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
     return res.status(401).json({ ok: false, error: 'token de diagnóstico inválido' });
   }
-  const admission = diagnosticGate.enter(req.ip);
+  // A stack passa pelo Caddy; limitar por req.ip trataria o proxy como se fosse
+  // cada cliente. O teto é global de propósito e protege a única fila Jackett.
+  const admission = diagnosticGate.enter('global');
   if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
 
   try {

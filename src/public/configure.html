@@ -670,6 +670,7 @@
   // Preenchido por /defaults.json a partir do registry do servidor.
   var services = [];
   var jackettIndexers = [];
+  var instanceDefaults = null;
   function serviceById(id) {
     for (var i = 0; i < services.length; i++) if (services[i].id === id) return services[i];
     return null;
@@ -784,6 +785,27 @@
     return cfg;
   }
 
+  function defaultRaw(name, value) {
+    if (name === "jackettIndexers") {
+      value = instanceDefaults.jackettIndexersSelected || [];
+    }
+    if (Array.isArray(value)) return value.join(",");
+    if (typeof value === "boolean") return value ? 1 : 0;
+    return value;
+  }
+
+  function compactConfig(cfg) {
+    if (!instanceDefaults) return cfg;
+    var compact = {};
+    Object.keys(KEYS).forEach(function (name) {
+      var key = KEYS[name];
+      if (!Object.prototype.hasOwnProperty.call(cfg, key)) return;
+      var expected = defaultRaw(name, instanceDefaults[name]);
+      if (String(cfg[key]) !== String(expected == null ? "" : expected)) compact[key] = cfg[key];
+    });
+    return compact;
+  }
+
   function render() {
     var qualityLimitLabel = function (value) {
       return value === "0" ? "nenhuma" : value === "100" ? "sem limite" : value;
@@ -816,10 +838,17 @@
       el.keyLink.hidden = true;
     }
 
-    var url = location.origin + "/" + encodeConfig(collect()) + "/manifest.json";
+    var segment = encodeConfig(compactConfig(collect()));
+    var url = location.origin + "/" + segment + "/manifest.json";
     el.installUrl.textContent = url;
-    el.installBtn.href = url.replace(/^https?:/, "stremio:");
-    el.copyBtn.dataset.url = url;
+    // O servidor mantém um teto defensivo de 8192. Nunca ofereça um link que
+    // sabemos que virará 404 (catálogo enorme selecionado manualmente).
+    var tooLong = segment.length > 8000;
+    el.installBtn.href = tooLong ? "#" : url.replace(/^https?:/, "stremio:");
+    el.installBtn.setAttribute("aria-disabled", tooLong ? "true" : "false");
+    el.copyBtn.disabled = tooLong;
+    el.copyBtn.dataset.url = tooLong ? "" : url;
+    if (tooLong) el.installUrl.textContent = "Configuração grande demais: desmarque alguns indexadores.";
   }
 
   /* ---------- eventos ---------- */
@@ -1053,6 +1082,7 @@
       debridService: "", debridApiKey: "", debridCachedOnly: true, autoFetchBr: true, services: []
     }; })
     .then(function (defaults) {
+      instanceDefaults = defaults;
       // A marca vem do servidor: renomear o addon no .env reflete na página
       // sem tocar no HTML.
       var brand = defaults.addonName || "Adom Power-Movie";
@@ -1061,6 +1091,7 @@
       if (h1) h1.textContent = brand;
       fillServices(defaults.services);
       fillJackettIndexers(defaults.jackettIndexers);
+      el.testIndexers.hidden = !defaults.indexerTestEnabled;
       var saved = fromUrl();
       var initial = Object.assign({}, defaults);
       // O catálogo ocupa o mesmo nome da opção no JSON de defaults, mas não é

@@ -21,14 +21,18 @@ function labelFor(id) {
 }
 
 function decodeXml(text) {
-  return String(text || '')
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'");
+  const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+  // Uma passagem só evita decodificar duas vezes `&#38;amp;`. Entidade numérica
+  // inválida fica literal em vez de derrubar todo o catálogo com RangeError.
+  return String(text || '').replace(/&(?:#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (entity) => {
+    const body = entity.slice(1, -1).toLowerCase();
+    if (named[body] != null) return named[body];
+    const value = body.startsWith('#x') ? parseInt(body.slice(2), 16) : Number(body.slice(1));
+    if (!Number.isInteger(value) || value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff)) {
+      return entity;
+    }
+    return String.fromCodePoint(value);
+  });
 }
 
 function tag(body, name) {

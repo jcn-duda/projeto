@@ -7,7 +7,7 @@ function authorized(expected, supplied) {
   return crypto.timingSafeEqual(left, right);
 }
 
-function createDiagnosticGate({ limit = 20, windowMs = 60_000, maxConcurrent = 1, now = Date.now } = {}) {
+function createDiagnosticGate({ limit = 200, windowMs = 60_000, maxConcurrent = 1, now = Date.now } = {}) {
   const clients = new Map();
   let active = 0;
 
@@ -15,6 +15,7 @@ function createDiagnosticGate({ limit = 20, windowMs = 60_000, maxConcurrent = 1
     const time = now();
     const key = String(client || 'unknown');
     const recent = (clients.get(key) || []).filter((stamp) => time - stamp < windowMs);
+    if (recent.length === 0) clients.delete(key);
     if (recent.length >= limit) return { ok: false, status: 429, error: 'limite de testes atingido' };
     if (active >= maxConcurrent) return { ok: false, status: 429, error: 'já existe um teste em andamento' };
 

@@ -27,6 +27,24 @@ test('fase nova impede passe tardio antigo de sobrescrever o cache', async () =>
   assert.deepEqual(writes, ['pack']);
 });
 
+test('episódio tardio útil salva a busca quando o pack fica vazio', async () => {
+  const episodeBuild = deferred();
+  const writes = [];
+  const writer = createLatestWriter(
+    (value) => value === 'episodio' ? episodeBuild.promise : Promise.resolve(value),
+    (value) => writes.push(value),
+  );
+
+  const episodePhase = writer.phase();
+  const episodeRun = writer('episodio', episodePhase);
+  const packPhase = writer.advance();
+  await writer([], packPhase);
+  episodeBuild.resolve(['episodio']);
+  await episodeRun;
+
+  assert.deepEqual(writes, [[], ['episodio']]);
+});
+
 test('lote tardio mais novo vence o parcial dentro da mesma fase', async () => {
   const partialBuild = deferred();
   const writes = [];
