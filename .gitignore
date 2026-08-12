@@ -4,6 +4,10 @@ node_modules/
 .DS_Store
 Thumbs.db
 docker-data/
+# Cache SQLite quando o addon roda fora do container (CACHE_DB_PATH default).
+data/
+# Índice local da IDE Qoder.
+.qoder/
 jackett-config/
 prowlarr-config/
 .idea/
