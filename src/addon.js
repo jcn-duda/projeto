@@ -12,8 +12,14 @@ const manifest = {
   version: config.version,
   name: config.addonName,
   description:
-    'Seu addon de torrents self-hosted. Jackett/Prowlarr + Docker. Roda na sua pasta, no PC ou no servidor.',
-  logo: 'https://www.stremio.com/website/stremio-logo-small.png',
+    'Torrents self-hosted com prioridade para conteúdo brasileiro dublado. ' +
+    'Busca em paralelo via Jackett (BLUDV, Comando, NerdFilmes, TorrentDosFilmes ' +
+    '+ indexers globais) e entrega play instantâneo por debrid.',
+  // Servido pelo próprio addon quando há PUBLIC_URL; sem ela o cliente não
+  // alcançaria um caminho relativo, então cai no logo genérico do Stremio.
+  logo: config.debrid.publicUrl
+    ? `${config.debrid.publicUrl}/logo.svg`
+    : 'https://www.stremio.com/website/stremio-logo-small.png',
   resources: ['stream'],
   types: ['movie', 'series'],
   idPrefixes: ['tt'],
@@ -88,6 +94,7 @@ const CONFIGURE_PAGE = path.join(__dirname, 'public', 'configure.html');
 const sendConfigure = (_, res) => res.sendFile(CONFIGURE_PAGE);
 
 app.get('/health', (_, res) => res.json({ ok: true }));
+app.get('/logo.svg', (_, res) => res.sendFile(path.join(__dirname, 'public', 'logo.svg')));
 app.get('/', (_, res) => res.redirect(302, '/configure'));
 app.get('/configure', sendConfigure);
 

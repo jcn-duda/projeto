@@ -1,3 +1,4 @@
+const config = require('../config');
 const { json, pickFile, wait } = require('./common');
 
 // v4.1: a AllDebrid descontinuou /v4/magnet/status ("DISCONTINUED"), o que
@@ -22,11 +23,32 @@ async function call(apiKey, path, params = {}, { method = 'GET', body } = {}) {
 }
 
 /**
- * A AllDebrid removeu o endpoint de disponibilidade instantânea; não dá mais
- * pra perguntar em lote o que está em cache.
+ * O /magnet/instant foi removido, mas o próprio /magnet/upload responde
+ * `ready` por magnet — é essa a checagem de cache da AllDebrid. Aceita lote.
+ *
+ * O que não está pronto é removido em seguida: sem isso cada consulta deixaria
+ * um download rodando na conta (chegaram a 226 fantasmas antes disso existir).
  */
-async function checkCached() {
-  return new Set();
+async function checkCached(apiKey, infoHashes) {
+  const ready = new Set();
+  const drop = [];
+
+  for (let i = 0; i < infoHashes.length; i += config.debrid.batchSize) {
+    const batch = infoHashes.slice(i, i + config.debrid.batchSize);
+    const data = await call(apiKey, '/magnet/upload', { 'magnets[]': batch });
+    for (const magnet of data?.magnets || []) {
+      if (magnet.ready) ready.add(String(magnet.hash).toLowerCase());
+      else if (magnet.id) drop.push(magnet.id);
+    }
+  }
+
+  if (drop.length && config.debrid.dropUncached) {
+    // Em paralelo e sem travar a busca: limpeza é efeito colateral, não resposta.
+    Promise.allSettled(drop.map((id) => call(apiKey, '/magnet/delete', { id }))).then(() =>
+      console.log(`[alldebrid] ${drop.length} magnet(s) não cacheado(s) removido(s) da conta`),
+    );
+  }
+  return ready;
 }
 
 /**
@@ -65,6 +87,17 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
   }
   if (!info || info.status !== 'Ready') {
     console.warn(`[alldebrid] torrent não está em cache (status: ${info?.status})`);
+    // Sem isso o magnet fica baixando na conta pra sempre: como a AllDebrid não
+    // tem consulta de cache, TODO play que falha deixa um download fantasma
+    // (foram 226 acumulados até este bug aparecer). O upload é idempotente,
+    // então apagar não custa nada — se o usuário voltar, ele é reenviado.
+    if (config.debrid.dropUncached) {
+      try {
+        await call(apiKey, '/magnet/delete', { id: magnet.id });
+      } catch (err) {
+        console.warn('[alldebrid] não consegui remover o magnet:', err.message);
+      }
+    }
     return null;
   }
 
@@ -79,7 +112,8 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
 module.exports = {
   id: 'alldebrid',
   label: 'AllDebrid',
-  cacheCheck: false,
+  // Não pelo /magnet/instant (removido), e sim pelo `ready` do /magnet/upload.
+  cacheCheck: true,
   keyUrl: 'https://alldebrid.com/apikeys',
   checkCached,
   resolveLink,

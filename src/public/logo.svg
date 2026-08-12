@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Cores do design system do Power Movie: primary #FAA31A / accent #FFA329. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFA329"/>
+      <stop offset="1" stop-color="#E8890A"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="#0D0D0D"/>
+  <rect x="8" y="8" width="240" height="240" rx="50" fill="none" stroke="url(#g)" stroke-width="4" opacity="0.5"/>
+  <!-- Play + raio: torrent que já toca na hora (cacheado no debrid). -->
+  <path d="M104 66l86 62-86 62V66z" fill="url(#g)"/>
+  <path d="M78 60l-26 44h24l-16 44 40-52H74l18-36z" fill="#FFFFFF" opacity="0.92"/>
+</svg>

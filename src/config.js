@@ -81,6 +81,9 @@ const config = {
     apiKey: process.env.DEBRID_API_KEY || '',
     cachedOnly: String(process.env.DEBRID_CACHED_ONLY || 'true') === 'true',
     batchSize: num(process.env.DEBRID_BATCH_SIZE, 100),
+    // Remove da conta do debrid o que não está em cache. Sem isso cada consulta
+    // deixa um download rodando lá (AllDebrid só informa cache ao dar upload).
+    dropUncached: String(process.env.DEBRID_DROP_UNCACHED || 'true') === 'true',
     timeout: num(process.env.DEBRID_TIMEOUT_MS, 6000),
     // URL pública do addon, usada nos links de play resolvidos no debrid.
     publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),

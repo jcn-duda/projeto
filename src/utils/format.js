@@ -32,6 +32,24 @@ function extractInfoHash(magnetOrHash) {
   return null;
 }
 
+const NAMED_ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  hellip: '…', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘',
+  ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
+};
+
+/**
+ * Indexers que raspam WordPress devolvem o título com entidade crua — o BLUDV
+ * e o Comando mandam "Episódio II &#8211; Ataque dos Clones". Sem decodificar,
+ * a entidade aparece literal na lista do cliente.
+ */
+function decodeEntities(text = '') {
+  return String(text)
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&([a-z]+);/gi, (whole, name) => NAMED_ENTITIES[name.toLowerCase()] ?? whole);
+}
+
 function qualityFromTitle(title = '') {
   const t = title.toUpperCase();
   if (/\b(2160P|4K|UHD)\b/.test(t)) return '2160p';
@@ -64,7 +82,7 @@ function toStremioStream(item) {
   const infoHash = extractInfoHash(item.infoHash || item.magnet || item.MagnetUri || item.Guid);
   if (!infoHash) return null;
 
-  const title = item.title || item.Title || 'Torrent';
+  const title = decodeEntities(item.title || item.Title || 'Torrent');
   const seeders = Number(item.seeders ?? item.Seeders ?? 0) || 0;
   const size = bytesToSize(item.size ?? item.Size);
   const tracker = item.tracker || item.Tracker || item.Indexer || item.indexer || '';
@@ -82,12 +100,15 @@ function toStremioStream(item) {
   ].filter(Boolean);
 
   return {
-    name: `Power\n${quality}`,
+    // Os seeds vão no `name` porque é o único bloco nosso que o Power Movie
+    // renderiza literal: os badges da linha de baixo ele deriva do nome do
+    // arquivo, então o 👤 do `title` (padrão Torrentio) não aparecia lá.
+    name: `PowerM\n${quality}${seeders ? ` · 👤 ${seeders}` : ''}`,
     title: `${title}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
     behaviorHints: {
-      bingeGroup: `power-${quality}-${source || 'any'}`,
+      bingeGroup: `powerm-${quality}-${source || 'any'}`,
     },
     _seeders: seeders,
     _quality: quality,
@@ -188,4 +209,5 @@ module.exports = {
   matchesName,
   dedupeByHash,
   normalizeTitle,
+  decodeEntities,
 };

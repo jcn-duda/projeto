@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="dark" />
-<title>Adom Power-Movie — Configurar</title>
+<title>PowerM — Configurar</title>
 <!-- Oswald/Manrope são as fontes do Power Movie. Se a página abrir sem
      internet, o fallback do stack assume sem quebrar o layout. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -162,7 +162,7 @@
     width: 19px; height: 19px;
     margin-left: 3px;
     border-radius: 50%;
-    background: #cfc9de;
+    background: var(--muted);
     transition: transform .18s, background .18s;
   }
   .switch[aria-pressed="true"] {
@@ -184,7 +184,7 @@
     padding: 2px 9px;
     border-radius: 7px;
     background: var(--accent-soft);
-    color: #cbb4ff;
+    color: var(--accent);
     font-size: 13px; font-weight: 650;
     font-variant-numeric: tabular-nums;
   }
@@ -222,14 +222,14 @@
     width: 17px; height: 17px;
     border: 0; border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 0 4px rgba(140,92,246,.22);
+    box-shadow: 0 0 0 4px rgba(250,163,26,.22);
     cursor: pointer;
   }
   input[type="range"]::-moz-range-thumb {
     width: 17px; height: 17px;
     border: 0; border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 0 4px rgba(140,92,246,.22);
+    box-shadow: 0 0 0 4px rgba(250,163,26,.22);
     cursor: pointer;
   }
 
@@ -247,24 +247,32 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
-  input::placeholder { color: #6d6784; }
+  input::placeholder { color: var(--disabled); }
 
   select {
     appearance: none;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a09bb4' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    /* A lista suspensa é desenhada pelo sistema, não pelo CSS da página: sem
+       color-scheme ela abre branca no meio do tema escuro. */
+    color-scheme: dark;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23b3b3b3' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 13px center;
     padding-right: 36px;
   }
+  select option {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  select:hover { border-color: var(--accent); }
 
   /* ---------- barra de instalação ---------- */
   .install {
     position: sticky; bottom: 16px;
     margin-top: 26px;
     padding: 20px;
-    border: 1px solid rgba(140,92,246,.38);
+    border: 1px solid rgba(250,163,26,.38);
     border-radius: var(--radius);
-    background: linear-gradient(160deg, rgba(140,92,246,.16), rgba(20,16,34,.94));
+    background: linear-gradient(160deg, rgba(250,163,26,.12), rgba(26,26,26,.96));
     backdrop-filter: blur(14px);
     box-shadow: 0 20px 50px -18px rgba(0,0,0,.85);
   }
@@ -301,7 +309,7 @@
   .btn-primary {
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
     color: #fff;
-    box-shadow: 0 8px 26px -8px rgba(140,92,246,.75);
+    box-shadow: 0 8px 26px -8px rgba(250,163,26,.55);
   }
   .btn-primary:hover { filter: brightness(1.1); }
 
@@ -341,7 +349,7 @@
 
   <header>
     <div class="logo">🇧🇷</div>
-    <h1>Adom Power-Movie</h1>
+    <h1>PowerM</h1>
     <p class="tagline">Torrents self-hosted com prioridade para conteúdo brasileiro dublado.</p>
     <div class="badges">
       <span class="badge">Jackett · Prowlarr</span>
