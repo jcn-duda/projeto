@@ -59,6 +59,15 @@ services:
       TZ: America/Sao_Paulo
     ports:
       - "127.0.0.1:8191:8191"
+    # O padrão do Docker é 64 MB de /dev/shm e o Chromium usa isso como memória
+    # compartilhada entre processos: em página pesada ele estoura e a aba morre
+    # no meio do desafio, o que chega ao Jackett como "tracker fora do ar".
+    shm_size: 1gb
+    # Teto pra ele não levar o addon junto. O Chromium cresce a cada desafio e
+    # esta é a única peça da stack que come RAM de verdade (~300 MB parado,
+    # perto de 1 GB resolvendo). Estourando o teto, só ele é morto e o
+    # `restart` acima o traz de volta — em vez do OOM killer escolher a vítima.
+    mem_limit: 1536m
     networks:
       - adom
 

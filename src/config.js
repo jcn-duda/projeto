@@ -51,6 +51,13 @@ const config = {
     // JACKETT_DOWNLOAD_TIMEOUT_MS é o teto por salto DENTRO deste.
     brIndexerTimeout: num(process.env.JACKETT_BR_INDEXER_TIMEOUT_MS, 20000),
     // Lentos porém úteis: medidos em 8-9s, perdiam o prazo dos globais.
+    //
+    // NÃO adicione aqui os que passam por FlareSolverr (1337x, kickasstorrents):
+    // não é questão de orçamento. O desafio Cloudflare é re-resolvido a CADA
+    // busca e foi medido em 13s (1337x), 20s (kickass.ws) e 24s (kickass.to) só
+    // pra abrir a primeira página — depois disso o Jackett ainda tem que raspar
+    // os resultados. Com 20s eles abortavam igual, só 16s mais tarde, gastando
+    // Chromium à toa. Fora da lista de indexers é o lugar deles.
     slowIndexers: list(
       process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent,apachetorrent',
     ),
