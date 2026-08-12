@@ -1,0 +1,45 @@
+const { test } = require('node:test');
+const assert = require('node:assert');
+
+const { createLatestWriter } = require('../src/utils/latest-writer');
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('fase nova impede passe tardio antigo de sobrescrever o cache', async () => {
+  const oldBuild = deferred();
+  const writes = [];
+  const writer = createLatestWriter(
+    (value) => value === 'episodio' ? oldBuild.promise : Promise.resolve(value),
+    (value) => writes.push(value),
+  );
+
+  const episodePhase = writer.phase();
+  const oldRun = writer('episodio', episodePhase);
+  const packPhase = writer.advance();
+  await writer('pack', packPhase);
+  oldBuild.resolve('episodio');
+  await oldRun;
+
+  assert.deepEqual(writes, ['pack']);
+});
+
+test('lote tardio mais novo vence o parcial dentro da mesma fase', async () => {
+  const partialBuild = deferred();
+  const writes = [];
+  const writer = createLatestWriter(
+    (value) => value === 'parcial' ? partialBuild.promise : Promise.resolve(value),
+    (value) => writes.push(value),
+  );
+
+  const phase = writer.phase();
+  const partialRun = writer('parcial', phase);
+  await writer('completo', phase);
+  partialBuild.resolve('parcial');
+  await partialRun;
+
+  assert.deepEqual(writes, ['completo']);
+});

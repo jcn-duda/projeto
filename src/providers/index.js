@@ -23,6 +23,7 @@ const held = require('../debrid/protected');
 const tmdb = require('../utils/tmdb');
 const { signResolve } = require('../utils/sign');
 const { accountScope, streamsCacheKey } = require('../utils/request-key');
+const { createLatestWriter } = require('../utils/latest-writer');
 const { opts, prefix } = require('../runtime');
 
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -296,18 +297,24 @@ async function doSearch({ type, id, cacheKey }) {
   // Fecha o pipeline sobre um lote de resultados brutos. É chamado duas vezes na
   // busca fria: com o que chegou dentro do prazo e, depois, com o lote completo
   // quando as fontes lentas terminam (aí só pra reescrever o cache).
-  const finish = async (rawItems) => {
-    const streams = await buildStreams(rawItems, { meta, titles, season, episode, isDemo });
-    // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco tempo.
-    cache.set(cacheKey, streams, streams.length ? config.cacheTtl : Math.min(config.cacheTtl, 60));
-    console.log(`[search] ${streams.length} stream(s) para ${id}`);
-    return streams;
-  };
+  const finish = createLatestWriter(
+    (rawItems) => buildStreams(rawItems, { meta, titles, season, episode, isDemo }),
+    (streams) => {
+      // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco tempo.
+      cache.set(cacheKey, streams, streams.length ? config.cacheTtl : Math.min(config.cacheTtl, 60));
+      console.log(`[search] ${streams.length} stream(s) para ${id}`);
+    },
+  );
 
-  let raw = await collectRaw(query, type, imdbId, ptQuery, finish);
+  const episodePhase = finish.phase();
+  let raw = await collectRaw(query, type, imdbId, ptQuery, (items) => finish(items, episodePhase));
 
   // Série sem resultado por episódio: tenta o pack da temporada (ex.: "Nome S01").
   if (raw.length === 0 && season != null && !isDemo) {
+    // O passe tardio da busca por episódio não pode sobrescrever o pack que
+    // estamos prestes a buscar. `advance` invalida qualquer escrita antiga,
+    // inclusive uma build que já começou e ainda está no debrid.
+    const packPhase = finish.advance();
     const s = String(season).padStart(2, '0');
     const packQuery = `${meta?.name || imdbId} S${s}`;
     // O fallback também precisa do título pt-BR: é justamente aqui, quando a
@@ -317,10 +324,10 @@ async function doSearch({ type, id, cacheKey }) {
     console.log(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
-    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, finish);
+    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, (items) => finish(items, packPhase));
   }
 
-  return finish(raw);
+  return finish(raw, finish.phase());
 }
 
 /**
