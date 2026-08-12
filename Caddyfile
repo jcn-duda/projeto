@@ -1,7 +1,5 @@
-comet.seudominio.com {
-	reverse_proxy comet:8000
-}
-
+# Substitua seudominio.com pelo seu domínio e aponte o DNS A de
+# adom.seudominio.com para a VPS antes de subir o Caddy.
 adom.seudominio.com {
 	reverse_proxy addon:7000
 }

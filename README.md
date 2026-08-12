@@ -1,18 +1,18 @@
 # Adom Power-Movie
 
-Stack de addons Stremio pronta para Docker: **Comet + Real-Debrid** como
-addon principal sem download P2P local, e **Adom** mantido como addon próprio
-de backup/evolução.
+Addon Stremio self-hosted que agrega torrents do Jackett/Prowlarr e de fontes
+brasileiras dubladas, com resolução opcional via debrid (Premiumize,
+Real-Debrid, AllDebrid, TorBox, Debrid-Link). Tudo sobe com Docker Compose.
 
-Os **cinco** de uma vez:
+Os **cinco** objetivos de uma vez:
 
 | # | Objetivo | Como |
 |---|----------|------|
-| 1 | Addon principal no Stremio | Comet + Real-Debrid, sem P2P local |
+| 1 | Addon no Stremio | Adom, Node/Express — P2P puro ou via debrid |
 | 2 | Rodar na sua pasta | `npm start` → `http://127.0.0.1:7000/manifest.json` |
 | 3 | Criar o **seu** lado | código em `src/` (provedores, filtros, nome) |
 | 4 | Subir no Docker | `docker compose up -d --build` |
-| 5 | Stack completa em VPS | Caddy/HTTPS + Comet + Postgres + indexers |
+| 5 | Stack completa em VPS | Caddy/HTTPS + addon + Jackett + resolvers BR |
 
 ---
 
@@ -21,15 +21,20 @@ Os **cinco** de uma vez:
 ```
 Internet / Stremio
        ↓ HTTPS
-Caddy ──→ comet.seudominio.com ──→ Comet ──→ Real-Debrid
-      └─→ adom.seudominio.com  ──→ Adom ──→ Jackett/Prowlarr ──→ P2P
-                                      ↑
-                         Comet também consulta Jackett
+Caddy ──→ adom.seudominio.com ──→ Adom ──→ Jackett ──→ indexers globais (P2P)
+                                   │            └──→ cards BR ──→ *-resolvers (protetores de link)
+                                   ├──────────→ scraper direto do BLUDV
+                                   └──────────→ debrid opcional (play via /resolve assinado)
 ```
 
-- **Comet** = addon principal, busca torrents e reproduz via Real-Debrid.
-- **Adom** = addon Node próprio, mantido como P2P de backup e para evolução.
-- **Jackett / Prowlarr** = indexers; Comet usa Jackett por padrão.
+- **Adom** = addon Node deste repositório: busca em paralelo no Jackett
+  (indexers globais + cards brasileiros), no Prowlarr e no scraper do BLUDV.
+- **Jackett** = gerenciador de indexers; os cards BR (Bludv, ComandoTorrents,
+  NerdFilmes, TorrentDosFilmes V2) vêm embutidos na imagem local e dependem
+  dos microserviços `*-resolver` para seguir protetores de links.
+- **FlareSolverr** = resolve desafios Cloudflare dos indexers que exigem.
+- **Debrid** = opcional: com ele o play passa pela rota `/resolve` assinada
+  com HMAC; sem ele, P2P puro (o Stremio baixa o torrent).
 - **Demo** = modo local do Adom que valida o pipeline com *Big Buck Bunny*.
 
 ---
@@ -235,22 +240,23 @@ No Docker o compose já aponta o addon para `http://prowlarr:9696` e `http://jac
 
 ---
 
-## Deploy em VPS: Comet + Real-Debrid (principal)
+## Deploy em VPS
 
-> Substitua `seudominio.com` no `Caddyfile` e aponte os registros DNS **A** de
-> `comet.seudominio.com` e `adom.seudominio.com` para a VPS **antes** de subir
-> o Caddy, para que o certificado HTTPS possa ser emitido.
+> Substitua `seudominio.com` no `Caddyfile` e aponte o registro DNS **A** de
+> `adom.seudominio.com` para a VPS **antes** de subir o Caddy, para que o
+> certificado HTTPS possa ser emitido.
 
 1. Em uma VPS Ubuntu 22.04 com pelo menos 2 GB de RAM, instale Docker Engine e
    o plugin Docker Compose. Libere apenas SSH, TCP 80 e TCP 443 no firewall.
 2. Copie o projeto, excluindo `node_modules/`, `.env` e `docker-data/`.
-3. Crie o arquivo de segredos e preencha as senhas obrigatórias:
+3. Crie o arquivo de configuração:
 
    ```bash
    cp .env.example .env
-   # Edite .env: POSTGRES_PASSWORD, ADMIN_DASHBOARD_PASSWORD,
-   # CONFIGURE_PAGE_PASSWORD e JACKETT_API_KEY. As três senhas começam vazias
-   # por segurança e devem ser preenchidas antes de iniciar a stack.
+   # Edite .env: PROVIDER=jackett, JACKETT_API_KEY e
+   # PUBLIC_URL=https://adom.seudominio.com. Numa instância pública, deixe
+   # DEBRID_API_KEY vazia (cada usuário põe a sua na página de configuração)
+   # e preencha RESOLVE_SECRET com uma string aleatória.
    ```
 
 4. Inicie a stack:
@@ -258,50 +264,45 @@ No Docker o compose já aponta o addon para `http://prowlarr:9696` e `http://jac
    ```bash
    docker compose up -d --build
    docker compose ps
-   curl -s https://comet.seudominio.com/health
+   curl -s https://adom.seudominio.com/health
    curl -s https://adom.seudominio.com/manifest.json
    ```
 
-5. Abra `https://comet.seudominio.com/configure`, adicione a chave da
-   **Real-Debrid**, salve e instale no Stremio o manifest privado fornecido pela
-   página. O dashboard administrativo fica em
-   `https://comet.seudominio.com/admin`.
-6. Instale também, se quiser o backup P2P, o manifest
-   `https://adom.seudominio.com/manifest.json`.
+5. Abra `https://adom.seudominio.com/configure`, escolha as opções (serviço de
+   debrid, API key, filtros) e instale no Stremio o manifest fornecido pela
+   página.
 
 ### Configurar indexers com segurança
 
-As UIs de Jackett e Prowlarr ficam ligadas apenas em `127.0.0.1` na VPS. Use
-um túnel SSH para configurar Jackett e copiar sua API key para `.env`:
+A UI do Jackett fica ligada apenas em `127.0.0.1` na VPS. Use um túnel SSH
+para configurar o Jackett e copiar sua API key para `.env`:
 
 ```bash
 ssh -L 9117:127.0.0.1:9117 usuario@IP-DA-VPS
 # Abra http://127.0.0.1:9117 no navegador local.
 ```
 
-Após trocar `JACKETT_API_KEY`, execute:
+Após trocar `JACKETT_API_KEY`:
 
 ```bash
 docker compose up -d
-docker compose restart comet
 ```
 
 O Prowlarr continua opcional: inicie-o com
-`docker compose --profile full up -d` e só habilite o scraper correspondente
+`docker compose --profile full up -d` e só habilite o provider correspondente
 quando desejar configurá-lo.
 
 ### Manutenção
 
 ```bash
-docker compose pull
-docker compose up -d
-docker compose logs -f comet
+docker compose up -d --build   # o rebuild também puxa imagens base atualizadas
+docker compose logs -f addon
 docker compose down
 ```
 
-Os volumes nomeados `comet_data`, `postgres_data`, `caddy_data` e
-`caddy_config` mantêm os dados entre reinicializações. Faça backup de
-`comet_data` e `postgres_data`; não versione `.env`.
+O estado do Jackett persiste em `./docker-data/jackett`; os certificados do
+Caddy ficam nos volumes `caddy_data` e `caddy_config`. Faça backup de
+`docker-data/`; não versione `.env`.
 
 ---
 
@@ -310,24 +311,31 @@ Os volumes nomeados `comet_data`, `postgres_data`, `caddy_data` e
 ```
 stremio adom/
 ├── src/
-│   ├── addon.js              # entrada + manifest + HTTP
-│   ├── config.js             # .env
+│   ├── addon.js              # entrada + manifest + HTTP + /resolve
+│   ├── config.js             # .env (padrões do operador)
+│   ├── runtime.js            # config por usuário na URL (overlay)
 │   ├── providers/
-│   │   ├── index.js          # orquestra busca
+│   │   ├── index.js          # orquestra busca, cache, deadline, debrid
 │   │   ├── demo.js           # teste sem indexer
 │   │   ├── jackett.js
-│   │   └── prowlarr.js
+│   │   ├── prowlarr.js
+│   │   └── bludv.js          # scraper direto do BLUDV
+│   ├── debrid/               # adaptadores: premiumize, realdebrid, …
+│   ├── public/configure.html # página de configuração (sem build)
 │   └── utils/
 │       ├── cache.js
 │       ├── cinemeta.js       # título/ano pelo IMDb
+│       ├── tmdb.js           # título pt-BR
+│       ├── sign.js           # HMAC dos links /resolve
 │       └── format.js         # infoHash, qualidade, sort
+├── test/                     # testes unitários (node:test)
+├── scripts/smoke.js          # smoke test contra o addon rodando
 ├── docker-compose.yml
-├── jackett-bludv/
-│   ├── Dockerfile             # Jackett com card local
-│   └── bludv-cardigann.yml    # definição Cardigann do BLUDV
-├── bludv-resolver/             # resolve o protetor de links do BLUDV
-├── comandotorrents-resolver/    # resolve o protetor de links do ComandoTorrents
-├── nerdfilmes-resolver/          # indexador/resolver do NerdFilmesTorrent
+├── jackett-bludv/            # imagem do Jackett com os cards BR
+├── bludv-resolver/           # segue o protetor de links do BLUDV
+├── comandotorrents-resolver/ # segue o protetor do ComandoTorrents
+├── nerdfilmes-resolver/      # resolver do NerdFilmesTorrent
+├── torrentdosfilmes-resolver/ # resolver do TorrentDosFilmes V2
 ├── Caddyfile
 ├── Dockerfile
 ├── .env.example
@@ -351,6 +359,8 @@ stremio adom/
 |---------|--------|
 | `npm start` | sobe o addon local |
 | `npm run dev` | local com `--watch` |
+| `npm test` | testes unitários (format.js + HMAC) |
+| `npm run smoke` | smoke test contra o addon rodando |
 | `npm run docker:up` | build + sobe compose |
 | `npm run docker:down` | para tudo |
 | `npm run docker:logs` | logs do addon |
@@ -359,9 +369,9 @@ stremio adom/
 
 ## Limitações honestas
 
-- O **Adom** é P2P (Stremio baixa o torrent); ele é apenas o backup nesta stack.
-- O **Comet** requer uma conta Real-Debrid e indexers saudáveis no Jackett para
-  retornar streams.  
+- Sem debrid o **Adom** é P2P: o Stremio baixa o torrent e depende de seeders.
+- Com debrid, os resultados dependem de indexers saudáveis no Jackett e da
+  conta no serviço escolhido.  
 - Indexers, contas e legalidade dos conteúdos são **sua** responsabilidade.  
 - Os domínios públicos são servidos pelo Caddy com HTTPS automático, desde que
   o DNS esteja apontado corretamente.
@@ -370,10 +380,9 @@ stremio adom/
 
 ## Próximos passos (quando quiser)
 
-1. Unificar/evoluir o código próprio do Adom com o fluxo do Comet.
-2. Filtros por idioma (ex.: multi, DUAL, PT-BR).
-3. Adicionar outros debrids, proxies de streams e scrapers.
-4. Publicar o manifest em catálogo comunitário.
+1. Filtros por idioma (ex.: multi, DUAL, PT-BR).
+2. Adicionar outros debrids, proxies de streams e scrapers.
+3. Publicar o manifest em catálogo comunitário.
 
 ---
 

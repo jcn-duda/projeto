@@ -32,6 +32,7 @@ Praticamente todo trabalho de código acontece no **Adom**.
 ```bash
 npm start                 # sobe o addon em http://127.0.0.1:7000/manifest.json
 npm run dev               # idem, com --watch
+npm test                  # testes unitários de format.js e sign.js (node:test)
 npm run docker:up         # stack completa
 npm run docker:logs       # logs do addon
 ```
@@ -246,9 +247,10 @@ significa menos resultados, nunca erro para o usuário.
   consultar. Sintomas: título com subtítulo volta vazio.
 - **`AbortSignal.any` não existe no Node 18.** `engines` declara `>=18`; prefira
   calcular orçamento restante a compor sinais.
-- **A rota `/resolve/:infoHash` não tem autenticação.** Quem descobrir a
-  `PUBLIC_URL` consegue consumir a conta Premiumize. Se for mexer nela, considere
-  assinar o path com HMAC.
+- **A rota `/resolve/:infoHash` é assinada com HMAC.** O parâmetro `sig` cobre
+  `infoHash` + temporada/episódio; o segredo é `RESOLVE_SECRET` ou, na falta
+  dele, a API key de debrid da requisição. Se mudar o formato da rota ou os
+  parâmetros que o play usa, mantenha todos eles dentro da assinatura.
 - **Instalação sem config usa a `DEBRID_API_KEY` do `.env`.** Numa instância
   pública isso significa terceiros gastando a conta do operador. `/defaults.json`
   já omite a chave; a herança no caminho de busca é intencional (setup de um
@@ -256,8 +258,11 @@ significa menos resultados, nunca erro para o usuário.
 - **`src/public/` não passa por build.** É HTML/CSS/JS servido cru, e o JS é ES5
   por escolha (roda no WebView de Fire TV e smart TV). Não introduza sintaxe
   moderna nem bundler ali.
-- **Não existe suíte de testes.** `npm run test:nerdfilmes` cobre só um resolver.
-  Ao mexer em `format.js`, valide com um script pontual em `node -e`.
+- **Suíte de testes é mínima.** `npm test` cobre as funções puras de
+  `format.js` e o HMAC de `sign.js` (runner nativo `node:test`, sem
+  dependências); `npm run test:nerdfilmes` cobre só um resolver. Ao mexer em
+  `format.js` ou `sign.js`, estenda os testes em `test/`; para o resto, valide
+  com um script pontual em `node -e`.
 
 ## Git
 
