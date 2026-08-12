@@ -94,6 +94,8 @@ const config = {
   // Menor que o limite de 10s do cliente Stremio.
   searchTimeout: num(process.env.SEARCH_TIMEOUT_MS, 8000),
   replyDeadline: num(process.env.REPLY_DEADLINE_MS, 8500),
+  // Fatia do deadline reservada pra checagem no debrid depois da coleta.
+  debridReserve: num(process.env.DEBRID_RESERVE_MS, 2000),
 };
 
 module.exports = config;

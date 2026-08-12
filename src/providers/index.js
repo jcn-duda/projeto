@@ -127,13 +127,30 @@ async function collectRaw(query, type, imdbId, ptQuery) {
     tasks.push(bludv.search(ptQuery || query));
   }
 
-  // allSettled: um indexer fora do ar não pode derrubar a busca inteira no modo "both".
-  const settled = await Promise.allSettled(tasks);
-  return settled.flatMap((r) => {
-    if (r.status === 'fulfilled') return r.value;
-    console.warn('[search] provider falhou:', r.reason?.message || r.reason);
-    return [];
-  });
+  // Cada provider despeja no balde assim que termina, em vez de todo mundo
+  // esperar o último: quando o orçamento acaba, o que já chegou vale.
+  const bucket = [];
+  const collecting = tasks.map((task) =>
+    task
+      .then((items) => bucket.push(...items))
+      .catch((err) => console.warn('[search] provider falhou:', err?.message || err)),
+  );
+
+  // Orçamento menor que o deadline da resposta: o resto do tempo é da checagem
+  // no debrid, que ainda precisa rodar em cima do que foi coletado.
+  const budget = Math.max(1000, config.replyDeadline - config.debridReserve);
+  let done = false;
+  await Promise.race([
+    Promise.all(collecting).then(() => {
+      done = true;
+    }),
+    new Promise((resolve) => setTimeout(resolve, budget).unref()),
+  ]);
+
+  if (!done) {
+    console.warn(`[search] orçamento de ${budget}ms esgotado; seguindo com ${bucket.length} resultado(s) parcial(is)`);
+  }
+  return bucket;
 }
 
 async function findStreams({ type, id }) {
