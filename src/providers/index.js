@@ -10,6 +10,7 @@ const {
   toStremioStream,
   sortAndLimit,
   matchesName,
+  matchesEpisode,
 } = require('../utils/format');
 const cache = require('../utils/cache');
 const debrid = require('../debrid');
@@ -234,6 +235,17 @@ async function doSearch({ type, id, cacheKey }) {
     if (before !== raw.length) console.log(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
   }
 
+  // Série: o indexer responde a "Nome S01E01" com a temporada inteira, então
+  // sem este corte a lista do E01 vinha cheia de E03/E04/E09. Packs (título com
+  // a temporada e sem episódio) passam — o debrid escolhe o arquivo no play.
+  if (season != null && episode != null && !isDemo) {
+    const before = raw.length;
+    raw = raw.filter((r) => matchesEpisode(r.title || r.Title || '', { season, episode }));
+    if (before !== raw.length) {
+      console.log(`[search] ${before - raw.length} resultado(s) de outro episódio descartado(s)`);
+    }
+  }
+
   // Pool maior que MAX_RESULTS: o corte final é DEPOIS do debrid, senão fontes
   // sem seeders publicados (BLUDV) e não-cacheados ocupariam as vagas e sumiriam.
   const { minSeeders, maxResults, qualities } = opts();
@@ -241,6 +253,8 @@ async function doSearch({ type, id, cacheKey }) {
     minSeeders,
     maxResults: maxResults * config.candidatePoolFactor,
     qualityFilter: qualities,
+    season,
+    episode,
   });
 
   streams = limitReservingBr(await applyDebrid(streams, { season, episode }));

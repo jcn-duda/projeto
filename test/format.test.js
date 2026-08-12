@@ -14,12 +14,13 @@ const {
   toStremioStream,
   normalizeTitle,
   matchesName,
+  matchesEpisode,
+  parseTitleSeasonEpisode,
   dedupeByHash,
   sortAndLimit,
   parseStremioId,
   buildSearchQuery,
 } = require('../src/utils/format');
-const config = require('../src/config');
 
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
@@ -84,9 +85,9 @@ test('toStremioStream normaliza e guarda campos internos', () => {
   assert.equal(s._br, false);
   assert.ok(s.title.includes('2.00 GB'));
   assert.ok(s.title.includes('1337x'));
-  // Marca vem da config (nunca hardcodeada) e a 2ª linha do name leva
-  // qualidade + seeders, que é o que o cliente renderiza literal.
-  assert.ok(s.name.startsWith(`${config.addonName}\n1080p`));
+  // O nome da release abre o `name`: é o que o Power Movie renderiza
+  // literal na linha; a 2ª linha leva qualidade + seeds.
+  assert.ok(s.name.startsWith('Coringa 1080p BluRay'));
   assert.ok(s.name.includes('👤 42'));
   assert.ok(Array.isArray(s.sources) && s.sources.length > 0);
   // Sem hash não há stream.
@@ -164,4 +165,40 @@ test('buildSearchQuery monta filme com ano e série SxxEyy', () => {
     buildSearchQuery({ name: 'Breaking Bad' }, { season: 1, episode: 1 }),
     'Breaking Bad S01E01',
   );
+});
+
+test('parseTitleSeasonEpisode cobre SxxExx, 1x04, packs e pt-BR', () => {
+  assert.deepEqual(parseTitleSeasonEpisode('House Of The Dragon S01E04 2160p'), {
+    seasons: [1], episodes: [4],
+  });
+  assert.deepEqual(parseTitleSeasonEpisode('Serie 1x04 720p'), { seasons: [1], episodes: [4] });
+  assert.deepEqual(parseTitleSeasonEpisode('Serie S02E01-E03'), {
+    seasons: [2], episodes: [1, 2, 3],
+  });
+  assert.deepEqual(parseTitleSeasonEpisode('A Casa Do Dragao 1a Temporada WEB-DL Dual'), {
+    seasons: [1], episodes: [],
+  });
+  assert.deepEqual(parseTitleSeasonEpisode('Serie S01 Completa'), { seasons: [1], episodes: [] });
+  // Filme com "Episódio II" no nome não pode virar episódio de série.
+  assert.deepEqual(parseTitleSeasonEpisode('Star Wars Episodio II Ataque dos Clones'), {
+    seasons: [], episodes: [],
+  });
+});
+
+test('matchesEpisode barra outro episódio mas aceita pack da temporada', () => {
+  const want = { season: 1, episode: 1 };
+  assert.equal(matchesEpisode('House Of The Dragon S01E01 1080p', want), true);
+  assert.equal(matchesEpisode('House Of The Dragon S01E04 2160p', want), false);
+  assert.equal(matchesEpisode('House Of The Dragon S02E01 2160p', want), false);
+  assert.equal(matchesEpisode('A Casa Do Dragao 1a Temporada Dual', want), true);
+  assert.equal(matchesEpisode('A Casa Do Dragao Dublado 1080p', want), true);
+  // Filme: sem season/episode não filtra nada.
+  assert.equal(matchesEpisode('Coringa 1080p', {}), true);
+});
+
+test('sortAndLimit põe o episódio exato antes do pack da temporada', () => {
+  const pack = toStremioStream({ title: 'Serie 1a Temporada 2160p', infoHash: HASH, seeders: 5 });
+  const ep = toStremioStream({ title: 'Serie S01E01 1080p', infoHash: OTHER, seeders: 1 });
+  const out = sortAndLimit([pack, ep], { season: 1, episode: 1 });
+  assert.match(out[0].title, /S01E01/);
 });

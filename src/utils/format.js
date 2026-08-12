@@ -157,6 +157,69 @@ function matchesName(title, name) {
   return hits / wanted.length >= 0.6;
 }
 
+/**
+ * Extrai temporada/episódio do título da release. Cobre os formatos que os
+ * indexers usam de fato: "S01E04", "S01E01-E10", "1x04", "S01" (pack) e as
+ * variações pt-BR dos sites BR ("1ª Temporada", "Temporada 1", "Episódio 4").
+ */
+function parseTitleSeasonEpisode(title = '') {
+  const t = normalizeTitle(title);
+  const seasons = new Set();
+  const episodes = new Set();
+
+  // "s01e04", "s01 e04", "s01e01 e10" (intervalo), "s01e01e02"
+  for (const m of t.matchAll(/s(\d{1,2})((?:\s?e\s?\d{1,3})+)/g)) {
+    seasons.add(Number(m[1]));
+    const eps = [...m[2].matchAll(/e\s?(\d{1,3})/g)].map((x) => Number(x[1]));
+    if (eps.length >= 2) {
+      // Intervalo ("E01-E10" chega como "e01 e10"): tudo entre o menor e o maior.
+      const lo = Math.min(...eps);
+      const hi = Math.max(...eps);
+      for (let i = lo; i <= hi; i += 1) episodes.add(i);
+    } else {
+      eps.forEach((e) => episodes.add(e));
+    }
+  }
+
+  // "1x04"
+  for (const m of t.matchAll(/(\d{1,2})x(\d{1,3})/g)) {
+    seasons.add(Number(m[1]));
+    episodes.add(Number(m[2]));
+  }
+
+  // Pack: "s01", "s01 s03" (multi-temporada), "season 1", "1 temporada", "temporada 1"
+  for (const m of t.matchAll(/s(\d{1,2})(?![\de])/g)) seasons.add(Number(m[1]));
+  for (const m of t.matchAll(/(?:season|temporada)\s?(\d{1,2})/g)) seasons.add(Number(m[1]));
+  for (const m of t.matchAll(/(\d{1,2})\s?(?:a|ª)?\s?temporada/g)) seasons.add(Number(m[1]));
+
+  // Episódio solto em pt-BR só conta quando a temporada já apareceu; senão
+  // "Episódio II" de filme (Star Wars) viraria episódio de série.
+  if (seasons.size && episodes.size === 0) {
+    for (const m of t.matchAll(/epis[oó]dio\s?(\d{1,3})/g)) episodes.add(Number(m[1]));
+  }
+
+  return { seasons: [...seasons], episodes: [...episodes] };
+}
+
+/**
+ * O indexer devolve a temporada inteira quando a busca é por "Nome S01E01" —
+ * sem este filtro a lista de E01 vinha recheada de E03, E04, E06, E09.
+ * Pack de temporada (sem episódio no título) continua valendo: é dele que o
+ * debrid tira o arquivo certo, e é o formato que as fontes BR publicam.
+ */
+function matchesEpisode(title, { season, episode } = {}) {
+  if (season == null || episode == null) return true;
+  const { seasons, episodes } = parseTitleSeasonEpisode(title);
+
+  // Nenhuma pista de temporada/episódio: não dá pra afirmar que é errado
+  // (release BR costuma vir só como "Nome Dublado"), então passa.
+  if (seasons.length === 0 && episodes.length === 0) return true;
+
+  if (seasons.length && !seasons.includes(season)) return false;
+  if (episodes.length && !episodes.includes(episode)) return false;
+  return true;
+}
+
 /** Mesma release aparece em vários indexers; fica a de maior seeders. */
 function dedupeByHash(streams) {
   const best = new Map();
@@ -176,11 +239,24 @@ function dedupeByHash(streams) {
   return [...best.values()];
 }
 
-function sortAndLimit(streams, { minSeeders = 0, maxResults = 40, qualityFilter = [] } = {}) {
+function sortAndLimit(
+  streams,
+  { minSeeders = 0, maxResults = 40, qualityFilter = [], season = null, episode = null } = {},
+) {
+  // Release que nomeia o episódio pedido vem antes do pack da temporada: o pack
+  // serve, mas quem pediu o E01 quer ver o E01 no topo da lista.
+  const exact = (s) =>
+    season != null && episode != null &&
+    parseTitleSeasonEpisode(s.title).episodes.includes(episode)
+      ? 1
+      : 0;
+
   return dedupeByHash(streams)
     .filter((s) => (s._seeders || 0) >= minSeeders)
     .filter((s) => matchesQualityFilter(s.title, qualityFilter))
     .sort((a, b) => {
+      const ed = exact(b) - exact(a);
+      if (ed !== 0) return ed;
       const qOrder = { '2160p': 4, '1080p': 3, '720p': 2, '480p': 1, SD: 0 };
       const qd = (qOrder[b._quality] || 0) - (qOrder[a._quality] || 0);
       if (qd !== 0) return qd;
@@ -224,6 +300,8 @@ module.exports = {
   buildSearchQuery,
   matchesQualityFilter,
   matchesName,
+  matchesEpisode,
+  parseTitleSeasonEpisode,
   dedupeByHash,
   normalizeTitle,
   decodeEntities,
