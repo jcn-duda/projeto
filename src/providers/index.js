@@ -14,6 +14,7 @@ const {
 const cache = require('../utils/cache');
 const debrid = require('../debrid');
 const tmdb = require('../utils/tmdb');
+const { signResolve } = require('../utils/sign');
 const { opts, prefix } = require('../runtime');
 
 /**
@@ -47,13 +48,18 @@ async function applyDebrid(streams, { season, episode }) {
 
   const { cached, known } = await debrid.checkCached(hashes);
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
-  const viaDebrid = (s, instant) => ({
-    ...s,
-    name: instant ? s.name.replace('Adom', 'Adom ⚡') : s.name,
-    url: `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}`,
-    infoHash: undefined,
-    sources: undefined,
-  });
+  const viaDebrid = (s, instant) => {
+    // Assinatura cobre hash + temporada/episódio: sem ela o /resolve rejeita,
+    // então conhecer a PUBLIC_URL e um hash não basta pra gastar o debrid.
+    const sig = signResolve(s.infoHash, ep);
+    return {
+      ...s,
+      name: instant ? s.name.replace('Adom', 'Adom ⚡') : s.name,
+      url: `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}${ep ? '&' : '?'}sig=${sig}`,
+      infoHash: undefined,
+      sources: undefined,
+    };
+  };
 
   // Serviço que não sabe informar cache (Real-Debrid, AllDebrid, Debrid-Link):
   // filtrar por "somente em cache" esconderia a lista inteira. Mandamos tudo

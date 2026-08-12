@@ -84,6 +84,9 @@ const config = {
     timeout: num(process.env.DEBRID_TIMEOUT_MS, 6000),
     // URL pública do addon, usada nos links de play resolvidos no debrid.
     publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
+    // Segredo do HMAC dos links /resolve. Vazio = assina com a API key de
+    // debrid efetiva da requisição (basta pra uso de um usuário só).
+    resolveSecret: process.env.RESOLVE_SECRET || '',
   },
   // Menor que o limite de 10s do cliente Stremio.
   searchTimeout: num(process.env.SEARCH_TIMEOUT_MS, 8000),

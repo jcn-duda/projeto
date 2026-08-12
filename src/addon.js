@@ -5,6 +5,7 @@ const config = require('./config');
 const { findStreams } = require('./providers');
 const debrid = require('./debrid');
 const runtime = require('./runtime');
+const { verifyResolve } = require('./utils/sign');
 
 const manifest = {
   id: config.addonId,
@@ -59,6 +60,16 @@ async function resolveHandler(req, res) {
   const { infoHash } = req.params;
   if (!/^[a-f0-9]{40}$/i.test(infoHash)) {
     return res.status(400).send('infoHash inválido');
+  }
+  // Com debrid ativo a URL só vale assinada: hashes aparecem nos resultados
+  // públicos dos indexers, e sem sig qualquer um montaria o link na mão.
+  // Sem debrid não há conta a proteger (nem o que resolver).
+  if (debrid.current()) {
+    const ep =
+      req.query.s != null && req.query.e != null ? `?s=${req.query.s}&e=${req.query.e}` : '';
+    if (!verifyResolve(infoHash, ep, req.query.sig)) {
+      return res.status(403).send('assinatura inválida');
+    }
   }
   try {
     const link = await debrid.resolveLink(infoHash, {
