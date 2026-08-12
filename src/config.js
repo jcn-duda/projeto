@@ -28,8 +28,12 @@ const config = {
     indexerTimeout: num(process.env.JACKETT_INDEXER_TIMEOUT_MS, 4000),
     // Cardigann pode entregar o magnet apenas no endpoint Link. Resolvemos
     // sob demanda somente nos indexadores locais explicitamente permitidos.
+    // Os quatro entregam Link em vez de magnet: fora desta lista, o resultado
+    // é descartado por falta de infoHash. Com só dois aqui, bludv e
+    // torrentdosfilmes perdiam ~2/3 do que achavam.
     resolveDownloadIndexers: list(
-      process.env.JACKETT_RESOLVE_DOWNLOAD_INDEXERS || 'comandotorrents,nerdfilmes',
+      process.env.JACKETT_RESOLVE_DOWNLOAD_INDEXERS ||
+        'comandotorrents,nerdfilmes,bludv-cardigann,torrentdosfilmesv2',
     ),
     resolveConcurrency: num(process.env.JACKETT_RESOLVE_CONCURRENCY, 6),
     maxDownloadResolves: num(process.env.JACKETT_MAX_DOWNLOAD_RESOLVES, 20),
