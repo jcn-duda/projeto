@@ -246,6 +246,115 @@ function dedupeByHash(streams) {
   return [...best.values()];
 }
 
+const QUALITY_KEYS = ['2160p', '1080p', '720p', '480p', 'SD'];
+
+function streamQuality(stream) {
+  return stream?._quality || qualityFromTitle(stream?.title || stream?.name || '');
+}
+
+/**
+ * Separa espaço no pool pré-debrid para cada qualidade configurada. Sem isso,
+ * centenas de 4K poderiam ocupar o pool inteiro e impedir que a cota pedida de
+ * 1080p tivesse candidatos para sobreviver ao filtro de cache.
+ */
+function selectQualityCandidates(
+  streams,
+  { maxResults = 40, qualityLimits = {}, brReservedSlots = 0, candidateFactor = 1 } = {},
+) {
+  const poolSize = Math.max(0, Math.trunc(maxResults));
+  const custom = QUALITY_KEYS.filter((quality) => Number(qualityLimits[quality]) < 100);
+  const customSet = new Set(custom);
+  const buckets = new Map(custom.map((quality) => [quality, []]));
+  for (const stream of streams) {
+    const bucket = buckets.get(streamQuality(stream));
+    if (bucket) bucket.push(stream);
+  }
+
+  const selected = new Set();
+  const positions = new Map(custom.map((quality) => [quality, 0]));
+  const counts = new Map(custom.map((quality) => [quality, 0]));
+  const factor = Math.max(1, Math.trunc(candidateFactor));
+  const targets = new Map(
+    custom.map((quality) => [
+      quality,
+      Math.max(0, Math.trunc(Number(qualityLimits[quality]) || 0)) * factor,
+    ]),
+  );
+
+  // A reserva precisa existir também quando a qualidade está em 100. Se os BR
+  // forem considerados só no corte final, seeders globais podem preencher o
+  // pool ampliado antes deles chegarem ao debrid.
+  for (const stream of streams) {
+    if (selected.size >= poolSize || selected.size >= brReservedSlots) break;
+    if (!stream._br) continue;
+    const quality = streamQuality(stream);
+    if (customSet.has(quality) && counts.get(quality) >= targets.get(quality)) continue;
+    selected.add(stream);
+    if (customSet.has(quality)) counts.set(quality, counts.get(quality) + 1);
+  }
+
+  // Round-robin evita que a primeira qualidade consuma todo o pool quando a
+  // soma das cotas configuradas ultrapassa o máximo global.
+  let progressed = true;
+  while (selected.size < poolSize && progressed) {
+    progressed = false;
+    for (const quality of custom) {
+      const bucket = buckets.get(quality);
+      let position = positions.get(quality);
+      while (position < bucket.length && selected.has(bucket[position])) position += 1;
+      positions.set(quality, position);
+      if (counts.get(quality) >= targets.get(quality) || position >= bucket.length) continue;
+      selected.add(bucket[position]);
+      positions.set(quality, position + 1);
+      counts.set(quality, counts.get(quality) + 1);
+      progressed = true;
+      if (selected.size >= poolSize) break;
+    }
+  }
+
+  // Qualidades em 100 são ilimitadas e preenchem o espaço restante sem tomar
+  // as vagas já separadas para as cotas explícitas.
+  for (const stream of streams) {
+    if (selected.size >= poolSize) break;
+    if (selected.has(stream)) continue;
+    if (customSet.has(streamQuality(stream))) continue;
+    selected.add(stream);
+  }
+
+  // A seleção reserva espaço, mas a ordem original de qualidade/seeders segue
+  // intacta para a listagem e para o debrid.
+  return streams.filter((stream) => selected.has(stream));
+}
+
+/** Aplica as cotas na lista pós-debrid, quando só os streams reais são contados. */
+function limitByQuality(streams, qualityLimits = {}) {
+  const counts = new Map();
+  return streams.filter((stream) => {
+    const quality = streamQuality(stream);
+    const rawLimit = qualityLimits[quality];
+    const limit = rawLimit == null || rawLimit >= 100 ? Infinity : Math.max(0, Math.trunc(rawLimit));
+    const count = counts.get(quality) || 0;
+    if (count >= limit) return false;
+    counts.set(quality, count + 1);
+    return true;
+  });
+}
+
+/** Reserva origem BR, aplica as cotas finais e remove todos os campos internos. */
+function limitReservingBr(
+  streams,
+  { brReservedSlots = 0, maxResults = 40, brOnly = false, qualityLimits = {} } = {},
+) {
+  const pool = brOnly ? streams.filter((stream) => stream._br) : streams;
+  const reserved = new Set(pool.filter((stream) => stream._br).slice(0, brReservedSlots));
+  const ordered = reserved.size
+    ? [...reserved, ...pool.filter((stream) => !reserved.has(stream))]
+    : pool;
+  return limitByQuality(ordered, qualityLimits)
+    .slice(0, maxResults)
+    .map(({ _br, _seeders, _quality, _size, _dubbed, ...stream }) => stream);
+}
+
 function sortAndLimit(
   streams,
   {
@@ -257,6 +366,9 @@ function sortAndLimit(
     preferDubbed = false,
     excludeCam = false,
     maxSizeGb = 0,
+    qualityLimits = {},
+    brReservedSlots = 0,
+    candidateFactor = 1,
   } = {},
 ) {
   // Release que nomeia o episódio pedido vem antes do pack da temporada: o pack
@@ -269,7 +381,7 @@ function sortAndLimit(
   const dubbed = (s) => (s._dubbed ? 1 : 0);
   const maxSizeBytes = maxSizeGb > 0 ? maxSizeGb * 1024 ** 3 : 0;
 
-  return dedupeByHash(streams)
+  const ordered = dedupeByHash(streams)
     .filter((s) => (s._seeders || 0) >= minSeeders)
     .filter((s) => matchesQualityFilter(s.title, qualityFilter))
     .filter((s) => !excludeCam || sourceFromTitle(s.title) !== 'CAM')
@@ -287,9 +399,17 @@ function sortAndLimit(
         if (ad !== 0) return ad;
       }
       return (b._seeders || 0) - (a._seeders || 0);
-    })
-    .slice(0, maxResults)
-    .map(({ _seeders, _quality, _size, _dubbed, ...rest }) => rest);
+    });
+
+  return selectQualityCandidates(ordered, {
+    maxResults,
+    qualityLimits,
+    brReservedSlots,
+    candidateFactor,
+  })
+    // `_quality` e `_br` precisam sobreviver ao debrid: as cotas e a reserva
+    // são aplicadas só depois que cachedOnly remove os streams indisponíveis.
+    .map(({ _seeders, _size, _dubbed, ...rest }) => rest);
 }
 
 function parseStremioId(id) {
@@ -329,6 +449,9 @@ module.exports = {
   matchesEpisode,
   parseTitleSeasonEpisode,
   dedupeByHash,
+  selectQualityCandidates,
+  limitByQuality,
+  limitReservingBr,
   normalizeTitle,
   decodeEntities,
 };

@@ -11,26 +11,13 @@ const {
   sortAndLimit,
   matchesName,
   matchesEpisode,
+  limitReservingBr,
 } = require('../utils/format');
 const cache = require('../utils/cache');
 const debrid = require('../debrid');
 const tmdb = require('../utils/tmdb');
 const { signResolve } = require('../utils/sign');
 const { opts, prefix } = require('../runtime');
-
-/**
- * Fontes BR não publicam seeders, então ficam no fim da ordenação e caem fora
- * do corte competindo com releases de centenas de seeders. Reserva algumas
- * vagas pra elas antes de aplicar MAX_RESULTS.
- */
-function limitReservingBr(streams) {
-  const { brReservedSlots, maxResults, brOnly } = opts();
-  const pool = brOnly ? streams.filter((s) => s._br) : streams;
-  const reserved = new Set(pool.filter((s) => s._br).slice(0, brReservedSlots));
-  const ordered = reserved.size ? [...reserved, ...pool.filter((s) => !reserved.has(s))] : pool;
-  // `_br` é interno; não pode vazar no objeto que vai pro Stremio.
-  return ordered.slice(0, maxResults).map(({ _br, ...stream }) => stream);
-}
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -255,7 +242,21 @@ async function doSearch({ type, id, cacheKey }) {
     preferDubbed,
     excludeCam,
     maxSizeGb,
+    max2160p,
+    max1080p,
+    max720p,
+    max480p,
+    maxSd,
+    brReservedSlots,
+    brOnly,
   } = opts();
+  const qualityLimits = {
+    '2160p': max2160p,
+    '1080p': max1080p,
+    '720p': max720p,
+    '480p': max480p,
+    SD: maxSd,
+  };
   let streams = sortAndLimit(raw.map(toStremioStream), {
     minSeeders,
     maxResults: maxResults * config.candidatePoolFactor,
@@ -265,9 +266,17 @@ async function doSearch({ type, id, cacheKey }) {
     preferDubbed,
     excludeCam,
     maxSizeGb,
+    qualityLimits,
+    brReservedSlots,
+    candidateFactor: config.candidatePoolFactor,
   });
 
-  streams = limitReservingBr(await applyDebrid(streams, { season, episode }));
+  streams = limitReservingBr(await applyDebrid(streams, { season, episode }), {
+    brReservedSlots,
+    maxResults,
+    brOnly,
+    qualityLimits,
+  });
 
   // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco tempo.
   cache.set(cacheKey, streams, streams.length ? config.cacheTtl : Math.min(config.cacheTtl, 60));

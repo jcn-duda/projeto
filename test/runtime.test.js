@@ -2,7 +2,8 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 // Contrato do src/runtime.js para as opções novas do install URL: preferDubbed
-// ("a"), excludeCam ("c") e maxSizeGb ("z"). O
+// ("a"), excludeCam ("c"), maxSizeGb ("z") e os limites por qualidade max2160p
+// ("q4"), max1080p ("q1"), max720p ("q7"), max480p ("q5") e maxSd ("qs"). O
 // módulo é importável sem subir servidor (diferente de addon.js) e nada aqui
 // toca rede — só normalização, clamp e roundtrip do segmento de config.
 const config = require('../src/config');
@@ -16,11 +17,28 @@ test('SCHEMA declara as opções novas com chave curta, tipo e limites', () => {
   assert.deepEqual(SCHEMA.maxSizeGb, { type: 'int', key: 'z', min: 0, max: 200 });
 });
 
+test('SCHEMA declara os limites por qualidade com chave curta e 0..100', () => {
+  assert.deepEqual(SCHEMA.max2160p, { type: 'int', key: 'q4', min: 0, max: 100 });
+  assert.deepEqual(SCHEMA.max1080p, { type: 'int', key: 'q1', min: 0, max: 100 });
+  assert.deepEqual(SCHEMA.max720p, { type: 'int', key: 'q7', min: 0, max: 100 });
+  assert.deepEqual(SCHEMA.max480p, { type: 'int', key: 'q5', min: 0, max: 100 });
+  assert.deepEqual(SCHEMA.maxSd, { type: 'int', key: 'qs', min: 0, max: 100 });
+});
+
 test('defaults() traz preferDubbed/excludeCam falsos e maxSizeGb 0', () => {
   const d = defaults();
   assert.equal(d.preferDubbed, false);
   assert.equal(d.excludeCam, false);
   assert.equal(d.maxSizeGb, 0);
+});
+
+test('defaults() traz os limites por qualidade em 100', () => {
+  const d = defaults();
+  assert.equal(d.max2160p, 100);
+  assert.equal(d.max1080p, 100);
+  assert.equal(d.max720p, 100);
+  assert.equal(d.max480p, 100);
+  assert.equal(d.maxSd, 100);
 });
 
 test('normalize lê as chaves curtas e ignora chave desconhecida', () => {
@@ -43,6 +61,24 @@ test('maxSizeGb (z) trunca e clampa em 0..200; fora do range cai no default', ()
   assert.equal(normalize({ z: 'abc' }).maxSizeGb, 0);
 });
 
+test('normalize lê as chaves curtas q4/q1/q7/q5/qs dos limites por qualidade', () => {
+  const out = normalize({ q4: 0, q1: 25, q7: 50, q5: 75, qs: 100 });
+  assert.equal(out.max2160p, 0);
+  assert.equal(out.max1080p, 25);
+  assert.equal(out.max720p, 50);
+  assert.equal(out.max480p, 75);
+  assert.equal(out.maxSd, 100);
+});
+
+test('limites por qualidade truncam e clampam em 0..100; fora do range cai no default', () => {
+  assert.equal(normalize({ q4: 12.9 }).max2160p, 12);
+  assert.equal(normalize({ q1: -5 }).max1080p, 0);
+  assert.equal(normalize({ q7: 999 }).max720p, 100);
+  assert.equal(normalize({ q5: 'abc' }).max480p, 100);
+  // null é ignorado na normalização e mantém o default.
+  assert.equal(normalize({ qs: null }).maxSd, 100);
+});
+
 test('preferDubbed (a) e excludeCam (c) só são true com valores afirmativos', () => {
   for (const truthy of [true, 1, '1', 'true']) {
     assert.equal(normalize({ a: truthy }).preferDubbed, true);
@@ -63,6 +99,15 @@ test('roundtrip encode/decode preserva as opções novas e rejeita segmento inv�
   assert.equal(decode('@nao-base64url@'), null);
   assert.equal(decode(null), null);
   assert.equal(decode(''), null);
+});
+
+test('roundtrip encode/decode preserva os limites por qualidade', () => {
+  const decoded = decode(encode({ q4: 0, q1: 25, q7: 50, q5: 75, qs: 100 }));
+  assert.equal(decoded.max2160p, 0);
+  assert.equal(decoded.max1080p, 25);
+  assert.equal(decoded.max720p, 50);
+  assert.equal(decoded.max480p, 75);
+  assert.equal(decoded.maxSd, 100);
 });
 
 test('roundtrip dos defaults é estável', () => {

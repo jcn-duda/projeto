@@ -446,6 +446,51 @@
       <input type="range" id="maxResults" min="5" max="100" step="5" value="40" />
     </div>
 
+    <div class="sec-head">
+      <h2>Fontes por qualidade</h2>
+      <p>Limita quantos streams de cada qualidade aparecem: 0 esconde e 100 é sem limite. As cotas contam após o filtro de debrid e o máximo total ainda vale.</p>
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <strong>4K / 2160p</strong>
+        <output id="out2160p">sem limite</output>
+      </div>
+      <input type="range" id="max2160p" min="0" max="100" step="1" value="100" />
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <strong>1080p</strong>
+        <output id="out1080p">sem limite</output>
+      </div>
+      <input type="range" id="max1080p" min="0" max="100" step="1" value="100" />
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <strong>720p</strong>
+        <output id="out720p">sem limite</output>
+      </div>
+      <input type="range" id="max720p" min="0" max="100" step="1" value="100" />
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <strong>480p</strong>
+        <output id="out480p">sem limite</output>
+      </div>
+      <input type="range" id="max480p" min="0" max="100" step="1" value="100" />
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <strong>SD / sem resolução</strong>
+        <output id="outSd">sem limite</output>
+      </div>
+      <input type="range" id="maxSd" min="0" max="100" step="1" value="100" />
+    </div>
+
     <div class="field">
       <div class="field-label">
         <strong>Mínimo de seeders</strong>
@@ -526,6 +571,7 @@
   // custa caro. Precisa bater com SCHEMA em src/runtime.js.
   var KEYS = {
     providers: "p", qualities: "q", maxResults: "m", minSeeders: "s",
+    max2160p: "q4", max1080p: "q1", max720p: "q7", max480p: "q5", maxSd: "qs",
     brReservedSlots: "b", brOnly: "o", dubbedOnly: "d",
     preferDubbed: "a", excludeCam: "c", maxSizeGb: "z",
     debridService: "ds", debridApiKey: "dk", debridCachedOnly: "dc"
@@ -537,6 +583,11 @@
     providers: $("providers"), qualities: $("qualities"),
     brSlots: $("brSlots"), outBr: $("outBr"),
     maxResults: $("maxResults"), outMax: $("outMax"),
+    max2160p: $("max2160p"), out2160p: $("out2160p"),
+    max1080p: $("max1080p"), out1080p: $("out1080p"),
+    max720p: $("max720p"), out720p: $("out720p"),
+    max480p: $("max480p"), out480p: $("out480p"),
+    maxSd: $("maxSd"), outSd: $("outSd"),
     minSeeders: $("minSeeders"), outSeed: $("outSeed"),
     maxSizeGb: $("maxSizeGb"), outMaxSize: $("outMaxSize"),
     brOnly: $("brOnly"), dubbedOnly: $("dubbedOnly"),
@@ -595,6 +646,11 @@
     cfg[KEYS.providers] = chipsSelected(el.providers).join(",");
     cfg[KEYS.qualities] = chipsSelected(el.qualities).join(",");
     cfg[KEYS.maxResults] = Number(el.maxResults.value);
+    cfg[KEYS.max2160p] = Number(el.max2160p.value);
+    cfg[KEYS.max1080p] = Number(el.max1080p.value);
+    cfg[KEYS.max720p] = Number(el.max720p.value);
+    cfg[KEYS.max480p] = Number(el.max480p.value);
+    cfg[KEYS.maxSd] = Number(el.maxSd.value);
     cfg[KEYS.minSeeders] = Number(el.minSeeders.value);
     cfg[KEYS.brReservedSlots] = Number(el.brSlots.value);
     cfg[KEYS.brOnly] = isOn(el.brOnly) ? 1 : 0;
@@ -612,8 +668,16 @@
   }
 
   function render() {
+    var qualityLimitLabel = function (value) {
+      return value === "0" ? "nenhuma" : value === "100" ? "sem limite" : value;
+    };
     el.outBr.textContent = el.brSlots.value;
     el.outMax.textContent = el.maxResults.value;
+    el.out2160p.textContent = qualityLimitLabel(el.max2160p.value);
+    el.out1080p.textContent = qualityLimitLabel(el.max1080p.value);
+    el.out720p.textContent = qualityLimitLabel(el.max720p.value);
+    el.out480p.textContent = qualityLimitLabel(el.max480p.value);
+    el.outSd.textContent = qualityLimitLabel(el.maxSd.value);
     el.outSeed.textContent = el.minSeeders.value === "0" ? "sem filtro" : el.minSeeders.value;
     el.outMaxSize.textContent = el.maxSizeGb.value === "0" ? "sem limite" : el.maxSizeGb.value + " GB";
 
@@ -658,7 +722,7 @@
     sw.addEventListener("click", function () { setOn(sw, !isOn(sw)); render(); });
   });
 
-  [el.brSlots, el.maxResults, el.minSeeders, el.maxSizeGb].forEach(function (r) {
+  [el.brSlots, el.maxResults, el.max2160p, el.max1080p, el.max720p, el.max480p, el.maxSd, el.minSeeders, el.maxSizeGb].forEach(function (r) {
     r.addEventListener("input", render);
   });
 
@@ -701,6 +765,11 @@
     setChips(el.providers, state.providers || []);
     setChips(el.qualities, state.qualities || []);
     el.maxResults.value = state.maxResults;
+    el.max2160p.value = state.max2160p == null ? 100 : state.max2160p;
+    el.max1080p.value = state.max1080p == null ? 100 : state.max1080p;
+    el.max720p.value = state.max720p == null ? 100 : state.max720p;
+    el.max480p.value = state.max480p == null ? 100 : state.max480p;
+    el.maxSd.value = state.maxSd == null ? 100 : state.maxSd;
     el.minSeeders.value = state.minSeeders;
     el.brSlots.value = state.brReservedSlots;
     setOn(el.brOnly, state.brOnly);
@@ -733,6 +802,11 @@
     };
     // Links antigos não têm estas chaves. Omiti-las preserva os defaults desta
     // instância em vez de sobrescrevê-los com valores fixos do front-end.
+    if (Object.prototype.hasOwnProperty.call(raw, KEYS.max2160p)) state.max2160p = raw[KEYS.max2160p];
+    if (Object.prototype.hasOwnProperty.call(raw, KEYS.max1080p)) state.max1080p = raw[KEYS.max1080p];
+    if (Object.prototype.hasOwnProperty.call(raw, KEYS.max720p)) state.max720p = raw[KEYS.max720p];
+    if (Object.prototype.hasOwnProperty.call(raw, KEYS.max480p)) state.max480p = raw[KEYS.max480p];
+    if (Object.prototype.hasOwnProperty.call(raw, KEYS.maxSd)) state.maxSd = raw[KEYS.maxSd];
     if (raw[KEYS.preferDubbed] != null) state.preferDubbed = !!raw[KEYS.preferDubbed];
     if (raw[KEYS.excludeCam] != null) state.excludeCam = !!raw[KEYS.excludeCam];
     if (raw[KEYS.maxSizeGb] != null) state.maxSizeGb = raw[KEYS.maxSizeGb];
@@ -743,6 +817,7 @@
     .then(function (r) { return r.json(); })
     .catch(function () { return {
       providers: ["jackett"], qualities: [], maxResults: 40, minSeeders: 1,
+      max2160p: 100, max1080p: 100, max720p: 100, max480p: 100, maxSd: 100,
       brReservedSlots: 6, brOnly: false, dubbedOnly: true,
       preferDubbed: false, excludeCam: false, maxSizeGb: 0,
       debridService: "", debridApiKey: "", debridCachedOnly: true, services: []

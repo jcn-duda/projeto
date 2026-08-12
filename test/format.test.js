@@ -18,6 +18,9 @@ const {
   parseTitleSeasonEpisode,
   dedupeByHash,
   sortAndLimit,
+  selectQualityCandidates,
+  limitByQuality,
+  limitReservingBr,
   parseStremioId,
   buildSearchQuery,
 } = require('../src/utils/format');
@@ -152,11 +155,12 @@ test('sortAndLimit ordena por qualidade e seeders, filtra e limpa internos', () 
     { infoHash: 'c'.repeat(40), _seeders: 900, _quality: '2160p', _br: false, title: 'x 2160p', name: 'n' },
   ];
   const out = sortAndLimit(streams, { minSeeders: 1, maxResults: 10, qualityFilter: [] });
-  assert.deepEqual(out.map((s) => s._quality ?? s.title), ['x 2160p', 'BR 1080p', 'x 720p']);
+  assert.deepEqual(out.map((s) => s.title), ['x 2160p', 'BR 1080p', 'x 720p']);
   // 1080p acima de 720p mesmo com menos seeders.
   assert.equal(out[1].title, 'BR 1080p');
-  // Campos internos nunca vazam pro objeto final.
-  assert.ok(out.every((s) => !('_seeders' in s) && !('_quality' in s)));
+  // O pool preserva qualidade/origem até o corte final pós-debrid.
+  assert.ok(out.every((s) => !('_seeders' in s)));
+  assert.equal(out[0]._quality, '2160p');
   // Piso de seeders descarta; filtro de qualidade restringe.
   assert.equal(sortAndLimit(streams, { minSeeders: 100 }).length, 2);
   assert.equal(sortAndLimit(streams, { qualityFilter: ['2160p'] })[0].title, 'x 2160p');
@@ -246,4 +250,105 @@ test('sortAndLimit limita tamanho sem descartar tamanho desconhecido', () => {
   const out = sortAndLimit([large, small, unknown], { maxSizeGb: 10 });
   assert.deepEqual(out.map((s) => s.infoHash), [OTHER, 'c'.repeat(40)]);
   assert.ok(out.every((s) => !('_size' in s)));
+});
+
+test('limitByQuality aplica cotas por qualidade após o debrid sem reordenar', () => {
+  const streams = [
+    { id: '4k-a', _quality: '2160p' },
+    { id: '4k-b', _quality: '2160p' },
+    { id: '1080-a', _quality: '1080p' },
+    { id: '1080-b', _quality: '1080p' },
+    { id: '720-a', _quality: '720p' },
+    { id: 'sd-a', _quality: 'SD' },
+  ];
+  const out = limitByQuality(streams, {
+    '2160p': 1, '1080p': 2, '720p': 0, '480p': 100, SD: 1,
+  });
+  assert.deepEqual(out.map((s) => s.id), ['4k-a', '1080-a', '1080-b', 'sd-a']);
+});
+
+test('selectQualityCandidates reserva candidatos para cada cota configurada', () => {
+  const streams = [
+    ...Array.from({ length: 10 }, (_, i) => ({ id: `4k-${i}`, _quality: '2160p' })),
+    { id: '1080-a', _quality: '1080p' },
+    { id: '1080-b', _quality: '1080p' },
+  ];
+  const out = selectQualityCandidates(streams, {
+    maxResults: 4,
+    qualityLimits: { '2160p': 2, '1080p': 2 },
+  });
+  assert.deepEqual(out.map((s) => s.id), ['4k-0', '4k-1', '1080-a', '1080-b']);
+});
+
+test('selectQualityCandidates não envia excedentes de qualidade limitada ao debrid', () => {
+  const streams = [
+    ...Array.from({ length: 20 }, (_, i) => ({ id: `4k-${i}`, _quality: '2160p' })),
+    ...Array.from({ length: 20 }, (_, i) => ({ id: `1080-${i}`, _quality: '1080p' })),
+  ];
+  const out = selectQualityCandidates(streams, {
+    maxResults: 40,
+    qualityLimits: { '2160p': 2, '1080p': 3, '720p': 0, '480p': 0, SD: 0 },
+    candidateFactor: 4,
+  });
+  assert.equal(out.length, 20);
+  assert.equal(out.filter((s) => s._quality === '2160p').length, 8);
+  assert.equal(out.filter((s) => s._quality === '1080p').length, 12);
+});
+
+test('selectQualityCandidates mantém pool ampliado nas qualidades ilimitadas', () => {
+  const streams = [
+    ...Array.from({ length: 20 }, (_, i) => ({ id: `4k-${i}`, _quality: '2160p' })),
+    ...Array.from({ length: 180 }, (_, i) => ({ id: `1080-${i}`, _quality: '1080p' })),
+  ];
+  const out = selectQualityCandidates(streams, {
+    maxResults: 160,
+    qualityLimits: { '2160p': 2, '1080p': 100, '720p': 100, '480p': 100, SD: 100 },
+    candidateFactor: 4,
+  });
+  assert.equal(out.length, 160);
+  assert.equal(out.filter((s) => s._quality === '2160p').length, 8);
+});
+
+test('selectQualityCandidates preserva BR dentro de qualidade limitada', () => {
+  const streams = [
+    { id: 'global-a', _quality: '1080p', _br: false },
+    { id: 'global-b', _quality: '1080p', _br: false },
+    { id: 'br-a', _quality: '1080p', _br: true },
+  ];
+  const out = selectQualityCandidates(streams, {
+    maxResults: 2,
+    qualityLimits: { '1080p': 2 },
+    brReservedSlots: 1,
+  });
+  assert.deepEqual(out.map((s) => s.id), ['global-a', 'br-a']);
+});
+
+test('selectQualityCandidates preserva BR em qualidade ilimitada', () => {
+  const streams = [
+    ...Array.from({ length: 200 }, (_, i) => ({ id: `global-${i}`, _quality: '1080p', _br: false })),
+    { id: 'br-a', _quality: '1080p', _br: true },
+  ];
+  const out = selectQualityCandidates(streams, {
+    maxResults: 160,
+    qualityLimits: { '2160p': 100, '1080p': 100, '720p': 100, '480p': 100, SD: 100 },
+    brReservedSlots: 1,
+  });
+  assert.equal(out.length, 160);
+  assert.ok(out.some((s) => s.id === 'br-a'));
+});
+
+test('limitReservingBr combina reserva, cotas e máximo sem vazar internos', () => {
+  const streams = [
+    { id: 'global-4k', _quality: '2160p', _br: false, _seeders: 100 },
+    { id: 'br-1080-a', _quality: '1080p', _br: true, _seeders: 1 },
+    { id: 'br-1080-b', _quality: '1080p', _br: true, _seeders: 1 },
+    { id: 'global-1080', _quality: '1080p', _br: false, _seeders: 50 },
+  ];
+  const out = limitReservingBr(streams, {
+    brReservedSlots: 2,
+    maxResults: 3,
+    qualityLimits: { '2160p': 1, '1080p': 1 },
+  });
+  assert.deepEqual(out.map((s) => s.id), ['br-1080-a', 'global-4k']);
+  assert.ok(out.every((s) => Object.keys(s).every((key) => !key.startsWith('_'))));
 });
