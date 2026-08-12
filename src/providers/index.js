@@ -192,6 +192,7 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
         ptQuery,
         selectedIndexers,
         config.jackett.ptBrIndexers,
+        config.jackett.slowIndexers,
       )) {
         tasks.push(jackett.search(planned.query, type, planned.indexers));
       }

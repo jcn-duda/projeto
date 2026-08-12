@@ -480,3 +480,19 @@ test('cota zero de sem resolução continua ocultando esse balde', () => {
 
   assert.deepEqual(out, []);
 });
+
+test('filtro de qualidade usa a resolução declarada, não substring do título', () => {
+  const br4k = toStremioStream({
+    title: 'Prometheus (2012) 4K UHD DUBLADO',
+    infoHash: '1'.repeat(40),
+    seeders: 1,
+    isBr: true,
+  });
+  const out = sortAndLimit([br4k], {
+    maxResults: 10,
+    qualityFilter: ['2160p'],
+  });
+
+  assert.equal(out.length, 1);
+  assert.equal(out[0].infoHash, br4k.infoHash);
+});

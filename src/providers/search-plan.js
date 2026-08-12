@@ -1,18 +1,29 @@
 /**
- * Indexers BR não podem compartilhar uma única Promise: um NerdFilmes de 7,4s
- * segurava o BLUDV de 6,2s fora do balde até depois do orçamento de 6,5s.
- * Globais seguem agrupados porque todos têm o mesmo teto curto e terminam cedo.
+ * Quem estoura o orçamento de coleta não pode compartilhar Promise: um
+ * NerdFilmes de 7,4s segurava o BLUDV (e um redetorrent de 20s segurava o
+ * TPB) fora do balde até depois dos ~6,5s. Globais de teto curto continuam
+ * agrupados — cabem no prazo. `ptBrIndexers` só decide a query em pt-BR.
  */
-function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers) {
+function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isolateIndexers = []) {
   const brSet = new Set(ptBrIndexers);
-  const br = selectedIndexers.filter((indexer) => brSet.has(indexer));
-  const global = selectedIndexers.filter((indexer) => !brSet.has(indexer));
-  const plan = [];
+  const isolateSet = new Set([...ptBrIndexers, ...isolateIndexers]);
+  const grouped = [];
+  const isolated = [];
 
-  if (global.length) plan.push({ query, indexers: global });
-  for (const indexer of br) {
-    plan.push({ query: ptQuery || query, indexers: [indexer] });
+  for (const indexer of selectedIndexers) {
+    if (isolateSet.has(indexer)) {
+      isolated.push({
+        query: brSet.has(indexer) ? (ptQuery || query) : query,
+        indexers: [indexer],
+      });
+    } else {
+      grouped.push(indexer);
+    }
   }
+
+  const plan = [];
+  if (grouped.length) plan.push({ query, indexers: grouped });
+  plan.push(...isolated);
   return plan;
 }
 

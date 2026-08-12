@@ -103,17 +103,24 @@ function matchesQualityFilter(title, filters) {
   return filters.some((f) => upper.includes(String(f).toUpperCase()));
 }
 
+const QUALITY_FILTER_ALIASES = { '4k': '2160p', uhd: '2160p' };
+
 /**
- * A whitelist de resolução só pode julgar o que a release declarou. Fontes BR
- * sem resolução têm balde e cota próprios; excluí-las aqui tornaria
- * `maxUnknown` inoperante justamente para o conteúdo principal do addon.
+ * A whitelist julga `_quality`, não substring do título: "4K"/"UHD" já viram
+ * 2160p na declaração e o chip é `2160p`. Fonte BR sem resolução tem balde
+ * próprio; excluí-la aqui tornaria `maxUnknown` inoperante.
  */
 function passesQualityFilter(stream, filters, qualityLimits = {}) {
-  if (stream?._br && streamQuality(stream) === UNKNOWN_QUALITY) {
+  if (!filters || filters.length === 0) return true;
+  const quality = streamQuality(stream);
+  if (stream?._br && quality === UNKNOWN_QUALITY) {
     const unknownLimit = qualityLimits[UNKNOWN_QUALITY];
     return unknownLimit == null || Number(unknownLimit) > 0;
   }
-  return matchesQualityFilter(stream?.title || stream?.name || '', filters);
+  const allowed = new Set(
+    filters.map((f) => QUALITY_FILTER_ALIASES[String(f).toLowerCase()] || String(f)),
+  );
+  return allowed.has(quality);
 }
 
 /**
@@ -427,11 +434,11 @@ function canAutoFetchBr({ autoFetchBr, debridCachedOnly } = {}, adapter) {
 function uncachedBrHashes(streams = [], cachedHashes = new Set(), limit = 0) {
   const selected = new Set();
   const max = Math.max(0, Math.trunc(Number(limit) || 0));
-  for (const stream of streams) {
+  // Mesmo pool do autofetch: a vaga P2P tem que ser o torrent que vamos baixar,
+  // não um LEGENDADO que só estava mais acima na lista.
+  for (const stream of brDubbedPool(streams)) {
     if (selected.size >= max) break;
-    if (stream?._br && stream.infoHash && !cachedHashes.has(stream.infoHash)) {
-      selected.add(stream.infoHash);
-    }
+    if (!cachedHashes.has(stream.infoHash)) selected.add(stream.infoHash);
   }
   return selected;
 }
@@ -441,8 +448,8 @@ function filterKnownCache(streams = [], cachedHashes = new Set(), {
   showUncachedBr = false,
   brReservedSlots = 0,
 } = {}) {
-  const cachedBr = streams.filter((stream) =>
-    stream?._br && stream.infoHash && cachedHashes.has(stream.infoHash),
+  const cachedBr = brDubbedPool(streams).filter((stream) =>
+    cachedHashes.has(stream.infoHash),
   ).length;
   const uncachedSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0) - cachedBr);
   const visibleBr = cachedOnly && showUncachedBr

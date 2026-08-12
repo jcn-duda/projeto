@@ -71,6 +71,21 @@ test('fontes BR fora do cache ocupam só as vagas reservadas', () => {
   assert.deepEqual([...uncachedBrHashes([global, br1], new Set(), 0)], []);
 });
 
+test('vaga P2P prefere o dublado e ignora LEGENDADO no topo', () => {
+  const legendado = stream(A, { name: 'Prometheus LEGENDADO', _br: true });
+  const dublado = stream(B, { name: 'Prometheus Dublado', _br: true, _dubbed: true });
+
+  assert.deepEqual([...uncachedBrHashes([legendado, dublado], new Set(), 1)], [B]);
+  assert.deepEqual(
+    filterKnownCache([legendado, dublado], new Set(), {
+      cachedOnly: true,
+      showUncachedBr: true,
+      brReservedSlots: 1,
+    }).streams.map((item) => item.infoHash),
+    [B],
+  );
+});
+
 test('cachedOnly mantém cacheados e apenas a cota BR fora do cache', () => {
   const globalCached = stream(A, { _br: false });
   const globalUncached = stream(B, { _br: false });

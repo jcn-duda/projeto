@@ -417,7 +417,7 @@
   <section>
     <div class="sec-head">
       <h2>Qualidade</h2>
-      <p>Nenhuma marcada = todas as qualidades entram no resultado.</p>
+      <p>Nenhuma marcada = todas as qualidades entram no resultado. Fonte BR sem resolução no título não segue estes chips — o corte dela é o limite “sem resolução”.</p>
     </div>
     <div class="chips" id="qualities">
       <button type="button" class="chip" data-value="2160p">4K · 2160p</button>
@@ -606,9 +606,9 @@
     <div class="row" id="uncachedBrRow" hidden>
       <div class="row-text">
         <strong>Mostrar BR ainda fora do cache</strong>
-        <span>Mantém as vagas brasileiras como P2P enquanto o debrid baixa o dublado. Fontes internacionais fora do cache continuam escondidas.</span>
+        <span>Mantém as vagas brasileiras como P2P enquanto o debrid baixa o dublado. O play desses itens exige cliente com torrent. Fontes internacionais fora do cache continuam escondidas.</span>
       </div>
-      <button type="button" class="switch" id="showUncachedBr" aria-pressed="true"></button>
+      <button type="button" class="switch" id="showUncachedBr" aria-pressed="false"></button>
     </div>
 
     <p class="notice" id="noCacheNotice" hidden>
@@ -950,7 +950,7 @@
     el.debridService.value = state.debridService || "";
     el.debridApiKey.value = state.debridApiKey || "";
     setOn(el.debridCachedOnly, state.debridCachedOnly);
-    setOn(el.showUncachedBr, state.showUncachedBr == null ? true : state.showUncachedBr);
+    setOn(el.showUncachedBr, state.showUncachedBr);
     setOn(el.autoFetchBr, state.autoFetchBr);
     render();
   }
@@ -1092,7 +1092,7 @@
       brReservedSlots: 6, brOnly: false, dubbedOnly: true,
       preferDubbed: false, excludeCam: false, maxSizeGb: 0,
       brFirst: true, jackettIndexers: [], jackettIndexersSelected: [],
-      debridService: "", debridApiKey: "", debridCachedOnly: true, showUncachedBr: true, autoFetchBr: true, services: []
+      debridService: "", debridApiKey: "", debridCachedOnly: true, showUncachedBr: false, autoFetchBr: true, services: []
     }; })
     .then(function (defaults) {
       instanceDefaults = defaults;

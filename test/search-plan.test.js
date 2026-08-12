@@ -24,3 +24,19 @@ test('título igual reutiliza a query original nos indexers BR', () => {
     [{ query: 'Prometheus 2012', indexers: ['bludv-cardigann'] }],
   );
 });
+
+test('indexer lento não-BR vira tarefa sozinha e mantém a query em inglês', () => {
+  const plan = planJackettQueries(
+    'Joker 2019',
+    'Coringa 2019',
+    ['thepiratebay', 'redetorrent', 'bludv-cardigann'],
+    ['bludv-cardigann'],
+    ['redetorrent', 'bludv-cardigann'],
+  );
+
+  assert.deepEqual(plan, [
+    { query: 'Joker 2019', indexers: ['thepiratebay'] },
+    { query: 'Joker 2019', indexers: ['redetorrent'] },
+    { query: 'Coringa 2019', indexers: ['bludv-cardigann'] },
+  ]);
+});
