@@ -10,6 +10,12 @@ COPY package.json ./
 RUN npm install --omit=dev
 
 COPY src ./src
+# Resolvedores BR: rodam no processo do addon (src/br-resolvers.js), não em
+# containers próprios. Continuam ouvindo em 8700-8703 para o Jackett.
+COPY bludv-resolver/server.js ./bludv-resolver/server.js
+COPY comandotorrents-resolver/server.js ./comandotorrents-resolver/server.js
+COPY nerdfilmes-resolver/server.js ./nerdfilmes-resolver/server.js
+COPY torrentdosfilmes-resolver/server.js ./torrentdosfilmes-resolver/server.js
 
 EXPOSE 7000
 

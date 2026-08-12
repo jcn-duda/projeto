@@ -1,0 +1,58 @@
+/**
+ * Carrega os resolvedores BR dentro do processo do addon.
+ *
+ * Cada um era um container só pra subir um servidor HTTP de ~200 linhas. Eles
+ * continuam ouvindo nas mesmas portas (8700-8703) — o Jackett segue chamando
+ * por HTTP, só que agora o host é o próprio addon.
+ *
+ * O cuidado necessário: os quatro leem PORT, SELF_URL e SITE_URL do ambiente
+ * com os MESMOS nomes, e leem no momento do require. Por isso cada um é
+ * carregado com o ambiente ajustado para ele, restaurado logo depois — senão
+ * todos herdariam a PORT=7000 do addon e brigariam pela mesma porta.
+ */
+const RESOLVERS = [
+  { name: 'bludv', path: '../bludv-resolver/server', port: 8700 },
+  { name: 'comandotorrents', path: '../comandotorrents-resolver/server', port: 8701 },
+  { name: 'nerdfilmes', path: '../nerdfilmes-resolver/server', port: 8702, siteEnv: 'NERDFILMES_URL' },
+  { name: 'torrentdosfilmes', path: '../torrentdosfilmes-resolver/server', port: 8703 },
+];
+
+function load() {
+  if (String(process.env.BR_RESOLVERS_EMBEDDED || 'true') !== 'true') {
+    console.log('[br] resolvedores embutidos desligados; esperando os containers separados');
+    return;
+  }
+
+  const saved = { PORT: process.env.PORT, SELF_URL: process.env.SELF_URL, SITE_URL: process.env.SITE_URL };
+  const host = process.env.BR_RESOLVERS_HOST || 'addon';
+  const loaded = [];
+
+  for (const resolver of RESOLVERS) {
+    process.env.PORT = String(resolver.port);
+    process.env.SELF_URL = `http://${host}:${resolver.port}`;
+    // Só o nerdfilmes tem URL de site configurável hoje; os outros usam o default.
+    if (resolver.siteEnv && process.env[resolver.siteEnv]) process.env.SITE_URL = process.env[resolver.siteEnv];
+    else delete process.env.SITE_URL;
+
+    try {
+      const mod = require(resolver.path);
+      // Três sobem o servidor no próprio require; o nerdfilmes só faz isso
+      // quando é o processo principal e exporta `createServer` pro resto.
+      if (typeof mod?.createServer === 'function') {
+        mod.createServer().listen(resolver.port, '0.0.0.0');
+      }
+      loaded.push(`${resolver.name}:${resolver.port}`);
+    } catch (err) {
+      console.warn(`[br] falha ao carregar o resolvedor ${resolver.name}:`, err.message);
+    }
+  }
+
+  for (const [key, value] of Object.entries(saved)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+
+  if (loaded.length) console.log(`[br] resolvedores embutidos: ${loaded.join(', ')}`);
+}
+
+module.exports = { load, RESOLVERS };

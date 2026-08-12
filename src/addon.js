@@ -5,6 +5,7 @@ const config = require('./config');
 const { findStreams } = require('./providers');
 const debrid = require('./debrid');
 const runtime = require('./runtime');
+const brResolvers = require('./br-resolvers');
 const { verifyResolve } = require('./utils/sign');
 
 const manifest = {
@@ -130,6 +131,8 @@ app.use('/:userConfig', (req, res, next) => {
 app.get('/:userConfig/configure', sendConfigure);
 app.get('/:userConfig/resolve/:infoHash', resolveHandler);
 app.use('/:userConfig', getRouter(addonInterface));
+
+brResolvers.load();
 
 app.listen(config.port, config.host, () => {
   const local = `http://127.0.0.1:${config.port}/manifest.json`;

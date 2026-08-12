@@ -11,6 +11,10 @@ services:
       - "${PORT:-7000}:7000"
     env_file:
       - .env
+    volumes:
+      # Cache em SQLite: sem isso ele zera a cada rebuild e toda busca volta
+      # a esquentar do zero.
+      - ./docker-data/addon:/app/data
     environment:
       HOST: 0.0.0.0
       PORT: 7000
@@ -39,48 +43,8 @@ services:
       - ./docker-data/downloads:/downloads
     ports:
       - "127.0.0.1:9117:9117"
-    depends_on:
-      - bludv-resolver
-      - comandotorrents-resolver
-      - nerdfilmes-resolver
-      - torrentdosfilmes-resolver
-    networks:
-      - adom
-
-  bludv-resolver:
-    build:
-      context: ./bludv-resolver
-    container_name: stremio-adom-bludv-resolver
-    restart: unless-stopped
-    networks:
-      - adom
-
-  comandotorrents-resolver:
-    build:
-      context: ./comandotorrents-resolver
-    container_name: stremio-adom-comandotorrents-resolver
-    restart: unless-stopped
-    networks:
-      - adom
-
-  nerdfilmes-resolver:
-    build:
-      context: ./nerdfilmes-resolver
-    container_name: stremio-adom-nerdfilmes-resolver
-    restart: unless-stopped
-    environment:
-      SITE_URL: ${NERDFILMES_URL:-https://www.xnerdfilmes.net}
-      SEARCH_CACHE_MS: ${NERDFILMES_SEARCH_CACHE_MS:-120000}
-      POST_CACHE_MS: ${NERDFILMES_POST_CACHE_MS:-600000}
-      MAGNET_CACHE_MS: ${NERDFILMES_MAGNET_CACHE_MS:-1800000}
-    networks:
-      - adom
-
-  torrentdosfilmes-resolver:
-    build:
-      context: ./torrentdosfilmes-resolver
-    container_name: stremio-adom-torrentdosfilmes-resolver
-    restart: unless-stopped
+    # Sem depends_on no addon: ele é quem hospeda os resolvedores BR, mas a
+    # chamada só acontece durante a busca — e o addon depende do jackett.
     networks:
       - adom
 

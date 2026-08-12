@@ -31,7 +31,7 @@ search:
       args: ["\\s+", " "]
     - name: trim
   paths:
-    - path: "http://nerdfilmes-resolver:8702/search?q={{ .Query.Keywords }}"
+    - path: "http://addon:8702/search?q={{ .Query.Keywords }}"
 
   rows:
     selector: "div.posts > div.release"
@@ -73,7 +73,7 @@ search:
 # O resolver produz uma linha por botão/qualidade e preserva `i` até o magnet.
 download:
   before:
-    path: "http://nerdfilmes-resolver:8702/resolve"
+    path: "http://addon:8702/resolve"
     inputs:
       url: "{{ .DownloadUri.AbsoluteUri }}"
   selectors:

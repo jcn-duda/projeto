@@ -30,7 +30,7 @@ settings: []
 # daquele botão exato e devolve o magnet como texto.
 search:
   paths:
-    - path: "http://bludv-resolver:8700/search?q={{ .Query.Keywords }}"
+    - path: "http://addon:8700/search?q={{ .Query.Keywords }}"
 
   rows:
     selector: "div.posts > div.release"
@@ -93,7 +93,7 @@ download:
   before:
     # O resolver segue os redirects do protetor do botão indicado em ?i= e
     # devolve o magnet como texto.
-    path: "http://bludv-resolver:8700/resolve"
+    path: "http://addon:8700/resolve"
     inputs:
       url: "{{ .DownloadUri.AbsoluteUri }}"
   selectors:

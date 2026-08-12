@@ -1,5 +1,3 @@
-const config = require('../config');
-
 const TRACKERS = [
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
@@ -116,12 +114,11 @@ function toStremioStream(item) {
   ].filter(Boolean);
 
   return {
-    // Marca vem da config, nunca hardcodeada: renomear o addon no .env tem
-    // que refletir aqui. Os seeds vão no `name` porque é o único bloco nosso
-    // que o Power Movie renderiza literal: os badges da linha de baixo ele
-    // deriva do nome do arquivo, então o 👤 do `title` (padrão Torrentio)
-    // não aparecia lá.
-    name: `${config.addonName}\n${quality}${audio ? ` ${audio}` : ''}${seeders ? ` · 👤 ${seeders}` : ''}`,
+    // O Power Movie renderiza o `name` literal na linha do stream (\n vira
+    // espaço) e deriva os badges do nome do arquivo — por isso o título da
+    // release tem que estar aqui, senão a linha só mostra a marca. A 2ª linha
+    // leva qualidade/áudio/seeds pro cliente Stremio padrão, que não deriva.
+    name: `${title}\n${quality}${audio ? ` ${audio}` : ''}${seeders ? ` · 👤 ${seeders}` : ''}`,
     title: `${title}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
