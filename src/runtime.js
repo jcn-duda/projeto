@@ -11,6 +11,10 @@ const config = require('./config');
  * parâmetro por toda a cadeia de busca.
  */
 const store = new AsyncLocalStorage();
+// 2048 não comporta um catálogo Jackett real selecionado no campo `ji`. Ainda
+// fica abaixo dos limites usuais de request line de Node/proxies e impede que
+// um segmento arbitrariamente grande seja decodificado como JSON.
+const MAX_CONFIG_SEGMENT = 8192;
 
 /** Só estas chaves podem vir da URL — o resto é decisão do operador da instância. */
 const SCHEMA = {
@@ -105,7 +109,7 @@ function encode(raw) {
  * `/<config>/manifest.json` de qualquer outra rota de um segmento só.
  */
 function decode(segment) {
-  if (!segment || segment.length > 2048 || !/^[A-Za-z0-9_-]+$/.test(segment)) return null;
+  if (!segment || segment.length > MAX_CONFIG_SEGMENT || !/^[A-Za-z0-9_-]+$/.test(segment)) return null;
   try {
     const parsed = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
@@ -134,4 +138,4 @@ function run({ opts: userOpts, encoded }, fn) {
   return store.run({ opts: userOpts, encoded }, fn);
 }
 
-module.exports = { SCHEMA, defaults, normalize, encode, decode, opts, prefix, run };
+module.exports = { MAX_CONFIG_SEGMENT, SCHEMA, defaults, normalize, encode, decode, opts, prefix, run };

@@ -10,7 +10,7 @@ const assert = require('node:assert');
 const config = require('../src/config');
 const runtime = require('../src/runtime');
 
-const { SCHEMA, defaults, normalize, encode, decode } = runtime;
+const { MAX_CONFIG_SEGMENT, SCHEMA, defaults, normalize, encode, decode } = runtime;
 
 test('SCHEMA declara as opções novas com chave curta, tipo e limites', () => {
   assert.deepEqual(SCHEMA.preferDubbed, { type: 'bool', key: 'a' });
@@ -150,6 +150,17 @@ test('roundtrip encode/decode preserva brFirst e jackettIndexers normalizados', 
   const fallback = decode(encode({}));
   assert.equal(fallback.brFirst, true);
   assert.deepEqual(fallback.jackettIndexers, config.jackett.indexers);
+});
+
+test('segmento comporta catálogo Jackett grande e mantém teto defensivo', () => {
+  const ids = Array.from({ length: 80 }, (_, index) =>
+    `indexador-brasileiro-${String(index).padStart(3, '0')}`,
+  );
+  const segment = encode({ ji: ids, dk: 'x'.repeat(80) });
+  assert.ok(segment.length > 2048);
+  assert.ok(segment.length < MAX_CONFIG_SEGMENT);
+  assert.deepEqual(decode(segment).jackettIndexers, ids);
+  assert.equal(decode('a'.repeat(MAX_CONFIG_SEGMENT + 1)), null);
 });
 
 test('roundtrip dos defaults é estável', () => {
