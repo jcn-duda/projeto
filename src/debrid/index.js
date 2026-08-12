@@ -66,4 +66,20 @@ async function resolveLink(infoHash, episode) {
   return adapter.resolveLink(opts().debridApiKey, infoHash, episode);
 }
 
-module.exports = { SERVICES, BY_ID, current, checkCached, resolveLink };
+/**
+ * Manda o torrent baixar no serviço e volta na hora — NÃO espera ficar pronto.
+ * É o que sustenta o download automático da fonte BR dublada: o play só
+ * funciona depois, quando o serviço terminar.
+ */
+async function enqueue(infoHash, episode) {
+  const adapter = current();
+  if (!adapter || typeof adapter.enqueue !== 'function') return false;
+  try {
+    return await adapter.enqueue(opts().debridApiKey, infoHash, episode || {});
+  } catch (err) {
+    console.warn(`[${adapter.id}] falha ao enfileirar ${infoHash}:`, err.message);
+    return false;
+  }
+}
+
+module.exports = { SERVICES, BY_ID, current, checkCached, resolveLink, enqueue };

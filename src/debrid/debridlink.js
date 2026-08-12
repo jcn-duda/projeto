@@ -55,7 +55,17 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
   return file?.link || null;
 }
 
+/** `async: true` devolve na hora e deixa a seedbox baixando. */
+async function enqueue(apiKey, infoHash) {
+  const added = await call(apiKey, '/seedbox/add', {
+    method: 'POST',
+    body: new URLSearchParams({ url: magnetFor(infoHash), async: 'true' }),
+  });
+  return Boolean(added?.id);
+}
+
 module.exports = {
+  enqueue,
   id: 'debridlink',
   label: 'Debrid-Link',
   cacheCheck: false,

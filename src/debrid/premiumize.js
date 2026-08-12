@@ -42,7 +42,18 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
   return file ? file.stream_link || file.link : null;
 }
 
+/**
+ * Cria a transferência e sai. O directdl do resolveLink também baixaria, mas
+ * ele espera o arquivo ficar pronto — aqui só queremos disparar.
+ */
+async function enqueue(apiKey, infoHash) {
+  const body = new URLSearchParams({ src: magnetFor(infoHash) });
+  const data = await call(apiKey, '/transfer/create', { method: 'POST', body });
+  return Boolean(data?.id);
+}
+
 module.exports = {
+  enqueue,
   id: 'premiumize',
   label: 'Premiumize',
   // Único dos quatro que ainda expõe checagem de cache em lote confiável.

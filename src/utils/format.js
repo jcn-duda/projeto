@@ -371,6 +371,37 @@ function limitByQuality(streams, qualityLimits = {}) {
   });
 }
 
+/**
+ * O que mandar o debrid baixar quando NÃO existe fonte BR dublada tocável.
+ * `null` = não faça nada, e é o retorno na maioria das buscas.
+ *
+ * Cuidado deliberado aqui, porque o efeito é escrever na conta do usuário:
+ * - só olha o que tem infoHash (stream já resolvido não tem o que enfileirar);
+ * - se QUALQUER candidato BR já está em cache, não baixa nada — já dá play;
+ * - `streams` chega ordenado, então o primeiro é o melhor candidato;
+ * - BR sem marca de áudio no título entra como dublado só quando nenhum
+ *   candidato tiver a marca: é o padrão dos sites BR ("Nome (2026) [opção 3]"),
+ *   mas um "LEGENDADO" explícito nunca é tratado como dublado.
+ */
+function brDubbedPool(streams = []) {
+  const br = streams.filter((s) => s && s._br && s.infoHash);
+  if (br.length === 0) return [];
+  const tagged = br.filter((s) => s._dubbed);
+  return tagged.length
+    ? tagged
+    : br.filter((s) => !/LEGENDAD/i.test(String(s.name || s.title || '')));
+}
+
+/** Melhor candidato BR dublado, sem olhar cache. `streams` já vem ordenado. */
+function pickBrDubbedCandidate(streams = []) {
+  return brDubbedPool(streams)[0] || null;
+}
+
+/** Já existe fonte BR dublada tocável na hora? Então não há o que baixar. */
+function hasCachedBrDubbed(streams = [], cachedHashes = new Set()) {
+  return brDubbedPool(streams).some((s) => cachedHashes.has(s.infoHash));
+}
+
 /** Reserva origem BR, aplica as cotas finais e remove todos os campos internos. */
 function limitReservingBr(
   streams,
@@ -510,6 +541,8 @@ module.exports = {
   selectQualityCandidates,
   limitByQuality,
   limitReservingBr,
+  pickBrDubbedCandidate,
+  hasCachedBrDubbed,
   normalizeTitle,
   decodeEntities,
 };

@@ -65,7 +65,18 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
   return typeof dl?.data === 'string' ? dl.data : dl?.data?.url || null;
 }
 
+/** Mesmo createtorrent do resolveLink, mas sem esperar ficar pronto. */
+async function enqueue(apiKey, infoHash) {
+  const form = new FormData();
+  form.append('magnet', magnetFor(infoHash));
+  form.append('seed', '3'); // não semear
+  form.append('allow_zip', 'false');
+  const created = await call(apiKey, '/torrents/createtorrent', { method: 'POST', body: form });
+  return (created?.data?.torrent_id ?? created?.data?.id) != null;
+}
+
 module.exports = {
+  enqueue,
   id: 'torbox',
   label: 'TorBox',
   cacheCheck: true,

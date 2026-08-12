@@ -13,14 +13,79 @@ const {
   matchesEpisode,
   limitReservingBr,
   UNKNOWN_QUALITY,
+  pickBrDubbedCandidate,
+  hasCachedBrDubbed,
 } = require('../utils/format');
 const cache = require('../utils/cache');
 const debrid = require('../debrid');
+const held = require('../debrid/protected');
 const tmdb = require('../utils/tmdb');
 const { signResolve } = require('../utils/sign');
 const { opts, prefix } = require('../runtime');
 
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+/**
+ * Sem fonte BR dublada tocável, manda o debrid baixar a melhor — o play passa a
+ * funcionar minutos depois, sem o usuário pedir. Roda em TODA busca, então as
+ * travas importam mais que a funcionalidade:
+ *
+ * - desligável (`autoFetchBr`), e desligado junto quando não há debrid;
+ * - exige `known`: sem saber o que está em cache não há como saber o que falta,
+ *   e sairíamos enfileirando torrent às cegas (Real-Debrid e Debrid-Link caem
+ *   aqui — neles o /resolve do play já adiciona o magnet de qualquer forma);
+ * - UM torrent por busca, o melhor candidato;
+ * - marca o hash no cache ANTES de chamar a API: a mesma busca é repetida pelo
+ *   Stremio e ainda passa pelo passe tardio, e sem isso cada repetição mandaria
+ *   o mesmo torrent de novo;
+ * - nunca entra no caminho da resposta: erro só vira log.
+ */
+function autoFetchCandidate(streams) {
+  const { autoFetchBr } = opts();
+  const adapter = debrid.current();
+  // `cacheCheck: false` (Real-Debrid, Debrid-Link) fica fora: sem saber o que
+  // está em cache, enfileiraríamos às cegas — e nesses serviços o /resolve do
+  // play já adiciona o magnet de qualquer forma.
+  if (!autoFetchBr || !adapter || !adapter.cacheCheck) return null;
+  const candidate = pickBrDubbedCandidate(streams);
+  if (!candidate) return null;
+  // Protege ANTES da checagem de cache: na AllDebrid a própria checagem apaga da
+  // conta o que não está pronto, e sem isso a limpeza mataria este download
+  // dentro da mesma busca.
+  held.hold(candidate.infoHash, config.debrid.autoFetchTtl);
+  return candidate;
+}
+
+function autoFetchBrDubbed(streams, candidate, { cached, known, season, episode }) {
+  if (!candidate) return;
+  const adapter = debrid.current();
+
+  // Sem resposta confiável de cache, ou já existe dublado tocável: não baixa
+  // nada e devolve o hash à limpeza normal.
+  if (!known || hasCachedBrDubbed(streams, cached)) {
+    held.release(candidate.infoHash);
+    return;
+  }
+
+  const key = `autofetch:${adapter.id}:${candidate.infoHash}`;
+  if (cache.get(key)) return;
+  cache.set(key, 1, config.debrid.autoFetchTtl);
+
+  const label = String(candidate.name || '').split('\n')[0].slice(0, 70);
+  debrid
+    .enqueue(candidate.infoHash, { season, episode })
+    .then((ok) => {
+      if (ok) console.log(`[autofetch] ${adapter.label} baixando fonte BR dublada: ${label}`);
+      else {
+        held.release(candidate.infoHash);
+        console.warn(`[autofetch] ${adapter.label} não aceitou ${candidate.infoHash}`);
+      }
+    })
+    .catch((err) => {
+      held.release(candidate.infoHash);
+      console.warn('[autofetch] falhou:', err?.message || err);
+    });
+}
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -37,7 +102,11 @@ async function applyDebrid(streams, { season, episode }) {
   const hashes = streams.map((s) => s.infoHash).filter(Boolean);
   if (hashes.length === 0) return streams;
 
+  // A escolha do candidato vem antes da checagem (ela é que protege o hash da
+  // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
+  const candidate = autoFetchCandidate(streams);
   const { cached, known } = await debrid.checkCached(hashes);
+  autoFetchBrDubbed(streams, candidate, { cached, known, season, episode });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
   const viaDebrid = (s, instant) => {
     // Assinatura cobre hash + temporada/episódio: sem ela o /resolve rejeita,

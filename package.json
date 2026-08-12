@@ -7,7 +7,7 @@
     "start": "node src/addon.js",
     "dev": "node --watch src/addon.js",
     "smoke": "node scripts/smoke.js",
-    "test": "node --test test/format.test.js test/jackett-catalog.test.js test/runtime.test.js test/sign.test.js",
+    "test": "node --test test/autofetch.test.js test/format.test.js test/jackett-catalog.test.js test/runtime.test.js test/sign.test.js",
     "test:nerdfilmes": "node nerdfilmes-resolver/test.js",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",

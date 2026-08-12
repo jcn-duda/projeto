@@ -82,10 +82,37 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
   return unrestricted?.download || null;
 }
 
+/**
+ * Só ENFILEIRA o download e sai; quem quer o link usa resolveLink.
+ * O selectFiles não é opcional: sem ele o torrent fica parado em
+ * "waiting_files_selection" para sempre e nada é baixado.
+ */
+async function enqueue(apiKey, infoHash, { season, episode } = {}) {
+  const add = await call(apiKey, '/torrents/addMagnet', {
+    method: 'POST',
+    body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
+  });
+  if (!add?.id) return false;
+
+  const info = await call(apiKey, `/torrents/info/${add.id}`);
+  if (info.status !== 'waiting_files_selection') return true;
+
+  const wanted = pickFile(
+    (info.files || []).map((f) => ({ ...f, path: f.path, size: f.bytes })),
+    { season, episode },
+  );
+  await call(apiKey, `/torrents/selectFiles/${add.id}`, {
+    method: 'POST',
+    body: new URLSearchParams({ files: wanted ? String(wanted.id) : 'all' }),
+  });
+  return true;
+}
+
 module.exports = {
   id: 'realdebrid',
   label: 'Real-Debrid',
   cacheCheck: false,
+  enqueue,
   keyUrl: 'https://real-debrid.com/apitoken',
   checkCached,
   resolveLink,

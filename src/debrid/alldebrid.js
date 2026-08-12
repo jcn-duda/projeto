@@ -1,5 +1,6 @@
 const config = require('../config');
 const { json, pickFile, wait } = require('./common');
+const held = require('./protected');
 
 // v4.1: a AllDebrid descontinuou /v4/magnet/status ("DISCONTINUED"), o que
 // fazia toda resolução falhar com 502. upload e link/unlock respondem em ambas.
@@ -38,7 +39,9 @@ async function checkCached(apiKey, infoHashes) {
     const data = await call(apiKey, '/magnet/upload', { 'magnets[]': batch });
     for (const magnet of data?.magnets || []) {
       if (magnet.ready) ready.add(String(magnet.hash).toLowerCase());
-      else if (magnet.id) drop.push(magnet.id);
+      // Hash em download automático não entra na limpeza: ele está "não pronto"
+      // justamente porque pedimos que baixasse.
+      else if (magnet.id && !held.isHeld(magnet.hash)) drop.push(magnet.id);
     }
   }
 
@@ -91,7 +94,9 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
     // tem consulta de cache, TODO play que falha deixa um download fantasma
     // (foram 226 acumulados até este bug aparecer). O upload é idempotente,
     // então apagar não custa nada — se o usuário voltar, ele é reenviado.
-    if (config.debrid.dropUncached) {
+    // Idem no play: se o usuário clicou num BR que está baixando por nossa
+    // conta, apagar aqui jogaria fora o progresso.
+    if (config.debrid.dropUncached && !held.isHeld(infoHash)) {
       try {
         await call(apiKey, '/magnet/delete', { id: magnet.id });
       } catch (err) {
@@ -109,7 +114,17 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
   return unlocked?.link || null;
 }
 
+/**
+ * O /magnet/upload já é o próprio "começa a baixar" da AllDebrid: o mesmo
+ * endpoint que responde `ready` para o cache é o que enfileira o que não está.
+ */
+async function enqueue(apiKey, infoHash) {
+  const data = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
+  return Boolean(data?.magnets?.length);
+}
+
 module.exports = {
+  enqueue,
   id: 'alldebrid',
   label: 'AllDebrid',
   // Não pelo /magnet/instant (removido), e sim pelo `ready` do /magnet/upload.

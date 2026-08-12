@@ -93,6 +93,11 @@ const config = {
     // deixa um download rodando lá (AllDebrid só informa cache ao dar upload).
     dropUncached: String(process.env.DEBRID_DROP_UNCACHED || 'true') === 'true',
     timeout: num(process.env.DEBRID_TIMEOUT_MS, 6000),
+    // Sem fonte BR dublada em cache, manda o serviço baixar a melhor. O TTL vale
+    // pra duas coisas: não reenviar o mesmo torrent a cada busca e por quanto
+    // tempo ele fica protegido do dropUncached.
+    autoFetchBr: String(process.env.DEBRID_AUTO_FETCH_BR || 'true') === 'true',
+    autoFetchTtl: num(process.env.DEBRID_AUTO_FETCH_TTL, 6 * 3600),
     // URL pública do addon, usada nos links de play resolvidos no debrid.
     publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
     // Segredo do HMAC dos links /resolve. Vazio = assina com a API key de
