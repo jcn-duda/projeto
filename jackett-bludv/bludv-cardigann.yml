@@ -57,8 +57,10 @@ search:
       selector: "div.size"
       optional: true
       filters:
+        # KB entra por causa do sentinela "1 KB" do resolver (tamanho
+        # desconhecido): sem casar aqui, o Jackett descarta a release inteira.
         - name: regexp
-          args: "([\\d.,]+\\s*(?:GB|MB|TB))"
+          args: "([\\d.,]+\\s*(?:GB|MB|TB|KB))"
         # O site usa vírgula decimal em alguns posts; o parser do Jackett quer ponto.
         - name: re_replace
           args: [",", "."]

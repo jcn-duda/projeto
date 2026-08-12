@@ -26,6 +26,7 @@ const config = {
     // Consultados em paralelo, um timeout por indexer. Vazio = agregado /all.
     indexers: list(process.env.JACKETT_INDEXERS),
     indexerTimeout: num(process.env.JACKETT_INDEXER_TIMEOUT_MS, 4000),
+    catalogTtl: num(process.env.JACKETT_CATALOG_TTL, 900),
     // Cardigann pode entregar o magnet apenas no endpoint Link. Resolvemos
     // sob demanda somente nos indexadores locais explicitamente permitidos.
     // Os quatro entregam Link em vez de magnet: fora desta lista, o resultado
@@ -42,10 +43,13 @@ const config = {
       process.env.JACKETT_PT_BR_INDEXERS || 'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2',
     ),
     // Orçamento TOTAL (busca + resolução de magnets) dos que raspam site e
-    // seguem protetor de link. Precisa ser MENOR que REPLY_DEADLINE_MS: acima
-    // dele a busca inteira espera pelos BR, estoura o deadline e devolve lista
-    // vazia. JACKETT_DOWNLOAD_TIMEOUT_MS é o teto por salto DENTRO deste.
-    brIndexerTimeout: num(process.env.JACKETT_BR_INDEXER_TIMEOUT_MS, 7500),
+    // seguem protetor de link. PODE passar do REPLY_DEADLINE_MS: a resposta não
+    // espera por eles (collectRaw devolve o que chegou e o passe tardio
+    // recacheia o lote completo). Abaixo de ~15s a busca FRIA não caberia — a
+    // raspagem sozinha leva 5-6s e ainda faltam os saltos do protetor, e um
+    // corte no meio disso descartava o indexer inteiro por falta de infoHash.
+    // JACKETT_DOWNLOAD_TIMEOUT_MS é o teto por salto DENTRO deste.
+    brIndexerTimeout: num(process.env.JACKETT_BR_INDEXER_TIMEOUT_MS, 20000),
     // Lentos porém úteis: medidos em 8-9s, perdiam o prazo dos globais.
     slowIndexers: list(
       process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent,apachetorrent',

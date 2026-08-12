@@ -19,6 +19,8 @@ const tmdb = require('../utils/tmdb');
 const { signResolve } = require('../utils/sign');
 const { opts, prefix } = require('../runtime');
 
+const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
  * link de play que passa pela nossa rota /resolve.
@@ -73,7 +75,7 @@ async function applyDebrid(streams, { season, episode }) {
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
 
-async function collectRaw(query, type, imdbId, ptQuery) {
+async function collectRaw(query, type, imdbId, ptQuery, onLate) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
   const tasks = [];
@@ -83,16 +85,19 @@ async function collectRaw(query, type, imdbId, ptQuery) {
   }
 
   const wants = (name) => mode === 'both' || providers.includes(name);
+  const selectedIndexers = [...new Set((opts().jackettIndexers || []).filter((id) =>
+    SAFE_INDEXER_ID.test(String(id)),
+  ))];
 
   // demo sempre disponível como fallback de teste se quiser both+demo — aqui só jackett/prowlarr
   if (wants('jackett')) {
-    if (config.jackett.indexers.length === 0) {
+    if (selectedIndexers.length === 0) {
       tasks.push(jackett.search(query, type));
     } else {
-      const brIndexers = config.jackett.indexers.filter((indexer) =>
+      const brIndexers = selectedIndexers.filter((indexer) =>
         config.jackett.ptBrIndexers.includes(indexer),
       );
-      const globalIndexers = config.jackett.indexers.filter(
+      const globalIndexers = selectedIndexers.filter(
         (indexer) => !brIndexers.includes(indexer),
       );
       tasks.push(jackett.search(query, type, globalIndexers));
@@ -104,7 +109,8 @@ async function collectRaw(query, type, imdbId, ptQuery) {
   }
 
   // Se misconfigurou PROVIDER, tenta jackett
-  if (tasks.length === 0) {
+  const validProvider = providers.some((name) => ['jackett', 'prowlarr', 'demo', 'both'].includes(name));
+  if (tasks.length === 0 && providers.length > 0 && !validProvider) {
     tasks.push(jackett.search(query, type));
   }
 
@@ -137,6 +143,21 @@ async function collectRaw(query, type, imdbId, ptQuery) {
 
   if (!done) {
     console.warn(`[search] orçamento de ${budget}ms esgotado; seguindo com ${bucket.length} resultado(s) parcial(is)`);
+    // Os providers continuam trabalhando depois que a resposta sai. Quem paga
+    // esse atraso são justamente as fontes BR (raspam WordPress e ainda seguem
+    // protetor de link): descartar o que elas trouxeram atrasadas obrigava o
+    // usuário a fechar e reabrir a lista pra vê-las. Aqui o resultado completo
+    // reescreve o cache, então a próxima chamada do Stremio já vem cheia.
+    const partial = bucket.length;
+    if (onLate) {
+      Promise.all(collecting)
+        .then(() => {
+          if (bucket.length <= partial) return;
+          console.log(`[search] fontes lentas chegaram: ${partial} → ${bucket.length} resultado(s); recacheando`);
+          return onLate(bucket);
+        })
+        .catch((err) => console.warn('[search] passe tardio falhou:', err?.message || err));
+    }
   }
   return bucket;
 }
@@ -192,7 +213,18 @@ async function doSearch({ type, id, cacheKey }) {
     `[search] ${type} ${id} → "${query}"${ptQuery ? ` | pt-BR: "${ptQuery}"` : ''} via ${opts().providers.join('+')}`,
   );
 
-  let raw = await collectRaw(query, type, imdbId, ptQuery);
+  // Fecha o pipeline sobre um lote de resultados brutos. É chamado duas vezes na
+  // busca fria: com o que chegou dentro do prazo e, depois, com o lote completo
+  // quando as fontes lentas terminam (aí só pra reescrever o cache).
+  const finish = async (rawItems) => {
+    const streams = await buildStreams(rawItems, { meta, titles, season, episode, isDemo });
+    // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco tempo.
+    cache.set(cacheKey, streams, streams.length ? config.cacheTtl : Math.min(config.cacheTtl, 60));
+    console.log(`[search] ${streams.length} stream(s) para ${id}`);
+    return streams;
+  };
+
+  let raw = await collectRaw(query, type, imdbId, ptQuery, finish);
 
   // Série sem resultado por episódio: tenta o pack da temporada (ex.: "Nome S01").
   if (raw.length === 0 && season != null && !isDemo) {
@@ -205,8 +237,18 @@ async function doSearch({ type, id, cacheKey }) {
     console.log(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
-    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery);
+    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, finish);
   }
+
+  return finish(raw);
+}
+
+/**
+ * Bruto dos providers → streams do Stremio: corte por título, por episódio,
+ * ordenação, debrid e limite final.
+ */
+async function buildStreams(rawInput, { meta, titles, season, episode, isDemo }) {
+  let raw = rawInput;
 
   // No modo demo, se não for BBB, lista vazia (esperado)
   if (isDemo && raw.length === 0) {
@@ -249,6 +291,7 @@ async function doSearch({ type, id, cacheKey }) {
     maxSd,
     brReservedSlots,
     brOnly,
+    brFirst,
   } = opts();
   const qualityLimits = {
     '2160p': max2160p,
@@ -269,6 +312,7 @@ async function doSearch({ type, id, cacheKey }) {
     qualityLimits,
     brReservedSlots,
     candidateFactor: config.candidatePoolFactor,
+    brFirst,
   });
 
   streams = limitReservingBr(await applyDebrid(streams, { season, episode }), {
@@ -276,11 +320,9 @@ async function doSearch({ type, id, cacheKey }) {
     maxResults,
     brOnly,
     qualityLimits,
+    brFirst,
   });
 
-  // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco tempo.
-  cache.set(cacheKey, streams, streams.length ? config.cacheTtl : Math.min(config.cacheTtl, 60));
-  console.log(`[search] ${streams.length} stream(s) para ${id}`);
   return streams;
 }
 

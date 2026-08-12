@@ -10,8 +10,13 @@ const SELF_URL = (process.env.SELF_URL || 'http://torrentdosfilmes-resolver:8703
 const SITE_URL = (process.env.SITE_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, '');
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36';
-const ALLOWED_SUFFIXES = ['torrentdosfilmes-v2.xyz', 'systemads.net', 'videosad.net', 'canalfutebol.com'];
+// `systemads1.com` (com o "1") é o protetor que o site usa hoje nos botões;
+// sem ele TODO magnet deste indexer morria em `blocked_host`.
+const ALLOWED_SUFFIXES = ['torrentdosfilmes-v2.xyz', 'systemads1.com', 'systemads.net', 'videosad.net', 'canalfutebol.com'];
 const postCache = new Map();
+// Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
+// nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
+const UNKNOWN_SIZE = '1 KB';
 
 function decodeEntities(value = '') {
   return String(value)
@@ -176,7 +181,12 @@ function releaseTitle(post, link, index = null) {
 function searchPageHtml(items) {
   const rows = items.map(({ post, link, index }) => {
     const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
-    return `<div class="release"><div class="title"><a href="${escapeXml(download)}">${escapeXml(releaseTitle(post, link, index))}</a></div><div class="size">${escapeXml(link.size || '0 B')}</div><div class="description">${escapeXml(post.title)}</div><div class="seeders">1</div></div>`;
+    // O Jackett descarta QUALQUER release sem tamanho ("No size provided"), e
+    // "0 B" não casa o filtro de `size` do cardigann — era assim que os posts de
+    // pack (que não publicam tamanho por botão) perdiam ~50 releases de uma vez.
+    // UNKNOWN_SIZE é o sentinela: satisfaz o Jackett e o addon o esconde em vez
+    // de exibir um tamanho inventado.
+    return `<div class="release"><div class="title"><a href="${escapeXml(download)}">${escapeXml(releaseTitle(post, link, index))}</a></div><div class="size">${escapeXml(link.size || UNKNOWN_SIZE)}</div><div class="description">${escapeXml(post.title)}</div><div class="seeders">1</div></div>`;
   }).join('');
   return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
 }
@@ -236,10 +246,20 @@ http.createServer(async (request, response) => {
     if (!postUrl || postUrl.length > 4096) return reply(response, 400, 'invalid_url');
     try {
       let index = url.searchParams.get('i');
-      const inner = new URL(postUrl, SELF_URL);
-      if (inner.origin === SELF_URL && inner.pathname === '/resolve') {
-        postUrl = inner.searchParams.get('url') || postUrl;
-        index = inner.searchParams.get('i') || index;
+      // O `download:` do cardigann prefixa /resolve num href que JÁ é /resolve;
+      // desempacota quantos níveis vierem. Sem checar a origem: o host varia
+      // (`addon` embutido vs. nome do container), e o alvo final passa por
+      // assertAllowedUrl de todo jeito.
+      for (let hop = 0; hop < 3; hop += 1) {
+        let inner;
+        try {
+          inner = new URL(postUrl, SELF_URL);
+        } catch {
+          break;
+        }
+        if (inner.pathname !== '/resolve' || !inner.searchParams.get('url')) break;
+        postUrl = inner.searchParams.get('url');
+        index = inner.searchParams.get('i') ?? index;
       }
       const button = index == null ? null : Number(index);
       if (button != null && (!Number.isInteger(button) || button < 0)) throw new Error('invalid_index');

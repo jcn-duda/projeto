@@ -352,3 +352,58 @@ test('limitReservingBr combina reserva, cotas e máximo sem vazar internos', () 
   assert.deepEqual(out.map((s) => s.id), ['br-1080-a', 'global-4k']);
   assert.ok(out.every((s) => Object.keys(s).every((key) => !key.startsWith('_'))));
 });
+
+test('limitReservingBr coloca todas as fontes BR primeiro quando solicitado', () => {
+  const streams = [
+    { id: 'global-4k', _quality: '2160p', _br: false },
+    { id: 'br-1080-a', _quality: '1080p', _br: true },
+    { id: 'global-1080', _quality: '1080p', _br: false },
+    { id: 'br-720', _quality: '720p', _br: true },
+  ];
+  const out = limitReservingBr(streams, {
+    brReservedSlots: 0,
+    brFirst: true,
+    maxResults: 4,
+  });
+  assert.deepEqual(out.map((s) => s.id), ['br-1080-a', 'br-720', 'global-4k', 'global-1080']);
+});
+
+test('limitReservingBr mantém ordem natural sem prioridade e ainda garante BR', () => {
+  const streams = [
+    { id: 'global-4k', _quality: '2160p', _br: false },
+    { id: 'global-1080-a', _quality: '1080p', _br: false },
+    { id: 'global-1080-b', _quality: '1080p', _br: false },
+    { id: 'br-720', _quality: '720p', _br: true },
+  ];
+  const out = limitReservingBr(streams, {
+    brReservedSlots: 1,
+    brFirst: false,
+    maxResults: 3,
+  });
+  assert.deepEqual(out.map((s) => s.id), ['global-4k', 'global-1080-a', 'br-720']);
+});
+
+test('selectQualityCandidates preserva todos os BR candidatos quando brFirst está ativo', () => {
+  const streams = [
+    ...Array.from({ length: 8 }, (_, i) => ({ id: `global-${i}`, _quality: '1080p', _br: false })),
+    { id: 'br-a', _quality: '1080p', _br: true },
+    { id: 'br-b', _quality: '720p', _br: true },
+  ];
+  const out = selectQualityCandidates(streams, {
+    maxResults: 5,
+    brReservedSlots: 0,
+    brFirst: true,
+  });
+  assert.ok(out.some((s) => s.id === 'br-a'));
+  assert.ok(out.some((s) => s.id === 'br-b'));
+});
+
+test('sentinela de 1 KB dos indexers BR conta como tamanho desconhecido', () => {
+  const unknown = toStremioStream({ title: 'Serie 1a Temporada', infoHash: HASH, size: 1024 });
+  assert.ok(!unknown.title.includes('💾'), 'não exibe tamanho inventado');
+  assert.equal(unknown._size, 0);
+  // Acima do sentinela é tamanho de verdade e volta a aparecer.
+  const real = toStremioStream({ title: 'Serie 1a Temporada', infoHash: HASH, size: 2 * 1024 ** 3 });
+  assert.ok(real.title.includes('💾 2.00 GB'));
+  assert.equal(real._size, 2 * 1024 ** 3);
+});

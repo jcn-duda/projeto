@@ -1,3 +1,7 @@
+// Tamanho <= 1 KB é o sentinela de "desconhecido" dos indexers BR (ver
+// UNKNOWN_SIZE nos resolvedores), não um torrent de verdade.
+const UNKNOWN_SIZE_MAX = 1024;
+
 const TRACKERS = [
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
@@ -97,7 +101,11 @@ function toStremioStream(item) {
   const title = decodeEntities(item.title || item.Title || 'Torrent');
   const seeders = Number(item.seeders ?? item.Seeders ?? 0) || 0;
   const rawSize = Number(item.size ?? item.Size);
-  const size = bytesToSize(rawSize);
+  // Os indexers BR mandam 1 KB quando o post não publica tamanho: o Jackett
+  // descarta release sem tamanho, então o sentinela é o preço de não perder a
+  // release. Aqui ele volta a ser "desconhecido" — nenhum vídeo tem 1 KB.
+  const knownSize = Number.isFinite(rawSize) && rawSize > UNKNOWN_SIZE_MAX ? rawSize : 0;
+  const size = bytesToSize(knownSize);
   const tracker = item.tracker || item.Tracker || item.Indexer || item.indexer || '';
   const quality = qualityFromTitle(title);
   const source = sourceFromTitle(title);
@@ -128,7 +136,8 @@ function toStremioStream(item) {
     },
     _seeders: seeders,
     _quality: quality,
-    _size: Number.isFinite(rawSize) && rawSize > 0 ? rawSize : 0,
+    // 0 = desconhecido, e o filtro de tamanho máximo já trata 0 como "passa".
+    _size: knownSize,
     _dubbed: audio === 'Dublado' || audio === 'Dual',
     // Origem BR vem marcada pelo provider, não deduzida do título: releases de
     // comandotorrents/nerdfilmes/torrentdosfilmes não citam "BLUDV" nem
@@ -259,7 +268,13 @@ function streamQuality(stream) {
  */
 function selectQualityCandidates(
   streams,
-  { maxResults = 40, qualityLimits = {}, brReservedSlots = 0, candidateFactor = 1 } = {},
+  {
+    maxResults = 40,
+    qualityLimits = {},
+    brReservedSlots = 0,
+    candidateFactor = 1,
+    brFirst = true,
+  } = {},
 ) {
   const poolSize = Math.max(0, Math.trunc(maxResults));
   const custom = QUALITY_KEYS.filter((quality) => Number(qualityLimits[quality]) < 100);
@@ -284,8 +299,9 @@ function selectQualityCandidates(
   // A reserva precisa existir também quando a qualidade está em 100. Se os BR
   // forem considerados só no corte final, seeders globais podem preencher o
   // pool ampliado antes deles chegarem ao debrid.
+  const brTarget = brFirst ? poolSize : brReservedSlots;
   for (const stream of streams) {
-    if (selected.size >= poolSize || selected.size >= brReservedSlots) break;
+    if (selected.size >= poolSize || selected.size >= brTarget) break;
     if (!stream._br) continue;
     const quality = streamQuality(stream);
     if (customSet.has(quality) && counts.get(quality) >= targets.get(quality)) continue;
@@ -343,15 +359,36 @@ function limitByQuality(streams, qualityLimits = {}) {
 /** Reserva origem BR, aplica as cotas finais e remove todos os campos internos. */
 function limitReservingBr(
   streams,
-  { brReservedSlots = 0, maxResults = 40, brOnly = false, qualityLimits = {} } = {},
+  {
+    brReservedSlots = 0,
+    maxResults = 40,
+    brOnly = false,
+    qualityLimits = {},
+    brFirst = true,
+  } = {},
 ) {
   const pool = brOnly ? streams.filter((stream) => stream._br) : streams;
-  const reserved = new Set(pool.filter((stream) => stream._br).slice(0, brReservedSlots));
-  const ordered = reserved.size
-    ? [...reserved, ...pool.filter((stream) => !reserved.has(stream))]
-    : pool;
-  return limitByQuality(ordered, qualityLimits)
-    .slice(0, maxResults)
+  const eligible = limitByQuality(pool, qualityLimits);
+  const brStreams = eligible.filter((stream) => stream._br);
+  let selected;
+
+  if (brFirst) {
+    selected = [...brStreams, ...eligible.filter((stream) => !stream._br)].slice(0, maxResults);
+  } else {
+    // Sem prioridade visual, as vagas continuam garantidas: entram no lugar
+    // dos últimos globais e preservam sua posição natural na ordem original.
+    const reserved = brStreams.slice(0, brReservedSlots);
+    const chosen = new Set(eligible.slice(0, maxResults));
+    for (const stream of reserved) {
+      if (chosen.has(stream)) continue;
+      const replace = [...chosen].reverse().find((item) => !item._br);
+      if (replace) chosen.delete(replace);
+      if (chosen.size < maxResults) chosen.add(stream);
+    }
+    selected = eligible.filter((stream) => chosen.has(stream)).slice(0, maxResults);
+  }
+
+  return selected
     .map(({ _br, _seeders, _quality, _size, _dubbed, ...stream }) => stream);
 }
 
@@ -369,6 +406,7 @@ function sortAndLimit(
     qualityLimits = {},
     brReservedSlots = 0,
     candidateFactor = 1,
+    brFirst = true,
   } = {},
 ) {
   // Release que nomeia o episódio pedido vem antes do pack da temporada: o pack
@@ -406,6 +444,7 @@ function sortAndLimit(
     qualityLimits,
     brReservedSlots,
     candidateFactor,
+    brFirst,
   })
     // `_quality` e `_br` precisam sobreviver ao debrid: as cotas e a reserva
     // são aplicadas só depois que cachedOnly remove os streams indisponíveis.

@@ -11,6 +11,9 @@ const SITE_URL = (process.env.SITE_URL || 'https://comandotorrents.to').replace(
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36';
 const ALLOWED_SUFFIXES = ['comandotorrents.to', 'systemads1.com', 'systemads.net', 'videosad.net', 'canalfutebol.com'];
 const postCache = new Map();
+// Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
+// nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
+const UNKNOWN_SIZE = '1 KB';
 
 function decodeEntities(value = '') {
   return String(value).replace(/&#0?38;|&amp;/gi, '&').replace(/&quot;/gi, '"').replace(/&#8217;|&#039;|&apos;/gi, "'");
@@ -127,15 +130,36 @@ function releaseTitle(post, link, index) { const tags = [link.quality ? `${link.
 function searchPageHtml(items) {
   const rows = items.map(({ post, link, index }) => {
     const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
-    return `<div class="release"><div class="title"><a href="${escapeHtml(download)}">${escapeHtml(releaseTitle(post, link, index))}</a></div><div class="size">${escapeHtml(link.size || '0 B')}</div>${post.poster ? `<div class="poster"><img src="${escapeHtml(post.poster)}"></div>` : ''}<div class="description">${escapeHtml(post.title)}</div><div class="seeders">1</div></div>`;
+    // O Jackett descarta QUALQUER release sem tamanho ("No size provided"), e
+    // "0 B" não casa o filtro de `size` do cardigann — era assim que os posts de
+    // pack (que não publicam tamanho por botão) perdiam releases em lote.
+    // UNKNOWN_SIZE satisfaz o Jackett e o addon o esconde em vez de exibir um
+    // tamanho inventado.
+    return `<div class="release"><div class="title"><a href="${escapeHtml(download)}">${escapeHtml(releaseTitle(post, link, index))}</a></div><div class="size">${escapeHtml(link.size || UNKNOWN_SIZE)}</div>${post.poster ? `<div class="poster"><img src="${escapeHtml(post.poster)}"></div>` : ''}<div class="description">${escapeHtml(post.title)}</div><div class="seeders">1</div></div>`;
   }).join('');
   return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
 }
 function reply(response, status, body, type = 'text/plain; charset=utf-8') { response.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' }); response.end(body); }
+/**
+ * O `download:` do cardigann prefixa /resolve num href que JÁ é /resolve;
+ * desempacota quantos níveis vierem. Sem checar a origem: o host varia (`addon`
+ * embutido vs. nome do container), e o alvo final passa por assertAllowedUrl.
+ */
 function unwrapResolverUrl(value) {
-  const inner = new URL(value, SELF_URL);
-  if (inner.origin === SELF_URL && inner.pathname === '/resolve') return { url: inner.searchParams.get('url'), index: inner.searchParams.get('i') };
-  return { url: value, index: null };
+  let url = value;
+  let index = null;
+  for (let hop = 0; hop < 3; hop += 1) {
+    let inner;
+    try {
+      inner = new URL(url, SELF_URL);
+    } catch {
+      break;
+    }
+    if (inner.pathname !== '/resolve' || !inner.searchParams.get('url')) break;
+    url = inner.searchParams.get('url');
+    index = inner.searchParams.get('i') ?? index;
+  }
+  return { url, index };
 }
 
 http.createServer(async (request, response) => {

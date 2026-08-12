@@ -24,6 +24,9 @@ const SELF_URL = (process.env.SELF_URL || 'http://bludv-resolver:8700').replace(
 const BLUDV_URL = (process.env.BLUDV_URL || 'https://bludvfilmes.xyz').replace(/\/$/, '');
 const MAX_POSTS = Number(process.env.BLUDV_MAX_POSTS || 5);
 const SEARCH_CONCURRENCY = 4;
+// Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
+// nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
+const UNKNOWN_SIZE = '1 KB';
 
 function decodeEntities(value = '') {
   return String(value)
@@ -288,7 +291,9 @@ function searchPageHtml(items) {
     .map(({ post, link, index }) => {
       const dl = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
       // O tamanho do botão às vezes vem com lixo: "3.39 GB &#8211; MKV".
-      const size = String(link.size || '').replace(/\s+&#?\w+;.*/i, '').trim();
+      // Sem tamanho o Jackett descarta a release ("No size provided"); o
+      // sentinela satisfaz o Jackett e o addon o esconde (não inventa tamanho).
+      const size = String(link.size || '').replace(/\s+&#?\w+;.*/i, '').trim() || UNKNOWN_SIZE;
       return `  <div class="release">
     <div class="title"><a href="${escapeHtml(dl)}">${escapeHtml(releaseTitle(post.title, link))}</a></div>
     <div class="size">${escapeHtml(size)}</div>
