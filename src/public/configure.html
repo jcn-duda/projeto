@@ -368,6 +368,22 @@
       <button type="button" class="chip" data-value="prowlarr">Prowlarr</button>
       <button type="button" class="chip" data-value="demo">Demo (teste)</button>
     </div>
+
+    <div class="row">
+      <div class="row-text">
+        <strong>Fontes BR primeiro</strong>
+        <span>Coloca resultados dos indexadores brasileiros no topo da lista.</span>
+      </div>
+      <button type="button" class="switch" id="brFirst" aria-pressed="true"></button>
+    </div>
+
+    <div id="jackettIndexersSection" hidden>
+      <div class="sec-head">
+        <h2>Indexadores Jackett</h2>
+        <p>Escolha quais indexadores serão consultados. Nenhum marcado usa o padrão da instância — ou todos, quando ela usa o agregado do Jackett.</p>
+      </div>
+      <div class="chips" id="jackettIndexers"></div>
+    </div>
   </section>
 
   <section>
@@ -573,7 +589,8 @@
     providers: "p", qualities: "q", maxResults: "m", minSeeders: "s",
     max2160p: "q4", max1080p: "q1", max720p: "q7", max480p: "q5", maxSd: "qs",
     brReservedSlots: "b", brOnly: "o", dubbedOnly: "d",
-    preferDubbed: "a", excludeCam: "c", maxSizeGb: "z",
+    preferDubbed: "a", excludeCam: "c", maxSizeGb: "z", brFirst: "bf",
+    jackettIndexers: "ji",
     debridService: "ds", debridApiKey: "dk", debridCachedOnly: "dc"
   };
 
@@ -581,6 +598,8 @@
 
   var el = {
     providers: $("providers"), qualities: $("qualities"),
+    brFirst: $("brFirst"), jackettIndexersSection: $("jackettIndexersSection"),
+    jackettIndexers: $("jackettIndexers"),
     brSlots: $("brSlots"), outBr: $("outBr"),
     maxResults: $("maxResults"), outMax: $("outMax"),
     max2160p: $("max2160p"), out2160p: $("out2160p"),
@@ -601,9 +620,54 @@
 
   // Preenchido por /defaults.json a partir do registry do servidor.
   var services = [];
+  var jackettIndexers = [];
   function serviceById(id) {
     for (var i = 0; i < services.length; i++) if (services[i].id === id) return services[i];
     return null;
+  }
+
+  function safeJackettIndexer(item) {
+    if (!item || typeof item !== "object") return null;
+    var id = item.id == null ? "" : String(item.id).trim().toLowerCase();
+    if (!id) return null;
+    var label = item.label == null ? id : String(item.label);
+    var language = item.language == null ? "" : String(item.language);
+    var isBr = item.isBr === true || item.isBr === 1 || item.isBr === "true";
+    return { id: id, label: label, language: language, isBr: isBr };
+  }
+
+  function fillJackettIndexers(list) {
+    jackettIndexers = [];
+    el.jackettIndexers.textContent = "";
+    (Array.isArray(list) ? list : []).forEach(function (raw) {
+      var item = safeJackettIndexer(raw);
+      if (!item) return;
+      for (var i = 0; i < jackettIndexers.length; i++) {
+        if (jackettIndexers[i].id === item.id) return;
+      }
+      jackettIndexers.push(item);
+
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip";
+      chip.setAttribute("data-value", item.id);
+      chip.setAttribute("aria-pressed", "false");
+      // textContent evita que um label vindo da configuração da instância vire HTML.
+      chip.textContent = item.label + (item.isBr ? " · BR" : "");
+      el.jackettIndexers.appendChild(chip);
+    });
+  }
+
+  function isIdList(value) {
+    if (!Array.isArray(value)) return false;
+    for (var i = 0; i < value.length; i++) {
+      if (typeof value[i] !== "string") return false;
+    }
+    return true;
+  }
+
+  function allJackettIndexerIds() {
+    return jackettIndexers.map(function (item) { return item.id; });
   }
 
   /* ---------- helpers de estado ---------- */
@@ -658,6 +722,8 @@
     cfg[KEYS.preferDubbed] = isOn(el.preferDubbed) ? 1 : 0;
     cfg[KEYS.excludeCam] = isOn(el.excludeCam) ? 1 : 0;
     cfg[KEYS.maxSizeGb] = Number(el.maxSizeGb.value);
+    cfg[KEYS.brFirst] = isOn(el.brFirst) ? 1 : 0;
+    cfg[KEYS.jackettIndexers] = chipsSelected(el.jackettIndexers).join(",");
     cfg[KEYS.debridService] = el.debridService.value;
     cfg[KEYS.debridCachedOnly] = isOn(el.debridCachedOnly) ? 1 : 0;
     // Chave vazia não entra: evita gravar "dk":"" no link à toa.
@@ -680,6 +746,7 @@
     el.outSd.textContent = qualityLimitLabel(el.maxSd.value);
     el.outSeed.textContent = el.minSeeders.value === "0" ? "sem filtro" : el.minSeeders.value;
     el.outMaxSize.textContent = el.maxSizeGb.value === "0" ? "sem limite" : el.maxSizeGb.value + " GB";
+    el.jackettIndexersSection.hidden = chipsSelected(el.providers).indexOf("jackett") === -1;
 
     var svc = serviceById(el.debridService.value);
     el.debridKeyField.hidden = !svc;
@@ -702,7 +769,7 @@
 
   /* ---------- eventos ---------- */
 
-  [el.providers, el.qualities].forEach(function (group) {
+  [el.providers, el.qualities, el.jackettIndexers].forEach(function (group) {
     group.addEventListener("click", function (ev) {
       var chip = ev.target.closest(".chip");
       if (!chip) return;
@@ -718,7 +785,7 @@
     });
   });
 
-  [el.brOnly, el.dubbedOnly, el.preferDubbed, el.excludeCam, el.debridCachedOnly].forEach(function (sw) {
+  [el.brFirst, el.brOnly, el.dubbedOnly, el.preferDubbed, el.excludeCam, el.debridCachedOnly].forEach(function (sw) {
     sw.addEventListener("click", function () { setOn(sw, !isOn(sw)); render(); });
   });
 
@@ -764,6 +831,13 @@
   function apply(state) {
     setChips(el.providers, state.providers || []);
     setChips(el.qualities, state.qualities || []);
+    setOn(el.brFirst, state.brFirst == null ? true : state.brFirst);
+    var selectedJackett = isIdList(state.jackettIndexers)
+      ? state.jackettIndexers
+      : isIdList(state.jackettIndexersSelected)
+        ? state.jackettIndexersSelected
+        : allJackettIndexerIds();
+    setChips(el.jackettIndexers, selectedJackett);
     el.maxResults.value = state.maxResults;
     el.max2160p.value = state.max2160p == null ? 100 : state.max2160p;
     el.max1080p.value = state.max1080p == null ? 100 : state.max1080p;
@@ -810,6 +884,10 @@
     if (raw[KEYS.preferDubbed] != null) state.preferDubbed = !!raw[KEYS.preferDubbed];
     if (raw[KEYS.excludeCam] != null) state.excludeCam = !!raw[KEYS.excludeCam];
     if (raw[KEYS.maxSizeGb] != null) state.maxSizeGb = raw[KEYS.maxSizeGb];
+    // Links antigos não têm bf nem ji: deixar as propriedades ausentes preserva
+    // o padrão da instância; na ausência de ji, apply marca todo o catálogo.
+    if (raw[KEYS.brFirst] != null) state.brFirst = !!raw[KEYS.brFirst];
+    if (raw[KEYS.jackettIndexers] != null) state.jackettIndexers = toList(raw[KEYS.jackettIndexers]);
     return state;
   }
 
@@ -820,6 +898,7 @@
       max2160p: 100, max1080p: 100, max720p: 100, max480p: 100, maxSd: 100,
       brReservedSlots: 6, brOnly: false, dubbedOnly: true,
       preferDubbed: false, excludeCam: false, maxSizeGb: 0,
+      brFirst: true, jackettIndexers: [], jackettIndexersSelected: [],
       debridService: "", debridApiKey: "", debridCachedOnly: true, services: []
     }; })
     .then(function (defaults) {
@@ -830,8 +909,14 @@
       var h1 = document.getElementById("addonName");
       if (h1) h1.textContent = brand;
       fillServices(defaults.services);
+      fillJackettIndexers(defaults.jackettIndexers);
       var saved = fromUrl();
-      apply(Object.assign(defaults, saved || {}));
+      var initial = Object.assign({}, defaults);
+      // O catálogo ocupa o mesmo nome da opção no JSON de defaults, mas não é
+      // uma seleção. Removê-lo evita que um catálogo vazio esconda a seleção
+      // padrão ou que objetos sejam tratados como IDs dos chips.
+      delete initial.jackettIndexers;
+      apply(Object.assign(initial, saved || {}));
     });
 })();
 </script>

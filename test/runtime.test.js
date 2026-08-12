@@ -2,10 +2,11 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 // Contrato do src/runtime.js para as opções novas do install URL: preferDubbed
-// ("a"), excludeCam ("c"), maxSizeGb ("z") e os limites por qualidade max2160p
-// ("q4"), max1080p ("q1"), max720p ("q7"), max480p ("q5") e maxSd ("qs"). O
-// módulo é importável sem subir servidor (diferente de addon.js) e nada aqui
-// toca rede — só normalização, clamp e roundtrip do segmento de config.
+// ("a"), excludeCam ("c"), maxSizeGb ("z"), brFirst ("bf"), jackettIndexers
+// ("ji") e os limites por qualidade max2160p ("q4"), max1080p ("q1"),
+// max720p ("q7"), max480p ("q5") e maxSd ("qs"). O módulo é importável sem
+// subir servidor (diferente de addon.js) e nada aqui toca rede — só
+// normalização, clamp e roundtrip do segmento de config.
 const config = require('../src/config');
 const runtime = require('../src/runtime');
 
@@ -25,6 +26,11 @@ test('SCHEMA declara os limites por qualidade com chave curta e 0..100', () => {
   assert.deepEqual(SCHEMA.maxSd, { type: 'int', key: 'qs', min: 0, max: 100 });
 });
 
+test('SCHEMA declara brFirst (bf) e jackettIndexers (ji) com tipo e chave curta', () => {
+  assert.deepEqual(SCHEMA.brFirst, { type: 'bool', key: 'bf' });
+  assert.deepEqual(SCHEMA.jackettIndexers, { type: 'list', key: 'ji' });
+});
+
 test('defaults() traz preferDubbed/excludeCam falsos e maxSizeGb 0', () => {
   const d = defaults();
   assert.equal(d.preferDubbed, false);
@@ -39,6 +45,12 @@ test('defaults() traz os limites por qualidade em 100', () => {
   assert.equal(d.max720p, 100);
   assert.equal(d.max480p, 100);
   assert.equal(d.maxSd, 100);
+});
+
+test('defaults() traz brFirst true e jackettIndexers herdado do config', () => {
+  const d = defaults();
+  assert.equal(d.brFirst, true);
+  assert.deepEqual(d.jackettIndexers, config.jackett.indexers);
 });
 
 test('normalize lê as chaves curtas e ignora chave desconhecida', () => {
@@ -90,6 +102,26 @@ test('preferDubbed (a) e excludeCam (c) só são true com valores afirmativos', 
   }
 });
 
+test('brFirst (bf) só é true com valores afirmativos', () => {
+  for (const truthy of [true, 1, '1', 'true']) {
+    assert.equal(normalize({ bf: truthy }).brFirst, true);
+  }
+  for (const falsy of [false, 0, '0', 'false', '', 'qualquer']) {
+    assert.equal(normalize({ bf: falsy }).brFirst, false);
+  }
+});
+
+test('normalize lê ji com trim/lowercase e vazio explícito vira lista vazia', () => {
+  const out = normalize({ ji: ' ComandoTorrents, NERDFILMES ,  ' });
+  assert.deepEqual(out.jackettIndexers, ['comandotorrents', 'nerdfilmes']);
+  // CSV vazio, array vazio e só separadores não viram indexer algum.
+  assert.deepEqual(normalize({ ji: '' }).jackettIndexers, []);
+  assert.deepEqual(normalize({ ji: [] }).jackettIndexers, []);
+  assert.deepEqual(normalize({ ji: ' , , ' }).jackettIndexers, []);
+  // Ausente no overlay mantém o default do operador, não zera a lista.
+  assert.deepEqual(normalize({}).jackettIndexers, config.jackett.indexers);
+});
+
 test('roundtrip encode/decode preserva as opções novas e rejeita segmento inválido', () => {
   const decoded = decode(encode({ a: true, c: false, z: 42 }));
   assert.equal(decoded.preferDubbed, true);
@@ -108,6 +140,16 @@ test('roundtrip encode/decode preserva os limites por qualidade', () => {
   assert.equal(decoded.max720p, 50);
   assert.equal(decoded.max480p, 75);
   assert.equal(decoded.maxSd, 100);
+});
+
+test('roundtrip encode/decode preserva brFirst e jackettIndexers normalizados', () => {
+  const decoded = decode(encode({ bf: false, ji: ['ComandoTorrents', ' NERDFILMES '] }));
+  assert.equal(decoded.brFirst, false);
+  assert.deepEqual(decoded.jackettIndexers, ['comandotorrents', 'nerdfilmes']);
+  // bf ausente cai no default true; ji ausente cai no default do operador.
+  const fallback = decode(encode({}));
+  assert.equal(fallback.brFirst, true);
+  assert.deepEqual(fallback.jackettIndexers, config.jackett.indexers);
 });
 
 test('roundtrip dos defaults é estável', () => {
