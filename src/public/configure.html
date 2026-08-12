@@ -501,10 +501,20 @@
 
     <div class="field">
       <div class="field-label">
-        <strong>SD / sem resolução</strong>
+        <strong>SD</strong>
         <output id="outSd">sem limite</output>
       </div>
       <input type="range" id="maxSd" min="0" max="100" step="1" value="100" />
+      <p class="field-hint">Só o que o título marca como baixa qualidade: DVDRip, SDTV, TS.</p>
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <strong>Sem resolução declarada</strong>
+        <output id="outUnknown">sem limite</output>
+      </div>
+      <input type="range" id="maxUnknown" min="0" max="100" step="1" value="100" />
+      <p class="field-hint">Quase sempre fonte BR: os sites não publicam resolução. Zerar aqui esconde as fontes brasileiras.</p>
     </div>
 
     <div class="field">
@@ -587,7 +597,7 @@
   // custa caro. Precisa bater com SCHEMA em src/runtime.js.
   var KEYS = {
     providers: "p", qualities: "q", maxResults: "m", minSeeders: "s",
-    max2160p: "q4", max1080p: "q1", max720p: "q7", max480p: "q5", maxSd: "qs",
+    max2160p: "q4", max1080p: "q1", max720p: "q7", max480p: "q5", maxSd: "qs", maxUnknown: "qn",
     brReservedSlots: "b", brOnly: "o", dubbedOnly: "d",
     preferDubbed: "a", excludeCam: "c", maxSizeGb: "z", brFirst: "bf",
     jackettIndexers: "ji",
@@ -607,6 +617,7 @@
     max720p: $("max720p"), out720p: $("out720p"),
     max480p: $("max480p"), out480p: $("out480p"),
     maxSd: $("maxSd"), outSd: $("outSd"),
+    maxUnknown: $("maxUnknown"), outUnknown: $("outUnknown"),
     minSeeders: $("minSeeders"), outSeed: $("outSeed"),
     maxSizeGb: $("maxSizeGb"), outMaxSize: $("outMaxSize"),
     brOnly: $("brOnly"), dubbedOnly: $("dubbedOnly"),
@@ -715,6 +726,7 @@
     cfg[KEYS.max720p] = Number(el.max720p.value);
     cfg[KEYS.max480p] = Number(el.max480p.value);
     cfg[KEYS.maxSd] = Number(el.maxSd.value);
+    cfg[KEYS.maxUnknown] = Number(el.maxUnknown.value);
     cfg[KEYS.minSeeders] = Number(el.minSeeders.value);
     cfg[KEYS.brReservedSlots] = Number(el.brSlots.value);
     cfg[KEYS.brOnly] = isOn(el.brOnly) ? 1 : 0;
@@ -744,6 +756,7 @@
     el.out720p.textContent = qualityLimitLabel(el.max720p.value);
     el.out480p.textContent = qualityLimitLabel(el.max480p.value);
     el.outSd.textContent = qualityLimitLabel(el.maxSd.value);
+    el.outUnknown.textContent = qualityLimitLabel(el.maxUnknown.value);
     el.outSeed.textContent = el.minSeeders.value === "0" ? "sem filtro" : el.minSeeders.value;
     el.outMaxSize.textContent = el.maxSizeGb.value === "0" ? "sem limite" : el.maxSizeGb.value + " GB";
     el.jackettIndexersSection.hidden = chipsSelected(el.providers).indexOf("jackett") === -1;
@@ -789,7 +802,7 @@
     sw.addEventListener("click", function () { setOn(sw, !isOn(sw)); render(); });
   });
 
-  [el.brSlots, el.maxResults, el.max2160p, el.max1080p, el.max720p, el.max480p, el.maxSd, el.minSeeders, el.maxSizeGb].forEach(function (r) {
+  [el.brSlots, el.maxResults, el.max2160p, el.max1080p, el.max720p, el.max480p, el.maxSd, el.maxUnknown, el.minSeeders, el.maxSizeGb].forEach(function (r) {
     r.addEventListener("input", render);
   });
 
@@ -844,6 +857,7 @@
     el.max720p.value = state.max720p == null ? 100 : state.max720p;
     el.max480p.value = state.max480p == null ? 100 : state.max480p;
     el.maxSd.value = state.maxSd == null ? 100 : state.maxSd;
+    el.maxUnknown.value = state.maxUnknown == null ? 100 : state.maxUnknown;
     el.minSeeders.value = state.minSeeders;
     el.brSlots.value = state.brReservedSlots;
     setOn(el.brOnly, state.brOnly);
@@ -881,6 +895,7 @@
     if (Object.prototype.hasOwnProperty.call(raw, KEYS.max720p)) state.max720p = raw[KEYS.max720p];
     if (Object.prototype.hasOwnProperty.call(raw, KEYS.max480p)) state.max480p = raw[KEYS.max480p];
     if (Object.prototype.hasOwnProperty.call(raw, KEYS.maxSd)) state.maxSd = raw[KEYS.maxSd];
+    if (Object.prototype.hasOwnProperty.call(raw, KEYS.maxUnknown)) state.maxUnknown = raw[KEYS.maxUnknown];
     if (raw[KEYS.preferDubbed] != null) state.preferDubbed = !!raw[KEYS.preferDubbed];
     if (raw[KEYS.excludeCam] != null) state.excludeCam = !!raw[KEYS.excludeCam];
     if (raw[KEYS.maxSizeGb] != null) state.maxSizeGb = raw[KEYS.maxSizeGb];
@@ -895,7 +910,7 @@
     .then(function (r) { return r.json(); })
     .catch(function () { return {
       providers: ["jackett"], qualities: [], maxResults: 40, minSeeders: 1,
-      max2160p: 100, max1080p: 100, max720p: 100, max480p: 100, maxSd: 100,
+      max2160p: 100, max1080p: 100, max720p: 100, max480p: 100, maxSd: 100, maxUnknown: 100,
       brReservedSlots: 6, brOnly: false, dubbedOnly: true,
       preferDubbed: false, excludeCam: false, maxSizeGb: 0,
       brFirst: true, jackettIndexers: [], jackettIndexersSelected: [],

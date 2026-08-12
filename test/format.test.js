@@ -16,6 +16,8 @@ const {
   matchesName,
   matchesEpisode,
   parseTitleSeasonEpisode,
+  UNKNOWN_QUALITY,
+  QUALITY_KEYS,
   dedupeByHash,
   sortAndLimit,
   selectQualityCandidates,
@@ -50,7 +52,8 @@ test('qualityFromTitle casa os rótulos comuns', () => {
   assert.equal(qualityFromTitle('Movie 1080p'), '1080p');
   assert.equal(qualityFromTitle('Movie 720p'), '720p');
   assert.equal(qualityFromTitle('Movie 480p'), '480p');
-  assert.equal(qualityFromTitle('Movie sem rótulo'), 'SD');
+  // Sem rótulo é 'não sei', não SD — ver o teste do balde próprio abaixo.
+  assert.equal(qualityFromTitle('Movie sem rótulo'), UNKNOWN_QUALITY);
 });
 
 test('sourceFromTitle alimenta o bingeGroup via toStremioStream', () => {
@@ -64,7 +67,7 @@ test('sourceFromTitle alimenta o bingeGroup via toStremioStream', () => {
   );
   assert.equal(
     toStremioStream({ title: 'Movie sem fonte', infoHash: HASH }).behaviorHints.bingeGroup,
-    'powerm-SD-any',
+    'powerm-na-any',
   );
 });
 
@@ -406,4 +409,36 @@ test('sentinela de 1 KB dos indexers BR conta como tamanho desconhecido', () => 
   const real = toStremioStream({ title: 'Serie 1a Temporada', infoHash: HASH, size: 2 * 1024 ** 3 });
   assert.ok(real.title.includes('💾 2.00 GB'));
   assert.equal(real._size, 2 * 1024 ** 3);
+});
+
+test('sem resolução no título não é SD e tem balde próprio', () => {
+  // Fonte BR típica: nenhuma resolução no título.
+  assert.equal(qualityFromTitle('Devoradores de Estrelas (2026) [opção 3]'), UNKNOWN_QUALITY);
+  assert.equal(qualityFromTitle('A Casa do Dragão 1ª Temporada (2022) WEB-DL [DUBLADO]'), UNKNOWN_QUALITY);
+  // SD exige marca explícita de baixa qualidade.
+  assert.equal(qualityFromTitle('Filme 2019 DVDRip XviD'), 'SD');
+  assert.equal(qualityFromTitle('Filme 2019 SDTV'), 'SD');
+  assert.equal(qualityFromTitle('Filme 2026 576p WEBRip x265'), 'SD');
+  assert.equal(qualityFromTitle('Filme 2019 CAM'), 'SD');
+  // Resolução declarada continua ganhando.
+  assert.equal(qualityFromTitle('Filme 2019 1080p WEB-DL'), '1080p');
+  assert.ok(QUALITY_KEYS.includes(UNKNOWN_QUALITY));
+});
+
+test('zerar a cota de SD não esconde mais as fontes BR', () => {
+  const br = toStremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3]', infoHash: HASH, seeders: 1, isBr: true });
+  const sd = toStremioStream({ title: 'Devoradores de Estrelas 2026 DVDRip', infoHash: OTHER, seeders: 9 });
+  const out = sortAndLimit([br, sd], { qualityLimits: { SD: 0 }, maxResults: 10 });
+  assert.equal(out.length, 1, 'só o DVDRip cai na cota zerada de SD');
+  assert.match(out[0].name, /opção 3/);
+  // E a cota nova corta o balde certo quando o usuário quiser.
+  assert.equal(sortAndLimit([br, sd], { qualityLimits: { [UNKNOWN_QUALITY]: 0 }, maxResults: 10 }).length, 1);
+});
+
+test('resolução desconhecida não vira rótulo nem grupo de binge do SD', () => {
+  const s = toStremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3] DUBLADO', infoHash: HASH, seeders: 1 });
+  const linha2 = s.name.split('\n')[1];
+  assert.ok(!/sem resolução|SD/.test(linha2), `2ª linha não anuncia resolução: ${linha2}`);
+  assert.ok(linha2.startsWith('Dublado'), linha2);
+  assert.ok(!s.behaviorHints.bingeGroup.includes('SD'));
 });

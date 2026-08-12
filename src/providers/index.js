@@ -12,6 +12,7 @@ const {
   matchesName,
   matchesEpisode,
   limitReservingBr,
+  UNKNOWN_QUALITY,
 } = require('../utils/format');
 const cache = require('../utils/cache');
 const debrid = require('../debrid');
@@ -289,6 +290,7 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo })
     max720p,
     max480p,
     maxSd,
+    maxUnknown,
     brReservedSlots,
     brOnly,
     brFirst,
@@ -299,6 +301,9 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo })
     '720p': max720p,
     '480p': max480p,
     SD: maxSd,
+    // Balde separado do SD: as fontes BR não publicam resolução e zerar SD não
+    // pode desligar a prioridade brasileira junto.
+    [UNKNOWN_QUALITY]: maxUnknown,
   };
   let streams = sortAndLimit(raw.map(toStremioStream), {
     minSeeders,

@@ -2,6 +2,9 @@
 // UNKNOWN_SIZE nos resolvedores), não um torrent de verdade.
 const UNKNOWN_SIZE_MAX = 1024;
 
+// Resolução que o título não informa. Balde e cota próprios, separados do SD.
+const UNKNOWN_QUALITY = 'sem resolução';
+
 const TRACKERS = [
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
@@ -54,13 +57,22 @@ function decodeEntities(text = '') {
     .replace(/&([a-z]+);/gi, (whole, name) => NAMED_ENTITIES[name.toLowerCase()] ?? whole);
 }
 
+/**
+ * "Não sei" é diferente de "é ruim". Título sem resolução vira UNKNOWN_QUALITY,
+ * não SD: os sites BR quase nunca publicam resolução ("Nome (2026) [opção 3]"),
+ * e enquanto isso caía no balde do SD, zerar a cota de SD desligava a
+ * prioridade brasileira inteira — inclusive as vagas reservadas.
+ * SD agora exige uma marca explícita de baixa qualidade.
+ */
 function qualityFromTitle(title = '') {
   const t = title.toUpperCase();
   if (/\b(2160P|4K|UHD)\b/.test(t)) return '2160p';
   if (/\b1080P\b/.test(t)) return '1080p';
   if (/\b720P\b/.test(t)) return '720p';
   if (/\b480P\b/.test(t)) return '480p';
-  return 'SD';
+  // 576p/540p são resoluções SD de verdade (PAL), não "não sei".
+  if (/\b(576P|540P|360P|240P|SDTV|DVD[- ]?(?:RIP|SCR)|VHS[- ]?RIP|TS|TC|CAM[- ]?RIP|CAM)\b/.test(t)) return 'SD';
+  return UNKNOWN_QUALITY;
 }
 
 function sourceFromTitle(title = '') {
@@ -127,12 +139,15 @@ function toStremioStream(item) {
     // espaço) e deriva os badges do nome do arquivo — por isso o título da
     // release tem que estar aqui, senão a linha só mostra a marca. A 2ª linha
     // leva qualidade/áudio/seeds pro cliente Stremio padrão, que não deriva.
-    name: `${title}\n${quality}${audio ? ` ${audio}` : ''}${seeders ? ` · 👤 ${seeders}` : ''}`,
+    // Resolução desconhecida não vira rótulo: "sem resolução" no lugar do
+    // "1080p" only atrapalha a linha do cliente. Fica só áudio + seeds.
+    name: `${title}\n${quality === UNKNOWN_QUALITY ? '' : quality}${audio ? `${quality === UNKNOWN_QUALITY ? '' : ' '}${audio}` : ''}${seeders ? ` · 👤 ${seeders}` : ''}`.replace('\n ', '\n'),
     title: `${title}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
     behaviorHints: {
-      bingeGroup: `powerm-${quality}-${source || 'any'}`,
+      // Binge de uma release sem resolução não pode cair no grupo do SD.
+      bingeGroup: `powerm-${quality === UNKNOWN_QUALITY ? 'na' : quality}-${source || 'any'}`,
     },
     _seeders: seeders,
     _quality: quality,
@@ -255,7 +270,7 @@ function dedupeByHash(streams) {
   return [...best.values()];
 }
 
-const QUALITY_KEYS = ['2160p', '1080p', '720p', '480p', 'SD'];
+const QUALITY_KEYS = ['2160p', '1080p', '720p', '480p', 'SD', UNKNOWN_QUALITY];
 
 function streamQuality(stream) {
   return stream?._quality || qualityFromTitle(stream?.title || stream?.name || '');
@@ -429,7 +444,9 @@ function sortAndLimit(
     .sort((a, b) => {
       const ed = exact(b) - exact(a);
       if (ed !== 0) return ed;
-      const qOrder = { '2160p': 4, '1080p': 3, '720p': 2, '480p': 1, SD: 0 };
+      // Sem resolução fica acima do SD e abaixo do 720p: é quase sempre um
+      // WEB-DL BR que não anuncia resolução, não uma cópia ruim.
+      const qOrder = { '2160p': 5, '1080p': 4, '720p': 3, [UNKNOWN_QUALITY]: 2, '480p': 1, SD: 0 };
       const qd = (qOrder[b._quality] || 0) - (qOrder[a._quality] || 0);
       if (qd !== 0) return qd;
       if (preferDubbed) {
@@ -474,6 +491,8 @@ function buildSearchQuery(meta, { season, episode } = {}) {
 
 module.exports = {
   TRACKERS,
+  UNKNOWN_QUALITY,
+  QUALITY_KEYS,
   bytesToSize,
   extractInfoHash,
   qualityFromTitle,
