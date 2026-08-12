@@ -442,3 +442,41 @@ test('resolução desconhecida não vira rótulo nem grupo de binge do SD', () =
   assert.ok(linha2.startsWith('Dublado'), linha2);
   assert.ok(!s.behaviorHints.bingeGroup.includes('SD'));
 });
+
+test('filtro de resolução preserva fonte sem resolução pelo balde próprio', () => {
+  const br = toStremioStream({
+    title: 'Prometheus (2012) [opção 3] DUBLADO',
+    infoHash: 'd'.repeat(40),
+    seeders: 1,
+    isBr: true,
+  });
+  const global4k = toStremioStream({
+    title: 'Prometheus 2012 2160p WEB-DL',
+    infoHash: 'e'.repeat(40),
+    seeders: 100,
+  });
+  const limits = { [UNKNOWN_QUALITY]: 100 };
+  const out = sortAndLimit([br, global4k], {
+    maxResults: 10,
+    qualityFilter: ['2160p', '1080p', '720p'],
+    qualityLimits: limits,
+  });
+
+  assert.deepEqual(new Set(out.map((item) => item.infoHash)), new Set([br.infoHash, global4k.infoHash]));
+});
+
+test('cota zero de sem resolução continua ocultando esse balde', () => {
+  const br = toStremioStream({
+    title: 'Prometheus (2012) [opção 3] DUBLADO',
+    infoHash: 'f'.repeat(40),
+    seeders: 1,
+    isBr: true,
+  });
+  const out = sortAndLimit([br], {
+    maxResults: 10,
+    qualityFilter: ['2160p', '1080p', '720p'],
+    qualityLimits: { [UNKNOWN_QUALITY]: 0 },
+  });
+
+  assert.deepEqual(out, []);
+});

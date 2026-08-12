@@ -98,6 +98,10 @@ const config = {
     service: (process.env.DEBRID_SERVICE || '').toLowerCase(),
     apiKey: process.env.DEBRID_API_KEY || '',
     cachedOnly: String(process.env.DEBRID_CACHED_ONLY || 'true') === 'true',
+    // Mesmo com "somente em cache", mantém as vagas BR como P2P quando o
+    // debrid ainda não tem o dublado. É a exceção explícita que evita uma lista
+    // só internacional enquanto o autofetch prepara a fonte brasileira.
+    showUncachedBr: String(process.env.DEBRID_SHOW_UNCACHED_BR || 'true') === 'true',
     batchSize: num(process.env.DEBRID_BATCH_SIZE, 100),
     // Remove da conta do debrid o que não está em cache. Sem isso cada consulta
     // deixa um download rodando lá (AllDebrid só informa cache ao dar upload).

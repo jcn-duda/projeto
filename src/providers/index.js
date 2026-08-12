@@ -16,6 +16,7 @@ const {
   pickBrDubbedCandidate,
   hasCachedBrDubbed,
   canAutoFetchBr,
+  filterKnownCache,
 } = require('../utils/format');
 const cache = require('../utils/cache');
 const debrid = require('../debrid');
@@ -24,6 +25,7 @@ const tmdb = require('../utils/tmdb');
 const { signResolve } = require('../utils/sign');
 const { accountScope, streamsCacheKey } = require('../utils/request-key');
 const { createLatestWriter } = require('../utils/latest-writer');
+const { planJackettQueries } = require('./search-plan');
 const { opts, prefix } = require('../runtime');
 
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -104,7 +106,11 @@ async function applyDebrid(streams, { season, episode }) {
   const adapter = debrid.current();
   if (!adapter || streams.length === 0) return streams;
 
-  const { debridCachedOnly: cachedOnly } = opts();
+  const {
+    debridCachedOnly: cachedOnly,
+    showUncachedBr,
+    brReservedSlots,
+  } = opts();
   const { publicUrl } = config.debrid;
 
   // Só quem ainda é torrent tem hash pra consultar; stream já resolvido não entra no lote.
@@ -139,14 +145,22 @@ async function applyDebrid(streams, { season, episode }) {
   }
 
   console.log(`[debrid] ${cached.size}/${streams.length} em cache no ${adapter.label}`);
+  const filtered = filterKnownCache(streams, cached, {
+    cachedOnly,
+    showUncachedBr,
+    brReservedSlots,
+  });
+  const { visibleBr } = filtered;
+  if (visibleBr.size) {
+    console.log(`[debrid] ${visibleBr.size} fonte(s) BR fora do cache mantida(s) como P2P`);
+  }
   const out = [];
-  for (const s of streams) {
+  for (const s of filtered.streams) {
     if (cached.has(s.infoHash)) {
       out.push(viaDebrid(s, true));
       continue;
     }
-    // Sem cache: mantém como torrent P2P, a não ser que o usuário só queira cacheado.
-    if (!cachedOnly) out.push(s);
+    out.push(s);
   }
   return out;
 }
@@ -173,14 +187,14 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
     if (selectedIndexers.length === 0) {
       tasks.push(jackett.search(query, type));
     } else {
-      const brIndexers = selectedIndexers.filter((indexer) =>
-        config.jackett.ptBrIndexers.includes(indexer),
-      );
-      const globalIndexers = selectedIndexers.filter(
-        (indexer) => !brIndexers.includes(indexer),
-      );
-      tasks.push(jackett.search(query, type, globalIndexers));
-      if (brIndexers.length) tasks.push(jackett.search(ptQuery || query, type, brIndexers));
+      for (const planned of planJackettQueries(
+        query,
+        ptQuery,
+        selectedIndexers,
+        config.jackett.ptBrIndexers,
+      )) {
+        tasks.push(jackett.search(planned.query, type, planned.indexers));
+      }
     }
   }
   if (wants('prowlarr')) {

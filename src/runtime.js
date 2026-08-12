@@ -39,6 +39,7 @@ const SCHEMA = {
   debridService: { type: 'string', key: 'ds' },
   debridApiKey: { type: 'string', key: 'dk' },
   debridCachedOnly: { type: 'bool', key: 'dc' },
+  showUncachedBr: { type: 'bool', key: 'bu' },
   autoFetchBr: { type: 'bool', key: 'ab' },
 };
 
@@ -65,6 +66,7 @@ function defaults() {
     debridService: config.debrid.service,
     debridApiKey: config.debrid.apiKey,
     debridCachedOnly: config.debrid.cachedOnly,
+    showUncachedBr: config.debrid.showUncachedBr,
     autoFetchBr: config.debrid.autoFetchBr,
   };
 }

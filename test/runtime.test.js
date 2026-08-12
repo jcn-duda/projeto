@@ -31,6 +31,13 @@ test('SCHEMA declara brFirst (bf) e jackettIndexers (ji) com tipo e chave curta'
   assert.deepEqual(SCHEMA.jackettIndexers, { type: 'list', key: 'ji' });
 });
 
+test('SCHEMA declara exceção BR ao cachedOnly com chave curta', () => {
+  assert.deepEqual(SCHEMA.showUncachedBr, { type: 'bool', key: 'bu' });
+  assert.equal(defaults().showUncachedBr, true);
+  assert.equal(normalize({ bu: 0 }).showUncachedBr, false);
+  assert.equal(decode(encode({ bu: 1 })).showUncachedBr, true);
+});
+
 test('defaults() traz preferDubbed/excludeCam falsos e maxSizeGb 0', () => {
   const d = defaults();
   assert.equal(d.preferDubbed, false);

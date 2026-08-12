@@ -3,7 +3,13 @@ const assert = require('node:assert');
 
 // Escolha do que baixar + proteção do hash: as duas peças que decidem se algo é
 // escrito na conta do usuário. Testadas sem rede, com objetos de stream mínimos.
-const { pickBrDubbedCandidate, hasCachedBrDubbed, canAutoFetchBr } = require('../src/utils/format');
+const {
+  pickBrDubbedCandidate,
+  hasCachedBrDubbed,
+  canAutoFetchBr,
+  uncachedBrHashes,
+  filterKnownCache,
+} = require('../src/utils/format');
 const { sortAndLimit, toStremioStream, limitReservingBr } = require('../src/utils/format');
 const held = require('../src/debrid/protected');
 
@@ -53,6 +59,51 @@ test('autofetch só pode escrever na conta em modo somente-cache', () => {
   assert.equal(canAutoFetchBr({ autoFetchBr: true, debridCachedOnly: false }, adapter), false);
   assert.equal(canAutoFetchBr({ autoFetchBr: false, debridCachedOnly: true }, adapter), false);
   assert.equal(canAutoFetchBr({ autoFetchBr: true, debridCachedOnly: true }, { cacheCheck: false }), false);
+});
+
+test('fontes BR fora do cache ocupam só as vagas reservadas', () => {
+  const global = stream(A, { name: 'Prometheus 1080p', _br: false });
+  const br1 = stream(B, { name: 'Prometheus Dublado', _br: true });
+  const br2 = stream(C, { name: 'Prometheus Dual', _br: true });
+
+  assert.deepEqual([...uncachedBrHashes([global, br1, br2], new Set(), 1)], [B]);
+  assert.deepEqual([...uncachedBrHashes([global, br1, br2], new Set([B]), 2)], [C]);
+  assert.deepEqual([...uncachedBrHashes([global, br1], new Set(), 0)], []);
+});
+
+test('cachedOnly mantém cacheados e apenas a cota BR fora do cache', () => {
+  const globalCached = stream(A, { _br: false });
+  const globalUncached = stream(B, { _br: false });
+  const brUncached = stream(C, { _br: true });
+  const out = filterKnownCache(
+    [globalCached, globalUncached, brUncached],
+    new Set([A]),
+    { cachedOnly: true, showUncachedBr: true, brReservedSlots: 1 },
+  );
+
+  assert.deepEqual(out.streams.map((item) => item.infoHash), [A, C]);
+  assert.deepEqual([...out.visibleBr], [C]);
+  assert.deepEqual(
+    filterKnownCache([globalCached, brUncached], new Set([A]), {
+      cachedOnly: true,
+      showUncachedBr: false,
+      brReservedSlots: 1,
+    }).streams.map((item) => item.infoHash),
+    [A],
+  );
+});
+
+test('BR já cacheado desconta das vagas P2P', () => {
+  const brCached = stream(A, { _br: true });
+  const brUncached = stream(B, { _br: true });
+  const out = filterKnownCache(
+    [brCached, brUncached],
+    new Set([A]),
+    { cachedOnly: true, showUncachedBr: true, brReservedSlots: 1 },
+  );
+
+  assert.deepEqual(out.streams.map((item) => item.infoHash), [A]);
+  assert.equal(out.visibleBr.size, 0);
 });
 
 test('pipeline preserva _dubbed até o debrid e remove antes de responder', () => {

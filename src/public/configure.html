@@ -603,6 +603,14 @@
       <button type="button" class="switch" id="autoFetchBr" aria-pressed="true"></button>
     </div>
 
+    <div class="row" id="uncachedBrRow" hidden>
+      <div class="row-text">
+        <strong>Mostrar BR ainda fora do cache</strong>
+        <span>Mantém as vagas brasileiras como P2P enquanto o debrid baixa o dublado. Fontes internacionais fora do cache continuam escondidas.</span>
+      </div>
+      <button type="button" class="switch" id="showUncachedBr" aria-pressed="true"></button>
+    </div>
+
     <p class="notice" id="noCacheNotice" hidden>
       Este serviço aposentou a consulta de cache, então não dá para saber de
       antemão o que toca na hora. Todos os resultados passam pelo debrid e o
@@ -637,7 +645,7 @@
     brReservedSlots: "b", brOnly: "o", dubbedOnly: "d",
     preferDubbed: "a", excludeCam: "c", maxSizeGb: "z", brFirst: "bf",
     jackettIndexers: "ji",
-    debridService: "ds", debridApiKey: "dk", debridCachedOnly: "dc", autoFetchBr: "ab"
+    debridService: "ds", debridApiKey: "dk", debridCachedOnly: "dc", showUncachedBr: "bu", autoFetchBr: "ab"
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -662,6 +670,7 @@
     debridService: $("debridService"), debridApiKey: $("debridApiKey"),
     debridKeyField: $("debridKeyField"), keyLink: $("keyLink"),
     debridCachedOnly: $("debridCachedOnly"), cachedOnlyRow: $("cachedOnlyRow"),
+    showUncachedBr: $("showUncachedBr"), uncachedBrRow: $("uncachedBrRow"),
     autoFetchBr: $("autoFetchBr"), autoFetchRow: $("autoFetchRow"),
     noCacheNotice: $("noCacheNotice"),
     installUrl: $("installUrl"), installBtn: $("installBtn"), copyBtn: $("copyBtn")
@@ -777,6 +786,7 @@
     cfg[KEYS.jackettIndexers] = chipsSelected(el.jackettIndexers).join(",");
     cfg[KEYS.debridService] = el.debridService.value;
     cfg[KEYS.debridCachedOnly] = isOn(el.debridCachedOnly) ? 1 : 0;
+    cfg[KEYS.showUncachedBr] = isOn(el.showUncachedBr) ? 1 : 0;
     cfg[KEYS.autoFetchBr] = isOn(el.autoFetchBr) ? 1 : 0;
     // Chave vazia não entra: evita gravar "dk":"" no link à toa.
     if (el.debridService.value && el.debridApiKey.value.trim()) {
@@ -830,6 +840,7 @@
     // Mesmo motivo do filtro de cache: sem consulta de cache o addon não sabe o
     // que falta, então o download automático não roda e o controle some.
     el.autoFetchRow.hidden = !svc || !svc.cacheCheck;
+    el.uncachedBrRow.hidden = !svc || !svc.cacheCheck || !isOn(el.debridCachedOnly);
     el.noCacheNotice.hidden = !svc || svc.cacheCheck;
     if (svc && svc.keyUrl) {
       el.keyLink.href = svc.keyUrl;
@@ -869,7 +880,7 @@
     });
   });
 
-  [el.brFirst, el.brOnly, el.dubbedOnly, el.preferDubbed, el.excludeCam, el.debridCachedOnly, el.autoFetchBr].forEach(function (sw) {
+  [el.brFirst, el.brOnly, el.dubbedOnly, el.preferDubbed, el.excludeCam, el.debridCachedOnly, el.showUncachedBr, el.autoFetchBr].forEach(function (sw) {
     sw.addEventListener("click", function () { setOn(sw, !isOn(sw)); render(); });
   });
 
@@ -939,6 +950,7 @@
     el.debridService.value = state.debridService || "";
     el.debridApiKey.value = state.debridApiKey || "";
     setOn(el.debridCachedOnly, state.debridCachedOnly);
+    setOn(el.showUncachedBr, state.showUncachedBr == null ? true : state.showUncachedBr);
     setOn(el.autoFetchBr, state.autoFetchBr);
     render();
   }
@@ -969,6 +981,7 @@
     if (Object.prototype.hasOwnProperty.call(raw, KEYS.maxSd)) state.maxSd = raw[KEYS.maxSd];
     if (Object.prototype.hasOwnProperty.call(raw, KEYS.maxUnknown)) state.maxUnknown = raw[KEYS.maxUnknown];
     if (raw[KEYS.autoFetchBr] != null) state.autoFetchBr = !!raw[KEYS.autoFetchBr];
+    if (raw[KEYS.showUncachedBr] != null) state.showUncachedBr = !!raw[KEYS.showUncachedBr];
     if (raw[KEYS.preferDubbed] != null) state.preferDubbed = !!raw[KEYS.preferDubbed];
     if (raw[KEYS.excludeCam] != null) state.excludeCam = !!raw[KEYS.excludeCam];
     if (raw[KEYS.maxSizeGb] != null) state.maxSizeGb = raw[KEYS.maxSizeGb];
@@ -1079,7 +1092,7 @@
       brReservedSlots: 6, brOnly: false, dubbedOnly: true,
       preferDubbed: false, excludeCam: false, maxSizeGb: 0,
       brFirst: true, jackettIndexers: [], jackettIndexersSelected: [],
-      debridService: "", debridApiKey: "", debridCachedOnly: true, autoFetchBr: true, services: []
+      debridService: "", debridApiKey: "", debridCachedOnly: true, showUncachedBr: true, autoFetchBr: true, services: []
     }; })
     .then(function (defaults) {
       instanceDefaults = defaults;

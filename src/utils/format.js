@@ -104,6 +104,19 @@ function matchesQualityFilter(title, filters) {
 }
 
 /**
+ * A whitelist de resolução só pode julgar o que a release declarou. Fontes BR
+ * sem resolução têm balde e cota próprios; excluí-las aqui tornaria
+ * `maxUnknown` inoperante justamente para o conteúdo principal do addon.
+ */
+function passesQualityFilter(stream, filters, qualityLimits = {}) {
+  if (stream?._br && streamQuality(stream) === UNKNOWN_QUALITY) {
+    const unknownLimit = qualityLimits[UNKNOWN_QUALITY];
+    return unknownLimit == null || Number(unknownLimit) > 0;
+  }
+  return matchesQualityFilter(stream?.title || stream?.name || '', filters);
+}
+
+/**
  * Normaliza resultados de Jackett/Prowlarr/demo para o formato do Stremio.
  */
 function toStremioStream(item) {
@@ -406,6 +419,43 @@ function canAutoFetchBr({ autoFetchBr, debridCachedOnly } = {}, adapter) {
   return Boolean(autoFetchBr && debridCachedOnly && adapter?.cacheCheck);
 }
 
+/**
+ * Exceção explícita ao cachedOnly: as fontes globais continuam instantâneas,
+ * mas as vagas reservadas BR não viram um vazio quando o dublado ainda não
+ * chegou ao debrid. O stream fica como torrent P2P, sem selo ⚡.
+ */
+function uncachedBrHashes(streams = [], cachedHashes = new Set(), limit = 0) {
+  const selected = new Set();
+  const max = Math.max(0, Math.trunc(Number(limit) || 0));
+  for (const stream of streams) {
+    if (selected.size >= max) break;
+    if (stream?._br && stream.infoHash && !cachedHashes.has(stream.infoHash)) {
+      selected.add(stream.infoHash);
+    }
+  }
+  return selected;
+}
+
+function filterKnownCache(streams = [], cachedHashes = new Set(), {
+  cachedOnly = true,
+  showUncachedBr = false,
+  brReservedSlots = 0,
+} = {}) {
+  const cachedBr = streams.filter((stream) =>
+    stream?._br && stream.infoHash && cachedHashes.has(stream.infoHash),
+  ).length;
+  const uncachedSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0) - cachedBr);
+  const visibleBr = cachedOnly && showUncachedBr
+    ? uncachedBrHashes(streams, cachedHashes, uncachedSlots)
+    : new Set();
+  return {
+    visibleBr,
+    streams: streams.filter((stream) =>
+      cachedHashes.has(stream.infoHash) || !cachedOnly || visibleBr.has(stream.infoHash),
+    ),
+  };
+}
+
 /** Reserva origem BR, aplica as cotas finais e remove todos os campos internos. */
 function limitReservingBr(
   streams,
@@ -471,7 +521,7 @@ function sortAndLimit(
 
   const ordered = dedupeByHash(streams)
     .filter((s) => (s._seeders || 0) >= minSeeders)
-    .filter((s) => matchesQualityFilter(s.title, qualityFilter))
+    .filter((s) => passesQualityFilter(s, qualityFilter, qualityLimits))
     .filter((s) => !excludeCam || sourceFromTitle(s.title) !== 'CAM')
     // Tamanho ausente não é tratado como zero real: sem dado confiável, o
     // stream continua visível em vez de ser descartado silenciosamente.
@@ -540,6 +590,7 @@ module.exports = {
   parseStremioId,
   buildSearchQuery,
   matchesQualityFilter,
+  passesQualityFilter,
   matchesName,
   matchesEpisode,
   parseTitleSeasonEpisode,
@@ -550,6 +601,8 @@ module.exports = {
   pickBrDubbedCandidate,
   hasCachedBrDubbed,
   canAutoFetchBr,
+  uncachedBrHashes,
+  filterKnownCache,
   normalizeTitle,
   decodeEntities,
 };
