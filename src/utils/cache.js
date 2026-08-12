@@ -64,6 +64,7 @@ function persist(key, value, expiresAt) {
 }
 
 function forget(key) {
+  store.delete(key);
   if (!db) return;
   try {
     db.prepare('DELETE FROM cache WHERE key = ?').run(key);
@@ -124,4 +125,4 @@ loadFromDisk();
 // Expirado ocupa linha no banco mesmo sem ninguém ler a chave.
 setInterval(prune, 10 * 60 * 1000).unref();
 
-module.exports = { get, set, clear };
+module.exports = { get, set, forget, clear };

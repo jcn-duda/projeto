@@ -3,7 +3,8 @@ const assert = require('node:assert');
 
 // Escolha do que baixar + proteção do hash: as duas peças que decidem se algo é
 // escrito na conta do usuário. Testadas sem rede, com objetos de stream mínimos.
-const { pickBrDubbedCandidate, hasCachedBrDubbed } = require('../src/utils/format');
+const { pickBrDubbedCandidate, hasCachedBrDubbed, canAutoFetchBr } = require('../src/utils/format');
+const { sortAndLimit, toStremioStream, limitReservingBr } = require('../src/utils/format');
 const held = require('../src/debrid/protected');
 
 const A = 'a'.repeat(40);
@@ -46,6 +47,27 @@ test('hasCachedBrDubbed enxerga o dublado que já toca na hora', () => {
   assert.equal(hasCachedBrDubbed([global, br1], new Set([C])), false);
 });
 
+test('autofetch só pode escrever na conta em modo somente-cache', () => {
+  const adapter = { cacheCheck: true };
+  assert.equal(canAutoFetchBr({ autoFetchBr: true, debridCachedOnly: true }, adapter), true);
+  assert.equal(canAutoFetchBr({ autoFetchBr: true, debridCachedOnly: false }, adapter), false);
+  assert.equal(canAutoFetchBr({ autoFetchBr: false, debridCachedOnly: true }, adapter), false);
+  assert.equal(canAutoFetchBr({ autoFetchBr: true, debridCachedOnly: true }, { cacheCheck: false }), false);
+});
+
+test('pipeline preserva _dubbed até o debrid e remove antes de responder', () => {
+  const items = [
+    { title: 'Coringa Dublado 1080p', infoHash: A, seeders: 1, isBr: true },
+    { title: 'Coringa 1080p', infoHash: B, seeders: 2, isBr: true },
+  ].map(toStremioStream);
+  const candidates = sortAndLimit(items, { maxResults: 10 });
+
+  assert.equal(candidates.find((item) => item.infoHash === A)._dubbed, true);
+  assert.equal(pickBrDubbedCandidate(candidates).infoHash, A);
+  const output = limitReservingBr(candidates, { maxResults: 10 });
+  assert.equal('_dubbed' in output[0], false);
+});
+
 test('protected: hold protege, release libera e o TTL expira', () => {
   held.release(A);
   assert.equal(held.isHeld(A), false);
@@ -61,4 +83,13 @@ test('protected: hold protege, release libera e o TTL expira', () => {
   assert.equal(held.isHeld(B), true);
   held.release(B);
   assert.equal(held.isHeld(''), false);
+});
+
+test('protected isola o mesmo hash entre contas', () => {
+  held.release(C, 'conta-a');
+  held.release(C, 'conta-b');
+  held.hold(C, 60, 'conta-a');
+  assert.equal(held.isHeld(C, 'conta-a'), true);
+  assert.equal(held.isHeld(C, 'conta-b'), false);
+  held.release(C, 'conta-a');
 });

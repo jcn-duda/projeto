@@ -1,4 +1,5 @@
 const config = require('../config');
+const { accountScope } = require('../utils/request-key');
 const { json, pickFile, wait } = require('./common');
 const held = require('./protected');
 
@@ -33,6 +34,7 @@ async function call(apiKey, path, params = {}, { method = 'GET', body } = {}) {
 async function checkCached(apiKey, infoHashes) {
   const ready = new Set();
   const drop = [];
+  const account = accountScope(apiKey);
 
   for (let i = 0; i < infoHashes.length; i += config.debrid.batchSize) {
     const batch = infoHashes.slice(i, i + config.debrid.batchSize);
@@ -41,7 +43,7 @@ async function checkCached(apiKey, infoHashes) {
       if (magnet.ready) ready.add(String(magnet.hash).toLowerCase());
       // Hash em download automático não entra na limpeza: ele está "não pronto"
       // justamente porque pedimos que baixasse.
-      else if (magnet.id && !held.isHeld(magnet.hash)) drop.push(magnet.id);
+      else if (magnet.id && !held.isHeld(magnet.hash, account)) drop.push(magnet.id);
     }
   }
 
@@ -72,6 +74,7 @@ function flattenFiles(nodes, prefix = '') {
 }
 
 async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
+  const account = accountScope(apiKey);
   const upload = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
   const magnet = (upload?.magnets || [])[0];
   if (!magnet?.id) return null;
@@ -96,7 +99,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
     // então apagar não custa nada — se o usuário voltar, ele é reenviado.
     // Idem no play: se o usuário clicou num BR que está baixando por nossa
     // conta, apagar aqui jogaria fora o progresso.
-    if (config.debrid.dropUncached && !held.isHeld(infoHash)) {
+    if (config.debrid.dropUncached && !held.isHeld(infoHash, account)) {
       try {
         await call(apiKey, '/magnet/delete', { id: magnet.id });
       } catch (err) {

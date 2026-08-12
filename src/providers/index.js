@@ -15,13 +15,14 @@ const {
   UNKNOWN_QUALITY,
   pickBrDubbedCandidate,
   hasCachedBrDubbed,
+  canAutoFetchBr,
 } = require('../utils/format');
 const cache = require('../utils/cache');
 const debrid = require('../debrid');
 const held = require('../debrid/protected');
 const tmdb = require('../utils/tmdb');
 const { signResolve } = require('../utils/sign');
-const { streamsCacheKey } = require('../utils/request-key');
+const { accountScope, streamsCacheKey } = require('../utils/request-key');
 const { opts, prefix } = require('../runtime');
 
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -42,33 +43,37 @@ const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
  * - nunca entra no caminho da resposta: erro só vira log.
  */
 function autoFetchCandidate(streams) {
-  const { autoFetchBr } = opts();
+  const { autoFetchBr, debridCachedOnly, debridApiKey } = opts();
   const adapter = debrid.current();
   // `cacheCheck: false` (Real-Debrid, Debrid-Link) fica fora: sem saber o que
   // está em cache, enfileiraríamos às cegas — e nesses serviços o /resolve do
   // play já adiciona o magnet de qualquer forma.
-  if (!autoFetchBr || !adapter || !adapter.cacheCheck) return null;
+  // Sem cachedOnly a fonte já é devolvida como torrent P2P. Baixá-la também no
+  // debrid seria um efeito colateral desnecessário na conta do usuário.
+  if (!canAutoFetchBr({ autoFetchBr, debridCachedOnly }, adapter)) return null;
   const candidate = pickBrDubbedCandidate(streams);
   if (!candidate) return null;
   // Protege ANTES da checagem de cache: na AllDebrid a própria checagem apaga da
   // conta o que não está pronto, e sem isso a limpeza mataria este download
   // dentro da mesma busca.
-  held.hold(candidate.infoHash, config.debrid.autoFetchTtl);
-  return candidate;
+  const account = accountScope(debridApiKey);
+  held.hold(candidate.infoHash, config.debrid.autoFetchTtl, account);
+  return { stream: candidate, account };
 }
 
-function autoFetchBrDubbed(streams, candidate, { cached, known, season, episode }) {
-  if (!candidate) return;
+function autoFetchBrDubbed(streams, selected, { cached, known, season, episode }) {
+  if (!selected) return;
+  const { stream: candidate, account } = selected;
   const adapter = debrid.current();
 
   // Sem resposta confiável de cache, ou já existe dublado tocável: não baixa
   // nada e devolve o hash à limpeza normal.
   if (!known || hasCachedBrDubbed(streams, cached)) {
-    held.release(candidate.infoHash);
+    held.release(candidate.infoHash, account);
     return;
   }
 
-  const key = `autofetch:${adapter.id}:${candidate.infoHash}`;
+  const key = `autofetch:${adapter.id}:${account}:${candidate.infoHash}`;
   if (cache.get(key)) return;
   cache.set(key, 1, config.debrid.autoFetchTtl);
 
@@ -78,12 +83,14 @@ function autoFetchBrDubbed(streams, candidate, { cached, known, season, episode 
     .then((ok) => {
       if (ok) console.log(`[autofetch] ${adapter.label} baixando fonte BR dublada: ${label}`);
       else {
-        held.release(candidate.infoHash);
+        cache.forget(key);
+        held.release(candidate.infoHash, account);
         console.warn(`[autofetch] ${adapter.label} não aceitou ${candidate.infoHash}`);
       }
     })
     .catch((err) => {
-      held.release(candidate.infoHash);
+      cache.forget(key);
+      held.release(candidate.infoHash, account);
       console.warn('[autofetch] falhou:', err?.message || err);
     });
 }

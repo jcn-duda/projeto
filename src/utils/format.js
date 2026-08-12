@@ -402,6 +402,10 @@ function hasCachedBrDubbed(streams = [], cachedHashes = new Set()) {
   return brDubbedPool(streams).some((s) => cachedHashes.has(s.infoHash));
 }
 
+function canAutoFetchBr({ autoFetchBr, debridCachedOnly } = {}, adapter) {
+  return Boolean(autoFetchBr && debridCachedOnly && adapter?.cacheCheck);
+}
+
 /** Reserva origem BR, aplica as cotas finais e remove todos os campos internos. */
 function limitReservingBr(
   streams,
@@ -496,7 +500,9 @@ function sortAndLimit(
   })
     // `_quality` e `_br` precisam sobreviver ao debrid: as cotas e a reserva
     // são aplicadas só depois que cachedOnly remove os streams indisponíveis.
-    .map(({ _seeders, _size, _dubbed, ...rest }) => rest);
+    // `_dubbed` também precisa chegar ao autofetch: sem ele uma fonte BR sem
+    // marca de áudio venceria mesmo quando existe uma explicitamente dublada.
+    .map(({ _seeders, _size, ...rest }) => rest);
 }
 
 function parseStremioId(id) {
@@ -543,6 +549,7 @@ module.exports = {
   limitReservingBr,
   pickBrDubbedCandidate,
   hasCachedBrDubbed,
+  canAutoFetchBr,
   normalizeTitle,
   decodeEntities,
 };
