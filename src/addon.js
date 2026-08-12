@@ -8,6 +8,7 @@ const runtime = require('./runtime');
 const brResolvers = require('./br-resolvers');
 const { verifyResolve } = require('./utils/sign');
 const jackettCatalog = require('./providers/jackett-catalog');
+const jackett = require('./providers/jackett');
 
 const manifest = {
   id: config.addonId,
@@ -117,6 +118,27 @@ app.get('/defaults.json', async (_, res) => {
     services: debrid.SERVICES,
     addonName: config.addonName,
   });
+});
+
+/**
+ * Testa um indexer pelo mesmo caminho da busca real. A página usa isso pro botão
+ * de teste; serve também no terminal:
+ *   curl "http://127.0.0.1:7000/test-indexer.json?id=bludv-cardigann"
+ *
+ * O `id` é validado contra o catálogo do Jackett em vez de ir cru pra URL: sem
+ * isso qualquer string viraria um caminho na API do Jackett.
+ */
+app.get('/test-indexer.json', async (req, res) => {
+  const id = String(req.query.id || '');
+  const catalog = await jackettCatalog.load();
+  if (!catalog.some((indexer) => indexer.id === id)) {
+    return res.status(400).json({ ok: false, error: 'indexador desconhecido' });
+  }
+  // Sem `q`, quem escolhe o termo é o provider: indexer BR recebe o título em
+  // português e o global o original. O teste é do indexer, não da query.
+  const query = req.query.q ? String(req.query.q).slice(0, 80) : '';
+  const type = req.query.type === 'series' ? 'series' : 'movie';
+  return res.json(await jackett.test(id, query, type));
 });
 
 app.get('/resolve/:infoHash', resolveHandler);

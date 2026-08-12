@@ -181,4 +181,41 @@ async function search(query, type, indexersOverride = null) {
   return out;
 }
 
-module.exports = { search, name: 'jackett' };
+/**
+ * Diagnóstico de UM indexer, pelo MESMO caminho da busca real — inclusive a
+ * resolução de magnet, que é onde os indexers BR costumam falhar de verdade.
+ * Devolve dado, não veredito: quem exibe decide como pintar.
+ */
+async function test(indexer, query, type = 'movie') {
+  const started = Date.now();
+  if (!config.jackett.apiKey) {
+    return { indexer, ok: false, error: 'JACKETT_API_KEY não configurada', ms: 0 };
+  }
+  const br = config.jackett.ptBrIndexers.includes(indexer);
+  // Sem query explícita, cada lado recebe o nome que ele realmente indexa: o YTS
+  // não tem "Coringa" e o BLUDV não tem "Joker". Um só termo reprovaria metade
+  // dos indexers saudáveis.
+  const effective = query || (br ? 'Coringa' : 'Joker');
+  try {
+    const { items, ms } = await queryIndexer(indexer, effective, type);
+    // Sem magnet o resultado é inútil pro addon: ele é descartado por falta de
+    // infoHash. É a diferença entre "o site respondeu" e "dá pra assistir".
+    const withMagnet = items.filter(
+      (item) => item.infoHash || /^magnet:\?/i.test(String(item.magnet || '')),
+    ).length;
+    return {
+      indexer,
+      ok: withMagnet > 0,
+      results: items.length,
+      withMagnet,
+      ms,
+      sample: items[0]?.title ? String(items[0].title).slice(0, 120) : null,
+      query: effective,
+      br,
+    };
+  } catch (err) {
+    return { indexer, ok: false, error: err.message || String(err), ms: Date.now() - started };
+  }
+}
+
+module.exports = { search, test, name: 'jackett' };

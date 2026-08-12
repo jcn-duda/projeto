@@ -322,6 +322,28 @@
   }
   .btn-ghost:hover { border-color: var(--accent); }
   .btn-ghost.ok { border-color: var(--green); color: var(--green); }
+  .btn[disabled] { opacity: .55; cursor: progress; }
+
+  /* ---------- teste de indexador ---------- */
+  .test-bar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-top: 16px;
+  }
+  .test-bar .field-hint { flex: 1; min-width: 200px; margin: 0; }
+
+  .test-line {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .test-line:first-child { margin-top: 12px; }
+  .test-line .name { flex: 1; min-width: 0; font-weight: 600; word-break: break-word; }
+  .test-line .verdict { flex-shrink: 0; font-weight: 650; }
+  .test-line.ok .verdict { color: var(--green); }
+  .test-line.fail .verdict { color: #e2795f; }
+  .test-line.pending .verdict { color: var(--muted); }
+  .test-line .detail { flex-shrink: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 
   footer {
     margin-top: 34px;
@@ -383,6 +405,11 @@
         <p>Escolha quais indexadores serão consultados. Nenhum marcado usa o padrão da instância — ou todos, quando ela usa o agregado do Jackett.</p>
       </div>
       <div class="chips" id="jackettIndexers"></div>
+      <div class="test-bar">
+        <button type="button" class="btn btn-ghost" id="testIndexers">Testar indexadores</button>
+        <span class="field-hint" id="testHint">Faz uma busca real em cada um, inclusive a resolução do magnet. Indexador BR recebe o título em português; os globais, o original.</span>
+      </div>
+      <div id="indexerTestOut"></div>
     </div>
   </section>
 
@@ -567,6 +594,14 @@
       <button type="button" class="switch" id="debridCachedOnly" aria-pressed="true"></button>
     </div>
 
+    <div class="row" id="autoFetchRow" hidden>
+      <div class="row-text">
+        <strong>Baixar dublado automaticamente</strong>
+        <span>Quando nenhuma fonte BR dublada estiver em cache, manda o serviço baixar a melhor. O play funciona minutos depois. Um torrent por título.</span>
+      </div>
+      <button type="button" class="switch" id="autoFetchBr" aria-pressed="true"></button>
+    </div>
+
     <p class="notice" id="noCacheNotice" hidden>
       Este serviço aposentou a consulta de cache, então não dá para saber de
       antemão o que toca na hora. Todos os resultados passam pelo debrid e o
@@ -601,7 +636,7 @@
     brReservedSlots: "b", brOnly: "o", dubbedOnly: "d",
     preferDubbed: "a", excludeCam: "c", maxSizeGb: "z", brFirst: "bf",
     jackettIndexers: "ji",
-    debridService: "ds", debridApiKey: "dk", debridCachedOnly: "dc"
+    debridService: "ds", debridApiKey: "dk", debridCachedOnly: "dc", autoFetchBr: "ab"
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -610,6 +645,7 @@
     providers: $("providers"), qualities: $("qualities"),
     brFirst: $("brFirst"), jackettIndexersSection: $("jackettIndexersSection"),
     jackettIndexers: $("jackettIndexers"),
+    testIndexers: $("testIndexers"), indexerTestOut: $("indexerTestOut"),
     brSlots: $("brSlots"), outBr: $("outBr"),
     maxResults: $("maxResults"), outMax: $("outMax"),
     max2160p: $("max2160p"), out2160p: $("out2160p"),
@@ -625,6 +661,7 @@
     debridService: $("debridService"), debridApiKey: $("debridApiKey"),
     debridKeyField: $("debridKeyField"), keyLink: $("keyLink"),
     debridCachedOnly: $("debridCachedOnly"), cachedOnlyRow: $("cachedOnlyRow"),
+    autoFetchBr: $("autoFetchBr"), autoFetchRow: $("autoFetchRow"),
     noCacheNotice: $("noCacheNotice"),
     installUrl: $("installUrl"), installBtn: $("installBtn"), copyBtn: $("copyBtn")
   };
@@ -738,6 +775,7 @@
     cfg[KEYS.jackettIndexers] = chipsSelected(el.jackettIndexers).join(",");
     cfg[KEYS.debridService] = el.debridService.value;
     cfg[KEYS.debridCachedOnly] = isOn(el.debridCachedOnly) ? 1 : 0;
+    cfg[KEYS.autoFetchBr] = isOn(el.autoFetchBr) ? 1 : 0;
     // Chave vazia não entra: evita gravar "dk":"" no link à toa.
     if (el.debridService.value && el.debridApiKey.value.trim()) {
       cfg[KEYS.debridApiKey] = el.debridApiKey.value.trim();
@@ -766,6 +804,9 @@
     // Sem consulta de cache o filtro não teria como funcionar: em vez de
     // oferecer um controle que não faz nada, esconde e explica.
     el.cachedOnlyRow.hidden = !svc || !svc.cacheCheck;
+    // Mesmo motivo do filtro de cache: sem consulta de cache o addon não sabe o
+    // que falta, então o download automático não roda e o controle some.
+    el.autoFetchRow.hidden = !svc || !svc.cacheCheck;
     el.noCacheNotice.hidden = !svc || svc.cacheCheck;
     if (svc && svc.keyUrl) {
       el.keyLink.href = svc.keyUrl;
@@ -798,7 +839,7 @@
     });
   });
 
-  [el.brFirst, el.brOnly, el.dubbedOnly, el.preferDubbed, el.excludeCam, el.debridCachedOnly].forEach(function (sw) {
+  [el.brFirst, el.brOnly, el.dubbedOnly, el.preferDubbed, el.excludeCam, el.debridCachedOnly, el.autoFetchBr].forEach(function (sw) {
     sw.addEventListener("click", function () { setOn(sw, !isOn(sw)); render(); });
   });
 
@@ -868,6 +909,7 @@
     el.debridService.value = state.debridService || "";
     el.debridApiKey.value = state.debridApiKey || "";
     setOn(el.debridCachedOnly, state.debridCachedOnly);
+    setOn(el.autoFetchBr, state.autoFetchBr);
     render();
   }
 
@@ -896,6 +938,7 @@
     if (Object.prototype.hasOwnProperty.call(raw, KEYS.max480p)) state.max480p = raw[KEYS.max480p];
     if (Object.prototype.hasOwnProperty.call(raw, KEYS.maxSd)) state.maxSd = raw[KEYS.maxSd];
     if (Object.prototype.hasOwnProperty.call(raw, KEYS.maxUnknown)) state.maxUnknown = raw[KEYS.maxUnknown];
+    if (raw[KEYS.autoFetchBr] != null) state.autoFetchBr = !!raw[KEYS.autoFetchBr];
     if (raw[KEYS.preferDubbed] != null) state.preferDubbed = !!raw[KEYS.preferDubbed];
     if (raw[KEYS.excludeCam] != null) state.excludeCam = !!raw[KEYS.excludeCam];
     if (raw[KEYS.maxSizeGb] != null) state.maxSizeGb = raw[KEYS.maxSizeGb];
@@ -906,6 +949,78 @@
     return state;
   }
 
+
+  /* ---------- teste de indexador ---------- */
+
+  // Uma linha por indexador, criada como "testando" e preenchida quando volta.
+  function testLine(label) {
+    var line = document.createElement("div");
+    line.className = "test-line pending";
+    var name = document.createElement("span");
+    name.className = "name";
+    name.textContent = label;
+    var verdict = document.createElement("span");
+    verdict.className = "verdict";
+    verdict.textContent = "testando…";
+    var detail = document.createElement("span");
+    detail.className = "detail";
+    line.appendChild(name);
+    line.appendChild(detail);
+    line.appendChild(verdict);
+    el.indexerTestOut.appendChild(line);
+    return { line: line, verdict: verdict, detail: detail };
+  }
+
+  function showResult(slot, data) {
+    var ok = data && data.ok;
+    slot.line.className = "test-line " + (ok ? "ok" : "fail");
+    if (ok) {
+      slot.verdict.textContent = "ok";
+      // Sem magnet o resultado é inútil pro addon; o número que importa é esse.
+      slot.detail.textContent =
+        data.withMagnet + "/" + data.results + " com magnet · " + (data.ms / 1000).toFixed(1) + "s" +
+        (data.query ? ' · "' + data.query + '"' : "");
+      return;
+    }
+    slot.verdict.textContent = "falhou";
+    if (data && data.error) slot.detail.textContent = data.error;
+    else if (data && data.results) slot.detail.textContent = data.results + " resultado(s), nenhum magnet";
+    else slot.detail.textContent = "nenhum resultado";
+  }
+
+  async function runIndexerTests() {
+    // Testa o que está marcado; nada marcado = todos, que é o mesmo critério da
+    // busca real quando o usuário não escolhe indexador.
+    var ids = chipsSelected(el.jackettIndexers);
+    if (ids.length === 0) ids = allJackettIndexerIds();
+    if (ids.length === 0) return;
+
+    el.testIndexers.disabled = true;
+    el.testIndexers.textContent = "Testando…";
+    el.indexerTestOut.textContent = "";
+
+    var byId = {};
+    jackettIndexers.forEach(function (item) { byId[item.id] = item; });
+
+    // Um por vez de propósito: em paralelo os indexers BR disputam o mesmo
+    // Jackett e o teste mediria a fila, não o indexador.
+    for (var i = 0; i < ids.length; i++) {
+      var item = byId[ids[i]];
+      var slot = testLine((item ? item.label : ids[i]) + (item && item.isBr ? " · BR" : ""));
+      try {
+        var res = await fetch("/test-indexer.json?id=" + encodeURIComponent(ids[i]));
+        showResult(slot, await res.json());
+      } catch (err) {
+        showResult(slot, { ok: false, error: String(err && err.message ? err.message : err) });
+      }
+    }
+
+    el.testIndexers.disabled = false;
+    el.testIndexers.textContent = "Testar indexadores";
+  }
+
+  el.testIndexers.addEventListener("click", runIndexerTests);
+
   fetch("/defaults.json")
     .then(function (r) { return r.json(); })
     .catch(function () { return {
@@ -914,7 +1029,7 @@
       brReservedSlots: 6, brOnly: false, dubbedOnly: true,
       preferDubbed: false, excludeCam: false, maxSizeGb: 0,
       brFirst: true, jackettIndexers: [], jackettIndexersSelected: [],
-      debridService: "", debridApiKey: "", debridCachedOnly: true, services: []
+      debridService: "", debridApiKey: "", debridCachedOnly: true, autoFetchBr: true, services: []
     }; })
     .then(function (defaults) {
       // A marca vem do servidor: renomear o addon no .env reflete na página
