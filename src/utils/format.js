@@ -71,21 +71,23 @@ function toStremioStream(item) {
   const quality = qualityFromTitle(title);
   const source = sourceFromTitle(title);
 
+  // Convenção do Torrentio: 👤 seeders, 💾 tamanho, ⚙️ indexer. Os clientes
+  // (Stremio e Power Movie) reconhecem esses marcadores e montam a linha de
+  // metadados a partir deles — com "•" eles não exibiam seeds nem a fonte.
   const bits = [
-    quality,
-    source,
-    size,
-    seeders ? `${seeders} seeders` : null,
-    tracker,
+    `👤 ${seeders}`,
+    size ? `💾 ${size}` : null,
+    tracker ? `⚙️ ${tracker}` : null,
+    source || null,
   ].filter(Boolean);
 
   return {
-    name: `Adom\n${quality}`,
-    title: `${title}\n${bits.join(' • ')}`,
+    name: `Power\n${quality}`,
+    title: `${title}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
     behaviorHints: {
-      bingeGroup: `adom-${quality}-${source || 'any'}`,
+      bingeGroup: `power-${quality}-${source || 'any'}`,
     },
     _seeders: seeders,
     _quality: quality,
