@@ -5,22 +5,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="dark" />
 <title>Adom Power-Movie — Configurar</title>
+<!-- Oswald/Manrope são as fontes do Power Movie. Se a página abrir sem
+     internet, o fallback do stack assume sem quebrar o layout. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Manrope:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
 <style>
+  /* Tokens espelhando o design system do Power Movie (lib/core/theme):
+     primary #FAA31A, accent #FFA329, background #0D0D0D, surface #1A1A1A,
+     card #252525, cardLight #333333, textSecondary #B3B3B3, muted #666666. */
   :root {
-    --bg: #0d0b16;
-    --bg-glow: #1b1430;
-    --surface: rgba(255, 255, 255, 0.045);
-    --surface-2: rgba(255, 255, 255, 0.07);
-    --border: rgba(255, 255, 255, 0.09);
-    --border-strong: rgba(255, 255, 255, 0.16);
-    --text: #f2f0f7;
-    --muted: #a09bb4;
-    --accent: #8c5cf6;
-    --accent-2: #c65cf6;
-    --accent-soft: rgba(140, 92, 246, 0.16);
-    --green: #46d39a;
+    --bg: #0d0d0d;
+    --bg-glow: #1a1a1a;
+    --surface: #1a1a1a;
+    --surface-2: #252525;
+    --border: #333333;
+    --border-strong: rgba(250, 163, 26, 0.35);
+    --text: #ffffff;
+    --muted: #b3b3b3;
+    --disabled: #666666;
+    --accent: #faa31a;
+    --accent-2: #ffa329;
+    --accent-soft: rgba(250, 163, 26, 0.14);
+    /* O Power Movie não tem verde na paleta; `rating` é o destaque positivo
+       dele e só aparece aqui no feedback rápido de "Copiado ✓". */
+    --green: #ffe600;
     --radius: 14px;
-    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-display: "Oswald", "Manrope", var(--font);
   }
 
   * { box-sizing: border-box; }
@@ -49,15 +64,18 @@
     display: grid; place-items: center;
     border-radius: 18px;
     background: linear-gradient(145deg, var(--accent), var(--accent-2));
-    box-shadow: 0 14px 40px -10px rgba(140, 92, 246, 0.65);
+    box-shadow: 0 14px 40px -10px rgba(250, 163, 26, 0.55);
     font-size: 30px;
   }
 
+  /* Oswald nos títulos, Manrope no corpo — a divisão do Power Movie. */
   h1 {
     margin: 0 0 10px;
-    font-size: clamp(28px, 5vw, 38px);
-    font-weight: 700;
-    letter-spacing: -0.025em;
+    font-family: var(--font-display);
+    font-size: clamp(30px, 5vw, 40px);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
   }
 
   .tagline { margin: 0; color: var(--muted); font-size: 16px; }
@@ -89,7 +107,9 @@
   .sec-head { margin-bottom: 18px; }
   .sec-head h2 {
     margin: 0 0 4px;
-    font-size: 16px; font-weight: 650; letter-spacing: -0.01em;
+    font-family: var(--font-display);
+    font-size: 18px; font-weight: 500; letter-spacing: 0.02em;
+    text-transform: uppercase;
   }
   .sec-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
 
