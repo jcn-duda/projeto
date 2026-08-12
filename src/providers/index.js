@@ -21,6 +21,7 @@ const debrid = require('../debrid');
 const held = require('../debrid/protected');
 const tmdb = require('../utils/tmdb');
 const { signResolve } = require('../utils/sign');
+const { streamsCacheKey } = require('../utils/request-key');
 const { opts, prefix } = require('../runtime');
 
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -239,8 +240,10 @@ async function findStreams({ type, id }) {
 
   // A config do usuário entra na chave: dois install URLs com qualidades ou
   // debrid diferentes não podem compartilhar o mesmo resultado cacheado.
-  const { debridApiKey, ...shape } = opts();
-  const cacheKey = `streams:${type}:${id}:${JSON.stringify(shape)}:${debridApiKey ? 'dk' : ''}`;
+  // A URL de play leva a configuração e a assinatura da conta que construiu o
+  // stream. Compartilhar cache entre duas API keys entregaria a URL (e a conta)
+  // do primeiro usuário ao segundo; o digest isola sem persistir a credencial.
+  const cacheKey = streamsCacheKey(type, id, opts());
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
