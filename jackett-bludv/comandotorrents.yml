@@ -30,7 +30,7 @@ search:
       args: ["\\s+", " "]
     - name: trim
   paths:
-    - path: "http://addon:8701/search?q={{ .Query.Keywords }}"
+    - path: "http://127.0.0.1:8701/search?q={{ .Query.Keywords }}"
 
   rows:
     selector: "div.posts > div.release"
@@ -74,7 +74,7 @@ search:
 # exato em `i` até a resolução do magnet.
 download:
   before:
-    path: "http://addon:8701/resolve"
+    path: "http://127.0.0.1:8701/resolve"
     inputs:
       url: "{{ .DownloadUri.AbsoluteUri }}"
   selectors:

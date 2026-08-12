@@ -29,7 +29,7 @@ search:
       args: ["\\s+", " "]
     - name: trim
   paths:
-    - path: "http://addon:8703/search?q={{ .Query.Keywords }}"
+    - path: "http://127.0.0.1:8703/search?q={{ .Query.Keywords }}"
   rows:
     selector: "div.posts > div.release"
   fields:
@@ -65,7 +65,7 @@ search:
 # O resolver expande cada botão como release separada e mantém `i` até o magnet.
 download:
   before:
-    path: "http://addon:8703/resolve"
+    path: "http://127.0.0.1:8703/resolve"
     inputs:
       url: "{{ .DownloadUri.AbsoluteUri }}"
   selectors:

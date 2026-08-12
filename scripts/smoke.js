@@ -47,7 +47,9 @@ async function checkRoutes() {
   ok('manifest configurável', manifest.body?.behaviorHints?.configurable === true);
 
   const page = await get('/configure');
-  ok('/configure', page.status === 200 && String(page.body).includes('<h1>'));
+  // O <h1> vem com atributos (ex.: <h1 id="addonName">) e o nome é injetado
+  // via JS — checar a tag, não o texto.
+  ok('/configure', page.status === 200 && /<h1[ >]/.test(String(page.body)));
 
   const defaults = await get('/defaults.json');
   ok('/defaults.json', defaults.status === 200);
@@ -69,7 +71,9 @@ function inspect(streams) {
   const titles = streams.map((s) => String(s.title || ''));
   return {
     total: streams.length,
-    // As fontes BR são reconhecíveis pelo tracker no rodapé do título.
+    // As fontes BR são reconhecíveis pelo indexer no rodapé do título (a 2ª
+    // linha, formato "👤 seeds 💾 tamanho ⚙️ Indexer ..."), ou pelo rótulo
+    // antigo "bludv/comando" na 1ª linha.
     br: titles.filter((t) => /bludv|comando|nerdfilmes|torrentdosfilmes/i.test(t)).length,
     cacheados: streams.filter((s) => String(s.name || '').includes('⚡')).length,
     viaDebrid: streams.filter((s) => s.url).length,

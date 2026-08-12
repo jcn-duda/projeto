@@ -1,113 +1,58 @@
-# Stack: Adom (torrents + debrid próprio) + Jackett.
-# Antes de expor a stack, aponte adom.seudominio.com para a VPS e
-# substitua o domínio no Caddyfile.
+# Stack em CONTAINER ÚNICO: addon + Jackett + FlareSolverr + Caddy na mesma
+# imagem (veja o Dockerfile multi-stage). Antes de expor, aponte
+# adom.seudominio.com para a VPS e substitua o domínio no Caddyfile.
+#
+# Migração única vinda do compose multi-container antigo: o ServerConfig.json
+# do Jackett vive no volume ./docker-data/jackett e ainda aponta o FlareSolverr
+# pelo hostname antigo, que deixou de existir. Corrija uma vez:
+#   sed -i 's#http://flaresolverr:8191#http://127.0.0.1:8191#' docker-data/jackett/Jackett/ServerConfig.json
 services:
-  addon:
+  adom:
     build: .
     container_name: stremio-adom
     restart: unless-stopped
     ports:
+      # Caddy: HTTPS e o HTTP do challenge ACME.
+      - "80:80"
+      - "443:443"
       # Exposto na LAN pro Fire TV alcançar (127.0.0.1 só serviria a esta máquina).
       - "${PORT:-7000}:7000"
+      # Painéis só pra debug local; remova se não precisar.
+      - "127.0.0.1:9117:9117"
+      - "127.0.0.1:8191:8191"
     env_file:
       - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 7000
+      # Tudo vive no mesmo container agora: loopback no lugar do DNS do Docker.
+      JACKETT_URL: http://127.0.0.1:9117
+      PROWLARR_URL: http://127.0.0.1:9696
+      BR_RESOLVERS_HOST: 127.0.0.1
+      # Jackett (linuxserver) dentro do container único: sem auto-update pra
+      # definição local BR não ser sobrescrita.
+      AUTO_UPDATE: "false"
+      TZ: America/Sao_Paulo
+      # FlareSolverr.
+      LOG_LEVEL: info
     volumes:
       # Cache em SQLite: sem isso ele zera a cada rebuild e toda busca volta
       # a esquentar do zero.
       - ./docker-data/addon:/app/data
-    environment:
-      HOST: 0.0.0.0
-      PORT: 7000
-      JACKETT_URL: http://jackett:9117
-      PROWLARR_URL: http://prowlarr:9696
-    depends_on:
-      - jackett
-    networks:
-      - adom
-
-  jackett:
-    build:
-      context: ./jackett-bludv
-    image: stremio-adom-jackett:local
-    container_name: stremio-adom-jackett
-    restart: unless-stopped
-    environment:
-      PUID: 1000
-      PGID: 1000
-      TZ: America/Sao_Paulo
-      # Atualizações no container poderiam sobrescrever a definição local Bludv.
-      # Atualize com `docker compose build --pull jackett && docker compose up -d jackett`.
-      AUTO_UPDATE: "false"
-    volumes:
+      # Estado do Jackett (ServerConfig.json, Indexers/). As definitions
+      # Cardigann vêm da IMAGEM — não monte nada em /app/Jackett/Definitions.
       - ./docker-data/jackett:/config
       - ./docker-data/downloads:/downloads
-    ports:
-      - "127.0.0.1:9117:9117"
-    # Sem depends_on no addon: ele é quem hospeda os resolvedores BR, mas a
-    # chamada só acontece durante a busca — e o addon depende do jackett.
-    networks:
-      - adom
-
-  # Resolve desafios Cloudflare para os indexers que exigem (1337x, eztv,
-  # kickasstorrents). É um Chromium headless: pesa mais que o Jackett inteiro.
-  flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
-    container_name: stremio-adom-flaresolverr
-    restart: unless-stopped
-    environment:
-      LOG_LEVEL: info
-      TZ: America/Sao_Paulo
-    ports:
-      - "127.0.0.1:8191:8191"
-    # O padrão do Docker é 64 MB de /dev/shm e o Chromium usa isso como memória
-    # compartilhada entre processos: em página pesada ele estoura e a aba morre
-    # no meio do desafio, o que chega ao Jackett como "tracker fora do ar".
-    shm_size: 1gb
-    # Teto pra ele não levar o addon junto. O Chromium cresce a cada desafio e
-    # esta é a única peça da stack que come RAM de verdade (~300 MB parado,
-    # perto de 1 GB resolvendo). Estourando o teto, só ele é morto e o
-    # `restart` acima o traz de volta — em vez do OOM killer escolher a vítima.
-    mem_limit: 1536m
-    networks:
-      - adom
-
-  prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
-    container_name: stremio-adom-prowlarr
-    restart: unless-stopped
-    environment:
-      PUID: 1000
-      PGID: 1000
-      TZ: America/Sao_Paulo
-    volumes:
-      - ./docker-data/prowlarr:/config
-    ports:
-      - "127.0.0.1:9696:9696"
-    networks:
-      - adom
-    profiles:
-      - full
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: stremio-adom-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
+      # Certificados/config do Caddy (ACME). Os named volumes antigos
+      # (caddy_data/caddy_config) não existem neste compose; pra preservar o
+      # certificado, copie o conteúdo deles para ./docker-data/caddy antes.
+      - ./docker-data/caddy:/caddy
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - addon
-    networks:
-      - adom
-
-networks:
-  adom:
-    driver: bridge
-
-volumes:
-  caddy_data:
-  caddy_config:
+    # O Chromium usa /dev/shm como memória compartilhada: o padrão de 64 MB do
+    # Docker estoura em página pesada e a aba morre no meio do desafio, o que
+    # chega ao addon como "tracker fora do ar".
+    shm_size: 1gb
+    # Antes o mem_limit isolava só o FlareSolverr; no container único o teto
+    # cobre a stack inteira (~1 GB de Chromium + ~300 MB do resto). Estourando,
+    # tudo reinicia via `restart` em vez do OOM killer escolher a vítima no host.
+    mem_limit: 3g

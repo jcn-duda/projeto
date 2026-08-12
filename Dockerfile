@@ -1,25 +1,74 @@
+# Container único: addon + Jackett + FlareSolverr + Caddy na mesma imagem.
+# Cada stage só empresta o binário/app; o runtime é um alpine só.
+#
+# A base é node:22-alpine (alpine 3.24) de propósito: é o MESMO musl da imagem
+# linuxserver/jackett, então o .NET self-contained do Jackett (libcoreclr.so
+# embutida) roda sem risco de incompatibilidade de libc.
+
+FROM caddy:2-alpine AS caddy
+
+# Mesmo pin de sha256 do antigo jackett-bludv/Dockerfile.
+FROM lscr.io/linuxserver/jackett@sha256:e6a86a28207e6da37fb72e02d6cd157c9f69f70338128b02c5cf99dc36676594 AS jackett
+
+FROM ghcr.io/flaresolverr/flaresolverr:latest AS flaresolverr
+
 FROM node:22-alpine
 
 WORKDIR /app
-
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=7000
 
+# bash: o supervisor usa `wait -n`, que o busybox ash não tem (o awk dos
+# prefixos de log é o do próprio busybox, já na base).
+# icu-libs/icu-data-full/libstdc++/zlib: runtime .NET self-contained do Jackett.
+# python3/py3-pip: FlareSolverr (deps puras-python instaladas abaixo).
+# chromium/chromium-chromedriver: desafios Cloudflare (musl, não o binário glibc da imagem oficial).
+# xvfb: o FlareSolverr roda o Chrome head-FULL num display virtual, igual à imagem oficial.
+# tzdata: honra o TZ do compose.
+RUN apk add --no-cache bash tzdata icu-libs icu-data-full libstdc++ zlib \
+      python3 py3-pip chromium chromium-chromedriver xvfb
+
+# --- Caddy: binário estático, nada mais a copiar.
+COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
+
+# --- Jackett: deploy self-contained + definitions Cardigann BR.
+# As definitions vêm da imagem (não monte /config em cima delas): o volume
+# /config carrega só o estado (ServerConfig.json, Indexers/).
+COPY --from=jackett /app/Jackett /app/Jackett
+COPY jackett-bludv/bludv-cardigann.yml /app/Jackett/Definitions/bludv-cardigann.yml
+COPY jackett-bludv/comandotorrents.yml /app/Jackett/Definitions/comandotorrents.yml
+COPY jackett-bludv/nerdfilmes.yml /app/Jackett/Definitions/nerdfilmes.yml
+COPY jackett-bludv/torrentdosfilmesv2.yml /app/Jackett/Definitions/torrentdosfilmesv2.yml
+
+# --- FlareSolverr: scripts são puro python; o chromedriver glibc da imagem
+# oficial NÃO roda em alpine. O código checa exatamente /app/chromedriver,
+# então o binário musl do apk assume esse caminho.
+COPY --from=flaresolverr /app /app/flaresolverr
+RUN cp /usr/bin/chromedriver /app/chromedriver \
+ && python3 -m pip install --break-system-packages --no-cache-dir \
+      -r /app/flaresolverr/requirements.txt
+
+# --- Addon + resolvedores BR embutidos (8700-8703, chamados pelo Jackett).
 COPY package.json ./
 RUN npm install --omit=dev
 
 COPY src ./src
-# Resolvedores BR: rodam no processo do addon (src/br-resolvers.js), não em
-# containers próprios. Continuam ouvindo em 8700-8703 para o Jackett.
 COPY bludv-resolver/server.js ./bludv-resolver/server.js
 COPY comandotorrents-resolver/server.js ./comandotorrents-resolver/server.js
 COPY nerdfilmes-resolver/server.js ./nerdfilmes-resolver/server.js
 COPY torrentdosfilmes-resolver/server.js ./torrentdosfilmes-resolver/server.js
 
-EXPOSE 7000
+COPY scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:7000/manifest.json').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# 7000 (addon/LAN), 80/443 (Caddy). Jackett e FlareSolverr ficam em loopback,
+# expostos só se o compose publicar 127.0.0.1:9117/8191.
+EXPOSE 7000 80 443
 
-CMD ["node", "src/addon.js"]
+# Duplo: addon E Jackett — senão container "healthy" com Jackett morto passa
+# despercebido e a busca degrada em silêncio. 302 do Jackett (login) conta como vivo.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+  CMD node -e "Promise.all([fetch('http://127.0.0.1:7000/manifest.json'),fetch('http://127.0.0.1:9117/',{redirect:'manual'})]).then(rs=>{for(const r of rs)if(!(r.ok||r.status<400))process.exit(1)}).catch(()=>process.exit(1))"
+
+CMD ["/app/entrypoint.sh"]

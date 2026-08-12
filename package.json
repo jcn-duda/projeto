@@ -11,7 +11,7 @@
     "test:nerdfilmes": "node nerdfilmes-resolver/test.js",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f addon"
+    "docker:logs": "docker compose logs -f adom"
   },
   "engines": {
     "node": ">=18"

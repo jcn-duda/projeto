@@ -25,14 +25,44 @@ Praticamente todo trabalho de código acontece no **Adom**.
 - **Duas dependências**: `express` e `stremio-addon-sdk`. `dotenv` para config.
   Sem lodash, sem axios, sem cheerio — HTTP é `fetch` nativo e HTML é parseado
   com regex. **Não adicione dependências sem necessidade real.**
-- **Docker Compose** para a stack completa (Jackett + resolvers + Caddy).
+- **Docker: container único.** O `Dockerfile` raiz (multi-stage, base
+  `node:22-alpine`) embute addon + Jackett + FlareSolverr + Caddy, e o
+  `docker-compose.yml` tem um serviço só (`adom`). Todos conversam por
+  `127.0.0.1` — **nenhum hostname de container sobreviveu**: `JACKETT_URL`,
+  `BR_RESOLVERS_HOST` (compose), os yml Cardigann (`http://127.0.0.1:870X`),
+  o `Caddyfile` (`reverse_proxy 127.0.0.1:7000`) e o `FlareSolverrUrl` do
+  `ServerConfig.json` foram rewired para loopback. Se adicionar um serviço
+  novo, siga o mesmo padrão.
+
+### Stack Docker (o que mora no container)
+
+- `scripts/entrypoint.sh` supervisiona os 4 processos (caddy → jackett →
+  flaresolverr → addon) com `wait -n` + `pipefail`: qualquer um que morrer
+  derruba o container e o `restart: unless-stopped` recria tudo. Logs saem
+  prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`.
+- O healthcheck do Dockerfile é **duplo** (`/manifest.json` na 7000 + API do
+  Jackett na 9117 via `node -e fetch`) — healthcheck que olha só o addon deixa
+  Jackett morto passar despercebido.
+- **`ServerConfig.json` vive no volume** `./docker-data/jackett`, não na
+  imagem: trocar a imagem não corrige nada lá. O `FlareSolverrUrl` precisa ser
+  `http://127.0.0.1:8191` (sed de migração documentado no cabeçalho do
+  compose); hostname errado = indexers com Cloudflare morrem silenciosamente.
+- **FlareSolverr lê a env `PORT`**, que o `.env` define como `7000` pro addon
+  — o entrypoint força `env PORT=8191` na linha dele por isso.
+- As definitions Cardigann vêm da **imagem** (`jackett-bludv/*.yml` copiados
+  para `/app/Jackett/Definitions`); o volume `/config` é só estado. Nunca
+  monte volume sobre as definitions.
+- `shm_size: 1gb` (Chromium) e `mem_limit: 3g` no compose: no container único
+  um OOM do FlareSolverr reinicia a stack inteira — é o trade-off inerente da
+  unificação, mitigado pelo restart.
 
 ## Comandos
 
 ```bash
 npm start                 # sobe o addon em http://127.0.0.1:7000/manifest.json
 npm run dev               # idem, com --watch
-npm test                  # testes unitários de format.js e sign.js (node:test)
+npm test                  # node:test: format, runtime, sign, jackett-catalog, autofetch
+npm run smoke             # valida o pipeline de ponta a ponta
 npm run docker:up         # stack completa
 npm run docker:logs       # logs do addon
 ```
@@ -56,16 +86,21 @@ addon.js  defineStreamHandler
         └─ doSearch
              ├─ cinemeta.getMeta   ─┐ paralelo
              ├─ tmdb.getTitles     ─┘  (título pt-BR)
-             ├─ collectRaw          ← dispara todos os providers em allSettled
-             │    ├─ jackett.search  (indexers globais, query em inglês)
-             │    ├─ jackett.search  (indexers BR, query em pt-BR)
+             ├─ collectRaw          ← balde compartilhado + orçamento + passe tardio
+             │    ├─ jackett.search (indexers globais escolhidos pelo usuário, EN)
+             │    ├─ jackett.search (indexers BR escolhidos, query em pt-BR)
              │    ├─ prowlarr.search
-             │    └─ bludv.search    (scraper direto, query em pt-BR)
-             ├─ filtro por título   ← matchesName contra EN + PT
-             ├─ sortAndLimit        ← pool ampliado, não o corte final
-             ├─ applyDebrid         ← premiumize cache/check
-             └─ limitReservingBr    ← corte final, com vagas garantidas pra BR
+             │    └─ bludv.search   (scraper direto, query em pt-BR)
+             └─ buildStreams        ← pós-processamento, reusado pelos dois passes
+                  ├─ filtro por título    ← matchesName contra EN + PT
+                  ├─ filtro por episódio  ← matchesEpisode (série)
+                  ├─ sortAndLimit         ← pool ampliado + limites por qualidade
+                  ├─ applyDebrid          ← cache/check + autofetch BR
+                  └─ limitReservingBr     ← corte final, vagas garantidas pra BR
 ```
+
+Série sem resultado por episódio tem fallback de pack (`"Nome S01"`, com a
+variante pt-BR junto) — as fontes BR só publicam temporada inteira.
 
 ### Configuração por usuário (`src/runtime.js`)
 
@@ -85,6 +120,15 @@ Para expor uma opção nova: adicione em `SCHEMA` + `defaults()` (chave **curta*
 ela ocupa espaço na URL), consuma via `opts()`, e adicione o controle em
 `src/public/configure.html` — o mapa `KEYS` do front **precisa bater** com o
 `SCHEMA` do back.
+
+O schema atual já carrega: fontes (`p`), qualidades (`q`), limites por
+qualidade (`q4`/`q1`/`q7`/`q5`/`qs`/`qn`), vagas e prioridade BR (`b`/`bf`/`o`),
+dublado (`d`/`a`), sem CAM (`c`), tamanho máximo (`z`), indexers do Jackett
+(`ji`) e o trio debrid (`ds`/`dk`/`dc`). `jackettIndexers` aceita qualquer
+string vinda da URL — o caminho de busca valida cada id contra
+`SAFE_INDEXER_ID` antes de montar a query. Qualidade desconhecida tem balde
+próprio (`qn`), separado do SD: as fontes BR não publicam resolução, e zerar o
+SD não pode desligar a prioridade brasileira junto.
 
 `prefix()` devolve o segmento de config da requisição corrente. A rota
 `/resolve` depende dele: o link de play tem que voltar carregando a mesma
@@ -125,27 +169,40 @@ com honestidade; declarar `true` sem endpoint funcional é o pior dos mundos.
 Resolução acontece **só no play** (rota `/resolve`), nunca na listagem: é uma
 sequência de chamadas por torrent e não caberia no orçamento de busca.
 
-### Os quatro invariantes que mais quebram
+O registry também expõe `enqueue()` para o **autofetch BR**: sem fonte dublada
+tocável em cache, o addon manda o debrid baixar o melhor candidato para o play
+da próxima vez. Os detalhes e as travas estão no invariante 5.
+
+### Os cinco invariantes que mais quebram
 
 **1. O orçamento de tempo é sagrado.**
 O cliente Stremio aborta em 10s. A cadeia é:
 
 ```
-JACKETT_INDEXER_TIMEOUT_MS (4000)  ─┐
-JACKETT_BR_INDEXER_TIMEOUT_MS (7500) ─┼─ < REPLY_DEADLINE_MS (8500) < 10s do Stremio
-JACKETT_DOWNLOAD_TIMEOUT_MS (8000) ──┘ teto por salto, DENTRO do orçamento BR
+REPLY_DEADLINE_MS (8500) − DEBRID_RESERVE_MS (2000) = orçamento da coleta
+JACKETT_INDEXER_TIMEOUT_MS (4000)      teto por indexer global, dentro do orçamento
+JACKETT_BR_INDEXER_TIMEOUT_MS (20000)  total BR — PODE passar do deadline
+JACKETT_DOWNLOAD_TIMEOUT_MS (8000)     teto por salto DENTRO do orçamento BR
 ```
 
+Os indexers globais precisam caber no orçamento da coleta; os BR **não**.
 `brIndexerTimeout` é o orçamento **total** de um indexer BR: busca **mais**
-resolução de magnets. `resolveCardigannDownloads` recebe um `deadline` absoluto e
-cada salto de protetor de link usa só o que sobrou. Se você adicionar mais uma
-etapa de rede num provider, ela **precisa** caber nesse mesmo deadline — foi
-exatamente esse o bug de resolves rodando fora do `AbortSignal` da busca e
-somando o próprio timeout por cima.
+resolução de magnets. `resolveCardigannDownloads` recebe um `deadline` absoluto
+e cada salto de protetor de link usa só o que sobrou. A resposta não espera
+pelas fontes lentas: `collectRaw` despeja num balde compartilhado e devolve o
+que chegou no prazo; quando o resto termina, um **passe tardio** reescreve o
+cache com o lote completo. Na busca fria a raspagem sozinha leva 5-6s e ainda
+faltam os saltos do protetor — cortar no meio descartava os BR por falta de
+infoHash. Por isso `buildStreams` foi extraído de `doSearch`: os dois passes
+(parcial e tardio) rodam o mesmo pós-processamento.
+
+Se você adicionar mais uma etapa de rede num provider **global**, ela precisa
+caber no orçamento da coleta — foi exatamente esse o bug de resolves rodando
+fora do `AbortSignal` da busca e somando o próprio timeout por cima.
 
 Quando o deadline estoura, `findStreams` devolve `[]` **mas a busca continua em
-background** e popula o cache. Por isso resposta vazia é servida com
-`cacheMaxAge: 0` — o Stremio precisa perguntar de novo.
+background**. Resultado vazio é cacheado por pouco tempo (≤ 60s): pode ser só
+indexer fora do ar, e o Stremio precisa poder perguntar de novo em breve.
 
 **2. Origem BR é um campo, nunca um regex de título.**
 Providers marcam `isBr: true` no resultado cru; `toStremioStream` converte em
@@ -175,34 +232,52 @@ queries**: a em inglês para indexers globais e a em pt-BR para os listados em
 inclusive fallbacks. O filtro `matchesName` também aceita qualquer um dos nomes,
 senão a release dublada seria descartada por não bater com o título em inglês.
 
+**5. Autofetch BR e `dropUncached` são forças opostas.**
+`dropUncached` apaga da conta do debrid o que não está em cache (sem isso cada
+busca deixa download fantasma); `autoFetchBrDubbed` faz o oposto de propósito —
+enfileira a melhor fonte BR dublada quando nada tocável está em cache. A ponte
+é `src/debrid/protected.js`: o hash escolhido entra em `hold` **antes** da
+checagem de cache e só é liberado se o download não acontecer. Inverter essa
+ordem deixa a limpeza matar o download no meio da mesma busca — na AllDebrid a
+própria checagem apaga da conta o que não está pronto. Travas do autofetch:
+um torrent por busca, só com `cacheCheck: true` (sem resposta confiável não dá
+pra saber o que falta), desligável por `autoFetchBr`, e o disparo nunca entra
+no caminho da resposta — erro só vira log.
+
 ---
 
 ## Mapa dos arquivos
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `src/addon.js` | Manifest, stream handler, servidor Express, rotas `/resolve` e `/configure` |
+| `src/addon.js` | Manifest, stream handler, servidor Express, rotas `/resolve`, `/configure`, `/defaults.json` e `/test-indexer.json` |
 | `src/config.js` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.js` | Config por usuário: schema, encode/decode da URL, `opts()` |
 | `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, zero build) |
-| `src/providers/index.js` | Orquestração: cache, coalescing, deadline, debrid, corte final |
+| `src/providers/index.js` | Orquestração: cache, coalescing, deadline, passe tardio, debrid, corte final |
 | `src/providers/jackett.js` | Consulta por indexer em paralelo + resolução Cardigann |
+| `src/providers/jackett-catalog.js` | Catálogo de indexers do Jackett (torznab) pra página de configuração, com TTL e fallback pros do `.env` |
 | `src/providers/prowlarr.js` | Alternativa ao Jackett |
 | `src/providers/bludv.js` | Scraper direto do BLUDV (fora do Jackett) |
 | `src/providers/demo.js` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
 | `src/debrid/index.js` | Registry de serviços de debrid + seleção por requisição |
 | `src/debrid/common.js` | `magnetFor`, fetch JSON, `pickFile`, lotes de cache |
+| `src/debrid/protected.js` | Hashes protegidos da limpeza `dropUncached` durante o autofetch |
 | `src/debrid/*.js` | Um adaptador por serviço (premiumize, realdebrid, …) |
 | `src/utils/format.js` | Normalização, dedupe, ordenação, `matchesName` — **lógica pura** |
 | `src/utils/tmdb.js` | Título pt-BR a partir do IMDb id |
 | `src/utils/cinemeta.js` | Título/ano oficiais do ecossistema Stremio |
-| `src/utils/cache.js` | Cache em memória, TTL + teto LRU-ish |
-| `jackett-bludv/*.yml` | Definições Cardigann dos indexers BR |
-| `*-resolver/` | Microserviços que seguem protetores de link dos sites BR |
+| `src/utils/cache.js` | Cache em memória (L1) persistido em SQLite pra sobreviver a restart |
+| `jackett-bludv/*.yml` | Definições Cardigann dos indexers BR (copiadas para a imagem pelo Dockerfile raiz) |
+| `*-resolver/` | Microserviços que seguem protetores de link dos sites BR (rodam embutidos no addon) |
+| `Dockerfile` | Multi-stage único: caddy + jackett (linuxserver, digest pinado) + flaresolverr + addon |
+| `scripts/entrypoint.sh` | Supervisor dos 4 processos (`wait -n`, prefixos de log) |
+| `docker-compose.yml` | Serviço único `adom`: portas, volumes (`docker-data/`), overrides de loopback |
 
-`src/utils/format.js` concentra as funções puras (`matchesName`, `parseStremioId`,
-`sortAndLimit`, `dedupeByHash`) — é o melhor lugar para testar comportamento sem
-subir rede.
+`src/utils/format.js` concentra as funções puras (`matchesName`,
+`matchesEpisode`, `parseTitleSeasonEpisode`, `parseStremioId`, `sortAndLimit`,
+`dedupeByHash`, limites por qualidade) — é o melhor lugar para testar
+comportamento sem subir rede.
 
 ---
 
@@ -223,8 +298,9 @@ seeders: 1,
 Não escreva `// itera sobre os resultados`.
 
 **Logs são prefixados por subsistema**: `[search]`, `[jackett]`, `[bludv]`,
-`[debrid]`, `[tmdb]`, `[resolve]`. Use `console.warn` para degradação esperada
-(indexer fora do ar) e `console.error` só para falha real.
+`[debrid]`, `[autofetch]`, `[cache]`, `[tmdb]`, `[resolve]`. Use `console.warn`
+para degradação esperada (indexer fora do ar) e `console.error` só para falha
+real.
 
 **Nada de config hardcoded.** Todo número ajustável entra em `src/config.js` com
 default e comentário, e no `.env.example` com a mesma explicação. Timeouts
@@ -243,6 +319,18 @@ significa menos resultados, nunca erro para o usuário.
 - **Os sites BR trocam de domínio com frequência.** `BLUDV_URL` e
   `NERDFILMES_URL` são configuráveis por isso. Parser quebrado geralmente é
   mudança de layout do WordPress, não bug de lógica.
+- **Os protetores de link também trocam de host.** O torrentdosfilmes migrou
+  de `systemads.net` para `systemads1.com` e TODO magnet passou a ser barrado
+  porque só o host antigo estava na lista permitida. Magnet que some de um
+  resolver só: cheque a allowlist do protetor antes de culpar o parser.
+- **Fontes BR não publicam tamanho por botão.** Os resolvedores mandam o
+  sentinela "1 KB" (o Jackett exige o campo, e "0 B" invalida a release
+  inteira no filtro de tamanho do cardigann); o addon trata ≤ 1 KB como
+  desconhecido em vez de exibir valor inventado. Não "conserte" isso.
+- **Não adicione indexers com FlareSolverr a `JACKETT_SLOW_INDEXERS`**
+  (1337x, kickasstorrents…). O desafio Cloudflare é re-resolvido a cada busca
+  (13-24s medidos só pra abrir a primeira página); eles abortariam igual, só
+  mais tarde e gastando Chromium. Fora da lista de indexers é o lugar deles.
 - **Buscador WordPress engasga com `:`** — `bludv.search` remove antes de
   consultar. Sintomas: título com subtítulo volta vazio.
 - **`AbortSignal.any` não existe no Node 18.** `engines` declara `>=18`; prefira
@@ -258,11 +346,25 @@ significa menos resultados, nunca erro para o usuário.
 - **`src/public/` não passa por build.** É HTML/CSS/JS servido cru, e o JS é ES5
   por escolha (roda no WebView de Fire TV e smart TV). Não introduza sintaxe
   moderna nem bundler ali.
-- **Suíte de testes é mínima.** `npm test` cobre as funções puras de
-  `format.js` e o HMAC de `sign.js` (runner nativo `node:test`, sem
-  dependências); `npm run test:nerdfilmes` cobre só um resolver. Ao mexer em
-  `format.js` ou `sign.js`, estenda os testes em `test/`; para o resto, valide
-  com um script pontual em `node -e`.
+- **O cache persiste em SQLite** (`data/cache.db` via `node:sqlite`,
+  experimental no Node 22). Se o runtime não tiver o módulo o addon segue só
+  em memória sem derrubar nada; `CACHE_PERSIST=false` desliga de propósito.
+- **Suíte de testes cobre o que é puro.** `npm test` roda `node:test` sobre
+  `format.js`, `sign.js`, `runtime.js`, `jackett-catalog.js` e a lógica de
+  autofetch/proteção (`test/autofetch.test.js`) — sem rede.
+  `npm run test:nerdfilmes` cobre só um resolver. Ao mexer nesses módulos,
+  estenda os testes em `test/`; para o resto, valide com `npm run smoke` ou um
+  script pontual em `node -e`.
+- **`BR_RESOLVERS_HOST` é o único jeito de alcançar os resolvers.** Os cards
+  Cardigann chamam `http://{{ ... }}/...` montado com essa env; no container
+  único ela é `127.0.0.1`. Os resolvers escutam em 8701-8704 **só dentro do
+  container** — nenhuma dessas portas é publicada no host.
+- **Jackett no alpine é self-contained** (binário com libcoreclr embutida):
+  precisa de `icu-libs`/`zlib`/`libstdc++` e das envs `XDG_CONFIG_HOME=/config`
+  + `TMPDIR=/run/jackett-temp`. O FlareSolverr é python puro + chromium/chromedriver
+  do apk (chromedriver precisa estar em `/app/chromedriver`, caminho hardcoded
+  no código dele) + `xvfb`. Tudo isso já está no Dockerfile — se trocar a base,
+  revalide a lista de pacotes.
 
 ## Git
 

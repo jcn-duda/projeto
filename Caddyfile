@@ -1,5 +1,7 @@
+# Container único: o Caddy roda no mesmo processo-namespace do addon,
+# então o upstream é o loopback — não existe mais hostname "addon".
 # Substitua seudominio.com pelo seu domínio e aponte o DNS A de
-# adom.seudominio.com para a VPS antes de subir o Caddy.
+# adom.seudominio.com para a VPS antes de subir a stack.
 adom.seudominio.com {
-	reverse_proxy addon:7000
+	reverse_proxy 127.0.0.1:7000
 }

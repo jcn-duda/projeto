@@ -11,8 +11,8 @@ Os **cinco** objetivos de uma vez:
 | 1 | Addon no Stremio | Adom, Node/Express — P2P puro ou via debrid |
 | 2 | Rodar na sua pasta | `npm start` → `http://127.0.0.1:7000/manifest.json` |
 | 3 | Criar o **seu** lado | código em `src/` (provedores, filtros, nome) |
-| 4 | Subir no Docker | `docker compose up -d --build` |
-| 5 | Stack completa em VPS | Caddy/HTTPS + addon + Jackett + resolvers BR |
+| 4 | Subir no Docker | `docker compose up -d --build` (container único) |
+| 5 | Stack completa em VPS | Caddy/HTTPS + addon + Jackett + resolvers BR, tudo num container |
 
 ---
 
@@ -21,18 +21,27 @@ Os **cinco** objetivos de uma vez:
 ```
 Internet / Stremio
        ↓ HTTPS
-Caddy ──→ adom.seudominio.com ──→ Adom ──→ Jackett ──→ indexers globais (P2P)
-                                   │            └──→ cards BR ──→ *-resolvers (protetores de link)
-                                   ├──────────→ scraper direto do BLUDV
-                                   └──────────→ debrid opcional (play via /resolve assinado)
+┌─────────────────── container único (stremio-adom) ───────────────────┐
+│ Caddy ──→ adom.seudominio.com ──→ Adom ──→ Jackett ──→ indexers globais (P2P) │
+│                                    │            └──→ cards BR ──→ *-resolvers  │
+│                                    ├──────────→ scraper direto do BLUDV         │
+│                                    ├──────────→ debrid opcional (/resolve)      │
+│                                    └── FlareSolverr (Cloudflare)                │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+Tudo roda em **um único container** (addon Node + Jackett + FlareSolverr +
+Caddy, todos conversando por `127.0.0.1`); o `scripts/entrypoint.sh` supervisiona
+os quatro processos e qualquer um que morrer derruba o container para o
+`restart: unless-stopped` recriar a stack.
 
 - **Adom** = addon Node deste repositório: busca em paralelo no Jackett
   (indexers globais + cards brasileiros), no Prowlarr e no scraper do BLUDV.
 - **Jackett** = gerenciador de indexers; os cards BR (Bludv, ComandoTorrents,
-  NerdFilmes, TorrentDosFilmes V2) vêm embutidos na imagem local e dependem
+  NerdFilmes, TorrentDosFilmes V2) vêm embutidos na imagem e dependem
   dos microserviços `*-resolver` para seguir protetores de links.
 - **FlareSolverr** = resolve desafios Cloudflare dos indexers que exigem.
+- **Caddy** = HTTPS automático na frente do addon.
 - **Debrid** = opcional: com ele o play passa pela rota `/resolve` assinada
   com HMAC; sem ele, P2P puro (o Stremio baixa o torrent).
 - **Demo** = modo local do Adom que valida o pipeline com *Big Buck Bunny*.
@@ -155,31 +164,38 @@ PORT=7000
 JACKETT_API_KEY=
 ```
 
-O compose constrói uma imagem do Jackett que já contém o card **Bludv**.
-
-Suba somente o addon + Jackett para o fluxo local (a stack completa também
-exige as senhas do Comet/Postgres e um domínio configurado):
+O compose constrói **uma única imagem** (Dockerfile multi-stage) que já contém
+o addon, o Jackett com os cards BR, o FlareSolverr e o Caddy:
 
 ```powershell
-docker compose up -d --build addon jackett
+docker compose up -d --build
 ```
+
+> **Migração do multi-container antigo:** se você já tinha a stack anterior,
+> o `ServerConfig.json` do Jackett vive no volume `./docker-data/jackett` e
+> ainda aponta o FlareSolverr pelo hostname antigo. Corrija uma vez:
+>
+> ```bash
+> sed -i 's#http://flaresolverr:8191#http://127.0.0.1:8191#' docker-data/jackett/Jackett/ServerConfig.json
+> ```
 
 1. Abra o Jackett: http://127.0.0.1:9117  
 2. Procure por **Bludv**, adicione-o, teste e salve. Configure os demais
    indexers desejados e copie a API Key.  
 3. Coloque a key em `.env` → `JACKETT_API_KEY=...` e `PROVIDER=jackett`  
-4. Recrie o addon:
+4. Recrie o container:
 
 ```powershell
-docker compose up -d --build addon
+docker compose up -d
 ```
 
 5. No Stremio: `http://127.0.0.1:7000/manifest.json`
 
 #### Card Bludv
 
-O card está em `jackett-bludv/bludv-cardigann.yml` e é copiado para a imagem do Jackett
-em `jackett-bludv/Dockerfile`. Ele consulta o buscador WordPress do BLUDV e
+O card está em `jackett-bludv/bludv-cardigann.yml` e é copiado para a imagem
+única pelo `Dockerfile` raiz (stage `jackett`), junto com os demais cards BR.
+Ele consulta o buscador WordPress do BLUDV e
 extrai de cada card o título (sem o rótulo "Torrent"), o tamanho real, o
 poster e o título original em inglês. No download, o serviço interno
 `bludv-resolver` escolhe o **melhor** botão `Magnet-Link` do post —
@@ -190,53 +206,54 @@ escolha. O BLUDV não informa seeds; o card usa `1` para evitar que filtros
 mínimos descartem a release antes da consulta ao swarm. Como o site troca de
 domínio com frequência, atualize `links` no YAML se o teste do indexer falhar.
 
-Para atualizar o Jackett sem perder o card, atualize o digest base em
-`jackett-bludv/Dockerfile` e reconstrua a imagem em vez de usar o auto-update
-interno:
+Para atualizar o Jackett sem perder os cards, atualize o digest base do stage
+`jackett` no `Dockerfile` raiz e reconstrua em vez de usar o auto-update
+interno (o compose já roda com `AUTO_UPDATE=false`):
 
 ```bash
-docker compose build jackett
-docker compose up -d jackett
+docker compose up -d --build
 ```
 
 Depois da primeira inclusão do Bludv na UI, o estado continua persistido em
-`docker-data/jackett`.
+`docker-data/jackett`. As definitions Cardigann vêm sempre da **imagem** —
+nunca monte volume sobre `/app/Jackett/Definitions`.
 
 #### Card ComandoTorrents
 
-O card **ComandoTorrents** é incluído na mesma imagem do Jackett. Adicione-o
+O card **ComandoTorrents** é incluído na mesma imagem. Adicione-o
 pela UI do Jackett depois de subir a stack. O `comandotorrents-resolver` segue
 o protetor de links e expande cada botão de qualidade/áudio em uma release do
 Jackett; ele não expõe portas na rede local.
 
 #### Card NerdFilmesTorrent / XNerdFilmes
 
-O card **NerdFilmesTorrent / XNerdFilmes** também é incluído na imagem local do Jackett.
+O card **NerdFilmesTorrent / XNerdFilmes** também é incluído na imagem única.
 Adicione-o pela UI após reconstruir a stack. O resolver acompanha o domínio
 atual `xnerdfilmes.net`, segue o protetor de links e expande cada qualidade e
 áudio como uma release separada. O serviço não publica porta no host.
 
 #### Card TorrentDosFilmes V2
 
-O card **TorrentDosFilmes V2** está incluído na imagem local do Jackett e
+O card **TorrentDosFilmes V2** está incluído na imagem única e
 expande cada botão de qualidade/áudio em uma release do Jackett. O serviço trata
 magnets diretos, o protetor SystemAds e a página JavaScript `DEST_URL`, sem
 expor porta no host.
 
-### Prowlarr (opcional)
+### Prowlarr (opcional, externo)
 
-```powershell
-docker compose --profile full up -d --build
-```
+O Prowlarr **não** faz parte do container único. Se quiser usá-lo, rode uma
+instância separada (ex.: `docker run -p 9696:9696 ghcr.io/linuxserver/prowlarr`)
+e aponte o `.env` para ela:
 
 ```env
 PROVIDER=prowlarr
 # ou: PROVIDER=both
-PROWLARR_URL=http://127.0.0.1:9696
+PROWLARR_URL=http://host.docker.internal:9696
 PROWLARR_API_KEY=sua_chave
 ```
 
-No Docker o compose já aponta o addon para `http://prowlarr:9696` e `http://jackett:9117`.
+O `PROWLARR_URL` do compose é override: ajuste-o no `environment` do
+`docker-compose.yml` se a instância externa não estiver no host.
 
 ---
 
@@ -288,21 +305,21 @@ Após trocar `JACKETT_API_KEY`:
 docker compose up -d
 ```
 
-O Prowlarr continua opcional: inicie-o com
-`docker compose --profile full up -d` e só habilite o provider correspondente
-quando desejar configurá-lo.
+O Prowlarr é externo ao container único: rode uma instância separada se
+desejar e ajuste `PROWLARR_URL`/`PROVIDER` no `.env`.
 
 ### Manutenção
 
 ```bash
 docker compose up -d --build   # o rebuild também puxa imagens base atualizadas
-docker compose logs -f addon
+docker compose logs -f         # logs de tudo: [addon], [jackett], [flaresolverr], [caddy]
 docker compose down
 ```
 
 O estado do Jackett persiste em `./docker-data/jackett`; os certificados do
-Caddy ficam nos volumes `caddy_data` e `caddy_config`. Faça backup de
-`docker-data/`; não versione `.env`.
+Caddy ficam em `./docker-data/caddy` (data/config ACME). O cache SQLite do
+addon fica em `./docker-data/addon`. Faça backup de `docker-data/`; não
+versione `.env`.
 
 ---
 
@@ -329,9 +346,11 @@ stremio adom/
 │       ├── sign.js           # HMAC dos links /resolve
 │       └── format.js         # infoHash, qualidade, sort
 ├── test/                     # testes unitários (node:test)
-├── scripts/smoke.js          # smoke test contra o addon rodando
-├── docker-compose.yml
-├── jackett-bludv/            # imagem do Jackett com os cards BR
+├── scripts/
+│   ├── smoke.js              # smoke test contra o addon rodando
+│   └── entrypoint.sh         # supervisor dos 4 processos no container único
+├── docker-compose.yml        # serviço único (adom)
+├── jackett-bludv/            # definitions Cardigann dos cards BR (yml)
 ├── bludv-resolver/           # segue o protetor de links do BLUDV
 ├── comandotorrents-resolver/ # segue o protetor do ComandoTorrents
 ├── nerdfilmes-resolver/      # resolver do NerdFilmesTorrent
@@ -361,9 +380,9 @@ stremio adom/
 | `npm run dev` | local com `--watch` |
 | `npm test` | testes unitários (format.js + HMAC) |
 | `npm run smoke` | smoke test contra o addon rodando |
-| `npm run docker:up` | build + sobe compose |
+| `npm run docker:up` | build + sobe o container único |
 | `npm run docker:down` | para tudo |
-| `npm run docker:logs` | logs do addon |
+| `npm run docker:logs` | logs da stack (addon/jackett/flaresolverr/caddy) |
 
 ---
 

@@ -1,0 +1,12 @@
+# Contexto de build do container único: só o que o Dockerfile copia importa.
+# Sem isso o daemon recebe node_modules/ e docker-data/ (com o cache.db) a
+# cada build.
+node_modules
+docker-data
+data
+.git
+.qoder
+.kilo
+test
+*.md
+jackett-screenshot.png
