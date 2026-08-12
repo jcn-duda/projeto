@@ -1,6 +1,8 @@
 const { json, pickFile, wait } = require('./common');
 
-const API = 'https://api.alldebrid.com/v4';
+// v4.1: a AllDebrid descontinuou /v4/magnet/status ("DISCONTINUED"), o que
+// fazia toda resolução falhar com 502. upload e link/unlock respondem em ambas.
+const API = 'https://api.alldebrid.com/v4.1';
 const AGENT = 'stremio-adom';
 
 async function call(apiKey, path, params = {}, { method = 'GET', body } = {}) {
@@ -27,6 +29,23 @@ async function checkCached() {
   return new Set();
 }
 
+/**
+ * Na v4.1 os arquivos vêm como árvore, não como lista de links: `n` é o nome,
+ * `e` são as entradas de uma pasta, e a folha traz `s` (tamanho) e `l` (link).
+ */
+function flattenFiles(nodes, prefix = '') {
+  const out = [];
+  for (const node of nodes || []) {
+    const path = prefix ? `${prefix}/${node.n}` : node.n;
+    if (Array.isArray(node.e)) {
+      out.push(...flattenFiles(node.e, path));
+    } else if (node.l) {
+      out.push({ path, size: node.s, link: node.l });
+    }
+  }
+  return out;
+}
+
 async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
   const upload = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
   const magnet = (upload?.magnets || [])[0];
@@ -49,11 +68,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
     return null;
   }
 
-  const files = (info.links || []).map((l) => ({
-    path: l.filename || l.link,
-    size: l.size,
-    link: l.link,
-  }));
+  const files = flattenFiles(info.files);
   const file = pickFile(files, { season, episode });
   if (!file) return null;
 
