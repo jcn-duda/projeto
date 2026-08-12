@@ -8,7 +8,7 @@ function attrs(text) {
   const out = {};
   const re = /([A-Za-z_:][\w:.-]*)\s*=\s*(["'])(.*?)\2/g;
   let match;
-  while ((match = re.exec(text))) out[match[1].toLowerCase()] = match[3];
+  while ((match = re.exec(text))) out[match[1].toLowerCase()] = decodeXml(match[3]);
   return out;
 }
 
@@ -22,6 +22,8 @@ function labelFor(id) {
 
 function decodeXml(text) {
   return String(text || '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
     .replace(/&amp;/gi, '&')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')

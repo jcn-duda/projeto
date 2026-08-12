@@ -33,3 +33,12 @@ test('parseXml ignora ids inseguros e fallback deduplica os configurados', () =>
   assert.equal(new Set(out.map((item) => item.id)).size, out.length);
   assert.ok(out.every((item) => /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(item.id)));
 });
+
+test('parseXml decodifica entidades em atributos do catálogo', () => {
+  const items = parseXml(`
+    <indexers>
+      <indexer id="filmes" name="HD &amp; Filmes &#8211; &quot;Oficial&quot;" language="pt-BR"></indexer>
+    </indexers>
+  `);
+  assert.equal(items[0].label, 'HD & Filmes – "Oficial"');
+});
