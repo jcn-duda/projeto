@@ -248,13 +248,23 @@ async function doSearch({ type, id, cacheKey }) {
 
   // Pool maior que MAX_RESULTS: o corte final é DEPOIS do debrid, senão fontes
   // sem seeders publicados (BLUDV) e não-cacheados ocupariam as vagas e sumiriam.
-  const { minSeeders, maxResults, qualities } = opts();
+  const {
+    minSeeders,
+    maxResults,
+    qualities,
+    preferDubbed,
+    excludeCam,
+    maxSizeGb,
+  } = opts();
   let streams = sortAndLimit(raw.map(toStremioStream), {
     minSeeders,
     maxResults: maxResults * config.candidatePoolFactor,
     qualityFilter: qualities,
     season,
     episode,
+    preferDubbed,
+    excludeCam,
+    maxSizeGb,
   });
 
   streams = limitReservingBr(await applyDebrid(streams, { season, episode }));

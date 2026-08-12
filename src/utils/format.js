@@ -96,7 +96,8 @@ function toStremioStream(item) {
 
   const title = decodeEntities(item.title || item.Title || 'Torrent');
   const seeders = Number(item.seeders ?? item.Seeders ?? 0) || 0;
-  const size = bytesToSize(item.size ?? item.Size);
+  const rawSize = Number(item.size ?? item.Size);
+  const size = bytesToSize(rawSize);
   const tracker = item.tracker || item.Tracker || item.Indexer || item.indexer || '';
   const quality = qualityFromTitle(title);
   const source = sourceFromTitle(title);
@@ -127,6 +128,8 @@ function toStremioStream(item) {
     },
     _seeders: seeders,
     _quality: quality,
+    _size: Number.isFinite(rawSize) && rawSize > 0 ? rawSize : 0,
+    _dubbed: audio === 'Dublado' || audio === 'Dual',
     // Origem BR vem marcada pelo provider, não deduzida do título: releases de
     // comandotorrents/nerdfilmes/torrentdosfilmes não citam "BLUDV" nem
     // "DUBLADO" e ficavam de fora das vagas reservadas.
@@ -234,14 +237,27 @@ function dedupeByHash(streams) {
     // Fica a de mais seeders, mas a marca de origem BR não pode se perder no
     // desempate, senão a vaga reservada deixa de proteger a fonte dublada.
     const winner = (s._seeders || 0) > (prev._seeders || 0) ? s : prev;
-    best.set(s.infoHash, { ...winner, _br: winner._br || s._br || prev._br });
+    best.set(s.infoHash, {
+      ...winner,
+      _br: winner._br || s._br || prev._br,
+      _dubbed: winner._dubbed || s._dubbed || prev._dubbed,
+    });
   }
   return [...best.values()];
 }
 
 function sortAndLimit(
   streams,
-  { minSeeders = 0, maxResults = 40, qualityFilter = [], season = null, episode = null } = {},
+  {
+    minSeeders = 0,
+    maxResults = 40,
+    qualityFilter = [],
+    season = null,
+    episode = null,
+    preferDubbed = false,
+    excludeCam = false,
+    maxSizeGb = 0,
+  } = {},
 ) {
   // Release que nomeia o episódio pedido vem antes do pack da temporada: o pack
   // serve, mas quem pediu o E01 quer ver o E01 no topo da lista.
@@ -250,20 +266,30 @@ function sortAndLimit(
     parseTitleSeasonEpisode(s.title).episodes.includes(episode)
       ? 1
       : 0;
+  const dubbed = (s) => (s._dubbed ? 1 : 0);
+  const maxSizeBytes = maxSizeGb > 0 ? maxSizeGb * 1024 ** 3 : 0;
 
   return dedupeByHash(streams)
     .filter((s) => (s._seeders || 0) >= minSeeders)
     .filter((s) => matchesQualityFilter(s.title, qualityFilter))
+    .filter((s) => !excludeCam || sourceFromTitle(s.title) !== 'CAM')
+    // Tamanho ausente não é tratado como zero real: sem dado confiável, o
+    // stream continua visível em vez de ser descartado silenciosamente.
+    .filter((s) => !maxSizeBytes || !s._size || s._size <= maxSizeBytes)
     .sort((a, b) => {
       const ed = exact(b) - exact(a);
       if (ed !== 0) return ed;
       const qOrder = { '2160p': 4, '1080p': 3, '720p': 2, '480p': 1, SD: 0 };
       const qd = (qOrder[b._quality] || 0) - (qOrder[a._quality] || 0);
       if (qd !== 0) return qd;
+      if (preferDubbed) {
+        const ad = dubbed(b) - dubbed(a);
+        if (ad !== 0) return ad;
+      }
       return (b._seeders || 0) - (a._seeders || 0);
     })
     .slice(0, maxResults)
-    .map(({ _seeders, _quality, ...rest }) => rest);
+    .map(({ _seeders, _quality, _size, _dubbed, ...rest }) => rest);
 }
 
 function parseStremioId(id) {

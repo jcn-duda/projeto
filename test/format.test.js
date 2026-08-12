@@ -136,6 +136,15 @@ test('dedupeByHash fica com mais seeders sem perder a origem BR', () => {
   assert.equal(dedupeByHash([null]).length, 0);
 });
 
+test('dedupeByHash preserva marca dublada da variante com menos seeders', () => {
+  const [out] = dedupeByHash([
+    { infoHash: HASH, _seeders: 1, _dubbed: true, title: 'Filme Dublado' },
+    { infoHash: HASH, _seeders: 300, _dubbed: false, title: 'Movie' },
+  ]);
+  assert.equal(out._seeders, 300);
+  assert.equal(out._dubbed, true);
+});
+
 test('sortAndLimit ordena por qualidade e seeders, filtra e limpa internos', () => {
   const streams = [
     { infoHash: HASH, _seeders: 1, _quality: '1080p', _br: true, title: 'BR 1080p', name: 'n' },
@@ -201,4 +210,40 @@ test('sortAndLimit põe o episódio exato antes do pack da temporada', () => {
   const ep = toStremioStream({ title: 'Serie S01E01 1080p', infoHash: OTHER, seeders: 1 });
   const out = sortAndLimit([pack, ep], { season: 1, episode: 1 });
   assert.match(out[0].title, /S01E01/);
+});
+
+test('sortAndLimit pode priorizar áudio dublado dentro da mesma qualidade', () => {
+  const legendado = toStremioStream({
+    title: 'Filme Legendado 1080p', infoHash: HASH, seeders: 500,
+  });
+  const dublado = toStremioStream({
+    title: 'Filme Dublado 1080p', infoHash: OTHER, seeders: 5,
+  });
+
+  assert.match(sortAndLimit([legendado, dublado])[0].title, /Legendado/);
+  assert.match(sortAndLimit([legendado, dublado], { preferDubbed: true })[0].title, /Dublado/);
+});
+
+test('sortAndLimit oculta CAM somente quando solicitado', () => {
+  const cam = toStremioStream({ title: 'Filme CAM 1080p', infoHash: HASH, seeders: 50 });
+  const web = toStremioStream({ title: 'Filme WEB-DL 1080p', infoHash: OTHER, seeders: 5 });
+
+  assert.equal(sortAndLimit([cam, web]).length, 2);
+  assert.deepEqual(sortAndLimit([cam, web], { excludeCam: true }).map((s) => s.infoHash), [OTHER]);
+});
+
+test('sortAndLimit limita tamanho sem descartar tamanho desconhecido', () => {
+  const large = toStremioStream({
+    title: 'Filme 1080p', infoHash: HASH, seeders: 50, size: 21 * 1024 ** 3,
+  });
+  const small = toStremioStream({
+    title: 'Filme 1080p', infoHash: OTHER, seeders: 5, size: 9 * 1024 ** 3,
+  });
+  const unknown = toStremioStream({
+    title: 'Filme 720p', infoHash: 'c'.repeat(40), seeders: 1,
+  });
+
+  const out = sortAndLimit([large, small, unknown], { maxSizeGb: 10 });
+  assert.deepEqual(out.map((s) => s.infoHash), [OTHER, 'c'.repeat(40)]);
+  assert.ok(out.every((s) => !('_size' in s)));
 });
