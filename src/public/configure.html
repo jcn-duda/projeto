@@ -342,6 +342,7 @@
   .test-line .verdict { flex-shrink: 0; font-weight: 650; }
   .test-line.ok .verdict { color: var(--green); }
   .test-line.fail .verdict { color: #e2795f; }
+  .test-line.warn .verdict { color: var(--accent); }
   .test-line.pending .verdict { color: var(--muted); }
   .test-line .detail { flex-shrink: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 
@@ -973,17 +974,26 @@
 
   function showResult(slot, data) {
     var ok = data && data.ok;
-    slot.line.className = "test-line " + (ok ? "ok" : "fail");
+    // "responde mas nao cabe" e um terceiro estado: o indexer esta vivo e ainda
+    // assim nao serve, porque a busca ao vivo o aborta antes de terminar.
+    var over = ok && data.overBudget;
+    slot.line.className = "test-line " + (ok ? (over ? "warn" : "ok") : "fail");
     if (ok) {
-      slot.verdict.textContent = "ok";
+      slot.verdict.textContent = over
+        ? "lento (" + (data.ms / 1000).toFixed(1) + "s > " + (data.budgetMs / 1000).toFixed(0) + "s)"
+        : "ok";
       // Sem magnet o resultado é inútil pro addon; o número que importa é esse.
       slot.detail.textContent =
         data.withMagnet + "/" + data.results + " com magnet · " + (data.ms / 1000).toFixed(1) + "s" +
-        (data.query ? ' · "' + data.query + '"' : "");
+        (data.query ? ' · "' + data.query + '"' : "") +
+        (data.type === "series" ? " (série)" : "");
       return;
     }
     slot.verdict.textContent = "falhou";
-    if (data && data.error) slot.detail.textContent = data.error;
+    if (data && data.error) {
+      slot.detail.textContent =
+        data.error + (data.budgetMs ? " · orçamento " + (data.budgetMs / 1000).toFixed(0) + "s" : "");
+    }
     else if (data && data.results) slot.detail.textContent = data.results + " resultado(s), nenhum magnet";
     else slot.detail.textContent = "nenhum resultado";
   }

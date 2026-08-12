@@ -5,6 +5,10 @@ const { matchesName } = require('../utils/format');
 // abortaria no meio e ainda gastaria o resto do orçamento.
 const MIN_RESOLVE_BUDGET = 400;
 
+// Prazo do teste manual de indexador. Nada a ver com o da busca: aqui vale
+// esperar pra distinguir "indexer morto" de "indexer lento".
+const DIAGNOSTIC_TIMEOUT = 30000;
+
 function mapResults(data, { isBr = false } = {}) {
   const results = Array.isArray(data?.Results) ? data.Results : Array.isArray(data) ? data : [];
   return results.map((r) => ({
@@ -92,7 +96,14 @@ async function resolveCardigannDownloads(indexer, items, query, deadline) {
   return resolved;
 }
 
-async function queryIndexer(indexer, query, type) {
+/** Orçamento que a busca AO VIVO daria a este indexer. */
+function budgetFor(indexer) {
+  const isSlow =
+    config.jackett.ptBrIndexers.includes(indexer) || config.jackett.slowIndexers.includes(indexer);
+  return isSlow ? config.jackett.brIndexerTimeout : config.jackett.indexerTimeout;
+}
+
+async function queryIndexer(indexer, query, type, timeoutOverride = null) {
   const { url, apiKey } = config.jackett;
   const endpoint = new URL(`${url}/api/v2.0/indexers/${indexer}/results`);
   endpoint.searchParams.set('apikey', apiKey);
@@ -101,14 +112,12 @@ async function queryIndexer(indexer, query, type) {
   if (type === 'movie') endpoint.searchParams.append('Category[]', '2000');
   if (type === 'series') endpoint.searchParams.append('Category[]', '5000');
 
-  // Indexers BR raspam WordPress e ainda seguem protetores de link; com o
-  // prazo dos globais eles eram descartados DEPOIS de já ter feito o trabalho.
-  const isSlow =
-    config.jackett.ptBrIndexers.includes(indexer) || config.jackett.slowIndexers.includes(indexer);
   // Orçamento TOTAL do indexer (busca + resolução de magnets), não só do fetch:
   // o resolve roda fora do AbortSignal da busca e somava o próprio timeout por
-  // cima, estourando o REPLY_DEADLINE e zerando o resultado.
-  const timeout = isSlow ? config.jackett.brIndexerTimeout : config.jackett.indexerTimeout;
+  // cima, estourando o REPLY_DEADLINE e zerando o resultado. Indexers BR raspam
+  // WordPress e ainda seguem protetor de link, então têm prazo maior.
+  // O override existe só pro diagnóstico, que não responde a ninguém esperando.
+  const timeout = timeoutOverride || budgetFor(indexer);
 
   const started = Date.now();
   const deadline = started + timeout;
@@ -192,12 +201,39 @@ async function test(indexer, query, type = 'movie') {
     return { indexer, ok: false, error: 'JACKETT_API_KEY não configurada', ms: 0 };
   }
   const br = config.jackett.ptBrIndexers.includes(indexer);
+  const budget = budgetFor(indexer);
   // Sem query explícita, cada lado recebe o nome que ele realmente indexa: o YTS
   // não tem "Coringa" e o BLUDV não tem "Joker". Um só termo reprovaria metade
   // dos indexers saudáveis.
-  const effective = query || (br ? 'Coringa' : 'Joker');
+  //
+  // E o filme não pode ser a única tentativa: indexer só de séries (eztv,
+  // tokyotosho, nyaasi) devolve 0 pra qualquer filme e apareceria como quebrado.
+  // Zero resultado no filme → tenta uma série antes de dar veredito.
+  const attempts = query
+    ? [[query, type]]
+    : type === 'series'
+      ? [[br ? 'A Casa do Dragão' : 'The Last of Us', 'series']]
+      : [
+          [br ? 'Coringa' : 'Joker', 'movie'],
+          [br ? 'A Casa do Dragão' : 'The Last of Us', 'series'],
+        ];
   try {
-    const { items, ms } = await queryIndexer(indexer, effective, type);
+    let items = [];
+    let ms = 0;
+    let effective = attempts[0][0];
+    let effectiveType = attempts[0][1];
+    for (const [term, kind] of attempts) {
+      // Prazo generoso: o diagnóstico é manual e ninguém está esperando o
+      // stream. Com o orçamento da busca ao vivo, indexer vivo porém lento (eztv
+      // em 4s, 1337x atrás de Cloudflare) aparecia como quebrado — o que
+      // interessa é saber que ele responde E quanto tempo cobra.
+      const attempt = await queryIndexer(indexer, term, kind, DIAGNOSTIC_TIMEOUT);
+      ms += attempt.ms;
+      effective = term;
+      effectiveType = kind;
+      items = attempt.items;
+      if (items.length) break;
+    }
     // Sem magnet o resultado é inútil pro addon: ele é descartado por falta de
     // infoHash. É a diferença entre "o site respondeu" e "dá pra assistir".
     const withMagnet = items.filter(
@@ -211,10 +247,21 @@ async function test(indexer, query, type = 'movie') {
       ms,
       sample: items[0]?.title ? String(items[0].title).slice(0, 120) : null,
       query: effective,
+      type: effectiveType,
       br,
+      // Quanto a busca ao vivo daria a ele, pra quem lê decidir: um indexer que
+      // responde em 13s é saudável e ainda assim inútil num orçamento de 4s.
+      budgetMs: budget,
+      overBudget: ms > budget,
     };
   } catch (err) {
-    return { indexer, ok: false, error: err.message || String(err), ms: Date.now() - started };
+    return {
+      indexer,
+      ok: false,
+      error: err.message || String(err),
+      ms: Date.now() - started,
+      budgetMs: budget,
+    };
   }
 }
 
