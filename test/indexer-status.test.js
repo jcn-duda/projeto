@@ -41,6 +41,27 @@ test('latência numérica serializada continua sendo exibida', () => {
   assert.equal(recorded.ms, 1250);
 });
 
+// O status só é medido durante busca real. Sem disco, todo restart do container
+// devolvia a página para "desconhecido" mesmo com o indexador no ar.
+test('status sobrevive ao restart lendo do cache em disco', () => {
+  status.clear();
+  status.record('yts', { ok: true, ms: 900, budgetMs: 4000 });
+
+  // Simula o processo novo: a memória zera, o disco continua lá.
+  status.dropMemory();
+  const recovered = status.get('yts');
+  assert.equal(recovered.state, 'online');
+  assert.equal(recovered.ms, 900);
+});
+
+test('restart não ressuscita status já expirado', () => {
+  status.clear();
+  const current = status.record('yts', { ok: true, ms: 900, budgetMs: 4000 });
+  status.dropMemory();
+  const staleAt = Date.parse(current.checkedAt) + status.TTL_MS + 1;
+  assert.equal(status.get('yts', staleAt), null);
+});
+
 test('status permanece válido exatamente no limite do TTL', () => {
   status.clear();
   const current = status.record('nerdfilmes', { ok: true, ms: 800, budgetMs: 20000 });
