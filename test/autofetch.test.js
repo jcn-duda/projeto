@@ -32,12 +32,12 @@ test('pickBrDubbedCandidate pega o melhor BR e ignora quem não é BR', () => {
 test('pickBrDubbedCandidate nunca escolhe um LEGENDADO explícito', () => {
   // Nenhum BR tem marca de áudio: cai no padrão "BR é dublado", menos o legendado.
   const leg = stream(A, {
-    name: 'Power Movie\n1080p LEG BR',
+    name: '1080p LEG BR',
     title: 'Coringa (2019) [LEGENDADO opção 1]\n👤 1',
     _br: true,
   });
   const sem = stream(B, {
-    name: 'Power Movie\nBR',
+    name: 'BR',
     title: 'Coringa (2019) [opção 2]\n👤 1',
     _br: true,
   });

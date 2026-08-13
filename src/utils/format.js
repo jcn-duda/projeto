@@ -133,13 +133,20 @@ function compactAudio(audio = '') {
  * `name` ocupa a coluna estreita do Stremio: marca + qualidade, como Torrentio.
  * A release completa fica só em `title`, na coluna larga de detalhes.
  */
-function streamDisplayName({ quality, audio, isBr = false } = {}) {
+function streamDisplayName({ title = '', quality, audio, isBr = false, seeders = 0 } = {}) {
   const details = [
     quality === UNKNOWN_QUALITY ? null : quality === '2160p' ? '4K' : quality,
     compactAudio(audio),
     isBr ? 'BR' : null,
   ].filter(Boolean).join(' ');
-  return ['Power Movie', details].filter(Boolean).join('\n');
+  // Release e seeders também aqui, não só na coluna larga: há cliente que
+  // renderiza apenas `name`, e nele a linha ficava sem dizer QUAL release é.
+  const stats = [details, Number(seeders) > 0 ? `👤 ${seeders}` : null]
+    .filter(Boolean)
+    .join(' · ');
+  // Sem o nome do addon: o cliente já o exibe no badge do card ("Localhost:7000",
+  // "Power Movie"), e repeti-lo em toda linha só gastava a coluna estreita.
+  return [title, stats].filter(Boolean).join('\n');
 }
 
 /**
@@ -214,7 +221,7 @@ function toStremioStream(item) {
   return {
     // A coluna esquerda precisa ficar curta. O título bruto nesta posição fazia
     // o Stremio quebrar uma palavra por linha em telas estreitas.
-    name: streamDisplayName({ quality, audio, isBr: Boolean(item.isBr) }),
+    name: streamDisplayName({ title, quality, audio, isBr: Boolean(item.isBr), seeders }),
     title: `${title}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),

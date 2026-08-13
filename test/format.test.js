@@ -106,9 +106,8 @@ test('toStremioStream normaliza e guarda campos internos', () => {
   assert.equal(s._br, false);
   assert.ok(s.title.includes('2.00 GB'));
   assert.ok(s.title.includes('1337x'));
-  assert.equal(s.name, 'Power Movie\n1080p');
-  assert.ok(!s.name.includes('Coringa'));
-  assert.ok(!s.name.includes('👤'));
+  // Release e seeders vão TAMBÉM no name: há cliente que só renderiza ele.
+  assert.equal(s.name, 'Coringa 1080p BluRay\n1080p · 👤 42');
   assert.ok(Array.isArray(s.sources) && s.sources.length > 0);
   // Sem hash não há stream.
   assert.equal(toStremioStream({ title: 'sem magnet' }), null);
@@ -127,10 +126,10 @@ test('audioFromTitle detecta dublado/dual/legendado e entra na linha', () => {
 test('toStremioStream preserva a marca de origem BR do provider', () => {
   const s = toStremioStream({ title: 'Coringa Dublado', infoHash: HASH, isBr: true, seeders: 1 });
   assert.equal(s._br, true);
-  assert.equal(s.name, 'Power Movie\nDUB BR');
+  assert.equal(s.name, 'Coringa Dublado\nDUB BR · 👤 1');
 });
 
-test('layout do Stremio mantém name compacto e detalhes na coluna larga', () => {
+test('name traz release e seeds; a coluna larga não duplica marcadores', () => {
   const release = 'Sinners.2025.2160p.iT.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-HONE';
   const s = toStremioStream({
     title: release,
@@ -140,9 +139,7 @@ test('layout do Stremio mantém name compacto e detalhes na coluna larga', () =>
     tracker: 'The Pirate Bay',
   });
 
-  assert.equal(s.name, 'Power Movie\n4K');
-  assert.ok(s.name.length < 30);
-  assert.ok(!s.name.includes('Sinners'));
+  assert.equal(s.name, `${release}\n4K · 👤 181`);
   assert.equal(s.title.split('\n')[0], release);
   assert.match(s.title, /👤 181/);
   assert.match(s.title, /💾 23\.99 GB/);
@@ -157,19 +154,20 @@ test('layout compacto diferencia áudio e origem sem inferir dublado', () => {
   const dual = toStremioStream({ title: 'Pecadores 1080p Dual Audio', infoHash: OTHER, isBr: true });
   const legendado = toStremioStream({ title: 'Sinners 720p Legendado', infoHash: 'c'.repeat(40) });
 
-  assert.equal(brUnknown.name, 'Power Movie\nBR');
-  assert.equal(dual.name, 'Power Movie\n1080p DUAL BR');
-  assert.equal(legendado.name, 'Power Movie\n720p LEG');
+  // Sem seeders publicados (padrão das fontes BR) a linha não inventa "👤 0".
+  assert.equal(brUnknown.name, 'Pecadores 2025\nBR');
+  assert.equal(dual.name, 'Pecadores 1080p Dual Audio\n1080p DUAL BR');
+  assert.equal(legendado.name, 'Sinners 720p Legendado\n720p LEG');
 });
 
 // Formato do Torrentio: a sigla é do DEBRID, não do addon. "[PM+] Power Movie"
 // prometia play instantâneo até para quem estava em P2P puro, e o PM colidia
 // com a sigla do Premiumize.
 test('prefixo do debrid distingue cache de download sem deslocar a qualidade', () => {
-  const name = 'Power Movie\n1080p DUB BR';
-  assert.equal(markDebridName(name, 'AD', true), '[AD+] Power Movie\n1080p DUB BR');
-  assert.equal(markDebridName(name, 'AD', false), '[AD download] Power Movie\n1080p DUB BR');
-  assert.equal(markDebridName(name, 'PM', true), '[PM+] Power Movie\n1080p DUB BR');
+  const name = 'Coringa 2019 1080p BluRay\n1080p DUB BR · 👤 42';
+  assert.equal(markDebridName(name, 'AD', true), `[AD+] ${name}`);
+  assert.equal(markDebridName(name, 'AD', false), `[AD download] ${name}`);
+  assert.equal(markDebridName(name, 'PM', true), `[PM+] ${name}`);
   // Sem debrid não há prefixo: não há nada a prometer sobre o play.
   assert.equal(markDebridName(name, '', true), name);
   assert.equal(markDebridName(name, '   ', false), name);
@@ -783,7 +781,8 @@ test('zerar a cota de SD não esconde mais as fontes BR', () => {
 
 test('resolução desconhecida não vira rótulo nem grupo de binge do SD', () => {
   const s = toStremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3] DUBLADO', infoHash: HASH, seeders: 1 });
-  const details = s.name.split('\n')[1];
+  // Última linha: a do meio agora é a release.
+  const details = s.name.split('\n').pop();
   assert.ok(!/sem resolução|SD/.test(details), `linha não anuncia resolução: ${details}`);
   assert.ok(details.startsWith('DUB'), details);
   assert.ok(!s.behaviorHints.bingeGroup.includes('SD'));
