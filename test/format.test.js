@@ -151,6 +151,25 @@ test('dedupeByHash preserva marca dublada da variante com menos seeders', () => 
   assert.equal(out._dubbed, true);
 });
 
+test('dedupe usa indexador prioritário no empate sem depender da chegada', () => {
+  const global = {
+    infoHash: HASH, _seeders: 10, _indexer: 'thepiratebay',
+    _br: false, _dubbed: false, title: 'Filme 1080p',
+  };
+  const preferred = {
+    infoHash: HASH, _seeders: 10, _indexer: 'nerdfilmes',
+    _br: true, _dubbed: true, title: 'Filme Dublado 1080p',
+  };
+
+  for (const input of [[global, preferred], [preferred, global]]) {
+    const [out] = dedupeByHash(input, ['nerdfilmes']);
+    assert.equal(out._indexer, 'nerdfilmes');
+    assert.equal(out.title, 'Filme Dublado 1080p');
+    assert.equal(out._br, true);
+    assert.equal(out._dubbed, true);
+  }
+});
+
 test('sortAndLimit ordena por qualidade e seeders, filtra e limpa internos', () => {
   const streams = [
     { infoHash: HASH, _seeders: 1, _quality: '1080p', _br: true, title: 'BR 1080p', name: 'n' },
@@ -188,6 +207,23 @@ test('prioridade de indexador desempata dentro da qualidade sem vencer resoluç�
   });
 
   assert.deepEqual(out.map((stream) => stream.infoHash), [global4k.infoHash, HASH, OTHER]);
+});
+
+test('preferência dublada vence prioridade de indexador na mesma qualidade', () => {
+  const preferredLegendado = toStremioStream({
+    title: 'Filme Legendado 1080p', infoHash: HASH, seeders: 100,
+    tracker: 'NerdFilmes', indexer: 'nerdfilmes',
+  });
+  const dublado = toStremioStream({
+    title: 'Filme Dublado 1080p', infoHash: OTHER, seeders: 1,
+    tracker: 'The Pirate Bay', indexer: 'thepiratebay',
+  });
+  const out = sortAndLimit([preferredLegendado, dublado], {
+    preferDubbed: true,
+    indexerPriority: ['nerdfilmes'],
+  });
+
+  assert.equal(out[0].infoHash, OTHER);
 });
 
 test('parseStremioId separa filme de episódio', () => {
@@ -374,6 +410,7 @@ test('limitReservingBr combina reserva, cotas e máximo sem vazar internos', () 
   });
   assert.deepEqual(out.map((s) => s.id), ['br-1080-a', 'global-4k']);
   assert.ok(out.every((s) => Object.keys(s).every((key) => !key.startsWith('_'))));
+  assert.ok(out.every((s) => !('_indexer' in s)));
 });
 
 test('limitReservingBr coloca todas as fontes BR primeiro quando solicitado', () => {

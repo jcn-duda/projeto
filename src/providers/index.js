@@ -428,7 +428,9 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo })
     raw = raw.filter((r) => {
       const t = r.title || r.Title || '';
       return names.some((n) =>
-        r.isBr ? matchesBrTitle(t, n, meta?.year) : matchesName(t, n),
+        r.isBr
+          ? matchesBrTitle(t, n, meta?.year, { isSeries: season != null })
+          : matchesName(t, n),
       );
     });
     if (before !== raw.length) console.log(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);

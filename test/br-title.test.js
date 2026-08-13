@@ -51,6 +51,32 @@ test('ano do catálogo sujo ("2024–", série em andamento) ainda compara', () 
   assert.equal(matchesBrTitle('Fallout 4 (PC) [2015] – Download Torrent', 'Fallout', '2024–'), false);
 });
 
+test('série aceita post de temporada com ano posterior à estreia', () => {
+  // O ano do post de série é o da temporada, não o da estreia: rejeitar ano
+  // divergente escondia a 2ª temporada inteira (S2 saiu em 2025, catálogo 2024).
+  assert.equal(
+    matchesBrTitle('Fallout 2ª Temporada (2025) WEB-DL [1080p DUBLADO]', 'Fallout', 2024, { isSeries: true }),
+    true,
+  );
+  // …sem condenar o jogo: ano bem anterior à estreia morre nos dois modos.
+  assert.equal(
+    matchesBrTitle('Fallout 4 (PC) [2015] – Download Torrent', 'Fallout', 2024, { isSeries: true }),
+    false,
+  );
+  // Post de série sem ano: conservador, passa.
+  assert.equal(
+    matchesBrTitle('Fallout 2ª Temporada Torrent WEB-DL Dual Áudio', 'Fallout', 2024, { isSeries: true }),
+    true,
+  );
+});
+
+test('filme aceita defasagem de até 2 anos (lançamento BR)', () => {
+  // Estreia 2019, post BR com o ano do lançamento nacional (2020).
+  assert.equal(matchesBrTitle('Filme Novo (2020) [1080p DUBLADO]', 'Filme Novo', 2019), true);
+  // Defasagem maior continua sendo obra diferente.
+  assert.equal(matchesBrTitle('Filme Novo (2024) [1080p DUBLADO]', 'Filme Novo', 2019), false);
+});
+
 test('continua exigindo o nome como palavra inteira', () => {
   assert.equal(matchesBrTitle('Fallouts e derivados (2024)', 'Fallout', 2024), false);
 });

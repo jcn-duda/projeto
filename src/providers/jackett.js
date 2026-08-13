@@ -86,7 +86,7 @@ async function resolveCardigannDownloads(indexer, items, query, deadline) {
     // Filtro BR estrito antes de pagar o protetor de link: post "parecido"
     // ("Missão: Impossível – Efeito Fallout" numa busca por "Fallout") não
     // merece orçamento de resolução de magnet.
-    .filter((item) => !wanted || matchesBrTitle(item.title || '', wanted, queryYear || null))
+    .filter((item) => !wanted || matchesBrTitle(item.title || '', wanted, queryYear || null, { isSeries: Boolean(requestedSeason) }))
     .filter((item) => {
       if (!requestedSeason) return true;
       const titleSeason = String(item.title || '').match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);

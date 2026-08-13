@@ -239,8 +239,11 @@ curta: buscar "Fallout" trazia "Missão: Impossível – Efeito Fallout", "Fallo
 e `matchesEpisode` (sem pista de temporada, passa), e o lixo tomava as vagas
 reservadas do item 3. `matchesBrTitle` (format.js) endurece com regra de
 prefixo (primeiro token relevante do título = primeiro do nome procurado) e
-regra de ano (título com UM token de ano divergente do catálogo é descartado;
-2+ anos é ambíguo e passa). Ele roda DUAS vezes:
+regra de ano por tipo (lógica do pacote BRDUB): filme aceita ±2 (ano do
+lançamento BR) e série só condena quando TODOS os anos do post são anteriores
+à estreia −2 — o ano do post de série é o da temporada, então "Fallout 2ª
+Temporada (2025)" passa contra catálogo 2024. 2+ anos no título é ambíguo e
+passa. Ele roda DUAS vezes:
 - no pré-filtro de `resolveCardigannDownloads`, ANTES de pagar o protetor de
   link — o ano vem da própria query de filme ("Coringa 2019"), e é isso que
   corta "Coringa: Delírio a Dois (2024)" sem gastar um magnet;

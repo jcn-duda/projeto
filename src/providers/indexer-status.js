@@ -17,7 +17,9 @@ function record(id, sample = {}) {
   if (!key) return null;
   const value = {
     state: stateFor(sample),
-    ms: Number.isFinite(Number(sample.ms)) ? Math.max(0, Math.trunc(Number(sample.ms))) : null,
+    // `null` significa que a falha não trouxe medição. Number(null) seria 0 e
+    // faria a UI inventar "offline · 0.0s" em vez de mostrar só offline.
+    ms: Number.isFinite(sample.ms) ? Math.max(0, Math.trunc(sample.ms)) : null,
     checkedAt: new Date().toISOString(),
   };
   statuses.set(key, value);

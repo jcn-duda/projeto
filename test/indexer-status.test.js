@@ -26,3 +26,17 @@ test('status expirado deixa de ser anunciado no catálogo', () => {
   const staleAt = Date.parse(current.checkedAt) + status.TTL_MS + 1;
   assert.equal(status.get('nerdfilmes', staleAt), null);
 });
+
+test('falha sem duração não inventa latência zero', () => {
+  status.clear();
+  const recorded = status.record('nerdfilmes', { ok: false, ms: null, budgetMs: 20000 });
+  assert.equal(recorded.state, 'offline');
+  assert.equal(recorded.ms, null);
+});
+
+test('status permanece válido exatamente no limite do TTL', () => {
+  status.clear();
+  const current = status.record('nerdfilmes', { ok: true, ms: 800, budgetMs: 20000 });
+  const boundary = Date.parse(current.checkedAt) + status.TTL_MS;
+  assert.equal(status.get('nerdfilmes', boundary).state, 'online');
+});

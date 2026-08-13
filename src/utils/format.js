@@ -233,12 +233,16 @@ function matchesName(title, name) {
  * - post BR é titulado "Nome ...": o primeiro token relevante do título tem
  *   que ser o do nome procurado — mata "Missão: Impossível…" e "Cesium…".
  *   Tokens de 1-2 letras ("o", "de", "a") são pulados dos dois lados;
- * - se o título tiver EXATAMENTE um token de ano e o ano do catálogo for
- *   conhecido, eles precisam bater — mata "Fallout 4 (PC) [2015]" numa busca
- *   por Fallout (2024). Dois ou mais ("Blade Runner 2049 (2017)") deixam o
- *   campo ambíguo e a checagem é pulada.
+ * - ano, com tolerância por tipo (mesma lógica do pacote BRDUB, calibrada
+ *   contra casos reais): filme aceita ±2 (o ano do post BR costuma ser o do
+ *   lançamento nacional) e série só condena quando TODOS os anos do post
+ *   são anteriores à estreia −2 — o ano do post de série é o da temporada,
+ *   então "Fallout 2ª Temporada (2025)" contra catálogo 2024 passa, e
+ *   "Fallout 4 (PC) [2015]" continua morrendo nos dois modos. Dois ou mais
+ *   anos no título ("Blade Runner 2049 (2017)") deixam o campo ambíguo e a
+ *   checagem é pulada.
  */
-function matchesBrTitle(title, name, year = null) {
+function matchesBrTitle(title, name, year = null, { isSeries = false } = {}) {
   if (!matchesName(title, name)) return false;
   const tokens = normalizeTitle(title).split(' ').filter(Boolean);
   const wanted = normalizeTitle(name).split(' ').filter(Boolean);
@@ -249,8 +253,12 @@ function matchesBrTitle(title, name, year = null) {
   // primeiro token de 4 dígitos antes de comparar.
   const catalogYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
   if (catalogYear) {
-    const years = tokens.filter((t) => /^(?:19|20)\d{2}$/.test(t));
-    if (years.length === 1 && Number(years[0]) !== catalogYear) return false;
+    const years = tokens.filter((t) => /^(?:19|20)\d{2}$/.test(t)).map(Number);
+    if (isSeries) {
+      if (years.length && years.every((y) => y < catalogYear - 2)) return false;
+    } else if (years.length === 1 && Math.abs(years[0] - catalogYear) > 2) {
+      return false;
+    }
   }
   return true;
 }
@@ -319,8 +327,9 @@ function matchesEpisode(title, { season, episode } = {}) {
 }
 
 /** Mesma release aparece em vários indexers; fica a de maior seeders. */
-function dedupeByHash(streams) {
+function dedupeByHash(streams, indexerPriority = []) {
   const best = new Map();
+  const ranks = priorityMap(indexerPriority);
   for (const s of streams) {
     if (!s) continue;
     const prev = best.get(s.infoHash);
@@ -331,7 +340,15 @@ function dedupeByHash(streams) {
     // A mesma release pode vir de um indexer global (com seeders) e de um BR.
     // Fica a de mais seeders, mas a marca de origem BR não pode se perder no
     // desempate, senão a vaga reservada deixa de proteger a fonte dublada.
-    const winner = (s._seeders || 0) > (prev._seeders || 0) ? s : prev;
+    const seedDiff = (s._seeders || 0) - (prev._seeders || 0);
+    // Hash idêntico é a mesma release. Seeders continuam sendo a evidência
+    // principal; no empate, a preferência do usuário torna o merge estável em
+    // vez de depender de qual provider terminou primeiro.
+    const winner = seedDiff > 0
+      ? s
+      : seedDiff < 0
+        ? prev
+        : compareIndexerPriority(s, prev, ranks) < 0 ? s : prev;
     best.set(s.infoHash, {
       ...winner,
       _br: winner._br || s._br || prev._br,
@@ -594,7 +611,7 @@ function sortAndLimit(
   const maxSizeBytes = maxSizeGb > 0 ? maxSizeGb * 1024 ** 3 : 0;
   const indexerRanks = priorityMap(indexerPriority);
 
-  const ordered = dedupeByHash(streams)
+  const ordered = dedupeByHash(streams, indexerPriority)
     .filter((s) => (s._seeders || 0) >= minSeeders)
     .filter((s) => passesQualityFilter(s, qualityFilter, qualityLimits))
     .filter((s) => !excludeCam || sourceFromTitle(s.title) !== 'CAM')
@@ -609,12 +626,14 @@ function sortAndLimit(
       const qOrder = { '2160p': 5, '1080p': 4, '720p': 3, [UNKNOWN_QUALITY]: 2, '480p': 1, SD: 0 };
       const qd = (qOrder[b._quality] || 0) - (qOrder[a._quality] || 0);
       if (qd !== 0) return qd;
-      const pd = compareIndexerPriority(a, b, indexerRanks);
-      if (pd !== 0) return pd;
       if (preferDubbed) {
         const ad = dubbed(b) - dubbed(a);
         if (ad !== 0) return ad;
       }
+      // "Priorizar dublado" é uma escolha explícita mais específica que a
+      // fonte preferida. Depois dela, o indexador desempata sem vencer qualidade.
+      const pd = compareIndexerPriority(a, b, indexerRanks);
+      if (pd !== 0) return pd;
       return (b._seeders || 0) - (a._seeders || 0);
     });
 

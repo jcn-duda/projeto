@@ -23,3 +23,15 @@ test('streamsCacheKey preserva a separação por conteúdo e por modo sem conta'
   assert.equal(accountScope(''), accountScope(undefined));
   assert.notEqual(accountScope('key-a'), accountScope('key-b'));
 });
+
+test('cache separa prioridade e cotas por qualidade', () => {
+  const base = { providers: ['jackett'], max1080p: 4, indexerPriority: [] };
+  assert.notEqual(
+    streamsCacheKey('movie', 'tt123', base),
+    streamsCacheKey('movie', 'tt123', { ...base, indexerPriority: ['nerdfilmes'] }),
+  );
+  assert.notEqual(
+    streamsCacheKey('movie', 'tt123', base),
+    streamsCacheKey('movie', 'tt123', { ...base, max1080p: 8 }),
+  );
+});
