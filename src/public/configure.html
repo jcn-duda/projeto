@@ -497,7 +497,7 @@
     <p class="tagline">Torrents self-hosted com prioridade para conteúdo brasileiro dublado.</p>
     <div class="badges">
       <span class="badge">Jackett · Prowlarr</span>
-      <span class="badge">Premiumize</span>
+      <span class="badge" id="debridBadge">Debrid</span>
       <span class="badge">Fontes BR: <b>BLUDV · Comando · NerdFilmes</b></span>
     </div>
   </header>
@@ -809,6 +809,7 @@
     maxSd: $("maxSd"), outSd: $("outSd"),
     maxUnknown: $("maxUnknown"), outUnknown: $("outUnknown"),
     maxPerIndexer: $("maxPerIndexer"), outPerIndexer: $("outPerIndexer"),
+    debridBadge: $("debridBadge"),
     minSeeders: $("minSeeders"), outSeed: $("outSeed"),
     maxSizeGb: $("maxSizeGb"), outMaxSize: $("outMaxSize"),
     brOnly: $("brOnly"), dubbedOnly: $("dubbedOnly"),
@@ -1147,6 +1148,10 @@
     renderPriority();
 
     var svc = serviceById(el.debridService.value);
+    // O cabeçalho anunciava "Premiumize" fixo desde quando era o único
+    // suportado. São cinco hoje, e a marca errada no topo faz o usuário do
+    // AllDebrid achar que instalou o addon errado.
+    el.debridBadge.textContent = svc ? svc.label : "P2P (sem debrid)";
     el.debridKeyField.hidden = !svc;
     // Sem consulta de cache o filtro não teria como funcionar: em vez de
     // oferecer um controle que não faz nada, esconde e explica.
