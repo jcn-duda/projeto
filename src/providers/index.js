@@ -15,6 +15,7 @@ const {
   matchesEpisode,
   limitReservingBr,
   UNKNOWN_QUALITY,
+  markCachedName,
   pickBrDubbedCandidate,
   hasCachedBrDubbed,
   canAutoFetchBr,
@@ -98,7 +99,7 @@ function autoFetchBrDubbed(streams, selected, { cached, known, season, episode, 
     return;
   }
 
-  const label = String(candidate.name || '').split('\n')[0].slice(0, 70);
+  const label = String(candidate.title || candidate.name || '').split('\n')[0].slice(0, 70);
   debrid
     .enqueue(candidate.infoHash, { season, episode })
     .then((ok) => {
@@ -155,7 +156,9 @@ async function applyDebrid(streams, { season, episode, searchKey }) {
     const sig = signResolve(s.infoHash, ep);
     return {
       ...s,
-      name: instant ? `${s.name} ⚡` : s.name,
+      // O selo fica na primeira linha curta, como no Torrentio, sem empurrar a
+      // qualidade para fora da coluna estreita.
+      name: instant ? markCachedName(s.name) : s.name,
       url: `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}${ep ? '&' : '?'}sig=${sig}`,
       infoHash: undefined,
       sources: undefined,
@@ -459,7 +462,7 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo, s
       const t = r.title || r.Title || '';
       return names.some((n) =>
         r.isBr
-          ? matchesBrTitle(t, n, catalogYear, { isSeries: season != null })
+          ? matchesBrTitle(t, n, catalogYear, { isSeries: season != null, allNames: names })
           : matchesName(t, n),
       );
     });

@@ -122,6 +122,31 @@ function audioFromTitle(title = '') {
   return '';
 }
 
+function compactAudio(audio = '') {
+  if (audio === 'Dublado') return 'DUB';
+  if (audio === 'Legendado') return 'LEG';
+  if (audio === 'Dual') return 'DUAL';
+  return '';
+}
+
+/**
+ * `name` ocupa a coluna estreita do Stremio: marca + qualidade, como Torrentio.
+ * A release completa fica só em `title`, na coluna larga de detalhes.
+ */
+function streamDisplayName({ quality, audio, isBr = false } = {}) {
+  const details = [
+    quality === UNKNOWN_QUALITY ? null : quality === '2160p' ? '4K' : quality,
+    compactAudio(audio),
+    isBr ? 'BR' : null,
+  ].filter(Boolean).join(' ');
+  return [`[PM+] Power Movie`, details].filter(Boolean).join('\n');
+}
+
+function markCachedName(name = '') {
+  const value = String(name);
+  return value.includes('[PM+]') ? value.replace('[PM+]', '[PM+] ⚡') : `⚡ ${value}`.trim();
+}
+
 function matchesQualityFilter(title, filters) {
   if (!filters || filters.length === 0) return true;
   const upper = String(title).toUpperCase();
@@ -175,18 +200,12 @@ function toStremioStream(item) {
     `👤 ${seeders}`,
     size ? `💾 ${size}` : null,
     tracker ? `⚙️ ${tracker}` : null,
-    audio || null,
-    source || null,
   ].filter(Boolean);
 
   return {
-    // O Power Movie renderiza o `name` literal na linha do stream (\n vira
-    // espaço) e deriva os badges do nome do arquivo — por isso o título da
-    // release tem que estar aqui, senão a linha só mostra a marca. A 2ª linha
-    // leva qualidade/áudio/seeds pro cliente Stremio padrão, que não deriva.
-    // Resolução desconhecida não vira rótulo: "sem resolução" no lugar do
-    // "1080p" only atrapalha a linha do cliente. Fica só áudio + seeds.
-    name: `${title}\n${quality === UNKNOWN_QUALITY ? '' : quality}${audio ? `${quality === UNKNOWN_QUALITY ? '' : ' '}${audio}` : ''}${seeders ? ` · 👤 ${seeders}` : ''}`.replace('\n ', '\n'),
+    // A coluna esquerda precisa ficar curta. O título bruto nesta posição fazia
+    // o Stremio quebrar uma palavra por linha em telas estreitas.
+    name: streamDisplayName({ quality, audio, isBr: Boolean(item.isBr) }),
     title: `${title}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
@@ -265,11 +284,74 @@ function matchesName(title, name) {
  *   anos no título ("Blade Runner 2049 (2017)") deixam o campo ambíguo e a
  *   checagem é pulada.
  */
-function matchesBrTitle(title, name, year = null, { isSeries = false } = {}) {
+// Palavras que descrevem o EMPACOTAMENTO, não a obra. Um pack legítimo é
+// "Coleção Guerra nas Estrelas" ou "Game of Thrones Todas as Temporadas": elas
+// não podem contar nem como primeiro token nem contra a precisão.
+const PACK_WORDS = new Set(
+  'colecao trilogia saga duologia quadrilogia pentalogia antologia serie series temporada temporadas todas todos completa completo integral'.split(' '),
+);
+
+// Ruído de release: o que todo indexer BR carimba no título e não diz nada
+// sobre QUAL obra é. Fora daqui, "Torrent (2019) Legendado WEB DL 720p" faria
+// qualquer título parecer distante da busca.
+const RELEASE_NOISE = new Set(
+  ('web dl webdl bluray blu ray webrip bdrip brrip hdtv hdrip rip remux hybrid ' +
+    'x264 x265 h264 h265 avc hevc av1 xvid divx 10bit 8bit hdr hdr10 dv sdr imax ' +
+    'dts aac ac3 eac3 ddp dd atmos truehd opus mp3 dual audio nacional multi ' +
+    'torrent torrents download baixar assistir online gratis ' +
+    'dublado dublada dublagem legendado legendada legenda opcao opcoes versao estendida ' +
+    'mkv mp4 avi gb mb kb ' +
+    '480p 540p 576p 720p 1080p 1440p 2160p 4k uhd sd hd fullhd ' +
+    'de do da das dos e a o os as um uma em no na para por com sobre ate').split(' '),
+);
+
+// Calibrado nos casos reais deste repo: o documentário "A Última Vigília" dá
+// 0.60 e o pack "1ª até 8ª Temporada" dá 0.75 — o corte fica entre os dois.
+const TITLE_PRECISION_MIN = 0.65;
+
+/**
+ * Quanto do título do candidato está DENTRO da busca, ignorando ruído de
+ * release, empacotamento e ano. 1 = o título não acrescenta nada; perto de 0 =
+ * é outra obra que só começa com o mesmo nome.
+ */
+function titlePrecision(tokens, wanted) {
+  const want = new Set(wanted);
+  const significant = tokens.filter(
+    (w) =>
+      !RELEASE_NOISE.has(w) &&
+      !PACK_WORDS.has(w) &&
+      !/^\d+$/.test(w), // número solto é temporada, ano ou tamanho
+  );
+  // Título que só tem ruído não contradiz nada.
+  if (significant.length === 0) return 1;
+  return significant.filter((w) => want.has(w)).length / significant.length;
+}
+
+function matchesBrTitle(title, name, year = null, { isSeries = false, allNames = null } = {}) {
   if (!matchesName(title, name)) return false;
   const tokens = normalizeTitle(title).split(' ').filter(Boolean);
   const wanted = normalizeTitle(name).split(' ').filter(Boolean);
-  const firstSig = (arr) => arr.find((w) => w.length > 2) || arr[0];
+
+  // O nome procurado é PREFIXO de outra obra: "Game of Thrones: A Conquista e a
+  // Rebelião" (especial animado) e "Game of Thrones – A Última Vigília"
+  // (documentário) cobriam 2/2 do nome da série e entravam na lista do S01E01.
+  // Cobertura não vê isso; precisão vê — é quanto do título do candidato sobra
+  // FORA da busca, depois de tirar o ruído de release.
+  //
+  // Exige `allNames` de propósito: a release legítima carrega os DOIS nomes
+  // ("Coleção Guerra nas Estrelas [Star wars]"), e medir contra um só condenaria
+  // o outro como conteúdo estranho. Sem a lista completa, quem chama não tem a
+  // informação necessária para esta pergunta, e a checagem não roda.
+  if (allNames?.length) {
+    const universo = allNames.flatMap((n) => normalizeTitle(n).split(' ')).filter(Boolean);
+    if (titlePrecision(tokens, universo) < TITLE_PRECISION_MIN) return false;
+  }
+
+  // Post BR é titulado "Nome ...", então o primeiro token relevante tem que ser
+  // o do nome. Palavra de coleção à esquerda não conta: "Coleção Guerra nas
+  // Estrelas" e "Trilogia: O Senhor dos Anéis" são o pack certo, e a regra crua
+  // os matava — enquanto o mesmo pack com a palavra no fim passava.
+  const firstSig = (arr) => arr.find((w) => w.length > 2 && !PACK_WORDS.has(w)) || arr[0];
   const want = firstSig(wanted);
   if (want && firstSig(tokens) !== want) return false;
   // O ano do catálogo pode vir sujo ("2024–" para série em andamento): extrai o
@@ -316,10 +398,28 @@ function parseTitleSeasonEpisode(title = '') {
     episodes.add(Number(m[2]));
   }
 
+  // Faixa: "1ª até 8ª Temporada", "1 a 5 temporadas". Antes só o último número
+  // era lido, então o pack de 1 a 8 não cobria o S01E01 que o usuário pediu.
+  // `(?:\s*a)?` cobre o ordinal: o site escreve tanto "1ª até 8ª" (o ª vira
+  // espaço na normalização) quanto "1a ate 8a" (o a fica colado no dígito).
+  for (const m of t.matchAll(/(?<!\d)(\d{1,2})(?:\s*a)?\s*(?:ate|a)\s*(\d{1,2})(?!\d)(?:\s*a)?\s*temporadas?/g)) {
+    const lo = Math.min(Number(m[1]), Number(m[2]));
+    const hi = Math.max(Number(m[1]), Number(m[2]));
+    // Faixa absurda é erro de leitura, não pack de 50 temporadas.
+    if (hi - lo <= 30) for (let i = lo; i <= hi; i += 1) seasons.add(i);
+  }
+
   // Pack: "s01", "s01 s03" (multi-temporada), "season 1", "1 temporada", "temporada 1"
   for (const m of t.matchAll(/s(\d{1,2})(?![\de])/g)) seasons.add(Number(m[1]));
-  for (const m of t.matchAll(/(?:season|temporada)\s?(\d{1,2})/g)) seasons.add(Number(m[1]));
-  for (const m of t.matchAll(/(\d{1,2})\s?(?:a|ª)?\s?temporada/g)) seasons.add(Number(m[1]));
+  // `(?!\d)` impede que o ANO logo depois vire temporada: "Temporada (2011)"
+  // casava como temporada 20, pegando os dois primeiros dígitos.
+  for (const m of t.matchAll(/(?:season|temporada)\s?(\d{1,2})(?!\d)/g)) seasons.add(Number(m[1]));
+  for (const m of t.matchAll(/(?<!\d)(\d{1,2})(?!\d)\s?a?\s?temporada/g)) seasons.add(Number(m[1]));
+
+  // "Todas as Temporadas", "Série Completa": cobre qualquer temporada pedida.
+  // Sem isto o pack completo não declarava temporada nenhuma e só sobrevivia
+  // pela brecha de "título sem pista nenhuma passa".
+  const complete = /(?:todas?\s+(?:as\s+)?temporadas|serie\s+completa|temporadas?\s+completas?)/.test(t);
 
   // Episódio solto em pt-BR só conta quando a temporada já apareceu; senão
   // "Episódio II" de filme (Star Wars) viraria episódio de série.
@@ -327,7 +427,7 @@ function parseTitleSeasonEpisode(title = '') {
     for (const m of t.matchAll(/epis[oó]dio\s?(\d{1,3})/g)) episodes.add(Number(m[1]));
   }
 
-  return { seasons: [...seasons], episodes: [...episodes] };
+  return { seasons: [...seasons], episodes: [...episodes], complete };
 }
 
 /**
@@ -338,7 +438,10 @@ function parseTitleSeasonEpisode(title = '') {
  */
 function matchesEpisode(title, { season, episode } = {}) {
   if (season == null || episode == null) return true;
-  const { seasons, episodes } = parseTitleSeasonEpisode(title);
+  const { seasons, episodes, complete } = parseTitleSeasonEpisode(title);
+
+  // "Todas as Temporadas" / "Série Completa" cobre o episódio pedido.
+  if (complete) return true;
 
   // Nenhuma pista de temporada/episódio: não dá pra afirmar que é errado
   // (release BR costuma vir só como "Nome Dublado"), então passa.
@@ -790,6 +893,8 @@ module.exports = {
   qualityFromTitle,
   sourceFromTitle,
   audioFromTitle,
+  streamDisplayName,
+  markCachedName,
   toStremioStream,
   sortAndLimit,
   parseStremioId,

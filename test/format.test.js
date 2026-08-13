@@ -10,12 +10,14 @@ const {
   extractInfoHash,
   qualityFromTitle,
   audioFromTitle,
+  markCachedName,
   matchesQualityFilter,
   toStremioStream,
   normalizeTitle,
   matchesName,
   resolveSearchNames,
   matchesEpisode,
+  matchesBrTitle,
   parseTitleSeasonEpisode,
   UNKNOWN_QUALITY,
   QUALITY_KEYS,
@@ -104,10 +106,9 @@ test('toStremioStream normaliza e guarda campos internos', () => {
   assert.equal(s._br, false);
   assert.ok(s.title.includes('2.00 GB'));
   assert.ok(s.title.includes('1337x'));
-  // O nome da release abre o `name`: é o que o Power Movie renderiza
-  // literal na linha; a 2ª linha leva qualidade + seeds.
-  assert.ok(s.name.startsWith('Coringa 1080p BluRay'));
-  assert.ok(s.name.includes('👤 42'));
+  assert.equal(s.name, '[PM+] Power Movie\n1080p');
+  assert.ok(!s.name.includes('Coringa'));
+  assert.ok(!s.name.includes('👤'));
   assert.ok(Array.isArray(s.sources) && s.sources.length > 0);
   // Sem hash não há stream.
   assert.equal(toStremioStream({ title: 'sem magnet' }), null);
@@ -119,13 +120,52 @@ test('audioFromTitle detecta dublado/dual/legendado e entra na linha', () => {
   assert.equal(audioFromTitle('Serie Legendada 1080p'), 'Legendado');
   assert.equal(audioFromTitle('Movie 1080p'), '');
   const s = toStremioStream({ title: 'Coringa Dublado 1080p', infoHash: HASH, seeders: 1 });
-  assert.ok(s.name.includes('1080p Dublado'));
+  assert.ok(s.name.includes('1080p DUB'));
   assert.ok(s.title.includes('Dublado'));
 });
 
 test('toStremioStream preserva a marca de origem BR do provider', () => {
   const s = toStremioStream({ title: 'Coringa Dublado', infoHash: HASH, isBr: true, seeders: 1 });
   assert.equal(s._br, true);
+  assert.equal(s.name, '[PM+] Power Movie\nDUB BR');
+});
+
+test('layout do Stremio mantém name compacto e detalhes na coluna larga', () => {
+  const release = 'Sinners.2025.2160p.iT.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-HONE';
+  const s = toStremioStream({
+    title: release,
+    infoHash: HASH,
+    seeders: 181,
+    size: 23.99 * 1024 ** 3,
+    tracker: 'The Pirate Bay',
+  });
+
+  assert.equal(s.name, '[PM+] Power Movie\n4K');
+  assert.ok(s.name.length < 30);
+  assert.ok(!s.name.includes('Sinners'));
+  assert.equal(s.title.split('\n')[0], release);
+  assert.match(s.title, /👤 181/);
+  assert.match(s.title, /💾 23\.99 GB/);
+  assert.match(s.title, /⚙️ The Pirate Bay/);
+  for (const marker of ['👤', '💾', '⚙️']) {
+    assert.equal(s.title.split(marker).length - 1, 1, `${marker} aparece uma vez`);
+  }
+});
+
+test('layout compacto diferencia áudio e origem sem inferir dublado', () => {
+  const brUnknown = toStremioStream({ title: 'Pecadores 2025', infoHash: HASH, isBr: true });
+  const dual = toStremioStream({ title: 'Pecadores 1080p Dual Audio', infoHash: OTHER, isBr: true });
+  const legendado = toStremioStream({ title: 'Sinners 720p Legendado', infoHash: 'c'.repeat(40) });
+
+  assert.equal(brUnknown.name, '[PM+] Power Movie\nBR');
+  assert.equal(dual.name, '[PM+] Power Movie\n1080p DUAL BR');
+  assert.equal(legendado.name, '[PM+] Power Movie\n720p LEG');
+});
+
+test('selo de cache entra na marca curta sem deslocar a qualidade', () => {
+  const name = '[PM+] Power Movie\n1080p DUB BR';
+  assert.equal(markCachedName(name), '[PM+] ⚡ Power Movie\n1080p DUB BR');
+  assert.equal(markCachedName('Outro\n720p'), '⚡ Outro\n720p');
 });
 
 test('normalizeTitle tira acentos e pontuação', () => {
@@ -273,20 +313,86 @@ test('buildSearchQuery monta filme com ano e série SxxEyy', () => {
 
 test('parseTitleSeasonEpisode cobre SxxExx, 1x04, packs e pt-BR', () => {
   assert.deepEqual(parseTitleSeasonEpisode('House Of The Dragon S01E04 2160p'), {
-    seasons: [1], episodes: [4],
+    seasons: [1], episodes: [4], complete: false,
   });
-  assert.deepEqual(parseTitleSeasonEpisode('Serie 1x04 720p'), { seasons: [1], episodes: [4] });
+  assert.deepEqual(parseTitleSeasonEpisode('Serie 1x04 720p'), {
+    seasons: [1], episodes: [4], complete: false,
+  });
   assert.deepEqual(parseTitleSeasonEpisode('Serie S02E01-E03'), {
-    seasons: [2], episodes: [1, 2, 3],
+    seasons: [2], episodes: [1, 2, 3], complete: false,
   });
   assert.deepEqual(parseTitleSeasonEpisode('A Casa Do Dragao 1a Temporada WEB-DL Dual'), {
-    seasons: [1], episodes: [],
+    seasons: [1], episodes: [], complete: false,
   });
-  assert.deepEqual(parseTitleSeasonEpisode('Serie S01 Completa'), { seasons: [1], episodes: [] });
+  assert.deepEqual(parseTitleSeasonEpisode('Serie S01 Completa'), {
+    seasons: [1], episodes: [], complete: false,
+  });
   // Filme com "Episódio II" no nome não pode virar episódio de série.
   assert.deepEqual(parseTitleSeasonEpisode('Star Wars Episodio II Ataque dos Clones'), {
-    seasons: [], episodes: [],
+    seasons: [], episodes: [], complete: false,
   });
+});
+
+test('parseTitleSeasonEpisode: ano depois de "Temporada" não é temporada', () => {
+  // "Temporada (2011)" casava como temporada 20 — os dois primeiros dígitos do
+  // ano. É o formato do Comando e do TorrentDosFilmes.
+  const r = parseTitleSeasonEpisode('Game of Thrones 6a Temporada (2016) HDTV 720p');
+  assert.deepEqual(r.seasons, [6]);
+});
+
+test('parseTitleSeasonEpisode entende faixa e cobertura total de temporada', () => {
+  // Só o último número era lido, então o pack de 1 a 8 não cobria o S01E01
+  // pedido e era descartado.
+  const faixa = parseTitleSeasonEpisode('Game of Thrones 1a ate 8a Temporada (2011) [opcao 8]');
+  assert.deepEqual(faixa.seasons, [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal(matchesEpisode('Game of Thrones 1a ate 8a Temporada (2011)', { season: 1, episode: 1 }), true);
+
+  // "Todas as Temporadas" não declara número nenhum: sem este sinal ele só
+  // sobrevivia pela brecha de "título sem pista passa".
+  const todas = parseTitleSeasonEpisode('Game of Thrones Todas as Temporadas WEB-DL 720p DUBLADO');
+  assert.equal(todas.complete, true);
+  assert.equal(matchesEpisode('Game of Thrones Todas as Temporadas WEB-DL', { season: 3, episode: 7 }), true);
+
+  // Faixa absurda é erro de leitura: não expande. O padrão de temporada única
+  // ainda lê o último número, e tudo bem — uma busca por S01 não casa com 90.
+  const absurda = parseTitleSeasonEpisode('Coisa 1 a 90 temporada').seasons;
+  assert.equal(absurda.includes(1), false, 'não pode inventar cobertura de 90 temporadas');
+  assert.equal(matchesEpisode('Coisa 1 a 90 temporada', { season: 1, episode: 1 }), false);
+});
+
+test('matchesBrTitle corta obra derivada que só começa com o nome', () => {
+  // Especial animado e documentário: cobrem 2/2 do nome da série e entravam na
+  // lista do S01E01. Só a precisão — quanto do título sobra fora da busca —
+  // separa isso de um pack legítimo.
+  const nomes = ['Game of Thrones'];
+  const opts = { isSeries: true, allNames: nomes };
+  assert.equal(
+    matchesBrTitle('Game of Thrones: A Conquista e a Rebeliao Uma Historia Animada (2017)', 'Game of Thrones', '2011', opts),
+    false,
+  );
+  assert.equal(
+    matchesBrTitle('Game of Thrones A Ultima Vigilia Torrent (2019) Legendado WEB DL', 'Game of Thrones', '2011', opts),
+    false,
+  );
+  assert.equal(
+    matchesBrTitle('Game of Thrones 1a Temporada Dublado Torrent (2011) HDTV', 'Game of Thrones', '2011', opts),
+    true,
+  );
+
+  // A release legítima carrega os DOIS nomes; medir contra um só condenaria o
+  // outro como conteúdo estranho. Por isso a precisão exige a lista completa.
+  const starWars = ['Star Wars', 'Guerra nas Estrelas'];
+  assert.equal(
+    matchesBrTitle('Colecao Guerra nas Estrelas [Star wars] BluRay 1080p Dublado', 'Guerra nas Estrelas', '1977', {
+      allNames: starWars,
+    }),
+    true,
+  );
+  // Sem `allNames` a checagem não roda — quem chama não tem a informação.
+  assert.equal(
+    matchesBrTitle('Fallout 4 (PC) [2015] Download Torrent', 'Fallout', null),
+    true,
+  );
 });
 
 test('matchesEpisode barra outro episódio mas aceita pack da temporada', () => {
@@ -663,16 +769,16 @@ test('zerar a cota de SD não esconde mais as fontes BR', () => {
   const sd = toStremioStream({ title: 'Devoradores de Estrelas 2026 DVDRip', infoHash: OTHER, seeders: 9 });
   const out = sortAndLimit([br, sd], { qualityLimits: { SD: 0 }, maxResults: 10 });
   assert.equal(out.length, 1, 'só o DVDRip cai na cota zerada de SD');
-  assert.match(out[0].name, /opção 3/);
+  assert.match(out[0].title, /opção 3/);
   // E a cota nova corta o balde certo quando o usuário quiser.
   assert.equal(sortAndLimit([br, sd], { qualityLimits: { [UNKNOWN_QUALITY]: 0 }, maxResults: 10 }).length, 1);
 });
 
 test('resolução desconhecida não vira rótulo nem grupo de binge do SD', () => {
   const s = toStremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3] DUBLADO', infoHash: HASH, seeders: 1 });
-  const linha2 = s.name.split('\n')[1];
-  assert.ok(!/sem resolução|SD/.test(linha2), `2ª linha não anuncia resolução: ${linha2}`);
-  assert.ok(linha2.startsWith('Dublado'), linha2);
+  const details = s.name.split('\n')[1];
+  assert.ok(!/sem resolução|SD/.test(details), `linha não anuncia resolução: ${details}`);
+  assert.ok(details.startsWith('DUB'), details);
   assert.ok(!s.behaviorHints.bingeGroup.includes('SD'));
 });
 
