@@ -116,9 +116,32 @@ function sourceFromTitle(title = '') {
  */
 function audioFromTitle(title = '') {
   const t = title.toUpperCase();
-  if (/\b(DUAL|DOUBLE)\b/.test(t)) return 'Dual';
-  if (/DUBLAD/.test(t)) return 'Dublado';
-  if (/LEGENDAD/.test(t)) return 'Legendado';
+
+  // Dual / Multi áudio
+  if (/\b(DUAL|DOUBLE|DUAL[- ]?AUDIO|AUDIO[- ]?DUPLO|DUPLO[- ]?AUDIO|MULTI[- ]?AUDIO|MULTIAUDIO)\b/.test(t)) {
+    return 'Dual';
+  }
+
+  // Produções nacionais brasileiras (áudio original em PT-BR)
+  if (/\b(NACIONAL|NAC)\b/.test(t) && !/\b(LEG|LEGENDAD[OA]|SUB|SUBBED)\b/.test(t)) {
+    return 'Nacional';
+  }
+
+  // Legendado explícito
+  const isExplicitSub =
+    /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
+    /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
+
+  // Dublado explícito ou áudio em português
+  const isExplicitDub =
+    /\b(DUBLAD[OA]|DUBLAGEM|DUBBED|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR|DUBLADO[- ]?PT[-.]?BR)\b/.test(t) ||
+    /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t) ||
+    (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub);
+
+  if (isExplicitDub && isExplicitSub) return 'Dual';
+  if (isExplicitDub) return 'Dublado';
+  if (isExplicitSub) return 'Legendado';
+
   return '';
 }
 
@@ -126,6 +149,7 @@ function compactAudio(audio = '') {
   if (audio === 'Dublado') return 'DUB';
   if (audio === 'Legendado') return 'LEG';
   if (audio === 'Dual') return 'DUAL';
+  if (audio === 'Nacional') return 'NAC';
   return '';
 }
 
@@ -233,7 +257,7 @@ function toStremioStream(item) {
     _quality: quality,
     // 0 = desconhecido, e o filtro de tamanho máximo já trata 0 como "passa".
     _size: knownSize,
-    _dubbed: audio === 'Dublado' || audio === 'Dual',
+    _dubbed: audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional',
     // Origem BR vem marcada pelo provider, não deduzida do título: releases de
     // comandotorrents/nerdfilmes/torrentdosfilmes não citam "BLUDV" nem
     // "DUBLADO" e ficavam de fora das vagas reservadas.
@@ -661,12 +685,38 @@ function limitByQuality(streams, qualityLimits = {}) {
  *   mas um "LEGENDADO" explícito nunca é tratado como dublado.
  */
 function brDubbedPool(streams = []) {
-  const br = streams.filter((s) => s && s._br && s.infoHash);
+  const br = streams.filter(
+    (s) => s && s.infoHash && s._br && sourceFromTitle(s.title || s.name || '') !== 'CAM',
+  );
   if (br.length === 0) return [];
   const tagged = br.filter((s) => s._dubbed);
-  return tagged.length
+  const candidates = tagged.length
     ? tagged
-    : br.filter((s) => audioFromTitle(s.title || '') !== 'Legendado');
+    : br.filter((s) => audioFromTitle(s.title || s.name || '') !== 'Legendado');
+
+  const qWeight = {
+    '1080p': 6,
+    '720p': 5,
+    '2160p': 4,
+    [UNKNOWN_QUALITY]: 3,
+    '480p': 2,
+    SD: 1,
+  };
+
+  return [...candidates].sort((a, b) => {
+    // 1. Quem tem marcação explícita de dublado/dual/nacional
+    const dubDiff = (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0);
+    if (dubDiff !== 0) return dubDiff;
+
+    // 2. Resolução ideal para download e playback rápido
+    const qA = streamQuality(a);
+    const qB = streamQuality(b);
+    const qDiff = (qWeight[qB] || 0) - (qWeight[qA] || 0);
+    if (qDiff !== 0) return qDiff;
+
+    // 3. Mais seeders para o debrid baixar o torrent rapidamente
+    return (b._seeders || 0) - (a._seeders || 0);
+  });
 }
 
 /** Melhor candidato BR dublado, sem olhar cache. `streams` já vem ordenado. */
@@ -741,7 +791,10 @@ function limitReservingBr(
   // agir. `selectQualityCandidates` já faz essa passada BR no pool pré-debrid;
   // sem o mesmo cuidado no corte final, a reserva não valia nada.
   const reserved = brFirst ? Infinity : Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
-  const priority = pool.filter((stream) => stream._br).slice(0, reserved);
+  const priority = pool
+    .filter((stream) => stream._br)
+    .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0))
+    .slice(0, reserved);
   const prioritized = new Set(priority);
   // A isenção da cota por indexador é o TAMANHO DA RESERVA, não todo o pool BR:
   // com brFirst (default) `priority` é o BR inteiro, e isentá-lo por completo
@@ -750,7 +803,12 @@ function limitReservingBr(
   // pool dublado exige infoHash, que um stream já resolvido no debrid não tem —
   // usá-lo aqui esvaziaria a isenção justamente na lista com play instantâneo.
   const brSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
-  const exemptFromIndexerQuota = new Set(pool.filter((stream) => stream._br).slice(0, brSlots));
+  const exemptFromIndexerQuota = new Set(
+    pool
+      .filter((stream) => stream._br)
+      .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0))
+      .slice(0, brSlots),
+  );
   const kept = new Set(
     limitByIndexer(
       limitByQuality([...priority, ...pool.filter((stream) => !prioritized.has(stream))], qualityLimits),
@@ -760,7 +818,9 @@ function limitReservingBr(
   );
   // Volta à ordem original: sem `brFirst` o corte final depende dela.
   const eligible = pool.filter((stream) => kept.has(stream));
-  const brStreams = eligible.filter((stream) => stream._br);
+  const brStreams = eligible
+    .filter((stream) => stream._br)
+    .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0));
   let selected;
 
   if (brFirst) {

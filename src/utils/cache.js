@@ -18,6 +18,8 @@ function openDatabase() {
     const { DatabaseSync } = require('node:sqlite');
     const database = new DatabaseSync(DB_PATH);
     database.exec(`
+      PRAGMA journal_mode = WAL;
+      PRAGMA busy_timeout = 5000;
       CREATE TABLE IF NOT EXISTS cache (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,

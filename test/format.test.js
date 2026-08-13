@@ -115,12 +115,23 @@ test('toStremioStream normaliza e guarda campos internos', () => {
 
 test('audioFromTitle detecta dublado/dual/legendado e entra na linha', () => {
   assert.equal(audioFromTitle('Coringa Dublado 1080p'), 'Dublado');
+  assert.equal(audioFromTitle('Coringa DUB PT-BR 1080p'), 'Dublado');
+  assert.equal(audioFromTitle('Filme (2024) [DUB] 1080p'), 'Dublado');
+  assert.equal(audioFromTitle('Filme.2024.1080p.WEB-DL.DUBBED.mkv'), 'Dublado');
   assert.equal(audioFromTitle('Filme Dual Audio 720p'), 'Dual');
+  assert.equal(audioFromTitle('Filme 1080p Audio Duplo'), 'Dual');
+  assert.equal(audioFromTitle('Filme 1080p Multiaudio'), 'Dual');
+  assert.equal(audioFromTitle('Auto da Compadecida 1080p Nacional'), 'Nacional');
   assert.equal(audioFromTitle('Serie Legendada 1080p'), 'Legendado');
+  assert.equal(audioFromTitle('Filme 1080p LEG PT-BR'), 'Legendado');
+  assert.equal(audioFromTitle('Filme 1080p [LEG]'), 'Legendado');
   assert.equal(audioFromTitle('Movie 1080p'), '');
   const s = toStremioStream({ title: 'Coringa Dublado 1080p', infoHash: HASH, seeders: 1 });
   assert.ok(s.name.includes('1080p DUB'));
   assert.ok(s.title.includes('Dublado'));
+  const sNac = toStremioStream({ title: 'Filme Nacional 1080p', infoHash: HASH, isBr: true, seeders: 5 });
+  assert.equal(sNac._dubbed, true);
+  assert.ok(sNac.name.includes('1080p NAC BR'));
 });
 
 test('toStremioStream preserva a marca de origem BR do provider', () => {

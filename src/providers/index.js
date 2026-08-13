@@ -100,6 +100,8 @@ function autoFetchBrDubbed(streams, selected, { cached, known, season, episode, 
   }
 
   const label = String(candidate.title || candidate.name || '').split('\n')[0].slice(0, 70);
+  const qStr = candidate._quality || 'N/A';
+  const seedsStr = candidate._seeders != null ? ` · 👤 ${candidate._seeders}` : '';
   debrid
     .enqueue(candidate.infoHash, { season, episode })
     .then((ok) => {
@@ -108,7 +110,7 @@ function autoFetchBrDubbed(streams, selected, { cached, known, season, episode, 
         // Só o aceite confirmado vira dedupe persistente. O prefixo v2 ignora
         // marcadores antigos que podiam ter sido gravados antes da chamada.
         cache.set(key, 1, config.debrid.autoFetchTtl);
-        console.log(`[autofetch] ${adapter.label} baixando fonte BR dublada: ${label}`);
+        console.log(`[autofetch] ${adapter.label} baixando fonte BR dublada: ${label} (${qStr}${seedsStr})`);
       } else {
         autofetch.releaseSearch(searchKey);
         held.release(candidate.infoHash, account);

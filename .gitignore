@@ -12,3 +12,4 @@ jackett-config/
 prowlarr-config/
 .idea/
 .vscode/
+.kilo/

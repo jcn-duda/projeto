@@ -196,3 +196,31 @@ test('protected isola o mesmo hash entre contas', () => {
   assert.equal(held.isHeld(C, 'conta-b'), false);
   held.release(C, 'conta-a');
 });
+
+test('pickBrDubbedCandidate descarta releases CAM e prioriza 1080p e seeders', () => {
+  const cam = stream(A, { title: 'Coringa 1080p CAM Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 10 });
+  const web720 = stream(B, { title: 'Coringa 720p WEB-DL Dublado', _br: true, _dubbed: true, _quality: '720p', _seeders: 2 });
+  const web1080 = stream(C, { title: 'Coringa 1080p WEB-DL Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 8 });
+
+  // CAM é descartado, mesmo com 1080p e 10 seeds
+  assert.equal(pickBrDubbedCandidate([cam, web720]).infoHash, B);
+
+  // 1080p tem preferência sobre 720p
+  assert.equal(pickBrDubbedCandidate([web720, web1080]).infoHash, C);
+});
+
+test('limitReservingBr prioriza dublados sobre legendados nas vagas BR', () => {
+  const brLeg = { id: 'br-leg', _br: true, _dubbed: false, _quality: '1080p' };
+  const brDub = { id: 'br-dub', _br: true, _dubbed: true, _quality: '1080p' };
+  const global1 = { id: 'global-1', _br: false, _dubbed: false, _quality: '1080p' };
+  const global2 = { id: 'global-2', _br: false, _dubbed: false, _quality: '1080p' };
+
+  // Com brFirst, o dublado vem antes do legendado
+  const outFirst = limitReservingBr([brLeg, brDub, global1], { brFirst: true, maxResults: 3 });
+  assert.deepEqual(outFirst.map((s) => s.id), ['br-dub', 'br-leg', 'global-1']);
+
+  // Com 1 vaga reservada sem brFirst, a vaga reservada de BR é preenchida pelo dublado (substituindo o último global)
+  const outReserved = limitReservingBr([global1, global2, brLeg, brDub], { brFirst: false, brReservedSlots: 1, maxResults: 2 });
+  assert.deepEqual(outReserved.map((s) => s.id), ['global-1', 'br-dub']);
+});
+
