@@ -29,15 +29,38 @@ function bytesToSize(bytes) {
   return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
 }
 
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+/**
+ * btih em base32 (32 chars) para os 40 hex que o Stremio exige.
+ * Magnet de indexer BR às vezes vem nesse formato; repassado cru, o item
+ * aparece na lista mas o cliente não monta o magnet e o play morre.
+ */
+function base32ToHex(input) {
+  const s = String(input).toUpperCase();
+  let bits = '';
+  for (const ch of s) {
+    const idx = BASE32_ALPHABET.indexOf(ch);
+    if (idx < 0) return null;
+    bits += idx.toString(2).padStart(5, '0');
+  }
+  let hex = '';
+  for (let i = 0; i + 4 <= 160; i += 4) hex += parseInt(bits.slice(i, i + 4), 2).toString(16);
+  return hex;
+}
+
 function extractInfoHash(magnetOrHash) {
   if (!magnetOrHash) return null;
   const raw = String(magnetOrHash).trim();
 
   if (/^[a-fA-F0-9]{40}$/.test(raw)) return raw.toLowerCase();
-  if (/^[A-Z2-7]{32}$/.test(raw)) return raw; // base32 — Stremio aceita em alguns casos
+  if (/^[a-zA-Z2-7]{32}$/.test(raw)) return base32ToHex(raw);
 
   const m = raw.match(/btih:([a-zA-Z0-9]{32,40})/i);
-  if (m) return m[1].toLowerCase();
+  if (!m) return null;
+  const hash = m[1];
+  if (/^[a-fA-F0-9]{40}$/.test(hash)) return hash.toLowerCase();
+  if (hash.length === 32) return base32ToHex(hash);
   return null;
 }
 

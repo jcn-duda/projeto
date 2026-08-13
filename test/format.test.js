@@ -35,10 +35,21 @@ test('extractInfoHash aceita hash puro, magnet e base32', () => {
   assert.equal(extractInfoHash(HASH), HASH);
   assert.equal(extractInfoHash(HASH.toUpperCase()), HASH);
   assert.equal(extractInfoHash(`magnet:?xt=urn:btih:${HASH}&dn=x`), HASH);
-  assert.equal(extractInfoHash('MFZWIZLTOQ3TMNSHAU3TONRWGU3TANRX'), 'MFZWIZLTOQ3TMNSHAU3TONRWGU3TANRX');
   assert.equal(extractInfoHash(''), null);
   assert.equal(extractInfoHash(null), null);
   assert.equal(extractInfoHash('nao-eh-hash'), null);
+});
+
+// O cliente Stremio só monta magnet com btih de 40 hex: base32 repassado cru
+// aparece na lista e não dá play. Caso real visto em release do TorrentDosFilmes.
+test('extractInfoHash converte btih base32 para 40 hex', () => {
+  const b32 = 'DKYNMQG3OTSHF7TUIUUGDNAKDNPQYFCQ';
+  const hex = '1ab0d640db74e472fe74452861b40a1b5f0c1450';
+  assert.equal(extractInfoHash(b32), hex);
+  assert.equal(extractInfoHash(b32.toLowerCase()), hex);
+  assert.equal(extractInfoHash(`magnet:?xt=urn:btih:${b32.toLowerCase()}&dn=x`), hex);
+  // 0/1/8/9 não existem no alfabeto base32: não é hash, não vira stream.
+  assert.equal(extractInfoHash('DKYNMQG3OTSHF7TUIUUGDNAKDNPQYF01'), null);
 });
 
 test('bytesToSize formata unidades e rejeita inválidos', () => {
