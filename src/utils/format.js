@@ -193,14 +193,27 @@ function normalizeTitle(s = '') {
 /**
  * Descarta resultados que claramente não são o título procurado — indexers
  * costumam devolver "parecidos" para queries curtas.
+ *
+ * Duas armadilhas, ambas medidas em título pt-BR curto (que é justamente o que
+ * vai pros sites BR):
+ *
+ * - comparar por SUBSTRING da string inteira fazia "dia" casar dentro de
+ *   "diabo": "Dia D" (Disclosure Day) aceitava "O Diabo Veste Prada 2";
+ * - descartar palavra de até 2 letras esvazia o título quando ele é curto —
+ *   "Dia D" virava o token único `dia` e aceitava "Um Dia de Sorte em Nova
+ *   York" e "Homem-Aranha: Um Novo Dia". As seis vagas reservadas iam para o
+ *   lixo e empurravam pra fora a fonte dublada correta.
  */
 function matchesName(title, name) {
-  const wanted = normalizeTitle(name)
-    .split(' ')
-    .filter((w) => w.length > 2);
+  const all = normalizeTitle(name).split(' ').filter(Boolean);
+  // Palavra de 1-2 letras costuma ser ruído ("o", "de", "a"). Mas quando sobra
+  // menos de dois tokens, ela É o título: aí vale mais que o ruído que evita.
+  const long = all.filter((w) => w.length > 2);
+  const wanted = long.length >= 2 ? long : all;
   if (wanted.length === 0) return true;
-  const got = normalizeTitle(title);
-  const hits = wanted.filter((w) => got.includes(w)).length;
+  // Token inteiro, não pedaço de palavra.
+  const got = new Set(normalizeTitle(title).split(' ').filter(Boolean));
+  const hits = wanted.filter((w) => got.has(w)).length;
   return hits / wanted.length >= 0.6;
 }
 

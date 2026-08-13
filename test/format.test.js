@@ -386,6 +386,33 @@ test('limitReservingBr mantém ordem natural sem prioridade e ainda garante BR',
   assert.deepEqual(out.map((s) => s.id), ['global-4k', 'global-1080-a', 'br-720']);
 });
 
+test('matchesName não aceita pedaço de palavra nem título curto esvaziado', () => {
+  // "Disclosure Day" tem título pt-BR "Dia D". Cortando palavra de até 2 letras
+  // ele virava o token único `dia`, comparado por substring: aceitava "O DIABO
+  // Veste Prada" e "Um DIA de Sorte". O lixo tomava as vagas BR reservadas e
+  // empurrava pra fora o "Dia D (2026) WEB-DL [1080p DUBLADO]" de verdade.
+  assert.equal(matchesName('O Diabo Veste Prada 2 (2026) WEB-DL [1080p DUBLADO]', 'Dia D'), false);
+  assert.equal(matchesName('Um Dia de Sorte em Nova York Torrent (2026)', 'Dia D'), false);
+  assert.equal(matchesName('Homem-Aranha: Um Novo Dia (2026) [opção 3]', 'Dia D'), false);
+  assert.equal(matchesName('Dia D (2026) WEB-DL [1080p DUBLADO]', 'Dia D'), true);
+
+  // Mesma raiz, com "A Origem" (Inception) puxando uma série inteira.
+  assert.equal(matchesName('Origem 4ª Temporada (2026) WEB-DL [DUBLADO]', 'A Origem'), false);
+  assert.equal(matchesName('Pearl: Uma História de Origem "X" Torrent (2022)', 'A Origem'), false);
+  assert.equal(matchesName('A Origem (2010) BluRay 1080p Dublado', 'A Origem'), true);
+
+  // O aperto não pode custar recall: pack de coleção e variação de numeral
+  // continuam passando, e é deles que vêm boa parte das fontes dubladas.
+  assert.equal(
+    matchesName('Trilogia: O Senhor dos Anéis Versão Estendida', 'O Senhor dos Anéis: A Sociedade do Anel'),
+    true,
+  );
+  assert.equal(matchesName('Coleção Guerra nas Estrelas [Star wars] BluRay 1080p', 'Guerra nas Estrelas'), true);
+  assert.equal(matchesName('Duna: Parte 2 (2024) Dual Áudio', 'Duna: Parte Dois'), true);
+  // Pontuação exótica no título não pode virar token perdido.
+  assert.equal(matchesName('WALL-E (2008) BluRay Dublado', 'WALL·E'), true);
+});
+
 test('cota de qualidade não come a fonte BR antes da reserva agir', () => {
   // Config real de usuário: max1080p=3. As fontes BR publicam seeders=1, então
   // chegam no fim do balde de 1080p — a cota levava as três globais mais
