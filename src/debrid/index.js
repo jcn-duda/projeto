@@ -45,6 +45,12 @@ function current() {
  * Hashes que tocam na hora. O segundo retorno diz se a resposta é confiável:
  * `known: false` significa que o serviço não sabe informar, não que nada está
  * em cache — quem chama precisa distinguir os dois casos.
+ *
+ * Resposta INCOMPLETA (um lote estourou o timeout) também vira `known: false`.
+ * Antes ela passava como completa e o filtro `cachedOnly` apagava tudo que
+ * estava no lote perdido — inclusive fontes BR que estavam em cache. O Set
+ * parcial ainda volta: dá pra marcar o ⚡ de quem foi confirmado sem esconder
+ * quem não chegou a ser perguntado.
  */
 async function checkCached(infoHashes) {
   const adapter = current();
@@ -52,8 +58,16 @@ async function checkCached(infoHashes) {
   if (!adapter.cacheCheck) return { cached: new Set(), known: false };
 
   try {
-    const cached = await adapter.checkCached(opts().debridApiKey, infoHashes);
-    return { cached, known: true };
+    const result = await adapter.checkCached(opts().debridApiKey, infoHashes);
+    // Adaptador pode devolver só o Set (sem lotes) ou { cached, complete }.
+    const cached = result instanceof Set ? result : result?.cached || new Set();
+    const complete = result instanceof Set ? true : result?.complete !== false;
+    if (!complete) {
+      console.warn(
+        `[${adapter.id}] checagem de cache incompleta; tratando como "não sei" em vez de "não tem"`,
+      );
+    }
+    return { cached, known: complete };
   } catch (err) {
     console.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
     return { cached: new Set(), known: false };

@@ -3,7 +3,7 @@ const { magnetFor, json, pickFile, batched } = require('./common');
 
 const API = 'https://www.premiumize.me/api';
 
-async function call(apiKey, path, { method = 'GET', params = {}, body } = {}) {
+async function call(apiKey, path, { method = 'GET', params = {}, body, timeout } = {}) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('apikey', apiKey);
   for (const [k, v] of Object.entries(params)) {
@@ -11,7 +11,7 @@ async function call(apiKey, path, { method = 'GET', params = {}, body } = {}) {
     else url.searchParams.set(k, v);
   }
 
-  const data = await json(url, { method, body });
+  const data = await json(url, { method, body, timeout });
   if (data.status && data.status !== 'success') {
     throw new Error(data.message || 'premiumize retornou erro');
   }
@@ -25,7 +25,10 @@ async function call(apiKey, path, { method = 'GET', params = {}, body } = {}) {
 async function checkCached(apiKey, infoHashes) {
   // A API aceita lote; mantemos blocos pra não montar URLs gigantes.
   return batched(infoHashes, config.debrid.batchSize, async (batch) => {
-    const data = await call(apiKey, '/cache/check', { params: { 'items[]': batch } });
+    const data = await call(apiKey, '/cache/check', {
+      params: { 'items[]': batch },
+      timeout: config.debrid.cacheCheckTimeout,
+    });
     const flags = data.response || [];
     return batch.filter((_, idx) => flags[idx]);
   });

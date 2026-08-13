@@ -1,6 +1,6 @@
 const config = require('../config');
 const { accountScope } = require('../utils/request-key');
-const { json, pickFile, wait } = require('./common');
+const { json, pickFile, wait, batched } = require('./common');
 const held = require('./protected');
 
 // v4.1: a AllDebrid descontinuou /v4/magnet/status ("DISCONTINUED"), o que
@@ -8,7 +8,7 @@ const held = require('./protected');
 const API = 'https://api.alldebrid.com/v4.1';
 const AGENT = 'stremio-adom';
 
-async function call(apiKey, path, params = {}, { method = 'GET', body } = {}) {
+async function call(apiKey, path, params = {}, { method = 'GET', body, timeout } = {}) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('agent', AGENT);
   for (const [k, v] of Object.entries(params)) {
@@ -16,7 +16,12 @@ async function call(apiKey, path, params = {}, { method = 'GET', body } = {}) {
     else url.searchParams.set(k, v);
   }
 
-  const data = await json(url, { method, headers: { Authorization: `Bearer ${apiKey}` }, body });
+  const data = await json(url, {
+    method,
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body,
+    timeout,
+  });
   // A AllDebrid responde 200 com { status: "error" }; o HTTP sozinho não basta.
   if (data.status === 'error') {
     throw new Error(data.error?.message || data.error?.code || 'alldebrid retornou erro');
@@ -32,20 +37,25 @@ async function call(apiKey, path, params = {}, { method = 'GET', body } = {}) {
  * um download rodando na conta (chegaram a 226 fantasmas antes disso existir).
  */
 async function checkCached(apiKey, infoHashes) {
-  const ready = new Set();
   const drop = [];
   const account = accountScope(apiKey);
 
-  for (let i = 0; i < infoHashes.length; i += config.debrid.batchSize) {
-    const batch = infoHashes.slice(i, i + config.debrid.batchSize);
-    const data = await call(apiKey, '/magnet/upload', { 'magnets[]': batch });
+  const result = await batched(infoHashes, config.debrid.batchSize, async (batch) => {
+    const data = await call(
+      apiKey,
+      '/magnet/upload',
+      { 'magnets[]': batch },
+      { timeout: config.debrid.cacheCheckTimeout },
+    );
+    const ready = [];
     for (const magnet of data?.magnets || []) {
-      if (magnet.ready) ready.add(String(magnet.hash).toLowerCase());
+      if (magnet.ready) ready.push(String(magnet.hash).toLowerCase());
       // Hash em download automático não entra na limpeza: ele está "não pronto"
       // justamente porque pedimos que baixasse.
       else if (magnet.id && !held.isHeld(magnet.hash, account)) drop.push(magnet.id);
     }
-  }
+    return ready;
+  });
 
   if (drop.length && config.debrid.dropUncached) {
     // Em paralelo e sem travar a busca: limpeza é efeito colateral, não resposta.
@@ -53,7 +63,7 @@ async function checkCached(apiKey, infoHashes) {
       console.log(`[alldebrid] ${drop.length} magnet(s) não cacheado(s) removido(s) da conta`),
     );
   }
-  return ready;
+  return result;
 }
 
 /**

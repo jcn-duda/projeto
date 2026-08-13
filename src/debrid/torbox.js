@@ -17,7 +17,10 @@ async function checkCached(apiKey, infoHashes) {
     url.searchParams.set('format', 'list');
     url.searchParams.set('list_files', 'false');
 
-    const res = await json(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+    const res = await json(url, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      timeout: config.debrid.cacheCheckTimeout,
+    });
     // `data` vem como lista de objetos com hash, ou como mapa hash → info.
     const data = res?.data;
     const hashes = Array.isArray(data)

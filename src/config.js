@@ -103,6 +103,20 @@ const config = {
     // algumas TVs não tocam infoHash, e URL sem `bu` herdaria o furo.
     showUncachedBr: String(process.env.DEBRID_SHOW_UNCACHED_BR || 'false') === 'true',
     batchSize: num(process.env.DEBRID_BATCH_SIZE, 100),
+    // Teto SÓ da checagem de cache. Com os lotes em paralelo é UMA janela, não
+    // uma por lote — era a soma em série que estourava o REPLY_DEADLINE.
+    //
+    // Deliberadamente MAIOR que DEBRID_RESERVE_MS e que o REPLY_DEADLINE. Os
+    // resolvedores BR rodam NESTE processo (ver src/br-resolvers.js) e raspam
+    // WordPress com regex síncrona; enquanto eles trabalham o event loop fica
+    // travado e a mesma chamada que leva 2,6s de fora do processo leva 7-9s
+    // aqui dentro (medido com 75 hashes no Premiumize).
+    //
+    // Com teto de 6s ela abortava SEMPRE e a lista saía inteira sem ⚡. Deixar
+    // passar do deadline é melhor: a resposta sai parcial com cacheMaxAge 0, o
+    // fundo termina a checagem e grava a lista completa e marcada, e o cliente
+    // — que foi instruído a não cachear — repergunta e recebe ela pronta.
+    cacheCheckTimeout: num(process.env.DEBRID_CACHE_CHECK_TIMEOUT_MS, 10000),
     // Remove da conta do debrid o que não está em cache. Sem isso cada consulta
     // deixa um download rodando lá (AllDebrid só informa cache ao dar upload).
     dropUncached: String(process.env.DEBRID_DROP_UNCACHED || 'true') === 'true',
@@ -121,8 +135,12 @@ const config = {
   // Menor que o limite de 10s do cliente Stremio.
   searchTimeout: num(process.env.SEARCH_TIMEOUT_MS, 8000),
   replyDeadline: num(process.env.REPLY_DEADLINE_MS, 8500),
-  // Fatia do deadline reservada pra checagem no debrid depois da coleta.
-  debridReserve: num(process.env.DEBRID_RESERVE_MS, 2000),
+  // Fatia do deadline reservada pra checagem no debrid depois da coleta. Com
+  // 2000 ela não cobria nem o caso rápido (~2,6s) e a coleta comia o prazo
+  // inteiro; 3500 ainda deixa 5s de coleta, folgado pros indexers globais, cujo
+  // teto é JACKETT_INDEXER_TIMEOUT_MS=4000. Os BR nunca couberam aqui — quem
+  // cuida deles é o passe tardio.
+  debridReserve: num(process.env.DEBRID_RESERVE_MS, 3500),
 };
 
 module.exports = config;

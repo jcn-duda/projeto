@@ -42,10 +42,16 @@ const builder = new addonBuilder(manifest);
 
 builder.defineStreamHandler(async (args) => {
   try {
-    const streams = await findStreams({ type: args.type, id: args.id });
-    if (!streams.length) {
+    const { streams, partial } = await findStreams({ type: args.type, id: args.id });
+    if (!streams.length || partial) {
       // Resposta vazia (busca ainda em background) não pode ficar cacheada:
       // o Stremio precisa perguntar de novo pra pegar o resultado real.
+      //
+      // Lista PARCIAL também não: os indexadores BR levam 6-8s e não cabem no
+      // orçamento de coleta, então a primeira resposta sai só com as fontes
+      // globais. Com cacheMaxAge normal o cliente ficava 15 minutos preso nela
+      // enquanto o passe tardio já tinha recacheado a lista completa no servidor
+      // — era isso que fazia "o BR não aparecer" mesmo estando lá.
       return { streams, cacheMaxAge: 0 };
     }
     return {

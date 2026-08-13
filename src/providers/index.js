@@ -120,7 +120,9 @@ async function applyDebrid(streams, { season, episode }) {
   // A escolha do candidato vem antes da checagem (ela é que protege o hash da
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
   const candidate = autoFetchCandidate(streams);
+  const checkStarted = Date.now();
   const { cached, known } = await debrid.checkCached(hashes);
+  const checkMs = Date.now() - checkStarted;
   autoFetchBrDubbed(streams, candidate, { cached, known, season, episode });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
   const viaDebrid = (s, instant) => {
@@ -136,15 +138,23 @@ async function applyDebrid(streams, { season, episode }) {
     };
   };
 
-  // Serviço que não sabe informar cache (Real-Debrid, AllDebrid, Debrid-Link):
-  // filtrar por "somente em cache" esconderia a lista inteira. Mandamos tudo
-  // pelo debrid, sem o ⚡ — a resolução no play dirá se toca ou não.
+  // Serviço que não sabe informar cache (Real-Debrid, Debrid-Link) ou resposta
+  // incompleta (lote perdido no timeout): filtrar por "somente em cache"
+  // esconderia a lista inteira. Mandamos tudo pelo debrid — a resolução no play
+  // dirá se toca ou não. O ⚡ vai só em quem foi confirmado: numa resposta
+  // parcial os demais são "não perguntei", não "não tem".
   if (!known) {
-    console.log(`[debrid] ${adapter.label} não informa cache; ${streams.length} stream(s) via debrid`);
-    return streams.map((s) => viaDebrid(s, false));
+    console.log(
+      `[debrid] ${adapter.label} sem resposta completa de cache em ${checkMs}ms; ${streams.length} stream(s) via debrid` +
+        (cached.size ? ` (${cached.size} confirmado(s) em cache)` : ''),
+    );
+    return streams.map((s) => viaDebrid(s, cached.has(s.infoHash)));
   }
 
-  console.log(`[debrid] ${cached.size}/${streams.length} em cache no ${adapter.label}`);
+  // O tempo entra no log porque ele é o que decide o teto: a checagem divide o
+  // REPLY_DEADLINE com a coleta e disputa o event loop com os resolvedores BR,
+  // que rodam neste mesmo processo.
+  console.log(`[debrid] ${cached.size}/${streams.length} em cache no ${adapter.label} (${checkMs}ms)`);
   const filtered = filterKnownCache(streams, cached, {
     cachedOnly,
     showUncachedBr,
@@ -174,7 +184,7 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
   const tasks = [];
 
   if (mode === 'demo') {
-    return demo.search({ type, imdbId });
+    return { items: await demo.search({ type, imdbId }), partial: false };
   }
 
   const wants = (name) => mode === 'both' || providers.includes(name);
@@ -242,23 +252,25 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
     // protetor de link): descartar o que elas trouxeram atrasadas obrigava o
     // usuário a fechar e reabrir a lista pra vê-las. Aqui o resultado completo
     // reescreve o cache, então a próxima chamada do Stremio já vem cheia.
-    const partial = bucket.length;
+    const soFar = bucket.length;
     if (onLate) {
       Promise.all(collecting)
         .then(() => {
-          if (bucket.length <= partial) return;
-          console.log(`[search] fontes lentas chegaram: ${partial} → ${bucket.length} resultado(s); recacheando`);
+          if (bucket.length <= soFar) return;
+          console.log(`[search] fontes lentas chegaram: ${soFar} → ${bucket.length} resultado(s); recacheando`);
           return onLate(bucket);
         })
         .catch((err) => console.warn('[search] passe tardio falhou:', err?.message || err));
     }
   }
-  return bucket;
+  // `partial` acompanha o lote até a resposta HTTP: quem recebe uma lista
+  // incompleta não pode cacheá-la por 15 minutos (ver o handler em addon.js).
+  return { items: bucket, partial: !done };
 }
 
 async function findStreams({ type, id }) {
   if (!id || !String(id).startsWith('tt')) {
-    return [];
+    return { streams: [], partial: false };
   }
 
   // A config do usuário entra na chave: dois install URLs com qualidades ou
@@ -268,6 +280,10 @@ async function findStreams({ type, id }) {
   // do primeiro usuário ao segundo; o digest isola sem persistir a credencial.
   const cacheKey = streamsCacheKey(type, id, opts());
   const cached = cache.get(cacheKey);
+  // O cache em SQLite sobrevive ao deploy, e a versão anterior gravava só o
+  // array de streams. Sem esta linha, a primeira subida serviria `undefined`
+  // por até 15 minutos em cima das entradas antigas.
+  if (Array.isArray(cached)) return { streams: cached, partial: false };
   if (cached) return cached;
 
   let task = inFlight.get(cacheKey);
@@ -286,7 +302,7 @@ async function findStreams({ type, id }) {
     new Promise((resolve) =>
       setTimeout(() => {
         console.warn(`[search] deadline de ${config.replyDeadline}ms atingido para ${id}; segue em background`);
-        resolve([]);
+        resolve({ streams: [], partial: true });
       }, config.replyDeadline).unref(),
     ),
   ]);
@@ -313,19 +329,28 @@ async function doSearch({ type, id, cacheKey }) {
   // busca fria: com o que chegou dentro do prazo e, depois, com o lote completo
   // quando as fontes lentas terminam (aí só pra reescrever o cache).
   const finish = createLatestWriter(
-    (rawItems) => buildStreams(rawItems, { meta, titles, season, episode, isDemo }),
-    (streams) => {
-      // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco tempo.
-      cache.set(cacheKey, streams, streams.length ? config.cacheTtl : Math.min(config.cacheTtl, 60));
-      console.log(`[search] ${streams.length} stream(s) para ${id}`);
+    async ({ items, partial }) => ({
+      streams: await buildStreams(items, { meta, titles, season, episode, isDemo }),
+      partial,
+    }),
+    ({ streams, partial }) => {
+      // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco
+      // tempo. Lote parcial idem: o passe tardio reescreve, mas se ele falhar o
+      // TTL curto evita servir a lista sem as fontes BR por 15 minutos.
+      const complete = streams.length && !partial;
+      cache.set(cacheKey, { streams, partial }, complete ? config.cacheTtl : Math.min(config.cacheTtl, 60));
+      console.log(`[search] ${streams.length} stream(s)${partial ? ' (parcial)' : ''} para ${id}`);
     },
+    (value) => Array.isArray(value?.streams) && value.streams.length > 0,
   );
 
   const episodePhase = finish.phase();
-  let raw = await collectRaw(query, type, imdbId, ptQuery, (items) => finish(items, episodePhase));
+  let raw = await collectRaw(query, type, imdbId, ptQuery, (items) =>
+    finish({ items, partial: false }, episodePhase),
+  );
 
   // Série sem resultado por episódio: tenta o pack da temporada (ex.: "Nome S01").
-  if (raw.length === 0 && season != null && !isDemo) {
+  if (raw.items.length === 0 && season != null && !isDemo) {
     // O passe tardio da busca por episódio não pode sobrescrever o pack que
     // estamos prestes a buscar. `advance` invalida qualquer escrita antiga,
     // inclusive uma build que já começou e ainda está no debrid.
@@ -339,7 +364,9 @@ async function doSearch({ type, id, cacheKey }) {
     console.log(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
-    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, (items) => finish(items, packPhase));
+    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, (items) =>
+      finish({ items, partial: false }, packPhase),
+    );
   }
 
   return finish(raw, finish.phase());

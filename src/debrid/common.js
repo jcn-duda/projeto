@@ -61,31 +61,43 @@ function pickFile(files, { season, episode } = {}) {
 /**
  * Percorre os hashes em lotes, acumulando os que estiverem em cache.
  *
- * Um lote que falha é tolerado (resultado parcial vale mais que nada), mas se
- * TODOS falharem — token inválido, serviço fora — o erro sobe. Silenciar isso
- * devolveria "nada em cache", que somado ao filtro `cachedOnly` esconderia a
- * lista inteira como se não houvesse resultado.
+ * Devolve `{ cached, complete }`. `complete: false` significa "não perguntei por
+ * todos", NÃO "os que faltam não estão em cache" — a diferença é o que separa
+ * uma lista completa de uma lista com 100 streams a menos. Um lote que estoura o
+ * timeout deixava os hashes dele fora do Set e, com `cachedOnly`, o orquestrador
+ * os apagava como se o serviço tivesse dito "não tenho" (medido: 6 fontes BR
+ * cacheadas no Premiumize sumindo por causa de UM lote perdido). Quem chama
+ * decide o que fazer com a resposta incompleta; aqui só relatamos.
+ *
+ * Se TODOS falharem — token inválido, serviço fora — o erro sobe.
+ *
+ * Os lotes vão em paralelo: em série, dois lotes de 100 hashes somavam dois
+ * timeouts inteiros (12s) contra um REPLY_DEADLINE de 8,5s, e a busca voltava
+ * vazia mesmo com tudo coletado.
  */
 async function batched(infoHashes, size, fn) {
+  const slices = [];
+  for (let i = 0; i < infoHashes.length; i += size) {
+    slices.push(infoHashes.slice(i, i + size));
+  }
+
+  const settled = await Promise.allSettled(slices.map((slice) => fn(slice)));
   const cached = new Set();
   let failures = 0;
-  let batches = 0;
 
-  for (let i = 0; i < infoHashes.length; i += size) {
-    batches += 1;
-    try {
-      const hits = await fn(infoHashes.slice(i, i + size));
-      hits.forEach((hash) => cached.add(hash));
-    } catch (err) {
+  for (const result of settled) {
+    if (result.status === 'fulfilled') {
+      result.value.forEach((hash) => cached.add(hash));
+    } else {
       failures += 1;
-      console.warn('[debrid] lote de cache falhou:', err.message);
+      console.warn('[debrid] lote de cache falhou:', result.reason?.message || result.reason);
     }
   }
 
-  if (batches > 0 && failures === batches) {
+  if (slices.length > 0 && failures === slices.length) {
     throw new Error('nenhum lote de checagem de cache respondeu');
   }
-  return cached;
+  return { cached, complete: failures === 0 };
 }
 
 /** Espera curta entre polls — o serviço acabou de receber o magnet. */
