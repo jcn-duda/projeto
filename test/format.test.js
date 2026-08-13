@@ -106,7 +106,7 @@ test('toStremioStream normaliza e guarda campos internos', () => {
   assert.equal(s._br, false);
   assert.ok(s.title.includes('2.00 GB'));
   assert.ok(s.title.includes('1337x'));
-  assert.equal(s.name, '[PM+] Power Movie\n1080p');
+  assert.equal(s.name, '[PM+]\n1080p');
   assert.ok(!s.name.includes('Coringa'));
   assert.ok(!s.name.includes('👤'));
   assert.ok(Array.isArray(s.sources) && s.sources.length > 0);
@@ -127,7 +127,7 @@ test('audioFromTitle detecta dublado/dual/legendado e entra na linha', () => {
 test('toStremioStream preserva a marca de origem BR do provider', () => {
   const s = toStremioStream({ title: 'Coringa Dublado', infoHash: HASH, isBr: true, seeders: 1 });
   assert.equal(s._br, true);
-  assert.equal(s.name, '[PM+] Power Movie\nDUB BR');
+  assert.equal(s.name, '[PM+]\nDUB BR');
 });
 
 test('layout do Stremio mantém name compacto e detalhes na coluna larga', () => {
@@ -140,7 +140,7 @@ test('layout do Stremio mantém name compacto e detalhes na coluna larga', () =>
     tracker: 'The Pirate Bay',
   });
 
-  assert.equal(s.name, '[PM+] Power Movie\n4K');
+  assert.equal(s.name, '[PM+]\n4K');
   assert.ok(s.name.length < 30);
   assert.ok(!s.name.includes('Sinners'));
   assert.equal(s.title.split('\n')[0], release);
@@ -157,14 +157,14 @@ test('layout compacto diferencia áudio e origem sem inferir dublado', () => {
   const dual = toStremioStream({ title: 'Pecadores 1080p Dual Audio', infoHash: OTHER, isBr: true });
   const legendado = toStremioStream({ title: 'Sinners 720p Legendado', infoHash: 'c'.repeat(40) });
 
-  assert.equal(brUnknown.name, '[PM+] Power Movie\nBR');
-  assert.equal(dual.name, '[PM+] Power Movie\n1080p DUAL BR');
-  assert.equal(legendado.name, '[PM+] Power Movie\n720p LEG');
+  assert.equal(brUnknown.name, '[PM+]\nBR');
+  assert.equal(dual.name, '[PM+]\n1080p DUAL BR');
+  assert.equal(legendado.name, '[PM+]\n720p LEG');
 });
 
 test('selo de cache entra na marca curta sem deslocar a qualidade', () => {
-  const name = '[PM+] Power Movie\n1080p DUB BR';
-  assert.equal(markCachedName(name), '[PM+] ⚡ Power Movie\n1080p DUB BR');
+  const name = '[PM+]\n1080p DUB BR';
+  assert.equal(markCachedName(name), '[PM+] ⚡\n1080p DUB BR');
   assert.equal(markCachedName('Outro\n720p'), '⚡ Outro\n720p');
 });
 

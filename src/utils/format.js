@@ -139,7 +139,10 @@ function streamDisplayName({ quality, audio, isBr = false } = {}) {
     compactAudio(audio),
     isBr ? 'BR' : null,
   ].filter(Boolean).join(' ');
-  return [`[PM+] Power Movie`, details].filter(Boolean).join('\n');
+  // Só a marca curta: "[PM+] Power Movie" repetia o nome do addon em toda
+  // linha da lista, gastando a coluna estreita com o que o usuário já sabe
+  // (ele instalou este addon; o nome está no cabeçalho da seção).
+  return ['[PM+]', details].filter(Boolean).join('\n');
 }
 
 function markCachedName(name = '') {
