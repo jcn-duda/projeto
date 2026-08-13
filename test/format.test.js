@@ -23,6 +23,7 @@ const {
   sortAndLimit,
   selectQualityCandidates,
   limitByQuality,
+  limitByIndexer,
   limitReservingBr,
   parseStremioId,
   buildSearchQuery,
@@ -442,6 +443,52 @@ test('limitReservingBr combina reserva, cotas e máximo sem vazar internos', () 
   assert.deepEqual(out.map((s) => s.id), ['br-1080-a', 'global-4k']);
   assert.ok(out.every((s) => Object.keys(s).every((key) => !key.startsWith('_'))));
   assert.ok(out.every((s) => !('_indexer' in s)));
+});
+
+test('limitByIndexer aplica teto por fonte e trata 0 como sem limite', () => {
+  const streams = [
+    { id: 'yts-1', _indexer: 'yts' },
+    { id: 'yts-2', _indexer: 'yts' },
+    { id: 'yts-3', _indexer: 'yts' },
+    { id: 'rarbg-1', _indexer: 'therarbg' },
+    { id: 'sem-fonte', _indexer: '' },
+  ];
+  assert.deepEqual(
+    limitByIndexer(streams, 2).map((s) => s.id),
+    ['yts-1', 'yts-2', 'rarbg-1', 'sem-fonte'],
+  );
+  // Ao contrário das cotas por qualidade, 0 aqui é "desligado", não "nenhum".
+  assert.equal(limitByIndexer(streams, 0).length, 5);
+  // Indexador desconhecido não vira um balde comum entre streams sem metadado.
+  assert.equal(limitByIndexer([...streams, { id: 'outro', _indexer: '' }], 1).length, 4);
+  // Maiúsculas/minúsculas são a mesma fonte.
+  assert.equal(limitByIndexer([{ _indexer: 'YTS' }, { _indexer: 'yts' }], 1).length, 1);
+});
+
+test('cota por indexador não consome as vagas reservadas BR', () => {
+  const streams = [
+    { id: 'br-1', _quality: '1080p', _br: true, _dubbed: true, _indexer: 'bludv' },
+    { id: 'br-2', _quality: '1080p', _br: true, _dubbed: true, _indexer: 'bludv' },
+    { id: 'br-3', _quality: '1080p', _br: true, _dubbed: true, _indexer: 'bludv' },
+    { id: 'yts-1', _quality: '1080p', _br: false, _indexer: 'yts' },
+    { id: 'yts-2', _quality: '1080p', _br: false, _indexer: 'yts' },
+    { id: 'yts-3', _quality: '1080p', _br: false, _indexer: 'yts' },
+  ];
+  // Cota 1, mas 2 vagas reservadas: o BluDV entrega 2 dublados mesmo assim.
+  const out = limitReservingBr(streams, { brReservedSlots: 2, maxResults: 10, maxPerIndexer: 1 });
+  assert.deepEqual(out.map((s) => s.id), ['br-1', 'br-2', 'yts-1']);
+});
+
+test('cota por indexador limita o BR que passa da reserva', () => {
+  const streams = [
+    { id: 'br-1', _quality: '1080p', _br: true, _dubbed: true, _indexer: 'bludv' },
+    { id: 'br-2', _quality: '1080p', _br: true, _dubbed: true, _indexer: 'bludv' },
+    { id: 'br-3', _quality: '1080p', _br: true, _dubbed: true, _indexer: 'bludv' },
+    { id: 'yts-1', _quality: '1080p', _br: false, _indexer: 'yts' },
+  ];
+  // Sem reserva, o teto vale para todo mundo: o BluDV para no limite de 2.
+  const out = limitReservingBr(streams, { brReservedSlots: 0, maxResults: 10, maxPerIndexer: 2 });
+  assert.deepEqual(out.map((s) => s.id), ['br-1', 'br-2', 'yts-1']);
 });
 
 test('limitReservingBr coloca todas as fontes BR primeiro quando solicitado', () => {

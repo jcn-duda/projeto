@@ -492,6 +492,7 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo, s
     max480p,
     maxSd,
     maxUnknown,
+    maxPerIndexer,
     brReservedSlots,
     brOnly,
     brFirst,
@@ -532,6 +533,7 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo, s
     brOnly,
     qualityLimits,
     brFirst,
+    maxPerIndexer,
   });
 
   return streams;

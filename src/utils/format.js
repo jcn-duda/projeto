@@ -479,6 +479,42 @@ function selectQualityCandidates(
   return streams.filter((stream) => selected.has(stream));
 }
 
+/**
+ * Cota por indexador: teto de quantos streams cada fonte (YTS, BluDV, TheRARBG…)
+ * pode ocupar na lista final. Sem isso um indexador com muitos resultados leva
+ * quase todas as vagas e as outras fontes somem.
+ *
+ * `0` é SEM LIMITE, não "nenhum" — ao contrário das cotas por qualidade. Aqui o
+ * default é desligado, e um 0 herdado de config antiga zerando a lista inteira
+ * seria bem pior que um teto que não pega.
+ *
+ * `exempt` são as vagas reservadas BR, que passam sem consumir a cota: elas
+ * existem justamente para sobreviver quando a fonte dublada é minoria, e uma
+ * cota contando por cima delas desfaria a reserva.
+ */
+function limitByIndexer(streams, maxPerIndexer = 0, exempt = new Set()) {
+  const limit = Math.max(0, Math.trunc(Number(maxPerIndexer) || 0));
+  if (!limit) return streams;
+  const counts = new Map();
+  return streams.filter((stream) => {
+    // Stream sem indexador conhecido não vira um balde comum com os outros:
+    // eles se limitariam entre si por acidente de metadado ausente.
+    const source = String(stream?._indexer || '').trim().toLowerCase();
+    if (!source) return true;
+    const count = counts.get(source) || 0;
+    // A vaga reservada ESTOURA o teto, mas continua contando: se ela não
+    // contasse, uma reserva de 2 com cota 1 deixaria passar um terceiro stream
+    // da mesma fonte — a reserva ampliaria a cota em vez de só furá-la.
+    if (exempt.has(stream)) {
+      counts.set(source, count + 1);
+      return true;
+    }
+    if (count >= limit) return false;
+    counts.set(source, count + 1);
+    return true;
+  });
+}
+
 /** Aplica as cotas na lista pós-debrid, quando só os streams reais são contados. */
 function limitByQuality(streams, qualityLimits = {}) {
   const counts = new Map();
@@ -511,7 +547,7 @@ function brDubbedPool(streams = []) {
   const tagged = br.filter((s) => s._dubbed);
   return tagged.length
     ? tagged
-    : br.filter((s) => !/LEGENDAD/i.test(String(s.name || s.title || '')));
+    : br.filter((s) => audioFromTitle(s.title || '') !== 'Legendado');
 }
 
 /** Melhor candidato BR dublado, sem olhar cache. `streams` já vem ordenado. */
@@ -574,6 +610,7 @@ function limitReservingBr(
     brOnly = false,
     qualityLimits = {},
     brFirst = true,
+    maxPerIndexer = 0,
   } = {},
 ) {
   const pool = brOnly ? streams.filter((stream) => stream._br) : streams;
@@ -587,8 +624,20 @@ function limitReservingBr(
   const reserved = brFirst ? Infinity : Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
   const priority = pool.filter((stream) => stream._br).slice(0, reserved);
   const prioritized = new Set(priority);
+  // A isenção da cota por indexador é o TAMANHO DA RESERVA, não todo o pool BR:
+  // com brFirst (default) `priority` é o BR inteiro, e isentá-lo por completo
+  // deixaria o indexador BR sem teto nenhum — o oposto do que a cota faz.
+  // Mesmo critério da reserva mais abaixo (`brStreams.slice`): `_br` puro. O
+  // pool dublado exige infoHash, que um stream já resolvido no debrid não tem —
+  // usá-lo aqui esvaziaria a isenção justamente na lista com play instantâneo.
+  const brSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
+  const exemptFromIndexerQuota = new Set(pool.filter((stream) => stream._br).slice(0, brSlots));
   const kept = new Set(
-    limitByQuality([...priority, ...pool.filter((stream) => !prioritized.has(stream))], qualityLimits),
+    limitByIndexer(
+      limitByQuality([...priority, ...pool.filter((stream) => !prioritized.has(stream))], qualityLimits),
+      maxPerIndexer,
+      exemptFromIndexerQuota,
+    ),
   );
   // Volta à ordem original: sem `brFirst` o corte final depende dela.
   const eligible = pool.filter((stream) => kept.has(stream));
@@ -681,7 +730,9 @@ function sortAndLimit(
     // são aplicadas só depois que cachedOnly remove os streams indisponíveis.
     // `_dubbed` também precisa chegar ao autofetch: sem ele uma fonte BR sem
     // marca de áudio venceria mesmo quando existe uma explicitamente dublada.
-    .map(({ _seeders, _size, _indexer, ...rest }) => rest);
+    // `_indexer` idem, para a cota por indexador do corte final; quem apaga
+    // todos os campos internos é `limitReservingBr`.
+    .map(({ _seeders, _size, ...rest }) => rest);
 }
 
 /**
@@ -753,6 +804,7 @@ module.exports = {
   dedupeByHash,
   selectQualityCandidates,
   limitByQuality,
+  limitByIndexer,
   limitReservingBr,
   pickBrDubbedCandidate,
   hasCachedBrDubbed,

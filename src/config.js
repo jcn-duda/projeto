@@ -98,6 +98,10 @@ const config = {
     SD: num(process.env.MAX_STREAMS_SD, 4),
     unknown: num(process.env.MAX_STREAMS_UNKNOWN, 4),
   },
+  // Teto de streams por indexador no resultado final (0 = sem limite). Impede
+  // que uma fonte com muitos resultados ocupe quase todas as vagas. As vagas
+  // reservadas BR não contam para esta cota.
+  maxPerIndexer: num(process.env.MAX_STREAMS_PER_INDEXER, 0),
   // Quantos candidatos considerar antes do filtro do debrid.
   candidatePoolFactor: num(process.env.CANDIDATE_POOL_FACTOR, 4),
   // Vagas garantidas para fontes BR dubladas no resultado final.
