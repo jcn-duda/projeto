@@ -29,6 +29,7 @@ test('SCHEMA declara os limites por qualidade com chave curta e 0..100', () => {
 test('SCHEMA declara brFirst (bf) e jackettIndexers (ji) com tipo e chave curta', () => {
   assert.deepEqual(SCHEMA.brFirst, { type: 'bool', key: 'bf' });
   assert.deepEqual(SCHEMA.jackettIndexers, { type: 'list', key: 'ji' });
+  assert.deepEqual(SCHEMA.indexerPriority, { type: 'list', key: 'ip' });
 });
 
 test('SCHEMA declara exceção BR ao cachedOnly com chave curta', () => {
@@ -45,19 +46,27 @@ test('defaults() traz preferDubbed/excludeCam falsos e maxSizeGb 0', () => {
   assert.equal(d.maxSizeGb, 0);
 });
 
-test('defaults() traz os limites por qualidade em 100', () => {
+test('defaults() traz quatro streams por qualidade', () => {
   const d = defaults();
-  assert.equal(d.max2160p, 100);
-  assert.equal(d.max1080p, 100);
-  assert.equal(d.max720p, 100);
-  assert.equal(d.max480p, 100);
-  assert.equal(d.maxSd, 100);
+  assert.equal(d.max2160p, config.qualityLimits['2160p']);
+  assert.equal(d.max1080p, config.qualityLimits['1080p']);
+  assert.equal(d.max720p, config.qualityLimits['720p']);
+  assert.equal(d.max480p, config.qualityLimits['480p']);
+  assert.equal(d.maxSd, config.qualityLimits.SD);
+  assert.equal(d.maxUnknown, config.qualityLimits.unknown);
 });
 
 test('defaults() traz brFirst true e jackettIndexers herdado do config', () => {
   const d = defaults();
   assert.equal(d.brFirst, true);
   assert.deepEqual(d.jackettIndexers, config.jackett.indexers);
+  assert.deepEqual(d.indexerPriority, []);
+});
+
+test('normalize preserva ordem da prioridade de indexadores', () => {
+  const out = normalize({ ip: ' NerdFilmes, ComandoTorrents ' });
+  assert.deepEqual(out.indexerPriority, ['nerdfilmes', 'comandotorrents']);
+  assert.deepEqual(decode(encode({ ip: out.indexerPriority })).indexerPriority, out.indexerPriority);
 });
 
 test('normalize lê as chaves curtas e ignora chave desconhecida', () => {
@@ -93,9 +102,9 @@ test('limites por qualidade truncam e clampam em 0..100; fora do range cai no de
   assert.equal(normalize({ q4: 12.9 }).max2160p, 12);
   assert.equal(normalize({ q1: -5 }).max1080p, 0);
   assert.equal(normalize({ q7: 999 }).max720p, 100);
-  assert.equal(normalize({ q5: 'abc' }).max480p, 100);
+  assert.equal(normalize({ q5: 'abc' }).max480p, 4);
   // null é ignorado na normalização e mantém o default.
-  assert.equal(normalize({ qs: null }).maxSd, 100);
+  assert.equal(normalize({ qs: null }).maxSd, 4);
 });
 
 test('preferDubbed (a) e excludeCam (c) só são true com valores afirmativos', () => {

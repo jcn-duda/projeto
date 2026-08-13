@@ -1,4 +1,5 @@
 const config = require('../config');
+const indexerStatus = require('./indexer-status');
 
 let cached = null;
 let cachedAt = 0;
@@ -81,8 +82,10 @@ function fallback() {
 }
 
 async function load() {
-  if (cached && Date.now() - cachedAt < config.jackett.catalogTtl * 1000) return cached;
-  if (inFlight) return inFlight;
+  if (cached && Date.now() - cachedAt < config.jackett.catalogTtl * 1000) {
+    return indexerStatus.decorate(cached);
+  }
+  if (inFlight) return inFlight.then(indexerStatus.decorate);
   inFlight = (async () => {
     try {
       if (!config.jackett.apiKey) return fallback();
@@ -106,7 +109,7 @@ async function load() {
     cachedAt = Date.now();
     return items;
   }).finally(() => { inFlight = null; });
-  return inFlight;
+  return inFlight.then(indexerStatus.decorate);
 }
 
 module.exports = { load, parseXml, fallback };

@@ -1,5 +1,7 @@
 // Tamanho <= 1 KB é o sentinela de "desconhecido" dos indexers BR (ver
 // UNKNOWN_SIZE nos resolvedores), não um torrent de verdade.
+const { priorityMap, compareIndexerPriority } = require('./indexer-priority');
+
 const UNKNOWN_SIZE_MAX = 1024;
 
 // Resolução que o título não informa. Balde e cota próprios, separados do SD.
@@ -178,6 +180,8 @@ function toStremioStream(item) {
     // comandotorrents/nerdfilmes/torrentdosfilmes não citam "BLUDV" nem
     // "DUBLADO" e ficavam de fora das vagas reservadas.
     _br: Boolean(item.isBr),
+    // ID estável do indexer (não o label mutável) para o desempate de prioridade.
+    _indexer: String(item.indexer || tracker || '').trim().toLowerCase(),
   };
 }
 
@@ -215,6 +219,40 @@ function matchesName(title, name) {
   const got = new Set(normalizeTitle(title).split(' ').filter(Boolean));
   const hits = wanted.filter((w) => got.has(w)).length;
   return hits / wanted.length >= 0.6;
+}
+
+/**
+ * Filtro de título mais estrito, SÓ para releases BR. Os sites BR são
+ * buscadores WordPress que devolvem posts "parecidos" para query curta:
+ * buscar "Fallout" trazia "Missão: Impossível – Efeito Fallout", "Fallout 4
+ * (PC)" e "Cesium Fallout". `matchesName` aceita os três (a palavra casa
+ * inteira) e `matchesEpisode` também (sem pista de temporada, passa) — o lixo
+ * disputava as vagas reservadas BR com a fonte dublada real e as tomava.
+ *
+ * Duas regras por cima do `matchesName`:
+ * - post BR é titulado "Nome ...": o primeiro token relevante do título tem
+ *   que ser o do nome procurado — mata "Missão: Impossível…" e "Cesium…".
+ *   Tokens de 1-2 letras ("o", "de", "a") são pulados dos dois lados;
+ * - se o título tiver EXATAMENTE um token de ano e o ano do catálogo for
+ *   conhecido, eles precisam bater — mata "Fallout 4 (PC) [2015]" numa busca
+ *   por Fallout (2024). Dois ou mais ("Blade Runner 2049 (2017)") deixam o
+ *   campo ambíguo e a checagem é pulada.
+ */
+function matchesBrTitle(title, name, year = null) {
+  if (!matchesName(title, name)) return false;
+  const tokens = normalizeTitle(title).split(' ').filter(Boolean);
+  const wanted = normalizeTitle(name).split(' ').filter(Boolean);
+  const firstSig = (arr) => arr.find((w) => w.length > 2) || arr[0];
+  const want = firstSig(wanted);
+  if (want && firstSig(tokens) !== want) return false;
+  // O ano do catálogo pode vir sujo ("2024–" para série em andamento): extrai o
+  // primeiro token de 4 dígitos antes de comparar.
+  const catalogYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  if (catalogYear) {
+    const years = tokens.filter((t) => /^(?:19|20)\d{2}$/.test(t));
+    if (years.length === 1 && Number(years[0]) !== catalogYear) return false;
+  }
+  return true;
 }
 
 /**
@@ -322,6 +360,7 @@ function selectQualityCandidates(
     brReservedSlots = 0,
     candidateFactor = 1,
     brFirst = true,
+    indexerPriority = [],
   } = {},
 ) {
   const poolSize = Math.max(0, Math.trunc(maxResults));
@@ -523,7 +562,7 @@ function limitReservingBr(
   }
 
   return selected
-    .map(({ _br, _seeders, _quality, _size, _dubbed, ...stream }) => stream);
+    .map(({ _br, _seeders, _quality, _size, _dubbed, _indexer, ...stream }) => stream);
 }
 
 function sortAndLimit(
@@ -541,6 +580,7 @@ function sortAndLimit(
     brReservedSlots = 0,
     candidateFactor = 1,
     brFirst = true,
+    indexerPriority = [],
   } = {},
 ) {
   // Release que nomeia o episódio pedido vem antes do pack da temporada: o pack
@@ -552,6 +592,7 @@ function sortAndLimit(
       : 0;
   const dubbed = (s) => (s._dubbed ? 1 : 0);
   const maxSizeBytes = maxSizeGb > 0 ? maxSizeGb * 1024 ** 3 : 0;
+  const indexerRanks = priorityMap(indexerPriority);
 
   const ordered = dedupeByHash(streams)
     .filter((s) => (s._seeders || 0) >= minSeeders)
@@ -568,6 +609,8 @@ function sortAndLimit(
       const qOrder = { '2160p': 5, '1080p': 4, '720p': 3, [UNKNOWN_QUALITY]: 2, '480p': 1, SD: 0 };
       const qd = (qOrder[b._quality] || 0) - (qOrder[a._quality] || 0);
       if (qd !== 0) return qd;
+      const pd = compareIndexerPriority(a, b, indexerRanks);
+      if (pd !== 0) return pd;
       if (preferDubbed) {
         const ad = dubbed(b) - dubbed(a);
         if (ad !== 0) return ad;
@@ -586,7 +629,7 @@ function sortAndLimit(
     // são aplicadas só depois que cachedOnly remove os streams indisponíveis.
     // `_dubbed` também precisa chegar ao autofetch: sem ele uma fonte BR sem
     // marca de áudio venceria mesmo quando existe uma explicitamente dublada.
-    .map(({ _seeders, _size, ...rest }) => rest);
+    .map(({ _seeders, _size, _indexer, ...rest }) => rest);
 }
 
 function parseStremioId(id) {
@@ -626,6 +669,7 @@ module.exports = {
   matchesQualityFilter,
   passesQualityFilter,
   matchesName,
+  matchesBrTitle,
   matchesEpisode,
   parseTitleSeasonEpisode,
   dedupeByHash,

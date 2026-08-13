@@ -10,6 +10,7 @@ const {
   toStremioStream,
   sortAndLimit,
   matchesName,
+  matchesBrTitle,
   matchesEpisode,
   limitReservingBr,
   UNKNOWN_QUALITY,
@@ -418,9 +419,18 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo })
   if (meta?.name && !isDemo) {
     // Aceita qualquer um dos nomes: release BR vem como "Coringa", a do Jackett
     // como "Joker" — filtrar só pelo inglês jogaria fora a fonte dublada.
+    // As releases BR passam pelo filtro mais estrito (`matchesBrTitle`): os
+    // buscadores WordPress devolvem posts "parecidos" ("Missão: Impossível –
+    // Efeito Fallout" numa busca por "Fallout") que disputavam as vagas
+    // reservadas com a fonte real.
     const names = [meta.name, titles?.pt, titles?.original].filter(Boolean);
     const before = raw.length;
-    raw = raw.filter((r) => names.some((n) => matchesName(r.title || r.Title || '', n)));
+    raw = raw.filter((r) => {
+      const t = r.title || r.Title || '';
+      return names.some((n) =>
+        r.isBr ? matchesBrTitle(t, n, meta?.year) : matchesName(t, n),
+      );
+    });
     if (before !== raw.length) console.log(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
   }
 
@@ -453,7 +463,11 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo })
     brReservedSlots,
     brOnly,
     brFirst,
+    indexerPriority,
   } = opts();
+  const safeIndexerPriority = indexerPriority
+    .filter((id) => SAFE_INDEXER_ID.test(String(id)))
+    .slice(0, 100);
   const qualityLimits = {
     '2160p': max2160p,
     '1080p': max1080p,
@@ -477,6 +491,7 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo })
     brReservedSlots,
     candidateFactor: config.candidatePoolFactor,
     brFirst,
+    indexerPriority: safeIndexerPriority,
   });
 
   streams = limitReservingBr(await applyDebrid(streams, { season, episode }), {

@@ -171,9 +171,9 @@ sequência de chamadas por torrent e não caberia no orçamento de busca.
 
 O registry também expõe `enqueue()` para o **autofetch BR**: sem fonte dublada
 tocável em cache, o addon manda o debrid baixar o melhor candidato para o play
-da próxima vez. Os detalhes e as travas estão no invariante 5.
+da próxima vez. Os detalhes e as travas estão no invariante 6.
 
-### Os cinco invariantes que mais quebram
+### Os seis invariantes que mais quebram
 
 **1. O orçamento de tempo é sagrado.**
 O cliente Stremio aborta em 10s. A cadeia é:
@@ -232,7 +232,27 @@ queries**: a em inglês para indexers globais e a em pt-BR para os listados em
 inclusive fallbacks. O filtro `matchesName` também aceita qualquer um dos nomes,
 senão a release dublada seria descartada por não bater com o título em inglês.
 
-**5. Autofetch BR e `dropUncached` são forças opostas.**
+**5. Release BR passa por filtro de título ESTRITO, em duas camadas.**
+Os sites BR são buscadores WordPress que devolvem posts "parecidos" para query
+curta: buscar "Fallout" trazia "Missão: Impossível – Efeito Fallout", "Fallout
+4 (PC)" e "Cesium Fallout" — todos aprovados por `matchesName` (palavra inteira)
+e `matchesEpisode` (sem pista de temporada, passa), e o lixo tomava as vagas
+reservadas do item 3. `matchesBrTitle` (format.js) endurece com regra de
+prefixo (primeiro token relevante do título = primeiro do nome procurado) e
+regra de ano (título com UM token de ano divergente do catálogo é descartado;
+2+ anos é ambíguo e passa). Ele roda DUAS vezes:
+- no pré-filtro de `resolveCardigannDownloads`, ANTES de pagar o protetor de
+  link — o ano vem da própria query de filme ("Coringa 2019"), e é isso que
+  corta "Coringa: Delírio a Dois (2024)" sem gastar um magnet;
+- no filtro de título de `buildStreams`, com o `meta.year` do catálogo — sem
+  essa segunda passada o jogo ("Fallout 4 (PC)") passaria pelo pré-filtro
+  (query de série não tem ano) e só morreria no debrid.
+
+`meta.year` vem sujo do cinemeta ("2024–" para série em andamento): extraia o
+primeiro token de 4 dígitos antes de comparar, senão `Number("2024–")` é NaN e
+a regra de ano condena TODAS as releases reais.
+
+**6. Autofetch BR e `dropUncached` são forças opostas.**
 `dropUncached` apaga da conta do debrid o que não está em cache (sem isso cada
 busca deixa download fantasma); `autoFetchBrDubbed` faz o oposto de propósito —
 enfileira a melhor fonte BR dublada quando nada tocável está em cache. A ponte
@@ -264,7 +284,8 @@ no caminho da resposta — erro só vira log.
 | `src/debrid/common.js` | `magnetFor`, fetch JSON, `pickFile`, lotes de cache |
 | `src/debrid/protected.js` | Hashes protegidos da limpeza `dropUncached` durante o autofetch |
 | `src/debrid/*.js` | Um adaptador por serviço (premiumize, realdebrid, …) |
-| `src/utils/format.js` | Normalização, dedupe, ordenação, `matchesName` — **lógica pura** |
+| `src/utils/format.js` | Normalização, dedupe, ordenação, `matchesName`, `matchesBrTitle` — **lógica pura** |
+| `src/utils/indexer-priority.js` | `priorityMap`/`compareIndexerPriority` — desempate por indexer escolhido |
 | `src/utils/tmdb.js` | Título pt-BR a partir do IMDb id |
 | `src/utils/cinemeta.js` | Título/ano oficiais do ecossistema Stremio |
 | `src/utils/cache.js` | Cache em memória (L1) persistido em SQLite pra sobreviver a restart |

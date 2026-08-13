@@ -30,6 +30,9 @@ const config = {
     indexers: list(process.env.JACKETT_INDEXERS),
     indexerTimeout: num(process.env.JACKETT_INDEXER_TIMEOUT_MS, 4000),
     catalogTtl: num(process.env.JACKETT_CATALOG_TTL, 900),
+    // Quanto tempo a última medição real aparece na configuração. O status
+    // vem de busca/teste já executado; abrir a página nunca sonda os sites.
+    statusTtl: num(process.env.JACKETT_STATUS_TTL, 900),
     // Cardigann pode entregar o magnet apenas no endpoint Link. Resolvemos
     // sob demanda somente nos indexadores locais explicitamente permitidos.
     // Os quatro entregam Link em vez de magnet: fora desta lista, o resultado
@@ -87,6 +90,14 @@ const config = {
   qualityFilter: list(process.env.QUALITY_FILTER),
   minSeeders: num(process.env.MIN_SEEDERS, 1),
   maxResults: num(process.env.MAX_RESULTS, 40),
+  qualityLimits: {
+    '2160p': num(process.env.MAX_STREAMS_2160P, 4),
+    '1080p': num(process.env.MAX_STREAMS_1080P, 4),
+    '720p': num(process.env.MAX_STREAMS_720P, 4),
+    '480p': num(process.env.MAX_STREAMS_480P, 4),
+    SD: num(process.env.MAX_STREAMS_SD, 4),
+    unknown: num(process.env.MAX_STREAMS_UNKNOWN, 4),
+  },
   // Quantos candidatos considerar antes do filtro do debrid.
   candidatePoolFactor: num(process.env.CANDIDATE_POOL_FACTOR, 4),
   // Vagas garantidas para fontes BR dubladas no resultado final.

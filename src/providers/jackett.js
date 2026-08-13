@@ -1,5 +1,6 @@
 const config = require('../config');
-const { matchesName } = require('../utils/format');
+const { matchesBrTitle } = require('../utils/format');
+const indexerStatus = require('./indexer-status');
 
 // Abaixo disso não vale abrir mais um salto de protetor de link: a requisição
 // abortaria no meio e ainda gastaria o resto do orçamento.
@@ -9,7 +10,7 @@ const MIN_RESOLVE_BUDGET = 400;
 // esperar pra distinguir "indexer morto" de "indexer lento".
 const DIAGNOSTIC_TIMEOUT = 30000;
 
-function mapResults(data, { isBr = false } = {}) {
+function mapResults(data, { isBr = false, indexer = '' } = {}) {
   const results = Array.isArray(data?.Results) ? data.Results : Array.isArray(data) ? data : [];
   return results.map((r) => ({
     title: r.Title,
@@ -18,6 +19,9 @@ function mapResults(data, { isBr = false } = {}) {
     seeders: r.Seeders,
     size: r.Size,
     tracker: r.Tracker || r.TrackerId,
+    // O ID estável vem do plano da consulta. Labels do Jackett variam e não
+    // podem ser usados para casar a prioridade salva na URL.
+    indexer: indexer || r.TrackerId || r.Tracker || '',
     downloadUrl: r.Link,
     isBr,
   }));
@@ -74,8 +78,15 @@ async function resolveCardigannDownloads(indexer, items, query, deadline) {
     .replace(/\s+/g, ' ')
     .trim();
   const requestedSeason = String(query || '').match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
+  // A query de filme carrega o ano ("Coringa 2019") — ele denuncia post de
+  // outro filme antes mesmo de pagar o protetor: "Coringa: Delírio a Dois
+  // (2024)" resolve magnet sem nunca entrar na lista.
+  const queryYear = Number(String(query || '').match(/\b(?:19|20)\d{2}\b/)?.[0] || 0);
   const candidates = items
-    .filter((item) => !wanted || matchesName(item.title || '', wanted))
+    // Filtro BR estrito antes de pagar o protetor de link: post "parecido"
+    // ("Missão: Impossível – Efeito Fallout" numa busca por "Fallout") não
+    // merece orçamento de resolução de magnet.
+    .filter((item) => !wanted || matchesBrTitle(item.title || '', wanted, queryYear || null))
     .filter((item) => {
       if (!requestedSeason) return true;
       const titleSeason = String(item.title || '').match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
@@ -130,7 +141,7 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null) {
   const isBr = config.jackett.ptBrIndexers.includes(indexer);
   const items = await resolveCardigannDownloads(
     indexer,
-    mapResults(await res.json(), { isBr }),
+    mapResults(await res.json(), { isBr, indexer }),
     query,
     deadline,
   );
@@ -181,8 +192,23 @@ async function search(query, type, indexersOverride = null) {
     const r = settled[idx];
     if (r.status === 'fulfilled') {
       out.push(...r.value.items);
+      indexerStatus.record(r.value.indexer, {
+        // HTTP válido significa online. Zero resultado para um título não é
+        // falha do servidor e não deve pintar o card de vermelho.
+        ok: true,
+        results: r.value.items.length,
+        ms: r.value.ms,
+        budgetMs: budgetFor(r.value.indexer),
+      });
       if (r.value.ms > 2000) slow.push(`${r.value.indexer} ${(r.value.ms / 1000).toFixed(1)}s`);
     } else {
+      indexerStatus.record(indexers[idx], {
+        ok: false,
+        // A rejeição não carrega duração real; inventar o orçamento fazia o
+        // card dizer "offline · 20s" como se fosse uma medição.
+        ms: null,
+        budgetMs: budgetFor(indexers[idx]),
+      });
       slow.push(`${indexers[idx]} ✗`);
     }
   }
@@ -239,7 +265,7 @@ async function test(indexer, query, type = 'movie') {
     const withMagnet = items.filter(
       (item) => item.infoHash || /^magnet:\?/i.test(String(item.magnet || '')),
     ).length;
-    return {
+    const result = {
       indexer,
       ok: withMagnet > 0,
       results: items.length,
@@ -254,14 +280,18 @@ async function test(indexer, query, type = 'movie') {
       budgetMs: budget,
       overBudget: ms > budget,
     };
+    indexerStatus.record(indexer, result);
+    return result;
   } catch (err) {
-    return {
+    const result = {
       indexer,
       ok: false,
       error: err.message || String(err),
       ms: Date.now() - started,
       budgetMs: budget,
     };
+    indexerStatus.record(indexer, result);
+    return result;
   }
 }
 

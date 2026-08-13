@@ -170,6 +170,26 @@ test('sortAndLimit ordena por qualidade e seeders, filtra e limpa internos', () 
   assert.equal(sortAndLimit(streams, { maxResults: 1 }).length, 1);
 });
 
+test('prioridade de indexador desempata dentro da qualidade sem vencer resolução', () => {
+  const preferred1080 = toStremioStream({
+    title: 'Filme 1080p', infoHash: HASH, seeders: 1,
+    tracker: 'NerdFilmes', indexer: 'nerdfilmes',
+  });
+  const popular1080 = toStremioStream({
+    title: 'Filme 1080p', infoHash: OTHER, seeders: 500,
+    tracker: 'The Pirate Bay', indexer: 'thepiratebay',
+  });
+  const global4k = toStremioStream({
+    title: 'Filme 2160p', infoHash: 'c'.repeat(40), seeders: 1,
+    tracker: 'The Pirate Bay', indexer: 'thepiratebay',
+  });
+  const out = sortAndLimit([popular1080, preferred1080, global4k], {
+    indexerPriority: ['nerdfilmes'],
+  });
+
+  assert.deepEqual(out.map((stream) => stream.infoHash), [global4k.infoHash, HASH, OTHER]);
+});
+
 test('parseStremioId separa filme de episódio', () => {
   assert.deepEqual(parseStremioId('tt1254207'), { imdbId: 'tt1254207', season: null, episode: null });
   assert.deepEqual(parseStremioId('tt0903747:1:2'), { imdbId: 'tt0903747', season: 1, episode: 2 });
