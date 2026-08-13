@@ -1151,7 +1151,8 @@
     // O cabeçalho anunciava "Premiumize" fixo desde quando era o único
     // suportado. São cinco hoje, e a marca errada no topo faz o usuário do
     // AllDebrid achar que instalou o addon errado.
-    el.debridBadge.textContent = svc ? svc.label : "P2P (sem debrid)";
+    el.debridBadge.textContent = svc ? (svc.short || svc.label) : "P2P";
+    el.debridBadge.title = svc ? svc.label : "Sem debrid — torrents P2P diretos";
     el.debridKeyField.hidden = !svc;
     // Sem consulta de cache o filtro não teria como funcionar: em vez de
     // oferecer um controle que não faz nada, esconde e explica.

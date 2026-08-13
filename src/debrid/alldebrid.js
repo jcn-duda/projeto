@@ -140,6 +140,7 @@ module.exports = {
   enqueue,
   id: 'alldebrid',
   label: 'AllDebrid',
+  short: 'AD',
   // Não pelo /magnet/instant (removido), e sim pelo `ready` do /magnet/upload.
   cacheCheck: true,
   keyUrl: 'https://alldebrid.com/apikeys',

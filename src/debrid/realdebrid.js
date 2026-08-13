@@ -111,6 +111,7 @@ async function enqueue(apiKey, infoHash, { season, episode } = {}) {
 module.exports = {
   id: 'realdebrid',
   label: 'Real-Debrid',
+  short: 'RD',
   cacheCheck: false,
   enqueue,
   keyUrl: 'https://real-debrid.com/apitoken',

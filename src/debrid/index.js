@@ -22,9 +22,12 @@ const ADAPTERS = [
 const BY_ID = new Map(ADAPTERS.map((a) => [a.id, a]));
 
 /** Metadados para a página de configuração — sem nada sensível. */
-const SERVICES = ADAPTERS.map(({ id, label, cacheCheck, keyUrl }) => ({
+const SERVICES = ADAPTERS.map(({ id, label, short, cacheCheck, keyUrl }) => ({
   id,
   label,
+  // Sigla para onde não cabe o nome inteiro (badge do cabeçalho). O nome
+  // completo continua no seletor: sigla sozinha não se explica.
+  short,
   cacheCheck,
   keyUrl,
 }));

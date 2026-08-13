@@ -59,6 +59,7 @@ module.exports = {
   enqueue,
   id: 'premiumize',
   label: 'Premiumize',
+  short: 'PM',
   // Único dos quatro que ainda expõe checagem de cache em lote confiável.
   cacheCheck: true,
   keyUrl: 'https://www.premiumize.me/account',

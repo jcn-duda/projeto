@@ -82,6 +82,7 @@ module.exports = {
   enqueue,
   id: 'torbox',
   label: 'TorBox',
+  short: 'TB',
   cacheCheck: true,
   keyUrl: 'https://torbox.app/settings',
   checkCached,

@@ -68,6 +68,7 @@ module.exports = {
   enqueue,
   id: 'debridlink',
   label: 'Debrid-Link',
+  short: 'DL',
   cacheCheck: false,
   keyUrl: 'https://debrid-link.com/webapp/apikey',
   checkCached,
