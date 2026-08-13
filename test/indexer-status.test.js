@@ -34,6 +34,13 @@ test('falha sem duração não inventa latência zero', () => {
   assert.equal(recorded.ms, null);
 });
 
+test('latência numérica serializada continua sendo exibida', () => {
+  status.clear();
+  const recorded = status.record('nerdfilmes', { ok: true, ms: '1250', budgetMs: 20000 });
+  assert.equal(recorded.state, 'online');
+  assert.equal(recorded.ms, 1250);
+});
+
 test('status permanece válido exatamente no limite do TTL', () => {
   status.clear();
   const current = status.record('nerdfilmes', { ok: true, ms: 800, budgetMs: 20000 });

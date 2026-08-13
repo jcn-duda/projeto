@@ -349,8 +349,18 @@ function dedupeByHash(streams, indexerPriority = []) {
       : seedDiff < 0
         ? prev
         : compareIndexerPriority(s, prev, ranks) < 0 ? s : prev;
+    const loser = winner === s ? prev : s;
+    // O indexer BR priorizado pode omitir resolução/tamanho enquanto o global
+    // traz metadados completos para o mesmo hash. A prioridade escolhe o rótulo
+    // e a origem, mas não deve degradar cota, bingeGroup ou tamanho conhecido.
+    const richerQuality = winner._quality === UNKNOWN_QUALITY && loser._quality !== UNKNOWN_QUALITY
+      ? loser
+      : winner;
     best.set(s.infoHash, {
       ...winner,
+      _quality: richerQuality._quality,
+      _size: winner._size || loser._size || 0,
+      behaviorHints: richerQuality.behaviorHints || winner.behaviorHints,
       _br: winner._br || s._br || prev._br,
       _dubbed: winner._dubbed || s._dubbed || prev._dubbed,
     });

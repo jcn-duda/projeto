@@ -170,6 +170,25 @@ test('dedupe usa indexador prioritário no empate sem depender da chegada', () =
   }
 });
 
+test('dedupe prioritário preserva resolução e tamanho conhecidos do mesmo hash', () => {
+  const global = toStremioStream({
+    title: 'Filme 1080p WEB-DL', infoHash: HASH, seeders: 1,
+    size: 4 * 1024 ** 3, tracker: 'The Pirate Bay', indexer: 'thepiratebay',
+  });
+  const br = toStremioStream({
+    title: 'Filme Dublado', infoHash: HASH, seeders: 1,
+    tracker: 'NerdFilmes', indexer: 'nerdfilmes', isBr: true,
+  });
+  const [out] = dedupeByHash([global, br], ['nerdfilmes']);
+
+  assert.equal(out._indexer, 'nerdfilmes');
+  assert.equal(out._quality, '1080p');
+  assert.equal(out._size, 4 * 1024 ** 3);
+  assert.equal(out.behaviorHints.bingeGroup, 'powerm-1080p-WEB-DL');
+  assert.equal(out._br, true);
+  assert.equal(out._dubbed, true);
+});
+
 test('sortAndLimit ordena por qualidade e seeders, filtra e limpa internos', () => {
   const streams = [
     { infoHash: HASH, _seeders: 1, _quality: '1080p', _br: true, title: 'BR 1080p', name: 'n' },
