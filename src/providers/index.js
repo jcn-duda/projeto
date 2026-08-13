@@ -156,7 +156,7 @@ async function applyDebrid(streams, { season, episode, searchKey }) {
     const sig = signResolve(s.infoHash, ep);
     return {
       ...s,
-      // Formato do Torrentio: [AD+] toca na hora, [AD download] ainda baixa.
+      // Formato do Torrentio: [AD⚡] toca na hora, [AD download] ainda baixa.
       name: markDebridName(s.name, adapter.short || adapter.id, instant),
       url: `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}${ep ? '&' : '?'}sig=${sig}`,
       infoHash: undefined,
@@ -167,7 +167,7 @@ async function applyDebrid(streams, { season, episode, searchKey }) {
   // Serviço que não sabe informar cache (Real-Debrid, Debrid-Link) ou resposta
   // incompleta (lote perdido no timeout): filtrar por "somente em cache"
   // esconderia a lista inteira. Mandamos tudo pelo debrid — a resolução no play
-  // dirá se toca ou não. O "+" vai só em quem foi confirmado: numa resposta
+  // dirá se toca ou não. O ⚡ vai só em quem foi confirmado: numa resposta
   // parcial os demais são "não perguntei", não "não tem", e viram "download".
   if (!known) {
     console.log(

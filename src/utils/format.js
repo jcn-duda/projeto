@@ -150,9 +150,9 @@ function streamDisplayName({ title = '', quality, audio, isBr = false, seeders =
 }
 
 /**
- * Prefixo no formato do Torrentio: a sigla é do DEBRID, não do addon —
- * `[AD+]` toca na hora, `[AD download]` ainda precisa baixar. Sem debrid não
- * há prefixo, porque não há nada a prometer sobre o play.
+ * Prefixo no formato do Torrentio, com ⚡ no lugar do "+": a sigla é do DEBRID,
+ * não do addon — `[AD⚡]` toca na hora, `[AD download]` ainda precisa baixar.
+ * Sem debrid não há prefixo, porque não há nada a prometer sobre o play.
  *
  * O `[PM+]` fixo de antes usava a sigla para "Power Movie" e colidia com a do
  * Premiumize, dizendo "instantâneo" até para quem estava em P2P puro.
@@ -160,7 +160,7 @@ function streamDisplayName({ title = '', quality, audio, isBr = false, seeders =
 function markDebridName(name = '', short = '', cached = false) {
   const tag = String(short || '').trim();
   if (!tag) return String(name);
-  return `[${tag}${cached ? '+' : ' download'}] ${name}`;
+  return `[${tag}${cached ? '⚡' : ' download'}] ${name}`;
 }
 
 function matchesQualityFilter(title, filters) {

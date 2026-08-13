@@ -160,14 +160,14 @@ test('layout compacto diferencia áudio e origem sem inferir dublado', () => {
   assert.equal(legendado.name, 'Sinners 720p Legendado\n720p LEG');
 });
 
-// Formato do Torrentio: a sigla é do DEBRID, não do addon. "[PM+] Power Movie"
-// prometia play instantâneo até para quem estava em P2P puro, e o PM colidia
-// com a sigla do Premiumize.
+// Formato do Torrentio, com ⚡ no lugar do "+": a sigla é do DEBRID, não do
+// addon. O "[PM+]" fixo de antes prometia play instantâneo até para quem estava
+// em P2P puro, e o PM colidia com a sigla do Premiumize.
 test('prefixo do debrid distingue cache de download sem deslocar a qualidade', () => {
   const name = 'Coringa 2019 1080p BluRay\n1080p DUB BR · 👤 42';
-  assert.equal(markDebridName(name, 'AD', true), `[AD+] ${name}`);
+  assert.equal(markDebridName(name, 'AD', true), `[AD⚡] ${name}`);
   assert.equal(markDebridName(name, 'AD', false), `[AD download] ${name}`);
-  assert.equal(markDebridName(name, 'PM', true), `[PM+] ${name}`);
+  assert.equal(markDebridName(name, 'PM', true), `[PM⚡] ${name}`);
   // Sem debrid não há prefixo: não há nada a prometer sobre o play.
   assert.equal(markDebridName(name, '', true), name);
   assert.equal(markDebridName(name, '   ', false), name);
