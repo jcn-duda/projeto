@@ -475,7 +475,21 @@ function limitReservingBr(
   } = {},
 ) {
   const pool = brOnly ? streams.filter((stream) => stream._br) : streams;
-  const eligible = limitByQuality(pool, qualityLimits);
+
+  // As cotas por qualidade contam as fontes BR ANTES das globais. Elas publicam
+  // seeders=1, então chegam aqui no fim do próprio balde; com cota apertada
+  // (max1080p=3) as três globais mais semeadas levavam as vagas e a fonte BR
+  // era cortada AQUI — antes de `brFirst`/`brReservedSlots` terem chance de
+  // agir. `selectQualityCandidates` já faz essa passada BR no pool pré-debrid;
+  // sem o mesmo cuidado no corte final, a reserva não valia nada.
+  const reserved = brFirst ? Infinity : Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
+  const priority = pool.filter((stream) => stream._br).slice(0, reserved);
+  const prioritized = new Set(priority);
+  const kept = new Set(
+    limitByQuality([...priority, ...pool.filter((stream) => !prioritized.has(stream))], qualityLimits),
+  );
+  // Volta à ordem original: sem `brFirst` o corte final depende dela.
+  const eligible = pool.filter((stream) => kept.has(stream));
   const brStreams = eligible.filter((stream) => stream._br);
   let selected;
 

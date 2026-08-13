@@ -386,6 +386,47 @@ test('limitReservingBr mantém ordem natural sem prioridade e ainda garante BR',
   assert.deepEqual(out.map((s) => s.id), ['global-4k', 'global-1080-a', 'br-720']);
 });
 
+test('cota de qualidade não come a fonte BR antes da reserva agir', () => {
+  // Config real de usuário: max1080p=3. As fontes BR publicam seeders=1, então
+  // chegam no fim do balde de 1080p — a cota levava as três globais mais
+  // semeadas e cortava a BR ANTES de brFirst/brReservedSlots existirem.
+  const streams = [
+    { id: 'global-a', _quality: '1080p', _br: false, _seeders: 209 },
+    { id: 'global-b', _quality: '1080p', _br: false, _seeders: 159 },
+    { id: 'global-c', _quality: '1080p', _br: false, _seeders: 125 },
+    { id: 'global-d', _quality: '1080p', _br: false, _seeders: 30 },
+    { id: 'br-1080', _quality: '1080p', _br: true, _seeders: 1 },
+  ];
+  const limits = { '2160p': 3, '1080p': 3, '720p': 3, '480p': 3 };
+
+  const first = limitReservingBr([...streams], {
+    brFirst: true,
+    brReservedSlots: 6,
+    maxResults: 40,
+    qualityLimits: limits,
+  });
+  assert.deepEqual(first.map((s) => s.id), ['br-1080', 'global-a', 'global-b']);
+
+  // Sem prioridade visual a BR mantém a posição natural, mas ainda ocupa uma
+  // das três vagas da cota em vez de sumir.
+  const natural = limitReservingBr([...streams], {
+    brFirst: false,
+    brReservedSlots: 6,
+    maxResults: 40,
+    qualityLimits: limits,
+  });
+  assert.deepEqual(natural.map((s) => s.id), ['global-a', 'global-b', 'br-1080']);
+
+  // Sem reserva pedida e sem prioridade, a cota volta a ser puro seeders.
+  const semReserva = limitReservingBr([...streams], {
+    brFirst: false,
+    brReservedSlots: 0,
+    maxResults: 40,
+    qualityLimits: limits,
+  });
+  assert.deepEqual(semReserva.map((s) => s.id), ['global-a', 'global-b', 'global-c']);
+});
+
 test('selectQualityCandidates preserva todos os BR candidatos quando brFirst está ativo', () => {
   const streams = [
     ...Array.from({ length: 8 }, (_, i) => ({ id: `global-${i}`, _quality: '1080p', _br: false })),
