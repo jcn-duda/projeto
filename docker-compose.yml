@@ -15,8 +15,12 @@ services:
       # Caddy: HTTPS e o HTTP do challenge ACME.
       - "80:80"
       - "443:443"
-      # Exposto na LAN pro Fire TV alcançar (127.0.0.1 só serviria a esta máquina).
-      - "${PORT:-7000}:7000"
+      # Em casa: 0.0.0.0, pro Fire TV alcançar pela LAN (127.0.0.1 só serviria
+      # a esta máquina). Na VPS: BIND_ADDR=127.0.0.1 no .env, senão o addon
+      # responde em http://IP:7000 por fora do Caddy — e a URL de instalação
+      # leva a chave do debrid no segmento de config, que fora do TLS vai em
+      # texto puro e sobra em log de proxy.
+      - "${BIND_ADDR:-0.0.0.0}:${PORT:-7000}:7000"
       # Painéis só pra debug local; remova se não precisar.
       - "127.0.0.1:9117:9117"
       - "127.0.0.1:8191:8191"

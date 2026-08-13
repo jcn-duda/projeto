@@ -1,7 +1,31 @@
 # Container único: o Caddy roda no mesmo processo-namespace do addon,
 # então o upstream é o loopback — não existe mais hostname "addon".
-# Substitua seudominio.com pelo seu domínio e aponte o DNS A de
-# adom.seudominio.com para a VPS antes de subir a stack.
-adom.seudominio.com {
+#
+# O domínio vem do ADDON_DOMAIN no .env. O default `localhost` existe para a
+# instalação em casa: com ele o Caddy emite um certificado interno e NÃO chama
+# o Let's Encrypt. Deixar um domínio real fixo aqui fazia a máquina de casa
+# pedir certificado para um nome cujo DNS aponta para a VPS — falha em loop e
+# gasta a cota de erro do ACME.
+#
+# Na VPS, ANTES de subir:
+#   .env:  ADDON_DOMAIN=powermovie.net, www.powermovie.net
+#   DNS:   A powermovie.net -> IP da VPS   (e o www também)
+# Sem o DNS resolvendo, o desafio ACME falha e a stack sobe sem HTTPS.
+{$ADDON_DOMAIN:localhost} {
+	# A URL de instalação carrega a chave do debrid no segmento de config.
+	# É por isso que a porta 7000 fica no loopback (BIND_ADDR no compose) e
+	# tudo entra por aqui: fora do TLS essa chave iria em texto puro.
 	reverse_proxy 127.0.0.1:7000
+
+	# /configure e /defaults.json são públicos — o código não tem autenticação
+	# nenhuma (CONFIGURE_PAGE_PASSWORD no .env não é lido por ninguém). Eles não
+	# expõem a chave do debrid, mas deixam qualquer um ver seus indexadores e
+	# gerar install URL na sua instância. Pra fechar, gere o hash com
+	#   docker exec stremio-adom caddy hash-password --plaintext 'suasenha'
+	# e descomente:
+	#
+	# @admin path /configure* /defaults.json
+	# basic_auth @admin {
+	# 	SEU_USUARIO <COLE_O_HASH_AQUI>
+	# }
 }
