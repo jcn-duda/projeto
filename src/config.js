@@ -91,6 +91,10 @@ const config = {
   candidatePoolFactor: num(process.env.CANDIDATE_POOL_FACTOR, 4),
   // Vagas garantidas para fontes BR dubladas no resultado final.
   brReservedSlots: num(process.env.BR_RESERVED_SLOTS, 6),
+  // Se o orçamento normal terminou só com globais, espera um pouco pela
+  // primeira fonte BR. Algumas UIs não repetem a resposta parcial, então o
+  // passe tardio sozinho não torna o dublado visível na lista já aberta.
+  brPartialGrace: num(process.env.BR_PARTIAL_GRACE_MS, 1500),
   cacheTtl: num(process.env.CACHE_TTL, 900),
   debrid: {
     // premiumize | realdebrid | alldebrid | torbox | debridlink

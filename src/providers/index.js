@@ -26,6 +26,7 @@ const { signResolve } = require('../utils/sign');
 const { accountScope, streamsCacheKey } = require('../utils/request-key');
 const { createLatestWriter } = require('../utils/latest-writer');
 const { planJackettQueries } = require('./search-plan');
+const { collectWithinWindow } = require('./collection-window');
 const { opts, prefix } = require('../runtime');
 
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -182,6 +183,7 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
   const tasks = [];
+  const addTask = (promise, priority = false) => tasks.push({ promise, priority });
 
   if (mode === 'demo') {
     return { items: await demo.search({ type, imdbId }), partial: false };
@@ -195,7 +197,7 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
   // demo sempre disponível como fallback de teste se quiser both+demo — aqui só jackett/prowlarr
   if (wants('jackett')) {
     if (selectedIndexers.length === 0) {
-      tasks.push(jackett.search(query, type));
+      addTask(jackett.search(query, type));
     } else {
       for (const planned of planJackettQueries(
         query,
@@ -204,48 +206,54 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
         config.jackett.ptBrIndexers,
         config.jackett.slowIndexers,
       )) {
-        tasks.push(jackett.search(planned.query, type, planned.indexers));
+        const priority = planned.indexers.some((indexer) =>
+          config.jackett.ptBrIndexers.includes(indexer),
+        );
+        addTask(jackett.search(planned.query, type, planned.indexers), priority);
       }
     }
   }
   if (wants('prowlarr')) {
-    tasks.push(prowlarr.search(query));
+    addTask(prowlarr.search(query));
   }
 
   // Se misconfigurou PROVIDER, tenta jackett
   const validProvider = providers.some((name) => ['jackett', 'prowlarr', 'demo', 'both'].includes(name));
   if (tasks.length === 0 && providers.length > 0 && !validProvider) {
-    tasks.push(jackett.search(query, type));
+    addTask(jackett.search(query, type));
   }
 
   // Fonte BR dublada, independente do PROVIDER: entra no mesmo allSettled,
   // então se o site cair ou demorar, o resto da busca sai normalmente.
   if (config.bludv.enabled) {
     // Sites BR indexam por título pt-BR ("Coringa", não "Joker").
-    tasks.push(bludv.search(ptQuery || query));
+    addTask(bludv.search(ptQuery || query), true);
   }
-
-  // Cada provider despeja no balde assim que termina, em vez de todo mundo
-  // esperar o último: quando o orçamento acaba, o que já chegou vale.
-  const bucket = [];
-  const collecting = tasks.map((task) =>
-    task
-      .then((items) => bucket.push(...items))
-      .catch((err) => console.warn('[search] provider falhou:', err?.message || err)),
-  );
 
   // Orçamento menor que o deadline da resposta: o resto do tempo é da checagem
   // no debrid, que ainda precisa rodar em cima do que foi coletado.
   const budget = Math.max(1000, config.replyDeadline - config.debridReserve);
-  let done = false;
-  await Promise.race([
-    Promise.all(collecting).then(() => {
-      done = true;
-    }),
-    new Promise((resolve) => setTimeout(resolve, budget).unref()),
-  ]);
+  // A graça sai da reserva, mas nunca deixa menos de 2s pro debrid. No caso
+  // medido de Disclosure Day, a primeira fonte BR chegava pouco depois dos 5s;
+  // sem esta janela a UI ficava para sempre com os 11 globais do passe parcial.
+  // Em série, a busca por episódio pode cair no fallback de pack. Consumir a
+  // graça na primeira fase roubaria o tempo do pack, que é justamente onde as
+  // fontes BR costumam existir.
+  const priorityGrace = type === 'movie'
+    ? Math.min(config.brPartialGrace, Math.max(0, config.debridReserve - 2000))
+    : 0;
+  const collected = await collectWithinWindow(tasks, {
+    budgetMs: budget,
+    priorityGraceMs: priorityGrace,
+    onError: (err) => console.warn('[search] provider falhou:', err?.message || err),
+  });
+  const bucket = collected.items;
+  const done = collected.done;
 
   if (!done) {
+    if (collected.prioritySeen && priorityGrace) {
+      console.log(`[search] primeira fonte BR incluída na janela extra de até ${priorityGrace}ms`);
+    }
     console.warn(`[search] orçamento de ${budget}ms esgotado; seguindo com ${bucket.length} resultado(s) parcial(is)`);
     // Os providers continuam trabalhando depois que a resposta sai. Quem paga
     // esse atraso são justamente as fontes BR (raspam WordPress e ainda seguem
@@ -254,7 +262,7 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
     // reescreve o cache, então a próxima chamada do Stremio já vem cheia.
     const soFar = bucket.length;
     if (onLate) {
-      Promise.all(collecting)
+      collected.completion
         .then(() => {
           const grew = bucket.length > soFar;
           if (grew) {
