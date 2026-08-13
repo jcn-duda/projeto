@@ -10,6 +10,7 @@ const {
   toStremioStream,
   sortAndLimit,
   matchesName,
+  resolveSearchNames,
   matchesBrTitle,
   matchesEpisode,
   limitReservingBr,
@@ -28,6 +29,7 @@ const { accountScope, streamsCacheKey } = require('../utils/request-key');
 const { createLatestWriter } = require('../utils/latest-writer');
 const { planJackettQueries } = require('./search-plan');
 const { collectWithinWindow } = require('./collection-window');
+const autofetch = require('./autofetch');
 const { opts, prefix } = require('../runtime');
 
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -66,35 +68,55 @@ function autoFetchCandidate(streams) {
   return { stream: candidate, account };
 }
 
-function autoFetchBrDubbed(streams, selected, { cached, known, season, episode }) {
+function autoFetchBrDubbed(streams, selected, { cached, known, season, episode, searchKey }) {
   if (!selected) return;
   const { stream: candidate, account } = selected;
   const adapter = debrid.current();
 
-  // Sem resposta confiável de cache, ou já existe dublado tocável: não baixa
-  // nada e devolve o hash à limpeza normal.
-  if (!known || hasCachedBrDubbed(streams, cached)) {
+  if (!known) {
     held.release(candidate.infoHash, account);
     return;
   }
 
-  const key = `autofetch:${adapter.id}:${account}:${candidate.infoHash}`;
-  if (cache.get(key)) return;
-  cache.set(key, 1, config.debrid.autoFetchTtl);
+  // Qualquer fonte BR dublada já tocável encerra o autofetch. Baixar a próxima
+  // release pior encheria a conta do usuário sem melhorar o play.
+  if (hasCachedBrDubbed(streams, cached)) {
+    held.release(candidate.infoHash, account);
+    return;
+  }
+
+  const key = autofetch.markerKey(adapter.id, account, candidate.infoHash);
+  if (cache.get(key)) {
+    // Marker confirmado significa download iniciado: o hold pertence à chamada
+    // que o aceitou e precisa sobreviver ao passe tardio até o TTL.
+    return;
+  }
+  if (!autofetch.acquire(key)) return;
+  if (!autofetch.acquireSearch(searchKey)) {
+    autofetch.release(key);
+    held.release(candidate.infoHash, account);
+    return;
+  }
 
   const label = String(candidate.name || '').split('\n')[0].slice(0, 70);
   debrid
     .enqueue(candidate.infoHash, { season, episode })
     .then((ok) => {
-      if (ok) console.log(`[autofetch] ${adapter.label} baixando fonte BR dublada: ${label}`);
-      else {
-        cache.forget(key);
+      autofetch.release(key);
+      if (ok) {
+        // Só o aceite confirmado vira dedupe persistente. O prefixo v2 ignora
+        // marcadores antigos que podiam ter sido gravados antes da chamada.
+        cache.set(key, 1, config.debrid.autoFetchTtl);
+        console.log(`[autofetch] ${adapter.label} baixando fonte BR dublada: ${label}`);
+      } else {
+        autofetch.releaseSearch(searchKey);
         held.release(candidate.infoHash, account);
         console.warn(`[autofetch] ${adapter.label} não aceitou ${candidate.infoHash}`);
       }
     })
     .catch((err) => {
-      cache.forget(key);
+      autofetch.release(key);
+      autofetch.releaseSearch(searchKey);
       held.release(candidate.infoHash, account);
       console.warn('[autofetch] falhou:', err?.message || err);
     });
@@ -104,7 +126,7 @@ function autoFetchBrDubbed(streams, selected, { cached, known, season, episode }
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
  * link de play que passa pela nossa rota /resolve.
  */
-async function applyDebrid(streams, { season, episode }) {
+async function applyDebrid(streams, { season, episode, searchKey }) {
   const adapter = debrid.current();
   if (!adapter || streams.length === 0) return streams;
 
@@ -125,7 +147,7 @@ async function applyDebrid(streams, { season, episode }) {
   const checkStarted = Date.now();
   const { cached, known } = await debrid.checkCached(hashes);
   const checkMs = Date.now() - checkStarted;
-  autoFetchBrDubbed(streams, candidate, { cached, known, season, episode });
+  autoFetchBrDubbed(streams, candidate, { cached, known, season, episode, searchKey });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
   const viaDebrid = (s, instant) => {
     // Assinatura cobre hash + temporada/episódio: sem ela o /resolve rejeita,
@@ -328,7 +350,10 @@ async function doSearch({ type, id, cacheKey }) {
   const { imdbId, season, episode } = parseStremioId(id);
   // Cinemeta e TMDB em paralelo: o título pt-BR não pode atrasar a busca.
   const [meta, titles] = await Promise.all([getMeta(type, imdbId), tmdb.getTitles(imdbId)]);
-  const query = buildSearchQuery(meta || { name: imdbId }, { season, episode });
+  // Cinemeta é a fonte preferida, mas ele volta 404 em título obscuro/regional
+  // ou lançamento novo demais — ver `resolveSearchNames`.
+  const searchMeta = resolveSearchNames({ meta, titles, imdbId });
+  const query = buildSearchQuery(searchMeta, { season, episode });
 
   // Só vale uma query separada quando o título PT difere do original.
   const ptQuery =
@@ -345,7 +370,7 @@ async function doSearch({ type, id, cacheKey }) {
   // quando as fontes lentas terminam (aí só pra reescrever o cache).
   const finish = createLatestWriter(
     async ({ items, partial }) => ({
-      streams: await buildStreams(items, { meta, titles, season, episode, isDemo }),
+      streams: await buildStreams(items, { meta, titles, season, episode, isDemo, searchKey: cacheKey }),
       partial,
     }),
     ({ streams, partial }) => {
@@ -388,7 +413,8 @@ async function doSearch({ type, id, cacheKey }) {
     // inclusive uma build que já começou e ainda está no debrid.
     const packPhase = finish.advance();
     const s = String(season).padStart(2, '0');
-    const packQuery = `${meta?.name || imdbId} S${s}`;
+    // Mesmo fallback da query principal: sem Cinemeta o pack virava "tt123 S01".
+    const packQuery = `${searchMeta.name} S${s}`;
     // O fallback também precisa do título pt-BR: é justamente aqui, quando a
     // busca por episódio falhou, que as fontes BR (que só publicam pack de
     // temporada) teriam algo — e elas não indexam pelo nome em inglês.
@@ -408,7 +434,7 @@ async function doSearch({ type, id, cacheKey }) {
  * Bruto dos providers → streams do Stremio: corte por título, por episódio,
  * ordenação, debrid e limite final.
  */
-async function buildStreams(rawInput, { meta, titles, season, episode, isDemo }) {
+async function buildStreams(rawInput, { meta, titles, season, episode, isDemo, searchKey }) {
   let raw = rawInput;
 
   // No modo demo, se não for BBB, lista vazia (esperado)
@@ -416,20 +442,24 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo })
     console.log('[search] modo demo: só tt1254207 (Big Buck Bunny) tem stream de teste');
   }
 
-  if (meta?.name && !isDemo) {
-    // Aceita qualquer um dos nomes: release BR vem como "Coringa", a do Jackett
-    // como "Joker" — filtrar só pelo inglês jogaria fora a fonte dublada.
-    // As releases BR passam pelo filtro mais estrito (`matchesBrTitle`): os
-    // buscadores WordPress devolvem posts "parecidos" ("Missão: Impossível –
-    // Efeito Fallout" numa busca por "Fallout") que disputavam as vagas
-    // reservadas com a fonte real.
-    const names = [meta.name, titles?.pt, titles?.original].filter(Boolean);
+  // Aceita qualquer um dos nomes: release BR vem como "Coringa", a do Jackett
+  // como "Joker" — filtrar só pelo inglês jogaria fora a fonte dublada.
+  // As releases BR passam pelo filtro mais estrito (`matchesBrTitle`): os
+  // buscadores WordPress devolvem posts "parecidos" ("Missão: Impossível –
+  // Efeito Fallout" numa busca por "Fallout") que disputavam as vagas
+  // reservadas com a fonte real.
+  //
+  // O gate é a existência de ALGUM nome, não do Cinemeta: quando ele volta 404
+  // mas o TMDB responde, os nomes estão ali e o filtro precisa rodar. Preso a
+  // `meta?.name` ele se desligava inteiro e a lista saía sem corte nenhum.
+  const { names, year: catalogYear } = resolveSearchNames({ meta, titles });
+  if (names.length && !isDemo) {
     const before = raw.length;
     raw = raw.filter((r) => {
       const t = r.title || r.Title || '';
       return names.some((n) =>
         r.isBr
-          ? matchesBrTitle(t, n, meta?.year, { isSeries: season != null })
+          ? matchesBrTitle(t, n, catalogYear, { isSeries: season != null })
           : matchesName(t, n),
       );
     });
@@ -496,7 +526,7 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo })
     indexerPriority: safeIndexerPriority,
   });
 
-  streams = limitReservingBr(await applyDebrid(streams, { season, episode }), {
+  streams = limitReservingBr(await applyDebrid(streams, { season, episode, searchKey }), {
     brReservedSlots,
     maxResults,
     brOnly,

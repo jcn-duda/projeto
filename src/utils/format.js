@@ -661,6 +661,31 @@ function sortAndLimit(
     .map(({ _seeders, _size, _indexer, ...rest }) => rest);
 }
 
+/**
+ * De onde saem o nome da busca e os nomes do filtro. Uma função só porque os
+ * três pontos que precisam disso (query principal, pack de temporada e o corte
+ * por título) tinham que concordar — e não concordavam.
+ *
+ * O Cinemeta é a fonte preferida, mas ele não conhece todo id: título obscuro,
+ * regional ou lançamento recente demais volta 404. Quando isso acontecia:
+ *
+ * - a query virava a string crua "tt1234567", mesmo com o TMDB (outra API) já
+ *   tendo respondido com o nome;
+ * - o filtro de título, preso a `meta?.name`, se desligava por inteiro e
+ *   qualquer lixo que o indexador devolvesse ia direto pro usuário.
+ *
+ * `name` prefere o título ORIGINAL: é o que os indexadores globais publicam.
+ * O pt-BR tem query própria (`ptQuery`) e entra em `names` de qualquer forma.
+ */
+function resolveSearchNames({ meta, titles, imdbId } = {}) {
+  const fallback = titles?.original || titles?.pt;
+  return {
+    name: meta?.name || fallback || imdbId || '',
+    year: meta?.year || titles?.year || null,
+    names: [meta?.name, titles?.pt, titles?.original].filter(Boolean),
+  };
+}
+
 function parseStremioId(id) {
   // movie: tt1234567 | series: tt1234567:1:2
   const parts = String(id).split(':');
@@ -694,6 +719,7 @@ module.exports = {
   toStremioStream,
   sortAndLimit,
   parseStremioId,
+  resolveSearchNames,
   buildSearchQuery,
   matchesQualityFilter,
   passesQualityFilter,

@@ -12,6 +12,7 @@ const {
 } = require('../src/utils/format');
 const { sortAndLimit, toStremioStream, limitReservingBr } = require('../src/utils/format');
 const held = require('../src/debrid/protected');
+const autofetch = require('../src/providers/autofetch');
 
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
@@ -51,6 +52,34 @@ test('hasCachedBrDubbed enxerga o dublado que já toca na hora', () => {
   // Global em cache não conta como dublado BR disponível.
   const global = stream(C, { name: 'Joker 1080p' });
   assert.equal(hasCachedBrDubbed([global, br1], new Set([C])), false);
+});
+
+test('trava autofetch é concorrente e marcador novo não colide com legado', () => {
+  const key = autofetch.markerKey('alldebrid', 'conta', A);
+  assert.equal(key.startsWith('autofetch:v2:'), true);
+  assert.equal(autofetch.acquire(key), true);
+  assert.equal(autofetch.acquire(key), false);
+  autofetch.release(key);
+  assert.equal(autofetch.acquire(key), true);
+  autofetch.release(key);
+});
+
+test('passe parcial e tardio só podem enfileirar um torrent por busca', () => {
+  const searchKey = 'streams:movie:tt123';
+  assert.equal(autofetch.acquireSearch(searchKey), true);
+  assert.equal(autofetch.acquireSearch(searchKey), false);
+  autofetch.releaseSearch(searchKey);
+  assert.equal(autofetch.acquireSearch(searchKey), true);
+  autofetch.releaseSearch(searchKey);
+});
+
+test('marker confirmado não depende da trava em memória', () => {
+  assert.equal(autofetch.LOCK_TTL_MS, 60_000);
+  const key = autofetch.markerKey('premiumize', 'conta', B);
+  assert.equal(autofetch.acquire(key), true);
+  autofetch.release(key);
+  assert.equal(autofetch.acquire(key), true);
+  autofetch.release(key);
 });
 
 test('autofetch só pode escrever na conta em modo somente-cache', () => {

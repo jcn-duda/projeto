@@ -14,6 +14,7 @@ const {
   toStremioStream,
   normalizeTitle,
   matchesName,
+  resolveSearchNames,
   matchesEpisode,
   parseTitleSeasonEpisode,
   UNKNOWN_QUALITY,
@@ -460,6 +461,36 @@ test('limitReservingBr mantém ordem natural sem prioridade e ainda garante BR',
     maxResults: 3,
   });
   assert.deepEqual(out.map((s) => s.id), ['global-4k', 'global-1080-a', 'br-720']);
+});
+
+test('resolveSearchNames cobre o Cinemeta que não conhece o id', () => {
+  const titles = { pt: 'A Origem', original: 'Inception', year: '2010' };
+
+  // Caminho normal: Cinemeta responde e manda no nome da busca.
+  const comMeta = resolveSearchNames({
+    meta: { name: 'Inception', year: '2010' },
+    titles,
+    imdbId: 'tt1375666',
+  });
+  assert.equal(comMeta.name, 'Inception');
+  assert.deepEqual(comMeta.names, ['Inception', 'A Origem', 'Inception']);
+
+  // Cinemeta 404 e TMDB responde: a query passava a ser a string crua
+  // "tt1375666" e o filtro de título, preso a `meta?.name`, se desligava
+  // inteiro — qualquer lixo do indexador ia direto pro usuário.
+  const semMeta = resolveSearchNames({ meta: null, titles, imdbId: 'tt1375666' });
+  assert.equal(semMeta.name, 'Inception', 'usa o original, que é o que o indexador global publica');
+  assert.equal(semMeta.year, '2010', 'o ano precisa sobreviver: matchesBrTitle depende dele');
+  assert.deepEqual(semMeta.names, ['A Origem', 'Inception'], 'o filtro continua tendo por que cortar');
+
+  // Só o pt-BR disponível: melhor que o id cru.
+  const soPt = resolveSearchNames({ meta: null, titles: { pt: 'Coringa' }, imdbId: 'tt7286456' });
+  assert.equal(soPt.name, 'Coringa');
+
+  // Nenhuma das duas APIs respondeu: aí sim o id cru é o que sobrou.
+  const semNada = resolveSearchNames({ meta: null, titles: null, imdbId: 'tt7286456' });
+  assert.equal(semNada.name, 'tt7286456');
+  assert.deepEqual(semNada.names, [], 'sem nome não há filtro possível — e o gate tem que ver isso');
 });
 
 test('matchesName não aceita pedaço de palavra nem título curto esvaziado', () => {
