@@ -33,7 +33,11 @@ async function get(path, timeout = 20000) {
   const started = Date.now();
   const res = await fetch(`${BASE}${path}`, { signal: AbortSignal.timeout(timeout) });
   const body = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
-  return { status: res.status, body, ms: Date.now() - started };
+  // `max-age=0` é como o addon avisa "esta lista está incompleta, pergunte de
+  // novo" — é o mesmo sinal que faz o cliente Stremio não fixar uma lista sem
+  // as fontes BR. Aqui ele diz quando parar de repetir a chamada.
+  const maxAge = Number(String(res.headers.get('cache-control') || '').match(/max-age=(\d+)/)?.[1] ?? 0);
+  return { status: res.status, body, ms: Date.now() - started, complete: maxAge > 0 };
 }
 
 async function checkRoutes() {
@@ -83,32 +87,42 @@ function inspect(streams) {
   };
 }
 
+// Busca fria não cabe numa chamada só: os indexadores BR levam 6-8s e chegam
+// depois que a resposta já saiu. O addon marca essa resposta com `max-age=0`
+// pedindo pra perguntar de novo, e é isso que o cliente Stremio faz — então o
+// smoke test faz o mesmo em vez de julgar a primeira lista que receber.
+const MAX_TENTATIVAS = 5;
+
 async function checkSearch() {
   console.log('\n── Busca ────────────────────────────────');
-  console.log('  (a 1ª chamada pode devolver 0 e seguir em background — a 2ª lê do cache)\n');
+  console.log('  (busca fria: a resposta sai incompleta e o addon pede pra repetir;');
+  console.log('   as fontes BR costumam entrar na 3ª chamada)\n');
 
   for (const entry of TITLES) {
     const [type, id, label] = entry.split('|');
-    let first;
+    console.log(`  ${label || id}`);
+
+    const tentativas = [];
+    let last = null;
     try {
-      first = await get(`/stream/${type}/${id}.json`);
+      for (let i = 0; i < MAX_TENTATIVAS; i += 1) {
+        last = await get(`/stream/${type}/${id}.json`);
+        const parcial = inspect(last.body?.streams || []);
+        tentativas.push(last);
+        console.log(
+          `    ${i + 1}ª: ${parcial.total} stream(s), BR ${parcial.br}, ⚡ ${parcial.cacheados}` +
+            ` em ${last.ms}ms${last.complete ? ' ✓ completa' : ' … incompleta, repetindo'}`,
+        );
+        if (last.complete) break;
+      }
     } catch (err) {
       ok(label || id, false, err.message);
       continue;
     }
 
-    // Segunda chamada: agora o cache deve estar quente.
-    const second = await get(`/stream/${type}/${id}.json`);
-    const s = inspect(second.body?.streams || []);
-
-    console.log(`  ${label || id}`);
-    console.log(
-      `    1ª: ${(first.body?.streams || []).length} stream(s) em ${first.ms}ms` +
-        ` | 2ª: ${s.total} em ${second.ms}ms`,
-    );
-    console.log(`    BR: ${s.br} | ⚡cache: ${s.cacheados} | via debrid: ${s.viaDebrid} | P2P: ${s.p2p}`);
-
-    ok('  respondeu dentro do limite do Stremio', first.ms < 10000, `${first.ms}ms`);
+    const s = inspect(last.body?.streams || []);
+    ok('  1ª resposta dentro do limite do Stremio', tentativas[0].ms < 10000, `${tentativas[0].ms}ms`);
+    ok('  chegou a uma lista completa', last.complete, last.complete ? '' : `${MAX_TENTATIVAS} tentativas`);
     ok('  encontrou streams', s.total > 0);
     ok('  sem campos internos vazando', !s.vazando);
     if (s.total > 0 && !isDemo) {

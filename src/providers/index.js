@@ -256,9 +256,15 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
     if (onLate) {
       Promise.all(collecting)
         .then(() => {
-          if (bucket.length <= soFar) return;
-          console.log(`[search] fontes lentas chegaram: ${soFar} → ${bucket.length} resultado(s); recacheando`);
-          return onLate(bucket);
+          const grew = bucket.length > soFar;
+          if (grew) {
+            console.log(`[search] fontes lentas chegaram: ${soFar} → ${bucket.length} resultado(s); recacheando`);
+          }
+          // Mesmo sem nada novo o passe tardio precisa avisar: a lista servida
+          // saiu marcada como parcial (cacheMaxAge 0) e, sem esta chamada, ela
+          // ficava parcial até o TTL expirar — o cliente repergunta em loop e
+          // nunca recebe uma resposta que possa guardar.
+          return onLate(bucket, grew);
         })
         .catch((err) => console.warn('[search] passe tardio falhou:', err?.message || err));
     }
@@ -344,9 +350,26 @@ async function doSearch({ type, id, cacheKey }) {
     (value) => Array.isArray(value?.streams) && value.streams.length > 0,
   );
 
+  /**
+   * Fim da coleta. Se as fontes lentas trouxeram algo, reconstrói tudo; se não
+   * trouxeram, só promove a entrada do cache a completa — sem refazer a
+   * checagem no debrid, que é a parte cara e não mudaria de resposta.
+   */
+  const late = (items, grew, phase) => {
+    if (grew) return finish({ items, partial: false }, phase);
+    // Fase diferente = o fallback de pack assumiu; promover o lote antigo aqui
+    // marcaria como pronta uma busca que ainda está em andamento.
+    if (phase !== finish.phase()) return undefined;
+    const hit = cache.get(cacheKey);
+    if (!hit?.partial) return undefined;
+    cache.set(cacheKey, { streams: hit.streams, partial: false }, config.cacheTtl);
+    console.log(`[search] coleta encerrada sem novidade; ${hit.streams.length} stream(s) para ${id}`);
+    return undefined;
+  };
+
   const episodePhase = finish.phase();
-  let raw = await collectRaw(query, type, imdbId, ptQuery, (items) =>
-    finish({ items, partial: false }, episodePhase),
+  let raw = await collectRaw(query, type, imdbId, ptQuery, (items, grew) =>
+    late(items, grew, episodePhase),
   );
 
   // Série sem resultado por episódio: tenta o pack da temporada (ex.: "Nome S01").
@@ -364,8 +387,8 @@ async function doSearch({ type, id, cacheKey }) {
     console.log(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
-    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, (items) =>
-      finish({ items, partial: false }, packPhase),
+    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, (items, grew) =>
+      late(items, grew, packPhase),
     );
   }
 
