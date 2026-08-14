@@ -54,14 +54,29 @@ function current() {
  * estava no lote perdido — inclusive fontes BR que estavam em cache. O Set
  * parcial ainda volta: dá pra marcar o ⚡ de quem foi confirmado sem esconder
  * quem não chegou a ser perguntado.
+ *
+ * @param {object} [opts.timeoutMs] Teto dinâmico do passo de resposta (restante
+ *   do REPLY_DEADLINE menos margem). Quando <=0 degrada na hora, sem rede.
+ *   Ausente = timeout completo do adaptador (passe tardio).
  */
-async function checkCached(infoHashes) {
+async function checkCached(infoHashes, { timeoutMs } = {}) {
   const adapter = current();
   if (!adapter || infoHashes.length === 0) return { cached: new Set(), known: false };
   if (!adapter.cacheCheck) return { cached: new Set(), known: false };
 
+  // Tempo restante esgotado: degrada na hora, sem rede. É a MESMA semântica de
+  // resposta incompleta (lista inteira via debrid, sem ⚡ falso).
+  if (timeoutMs != null && timeoutMs <= 0) return { cached: new Set(), known: false };
+  // A checagem da AllDebrid faz upload de verdade. Abortá-la depois que o
+  // servidor aceitou o magnet impediria ler o id e limpar os não cacheados,
+  // recriando downloads-fantasma. No passo limitado adiamos a consulta inteira;
+  // o passe tardio, sem teto, executa upload + limpeza normalmente.
+  if (timeoutMs != null && adapter.abortSafeCacheCheck === false) {
+    return { cached: new Set(), known: false };
+  }
+
   try {
-    const result = await adapter.checkCached(opts().debridApiKey, infoHashes);
+    const result = await adapter.checkCached(opts().debridApiKey, infoHashes, { timeoutMs });
     // Adaptador pode devolver só o Set (sem lotes) ou { cached, complete }.
     const cached = result instanceof Set ? result : result?.cached || new Set();
     const complete = result instanceof Set ? true : result?.complete !== false;

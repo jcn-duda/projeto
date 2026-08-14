@@ -10,8 +10,8 @@ function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
 }
 
 /** Um dos poucos que ainda expõe checagem de cache em lote. */
-async function checkCached(apiKey, infoHashes) {
-  return batched(infoHashes, config.debrid.batchSize, async (batch) => {
+async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
+  return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const url = new URL(`${API}/torrents/checkcached`);
     batch.forEach((hash) => url.searchParams.append('hash', hash));
     url.searchParams.set('format', 'list');
@@ -19,7 +19,7 @@ async function checkCached(apiKey, infoHashes) {
 
     const res = await json(url, {
       headers: { Authorization: `Bearer ${apiKey}` },
-      timeout: config.debrid.cacheCheckTimeout,
+      timeout: ctx?.timeoutMs ?? config.debrid.cacheCheckTimeout,
     });
     // `data` vem como lista de objetos com hash, ou como mapa hash → info.
     const data = res?.data;
@@ -27,7 +27,7 @@ async function checkCached(apiKey, infoHashes) {
       ? data.map((item) => item?.hash).filter(Boolean)
       : Object.keys(data || {});
     return hashes.map((hash) => String(hash).toLowerCase());
-  });
+  }, { timeoutMs });
 }
 
 async function resolveLink(apiKey, infoHash, { season, episode } = {}) {

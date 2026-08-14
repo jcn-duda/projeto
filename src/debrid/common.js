@@ -74,14 +74,18 @@ function pickFile(files, { season, episode } = {}) {
  * Os lotes vão em paralelo: em série, dois lotes de 100 hashes somavam dois
  * timeouts inteiros (12s) contra um REPLY_DEADLINE de 8,5s, e a busca voltava
  * vazia mesmo com tudo coletado.
+ *
+ * @param {object} [opts.timeoutMs] Teto compartilhado por lote (dinâmico, do
+ *   passo de resposta). Ausente = cada adaptador usa o próprio teto
+ *   (config.debrid.cacheCheckTimeout).
  */
-async function batched(infoHashes, size, fn) {
+async function batched(infoHashes, size, fn, { timeoutMs } = {}) {
   const slices = [];
   for (let i = 0; i < infoHashes.length; i += size) {
     slices.push(infoHashes.slice(i, i + size));
   }
 
-  const settled = await Promise.allSettled(slices.map((slice) => fn(slice)));
+  const settled = await Promise.allSettled(slices.map((slice) => fn(slice, { timeoutMs })));
   const cached = new Set();
   let failures = 0;
 

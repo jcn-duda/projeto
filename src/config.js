@@ -147,17 +147,18 @@ const config = {
     // Teto SÓ da checagem de cache. Com os lotes em paralelo é UMA janela, não
     // uma por lote — era a soma em série que estourava o REPLY_DEADLINE.
     //
-    // Deliberadamente MAIOR que DEBRID_RESERVE_MS e que o REPLY_DEADLINE. Os
-    // resolvedores BR rodam NESTE processo (ver src/br-resolvers.js) e raspam
-    // WordPress com regex síncrona; enquanto eles trabalham o event loop fica
-    // travado e a mesma chamada que leva 2,6s de fora do processo leva 7-9s
-    // aqui dentro (medido com 75 hashes no Premiumize).
-    //
-    // Com teto de 6s ela abortava SEMPRE e a lista saía inteira sem ⚡. Deixar
-    // passar do deadline é melhor: a resposta sai parcial com cacheMaxAge 0, o
-    // fundo termina a checagem e grava a lista completa e marcada, e o cliente
-    // — que foi instruído a não cachear — repergunta e recebe ela pronta.
+    // Deliberadamente MAIOR que DEBRID_RESERVE_MS e que o REPLY_DEADLINE. É o
+    // teto do PASSE TARDIO: os resolvedores BR rodam neste processo e podem
+    // estender a mesma chamada de 2,6s para 7-9s. O passo de resposta usa o
+    // orçamento dinâmico abaixo; depois o fundo repete sem teto curto e grava a
+    // lista completa com ⚡/cachedOnly restaurados.
     cacheCheckTimeout: num(process.env.DEBRID_CACHE_CHECK_TIMEOUT_MS, 10000),
+    // Teto dinâmico da checagem de cache no passo de resposta: o que sobra do
+    // REPLY_DEADLINE menos esta margem (filtro + HMAC + serialização). Caso
+    // medido: coleta fria de 162 itens consumiu os 6400ms do orçamento e a
+    // checagem Premiumize de 3,5s estourou o deadline devolvendo []; com a
+    // margem, a checagem degrada para known:false e a lista sai não-vazia.
+    checkFormatMargin: num(process.env.DEBRID_CHECK_FORMAT_MARGIN_MS, 500),
     // Remove da conta do debrid o que não está em cache. Sem isso cada consulta
     // deixa um download rodando lá (AllDebrid só informa cache ao dar upload).
     dropUncached: String(process.env.DEBRID_DROP_UNCACHED || 'true') === 'true',

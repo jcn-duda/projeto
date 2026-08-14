@@ -1,6 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 
+process.env.CACHE_PERSIST = 'false';
+
 // Escolha do que baixar + proteção do hash: as duas peças que decidem se algo é
 // escrito na conta do usuário. Testadas sem rede, com objetos de stream mínimos.
 const {
@@ -13,6 +15,10 @@ const {
 const { sortAndLimit, toStremioStream, limitReservingBr } = require('../src/utils/format');
 const held = require('../src/debrid/protected');
 const autofetch = require('../src/providers/autofetch');
+const debrid = require('../src/debrid');
+const runtime = require('../src/runtime');
+const config = require('../src/config');
+const { applyDebrid } = require('../src/providers');
 
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
@@ -224,3 +230,61 @@ test('limitReservingBr prioriza dublados sobre legendados nas vagas BR', () => {
   assert.deepEqual(outReserved.map((s) => s.id), ['global-1', 'br-dub']);
 });
 
+test('applyDebrid limita a primeira checagem e mantém resposta não vazia quando cache é desconhecido', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const calls = [];
+  let cacheResult;
+  debrid.checkCached = async (infoHashes, options) => {
+    calls.push({ infoHashes, options });
+    return { cached: new Set(), known: false };
+  };
+  config.debrid.publicUrl = 'http://addon.test';
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-fake',
+    debridCachedOnly: true,
+    autoFetchBr: false,
+  };
+  const input = stream(A, {
+    name: '1080p\nTorrentio',
+    title: 'Filme 1080p',
+    sources: ['tracker:test'],
+  });
+
+  try {
+    const started = Date.now();
+    const first = await runtime.run(
+      { opts: userOpts, encoded: 'segcfg' },
+      () => applyDebrid([input], {
+        season: 1,
+        episode: 2,
+        searchKey: 'busca-fria',
+        deadlineAt: started + 2000,
+        onCacheResult: (result) => { cacheResult = result; },
+      }),
+    );
+
+    assert.equal(first.length, 1, 'known:false não pode esvaziar a primeira resposta');
+    assert.match(first[0].name, /^\[PM download\]/);
+    assert.match(first[0].url, new RegExp('/segcfg/resolve/' + A + '\\?s=1&e=2&sig=[a-f0-9]{64}$'));
+    assert.equal(first[0].infoHash, undefined);
+    assert.equal(first[0].sources, undefined);
+    assert.deepEqual(calls[0].infoHashes, [A]);
+    assert.ok(calls[0].options.timeoutMs > 1000 && calls[0].options.timeoutMs <= 1500,
+      'teto precisa usar o restante do deadline menos a margem');
+    assert.deepEqual(cacheResult, { known: false, needsFullRefresh: true });
+
+    calls.length = 0;
+    const late = await runtime.run(
+      { opts: userOpts, encoded: 'segcfg' },
+      () => applyDebrid([input], { searchKey: 'passe-tardio' }),
+    );
+    assert.equal(late.length, 1);
+    assert.deepEqual(calls[0].options, {}, 'passe tardio usa o timeout completo do adaptador');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+  }
+});

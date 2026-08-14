@@ -6,7 +6,7 @@ const assert = require('node:assert');
 // sempre cancelado no finally. Os três casos abaixo são o contrato que o
 // findStreams (providers/index.js) usa pra devolver lista parcial antes do
 // timeout do cliente Stremio sem derrubar a busca que segue em background.
-const { raceWithDeadline } = require('../src/utils/deadline');
+const { raceWithDeadline, remainingCheckBudget } = require('../src/utils/deadline');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -70,4 +70,19 @@ test('rejeição da tarefa propaga e não deixa o onDeadline disparar', async ()
   // Mesmo com a rejeição, o timer do prazo é cancelado: nada dispara depois.
   await sleep(400);
   assert.equal(deadlineFired, false);
+});
+
+test('passe tardio não recebe teto dinâmico de checagem', () => {
+  assert.equal(remainingCheckBudget(null, 6000, 500), null);
+  assert.equal(remainingCheckBudget(undefined, 6000, 500), null);
+});
+
+test('orçamento da checagem desconta o tempo consumido e a margem final', () => {
+  assert.equal(remainingCheckBudget(10000, 6000, 500), 3500);
+  assert.equal(remainingCheckBudget(10000, 6000), 4000);
+});
+
+test('orçamento esgotado nunca fica negativo', () => {
+  assert.equal(remainingCheckBudget(10000, 9500, 500), 0);
+  assert.equal(remainingCheckBudget(10000, 9800, 500), 0);
 });

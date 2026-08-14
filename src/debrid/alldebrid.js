@@ -36,16 +36,16 @@ async function call(apiKey, path, params = {}, { method = 'GET', body, timeout }
  * O que não está pronto é removido em seguida: sem isso cada consulta deixaria
  * um download rodando na conta (chegaram a 226 fantasmas antes disso existir).
  */
-async function checkCached(apiKey, infoHashes) {
+async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   const drop = [];
   const account = accountScope(apiKey);
 
-  const result = await batched(infoHashes, config.debrid.batchSize, async (batch) => {
+  const result = await batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const data = await call(
       apiKey,
       '/magnet/upload',
       { 'magnets[]': batch },
-      { timeout: config.debrid.cacheCheckTimeout },
+      { timeout: ctx?.timeoutMs ?? config.debrid.cacheCheckTimeout },
     );
     const ready = [];
     for (const magnet of data?.magnets || []) {
@@ -55,7 +55,7 @@ async function checkCached(apiKey, infoHashes) {
       else if (magnet.id && !held.isHeld(magnet.hash, account)) drop.push(magnet.id);
     }
     return ready;
-  });
+  }, { timeoutMs });
 
   if (drop.length && config.debrid.dropUncached) {
     // Em paralelo e sem travar a busca: limpeza é efeito colateral, não resposta.
@@ -143,6 +143,9 @@ module.exports = {
   short: 'AD',
   // Não pelo /magnet/instant (removido), e sim pelo `ready` do /magnet/upload.
   cacheCheck: true,
+  // A consulta cria transferência; aborto sem resposta perde o id necessário
+  // para remover os magnets que não estavam prontos.
+  abortSafeCacheCheck: false,
   keyUrl: 'https://alldebrid.com/apikeys',
   checkCached,
   resolveLink,

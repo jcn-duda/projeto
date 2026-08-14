@@ -22,16 +22,16 @@ async function call(apiKey, path, { method = 'GET', params = {}, body, timeout }
  * Quais desses infoHashes já estão no cache do Premiumize (play instantâneo).
  * Retorna um Set com os hashes disponíveis.
  */
-async function checkCached(apiKey, infoHashes) {
+async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   // A API aceita lote; mantemos blocos pra não montar URLs gigantes.
-  return batched(infoHashes, config.debrid.batchSize, async (batch) => {
+  return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const data = await call(apiKey, '/cache/check', {
       params: { 'items[]': batch },
-      timeout: config.debrid.cacheCheckTimeout,
+      timeout: ctx?.timeoutMs ?? config.debrid.cacheCheckTimeout,
     });
     const flags = data.response || [];
     return batch.filter((_, idx) => flags[idx]);
-  });
+  }, { timeoutMs });
 }
 
 /**

@@ -29,7 +29,7 @@ const { accountScope, streamsCacheKey } = require('../utils/request-key');
 const { createLatestWriter } = require('../utils/latest-writer');
 const { planJackettQueries } = require('./search-plan');
 const { collectWithinWindow } = require('./collection-window');
-const { raceWithDeadline } = require('../utils/deadline');
+const { raceWithDeadline, remainingCheckBudget } = require('../utils/deadline');
 const autofetch = require('./autofetch');
 const { opts, prefix } = require('../runtime');
 
@@ -129,7 +129,7 @@ function autoFetchBrDubbed(streams, selected, { cached, known, season, episode, 
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
  * link de play que passa pela nossa rota /resolve.
  */
-async function applyDebrid(streams, { season, episode, searchKey }) {
+async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, onCacheResult }) {
   const adapter = debrid.current();
   if (!adapter || streams.length === 0) return streams;
 
@@ -148,8 +148,27 @@ async function applyDebrid(streams, { season, episode, searchKey }) {
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
   const candidate = autoFetchCandidate(streams);
   const checkStarted = Date.now();
-  const { cached, known } = await debrid.checkCached(hashes);
+  // Teto dinâmico: o que resta do REPLY_DEADLINE menos margem para serialização.
+  // null = sem teto (passe tardio usa o timeout completo do adaptador).
+  // <=0 degrada na hora para known:false sem rede.
+  const timeoutMs = remainingCheckBudget(
+    deadlineAt,
+    checkStarted,
+    config.debrid.checkFormatMargin,
+  );
+  const { cached, known } = await debrid.checkCached(
+    hashes,
+    timeoutMs != null ? { timeoutMs } : {},
+  );
   const checkMs = Date.now() - checkStarted;
+  if (onCacheResult) {
+    onCacheResult({
+      known,
+      // Real-Debrid e Debrid-Link sempre são unknown; só uma consulta confiável
+      // que degradou por causa do teto precisa ser repetida em background.
+      needsFullRefresh: timeoutMs != null && adapter.cacheCheck && !known,
+    });
+  }
   autoFetchBrDubbed(streams, candidate, { cached, known, season, episode, searchKey });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
   const viaDebrid = (s, instant) => {
@@ -172,8 +191,9 @@ async function applyDebrid(streams, { season, episode, searchKey }) {
   // dirá se toca ou não. O ⚡ vai só em quem foi confirmado: numa resposta
   // parcial os demais são "não perguntei", não "não tem", e viram "download".
   if (!known) {
+    const tetoInfo = timeoutMs != null ? `, teto ${timeoutMs}ms` : '';
     console.log(
-      `[debrid] ${adapter.label} sem resposta completa de cache em ${checkMs}ms; ${streams.length} stream(s) via debrid` +
+      `[debrid] ${adapter.label} sem resposta completa de cache em ${checkMs}ms${tetoInfo}; ${streams.length} stream(s) via debrid` +
         (cached.size ? ` (${cached.size} confirmado(s) em cache)` : ''),
     );
     return streams.map((s) => viaDebrid(s, cached.has(s.infoHash)));
@@ -182,7 +202,8 @@ async function applyDebrid(streams, { season, episode, searchKey }) {
   // O tempo entra no log porque ele é o que decide o teto: a checagem divide o
   // REPLY_DEADLINE com a coleta e disputa o event loop com os resolvedores BR,
   // que rodam neste mesmo processo.
-  console.log(`[debrid] ${cached.size}/${streams.length} em cache no ${adapter.label} (${checkMs}ms)`);
+  const tetoInfo = timeoutMs != null ? `, teto ${timeoutMs}ms` : '';
+  console.log(`[debrid] ${cached.size}/${streams.length} em cache no ${adapter.label} (${checkMs}ms${tetoInfo})`);
   const filtered = filterKnownCache(streams, cached, {
     cachedOnly,
     showUncachedBr,
@@ -297,6 +318,7 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
   });
   const bucket = collected.items;
   const done = collected.done;
+  let completion = collected.completion;
 
   if (!done) {
     if (collected.prioritySeen && priorityGrace) {
@@ -311,7 +333,7 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
     const soFar = bucket.length;
     if (onLate) {
       watchLate = true;
-      collected.completion
+      completion = collected.completion
         .then(() => lateQueue)
         .then(() => {
           const grew = bucket.length > soFar;
@@ -329,7 +351,7 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
   }
   // `partial` acompanha o lote até a resposta HTTP: quem recebe uma lista
   // incompleta não pode cacheá-la por 15 minutos (ver o handler em addon.js).
-  return { items: bucket, partial: !done };
+  return { items: bucket, partial: !done, completion };
 }
 
 async function findStreams({ type, id }) {
@@ -350,9 +372,15 @@ async function findStreams({ type, id }) {
   if (Array.isArray(cached)) return { streams: cached, partial: false };
   if (cached) return cached;
 
+  // deadlineAt é compartilhado entre o passo de resposta e a checagem de cache:
+  // a coleta não pode consumir tudo e deixar zero pro debrid. Passado adiante
+  // como parte do input do builder, só o passo de resposta carrega — o passe
+  // tardio (late/onBatch) chama finish sem deadlineAt e usa o timeout completo.
+  const deadlineAt = Date.now() + config.replyDeadline;
+
   let task = inFlight.get(cacheKey);
   if (!task) {
-    task = doSearch({ type, id, cacheKey }).finally(() => inFlight.delete(cacheKey));
+    task = doSearch({ type, id, cacheKey, deadlineAt }).finally(() => inFlight.delete(cacheKey));
     // Se ninguém estiver ouvindo quando ela terminar, o resultado ainda vai pro cache;
     // o catch evita unhandled rejection depois que o deadline devolveu [].
     task.catch((err) => console.warn('[search] falhou em background:', err.message));
@@ -367,7 +395,7 @@ async function findStreams({ type, id }) {
   });
 }
 
-async function doSearch({ type, id, cacheKey }) {
+async function doSearch({ type, id, cacheKey, deadlineAt }) {
   const isDemo = opts().providers.includes('demo');
   const { imdbId, season, episode } = parseStremioId(id);
   // Cinemeta e TMDB em paralelo: o título pt-BR não pode atrasar a busca.
@@ -391,10 +419,15 @@ async function doSearch({ type, id, cacheKey }) {
   // busca fria: com o que chegou dentro do prazo e, depois, com o lote completo
   // quando as fontes lentas terminam (aí só pra reescrever o cache).
   const finish = createLatestWriter(
-    async ({ items, partial }) => ({
-      streams: await buildStreams(items, { meta, titles, season, episode, isDemo, searchKey: cacheKey }),
-      partial,
-    }),
+    async ({ items, partial, deadlineAt: inputDeadline }) => {
+      let needsDebridRefresh = false;
+      const streams = await buildStreams(items, {
+        meta, titles, season, episode, isDemo, searchKey: cacheKey,
+        deadlineAt: inputDeadline,   // presente SÓ no passo de resposta
+        onDebridResult: (result) => { needsDebridRefresh = result.needsFullRefresh; },
+      });
+      return { streams, partial, needsDebridRefresh };
+    },
     ({ streams, partial }) => {
       // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco
       // tempo. Lote parcial idem: o passe tardio reescreve, mas se ele falhar o
@@ -461,14 +494,40 @@ async function doSearch({ type, id, cacheKey }) {
     );
   }
 
-  return finish(raw, finish.phase());
+  const responsePhase = finish.phase();
+  const result = await finish({ ...raw, deadlineAt }, responsePhase);
+  if (result.needsDebridRefresh) {
+    // A primeira lista já pode sair como "download" dentro do prazo. Repetimos
+    // o mesmo pós-processamento sem teto depois que a resposta foi liberada para
+    // recuperar ⚡/cachedOnly no cache, mesmo se nenhum provider trouxer item novo.
+    const refresh = setImmediate(async () => {
+      try {
+        // Se a coleta ainda estava aberta, esperamos o balde estabilizar. Assim
+        // a checagem completa já grava partial:false e não pode rebaixar uma
+        // promoção concorrente feita pelo callback de conclusão.
+        if (raw.partial && raw.completion) await raw.completion;
+        const refreshed = cache.get(cacheKey);
+        // O passe tardio pode já ter reconstruído/promovido a mesma lista. Não
+        // repetimos a consulta cara (e, na AllDebrid, o upload) sem necessidade.
+        if (refreshed && refreshed.partial === false) return;
+        await finish({ items: raw.items, partial: false }, responsePhase);
+      } catch (err) {
+        console.warn('[search] atualização completa do debrid falhou:', err?.message || err);
+      }
+    });
+    refresh.unref();
+  }
+  return result;
 }
 
 /**
  * Bruto dos providers → streams do Stremio: corte por título, por episódio,
  * ordenação, debrid e limite final.
  */
-async function buildStreams(rawInput, { meta, titles, season, episode, isDemo, searchKey }) {
+async function buildStreams(
+  rawInput,
+  { meta, titles, season, episode, isDemo, searchKey, deadlineAt, onDebridResult },
+) {
   let raw = rawInput;
 
   // No modo demo, se não for BBB, lista vazia (esperado)
@@ -560,7 +619,13 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo, s
     indexerPriority: safeIndexerPriority,
   });
 
-  const beforeCut = await applyDebrid(streams, { season, episode, searchKey });
+  const beforeCut = await applyDebrid(streams, {
+    season,
+    episode,
+    searchKey,
+    deadlineAt,
+    onCacheResult: onDebridResult,
+  });
   streams = limitReservingBr(beforeCut, {
     brReservedSlots,
     maxResults,
@@ -585,4 +650,4 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo, s
   return streams;
 }
 
-module.exports = { findStreams };
+module.exports = { findStreams, applyDebrid };
