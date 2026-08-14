@@ -7,7 +7,7 @@
     "start": "node src/addon.js",
     "dev": "node --watch src/addon.js",
     "smoke": "node scripts/smoke.js",
-    "test": "node --test test/autofetch.test.js test/br-title.test.js test/cinemeta.test.js test/collection-window.test.js test/configure-html.test.js test/deadline.test.js test/debrid-batch.test.js test/diagnostic-guard.test.js test/format.test.js test/indexer-priority.test.js test/indexer-status.test.js test/jackett-catalog.test.js test/jackett-provider.test.js test/latest-writer.test.js test/request-key.test.js test/resolvers.test.js test/runtime.test.js test/search-plan.test.js test/sign.test.js",
+    "test": "node --test test/autofetch.test.js test/cache.test.js test/br-title.test.js test/cinemeta.test.js test/collection-window.test.js test/configure-html.test.js test/deadline.test.js test/debrid-batch.test.js test/diagnostic-guard.test.js test/format.test.js test/indexer-priority.test.js test/indexer-status.test.js test/jackett-catalog.test.js test/jackett-provider.test.js test/latest-writer.test.js test/request-key.test.js test/resolvers.test.js test/runtime.test.js test/search-plan.test.js test/sign.test.js",
     "test:nerdfilmes": "node nerdfilmes-resolver/test.js",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",

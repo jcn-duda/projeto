@@ -40,10 +40,15 @@ function loadFromDisk() {
   try {
     const now = Date.now();
     db.prepare('DELETE FROM cache WHERE expires_at <= ?').run(now);
+    // O teto do L1 não pode expulsar justamente os artefatos de TTL longo que
+    // justificam a persistência, como magnets já resolvidos por protetores.
     const rows = db
-      .prepare('SELECT key, value, expires_at FROM cache ORDER BY expires_at ASC LIMIT ?')
+      .prepare('SELECT key, value, expires_at FROM cache ORDER BY expires_at DESC LIMIT ?')
       .all(MAX_ENTRIES);
-    for (const row of rows) {
+    // A seleção vem do TTL mais longo para o mais curto. Inserir ao contrário
+    // deixa o mais curto como LRU e evita descartarmos o mais durável no
+    // primeiro set após o restart.
+    for (const row of rows.reverse()) {
       store.set(row.key, { value: JSON.parse(row.value), expiresAt: Number(row.expires_at) });
     }
     if (rows.length) console.log(`[cache] ${rows.length} entrada(s) recuperada(s) do disco`);
@@ -99,6 +104,9 @@ function get(key) {
     forget(key);
     return null;
   }
+  // Map preserva inserção; mover o hit para o fim transforma o corte em LRU.
+  store.delete(key);
+  store.set(key, hit);
   return hit.value;
 }
 
