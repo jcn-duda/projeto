@@ -143,32 +143,61 @@ function parsePosts(html) {
   return posts;
 }
 
+function cleanPostTitle(title = '') {
+  return String(title)
+    .replace(/\s*Torrent\s*(?:[–-]|&#8211;)?\s*/gi, ' ')
+    .replace(/\b(?:720p|1080p|2160p|4K)(?:\s*\/\s*(?:720p|1080p|2160p|4K|5\.1|dual|dublado|legendado))*/gi, '')
+    .replace(/\b\d{3,4}p\b/gi, '')
+    .replace(/\b(?:Dublado|Legendado|Dual\s*Áudio|Download|Online|Grátis|Completo|Completa)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** Cada botão protegido representa uma qualidade/tamanho diferente. */
 function parseDownloadLinks(html) {
   const links = [];
   const anchor = /<a\b[^>]*>[\s\S]*?<\/a>/gi;
   let match;
   let cursor = 0;
+  let currentAudio = 'desconhecido';
+  let currentEpisode = null;
+
   while ((match = anchor.exec(html))) {
     const tag = match[0].match(/<a\b[^>]*>/i)?.[0] || '';
     const href = attribute(tag, 'href');
     if (!href || !/(?:systemads|videosad)/i.test(href)) continue;
-    const context = stripTags(html.slice(cursor, match.index)).slice(-700);
+    const rawSegment = html.slice(cursor, match.index);
+    const segment = stripTags(rawSegment).toUpperCase();
+    const anchorText = stripTags(match[0]).toUpperCase();
     cursor = anchor.lastIndex;
-    const upper = context.toUpperCase();
-    const qualities = [...upper.matchAll(/(?:\b(\d{3,4})\s*P\b|\b(4K)\b)/g)];
+
+    const audioMarker = [...segment.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*|PORTUGU[ÊE]S)/g)].pop();
+    if (audioMarker) {
+      currentAudio = /LEGENDAD/.test(audioMarker[1]) ? 'legendado' : 'dublado';
+    }
+
+    if (/TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA/i.test(segment)) {
+      currentEpisode = null;
+    } else {
+      const epMatch = [...segment.matchAll(/(?:EPIS[ÓO]DIO|EP)\s*(\d{1,3})\b/gi)].pop();
+      if (epMatch) {
+        currentEpisode = Number(epMatch[1]);
+      }
+    }
+
+    const context = `${segment} ${anchorText}`;
+    const qualities = [...context.matchAll(/(?:\b(\d{3,4})\s*P\b|\b(4K)\b)/g)];
     const qualityHit = qualities.pop();
-    const sizes = [...upper.matchAll(/([\d.,]+)\s*(TB|GB|MB|KB)\b/g)];
+    const sizes = [...context.matchAll(/([\d.,]+)\s*(TB|GB|MB|KB)\b/g)];
     const sizeHit = sizes.pop();
-    const audioHits = [...upper.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*)/g)];
-    const audioHit = audioHits.pop();
-    const sourceHit = [...upper.matchAll(/(WEB[-. ]?DL|WEB[-. ]?RIP|BLU[- ]?RAY|HDTV)/g)].pop();
+    const sourceHit = [...context.matchAll(/(WEB[-. ]?DL|WEB[-. ]?RIP|BLU[- ]?RAY|HDTV)/g)].pop();
 
     links.push({
       url: href,
       quality: qualityHit ? (qualityHit[1] ? Number(qualityHit[1]) : 2160) : null,
       size: sizeHit ? `${sizeHit[1]} ${sizeHit[2]}` : null,
-      audio: audioHit ? (/LEGENDAD/.test(audioHit[1]) ? 'legendado' : 'dublado') : 'desconhecido',
+      audio: currentAudio,
+      episode: currentEpisode,
       source: sourceHit ? normalizeSource(sourceHit[1]) : null,
     });
   }
@@ -289,13 +318,18 @@ function escapeXml(value = '') {
 }
 
 function releaseTitle(postTitle, link, index = null) {
+  const clean = cleanPostTitle(typeof postTitle === 'string' ? postTitle : postTitle?.title || '');
+  const epPart = link.episode != null ? `E${String(link.episode).padStart(2, '0')}` : '';
+  const audioTag = link.audio === 'dublado' ? 'DUBLADO' : link.audio === 'legendado' ? 'LEGENDADO' : null;
   const tags = [
     link.quality ? `${link.quality}p` : null,
     link.source,
-    link.audio !== 'desconhecido' ? link.audio.toUpperCase() : null,
+    audioTag,
     link.size || (index == null ? null : `opção ${index + 1}`),
   ].filter(Boolean);
-  return tags.length ? `${postTitle} [${tags.join(' ')}]` : postTitle;
+
+  const base = epPart ? `${clean} ${epPart}` : clean;
+  return tags.length ? `${base} [${tags.join(' ')}]` : base;
 }
 
 function searchPageHtml(items) {

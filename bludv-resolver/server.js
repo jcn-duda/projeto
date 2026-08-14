@@ -86,6 +86,7 @@ async function fetchText(url, referer) {
 function parseDownloadLinks(html) {
   const links = [];
   let audio = 'desconhecido';
+  let currentEpisode = null;
   let cursor = 0;
 
   const anchor = /<a\s+href="(https?:\/\/(?:systemads|videosad)[^"]+)"[^>]*>[\s\S]*?<\/a>/gi;
@@ -97,6 +98,15 @@ function parseDownloadLinks(html) {
     const marker = [...segment.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*)/g)].pop();
     if (marker) audio = /LEGENDAD/.test(marker[1]) ? 'legendado' : 'dublado';
 
+    if (/TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA/i.test(segment)) {
+      currentEpisode = null;
+    } else {
+      const epMatch = [...segment.matchAll(/(?:EPIS[ÓO]DIO|EP)\s*(\d{1,3})\b/gi)].pop();
+      if (epMatch) {
+        currentEpisode = Number(epMatch[1]);
+      }
+    }
+
     // Último "Np ... (tamanho)" antes do botão: o do próprio botão — o título do
     // post no topo cita "720p/1080p/4K" sem parêntese e não casa no padrão.
     // Entre a qualidade e o parêntese pode haver codec/HDR: "2160p x265 DV (24 GB)".
@@ -106,6 +116,7 @@ function parseDownloadLinks(html) {
       quality: spec ? (spec[1] ? Number(spec[1]) : 2160) : null,
       size: spec ? spec[3].trim() : null,
       audio,
+      episode: currentEpisode,
     });
   }
   return links;
@@ -265,13 +276,16 @@ function releaseTitle(postTitle, link) {
     .replace(/\b\d{3,4}p(?:\s*\/\s*(?:\d{3,4}p|4K))+/gi, '')
     .replace(/\b\d{3,4}p\b/gi, '')
     // Palavras de vitrine do site: quem manda são os atributos do botão.
-    .replace(/\b(?:Dublado|Legendado|Dual\s*Áudio|Download|Online|Grátis|Completo)\b/gi, '')
+    .replace(/\b(?:Dublado|Legendado|Dual\s*Áudio|Download|Online|Grátis|Completo|Completa)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
-  const tag = [link.quality ? `${link.quality}p` : null, link.audio !== 'desconhecido' ? link.audio.toUpperCase() : null]
+  const epPart = link.episode != null ? `E${String(link.episode).padStart(2, '0')}` : '';
+  const audioTag = link.audio === 'dublado' ? 'DUBLADO' : link.audio === 'legendado' ? 'LEGENDADO' : null;
+  const tag = [link.quality ? `${link.quality}p` : null, audioTag]
     .filter(Boolean)
     .join(' ');
-  return tag ? `${clean} [${tag}]` : clean;
+  const base = epPart ? `${clean} ${epPart}` : clean;
+  return tag ? `${base} [${tag}]` : base;
 }
 
 function pubDate(date) {
