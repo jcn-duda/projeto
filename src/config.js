@@ -46,7 +46,18 @@ const config = {
     maxDownloadResolves: num(process.env.JACKETT_MAX_DOWNLOAD_RESOLVES, 20),
     downloadTimeout: num(process.env.JACKETT_DOWNLOAD_TIMEOUT_MS, 8000),
     ptBrIndexers: list(
-      process.env.JACKETT_PT_BR_INDEXERS || 'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2',
+      // redetorrent é definição stock do Jackett (sem resolver local): entrega
+      // magnet/infoHash direto, mas a query precisa ir sem SxxEyy — o strip
+      // acontece em queryIndexer para todos os desta lista.
+      process.env.JACKETT_PT_BR_INDEXERS ||
+        'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,redetorrent,apachetorrent',
+    ),
+    // Buscadores WordPress stock que zeram com QUALQUER token extra: além do
+    // SxxEyy, o ano do filme também sai ("Coringa 2019" → 0 no redetorrent,
+    // "Coringa" → 34). Os resolvers locais ficam FORA desta lista: lá o ano
+    // ajuda a relevância e o strip de SxxEyy já acontece no servidor deles.
+    bareTitleIndexers: list(
+      process.env.JACKETT_BARE_TITLE_INDEXERS || 'redetorrent,apachetorrent',
     ),
     // Orçamento TOTAL (busca + resolução de magnets) dos que raspam site e
     // seguem protetor de link. PODE passar do REPLY_DEADLINE_MS: a resposta não
@@ -87,6 +98,11 @@ const config = {
     concurrency: num(process.env.BLUDV_CONCURRENCY, 6),
     timeout: num(process.env.BLUDV_TIMEOUT_MS, 8000),
   },
+  // Dublado antes de legendado DENTRO da mesma qualidade. Ligado por padrão: o
+  // diferencial do addon é conteúdo BR dublado, e desligado as cotas por
+  // qualidade (max1080p e cia.) não distinguem áudio — três releases legendadas
+  // do mesmo post enchiam a cota do 1080p e empurravam a DUAL para fora.
+  preferDubbed: String(process.env.PREFER_DUBBED || 'true') === 'true',
   qualityFilter: list(process.env.QUALITY_FILTER),
   minSeeders: num(process.env.MIN_SEEDERS, 1),
   maxResults: num(process.env.MAX_RESULTS, 40),

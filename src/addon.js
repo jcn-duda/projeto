@@ -19,8 +19,8 @@ const manifest = {
   name: config.addonName,
   description:
     'Torrents self-hosted com prioridade para conteúdo brasileiro dublado. ' +
-    'Busca em paralelo via Jackett (BLUDV, Comando, NerdFilmes, TorrentDosFilmes ' +
-    '+ indexers globais) e entrega play instantâneo por debrid.',
+    'Busca em paralelo via Jackett (BLUDV, Comando, NerdFilmes, TorrentDosFilmes, ' +
+    'RedeTorrent + indexers globais) e entrega play instantâneo por debrid.',
   // Servido pelo próprio addon quando há PUBLIC_URL; sem ela o cliente não
   // alcançaria um caminho relativo, então cai no logo genérico do Stremio.
   logo: config.debrid.publicUrl

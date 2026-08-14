@@ -404,9 +404,11 @@ test('matchesBrTitle corta obra derivada que só começa com o nome', () => {
     }),
     true,
   );
-  // Sem `allNames` a checagem não roda — quem chama não tem a informação.
+  // Sem `allNames` a checagem de precisão não roda — quem chama não tem a
+  // informação. O veículo aqui não pode ter número de sequência: "Fallout 4"
+  // morreria na regra de sequência, que é outra checagem.
   assert.equal(
-    matchesBrTitle('Fallout 4 (PC) [2015] Download Torrent', 'Fallout', null),
+    matchesBrTitle('Fallout Torrent (2015) Legendado WEB DL', 'Fallout', null),
     true,
   );
 });
@@ -420,6 +422,20 @@ test('matchesEpisode barra outro episódio mas aceita pack da temporada', () => 
   assert.equal(matchesEpisode('A Casa Do Dragao Dublado 1080p', want), true);
   // Filme: sem season/episode não filtra nada.
   assert.equal(matchesEpisode('Coringa 1080p', {}), true);
+});
+
+test('matchesEpisode lê "Exx" solto no formato dos resolvers BR', () => {
+  const want = { season: 1, episode: 1 };
+  // Formato real dos resolvers: temporada por extenso + episódio solto.
+  assert.equal(matchesEpisode('A Casa do Dragão 1ª Temporada (2022) WEB-DL E01 [DUBLADO]', want), true);
+  assert.equal(matchesEpisode('A Casa do Dragão 1ª Temporada (2022) WEB-DL E02 [DUBLADO]', want), false);
+  assert.equal(matchesEpisode('A Casa do Dragão 1ª Temporada (2022) / WEB-DL | E07 [2160p opção 44]', want), false);
+  // Intervalo de episódios soltos cobre o pedido.
+  assert.equal(matchesEpisode('Serie 1ª Temporada E01 a E10 720p', { season: 1, episode: 5 }), true);
+  // Sem temporada no título, "e" seguido de número é conjunção/ruído, não episódio.
+  assert.equal(matchesEpisode('Lilo e Stitch E02 Live Action', want), true);
+  // EAC3 não vira episódio 3.
+  assert.equal(matchesEpisode('Serie 1ª Temporada E01 DDP5 1 EAC3 1080p', { season: 1, episode: 3 }), false);
 });
 
 test('sortAndLimit põe o episódio exato antes do pack da temporada', () => {
@@ -851,4 +867,24 @@ test('filtro de qualidade usa a resolução declarada, não substring do título
 
   assert.equal(out.length, 1);
   assert.equal(out[0].infoHash, br4k.infoHash);
+});
+
+test('tamanho fabricado pelo indexer vira desconhecido, não valor exibido', () => {
+  // 1,62 TB é o carimbo da definição Cardigann do redetorrent em 53 das 93
+  // releases de uma busca real. Exibi-lo mente para o usuário e, com filtro de
+  // tamanho ligado, apagaria a fonte dublada inteira.
+  const absurdo = toStremioStream({
+    title: 'House of the Dragon S01E02 DUAL 1080p', infoHash: HASH, seeders: 1, size: 1784881034035,
+  });
+  assert.equal(absurdo._size, 0);
+  assert.doesNotMatch(absurdo.title, /TB/);
+  // Tamanho plausível continua intacto.
+  const real = toStremioStream({
+    title: 'Filme 1080p', infoHash: OTHER, seeders: 5, size: 8 * 1024 ** 3,
+  });
+  assert.equal(real._size, 8 * 1024 ** 3);
+  assert.match(real.title, /8(\.\d+)? GB/);
+  // Filtro de tamanho não pode descartar quem tem tamanho desconhecido.
+  const out = sortAndLimit([absurdo], { maxSizeGb: 20 });
+  assert.equal(out.length, 1);
 });

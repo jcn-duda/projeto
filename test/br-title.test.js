@@ -43,7 +43,14 @@ test('ignora artigos e preposições nos dois lados', () => {
 });
 
 test('ano null/desconhecido não aplica a checagem de ano', () => {
-  assert.equal(matchesBrTitle('Fallout 4 (PC) [2015] – Download Torrent', 'Fallout', null), true);
+  // Sem ano do catálogo, título com ano divergente ainda passa: não há contra o
+  // que comparar. (O jogo "Fallout 4" não serve mais de exemplo aqui — hoje ele
+  // morre antes, na regra de sequência, com ou sem ano.)
+  assert.equal(matchesBrTitle('Fallout 1ª Temporada [2015] – Download Torrent', 'Fallout', null), true);
+});
+
+test('sequência barra o jogo mesmo sem ano do catálogo', () => {
+  assert.equal(matchesBrTitle('Fallout 4 (PC) [2015] – Download Torrent', 'Fallout', null), false);
 });
 
 test('ano do catálogo sujo ("2024–", série em andamento) ainda compara', () => {
@@ -79,4 +86,84 @@ test('filme aceita defasagem de até 2 anos (lançamento BR)', () => {
 
 test('continua exigindo o nome como palavra inteira', () => {
   assert.equal(matchesBrTitle('Fallouts e derivados (2024)', 'Fallout', 2024), false);
+});
+
+// Títulos reais do redetorrent: marcador SxxEyy à esquerda, nome do episódio
+// no meio e tags de fonte/grupo (HMAX, NTb) que não são o nome da obra.
+test('aceita release por episódio do redetorrent', () => {
+  const names = ['House of the Dragon', 'A Casa do Dragão'];
+  assert.equal(
+    matchesBrTitle('S02E01   A Casa do Dragão S02E01 x264 DUAL 5.1 1080p', 'A Casa do Dragão', 2022, {
+      isSeries: true, allNames: names,
+    }),
+    true,
+  );
+  assert.equal(
+    matchesBrTitle(
+      'House of the Dragon S01E02.The Rogue Prince  HMAX  DDP5.1.x264 NTb 1080p',
+      'House of the Dragon', 2022, { isSeries: true, allNames: names },
+    ),
+    true,
+  );
+  assert.equal(
+    matchesBrTitle('House of the Dragon S01E01. FULL  DUAL.5.1 1080p', 'House of the Dragon', 2022, {
+      isSeries: true, allNames: names,
+    }),
+    true,
+  );
+  // Pack com rótulo de empacotamento antes do nome.
+  assert.equal(
+    matchesBrTitle(
+      '1A TEMPORADA COMPLETA      House of the Dragon S01. HMAX  DDP5.1.Atmos x264 SMURF 1080p',
+      'House of the Dragon', 2022, { isSeries: true, allNames: names },
+    ),
+    true,
+  );
+});
+
+test('SxxEyy no título não abre porteira para outra obra', () => {
+  const names = ['Fallout'];
+  // Outra obra continua morrendo no prefixo mesmo com marcador de episódio.
+  assert.equal(
+    matchesBrTitle('Missão: Impossível – Efeito Fallout S01E01 1080p', 'Fallout', 2024, {
+      isSeries: true, allNames: names,
+    }),
+    false,
+  );
+});
+
+// Regra de sequência portada do pacote BRDUB: "Deadpool" casa "Deadpool 2" em
+// 100% (todos os tokens da busca estão lá) e o ano não denuncia quando a
+// sequência é próxima (2018 contra catálogo 2016 cabe na tolerância ±2).
+test('filme: sequência que a busca não pediu é outra obra', () => {
+  assert.equal(matchesBrTitle('Deadpool 2 (2018) BluRay DUBLADO', 'Deadpool', 2016), false);
+  assert.equal(matchesBrTitle('Sonic 2 O Filme (2022) DUBLADO', 'Sonic O Filme', 2020), false);
+  assert.equal(matchesBrTitle('Invasão Zumbi 2 Península (2020) DUBLADO', 'Invasão Zumbi', 2016), false);
+  // Numeral por extenso conta igual ao dígito.
+  assert.equal(matchesBrTitle('Duna Parte Dois (2024) DUBLADO', 'Duna', 2021), false);
+  // A sequência PEDIDA passa.
+  assert.equal(matchesBrTitle('Deadpool 2 (2018) BluRay DUBLADO', 'Deadpool 2', 2018), true);
+});
+
+test('a regra de sequência não pode matar release legítima', () => {
+  // "5.1" (canal de áudio) vira "5 1" na normalização: sem parar no ano, o 5
+  // viraria sequência e mataria o post real do Coringa.
+  assert.equal(
+    matchesBrTitle('Coringa (2020) 5.1 / BluRay – [2160p BLURAY DUBLADO 13 GB]', 'Coringa', 2019),
+    true,
+  );
+  assert.equal(
+    matchesBrTitle('Oppenheimer (2023) BluRay [1080p BLURAY DUBLADO 11.64 GB]', 'Oppenheimer', 2023),
+    true,
+  );
+  // Série é isenta: o número antes do ruído é a TEMPORADA, e quem decide qual
+  // temporada vale é o matchesEpisode.
+  assert.equal(
+    matchesBrTitle('Round 6 2ª Temporada (2024) DUBLADO', 'Round 6', 2021, { isSeries: true }),
+    true,
+  );
+  assert.equal(
+    matchesBrTitle('Fallout 2ª Temporada (2025) WEB-DL E01 [DUBLADO]', 'Fallout', 2024, { isSeries: true }),
+    true,
+  );
 });

@@ -4,6 +4,13 @@ const { priorityMap, compareIndexerPriority } = require('./indexer-priority');
 
 const UNKNOWN_SIZE_MAX = 1024;
 
+// Teto de sanidade, do outro lado da mesma moeda. A definição Cardigann do
+// redetorrent carimba 1.784.881.034.035 bytes (1,62 TB) em 53 das 93 releases
+// de uma busca — valor fabricado, não medido. Exibi-lo é mentir para o
+// usuário, e pior: com filtro de tamanho ligado ele apagava a fonte dublada
+// inteira. Nem remux 4K de temporada completa chega perto de 500 GB.
+const IMPLAUSIBLE_SIZE_MIN = 500 * 1024 ** 3;
+
 // Resolução que o título não informa. Balde e cota próprios, separados do SD.
 const UNKNOWN_QUALITY = 'sem resolução';
 
@@ -226,7 +233,10 @@ function toStremioStream(item) {
   // Os indexers BR mandam 1 KB quando o post não publica tamanho: o Jackett
   // descarta release sem tamanho, então o sentinela é o preço de não perder a
   // release. Aqui ele volta a ser "desconhecido" — nenhum vídeo tem 1 KB.
-  const knownSize = Number.isFinite(rawSize) && rawSize > UNKNOWN_SIZE_MAX ? rawSize : 0;
+  const knownSize =
+    Number.isFinite(rawSize) && rawSize > UNKNOWN_SIZE_MAX && rawSize < IMPLAUSIBLE_SIZE_MIN
+      ? rawSize
+      : 0;
   const size = bytesToSize(knownSize);
   const tracker = item.tracker || item.Tracker || item.Indexer || item.indexer || '';
   const quality = qualityFromTitle(title);
@@ -334,20 +344,72 @@ const PACK_WORDS = new Set(
 // Ruído de release: o que todo indexer BR carimba no título e não diz nada
 // sobre QUAL obra é. Fora daqui, "Torrent (2019) Legendado WEB DL 720p" faria
 // qualquer título parecer distante da busca.
-const RELEASE_NOISE = new Set(
-  ('web dl webdl bluray blu ray webrip bdrip brrip hdtv hdrip rip remux hybrid ' +
-    'x264 x265 h264 h265 avc hevc av1 xvid divx 10bit 8bit hdr hdr10 dv sdr imax ' +
-    'dts aac ac3 eac3 ddp dd atmos truehd opus mp3 dual audio nacional multi ' +
-    'torrent torrents download baixar assistir online gratis ' +
-    'dublado dublada dublagem legendado legendada legenda opcao opcoes versao estendida ' +
-    'mkv mp4 avi gb mb kb ' +
-    '480p 540p 576p 720p 1080p 1440p 2160p 4k uhd sd hd fullhd ' +
-    'de do da das dos e a o os as um uma em no na para por com sobre ate').split(' '),
-);
+// Ruído TÉCNICO: marca onde o nome da obra acabou e começou a descrição da
+// release. `extractSequenceMarkers` usa isto como parada, por isso as palavras
+// de ligação ficam à parte — parar em "e" cortaria "Velozes e Furiosos 5"
+// antes do número que interessa.
+const TECH_NOISE = ('web dl webdl bluray blu ray webrip bdrip brrip hdtv hdrip rip remux hybrid ' +
+  'x264 x265 h264 h265 avc hevc av1 xvid divx 10bit 8bit hdr hdr10 dv sdr imax ' +
+  'dts aac ac3 eac3 ddp ddp5 ddp2 dd atmos truehd opus mp3 dual audio nacional multi ' +
+  'hmax amzn dsnp atvp pcok crav hulu h ' +
+  'torrent torrents download baixar assistir online gratis ' +
+  'dublado dublada dublagem legendado legendada legenda opcao opcoes versao estendida ' +
+  'mkv mp4 avi gb mb kb ' +
+  '480p 540p 576p 720p 1080p 1440p 2160p 4k uhd sd hd fullhd').split(' ');
+
+// Ligação: não diz nada sobre a obra e também não marca fim do título.
+const LINK_WORDS = 'de do da das dos e a o os as um uma em no na para por com sobre ate'.split(' ');
+
+const RELEASE_NOISE = new Set([...TECH_NOISE, ...LINK_WORDS]);
 
 // Calibrado nos casos reais deste repo: o documentário "A Última Vigília" dá
 // 0.60 e o pack "1ª até 8ª Temporada" dá 0.75 — o corte fica entre os dois.
 const TITLE_PRECISION_MIN = 0.65;
+
+// Numeral por extenso/romano → dígito, para "Duna Parte Dois" e "Rocky II"
+// casarem com "Duna Parte 2". "i" e "x" ficam de fora de propósito: sozinhos
+// são artigo em inglês ("I Am Legend") e marca de resolução/multiplicação,
+// não número de sequência.
+// Onde o nome da obra termina: ruído técnico ou palavra de empacotamento.
+const STOP_AT = new Set([...TECH_NOISE, ...PACK_WORDS]);
+
+const NUMERAL_CANON = {
+  ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9,
+  um: 1, dois: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+};
+
+/**
+ * Números de SEQUÊNCIA (sequel/parte) na parte limpa do título — lógica do
+ * pacote BRDUB. "Deadpool" casa "Deadpool 2" em 100% (todos os tokens da busca
+ * estão lá) e o ano só denuncia quando a sequência é distante: "Deadpool 2"
+ * (2018) contra catálogo 2016 cabia na tolerância de ±2 e entrava na lista.
+ *
+ * Duas diferenças em relação ao BRDUB, porque aqui o texto é o título da
+ * RELEASE (com tags) e não o do post:
+ * - a varredura para no ANO além do ruído: "Coringa (2020) 5.1 BluRay" vira
+ *   "coringa 2020 5 1 bluray", e sem parar no ano o "5 1" do canal de áudio
+ *   viraria sequência 5, matando a release legítima;
+ * - o 1 não conta: ele aparece em canal de áudio e em "Parte 1" da obra base,
+ *   onde a busca não o traz — barraria o que deveria passar.
+ */
+function extractSequenceMarkers(text) {
+  const markers = new Set();
+  for (const raw of normalizeTitle(text).split(' ')) {
+    if (!raw) continue;
+    if (/^(?:19|20)\d{2}$/.test(raw)) break;
+    if (STOP_AT.has(raw)) break;
+    const n = /^\d+$/.test(raw) ? Number(raw) : NUMERAL_CANON[raw];
+    if (n >= 2 && n <= 19) markers.add(n);
+  }
+  return markers;
+}
+
+// Marcador de episódio/temporada ("s01e01", "e07", "1x04", ordinal "1a"):
+// estrutura, não conteúdo. Contá-lo como palavra estranha derrubava a precisão
+// de release legítima do redetorrent ("S02E01 A Casa do Dragão S02E01 x264
+// DUAL", "1A TEMPORADA COMPLETA House of the Dragon S01").
+const EPISODE_TOKEN = /^(?:s\d{1,2}(?:e\d{1,3})?|e\d{1,3}|\d{1,2}x\d{1,3}|\d{1,2}a)$/;
 
 /**
  * Quanto do título do candidato está DENTRO da busca, ignorando ruído de
@@ -360,6 +422,7 @@ function titlePrecision(tokens, wanted) {
     (w) =>
       !RELEASE_NOISE.has(w) &&
       !PACK_WORDS.has(w) &&
+      !EPISODE_TOKEN.test(w) &&
       !/^\d+$/.test(w), // número solto é temporada, ano ou tamanho
   );
   // Título que só tem ruído não contradiz nada.
@@ -382,7 +445,14 @@ function matchesBrTitle(title, name, year = null, { isSeries = false, allNames =
   // ("Coleção Guerra nas Estrelas [Star wars]"), e medir contra um só condenaria
   // o outro como conteúdo estranho. Sem a lista completa, quem chama não tem a
   // informação necessária para esta pergunta, e a checagem não roda.
-  if (allNames?.length) {
+  // Release por episódio costuma carregar o NOME do episódio ("House of the
+  // Dragon S01E02.The Rogue Prince…"): palavras legítimas fora da busca que
+  // derrubavam a precisão. Com SxxEyy explícito no título a pergunta da
+  // precisão ("é outra obra?") já está respondida — obra parecida
+  // (documentário, especial, jogo) não publica marcador de episódio; temporada
+  // ou episódio errados morrem no matchesEpisode.
+  const perEpisode = tokens.some((w) => /^(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3})$/.test(w));
+  if (allNames?.length && !perEpisode) {
     const universo = allNames.flatMap((n) => normalizeTitle(n).split(' ')).filter(Boolean);
     if (titlePrecision(tokens, universo) < TITLE_PRECISION_MIN) return false;
   }
@@ -391,9 +461,20 @@ function matchesBrTitle(title, name, year = null, { isSeries = false, allNames =
   // o do nome. Palavra de coleção à esquerda não conta: "Coleção Guerra nas
   // Estrelas" e "Trilogia: O Senhor dos Anéis" são o pack certo, e a regra crua
   // os matava — enquanto o mesmo pack com a palavra no fim passava.
-  const firstSig = (arr) => arr.find((w) => w.length > 2 && !PACK_WORDS.has(w)) || arr[0];
+  // Marcador de episódio à esquerda idem: o redetorrent titula
+  // "S02E01   A Casa do Dragão S02E01 …" e a regra crua o reprovava.
+  const firstSig = (arr) =>
+    arr.find((w) => w.length > 2 && !PACK_WORDS.has(w) && !EPISODE_TOKEN.test(w)) || arr[0];
   const want = firstSig(wanted);
   if (want && firstSig(tokens) !== want) return false;
+
+  // Sequência que a busca não pediu é outra obra (regra do pacote BRDUB).
+  // Só em filme: em série o número antes do ruído é a TEMPORADA ("Round 6 2ª
+  // Temporada"), e a temporada certa quem decide é `matchesEpisode`.
+  if (!isSeries) {
+    const wantedMarkers = extractSequenceMarkers(name);
+    if (![...extractSequenceMarkers(title)].every((n) => wantedMarkers.has(n))) return false;
+  }
   // O ano do catálogo pode vir sujo ("2024–" para série em andamento): extrai o
   // primeiro token de 4 dígitos antes de comparar.
   const catalogYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
@@ -465,6 +546,19 @@ function parseTitleSeasonEpisode(title = '') {
   // "Episódio II" de filme (Star Wars) viraria episódio de série.
   if (seasons.size && episodes.size === 0) {
     for (const m of t.matchAll(/epis[oó]dio\s?(\d{1,3})/g)) episodes.add(Number(m[1]));
+    // Os resolvers BR titulam "1ª Temporada (2022) WEB-DL E02": o "e02" solto
+    // é o episódio da release. Sem este parse, o E02 passava pelo filtro do
+    // E01 e tomava as vagas reservadas BR. Fora do contexto de temporada o
+    // "e" é conjunção ("Lilo e Stitch 2"), por isso a mesma trava do Episódio.
+    const loose = [...t.matchAll(/(?<![a-z0-9])e(\d{1,3})(?![a-z0-9])/g)].map((m) => Number(m[1]));
+    if (loose.length >= 2) {
+      // "E01 a E10" é intervalo, como no formato SxxEyy acima.
+      const lo = Math.min(...loose);
+      const hi = Math.max(...loose);
+      for (let i = lo; i <= hi; i += 1) episodes.add(i);
+    } else {
+      loose.forEach((e) => episodes.add(e));
+    }
   }
 
   return { seasons: [...seasons], episodes: [...episodes], complete };

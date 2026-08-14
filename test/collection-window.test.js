@@ -62,6 +62,56 @@ test('sem tarefa BR não consome a janela extra', async () => {
   await result.completion;
 });
 
+test('graceRequiresItems: balde vazio pula a janela extra (vai pro fallback de pack)', async () => {
+  const budget = deferred();
+  const slow = deferred();
+  let graceRequested = false;
+  const running = collectWithinWindow([
+    { promise: slow.promise, priority: true },
+  ], {
+    budgetMs: 10,
+    priorityGraceMs: 25,
+    graceRequiresItems: true,
+    delay: (ms) => {
+      if (ms === 25) graceRequested = true;
+      return budget.promise;
+    },
+  });
+  await Promise.resolve();
+  budget.resolve();
+  const result = await running;
+
+  assert.equal(result.done, false);
+  assert.equal(graceRequested, false);
+  assert.deepEqual(result.items, []);
+  slow.resolve([{ title: 'BR atrasado', isBr: true }]);
+  await result.completion;
+});
+
+test('graceRequiresItems: com itens no balde a janela extra vale para série', async () => {
+  const budget = deferred();
+  const grace = deferred();
+  const br = deferred();
+  const running = collectWithinWindow([
+    { promise: Promise.resolve([{ title: 'Global' }]), priority: false },
+    { promise: br.promise, priority: true },
+  ], {
+    budgetMs: 10,
+    priorityGraceMs: 25,
+    graceRequiresItems: true,
+    delay: (ms) => (ms === 10 ? budget.promise : grace.promise),
+  });
+  await Promise.resolve();
+  budget.resolve();
+  await Promise.resolve();
+  br.resolve([{ title: 'E01 Dublado', isBr: true }]);
+  const result = await running;
+
+  assert.equal(result.prioritySeen, true);
+  assert.deepEqual(result.items.map((item) => item.title), ['Global', 'E01 Dublado']);
+  await result.completion;
+});
+
 test('fonte BR dentro do orçamento não consome a janela extra', async () => {
   const budget = deferred();
   const slow = deferred();

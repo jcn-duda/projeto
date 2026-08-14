@@ -57,7 +57,7 @@ function defaults() {
     indexerPriority: [],
     brOnly: false,
     dubbedOnly: config.bludv.dubbedOnly,
-    preferDubbed: false,
+    preferDubbed: config.preferDubbed,
     excludeCam: false,
     maxSizeGb: 0,
     max2160p: config.qualityLimits['2160p'],

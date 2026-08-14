@@ -10,6 +10,10 @@ function wait(ms) {
 async function collectWithinWindow(tasks, {
   budgetMs,
   priorityGraceMs = 0,
+  // Quem tem fallback de balde vazio (série → pack) não pode gastar a graça
+  // esperando fonte BR de uma busca que não trouxe nada: a espera sairia do
+  // tempo do pack. Com itens no balde o fallback não roda e a graça é segura.
+  graceRequiresItems = false,
   isPriority = (items) => items.some((item) => item?.isBr),
   onError = () => {},
   delay = wait,
@@ -42,7 +46,10 @@ async function collectWithinWindow(tasks, {
   const completion = Promise.all(collecting).then(() => { done = true; });
 
   await Promise.race([completion, delay(budgetMs)]);
-  if (!done && !prioritySeen && pendingPriority > 0 && priorityGraceMs > 0) {
+  if (
+    !done && !prioritySeen && pendingPriority > 0 && priorityGraceMs > 0 &&
+    (!graceRequiresItems || items.length > 0)
+  ) {
     await Promise.race([completion, priority, priorityDone, delay(priorityGraceMs)]);
   }
 

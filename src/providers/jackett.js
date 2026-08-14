@@ -1,5 +1,5 @@
 const config = require('../config');
-const { matchesBrTitle } = require('../utils/format');
+const { matchesBrTitle, matchesEpisode } = require('../utils/format');
 const indexerStatus = require('./indexer-status');
 
 // Abaixo disso não vale abrir mais um salto de protetor de link: a requisição
@@ -78,6 +78,7 @@ async function resolveCardigannDownloads(indexer, items, query, deadline) {
     .replace(/\s+/g, ' ')
     .trim();
   const requestedSeason = String(query || '').match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
+  const requestedEp = String(query || '').match(/\bS(\d{1,2})\s?E(\d{1,3})\b/i);
   // A query de filme carrega o ano ("Coringa 2019") — ele denuncia post de
   // outro filme antes mesmo de pagar o protetor: "Coringa: Delírio a Dois
   // (2024)" resolve magnet sem nunca entrar na lista.
@@ -92,6 +93,13 @@ async function resolveCardigannDownloads(indexer, items, query, deadline) {
       const titleSeason = String(item.title || '').match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
       return !titleSeason || Number(titleSeason[1] || titleSeason[2]) === Number(requestedSeason[1]);
     })
+    // Release de outro episódio morre em buildStreams de qualquer jeito —
+    // resolvê-la gastava os slots (maxDownloadResolves) e 2-4s de protetor com
+    // E02..E10 enquanto o E01 pedido ficava de fora. Pack continua passando.
+    .filter((item) => !requestedEp || matchesEpisode(item.title || '', {
+      season: Number(requestedEp[1]),
+      episode: Number(requestedEp[2]),
+    }))
     .slice(0, config.jackett.maxDownloadResolves);
   const resolved = await mapLimit(candidates, config.jackett.resolveConcurrency, async (item) => {
     if (item.infoHash || /^magnet:\?/i.test(item.magnet || '')) return item;
@@ -107,6 +115,25 @@ async function resolveCardigannDownloads(indexer, items, query, deadline) {
   return resolved;
 }
 
+/**
+ * O que o Jackett recebe como Query. Buscador WordPress engasga com "SxxEyy":
+ * os resolvers locais já removem no servidor, mas indexer BR com definição
+ * stock (redetorrent) recebe a query crua e devolve 0. Remover aqui também faz
+ * episódios da mesma temporada compartilharem o cache do Jackett. Nos
+ * `bareTitleIndexers` o ANO no fim também sai ("Coringa 2019" → 0 lá) — só o
+ * do fim, senão o filme "1917" perderia o próprio título. A query original
+ * segue intacta para os pré-filtros de temporada/episódio da resolução.
+ */
+function shapeSearchQuery(indexer, query, isBr) {
+  let shaped = String(query || '');
+  if (isBr) shaped = shaped.replace(/\bS\d{1,2}(?:E\d{1,3})?\b/gi, ' ');
+  if (config.jackett.bareTitleIndexers.includes(indexer)) {
+    shaped = shaped.replace(/\s+(?:19|20)\d{2}\s*$/, ' ');
+  }
+  shaped = shaped.replace(/\s+/g, ' ').trim();
+  return shaped || query;
+}
+
 /** Orçamento que a busca AO VIVO daria a este indexer. */
 function budgetFor(indexer) {
   const isSlow =
@@ -116,9 +143,11 @@ function budgetFor(indexer) {
 
 async function queryIndexer(indexer, query, type, timeoutOverride = null) {
   const { url, apiKey } = config.jackett;
+  const isBr = config.jackett.ptBrIndexers.includes(indexer);
+  const searchQuery = shapeSearchQuery(indexer, query, isBr);
   const endpoint = new URL(`${url}/api/v2.0/indexers/${indexer}/results`);
   endpoint.searchParams.set('apikey', apiKey);
-  endpoint.searchParams.set('Query', query);
+  endpoint.searchParams.set('Query', searchQuery);
   // 2000 = Movies, 5000 = TV nos indexers Torznab
   if (type === 'movie') endpoint.searchParams.append('Category[]', '2000');
   if (type === 'series') endpoint.searchParams.append('Category[]', '5000');
@@ -138,7 +167,6 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null) {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-  const isBr = config.jackett.ptBrIndexers.includes(indexer);
   const items = await resolveCardigannDownloads(
     indexer,
     mapResults(await res.json(), { isBr, indexer }),
@@ -295,4 +323,4 @@ async function test(indexer, query, type = 'movie') {
   }
 }
 
-module.exports = { search, test, name: 'jackett' };
+module.exports = { search, test, shapeSearchQuery, name: 'jackett' };

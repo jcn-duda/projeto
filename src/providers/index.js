@@ -263,15 +263,15 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
   // A graça sai da reserva, mas nunca deixa menos de 2s pro debrid. No caso
   // medido de Disclosure Day, a primeira fonte BR chegava pouco depois dos 5s;
   // sem esta janela a UI ficava para sempre com os 11 globais do passe parcial.
-  // Em série, a busca por episódio pode cair no fallback de pack. Consumir a
-  // graça na primeira fase roubaria o tempo do pack, que é justamente onde as
-  // fontes BR costumam existir.
-  const priorityGrace = type === 'movie'
-    ? Math.min(config.brPartialGrace, Math.max(0, config.debridReserve - 2000))
-    : 0;
+  // Série também precisa dela (medido em A Casa do Dragão: os BR terminavam a
+  // 5,9-8,7s e o E01 dublado nunca entrava na primeira resposta), mas SÓ com
+  // itens no balde: balde vazio cai no fallback de pack, e consumir a graça
+  // nessa hora roubaria o tempo dele.
+  const priorityGrace = Math.min(config.brPartialGrace, Math.max(0, config.debridReserve - 2000));
   const collected = await collectWithinWindow(tasks, {
     budgetMs: budget,
     priorityGraceMs: priorityGrace,
+    graceRequiresItems: type !== 'movie',
     onError: (err) => console.warn('[search] provider falhou:', err?.message || err),
   });
   const bucket = collected.items;
