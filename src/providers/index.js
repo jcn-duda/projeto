@@ -267,7 +267,10 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
   // 5,9-8,7s e o E01 dublado nunca entrava na primeira resposta), mas SÓ com
   // itens no balde: balde vazio cai no fallback de pack, e consumir a graça
   // nessa hora roubaria o tempo dele.
-  const priorityGrace = Math.min(config.brPartialGrace, Math.max(0, config.debridReserve - 2000));
+  const priorityGrace = Math.min(
+    config.brPartialGrace,
+    Math.max(0, config.debridReserve - config.debridCheckFloor),
+  );
   const collected = await collectWithinWindow(tasks, {
     budgetMs: budget,
     priorityGraceMs: priorityGrace,

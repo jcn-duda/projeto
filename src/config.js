@@ -169,13 +169,22 @@ const config = {
   },
   // Menor que o limite de 10s do cliente Stremio.
   searchTimeout: num(process.env.SEARCH_TIMEOUT_MS, 8000),
-  replyDeadline: num(process.env.REPLY_DEADLINE_MS, 8500),
+  // 10s é o teto dos DOIS clientes: o Stremio aborta a requisição de stream
+  // nesse prazo e o Power Movie declara o mesmo (kStreamReceiveTimeoutSeconds).
+  // 9200 usa a folga que sobrava e ainda deixa 800ms para rede e parse —
+  // passar de ~9500 troca "lista parcial" por "erro de timeout", que é pior.
+  replyDeadline: num(process.env.REPLY_DEADLINE_MS, 9200),
   // Fatia do deadline reservada pra checagem no debrid depois da coleta. Com
   // 2000 ela não cobria nem o caso rápido (~2,6s) e a coleta comia o prazo
-  // inteiro; 3500 ainda deixa 5s de coleta, folgado pros indexers globais, cujo
-  // teto é JACKETT_INDEXER_TIMEOUT_MS=4000. Os BR nunca couberam aqui — quem
-  // cuida deles é o passe tardio.
-  debridReserve: num(process.env.DEBRID_RESERVE_MS, 3500),
+  // inteiro. 3500 era dimensionado pelo pior caso do Premiumize (75 hashes com
+  // o event loop travado pelos resolvedores BR); medido na AllDebrid a checagem
+  // leva 270-290ms, então 2800 continua com folga de 10x e devolve 700ms para a
+  // coleta — que é onde as fontes BR disputam a primeira resposta.
+  debridReserve: num(process.env.DEBRID_RESERVE_MS, 2800),
+  // Piso que a graça BR nunca invade: o que a checagem de cache precisa ter
+  // sobrado, aconteça o que acontecer. Era literal (2000) dentro do cálculo da
+  // graça, e por isso baixar a reserva encolhia a janela BR em vez de ampliá-la.
+  debridCheckFloor: num(process.env.DEBRID_CHECK_FLOOR_MS, 1500),
 };
 
 module.exports = config;
