@@ -179,7 +179,7 @@ da próxima vez. Os detalhes e as travas estão no invariante 6.
 O cliente Stremio aborta em 10s. A cadeia é:
 
 ```
-REPLY_DEADLINE_MS (8500) − DEBRID_RESERVE_MS (2000) = orçamento da coleta
+REPLY_DEADLINE_MS (9200) − DEBRID_RESERVE_MS (2800) = orçamento da coleta
 JACKETT_INDEXER_TIMEOUT_MS (4000)      teto por indexer global, dentro do orçamento
 JACKETT_BR_INDEXER_TIMEOUT_MS (20000)  total BR — PODE passar do deadline
 JACKETT_DOWNLOAD_TIMEOUT_MS (8000)     teto por salto DENTRO do orçamento BR

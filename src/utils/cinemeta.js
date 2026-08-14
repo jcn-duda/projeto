@@ -1,3 +1,4 @@
+const config = require('../config');
 const cache = require('./cache');
 
 /**
@@ -14,7 +15,7 @@ async function getMeta(type, imdbId) {
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'stremio-adom/1.0' },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(config.cinemeta.timeout),
     });
     if (!res.ok) return null;
     const data = await res.json();

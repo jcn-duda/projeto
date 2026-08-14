@@ -29,6 +29,7 @@ const { accountScope, streamsCacheKey } = require('../utils/request-key');
 const { createLatestWriter } = require('../utils/latest-writer');
 const { planJackettQueries } = require('./search-plan');
 const { collectWithinWindow } = require('./collection-window');
+const { raceWithDeadline } = require('../utils/deadline');
 const autofetch = require('./autofetch');
 const { opts, prefix } = require('../runtime');
 
@@ -262,7 +263,8 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
   // Orçamento menor que o deadline da resposta: o resto do tempo é da checagem
   // no debrid, que ainda precisa rodar em cima do que foi coletado.
   const budget = Math.max(1000, config.replyDeadline - config.debridReserve);
-  // A graça sai da reserva, mas nunca deixa menos de 2s pro debrid. No caso
+  // A graça sai da reserva, mas nunca invade o piso configurado pro debrid. No
+  // caso
   // medido de Disclosure Day, a primeira fonte BR chegava pouco depois dos 5s;
   // sem esta janela a UI ficava para sempre com os 11 globais do passe parcial.
   // Série também precisa dela (medido em A Casa do Dragão: os BR terminavam a
@@ -359,15 +361,10 @@ async function findStreams({ type, id }) {
 
   // O cliente Stremio aborta em 10s. Devolvemos vazio antes disso em vez de
   // estourar o timeout dele — a busca continua e popula o cache pra próxima.
-  return Promise.race([
-    task,
-    new Promise((resolve) =>
-      setTimeout(() => {
-        console.warn(`[search] deadline de ${config.replyDeadline}ms atingido para ${id}; segue em background`);
-        resolve({ streams: [], partial: true });
-      }, config.replyDeadline).unref(),
-    ),
-  ]);
+  return raceWithDeadline(task, config.replyDeadline, () => {
+    console.warn(`[search] deadline de ${config.replyDeadline}ms atingido para ${id}; segue em background`);
+    return { streams: [], partial: true };
+  });
 }
 
 async function doSearch({ type, id, cacheKey }) {

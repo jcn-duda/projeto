@@ -88,6 +88,12 @@ const config = {
     timeout: num(process.env.TMDB_TIMEOUT_MS, 5000),
     cacheTtl: num(process.env.TMDB_CACHE_TTL, 604800), // 7 dias
   },
+  cinemeta: {
+    // O Cinemeta roda antes da coleta. Deixá-lo esperar o teto inteiro do
+    // cliente consumiria o deadline sem sequer consultar os indexers; após
+    // este prazo a busca degrada para o título do TMDB ou para o IMDb id.
+    timeout: num(process.env.CINEMETA_TIMEOUT_MS, 2500),
+  },
   bludv: {
     enabled: String(process.env.BLUDV_ENABLED || 'false') === 'true',
     // bludv.net é o alias estável; o site troca de domínio com frequência.
