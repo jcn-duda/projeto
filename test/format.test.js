@@ -888,3 +888,28 @@ test('tamanho fabricado pelo indexer vira desconhecido, não valor exibido', () 
   const out = sortAndLimit([absurdo], { maxSizeGb: 20 });
   assert.equal(out.length, 1);
 });
+
+test('merge de hash igual leva a marca BR para o rótulo, não só para o campo', () => {
+  // A MESMA release vinda de um indexer global e de um BR: o merge já
+  // propagava _br (a vaga reservada depende dele), mas o name continuava o do
+  // vencedor. Na tela a fonte dublada brasileira aparecia SEM "BR" — o usuário
+  // via a lista encabeçada por algo que não reconhecia como nacional.
+  const global = toStremioStream({
+    title: 'Fallout 1a Temporada Dublada e Dual 2160p', infoHash: HASH,
+    seeders: 1, size: 11 * 1024 ** 3, tracker: 'HDRTorrent', indexer: 'hdrtorrent', isBr: false,
+  });
+  const br = toStremioStream({
+    title: 'Fallout 1a Temporada (2024) WEB-DL [DUBLADO]', infoHash: HASH,
+    seeders: 1, tracker: 'Bludv', indexer: 'bludv-cardigann', isBr: true,
+  });
+  const [merged] = dedupeByHash([global, br]);
+  assert.equal(merged._br, true);
+  assert.equal(merged._dubbed, true);
+  assert.match(merged.name.split('\n')[1], /BR/);
+  assert.match(merged.name.split('\n')[1], /DUAL|DUB/);
+  // Sem merge de origem, o rótulo não muda.
+  const soGlobal = toStremioStream({
+    title: 'Filme 1080p', infoHash: OTHER, seeders: 9, indexer: 'therarbg',
+  });
+  assert.equal(dedupeByHash([soGlobal])[0].name, soGlobal.name);
+});

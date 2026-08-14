@@ -531,7 +531,8 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo, s
     indexerPriority: safeIndexerPriority,
   });
 
-  streams = limitReservingBr(await applyDebrid(streams, { season, episode, searchKey }), {
+  const beforeCut = await applyDebrid(streams, { season, episode, searchKey });
+  streams = limitReservingBr(beforeCut, {
     brReservedSlots,
     maxResults,
     brOnly,
@@ -539,6 +540,18 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo, s
     brFirst,
     maxPerIndexer,
   });
+
+  // "A dublada não ficou em cima" é a queixa mais comum e tem três causas
+  // distintas (não veio da fonte / veio mas foi cortada / veio e ficou abaixo).
+  // Sem este log as três são indistinguíveis a partir da lista final, porque o
+  // corte apaga os campos internos que responderiam a pergunta.
+  const brIn = beforeCut.filter((s) => s._br);
+  const dubIn = brIn.filter((s) => s._dubbed);
+  const head = streams.slice(0, 3).map((s) => (s.name || '').split('\n')[1] || '?').join(' / ');
+  console.log(
+    `[search] entrada do corte: ${beforeCut.length} stream(s), ${brIn.length} BR (${dubIn.length} dublada(s))` +
+      ` | brFirst=${brFirst} preferDubbed=${preferDubbed} | topo: ${head}`,
+  );
 
   return streams;
 }

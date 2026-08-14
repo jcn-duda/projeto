@@ -586,6 +586,24 @@ function matchesEpisode(title, { season, episode } = {}) {
   return true;
 }
 
+/**
+ * Reescreve a linha de rótulo do vencedor do merge. O `_br`/`_dubbed` do
+ * perdedor são propagados (a vaga reservada depende deles), mas o `name` era
+ * mantido como estava: a MESMA release vinda de um indexer global e de um BR
+ * ficava marcada BR por dentro e SEM o "BR" na tela. Na lista isso aparecia
+ * como fonte dublada brasileira no topo que o usuário não reconhecia como
+ * brasileira — e a que ele reconhecia parecia estar abaixo dela.
+ *
+ * A tag de áudio vem do título de quem a tiver: o título global ("...DUAL...")
+ * costuma trazê-la, mas o post BR é quem diz "DUBLADO" quando o outro cala.
+ */
+function relabel(stream, { isBr, dubbedFrom }) {
+  const [title = '', stats = ''] = String(stream.name || '').split('\n');
+  const seeders = Number(String(stats).match(/👤\s*(\d+)/)?.[1] || stream._seeders || 0);
+  const audio = audioFromTitle(title) || audioFromTitle(dubbedFrom || '');
+  return streamDisplayName({ title, quality: stream._quality, audio, isBr, seeders });
+}
+
 /** Mesma release aparece em vários indexers; fica a de maior seeders. */
 function dedupeByHash(streams, indexerPriority = []) {
   const best = new Map();
@@ -616,14 +634,22 @@ function dedupeByHash(streams, indexerPriority = []) {
     const richerQuality = winner._quality === UNKNOWN_QUALITY && loser._quality !== UNKNOWN_QUALITY
       ? loser
       : winner;
-    best.set(s.infoHash, {
+    const merged = {
       ...winner,
       _quality: richerQuality._quality,
       _size: winner._size || loser._size || 0,
       behaviorHints: richerQuality.behaviorHints || winner.behaviorHints,
       _br: winner._br || s._br || prev._br,
       _dubbed: winner._dubbed || s._dubbed || prev._dubbed,
-    });
+    };
+    // O rótulo tem que contar a mesma história que os campos internos.
+    if (merged._br !== winner._br || merged._dubbed !== winner._dubbed || merged._quality !== winner._quality) {
+      merged.name = relabel(merged, {
+        isBr: merged._br,
+        dubbedFrom: String(loser.name || '').split('\n')[0],
+      });
+    }
+    best.set(s.infoHash, merged);
   }
   return [...best.values()];
 }
