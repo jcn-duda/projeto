@@ -352,6 +352,7 @@ const TECH_NOISE = ('web dl webdl bluray blu ray webrip bdrip brrip hdtv hdrip r
   'x264 x265 h264 h265 avc hevc av1 xvid divx 10bit 8bit hdr hdr10 dv sdr imax ' +
   'dts aac ac3 eac3 ddp ddp5 ddp2 dd atmos truehd opus mp3 dual audio nacional multi ' +
   'hmax amzn dsnp atvp pcok crav hulu h ' +
+  'us uk ca au nz jp tv ' +
   'torrent torrents download baixar assistir online gratis ' +
   'dublado dublada dublagem legendado legendada legenda opcao opcoes versao estendida ' +
   'mkv mp4 avi gb mb kb ' +
@@ -365,6 +366,13 @@ const RELEASE_NOISE = new Set([...TECH_NOISE, ...LINK_WORDS]);
 // Calibrado nos casos reais deste repo: o documentário "A Última Vigília" dá
 // 0.60 e o pack "1ª até 8ª Temporada" dá 0.75 — o corte fica entre os dois.
 const TITLE_PRECISION_MIN = 0.65;
+
+// Séries curtas são especialmente ambíguas: "Rick e Morty" cobre 2/3 de
+// "Rick e Morty O Anime", que passava no corte geral de 0,65 e tomava as
+// vagas da obra original. O piso um pouco maior vale só quando temos a lista
+// completa de aliases de série; o caso legítimo mais apertado do corpus (pack
+// "1ª até 8ª Temporada") continua em 0,75.
+const SERIES_TITLE_PRECISION_MIN = 0.70;
 
 // Numeral por extenso/romano → dígito, para "Duna Parte Dois" e "Rocky II"
 // casarem com "Duna Parte 2". "i" e "x" ficam de fora de propósito: sozinhos
@@ -430,6 +438,39 @@ function titlePrecision(tokens, wanted) {
   return significant.filter((w) => want.has(w)).length / significant.length;
 }
 
+/**
+ * Trecho que nomeia a OBRA numa release por episódio. O nome do episódio vem
+ * depois de SxxEyy e não pode contar como obra estranha; no formato inverso do
+ * RedeTorrent, o marcador vem antes do nome e costuma se repetir depois dele.
+ */
+function episodeWorkTokens(tokens) {
+  const markers = [];
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (/^(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3})$/.test(tokens[i])) markers.push(i);
+  }
+  if (!markers.length) return null;
+  if (markers[0] > 0) return tokens.slice(0, markers[0]);
+  let end = markers.length > 1 ? markers[1] : tokens.length;
+  // Com um único marcador à esquerda, o grupo da release vem depois do nome:
+  // "S01E02 From 1080p WEBRip x264-EVOLVE". Parar no primeiro ruído técnico
+  // mantém "From" como obra sem aceitar "Rick and Morty The Anime" — nesse
+  // caso os tokens extras ficam antes de 1080p e continuam sendo medidos.
+  if (markers.length === 1) {
+    const noiseAt = tokens.findIndex((token, index) => index > 0 && STOP_AT.has(token));
+    if (noiseAt > 0) end = noiseAt;
+  }
+  return tokens.slice(1, end);
+}
+
+function matchesEpisodeWorkIdentity(title, allNames) {
+  if (!allNames?.length) return true;
+  const tokens = normalizeTitle(title).split(' ').filter(Boolean);
+  const work = episodeWorkTokens(tokens);
+  if (!work) return true;
+  const universe = allNames.flatMap((name) => normalizeTitle(name).split(' ')).filter(Boolean);
+  return titlePrecision(work, universe) >= SERIES_TITLE_PRECISION_MIN;
+}
+
 function matchesBrTitle(title, name, year = null, { isSeries = false, allNames = null } = {}) {
   if (!matchesName(title, name)) return false;
   const tokens = normalizeTitle(title).split(' ').filter(Boolean);
@@ -451,10 +492,12 @@ function matchesBrTitle(title, name, year = null, { isSeries = false, allNames =
   // precisão ("é outra obra?") já está respondida — obra parecida
   // (documentário, especial, jogo) não publica marcador de episódio; temporada
   // ou episódio errados morrem no matchesEpisode.
-  const perEpisode = tokens.some((w) => /^(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3})$/.test(w));
-  if (allNames?.length && !perEpisode) {
+  const episodeWork = episodeWorkTokens(tokens);
+  if (allNames?.length) {
     const universo = allNames.flatMap((n) => normalizeTitle(n).split(' ')).filter(Boolean);
-    if (titlePrecision(tokens, universo) < TITLE_PRECISION_MIN) return false;
+    const measured = episodeWork || tokens;
+    const precisionMin = isSeries ? SERIES_TITLE_PRECISION_MIN : TITLE_PRECISION_MIN;
+    if (titlePrecision(measured, universo) < precisionMin) return false;
   }
 
   // Post BR é titulado "Nome ...", então o primeiro token relevante tem que ser
@@ -487,6 +530,29 @@ function matchesBrTitle(title, name, year = null, { isSeries = false, allNames =
     }
   }
   return true;
+}
+
+/**
+ * Classificação crua compartilhada pelo corte final e pelo gatilho de pack.
+ * Usar uma função só impede o fallback de discordar do que buildStreams vai
+ * descartar alguns milissegundos depois.
+ */
+function filterRelevantRaw(
+  items = [],
+  { names = [], year = null, isSeries = false, season = null, episode = null } = {},
+) {
+  if (!names.length) return items;
+  return items.filter((item) => {
+    const title = item?.title || item?.Title || '';
+    const titleMatches = names.some((name) =>
+      item?.isBr
+        ? matchesBrTitle(title, name, year, { isSeries, allNames: names })
+        : matchesName(title, name) && matchesEpisodeWorkIdentity(title, names),
+    );
+    if (!titleMatches) return false;
+    if (season == null || episode == null) return true;
+    return matchesEpisode(title, { season, episode });
+  });
 }
 
 /**
@@ -1100,6 +1166,7 @@ module.exports = {
   passesQualityFilter,
   matchesName,
   matchesBrTitle,
+  filterRelevantRaw,
   matchesEpisode,
   parseTitleSeasonEpisode,
   dedupeByHash,

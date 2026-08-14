@@ -16,6 +16,7 @@ async function collectWithinWindow(tasks, {
   graceRequiresItems = false,
   isPriority = (items) => items.some((item) => item?.isBr),
   onError = () => {},
+  onBatch = () => {},
   delay = wait,
 } = {}) {
   const items = [];
@@ -31,6 +32,7 @@ async function collectWithinWindow(tasks, {
     Promise.resolve(promise)
       .then((batch = []) => {
         items.push(...batch);
+        onBatch(batch, items, { priority: priorityTask });
         if (!prioritySeen && isPriority(batch)) {
           prioritySeen = true;
           notifyPriority();

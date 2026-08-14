@@ -78,12 +78,12 @@ function inspect(streams) {
     // As fontes BR são reconhecíveis pelo indexer no rodapé do título (a 2ª
     // linha, formato "👤 seeds 💾 tamanho ⚙️ Indexer ..."), ou pelo rótulo
     // antigo "bludv/comando" na 1ª linha.
-    br: titles.filter((t) => /bludv|comando|nerdfilmes|torrentdosfilmes/i.test(t)).length,
+    br: titles.filter((t) => /bludv|comando|nerdfilmes|torrentdosfilmes|redetorrent|apachetorrent/i.test(t)).length,
     cacheados: streams.filter((s) => String(s.name || '').includes('⚡')).length,
     viaDebrid: streams.filter((s) => s.url).length,
     p2p: streams.filter((s) => s.infoHash).length,
     // Campos internos nunca podem chegar ao Stremio.
-    vazando: streams.some((s) => '_br' in s || '_seeders' in s || '_quality' in s),
+    vazando: streams.some((s) => Object.keys(s).some((key) => key.startsWith('_'))),
   };
 }
 

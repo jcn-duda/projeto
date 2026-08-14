@@ -139,10 +139,38 @@
     color: var(--text);
   }
 
-  .chip:focus, .priority-btn:focus, .switch:focus,
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .preset {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 11px;
+    background: rgba(255,255,255,.025);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .preset:hover { border-color: var(--accent); background: rgba(250,163,26,.07); }
+  .preset:active { transform: scale(.985); }
+  .preset[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: 0 0 0 1px rgba(250,163,26,.12);
+  }
+  .preset strong { display: block; margin-bottom: 4px; font-size: 14px; }
+  .preset span { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+  .chip:focus, .preset:focus, .priority-btn:focus, .switch:focus,
   .btn:focus, input[type="range"]:focus, input[type="text"]:focus,
   input[type="password"]:focus, select:focus,
-  .chip:focus-visible, .priority-btn:focus-visible, .switch:focus-visible,
+  .chip:focus-visible, .preset:focus-visible, .priority-btn:focus-visible, .switch:focus-visible,
   .btn:focus-visible, input:focus-visible, select:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
@@ -288,6 +316,11 @@
     border-color: var(--accent);
   }
   .switch[aria-pressed="true"]::after { transform: translateX(19px); background: #fff; }
+  .switch[aria-checked="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .switch[aria-checked="true"]::after { transform: translateX(19px); background: #fff; }
 
   /* ---------- sliders / inputs ---------- */
   .field { padding: 14px 0; border-top: 1px solid var(--border); }
@@ -326,7 +359,7 @@
     font-size: 12.5px;
     line-height: 1.5;
   }
-  .notice em { color: #f0e2c8; font-style: normal; font-weight: 600; }
+  .notice strong, .notice em { color: #f0e2c8; font-style: normal; font-weight: 600; }
 
   input[type="range"] {
     -webkit-appearance: none; appearance: none;
@@ -485,6 +518,7 @@
     section { padding: 20px 17px; }
     .actions { flex-direction: column; }
     .btn-ghost { min-width: 0; }
+    .preset-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -504,6 +538,27 @@
 
   <section>
     <div class="sec-head">
+      <h2>Comece com um preset</h2>
+      <p>Escolha uma base pronta ou ajuste cada opção abaixo. O preset só muda preferências de busca; os defaults reais da instância continuam valendo para fontes, indexadores e debrid.</p>
+    </div>
+    <div class="preset-grid" id="presets">
+      <button type="button" class="preset" data-preset="recommended" aria-pressed="false">
+        <strong>BR recomendado</strong>
+        <span>Prioriza dublado, reserva vagas BR e mantém apenas o que já está em cache.</span>
+      </button>
+      <button type="button" class="preset" data-preset="powerBr" aria-pressed="false">
+        <strong>Power Movie — mais fontes BR</strong>
+        <span>Igual ao recomendado, mas mostra BR fora do cache como P2P enquanto o debrid baixa.</span>
+      </button>
+      <button type="button" class="preset" data-preset="custom" aria-pressed="false">
+        <strong>Personalizado</strong>
+        <span>Não altera nada automaticamente. Use para editar as opções manualmente.</span>
+      </button>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
       <h2>Fontes</h2>
       <p>De onde os torrents são buscados. As fontes BR entram sempre, em paralelo.</p>
     </div>
@@ -518,7 +573,7 @@
         <strong>Fontes BR primeiro</strong>
         <span>Coloca resultados dos indexadores brasileiros no topo da lista.</span>
       </div>
-      <button type="button" class="switch" id="brFirst" aria-pressed="true"></button>
+      <button type="button" class="switch" id="brFirst" role="switch" aria-checked="true" aria-pressed="true" aria-label="Fontes BR primeiro"></button>
     </div>
 
     <div id="jackettIndexersSection" hidden>
@@ -565,7 +620,7 @@
         <strong>Ocultar gravações CAM</strong>
         <span>Remove versões gravadas em cinema quando o título identifica CAM.</span>
       </div>
-      <button type="button" class="switch" id="excludeCam" aria-pressed="false"></button>
+      <button type="button" class="switch" id="excludeCam" role="switch" aria-checked="false" aria-pressed="false" aria-label="Ocultar gravações CAM"></button>
     </div>
   </section>
 
@@ -587,10 +642,10 @@
 
     <div class="row">
       <div class="row-text">
-        <strong>Somente áudio dublado</strong>
+        <strong>Somente dublado na fonte direta BLUDV</strong>
         <span>Descarta as versões legendadas dos posts da fonte direta BLUDV.</span>
       </div>
-      <button type="button" class="switch" id="dubbedOnly" aria-pressed="true"></button>
+      <button type="button" class="switch" id="dubbedOnly" role="switch" aria-checked="true" aria-pressed="true" aria-label="Somente dublado na fonte direta BLUDV"></button>
     </div>
 
     <div class="row">
@@ -598,7 +653,7 @@
         <strong>Priorizar dublado e dual</strong>
         <span>Dentro da mesma qualidade, coloca dublado ou dual primeiro sem esconder versões.</span>
       </div>
-      <button type="button" class="switch" id="preferDubbed" aria-pressed="false"></button>
+      <button type="button" class="switch" id="preferDubbed" role="switch" aria-checked="true" aria-pressed="true" aria-label="Priorizar dublado e dual"></button>
     </div>
 
     <div class="row">
@@ -606,7 +661,7 @@
         <strong>Só fontes brasileiras</strong>
         <span>Esconde tudo que não vier dos indexers BR. Reduz muito o resultado.</span>
       </div>
-      <button type="button" class="switch" id="brOnly" aria-pressed="false"></button>
+      <button type="button" class="switch" id="brOnly" role="switch" aria-checked="false" aria-pressed="false" aria-label="Só fontes brasileiras"></button>
     </div>
   </section>
 
@@ -735,7 +790,7 @@
         <strong>Somente já em cache</strong>
         <span>Esconde o que exigiria download no debrid antes de tocar.</span>
       </div>
-      <button type="button" class="switch" id="debridCachedOnly" aria-pressed="true"></button>
+      <button type="button" class="switch" id="debridCachedOnly" role="switch" aria-checked="true" aria-pressed="true" aria-label="Somente já em cache"></button>
     </div>
 
     <div class="row" id="autoFetchRow" hidden>
@@ -743,7 +798,7 @@
         <strong>Baixar dublado automaticamente</strong>
         <span>Quando nenhuma fonte BR dublada estiver em cache, manda o serviço baixar a melhor. O play funciona minutos depois. Um torrent por título.</span>
       </div>
-      <button type="button" class="switch" id="autoFetchBr" aria-pressed="true"></button>
+      <button type="button" class="switch" id="autoFetchBr" role="switch" aria-checked="true" aria-pressed="true" aria-label="Baixar dublado automaticamente"></button>
     </div>
 
     <div class="row" id="uncachedBrRow" hidden>
@@ -751,13 +806,16 @@
         <strong>Mostrar BR ainda fora do cache</strong>
         <span>Mantém as vagas brasileiras como P2P enquanto o debrid baixa o dublado. O play desses itens exige cliente com torrent. Fontes internacionais fora do cache continuam escondidas.</span>
       </div>
-      <button type="button" class="switch" id="showUncachedBr" aria-pressed="false"></button>
+      <button type="button" class="switch" id="showUncachedBr" role="switch" aria-checked="false" aria-pressed="false" aria-label="Mostrar BR ainda fora do cache"></button>
     </div>
 
     <p class="notice" id="noCacheNotice" hidden>
       Este serviço aposentou a consulta de cache, então não dá para saber de
       antemão o que toca na hora. Todos os resultados passam pelo debrid e o
       filtro <em>somente em cache</em> fica desligado.
+    </p>
+    <p class="notice">
+      <strong>Autofetch BR e compatibilidade P2P:</strong> quando não houver uma fonte BR dublada em cache, o autofetch enfileira um torrent por título para a próxima tentativa; ele não torna o item tocável imediatamente. Se “Mostrar BR ainda fora do cache” estiver ligado, essas vagas aparecem como P2P/infoHash e só funcionam em clientes compatíveis com torrent. Players que exigem link HTTP podem ignorá-las.
     </p>
   </section>
 
@@ -795,6 +853,7 @@
   var $ = function (id) { return document.getElementById(id); };
 
   var el = {
+    presets: $("presets"),
     providers: $("providers"), qualities: $("qualities"),
     brFirst: $("brFirst"), jackettIndexersSection: $("jackettIndexersSection"),
     jackettIndexers: $("jackettIndexers"), indexerPriorityOrder: $("indexerPriorityOrder"),
@@ -828,6 +887,22 @@
   var jackettIndexers = [];
   var indexerPriority = [];
   var instanceDefaults = null;
+  var PRESET_BEHAVIORS = {
+    recommended: {
+      brFirst: true, preferDubbed: true, dubbedOnly: true, brOnly: false,
+      excludeCam: true, brReservedSlots: 6, maxResults: 40,
+      max2160p: 4, max1080p: 4, max720p: 4, max480p: 4, maxSd: 4,
+      maxUnknown: 6, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
+      debridCachedOnly: true, showUncachedBr: false, autoFetchBr: true
+    },
+    powerBr: {
+      brFirst: true, preferDubbed: true, dubbedOnly: true, brOnly: false,
+      excludeCam: true, brReservedSlots: 6, maxResults: 40,
+      max2160p: 4, max1080p: 4, max720p: 4, max480p: 4, maxSd: 4,
+      maxUnknown: 6, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
+      debridCachedOnly: true, showUncachedBr: true, autoFetchBr: true
+    }
+  };
   function serviceById(id) {
     for (var i = 0; i < services.length; i++) if (services[i].id === id) return services[i];
     return null;
@@ -1042,8 +1117,54 @@
     return out;
   }
 
-  function isOn(sw) { return sw.getAttribute("aria-pressed") === "true"; }
-  function setOn(sw, on) { sw.setAttribute("aria-pressed", on ? "true" : "false"); }
+  function isOn(sw) {
+    return sw.getAttribute("role") === "switch"
+      ? sw.getAttribute("aria-checked") === "true"
+      : sw.getAttribute("aria-pressed") === "true";
+  }
+
+  function setOn(sw, on) {
+    var active = on === true || on === 1 || on === "1" || on === "true";
+    sw.setAttribute("aria-pressed", active ? "true" : "false");
+    if (sw.getAttribute("role") === "switch") {
+      sw.setAttribute("aria-checked", active ? "true" : "false");
+    }
+  }
+
+  function setPresetChoice(name) {
+    Array.prototype.forEach.call(el.presets.querySelectorAll(".preset"), function (button) {
+      button.setAttribute("aria-pressed", button.getAttribute("data-preset") === name ? "true" : "false");
+    });
+  }
+
+  function applyPreset(name) {
+    var preset = PRESET_BEHAVIORS[name];
+    if (!preset) {
+      setPresetChoice("custom");
+      return;
+    }
+    el.brSlots.value = preset.brReservedSlots;
+    el.maxResults.value = preset.maxResults;
+    el.max2160p.value = preset.max2160p;
+    el.max1080p.value = preset.max1080p;
+    el.max720p.value = preset.max720p;
+    el.max480p.value = preset.max480p;
+    el.maxSd.value = preset.maxSd;
+    el.maxUnknown.value = preset.maxUnknown;
+    el.maxPerIndexer.value = preset.maxPerIndexer;
+    el.minSeeders.value = preset.minSeeders;
+    el.maxSizeGb.value = preset.maxSizeGb;
+    setOn(el.brFirst, preset.brFirst);
+    setOn(el.preferDubbed, preset.preferDubbed);
+    setOn(el.dubbedOnly, preset.dubbedOnly);
+    setOn(el.brOnly, preset.brOnly);
+    setOn(el.excludeCam, preset.excludeCam);
+    setOn(el.debridCachedOnly, preset.debridCachedOnly);
+    setOn(el.showUncachedBr, preset.showUncachedBr);
+    setOn(el.autoFetchBr, preset.autoFetchBr);
+    setPresetChoice(name);
+    render();
+  }
 
   function ancestorWithClass(node, className, stop) {
     while (node && node !== stop) {
@@ -1104,30 +1225,6 @@
     return cfg;
   }
 
-  function defaultRaw(name, value) {
-    if (name === "jackettIndexers") {
-      value = instanceDefaults.jackettIndexersSelected || [];
-    }
-    if (name === "indexerPriority") {
-      value = instanceDefaults.indexerPriority || [];
-    }
-    if (Array.isArray(value)) return value.join(",");
-    if (typeof value === "boolean") return value ? 1 : 0;
-    return value;
-  }
-
-  function compactConfig(cfg) {
-    if (!instanceDefaults) return cfg;
-    var compact = {};
-    Object.keys(KEYS).forEach(function (name) {
-      var key = KEYS[name];
-      if (!Object.prototype.hasOwnProperty.call(cfg, key)) return;
-      var expected = defaultRaw(name, instanceDefaults[name]);
-      if (String(cfg[key]) !== String(expected == null ? "" : expected)) compact[key] = cfg[key];
-    });
-    return compact;
-  }
-
   function render() {
     var qualityLimitLabel = function (value) {
       return value === "0" ? "nenhuma" : value === "100" ? "sem limite" : value;
@@ -1169,7 +1266,9 @@
       el.keyLink.hidden = true;
     }
 
-    var segment = encodeConfig(compactConfig(collect()));
+    // URLs novas carregam explicitamente as escolhas comportamentais. Assim,
+    // reabrir o link não depende de defaults futuros do operador ou do servidor.
+    var segment = encodeConfig(collect());
     var url = location.origin + "/" + segment + "/manifest.json";
     el.installUrl.textContent = url;
     // O servidor mantém um teto defensivo de 8192. Nunca ofereça um link que
@@ -1189,6 +1288,7 @@
     group.addEventListener("click", function (ev) {
       var priority = group === el.jackettIndexers ? ancestorWithClass(ev.target, "priority-btn", group) : null;
       if (priority) {
+        setPresetChoice("custom");
         togglePriority(priority.getAttribute("data-value"));
         return;
       }
@@ -1210,20 +1310,29 @@
           if (priorityAt !== -1) indexerPriority.splice(priorityAt, 1);
         }
       }
+      setPresetChoice("custom");
       render();
     });
   });
 
   [el.brFirst, el.brOnly, el.dubbedOnly, el.preferDubbed, el.excludeCam, el.debridCachedOnly, el.showUncachedBr, el.autoFetchBr].forEach(function (sw) {
-    sw.addEventListener("click", function () { setOn(sw, !isOn(sw)); render(); });
+    sw.addEventListener("click", function () { setOn(sw, !isOn(sw)); setPresetChoice("custom"); render(); });
   });
 
   [el.brSlots, el.maxResults, el.max2160p, el.max1080p, el.max720p, el.max480p, el.maxSd, el.maxUnknown, el.maxPerIndexer, el.minSeeders, el.maxSizeGb].forEach(function (r) {
-    r.addEventListener("input", render);
+    r.addEventListener("input", function () { setPresetChoice("custom"); render(); });
   });
 
-  el.debridService.addEventListener("change", render);
-  el.debridApiKey.addEventListener("input", render);
+  el.debridService.addEventListener("change", function () { setPresetChoice("custom"); render(); });
+  el.debridApiKey.addEventListener("input", function () { setPresetChoice("custom"); render(); });
+
+  el.presets.addEventListener("click", function (ev) {
+    var button = ancestorWithClass(ev.target, "preset", el.presets);
+    if (!button) return;
+    var name = button.getAttribute("data-preset");
+    if (name === "custom") setPresetChoice("custom");
+    else applyPreset(name);
+  });
 
   el.copyBtn.addEventListener("click", function () {
     var url = el.copyBtn.getAttribute("data-url") || "";
@@ -1483,8 +1592,18 @@
       // O catálogo ocupa o mesmo nome da opção no JSON de defaults, mas não é
       // uma seleção. Removê-lo evita que um catálogo vazio esconda a seleção
       // padrão ou que objetos sejam tratados como IDs dos chips.
-       delete initial.jackettIndexers;
-      apply(mergeState(initial, saved || {}));
+      delete initial.jackettIndexers;
+      if (saved !== null) {
+        // Uma URL existente é a fonte da verdade: não deixe o preset de
+        // entrada sobrescrever nem mesmo as chaves que um link antigo omitiu.
+        apply(mergeState(initial, saved));
+        setPresetChoice("custom");
+      } else {
+        // /configure novo parte do preset BR, mas applyPreset só toca opções
+        // comportamentais e preserva fontes, indexadores e debrid dos defaults.
+        apply(initial);
+        applyPreset("recommended");
+      }
     });
 })();
 </script>

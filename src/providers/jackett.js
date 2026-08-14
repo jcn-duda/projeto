@@ -1,5 +1,13 @@
 const config = require('../config');
-const { matchesBrTitle, matchesEpisode } = require('../utils/format');
+const {
+  matchesBrTitle,
+  matchesEpisode,
+  filterRelevantRaw,
+  parseTitleSeasonEpisode,
+  audioFromTitle,
+  qualityFromTitle,
+  UNKNOWN_QUALITY,
+} = require('../utils/format');
 const indexerStatus = require('./indexer-status');
 
 // Abaixo disso não vale abrir mais um salto de protetor de link: a requisição
@@ -64,7 +72,36 @@ function remaining(deadline) {
   return Math.max(0, deadline - Date.now());
 }
 
-async function resolveCardigannDownloads(indexer, items, query, deadline) {
+function dedupeResolveCandidates(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const identity = item.infoHash || item.magnet || item.downloadUrl;
+    if (!identity) return true;
+    const key = String(identity).trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function resolveCandidateScore(item, { season = null, episode = null } = {}) {
+  const title = item.title || '';
+  const parsed = parseTitleSeasonEpisode(title);
+  let score = 0;
+  if (season != null && episode != null) {
+    if (parsed.seasons.includes(season) && parsed.episodes.includes(episode)) score += 100;
+    else if (!parsed.episodes.length && parsed.seasons.length === 1 && parsed.seasons[0] === season) score += 70;
+    else if (!parsed.episodes.length && parsed.seasons.includes(season)) score += 50;
+    else if (!parsed.episodes.length && parsed.complete) score += 30;
+  }
+  const audio = audioFromTitle(title);
+  if (audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional') score += 20;
+  const quality = qualityFromTitle(title);
+  score += { '2160p': 6, '1080p': 5, '720p': 4, '480p': 3, SD: 1, [UNKNOWN_QUALITY]: 2 }[quality] || 0;
+  return score;
+}
+
+async function resolveCardigannDownloads(indexer, items, query, deadline, matchContext = null) {
   if (!config.jackett.resolveDownloadIndexers.includes(indexer)) return items;
   if (remaining(deadline) <= MIN_RESOLVE_BUDGET) {
     console.warn(`[jackett] ${indexer}: sem orçamento para resolver magnets`);
@@ -83,11 +120,16 @@ async function resolveCardigannDownloads(indexer, items, query, deadline) {
   // outro filme antes mesmo de pagar o protetor: "Coringa: Delírio a Dois
   // (2024)" resolve magnet sem nunca entrar na lista.
   const queryYear = Number(String(query || '').match(/\b(?:19|20)\d{2}\b/)?.[0] || 0);
-  const candidates = items
+  let candidates = items
     // Filtro BR estrito antes de pagar o protetor de link: post "parecido"
     // ("Missão: Impossível – Efeito Fallout" numa busca por "Fallout") não
     // merece orçamento de resolução de magnet.
-    .filter((item) => !wanted || matchesBrTitle(item.title || '', wanted, queryYear || null, { isSeries: Boolean(requestedSeason) }))
+    .filter((item) => {
+      if (matchContext?.names?.length) {
+        return filterRelevantRaw([item], matchContext).length > 0;
+      }
+      return !wanted || matchesBrTitle(item.title || '', wanted, queryYear || null, { isSeries: Boolean(requestedSeason) });
+    })
     .filter((item) => {
       if (!requestedSeason) return true;
       const titleSeason = String(item.title || '').match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
@@ -96,11 +138,15 @@ async function resolveCardigannDownloads(indexer, items, query, deadline) {
     // Release de outro episódio morre em buildStreams de qualquer jeito —
     // resolvê-la gastava os slots (maxDownloadResolves) e 2-4s de protetor com
     // E02..E10 enquanto o E01 pedido ficava de fora. Pack continua passando.
-    .filter((item) => !requestedEp || matchesEpisode(item.title || '', {
+    .filter((item) => matchContext?.season != null || !requestedEp || matchesEpisode(item.title || '', {
       season: Number(requestedEp[1]),
       episode: Number(requestedEp[2]),
-    }))
-    .slice(0, config.jackett.maxDownloadResolves);
+    }));
+  candidates = dedupeResolveCandidates(candidates)
+    .map((item, order) => ({ item, order, score: resolveCandidateScore(item, matchContext || {}) }))
+    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .slice(0, config.jackett.maxDownloadResolves)
+    .map(({ item }) => item);
   const resolved = await mapLimit(candidates, config.jackett.resolveConcurrency, async (item) => {
     if (item.infoHash || /^magnet:\?/i.test(item.magnet || '')) return item;
     // Cada salto cabe no que sobrou do orçamento: um protetor de link lento não
@@ -141,16 +187,9 @@ function budgetFor(indexer) {
   return isSlow ? config.jackett.brIndexerTimeout : config.jackett.indexerTimeout;
 }
 
-async function queryIndexer(indexer, query, type, timeoutOverride = null) {
+async function queryIndexer(indexer, query, type, timeoutOverride = null, options = {}) {
   const { url, apiKey } = config.jackett;
   const isBr = config.jackett.ptBrIndexers.includes(indexer);
-  const searchQuery = shapeSearchQuery(indexer, query, isBr);
-  const endpoint = new URL(`${url}/api/v2.0/indexers/${indexer}/results`);
-  endpoint.searchParams.set('apikey', apiKey);
-  endpoint.searchParams.set('Query', searchQuery);
-  // 2000 = Movies, 5000 = TV nos indexers Torznab
-  if (type === 'movie') endpoint.searchParams.append('Category[]', '2000');
-  if (type === 'series') endpoint.searchParams.append('Category[]', '5000');
 
   // Orçamento TOTAL do indexer (busca + resolução de magnets), não só do fetch:
   // o resolve roda fora do AbortSignal da busca e somava o próprio timeout por
@@ -161,17 +200,50 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null) {
 
   const started = Date.now();
   const deadline = started + timeout;
-  const res = await fetch(endpoint, {
-    headers: { Accept: 'application/json', 'User-Agent': 'stremio-adom/1.0' },
-    signal: AbortSignal.timeout(timeout),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const fetchQuery = async (candidateQuery) => {
+    const searchQuery = shapeSearchQuery(indexer, candidateQuery, isBr);
+    const endpoint = new URL(`${url}/api/v2.0/indexers/${indexer}/results`);
+    endpoint.searchParams.set('apikey', apiKey);
+    endpoint.searchParams.set('Query', searchQuery);
+    // 2000 = Movies, 5000 = TV nos indexers Torznab
+    if (type === 'movie') endpoint.searchParams.append('Category[]', '2000');
+    if (type === 'series') endpoint.searchParams.append('Category[]', '5000');
+    const budget = remaining(deadline);
+    if (budget <= 0) throw new Error('timeout');
+    const res = await fetch(endpoint, {
+      headers: { Accept: 'application/json', 'User-Agent': 'stremio-adom/1.0' },
+      signal: AbortSignal.timeout(Math.max(1, budget)),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return {
+      searchQuery,
+      items: mapResults(await res.json(), { isBr, indexer }),
+    };
+  };
+
+  let found = await fetchQuery(query);
+  const fallbackQuery = options.fallbackQuery;
+  const fallbackShaped = fallbackQuery ? shapeSearchQuery(indexer, fallbackQuery, isBr) : null;
+  const relevant = options.matchContext?.names?.length
+    ? filterRelevantRaw(found.items, options.matchContext)
+    : found.items;
+  // A segunda variante só existe para resposta HTTP válida sem candidato útil.
+  // Ela compartilha o deadline absoluto da primeira tentativa; erro ou timeout
+  // da primária sobe normalmente e nunca abre outra chamada.
+  if (
+    isBr && fallbackQuery && fallbackShaped && fallbackShaped !== found.searchQuery &&
+    relevant.length === 0 && remaining(deadline) > MIN_RESOLVE_BUDGET
+  ) {
+    console.log(`[jackett] ${indexer}: nenhum resultado relevante em PT; tentando título original`);
+    found = await fetchQuery(fallbackQuery);
+  }
 
   const items = await resolveCardigannDownloads(
     indexer,
-    mapResults(await res.json(), { isBr, indexer }),
+    found.items,
     query,
     deadline,
+    options.matchContext,
   );
   return { indexer, items, ms: Date.now() - started };
 }
@@ -182,7 +254,7 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null) {
  * ruim derruba a busca inteira; aqui cada um tem seu próprio timeout e o que
  * chegou a tempo é aproveitado.
  */
-async function search(query, type, indexersOverride = null) {
+async function search(query, type, indexersOverride = null, options = {}) {
   const { url, apiKey } = config.jackett;
   const indexers = indexersOverride == null ? config.jackett.indexers : indexersOverride;
   if (!apiKey) {
@@ -211,7 +283,7 @@ async function search(query, type, indexersOverride = null) {
   }
 
   const settled = await Promise.allSettled(
-    indexers.map((i) => queryIndexer(i, query, type)),
+    indexers.map((i) => queryIndexer(i, query, type, null, options)),
   );
 
   const out = [];

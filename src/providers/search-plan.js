@@ -12,10 +12,15 @@ function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isol
 
   for (const indexer of selectedIndexers) {
     if (isolateSet.has(indexer)) {
-      isolated.push({
+      const task = {
         query: brSet.has(indexer) ? (ptQuery || query) : query,
         indexers: [indexer],
-      });
+      };
+      // Sites BR misturam título localizado no post e original na release. A
+      // segunda variante é apenas fallback SEQUENCIAL do mesmo indexer; quem
+      // executa precisa mantê-la dentro do deadline original da tarefa.
+      if (brSet.has(indexer) && ptQuery && ptQuery !== query) task.fallback = query;
+      isolated.push(task);
     } else {
       grouped.push(indexer);
     }

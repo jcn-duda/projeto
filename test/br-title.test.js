@@ -167,3 +167,71 @@ test('a regra de sequência não pode matar release legítima', () => {
     true,
   );
 });
+
+// Plano futuro: série DERIVADA não pode herdar a original.
+//
+// "Rick and Morty: The Anime" (2024) é uma spin-off com o MESMO prefixo, o
+// MESMO ano do catálogo e a MESMA numeração de temporada/episódio da série
+// original. Ela passa por todos os filtros atuais e rouba as vagas reservadas
+// da original:
+// - o pack "1ª Temporada (2024)" cobre o nome inteiro e casa o ano;
+// - o "S01E02" desliga a checagem de precisão (pensada para release por
+//   episódio, que carrega o NOME do episódio depois do marcador) e a spin-off
+//   se aproveita da isenção.
+test('spin-off "Rick e Morty: O Anime" não herda a série original (pack)', () => {
+  const names = ['Rick and Morty', 'Rick e Morty'];
+  assert.equal(
+    matchesBrTitle('Rick e Morty: O Anime 1ª Temporada (2024) WEB-DL [1080p DUBLADO]', 'Rick and Morty', 2024, {
+      isSeries: true, allNames: names,
+    }),
+    false,
+  );
+});
+
+test('spin-off "Rick And Morty The Anime S01E02" não herda a série original (episódio)', () => {
+  const names = ['Rick and Morty', 'Rick e Morty'];
+  assert.equal(
+    matchesBrTitle('Rick And Morty The Anime S01E02 1080p', 'Rick and Morty', 2024, {
+      isSeries: true, allNames: names,
+    }),
+    false,
+  );
+});
+
+test('a rejeição da spin-off não derruba a release por episódio da série certa', () => {
+  // Contrato do perEpisode intacto: release por episódio com o marcador logo
+  // após o nome (e o nome do episódio depois dele) continua passando.
+  const hotd = ['House of the Dragon', 'A Casa do Dragão'];
+  assert.equal(
+    matchesBrTitle('House of the Dragon S01E02.The Rogue Prince  HMAX  DDP5.1.x264 NTb 1080p', 'House of the Dragon', 2022, {
+      isSeries: true, allNames: hotd,
+    }),
+    true,
+  );
+  // E a própria série original com nome de episódio idem.
+  const rick = ['Rick and Morty', 'Rick e Morty'];
+  assert.equal(
+    matchesBrTitle('Rick and Morty S01E02.The Vat of Acid Episode  WEB-DL 1080p', 'Rick and Morty', 2024, {
+      isSeries: true, allNames: rick,
+    }),
+    true,
+  );
+});
+
+test('a rejeição da spin-off não derruba packs legítimos da série original', () => {
+  const rick = ['Rick and Morty', 'Rick e Morty'];
+  assert.equal(
+    matchesBrTitle('Rick and Morty 1ª Temporada (2024) WEB-DL [1080p DUBLADO]', 'Rick and Morty', 2024, {
+      isSeries: true, allNames: rick,
+    }),
+    true,
+  );
+  // Pack com rótulo de empacotamento à esquerda (formato do redetorrent).
+  const hotd = ['House of the Dragon', 'A Casa do Dragão'];
+  assert.equal(
+    matchesBrTitle('1A TEMPORADA COMPLETA      House of the Dragon S01. HMAX  DDP5.1.Atmos x264 SMURF 1080p', 'House of the Dragon', 2022, {
+      isSeries: true, allNames: hotd,
+    }),
+    true,
+  );
+});

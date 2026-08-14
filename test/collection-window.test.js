@@ -136,3 +136,30 @@ test('fonte BR dentro do orçamento não consome a janela extra', async () => {
   slow.resolve([]);
   await result.completion;
 });
+
+test('onBatch avisa cada lote tardio sem esperar todos os providers', async () => {
+  const budget = deferred();
+  const first = deferred();
+  const last = deferred();
+  const seen = [];
+  const running = collectWithinWindow([
+    { promise: first.promise, priority: true },
+    { promise: last.promise, priority: true },
+  ], {
+    budgetMs: 10,
+    priorityGraceMs: 0,
+    delay: () => budget.promise,
+    onBatch: (batch, all) => seen.push({ batch: batch.map((x) => x.title), total: all.length }),
+  });
+  await Promise.resolve();
+  budget.resolve();
+  const result = await running;
+  assert.equal(result.done, false);
+
+  first.resolve([{ title: 'BR primeiro', isBr: true }]);
+  await Promise.resolve();
+  assert.deepEqual(seen, [{ batch: ['BR primeiro'], total: 1 }]);
+  last.resolve([{ title: 'BR final', isBr: true }]);
+  await result.completion;
+  assert.deepEqual(seen[1], { batch: ['BR final'], total: 2 });
+});

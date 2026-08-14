@@ -18,6 +18,7 @@ const {
   resolveSearchNames,
   matchesEpisode,
   matchesBrTitle,
+  filterRelevantRaw: relevantRaw,
   parseTitleSeasonEpisode,
   UNKNOWN_QUALITY,
   QUALITY_KEYS,
@@ -912,4 +913,76 @@ test('merge de hash igual leva a marca BR para o rótulo, não só para o campo'
     title: 'Filme 1080p', infoHash: OTHER, seeders: 9, indexer: 'therarbg',
   });
   assert.equal(dedupeByHash([soGlobal])[0].name, soGlobal.name);
+});
+
+// Plano futuro: filtro relevante CRU compartilhado.
+//
+// Hoje o fallback de pack (doSearch) dispara com `raw.items.length === 0` —
+// balde vazio. O plano troca isso por "zero itens RELEVANTES": um post
+// parecido que o filtro de título descartaria de qualquer forma não pode
+// segurar a busca por episódio e deixar o usuário sem o pack da temporada.
+// O contrato é UM filtro cru compartilhado — a MESMA classificação que o
+// buildStreams aplica na lista inteira serve para decidir se o pack deve
+// rodar. `relevantRaw` é o helper real exportado por format.js; estes casos
+// impedem que o gatilho e o corte final voltem a divergir.
+test('filtro relevante cru: lixo não segura o fallback de pack', () => {
+  const ctx = { names: ['Fallout'], year: 2024, isSeries: true, season: 1, episode: 1 };
+  // Post "parecido" que o filtro estrito já derruba: zero relevante, pack dispara.
+  assert.deepEqual(
+    relevantRaw([{ title: 'Missão: Impossível – Efeito Fallout S01E01 1080p', isBr: true }], ctx),
+    [],
+  );
+  // Spin-off do Rick and Morty: mesmo prefixo, mesmo ano, temporada certa.
+  // O filtro compartilhado precisa rejeitá-la para liberar o fallback do pack.
+  assert.deepEqual(
+    relevantRaw(
+      [{ title: 'Rick e Morty: O Anime 1ª Temporada (2024) WEB-DL [1080p DUBLADO]', isBr: true }],
+      { names: ['Rick and Morty', 'Rick e Morty'], year: 2024, isSeries: true, season: 1, episode: 1 },
+    ),
+    [],
+  );
+});
+
+test('filtro relevante cru: release certa impede o fallback de pack', () => {
+  const ctx = {
+    names: ['House of the Dragon', 'A Casa do Dragão'],
+    year: 2022,
+    isSeries: true,
+    season: 1,
+    episode: 2,
+  };
+  const relevantes = [
+    { title: 'House of the Dragon S01E02.The Rogue Prince  HMAX  DDP5.1.x264 NTb 1080p', isBr: true },
+    { title: '1A TEMPORADA COMPLETA      House of the Dragon S01. HMAX  DDP5.1.Atmos x264 SMURF 1080p', isBr: true },
+  ];
+  assert.equal(relevantRaw(relevantes, ctx).length, 2);
+});
+
+test('filtro relevante cru rejeita spin-off global por episódio', () => {
+  const ctx = {
+    names: ['Rick and Morty', 'Rick e Morty'],
+    year: 2013,
+    isSeries: true,
+    season: 1,
+    episode: 2,
+  };
+  const items = [
+    { title: 'Rick And Morty The Anime S01E02 720p HEVC' },
+    { title: 'Rick and Morty S01E02.The Vat of Acid Episode 1080p WEB-DL' },
+  ];
+  assert.deepEqual(relevantRaw(items, ctx), [items[1]]);
+});
+
+test('identidade global preserva série curta e sufixo regional', () => {
+  const cases = [
+    ['S01E02.From.1080p.WEBRip.x264-EVOLVE', ['From']],
+    ['S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE', ['The Bear']],
+    ['S01E02.Shogun.1080p.WEBRip.x264-GROUP', ['Shogun']],
+    ['The Office US S01E02 1080p WEB-DL', ['The Office']],
+  ];
+  for (const [title, names] of cases) {
+    assert.equal(relevantRaw([{ title }], {
+      names, isSeries: true, season: 1, episode: 2,
+    }).length, 1, title);
+  }
 });

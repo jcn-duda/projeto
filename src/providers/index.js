@@ -9,9 +9,7 @@ const {
   buildSearchQuery,
   toStremioStream,
   sortAndLimit,
-  matchesName,
   resolveSearchNames,
-  matchesBrTitle,
   matchesEpisode,
   limitReservingBr,
   UNKNOWN_QUALITY,
@@ -20,6 +18,7 @@ const {
   hasCachedBrDubbed,
   canAutoFetchBr,
   filterKnownCache,
+  filterRelevantRaw,
 } = require('../utils/format');
 const cache = require('../utils/cache');
 const debrid = require('../debrid');
@@ -206,7 +205,7 @@ async function applyDebrid(streams, { season, episode, searchKey }) {
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
 
-async function collectRaw(query, type, imdbId, ptQuery, onLate) {
+async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
   const tasks = [];
@@ -236,7 +235,10 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
         const priority = planned.indexers.some((indexer) =>
           config.jackett.ptBrIndexers.includes(indexer),
         );
-        addTask(jackett.search(planned.query, type, planned.indexers), priority);
+        addTask(jackett.search(planned.query, type, planned.indexers, {
+          fallbackQuery: planned.fallback,
+          matchContext,
+        }), priority);
       }
     }
   }
@@ -271,11 +273,25 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
     config.brPartialGrace,
     Math.max(0, config.debridReserve - config.debridCheckFloor),
   );
+  let watchLate = false;
+  let firstLateBatch = false;
+  let lateQueue = Promise.resolve();
   const collected = await collectWithinWindow(tasks, {
     budgetMs: budget,
     priorityGraceMs: priorityGrace,
     graceRequiresItems: type !== 'movie',
     onError: (err) => console.warn('[search] provider falhou:', err?.message || err),
+    onBatch: (batch, allItems) => {
+      if (!watchLate || firstLateBatch || !batch.length || !onLate) return;
+      firstLateBatch = true;
+      const snapshot = [...allItems];
+      console.log(`[search] primeira fonte tardia chegou; recacheando ${snapshot.length} resultado(s)`);
+      // Atualiza cedo a lista que o cliente está repetindo, mas mantém partial:
+      // outros indexers ainda trabalham e a promoção definitiva vem abaixo.
+      lateQueue = Promise.resolve(onLate(snapshot, true, true)).catch((err) => {
+        console.warn('[search] passe tardio intermediário falhou:', err?.message || err);
+      });
+    },
   });
   const bucket = collected.items;
   const done = collected.done;
@@ -292,7 +308,9 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
     // reescreve o cache, então a próxima chamada do Stremio já vem cheia.
     const soFar = bucket.length;
     if (onLate) {
+      watchLate = true;
       collected.completion
+        .then(() => lateQueue)
         .then(() => {
           const grew = bucket.length > soFar;
           if (grew) {
@@ -302,7 +320,7 @@ async function collectRaw(query, type, imdbId, ptQuery, onLate) {
           // saiu marcada como parcial (cacheMaxAge 0) e, sem esta chamada, ela
           // ficava parcial até o TTL expirar — o cliente repergunta em loop e
           // nunca recebe uma resposta que possa guardar.
-          return onLate(bucket, grew);
+          return onLate(bucket, grew, false);
         })
         .catch((err) => console.warn('[search] passe tardio falhou:', err?.message || err));
     }
@@ -396,8 +414,9 @@ async function doSearch({ type, id, cacheKey }) {
    * trouxeram, só promove a entrada do cache a completa — sem refazer a
    * checagem no debrid, que é a parte cara e não mudaria de resposta.
    */
-  const late = (items, grew, phase) => {
-    if (grew) return finish({ items, partial: false }, phase);
+  const late = (items, grew, phase, partial = false) => {
+    if (grew) return finish({ items, partial }, phase);
+    if (partial) return undefined;
     // Fase diferente = o fallback de pack assumiu; promover o lote antigo aqui
     // marcaria como pronta uma busca que ainda está em andamento.
     if (phase !== finish.phase()) return undefined;
@@ -408,13 +427,24 @@ async function doSearch({ type, id, cacheKey }) {
     return undefined;
   };
 
+  const matchContext = {
+    names: searchMeta.names,
+    year: searchMeta.year,
+    isSeries: season != null,
+    season,
+    episode,
+  };
   const episodePhase = finish.phase();
-  let raw = await collectRaw(query, type, imdbId, ptQuery, (items, grew) =>
-    late(items, grew, episodePhase),
+  let raw = await collectRaw(query, type, imdbId, ptQuery, matchContext, (items, grew, partial) =>
+    late(items, grew, episodePhase, partial),
   );
 
-  // Série sem resultado por episódio: tenta o pack da temporada (ex.: "Nome S01").
-  if (raw.items.length === 0 && season != null && !isDemo) {
+  // Série sem candidato útil por episódio tenta o pack. Lote parcial não-vazio
+  // ainda pode receber a fonte BR no passe tardio; só ampliamos o gatilho antigo
+  // quando a coleta terminou e o filtro compartilhado provou que tudo era lixo.
+  const relevant = filterRelevantRaw(raw.items, matchContext);
+  const needsPack = raw.items.length === 0 || (!raw.partial && relevant.length === 0);
+  if (needsPack && season != null && !isDemo) {
     // O passe tardio da busca por episódio não pode sobrescrever o pack que
     // estamos prestes a buscar. `advance` invalida qualquer escrita antiga,
     // inclusive uma build que já começou e ainda está no debrid.
@@ -429,8 +459,8 @@ async function doSearch({ type, id, cacheKey }) {
     console.log(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
-    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, (items, grew) =>
-      late(items, grew, packPhase),
+    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, (items, grew, partial) =>
+      late(items, grew, packPhase, partial),
     );
   }
 
@@ -462,13 +492,12 @@ async function buildStreams(rawInput, { meta, titles, season, episode, isDemo, s
   const { names, year: catalogYear } = resolveSearchNames({ meta, titles });
   if (names.length && !isDemo) {
     const before = raw.length;
-    raw = raw.filter((r) => {
-      const t = r.title || r.Title || '';
-      return names.some((n) =>
-        r.isBr
-          ? matchesBrTitle(t, n, catalogYear, { isSeries: season != null, allNames: names })
-          : matchesName(t, n),
-      );
+    raw = filterRelevantRaw(raw, {
+      names,
+      year: catalogYear,
+      isSeries: season != null,
+      // O filtro de episódio continua separado abaixo para manter os logs por
+      // motivo; aqui compartilhamos apenas a decisão de título.
     });
     if (before !== raw.length) console.log(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
   }

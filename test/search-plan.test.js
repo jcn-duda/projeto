@@ -13,8 +13,8 @@ test('indexers BR viram tarefas independentes para entrar no balde assim que ter
 
   assert.deepEqual(plan, [
     { query: 'Joker 2019', indexers: ['thepiratebay'] },
-    { query: 'Coringa 2019', indexers: ['bludv-cardigann'] },
-    { query: 'Coringa 2019', indexers: ['nerdfilmes'] },
+    { query: 'Coringa 2019', fallback: 'Joker 2019', indexers: ['bludv-cardigann'] },
+    { query: 'Coringa 2019', fallback: 'Joker 2019', indexers: ['nerdfilmes'] },
   ]);
 });
 
@@ -37,7 +37,7 @@ test('indexer lento não-BR vira tarefa sozinha e mantém a query em inglês', (
   assert.deepEqual(plan, [
     { query: 'Joker 2019', indexers: ['thepiratebay'] },
     { query: 'Joker 2019', indexers: ['redetorrent'] },
-    { query: 'Coringa 2019', indexers: ['bludv-cardigann'] },
+    { query: 'Coringa 2019', fallback: 'Joker 2019', indexers: ['bludv-cardigann'] },
   ]);
 });
 
@@ -60,4 +60,52 @@ test('shapeSearchQuery tira o ano do fim só nos bare-title', () => {
   // Título que É um ano não pode sumir da própria query.
   assert.equal(shapeSearchQuery('redetorrent', '1917 2019', true), '1917');
   assert.equal(shapeSearchQuery('redetorrent', '2012', true), '2012');
+});
+
+// Plano futuro: o indexador BR tem DUAS queries — a primary em pt-BR e, só
+// para ele, um fallback para o título original. O site BR indexa pelo nome em
+// português, mas o Wordpress devolve 0 para o título pt-BR às vezes; nesse
+// caso a MESMA tentativa pergunta pelo original em vez de desistir.
+// O fallback é exclusivo de BR com título diferente: global nunca o carrega
+// (ele já recebe o original como primary), e BR com título igual não tem o
+// que procurar além do que já pediu.
+test('BR com título diferente carrega primary PT e fallback original', () => {
+  const plan = planJackettQueries(
+    'Joker 2019',
+    'Coringa 2019',
+    ['thepiratebay', 'bludv-cardigann', 'nerdfilmes'],
+    ['bludv-cardigann', 'nerdfilmes'],
+  );
+
+  assert.deepEqual(plan, [
+    { query: 'Joker 2019', indexers: ['thepiratebay'] },
+    { query: 'Coringa 2019', fallback: 'Joker 2019', indexers: ['bludv-cardigann'] },
+    { query: 'Coringa 2019', fallback: 'Joker 2019', indexers: ['nerdfilmes'] },
+  ]);
+});
+
+test('BR com título igual (sem ptQuery) não carrega fallback', () => {
+  assert.deepEqual(
+    planJackettQueries('Prometheus 2012', null, ['bludv-cardigann'], ['bludv-cardigann']),
+    [{ query: 'Prometheus 2012', indexers: ['bludv-cardigann'] }],
+  );
+});
+
+test('global nunca carrega fallback nem a query pt-BR', () => {
+  const plan = planJackettQueries(
+    'Joker 2019',
+    'Coringa 2019',
+    ['thepiratebay', 'redetorrent', 'bludv-cardigann'],
+    ['bludv-cardigann'],
+    ['redetorrent', 'bludv-cardigann'],
+  );
+
+  const globais = plan.filter((tarefa) =>
+    tarefa.indexers.every((indexer) => indexer !== 'bludv-cardigann'),
+  );
+  assert.ok(globais.length > 0, 'plano tem tarefa sem BR');
+  assert.ok(globais.every((tarefa) => tarefa.query === 'Joker 2019' && !('fallback' in tarefa)));
+  const br = plan.find((tarefa) => tarefa.indexers.includes('bludv-cardigann'));
+  assert.equal(br.query, 'Coringa 2019');
+  assert.equal(br.fallback, 'Joker 2019');
 });
