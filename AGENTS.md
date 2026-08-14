@@ -124,11 +124,18 @@ ela ocupa espaço na URL), consuma via `opts()`, e adicione o controle em
 O schema atual já carrega: fontes (`p`), qualidades (`q`), limites por
 qualidade (`q4`/`q1`/`q7`/`q5`/`qs`/`qn`), vagas e prioridade BR (`b`/`bf`/`o`),
 dublado (`d`/`a`), sem CAM (`c`), tamanho máximo (`z`), indexers do Jackett
-(`ji`) e o trio debrid (`ds`/`dk`/`dc`). `jackettIndexers` aceita qualquer
+(`ji`/`jl`) e o trio debrid (`ds`/`dk`/`dc`). `jackettIndexers` aceita qualquer
 string vinda da URL — o caminho de busca valida cada id contra
 `SAFE_INDEXER_ID` antes de montar a query. Qualidade desconhecida tem balde
 próprio (`qn`), separado do SD: as fontes BR não publicam resolução, e zerar o
 SD não pode desligar a prioridade brasileira junto.
+
+`indexerLimits` (`jl`) é um mapa compacto `id:limite` separado por vírgulas —
+um card por indexador na página. Id fora do mapa herda o teto global
+`maxPerIndexer`; `0` explícito significa sem limite, e o schema só aceita 0..20
+(1..20 é o teto por indexador). A cota roda no corte final, na mesma passada da
+qualidade; as vagas reservadas BR passam sem serem barradas, mas continuam
+contando — a reserva fura o teto, não o amplia.
 
 `prefix()` devolve o segmento de config da requisição corrente. A rota
 `/resolve` depende dele: o link de play tem que voltar carregando a mesma
@@ -222,6 +229,10 @@ centenas de seeders. Por isso:
   não no número final;
 - o corte real é `limitReservingBr`, **depois** do debrid, com `BR_RESERVED_SLOTS`
   vagas garantidas.
+- o teto por indexador (`jl`, fallback no `maxPerIndexer` global) roda na mesma
+  passada da qualidade, dentro de `limitReservingBr`; as vagas reservadas BR
+  estouram o teto sem serem cortadas, mas contam na cota — a reserva fura o
+  teto, não o amplia.
 
 Inverter essa ordem faz as fontes BR sumirem silenciosamente.
 
@@ -300,8 +311,8 @@ no caminho da resposta — erro só vira log.
 
 `src/utils/format.js` concentra as funções puras (`matchesName`,
 `matchesEpisode`, `parseTitleSeasonEpisode`, `parseStremioId`, `sortAndLimit`,
-`dedupeByHash`, limites por qualidade) — é o melhor lugar para testar
-comportamento sem subir rede.
+`dedupeByHash`, limites por qualidade e por indexador) — é o melhor lugar para
+testar comportamento sem subir rede.
 
 ---
 

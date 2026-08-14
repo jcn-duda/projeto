@@ -15,6 +15,7 @@ const store = new AsyncLocalStorage();
 // fica abaixo dos limites usuais de request line de Node/proxies e impede que
 // um segmento arbitrariamente grande seja decodificado como JSON.
 const MAX_CONFIG_SEGMENT = 8192;
+const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
 /** Só estas chaves podem vir da URL — o resto é decisão do operador da instância. */
 const SCHEMA = {
@@ -26,6 +27,7 @@ const SCHEMA = {
   brFirst: { type: 'bool', key: 'bf' },
   jackettIndexers: { type: 'list', key: 'ji' },
   indexerPriority: { type: 'list', key: 'ip' },
+  indexerLimits: { type: 'intmap', key: 'jl', min: 0, max: 20 },
   brOnly: { type: 'bool', key: 'o' },
   dubbedOnly: { type: 'bool', key: 'd' },
   preferDubbed: { type: 'bool', key: 'a' },
@@ -55,6 +57,7 @@ function defaults() {
     brFirst: true,
     jackettIndexers: [...config.jackett.indexers],
     indexerPriority: [],
+    indexerLimits: {},
     brOnly: false,
     dubbedOnly: config.bludv.dubbedOnly,
     preferDubbed: config.preferDubbed,
@@ -81,6 +84,29 @@ function clampInt(value, { min, max }, fallback) {
   return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
+/** Mapa compacto `id:limite,id:limite`; 0 é override explícito sem limite. */
+function normalizeIntMap(value, spec) {
+  let entries;
+  if (Array.isArray(value)) {
+    entries = value.map((item) => String(item).split(':', 2));
+  } else if (value && typeof value === 'object') {
+    entries = Object.entries(value);
+  } else {
+    entries = String(value).split(',').map((item) => item.split(':', 2));
+  }
+
+  const parsed = new Map();
+  for (const entry of entries.slice(0, 100)) {
+    const id = String(entry[0] || '').trim().toLowerCase();
+    const rawLimit = entry[1];
+    if (!SAFE_INDEXER_ID.test(id) || rawLimit === '' || rawLimit == null) continue;
+    const limit = Number(rawLimit);
+    if (!Number.isFinite(limit)) continue;
+    parsed.set(id, Math.min(spec.max, Math.max(spec.min, Math.trunc(limit))));
+  }
+  return Object.fromEntries([...parsed.entries()].sort(([a], [b]) => a.localeCompare(b)));
+}
+
 /** Aplica o overlay sobre os defaults, ignorando qualquer chave desconhecida. */
 function normalize(raw) {
   const base = defaults();
@@ -97,6 +123,8 @@ function normalize(raw) {
       base[name] = items;
     } else if (spec.type === 'int') {
       base[name] = clampInt(value, spec, base[name]);
+    } else if (spec.type === 'intmap') {
+      base[name] = normalizeIntMap(value, spec);
     } else if (spec.type === 'bool') {
       base[name] = value === true || value === 1 || value === '1' || value === 'true';
     } else {

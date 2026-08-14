@@ -585,6 +585,7 @@ async function buildStreams(
     maxSd,
     maxUnknown,
     maxPerIndexer,
+    indexerLimits,
     brReservedSlots,
     brOnly,
     brFirst,
@@ -593,6 +594,14 @@ async function buildStreams(
   const safeIndexerPriority = indexerPriority
     .filter((id) => SAFE_INDEXER_ID.test(String(id)))
     .slice(0, 100);
+  const safeIndexerLimits = {};
+  for (const [rawId, rawLimit] of Object.entries(indexerLimits || {}).slice(0, 100)) {
+    const id = String(rawId).toLowerCase();
+    if (!SAFE_INDEXER_ID.test(id)) continue;
+    const limit = Number(rawLimit);
+    if (!Number.isFinite(limit)) continue;
+    safeIndexerLimits[id] = Math.min(20, Math.max(0, Math.trunc(limit)));
+  }
   const qualityLimits = {
     '2160p': max2160p,
     '1080p': max1080p,
@@ -633,6 +642,7 @@ async function buildStreams(
     qualityLimits,
     brFirst,
     maxPerIndexer,
+    indexerLimits: safeIndexerLimits,
   });
 
   // "A dublada não ficou em cima" é a queixa mais comum e tem três causas

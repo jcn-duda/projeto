@@ -986,3 +986,88 @@ test('identidade global preserva série curta e sufixo regional', () => {
     }).length, 1, title);
   }
 });
+
+
+test('limitByIndexer usa o override individual quando a chave existe', () => {
+  const streams = [
+    { id: 'yts-1', _indexer: 'yts' },
+    { id: 'yts-2', _indexer: 'yts' },
+    { id: 'yts-3', _indexer: 'yts' },
+    { id: 'rarbg-1', _indexer: 'rarbg' },
+    { id: 'rarbg-2', _indexer: 'rarbg' },
+  ];
+  // Cota global 1: o override do yts amplia para 3 e o do rarbg mantém 1.
+  const out = limitByIndexer(streams, 1, new Set(), { yts: 3, rarbg: 1 });
+  assert.deepEqual(out.map((s) => s.id), ['yts-1', 'yts-2', 'yts-3', 'rarbg-1']);
+});
+
+test('limitByIndexer: override 0 é sem limite, não "nenhum"', () => {
+  const streams = [
+    { id: 'yts-1', _indexer: 'yts' },
+    { id: 'yts-2', _indexer: 'yts' },
+    { id: 'rarbg-1', _indexer: 'rarbg' },
+  ];
+  // Global 1; yts com override 0 fica sem teto; rarbg sem override cai no global.
+  const out = limitByIndexer(streams, 1, new Set(), { yts: 0 });
+  assert.deepEqual(out.map((s) => s.id), ['yts-1', 'yts-2', 'rarbg-1']);
+});
+
+test('limitByIndexer cai no teto global para indexador sem override', () => {
+  const streams = [
+    { id: 'yts-1', _indexer: 'yts' },
+    { id: 'yts-2', _indexer: 'yts' },
+    { id: 'rarbg-1', _indexer: 'rarbg' },
+  ];
+  // Só o rarbg tem override; o yts continua preso ao maxPerIndexer global.
+  assert.deepEqual(
+    limitByIndexer(streams, 1, new Set(), { rarbg: 5 }).map((s) => s.id),
+    ['yts-1', 'rarbg-1'],
+  );
+});
+
+test('vaga reservada BR fura o teto individual do indexador', () => {
+  const streams = [
+    { id: 'br-1', _indexer: 'bludv', _br: true },
+    { id: 'br-2', _indexer: 'bludv', _br: true },
+    { id: 'br-3', _indexer: 'bludv', _br: true },
+    { id: 'yts-1', _indexer: 'yts' },
+  ];
+  // Override 1 no bludv e reserva de 2: as duas primeiras BR furam a cota, a
+  // terceira (fora da reserva) é barrada e ainda conta para a contagem.
+  const exempt = new Set([streams[0], streams[1]]);
+  const out = limitByIndexer(streams, 2, exempt, { bludv: 1, yts: 5 });
+  assert.deepEqual(out.map((s) => s.id), ['br-1', 'br-2', 'yts-1']);
+});
+
+test('reserva BR fura a cota individual por indexador em limitReservingBr', () => {
+  const streams = [
+    { id: 'br-1', _quality: '1080p', _br: true, _dubbed: true, _indexer: 'bludv' },
+    { id: 'br-2', _quality: '1080p', _br: true, _dubbed: true, _indexer: 'bludv' },
+    { id: 'br-3', _quality: '1080p', _br: true, _dubbed: true, _indexer: 'bludv' },
+    { id: 'yts-1', _quality: '1080p', _br: false, _indexer: 'yts' },
+  ];
+  // Override 1 no bludv com 2 vagas reservadas: a reserva continua entregando
+  // os dois dublados acima da cota individual.
+  const out = limitReservingBr(streams, {
+    brReservedSlots: 2,
+    maxResults: 10,
+    maxPerIndexer: 1,
+    indexerLimits: { bludv: 1 },
+  });
+  assert.deepEqual(out.map((s) => s.id), ['br-1', 'br-2', 'yts-1']);
+});
+
+test('cota individual rejeitada não consome vaga de qualidade', () => {
+  const streams = [
+    { id: 'yts-1', _quality: '1080p', _br: false, _indexer: 'yts' },
+    { id: 'yts-2', _quality: '1080p', _br: false, _indexer: 'yts' },
+    { id: 'rarbg-1', _quality: '1080p', _br: false, _indexer: 'rarbg' },
+  ];
+  const out = limitReservingBr(streams, {
+    brFirst: false,
+    maxResults: 10,
+    qualityLimits: { '1080p': 2 },
+    indexerLimits: { yts: 1 },
+  });
+  assert.deepEqual(out.map((s) => s.id), ['yts-1', 'rarbg-1']);
+});

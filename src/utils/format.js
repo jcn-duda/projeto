@@ -817,19 +817,24 @@ function selectQualityCandidates(
  * default é desligado, e um 0 herdado de config antiga zerando a lista inteira
  * seria bem pior que um teto que não pega.
  *
- * `exempt` são as vagas reservadas BR, que passam sem consumir a cota: elas
- * existem justamente para sobreviver quando a fonte dublada é minoria, e uma
- * cota contando por cima delas desfaria a reserva.
+ * `exempt` são as vagas reservadas BR: elas passam mesmo acima da cota, mas
+ * continuam contando. Assim a reserva fura o teto sem ampliá-lo para os itens
+ * seguintes da mesma fonte.
  */
-function limitByIndexer(streams, maxPerIndexer = 0, exempt = new Set()) {
-  const limit = Math.max(0, Math.trunc(Number(maxPerIndexer) || 0));
-  if (!limit) return streams;
+function limitByIndexer(streams, maxPerIndexer = 0, exempt = new Set(), indexerLimits = {}) {
+  const globalLimit = Math.max(0, Math.trunc(Number(maxPerIndexer) || 0));
+  const hasOverrides = indexerLimits && typeof indexerLimits === 'object' &&
+    Object.keys(indexerLimits).length > 0;
+  if (!globalLimit && !hasOverrides) return streams;
   const counts = new Map();
   return streams.filter((stream) => {
     // Stream sem indexador conhecido não vira um balde comum com os outros:
     // eles se limitariam entre si por acidente de metadado ausente.
     const source = String(stream?._indexer || '').trim().toLowerCase();
     if (!source) return true;
+    const ownLimit = Object.prototype.hasOwnProperty.call(indexerLimits, source)
+      ? Math.max(0, Math.trunc(Number(indexerLimits[source]) || 0))
+      : globalLimit;
     const count = counts.get(source) || 0;
     // A vaga reservada ESTOURA o teto, mas continua contando: se ela não
     // contasse, uma reserva de 2 com cota 1 deixaria passar um terceiro stream
@@ -838,8 +843,46 @@ function limitByIndexer(streams, maxPerIndexer = 0, exempt = new Set()) {
       counts.set(source, count + 1);
       return true;
     }
-    if (count >= limit) return false;
+    if (ownLimit && count >= ownLimit) return false;
     counts.set(source, count + 1);
+    return true;
+  });
+}
+
+/**
+ * Aplica as duas cotas numa passada só. Se a cota individual rejeitar um item,
+ * ele não pode consumir a vaga de qualidade — outra fonte precisa poder fazer
+ * o backfill da lista final.
+ */
+function limitByQualityAndIndexer(
+  streams,
+  qualityLimits,
+  maxPerIndexer,
+  exempt,
+  indexerLimits,
+) {
+  const qualityCounts = new Map();
+  const indexerCounts = new Map();
+  const globalLimit = Math.max(0, Math.trunc(Number(maxPerIndexer) || 0));
+
+  return streams.filter((stream) => {
+    const quality = streamQuality(stream);
+    const rawQualityLimit = qualityLimits[quality];
+    const qualityLimit = rawQualityLimit == null || rawQualityLimit >= 100
+      ? Infinity
+      : Math.max(0, Math.trunc(rawQualityLimit));
+    const qualityCount = qualityCounts.get(quality) || 0;
+    if (qualityCount >= qualityLimit) return false;
+
+    const source = String(stream?._indexer || '').trim().toLowerCase();
+    const sourceCount = source ? indexerCounts.get(source) || 0 : 0;
+    const sourceLimit = source && Object.prototype.hasOwnProperty.call(indexerLimits, source)
+      ? Math.max(0, Math.trunc(Number(indexerLimits[source]) || 0))
+      : globalLimit;
+    if (source && !exempt.has(stream) && sourceLimit && sourceCount >= sourceLimit) return false;
+
+    qualityCounts.set(quality, qualityCount + 1);
+    if (source) indexerCounts.set(source, sourceCount + 1);
     return true;
   });
 }
@@ -966,6 +1009,7 @@ function limitReservingBr(
     qualityLimits = {},
     brFirst = true,
     maxPerIndexer = 0,
+    indexerLimits = {},
   } = {},
 ) {
   const pool = brOnly ? streams.filter((stream) => stream._br) : streams;
@@ -996,10 +1040,12 @@ function limitReservingBr(
       .slice(0, brSlots),
   );
   const kept = new Set(
-    limitByIndexer(
-      limitByQuality([...priority, ...pool.filter((stream) => !prioritized.has(stream))], qualityLimits),
+    limitByQualityAndIndexer(
+      [...priority, ...pool.filter((stream) => !prioritized.has(stream))],
+      qualityLimits,
       maxPerIndexer,
       exemptFromIndexerQuota,
+      indexerLimits,
     ),
   );
   // Volta à ordem original: sem `brFirst` o corte final depende dela.

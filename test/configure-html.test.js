@@ -127,3 +127,67 @@ test('status sem medição é honesto e polling mantém JavaScript ES5', () => {
   assert.doesNotMatch(addedJs, /\b(?:const|let|class|async|await)\b|=>|`/,
     'status precisa continuar compatível com WebViews ES5');
 });
+
+
+test('KEYS mapeia o limite individual por indexador para jl', () => {
+  assert.match(html, /indexerLimits: "jl"/);
+});
+
+test('collect inclui os limites individuais por indexador', () => {
+  const collect = sliceFunction('collect');
+  assert.match(collect, /KEYS\.indexerLimits\b/);
+  assert.match(collect, /collectIndexerLimits\(\)/);
+});
+
+test('card de indexador ganha select individual com padrão geral, sem limite e 1..20', () => {
+  const fill = sliceNamedFunction('fillJackettIndexers');
+  assert.match(fill, /createElement\("select"\)/);
+  assert.match(fill, /className = "indexer-limit"/);
+  assert.match(fill, /defaultOption\.value = ""/, 'padrão geral é vazio');
+  assert.match(fill, /defaultOption\.textContent = "padrão geral"/);
+  assert.match(fill, /unlimitedOption\.value = "0"/, '0 é override explícito de sem limite');
+  assert.match(fill, /unlimitedOption\.textContent = "sem limite"/);
+  assert.match(fill, /limitValue <= 20/, 'opções numéricas vão de 1 a 20');
+  assert.match(fill, /limit\.setAttribute\("aria-label"/);
+});
+
+test('collectIndexerLimits serializa overrides inclusive 0 e omite o padrão geral', () => {
+  const collectLimits = sliceNamedFunction('collectIndexerLimits');
+  assert.match(collectLimits, /querySelectorAll\("\.indexer-limit"\)/);
+  assert.match(collectLimits, /if \(value === ""\) return;/, 'só o padrão geral (vazio) fica fora');
+  assert.match(collectLimits, /result\.push\(id \+ ":" \+ limit\)/, 'serializa id:limite');
+  // parseIndexerLimit aceita "0": o override de sem limite entra na URL.
+  const parse = sliceNamedFunction('parseIndexerLimit');
+  assert.ok(parse.includes('/^-?\\d+$/'), 'aceita inteiro, incluindo "0"');
+  assert.match(parse, /Math\.min\(20, Math\.max\(0, number\)\)/, 'clampa no mesmo intervalo do backend');
+});
+
+test('fromUrl restaura os limites por card sem togglar seleção', () => {
+  const fromUrl = sliceNamedFunction('fromUrl');
+  assert.match(fromUrl, /KEYS\.indexerLimits/);
+  assert.match(fromUrl, /state\.indexerLimits = normalizeIndexerLimits\(/);
+  assert.equal(fromUrl.includes('setChips('), false, 'fromUrl não pode togglar cards');
+  assert.equal(fromUrl.includes('setOn('), false, 'fromUrl não pode togglar switches');
+});
+
+test('apply restaura o select individual sem togglar o card', () => {
+  const apply = sliceNamedFunction('apply');
+  const match = html.match(/var savedLimits = normalizeIndexerLimits\(state\.indexerLimits\);[\s\S]*?\n    \}\);?/);
+  assert.ok(match, 'bloco de restauração dos limites não encontrado');
+  const block = match[0];
+  assert.match(block, /querySelectorAll\("\.indexer-limit"\)/);
+  assert.match(block, /select\.value = Object\.prototype\.hasOwnProperty\.call\(savedLimits, id\)/);
+  assert.match(block, /String\(savedLimits\[id\]\)/, 'restaura o override, inclusive 0');
+  assert.match(block, /: ""/, 'sem override volta para o padrão geral');
+  assert.equal(block.includes('setChips('), false, 'restaurar limite não pode togglar cards');
+  assert.equal(block.includes('setOn('), false, 'restaurar limite não pode togglar switches');
+});
+
+test('código de limite por card mantém JavaScript ES5', () => {
+  const start = html.indexOf('function parseIndexerLimit');
+  const end = html.indexOf('function statusText');
+  assert.ok(start !== -1 && end !== -1 && end > start, 'funções do limite não encontradas');
+  const added = html.slice(start, end);
+  assert.doesNotMatch(added, /\b(?:const|let|class|async|await)\b|=>|`/,
+    'JS dos limites precisa continuar compatível com WebViews ES5');
+});

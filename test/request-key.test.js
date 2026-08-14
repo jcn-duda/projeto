@@ -36,3 +36,17 @@ test('cache separa prioridade e cotas por qualidade', () => {
     streamsCacheKey('movie', 'tt123', { ...base, max1080p: 8 }),
   );
 });
+
+
+test('cache varia com o mapa de limites por indexador', () => {
+  const base = { providers: ['jackett'], maxPerIndexer: 0, indexerLimits: {} };
+  assert.notEqual(
+    streamsCacheKey('movie', 'tt123', base),
+    streamsCacheKey('movie', 'tt123', { ...base, indexerLimits: { yts: 3 } }),
+  );
+  // 0 é override explícito (sem limite) e precisa de cache próprio também.
+  assert.notEqual(
+    streamsCacheKey('movie', 'tt123', { ...base, indexerLimits: { yts: 3 } }),
+    streamsCacheKey('movie', 'tt123', { ...base, indexerLimits: { yts: 0 } }),
+  );
+});

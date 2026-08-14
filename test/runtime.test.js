@@ -189,3 +189,41 @@ test('roundtrip dos defaults é estável', () => {
   const d = defaults();
   assert.deepEqual(decode(encode(d)), d);
 });
+
+
+test('SCHEMA declara o limite individual por indexador como intmap 0..20', () => {
+  assert.deepEqual(SCHEMA.indexerLimits, { type: 'intmap', key: 'jl', min: 0, max: 20 });
+  // Sem override o limite fica por conta do maxPerIndexer global.
+  assert.deepEqual(defaults().indexerLimits, {});
+});
+
+test('normalize lê jl em CSV com IDs seguros lowercase e clamp 0..20', () => {
+  const out = normalize({ jl: 'YTS:3, bludv:0, rarbg: 150, invalido!id:5, yts:7' });
+  // `invalido!id` falha no SAFE_INDEXER_ID e é descartado; `rarbg` clampa em
+  // 20; a última ocorrência de um id vence na ordem de chegada (yts:7).
+  assert.deepEqual(out.indexerLimits, { bludv: 0, rarbg: 20, yts: 7 });
+  // Negativo clampa em 0; entrada sem ":" ou sem número é descartada.
+  assert.deepEqual(normalize({ jl: 'nerdfilmes:-3,sozinho,comandotorrents:abc' }).indexerLimits, {
+    nerdfilmes: 0,
+  });
+});
+
+test('normalize lê jl em array e em objeto', () => {
+  assert.deepEqual(
+    normalize({ jl: ['YTS:3', 'bludv:0'] }).indexerLimits,
+    { bludv: 0, yts: 3 },
+  );
+  assert.deepEqual(
+    normalize({ jl: { YTS: 3, bludv: 0 } }).indexerLimits,
+    { bludv: 0, yts: 3 },
+  );
+  // Ausente no overlay mantém o default vazio, não zera a lista inteira.
+  assert.deepEqual(normalize({}).indexerLimits, {});
+});
+
+test('roundtrip encode/decode preserva os limites por indexador, inclusive o 0', () => {
+  const decoded = decode(encode({ jl: { yts: 3, bludv: 0 } }));
+  // 0 é override explícito de "sem limite" e não pode sumir no caminho.
+  assert.deepEqual(decoded.indexerLimits, { bludv: 0, yts: 3 });
+  assert.deepEqual(decode(encode({ jl: {} })).indexerLimits, {});
+});
