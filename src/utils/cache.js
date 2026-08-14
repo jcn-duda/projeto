@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const store = new Map();
-const MAX_ENTRIES = 500;
+const MAX_ENTRIES = 2000;
 
 // Memória é o L1; o SQLite só existe pra sobreviver ao restart do container.
 // Sem ele o addon funciona igual, só volta a esquentar do zero a cada subida.

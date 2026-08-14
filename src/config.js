@@ -42,7 +42,7 @@ const config = {
       process.env.JACKETT_RESOLVE_DOWNLOAD_INDEXERS ||
         'comandotorrents,nerdfilmes,bludv-cardigann,torrentdosfilmesv2',
     ),
-    resolveConcurrency: num(process.env.JACKETT_RESOLVE_CONCURRENCY, 6),
+    resolveConcurrency: num(process.env.JACKETT_RESOLVE_CONCURRENCY, 10),
     maxDownloadResolves: num(process.env.JACKETT_MAX_DOWNLOAD_RESOLVES, 20),
     downloadTimeout: num(process.env.JACKETT_DOWNLOAD_TIMEOUT_MS, 8000),
     ptBrIndexers: list(

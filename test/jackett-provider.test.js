@@ -44,15 +44,19 @@ function makeFetch() {
   return fetchImpl;
 }
 
+const cache = require('../src/utils/cache');
+
 async function withJackett(fetchImpl, fn) {
   const realFetch = globalThis.fetch;
   const saved = { url: config.jackett.url, apiKey: config.jackett.apiKey };
   config.jackett.url = 'http://jackett.test';
   config.jackett.apiKey = 'test-key';
   globalThis.fetch = fetchImpl;
+  cache.clear();
   try {
     return await fn();
   } finally {
+    cache.clear();
     globalThis.fetch = realFetch;
     config.jackett.url = saved.url;
     config.jackett.apiKey = saved.apiKey;
@@ -205,5 +209,34 @@ test('candidatos duplicados com o mesmo downloadUrl geram um único fetch do pro
     const hits = fetchImpl.protectorCalls().filter((u) => u === 'http://protector.test/mesma');
     assert.equal(hits.length, 1);
     assert.equal(items.length, 1);
+  });
+});
+
+test('magnet resolvido pelo protetor é reutilizado do cache em buscas subsequentes', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Predador (1987) 1080p DUBLADO', Seeders: 1, Link: 'http://protector.test/predador1987' },
+      ] });
+    }
+    return fakeResponse(null, { location: MAGNET });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items1 = await jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
+      matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false },
+    });
+    assert.equal(items1.length, 1);
+    assert.equal(items1[0].magnet, MAGNET);
+    assert.equal(fetchImpl.protectorCalls().filter((u) => u === 'http://protector.test/predador1987').length, 1);
+
+    // Segunda busca: o protetor não deve ser chamado de novo
+    const items2 = await jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
+      matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false },
+    });
+    assert.equal(items2.length, 1);
+    assert.equal(items2[0].magnet, MAGNET);
+    assert.equal(fetchImpl.protectorCalls().filter((u) => u === 'http://protector.test/predador1987').length, 1);
   });
 });

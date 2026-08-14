@@ -1,4 +1,5 @@
 const config = require('../config');
+const cache = require('../utils/cache');
 const {
   matchesBrTitle,
   matchesEpisode,
@@ -13,6 +14,10 @@ const indexerStatus = require('./indexer-status');
 // Abaixo disso não vale abrir mais um salto de protetor de link: a requisição
 // abortaria no meio e ainda gastaria o resto do orçamento.
 const MIN_RESOLVE_BUDGET = 400;
+
+// TTL do cache de magnet resolvido (7 dias em segundos). Protetor de link não
+// altera o hash de uma release já publicada.
+const RESOLVED_MAGNET_TTL = 7 * 24 * 3600;
 
 // Prazo do teste manual de indexador. Nada a ver com o da busca: aqui vale
 // esperar pra distinguir "indexer morto" de "indexer lento".
@@ -54,17 +59,29 @@ async function mapLimit(items, limit, fn) {
 
 async function resolveDownloadMagnet(url, budgetMs) {
   if (!url) return null;
+  const cacheKey = `dlmag:${url}`;
+  const hit = cache.get(cacheKey);
+  if (hit) return hit;
+
   const response = await fetch(url, {
     redirect: 'manual',
     headers: { Accept: 'text/plain,application/x-bittorrent' },
     signal: AbortSignal.timeout(Math.min(config.jackett.downloadTimeout, budgetMs)),
   });
   const location = response.headers.get('location');
-  if (location && /^magnet:\?/i.test(location)) return location;
+  if (location && /^magnet:\?/i.test(location)) {
+    cache.set(cacheKey, location, RESOLVED_MAGNET_TTL);
+    return location;
+  }
   if (!response.ok) return null;
   const body = await response.text();
   const match = body.match(/magnet:\?[^"'<>\s]+/i);
-  return match ? match[0].replace(/&amp;/gi, '&') : null;
+  if (match) {
+    const magnet = match[0].replace(/&amp;/gi, '&');
+    cache.set(cacheKey, magnet, RESOLVED_MAGNET_TTL);
+    return magnet;
+  }
+  return null;
 }
 
 /** Milissegundos restantes do orçamento do indexer, ou 0 se já estourou. */
