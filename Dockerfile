@@ -8,7 +8,7 @@
 FROM caddy:2-alpine AS caddy
 
 # Mesmo pin de sha256 do antigo jackett-bludv/Dockerfile.
-FROM lscr.io/linuxserver/jackett@sha256:e6a86a28207e6da37fb72e02d6cd157c9f69f70338128b02c5cf99dc36676594 AS jackett
+FROM lscr.io/linuxserver/jackett@sha256:bdde094b662158f3fd93d640dcf30f20e901cfc0b9a47ff3c338b9400cd6b5d7 AS jackett
 
 FROM ghcr.io/flaresolverr/flaresolverr:latest AS flaresolverr
 
