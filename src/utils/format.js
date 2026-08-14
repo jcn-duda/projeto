@@ -363,6 +363,14 @@ const LINK_WORDS = 'de do da das dos e a o os as um uma em no na para por com so
 
 const RELEASE_NOISE = new Set([...TECH_NOISE, ...LINK_WORDS]);
 
+// O alias do catálogo e o nome publicado pelo indexer podem divergir só no
+// artigo inicial ("Hulk" / "The Hulk"). Ignoramos apenas determinantes — não
+// todas as palavras de ligação — para "Para Sempre" não virar "Sempre".
+const LEADING_ARTICLES = new Set(
+  ('o a os as um uma uns umas the an el la los las un una unos unas le les une ' +
+    'des il lo gli uno der die das den dem ein eine einen het een').split(' '),
+);
+
 // Calibrado nos casos reais deste repo: o documentário "A Última Vigília" dá
 // 0.60 e o pack "1ª até 8ª Temporada" dá 0.75 — o corte fica entre os dois.
 const TITLE_PRECISION_MIN = 0.65;
@@ -471,10 +479,48 @@ function matchesEpisodeWorkIdentity(title, allNames) {
   return titlePrecision(work, universe) >= SERIES_TITLE_PRECISION_MIN;
 }
 
+/**
+ * Identidade estrutural da obra: prefixo, sequência e ano. Diferente da
+ * precisão BR, estas regras também valem para filmes de indexers globais —
+ * "Scary Movie 2" e "Titanic 2000 (Scary Sexy Disaster Movie)" não são o
+ * "Scary Movie" de 2000 só porque contêm todos os tokens da busca.
+ */
+function matchesTitleStructure(title, name, year = null, { isSeries = false } = {}) {
+  const tokens = normalizeTitle(title).split(' ').filter(Boolean);
+  const wanted = normalizeTitle(name).split(' ').filter(Boolean);
+  const firstSig = (arr) =>
+    arr.find(
+      (w) =>
+        w.length > 2 &&
+        !LEADING_ARTICLES.has(w) &&
+        !PACK_WORDS.has(w) &&
+        !EPISODE_TOKEN.test(w),
+    ) || arr[0];
+  const want = firstSig(wanted);
+  if (want && firstSig(tokens) !== want) return false;
+
+  // Em série o número antes do ruído é a temporada; matchesEpisode decide se
+  // ela serve. Em filme, sequência não pedida é outra obra.
+  if (!isSeries) {
+    const wantedMarkers = extractSequenceMarkers(name);
+    if (![...extractSequenceMarkers(title)].every((n) => wantedMarkers.has(n))) return false;
+  }
+
+  const catalogYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  if (catalogYear) {
+    const years = tokens.filter((t) => /^(?:19|20)\d{2}$/.test(t)).map(Number);
+    if (isSeries) {
+      if (years.length && years.every((y) => y < catalogYear - 2)) return false;
+    } else if (years.length === 1 && Math.abs(years[0] - catalogYear) > 2) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function matchesBrTitle(title, name, year = null, { isSeries = false, allNames = null } = {}) {
   if (!matchesName(title, name)) return false;
   const tokens = normalizeTitle(title).split(' ').filter(Boolean);
-  const wanted = normalizeTitle(name).split(' ').filter(Boolean);
 
   // O nome procurado é PREFIXO de outra obra: "Game of Thrones: A Conquista e a
   // Rebelião" (especial animado) e "Game of Thrones – A Última Vigília"
@@ -500,36 +546,7 @@ function matchesBrTitle(title, name, year = null, { isSeries = false, allNames =
     if (titlePrecision(measured, universo) < precisionMin) return false;
   }
 
-  // Post BR é titulado "Nome ...", então o primeiro token relevante tem que ser
-  // o do nome. Palavra de coleção à esquerda não conta: "Coleção Guerra nas
-  // Estrelas" e "Trilogia: O Senhor dos Anéis" são o pack certo, e a regra crua
-  // os matava — enquanto o mesmo pack com a palavra no fim passava.
-  // Marcador de episódio à esquerda idem: o redetorrent titula
-  // "S02E01   A Casa do Dragão S02E01 …" e a regra crua o reprovava.
-  const firstSig = (arr) =>
-    arr.find((w) => w.length > 2 && !PACK_WORDS.has(w) && !EPISODE_TOKEN.test(w)) || arr[0];
-  const want = firstSig(wanted);
-  if (want && firstSig(tokens) !== want) return false;
-
-  // Sequência que a busca não pediu é outra obra (regra do pacote BRDUB).
-  // Só em filme: em série o número antes do ruído é a TEMPORADA ("Round 6 2ª
-  // Temporada"), e a temporada certa quem decide é `matchesEpisode`.
-  if (!isSeries) {
-    const wantedMarkers = extractSequenceMarkers(name);
-    if (![...extractSequenceMarkers(title)].every((n) => wantedMarkers.has(n))) return false;
-  }
-  // O ano do catálogo pode vir sujo ("2024–" para série em andamento): extrai o
-  // primeiro token de 4 dígitos antes de comparar.
-  const catalogYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
-  if (catalogYear) {
-    const years = tokens.filter((t) => /^(?:19|20)\d{2}$/.test(t)).map(Number);
-    if (isSeries) {
-      if (years.length && years.every((y) => y < catalogYear - 2)) return false;
-    } else if (years.length === 1 && Math.abs(years[0] - catalogYear) > 2) {
-      return false;
-    }
-  }
-  return true;
+  return matchesTitleStructure(title, name, year, { isSeries });
 }
 
 /**
@@ -547,7 +564,12 @@ function filterRelevantRaw(
     const titleMatches = names.some((name) =>
       item?.isBr
         ? matchesBrTitle(title, name, year, { isSeries, allNames: names })
-        : matchesName(title, name) && matchesEpisodeWorkIdentity(title, names),
+        : matchesName(title, name) &&
+          // Séries globais já usam identidade delimitada pelo marcador de
+          // episódio; aplicar o prefixo de filme nelas mudaria formatos
+          // legítimos como "S01E02.From" sem relação com este bug.
+          (isSeries || matchesTitleStructure(title, name, year)) &&
+          matchesEpisodeWorkIdentity(title, names),
     );
     if (!titleMatches) return false;
     if (season == null || episode == null) return true;

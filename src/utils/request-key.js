@@ -15,7 +15,7 @@ function streamsCacheKey(type, id, options = {}) {
   // Matching e plano de queries fazem parte do conteúdo cacheado. O namespace
   // evita que um deploy continue servindo por 15 minutos listas antigas com
   // spin-offs já rejeitados pela versão nova do pipeline.
-  return `streams:v2:${type}:${id}:${JSON.stringify(shape)}:account:${accountScope(debridApiKey)}`;
+  return `streams:v3:${type}:${id}:${JSON.stringify(shape)}:account:${accountScope(debridApiKey)}`;
 }
 
 module.exports = { accountScope, streamsCacheKey };
