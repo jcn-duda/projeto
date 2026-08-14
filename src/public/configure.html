@@ -887,6 +887,8 @@
   var jackettIndexers = [];
   var indexerPriority = [];
   var instanceDefaults = null;
+  var INDEXER_STATUS_POLL_MS = 10000;
+  var indexerStatusPollInFlight = false;
   var PRESET_BEHAVIORS = {
     recommended: {
       brFirst: true, preferDubbed: true, dubbedOnly: true, brOnly: false,
@@ -931,9 +933,14 @@
   }
 
   function statusText(status) {
-    if (!status || !status.state) return "desconhecido";
-    if (status.ms != null) return status.state + " · " + (status.ms / 1000).toFixed(1) + "s";
-    return status.state;
+    if (!status || !status.state) return "ainda não consultado";
+    var text = status.ms != null ? status.state + " · " + (status.ms / 1000).toFixed(1) + "s" : status.state;
+    var checked = Date.parse(status.checkedAt);
+    if (!isFinite(checked)) return text;
+    var age = Math.max(0, Math.floor((Date.now() - checked) / 1000));
+    if (age < 60) return text + " · medido agora";
+    if (age < 3600) return text + " · medido há " + Math.floor(age / 60) + " min";
+    return text + " · medido há " + Math.floor(age / 3600) + " h";
   }
 
   function renderIndexerStatus(item) {
@@ -1129,6 +1136,38 @@
     if (sw.getAttribute("role") === "switch") {
       sw.setAttribute("aria-checked", active ? "true" : "false");
     }
+  }
+
+  function refreshIndexerStatuses(defaults) {
+    var latest = {};
+    var list = defaults && Array.isArray(defaults.jackettIndexers) ? defaults.jackettIndexers : [];
+    list.forEach(function (raw) {
+      var item = safeJackettIndexer(raw);
+      if (item) latest[item.id] = item.status;
+    });
+    // Atualiza somente a medição dos cards existentes; seleção, prioridade e
+    // demais opções continuam sendo exclusivamente controladas pelo usuário.
+    jackettIndexers.forEach(function (item) {
+      if (Object.prototype.hasOwnProperty.call(latest, item.id)) setIndexerStatus(item.id, latest[item.id]);
+    });
+  }
+
+  function pollIndexerStatuses() {
+    if (indexerStatusPollInFlight) return;
+    indexerStatusPollInFlight = true;
+    // O parâmetro variável impede que navegador ou proxy devolva o catálogo
+    // anterior, sem depender de opções modernas da API de fetch.
+    fetch("/defaults.json?statusAt=" + new Date().getTime())
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(refreshIndexerStatuses)
+      .catch(function () {
+        // Falha no polling não interrompe a configuração nem substitui a
+        // última medição visível.
+      })
+      .then(function () { indexerStatusPollInFlight = false; });
   }
 
   function setPresetChoice(name) {
@@ -1604,6 +1643,9 @@
         apply(initial);
         applyPreset("recommended");
       }
+      // A busca atualiza o status no backend depois que esta página abriu; um
+      // polling leve reflete isso sem recarregar ou reprocessar a configuração.
+      setInterval(pollIndexerStatuses, INDEXER_STATUS_POLL_MS);
     });
 })();
 </script>

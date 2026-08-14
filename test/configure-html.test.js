@@ -22,6 +22,19 @@ function sliceFunction(name) {
   return match[0];
 }
 
+function sliceNamedFunction(name) {
+  const start = html.indexOf('function ' + name + '(');
+  assert.notEqual(start, -1, 'function ' + name + ' não encontrada no configure.html');
+  const bodyStart = html.indexOf('{', start);
+  let depth = 0;
+  for (let i = bodyStart; i < html.length; i += 1) {
+    if (html[i] === '{') depth += 1;
+    if (html[i] === '}') depth -= 1;
+    if (depth === 0) return html.slice(start, i + 1);
+  }
+  assert.fail('function ' + name + ' não foi fechada no configure.html');
+}
+
 test('preset BR recomendado carrega as escolhas comportamentais novas', () => {
   const match = html.match(/var PRESET_BEHAVIORS = (\{[\s\S]*?\n  \});/);
   assert.ok(match, 'PRESET_BEHAVIORS não encontrado');
@@ -80,4 +93,37 @@ test('texto do toggle BLUDV é específico da fonte direta', () => {
     'rótulo precisa citar a fonte direta BLUDV, não só "dublado"'
   );
   assert.match(html, /aria-label="Somente dublado na fonte direta BLUDV"/);
+});
+
+test('status dos indexadores é atualizado periodicamente sem reaplicar configuração', () => {
+  const refresh = sliceNamedFunction('refreshIndexerStatuses');
+  const poll = sliceNamedFunction('pollIndexerStatuses');
+
+  const interval = html.match(/var INDEXER_STATUS_POLL_MS = (\d+);/);
+  assert.ok(interval, 'intervalo do polling não encontrado');
+  assert.ok(Number(interval[1]) >= 5000 && Number(interval[1]) <= 30000,
+    'polling precisa atualizar rápido sem sobrecarregar o endpoint');
+  assert.match(html, /setInterval\(pollIndexerStatuses, INDEXER_STATUS_POLL_MS\)/);
+  assert.match(poll, /fetch\("\/defaults\.json\?statusAt=" \+ new Date\(\)\.getTime\(\)\)/,
+    'polling precisa evitar resposta de status em cache');
+  assert.match(poll, /indexerStatusPollInFlight = true/);
+  assert.match(poll, /indexerStatusPollInFlight = false/);
+
+  assert.match(refresh, /setIndexerStatus\(item\.id, latest\[item\.id\]\)/);
+  ['apply(', 'applyPreset(', 'fillJackettIndexers(', 'setChips(', 'setOn('].forEach((call) => {
+    assert.equal(refresh.includes(call), false, 'refresh de status não pode chamar ' + call);
+  });
+});
+
+test('status sem medição é honesto e polling mantém JavaScript ES5', () => {
+  const statusText = sliceNamedFunction('statusText');
+  const refresh = sliceNamedFunction('refreshIndexerStatuses');
+  const poll = sliceNamedFunction('pollIndexerStatuses');
+  const addedJs = statusText + refresh + poll;
+
+  assert.match(statusText, /return "ainda não consultado"/);
+  assert.doesNotMatch(statusText, /desconhecido/);
+  assert.match(statusText, /medido há/);
+  assert.doesNotMatch(addedJs, /\b(?:const|let|class|async|await)\b|=>|`/,
+    'status precisa continuar compatível com WebViews ES5');
 });
