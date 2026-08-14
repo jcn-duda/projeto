@@ -114,6 +114,7 @@ async function checkSearch() {
             ` em ${last.ms}ms${last.complete ? ' ✓ completa' : ' … incompleta, repetindo'}`,
         );
         if (last.complete) break;
+        if (i < MAX_TENTATIVAS - 1) await new Promise((r) => setTimeout(r, 1500));
       }
     } catch (err) {
       ok(label || id, false, err.message);
