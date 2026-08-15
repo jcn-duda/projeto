@@ -353,15 +353,16 @@ function normalizeTitle(s = '') {
  *   York" e "Homem-Aranha: Um Novo Dia". As seis vagas reservadas iam para o
  *   lixo e empurravam pra fora a fonte dublada correta.
  */
-function matchesName(title, name) {
+function matchesName(title, name, tokens = null) {
   const all = normalizeTitle(name).split(' ').filter(Boolean);
   // Palavra de 1-2 letras costuma ser ruído ("o", "de", "a"). Mas quando sobra
   // menos de dois tokens, ela É o título: aí vale mais que o ruído que evita.
   const long = all.filter((w) => w.length > 2);
   const wanted = long.length >= 2 ? long : all;
   if (wanted.length === 0) return true;
-  // Token inteiro, não pedaço de palavra.
-  const got = new Set(normalizeTitle(title).split(' ').filter(Boolean));
+  // Token inteiro, não pedaço de palavra. `tokens` opcionais: quem chama em
+  // lote (filterRelevantRaw) já normalizou o título e não paga de novo.
+  const got = new Set(tokens || normalizeTitle(title).split(' ').filter(Boolean));
   const hits = wanted.filter((w) => got.has(w)).length;
   return hits / wanted.length >= 0.6;
 }
@@ -523,12 +524,15 @@ function episodeWorkTokens(tokens) {
   return tokens.slice(1, end);
 }
 
-function matchesEpisodeWorkIdentity(title, allNames) {
+function matchesEpisodeWorkIdentity(title, allNames, tokens = null, universeTokens = null) {
   if (!allNames?.length) return true;
-  const tokens = normalizeTitle(title).split(' ').filter(Boolean);
-  const work = episodeWorkTokens(tokens);
+  // `tokens`/`universeTokens` opcionais: o mesmo título passa por várias
+  // funções no filtro em lote e cada uma renormalizava a string.
+  const own = tokens || normalizeTitle(title).split(' ').filter(Boolean);
+  const work = episodeWorkTokens(own);
   if (!work) return true;
-  const universe = allNames.flatMap((name) => normalizeTitle(name).split(' ')).filter(Boolean);
+  const universe =
+    universeTokens || allNames.flatMap((name) => normalizeTitle(name).split(' ')).filter(Boolean);
   return titlePrecision(work, universe) >= SERIES_TITLE_PRECISION_MIN;
 }
 
@@ -538,8 +542,10 @@ function matchesEpisodeWorkIdentity(title, allNames) {
  * "Scary Movie 2" e "Titanic 2000 (Scary Sexy Disaster Movie)" não são o
  * "Scary Movie" de 2000 só porque contêm todos os tokens da busca.
  */
-function matchesTitleStructure(title, name, year = null, { isSeries = false } = {}) {
-  const tokens = normalizeTitle(title).split(' ').filter(Boolean);
+function matchesTitleStructure(title, name, year = null, { isSeries = false, tokens = null } = {}) {
+  // `tokens` opcionais pelo mesmo motivo do matchesName: chamada em lote já
+  // trouxe o título normalizado.
+  const own = tokens || normalizeTitle(title).split(' ').filter(Boolean);
   const wanted = normalizeTitle(name).split(' ').filter(Boolean);
   const firstSig = (arr) =>
     arr.find(
@@ -550,7 +556,7 @@ function matchesTitleStructure(title, name, year = null, { isSeries = false } = 
         !EPISODE_TOKEN.test(w),
     ) || arr[0];
   const want = firstSig(wanted);
-  if (want && firstSig(tokens) !== want) return false;
+  if (want && firstSig(own) !== want) return false;
 
   // Em série o número antes do ruído é a temporada; matchesEpisode decide se
   // ela serve. Em filme, sequência não pedida é outra obra.
@@ -561,7 +567,7 @@ function matchesTitleStructure(title, name, year = null, { isSeries = false } = 
 
   const catalogYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
   if (catalogYear) {
-    const years = tokens.filter((t) => /^(?:19|20)\d{2}$/.test(t)).map(Number);
+    const years = own.filter((t) => /^(?:19|20)\d{2}$/.test(t)).map(Number);
     if (isSeries) {
       if (years.length && years.every((y) => y < catalogYear - 2)) return false;
     } else if (years.length === 1 && Math.abs(years[0] - catalogYear) > 2) {
@@ -571,9 +577,9 @@ function matchesTitleStructure(title, name, year = null, { isSeries = false } = 
   return true;
 }
 
-function matchesBrTitle(title, name, year = null, { isSeries = false, allNames = null } = {}) {
-  if (!matchesName(title, name)) return false;
-  const tokens = normalizeTitle(title).split(' ').filter(Boolean);
+function matchesBrTitle(title, name, year = null, { isSeries = false, allNames = null, tokens = null, universeTokens = null } = {}) {
+  if (!matchesName(title, name, tokens)) return false;
+  const own = tokens || normalizeTitle(title).split(' ').filter(Boolean);
 
   // O nome procurado é PREFIXO de outra obra: "Game of Thrones: A Conquista e a
   // Rebelião" (especial animado) e "Game of Thrones – A Última Vigília"
@@ -591,15 +597,16 @@ function matchesBrTitle(title, name, year = null, { isSeries = false, allNames =
   // precisão ("é outra obra?") já está respondida — obra parecida
   // (documentário, especial, jogo) não publica marcador de episódio; temporada
   // ou episódio errados morrem no matchesEpisode.
-  const episodeWork = episodeWorkTokens(tokens);
+  const episodeWork = episodeWorkTokens(own);
   if (allNames?.length) {
-    const universo = allNames.flatMap((n) => normalizeTitle(n).split(' ')).filter(Boolean);
-    const measured = episodeWork || tokens;
+    const universo =
+      universeTokens || allNames.flatMap((n) => normalizeTitle(n).split(' ')).filter(Boolean);
+    const measured = episodeWork || own;
     const precisionMin = isSeries ? SERIES_TITLE_PRECISION_MIN : TITLE_PRECISION_MIN;
     if (titlePrecision(measured, universo) < precisionMin) return false;
   }
 
-  return matchesTitleStructure(title, name, year, { isSeries });
+  return matchesTitleStructure(title, name, year, { isSeries, tokens: own });
 }
 
 /**
@@ -612,17 +619,32 @@ function filterRelevantRaw(
   { names = [], year = null, isSeries = false, season = null, episode = null } = {},
 ) {
   if (!names.length) return items;
+  // Hot path: os tokens do título e o universo de allNames dependem só de
+  // strings que se repetem entre itens. Cada item renormalizava o MESMO texto
+  // 3-5 vezes (matchesName, matchesBrTitle, matchesTitleStructure,
+  // matchesEpisodeWorkIdentity), e o universo de nomes era remontado por item.
+  const tokenMemo = new Map();
+  const tokensOf = (title) => {
+    let tokens = tokenMemo.get(title);
+    if (!tokens) {
+      tokens = normalizeTitle(title).split(' ').filter(Boolean);
+      tokenMemo.set(title, tokens);
+    }
+    return tokens;
+  };
+  const universe = names.flatMap((n) => normalizeTitle(n).split(' ')).filter(Boolean);
   return items.filter((item) => {
     const title = item?.title || item?.Title || '';
+    const tokens = tokensOf(title);
     const titleMatches = names.some((name) =>
       item?.isBr
-        ? matchesBrTitle(title, name, year, { isSeries, allNames: names })
-        : matchesName(title, name) &&
+        ? matchesBrTitle(title, name, year, { isSeries, allNames: names, tokens, universeTokens: universe })
+        : matchesName(title, name, tokens) &&
           // Séries globais já usam identidade delimitada pelo marcador de
           // episódio; aplicar o prefixo de filme nelas mudaria formatos
           // legítimos como "S01E02.From" sem relação com este bug.
-          (isSeries || matchesTitleStructure(title, name, year)) &&
-          matchesEpisodeWorkIdentity(title, names),
+          (isSeries || matchesTitleStructure(title, name, year, { tokens })) &&
+          matchesEpisodeWorkIdentity(title, names, tokens, universe),
     );
     if (!titleMatches) return false;
     if (season == null || episode == null) return true;
@@ -1170,24 +1192,31 @@ function sortAndLimit(
 ) {
   // Release que nomeia o episódio pedido vem antes do pack da temporada: o pack
   // serve, mas quem pediu o E01 quer ver o E01 no topo da lista.
-  const exact = (s) =>
-    season != null && episode != null &&
-    parseTitleSeasonEpisode(s.title).episodes.includes(episode)
-      ? 1
-      : 0;
+  // O marcador é estático por stream; o comparador o lia via
+  // parseTitleSeasonEpisode a cada comparação (~n·log n parses do mesmo
+  // título), então ele é pré-computado uma vez antes do sort.
   const dubbed = (s) => (s._dubbed ? 1 : 0);
   const maxSizeBytes = maxSizeGb > 0 ? maxSizeGb * 1024 ** 3 : 0;
   const indexerRanks = priorityMap(indexerPriority);
 
-  const ordered = dedupeByHash(streams, indexerPriority)
+  const candidates = dedupeByHash(streams, indexerPriority)
     .filter((s) => (s._seeders || 0) >= minSeeders)
     .filter((s) => passesQualityFilter(s, qualityFilter, qualityLimits))
     .filter((s) => !excludeCam || sourceFromTitle(s.title) !== 'CAM')
     // Tamanho ausente não é tratado como zero real: sem dado confiável, o
     // stream continua visível em vez de ser descartado silenciosamente.
-    .filter((s) => !maxSizeBytes || !s._size || s._size <= maxSizeBytes)
+    .filter((s) => !maxSizeBytes || !s._size || s._size <= maxSizeBytes);
+
+  const exactFlag = new Map();
+  if (season != null && episode != null) {
+    for (const s of candidates) {
+      exactFlag.set(s, parseTitleSeasonEpisode(s.title).episodes.includes(episode) ? 1 : 0);
+    }
+  }
+
+  const ordered = candidates
     .sort((a, b) => {
-      const ed = exact(b) - exact(a);
+      const ed = (exactFlag.get(b) || 0) - (exactFlag.get(a) || 0);
       if (ed !== 0) return ed;
       // Sem resolução fica acima do SD e abaixo do 720p: é quase sempre um
       // WEB-DL BR que não anuncia resolução, não uma cópia ruim.

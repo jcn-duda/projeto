@@ -1309,3 +1309,80 @@ test('cota individual rejeitada não consome vaga de qualidade', () => {
   });
   assert.deepEqual(out.map((s) => s.id), ['yts-1', 'rarbg-1']);
 });
+
+// Paridade do hot path (Etapa 4): o marcador de episódio exato passou a ser
+// pré-computado antes do .sort. O resultado observável não pode mudar — nem a
+// ordem, nem o corte — mesmo com lote grande e entrada embaralhada.
+test('sortAndLimit em lote de 200+: episódio exato à frente do pack, determinístico', () => {
+  // Embaralhamento pseudoaleatório DETERMINÍSTICO (LCG): a paridade não pode
+  // depender da ordem de entrada, e o teste não pode depender de sorte.
+  let seed = 42;
+  const rand = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+
+  const makeLote = () => {
+    const streams = [];
+    for (let i = 0; i < 220; i += 1) {
+      const exact = i % 2 === 0;
+      streams.push(toStremioStream({
+        title: exact
+          ? `Serie S01E05 1080p rel-${i}`
+          : `Serie 1a Temporada 1080p rel-${i}`,
+        infoHash: (i + 1).toString(16).padStart(40, '0'),
+        seeders: 1 + ((i * 37) % 500),
+      }));
+    }
+    for (let i = streams.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(rand() * (i + 1));
+      [streams[i], streams[j]] = [streams[j], streams[i]];
+    }
+    return streams;
+  };
+
+  const opts = { season: 1, episode: 5, maxResults: 220 };
+  const out = sortAndLimit(makeLote(), opts);
+
+  assert.equal(out.length, 220, 'nada é cortado além do maxResults pedido');
+
+  // Todo episódio exato vem antes de qualquer pack: o marcador pré-computado
+  // tem que reproduzir a prioridade que o comparador calculava por chamada.
+  const firstPackIdx = out.findIndex((s) => /1a Temporada/.test(s.title));
+  for (let i = 0; i < firstPackIdx; i += 1) {
+    assert.match(out[i].title, /S01E05/, `posição ${i} deveria ser episódio exato`);
+  }
+  for (let i = firstPackIdx; i < out.length; i += 1) {
+    assert.match(out[i].title, /1a Temporada/, `posição ${i} deveria ser pack`);
+  }
+
+  // Determinismo: mesma entrada (novo lote idêntico), mesma saída. Também
+  // prova que a primeira execução não deixou estado na segunda.
+  const out2 = sortAndLimit(makeLote(), opts);
+  assert.deepEqual(out.map((s) => s.infoHash), out2.map((s) => s.infoHash));
+});
+
+test('sortAndLimit em lote grande respeita o corte de maxResults', () => {
+  const streams = [];
+  const seedersByHash = new Map();
+  for (let i = 0; i < 250; i += 1) {
+    const infoHash = (i + 1).toString(16).padStart(40, '0');
+    const seeders = 1 + ((i * 13) % 900);
+    seedersByHash.set(infoHash, seeders);
+    streams.push(toStremioStream({
+      title: `Filme Nome 1080p rel-${i}`,
+      infoHash,
+      seeders,
+    }));
+  }
+  const out = sortAndLimit(streams, { maxResults: 30 });
+  assert.equal(out.length, 30);
+  // A saída limpa os campos internos (_seeders sai junto), então a ordem é
+  // conferida pelo hash contra o lote original: mesmo balde de qualidade,
+  // seeders descrescente.
+  for (let i = 1; i < out.length; i += 1) {
+    const anterior = seedersByHash.get(out[i - 1].infoHash);
+    const atual = seedersByHash.get(out[i].infoHash);
+    assert.ok(anterior >= atual, `ordem quebrada na posição ${i}`);
+  }
+});
