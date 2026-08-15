@@ -1,22 +1,10 @@
 const http = require('node:http');
-const path = require('path');
-const express = require('express');
-const { addonBuilder, getRouter } = require('stremio-addon-sdk');
-const config = require('../../src/config');
-const { findStreams } = require('../../src/providers');
-const debrid = require('../../src/debrid');
+// O app montado é o REAL (src/app.js): o harness parou de manter uma cópia das
+// rotas do addon.js — divergência silenciosa era o risco da cópia.
+const { createApp } = require('../../src/app');
 const runtime = require('../../src/runtime');
 const { verifyResolve, signResolve } = require('../../src/utils/sign');
-const jackettCatalog = require('../../src/providers/jackett-catalog');
-const jackett = require('../../src/providers/jackett');
-const { authorized, createDiagnosticGate } = require('../../src/utils/diagnostic-guard');
-const secretBox = require('../../src/utils/secret-box');
-const metrics = require('../../src/utils/metrics');
 const cache = require('../../src/utils/cache');
-const log = require('../../src/utils/logger');
-
-const CONFIGURE_PAGE = path.join(__dirname, '..', '..', 'src', 'public', 'configure.html');
-const LOGO_PAGE = path.join(__dirname, '..', '..', 'src', 'public', 'logo.svg');
 
 /**
  * Cria uma resposta HTTP falsa compatível com fetch nativo.
@@ -224,171 +212,14 @@ async function withMockFetch(routesOrHandler, fn) {
 }
 
 /**
- * Cria a aplicação Express do Addon com todos os middlewares e rotas idênticos ao addon.js.
+ * Cria a aplicação Express REAL do addon (mesma fábrica do addon.js). O
+ * parâmetro antigo `configOverrides` é aceito por compatibilidade de chamada,
+ * mas as rotas não têm mais estado para configurar: cada createApp() já nasce
+ * com gates próprios.
  */
 function createTestApp({ configOverrides = {} } = {}) {
-  const app = express();
-  const diagnosticGate = createDiagnosticGate();
-  const sealGate = createDiagnosticGate({
-    limit: 600,
-    maxConcurrent: 4,
-    rateMessage: 'muitos pedidos de selo; tente de novo em instantes',
-    busyMessage: 'selo ocupado; tente de novo em instantes',
-  });
-
-  const manifest = {
-    id: config.addonId,
-    version: config.version,
-    name: config.addonName,
-    description: 'Adom Power-Movie Test Addon',
-    logo: 'https://www.stremio.com/website/stremio-logo-small.png',
-    resources: ['stream'],
-    types: ['movie', 'series'],
-    idPrefixes: ['tt'],
-    catalogs: [],
-    behaviorHints: {
-      adult: false,
-      configurable: true,
-      configurationRequired: false,
-    },
-  };
-
-  const builder = new addonBuilder(manifest);
-
-  builder.defineStreamHandler(async (args) => {
-    try {
-      const { streams, partial } = await findStreams({ type: args.type, id: args.id });
-      if (!streams.length || partial) {
-        return { streams, cacheMaxAge: 0 };
-      }
-      return {
-        streams,
-        cacheMaxAge: config.cacheTtl,
-        staleRevalidate: config.cacheTtl * 4,
-        staleError: 86400,
-      };
-    } catch (err) {
-      log.error('[stream-test]', err);
-      return { streams: [], cacheMaxAge: 0 };
-    }
-  });
-
-  const addonInterface = builder.getInterface();
-
-  async function resolveHandler(req, res) {
-    const infoHash = String(req.params.infoHash || '').toLowerCase();
-    if (!/^[a-f0-9]{40}$/i.test(infoHash)) {
-      return res.status(400).send('infoHash inválido');
-    }
-    if (debrid.current()) {
-      const ep = req.query.s != null && req.query.e != null ? `?s=${req.query.s}&e=${req.query.e}` : '';
-      if (!verifyResolve(infoHash, ep, req.query.sig)) {
-        return res.status(403).send('assinatura inválida');
-      }
-    }
-    try {
-      const link = await debrid.resolveLink(infoHash, {
-        season: req.query.s ? Number(req.query.s) : null,
-        episode: req.query.e ? Number(req.query.e) : null,
-      });
-      if (!link) return res.status(404).send('nenhum arquivo de vídeo no torrent');
-      return res.redirect(302, link);
-    } catch (err) {
-      log.error('[resolve-test]', err.message);
-      return res.status(502).send('falha ao resolver no debrid');
-    }
-  }
-
-  const sendConfigure = (_, res) => res.sendFile(CONFIGURE_PAGE);
-
-  app.get('/health', (_, res) => res.json({ ok: true }));
-  app.get('/logo.svg', (_, res) => res.sendFile(LOGO_PAGE));
-  app.get('/', (_, res) => res.redirect(302, '/configure'));
-  app.get('/configure', sendConfigure);
-
-  app.get('/defaults.json', async (_, res) => {
-    const { debridApiKey, ...safe } = runtime.defaults();
-    const jackettIndexers = await jackettCatalog.load();
-    res.json({
-      ...safe,
-      jackettIndexersSelected: safe.jackettIndexers,
-      jackettIndexers,
-      debridApiKey: '',
-      services: debrid.SERVICES,
-      addonName: config.addonName,
-      indexerTestEnabled: Boolean(config.jackett.testToken),
-      sealKeyEnabled: secretBox.enabled(),
-    });
-  });
-
-  app.post('/seal-config', express.text({ type: () => true, limit: '16kb' }), (req, res) => {
-    if (!secretBox.enabled()) {
-      return res.status(503).json({ error: 'RESOLVE_SECRET não configurado' });
-    }
-    const admission = sealGate.enter('global');
-    if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
-
-    try {
-      const sealed = runtime.sealSegment(String(req.body || '').trim());
-      if (!sealed) return res.status(400).json({ error: 'configuração inválida' });
-      return res.json({ segment: sealed });
-    } finally {
-      admission.release();
-    }
-  });
-
-  app.get('/metrics.json', (req, res) => {
-    if (!config.jackett.testToken) {
-      return res.status(503).json({ error: 'métricas desativadas: defina JACKETT_TEST_TOKEN' });
-    }
-    if (!authorized(config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
-      return res.status(401).json({ error: 'token de diagnóstico inválido' });
-    }
-    return res.json({
-      ...metrics.snapshot(),
-      logLevel: log.level(),
-      cache: { entries: cache.size(), maxEntries: cache.MAX_ENTRIES },
-    });
-  });
-
-  app.get('/test-indexer.json', async (req, res) => {
-    if (!config.jackett.testToken) {
-      return res.status(503).json({ ok: false, error: 'diagnóstico desativado pelo operador' });
-    }
-    if (!authorized(config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
-      return res.status(401).json({ ok: false, error: 'token de diagnóstico inválido' });
-    }
-    const admission = diagnosticGate.enter('global');
-    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
-
-    try {
-      const id = String(req.query.id || '');
-      const catalog = await jackettCatalog.load();
-      if (!catalog.some((indexer) => indexer.id === id)) {
-        return res.status(400).json({ ok: false, error: 'indexador desconhecido' });
-      }
-      const query = req.query.q ? String(req.query.q).slice(0, 80) : '';
-      const type = req.query.type === 'series' ? 'series' : 'movie';
-      return res.json(await jackett.test(id, query, type));
-    } finally {
-      admission.release();
-    }
-  });
-
-  app.get('/resolve/:infoHash', resolveHandler);
-  app.use(getRouter(addonInterface));
-
-  app.use('/:userConfig', (req, res, next) => {
-    const parsed = runtime.decode(req.params.userConfig);
-    if (!parsed) return res.status(404).send('configuração inválida');
-    runtime.run({ opts: parsed, encoded: req.params.userConfig }, () => next());
-  });
-
-  app.get('/:userConfig/configure', sendConfigure);
-  app.get('/:userConfig/resolve/:infoHash', resolveHandler);
-  app.use('/:userConfig', getRouter(addonInterface));
-
-  return app;
+  void configOverrides;
+  return createApp().app;
 }
 
 /**
