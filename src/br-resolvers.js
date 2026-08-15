@@ -18,6 +18,7 @@ const RESOLVERS = [
   { name: 'nerdfilmes', path: '../nerdfilmes-resolver/server', port: 8702, siteEnv: 'NERDFILMES_URL' },
   { name: 'torrentdosfilmes', path: '../torrentdosfilmes-resolver/server', port: 8703, siteEnv: 'TORRENTDOSFILMES_URL' },
 ];
+const servers = [];
 
 function load() {
   if (String(process.env.BR_RESOLVERS_EMBEDDED || 'true') !== 'true') {
@@ -32,11 +33,13 @@ function load() {
     BLUDV_URL: process.env.BLUDV_URL,
   };
   const host = process.env.BR_RESOLVERS_HOST || 'addon';
+  const portOffset = Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0;
   const loaded = [];
 
   for (const resolver of RESOLVERS) {
-    process.env.PORT = String(resolver.port);
-    process.env.SELF_URL = `http://${host}:${resolver.port}`;
+    const port = resolver.port + portOffset;
+    process.env.PORT = String(port);
+    process.env.SELF_URL = `http://${host}:${port}`;
 
     // Injeta a URL do site específico no SITE_URL para o módulo filho
     if (resolver.siteEnv && process.env[resolver.siteEnv]) {
@@ -55,9 +58,10 @@ function load() {
       // sem abrir porta. O fallback continua aqui para o caso de um resolvedor
       // voltar a ouvir no require.
       if (typeof mod?.createServer === 'function') {
-        mod.createServer().listen(resolver.port, '0.0.0.0');
+        const server = mod.createServer().listen(port, '0.0.0.0');
+        servers.push(server);
       }
-      loaded.push(`${resolver.name}:${resolver.port}`);
+      loaded.push(`${resolver.name}:${port}`);
     } catch (err) {
       log.warn(`[br] falha ao carregar o resolvedor ${resolver.name}:`, err.message);
     }
@@ -72,4 +76,16 @@ function load() {
   if (loaded.length) log.info(`[br] resolvedores embutidos: ${loaded.join(', ')}`);
 }
 
-module.exports = { load, RESOLVERS };
+/** Fecha sockets embutidos antes do processo sair; seguro para chamadas repetidas. */
+function close() {
+  for (const server of servers.splice(0)) {
+    try {
+      server.closeIdleConnections?.();
+      server.close();
+    } catch (err) {
+      log.warn('[br] falha ao fechar resolvedor embutido:', err.message);
+    }
+  }
+}
+
+module.exports = { load, close, RESOLVERS };

@@ -74,7 +74,7 @@ function defaults() {
     maxUnknown: config.qualityLimits.unknown,
     maxPerIndexer: config.maxPerIndexer,
     debridService: config.debrid.service,
-    debridApiKey: config.debrid.apiKey,
+    debridApiKey: config.debrid.allowEnvKey ? config.debrid.apiKey : '',
     debridCachedOnly: config.debrid.cachedOnly,
     showUncachedBr: config.debrid.showUncachedBr,
     autoFetchBr: config.debrid.autoFetchBr,

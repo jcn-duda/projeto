@@ -266,8 +266,11 @@ brResolvers.load();
 // O scrypt do selo custa ~100ms e o resultado fica em cache. Derivar aqui tira
 // esse custo da primeira requisição de quem instalar.
 if (secretBox.enabled()) secretBox.seal('warmup');
+// Catálogo é usado na primeira abertura de /configure; aquecer só com credencial
+// evita uma chamada inútil para instalações em modo demo/P2P.
+if (config.jackett.apiKey) jackettCatalog.load().catch(() => {});
 
-app.listen(config.port, config.host, () => {
+const server = app.listen(config.port, config.host, () => {
   const local = `http://127.0.0.1:${config.port}/manifest.json`;
   log.info('');
   log.info('══════════════════════════════════════════════');
@@ -287,5 +290,24 @@ app.listen(config.port, config.host, () => {
     log.info('');
   }
 });
+
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  log.info(`[shutdown] ${signal} recebido; drenando conexões`);
+  server.closeIdleConnections?.();
+  const force = setTimeout(() => process.exit(0), 5000);
+  force.unref();
+  server.close(() => {
+    brResolvers.close();
+    cache.close();
+    log.info('[shutdown] addon encerrado');
+    process.exit(0);
+  });
+}
+
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));
 
 module.exports = addonInterface;

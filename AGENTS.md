@@ -374,10 +374,10 @@ significa menos resultados, nunca erro para o usuário.
   `infoHash` + temporada/episódio; o segredo é `RESOLVE_SECRET` ou, na falta
   dele, a API key de debrid da requisição. Se mudar o formato da rota ou os
   parâmetros que o play usa, mantenha todos eles dentro da assinatura.
-- **Instalação sem config usa a `DEBRID_API_KEY` do `.env`.** Numa instância
-  pública isso significa terceiros gastando a conta do operador. `/defaults.json`
-  já omite a chave; a herança no caminho de busca é intencional (setup de um
-  usuário só), mas é armadilha se a instância for compartilhada.
+- **Instalação sem config usa a `DEBRID_API_KEY` do `.env` por padrão.** Numa
+  instância pública isso significa terceiros gastando a conta do operador.
+  Defina `DEBRID_ALLOW_ENV_KEY=false` para transformar instalação sem `dk` em
+  P2P puro; a chave explícita e selada do usuário continua funcionando.
 - **`src/public/` não passa por build.** É HTML/CSS/JS servido cru, e o JS é ES5
   por escolha (roda no WebView de Fire TV e smart TV). Não introduza sintaxe
   moderna nem bundler ali.

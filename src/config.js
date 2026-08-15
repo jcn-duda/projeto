@@ -152,6 +152,9 @@ const config = {
     // Vazio = modo P2P puro (infoHash direto). A lista viva está em src/debrid/index.js.
     service: (process.env.DEBRID_SERVICE || '').toLowerCase(),
     apiKey: process.env.DEBRID_API_KEY || '',
+    // Em instância pública, não deixe uma instalação sem config gastar a conta
+    // do operador. O default preserva o modo de usuário único já existente.
+    allowEnvKey: String(process.env.DEBRID_ALLOW_ENV_KEY || 'true') === 'true',
     cachedOnly: String(process.env.DEBRID_CACHED_ONLY || 'true') === 'true',
     // Exceção opt-in ao cachedOnly: devolve as vagas BR como P2P enquanto o
     // debrid baixa o dublado. Default off preserva o contrato antigo — web e

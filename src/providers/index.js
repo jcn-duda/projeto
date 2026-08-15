@@ -362,6 +362,7 @@ async function findStreams({ type, id }) {
   if (!id || !String(id).startsWith('tt')) {
     return { streams: [], partial: false };
   }
+  metrics.count('stream.request');
 
   // A config do usuário entra na chave: dois install URLs com qualidades ou
   // debrid diferentes não podem compartilhar o mesmo resultado cacheado.
@@ -397,6 +398,8 @@ async function findStreams({ type, id }) {
     // o catch evita unhandled rejection depois que o deadline devolveu [].
     task.catch((err) => log.warn('[search] falhou em background:', err.message));
     inFlight.set(cacheKey, task);
+  } else {
+    metrics.count('stream.coalesced');
   }
 
   // O cliente Stremio aborta em 10s. Devolvemos vazio antes disso em vez de

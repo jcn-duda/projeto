@@ -9,13 +9,23 @@
 # supervisor jamais veria o crash do processo vigiado.
 set -uo pipefail
 
+pids=()
+shutdown() {
+  echo "[entrypoint] sinal recebido; encerrando subprocessos" >&2
+  kill -TERM "${pids[@]}" 2>/dev/null || true
+  wait "${pids[@]}" 2>/dev/null || true
+  exit 0
+}
+trap shutdown TERM INT
+
 mkdir -p /run/jackett-temp /caddy/data /caddy/config
 
 # Prefixa stdout+stderr de cada processo pra manter a convenção de logs por
 # subsistema ([jackett], [addon]…) mesmo com tudo misturado no mesmo stdout.
 run() {
   local tag="$1"; shift
-  "$@" 2>&1 | awk -v t="$tag" '{ print t " " $0; fflush() }' &
+  "$@" > >(awk -v t="$tag" '{ print t " " $0; fflush() }') 2>&1 &
+  pids+=("$!")
 }
 
 # A ordem é só pra legibilidade de log: o addon já tolera o Jackett demorar
@@ -33,7 +43,7 @@ run '[flaresolverr]' env PORT=8191 python3 -u /app/flaresolverr/flaresolverr.py
 
 run '[addon]' node src/addon.js
 
-wait -n
+wait -n "${pids[@]}"
 code=$?
 echo "[entrypoint] um processo saiu com código $code; derrubando o container" >&2
 exit "$code"

@@ -197,6 +197,21 @@ test('SCHEMA declara o limite individual por indexador como intmap 0..20', () =>
   assert.deepEqual(defaults().indexerLimits, {});
 });
 
+test('DEBRID_ALLOW_ENV_KEY veda só a chave herdada, nunca dk explícito', () => {
+  const original = config.debrid.allowEnvKey;
+  const originalKey = config.debrid.apiKey;
+  try {
+    config.debrid.allowEnvKey = false;
+    config.debrid.apiKey = 'chave-do-operador';
+    assert.equal(defaults().debridApiKey, '');
+    assert.equal(normalize({}).debridApiKey, '');
+    assert.equal(normalize({ dk: 'chave-do-usuario' }).debridApiKey, 'chave-do-usuario');
+  } finally {
+    config.debrid.allowEnvKey = original;
+    config.debrid.apiKey = originalKey;
+  }
+});
+
 test('normalize lê jl em CSV com IDs seguros lowercase e clamp 0..20', () => {
   const out = normalize({ jl: 'YTS:3, bludv:0, rarbg: 150, invalido!id:5, yts:7' });
   // `invalido!id` falha no SAFE_INDEXER_ID e é descartado; `rarbg` clampa em

@@ -15,6 +15,7 @@ let deleteStmt = null;
 let deleteExpiredStmt = null;
 let selectValidStmt = null;
 let clearStmt = null;
+let pruneTimer = null;
 
 function openDatabase() {
   if (process.env.CACHE_PERSIST === 'false') return null;
@@ -207,9 +208,32 @@ function clear() {
   }
 }
 
+/** Libera o L2 no encerramento; o L1 continua utilizável até o processo sair. */
+function close() {
+  if (pruneTimer) {
+    clearInterval(pruneTimer);
+    pruneTimer = null;
+  }
+  if (!db) return;
+  try {
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    db.close();
+  } catch (err) {
+    log.warn('[cache] falha ao fechar persistência:', err.message);
+  } finally {
+    db = null;
+    insertStmt = null;
+    deleteStmt = null;
+    deleteExpiredStmt = null;
+    selectValidStmt = null;
+    clearStmt = null;
+  }
+}
+
 db = openDatabase();
 loadFromDisk();
 // Expirado ocupa linha no banco mesmo sem ninguém ler a chave.
-setInterval(prune, 10 * 60 * 1000).unref();
+pruneTimer = setInterval(prune, 10 * 60 * 1000);
+pruneTimer.unref();
 
-module.exports = { MAX_ENTRIES, get, set, forget, forgetMany, clear, size };
+module.exports = { MAX_ENTRIES, get, set, forget, forgetMany, clear, size, close };
