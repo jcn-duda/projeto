@@ -384,10 +384,11 @@ async function findStreams({ type, id }) {
 
   let task = inFlight.get(cacheKey);
   if (!task) {
-    // Mede a busca INTEIRA, inclusive o que continua depois da resposta parcial:
-    // é o número que diz se o orçamento está dimensionado ou se o passe tardio
-    // virou a regra.
-    const done = metrics.timed('search');
+    // Mede até a RESPOSTA — que é onde `doSearch` resolve. A coleta pode
+    // continuar depois disso (fontes BR não cabem no orçamento), e esse rabo é
+    // medido separado, em `search.late`: juntar os dois num número só faria a
+    // busca fria parecer lenta e a quente parecer rápida pelo motivo errado.
+    const done = metrics.timed('search.response');
     task = doSearch({ type, id, cacheKey, deadlineAt }).finally(() => {
       inFlight.delete(cacheKey);
       done();
@@ -511,6 +512,19 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
 
   const responsePhase = finish.phase();
   const result = await finish({ ...raw, deadlineAt }, responsePhase);
+
+  // Quanto a coleta ainda levou DEPOIS de responder. É o número que diz se o
+  // passe tardio virou a regra — e ele só existe quando a resposta saiu
+  // parcial, então a contagem de `search.late` também é a contagem de buscas
+  // que não couberam no orçamento.
+  if (raw.partial && raw.completion) {
+    const tailStarted = Date.now();
+    raw.completion
+      .then(() => metrics.observe('search.late', Date.now() - tailStarted))
+      // A conclusão que falha já é logada por quem a criou; aqui ela só não
+      // pode virar rejeição não tratada.
+      .catch(() => {});
+  }
   if (result.needsDebridRefresh) {
     // A primeira lista já pode sair como "download" dentro do prazo. Repetimos
     // o mesmo pós-processamento sem teto depois que a resposta foi liberada para

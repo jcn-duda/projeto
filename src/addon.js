@@ -17,6 +17,26 @@ const log = require('./utils/logger');
 
 const diagnosticGate = createDiagnosticGate();
 
+// /seal-config é público como o resto de /configure. Selar é barato (o scrypt
+// fica em cache e sobra o AES), mas "barato" e "de graça" não são a mesma
+// coisa: sem teto o endpoint vira um jeito de queimar CPU da instância.
+//
+// Global, e não por IP, pelo mesmo motivo do /test-indexer.json: atrás do Caddy
+// o req.ip é o proxy, então limitar por cliente limitaria todo mundo junto.
+//
+// Quem protege de fato aqui é a JANELA: o handler é síncrono, então ele entra e
+// libera a vaga antes do próximo pedido ser despachado, e o teto de
+// concorrência nunca chega a fechar. Ele fica como rede para o dia em que a
+// selagem virar assíncrona. O limite por minuto é folgado de propósito — a
+// página pede o selo enquanto se digita a chave (com debounce de 250ms), e um
+// 429 no meio disso seria um bug de UX, não proteção.
+const sealGate = createDiagnosticGate({
+  limit: 600,
+  maxConcurrent: 4,
+  rateMessage: 'muitos pedidos de selo; tente de novo em instantes',
+  busyMessage: 'selo ocupado; tente de novo em instantes',
+});
+
 const manifest = {
   id: config.addonId,
   version: config.version,
@@ -148,9 +168,16 @@ app.post('/seal-config', express.text({ type: () => true, limit: '16kb' }), (req
   if (!secretBox.enabled()) {
     return res.status(503).json({ error: 'RESOLVE_SECRET não configurado' });
   }
-  const sealed = runtime.sealSegment(String(req.body || '').trim());
-  if (!sealed) return res.status(400).json({ error: 'configuração inválida' });
-  return res.json({ segment: sealed });
+  const admission = sealGate.enter('global');
+  if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
+
+  try {
+    const sealed = runtime.sealSegment(String(req.body || '').trim());
+    if (!sealed) return res.status(400).json({ error: 'configuração inválida' });
+    return res.json({ segment: sealed });
+  } finally {
+    admission.release();
+  }
 });
 
 /**

@@ -1490,12 +1490,20 @@
   // já mudou — sem ele, mexer rápido nos controles publicaria um link que não
   // corresponde ao que está na tela.
   var sealToken = 0;
+  var sealTimer = null;
 
+  // A URL é remontada a cada tecla; pedir o selo junto renderia uma requisição
+  // por caractere digitado na chave. Só o último estado interessa.
   function requestSeal(segment) {
     if (!instanceDefaults || !instanceDefaults.sealKeyEnabled) return;
     // Sem chave no segmento não há o que selar (P2P puro).
     if (!el.debridService.value || !el.debridApiKey.value.trim()) return;
 
+    if (sealTimer) clearTimeout(sealTimer);
+    sealTimer = setTimeout(function () { sendSeal(segment); }, 250);
+  }
+
+  function sendSeal(segment) {
     var token = ++sealToken;
     fetch("/seal-config", {
       method: "POST",
