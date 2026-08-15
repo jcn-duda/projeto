@@ -289,3 +289,44 @@ test('modo sem persistência (CACHE_PERSIST="false"): operações puras em memó
     else process.env.CACHE_DB_PATH = originalDbPath;
   }
 });
+
+test('close() libera o SQLite sem derrubar o L1 e aceita chamada repetida', {
+  skip: !hasNodeSqlite && 'node:sqlite indisponível — precisa de Node 22+',
+}, () => {
+  // O shutdown do addon chama cache.close(). Ele roda com requisições ainda
+  // drenando, então fechar o L2 não pode quebrar quem ainda lê ou escreve — e
+  // o handler pode ser chamado duas vezes (SIGTERM e depois SIGINT).
+  const originalDbPath = process.env.CACHE_DB_PATH;
+  const originalPersist = process.env.CACHE_PERSIST;
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'adom-cache-close-'));
+  const dbPath = path.join(tempDir, 'cache.db');
+
+  try {
+    delete process.env.CACHE_PERSIST;
+    process.env.CACHE_DB_PATH = dbPath;
+    delete require.cache[CACHE_MODULE];
+    const cache = require(CACHE_MODULE);
+
+    cache.set('antes', { n: 1 }, TTL_S);
+    cache.close();
+
+    // L1 continua servindo: fechar o disco não pode zerar o cache em memória.
+    assert.deepEqual(cache.get('antes'), { n: 1 }, 'leitura pós-close continua valendo');
+    // E escrita tardia degrada para só-memória em vez de estourar.
+    assert.doesNotThrow(() => cache.set('depois', { n: 2 }, TTL_S));
+    assert.deepEqual(cache.get('depois'), { n: 2 });
+    assert.doesNotThrow(() => cache.close(), 'close() repetido é seguro');
+
+    // O checkpoint TRUNCATE fecha o WAL; sobrar -wal significa que o banco não
+    // foi fechado de verdade e o próximo boot recupera em vez de abrir limpo.
+    assert.equal(fs.existsSync(`${dbPath}-wal`), false, 'o -wal tem que sumir no close');
+  } finally {
+    if (originalDbPath === undefined) delete process.env.CACHE_DB_PATH;
+    else process.env.CACHE_DB_PATH = originalDbPath;
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+    // O módulo fica fechado; a próxima suíte que o exigir recarrega do zero.
+    delete require.cache[CACHE_MODULE];
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

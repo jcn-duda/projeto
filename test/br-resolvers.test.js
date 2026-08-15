@@ -316,3 +316,72 @@ describe('Feature 4: Universal extractMagnet & Link Protector Traversal', () => 
     );
   });
 });
+
+describe('Encerramento: load() sobe os quatro e close() os derruba', () => {
+  // O shutdown do addon chama brResolvers.close(). Se ele não fechar de fato,
+  // o `server.close()` do Express drena e o processo fica preso nesses quatro
+  // sockets até o timeout de 5s do fallback — e no Docker, até o SIGKILL.
+  //
+  // O offset existe para não disputar as portas 8700-8703 com uma instância
+  // real de pé na mesma máquina (é o caso do ambiente de desenvolvimento).
+  const OFFSET = 1200;
+  const PORTAS = [8700, 8701, 8702, 8703].map((p) => p + OFFSET);
+
+  // node:http de propósito, e não fetch: os testes acima dublam globalThis.fetch
+  // e um dublê vazando para cá responderia por servidor que nem está de pé.
+  const responde = (porta) =>
+    new Promise((resolve) => {
+      const req = require('node:http').get(
+        { host: '127.0.0.1', port: porta, path: '/health', timeout: 1500 },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode === 200);
+        },
+      );
+      req.on('timeout', () => req.destroy());
+      req.on('error', () => resolve(false));
+    });
+
+  test('as quatro portas respondem depois do load e param depois do close', async () => {
+    const saved = {
+      offset: process.env.BR_RESOLVERS_PORT_OFFSET,
+      host: process.env.BR_RESOLVERS_HOST,
+      embedded: process.env.BR_RESOLVERS_EMBEDDED,
+    };
+    process.env.BR_RESOLVERS_PORT_OFFSET = String(OFFSET);
+    process.env.BR_RESOLVERS_HOST = '127.0.0.1';
+    process.env.BR_RESOLVERS_EMBEDDED = 'true';
+
+    try {
+      brResolvers.load();
+      await new Promise((r) => setTimeout(r, 500));
+      assert.deepEqual(
+        await Promise.all(PORTAS.map(responde)),
+        [true, true, true, true],
+        'load() tem que abrir os quatro',
+      );
+
+      brResolvers.close();
+      await new Promise((r) => setTimeout(r, 500));
+      assert.deepEqual(
+        await Promise.all(PORTAS.map(responde)),
+        [false, false, false, false],
+        'close() tem que fechar os quatro',
+      );
+
+      // O shutdown pode ser chamado duas vezes (SIGTERM seguido de SIGINT, ou o
+      // fallback correndo junto): a segunda não pode estourar.
+      assert.doesNotThrow(() => brResolvers.close());
+    } finally {
+      brResolvers.close();
+      for (const [chave, valor] of Object.entries({
+        BR_RESOLVERS_PORT_OFFSET: saved.offset,
+        BR_RESOLVERS_HOST: saved.host,
+        BR_RESOLVERS_EMBEDDED: saved.embedded,
+      })) {
+        if (valor === undefined) delete process.env[chave];
+        else process.env[chave] = valor;
+      }
+    }
+  });
+});

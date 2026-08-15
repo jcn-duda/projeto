@@ -4,9 +4,15 @@
 # do compose recria a stack inteira. Sem isso um crash silencioso (ex.: OOM do
 # Chromium) deixaria metade da stack morta com o container "up".
 #
-# Precisa de bash: o busybox ash (sh padrão do alpine) não tem `wait -n`.
-# pipefail: sem isso o exit code do pipeline é o do awk (sempre 0) e o
-# supervisor jamais veria o crash do processo vigiado.
+# Precisa de bash: o busybox ash (sh padrão do alpine) não tem `wait -n`, trap
+# de TERM com array de PIDs nem substituição de processo.
+#
+# Cada serviço escreve em `> >(awk ...)` e NÃO num pipe `| awk`. A diferença é
+# o `$!`: num pipeline ele é o PID do awk, então o `kill` do shutdown mataria o
+# formatador de log e deixaria Jackett e addon vivos — o encerramento pareceria
+# funcionar sem encerrar nada. Com substituição de processo o `$!` é o serviço,
+# e o código que o `wait -n` devolve é o dele, direto (medido: serviço saindo
+# com 3 derruba o container com 3).
 set -uo pipefail
 
 pids=()

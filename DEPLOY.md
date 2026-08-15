@@ -46,7 +46,6 @@ Os quatro que **têm** que mudar em relação ao exemplo:
 | `PUBLIC_URL` | `https://powermovie.net` | o play. Todo link resolvido no debrid sai daqui; apontando pra IP de LAN, nada toca fora de casa |
 | `BIND_ADDR` | `127.0.0.1` | a porta 7000 responde por fora do Caddy, e a URL de instalação leva a chave do debrid em texto puro |
 | `RESOLVE_SECRET` | `openssl rand -hex 32` | sem ele a assinatura usa a própria chave do debrid, e a chave viaja em texto puro (base64url) dentro do install URL |
-| `POSTGRES_PASSWORD` | senha longa e aleatória | vazio impede o Compose de iniciar |
 
 O `Caddyfile` **não** se edita: ele lê `{$ADDON_DOMAIN}`. O default `localhost`
 existe justamente para a máquina de casa não sair pedindo certificado de um
@@ -71,8 +70,10 @@ O selo protege a credencial, não o acesso: quem tem o link continua usando o se
 debrid **através desta instância**. Para fechar isso é o `basic_auth` do
 `Caddyfile`.
 
-`ADMIN_DASHBOARD_PASSWORD` e `CONFIGURE_PAGE_PASSWORD` **não protegem nada** —
-nenhum código as lê. Ver passo 6.
+Não procure por uma variável de senha: elas não existem mais. `ADMIN_DASHBOARD_PASSWORD`
+e `CONFIGURE_PAGE_PASSWORD` ficaram no `.env.example` sem que nenhum código as
+lesse, o que é pior que não ter nada — quem preenchia achava que tinha fechado a
+instância. Saíram. O `basic_auth` do `Caddyfile` é o único caminho. Ver passo 6.
 
 ## 4. Subir
 

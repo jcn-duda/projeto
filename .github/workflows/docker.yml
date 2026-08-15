@@ -1,0 +1,47 @@
+# O Dockerfile copia resolvers e definitions por caminho individual
+# (bludv-resolver/server.js, jackett-bludv/*.yml, scripts/entrypoint.sh). A
+# suíte Node não percebe um caminho quebrado: renomear um arquivo passa verde no
+# CI e só falha no deploy. Este workflow existe só para quebrar antes disso.
+#
+# Workflow separado, e não um job no ci.yml, porque o filtro de caminho é por
+# workflow. Rodar isto em todo push custaria caro à toa: o build completo faz
+# apk add, pip install e a cópia do runtime .NET do Jackett.
+name: Docker
+
+on:
+  push:
+    paths:
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - 'scripts/entrypoint.sh'
+      - 'jackett-bludv/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/docker.yml'
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - 'scripts/entrypoint.sh'
+      - 'jackett-bludv/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/docker.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Construir imagem sem publicar
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          # Sem push e sem load: o objetivo é provar que o build passa. Carregar
+          # a imagem no daemon só gastaria tempo e disco do runner.
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
