@@ -13,7 +13,7 @@ const { opts } = require('../runtime');
  * estado no servidor.
  */
 function secret() {
-  return config.resolveSecret || opts().debridApiKey || '';
+  return config.debrid.resolveSecret || opts().debridApiKey || '';
 }
 
 /** Assina `${infoHash}${ep}` (ep no formato "?s=1&e=2" ou ""). */

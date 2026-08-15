@@ -624,15 +624,15 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
 
     // Generate 10 distinct user configurations
     const users = [
-      { id: 1, conf: { ds: 'realdebrid', dk: 'key-user-1', q4: 2, q1: 0, q7: 0, q5: 0, qs: 0, qn: 0, o: 1 } }, // 4K BR only
-      { id: 2, conf: { ds: 'premiumize', dk: 'key-user-2', q4: 0, q1: 2, q7: 0, q5: 0, qs: 0, qn: 0, d: 0 } }, // 1080p any audio
-      { id: 3, conf: { ds: 'alldebrid', dk: 'key-user-3', qs: 2, jl: 'bludv:1' } }, // SD, max 1 bludv
-      { id: 4, conf: { ds: 'torbox', dk: 'key-user-4', bu: 1, b: 4 } }, // Show uncached BR
+      { id: 1, conf: { ds: 'realdebrid', dk: 'key-user-1', p: ['jackett'], q4: 2, q1: 0, q7: 0, q5: 0, qs: 0, qn: 0, o: 1 } }, // 4K BR only
+      { id: 2, conf: { ds: 'premiumize', dk: 'key-user-2', p: ['jackett'], q4: 0, q1: 2, q7: 0, q5: 0, qs: 0, qn: 0, d: 0 } }, // 1080p any audio
+      { id: 3, conf: { ds: 'alldebrid', dk: 'key-user-3', p: ['jackett'], qs: 2, jl: 'bludv:1' } }, // SD, max 1 bludv
+      { id: 4, conf: { ds: 'torbox', dk: 'key-user-4', p: ['jackett'], bu: 1, b: 4 } }, // Show uncached BR
       { id: 5, conf: { ds: '', dk: '', p: ['jackett'] } }, // P2P unconfigured
-      { id: 6, conf: { ds: 'premiumize', dk: secretBox.seal('key-user-6'), q1: 1 } }, // Sealed key
-      { id: 7, conf: { ds: 'realdebrid', dk: 'key-user-7', z: 3, c: 1 } }, // Max 3GB, no CAM
-      { id: 8, conf: { ds: 'debridlink', dk: 'key-user-8', bf: 0 } }, // brFirst=false
-      { id: 9, conf: { ds: 'realdebrid', dk: 'key-user-1', q4: 2, q1: 0, q7: 0, q5: 0, qs: 0, qn: 0, o: 1 } }, // Coalesced with User 1
+      { id: 6, conf: { ds: 'premiumize', dk: secretBox.seal('key-user-6'), p: ['jackett'], q1: 1 } }, // Sealed key
+      { id: 7, conf: { ds: 'realdebrid', dk: 'key-user-7', p: ['jackett'], z: 3, c: 1 } }, // Max 3GB, no CAM
+      { id: 8, conf: { ds: 'debridlink', dk: 'key-user-8', p: ['jackett'], bf: 0 } }, // brFirst=false
+      { id: 9, conf: { ds: 'realdebrid', dk: 'key-user-1', p: ['jackett'], q4: 2, q1: 0, q7: 0, q5: 0, qs: 0, qn: 0, o: 1 } }, // Coalesced with User 1
       { id: 10, conf: { p: ['prowlarr'] } }, // Prowlarr provider
     ];
 
