@@ -1,9 +1,10 @@
 const config = require('../config');
+const log = require('../utils/logger');
 
 async function search(query) {
   const { url, apiKey } = config.prowlarr;
   if (!apiKey) {
-    console.warn('[prowlarr] PROWLARR_API_KEY não configurada');
+    log.warn('[prowlarr] PROWLARR_API_KEY não configurada');
     return [];
   }
   if (!query) return [];
@@ -19,7 +20,7 @@ async function search(query) {
       signal: AbortSignal.timeout(config.searchTimeout),
     });
     if (!res.ok) {
-      console.warn('[prowlarr] HTTP', res.status, await res.text().catch(() => ''));
+      log.warn('[prowlarr] HTTP', res.status, await res.text().catch(() => ''));
       return [];
     }
     const data = await res.json();
@@ -33,7 +34,7 @@ async function search(query) {
       tracker: r.indexer || r.indexerId,
     }));
   } catch (err) {
-    console.warn('[prowlarr]', err.message);
+    log.warn('[prowlarr]', err.message);
     return [];
   }
 }

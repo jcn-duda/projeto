@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const log = require('./logger');
+const metrics = require('./metrics');
 
 const store = new Map();
 const MAX_ENTRIES = 2000;
@@ -29,7 +31,7 @@ function openDatabase() {
     `);
     return database;
   } catch (err) {
-    console.warn('[cache] persistência indisponível, seguindo só em memória:', err.message);
+    log.warn('[cache] persistência indisponível, seguindo só em memória:', err.message);
     return null;
   }
 }
@@ -51,9 +53,9 @@ function loadFromDisk() {
     for (const row of rows.reverse()) {
       store.set(row.key, { value: JSON.parse(row.value), expiresAt: Number(row.expires_at) });
     }
-    if (rows.length) console.log(`[cache] ${rows.length} entrada(s) recuperada(s) do disco`);
+    if (rows.length) log.info(`[cache] ${rows.length} entrada(s) recuperada(s) do disco`);
   } catch (err) {
-    console.warn('[cache] falha ao ler o cache do disco:', err.message);
+    log.warn('[cache] falha ao ler o cache do disco:', err.message);
   }
 }
 
@@ -66,7 +68,7 @@ function persist(key, value, expiresAt) {
       expiresAt,
     );
   } catch (err) {
-    console.warn('[cache] falha ao gravar no disco:', err.message);
+    log.warn('[cache] falha ao gravar no disco:', err.message);
   }
 }
 
@@ -80,30 +82,73 @@ function forget(key) {
   }
 }
 
+/**
+ * Apaga um LOTE em uma transação só. Fora dela o node:sqlite dá commit
+ * implícito por statement, cada um com seu fsync no WAL: uma varredura que
+ * expira muitas chaves de uma vez vira um commit por chave, síncrono, no meio
+ * do caminho de busca. Uma transação faz um fsync para o lote inteiro.
+ */
+function forgetMany(keys) {
+  if (!db || !keys.length) return;
+  try {
+    const stmt = db.prepare('DELETE FROM cache WHERE key = ?');
+    db.exec('BEGIN');
+    try {
+      for (const key of keys) stmt.run(key);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  } catch (err) {
+    /* idem: o TTL em memória já protege a leitura */
+    log.warn('[cache] falha ao podar o disco:', err.message);
+  }
+}
+
 function prune() {
   const now = Date.now();
+  // Acumula e apaga uma vez só: o disco é o caro, a memória não.
+  const dropped = [];
   for (const [key, hit] of store) {
     if (hit.expiresAt && now > hit.expiresAt) {
       store.delete(key);
-      forget(key);
+      dropped.push(key);
     }
   }
   // Se ainda estourou o teto, descarta as entradas mais antigas (Map preserva ordem de inserção).
   while (store.size > MAX_ENTRIES) {
     const oldest = store.keys().next().value;
     store.delete(oldest);
-    forget(oldest);
+    dropped.push(oldest);
+    // Despejo por teto é o sinal de que MAX_ENTRIES ficou pequeno: subindo
+    // sempre, o cache está jogando fora coisa que ainda seria usada.
+    metrics.count('cache.evicted');
   }
+  forgetMany(dropped);
+}
+
+/** Para o /metrics.json: quanto do teto está ocupado agora. */
+function size() {
+  return store.size;
 }
 
 function get(key) {
   const hit = store.get(key);
-  if (!hit) return null;
+  if (!hit) {
+    metrics.count('cache.miss');
+    return null;
+  }
   if (hit.expiresAt && Date.now() > hit.expiresAt) {
     store.delete(key);
     forget(key);
+    // Expirado é miss para quem perguntou; o `expired` separado diz se o TTL
+    // está curto demais para o ritmo de uso.
+    metrics.count('cache.miss');
+    metrics.count('cache.expired');
     return null;
   }
+  metrics.count('cache.hit');
   // Map preserva inserção; mover o hit para o fim transforma o corte em LRU.
   store.delete(key);
   store.set(key, hit);
@@ -135,4 +180,4 @@ loadFromDisk();
 // Expirado ocupa linha no banco mesmo sem ninguém ler a chave.
 setInterval(prune, 10 * 60 * 1000).unref();
 
-module.exports = { get, set, forget, clear };
+module.exports = { MAX_ENTRIES, get, set, forget, clear, size };

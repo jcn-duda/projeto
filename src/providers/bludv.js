@@ -1,5 +1,6 @@
 const config = require('../config');
 const { opts } = require('../runtime');
+const log = require('../utils/logger');
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
@@ -166,10 +167,10 @@ async function search(query) {
 
     const chunks = await mapLimit(posts, config.bludv.concurrency, collectFromPost);
     const items = chunks.flat();
-    console.log(`[bludv] ${posts.length} post(s) → ${items.length} magnet(s)`);
+    log.info(`[bludv] ${posts.length} post(s) → ${items.length} magnet(s)`);
     return items;
   } catch (err) {
-    console.warn('[bludv]', err.message);
+    log.warn('[bludv]', err.message);
     return [];
   }
 }

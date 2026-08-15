@@ -1,4 +1,5 @@
 const { opts } = require('../runtime');
+const log = require('../utils/logger');
 
 /**
  * Registry de serviços de debrid. Cada adaptador expõe a mesma forma:
@@ -38,7 +39,7 @@ function current() {
   if (!debridService || !debridApiKey) return null;
   const adapter = BY_ID.get(debridService);
   if (!adapter) {
-    console.warn(`[debrid] serviço desconhecido: ${debridService}`);
+    log.warn(`[debrid] serviço desconhecido: ${debridService}`);
     return null;
   }
   return adapter;
@@ -81,13 +82,13 @@ async function checkCached(infoHashes, { timeoutMs } = {}) {
     const cached = result instanceof Set ? result : result?.cached || new Set();
     const complete = result instanceof Set ? true : result?.complete !== false;
     if (!complete) {
-      console.warn(
+      log.warn(
         `[${adapter.id}] checagem de cache incompleta; tratando como "não sei" em vez de "não tem"`,
       );
     }
     return { cached, known: complete };
   } catch (err) {
-    console.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
+    log.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
     return { cached: new Set(), known: false };
   }
 }
@@ -109,7 +110,7 @@ async function enqueue(infoHash, episode) {
   try {
     return await adapter.enqueue(opts().debridApiKey, infoHash, episode || {});
   } catch (err) {
-    console.warn(`[${adapter.id}] falha ao enfileirar ${infoHash}:`, err.message);
+    log.warn(`[${adapter.id}] falha ao enfileirar ${infoHash}:`, err.message);
     return false;
   }
 }

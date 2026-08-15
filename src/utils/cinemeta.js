@@ -1,5 +1,6 @@
 const config = require('../config');
 const cache = require('./cache');
+const log = require('./logger');
 
 /**
  * Resolve título/ano a partir do IMDb id via Cinemeta (API pública do ecossistema Stremio).
@@ -29,7 +30,7 @@ async function getMeta(type, imdbId) {
     if (meta) cache.set(key, meta, 86400);
     return meta;
   } catch (err) {
-    console.warn('[cinemeta]', err.message);
+    log.warn('[cinemeta]', err.message);
     return null;
   }
 }

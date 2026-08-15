@@ -10,6 +10,7 @@ const {
   UNKNOWN_QUALITY,
 } = require('../utils/format');
 const indexerStatus = require('./indexer-status');
+const log = require('../utils/logger');
 
 // Abaixo disso não vale abrir mais um salto de protetor de link: a requisição
 // abortaria no meio e ainda gastaria o resto do orçamento.
@@ -121,7 +122,7 @@ function resolveCandidateScore(item, { season = null, episode = null } = {}) {
 async function resolveCardigannDownloads(indexer, items, query, deadline, matchContext = null) {
   if (!config.jackett.resolveDownloadIndexers.includes(indexer)) return items;
   if (remaining(deadline) <= MIN_RESOLVE_BUDGET) {
-    console.warn(`[jackett] ${indexer}: sem orçamento para resolver magnets`);
+    log.warn(`[jackett] ${indexer}: sem orçamento para resolver magnets`);
     return items;
   }
   // WordPress costuma devolver posts apenas relacionados. Antes de seguir
@@ -174,7 +175,7 @@ async function resolveCardigannDownloads(indexer, items, query, deadline, matchC
     return magnet ? { ...item, magnet } : item;
   });
   const count = resolved.filter((item) => /^magnet:\?/i.test(item.magnet || '')).length;
-  console.log(`[jackett] ${indexer}: ${count}/${candidates.length} magnet(s) resolvido(s)`);
+  log.info(`[jackett] ${indexer}: ${count}/${candidates.length} magnet(s) resolvido(s)`);
   return resolved;
 }
 
@@ -251,7 +252,7 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null, option
     isBr && fallbackQuery && fallbackShaped && fallbackShaped !== found.searchQuery &&
     relevant.length === 0 && remaining(deadline) > MIN_RESOLVE_BUDGET
   ) {
-    console.log(`[jackett] ${indexer}: nenhum resultado relevante em PT; tentando título original`);
+    log.info(`[jackett] ${indexer}: nenhum resultado relevante em PT; tentando título original`);
     found = await fetchQuery(fallbackQuery);
   }
 
@@ -275,7 +276,7 @@ async function search(query, type, indexersOverride = null, options = {}) {
   const { url, apiKey } = config.jackett;
   const indexers = indexersOverride == null ? config.jackett.indexers : indexersOverride;
   if (!apiKey) {
-    console.warn('[jackett] JACKETT_API_KEY não configurada');
+    log.warn('[jackett] JACKETT_API_KEY não configurada');
     return [];
   }
   if (!query) return [];
@@ -294,7 +295,7 @@ async function search(query, type, indexersOverride = null, options = {}) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return mapResults(await res.json());
     } catch (err) {
-      console.warn('[jackett]', err.message);
+      log.warn('[jackett]', err.message);
       return [];
     }
   }
@@ -329,7 +330,7 @@ async function search(query, type, indexersOverride = null, options = {}) {
       slow.push(`${indexers[idx]} ✗`);
     }
   }
-  if (slow.length) console.warn('[jackett] lentos/falharam:', slow.join(', '));
+  if (slow.length) log.warn('[jackett] lentos/falharam:', slow.join(', '));
   return out;
 }
 

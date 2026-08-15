@@ -805,7 +805,9 @@
         <a id="keyLink" class="field-link" href="#" target="_blank" rel="noopener">obter chave ↗</a>
       </div>
       <input type="password" id="debridApiKey" placeholder="cole sua API key" autocomplete="off" spellcheck="false" />
-      <p class="field-hint">Fica codificada na URL do addon. Não compartilhe esse link.</p>
+      <p class="field-hint" id="keyHintPlain">Fica codificada na URL do addon. Não compartilhe esse link.</p>
+      <p class="field-hint" id="keyHintSealed" hidden>Fica cifrada na URL do addon, e só esta instância consegue abrir. Ainda assim, não compartilhe o link.</p>
+      <p class="field-hint" id="debridKeyKept" hidden>Chave protegida do link atual mantida. Cole outra para trocar.</p>
     </div>
 
     <div class="row" id="cachedOnlyRow" hidden>
@@ -897,6 +899,7 @@
     brOnly: $("brOnly"), dubbedOnly: $("dubbedOnly"),
     preferDubbed: $("preferDubbed"), excludeCam: $("excludeCam"),
     debridService: $("debridService"), debridApiKey: $("debridApiKey"),
+    keyHintPlain: $("keyHintPlain"), keyHintSealed: $("keyHintSealed"), debridKeyKept: $("debridKeyKept"),
     debridKeyField: $("debridKeyField"), keyLink: $("keyLink"),
     debridCachedOnly: $("debridCachedOnly"), cachedOnlyRow: $("cachedOnlyRow"),
     showUncachedBr: $("showUncachedBr"), uncachedBrRow: $("uncachedBrRow"),
@@ -910,6 +913,9 @@
   var jackettIndexers = [];
   var indexerPriority = [];
   var instanceDefaults = null;
+  // Chave cifrada que veio no link aberto. Fica fora do campo (é um blob opaco)
+  // e é reaproveitada se o usuário mexer noutra opção sem colar outra chave.
+  var sealedKey = "";
   var INDEXER_STATUS_POLL_MS = 10000;
   var indexerStatusPollInFlight = false;
   var PRESET_BEHAVIORS = {
@@ -1338,6 +1344,11 @@
 
   /* ---------- base64url: mesma codificação que o servidor decodifica ---------- */
 
+  // Espelha o PREFIX de src/utils/secret-box.js.
+  function isSealedKey(value) {
+    return typeof value === "string" && value.indexOf("enc.v1.") === 0;
+  }
+
   function encodeConfig(obj) {
     var json = JSON.stringify(obj);
     var b64 = btoa(unescape(encodeURIComponent(json)));
@@ -1396,6 +1407,10 @@
     // Chave vazia não entra: evita gravar "dk":"" no link à toa.
     if (el.debridService.value && el.debridApiKey.value.trim()) {
       cfg[KEYS.debridApiKey] = el.debridApiKey.value.trim();
+    } else if (el.debridService.value && sealedKey) {
+      // Reabriu um link de chave cifrada e mexeu noutra opção: reaproveita o
+      // valor cifrado em vez de gerar uma URL sem debrid nenhum.
+      cfg[KEYS.debridApiKey] = sealedKey;
     }
     return cfg;
   }
@@ -1426,6 +1441,10 @@
     el.debridBadge.textContent = svc ? (svc.short || svc.label) : "P2P";
     el.debridBadge.title = svc ? svc.label : "Sem debrid — torrents P2P diretos";
     el.debridKeyField.hidden = !svc;
+    // A dica só pode prometer cifra quando a instância tem RESOLVE_SECRET.
+    var sealOn = Boolean(instanceDefaults && instanceDefaults.sealKeyEnabled);
+    el.keyHintPlain.hidden = sealOn;
+    el.keyHintSealed.hidden = !sealOn;
     // Sem consulta de cache o filtro não teria como funcionar: em vez de
     // oferecer um controle que não faz nada, esconde e explica.
     el.cachedOnlyRow.hidden = !svc || !svc.cacheCheck;
@@ -1444,6 +1463,11 @@
     // URLs novas carregam explicitamente as escolhas comportamentais. Assim,
     // reabrir o link não depende de defaults futuros do operador ou do servidor.
     var segment = encodeConfig(collect());
+    applySegment(segment);
+    requestSeal(segment);
+  }
+
+  function applySegment(segment) {
     var url = location.origin + "/" + segment + "/manifest.json";
     el.installUrl.textContent = url;
     // O servidor mantém um teto defensivo de 8192. Nunca ofereça um link que
@@ -1455,6 +1479,41 @@
     el.copyBtn.setAttribute("data-url", tooLong ? "" : url);
     el.installBtn.setAttribute("tabindex", tooLong ? "-1" : "0");
     if (tooLong) el.installUrl.textContent = "Configuração grande demais: desmarque alguns indexadores.";
+  }
+
+  /* ---------- selo da chave de debrid ---------- */
+
+  // O segmento é montado aqui no navegador, que não tem (nem pode ter) o
+  // RESOLVE_SECRET. Com o selo ligado no servidor, a URL aparece primeiro com a
+  // chave em texto puro e é trocada pela versão cifrada quando a resposta
+  // chega. O token descarta resposta atrasada de uma configuração que o usuário
+  // já mudou — sem ele, mexer rápido nos controles publicaria um link que não
+  // corresponde ao que está na tela.
+  var sealToken = 0;
+
+  function requestSeal(segment) {
+    if (!instanceDefaults || !instanceDefaults.sealKeyEnabled) return;
+    // Sem chave no segmento não há o que selar (P2P puro).
+    if (!el.debridService.value || !el.debridApiKey.value.trim()) return;
+
+    var token = ++sealToken;
+    fetch("/seal-config", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: segment
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (token !== sealToken || !data || !data.segment) return;
+        applySegment(data.segment);
+      })
+      .catch(function () {
+        // Selo indisponível não pode impedir a instalação: o link em texto puro
+        // continua válido, e é ele que fica na tela.
+      });
   }
 
   /* ---------- eventos ---------- */
@@ -1499,7 +1558,14 @@
   });
 
   el.debridService.addEventListener("change", function () { setPresetChoice("custom"); render(); });
-  el.debridApiKey.addEventListener("input", function () { setPresetChoice("custom"); render(); });
+  el.debridApiKey.addEventListener("input", function () {
+    // Digitou qualquer coisa: a chave do link antigo deixa de valer. Sem isto,
+    // apagar o campo faria a URL voltar a carregar a chave anterior.
+    sealedKey = "";
+    el.debridKeyKept.hidden = true;
+    setPresetChoice("custom");
+    render();
+  });
 
   el.presets.addEventListener("click", function (ev) {
     var button = ancestorWithClass(ev.target, "preset", el.presets);
@@ -1586,7 +1652,11 @@
     setOn(el.excludeCam, state.excludeCam);
     el.maxSizeGb.value = state.maxSizeGb;
     el.debridService.value = state.debridService || "";
-    el.debridApiKey.value = state.debridApiKey || "";
+    // Chave cifrada não vai para o campo: é um blob opaco e não há o que o
+    // usuário faça com ele na tela.
+    sealedKey = isSealedKey(state.debridApiKey) ? state.debridApiKey : "";
+    el.debridApiKey.value = sealedKey ? "" : (state.debridApiKey || "");
+    el.debridKeyKept.hidden = !sealedKey;
     setOn(el.debridCachedOnly, state.debridCachedOnly);
     setOn(el.showUncachedBr, state.showUncachedBr);
     setOn(el.autoFetchBr, state.autoFetchBr);

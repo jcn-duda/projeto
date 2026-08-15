@@ -2,6 +2,8 @@ const config = require('../config');
 const { accountScope } = require('../utils/request-key');
 const { json, pickFile, wait, batched } = require('./common');
 const held = require('./protected');
+const log = require('../utils/logger');
+const metrics = require('../utils/metrics');
 
 // v4.1: a AllDebrid descontinuou /v4/magnet/status ("DISCONTINUED"), o que
 // fazia toda resolução falhar com 502. upload e link/unlock respondem em ambas.
@@ -59,8 +61,9 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
 
   if (drop.length && config.debrid.dropUncached) {
     // Em paralelo e sem travar a busca: limpeza é efeito colateral, não resposta.
+    metrics.count('debrid.dropped', drop.length);
     Promise.allSettled(drop.map((id) => call(apiKey, '/magnet/delete', { id }))).then(() =>
-      console.log(`[alldebrid] ${drop.length} magnet(s) não cacheado(s) removido(s) da conta`),
+      log.info(`[alldebrid] ${drop.length} magnet(s) não cacheado(s) removido(s) da conta`),
     );
   }
   return result;
@@ -102,7 +105,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
     info = Array.isArray(status?.magnets) ? status.magnets[0] : status?.magnets;
   }
   if (!info || info.status !== 'Ready') {
-    console.warn(`[alldebrid] torrent não está em cache (status: ${info?.status})`);
+    log.warn(`[alldebrid] torrent não está em cache (status: ${info?.status})`);
     // Sem isso o magnet fica baixando na conta pra sempre: como a AllDebrid não
     // tem consulta de cache, TODO play que falha deixa um download fantasma
     // (foram 226 acumulados até este bug aparecer). O upload é idempotente,
@@ -113,7 +116,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
       try {
         await call(apiKey, '/magnet/delete', { id: magnet.id });
       } catch (err) {
-        console.warn('[alldebrid] não consegui remover o magnet:', err.message);
+        log.warn('[alldebrid] não consegui remover o magnet:', err.message);
       }
     }
     return null;

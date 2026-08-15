@@ -490,8 +490,8 @@ function reply(response, status, body, type = 'text/plain; charset=utf-8') {
   response.end(body);
 }
 
-http
-  .createServer(async (request, response) => {
+function createServer() {
+  return http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host}`);
     if (request.method !== 'GET') return reply(response, 404, 'not_found');
     if (url.pathname === '/health') return reply(response, 200, 'ok');
@@ -500,9 +500,25 @@ http
     if (url.pathname === '/search') return handleSearch(url, response);
     if (url.pathname === '/resolve') return handleResolve(url, response);
     return reply(response, 404, 'not_found');
-  })
-  .listen(PORT, '0.0.0.0', () => {
+  });
+}
+
+// Mesmo desenho do nerdfilmes: quem sobe o servidor é o processo principal ou o
+// src/br-resolvers.js (que já chama createServer quando o módulo o exporta).
+// Abrir a porta no require deixava o parser impossível de exercitar em teste
+// sem tomar a 8700 de quem estivesse rodando.
+if (require.main === module) {
+  createServer().listen(PORT, '0.0.0.0', () => {
     console.log(`bludv-resolver :${PORT} — torznab em /api, fonte ${BLUDV_URL}`);
   });
+}
 
-module.exports = { parseDownloadLinks, pickBestLink, parsePosts, parseSize, releaseTitle };
+module.exports = {
+  createServer,
+  parseDownloadLinks,
+  pickBestLink,
+  parsePosts,
+  parseSize,
+  releaseTitle,
+  searchPageHtml,
+};

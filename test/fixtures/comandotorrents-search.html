@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Resultados</title></head>
+<body>
+
+<article class="post blog-view type-post">
+  <div class="thumb"><img src="/wp-content/uploads/2024/06/furiosa.jpg" alt="Furiosa"></div>
+  <h2 class="entry-title">
+    <a href="https://comandotorrents.to/furiosa-uma-saga-mad-max/" title="Furiosa: Uma Saga Mad Max Torrent (2024) Dual Áudio 5.1 / Dublado WEB-DL 1080p / 4K">Furiosa: Uma Saga Mad Max Torrent (2024) Dual Áudio 5.1 / Dublado WEB-DL 1080p / 4K</a>
+  </h2>
+</article>
+
+<!-- href relativo: o parser resolve contra SITE_URL. -->
+<article class="post blog-view type-post">
+  <div class="thumb"><img src="/wp-content/uploads/2023/11/oppenheimer.jpg" alt="Oppenheimer"></div>
+  <h2 class="entry-title">
+    <a href="/oppenheimer/" title="Oppenheimer Torrent (2023) BluRay 2160p Dublado">Oppenheimer Torrent (2023) BluRay 2160p Dublado</a>
+  </h2>
+</article>
+
+<!-- Card repetido (o site duplica o destaque no topo): a deduplicação por URL
+     evita a mesma release duas vezes no feed Torznab. -->
+<article class="post blog-view type-post">
+  <h2 class="entry-title">
+    <a href="/oppenheimer/" title="Oppenheimer Torrent (2023) BluRay 2160p Dublado">Oppenheimer Torrent (2023) BluRay 2160p Dublado</a>
+  </h2>
+</article>
+
+<!-- Sem âncora em h2.entry-title: tem que ser ignorado, não quebrar o resto. -->
+<article class="post blog-view type-post">
+  <div class="thumb">Publicidade</div>
+</article>
+
+</body>
+</html>

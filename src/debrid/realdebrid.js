@@ -1,4 +1,5 @@
 const { magnetFor, json, pickFile, wait } = require('./common');
+const log = require('../utils/logger');
 
 const API = 'https://api.real-debrid.com/rest/1.0';
 
@@ -60,7 +61,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
     info = await call(apiKey, `/torrents/info/${add.id}`);
   }
   if (info.status !== READY) {
-    console.warn(`[realdebrid] torrent não está em cache (status: ${info.status})`);
+    log.warn(`[realdebrid] torrent não está em cache (status: ${info.status})`);
     return null;
   }
 

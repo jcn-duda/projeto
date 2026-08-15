@@ -1,5 +1,6 @@
 const config = require('../config');
 const { magnetFor, json, pickFile, batched, wait } = require('./common');
+const log = require('../utils/logger');
 
 const API = 'https://api.torbox.app/v1/api';
 
@@ -50,7 +51,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
     await wait(700);
   }
   if (!entry || !(entry.download_finished || entry.download_present)) {
-    console.warn('[torbox] torrent não está pronto para leitura');
+    log.warn('[torbox] torrent não está pronto para leitura');
     return null;
   }
 

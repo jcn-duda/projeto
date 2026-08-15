@@ -1,5 +1,6 @@
 const config = require('../config');
 const { TRACKERS } = require('../utils/format');
+const log = require('../utils/logger');
 
 function magnetFor(infoHash) {
   const trackers = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join('');
@@ -94,7 +95,7 @@ async function batched(infoHashes, size, fn, { timeoutMs } = {}) {
       result.value.forEach((hash) => cached.add(hash));
     } else {
       failures += 1;
-      console.warn('[debrid] lote de cache falhou:', result.reason?.message || result.reason);
+      log.warn('[debrid] lote de cache falhou:', result.reason?.message || result.reason);
     }
   }
 

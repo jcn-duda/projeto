@@ -1,5 +1,6 @@
 const { AsyncLocalStorage } = require('async_hooks');
 const config = require('./config');
+const secretBox = require('./utils/secret-box');
 
 /**
  * Configuração POR USUÁRIO, no modelo do Torrentio: o install URL carrega as
@@ -41,7 +42,9 @@ const SCHEMA = {
   maxUnknown: { type: 'int', key: 'qn', min: 0, max: 100 },
   maxPerIndexer: { type: 'int', key: 'qi', min: 0, max: 100 },
   debridService: { type: 'string', key: 'ds' },
-  debridApiKey: { type: 'string', key: 'dk' },
+  // `secret`: aceita a chave em texto puro (install URL antigo) ou selada com o
+  // RESOLVE_SECRET. Daqui pra dentro do addon ela é sempre texto puro.
+  debridApiKey: { type: 'secret', key: 'dk' },
   debridCachedOnly: { type: 'bool', key: 'dc' },
   showUncachedBr: { type: 'bool', key: 'bu' },
   autoFetchBr: { type: 'bool', key: 'ab' },
@@ -127,6 +130,10 @@ function normalize(raw) {
       base[name] = normalizeIntMap(value, spec);
     } else if (spec.type === 'bool') {
       base[name] = value === true || value === 1 || value === '1' || value === 'true';
+    } else if (spec.type === 'secret') {
+      // Teto maior que o dos demais: o selo é bem mais longo que a chave crua
+      // (IV + tag + base64url), e cortá-lo faria a abertura falhar.
+      base[name] = secretBox.open(String(value).slice(0, 400));
     } else {
       base[name] = String(value).slice(0, 200);
     }
@@ -136,6 +143,29 @@ function normalize(raw) {
 
 function encode(raw) {
   return Buffer.from(JSON.stringify(raw), 'utf8').toString('base64url');
+}
+
+/**
+ * Devolve o mesmo segmento com a chave de debrid selada, ou `null` se ele não
+ * for uma config. Existe porque o install URL é montado no NAVEGADOR, que não
+ * tem (nem pode ter) o RESOLVE_SECRET — a página manda o segmento pronto e
+ * recebe de volta a versão protegida.
+ *
+ * Reescreve o objeto cru, sem normalizar: o que o usuário escolheu tem que
+ * voltar exatamente igual, só com o `dk` trocado.
+ */
+function sealSegment(segment) {
+  if (!segment || segment.length > MAX_CONFIG_SEGMENT || !/^[A-Za-z0-9_-]+$/.test(segment)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const dk = SCHEMA.debridApiKey.key;
+    // Sem chave (P2P puro) ou já selada: nada a fazer, devolve como veio.
+    if (!parsed[dk] || secretBox.isSealed(parsed[dk])) return segment;
+    return encode({ ...parsed, [dk]: secretBox.seal(String(parsed[dk]).slice(0, 200)) });
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -172,4 +202,15 @@ function run({ opts: userOpts, encoded }, fn) {
   return store.run({ opts: userOpts, encoded }, fn);
 }
 
-module.exports = { MAX_CONFIG_SEGMENT, SCHEMA, defaults, normalize, encode, decode, opts, prefix, run };
+module.exports = {
+  MAX_CONFIG_SEGMENT,
+  SCHEMA,
+  defaults,
+  normalize,
+  encode,
+  sealSegment,
+  decode,
+  opts,
+  prefix,
+  run,
+};

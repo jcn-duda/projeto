@@ -66,9 +66,20 @@ RUN chmod +x /app/entrypoint.sh
 # expostos só se o compose publicar 127.0.0.1:9117/8191.
 EXPOSE 7000 80 443
 
-# Duplo: addon E Jackett — senão container "healthy" com Jackett morto passa
-# despercebido e a busca degrada em silêncio. 302 do Jackett (login) conta como vivo.
+# Os TRÊS serviços que a busca precisa: addon, Jackett e FlareSolverr — senão
+# container "healthy" com um deles morto passa despercebido e a busca degrada em
+# silêncio. 302 do Jackett (login) conta como vivo.
+#
+# Escopo, pra não confiar demais nisto:
+#  - o HEALTHCHECK sozinho NÃO reinicia nada aqui. `restart: unless-stopped`
+#    reage à saída do container, não ao status unhealthy (só o Swarm reage a
+#    ele). Quem age é o `wait -n` do entrypoint, que derruba tudo quando um
+#    processo morre. Isto é sinal para `docker ps`/log, não recuperação.
+#  - o GET / do FlareSolverr responde do próprio processo, sem abrir o
+#    Chromium: pega processo morto ou porta fechada, NÃO pega Chromium travado
+#    no meio de um desafio. Cobrir isso exigiria um request.get real a cada
+#    30s — caro e falso-positivo fácil.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-  CMD node -e "Promise.all([fetch('http://127.0.0.1:7000/manifest.json'),fetch('http://127.0.0.1:9117/',{redirect:'manual'})]).then(rs=>{for(const r of rs)if(!(r.ok||r.status<400))process.exit(1)}).catch(()=>process.exit(1))"
+  CMD node -e "Promise.all(['http://127.0.0.1:7000/manifest.json','http://127.0.0.1:9117/','http://127.0.0.1:8191/'].map(u=>fetch(u,{redirect:'manual'}))).then(rs=>{for(const r of rs)if(!(r.ok||r.status<400))process.exit(1)}).catch(()=>process.exit(1))"
 
 CMD ["/app/entrypoint.sh"]

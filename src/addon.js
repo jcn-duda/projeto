@@ -10,6 +10,10 @@ const { verifyResolve } = require('./utils/sign');
 const jackettCatalog = require('./providers/jackett-catalog');
 const jackett = require('./providers/jackett');
 const { authorized, createDiagnosticGate } = require('./utils/diagnostic-guard');
+const secretBox = require('./utils/secret-box');
+const metrics = require('./utils/metrics');
+const cache = require('./utils/cache');
+const log = require('./utils/logger');
 
 const diagnosticGate = createDiagnosticGate();
 
@@ -61,7 +65,7 @@ builder.defineStreamHandler(async (args) => {
       staleError: 86400,
     };
   } catch (err) {
-    console.error('[stream]', err);
+    log.error('[stream]', err);
     return { streams: [], cacheMaxAge: 0 };
   }
 });
@@ -97,7 +101,7 @@ async function resolveHandler(req, res) {
     if (!link) return res.status(404).send('nenhum arquivo de vídeo no torrent');
     return res.redirect(302, link);
   } catch (err) {
-    console.error('[resolve]', err.message);
+    log.error('[resolve]', err.message);
     return res.status(502).send('falha ao resolver no debrid');
   }
 }
@@ -127,6 +131,48 @@ app.get('/defaults.json', async (_, res) => {
     services: debrid.SERVICES,
     addonName: config.addonName,
     indexerTestEnabled: Boolean(config.jackett.testToken),
+    // Liga o passo de selo na página; sem RESOLVE_SECRET não há o que cifrar.
+    sealKeyEnabled: secretBox.enabled(),
+  });
+});
+
+/**
+ * Devolve o segmento de config com a chave de debrid cifrada. A página monta a
+ * URL no navegador e não tem o RESOLVE_SECRET, então a troca acontece aqui.
+ *
+ * Público como o resto de /configure: selar não exige saber de nada e não
+ * revela nada — é cifra, não decifra. Quem já tinha a chave para mandar aqui já
+ * a tinha antes.
+ */
+app.post('/seal-config', express.text({ type: () => true, limit: '16kb' }), (req, res) => {
+  if (!secretBox.enabled()) {
+    return res.status(503).json({ error: 'RESOLVE_SECRET não configurado' });
+  }
+  const sealed = runtime.sealSegment(String(req.body || '').trim());
+  if (!sealed) return res.status(400).json({ error: 'configuração inválida' });
+  return res.json({ segment: sealed });
+});
+
+/**
+ * Contadores e latências desde a subida do processo:
+ *   curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" \
+ *     http://127.0.0.1:7000/metrics.json
+ *
+ * Atrás do mesmo token do diagnóstico: não tem segredo dentro, mas revela quais
+ * indexadores o operador usa e o ritmo de uso da instância — e a página de
+ * configuração é pública.
+ */
+app.get('/metrics.json', (req, res) => {
+  if (!config.jackett.testToken) {
+    return res.status(503).json({ error: 'métricas desativadas: defina JACKETT_TEST_TOKEN' });
+  }
+  if (!authorized(config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
+    return res.status(401).json({ error: 'token de diagnóstico inválido' });
+  }
+  return res.json({
+    ...metrics.snapshot(),
+    logLevel: log.level(),
+    cache: { entries: cache.size(), maxEntries: cache.MAX_ENTRIES },
   });
 });
 
@@ -190,21 +236,28 @@ app.use('/:userConfig', getRouter(addonInterface));
 
 brResolvers.load();
 
+// O scrypt do selo custa ~100ms e o resultado fica em cache. Derivar aqui tira
+// esse custo da primeira requisição de quem instalar.
+if (secretBox.enabled()) secretBox.seal('warmup');
+
 app.listen(config.port, config.host, () => {
   const local = `http://127.0.0.1:${config.port}/manifest.json`;
-  console.log('');
-  console.log('══════════════════════════════════════════════');
-  console.log(`  ${config.addonName} v${config.version}`);
-  console.log(`  Provider: ${config.provider}`);
-  console.log(`  Debrid:   ${config.debrid.service || 'nenhum (P2P puro)'}`);
-  console.log(`  Instale no Stremio:`);
-  console.log(`  ${local}`);
-  console.log('══════════════════════════════════════════════');
-  console.log('');
+  log.info('');
+  log.info('══════════════════════════════════════════════');
+  log.info(`  ${config.addonName} v${config.version}`);
+  log.info(`  Provider: ${config.provider}`);
+  log.info(`  Debrid:   ${config.debrid.service || 'nenhum (P2P puro)'}`);
+  log.info(
+    `  Chave na URL: ${secretBox.enabled() ? 'cifrada (RESOLVE_SECRET)' : 'em texto puro — defina RESOLVE_SECRET'}`,
+  );
+  log.info(`  Instale no Stremio:`);
+  log.info(`  ${local}`);
+  log.info('══════════════════════════════════════════════');
+  log.info('');
   if (config.provider === 'demo') {
-    console.log('Modo DEMO ativo → teste com o filme: Big Buck Bunny (tt1254207)');
-    console.log('Para torrents de verdade: configure .env (PROVIDER=jackett|prowlarr|both)');
-    console.log('');
+    log.info('Modo DEMO ativo → teste com o filme: Big Buck Bunny (tt1254207)');
+    log.info('Para torrents de verdade: configure .env (PROVIDER=jackett|prowlarr|both)');
+    log.info('');
   }
 });
 

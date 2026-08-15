@@ -1,0 +1,65 @@
+# Portão de regressão da suíte que já existe em test/. Roda sem rede: os testes
+# trocam globalThis.fetch por dublê; nada aqui fala com Jackett, debrid ou com
+# os sites BR.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      # Não interrompe a outra versão quando uma falha: o interessante costuma
+      # ser justamente a diferença entre elas.
+      fail-fast: false
+      matrix:
+        # 18 é o piso declarado em engines; 22 é o que a imagem de produção usa.
+        # Em 18 o node:sqlite não existe e o cache cai só em memória — o teste de
+        # persistência tem skip explícito pra isso, então as duas versões passam.
+        node: ['18.x', '22.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # Pega erro de sintaxe em arquivo que nenhum teste carrega — os quatro
+      # resolvers BR e os scripts só são exercidos em produção.
+      - name: Checar sintaxe de todos os .js
+        run: |
+          find . -name '*.js' -not -path './node_modules/*' -not -path './.git/*' \
+            -print0 | xargs -0 -n1 node --check
+
+      # A lista do script `test` é explícita (glob no --test só a partir do
+      # Node 21). Sem esta checagem, arquivo de teste novo fica de fora e o
+      # verde do CI não quer dizer nada.
+      - name: Todo teste está no npm test
+        run: npm run test:complete
+
+      - name: Testes
+        run: npm test
+
+  # Fora do portão de propósito: com três dependências diretas, o audit falha
+  # por transitiva alheia que não temos como corrigir, e um vermelho que sempre
+  # aparece é um vermelho que ninguém mais lê. Aqui ele fica visível sem travar.
+  audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high

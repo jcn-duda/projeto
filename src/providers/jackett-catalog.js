@@ -1,5 +1,6 @@
 const config = require('../config');
 const indexerStatus = require('./indexer-status');
+const log = require('../utils/logger');
 
 let cached = null;
 let cachedAt = 0;
@@ -101,7 +102,7 @@ async function load() {
       const parsed = parseXml(await res.text());
       return parsed.length ? parsed : fallback();
     } catch (err) {
-      console.warn('[jackett] catálogo indisponível:', err.message);
+      log.warn('[jackett] catálogo indisponível:', err.message);
       return fallback();
     }
   })().then((items) => {

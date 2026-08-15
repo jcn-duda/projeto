@@ -1,5 +1,6 @@
 const config = require('../config');
 const cache = require('../utils/cache');
+const metrics = require('../utils/metrics');
 
 const TTL_MS = config.jackett.statusTtl * 1000;
 // Memória é o L1; o cache em disco só existe pra sobreviver ao restart. O
@@ -30,6 +31,11 @@ function record(id, sample = {}) {
   };
   statuses.set(key, value);
   cache.set(KEY_PREFIX + key, value, config.jackett.statusTtl);
+  // Todo caminho de busca e de teste passa por aqui, então é o único lugar que
+  // precisa medir. O status guardado é só a ÚLTIMA amostra; as métricas somam a
+  // série, que é o que responde "quem está puxando o prazo".
+  metrics.count(`indexer.${key}.${value.state}`);
+  if (value.ms != null) metrics.observe(`indexer.${key}`, value.ms);
   return value;
 }
 

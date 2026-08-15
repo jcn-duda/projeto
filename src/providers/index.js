@@ -32,6 +32,8 @@ const { collectWithinWindow } = require('./collection-window');
 const { raceWithDeadline, remainingCheckBudget } = require('../utils/deadline');
 const autofetch = require('./autofetch');
 const { opts, prefix } = require('../runtime');
+const log = require('../utils/logger');
+const metrics = require('../utils/metrics');
 
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
@@ -110,18 +112,20 @@ function autoFetchBrDubbed(streams, selected, { cached, known, season, episode, 
         // Só o aceite confirmado vira dedupe persistente. O prefixo v2 ignora
         // marcadores antigos que podiam ter sido gravados antes da chamada.
         cache.set(key, 1, config.debrid.autoFetchTtl);
-        console.log(`[autofetch] ${adapter.label} baixando fonte BR dublada: ${label} (${qStr}${seedsStr})`);
+        metrics.count('autofetch.enqueued');
+        log.info(`[autofetch] ${adapter.label} baixando fonte BR dublada: ${label} (${qStr}${seedsStr})`);
       } else {
         autofetch.releaseSearch(searchKey);
         held.release(candidate.infoHash, account);
-        console.warn(`[autofetch] ${adapter.label} não aceitou ${candidate.infoHash}`);
+        metrics.count('autofetch.refused');
+        log.warn(`[autofetch] ${adapter.label} não aceitou ${candidate.infoHash}`);
       }
     })
     .catch((err) => {
       autofetch.release(key);
       autofetch.releaseSearch(searchKey);
       held.release(candidate.infoHash, account);
-      console.warn('[autofetch] falhou:', err?.message || err);
+      log.warn('[autofetch] falhou:', err?.message || err);
     });
 }
 
@@ -192,7 +196,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
   // parcial os demais são "não perguntei", não "não tem", e viram "download".
   if (!known) {
     const tetoInfo = timeoutMs != null ? `, teto ${timeoutMs}ms` : '';
-    console.log(
+    log.info(
       `[debrid] ${adapter.label} sem resposta completa de cache em ${checkMs}ms${tetoInfo}; ${streams.length} stream(s) via debrid` +
         (cached.size ? ` (${cached.size} confirmado(s) em cache)` : ''),
     );
@@ -203,7 +207,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
   // REPLY_DEADLINE com a coleta e disputa o event loop com os resolvedores BR,
   // que rodam neste mesmo processo.
   const tetoInfo = timeoutMs != null ? `, teto ${timeoutMs}ms` : '';
-  console.log(`[debrid] ${cached.size}/${streams.length} em cache no ${adapter.label} (${checkMs}ms${tetoInfo})`);
+  log.info(`[debrid] ${cached.size}/${streams.length} em cache no ${adapter.label} (${checkMs}ms${tetoInfo})`);
   const filtered = filterKnownCache(streams, cached, {
     cachedOnly,
     showUncachedBr,
@@ -211,7 +215,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
   });
   const { visibleBr } = filtered;
   if (visibleBr.size) {
-    console.log(`[debrid] ${visibleBr.size} fonte(s) BR fora do cache mantida(s) como P2P`);
+    log.info(`[debrid] ${visibleBr.size} fonte(s) BR fora do cache mantida(s) como P2P`);
   }
   const out = [];
   for (const s of filtered.streams) {
@@ -303,16 +307,16 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
     budgetMs: budget,
     priorityGraceMs: priorityGrace,
     graceRequiresItems: type !== 'movie',
-    onError: (err) => console.warn('[search] provider falhou:', err?.message || err),
+    onError: (err) => log.warn('[search] provider falhou:', err?.message || err),
     onBatch: (batch, allItems) => {
       if (!watchLate || firstLateBatch || !batch.length || !onLate) return;
       firstLateBatch = true;
       const snapshot = [...allItems];
-      console.log(`[search] primeira fonte tardia chegou; recacheando ${snapshot.length} resultado(s)`);
+      log.info(`[search] primeira fonte tardia chegou; recacheando ${snapshot.length} resultado(s)`);
       // Atualiza cedo a lista que o cliente está repetindo, mas mantém partial:
       // outros indexers ainda trabalham e a promoção definitiva vem abaixo.
       lateQueue = Promise.resolve(onLate(snapshot, true, true)).catch((err) => {
-        console.warn('[search] passe tardio intermediário falhou:', err?.message || err);
+        log.warn('[search] passe tardio intermediário falhou:', err?.message || err);
       });
     },
   });
@@ -322,9 +326,9 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
 
   if (!done) {
     if (collected.prioritySeen && priorityGrace) {
-      console.log(`[search] primeira fonte BR incluída na janela extra de até ${priorityGrace}ms`);
+      log.info(`[search] primeira fonte BR incluída na janela extra de até ${priorityGrace}ms`);
     }
-    console.warn(`[search] orçamento de ${budget}ms esgotado; seguindo com ${bucket.length} resultado(s) parcial(is)`);
+    log.warn(`[search] orçamento de ${budget}ms esgotado; seguindo com ${bucket.length} resultado(s) parcial(is)`);
     // Os providers continuam trabalhando depois que a resposta sai. Quem paga
     // esse atraso são justamente as fontes BR (raspam WordPress e ainda seguem
     // protetor de link): descartar o que elas trouxeram atrasadas obrigava o
@@ -338,7 +342,7 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
         .then(() => {
           const grew = bucket.length > soFar;
           if (grew) {
-            console.log(`[search] fontes lentas chegaram: ${soFar} → ${bucket.length} resultado(s); recacheando`);
+            log.info(`[search] fontes lentas chegaram: ${soFar} → ${bucket.length} resultado(s); recacheando`);
           }
           // Mesmo sem nada novo o passe tardio precisa avisar: a lista servida
           // saiu marcada como parcial (cacheMaxAge 0) e, sem esta chamada, ela
@@ -346,7 +350,7 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
           // nunca recebe uma resposta que possa guardar.
           return onLate(bucket, grew, false);
         })
-        .catch((err) => console.warn('[search] passe tardio falhou:', err?.message || err));
+        .catch((err) => log.warn('[search] passe tardio falhou:', err?.message || err));
     }
   }
   // `partial` acompanha o lote até a resposta HTTP: quem recebe uma lista
@@ -380,17 +384,28 @@ async function findStreams({ type, id }) {
 
   let task = inFlight.get(cacheKey);
   if (!task) {
-    task = doSearch({ type, id, cacheKey, deadlineAt }).finally(() => inFlight.delete(cacheKey));
+    // Mede a busca INTEIRA, inclusive o que continua depois da resposta parcial:
+    // é o número que diz se o orçamento está dimensionado ou se o passe tardio
+    // virou a regra.
+    const done = metrics.timed('search');
+    task = doSearch({ type, id, cacheKey, deadlineAt }).finally(() => {
+      inFlight.delete(cacheKey);
+      done();
+    });
     // Se ninguém estiver ouvindo quando ela terminar, o resultado ainda vai pro cache;
     // o catch evita unhandled rejection depois que o deadline devolveu [].
-    task.catch((err) => console.warn('[search] falhou em background:', err.message));
+    task.catch((err) => log.warn('[search] falhou em background:', err.message));
     inFlight.set(cacheKey, task);
   }
 
   // O cliente Stremio aborta em 10s. Devolvemos vazio antes disso em vez de
   // estourar o timeout dele — a busca continua e popula o cache pra próxima.
   return raceWithDeadline(task, config.replyDeadline, () => {
-    console.warn(`[search] deadline de ${config.replyDeadline}ms atingido para ${id}; segue em background`);
+    // Contador separado do timer: a busca que estoura o prazo termina depois e
+    // entra no p95 como sucesso lento. Só isto conta quantas vezes o CLIENTE
+    // recebeu lista parcial.
+    metrics.count('search.deadline');
+    log.warn(`[search] deadline de ${config.replyDeadline}ms atingido para ${id}; segue em background`);
     return { streams: [], partial: true };
   });
 }
@@ -411,7 +426,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
       ? buildSearchQuery({ name: titles.pt, year: titles.year }, { season, episode })
       : null;
 
-  console.log(
+  log.info(
     `[search] ${type} ${id} → "${query}"${ptQuery ? ` | pt-BR: "${ptQuery}"` : ''} via ${opts().providers.join('+')}`,
   );
 
@@ -434,7 +449,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
       // TTL curto evita servir a lista sem as fontes BR por 15 minutos.
       const complete = streams.length && !partial;
       cache.set(cacheKey, { streams, partial }, complete ? config.cacheTtl : Math.min(config.cacheTtl, 60));
-      console.log(`[search] ${streams.length} stream(s)${partial ? ' (parcial)' : ''} para ${id}`);
+      log.info(`[search] ${streams.length} stream(s)${partial ? ' (parcial)' : ''} para ${id}`);
     },
     (value) => Array.isArray(value?.streams) && value.streams.length > 0,
   );
@@ -453,7 +468,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     const hit = cache.get(cacheKey);
     if (!hit?.partial) return undefined;
     cache.set(cacheKey, { streams: hit.streams, partial: false }, config.cacheTtl);
-    console.log(`[search] coleta encerrada sem novidade; ${hit.streams.length} stream(s) para ${id}`);
+    log.info(`[search] coleta encerrada sem novidade; ${hit.streams.length} stream(s) para ${id}`);
     return undefined;
   };
 
@@ -486,7 +501,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     // busca por episódio falhou, que as fontes BR (que só publicam pack de
     // temporada) teriam algo — e elas não indexam pelo nome em inglês.
     const ptPackQuery = ptQuery && titles?.pt ? `${titles.pt} S${s}` : null;
-    console.log(
+    log.info(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
     raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, (items, grew, partial) =>
@@ -512,7 +527,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
         if (refreshed && refreshed.partial === false) return;
         await finish({ items: raw.items, partial: false }, responsePhase);
       } catch (err) {
-        console.warn('[search] atualização completa do debrid falhou:', err?.message || err);
+        log.warn('[search] atualização completa do debrid falhou:', err?.message || err);
       }
     });
     refresh.unref();
@@ -532,7 +547,7 @@ async function buildStreams(
 
   // No modo demo, se não for BBB, lista vazia (esperado)
   if (isDemo && raw.length === 0) {
-    console.log('[search] modo demo: só tt1254207 (Big Buck Bunny) tem stream de teste');
+    log.info('[search] modo demo: só tt1254207 (Big Buck Bunny) tem stream de teste');
   }
 
   // Aceita qualquer um dos nomes: release BR vem como "Coringa", a do Jackett
@@ -555,7 +570,7 @@ async function buildStreams(
       // O filtro de episódio continua separado abaixo para manter os logs por
       // motivo; aqui compartilhamos apenas a decisão de título.
     });
-    if (before !== raw.length) console.log(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
+    if (before !== raw.length) log.info(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
   }
 
   // Série: o indexer responde a "Nome S01E01" com a temporada inteira, então
@@ -565,7 +580,7 @@ async function buildStreams(
     const before = raw.length;
     raw = raw.filter((r) => matchesEpisode(r.title || r.Title || '', { season, episode }));
     if (before !== raw.length) {
-      console.log(`[search] ${before - raw.length} resultado(s) de outro episódio descartado(s)`);
+      log.info(`[search] ${before - raw.length} resultado(s) de outro episódio descartado(s)`);
     }
   }
 
@@ -652,7 +667,7 @@ async function buildStreams(
   const brIn = beforeCut.filter((s) => s._br);
   const dubIn = brIn.filter((s) => s._dubbed);
   const head = streams.slice(0, 3).map((s) => (s.name || '').split('\n')[1] || '?').join(' / ');
-  console.log(
+  log.info(
     `[search] entrada do corte: ${beforeCut.length} stream(s), ${brIn.length} BR (${dubIn.length} dublada(s))` +
       ` | brFirst=${brFirst} preferDubbed=${preferDubbed} | topo: ${head}`,
   );

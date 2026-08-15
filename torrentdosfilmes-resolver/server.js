@@ -244,7 +244,7 @@ function rssXml(items, category) {
 }
 function reply(response, status, body, type = 'text/plain; charset=utf-8') { response.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' }); response.end(body); }
 
-http.createServer(async (request, response) => {
+async function handleRequest(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   if (request.method !== 'GET') return reply(response, 404, 'not_found');
   if (url.pathname === '/health') return reply(response, 200, 'ok');
@@ -325,6 +325,17 @@ http.createServer(async (request, response) => {
     } catch (error) { return reply(response, 502, error.message); }
   }
   return reply(response, 404, 'not_found');
-}).listen(PORT, '0.0.0.0');
+}
 
-module.exports = { parsePosts, parseDownloadLinks, parseSize, releaseTitle, searchPageHtml };
+function createServer() {
+  return http.createServer(handleRequest);
+}
+
+// Quem sobe o servidor é o processo principal ou o src/br-resolvers.js, que já
+// chama createServer quando o módulo o exporta. Abrir a porta no require
+// deixava o parser impossível de exercitar em teste sem tomar a 8703.
+if (require.main === module) {
+  createServer().listen(PORT, '0.0.0.0');
+}
+
+module.exports = { createServer, parsePosts, parseDownloadLinks, parseSize, releaseTitle, searchPageHtml };

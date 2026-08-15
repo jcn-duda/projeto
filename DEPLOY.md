@@ -45,7 +45,7 @@ Os quatro que **têm** que mudar em relação ao exemplo:
 | `ADDON_DOMAIN` | `powermovie.net, www.powermovie.net` | fica `localhost` e o Caddy serve certificado interno — ninguém de fora entra |
 | `PUBLIC_URL` | `https://powermovie.net` | o play. Todo link resolvido no debrid sai daqui; apontando pra IP de LAN, nada toca fora de casa |
 | `BIND_ADDR` | `127.0.0.1` | a porta 7000 responde por fora do Caddy, e a URL de instalação leva a chave do debrid em texto puro |
-| `RESOLVE_SECRET` | `openssl rand -hex 32` | sem ele a assinatura usa a própria chave do debrid; trocar a chave invalida os links |
+| `RESOLVE_SECRET` | `openssl rand -hex 32` | sem ele a assinatura usa a própria chave do debrid, e a chave viaja em texto puro (base64url) dentro do install URL |
 | `POSTGRES_PASSWORD` | senha longa e aleatória | vazio impede o Compose de iniciar |
 
 O `Caddyfile` **não** se edita: ele lê `{$ADDON_DOMAIN}`. O default `localhost`
@@ -57,6 +57,19 @@ Mais as suas credenciais: `JACKETT_API_KEY`, `DEBRID_API_KEY`, `TMDB_API_KEY`.
 ```bash
 openssl rand -hex 32   # RESOLVE_SECRET
 ```
+
+Com `RESOLVE_SECRET` preenchido, a chave de debrid vai **cifrada** (AES-256-GCM)
+no install URL, e só esta instância abre. O `/configure` faz a troca sozinho ao
+montar o link. Dois efeitos que valem saber antes:
+
+- **ligar** é seguro — install URL antigo, com a chave em texto puro, continua
+  sendo aceito;
+- **trocar o valor depois** invalida os links já cifrados. Quem tinha o addon
+  instalado precisa gerar outro em `/configure`.
+
+O selo protege a credencial, não o acesso: quem tem o link continua usando o seu
+debrid **através desta instância**. Para fechar isso é o `basic_auth` do
+`Caddyfile`.
 
 `ADMIN_DASHBOARD_PASSWORD` e `CONFIGURE_PAGE_PASSWORD` **não protegem nada** —
 nenhum código as lê. Ver passo 6.

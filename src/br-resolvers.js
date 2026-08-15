@@ -10,6 +10,8 @@
  * carregado com o ambiente ajustado para ele, restaurado logo depois — senão
  * todos herdariam a PORT=7000 do addon e brigariam pela mesma porta.
  */
+const log = require('./utils/logger');
+
 const RESOLVERS = [
   { name: 'bludv', path: '../bludv-resolver/server', port: 8700 },
   { name: 'comandotorrents', path: '../comandotorrents-resolver/server', port: 8701 },
@@ -19,7 +21,7 @@ const RESOLVERS = [
 
 function load() {
   if (String(process.env.BR_RESOLVERS_EMBEDDED || 'true') !== 'true') {
-    console.log('[br] resolvedores embutidos desligados; esperando os containers separados');
+    log.info('[br] resolvedores embutidos desligados; esperando os containers separados');
     return;
   }
 
@@ -36,14 +38,16 @@ function load() {
 
     try {
       const mod = require(resolver.path);
-      // Três sobem o servidor no próprio require; o nerdfilmes só faz isso
-      // quando é o processo principal e exporta `createServer` pro resto.
+      // Os quatro exportam `createServer` e só sobem sozinhos quando são o
+      // processo principal — assim o parser deles pode ser exercitado em teste
+      // sem abrir porta. O fallback continua aqui para o caso de um resolvedor
+      // voltar a ouvir no require.
       if (typeof mod?.createServer === 'function') {
         mod.createServer().listen(resolver.port, '0.0.0.0');
       }
       loaded.push(`${resolver.name}:${resolver.port}`);
     } catch (err) {
-      console.warn(`[br] falha ao carregar o resolvedor ${resolver.name}:`, err.message);
+      log.warn(`[br] falha ao carregar o resolvedor ${resolver.name}:`, err.message);
     }
   }
 
@@ -52,7 +56,7 @@ function load() {
     else process.env[key] = value;
   }
 
-  if (loaded.length) console.log(`[br] resolvedores embutidos: ${loaded.join(', ')}`);
+  if (loaded.length) log.info(`[br] resolvedores embutidos: ${loaded.join(', ')}`);
 }
 
 module.exports = { load, RESOLVERS };

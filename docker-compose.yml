@@ -37,7 +37,8 @@ services:
       # definição local BR não ser sobrescrita.
       AUTO_UPDATE: "false"
       TZ: America/Sao_Paulo
-      # FlareSolverr.
+      # FlareSolverr. O addon NÃO lê esta: ele usa ADDON_LOG_LEVEL (no .env),
+      # justamente porque aqui os três processos dividem um ambiente só.
       LOG_LEVEL: info
     volumes:
       # Cache em SQLite: sem isso ele zera a cada rebuild e toda busca volta

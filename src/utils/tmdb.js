@@ -1,5 +1,6 @@
 const config = require('../config');
 const cache = require('./cache');
+const log = require('./logger');
 
 const API = 'https://api.themoviedb.org/3';
 
@@ -41,7 +42,7 @@ async function getTitles(imdbId) {
     cache.set(key, titles, config.tmdb.cacheTtl);
     return titles;
   } catch (err) {
-    console.warn('[tmdb]', err.message);
+    log.warn('[tmdb]', err.message);
     return null;
   }
 }

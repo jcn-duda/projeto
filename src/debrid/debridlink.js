@@ -1,4 +1,5 @@
 const { magnetFor, json, pickFile, wait } = require('./common');
+const log = require('../utils/logger');
 
 const API = 'https://debrid-link.com/api/v2';
 
@@ -42,7 +43,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
     entry = Array.isArray(list) ? list[0] : list;
   }
   if (Number(entry?.downloadPercent) < 100) {
-    console.warn('[debridlink] torrent ainda não está pronto para leitura');
+    log.warn('[debridlink] torrent ainda não está pronto para leitura');
     return null;
   }
 
