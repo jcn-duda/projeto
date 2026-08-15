@@ -87,12 +87,19 @@ const config = {
     apiKey: process.env.TMDB_API_KEY || '',
     timeout: num(process.env.TMDB_TIMEOUT_MS, 5000),
     cacheTtl: num(process.env.TMDB_CACHE_TTL, 604800), // 7 dias
+    // TTL do cache NEGATIVO (id que devolveu nada/erro). Sem ele, título
+    // desconhecido bate na API a cada busca; TTL curto porque falha pode ser
+    // transitória. 0 desliga o cache de miss.
+    missTtl: num(process.env.TMDB_MISS_TTL, 300),
   },
   cinemeta: {
     // O Cinemeta roda antes da coleta. Deixá-lo esperar o teto inteiro do
     // cliente consumiria o deadline sem sequer consultar os indexers; após
     // este prazo a busca degrada para o título do TMDB ou para o IMDb id.
     timeout: num(process.env.CINEMETA_TIMEOUT_MS, 2500),
+    // Cache negativo, mesmo racional do TMDB: id inexistente não pode custar
+    // 2,5s de rede em toda busca. 0 desliga.
+    missTtl: num(process.env.CINEMETA_MISS_TTL, 300),
   },
   resolvers: {
     embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
