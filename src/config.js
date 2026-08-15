@@ -94,6 +94,15 @@ const config = {
     // este prazo a busca degrada para o título do TMDB ou para o IMDb id.
     timeout: num(process.env.CINEMETA_TIMEOUT_MS, 2500),
   },
+  resolvers: {
+    embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
+    host: process.env.BR_RESOLVERS_HOST || '127.0.0.1',
+    bludvUrl: (process.env.BLUDV_URL || 'https://bludvfilmes.xyz').replace(/\/$/, ''),
+    comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
+    nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.xnerdfilmes.net').replace(/\/$/, ''),
+    torrentdosfilmesUrl: (process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, ''),
+    extraProtectors: list(process.env.EXTRA_ALLOWED_PROTECTORS),
+  },
   bludv: {
     enabled: String(process.env.BLUDV_ENABLED || 'false') === 'true',
     // bludv.net é o alias estável; o site troca de domínio com frequência.

@@ -13,10 +13,10 @@
 const log = require('./utils/logger');
 
 const RESOLVERS = [
-  { name: 'bludv', path: '../bludv-resolver/server', port: 8700 },
-  { name: 'comandotorrents', path: '../comandotorrents-resolver/server', port: 8701 },
+  { name: 'bludv', path: '../bludv-resolver/server', port: 8700, siteEnv: 'BLUDV_URL' },
+  { name: 'comandotorrents', path: '../comandotorrents-resolver/server', port: 8701, siteEnv: 'COMANDOTORRENTS_URL' },
   { name: 'nerdfilmes', path: '../nerdfilmes-resolver/server', port: 8702, siteEnv: 'NERDFILMES_URL' },
-  { name: 'torrentdosfilmes', path: '../torrentdosfilmes-resolver/server', port: 8703 },
+  { name: 'torrentdosfilmes', path: '../torrentdosfilmes-resolver/server', port: 8703, siteEnv: 'TORRENTDOSFILMES_URL' },
 ];
 
 function load() {
@@ -25,16 +25,28 @@ function load() {
     return;
   }
 
-  const saved = { PORT: process.env.PORT, SELF_URL: process.env.SELF_URL, SITE_URL: process.env.SITE_URL };
+  const saved = {
+    PORT: process.env.PORT,
+    SELF_URL: process.env.SELF_URL,
+    SITE_URL: process.env.SITE_URL,
+    BLUDV_URL: process.env.BLUDV_URL,
+  };
   const host = process.env.BR_RESOLVERS_HOST || 'addon';
   const loaded = [];
 
   for (const resolver of RESOLVERS) {
     process.env.PORT = String(resolver.port);
     process.env.SELF_URL = `http://${host}:${resolver.port}`;
-    // Só o nerdfilmes tem URL de site configurável hoje; os outros usam o default.
-    if (resolver.siteEnv && process.env[resolver.siteEnv]) process.env.SITE_URL = process.env[resolver.siteEnv];
-    else delete process.env.SITE_URL;
+
+    // Injeta a URL do site específico no SITE_URL para o módulo filho
+    if (resolver.siteEnv && process.env[resolver.siteEnv]) {
+      process.env.SITE_URL = process.env[resolver.siteEnv];
+      if (resolver.name === 'bludv') {
+        process.env.BLUDV_URL = process.env[resolver.siteEnv];
+      }
+    } else {
+      delete process.env.SITE_URL;
+    }
 
     try {
       const mod = require(resolver.path);
@@ -51,6 +63,7 @@ function load() {
     }
   }
 
+  // Restaura o ambiente do processo principal com segurança
   for (const [key, value] of Object.entries(saved)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;

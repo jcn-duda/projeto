@@ -10,6 +10,11 @@ const MAX_ENTRIES = 2000;
 // Sem ele o addon funciona igual, só volta a esquentar do zero a cada subida.
 const DB_PATH = process.env.CACHE_DB_PATH || path.join(__dirname, '..', '..', 'data', 'cache.db');
 let db = null;
+let insertStmt = null;
+let deleteStmt = null;
+let deleteExpiredStmt = null;
+let selectValidStmt = null;
+let clearStmt = null;
 
 function openDatabase() {
   if (process.env.CACHE_PERSIST === 'false') return null;
@@ -29,44 +34,64 @@ function openDatabase() {
       );
       CREATE INDEX IF NOT EXISTS cache_expires ON cache (expires_at);
     `);
+
+    insertStmt = database.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');
+    deleteStmt = database.prepare('DELETE FROM cache WHERE key = ?');
+    deleteExpiredStmt = database.prepare('DELETE FROM cache WHERE expires_at <= ?');
+    selectValidStmt = database.prepare('SELECT key, value, expires_at FROM cache ORDER BY expires_at DESC LIMIT ?');
+    clearStmt = database.prepare('DELETE FROM cache');
+
     return database;
   } catch (err) {
     log.warn('[cache] persistência indisponível, seguindo só em memória:', err.message);
+    insertStmt = null;
+    deleteStmt = null;
+    deleteExpiredStmt = null;
+    selectValidStmt = null;
+    clearStmt = null;
     return null;
   }
 }
 
 /** Sobe o que ainda é válido; o que expirou enquanto estava fora, morre aqui. */
 function loadFromDisk() {
-  if (!db) return;
+  if (!db || !selectValidStmt || !deleteExpiredStmt) return;
   try {
     const now = Date.now();
-    db.prepare('DELETE FROM cache WHERE expires_at <= ?').run(now);
+    deleteExpiredStmt.run(now);
     // O teto do L1 não pode expulsar justamente os artefatos de TTL longo que
     // justificam a persistência, como magnets já resolvidos por protetores.
-    const rows = db
-      .prepare('SELECT key, value, expires_at FROM cache ORDER BY expires_at DESC LIMIT ?')
-      .all(MAX_ENTRIES);
+    const rows = selectValidStmt.all(MAX_ENTRIES);
     // A seleção vem do TTL mais longo para o mais curto. Inserir ao contrário
     // deixa o mais curto como LRU e evita descartarmos o mais durável no
     // primeiro set após o restart.
+    let loaded = 0;
     for (const row of rows.reverse()) {
-      store.set(row.key, { value: JSON.parse(row.value), expiresAt: Number(row.expires_at) });
+      try {
+        const parsed = JSON.parse(row.value);
+        store.set(row.key, { value: parsed, expiresAt: Number(row.expires_at) });
+        loaded++;
+      } catch (rowErr) {
+        log.warn(`[cache] registro corrompido ignorado para chave '${row.key}':`, rowErr.message);
+        if (deleteStmt) {
+          try {
+            deleteStmt.run(row.key);
+          } catch {
+            /* best-effort */
+          }
+        }
+      }
     }
-    if (rows.length) log.info(`[cache] ${rows.length} entrada(s) recuperada(s) do disco`);
+    if (loaded) log.info(`[cache] ${loaded} entrada(s) recuperada(s) do disco`);
   } catch (err) {
     log.warn('[cache] falha ao ler o cache do disco:', err.message);
   }
 }
 
 function persist(key, value, expiresAt) {
-  if (!db) return;
+  if (!insertStmt) return;
   try {
-    db.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)').run(
-      key,
-      JSON.stringify(value),
-      expiresAt,
-    );
+    insertStmt.run(key, JSON.stringify(value), expiresAt);
   } catch (err) {
     log.warn('[cache] falha ao gravar no disco:', err.message);
   }
@@ -74,9 +99,9 @@ function persist(key, value, expiresAt) {
 
 function forget(key) {
   store.delete(key);
-  if (!db) return;
+  if (!deleteStmt) return;
   try {
-    db.prepare('DELETE FROM cache WHERE key = ?').run(key);
+    deleteStmt.run(key);
   } catch {
     /* limpeza é best-effort: o TTL em memória já protege a leitura */
   }
@@ -89,15 +114,22 @@ function forget(key) {
  * do caminho de busca. Uma transação faz um fsync para o lote inteiro.
  */
 function forgetMany(keys) {
-  if (!db || !keys.length) return;
+  if (!keys.length) return;
+  // L1 é a fonte das leituras. A limpeza precisa valer mesmo quando o SQLite
+  // não existe; o L2 é apenas a cópia best-effort para sobreviver ao restart.
+  for (const key of keys) store.delete(key);
+  if (!db || !deleteStmt) return;
   try {
-    const stmt = db.prepare('DELETE FROM cache WHERE key = ?');
     db.exec('BEGIN');
     try {
-      for (const key of keys) stmt.run(key);
+      for (const key of keys) deleteStmt.run(key);
       db.exec('COMMIT');
     } catch (err) {
-      db.exec('ROLLBACK');
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        /* ignora falha de rollback se a transação já foi abortada */
+      }
       throw err;
     }
   } catch (err) {
@@ -166,9 +198,9 @@ function set(key, value, ttlSeconds) {
 
 function clear() {
   store.clear();
-  if (db) {
+  if (clearStmt) {
     try {
-      db.exec('DELETE FROM cache');
+      clearStmt.run();
     } catch {
       /* idem */
     }
@@ -180,4 +212,4 @@ loadFromDisk();
 // Expirado ocupa linha no banco mesmo sem ninguém ler a chave.
 setInterval(prune, 10 * 60 * 1000).unref();
 
-module.exports = { MAX_ENTRIES, get, set, forget, clear, size };
+module.exports = { MAX_ENTRIES, get, set, forget, forgetMany, clear, size };

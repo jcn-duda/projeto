@@ -5,8 +5,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// Constantes que espelham o que src/utils/cache.js usa internamente (o teto não
-// é exportado pelo módulo). Se o teto mudar de propósito, o teste acompanha.
+// Constantes que espelham o que src/utils/cache.js usa internamente.
+// Se o teto mudar de propósito, o teste acompanha.
 const MAX_ENTRIES = 2000;
 const EXTRA = 5; // entradas além do teto: o reload tem que deixar de fora as de TTL mais curto
 const TTL_S = 3600;
@@ -21,6 +21,38 @@ try {
 }
 
 const CACHE_MODULE = require.resolve('../src/utils/cache');
+
+// Helper para executar scripts em processos isolados com banco temporário
+function runIsolatedCacheTest(scriptContent) {
+  const originalDbPath = process.env.CACHE_DB_PATH;
+  const originalPersist = process.env.CACHE_PERSIST;
+  // Banco em tmpdir do SO: o data/cache.db real do repo não pode ser tocado.
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'adom-cache-test-'));
+  const dbPath = path.join(tempDir, 'cache.db');
+  try {
+    const res = spawnSync(process.execPath, ['-e', scriptContent], {
+      env: { ...process.env, CACHE_DB_PATH: dbPath },
+      cwd: path.join(__dirname, '..'),
+      encoding: 'utf8',
+      timeout: 30_000,
+    });
+    assert.ifError(res.error);
+    assert.strictEqual(
+      res.status,
+      0,
+      'Falha na execução do subprocesso de teste de cache:\n' + res.stdout + res.stderr,
+    );
+  } finally {
+    // Restaura o ambiente do processo pai: o runner não pode ser o único
+    // isolamento entre CACHE_DB_PATH/CACHE_PERSIST.
+    if (originalDbPath === undefined) delete process.env.CACHE_DB_PATH;
+    else process.env.CACHE_DB_PATH = originalDbPath;
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+    // O filho já saiu: conexão fechada, o tmpdir apaga de verdade no Windows.
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
 
 // Contrato 1 roda num processo filho curto: o módulo abre a conexão SQLite no
 // require e não expõe close; com o filho morto, a conexão fecha e o tmpdir pode
@@ -72,34 +104,7 @@ test(
   'reload do SQLite: seleção DESC + ordem reconstruída expulsa o menor TTL selecionado no estouro',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — o contrato 1 precisa de Node 22+' },
   () => {
-    const originalDbPath = process.env.CACHE_DB_PATH;
-    const originalPersist = process.env.CACHE_PERSIST;
-    // Banco em tmpdir do SO: o data/cache.db real do repo não pode ser lido.
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'adom-cache-test-'));
-    const dbPath = path.join(tempDir, 'cache.db');
-    try {
-      const res = spawnSync(process.execPath, ['-e', RELOAD_SCRIPT], {
-        env: { ...process.env, CACHE_DB_PATH: dbPath },
-        cwd: path.join(__dirname, '..'),
-        encoding: 'utf8',
-        timeout: 30_000,
-      });
-      assert.ifError(res.error);
-      assert.strictEqual(
-        res.status,
-        0,
-        'reload não reconstruiu a ordem (LRU = menor TTL selecionado):\n' + res.stdout + res.stderr,
-      );
-    } finally {
-      // Restaura o ambiente do processo pai: o runner não pode ser o único
-      // isolamento entre CACHE_DB_PATH/CACHE_PERSIST.
-      if (originalDbPath === undefined) delete process.env.CACHE_DB_PATH;
-      else process.env.CACHE_DB_PATH = originalDbPath;
-      if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
-      else process.env.CACHE_PERSIST = originalPersist;
-      // O filho já saiu: conexão fechada, o tmpdir apaga de verdade.
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
+    runIsolatedCacheTest(RELOAD_SCRIPT);
   },
 );
 
@@ -132,6 +137,152 @@ test('get() de entrada válida renova a recência: no estouro ela sobrevive e o 
     assert.equal(present, MAX_ENTRIES, 'o total continua dentro do teto após o estouro');
   } finally {
     // Restaura o ambiente do processo pai: não depende do isolamento do runner.
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+    if (originalDbPath === undefined) delete process.env.CACHE_DB_PATH;
+    else process.env.CACHE_DB_PATH = originalDbPath;
+  }
+});
+
+const RESILIENT_LOAD_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  'seed.exec(',
+  "  'CREATE TABLE IF NOT EXISTS cache (' +",
+  "    'key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);'",
+  ');',
+  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
+  'const now = Date.now();',
+  "insert.run('val-1', JSON.stringify({ title: 'Filme A' }), now + 100000);",
+  "insert.run('corrupt-1', 'NOT_VALID_JSON{', now + 100000);",
+  "insert.run('val-2', JSON.stringify({ streams: ['s1'] }), now + 200000);",
+  "insert.run('corrupt-2', '{\"incomplete\":', now + 200000);",
+  "insert.run('val-3', JSON.stringify({ count: 42 }), now + 300000);",
+  "insert.run('expired-val', JSON.stringify({ old: true }), now - 50000);",
+  "insert.run('expired-corrupt', 'INVALID_OLD', now - 50000);",
+  'seed.close();',
+  '',
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  "assert.deepStrictEqual(cache.get('val-1'), { title: 'Filme A' }, 'val-1 carregado com sucesso');",
+  "assert.deepStrictEqual(cache.get('val-2'), { streams: ['s1'] }, 'val-2 carregado com sucesso');",
+  "assert.deepStrictEqual(cache.get('val-3'), { count: 42 }, 'val-3 carregado com sucesso');",
+  "assert.strictEqual(cache.get('corrupt-1'), null, 'corrupt-1 ignorado com segurança');",
+  "assert.strictEqual(cache.get('corrupt-2'), null, 'corrupt-2 ignorado com segurança');",
+  "assert.strictEqual(cache.get('expired-val'), null, 'expirado valido removido no start');",
+  "assert.strictEqual(cache.get('expired-corrupt'), null, 'expirado corrompido removido no start');",
+  'assert.strictEqual(cache.size(), 3, \'tamanho do cache em memoria reflete apenas os validos\');',
+  '',
+  "cache.set('new-val', { live: true }, 3600);",
+  "assert.deepStrictEqual(cache.get('new-val'), { live: true }, 'novas insercoes funcionam normalmente apos recuperacao');",
+  'assert.strictEqual(cache.size(), 4);',
+].join('\n');
+
+test(
+  'loadFromDisk(): deserialização resiliente pula linhas corrompidas e carrega todas as válidas',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => {
+    runIsolatedCacheTest(RESILIENT_LOAD_SCRIPT);
+  },
+);
+
+const PERSISTENCE_SYNC_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  "cache.set('k-a', { msg: 'hello' }, 3600);",
+  "cache.set('k-b', { count: 99 }, 3600);",
+  "cache.set('k-c', { active: true }, 3600);",
+  'assert.strictEqual(cache.size(), 3);',
+  '',
+  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "const rows = dbVerify.prepare('SELECT key, value FROM cache ORDER BY key ASC').all();",
+  'assert.strictEqual(rows.length, 3, \'3 registros persistidos no SQLite\');',
+  "assert.strictEqual(rows[0].key, 'k-a');",
+  "assert.deepStrictEqual(JSON.parse(rows[0].value), { msg: 'hello' });",
+  '',
+  "cache.forget('k-b');",
+  "assert.strictEqual(cache.get('k-b'), null, 'k-b esquecido no L1');",
+  'assert.strictEqual(cache.size(), 2);',
+  "const rowsAfterForget = dbVerify.prepare('SELECT key FROM cache ORDER BY key ASC').all();",
+  'assert.strictEqual(rowsAfterForget.length, 2);',
+  "assert.deepStrictEqual(rowsAfterForget.map(r => r.key), ['k-a', 'k-c']);",
+  '',
+  'cache.clear();',
+  'assert.strictEqual(cache.size(), 0);',
+  "const rowsAfterClear = dbVerify.prepare('SELECT COUNT(*) as cnt FROM cache').get();",
+  'assert.strictEqual(rowsAfterClear.cnt, 0, \'tabela SQLite limpa apos clear()\');',
+  'dbVerify.close();',
+].join('\n');
+
+test(
+  'persistência e forget com statements pré-compilados: sincronia L1 (memória) e L2 (SQLite)',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => {
+    runIsolatedCacheTest(PERSISTENCE_SYNC_SCRIPT);
+  },
+);
+
+const PRUNE_BATCH_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const total = ${MAX_ENTRIES} + 10;`,
+  'for (let i = 0; i < total; i++) {',
+  "  cache.set('item-' + i, { n: i }, 3600);",
+  '}',
+  `assert.strictEqual(cache.size(), ${MAX_ENTRIES}, 'L1 respeita MAX_ENTRIES apos overflow');`,
+  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "const countRow = dbVerify.prepare('SELECT COUNT(*) as cnt FROM cache').get();",
+  `assert.strictEqual(countRow.cnt, ${MAX_ENTRIES}, 'SQLite reflete MAX_ENTRIES apos prune em lote');`,
+  "assert.strictEqual(cache.get('item-0'), null, 'item-0 expulso como LRU');",
+  "assert.strictEqual(cache.get('item-9'), null, 'item-9 expulso como LRU');",
+  `assert.deepStrictEqual(cache.get('item-' + (total - 1)), { n: total - 1 }, 'item mais recente permanece');`,
+  'dbVerify.close();',
+].join('\n');
+
+test(
+  'prune() e forgetMany(): remoção em lote via transação SQLite com statement pré-compilado',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => {
+    runIsolatedCacheTest(PRUNE_BATCH_SCRIPT);
+  },
+);
+
+test('modo sem persistência (CACHE_PERSIST="false"): operações puras em memória com statements nulos', () => {
+  const originalPersist = process.env.CACHE_PERSIST;
+  const originalDbPath = process.env.CACHE_DB_PATH;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    delete require.cache[CACHE_MODULE];
+    const cache = require(CACHE_MODULE);
+
+    cache.set('mem-1', { a: 1 }, 3600);
+    cache.set('mem-2', { b: 2 }, 3600);
+    assert.strictEqual(cache.size(), 2);
+    assert.deepStrictEqual(cache.get('mem-1'), { a: 1 });
+
+    cache.forget('mem-1');
+    assert.strictEqual(cache.get('mem-1'), null);
+    assert.strictEqual(cache.size(), 1);
+
+    cache.forgetMany(['mem-2']);
+    assert.strictEqual(cache.get('mem-2'), null);
+    assert.strictEqual(cache.size(), 0);
+
+    cache.set('mem-3', { c: 3 }, 3600);
+    cache.clear();
+    assert.strictEqual(cache.size(), 0);
+    assert.strictEqual(cache.get('mem-3'), null);
+  } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
     if (originalDbPath === undefined) delete process.env.CACHE_DB_PATH;

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Garante que todo test/*.test.js está no script `test` do package.json.
+ * Garante que todo arquivo .test.js sob test/, inclusive subdiretórios, está
+ * no script `test` do package.json.
  *
  * A lista é explícita (e não um glob) porque `node --test "test/*.test.js"` só
  * expande padrão a partir do Node 21, e o engines daqui começa no 18. O preço
@@ -12,12 +13,18 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 const script = require(path.join(root, 'package.json')).scripts.test;
-const listed = new Set(script.match(/test\/[\w.-]+\.test\.js/g) || []);
+const listed = new Set(script.match(/test\/[\w./-]+\.test\.js/g) || []);
 
-const found = fs
-  .readdirSync(path.join(root, 'test'))
-  .filter((name) => name.endsWith('.test.js'))
-  .map((name) => `test/${name}`);
+function findTests(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) return findTests(fullPath);
+    if (!entry.isFile() || !entry.name.endsWith('.test.js')) return [];
+    return [path.relative(root, fullPath).split(path.sep).join('/')];
+  });
+}
+
+const found = findTests(path.join(root, 'test'));
 
 const missing = found.filter((file) => !listed.has(file));
 const stale = [...listed].filter((file) => !fs.existsSync(path.join(root, file)));

@@ -12,7 +12,6 @@ test('aceita o post BR real (prefixo + ano batendo)', () => {
   assert.equal(matchesBrTitle('Fallout 1ª Temporada (2024) WEB-DL [1080p DUBLADO]', 'Fallout', 2024), true);
   assert.equal(matchesBrTitle('Coringa (2019) BluRay [1080p DUBLADO]', 'Coringa', 2019), true);
 });
-
 test('rejeita post que só contém o nome no meio (filme parecido)', () => {
   assert.equal(matchesBrTitle('Missão: Impossível – Efeito Fallout BluRay [720p DUBLADO]', 'Fallout', 2024), false);
   assert.equal(
@@ -21,7 +20,6 @@ test('rejeita post que só contém o nome no meio (filme parecido)', () => {
   );
   assert.equal(matchesBrTitle('Cesium Fallout (2024) [LEGENDADO opção 1]', 'Fallout', 2024), false);
 });
-
 test('rejeita ano divergente quando o título tem um único ano', () => {
   assert.equal(matchesBrTitle('Fallout 4 (PC) [2015] – Download Torrent [opção 2]', 'Fallout', 2024), false);
   // Mesmo caso com o prefixo certo: o ano é o que denuncia o conteúdo errado.
@@ -234,4 +232,74 @@ test('a rejeição da spin-off não derruba packs legítimos da série original'
     }),
     true,
   );
+});
+
+// --- Casos de Borda Adicionais (Milestone 1) ---
+
+test('artigos multi-língua e títulos com preposições nos dois lados', () => {
+  const names = ['The Lord of the Rings: The Fellowship of the Ring', 'O Senhor dos Anéis: A Sociedade do Anel'];
+  assert.equal(
+    matchesBrTitle('O Senhor dos Anéis: A Sociedade do Anel (2001) [1080p DUBLADO]', 'O Senhor dos Anéis', 2001, {
+      allNames: names,
+    }),
+    true,
+  );
+  assert.equal(
+    matchesBrTitle('The Lord of the Rings: The Fellowship of the Ring (2001) [1080p DUBLADO]', 'The Lord of the Rings', 2001, {
+      allNames: names,
+    }),
+    true,
+  );
+});
+
+test('intervalos de anos e múltiplos tokens de ano em séries e filmes', () => {
+  // Série com intervalo de anos "2001-2002"
+  assert.equal(
+    matchesBrTitle('Band of Brothers (2001-2002) Minissérie [1080p DUBLADO]', 'Band of Brothers', 2001, {
+      isSeries: true,
+    }),
+    true,
+  );
+  // Filme com múltiplos anos (ano no título da obra + ano de lançamento)
+  assert.equal(
+    matchesBrTitle('Blade Runner 2049 (2017) BluRay [1080p DUBLADO]', 'Blade Runner 2049', 2017),
+    true,
+  );
+});
+
+test('sequência com algarismos romanos vs arábicos em português', () => {
+  // Sequência pedida em romano casando com romano
+  assert.equal(matchesBrTitle('Gladiador II (2024) [1080p DUBLADO]', 'Gladiador II', 2024), true);
+  // Sequência pedida em arábico casando com arábico
+  assert.equal(matchesBrTitle('Gladiador 2 (2024) [1080p DUBLADO]', 'Gladiador 2', 2024), true);
+  // Sequência não pedida deve ser rejeitada como outra obra
+  assert.equal(matchesBrTitle('Gladiador II (2024) [1080p DUBLADO]', 'Gladiador', 2000), false);
+  assert.equal(matchesBrTitle('Gladiador 2 (2024) [1080p DUBLADO]', 'Gladiador', 2000), false);
+});
+
+test('títulos com acentos, hífens e pontuação especial em português', () => {
+  assert.equal(
+    matchesBrTitle('À Prova de Balas (2020) WEB-DL [1080p DUBLADO]', 'A Prova de Balas', 2020),
+    true,
+  );
+  assert.equal(
+    matchesBrTitle('Pé-de-Meia: O Filme (2022) [720p DUBLADO]', 'Pe de Meia', 2022),
+    true,
+  );
+});
+
+test('variações de formato de ano do catálogo (Cinemeta / TMDB)', () => {
+  assert.equal(matchesBrTitle('Série Teste S01 (2024) [1080p DUBLADO]', 'Série Teste', '2024–', { isSeries: true }), true);
+  assert.equal(matchesBrTitle('Série Teste S01 (2021) [1080p DUBLADO]', 'Série Teste', '2020-2023', { isSeries: true }), true);
+  assert.equal(matchesBrTitle('Filme Teste (2024) [1080p DUBLADO]', 'Filme Teste', 2024), true);
+  assert.equal(matchesBrTitle('Filme Teste (2024) [1080p DUBLADO]', 'Filme Teste', null), true);
+  assert.equal(matchesBrTitle('Filme Teste (2024) [1080p DUBLADO]', 'Filme Teste', undefined), true);
+  assert.equal(matchesBrTitle('Filme Teste (2024) [1080p DUBLADO]', 'Filme Teste', ''), true);
+});
+
+test('variações do parâmetro allNames (vazio, null, duplicatas, caracteres especiais)', () => {
+  assert.equal(matchesBrTitle('Coringa (2019) [1080p DUBLADO]', 'Coringa', 2019, { allNames: [] }), true);
+  assert.equal(matchesBrTitle('Coringa (2019) [1080p DUBLADO]', 'Coringa', 2019, { allNames: null }), true);
+  assert.equal(matchesBrTitle('Coringa (2019) [1080p DUBLADO]', 'Coringa', 2019, { allNames: ['Coringa', 'Coringa'] }), true);
+  assert.equal(matchesBrTitle('Coringa (2019) [1080p DUBLADO]', 'Coringa', 2019, { allNames: ['!@#$%', 'Coringa'] }), true);
 });
