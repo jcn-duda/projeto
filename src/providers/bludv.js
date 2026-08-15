@@ -1,5 +1,6 @@
 const config = require('../config');
 const { opts } = require('../runtime');
+const { mapLimit } = require('../utils/concurrency');
 const log = require('../utils/logger');
 
 const UA =
@@ -104,23 +105,6 @@ async function resolveMagnet(link, referer) {
   return m ? decodeEntities(m[0]) : null;
 }
 
-async function mapLimit(items, limit, fn) {
-  const out = [];
-  let i = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (i < items.length) {
-      const idx = i++;
-      try {
-        out.push(await fn(items[idx]));
-      } catch (err) {
-        out.push(null);
-      }
-    }
-  });
-  await Promise.all(workers);
-  return out.filter(Boolean);
-}
-
 async function collectFromPost(post) {
   const html = await get(post.url, config.bludv.baseUrl);
   let links = parseDownloadLinks(html);
@@ -130,25 +114,31 @@ async function collectFromPost(post) {
   }
   links = links.slice(0, config.bludv.maxLinksPerPost);
 
-  const resolved = await mapLimit(links, config.bludv.concurrency, async (link) => {
-    const magnet = await resolveMagnet(link, post.url);
-    if (!magnet) return null;
-    // O magnet não traz `dn`, então o nome vem do título do post + spec do botão.
-    const name = post.title.replace(/\s*\((\d{4})\).*$/, ' $1').trim();
-    return {
-      title: [name, link.label, link.audio === 'dublado' ? 'DUBLADO' : 'LEGENDADO']
-        .filter(Boolean)
-        .join(' '),
-      magnet,
-      // O site não publica seeds. 0 faria o filtro MIN_SEEDERS descartar a
-      // release antes de consultar o swarm; 1 é o valor neutro.
-      seeders: 1,
-      size: link.size ? parseSize(link.size) : null,
-      tracker: 'BLUDV',
-      audio: link.audio,
-      isBr: true,
-    };
-  });
+  // 'drop': botão sem magnet não tem o que exibir.
+  const resolved = await mapLimit(
+    links,
+    config.bludv.concurrency,
+    async (link) => {
+      const magnet = await resolveMagnet(link, post.url);
+      if (!magnet) return null;
+      // O magnet não traz `dn`, então o nome vem do título do post + spec do botão.
+      const name = post.title.replace(/\s*\((\d{4})\).*$/, ' $1').trim();
+      return {
+        title: [name, link.label, link.audio === 'dublado' ? 'DUBLADO' : 'LEGENDADO']
+          .filter(Boolean)
+          .join(' '),
+        magnet,
+        // O site não publica seeds. 0 faria o filtro MIN_SEEDERS descartar a
+        // release antes de consultar o swarm; 1 é o valor neutro.
+        seeders: 1,
+        size: link.size ? parseSize(link.size) : null,
+        tracker: 'BLUDV',
+        audio: link.audio,
+        isBr: true,
+      };
+    },
+    { onItemError: 'drop' },
+  );
 
   return resolved;
 }
@@ -165,7 +155,9 @@ async function search(query) {
     const posts = parsePosts(html).slice(0, config.bludv.maxPosts);
     if (posts.length === 0) return [];
 
-    const chunks = await mapLimit(posts, config.bludv.concurrency, collectFromPost);
+    // 'drop': post que falhou (site fora, layout quebrado) sai do lote em vez
+    // de contaminar o resultado — menos resultado, nunca erro.
+    const chunks = await mapLimit(posts, config.bludv.concurrency, collectFromPost, { onItemError: 'drop' });
     const items = chunks.flat();
     log.info(`[bludv] ${posts.length} post(s) → ${items.length} magnet(s)`);
     return items;

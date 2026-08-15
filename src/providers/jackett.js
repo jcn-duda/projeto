@@ -10,6 +10,7 @@ const {
   UNKNOWN_QUALITY,
 } = require('../utils/format');
 const indexerStatus = require('./indexer-status');
+const { mapLimit } = require('../utils/concurrency');
 const log = require('../utils/logger');
 
 // Abaixo disso não vale abrir mais um salto de protetor de link: a requisição
@@ -39,23 +40,6 @@ function mapResults(data, { isBr = false, indexer = '' } = {}) {
     downloadUrl: r.Link,
     isBr,
   }));
-}
-
-async function mapLimit(items, limit, fn) {
-  const output = new Array(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const index = next++;
-      try {
-        output[index] = await fn(items[index]);
-      } catch (error) {
-        output[index] = items[index];
-      }
-    }
-  });
-  await Promise.all(workers);
-  return output;
 }
 
 async function resolveDownloadMagnet(url, budgetMs) {
