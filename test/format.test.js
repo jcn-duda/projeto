@@ -107,8 +107,8 @@ test('toStremioStream normaliza e guarda campos internos', () => {
   assert.equal(s._br, false);
   assert.ok(s.title.includes('2.00 GB'));
   assert.ok(s.title.includes('1337x'));
-  // Release e seeders vão TAMBÉM no name: há cliente que só renderiza ele.
-  assert.equal(s.name, 'Coringa 1080p BluRay\n1080p · 👤 42');
+  // A coluna estreita leva só o resumo; a release inteira mora no `title`.
+  assert.equal(s.name, '1080p · 👤 42');
   assert.ok(Array.isArray(s.sources) && s.sources.length > 0);
   // Sem hash não há stream.
   assert.equal(toStremioStream({ title: 'sem magnet' }), null);
@@ -138,7 +138,7 @@ test('audioFromTitle detecta dublado/dual/legendado e entra na linha', () => {
 test('toStremioStream preserva a marca de origem BR do provider', () => {
   const s = toStremioStream({ title: 'Coringa Dublado', infoHash: HASH, isBr: true, seeders: 1 });
   assert.equal(s._br, true);
-  assert.equal(s.name, 'Coringa Dublado\nDUB BR · 👤 1');
+  assert.equal(s.name, 'DUB BR · 👤 1');
 });
 
 test('name traz release e seeds; a coluna larga não duplica marcadores', () => {
@@ -151,7 +151,10 @@ test('name traz release e seeds; a coluna larga não duplica marcadores', () => 
     tracker: 'The Pirate Bay',
   });
 
-  assert.equal(s.name, `${release}\n4K · 👤 181`);
+  // A release NÃO se repete na coluna estreita: com ela ali, este item sozinho
+  // ocupava 11 linhas de altura no Stremio.
+  assert.equal(s.name, '4K · 👤 181');
+  assert.equal(s.name.includes(release), false);
   assert.equal(s.title.split('\n')[0], release);
   assert.match(s.title, /👤 181/);
   assert.match(s.title, /💾 23\.99 GB/);
@@ -167,9 +170,40 @@ test('layout compacto diferencia áudio e origem sem inferir dublado', () => {
   const legendado = toStremioStream({ title: 'Sinners 720p Legendado', infoHash: 'c'.repeat(40) });
 
   // Sem seeders publicados (padrão das fontes BR) a linha não inventa "👤 0".
-  assert.equal(brUnknown.name, 'Pecadores 2025\nBR');
-  assert.equal(dual.name, 'Pecadores 1080p Dual Audio\n1080p DUAL BR');
-  assert.equal(legendado.name, 'Sinners 720p Legendado\n720p LEG');
+  assert.equal(brUnknown.name, 'BR');
+  assert.equal(dual.name, '1080p DUAL BR');
+  assert.equal(legendado.name, '720p LEG');
+});
+
+test('a coluna estreita cabe numa linha; STREAM_NAME_STYLE=full devolve a antiga', () => {
+  const config = require('../src/config');
+  // Caso real medido na tela: com a release no `name`, este item ocupava 11
+  // linhas de altura no Stremio e cabiam três streams na lista inteira.
+  const release = 'Mestres do Universo (2026) 5.1 WEB-DL | [2160p WEB-DL DUBLADO 20.17 GB]';
+  const item = { title: release, infoHash: HASH, seeders: 1, size: 20.17 * 1024 ** 3, tracker: 'TorrentDosFilmes', isBr: true };
+
+  const compacto = toStremioStream(item);
+  assert.equal(compacto.name, '4K DUB BR · 👤 1');
+  assert.equal(compacto.name.includes('\n'), false, 'nada de quebra na coluna estreita');
+  // Com o prefixo do debrid ainda cabe numa linha curta.
+  assert.ok(markDebridName(compacto.name, 'TB', true).length <= 32);
+  // Nada se perde: a release e os metadados continuam na coluna larga.
+  assert.equal(compacto.title.split('\n')[0], release);
+  assert.match(compacto.title, /💾 20\.17 GB/);
+
+  const original = config.streamNameStyle;
+  try {
+    config.streamNameStyle = 'full';
+    assert.equal(toStremioStream(item).name, `${release}\n4K DUB BR · 👤 1`);
+  } finally {
+    config.streamNameStyle = original;
+  }
+});
+
+test('sem qualidade, áudio, BR nem seeders a coluna estreita cai no título', () => {
+  // Não há resumo possível; título longo ainda é melhor que coluna vazia.
+  const s = toStremioStream({ title: 'Filme Obscuro', infoHash: HASH, seeders: 0 });
+  assert.equal(s.name, 'Filme Obscuro');
 });
 
 // Formato do Torrentio, com ⚡ no lugar do "+": a sigla é do DEBRID, não do
@@ -809,8 +843,7 @@ test('zerar a cota de SD não esconde mais as fontes BR', () => {
 
 test('resolução desconhecida não vira rótulo nem grupo de binge do SD', () => {
   const s = toStremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3] DUBLADO', infoHash: HASH, seeders: 1 });
-  // Última linha: a do meio agora é a release.
-  const details = s.name.split('\n').pop();
+  const details = s.name;
   assert.ok(!/sem resolução|SD/.test(details), `linha não anuncia resolução: ${details}`);
   assert.ok(details.startsWith('DUB'), details);
   assert.ok(!s.behaviorHints.bingeGroup.includes('SD'));
@@ -906,8 +939,8 @@ test('merge de hash igual leva a marca BR para o rótulo, não só para o campo'
   const [merged] = dedupeByHash([global, br]);
   assert.equal(merged._br, true);
   assert.equal(merged._dubbed, true);
-  assert.match(merged.name.split('\n')[1], /BR/);
-  assert.match(merged.name.split('\n')[1], /DUAL|DUB/);
+  assert.match(merged.name, /BR/);
+  assert.match(merged.name, /DUAL|DUB/);
   // Sem merge de origem, o rótulo não muda.
   const soGlobal = toStremioStream({
     title: 'Filme 1080p', infoHash: OTHER, seeders: 9, indexer: 'therarbg',

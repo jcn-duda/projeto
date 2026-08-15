@@ -1,6 +1,7 @@
 // Tamanho <= 1 KB é o sentinela de "desconhecido" dos indexers BR (ver
 // UNKNOWN_SIZE nos resolvedores), não um torrent de verdade.
 const { priorityMap, compareIndexerPriority } = require('./indexer-priority');
+const config = require('../config');
 
 const UNKNOWN_SIZE_MAX = 1024;
 
@@ -162,22 +163,41 @@ function compactAudio(audio = '') {
 
 /**
  * `name` ocupa a coluna estreita do Stremio: marca + qualidade, como Torrentio.
- * A release completa fica só em `title`, na coluna larga de detalhes.
+ * A release completa fica em `title`, na coluna larga de detalhes.
+ *
+ * A release já foi duplicada aqui por causa de cliente que renderiza SÓ o
+ * `name`. O preço apareceu na tela: com o título inteiro ("Mestres do Universo
+ * (2026) 5.1 WEB-DL | [2160p WEB-DL DUBLADO 20.17 GB]") mais o prefixo do
+ * debrid, a coluna estreita quebrava em uma palavra por linha e CADA stream
+ * ocupava ~11 linhas de altura — cabiam três na tela inteira. Compacto, o mesmo
+ * item ocupa duas linhas e a lista volta a ser navegável.
+ *
+ * `STREAM_NAME_STYLE=full` devolve o comportamento antigo para quem depende de
+ * um cliente que ignora o `title`.
  */
-function streamDisplayName({ title = '', quality, audio, isBr = false, seeders = 0 } = {}) {
+function streamDisplayName({
+  title = '',
+  quality,
+  audio,
+  isBr = false,
+  seeders = 0,
+  style = config.streamNameStyle,
+} = {}) {
   const details = [
     quality === UNKNOWN_QUALITY ? null : quality === '2160p' ? '4K' : quality,
     compactAudio(audio),
     isBr ? 'BR' : null,
   ].filter(Boolean).join(' ');
-  // Release e seeders também aqui, não só na coluna larga: há cliente que
-  // renderiza apenas `name`, e nele a linha ficava sem dizer QUAL release é.
   const stats = [details, Number(seeders) > 0 ? `👤 ${seeders}` : null]
     .filter(Boolean)
     .join(' · ');
+
   // Sem o nome do addon: o cliente já o exibe no badge do card ("Localhost:7000",
   // "Power Movie"), e repeti-lo em toda linha só gastava a coluna estreita.
-  return [title, stats].filter(Boolean).join('\n');
+  if (style === 'full') return [title, stats].filter(Boolean).join('\n');
+  // Release sem qualidade, sem áudio, fora do BR e sem seeders não tem o que
+  // resumir. Aí o título longo ainda é melhor que uma coluna vazia.
+  return stats || title;
 }
 
 /**

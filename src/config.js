@@ -118,6 +118,11 @@ const config = {
   // qualidade (max1080p e cia.) não distinguem áudio — três releases legendadas
   // do mesmo post enchiam a cota do 1080p e empurravam a DUAL para fora.
   preferDubbed: String(process.env.PREFER_DUBBED || 'true') === 'true',
+  // `compact` deixa na coluna estreita do Stremio só qualidade/áudio/BR/seeds;
+  // a release inteira fica no `title`, que é a coluna larga. `full` duplica a
+  // release nas duas — só faz sentido em cliente que ignora o `title`, e custa
+  // ~11 linhas de altura por stream no Stremio.
+  streamNameStyle: process.env.STREAM_NAME_STYLE === 'full' ? 'full' : 'compact',
   qualityFilter: list(process.env.QUALITY_FILTER),
   minSeeders: num(process.env.MIN_SEEDERS, 1),
   maxResults: num(process.env.MAX_RESULTS, 40),
