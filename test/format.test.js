@@ -10,6 +10,7 @@ const {
   extractInfoHash,
   qualityFromTitle,
   audioFromTitle,
+  editionFromTitle,
   markDebridName,
   matchesQualityFilter,
   toStremioStream,
@@ -108,7 +109,7 @@ test('toStremioStream normaliza e guarda campos internos', () => {
   assert.ok(s.title.includes('2.00 GB'));
   assert.ok(s.title.includes('1337x'));
   // A coluna estreita leva só o resumo; a release inteira mora no `title`.
-  assert.equal(s.name, '1080p · 👤 42');
+  assert.equal(s.name, '1080p BluRay · 👤 42');
   assert.ok(Array.isArray(s.sources) && s.sources.length > 0);
   // Sem hash não há stream.
   assert.equal(toStremioStream({ title: 'sem magnet' }), null);
@@ -153,7 +154,7 @@ test('name traz release e seeds; a coluna larga não duplica marcadores', () => 
 
   // A release NÃO se repete na coluna estreita: com ela ali, este item sozinho
   // ocupava 11 linhas de altura no Stremio.
-  assert.equal(s.name, '4K · 👤 181');
+  assert.equal(s.name, '4K WEB-DL · 👤 181');
   assert.equal(s.name.includes(release), false);
   assert.equal(s.title.split('\n')[0], release);
   assert.match(s.title, /👤 181/);
@@ -183,7 +184,7 @@ test('a coluna estreita cabe numa linha; STREAM_NAME_STYLE=full devolve a antiga
   const item = { title: release, infoHash: HASH, seeders: 1, size: 20.17 * 1024 ** 3, tracker: 'TorrentDosFilmes', isBr: true };
 
   const compacto = toStremioStream(item);
-  assert.equal(compacto.name, '4K DUB BR · 👤 1');
+  assert.equal(compacto.name, '4K WEB-DL DUB BR · 👤 1');
   assert.equal(compacto.name.includes('\n'), false, 'nada de quebra na coluna estreita');
   // Com o prefixo do debrid ainda cabe numa linha curta.
   assert.ok(markDebridName(compacto.name, 'TB', true).length <= 32);
@@ -194,16 +195,69 @@ test('a coluna estreita cabe numa linha; STREAM_NAME_STYLE=full devolve a antiga
   const original = config.streamNameStyle;
   try {
     config.streamNameStyle = 'full';
-    assert.equal(toStremioStream(item).name, `${release}\n4K DUB BR · 👤 1`);
+    assert.equal(toStremioStream(item).name, `${release}\n4K WEB-DL DUB BR · 👤 1`);
   } finally {
     config.streamNameStyle = original;
   }
 });
 
-test('sem qualidade, áudio, BR nem seeders a coluna estreita cai no título', () => {
-  // Não há resumo possível; título longo ainda é melhor que coluna vazia.
-  const s = toStremioStream({ title: 'Filme Obscuro', infoHash: HASH, seeders: 0 });
+test('quatro releases 4K do mesmo filme não podem sair com a linha idêntica', () => {
+  // Caso real (I Am Legend): a lista trazia quatro 4K em que só o número de
+  // seeders mudava. Duas delas são CORTES DIFERENTES do filme — escolher pelo
+  // maior seed levava ao final alternativo sem o usuário saber.
+  const releases = [
+    ['I Am Legend 2007 Theatrical UHD BluRay 1080p DD 5 1 DV HDR x265-SQS', 35],
+    ['I Am Legend 2007 Alternate Ending 2160p 4K UHD BluRay h2', 27],
+    ['I.Am.Legend.2007.2160p.MA.WEB-DL.DDP5.1.H.265-PandaQT SDR 4k UHD', 18],
+    ['I Am Legend 2007 UHD BluRay 2160p HDR10 DV HEVC DTS HD MA 5 1 x26', 12],
+  ];
+  const nomes = releases.map(([title, seeders], i) =>
+    toStremioStream({ title, infoHash: String(i).repeat(40).slice(0, 40), seeders }).name,
+  );
+
+  assert.deepEqual(nomes, [
+    '4K Cinema BluRay · 👤 35',
+    '4K Alt.End BluRay · 👤 27',
+    '4K WEB-DL · 👤 18',
+    '4K BluRay · 👤 12',
+  ]);
+  // Sem os seeders, os rótulos ainda precisam se distinguir: o seed é desempate,
+  // não identidade.
+  const semSeed = nomes.map((n) => n.split(' · ')[0]);
+  assert.equal(new Set(semSeed).size, semSeed.length, `rótulos repetidos: ${semSeed.join(' | ')}`);
+  // E continua curto — o motivo de ter encurtado não pode ser desfeito aqui.
+  assert.ok(Math.max(...nomes.map((n) => n.length)) <= 32);
+});
+
+test('editionFromTitle reconhece os cortes que mudam o filme, em pt e en', () => {
+  assert.equal(editionFromTitle('Filme 2007 Alternate Ending 2160p'), 'Alt.End');
+  assert.equal(editionFromTitle("Filme 2007 Director's Cut 1080p"), 'DC');
+  assert.equal(editionFromTitle('Filme 2007 Extended Edition 1080p'), 'Extended');
+  assert.equal(editionFromTitle('Eu Sou a Lenda 2008 Versão de Cinema 1080p'), 'Cinema');
+  assert.equal(editionFromTitle('Filme 1999 Remastered 4K'), 'Remaster');
+  assert.equal(editionFromTitle('Filme 2019 IMAX 2160p'), 'IMAX');
+  assert.equal(editionFromTitle('Filme 2019 Unrated 1080p'), 'Uncut');
+  // "Alternate Version" não diz qual é a diferença, mas diz que não é o padrão.
+  assert.equal(editionFromTitle('I Am Legend - Alternate Version (2007)'), 'Alt.Ver');
+  assert.equal(editionFromTitle('Filme 2007 Versão Alternativa 1080p'), 'Alt.Ver');
+  // Sem corte anunciado não inventa rótulo — a maioria das releases cai aqui e
+  // é o que mantém a linha curta no caso comum.
+  assert.equal(editionFromTitle('I Am Legend 2007 UHD BluRay 2160p HEVC'), '');
+  assert.equal(editionFromTitle(''), '');
+});
+
+test('release que não anuncia nada mostra o título em vez de só os seeders', () => {
+  // Sem resolução, corte, fonte nem áudio sobraria "👤 3", que não identifica
+  // nada — e nesse caso o nome da release é a única informação que existe.
+  const nada = toStremioStream({ title: 'I Am Legend 2007 [MissouriMike]', infoHash: HASH, seeders: 3 });
+  assert.equal(nada.name, 'I Am Legend 2007 [MissouriMike]\n👤 3');
+
+  const s = toStremioStream({ title: 'Filme Obscuro', infoHash: OTHER, seeders: 0 });
   assert.equal(s.name, 'Filme Obscuro');
+
+  // Basta UM atributo para o resumo valer e o título sair da coluna estreita.
+  const comFonte = toStremioStream({ title: 'Filme Obscuro BluRay', infoHash: HASH, seeders: 3 });
+  assert.equal(comFonte.name, 'BluRay · 👤 3');
 });
 
 // Formato do Torrentio, com ⚡ no lugar do "+": a sigla é do DEBRID, não do

@@ -119,6 +119,30 @@ function sourceFromTitle(title = '') {
 }
 
 /**
+ * Corte do filme, quando o release anuncia um. Não é firula: numa lista de
+ * quatro 4K do mesmo filme, "Theatrical" e "Alternate Ending" são FILMES
+ * DIFERENTES no fim, e a linha compacta não tinha como diferenciá-los — só o
+ * número de seeders mudava. Escolher pelo maior seed levava ao corte errado.
+ *
+ * Rótulos curtos de propósito: isto divide a coluna estreita com qualidade,
+ * fonte e áudio.
+ */
+function editionFromTitle(title = '') {
+  const t = title.toUpperCase();
+  if (/\bALTERNAT(E|IVO|IVA)\s+(ENDING|FINAL)\b/.test(t)) return 'Alt.End';
+  // "Alternate Version" não diz QUAL é a diferença, mas diz que não é o corte
+  // padrão — e isso já basta para o usuário não escolher por acidente.
+  if (/\bALTERNAT(E|IVO|IVA)\s+(VERSION|VERS[AÃ]O|CUT)\b|\bVERS[AÃ]O\s+ALTERNATIVA\b/.test(t)) return 'Alt.Ver';
+  if (/\b(DIRECTOR'?S\s+CUT|DIRECTORS\s+CUT)\b/.test(t)) return 'DC';
+  if (/\b(EXTENDED|VERS[AÃ]O\s+ESTENDIDA)\b/.test(t)) return 'Extended';
+  if (/\b(THEATRICAL|VERS[AÃ]O\s+DE\s+CINEMA)\b/.test(t)) return 'Cinema';
+  if (/\b(REMASTER(ED)?|REMASTERIZAD[OA])\b/.test(t)) return 'Remaster';
+  if (/\bIMAX\b/.test(t)) return 'IMAX';
+  if (/\b(UNCUT|UNRATED|SEM\s+CORTES)\b/.test(t)) return 'Uncut';
+  return '';
+}
+
+/**
  * Áudio é a informação que mais importa neste addon (foco em dublado) e os
  * sites BR a escrevem no título. Sem ela o usuário abre o torrent pra descobrir.
  */
@@ -179,12 +203,19 @@ function streamDisplayName({
   title = '',
   quality,
   audio,
+  source,
+  edition,
   isBr = false,
   seeders = 0,
   style = config.streamNameStyle,
 } = {}) {
+  // A ordem é a da decisão: primeiro a resolução, depois QUAL corte do filme é,
+  // depois de onde veio. Sem corte e fonte, quatro releases 4K do mesmo filme
+  // saíam com a linha idêntica e a escolha virava sorteio pelo seed.
   const details = [
     quality === UNKNOWN_QUALITY ? null : quality === '2160p' ? '4K' : quality,
+    edition || null,
+    source || null,
     compactAudio(audio),
     isBr ? 'BR' : null,
   ].filter(Boolean).join(' ');
@@ -195,9 +226,10 @@ function streamDisplayName({
   // Sem o nome do addon: o cliente já o exibe no badge do card ("Localhost:7000",
   // "Power Movie"), e repeti-lo em toda linha só gastava a coluna estreita.
   if (style === 'full') return [title, stats].filter(Boolean).join('\n');
-  // Release sem qualidade, sem áudio, fora do BR e sem seeders não tem o que
-  // resumir. Aí o título longo ainda é melhor que uma coluna vazia.
-  return stats || title;
+  // Release que não anuncia resolução, corte, fonte nem áudio não tem o que
+  // resumir: sobraria "👤 1", que não identifica nada. Aí o título é a única
+  // informação existente e vale mais que a coluna curta.
+  return details ? stats : [title, stats].filter(Boolean).join('\n');
 }
 
 /**
@@ -262,6 +294,7 @@ function toStremioStream(item) {
   const quality = qualityFromTitle(title);
   const source = sourceFromTitle(title);
   const audio = audioFromTitle(title);
+  const edition = editionFromTitle(title);
 
   // Convenção do Torrentio: 👤 seeders, 💾 tamanho, ⚙️ indexer. Os clientes
   // (Stremio e Power Movie) reconhecem esses marcadores e montam a linha de
@@ -275,7 +308,7 @@ function toStremioStream(item) {
   return {
     // A coluna esquerda precisa ficar curta. O título bruto nesta posição fazia
     // o Stremio quebrar uma palavra por linha em telas estreitas.
-    name: streamDisplayName({ title, quality, audio, isBr: Boolean(item.isBr), seeders }),
+    name: streamDisplayName({ title, quality, audio, source, edition, isBr: Boolean(item.isBr), seeders }),
     title: `${title}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
@@ -1243,6 +1276,7 @@ module.exports = {
   qualityFromTitle,
   sourceFromTitle,
   audioFromTitle,
+  editionFromTitle,
   streamDisplayName,
   markDebridName,
   toStremioStream,
