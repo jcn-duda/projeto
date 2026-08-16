@@ -1362,6 +1362,40 @@ function buildSearchQuery(meta, { season, episode } = {}) {
   return [name, year].filter(Boolean).join(' ').trim();
 }
 
+// Romanos canônicos de sequência (2..9) → numeral arábico, para a segunda
+// tentativa de busca dos indexers BR. Um filme numerado costuma sair do TMDB em
+// romano ("Jornada nas Estrelas II") MAS os sites BR ora grafam romano, ora
+// arábico ("... 2 ..."); o WordPress casa com o texto literal, então a grafia
+// única perdia a metade dos releases.
+//
+// Regras de segurança, calibradas contra casos reais:
+// - no máximo UMA variante: dois ou mais numerais convertíveis ("Rocky II:
+//   Parte IV") são ambíguos e devolvem null — trocar um e deixar o outro
+//   inventaria um filme que não existe;
+// - "I" e "X" isolados ficam de fora: "i" é artigo em inglês ("I Am Legend") e
+//   "x" marca resolução/multiplicação, e os dois estão fora da faixa II..IX;
+// - números já em arábico (Apollo 13, District 9, 1917) não casam com o padrão
+//   romano e passam intactos;
+// - pontuação colada ("II:", "II.") é preservada — troca-se só o numeral, e o
+//   ano e o SxxEyy não tocam o padrão romano (são dígitos).
+const ROMAN_SEQUENCE_NUMERAL =
+  /(?<![\p{L}\p{N}])(?:VIII|VII|IV|III|IX|VI|II|V)(?![\p{L}\p{N}])/gu;
+const ROMAN_SEQUENCE_VALUE = { viii: 8, vii: 7, vi: 6, v: 5, iv: 4, iii: 3, ix: 9, ii: 2 };
+
+function numeralSearchVariant(query) {
+  const raw = String(query || '');
+  const matches = [...raw.matchAll(ROMAN_SEQUENCE_NUMERAL)];
+  if (matches.length !== 1) return null;
+  const m = matches[0];
+  // O numeral precisa vir depois do nome-base da obra. Assim "Rocky V" e
+  // "Jornada nas Estrelas II" geram variante, mas "V de Vingança" (inclusive
+  // com artigo inicial) não vira a consulta inventada "5 de Vingança".
+  const prefixTokens = normalizeTitle(raw.slice(0, m.index)).split(' ').filter(Boolean);
+  if (!prefixTokens.some((token) => !LEADING_ARTICLES.has(token))) return null;
+  const digit = ROMAN_SEQUENCE_VALUE[m[0].toLowerCase()];
+  return raw.slice(0, m.index) + digit + raw.slice(m.index + m[0].length);
+}
+
 module.exports = {
   TRACKERS,
   UNKNOWN_QUALITY,
@@ -1379,6 +1413,7 @@ module.exports = {
   parseStremioId,
   resolveSearchNames,
   buildSearchQuery,
+  numeralSearchVariant,
   matchesQualityFilter,
   passesQualityFilter,
   matchesName,

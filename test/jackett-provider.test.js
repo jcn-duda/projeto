@@ -71,6 +71,16 @@ const SERIES_CTX = {
   episode: 1,
 };
 
+// Contexto do caso de recall BR (tt0084726): pt-BR romano é o que o addon
+// busca de verdade; a release BR "numerada" usa o algarismo arábico.
+const TREK_CTX = {
+  names: ['Jornada nas Estrelas II: A Ira de Khan', 'Star Trek II: The Wrath of Khan'],
+  year: 1982,
+  isSeries: false,
+};
+const TREK_PT = 'Jornada nas Estrelas II: A Ira de Khan 1982';
+const TREK_VARIANT = 'Jornada nas Estrelas 2: A Ira de Khan 1982';
+
 test('primary PT 200 com zero relevante dispara fallback original e entrega a fonte certa', async () => {
   const fetchImpl = makeFetch();
   fetchImpl.handler = (call) => {
@@ -238,5 +248,151 @@ test('magnet resolvido pelo protetor é reutilizado do cache em buscas subsequen
     assert.equal(items2.length, 1);
     assert.equal(items2[0].magnet, MAGNET);
     assert.equal(fetchImpl.protectorCalls().filter((u) => u === 'http://protector.test/predador1987').length, 1);
+  });
+});
+
+test('tt0084726: variante numérica recupera release BR publicada com algarismo arábico', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      // Query primária em romano: WP devolve 0 (posts de outro filme não casam
+      // "Ii" com "2"); só a variante arábica traz a release dublada.
+      if (query === TREK_PT) return fakeResponse({ Results: [] });
+      if (query === TREK_VARIANT) {
+        return fakeResponse({ Results: [
+          { Title: 'Jornada nas Estrelas 2 A Ira de Khan 1982 DUBLADO 720p', Seeders: 2, MagnetUri: MAGNET },
+        ] });
+      }
+      return fakeResponse({ Results: [] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+      variantQuery: TREK_VARIANT,
+      matchContext: TREK_CTX,
+    });
+    assert.ok(['Jornada nas Estrelas II: A Ira de Khan 1982', TREK_VARIANT].every(
+      (q) => fetchImpl.searchCalls().includes(q),
+    ), `cadeia deveria seguir primary -> variante, viu ${fetchImpl.searchCalls()}`);
+    assert.equal(items.length, 1);
+    assert.equal(items[0].title, 'Jornada nas Estrelas 2 A Ira de Khan 1982 DUBLADO 720p');
+  });
+});
+
+test('primary relevante NÃO abre variante numérica nem fallback original', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Jornada nas Estrelas II A Ira de Khan 1982 Dublado 1080p', Seeders: 5, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+      variantQuery: TREK_VARIANT,
+      fallbackQuery: 'Star Trek II: The Wrath of Khan 1982',
+      matchContext: TREK_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT]);
+    assert.equal(items.length, 1);
+  });
+});
+
+test('variante numérica vazia segue para o fallback original', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      if (query === TREK_PT) return fakeResponse({ Results: [] });
+      if (query === TREK_VARIANT) return fakeResponse({ Results: [] });
+      return fakeResponse({ Results: [
+        { Title: 'Star Trek II: The Wrath of Khan 1982 DUBLADO 1080p', Seeders: 4, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+      variantQuery: TREK_VARIANT,
+      fallbackQuery: 'Star Trek II: The Wrath of Khan 1982',
+      matchContext: TREK_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_VARIANT, 'Star Trek II: The Wrath of Khan 1982']);
+    assert.equal(items.length, 1);
+  });
+});
+
+test('prazo esgotado impede a variante numérica (sem chamada extra)', async () => {
+  const fetchImpl = makeFetch();
+  const savedTimeout = config.jackett.brIndexerTimeout;
+  config.jackett.brIndexerTimeout = 1; // orçamento exaurido ainda na primária
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) return fakeResponse({ Results: [] });
+    return fakeResponse(null, { status: 404 });
+  };
+  try {
+    await withJackett(fetchImpl, async () => {
+      const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+        variantQuery: TREK_VARIANT,
+        fallbackQuery: 'Star Trek II: The Wrath of Khan 1982',
+        matchContext: TREK_CTX,
+      });
+      // Sem orçamento sobrando, a cadeia para na primária: nem variante, nem fallback.
+      assert.deepEqual(items, []);
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT]);
+  } finally {
+    config.jackett.brIndexerTimeout = savedTimeout;
+  }
+});
+
+test('dedupe pós-shape: variante que moldagem reduz ao primário não abre chamada', async () => {
+  // Com um bare-title, "batTitleIndexers" não está em jogo aqui; simulamos duas
+  // queries que moldam para o MESMO texto: a plain primary e uma variante igual.
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) return fakeResponse({ Results: [] });
+    return fakeResponse(null, { status: 404 });
+  };
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+      // Variante é literalmente igual à query já enviada: shapedSeen dedup.
+      variantQuery: TREK_PT,
+      matchContext: TREK_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT]);
+    assert.deepEqual(items, []);
+  });
+});
+
+test('falha HTTP na variante opcional não derruba a primária nem impede fallback original', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      if (query === TREK_PT) return fakeResponse({ Results: [] });
+      if (query === TREK_VARIANT) return fakeResponse(null, { status: 503 });
+      return fakeResponse({ Results: [
+        { Title: 'Star Trek II: The Wrath of Khan 1982 DUBLADO 1080p', Seeders: 4, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+      variantQuery: TREK_VARIANT,
+      fallbackQuery: 'Star Trek II: The Wrath of Khan 1982',
+      matchContext: TREK_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_VARIANT, 'Star Trek II: The Wrath of Khan 1982']);
+    assert.equal(items.length, 1);
   });
 });

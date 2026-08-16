@@ -224,20 +224,34 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null, option
   };
 
   let found = await fetchQuery(query);
-  const fallbackQuery = options.fallbackQuery;
-  const fallbackShaped = fallbackQuery ? shapeSearchQuery(indexer, fallbackQuery, isBr) : null;
-  const relevant = options.matchContext?.names?.length
-    ? filterRelevantRaw(found.items, options.matchContext)
-    : found.items;
-  // A segunda variante só existe para resposta HTTP válida sem candidato útil.
-  // Ela compartilha o deadline absoluto da primeira tentativa; erro ou timeout
-  // da primária sobe normalmente e nunca abre outra chamada.
-  if (
-    isBr && fallbackQuery && fallbackShaped && fallbackShaped !== found.searchQuery &&
-    relevant.length === 0 && remaining(deadline) > MIN_RESOLVE_BUDGET
-  ) {
-    log.info(`[jackett] ${indexer}: nenhum resultado relevante em PT; tentando título original`);
-    found = await fetchQuery(fallbackQuery);
+  // Cadeia sequencial: primary (pt-BR) -> variante numérica -> original. Cada
+  // passo abre só quando o anterior não trouxe candidato útil, e compartilham o
+  // MESMO deadline absoluto — nada de duas tentativas no ar dentro do orçamento.
+  // `variantQuery` vem do plano BR (II -> 2) e `fallbackQuery` é o título original.
+  const shapedSeen = [found.searchQuery];
+  const cascade = [];
+  if (isBr && options.variantQuery) cascade.push({ q: options.variantQuery, label: 'variante numérica' });
+  if (isBr && options.fallbackQuery) cascade.push({ q: options.fallbackQuery, label: 'título original' });
+  for (const step of cascade) {
+    const shaped = shapeSearchQuery(indexer, step.q, isBr);
+    // Depois da moldagem duas grafias podem virar a mesma query (ex.: variante
+    // que o bare-title reduz ao título); não vale abrir chamada duplicada.
+    if (!shaped || shapedSeen.includes(shaped)) continue;
+    const relevant = options.matchContext?.names?.length
+      ? filterRelevantRaw(found.items, options.matchContext)
+      : found.items;
+    if (relevant.length === 0 && remaining(deadline) > MIN_RESOLVE_BUDGET) {
+      log.info(`[jackett] ${indexer}: nenhum resultado relevante em PT; tentando ${step.label}`);
+      shapedSeen.push(shaped);
+      try {
+        found = await fetchQuery(step.q);
+      } catch (err) {
+        // A primária já respondeu HTTP válido. Uma variante opcional instável
+        // não pode reclassificar o indexer inteiro como offline nem apagar a
+        // chance do próximo fallback dentro do orçamento restante.
+        log.warn(`[jackett] ${indexer}: falha ao tentar ${step.label}:`, err?.message || err);
+      }
+    }
   }
 
   const items = await resolveCardigannDownloads(

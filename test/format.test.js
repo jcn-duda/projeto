@@ -31,6 +31,7 @@ const {
   limitReservingBr,
   parseStremioId,
   buildSearchQuery,
+  numeralSearchVariant,
 } = require('../src/utils/format');
 
 const HASH = 'a'.repeat(40);
@@ -1476,4 +1477,56 @@ test('sortAndLimit em lote grande respeita o corte de maxResults', () => {
     const atual = seedersByHash.get(out[i].infoHash);
     assert.ok(anterior >= atual, `ordem quebrada na posição ${i}`);
   }
+});
+
+test('numeralSearchVariant: tt0084726 romano gera a variante arábica preservando ano/pontuação', () => {
+  // Caso real do recall BR: o TMDB grava "II" e os sites BR ora "II", ora "2".
+  assert.equal(
+    numeralSearchVariant('Jornada nas Estrelas II: A Ira de Khan 1982'),
+    'Jornada nas Estrelas 2: A Ira de Khan 1982',
+  );
+  // Série: o marcador SxxEyy (dígitos) não toca o padrão romano e fica intacto.
+  assert.equal(
+    numeralSearchVariant('Jornada nas Estrelas II: A Ira de Khan S01E01'),
+    'Jornada nas Estrelas 2: A Ira de Khan S01E01',
+  );
+  assert.equal(numeralSearchVariant('Star Trek II: The Wrath of Khan'), 'Star Trek 2: The Wrath of Khan');
+  assert.equal(numeralSearchVariant('Rocky II'), 'Rocky 2');
+});
+
+test('numeralSearchVariant não gera variante para números comuns nem I/X isolados', () => {
+  const semVariante = [
+    'Apollo 13 1995',   // dígito, não romano
+    'District 9 2009',  // dígito, não romano
+    '1917 2019',        // ano virou título
+    'Fast X 2023',      // X fora da faixa II..IX
+    'I Am Legend 2007', // I isolado é artigo
+    'X Men 2000',       // X isolado é marca
+    'V de Vingança 2005',
+    'O V de Vingança 2005',
+  ];
+  for (const query of semVariante) {
+    assert.equal(numeralSearchVariant(query), null, `query "${query}" não deveria gerar variante`);
+  }
+});
+
+test('numeralSearchVariant: dois numerais ambíguos não geram variante', () => {
+  // Trocar um e deixar o outro inventaria um filme que não existe.
+  assert.equal(numeralSearchVariant('Rocky II: Parte IV'), null);
+  assert.equal(numeralSearchVariant('Título II IV'), null);
+});
+
+test('filtro BR aceita a release arábica descoberta pelo título romano', () => {
+  const context = {
+    names: ['Jornada nas Estrelas II: A Ira de Khan', 'Star Trek II: The Wrath of Khan'],
+    year: 1982,
+    isSeries: false,
+  };
+  const items = relevantRaw([
+    {
+      title: 'Jornada nas Estrelas 2 A Ira de Khan 1982 DUBLADO 720p',
+      isBr: true,
+    },
+  ], context);
+  assert.equal(items.length, 1);
 });

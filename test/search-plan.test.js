@@ -109,3 +109,46 @@ test('global nunca carrega fallback nem a query pt-BR', () => {
   assert.equal(br.query, 'Coringa 2019');
   assert.equal(br.fallback, 'Joker 2019');
 });
+
+// Variante numérica: só tarefa BR recebe, derivada da query que ele REALMENTE
+// busca (pt-BR, ou a original quando não há ptQuery). Globais ficam na forma
+// antiga. Preserva o fallback original EN do lado.
+test('BR com pt-BR em romano carrega variante numérica E fallback original', () => {
+  const plan = planJackettQueries(
+    'Jornada nas Estrelas II: A Ira de Khan 1982',
+    null,
+    ['thepiratebay', 'bludv-cardigann'],
+    ['bludv-cardigann'],
+  );
+  const br = plan.find((t) => t.indexers.includes('bludv-cardigann'));
+  assert.equal(br.query, 'Jornada nas Estrelas II: A Ira de Khan 1982');
+  // ptQuery é null: sem títulos diferentes não há fallback original, mas o
+  // numeral romano da própria query original já gera a variante arábica.
+  assert.equal(br.variant, 'Jornada nas Estrelas 2: A Ira de Khan 1982');
+  assert.equal('fallback' in br, false);
+  const global = plan.find((t) => t.indexers.includes('thepiratebay'));
+  assert.equal('variant' in global, false);
+  assert.equal('fallback' in global, false);
+  assert.equal(global.query, 'Jornada nas Estrelas II: A Ira de Khan 1982');
+});
+
+test('BR com pt-BR numerado diferente do original carrega variante + fallback EN', () => {
+  const plan = planJackettQueries(
+    'Star Trek II: The Wrath of Khan 1982',
+    'Jornada nas Estrelas II: A Ira de Khan 1982',
+    ['bludv-cardigann'],
+    ['bludv-cardigann'],
+  );
+  const br = plan[0];
+  assert.equal(br.query, 'Jornada nas Estrelas II: A Ira de Khan 1982');
+  assert.equal(br.variant, 'Jornada nas Estrelas 2: A Ira de Khan 1982');
+  // Fallback original EN preservado ao lado da variante numérica.
+  assert.equal(br.fallback, 'Star Trek II: The Wrath of Khan 1982');
+});
+
+test('BR com título sem romano NÃO carrega variante (forma antiga preservada)', () => {
+  assert.deepEqual(
+    planJackettQueries('Apollo 13 1995', null, ['bludv-cardigann'], ['bludv-cardigann']),
+    [{ query: 'Apollo 13 1995', indexers: ['bludv-cardigann'] }],
+  );
+});

@@ -285,6 +285,7 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
         );
         addTask(jackett.search(planned.query, type, planned.indexers, {
           fallbackQuery: planned.fallback,
+          variantQuery: planned.variant,
           matchContext,
         }), priority);
       }
