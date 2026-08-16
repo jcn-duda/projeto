@@ -241,6 +241,29 @@ test('bludv: href HTTP para host fora da allowlist é ignorado; protetor continu
   );
 });
 
+test('bludv: magnet malformado é ignorado; só btih válido vira botão', () => {
+  // O magnet direto aceito no layout novo precisa ter xt=urn:btih com hash hex
+  // de 40 chars: sem o xt o cliente de torrent não sabe o que baixar, e hash
+  // curto ou fora do alfabeto hex nunca resolve — link que iria pro play e
+  // quebraria, ou release fantasma gastando a vaga BR reservada.
+  const html = `
+    <h3>VERSÃO MKV DUAL ÁUDIO</h3>
+    <p>EPISÓDIO 01</p>
+    <p><a href="magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=ep01.1080p">1080p Dublado</a></p>
+    <p><a href="magnet:?dn=ep01.1080p">1080p Dublado</a></p>
+    <p><a href="magnet:?xt=urn:btih:abc123&dn=ep01.1080p">1080p Dublado</a></p>
+    <p><a href="magnet:?xt=urn:btih:zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz&dn=ep01.1080p">1080p Dublado</a></p>
+  `;
+  const links = bludv.parseDownloadLinks(html);
+
+  assert.equal(links.length, 1);
+  assert.equal(links[0].url, 'magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=ep01.1080p');
+  assert.deepEqual(
+    { audio: links[0].audio, episode: links[0].episode, quality: links[0].quality, size: links[0].size },
+    { audio: 'dublado', episode: 1, quality: 1080, size: null },
+  );
+});
+
 // --- ComandoTorrents ---------------------------------------------------
 
 test('comandotorrents: href relativo vira absoluto e o card repetido é deduplicado', () => {
@@ -276,13 +299,13 @@ test('comandotorrents: releaseTitle numera a opção quando o botão não anunci
 
   assert.equal(
     comando.releaseTitle(post, link, 0),
-    'A Casa do Dragão 1ª Temporada (2022) WEB-DL E01 [1080p DUBLADO opção 1]',
+    'A Casa do Dragão 1ª Temporada (2022) E01 [1080p DUBLADO opção 1]',
   );
   // Sem índice e sem atributos, sobra só o título limpo — as resoluções da
-  // vitrine ("720p/1080p/4K") e as palavras de SEO saem.
+  // vitrine ("720p/1080p/4K"), codecs e palavras de SEO saem.
   assert.equal(
     comando.releaseTitle(post, { quality: null, audio: 'desconhecido', episode: null, source: null, size: null }),
-    'A Casa do Dragão 1ª Temporada (2022) WEB-DL',
+    'A Casa do Dragão 1ª Temporada (2022)',
   );
 
   // Pack 4K legendado: "Dual Áudio" do título do post não pode sobreviver e
@@ -292,7 +315,7 @@ test('comandotorrents: releaseTitle numera a opção quando o botão não anunci
     { quality: 2160, audio: 'legendado', episode: null, source: null, size: null },
     22,
   );
-  assert.equal(pack, 'A Casa do Dragão 1ª Temporada (2022) WEB-DL [2160p LEGENDADO opção 23]');
+  assert.equal(pack, 'A Casa do Dragão 1ª Temporada (2022) [2160p LEGENDADO opção 23]');
   assert.equal(/Dual|DUBLADO/.test(pack), false);
 });
 

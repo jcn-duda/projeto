@@ -13,3 +13,4 @@ prowlarr-config/
 .idea/
 .vscode/
 .kilo/
+.agents/

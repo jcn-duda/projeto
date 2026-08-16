@@ -31,6 +31,19 @@ describe('ComandoTorrents Parser: Search & Post Extraction', () => {
     assert.deepEqual(comando.parsePosts('<article class="blog-view">Sem titulo</article>'), []);
     assert.deepEqual(comando.parsePosts('<html><body><div>nada</div></body></html>'), []);
   });
+
+  test('parsePosts: ignora URLs malformadas sem lançar exceção e suporta artigos sem fechamento explícito', () => {
+    const malformed = `
+      <article class="blog-view">
+        <h2 class="entry-title"><a href="http://[::1:invalid-uri">Post quebrado</a></h2>
+      <article class="blog-view">
+        <h2 class="entry-title"><a href="https://comandotorrents.to/post-valido/">Post Válido</a></h2>
+    `;
+    const posts = comando.parsePosts(malformed);
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].url, 'https://comandotorrents.to/post-valido/');
+    assert.equal(posts[0].title, 'Post Válido');
+  });
 });
 
 describe('ComandoTorrents Parser: Complex Movie Download Links', () => {
@@ -132,6 +145,25 @@ describe('ComandoTorrents Parser: Episodic Series & Season Pack Resets', () => {
     assert.equal(links[11].audio, 'legendado');
     assert.equal(links[11].size, '6.8 GB');
   });
+
+  test('parseDownloadLinks: botão explícito de episódio preserva número mesmo com palavra COMPLETO', () => {
+    const html = '<a href="https://systemads1.com/go/ep10">EPISÓDIO 10 COMPLETO DUBLADO (1.2 GB)</a>';
+    const links = comando.parseDownloadLinks(html, base);
+    assert.equal(links.length, 1);
+    assert.equal(links[0].episode, 10);
+  });
+
+  test('parseDownloadLinks: cabeçalho com Temporada Completa não zera botões subsequentes de episódios individuais', () => {
+    const html = `
+      <p>Abaixo os links para a Temporada Completa episódio por episódio:</p>
+      <a href="https://systemads1.com/go/ep1">EPISÓDIO 01 (1.2 GB)</a>
+      <a href="https://systemads1.com/go/ep2">EPISÓDIO 02 (1.2 GB)</a>
+    `;
+    const links = comando.parseDownloadLinks(html, base);
+    assert.equal(links.length, 2);
+    assert.equal(links[0].episode, 1);
+    assert.equal(links[1].episode, 2);
+  });
 });
 
 describe('ComandoTorrents Parser: Multi-Season Bundles', () => {
@@ -180,12 +212,53 @@ describe('ComandoTorrents Parser: Subtitled-Only Isolation', () => {
 });
 
 describe('ComandoTorrents Parser: Title Cleaning & SEO Normalization', () => {
+  test('cleanPostTitle: limpa resoluções, codecs, áudio e ruídos de SEO preservando pontuação legítima', () => {
+    const cases = [
+      {
+        input: 'Deadpool & Wolverine Torrent – (2024) Dual Áudio 5.1 / Dublado WEB-DL 1080p / 4K Download Grátis Completo',
+        expected: 'Deadpool & Wolverine (2024)',
+      },
+      {
+        input: 'Blade Runner 2049 Torrent (2017) BluRay 1080p / 4K UHD 2160p Dual Áudio 7.1',
+        expected: 'Blade Runner 2049 (2017)',
+      },
+      {
+        input: '1917 Torrent – (2019) 1080p / 4K IMAX Dual Áudio 5.1 / Dublado BluRay',
+        expected: '1917 (2019)',
+      },
+      {
+        input: '2001: Uma Odisséia no Espaço Torrent (1968) 4K Ultra HD 2160p Remux Dublado',
+        expected: '2001: Uma Odisséia no Espaço (1968)',
+      },
+      {
+        input: 'WALL-E Torrent (2008) 1080p 3D Dual Áudio 5.1 Download',
+        expected: 'WALL-E (2008)',
+      },
+      {
+        input: 'X-Men &#8211; Dias de um Futuro Esquecido Torrent (2014) 1080p Dublado',
+        expected: 'X-Men – Dias de um Futuro Esquecido (2014)',
+      },
+    ];
+
+    for (const c of cases) {
+      assert.equal(comando.cleanPostTitle(c.input), c.expected);
+    }
+  });
+
   test('releaseTitle: remove ruídos de SEO e formata tags corretamente', () => {
     const rawPost = 'Furiosa: Uma Saga Mad Max Torrent (2024) Dual Áudio 5.1 / Dublado WEB-DL 1080p / 4K Download Grátis';
     const link = { quality: 1080, source: 'WEB-DL', audio: 'dublado', size: '2.4 GB', episode: null };
 
     const title = comando.releaseTitle(rawPost, link);
     assert.equal(title, 'Furiosa: Uma Saga Mad Max (2024) [1080p WEB-DL DUBLADO 2.4 GB]');
+  });
+
+  test('releaseTitle: limpa delimitadores órfãos ao remover fonte redundante', () => {
+    const rawPost = 'Alien: Romulus Torrent (2024) BluRay 1080p & 4K Dublado Download';
+    const link = { quality: 2160, source: 'BLU-RAY', audio: 'dublado', size: '18.4 GB', episode: null };
+
+    const title = comando.releaseTitle(rawPost, link);
+    assert.equal(title, 'Alien: Romulus (2024) [2160p BLU-RAY DUBLADO 18.4 GB]');
   });
 
   test('releaseTitle: inclui marcador de episódio E01 para séries', () => {

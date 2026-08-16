@@ -11,6 +11,8 @@
     "test:complete": "node scripts/check-test-list.js",
     "test:stress": "node test/m1-stress-challenge.js && node test/stress-m1-challenger.js",
     "test:adversarial": "node test/empirical-e2e-challenger.js",
+    "test:adversarial-m1": "node test/adversarial-m1-parser-harness.js",
+    "test:protector-m1": "node --test test/m1-protector-adversarial-stress.js",
     "test:nerdfilmes": "node nerdfilmes-resolver/test.js",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",

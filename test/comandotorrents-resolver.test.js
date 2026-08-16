@@ -4,8 +4,9 @@ const http = require('node:http');
 
 const comando = require('../comandotorrents-resolver/server');
 
+const hash = '0123456789abcdef0123456789abcdef01234567';
+
 describe('ComandoTorrents Resolver: extractMagnet & JS Variable Extraction', () => {
-  const hash = '0123456789abcdef0123456789abcdef01234567';
   const expectedMagnet = `magnet:?xt=urn:btih:${hash}&dn=Teste.Filme`;
 
   test('extractMagnet: extrai de diversas variáveis JavaScript comuns em protetores', () => {
@@ -66,6 +67,18 @@ describe('ComandoTorrents Resolver: extractMagnet & JS Variable Extraction', () 
     assert.equal(comando.extractMagnet(`<script>const link = "${encoded2}";</script>`), `magnet:?dn=Teste.Filme&xt=urn:btih:${hash}`);
   });
 
+  test('extractMagnet: decodifica magnet URL-encoded com parâmetros invertidos e ampersands literais', () => {
+    const encoded = `magnet%3A%3Fdn=Teste.Filme&xt=urn%3Abtih%3A${hash}&tr=udp%3A%2F%2Ftracker.example.com`;
+    const html = `<div class="btn"><a href="/redirect?url=${encoded}">Baixar</a></div>`;
+    assert.equal(comando.extractMagnet(html), `magnet:?dn=Teste.Filme&xt=urn:btih:${hash}&tr=udp://tracker.example.com`);
+  });
+
+  test('extractMagnet: decodifica magnet URL-encoded com entidades HTML nos delimitadores', () => {
+    const encoded = `magnet%3A%3Fdn=Teste.Filme&amp;xt=urn%3Abtih%3A${hash}&amp;tr=udp%3A%2F%2Ftracker.example.com`;
+    const html = `<a href="/redirect?url=${encoded}">Baixar</a>`;
+    assert.equal(comando.extractMagnet(html), `magnet:?dn=Teste.Filme&xt=urn:btih:${hash}&tr=udp://tracker.example.com`);
+  });
+
   test('extractMagnet: decodifica entidades HTML dentro de links magnet', () => {
     const entityMagnet = `magnet:?xt=urn:btih:${hash}&amp;dn=Filme&amp;tr=udp%3A%2F%2Ftracker.example.com`;
     const decoded = `magnet:?xt=urn:btih:${hash}&dn=Filme&tr=udp%3A%2F%2Ftracker.example.com`;
@@ -92,6 +105,27 @@ describe('ComandoTorrents Resolver: Meta Refresh & Next Protected URL', () => {
     assert.equal(comando.nextProtectedUrl(html1, base), target);
     assert.equal(comando.nextProtectedUrl(html2, base), target);
     assert.equal(comando.nextProtectedUrl(html3, base), target);
+  });
+
+  test('meta refresh: extrai URLs com aspas aninhadas, espaços e formatos variados', () => {
+    const target = 'https://videosad.net/go/step2';
+    const htmlNestedSingle = `<meta http-equiv="refresh" content="0; URL='${target}'">`;
+    const htmlNestedDouble = `<meta http-equiv="refresh" content='0; url="${target}"'>`;
+    const htmlSpaced = `<meta http-equiv='Refresh' content='0;   URL="${target}"   '>`;
+    const htmlUnquoted = `<meta http-equiv=refresh content=0;URL=${target}>`;
+    const htmlEntity = `<meta http-equiv="refresh" content="0; url=https://videosad.net/go?id=123&amp;token=abc&amp;ref=site">`;
+
+    assert.equal(comando.extractMetaRefresh(htmlNestedSingle), target);
+    assert.equal(comando.extractMetaRefresh(htmlNestedDouble), target);
+    assert.equal(comando.extractMetaRefresh(htmlSpaced), target);
+    assert.equal(comando.extractMetaRefresh(htmlUnquoted), target);
+    assert.equal(comando.extractMetaRefresh(htmlEntity), 'https://videosad.net/go?id=123&token=abc&ref=site');
+  });
+
+  test('meta refresh: extrai magnet direto dentro de tag meta refresh com aspas aninhadas', () => {
+    const directMagnet = `magnet:?xt=urn:btih:${hash}&dn=Teste.Filme`;
+    const html = `<meta content="1;url='${directMagnet}'" http-equiv="refresh">`;
+    assert.equal(comando.extractMetaRefresh(html), directMagnet);
   });
 
   test('nextProtectedUrl: extrai URLs de protetores permitidos em variáveis JS e links HTML', () => {

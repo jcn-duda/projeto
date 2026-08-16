@@ -65,6 +65,20 @@ const inFlight = new Map();
 // nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
 const UNKNOWN_SIZE = '1 KB';
 
+const PACK_RESET_PATTERN = /\b(?:TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA|PACK\s+COMPLETO|PACOTE\s+COMPLETO|\bPACK\b)\b/i;
+const EPISODE_RANGE_PATTERN = /(?:EPIS[ÓO]DIOS?|EP|CAP[ÍI]TULOS?|CAP|E)[.\s-]*\d{1,3}[.\s-]*(?:A|AO|[-–—])[.\s-]*\d{1,3}\b/i;
+const EPISODE_PATTERN = /(?:EPIS[ÓO]DIO|EP|CAP[ÍI]TULO|CAP)[.\s-]*(\d{1,3})\b|\bS\d{1,2}E(\d{1,3})\b|\bE(\d{1,3})\b|\b\d{1,2}X(\d{1,3})\b/gi;
+
+function extractEpisode(text) {
+  if (!text) return null;
+  if (EPISODE_RANGE_PATTERN.test(text)) return null;
+  const matches = [...text.matchAll(EPISODE_PATTERN)];
+  if (matches.length === 0) return null;
+  const last = matches[matches.length - 1];
+  const num = Number(last[1] || last[2] || last[3] || last[4]);
+  return Number.isFinite(num) ? num : null;
+}
+
 const NAMED_ENTITIES = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
   hellip: '…', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘',
@@ -219,8 +233,8 @@ function extractMagnet(html) {
   const rawMatch = str.match(/magnet:\?[^"'<>\s]+/i);
   if (rawMatch) return decodeEntities(rawMatch[0]);
 
-  // 5. Magnet URL-encoded (Parameter Order-Invariant)
-  const encodedMatch = str.match(/magnet%3A%3F[^"'<>\s&]+/i);
+  // 5. Magnet URL-encoded (Parameter Order-Invariant & allowing literal &)
+  const encodedMatch = str.match(/magnet%3A%3F[^"'<>\s]+/i);
   if (encodedMatch) {
     try {
       const decoded = decodeURIComponent(encodedMatch[0]);
@@ -235,14 +249,16 @@ function extractMetaRefresh(html) {
   if (!html) return null;
   const metaTags = String(html).match(/<meta\b[^>]*>/gi) || [];
   for (const tag of metaTags) {
-    const isRefresh = /\bhttp-equiv=["']?refresh["']?/i.test(tag);
+    const isRefresh = /\bhttp-equiv\s*=\s*["']?refresh["']?/i.test(tag);
     if (!isRefresh) continue;
-    const contentMatch = tag.match(/\bcontent=["']([^"']*)["']/i);
+    const contentMatch = tag.match(/\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
     if (!contentMatch) continue;
-    const content = decodeEntities(contentMatch[1]);
-    const urlMatch = content.match(/url\s*=\s*(?:['"]([^'"]+)['"]|([^'"]+))/i);
+    const rawContent = contentMatch[1] ?? contentMatch[2] ?? contentMatch[3] ?? '';
+    const content = decodeEntities(rawContent);
+    const urlMatch = content.match(/\burl\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s;]+))/i);
     if (urlMatch) {
-      const target = (urlMatch[1] || urlMatch[2] || '').trim();
+      let target = (urlMatch[1] || urlMatch[2] || urlMatch[3] || '').trim();
+      target = target.replace(/^['"]|['"]$/g, '');
       if (target) return decodeEntities(target);
     }
   }
@@ -294,14 +310,19 @@ function nextProtectedUrl(html, baseUrl) {
 function parsePosts(html) {
   const posts = [];
   const seen = new Set();
-  const article = /<article\b[^>]*class=["'][^"']*\bblog-view\b[^"']*["'][^>]*>([\s\S]*?)<\/article>/gi;
+  const article = /<article\b[^>]*class=["'][^"']*\bblog-view\b[^"']*["'][^>]*>([\s\S]*?)(?:<\/article>|(?=<article\b)|$)/gi;
   let match;
   while ((match = article.exec(html))) {
     const anchor = match[1].match(/<h2\b[^>]*class=["'][^"']*\bentry-title\b[^"']*["'][^>]*>\s*<a\b([^>]*)>([\s\S]*?)<\/a>/i);
     if (!anchor) continue;
     const url = attribute(anchor[1], 'href');
     if (!url) continue;
-    const resolvedUrl = new URL(decodeEntities(url), SITE_URL).href;
+    let resolvedUrl;
+    try {
+      resolvedUrl = new URL(decodeEntities(url), SITE_URL).href;
+    } catch {
+      continue;
+    }
     if (seen.has(resolvedUrl)) continue;
     seen.add(resolvedUrl);
 
@@ -316,16 +337,33 @@ function parsePosts(html) {
 }
 
 function cleanPostTitle(title = '') {
-  return decodeEntities(String(title || ''))
-    .replace(/\s*Torrent(?:s)?\s*(?:[–\-—/|]|&#8211;)?\s*/gi, ' ')
-    .replace(/\b(?:720p|1080p|2160p|4K|UHD|HD|FULL\s*HD)(?:\s*[/|–\-]\s*(?:720p|1080p|2160p|4K|UHD|HD|FULL\s*HD|5\.1|7\.1|dual|dublado|legendado))*/gi, '')
-    .replace(/\b\d{3,4}p\b/gi, '')
-    .replace(/\b(?:5\.1|7\.1)(?:\s*\/|\s*-\s*|\s*\|\s*)?/gi, '')
-    .replace(/\b(?:Dublado|Dublada|Legendado|Legendada|Dual\s*[AÁ]udio|Nacional|Multi\s*[AÁ]udio|Download|Baixar|Gr[áa]tis|Online|Completo|Completa)\b/gi, '')
-    .replace(/[–\-—/|:\s]+$/g, '')
-    .replace(/^[–\-—/|:\s]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  let clean = decodeEntities(String(title || ''));
+
+  // 1. Remove "Torrent(s)" e separador adjacente (ex: "Torrent – (2024)" -> " (2024)")
+  clean = clean.replace(/\s*Torrent(?:s)?\s*(?:[–\-—/|:&+]|&#8211;)?\s*/gi, ' ');
+
+  // 2. Remove resoluções (2160p, 1080p, 720p, 576p, 480p, 4K, UHD, etc.)
+  clean = clean.replace(/\b(?:2160p|1080p|720p|576p|480p|\d{3,4}p|4K|8K|UHD|ULTRA\s*HD|FULL\s*HD|\bHD\b(?!\s*TV)|\bSD\b)\b/gi, ' ');
+
+  // 3. Remove codecs de vídeo e fontes (BluRay, WEB-DL, Remux, IMAX, 3D, Remastered, etc.)
+  clean = clean.replace(/\b(?:BDREMUX|REMUX|BLU[- ]?RAY|BLURAY|BDRIP|BRRIP|WEB[-. ]?DL|WEB[-. ]?RIP|WEBRIP|HDTV|CAMRIP|CAM|IMAX|3D|REMASTERED|REMASTER|HDR(?:10\+?)?|DOLBY\s*VISION|DV)\b/gi, ' ');
+
+  // 4. Remove especificações de áudio e canais (5.1, 7.1, 2.0, Atmos, etc.)
+  clean = clean.replace(/\b(?:5\.1|7\.1|2\.0|7\.2|DDP\s*5\.1|ATMOS)\b/gi, ' ');
+
+  // 5. Remove tags de áudio e idioma
+  clean = clean.replace(/\b(?:Dublado|Dublada|Legendado|Legendada|Dual\s*[AÁ]udio|Nacional|Multi\s*[AÁ]udio|Tri\s*[AÁ]udio|[AÁ]udio\s*Original)\b/gi, ' ');
+
+  // 6. Remove termos de vitrine / SEO
+  clean = clean.replace(/\b(?:Download|Baixar|Gr[áa]tis|Online|Completo|Completa|Assistir)\b/gi, ' ');
+
+  // 7. Limpa separadores órfãos / múltiplos e aparas nas bordas
+  clean = clean.replace(/\s*[/|–\-—:&+]\s*([/|–\-—:&+]\s*)+/g, ' ');
+  clean = clean.replace(/^[–\-—/|:&+\s]+/g, '');
+  clean = clean.replace(/[–\-—/|:&+\s]+$/g, '');
+  clean = clean.replace(/\s+/g, ' ').trim();
+
+  return clean;
 }
 
 function parseDownloadLinks(html, baseUrl) {
@@ -390,18 +428,31 @@ function parseDownloadLinks(html, baseUrl) {
     }
 
     // 2. Numeração de episódio vs Reset de pack de temporada
-    const isPackReset = /\b(?:TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA|PACK\s+COMPLETO|COMPLETA\b|COMPLETO\b)/i.test(`${segment} ${anchorText}`);
-    if (isPackReset) {
+    const anchorEp = extractEpisode(anchorText);
+    const anchorIsPack = PACK_RESET_PATTERN.test(anchorText) || EPISODE_RANGE_PATTERN.test(anchorText);
+
+    if (anchorEp !== null) {
+      currentEpisode = anchorEp;
+    } else if (anchorIsPack) {
       currentEpisode = null;
     } else {
-      const anchorEp = [...anchorText.matchAll(/(?:EPIS[ÓO]DIO|EP|CAP[ÍI]TULO|CAP)[.\s-]*(\d{1,3})\b|\bE(\d{1,3})\b|\b\d{1,2}X(\d{1,3})\b/gi)].pop();
-      if (anchorEp) {
-        currentEpisode = Number(anchorEp[1] || anchorEp[2] || anchorEp[3]);
-      } else {
-        const segEp = [...segment.matchAll(/(?:EPIS[ÓO]DIO|EP|CAP[ÍI]TULO|CAP)[.\s-]*(\d{1,3})\b|\bE(\d{1,3})\b|\b\d{1,2}X(\d{1,3})\b/gi)].pop();
-        if (segEp) {
-          currentEpisode = Number(segEp[1] || segEp[2] || segEp[3]);
+      const segEp = extractEpisode(segment);
+      const segIsPack = PACK_RESET_PATTERN.test(segment) || EPISODE_RANGE_PATTERN.test(segment);
+
+      if (segEp !== null && segIsPack) {
+        const lastEpMatches = [...segment.matchAll(EPISODE_PATTERN)];
+        const lastPackMatches = [...segment.matchAll(PACK_RESET_PATTERN)];
+        const lastEpIdx = lastEpMatches.length > 0 ? lastEpMatches[lastEpMatches.length - 1].index : -1;
+        const lastPackIdx = lastPackMatches.length > 0 ? lastPackMatches[lastPackMatches.length - 1].index : -1;
+        if (lastEpIdx > lastPackIdx) {
+          currentEpisode = segEp;
+        } else {
+          currentEpisode = null;
         }
+      } else if (segEp !== null) {
+        currentEpisode = segEp;
+      } else if (segIsPack) {
+        currentEpisode = null;
       }
     }
 
@@ -592,7 +643,7 @@ function releaseTitle(post, link, index = null) {
 
   if (link?.source) {
     const sourceEscaped = link.source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '[-. ]?');
-    clean = clean.replace(new RegExp(`\\b${sourceEscaped}\\b`, 'gi'), '').replace(/\s+/g, ' ').trim();
+    clean = clean.replace(new RegExp(`\\b${sourceEscaped}\\b`, 'gi'), '').replace(/[–\-—/|:&+\s]+$/g, '').replace(/\s+/g, ' ').trim();
   }
 
   const base = epPart ? `${clean} ${epPart}` : clean;
@@ -726,6 +777,7 @@ module.exports = {
   resolveButton,
   fetchFollowingAllowed,
   decodeEntities,
+  extractEpisode,
   cleanPostTitle,
   parseSize,
   normalizeQuality,

@@ -215,6 +215,33 @@ function maxQualityFromText(text) {
   return best;
 }
 
+/** Hash btih válido: 40 hex ou 32 base32 (alfabeto A-Z2-7), case-insensitive. */
+function isValidBtihHash(hash) {
+  const h = String(hash || '').trim();
+  return /^[0-9a-f]{40}$/i.test(h) || /^[a-z2-7]{32}$/i.test(h);
+}
+
+/**
+ * Magnet direto só vale com parâmetro xt=urn:btih: de hash válido, em
+ * QUALQUER posição da query. Sem btih — nem só btmh (urn:btmh: é SHA-256,
+ * inadequado pra resolver por infoHash) — ou com btih malformado o link é
+ * ignorado: o prefixo "magnet:" sozinho não basta.
+ */
+function isValidMagnetUri(value) {
+  const str = String(value || '');
+  if (!/^magnet:/i.test(str)) return false;
+  const q = str.indexOf('?');
+  const query = q === -1 ? '' : str.slice(q + 1);
+  let found = false;
+  for (const param of query.split('&')) {
+    const m = param.match(/^xt\s*=\s*urn:btih:([^;&\s]+)/i);
+    if (!m) continue;
+    if (!isValidBtihHash(m[1])) return false;
+    found = true;
+  }
+  return found;
+}
+
 function parseDownloadLinks(html) {
   const links = [];
   let audio = 'desconhecido';
@@ -223,15 +250,17 @@ function parseDownloadLinks(html) {
 
   // O post novo (House of the Dragon S1) publica 57 botões com href magnet
   // direto, e o tema emite aspas simples e atributos antes do href. O padrão
-  // aceita os dois protocolos e os dois tipos de aspas. Magnet não abre host
-  // nenhum; http(s) continua exigindo host de protetor permitido abaixo.
+  // aceita os dois protocolos e os dois tipos de aspas; só entra magnet com
+  // btih válido, http(s) continua exigindo host de protetor permitido abaixo.
   const anchor = /<a\s+[^>]*?href\s*=\s*(["'])([^"']+)\1[^>]*>([\s\S]*?)<\/a>/gi;
   let m;
   while ((m = anchor.exec(html))) {
     // A URI decodificada É o download: o magnet resolve no cliente de torrent,
     // sem fetch — o href vira o url do botão direto.
     const href = decodeEntities(m[2].trim());
-    const isMagnet = /^magnet:/i.test(href);
+    // Magnet malformado, sem btih ou só com btmh cai no branch http e morre no
+    // allowlist (hostname do magnet é vazio, nunca é protetor).
+    const isMagnet = isValidMagnetUri(href);
     if (!isMagnet) {
       let u;
       try {
