@@ -417,6 +417,25 @@ async function findStreams({ type, id }) {
   });
 }
 
+/**
+ * O refresh sem teto só pode ser dispensado quando a entrada cacheada nasceu de
+ * uma checagem de cache CONFIÁVEL. `partial:false` sozinho não prova isso: ele
+ * diz que a coleta acabou, não que alguém perguntou ao debrid.
+ *
+ * A diferença aparecia inteira na AllDebrid, que pula a consulta no passo de
+ * resposta (o /magnet/instant morreu; checar é dar upload, e abortar deixa
+ * download-fantasma na conta). A busca respondia sem ⚡, o passe tardio
+ * promovia essa mesma lista a completa e o refresh — que existe justamente pra
+ * recuperar o ⚡ — desistia ao ver `partial:false`. Resultado: raio nenhum, e a
+ * lista sem raio cacheada como boa por CACHE_TTL.
+ *
+ * Entrada antiga (gravada antes deste campo existir) não tem `debridKnown`:
+ * cai em `false` de propósito, paga UMA checagem tardia e se corrige sozinha.
+ */
+function debridRefreshSatisfied(entry) {
+  return Boolean(entry && entry.partial === false && entry.debridKnown === true);
+}
+
 async function doSearch({ type, id, cacheKey, deadlineAt }) {
   const isDemo = opts().providers.includes('demo');
   const { imdbId, season, episode } = parseStremioId(id);
@@ -450,12 +469,20 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
       });
       return { streams, partial, needsDebridRefresh };
     },
-    ({ streams, partial }) => {
+    ({ streams, partial, needsDebridRefresh }) => {
       // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco
       // tempo. Lote parcial idem: o passe tardio reescreve, mas se ele falhar o
       // TTL curto evita servir a lista sem as fontes BR por 15 minutos.
       const complete = streams.length && !partial;
-      cache.set(cacheKey, { streams, partial }, complete ? config.cacheTtl : Math.min(config.cacheTtl, 60));
+      // `debridKnown` registra se ESTA lista nasceu de uma checagem de cache
+      // confiável. Sem ele, `partial:false` era usado como prova de "já
+      // processado" — e o passe tardio promove a entrada SEM refazer a
+      // checagem, o que congelava a lista sem ⚡ pelo TTL inteiro.
+      cache.set(
+        cacheKey,
+        { streams, partial, debridKnown: !needsDebridRefresh },
+        complete ? config.cacheTtl : Math.min(config.cacheTtl, 60),
+      );
       log.info(`[search] ${streams.length} stream(s)${partial ? ' (parcial)' : ''} para ${id}`);
     },
     (value) => Array.isArray(value?.streams) && value.streams.length > 0,
@@ -474,7 +501,13 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     if (phase !== finish.phase()) return undefined;
     const hit = cache.get(cacheKey);
     if (!hit?.partial) return undefined;
-    cache.set(cacheKey, { streams: hit.streams, partial: false }, config.cacheTtl);
+    // Promover NÃO refaz a checagem de cache, então `debridKnown` é copiado
+    // como está: promessa de completude da COLETA não é promessa de ⚡.
+    cache.set(
+      cacheKey,
+      { streams: hit.streams, partial: false, debridKnown: hit.debridKnown === true },
+      config.cacheTtl,
+    );
     log.info(`[search] coleta encerrada sem novidade; ${hit.streams.length} stream(s) para ${id}`);
     return undefined;
   };
@@ -542,9 +575,9 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
         // promoção concorrente feita pelo callback de conclusão.
         if (raw.partial && raw.completion) await raw.completion;
         const refreshed = cache.get(cacheKey);
-        // O passe tardio pode já ter reconstruído/promovido a mesma lista. Não
+        // O passe tardio pode já ter reconstruído a mesma lista. Não
         // repetimos a consulta cara (e, na AllDebrid, o upload) sem necessidade.
-        if (refreshed && refreshed.partial === false) return;
+        if (debridRefreshSatisfied(refreshed)) return;
         await finish({ items: raw.items, partial: false }, responsePhase);
       } catch (err) {
         log.warn('[search] atualização completa do debrid falhou:', err?.message || err);
@@ -695,4 +728,4 @@ async function buildStreams(
   return streams;
 }
 
-module.exports = { findStreams, applyDebrid };
+module.exports = { findStreams, applyDebrid, debridRefreshSatisfied };
