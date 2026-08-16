@@ -7,8 +7,12 @@
 
 FROM caddy:2-alpine AS caddy
 
-# Mesmo pin de sha256 do antigo jackett-bludv/Dockerfile.
-FROM lscr.io/linuxserver/jackett@sha256:bdde094b662158f3fd93d640dcf30f20e901cfc0b9a47ff3c338b9400cd6b5d7 AS jackett
+# Pin deliberado: v0.24.2406-ls2 (build 2026-08-14). O auto-update fica
+# desligado em runtime (--NoUpdates no entrypoint), então subir de versão é
+# trocar este digest e rebuildar — nunca deixar o `latest` mudar o deploy
+# sozinho. Depois do rebuild confira no log que as quatro definitions BR ainda
+# carregam: "Loaded N Cardigann indexers" e os quatro ids na lista.
+FROM lscr.io/linuxserver/jackett@sha256:6d0c43b533f91f4e88fe4b4082a2b576772072db3d90a39e58d0cccccd585f8d AS jackett
 
 # Atualize o digest deliberadamente; nunca deixe uma mudança em `latest` alterar
 # o deploy sem revisão, como já fazemos com o Jackett acima.
