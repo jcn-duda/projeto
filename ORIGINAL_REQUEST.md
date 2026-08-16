@@ -34,3 +34,45 @@ Integrity mode: development
 - [x] Todos os resolvers e provedores tratam erros com `try/catch` defensivos e logs prefixados (`[jackett]`, `[bludv]`, `[debrid]`, etc.).
 - [x] Consultas e resoluções respeitam estritamente os timeouts e sinais de cancelamento configurados.
 - [x] A persistência SQLite lida de forma graciosa com concorrência ou indisponibilidade do módulo nativo sem quebrar o processo.
+
+## Follow-up — 2026-08-16T05:29:15Z
+
+Surgically enhance the ComandoTorrents Jackett indexer definition and microservice resolver for optimal extraction accuracy, link protector resilience, and rigorous fixture-based test coverage.
+
+Working directory: E:/stremio adom
+Integrity mode: development
+
+## Requirements
+
+### R1. Robust HTML Parsing & Metadata Extraction
+Refine and harden the parsing logic in `comandotorrents-resolver/server.js` and `jackett-bludv/comandotorrents.yml` to accurately extract:
+- Audio streams (distinguishing `dublado`/`dual áudio` vs `legendado`, ensuring section context does not contaminate adjacent buttons).
+- Video resolutions (`2160p`/`4K`, `1080p`, `720p`, `SD`) and source codecs (`WEB-DL`, `BluRay`, `REMUX`, etc.).
+- Episode numbering (`E01`, `EP 02`) vs full season packs (`TEMPORADA COMPLETA` resetting episode count to `null`).
+- Clean release titles stripped of WordPress/SEO fluff (`Torrent`, `Download`, `Grátis`, `Completo`) while strictly preserving original titles and required metadata tags.
+
+### R2. Link Protector & Redirect Resilience
+Strengthen the link unrolling and magnet resolution pipeline in `comandotorrents-resolver/server.js`:
+- Support diverse protector patterns (direct `magnet:?`, URL-encoded magnets, JavaScript variables like `DEST_URL`/`DOWNLOAD_URL`, meta refresh tags, and multi-hop HTTP 3xx/location hops).
+- Maintain strict domain whitelist enforcement (`ALLOWED_SUFFIXES`) and defensive timeouts.
+
+### R3. Comprehensive Test Suite & Regression Proof
+Develop extensive unit and regression tests in the test suite (e.g. expanding `test/br-parsers.test.js` or creating dedicated test modules and fixtures):
+- Cover edge cases including complex movie posts, multi-season pack listings, episodic series, 4K HDR releases, and multi-hop protector redirects.
+- Ensure all existing and new test suites pass with zero regressions.
+
+## Acceptance Criteria
+
+### Parsing Accuracy & Clean Output
+- [ ] Correctly identifies audio language across different WordPress post formats without false 'dublado' tags on subtitled releases.
+- [ ] Correctly parses single episode numbers and clears episode tracking on season pack buttons.
+- [ ] Strips vitrine/SEO noise from release titles and generates clean, standard release names.
+- [ ] Size extraction parses standard Brazilian/Portuguese unit notations, safely defaulting to the `1 KB` sentinel when absent.
+
+### Resolver Robustness
+- [ ] Resolves multi-hop link protectors and JS redirects to target magnet links within the timeout budget.
+- [ ] Gracefully handles unreachable or malformed protector URLs without crashing the resolver service.
+
+### Automated Verification
+- [ ] Full test suite (`npm test`) passes with 100% success rate across all existing 340+ tests and new test cases.
+- [ ] Fixture-backed test cases explicitly demonstrate and prove improved extraction accuracy on previously ambiguous or fragile post layouts.

@@ -29,6 +29,14 @@ settings: []
 # linha aponta para /resolve?url=<post>&i=<n>, que segue o protetor de links
 # daquele botão exato e devolve o magnet como texto.
 search:
+  # Mesma higiene das outras definições BR: ":" sai antes de virar parâmetro
+  # de URL (o resolver também normaliza — defesa dupla, como no título).
+  keywordsfilters:
+    - name: re_replace
+      args: ["[:]+", " "]
+    - name: re_replace
+      args: ["\\s+", " "]
+    - name: trim
   paths:
     - path: "http://127.0.0.1:8700/search?q={{ .Query.Keywords }}"
 

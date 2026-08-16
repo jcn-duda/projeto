@@ -112,6 +112,135 @@ test('bludv: releaseTitle tira a vitrine do título e assume os atributos do bot
   assert.equal(pack.includes('Dual'), false);
 });
 
+test('bludv: normalizeQuery tira SxxEyy com fronteira de palavra', () => {
+  // O strip serve pro buscador WordPress achar o post da temporada.
+  assert.equal(bludv.normalizeQuery('A Casa do Dragão S01E02'), 'A Casa do Dragão');
+  assert.equal(bludv.normalizeQuery('A Casa do Dragão S01'), 'A Casa do Dragão');
+  // Sem \b o strip antigo comia pedaço de título: "S1m0ne" virava " m0ne" e a
+  // busca zerava. Título com S+dígito dentro de palavra sobrevive inteiro.
+  assert.equal(bludv.normalizeQuery('S1m0ne 2002'), 'S1m0ne 2002');
+  // ":" engasga o buscador WordPress (mesma regra do scraper nativo do addon).
+  assert.equal(bludv.normalizeQuery('O Poderoso Chefão: Parte II'), 'O Poderoso Chefão Parte II');
+});
+
+test('bludv: âncora com atributos antes do href continua virando botão', () => {
+  // Tema WordPress pode emitir <a class="..." target="..." href="...">; exigir
+  // href como primeiro atributo apagaria todos os botões nessa troca de layout.
+  const html = `
+    <h3>VERSÃO MKV DUAL ÁUDIO</h3>
+    <p>TEMPORADA COMPLETA – BluRay 1080p (2.67 GB)</p>
+    <p><a class="btn magnet" target="_blank" href="https://systemads1.com/go/x1">Magnet-Link</a></p>
+  `;
+  const links = bludv.parseDownloadLinks(html);
+
+  assert.equal(links.length, 1);
+  assert.deepEqual(
+    { url: links[0].url, quality: links[0].quality, size: links[0].size, audio: links[0].audio },
+    { url: 'https://systemads1.com/go/x1', quality: 1080, size: '2.67 GB', audio: 'dublado' },
+  );
+});
+
+test('bludv: card de busca com atributos antes do href continua parseado', () => {
+  const html = `<div class="posts">
+    <div class="post">
+      <div class="title">
+        <a rel="bookmark" href="https://bludvfilmes.xyz/duna/">Duna Torrent (2021) BluRay</a>
+      </div>
+      <div class="content"><p>x</p></div>
+    </div>
+  </div>`;
+  const posts = bludv.parsePosts(html);
+
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].url, 'https://bludvfilmes.xyz/duna/');
+  assert.equal(posts[0].title, 'Duna Torrent (2021) BluRay');
+});
+
+test('bludv: janela maior casa qualidade e tamanho com codec/HDR/áudio longos', () => {
+  // O texto entre a resolução e o parêntese passa de 30 chars em releases com
+  // HDR e trilhas de áudio ("x265 DV HDR10+ DDP 5.1 Atmos TrueHD"); janela
+  // curta soltava o par e o tamanho saía sentinela "1 KB".
+  const html = `
+    <h3>VERSÃO MKV DUAL ÁUDIO</h3>
+    <p>TEMPORADA COMPLETA – WEB-DL 2160p x265 DV HDR10+ DDP 5.1 Atmos TrueHD (24 GB)</p>
+    <p><a href="https://systemads1.com/go/long">Magnet-Link</a></p>
+  `;
+  const [link] = bludv.parseDownloadLinks(html);
+
+  assert.deepEqual({ quality: link.quality, size: link.size }, { quality: 2160, size: '24 GB' });
+});
+
+test('bludv: magnet direto no href vira botão com qualidade pelo texto da âncora', () => {
+  // Layout atual: o botão aponta direto pro magnet (sem protetor) e a qualidade
+  // vem do texto da âncora ("720p Dublado") — não existe mais a linha
+  // "WEB-DL 1080p (2.67 GB)" antes do botão pra alimentar o spec antigo, e o
+  // tamanho não é publicado. Esquecer o texto da âncora deixaria 3 botões com
+  // quality null: a vaga BR reservada (dublado) até sobreviveria, mas a
+  // ordenação por qualidade dentro do dublado viraria loteria.
+  const html = `
+    <h3>VERSÃO MKV DUAL ÁUDIO</h3>
+    <p>EPISÓDIO 01</p>
+    <p><a href="magnet:?xt=urn:btih:1111111111111111111111111111111111111111&dn=ep01.720p">720p Dublado</a></p>
+    <p><a href="magnet:?xt=urn:btih:2222222222222222222222222222222222222222&dn=ep01.1080p">1080p Dublado</a></p>
+    <p><a href="magnet:?xt=urn:btih:3333333333333333333333333333333333333333&dn=ep01.2160p">2160p Dublado</a></p>
+  `;
+  const links = bludv.parseDownloadLinks(html);
+
+  assert.equal(links.length, 3);
+  assert.deepEqual(
+    links.map((link) => ({
+      url: link.url,
+      audio: link.audio,
+      episode: link.episode,
+      quality: link.quality,
+      size: link.size,
+    })),
+    [
+      { url: 'magnet:?xt=urn:btih:1111111111111111111111111111111111111111&dn=ep01.720p', audio: 'dublado', episode: 1, quality: 720, size: null },
+      { url: 'magnet:?xt=urn:btih:2222222222222222222222222222222222222222&dn=ep01.1080p', audio: 'dublado', episode: 1, quality: 1080, size: null },
+      { url: 'magnet:?xt=urn:btih:3333333333333333333333333333333333333333&dn=ep01.2160p', audio: 'dublado', episode: 1, quality: 2160, size: null },
+    ],
+  );
+});
+
+test('bludv: magnet direto com href em aspas simples também vira botão', () => {
+  // O tema WordPress alterna as aspas do atributo; exigir aspas duplas apagaria
+  // o botão inteiro nessa variação de layout. "4K" no texto da âncora vale 2160,
+  // mesma regra do spec por segmento.
+  const html = `
+    <h3>VERSÃO MKV DUAL ÁUDIO</h3>
+    <p>EPISÓDIO 01</p>
+    <p><a href='magnet:?xt=urn:btih:4444444444444444444444444444444444444444&dn=ep01.4k'>4K Dublado</a></p>
+  `;
+  const [link] = bludv.parseDownloadLinks(html);
+
+  assert.equal(link.url, 'magnet:?xt=urn:btih:4444444444444444444444444444444444444444&dn=ep01.4k');
+  assert.deepEqual(
+    { audio: link.audio, episode: link.episode, quality: link.quality, size: link.size },
+    { audio: 'dublado', episode: 1, quality: 2160, size: null },
+  );
+});
+
+test('bludv: href HTTP para host fora da allowlist é ignorado; protetor continua aceito', () => {
+  // Botão externo (afiliado/Telegram) no meio do post não pode virar release
+  // BR — o filtro é por host, igual no layout com protetor. E o protetor
+  // permitido no mesmo post continua entrando, sem herdar o lixo descartado.
+  const html = `
+    <h3>VERSÃO MKV DUAL ÁUDIO</h3>
+    <p>EPISÓDIO 01</p>
+    <p><a href="https://exemplo-invalido.com.br/go/xyz">1080p Dublado</a></p>
+    <p><a href="https://t.me/bludv">Telegram</a></p>
+    <p><a href="https://systemads1.com/go/aaa111">1080p Dublado</a></p>
+  `;
+  const links = bludv.parseDownloadLinks(html);
+
+  assert.equal(links.length, 1);
+  assert.deepEqual(
+    { url: links[0].url, quality: links[0].quality, audio: links[0].audio, episode: links[0].episode },
+    { url: 'https://systemads1.com/go/aaa111', quality: 1080, audio: 'dublado', episode: 1 },
+  );
+});
+
 // --- ComandoTorrents ---------------------------------------------------
 
 test('comandotorrents: href relativo vira absoluto e o card repetido é deduplicado', () => {

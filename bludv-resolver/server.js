@@ -203,23 +203,44 @@ async function fetchText(url, referer) {
  * ("VERSÃO MKV DUAL ÁUDIO" / "VERSÃO MP4 DUBLADO" / "... LEGENDADO") e extrai
  * cada botão Magnet-Link com qualidade e tamanho ("BluRay 1080p (2.67 GB)").
  */
+const QUALITY_RE = /(?:(\d{3,4})\s*P|\b(4K)\b)/gi;
+
+/** Maior qualidade declarada num texto ("BluRay 1080p" ou "720p/1080p/2160p"). */
+function maxQualityFromText(text) {
+  let best = null;
+  for (const mm of String(text || '').matchAll(QUALITY_RE)) {
+    const q = mm[1] ? Number(mm[1]) : 2160;
+    if (best === null || q > best) best = q;
+  }
+  return best;
+}
+
 function parseDownloadLinks(html) {
   const links = [];
   let audio = 'desconhecido';
   let currentEpisode = null;
   let cursor = 0;
 
-  const anchor = /<a\s+href="(https?:\/\/[^"]+)"[^>]*>[\s\S]*?<\/a>/gi;
+  // O post novo (House of the Dragon S1) publica 57 botões com href magnet
+  // direto, e o tema emite aspas simples e atributos antes do href. O padrão
+  // aceita os dois protocolos e os dois tipos de aspas. Magnet não abre host
+  // nenhum; http(s) continua exigindo host de protetor permitido abaixo.
+  const anchor = /<a\s+[^>]*?href\s*=\s*(["'])([^"']+)\1[^>]*>([\s\S]*?)<\/a>/gi;
   let m;
   while ((m = anchor.exec(html))) {
-    const href = decodeEntities(m[1]);
-    let u;
-    try {
-      u = new URL(href);
-    } catch {
-      continue;
+    // A URI decodificada É o download: o magnet resolve no cliente de torrent,
+    // sem fetch — o href vira o url do botão direto.
+    const href = decodeEntities(m[2].trim());
+    const isMagnet = /^magnet:/i.test(href);
+    if (!isMagnet) {
+      let u;
+      try {
+        u = new URL(href);
+      } catch {
+        continue;
+      }
+      if (!isProtectorHost(u.hostname)) continue;
     }
-    if (!isProtectorHost(u.hostname)) continue;
 
     const segment = stripTags(html.slice(cursor, m.index)).toUpperCase();
     cursor = anchor.lastIndex;
@@ -238,12 +259,25 @@ function parseDownloadLinks(html) {
 
     // Último "Np ... (tamanho)" antes do botão: o do próprio botão — o título do
     // post no topo cita "720p/1080p/4K" sem parêntese e não casa no padrão.
-    // Entre a qualidade e o parêntese pode haver codec/HDR: "2160p x265 DV (24 GB)".
-    const spec = [...segment.matchAll(/(?:(\d{3,4})\s*P|\b(4K)\b)[^()\n]{0,30}?\(([^)]*)\)/g)].pop();
+    // Entre a qualidade e o parêntese pode haver codec/HDR/áudio longos:
+    // "2160p x265 DV HDR10+ DDP5.1 Atmos (24 GB)" — janela curta demais
+    // solta o par e o tamanho vira sentinela "1 KB".
+    const spec = [...segment.matchAll(/(?:(\d{3,4})\s*P|\b(4K)\b)[^()\n]{0,48}?\(([^)]*)\)/g)].pop();
+    let quality = null;
+    let size = null;
+    if (spec) {
+      quality = spec[1] ? Number(spec[1]) : 2160;
+      size = spec[3].trim();
+    } else {
+      // Botão sem parêntese (o magnet direto não publica tamanho): a qualidade
+      // vem do texto do próprio link ("720p"/"1080p"/"2160p") em vez do segmento.
+      quality = maxQualityFromText(stripTags(m[3]));
+    }
+
     links.push({
       url: href,
-      quality: spec ? (spec[1] ? Number(spec[1]) : 2160) : null,
-      size: spec ? spec[3].trim() : null,
+      quality,
+      size,
       audio,
       episode: currentEpisode,
     });
@@ -402,7 +436,7 @@ function escapeHtml(value = '') {
  * poster (img), "Título Original" e a data de .icon .infos. */
 function parsePosts(html) {
   const posts = [];
-  const re = /<div class="post">[\s\S]*?<div class="title">\s*<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+  const re = /<div class="post">[\s\S]*?<div class="title">\s*<a\s+[^>]*?href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
   let m;
   while ((m = re.exec(html))) {
     // Janela do card: título + conteúdo + data ficam bem dentro de 4000 chars.
@@ -464,6 +498,22 @@ function pubDate(date) {
   const m = String(date || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
   if (!m) return new Date().toUTCString();
   return new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1]))).toUTCString();
+}
+
+/**
+ * "Nome S01E01" → "Nome"; o buscador WordPress engasga com ":" (vide o scraper
+ * nativo do addon). Ano ajuda a relevância, então fica.
+ *
+ * As fronteiras \\b são obrigatórias: sem elas o strip comia pedaço de título
+ * com S+número dentro de palavra ("S1m0ne" virava "m0ne" e a busca zerava).
+ * Usada pelos DOIS modos (Torznab e Cardigann) para não divergirem.
+ */
+function normalizeQuery(raw) {
+  return String(raw || '')
+    .replace(/\bS\d{1,2}(?:E\d{1,2})?\b/gi, ' ')
+    .replace(/:/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -552,13 +602,7 @@ async function handleApi(url, response) {
   if (t === 'caps') return reply(response, 200, capsXml(), 'application/xml; charset=utf-8');
   if (!['search', 'movie', 'tvsearch'].includes(t)) return reply(response, 400, 'unsupported_t');
 
-  // "Nome S01E01" → "Nome"; o buscador WordPress engasga com ":" (vide o scraper
-  // nativo do addon). Ano ajuda a relevância, então fica.
-  const q = String(url.searchParams.get('q') || '')
-    .replace(/[sS]\d{1,2}([eE]\d{1,2})?/g, ' ')
-    .replace(/:/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const q = normalizeQuery(url.searchParams.get('q'));
   if (!q) return reply(response, 200, rssXml([], 2000), 'application/xml; charset=utf-8');
 
   const category = t === 'tvsearch' ? 5000 : 2000;
@@ -593,12 +637,8 @@ async function handleDl(url, response) {
 }
 
 async function handleSearch(url, response) {
-  // Mesma normalização do Torznab: "Nome S01E01" → "Nome", sem ":" no buscador.
-  const q = String(url.searchParams.get('q') || '')
-    .replace(/[sS]\d{1,2}([eE]\d{1,2})?/g, ' ')
-    .replace(/:/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  // Mesma normalização do Torznab — função única para os dois modos não derivarem.
+  const q = normalizeQuery(url.searchParams.get('q'));
   if (!q) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
   try {
     const html = await fetchText(assertAllowedUrl(`${BLUDV_URL}/?s=${encodeURIComponent(q)}`));
@@ -692,6 +732,7 @@ module.exports = {
   parsePosts,
   parseSize,
   releaseTitle,
+  normalizeQuery,
   searchPageHtml,
   assertAllowedUrl,
   extractMagnet,

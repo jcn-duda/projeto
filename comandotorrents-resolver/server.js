@@ -6,6 +6,8 @@ const MAX_HOPS = 6;
 const MAX_POSTS = Number(process.env.MAX_POSTS || 5);
 const CONCURRENCY = 3;
 const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
+const SEARCH_CACHE_MS = Number(process.env.SEARCH_CACHE_MS || 5 * 60_000);
+const MAGNET_CACHE_MS = Number(process.env.MAGNET_CACHE_MS || 30 * 60_000);
 const SELF_URL = (process.env.SELF_URL || 'http://comandotorrents-resolver:8701').replace(/\/$/, '');
 const SITE_URL = (process.env.SITE_URL || process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, '');
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36';
@@ -55,18 +57,25 @@ const ALLOWED_SUFFIXES = Array.from(
 );
 
 const postCache = new Map();
+const searchCache = new Map();
+const magnetCache = new Map();
 const inFlight = new Map();
 
 // Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
 // nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
 const UNKNOWN_SIZE = '1 KB';
 
+const NAMED_ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  hellip: '…', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘',
+  ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
+};
+
 function decodeEntities(value = '') {
   return String(value)
-    .replace(/&#0?38;|&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#8217;|&#039;|&apos;/gi, "'")
-    .replace(/&nbsp;/gi, ' ');
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&([a-z]+);/gi, (whole, name) => NAMED_ENTITIES[name.toLowerCase()] ?? whole);
 }
 
 function stripTags(value = '') {
@@ -83,6 +92,52 @@ function escapeHtml(value = '') {
 
 function attribute(tag, name) {
   return String(tag).match(new RegExp(`\\b${name}=["']([^"']*)["']`, 'i'))?.[1] || null;
+}
+
+function parseSize(value) {
+  const match = String(value || '').match(/([\d.,]+)\s*(TB|GB|MB|KB)/i);
+  if (!match) return null;
+  const number = Number(match[1].replace(',', '.'));
+  const multiplier = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[match[2].toUpperCase()];
+  return Number.isFinite(number) ? Math.round(number * multiplier) : null;
+}
+
+function extractQualityToken(raw) {
+  const token = String(raw || '').toUpperCase().trim();
+  if (/\b(?:2160\s*P|4K|UHD)\b/.test(token)) return 2160;
+  if (/\b(?:1080\s*P|FULL\s*HD)\b/.test(token)) return 1080;
+  if (/\b(?:720\s*P|\bHD\b(?!\s*TV))\b/.test(token)) return 720;
+  if (/\b(?:576\s*P)\b/.test(token)) return 576;
+  if (/\b(?:480\s*P|\bSD\b)\b/.test(token)) return 480;
+  const m = token.match(/\b(\d{3,4})\s*P\b/);
+  return m ? Number(m[1]) : null;
+}
+
+function normalizeQuality(context) {
+  const text = String(context || '').toUpperCase();
+  const matches = [...text.matchAll(/\b(2160\s*P|4K|UHD|1080\s*P|FULL\s*HD|720\s*P|\bHD\b(?!\s*TV)|576\s*P|480\s*P|\bSD\b|\d{3,4}\s*P)\b/gi)];
+  if (!matches.length) return null;
+  const lastToken = matches[matches.length - 1][0];
+  return extractQualityToken(lastToken);
+}
+
+function extractSourceToken(raw) {
+  const token = String(raw || '').toUpperCase().trim();
+  if (/\b(?:BDREMUX|REMUX)\b/.test(token)) return 'REMUX';
+  if (/\b(?:BLU[- ]?RAY|BLURAY|BD\b|BDRIP)\b/.test(token)) return 'BLU-RAY';
+  if (/\b(?:WEB[-. ]?DL)\b/.test(token)) return 'WEB-DL';
+  if (/\b(?:WEB[-. ]?RIP|WEBRIP)\b/.test(token)) return 'WEBRIP';
+  if (/\bHDTV\b/.test(token)) return 'HDTV';
+  if (/\b(?:CAMRIP|CAM)\b/.test(token)) return 'CAM';
+  return null;
+}
+
+function normalizeSource(context) {
+  const text = String(context || '').toUpperCase();
+  const matches = [...text.matchAll(/\b(BDREMUX|REMUX|BLU[- ]?RAY|BLURAY|BD\b|BDRIP|WEB[-. ]?DL|WEB[-. ]?RIP|WEBRIP|HDTV|CAMRIP|CAM)\b/gi)];
+  if (!matches.length) return null;
+  const lastToken = matches[matches.length - 1][0];
+  return extractSourceToken(lastToken);
 }
 
 function assertAllowedUrl(value) {
@@ -108,7 +163,7 @@ function isProtectorHost(hostname) {
 
 function normalizeQuery(value) {
   return String(value || '')
-    .replace(/[sS]\d{1,2}(?:[eE]\d{1,2})?/g, ' ')
+    .replace(/\b[sS]\d{1,2}(?:[eE]\d{1,2})?\b/gi, ' ')
     .replace(/:/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -118,30 +173,54 @@ function extractMagnet(html) {
   if (!html) return null;
   const str = String(html);
 
-  // 1. Variáveis JavaScript explícitas (DEST_URL, DOWNLOAD_URL, url, link, target, dest, etc.)
+  // 1. Variáveis JavaScript explícitas (DEST_URL, DOWNLOAD_URL, MAGNET_URL, LINK_DOWNLOAD, URL_DOWNLOAD, DOWNLOAD, REDIRECT_URL, NEXT_URL, LINK_FINAL, TARGET_URL, DESTINO, etc.)
   const jsVar = str.match(
-    /(?:DEST_URL|DOWNLOAD_URL|MAGNET_URL|download_url|download_link|magnet_link|target_url|dest|target|link|url|magnet)\s*[:=]\s*["'](magnet:\?[^"']+)["']/i,
+    /(?:DEST_URL|DOWNLOAD_URL|MAGNET_URL|LINK_DOWNLOAD|URL_DOWNLOAD|DOWNLOAD|REDIRECT_URL|NEXT_URL|LINK_FINAL|TARGET_URL|DESTINO|download_url|download_link|magnet_link|target_url|dest|target|link|url|magnet)\s*[:=]\s*["'](magnet:\?[^"']+|magnet%3A%3F[^"']+)["']/i,
   );
-  if (jsVar) return decodeEntities(jsVar[1]);
+  if (jsVar) {
+    let val = jsVar[1];
+    if (/^magnet%3A%3F/i.test(val)) {
+      try {
+        val = decodeURIComponent(val);
+      } catch {}
+    }
+    if (val.startsWith('magnet:?')) return decodeEntities(val);
+  }
 
   // 2. Redirecionamentos / atribuições de navegação JavaScript
   const jsNav = str.match(
-    /(?:location(?:\.href|\.replace|\.assign)?|window\.open)\s*(?:=|\()\s*["'](magnet:\?[^"']+)["']/i,
+    /(?:(?:window\.|document\.)?location(?:\.href|\.replace|\.assign)?|window\.open)\s*(?:=|\()\s*["'](magnet:\?[^"']+|magnet%3A%3F[^"']+)["']/i,
   );
-  if (jsNav) return decodeEntities(jsNav[1]);
+  if (jsNav) {
+    let val = jsNav[1];
+    if (/^magnet%3A%3F/i.test(val)) {
+      try {
+        val = decodeURIComponent(val);
+      } catch {}
+    }
+    if (val.startsWith('magnet:?')) return decodeEntities(val);
+  }
 
-  // 3. Atributos HTML customizados (data-magnet, data-url, data-link, data-href)
+  // 3. Atributos HTML customizados (data-magnet, data-url, data-link, data-href, data-download)
   const attrMatch = str.match(
-    /(?:data-magnet|data-url|data-link|data-href)\s*=\s*["'](magnet:\?[^"']+)["']/i,
+    /(?:data-magnet|data-url|data-link|data-href|data-download)\s*=\s*["'](magnet:\?[^"']+|magnet%3A%3F[^"']+)["']/i,
   );
-  if (attrMatch) return decodeEntities(attrMatch[1]);
+  if (attrMatch) {
+    let val = attrMatch[1];
+    if (/^magnet%3A%3F/i.test(val)) {
+      try {
+        val = decodeURIComponent(val);
+      } catch {}
+    }
+    if (val.startsWith('magnet:?')) return decodeEntities(val);
+  }
 
   // 4. Regex direto de URI magnet no documento
   const rawMatch = str.match(/magnet:\?[^"'<>\s]+/i);
   if (rawMatch) return decodeEntities(rawMatch[0]);
 
-  // 5. Magnet URL-encoded (ex.: magnet%3A%3Fxt%3Durn)
-  const encodedMatch = str.match(/magnet%3A%3Fxt%3D[^"'<>\s&]+/i);
+  // 5. Magnet URL-encoded (Parameter Order-Invariant)
+  const encodedMatch = str.match(/magnet%3A%3F[^"'<>\s&]+/i);
   if (encodedMatch) {
     try {
       const decoded = decodeURIComponent(encodedMatch[0]);
@@ -152,13 +231,40 @@ function extractMagnet(html) {
   return null;
 }
 
+function extractMetaRefresh(html) {
+  if (!html) return null;
+  const metaTags = String(html).match(/<meta\b[^>]*>/gi) || [];
+  for (const tag of metaTags) {
+    const isRefresh = /\bhttp-equiv=["']?refresh["']?/i.test(tag);
+    if (!isRefresh) continue;
+    const contentMatch = tag.match(/\bcontent=["']([^"']*)["']/i);
+    if (!contentMatch) continue;
+    const content = decodeEntities(contentMatch[1]);
+    const urlMatch = content.match(/url\s*=\s*(?:['"]([^'"]+)['"]|([^'"]+))/i);
+    if (urlMatch) {
+      const target = (urlMatch[1] || urlMatch[2] || '').trim();
+      if (target) return decodeEntities(target);
+    }
+  }
+  return null;
+}
+
 function nextProtectedUrl(html, baseUrl) {
   if (!html) return null;
   const str = String(html);
 
-  // 1. Variável JavaScript apontando para URL HTTP(S) de protetor permitido
+  // 1. Meta refresh check first
+  const refreshTarget = extractMetaRefresh(str);
+  if (refreshTarget) {
+    try {
+      const u = new URL(refreshTarget, baseUrl);
+      if (isProtectorHost(u.hostname) && u.href !== baseUrl) return u.href;
+    } catch {}
+  }
+
+  // 2. Variável JavaScript apontando para URL HTTP(S) de protetor permitido
   const jsMatch = str.match(
-    /(?:DEST_URL|DOWNLOAD_URL|REDIRECT_URL|NEXT_URL|target_url|dest|target|link|url)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i,
+    /(?:DEST_URL|DOWNLOAD_URL|REDIRECT_URL|NEXT_URL|LINK_DOWNLOAD|URL_DOWNLOAD|DOWNLOAD|LINK_FINAL|TARGET_URL|DESTINO|target_url|dest|target|link|url)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i,
   );
   if (jsMatch) {
     try {
@@ -167,7 +273,7 @@ function nextProtectedUrl(html, baseUrl) {
     } catch {}
   }
 
-  // 2. Busca genérica de URLs no corpo HTML apontando para domínios de protetor
+  // 3. Busca genérica de URLs no corpo HTML apontando para domínios de protetor permitidos
   const escapedProtectors = ALL_PROTECTOR_SUFFIXES
     .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('|');
@@ -187,6 +293,7 @@ function nextProtectedUrl(html, baseUrl) {
 
 function parsePosts(html) {
   const posts = [];
+  const seen = new Set();
   const article = /<article\b[^>]*class=["'][^"']*\bblog-view\b[^"']*["'][^>]*>([\s\S]*?)<\/article>/gi;
   let match;
   while ((match = article.exec(html))) {
@@ -194,89 +301,131 @@ function parsePosts(html) {
     if (!anchor) continue;
     const url = attribute(anchor[1], 'href');
     if (!url) continue;
+    const resolvedUrl = new URL(decodeEntities(url), SITE_URL).href;
+    if (seen.has(resolvedUrl)) continue;
+    seen.add(resolvedUrl);
+
     const image = match[1].match(/<img\b[^>]*src=["']([^"']+)["']/i)?.[1] || null;
     posts.push({
-      url: new URL(decodeEntities(url), SITE_URL).href,
+      url: resolvedUrl,
       title: stripTags(attribute(anchor[1], 'title') || anchor[2]),
-      poster: image && decodeEntities(image),
+      poster: image ? decodeEntities(image) : null,
     });
   }
-  return [...new Map(posts.map((post) => [post.url, post])).values()];
+  return posts;
 }
 
 function cleanPostTitle(title = '') {
-  return String(title)
-    .replace(/\s*Torrent\s*(?:[–-]|&#8211;)?\s*/gi, ' ')
-    .replace(/\b(?:720p|1080p|2160p|4K)(?:\s*\/\s*(?:720p|1080p|2160p|4K|5\.1|dual|dublado|legendado))*/gi, '')
+  return decodeEntities(String(title || ''))
+    .replace(/\s*Torrent(?:s)?\s*(?:[–\-—/|]|&#8211;)?\s*/gi, ' ')
+    .replace(/\b(?:720p|1080p|2160p|4K|UHD|HD|FULL\s*HD)(?:\s*[/|–\-]\s*(?:720p|1080p|2160p|4K|UHD|HD|FULL\s*HD|5\.1|7\.1|dual|dublado|legendado))*/gi, '')
     .replace(/\b\d{3,4}p\b/gi, '')
-    .replace(/\b(?:Dublado|Legendado|Dual\s*Áudio|Download|Online|Grátis|Completo|Completa)\b/gi, '')
+    .replace(/\b(?:5\.1|7\.1)(?:\s*\/|\s*-\s*|\s*\|\s*)?/gi, '')
+    .replace(/\b(?:Dublado|Dublada|Legendado|Legendada|Dual\s*[AÁ]udio|Nacional|Multi\s*[AÁ]udio|Download|Baixar|Gr[áa]tis|Online|Completo|Completa)\b/gi, '')
+    .replace(/[–\-—/|:\s]+$/g, '')
+    .replace(/^[–\-—/|:\s]+/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 function parseDownloadLinks(html, baseUrl) {
   const links = [];
-  const pattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const pattern = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
   let match;
   let cursor = 0;
   let currentAudio = 'desconhecido';
   let currentEpisode = null;
 
-  while ((match = pattern.exec(html))) {
-    const rawHref = decodeEntities(match[1]);
-    let resolvedUrl;
-    try {
-      resolvedUrl = new URL(rawHref, baseUrl);
-    } catch {
-      continue;
-    }
+  const decodedHtml = decodeEntities(html);
 
-    let targetHost = resolvedUrl.hostname;
-    const toParam = resolvedUrl.searchParams.get('to');
-    if (toParam) {
+  while ((match = pattern.exec(decodedHtml))) {
+    const rawHref = (attribute(match[1], 'href') || '').trim();
+    if (!rawHref) continue;
+
+    const isMagnet = /^magnet:\?/i.test(rawHref);
+    let downloadUrl;
+
+    if (isMagnet) {
+      downloadUrl = rawHref;
+    } else {
+      let resolvedUrl;
       try {
-        targetHost = new URL(decodeEntities(toParam)).hostname;
-      } catch {}
-    }
-    if (!isProtectorHost(targetHost)) continue;
+        resolvedUrl = new URL(rawHref, baseUrl);
+      } catch {
+        cursor = pattern.lastIndex;
+        continue;
+      }
 
-    const rawSegment = html.slice(cursor, match.index);
+      let targetHost = resolvedUrl.hostname;
+      const toParam = resolvedUrl.searchParams.get('to');
+      if (toParam) {
+        try {
+          targetHost = new URL(decodeEntities(toParam)).hostname;
+        } catch {}
+      }
+
+      if (!isProtectorHost(targetHost)) {
+        cursor = pattern.lastIndex;
+        continue;
+      }
+      downloadUrl = resolvedUrl.href;
+    }
+
+    const rawSegment = decodedHtml.slice(cursor, match.index);
     const segment = stripTags(rawSegment).toUpperCase();
     const anchorText = stripTags(match[2] || '').toUpperCase();
     cursor = pattern.lastIndex;
 
-    const audioMarker = [...segment.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*|PORTUGU[ÊE]S)/g)].pop();
-    if (audioMarker) {
-      currentAudio = /LEGENDAD/.test(audioMarker[1]) ? 'legendado' : 'dublado';
+    // 1. Detecção de áudio e isolamento de contexto de seção
+    const audioMarkers = [...segment.matchAll(/(?:VERS[AÃ]O\s+)?(?:MKV\s+|MP4\s+)?(DUAL[-\s]+[AÁ]UDIO|AUDIO[-\s]+DUPLO|DUPLO[-\s]+AUDIO|DUBLAD\w*|LEGENDAD\w*|NACIONAL|PORTUGU[ÊE]S|PORTUGUES|\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b|\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b)/gi)];
+    if (audioMarkers.length > 0) {
+      const lastMarker = audioMarkers[audioMarkers.length - 1][1];
+      currentAudio = /LEGENDAD|\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/i.test(lastMarker) ? 'legendado' : 'dublado';
     }
 
-    if (/TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA/i.test(segment)) {
+    const anchorAudio = [...anchorText.matchAll(/(DUAL[-\s]+[AÁ]UDIO|AUDIO[-\s]+DUPLO|DUPLO[-\s]+AUDIO|DUBLAD\w*|LEGENDAD\w*|NACIONAL|PORTUGU[ÊE]S|PORTUGUES|\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b|\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b)/gi)].pop();
+    let linkAudio = currentAudio;
+    if (anchorAudio) {
+      linkAudio = /LEGENDAD|\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/i.test(anchorAudio[1]) ? 'legendado' : 'dublado';
+    }
+
+    // 2. Numeração de episódio vs Reset de pack de temporada
+    const isPackReset = /\b(?:TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA|PACK\s+COMPLETO|COMPLETA\b|COMPLETO\b)/i.test(`${segment} ${anchorText}`);
+    if (isPackReset) {
       currentEpisode = null;
     } else {
-      const epMatch = [...segment.matchAll(/(?:EPIS[ÓO]DIO|EP)\s*(\d{1,3})\b/gi)].pop();
-      if (epMatch) {
-        currentEpisode = Number(epMatch[1]);
+      const anchorEp = [...anchorText.matchAll(/(?:EPIS[ÓO]DIO|EP|CAP[ÍI]TULO|CAP)[.\s-]*(\d{1,3})\b|\bE(\d{1,3})\b|\b\d{1,2}X(\d{1,3})\b/gi)].pop();
+      if (anchorEp) {
+        currentEpisode = Number(anchorEp[1] || anchorEp[2] || anchorEp[3]);
+      } else {
+        const segEp = [...segment.matchAll(/(?:EPIS[ÓO]DIO|EP|CAP[ÍI]TULO|CAP)[.\s-]*(\d{1,3})\b|\bE(\d{1,3})\b|\b\d{1,2}X(\d{1,3})\b/gi)].pop();
+        if (segEp) {
+          currentEpisode = Number(segEp[1] || segEp[2] || segEp[3]);
+        }
       }
     }
 
+    // 3. Resolução de vídeo, codec e tamanho
     const context = `${segment} ${anchorText}`;
-    const quality = [...context.matchAll(/(?:\b(\d{3,4})\s*P\b|\b(4K)\b)/g)].pop();
-    const size = [...context.matchAll(/([\d.,]+)\s*(TB|GB|MB|KB)\b/g)].pop();
-    const source = [...context.matchAll(/(REMUX|BLU[- ]?RAY|WEB[-. ]?DL|WEB[-. ]?RIP|HDTV|CAMRIP|CAM)/g)].pop();
+    const quality = normalizeQuality(context);
+    const source = normalizeSource(context);
+    const sizeHit = [...context.matchAll(/([\d.,]+)\s*(TB|GB|MB|KB)\b/g)].pop();
+    const size = sizeHit ? `${sizeHit[1]} ${sizeHit[2]}` : null;
 
     links.push({
-      url: resolvedUrl.href,
-      quality: quality ? (quality[1] ? Number(quality[1]) : 2160) : null,
-      size: size ? `${size[1]} ${size[2]}` : null,
-      audio: currentAudio,
+      url: downloadUrl,
+      quality,
+      size,
+      audio: linkAudio,
       episode: currentEpisode,
-      source: source ? source[1].replace(/[. ]/g, '-') : null,
+      source,
     });
   }
   return links;
 }
 
 async function fetchFollowingAllowed(value, referer) {
+  if (!value) throw new Error('invalid_url');
   if (String(value).startsWith('magnet:')) return decodeEntities(value);
   let current = assertAllowedUrl(value);
   let previousReferer = referer;
@@ -313,10 +462,9 @@ async function fetchFollowingAllowed(value, referer) {
       continue;
     }
 
-    const refresh = html.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]+content=["'][^"']*url=([^"'>\s]+)/i);
-    if (refresh) {
-      const refreshTarget = decodeEntities(refresh[1]);
-      if (refreshTarget.startsWith('magnet:')) return refreshTarget;
+    const refreshTarget = extractMetaRefresh(html);
+    if (refreshTarget) {
+      if (refreshTarget.startsWith('magnet:')) return decodeEntities(refreshTarget);
       previousReferer = current.href;
       current = assertAllowedUrl(new URL(refreshTarget, current).href);
       continue;
@@ -362,22 +510,56 @@ function scoreLink(link) {
 }
 
 async function resolveBest(postUrl) {
-  const { post, links } = await getPostLinks(postUrl);
-  let lastError;
-  for (const link of [...links].sort((a, b) => scoreLink(b) - scoreLink(a))) {
-    try {
-      return await fetchFollowingAllowed(link.url, post.href);
-    } catch (error) {
-      lastError = error;
+  const cacheKey = `magnet:best:${postUrl}`;
+  const cached = magnetCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) magnetCache.delete(cacheKey);
+
+  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
+
+  const task = (async () => {
+    const { post, links } = await getPostLinks(postUrl);
+    let lastError;
+    for (const link of [...links].sort((a, b) => scoreLink(b) - scoreLink(a))) {
+      try {
+        const magnet = await fetchFollowingAllowed(link.url, post.href);
+        magnetCache.set(cacheKey, { value: magnet, expiresAt: Date.now() + MAGNET_CACHE_MS });
+        if (magnetCache.size > 500) magnetCache.delete(magnetCache.keys().next().value);
+        return magnet;
+      } catch (error) {
+        lastError = error;
+      }
     }
-  }
-  throw lastError || new Error('no_magnet');
+    throw lastError || new Error('no_magnet');
+  })().finally(() => {
+    inFlight.delete(cacheKey);
+  });
+
+  inFlight.set(cacheKey, task);
+  return task;
 }
 
 async function resolveButton(postUrl, index) {
-  const { post, links } = await getPostLinks(postUrl);
-  if (!Number.isInteger(index) || index < 0 || !links[index]) throw new Error('no_such_button');
-  return fetchFollowingAllowed(links[index].url, post.href);
+  const cacheKey = `magnet:${postUrl}:${index}`;
+  const cached = magnetCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) magnetCache.delete(cacheKey);
+
+  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
+
+  const task = (async () => {
+    const { post, links } = await getPostLinks(postUrl);
+    if (!Number.isInteger(index) || index < 0 || !links[index]) throw new Error('no_such_button');
+    const magnet = await fetchFollowingAllowed(links[index].url, post.href);
+    magnetCache.set(cacheKey, { value: magnet, expiresAt: Date.now() + MAGNET_CACHE_MS });
+    if (magnetCache.size > 500) magnetCache.delete(magnetCache.keys().next().value);
+    return magnet;
+  })().finally(() => {
+    inFlight.delete(cacheKey);
+  });
+
+  inFlight.set(cacheKey, task);
+  return task;
 }
 
 async function mapLimit(items, fn) {
@@ -398,15 +580,20 @@ async function mapLimit(items, fn) {
 
 function releaseTitle(post, link, index = null) {
   const postTitle = typeof post === 'string' ? post : post?.title || '';
-  const clean = cleanPostTitle(postTitle);
-  const epPart = link.episode != null ? `E${String(link.episode).padStart(2, '0')}` : '';
-  const audioTag = link.audio === 'dublado' ? 'DUBLADO' : link.audio === 'legendado' ? 'LEGENDADO' : null;
+  let clean = cleanPostTitle(postTitle);
+  const epPart = link?.episode != null ? `E${String(link.episode).padStart(2, '0')}` : '';
+  const audioTag = link?.audio === 'dublado' ? 'DUBLADO' : link?.audio === 'legendado' ? 'LEGENDADO' : null;
   const tags = [
-    link.quality ? `${link.quality}p` : null,
-    link.source,
+    link?.quality ? `${link.quality}p` : null,
+    link?.source,
     audioTag,
-    link.size || (index == null ? null : `opção ${index + 1}`),
+    link?.size || (index == null ? null : `opção ${index + 1}`),
   ].filter(Boolean);
+
+  if (link?.source) {
+    const sourceEscaped = link.source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '[-. ]?');
+    clean = clean.replace(new RegExp(`\\b${sourceEscaped}\\b`, 'gi'), '').replace(/\s+/g, ' ').trim();
+  }
 
   const base = epPart ? `${clean} ${epPart}` : clean;
   return tags.length ? `${base} [${tags.join(' ')}]` : base;
@@ -415,11 +602,6 @@ function releaseTitle(post, link, index = null) {
 function searchPageHtml(items) {
   const rows = items.map(({ post, link, index }) => {
     const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
-    // O Jackett descarta QUALQUER release sem tamanho ("No size provided"), e
-    // "0 B" não casa o filtro de `size` do cardigann — era assim que os posts de
-    // pack (que não publicam tamanho por botão) perdiam releases em lote.
-    // UNKNOWN_SIZE satisfaz o Jackett e o addon o esconde em vez de exibir um
-    // tamanho inventado.
     return `<div class="release"><div class="title"><a href="${escapeHtml(download)}">${escapeHtml(releaseTitle(post, link, index))}</a></div><div class="size">${escapeHtml(link.size || UNKNOWN_SIZE)}</div>${post.poster ? `<div class="poster"><img src="${escapeHtml(post.poster)}"></div>` : ''}<div class="description">${escapeHtml(post.title)}</div><div class="seeders">1</div></div>`;
   }).join('');
   return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
@@ -430,11 +612,6 @@ function reply(response, status, body, type = 'text/plain; charset=utf-8') {
   response.end(body);
 }
 
-/**
- * O `download:` do cardigann prefixa /resolve num href que JÁ é /resolve;
- * desempacota quantos níveis vierem. Sem checar a origem: o host varia (`addon`
- * embutido vs. nome do container), e o alvo final passa por assertAllowedUrl.
- */
 function unwrapResolverUrl(value) {
   let url = value;
   let index = null;
@@ -452,26 +629,55 @@ function unwrapResolverUrl(value) {
   return { url, index };
 }
 
+async function searchPosts(query) {
+  const normalized = normalizeQuery(query);
+  if (!normalized) return [];
+  const cacheKey = `search:${normalized}`;
+  const cached = searchCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) searchCache.delete(cacheKey);
+
+  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
+
+  const task = (async () => {
+    const source = await fetch(`${SITE_URL}/?s=${encodeURIComponent(normalized)}`, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!source.ok) throw new Error(`http_${source.status}`);
+    const posts = parsePosts(await source.text()).slice(0, MAX_POSTS);
+    const chunks = await mapLimit(posts, async (post) => {
+      try {
+        const { links } = await getPostLinks(post.url);
+        return links.map((link, index) => ({ post, link, index }));
+      } catch (err) {
+        console.warn(`[search] Falha ao obter links do post ${post.url}: ${err.message}`);
+        return [];
+      }
+    });
+    const items = chunks.flat();
+    searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + SEARCH_CACHE_MS });
+    if (searchCache.size > 100) searchCache.delete(searchCache.keys().next().value);
+    return items;
+  })().finally(() => {
+    inFlight.delete(cacheKey);
+  });
+
+  inFlight.set(cacheKey, task);
+  return task;
+}
+
 async function handleRequest(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   if (request.method !== 'GET') return reply(response, 404, 'not_found');
   if (url.pathname === '/health') return reply(response, 200, 'ok');
   if (url.pathname === '/search') {
-    const query = normalizeQuery(url.searchParams.get('q'));
-    if (!query) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
+    const rawQuery = url.searchParams.get('q');
+    if (!rawQuery || !rawQuery.trim()) {
+      return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
+    }
     try {
-      const source = await fetch(`${SITE_URL}/?s=${encodeURIComponent(query)}`, {
-        headers: { 'User-Agent': USER_AGENT },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      if (!source.ok) throw new Error(`http_${source.status}`);
-      const posts = parsePosts(await source.text()).slice(0, MAX_POSTS);
-      const chunks = await mapLimit(posts, async (post) => {
-        const { links } = await getPostLinks(post.url);
-        return links.map((link, index) => ({ post, link, index }));
-      });
-      const items = chunks.flat();
-      console.log(`[search] ${posts.length} post(s) -> ${items.length} release(s)`);
+      const items = await searchPosts(rawQuery);
       return reply(response, 200, searchPageHtml(items), 'text/html; charset=utf-8');
     } catch (error) {
       return reply(response, 502, error.message);
@@ -499,9 +705,6 @@ function createServer() {
   return http.createServer(handleRequest);
 }
 
-// Quem sobe o servidor é o processo principal ou o src/br-resolvers.js, que já
-// chama createServer quando o módulo o exporta. Abrir a porta no require
-// deixava o parser impossível de exercitar em teste sem tomar a 8701.
 if (require.main === module) {
   createServer().listen(PORT, '0.0.0.0');
 }
@@ -514,11 +717,22 @@ module.exports = {
   searchPageHtml,
   assertAllowedUrl,
   extractMagnet,
+  extractMetaRefresh,
   nextProtectedUrl,
   isDetailHost,
   isProtectorHost,
   getPostLinks,
+  resolveBest,
+  resolveButton,
   fetchFollowingAllowed,
+  decodeEntities,
+  cleanPostTitle,
+  parseSize,
+  normalizeQuality,
+  normalizeSource,
+  normalizeQuery,
   postCache,
+  searchCache,
+  magnetCache,
   inFlight,
 };
