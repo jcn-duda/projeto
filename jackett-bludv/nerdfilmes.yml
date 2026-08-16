@@ -71,6 +71,7 @@ search:
       text: 1
 
 # O resolver produz uma linha por botão/qualidade e preserva `i` até o magnet.
+# `&` não é excluído: dn/btmh antes do btih truncaria o magnet na resolução.
 download:
   before:
     path: "http://127.0.0.1:8702/resolve"
@@ -81,4 +82,4 @@ download:
       usebeforeresponse: true
       filters:
         - name: regexp
-          args: "(magnet:\\?[^\\s\"'<>&]+)"
+          args: "(magnet:\\?[^\\s\"'<>]+)"

@@ -269,6 +269,110 @@ function cleanPostTitle(title = '') {
     .trim();
 }
 
+// Pré-filtro puro, conservador e autocontido. O WordPress devolve "parecidos"
+// para query curta (busca "show bar" traz posts sem relação); em vez de
+// expandir 5 posts de lixo, recusa o que claramente não é o título procurado
+// ANTES de gastar MAX_POSTS e de pagar os protetores de link. Semântica
+// alinhada ao `matchesName` do addon (src/utils/format.js), mas reimplementada
+// aqui porque o contêiner standalone copia só este server.js — nada de importar
+// src/. O addon continua autoritativo: este filtro só derruba o que com certeza
+// não é a obra (nada de endurecer spin-off/ano/episódio além disso).
+function normalizeFilterText(s = '') {
+  return String(s)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// A query de filme pode carregar um ano de lançamento ("Coringa 2019", "Duna
+// (2021)"). Ele é contexto, não parte do título, e o post BR publica o ano do
+// lançamento nacional (±2) — exigir que o post tenha exatamente aquele ano
+// derrubaria release legítima. Removemos no máximo UM token final de 4 dígitos
+// e só quando sobra outro token antes: "Coringa 2019" -> "coringa", mas
+// "Blade Runner 2049 2017" mantém o 2049 que é parte do título, "1917 2019"
+// mantém o 1917, e uma query manual só com o ano ("1917", "2012") preserva o
+// token porque não é seguro decidir que ele é ruído. Nunca mais do que um, senão
+// "Blade Runner 2049 2017" perderia os dois.
+function stripTrailingYears(tokens) {
+  const out = tokens.slice();
+  if (out.length >= 2 && /^\d{4}$/.test(out[out.length - 1])) out.pop();
+  return out;
+}
+
+// Cobre apenas tokens inteiros (nunca pedaço de palavra), no mesmo espírito do
+// `matchesName`: palavra de 1-2 letras costuma ser ruído ("o", "de"), mas quando
+// sobram menos de dois tokens ela É o título e vale mais que o ruído que evita.
+function computeWantedTokens(query) {
+  const all = stripTrailingYears(normalizeFilterText(query).split(' ').filter(Boolean));
+  const long = all.filter((w) => w.length > 2);
+  const wanted = long.length >= 2 ? long : all;
+  return wanted;
+}
+
+function matchesResolverQuery(post, query) {
+  const wanted = computeWantedTokens(query);
+  if (wanted.length === 0) return true;
+  const got = new Set(normalizeFilterText(post.title).split(' ').filter(Boolean));
+  const hits = wanted.filter((w) => got.has(w)).length;
+  return hits / wanted.length >= 0.6;
+}
+
+// Normaliza o valor da temporada pedida, que chega em três formas possíveis:
+// o array do match (requestedSeason[1]), uma string ("2") ou um número. Sem
+// isso, Number(Array) vira NaN e a comparação rejeita TUDO que tem temporada
+// marcada. Fora dos três casos, retorna null (sem filtro).
+function normalizeSeasonValue(value) {
+  const v = Array.isArray(value) ? value[1] : value;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function matchesSeasonSeason(post, requestedSeason) {
+  const wantedSeason = normalizeSeasonValue(requestedSeason);
+  if (wantedSeason == null) return true;
+  const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
+  return !season || Number(season[1] || season[2]) === wantedSeason;
+}
+
+// Scheme de URI é case-insensitive (RFC 3986) e o site pode publicar MAGNET:.
+// Reconhecer nas duas caixas é só metade: o filtro regexp do cardigann
+// (`magnet:\?…`) e o cliente de torrent esperam o scheme minúsculo, então todo
+// magnet é normalizado na SAÍDA do resolver — aceitar sem normalizar apenas
+// moveria a falha para depois do Jackett.
+function hasMagnetScheme(value) {
+  return /^magnet:/i.test(String(value || ''));
+}
+
+function normalizeMagnetScheme(value) {
+  return String(value).replace(/^magnet:/i, 'magnet:');
+}
+
+// Magnet direto no href só é aceito se QUALQUER parâmetro xt (nome
+// case-insensitive) for urn:btih com hash 40 hex ou 32 base32, em qualquer
+// posição dos parâmetros (um xt=urn:btmh pode vir antes do btih). Tudo mais
+// segue a allowlist de http(s).
+function isValidDirectMagnet(value) {
+  const href = String(value || '');
+  if (!hasMagnetScheme(href)) return false;
+  let u;
+  try {
+    u = new URL(href);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'magnet:') return false;
+  for (const [name, xt] of u.searchParams.entries()) {
+    if (name.toLowerCase() !== 'xt') continue;
+    const btihMatch = xt.match(/^urn:btih:(.+)$/i);
+    if (!btihMatch) continue;
+    const hash = btihMatch[1];
+    if (/^[0-9a-f]{40}$/i.test(hash) || /^[A-Z2-7]{32}$/i.test(hash)) return true;
+  }
+  return false;
+}
+
 /** Cada botão protegido representa uma qualidade/tamanho diferente. */
 function parseDownloadLinks(html) {
   const links = [];
@@ -283,18 +387,40 @@ function parseDownloadLinks(html) {
     const rawHref = attribute(tag, 'href');
     if (!rawHref) continue;
     const href = decodeEntities(rawHref);
-    let u;
-    try {
-      u = new URL(href);
-    } catch {
-      continue;
+    const isDirectMagnet = isValidDirectMagnet(href);
+    if (!isDirectMagnet) {
+      let u;
+      try {
+        u = new URL(href);
+      } catch {
+        continue;
+      }
+      if (!isProtectorHost(u.hostname)) continue;
     }
-    if (!isProtectorHost(u.hostname)) continue;
     const rawSegment = html.slice(cursor, match.index);
     const segment = stripTags(rawSegment).toUpperCase();
     const anchorText = stripTags(match[0]).toUpperCase();
     cursor = anchor.lastIndex;
 
+    // Audio/episódio da própria âncora. Magnets diretos (ex. "S01.1080p |
+    // Episódio 01 | Dual Áudio") carregam tudo no texto do botão; estes valores
+    // ficam locais e não vazam para o estado das âncoras seguintes.
+    const selfAudioMarker = [...anchorText.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*|PORTUGU[ÊE]S)/g)].pop();
+    const selfAudio = selfAudioMarker
+      ? /LEGENDAD/.test(selfAudioMarker[1]) ? 'legendado' : 'dublado'
+      : null;
+    let selfEpisode = null;
+    let selfEpisodeComplete = false;
+    if (/TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA/i.test(anchorText)) {
+      // Temporada inteira no próprio botão: episódio é null por definição,
+      // sem herdar currentEpisode das âncoras anteriores.
+      selfEpisodeComplete = true;
+    } else {
+      const selfEp = [...anchorText.matchAll(/(?:EPIS[ÓO]DIO|EP)\s*(\d{1,3})\b/gi)].pop();
+      if (selfEp) selfEpisode = Number(selfEp[1]);
+    }
+
+    // Inferência legada pelo texto anterior ao botão (protetores antigos).
     const audioMarker = [...segment.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*|PORTUGU[ÊE]S)/g)].pop();
     if (audioMarker) {
       currentAudio = /LEGENDAD/.test(audioMarker[1]) ? 'legendado' : 'dublado';
@@ -316,12 +442,18 @@ function parseDownloadLinks(html) {
     const sizeHit = sizes.pop();
     const sourceHit = [...context.matchAll(/(WEB[-. ]?DL|WEB[-. ]?RIP|BLU[- ]?RAY|HDTV)/g)].pop();
 
+    // Magnet direto ou protetor: usa primeiro o metadado do próprio botão, com
+    // fallback no estado legado. O valor local nunca é persistido no estado,
+    // então não contamina os metadados das âncoras seguintes.
+    const audio = selfAudio || currentAudio;
+    const episode = selfEpisodeComplete ? null : (selfEpisode ?? currentEpisode);
+
     links.push({
       url: href,
       quality: qualityHit ? (qualityHit[1] ? Number(qualityHit[1]) : 2160) : null,
       size: sizeHit ? `${sizeHit[1]} ${sizeHit[2]}` : null,
-      audio: currentAudio,
-      episode: currentEpisode,
+      audio,
+      episode,
       source: sourceHit ? normalizeSource(sourceHit[1]) : null,
     });
   }
@@ -339,7 +471,7 @@ function parsePostDate(html) {
 }
 
 async function fetchFollowingAllowed(value, referer) {
-  if (String(value).startsWith('magnet:')) return decodeEntities(value);
+  if (hasMagnetScheme(value)) return normalizeMagnetScheme(decodeEntities(value));
   let current = assertAllowedUrl(value);
   let previousReferer = referer;
   for (let hop = 0; hop <= MAX_HOPS; hop += 1) {
@@ -355,7 +487,7 @@ async function fetchFollowingAllowed(value, referer) {
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location');
       if (!location) throw new Error('missing_redirect');
-      if (location.startsWith('magnet:')) return decodeEntities(location);
+      if (hasMagnetScheme(location)) return normalizeMagnetScheme(decodeEntities(location));
       previousReferer = current.href;
       current = assertAllowedUrl(new URL(location, current).href);
       continue;
@@ -363,7 +495,7 @@ async function fetchFollowingAllowed(value, referer) {
     if (!response.ok) throw new Error(`http_${response.status}`);
     const html = await response.text();
     const magnet = extractMagnet(html);
-    if (magnet) return magnet;
+    if (magnet) return normalizeMagnetScheme(magnet);
     const next = nextProtectedUrl(html, current.href);
     if (next) {
       previousReferer = current.href;
@@ -375,7 +507,7 @@ async function fetchFollowingAllowed(value, referer) {
     );
     if (refresh) {
       const refreshTarget = decodeEntities(refresh[1]);
-      if (refreshTarget.startsWith('magnet:')) return refreshTarget;
+      if (hasMagnetScheme(refreshTarget)) return normalizeMagnetScheme(refreshTarget);
       previousReferer = current.href;
       current = assertAllowedUrl(new URL(refreshTarget, current).href);
       continue;
@@ -439,6 +571,33 @@ async function mapLimit(items, limit, fn) {
   });
   await Promise.all(workers);
   return output.filter(Boolean);
+}
+
+/**
+ * Seleção pura de posts: parsePosts -> matchesResolverQuery (título) -> filtro
+ * de temporada corrente -> slice(MAX_POSTS). A temporada entra ANTES do corte
+ * para não perder a temporada pedida quando 5 posts errados vêm primeiro — do
+ * contrário o slice(MAX_POSTS) jogava fora exatamente a do usuário.
+ */
+function selectSearchPosts(sourceHtml, query, requestedSeason) {
+  let posts = parsePosts(sourceHtml).filter((post) => matchesResolverQuery(post, query));
+  if (requestedSeason) posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
+  return posts.slice(0, MAX_POSTS);
+}
+
+/**
+ * Pipeline comum aos dois caminhos (/api e /search) para não deixar drift:
+ * ambiguidades vêm antes das decisões que o addon toma depois. A seleção é o
+ * passo <b>antes</b> da parte cara; só se pagam protetores de link nos posts
+ * que passaram. Devolve { posts, items } para o chamador formatar.
+ */
+async function searchPipeline(sourceHtml, query, requestedSeason) {
+  const posts = selectSearchPosts(sourceHtml, query, requestedSeason);
+  const chunks = await mapLimit(posts, CONCURRENCY, async (post) => {
+    const { links, date } = await getPostLinks(post.url);
+    return links.map((link, index) => ({ post: { ...post, date }, link, index }));
+  });
+  return { posts, items: chunks.flat() };
 }
 
 function escapeXml(value = '') {
@@ -554,26 +713,16 @@ async function handleApi(url, response) {
   try {
     const xml = await cached(`search:${type}:${rawQuery}`, SEARCH_CACHE_MS, async () => {
       const { html } = await fetchText(`${SITE_URL}/?s=${encodeURIComponent(query)}`);
-      let posts = parsePosts(html).slice(0, MAX_POSTS);
-      if (requestedSeason) {
-        posts = posts.filter((post) => {
-          const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
-          return !season || Number(season[1] || season[2]) === Number(requestedSeason[1]);
-        });
-      }
-      const chunks = await mapLimit(posts, CONCURRENCY, async (post) => {
-        const { links, date } = await getPostLinks(post.url);
-        return links.map((link, index) => ({ post: { ...post, date }, link, index }));
-      });
+      const { posts, items } = await searchPipeline(html, query, requestedSeason);
       const seen = new Set();
-      const items = chunks.flat().filter(({ post, link }) => {
+      const filtered = items.filter(({ post, link }) => {
         const key = `${post.url}|${link.url}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
-      console.log(`[api] "${query}" → ${posts.length} post(s), ${items.length} release(s)`);
-      return rssXml(items, category);
+      console.log(`[api] "${query}" → ${posts.length} post(s), ${filtered.length} release(s)`);
+      return rssXml(filtered, category);
     });
     return reply(response, 200, xml, 'application/xml; charset=utf-8');
   } catch (error) {
@@ -593,18 +742,7 @@ async function handleSearch(url, response) {
   try {
     const html = await cached(`search-html:${rawQuery}`, SEARCH_CACHE_MS, async () => {
       const { html: source } = await fetchText(`${SITE_URL}/?s=${encodeURIComponent(query)}`);
-      let posts = parsePosts(source).slice(0, MAX_POSTS);
-      if (requestedSeason) {
-        posts = posts.filter((post) => {
-          const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
-          return !season || Number(season[1] || season[2]) === Number(requestedSeason[1]);
-        });
-      }
-      const chunks = await mapLimit(posts, CONCURRENCY, async (post) => {
-        const { links, date } = await getPostLinks(post.url);
-        return links.map((link, index) => ({ post: { ...post, date }, link, index }));
-      });
-      const items = chunks.flat();
+      const { posts, items } = await searchPipeline(source, query, requestedSeason);
       console.log(`[search] "${query}" → ${posts.length} post(s), ${items.length} release(s)`);
       return searchPageHtml(items);
     });
@@ -686,8 +824,16 @@ module.exports = {
   nextProtectedUrl,
   isDetailHost,
   isProtectorHost,
+  isValidDirectMagnet,
   getPostLinks,
   fetchFollowingAllowed,
+  normalizeFilterText,
+  stripTrailingYears,
+  computeWantedTokens,
+  matchesResolverQuery,
+  normalizeSeasonValue,
+  matchesSeasonSeason,
+  selectSearchPosts,
   cache,
   inFlight,
 };
