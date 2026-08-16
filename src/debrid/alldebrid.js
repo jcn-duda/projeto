@@ -151,8 +151,34 @@ async function enqueue(apiKey, infoHash) {
   return Boolean(data?.magnets?.length);
 }
 
+// Teto de magnets simultâneos da conta. Não vem em nenhum endpoint — só
+// aparece quando estoura, dentro da mensagem de erro ("1000 accross all tabs").
+const MAGNET_LIMIT = Number(process.env.ALLDEBRID_MAGNET_LIMIT || 1000);
+
+/**
+ * Quanto da conta já foi ocupado. Serve ao verificador: encher é o que derruba
+ * a checagem de cache (que é um upload) e faz o ⚡ sumir da lista inteira, e
+ * até estourar não existe nenhum sinal — o erro só chega quando já é tarde.
+ */
+async function accountStatus(apiKey) {
+  const data = await call(apiKey, '/magnet/status');
+  const magnets = Array.isArray(data?.magnets) ? data.magnets : [];
+  const ready = magnets.filter((m) => m.ready || m.status === 'Ready').length;
+  return {
+    magnets: magnets.length,
+    ready,
+    limit: MAGNET_LIMIT,
+    usedPct: MAGNET_LIMIT > 0 ? Math.round((magnets.length / MAGNET_LIMIT) * 100) : null,
+    oldestAt: magnets.reduce(
+      (min, m) => (m.uploadDate && (!min || m.uploadDate < min) ? m.uploadDate : min),
+      null,
+    ),
+  };
+}
+
 module.exports = {
   enqueue,
+  accountStatus,
   id: 'alldebrid',
   label: 'AllDebrid',
   short: 'AD',

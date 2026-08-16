@@ -200,6 +200,42 @@ async function checkCached(infoHashes, { timeoutMs } = {}) {
   }
 }
 
+// Acima disto o verificador avisa: encher a conta derruba a checagem de cache
+// inteira (ela é um upload), e o sintoma na tela — o ⚡ sumindo de TODOS os
+// streams — não aponta para a causa. 80% dá margem para limpar antes de quebrar.
+const ACCOUNT_WARN_PCT = Number(process.env.DEBRID_ACCOUNT_WARN_PCT || 80);
+
+/**
+ * Saúde da conta do serviço corrente, para o endpoint de diagnóstico.
+ *
+ * Nunca lança: o verificador precisa responder justamente quando o serviço está
+ * ruim. Os motivos vêm classificados igual ao da busca (`auth`/`quota`), então
+ * a mesma linguagem serve para o log e para o JSON.
+ */
+async function accountStatus() {
+  const adapter = current();
+  if (!adapter) return { ok: false, reason: 'sem-debrid', service: null };
+  if (typeof adapter.accountStatus !== 'function') {
+    return { ok: true, service: adapter.id, label: adapter.label, supported: false };
+  }
+
+  try {
+    const status = await adapter.accountStatus(opts().debridApiKey);
+    const usedPct = status.usedPct;
+    const warn = usedPct != null && usedPct >= ACCOUNT_WARN_PCT;
+    if (warn) {
+      log.warn(
+        `[${adapter.id}] conta em ${usedPct}% do limite (${status.magnets}/${status.limit} magnets);` +
+          ' passando de 100% a checagem de cache para e o ⚡ some da lista inteira',
+      );
+    }
+    return { ok: true, service: adapter.id, label: adapter.label, supported: true, warn, ...status };
+  } catch (err) {
+    const reason = unusableReason(err) || 'falha';
+    return { ok: false, service: adapter.id, label: adapter.label, reason, error: err.message };
+  }
+}
+
 async function resolveLink(infoHash, episode) {
   const adapter = current();
   if (!adapter) return null;
@@ -222,4 +258,4 @@ async function enqueue(infoHash, episode) {
   }
 }
 
-module.exports = { SERVICES, BY_ID, current, checkCached, resolveLink, enqueue };
+module.exports = { SERVICES, BY_ID, current, checkCached, accountStatus, resolveLink, enqueue };

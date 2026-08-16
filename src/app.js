@@ -263,6 +263,34 @@ function createApp() {
     }
   });
 
+  /**
+   * Saúde da conta do debrid — o verificador que faltava.
+   *
+   * A conta encher é o que derruba a checagem de cache da AllDebrid (ela é um
+   * /magnet/upload) e faz o ⚡ sumir de TODOS os streams; até estourar não há
+   * sinal nenhum, e o sintoma na tela não aponta para a causa. Aqui dá para
+   * ver antes:
+   *
+   *   curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" \
+   *     http://127.0.0.1:7000/debrid-status.json
+   *
+   * Com a config na frente (/<config>/debrid-status.json) ele usa a chave
+   * daquela instalação, que é a que o app manda — e não a do .env.
+   */
+  async function debridStatusHandler(req, res) {
+    if (!config.jackett.testToken) {
+      return res.status(503).json({ ok: false, error: 'diagnóstico desativado pelo operador' });
+    }
+    if (!authorized(config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
+      return res.status(401).json({ ok: false, error: 'token de diagnóstico inválido' });
+    }
+    const status = await debrid.accountStatus();
+    // 200 mesmo com a conta ruim: o corpo é o diagnóstico. Só falta de token
+    // ou de serviço vira status de erro.
+    return res.json(status);
+  }
+
+  app.get('/debrid-status.json', debridStatusHandler);
   app.get('/resolve/:infoHash', resolveHandler);
   // Rotas sem config: usam o .env puro. Vêm ANTES do prefixo genérico, senão
   // "/manifest.json" seria lido como um segmento de configuração.
@@ -282,6 +310,7 @@ function createApp() {
   });
 
   app.get('/:userConfig/configure', sendConfigure);
+  app.get('/:userConfig/debrid-status.json', debridStatusHandler);
   app.get('/:userConfig/resolve/:infoHash', resolveHandler);
   app.use('/:userConfig', getRouter(addonInterface));
 

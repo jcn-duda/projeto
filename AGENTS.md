@@ -65,6 +65,14 @@ npm test                  # node:test: format, runtime, sign, jackett-catalog, a
 npm run smoke             # valida o pipeline de ponta a ponta
 npm run docker:up         # stack completa
 npm run docker:logs       # logs do addon
+node scripts/magnets.js   # ocupação da conta do debrid (--apply para limpar)
+```
+
+Quando "o ⚡ sumiu de todos os streams", comece por aqui — é diagnóstico, não
+adivinhação:
+
+```bash
+curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" http://127.0.0.1:7000/debrid-status.json
 ```
 
 Para checar sintaxe sem subir servidor (`require('./src/addon')` **abre a porta**
@@ -163,11 +171,43 @@ devolve `{ cached, known }`:
 - `known: true` → dá pra confiar; cacheados ganham ⚡ e o filtro `cachedOnly` vale.
 - `known: false` → **não é "nada em cache"**. Todos os streams passam pelo
   debrid, sem ⚡, e `cachedOnly` é ignorado.
+- `unusable: { reason }` → o serviço não vai funcionar agora, por um motivo que
+  só o usuário conserta. A lista volta como **P2P** (ver abaixo).
 
-Confundir os dois esconde a lista inteira. Foi por isso que `batched()` (em
-`common.js`) **propaga o erro quando todos os lotes falham**: token inválido
+Confundir os dois primeiros esconde a lista inteira. Foi por isso que `batched()`
+(em `common.js`) **propaga o erro quando todos os lotes falham**: token inválido
 retornando "nenhum cacheado" com `cachedOnly` ligado zerava o resultado sem
 nenhuma pista do motivo.
+
+**Serviço inutilizável ≠ serviço instável.** Duas condições não são
+transitórias e chegam à tela do mesmo jeito — o ⚡ some de TODOS os streams:
+
+| `reason` | Como aparece | Conserto |
+|---|---|---|
+| `auth` | `AUTH_BAD_APIKEY` (AllDebrid responde com **HTTP 200**), 401/403 nos outros | chave nova + refazer a URL de instalação |
+| `quota` | `Magnets limit reached (1000 accross all tabs)` | apagar magnets: `node scripts/magnets.js` |
+
+As duas barram o `/magnet/upload`, que é como a AllDebrid **checa cache** e
+**resolve o play**. Prometer debrid nesse estado entrega uma lista em que nenhum
+play funciona, então `applyDebrid` devolve os streams como torrent puro e o log
+diz qual é o conserto. Elas também não pedem `needsFullRefresh`: como o conserto
+é manual, revalidar a cada request só refazia Jackett + resolvers BR para chegar
+na mesma lista (7s por busca, cache nunca assentando).
+
+Causas **misturadas** (um lote com auth, outro com timeout) não afirmam nada e
+caem no genérico — classificar pela primeira faria a lista virar P2P por engano.
+
+**Verificador (`/debrid-status.json`).** Encher a conta é invisível até estourar,
+e aí o sintoma não aponta para a causa. O endpoint mostra a ocupação antes disso,
+atrás do mesmo token do diagnóstico:
+
+```bash
+curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" http://127.0.0.1:7000/debrid-status.json
+```
+
+Com a config na frente (`/<config>/debrid-status.json`) ele usa a chave **daquela
+instalação** — que é a que o app manda, e pode ser diferente da do `.env`. Acima
+de `DEBRID_ACCOUNT_WARN_PCT` (80) ele devolve `warn: true` e registra aviso.
 
 Para adicionar um serviço: crie o adaptador, registre em `ADAPTERS` e pronto —
 `SERVICES` alimenta o seletor da página automaticamente. Declare `cacheCheck`
@@ -295,7 +335,7 @@ no caminho da resposta — erro só vira log.
 | `src/providers/bludv.js` | Scraper direto do BLUDV (fora do Jackett) |
 | `src/providers/demo.js` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
 | `src/debrid/index.js` | Registry de serviços de debrid + seleção por requisição |
-| `src/debrid/common.js` | `magnetFor`, fetch JSON, `pickFile`, lotes de cache |
+| `src/debrid/common.js` | `magnetFor`, fetch JSON, `pickFile`, lotes de cache, classificação de erro (`AuthError`/`QuotaError`) |
 | `src/debrid/protected.js` | Hashes protegidos da limpeza `dropUncached` durante o autofetch |
 | `src/debrid/*.js` | Um adaptador por serviço (premiumize, realdebrid, …) |
 | `src/utils/format.js` | Normalização, dedupe, ordenação, `matchesName`, `matchesBrTitle` — **lógica pura** |
@@ -307,6 +347,7 @@ no caminho da resposta — erro só vira log.
 | `*-resolver/` | Microserviços que seguem protetores de link dos sites BR (rodam embutidos no addon) |
 | `Dockerfile` | Multi-stage único: caddy + jackett (linuxserver, digest pinado) + flaresolverr + addon |
 | `scripts/entrypoint.sh` | Supervisor dos 4 processos (`wait -n`, prefixos de log) |
+| `scripts/magnets.js` | Inventário/limpeza dos magnets da conta (conta cheia derruba a checagem de cache) |
 | `docker-compose.yml` | Serviço único `adom`: portas, volumes (`docker-data/`), overrides de loopback |
 
 `src/utils/format.js` concentra as funções puras (`matchesName`,
@@ -351,6 +392,16 @@ significa menos resultados, nunca erro para o usuário.
 ## Armadilhas conhecidas
 
 - **`require('./src/addon')` sobe o servidor.** Não é importável para teste.
+- **"Sumiu o ⚡ de todos os streams" quase nunca é bug de código.** No fluxo
+  normal, stream fora do cache sai **sem prefixo nenhum** (P2P); ver
+  `[AD download]` em 100% dos itens significa que a checagem de cache não
+  completou. Causas medidas, em ordem de frequência: conta do debrid no teto de
+  magnets, chave recusada, e só então prazo. Cheque `/debrid-status.json` antes
+  de investigar o pipeline — foi um caso real em que o "culpado" aparente era um
+  commit de formatação de título.
+- **A chave do `.env` e a da URL de instalação são independentes.** O app manda
+  a dele selada no segmento de config; trocar só o `.env` não muda nada para
+  quem já instalou, e uma pode estar quebrada enquanto a outra funciona.
 - **Os sites BR trocam de domínio com frequência.** `BLUDV_URL` e
   `NERDFILMES_URL` são configuráveis por isso. Parser quebrado geralmente é
   mudança de layout do WordPress, não bug de lógica.
