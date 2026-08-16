@@ -109,7 +109,8 @@ test('toStremioStream normaliza e guarda campos internos', () => {
   assert.ok(s.title.includes('2.00 GB'));
   assert.ok(s.title.includes('1337x'));
   // A coluna estreita leva só o resumo; a release inteira mora no `title`.
-  assert.equal(s.name, '1080p BluRay · 👤 42');
+  assert.equal(s.name, '1080p BluRay · 1337x · 👤 42');
+  assert.equal(s._tracker, '1337x');
   assert.ok(Array.isArray(s.sources) && s.sources.length > 0);
   // Sem hash não há stream.
   assert.equal(toStremioStream({ title: 'sem magnet' }), null);
@@ -154,7 +155,7 @@ test('name traz release e seeds; a coluna larga não duplica marcadores', () => 
 
   // A release NÃO se repete na coluna estreita: com ela ali, este item sozinho
   // ocupava 11 linhas de altura no Stremio.
-  assert.equal(s.name, '4K WEB-DL · 👤 181');
+  assert.equal(s.name, '4K WEB-DL · The Pirate Bay · 👤 181');
   assert.equal(s.name.includes(release), false);
   assert.equal(s.title.split('\n')[0], release);
   assert.match(s.title, /👤 181/);
@@ -184,10 +185,11 @@ test('a coluna estreita cabe numa linha; STREAM_NAME_STYLE=full devolve a antiga
   const item = { title: release, infoHash: HASH, seeders: 1, size: 20.17 * 1024 ** 3, tracker: 'TorrentDosFilmes', isBr: true };
 
   const compacto = toStremioStream(item);
-  assert.equal(compacto.name, '4K WEB-DL DUB BR · 👤 1');
+  assert.equal(compacto.name, '4K WEB-DL DUB BR · TorrentDos · 👤 1');
   assert.equal(compacto.name.includes('\n'), false, 'nada de quebra na coluna estreita');
-  // Com o prefixo do debrid ainda cabe numa linha curta.
-  assert.ok(markDebridName(compacto.name, 'TB', true).length <= 32);
+  // A fonte é limitada antes de entrar na coluna estreita, para não esconder
+  // qualidade nem seeders mesmo quando o indexer usa um domínio longo.
+  assert.ok(compacto.name.includes('TorrentDos'));
   // Nada se perde: a release e os metadados continuam na coluna larga.
   assert.equal(compacto.title.split('\n')[0], release);
   assert.match(compacto.title, /💾 20\.17 GB/);
@@ -195,10 +197,68 @@ test('a coluna estreita cabe numa linha; STREAM_NAME_STYLE=full devolve a antiga
   const original = config.streamNameStyle;
   try {
     config.streamNameStyle = 'full';
-    assert.equal(toStremioStream(item).name, `${release}\n4K WEB-DL DUB BR · 👤 1`);
+    assert.equal(toStremioStream(item).name, `${release}\n4K WEB-DL DUB BR · TorrentDos · 👤 1`);
   } finally {
     config.streamNameStyle = original;
   }
+});
+
+test('fonte no name remove TLD, não cria separador órfão e pode ser desligada', () => {
+  const config = require('../src/config');
+  const item = {
+    title: 'Filme 1080p BluRay',
+    infoHash: HASH,
+    tracker: 'kickasstorrents.to',
+    seeders: 1,
+  };
+
+  assert.equal(toStremioStream(item).name, '1080p BluRay · kickass · 👤 1');
+  assert.equal(
+    toStremioStream({ title: 'Filme 1080p BluRay', infoHash: OTHER, seeders: 1 }).name,
+    '1080p BluRay · 👤 1',
+  );
+
+  const original = config.streamNameShowSource;
+  try {
+    config.streamNameShowSource = false;
+    assert.equal(toStremioStream(item).name, '1080p BluRay · 👤 1');
+  } finally {
+    config.streamNameShowSource = original;
+  }
+});
+
+test('o rótulo da fonte encurta por regra, preferindo fronteira ao corte no meio', () => {
+  // Nome truncado no meio ("kickasstorrent", "TorrentDosFilm") o usuário lê como
+  // se fosse outra fonte — pior que nome curto. A escada tenta, nesta ordem:
+  // TLD, sufixo "torrent(s)", fronteira (separador ou camelCase) e só então o
+  // corte seco.
+  const label = (tracker) =>
+    toStremioStream({ title: 'Filme 1080p BluRay', infoHash: HASH, seeders: 1, tracker })
+      .name.split(' · ')[1];
+
+  // Cabe inteiro: nada é tocado (inclusive com espaços e ponto no meio).
+  assert.equal(label('Bludv'), 'Bludv');
+  assert.equal(label('RedeTorrent'), 'RedeTorrent');
+  assert.equal(label('HDRTorrent'), 'HDRTorrent');
+  assert.equal(label('The Pirate Bay'), 'The Pirate Bay');
+  // TLD sai mesmo quando o resto já cabia.
+  assert.equal(label('1337x.to'), '1337x');
+  assert.equal(label('yts.mx'), 'yts');
+  // Só o TLD não basta: o sufixo "torrents" é a parte que menos identifica.
+  assert.equal(label('kickasstorrents.to'), 'kickass');
+  assert.equal(label('ComandoTorrents'), 'Comando');
+  // Sem sufixo removível, corta na fronteira camelCase.
+  assert.equal(label('NerdFilmesTorrent'), 'NerdFilmes');
+  assert.equal(label('TorrentDosFilmes'), 'TorrentDos');
+  // Fronteira por separador vale igual, desde que caiba na janela.
+  assert.equal(label('rede-torrent-brasil'), 'rede-torrent');
+  assert.equal(label('nerd filmes torrent hd'), 'nerd filmes');
+  // Sem TLD, sem sufixo e sem fronteira ANTES do teto, o corte seco é o menos
+  // ruim: a fronteira de "torrentdosfilmes-v2" só aparece no char 16.
+  assert.equal(label('torrentdosfilmes-v2.xyz'), 'torrentdosfilm');
+  assert.equal(label('abcdefghijklmnopqrst'), 'abcdefghijklmn');
+  // Fronteira cedo demais não vale: "Ab" sozinho não identifica fonte nenhuma.
+  assert.equal(label('AbCdefghijklmnopqrs'), 'AbCdefghijklmn');
 });
 
 test('quatro releases 4K do mesmo filme não podem sair com a linha idêntica', () => {
@@ -309,6 +369,36 @@ test('dedupeByHash preserva marca dublada da variante com menos seeders', () => 
   assert.equal(out._dubbed, true);
 });
 
+test('dedupeByHash relabela sem apagar a fonte do vencedor', () => {
+  const global = toStremioStream({
+    title: 'Filme 1080p BluRay', infoHash: HASH, seeders: 300, tracker: 'HDRTorrent',
+  });
+  const br = toStremioStream({
+    title: 'Filme Dublado', infoHash: HASH, seeders: 1, tracker: 'Bludv', isBr: true,
+  });
+
+  const [out] = dedupeByHash([global, br]);
+  assert.equal(out._tracker, 'HDRTorrent');
+  // Fonte e corte sobrevivem ao relabel: reconstruir só com qualidade/áudio
+  // apagava o "BluRay" que o rótulo já mostrava, e duas releases do mesmo filme
+  // voltavam a ficar indistinguíveis logo depois do merge.
+  assert.equal(out.name, '1080p BluRay DUB BR · HDRTorrent · 👤 300');
+});
+
+test('o relabel do merge preserva o corte do filme junto com a fonte', () => {
+  // Quatro 4K do mesmo filme só se distinguem pelo corte; perdê-lo no merge
+  // devolve a lista em que a escolha vira sorteio pelo seed.
+  const global = toStremioStream({
+    title: 'Filme 2160p Extended BluRay', infoHash: HASH, seeders: 300, tracker: 'TheRARBG',
+  });
+  const br = toStremioStream({
+    title: 'Filme Dublado', infoHash: HASH, seeders: 1, tracker: 'Bludv', isBr: true,
+  });
+
+  const [out] = dedupeByHash([global, br]);
+  assert.equal(out.name, '4K Extended BluRay DUB BR · TheRARBG · 👤 300');
+});
+
 test('dedupe usa indexador prioritário no empate sem depender da chegada', () => {
   const global = {
     infoHash: HASH, _seeders: 10, _indexer: 'thepiratebay',
@@ -349,7 +439,7 @@ test('dedupe prioritário preserva resolução e tamanho conhecidos do mesmo has
 
 test('sortAndLimit ordena por qualidade e seeders, filtra e limpa internos', () => {
   const streams = [
-    { infoHash: HASH, _seeders: 1, _quality: '1080p', _br: true, title: 'BR 1080p', name: 'n' },
+    { infoHash: HASH, _seeders: 1, _quality: '1080p', _br: true, _tracker: 'Bludv', title: 'BR 1080p', name: 'n' },
     { infoHash: OTHER, _seeders: 500, _quality: '720p', _br: false, title: 'x 720p', name: 'n' },
     { infoHash: 'c'.repeat(40), _seeders: 900, _quality: '2160p', _br: false, title: 'x 2160p', name: 'n' },
   ];
@@ -357,6 +447,7 @@ test('sortAndLimit ordena por qualidade e seeders, filtra e limpa internos', () 
   assert.deepEqual(out.map((s) => s.title), ['x 2160p', 'BR 1080p', 'x 720p']);
   // 1080p acima de 720p mesmo com menos seeders.
   assert.equal(out[1].title, 'BR 1080p');
+  assert.equal(out[1]._tracker, 'Bludv', 'o campo precisa sobreviver até o corte pós-debrid');
   // O pool preserva qualidade/origem até o corte final pós-debrid.
   assert.ok(out.every((s) => !('_seeders' in s)));
   assert.equal(out[0]._quality, '2160p');
@@ -657,7 +748,7 @@ test('selectQualityCandidates preserva BR em qualidade ilimitada', () => {
 
 test('limitReservingBr combina reserva, cotas e máximo sem vazar internos', () => {
   const streams = [
-    { id: 'global-4k', _quality: '2160p', _br: false, _seeders: 100 },
+    { id: 'global-4k', _quality: '2160p', _br: false, _seeders: 100, _tracker: 'HDRTorrent' },
     { id: 'br-1080-a', _quality: '1080p', _br: true, _seeders: 1 },
     { id: 'br-1080-b', _quality: '1080p', _br: true, _seeders: 1 },
     { id: 'global-1080', _quality: '1080p', _br: false, _seeders: 50 },

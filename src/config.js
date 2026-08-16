@@ -130,6 +130,9 @@ const config = {
   // release nas duas — só faz sentido em cliente que ignora o `title`, e custa
   // ~11 linhas de altura por stream no Stremio.
   streamNameStyle: process.env.STREAM_NAME_STYLE === 'full' ? 'full' : 'compact',
+  // Mostra o indexer no `name`, além da linha de metadados. Alguns clientes
+  // só exibem a fonte se ela vier neste campo, sem reconhecer o marcador ⚙️.
+  streamNameShowSource: String(process.env.STREAM_NAME_SHOW_SOURCE || 'true') !== 'false',
   qualityFilter: list(process.env.QUALITY_FILTER),
   minSeeders: num(process.env.MIN_SEEDERS, 1),
   maxResults: num(process.env.MAX_RESULTS, 40),

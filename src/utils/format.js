@@ -185,6 +185,38 @@ function compactAudio(audio = '') {
   return '';
 }
 
+const TRACKER_LABEL_MAX = 14;
+
+/**
+ * Nome da fonte para a coluna estreita: o TLD não ajuda a reconhecer o site e,
+ * passando de TRACKER_LABEL_MAX, o rótulo empurra o seeder para fora.
+ *
+ * A escada existe porque cortar seco parte a palavra no meio ("kickasstorrents"
+ * virava "kickasstorrent"), e nome truncado assim é pior que nome curto: o
+ * usuário lê como se fosse outra fonte.
+ */
+function compactTracker(tracker = '') {
+  let label = String(tracker).trim().replace(/(?:\.[a-z]{2,})+$/i, '');
+  if (label.length <= TRACKER_LABEL_MAX) return label;
+
+  // Todos esses sites repetem "torrent(s)" no nome — é a parte que menos
+  // identifica ("ComandoTorrents" → "Comando", como o Torrentio exibe).
+  const withoutSuffix = label.replace(/[\s_-]*torrents?$/i, '');
+  if (withoutSuffix.length >= 4) label = withoutSuffix;
+  if (label.length <= TRACKER_LABEL_MAX) return label;
+
+  // Última fronteira que ainda cabe: separador ou transição camelCase
+  // ("NerdFilmesTorrent" → "NerdFilmes"). Sobrando menos de 4 chars o corte
+  // não identifica mais nada, e aí o corte seco é menos ruim.
+  const window = label.slice(0, TRACKER_LABEL_MAX + 1);
+  const boundaries = [...window.matchAll(/[\s_-]+|(?<=[a-z0-9])(?=[A-Z])/g)]
+    .map((m) => m.index)
+    .filter((index) => index >= 4);
+  if (boundaries.length) return label.slice(0, boundaries[boundaries.length - 1]);
+
+  return label.slice(0, TRACKER_LABEL_MAX);
+}
+
 /**
  * `name` ocupa a coluna estreita do Stremio: marca + qualidade, como Torrentio.
  * A release completa fica em `title`, na coluna larga de detalhes.
@@ -205,9 +237,11 @@ function streamDisplayName({
   audio,
   source,
   edition,
+  tracker,
   isBr = false,
   seeders = 0,
   style = config.streamNameStyle,
+  showSource = config.streamNameShowSource,
 } = {}) {
   // A ordem é a da decisão: primeiro a resolução, depois QUAL corte do filme é,
   // depois de onde veio. Sem corte e fonte, quatro releases 4K do mesmo filme
@@ -219,7 +253,11 @@ function streamDisplayName({
     compactAudio(audio),
     isBr ? 'BR' : null,
   ].filter(Boolean).join(' ');
-  const stats = [details, Number(seeders) > 0 ? `👤 ${seeders}` : null]
+  const stats = [
+    details,
+    showSource ? compactTracker(tracker) : null,
+    Number(seeders) > 0 ? `👤 ${seeders}` : null,
+  ]
     .filter(Boolean)
     .join(' · ');
 
@@ -308,7 +346,16 @@ function toStremioStream(item) {
   return {
     // A coluna esquerda precisa ficar curta. O título bruto nesta posição fazia
     // o Stremio quebrar uma palavra por linha em telas estreitas.
-    name: streamDisplayName({ title, quality, audio, source, edition, isBr: Boolean(item.isBr), seeders }),
+    name: streamDisplayName({
+      title,
+      quality,
+      audio,
+      source,
+      edition,
+      tracker,
+      isBr: Boolean(item.isBr),
+      seeders,
+    }),
     title: `${title}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
@@ -325,6 +372,9 @@ function toStremioStream(item) {
     // comandotorrents/nerdfilmes/torrentdosfilmes não citam "BLUDV" nem
     // "DUBLADO" e ficavam de fora das vagas reservadas.
     _br: Boolean(item.isBr),
+    // O label exibido não é estável o bastante para a prioridade, mas precisa
+    // sobreviver ao merge para que o `name` do vencedor não perca a fonte.
+    _tracker: tracker,
     // ID estável do indexer (não o label mutável) para o desempate de prioridade.
     _indexer: String(item.indexer || tracker || '').trim().toLowerCase(),
   };
@@ -759,12 +809,27 @@ function matchesEpisode(title, { season, episode } = {}) {
  *
  * A tag de áudio vem do título de quem a tiver: o título global ("...DUAL...")
  * costuma trazê-la, mas o post BR é quem diz "DUBLADO" quando o outro cala.
+ *
+ * Fonte e corte saem do mesmo texto, pela mesma razão do áudio: reconstruir sem
+ * eles apagava o "BluRay"/"Extended" que o rótulo já mostrava, e duas releases
+ * do mesmo filme voltavam a ficar indistinguíveis depois do merge. Vale nos
+ * dois modos: em `full` o texto é a release, em `compact` é o resumo — que
+ * carrega os mesmos termos.
  */
 function relabel(stream, { isBr, dubbedFrom }) {
   const [title = '', stats = ''] = String(stream.name || '').split('\n');
   const seeders = Number(String(stats).match(/👤\s*(\d+)/)?.[1] || stream._seeders || 0);
   const audio = audioFromTitle(title) || audioFromTitle(dubbedFrom || '');
-  return streamDisplayName({ title, quality: stream._quality, audio, isBr, seeders });
+  return streamDisplayName({
+    title,
+    quality: stream._quality,
+    audio,
+    source: sourceFromTitle(title) || sourceFromTitle(dubbedFrom || ''),
+    edition: editionFromTitle(title) || editionFromTitle(dubbedFrom || ''),
+    tracker: stream._tracker,
+    isBr,
+    seeders,
+  });
 }
 
 /** Mesma release aparece em vários indexers; fica a de maior seeders. */
@@ -804,6 +869,7 @@ function dedupeByHash(streams, indexerPriority = []) {
       behaviorHints: richerQuality.behaviorHints || winner.behaviorHints,
       _br: winner._br || s._br || prev._br,
       _dubbed: winner._dubbed || s._dubbed || prev._dubbed,
+      _tracker: winner._tracker,
     };
     // O rótulo tem que contar a mesma história que os campos internos.
     if (merged._br !== winner._br || merged._dubbed !== winner._dubbed || merged._quality !== winner._quality) {
@@ -1169,7 +1235,7 @@ function limitReservingBr(
   }
 
   return selected
-    .map(({ _br, _seeders, _quality, _size, _dubbed, _indexer, ...stream }) => stream);
+    .map(({ _br, _seeders, _quality, _size, _dubbed, _indexer, _tracker, ...stream }) => stream);
 }
 
 function sortAndLimit(
