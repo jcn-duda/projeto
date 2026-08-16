@@ -189,6 +189,8 @@ test(
   },
 );
 
+// A escrita no disco é diferida para o próximo tick (lote em transação única),
+// então o script espera um setImmediate antes de conferir o SQLite.
 const PERSISTENCE_SYNC_SCRIPT = [
   "const assert = require('node:assert');",
   'delete process.env.CACHE_PERSIST;',
@@ -196,10 +198,14 @@ const PERSISTENCE_SYNC_SCRIPT = [
   `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
   `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
   '',
+  '(async () => {',
   "cache.set('k-a', { msg: 'hello' }, 3600);",
   "cache.set('k-b', { count: 99 }, 3600);",
   "cache.set('k-c', { active: true }, 3600);",
   'assert.strictEqual(cache.size(), 3);',
+  '',
+  '// O despejo em lote roda no próximo tick.',
+  'await new Promise((resolve) => setImmediate(resolve));',
   '',
   'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
   "const rows = dbVerify.prepare('SELECT key, value FROM cache ORDER BY key ASC').all();",
@@ -219,6 +225,7 @@ const PERSISTENCE_SYNC_SCRIPT = [
   "const rowsAfterClear = dbVerify.prepare('SELECT COUNT(*) as cnt FROM cache').get();",
   'assert.strictEqual(rowsAfterClear.cnt, 0, \'tabela SQLite limpa apos clear()\');',
   'dbVerify.close();',
+  '})().catch((err) => { console.error(err); process.exit(1); });',
 ].join('\n');
 
 test(
@@ -240,6 +247,9 @@ const PRUNE_BATCH_SCRIPT = [
   "  cache.set('item-' + i, { n: i }, 3600);",
   '}',
   `assert.strictEqual(cache.size(), ${MAX_ENTRIES}, 'L1 respeita MAX_ENTRIES apos overflow');`,
+  '// Espera o despejo em lote: as chaves expulsas pelo prune saíram da fila',
+  '// junto com a memória, então o disco recebe exatamente o teto.',
+  'await new Promise((resolve) => setImmediate(resolve));',
   'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
   "const countRow = dbVerify.prepare('SELECT COUNT(*) as cnt FROM cache').get();",
   `assert.strictEqual(countRow.cnt, ${MAX_ENTRIES}, 'SQLite reflete MAX_ENTRIES apos prune em lote');`,
@@ -249,11 +259,50 @@ const PRUNE_BATCH_SCRIPT = [
   'dbVerify.close();',
 ].join('\n');
 
+function wrapAsync(scriptLines) {
+  // Os scripts precisam esperar o tick do despejo; `node -e` é CommonJS, então
+  // o corpo roda dentro de uma IIFE assíncrona.
+  return ["const assert = require('node:assert');", '(async () => {', ...scriptLines.slice(1), '})().catch((err) => { console.error(err); process.exit(1); });'].join('\n');
+}
+
 test(
   'prune() e forgetMany(): remoção em lote via transação SQLite com statement pré-compilado',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
-    runIsolatedCacheTest(PRUNE_BATCH_SCRIPT);
+    runIsolatedCacheTest(wrapAsync(PRUNE_BATCH_SCRIPT.split('\n')));
+  },
+);
+
+// Regressão do despejo em lote: forget ANTES do flush não pode ser desfeito
+// pelo lote (a chave sai da fila junto com a memória).
+const BATCH_FORGET_SCRIPT = [
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  "cache.set('lote-1', { n: 1 }, 3600);",
+  "cache.set('lote-2', { n: 2 }, 3600);",
+  "cache.set('lote-3', { n: 3 }, 3600);",
+  "cache.forget('lote-2');",
+  '// Reescrita da mesma chave no mesmo tick: só a última vale.',
+  "cache.set('lote-3', { n: 30 }, 3600);",
+  '',
+  'await new Promise((resolve) => setImmediate(resolve));',
+  '',
+  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "const rows = dbVerify.prepare('SELECT key, value FROM cache ORDER BY key ASC').all();",
+  'assert.strictEqual(rows.length, 2, \'forget antes do flush impede a escrita\');',
+  "assert.deepStrictEqual(rows.map((r) => r.key), ['lote-1', 'lote-3']);",
+  "assert.deepStrictEqual(JSON.parse(rows[1].value), { n: 30 }, 'última escrita da chave é a que fica');",
+  'dbVerify.close();',
+];
+
+test(
+  'despejo em lote: forget/reescrita no mesmo tick valem na gravação adiada',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => {
+    runIsolatedCacheTest(wrapAsync(BATCH_FORGET_SCRIPT));
   },
 );
 

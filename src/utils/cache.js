@@ -89,17 +89,60 @@ function loadFromDisk() {
   }
 }
 
+// Escrita em LOTE: antes cada cache.set pagava um INSERT síncrono (commit no
+// WAL) no caminho de busca, e o passe tardio gravava várias chaves em
+// sequência. A chave é marcada aqui e despejada no próximo tick numa transação
+// só — mesmo racional do forgetMany. Queda do processo perde só o lote do tick
+// corrente: aceitável porque o L2 é best-effort e o passe tardio reconstrói o
+// resultado na busca seguinte.
+const pending = new Map();
+let flushScheduled = null;
+
+function flushPending() {
+  if (!db || !insertStmt || pending.size === 0) return;
+  const batch = [...pending.entries()];
+  pending.clear();
+  try {
+    db.exec('BEGIN');
+    try {
+      for (const [key, entry] of batch) {
+        insertStmt.run(key, JSON.stringify(entry.value), entry.expiresAt);
+      }
+      db.exec('COMMIT');
+    } catch (err) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        /* ignora falha de rollback se a transação já foi abortada */
+      }
+      throw err;
+    }
+  } catch (err) {
+    log.warn('[cache] falha ao gravar lote no disco:', err.message);
+  }
+}
+
+function scheduleFlush() {
+  if (flushScheduled || !insertStmt) return;
+  flushScheduled = setImmediate(() => {
+    flushScheduled = null;
+    flushPending();
+  });
+  // Sem unref o despejo pendurado manteria o processo vivo no shutdown.
+  flushScheduled.unref?.();
+}
+
 function persist(key, value, expiresAt) {
   if (!insertStmt) return;
-  try {
-    insertStmt.run(key, JSON.stringify(value), expiresAt);
-  } catch (err) {
-    log.warn('[cache] falha ao gravar no disco:', err.message);
-  }
+  // A última escrita da chave é a que vale; o Map já substitui a anterior.
+  pending.set(key, { value, expiresAt });
+  scheduleFlush();
 }
 
 function forget(key) {
   store.delete(key);
+  // Se a chave ainda está na fila de despejo, o lote não pode ressuscitá-la.
+  pending.delete(key);
   if (!deleteStmt) return;
   try {
     deleteStmt.run(key);
@@ -118,7 +161,10 @@ function forgetMany(keys) {
   if (!keys.length) return;
   // L1 é a fonte das leituras. A limpeza precisa valer mesmo quando o SQLite
   // não existe; o L2 é apenas a cópia best-effort para sobreviver ao restart.
-  for (const key of keys) store.delete(key);
+  for (const key of keys) {
+    store.delete(key);
+    pending.delete(key);
+  }
   if (!db || !deleteStmt) return;
   try {
     db.exec('BEGIN');
@@ -199,6 +245,8 @@ function set(key, value, ttlSeconds) {
 
 function clear() {
   store.clear();
+  // Antes do truncate, senão o despejo agendado reescreveria o banco limpo.
+  pending.clear();
   if (clearStmt) {
     try {
       clearStmt.run();
@@ -214,8 +262,15 @@ function close() {
     clearInterval(pruneTimer);
     pruneTimer = null;
   }
+  if (flushScheduled) {
+    clearImmediate(flushScheduled);
+    flushScheduled = null;
+  }
   if (!db) return;
   try {
+    // Despeja o lote do tick corrente antes de fechar: no shutdown limpo o
+    // adiamento não precisa custar uma busca a mais depois do restart.
+    flushPending();
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
     db.close();
   } catch (err) {
