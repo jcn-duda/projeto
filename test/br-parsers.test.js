@@ -57,6 +57,9 @@ test('bludv: qualidade e tamanho atravessam codec/HDR entre a resolução e o pa
   assert.deepEqual({ quality: links[0].quality, size: links[0].size }, { quality: 1080, size: '2.67 GB' });
   // Botão sem nada anunciado: null, e não a herança do botão anterior.
   assert.deepEqual({ quality: links[5].quality, size: links[5].size }, { quality: null, size: null });
+  // O lixo colado no tamanho ("3.39 GB &#8211; MKV") já sai cortado do parser;
+  // o feed não precisa mais limpar entidade.
+  assert.equal(links[2].size, '3.39 GB');
 });
 
 test('bludv: card de busca sem poster/título original devolve null, sem herdar do anterior', () => {
@@ -65,7 +68,7 @@ test('bludv: card de busca sem poster/título original devolve null, sem herdar 
   assert.equal(posts.length, 3);
   assert.deepEqual(posts[0], {
     url: 'https://bludvfilmes.xyz/a-casa-do-dragao-1a-temporada/',
-    title: 'A Casa do Dragão 1ª Temporada Torrent &#8211; (2022) WEB-DL 720p/1080p/4K Dual Áudio',
+    title: 'A Casa do Dragão 1ª Temporada Torrent – (2022) WEB-DL 720p/1080p/4K Dual Áudio',
     date: '14/08/2022',
     poster: 'https://bludvfilmes.xyz/wp-content/uploads/2022/08/casa-do-dragao.jpg',
     original: 'House of the Dragon',
@@ -74,9 +77,9 @@ test('bludv: card de busca sem poster/título original devolve null, sem herdar 
     { poster: posts[2].poster, original: posts[2].original, date: posts[2].date },
     { poster: null, original: null, date: null },
   );
-  // &amp; no título é decodificado; o &#8211; do post[0] não é — e é por isso
-  // que o releaseTitle trata a entidade literal ao limpar "Torrent –".
-  assert.equal(posts[2].title, 'Tom & Jerry Torrent &#8211; (2021) WEBRip');
+  // As entidades saem decodificadas do próprio parser (decodeEntities genérico):
+  // &amp; vira & e &#8211; vira –, nada chega cru ao feed.
+  assert.equal(posts[2].title, 'Tom & Jerry Torrent – (2021) WEBRip');
 });
 
 test('bludv: pickBestLink prefere dublado e, dentro dele, a maior qualidade', () => {
@@ -87,14 +90,15 @@ test('bludv: pickBestLink prefere dublado e, dentro dele, a maior qualidade', ()
   assert.equal(bludv.pickBestLink(links, { audio: 'legendado' }).url, 'https://systemads.net/go/eee555');
 });
 
-test('bludv: o feed corta o lixo colado no tamanho e usa o sentinela quando não há', () => {
+test('bludv: o feed usa o tamanho limpo do parser e o sentinela quando não há', () => {
   const posts = bludv.parsePosts(fixture('bludv-search.html'));
   const links = bludv.parseDownloadLinks(fixture('bludv-post.html'));
   const html = bludv.searchPageHtml(links.map((link, index) => ({ post: posts[0], link, index })));
 
   const sizes = [...html.matchAll(/<div class="size">([^<]*)<\/div>/g)].map((m) => m[1]);
-  // "3.39 GB &#8211; MKV" vira "3.39 GB"; sem tamanho vai 1 KB (o Jackett
-  // descarta release sem tamanho, e o addon lê <= 1 KB como "não sei").
+  // O corte do lixo ("3.39 GB &#8211; MKV" → "3.39 GB") agora acontece no
+  // parser; sem tamanho vai 1 KB (o Jackett descarta release sem tamanho, e o
+  // addon lê <= 1 KB como "não sei").
   assert.deepEqual(sizes, ['2.67 GB', '24 GB', '3.39 GB', '1.20 GB', '18.4 GB', '1 KB']);
 });
 
@@ -102,13 +106,14 @@ test('bludv: releaseTitle tira a vitrine do título e assume os atributos do bot
   const links = bludv.parseDownloadLinks(fixture('bludv-post.html'));
   const postTitle = bludv.parsePosts(fixture('bludv-search.html'))[0].title;
 
+  // A fonte entra na tag junto com qualidade e áudio, igual ao comandotorrents.
   assert.equal(
     bludv.releaseTitle(postTitle, links[2]),
-    'A Casa do Dragão 1ª Temporada (2022) WEB-DL E01 [720p DUBLADO]',
+    'A Casa do Dragão 1ª Temporada (2022) E01 [720p WEB-DL DUBLADO]',
   );
   // O 4K legendado não pode sair com "Dual Áudio" herdado do título do post.
   const pack = bludv.releaseTitle(postTitle, links[4]);
-  assert.equal(pack, 'A Casa do Dragão 1ª Temporada (2022) WEB-DL [2160p LEGENDADO]');
+  assert.equal(pack, 'A Casa do Dragão 1ª Temporada (2022) [2160p WEB-DL LEGENDADO]');
   assert.equal(pack.includes('Dual'), false);
 });
 

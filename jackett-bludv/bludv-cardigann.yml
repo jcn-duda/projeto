@@ -111,4 +111,4 @@ download:
       usebeforeresponse: true
       filters:
         - name: regexp
-          args: "(magnet:.+)"
+          args: "(magnet:\\?[^\\s\"'<>]+)"

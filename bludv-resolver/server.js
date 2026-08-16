@@ -16,7 +16,21 @@ const BLUDV_URL = SITE_URL;
 const MAX_POSTS = Number(process.env.BLUDV_MAX_POSTS || 5);
 const SEARCH_CONCURRENCY = 4;
 const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
+// Busca repete muito (o Stremio refaz a consulta); 5 min evitam re-raspar o
+// site a cada retry. Magnet é imutável por definição; 30 min poupam a cadeia
+// do protetor inteira a cada play do mesmo botão.
+const SEARCH_CACHE_MS = Number(process.env.SEARCH_CACHE_MS || 5 * 60_000);
+const MAGNET_CACHE_MS = Number(process.env.MAGNET_CACHE_MS || 30 * 60_000);
 const MAX_CACHE_SIZE = 200;
+const MAX_SEARCH_CACHE_SIZE = 100;
+const MAX_MAGNET_CACHE_SIZE = 500;
+// Teto do fallback do resolvePost. Sem ele, um post com dezenas de botões e o
+// protetor fora do ar tenta TODOS a TIMEOUT_MS cada — o Jackett já desistiu em
+// JACKETT_DOWNLOAD_TIMEOUT_MS (8s) e a task seguia viva no inFlight.
+const MAX_RESOLVE_ATTEMPTS = Number(process.env.MAX_RESOLVE_ATTEMPTS || 5);
+// Janela do card na página de busca. Os 4000 fixos truncavam card longo; sem
+// teto, o ÚLTIMO card ia até o fim do documento e herdaria img/data do rodapé.
+const MAX_CARD_WINDOW = 8000;
 
 function parseHost(urlString) {
   try {
@@ -64,18 +78,45 @@ const ALLOWED_SUFFIXES = Array.from(
 );
 
 const postCache = new Map();
+const searchCache = new Map();
+const magnetCache = new Map();
 const inFlight = new Map();
 
 // Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
 // nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
 const UNKNOWN_SIZE = '1 KB';
 
+// Faixa "Episódios 01 ao 10" é PACK: quem casa por episódio no addon precisa
+// ver episode null, não o 10 (senão vira um episódio de temporada inteira).
+const PACK_RESET_PATTERN = /\b(?:TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA|PACK\s+COMPLETO|PACOTE\s+COMPLETO|\bPACK\b)\b/i;
+// Clone global: matchAll exige a flag /g e o original é /i apenas (test()).
+const PACK_RESET_PATTERN_G = new RegExp(PACK_RESET_PATTERN.source, 'gi');
+const EPISODE_RANGE_PATTERN = /(?:EPIS[ÓO]DIOS?|EP|CAP[ÍI]TULOS?|CAP|E)[.\s-]*\d{1,3}[.\s-]*(?:A|AO|[-–—])[.\s-]*\d{1,3}\b/i;
+const EPISODE_PATTERN = /(?:EPIS[ÓO]DIO|EP|CAP[ÍI]TULO|CAP)[.\s-]*(\d{1,3})\b|\bS\d{1,2}E(\d{1,3})\b|\bE(\d{1,3})\b|\b\d{1,2}X(\d{1,3})\b/gi;
+
+function extractEpisode(text) {
+  if (!text) return null;
+  if (EPISODE_RANGE_PATTERN.test(text)) return null;
+  const matches = [...String(text).matchAll(EPISODE_PATTERN)];
+  if (matches.length === 0) return null;
+  const last = matches[matches.length - 1];
+  const num = Number(last[1] || last[2] || last[3] || last[4]);
+  return Number.isFinite(num) ? num : null;
+}
+
+const NAMED_ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  hellip: '…', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘',
+  ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
+};
+
+// Genérico: hex, decimal e tabela de nomes. O decode antigo de 4 regras deixava
+// &#8211;/&hellip; vazarem crus pro Jackett (e pro título da release).
 function decodeEntities(value = '') {
   return String(value)
-    .replace(/&#0?38;|&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#8217;|&#039;|&apos;/gi, "'")
-    .replace(/&nbsp;/gi, ' ');
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&([a-z]+);/gi, (whole, name) => NAMED_ENTITIES[name.toLowerCase()] ?? whole);
 }
 
 function assertAllowedUrl(value) {
@@ -100,34 +141,59 @@ function isProtectorHost(hostname) {
   return ALL_PROTECTOR_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
 }
 
+// Decodifica o valor se vier URL-encoded; protetores publicam o magnet nos dois
+// formatos (e misturados: %3A na estrutura e & literal entre parâmetros).
+function decodeMaybeEncoded(val) {
+  if (/^magnet%3A%3F/i.test(val)) {
+    try {
+      val = decodeURIComponent(val);
+    } catch {}
+  }
+  if (val.startsWith('magnet:?')) return decodeEntities(val);
+  return null;
+}
+
 function extractMagnet(html) {
   if (!html) return null;
   const str = String(html);
 
-  // 1. Variáveis JavaScript explícitas (DEST_URL, DOWNLOAD_URL, url, link, target, dest, etc.)
+  // 1. Variáveis JavaScript explícitas (DEST_URL, DOWNLOAD_URL, MAGNET_URL,
+  // LINK_DOWNLOAD, URL_DOWNLOAD, DOWNLOAD, REDIRECT_URL, NEXT_URL, LINK_FINAL,
+  // TARGET_URL, DESTINO, etc.) — com variante URL-encoded dentro das aspas.
   const jsVar = str.match(
-    /(?:DEST_URL|DOWNLOAD_URL|MAGNET_URL|download_url|download_link|magnet_link|target_url|dest|target|link|url|magnet)\s*[:=]\s*["'](magnet:\?[^"']+)["']/i,
+    /(?:DEST_URL|DOWNLOAD_URL|MAGNET_URL|LINK_DOWNLOAD|URL_DOWNLOAD|DOWNLOAD|REDIRECT_URL|NEXT_URL|LINK_FINAL|TARGET_URL|DESTINO|download_url|download_link|magnet_link|target_url|dest|target|link|url|magnet)\s*[:=]\s*["'](magnet:\?[^"']+|magnet%3A%3F[^"']+)["']/i,
   );
-  if (jsVar) return decodeEntities(jsVar[1]);
+  if (jsVar) {
+    const magnet = decodeMaybeEncoded(jsVar[1]);
+    if (magnet) return magnet;
+  }
 
   // 2. Redirecionamentos / atribuições de navegação JavaScript
   const jsNav = str.match(
-    /(?:location(?:\.href|\.replace|\.assign)?|window\.open)\s*(?:=|\()\s*["'](magnet:\?[^"']+)["']/i,
+    /(?:(?:window\.|document\.)?location(?:\.href|\.replace|\.assign)?|window\.open)\s*(?:=|\()\s*["'](magnet:\?[^"']+|magnet%3A%3F[^"']+)["']/i,
   );
-  if (jsNav) return decodeEntities(jsNav[1]);
+  if (jsNav) {
+    const magnet = decodeMaybeEncoded(jsNav[1]);
+    if (magnet) return magnet;
+  }
 
-  // 3. Atributos HTML customizados (data-magnet, data-url, data-link, data-href)
+  // 3. Atributos HTML customizados (data-magnet, data-url, data-link,
+  // data-href, data-download)
   const attrMatch = str.match(
-    /(?:data-magnet|data-url|data-link|data-href)\s*=\s*["'](magnet:\?[^"']+)["']/i,
+    /(?:data-magnet|data-url|data-link|data-href|data-download)\s*=\s*["'](magnet:\?[^"']+|magnet%3A%3F[^"']+)["']/i,
   );
-  if (attrMatch) return decodeEntities(attrMatch[1]);
+  if (attrMatch) {
+    const magnet = decodeMaybeEncoded(attrMatch[1]);
+    if (magnet) return magnet;
+  }
 
   // 4. Regex direto de URI magnet no documento
   const rawMatch = str.match(/magnet:\?[^"'<>\s]+/i);
   if (rawMatch) return decodeEntities(rawMatch[0]);
 
-  // 5. Magnet URL-encoded (ex.: magnet%3A%3Fxt%3Durn)
-  const encodedMatch = str.match(/magnet%3A%3Fxt%3D[^"'<>\s&]+/i);
+  // 5. Magnet URL-encoded: sem exigir xt como primeiro parâmetro e sem cortar
+  // no & (o padrão antigo perdia dn/tr — e magnets com dn antes do xt sumiam).
+  const encodedMatch = str.match(/magnet%3A%3F[^"'<>\s]+/i);
   if (encodedMatch) {
     try {
       const decoded = decodeURIComponent(encodedMatch[0]);
@@ -138,13 +204,46 @@ function extractMagnet(html) {
   return null;
 }
 
+// Meta refresh aparece em três sabores nos protetores: content entre aspas
+// duplas, entre aspas simples e sem aspas; url= com aspas aninhadas ou não.
+// O regex inline antigo exigia content entre aspas e url= sem aspas — só
+// cobria um dos casos.
+function extractMetaRefresh(html) {
+  if (!html) return null;
+  const metaTags = String(html).match(/<meta\b[^>]*>/gi) || [];
+  for (const tag of metaTags) {
+    const isRefresh = /\bhttp-equiv\s*=\s*["']?refresh["']?/i.test(tag);
+    if (!isRefresh) continue;
+    const contentMatch = tag.match(/\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    if (!contentMatch) continue;
+    const rawContent = contentMatch[1] ?? contentMatch[2] ?? contentMatch[3] ?? '';
+    const content = decodeEntities(rawContent);
+    const urlMatch = content.match(/\burl\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s;]+))/i);
+    if (urlMatch) {
+      let target = (urlMatch[1] || urlMatch[2] || urlMatch[3] || '').trim();
+      target = target.replace(/^['"]|['"]$/g, '');
+      if (target) return decodeEntities(target);
+    }
+  }
+  return null;
+}
+
 function nextProtectedUrl(html, baseUrl) {
   if (!html) return null;
   const str = String(html);
 
-  // 1. Variável JavaScript apontando para URL HTTP(S) de protetor permitido
+  // 1. Meta refresh primeiro: é o salto mais comum dos protetores atuais.
+  const refreshTarget = extractMetaRefresh(str);
+  if (refreshTarget) {
+    try {
+      const u = new URL(refreshTarget, baseUrl);
+      if (isProtectorHost(u.hostname) && u.href !== baseUrl) return u.href;
+    } catch {}
+  }
+
+  // 2. Variável JavaScript apontando para URL HTTP(S) de protetor permitido
   const jsMatch = str.match(
-    /(?:DEST_URL|DOWNLOAD_URL|REDIRECT_URL|NEXT_URL|target_url|dest|target|link|url)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i,
+    /(?:DEST_URL|DOWNLOAD_URL|REDIRECT_URL|NEXT_URL|LINK_DOWNLOAD|URL_DOWNLOAD|DOWNLOAD|LINK_FINAL|TARGET_URL|DESTINO|target_url|dest|target|link|url)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i,
   );
   if (jsMatch) {
     try {
@@ -153,7 +252,7 @@ function nextProtectedUrl(html, baseUrl) {
     } catch {}
   }
 
-  // 2. Busca genérica de URLs no corpo HTML apontando para domínios de protetor
+  // 3. Busca genérica de URLs no corpo HTML apontando para domínios de protetor
   const escapedProtectors = ALL_PROTECTOR_SUFFIXES
     .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('|');
@@ -198,21 +297,49 @@ async function fetchText(url, referer) {
   return res.text();
 }
 
-/**
- * Percorre o post EM ORDEM DE DOCUMENTO mantendo a seção de áudio corrente
- * ("VERSÃO MKV DUAL ÁUDIO" / "VERSÃO MP4 DUBLADO" / "... LEGENDADO") e extrai
- * cada botão Magnet-Link com qualidade e tamanho ("BluRay 1080p (2.67 GB)").
- */
-const QUALITY_RE = /(?:(\d{3,4})\s*P|\b(4K)\b)/gi;
+// Marcadores de trilha: os posts do site usam DUAL ÁUDIO/DUBLADO/LEGENDADO,
+// mas temas novos também publicam NACIONAL/PORTUGUÊS/[DUB]/[LEG] na âncora.
+const AUDIO_SEGMENT_RE = /(?:VERS[AÃ]O\s+)?(?:MKV\s+|MP4\s+)?(DUAL[-\s]+[AÁ]UDIO|AUDIO[-\s]+DUPLO|DUPLO[-\s]+AUDIO|DUBLAD\w*|LEGENDAD\w*|NACIONAL|PORTUGU[ÊE]S|PORTUGUES|\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b|\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b)/gi;
+const AUDIO_ANCHOR_RE = /(DUAL[-\s]+[AÁ]UDIO|AUDIO[-\s]+DUPLO|DUPLO[-\s]+AUDIO|DUBLAD\w*|LEGENDAD\w*|NACIONAL|PORTUGU[ÊE]S|PORTUGUES|\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b|\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b)/gi;
+const LEGENDADO_RE = /LEGENDAD|\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/i;
 
-/** Maior qualidade declarada num texto ("BluRay 1080p" ou "720p/1080p/2160p"). */
-function maxQualityFromText(text) {
-  let best = null;
-  for (const mm of String(text || '').matchAll(QUALITY_RE)) {
-    const q = mm[1] ? Number(mm[1]) : 2160;
-    if (best === null || q > best) best = q;
-  }
-  return best;
+// Qualidade e fonte normalizadas: o site publica "UHD"/"Full HD"/"HD"/"SD"
+// sem o sufixo p; o parser antigo só entendia \d{3,4}p e 4K. Vale o ÚLTIMO
+// token do contexto (segmento + âncora) — o mais próximo do botão.
+function extractQualityToken(raw) {
+  const token = String(raw || '').toUpperCase().trim();
+  if (/\b(?:2160\s*P|4K|UHD)\b/.test(token)) return 2160;
+  if (/\b(?:1080\s*P|FULL\s*HD)\b/.test(token)) return 1080;
+  if (/\b(?:720\s*P|\bHD\b(?!\s*TV))\b/.test(token)) return 720;
+  if (/\b(?:576\s*P)\b/.test(token)) return 576;
+  if (/\b(?:480\s*P|\bSD\b)\b/.test(token)) return 480;
+  const m = token.match(/\b(\d{3,4})\s*P\b/);
+  return m ? Number(m[1]) : null;
+}
+
+function normalizeQuality(context) {
+  const text = String(context || '').toUpperCase();
+  const matches = [...text.matchAll(/\b(2160\s*P|4K|UHD|1080\s*P|FULL\s*HD|720\s*P|\bHD\b(?!\s*TV)|576\s*P|480\s*P|\bSD\b|\d{3,4}\s*P)\b/gi)];
+  if (!matches.length) return null;
+  return extractQualityToken(matches[matches.length - 1][0]);
+}
+
+function extractSourceToken(raw) {
+  const token = String(raw || '').toUpperCase().trim();
+  if (/\b(?:BDREMUX|REMUX)\b/.test(token)) return 'REMUX';
+  if (/\b(?:BLU[- ]?RAY|BLURAY|BD\b|BDRIP)\b/.test(token)) return 'BLU-RAY';
+  if (/\b(?:WEB[-. ]?DL)\b/.test(token)) return 'WEB-DL';
+  if (/\b(?:WEB[-. ]?RIP|WEBRIP)\b/.test(token)) return 'WEBRIP';
+  if (/\bHDTV\b/.test(token)) return 'HDTV';
+  if (/\b(?:CAMRIP|CAM)\b/.test(token)) return 'CAM';
+  return null;
+}
+
+function normalizeSource(context) {
+  const text = String(context || '').toUpperCase();
+  const matches = [...text.matchAll(/\b(BDREMUX|REMUX|BLU[- ]?RAY|BLURAY|BD\b|BDRIP|WEB[-. ]?DL|WEB[-. ]?RIP|WEBRIP|HDTV|CAMRIP|CAM)\b/gi)];
+  if (!matches.length) return null;
+  return extractSourceToken(matches[matches.length - 1][0]);
 }
 
 /** Hash btih válido: 40 hex ou 32 base32 (alfabeto A-Z2-7), case-insensitive. */
@@ -242,6 +369,16 @@ function isValidMagnetUri(value) {
   return found;
 }
 
+/**
+ * Percorre o post EM ORDEM DE DOCUMENTO mantendo o estado da seção corrente
+ * (áudio do <h3> e episódio do segmento) e extrai cada botão Magnet-Link.
+ *
+ * Metadados que moram NO TEXTO DA ÂNCORA ("S01.1080p | Episódio 01 | Dual
+ * Áudio", o layout de magnet direto) valem SÓ para o próprio botão: são
+ * calculados locais e não vão para o estado, senão um botão avulso
+ * contaminaria todos os seguintes. O segmento continua escrevendo no estado,
+ * como sempre fez — é o que preserva a semântica de seção dos posts antigos.
+ */
 function parseDownloadLinks(html) {
   const links = [];
   let audio = 'desconhecido';
@@ -272,43 +409,58 @@ function parseDownloadLinks(html) {
     }
 
     const segment = stripTags(html.slice(cursor, m.index)).toUpperCase();
+    const anchorText = stripTags(m[3]).toUpperCase();
     cursor = anchor.lastIndex;
 
-    const marker = [...segment.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*)/g)].pop();
-    if (marker) audio = /LEGENDAD/.test(marker[1]) ? 'legendado' : 'dublado';
+    // 1. Áudio: o marcador do segmento atualiza o estado (vale para os botões
+    // seguintes até a próxima seção); o marcador da âncora é local ao botão.
+    const marker = [...segment.matchAll(AUDIO_SEGMENT_RE)].pop();
+    if (marker) audio = LEGENDADO_RE.test(marker[1]) ? 'legendado' : 'dublado';
+    const selfAudioMarker = [...anchorText.matchAll(AUDIO_ANCHOR_RE)].pop();
+    const selfAudio = selfAudioMarker
+      ? (LEGENDADO_RE.test(selfAudioMarker[1]) ? 'legendado' : 'dublado')
+      : null;
 
-    if (/TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA/i.test(segment)) {
+    // 2. Episódio: o segmento escreve no estado; a âncora só decide o botão
+    // corrente. Âncora com episódio vence; âncora com marcador de pack zera;
+    // senão vale o estado do segmento. Quando os dois sinais convivem no
+    // MESMO segmento, desempata pela posição do último marcador — "PACK ...
+    // EPISÓDIO 05" vale 5, "EPISÓDIO 05 ... TEMPORADA COMPLETA" vale null.
+    const segEp = extractEpisode(segment);
+    const segIsPack = PACK_RESET_PATTERN.test(segment) || EPISODE_RANGE_PATTERN.test(segment);
+    if (segEp !== null && segIsPack) {
+      const lastEpMatches = [...segment.matchAll(EPISODE_PATTERN)];
+      const lastPackMatches = [...segment.matchAll(PACK_RESET_PATTERN_G)];
+      const lastEpIdx = lastEpMatches.length > 0 ? lastEpMatches[lastEpMatches.length - 1].index : -1;
+      const lastPackIdx = lastPackMatches.length > 0 ? lastPackMatches[lastPackMatches.length - 1].index : -1;
+      currentEpisode = lastEpIdx > lastPackIdx ? segEp : null;
+    } else if (segEp !== null) {
+      currentEpisode = segEp;
+    } else if (segIsPack) {
       currentEpisode = null;
-    } else {
-      const epMatch = [...segment.matchAll(/(?:EPIS[ÓO]DIO|EP)\s*(\d{1,3})\b/gi)].pop();
-      if (epMatch) {
-        currentEpisode = Number(epMatch[1]);
-      }
     }
 
-    // Último "Np ... (tamanho)" antes do botão: o do próprio botão — o título do
-    // post no topo cita "720p/1080p/4K" sem parêntese e não casa no padrão.
-    // Entre a qualidade e o parêntese pode haver codec/HDR/áudio longos:
-    // "2160p x265 DV HDR10+ DDP5.1 Atmos (24 GB)" — janela curta demais
-    // solta o par e o tamanho vira sentinela "1 KB".
-    const spec = [...segment.matchAll(/(?:(\d{3,4})\s*P|\b(4K)\b)[^()\n]{0,48}?\(([^)]*)\)/g)].pop();
-    let quality = null;
-    let size = null;
-    if (spec) {
-      quality = spec[1] ? Number(spec[1]) : 2160;
-      size = spec[3].trim();
-    } else {
-      // Botão sem parêntese (o magnet direto não publica tamanho): a qualidade
-      // vem do texto do próprio link ("720p"/"1080p"/"2160p") em vez do segmento.
-      quality = maxQualityFromText(stripTags(m[3]));
-    }
+    const anchorIsPack = PACK_RESET_PATTERN.test(anchorText) || EPISODE_RANGE_PATTERN.test(anchorText);
+    const selfEpisode = extractEpisode(anchorText);
+    const episode = anchorIsPack ? null : (selfEpisode ?? currentEpisode);
+
+    // 3. Qualidade, fonte e tamanho do contexto (segmento + texto da âncora).
+    // O tamanho já sai normalizado aqui ("3.39 GB"): o site cola lixo depois
+    // do parêntese ("3.39 GB &#8211; MKV") e cortar no feed chegava tarde —
+    // o RSS e o card leem o mesmo campo.
+    const context = `${segment} ${anchorText}`;
+    const quality = normalizeQuality(context);
+    const source = normalizeSource(context);
+    const sizeHit = [...context.matchAll(/([\d.,]+)\s*(TB|GB|MB|KB)\b/g)].pop();
+    const size = sizeHit ? `${sizeHit[1]} ${sizeHit[2]}` : null;
 
     links.push({
       url: href,
       quality,
       size,
-      audio,
-      episode: currentEpisode,
+      audio: selfAudio || audio,
+      episode,
+      source,
     });
   }
   return links;
@@ -317,11 +469,11 @@ function parseDownloadLinks(html) {
 const AUDIO_RANK = { dublado: 0, desconhecido: 1, legendado: 2 };
 
 /**
- * Escolhe o botão do post: dublado/dual primeiro, maior qualidade depois.
+ * Ordena os botões do post: dublado/dual primeiro, maior qualidade depois.
  * ?audio=legendado|dublado força a preferência; ?quality=1080p mira uma
  * qualidade específica (caindo na mais próxima disponível se não houver).
  */
-function pickBestLink(links, { audio, quality } = {}) {
+function sortLinks(links, { audio, quality } = {}) {
   // Sem preferência: dublado/dual > desconhecido > legendado. Com preferência
   // explícita, ela vem primeiro e as demais vão pro fim (não pode empatar).
   const rank = audio && AUDIO_RANK[audio] !== undefined
@@ -338,10 +490,15 @@ function pickBestLink(links, { audio, quality } = {}) {
       if (qd !== 0) return qd;
     }
     return (b.quality || 0) - (a.quality || 0);
-  })[0] || null;
+  });
+}
+
+function pickBestLink(links, prefs) {
+  return sortLinks(links, prefs)[0] || null;
 }
 
 async function fetchFollowingAllowed(value, referer) {
+  if (!value) throw new Error('invalid_url');
   if (String(value).startsWith('magnet:')) return decodeEntities(value);
   let current = assertAllowedUrl(value);
   let previousReferer = referer;
@@ -378,10 +535,12 @@ async function fetchFollowingAllowed(value, referer) {
       continue;
     }
 
-    const refresh = html.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]+content=["'][^"']*url=([^"'>\s]+)/i);
-    if (refresh) {
-      const refreshTarget = decodeEntities(refresh[1]);
-      if (refreshTarget.startsWith('magnet:')) return refreshTarget;
+    // nextProtectedUrl já testou o meta refresh contra hosts de protetor;
+    // aqui ele ainda serve para alvos fora da allowlist virarem erro cedo e
+    // para magnet direto dentro do refresh.
+    const refreshTarget = extractMetaRefresh(html);
+    if (refreshTarget) {
+      if (refreshTarget.startsWith('magnet:')) return decodeEntities(refreshTarget);
       previousReferer = current.href;
       current = assertAllowedUrl(new URL(refreshTarget, current).href);
       continue;
@@ -391,6 +550,13 @@ async function fetchFollowingAllowed(value, referer) {
   }
 
   throw new Error('too_many_redirects');
+}
+
+function setMagnetCache(cacheKey, magnet) {
+  magnetCache.set(cacheKey, { value: magnet, expiresAt: Date.now() + MAGNET_CACHE_MS });
+  if (magnetCache.size > MAX_MAGNET_CACHE_SIZE) {
+    magnetCache.delete(magnetCache.keys().next().value);
+  }
 }
 
 async function getPostLinks(postUrl) {
@@ -427,24 +593,86 @@ async function getPostLinks(postUrl) {
   return task;
 }
 
-/** Legado do card Cardigann: resolve o MELHOR botão e devolve o magnet como texto. */
-async function resolvePost(postUrl, prefs) {
-  const { post, links } = await getPostLinks(postUrl);
-  const best = pickBestLink(links, prefs);
-  if (!best) throw new Error('no_protector');
-  console.log(
-    `[resolve] ${links.length} botão(ões) → ${best.quality || '?'}p ${best.audio} ${best.size || ''} ${post.pathname}`,
-  );
-  return fetchFollowingAllowed(best.url, post.href);
+/**
+ * Legado do card Cardigann: resolve em ordem de preferência e só propaga o
+ * erro do ÚLTIMO botão tentado — protetor fora do ar num botão não pode matar
+ * o post inteiro quando há alternativa. São no máximo MAX_RESOLVE_ATTEMPTS
+ * botões: depois disso quem pediu já desistiu, e insistir só queima socket.
+ * A chave da cache inclui as preferências: /resolve aceita audio= e quality=,
+ * e chave sem prefs serviria o magnet da primeira preferência para quem pediu
+ * a segunda.
+ */
+async function resolvePost(postUrl, prefs = {}) {
+  const cacheKey = `magnet:best:${postUrl}:${prefs.audio || ''}:${prefs.quality || ''}`;
+
+  const hit = magnetCache.get(cacheKey);
+  if (hit && hit.expiresAt > Date.now()) {
+    console.log(`[cache] hit magnet(best) ${postUrl}`);
+    return hit.value;
+  }
+  if (hit) magnetCache.delete(cacheKey);
+
+  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
+
+  const task = (async () => {
+    const { post, links } = await getPostLinks(postUrl);
+    const sorted = sortLinks(links, prefs).slice(0, MAX_RESOLVE_ATTEMPTS);
+    if (!sorted.length) throw new Error('no_protector');
+    console.log(
+      `[resolve] ${links.length} botão(ões), tentando ${sorted.length} em ordem de preferência ${post.pathname}`,
+    );
+    let lastError;
+    for (const link of sorted) {
+      try {
+        const magnet = await fetchFollowingAllowed(link.url, post.href);
+        setMagnetCache(cacheKey, magnet);
+        return magnet;
+      } catch (error) {
+        // Degradação esperada: protetor morre com frequência. Segue o próximo.
+        lastError = error;
+        console.warn(`[resolve] botão ${link.quality || '?'}p falhou (${error.message}); tentando o próximo`);
+      }
+    }
+    throw lastError || new Error('no_magnet');
+  })().finally(() => {
+    inFlight.delete(cacheKey);
+  });
+
+  inFlight.set(cacheKey, task);
+  return task;
 }
 
-/** Modo Torznab: resolve o botão de índice fixo (o feed referencia botões por posição). */
+/**
+ * Modo Torznab: resolve o botão de índice fixo (o feed referencia botões por
+ * posição). SEM fallback: o índice identifica um botão específico — cair para
+ * outro devolveria o torrent errado pro item que o Jackett listou.
+ */
 async function resolveButton(postUrl, index) {
-  const { post, links } = await getPostLinks(postUrl);
-  const link = links[index];
-  if (!link) throw new Error('no_such_button');
-  console.log(`[dl] botão ${index} → ${link.quality || '?'}p ${link.audio} ${link.size || ''} ${post.pathname}`);
-  return fetchFollowingAllowed(link.url, post.href);
+  const cacheKey = `magnet:${postUrl}:${index}`;
+
+  const hit = magnetCache.get(cacheKey);
+  if (hit && hit.expiresAt > Date.now()) {
+    console.log(`[cache] hit magnet botão ${index} ${postUrl}`);
+    return hit.value;
+  }
+  if (hit) magnetCache.delete(cacheKey);
+
+  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
+
+  const task = (async () => {
+    const { post, links } = await getPostLinks(postUrl);
+    const link = links[index];
+    if (!link) throw new Error('no_such_button');
+    console.log(`[dl] botão ${index} → ${link.quality || '?'}p ${link.audio} ${link.size || ''} ${post.pathname}`);
+    const magnet = await fetchFollowingAllowed(link.url, post.href);
+    setMagnetCache(cacheKey, magnet);
+    return magnet;
+  })().finally(() => {
+    inFlight.delete(cacheKey);
+  });
+
+  inFlight.set(cacheKey, task);
+  return task;
 }
 
 // --- Indexer Torznab ---
@@ -461,21 +689,40 @@ function escapeXml(value = '') {
 function escapeHtml(value = '') {
   return escapeXml(value);
 }
+
 /** Cards da página de busca: div.post > div.title > a + bloco .content com
  * poster (img), "Título Original" e a data de .icon .infos. */
 function parsePosts(html) {
   const posts = [];
-  const re = /<div class="post">[\s\S]*?<div class="title">\s*<a\s+[^>]*?href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+  // O tema repete card (widget de relacionados) e publica href relativo em
+  // alguns temas: dedup por URL resolvida e new URL contra o SITE_URL, senão
+  // o assertAllowedUrl descartaria o post inteiro.
+  const seen = new Set();
+  const re = /<div class="post">[\s\S]*?<div class="title">\s*<a\s+[^>]*?href=(["'])([^"']+)\1[^>]*>([\s\S]*?)<\/a>/g;
   let m;
   while ((m = re.exec(html))) {
-    // Janela do card: título + conteúdo + data ficam bem dentro de 4000 chars.
-    const block = html.slice(m.index, m.index + 4000);
+    let url;
+    try {
+      url = new URL(decodeEntities(m[2].trim()), SITE_URL).href;
+    } catch {
+      continue;
+    }
+    if (seen.has(url)) continue;
+    seen.add(url);
+
+    // Janela do card: até o próximo <div class="post">, com teto — card curto
+    // não arrasta conteúdo do vizinho, card longo não é truncado pelos 4000
+    // fixos de antes, e o ÚLTIMO card não varre o documento inteiro (o rodapé
+    // do site tem <img> e data, que vazariam para poster/date).
+    const nextPost = html.indexOf('<div class="post">', m.index + 1);
+    const end = nextPost === -1 ? html.length : nextPost;
+    const block = html.slice(m.index, Math.min(end, m.index + MAX_CARD_WINDOW));
     const poster = block.match(/<img[^>]+src="([^"]+)"/);
     const original = block.match(/T[íi]tulo\s*Original:[^<\n]{0,60}(?:<[^>]+>\s*)?([^<\n]{2,80})/i);
     const date = block.match(/(\d{2}\/\d{2}\/\d{4})/);
     posts.push({
-      url: decodeEntities(m[1]),
-      title: stripTags(m[2]),
+      url,
+      title: stripTags(m[3]),
       date: date ? date[1] : null,
       poster: poster ? poster[1] : null,
       original: original ? original[1].trim() : null,
@@ -484,39 +731,77 @@ function parsePosts(html) {
   return posts;
 }
 
-async function mapLimit(items, limit, fn) {
-  const out = [];
-  let i = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (i < items.length) {
-      const idx = i++;
+// Preserva a ordem do feed: out.push na conclusão fazia a ordem variar entre
+// chamadas conforme o timing da rede, e o Stremio reordena a lista toda vez.
+async function mapLimit(items, fn) {
+  const output = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(SEARCH_CONCURRENCY, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
       try {
-        out.push(await fn(items[idx]));
+        output[index] = await fn(items[index]);
       } catch (err) {
-        out.push(null);
+        console.warn(`[search] post sem botões (${err.message})`);
+        output[index] = null;
       }
     }
   });
   await Promise.all(workers);
-  return out.filter(Boolean);
+  return output.filter(Boolean);
+}
+
+// Limpeza do título do post em 7 passos: quem manda são os atributos do
+// botão, então a vitrine do site (qualidades, codec, canais de áudio, termos
+// de SEO) sai — senão tudo pareceria 4K/Dual Áudio pra quem consome.
+function cleanPostTitle(title = '') {
+  let clean = decodeEntities(String(title || ''));
+
+  // 1. Remove "Torrent(s)" e separador adjacente (ex: "Torrent – (2024)")
+  clean = clean.replace(/\s*Torrent(?:s)?\s*(?:[–\-—/|:&+]|&#8211;)?\s*/gi, ' ');
+
+  // 2. Remove resoluções (2160p, 1080p, 720p, 576p, 480p, 4K, UHD, etc.)
+  clean = clean.replace(/\b(?:2160p|1080p|720p|576p|480p|\d{3,4}p|4K|8K|UHD|ULTRA\s*HD|FULL\s*HD|\bHD\b(?!\s*TV)|\bSD\b)\b/gi, ' ');
+
+  // 3. Remove codecs de vídeo e fontes (BluRay, WEB-DL, Remux, IMAX, etc.)
+  clean = clean.replace(/\b(?:BDREMUX|REMUX|BLU[- ]?RAY|BLURAY|BDRIP|BRRIP|WEB[-. ]?DL|WEB[-. ]?RIP|WEBRIP|HDTV|CAMRIP|CAM|IMAX|3D|REMASTERED|REMASTER|HDR(?:10\+?)?|DOLBY\s*VISION|DV)\b/gi, ' ');
+
+  // 4. Remove especificações de áudio e canais (5.1, 7.1, 2.0, Atmos, etc.)
+  clean = clean.replace(/\b(?:5\.1|7\.1|2\.0|7\.2|DDP\s*5\.1|ATMOS)\b/gi, ' ');
+
+  // 5. Remove tags de áudio e idioma
+  clean = clean.replace(/\b(?:Dublado|Dublada|Legendado|Legendada|Dual\s*[AÁ]udio|Nacional|Multi\s*[AÁ]udio|Tri\s*[AÁ]udio|[AÁ]udio\s*Original)\b/gi, ' ');
+
+  // 6. Remove termos de vitrine / SEO
+  clean = clean.replace(/\b(?:Download|Baixar|Gr[áa]tis|Online|Completo|Completa|Assistir)\b/gi, ' ');
+
+  // 7. Limpa separadores órfãos / múltiplos e aparas nas bordas
+  clean = clean.replace(/\s*[/|–\-—:&+]\s*([/|–\-—:&+]\s*)+/g, ' ');
+  clean = clean.replace(/^[–\-—/|:&+\s]+/g, '');
+  clean = clean.replace(/[–\-—/|:&+\s]+$/g, '');
+  clean = clean.replace(/\s+/g, ' ').trim();
+
+  return clean;
 }
 
 /**
- * Título da release: o do post menos a lista de qualidades ("720p/1080p/4K") —
- * quem manda é a qualidade do botão, senão tudo pareceria 4K pra quem consome.
+ * Título da release: o do post limpo + os atributos do botão na tag. A fonte
+ * entra na tag ([720p WEB-DL DUBLADO]) e é removida do título limpo pra não
+ * duplicar. Sem tamanho na tag: o card Cardigann já publica <div class="size">.
  */
 function releaseTitle(postTitle, link) {
-  const clean = postTitle
-    .replace(/\s*Torrent\s*(?:[–-]|&#8211;)\s*/gi, ' ')
-    .replace(/\b\d{3,4}p(?:\s*\/\s*(?:\d{3,4}p|4K))+/gi, '')
-    .replace(/\b\d{3,4}p\b/gi, '')
-    // Palavras de vitrine do site: quem manda são os atributos do botão.
-    .replace(/\b(?:Dublado|Legendado|Dual\s*Áudio|Download|Online|Grátis|Completo|Completa)\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  let clean = cleanPostTitle(postTitle);
   const epPart = link.episode != null ? `E${String(link.episode).padStart(2, '0')}` : '';
   const audioTag = link.audio === 'dublado' ? 'DUBLADO' : link.audio === 'legendado' ? 'LEGENDADO' : null;
-  const tag = [link.quality ? `${link.quality}p` : null, audioTag]
+  if (link.source) {
+    const sourceEscaped = link.source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '[-. ]?');
+    clean = clean
+      .replace(new RegExp(`\\b${sourceEscaped}\\b`, 'gi'), '')
+      .replace(/[–\-—/|:&+\s]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  const tag = [link.quality ? `${link.quality}p` : null, link.source, audioTag]
     .filter(Boolean)
     .join(' ');
   const base = epPart ? `${clean} ${epPart}` : clean;
@@ -546,6 +831,48 @@ function normalizeQuery(raw) {
 }
 
 /**
+ * Busca com cache + coalescing: os DOIS modos (Torznab e Cardigann) passam
+ * por aqui. O Stremio repete a mesma consulta em retry; sem cache cada uma
+ * re-raspava a página de busca + os 5 posts. A categoria do RSS fica fora da
+ * cache (decidida por chamada).
+ */
+async function searchPosts(query) {
+  const normalized = normalizeQuery(query);
+  if (!normalized) return [];
+  const cacheKey = `search:${normalized}`;
+
+  const hit = searchCache.get(cacheKey);
+  if (hit && hit.expiresAt > Date.now()) {
+    console.log(`[cache] hit search "${normalized}"`);
+    return hit.value;
+  }
+  if (hit) searchCache.delete(cacheKey);
+
+  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
+
+  const task = (async () => {
+    const html = await fetchText(assertAllowedUrl(`${BLUDV_URL}/?s=${encodeURIComponent(normalized)}`));
+    const posts = parsePosts(html).slice(0, MAX_POSTS);
+    const chunks = await mapLimit(posts, async (post) => {
+      const { links } = await getPostLinks(post.url);
+      return links.map((link, index) => ({ post, link, index }));
+    });
+    const items = chunks.flat();
+    searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + SEARCH_CACHE_MS });
+    if (searchCache.size > MAX_SEARCH_CACHE_SIZE) {
+      searchCache.delete(searchCache.keys().next().value);
+    }
+    console.log(`[search] "${normalized}" → ${posts.length} post(s), ${items.length} release(s)`);
+    return items;
+  })().finally(() => {
+    inFlight.delete(cacheKey);
+  });
+
+  inFlight.set(cacheKey, task);
+  return task;
+}
+
+/**
  * Página HTML sintética consumida pelo card Cardigann do Jackett: o motor
  * Cardigann é 1:1 com os resultados da busca, então cada BOTÃO do post vira
  * uma linha própria (qualidade/áudio/tamanho reais). O href do download já
@@ -555,10 +882,10 @@ function searchPageHtml(items) {
   const rows = items
     .map(({ post, link, index }) => {
       const dl = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
-      // O tamanho do botão às vezes vem com lixo: "3.39 GB &#8211; MKV".
       // Sem tamanho o Jackett descarta a release ("No size provided"); o
       // sentinela satisfaz o Jackett e o addon o esconde (não inventa tamanho).
-      const size = String(link.size || '').replace(/\s+&#?\w+;.*/i, '').trim() || UNKNOWN_SIZE;
+      // O valor já vem normalizado do parser ("3.39 GB"), sem lixo de entidade.
+      const size = link.size || UNKNOWN_SIZE;
       return `  <div class="release">
     <div class="title"><a href="${escapeHtml(dl)}">${escapeHtml(releaseTitle(post.title, link))}</a></div>
     <div class="size">${escapeHtml(size)}</div>
@@ -631,19 +958,12 @@ async function handleApi(url, response) {
   if (t === 'caps') return reply(response, 200, capsXml(), 'application/xml; charset=utf-8');
   if (!['search', 'movie', 'tvsearch'].includes(t)) return reply(response, 400, 'unsupported_t');
 
-  const q = normalizeQuery(url.searchParams.get('q'));
-  if (!q) return reply(response, 200, rssXml([], 2000), 'application/xml; charset=utf-8');
+  const q = url.searchParams.get('q');
+  if (!q || !q.trim()) return reply(response, 200, rssXml([], 2000), 'application/xml; charset=utf-8');
 
   const category = t === 'tvsearch' ? 5000 : 2000;
   try {
-    const html = await fetchText(assertAllowedUrl(`${BLUDV_URL}/?s=${encodeURIComponent(q)}`));
-    const posts = parsePosts(html).slice(0, MAX_POSTS);
-    const chunks = await mapLimit(posts, SEARCH_CONCURRENCY, async (post) => {
-      const { links } = await getPostLinks(post.url);
-      return links.map((link, index) => ({ post, link, index }));
-    });
-    const items = chunks.flat();
-    console.log(`[api] "${q}" → ${posts.length} post(s), ${items.length} release(s)`);
+    const items = await searchPosts(q);
     return reply(response, 200, rssXml(items, category), 'application/xml; charset=utf-8');
   } catch (error) {
     return reply(response, 502, error.message);
@@ -666,18 +986,10 @@ async function handleDl(url, response) {
 }
 
 async function handleSearch(url, response) {
-  // Mesma normalização do Torznab — função única para os dois modos não derivarem.
-  const q = normalizeQuery(url.searchParams.get('q'));
-  if (!q) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
+  const q = url.searchParams.get('q');
+  if (!q || !q.trim()) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
   try {
-    const html = await fetchText(assertAllowedUrl(`${BLUDV_URL}/?s=${encodeURIComponent(q)}`));
-    const posts = parsePosts(html).slice(0, MAX_POSTS);
-    const chunks = await mapLimit(posts, SEARCH_CONCURRENCY, async (post) => {
-      const { links } = await getPostLinks(post.url);
-      return links.map((link, index) => ({ post, link, index }));
-    });
-    const items = chunks.flat();
-    console.log(`[search] "${q}" → ${posts.length} post(s), ${items.length} release(s)`);
+    const items = await searchPosts(q);
     return reply(response, 200, searchPageHtml(items), 'text/html; charset=utf-8');
   } catch (error) {
     return reply(response, 502, error.message);
@@ -758,18 +1070,30 @@ module.exports = {
   createServer,
   parseDownloadLinks,
   pickBestLink,
+  sortLinks,
   parsePosts,
   parseSize,
   releaseTitle,
+  cleanPostTitle,
   normalizeQuery,
   searchPageHtml,
   assertAllowedUrl,
   extractMagnet,
+  extractMetaRefresh,
+  extractEpisode,
   nextProtectedUrl,
+  decodeEntities,
+  normalizeQuality,
+  normalizeSource,
   isDetailHost,
   isProtectorHost,
   getPostLinks,
+  resolvePost,
+  resolveButton,
+  searchPosts,
   fetchFollowingAllowed,
   postCache,
+  searchCache,
+  magnetCache,
   inFlight,
 };
