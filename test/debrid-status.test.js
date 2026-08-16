@@ -69,23 +69,26 @@ test('conta folgada: ok, sem aviso, com a ocupação medida', async () => {
     assert.equal(status.ok, true);
     assert.equal(status.service, 'alldebrid');
     assert.deepEqual(
-      { magnets: status.magnets, ready: status.ready, limit: status.limit, usedPct: status.usedPct },
-      { magnets: 120, ready: 30, limit: 1000, usedPct: 12 },
+      { magnets: status.magnets, ready: status.ready },
+      { magnets: 120, ready: 30 },
     );
-    assert.equal(status.warn, false, '12% não é motivo de alarme');
+    assert.equal(status.warn, false, '120 magnets não é motivo de alarme');
+    assert.equal(status.usedPct, undefined, 'sem percentual sobre um teto que não conhecemos');
   } finally {
     restore();
   }
 });
 
-test('conta perto do teto avisa ANTES de a checagem quebrar', async () => {
-  // 80% é o ponto em que ainda dá tempo de limpar. O valor exato importa menos
-  // que existir um aviso: sem ele, o primeiro sinal é o ⚡ sumindo de tudo.
+test('conta cheia avisa ANTES de a checagem quebrar', async () => {
+  // O limiar é nosso, não do serviço: a AllDebrid tem dois tetos que não batem
+  // (30 ativos na doc, 1000 na mensagem real) e nenhum é consultável. O que
+  // importa é existir aviso — sem ele, o primeiro sinal é o ⚡ sumindo de tudo.
   const restore = mockAccount(800);
   try {
     const status = await withKey(() => debrid.accountStatus());
-    assert.equal(status.usedPct, 80);
+    assert.equal(status.magnets, 800);
     assert.equal(status.warn, true);
+    assert.equal(status.warnAt, 800, 'o limiar viaja na resposta, para não virar número mágico');
   } finally {
     restore();
   }
@@ -184,7 +187,7 @@ test('a rota responde 200 com o diagnóstico mesmo com a conta ruim', async () =
       'X-Indexer-Test-Token': TOKEN,
     });
     assert.equal(status, 200);
-    assert.equal(body.usedPct, 100);
+    assert.equal(body.magnets, 1000);
     assert.equal(body.warn, true);
   } finally {
     restore();
@@ -207,7 +210,7 @@ test('com config na URL o verificador olha a chave DAQUELA instalação', async 
     });
     assert.equal(status, 200);
     assert.equal(body.service, 'alldebrid');
-    assert.equal(body.usedPct, 50);
+    assert.equal(body.magnets, 500);
   } finally {
     restore();
   }

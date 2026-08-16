@@ -44,15 +44,60 @@ async function call(apiKey, path, params = {}, { method = 'GET', body, timeout }
 }
 
 /**
+ * Inventário de referência por conta: os hashes que JÁ estavam lá antes de o
+ * addon começar a trabalhar.
+ *
+ * Ele existe porque o /magnet/upload é idempotente e não diz se criou ou
+ * reaproveitou — a resposta é `{magnet, hash, name, size, ready, id}`, sem
+ * data. Sem essa referência, limpar os prontos apagaria também o filme que o
+ * usuário guardou de propósito na conta, na primeira vez que ele aparecesse
+ * numa busca.
+ *
+ * Carrega em background e uma vez por processo: enquanto não estiver pronto, a
+ * limpeza dos prontos simplesmente não roda (o valor null é o fail-safe). A
+ * primeira busca não paga nada por isso.
+ */
+const preexisting = new Map();
+
+function knownBefore(apiKey, account) {
+  const entry = preexisting.get(account);
+  if (entry) return entry.hashes;
+
+  const loading = { hashes: null };
+  preexisting.set(account, loading);
+  call(apiKey, '/magnet/status')
+    .then((data) => {
+      const list = Array.isArray(data?.magnets) ? data.magnets : [];
+      loading.hashes = new Set(list.map((m) => String(m.hash || '').toLowerCase()));
+      log.info(`[alldebrid] ${loading.hashes.size} magnet(s) preexistente(s) na conta ficam protegidos da limpeza`);
+    })
+    .catch((err) => {
+      // Sem inventário não há o que proteger: a limpeza dos prontos continua
+      // desligada, e a próxima busca tenta carregar de novo.
+      log.warn('[alldebrid] não consegui inventariar a conta:', err.message);
+      preexisting.delete(account);
+    });
+  return null;
+}
+
+/**
  * O /magnet/instant foi removido, mas o próprio /magnet/upload responde
  * `ready` por magnet — é essa a checagem de cache da AllDebrid. Aceita lote.
  *
  * O que não está pronto é removido em seguida: sem isso cada consulta deixaria
  * um download rodando na conta (chegaram a 226 fantasmas antes disso existir).
+ *
+ * O que ESTÁ pronto também sai, e essa é a diferença que segura a conta: cada
+ * busca sobe dezenas de hashes e os prontos ficavam para sempre — 2300 magnets
+ * em quatro dias de uso, até bater o teto da AllDebrid e derrubar a checagem
+ * inteira (aí o ⚡ some de TODOS os streams). Apagar é seguro porque o cache é
+ * do serviço, não da conta: no play o upload traz de volta na hora. Ficam de
+ * fora os do autofetch (`held`) e os que já eram do usuário (`knownBefore`).
  */
 async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   const drop = [];
   const account = accountScope(apiKey);
+  const preexistentes = config.debrid.dropReady ? knownBefore(apiKey, account) : null;
 
   const result = await batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const data = await call(
@@ -63,10 +108,16 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
     );
     const ready = [];
     for (const magnet of data?.magnets || []) {
-      if (magnet.ready) ready.push(String(magnet.hash).toLowerCase());
+      const hash = String(magnet.hash || '').toLowerCase();
+      if (magnet.ready) {
+        ready.push(hash);
+        // Só entra na limpeza o que o inventário garante não ser do usuário.
+        if (preexistentes && magnet.id && !preexistentes.has(hash) && !held.isHeld(magnet.hash, account)) {
+          drop.push(magnet.id);
+        }
       // Hash em download automático não entra na limpeza: ele está "não pronto"
       // justamente porque pedimos que baixasse.
-      else if (magnet.id && !held.isHeld(magnet.hash, account)) drop.push(magnet.id);
+      } else if (magnet.id && !held.isHeld(magnet.hash, account)) drop.push(magnet.id);
     }
     return ready;
   }, { timeoutMs });
@@ -75,7 +126,7 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
     // Em paralelo e sem travar a busca: limpeza é efeito colateral, não resposta.
     metrics.count('debrid.dropped', drop.length);
     Promise.allSettled(drop.map((id) => call(apiKey, '/magnet/delete', { id }))).then(() =>
-      log.info(`[alldebrid] ${drop.length} magnet(s) não cacheado(s) removido(s) da conta`),
+      log.info(`[alldebrid] ${drop.length} magnet(s) da checagem removido(s) da conta`),
     );
   }
   return result;
@@ -151,24 +202,40 @@ async function enqueue(apiKey, infoHash) {
   return Boolean(data?.magnets?.length);
 }
 
-// Teto de magnets simultâneos da conta. Não vem em nenhum endpoint — só
-// aparece quando estoura, dentro da mensagem de erro ("1000 accross all tabs").
-const MAGNET_LIMIT = Number(process.env.ALLDEBRID_MAGNET_LIMIT || 1000);
-
 /**
- * Quanto da conta já foi ocupado. Serve ao verificador: encher é o que derruba
+ * Ocupação da conta, por estado. Serve ao verificador: encher é o que derruba
  * a checagem de cache (que é um upload) e faz o ⚡ sumir da lista inteira, e
  * até estourar não existe nenhum sinal — o erro só chega quando já é tarde.
+ *
+ * Sem percentual: a AllDebrid tem DOIS limites que não batem entre si e nenhum
+ * dos dois é consultável. A doc documenta `MAGNET_TOO_MANY_ACTIVE` como
+ * "maximum allowed active magnets (30)", enquanto a mensagem que derrubou esta
+ * conta na prática dizia "Magnets limit reached (1000 accross all tabs)" — e a
+ * conta tinha 2309 registros funcionando. Inventar "% ocupado" sobre um teto
+ * que não conhecemos dizia "231% ocupado" para uma conta que respondia normal.
+ * Melhor relatar o que dá para medir e deixar o limiar explícito.
  */
+const ACTIVE_STATES = /^(?:queued|downloading|processing|compressing|moving|uploading)$/i;
+
 async function accountStatus(apiKey) {
   const data = await call(apiKey, '/magnet/status');
   const magnets = Array.isArray(data?.magnets) ? data.magnets : [];
-  const ready = magnets.filter((m) => m.ready || m.status === 'Ready').length;
+
+  let ready = 0;
+  let active = 0;
+  let error = 0;
+  for (const magnet of magnets) {
+    const status = String(magnet.status || '');
+    if (magnet.ready || /^ready$/i.test(status)) ready += 1;
+    else if (ACTIVE_STATES.test(status)) active += 1;
+    else if (status) error += 1;
+  }
+
   return {
     magnets: magnets.length,
     ready,
-    limit: MAGNET_LIMIT,
-    usedPct: MAGNET_LIMIT > 0 ? Math.round((magnets.length / MAGNET_LIMIT) * 100) : null,
+    active,
+    error,
     oldestAt: magnets.reduce(
       (min, m) => (m.uploadDate && (!min || m.uploadDate < min) ? m.uploadDate : min),
       null,

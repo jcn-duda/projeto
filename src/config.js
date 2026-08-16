@@ -193,6 +193,13 @@ const config = {
     // Remove da conta do debrid o que não está em cache. Sem isso cada consulta
     // deixa um download rodando lá (AllDebrid só informa cache ao dar upload).
     dropUncached: String(process.env.DEBRID_DROP_UNCACHED || 'true') === 'true',
+    // A checagem de cache é um upload: sem remover TAMBÉM os prontos, cada
+    // busca deixa dezenas de magnets na conta para sempre (medido: 2300 em
+    // quatro dias, até estourar o teto da AllDebrid e derrubar a checagem —
+    // com o ⚡ sumindo de todos os streams). Apagar não custa cache: ele é do
+    // serviço, e o play reenvia o hash na hora. Desligue se preferir ver na
+    // conta tudo que passou pela lista.
+    dropReady: String(process.env.DEBRID_DROP_READY || 'true') === 'true',
     timeout: num(process.env.DEBRID_TIMEOUT_MS, 6000),
     // Sem fonte BR dublada em cache, manda o serviço baixar a melhor. O TTL vale
     // pra duas coisas: não reenviar o mesmo torrent a cada busca e por quanto

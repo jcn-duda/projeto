@@ -202,8 +202,13 @@ async function checkCached(infoHashes, { timeoutMs } = {}) {
 
 // Acima disto o verificador avisa: encher a conta derruba a checagem de cache
 // inteira (ela é um upload), e o sintoma na tela — o ⚡ sumindo de TODOS os
-// streams — não aponta para a causa. 80% dá margem para limpar antes de quebrar.
-const ACCOUNT_WARN_PCT = Number(process.env.DEBRID_ACCOUNT_WARN_PCT || 80);
+// streams — não aponta para a causa.
+//
+// É um limiar nosso, não o limite do serviço: a AllDebrid tem dois tetos que
+// não batem entre si (30 "ativos" na doc, 1000 na mensagem de erro real) e
+// nenhum é consultável. 800 dá margem para limpar antes de quebrar; ajuste se
+// a sua conta aguentar mais.
+const ACCOUNT_WARN_TOTAL = Number(process.env.DEBRID_ACCOUNT_WARN_TOTAL || 800);
 
 /**
  * Saúde da conta do serviço corrente, para o endpoint de diagnóstico.
@@ -221,15 +226,23 @@ async function accountStatus() {
 
   try {
     const status = await adapter.accountStatus(opts().debridApiKey);
-    const usedPct = status.usedPct;
-    const warn = usedPct != null && usedPct >= ACCOUNT_WARN_PCT;
+    const warn = status.magnets >= ACCOUNT_WARN_TOTAL;
     if (warn) {
       log.warn(
-        `[${adapter.id}] conta em ${usedPct}% do limite (${status.magnets}/${status.limit} magnets);` +
-          ' passando de 100% a checagem de cache para e o ⚡ some da lista inteira',
+        `[${adapter.id}] ${status.magnets} magnet(s) na conta (aviso a partir de ${ACCOUNT_WARN_TOTAL});` +
+          ' quando o serviço recusar novos uploads a checagem de cache para e o ⚡ some da lista inteira' +
+          ' — limpe com scripts/magnets.js',
       );
     }
-    return { ok: true, service: adapter.id, label: adapter.label, supported: true, warn, ...status };
+    return {
+      ok: true,
+      service: adapter.id,
+      label: adapter.label,
+      supported: true,
+      warn,
+      warnAt: ACCOUNT_WARN_TOTAL,
+      ...status,
+    };
   } catch (err) {
     const reason = unusableReason(err) || 'falha';
     return { ok: false, service: adapter.id, label: adapter.label, reason, error: err.message };

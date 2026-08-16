@@ -230,3 +230,135 @@ test('erro da API vira exceção em vez de "nada em cache"', async () => {
     AbortSignal.timeout = realTimeout;
   }
 });
+
+// --- Limpeza dos PRONTOS ---------------------------------------------------
+//
+// A checagem de cache é um upload, e por muito tempo ela só removia o que não
+// estava pronto. Os prontos ficavam: cada busca sobe dezenas de hashes, e a
+// conta chegou a 2300 magnets em quatro dias de uso — até bater o teto da
+// AllDebrid, derrubar a checagem inteira e fazer o ⚡ sumir de TODOS os streams.
+//
+// Apagar é seguro (o cache é do serviço, não da conta; o play reenvia o hash),
+// menos em dois casos: o download do autofetch (`held`) e o que o usuário já
+// tinha na conta — daí o inventário de referência.
+
+/** Dublê com /magnet/status SEM id: é assim que o inventário lista a conta. */
+function mockAccountWith(preexisting, readyHashes) {
+  const deleted = [];
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    const body = (data) => ({ ok: true, async json() { return { status: 'success', data }; } });
+
+    if (url.pathname.endsWith('/magnet/status')) {
+      return body({ magnets: preexisting.map((hash, i) => ({ hash, id: 1000 + i, status: 'Ready' })) });
+    }
+    if (url.pathname.endsWith('/magnet/upload')) {
+      const hashes = url.searchParams.getAll('magnets[]');
+      return body({
+        magnets: hashes.map((hash, i) => ({
+          hash,
+          ready: readyHashes.includes(hash),
+          id: 2000 + i,
+        })),
+      });
+    }
+    if (url.pathname.endsWith('/magnet/delete')) {
+      deleted.push(Number(url.searchParams.get('id')));
+      return body({ message: 'deleted' });
+    }
+    throw new Error(`URL inesperada: ${url.pathname}`);
+  };
+
+  return {
+    deleted,
+    restore() {
+      globalThis.fetch = realFetch;
+      AbortSignal.timeout = realTimeout;
+    },
+  };
+}
+
+test('a primeira checagem não apaga pronto: o inventário ainda está carregando', async () => {
+  // Fail-safe: sem saber o que já era do usuário, não se apaga nada de pronto.
+  const NOVO = 'd'.repeat(40);
+  const api = mockAccountWith([], [NOVO]);
+  try {
+    await alldebrid.checkCached('chave-primeira-checagem', [NOVO]);
+    await settle();
+    assert.deepEqual(api.deleted, [], 'nada de pronto sai antes do inventário existir');
+  } finally {
+    api.restore();
+  }
+});
+
+test('com o inventário pronto, o magnet da checagem sai e o do usuário fica', async () => {
+  const KEY = 'chave-inventario-ok';
+  const DO_USUARIO = 'e'.repeat(40);
+  const DA_CHECAGEM = 'f'.repeat(40);
+  const api = mockAccountWith([DO_USUARIO], [DO_USUARIO, DA_CHECAGEM]);
+
+  try {
+    // Primeira passada: dispara o inventário (e não apaga nada de pronto).
+    await alldebrid.checkCached(KEY, [DA_CHECAGEM]);
+    await settle();
+    api.deleted.length = 0;
+
+    // Segunda: o inventário já respondeu.
+    const { cached } = await alldebrid.checkCached(KEY, [DO_USUARIO, DA_CHECAGEM]);
+    await settle();
+
+    assert.equal(cached.has(DO_USUARIO), true, 'ambos continuam sendo reportados como em cache');
+    assert.equal(cached.has(DA_CHECAGEM), true);
+    // O id 2001 é o da segunda posição do upload (DA_CHECAGEM); 2000 é o do
+    // DO_USUARIO, que o inventário protege.
+    assert.deepEqual(api.deleted, [2001], 'só o que a checagem criou é removido');
+  } finally {
+    api.restore();
+  }
+});
+
+test('o download do autofetch sobrevive à limpeza mesmo depois de ficar pronto', async () => {
+  // O held existe justamente para isso: o torrent foi enfileirado de propósito
+  // e apagá-lo jogaria fora o download que o usuário está esperando.
+  const KEY = 'chave-autofetch';
+  const ACCOUNT_AUTO = accountScope(KEY);
+  const AUTO = 'a1'.repeat(20);
+  const api = mockAccountWith([], [AUTO]);
+
+  try {
+    await alldebrid.checkCached(KEY, [AUTO]);
+    await settle();
+    api.deleted.length = 0;
+
+    held.hold(AUTO, 3600, ACCOUNT_AUTO);
+    await alldebrid.checkCached(KEY, [AUTO]);
+    await settle();
+    assert.deepEqual(api.deleted, [], 'hash protegido não é removido nem estando pronto');
+  } finally {
+    held.release(AUTO, ACCOUNT_AUTO);
+    api.restore();
+  }
+});
+
+test('DEBRID_DROP_READY=false devolve o comportamento antigo', async () => {
+  const KEY = 'chave-drop-ready-off';
+  const PRONTO = 'b1'.repeat(20);
+  const api = mockAccountWith([], [PRONTO]);
+  const original = config.debrid.dropReady;
+
+  try {
+    config.debrid.dropReady = false;
+    await alldebrid.checkCached(KEY, [PRONTO]);
+    await settle();
+    await alldebrid.checkCached(KEY, [PRONTO]);
+    await settle();
+    assert.deepEqual(api.deleted, [], 'com a flag desligada, pronto nunca sai');
+  } finally {
+    config.debrid.dropReady = original;
+    api.restore();
+  }
+});

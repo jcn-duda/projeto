@@ -197,6 +197,26 @@ na mesma lista (7s por busca, cache nunca assentando).
 Causas **misturadas** (um lote com auth, outro com timeout) não afirmam nada e
 caem no genérico — classificar pela primeira faria a lista virar P2P por engano.
 
+**A checagem SUJA a conta — e por isso ela também limpa.** Na AllDebrid não
+existe consulta de disponibilidade (o `/magnet/instant` foi removido), então
+checar cache é dar `/magnet/upload` de verdade em todos os hashes da busca.
+`dropUncached` remove os que voltam não-prontos e `dropReady` remove os que
+voltam prontos — sem o segundo, cada busca deixava dezenas de magnets na conta
+para sempre (2300 em quatro dias, até estourar o teto e derrubar a checagem
+inteira). Apagar o pronto é seguro: o cache é do SERVIÇO, não da conta, e o
+play reenvia o hash na hora.
+
+Duas coisas nunca entram na limpeza: o hash do autofetch (`protected.js`) e o
+que **já era do usuário**. Como o `/magnet/upload` é idempotente e a resposta
+não diz se criou ou reaproveitou (`{magnet, hash, name, size, ready, id}`, sem
+data), o adaptador inventaria a conta uma vez por processo e protege o que
+encontrou. Enquanto esse inventário não carrega, a limpeza dos prontos não roda
+— o `null` é o fail-safe.
+
+Para comparação: o Comet delega ao StremThru, que na AllDebrid **não mede** nada
+(o `/magnets/check` devolve palpite de base colaborativa) e só toca a conta no
+play, sem remover depois. O nosso ⚡ é medido; o preço é essa limpeza.
+
 **Verificador (`/debrid-status.json`).** Encher a conta é invisível até estourar,
 e aí o sintoma não aponta para a causa. O endpoint mostra a ocupação antes disso,
 atrás do mesmo token do diagnóstico:
@@ -207,7 +227,11 @@ curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" http://127.0.0.1:7000/debrid
 
 Com a config na frente (`/<config>/debrid-status.json`) ele usa a chave **daquela
 instalação** — que é a que o app manda, e pode ser diferente da do `.env`. Acima
-de `DEBRID_ACCOUNT_WARN_PCT` (80) ele devolve `warn: true` e registra aviso.
+de `DEBRID_ACCOUNT_WARN_TOTAL` (800 magnets) ele devolve `warn: true` e registra
+aviso. Não existe percentual: a AllDebrid tem dois tetos que não batem entre si
+(30 "ativos" na doc oficial, 1000 na mensagem de erro real) e nenhum é
+consultável — a versão anterior dizia "231% ocupado" para uma conta que
+respondia normalmente.
 
 Para adicionar um serviço: crie o adaptador, registre em `ADAPTERS` e pronto —
 `SERVICES` alimenta o seletor da página automaticamente. Declare `cacheCheck`
