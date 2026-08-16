@@ -146,8 +146,8 @@ module.exports = {
   short: 'AD',
   // Não pelo /magnet/instant (removido), e sim pelo `ready` do /magnet/upload.
   cacheCheck: true,
-  // A consulta cria transferência; aborto sem resposta perde o id necessário
-  // para remover os magnets que não estavam prontos.
+  // A consulta cria transferência; ela disputa o prazo sem ser abortada e segue
+  // em background para ler os ids e remover os magnets que não estavam prontos.
   abortSafeCacheCheck: false,
   keyUrl: 'https://alldebrid.com/apikeys',
   checkCached,

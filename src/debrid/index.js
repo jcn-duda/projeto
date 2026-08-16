@@ -1,5 +1,63 @@
 const { opts } = require('../runtime');
+const config = require('../config');
+const { accountScope } = require('../utils/request-key');
+const { raceWithDeadline } = require('../utils/deadline');
+const metrics = require('../utils/metrics');
 const log = require('../utils/logger');
+
+// Consulta não abortável em andamento (hoje, AllDebrid). O passe tardio junta
+// a mesma promise quando o conjunto de hashes é idêntico; se o balde cresceu,
+// uma nova consulta é necessária para não tratar os hashes novos como checados.
+const nonAbortableChecks = new Map();
+const NON_ABORTABLE_CHECK_TTL_MS = 60_000;
+
+function normalizeCacheResult(adapter, result) {
+  const cached = result instanceof Set ? result : result?.cached || new Set();
+  const complete = result instanceof Set ? true : result?.complete !== false;
+  if (!complete) {
+    log.warn(
+      `[${adapter.id}] checagem de cache incompleta; tratando como "não sei" em vez de "não tem"`,
+    );
+  }
+  return { cached, known: complete };
+}
+
+function nonAbortableKey(adapter, apiKey, infoHashes) {
+  const hashes = [...new Set(infoHashes.map((hash) => String(hash).toLowerCase()))].sort();
+  return `${adapter.id}:${accountScope(apiKey)}:${hashes.join(',')}`;
+}
+
+function nonAbortableCheck(adapter, apiKey, infoHashes) {
+  const key = nonAbortableKey(adapter, apiKey, infoHashes);
+  let entry = nonAbortableChecks.get(key);
+  if (entry) return entry.promise;
+
+  entry = {};
+  entry.promise = Promise.resolve()
+    // Sem timeout dinâmico: abortar depois do upload perderia os ids necessários
+    // para apagar o que não estava em cache. O teto próprio do adaptador continua
+    // valendo, mas a corrida da resposta não cancela este trabalho.
+    .then(() => adapter.checkCached(apiKey, infoHashes))
+    .then((result) => normalizeCacheResult(adapter, result))
+    .catch((err) => {
+      log.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
+      return { cached: new Set(), known: false };
+    });
+  nonAbortableChecks.set(key, entry);
+  entry.promise.then(({ known }) => {
+    // Falha não pode ficar memorizada: o passe tardio deve poder tentar de novo
+    // assim que o serviço voltar. Só resultado confiável serve como dedupe curto.
+    if (!known) {
+      if (nonAbortableChecks.get(key) === entry) nonAbortableChecks.delete(key);
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (nonAbortableChecks.get(key) === entry) nonAbortableChecks.delete(key);
+    }, NON_ABORTABLE_CHECK_TTL_MS);
+    timer.unref();
+  });
+  return entry.promise;
+}
 
 /**
  * Registry de serviços de debrid. Cada adaptador expõe a mesma forma:
@@ -68,25 +126,24 @@ async function checkCached(infoHashes, { timeoutMs } = {}) {
   // Tempo restante esgotado: degrada na hora, sem rede. É a MESMA semântica de
   // resposta incompleta (lista inteira via debrid, sem ⚡ falso).
   if (timeoutMs != null && timeoutMs <= 0) return { cached: new Set(), known: false };
-  // A checagem da AllDebrid faz upload de verdade. Abortá-la depois que o
-  // servidor aceitou o magnet impediria ler o id e limpar os não cacheados,
-  // recriando downloads-fantasma. No passo limitado adiamos a consulta inteira;
-  // o passe tardio, sem teto, executa upload + limpeza normalmente.
-  if (timeoutMs != null && adapter.abortSafeCacheCheck === false) {
-    return { cached: new Set(), known: false };
+  // A checagem da AllDebrid faz upload de verdade. Ela pode disputar o prazo,
+  // mas nunca é abortada: se perder, continua em background, lê os ids e limpa
+  // os não cacheados. O passe tardio junta a mesma promise.
+  if (adapter.abortSafeCacheCheck === false) {
+    if (timeoutMs != null && timeoutMs < config.debrid.nonAbortableRaceFloor) {
+      return { cached: new Set(), known: false };
+    }
+    const task = nonAbortableCheck(adapter, opts().debridApiKey, infoHashes);
+    if (timeoutMs == null) return task;
+    return raceWithDeadline(task, timeoutMs, () => {
+      metrics.count('debrid.check.raceLost');
+      return { cached: new Set(), known: false };
+    });
   }
 
   try {
     const result = await adapter.checkCached(opts().debridApiKey, infoHashes, { timeoutMs });
-    // Adaptador pode devolver só o Set (sem lotes) ou { cached, complete }.
-    const cached = result instanceof Set ? result : result?.cached || new Set();
-    const complete = result instanceof Set ? true : result?.complete !== false;
-    if (!complete) {
-      log.warn(
-        `[${adapter.id}] checagem de cache incompleta; tratando como "não sei" em vez de "não tem"`,
-      );
-    }
-    return { cached, known: complete };
+    return normalizeCacheResult(adapter, result);
   } catch (err) {
     log.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
     return { cached: new Set(), known: false };

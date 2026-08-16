@@ -15,6 +15,16 @@ const cache = require('./utils/cache');
 const log = require('./utils/logger');
 
 /**
+ * Quando a consulta da AllDebrid não cabe no prazo, o primeiro lote pode sair
+ * como `[AD download]`; o cliente precisa perguntar de novo para pegar o cache
+ * do servidor já reconstruído com ⚡. Cachear esse lote por 15 minutos tornava
+ * a atualização tardia invisível mesmo quando o hash estava pronto.
+ */
+function streamsNeedRevalidation({ streams = [], partial, needsDebridRefresh, debridKnown } = {}) {
+  return !streams.length || partial || needsDebridRefresh || debridKnown === false;
+}
+
+/**
  * Monta o app Express completo do addon sem nenhum efeito colateral (sem
  * listen, sem warmup, sem carregar resolvers). Existe para os testes poderem
  * exercitar as rotas REAIS — antes o harness e2e mantinha uma cópia de ~160
@@ -75,8 +85,9 @@ function createApp() {
 
   builder.defineStreamHandler(async (args) => {
     try {
-      const { streams, partial } = await findStreams({ type: args.type, id: args.id });
-      if (!streams.length || partial) {
+      const result = await findStreams({ type: args.type, id: args.id });
+      const { streams } = result;
+      if (streamsNeedRevalidation(result)) {
         // Resposta vazia (busca ainda em background) não pode ficar cacheada:
         // o Stremio precisa perguntar de novo pra pegar o resultado real.
         //
@@ -84,7 +95,9 @@ function createApp() {
         // orçamento de coleta, então a primeira resposta sai só com as fontes
         // globais. Com cacheMaxAge normal o cliente ficava 15 minutos preso nela
         // enquanto o passe tardio já tinha recacheado a lista completa no servidor
-        // — era isso que fazia "o BR não aparecer" mesmo estando lá.
+        // — era isso que fazia "o BR não aparecer" mesmo estando lá. O mesmo
+        // vale para debrid ainda desconhecido: o refresh tardio pode trocar
+        // `[AD download]` por `[AD⚡]` sem mudar a coleta.
         return { streams, cacheMaxAge: 0 };
       }
       return {
@@ -275,4 +288,4 @@ function createApp() {
   return { app, manifest, addonInterface };
 }
 
-module.exports = { createApp };
+module.exports = { createApp, streamsNeedRevalidation };

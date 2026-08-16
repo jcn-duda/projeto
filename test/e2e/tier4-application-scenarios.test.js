@@ -475,8 +475,13 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       ds: 'alldebrid',
       dk: userApiKey,
       p: ['jackett'],
-      autoFetchBr: true,
-      debridCachedOnly: true,
+      // Chaves CURTAS do schema (`ab`/`dc`): `runtime.normalize` ignora chaves
+      // desconhecidas, então `autoFetchBr: true`/`debridCachedOnly: true` eram
+      // descartadas em silêncio e o efetivo vinha do .env do operador — com
+      // DEBRID_CACHED_ONLY=false o autofetch nem ligava e o hold nunca protegia
+      // o candidato BR da limpeza simulada no checkCached.
+      ab: 1, // autoFetchBr
+      dc: 1, // debridCachedOnly
       b: 2,
     };
 

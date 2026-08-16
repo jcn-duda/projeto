@@ -168,9 +168,9 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
   if (onCacheResult) {
     onCacheResult({
       known,
-      // Real-Debrid e Debrid-Link sempre são unknown; só uma consulta confiável
-      // que degradou por causa do teto precisa ser repetida em background.
-      needsFullRefresh: timeoutMs != null && adapter.cacheCheck && !known,
+      // Serviço que sabe consultar cache mas voltou unknown sofreu prazo ou
+      // falha. Inclusive no passe tardio isso não pode virar `debridKnown:true`.
+      needsFullRefresh: adapter.cacheCheck && !known,
     });
   }
   autoFetchBrDubbed(streams, candidate, { cached, known, season, episode, searchKey });
@@ -422,10 +422,10 @@ async function findStreams({ type, id }) {
  * uma checagem de cache CONFIÁVEL. `partial:false` sozinho não prova isso: ele
  * diz que a coleta acabou, não que alguém perguntou ao debrid.
  *
- * A diferença aparecia inteira na AllDebrid, que pula a consulta no passo de
- * resposta (o /magnet/instant morreu; checar é dar upload, e abortar deixa
- * download-fantasma na conta). A busca respondia sem ⚡, o passe tardio
- * promovia essa mesma lista a completa e o refresh — que existe justamente pra
+ * A diferença aparecia inteira na AllDebrid, cuja consulta disputa o prazo sem
+ * poder ser abortada (o /magnet/instant morreu; checar é dar upload). Quando a
+ * corrida perdia, a busca respondia sem ⚡ e o passe tardio promovia essa mesma
+ * lista a completa; o refresh — que existe justamente pra
  * recuperar o ⚡ — desistia ao ver `partial:false`. Resultado: raio nenhum, e a
  * lista sem raio cacheada como boa por CACHE_TTL.
  *
@@ -473,7 +473,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
       // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco
       // tempo. Lote parcial idem: o passe tardio reescreve, mas se ele falhar o
       // TTL curto evita servir a lista sem as fontes BR por 15 minutos.
-      const complete = streams.length && !partial;
+      const complete = streams.length && !partial && !needsDebridRefresh;
       // `debridKnown` registra se ESTA lista nasceu de uma checagem de cache
       // confiável. Sem ele, `partial:false` era usado como prova de "já
       // processado" — e o passe tardio promove a entrada SEM refazer a
@@ -503,10 +503,11 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     if (!hit?.partial) return undefined;
     // Promover NÃO refaz a checagem de cache, então `debridKnown` é copiado
     // como está: promessa de completude da COLETA não é promessa de ⚡.
+    const debridKnown = hit.debridKnown === true;
     cache.set(
       cacheKey,
-      { streams: hit.streams, partial: false, debridKnown: hit.debridKnown === true },
-      config.cacheTtl,
+      { streams: hit.streams, partial: false, debridKnown },
+      debridKnown ? config.cacheTtl : Math.min(config.cacheTtl, 60),
     );
     log.info(`[search] coleta encerrada sem novidade; ${hit.streams.length} stream(s) para ${id}`);
     return undefined;

@@ -183,6 +183,10 @@ const config = {
     // checagem Premiumize de 3,5s estourou o deadline devolvendo []; com a
     // margem, a checagem degrada para known:false e a lista sai não-vazia.
     checkFormatMargin: num(process.env.DEBRID_CHECK_FORMAT_MARGIN_MS, 500),
+    // Piso para disputar na primeira resposta uma checagem que não pode ser
+    // abortada (AllDebrid). A chamada continua em background se perder o prazo;
+    // abaixo deste valor ela só atrasaria a resposta sem chance útil de vencer.
+    nonAbortableRaceFloor: num(process.env.DEBRID_NON_ABORTABLE_RACE_MIN_MS, 400),
     // Remove da conta do debrid o que não está em cache. Sem isso cada consulta
     // deixa um download rodando lá (AllDebrid só informa cache ao dar upload).
     dropUncached: String(process.env.DEBRID_DROP_UNCACHED || 'true') === 'true',
