@@ -2,6 +2,7 @@ const { opts } = require('../runtime');
 const config = require('../config');
 const { accountScope } = require('../utils/request-key');
 const { raceWithDeadline } = require('../utils/deadline');
+const { isAuthError, isQuotaError } = require('./common');
 const metrics = require('../utils/metrics');
 const log = require('../utils/logger');
 
@@ -10,6 +11,48 @@ const log = require('../utils/logger');
 // uma nova consulta é necessária para não tratar os hashes novos como checados.
 const nonAbortableChecks = new Map();
 const NON_ABORTABLE_CHECK_TTL_MS = 60_000;
+
+/**
+ * Serviço inutilizável AGORA, por um motivo que só o usuário conserta —
+ * estado próprio, não "não sei".
+ *
+ * `known:false` sozinho manda a lista inteira pelo debrid, o que faz sentido
+ * quando o serviço só não respondeu a tempo. Nestes dois casos não: a checagem
+ * é um upload, e o play também é — se o upload é recusado, nenhum link vai
+ * resolver e a lista precisa voltar como P2P. Os dois chegam à tela do mesmo
+ * jeito (o ⚡ some de todos os streams) e só o log distingue a causa, então
+ * cada motivo carrega o próprio conserto.
+ */
+const UNUSABLE = {
+  auth: {
+    metric: 'debrid.auth.invalid',
+    label: 'credencial recusada',
+    fix: (adapter) =>
+      `gere uma chave nova em ${adapter.keyUrl || 'sua conta'} e atualize DEBRID_API_KEY` +
+      ' ou refaça a URL de instalação em /configure',
+  },
+  quota: {
+    metric: 'debrid.quota.exceeded',
+    label: 'conta no limite de magnets',
+    fix: () =>
+      'apague magnets antigos no painel do serviço; a checagem de cache é um upload' +
+      ' e não cabe mais nenhum enquanto a conta estiver cheia',
+  },
+};
+
+function unusable(adapter, reason, err) {
+  const kind = UNUSABLE[reason];
+  metrics.count(kind.metric);
+  log.warn(`[${adapter.id}] ${kind.label} (${err.message}); a lista volta como P2P — ${kind.fix(adapter)}`);
+  return { cached: new Set(), known: false, unusable: { reason, message: err.message } };
+}
+
+/** Classifica o que impede o serviço de funcionar, ou null se for transitório. */
+function unusableReason(err) {
+  if (isAuthError(err)) return 'auth';
+  if (isQuotaError(err)) return 'quota';
+  return null;
+}
 
 function normalizeCacheResult(adapter, result) {
   const cached = result instanceof Set ? result : result?.cached || new Set();
@@ -40,6 +83,11 @@ function nonAbortableCheck(adapter, apiKey, infoHashes) {
     .then(() => adapter.checkCached(apiKey, infoHashes))
     .then((result) => normalizeCacheResult(adapter, result))
     .catch((err) => {
+      // A AllDebrid é justamente o serviço que passa por aqui, então a
+      // credencial recusada precisa ser reconhecida NESTE catch também — não
+      // só no caminho abortável lá embaixo.
+      const reason = unusableReason(err);
+      if (reason) return unusable(adapter, reason, err);
       log.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
       return { cached: new Set(), known: false };
     });
@@ -145,6 +193,8 @@ async function checkCached(infoHashes, { timeoutMs } = {}) {
     const result = await adapter.checkCached(opts().debridApiKey, infoHashes, { timeoutMs });
     return normalizeCacheResult(adapter, result);
   } catch (err) {
+    const reason = unusableReason(err);
+    if (reason) return unusable(adapter, reason, err);
     log.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
     return { cached: new Set(), known: false };
   }

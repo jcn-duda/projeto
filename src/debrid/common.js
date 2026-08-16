@@ -8,6 +8,58 @@ function magnetFor(infoHash) {
 }
 
 /**
+ * Credencial recusada pelo serviço — categoria à parte de "falhou".
+ *
+ * Erro transitório (timeout, 502) significa "não sei o que está em cache" e o
+ * addon segue mandando tudo pelo debrid, porque no play pode dar certo. Chave
+ * inválida significa que NADA vai dar certo: a lista inteira sai como
+ * `[AD download]` e todo play morre no /resolve. Sem distinguir os dois, o
+ * sintoma na tela é o mesmo (o ⚡ some) e a causa fica invisível.
+ */
+class AuthError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'AuthError';
+    this.isAuthError = true;
+  }
+}
+
+// Códigos/mensagens de credencial recusada. AllDebrid usa AUTH_* no corpo com
+// HTTP 200; os outros serviços respondem 401/403.
+const AUTH_MESSAGE = /AUTH_(?:BAD_APIKEY|MISSING_APIKEY|BLOCKED|USER_BANNED)|apikey is invalid|invalid (?:api )?(?:key|token)|unauthor[iz]|forbidden|bad token/i;
+
+function isAuthError(error) {
+  if (!error) return false;
+  if (error.isAuthError) return true;
+  return AUTH_MESSAGE.test(String(error.message || ''));
+}
+
+/**
+ * Conta no teto — a credencial está boa, o que acabou foi espaço.
+ *
+ * Caso real: "Magnets limit reached (1000 accross all tabs)" (o typo é da API).
+ * A checagem de cache da AllDebrid é um /magnet/upload, então conta cheia
+ * derruba a checagem inteira: o ⚡ some de todos os streams e a causa não
+ * aparece em lugar nenhum. Pior, o play também passa por upload — mandar a
+ * lista pelo debrid nessa situação entrega links que não resolvem.
+ */
+class QuotaError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'QuotaError';
+    this.isQuotaError = true;
+  }
+}
+
+const QUOTA_MESSAGE = /MAGNET_TOO_MANY_ACTIVE|magnets? limit reached|too many active|quota exceeded|limit reached/i;
+
+function isQuotaError(error) {
+  if (!error) return false;
+  if (error.isQuotaError) return true;
+  return QUOTA_MESSAGE.test(String(error.message || ''));
+}
+
+/**
  * Um fetch JSON com o timeout do debrid já aplicado. Cada serviço tem o seu
  * jeito de autenticar, então o header vai por fora.
  */
@@ -26,7 +78,9 @@ async function json(url, { method = 'GET', headers = {}, body, timeout } = {}) {
     } catch {
       /* corpo ilegível: o status já basta */
     }
-    throw new Error(`HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
+    const message = `HTTP ${res.status}${detail ? ` — ${detail}` : ''}`;
+    if (res.status === 401 || res.status === 403) throw new AuthError(message);
+    throw new Error(message);
   }
   return res.json();
 }
@@ -89,17 +143,36 @@ async function batched(infoHashes, size, fn, { timeoutMs } = {}) {
   const settled = await Promise.allSettled(slices.map((slice) => fn(slice, { timeoutMs })));
   const cached = new Set();
   let failures = 0;
+  let authFailures = 0;
+  let quotaFailures = 0;
+  let lastCause = '';
 
   for (const result of settled) {
     if (result.status === 'fulfilled') {
       result.value.forEach((hash) => cached.add(hash));
     } else {
       failures += 1;
-      log.warn('[debrid] lote de cache falhou:', result.reason?.message || result.reason);
+      const message = result.reason?.message || String(result.reason);
+      if (isAuthError(result.reason)) {
+        authFailures += 1;
+        lastCause = message;
+      } else if (isQuotaError(result.reason)) {
+        quotaFailures += 1;
+        lastCause = message;
+      }
+      log.warn('[debrid] lote de cache falhou:', message);
     }
   }
 
   if (slices.length > 0 && failures === slices.length) {
+    // A causa não pode se perder aqui: com credencial recusada em TODOS os
+    // lotes, quem chama precisa saber que não adianta mandar a lista pelo
+    // debrid — e o usuário precisa ver o motivo em vez de um ⚡ que sumiu.
+    // Todas as falhas com a MESMA causa estrutural: sobe classificada, para o
+    // orquestrador degradar para P2P e o log dizer o que consertar. Causas
+    // misturadas (uma de auth, outra de rede) não afirmam nada — genérico.
+    if (authFailures === failures) throw new AuthError(lastCause);
+    if (quotaFailures === failures) throw new QuotaError(lastCause);
     throw new Error('nenhum lote de checagem de cache respondeu');
   }
   return { cached, complete: failures === 0 };
@@ -110,4 +183,8 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms).unref());
 }
 
-module.exports = { magnetFor, json, pickFile, batched, wait, VIDEO_EXT, SAMPLE };
+module.exports = {
+  magnetFor, json, pickFile, batched, wait,
+  AuthError, isAuthError, QuotaError, isQuotaError,
+  VIDEO_EXT, SAMPLE,
+};

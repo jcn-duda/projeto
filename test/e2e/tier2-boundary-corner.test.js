@@ -772,12 +772,18 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
   describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
     it('F10-BND-01: batched() throws error when all chunks fail to prevent false empty cache', async () => {
       const hashes = ['hash1', 'hash2', 'hash3'];
-      async function failingFn() {
-        throw new Error('Debrid 401 Unauthorized');
-      }
+      // Falha transitória: a invariante é o erro SUBIR, para que "não perguntei"
+      // nunca vire "seu debrid não tem nada".
       await assert.rejects(
-        () => debridCommon.batched(hashes, 2, failingFn),
+        () => debridCommon.batched(hashes, 2, async () => { throw new Error('Debrid timeout'); }),
         /nenhum lote de checagem de cache respondeu/,
+      );
+
+      // Credencial recusada sobe pela mesma porta, porém marcada: é o que deixa
+      // o orquestrador devolver a lista como P2P em vez de prometer debrid.
+      await assert.rejects(
+        () => debridCommon.batched(hashes, 2, async () => { throw new Error('Debrid 401 Unauthorized'); }),
+        (err) => err.isAuthError === true,
       );
     });
 

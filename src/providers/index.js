@@ -160,7 +160,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
     checkStarted,
     config.debrid.checkFormatMargin,
   );
-  const { cached, known } = await debrid.checkCached(
+  const { cached, known, unusable } = await debrid.checkCached(
     hashes,
     timeoutMs != null ? { timeoutMs } : {},
   );
@@ -170,9 +170,28 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
       known,
       // Serviço que sabe consultar cache mas voltou unknown sofreu prazo ou
       // falha. Inclusive no passe tardio isso não pode virar `debridKnown:true`.
-      needsFullRefresh: adapter.cacheCheck && !known,
+      //
+      // Serviço inutilizável é a exceção: revalidar não muda nada enquanto o
+      // usuário não trocar a chave ou esvaziar a conta, e pedir refresh a cada
+      // request fazia TODA busca refazer Jackett + resolvers BR (medido: 7s por
+      // busca, com o cache nunca assentando). O TTL normal ainda expira, então
+      // a próxima janela tenta de novo sozinha.
+      needsFullRefresh: adapter.cacheCheck && !known && !unusable,
     });
   }
+  // Chave recusada ou conta cheia: a lista inteira sairia como `[AD download]`
+  // apontando para o /resolve, e TODO play morreria lá — os dois casos barram o
+  // upload, que é como o serviço resolve. Como torrent puro ela ao menos toca.
+  // O autofetch também não roda: enfileirar download numa conta que recusa
+  // upload só gera erro em série.
+  if (unusable) {
+    log.warn(
+      `[debrid] ${adapter.label} indisponível (${unusable.reason}); ` +
+        `${streams.length} stream(s) devolvido(s) como P2P (sem ⚡)`,
+    );
+    return streams;
+  }
+
   autoFetchBrDubbed(streams, candidate, { cached, known, season, episode, searchKey });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
   const viaDebrid = (s, instant) => {

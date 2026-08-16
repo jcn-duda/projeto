@@ -1,6 +1,9 @@
 const config = require('../config');
 const { accountScope } = require('../utils/request-key');
-const { json, pickFile, wait, batched } = require('./common');
+const {
+  json, pickFile, wait, batched,
+  AuthError, isAuthError, QuotaError, isQuotaError,
+} = require('./common');
 const held = require('./protected');
 const log = require('../utils/logger');
 const metrics = require('../utils/metrics');
@@ -26,7 +29,16 @@ async function call(apiKey, path, params = {}, { method = 'GET', body, timeout }
   });
   // A AllDebrid responde 200 com { status: "error" }; o HTTP sozinho não basta.
   if (data.status === 'error') {
-    throw new Error(data.error?.message || data.error?.code || 'alldebrid retornou erro');
+    const code = data.error?.code || '';
+    const message = data.error?.message || code || 'alldebrid retornou erro';
+    const full = `${message}${code ? ` (${code})` : ''}`;
+    // Nenhuma das duas é falha transitória: enquanto a chave não for trocada
+    // (AUTH_*) ou a conta não for esvaziada (MAGNET_TOO_MANY_ACTIVE), toda
+    // tentativa volta igual. Sobem classificadas para o orquestrador degradar
+    // para P2P em vez de prometer um debrid que não vai resolver.
+    if (isAuthError({ message: `${code} ${message}` })) throw new AuthError(full);
+    if (isQuotaError({ message: `${code} ${message}` })) throw new QuotaError(full);
+    throw new Error(message);
   }
   return data.data;
 }

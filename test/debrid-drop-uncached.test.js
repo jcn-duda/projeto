@@ -217,7 +217,14 @@ test('erro da API vira exceção em vez de "nada em cache"', async () => {
     // batched só deixa passar quando ALGUM lote responde; com todos falhando o
     // erro tem que subir, senão chave inválida viraria "seu debrid não tem nada"
     // e o cachedOnly apagaria a lista inteira em silêncio.
-    await assert.rejects(() => alldebrid.checkCached(KEY, [READY, COLD]), /nenhum lote/);
+    //
+    // AUTH_BAD_APIKEY sobe marcado como credencial recusada (antes vinha o
+    // genérico "nenhum lote"): é o que deixa o orquestrador devolver a lista
+    // como P2P em vez de prometer um debrid que não autentica.
+    await assert.rejects(
+      () => alldebrid.checkCached(KEY, [READY, COLD]),
+      (err) => err.isAuthError === true && /chave inválida/.test(err.message),
+    );
   } finally {
     globalThis.fetch = realFetch;
     AbortSignal.timeout = realTimeout;
