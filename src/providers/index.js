@@ -195,6 +195,9 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
   // dirá se toca ou não. O ⚡ vai só em quem foi confirmado: numa resposta
   // parcial os demais são "não perguntei", não "não tem", e viram "download".
   if (!known) {
+    // Antes só virava log: o contador é o que deixa a degradação visível no
+    // /metrics.json sem precisar reler saída do container.
+    metrics.count('debrid.check.unknown');
     const tetoInfo = timeoutMs != null ? `, teto ${timeoutMs}ms` : '';
     log.info(
       `[debrid] ${adapter.label} sem resposta completa de cache em ${checkMs}ms${tetoInfo}; ${streams.length} stream(s) via debrid` +

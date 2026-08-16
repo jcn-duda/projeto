@@ -1,8 +1,19 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
+// Os contadores de degradação passam pelo cache de metadados; persistência
+// desligada ANTES dos requires para não tocar o data/cache.db real.
+process.env.CACHE_PERSIST = 'false';
+
 const log = require('../src/utils/logger');
 const metrics = require('../src/utils/metrics');
+const config = require('../src/config');
+const cache = require('../src/utils/cache');
+const runtime = require('../src/runtime');
+const debrid = require('../src/debrid');
+const { getMeta } = require('../src/utils/cinemeta');
+const { getTitles } = require('../src/utils/tmdb');
+const { applyDebrid } = require('../src/providers');
 
 /** Captura o que o logger escreveria de verdade. */
 function capture(fn) {
@@ -118,4 +129,82 @@ test('timed devolve a duração e registra a amostra', () => {
 
   assert.equal(typeof ms, 'number');
   assert.equal(metrics.snapshot().timers.trecho.count, 1);
+});
+
+// Contadores de degradação: são o único jeito de ver no /metrics.json que a
+// instância está pagando custo de rede evitável ou rodando às cegas no debrid.
+
+test('miss servido do cache conta meta.cinemeta.miss.served', async () => {
+  metrics.reset();
+  const imdbId = `tt-obs-cinemeta-${process.pid}-${Date.now()}`;
+  const key = `meta:movie:${imdbId}`;
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+  try {
+    await getMeta('movie', imdbId); // grava o sentinela
+    await getMeta('movie', imdbId); // servido do miss
+    await getMeta('movie', imdbId); // de novo
+    assert.equal(metrics.snapshot().counters['meta.cinemeta.miss.served'], 2);
+  } finally {
+    global.fetch = originalFetch;
+    cache.forget(key);
+  }
+});
+
+test('miss servido do cache conta meta.tmdb.miss.served', async () => {
+  metrics.reset();
+  const originalKey = config.tmdb.apiKey;
+  config.tmdb.apiKey = 'test-key';
+  const imdbId = `tt-obs-tmdb-${process.pid}-${Date.now()}`;
+  const key = `tmdb:${imdbId}`;
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ movie_results: [], tv_results: [] }),
+  });
+  try {
+    await getTitles(imdbId);
+    await getTitles(imdbId);
+    assert.equal(metrics.snapshot().counters['meta.tmdb.miss.served'], 1);
+  } finally {
+    global.fetch = originalFetch;
+    cache.forget(key);
+    config.tmdb.apiKey = originalKey;
+  }
+});
+
+test('checagem de cache sem resposta confiável conta debrid.check.unknown', async () => {
+  metrics.reset();
+  // cacheCheck: false é o caso Real-Debrid/Debrid-Link: known vira false e o
+  // fluxo inteiro segue às cegas — o contador é o que denuncia isso.
+  const fake = {
+    id: 'fakeobs',
+    label: 'FakeObs',
+    short: 'FO',
+    cacheCheck: false,
+    checkCached: async () => new Set(),
+    resolveLink: async () => null,
+  };
+  debrid.BY_ID.set(fake.id, fake);
+  const originalSecret = config.debrid.resolveSecret;
+  config.debrid.resolveSecret = '';
+  try {
+    const userOpts = runtime.decode(runtime.encode({ ds: fake.id, dk: 'obs-key' }));
+    await runtime.run({ opts: userOpts, encoded: '' }, async () => {
+      const streams = [{ infoHash: 'c'.repeat(40), title: 'Filme X', name: 'n', _seeders: 3 }];
+      const out = await applyDebrid(streams, {
+        season: null,
+        episode: null,
+        searchKey: 'obs-test',
+        deadlineAt: null,
+      });
+      assert.equal(out.length, 1);
+      assert.ok(out[0].url.includes('/resolve/'), 'sem resposta, tudo vai pelo debrid');
+    });
+    assert.equal(metrics.snapshot().counters['debrid.check.unknown'], 1);
+  } finally {
+    debrid.BY_ID.delete(fake.id);
+    config.debrid.resolveSecret = originalSecret;
+  }
 });
