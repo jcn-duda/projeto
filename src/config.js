@@ -170,6 +170,15 @@ const config = {
     // debrid baixa o dublado. Default off preserva o contrato antigo — web e
     // algumas TVs não tocam infoHash, e URL sem `bu` herdaria o furo.
     showUncachedBr: String(process.env.DEBRID_SHOW_UNCACHED_BR || 'false') === 'true',
+    // Cliente que só toca URL (web, algumas TVs, apps que filtram stream sem
+    // `url`) enxerga ZERO quando nada do título está em cache: o não-cacheado
+    // sai como infoHash puro e some na tela, mesmo com a busca cheia.
+    //
+    // Ligado, o não-cacheado também sai pelo /resolve, marcado "[AD download]"
+    // — é o modelo do Torrentio: o play adiciona o magnet e o debrid baixa.
+    // Default off porque isso escreve na conta do usuário a cada play de fonte
+    // fria, que é justamente o que o modo padrão evita.
+    resolveUncached: String(process.env.DEBRID_RESOLVE_UNCACHED || 'false') === 'true',
     batchSize: num(process.env.DEBRID_BATCH_SIZE, 100),
     // Teto SÓ da checagem de cache. Com os lotes em paralelo é UMA janela, não
     // uma por lote — era a soma em série que estourava o REPLY_DEADLINE.

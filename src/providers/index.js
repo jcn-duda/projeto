@@ -281,6 +281,15 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
       out.push(viaDebrid(s, true));
       continue;
     }
+    // Fora do cache o padrão é devolver o torrent puro: não gasta a conta do
+    // usuário sem ele pedir. Só que cliente que não toca infoHash descarta
+    // esses streams, e num título sem nada em cache a lista inteira some da
+    // tela. Com resolveUncached eles saem pelo /resolve, marcados
+    // "[AD download]" — o play é quem adiciona o magnet.
+    if (config.debrid.resolveUncached) {
+      out.push(viaDebrid(s, false));
+      continue;
+    }
     out.push(s);
   }
   return out;
