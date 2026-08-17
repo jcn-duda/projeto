@@ -22,12 +22,19 @@ function record(id, sample = {}) {
   const key = normalize(id);
   if (!key) return null;
   const measured = sample.ms == null ? null : Number(sample.ms);
+  const state = stateFor(sample);
+  // Streak de falhas duras consecutivas — insumo do circuit breaker do
+  // jackett. slow/degraded não contam: ainda entregam algo. O get() (e não o
+  // Map cru) respeita o TTL: falha de horas atrás não é "consecutiva", e o
+  // valor viaja no disco junto com o resto — restart não perde o circuito.
+  const previous = get(key);
   const value = {
-    state: stateFor(sample),
+    state,
     // `null` significa que a falha não trouxe medição. Number(null) seria 0 e
     // faria a UI inventar "offline · 0.0s" em vez de mostrar só offline.
     ms: Number.isFinite(measured) ? Math.max(0, Math.trunc(measured)) : null,
     checkedAt: new Date().toISOString(),
+    failStreak: state === 'offline' ? (previous?.failStreak || 0) + 1 : 0,
   };
   statuses.set(key, value);
   cache.set(KEY_PREFIX + key, value, config.jackett.statusTtl);

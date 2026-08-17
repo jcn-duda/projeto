@@ -15,6 +15,7 @@ const {
   UNKNOWN_QUALITY,
   markDebridName,
   pickBrDubbedCandidates,
+  pickAnyDubbedCandidates,
   hasCachedBrDubbed,
   canAutoFetchBr,
   filterKnownCache,
@@ -31,7 +32,7 @@ const { planJackettQueries } = require('./search-plan');
 const { collectWithinWindow } = require('./collection-window');
 const { raceWithDeadline, remainingCheckBudget } = require('../utils/deadline');
 const autofetch = require('./autofetch');
-const { opts, prefix } = require('../runtime');
+const { opts, prefix, capture, run } = require('../runtime');
 const log = require('../utils/logger');
 const metrics = require('../utils/metrics');
 
@@ -53,7 +54,7 @@ const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
  *   o mesmo torrent de novo;
  * - nunca entra no caminho da resposta: erro só vira log.
  */
-function autoFetchCandidates(streams) {
+function autoFetchCandidates(streams, { season } = {}) {
   const { autoFetchBr, debridApiKey } = opts();
   const adapter = debrid.current();
   // `cacheCheck: false` (Real-Debrid, Debrid-Link) fica fora: sem saber o que
@@ -65,7 +66,17 @@ function autoFetchCandidates(streams) {
   if (!canAutoFetchBr({ autoFetchBr }, adapter)) return [];
   // Ainda não há resposta de cache: seleciona até o teto sem pular nada (o
   // skip de hashes cacheados acontece só depois da checagem, no enqueue).
-  const candidates = pickBrDubbedCandidates(streams, new Set(), config.debrid.autoFetchMax);
+  let candidates = pickBrDubbedCandidates(streams, new Set(), config.debrid.autoFetchMax, { season });
+  // Pool BR vazio: cai para as dubladas globais — o caso "site BR fora /
+  // título não indexado", que sem fallback significava não baixar nada. O
+  // gate de disparo por pool roda depois da checagem (autoFetchBrDubbed).
+  let pool = 'br';
+  if (candidates.length === 0 && config.debrid.autoFetchAnyDubbed) {
+    candidates = pickAnyDubbedCandidates(streams, new Set(), config.debrid.autoFetchMax, { season });
+    pool = 'any';
+    if (candidates.length > 0) metrics.count('autofetch.any-dubbed');
+  }
+  if (candidates.length === 0) metrics.count('autofetch.no-candidate');
   const account = accountScope(debridApiKey);
   // Cada candidato é protegido ANTES da checagem: na AllDebrid a própria
   // checagem apaga da conta o que não está pronto, e sem o hold individual a
@@ -73,7 +84,7 @@ function autoFetchCandidates(streams) {
   for (const candidate of candidates) {
     held.hold(candidate.infoHash, config.debrid.autoFetchTtl, account);
   }
-  return candidates.map((stream) => ({ stream, account }));
+  return candidates.map((stream) => ({ stream, account, pool }));
 }
 
 function releaseAllHolds(candidates) {
@@ -81,8 +92,11 @@ function releaseAllHolds(candidates) {
 }
 
 /** Enfileira UM candidato de forma fire-and-forget, com marker e vaga por busca. */
-function enqueueAutofetch({ stream, account }, { cached, season, episode, searchKey }) {
+function enqueueAutofetch({ stream, account, pool }, { cached, season, episode, searchKey }) {
   const adapter = debrid.current();
+  // Capturado AGORA, dentro do request: o recheck dispara num timer fora do
+  // AsyncLocalStorage e precisa da conta/opts desta requisição.
+  const requestCtx = capture();
 
   // Este candidato específico já está tocável: não há o que baixar para ele.
   // O `cached` é minúsculo e o infoHash vem cru do Jackett (Torznab manda o
@@ -121,7 +135,9 @@ function enqueueAutofetch({ stream, account }, { cached, season, episode, search
         // marcadores antigos que podiam ter sido gravados antes da chamada.
         cache.set(key, 1, config.debrid.autoFetchTtl);
         metrics.count('autofetch.enqueued');
-        log.info(`[autofetch] ${adapter.label} baixando fonte BR dublada: ${label} (${qStr}${seedsStr})`);
+        const origin = pool === 'any' ? 'dublada global (sem BR na busca)' : 'fonte BR dublada';
+        log.info(`[autofetch] ${adapter.label} baixando ${origin}: ${label} (${qStr}${seedsStr})`);
+        scheduleRecheck(searchKey, stream.infoHash, requestCtx);
       } else {
         // Refusa devolve a vaga e libera o hold: um candidato abaixo na lista
         // pode tentar de novo na próxima busca sem contador vazado.
@@ -139,6 +155,67 @@ function enqueueAutofetch({ stream, account }, { cached, season, episode, search
     });
 }
 
+/**
+ * Lotes de recheck pós-enfileiramento, por busca: hashes aceitos pelo debrid
+ * aguardando ficar tocáveis. Sem isto o ⚡ só reapareceria quando o cache de
+ * busca expirasse e o cliente reperguntasse (até CACHE_TTL); o timer adianta
+ * o ciclo esquecendo a busca no instante em que o download fica pronto.
+ */
+const recheckLots = new Map();
+
+function armRecheck(searchKey, lot) {
+  lot.timer = setTimeout(() => runRecheck(searchKey), config.debrid.autoFetchRecheckMs);
+  // O timer não pode segurar o processo vivo no shutdown.
+  lot.timer.unref();
+}
+
+function scheduleRecheck(searchKey, infoHash, requestCtx) {
+  if (!searchKey || !infoHash || !requestCtx) return;
+  if (config.debrid.autoFetchRecheckMs <= 0 || config.debrid.autoFetchRecheckMax <= 0) return;
+  let lot = recheckLots.get(searchKey);
+  if (!lot) {
+    lot = { hashes: new Set(), attempts: 0, timer: null, inFlight: false, ctx: requestCtx };
+    recheckLots.set(searchKey, lot);
+  }
+  lot.hashes.add(String(infoHash).toLowerCase());
+  lot.ctx = requestCtx;
+  // Um recheck em voo já cobre os hashes novos na próxima tentativa.
+  if (lot.timer || lot.inFlight) return;
+  armRecheck(searchKey, lot);
+}
+
+function runRecheck(searchKey) {
+  const lot = recheckLots.get(searchKey);
+  if (!lot) return;
+  lot.timer = null;
+  lot.inFlight = true;
+  lot.attempts += 1;
+  const attempts = lot.attempts;
+  const finish = (ready) => {
+    lot.inFlight = false;
+    if (ready || attempts >= config.debrid.autoFetchRecheckMax) recheckLots.delete(searchKey);
+    else armRecheck(searchKey, lot);
+  };
+  // O timer dispara FORA do AsyncLocalStorage da requisição que enfileirou:
+  // sem restaurar o contexto, `debrid.current()` leria os defaults (sem a
+  // conta do usuário) e a checagem iria para o serviço errado.
+  Promise.resolve(run(lot.ctx, async () => {
+    // Sem timeoutMs: orçamento completo do passe de fundo, como no tardio.
+    const { cached, known } = await debrid.checkCached([...lot.hashes], {});
+    if (!known || cached.size === 0) {
+      finish(false);
+      return;
+    }
+    metrics.count('autofetch.ready');
+    cache.forget(searchKey);
+    log.info(`[autofetch] download ficou pronto; próxima pergunta de ${searchKey} reconstrói com ⚡`);
+    finish(true);
+  })).catch((err) => {
+    log.warn('[autofetch] recheck falhou:', err?.message || err);
+    finish(false);
+  });
+}
+
 function autoFetchBrDubbed(streams, candidates, { cached, known, season, episode, searchKey }) {
   if (!candidates || candidates.length === 0) return;
 
@@ -149,9 +226,14 @@ function autoFetchBrDubbed(streams, candidates, { cached, known, season, episode
     return;
   }
 
-  // Qualquer fonte BR dublada já tocável encerra o autofetch: baixar a próxima
-  // release pior encheria a conta do usuário sem melhorar o play.
-  if (hasCachedBrDubbed(streams, cached)) {
+  // Gate por pool — os dois nunca coexistem (o global só é escolhido quando o
+  // BR voltou vazio):
+  // - BR: qualquer fonte BR dublada já tocável encerra o autofetch; baixar a
+  //   próxima release pior encheria a conta do usuário sem melhorar o play;
+  // - global: só dispara quando NADA toca — qualquer stream pronto (dublado
+  //   ou não) já entrega play sem gastar a conta.
+  const stop = candidates[0].pool === 'any' ? cached.size > 0 : hasCachedBrDubbed(streams, cached);
+  if (stop) {
     releaseAllHolds(candidates);
     return;
   }
@@ -182,7 +264,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
 
   // A escolha dos candidatos vem antes da checagem (cada hold protege o hash da
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
-  const candidates = autoFetchCandidates(streams);
+  const candidates = autoFetchCandidates(streams, { season });
   const checkStarted = Date.now();
   // Teto dinâmico: o que resta do REPLY_DEADLINE menos margem para serialização.
   // null = sem teto (passe tardio usa o timeout completo do adaptador).

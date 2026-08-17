@@ -189,6 +189,24 @@ function budgetFor(indexer) {
   return isSlow ? config.jackett.brIndexerTimeout : config.jackett.indexerTimeout;
 }
 
+// Circuit breaker: indexer offline em N amostras seguidas seguia recebendo o
+// orçamento integral de busca (20s nos BR) para falhar de novo, a cada
+// consulta. Com o circuito aberto — streak no limiar e última falha dentro do
+// cooldown — a busca pula o indexer e devolve o prazo aos que entregam. O
+// diagnóstico (test()) NÃO passa por aqui: é o caminho que conserta a fonte,
+// e a meia-abertura pós-cooldown já deixa a busca reavaliar sozinha.
+function breakerTripped(indexer, now = Date.now()) {
+  if (!config.jackett.breakerEnabled) return false;
+  const status = indexerStatus.get(indexer, now);
+  if (!status || (status.failStreak || 0) < config.jackett.breakerFailures) return false;
+  const failedAt = Date.parse(status.checkedAt);
+  return Number.isFinite(failedAt) && now - failedAt < config.jackett.breakerCooldown;
+}
+
+// Quem já teve a abertura anunciada neste episódio — o aviso é UM por
+// abertura, não por busca; sai do set quando o indexer volta a ser consultado.
+const breakerAnnounced = new Set();
+
 async function queryIndexer(indexer, query, type, timeoutOverride = null, options = {}) {
   const { url, apiKey } = config.jackett;
   const isBr = config.jackett.ptBrIndexers.includes(indexer);
@@ -298,8 +316,26 @@ async function search(query, type, indexersOverride = null, options = {}) {
     }
   }
 
+  // Indexers com circuito aberto nem abrem consulta: a falha é conhecida e o
+  // orçamento deles volta para quem ainda entrega.
+  const activeIndexers = indexers.filter((indexer) => {
+    if (!breakerTripped(indexer)) {
+      breakerAnnounced.delete(indexer);
+      return true;
+    }
+    if (!breakerAnnounced.has(indexer)) {
+      breakerAnnounced.add(indexer);
+      const status = indexerStatus.get(indexer);
+      log.warn(
+        `[jackett] ${indexer}: circuit breaker aberto após ${status?.failStreak || config.jackett.breakerFailures} falha(s) seguidas; buscas pulam este indexer até ${Math.round(config.jackett.breakerCooldown / 60_000)}min após a última falha`,
+      );
+    }
+    return false;
+  });
+  if (activeIndexers.length === 0) return [];
+
   const settled = await Promise.allSettled(
-    indexers.map((i) => queryIndexer(i, query, type, null, options)),
+    activeIndexers.map((i) => queryIndexer(i, query, type, null, options)),
   );
 
   const out = [];
@@ -318,14 +354,14 @@ async function search(query, type, indexersOverride = null, options = {}) {
       });
       if (r.value.ms > 2000) slow.push(`${r.value.indexer} ${(r.value.ms / 1000).toFixed(1)}s`);
     } else {
-      indexerStatus.record(indexers[idx], {
+      indexerStatus.record(activeIndexers[idx], {
         ok: false,
         // A rejeição não carrega duração real; inventar o orçamento fazia o
         // card dizer "offline · 20s" como se fosse uma medição.
         ms: null,
-        budgetMs: budgetFor(indexers[idx]),
+        budgetMs: budgetFor(activeIndexers[idx]),
       });
-      slow.push(`${indexers[idx]} ✗`);
+      slow.push(`${activeIndexers[idx]} ✗`);
     }
   }
   if (slow.length) log.warn('[jackett] lentos/falharam:', slow.join(', '));
@@ -411,4 +447,4 @@ async function test(indexer, query, type = 'movie') {
   }
 }
 
-module.exports = { search, test, shapeSearchQuery, name: 'jackett' };
+module.exports = { search, test, shapeSearchQuery, breakerTripped, name: 'jackett' };

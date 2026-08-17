@@ -11,8 +11,9 @@ const USER_AGENT =
 // os links de download do feed apontam pra cá e são resolvidos sob demanda.
 const SELF_URL = (process.env.SELF_URL || 'http://bludv-resolver:8700').replace(/\/$/, '');
 // O site troca de domínio com frequência; alinhar com o links: do cardigann.
+// Este é o PRIMÁRIO — em runtime o siteSelector abaixo faila para os demais
+// candidatos (csv BLUDV_URLS + FALLBACK_SITE_SUFFIXES) quando ele cai.
 const SITE_URL = (process.env.SITE_URL || process.env.BLUDV_URL || 'https://bludvfilmes.xyz').replace(/\/$/, '');
-const BLUDV_URL = SITE_URL;
 const MAX_POSTS = Number(process.env.BLUDV_MAX_POSTS || 5);
 const SEARCH_CONCURRENCY = 4;
 const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
@@ -48,13 +49,122 @@ function parseExtraProtectors(envVal) {
     .filter(Boolean);
 }
 
-const SITE_HOST = parseHost(SITE_URL);
 const FALLBACK_SITE_SUFFIXES = [
   'bludvfilmes.xyz',
   'bludv.net',
   'bludv.xyz',
   'bludv.to',
 ];
+
+// --- Failover de domínio em runtime ---
+// O SITE_URL era const lida no boot: domínio morto = fonte morta até editar
+// .env + restart. O seletor trata os FALLBACK_SITE_SUFFIXES (e o csv
+// BLUDV_URLS) como candidatos ATIVOS, não só allowlist: quando a busca falha
+// por erro de rede (DNS/conexão/timeout — HTTP de erro prova que o host
+// respondeu) N vezes seguidas, um probe GET /?s=teste escolhe o primeiro
+// candidato que responda 2xx. O vencedor fica imune a novo probe por
+// BR_DOMAIN_PROBE_TTL_MS (sondar de novo não ressuscita site caído) e o
+// probe nunca roda no require — módulo carregado em teste não tem rede.
+function isNetworkError(err) {
+  if (!err) return false;
+  const message = String(err.message || err);
+  return !/^(?:http_|blocked_host|unsupported_protocol|missing_redirect|not_detail_page|no_magnet|too_many_redirects)/.test(message);
+}
+
+function createSiteSelector(tag, envUrlsCsv, primaryUrl, fallbackHosts) {
+  const fromCsv = String(envUrlsCsv || '')
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+  const candidates = [];
+  const seen = new Set();
+  for (const url of [primaryUrl, ...fromCsv, ...fallbackHosts.map((host) => `https://${host}`)]) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    candidates.push(url);
+  }
+
+  const ttlMs = Number(process.env.BR_DOMAIN_PROBE_TTL_MS || 30 * 60_000);
+  const failsBeforeProbe = Number(process.env.BR_DOMAIN_FAILS_BEFORE_PROBE || 2);
+  // Probe leve, mas cada candidato morto custa este timeout inteiro.
+  const PROBE_TIMEOUT_MS = 5_000;
+
+  let current = candidates[0];
+  // 0 = nunca sondado: o primário configurado é confiável até buscas de
+  // verdade falharem (nada de probe preventivo no boot).
+  let lastProbeAt = 0;
+  let consecutiveFails = 0;
+  let probing = null;
+  const changeListeners = [];
+
+  function hosts() {
+    return Array.from(new Set(candidates.map((url) => parseHost(url)).filter(Boolean)));
+  }
+
+  async function probe() {
+    for (const url of candidates) {
+      try {
+        const response = await fetch(`${url}/?s=teste`, {
+          headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
+          redirect: 'follow',
+          signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+        });
+        if (response.ok) return url;
+      } catch {}
+    }
+    return null;
+  }
+
+  async function noteFailure() {
+    consecutiveFails += 1;
+    // Abaixo do limiar de falhas, ou dentro do TTL do último probe, mantém o
+    // vencedor: sonda em rajada só queima orçamento com site caído.
+    if (consecutiveFails < failsBeforeProbe) return current;
+    if (Date.now() - lastProbeAt < ttlMs) return current;
+    if (candidates.length <= 1) return current;
+    if (probing) return probing;
+    probing = (async () => {
+      try {
+        const winner = await probe();
+        lastProbeAt = Date.now();
+        consecutiveFails = 0;
+        if (winner && winner !== current) {
+          console.log(`${tag} domínio ativo mudou: ${current} → ${winner}`);
+          current = winner;
+          for (const listener of changeListeners) {
+            try {
+              listener(current);
+            } catch {}
+          }
+        }
+        return current;
+      } finally {
+        probing = null;
+      }
+    })();
+    return probing;
+  }
+
+  function noteSuccess() {
+    consecutiveFails = 0;
+  }
+
+  return {
+    url: () => current,
+    hosts,
+    noteFailure,
+    noteSuccess,
+    onDomainChange(listener) {
+      changeListeners.push(listener);
+    },
+  };
+}
+
+const siteSelector = createSiteSelector('[bludv]', process.env.BLUDV_URLS, SITE_URL, FALLBACK_SITE_SUFFIXES);
+// Hosts de TODOS os candidatos são confiáveis desde o boot (vêm de env ou da
+// lista de mirrors históricos): allowlist e isDetailHost já aceitam o domínio
+// que o failover escolher, sem restart.
+const CANDIDATE_HOSTS = siteSelector.hosts();
 
 const BASE_PROTECTOR_SUFFIXES = [
   'systemads1.com',
@@ -71,8 +181,7 @@ const ALL_PROTECTOR_SUFFIXES = Array.from(
 
 const ALLOWED_SUFFIXES = Array.from(
   new Set([
-    ...(SITE_HOST ? [SITE_HOST] : []),
-    ...FALLBACK_SITE_SUFFIXES,
+    ...CANDIDATE_HOSTS,
     ...ALL_PROTECTOR_SUFFIXES,
   ]),
 );
@@ -81,6 +190,15 @@ const postCache = new Map();
 const searchCache = new Map();
 const magnetCache = new Map();
 const inFlight = new Map();
+
+// Troca de domínio invalida o que foi raspado do domínio antigo (chaves de
+// cache são URLs absolutas); o inFlight segue vivo para não quebrar o
+// coalescing das promises em andamento.
+siteSelector.onDomainChange(() => {
+  postCache.clear();
+  searchCache.clear();
+  magnetCache.clear();
+});
 
 // Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
 // nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
@@ -132,8 +250,7 @@ function assertAllowedUrl(value) {
 
 function isDetailHost(hostname) {
   const host = String(hostname || '').toLowerCase();
-  if (SITE_HOST && (host === SITE_HOST || host.endsWith(`.${SITE_HOST}`))) return true;
-  return FALLBACK_SITE_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+  return CANDIDATE_HOSTS.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
 }
 
 function isProtectorHost(hostname) {
@@ -703,7 +820,7 @@ function parsePosts(html) {
   while ((m = re.exec(html))) {
     let url;
     try {
-      url = new URL(decodeEntities(m[2].trim()), SITE_URL).href;
+      url = new URL(decodeEntities(m[2].trim()), siteSelector.url()).href;
     } catch {
       continue;
     }
@@ -851,19 +968,29 @@ async function searchPosts(query) {
   if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
 
   const task = (async () => {
-    const html = await fetchText(assertAllowedUrl(`${BLUDV_URL}/?s=${encodeURIComponent(normalized)}`));
-    const posts = parsePosts(html).slice(0, MAX_POSTS);
-    const chunks = await mapLimit(posts, async (post) => {
-      const { links } = await getPostLinks(post.url);
-      return links.map((link, index) => ({ post, link, index }));
-    });
-    const items = chunks.flat();
-    searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + SEARCH_CACHE_MS });
-    if (searchCache.size > MAX_SEARCH_CACHE_SIZE) {
-      searchCache.delete(searchCache.keys().next().value);
+    try {
+      const html = await fetchText(assertAllowedUrl(`${siteSelector.url()}/?s=${encodeURIComponent(normalized)}`));
+      // Sucesso da busca zera o streak ANTES de raspar posts/protetores:
+      // queda do protetor não conta como falha do domínio.
+      siteSelector.noteSuccess();
+      const posts = parsePosts(html).slice(0, MAX_POSTS);
+      const chunks = await mapLimit(posts, async (post) => {
+        const { links } = await getPostLinks(post.url);
+        return links.map((link, index) => ({ post, link, index }));
+      });
+      const items = chunks.flat();
+      searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + SEARCH_CACHE_MS });
+      if (searchCache.size > MAX_SEARCH_CACHE_SIZE) {
+        searchCache.delete(searchCache.keys().next().value);
+      }
+      console.log(`[search] "${normalized}" → ${posts.length} post(s), ${items.length} release(s)`);
+      return items;
+    } catch (err) {
+      // Só erro de rede (DNS/conexão/timeout) alimenta o failover: 0
+      // resultados ou HTTP de erro não dizem nada sobre o domínio.
+      if (isNetworkError(err)) await siteSelector.noteFailure();
+      throw err;
     }
-    console.log(`[search] "${normalized}" → ${posts.length} post(s), ${items.length} release(s)`);
-    return items;
   })().finally(() => {
     inFlight.delete(cacheKey);
   });
@@ -1062,7 +1189,7 @@ function createServer() {
 // sem tomar a 8700 de quem estivesse rodando.
 if (require.main === module) {
   createServer().listen(PORT, '0.0.0.0', () => {
-    console.log(`bludv-resolver :${PORT} — torznab em /api, fonte ${BLUDV_URL}`);
+    console.log(`bludv-resolver :${PORT} — torznab em /api, fonte ${siteSelector.url()} (failover: ${CANDIDATE_HOSTS.join(', ')})`);
   });
 }
 
@@ -1092,6 +1219,9 @@ module.exports = {
   resolveButton,
   searchPosts,
   fetchFollowingAllowed,
+  siteSelector,
+  createSiteSelector,
+  isNetworkError,
   postCache,
   searchCache,
   magnetCache,

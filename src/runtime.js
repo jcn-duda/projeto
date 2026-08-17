@@ -198,6 +198,15 @@ function prefix() {
   return segment ? `/${segment}` : '';
 }
 
+/**
+ * Contexto da requisição corrente (`{opts, encoded}`) para restaurar depois com
+ * `run` — timers agendados durante a busca disparam FORA do AsyncLocalStorage
+ * e precisam da conta/opts da requisição que os criou.
+ */
+function capture() {
+  return store.getStore() || null;
+}
+
 function run({ opts: userOpts, encoded }, fn) {
   return store.run({ opts: userOpts, encoded }, fn);
 }
@@ -212,5 +221,6 @@ module.exports = {
   decode,
   opts,
   prefix,
+  capture,
   run,
 };

@@ -458,7 +458,7 @@ const TECH_NOISE = ('web dl webdl bluray blu ray webrip bdrip brrip hdtv hdrip r
   'hmax amzn dsnp atvp pcok crav hulu h ' +
   'us uk ca au nz jp tv ' +
   'torrent torrents download baixar assistir online gratis ' +
-  'dublado dublada dublagem legendado legendada legenda opcao opcoes versao estendida ' +
+  'dublado dublada dublagem legendado legendada legenda opcao opcoes versao estendida extendida ' +
   'mkv mp4 avi gb mb kb ' +
   '480p 540p 576p 720p 1080p 1440p 2160p 4k uhd sd hd fullhd').split(' ');
 
@@ -1065,6 +1065,29 @@ function limitByQuality(streams, qualityLimits = {}) {
 }
 
 /**
+ * A release cobre a temporada inteira pedida? ("S01", "1ª Temporada",
+ * "Série Completa"/"Todas as Temporadas"). Em busca de série o autofetch
+ * prefere pack a episódio avulso: um download serve o binge todo.
+ */
+function isSeasonPackRelease(stream, season) {
+  if (season == null || !stream) return false;
+  const { seasons, episodes, complete } = parseTitleSeasonEpisode(stream.title || stream.name || '');
+  return complete || (seasons.includes(season) && episodes.length === 0);
+}
+
+// Peso de resolução dos pools de autofetch (BR e global): 1080p/720p vencem
+// 2160p porque o download esquenta o cache para o play rápido, não para baixar
+// o maior arquivo; SD fica por último.
+const DUBBED_QUALITY_WEIGHT = {
+  '1080p': 6,
+  '720p': 5,
+  '2160p': 4,
+  [UNKNOWN_QUALITY]: 3,
+  '480p': 2,
+  SD: 1,
+};
+
+/**
  * O que mandar o debrid baixar quando NÃO existe fonte BR dublada tocável.
  * `null` = não faça nada, e é o retorno na maioria das buscas.
  *
@@ -1076,7 +1099,7 @@ function limitByQuality(streams, qualityLimits = {}) {
  *   candidato tiver a marca: é o padrão dos sites BR ("Nome (2026) [opção 3]"),
  *   mas um "LEGENDADO" explícito nunca é tratado como dublado.
  */
-function brDubbedPool(streams = []) {
+function brDubbedPool(streams = [], { season } = {}) {
   const br = streams.filter(
     (s) => s && s.infoHash && s._br && sourceFromTitle(s.title || s.name || '') !== 'CAM',
   );
@@ -1086,27 +1109,59 @@ function brDubbedPool(streams = []) {
     ? tagged
     : br.filter((s) => audioFromTitle(s.title || s.name || '') !== 'Legendado');
 
-  const qWeight = {
-    '1080p': 6,
-    '720p': 5,
-    '2160p': 4,
-    [UNKNOWN_QUALITY]: 3,
-    '480p': 2,
-    SD: 1,
-  };
+  // Pré-computado uma vez: o sort consultaria o mesmo parse n·log n vezes.
+  const packOf = season == null
+    ? null
+    : new Map(candidates.map((s) => [s, isSeasonPackRelease(s, season)]));
 
   return [...candidates].sort((a, b) => {
     // 1. Quem tem marcação explícita de dublado/dual/nacional
     const dubDiff = (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0);
     if (dubDiff !== 0) return dubDiff;
 
-    // 2. Resolução ideal para download e playback rápido
+    // 2. Pack da temporada pedida (só em busca de série): um download serve o
+    // binge inteiro em vez de um episódio, e vale mais que resolução/seeders.
+    if (packOf) {
+      const packDiff = (packOf.get(b) ? 1 : 0) - (packOf.get(a) ? 1 : 0);
+      if (packDiff !== 0) return packDiff;
+    }
+
+    // 3. Resolução ideal para download e playback rápido
     const qA = streamQuality(a);
     const qB = streamQuality(b);
-    const qDiff = (qWeight[qB] || 0) - (qWeight[qA] || 0);
+    const qDiff = (DUBBED_QUALITY_WEIGHT[qB] || 0) - (DUBBED_QUALITY_WEIGHT[qA] || 0);
     if (qDiff !== 0) return qDiff;
 
-    // 3. Mais seeders para o debrid baixar o torrent rapidamente
+    // 4. Mais seeders para o debrid baixar o torrent rapidamente
+    return (b._seeders || 0) - (a._seeders || 0);
+  });
+}
+
+/**
+ * Pool do fallback global do autofetch: quando a busca não achou NENHUMA fonte
+ * BR dublada, o que resta baixar são as releases com áudio dublado/dual/
+ * nacional marcado no título (`_dubbed`). Sem a marca não entra — fora dos
+ * sites BR o padrão é o contrário, legendado domina, e o fallback "sem marca
+ * vale como dublado" do pool BR encheria a conta com o que o usuário não
+ * pediu. (BR elegível aqui é impossível na prática: se existisse, o pool BR
+ * já teria sido escolhido no lugar deste.)
+ */
+function anyDubbedPool(streams = [], { season } = {}) {
+  const candidates = streams.filter(
+    (s) => s && s.infoHash && s._dubbed && sourceFromTitle(s.title || s.name || '') !== 'CAM',
+  );
+  // Mesmo bônus de pack do pool BR, pré-computado para o sort.
+  const packOf = season == null
+    ? null
+    : new Map(candidates.map((s) => [s, isSeasonPackRelease(s, season)]));
+  return [...candidates].sort((a, b) => {
+    if (packOf) {
+      const packDiff = (packOf.get(b) ? 1 : 0) - (packOf.get(a) ? 1 : 0);
+      if (packDiff !== 0) return packDiff;
+    }
+    const qDiff =
+      (DUBBED_QUALITY_WEIGHT[streamQuality(b)] || 0) - (DUBBED_QUALITY_WEIGHT[streamQuality(a)] || 0);
+    if (qDiff !== 0) return qDiff;
     return (b._seeders || 0) - (a._seeders || 0);
   });
 }
@@ -1124,22 +1179,21 @@ function hashSet(hashes) {
 }
 
 /**
- * Melhores candidatos BR dublados para o autofetch, sem olhar cache. `streams`
- * já vem ordenado (brDubbedPool), então a ordem devolvida é a prioridade:
- * marca de áudio, resolução, seeders.
+ * Seleciona até `limit` candidatos de um pool JÁ ordenado (a ordem é a
+ * prioridade), sem olhar cache:
  *
  * - dedupe de hash case-insensitive (indexers BR às vezes alternam a caixa do
  *   btih entre os posts que duplicam a mesma release);
  * - pula hashes já em cache — não há o que baixar para eles;
  * - no máximo `limit` candidatos.
  */
-function pickBrDubbedCandidates(streams = [], cachedHashes = new Set(), limit = 1) {
+function pickFromPool(pool = [], cachedHashes = new Set(), limit = 1) {
   const max = Math.max(0, Math.trunc(Number(limit) || 0));
   if (max === 0) return [];
   const cached = hashSet(cachedHashes);
   const seen = new Set();
   const out = [];
-  for (const stream of brDubbedPool(streams)) {
+  for (const stream of pool) {
     if (!stream || !stream.infoHash) continue;
     const key = String(stream.infoHash).toLowerCase();
     if (seen.has(key) || cached.has(key)) continue;
@@ -1150,9 +1204,22 @@ function pickBrDubbedCandidates(streams = [], cachedHashes = new Set(), limit = 
   return out;
 }
 
+/**
+ * Melhores candidatos BR dublados para o autofetch: o pool brDubbedPool já
+ * ordena por marca de áudio, resolução e seeders.
+ */
+function pickBrDubbedCandidates(streams = [], cachedHashes = new Set(), limit = 1, options = {}) {
+  return pickFromPool(brDubbedPool(streams, options), cachedHashes, limit);
+}
+
 /** Compatibilidade: o melhor candidato BR dublado, sem olhar cache. */
 function pickBrDubbedCandidate(streams = [], cachedHashes = new Set()) {
   return pickBrDubbedCandidates(streams, cachedHashes, 1)[0] || null;
+}
+
+/** Candidatos do fallback global: mesmas regras do pick BR, sobre anyDubbedPool. */
+function pickAnyDubbedCandidates(streams = [], cachedHashes = new Set(), limit = 1, options = {}) {
+  return pickFromPool(anyDubbedPool(streams, options), cachedHashes, limit);
 }
 
 /** Já existe fonte BR dublada tocável na hora? Então não há o que baixar. */
@@ -1471,6 +1538,7 @@ module.exports = {
   limitReservingBr,
   pickBrDubbedCandidate,
   pickBrDubbedCandidates,
+  pickAnyDubbedCandidates,
   hasCachedBrDubbed,
   canAutoFetchBr,
   uncachedBrHashes,

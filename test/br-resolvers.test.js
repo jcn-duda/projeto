@@ -317,6 +317,131 @@ describe('Feature 4: Universal extractMagnet & Link Protector Traversal', () => 
   });
 });
 
+describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
+  let originalFetch;
+  let savedTtl;
+  let savedFails;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    savedTtl = process.env.BR_DOMAIN_PROBE_TTL_MS;
+    savedFails = process.env.BR_DOMAIN_FAILS_BEFORE_PROBE;
+    // A factory lê a env NA CRIAÇÃO: instâncias de teste nascem com estes
+    // valores, enquanto o singleton (criado no require) segue com os do
+    // operador — o teste não vaza estado para o resto da suíte.
+    process.env.BR_DOMAIN_FAILS_BEFORE_PROBE = '2';
+    process.env.BR_DOMAIN_PROBE_TTL_MS = String(30 * 60_000);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    for (const [chave, valor] of Object.entries({
+      BR_DOMAIN_PROBE_TTL_MS: savedTtl,
+      BR_DOMAIN_FAILS_BEFORE_PROBE: savedFails,
+    })) {
+      if (valor === undefined) delete process.env[chave];
+      else process.env[chave] = valor;
+    }
+  });
+
+  test('isNetworkError: só DNS/conexão/timeout conta como falha de domínio', () => {
+    assert.equal(bludv.isNetworkError(new Error('http_503')), false);
+    assert.equal(bludv.isNetworkError(new Error('blocked_host')), false);
+    assert.equal(bludv.isNetworkError(new Error('no_magnet')), false);
+    assert.equal(bludv.isNetworkError(new TypeError('fetch failed')), true);
+    assert.equal(
+      bludv.isNetworkError(new Error('The operation was aborted due to timeout')),
+      true,
+    );
+    assert.equal(bludv.isNetworkError(null), false);
+  });
+
+  test('probe troca para o primeiro candidato vivo após N falhas de rede', async () => {
+    const hits = [];
+    globalThis.fetch = async (url) => {
+      const target = String(url);
+      hits.push(target);
+      if (target.startsWith('https://down.example')) throw new TypeError('fetch failed');
+      return { ok: true, status: 200, text: async () => '' };
+    };
+
+    const selector = bludv.createSiteSelector(
+      '[test]',
+      '',
+      'https://down.example',
+      ['live-a.example', 'live-b.example'],
+    );
+    const changes = [];
+    selector.onDomainChange((url) => changes.push(url));
+
+    assert.equal(selector.url(), 'https://down.example');
+
+    await selector.noteFailure();
+    assert.equal(selector.url(), 'https://down.example');
+    assert.equal(hits.length, 0, 'abaixo do limiar de falhas não há probe');
+
+    await selector.noteFailure(); // 2ª falha: dispara o probe
+    assert.equal(selector.url(), 'https://live-a.example');
+    assert.deepEqual(changes, ['https://live-a.example']);
+    assert.ok(
+      hits.some((url) => url.startsWith('https://live-a.example/?s=')),
+      'probe usa a busca WordPress /?s=',
+    );
+  });
+
+  test('TTL do vencedor: falhas dentro da imunidade não re-sondam', async () => {
+    let probes = 0;
+    globalThis.fetch = async (url) => {
+      const target = String(url);
+      if (target.includes('/?s=teste')) probes += 1;
+      if (target.startsWith('https://a.example')) throw new TypeError('fetch failed');
+      return { ok: true, status: 200, text: async () => '' };
+    };
+
+    const selector = tdf.createSiteSelector('[test]', '', 'https://a.example', ['b.example']);
+    await selector.noteFailure();
+    await selector.noteFailure();
+    assert.equal(selector.url(), 'https://b.example');
+    // Uma rodada de probe = um fetch por candidato até o primeiro vivo (o
+    // primário morto também é sondado: se ele voltar, volta a ser o escolhido).
+    assert.equal(probes, 2);
+
+    // O mirror também "cai": sem nova rodada enquanto o TTL do último probe
+    // não expirar — sondar de novo não ressuscita site caído.
+    await selector.noteFailure();
+    await selector.noteFailure();
+    await selector.noteFailure();
+    assert.equal(selector.url(), 'https://b.example');
+    assert.equal(probes, 2, 'sem novo probe dentro do TTL');
+  });
+
+  test('todos os candidatos caídos: mantém o domínio atual', async () => {
+    globalThis.fetch = async () => {
+      throw new TypeError('fetch failed');
+    };
+
+    const selector = nerd.createSiteSelector('[test]', '', 'https://x.example', ['y.example']);
+    await selector.noteFailure();
+    await selector.noteFailure(); // probe roda, ninguém responde
+    assert.equal(selector.url(), 'https://x.example');
+  });
+
+  test('hosts(): csv, fallbacks e dedupe alimentam a allowlist', () => {
+    const selector = comando.createSiteSelector(
+      '[test]',
+      'https://csv1.example/, https://csv2.example',
+      'https://primario.example',
+      ['mirror.example', 'primario.example'],
+    );
+    assert.deepEqual(selector.hosts(), [
+      'primario.example',
+      'csv1.example',
+      'csv2.example',
+      'mirror.example',
+    ]);
+  });
+});
+
 describe('Encerramento: load() sobe os quatro e close() os derruba', () => {
   // O shutdown do addon chama brResolvers.close(). Se ele não fechar de fato,
   // o `server.close()` do Express drena e o processo fica preso nesses quatro

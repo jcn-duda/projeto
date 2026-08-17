@@ -1530,3 +1530,26 @@ test('filtro BR aceita a release arábica descoberta pelo título romano', () =>
   ], context);
   assert.equal(items.length, 1);
 });
+
+test('filtro de release aceita grafias de versão estendida e extendida', () => {
+  const context = {
+    names: ['Três Homens em Conflito', 'The Good, the Bad and the Ugly'],
+    year: 1966,
+    isSeries: false,
+  };
+  const items = relevantRaw([
+    {
+      title: 'Três Homens em Conflito Versão Extendida 1966 BluRay 1080p Dual Áudio',
+      isBr: true,
+    },
+    {
+      title: 'Três Homens em Conflito Extendida 1966 BluRay 720p Dublado',
+      isBr: true,
+    },
+    {
+      title: 'Três Homens em Conflito Versão Estendida 1966 1080p Dual',
+      isBr: true,
+    },
+  ], context);
+  assert.equal(items.length, 3);
+});

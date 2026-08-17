@@ -50,14 +50,14 @@ const config = {
       // magnet/infoHash direto, mas a query precisa ir sem SxxEyy — o strip
       // acontece em queryIndexer para todos os desta lista.
       process.env.JACKETT_PT_BR_INDEXERS ||
-        'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,redetorrent,apachetorrent',
+        'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,redetorrent,apachetorrent,hdrtorrent',
     ),
     // Buscadores WordPress stock que zeram com QUALQUER token extra: além do
     // SxxEyy, o ano do filme também sai ("Coringa 2019" → 0 no redetorrent,
     // "Coringa" → 34). Os resolvers locais ficam FORA desta lista: lá o ano
     // ajuda a relevância e o strip de SxxEyy já acontece no servidor deles.
     bareTitleIndexers: list(
-      process.env.JACKETT_BARE_TITLE_INDEXERS || 'redetorrent,apachetorrent',
+      process.env.JACKETT_BARE_TITLE_INDEXERS || 'redetorrent,apachetorrent,hdrtorrent',
     ),
     // Orçamento TOTAL (busca + resolução de magnets) dos que raspam site e
     // seguem protetor de link. PODE passar do REPLY_DEADLINE_MS: a resposta não
@@ -76,8 +76,16 @@ const config = {
     // os resultados. Com 20s eles abortavam igual, só 16s mais tarde, gastando
     // Chromium à toa. Fora da lista de indexers é o lugar deles.
     slowIndexers: list(
-      process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent,apachetorrent',
+      process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent,apachetorrent,hdrtorrent',
     ),
+    // Circuit breaker: indexer offline em N amostras seguidas deixa de
+    // receber orçamento de busca (20s nos BR) até a falha esfriar — busca
+    // real nunca conserta fonte morta, só queima prazo. slow/degraded não
+    // quebram o circuito; o diagnóstico (/test-indexer.json) ignora o
+    // breaker, porque é ele quem repara a fonte.
+    breakerEnabled: String(process.env.JACKETT_BREAKER_ENABLED || 'true') === 'true',
+    breakerFailures: num(process.env.JACKETT_BREAKER_FAILURES, 3),
+    breakerCooldown: num(process.env.JACKETT_BREAKER_COOLDOWN_MS, 5 * 60_000),
   },
   prowlarr: {
     url: (process.env.PROWLARR_URL || 'http://127.0.0.1:9696').replace(/\/$/, ''),
@@ -214,6 +222,11 @@ const config = {
     // pra duas coisas: não reenviar o mesmo torrent a cada busca e por quanto
     // tempo ele fica protegido do dropUncached.
     autoFetchBr: String(process.env.DEBRID_AUTO_FETCH_BR || 'true') === 'true',
+    // Fallback quando a busca não achou NENHUMA fonte BR dublada (site fora,
+    // domínio mudou, título não indexado): baixa a melhor global com
+    // dublado/dual/nacional no título. Default on é o próprio caso de uso do
+    // autofetch — busca BR vazia não pode significar "não baixa nada".
+    autoFetchAnyDubbed: String(process.env.DEBRID_AUTO_FETCH_ANY || 'true') === 'true',
     autoFetchTtl: num(process.env.DEBRID_AUTO_FETCH_TTL, 6 * 3600),
     // Quantos torrents BR dublados o autofetch baixa em background por busca
     // (uma vaga por candidato, compartilhada entre o passe parcial e o tardio).
@@ -221,6 +234,13 @@ const config = {
     // mais a conta. Clamp 1..4: 0 não desliga o recurso (quem desliga é o toggle
     // DEBRID_AUTO_FETCH_BR); o teto superior 4 respeita o contrato de "até 4".
     autoFetchMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 4)))),
+    // Recheck pós-enfileiramento: depois de aceitar um torrent, o addon volta a
+    // perguntar ao debrid se ele já toca (sem o teto do deadline — é um passe
+    // de fundo). Quando fica pronto, o cache da busca é esquecido para a
+    // próxima pergunta do Stremio reconstruir a lista com ⚡, em vez de esperar
+    // o CACHE_TTL inteiro. 0 em qualquer um desliga o recheck.
+    autoFetchRecheckMs: num(process.env.DEBRID_AUTO_FETCH_RECHECK_MS, 120_000),
+    autoFetchRecheckMax: num(process.env.DEBRID_AUTO_FETCH_RECHECK_MAX, 3),
     // URL pública do addon, usada nos links de play resolvidos no debrid.
     publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
     // Segredo do HMAC dos links /resolve. Vazio = assina com a API key de

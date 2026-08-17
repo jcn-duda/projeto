@@ -8,6 +8,7 @@ process.env.CACHE_PERSIST = 'false';
 const {
   pickBrDubbedCandidate,
   pickBrDubbedCandidates,
+  pickAnyDubbedCandidates,
   hasCachedBrDubbed,
   canAutoFetchBr,
   uncachedBrHashes,
@@ -414,6 +415,56 @@ test('pickBrDubbedCandidate ordena por dublado→qualidade→seeders, independen
   assert.equal(pickBrDubbedCandidate([leg1080, dub720]).infoHash, B);
 });
 
+test('pickAnyDubbedCandidates só pega global com marca de áudio e sem CAM', () => {
+  const dual = stream(A, { _dubbed: true, _quality: '1080p', _seeders: 2 });
+  const cam = stream(B, { title: 'Filme CAM Dublado 1080p', _dubbed: true, _quality: '1080p', _seeders: 99 });
+  const legendado = stream(C, { _dubbed: false, _quality: '1080p', _seeders: 50 });
+
+  // Sem marca de áudio a global não entra: fora dos sites BR o padrão é
+  // legendado, e o fallback "sem marca vale dublado" só vale para o pool BR.
+  assert.deepEqual(pickAnyDubbedCandidates([legendado, cam, dual], new Set(), 4), [dual]);
+  assert.deepEqual(pickAnyDubbedCandidates([legendado, cam], new Set(), 4), []);
+});
+
+test('pickAnyDubbedCandidates ordena qualidade→seeders, dedupa e pula cacheado/limite', () => {
+  const g1080 = stream(A, { _dubbed: true, _quality: '1080p', _seeders: 5 });
+  const g1080dup = { ...g1080, infoHash: A.toUpperCase() };
+  const g720 = stream(B, { _dubbed: true, _quality: '720p', _seeders: 100 });
+  const uhd = stream(C, { _dubbed: true, _quality: '2160p', _seeders: 999 });
+
+  assert.deepEqual(
+    pickAnyDubbedCandidates([uhd, g720, g1080dup, g1080], new Set(), 4).map((s) => s.infoHash.toLowerCase()),
+    [A, B, C],
+    'mesma ordem do pool BR: 1080p/720p antes do 2160p, seeders decide o empate',
+  );
+  assert.deepEqual(pickAnyDubbedCandidates([g1080, g720], new Set([A]), 4), [g720]);
+  assert.deepEqual(pickAnyDubbedCandidates([g1080, g720], new Set(), 1), [g1080]);
+  assert.deepEqual(pickAnyDubbedCandidates([g1080, g720], new Set(), 0), []);
+});
+
+test('picks de autofetch dão bônus a pack da temporada pedida em busca de série', () => {
+  const D = 'd'.repeat(40);
+  const brEp = stream(A, { title: 'Série S01E03 1080p Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 50 });
+  const brPack = stream(B, { title: 'Série S01 Dublado 720p', _br: true, _dubbed: true, _quality: '720p', _seeders: 2 });
+  const brOther = stream(C, { title: 'Série S02 Dublado 720p', _br: true, _dubbed: true, _quality: '720p', _seeders: 2 });
+  const brComplete = stream(D, { title: 'Série Todas as Temporadas Dublado 480p', _br: true, _dubbed: true, _quality: '480p', _seeders: 1 });
+
+  // Sem season (contexto de filme) o bônus não existe: qualidade e seeders
+  // decidem como antes — a lista exibida ao usuário não muda em nada.
+  assert.equal(pickBrDubbedCandidate([brEp, brPack]).infoHash, A);
+  assert.equal(pickAnyDubbedCandidates([brEp, brPack], new Set(), 1)[0].infoHash, A);
+
+  // Pack da temporada pedida vence mesmo com qualidade/seeders menores: um
+  // download serve o binge inteiro em vez de um episódio.
+  assert.equal(pickBrDubbedCandidates([brEp, brPack], new Set(), 1, { season: 1 })[0].infoHash, B);
+  assert.equal(pickAnyDubbedCandidates([brEp, brPack], new Set(), 1, { season: 1 })[0].infoHash, B);
+
+  // Pack de OUTRA temporada não ganha o bônus (a qualidade decide).
+  assert.equal(pickBrDubbedCandidates([brEp, brOther], new Set(), 1, { season: 1 })[0].infoHash, A);
+  // "Todas as Temporadas" cobre qualquer temporada pedida.
+  assert.equal(pickBrDubbedCandidates([brEp, brComplete], new Set(), 1, { season: 3 })[0].infoHash, D);
+});
+
 test('dedupeByHash funde a mesma release e preserva a origem BR dublada que o picker enxerga', () => {
   const global = stream(A, { name: 'Joker 1080p', _br: false, _dubbed: false, _quality: '1080p', _seeders: 500 });
   const br = stream(A, { name: 'Coringa Dublado 1080p', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 });
@@ -541,6 +592,169 @@ test('matriz integrada: dc=false com BR dublado já em cache não enfileira (has
     autofetch.releaseSearch(searchKey);
     cache.forget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
+  }
+});
+
+test('fallback global: sem BR dublado na busca, as melhores dubladas globais são enfileiradas', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-any');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const h1 = '1'.repeat(40);
+  const h2 = '2'.repeat(40);
+  const h3 = '3'.repeat(40);
+  const globalDub = (h, q, seeds) => ({
+    infoHash: h, name: 'Movie Dual', _br: false, _dubbed: true, _quality: q, _seeders: seeds,
+  });
+  const enqueued = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-any',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-any-global';
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+
+    // Busca sem NENHUMA fonte BR e nada em cache: o fallback enfileira as
+    // dubladas globais na ordem do pool (1080p com mais seeds, 1080p, 720p).
+    await runtime.run({ opts: userOpts, encoded: 'cfg-any' }, () =>
+      applyDebrid(
+        [globalDub(h3, '720p', 100), globalDub(h2, '1080p', 9), globalDub(h1, '1080p', 1)],
+        { searchKey },
+      ),
+    );
+    await sleep(20);
+    assert.deepEqual(enqueued, [h2, h1, h3], 'sem BR na busca, as dubladas globais são enfileiradas');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    for (const h of [h1, h2, h3]) {
+      cache.forget(autofetch.markerKey('premiumize', account, h));
+      held.release(h, account);
+    }
+  }
+});
+
+test('fallback global respeita os gates: stream tocável, BR presente e toggle off não baixam global', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalAny = config.debrid.autoFetchAnyDubbed;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-any-gates');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const g = 'g'.repeat(40);
+  const other = 'h'.repeat(40);
+  const br = 'i'.repeat(40);
+  const globalDub = { infoHash: g, name: 'Movie Dual', _br: false, _dubbed: true, _quality: '1080p', _seeders: 3 };
+  const globalLeg = { infoHash: other, name: 'Movie 1080p', _br: false, _dubbed: false, _quality: '1080p', _seeders: 3 };
+  const brDub = { infoHash: br, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '480p', _seeders: 1 };
+  const enqueued = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-any-gates',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const run = (streams, searchKey, cached = []) => {
+    debrid.checkCached = async () => ({ cached: new Set(cached), known: true });
+    return runtime.run({ opts: userOpts, encoded: 'cfg-gates' }, () =>
+      applyDebrid(streams, { searchKey }),
+    );
+  };
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+
+    // Gate do pool global é "nada toca": um legendado qualquer em cache já
+    // entrega play, e baixar dublada global seria gastar a conta à toa.
+    await run([globalDub, globalLeg], 'busca-any-tocavel', [other]);
+    await sleep(20);
+    assert.deepEqual(enqueued, [], 'stream tocável (mesmo legendado) barra o fallback global');
+
+    // Com fonte BR na busca o pool BR vence (o global nem é consultado): o
+    // candidato enfileirado é o BR, mesmo sendo 480p contra o 1080p global.
+    await run([globalDub, brDub], 'busca-any-com-br');
+    await sleep(20);
+    assert.deepEqual(enqueued, [br], 'com fonte BR na busca, o candidato é o BR');
+
+    // Toggle desliga o fallback sem tocar no autofetch BR.
+    config.debrid.autoFetchAnyDubbed = false;
+    await run([globalDub], 'busca-any-off');
+    await sleep(20);
+    assert.deepEqual(enqueued, [br], 'DEBRID_AUTO_FETCH_ANY=false não enfileira global');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.autoFetchAnyDubbed = originalAny;
+    pmAdapter.enqueue = originalEnqueue;
+    for (const key of ['busca-any-tocavel', 'busca-any-com-br', 'busca-any-off']) {
+      autofetch.releaseSearch(key);
+    }
+    for (const h of [g, other, br]) {
+      cache.forget(autofetch.markerKey('premiumize', account, h));
+      held.release(h, account);
+    }
+  }
+});
+
+test('autofetch de série enfileira o pack em vez do episódio avulso', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-pack');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const ep = '1'.repeat(40);
+  const pack = '2'.repeat(40);
+  const enqueued = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-pack',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-pack-serie';
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    await runtime.run({ opts: userOpts, encoded: 'cfg-pack' }, () =>
+      applyDebrid(
+        [
+          { infoHash: ep, name: 'Show S01E05 Dual 1080p', _br: false, _dubbed: true, _quality: '1080p', _seeders: 80 },
+          { infoHash: pack, name: 'Show S01 Dual 480p', _br: false, _dubbed: true, _quality: '480p', _seeders: 1 },
+        ],
+        { searchKey, season: 1, episode: 5 },
+      ),
+    );
+    await sleep(20);
+    // O pack vem PRIMEIRO no pick (um download serve o binge inteiro); o
+    // episódio só entra depois porque ainda há vaga no teto autoFetchMax=4.
+    assert.deepEqual(enqueued, [pack, ep], 'série: o pack é enfileirado antes do episódio');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    for (const h of [ep, pack]) {
+      cache.forget(autofetch.markerKey('premiumize', account, h));
+      held.release(h, account);
+    }
   }
 });
 
@@ -966,5 +1180,138 @@ test('passe tardio não duplica o candidato do parcial enquanto o enqueue ainda 
       cache.forget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
+  }
+});
+
+test('recheck pós-enfileiramento esquece a busca quando o download fica pronto', async () => {
+  const { mock: testMock } = require('node:test');
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-recheck');
+  const h = '1'.repeat(40);
+  const searchKey = 'busca-recheck';
+  const brDub = { infoHash: h, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-recheck',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  let checks = 0;
+  let serviceInsideRecheck;
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    pmAdapter.enqueue = async () => true;
+    // 1ª checagem é a da busca; a 2ª (recheck) ainda vazia; a 3ª pronta.
+    debrid.checkCached = async () => {
+      checks += 1;
+      serviceInsideRecheck = debrid.current()?.id;
+      return checks <= 2
+        ? { cached: new Set(), known: true }
+        : { cached: new Set([h]), known: true };
+    };
+    // A busca já está cacheada, como o passe tardio deixa.
+    cache.set(searchKey, { streams: [], partial: false }, 900);
+
+    testMock.timers.enable({ apis: ['setTimeout'] });
+    await runtime.run({ opts: userOpts, encoded: 'cfg-r' }, () =>
+      applyDebrid([brDub], { searchKey }),
+    );
+    await flush();
+    assert.equal(checks, 1, 'só a checagem da busca rodou até aqui');
+    assert.notEqual(cache.get(searchKey), null, 'busca segue cacheada enquanto o download corre');
+
+    // 1º recheck: ainda vazio — reagendado.
+    testMock.timers.tick(120_000);
+    await flush();
+    assert.equal(checks, 2, 'primeiro recheck consultou o debrid');
+    // O timer roda FORA do AsyncLocalStorage do request: o contexto capturado
+    // precisa estar restaurado, senão a checagem iria sem a conta do usuário.
+    assert.equal(serviceInsideRecheck, 'premiumize', 'recheck roda com o contexto da requisição');
+    assert.notEqual(cache.get(searchKey), null, 'download não pronto não esquece a busca');
+
+    // 2º recheck: pronto — a busca é esquecida para o cliente reconstruir ⚡.
+    testMock.timers.tick(120_000);
+    await flush();
+    assert.equal(checks, 3, 'segundo recheck consultou o debrid');
+    assert.equal(cache.get(searchKey), null, 'busca esquecida quando o download fica pronto');
+
+    // Pronto = lote encerrado: nenhum recheck a mais.
+    testMock.timers.tick(600_000);
+    await flush();
+    assert.equal(checks, 3, 'sem recheck depois de pronto');
+  } finally {
+    testMock.timers.reset();
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, h));
+    held.release(h, account);
+  }
+});
+
+test('recheck esgota as tentativas sem esquecer a busca quando nada fica pronto', async () => {
+  const { mock: testMock } = require('node:test');
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-recheck-max');
+  const h = '9'.repeat(40);
+  const searchKey = 'busca-recheck-max';
+  const brDub = { infoHash: h, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-recheck-max',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  let checks = 0;
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    pmAdapter.enqueue = async () => true;
+    debrid.checkCached = async () => {
+      checks += 1;
+      return { cached: new Set(), known: true };
+    };
+    cache.set(searchKey, { streams: [], partial: false }, 900);
+
+    testMock.timers.enable({ apis: ['setTimeout'] });
+    await runtime.run({ opts: userOpts, encoded: 'cfg-rm' }, () =>
+      applyDebrid([brDub], { searchKey }),
+    );
+    await flush();
+    assert.equal(checks, 1);
+
+    // Default RECHECK_MAX=3: três rechecks e para (1 busca + 3 = 4 checagens).
+    for (let i = 0; i < 3; i += 1) {
+      testMock.timers.tick(120_000);
+      await flush();
+    }
+    assert.equal(checks, 4, 'três rechecks e nenhum a mais');
+    assert.notEqual(cache.get(searchKey), null, 'sem download pronto a busca segue valendo');
+
+    testMock.timers.tick(600_000);
+    await flush();
+    assert.equal(checks, 4, 'lote esgotado não agenda mais nada');
+  } finally {
+    testMock.timers.reset();
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, h));
+    held.release(h, account);
   }
 });

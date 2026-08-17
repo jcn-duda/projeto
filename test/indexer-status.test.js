@@ -2,6 +2,8 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 const status = require('../src/providers/indexer-status');
+const jackett = require('../src/providers/jackett');
+const config = require('../src/config');
 
 test('status classifica online, lento, degradado e offline', () => {
   assert.equal(status.stateFor({ ok: true, ms: 1000, budgetMs: 4000 }), 'online');
@@ -67,4 +69,52 @@ test('status permanece válido exatamente no limite do TTL', () => {
   const current = status.record('nerdfilmes', { ok: true, ms: 800, budgetMs: 20000 });
   const boundary = Date.parse(current.checkedAt) + status.TTL_MS;
   assert.equal(status.get('nerdfilmes', boundary).state, 'online');
+});
+
+test('failStreak acumula falhas duras seguidas e zera com sucesso', () => {
+  status.clear();
+  status.record('idx-a', { ok: false, ms: null, budgetMs: 4000 });
+  status.record('idx-a', { ok: false, ms: null, budgetMs: 4000 });
+  assert.equal(status.get('idx-a').failStreak, 2);
+  status.record('idx-a', { ok: true, ms: 900, budgetMs: 4000, results: 3 });
+  assert.equal(status.get('idx-a').failStreak, 0);
+});
+
+test('slow e degraded não quebram o circuito', () => {
+  status.clear();
+  assert.equal(status.record('idx-b', { ok: true, ms: 9000, budgetMs: 4000 }).failStreak, 0);
+  assert.equal(status.record('idx-b', { ok: false, results: 5 }).failStreak, 0);
+  assert.equal(jackett.breakerTripped('idx-b'), false);
+});
+
+test('circuit breaker pula indexer no limiar e meia-abre após o cooldown', () => {
+  status.clear();
+  for (let i = 0; i < config.jackett.breakerFailures - 1; i += 1) {
+    status.record('idx-c', { ok: false, ms: null, budgetMs: 4000 });
+  }
+  assert.equal(jackett.breakerTripped('idx-c'), false, 'abaixo do limiar o indexer segue na busca');
+  status.record('idx-c', { ok: false, ms: null, budgetMs: 4000 }); // atinge o limiar
+  assert.equal(jackett.breakerTripped('idx-c'), true);
+
+  // Cooldown vencido: meia-abertura deixa a busca tentar de novo.
+  const last = status.get('idx-c');
+  const afterCooldown = Date.parse(last.checkedAt) + config.jackett.breakerCooldown + 1;
+  assert.equal(jackett.breakerTripped('idx-c', afterCooldown), false);
+
+  // Sucesso na meia-abertura fecha o circuito de vez.
+  status.record('idx-c', { ok: true, ms: 1200, budgetMs: 4000, results: 1 });
+  assert.equal(jackett.breakerTripped('idx-c'), false);
+});
+
+test('restart não perde o circuito aberto (failStreak vem do disco)', () => {
+  status.clear();
+  for (let i = 0; i < config.jackett.breakerFailures; i += 1) {
+    status.record('idx-d', { ok: false, ms: null, budgetMs: 4000 });
+  }
+  status.dropMemory();
+  assert.equal(status.get('idx-d').failStreak, config.jackett.breakerFailures);
+  assert.equal(jackett.breakerTripped('idx-d'), true);
+  // E a próxima amostra dura continua o streak de onde parou.
+  status.record('idx-d', { ok: false, ms: null, budgetMs: 4000 });
+  assert.equal(status.get('idx-d').failStreak, config.jackett.breakerFailures + 1);
 });

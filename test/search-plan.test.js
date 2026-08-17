@@ -48,6 +48,7 @@ const { shapeSearchQuery } = require('../src/providers/jackett');
 
 test('shapeSearchQuery remove SxxEyy para indexer BR e preserva para global', () => {
   assert.equal(shapeSearchQuery('bludv-cardigann', 'A Casa do Dragão S01E01', true), 'A Casa do Dragão');
+  assert.equal(shapeSearchQuery('hdrtorrent', 'A Casa do Dragão S01E01', true), 'A Casa do Dragão');
   assert.equal(shapeSearchQuery('therarbg', 'House of the Dragon S01E01', false), 'House of the Dragon S01E01');
   // Pack de temporada idem.
   assert.equal(shapeSearchQuery('comandotorrents', 'Fallout S01', true), 'Fallout');
@@ -55,11 +56,15 @@ test('shapeSearchQuery remove SxxEyy para indexer BR e preserva para global', ()
 
 test('shapeSearchQuery tira o ano do fim só nos bare-title', () => {
   assert.equal(shapeSearchQuery('redetorrent', 'Coringa 2019', true), 'Coringa');
+  assert.equal(shapeSearchQuery('hdrtorrent', 'Coringa 2019', true), 'Coringa');
+  assert.equal(shapeSearchQuery('apachetorrent', 'Coringa 2019', true), 'Coringa');
   // Nos resolvers locais o ano ajuda a relevância e FICA.
   assert.equal(shapeSearchQuery('bludv-cardigann', 'Coringa 2019', true), 'Coringa 2019');
   // Título que É um ano não pode sumir da própria query.
   assert.equal(shapeSearchQuery('redetorrent', '1917 2019', true), '1917');
+  assert.equal(shapeSearchQuery('hdrtorrent', '1917 2019', true), '1917');
   assert.equal(shapeSearchQuery('redetorrent', '2012', true), '2012');
+  assert.equal(shapeSearchQuery('hdrtorrent', '2012', true), '2012');
 });
 
 // Plano futuro: o indexador BR tem DUAS queries — a primary em pt-BR e, só
