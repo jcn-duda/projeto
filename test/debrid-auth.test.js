@@ -337,3 +337,34 @@ test('conta no limite devolve a lista como P2P, igual à credencial recusada', a
     AbortSignal.timeout = realTimeout;
   }
 });
+
+// --- Cooldown: o único estado estrutural que merece retry ------------------
+
+const debrid = require('../src/debrid');
+
+test('cooldown na checagem de cache é transitório: known:false, sem unusable', async () => {
+  const original = debrid.BY_ID.get('premiumize');
+  debrid.BY_ID.set('premiumize', {
+    id: 'premiumize',
+    label: 'Premiumize fake',
+    cacheCheck: true,
+    async checkCached() {
+      throw Object.assign(new Error('MAGNET_PROCESSING_COOLDOWN'), { isCooldown: true });
+    },
+  });
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-fake-cooldown',
+  };
+
+  try {
+    const result = await runtime.run({ opts: userOpts, encoded: '' }, () =>
+      debrid.checkCached(['hash-cooldown']),
+    );
+    assert.equal(result.known, false, 'cooldown vira "não sei", como qualquer falha transitória');
+    assert.equal(result.unusable, undefined, 'cooldown não é auth/quota: a lista NÃO vira P2P');
+  } finally {
+    debrid.BY_ID.set('premiumize', original);
+  }
+});
