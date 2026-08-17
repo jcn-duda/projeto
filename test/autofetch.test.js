@@ -7,17 +7,20 @@ process.env.CACHE_PERSIST = 'false';
 // escrito na conta do usuário. Testadas sem rede, com objetos de stream mínimos.
 const {
   pickBrDubbedCandidate,
+  pickBrDubbedCandidates,
   hasCachedBrDubbed,
   canAutoFetchBr,
   uncachedBrHashes,
   filterKnownCache,
 } = require('../src/utils/format');
-const { sortAndLimit, toStremioStream, limitReservingBr } = require('../src/utils/format');
+const { sortAndLimit, toStremioStream, limitReservingBr, dedupeByHash } = require('../src/utils/format');
 const held = require('../src/debrid/protected');
 const autofetch = require('../src/providers/autofetch');
 const debrid = require('../src/debrid');
 const runtime = require('../src/runtime');
 const config = require('../src/config');
+const { accountScope } = require('../src/utils/request-key');
+const cache = require('../src/utils/cache');
 const { applyDebrid } = require('../src/providers');
 
 const A = 'a'.repeat(40);
@@ -96,12 +99,14 @@ test('marker confirmado não depende da trava em memória', () => {
   autofetch.release(key);
 });
 
-test('autofetch só pode escrever na conta em modo somente-cache', () => {
+test('canAutoFetchBr liga com cachedOnly true OU false; trava só com toggle ou cacheCheck', () => {
   const adapter = { cacheCheck: true };
   assert.equal(canAutoFetchBr({ autoFetchBr: true, debridCachedOnly: true }, adapter), true);
-  assert.equal(canAutoFetchBr({ autoFetchBr: true, debridCachedOnly: false }, adapter), false);
+  assert.equal(canAutoFetchBr({ autoFetchBr: true, debridCachedOnly: false }, adapter), true);
   assert.equal(canAutoFetchBr({ autoFetchBr: false, debridCachedOnly: true }, adapter), false);
+  assert.equal(canAutoFetchBr({ autoFetchBr: false, debridCachedOnly: false }, adapter), false);
   assert.equal(canAutoFetchBr({ autoFetchBr: true, debridCachedOnly: true }, { cacheCheck: false }), false);
+  assert.equal(canAutoFetchBr({ autoFetchBr: true, debridCachedOnly: false }, { cacheCheck: false }), false);
 });
 
 test('fontes BR fora do cache ocupam só as vagas reservadas', () => {
@@ -286,5 +291,680 @@ test('applyDebrid limita a primeira checagem e mantém resposta não vazia quand
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
+  }
+});
+
+test('matriz de enqueue: dc=false enfileira exatamente um BR dublado; cached/known:false/cacheCheck:false/toggle:false não', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const originalCacheCheck = pmAdapter.cacheCheck;
+  const account = accountScope('chave-integrada');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const enqueued = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => {
+    enqueued.push(infoHash);
+    return true;
+  };
+  const hash = (i) => String(i).repeat(40);
+  const brDub = (h) => ({
+    infoHash: h,
+    name: 'Coringa Dublado 1080p',
+    _br: true,
+    _dubbed: true,
+    _seeders: 1,
+    _quality: '1080p',
+  });
+
+  // Cada caso usa hash e searchKey próprios: o marker persistente e a trava por
+  // busca são dedupe do autofetch e mascarariam a trava sob teste se fossem
+  // reutilizados entre os cenários.
+  const run = async ({ h, autoFetchBr = true, debridCachedOnly, cached = [], known = true, cacheCheck = true, searchKey }) => {
+    pmAdapter.cacheCheck = cacheCheck;
+    debrid.checkCached = async () => ({ cached: new Set(cached), known });
+    const userOpts = {
+      ...runtime.defaults(),
+      debridService: 'premiumize',
+      debridApiKey: 'chave-integrada',
+      autoFetchBr,
+      debridCachedOnly,
+    };
+    await runtime.run({ opts: userOpts, encoded: 'cfg' }, () =>
+      applyDebrid([brDub(h)], { searchKey }),
+    );
+    // O enqueue é disparado sem await (efeito colateral, não resposta): espera
+    // só a cadeia de microtasks resolver, como nos demais testes do arquivo.
+    await sleep(20);
+  };
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+
+    // Positivo: sem cachedOnly a fonte já sai como P2P, mas o download no
+    // debrid continua sendo enfileirado — o invariante 6 só trava em
+    // autoFetchBr/cacheCheck/known/cache.
+    await run({ h: hash(1), debridCachedOnly: false, searchKey: 'busca-dc-off' });
+    assert.deepEqual(enqueued, [hash(1)], 'dc=false + BR dublado uncached enfileira exatamente o candidato');
+
+    // BR dublado já tocável na hora: baixar o próximo encheria a conta à toa.
+    await run({ h: hash(2), debridCachedOnly: true, cached: [hash(2)], searchKey: 'busca-cached' });
+    assert.equal(enqueued.length, 1, 'BR dublado cacheado não enfileira');
+
+    // Sem resposta confiável de cache não há como saber o que falta.
+    await run({ h: hash(3), debridCachedOnly: true, known: false, searchKey: 'busca-known-false' });
+    assert.equal(enqueued.length, 1, 'known:false não enfileira');
+
+    // Serviço sem checagem de cache (Real-Debrid/Debrid-Link) fica fora, mesmo
+    // com o known mockado em true — isola a trava cacheCheck da trava known.
+    await run({ h: hash(4), debridCachedOnly: true, cacheCheck: false, searchKey: 'busca-cachecheck-false' });
+    assert.equal(enqueued.length, 1, 'cacheCheck:false não enfileira');
+
+    // Toggle desligado: desligado é desligado.
+    await run({ h: hash(5), debridCachedOnly: true, autoFetchBr: false, searchKey: 'busca-toggle-off' });
+    assert.equal(enqueued.length, 1, 'autoFetchBr=false não enfileira');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    pmAdapter.cacheCheck = originalCacheCheck;
+    cache.forget(autofetch.markerKey('premiumize', account, hash(1)));
+    held.release(hash(1), account);
+  }
+});
+
+test('contrato max4 seleciona candidatos distintos e limita slots por busca', () => {
+  assert.equal(typeof pickBrDubbedCandidates, 'function');
+  assert.equal(typeof autofetch.acquireSearchSlot, 'function');
+  assert.equal(config.debrid.autoFetchMax, 4);
+
+  const one = stream(A, { _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 });
+  const duplicate = { ...one, infoHash: A.toUpperCase() };
+  const two = stream(B, { _br: true, _dubbed: true, _quality: '720p', _seeders: 2 });
+  const three = stream(C, { _br: true, _dubbed: true, _quality: '480p', _seeders: 3 });
+  assert.deepEqual(
+    pickBrDubbedCandidates([three, duplicate, two, one], new Set([B]), 4)
+      .map((s) => s.infoHash.toLowerCase()),
+    [A, C],
+  );
+
+  const key = 'streams:movie:tt-max4';
+  autofetch.releaseSearch(key);
+  for (let i = 0; i < 4; i += 1) assert.equal(autofetch.acquireSearchSlot(key, 4), true);
+  assert.equal(autofetch.acquireSearchSlot(key, 4), false);
+  autofetch.releaseSearch(key);
+});
+
+test('pickBrDubbedCandidate ordena por dublado→qualidade→seeders, independente da ordem da lista', () => {
+  const a1080p5 = stream(A, { _br: true, _dubbed: true, _quality: '1080p', _seeders: 5 });
+  const b1080p9 = stream(B, { _br: true, _dubbed: true, _quality: '1080p', _seeders: 9 });
+  // Mesma qualidade: mais seeders vence, mesmo vindo depois na lista.
+  assert.equal(pickBrDubbedCandidate([a1080p5, b1080p9]).infoHash, B);
+  // Qualidade manda sobre seeders: 1080p+1 vence 720p+100.
+  const c720p100 = stream(C, { _br: true, _dubbed: true, _quality: '720p', _seeders: 100 });
+  assert.equal(pickBrDubbedCandidate([c720p100, b1080p9]).infoHash, B);
+  // O picker prefere 1080p/720p a 2160p: autofetch esquenta o cache pro play
+  // rápido, não baixa o arquivo maior.
+  const aUhd = stream(A, { _br: true, _dubbed: true, _quality: '2160p', _seeders: 999 });
+  assert.equal(pickBrDubbedCandidate([aUhd, b1080p9]).infoHash, B);
+  // Marca explícita de dublado vence qualidade: legendado 1080p perde pro 720p dublado.
+  const leg1080 = stream(C, { _br: true, _dubbed: false, _quality: '1080p', _seeders: 50 });
+  const dub720 = stream(B, { _br: true, _dubbed: true, _quality: '720p', _seeders: 1 });
+  assert.equal(pickBrDubbedCandidate([leg1080, dub720]).infoHash, B);
+});
+
+test('dedupeByHash funde a mesma release e preserva a origem BR dublada que o picker enxerga', () => {
+  const global = stream(A, { name: 'Joker 1080p', _br: false, _dubbed: false, _quality: '1080p', _seeders: 500 });
+  const br = stream(A, { name: 'Coringa Dublado 1080p', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 });
+  const merged = dedupeByHash([global, br]);
+  assert.equal(merged.length, 1, 'a mesma release em dois indexers vira um stream só');
+  assert.equal(merged[0]._br, true, 'a origem BR não pode se perder no desempate por seeders');
+  assert.equal(merged[0]._dubbed, true);
+  assert.equal(pickBrDubbedCandidate(merged).infoHash, A, 'o candidato fundido continua elegível');
+});
+
+test('uncachedBrHashes pula o cacheado no meio do pool e corta no limite', () => {
+  const first = stream(A, { _br: true, _dubbed: true, _quality: '1080p' });
+  const second = stream(B, { _br: true, _dubbed: true, _quality: '720p' });
+  const third = stream(C, { _br: true, _dubbed: true, _quality: '2160p' });
+  // O cacheado no meio não trava a varredura: a seleção segue no próximo.
+  assert.deepEqual([...uncachedBrHashes([first, second, third], new Set([B]), 2)], [A, C]);
+  assert.deepEqual([...uncachedBrHashes([first, second, third], new Set(), 1)], [A]);
+  assert.deepEqual([...uncachedBrHashes([first, second, third], new Set([A, B, C]), 5)], []);
+});
+
+test('acquireSearch mantém compatibilidade com o teto antigo de uma vaga', () => {
+  const searchKey = 'streams:movie:tt-slots';
+  autofetch.releaseSearch(searchKey);
+  assert.equal(autofetch.acquireSearch(searchKey), true);
+  // No contrato max4 a quinta aquisição seria barrada; no código atual a
+  // segunda já é — o teto compartilhado é 1 por searchKey.
+  assert.equal(autofetch.acquireSearch(searchKey), false);
+  assert.equal(autofetch.acquireSearch(searchKey), false);
+  // Chave vazia nunca adquire: sem searchKey não há busca a proteger.
+  assert.equal(autofetch.acquireSearch(''), false);
+  autofetch.releaseSearch(searchKey);
+  assert.equal(autofetch.acquireSearch(searchKey), true, 'release devolve o slot');
+  autofetch.releaseSearch(searchKey);
+});
+test('matriz integrada: 4 BR uncached com dc=false/known=true enfileiram os quatro melhores', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-quatro');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const brDub = (h, q, seeds) => ({
+    infoHash: h, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: q, _seeders: seeds,
+  });
+
+  const h1 = '1'.repeat(40); // 1080p, 1 seed
+  const h2 = '2'.repeat(40); // 1080p, 5 seeds  → melhor candidato
+  const h3 = '3'.repeat(40); // 720p, 100 seeds
+  const h4 = '4'.repeat(40); // 2160p, 999 seeds
+  const enqueued = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-quatro',
+    debridCachedOnly: false,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-quatro-br';
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    const out = await runtime.run({ opts: userOpts, encoded: 'cfg4' }, () =>
+      applyDebrid(
+        [brDub(h4, '2160p', 999), brDub(h3, '720p', 100), brDub(h2, '1080p', 5), brDub(h1, '1080p', 1)],
+        { searchKey },
+      ),
+    );
+    await sleep(20);
+
+    // dc=false + known=true: os quatro candidatos distintos entram em background
+    // na ordem do pool (1080p com mais seeds, depois 1080p, 720p e 2160p).
+    assert.deepEqual(enqueued, [h2, h1, h3, h4], 'os quatro melhores candidatos enfileiram');
+    assert.equal(out.length, 4, 'dc=false mantém os 4 BR na lista');
+    assert.ok(out.every((s) => s.infoHash), 'lista sai como torrent puro, sem selo ⚡');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, h2));
+    held.release(h2, account);
+  }
+});
+
+test('matriz integrada: dc=false com BR dublado já em cache não enfileira (hasCachedBrDubbed trava nos dois modos)', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-sete');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const h = '7'.repeat(40);
+  const brDub = (hash) => ({
+    infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+  });
+
+  const enqueued = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-sete',
+    debridCachedOnly: false,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-dc-false-cached';
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set([h]), known: true });
+    await runtime.run({ opts: userOpts, encoded: 'cfg7' }, () =>
+      applyDebrid([brDub(h)], { searchKey }),
+    );
+    await sleep(20);
+
+    assert.deepEqual(enqueued, [], 'dublado já tocável encerra o autofetch mesmo com dc=false');
+    assert.equal(held.isHeld(h, account), false, 'sem download a proteger, o hold é liberado na hora');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, h));
+    held.release(h, account);
+  }
+});
+
+// O Torznab devolve o btih em MAIÚSCULO e o infoHash chega cru do Jackett, mas
+// o conjunto de cacheados é sempre minúsculo (debrid/index.js normaliza na ida,
+// os adapters na volta). Comparar os dois direto errava em silêncio: o dublado
+// já pronto não era reconhecido e o autofetch gastava vaga da conta baixando o
+// que dava para tocar na hora. Hash com letras de propósito — dígitos não têm
+// caixa e o teste passaria mesmo com a comparação quebrada.
+test('BR dublado em cache trava o autofetch mesmo com o infoHash em MAIÚSCULO', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-caixa');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const lower = 'abcdef0123456789abcdef0123456789abcdef01';
+  const upper = lower.toUpperCase();
+  const brDub = (hash) => ({
+    infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+  });
+
+  const enqueued = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-caixa',
+    debridCachedOnly: false,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-caixa-hash';
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set([lower]), known: true });
+    await runtime.run({ opts: userOpts, encoded: 'cfg-caixa' }, () =>
+      applyDebrid([brDub(upper)], { searchKey }),
+    );
+    await sleep(20);
+
+    assert.deepEqual(enqueued, [], 'cacheado em minúsculo casa com o candidato em maiúsculo');
+    assert.equal(held.isHeld(upper, account), false, 'sem download a proteger, o hold é liberado');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, upper));
+    held.release(upper, account);
+  }
+});
+
+test('marker pré-existente pula apenas o hash marcado; um candidato diferente ainda enfileira', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-marker');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const brDub = (hash) => ({
+    infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+  });
+
+  const x = 'x'.repeat(40); // marcado como já baixado
+  const y = 'y'.repeat(40); // candidato novo
+  const markerX = autofetch.markerKey('premiumize', account, x);
+  const enqueued = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-marker',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const run = (h, searchKey) => runtime.run({ opts: userOpts, encoded: 'cfgm' }, () =>
+    applyDebrid([brDub(h)], { searchKey }),
+  );
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    // Pré-grava o marker de X, como se um download já tivesse sido aceito antes.
+    cache.set(markerX, 1, 3600);
+
+    // Busca cujo melhor candidato é X: o marker barra e nada é enfileirado.
+    await run(x, 'busca-marker-x');
+    await sleep(20);
+    assert.deepEqual(enqueued, [], 'hash com marker confirmado não reenfileira');
+
+    // Busca cujo melhor candidato é Y (sem marker): enfileira normalmente —
+    // "pula apenas um" significa que o marker é por hash, não por conta/busca.
+    await run(y, 'busca-marker-y');
+    await sleep(20);
+    assert.deepEqual(enqueued, [y], 'hash sem marker continua enfileirando');
+    assert.equal(cache.get(autofetch.markerKey('premiumize', account, y)), 1, 'o aceite de Y grava o marker dele');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch('busca-marker-x');
+    autofetch.releaseSearch('busca-marker-y');
+    cache.forget(markerX);
+    cache.forget(autofetch.markerKey('premiumize', account, y));
+    held.release(x, account);
+    held.release(y, account);
+  }
+});
+test('passe parcial e tardio no MESMO searchKey compartilham teto de quatro enqueues', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-dupla');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const brDub = (hash) => ({
+    infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+  });
+
+  const h1 = '1'.repeat(40); // candidato do passe parcial
+   const h2 = '2'.repeat(40);
+   const h3 = '3'.repeat(40);
+   const h4 = '4'.repeat(40);
+   const h5 = '5'.repeat(40); // quinto candidato deve ser barrado
+   const h6 = '6'.repeat(40);
+   const enqueued = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-dupla',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-dupla-passe';
+  const run = (h) => runtime.run({ opts: userOpts, encoded: 'cfgd' }, () =>
+    applyDebrid([brDub(h)], { searchKey }),
+  );
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+
+    // Passe parcial: enfileira o candidato da primeira leva.
+    await run(h1);
+    await sleep(20);
+    assert.deepEqual(enqueued, [h1], 'primeiro passe enfileira o candidato parcial');
+
+    // O cliente repete a mesma busca: o marker de h1 barra a repetição.
+    await run(h1);
+    await sleep(20);
+    assert.equal(enqueued.length, 1, 'repetição do mesmo passe é barrada pelo marker');
+
+    // Passe tardio traz cinco candidatos novos. O contador compartilhado deixa
+    // passar apenas mais três: parcial+tardio nunca excede quatro na busca.
+    await run(h2);
+    await run(h3);
+    await run(h4);
+    await run(h5);
+    await run(h6);
+    await sleep(20);
+    assert.deepEqual(enqueued, [h1, h2, h3, h4], 'o teto compartilhado barra o quinto candidato');
+    assert.equal(held.isHeld(h5, account), false, 'o quinto candidato é liberado do hold');
+    assert.equal(held.isHeld(h6, account), false, 'o sexto candidato é liberado do hold');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, h1));
+     for (const hash of [h1, h2, h3, h4, h5, h6]) {
+       cache.forget(autofetch.markerKey('premiumize', account, hash));
+       held.release(hash, account);
+     }
+  }
+});
+
+test('applyDebrid responde sem esperar o enqueue lento (disparo é efeito colateral, não resposta)', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-lenta');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const h = '5'.repeat(40);
+  const brDub = (hash) => ({
+    infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+  });
+
+  let enqueueStarted = 0;
+  pmAdapter.enqueue = async () => { enqueueStarted++; await sleep(300); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-lenta',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-enqueue-lento';
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    const started = Date.now();
+    await runtime.run({ opts: userOpts, encoded: 'cfg5' }, () =>
+      applyDebrid([brDub(h)], { searchKey }),
+    );
+    const elapsed = Date.now() - started;
+
+    assert.equal(enqueueStarted, 1, 'o enqueue foi disparado');
+    assert.ok(elapsed < 250, `applyDebrid não esperou o enqueue de 300ms (respondeu em ${elapsed}ms)`);
+    // Deixa a cadeia do aceite terminar para o marker ser gravado e o estado
+    // poder ser limpo de forma determinística.
+    await sleep(350);
+    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h)), 1, 'aceite confirmado grava o marker');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, h));
+    held.release(h, account);
+  }
+});
+
+test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/known:false liberam', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalRegistryEnqueue = debrid.enqueue;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalAdapterEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-holds');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const brDub = (hash) => ({
+    infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+  });
+
+  const h1 = 'a'.repeat(40);
+  const h2 = 'b'.repeat(40);
+  const h3 = 'c'.repeat(40);
+  const h4 = 'd'.repeat(40);
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-holds',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const run = (h, searchKey) => runtime.run({ opts: userOpts, encoded: 'cfgh' }, () =>
+    applyDebrid([brDub(h)], { searchKey }),
+  );
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    pmAdapter.enqueue = async () => true;
+
+    // (1) O hold acontece ANTES da checagem de cache — é ele que impede o
+    // dropUncached (um upload, na AllDebrid) de apagar o download no meio da
+    // busca. A checagem é o momento crítico; se o hash estiver protegido ali,
+    // a limpeza não o toca.
+    let heldDuringCheck = false;
+    debrid.checkCached = async () => {
+      heldDuringCheck = held.isHeld(h1, account);
+      return { cached: new Set(), known: true };
+    };
+    await run(h1, 'hold-aceite');
+    assert.equal(heldDuringCheck, true, 'candidato já protegido quando a checagem roda');
+    await sleep(20);
+    assert.equal(held.isHeld(h1, account), true, 'após o aceite o hold sobrevive até o TTL');
+    assert.equal(held.isHeld(h1, 'outra-conta'), false, 'o hold é isolado por conta');
+
+    // (2) known:false libera o hold na hora: sem resposta confiável não há
+    // download em andamento para proteger.
+    debrid.checkCached = async () => ({ cached: new Set(), known: false });
+    await run(h2, 'hold-known-false');
+    assert.equal(held.isHeld(h2, account), false, 'known:false libera o candidato');
+
+    // (3) Recusa do serviço (enqueue resolve false) libera o hold e não grava
+    // marker — o download não aconteceu, não há o que deduplicar nem proteger.
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    pmAdapter.enqueue = async () => false;
+    await run(h3, 'hold-recusa');
+    await sleep(20);
+    assert.equal(held.isHeld(h3, account), false, 'recusa libera o hold');
+    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h3)), null, 'recusa não grava marker');
+
+    // (4) Falha do enqueue (rejeição) também libera hold, marker e trava de busca.
+    debrid.enqueue = async () => { throw new Error('falha simulada'); };
+    await run(h4, 'hold-falha');
+    await sleep(20);
+    assert.equal(held.isHeld(h4, account), false, 'falha libera o hold');
+    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h4)), null, 'falha não grava marker');
+  } finally {
+    debrid.checkCached = originalCheck;
+    debrid.enqueue = originalRegistryEnqueue;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalAdapterEnqueue;
+    for (const h of [h1, h2, h3, h4]) {
+      held.release(h, account);
+      cache.forget(autofetch.markerKey('premiumize', account, h));
+    }
+    autofetch.releaseSearch('hold-aceite');
+    autofetch.releaseSearch('hold-known-false');
+    autofetch.releaseSearch('hold-recusa');
+    autofetch.releaseSearch('hold-falha');
+  }
+});
+
+test('falha definitiva do enqueue não é retentada: libera hold e slot sem marker', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-definitiva');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const h = '8'.repeat(40);
+  const brDub = {
+    infoHash: h, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+  };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-definitiva',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-falha-definitiva';
+  const run = () => runtime.run({ opts: userOpts, encoded: 'cfg-df' }, () =>
+    applyDebrid([brDub], { searchKey }),
+  );
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+
+    // ECONNRESET não é cooldown: nada indica que repetir vai dar certo, então
+    // o retry precisa ficar só no estado de cooldown.
+    let calls = 0;
+    pmAdapter.enqueue = async () => { calls += 1; throw new Error('ECONNRESET'); };
+    await run();
+    await sleep(50);
+    assert.equal(calls, 1, 'falha definitiva não é retentada');
+    assert.equal(held.isHeld(h, account), false, 'falha definitiva libera o hold');
+    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h)), null, 'falha definitiva não grava marker');
+
+    // O slot devolvido deixa uma nova busca no MESMO searchKey tentar de novo.
+    pmAdapter.enqueue = async () => { calls += 1; return true; };
+    await run();
+    await sleep(50);
+    assert.equal(calls, 2, 'o slot liberado permite o próximo enqueue');
+    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h)), 1, 'a tentativa nova grava o marker');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, h));
+    held.release(h, account);
+  }
+});
+
+test('passe tardio não duplica o candidato do parcial enquanto o enqueue ainda roda', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize');
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-nao-duplica');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const h1 = '1'.repeat(40);
+  const h2 = '2'.repeat(40);
+  const brDub = (hash) => ({
+    infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+  });
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-nao-duplica',
+    debridCachedOnly: false,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-nao-duplica';
+  const run = (streams) => runtime.run({ opts: userOpts, encoded: 'cfg-nd' }, () =>
+    applyDebrid(streams, { searchKey }),
+  );
+
+  let openEnqueue;
+  const gate = new Promise((resolve) => { openEnqueue = resolve; });
+  const enqueued = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => {
+    enqueued.push(infoHash);
+    await gate; // o primeiro enqueue fica em voo enquanto o passe tardio chega
+    return true;
+  };
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+
+    // Passe parcial: enfileira h1 e o enqueue fica em voo (marker ainda não
+    // foi gravado — ele só existe após o aceite).
+    await run([brDub(h1)]);
+    await sleep(10);
+
+    // Passe tardio chega com o MESMO h1 e um candidato novo. O marker ainda não
+    // existe, então é a trava em memória que segura o dedupe: h1 não pode ser
+    // enfileirado de novo enquanto o primeiro upload não resolve.
+    await run([brDub(h1), brDub(h2)]);
+    await sleep(20);
+    assert.deepEqual(enqueued, [h1, h2], 'h1 não é duplicado pelo passe tardio');
+
+    openEnqueue();
+    await sleep(50);
+    assert.equal(enqueued.length, 2, 'após a fila esvaziar o total continua o mesmo');
+    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h1)), 1, 'o aceite do parcial grava o marker');
+    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h2)), 1, 'o candidato novo do tardio também');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    for (const h of [h1, h2]) {
+      cache.forget(autofetch.markerKey('premiumize', account, h));
+      held.release(h, account);
+    }
   }
 });

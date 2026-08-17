@@ -206,6 +206,12 @@ const config = {
     // tempo ele fica protegido do dropUncached.
     autoFetchBr: String(process.env.DEBRID_AUTO_FETCH_BR || 'true') === 'true',
     autoFetchTtl: num(process.env.DEBRID_AUTO_FETCH_TTL, 6 * 3600),
+    // Quantos torrents BR dublados o autofetch baixa em background por busca
+    // (uma vaga por candidato, compartilhada entre o passe parcial e o tardio).
+    // Mais candidatos = mais chances de play pronto depois, ao custo de encher
+    // mais a conta. Clamp 1..4: 0 não desliga o recurso (quem desliga é o toggle
+    // DEBRID_AUTO_FETCH_BR); o teto superior 4 respeita o contrato de "até 4".
+    autoFetchMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 4)))),
     // URL pública do addon, usada nos links de play resolvidos no debrid.
     publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
     // Segredo do HMAC dos links /resolve. Vazio = assina com a API key de

@@ -14,7 +14,7 @@ const {
   limitReservingBr,
   UNKNOWN_QUALITY,
   markDebridName,
-  pickBrDubbedCandidate,
+  pickBrDubbedCandidates,
   hasCachedBrDubbed,
   canAutoFetchBr,
   filterKnownCache,
@@ -38,74 +38,82 @@ const metrics = require('../utils/metrics');
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
 /**
- * Sem fonte BR dublada tocável, manda o debrid baixar a melhor — o play passa a
- * funcionar minutos depois, sem o usuário pedir. Roda em TODA busca, então as
+ * Sem fonte BR dublada tocável, manda o debrid baixar as melhores — o play passa
+ * a funcionar minutos depois, sem o usuário pedir. Roda em TODA busca, então as
  * travas importam mais que a funcionalidade:
  *
  * - desligável (`autoFetchBr`), e desligado junto quando não há debrid;
  * - exige `known`: sem saber o que está em cache não há como saber o que falta,
  *   e sairíamos enfileirando torrent às cegas (Real-Debrid e Debrid-Link caem
  *   aqui — neles o /resolve do play já adiciona o magnet de qualquer forma);
- * - UM torrent por busca, o melhor candidato;
+ * - ATÉ `autoFetchMax` torrents por busca, com uma vaga por candidato
+ *   compartilhada entre o passe parcial e o tardio (acquireSearchSlot);
  * - marca o hash no cache ANTES de chamar a API: a mesma busca é repetida pelo
  *   Stremio e ainda passa pelo passe tardio, e sem isso cada repetição mandaria
  *   o mesmo torrent de novo;
  * - nunca entra no caminho da resposta: erro só vira log.
  */
-function autoFetchCandidate(streams) {
-  const { autoFetchBr, debridCachedOnly, debridApiKey } = opts();
+function autoFetchCandidates(streams) {
+  const { autoFetchBr, debridApiKey } = opts();
   const adapter = debrid.current();
   // `cacheCheck: false` (Real-Debrid, Debrid-Link) fica fora: sem saber o que
   // está em cache, enfileiraríamos às cegas — e nesses serviços o /resolve do
   // play já adiciona o magnet de qualquer forma.
-  // Sem cachedOnly a fonte já é devolvida como torrent P2P. Baixá-la também no
-  // debrid seria um efeito colateral desnecessário na conta do usuário.
-  if (!canAutoFetchBr({ autoFetchBr, debridCachedOnly }, adapter)) return null;
-  const candidate = pickBrDubbedCandidate(streams);
-  if (!candidate) return null;
-  // Protege ANTES da checagem de cache: na AllDebrid a própria checagem apaga da
-  // conta o que não está pronto, e sem isso a limpeza mataria este download
-  // dentro da mesma busca.
+  // cachedOnly deixou de ser trava: mesmo no modo misto, sem BR dublada em
+  // cache o play da próxima vez depende do download, e o torrent P2P sozinho
+  // não resolve o problema do usuário sem servidor torrent local.
+  if (!canAutoFetchBr({ autoFetchBr }, adapter)) return [];
+  // Ainda não há resposta de cache: seleciona até o teto sem pular nada (o
+  // skip de hashes cacheados acontece só depois da checagem, no enqueue).
+  const candidates = pickBrDubbedCandidates(streams, new Set(), config.debrid.autoFetchMax);
   const account = accountScope(debridApiKey);
-  held.hold(candidate.infoHash, config.debrid.autoFetchTtl, account);
-  return { stream: candidate, account };
+  // Cada candidato é protegido ANTES da checagem: na AllDebrid a própria
+  // checagem apaga da conta o que não está pronto, e sem o hold individual a
+  // limpeza mataria todos os downloads dentro da mesma busca.
+  for (const candidate of candidates) {
+    held.hold(candidate.infoHash, config.debrid.autoFetchTtl, account);
+  }
+  return candidates.map((stream) => ({ stream, account }));
 }
 
-function autoFetchBrDubbed(streams, selected, { cached, known, season, episode, searchKey }) {
-  if (!selected) return;
-  const { stream: candidate, account } = selected;
+function releaseAllHolds(candidates) {
+  for (const { stream, account } of candidates) held.release(stream.infoHash, account);
+}
+
+/** Enfileira UM candidato de forma fire-and-forget, com marker e vaga por busca. */
+function enqueueAutofetch({ stream, account }, { cached, season, episode, searchKey }) {
   const adapter = debrid.current();
 
-  if (!known) {
-    held.release(candidate.infoHash, account);
+  // Este candidato específico já está tocável: não há o que baixar para ele.
+  // O `cached` é minúsculo e o infoHash vem cru do Jackett (Torznab manda o
+  // btih em maiúsculo): sem normalizar, o cacheado não é reconhecido e a vaga
+  // da conta é gasta baixando o que já estava pronto.
+  if (cached.has(String(stream.infoHash || '').toLowerCase())) {
+    held.release(stream.infoHash, account);
     return;
   }
 
-  // Qualquer fonte BR dublada já tocável encerra o autofetch. Baixar a próxima
-  // release pior encheria a conta do usuário sem melhorar o play.
-  if (hasCachedBrDubbed(streams, cached)) {
-    held.release(candidate.infoHash, account);
-    return;
-  }
-
-  const key = autofetch.markerKey(adapter.id, account, candidate.infoHash);
+  const key = autofetch.markerKey(adapter.id, account, stream.infoHash);
   if (cache.get(key)) {
     // Marker confirmado significa download iniciado: o hold pertence à chamada
     // que o aceitou e precisa sobreviver ao passe tardio até o TTL.
     return;
   }
   if (!autofetch.acquire(key)) return;
-  if (!autofetch.acquireSearch(searchKey)) {
+  // Uma vaga por candidato, limitada ao teto por busca compartilhado entre os
+  // passes. Se outro passe enfileirou primeiro e o teto já foi usado, este
+  // candidato desiste e libera o hold — nada de slot nem lock vazando.
+  if (!autofetch.acquireSearchSlot(searchKey, config.debrid.autoFetchMax)) {
     autofetch.release(key);
-    held.release(candidate.infoHash, account);
+    held.release(stream.infoHash, account);
     return;
   }
 
-  const label = String(candidate.title || candidate.name || '').split('\n')[0].slice(0, 70);
-  const qStr = candidate._quality || 'N/A';
-  const seedsStr = candidate._seeders != null ? ` · 👤 ${candidate._seeders}` : '';
+  const label = String(stream.title || stream.name || '').split('\n')[0].slice(0, 70);
+  const qStr = stream._quality || 'N/A';
+  const seedsStr = stream._seeders != null ? ` · 👤 ${stream._seeders}` : '';
   debrid
-    .enqueue(candidate.infoHash, { season, episode })
+    .enqueue(stream.infoHash, { season, episode })
     .then((ok) => {
       autofetch.release(key);
       if (ok) {
@@ -115,18 +123,42 @@ function autoFetchBrDubbed(streams, selected, { cached, known, season, episode, 
         metrics.count('autofetch.enqueued');
         log.info(`[autofetch] ${adapter.label} baixando fonte BR dublada: ${label} (${qStr}${seedsStr})`);
       } else {
-        autofetch.releaseSearch(searchKey);
-        held.release(candidate.infoHash, account);
+        // Refusa devolve a vaga e libera o hold: um candidato abaixo na lista
+        // pode tentar de novo na próxima busca sem contador vazado.
+        autofetch.releaseSearchSlot(searchKey);
+        held.release(stream.infoHash, account);
         metrics.count('autofetch.refused');
-        log.warn(`[autofetch] ${adapter.label} não aceitou ${candidate.infoHash}`);
+        log.warn(`[autofetch] ${adapter.label} não aceitou ${stream.infoHash}`);
       }
     })
     .catch((err) => {
       autofetch.release(key);
-      autofetch.releaseSearch(searchKey);
-      held.release(candidate.infoHash, account);
+      autofetch.releaseSearchSlot(searchKey);
+      held.release(stream.infoHash, account);
       log.warn('[autofetch] falhou:', err?.message || err);
     });
+}
+
+function autoFetchBrDubbed(streams, candidates, { cached, known, season, episode, searchKey }) {
+  if (!candidates || candidates.length === 0) return;
+
+  // `known:false` não é "nada em cache" — é "não perguntei". Sem resposta
+  // confiável não dá para saber o que falta: libera os holds e não enfileira.
+  if (!known) {
+    releaseAllHolds(candidates);
+    return;
+  }
+
+  // Qualquer fonte BR dublada já tocável encerra o autofetch: baixar a próxima
+  // release pior encheria a conta do usuário sem melhorar o play.
+  if (hasCachedBrDubbed(streams, cached)) {
+    releaseAllHolds(candidates);
+    return;
+  }
+
+  for (const selected of candidates) {
+    enqueueAutofetch(selected, { cached, season, episode, searchKey });
+  }
 }
 
 /**
@@ -148,9 +180,9 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
   const hashes = streams.map((s) => s.infoHash).filter(Boolean);
   if (hashes.length === 0) return streams;
 
-  // A escolha do candidato vem antes da checagem (ela é que protege o hash da
+  // A escolha dos candidatos vem antes da checagem (cada hold protege o hash da
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
-  const candidate = autoFetchCandidate(streams);
+  const candidates = autoFetchCandidates(streams);
   const checkStarted = Date.now();
   // Teto dinâmico: o que resta do REPLY_DEADLINE menos margem para serialização.
   // null = sem teto (passe tardio usa o timeout completo do adaptador).
@@ -185,6 +217,10 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
   // O autofetch também não roda: enfileirar download numa conta que recusa
   // upload só gera erro em série.
   if (unusable) {
+    // Conta cheia ou chave recusada: ninguém será baixado — enfileirar download
+    // numa conta que recusa upload só gera erro em série. Libera todos os holds
+    // para que os hashes voltem à limpeza normal.
+    releaseAllHolds(candidates);
     log.warn(
       `[debrid] ${adapter.label} indisponível (${unusable.reason}); ` +
         `${streams.length} stream(s) devolvido(s) como P2P (sem ⚡)`,
@@ -192,7 +228,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
     return streams;
   }
 
-  autoFetchBrDubbed(streams, candidate, { cached, known, season, episode, searchKey });
+  autoFetchBrDubbed(streams, candidates, { cached, known, season, episode, searchKey });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
   const viaDebrid = (s, instant) => {
     // Assinatura cobre hash + temporada/episódio: sem ela o /resolve rejeita,

@@ -1111,18 +1111,61 @@ function brDubbedPool(streams = []) {
   });
 }
 
-/** Melhor candidato BR dublado, sem olhar cache. `streams` já vem ordenado. */
-function pickBrDubbedCandidate(streams = []) {
-  return brDubbedPool(streams)[0] || null;
+/**
+ * Set de hashes comparável com `stream.infoHash`.
+ *
+ * O conjunto de cacheados é sempre minúsculo (debrid/index.js normaliza na ida,
+ * os adapters na volta), mas o infoHash do stream vem cru do Jackett — e o
+ * Torznab devolve o btih em MAIÚSCULO. Comparar os dois direto erra silencioso:
+ * o hash cacheado não é reconhecido e o autofetch baixa o que já estava pronto.
+ */
+function hashSet(hashes) {
+  return new Set([...(hashes || [])].map((h) => String(h || '').toLowerCase()).filter(Boolean));
+}
+
+/**
+ * Melhores candidatos BR dublados para o autofetch, sem olhar cache. `streams`
+ * já vem ordenado (brDubbedPool), então a ordem devolvida é a prioridade:
+ * marca de áudio, resolução, seeders.
+ *
+ * - dedupe de hash case-insensitive (indexers BR às vezes alternam a caixa do
+ *   btih entre os posts que duplicam a mesma release);
+ * - pula hashes já em cache — não há o que baixar para eles;
+ * - no máximo `limit` candidatos.
+ */
+function pickBrDubbedCandidates(streams = [], cachedHashes = new Set(), limit = 1) {
+  const max = Math.max(0, Math.trunc(Number(limit) || 0));
+  if (max === 0) return [];
+  const cached = hashSet(cachedHashes);
+  const seen = new Set();
+  const out = [];
+  for (const stream of brDubbedPool(streams)) {
+    if (!stream || !stream.infoHash) continue;
+    const key = String(stream.infoHash).toLowerCase();
+    if (seen.has(key) || cached.has(key)) continue;
+    seen.add(key);
+    out.push(stream);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** Compatibilidade: o melhor candidato BR dublado, sem olhar cache. */
+function pickBrDubbedCandidate(streams = [], cachedHashes = new Set()) {
+  return pickBrDubbedCandidates(streams, cachedHashes, 1)[0] || null;
 }
 
 /** Já existe fonte BR dublada tocável na hora? Então não há o que baixar. */
 function hasCachedBrDubbed(streams = [], cachedHashes = new Set()) {
-  return brDubbedPool(streams).some((s) => cachedHashes.has(s.infoHash));
+  const cached = hashSet(cachedHashes);
+  return brDubbedPool(streams).some((s) => cached.has(String(s.infoHash || '').toLowerCase()));
 }
 
-function canAutoFetchBr({ autoFetchBr, debridCachedOnly } = {}, adapter) {
-  return Boolean(autoFetchBr && debridCachedOnly && adapter?.cacheCheck);
+function canAutoFetchBr({ autoFetchBr } = {}, adapter) {
+  // cachedOnly não é mais trava: o objetivo do autofetch é justamente esquentar
+  // o cache quando não há BR dublada pronta, independente do modo. As travas
+  // reais são o toggle, o cacheCheck confiável e a checagem de cache conhecida.
+  return Boolean(autoFetchBr && adapter?.cacheCheck);
 }
 
 /**
@@ -1427,6 +1470,7 @@ module.exports = {
   limitByIndexer,
   limitReservingBr,
   pickBrDubbedCandidate,
+  pickBrDubbedCandidates,
   hasCachedBrDubbed,
   canAutoFetchBr,
   uncachedBrHashes,
