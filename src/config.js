@@ -223,8 +223,8 @@ const config = {
     // tempo ele fica protegido do dropUncached.
     autoFetchBr: String(process.env.DEBRID_AUTO_FETCH_BR || 'true') === 'true',
     // Fallback quando a busca não achou NENHUMA fonte BR dublada (site fora,
-    // domínio mudou, título não indexado): baixa a melhor global com
-    // dublado/dual/nacional no título. Default on é o próprio caso de uso do
+    // domínio mudou, título não indexado): baixa a melhor global que anuncia
+    // áudio PT explícito. Default on é o próprio caso de uso do
     // autofetch — busca BR vazia não pode significar "não baixa nada".
     autoFetchAnyDubbed: String(process.env.DEBRID_AUTO_FETCH_ANY || 'true') === 'true',
     autoFetchTtl: num(process.env.DEBRID_AUTO_FETCH_TTL, 6 * 3600),

@@ -437,6 +437,9 @@ significa menos resultados, nunca erro para o usuário.
   sentinela "1 KB" (o Jackett exige o campo, e "0 B" invalida a release
   inteira no filtro de tamanho do cardigann); o addon trata ≤ 1 KB como
   desconhecido em vez de exibir valor inventado. Não "conserte" isso.
+- **Agregadores BR podem espelhar magnets globais.** Mesmo infoHash em
+  YTS/RARBG/TPB não prova áudio PT: origem e áudio pertencem à listagem que
+  vence o merge; nunca propague `_br`/`_dubbed` do perdedor.
 - **Não adicione indexers com FlareSolverr a `JACKETT_SLOW_INDEXERS`**
   (1337x, kickasstorrents…). O desafio Cloudflare é re-resolvido a cada busca
   (13-24s medidos só pra abrir a primeira página); eles abortariam igual, só

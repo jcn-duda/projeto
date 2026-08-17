@@ -142,6 +142,19 @@ function editionFromTitle(title = '') {
   return '';
 }
 
+function explicitPtAudio(title = '') {
+  const t = title.toUpperCase();
+  const isExplicitSub =
+    /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
+    /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
+
+  return (
+    /\b(DUBLAD[OA]|DUBLAGEM|DUBBED|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR|DUBLADO[- ]?PT[-.]?BR)\b/.test(t) ||
+    /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t) ||
+    (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub)
+  );
+}
+
 /**
  * Áudio é a informação que mais importa neste addon (foco em dublado) e os
  * sites BR a escrevem no título. Sem ela o usuário abre o torrent pra descobrir.
@@ -163,12 +176,7 @@ function audioFromTitle(title = '') {
   const isExplicitSub =
     /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
     /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
-
-  // Dublado explícito ou áudio em português
-  const isExplicitDub =
-    /\b(DUBLAD[OA]|DUBLAGEM|DUBBED|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR|DUBLADO[- ]?PT[-.]?BR)\b/.test(t) ||
-    /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t) ||
-    (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub);
+  const isExplicitDub = explicitPtAudio(title);
 
   if (isExplicitDub && isExplicitSub) return 'Dual';
   if (isExplicitDub) return 'Dublado';
@@ -367,7 +375,11 @@ function toStremioStream(item) {
     _quality: quality,
     // 0 = desconhecido, e o filtro de tamanho máximo já trata 0 como "passa".
     _size: knownSize,
-    _dubbed: audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional',
+    // Agregadores BR espelham magnets globais: DUAL sem PT explícito não pode
+    // ganhar vaga, prioridade ou autofetch só porque o post foi marcado BR.
+    _dubbed: item.isBr
+      ? audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional'
+      : explicitPtAudio(title),
     // Origem BR vem marcada pelo provider, não deduzida do título: releases de
     // comandotorrents/nerdfilmes/torrentdosfilmes não citam "BLUDV" nem
     // "DUBLADO" e ficavam de fora das vagas reservadas.
@@ -800,15 +812,9 @@ function matchesEpisode(title, { season, episode } = {}) {
 }
 
 /**
- * Reescreve a linha de rótulo do vencedor do merge. O `_br`/`_dubbed` do
- * perdedor são propagados (a vaga reservada depende deles), mas o `name` era
- * mantido como estava: a MESMA release vinda de um indexer global e de um BR
- * ficava marcada BR por dentro e SEM o "BR" na tela. Na lista isso aparecia
- * como fonte dublada brasileira no topo que o usuário não reconhecia como
- * brasileira — e a que ele reconhecia parecia estar abaixo dela.
- *
- * A tag de áudio vem do título de quem a tiver: o título global ("...DUAL...")
- * costuma trazê-la, mas o post BR é quem diz "DUBLADO" quando o outro cala.
+ * Reescreve a linha do vencedor BR quando o perdedor traz metadados melhores.
+ * Origem e áudio pertencem ao post vencedor; só o post BR pode aproveitar o
+ * título scene do perdedor, porque ele costuma ser esparso nesses campos.
  *
  * Fonte e corte saem do mesmo texto, pela mesma razão do áudio: reconstruir sem
  * eles apagava o "BluRay"/"Extended" que o rótulo já mostrava, e duas releases
@@ -819,13 +825,14 @@ function matchesEpisode(title, { season, episode } = {}) {
 function relabel(stream, { isBr, dubbedFrom }) {
   const [title = '', stats = ''] = String(stream.name || '').split('\n');
   const seeders = Number(String(stats).match(/👤\s*(\d+)/)?.[1] || stream._seeders || 0);
-  const audio = audioFromTitle(title) || audioFromTitle(dubbedFrom || '');
+  const borrowedTitle = isBr ? dubbedFrom : '';
+  const audio = audioFromTitle(title) || audioFromTitle(borrowedTitle);
   return streamDisplayName({
     title,
     quality: stream._quality,
     audio,
-    source: sourceFromTitle(title) || sourceFromTitle(dubbedFrom || ''),
-    edition: editionFromTitle(title) || editionFromTitle(dubbedFrom || ''),
+    source: sourceFromTitle(title) || sourceFromTitle(borrowedTitle),
+    edition: editionFromTitle(title) || editionFromTitle(borrowedTitle),
     tracker: stream._tracker,
     isBr,
     seeders,
@@ -843,9 +850,8 @@ function dedupeByHash(streams, indexerPriority = []) {
       best.set(s.infoHash, s);
       continue;
     }
-    // A mesma release pode vir de um indexer global (com seeders) e de um BR.
-    // Fica a de mais seeders, mas a marca de origem BR não pode se perder no
-    // desempate, senão a vaga reservada deixa de proteger a fonte dublada.
+    // Agregadores BR espelham magnets públicos: mesma hash não prova que o
+    // arquivo global tenha áudio PT. Origem e áudio ficam com o post vencedor.
     const seedDiff = (s._seeders || 0) - (prev._seeders || 0);
     // Hash idêntico é a mesma release. Seeders continuam sendo a evidência
     // principal; no empate, a preferência do usuário torna o merge estável em
@@ -867,15 +873,14 @@ function dedupeByHash(streams, indexerPriority = []) {
       _quality: richerQuality._quality,
       _size: winner._size || loser._size || 0,
       behaviorHints: richerQuality.behaviorHints || winner.behaviorHints,
-      _br: winner._br || s._br || prev._br,
-      _dubbed: winner._dubbed || s._dubbed || prev._dubbed,
+      _br: winner._br,
+      _dubbed: winner._dubbed,
       _tracker: winner._tracker,
     };
-    // O rótulo tem que contar a mesma história que os campos internos.
-    if (merged._br !== winner._br || merged._dubbed !== winner._dubbed || merged._quality !== winner._quality) {
+    if (merged._quality !== winner._quality) {
       merged.name = relabel(merged, {
-        isBr: merged._br,
-        dubbedFrom: String(loser.name || '').split('\n')[0],
+        isBr: winner._br,
+        dubbedFrom: winner._br ? String(loser.name || '').split('\n')[0] : '',
       });
     }
     best.set(s.infoHash, merged);
@@ -1515,6 +1520,7 @@ module.exports = {
   qualityFromTitle,
   sourceFromTitle,
   audioFromTitle,
+  explicitPtAudio,
   editionFromTitle,
   streamDisplayName,
   markDebridName,

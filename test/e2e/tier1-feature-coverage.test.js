@@ -415,7 +415,7 @@ describe('Feature 5: Title Matching & Deduplication Verification', () => {
     assert.equal(format.matchesEpisode('Serie Todas as Temporadas DUAL', { season: 2, episode: 5 }), true);
   });
 
-  it('5.5: dedupeByHash preserva a melhor contagem de seeders e propaga tags _br e _dubbed', () => {
+  it('5.5: dedupeByHash preserva a melhor contagem e as tags do post vencedor', () => {
     const streamGlobal = {
       infoHash: TEST_HASH_1,
       title: 'Movie 1080p',
@@ -438,8 +438,8 @@ describe('Feature 5: Title Matching & Deduplication Verification', () => {
     const deduped = format.dedupeByHash([streamGlobal, streamBr]);
     assert.equal(deduped.length, 1);
     assert.equal(deduped[0]._seeders, 100, 'Deve manter o maior número de seeders');
-    assert.equal(deduped[0]._br, true, 'Deve preservar flag _br no merge');
-    assert.equal(deduped[0]._dubbed, true, 'Deve preservar flag _dubbed no merge');
+    assert.equal(deduped[0]._br, false, 'Origem do perdedor não prova a do magnet global');
+    assert.equal(deduped[0]._dubbed, false, 'Áudio do perdedor não pode contaminar o autofetch');
   });
 });
 

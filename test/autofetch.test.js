@@ -465,14 +465,14 @@ test('picks de autofetch dão bônus a pack da temporada pedida em busca de sér
   assert.equal(pickBrDubbedCandidates([brEp, brComplete], new Set(), 1, { season: 3 })[0].infoHash, D);
 });
 
-test('dedupeByHash funde a mesma release e preserva a origem BR dublada que o picker enxerga', () => {
+test('dedupeByHash não entrega espelho global ao picker BR dublado', () => {
   const global = stream(A, { name: 'Joker 1080p', _br: false, _dubbed: false, _quality: '1080p', _seeders: 500 });
   const br = stream(A, { name: 'Coringa Dublado 1080p', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 });
   const merged = dedupeByHash([global, br]);
   assert.equal(merged.length, 1, 'a mesma release em dois indexers vira um stream só');
-  assert.equal(merged[0]._br, true, 'a origem BR não pode se perder no desempate por seeders');
-  assert.equal(merged[0]._dubbed, true);
-  assert.equal(pickBrDubbedCandidate(merged).infoHash, A, 'o candidato fundido continua elegível');
+  assert.equal(merged[0]._br, false, 'a origem pertence à listagem global vencedora');
+  assert.equal(merged[0]._dubbed, false);
+  assert.equal(pickBrDubbedCandidate(merged), null, 'espelho não pode consumir quota de autofetch BR');
 });
 
 test('uncachedBrHashes pula o cacheado no meio do pool e corta no limite', () => {
