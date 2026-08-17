@@ -1,0 +1,64 @@
+# Deploy da VPS (powermovie.net / origem 200.23.180.38): cada push na branch
+# adon-power-movie atualiza /home/jcn/adom e rebuilda o container. O compose é
+# `build: .` — não existe imagem em registry, o build roda NA VPS.
+#
+# Credenciais vivem em secrets (repo público: nada de IP/usuario/chave aqui):
+#   DEPLOY_HOST         IP de origem (o dominio aponta pro Cloudflare, que nao
+#                       proxya a porta 22)
+#   DEPLOY_USER         usuario SSH (jcn)
+#   DEPLOY_SSH_KEY      chave privada ed25519 (par em ~/.ssh/adom-deploy)
+#   DEPLOY_KNOWN_HOSTS  saida de ssh-keyscan -H do IP (host key fixado; confiar
+#                       em keyscan rodando no runner aceitaria MITM)
+#
+# Seguranca: so `push` na branch e workflow_dispatch (manual) — forks nao
+# disparam `push`, entao PR externo nunca ve os secrets.
+name: Deploy
+
+on:
+  push:
+    branches: [adon-power-movie]
+  workflow_dispatch:
+
+# Um deploy por vez: dois builds concurrentes na mesma VPS brigariam pelo
+# daemon do Docker e pela rede. Empilhados se resolvem sozinhos — o ultimo
+# fast-forwarda e o rebuild aquecido e rapido.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Preparar chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Atualizar codigo e rebuildar
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "set -e; cd ~/adom; \
+             git fetch origin adon-power-movie; \
+             git checkout -f -B adon-power-movie origin/adon-power-movie; \
+             echo \"deploy do commit \$(git rev-parse --short HEAD)\"; \
+             docker compose up -d --build"
+
+      # O healthcheck do Dockerfile cobre addon + Jackett, mas so depois que o
+      # container sobe; o restart do compose e o momento mais provavel de falha
+      # (ACME, volume, port). Esperar o manifest responder e a prova fim-a-fim.
+      - name: Healthcheck do manifest
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "for i in \$(seq 1 30); do \
+               curl -fsS http://127.0.0.1:7000/manifest.json >/dev/null && exit 0; \
+               sleep 10; \
+             done; \
+             echo 'manifest.json nao respondeu em 300s' >&2; exit 1"
