@@ -327,13 +327,44 @@ function parsePosts(html) {
     seen.add(resolvedUrl);
 
     const image = match[1].match(/<img\b[^>]*src=["']([^"']+)["']/i)?.[1] || null;
+    const title = stripTags(attribute(anchor[1], 'title') || anchor[2]);
+    if (isGenericListPost(title)) continue;
     posts.push({
       url: resolvedUrl,
-      title: stripTags(attribute(anchor[1], 'title') || anchor[2]),
+      title,
       poster: image ? decodeEntities(image) : null,
     });
   }
   return posts;
+}
+
+// Post de índice/lista que expande dezenas de opções de 1 KB e inunda o
+// Manual Search (ex.: "Lista De Filmes – Ação, Terror, Aventura...").
+// Conservadora de propósito: só casa quando o TÍTULO COMEÇA como um índice e
+// nomeia uma categoria de mídia. "A Lista de Schindler" (começa com "a") ou
+// um título que apenas contém "lista" no meio passam intactos.
+function isGenericListPost(title = '') {
+  if (!title) return false;
+  const clean = String(title)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[–\-—/|:&+,–.()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!/^(lista|listao|indice)/.test(clean)) return false;
+  const categories = [
+    'filme', 'filmes', 'serie', 'series', 'anime', 'animes', 'desenho', 'desenhos',
+    'documentario', 'documentarios', 'temporada', 'temporadas', 'dorama', 'doramas',
+    'jogo', 'jogos', 'musica', 'musicas', 'categoria', 'categorias', 'todo', 'todos',
+    'toda', 'todas', 'tudo', 'geral', 'completa', 'completo',
+  ].join('|');
+  const match = clean.match(new RegExp(`^(lista|listao|indice)\\s+de\\s+(${categories})\\b(.*)$`));
+  if (!match) return false;
+  // "Lista de Filmes do Cliente" pode ser um título/curadoria específica;
+  // um índice genérico costuma terminar na categoria ou continuar com uma
+  // enumeração de gêneros, nunca com um qualificador possessivo.
+  return !/^(?:do|da|dos|das|de)\b/.test(match[3].trim());
 }
 
 function cleanPostTitle(title = '') {
@@ -696,6 +727,7 @@ async function searchPosts(query) {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!source.ok) throw new Error(`http_${source.status}`);
+    // Sem filtro extra aqui: parsePosts já descarta os posts-índice na origem.
     const posts = parsePosts(await source.text()).slice(0, MAX_POSTS);
     const chunks = await mapLimit(posts, async (post) => {
       try {
@@ -779,6 +811,7 @@ module.exports = {
   decodeEntities,
   extractEpisode,
   cleanPostTitle,
+  isGenericListPost,
   parseSize,
   normalizeQuality,
   normalizeSource,

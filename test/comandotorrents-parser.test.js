@@ -1,6 +1,7 @@
-const { test, describe } = require('node:test');
+const { test, describe, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const http = require('node:http');
 const path = require('node:path');
 
 const comando = require('../comandotorrents-resolver/server');
@@ -306,5 +307,177 @@ describe('ComandoTorrents Parser: Feed Generation & Query Normalization', () => 
     assert.equal(comando.parseSize('1.5 TB'), Math.round(1.5 * 1024 ** 4));
     assert.equal(comando.parseSize('500 KB'), 500 * 1024);
     assert.equal(comando.parseSize('invalido'), null);
+  });
+});
+
+
+describe('ComandoTorrents Parser: isGenericListPost (índices genéricos)', () => {
+  test('rejeita cards de índice genérico do catálogo', () => {
+    const generic = [
+      'Lista De Filmes – Ação, Terror, Aventura, Guerra, Drama, Comédia',
+      'Listão de Filmes Dublado – Ação,Terror,Aventura,Guerra,Drama,Comédia… Torrent Download BDRip',
+      'Lista de Séries',
+      'Índice de Filmes',
+    ];
+    for (const title of generic) {
+      assert.equal(comando.isGenericListPost(title), true, `deve rejeitar índice genérico: ${title}`);
+    }
+  });
+
+  test('rejeita variações de acento, caixa e separador do mesmo índice', () => {
+    const variations = [
+      // caixa baixa / alta do título com enumeração de gêneros
+      'lista de filmes – ação, terror, aventura, guerra, drama, comédia',
+      'LISTA DE FILMES – AÇÃO, TERROR, AVENTURA, GUERRA, DRAMA, COMÉDIA',
+      // forma mínima sem a enumeração de gêneros
+      'Lista de Filmes',
+      'LISTA DE FILMES',
+      // séries com e sem acento, com e sem enumeração
+      'Lista de Séries',
+      'lista de séries',
+      'LISTA DE SÉRIES',
+      'Lista de Series',
+      'Lista de Séries – Terror e Suspense',
+      // índice com e sem acento
+      'Índice de Filmes',
+      'índice de filmes',
+      'Indice de Filmes',
+      'INDICE DE FILMES',
+      // separadores alternativos (hífen, travessão, dois-pontos)
+      'Lista De Filmes - Ação, Terror, Aventura, Guerra, Drama, Comédia',
+      'Lista de Filmes: Ação, Terror, Aventura, Guerra, Drama, Comédia',
+    ];
+    for (const title of variations) {
+      assert.equal(comando.isGenericListPost(title), true, `deve rejeitar variação: ${title}`);
+    }
+  });
+
+  test('aceita releases normais', () => {
+    const releases = [
+      'Deadpool & Wolverine Torrent – (2024) Dual Áudio 5.1 / Dublado WEB-DL 1080p / 4K',
+      'The Boys 4ª Temporada Torrent (2024) WEB-DL 1080p Dual Áudio',
+      'Furiosa: Uma Saga Mad Max Torrent (2024) Dual Áudio 5.1 / Dublado WEB-DL 1080p / 4K',
+      'Alien: Romulus Torrent (2024) BluRay 1080p & 4K Dublado',
+    ];
+    for (const title of releases) {
+      assert.equal(comando.isGenericListPost(title), false, `deve aceitar release normal: ${title}`);
+    }
+  });
+
+  test('aceita títulos em que "Lista" faz parte do nome real, não do índice', () => {
+    const real = [
+      'Lista de Schindler (1993)',
+      'A Lista de Schindler Torrent (1993) 1080p Dublado',
+      'Lista de Filmes do Cliente', // curadoria específica, não índice do catálogo
+    ];
+    for (const title of real) {
+      assert.equal(comando.isGenericListPost(title), false, `deve aceitar título real: ${title}`);
+    }
+  });
+
+  test('aceita entrada vazia ou sem título (defensivo)', () => {
+    assert.equal(comando.isGenericListPost(''), false);
+    assert.equal(comando.isGenericListPost(null), false);
+    assert.equal(comando.isGenericListPost(undefined), false);
+  });
+});
+
+describe('ComandoTorrents Parser: Integração — índice genérico vs MAX_POSTS', () => {
+  let server;
+  let port;
+  let originalFetch;
+
+  // Mesmo default do server.js; se o env estiver setado os dois leem igual.
+  const MAX_POSTS = Number(process.env.MAX_POSTS || 5);
+
+  beforeEach(async () => {
+    originalFetch = globalThis.fetch;
+    comando.searchCache.clear();
+    comando.postCache.clear();
+    comando.magnetCache.clear();
+    comando.inFlight.clear();
+
+    // Página de busca do WordPress com o card de índice genérico em PRIMEIRO
+    // lugar (pior caso: sem filtro ele roubaria a vaga 0) e exatamente
+    // MAX_POSTS releases reais depois.
+    const genericCard = `
+      <article class="post blog-view type-post">
+        <h2 class="entry-title">
+          <a href="https://comandotorrents.to/lista-de-filmes/" title="Lista De Filmes – Ação, Terror, Aventura, Guerra, Drama, Comédia">Lista De Filmes – Ação, Terror, Aventura, Guerra, Drama, Comédia</a>
+        </h2>
+      </article>`;
+    const realCards = Array.from({ length: MAX_POSTS }, (_, i) => `
+      <article class="post blog-view type-post">
+        <h2 class="entry-title">
+          <a href="https://comandotorrents.to/filme-real-${i + 1}/" title="Filme Real ${i + 1} Torrent (2024) 1080p Dublado WEB-DL">Filme Real ${i + 1} Torrent (2024) 1080p Dublado WEB-DL</a>
+        </h2>
+      </article>`).join('');
+
+    globalThis.fetch = async (url) => {
+      const u = typeof url === 'string' ? url : url.href;
+      if (u.includes('/?s=')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => `<html><body>${genericCard}${realCards}</body></html>`,
+        };
+      }
+      if (u.includes('comandotorrents.to/')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => `
+            <div class="entry-content">
+              <h3>DUBLADO</h3>
+              <p>1080p (2.0 GB)</p>
+              <a href="https://systemads1.com/go/btn">Download</a>
+            </div>
+          `,
+        };
+      }
+      throw new Error(`Unexpected URL: ${u}`);
+    };
+
+    server = comando.createServer();
+    await new Promise((resolve) => {
+      server.listen(0, '127.0.0.1', () => {
+        port = server.address().port;
+        resolve();
+      });
+    });
+  });
+
+  afterEach(async () => {
+    globalThis.fetch = originalFetch;
+    if (server) {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  const requestHttp = (pathname) =>
+    new Promise((resolve, reject) => {
+      const req = http.get({ host: '127.0.0.1', port, path: pathname }, (res) => {
+        let body = '';
+        res.on('data', (chunk) => (body += chunk));
+        res.on('end', () => resolve({ status: res.statusCode, body }));
+      });
+      req.on('error', reject);
+    });
+
+  test('GET /search: card genérico não ocupa vaga antes de MAX_POSTS', async () => {
+    const res = await requestHttp(`/search?q=${encodeURIComponent('Lista de Filmes')}`);
+    assert.equal(res.status, 200);
+
+    assert.ok(
+      !res.body.includes('Lista De Filmes'),
+      'o índice genérico não pode entrar no feed (ele apareceria antes de MAX_POSTS)',
+    );
+
+    for (let i = 1; i <= MAX_POSTS; i += 1) {
+      assert.ok(
+        res.body.includes(`Filme Real ${i}`),
+        `release real ${i} deve estar presente — o genérico não pode ter roubado a vaga`,
+      );
+    }
   });
 });
