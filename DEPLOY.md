@@ -133,7 +133,32 @@ base64 — por isso ele só deve trafegar por HTTPS, e por isso o passo 3 prende
 
 ---
 
+## 8. Deploy automático (pull da VPS)
+
+Todo push em `adon-power-movie` entra no ar em até 5 minutos: um cron do
+usuário da VPS roda `~/adom-deploy.sh`, que faz `git fetch` e, havendo commit
+novo, `checkout` + `docker compose up -d --build`. É pull, não push: o
+provedor só aceita a porta 22 vindo do IP do operador, então CI batendo de
+fora (GitHub Actions) nunca chega — testado de 10 locais do mundo, todos
+bloqueados.
+
+O script tem trava (`~/.adom-deploy.lock`) para o cron não sobrepor um build
+em andamento e registra tudo em `~/adom-deploy.log`. Para deploy na hora,
+sem esperar o cron:
+
+```bash
+~/adom-deploy.sh
+```
+
+Se o build falhar, o container antigo continua no ar — o compose só troca
+quando o novo sobe.
+
+---
+
 ## Operação
+
+**Deploy na hora:** `~/adom-deploy.sh` (o cron de 5 min faz sozinho; o log
+fica em `~/adom-deploy.log`).
 
 **Logs:**
 
