@@ -396,3 +396,94 @@ test('falha HTTP na variante opcional não derruba a primária nem impede fallba
     assert.equal(items.length, 1);
   });
 });
+
+// A varredura pt-BR é a única coisa que consulta um indexer com circuit
+// breaker aberto: roda fora do orçamento da resposta, e o dublado raro mora
+// justamente no indexer recém-derrubado. O breaker é um atalho de busca AO
+// VIVO — a varredura o ignora de propósito. `recordStatus:false` continua
+// valendo: a falha dela não pode poluir o card de status.
+const indexerStatus = require('../src/providers/indexer-status');
+
+test('search normal pula indexer com breaker aberto', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Jornada Nas Estrelas 1979 Dublado 1080p', Seeders: 3, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+  // 3 falhas seguidas abrem o circuito (default breakerFailures=3).
+  for (let i = 0; i < config.jackett.breakerFailures; i += 1) {
+    indexerStatus.record('thepiratebay', { ok: false, results: 0, ms: 100, budgetMs: 4000 });
+  }
+  try {
+    await withJackett(fetchImpl, async () => {
+      await jackett.search('Jornada nas Estrelas 1979', 'movie', ['thepiratebay']);
+      // Pula o indexer com breaker aberto: zero chamadas de busca.
+      assert.deepEqual(fetchImpl.searchCalls(), []);
+    });
+  } finally {
+    indexerStatus.clear();
+  }
+});
+
+test('search com ignoreBreaker:true consulta indexer com breaker aberto', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Jornada Nas Estrelas 1979 Dublado 1080p', Seeders: 3, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+  for (let i = 0; i < config.jackett.breakerFailures; i += 1) {
+    indexerStatus.record('thepiratebay', { ok: false, results: 0, ms: 100, budgetMs: 4000 });
+  }
+  try {
+    await withJackett(fetchImpl, async () => {
+      const items = await jackett.search('Jornada nas Estrelas 1979', 'movie', ['thepiratebay'], {
+        ignoreBreaker: true,
+        recordStatus: false,
+      });
+      // Mesmo com breaker aberto, a varredura consulta — foi o que o caso
+      // Star Trek I mostrou: kickasstorrents-to (único que respondia à
+      // query longa) tinha acabado de ser tirado do ar pela busca anterior.
+      assert.deepEqual(fetchImpl.searchCalls(), ['Jornada nas Estrelas 1979']);
+      assert.equal(items.length, 1);
+    });
+  } finally {
+    indexerStatus.clear();
+  }
+});
+
+test('search com ignoreBreaker:true e recordStatus:false não atualiza o card', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Jornada Nas Estrelas 1979 Dublado 1080p', Seeders: 3, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+  // Estado inicial conhecido: 1 falha (não abre o circuito).
+  indexerStatus.record('thepiratebay', { ok: false, results: 0, ms: 100, budgetMs: 4000 });
+  const before = indexerStatus.get('thepiratebay');
+  try {
+    await withJackett(fetchImpl, async () => {
+      await jackett.search('Jornada nas Estrelas 1979', 'movie', ['thepiratebay'], {
+        ignoreBreaker: true,
+        recordStatus: false,
+      });
+      const after = indexerStatus.get('thepiratebay');
+      // recordStatus:false impede que o sucesso da varredura limpe o
+      // failStreak: o card de status continua refletindo a busca ao vivo.
+      assert.equal(after.failStreak, before.failStreak);
+    });
+  } finally {
+    indexerStatus.clear();
+  }
+});

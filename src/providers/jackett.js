@@ -298,8 +298,12 @@ async function search(query, type, indexersOverride = null, options = {}) {
   // aos mesmos indexers. A falha dela não pode contar falha do indexer no
   // circuito (o caminho principal respondeu bem), nem a lentidão dela pintar
   // o card de vermelho — o status continua sendo o da busca ao vivo.
+  //
+  // `ignoreBreaker: true` é a mesma varredura: como ela não disputa o
+  // orçamento da resposta, vale consultar o indexer recém-derrubado — o
+  // dublado raro mora justamente ali. O breaker é um atalho de busca AO VIVO.
   const { url, apiKey } = config.jackett;
-  const { recordStatus = true } = options;
+  const { recordStatus = true, ignoreBreaker = false } = options;
   const indexers = indexersOverride == null ? config.jackett.indexers : indexersOverride;
   if (!apiKey) {
     log.warn('[jackett] JACKETT_API_KEY não configurada');
@@ -327,21 +331,26 @@ async function search(query, type, indexersOverride = null, options = {}) {
   }
 
   // Indexers com circuito aberto nem abrem consulta: a falha é conhecida e o
-  // orçamento deles volta para quem ainda entrega.
-  const activeIndexers = indexers.filter((indexer) => {
-    if (!breakerTripped(indexer)) {
-      breakerAnnounced.delete(indexer);
-      return true;
-    }
-    if (!breakerAnnounced.has(indexer)) {
-      breakerAnnounced.add(indexer);
-      const status = indexerStatus.get(indexer);
-      log.warn(
-        `[jackett] ${indexer}: circuit breaker aberto após ${status?.failStreak || config.jackett.breakerFailures} falha(s) seguidas; buscas pulam este indexer até ${Math.round(config.jackett.breakerCooldown / 60_000)}min após a última falha`,
-      );
-    }
-    return false;
-  });
+  // orçamento deles volta para quem ainda entrega. A varredura pt-BR ignora
+  // o atalho: roda fora do prazo da resposta, então um timeout extra não
+  // custa nada ao usuário, e o indexer recém-derrubado é justamente onde o
+  // dublado raro se esconde.
+  const activeIndexers = ignoreBreaker
+    ? indexers
+    : indexers.filter((indexer) => {
+      if (!breakerTripped(indexer)) {
+        breakerAnnounced.delete(indexer);
+        return true;
+      }
+      if (!breakerAnnounced.has(indexer)) {
+        breakerAnnounced.add(indexer);
+        const status = indexerStatus.get(indexer);
+        log.warn(
+          `[jackett] ${indexer}: circuit breaker aberto após ${status?.failStreak || config.jackett.breakerFailures} falha(s) seguidas; buscas pulam este indexer até ${Math.round(config.jackett.breakerCooldown / 60_000)}min após a última falha`,
+        );
+      }
+      return false;
+    });
   if (activeIndexers.length === 0) return [];
 
   const settled = await Promise.allSettled(

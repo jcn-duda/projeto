@@ -53,4 +53,49 @@ function ptSweepIndexers(selectedIndexers, ptBrIndexers) {
   return selectedIndexers.filter((indexer) => !brSet.has(indexer));
 }
 
-module.exports = { planJackettQueries, ptSweepIndexers };
+/**
+ * Query da varredura: título pt SEM subtítulo e SEM ano. Buscador de tracker
+ * global casa por palavras do título — "Jornada nas Estrelas: O Filme 1979"
+ * devolve 1 resultado num único indexer, "Jornada nas Estrelas" devolve 13 em
+ * três. A precisão continua garantida pelo matchContext, que roda depois.
+ *
+ * Regras:
+ * - corta em `:`, `–`, `—` apenas quando o prefixo tem 2+ palavras (protege
+ *   "Missão: Impossível", onde o prefixo é uma palavra só);
+ * - não anexa o ano (responsabilidade de quem chama);
+ * - devolve '' quando não há título pt (a varredura já é pulada nesse caso).
+ */
+function ptSweepQuery(titlePt) {
+  const raw = String(titlePt || '').trim();
+  if (!raw) return '';
+  // Casa o PRIMEIRO separador entre os três suportados; a âncora inicial
+  // impede cortar no meio de um subtítulo.
+  const cut = raw.match(/^([^:–—]+?)([:–—].*)?$/);
+  if (cut) {
+    const head = cut[1].trim();
+    const headWords = head.split(/\s+/).filter(Boolean);
+    if (headWords.length >= 2) return head;
+  }
+  return raw;
+}
+
+/**
+ * Query que a varredura pt-BR vai usar. Reaproveita o gate de "tem pt
+ * localizado e ele difere do original" — sem ele, a varredura rodava em
+ * TODO filme (inclusive "Joker", "Missão: Impossível" sem subtítulo em
+ * português), disparando uma segunda rodada inútil contra os globais.
+ *
+ * - Série: `activePtQuery` já carrega o gate (só é construído quando
+ *   `titles.pt && titles.pt !== titles.original`). Sem o `SxxEyy/pack` o
+ *   indexer devolve a temporada inteira e o corte por episódio chega
+ *   depois — usar a query "crua" do TMDB aqui quebraria esse corte.
+ * - Filme: gate idêntico antes de chamar `ptSweepQuery`; sem pt localizado
+ *   a busca GLOBAL principal já cobriu o título em inglês.
+ */
+function ptSweepQueryFor({ season, titles, activePtQuery }) {
+  if (season != null) return activePtQuery || null;
+  if (!titles?.pt || titles.pt === titles.original) return null;
+  return ptSweepQuery(titles.pt) || null;
+}
+
+module.exports = { planJackettQueries, ptSweepIndexers, ptSweepQuery, ptSweepQueryFor };

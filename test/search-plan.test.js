@@ -179,3 +179,101 @@ test('ptSweepIndexers devolve vazio quando tudo selecionado é BR', () => {
     [],
   );
 });
+
+// Query da varredura: tracker global casa por palavras do título, e
+// "Jornada nas Estrelas: O Filme" devolvia 1 resultado num único indexer
+// quando "Jornada nas Estrelas" devolvia 13 em três. A precisão continua
+// garantida pelo matchContext, que roda depois. A função nunca anexa o ano
+// (responsabilidade de quem chama) e devolve '' sem título pt.
+const { ptSweepQuery } = require('../src/providers/search-plan');
+
+test('ptSweepQuery corta subtítulo com prefixo de 2+ palavras', () => {
+  assert.equal(ptSweepQuery('Jornada nas Estrelas: O Filme'), 'Jornada nas Estrelas');
+  assert.equal(ptSweepQuery('Alice no País das Maravilhas – O Filme'), 'Alice no País das Maravilhas');
+  // En-dash, em-dash E dois-pontos caem na mesma regra.
+  assert.equal(ptSweepQuery('O Senhor dos Anéis — A Sociedade do Anel'), 'O Senhor dos Anéis');
+});
+
+test('ptSweepQuery preserva subtítulo com prefixo de 1 palavra', () => {
+  // Cortar abriria "Missão: Impossível" em "Missão", e a release real some do
+  // resultado: o tracker casa o nome inteiro, não o prefixo.
+  assert.equal(ptSweepQuery('Missão: Impossível'), 'Missão: Impossível');
+  assert.equal(ptSweepQuery('Operação:idão Final'), 'Operação:idão Final');
+});
+
+test('ptSweepQuery devolve o título sem ano', () => {
+  // A função só lida com o título; o ano é responsabilidade de quem chama
+  // (na varredura, é propositalmente omitido para não derrubar o recall).
+  assert.equal(ptSweepQuery('Coringa'), 'Coringa');
+  assert.equal(ptSweepQuery('Jornada nas Estrelas'), 'Jornada nas Estrelas');
+});
+
+test('ptSweepQuery devolve string vazia sem título pt', () => {
+  // A varredura já é pulada nesse caso (`activePtQuery` vinha null), mas a
+  // função precisa ser defensiva para o caller novo que filtrarei aqui.
+  assert.equal(ptSweepQuery(''), '');
+  assert.equal(ptSweepQuery(null), '');
+  assert.equal(ptSweepQuery(undefined), '');
+  assert.equal(ptSweepQuery('   '), '');
+});
+
+// Seleção da query pela junção season/titles/activePtQuery: gate "pt difere
+// do original" impede a varredura em filmes sem localização (Joker, Missão:
+// Impossível…), que dispararia uma segunda rodada inútil contra os globais.
+const { ptSweepQueryFor } = require('../src/providers/search-plan');
+
+test('ptSweepQueryFor filme com pt localizado devolve o título base', () => {
+  const titles = { pt: 'Jornada nas Estrelas: O Filme', original: 'Star Trek: The Motion Picture' };
+  assert.equal(
+    ptSweepQueryFor({ season: null, titles, activePtQuery: 'Jornada nas Estrelas: O Filme 1979' }),
+    'Jornada nas Estrelas',
+  );
+});
+
+test('ptSweepQueryFor filme sem pt localizado (pt === original) devolve null', () => {
+  // Caso "Joker": ptQuery nunca é construído (titles.pt === titles.original),
+  // a busca GLOBAL principal já cobriu o título — varrer de novo é fan-out
+  // inútil contra os indexers.
+  const titles = { pt: 'Joker', original: 'Joker' };
+  assert.equal(
+    ptSweepQueryFor({ season: null, titles, activePtQuery: null }),
+    null,
+  );
+});
+
+test('ptSweepQueryFor filme sem pt algum devolve null', () => {
+  const titles = { pt: null, original: 'Joker' };
+  assert.equal(
+    ptSweepQueryFor({ season: null, titles, activePtQuery: null }),
+    null,
+  );
+  // Sem titles, fim da cadeia — defensivo.
+  assert.equal(
+    ptSweepQueryFor({ season: null, titles: null, activePtQuery: null }),
+    null,
+  );
+});
+
+test('ptSweepQueryFor série usa activePtQuery direto (com SxxEyy/pack)', () => {
+  // Série: ptSweepQuery NUNCA é chamado — o activePtQuery já carrega o gate
+  // "pt difere do original" e o marcador SxxEyy/pack do qual o corte por
+  // episódio depende.
+  const titles = { pt: 'Fallout', original: 'Fallout' };
+  assert.equal(
+    ptSweepQueryFor({ season: 1, titles, activePtQuery: 'Fallout S01E01' }),
+    'Fallout S01E01',
+  );
+  // Pack fallback: activePtQuery foi reatribuído para "Título S01".
+  assert.equal(
+    ptSweepQueryFor({ season: 1, titles, activePtQuery: 'Fallout S01' }),
+    'Fallout S01',
+  );
+});
+
+test('ptSweepQueryFor série sem activePtQuery devolve null (pt === original)', () => {
+  const titles = { pt: 'The Office', original: 'The Office' };
+  assert.equal(
+    ptSweepQueryFor({ season: 1, titles, activePtQuery: null }),
+    null,
+  );
+});

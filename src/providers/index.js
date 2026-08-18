@@ -30,7 +30,7 @@ const tmdb = require('../utils/tmdb');
 const { signResolve } = require('../utils/sign');
 const { accountScope, streamsCacheKey } = require('../utils/request-key');
 const { createLatestWriter } = require('../utils/latest-writer');
-const { planJackettQueries, ptSweepIndexers } = require('./search-plan');
+const { planJackettQueries, ptSweepIndexers, ptSweepQueryFor } = require('./search-plan');
 const { collectWithinWindow } = require('./collection-window');
 const { raceWithDeadline, remainingCheckBudget } = require('../utils/deadline');
 const autofetch = require('./autofetch');
@@ -769,8 +769,10 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   // dublado titulado em português ("Jornada Nas Estrelas … Dublado") que a
   // query em inglês não encontra. Roda FORA do caminho da resposta (nunca
   // disputa o orçamento), com `recordStatus:false` para a segunda consulta
-  // não poluir o circuit breaker, e só adiciona hashes novos — título pt para
-  // hash já listado é assunto do merge, não da varredura.
+  // não poluir o card de status, e `ignoreBreaker:true` para consultar
+  // mesmo indexer recém-derrubado — o dublado raro mora justamente ali.
+  // Só adiciona hashes novos: título pt para hash já listado é assunto do
+  // merge, não da varredura.
   const providerMode = opts().providers.includes('both') ? 'both' : opts().providers[0] || config.provider;
   const wantsJackettSweep =
     providerMode !== 'demo' && (providerMode === 'both' || opts().providers.includes('jackett'));
@@ -778,7 +780,14 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   const sweepSelectedIndexers = [...new Set((configuredIndexers || []).filter((idx) =>
     SAFE_INDEXER_ID.test(String(idx)),
   ))];
-  if (config.jackett.ptSweepGlobal && wantsJackettSweep && activePtQuery && sweepSelectedIndexers.length > 0) {
+  // Filme usa o título pt-BASE (sem subtítulo, sem ano): tracker global casa
+  // por palavras, e "Jornada nas Estrelas: O Filme 1979" devolvia 1 num único
+  // indexer quando "Jornada nas Estrelas" devolvia 13 em três. Série continua
+  // com activePtQuery (com SxxEyy/pack): sem o marcador o indexer devolve a
+  // temporada inteira e o corte por episódio chega depois. O gate "pt difere
+  // do original" fica aqui — sem ele, rodava em todo filme.
+  const sweepQuery = ptSweepQueryFor({ season, titles, activePtQuery });
+  if (config.jackett.ptSweepGlobal && wantsJackettSweep && sweepQuery && sweepSelectedIndexers.length > 0) {
     const sweepTargets = ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers);
     if (sweepTargets.length > 0) {
       enqueueTail(async () => {
@@ -788,10 +797,12 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
           // Se a coleta ainda estava aberta, espera o balde estabilizar para o
           // inventário de hashes conhecidos não sair incompleto.
           if (raw.partial && raw.completion) await raw.completion;
-          const found = await jackett.search(activePtQuery, type, sweepTargets, {
+          const found = await jackett.search(sweepQuery, type, sweepTargets, {
             matchContext,
             recordStatus: false,
+            ignoreBreaker: true,
           });
+          metrics.count('search.pt-sweep.found', found.length);
           if (!found.length) return;
           const known = new Set(
             raw.items.map((item) => extractInfoHash(item.infoHash || item.magnet)).filter(Boolean),
@@ -800,10 +811,17 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
             const h = extractInfoHash(item.infoHash || item.magnet);
             return h && !known.has(h);
           });
-          if (!fresh.length) return;
+          if (!fresh.length) {
+            // Achou, mas tudo já era conhecido: a métrica distingue "não
+            // achou" de "achou e já tínhamos" — juntar os dois escondia o
+            // caso real de "varredura está caindo cedo demais".
+            metrics.count('search.pt-sweep.known');
+            log.info(`[search] varredura pt-BR: ${found.length} resultado(s), nenhum novo (query "${sweepQuery}")`);
+            return;
+          }
           raw.items.push(...fresh);
           metrics.count('search.pt-sweep.hit');
-          log.info(`[search] varredura pt-BR nos globais trouxe ${fresh.length} resultado(s) novo(s); recacheando`);
+          log.info(`[search] varredura pt-BR nos globais trouxe ${fresh.length} resultado(s) novo(s) (query "${sweepQuery}"); recacheando`);
           await finish({ items: raw.items, partial: false }, responsePhase);
         } catch (err) {
           log.warn('[search] varredura pt-BR nos globais falhou:', err?.message || err);
@@ -814,7 +832,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     } else {
       log.debug('[search] varredura pt-BR não executada: nenhum indexer global selecionado');
     }
-  } else if (config.jackett.ptSweepGlobal && wantsJackettSweep && !activePtQuery) {
+  } else if (config.jackett.ptSweepGlobal && wantsJackettSweep && !sweepQuery) {
     log.debug('[search] varredura pt-BR não executada: não há query localizada ativa');
   } else if (config.jackett.ptSweepGlobal && wantsJackettSweep && sweepSelectedIndexers.length === 0) {
     log.debug('[search] varredura pt-BR não executada: nenhum indexer selecionado');
