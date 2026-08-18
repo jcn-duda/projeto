@@ -4,7 +4,19 @@ const log = require('./logger');
 const metrics = require('./metrics');
 
 const store = new Map();
-const MAX_ENTRIES = 2000;
+// A soma das cotas conhecidas é 10.700. O teto global fica logo acima dela
+// como proteção para prefixes novos, sem um namespace conhecido expulsar outro.
+const MAX_ENTRIES = 11000;
+const QUOTAS = Object.freeze({
+  streams: 1500,
+  dlmag: 4000,
+  tmdb: 2000,
+  meta: 2000,
+  autofetch: 500,
+  'indexer-status': 200,
+  __default: 500,
+});
+const namespaceCounts = new Map();
 
 // Memória é o L1; o SQLite só existe pra sobreviver ao restart do container.
 // Sem ele o addon funciona igual, só volta a esquentar do zero a cada subida.
@@ -39,7 +51,7 @@ function openDatabase() {
     insertStmt = database.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');
     deleteStmt = database.prepare('DELETE FROM cache WHERE key = ?');
     deleteExpiredStmt = database.prepare('DELETE FROM cache WHERE expires_at <= ?');
-    selectValidStmt = database.prepare('SELECT key, value, expires_at FROM cache ORDER BY expires_at DESC LIMIT ?');
+    selectValidStmt = database.prepare('SELECT key, value, expires_at FROM cache ORDER BY expires_at DESC');
     clearStmt = database.prepare('DELETE FROM cache');
 
     return database;
@@ -54,35 +66,108 @@ function openDatabase() {
   }
 }
 
+function namespaceFor(key) {
+  const separator = String(key).indexOf(':');
+  return separator === -1 ? '__default' : String(key).slice(0, separator);
+}
+
+function quotaFor(namespace) {
+  return QUOTAS[namespace] || QUOTAS.__default;
+}
+
+function incrementNamespace(namespace) {
+  namespaceCounts.set(namespace, (namespaceCounts.get(namespace) || 0) + 1);
+}
+
+function removeFromStore(key) {
+  const entry = store.get(key);
+  if (!entry) return false;
+  store.delete(key);
+  const remaining = (namespaceCounts.get(entry.namespace) || 1) - 1;
+  if (remaining > 0) namespaceCounts.set(entry.namespace, remaining);
+  else namespaceCounts.delete(entry.namespace);
+  return true;
+}
+
+function evict(keys) {
+  for (const key of keys) {
+    // A cota cheia é o estado normal de um namespace quente. `cache.evicted`
+    // fica reservado ao teto global, para continuar alertando só pressão real
+    // de memória; o detalhamento mostra qual balde está girando.
+    metrics.count('cache.evicted.quota');
+    metrics.count(`cache.evicted.quota.${namespaceFor(key)}`);
+  }
+  forgetMany(keys);
+}
+
+function quotaOverflow(namespace) {
+  const excess = (namespaceCounts.get(namespace) || 0) - quotaFor(namespace);
+  if (excess <= 0) return [];
+  const dropped = [];
+  // O Map é LRU global; filtrá-lo preserva a mesma ordem de recência dentro do
+  // namespace sem deixar um burst de dlmag desalojar streams.
+  for (const [key, entry] of store) {
+    if (entry.namespace === namespace) dropped.push(key);
+    if (dropped.length === excess) break;
+  }
+  return dropped;
+}
+
 /** Sobe o que ainda é válido; o que expirou enquanto estava fora, morre aqui. */
 function loadFromDisk() {
   if (!db || !selectValidStmt || !deleteExpiredStmt) return;
   try {
     const now = Date.now();
     deleteExpiredStmt.run(now);
-    // O teto do L1 não pode expulsar justamente os artefatos de TTL longo que
-    // justificam a persistência, como magnets já resolvidos por protetores.
-    const rows = selectValidStmt.all(MAX_ENTRIES);
-    // A seleção vem do TTL mais longo para o mais curto. Inserir ao contrário
-    // deixa o mais curto como LRU e evita descartarmos o mais durável no
-    // primeiro set após o restart.
-    let loaded = 0;
-    for (const row of rows.reverse()) {
+    // TTL longo não pode monopolizar o L1 depois do restart: cada namespace
+    // recebe o próprio orçamento antes da ordem de recência ser reconstruída.
+    const rows = selectValidStmt.all();
+    const selected = [];
+    const selectedCounts = new Map();
+    const skipped = [];
+    const quotaSkipped = [];
+    for (const row of rows) {
+      // O namespace v4 é uma invalidação deliberada do formato anterior: v3
+      // nunca pode ocupar uma vaga de streams que uma lista corrente usaria.
+      if (row.key.startsWith('streams:v3:')) {
+        skipped.push(row.key);
+        quotaSkipped.push(row.key);
+        continue;
+      }
+      const namespace = namespaceFor(row.key);
+      if ((selectedCounts.get(namespace) || 0) >= quotaFor(namespace) || selected.length >= MAX_ENTRIES) {
+        skipped.push(row.key);
+        quotaSkipped.push(row.key);
+        continue;
+      }
       try {
-        const parsed = JSON.parse(row.value);
-        store.set(row.key, { value: parsed, expiresAt: Number(row.expires_at) });
-        loaded++;
+        selected.push({
+          key: row.key,
+          value: JSON.parse(row.value),
+          expiresAt: Number(row.expires_at),
+          namespace,
+        });
+        selectedCounts.set(namespace, (selectedCounts.get(namespace) || 0) + 1);
       } catch (rowErr) {
         log.warn(`[cache] registro corrompido ignorado para chave '${row.key}':`, rowErr.message);
-        if (deleteStmt) {
-          try {
-            deleteStmt.run(row.key);
-          } catch {
-            /* best-effort */
-          }
-        }
+        skipped.push(row.key);
       }
     }
+    // A seleção vem do TTL mais longo para o mais curto. Inserir ao contrário
+    // deixa o menor TTL selecionado como LRU dentro de cada namespace.
+    let loaded = 0;
+    for (const entry of selected.reverse()) {
+      store.set(entry.key, entry);
+      incrementNamespace(entry.namespace);
+      loaded++;
+    }
+    // Entradas acima da cota nunca voltariam a caber neste processo; removê-las
+    // evita revarrer o mesmo banco dominado no próximo restart.
+    for (const key of quotaSkipped) {
+      metrics.count('cache.evicted.quota');
+      metrics.count(`cache.evicted.quota.${namespaceFor(key)}`);
+    }
+    forgetMany(skipped);
     if (loaded) log.info(`[cache] ${loaded} entrada(s) recuperada(s) do disco`);
   } catch (err) {
     log.warn('[cache] falha ao ler o cache do disco:', err.message);
@@ -140,7 +225,7 @@ function persist(key, value, expiresAt) {
 }
 
 function forget(key) {
-  store.delete(key);
+  removeFromStore(key);
   // Se a chave ainda está na fila de despejo, o lote não pode ressuscitá-la.
   pending.delete(key);
   if (!deleteStmt) return;
@@ -162,7 +247,7 @@ function forgetMany(keys) {
   // L1 é a fonte das leituras. A limpeza precisa valer mesmo quando o SQLite
   // não existe; o L2 é apenas a cópia best-effort para sobreviver ao restart.
   for (const key of keys) {
-    store.delete(key);
+    removeFromStore(key);
     pending.delete(key);
   }
   if (!db || !deleteStmt) return;
@@ -191,18 +276,23 @@ function prune() {
   const dropped = [];
   for (const [key, hit] of store) {
     if (hit.expiresAt && now > hit.expiresAt) {
-      store.delete(key);
       dropped.push(key);
     }
   }
+  // Sai do store AQUI, e não só no forgetMany do fim: o teto abaixo é
+  // avaliado sobre store.size, e adiar a remoção tirava a condição de
+  // parada do laço — ele repetia a mesma chave até o array estourar
+  // (RangeError dentro de cache.set, derrubando a requisição).
+  for (const key of dropped) removeFromStore(key);
   // Se ainda estourou o teto, descarta as entradas mais antigas (Map preserva ordem de inserção).
   while (store.size > MAX_ENTRIES) {
     const oldest = store.keys().next().value;
-    store.delete(oldest);
+    removeFromStore(oldest);
     dropped.push(oldest);
     // Despejo por teto é o sinal de que MAX_ENTRIES ficou pequeno: subindo
     // sempre, o cache está jogando fora coisa que ainda seria usada.
     metrics.count('cache.evicted');
+    metrics.count(`cache.evicted.${namespaceFor(oldest)}`);
   }
   forgetMany(dropped);
 }
@@ -212,6 +302,14 @@ function size() {
   return store.size;
 }
 
+function snapshot() {
+  const namespaces = {};
+  for (const [namespace, entries] of namespaceCounts) {
+    namespaces[namespace] = { entries, maxEntries: quotaFor(namespace) };
+  }
+  return { entries: size(), maxEntries: MAX_ENTRIES, namespaces };
+}
+
 function get(key) {
   const hit = store.get(key);
   if (!hit) {
@@ -219,7 +317,6 @@ function get(key) {
     return null;
   }
   if (hit.expiresAt && Date.now() > hit.expiresAt) {
-    store.delete(key);
     forget(key);
     // Expirado é miss para quem perguntou; o `expired` separado diz se o TTL
     // está curto demais para o ritmo de uso.
@@ -229,22 +326,28 @@ function get(key) {
   }
   metrics.count('cache.hit');
   // Map preserva inserção; mover o hit para o fim transforma o corte em LRU.
-  store.delete(key);
+  removeFromStore(key);
   store.set(key, hit);
+  incrementNamespace(hit.namespace);
   return hit.value;
 }
 
 function set(key, value, ttlSeconds) {
   if (!ttlSeconds || ttlSeconds <= 0) return;
   const expiresAt = Date.now() + ttlSeconds * 1000;
-  store.delete(key); // reinsere no fim para a ordem refletir o uso mais recente
-  store.set(key, { value, expiresAt });
+  const namespace = namespaceFor(key);
+  removeFromStore(key); // reinsere no fim para a ordem refletir o uso mais recente
+  store.set(key, { value, expiresAt, namespace });
+  incrementNamespace(namespace);
   persist(key, value, expiresAt);
+  const quotaDropped = quotaOverflow(namespace);
+  if (quotaDropped.length) evict(quotaDropped);
   if (store.size > MAX_ENTRIES) prune();
 }
 
 function clear() {
   store.clear();
+  namespaceCounts.clear();
   // Antes do truncate, senão o despejo agendado reescreveria o banco limpo.
   pending.clear();
   if (clearStmt) {
@@ -291,4 +394,4 @@ loadFromDisk();
 pruneTimer = setInterval(prune, 10 * 60 * 1000);
 pruneTimer.unref();
 
-module.exports = { MAX_ENTRIES, get, set, forget, forgetMany, clear, size, close };
+module.exports = { MAX_ENTRIES, QUOTAS, get, set, forget, forgetMany, clear, size, snapshot, close };

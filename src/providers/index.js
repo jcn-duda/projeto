@@ -519,7 +519,9 @@ async function findStreams({ type, id }) {
   // A URL de play leva a configuração e a assinatura da conta que construiu o
   // stream. Compartilhar cache entre duas API keys entregaria a URL (e a conta)
   // do primeiro usuário ao segundo; o digest isola sem persistir a credencial.
-  const cacheKey = streamsCacheKey(type, id, opts());
+  // É configuração do operador, mas muda url/infoHash de cada stream e por
+  // isso precisa fazer parte do shape persistido como as opções da instalação.
+  const cacheKey = streamsCacheKey(type, id, { ...opts(), resolveUncached: config.debrid.resolveUncached });
   const cached = cache.get(cacheKey);
   // O cache em SQLite sobrevive ao deploy, e a versão anterior gravava só o
   // array de streams. Sem esta linha, a primeira subida serviria `undefined`

@@ -5,9 +5,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// Constantes que espelham o que src/utils/cache.js usa internamente.
-// Se o teto mudar de propósito, o teste acompanha.
-const MAX_ENTRIES = 2000;
+// Chaves sem prefixo pertencem ao namespace padrão. Estes testes exercitam o
+// LRU desse balde; o teto global é deliberadamente maior que cada cota.
+const MAX_ENTRIES = 500;
+const DLMAG_QUOTA = 4000;
 const EXTRA = 5; // entradas além do teto: o reload tem que deixar de fora as de TTL mais curto
 const TTL_S = 3600;
 
@@ -97,11 +98,11 @@ const RELOAD_SCRIPT = [
   "  if (cache.get('k-' + i) !== null) present++;",
   '}',
   "if (cache.get('overflow') !== null) present++;",
-  `assert.strictEqual(present, ${MAX_ENTRIES}, 'o total continua no teto');`,
+  `assert.strictEqual(present, ${MAX_ENTRIES}, 'o total continua na cota padrão');`,
 ].join('\n');
 
 test(
-  'reload do SQLite: seleção DESC + ordem reconstruída expulsa o menor TTL selecionado no estouro',
+  'reload do SQLite: seleção DESC + ordem reconstruída expulsa o menor TTL selecionado na cota padrão',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — o contrato 1 precisa de Node 22+' },
   () => {
     runIsolatedCacheTest(RELOAD_SCRIPT);
@@ -122,7 +123,7 @@ test('get() de entrada válida renova a recência: no estouro ela sobrevive e o 
     // Toca na mais antiga: depois do estouro ela tem que continuar viva.
     assert.deepEqual(cache.get('k-0'), { n: 0 }, 'get de entrada válida devolve o valor');
 
-    // Estoura o teto: o prune remove UMA entrada — a menos recentemente usada.
+    // Estoura a cota: o prune remove UMA entrada — a menos recentemente usada.
     cache.set('overflow', { n: 'overflow' }, TTL_S);
 
     assert.deepEqual(cache.get('k-0'), { n: 0 }, 'a entrada tocada sobrevive ao estouro');
@@ -134,7 +135,7 @@ test('get() de entrada válida renova a recência: no estouro ela sobrevive e o 
       if (cache.get(`k-${i}`) !== null) present++;
     }
     if (cache.get('overflow') !== null) present++;
-    assert.equal(present, MAX_ENTRIES, 'o total continua dentro do teto após o estouro');
+    assert.equal(present, MAX_ENTRIES, 'o total continua dentro da cota após o estouro');
   } finally {
     // Restaura o ambiente do processo pai: não depende do isolamento do runner.
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
@@ -246,13 +247,13 @@ const PRUNE_BATCH_SCRIPT = [
   'for (let i = 0; i < total; i++) {',
   "  cache.set('item-' + i, { n: i }, 3600);",
   '}',
-  `assert.strictEqual(cache.size(), ${MAX_ENTRIES}, 'L1 respeita MAX_ENTRIES apos overflow');`,
+  `assert.strictEqual(cache.size(), ${MAX_ENTRIES}, 'L1 respeita a cota padrão apos overflow');`,
   '// Espera o despejo em lote: as chaves expulsas pelo prune saíram da fila',
   '// junto com a memória, então o disco recebe exatamente o teto.',
   'await new Promise((resolve) => setImmediate(resolve));',
   'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
   "const countRow = dbVerify.prepare('SELECT COUNT(*) as cnt FROM cache').get();",
-  `assert.strictEqual(countRow.cnt, ${MAX_ENTRIES}, 'SQLite reflete MAX_ENTRIES apos prune em lote');`,
+  `assert.strictEqual(countRow.cnt, ${MAX_ENTRIES}, 'SQLite reflete a cota padrão apos prune em lote');`,
   "assert.strictEqual(cache.get('item-0'), null, 'item-0 expulso como LRU');",
   "assert.strictEqual(cache.get('item-9'), null, 'item-9 expulso como LRU');",
   `assert.deepStrictEqual(cache.get('item-' + (total - 1)), { n: total - 1 }, 'item mais recente permanece');`,
@@ -304,6 +305,81 @@ test(
   () => {
     runIsolatedCacheTest(wrapAsync(BATCH_FORGET_SCRIPT));
   },
+);
+
+test('estouro de dlmag despeja só o próprio namespace e preserva streams', () => {
+  const originalPersist = process.env.CACHE_PERSIST;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    delete require.cache[CACHE_MODULE];
+    const cache = require(CACHE_MODULE);
+
+    cache.set('streams:v4:movie:tt-vizinho', { streams: ['preservado'] }, TTL_S);
+    for (let i = 0; i < DLMAG_QUOTA; i++) cache.set(`dlmag:url-${i}`, { n: i }, TTL_S);
+    cache.set('dlmag:overflow', { n: 'overflow' }, TTL_S);
+
+    assert.deepEqual(cache.get('streams:v4:movie:tt-vizinho'), { streams: ['preservado'] });
+    assert.equal(cache.get('dlmag:url-0'), null, 'LRU de dlmag sai na própria cota');
+    assert.deepEqual(cache.get('dlmag:overflow'), { n: 'overflow' });
+    assert.equal(cache.snapshot().namespaces.dlmag.entries, DLMAG_QUOTA);
+  } finally {
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+  }
+});
+
+test('LRU de dlmag é escolhido dentro do namespace, não pela ordem global', () => {
+  const originalPersist = process.env.CACHE_PERSIST;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    delete require.cache[CACHE_MODULE];
+    const cache = require(CACHE_MODULE);
+
+    cache.set('meta:movie:tt-vizinho', { title: 'vizinho antigo' }, TTL_S);
+    for (let i = 0; i < DLMAG_QUOTA; i++) cache.set(`dlmag:lru-${i}`, { n: i }, TTL_S);
+    assert.deepEqual(cache.get('dlmag:lru-0'), { n: 0 }, 'renova o LRU de dlmag');
+    cache.set('dlmag:overflow', { n: 'overflow' }, TTL_S);
+
+    assert.deepEqual(cache.get('meta:movie:tt-vizinho'), { title: 'vizinho antigo' });
+    assert.deepEqual(cache.get('dlmag:lru-0'), { n: 0 }, 'entrada renovada sobrevive');
+    assert.equal(cache.get('dlmag:lru-1'), null, 'próximo LRU do dlmag é expulso');
+  } finally {
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+  }
+});
+
+const DLMAG_DOMINATED_LOAD_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
+  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
+  'const now = Date.now();',
+  `for (let i = 0; i < ${DLMAG_QUOTA} + 10; i++) {`,
+  "  insert.run('dlmag:url-' + i, JSON.stringify({ n: i }), now + 7 * 24 * 3600 * 1000 + i);",
+  '}',
+  "insert.run('streams:v4:movie:tt123:{}:account:none', JSON.stringify({ streams: ['s1'] }), now + 900 * 1000);",
+  "insert.run('streams:v3:movie:tt-antigo:{}:account:none', JSON.stringify({ streams: ['antigo'] }), now + 900 * 1000 + 1);",
+  "insert.run('meta:movie:tt123', JSON.stringify({ name: 'Filme' }), now + 86400 * 1000);",
+  "insert.run('tmdb:tt123', JSON.stringify({ pt: 'Filme' }), now + 7 * 24 * 3600 * 1000);",
+  'seed.close();',
+  '',
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  "assert.deepStrictEqual(cache.get('streams:v4:movie:tt123:{}:account:none'), { streams: ['s1'] }, 'streams sobrevive ao reload');",
+  "assert.strictEqual(cache.get('streams:v3:movie:tt-antigo:{}:account:none'), null, 'namespace v3 invalidado não ocupa cota');",
+  "assert.deepStrictEqual(cache.get('meta:movie:tt123'), { name: 'Filme' }, 'meta sobrevive ao reload');",
+  "assert.deepStrictEqual(cache.get('tmdb:tt123'), { pt: 'Filme' }, 'tmdb sobrevive ao reload');",
+  `assert.strictEqual(cache.snapshot().namespaces.dlmag.entries, ${DLMAG_QUOTA}, 'dlmag respeita a própria cota');`,
+].join('\n');
+
+test(
+  'loadFromDisk: banco dominado por dlmag ainda carrega streams, meta e tmdb',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => runIsolatedCacheTest(DLMAG_DOMINATED_LOAD_SCRIPT),
 );
 
 test('modo sem persistência (CACHE_PERSIST="false"): operações puras em memória com statements nulos', () => {
@@ -377,5 +453,42 @@ test('close() libera o SQLite sem derrubar o L1 e aceita chamada repetida', {
     // O módulo fica fechado; a próxima suíte que o exigir recarrega do zero.
     delete require.cache[CACHE_MODULE];
     fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('teto global despeja e termina: prune não pode repetir a mesma chave', () => {
+  // Regressão: o laço do teto lia store.keys().next() e só empilhava a chave
+  // em `dropped`, deixando a remoção para o forgetMany do fim. Sem a deleção
+  // dentro do laço, store.size nunca caía, a MESMA chave era empilhada para
+  // sempre e o array estourava — RangeError dentro de cache.set(), derrubando
+  // a requisição em curso. Não bastava a cota por namespace: ela impede o teto
+  // global de ser alcançado hoje, mas cada prefixo NOVO traz __default a mais.
+  const originalPersist = process.env.CACHE_PERSIST;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    delete require.cache[CACHE_MODULE];
+    const cache = require(CACHE_MODULE);
+
+    // Prefixos desconhecidos pegam a cota __default; com o suficiente deles a
+    // soma passa do teto global e o prune por teto entra em cena.
+    const porNamespace = cache.QUOTAS.__default;
+    const namespaces = Math.ceil(cache.MAX_ENTRIES / porNamespace) + 1;
+    for (let ns = 0; ns < namespaces; ns += 1) {
+      for (let i = 0; i < porNamespace; i += 1) {
+        cache.set(`teto${ns}:${i}`, { i }, TTL_S);
+      }
+    }
+
+    assert.ok(
+      cache.size() <= cache.MAX_ENTRIES,
+      `store parou em ${cache.size()}, acima do teto ${cache.MAX_ENTRIES}`,
+    );
+    // O set seguinte é o que estourava: prova que o laço termina.
+    cache.set('teto-final:1', { ok: true }, TTL_S);
+    assert.deepEqual(cache.get('teto-final:1'), { ok: true });
+  } finally {
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+    delete require.cache[CACHE_MODULE];
   }
 });

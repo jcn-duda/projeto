@@ -407,7 +407,10 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       // a primeira resposta provou-se parcial (1 stream), qualquer entrada
       // completa de 2 streams que aparecer a seguir SÓ pode ter vindo do passe
       // tardio — é exatamente a escrita que a mutação MUT-10 remove.
-      const cacheKey = streamsCacheKey('series', seriesId, runtime.decode(configSegment));
+      const cacheKey = streamsCacheKey('series', seriesId, {
+        ...runtime.decode(configSegment),
+        resolveUncached: config.debrid.resolveUncached,
+      });
       const responseHit = cache.get(cacheKey);
       assert.ok(responseHit, 'Response pass cached the partial result');
       assert.ok(responseHit.streams.length >= 1, 'Cached partial entry is non-empty');

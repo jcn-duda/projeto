@@ -228,7 +228,7 @@ function createApp() {
     return res.json({
       ...metrics.snapshot(),
       logLevel: log.level(),
-      cache: { entries: cache.size(), maxEntries: cache.MAX_ENTRIES },
+      cache: cache.snapshot(),
     });
   });
 

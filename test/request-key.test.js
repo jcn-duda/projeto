@@ -12,7 +12,7 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.includes('alice-secret'), false);
   assert.equal(bob.includes('bob-secret'), false);
   assert.equal(alice, streamsCacheKey('movie', 'tt123', { ...base, debridApiKey: 'alice-secret' }));
-  assert.equal(alice.startsWith('streams:v3:'), true);
+  assert.equal(alice.startsWith('streams:v4:'), true);
 });
 
 test('streamsCacheKey preserva a separação por conteúdo e por modo sem conta', () => {
@@ -48,5 +48,13 @@ test('cache varia com o mapa de limites por indexador', () => {
   assert.notEqual(
     streamsCacheKey('movie', 'tt123', { ...base, indexerLimits: { yts: 3 } }),
     streamsCacheKey('movie', 'tt123', { ...base, indexerLimits: { yts: 0 } }),
+  );
+});
+
+test('cache varia com resolveUncached para não misturar formas de stream', () => {
+  const base = { providers: ['jackett'], maxResults: 40 };
+  assert.notEqual(
+    streamsCacheKey('movie', 'tt123', { ...base, resolveUncached: false }),
+    streamsCacheKey('movie', 'tt123', { ...base, resolveUncached: true }),
   );
 });
