@@ -502,6 +502,12 @@ test('acquireSearch mantém compatibilidade com o teto antigo de uma vaga', () =
 test('matriz integrada: 4 BR uncached com dc=false/known=true enfileiram os quatro melhores', async () => {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
+  // O caso é sobre torrent puro, então a premissa precisa ser fixada: a suíte
+  // carrega o .env do operador, e DEBRID_RESOLVE_UNCACHED=true faz o frio sair
+  // pelo /resolve com url em vez de infoHash — o teste quebrava por config, não
+  // por código.
+  const originalResolveUncached = config.debrid.resolveUncached;
+  config.debrid.resolveUncached = false;
   const pmAdapter = debrid.BY_ID.get('premiumize');
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-quatro');
@@ -545,6 +551,7 @@ test('matriz integrada: 4 BR uncached com dc=false/known=true enfileiram os quat
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.resolveUncached = originalResolveUncached;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
     cache.forget(autofetch.markerKey('premiumize', account, h2));

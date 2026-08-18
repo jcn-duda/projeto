@@ -185,6 +185,11 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
   });
 
   test('1C: BR Dubbed + Premiumize uncached (known: true) + showUncachedBr = true -> uncached BR preserved as P2P', async () => {
+    // Este caso É sobre P2P puro, então a premissa vai fixada: a suíte carrega o
+    // .env do operador, e DEBRID_RESOLVE_UNCACHED=true faz o frio sair pelo
+    // /resolve com url — quebrava por config, não por código.
+    const originalResolveUncached = config.debrid.resolveUncached;
+    config.debrid.resolveUncached = false;
     const brHash = makeHash('br_p2p_saved', 1);
     const globalHash = makeHash('global_pm_cached', 2);
 
@@ -236,6 +241,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       assert.match(globalStream.name, /\[PM⚡\]/);
     } finally {
       pmAdapter.checkCached = originalCheck;
+      config.debrid.resolveUncached = originalResolveUncached;
     }
   });
 
