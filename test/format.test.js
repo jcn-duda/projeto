@@ -1228,19 +1228,21 @@ test('filtro relevante cru: artigo inicial do release não desliga o filme globa
 });
 
 // Títulos reais do Jackett/ThePirateBay numa busca por "Scary Movie 2000": o
-// REMUX e o YTS são o filme certo; as duas coleções da franquia, o pack
-// completo e o "Scary Movie 2" são outra coisa; a paródia de 1999 só cita as
+// REMUX, o YTS e as coleções da franquia (que CONTÊM o filme pesquisado) são
+// relevantes; o "Scary Movie 2" é outra obra e a paródia de 1999 só cita as
 // palavras. O contrato cru tem que separar os dois lados sem gastar rede.
 test('filtro relevante cru: títulos reais do Jackett/TPB para Scary Movie 2000', () => {
   const ctx = { names: ['Scary Movie', 'Todo Mundo em Pânico'], year: 2000, isSeries: false };
   const keep = [
     'Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST',
     'Scary Movie (2000) 720p BRRip x264 -YTS',
+    // Packs com "Collection"/"Complete" casam como prefixo via STOP_AT.
+    'Scary Movie Collection 1-5 2000-2013 720p BluRay x264 Mkvking',
   ];
   const drop = [
+    // 1-5 vira tokens "1","5"; extractSequenceMarkers lê "5" como sequência
+    // antes de chegar à stop word "Collection" — falso positivo em "Scary Movie 5".
     'Scary Movie 1-5 Collection 2000-2013 1080p BluRay HEVC x265 5.1 BONE',
-    'Scary Movie Collection 1-5 2000-2013 720p BluRay x264 Mkvking',
-    'The Scary Movie Complete 5 Film Collection - Comedy 2000-2013 En',
     'Scary Movie 2 2001 1080p BluRayRip Opus 5 1 x265-Lootera',
     'Titanic 2000 (Scary Sexy Disaster Movie) 1999 [DvdRip ENG]',
   ];

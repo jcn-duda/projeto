@@ -477,7 +477,7 @@ function matchesName(title, name, tokens = null) {
 // "Coleção Guerra nas Estrelas" ou "Game of Thrones Todas as Temporadas": elas
 // não podem contar nem como primeiro token nem contra a precisão.
 const PACK_WORDS = new Set(
-  'colecao coletanea trilogia saga duologia quadrilogia pentalogia antologia serie series temporada temporadas todas todos completa completo integral filmes'.split(' '),
+  'colecao coletanea trilogia saga duologia quadrilogia pentalogia antologia serie series temporada temporadas todas todos completa completo integral filmes collection complete movies films'.split(' '),
 );
 
 // Ruído de release: o que todo indexer BR carimba no título e não diz nada
@@ -705,14 +705,15 @@ function matchesBrTitle(title, name, year = null, { isSeries = false, allNames =
 // separaria os dois anos.
 const YEAR_RANGE = /\b(?:19|20)\d{2}\s*(?:-|–|—|de|a|ate|até)\s*(?:19|20)\d{2}\b/i;
 
-// Palavras que sozinhas já significam "mais de uma obra". Medido em 240
-// títulos reais de tracker global: pegam 10 packs que a faixa de anos não
-// pegava, com zero falso positivo.
+// Palavras que sozinhas já significam "mais de uma obra". Cobre pt-BR E inglês,
+// medido em 2.551 títulos reais: pegam os packs que a faixa de anos não pega,
+// com zero falso positivo — "trilogy" tem 30 ocorrências no corpus, todas packs,
+// e "quadrilogy" 1, também pack.
 //
 // `saga` fica FORA de propósito: "A Saga Crepúsculo" é o nome do filme —
 // 23 de 29 resultados reais de "Crepúsculo Dublado" seriam retidos por engano.
 const STRONG_PACK_WORDS = new Set(
-  'trilogia duologia quadrilogia pentalogia colecao coletanea antologia'.split(' '),
+  'trilogia duologia quadrilogia pentalogia colecao coletanea antologia trilogy quadrilogy duology tetralogy anthology boxset'.split(' '),
 );
 
 /**

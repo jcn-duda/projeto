@@ -111,6 +111,11 @@ const SAMPLE = /(^|[^a-z])sample([^a-z]|$)/i;
 // escolha por obra falharia exatamente onde a regra do maior acertava.
 const EXTRA = /(^|[^a-z])(extras?|b[oô]nus|bonus|featurettes?|interviews?|entrevistas?|behind[ ._-]?the[ ._-]?scenes|trailers?|deleted[ ._-]?scenes?|cenas[ ._-]?deletadas|bloopers?|gags?|making[ ._-]?of)([^a-z]|$)/i;
 
+/** Nome do arquivo sem a pasta: "Trilogia (1985-1990)/video (1985).mkv" → "video (1985).mkv". */
+function baseName(p) {
+  return String(p || '').split(/[/\\]/).pop() || '';
+}
+
 // Cobertura mínima do nome no arquivo para o casamento contar como
 // confiável. Abaixo disso o token solto da franquia ("Star") casaria tudo.
 const WORK_COVERAGE_MIN = 0.7;
@@ -123,8 +128,15 @@ function workCoverage(fileName, name) {
   // nesses casos os tokens curtos são a única pista disponível.
   const wanted = longTokens.length > 0 ? longTokens : tokens;
   if (wanted.length === 0) return 0;
-  const got = new Set(normalizeTitle(fileName).split(' ').filter(Boolean));
-  return wanted.filter((w) => got.has(w)).length / wanted.length;
+  // Casar contra o basename: a pasta raiz "Trilogia (1985-1990)" dá cobertura
+  // falsa para todos os arquivos do pack. Fallback: se o basename não casa
+  // nenhum token (pasta carrega a identidade), tentar o path completo.
+  const bn = normalizeTitle(baseName(fileName));
+  const bnGot = new Set(bn.split(' ').filter(Boolean));
+  const bnHits = wanted.filter((w) => bnGot.has(w)).length;
+  if (bnHits > 0) return bnHits / wanted.length;
+  const fullGot = new Set(normalizeTitle(fileName).split(' ').filter(Boolean));
+  return wanted.filter((w) => fullGot.has(w)).length / wanted.length;
 }
 
 /**
@@ -140,7 +152,10 @@ function looksMultiWorkFiles(files) {
   if (mains.length <= 1) return false;
   const years = new Set();
   for (const file of mains) {
-    const match = String(file.path || '').match(/(?:^|[^0-9])((?:19|20)\d{2})(?:$|[^0-9])/);
+    // O ano que prova multi-obra vem do ARQUIVO, não da pasta: a raiz
+    // "Trilogia (1985-1990)" contém 1985 em todos os arquivos e faria
+    // qualquer pack de filme único parecer multi-obra.
+    const match = String(baseName(file.path) || '').match(/(?:^|[^0-9])((?:19|20)\d{2})(?:$|[^0-9])/);
     if (match) years.add(Number(match[1]));
   }
   return years.size >= 2;
@@ -169,7 +184,9 @@ function pickWorkFile(files, { names, year } = {}) {
   if (scored.length === 1) return scored[0].file;
   if (cleanYear) {
     const yearRe = new RegExp(`(?<!\\d)${cleanYear}(?!\\d)`);
-    const withYear = scored.filter((x) => yearRe.test(x.file.path || ''));
+    // Casar o ano contra o basename: a pasta "Trilogia (1985-1990)" contém
+    // 1985 em TODOS os arquivos, e o desempate pelo maior toca o filme errado.
+    const withYear = scored.filter((x) => yearRe.test(baseName(x.file.path || '')));
     if (withYear.length === 1) return withYear[0].file;
     if (withYear.length > 1) {
       return withYear.reduce(

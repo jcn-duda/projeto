@@ -161,3 +161,22 @@ test('pickFile torrent sem vídeo devolve null (não lança WorkPickError)', () 
   assert.equal(pickFile([{ path: 'readme.txt', size: 100 }], {}), null);
   assert.equal(pickFile([], {}), null);
 });
+
+test('pickWorkFile usa basename: pasta "Trilogia (1985-1990)" não contamina casamento de ano', () => {
+  // Paths reais do AllDebrid: a pasta raiz carrega a faixa de anos do pack.
+  const pack = [
+    f('Ritorno al futuro Trilogia (1985-1990)/Ritorno al futuro - Back to the Future 1 (1985) ITA 2160p.mkv', 3.7 * 1024 ** 3),
+    f('Ritorno al futuro Trilogia (1985-1990)/Ritorno al futuro - Back to the Future 2 (1989) ITA 2160p.mkv', 3.7 * 1024 ** 3),
+    f('Ritorno al futuro Trilogia (1985-1990)/Ritorno al futuro - Back to the Future 3 (1990) ITA 2160p.mkv', 3.8 * 1024 ** 3),
+  ];
+  // Pediu 1985: antes do fix, 1985 casava nos 3 (pasta) → maior → filme 3.
+  // Depois do fix, 1985 só casaria em Back to the Future 1 (1985) pelo basename.
+  // Mas "Back to the Future" tem cobertura com "De Volta para o Futuro"?
+  // workCoverage testa basename primeiro — basename não tem "Ritorno al futuro".
+  // Com basename: cobertura dos basenames "back to the future 1 (1985)" etc.
+  // contra names=["de volta para o futuro","back to the future"] → "back","to",
+  // "the","future" casam nos basenames → cobertura OK para os 3 → ano desempata.
+  const file = pickWorkFile(pack, { names: ['De Volta para o Futuro', 'Back to the Future'], year: 1985 });
+  assert.ok(file, 'deve encontrar um arquivo');
+  assert.match(file.path, /1985/, 'deve escolher o filme de 1985, não o de 1990');
+});

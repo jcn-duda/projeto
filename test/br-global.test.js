@@ -144,6 +144,18 @@ test('isMultiWorkCollection: saga NÃO é palavra forte — "A Saga Crepúsculo"
   assert.equal(isMultiWorkCollection('Saga Crepusculo 2008-2012 Dublado'), true);
 });
 
+test('isMultiWorkCollection: palavras fortes em inglês dispensam faixa de anos', () => {
+  assert.equal(isMultiWorkCollection('Back to the Future Trilogy [1985/1989/1990, USA, sci-fi]'), true);
+  assert.equal(isMultiWorkCollection('The Matrix Quadrilogy 720p Dublado'), true);
+  assert.equal(isMultiWorkCollection('Star Wars Anthology BluRay 1080p'), true);
+  assert.equal(isMultiWorkCollection('James Bond Boxset 007 Dublado'), true);
+  // "collection" é FRACA: exige faixa de anos.
+  assert.equal(isMultiWorkCollection('Criterion Collection Seven Samurai'), false);
+  assert.equal(isMultiWorkCollection('Criterion Collection Seven Samurai 1954-1965'), true);
+  // "saga" continua fora.
+  assert.equal(isMultiWorkCollection('The Fast Saga F9 2021 Dublado'), false);
+});
+
 test('_multiWork sobrevive ao dedupeByHash: OR entre winner e loser', () => {
   const pack = {
     infoHash: HASH_A, _seeders: 3, _br: true, _dubbed: true,
