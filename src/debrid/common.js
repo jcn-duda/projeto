@@ -60,6 +60,24 @@ function isQuotaError(error) {
 }
 
 /**
+ * Obra não identificável dentro de um pack multi-obra. Diferente de "null"
+ * (nenhum vídeo no torrent), que continua significando torrent sem vídeo.
+ * Lançada pelo pickFile quando a listagem marcou o stream como pack mas
+ * nenhum arquivo individualmente casa com a obra pedida.
+ */
+class WorkPickError extends Error {
+  constructor() {
+    super('não foi possível identificar a obra dentro do pack');
+    this.name = 'WorkPickError';
+    this.code = 'WORK_PICK';
+  }
+}
+
+function isWorkPickError(error) {
+  return error?.code === 'WORK_PICK';
+}
+
+/**
  * Um fetch JSON com o timeout do debrid já aplicado. Cada serviço tem o seu
  * jeito de autenticar, então o header vai por fora.
  */
@@ -195,12 +213,17 @@ function pickFile(files, { season, episode, work } = {}) {
     const pool = mains.length > 0 ? mains : videos;
     // Um único vídeo principal: a dica é só confirmatória — caminho antigo.
     if (pool.length === 1) return pool[0];
-    // Sem anos distintos não há prova de pack: podem ser apenas dois encodes
-    // do mesmo filme, e falhar aqui transformaria um play legítimo em 404.
-    if (!looksMultiWorkFiles(pool)) {
+    // Estrito quando a LISTAGEM disse que é pack, ou quando os próprios
+    // arquivos provam (anos distintos). Fora disso podem ser dois encodes do
+    // mesmo filme, e falhar transformaria play legítimo em 404.
+    if (!work.pack && !looksMultiWorkFiles(pool)) {
       return pool.reduce((a, b) => (Number(b.size || 0) > Number(a.size || 0) ? b : a));
     }
-    return pickWorkFile(pool, work);
+    const picked = pickWorkFile(pool, work);
+    if (picked) return picked;
+    // Nenhum arquivo casa com a obra pedida dentro de um pack provado.
+    // null significaria "sem vídeo" — mas há vídeo, só não sabemos qual.
+    throw new WorkPickError();
   }
 
   // Sem episódio pedido (ou sem casar): o maior arquivo é o filme/o conteúdo principal.
@@ -279,6 +302,6 @@ function wait(ms) {
 
 module.exports = {
   magnetFor, json, pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, batched, wait,
-  AuthError, isAuthError, QuotaError, isQuotaError,
+  AuthError, isAuthError, QuotaError, isQuotaError, WorkPickError, isWorkPickError,
   VIDEO_EXT, SAMPLE, EXTRA,
 };

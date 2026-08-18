@@ -4,7 +4,7 @@ const assert = require('node:assert');
 // Escolha POR OBRA dentro de pack multi-filme: a dica assinada na URL de play
 // (nomes + ano) guia o pickFile; sem casamento confiável a resposta é null
 // (falha explícita), nunca o maior arquivo — que tocaria o filme errado.
-const { pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage } = require('../src/debrid/common');
+const { pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, WorkPickError, isWorkPickError } = require('../src/debrid/common');
 
 const f = (path, size) => ({ path, size });
 
@@ -49,12 +49,14 @@ test('pickFile com dica escolhe a obra certa em pack multi-filme', () => {
 });
 
 test('pickFile com dica falha quando a obra não está no pack', () => {
-  // Sem casamento confiável devolve null: quem chama responde 404 e o usuário
-  // escolhe outro stream — tocar o maior arquivo seria o filme errado.
-  const file = pickFile(PACK, {
-    work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1991 },
-  });
-  assert.equal(file, null);
+  // Sem casamento confiável lança WorkPickError: quem chama responde 404 e o
+  // usuário escolhe outro stream — tocar o maior arquivo seria o filme errado.
+  assert.throws(
+    () => pickFile(PACK, {
+      work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1991 },
+    }),
+    (err) => isWorkPickError(err),
+  );
 });
 
 test('pickFile com dica ignora extras na contagem de vídeos principais', () => {
@@ -124,8 +126,37 @@ test('pickFile aceita título curto usando todos os tokens disponíveis', () => 
   ]), false);
 });
 
-test('pickFile continua falhando quando os anos provam pack multi-obra', () => {
-  assert.equal(pickFile(PACK, {
-    work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1991 },
-  }), null);
+test('pickFile com pack=true lança WorkPickError em trilogia sem ano no arquivo', () => {
+  // Poderoso Chefão Parte I/II/III: a listagem disse que é pack, mas os
+  // arquivos não têm anos distintos e pickWorkFile não consegue desempatar.
+  const godfather = [
+    f('The Godfather Part I.mkv', 4 * 1024 ** 3),
+    f('The Godfather Part II.mkv', 5 * 1024 ** 3),
+    f('The Godfather Part III.mkv', 3 * 1024 ** 3),
+  ];
+  assert.throws(
+    () => pickFile(godfather, { work: { names: ['O Poderoso Chefão', 'The Godfather'], year: 1972, pack: true } }),
+    (err) => isWorkPickError(err),
+  );
+});
+
+test('pickFile sem pack e sem anos toca o maior arquivo (não lança)', () => {
+  const encodes = [
+    f('Star Trek The Motion Picture 720p.mkv', 4 * 1024 ** 3),
+    f('Star Trek The Motion Picture 1080p.mkv', 8 * 1024 ** 3),
+  ];
+  const file = pickFile(encodes, { work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1979 } });
+  assert.equal(file.path, 'Star Trek The Motion Picture 1080p.mkv');
+});
+
+test('pickFile com pack=true e obra identificável pelo ano escolhe certo', () => {
+  const file = pickFile(PACK, {
+    work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1982, pack: true },
+  });
+  assert.equal(file.path, 'Jornada nas Estrelas II A Ira de Khan (1982) Dublado 1080p.mkv');
+});
+
+test('pickFile torrent sem vídeo devolve null (não lança WorkPickError)', () => {
+  assert.equal(pickFile([{ path: 'readme.txt', size: 100 }], {}), null);
+  assert.equal(pickFile([], {}), null);
 });

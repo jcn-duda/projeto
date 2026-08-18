@@ -68,3 +68,17 @@ test('dica de obra entra na assinatura; sem dica é compatível com URL antiga',
     assert.notEqual(sigComDica, sigSemDica);
   });
 });
+
+test('flag p (pack) entra na assinatura: {"p":1} difere de sem p', () => {
+  runtime.run({ opts: { ...runtime.defaults(), debridApiKey: 'chave-do-usuario' }, encoded: 'x' }, () => {
+    const hintBase = { n: ['Jornada nas Estrelas', 'Star Trek'], y: 1979 };
+    const hintPack = { ...hintBase, p: 1 };
+    const sigBase = signResolve(HASH, '', JSON.stringify(hintBase));
+    const sigPack = signResolve(HASH, '', JSON.stringify(hintPack));
+    assert.notEqual(sigBase, sigPack, 'assinatura com p:1 deve diferir da sem p');
+    // Verificação cruzada: cada uma só valida com a sua dica.
+    assert.equal(verifyResolve(HASH, '', sigPack, JSON.stringify(hintPack)), true);
+    assert.equal(verifyResolve(HASH, '', sigPack, JSON.stringify(hintBase)), false);
+    assert.equal(verifyResolve(HASH, '', sigBase, JSON.stringify(hintPack)), false);
+  });
+});

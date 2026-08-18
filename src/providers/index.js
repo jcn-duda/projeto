@@ -317,8 +317,12 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
   // Dica de obra (filme): viaja assinada na URL de play para o /resolve saber
   // QUAL arquivo escolher dentro de pack multi-obra. Sem dica a string assinada
   // é idêntica à antiga, então URLs já cacheadas continuam válidas.
-  const hintJson = workHint ? JSON.stringify(workHint) : '';
+  const baseHintJson = workHint ? JSON.stringify(workHint) : '';
   const viaDebrid = (s, instant) => {
+    // Pack multi-obra: o /resolve precisa saber que aqui NÃO vale cair no maior
+    // arquivo. Vai dentro da dica, então está coberto pela assinatura.
+    const hint = workHint && s._multiWork ? { ...workHint, p: 1 } : workHint;
+    const hintJson = hint ? JSON.stringify(hint) : '';
     // Assinatura cobre hash + temporada/episódio + dica: sem ela o /resolve
     // rejeita, então conhecer a PUBLIC_URL e um hash não basta pra gastar o
     // debrid — nem pra adulterar a escolha de arquivo.
@@ -618,6 +622,9 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
       const handle = setImmediate(async () => {
         try {
           await task();
+        } catch (err) {
+          // A fila é genérica: um task sem try/catch próprio derrubaria o processo.
+          log.warn('[search] tarefa tardia falhou:', err?.message || err);
         } finally {
           resolve();
         }

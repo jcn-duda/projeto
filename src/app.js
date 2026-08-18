@@ -4,6 +4,7 @@ const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const config = require('./config');
 const { findStreams } = require('./providers');
 const debrid = require('./debrid');
+const { isWorkPickError } = require('./debrid/common');
 const runtime = require('./runtime');
 const { verifyResolve } = require('./utils/sign');
 const jackettCatalog = require('./providers/jackett-catalog');
@@ -150,7 +151,7 @@ function createApp() {
       try {
         const parsed = JSON.parse(hint);
         const names = Array.isArray(parsed?.n) ? parsed.n.map(String).slice(0, 4) : [];
-        if (names.length) work = { names, year: Number(parsed.y) || null };
+        if (names.length) work = { names, year: Number(parsed.y) || null, pack: parsed.p === 1 };
       } catch { /* dica ilegível: trata como ausente */ }
     }
     try {
@@ -159,13 +160,12 @@ function createApp() {
         episode: req.query.e ? Number(req.query.e) : null,
         work,
       });
-      if (!link) {
-        return res.status(404).send(
-          work ? 'não foi possível identificar este filme dentro do pack' : 'nenhum arquivo de vídeo no torrent',
-        );
-      }
+      if (!link) return res.status(404).send('nenhum arquivo de vídeo no torrent');
       return res.redirect(302, link);
     } catch (err) {
+      if (isWorkPickError(err)) {
+        return res.status(404).send('não foi possível identificar este filme dentro do pack');
+      }
       log.error('[resolve]', err.message);
       return res.status(502).send('falha ao resolver no debrid');
     }

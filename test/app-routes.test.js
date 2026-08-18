@@ -9,6 +9,7 @@ process.env.CACHE_PERSIST = 'false';
 const { createApp } = require('../src/app');
 const config = require('../src/config');
 const debrid = require('../src/debrid');
+const { WorkPickError } = require('../src/debrid/common');
 const cache = require('../src/utils/cache');
 const {
   createTestServer,
@@ -201,6 +202,23 @@ test('/resolve devolve 502 quando o debrid lança e 404 quando não há vídeo',
     const semVideo = await server.request('GET', `/${cfg}/resolve/${HASH}?sig=${sig}`);
     assert.equal(semVideo.status, 404);
     assert.equal(semVideo.text, 'nenhum arquivo de vídeo no torrent');
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+  }
+});
+
+test('/resolve devolve 404 com mensagem de pack quando pickFile lança WorkPickError', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hint = JSON.stringify({ n: ['O Poderoso Chefão', 'The Godfather'], y: 1972, p: 1 });
+  // A assinatura cobre a dica CRUA (não URL-encoded).
+  const sig = hmacSig('fake-key', `${HASH}&w=${hint}`);
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    FAKE_ADAPTER.resolveLink = async () => { throw new WorkPickError(); };
+    const res = await server.request('GET', `/${cfg}/resolve/${HASH}?w=${encodeURIComponent(hint)}&sig=${sig}`);
+    assert.equal(res.status, 404);
+    assert.equal(res.text, 'não foi possível identificar este filme dentro do pack');
   } finally {
     FAKE_ADAPTER.resolveLink = originalResolve;
   }

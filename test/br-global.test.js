@@ -126,3 +126,64 @@ test('dedupeByHash: empate de seeders fica com a listagem dublada', () => {
   const [winner] = dedupeByHash([{ ...pt, _seeders: 2 }, { ...en, _seeders: 9 }]);
   assert.equal(winner._br, false);
 });
+
+test('isMultiWorkCollection: palavra forte dispensa faixa de anos', () => {
+  assert.equal(isMultiWorkCollection('De Volta Para o Futuro Trilogia - [BluRay 720p Dublado]'), true);
+  assert.equal(isMultiWorkCollection('Coleção Velozes e Furiosos bluray 1080p dublado'), true);
+  assert.equal(isMultiWorkCollection('Colecao Harry Potter Dublado'), true);
+  assert.equal(isMultiWorkCollection('TRILOGIA MATRIX DUBLADO PT-BR avi'), true);
+  // Palavras fracas continuam exigindo faixa de anos.
+  assert.equal(isMultiWorkCollection('Star Trek Todas as Temporadas'), false);
+  assert.equal(isMultiWorkCollection('Star Trek 1979 1080p BluRay'), false);
+});
+
+test('isMultiWorkCollection: saga NÃO é palavra forte — "A Saga Crepúsculo" é filme único', () => {
+  assert.equal(isMultiWorkCollection('A Saga Crepusculo Amanhecer Parte 1 RMVB Dublado'), false);
+  assert.equal(isMultiWorkCollection('Saga Crepusculo Dublado 1080p'), false);
+  // Mas saga com faixa de anos continua pegando (regra fraca).
+  assert.equal(isMultiWorkCollection('Saga Crepusculo 2008-2012 Dublado'), true);
+});
+
+test('_multiWork sobrevive ao dedupeByHash quando o vencedor troca', () => {
+  const pack = {
+    infoHash: HASH_A, _seeders: 3, _br: true, _dubbed: true,
+    _indexer: 'kickasstorrents', _tracker: 'kickasstorrents', _quality: '1080p',
+    _size: 40 * 1024 ** 3, name: 'Trilogia Dublado', _multiWork: true,
+  };
+  const global = {
+    infoHash: HASH_A, _seeders: 5, _br: false, _dubbed: false,
+    _indexer: 'thepiratebay', _tracker: 'thepiratebay', _quality: '1080p',
+    _size: 40 * 1024 ** 3, name: 'Trilogy EN', _multiWork: false,
+  };
+  // Vencedor por seeders: o _multiWork do perdedor é perdido (winner-take-all,
+  // consistente com _br/_dubbed).
+  const [merged1] = dedupeByHash([pack, global]);
+  assert.equal(merged1._multiWork, false);
+  // Vencedor por dublado: o _multiWork do vencedor sobrevive.
+  const [merged2] = dedupeByHash([{ ...pack, _seeders: 10 }, { ...global, _seeders: 5 }]);
+  assert.equal(merged2._multiWork, true);
+});
+
+test('toStremioStream marca _multiWork em pack detectado', () => {
+  const stream = toStremioStream({
+    title: 'De Volta Para o Futuro Trilogia - [BluRay 720p Dublado]',
+    magnet: `magnet:?xt=urn:btih:${HASH_A}`,
+    seeders: 5,
+    size: 40 * 1024 ** 3,
+    indexer: 'thepiratebay',
+    isBr: false,
+  });
+  assert.equal(stream._multiWork, true);
+  assert.equal(stream._br, true);
+
+  // Filme único não marca.
+  const plain = toStremioStream({
+    title: 'Star Trek The Motion Picture 1979 1080p BluRay x264',
+    magnet: `magnet:?xt=urn:btih:${HASH_A}`,
+    seeders: 5,
+    size: 8 * 1024 ** 3,
+    indexer: 'thepiratebay',
+    isBr: false,
+  });
+  assert.equal(plain._multiWork, false);
+});

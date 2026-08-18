@@ -409,6 +409,9 @@ function toStremioStream(item) {
     _tracker: tracker,
     // ID estável do indexer (não o label mutável) para o desempate de prioridade.
     _indexer: String(item.indexer || tracker || '').trim().toLowerCase(),
+    // Pack multi-obra detectado pelo título da listagem: o /resolve precisa
+    // saber que aqui NÃO vale cair no maior arquivo.
+    _multiWork: isMultiWorkCollection(title),
   };
 }
 
@@ -702,6 +705,16 @@ function matchesBrTitle(title, name, year = null, { isSeries = false, allNames =
 // separaria os dois anos.
 const YEAR_RANGE = /\b(?:19|20)\d{2}\s*(?:-|–|—|de|a|ate|até)\s*(?:19|20)\d{2}\b/i;
 
+// Palavras que sozinhas já significam "mais de uma obra". Medido em 240
+// títulos reais de tracker global: pegam 10 packs que a faixa de anos não
+// pegava, com zero falso positivo.
+//
+// `saga` fica FORA de propósito: "A Saga Crepúsculo" é o nome do filme —
+// 23 de 29 resultados reais de "Crepúsculo Dublado" seriam retidos por engano.
+const STRONG_PACK_WORDS = new Set(
+  'trilogia duologia quadrilogia pentalogia colecao coletanea antologia'.split(' '),
+);
+
 /**
  * Título de coleção com mais de uma obra (pack de filmes). Serve à guarda de
  * listagem: sem debrid o play acontece direto no cliente, que escolhe o MAIOR
@@ -710,8 +723,12 @@ const YEAR_RANGE = /\b(?:19|20)\d{2}\s*(?:-|–|—|de|a|ate|até)\s*(?:19|20)\d
  */
 function isMultiWorkCollection(title = '') {
   const raw = String(title);
+  const tokens = normalizeTitle(raw).split(' ');
+  if (tokens.some((t) => STRONG_PACK_WORDS.has(t))) return true;
+  // Palavra fraca ("todos", "filmes", "completa") só conta com faixa de anos:
+  // sozinha ela também aparece em "Todas as Temporadas" e em edição especial.
   if (!YEAR_RANGE.test(raw)) return false;
-  return normalizeTitle(raw).split(' ').some((token) => PACK_WORDS.has(token));
+  return tokens.some((token) => PACK_WORDS.has(token));
 }
 
 /**
@@ -1396,7 +1413,7 @@ function limitReservingBr(
   }
 
   return selected
-    .map(({ _br, _seeders, _quality, _size, _dubbed, _indexer, _tracker, ...stream }) => stream);
+    .map(({ _br, _seeders, _quality, _size, _dubbed, _indexer, _tracker, _multiWork, ...stream }) => stream);
 }
 
 function sortAndLimit(
