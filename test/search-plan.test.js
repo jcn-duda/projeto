@@ -277,3 +277,22 @@ test('ptSweepQueryFor série sem activePtQuery devolve null (pt === original)', 
     null,
   );
 });
+
+test('ptSweepQuery corta marcador de sequência para achar a coleção da franquia', () => {
+  // O caso real: o dublado da continuação só existe dentro do pack
+  // "Jornada Nas Estrelas (Todos os filmes 1979-2016)". Medido nos globais:
+  // "Jornada nas Estrelas II" devolve 0 resultados, "Jornada nas Estrelas" 14.
+  assert.equal(ptSweepQuery('Jornada nas Estrelas II: A Ira de Khan'), 'Jornada nas Estrelas');
+  assert.equal(ptSweepQuery('De Volta para o Futuro 2'), 'De Volta para o Futuro');
+  assert.equal(ptSweepQuery('O Poderoso Chefão Parte II'), 'O Poderoso Chefão');
+  assert.equal(ptSweepQuery('O Senhor dos Anéis III: O Retorno do Rei'), 'O Senhor dos Anéis');
+});
+
+test('ptSweepQuery preserva número que é o nome da obra', () => {
+  // Mesma trava de 2+ palavras do subtítulo: cortar deixaria "Distrito", que
+  // não é o título de nada. O número aqui não marca sequência.
+  assert.equal(ptSweepQuery('Distrito 9'), 'Distrito 9');
+  assert.equal(ptSweepQuery('Onze Homens e um Segredo'), 'Onze Homens e um Segredo');
+  // Ano de 4 dígitos não é marcador de sequência.
+  assert.equal(ptSweepQuery('Blade Runner 2049'), 'Blade Runner 2049');
+});

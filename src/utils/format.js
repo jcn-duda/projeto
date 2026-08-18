@@ -703,7 +703,12 @@ function matchesBrTitle(title, name, year = null, { isSeries = false, allNames =
 // Faixa de anos descreve COLEÇÃO multi-obra: "Todos os filmes 1979-2016".
 // Testada no título cru: a normalização transforma o hífen em espaço e
 // separaria os dois anos.
-const YEAR_RANGE = /\b(?:19|20)\d{2}\s*(?:-|–|—|de|a|ate|até)\s*(?:19|20)\d{2}\b/i;
+//
+// O separador aceita hífen/travessão, vírgula, palavra ("de 1979 a 2016") ou
+// só espaço: o MESMO pack aparece como "1979-2016" no thepiratebay e
+// "1979 2016" no 1337x, e sem isso o mesmo hash era pack num tracker e filme
+// comum no outro — com o play caindo no caminho permissivo justamente lá.
+const YEAR_RANGE = /\b(?:19|20)\d{2}(?:\s*[-–—,]\s*|\s+(?:de|a|ate|até)\s+|\s+)(?:19|20)\d{2}\b/i;
 
 // Palavras que sozinhas já significam "mais de uma obra". Cobre pt-BR E inglês,
 // medido em 2.551 títulos reais: pegam os packs que a faixa de anos não pega,

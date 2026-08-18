@@ -200,3 +200,17 @@ test('toStremioStream marca _multiWork em pack detectado', () => {
   });
   assert.equal(plain._multiWork, false);
 });
+
+test('isMultiWorkCollection aceita faixa de anos sem hífen', () => {
+  // O MESMO pack aparece "1979-2016" no thepiratebay e "1979 2016" no 1337x.
+  // Sem isso o mesmo hash era pack num tracker e filme comum no outro, e o
+  // play caía no caminho permissivo justamente lá.
+  assert.equal(isMultiWorkCollection('Jornada Nas Estrelas (Todos os filmes 1979 2016) Dublado'), true);
+  assert.equal(isMultiWorkCollection('Jornada Nas Estrelas (Todos os filmes 1979-2016) Dublado'), true);
+  assert.equal(isMultiWorkCollection('Coleção Filmes 1990, 2010'), true);
+  assert.equal(isMultiWorkCollection('Pacote Filmes de 1990 a 2010'), true);
+  // Um ano só continua não sendo faixa.
+  assert.equal(isMultiWorkCollection('Star Trek 1979 1080p BluRay'), false);
+  // Ano seguido de resolução não vira faixa.
+  assert.equal(isMultiWorkCollection('Todos os filmes 2016 1080p'), false);
+});
