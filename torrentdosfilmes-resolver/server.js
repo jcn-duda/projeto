@@ -1,4 +1,5 @@
 const http = require('node:http');
+const { createHash } = require('node:crypto');
 
 const PORT = Number(process.env.PORT || 8703);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -284,6 +285,35 @@ function nextProtectedUrl(html, baseUrl) {
   return null;
 }
 
+// Post de índice/lista que expande dezenas de opções de 1 KB e inunda o
+// Manual Search (ex.: "Lista De Filmes – Ação, Terror, Aventura...").
+// Conservadora de propósito: só casa quando o TÍTULO COMEÇA como um índice e
+// nomeia uma categoria de mídia. "A Lista de Schindler" (começa com "a") ou
+// um título que apenas contém "lista" no meio passam intactos.
+function isGenericListPost(title = '') {
+  if (!title) return false;
+  const clean = String(title)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[–\-—/|:&+,–.()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!/^(lista|listao|indice)/.test(clean)) return false;
+  const categories = [
+    'filme', 'filmes', 'serie', 'series', 'anime', 'animes', 'desenho', 'desenhos',
+    'documentario', 'documentarios', 'temporada', 'temporadas', 'dorama', 'doramas',
+    'jogo', 'jogos', 'musica', 'musicas', 'categoria', 'categorias', 'todo', 'todos',
+    'toda', 'todas', 'tudo', 'geral', 'completa', 'completo',
+  ].join('|');
+  const match = clean.match(new RegExp(`^(lista|listao|indice)\\s+de\\s+(${categories})\\b(.*)$`));
+  if (!match) return false;
+  // "Lista de Filmes do Cliente" pode ser um título/curadoria específica;
+  // um índice genérico costuma terminar na categoria ou continuar com uma
+  // enumeração de gêneros, nunca com um qualificador possessivo.
+  return !/^(?:do|da|dos|das|de)\b/.test(match[3].trim());
+}
+
 function parsePosts(html) {
   const posts = [];
   const title = /<div\b[^>]*class=["'][^"']*\btitle\b[^"']*["'][^>]*>\s*<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
@@ -291,7 +321,9 @@ function parsePosts(html) {
   while ((match = title.exec(html))) {
     const url = attribute(match[1], 'href');
     if (!url) continue;
-    posts.push({ url: new URL(decodeEntities(url), siteSelector.url()).href, title: stripTags(attribute(match[1], 'title') || match[2]) });
+    const title = stripTags(attribute(match[1], 'title') || match[2]);
+    if (isGenericListPost(title)) continue;
+    posts.push({ url: new URL(decodeEntities(url), siteSelector.url()).href, title });
   }
   return [...new Map(posts.map((post) => [post.url, post])).values()];
 }
@@ -446,6 +478,26 @@ function scoreLink(link) {
   return audio + source + Number(link.quality || 0);
 }
 
+function buttonId(link) {
+  return createHash('sha1').update(String(link?.url || '')).digest('hex').slice(0, 10);
+}
+
+function pickButton(links, index, hash, count) {
+  if (hash) {
+    const found = links.find((link) => buttonId(link) === hash);
+    if (found) return found;
+    if (count != null && links.length !== Number(count)) return null;
+  }
+  return links[index] ?? null;
+}
+
+async function resolveButton(postUrl, index, hash, count) {
+  const { post, links } = await getPostLinks(postUrl);
+  const link = pickButton(links, index, hash, count);
+  if (!link) throw new Error('no_such_button');
+  return fetchFollowingAllowed(link.url, post.href);
+}
+
 async function resolveBest(postUrl) {
   const { post, links } = await getPostLinks(postUrl);
   let lastError;
@@ -495,9 +547,50 @@ function releaseTitle(post, link, index = null) {
   return tags.length ? `${base} [${tags.join(' ')}]` : base;
 }
 
+function normalizeFilterText(s = '') {
+  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function stripTrailingYears(tokens) {
+  const out = tokens.slice();
+  if (out.length >= 2 && /^\d{4}$/.test(out[out.length - 1])) out.pop();
+  return out;
+}
+
+function computeWantedTokens(query) {
+  const all = stripTrailingYears(normalizeFilterText(query).split(' ').filter(Boolean));
+  const long = all.filter((w) => w.length > 2);
+  return long.length >= 2 ? long : all;
+}
+
+function matchesResolverQuery(post, query) {
+  const wanted = computeWantedTokens(query);
+  if (wanted.length === 0) return true;
+  const got = new Set(normalizeFilterText(post.title).split(' ').filter(Boolean));
+  return wanted.filter((w) => got.has(w)).length / wanted.length >= 0.6;
+}
+
+function normalizeSeasonValue(value) {
+  const n = Number(Array.isArray(value) ? value[1] : value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function matchesSeasonSeason(post, requestedSeason) {
+  const wantedSeason = normalizeSeasonValue(requestedSeason);
+  if (wantedSeason == null) return true;
+  const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
+  return !season || Number(season[1] || season[2]) === wantedSeason;
+}
+
+function selectSearchPosts(sourceHtml, query, requestedSeason) {
+  let posts = parsePosts(sourceHtml).filter((post) => matchesResolverQuery(post, query));
+  if (requestedSeason) posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
+  return posts.slice(0, MAX_POSTS);
+}
+
 function searchPageHtml(items) {
-  const rows = items.map(({ post, link, index }) => {
-    const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
+  const rows = items.map(({ post, link, index, count }) => {
+    const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
     // O Jackett descarta QUALQUER release sem tamanho ("No size provided"), e
     // "0 B" não casa o filtro de `size` do cardigann — era assim que os posts de
     // pack (que não publicam tamanho por botão) perdiam ~50 releases de uma vez.
@@ -513,12 +606,40 @@ function capsXml() {
 }
 
 function rssXml(items, category) {
-  const body = items.map(({ post, link, index }) => {
-    const download = `${SELF_URL}/dl?url=${encodeURIComponent(post.url)}&i=${index}`;
+  const body = items.map(({ post, link, index, count }) => {
+    const download = `${SELF_URL}/dl?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
     const size = parseSize(link.size) || 0;
     return `<item><title>${escapeXml(releaseTitle(post, link))}</title><guid isPermaLink="false">${escapeXml(download)}</guid><link>${escapeXml(download)}</link><comments>${escapeXml(post.url)}</comments><pubDate>${new Date().toUTCString()}</pubDate><size>${size}</size><category>${category}</category><enclosure url="${escapeXml(download)}" type="application/x-bittorrent" length="${size}"/><torznab:attr name="category" value="${category}"/><torznab:attr name="size" value="${size}"/><torznab:attr name="seeders" value="1"/><torznab:attr name="peers" value="1"/><torznab:attr name="downloadvolumefactor" value="0"/><torznab:attr name="uploadvolumefactor" value="1"/></item>`;
   }).join('');
   return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel><title>TorrentDosFilmes V2</title>${body}</channel></rss>`;
+}
+
+// O download.before do cardigann encoda a href inteira no param url — e a
+// href já é um /resolve nosso, então o alvo real vem aninhado. Desempacota
+// quantos níveis vierem, carregando i/h/n do nível mais interno que os
+// declarar. `seed` são os params da requisição externa: chamada direta
+// (/resolve?url=<post>&i=0&h=..) não tem nível interno de onde ler.
+// Sem checar a origem: o host varia (`addon` embutido vs. nome do
+// container), e o alvo final passa por assertAllowedUrl de todo jeito.
+function unwrapResolverUrl(value, seed = {}) {
+  let url = value;
+  let index = seed.index ?? null;
+  let hash = seed.hash ?? null;
+  let count = seed.count ?? null;
+  for (let hop = 0; hop < 3; hop += 1) {
+    let inner;
+    try {
+      inner = new URL(url, SELF_URL);
+    } catch {
+      break;
+    }
+    if (inner.pathname !== '/resolve' || !inner.searchParams.get('url')) break;
+    url = inner.searchParams.get('url');
+    index = inner.searchParams.get('i') ?? index;
+    hash = inner.searchParams.get('h') ?? hash;
+    count = inner.searchParams.get('n') ?? count;
+  }
+  return { url, index, hash, count };
 }
 
 function reply(response, status, body, type = 'text/plain; charset=utf-8') {
@@ -530,18 +651,22 @@ function reply(response, status, body, type = 'text/plain; charset=utf-8') {
 // o streak; erro de rede (DNS/conexão/timeout) acumula e pode disparar o
 // probe. Comum aos dois modos (/api torznab e /search cardigann), que antes
 // repetiam o mesmo fetch inline.
-async function searchPosts(query) {
+async function searchPosts(query, requestedSeason) {
+  const rawQuery = String(query || '');
+  const season = requestedSeason ?? rawQuery.match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
+  const normalized = rawQuery.replace(/\b[sS]\d{1,2}(?:[eE]\d{1,2})?\b/g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!normalized) return { posts: [], items: [] };
   try {
-    const search = await fetch(`${siteSelector.url()}/?s=${encodeURIComponent(query)}`, {
+    const search = await fetch(`${siteSelector.url()}/?s=${encodeURIComponent(normalized)}`, {
       headers: { 'User-Agent': USER_AGENT },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!search.ok) throw new Error(`http_${search.status}`);
     siteSelector.noteSuccess();
-    const posts = parsePosts(await search.text()).slice(0, MAX_POSTS);
+    const posts = selectSearchPosts(await search.text(), normalized, season);
     const chunks = await mapLimit(posts, async (post) => {
       const { links } = await getPostLinks(post.url);
-      return links.map((link, index) => ({ post, link, index }));
+      return links.map((link, index) => ({ post, link, index, count: links.length }));
     });
     return { posts, items: chunks.flat() };
   } catch (err) {
@@ -558,9 +683,9 @@ async function handleRequest(request, response) {
     const type = url.searchParams.get('t') || 'caps';
     if (type === 'caps') return reply(response, 200, capsXml(), 'application/xml; charset=utf-8');
     if (!['search', 'movie', 'tvsearch'].includes(type)) return reply(response, 400, 'unsupported_t');
-    const query = String(url.searchParams.get('q') || '').replace(/[sS]\d{1,2}(?:[eE]\d{1,2})?/g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
+    const query = String(url.searchParams.get('q') || '');
     const category = type === 'tvsearch' ? 5000 : 2000;
-    if (!query) return reply(response, 200, rssXml([], category), 'application/xml; charset=utf-8');
+    if (!query.trim()) return reply(response, 200, rssXml([], category), 'application/xml; charset=utf-8');
     try {
       const { posts, items } = await searchPosts(query);
       console.log(`[api] ${posts.length} post(s) -> ${items.length} release(s)`);
@@ -570,8 +695,8 @@ async function handleRequest(request, response) {
     }
   }
   if (url.pathname === '/search') {
-    const query = String(url.searchParams.get('q') || '').replace(/[sS]\d{1,2}(?:[eE]\d{1,2})?/g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!query) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
+    const query = String(url.searchParams.get('q') || '');
+    if (!query.trim()) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
     try {
       const { posts, items } = await searchPosts(query);
       console.log(`[search] ${posts.length} post(s) -> ${items.length} release(s)`);
@@ -584,28 +709,17 @@ async function handleRequest(request, response) {
     let postUrl = url.searchParams.get('url');
     if (!postUrl || postUrl.length > 4096) return reply(response, 400, 'invalid_url');
     try {
-      let index = url.searchParams.get('i');
-      // O `download:` do cardigann prefixa /resolve num href que JÁ é /resolve;
-      // desempacota quantos níveis vierem. Sem checar a origem: o host varia
-      // (`addon` embutido vs. nome do container), e o alvo final passa por
-      // assertAllowedUrl de todo jeito.
-      for (let hop = 0; hop < 3; hop += 1) {
-        let inner;
-        try {
-          inner = new URL(postUrl, SELF_URL);
-        } catch {
-          break;
-        }
-        if (inner.pathname !== '/resolve' || !inner.searchParams.get('url')) break;
-        postUrl = inner.searchParams.get('url');
-        index = inner.searchParams.get('i') ?? index;
-      }
+      const unwrapped = unwrapResolverUrl(postUrl, {
+        index: url.searchParams.get('i'),
+        hash: url.searchParams.get('h'),
+        count: url.searchParams.get('n'),
+      });
+      postUrl = unwrapped.url;
+      const { index, hash, count } = unwrapped;
       const button = index == null ? null : Number(index);
       if (button != null && (!Number.isInteger(button) || button < 0)) throw new Error('invalid_index');
       if (button == null) return reply(response, 200, await resolveBest(postUrl));
-      const { post, links } = await getPostLinks(postUrl);
-      if (!links[button]) throw new Error('no_such_button');
-      return reply(response, 200, await fetchFollowingAllowed(links[button].url, post.href));
+      return reply(response, 200, await resolveButton(postUrl, button, hash, count));
     } catch (error) {
       return reply(response, 502, error.message);
     }
@@ -615,10 +729,7 @@ async function handleRequest(request, response) {
     const index = Number(url.searchParams.get('i'));
     if (!postUrl || postUrl.length > 4096 || !Number.isInteger(index) || index < 0) return reply(response, 400, 'invalid_params');
     try {
-      const { post, links } = await getPostLinks(postUrl);
-      const link = links[index];
-      if (!link) throw new Error('no_such_button');
-      response.writeHead(302, { Location: await fetchFollowingAllowed(link.url, post.href), 'Cache-Control': 'no-store' });
+      response.writeHead(302, { Location: await resolveButton(postUrl, index, url.searchParams.get('h'), url.searchParams.get('n')), 'Cache-Control': 'no-store' });
       return response.end();
     } catch (error) {
       return reply(response, 502, error.message);
@@ -654,6 +765,18 @@ module.exports = {
   isProtectorHost,
   searchPosts,
   getPostLinks,
+  resolveButton,
+  buttonId,
+  pickButton,
+  unwrapResolverUrl,
+  isGenericListPost,
+  normalizeFilterText,
+  stripTrailingYears,
+  computeWantedTokens,
+  matchesResolverQuery,
+  normalizeSeasonValue,
+  matchesSeasonSeason,
+  selectSearchPosts,
   fetchFollowingAllowed,
   siteSelector,
   createSiteSelector,

@@ -1,4 +1,5 @@
 const http = require('node:http');
+const { createHash } = require('node:crypto');
 
 const PORT = Number(process.env.PORT || 8702);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -355,6 +356,35 @@ function normalizeSource(value) {
 }
 
 /** Resultados da busca WordPress: article.col > .item > .image > a. */
+// Post de índice/lista que expande dezenas de opções de 1 KB e inunda o
+// Manual Search (ex.: "Lista De Filmes – Ação, Terror, Aventura...").
+// Conservadora de propósito: só casa quando o TÍTULO COMEÇA como um índice e
+// nomeia uma categoria de mídia. "A Lista de Schindler" (começa com "a") ou
+// um título que apenas contém "lista" no meio passam intactos.
+function isGenericListPost(title = '') {
+  if (!title) return false;
+  const clean = String(title)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[–\-—/|:&+,–.()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!/^(lista|listao|indice)/.test(clean)) return false;
+  const categories = [
+    'filme', 'filmes', 'serie', 'series', 'anime', 'animes', 'desenho', 'desenhos',
+    'documentario', 'documentarios', 'temporada', 'temporadas', 'dorama', 'doramas',
+    'jogo', 'jogos', 'musica', 'musicas', 'categoria', 'categorias', 'todo', 'todos',
+    'toda', 'todas', 'tudo', 'geral', 'completa', 'completo',
+  ].join('|');
+  const match = clean.match(new RegExp(`^(lista|listao|indice)\\s+de\\s+(${categories})\\b(.*)$`));
+  if (!match) return false;
+  // "Lista de Filmes do Cliente" pode ser um título/curadoria específica;
+  // um índice genérico costuma terminar na categoria ou continuar com uma
+  // enumeração de gêneros, nunca com um qualificador possessivo.
+  return !/^(?:do|da|dos|das|de)\b/.test(match[3].trim());
+}
+
 function parsePosts(html) {
   const posts = [];
   const article = /<article\b[^>]*class=["'][^"']*\bcol\b[^"']*["'][^>]*>([\s\S]*?)<\/article>/gi;
@@ -366,8 +396,9 @@ function parsePosts(html) {
     const anchor = image?.[1].match(/<a\b[^>]*>/i);
     const url = anchor ? attribute(anchor[0], 'href') : null;
     const title = anchor ? attribute(anchor[0], 'title') : null;
-    if (url && title && !posts.some((post) => post.url === url)) {
-      posts.push({ url, title: stripTags(title) });
+    const clean = title ? stripTags(title) : null;
+    if (url && clean && !isGenericListPost(clean) && !posts.some((post) => post.url === url)) {
+      posts.push({ url, title: clean });
     }
   }
   return posts;
@@ -448,6 +479,19 @@ function matchesSeasonSeason(post, requestedSeason) {
   if (wantedSeason == null) return true;
   const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
   return !season || Number(season[1] || season[2]) === wantedSeason;
+}
+
+function buttonId(link) {
+  return createHash('sha1').update(String(link?.url || '')).digest('hex').slice(0, 10);
+}
+
+function pickButton(links, index, hash, count) {
+  if (hash) {
+    const found = links.find((link) => buttonId(link) === hash);
+    if (found) return found;
+    if (count != null && links.length !== Number(count)) return null;
+  }
+  return links[index] ?? null;
 }
 
 // Scheme de URI é case-insensitive (RFC 3986) e o site pode publicar MAGNET:.
@@ -661,10 +705,10 @@ async function resolveBest(postUrl) {
   });
 }
 
-async function resolveButton(postUrl, index) {
-  return cached(`magnet:${postUrl}:${index}`, MAGNET_CACHE_MS, async () => {
+async function resolveButton(postUrl, index, hash, count) {
+  return cached(hash ? `magnet:${postUrl}:${index}:${hash}` : `magnet:${postUrl}:${index}`, MAGNET_CACHE_MS, async () => {
     const { post, links } = await getPostLinks(postUrl);
-    const link = links[index];
+    const link = pickButton(links, index, hash, count);
     if (!link) throw new Error('no_such_button');
     return fetchFollowingAllowed(link.url, post.href);
   });
@@ -709,7 +753,7 @@ async function searchPipeline(sourceHtml, query, requestedSeason) {
   const posts = selectSearchPosts(sourceHtml, query, requestedSeason);
   const chunks = await mapLimit(posts, CONCURRENCY, async (post) => {
     const { links, date } = await getPostLinks(post.url);
-    return links.map((link, index) => ({ post: { ...post, date }, link, index }));
+      return links.map((link, index) => ({ post: { ...post, date }, link, index, count: links.length }));
   });
   return { posts, items: chunks.flat() };
 }
@@ -739,8 +783,8 @@ function releaseTitle(postTitle, link, index = null) {
 
 function searchPageHtml(items) {
   const rows = items
-    .map(({ post, link, index }) => {
-      const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
+    .map(({ post, link, index, count }) => {
+      const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
       // O Jackett descarta QUALQUER release sem tamanho ("No size provided"), e
       // "0 B" não casa o filtro de `size` do cardigann. UNKNOWN_SIZE satisfaz o
       // Jackett e o addon o esconde em vez de exibir um tamanho inventado.
@@ -776,8 +820,8 @@ function capsXml() {
 
 function rssXml(items, category) {
   const body = items
-    .map(({ post, link, index }) => {
-      const download = `${SELF_URL}/dl?url=${encodeURIComponent(post.url)}&i=${index}`;
+    .map(({ post, link, index, count }) => {
+      const download = `${SELF_URL}/dl?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
       const size = parseSize(link.size) || 0;
       return `    <item>
       <title>${escapeXml(releaseTitle(post.title, link))}</title>
@@ -803,6 +847,34 @@ function rssXml(items, category) {
 ${body}
   </channel>
 </rss>`;
+}
+
+// O download.before do cardigann encoda a href inteira no param url — e a
+// href já é um /resolve nosso, então o alvo real vem aninhado. Desempacota
+// quantos níveis vierem, carregando i/h/n do nível mais interno que os
+// declarar. `seed` são os params da requisição externa: chamada direta
+// (/resolve?url=<post>&i=0&h=..) não tem nível interno de onde ler.
+// Sem checar a origem: o host varia (`addon` embutido vs. nome do
+// container), e o alvo final passa por assertAllowedUrl de todo jeito.
+function unwrapResolverUrl(value, seed = {}) {
+  let url = value;
+  let index = seed.index ?? null;
+  let hash = seed.hash ?? null;
+  let count = seed.count ?? null;
+  for (let hop = 0; hop < 3; hop += 1) {
+    let inner;
+    try {
+      inner = new URL(url, SELF_URL);
+    } catch {
+      break;
+    }
+    if (inner.pathname !== '/resolve' || !inner.searchParams.get('url')) break;
+    url = inner.searchParams.get('url');
+    index = inner.searchParams.get('i') ?? index;
+    hash = inner.searchParams.get('h') ?? hash;
+    count = inner.searchParams.get('n') ?? count;
+  }
+  return { url, index, hash, count };
 }
 
 function reply(response, status, body, type = 'text/plain; charset=utf-8') {
@@ -891,25 +963,16 @@ function createServer() {
       let postUrl = url.searchParams.get('url');
       if (!postUrl || postUrl.length > 4096) return reply(response, 400, 'invalid_url');
       try {
-        let index = url.searchParams.get('i');
-        // O `download:` do cardigann prefixa /resolve num href que JÁ é
-        // /resolve; desempacota quantos níveis vierem. Sem checar a origem: o
-        // host varia (`addon` embutido vs. nome do container), e o alvo final
-        // passa por assertAllowedUrl de todo jeito.
-        for (let hop = 0; hop < 3; hop += 1) {
-          let inner;
-          try {
-            inner = new URL(postUrl, SELF_URL);
-          } catch {
-            break;
-          }
-          if (inner.pathname !== '/resolve' || !inner.searchParams.get('url')) break;
-          postUrl = inner.searchParams.get('url');
-          index = inner.searchParams.get('i') ?? index;
-        }
+        const unwrapped = unwrapResolverUrl(postUrl, {
+          index: url.searchParams.get('i'),
+          hash: url.searchParams.get('h'),
+          count: url.searchParams.get('n'),
+        });
+        postUrl = unwrapped.url;
+        const { index, hash, count } = unwrapped;
         const button = index == null ? null : Number(index);
         if (button != null && (!Number.isInteger(button) || button < 0)) throw new Error('invalid_index');
-        return reply(response, 200, button == null ? await resolveBest(postUrl) : await resolveButton(postUrl, button));
+        return reply(response, 200, button == null ? await resolveBest(postUrl) : await resolveButton(postUrl, button, hash, count));
       } catch (error) {
         return reply(response, 502, error.message);
       }
@@ -921,7 +984,7 @@ function createServer() {
         return reply(response, 400, 'invalid_params');
       }
       try {
-        const magnet = await resolveButton(postUrl, index);
+        const magnet = await resolveButton(postUrl, index, url.searchParams.get('h'), url.searchParams.get('n'));
         response.writeHead(302, { Location: magnet, 'Cache-Control': 'no-store' });
         return response.end();
       } catch (error) {
@@ -965,6 +1028,10 @@ module.exports = {
   normalizeSeasonValue,
   matchesSeasonSeason,
   selectSearchPosts,
+  buttonId,
+  pickButton,
+  unwrapResolverUrl,
+  isGenericListPost,
   cache,
   inFlight,
 };

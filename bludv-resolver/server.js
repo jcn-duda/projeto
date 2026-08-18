@@ -1,4 +1,5 @@
 const http = require('node:http');
+const { createHash } = require('node:crypto');
 
 const PORT = Number(process.env.PORT || 8700);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -764,8 +765,8 @@ async function resolvePost(postUrl, prefs = {}) {
  * posição). SEM fallback: o índice identifica um botão específico — cair para
  * outro devolveria o torrent errado pro item que o Jackett listou.
  */
-async function resolveButton(postUrl, index) {
-  const cacheKey = `magnet:${postUrl}:${index}`;
+async function resolveButton(postUrl, index, hash, count) {
+  const cacheKey = hash ? `magnet:${postUrl}:${index}:${hash}` : `magnet:${postUrl}:${index}`;
 
   const hit = magnetCache.get(cacheKey);
   if (hit && hit.expiresAt > Date.now()) {
@@ -778,7 +779,7 @@ async function resolveButton(postUrl, index) {
 
   const task = (async () => {
     const { post, links } = await getPostLinks(postUrl);
-    const link = links[index];
+    const link = pickButton(links, index, hash, count);
     if (!link) throw new Error('no_such_button');
     console.log(`[dl] botão ${index} → ${link.quality || '?'}p ${link.audio} ${link.size || ''} ${post.pathname}`);
     const magnet = await fetchFollowingAllowed(link.url, post.href);
@@ -809,6 +810,35 @@ function escapeHtml(value = '') {
 
 /** Cards da página de busca: div.post > div.title > a + bloco .content com
  * poster (img), "Título Original" e a data de .icon .infos. */
+// Post de índice/lista que expande dezenas de opções de 1 KB e inunda o
+// Manual Search (ex.: "Lista De Filmes – Ação, Terror, Aventura...").
+// Conservadora de propósito: só casa quando o TÍTULO COMEÇA como um índice e
+// nomeia uma categoria de mídia. "A Lista de Schindler" (começa com "a") ou
+// um título que apenas contém "lista" no meio passam intactos.
+function isGenericListPost(title = '') {
+  if (!title) return false;
+  const clean = String(title)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[–\-—/|:&+,–.()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!/^(lista|listao|indice)/.test(clean)) return false;
+  const categories = [
+    'filme', 'filmes', 'serie', 'series', 'anime', 'animes', 'desenho', 'desenhos',
+    'documentario', 'documentarios', 'temporada', 'temporadas', 'dorama', 'doramas',
+    'jogo', 'jogos', 'musica', 'musicas', 'categoria', 'categorias', 'todo', 'todos',
+    'toda', 'todas', 'tudo', 'geral', 'completa', 'completo',
+  ].join('|');
+  const match = clean.match(new RegExp(`^(lista|listao|indice)\\s+de\\s+(${categories})\\b(.*)$`));
+  if (!match) return false;
+  // "Lista de Filmes do Cliente" pode ser um título/curadoria específica;
+  // um índice genérico costuma terminar na categoria ou continuar com uma
+  // enumeração de gêneros, nunca com um qualificador possessivo.
+  return !/^(?:do|da|dos|das|de)\b/.test(match[3].trim());
+}
+
 function parsePosts(html) {
   const posts = [];
   // O tema repete card (widget de relacionados) e publica href relativo em
@@ -837,9 +867,11 @@ function parsePosts(html) {
     const poster = block.match(/<img[^>]+src="([^"]+)"/);
     const original = block.match(/T[íi]tulo\s*Original:[^<\n]{0,60}(?:<[^>]+>\s*)?([^<\n]{2,80})/i);
     const date = block.match(/(\d{2}\/\d{2}\/\d{4})/);
+    const title = stripTags(m[3]);
+    if (isGenericListPost(title)) continue;
     posts.push({
       url,
-      title: stripTags(m[3]),
+      title,
       date: date ? date[1] : null,
       poster: poster ? poster[1] : null,
       original: original ? original[1].trim() : null,
@@ -947,6 +979,62 @@ function normalizeQuery(raw) {
     .trim();
 }
 
+function normalizeFilterText(s = '') {
+  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function stripTrailingYears(tokens) {
+  const out = tokens.slice();
+  if (out.length >= 2 && /^\d{4}$/.test(out[out.length - 1])) out.pop();
+  return out;
+}
+
+function computeWantedTokens(query) {
+  const all = stripTrailingYears(normalizeFilterText(query).split(' ').filter(Boolean));
+  const long = all.filter((w) => w.length > 2);
+  return long.length >= 2 ? long : all;
+}
+
+function matchesResolverQuery(post, query) {
+  const wanted = computeWantedTokens(query);
+  if (wanted.length === 0) return true;
+  const got = new Set(normalizeFilterText(post.title).split(' ').filter(Boolean));
+  return wanted.filter((w) => got.has(w)).length / wanted.length >= 0.6;
+}
+
+function normalizeSeasonValue(value) {
+  const n = Number(Array.isArray(value) ? value[1] : value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function matchesSeasonSeason(post, requestedSeason) {
+  const wantedSeason = normalizeSeasonValue(requestedSeason);
+  if (wantedSeason == null) return true;
+  const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
+  return !season || Number(season[1] || season[2]) === wantedSeason;
+}
+
+function selectSearchPosts(sourceHtml, query, requestedSeason) {
+  let posts = parsePosts(sourceHtml).filter((post) => matchesResolverQuery(post, query));
+  if (requestedSeason) posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
+  return posts.slice(0, MAX_POSTS);
+}
+
+// Identidade do botão: hash curto do href de destino. O `i=` posicional segue
+// na URL para compatibilidade, mas o alvo é a referência estável.
+function buttonId(link) {
+  return createHash('sha1').update(String(link?.url || '')).digest('hex').slice(0, 10);
+}
+
+function pickButton(links, index, hash, count) {
+  if (hash) {
+    const found = links.find((link) => buttonId(link) === hash);
+    if (found) return found;
+    if (count != null && links.length !== Number(count)) return null;
+  }
+  return links[index] ?? null;
+}
+
 /**
  * Busca com cache + coalescing: os DOIS modos (Torznab e Cardigann) passam
  * por aqui. O Stremio repete a mesma consulta em retry; sem cache cada uma
@@ -954,9 +1042,10 @@ function normalizeQuery(raw) {
  * cache (decidida por chamada).
  */
 async function searchPosts(query) {
+  const requestedSeason = String(query || '').match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
   const normalized = normalizeQuery(query);
   if (!normalized) return [];
-  const cacheKey = `search:${normalized}`;
+  const cacheKey = `search:${String(query || '')}`;
 
   const hit = searchCache.get(cacheKey);
   if (hit && hit.expiresAt > Date.now()) {
@@ -973,10 +1062,10 @@ async function searchPosts(query) {
       // Sucesso da busca zera o streak ANTES de raspar posts/protetores:
       // queda do protetor não conta como falha do domínio.
       siteSelector.noteSuccess();
-      const posts = parsePosts(html).slice(0, MAX_POSTS);
+      const posts = selectSearchPosts(html, normalized, requestedSeason);
       const chunks = await mapLimit(posts, async (post) => {
         const { links } = await getPostLinks(post.url);
-        return links.map((link, index) => ({ post, link, index }));
+        return links.map((link, index) => ({ post, link, index, count: links.length }));
       });
       const items = chunks.flat();
       searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + SEARCH_CACHE_MS });
@@ -1007,8 +1096,8 @@ async function searchPosts(query) {
  */
 function searchPageHtml(items) {
   const rows = items
-    .map(({ post, link, index }) => {
-      const dl = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
+    .map(({ post, link, index, count }) => {
+      const dl = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
       // Sem tamanho o Jackett descarta a release ("No size provided"); o
       // sentinela satisfaz o Jackett e o addon o esconde (não inventa tamanho).
       // O valor já vem normalizado do parser ("3.39 GB"), sem lixo de entidade.
@@ -1049,8 +1138,8 @@ function capsXml() {
 
 function rssXml(items, category) {
   const body = items
-    .map(({ post, link, index }) => {
-      const dl = `${SELF_URL}/dl?url=${encodeURIComponent(post.url)}&i=${index}`;
+    .map(({ post, link, index, count }) => {
+      const dl = `${SELF_URL}/dl?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
       const size = parseSize(link.size) || 0;
       return `    <item>
       <title>${escapeXml(releaseTitle(post.title, link))}</title>
@@ -1104,7 +1193,7 @@ async function handleDl(url, response) {
     return reply(response, 400, 'invalid_params');
   }
   try {
-    const magnet = await resolveButton(postUrl, index);
+    const magnet = await resolveButton(postUrl, index, url.searchParams.get('h'), url.searchParams.get('n'));
     response.writeHead(302, { Location: magnet, 'Cache-Control': 'no-store' });
     return response.end();
   } catch (error) {
@@ -1126,24 +1215,15 @@ async function handleSearch(url, response) {
 async function handleResolve(url, response) {
   let postUrl = url.searchParams.get('url');
   if (!postUrl || postUrl.length > 4096) return reply(response, 400, 'invalid_url');
-  let audio = url.searchParams.get('audio');
-  let quality = url.searchParams.get('quality');
-  let index = url.searchParams.get('i');
-
-  // O download.before do Cardigann encoda a href inteira no param url
-  // (ex.: http://bludv-resolver:8700/resolve?url=<post>&i=3); desempacota.
-  let inner = null;
-  try {
-    inner = new URL(postUrl, SELF_URL);
-  } catch {
-    // URL inválida: deixa como está, o assertAllowedUrl rejeita lá na frente.
-  }
-  if (inner && (inner.pathname === '/resolve' || inner.pathname === '/dl')) {
-    postUrl = inner.searchParams.get('url') || postUrl;
-    audio = inner.searchParams.get('audio') || audio;
-    quality = inner.searchParams.get('quality') || quality;
-    index = inner.searchParams.get('i') || index;
-  }
+  const unwrapped = unwrapResolverUrl(postUrl, {
+    audio: url.searchParams.get('audio'),
+    quality: url.searchParams.get('quality'),
+    index: url.searchParams.get('i'),
+    hash: url.searchParams.get('h'),
+    count: url.searchParams.get('n'),
+  });
+  postUrl = unwrapped.url;
+  const { index, hash, count, audio, quality } = unwrapped;
 
   if (audio && !['dublado', 'legendado', 'desconhecido'].includes(audio)) {
     return reply(response, 400, 'invalid_audio');
@@ -1157,12 +1237,44 @@ async function handleResolve(url, response) {
 
   try {
     const magnet = hasIndex
-      ? await resolveButton(postUrl, wantedIndex)
+      ? await resolveButton(postUrl, wantedIndex, hash, count)
       : await resolvePost(postUrl, { audio, quality: quality ? parseInt(quality, 10) : null });
     return reply(response, 200, magnet);
   } catch (error) {
     return reply(response, 502, error.message);
   }
+}
+
+// O download.before do cardigann encoda a href inteira no param url — e a
+// href já é um /resolve nosso, então o alvo real vem aninhado. Desempacota
+// quantos níveis vierem, carregando i/h/n do nível mais interno que os
+// declarar. `seed` são os params da requisição externa: chamada direta
+// (/resolve?url=<post>&i=0&h=..) não tem nível interno de onde ler.
+// Sem checar a origem: o host varia (`addon` embutido vs. nome do
+// container), e o alvo final passa por assertAllowedUrl de todo jeito.
+function unwrapResolverUrl(value, seed = {}) {
+  let url = value;
+  let index = seed.index ?? null;
+  let hash = seed.hash ?? null;
+  let count = seed.count ?? null;
+  let audio = seed.audio ?? null;
+  let quality = seed.quality ?? null;
+  for (let hop = 0; hop < 3; hop += 1) {
+    let inner;
+    try {
+      inner = new URL(url, SELF_URL);
+    } catch {
+      break;
+    }
+    if (!['/resolve', '/dl'].includes(inner.pathname) || !inner.searchParams.get('url')) break;
+    url = inner.searchParams.get('url');
+    audio = inner.searchParams.get('audio') ?? audio;
+    quality = inner.searchParams.get('quality') ?? quality;
+    index = inner.searchParams.get('i') ?? index;
+    hash = inner.searchParams.get('h') ?? hash;
+    count = inner.searchParams.get('n') ?? count;
+  }
+  return { url, index, hash, count, audio, quality };
 }
 
 function reply(response, status, body, type = 'text/plain; charset=utf-8') {
@@ -1203,6 +1315,17 @@ module.exports = {
   releaseTitle,
   cleanPostTitle,
   normalizeQuery,
+  buttonId,
+  pickButton,
+  unwrapResolverUrl,
+  isGenericListPost,
+  normalizeFilterText,
+  stripTrailingYears,
+  computeWantedTokens,
+  matchesResolverQuery,
+  normalizeSeasonValue,
+  matchesSeasonSeason,
+  selectSearchPosts,
   searchPageHtml,
   assertAllowedUrl,
   extractMagnet,

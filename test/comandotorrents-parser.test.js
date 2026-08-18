@@ -465,7 +465,7 @@ describe('ComandoTorrents Parser: Integração — índice genérico vs MAX_POST
     });
 
   test('GET /search: card genérico não ocupa vaga antes de MAX_POSTS', async () => {
-    const res = await requestHttp(`/search?q=${encodeURIComponent('Lista de Filmes')}`);
+    const res = await requestHttp(`/search?q=${encodeURIComponent('Filme Real')}`);
     assert.equal(res.status, 200);
 
     assert.ok(

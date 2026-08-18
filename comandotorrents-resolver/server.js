@@ -1,4 +1,5 @@
 const http = require('node:http');
+const { createHash } = require('node:crypto');
 
 const PORT = Number(process.env.PORT || 8701);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -297,6 +298,60 @@ function normalizeQuery(value) {
     .replace(/:/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeFilterText(s = '') {
+  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function stripTrailingYears(tokens) {
+  const out = tokens.slice();
+  if (out.length >= 2 && /^\d{4}$/.test(out[out.length - 1])) out.pop();
+  return out;
+}
+
+function computeWantedTokens(query) {
+  const all = stripTrailingYears(normalizeFilterText(query).split(' ').filter(Boolean));
+  const long = all.filter((w) => w.length > 2);
+  return long.length >= 2 ? long : all;
+}
+
+function matchesResolverQuery(post, query) {
+  const wanted = computeWantedTokens(query);
+  if (wanted.length === 0) return true;
+  const got = new Set(normalizeFilterText(post.title).split(' ').filter(Boolean));
+  return wanted.filter((w) => got.has(w)).length / wanted.length >= 0.6;
+}
+
+function normalizeSeasonValue(value) {
+  const n = Number(Array.isArray(value) ? value[1] : value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function matchesSeasonSeason(post, requestedSeason) {
+  const wantedSeason = normalizeSeasonValue(requestedSeason);
+  if (wantedSeason == null) return true;
+  const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
+  return !season || Number(season[1] || season[2]) === wantedSeason;
+}
+
+function selectSearchPosts(sourceHtml, query, requestedSeason) {
+  let posts = parsePosts(sourceHtml).filter((post) => matchesResolverQuery(post, query));
+  if (requestedSeason) posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
+  return posts.slice(0, MAX_POSTS);
+}
+
+function buttonId(link) {
+  return createHash('sha1').update(String(link?.url || '')).digest('hex').slice(0, 10);
+}
+
+function pickButton(links, index, hash, count) {
+  if (hash) {
+    const found = links.find((link) => buttonId(link) === hash);
+    if (found) return found;
+    if (count != null && links.length !== Number(count)) return null;
+  }
+  return links[index] ?? null;
 }
 
 function extractMagnet(html) {
@@ -737,8 +792,8 @@ async function resolveBest(postUrl) {
   return task;
 }
 
-async function resolveButton(postUrl, index) {
-  const cacheKey = `magnet:${postUrl}:${index}`;
+async function resolveButton(postUrl, index, hash, count) {
+  const cacheKey = hash ? `magnet:${postUrl}:${index}:${hash}` : `magnet:${postUrl}:${index}`;
   const cached = magnetCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   if (cached) magnetCache.delete(cacheKey);
@@ -747,8 +802,9 @@ async function resolveButton(postUrl, index) {
 
   const task = (async () => {
     const { post, links } = await getPostLinks(postUrl);
-    if (!Number.isInteger(index) || index < 0 || !links[index]) throw new Error('no_such_button');
-    const magnet = await fetchFollowingAllowed(links[index].url, post.href);
+    const link = Number.isInteger(index) && index >= 0 ? pickButton(links, index, hash, count) : null;
+    if (!link) throw new Error('no_such_button');
+    const magnet = await fetchFollowingAllowed(link.url, post.href);
     magnetCache.set(cacheKey, { value: magnet, expiresAt: Date.now() + MAGNET_CACHE_MS });
     if (magnetCache.size > 500) magnetCache.delete(magnetCache.keys().next().value);
     return magnet;
@@ -798,8 +854,8 @@ function releaseTitle(post, link, index = null) {
 }
 
 function searchPageHtml(items) {
-  const rows = items.map(({ post, link, index }) => {
-    const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}`;
+  const rows = items.map(({ post, link, index, count }) => {
+    const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
     return `<div class="release"><div class="title"><a href="${escapeHtml(download)}">${escapeHtml(releaseTitle(post, link, index))}</a></div><div class="size">${escapeHtml(link.size || UNKNOWN_SIZE)}</div>${post.poster ? `<div class="poster"><img src="${escapeHtml(post.poster)}"></div>` : ''}<div class="description">${escapeHtml(post.title)}</div><div class="seeders">1</div></div>`;
   }).join('');
   return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
@@ -810,9 +866,13 @@ function reply(response, status, body, type = 'text/plain; charset=utf-8') {
   response.end(body);
 }
 
-function unwrapResolverUrl(value) {
+// `seed` são os params da requisição externa: chamada direta
+// (/resolve?url=<post>&i=0&h=..) não tem nível aninhado de onde ler.
+function unwrapResolverUrl(value, seed = {}) {
   let url = value;
-  let index = null;
+  let index = seed.index ?? null;
+  let hash = seed.hash ?? null;
+  let count = seed.count ?? null;
   for (let hop = 0; hop < 3; hop += 1) {
     let inner;
     try {
@@ -823,14 +883,17 @@ function unwrapResolverUrl(value) {
     if (inner.pathname !== '/resolve' || !inner.searchParams.get('url')) break;
     url = inner.searchParams.get('url');
     index = inner.searchParams.get('i') ?? index;
+    hash = inner.searchParams.get('h') ?? hash;
+    count = inner.searchParams.get('n') ?? count;
   }
-  return { url, index };
+  return { url, index, hash, count };
 }
 
 async function searchPosts(query) {
+  const requestedSeason = String(query || '').match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
   const normalized = normalizeQuery(query);
   if (!normalized) return [];
-  const cacheKey = `search:${normalized}`;
+  const cacheKey = `search:${String(query || '')}`;
   const cached = searchCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   if (cached) searchCache.delete(cacheKey);
@@ -847,12 +910,11 @@ async function searchPosts(query) {
       // Sucesso da busca zera o streak ANTES de raspar posts/protetores:
       // queda do protetor não conta como falha do domínio.
       siteSelector.noteSuccess();
-      // Sem filtro extra aqui: parsePosts já descarta os posts-índice na origem.
-      const posts = parsePosts(await source.text()).slice(0, MAX_POSTS);
+      const posts = selectSearchPosts(await source.text(), normalized, requestedSeason);
       const chunks = await mapLimit(posts, async (post) => {
         try {
           const { links } = await getPostLinks(post.url);
-          return links.map((link, index) => ({ post, link, index }));
+          return links.map((link, index) => ({ post, link, index, count: links.length }));
         } catch (err) {
           console.warn(`[search] Falha ao obter links do post ${post.url}: ${err.message}`);
           return [];
@@ -896,12 +958,16 @@ async function handleRequest(request, response) {
     const value = url.searchParams.get('url');
     if (!value || value.length > 4096) return reply(response, 400, 'invalid_url');
     try {
-      const unwrapped = unwrapResolverUrl(value);
+      const unwrapped = unwrapResolverUrl(value, {
+        index: url.searchParams.get('i'),
+        hash: url.searchParams.get('h'),
+        count: url.searchParams.get('n'),
+      });
       const index = unwrapped.index == null ? null : Number(unwrapped.index);
       return reply(
         response,
         200,
-        index == null ? await resolveBest(unwrapped.url) : await resolveButton(unwrapped.url, index),
+        index == null ? await resolveBest(unwrapped.url) : await resolveButton(unwrapped.url, index, unwrapped.hash, unwrapped.count),
       );
     } catch (error) {
       return reply(response, 502, error.message);
@@ -944,6 +1010,16 @@ module.exports = {
   normalizeQuality,
   normalizeSource,
   normalizeQuery,
+  buttonId,
+  pickButton,
+  unwrapResolverUrl,
+  normalizeFilterText,
+  stripTrailingYears,
+  computeWantedTokens,
+  matchesResolverQuery,
+  normalizeSeasonValue,
+  matchesSeasonSeason,
+  selectSearchPosts,
   siteSelector,
   createSiteSelector,
   isNetworkError,
