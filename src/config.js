@@ -59,6 +59,12 @@ const config = {
     bareTitleIndexers: list(
       process.env.JACKETT_BARE_TITLE_INDEXERS || 'redetorrent,apachetorrent,hdrtorrent',
     ),
+    // Varredura TARDIA com o título pt-BR nos indexers globais: roda depois da
+    // resposta (fora do orçamento de coleta, que já estoura no caminho
+    // crítico) e reescreve o cache quando traz novidade. Acha dublado
+    // hospedado em tracker global titulado em português, que a query em
+    // inglês não encontra. false desliga sem precisar de deploy.
+    ptSweepGlobal: String(process.env.JACKETT_PT_SWEEP_GLOBAL || 'true') === 'true',
     // Orçamento TOTAL (busca + resolução de magnets) dos que raspam site e
     // seguem protetor de link. PODE passar do REPLY_DEADLINE_MS: a resposta não
     // espera por eles (collectRaw devolve o que chegou e o passe tardio

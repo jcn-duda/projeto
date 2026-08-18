@@ -16,16 +16,27 @@ function secret() {
   return config.debrid.resolveSecret || opts().debridApiKey || '';
 }
 
-/** Assina `${infoHash}${ep}` (ep no formato "?s=1&e=2" ou ""). */
-function signResolve(infoHash, ep = '') {
+/**
+ * Assina `${infoHash}${ep}` (+ `&w=${hint}` quando há dica de obra).
+ *
+ * `hint` é a dica de obra (JSON com nomes/ano) usada pelo /resolve para
+ * escolher o arquivo certo dentro de pack multi-filme. Ela entra na string
+ * assinada — sem isso a rota aceitaria dica forjada e viraria um jeito de
+ * escolher arquivo arbitrário na conta alheia.
+ *
+ * Compatibilidade: sem dica a string assinada é IDÊNTICA à antiga, então
+ * URLs já cacheadas nos clientes (sem `w`) continuam verificando.
+ */
+function signResolve(infoHash, ep = '', hint = '') {
   const key = secret();
   if (!key) return '';
-  return crypto.createHmac('sha256', key).update(`${infoHash}${ep}`).digest('hex');
+  const payload = `${infoHash}${ep}${hint ? `&w=${hint}` : ''}`;
+  return crypto.createHmac('sha256', key).update(payload).digest('hex');
 }
 
 /** Comparação em tempo constante; sem segredo ativo a rota não é assinável. */
-function verifyResolve(infoHash, ep, sig) {
-  const expected = signResolve(infoHash, ep);
+function verifyResolve(infoHash, ep, sig, hint = '') {
+  const expected = signResolve(infoHash, ep, hint);
   if (!expected || typeof sig !== 'string') return false;
   const a = Buffer.from(expected);
   const b = Buffer.from(sig);

@@ -1,5 +1,5 @@
 const config = require('../config');
-const { TRACKERS } = require('../utils/format');
+const { TRACKERS, normalizeTitle } = require('../utils/format');
 const log = require('../utils/logger');
 
 function magnetFor(infoHash) {
@@ -88,12 +88,69 @@ async function json(url, { method = 'GET', headers = {}, body, timeout } = {}) {
 const VIDEO_EXT = /\.(mkv|mp4|avi|mov|m4v|ts|webm)$/i;
 const SAMPLE = /(^|[^a-z])sample([^a-z]|$)/i;
 
+// Arquivo que não é a obra principal: extra/bônus/entrevista. Sem excluí-los
+// da contagem, filme com extras pareceria "mais de um vídeo principal" e a
+// escolha por obra falharia exatamente onde a regra do maior acertava.
+const EXTRA = /(^|[^a-z])(extras?|b[oô]nus|bonus|featurettes?|interviews?|entrevistas?|behind[ ._-]?the[ ._-]?scenes|trailers?|deleted[ ._-]?scenes?|cenas[ ._-]?deletadas|bloopers?|gags?|making[ ._-]?of)([^a-z]|$)/i;
+
+// Cobertura mínima do nome no arquivo para o casamento contar como
+// confiável. Abaixo disso o token solto da franquia ("Star") casaria tudo.
+const WORK_COVERAGE_MIN = 0.7;
+
+/** Fração dos tokens significativos do nome presentes no nome do arquivo. */
+function workCoverage(fileName, name) {
+  const wanted = normalizeTitle(name).split(' ').filter((w) => w.length > 2);
+  if (wanted.length === 0) return 0;
+  const got = new Set(normalizeTitle(fileName).split(' ').filter(Boolean));
+  return wanted.filter((w) => got.has(w)).length / wanted.length;
+}
+
+/**
+ * Escolhe POR OBRA dentro de um pack multi-filme, pela dica (nomes + ano)
+ * assinada na URL de play. Devolve null quando nenhum arquivo casa com
+ * confiança — falha explícita em vez de devolver o maior, que num pack de 13
+ * filmes toca o filme errado em silêncio.
+ *
+ * Títulos de franquia se contêm ("Jornada nas Estrelas" está em todos os
+ * filmes), então cobertura alta sozinha não basta: o ano da obra pedida
+ * desempata. Vários arquivos com o MESMO ano são encodes da mesma obra —
+ * entre eles o maior é seguro.
+ */
+function pickWorkFile(files, { names, year } = {}) {
+  const cleanYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  const scored = files
+    .map((f) => ({
+      file: f,
+      cov: Math.max(...names.map((n) => workCoverage(f.path || '', n))),
+    }))
+    .filter((x) => x.cov >= WORK_COVERAGE_MIN);
+  if (scored.length === 0) return null;
+  if (scored.length === 1) return scored[0].file;
+  if (cleanYear) {
+    const yearRe = new RegExp(`(?<!\\d)${cleanYear}(?!\\d)`);
+    const withYear = scored.filter((x) => yearRe.test(x.file.path || ''));
+    if (withYear.length === 1) return withYear[0].file;
+    if (withYear.length > 1) {
+      return withYear.reduce(
+        (a, b) => (Number(b.file.size || 0) > Number(a.file.size || 0) ? b : a),
+      ).file;
+    }
+  }
+  // Ambíguo sem ano: dois candidatos plausíveis e nenhuma pista para
+  // escolher. Falhar é o comportamento projetado.
+  return null;
+}
+
 /**
  * Escolhe o arquivo a tocar dentro do torrent. `files` é normalizado para
  * { path, size, ...resto } antes de chegar aqui — cada serviço nomeia esses
  * campos de um jeito.
+ *
+ * `work` é a dica de obra ({ names, year }) assinada na URL de play, usada
+ * só em filme: série segue pelo s/e, e torrent de vídeo único não muda de
+ * caminho com ou sem dica.
  */
-function pickFile(files, { season, episode } = {}) {
+function pickFile(files, { season, episode, work } = {}) {
   const videos = files.filter((f) => VIDEO_EXT.test(f.path || '') && !SAMPLE.test(f.path || ''));
   if (videos.length === 0) return null;
 
@@ -107,6 +164,15 @@ function pickFile(files, { season, episode } = {}) {
     ];
     const match = videos.find((f) => patterns.some((p) => p.test(f.path)));
     if (match) return match;
+  }
+
+  // Filme com dica de obra: pack multi-filme exige casamento por nome.
+  if (work?.names?.length) {
+    const mains = videos.filter((f) => !EXTRA.test(f.path || ''));
+    const pool = mains.length > 0 ? mains : videos;
+    // Um único vídeo principal: a dica é só confirmatória — caminho antigo.
+    if (pool.length === 1) return pool[0];
+    return pickWorkFile(pool, work);
   }
 
   // Sem episódio pedido (ou sem casar): o maior arquivo é o filme/o conteúdo principal.
@@ -184,7 +250,7 @@ function wait(ms) {
 }
 
 module.exports = {
-  magnetFor, json, pickFile, batched, wait,
+  magnetFor, json, pickFile, pickWorkFile, workCoverage, batched, wait,
   AuthError, isAuthError, QuotaError, isQuotaError,
-  VIDEO_EXT, SAMPLE,
+  VIDEO_EXT, SAMPLE, EXTRA,
 };

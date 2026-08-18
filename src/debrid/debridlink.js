@@ -29,7 +29,7 @@ async function checkCached() {
   return new Set();
 }
 
-async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
+async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const added = await call(apiKey, '/seedbox/add', {
     method: 'POST',
     body: new URLSearchParams({ url: magnetFor(infoHash), async: 'true' }),
@@ -52,7 +52,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
     size: f.size,
     link: f.downloadUrl,
   }));
-  const file = pickFile(files, { season, episode });
+  const file = pickFile(files, { season, episode, work });
   return file?.link || null;
 }
 

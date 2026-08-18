@@ -131,18 +131,33 @@ function createApp() {
     }
     // Com debrid ativo a URL só vale assinada: hashes aparecem nos resultados
     // públicos dos indexers, e sem sig qualquer um montaria o link na mão.
-    // Sem debrid não há conta a proteger (nem o que resolver).
+    // Sem debrid não há conta a proteger (nem o que resolver). A dica de obra
+    // (`w`) também entra na assinatura: adulterada, mudaria a escolha do
+    // arquivo dentro de pack multi-obra.
+    const hint = typeof req.query.w === 'string' ? req.query.w : '';
     if (debrid.current()) {
       const ep =
         req.query.s != null && req.query.e != null ? `?s=${req.query.s}&e=${req.query.e}` : '';
-      if (!verifyResolve(infoHash, ep, req.query.sig)) {
+      if (!verifyResolve(infoHash, ep, req.query.sig, hint)) {
         return res.status(403).send('assinatura inválida');
       }
+    }
+    // Dica de obra assinada: nomes + ano para o pickFile escolher o arquivo
+    // certo dentro de pack multi-obra. Ilegível = ausente — o pickFile cai no
+    // comportamento antigo (maior vídeo) em vez de falhar o play.
+    let work = null;
+    if (hint) {
+      try {
+        const parsed = JSON.parse(hint);
+        const names = Array.isArray(parsed?.n) ? parsed.n.map(String).slice(0, 4) : [];
+        if (names.length) work = { names, year: Number(parsed.y) || null };
+      } catch { /* dica ilegível: trata como ausente */ }
     }
     try {
       const link = await debrid.resolveLink(infoHash, {
         season: req.query.s ? Number(req.query.s) : null,
         episode: req.query.e ? Number(req.query.e) : null,
+        work,
       });
       if (!link) return res.status(404).send('nenhum arquivo de vídeo no torrent');
       return res.redirect(302, link);

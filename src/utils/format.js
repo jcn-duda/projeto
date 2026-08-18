@@ -185,6 +185,22 @@ function audioFromTitle(title = '') {
   return '';
 }
 
+/**
+ * Dublado pt-BR visível no TÍTULO, independente do indexer. Tracker global
+ * hospeda bastante release dublada titulada em português ("Jornada Nas
+ * Estrelas … Dublado"); sem essa marca o resultado chegava com isBr=false,
+ * era julgado contra o nome em inglês e morria antes das vagas BR.
+ *
+ * "Dual" sozinho não basta: em tracker global pode ser EN+qualquer idioma —
+ * só conta com o PT explícito ao lado. Reusa os classificadores de áudio já
+ * calibrados, em vez de uma segunda lista que divergiria.
+ */
+function looksPtBr(title = '') {
+  const audio = audioFromTitle(title);
+  if (audio === 'Dublado' || audio === 'Nacional') return true;
+  return audio === 'Dual' && explicitPtAudio(title);
+}
+
 function compactAudio(audio = '') {
   if (audio === 'Dublado') return 'DUB';
   if (audio === 'Legendado') return 'LEG';
@@ -326,6 +342,10 @@ function toStremioStream(item) {
   if (!infoHash) return null;
 
   const title = decodeEntities(item.title || item.Title || 'Torrent');
+  // Origem BR pelo indexer E pelo título: tracker global também hospeda
+  // dublado titulado em português, e é o título que denuncia. O flag muda o
+  // chip BR, as vagas reservadas e a priorização de dublado.
+  const isBr = Boolean(item.isBr) || looksPtBr(title);
   const seeders = Number(item.seeders ?? item.Seeders ?? 0) || 0;
   const rawSize = Number(item.size ?? item.Size);
   // Os indexers BR mandam 1 KB quando o post não publica tamanho: o Jackett
@@ -361,7 +381,7 @@ function toStremioStream(item) {
       source,
       edition,
       tracker,
-      isBr: Boolean(item.isBr),
+      isBr,
       seeders,
     }),
     title: `${title}\n${bits.join(' ')}`,
@@ -377,13 +397,13 @@ function toStremioStream(item) {
     _size: knownSize,
     // Agregadores BR espelham magnets globais: DUAL sem PT explícito não pode
     // ganhar vaga, prioridade ou autofetch só porque o post foi marcado BR.
-    _dubbed: item.isBr
+    _dubbed: isBr
       ? audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional'
       : explicitPtAudio(title),
-    // Origem BR vem marcada pelo provider, não deduzida do título: releases de
-    // comandotorrents/nerdfilmes/torrentdosfilmes não citam "BLUDV" nem
-    // "DUBLADO" e ficavam de fora das vagas reservadas.
-    _br: Boolean(item.isBr),
+    // Origem BR vem marcada pelo provider OU pelo título (dublado em tracker
+    // global). Release de site BR sem marca nenhuma no título continua valendo
+    // pelo flag do provider: comandotorrents/nerdfilmes não citam "DUBLADO".
+    _br: isBr,
     // O label exibido não é estável o bastante para a prioridade, mas precisa
     // sobreviver ao merge para que o `name` do vencedor não perca a fonte.
     _tracker: tracker,
@@ -454,7 +474,7 @@ function matchesName(title, name, tokens = null) {
 // "Coleção Guerra nas Estrelas" ou "Game of Thrones Todas as Temporadas": elas
 // não podem contar nem como primeiro token nem contra a precisão.
 const PACK_WORDS = new Set(
-  'colecao trilogia saga duologia quadrilogia pentalogia antologia serie series temporada temporadas todas todos completa completo integral'.split(' '),
+  'colecao coletanea trilogia saga duologia quadrilogia pentalogia antologia serie series temporada temporadas todas todos completa completo integral filmes'.split(' '),
 );
 
 // Ruído de release: o que todo indexer BR carimba no título e não diz nada
@@ -477,7 +497,13 @@ const TECH_NOISE = ('web dl webdl bluray blu ray webrip bdrip brrip hdtv hdrip r
 // Ligação: não diz nada sobre a obra e também não marca fim do título.
 const LINK_WORDS = 'de do da das dos e a o os as um uma em no na para por com sobre ate'.split(' ');
 
-const RELEASE_NOISE = new Set([...TECH_NOISE, ...LINK_WORDS]);
+// Marcas de idioma da dublagem: descrevem o ÁUDIO, não qual obra é. Fora
+// daqui, "… Dublado Portugues Brasil" vindo de tracker global media precisão
+// 0 no matchesBrTitle (portugues/brasil fora de qualquer universo de nomes)
+// e morria no filtro logo depois de ser classificado BR pelo título.
+const LANG_NOISE = 'portugues portuguesa portugueses brasil brasileiro brasileira'.split(' ');
+
+const RELEASE_NOISE = new Set([...TECH_NOISE, ...LINK_WORDS, ...LANG_NOISE]);
 
 // O alias do catálogo e o nome publicado pelo indexer podem divergir só no
 // artigo inicial ("Hulk" / "The Hulk"). Ignoramos apenas determinantes — não
@@ -671,6 +697,23 @@ function matchesBrTitle(title, name, year = null, { isSeries = false, allNames =
   return matchesTitleStructure(title, name, year, { isSeries, tokens: own });
 }
 
+// Faixa de anos descreve COLEÇÃO multi-obra: "Todos os filmes 1979-2016".
+// Testada no título cru: a normalização transforma o hífen em espaço e
+// separaria os dois anos.
+const YEAR_RANGE = /\b(?:19|20)\d{2}\s*(?:-|–|—|de|a|ate|até)\s*(?:19|20)\d{2}\b/i;
+
+/**
+ * Título de coleção com mais de uma obra (pack de filmes). Serve à guarda de
+ * listagem: sem debrid o play acontece direto no cliente, que escolhe o MAIOR
+ * arquivo do pack — "todos os filmes" tocando o filme errado em silêncio.
+ * Exige os dois sinais juntos: palavra de empacotamento E faixa de anos.
+ */
+function isMultiWorkCollection(title = '') {
+  const raw = String(title);
+  if (!YEAR_RANGE.test(raw)) return false;
+  return normalizeTitle(raw).split(' ').some((token) => PACK_WORDS.has(token));
+}
+
 /**
  * Classificação crua compartilhada pelo corte final e pelo gatilho de pack.
  * Usar uma função só impede o fallback de discordar do que buildStreams vai
@@ -854,13 +897,16 @@ function dedupeByHash(streams, indexerPriority = []) {
     // arquivo global tenha áudio PT. Origem e áudio ficam com o post vencedor.
     const seedDiff = (s._seeders || 0) - (prev._seeders || 0);
     // Hash idêntico é a mesma release. Seeders continuam sendo a evidência
-    // principal; no empate, a preferência do usuário torna o merge estável em
-    // vez de depender de qual provider terminou primeiro.
-    const winner = seedDiff > 0
-      ? s
-      : seedDiff < 0
-        ? prev
-        : compareIndexerPriority(s, prev, ranks) < 0 ? s : prev;
+    // principal; no empate, a listagem com áudio PT declarado vence — é a
+    // única informação que o espelho em inglês não carrega, e a varredura
+    // pt-BR devolve justamente esse título para o MESMO hash. Sem o critério,
+    // o merge ficava com a chegada mais antiga e o _br sumia junto.
+    // Persistindo o empate, a preferência do usuário torna o merge estável.
+    let winner;
+    if (seedDiff > 0) winner = s;
+    else if (seedDiff < 0) winner = prev;
+    else if (Boolean(s._dubbed) !== Boolean(prev._dubbed)) winner = s._dubbed ? s : prev;
+    else winner = compareIndexerPriority(s, prev, ranks) < 0 ? s : prev;
     const loser = winner === s ? prev : s;
     // O indexer BR priorizado pode omitir resolução/tamanho enquanto o global
     // traz metadados completos para o mesmo hash. A prioridade escolhe o rótulo
@@ -1551,4 +1597,6 @@ module.exports = {
   filterKnownCache,
   normalizeTitle,
   decodeEntities,
+  looksPtBr,
+  isMultiWorkCollection,
 };

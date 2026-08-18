@@ -38,10 +38,10 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
  * Resolve o link direto de reprodução — só na hora do play, porque o
  * directdl é caro demais pra rodar em cima da lista inteira de torrents.
  */
-async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
+async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const body = new URLSearchParams({ src: magnetFor(infoHash) });
   const data = await call(apiKey, '/transfer/directdl', { method: 'POST', body });
-  const file = pickFile(data.content || [], { season, episode });
+  const file = pickFile(data.content || [], { season, episode, work });
   return file ? file.stream_link || file.link : null;
 }
 

@@ -94,16 +94,28 @@ function createTestApp() {
     if (!/^[a-f0-9]{40}$/i.test(infoHash)) {
       return res.status(400).send('infoHash inválido');
     }
+    // Espelha o resolveHandler do app.js: a dica de obra (`w`) também entra
+    // na assinatura e precisa ser repassada à verificação.
+    const hint = typeof req.query.w === 'string' ? req.query.w : '';
     if (debrid.current()) {
       const ep = req.query.s != null && req.query.e != null ? `?s=${req.query.s}&e=${req.query.e}` : '';
-      if (!verifyResolve(infoHash, ep, req.query.sig)) {
+      if (!verifyResolve(infoHash, ep, req.query.sig, hint)) {
         return res.status(403).send('assinatura inválida');
       }
+    }
+    let work = null;
+    if (hint) {
+      try {
+        const parsed = JSON.parse(hint);
+        const names = Array.isArray(parsed?.n) ? parsed.n.map(String).slice(0, 4) : [];
+        if (names.length) work = { names, year: Number(parsed.y) || null };
+      } catch { /* dica ilegível: trata como ausente */ }
     }
     try {
       const link = await debrid.resolveLink(infoHash, {
         season: req.query.s ? Number(req.query.s) : null,
         episode: req.query.e ? Number(req.query.e) : null,
+        work,
       });
       if (!link) return res.status(404).send('nenhum arquivo de vídeo no torrent');
       return res.redirect(302, link);

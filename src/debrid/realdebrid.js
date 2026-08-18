@@ -30,7 +30,7 @@ async function checkCached() {
 const READY = 'downloaded';
 const WORKING = ['magnet_conversion', 'queued', 'downloading', 'compressing', 'uploading'];
 
-async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
+async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const add = await call(apiKey, '/torrents/addMagnet', {
     method: 'POST',
     body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
@@ -44,7 +44,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
   if (info.status === 'waiting_files_selection') {
     const wanted = pickFile(
       (info.files || []).map((f) => ({ ...f, path: f.path, size: f.bytes })),
-      { season, episode },
+      { season, episode, work },
     );
     await call(apiKey, `/torrents/selectFiles/${add.id}`, {
       method: 'POST',
@@ -70,7 +70,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
   const selected = (info.files || []).filter((f) => f.selected);
   const idx = selected.length > 1
     ? selected.indexOf(
-        pickFile(selected.map((f) => ({ ...f, path: f.path, size: f.bytes })), { season, episode }),
+        pickFile(selected.map((f) => ({ ...f, path: f.path, size: f.bytes })), { season, episode, work }),
       )
     : 0;
   const link = (info.links || [])[idx >= 0 ? idx : 0];

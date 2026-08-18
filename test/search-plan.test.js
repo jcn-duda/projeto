@@ -157,3 +157,25 @@ test('BR com título sem romano NÃO carrega variante (forma antiga preservada)'
     [{ query: 'Apollo 13 1995', indexers: ['bludv-cardigann'] }],
   );
 });
+
+// A varredura pt-BR tardia consulta os indexers GLOBAIS com o título
+// localizado. Os BR já recebem a query pt-BR na busca principal — repeti-los
+// na varredura seria consultar duas vezes o mesmo site pela mesma coisa.
+const { ptSweepIndexers } = require('../src/providers/search-plan');
+
+test('ptSweepIndexers devolve só os globais selecionados', () => {
+  assert.deepEqual(
+    ptSweepIndexers(
+      ['thepiratebay', '1337x', 'bludv-cardigann', 'nerdfilmes'],
+      ['bludv-cardigann', 'nerdfilmes', 'comandotorrents'],
+    ),
+    ['thepiratebay', '1337x'],
+  );
+});
+
+test('ptSweepIndexers devolve vazio quando tudo selecionado é BR', () => {
+  assert.deepEqual(
+    ptSweepIndexers(['bludv-cardigann', 'nerdfilmes'], ['bludv-cardigann', 'nerdfilmes']),
+    [],
+  );
+});

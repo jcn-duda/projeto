@@ -282,7 +282,7 @@ function flattenFiles(nodes, prefix = '') {
   return out;
 }
 
-async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
+async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const account = accountScope(apiKey);
   const upload = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
   const magnet = (upload?.magnets || [])[0];
@@ -319,7 +319,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
   }
 
   const files = flattenFiles(info.files);
-  const file = pickFile(files, { season, episode });
+  const file = pickFile(files, { season, episode, work });
   if (!file) return null;
 
   const unlocked = await call(apiKey, '/link/unlock', { link: file.link });

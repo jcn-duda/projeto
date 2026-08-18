@@ -31,7 +31,7 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   }, { timeoutMs });
 }
 
-async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
+async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const form = new FormData();
   form.append('magnet', magnetFor(infoHash));
   form.append('seed', '3'); // não semear: só queremos o link de leitura
@@ -60,7 +60,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
     size: f.size,
     id: f.id,
   }));
-  const file = pickFile(files, { season, episode });
+  const file = pickFile(files, { season, episode, work });
   if (!file) return null;
 
   const dl = await call(apiKey, '/torrents/requestdl', {

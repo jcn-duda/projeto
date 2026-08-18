@@ -41,4 +41,16 @@ function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isol
   return plan;
 }
 
-module.exports = { planJackettQueries };
+/**
+ * Alvos da varredura TARDIA com o título pt-BR: os indexers selecionados que
+ * NÃO são BR. Os BR já recebem o título localizado no caminho crítico (e com
+ * strip/bare-title pensados para buscador WordPress, que não se aplicam aos
+ * globais); tracker global é quem hospeda dublado titulado em português que a
+ * query em inglês não acha.
+ */
+function ptSweepIndexers(selectedIndexers, ptBrIndexers) {
+  const brSet = new Set(ptBrIndexers);
+  return selectedIndexers.filter((indexer) => !brSet.has(indexer));
+}
+
+module.exports = { planJackettQueries, ptSweepIndexers };

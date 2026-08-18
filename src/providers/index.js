@@ -20,6 +20,8 @@ const {
   canAutoFetchBr,
   filterKnownCache,
   filterRelevantRaw,
+  isMultiWorkCollection,
+  extractInfoHash,
 } = require('../utils/format');
 const cache = require('../utils/cache');
 const debrid = require('../debrid');
@@ -28,7 +30,7 @@ const tmdb = require('../utils/tmdb');
 const { signResolve } = require('../utils/sign');
 const { accountScope, streamsCacheKey } = require('../utils/request-key');
 const { createLatestWriter } = require('../utils/latest-writer');
-const { planJackettQueries } = require('./search-plan');
+const { planJackettQueries, ptSweepIndexers } = require('./search-plan');
 const { collectWithinWindow } = require('./collection-window');
 const { raceWithDeadline, remainingCheckBudget } = require('../utils/deadline');
 const autofetch = require('./autofetch');
@@ -247,7 +249,7 @@ function autoFetchBrDubbed(streams, candidates, { cached, known, season, episode
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
  * link de play que passa pela nossa rota /resolve.
  */
-async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, onCacheResult }) {
+async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, onCacheResult, workHint }) {
   const adapter = debrid.current();
   if (!adapter || streams.length === 0) return streams;
 
@@ -312,15 +314,22 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
 
   autoFetchBrDubbed(streams, candidates, { cached, known, season, episode, searchKey });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
+  // Dica de obra (filme): viaja assinada na URL de play para o /resolve saber
+  // QUAL arquivo escolher dentro de pack multi-obra. Sem dica a string assinada
+  // é idêntica à antiga, então URLs já cacheadas continuam válidas.
+  const hintJson = workHint ? JSON.stringify(workHint) : '';
   const viaDebrid = (s, instant) => {
-    // Assinatura cobre hash + temporada/episódio: sem ela o /resolve rejeita,
-    // então conhecer a PUBLIC_URL e um hash não basta pra gastar o debrid.
-    const sig = signResolve(s.infoHash, ep);
+    // Assinatura cobre hash + temporada/episódio + dica: sem ela o /resolve
+    // rejeita, então conhecer a PUBLIC_URL e um hash não basta pra gastar o
+    // debrid — nem pra adulterar a escolha de arquivo.
+    const sig = signResolve(s.infoHash, ep, hintJson);
     return {
       ...s,
       // Formato do Torrentio: [AD⚡] toca na hora, [AD download] ainda baixa.
       name: markDebridName(s.name, adapter.short || adapter.id, instant),
-      url: `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}${ep ? '&' : '?'}sig=${sig}`,
+      url:
+        `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}${ep ? '&' : '?'}` +
+        `${hintJson ? `w=${encodeURIComponent(hintJson)}&` : ''}sig=${sig}`,
       infoHash: undefined,
       sources: undefined,
     };
@@ -735,6 +744,51 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     });
     refresh.unref();
   }
+
+  // Varredura pt-BR nos indexers GLOBAIS: tracker global hospeda bastante
+  // dublado titulado em português ("Jornada Nas Estrelas … Dublado") que a
+  // query em inglês não encontra. Roda FORA do caminho da resposta (nunca
+  // disputa o orçamento), com `recordStatus:false` para a segunda consulta
+  // não poluir o circuit breaker, e só adiciona hashes novos — título pt para
+  // hash já listado é assunto do merge, não da varredura.
+  const providerMode = opts().providers.includes('both') ? 'both' : opts().providers[0] || config.provider;
+  const wantsJackettSweep =
+    providerMode !== 'demo' && (providerMode === 'both' || opts().providers.includes('jackett'));
+  const sweepSelectedIndexers = [...new Set((opts().jackettIndexers || []).filter((idx) =>
+    SAFE_INDEXER_ID.test(String(idx)),
+  ))];
+  if (config.jackett.ptSweepGlobal && wantsJackettSweep && ptQuery && sweepSelectedIndexers.length > 0) {
+    const sweepTargets = ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers);
+    if (sweepTargets.length > 0) {
+      const sweep = setImmediate(async () => {
+        try {
+          // Se a coleta ainda estava aberta, espera o balde estabilizar para o
+          // inventário de hashes conhecidos não sair incompleto.
+          if (raw.partial && raw.completion) await raw.completion;
+          const found = await jackett.search(ptQuery, type, sweepTargets, {
+            matchContext,
+            recordStatus: false,
+          });
+          if (!found.length) return;
+          const known = new Set(
+            raw.items.map((item) => extractInfoHash(item.infoHash || item.magnet)).filter(Boolean),
+          );
+          const fresh = found.filter((item) => {
+            const h = extractInfoHash(item.infoHash || item.magnet);
+            return h && !known.has(h);
+          });
+          if (!fresh.length) return;
+          raw.items.push(...fresh);
+          metrics.count('search.pt-sweep');
+          log.info(`[search] varredura pt-BR nos globais trouxe ${fresh.length} resultado(s) novo(s); recacheando`);
+          await finish({ items: raw.items, partial: false }, responsePhase);
+        } catch (err) {
+          log.warn('[search] varredura pt-BR nos globais falhou:', err?.message || err);
+        }
+      });
+      sweep.unref();
+    }
+  }
   return result;
 }
 
@@ -775,6 +829,29 @@ async function buildStreams(
     });
     if (before !== raw.length) log.info(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
   }
+
+  // Guarda de coleção: pack multi-obra ("Todos os filmes 1979-2016") só é
+  // oferecido quando alguém sabe escolher o arquivo certo dentro dele. Com
+  // debrid, a dica de obra viaja assinada na URL e o pickFile escolhe; em P2P
+  // o cliente baixaria o torrent inteiro e tocaria o MAIOR arquivo — quase
+  // sempre o filme errado. Sem escolha por arquivo, o pack fica de fora.
+  if (season == null && !isDemo && !debrid.current()) {
+    const beforePack = raw.length;
+    raw = raw.filter((r) => !isMultiWorkCollection(r.title || r.Title || ''));
+    if (beforePack !== raw.length) {
+      log.info(`[search] ${beforePack - raw.length} pack(s) multi-obra retido(s) sem escolha por arquivo`);
+    }
+  }
+
+  // Dica de obra para o pickFile no play (só filme): nomes + ano limpo. O ano
+  // do catálogo vem sujo ("2024–" para série em andamento); sem extrair o
+  // primeiro token de 4 dígitos a dica levaria NaN e o casamento falharia.
+  const workHint = season == null && names.length
+    ? {
+      n: names.slice(0, 4),
+      y: Number(String(catalogYear || '').match(/(?:19|20)\d{2}/)?.[0] || 0) || null,
+    }
+    : null;
 
   // Série: o indexer responde a "Nome S01E01" com a temporada inteira, então
   // sem este corte a lista do E01 vinha cheia de E03/E04/E09. Packs (título com
@@ -852,6 +929,7 @@ async function buildStreams(
     searchKey,
     deadlineAt,
     onCacheResult: onDebridResult,
+    workHint,
   });
   streams = limitReservingBr(beforeCut, {
     brReservedSlots,

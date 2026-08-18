@@ -49,3 +49,22 @@ test('keys diferentes geram assinaturas diferentes', () => {
   });
   assert.notEqual(sigA, sigB);
 });
+
+test('dica de obra entra na assinatura; sem dica é compatível com URL antiga', () => {
+  runtime.run({ opts: { ...runtime.defaults(), debridApiKey: 'chave-do-usuario' }, encoded: 'x' }, () => {
+    const hint = JSON.stringify({ n: ['Jornada nas Estrelas', 'Star Trek'], y: 1979 });
+    // Sem dica a string assinada é idêntica à antiga: URLs já cacheadas
+    // continuam verificando.
+    assert.equal(signResolve(HASH, ''), signResolve(HASH, '', ''));
+    const sigComDica = signResolve(HASH, '', hint);
+    assert.equal(verifyResolve(HASH, '', sigComDica, hint), true);
+    // Dica adulterada ou ausente invalida: a escolha do arquivo dentro do
+    // pack não pode ser trocada por quem só conhece a URL.
+    assert.equal(verifyResolve(HASH, '', sigComDica, ''), false);
+    assert.equal(verifyResolve(HASH, '', sigComDica, JSON.stringify({ n: ['Outro'], y: 2000 })), false);
+    // Assinatura antiga (sem dica) não verifica quando a URL carrega dica.
+    const sigSemDica = signResolve(HASH, '');
+    assert.equal(verifyResolve(HASH, '', sigSemDica, hint), false);
+    assert.notEqual(sigComDica, sigSemDica);
+  });
+});

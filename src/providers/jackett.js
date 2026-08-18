@@ -7,6 +7,7 @@ const {
   parseTitleSeasonEpisode,
   audioFromTitle,
   qualityFromTitle,
+  looksPtBr,
   UNKNOWN_QUALITY,
 } = require('../utils/format');
 const indexerStatus = require('./indexer-status');
@@ -38,7 +39,11 @@ function mapResults(data, { isBr = false, indexer = '' } = {}) {
     // podem ser usados para casar a prioridade salva na URL.
     indexer: indexer || r.TrackerId || r.Tracker || '',
     downloadUrl: r.Link,
-    isBr,
+    // Flag do indexer OU do título: tracker global também hospeda dublado
+    // titulado em português, e é o título que denuncia. Decidir só pelo
+    // indexer fazia esse resultado ser julgado contra o nome em inglês e
+    // morrer no filtro, além de não contar nas vagas BR.
+    isBr: isBr || looksPtBr(String(r.Title || '')),
   }));
 }
 
@@ -289,7 +294,12 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null, option
  * chegou a tempo é aproveitado.
  */
 async function search(query, type, indexersOverride = null, options = {}) {
+  // `recordStatus: false` é a varredura tardia pt-BR: uma SEGUNDA consulta
+  // aos mesmos indexers. A falha dela não pode contar falha do indexer no
+  // circuito (o caminho principal respondeu bem), nem a lentidão dela pintar
+  // o card de vermelho — o status continua sendo o da busca ao vivo.
   const { url, apiKey } = config.jackett;
+  const { recordStatus = true } = options;
   const indexers = indexersOverride == null ? config.jackett.indexers : indexersOverride;
   if (!apiKey) {
     log.warn('[jackett] JACKETT_API_KEY não configurada');
@@ -344,23 +354,27 @@ async function search(query, type, indexersOverride = null, options = {}) {
     const r = settled[idx];
     if (r.status === 'fulfilled') {
       out.push(...r.value.items);
-      indexerStatus.record(r.value.indexer, {
-        // HTTP válido significa online. Zero resultado para um título não é
-        // falha do servidor e não deve pintar o card de vermelho.
-        ok: true,
-        results: r.value.items.length,
-        ms: r.value.ms,
-        budgetMs: budgetFor(r.value.indexer),
-      });
+      if (recordStatus) {
+        indexerStatus.record(r.value.indexer, {
+          // HTTP válido significa online. Zero resultado para um título não é
+          // falha do servidor e não deve pintar o card de vermelho.
+          ok: true,
+          results: r.value.items.length,
+          ms: r.value.ms,
+          budgetMs: budgetFor(r.value.indexer),
+        });
+      }
       if (r.value.ms > 2000) slow.push(`${r.value.indexer} ${(r.value.ms / 1000).toFixed(1)}s`);
     } else {
-      indexerStatus.record(activeIndexers[idx], {
-        ok: false,
-        // A rejeição não carrega duração real; inventar o orçamento fazia o
-        // card dizer "offline · 20s" como se fosse uma medição.
-        ms: null,
-        budgetMs: budgetFor(activeIndexers[idx]),
-      });
+      if (recordStatus) {
+        indexerStatus.record(activeIndexers[idx], {
+          ok: false,
+          // A rejeição não carrega duração real; inventar o orçamento fazia o
+          // card dizer "offline · 20s" como se fosse uma medição.
+          ms: null,
+          budgetMs: budgetFor(activeIndexers[idx]),
+        });
+      }
       slow.push(`${activeIndexers[idx]} ✗`);
     }
   }
