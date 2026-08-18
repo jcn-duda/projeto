@@ -66,8 +66,10 @@ function createApp() {
       'RedeTorrent + indexers globais) e entrega play instantâneo por debrid.',
     // Servido pelo próprio addon quando há PUBLIC_URL; sem ela o cliente não
     // alcançaria um caminho relativo, então cai no logo genérico do Stremio.
+    // PNG, não o SVG que a /configure usa: o Stremio pede 256x256 png e o
+    // cliente cai no ícone de engrenagem quando recebe SVG.
     logo: config.debrid.publicUrl
-      ? `${config.debrid.publicUrl}/logo.svg`
+      ? `${config.debrid.publicUrl}/logo.png`
       : 'https://www.stremio.com/website/stremio-logo-small.png',
     resources: ['stream'],
     types: ['movie', 'series'],
@@ -155,6 +157,9 @@ function createApp() {
 
   app.get('/health', (_, res) => res.json({ ok: true }));
   app.get('/logo.svg', (_, res) => res.sendFile(path.join(__dirname, 'public', 'logo.svg')));
+  // Rasterizado do logo.svg. O manifest aponta pra cá porque o cliente do
+  // Stremio não desenha SVG na lista de addons.
+  app.get('/logo.png', (_, res) => res.sendFile(path.join(__dirname, 'public', 'logo.png')));
   app.get('/', (_, res) => res.redirect(302, '/configure'));
   app.get('/configure', sendConfigure);
 

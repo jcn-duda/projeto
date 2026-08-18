@@ -78,6 +78,16 @@ test('/manifest.json responde sem segmento de config', async () => {
   assert.equal(res.json.behaviorHints.configurable, true);
 });
 
+test('logo do manifest é PNG e a rota serve o arquivo', async () => {
+  // O cliente do Stremio desenha engrenagem no lugar de SVG na lista de
+  // addons; voltar o manifest pro /logo.svg apaga o ícone sem quebrar nada
+  // que um teste de rota perceba.
+  const res = await server.request('GET', '/manifest.json');
+  assert.match(res.json.logo, /\/logo\.png$/);
+  const png = await server.request('GET', '/logo.png');
+  assert.equal(png.status, 200);
+});
+
 test('segmento de 1 segmento que não é config vira 404, não manifest', async () => {
   // Sem o 404 do decode, qualquer caminho de um segmento serviria o manifest
   // com a config do .env — inclusive erro de digitação no install URL.
