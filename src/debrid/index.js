@@ -271,4 +271,38 @@ async function enqueue(infoHash, episode) {
   }
 }
 
-module.exports = { SERVICES, BY_ID, current, checkCached, accountStatus, resolveLink, enqueue };
+/**
+ * Aquece o inventário da conta configurada no operador antes da primeira busca.
+ * Chaves seladas de instalações continuam no carregamento preguiçoso, pois só
+ * existem durante a requisição.
+ */
+function warmupEnv() {
+  const adapter = config.debrid.service ? BY_ID.get(config.debrid.service) : null;
+  if (!adapter || typeof adapter.warmInventory !== 'function') return Promise.resolve(null);
+  if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.dropReady) return Promise.resolve(null);
+  return adapter.warmInventory(config.debrid.apiKey).catch((err) => {
+    log.warn(`[${adapter.id}] não consegui aquecer o inventário:`, err.message);
+    return null;
+  });
+}
+
+/**
+ * Varredura dos magnets mortos da conta do operador. Roda no boot e em
+ * intervalo: o lixo que a limpeza por busca não alcança é justamente o que
+ * nunca mais aparece numa consulta.
+ */
+async function sweepDeadEnv() {
+  const adapter = config.debrid.service ? BY_ID.get(config.debrid.service) : null;
+  if (!adapter || typeof adapter.sweepDead !== 'function') return null;
+  if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.sweepDead) return null;
+  try {
+    return await adapter.sweepDead(config.debrid.apiKey);
+  } catch (err) {
+    log.warn(`[${adapter.id}] varredura de mortos falhou:`, err.message);
+    return null;
+  }
+}
+
+module.exports = {
+  SERVICES, BY_ID, current, checkCached, accountStatus, resolveLink, enqueue, warmupEnv, sweepDeadEnv,
+};

@@ -217,6 +217,18 @@ const config = {
     // serviço, e o play reenvia o hash na hora. Desligue se preferir ver na
     // conta tudo que passou pela lista.
     dropReady: String(process.env.DEBRID_DROP_READY || 'true') === 'true',
+    // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
+    // "Expired", "File not available"). A limpeza por busca só alcança hashes
+    // que estão na consulta do momento; um torrent que morreu e nunca mais é
+    // pesquisado fica ocupando vaga para sempre — medido: 183 mortos numa conta
+    // no teto, e conta no teto faz a AllDebrid recusar /magnet/delete com 503.
+    // Ao contrário do dropReady, NÃO poupa o inventário do usuário: magnet em
+    // estado terminal não é escolha de ninguém, é lixo que consome quota.
+    sweepDead: String(process.env.DEBRID_SWEEP_DEAD || 'true') === 'true',
+    sweepDeadIntervalMs: num(process.env.DEBRID_SWEEP_DEAD_INTERVAL_MS, 6 * 3600 * 1000),
+    // Margem antes de considerar um estado terminal definitivo: evita varrer um
+    // magnet que a conta acabou de marcar e ainda pode reavaliar.
+    sweepDeadMinAgeMs: num(process.env.DEBRID_SWEEP_DEAD_MIN_AGE_MS, 30 * 60 * 1000),
     timeout: num(process.env.DEBRID_TIMEOUT_MS, 6000),
     // Sem fonte BR dublada em cache, manda o serviço baixar a melhor. O TTL vale
     // pra duas coisas: não reenviar o mesmo torrent a cada busca e por quanto

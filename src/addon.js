@@ -4,6 +4,7 @@ const jackettCatalog = require('./providers/jackett-catalog');
 const secretBox = require('./utils/secret-box');
 const cache = require('./utils/cache');
 const log = require('./utils/logger');
+const debrid = require('./debrid');
 const { createApp } = require('./app');
 
 // O Express app + manifest + rotas vivem em ./app (sem listen), para os testes
@@ -19,6 +20,16 @@ if (secretBox.enabled()) secretBox.seal('warmup');
 // Catálogo é usado na primeira abertura de /configure; aquecer só com credencial
 // evita uma chamada inútil para instalações em modo demo/P2P.
 if (config.jackett.apiKey) jackettCatalog.load().catch(() => {});
+// Antes do primeiro /magnet/upload, para a conta do operador não classificar
+// os uploads da primeira busca como magnets que já eram do usuário.
+debrid.warmupEnv();
+// Lixo que a limpeza por busca nunca alcança: magnet morto que ninguém mais
+// pesquisa. unref() para a varredura periódica não segurar o processo aberto
+// no shutdown.
+if (config.debrid.sweepDead) {
+  debrid.sweepDeadEnv();
+  setInterval(() => { debrid.sweepDeadEnv(); }, config.debrid.sweepDeadIntervalMs).unref();
+}
 
 const server = app.listen(config.port, config.host, () => {
   const local = `http://127.0.0.1:${config.port}/manifest.json`;

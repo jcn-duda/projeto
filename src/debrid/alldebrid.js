@@ -53,11 +53,26 @@ async function call(apiKey, path, params = {}, { method = 'GET', body, timeout }
  * usuário guardou de propósito na conta, na primeira vez que ele aparecesse
  * numa busca.
  *
- * Carrega em background e uma vez por processo: enquanto não estiver pronto, a
- * limpeza dos prontos simplesmente não roda (o valor null é o fail-safe). A
- * primeira busca não paga nada por isso.
+ * Carrega uma vez por processo. O boot aquece a conta do operador em segundo
+ * plano; para uma chave que chega na primeira requisição, o primeiro upload
+ * espera o snapshot para não arriscar classificar magnet do usuário como nosso.
  */
 const preexisting = new Map();
+// Upload é idempotente e a API não informa se criou ou reaproveitou o magnet.
+// O que este processo submeteu nunca pode virar "preexistente" só porque o
+// inventário assíncrono terminou depois do upload.
+const submitted = new Map();
+
+function rememberSubmitted(account, hash) {
+  const normalized = String(hash || '').toLowerCase();
+  if (!normalized) return;
+  let hashes = submitted.get(account);
+  if (!hashes) {
+    hashes = new Set();
+    submitted.set(account, hashes);
+  }
+  hashes.add(normalized);
+}
 
 function knownBefore(apiKey, account) {
   const entry = preexisting.get(account);
@@ -65,21 +80,117 @@ function knownBefore(apiKey, account) {
 
   const loading = { hashes: null };
   preexisting.set(account, loading);
-  call(apiKey, '/magnet/status')
+  loading.promise = call(apiKey, '/magnet/status')
     .then((data) => {
       const list = Array.isArray(data?.magnets) ? data.magnets : [];
-      loading.hashes = new Set(list.map((m) => String(m.hash || '').toLowerCase()));
-      log.info(`[alldebrid] ${loading.hashes.size} magnet(s) preexistente(s) na conta ficam protegidos da limpeza`);
+      const snapshot = new Set(list.map((m) => String(m.hash || '').toLowerCase()));
+      const ours = submitted.get(account);
+      loading.hashes = ours?.size
+        ? new Set([...snapshot].filter((hash) => !ours.has(hash)))
+        : snapshot;
+      log.info(
+        `[alldebrid] ${loading.hashes.size} magnet(s) preexistente(s) na conta ficam protegidos da limpeza` +
+          (ours?.size ? ` (${snapshot.size - loading.hashes.size} subido(s) pelo addon)` : ''),
+      );
+      return loading.hashes;
     })
     .catch((err) => {
       // Sem inventário não há o que proteger: a limpeza dos prontos continua
       // desligada, e a próxima busca tenta carregar de novo.
       log.warn('[alldebrid] não consegui inventariar a conta:', err.message);
       preexisting.delete(account);
+      return null;
     });
   return null;
 }
 
+/** Pré-carrega o inventário do operador antes de qualquer upload no boot. */
+function warmInventory(apiKey) {
+  if (!apiKey) return Promise.resolve(null);
+  const account = accountScope(apiKey);
+  knownBefore(apiKey, account);
+  return preexisting.get(account)?.promise || Promise.resolve(null);
+}
+
+// Limpeza em fila curta, com uma segunda tentativa.
+//
+// Disparar os ~50 deletes de uma checagem em paralelo fazia a AllDebrid
+// devolver 503 (página HTML, não JSON) em parte deles — medido: 13 de 45 numa
+// única busca. Cada 503 é um magnet que fica na conta para sempre, e como a
+// conta cheia derruba a própria checagem de cache, o erro se realimenta.
+const DROP_CONCURRENCY = 4;
+
+async function dropMagnets(apiKey, ids) {
+  const falhas = [];
+  let ok = 0;
+  const alvo = [...ids];
+  const worker = async () => {
+    while (alvo.length) {
+      const id = alvo.shift();
+      try {
+        await call(apiKey, '/magnet/delete', { id });
+        ok += 1;
+      } catch (primeira) {
+        // 503 é o sintoma de rajada, não de id inválido: uma pausa curta
+        // costuma bastar. Falhou de novo, aí é falha de verdade e entra na
+        // contagem em vez de sumir no allSettled.
+        try {
+          await wait(400);
+          await call(apiKey, '/magnet/delete', { id });
+          ok += 1;
+        } catch (segunda) {
+          falhas.push(segunda);
+        }
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(DROP_CONCURRENCY, alvo.length) }, worker),
+  );
+  return { ok, falhas };
+}
+// Estados dos quais a AllDebrid não volta: o torrent não vai baixar.
+const DEAD = /no peer|expired|not available|error|failed/i;
+
+/**
+ * Varre da conta os magnets em estado terminal.
+ *
+ * A limpeza do checkCached só alcança hashes que estão NA busca do momento.
+ * Um torrent que morreu (sem peer, expirado) e nunca mais é pesquisado fica
+ * ocupando vaga para sempre — e vaga é o recurso que, esgotado, faz a conta
+ * recusar até o /magnet/delete que a consertaria.
+ *
+ * Não consulta o inventário de preexistentes de propósito: magnet em estado
+ * terminal não é acervo de ninguém. O `held` continua valendo, para não
+ * matar um download do autofetch que a conta marcou cedo demais.
+ */
+async function sweepDead(apiKey, { minAgeMs = config.debrid.sweepDeadMinAgeMs } = {}) {
+  const account = accountScope(apiKey);
+  const data = await call(apiKey, '/magnet/status');
+  const list = Array.isArray(data?.magnets) ? data.magnets : [];
+  const limite = Date.now() - Math.max(0, Number(minAgeMs) || 0);
+
+  const alvo = list.filter((m) => {
+    if (!DEAD.test(String(m.status || ''))) return false;
+    if (!m.id) return false;
+    if (held.isHeld(m.hash, account)) return false;
+    // uploadDate vem em segundos; sem data, trata como antigo o bastante.
+    const quando = Number(m.uploadDate || 0) * 1000;
+    return !quando || quando <= limite;
+  });
+
+  if (!alvo.length) return { varridos: 0, falhas: 0 };
+  const { ok, falhas } = await dropMagnets(apiKey, alvo.map((m) => m.id));
+  metrics.count('debrid.swept', ok);
+  if (falhas.length) {
+    log.warn(
+      `[alldebrid] varredura: ${ok}/${alvo.length} magnet(s) morto(s) removido(s) — ${falhas.length} falhou(ram): ${falhas[0]?.message || falhas[0]}`,
+    );
+  } else {
+    log.info(`[alldebrid] varredura: ${ok} magnet(s) morto(s) removido(s) da conta`);
+  }
+  return { varridos: ok, falhas: falhas.length };
+}
 /**
  * O /magnet/instant foi removido, mas o próprio /magnet/upload responde
  * `ready` por magnet — é essa a checagem de cache da AllDebrid. Aceita lote.
@@ -97,7 +208,17 @@ function knownBefore(apiKey, account) {
 async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   const drop = [];
   const account = accountScope(apiKey);
-  const preexistentes = config.debrid.dropReady ? knownBefore(apiKey, account) : null;
+  const hadInventory = preexisting.has(account);
+  let preexistentes = config.debrid.dropReady ? knownBefore(apiKey, account) : null;
+  const loading = preexisting.get(account);
+  if (loading?.hashes === null) {
+    // Não há proveniência na resposta idempotente do upload. Antes de subir o
+    // primeiro lote desta conta, esperamos o inventário para não confundir um
+    // magnet que já era do usuário com um que a busca acabou de criar. Mantém o
+    // fail-safe: a primeira checagem ainda não remove prontos.
+    preexistentes = await loading.promise;
+  }
+  const skipReadyDrop = !hadInventory;
 
   const result = await batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const data = await call(
@@ -109,10 +230,11 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
     const ready = [];
     for (const magnet of data?.magnets || []) {
       const hash = String(magnet.hash || '').toLowerCase();
+      rememberSubmitted(account, hash);
       if (magnet.ready) {
         ready.push(hash);
         // Só entra na limpeza o que o inventário garante não ser do usuário.
-        if (preexistentes && magnet.id && !preexistentes.has(hash) && !held.isHeld(magnet.hash, account)) {
+        if (!skipReadyDrop && preexistentes && magnet.id && !preexistentes.has(hash) && !held.isHeld(magnet.hash, account)) {
           drop.push(magnet.id);
         }
       // Hash em download automático não entra na limpeza: ele está "não pronto"
@@ -123,11 +245,22 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   }, { timeoutMs });
 
   if (drop.length && config.debrid.dropUncached) {
-    // Em paralelo e sem travar a busca: limpeza é efeito colateral, não resposta.
-    metrics.count('debrid.dropped', drop.length);
-    Promise.allSettled(drop.map((id) => call(apiKey, '/magnet/delete', { id }))).then(() =>
-      log.info(`[alldebrid] ${drop.length} magnet(s) da checagem removido(s) da conta`),
-    );
+    // Sem travar a busca: limpeza é efeito colateral, não resposta.
+    // O resultado É lido — antes o allSettled engolia a rejeição, o log contava
+    // TENTATIVA como remoção, e a conta crescia enquanto o addon afirmava estar
+    // limpando. Ver dropMagnets: as falhas eram 503 por rajada.
+    dropMagnets(apiKey, drop).then(({ ok, falhas }) => {
+      metrics.count('debrid.dropped', ok);
+      if (falhas.length) {
+        metrics.count('debrid.drop_failed', falhas.length);
+        const motivo = falhas[0]?.message || String(falhas[0]);
+        log.warn(
+          `[alldebrid] ${ok}/${drop.length} magnet(s) removido(s) da conta — ${falhas.length} falhou(ram): ${motivo}`,
+        );
+        return;
+      }
+      log.info(`[alldebrid] ${ok} magnet(s) da checagem removido(s) da conta`);
+    });
   }
   return result;
 }
@@ -199,6 +332,7 @@ async function resolveLink(apiKey, infoHash, { season, episode } = {}) {
  */
 async function enqueue(apiKey, infoHash) {
   const data = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
+  if (data?.magnets?.length) rememberSubmitted(accountScope(apiKey), infoHash);
   return Boolean(data?.magnets?.length);
 }
 
@@ -256,5 +390,7 @@ module.exports = {
   abortSafeCacheCheck: false,
   keyUrl: 'https://alldebrid.com/apikeys',
   checkCached,
+  warmInventory,
+  sweepDead,
   resolveLink,
 };
