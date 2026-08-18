@@ -4,7 +4,7 @@ const assert = require('node:assert');
 // Escolha POR OBRA dentro de pack multi-filme: a dica assinada na URL de play
 // (nomes + ano) guia o pickFile; sem casamento confiável a resposta é null
 // (falha explícita), nunca o maior arquivo — que tocaria o filme errado.
-const { pickFile, pickWorkFile, workCoverage } = require('../src/debrid/common');
+const { pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage } = require('../src/debrid/common');
 
 const f = (path, size) => ({ path, size });
 
@@ -22,6 +22,7 @@ test('workCoverage mede fração de tokens significativos do nome', () => {
   assert.equal(workCoverage('Arquivo Qualquer.mkv', 'Jornada nas Estrelas'), 0);
   // Nome sem token significativo não casa com nada.
   assert.equal(workCoverage('qualquer coisa', 'O A'), 0);
+  assert.equal(workCoverage('It 2017 1080p.mkv', 'It'), 1);
 });
 
 test('pickWorkFile casa por nome e desempata por ano', () => {
@@ -81,4 +82,50 @@ test('pickFile com s/e tem precedência sobre a dica (série)', () => {
   ];
   const file = pickFile(series, { season: 1, episode: 2 });
   assert.equal(file.path, 'Show S01E02.mkv');
+});
+
+test('looksMultiWorkFiles distingue obras por anos dos vídeos principais', () => {
+  assert.equal(looksMultiWorkFiles(PACK), true);
+  assert.equal(looksMultiWorkFiles([
+    f('Jornada nas Estrelas O Filme (1979).mkv', 8 * 1024 ** 3),
+    f('Extras/Making Of.mkv', 1 * 1024 ** 3),
+  ]), false);
+  assert.equal(looksMultiWorkFiles([]), false);
+});
+
+test('looksMultiWorkFiles é permissivo para encodes do mesmo filme ou sem ano', () => {
+  assert.equal(looksMultiWorkFiles([
+    f('Jornada nas Estrelas (1979) 720p.mkv', 4 * 1024 ** 3),
+    f('Jornada nas Estrelas (1979) 1080p.mkv', 8 * 1024 ** 3),
+  ]), false);
+  assert.equal(looksMultiWorkFiles([
+    f('Jornada nas Estrelas 720p.mkv', 4 * 1024 ** 3),
+    f('Jornada nas Estrelas 1080p.mkv', 8 * 1024 ** 3),
+  ]), false);
+});
+
+test('pickFile toca o maior encode quando o filme único não tem ano nos nomes', () => {
+  const file = pickFile([
+    f('Star Trek The Motion Picture 720p.mkv', 4 * 1024 ** 3),
+    f('Star Trek The Motion Picture 1080p.mkv', 8 * 1024 ** 3),
+  ], { work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1979 } });
+  assert.equal(file.path, 'Star Trek The Motion Picture 1080p.mkv');
+});
+
+test('pickFile aceita título curto usando todos os tokens disponíveis', () => {
+  const file = pickFile([
+    f('It (2017) 720p.mkv', 4 * 1024 ** 3),
+    f('It (2017) 1080p.mkv', 8 * 1024 ** 3),
+  ], { work: { names: ['It'], year: 2017 } });
+  assert.equal(file.path, 'It (2017) 1080p.mkv');
+  assert.equal(looksMultiWorkFiles([
+    f('It 1920x1080.mkv', 4 * 1024 ** 3),
+    f('It 1920x1080 WEB.mkv', 8 * 1024 ** 3),
+  ]), false);
+});
+
+test('pickFile continua falhando quando os anos provam pack multi-obra', () => {
+  assert.equal(pickFile(PACK, {
+    work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1991 },
+  }), null);
 });

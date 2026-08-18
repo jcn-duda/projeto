@@ -159,7 +159,11 @@ function createApp() {
         episode: req.query.e ? Number(req.query.e) : null,
         work,
       });
-      if (!link) return res.status(404).send('nenhum arquivo de vídeo no torrent');
+      if (!link) {
+        return res.status(404).send(
+          work ? 'não foi possível identificar este filme dentro do pack' : 'nenhum arquivo de vídeo no torrent',
+        );
+      }
       return res.redirect(302, link);
     } catch (err) {
       log.error('[resolve]', err.message);

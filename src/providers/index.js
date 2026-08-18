@@ -609,6 +609,23 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     titles?.pt && titles.pt !== titles.original
       ? buildSearchQuery({ name: titles.pt, year: titles.year }, { season, episode })
       : null;
+  let activePtQuery = ptQuery;
+  // Refresh de debrid e varredura pt-BR compartilham uma fila tardia para não
+  // executar applyDebrid/upload concorrentes na mesma chave.
+  let tail = Promise.resolve();
+  const enqueueTail = (task) => {
+    tail = tail.then(() => new Promise((resolve) => {
+      const handle = setImmediate(async () => {
+        try {
+          await task();
+        } finally {
+          resolve();
+        }
+      });
+      handle.unref();
+    }));
+    return tail;
+  };
 
   log.info(
     `[search] ${type} ${id} → "${query}"${ptQuery ? ` | pt-BR: "${ptQuery}"` : ''} via ${opts().providers.join('+')}`,
@@ -700,6 +717,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     // busca por episódio falhou, que as fontes BR (que só publicam pack de
     // temporada) teriam algo — e elas não indexam pelo nome em inglês.
     const ptPackQuery = ptQuery && titles?.pt ? `${titles.pt} S${s}` : null;
+    activePtQuery = ptPackQuery;
     log.info(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
@@ -727,7 +745,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     // A primeira lista já pode sair como "download" dentro do prazo. Repetimos
     // o mesmo pós-processamento sem teto depois que a resposta foi liberada para
     // recuperar ⚡/cachedOnly no cache, mesmo se nenhum provider trouxer item novo.
-    const refresh = setImmediate(async () => {
+    enqueueTail(async () => {
       try {
         // Se a coleta ainda estava aberta, esperamos o balde estabilizar. Assim
         // a checagem completa já grava partial:false e não pode rebaixar uma
@@ -742,7 +760,6 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
         log.warn('[search] atualização completa do debrid falhou:', err?.message || err);
       }
     });
-    refresh.unref();
   }
 
   // Varredura pt-BR nos indexers GLOBAIS: tracker global hospeda bastante
@@ -754,18 +771,21 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   const providerMode = opts().providers.includes('both') ? 'both' : opts().providers[0] || config.provider;
   const wantsJackettSweep =
     providerMode !== 'demo' && (providerMode === 'both' || opts().providers.includes('jackett'));
-  const sweepSelectedIndexers = [...new Set((opts().jackettIndexers || []).filter((idx) =>
+  const configuredIndexers = opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers;
+  const sweepSelectedIndexers = [...new Set((configuredIndexers || []).filter((idx) =>
     SAFE_INDEXER_ID.test(String(idx)),
   ))];
-  if (config.jackett.ptSweepGlobal && wantsJackettSweep && ptQuery && sweepSelectedIndexers.length > 0) {
+  if (config.jackett.ptSweepGlobal && wantsJackettSweep && activePtQuery && sweepSelectedIndexers.length > 0) {
     const sweepTargets = ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers);
     if (sweepTargets.length > 0) {
-      const sweep = setImmediate(async () => {
+      enqueueTail(async () => {
+        metrics.count('search.pt-sweep.run');
+        const sweepStarted = Date.now();
         try {
           // Se a coleta ainda estava aberta, espera o balde estabilizar para o
           // inventário de hashes conhecidos não sair incompleto.
           if (raw.partial && raw.completion) await raw.completion;
-          const found = await jackett.search(ptQuery, type, sweepTargets, {
+          const found = await jackett.search(activePtQuery, type, sweepTargets, {
             matchContext,
             recordStatus: false,
           });
@@ -779,15 +799,22 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
           });
           if (!fresh.length) return;
           raw.items.push(...fresh);
-          metrics.count('search.pt-sweep');
+          metrics.count('search.pt-sweep.hit');
           log.info(`[search] varredura pt-BR nos globais trouxe ${fresh.length} resultado(s) novo(s); recacheando`);
           await finish({ items: raw.items, partial: false }, responsePhase);
         } catch (err) {
           log.warn('[search] varredura pt-BR nos globais falhou:', err?.message || err);
+        } finally {
+          metrics.observe('search.pt-sweep', Date.now() - sweepStarted);
         }
       });
-      sweep.unref();
+    } else {
+      log.debug('[search] varredura pt-BR não executada: nenhum indexer global selecionado');
     }
+  } else if (config.jackett.ptSweepGlobal && wantsJackettSweep && !activePtQuery) {
+    log.debug('[search] varredura pt-BR não executada: não há query localizada ativa');
+  } else if (config.jackett.ptSweepGlobal && wantsJackettSweep && sweepSelectedIndexers.length === 0) {
+    log.debug('[search] varredura pt-BR não executada: nenhum indexer selecionado');
   }
   return result;
 }
@@ -835,7 +862,9 @@ async function buildStreams(
   // debrid, a dica de obra viaja assinada na URL e o pickFile escolhe; em P2P
   // o cliente baixaria o torrent inteiro e tocaria o MAIOR arquivo — quase
   // sempre o filme errado. Sem escolha por arquivo, o pack fica de fora.
-  if (season == null && !isDemo && !debrid.current()) {
+  // Sem ano de catálogo, a dica assinada não consegue selecionar uma obra
+  // dentro de uma coleção mesmo com debrid; retenha o pack nesse caso também.
+  if (season == null && !isDemo && (!debrid.current() || !catalogYear)) {
     const beforePack = raw.length;
     raw = raw.filter((r) => !isMultiWorkCollection(r.title || r.Title || ''));
     if (beforePack !== raw.length) {

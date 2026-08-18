@@ -99,10 +99,33 @@ const WORK_COVERAGE_MIN = 0.7;
 
 /** Fração dos tokens significativos do nome presentes no nome do arquivo. */
 function workCoverage(fileName, name) {
-  const wanted = normalizeTitle(name).split(' ').filter((w) => w.length > 2);
+  const tokens = normalizeTitle(name).split(' ').filter(Boolean);
+  const longTokens = tokens.filter((w) => w.length > 2);
+  // Títulos curtos ("It", "Us", "Ela") não podem virar cobertura zero:
+  // nesses casos os tokens curtos são a única pista disponível.
+  const wanted = longTokens.length > 0 ? longTokens : tokens;
   if (wanted.length === 0) return 0;
   const got = new Set(normalizeTitle(fileName).split(' ').filter(Boolean));
   return wanted.filter((w) => got.has(w)).length / wanted.length;
+}
+
+/**
+ * Só trata o conteúdo como pack multi-obra quando os próprios arquivos provam
+ * isso. Dois ou mais anos distintos entre vídeos principais são evidência
+ * suficiente; vários encodes do mesmo filme, ou nomes sem ano, seguem o
+ * fallback permissivo do maior arquivo.
+ */
+function looksMultiWorkFiles(files) {
+  const mains = files.filter(
+    (f) => VIDEO_EXT.test(f.path || '') && !SAMPLE.test(f.path || '') && !EXTRA.test(f.path || ''),
+  );
+  if (mains.length <= 1) return false;
+  const years = new Set();
+  for (const file of mains) {
+    const match = String(file.path || '').match(/(?:^|[^0-9])((?:19|20)\d{2})(?:$|[^0-9])/);
+    if (match) years.add(Number(match[1]));
+  }
+  return years.size >= 2;
 }
 
 /**
@@ -172,6 +195,11 @@ function pickFile(files, { season, episode, work } = {}) {
     const pool = mains.length > 0 ? mains : videos;
     // Um único vídeo principal: a dica é só confirmatória — caminho antigo.
     if (pool.length === 1) return pool[0];
+    // Sem anos distintos não há prova de pack: podem ser apenas dois encodes
+    // do mesmo filme, e falhar aqui transformaria um play legítimo em 404.
+    if (!looksMultiWorkFiles(pool)) {
+      return pool.reduce((a, b) => (Number(b.size || 0) > Number(a.size || 0) ? b : a));
+    }
     return pickWorkFile(pool, work);
   }
 
@@ -250,7 +278,7 @@ function wait(ms) {
 }
 
 module.exports = {
-  magnetFor, json, pickFile, pickWorkFile, workCoverage, batched, wait,
+  magnetFor, json, pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, batched, wait,
   AuthError, isAuthError, QuotaError, isQuotaError,
   VIDEO_EXT, SAMPLE, EXTRA,
 };
