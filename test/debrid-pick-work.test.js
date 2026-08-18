@@ -2,8 +2,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 // Escolha POR OBRA dentro de pack multi-filme: a dica assinada na URL de play
-// (nomes + ano) guia o pickFile; sem casamento confiável a resposta é null
-// (falha explícita), nunca o maior arquivo — que tocaria o filme errado.
+// (nomes + ano) guia o pickFile; sem casamento confiável a escolha falha com
+// WorkPickError (falha explícita), nunca cai no maior arquivo — que tocaria o
+// filme errado.
 const { pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, WorkPickError, isWorkPickError } = require('../src/debrid/common');
 
 const f = (path, size) => ({ path, size });

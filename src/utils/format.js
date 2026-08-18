@@ -939,6 +939,10 @@ function dedupeByHash(streams, indexerPriority = []) {
       _br: winner._br,
       _dubbed: winner._dubbed,
       _tracker: winner._tracker,
+      // Hash idêntico tem o mesmo conteúdo: se QUALQUER listagem marcou como
+      // pack, a marca precisa sobreviver ao merge — senão o perdedor BR com
+      // título de coleção perderia o estrito para o vencedor EN sem marca.
+      _multiWork: Boolean(winner._multiWork || loser._multiWork),
     };
     if (merged._quality !== winner._quality) {
       merged.name = relabel(merged, {

@@ -751,7 +751,7 @@ test('selectQualityCandidates preserva BR em qualidade ilimitada', () => {
 
 test('limitReservingBr combina reserva, cotas e máximo sem vazar internos', () => {
   const streams = [
-    { id: 'global-4k', _quality: '2160p', _br: false, _seeders: 100, _tracker: 'HDRTorrent' },
+    { id: 'global-4k', _quality: '2160p', _br: false, _seeders: 100, _tracker: 'HDRTorrent', _multiWork: true, _size: 40 * 1024 ** 3 },
     { id: 'br-1080-a', _quality: '1080p', _br: true, _seeders: 1 },
     { id: 'br-1080-b', _quality: '1080p', _br: true, _seeders: 1 },
     { id: 'global-1080', _quality: '1080p', _br: false, _seeders: 50 },

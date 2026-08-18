@@ -144,7 +144,7 @@ test('isMultiWorkCollection: saga NÃO é palavra forte — "A Saga Crepúsculo"
   assert.equal(isMultiWorkCollection('Saga Crepusculo 2008-2012 Dublado'), true);
 });
 
-test('_multiWork sobrevive ao dedupeByHash quando o vencedor troca', () => {
+test('_multiWork sobrevive ao dedupeByHash: OR entre winner e loser', () => {
   const pack = {
     infoHash: HASH_A, _seeders: 3, _br: true, _dubbed: true,
     _indexer: 'kickasstorrents', _tracker: 'kickasstorrents', _quality: '1080p',
@@ -155,13 +155,14 @@ test('_multiWork sobrevive ao dedupeByHash quando o vencedor troca', () => {
     _indexer: 'thepiratebay', _tracker: 'thepiratebay', _quality: '1080p',
     _size: 40 * 1024 ** 3, name: 'Trilogy EN', _multiWork: false,
   };
-  // Vencedor por seeders: o _multiWork do perdedor é perdido (winner-take-all,
-  // consistente com _br/_dubbed).
+  // Hash idêntico = mesmo conteúdo: se QUALQUER listagem marcou como pack, o
+  // merge preserva a marca. O perdedor BR com título de coleção não pode
+  // perder o estrito para o vencedor EN sem marca.
   const [merged1] = dedupeByHash([pack, global]);
-  assert.equal(merged1._multiWork, false);
-  // Vencedor por dublado: o _multiWork do vencedor sobrevive.
-  const [merged2] = dedupeByHash([{ ...pack, _seeders: 10 }, { ...global, _seeders: 5 }]);
-  assert.equal(merged2._multiWork, true);
+  assert.equal(merged1._multiWork, true);
+  // Nenhum marcado: continua false.
+  const [merged2] = dedupeByHash([{ ...pack, _multiWork: false }, { ...global, _multiWork: false }]);
+  assert.equal(merged2._multiWork, false);
 });
 
 test('toStremioStream marca _multiWork em pack detectado', () => {

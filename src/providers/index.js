@@ -314,10 +314,6 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
 
   autoFetchBrDubbed(streams, candidates, { cached, known, season, episode, searchKey });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
-  // Dica de obra (filme): viaja assinada na URL de play para o /resolve saber
-  // QUAL arquivo escolher dentro de pack multi-obra. Sem dica a string assinada
-  // é idêntica à antiga, então URLs já cacheadas continuam válidas.
-  const baseHintJson = workHint ? JSON.stringify(workHint) : '';
   const viaDebrid = (s, instant) => {
     // Pack multi-obra: o /resolve precisa saber que aqui NÃO vale cair no maior
     // arquivo. Vai dentro da dica, então está coberto pela assinatura.
