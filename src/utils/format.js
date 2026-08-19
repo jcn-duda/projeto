@@ -570,7 +570,7 @@ function extractSequenceMarkers(text) {
 // estrutura, não conteúdo. Contá-lo como palavra estranha derrubava a precisão
 // de release legítima do redetorrent ("S02E01 A Casa do Dragão S02E01 x264
 // DUAL", "1A TEMPORADA COMPLETA House of the Dragon S01").
-const EPISODE_TOKEN = /^(?:s\d{1,2}(?:e\d{1,3})?|e\d{1,3}|\d{1,2}x\d{1,3}|\d{1,2}a)$/;
+const EPISODE_TOKEN = /^(?:s\d{1,2}(?:e\d{1,3})?|t\d{1,2}(?:e\d{1,3})?|e\d{1,3}|\d{1,2}x\d{1,3}|\d{1,2}a)$/;
 
 /**
  * Quanto do título do candidato está DENTRO da busca, ignorando ruído de
@@ -599,7 +599,10 @@ function titlePrecision(tokens, wanted) {
 function episodeWorkTokens(tokens) {
   const markers = [];
   for (let i = 0; i < tokens.length; i += 1) {
-    if (/^(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3})$/.test(tokens[i])) markers.push(i);
+    if (
+      /^(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3})$/.test(tokens[i]) ||
+      (/^t\d{1,2}$/.test(tokens[i]) && /^e\d{1,3}$/.test(tokens[i + 1] || ''))
+    ) markers.push(i);
   }
   if (!markers.length) return null;
   if (markers[0] > 0) return tokens.slice(0, markers[0]);
@@ -786,6 +789,7 @@ function filterRelevantRaw(
  * variações pt-BR dos sites BR ("1ª Temporada", "Temporada 1", "Episódio 4").
  */
 function parseTitleSeasonEpisode(title = '') {
+  const raw = String(title);
   const t = normalizeTitle(title);
   const seasons = new Set();
   const episodes = new Set();
@@ -804,12 +808,28 @@ function parseTitleSeasonEpisode(title = '') {
     }
   }
 
-  // Sites BR usam "T01 E004". O T só é aceito quando vem acompanhado do E;
-  // assim palavras como "The" e "Torrent" não viram temporada por acidente.
-  for (const m of t.matchAll(/(?:^|\s)t(\d{1,2})(?=\s+e\s?\d{1,3})/g)) {
+  // Trackers BR usam "T01 E004" e "T01E004". Lemos a sequência no título
+  // cru porque a normalização apaga hífen: E001-E010 é intervalo, enquanto
+  // E001 e E002, E001, E002 e E001 E010 são listas.
+  for (const m of raw.matchAll(/(?:^|[^a-z0-9])t(\d{1,2})\s*e\s?(\d{1,3})/gi)) {
     seasons.add(Number(m[1]));
-    const tail = t.slice(m.index + m[0].length);
-    for (const e of tail.matchAll(/e\s?(\d{1,3})/g)) episodes.add(Number(e[1]));
+    const eps = [Number(m[2])];
+    let cursor = m.index + m[0].length;
+    let ranged = false;
+    while (cursor < raw.length) {
+      const next = raw.slice(cursor).match(/^(?:\s*([-–—])\s*|\s*(?:e|and)\s+|\s*,\s*|\s+)e\s?(\d{1,3})/i);
+      if (!next) break;
+      ranged ||= Boolean(next[1]);
+      eps.push(Number(next[2]));
+      cursor += next[0].length;
+    }
+    if (ranged) {
+      const lo = Math.min(...eps);
+      const hi = Math.max(...eps);
+      for (let i = lo; i <= hi; i += 1) episodes.add(i);
+    } else {
+      eps.forEach((episode) => episodes.add(episode));
+    }
   }
 
   // "1x04"

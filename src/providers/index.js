@@ -394,9 +394,12 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate, sw
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
   const tasks = [];
   const addTask = (promise, priority = false) => tasks.push({ promise, priority });
+  let sweepInline = false;
 
   if (mode === 'demo') {
-    return { items: await demo.search({ type, imdbId }), partial: false };
+    return {
+      items: await demo.search({ type, imdbId }), partial: false, completion: Promise.resolve(), sweepInline: false,
+    };
   }
 
   const wants = (name) => mode === 'both' || providers.includes(name);
@@ -409,22 +412,27 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate, sw
     if (selectedIndexers.length === 0) {
       addTask(jackett.search(query, type));
     } else {
-      for (const planned of planJackettQueries(
+      const plan = planJackettQueries(
         query,
         ptQuery,
         selectedIndexers,
         config.jackett.ptBrIndexers,
         config.jackett.slowIndexers,
         sweepQuery,
-      )) {
+      );
+      for (const planned of plan) {
         const priority = planned.indexers.some((indexer) =>
           config.jackett.ptBrIndexers.includes(indexer),
         );
-        if (sweepQuery && planned.query === sweepQuery) metrics.count('search.pt-sweep.inline');
+        const inlineSweep = Boolean(sweepQuery) && sweepQuery !== query && planned.query === sweepQuery;
+        if (inlineSweep) sweepInline = true;
         addTask(jackett.search(planned.query, type, planned.indexers, {
           fallbackQuery: planned.fallback,
           variantQuery: planned.variant,
           matchContext,
+          // A mesma busca principal atualiza o status deste indexer. Falha da
+          // variante pt-BR não pode sobrescrever aquele resultado como offline.
+          recordStatus: inlineSweep ? false : undefined,
         }), priority);
       }
     }
@@ -516,7 +524,7 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate, sw
   }
   // `partial` acompanha o lote até a resposta HTTP: quem recebe uma lista
   // incompleta não pode cacheá-la por 15 minutos (ver o handler em addon.js).
-  return { items: bucket, partial: !done, completion };
+  return { items: bucket, partial: !done, completion, sweepInline };
 }
 
 async function findStreams({ type, id }) {
@@ -611,7 +619,12 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     titles?.pt && titles.pt !== titles.original
       ? buildSearchQuery({ name: titles.pt, year: titles.year }, { season, episode })
       : null;
-  let activePtQuery = ptQuery;
+  const providerMode = opts().providers.includes('both') ? 'both' : opts().providers[0] || config.provider;
+  const wantsJackettSweep =
+    providerMode !== 'demo' && (providerMode === 'both' || opts().providers.includes('jackett'));
+  const sweepQuery = config.jackett.ptSweepGlobal && wantsJackettSweep
+    ? ptSweepQueryFor({ titles })
+    : null;
   // Refresh de debrid e varredura pt-BR compartilham uma fila tardia para não
   // executar applyDebrid/upload concorrentes na mesma chave.
   let tail = Promise.resolve();
@@ -700,7 +713,6 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     season,
     episode,
   };
-  const sweepQuery = ptSweepQueryFor({ season, titles, activePtQuery });
   const episodePhase = finish.phase();
   let raw = await collectRaw(query, type, imdbId, ptQuery, matchContext, (items, grew, partial) =>
     late(items, grew, episodePhase, partial),
@@ -724,7 +736,6 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     // busca por episódio falhou, que as fontes BR (que só publicam pack de
     // temporada) teriam algo — e elas não indexam pelo nome em inglês.
     const ptPackQuery = ptQuery && titles?.pt ? `${titles.pt} S${s}` : null;
-    activePtQuery = ptPackQuery;
     log.info(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
@@ -735,6 +746,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   }
 
   const responsePhase = finish.phase();
+  if (raw.sweepInline) metrics.count('search.pt-sweep.inline');
   const result = await finish({ ...raw, deadlineAt }, responsePhase);
 
   // Quanto a coleta ainda levou DEPOIS de responder. É o número que diz se o
@@ -778,25 +790,17 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   // mesmo indexer recém-derrubado — o dublado raro mora justamente ali.
   // Só adiciona hashes novos: título pt para hash já listado é assunto do
   // merge, não da varredura.
-  const providerMode = opts().providers.includes('both') ? 'both' : opts().providers[0] || config.provider;
-  const wantsJackettSweep =
-    providerMode !== 'demo' && (providerMode === 'both' || opts().providers.includes('jackett'));
   const configuredIndexers = opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers;
   const sweepSelectedIndexers = [...new Set((configuredIndexers || []).filter((idx) =>
     SAFE_INDEXER_ID.test(String(idx)),
   ))];
-  const sweepCritical = Boolean(
-    config.jackett.ptSweepGlobal && wantsJackettSweep && sweepQuery &&
-    ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers)
-      .some((indexer) => !config.jackett.slowIndexers.includes(indexer)),
-  );
   // A query já foi anexada ao plano crítico: título pt-BASE para filme e série,
   // sem subtítulo, ano ou SxxEyy. Os globais publicam episódios como
   // "T01 E004"; o matchContext faz o corte preciso depois da coleta.
   if (config.jackett.ptSweepGlobal && wantsJackettSweep && sweepQuery && sweepSelectedIndexers.length > 0) {
     const sweepTargets = ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers);
     if (sweepTargets.length > 0) {
-      if (raw.partial || !sweepCritical) enqueueTail(async () => {
+      if (raw.partial || !raw.sweepInline) enqueueTail(async () => {
         metrics.count('search.pt-sweep.run');
         const sweepStarted = Date.now();
         try {

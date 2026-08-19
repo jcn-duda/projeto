@@ -99,18 +99,12 @@ function ptSweepQuery(titlePt) {
  * TODO filme (inclusive "Joker", "Missão: Impossível" sem subtítulo em
  * português), disparando uma segunda rodada inútil contra os globais.
  *
- * - Série: `activePtQuery` já carrega o gate (só é construído quando
- *   `titles.pt && titles.pt !== titles.original`). Sem o `SxxEyy/pack` o
- *   indexer devolve a temporada inteira e o corte por episódio chega
- *   depois — usar a query "crua" do TMDB aqui quebraria esse corte.
- * - Filme: gate idêntico antes de chamar `ptSweepQuery`; sem pt localizado
- *   a busca GLOBAL principal já cobriu o título em inglês.
+ * Filme e série usam a mesma raiz pt. Medido no thepiratebay: "Jornada nas
+ * Estrelas S01E04" devolve 0 resultados; o título puro devolve 6, incluindo
+ * "T01 E004 … Dub PT-BR". O corte por episódio é responsabilidade do
+ * matchContext, depois da coleta.
  */
-function ptSweepQueryFor({ season, titles, activePtQuery }) {
-  if (season != null) {
-    if (!titles?.pt || titles.pt === titles.original) return null;
-    return ptSweepQuery(titles.pt) || null;
-  }
+function ptSweepQueryFor({ titles }) {
   if (!titles?.pt || titles.pt === titles.original) return null;
   return ptSweepQuery(titles.pt) || null;
 }

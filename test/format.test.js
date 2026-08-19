@@ -641,6 +641,90 @@ test('parseTitleSeasonEpisode preserva lista T01 E001 e E002', () => {
   assert.deepEqual(parseTitleSeasonEpisode('Serie T01 E001 e E002').episodes, [1, 2]);
 });
 
+// 6.3 — O parser lê o T-format dos trackers ("T01 E004", "T01E004") e o corte
+// por episódio passa a valer de verdade: hoje sem o T-format, "matchesEpisode"
+// libera a release para QUALQUER episódio.
+test('parseTitleSeasonEpisode lê T01 E004 e T01E004 e corta o episódio pedido', () => {
+  // Objeto completo, não só seasons/episodes: complete continua false e nada
+  // além do T-format é lido.
+  assert.deepEqual(parseTitleSeasonEpisode('Jornada Nas Estrelas T01 E004 1080p DUBLADO'), {
+    seasons: [1], episodes: [4], complete: false,
+  });
+  // Sem espaço entre T/E também é o formato publicado pelos trackers.
+  assert.deepEqual(parseTitleSeasonEpisode('Jornada Nas Estrelas T01E004 1080p DUBLADO'), {
+    seasons: [1], episodes: [4], complete: false,
+  });
+  assert.equal(matchesEpisode('Jornada Nas Estrelas T01 E004 1080p DUBLADO', { season: 1, episode: 4 }), true);
+  assert.equal(matchesEpisode('Jornada Nas Estrelas T01 E004 1080p DUBLADO', { season: 1, episode: 5 }), false);
+  assert.equal(matchesEpisode('Jornada Nas Estrelas T01 E004 1080p DUBLADO', { season: 2, episode: 4 }), false);
+});
+
+test('T-format: hífen vira intervalo inclusivo; lista por e/vírgula/espaço não expande', () => {
+  // Hífen/travessão no título CRU é intervalo inclusivo (E001-E010 → 1..10).
+  // A normalização apaga o hífen (tudo vira espaço); a distinção precisa ser
+  // lida do título cru, senão o E010 viraria lista de dois episódios.
+  const faixa = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  assert.deepEqual(parseTitleSeasonEpisode('Serie T01 E001-E010 720p').episodes, faixa);
+  assert.equal(matchesEpisode('Serie T01 E001-E010 720p', { season: 1, episode: 5 }), true);
+  assert.equal(matchesEpisode('Serie T01 E001-E010 720p', { season: 1, episode: 11 }), false);
+  // Separador "e": lista de episódios, NÃO intervalo.
+  assert.deepEqual(parseTitleSeasonEpisode('Serie T01 E001 e E002 720p').episodes, [1, 2]);
+  assert.equal(matchesEpisode('Serie T01 E001 e E002 720p', { season: 1, episode: 2 }), true);
+  // Vírgula idem: lista.
+  assert.deepEqual(parseTitleSeasonEpisode('Serie T01 E001, E002 720p').episodes, [1, 2]);
+  // Espaço SEM hífen não vira intervalo: E001 E010 é [1, 10], e o E05 não passa.
+  assert.deepEqual(parseTitleSeasonEpisode('Serie T01 E001 E010 720p').episodes, [1, 10]);
+  assert.equal(matchesEpisode('Serie T01 E001 E010 720p', { season: 1, episode: 5 }), false);
+});
+
+test('parseTitleSeasonEpisode não lê T solto nem T dentro de palavra', () => {
+  // O T só conta colado ao dígito da temporada E ao E do episódio: "The 100",
+  // "Torrent 2 E4", "T2 Trainspotting", "ST01E02" e "Lilo e Stitch 2" não são
+  // temporada nenhuma.
+  const semPista = ['The 100', 'Torrent 2 E4', 'T2 Trainspotting', 'ST01E02', 'Lilo e Stitch 2', 'Temporada T'];
+  for (const title of semPista) {
+    const r = parseTitleSeasonEpisode(title);
+    assert.deepEqual(r.seasons, [], title);
+    assert.deepEqual(r.episodes, [], title);
+  }
+});
+
+// 6.4 — P1: sem o marcador T-format em EPISODE_TOKEN/episodeWorkTokens, o gate
+// de precisão media o título INTEIRO ("… t01 e004 dub pt br") e a release
+// dublada morria ANTES do matchesEpisode (risco 5.7). Título real do
+// thepiratebay, nos dois ramos (isBr true e false).
+const T_FORMAT_SERIE = 'Jornada Nas Estrelas T01 E004 1080p Dub PT-BR';
+const tngContext = (episode) => ({
+  names: ['Jornada Nas Estrelas', 'Star Trek'],
+  year: 2024,
+  isSeries: true,
+  season: 1,
+  episode,
+});
+
+test('T-format de série passa o filtro relevante no episódio pedido (BR e global)', () => {
+  // isBr true: matchesBrTitle com allNames — sem o marcador T, "t01"/"dub"/
+  // "pt"/"br" derrubariam a precisão abaixo do piso (0,70 de série).
+  const br = relevantRaw([{ title: T_FORMAT_SERIE, isBr: true }], tngContext(4));
+  assert.equal(br.length, 1, 'BR: E04 pedido mantém a release dublada');
+  // isBr false: caminho global — identidade de obra + corte por episódio.
+  const global = relevantRaw([{ title: T_FORMAT_SERIE, isBr: false }], tngContext(4));
+  assert.equal(global.length, 1, 'global: E04 pedido mantém a release');
+  // matchesBrTitle direto, na forma que o provider chama.
+  assert.equal(
+    matchesBrTitle(T_FORMAT_SERIE, 'Jornada Nas Estrelas', '2024', {
+      isSeries: true,
+      allNames: ['Jornada Nas Estrelas', 'Star Trek'],
+    }),
+    true,
+  );
+});
+
+test('T-format de série é negado no episódio errado (E05)', () => {
+  assert.deepEqual(relevantRaw([{ title: T_FORMAT_SERIE, isBr: true }], tngContext(5)), []);
+  assert.deepEqual(relevantRaw([{ title: T_FORMAT_SERIE, isBr: false }], tngContext(5)), []);
+});
+
 test('sortAndLimit não promove DUAL global sobre dublado BR', () => {
   const globalDual = toStremioStream({
     title: 'Movie 1080p DUAL', infoHash: HASH, seeders: 500,

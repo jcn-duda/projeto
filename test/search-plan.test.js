@@ -178,6 +178,85 @@ test('planJackettQueries acrescenta sweep apenas aos globais', () => {
   );
 });
 
+// 6.1 — A varredura INLINE (caminho crítico) é uma task extra no plano da
+// coleta, anexada aos globais do caminho crítico (`grouped`): os BR já recebem
+// o título localizado na própria task isolada, e os lentos isolados não cabem
+// no orçamento. Sem `variant`/`fallback` — a cascata BR de `queryIndexer` nem
+// existe para globais — e a falha da consulta não pode gravar status no
+// indexer (o tail usa `recordStatus:false` pelo mesmo motivo; a task inline
+// deve seguir).
+test('planJackettQueries: sweepQuery vira UMA task extra dos globais, sem variant/fallback', () => {
+  const plan = planJackettQueries(
+    'Joker 2019',
+    'Coringa 2019',
+    ['thepiratebay', '1337x', 'bludv-cardigann'],
+    ['bludv-cardigann'],
+    [],
+    'Coringa',
+  );
+
+  assert.deepEqual(plan, [
+    { query: 'Joker 2019', indexers: ['thepiratebay', '1337x'] },
+    { query: 'Coringa', indexers: ['thepiratebay', '1337x'] },
+    { query: 'Coringa 2019', fallback: 'Joker 2019', indexers: ['bludv-cardigann'] },
+  ]);
+
+  const sweeps = plan.filter((task) => task.query === 'Coringa');
+  assert.equal(sweeps.length, 1, 'exatamente UMA task da varredura');
+  assert.deepEqual(sweeps[0].indexers, ['thepiratebay', '1337x']);
+  assert.equal('variant' in sweeps[0], false, 'task de globais não carrega variante');
+  assert.equal('fallback' in sweeps[0], false, 'task de globais não carrega fallback');
+  // A task principal e as isoladas BR ficam intactas.
+  assert.equal(plan[0].query, 'Joker 2019');
+  const br = plan.find((t) => t.indexers.includes('bludv-cardigann'));
+  assert.equal(br.query, 'Coringa 2019');
+  assert.equal(br.fallback, 'Joker 2019');
+});
+
+test('planJackettQueries: sweepQuery igual à query principal não duplica task', () => {
+  // Guarda `sweepQuery !== query`: sem ela, o caso raro de a varredura
+  // coincidir com a principal criaria duas tasks idênticas de globais.
+  assert.deepEqual(
+    planJackettQueries(
+      'Jornada nas Estrelas',
+      'Jornada nas Estrelas',
+      ['thepiratebay', '1337x'],
+      [],
+      [],
+      'Jornada nas Estrelas',
+    ),
+    [{ query: 'Jornada nas Estrelas', indexers: ['thepiratebay', '1337x'] }],
+  );
+});
+
+test('planJackettQueries: grouped vazio (tudo BR/lento selecionado) não cria varredura', () => {
+  const plan = planJackettQueries(
+    'Joker 2019',
+    'Coringa 2019',
+    ['bludv-cardigann', 'redetorrent'],
+    ['bludv-cardigann'],
+    ['redetorrent', 'bludv-cardigann'],
+    'Coringa',
+  );
+  assert.deepEqual(plan, [
+    { query: 'Coringa 2019', fallback: 'Joker 2019', indexers: ['bludv-cardigann'] },
+    { query: 'Joker 2019', indexers: ['redetorrent'] },
+  ]);
+  assert.ok(plan.every((task) => task.query !== 'Coringa'));
+});
+
+test('planJackettQueries: sweepQuery ausente (5 args) preserva o plano antigo', () => {
+  // Forma antiga: sem o 6º parâmetro o deepEqual dos testes existentes tem que
+  // continuar valendo — a task extra só existe quando sweepQuery chega.
+  assert.deepEqual(
+    planJackettQueries('Joker 2019', 'Coringa 2019', ['thepiratebay'], []),
+    [{ query: 'Joker 2019', indexers: ['thepiratebay'] }],
+  );
+  const comSweep = planJackettQueries('Joker 2019', 'Coringa 2019', ['thepiratebay'], [], [], 'Coringa');
+  const semSweep = planJackettQueries('Joker 2019', 'Coringa 2019', ['thepiratebay'], []);
+  assert.equal(comSweep.length, semSweep.length + 1);
+});
+
 test('ptSweepIndexers devolve só os globais selecionados', () => {
   assert.deepEqual(
     ptSweepIndexers(
@@ -232,62 +311,47 @@ test('ptSweepQuery devolve string vazia sem título pt', () => {
   assert.equal(ptSweepQuery('   '), '');
 });
 
-// Seleção da query pela junção season/titles/activePtQuery: gate "pt difere
-// do original" impede a varredura em filmes sem localização (Joker, Missão:
-// Impossível…), que dispararia uma segunda rodada inútil contra os globais.
+// 6.2 — Seleção da query da varredura: a função só olha `titles`. O gate "pt
+// difere do original" impede a varredura em obras sem localização (Joker,
+// Missão: Impossível…), que dispararia uma segunda rodada inútil contra os
+// globais. Série e filme usam a MESMA raiz pt, sem SxxEyy: medido, "Jornada
+// nas Estrelas S01E04" devolve 0 no thepiratebay e o título puro devolve 6
+// (incluindo o "T01 E004 … Dub PT-BR"); o corte por episódio é do
+// matchContext, que roda depois.
 const { ptSweepQueryFor } = require('../src/providers/search-plan');
 
 test('ptSweepQueryFor filme com pt localizado devolve o título base', () => {
   const titles = { pt: 'Jornada nas Estrelas: O Filme', original: 'Star Trek: The Motion Picture' };
-  assert.equal(
-    ptSweepQueryFor({ season: null, titles, activePtQuery: 'Jornada nas Estrelas: O Filme 1979' }),
-    'Jornada nas Estrelas',
-  );
+  assert.equal(ptSweepQueryFor({ titles }), 'Jornada nas Estrelas');
 });
 
 test('ptSweepQueryFor filme sem pt localizado (pt === original) devolve null', () => {
-  // Caso "Joker": ptQuery nunca é construído (titles.pt === titles.original),
-  // a busca GLOBAL principal já cobriu o título — varrer de novo é fan-out
-  // inútil contra os indexers.
+  // Caso "Joker": titles.pt === titles.original, a busca GLOBAL principal já
+  // cobriu o título — varrer de novo é fan-out inútil contra os indexers.
   const titles = { pt: 'Joker', original: 'Joker' };
-  assert.equal(
-    ptSweepQueryFor({ season: null, titles, activePtQuery: null }),
-    null,
-  );
+  assert.equal(ptSweepQueryFor({ titles }), null);
 });
 
 test('ptSweepQueryFor filme sem pt algum devolve null', () => {
   const titles = { pt: null, original: 'Joker' };
-  assert.equal(
-    ptSweepQueryFor({ season: null, titles, activePtQuery: null }),
-    null,
-  );
+  assert.equal(ptSweepQueryFor({ titles }), null);
   // Sem titles, fim da cadeia — defensivo.
-  assert.equal(
-    ptSweepQueryFor({ season: null, titles: null, activePtQuery: null }),
-    null,
-  );
+  assert.equal(ptSweepQueryFor({ titles: null }), null);
 });
 
-test('ptSweepQueryFor série usa o título localizado sem SxxEyy', () => {
-  // Série: ptSweepQuery NUNCA é chamado — o activePtQuery já carrega o gate
-  // "pt difere do original" e o marcador SxxEyy/pack do qual o corte por
-  // episódio depende.
-  const titles = { pt: 'Queda', original: 'Fallout' };
-  assert.equal(ptSweepQueryFor({ season: 1, titles: { pt: 'Jornada nas Estrelas', original: 'Star Trek' }, activePtQuery: 'Jornada nas Estrelas S01E04' }), 'Jornada nas Estrelas');
-  // Pack fallback: activePtQuery foi reatribuído para "Título S01".
-  assert.equal(
-    ptSweepQueryFor({ season: 1, titles, activePtQuery: 'Queda S01' }),
-    'Queda',
-  );
+test('ptSweepQueryFor série usa a raiz do título pt, sem SxxEyy', () => {
+  // Série: mesma raiz do filme. O subtítulo sai no strip de `:`; o tracker
+  // global casa o nome puro ("Jornada nas Estrelas"), que é onde o dublado
+  // "T01 E004 … Dub PT-BR" mora — com "S01E04" na query o mesmo tracker
+  // devolve 0.
+  const titles = { pt: 'Jornada nas Estrelas: A Nova Geração', original: 'Star Trek: The Next Generation' };
+  assert.equal(ptSweepQueryFor({ titles }), 'Jornada nas Estrelas');
+  assert.equal(ptSweepQueryFor({ titles: { pt: 'Queda', original: 'Fallout' } }), 'Queda');
 });
 
-test('ptSweepQueryFor série sem activePtQuery devolve null (pt === original)', () => {
+test('ptSweepQueryFor série sem pt localizado devolve null (pt === original)', () => {
   const titles = { pt: 'The Office', original: 'The Office' };
-  assert.equal(
-    ptSweepQueryFor({ season: 1, titles, activePtQuery: null }),
-    null,
-  );
+  assert.equal(ptSweepQueryFor({ titles }), null);
 });
 
 test('ptSweepQuery corta marcador de sequência para achar a coleção da franquia', () => {
