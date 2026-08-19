@@ -199,16 +199,32 @@ function prefix() {
 }
 
 /**
- * Contexto da requisição corrente (`{opts, encoded}`) para restaurar depois com
- * `run` — timers agendados durante a busca disparam FORA do AsyncLocalStorage
- * e precisam da conta/opts da requisição que os criou.
+ * Contexto da requisição corrente (`{opts, encoded, origin}`) para restaurar
+ * depois com `run` — timers agendados durante a busca disparam FORA do
+ * AsyncLocalStorage e precisam da conta/opts da requisição que os criou.
  */
 function capture() {
   return store.getStore() || null;
 }
 
-function run({ opts: userOpts, encoded }, fn) {
-  return store.run({ opts: userOpts, encoded }, fn);
+/**
+ * Origin da requisição corrente: o endereço que o cliente usou para falar com o
+ * addon. Por definição é um endereço que ele alcança, então é o origin honesto
+ * para montar o `externalUrl` do aviso de lista vazia sem config nenhuma. Fora
+ * de request (warmup, teste, chamada interna) devolve `null`.
+ */
+function origin() {
+  return store.getStore()?.origin || null;
+}
+
+/**
+ * Roda `fn` com um patch de contexto MESCLADO sobre o store atual, em vez de
+ * substituí-lo. É o que deixa o middleware de origin (acima do router) conviver
+ * com o middleware de config (`/:userConfig`): o segundo roda `run({ opts,
+ * encoded })` depois do primeiro e não pode apagar o origin que aquele capturou.
+ */
+function run(patch, fn) {
+  return store.run({ ...store.getStore(), ...patch }, fn);
 }
 
 module.exports = {
@@ -221,6 +237,7 @@ module.exports = {
   decode,
   opts,
   prefix,
+  origin,
   capture,
   run,
 };

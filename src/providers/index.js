@@ -37,7 +37,7 @@ const { planJackettQueries, ptSweepIndexers, ptSweepQueryFor } = require('./sear
 const { collectWithinWindow } = require('./collection-window');
 const { raceWithDeadline, remainingCheckBudget } = require('../utils/deadline');
 const autofetch = require('./autofetch');
-const { opts, prefix, capture, run } = require('../runtime');
+const { opts, prefix, capture, run, origin } = require('../runtime');
 const log = require('../utils/logger');
 const metrics = require('../utils/metrics');
 
@@ -147,8 +147,8 @@ function enqueueAutofetch({ stream, account, pool }, { cached, season, episode, 
         // marcadores antigos que podiam ter sido gravados antes da chamada.
         cache.set(key, 1, config.debrid.autoFetchTtl);
         metrics.count('autofetch.enqueued');
-        const origin = pool === 'any' ? 'dublada global (sem BR na busca)' : 'fonte BR dublada';
-        log.info(`[autofetch] ${adapter.label} baixando ${origin}: ${label} (${qStr}${seedsStr})`);
+        const poolLabel = pool === 'any' ? 'dublada global (sem BR na busca)' : 'fonte BR dublada';
+        log.info(`[autofetch] ${adapter.label} baixando ${poolLabel}: ${label} (${qStr}${seedsStr})`);
         scheduleRecheck(searchKey, stream.infoHash, requestCtx);
       } else {
         // Refusa devolve a vaga e libera o hold: um candidato abaixo na lista
@@ -1171,14 +1171,13 @@ async function buildStreams(
     if (season != null) return 'Nada pronto ainda — procurando a temporada; reabra em instantes';
     return null;
   };
-  // Sem PUBLIC_URL não há origin honesto para o aparelho remoto. Expor o
-  // loopback faria Fire TV abrir a própria máquina, não a página do addon.
+  // Só o TEXTO nasce aqui: ele depende da busca (autofetch, cortados pelo
+  // cachedOnly, temporada) e viaja para o cache junto com a lista. O link sai no
+  // `applyNoticeOrigin`, na resposta — ver lá por que ele não pode ser montado
+  // neste ponto.
   if (config.search.noticeStream && streams.length === 0) {
     const name = noticeText();
-    if (name) {
-      const origin = config.debrid.publicUrl?.replace(/\/$/, '');
-      streams = [{ name, ...(origin ? { externalUrl: `${origin}${prefix()}/configure` } : {}) }];
-    }
+    if (name) streams = [{ name, notice: true }];
   }
 
   // "A dublada não ficou em cima" é a queixa mais comum e tem três causas
@@ -1198,4 +1197,40 @@ async function buildStreams(
 
 // `buildStreams` sai exportado pelo mesmo motivo do `applyDebrid`: e o unico
 // jeito de testar o item de aviso sem subir uma busca inteira com Jackett.
-module.exports = { findStreams, applyDebrid, buildStreams, debridRefreshSatisfied };
+/**
+ * Fecha o aviso de lista vazia na RESPOSTA, com o origin de quem está
+ * perguntando agora. O texto é conteúdo da busca e fica no cache; o link não
+ * pode: `streamsCacheKey` não carrega o origin, então montá-lo dentro do
+ * `buildStreams` gravava na entrada compartilhada o endereço do primeiro
+ * cliente — a TV que chama 192.168.0.23 deixava esse link para o celular que
+ * chama pelo domínio, e um `Host` forjado envenenava a entrada para o próximo.
+ *
+ * PUBLIC_URL (endereço público) tem precedência; sem ela vale o origin da
+ * requisição, que por definição é um endereço que aquele cliente alcança.
+ *
+ * Sem origin nenhum (chamada interna, teste sem req) o item é DESCARTADO: sem
+ * `url`/`infoHash`/`externalUrl` nenhum cliente Stremio renderiza a linha, então
+ * ela só ocuparia a resposta e sumiria na tela — foi o que deixou o app com
+ * "Nenhum stream disponível" enquanto a busca já tinha resultado.
+ */
+function applyNoticeOrigin(streams = []) {
+  if (!streams.some((stream) => stream?.notice)) return streams;
+  const base = (config.debrid.publicUrl || origin() || '').replace(/\/$/, '');
+  const link = base ? `${base}${prefix()}/configure` : '';
+  return streams.flatMap((stream) => {
+    if (!stream?.notice) return [stream];
+    if (!link) return [];
+    // `notice` é marca interna: não faz parte do objeto que o Stremio recebe.
+    const { notice, ...rest } = stream;
+    return [{ ...rest, externalUrl: link }];
+  });
+}
+
+/** A lista não tem resultado nenhum — só o aviso. */
+function onlyNotice(streams = []) {
+  return streams.length > 0 && streams.every((stream) => stream?.notice);
+}
+
+module.exports = {
+  findStreams, applyDebrid, buildStreams, debridRefreshSatisfied, applyNoticeOrigin, onlyNotice,
+};

@@ -2,7 +2,7 @@ const path = require('path');
 const express = require('express');
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const config = require('./config');
-const { findStreams } = require('./providers');
+const { findStreams, applyNoticeOrigin, onlyNotice } = require('./providers');
 const debrid = require('./debrid');
 const { isWorkPickError } = require('./debrid/common');
 const runtime = require('./runtime');
@@ -23,6 +23,28 @@ const log = require('./utils/logger');
  */
 function streamsNeedRevalidation({ streams = [], partial, needsDebridRefresh, debridKnown } = {}) {
   return !streams.length || partial || needsDebridRefresh || debridKnown === false;
+}
+
+// Host do cabeçalho é input do cliente; aqui ele só volta para o próprio cliente
+// que o mandou (nunca é chamado para outro destino), mas não há motivo para
+// propagar lixo no externalUrl — barra hostname/porta válidos e IPv6 entre
+// colchetes. Qualquer outra forma (path, scheme, espaço) vira null.
+const ORIGIN_HOSTNAME_RE = /^[A-Za-z0-9.-]+(:\d{1,5})?$/;
+const ORIGIN_HOST_V6_RE = /^\[[0-9A-Fa-f:.]+\](:\d{1,5})?$/;
+
+/**
+ * Origin que o cliente alcança: `PUBLIC_URL` tem precedência (é o endereço
+ * público quando existe); senão `protocol://host` do cabeçalho. Sem host válido
+ * devolve null — e o aviso de lista vazia, sem origin, prefere não sair.
+ */
+function originOf(req) {
+  if (config.debrid.publicUrl) return config.debrid.publicUrl;
+  const host = req.get('host');
+  if (!host) return null;
+  if (ORIGIN_HOSTNAME_RE.test(host) || ORIGIN_HOST_V6_RE.test(host)) {
+    return `${req.protocol}://${host}`;
+  }
+  return null;
 }
 
 /**
@@ -89,8 +111,12 @@ function createApp() {
   builder.defineStreamHandler(async (args) => {
     try {
       const result = await findStreams({ type: args.type, id: args.id });
-      const { streams } = result;
-      if (streamsNeedRevalidation(result)) {
+      // O link do aviso é montado AQUI, por requisição — o cache guarda só o
+      // texto (ver applyNoticeOrigin).
+      const streams = applyNoticeOrigin(result.streams);
+      // Lista que só tem aviso não é resultado: o cliente precisa perguntar de
+      // novo em vez de ficar preso nela pelo cacheMaxAge normal.
+      if (onlyNotice(result.streams) || streamsNeedRevalidation(result)) {
         // Resposta vazia (busca ainda em background) não pode ficar cacheada:
         // o Stremio precisa perguntar de novo pra pegar o resultado real.
         //
@@ -316,6 +342,12 @@ function createApp() {
 
   app.get('/debrid-status.json', debridStatusHandler);
   app.get('/resolve/:infoHash', resolveHandler);
+  // Captura o origin da requisição ANTES das duas montagens do router do SDK: o
+  // `defineStreamHandler` não recebe o `req`, então o aviso de lista vazia só
+  // tem como conhecer o origin por aqui. Fica acima do middleware de config para
+  // o `run` mesclado preservar o origin na frente do `/:userConfig`.
+  app.use((req, _res, next) => runtime.run({ origin: originOf(req) }, () => next()));
+
   // Rotas sem config: usam o .env puro. Vêm ANTES do prefixo genérico, senão
   // "/manifest.json" seria lido como um segmento de configuração.
   app.use(getRouter(addonInterface));
@@ -341,4 +373,4 @@ function createApp() {
   return { app, manifest, addonInterface };
 }
 
-module.exports = { createApp, streamsNeedRevalidation };
+module.exports = { createApp, streamsNeedRevalidation, originOf };
