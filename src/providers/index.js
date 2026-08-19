@@ -3,6 +3,7 @@ const demo = require('./demo');
 const jackett = require('./jackett');
 const prowlarr = require('./prowlarr');
 const bludv = require('./bludv');
+const account = require('./account');
 const { getMeta } = require('../utils/cinemeta');
 const {
   parseStremioId,
@@ -473,6 +474,13 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate, sw
   if (config.bludv.enabled) {
     // Sites BR indexam por título pt-BR ("Coringa", não "Joker").
     addTask(bludv.search(ptQuery || query), true);
+  }
+
+  // A conta do debrid como fonte: o que já está pronto lá entra com ⚡ sem
+  // indexer nenhum. Teto curto dentro da própria tarefa (ver account.js)
+  // para a primeira leitura não segurar a resposta.
+  if (config.debrid.inventorySource && debrid.current()) {
+    addTask(account.search(matchContext));
   }
 
   // Orçamento menor que o deadline da resposta: o resto do tempo é da checagem
@@ -1017,13 +1025,16 @@ async function buildStreams(
   const { names, year: catalogYear } = resolveSearchNames({ meta, titles });
   if (names.length && !isDemo) {
     const before = raw.length;
-    raw = filterRelevantRaw(raw, {
-      names,
-      year: catalogYear,
-      isSeries: season != null,
-      // O filtro de episódio continua separado abaixo para manter os logs por
-      // motivo; aqui compartilhamos apenas a decisão de título.
-    });
+    // Itens do inventário da conta já passaram pelo filtro DELES no provider
+    // (estrito + exceção de franquia, `filterInventoryRelevant`): re-aplicar
+    // o estrito aqui mataria justamente o pack de franquia que a exceção
+    // deixou passar ("FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS" para Star
+    // Trek). Os nomes são os mesmos do matchContext que filtrou lá.
+    const fromAccount = raw.filter((r) => r.fromAccount);
+    const titleCtx = { names, year: catalogYear, isSeries: season != null };
+    raw = fromAccount.length
+      ? [...fromAccount, ...filterRelevantRaw(raw.filter((r) => !r.fromAccount), titleCtx)]
+      : filterRelevantRaw(raw, titleCtx);
     if (before !== raw.length) log.info(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
   }
 

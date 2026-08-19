@@ -35,6 +35,8 @@ const {
   numeralSearchVariant,
   topSeededPool,
   pickTopSeededCandidates,
+  isMultiWorkCollection,
+  franchiseRoot,
 } = require('../src/utils/format');
 
 const HASH = 'a'.repeat(40);
@@ -57,6 +59,25 @@ test('topSeededPool prefere pack, depois seeders e deixa PT explícito passar', 
   const highQuality = { infoHash: '8'.repeat(40), title: 'Lost Girl S03 2160p', _seeders: 4 };
   assert.equal(topSeededPool([episode, highQuality, pack], { season: 3, minSeeders: 3 })[0], pack);
   assert.equal(pickTopSeededCandidates([episode, highQuality, pack], new Set(), 2, { season: 3, minSeeders: 3 }).length, 2);
+});
+
+test('filmografia é palavra forte de pack; saga e "temporada completa" continuam fracas', () => {
+  // Medido nos 1203 títulos prontos de uma conta real: "filmografia" aparece
+  // 1 vez e é pack; "saga" 3 vezes (2 delas filme comum) e "completa" 11
+  // (quase todas "Temporada Completa") — por isso só a primeira é forte.
+  assert.equal(isMultiWorkCollection('FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR'), true);
+  assert.equal(isMultiWorkCollection('Filmography Collection 1979'), true);
+  assert.equal(isMultiWorkCollection('[Saga Crepúsculo]'), false);
+  assert.equal(isMultiWorkCollection('The Twilight Saga Breaking Dawn Part 1'), false);
+  assert.equal(isMultiWorkCollection('Lost Girl 1ª Temporada Completa'), false);
+});
+
+test('franchiseRoot corta subtítulo e sequência com trava de 2+ palavras', () => {
+  assert.equal(franchiseRoot('Jornada nas Estrelas: O Filme'), 'Jornada nas Estrelas');
+  assert.equal(franchiseRoot('Jornada nas Estrelas II'), 'Jornada nas Estrelas');
+  assert.equal(franchiseRoot('Missão: Impossível'), 'Missão: Impossível', 'prefixo de 1 palavra não é cortado');
+  assert.equal(franchiseRoot('Star Trek'), 'Star Trek', 'sem separador, título inteiro');
+  assert.equal(franchiseRoot(''), '');
 });
 
 test('extractInfoHash aceita hash puro, magnet e base32', () => {

@@ -79,8 +79,31 @@ async function enqueue(apiKey, infoHash) {
   return (created?.data?.torrent_id ?? created?.data?.id) != null;
 }
 
+/**
+ * Inventário PRONTO da conta (`{ title, infoHash, size }`): base da
+ * conta-como-fonte. É o `/torrents/mylist` SEM `id` — a mesma chamada que o
+ * resolveLink faz para UM torrent, agora para a lista inteira. O par
+ * download_finished/download_present é o que o resolveLink já considera
+ * "pronto para leitura".
+ */
+async function inventory(apiKey) {
+  const list = await call(apiKey, '/torrents/mylist');
+  const rows = Array.isArray(list?.data) ? list.data : (list?.data ? [list.data] : []);
+  const out = [];
+  for (const row of rows) {
+    if (!(row?.download_finished || row?.download_present)) continue;
+    const infoHash = String(row.hash || '').toLowerCase();
+    const title = String(row.name || '').trim();
+    if (!infoHash || !title) continue;
+    if (title.toLowerCase() === infoHash) continue;
+    out.push({ title, infoHash, size: Number(row.size) || 0 });
+  }
+  return out;
+}
+
 module.exports = {
   enqueue,
+  inventory,
   id: 'torbox',
   label: 'TorBox',
   short: 'TB',

@@ -3,6 +3,7 @@ const config = require('../config');
 const { accountScope } = require('../utils/request-key');
 const { raceWithDeadline } = require('../utils/deadline');
 const { isAuthError, isQuotaError } = require('./common');
+const cache = require('../utils/cache');
 const metrics = require('../utils/metrics');
 const log = require('../utils/logger');
 
@@ -284,6 +285,52 @@ async function resolveLink(infoHash, episode) {
   return adapter.resolveLink(opts().debridApiKey, infoHash, episode);
 }
 
+// Inventário em voo por serviço+conta: buscas concorrentes não pagam a mesma
+// leitura da conta.
+const inventoryInFlight = new Map();
+
+function inventoryFor(adapter, apiKey) {
+  const key = `dinv1:${adapter.id}:${accountScope(apiKey)}`;
+  const hit = cache.get(key);
+  if (hit) return Promise.resolve(hit);
+
+  let task = inventoryInFlight.get(key);
+  if (!task) {
+    task = Promise.resolve()
+      .then(() => adapter.inventory(apiKey))
+      .then((items) => {
+        // Teto defensivo: a conta real medida tem 1208 prontos; resposta
+        // degenerada não pode entrar inteira no cache.
+        const list = (Array.isArray(items) ? items : []).slice(0, config.debrid.inventoryMax);
+        cache.set(key, list, config.debrid.inventoryTtl);
+        log.info(`[${adapter.id}] inventário da conta: ${list.length} item(ns) pronto(s)`);
+        return list;
+      });
+    inventoryInFlight.set(key, task);
+    // A corrida da resposta pode ter desistido desta promise: sem isto, a
+    // rejeição tardia virava unhandled. Falha NÃO fica cacheada — a próxima
+    // busca tenta de novo (mesmo contrato do knownBefore e do nonAbortable).
+    const cleanup = () => {
+      if (inventoryInFlight.get(key) === task) inventoryInFlight.delete(key);
+    };
+    task.then(cleanup, cleanup);
+  }
+  return task;
+}
+
+/**
+ * Itens prontos na conta do serviço corrente (`{ title, infoHash, size }`).
+ * É o que sustenta a conta-como-fonte: o que o usuário já baixou entra na
+ * busca com ⚡ sem depender de indexer. Memoizado por serviço+conta —
+ * inventário é privado — com TTL próprio. Adaptador sem `inventory` devolve
+ * [] (a feature vira no-op para ele).
+ */
+async function inventory() {
+  const adapter = current();
+  if (!adapter || typeof adapter.inventory !== 'function') return [];
+  return inventoryFor(adapter, opts().debridApiKey);
+}
+
 /**
  * Manda o torrent baixar no serviço e volta na hora — NÃO espera ficar pronto.
  * É o que sustenta o download automático da fonte BR dublada: o play só
@@ -307,7 +354,22 @@ async function enqueue(infoHash, episode) {
  */
 function warmupEnv() {
   const adapter = config.debrid.service ? BY_ID.get(config.debrid.service) : null;
-  if (!adapter || typeof adapter.warmInventory !== 'function') return Promise.resolve(null);
+  if (!adapter) return Promise.resolve(null);
+
+  // Aquece também o inventário-como-fonte da conta do operador: a primeira
+  // leitura custa ~700ms (medido numa conta com 1208 magnets) e não pode
+  // cair dentro da primeira busca.
+  if (
+    config.debrid.inventorySource &&
+    typeof adapter.inventory === 'function' &&
+    config.debrid.apiKey && config.debrid.allowEnvKey
+  ) {
+    inventoryFor(adapter, config.debrid.apiKey).catch((err) => {
+      log.warn(`[${adapter.id}] não consegui aquecer o inventário como fonte:`, err.message);
+    });
+  }
+
+  if (typeof adapter.warmInventory !== 'function') return Promise.resolve(null);
   if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.dropReady) return Promise.resolve(null);
   return adapter.warmInventory(config.debrid.apiKey).catch((err) => {
     log.warn(`[${adapter.id}] não consegui aquecer o inventário:`, err.message);
@@ -333,5 +395,5 @@ async function sweepDeadEnv() {
 }
 
 module.exports = {
-  SERVICES, BY_ID, current, checkCached, accountStatus, resolveLink, enqueue, warmupEnv, sweepDeadEnv,
+  SERVICES, BY_ID, current, checkCached, accountStatus, resolveLink, enqueue, inventory, warmupEnv, sweepDeadEnv,
 };

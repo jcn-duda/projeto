@@ -244,6 +244,15 @@ O registry também expõe `enqueue()` para o **autofetch BR**: sem fonte dublada
 tocável em cache, o addon manda o debrid baixar o melhor candidato para o play
 da próxima vez. Os detalhes e as travas estão no invariante 6.
 
+O registry também expõe `inventory()`: o que já está **pronto** na conta
+(AllDebrid/TorBox; nos demais é no-op) entra na busca como mais uma fonte
+(`src/providers/account.js`), memoizado por serviço+conta sob `dinv1:`. A
+relevância de inventário (`filterInventoryRelevant`) aceita também **pack de
+franquia** da mesma obra — coisa na conta é escolha do usuário, sinal que
+resultado de tracker não tem; por isso essa exceção NÃO vale no caminho dos
+indexers. Item de inventário é preexistente por definição: o `knownBefore` já
+o protege do `dropReady`.
+
 ### Os seis invariantes que mais quebram
 
 **1. O orçamento de tempo é sagrado.**
@@ -357,6 +366,7 @@ no caminho da resposta — erro só vira log.
 | `src/providers/jackett-catalog.js` | Catálogo de indexers do Jackett (torznab) pra página de configuração, com TTL e fallback pros do `.env` |
 | `src/providers/prowlarr.js` | Alternativa ao Jackett |
 | `src/providers/bludv.js` | Scraper direto do BLUDV (fora do Jackett) |
+| `src/providers/account.js` | A conta do debrid como fonte: inventário pronto da conta entra na busca com ⚡ (AllDebrid/TorBox) |
 | `src/providers/demo.js` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
 | `src/debrid/index.js` | Registry de serviços de debrid + seleção por requisição |
 | `src/debrid/common.js` | `magnetFor`, fetch JSON, `pickFile`, lotes de cache, classificação de erro (`AuthError`/`QuotaError`) |

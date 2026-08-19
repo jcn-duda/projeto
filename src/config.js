@@ -288,6 +288,21 @@ const config = {
     // o CACHE_TTL inteiro. 0 em qualquer um desliga o recheck.
     autoFetchRecheckMs: num(process.env.DEBRID_AUTO_FETCH_RECHECK_MS, 120_000),
     autoFetchRecheckMax: num(process.env.DEBRID_AUTO_FETCH_RECHECK_MAX, 3),
+    // A conta como fonte de busca: o que já está pronto no debrid entra com ⚡
+    // sem depender de indexer — inclusive pack de franquia que o casamento
+    // estrito dos trackers rejeita (medido: "FILMOGRAFIA COMPLETA JORNADA NAS
+    // ESTRELAS" pronto na conta e invisível, porque nenhum indexer devolve o
+    // título). Só AllDebrid e TorBox expõem inventário; nos demais é no-op.
+    inventorySource: String(process.env.DEBRID_INVENTORY_SOURCE || 'true') === 'true',
+    // Validade do inventário memoizado: ele só muda quando o usuário mexe na
+    // conta, então 300s troca "refletir uploads novos" por "não bater na API
+    // a cada busca". Falha nunca fica gravada.
+    inventoryTtl: num(process.env.DEBRID_INVENTORY_TTL, 300),
+    // Teto defensivo de itens lidos da conta (a real medida tem 1208 prontos).
+    inventoryMax: Math.max(1, Math.trunc(num(process.env.DEBRID_INVENTORY_MAX, 3000))),
+    // Teto da fonte DENTRO da busca: a primeira leitura custa ~700ms (medido);
+    // estourou, a tarefa devolve [] e a próxima busca pega do memo aquecido.
+    inventoryTimeoutMs: num(process.env.DEBRID_INVENTORY_TIMEOUT_MS, 1500),
     // URL pública do addon, usada nos links de play resolvidos no debrid.
     publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
     // Segredo do HMAC dos links /resolve. Vazio = assina com a API key de

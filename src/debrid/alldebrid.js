@@ -377,9 +377,34 @@ async function accountStatus(apiKey) {
   };
 }
 
+/**
+ * Inventário PRONTO da conta (`{ title, infoHash, size }`): base da
+ * conta-como-fonte. Só o que já está pronto interessa — o que ainda baixa não
+ * é tocável e não deve aparecer como stream.
+ *
+ * Entrada cujo filename É o próprio hash é magnet sem metadado resolvido
+ * (5 no inventário real medido): título vazio não casa com obra nenhuma.
+ */
+async function inventory(apiKey) {
+  const data = await call(apiKey, '/magnet/status');
+  const list = Array.isArray(data?.magnets) ? data.magnets : [];
+  const out = [];
+  for (const magnet of list) {
+    // Mesmo critério de "pronto" do accountStatus: `ready` ou status Ready.
+    if (!(magnet.ready || /^ready$/i.test(String(magnet.status || '')))) continue;
+    const infoHash = String(magnet.hash || '').toLowerCase();
+    const title = String(magnet.filename || '').trim();
+    if (!infoHash || !title) continue;
+    if (title.toLowerCase() === infoHash) continue;
+    out.push({ title, infoHash, size: Number(magnet.size) || 0 });
+  }
+  return out;
+}
+
 module.exports = {
   enqueue,
   accountStatus,
+  inventory,
   id: 'alldebrid',
   label: 'AllDebrid',
   short: 'AD',

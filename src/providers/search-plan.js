@@ -4,7 +4,7 @@
  * TPB) fora do balde até depois dos ~6,5s. Globais de teto curto continuam
  * agrupados — cabem no prazo. `ptBrIndexers` só decide a query em pt-BR.
  */
-const { numeralSearchVariant } = require('../utils/format');
+const { numeralSearchVariant, franchiseRoot } = require('../utils/format');
 
 function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isolateIndexers = [], sweepQuery = null) {
   const brSet = new Set(ptBrIndexers);
@@ -62,35 +62,13 @@ function ptSweepIndexers(selectedIndexers, ptBrIndexers) {
  * devolve 1 resultado num único indexer, "Jornada nas Estrelas" devolve 13 em
  * três. A precisão continua garantida pelo matchContext, que roda depois.
  *
- * Regras:
- * - corta em `:`, `–`, `—` apenas quando o prefixo tem 2+ palavras (protege
- *   "Missão: Impossível", onde o prefixo é uma palavra só);
- * - corta o marcador de sequência final (`II`, `2`, `Parte 2`) pela mesma
- *   razão, e com a mesma trava de 2+ palavras no que sobra: quem hospeda o
- *   dublado da continuação é a COLEÇÃO da franquia, e "Jornada nas Estrelas
- *   II" devolve 0 resultados enquanto "Jornada nas Estrelas" devolve 14;
- * - não anexa o ano (responsabilidade de quem chama);
- * - devolve '' quando não há título pt (a varredura já é pulada nesse caso).
+ * A implementação (corte de subtítulo, marcador de sequência e trava de 2+
+ * palavras) vive em format.js como `franchiseRoot`: a exceção de franquia do
+ * inventário da conta precisa da MESMA raiz, e duplicar a regra faria os dois
+ * caminhos divergirem.
  */
-// Sequência no fim do título: romano canônico, número de 1-2 dígitos ou
-// "Parte N". A trava de 2+ palavras na raiz protege "Distrito 9", onde o
-// número É o nome da obra.
-const SEQUENCE_TAIL = /\s+(?:parte\s+)?(?:[ivx]{1,4}|\d{1,2})$/i;
-
 function ptSweepQuery(titlePt) {
-  const raw = String(titlePt || '').trim();
-  if (!raw) return '';
-  // Casa o PRIMEIRO separador entre os três suportados; a âncora inicial
-  // impede cortar no meio de um subtítulo.
-  const cut = raw.match(/^([^:–—]+?)([:–—].*)?$/);
-  let head = raw;
-  if (cut) {
-    const candidate = cut[1].trim();
-    if (candidate.split(/\s+/).filter(Boolean).length >= 2) head = candidate;
-  }
-  const root = head.replace(SEQUENCE_TAIL, '').trim();
-  if (root && root.split(/\s+/).filter(Boolean).length >= 2) return root;
-  return head;
+  return franchiseRoot(titlePt);
 }
 
 /**

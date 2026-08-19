@@ -727,10 +727,13 @@ const YEAR_RANGE = /\b(?:19|20)\d{2}(?:\s*[-–—,]\s*|\s+(?:de|a|ate|até)\s+|
 // com zero falso positivo — "trilogy" tem 30 ocorrências no corpus, todas packs,
 // e "quadrilogy" 1, também pack.
 //
-// `saga` fica FORA de propósito: "A Saga Crepúsculo" é o nome do filme —
-// 23 de 29 resultados reais de "Crepúsculo Dublado" seriam retidos por engano.
+// Revalidado sobre os 1203 títulos prontos de uma conta real de debrid:
+// "filmografia" aparece 1 vez e é pack; "trilogia" 3, todas packs. `saga`
+// segue FORA (3 ocorrências, 2 delas filme comum — "The Twilight Saga
+// Breaking Dawn Part 1", "[Saga Crepúsculo]") e `completa` segue fraca
+// (11 ocorrências, quase todas "Temporada Completa").
 const STRONG_PACK_WORDS = new Set(
-  'trilogia duologia quadrilogia pentalogia colecao coletanea antologia trilogy quadrilogy duology tetralogy anthology boxset'.split(' '),
+  'trilogia duologia quadrilogia pentalogia colecao coletanea antologia filmografia filmography trilogy quadrilogy duology tetralogy anthology boxset'.split(' '),
 );
 
 /**
@@ -747,6 +750,88 @@ function isMultiWorkCollection(title = '') {
   // sozinha ela também aparece em "Todas as Temporadas" e em edição especial.
   if (!YEAR_RANGE.test(raw)) return false;
   return tokens.some((token) => PACK_WORDS.has(token));
+}
+
+// Sequência no fim do título: romano canônico, número de 1-2 dígitos ou
+// "Parte N". A trava de 2+ palavras na raiz protege "Distrito 9", onde o
+// número É o nome da obra.
+const SEQUENCE_TAIL = /\s+(?:parte\s+)?(?:[ivx]{1,4}|\d{1,2})$/i;
+
+/**
+ * Raiz da franquia de um título: corta o subtítulo ("Jornada nas Estrelas: O
+ * Filme" → "Jornada nas Estrelas") e o marcador de sequência no fim ("II",
+ * "2", "Parte 2"), sempre exigindo 2+ palavras no resultado — quem hospeda o
+ * dublado da continuação costuma ser a COLEÇÃO da franquia, e "Jornada nas
+ * Estrelas II" devolve 0 resultados onde "Jornada nas Estrelas" devolve 14.
+ *
+ * Alimenta a varredura pt-BR (search-plan) e a exceção de franquia do
+ * inventário da conta (`filterInventoryRelevant`).
+ */
+function franchiseRoot(title) {
+  const raw = String(title || '').trim();
+  if (!raw) return '';
+  // Casa o PRIMEIRO separador entre os três suportados; a âncora inicial
+  // impede cortar no meio de um subtítulo.
+  const cut = raw.match(/^([^:–—]+?)([:–—].*)?$/);
+  let head = raw;
+  if (cut) {
+    const candidate = cut[1].trim();
+    if (candidate.split(/\s+/).filter(Boolean).length >= 2) head = candidate;
+  }
+  const root = head.replace(SEQUENCE_TAIL, '').trim();
+  if (root && root.split(/\s+/).filter(Boolean).length >= 2) return root;
+  return head;
+}
+
+/** Raízes de franquia normalizadas de todos os nomes conhecidos da obra. */
+function franchiseRoots(names = []) {
+  const roots = new Set();
+  for (const name of names) {
+    const normalized = normalizeTitle(franchiseRoot(name)).split(' ').filter(Boolean).join(' ');
+    if (normalized) roots.add(normalized);
+  }
+  return [...roots];
+}
+
+/** O título contém a raiz como sequência contígua de palavras normalizadas. */
+function containsTokenRun(title, normalizedRoot) {
+  const haystack = normalizeTitle(title).split(' ').filter(Boolean);
+  const needle = String(normalizedRoot || '').split(' ').filter(Boolean);
+  if (!needle.length || haystack.length < needle.length) return false;
+  for (let i = 0; i <= haystack.length - needle.length; i += 1) {
+    if (needle.every((tok, j) => haystack[i + j] === tok)) return true;
+  }
+  return false;
+}
+
+/**
+ * Relevância de item do INVENTÁRIO da conta do debrid: o caminho estrito dos
+ * indexers, MAIS uma exceção — pack multi-obra da MESMA franquia.
+ *
+ * A exceção não vale para o caminho dos indexers, de propósito: resultado de
+ * tracker é palpite, coisa na conta é escolha do usuário (e já está paga).
+ * Medido: "FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR" pronto
+ * no debrid e invisível — "filmografia" não é o começo de nenhum nome da
+ * obra e a regra de prefixo do filtro estrito o rejeitava.
+ *
+ * Só para filme (season == null): pack de franquia de série morreria mesmo
+ * assim no corte por episódio, e temporada inteira já passa pelo caminho
+ * normal ("Lost Girl (2010) S01-S05").
+ */
+function filterInventoryRelevant(items = [], { names = [], season = null, ...matchContext } = {}) {
+  if (!names.length) return [];
+  const direct = filterRelevantRaw(items, { names, season, ...matchContext });
+  if (season != null) return direct;
+  const directSet = new Set(direct);
+  const leftovers = items.filter((item) => !directSet.has(item));
+  if (!leftovers.length) return direct;
+  const roots = franchiseRoots(names);
+  if (!roots.length) return direct;
+  const extra = leftovers.filter((item) => {
+    const title = item?.title || item?.Title || '';
+    return isMultiWorkCollection(title) && roots.some((root) => containsTokenRun(title, root));
+  });
+  return extra.length ? [...direct, ...extra] : direct;
 }
 
 /**
@@ -1668,6 +1753,10 @@ module.exports = {
   matchesName,
   matchesBrTitle,
   filterRelevantRaw,
+  filterInventoryRelevant,
+  franchiseRoot,
+  franchiseRoots,
+  containsTokenRun,
   matchesEpisode,
   parseTitleSeasonEpisode,
   dedupeByHash,
