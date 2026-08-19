@@ -8,10 +8,6 @@ const debrid = require('../src/debrid');
 const runtime = require('../src/runtime');
 const config = require('../src/config');
 const { originOf } = require('../src/app');
-// Imports adicionais para os testes de deadline (encontram-se no topo do arquivo
-// para evitar conflito com require já cacheado).
-const cache = require('../src/utils/cache');
-const { streamsCacheKey } = require('../src/utils/request-key');
 
 const A = 'a'.repeat(40);
 
