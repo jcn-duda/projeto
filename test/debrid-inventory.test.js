@@ -22,12 +22,12 @@ const torbox = require('../src/debrid/torbox');
 const debrid = require('../src/debrid');
 const runtime = require('../src/runtime');
 const cache = require('../src/utils/cache');
-const { accountScope } = require('../src/utils/request-key');
 const {
   filterRelevantRaw: relevantRaw,
   filterInventoryRelevant,
 } = require('../src/utils/format');
 const { buildStreams } = require('../src/providers');
+const account = require('../src/providers/account');
 
 const KEY_A = 'chave-conta-a';
 const KEY_B = 'chave-conta-b';
@@ -328,5 +328,33 @@ test('buildStreams preserva o pack de franquia da conta e o entrega via /resolve
     assert.ok(streams[0].url, 'item pronto da conta sai pelo /resolve (com ⚡)');
   } finally {
     debrid.checkCached = originalCheck;
+  }
+});
+
+test('account.search avalia itens pt-BR com matchesBrTitle (invariante 5)', async () => {
+  cache.clear();
+  const api = mockAllDebridStatus({
+    magnetsOf: () => [
+      // Obra correta dublada
+      { id: 1, hash: H1, status: 'Ready', filename: 'Coringa (2019) 1080p Dublado', ready: true },
+      // Sequência / lixo dublado que o matchesBrTitle corta por ano/prefixo
+      { id: 2, hash: H2, status: 'Ready', filename: 'Coringa: Delírio a Dois (2024) 1080p Dublado', ready: true },
+    ],
+  });
+  try {
+    const ctx = { names: ['Joker', 'Coringa'], year: 2019, isSeries: false };
+    const items = await runtime.run(
+      {
+        opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: KEY_A },
+        encoded: 'seginv2',
+      },
+      () => account.search(ctx),
+    );
+    assert.equal(items.length, 1);
+    assert.equal(items[0].infoHash, H1);
+    assert.equal(items[0].isBr, true);
+  } finally {
+    api.restore();
+    cache.clear();
   }
 });

@@ -29,7 +29,14 @@ async function search(matchContext) {
       config.debrid.inventoryTimeoutMs,
       () => [],
     );
-    const relevant = filterInventoryRelevant(items, matchContext);
+    const raw = items.map((item) => ({
+      ...item,
+      // Origem BR pelo título: garante que itens em português passem por
+      // `matchesBrTitle` (invariante 5) durante o `filterInventoryRelevant`,
+      // em vez de usarem o caminho mais permissivo de trackers globais.
+      isBr: looksPtBr(item.title),
+    }));
+    const relevant = filterInventoryRelevant(raw, matchContext);
     if (!relevant.length) return [];
     metrics.count('search.account.items', relevant.length);
     log.info(`[account] ${relevant.length} item(ns) pronto(s) na conta do debrid entraram como fonte`);
@@ -42,7 +49,7 @@ async function search(matchContext) {
       size: item.size,
       tracker: debrid.current()?.label || 'debrid',
       indexer: 'debrid',
-      isBr: looksPtBr(item.title),
+      isBr: item.isBr,
       // Marca para o buildStreams: item de inventário já passou pelo filtro
       // DELE (estrito + exceção de franquia); o filtro estrito comum não pode
       // desfazer a exceção lá na frente.
