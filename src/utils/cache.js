@@ -313,7 +313,10 @@ function snapshot() {
 function get(key) {
   const hit = store.get(key);
   if (!hit) {
+    // O contador por namespace diz QUAL balde está pagando rede de novo; o
+    // global continua para as séries históricas que já existem no painel.
     metrics.count('cache.miss');
+    metrics.count(`cache.miss.${namespaceFor(key)}`);
     return null;
   }
   if (hit.expiresAt && Date.now() > hit.expiresAt) {
@@ -321,10 +324,12 @@ function get(key) {
     // Expirado é miss para quem perguntou; o `expired` separado diz se o TTL
     // está curto demais para o ritmo de uso.
     metrics.count('cache.miss');
+    metrics.count(`cache.miss.${hit.namespace}`);
     metrics.count('cache.expired');
     return null;
   }
   metrics.count('cache.hit');
+  metrics.count(`cache.hit.${hit.namespace}`);
   // Map preserva inserção; mover o hit para o fim transforma o corte em LRU.
   removeFromStore(key);
   store.set(key, hit);

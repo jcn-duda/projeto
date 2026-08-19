@@ -7,6 +7,7 @@ const assert = require('node:assert');
 const { batched } = require('../src/debrid/common');
 const debrid = require('../src/debrid');
 const runtime = require('../src/runtime');
+const metrics = require('../src/utils/metrics');
 const premiumize = require('../src/debrid/premiumize');
 const torbox = require('../src/debrid/torbox');
 
@@ -120,6 +121,52 @@ test('checkCached degrada sem rede quando o prazo acabou e propaga teto positivo
       options: { timeoutMs: 750 },
     });
   } finally {
+    debrid.BY_ID.set('premiumize', original);
+  }
+});
+
+test('medição de repetição por hash: janela conta o que volta, ignora degradação', async () => {
+  // A razão repeated/hashes na janela de 15 min é o gate do cache de
+  // disponibilidade por hash; a medição não pode contar checagem que nem
+  // chegou ao serviço (prazo esgotado), senão o número mente pra cima.
+  const original = debrid.BY_ID.get('premiumize');
+  debrid.BY_ID.set('premiumize', {
+    id: 'premiumize',
+    label: 'Premiumize fake',
+    cacheCheck: true,
+    async checkCached(apiKey, infoHashes) {
+      return { cached: new Set(infoHashes), complete: true };
+    },
+  });
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-fake-tracking',
+  };
+
+  metrics.reset();
+  try {
+    // Degradação por prazo não é pergunta ao debrid: nada entra na janela.
+    await runtime.run(
+      { opts: userOpts, encoded: '' },
+      () => debrid.checkCached(['track-degradado'], { timeoutMs: 0 }),
+    );
+
+    await runtime.run(
+      { opts: userOpts, encoded: '' },
+      () => debrid.checkCached(['track-AAA', 'track-bbb']),
+    );
+    // A janela normaliza caixa: 'aaa' casa com 'track-AAA' da busca anterior.
+    await runtime.run(
+      { opts: userOpts, encoded: '' },
+      () => debrid.checkCached(['track-aaa', 'track-ccc']),
+    );
+
+    const counters = metrics.snapshot().counters;
+    assert.equal(counters['debrid.check.hashes'], 4, 'só as checagens reais contam');
+    assert.equal(counters['debrid.check.repeated'], 1, 'hash repetido na janela é contado');
+  } finally {
+    metrics.reset();
     debrid.BY_ID.set('premiumize', original);
   }
 });

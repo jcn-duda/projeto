@@ -12,6 +12,31 @@ const log = require('../utils/logger');
 const nonAbortableChecks = new Map();
 const NON_ABORTABLE_CHECK_TTL_MS = 60_000;
 
+// Janela de medição de repetição por hash. O coalescing acima casa o CONJUNTO
+// inteiro de hashes, então o mesmo hash voltando em buscas diferentes ainda
+// paga upload de novo (AllDebrid). A razão repeated/hashes na janela decide se
+// o cache de disponibilidade por hash compensa — sem a medição antes, a
+// decisão seria palpite.
+const CHECKED_HASH_WINDOW_MS = 15 * 60 * 1000;
+const checkedHashWindow = new Map();
+
+function trackCheckedHashes(infoHashes) {
+  const now = Date.now();
+  // Poda preguiçosa na própria chamada: o volume de checagens é baixo e não
+  // justifica timer dedicado.
+  for (const [hash, at] of checkedHashWindow) {
+    if (now - at > CHECKED_HASH_WINDOW_MS) checkedHashWindow.delete(hash);
+  }
+  let repeated = 0;
+  for (const raw of infoHashes) {
+    const hash = String(raw).toLowerCase();
+    if (checkedHashWindow.has(hash)) repeated += 1;
+    checkedHashWindow.set(hash, now);
+  }
+  metrics.count('debrid.check.hashes', infoHashes.length);
+  if (repeated) metrics.count('debrid.check.repeated', repeated);
+}
+
 /**
  * Serviço inutilizável AGORA, por um motivo que só o usuário conserta —
  * estado próprio, não "não sei".
@@ -181,6 +206,9 @@ async function checkCached(infoHashes, { timeoutMs } = {}) {
     if (timeoutMs != null && timeoutMs < config.debrid.nonAbortableRaceFloor) {
       return { cached: new Set(), known: false };
     }
+    // Medição fica no ponto onde a checagem REAL acontece: degradação por
+    // prazo ou ausência de serviço não é pergunta feita ao debrid.
+    trackCheckedHashes(infoHashes);
     const task = nonAbortableCheck(adapter, opts().debridApiKey, infoHashes);
     if (timeoutMs == null) return task;
     return raceWithDeadline(task, timeoutMs, () => {
@@ -189,6 +217,7 @@ async function checkCached(infoHashes, { timeoutMs } = {}) {
     });
   }
 
+  trackCheckedHashes(infoHashes);
   try {
     const result = await adapter.checkCached(opts().debridApiKey, infoHashes, { timeoutMs });
     return normalizeCacheResult(adapter, result);

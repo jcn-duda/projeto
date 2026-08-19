@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const metrics = require('../src/utils/metrics');
 
 // Chaves sem prefixo pertencem ao namespace padrão. Estes testes exercitam o
 // LRU desse balde; o teto global é deliberadamente maior que cada cota.
@@ -385,6 +386,35 @@ test(
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(DLMAG_DOMINATED_LOAD_SCRIPT),
 );
+
+test('hit/miss por namespace: contadores globais ganham o sufixo do balde', () => {
+  // Linha de base das fases do cache: o global diz SE o cache está pegando,
+  // o sufixo diz QUAL namespace está pagando rede de novo.
+  const originalPersist = process.env.CACHE_PERSIST;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    delete require.cache[CACHE_MODULE];
+    const cache = require(CACHE_MODULE);
+    metrics.reset();
+
+    cache.set('raw1:jackett:yts:movie:coringa', { itens: [] }, TTL_S);
+    assert.deepEqual(cache.get('raw1:jackett:yts:movie:coringa'), { itens: [] });
+    cache.get('raw1:jackett:yts:movie:faltante'); // miss dentro do namespace
+    cache.get('sem-prefixo'); // miss no balde padrão
+
+    const counters = metrics.snapshot().counters;
+    assert.equal(counters['cache.hit'], 1, 'contador global de hit preservado');
+    assert.equal(counters['cache.hit.raw1'], 1, 'hit ganha o sufixo do namespace');
+    assert.equal(counters['cache.miss'], 2, 'contador global de miss preservado');
+    assert.equal(counters['cache.miss.raw1'], 1, 'miss ganha o sufixo do namespace');
+    assert.equal(counters['cache.miss.__default'], 1, 'chave sem prefixo cai no balde padrão');
+  } finally {
+    metrics.reset();
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+    delete require.cache[CACHE_MODULE];
+  }
+});
 
 test('modo sem persistência (CACHE_PERSIST="false"): operações puras em memória com statements nulos', () => {
   const originalPersist = process.env.CACHE_PERSIST;
