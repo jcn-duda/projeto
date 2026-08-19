@@ -398,6 +398,13 @@ function passesQualityFilter(stream, filters, qualityLimits = {}) {
 
 /**
  * Normaliza resultados de Jackett/Prowlarr/demo para o formato do Stremio.
+ *
+ * É a FÁBRICA do que chega ao cliente: o `@returns` faz o typecheck cobrar aqui
+ * a união do `Stream` (todo item precisa de ação — `url`, `infoHash`,
+ * `externalUrl` ou a marca `notice`), na origem e não na tela.
+ * @param {import('../../types/domain').RawItem} item
+ * @returns {import('../../types/domain').Stream | null} `null` quando o item não
+ *   tem infoHash extraível — não há o que tocar.
  */
 function toStremioStream(item) {
   const infoHash = extractInfoHash(item.infoHash || item.magnet || item.MagnetUri || item.Guid);
@@ -965,6 +972,11 @@ function filterRelevantRaw(
  * Extrai temporada/episódio do título da release. Cobre os formatos que os
  * indexers usam de fato: "S01E04", "S01E01-E10", "1x04", "S01" (pack) e as
  * variações pt-BR dos sites BR ("1ª Temporada", "Temporada 1", "Episódio 4").
+ *
+ * O `@returns` trava o CONTRATO: acrescentar ou tirar campo daqui sem mexer no
+ * typedef vira erro na hora. Foi assim que `seasonPack` quebrou oito `deepEqual`
+ * de uma vez — o teste só acusou depois de rodar a suíte inteira.
+ * @returns {import('../../types/domain').ParsedSeasonEpisode}
  */
 function parseTitleSeasonEpisode(title = '') {
   const raw = String(title);

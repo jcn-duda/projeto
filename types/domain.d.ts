@@ -101,6 +101,33 @@ export interface ParsedSeasonEpisode {
 }
 
 /**
+ * Ocupação da conta para o `/debrid-status.json`. Todo campo é opcional porque
+ * cada serviço mede o que consegue: AllDebrid conta magnets por estado (não tem
+ * teto consultável), Premiumize só publica o fair-use (`limit_used` em [0,1]) e
+ * TorBox conta o mylist. Quem consome já decide pelo que existe —
+ * `Number.isFinite(status.limitUsed)` escolhe entre o aviso por percentual e o
+ * aviso por contagem.
+ */
+export interface AccountStatus {
+  /** Total de magnets/torrents na conta (AllDebrid, TorBox). */
+  magnets?: number;
+  ready?: number;
+  active?: number;
+  error?: number;
+  /** Fair-use do Premiumize em [0,1]; `null` quando a API não informou. */
+  limitUsed?: number | null;
+  premiumUntil?: number | null;
+  oldestAt?: number | string | null;
+}
+
+/** Item já PRONTO na conta do debrid, usado como fonte de busca. */
+export interface InventoryItem {
+  title: string;
+  infoHash: string;
+  size: number;
+}
+
+/**
  * Contrato uniforme de adaptador de debrid. `src/debrid/index.js` só conhece
  * os serviços por esta forma; um adapter sem método obrigatório hoje só é
  * pego pelo `typeof adapter.accountStatus !== 'function'` na hora de usar.
@@ -132,9 +159,9 @@ export interface DebridAdapter {
     episode?: { season?: number | null; episode?: number | null; work?: unknown },
   ): Promise<string | null>;
   /** Ocupação da conta para o `/debrid-status.json`; ausente = não suportado. */
-  accountStatus?(apiKey: string): Promise<unknown>;
-  /** Itens prontos na conta (`{ title, infoHash, size }[]`); ausente = no-op. */
-  inventory?(apiKey: string): Promise<unknown>;
+  accountStatus?(apiKey: string): Promise<AccountStatus>;
+  /** Itens prontos na conta; ausente = no-op (serviço sem inventário legível). */
+  inventory?(apiKey: string): Promise<InventoryItem[]>;
   /** Enfileira download; ausente = autofetch/viaDebrid não usa. */
   enqueue?(
     apiKey: string,

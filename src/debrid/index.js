@@ -173,7 +173,10 @@ const SERVICES = ADAPTERS.map(({ id, label, short, cacheCheck, keyUrl }) => ({
   keyUrl,
 }));
 
-/** Adaptador da requisição corrente, ou null quando o usuário está em P2P puro. */
+/**
+ * Adaptador da requisição corrente, ou null quando o usuário está em P2P puro.
+ * @returns {import('../../types/domain').DebridAdapter | null}
+ */
 function current() {
   const { debridService, debridApiKey } = opts();
   if (!debridService || !debridApiKey) return null;
@@ -276,16 +279,20 @@ async function accountStatus() {
 
   try {
     const status = await adapter.accountStatus(opts().debridApiKey);
-    const byFairUse = Number.isFinite(status.limitUsed);
-    const warn = byFairUse
-      ? ACCOUNT_WARN_LIMIT_USED > 0 && status.limitUsed >= ACCOUNT_WARN_LIMIT_USED
+    // O fair-use sai numa variável PRÓPRIA em vez de um booleano `byFairUse`
+    // consultando `status.limitUsed` depois: `Number.isFinite` não estreita o
+    // tipo através de um intermediário, e o campo é opcional (só o Premiumize
+    // publica). Mesmo teste, mesmo resultado — agora verificável.
+    const fairUse = Number.isFinite(status.limitUsed) ? Number(status.limitUsed) : null;
+    const warn = fairUse !== null
+      ? ACCOUNT_WARN_LIMIT_USED > 0 && fairUse >= ACCOUNT_WARN_LIMIT_USED
       : Number(status.magnets) >= ACCOUNT_WARN_TOTAL;
-    const warnAt = byFairUse ? ACCOUNT_WARN_LIMIT_USED : ACCOUNT_WARN_TOTAL;
-    const warnAtUnit = byFairUse ? 'fair-use' : 'magnets';
+    const warnAt = fairUse !== null ? ACCOUNT_WARN_LIMIT_USED : ACCOUNT_WARN_TOTAL;
+    const warnAtUnit = fairUse !== null ? 'fair-use' : 'magnets';
     if (warn) {
-      if (byFairUse) {
+      if (fairUse !== null) {
         log.warn(
-          `[${adapter.id}] fair-use ${Math.round(status.limitUsed * 100)}% ` +
+          `[${adapter.id}] fair-use ${Math.round(fairUse * 100)}% ` +
             `(aviso a partir de ${Math.round(ACCOUNT_WARN_LIMIT_USED * 100)}%); ` +
             'quando o serviço recusar (account_limit_reached) a lista degrada para P2P',
         );

@@ -1020,6 +1020,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
 /**
  * Bruto dos providers → streams do Stremio: corte por título, por episódio,
  * ordenação, debrid e limite final.
+ * @returns {Promise<import('../../types/domain').Stream[]>}
  */
 async function buildStreams(
   rawInput,
@@ -1238,6 +1239,8 @@ async function buildStreams(
  * `url`/`infoHash`/`externalUrl` nenhum cliente Stremio renderiza a linha, então
  * ela só ocuparia a resposta e sumiria na tela — foi o que deixou o app com
  * "Nenhum stream disponível" enquanto a busca já tinha resultado.
+ * @param {import('../../types/domain').Stream[]} [streams]
+ * @returns {import('../../types/domain').Stream[]}
  */
 function applyNoticeOrigin(streams = []) {
   if (!streams.some((stream) => stream?.notice)) return streams;
