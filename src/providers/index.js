@@ -653,7 +653,14 @@ async function findStreams({ type, id }) {
     // recebeu lista parcial.
     metrics.count('search.deadline');
     log.warn(`[search] deadline de ${config.replyDeadline}ms atingido para ${id}; segue em background`);
-    return { streams: [], partial: true };
+    // Quarto estado do aviso, e o único que NÃO sai do buildStreams: aqui a busca
+    // nem terminou, enquanto os outros três explicam uma lista que ficou vazia
+    // depois de buscar. Vale para filme também — a coleta segue para os dois, e a
+    // próxima pergunta pega o cache já preenchido.
+    const streams = config.search.noticeStream
+      ? [{ name: 'Procurando fontes — reabra em instantes', notice: true }]
+      : [];
+    return { streams, partial: true };
   });
 }
 
