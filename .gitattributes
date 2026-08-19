@@ -2,6 +2,8 @@
 # Sem isto, o checkout grava CRLF nos scripts, o shebang vira "#!/bin/bash\r" e
 # o container morre com "/app/entrypoint.sh: not found" — erro que não parece
 # ter nada a ver com fim de linha.
+* text=auto
 *.sh text eol=lf
 Dockerfile text eol=lf
 docker-compose.yml text eol=lf
+/.env.example text eol=lf
