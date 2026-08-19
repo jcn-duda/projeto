@@ -4,14 +4,18 @@ const log = require('./logger');
 const metrics = require('./metrics');
 
 const store = new Map();
-// A soma das cotas conhecidas é 10.700. O teto global fica logo acima dela
+// A soma das cotas conhecidas é 11.500. O teto global fica logo acima dela
 // como proteção para prefixes novos, sem um namespace conhecido expulsar outro.
-const MAX_ENTRIES = 11000;
+const MAX_ENTRIES = 12000;
 const QUOTAS = Object.freeze({
-  streams: 1500,
+  streams: 2000,
   dlmag: 4000,
   tmdb: 2000,
   meta: 2000,
+  // Resultado bruto da busca por indexer/scraper: cada entrada pode chegar a
+  // ~100 KB (teto de itens no config), então a cota fica bem abaixo das de
+  // entrada minúscula — pior caso ~79 MB no L1.
+  raw1: 800,
   autofetch: 500,
   'indexer-status': 200,
   __default: 500,

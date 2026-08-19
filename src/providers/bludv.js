@@ -1,5 +1,6 @@
 const config = require('../config');
 const { opts } = require('../runtime');
+const cache = require('../utils/cache');
 const { mapLimit } = require('../utils/concurrency');
 const log = require('../utils/logger');
 
@@ -150,15 +151,30 @@ async function search(query) {
   // "O Poderoso Chefão: Parte II" voltar resultado.
   const q = String(query).replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
 
+  // A chave carrega a flag de dublado do USUÁRIO: a filtragem das legendadas
+  // acontece DENTRO do scrape (collectFromPost), então sem a flag na chave um
+  // usuário receberia a lista já cortada do outro. TTL BR: é a fonte mais cara
+  // (raspa WordPress + dois saltos de protetor por botão) e a que menos muda.
+  const { ttlBr, emptyTtl, maxItems } = config.rawCache;
+  const rawKey = `raw1:bludv:${opts().dubbedOnly ? 'd' : 't'}:${q}`;
+  if (ttlBr > 0 && maxItems > 0) {
+    const hit = cache.get(rawKey);
+    if (hit && Array.isArray(hit.items)) return hit.items;
+  }
+
   try {
     const html = await get(`${config.bludv.baseUrl}/?s=${encodeURIComponent(q)}`);
     const posts = parsePosts(html).slice(0, config.bludv.maxPosts);
-    if (posts.length === 0) return [];
 
     // 'drop': post que falhou (site fora, layout quebrado) sai do lote em vez
     // de contaminar o resultado — menos resultado, nunca erro.
     const chunks = await mapLimit(posts, config.bludv.concurrency, collectFromPost, { onItemError: 'drop' });
     const items = chunks.flat();
+    if (ttlBr > 0 && maxItems > 0 && items.length <= maxItems) {
+      // Vazio usa o TTL curto: site fora/rate-limit não pode congelar a
+      // resposta. Falha (catch) continua sem cache — retry na próxima busca.
+      cache.set(rawKey, { items }, items.length === 0 ? emptyTtl : ttlBr);
+    }
     log.info(`[bludv] ${posts.length} post(s) → ${items.length} magnet(s)`);
     return items;
   } catch (err) {

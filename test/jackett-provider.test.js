@@ -251,6 +251,139 @@ test('magnet resolvido pelo protetor é reutilizado do cache em buscas subsequen
   });
 });
 
+// --- Cache do resultado bruto (Fase 1 do PLANO_CACHE) ---
+// A memoização cobre SÓ a camada de rede (fetchQuery): cascata de fallback e
+// resolução de magnets continuam rodando por busca. Com fetch falso dá pra
+// contar exatamente quantas consultas Torznab saíram.
+
+test('raw cache: segunda busca da mesma query reusa o bruto sem novo fetch', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Predador (1987) 1080p DUBLADO', Seeders: 3, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const run = () => jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
+      matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false },
+    });
+    const first = await run();
+    assert.equal(first.length, 1);
+    const second = await run();
+    assert.equal(second.length, 1);
+    // A raspagem Torznab aconteceu UMA vez; a segunda busca vive do raw1.
+    assert.deepEqual(fetchImpl.searchCalls(), ['Predador 1987']);
+  });
+});
+
+test('raw cache: E01 e E02 da mesma temporada compartilham a entrada em indexer BR', async () => {
+  // shapeSearchQuery remove SxxEyy nos indexers BR: a chave é por temporada,
+  // e é isso que faz a busca tardia de pack ("Nome S01") pagar uma varredura
+  // só por temporada em vez de uma por episódio.
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Fallout 1ª Temporada (2024) WEB-DL [1080p DUBLADO]', Seeders: 1, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const ctx = { names: ['Fallout'], year: 2024, isSeries: true, season: 1 };
+    const e1 = await jackett.search('Fallout S01E01', 'series', ['bludv-cardigann'], {
+      matchContext: { ...ctx, episode: 1 },
+    });
+    const e2 = await jackett.search('Fallout S01E02', 'series', ['bludv-cardigann'], {
+      matchContext: { ...ctx, episode: 2 },
+    });
+    assert.equal(e1.length, 1);
+    assert.equal(e2.length, 1);
+    // As duas queries moldam para "Fallout": UMA consulta Torznab só.
+    assert.deepEqual(fetchImpl.searchCalls(), ['Fallout']);
+  });
+});
+
+test('raw cache: resultado acima do teto de itens não é cacheado', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Predador A 1080p DUBLADO', Seeders: 3, MagnetUri: MAGNET },
+        { Title: 'Predador B 720p DUBLADO', Seeders: 2, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+  const saved = config.rawCache.maxItems;
+  // Teto forçado pra baixo: 2 itens estouram sem precisar de 121 resultados.
+  config.rawCache.maxItems = 1;
+  try {
+    await withJackett(fetchImpl, async () => {
+      const run = () => jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
+        matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false },
+      });
+      await run();
+      await run();
+      // Acima do teto o bruto não entra no cache: cada busca paga o fetch.
+      assert.equal(fetchImpl.searchCalls().length, 2);
+    });
+  } finally {
+    config.rawCache.maxItems = saved;
+  }
+});
+
+test('raw cache: vazio é cacheado e a segunda busca não abre fetch', async () => {
+  // 200 com zero itens entra com o TTL curto (RAW_CACHE_EMPTY_TTL), não o
+  // cheio; aqui o comportamento: o vazio não paga raspagem repetida.
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) return fakeResponse({ Results: [] });
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const run = () => jackett.search('Titulo Inexistente 1901', 'movie', ['thepiratebay']);
+    assert.deepEqual(await run(), []);
+    assert.deepEqual(await run(), []);
+    assert.equal(fetchImpl.searchCalls().length, 1, 'o vazio da primeira busca é servido do cache');
+  });
+});
+
+test('raw cache: hit não registra indexer-status (a medição não aconteceu)', async () => {
+  // Regressão da correção 4 do PLANO_CACHE: hit gravando ok:true com ms~0
+  // deixaria um indexer caído verde no card pelo TTL inteiro.
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Jornada Nas Estrelas 1979 Dublado 1080p', Seeders: 3, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+  try {
+    await withJackett(fetchImpl, async () => {
+      const run = () => jackett.search('Jornada nas Estrelas 1979', 'movie', ['thepiratebay']);
+      await run();
+      const before = indexerStatus.get('thepiratebay');
+      assert.ok(before, 'a busca ao vivo registra o status');
+      // Relógio distinto: checkedAt tem precisão de milissegundo.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await run(); // hit do raw1: nenhuma consulta Torznab saiu
+      const after = indexerStatus.get('thepiratebay');
+      assert.equal(after.checkedAt, before.checkedAt, 'o hit não pode inventar medição');
+    });
+  } finally {
+    indexerStatus.clear();
+  }
+});
+
 test('tt0084726: variante numérica recupera release BR publicada com algarismo arábico', async () => {
   const fetchImpl = makeFetch();
   fetchImpl.handler = (call) => {

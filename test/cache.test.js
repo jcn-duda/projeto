@@ -331,6 +331,52 @@ test('estouro de dlmag despeja só o próprio namespace e preserva streams', () 
   }
 });
 
+test('cotas da Fase 1: raw1 limitado, streams ampliado, teto na soma', () => {
+  // Os números do PLANO_CACHE v3: raw1 guarda itens grandes (até ~100 KB por
+  // entrada), então a cota fica bem abaixo das de entrada minúscula; o teto
+  // global continua sendo a soma das cotas + folga.
+  const originalPersist = process.env.CACHE_PERSIST;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    delete require.cache[CACHE_MODULE];
+    const cache = require(CACHE_MODULE);
+    assert.equal(cache.QUOTAS.raw1, 800);
+    assert.equal(cache.QUOTAS.streams, 2000);
+    assert.equal(cache.MAX_ENTRIES, 12000);
+  } finally {
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+    delete require.cache[CACHE_MODULE];
+  }
+});
+
+test('estouro de raw1 despeja só o próprio namespace e preserva streams', () => {
+  // Mesmo contrato do dlmag: o namespace do resultado bruto gira sozinho e
+  // não pode expulsar listas prontas de streams.
+  const originalPersist = process.env.CACHE_PERSIST;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    delete require.cache[CACHE_MODULE];
+    const cache = require(CACHE_MODULE);
+    const RAW_QUOTA = cache.QUOTAS.raw1;
+
+    cache.set('streams:v4:movie:tt-vizinho', { streams: ['preservado'] }, TTL_S);
+    for (let i = 0; i < RAW_QUOTA; i += 1) {
+      cache.set(`raw1:jackett:yts:movie:t-${i}`, { items: [] }, TTL_S);
+    }
+    cache.set('raw1:jackett:yts:movie:overflow', { items: ['overflow'] }, TTL_S);
+
+    assert.deepEqual(cache.get('streams:v4:movie:tt-vizinho'), { streams: ['preservado'] });
+    assert.equal(cache.get('raw1:jackett:yts:movie:t-0'), null, 'LRU de raw1 sai na própria cota');
+    assert.deepEqual(cache.get('raw1:jackett:yts:movie:overflow'), { items: ['overflow'] });
+    assert.equal(cache.snapshot().namespaces.raw1.entries, RAW_QUOTA);
+  } finally {
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+    delete require.cache[CACHE_MODULE];
+  }
+});
+
 test('LRU de dlmag é escolhido dentro do namespace, não pela ordem global', () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {

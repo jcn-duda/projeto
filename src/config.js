@@ -171,6 +171,22 @@ const config = {
   // passe tardio sozinho não torna o dublado visível na lista já aberta.
   brPartialGrace: num(process.env.BR_PARTIAL_GRACE_MS, 1500),
   cacheTtl: num(process.env.CACHE_TTL, 900),
+  // Cache do resultado BRUTO da busca (sem credencial nem config do usuário):
+  // duas instalações com configs diferentes do mesmo título passam a
+  // compartilhar a raspagem do Jackett/BLUDV. 0 desliga cada camada.
+  rawCache: {
+    ttl: num(process.env.RAW_CACHE_TTL, 900),
+    // Indexers pt-BR raspam WordPress e ainda pagam saltos de protetor de
+    // link (20s de orçamento): custam mais e mudam menos, então vivem mais.
+    ttlBr: num(process.env.RAW_CACHE_TTL_BR, 1800),
+    // 200 com zero itens pode ser rate-limit disfarçado: TTL curto separado,
+    // senão um indexer travado congela o vazio pelo TTL inteiro.
+    emptyTtl: num(process.env.RAW_CACHE_EMPTY_TTL, 120),
+    // Pior caso real medido: 862 bytes por item. O teto mantém cada entrada
+    // abaixo de ~100 KB no L1; acima dele o resultado não é cacheado.
+    // 0 desliga o cache bruto inteiro.
+    maxItems: num(process.env.RAW_CACHE_MAX_ITEMS, 120),
+  },
   debrid: {
     // premiumize | realdebrid | alldebrid | torbox | debridlink
     // Vazio = modo P2P puro (infoHash direto). A lista viva está em src/debrid/index.js.

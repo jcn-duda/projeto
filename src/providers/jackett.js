@@ -225,8 +225,26 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null, option
 
   const started = Date.now();
   const deadline = started + timeout;
+  // O cache bruto memoiza SÓ a camada de rede: a cascata de fallback (decide
+  // por relevância) e a resolução de magnets (filtra pelo episódio da query
+  // original) continuam rodando por busca; num hit, cada salto de protetor
+  // vira hit no cache `dlmag:` existente. Falha nunca é cacheada — o breaker
+  // e o indexer-status seguem sendo a resposta para indexer fora do ar.
+  // `noRawCache` é o diagnóstico: ele precisa medir a consulta de verdade.
+  const rawTtl = options.noRawCache || config.rawCache.maxItems <= 0
+    ? 0
+    : isBr ? config.rawCache.ttlBr : config.rawCache.ttl;
+  let liveFetches = 0;
   const fetchQuery = async (candidateQuery) => {
     const searchQuery = shapeSearchQuery(indexer, candidateQuery, isBr);
+    // A shaped query já remove SxxEyy nos indexers BR, então episódios da
+    // mesma temporada compartilham a entrada por construção — é o que faz a
+    // busca tardia de pack ("Nome S03") custar uma varredura por temporada.
+    const rawKey = `raw1:jackett:${indexer}:${type}:${searchQuery}`;
+    if (rawTtl > 0) {
+      const hit = cache.get(rawKey);
+      if (hit && Array.isArray(hit.items)) return { searchQuery, items: hit.items };
+    }
     const endpoint = new URL(`${url}/api/v2.0/indexers/${indexer}/results`);
     endpoint.searchParams.set('apikey', apiKey);
     endpoint.searchParams.set('Query', searchQuery);
@@ -240,10 +258,13 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null, option
       signal: AbortSignal.timeout(Math.max(1, budget)),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return {
-      searchQuery,
-      items: mapResults(await res.json(), { isBr, indexer }),
-    };
+    const items = mapResults(await res.json(), { isBr, indexer });
+    liveFetches += 1;
+    if (rawTtl > 0 && items.length <= config.rawCache.maxItems) {
+      // 200 com zero itens usa o TTL curto: pode ser rate-limit disfarçado.
+      cache.set(rawKey, { items }, items.length === 0 ? config.rawCache.emptyTtl : rawTtl);
+    }
+    return { searchQuery, items };
   };
 
   let found = await fetchQuery(query);
@@ -284,7 +305,9 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null, option
     deadline,
     options.matchContext,
   );
-  return { indexer, items, ms: Date.now() - started };
+  // fromCache diz se NENHUMA consulta Torznab saiu desta chamada: quem veio
+  // do cache não mediu nada, e o status do indexer não pode ser inventado.
+  return { indexer, items, ms: Date.now() - started, fromCache: liveFetches === 0 };
 }
 
 /**
@@ -363,7 +386,7 @@ async function search(query, type, indexersOverride = null, options = {}) {
     const r = settled[idx];
     if (r.status === 'fulfilled') {
       out.push(...r.value.items);
-      if (recordStatus) {
+      if (recordStatus && !r.value.fromCache) {
         indexerStatus.record(r.value.indexer, {
           // HTTP válido significa online. Zero resultado para um título não é
           // falha do servidor e não deve pintar o card de vermelho.
@@ -373,7 +396,10 @@ async function search(query, type, indexersOverride = null, options = {}) {
           budgetMs: budgetFor(r.value.indexer),
         });
       }
-      if (r.value.ms > 2000) slow.push(`${r.value.indexer} ${(r.value.ms / 1000).toFixed(1)}s`);
+      // Hit do cache bruto não registrou status nem entra na lista de lentos:
+      // gravar ok:true com ms~0 deixaria um indexer caído verde no card pelo
+      // TTL inteiro, e é justamente o card usado para diagnosticar os ✗.
+      if (!r.value.fromCache && r.value.ms > 2000) slow.push(`${r.value.indexer} ${(r.value.ms / 1000).toFixed(1)}s`);
     } else {
       if (recordStatus) {
         indexerStatus.record(activeIndexers[idx], {
@@ -428,7 +454,7 @@ async function test(indexer, query, type = 'movie') {
       // stream. Com o orçamento da busca ao vivo, indexer vivo porém lento (eztv
       // em 4s, 1337x atrás de Cloudflare) aparecia como quebrado — o que
       // interessa é saber que ele responde E quanto tempo cobra.
-      const attempt = await queryIndexer(indexer, term, kind, DIAGNOSTIC_TIMEOUT);
+      const attempt = await queryIndexer(indexer, term, kind, DIAGNOSTIC_TIMEOUT, { noRawCache: true });
       ms += attempt.ms;
       effective = term;
       effectiveType = kind;
