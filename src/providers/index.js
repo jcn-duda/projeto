@@ -395,6 +395,21 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
 
+// Refresh de fundo do stale-while-revalidate: mapa PRÓPRIO, separado do
+// inFlight — a revalidação não coalesce com a busca síncrona do cliente nem a
+// impede de começar; e uma busca síncrona em voo já reescreve o cache fresco.
+const refreshing = new Map();
+
+/**
+ * A lista tem play de verdade: pelo menos um stream com url ou infoHash. O
+ * item de aviso carrega só name + externalUrl. O `complete` do finish e a
+ * elegibilidade do SWR usam o MESMO teste, senão os critérios divergem e o
+ * stale serviria uma lista que nunca deveria ter sido promovida a completa.
+ */
+function hasPlayableStream(streams) {
+  return Array.isArray(streams) && streams.some((s) => s && (s.url || s.infoHash));
+}
+
 async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate, sweepQuery = null) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
@@ -547,12 +562,34 @@ async function findStreams({ type, id }) {
   // É configuração do operador, mas muda url/infoHash de cada stream e por
   // isso precisa fazer parte do shape persistido como as opções da instalação.
   const cacheKey = streamsCacheKey(type, id, { ...opts(), resolveUncached: config.debrid.resolveUncached });
-  const cached = cache.get(cacheKey);
-  // O cache em SQLite sobrevive ao deploy, e a versão anterior gravava só o
-  // array de streams. Sem esta linha, a primeira subida serviria `undefined`
-  // por até 15 minutos em cima das entradas antigas.
-  if (Array.isArray(cached)) return { streams: cached, partial: false };
-  if (cached) return cached;
+  // getWithStale em vez de get(): o get() APAGA a entrada expirada, e é
+  // justamente ela que o SWR quer servir enquanto o refresh de fundo roda.
+  // Graça 0 restaura a semântica dura anterior (kill-switch).
+  const grace = config.streamStaleGrace;
+  const hit = grace > 0
+    ? cache.getWithStale(cacheKey, grace)
+    : (() => {
+        const value = cache.get(cacheKey);
+        return value ? { value, stale: false } : null;
+      })();
+  if (hit) {
+    const cached = hit.value;
+    // O cache em SQLite sobrevive ao deploy, e a versão anterior gravava só o
+    // array de streams. Sem esta linha, a primeira subida serviria `undefined`
+    // por até 15 minutos em cima das entradas antigas.
+    if (Array.isArray(cached)) return { streams: cached, partial: false };
+    if (!hit.stale) return cached;
+    // Expirada DENTRO da janela de graça: responde na hora e revalida em
+    // fundo. Só entra lista completa com debrid conferido e stream tocável —
+    // aviso e parcial estenderiam o estado ruim em vez de consertá-lo.
+    if (staleRefreshEligible(cached)) {
+      metrics.count('search.swr.served');
+      scheduleStaleRefresh(cacheKey, { type, id }, capture());
+      return cached;
+    }
+    // Inelegível: cai na busca síncrona abaixo; a entrada velha fica no cache
+    // até a reescrita (getWithStale não apaga).
+  }
 
   // deadlineAt é compartilhado entre o passo de resposta e a checagem de cache:
   // a coleta não pode consumir tudo e deixar zero pro debrid. Passado adiante
@@ -608,6 +645,41 @@ async function findStreams({ type, id }) {
  */
 function debridRefreshSatisfied(entry) {
   return Boolean(entry && entry.partial === false && entry.debridKnown === true);
+}
+
+/** SWR só serve o que o finish promoveria a completa + checagem confiável. */
+function staleRefreshEligible(entry) {
+  return debridRefreshSatisfied(entry) && hasPlayableStream(entry?.streams);
+}
+
+/**
+ * Resposta já saiu; a revalidação roda em fundo sem prazo de cliente. Erro
+ * só vira log — nunca afeta quem recebeu a lista stale.
+ */
+function scheduleStaleRefresh(cacheKey, { type, id }, requestCtx) {
+  if (refreshing.has(cacheKey)) return;
+  // Busca síncrona da mesma chave já em voo reescreve o cache fresco: o
+  // refresh seria trabalho duplicado.
+  if (inFlight.has(cacheKey)) return;
+  refreshing.set(cacheKey, true);
+  metrics.count('search.swr.scheduled');
+  // Fora do AsyncLocalStorage da requisição: sem restaurar o contexto,
+  // opts() leria os defaults do .env e o refresh regravaria o cache com a
+  // config ERRADA — mesmo padrão do runRecheck. Sem contexto capturado,
+  // roda com os defaults mesmo (caso de teste/chamada fora de request).
+  const ctx = requestCtx || { opts: opts(), encoded: '' };
+  Promise.resolve(run(ctx, async () => {
+    // Revalida antes de pagar a busca: passe tardio, recheck do autofetch ou
+    // outra requisição podem ter reescrito a entrada fresca nesse meio tempo.
+    const current = cache.getWithStale(cacheKey, config.streamStaleGrace);
+    if (current && !current.stale) return;
+    const started = Date.now();
+    // Sem deadlineAt encurtado: passe de fundo tem o orçamento completo.
+    await doSearch({ type, id, cacheKey, deadlineAt: Date.now() + config.replyDeadline });
+    metrics.observe('search.swr', Date.now() - started);
+  }))
+    .catch((err) => log.warn('[search] refresh SWR falhou:', err?.message || err))
+    .finally(() => refreshing.delete(cacheKey));
 }
 
 async function doSearch({ type, id, cacheKey, deadlineAt }) {
@@ -676,7 +748,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
       // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco
       // tempo. Lote parcial idem: o passe tardio reescreve, mas se ele falhar o
       // TTL curto evita servir a lista sem as fontes BR por 15 minutos.
-      const complete = streams.some((s) => s && (s.url || s.infoHash)) && !partial && !needsDebridRefresh;
+      const complete = hasPlayableStream(streams) && !partial && !needsDebridRefresh;
       // `debridKnown` registra se ESTA lista nasceu de uma checagem de cache
       // confiável. Sem ele, `partial:false` era usado como prova de "já
       // processado" — e o passe tardio promove a entrada SEM refazer a

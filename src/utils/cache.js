@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const config = require('../config');
 const log = require('./logger');
 const metrics = require('./metrics');
 
@@ -117,12 +118,23 @@ function quotaOverflow(namespace) {
   return dropped;
 }
 
+/**
+ * Máxima janela de graça entre os consumidores do cache. Hoje só as listas de
+ * stream usam (SWR); prune/loadFromDisk precisam respeitá-la, senão o timer de
+ * 10 min apaga a entrada expirada antes de o refresh de fundo poder servi-la.
+ */
+function maxGraceMs() {
+  return Math.max(0, config.streamStaleGrace) * 1000;
+}
+
 /** Sobe o que ainda é válido; o que expirou enquanto estava fora, morre aqui. */
 function loadFromDisk() {
   if (!db || !selectValidStmt || !deleteExpiredStmt) return;
   try {
     const now = Date.now();
-    deleteExpiredStmt.run(now);
+    // Expirado DENTRO da janela de graça sobe junto: ele ainda é servível pelo
+    // SWR. Sem deslocar o corte, todo restart matava as entradas em revalidação.
+    deleteExpiredStmt.run(now - maxGraceMs());
     // TTL longo não pode monopolizar o L1 depois do restart: cada namespace
     // recebe o próprio orçamento antes da ordem de recência ser reconstruída.
     const rows = selectValidStmt.all();
@@ -276,10 +288,14 @@ function forgetMany(keys) {
 
 function prune() {
   const now = Date.now();
+  // Expirado dentro da janela de graça do SWR fica: o próximo getWithStale
+  // ainda o serve enquanto o refresh de fundo revalida. O corte duro vale só
+  // para o que passou da graça.
+  const graceMs = maxGraceMs();
   // Acumula e apaga uma vez só: o disco é o caro, a memória não.
   const dropped = [];
   for (const [key, hit] of store) {
-    if (hit.expiresAt && now > hit.expiresAt) {
+    if (hit.expiresAt && now > hit.expiresAt + graceMs) {
       dropped.push(key);
     }
   }
@@ -339,6 +355,44 @@ function get(key) {
   store.set(key, hit);
   incrementNamespace(hit.namespace);
   return hit.value;
+}
+
+/**
+ * Leitura com janela de graça para stale-while-revalidate: dentro do TTL
+ * devolve `{ value, stale: false }`; entre o TTL e `expiresAt + grace` devolve
+ * `{ value, stale: true }` SEM apagar a entrada — o consumidor responde com
+ * ela enquanto revalida em fundo; depois devolve null. O get() normal mantém a
+ * semântica dura (expirou = apagou), por isso os dois convivem.
+ */
+function getWithStale(key, graceSeconds = 0) {
+  const hit = store.get(key);
+  if (!hit) {
+    metrics.count('cache.miss');
+    metrics.count(`cache.miss.${namespaceFor(key)}`);
+    return null;
+  }
+  const now = Date.now();
+  if (hit.expiresAt && now > hit.expiresAt) {
+    if (now > hit.expiresAt + Math.max(0, graceSeconds) * 1000) {
+      forget(key);
+      metrics.count('cache.miss');
+      metrics.count(`cache.miss.${hit.namespace}`);
+      metrics.count('cache.expired');
+      return null;
+    }
+    metrics.count('cache.hit');
+    metrics.count(`cache.hit.${hit.namespace}`);
+    // Contador próprio: o SWR só se paga se aparecer aqui. Hit stale que nunca
+    // vira refresh seria lista velha eterna sem nenhum sinal no painel.
+    metrics.count('cache.stale');
+    return { value: hit.value, stale: true };
+  }
+  metrics.count('cache.hit');
+  metrics.count(`cache.hit.${hit.namespace}`);
+  removeFromStore(key);
+  store.set(key, hit);
+  incrementNamespace(hit.namespace);
+  return { value: hit.value, stale: false };
 }
 
 function set(key, value, ttlSeconds) {
@@ -403,4 +457,4 @@ loadFromDisk();
 pruneTimer = setInterval(prune, 10 * 60 * 1000);
 pruneTimer.unref();
 
-module.exports = { MAX_ENTRIES, QUOTAS, get, set, forget, forgetMany, clear, size, snapshot, close };
+module.exports = { MAX_ENTRIES, QUOTAS, get, getWithStale, set, forget, forgetMany, prune, clear, size, snapshot, close };

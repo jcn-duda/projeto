@@ -572,3 +572,75 @@ test('teto global despeja e termina: prune não pode repetir a mesma chave', () 
     delete require.cache[CACHE_MODULE];
   }
 });
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test('getWithStale: três estados — fresco, expirado na graça, fora da janela', async () => {
+  // Contrato do SWR: dentro do TTL o valor sai fresco; entre o TTL e o fim da
+  // graça sai stale SEM apagar a entrada (o consumidor responde com ela
+  // enquanto revalida); depois da graça, a semântica dura do get().
+  const originalPersist = process.env.CACHE_PERSIST;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    delete require.cache[CACHE_MODULE];
+    const cache = require(CACHE_MODULE);
+
+    cache.set('swr:fresh', { n: 1 }, TTL_S);
+    assert.deepEqual(cache.getWithStale('swr:fresh', 300), { value: { n: 1 }, stale: false });
+
+    // TTL de 50 ms: expira rápido e entra na janela de graça sem espera longa.
+    cache.set('swr:grace', { n: 2 }, 0.05);
+    cache.set('swr:gone', { n: 3 }, 0.05);
+    await sleep(120);
+
+    assert.deepEqual(cache.getWithStale('swr:grace', 300), { value: { n: 2 }, stale: true });
+    assert.deepEqual(
+      cache.getWithStale('swr:grace', 300),
+      { value: { n: 2 }, stale: true },
+      'leitura stale não chama forget: a segunda leitura vê a mesma entrada',
+    );
+
+    // Fora da janela de graça: null e entrada apagada de vez.
+    assert.equal(cache.getWithStale('swr:gone', 0.02), null);
+    assert.equal(cache.getWithStale('swr:gone', 300), null, 'a entrada foi apagada, não só escondida');
+
+    // Chave ausente é miss, não stale.
+    assert.equal(cache.getWithStale('swr:inexistente', 300), null);
+  } finally {
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+    delete require.cache[CACHE_MODULE];
+  }
+});
+
+test('prune com janela de graça: expirado servível fica; graça zero volta ao corte duro', async () => {
+  // Sem esta janela o timer de 10 min apaga a entrada expirada antes de o
+  // refresh de fundo poder servi-la — o SWR morreria na prática.
+  const originalPersist = process.env.CACHE_PERSIST;
+  const config = require('../src/config');
+  const originalGrace = config.streamStaleGrace;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    delete require.cache[CACHE_MODULE];
+    const cache = require(CACHE_MODULE);
+
+    config.streamStaleGrace = 300;
+    cache.set('swrprune:a', { n: 1 }, 0.05);
+    await sleep(120);
+    cache.prune();
+    assert.deepEqual(
+      cache.getWithStale('swrprune:a', 300),
+      { value: { n: 1 }, stale: true },
+      'expirado dentro da graça sobrevive ao prune',
+    );
+
+    config.streamStaleGrace = 0;
+    cache.prune();
+    assert.equal(cache.getWithStale('swrprune:a', 300), null, 'graça zero volta a podar o expirado');
+  } finally {
+    config.streamStaleGrace = originalGrace;
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+    delete require.cache[CACHE_MODULE];
+  }
+});

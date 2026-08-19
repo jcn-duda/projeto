@@ -187,6 +187,11 @@ const config = {
     // 0 desliga o cache bruto inteiro.
     maxItems: num(process.env.RAW_CACHE_MAX_ITEMS, 120),
   },
+  // Janela de graça do stale-while-revalidate das listas de stream (Fase 2):
+  // depois do CACHE_TTL, a entrada expirada ainda é servida na hora enquanto
+  // um refresh de fundo a reconstrói. Só vale para lista completa com debrid
+  // conferido e stream tocável. 0 volta à semântica dura (expirou = busca nova).
+  streamStaleGrace: num(process.env.STREAM_STALE_GRACE_SECONDS, 300),
   debrid: {
     // premiumize | realdebrid | alldebrid | torbox | debridlink
     // Vazio = modo P2P puro (infoHash direto). A lista viva está em src/debrid/index.js.
