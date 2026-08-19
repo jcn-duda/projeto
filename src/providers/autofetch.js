@@ -1,9 +1,11 @@
+const { prefix } = require('../utils/cache-keys');
+
 const pending = new Map();
 const searchSlots = new Map();
 const LOCK_TTL_MS = 60_000;
 
 function markerKey(adapterId, account, infoHash) {
-  return `autofetch:v2:${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
+  return `${prefix('autofetch')}${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
 }
 
 /**

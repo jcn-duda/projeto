@@ -199,7 +199,7 @@ Todas com `0` = desligado, rollback sem deploy novo.
 1. `npm test` e `npm run smoke` a cada fase.
 2. **Fase 1** — com o container no ar, buscar o mesmo título por duas configs
    diferentes e comparar no log o tempo de coleta; conferir
-   `cache.hit.raw1 > 0` no `/metrics.json`. Caso concreto para medir: um
+   `cache.hit.raw > 0` no `/metrics.json`. Caso concreto para medir: um
    episódio fraco de série antiga, onde a busca tardia de pack dispara
    `"Nome S03"` — o segundo episódio da mesma temporada deve mostrar o pack sem
    nova varredura.
@@ -221,7 +221,7 @@ Todas com `0` = desligado, rollback sem deploy novo.
   uma release pode cruzar o piso e a decisão só mudar no ciclo seguinte. Na
   janela de 15 min isso é irrelevante — vale uma linha de comentário no ponto de
   inserção, não um mecanismo.
-- `cache.db` cresce com o `raw1`. Acompanhar após o deploy da Fase 1.
+- `cache.db` cresce com o `raw`. Acompanhar após o deploy da Fase 1.
 
 ## Fora de escopo
 

@@ -1,6 +1,7 @@
 const { opts } = require('../runtime');
 const config = require('../config');
 const { accountScope } = require('../utils/request-key');
+const { prefix } = require('../utils/cache-keys');
 const { raceWithDeadline } = require('../utils/deadline');
 const { isAuthError, isQuotaError, isRateLimitError } = require('./common');
 const cache = require('../utils/cache');
@@ -320,7 +321,7 @@ async function resolveLink(infoHash, episode) {
 const inventoryInFlight = new Map();
 
 function inventoryFor(adapter, apiKey) {
-  const key = `dinv1:${adapter.id}:${accountScope(apiKey)}`;
+  const key = `${prefix('dinv')}${adapter.id}:${accountScope(apiKey)}`;
   const hit = cache.get(key);
   if (hit) return Promise.resolve(hit);
 

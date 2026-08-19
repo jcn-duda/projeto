@@ -3,6 +3,7 @@ const { opts } = require('../runtime');
 const cache = require('../utils/cache');
 const { mapLimit } = require('../utils/concurrency');
 const log = require('../utils/logger');
+const { prefix } = require('../utils/cache-keys');
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
@@ -156,7 +157,7 @@ async function search(query) {
   // usuário receberia a lista já cortada do outro. TTL BR: é a fonte mais cara
   // (raspa WordPress + dois saltos de protetor por botão) e a que menos muda.
   const { ttlBr, emptyTtl, maxItems } = config.rawCache;
-  const rawKey = `raw1:bludv:${opts().dubbedOnly ? 'd' : 't'}:${q}`;
+  const rawKey = `${prefix('raw')}bludv:${opts().dubbedOnly ? 'd' : 't'}:${q}`;
   if (ttlBr > 0 && maxItems > 0) {
     const hit = cache.get(rawKey);
     if (hit && Array.isArray(hit.items)) return hit.items;

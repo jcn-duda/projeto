@@ -124,7 +124,7 @@ Um `stream` request do Stremio percorre exatamente este caminho:
 addon.js  processo (listen, warmup)
    └─ app.js  defineStreamHandler
         └─ providers/index.js  findStreams
-             ├─ cache SWR (streams:v4)          ← só lista completa + debridKnown + tocável
+             ├─ cache SWR (streams:v5)          ← só lista completa + debridKnown + tocável
              ├─ coalescing inFlight
              └─ doSearch
                   ├─ cinemeta.getMeta  ─┐ paralelo
@@ -377,7 +377,7 @@ próxima vez. Travas atuais (invariante 6):
 
 O registry também expõe `inventory()`: o que já está **pronto** na conta
 (AllDebrid/TorBox; nos demais é no-op) entra na busca como mais uma fonte
-(`src/providers/account.js`), memoizado por serviço+conta sob `dinv1:`. A
+(`src/providers/account.js`), memoizado por serviço+conta sob `dinv:v1:`. A
 relevância de inventário (`filterInventoryRelevant`) aceita também **pack de
 franquia** da mesma obra — coisa na conta é escolha do usuário, sinal que
 resultado de tracker não tem; por isso essa exceção NÃO vale no caminho dos
@@ -392,15 +392,17 @@ operador).
 
 ## Cache multi-nível (fases 0–2 no código)
 
-A chave `streams:v4` isola config do usuário + digest da conta
-(`request-key.js`). Duas instalações do mesmo título **não** compartilham a
-lista — ela carrega URLs de play assinadas. O trabalho caro (Jackett +
-scrapers) é compartilhado mais abaixo.
+A chave `streams:v5` isola config do usuário + digest da conta
+(`request-key.js`). A versão de cada namespace vive em `src/utils/cache-keys.js`
+— bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
+que não bate com a versão corrente). Duas instalações do mesmo título **não**
+compartilham a lista — ela carrega URLs de play assinadas. O trabalho caro
+(Jackett + scrapers) é compartilhado mais abaixo.
 
 | camada | chave | o que guarda | kill-switch |
 |---|---|---|---|
-| L1+L2 streams | `streams:v4:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
-| bruto por indexer | `raw1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
+| L1+L2 streams | `streams:v5:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
+| bruto por indexer | `raw:v1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
 | SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
 
 SWR só serve o que o `finish` promoveria a completa: `partial === false`,
@@ -408,15 +410,15 @@ SWR só serve o que o `finish` promoveria a completa: `partial === false`,
 `infoHash`). Item de aviso (`name` + `externalUrl`) não conta — senão a
 janela de graça estenderia o estado ruim.
 
-Hit de `raw1` **não** pinta o card de status: medição ~0ms mentiria "online"
+Hit de `raw` **não** pinta o card de status: medição ~0ms mentiria "online"
 com o indexer no chão. `/all` do Jackett (sem `JACKETT_INDEXERS`) não passa
 por `queryIndexer` e **não** usa o cache bruto — fora de escopo de propósito.
 
 TTL de resultado vazio é curto (`RAW_CACHE_EMPTY_TTL`): 200 com zero itens
 pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
 
-Cotas do L1 (`cache.js`): `streams` 2000, `raw1` 800, `dlmag` 4000, teto
-global 12000. `raw1` é o namespace gordo (~100 KB no pior caso); não suba a
+Cotas do L1 (`cache.js`): `streams` 2000, `raw` 800, `dlmag` 4000, teto
+global 12000. `raw` é o namespace gordo (~100 KB no pior caso); não suba a
 cota sem refazer a conta de memória do container de 3g.
 
 Fase 3 (cache de disponibilidade por hash) **não** está no código. Gate
@@ -590,7 +592,7 @@ fire-and-forget) continua.
 | `src/providers/index.js` | Orquestração: SWR, coalescing, deadline, collectRaw, passe tardio, debrid, corte, aviso |
 | `src/providers/search-plan.js` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
 | `src/providers/collection-window.js` | Balde compartilhado + graça da primeira fonte BR |
-| `src/providers/jackett.js` | Consulta por indexer, cache `raw1`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
+| `src/providers/jackett.js` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
 | `src/providers/jackett-catalog.js` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
 | `src/providers/indexer-status.js` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
 | `src/providers/prowlarr.js` | Alternativa ao Jackett |
@@ -606,7 +608,8 @@ fire-and-forget) continua.
 | `src/utils/indexer-priority.js` | `priorityMap`/`compareIndexerPriority` |
 | `src/utils/tmdb.js` / `cinemeta.js` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.js` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
-| `src/utils/request-key.js` | `streams:v4` + digest da conta (nunca a chave crua) |
+| `src/utils/cache-keys.js` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`) e `prefix(ns)` |
+| `src/utils/request-key.js` | `streams:v5` + digest da conta (nunca a chave crua) |
 | `src/utils/secret-box.js` | AES-256-GCM do `dk` no install URL |
 | `src/utils/sign.js` | HMAC do `/resolve` (hash + ep + dica `w`) |
 | `src/utils/deadline.js` | `raceWithDeadline`, `remainingCheckBudget` |

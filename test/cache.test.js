@@ -317,11 +317,11 @@ test('estouro de dlmag despeja só o próprio namespace e preserva streams', () 
     delete require.cache[CACHE_MODULE];
     const cache = require(CACHE_MODULE);
 
-    cache.set('streams:v4:movie:tt-vizinho', { streams: ['preservado'] }, TTL_S);
+    cache.set('streams:v5:movie:tt-vizinho', { streams: ['preservado'] }, TTL_S);
     for (let i = 0; i < DLMAG_QUOTA; i++) cache.set(`dlmag:url-${i}`, { n: i }, TTL_S);
     cache.set('dlmag:overflow', { n: 'overflow' }, TTL_S);
 
-    assert.deepEqual(cache.get('streams:v4:movie:tt-vizinho'), { streams: ['preservado'] });
+    assert.deepEqual(cache.get('streams:v5:movie:tt-vizinho'), { streams: ['preservado'] });
     assert.equal(cache.get('dlmag:url-0'), null, 'LRU de dlmag sai na própria cota');
     assert.deepEqual(cache.get('dlmag:overflow'), { n: 'overflow' });
     assert.equal(cache.snapshot().namespaces.dlmag.entries, DLMAG_QUOTA);
@@ -331,8 +331,8 @@ test('estouro de dlmag despeja só o próprio namespace e preserva streams', () 
   }
 });
 
-test('cotas da Fase 1: raw1 limitado, streams ampliado, teto na soma', () => {
-  // Os números do PLANO_CACHE v3: raw1 guarda itens grandes (até ~100 KB por
+test('cotas da Fase 1: raw limitado, streams ampliado, teto na soma', () => {
+  // Os números do PLANO_CACHE v3: raw guarda itens grandes (até ~100 KB por
   // entrada), então a cota fica bem abaixo das de entrada minúscula; o teto
   // global continua sendo a soma das cotas + folga.
   const originalPersist = process.env.CACHE_PERSIST;
@@ -340,7 +340,7 @@ test('cotas da Fase 1: raw1 limitado, streams ampliado, teto na soma', () => {
     process.env.CACHE_PERSIST = 'false';
     delete require.cache[CACHE_MODULE];
     const cache = require(CACHE_MODULE);
-    assert.equal(cache.QUOTAS.raw1, 800);
+    assert.equal(cache.QUOTAS.raw, 800);
     assert.equal(cache.QUOTAS.streams, 2000);
     assert.equal(cache.MAX_ENTRIES, 12000);
   } finally {
@@ -350,7 +350,7 @@ test('cotas da Fase 1: raw1 limitado, streams ampliado, teto na soma', () => {
   }
 });
 
-test('estouro de raw1 despeja só o próprio namespace e preserva streams', () => {
+test('estouro de raw despeja só o próprio namespace e preserva streams', () => {
   // Mesmo contrato do dlmag: o namespace do resultado bruto gira sozinho e
   // não pode expulsar listas prontas de streams.
   const originalPersist = process.env.CACHE_PERSIST;
@@ -358,18 +358,18 @@ test('estouro de raw1 despeja só o próprio namespace e preserva streams', () =
     process.env.CACHE_PERSIST = 'false';
     delete require.cache[CACHE_MODULE];
     const cache = require(CACHE_MODULE);
-    const RAW_QUOTA = cache.QUOTAS.raw1;
+    const RAW_QUOTA = cache.QUOTAS.raw;
 
-    cache.set('streams:v4:movie:tt-vizinho', { streams: ['preservado'] }, TTL_S);
+    cache.set('streams:v5:movie:tt-vizinho', { streams: ['preservado'] }, TTL_S);
     for (let i = 0; i < RAW_QUOTA; i += 1) {
-      cache.set(`raw1:jackett:yts:movie:t-${i}`, { items: [] }, TTL_S);
+      cache.set(`raw:v1:jackett:yts:movie:t-${i}`, { items: [] }, TTL_S);
     }
-    cache.set('raw1:jackett:yts:movie:overflow', { items: ['overflow'] }, TTL_S);
+    cache.set('raw:v1:jackett:yts:movie:overflow', { items: ['overflow'] }, TTL_S);
 
-    assert.deepEqual(cache.get('streams:v4:movie:tt-vizinho'), { streams: ['preservado'] });
-    assert.equal(cache.get('raw1:jackett:yts:movie:t-0'), null, 'LRU de raw1 sai na própria cota');
-    assert.deepEqual(cache.get('raw1:jackett:yts:movie:overflow'), { items: ['overflow'] });
-    assert.equal(cache.snapshot().namespaces.raw1.entries, RAW_QUOTA);
+    assert.deepEqual(cache.get('streams:v5:movie:tt-vizinho'), { streams: ['preservado'] });
+    assert.equal(cache.get('raw:v1:jackett:yts:movie:t-0'), null, 'LRU de raw sai na própria cota');
+    assert.deepEqual(cache.get('raw:v1:jackett:yts:movie:overflow'), { items: ['overflow'] });
+    assert.equal(cache.snapshot().namespaces.raw.entries, RAW_QUOTA);
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
@@ -410,8 +410,8 @@ const DLMAG_DOMINATED_LOAD_SCRIPT = [
   `for (let i = 0; i < ${DLMAG_QUOTA} + 10; i++) {`,
   "  insert.run('dlmag:url-' + i, JSON.stringify({ n: i }), now + 7 * 24 * 3600 * 1000 + i);",
   '}',
-  "insert.run('streams:v4:movie:tt123:{}:account:none', JSON.stringify({ streams: ['s1'] }), now + 900 * 1000);",
-  "insert.run('streams:v3:movie:tt-antigo:{}:account:none', JSON.stringify({ streams: ['antigo'] }), now + 900 * 1000 + 1);",
+  "insert.run('streams:v5:movie:tt123:{}:account:none', JSON.stringify({ streams: ['s1'] }), now + 900 * 1000);",
+  "insert.run('streams:v4:movie:tt-antigo:{}:account:none', JSON.stringify({ streams: ['antigo'] }), now + 900 * 1000 + 1);",
   "insert.run('meta:movie:tt123', JSON.stringify({ name: 'Filme' }), now + 86400 * 1000);",
   "insert.run('tmdb:tt123', JSON.stringify({ pt: 'Filme' }), now + 7 * 24 * 3600 * 1000);",
   "seed.exec('COMMIT');",
@@ -420,8 +420,8 @@ const DLMAG_DOMINATED_LOAD_SCRIPT = [
   `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
   `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
   '',
-  "assert.deepStrictEqual(cache.get('streams:v4:movie:tt123:{}:account:none'), { streams: ['s1'] }, 'streams sobrevive ao reload');",
-  "assert.strictEqual(cache.get('streams:v3:movie:tt-antigo:{}:account:none'), null, 'namespace v3 invalidado não ocupa cota');",
+  "assert.deepStrictEqual(cache.get('streams:v5:movie:tt123:{}:account:none'), { streams: ['s1'] }, 'streams sobrevive ao reload');",
+  "assert.strictEqual(cache.get('streams:v4:movie:tt-antigo:{}:account:none'), null, 'namespace v4 invalidado não ocupa cota');",
   "assert.deepStrictEqual(cache.get('meta:movie:tt123'), { name: 'Filme' }, 'meta sobrevive ao reload');",
   "assert.deepStrictEqual(cache.get('tmdb:tt123'), { pt: 'Filme' }, 'tmdb sobrevive ao reload');",
   `assert.strictEqual(cache.snapshot().namespaces.dlmag.entries, ${DLMAG_QUOTA}, 'dlmag respeita a própria cota');`,
@@ -443,16 +443,16 @@ test('hit/miss por namespace: contadores globais ganham o sufixo do balde', () =
     const cache = require(CACHE_MODULE);
     metrics.reset();
 
-    cache.set('raw1:jackett:yts:movie:coringa', { itens: [] }, TTL_S);
-    assert.deepEqual(cache.get('raw1:jackett:yts:movie:coringa'), { itens: [] });
-    cache.get('raw1:jackett:yts:movie:faltante'); // miss dentro do namespace
+    cache.set('raw:v1:jackett:yts:movie:coringa', { itens: [] }, TTL_S);
+    assert.deepEqual(cache.get('raw:v1:jackett:yts:movie:coringa'), { itens: [] });
+    cache.get('raw:v1:jackett:yts:movie:faltante'); // miss dentro do namespace
     cache.get('sem-prefixo'); // miss no balde padrão
 
     const counters = metrics.snapshot().counters;
     assert.equal(counters['cache.hit'], 1, 'contador global de hit preservado');
-    assert.equal(counters['cache.hit.raw1'], 1, 'hit ganha o sufixo do namespace');
+    assert.equal(counters['cache.hit.raw'], 1, 'hit ganha o sufixo do namespace');
     assert.equal(counters['cache.miss'], 2, 'contador global de miss preservado');
-    assert.equal(counters['cache.miss.raw1'], 1, 'miss ganha o sufixo do namespace');
+    assert.equal(counters['cache.miss.raw'], 1, 'miss ganha o sufixo do namespace');
     assert.equal(counters['cache.miss.__default'], 1, 'chave sem prefixo cai no balde padrão');
   } finally {
     metrics.reset();
@@ -644,3 +644,194 @@ test('prune com janela de graça: expirado servível fica; graça zero volta ao 
     delete require.cache[CACHE_MODULE];
   }
 });
+
+
+// ===========================================================================
+// Descarte de versões obsoletas e prefixos aposentados no boot (loadFromDisk)
+// ===========================================================================
+// A versão de cada namespace vive num lugar só (cache-keys.js). Estes testes
+// garantem que o loadFromDisk apaga do DISCO (não só do L1) o que não bate com
+// a versão corrente: sem o DELETE no SQLite, a linha morta voltaria a ser
+// carregada no próximo restart e ocuparia cota por todo o TTL.
+const STREAMS_VERSION_DISCARD_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
+  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
+  'const now = Date.now();',
+  "insert.run('streams:v4:movie:tt-antigo:{}:account:none', JSON.stringify({ streams: ['antigo'] }), now + 900000);",
+  "insert.run('streams:v5:movie:tt-novo:{}:account:none', JSON.stringify({ streams: ['novo'] }), now + 900000);",
+  'seed.close();',
+  '',
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  // TTL futuro nas duas: a v4 some por ser versão morta, não por expirar.
+  "assert.deepStrictEqual(cache.get('streams:v5:movie:tt-novo:{}:account:none'), { streams: ['novo'] }, 'v5 sobe do disco');",
+  "assert.strictEqual(cache.get('streams:v4:movie:tt-antigo:{}:account:none'), null, 'v4 nao entra no L1');",
+  '',
+  // Reabre o banco: o DELETE tem que ter corrido no SQLite, não só no Map.
+  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "const staleRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v4:%'\").all();",
+  "assert.strictEqual(staleRows.length, 0, 'linha streams:v4 apagada do disco');",
+  "const liveRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v5:%'\").all();",
+  "assert.strictEqual(liveRows.length, 1, 'linha streams:v5 preservada no disco');",
+  'dbVerify.close();',
+].join('\n');
+
+test(
+  'descarte de versão obsoleta no disco — streams: v4 some, v5 sobe no boot',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => runIsolatedCacheTest(STREAMS_VERSION_DISCARD_SCRIPT),
+);
+
+// Mesmo contrato para o autofetch: a v1 (formato anterior ao cache-keys.js)
+// precisa sair do disco no boot, senão um marker antigo sobrevive ao restart e
+// segura vaga de autofetch sem nunca ser lido com a chave nova.
+const AUTOFETCH_VERSION_DISCARD_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
+  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
+  'const now = Date.now();',
+  "insert.run('autofetch:v1:alldebrid:acc:abc123', JSON.stringify({ hash: 'abc123' }), now + 900000);",
+  "insert.run('autofetch:v2:alldebrid:acc:def456', JSON.stringify({ hash: 'def456' }), now + 900000);",
+  'seed.close();',
+  '',
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  "assert.deepStrictEqual(cache.get('autofetch:v2:alldebrid:acc:def456'), { hash: 'def456' }, 'autofetch v2 sobe do disco');",
+  "assert.strictEqual(cache.get('autofetch:v1:alldebrid:acc:abc123'), null, 'autofetch v1 nao entra no L1');",
+  '',
+  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "const staleRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'autofetch:v1:%'\").all();",
+  "assert.strictEqual(staleRows.length, 0, 'linha autofetch:v1 apagada do disco');",
+  "const liveRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'autofetch:v2:%'\").all();",
+  "assert.strictEqual(liveRows.length, 1, 'linha autofetch:v2 preservada no disco');",
+  'dbVerify.close();',
+].join('\n');
+
+test(
+  'descarte de versão obsoleta no disco — autofetch: v1 some, v2 sobe no boot',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => runIsolatedCacheTest(AUTOFETCH_VERSION_DISCARD_SCRIPT),
+);
+
+// `raw1:` e `dinv1:` eram a versão colada no nome; hoje vivem como `raw:v1:` e
+// `dinv:v1:`. Elas NÃO caem no loop de namespace versionado (`raw1:...` não
+// casa `LIKE 'raw:%'`), então a limpeza precisa do loop de LEGACY_PREFIXES —
+// sem ele o lixo órfão ficaria no banco até expirar, ocupando cota.
+const LEGACY_PREFIX_DISCARD_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
+  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
+  'const now = Date.now();',
+  "insert.run('raw1:jackett:yts:movie:tt-x', JSON.stringify({ items: ['legado'] }), now + 900000);",
+  "insert.run('dinv1:alldebrid:acc', JSON.stringify({ ready: true }), now + 900000);",
+  "insert.run('raw:v1:jackett:yts:movie:tt-y', JSON.stringify({ items: ['novo'] }), now + 900000);",
+  'seed.close();',
+  '',
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  // O formato novo é o que o código lê; os legados são lixo a ser varrido.
+  "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-y'), { items: ['novo'] }, 'raw:v1 sobe do disco');",
+  "assert.strictEqual(cache.get('raw1:jackett:yts:movie:tt-x'), null, 'raw1 nao entra no L1');",
+  "assert.strictEqual(cache.get('dinv1:alldebrid:acc'), null, 'dinv1 nao entra no L1');",
+  '',
+  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "const raw1Rows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'raw1:%'\").all();",
+  "assert.strictEqual(raw1Rows.length, 0, 'prefixo legado raw1 apagado do disco');",
+  "const dinv1Rows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'dinv1:%'\").all();",
+  "assert.strictEqual(dinv1Rows.length, 0, 'prefixo legado dinv1 apagado do disco');",
+  "const rawV1Rows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'raw:v1:%'\").all();",
+  "assert.strictEqual(rawV1Rows.length, 1, 'raw:v1 continua no disco');",
+  'dbVerify.close();',
+].join('\n');
+
+test(
+  'prefixos aposentados no disco: raw1:/dinv1: somem do SQLite no boot, raw:v1 permanece',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => runIsolatedCacheTest(LEGACY_PREFIX_DISCARD_SCRIPT),
+);
+
+// A cota do balde de resultado bruto foi renomeada de `raw1` para `raw` junto
+// com a chave versionada. Se o loadFromDisk usasse o nome velho, a cota `raw`
+// (800) não existiria e as 810 linhas cairiam na cota padrão (500) — jogando
+// 310 fora. O teste também reabre o banco: as excedentes têm que sair do disco
+// via forgetMany(skipped), senão o próximo restart repete o trabalho.
+const RAW_QUOTA_RENAME_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
+  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
+  'const now = Date.now();',
+  "seed.exec('BEGIN');",
+  'for (let i = 0; i < 810; i++) {',
+  "  insert.run('raw:v1:jackett:yts:movie:tt-' + i, JSON.stringify({ n: i }), now + 1000 + i);",
+  '}',
+  "seed.exec('COMMIT');",
+  'seed.close();',
+  '',
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  // A seleção vem do TTL mais longo para o mais curto: as 10 de expires_at
+  // menor (i=0..9) são as excedentes que saem da cota de 800.
+  "assert.strictEqual(cache.snapshot().namespaces.raw.entries, 800, 'o balde raw respeita a própria cota de 800');",
+  "assert.strictEqual(cache.snapshot().namespaces.raw.maxEntries, 800, 'a cota configurada para raw é 800');",
+  "assert.strictEqual(cache.snapshot().namespaces.__default, undefined, 'nenhuma linha caiu no balde padrão');",
+  "assert.strictEqual(cache.get('raw:v1:jackett:yts:movie:tt-0'), null, 'a excedente de menor TTL nao entra');",
+  "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-809'), { n: 809 }, 'a de maior TTL entra inteira');",
+  '',
+  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "const countRow = dbVerify.prepare(\"SELECT COUNT(*) as cnt FROM cache WHERE key LIKE 'raw:v1:%'\").get();",
+  "assert.strictEqual(countRow.cnt, 800, 'as excedentes foram apagadas do disco também');",
+  'dbVerify.close();',
+].join('\n');
+
+test(
+  'cota do rename raw1→raw: 810 linhas viram 800 no L1 e no disco no boot',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => runIsolatedCacheTest(RAW_QUOTA_RENAME_SCRIPT),
+);
+
+// O valor gordo agora é buscado por PK (selectValueStmt) só para as chaves que
+// passaram na cota; antes o SELECT único trazia key+value+expires de todas. Um
+// objeto aninhado com arrays, números fracionários, strings, null e boolean
+// prova que a serialização JSON não perde nada no caminho índice → valor.
+const PK_VALUE_INTEGRITY_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
+  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
+  'const now = Date.now();',
+  "const complexo = { titulo: 'Coringa', ano: 2019, tags: ['dublado', 'dual'], notas: [9.5, 8, 7.25], nested: { a: [1, 2, 3], b: 'x' }, nulo: null, flag: true };",
+  "insert.run('raw:v1:jackett:yts:movie:tt-complexa', JSON.stringify(complexo), now + 900000);",
+  "insert.run('raw:v1:jackett:yts:movie:tt-simples', JSON.stringify({ lista: ['a', 'b', 'c'] }), now + 900001);",
+  'seed.close();',
+  '',
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-complexa'), complexo, 'objeto aninhado volta inteiro via PK');",
+  "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-simples'), { lista: ['a', 'b', 'c'] }, 'objeto simples volta inteiro');",
+].join('\n');
+
+test(
+  'valor íntegro via busca por PK: objeto aninhado carrega do disco sem truncar',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => runIsolatedCacheTest(PK_VALUE_INTEGRITY_SCRIPT),
+);

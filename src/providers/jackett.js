@@ -13,6 +13,7 @@ const {
 const indexerStatus = require('./indexer-status');
 const { mapLimit } = require('../utils/concurrency');
 const log = require('../utils/logger');
+const { prefix } = require('../utils/cache-keys');
 
 // Abaixo disso não vale abrir mais um salto de protetor de link: a requisição
 // abortaria no meio e ainda gastaria o resto do orçamento.
@@ -240,7 +241,7 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null, option
     // A shaped query já remove SxxEyy nos indexers BR, então episódios da
     // mesma temporada compartilham a entrada por construção — é o que faz a
     // busca tardia de pack ("Nome S03") custar uma varredura por temporada.
-    const rawKey = `raw1:jackett:${indexer}:${type}:${searchQuery}`;
+    const rawKey = `${prefix('raw')}jackett:${indexer}:${type}:${searchQuery}`;
     if (rawTtl > 0) {
       const hit = cache.get(rawKey);
       if (hit && Array.isArray(hit.items)) return { searchQuery, items: hit.items };

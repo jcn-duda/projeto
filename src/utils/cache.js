@@ -3,6 +3,7 @@ const path = require('path');
 const config = require('../config');
 const log = require('./logger');
 const metrics = require('./metrics');
+const { NAMESPACE_VERSIONS, LEGACY_PREFIXES } = require('./cache-keys');
 
 const store = new Map();
 // A soma das cotas conhecidas é 11.500. O teto global fica logo acima dela
@@ -16,7 +17,7 @@ const QUOTAS = Object.freeze({
   // Resultado bruto da busca por indexer/scraper: cada entrada pode chegar a
   // ~100 KB (teto de itens no config), então a cota fica bem abaixo das de
   // entrada minúscula — pior caso ~79 MB no L1.
-  raw1: 800,
+  raw: 800,
   autofetch: 500,
   'indexer-status': 200,
   __default: 500,
@@ -30,7 +31,10 @@ let db = null;
 let insertStmt = null;
 let deleteStmt = null;
 let deleteExpiredStmt = null;
-let selectValidStmt = null;
+let deleteStaleStmt = null;
+let deleteLegacyStmt = null;
+let selectIndexStmt = null;
+let selectValueStmt = null;
 let clearStmt = null;
 let pruneTimer = null;
 
@@ -56,7 +60,17 @@ function openDatabase() {
     insertStmt = database.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');
     deleteStmt = database.prepare('DELETE FROM cache WHERE key = ?');
     deleteExpiredStmt = database.prepare('DELETE FROM cache WHERE expires_at <= ?');
-    selectValidStmt = database.prepare('SELECT key, value, expires_at FROM cache ORDER BY expires_at DESC');
+    // Descarte de versão obsoleta: apaga no banco o que não bate com a versão
+    // corrente, sem materializar a linha. `<ns>:%` + NOT LIKE da versão viva
+    // cobre tanto o formato `<ns>:<versão>:` quanto prefixos colados no nome.
+    deleteStaleStmt = database.prepare('DELETE FROM cache WHERE key LIKE ? AND key NOT LIKE ?');
+    deleteLegacyStmt = database.prepare('DELETE FROM cache WHERE key LIKE ?');
+    // Índice leve: decide QUEM sobe sem trazer os valores gordos junto. Um LIMIT
+    // global trocaria o problema de memória por um de correção (dlmag de TTL
+    // longo consumiria o corte e empurraria streams para fora), então o valor é
+    // buscado por PK só para as chaves que passaram na cota.
+    selectIndexStmt = database.prepare('SELECT key, expires_at FROM cache ORDER BY expires_at DESC');
+    selectValueStmt = database.prepare('SELECT value FROM cache WHERE key = ?');
     clearStmt = database.prepare('DELETE FROM cache');
 
     return database;
@@ -65,7 +79,10 @@ function openDatabase() {
     insertStmt = null;
     deleteStmt = null;
     deleteExpiredStmt = null;
-    selectValidStmt = null;
+    deleteStaleStmt = null;
+    deleteLegacyStmt = null;
+    selectIndexStmt = null;
+    selectValueStmt = null;
     clearStmt = null;
     return null;
   }
@@ -129,27 +146,28 @@ function maxGraceMs() {
 
 /** Sobe o que ainda é válido; o que expirou enquanto estava fora, morre aqui. */
 function loadFromDisk() {
-  if (!db || !selectValidStmt || !deleteExpiredStmt) return;
+  if (!db || !selectIndexStmt || !selectValueStmt || !deleteExpiredStmt || !deleteStaleStmt || !deleteLegacyStmt) return;
   try {
     const now = Date.now();
     // Expirado DENTRO da janela de graça sobe junto: ele ainda é servível pelo
     // SWR. Sem deslocar o corte, todo restart matava as entradas em revalidação.
     deleteExpiredStmt.run(now - maxGraceMs());
+    // Versão de namespace é fonte única (cache-keys.js): apaga no banco, ANTES de
+    // listar, tudo que não bate com a versão corrente — é mais barato apagar do
+    // que carregar para descartar em JS, e a versão morta não ocupa cota até
+    // expirar. Prefixos aposentados (raw1:/dinv1:) somem do mesmo jeito no boot.
+    for (const [ns, version] of Object.entries(NAMESPACE_VERSIONS)) {
+      deleteStaleStmt.run(`${ns}:%`, `${ns}:${version}:%`);
+    }
+    for (const legacy of LEGACY_PREFIXES) deleteLegacyStmt.run(`${legacy}%`);
     // TTL longo não pode monopolizar o L1 depois do restart: cada namespace
     // recebe o próprio orçamento antes da ordem de recência ser reconstruída.
-    const rows = selectValidStmt.all();
+    const rows = selectIndexStmt.all();
     const selected = [];
     const selectedCounts = new Map();
     const skipped = [];
     const quotaSkipped = [];
     for (const row of rows) {
-      // O namespace v4 é uma invalidação deliberada do formato anterior: v3
-      // nunca pode ocupar uma vaga de streams que uma lista corrente usaria.
-      if (row.key.startsWith('streams:v3:')) {
-        skipped.push(row.key);
-        quotaSkipped.push(row.key);
-        continue;
-      }
       const namespace = namespaceFor(row.key);
       if ((selectedCounts.get(namespace) || 0) >= quotaFor(namespace) || selected.length >= MAX_ENTRIES) {
         skipped.push(row.key);
@@ -157,9 +175,18 @@ function loadFromDisk() {
         continue;
       }
       try {
+        // O valor gordo só é trazido para quem passou na cota (busca por PK).
+        const valueRow = selectValueStmt.get(row.key);
+        // Sumiu entre a listagem e a busca do valor: acontece quando outro
+        // processo divide o mesmo cache.db (container + instância de teste).
+        // Não é registro corrompido — só não existe mais.
+        if (!valueRow) {
+          skipped.push(row.key);
+          continue;
+        }
         selected.push({
           key: row.key,
-          value: JSON.parse(row.value),
+          value: JSON.parse(valueRow.value),
           expiresAt: Number(row.expires_at),
           namespace,
         });
@@ -446,7 +473,10 @@ function close() {
     insertStmt = null;
     deleteStmt = null;
     deleteExpiredStmt = null;
-    selectValidStmt = null;
+    deleteStaleStmt = null;
+    deleteLegacyStmt = null;
+    selectIndexStmt = null;
+    selectValueStmt = null;
     clearStmt = null;
   }
 }

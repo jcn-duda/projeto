@@ -275,7 +275,7 @@ test('raw cache: segunda busca da mesma query reusa o bruto sem novo fetch', asy
     assert.equal(first.length, 1);
     const second = await run();
     assert.equal(second.length, 1);
-    // A raspagem Torznab aconteceu UMA vez; a segunda busca vive do raw1.
+    // A raspagem Torznab aconteceu UMA vez; a segunda busca vive do raw.
     assert.deepEqual(fetchImpl.searchCalls(), ['Predador 1987']);
   });
 });
@@ -375,7 +375,7 @@ test('raw cache: hit não registra indexer-status (a medição não aconteceu)',
       assert.ok(before, 'a busca ao vivo registra o status');
       // Relógio distinto: checkedAt tem precisão de milissegundo.
       await new Promise((resolve) => setTimeout(resolve, 10));
-      await run(); // hit do raw1: nenhuma consulta Torznab saiu
+      await run(); // hit do raw: nenhuma consulta Torznab saiu
       const after = indexerStatus.get('thepiratebay');
       assert.equal(after.checkedAt, before.checkedAt, 'o hit não pode inventar medição');
     });

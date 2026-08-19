@@ -112,10 +112,10 @@ e cobra fonte BR em cada título. Busca fria estabiliza em 2–4 chamadas.
 | Sintoma | Onde olhar |
 |---|---|
 | ⚡ sumiu de todos os streams | `curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" https://powermovie.net/debrid-status.json` — conta cheia ou chave recusada |
-| BR dublado não aparece | card do indexer em `/configure` (breaker) e `cache.hit.raw1` / `search.pt-sweep.hit` em `/metrics.json` |
+| BR dublado não aparece | card do indexer em `/configure` (breaker) e `cache.hit.raw` / `search.pt-sweep.hit` em `/metrics.json` |
 | Lista vazia na primeira abertura | normal na busca fria; reabra. Sem `PUBLIC_URL` o aviso usa `127.0.0.1` |
 | Lento / timeout | `search.response` p95 vs `search.late` e `search.deadline` em `/metrics.json` |
-| Cache “não pega” | `cache.hit.streams` e `cache.hit.raw1` no mesmo JSON |
+| Cache “não pega” | `cache.hit.streams` e `cache.hit.raw` no mesmo JSON |
 
 ```bash
 curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" https://powermovie.net/metrics.json
