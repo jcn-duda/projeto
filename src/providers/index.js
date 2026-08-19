@@ -17,6 +17,7 @@ const {
   pickBrDubbedCandidates,
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
+  hasExplicitForeignAudio,
   hasCachedBrDubbed,
   canAutoFetchBr,
   filterKnownCache,
@@ -735,10 +736,21 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   // Fraqueza do episodio: ninguem alcanca o piso de seeders. Avaliada sobre o
   // lote informado; no gatilho TARDIO ela e recalculada depois da coleta
   // fechar, porque um lote parcial ainda pode receber a release saudavel.
+  //
+  // Idioma estrangeiro explicito NAO conta como saudavel: medido em Lost Girl
+  // S01E01, um "FRENCH HDTV" de 12 seeders passava do piso sozinho e desligava
+  // a busca de pack, deixando o usuario com frances, holandes e 272p. A guarda
+  // poupa MULTI/DUAL (carregam a faixa original) e qualquer marca PT. Isso muda
+  // so o GATILHO: a release estrangeira continua saindo na lista, porque em
+  // titulo sem mais nada ela ainda e a unica opcao.
+  const isHealthy = (item) => {
+    const title = item.title || item.Title || '';
+    return Number(item.seeders ?? item.Seeders ?? 0) >= config.search.packMinSeeders &&
+      !hasExplicitForeignAudio(title);
+  };
   const episodeIsWeak = (items) => {
     const rel = items === raw.items ? relevant : filterRelevantRaw(items, matchContext);
-    return rel.length > 0 &&
-      !rel.some((item) => Number(item.seeders ?? item.Seeders ?? 0) >= config.search.packMinSeeders);
+    return rel.length > 0 && !rel.some(isHealthy);
   };
   const needsPack = raw.items.length === 0 || (!raw.partial && relevant.length === 0);
   let usedPackFallback = false;
@@ -1064,13 +1076,23 @@ async function buildStreams(
     indexerLimits: safeIndexerLimits,
   });
 
-  if (config.search.noticeStream && candidatesBeforeDebrid > 0 && streams.length === 0 && config.debrid.publicUrl) {
-    streams = [{
-      name: autofetchCount > 0
-        ? '⏳ Baixando no debrid — reabra em alguns minutos'
-        : `Nenhuma fonte pronta — ${candidatesBeforeDebrid} resultado(s) fora do cache`,
-      externalUrl: `${config.debrid.publicUrl}${prefix()}/configure`,
-    }];
+  // Tres estados, nesta ordem de precisao: ja mandamos baixar / achamos mas o
+  // cachedOnly cortou / nao achamos nada ainda. O terceiro so vale para SERIE,
+  // que e onde a busca tardia de pack roda de verdade — prometer "reabra em
+  // instantes" num filme sem resultado seria mentira.
+  const noticeText = () => {
+    if (autofetchCount > 0) return '⏳ Baixando no debrid — reabra em alguns minutos';
+    if (candidatesBeforeDebrid > 0) {
+      return `Nenhuma fonte pronta — ${candidatesBeforeDebrid} resultado(s) fora do cache`;
+    }
+    if (season != null) return 'Nada pronto ainda — procurando a temporada; reabra em instantes';
+    return null;
+  };
+  if (config.search.noticeStream && streams.length === 0 && config.debrid.publicUrl) {
+    const name = noticeText();
+    if (name) {
+      streams = [{ name, externalUrl: `${config.debrid.publicUrl}${prefix()}/configure` }];
+    }
   }
 
   // "A dublada não ficou em cima" é a queixa mais comum e tem três causas
@@ -1088,4 +1110,6 @@ async function buildStreams(
   return streams;
 }
 
-module.exports = { findStreams, applyDebrid, debridRefreshSatisfied };
+// `buildStreams` sai exportado pelo mesmo motivo do `applyDebrid`: e o unico
+// jeito de testar o item de aviso sem subir uma busca inteira com Jackett.
+module.exports = { findStreams, applyDebrid, buildStreams, debridRefreshSatisfied };
