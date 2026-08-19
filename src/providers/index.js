@@ -732,8 +732,14 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   // ainda pode receber a fonte BR no passe tardio; só ampliamos o gatilho antigo
   // quando a coleta terminou e o filtro compartilhado provou que tudo era lixo.
   const relevant = filterRelevantRaw(raw.items, matchContext);
-  const episodeIsWeak = season != null && !raw.partial && relevant.length > 0 &&
-    !relevant.some((item) => Number(item.seeders ?? item.Seeders ?? 0) >= config.search.packMinSeeders);
+  // Fraqueza do episodio: ninguem alcanca o piso de seeders. Avaliada sobre o
+  // lote informado; no gatilho TARDIO ela e recalculada depois da coleta
+  // fechar, porque um lote parcial ainda pode receber a release saudavel.
+  const episodeIsWeak = (items) => {
+    const rel = items === raw.items ? relevant : filterRelevantRaw(items, matchContext);
+    return rel.length > 0 &&
+      !rel.some((item) => Number(item.seeders ?? item.Seeders ?? 0) >= config.search.packMinSeeders);
+  };
   const needsPack = raw.items.length === 0 || (!raw.partial && relevant.length === 0);
   let usedPackFallback = false;
   if (needsPack && season != null && !isDemo) {
@@ -765,14 +771,19 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   // O episódio fraco já ocupou o caminho crítico; o pack é uma segunda busca
   // complementar no tail. Mesclar, em vez de substituir, preserva releases do
   // episódio e permite ao autofetch escolher o swarm saudável do pack.
-  if (config.search.packTail && episodeIsWeak && !usedPackFallback && season != null && !isDemo) {
+  if (config.search.packTail && !usedPackFallback && season != null && !isDemo) {
     const s = String(season).padStart(2, '0');
     const packQuery = `${searchMeta.name} S${s}`;
     const ptPackQuery = ptQuery && titles?.pt ? `${titles.pt} S${s}` : null;
     enqueueTail(async () => {
-      metrics.count('search.pack-tail.run');
       const started = Date.now();
       try {
+        // Lote parcial nao decide nada: com Jackett frio a coleta estoura o
+        // orcamento e a release saudavel pode chegar depois da resposta. Quem
+        // julga e o balde ja estabilizado — mesmo padrao da varredura pt-BR.
+        if (raw.partial && raw.completion) await raw.completion;
+        if (!episodeIsWeak(raw.items)) return;
+        metrics.count('search.pack-tail.run');
         log.info(`[search] sem candidato saudável; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`);
         const pack = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, null, sweepQuery);
         if (pack.partial && pack.completion) await pack.completion;
