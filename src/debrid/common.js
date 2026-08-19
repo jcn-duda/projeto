@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const { TRACKERS, normalizeTitle } = require('../utils/format');
 const log = require('../utils/logger');
@@ -108,6 +109,13 @@ function isWorkPickError(error) {
 /**
  * Um fetch JSON com o timeout do debrid já aplicado. Cada serviço tem o seu
  * jeito de autenticar, então o header vai por fora.
+ *
+ * @param {string|URL} url
+ * @param {object} [options]
+ * @param {string} [options.method]
+ * @param {Record<string, string>} [options.headers]
+ * @param {*} [options.body]
+ * @param {number} [options.timeout]
  */
 async function json(url, { method = 'GET', headers = {}, body, timeout } = {}) {
   const res = await fetch(url, {
@@ -200,13 +208,18 @@ function looksMultiWorkFiles(files) {
  * filmes), então cobertura alta sozinha não basta: o ano da obra pedida
  * desempata. Vários arquivos com o MESMO ano são encodes da mesma obra —
  * entre eles o maior é seguro.
+ *
+ * @param {Array<*>} files
+ * @param {object} [options]
+ * @param {string[]} [options.names]
+ * @param {(number|string|null)} [options.year]
  */
 function pickWorkFile(files, { names, year } = {}) {
   const cleanYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
   const scored = files
     .map((f) => ({
       file: f,
-      cov: Math.max(...names.map((n) => workCoverage(f.path || '', n))),
+      cov: Math.max(.../** @type {string[]} */ (names).map((n) => workCoverage(f.path || '', n))),
     }))
     .filter((x) => x.cov >= WORK_COVERAGE_MIN);
   if (scored.length === 0) return null;
@@ -236,6 +249,12 @@ function pickWorkFile(files, { names, year } = {}) {
  * `work` é a dica de obra ({ names, year }) assinada na URL de play, usada
  * só em filme: série segue pelo s/e, e torrent de vídeo único não muda de
  * caminho com ou sem dica.
+ *
+ * @param {Array<*>} files
+ * @param {object} [options]
+ * @param {?number} [options.season]
+ * @param {?number} [options.episode]
+ * @param {*} [options.work]
  */
 function pickFile(files, { season, episode, work } = {}) {
   const videos = files.filter((f) => VIDEO_EXT.test(f.path || '') && !SAMPLE.test(f.path || ''));
@@ -293,7 +312,11 @@ function pickFile(files, { season, episode, work } = {}) {
  * timeouts inteiros (12s) contra um REPLY_DEADLINE de 8,5s, e a busca voltava
  * vazia mesmo com tudo coletado.
  *
- * @param {object} [opts.timeoutMs] Teto compartilhado por lote (dinâmico, do
+ * @param {Array<*>} infoHashes
+ * @param {number} size
+ * @param {Function} fn
+ * @param {object} [options]
+ * @param {number} [options.timeoutMs] Teto compartilhado por lote (dinâmico, do
  *   passo de resposta). Ausente = cada adaptador usa o próprio teto
  *   (config.debrid.cacheCheckTimeout).
  */

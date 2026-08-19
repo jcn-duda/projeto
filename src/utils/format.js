@@ -1,7 +1,58 @@
+// @ts-check
 // Tamanho <= 1 KB é o sentinela de "desconhecido" dos indexers BR (ver
 // UNKNOWN_SIZE nos resolvedores), não um torrent de verdade.
 const { priorityMap, compareIndexerPriority } = require('./indexer-priority');
 const config = require('../config');
+
+/**
+ * @typedef {object} StreamDisplayOptions
+ * @property {string} [title]
+ * @property {string} [quality]
+ * @property {string} [audio]
+ * @property {string} [source]
+ * @property {string} [edition]
+ * @property {string} [tracker]
+ * @property {boolean} [isBr]
+ * @property {number} [seeders]
+ * @property {string} [style]
+ * @property {boolean} [showSource]
+ */
+
+/**
+ * @typedef {object} MatchOptions
+ * @property {string[]} [names]
+ * @property {?(number|string)} [year]
+ * @property {boolean} [isSeries]
+ * @property {?number} [season]
+ * @property {?number} [episode]
+ * @property {?string[]} [allNames]
+ * @property {?string[]} [tokens]
+ * @property {?string[]} [universeTokens]
+ */
+
+/**
+ * @typedef {object} PoolsOptions
+ * @property {?number} [season]
+ * @property {number} [minSeeders]
+ */
+
+/**
+ * @typedef {object} AutofetchOptions
+ * @property {boolean} [autoFetchBr]
+ */
+
+/**
+ * @typedef {object} SearchNamesOptions
+ * @property {?{ name?: ?string, year?: ?(number|string), title?: string }} [meta]
+ * @property {?{ original?: ?string, pt?: ?string, year?: ?(number|string) }} [titles]
+ * @property {?string} [imdbId]
+ */
+
+/**
+ * @typedef {object} SeasonEpisodeOptions
+ * @property {?number} [season]
+ * @property {?number} [episode]
+ */
 
 const UNKNOWN_SIZE_MAX = 1024;
 
@@ -263,6 +314,8 @@ function compactTracker(tracker = '') {
  *
  * `STREAM_NAME_STYLE=full` devolve o comportamento antigo para quem depende de
  * um cliente que ignora o `title`.
+ *
+ * @param {StreamDisplayOptions} [options]
  */
 function streamDisplayName({
   title = '',
@@ -446,6 +499,10 @@ function normalizeTitle(s = '') {
  *   "Dia D" virava o token único `dia` e aceitava "Um Dia de Sorte em Nova
  *   York" e "Homem-Aranha: Um Novo Dia". As seis vagas reservadas iam para o
  *   lixo e empurravam pra fora a fonte dublada correta.
+ *
+ * @param {string} title
+ * @param {string} name
+ * @param {?string[]} [tokens]
  */
 function matchesName(title, name, tokens = null) {
   const all = normalizeTitle(name).split(' ').filter(Boolean);
@@ -627,6 +684,12 @@ function episodeWorkTokens(tokens) {
   return tokens.slice(1, end);
 }
 
+/**
+ * @param {string} title
+ * @param {?string[]} allNames
+ * @param {?string[]} [tokens]
+ * @param {?string[]} [universeTokens]
+ */
 function matchesEpisodeWorkIdentity(title, allNames, tokens = null, universeTokens = null) {
   if (!allNames?.length) return true;
   // `tokens`/`universeTokens` opcionais: o mesmo título passa por várias
@@ -644,6 +707,11 @@ function matchesEpisodeWorkIdentity(title, allNames, tokens = null, universeToke
  * precisão BR, estas regras também valem para filmes de indexers globais —
  * "Scary Movie 2" e "Titanic 2000 (Scary Sexy Disaster Movie)" não são o
  * "Scary Movie" de 2000 só porque contêm todos os tokens da busca.
+ *
+ * @param {string} title
+ * @param {string} name
+ * @param {?(number|string)} [year]
+ * @param {{ isSeries?: boolean, tokens?: ?string[] }} [options]
  */
 function matchesTitleStructure(title, name, year = null, { isSeries = false, tokens = null } = {}) {
   // `tokens` opcionais pelo mesmo motivo do matchesName: chamada em lote já
@@ -680,6 +748,16 @@ function matchesTitleStructure(title, name, year = null, { isSeries = false, tok
   return true;
 }
 
+/**
+ * @param {string} title
+ * @param {string} name
+ * @param {?(number|string)} [year]
+ * @param {object} [options]
+ * @param {boolean} [options.isSeries]
+ * @param {?string[]} [options.allNames]
+ * @param {?string[]} [options.tokens]
+ * @param {?string[]} [options.universeTokens]
+ */
 function matchesBrTitle(title, name, year = null, { isSeries = false, allNames = null, tokens = null, universeTokens = null } = {}) {
   if (!matchesName(title, name, tokens)) return false;
   const own = tokens || normalizeTitle(title).split(' ').filter(Boolean);
@@ -817,6 +895,9 @@ function containsTokenRun(title, normalizedRoot) {
  * Só para filme (season == null): pack de franquia de série morreria mesmo
  * assim no corte por episódio, e temporada inteira já passa pelo caminho
  * normal ("Lost Girl (2010) S01-S05").
+ *
+ * @param {import('../../types/domain').RawItem[]} [items]
+ * @param {MatchOptions} [options]
  */
 function filterInventoryRelevant(items = [], { names = [], season = null, ...matchContext } = {}) {
   if (!names.length) return [];
@@ -838,6 +919,9 @@ function filterInventoryRelevant(items = [], { names = [], season = null, ...mat
  * Classificação crua compartilhada pelo corte final e pelo gatilho de pack.
  * Usar uma função só impede o fallback de discordar do que buildStreams vai
  * descartar alguns milissegundos depois.
+ *
+ * @param {import('../../types/domain').RawItem[]} [items]
+ * @param {MatchOptions} [options]
  */
 function filterRelevantRaw(
   items = [],
@@ -1002,6 +1086,9 @@ function parseTitleSeasonEpisode(title = '') {
  * sem este filtro a lista de E01 vinha recheada de E03, E04, E06, E09.
  * Pack de temporada (sem episódio no título) continua valendo: é dele que o
  * debrid tira o arquivo certo, e é o formato que as fontes BR publicam.
+ *
+ * @param {string} title
+ * @param {SeasonEpisodeOptions} [options]
  */
 function matchesEpisode(title, { season, episode } = {}) {
   if (season == null || episode == null) return true;
@@ -1129,6 +1216,11 @@ function selectQualityCandidates(
   const poolSize = Math.max(0, Math.trunc(maxResults));
   const custom = QUALITY_KEYS.filter((quality) => Number(qualityLimits[quality]) < 100);
   const customSet = new Set(custom);
+  // Os mapas abaixo são populados para TODA qualidade de `custom` na criação,
+  // então `.get(quality)` nunca devolve undefined quando `quality` pertence a
+  // `custom`. O strictNullChecks não enxerga esse invariante; os casts de
+  // `/** @type */` documentam a garantia sem mudar runtime.
+  /** @type {Map<string, import('../../types/domain').Stream[]>} */
   const buckets = new Map(custom.map((quality) => [quality, []]));
   for (const stream of streams) {
     const bucket = buckets.get(streamQuality(stream));
@@ -1136,9 +1228,12 @@ function selectQualityCandidates(
   }
 
   const selected = new Set();
+  /** @type {Map<string, number>} */
   const positions = new Map(custom.map((quality) => [quality, 0]));
+  /** @type {Map<string, number>} */
   const counts = new Map(custom.map((quality) => [quality, 0]));
   const factor = Math.max(1, Math.trunc(candidateFactor));
+  /** @type {Map<string, number>} */
   const targets = new Map(
     custom.map((quality) => [
       quality,
@@ -1154,9 +1249,10 @@ function selectQualityCandidates(
     if (selected.size >= poolSize || selected.size >= brTarget) break;
     if (!stream._br) continue;
     const quality = streamQuality(stream);
-    if (customSet.has(quality) && counts.get(quality) >= targets.get(quality)) continue;
+    if (customSet.has(quality) &&
+      /** @type {number} */ (counts.get(quality)) >= /** @type {number} */ (targets.get(quality))) continue;
     selected.add(stream);
-    if (customSet.has(quality)) counts.set(quality, counts.get(quality) + 1);
+    if (customSet.has(quality)) counts.set(quality, /** @type {number} */ (counts.get(quality)) + 1);
   }
 
   // Round-robin evita que a primeira qualidade consuma todo o pool quando a
@@ -1165,14 +1261,15 @@ function selectQualityCandidates(
   while (selected.size < poolSize && progressed) {
     progressed = false;
     for (const quality of custom) {
-      const bucket = buckets.get(quality);
-      let position = positions.get(quality);
+      const bucket = /** @type {import('../../types/domain').Stream[]} */ (buckets.get(quality));
+      let position = /** @type {number} */ (positions.get(quality));
       while (position < bucket.length && selected.has(bucket[position])) position += 1;
       positions.set(quality, position);
-      if (counts.get(quality) >= targets.get(quality) || position >= bucket.length) continue;
+      if (/** @type {number} */ (counts.get(quality)) >= /** @type {number} */ (targets.get(quality)) ||
+        position >= bucket.length) continue;
       selected.add(bucket[position]);
       positions.set(quality, position + 1);
-      counts.set(quality, counts.get(quality) + 1);
+      counts.set(quality, /** @type {number} */ (counts.get(quality)) + 1);
       progressed = true;
       if (selected.size >= poolSize) break;
     }
@@ -1323,6 +1420,9 @@ const DUBBED_QUALITY_WEIGHT = {
  * - BR sem marca de áudio no título entra como dublado só quando nenhum
  *   candidato tiver a marca: é o padrão dos sites BR ("Nome (2026) [opção 3]"),
  *   mas um "LEGENDADO" explícito nunca é tratado como dublado.
+ *
+ * @param {import('../../types/domain').Stream[]} [streams]
+ * @param {PoolsOptions} [options]
  */
 function brDubbedPool(streams = [], { season } = {}) {
   const br = streams.filter(
@@ -1370,6 +1470,9 @@ function brDubbedPool(streams = [], { season } = {}) {
  * vale como dublado" do pool BR encheria a conta com o que o usuário não
  * pediu. (BR elegível aqui é impossível na prática: se existisse, o pool BR
  * já teria sido escolhido no lugar deste.)
+ *
+ * @param {import('../../types/domain').Stream[]} [streams]
+ * @param {PoolsOptions} [options]
  */
 function anyDubbedPool(streams = [], { season } = {}) {
   const candidates = streams.filter(
@@ -1391,7 +1494,12 @@ function anyDubbedPool(streams = [], { season } = {}) {
   });
 }
 
-/** Pool de segurança: prioriza o swarm, não a resolução, para o download terminar. */
+/**
+ * Pool de segurança: prioriza o swarm, não a resolução, para o download terminar.
+ *
+ * @param {import('../../types/domain').Stream[]} [streams]
+ * @param {PoolsOptions} [options]
+ */
 function topSeededPool(streams = [], { season, minSeeders = 0 } = {}) {
   const seedersOf = (s) => Number(s?._seeders ?? (String(s?.name || '').match(/👤\s*(\d+)/)?.[1] || 0));
   const candidates = streams.filter((s) =>
@@ -1476,6 +1584,10 @@ function hasCachedBrDubbed(streams = [], cachedHashes = new Set()) {
   return brDubbedPool(streams).some((s) => cached.has(String(s.infoHash || '').toLowerCase()));
 }
 
+/**
+ * @param {AutofetchOptions} [options]
+ * @param {import('../../types/domain').DebridAdapter | null} [adapter]
+ */
 function canAutoFetchBr({ autoFetchBr } = {}, adapter) {
   // cachedOnly não é mais trava: o objetivo do autofetch é justamente esquentar
   // o cache quando não há BR dublada pronta, independente do modo. As travas
@@ -1689,13 +1801,19 @@ function sortAndLimit(
  *
  * `name` prefere o título ORIGINAL: é o que os indexadores globais publicam.
  * O pt-BR tem query própria (`ptQuery`) e entra em `names` de qualquer forma.
+ *
+ * @param {SearchNamesOptions} [options]
+ * @returns {{ name: string, year: (number|string|null), names: string[] }}
  */
 function resolveSearchNames({ meta, titles, imdbId } = {}) {
   const fallback = titles?.original || titles?.pt;
   return {
     name: meta?.name || fallback || imdbId || '',
     year: meta?.year || titles?.year || null,
-    names: [meta?.name, titles?.pt, titles?.original].filter(Boolean),
+    // `.filter(Boolean)` remove null/undefined/'' do array de nome; o cast
+    // torna explícito o que o filtro já garante no runtime (só strings não
+    // vazias sobram) para o consumidor `matchContext.names: string[]`.
+    names: /** @type {string[]} */ ([meta?.name, titles?.pt, titles?.original].filter(Boolean)),
   };
 }
 
@@ -1709,6 +1827,10 @@ function parseStremioId(id) {
   };
 }
 
+/**
+ * @param {{ name?: ?string, title?: ?string, year?: ?(number|string) }} [meta]
+ * @param {SeasonEpisodeOptions} [options]
+ */
 function buildSearchQuery(meta, { season, episode } = {}) {
   const name = meta?.name || meta?.title || '';
   const year = meta?.year ? String(meta.year).slice(0, 4) : '';

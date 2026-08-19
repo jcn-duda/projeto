@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const { magnetFor, json, pickFile, batched, wait, QuotaError, RateLimitError } = require('./common');
 const log = require('../utils/logger');
@@ -26,6 +27,14 @@ function unwrapEnvelope(data) {
   return data;
 }
 
+/**
+ * @param {string} apiKey
+ * @param {string} path
+ * @param {object} [options]
+ * @param {string} [options.method]
+ * @param {*} [options.body]
+ * @param {Object} [options.params]
+ */
 async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
   const url = new URL(`${API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -33,7 +42,12 @@ async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
   return unwrapEnvelope(data);
 }
 
-/** Um dos poucos que ainda expõe checagem de cache em lote. */
+/** Um dos poucos que ainda expõe checagem de cache em lote.
+ * @param {string} apiKey
+ * @param {string[]} infoHashes
+ * @param {object} [options]
+ * @param {number} [options.timeoutMs]
+ */
 async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const url = new URL(`${API}/torrents/checkcached`);
@@ -54,6 +68,14 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   }, { timeoutMs });
 }
 
+/**
+ * @param {string} apiKey
+ * @param {string} infoHash
+ * @param {object} [options]
+ * @param {?number} [options.season]
+ * @param {?number} [options.episode]
+ * @param {*} [options.work]
+ */
 async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const form = new FormData();
   form.append('magnet', magnetFor(infoHash));

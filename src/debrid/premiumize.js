@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const {
   magnetFor, json, pickFile, batched,
@@ -6,6 +7,15 @@ const {
 
 const API = 'https://www.premiumize.me/api';
 
+/**
+ * @param {string} apiKey
+ * @param {string} path
+ * @param {object} [options]
+ * @param {string} [options.method]
+ * @param {Object} [options.params]
+ * @param {*} [options.body]
+ * @param {number} [options.timeout]
+ */
 async function call(apiKey, path, { method = 'GET', params = {}, body, timeout } = {}) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('apikey', apiKey);
@@ -33,6 +43,11 @@ async function call(apiKey, path, { method = 'GET', params = {}, body, timeout }
 /**
  * Quais desses infoHashes já estão no cache do Premiumize (play instantâneo).
  * Retorna um Set com os hashes disponíveis.
+ *
+ * @param {string} apiKey
+ * @param {string[]} infoHashes
+ * @param {object} [options]
+ * @param {number} [options.timeoutMs]
  */
 async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   // A API aceita lote; mantemos blocos pra não montar URLs gigantes.
@@ -49,6 +64,13 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
 /**
  * Resolve o link direto de reprodução — só na hora do play, porque o
  * directdl é caro demais pra rodar em cima da lista inteira de torrents.
+ *
+ * @param {string} apiKey
+ * @param {string} infoHash
+ * @param {object} [options]
+ * @param {?number} [options.season]
+ * @param {?number} [options.episode]
+ * @param {*} [options.work]
  */
 async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const body = new URLSearchParams({ src: magnetFor(infoHash) });

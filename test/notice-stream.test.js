@@ -1,3 +1,4 @@
+// @ts-check
 const { test } = require('node:test');
 const assert = require('node:assert');
 
@@ -13,6 +14,25 @@ const A = 'a'.repeat(40);
 // O aviso só existe para explicar uma lista que ficaria vazia. Os três estados
 // são excludentes e a ordem importa: "já mandei baixar" é mais preciso que
 // "cortei por cache", que é mais preciso que "ainda não achei".
+
+/**
+ * Opções do helper `build`. `season`/`episode` aceitam null de propósito: filme
+ * sem candidato não recebe aviso, e é o teste que manda esse estado — o null
+ * não é "não informado", é "não é série".
+ *
+ * @typedef {object} BuildOptions
+ * @property {number|null} [season]
+ * @property {number|null} [episode]
+ * @property {string[]} [cached]
+ * @property {boolean} [cachedOnly]
+ * @property {string} [publicUrl]
+ * @property {string} [origin]
+ */
+
+/**
+ * @param {import('../types/domain').RawItem[]} raw
+ * @param {BuildOptions} [options]
+ */
 async function build(raw, { season = 1, episode = 1, cached = [], cachedOnly = true, publicUrl = 'https://addon.teste', origin } = {}) {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
@@ -31,14 +51,17 @@ async function build(raw, { season = 1, episode = 1, cached = [], cachedOnly = t
     return await runtime.run(
       { opts: userOpts, encoded: 'segcfg', ...(origin === undefined ? {} : { origin }) },
       async () => {
-        const streams = await buildStreams(raw, {
+        // A assinatura do `buildStreams` exige `deadlineAt`/`onDebridResult`,
+        // que o caminho de teste não manda: o cast `any` cobre o objeto parcial
+        // sem inventar valor nenhum (mesmo contrato do helper de outros testes).
+        const streams = await buildStreams(raw, /** @type {any} */ ({
           meta: null,
           titles: null,
           season,
           episode,
           isDemo: false,
           searchKey: `aviso-${Math.random()}`,
-        });
+        }));
         // O que o cliente recebe é a lista já fechada pela resposta — é lá que o
         // link do aviso é montado, e é esse contrato que os testes cobram.
         return applyNoticeOrigin(streams);
@@ -111,10 +134,10 @@ test('o cache guarda o TEXTO do aviso, nunca o link de um cliente', async () => 
   try {
     const cacheado = await runtime.run(
       { opts: userOpts, encoded: 'segcfg', origin: 'http://192.168.0.23:7000' },
-      () => buildStreams([], {
+      () => buildStreams([], /** @type {any} */ ({
         meta: null, titles: null, season: 1, episode: 1, isDemo: false,
         searchKey: `aviso-cache-${Math.random()}`,
-      }));
+      })));
     // É isto que vai para o cache: marca interna e texto, sem endereço nenhum.
     assert.equal(cacheado.length, 1);
     assert.equal(cacheado[0].notice, true);

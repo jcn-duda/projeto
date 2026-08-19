@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Disputa uma tarefa com um prazo sem cancelar o trabalho tardio. O timer sai
  * assim que um lado vence; mantê-lo vivo após o sucesso gerava aviso falso de

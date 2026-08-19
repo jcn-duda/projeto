@@ -1,3 +1,4 @@
+// @ts-check
 const { prefix } = require('../utils/cache-keys');
 
 const pending = new Map();

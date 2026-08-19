@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const log = require('../utils/logger');
 

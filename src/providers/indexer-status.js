@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const cache = require('../utils/cache');
 const metrics = require('../utils/metrics');
@@ -13,11 +14,22 @@ function normalize(id) {
   return String(id || '').trim().toLowerCase();
 }
 
+/**
+ * @typedef {{ ok?: boolean, ms?: (number|string|null), budgetMs?: number, results?: number }} StateSample
+ */
+
+/**
+ * @param {StateSample} [sample]
+ */
 function stateFor({ ok, ms, budgetMs, results = 0 } = {}) {
   if (!ok) return results > 0 ? 'degraded' : 'offline';
   return Number(ms) > Number(budgetMs) ? 'slow' : 'online';
 }
 
+/**
+ * @param {*} id
+ * @param {StateSample} [sample]
+ */
 function record(id, sample = {}) {
   const key = normalize(id);
   if (!key) return null;
@@ -32,7 +44,9 @@ function record(id, sample = {}) {
     state,
     // `null` significa que a falha não trouxe medição. Number(null) seria 0 e
     // faria a UI inventar "offline · 0.0s" em vez de mostrar só offline.
-    ms: Number.isFinite(measured) ? Math.max(0, Math.trunc(measured)) : null,
+    // `Number.isFinite(null)` já é false no runtime (não converte), então o cast
+    // só repete o fato para a assinatura `(number) => boolean` do lib.
+    ms: Number.isFinite(/** @type {number} */ (measured)) ? Math.max(0, Math.trunc(/** @type {number} */ (measured))) : null,
     checkedAt: new Date().toISOString(),
     failStreak: state === 'offline' ? (previous?.failStreak || 0) + 1 : 0,
   };

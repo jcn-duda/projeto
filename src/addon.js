@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('./config');
 const brResolvers = require('./br-resolvers');
 const jackettCatalog = require('./providers/jackett-catalog');

@@ -1,3 +1,4 @@
+// @ts-check
 const crypto = require('crypto');
 const config = require('../config');
 const log = require('./logger');
@@ -31,10 +32,14 @@ const SALT = Buffer.from('stremio-adom/dk/v1', 'utf8');
 // scrypt é caro de propósito — o RESOLVE_SECRET costuma ser uma senha escolhida
 // a dedo, não 32 bytes aleatórios. Derivar a cada requisição colocaria ~100ms no
 // caminho de busca, então o resultado fica em cache por segredo.
+/** @type {{ secret: (string | null), key: (Buffer | null) }} */
 let cached = { secret: null, key: null };
 
+/** @returns {Buffer} */
 function keyFor(secret) {
-  if (cached.secret === secret) return cached.key;
+  // Se `cached.secret === secret` (strings idênticas), o `key` correspondente já
+  // foi derivado — nunca é null nesse ramo. O cast repete a garantia.
+  if (cached.secret === secret) return /** @type {Buffer} */ (cached.key);
   const key = crypto.scryptSync(secret, SALT, 32);
   cached = { secret, key };
   return key;

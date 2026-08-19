@@ -1,3 +1,4 @@
+// @ts-check
 function priorityMap(ids = []) {
   const map = new Map();
   ids.forEach((id, index) => {

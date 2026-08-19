@@ -1,3 +1,4 @@
+// @ts-check
 const { magnetFor, json, pickFile, wait } = require('./common');
 const log = require('../utils/logger');
 
@@ -7,6 +8,13 @@ function auth(apiKey) {
   return { Authorization: `Bearer ${apiKey}` };
 }
 
+/**
+ * @param {string} apiKey
+ * @param {string} path
+ * @param {object} [options]
+ * @param {string} [options.method]
+ * @param {*} [options.body]
+ */
 function call(apiKey, path, { method = 'GET', body } = {}) {
   return json(`${API}${path}`, {
     method,
@@ -30,6 +38,14 @@ async function checkCached() {
 const READY = 'downloaded';
 const WORKING = ['magnet_conversion', 'queued', 'downloading', 'compressing', 'uploading'];
 
+/**
+ * @param {string} apiKey
+ * @param {string} infoHash
+ * @param {object} [options]
+ * @param {?number} [options.season]
+ * @param {?number} [options.episode]
+ * @param {*} [options.work]
+ */
 async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const add = await call(apiKey, '/torrents/addMagnet', {
     method: 'POST',
@@ -87,6 +103,12 @@ async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
  * Só ENFILEIRA o download e sai; quem quer o link usa resolveLink.
  * O selectFiles não é opcional: sem ele o torrent fica parado em
  * "waiting_files_selection" para sempre e nada é baixado.
+ *
+ * @param {string} apiKey
+ * @param {string} infoHash
+ * @param {object} [options]
+ * @param {?number} [options.season]
+ * @param {?number} [options.episode]
  */
 async function enqueue(apiKey, infoHash, { season, episode } = {}) {
   const add = await call(apiKey, '/torrents/addMagnet', {

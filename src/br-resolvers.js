@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Carrega os resolvedores BR dentro do processo do addon.
  *

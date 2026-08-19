@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Smoke test do addon rodando. Não sobe servidor: aponta para um que já está
  * de pé, porque metade do que interessa (Jackett, TMDB, debrid) depende de
@@ -28,6 +29,16 @@ function ok(label, pass, detail) {
   if (!pass) failures += 1;
   console.log(`${pass ? '  ok  ' : ' FALHA'} ${label}${detail ? ` — ${detail}` : ''}`);
 }
+
+/**
+ * Resposta de uma chamada de teste: status HTTP, corpo desserializado, duração
+ * e o sinal "lista incompleta, pergunte de novo" (`complete`, max-age > 0).
+ * @typedef {Object} SearchResp
+ * @property {number} status
+ * @property {any} body
+ * @property {number} ms
+ * @property {boolean} complete
+ */
 
 async function get(path, timeout = 20000) {
   const started = Date.now();
@@ -103,6 +114,7 @@ async function checkSearch() {
     console.log(`  ${label || id}`);
 
     const tentativas = [];
+    /** @type {SearchResp | null} */
     let last = null;
     try {
       for (let i = 0; i < MAX_TENTATIVAS; i += 1) {
@@ -121,9 +133,11 @@ async function checkSearch() {
       continue;
     }
 
-    const s = inspect(last.body?.streams || []);
+    // Se a 1ª chamada lançasse, o catch faria `continue` e este trecho não
+    // rodaria — `last` nunca chega aqui null. O cast repete essa garantia.
+    const s = inspect(/** @type {SearchResp} */ (last).body?.streams || []);
     ok('  1ª resposta dentro do limite do Stremio', tentativas[0].ms < 10000, `${tentativas[0].ms}ms`);
-    ok('  chegou a uma lista completa', last.complete, last.complete ? '' : `${MAX_TENTATIVAS} tentativas`);
+    ok('  chegou a uma lista completa', /** @type {SearchResp} */ (last).complete, /** @type {SearchResp} */ (last).complete ? '' : `${MAX_TENTATIVAS} tentativas`);
     ok('  encontrou streams', s.total > 0);
     ok('  sem campos internos vazando', !s.vazando);
     if (s.total > 0 && !isDemo) {

@@ -49,6 +49,14 @@ jobs:
       - name: Testes
         run: npm test
 
+      # Typecheck via JSDoc (`// @ts-check`) não depende da versão de runtime,
+      # então roda só na 22 da matriz para não dobrar o tempo. Adoção é opt-in
+      # por arquivo: checkJs fica false no jsconfig e cada arquivo entra quando
+      # ganha o comentário no topo.
+      - name: Verificar tipos
+        if: matrix.node == '22.x'
+        run: npm run typecheck
+
   # Fora do portão de propósito: com três dependências diretas, o audit falha
   # por transitiva alheia que não temos como corrigir, e um vermelho que sempre
   # aparece é um vermelho que ninguém mais lê. Aqui ele fica visível sem travar.

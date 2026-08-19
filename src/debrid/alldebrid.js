@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const { accountScope } = require('../utils/request-key');
 const {
@@ -13,6 +14,15 @@ const metrics = require('../utils/metrics');
 const API = 'https://api.alldebrid.com/v4.1';
 const AGENT = 'stremio-adom';
 
+/**
+ * @param {string} apiKey
+ * @param {string} path
+ * @param {Object} [params]
+ * @param {object} [options]
+ * @param {string} [options.method]
+ * @param {*} [options.body]
+ * @param {number} [options.timeout]
+ */
 async function call(apiKey, path, params = {}, { method = 'GET', body, timeout } = {}) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('agent', AGENT);
@@ -78,6 +88,9 @@ function knownBefore(apiKey, account) {
   const entry = preexisting.get(account);
   if (entry) return entry.hashes;
 
+  // A promessa de inventário só existe enquanto o snapshot não termina; o
+  // hashes carregado (ou null em caso de falha) é o que a checagem consulta.
+  /** @type {{ hashes: (Set<string>|null), promise?: Promise<(Set<string>|null)> }} */
   const loading = { hashes: null };
   preexisting.set(account, loading);
   loading.promise = call(apiKey, '/magnet/status')
@@ -204,6 +217,11 @@ async function sweepDead(apiKey, { minAgeMs = config.debrid.sweepDeadMinAgeMs } 
  * inteira (aí o ⚡ some de TODOS os streams). Apagar é seguro porque o cache é
  * do serviço, não da conta: no play o upload traz de volta na hora. Ficam de
  * fora os do autofetch (`held`) e os que já eram do usuário (`knownBefore`).
+ *
+ * @param {string} apiKey
+ * @param {string[]} infoHashes
+ * @param {object} [options]
+ * @param {number} [options.timeoutMs]
  */
 async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   const drop = [];
@@ -282,6 +300,14 @@ function flattenFiles(nodes, prefix = '') {
   return out;
 }
 
+/**
+ * @param {string} apiKey
+ * @param {string} infoHash
+ * @param {object} [options]
+ * @param {?number} [options.season]
+ * @param {?number} [options.episode]
+ * @param {*} [options.work]
+ */
 async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const account = accountScope(apiKey);
   const upload = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });

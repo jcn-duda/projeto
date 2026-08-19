@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const indexerStatus = require('./indexer-status');
 const log = require('../utils/logger');

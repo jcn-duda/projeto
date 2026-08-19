@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Quem estoura o orçamento de coleta não pode compartilhar Promise: um
  * NerdFilmes de 7,4s segurava o BLUDV (e um redetorrent de 20s segurava o
@@ -6,6 +7,23 @@
  */
 const { numeralSearchVariant, franchiseRoot } = require('../utils/format');
 
+/**
+ * @typedef {object} SearchPlanTask
+ * @property {string} query
+ * @property {string[]} indexers
+ * @property {string} [variant]  Grafia arábica da sequência (Só no indexer BR).
+ * @property {string} [fallback] Query original como fallback (só BR+ptQuery).
+ */
+
+/**
+ * @param {string} query
+ * @param {?string} ptQuery
+ * @param {string[]} selectedIndexers
+ * @param {string[]} ptBrIndexers
+ * @param {string[]} [isolateIndexers]
+ * @param {?string} [sweepQuery]
+ * @returns {SearchPlanTask[]}
+ */
 function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isolateIndexers = [], sweepQuery = null) {
   const brSet = new Set(ptBrIndexers);
   const isolateSet = new Set([...ptBrIndexers, ...isolateIndexers]);

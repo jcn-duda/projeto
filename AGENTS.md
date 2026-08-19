@@ -83,6 +83,7 @@ npm start                 # sobe o addon em http://127.0.0.1:7000/manifest.json
 npm run dev               # idem, com --watch
 npm test                  # node:test, lista explícita em package.json (sem rede)
 npm run test:complete     # cobra que todo test/**/*.test.js esteja nessa lista
+npm run typecheck         # tsc -p jsconfig.json --noEmit (JSDoc via // @ts-check, opt-in por arquivo)
 npm run smoke             # valida o pipeline de ponta a ponta (rede de verdade)
 npm run docker:up         # stack completa
 npm run docker:logs       # logs do addon
@@ -633,6 +634,20 @@ comportamento sem subir rede.
 ---
 
 ## Convenções
+
+**Typecheck via JSDoc é opt-in por arquivo.** `jsconfig.json` deixa `checkJs`
+desligado e cada `.js` entra quando carrega `// @ts-check` no topo (na linha 1,
+ou logo após o shebang `#!`). `npm run typecheck` é `tsc --noEmit`; o CI roda
+em Node 22. Ao criar arquivo novo, inclua o `// @ts-check` e as anotações JSDoc
+necessárias — não deixe a ausência do comentário virar dívida nova. Tipos
+compartilhados de domínio (`Stream`, `DebridAdapter`, `MatchContext`,
+`ParsedSeasonEpisode`) ficam em `types/domain.d.ts`, referenciados por
+`import('../../types/domain')` (ou `../` conforme a profundidade). Adoção não
+muda runtime: só comentários, `/** @type */` casts e `.d.ts` — nunca altere
+lógica para "passar"; onde a anotação custar mais que o valor, use
+`// @ts-nocheck` com uma linha explicando o porquê. `!` (non-null assertion) e
+`as` são sintaxe TS proibida em `.js` (tsc recusa com TS8013); para "possível
+undefined/null" use cast JSDoc `/** @type {number} */ (expr)`.
 
 **Idioma.** Comentários, logs e mensagens em **português**. Nomes de variáveis e
 funções em **inglês**. Mantenha assim.

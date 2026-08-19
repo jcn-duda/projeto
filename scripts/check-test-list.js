@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Garante que todo arquivo .test.js sob test/, inclusive subdiretórios, está
  * no script `test` do package.json.

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Salva o HTML de uma página como fixture de teste.
  *

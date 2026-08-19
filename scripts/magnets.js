@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Inventário e limpeza dos magnets da conta AllDebrid.
  *
@@ -22,6 +23,9 @@ const API = 'https://api.alldebrid.com/v4.1';
 const AGENT = 'stremio-adom';
 
 function parseArgs(argv) {
+  // `older` começa null e só ganha número com --older; o tipo preserva o estado
+  // "flag ausente" (comparação com 0 é false e não seleciona nada).
+  /** @type {{ older: number | null, all: boolean, apply: boolean, key: string, keep: number }} */
   const args = { older: null, all: false, apply: false, key: '', keep: 0 };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -93,7 +97,9 @@ async function main() {
 
   let alvo = [];
   if (args.all) alvo = magnets;
-  else if (args.older > 0) alvo = magnets.slice(0, Math.floor((magnets.length * args.older) / 100));
+  // O guard `> 0` já descarta `null` no runtime (null > 0 é false); o cast
+  // apenas repete o fato pro checador de tipos.
+  else if (/** @type {number} */ (args.older) > 0) alvo = magnets.slice(0, Math.floor((magnets.length * /** @type {number} */ (args.older)) / 100));
   else if (args.keep > 0) alvo = magnets.slice(0, Math.max(0, magnets.length - args.keep));
 
   if (!alvo.length) {

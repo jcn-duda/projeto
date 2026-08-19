@@ -1,8 +1,17 @@
+// @ts-check
 const { magnetFor, json, pickFile, wait } = require('./common');
 const log = require('../utils/logger');
 
 const API = 'https://debrid-link.com/api/v2';
 
+/**
+ * @param {string} apiKey
+ * @param {string} path
+ * @param {object} [options]
+ * @param {string} [options.method]
+ * @param {*} [options.body]
+ * @param {Object} [options.params]
+ */
 async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
   const url = new URL(`${API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -29,6 +38,14 @@ async function checkCached() {
   return new Set();
 }
 
+/**
+ * @param {string} apiKey
+ * @param {string} infoHash
+ * @param {object} [options]
+ * @param {?number} [options.season]
+ * @param {?number} [options.episode]
+ * @param {*} [options.work]
+ */
 async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const added = await call(apiKey, '/seedbox/add', {
     method: 'POST',

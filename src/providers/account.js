@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const debrid = require('../debrid');
 const { filterInventoryRelevant, looksPtBr } = require('../utils/format');

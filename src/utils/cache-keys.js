@@ -1,3 +1,4 @@
+// @ts-check
 // Fonte única de verdade para a versão de cada namespace versionado do cache.
 // Módulo puro, sem require: quem monta chave pode importá-lo sem arrastar o
 // `cache.js` (que abre SQLite e agenda timer no require).

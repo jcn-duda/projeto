@@ -1,3 +1,4 @@
+// @ts-check
 const crypto = require('crypto');
 
 function authorized(expected, supplied) {

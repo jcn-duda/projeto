@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const { opts } = require('../runtime');
 const cache = require('../utils/cache');

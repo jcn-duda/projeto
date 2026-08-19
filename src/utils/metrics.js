@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Contadores e latências em memória, para responder as perguntas que hoje só
  * dá pra responder relendo log: o cache está pegando? qual indexador está

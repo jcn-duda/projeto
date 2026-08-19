@@ -1,3 +1,4 @@
+// @ts-check
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -10,6 +11,14 @@ const assert = require('node:assert/strict');
 const config = require('../src/config');
 const secretBox = require('../src/utils/secret-box');
 const runtime = require('../src/runtime');
+
+/**
+ * `runtime.decode` devolve os defaults ou null; nos testes o segmento é sempre
+ * válido por construção, então os acessos diretos assumem o tipo não-nulo — o
+ * cast no lugar do `!` (proibido em .js) é o que documenta essa invariante.
+ *
+ * @typedef {NonNullable<ReturnType<typeof runtime.decode>>} DecodedOptions
+ */
 
 const KEY = 'chave-de-debrid-do-usuario';
 const SECRET = 'segredo-do-operador';
@@ -75,7 +84,7 @@ test('selo de outro segredo não abre neste servidor', () => {
 test('install URL antigo (chave em texto puro) continua valendo com o selo ligado', () => {
   withSecret(SECRET, () => {
     const legado = runtime.encode({ ds: 'alldebrid', dk: KEY });
-    const parsed = runtime.decode(legado);
+    const parsed = /** @type {DecodedOptions} */ (runtime.decode(legado));
 
     // É isto que permite ligar o RESOLVE_SECRET sem quebrar quem já instalou.
     assert.equal(parsed.debridApiKey, KEY);
@@ -95,7 +104,7 @@ test('sealSegment troca só o dk e o decode devolve a chave em claro', () => {
     // normalizar, senão o link mudaria de significado ao ser selado.
     assert.deepEqual({ ds: raw.ds, m: raw.m, bf: raw.bf }, { ds: 'alldebrid', m: 20, bf: 1 });
 
-    const parsed = runtime.decode(sealed);
+    const parsed = /** @type {DecodedOptions} */ (runtime.decode(sealed));
     assert.equal(parsed.debridApiKey, KEY);
     assert.equal(parsed.maxResults, 20);
   });
@@ -125,6 +134,6 @@ test('chave selada na URL sem RESOLVE_SECRET no servidor vira chave vazia', () =
 
   withSecret('', () => {
     // Modo P2P puro em vez de mandar o blob para a API do debrid a cada busca.
-    assert.equal(runtime.decode(sealed).debridApiKey, '');
+    assert.equal(/** @type {DecodedOptions} */ (runtime.decode(sealed)).debridApiKey, '');
   });
 });

@@ -1,3 +1,4 @@
+// @ts-check
 const { AsyncLocalStorage } = require('async_hooks');
 const config = require('./config');
 const secretBox = require('./utils/secret-box');
@@ -18,7 +19,21 @@ const store = new AsyncLocalStorage();
 const MAX_CONFIG_SEGMENT = 8192;
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
+/**
+ * Entrada do SCHEMA. O literal de `type` é o discriminante: sem ele o TS amplia
+ * para `string` e o `spec.type === 'int'` não estreita para a variante com
+ * `min`/`max`, exigidos por `clampInt`.
+ *
+ * @typedef {{ type: 'list', key: string } |
+ *   { type: 'int', key: string, min: number, max: number } |
+ *   { type: 'intmap', key: string, min: number, max: number } |
+ *   { type: 'bool', key: string } |
+ *   { type: 'string', key: string } |
+ *   { type: 'secret', key: string }} SchemaEntry
+ */
+
 /** Só estas chaves podem vir da URL — o resto é decisão do operador da instância. */
+/** @type {Record<string, SchemaEntry>} */
 const SCHEMA = {
   providers: { type: 'list', key: 'p' },
   qualities: { type: 'list', key: 'q' },

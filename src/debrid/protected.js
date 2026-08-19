@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Hashes que a limpeza automática NÃO pode apagar da conta do debrid.
  *

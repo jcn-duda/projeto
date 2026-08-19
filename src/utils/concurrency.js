@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * mapLimit com concorrência limitada preservando a ordem de entrada.
  *

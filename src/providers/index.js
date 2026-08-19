@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const demo = require('./demo');
 const jackett = require('./jackett');
@@ -59,6 +60,10 @@ const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
  *   o mesmo torrent de novo;
  * - nunca entra no caminho da resposta: erro só vira log.
  */
+/**
+ * @param {import('../../types/domain').Stream[]} streams
+ * @param {{ season?: (number|null) }} [options]
+ */
 function autoFetchCandidates(streams, { season } = {}) {
   const { autoFetchBr, debridApiKey } = opts();
   const adapter = debrid.current();
@@ -104,8 +109,15 @@ function releaseAllHolds(candidates) {
 }
 
 /** Enfileira UM candidato de forma fire-and-forget, com marker e vaga por busca. */
+/**
+ * @param {{ stream: import('../../types/domain').Stream, account: string, pool: string }} candidate
+ * @param {{ cached: Set<string>, season: ?number, episode: ?number, searchKey: string }} ctx
+ */
 function enqueueAutofetch({ stream, account, pool }, { cached, season, episode, searchKey }) {
-  const adapter = debrid.current();
+  // `enqueueAutofetch` só roda com autofetch habilitado — o gate
+  // `canAutoFetchBr` exige um adaptador de cache confiável antes de qualquer
+  // candidato chegar aqui, então `current()` nunca é null neste caminho.
+  const adapter = /** @type {import('../../types/domain').DebridAdapter} */ (debrid.current());
   // Capturado AGORA, dentro do request: o recheck dispara num timer fora do
   // AsyncLocalStorage e precisa da conta/opts desta requisição.
   const requestCtx = capture();
@@ -411,6 +423,15 @@ function hasPlayableStream(streams) {
   return Array.isArray(streams) && streams.some((s) => s && (s.url || s.infoHash));
 }
 
+/**
+ * @param {string} query
+ * @param {string} type
+ * @param {string} imdbId
+ * @param {?string} ptQuery
+ * @param {{ names: string[], year: (number|string|null), isSeries: boolean, season: (number|null), episode: (number|null) }} matchContext
+ * @param {?Function} [onLate]
+ * @param {?string} [sweepQuery]
+ */
 async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate, sweepQuery = null) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
@@ -1117,6 +1138,11 @@ async function buildStreams(
     // pode desligar a prioridade brasileira junto.
     [UNKNOWN_QUALITY]: maxUnknown,
   };
+  // Tipado como Stream[] de propósito: é este array que `applyNoticeOrigin`
+  // fecha como item de aviso e entrega ao Stremio. Um item sem `url`/`infoHash`/
+  // `externalUrl` (e sem a marca interna `notice`) morre fora da união — o que
+  // deixa explícito na origem o aviso que nenhum cliente renderizava.
+  /** @type {import('../../types/domain').Stream[]} */
   let streams = sortAndLimit(raw.map(toStremioStream), {
     minSeeders,
     maxResults: maxResults * config.candidatePoolFactor,

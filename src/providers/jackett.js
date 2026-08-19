@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const cache = require('../utils/cache');
 const {
@@ -92,6 +93,10 @@ function dedupeResolveCandidates(items) {
   });
 }
 
+/**
+ * @param {{ title?: string }} item
+ * @param {{ season?: (number|null), episode?: (number|null) }} [options]
+ */
 function resolveCandidateScore(item, { season = null, episode = null } = {}) {
   const title = item.title || '';
   const parsed = parseTitleSeasonEpisode(title);
@@ -109,6 +114,13 @@ function resolveCandidateScore(item, { season = null, episode = null } = {}) {
   return score;
 }
 
+/**
+ * @param {string} indexer
+ * @param {import('../../types/domain').RawItem[]} items
+ * @param {string} query
+ * @param {number} deadline
+ * @param {import('../../types/domain').MatchContext | null} [matchContext]
+ */
 async function resolveCardigannDownloads(indexer, items, query, deadline, matchContext = null) {
   if (!config.jackett.resolveDownloadIndexers.includes(indexer)) return items;
   if (remaining(deadline) <= MIN_RESOLVE_BUDGET) {
@@ -213,6 +225,12 @@ function breakerTripped(indexer, now = Date.now()) {
 // abertura, não por busca; sai do set quando o indexer volta a ser consultado.
 const breakerAnnounced = new Set();
 
+/**
+ * @param {string} indexer
+ * @param {string} query
+ * @param {string} type
+ * @param {?number} [timeoutOverride]
+ */
 async function queryIndexer(indexer, query, type, timeoutOverride = null, options = {}) {
   const { url, apiKey } = config.jackett;
   const isBr = config.jackett.ptBrIndexers.includes(indexer);
@@ -316,6 +334,11 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null, option
  * O /all só responde quando o indexer MAIS LENTO termina, então um indexer
  * ruim derruba a busca inteira; aqui cada um tem seu próprio timeout e o que
  * chegou a tempo é aproveitado.
+ *
+ * @param {string} query
+ * @param {string} type
+ * @param {?string[]} [indexersOverride]
+ * @param {object} [options]
  */
 async function search(query, type, indexersOverride = null, options = {}) {
   // `recordStatus: false` é a varredura tardia pt-BR: uma SEGUNDA consulta

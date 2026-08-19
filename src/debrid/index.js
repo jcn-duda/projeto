@@ -1,3 +1,4 @@
+// @ts-check
 const { opts } = require('../runtime');
 const config = require('../config');
 const { accountScope } = require('../utils/request-key');
@@ -195,7 +196,9 @@ function current() {
  * parcial ainda volta: dá pra marcar o ⚡ de quem foi confirmado sem esconder
  * quem não chegou a ser perguntado.
  *
- * @param {object} [opts.timeoutMs] Teto dinâmico do passo de resposta (restante
+ * @param {Array<*>} infoHashes
+ * @param {object} [options]
+ * @param {number} [options.timeoutMs] Teto dinâmico do passo de resposta (restante
  *   do REPLY_DEADLINE menos margem). Quando <=0 degrada na hora, sem rede.
  *   Ausente = timeout completo do adaptador (passe tardio).
  */

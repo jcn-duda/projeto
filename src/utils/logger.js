@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Níveis de log do addon.
  *

@@ -1,3 +1,4 @@
+// @ts-check
 const config = require('../config');
 const cache = require('./cache');
 const metrics = require('./metrics');

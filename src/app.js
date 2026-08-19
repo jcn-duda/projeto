@@ -1,3 +1,4 @@
+// @ts-check
 const path = require('path');
 const express = require('express');
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
@@ -16,10 +17,25 @@ const cache = require('./utils/cache');
 const log = require('./utils/logger');
 
 /**
+ * Estado da lista vinda de `findStreams`, na forma que o cache persiste e que o
+ * handler de stream relê. Tipar o pacote inteiro — e não só `streams`, que tem
+ * default no destructuring — evita que o TS infira `{ streams?: never[] }` e
+ * condene o acesso aos três campos de revalidação.
+ *
+ * @typedef {object} StreamResultMeta
+ * @property {Array<*>} [streams] Streams já filtrados e assinados.
+ * @property {boolean} [partial] Coleta cortada pelo prazo da resposta.
+ * @property {boolean} [needsDebridRefresh] Refresh de cache pendente no fundo.
+ * @property {boolean} [debridKnown] Checagem de cache concluída com confiança.
+ */
+
+/**
  * Quando a consulta da AllDebrid não cabe no prazo, o primeiro lote pode sair
  * como `[AD download]`; o cliente precisa perguntar de novo para pegar o cache
  * do servidor já reconstruído com ⚡. Cachear esse lote por 15 minutos tornava
  * a atualização tardia invisível mesmo quando o hash estava pronto.
+ *
+ * @param {StreamResultMeta} [result]
  */
 function streamsNeedRevalidation({ streams = [], partial, needsDebridRefresh, debridKnown } = {}) {
   return !streams.length || partial || needsDebridRefresh || debridKnown === false;
@@ -46,6 +62,16 @@ function originOf(req) {
   }
   return null;
 }
+
+/**
+ * Resultado de `enter()` no gate de diagnóstico (seal e testes de indexer): ou
+ * a vaga é negada (`status` + `error`, resposta curta de 429) ou é tomada
+ * (`release`, que o `finally` devolve). União discriminada por `ok` — sem ela
+ * o TS deixa `status` como `number | undefined` e `release` como possivelmente
+ * ausente, porque o tipo inferido do gate é um union de dois shapes soltos.
+ *
+ * @typedef {{ ok: true, release: () => void } | { ok: false, status: number, error: string }} GateAdmission
+ */
 
 /**
  * Monta o app Express completo do addon sem nenhum efeito colateral (sem
@@ -242,7 +268,8 @@ function createApp() {
     if (!secretBox.enabled()) {
       return res.status(503).json({ error: 'RESOLVE_SECRET não configurado' });
     }
-    const admission = sealGate.enter('global');
+    // `ok: true` garante o `release()` no finally; `ok: false` traz `status`.
+    const admission = /** @type {GateAdmission} */ (sealGate.enter('global'));
     if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
 
     try {
@@ -294,7 +321,8 @@ function createApp() {
     }
     // A stack passa pelo Caddy; limitar por req.ip trataria o proxy como se fosse
     // cada cliente. O teto é global de propósito e protege a única fila Jackett.
-    const admission = diagnosticGate.enter('global');
+    // Mesma garantia do sealGate: o branch de `ok` decide o campo presente.
+    const admission = /** @type {GateAdmission} */ (diagnosticGate.enter('global'));
     if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
 
     try {

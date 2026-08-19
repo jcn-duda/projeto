@@ -1,11 +1,26 @@
+// @ts-check
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)).unref());
 }
 
 /**
+ * @typedef {object} CollectWindowOptions
+ * @property {number} [budgetMs]
+ * @property {number} [priorityGraceMs]
+ * @property {boolean} [graceRequiresItems]
+ * @property {(items: Array<*>) => boolean} [isPriority]
+ * @property {(err: *) => void} [onError]
+ * @property {(batch: Array<*>, items: Array<*>, meta: { priority?: boolean }) => void} [onBatch]
+ * @property {(ms: number) => Promise<*>} [delay]
+ */
+
+/**
  * Coleta providers até o orçamento normal. Se só chegaram fontes globais,
  * concede uma janela curta para a primeira fonte BR: o cliente exibe a primeira
  * resposta e nem toda UI repete a chamada marcada como parcial.
+ *
+ * @param {Array<{ promise: *, priority?: boolean }>} tasks
+ * @param {CollectWindowOptions} [options]
  */
 async function collectWithinWindow(tasks, {
   budgetMs,
@@ -47,7 +62,9 @@ async function collectWithinWindow(tasks, {
   );
   const completion = Promise.all(collecting).then(() => { done = true; });
 
-  await Promise.race([completion, delay(budgetMs)]);
+  // `budgetMs` é obrigatório na prática; o default `{}` só existe para chamadas
+  // vazias. O cast reflete que todo chamador real fornece o número.
+  await Promise.race([completion, delay(/** @type {number} */ (budgetMs))]);
   if (
     !done && !prioritySeen && pendingPriority > 0 && priorityGraceMs > 0 &&
     (!graceRequiresItems || items.length > 0)

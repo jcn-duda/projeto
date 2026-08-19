@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Coordena versões concorrentes do mesmo valor. A fase invalida uma estratégia
  * antiga (episódio quando o fallback de pack começa); a revisão garante que o
