@@ -1027,6 +1027,11 @@ async function buildStreams(
     indexerPriority: safeIndexerPriority,
   });
 
+  // Contagem ANTES do debrid: `applyDebrid` já devolve a lista pós-cachedOnly,
+  // então usar o retorno dele para decidir o aviso era medir depois do corte —
+  // no caso que motivou o aviso (nada em cache) ele volta VAZIO e a condição
+  // nunca ligava.
+  const candidatesBeforeDebrid = streams.length;
   const beforeCut = await applyDebrid(streams, {
     season,
     episode,
@@ -1048,11 +1053,11 @@ async function buildStreams(
     indexerLimits: safeIndexerLimits,
   });
 
-  if (config.search.noticeStream && beforeCut.length > 0 && streams.length === 0 && config.debrid.publicUrl) {
+  if (config.search.noticeStream && candidatesBeforeDebrid > 0 && streams.length === 0 && config.debrid.publicUrl) {
     streams = [{
       name: autofetchCount > 0
         ? '⏳ Baixando no debrid — reabra em alguns minutos'
-        : `Nenhuma fonte pronta — ${beforeCut.length} resultado(s) fora do cache`,
+        : `Nenhuma fonte pronta — ${candidatesBeforeDebrid} resultado(s) fora do cache`,
       externalUrl: `${config.debrid.publicUrl}${prefix()}/configure`,
     }];
   }
