@@ -455,10 +455,12 @@ test('pickAnyDubbedCandidates ordena qualidade→seeders, dedupa e pula cacheado
 
 test('picks de autofetch dão bônus a pack da temporada pedida em busca de série', () => {
   const D = 'd'.repeat(40);
+  const E = 'e'.repeat(40);
   const brEp = stream(A, { title: 'Série S01E03 1080p Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 50 });
   const brPack = stream(B, { title: 'Série S01 Dublado 720p', _br: true, _dubbed: true, _quality: '720p', _seeders: 2 });
   const brOther = stream(C, { title: 'Série S02 Dublado 720p', _br: true, _dubbed: true, _quality: '720p', _seeders: 2 });
   const brComplete = stream(D, { title: 'Série Todas as Temporadas Dublado 480p', _br: true, _dubbed: true, _quality: '480p', _seeders: 1 });
+  const brSeasonComplete = stream(E, { title: 'Série TEMPORADA COMPLETA Dublado 480p', _br: true, _dubbed: true, _quality: '480p', _seeders: 1 });
 
   // Sem season (contexto de filme) o bônus não existe: qualidade e seeders
   // decidem como antes — a lista exibida ao usuário não muda em nada.
@@ -472,8 +474,16 @@ test('picks de autofetch dão bônus a pack da temporada pedida em busca de sér
 
   // Pack de OUTRA temporada não ganha o bônus (a qualidade decide).
   assert.equal(pickBrDubbedCandidates([brEp, brOther], new Set(), 1, { season: 1 })[0].infoHash, A);
+  assert.equal(pickAnyDubbedCandidates([brEp, brOther], new Set(), 1, { season: 1 })[0].infoHash, A);
+  assert.equal(pickTopSeededCandidates([brEp, brOther], new Set(), 1, { season: 1 })[0].infoHash, A);
+  // O mesmo pack recebe o bônus quando a busca pede a própria temporada.
+  assert.equal(pickBrDubbedCandidates([brEp, brOther], new Set(), 1, { season: 2 })[0].infoHash, C);
+  assert.equal(pickTopSeededCandidates([brEp, brOther], new Set(), 1, { season: 2 })[0].infoHash, C);
   // "Todas as Temporadas" cobre qualquer temporada pedida.
   assert.equal(pickBrDubbedCandidates([brEp, brComplete], new Set(), 1, { season: 3 })[0].infoHash, D);
+  // Sem número, o pack continua elegível: a busca já foi feita para a temporada.
+  assert.equal(pickBrDubbedCandidates([brEp, brSeasonComplete], new Set(), 1, { season: 3 })[0].infoHash, E);
+  assert.equal(pickTopSeededCandidates([brEp, brSeasonComplete], new Set(), 1, { season: 3 })[0].infoHash, E);
 });
 
 test('dedupeByHash não entrega espelho global ao picker BR dublado', () => {

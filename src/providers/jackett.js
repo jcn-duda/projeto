@@ -99,7 +99,7 @@ function resolveCandidateScore(item, { season = null, episode = null } = {}) {
     if (parsed.seasons.includes(season) && parsed.episodes.includes(episode)) score += 100;
     else if (!parsed.episodes.length && parsed.seasons.length === 1 && parsed.seasons[0] === season) score += 70;
     else if (!parsed.episodes.length && parsed.seasons.includes(season)) score += 50;
-    else if (!parsed.episodes.length && parsed.complete) score += 30;
+    else if (!parsed.episodes.length && (parsed.complete || (parsed.seasonPack && !parsed.seasons.length))) score += 30;
   }
   const audio = audioFromTitle(title);
   if (audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional') score += 20;

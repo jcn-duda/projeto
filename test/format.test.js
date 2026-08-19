@@ -543,23 +543,23 @@ test('buildSearchQuery monta filme com ano e série SxxEyy', () => {
 
 test('parseTitleSeasonEpisode cobre SxxExx, 1x04, packs e pt-BR', () => {
   assert.deepEqual(parseTitleSeasonEpisode('House Of The Dragon S01E04 2160p'), {
-    seasons: [1], episodes: [4], complete: false,
+    seasons: [1], episodes: [4], complete: false, seasonPack: false,
   });
   assert.deepEqual(parseTitleSeasonEpisode('Serie 1x04 720p'), {
-    seasons: [1], episodes: [4], complete: false,
+    seasons: [1], episodes: [4], complete: false, seasonPack: false,
   });
   assert.deepEqual(parseTitleSeasonEpisode('Serie S02E01-E03'), {
-    seasons: [2], episodes: [1, 2, 3], complete: false,
+    seasons: [2], episodes: [1, 2, 3], complete: false, seasonPack: false,
   });
   assert.deepEqual(parseTitleSeasonEpisode('A Casa Do Dragao 1a Temporada WEB-DL Dual'), {
-    seasons: [1], episodes: [], complete: false,
+    seasons: [1], episodes: [], complete: false, seasonPack: false,
   });
   assert.deepEqual(parseTitleSeasonEpisode('Serie S01 Completa'), {
-    seasons: [1], episodes: [], complete: false,
+    seasons: [1], episodes: [], complete: false, seasonPack: false,
   });
   // Filme com "Episódio II" no nome não pode virar episódio de série.
   assert.deepEqual(parseTitleSeasonEpisode('Star Wars Episodio II Ataque dos Clones'), {
-    seasons: [], episodes: [], complete: false,
+    seasons: [], episodes: [], complete: false, seasonPack: false,
   });
 });
 
@@ -583,11 +583,47 @@ test('parseTitleSeasonEpisode entende faixa e cobertura total de temporada', () 
   assert.equal(todas.complete, true);
   assert.equal(matchesEpisode('Game of Thrones Todas as Temporadas WEB-DL', { season: 3, episode: 7 }), true);
 
+  // LISTA de ordinais, não faixa: "1ª 2ª 3ª … 7ª Temporadas". Só o último
+  // número encosta na palavra, então o padrão de temporada única lia [7] e o
+  // pack inteiro sumia das seis primeiras. Título real do hdrtorrent, e o único
+  // falso corte numa varredura de 3.794 títulos dos indexers BR.
+  const lista = parseTitleSeasonEpisode(
+    'Game of Thrones 1ª 2ª 3ª 4ª 5ª 6ª e 7ª Temporadas Dublada e Dual TODAS AS TEMPORADAS COMPLETAS DA 1ª À 7ª',
+  );
+  assert.deepEqual([...lista.seasons].sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7]);
+  assert.equal(matchesEpisode('Game of Thrones 1ª 2ª 3ª 4ª 5ª 6ª e 7ª Temporadas', { season: 3, episode: 1 }), true);
+
+  // O plural é a âncora. No singular o número colado é a temporada do item, e o
+  // post amplo em volta não pode devolver as outras temporadas para a lista.
+  const item = parseTitleSeasonEpisode('True Blood Todas as Temporadas Completas Dublada e Dual 3ª TEMPORADA Dubbed 720P');
+  assert.deepEqual(item.seasons, [3]);
+  assert.equal(matchesEpisode('True Blood Todas as Temporadas Completas Dublada e Dual 3ª TEMPORADA', { season: 1, episode: 1 }), false);
+
+  // Dígito preso a palavra técnica não vira temporada: só "2 temporadas" conta.
+  assert.deepEqual(parseTitleSeasonEpisode('Serie X DDP5 1 Atmos 2 Temporadas').seasons, [2]);
+
   // Faixa absurda é erro de leitura: não expande. O padrão de temporada única
   // ainda lê o último número, e tudo bem — uma busca por S01 não casa com 90.
   const absurda = parseTitleSeasonEpisode('Coisa 1 a 90 temporada').seasons;
   assert.equal(absurda.includes(1), false, 'não pode inventar cobertura de 90 temporadas');
   assert.equal(matchesEpisode('Coisa 1 a 90 temporada', { season: 1, episode: 1 }), false);
+});
+
+test('pack de uma temporada não cobre outra temporada (True Detective S04E06)', () => {
+  const s2 = 'True Detective 2ª Temporada Completa Dublada 2ª TEMPORADA COMPLETA Dual BLURAY 720P';
+  const s1 = 'True Detective Completa Dublada 1ª TEMPORADA COMPLETA Dual BLURAY 720P';
+  assert.equal(matchesEpisode(s2, { season: 4, episode: 6 }), false);
+  assert.equal(matchesEpisode(s1, { season: 4, episode: 6 }), false);
+  assert.equal(matchesEpisode(s2, { season: 2, episode: 1 }), true);
+  assert.equal(matchesEpisode(s1, { season: 1, episode: 1 }), true);
+});
+
+test('"Temporada Completa" sem número não é série inteira, mas ainda passa', () => {
+  const r = parseTitleSeasonEpisode('TEMPORADA COMPLETA 1080p Dublado');
+  assert.equal(r.complete, false);
+  assert.equal(r.seasonPack, true);
+  // Sem pista de número, a brecha deliberada mantém a fonte BR na lista.
+  assert.equal(matchesEpisode('TEMPORADA COMPLETA 1080p Dublado', { season: 4, episode: 6 }), true);
 });
 
 test('matchesBrTitle corta obra derivada que só começa com o nome', () => {
@@ -690,11 +726,11 @@ test('parseTitleSeasonEpisode lê T01 E004 e T01E004 e corta o episódio pedido'
   // Objeto completo, não só seasons/episodes: complete continua false e nada
   // além do T-format é lido.
   assert.deepEqual(parseTitleSeasonEpisode('Jornada Nas Estrelas T01 E004 1080p DUBLADO'), {
-    seasons: [1], episodes: [4], complete: false,
+    seasons: [1], episodes: [4], complete: false, seasonPack: false,
   });
   // Sem espaço entre T/E também é o formato publicado pelos trackers.
   assert.deepEqual(parseTitleSeasonEpisode('Jornada Nas Estrelas T01E004 1080p DUBLADO'), {
-    seasons: [1], episodes: [4], complete: false,
+    seasons: [1], episodes: [4], complete: false, seasonPack: false,
   });
   assert.equal(matchesEpisode('Jornada Nas Estrelas T01 E004 1080p DUBLADO', { season: 1, episode: 4 }), true);
   assert.equal(matchesEpisode('Jornada Nas Estrelas T01 E004 1080p DUBLADO', { season: 1, episode: 5 }), false);

@@ -943,6 +943,23 @@ function parseTitleSeasonEpisode(title = '') {
     if (hi - lo <= 30) for (let i = lo; i <= hi; i += 1) seasons.add(i);
   }
 
+  // LISTA de ordinais antes de "Temporadas" no PLURAL: "1ª 2ª 3ª 4ª 5ª 6ª e 7ª
+  // Temporadas". Só o último número encosta na palavra, então o padrão de
+  // temporada única lia [7] sozinho e o pack inteiro sumia das seis primeiras.
+  // Medido no hdrtorrent, em Game of Thrones: era o único falso corte numa
+  // varredura de 3.794 títulos reais dos indexers BR.
+  //
+  // O plural é a âncora: no singular ("… e 7ª Temporada") o número colado é a
+  // temporada do item, e os anteriores são outra coisa. `(?<![a-z0-9])` impede
+  // que dígito preso a palavra técnica entre na conta ("DDP5 1 Atmos").
+  for (const m of t.matchAll(/((?:(?<![a-z0-9])\d{1,2}\s+){2,}(?:e\s+)?(?<![a-z0-9])\d{1,2}\s+)temporadas/g)) {
+    for (const num of m[1].match(/\d{1,2}/g) || []) {
+      const season = Number(num);
+      // Mesmo teto da faixa: número fora disso é ruído lido como temporada.
+      if (season >= 1 && season <= 30) seasons.add(season);
+    }
+  }
+
   // Pack: "s01", "s01 s03" (multi-temporada), "season 1", "1 temporada", "temporada 1"
   for (const m of t.matchAll(/s(\d{1,2})(?![\de])/g)) seasons.add(Number(m[1]));
   // `(?!\d)` impede que o ANO logo depois vire temporada: "Temporada (2011)"
@@ -950,10 +967,13 @@ function parseTitleSeasonEpisode(title = '') {
   for (const m of t.matchAll(/(?:season|temporada)\s?(\d{1,2})(?!\d)/g)) seasons.add(Number(m[1]));
   for (const m of t.matchAll(/(?<!\d)(\d{1,2})(?!\d)\s?a?\s?temporada/g)) seasons.add(Number(m[1]));
 
-  // "Todas as Temporadas", "Série Completa": cobre qualquer temporada pedida.
-  // Sem isto o pack completo não declarava temporada nenhuma e só sobrevivia
-  // pela brecha de "título sem pista nenhuma passa".
-  const complete = /(?:todas?\s+(?:as\s+)?temporadas|serie\s+completa|temporadas?\s+completas?)/.test(t);
+  // Série inteira: "Todas as Temporadas", "Série Completa", "Temporadas
+  // Completas" (plural). Sem isto o pack completo não declarava temporada
+  // nenhuma e só sobrevivia pela brecha de "título sem pista nenhuma passa".
+  const complete = /(?:todas?\s+(?:as\s+)?temporadas|serie\s+completa|temporadas\s+completas)/.test(t);
+  // "2ª Temporada Completa" é pack da temporada nomeada, não da série inteira.
+  // Tratar o singular como cobertura total fazia S01/S02 entrar no S04E06.
+  const seasonPack = /temporada\s+completa/.test(t);
 
   // Episódio solto em pt-BR só conta quando a temporada já apareceu; senão
   // "Episódio II" de filme (Star Wars) viraria episódio de série.
@@ -974,7 +994,7 @@ function parseTitleSeasonEpisode(title = '') {
     }
   }
 
-  return { seasons: [...seasons], episodes: [...episodes], complete };
+  return { seasons: [...seasons], episodes: [...episodes], complete, seasonPack };
 }
 
 /**
@@ -987,8 +1007,9 @@ function matchesEpisode(title, { season, episode } = {}) {
   if (season == null || episode == null) return true;
   const { seasons, episodes, complete } = parseTitleSeasonEpisode(title);
 
-  // "Todas as Temporadas" / "Série Completa" cobre o episódio pedido.
-  if (complete) return true;
+  // Série inteira cobre o episódio pedido. Pack de uma temporada não: quem
+  // decide é a temporada que o título nomeia, no teste logo abaixo.
+  if (complete && seasons.length === 0) return true;
 
   // Nenhuma pista de temporada/episódio: não dá pra afirmar que é errado
   // (release BR costuma vir só como "Nome Dublado"), então passa.
@@ -1271,8 +1292,12 @@ function limitByQuality(streams, qualityLimits = {}) {
  */
 function isSeasonPackRelease(stream, season) {
   if (season == null || !stream) return false;
-  const { seasons, episodes, complete } = parseTitleSeasonEpisode(stream.title || stream.name || '');
-  return complete || (seasons.includes(season) && episodes.length === 0);
+  const { seasons, episodes, complete, seasonPack } = parseTitleSeasonEpisode(stream.title || stream.name || '');
+  if (complete && !seasons.length) return true;
+  if (episodes.length) return false;
+  if (seasons.length) return seasons.includes(season);
+  // Sem número no título, a busca que trouxe o item era da temporada pedida.
+  return seasonPack;
 }
 
 // Peso de resolução dos pools de autofetch (BR e global): 1080p/720p vencem
