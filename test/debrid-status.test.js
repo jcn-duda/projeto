@@ -142,6 +142,127 @@ test('chave recusada é reportada como auth, e o verificador não explode', asyn
   }
 });
 
+const withPremiumize = (fn) =>
+  runtime.run(
+    {
+      opts: { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: 'chave-pm' },
+      encoded: 'cfg',
+    },
+    fn,
+  );
+
+test('premiumize folgado: ok, sem aviso, com o fair-use medido', async () => {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('127.0.0.1')) return realFetch(url, init);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'success', limit_used: 0.42, premium_until: 1799999999 }),
+    };
+  };
+  try {
+    const status = await withPremiumize(() => debrid.accountStatus());
+    assert.equal(status.ok, true);
+    assert.equal(status.service, 'premiumize');
+    assert.equal(status.supported, true);
+    assert.equal(status.limitUsed, 0.42);
+    assert.equal(status.warn, false);
+    assert.equal(status.warnAt, 0.8);
+    assert.equal(status.magnets, undefined, 'fair-use não se disfarça de magnets AllDebrid');
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
+test('premiumize perto do teto de fair-use avisa ANTES de account_limit_reached', async () => {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ status: 'success', limit_used: 0.81 }),
+  });
+  try {
+    const status = await withPremiumize(() => debrid.accountStatus());
+    assert.equal(status.limitUsed, 0.81);
+    assert.equal(status.warn, true);
+    assert.equal(status.warnAt, 0.8);
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
+test('premiumize em rate limit no verificador é reason=rate, não falha genérica', async () => {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      status: 'error',
+      message: 'slow down',
+      code: 'rate_limit_reached',
+    }),
+  });
+  try {
+    const status = await withPremiumize(() => debrid.accountStatus());
+    assert.equal(status.ok, false);
+    assert.equal(status.reason, 'rate');
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
+const withTorbox = (fn) =>
+  runtime.run(
+    {
+      opts: { ...runtime.defaults(), debridService: 'torbox', debridApiKey: 'chave-tb' },
+      encoded: 'cfg',
+    },
+    fn,
+  );
+
+test('torbox: o verificador conta o mylist, não devolve supported:false', async () => {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('127.0.0.1')) return realFetch(url, init);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: [
+          { hash: 'aa', name: 'pronto', download_finished: true, download_present: true },
+          { hash: 'bb', name: 'baixando', download_finished: false, download_present: false },
+        ],
+      }),
+    };
+  };
+  try {
+    const status = await withTorbox(() => debrid.accountStatus());
+    assert.equal(status.ok, true);
+    assert.equal(status.service, 'torbox');
+    assert.equal(status.supported, true);
+    assert.equal(status.magnets, 2);
+    assert.equal(status.ready, 1);
+    assert.equal(status.active, 1);
+    assert.equal(status.warn, false, '2 torrents não dispara o limiar de 800 magnets');
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
 test('sem debrid configurado o verificador diz isso, sem tocar a rede', async () => {
   const realFetch = globalThis.fetch;
   globalThis.fetch = () => { throw new Error('não deveria haver chamada'); };

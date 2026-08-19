@@ -38,7 +38,7 @@ Três capacidades, em ordem de importância:
 | Auth | `apikey` na query | `Bearer` | `Bearer` + `agent` | `Bearer` | `Bearer` |
 | Erro fora do HTTP | `status != success` | corpo `data` | **200 com `status:"error"`** | HTTP | HTTP + `success:false` |
 | Limite documentado | fair-use por tráfego (`limit_used`) | **300/min; `createtorrent` 60/HORA se não-cacheado** | **12 req/s, 600 req/min, 30 magnets ativos** | **250 req/min**, teto de torrents ativos | não publicado (mas há `/seedbox/limits`) |
-| Endpoint de uso/limite que **não** usamos | `/account/info` | — | — | `/torrents/activeCount` | `/seedbox/limits` |
+| Endpoint de uso/limite | `/account/info` (`limit_used`) | mylist (contagem) | `/magnet/status` | `/torrents/activeCount` (ainda não) | `/seedbox/limits` (ainda não) |
 | Escolhe o arquivo **antes** de baixar | ❌ | ❌ **por projeto** ("baixa todos, não vai mudar") | ❌ | ✅ `selectFiles` | ❌ |
 | Veredito para este addon | **melhor encaixe** | alternativa boa | funciona, cobra caro | lista sem ⚡ | lista sem ⚡ |
 
@@ -58,20 +58,21 @@ mais simples dos cinco, e não é coincidência.
 | `POST /api/transfer/create` com `src` | autofetch: dispara o download e sai |
 
 **O que a documentação oficial acrescenta e o addon ainda não usa:** `Bearer`
-no header (hoje mandamos `?apikey=`, que segue aceito como legacy),
-`/api/account/info` com `limit_used` em `[0,1]` (daria um aviso de fair-use
-antes de o usuário bater no teto), `/api/transfer/list` com `status`/`progress`
-(daria para mostrar "baixando 42%" em vez do silêncio atual do autofetch), e o
-código `rate_limit_reached` — que chega com **HTTP 200**, então tratar só o
-status HTTP não vê rate limit. A doc marca `stream_link` como legacy; o
-`resolveLink` daqui usa `file.stream_link || file.link`, nessa ordem — vale
-inverter quando sobrar tempo.
+no header (hoje mandamos `?apikey=`, que segue aceito como legacy) e
+`/api/transfer/list` com `status`/`progress` (daria para mostrar "baixando 42%"
+em vez do silêncio atual do autofetch). A doc marca `stream_link` como legacy;
+o `resolveLink` daqui usa `file.stream_link || file.link`, nessa ordem — vale
+inverter quando sobrar tempo (TV).
+
+`/api/account/info` (`limit_used`) e os códigos HTTP 200 `rate_limit_reached`
+(transitório, `known:false`) / `account_limit_reached` (quota, lista P2P) /
+`authentication_failed` (auth) **já entram** no adaptador e no `/debrid-status.json`.
 
 **O que eu acho:** é o encaixe certo para este addon. A checagem em lote é
 barata, não escreve nada na conta e pode ser abortada no deadline; as outras
 duas chamadas são POSTs diretos sem polling. O adaptador ser o menor de todos é
-o sintoma: não há armadilha a contornar. O ponto fraco é fair-use por tráfego
-(`limit_used`), que hoje passa despercebido até a conta travar.
+o sintoma: não há armadilha a contornar. O ponto fraco continua sendo fair-use
+por tráfego; o `/debrid-status.json` agora avisa em `limit_used` ≥ 0.8.
 
 ## TorBox
 
@@ -103,9 +104,8 @@ minúsculas, porque hash em caixa alta já causou "0 em cache" com a conta cheia
   do limite do plano gratuito. Há ainda `ACTIVE_LIMIT`, `MONTHLY_LIMIT` e
   `COOLDOWN_LIMIT` como códigos próprios.
 - **Envelope**: `{success, error, detail, data}`, com `detail` sendo uma
-  mensagem pronta para mostrar ao usuário. O adaptador lê só `data` e descarta
-  o `detail` — é a explicação de graça que hoje jogamos fora quando o play
-  falha.
+  mensagem pronta para mostrar ao usuário. O adaptador inclui o `detail` no
+  erro de play e classifica `ACTIVE_LIMIT`/`MONTHLY_LIMIT` como quota.
 - Confirmado que `/torrents/checkcached` é o substituto oficial do
   `instantAvailability` do RD, e que a remoção é via
   `POST /torrents/controltorrent`.

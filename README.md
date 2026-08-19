@@ -94,29 +94,31 @@ Dá pra ajustar:
 | Opção | O que faz |
 |---|---|
 | Fontes | Jackett, Prowlarr ou modo demo |
-| Qualidade | Filtra 4K / 1080p / 720p / 480p |
-| Vagas BR | Quantos slots ficam garantidos para fontes brasileiras |
-| Somente dublado | Descarta as versões legendadas dos posts BR |
-| Só fontes BR | Esconde tudo que não vier dos indexers brasileiros |
-| Máx. streams · mín. seeders | Tamanho e piso do resultado |
-| Debrid | Serviço + API key, e se mostra só o que já está em cache |
+| Qualidade | Filtra 4K / 1080p / 720p / 480p / SD / sem resolução |
+| Cotas por qualidade e por indexer | Teto de vagas; `qn` é separado do SD (fontes BR não publicam resolução) |
+| Vagas BR · BR primeiro · só BR | Reserva e prioridade das fontes brasileiras |
+| Somente dublado · preferir dublado | Corta legendado BR, ou só ordena dublado na frente |
+| Sem CAM · tamanho máximo | |
+| Indexers Jackett · prioridade · limite por id | Cards na página, com teste e breaker |
+| Debrid | Serviço + API key, só cache, mostrar BR fora do cache, baixar dublado |
+
+Com `RESOLVE_SECRET` no `.env`, a API key vai **cifrada** no install URL.
 
 ### Serviços de debrid suportados
 
-| Serviço | Consulta de cache |
-|---|---|
-| Premiumize | sim |
-| TorBox | sim |
-| Real-Debrid | não |
-| AllDebrid | não |
-| Debrid-Link | não |
+| Serviço | Consulta de cache | Como |
+|---|---|---|
+| Premiumize | sim | lote instantâneo, não escreve na conta |
+| TorBox | sim | lote instantâneo, não escreve na conta |
+| AllDebrid | sim | `ready` do `/magnet/upload` — **cria magnets** e precisa limpar |
+| Real-Debrid | não | endpoint instantâneo aposentado |
+| Debrid-Link | não | endpoint instantâneo aposentado |
 
-Real-Debrid, AllDebrid e Debrid-Link aposentaram os endpoints de disponibilidade
-instantânea, então **não dá para saber de antemão** o que toca na hora. Nesses
-serviços todos os resultados passam pelo debrid, sem o ⚡, e a opção *somente em
-cache* fica desligada — se o torrent não estiver em cache, o play falha e você
-escolhe outro. Com Premiumize ou TorBox o comportamento antigo continua: ⚡ nos
-que tocam na hora e filtro funcionando.
+Real-Debrid e Debrid-Link não informam o que toca na hora: todos os resultados
+passam pelo debrid, sem ⚡, e *somente em cache* fica desligado. AllDebrid
+**mede** o ⚡, mas a checagem é um upload — conta no teto de magnets faz o raio
+sumir de todos os streams (`node scripts/magnets.js` / `/debrid-status.json`).
+Premiumize e TorBox checam em lote sem sujar a conta.
 
 Para mudar depois, abra o **botão de engrenagem** do addon no Stremio — ele volta
 para a página já preenchida com a sua configuração atual.

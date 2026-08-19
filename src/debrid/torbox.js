@@ -1,13 +1,32 @@
 const config = require('../config');
-const { magnetFor, json, pickFile, batched, wait } = require('./common');
+const { magnetFor, json, pickFile, batched, wait, QuotaError, RateLimitError } = require('./common');
 const log = require('../utils/logger');
 
 const API = 'https://api.torbox.app/v1/api';
 
-function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
+function envelopeMessage(data) {
+  const detail = data?.detail;
+  const error = data?.error;
+  if (typeof detail === 'string' && detail.trim()) return detail.trim();
+  if (typeof error === 'string' && error.trim()) return error.trim();
+  return '';
+}
+
+async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
   const url = new URL(`${API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  return json(url, { method, headers: { Authorization: `Bearer ${apiKey}` }, body });
+  const data = await json(url, { method, headers: { Authorization: `Bearer ${apiKey}` }, body });
+  // Envelope `{success, error, detail, data}`: o `detail` é a mensagem pronta
+  // para o usuário e até agora ia embora. Sem ele o play falho só dizia "data".
+  if (data && data.success === false) {
+    const code = String(data.error || '');
+    const message = envelopeMessage(data) || code || 'torbox retornou erro';
+    const full = code && !message.includes(code) ? `${message} (${code})` : message;
+    if (/^(ACTIVE_LIMIT|MONTHLY_LIMIT)$/i.test(code)) throw new QuotaError(full);
+    if (/^(COOLDOWN_LIMIT)$/i.test(code) || /rate.?limit/i.test(full)) throw new RateLimitError(full);
+    throw new Error(full);
+  }
+  return data;
 }
 
 /** Um dos poucos que ainda expõe checagem de cache em lote. */
@@ -101,9 +120,27 @@ async function inventory(apiKey) {
   return out;
 }
 
+/**
+ * Ocupação visível: quantos torrents a conta tem no mylist. TorBox não publica
+ * um teto consultável de magnets (o que dói é ACTIVE_LIMIT / 60 createtorrent
+ * por hora); o número ainda serve para ver a conta crescer antes do recusar.
+ */
+async function accountStatus(apiKey) {
+  const list = await call(apiKey, '/torrents/mylist');
+  const rows = Array.isArray(list?.data) ? list.data : (list?.data ? [list.data] : []);
+  let ready = 0;
+  let active = 0;
+  for (const row of rows) {
+    if (row?.download_finished || row?.download_present) ready += 1;
+    else active += 1;
+  }
+  return { magnets: rows.length, ready, active };
+}
+
 module.exports = {
   enqueue,
   inventory,
+  accountStatus,
   id: 'torbox',
   label: 'TorBox',
   short: 'TB',

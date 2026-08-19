@@ -74,6 +74,13 @@ test('URL existente entra no ramo saved e não aplica preset', () => {
   assert.match(elseBranch, /applyPreset\("recommended"\)/, 'configure novo parte do preset recomendado');
 });
 
+test('copy do autofetch e aviso AllDebrid acompanham o código', () => {
+  assert.match(html, /id="adMagnetNotice"/, 'aviso de magnets AllDebrid precisa existir');
+  assert.match(html, /svc\.id !== "alldebrid"/, 'aviso AllDebrid só com esse serviço');
+  assert.equal(html.includes('Um torrent por título'), false, 'teto do autofetch não é mais 1');
+  assert.match(html, /até quatro por busca/, 'copy do switch descreve o teto atual');
+});
+
 test('switches principais têm role=switch e aria-checked', () => {
   const tags = [];
   const re = /<button\b[^>]*\bclass="switch"[^>]*>/g;

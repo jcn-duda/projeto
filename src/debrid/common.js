@@ -25,8 +25,9 @@ class AuthError extends Error {
 }
 
 // Códigos/mensagens de credencial recusada. AllDebrid usa AUTH_* no corpo com
-// HTTP 200; os outros serviços respondem 401/403.
-const AUTH_MESSAGE = /AUTH_(?:BAD_APIKEY|MISSING_APIKEY|BLOCKED|USER_BANNED)|apikey is invalid|invalid (?:api )?(?:key|token)|unauthor[iz]|forbidden|bad token/i;
+// HTTP 200; Premiumize manda `authentication_failed` também com 200; os
+// demais respondem 401/403.
+const AUTH_MESSAGE = /AUTH_(?:BAD_APIKEY|MISSING_APIKEY|BLOCKED|USER_BANNED)|authentication_failed|apikey is invalid|invalid (?:api )?(?:key|token)|unauthor[iz]|forbidden|bad token/i;
 
 function isAuthError(error) {
   if (!error) return false;
@@ -57,6 +58,30 @@ function isQuotaError(error) {
   if (!error) return false;
   if (error.isQuotaError) return true;
   return QUOTA_MESSAGE.test(String(error.message || ''));
+}
+
+/**
+ * Rajada demais — a credencial e a cota estão boas, o serviço pediu para
+ * esperar. Diferente de quota: daqui a um minuto o mesmo pedido passa, então
+ * a lista NÃO vira P2P (unusable). known:false e tenta de novo no passe tardio.
+ *
+ * Premiumize devolve `rate_limit_reached` com HTTP 200; tratar só o status
+ * HTTP lia isso como "erro genérico" e o log não dizia o que esperar.
+ */
+class RateLimitError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.isRateLimitError = true;
+  }
+}
+
+const RATE_LIMIT_MESSAGE = /rate_limit_reached|too many (?:api )?requests|slow down/i;
+
+function isRateLimitError(error) {
+  if (!error) return false;
+  if (error.isRateLimitError) return true;
+  return RATE_LIMIT_MESSAGE.test(String(error.message || ''));
 }
 
 /**
@@ -279,6 +304,7 @@ async function batched(infoHashes, size, fn, { timeoutMs } = {}) {
   let failures = 0;
   let authFailures = 0;
   let quotaFailures = 0;
+  let rateFailures = 0;
   let lastCause = '';
 
   for (const result of settled) {
@@ -292,6 +318,9 @@ async function batched(infoHashes, size, fn, { timeoutMs } = {}) {
         lastCause = message;
       } else if (isQuotaError(result.reason)) {
         quotaFailures += 1;
+        lastCause = message;
+      } else if (isRateLimitError(result.reason)) {
+        rateFailures += 1;
         lastCause = message;
       }
       log.warn('[debrid] lote de cache falhou:', message);
@@ -307,6 +336,7 @@ async function batched(infoHashes, size, fn, { timeoutMs } = {}) {
     // misturadas (uma de auth, outra de rede) não afirmam nada — genérico.
     if (authFailures === failures) throw new AuthError(lastCause);
     if (quotaFailures === failures) throw new QuotaError(lastCause);
+    if (rateFailures === failures) throw new RateLimitError(lastCause);
     throw new Error('nenhum lote de checagem de cache respondeu');
   }
   return { cached, complete: failures === 0 };
@@ -319,6 +349,7 @@ function wait(ms) {
 
 module.exports = {
   magnetFor, json, pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, batched, wait,
-  AuthError, isAuthError, QuotaError, isQuotaError, WorkPickError, isWorkPickError,
+  AuthError, isAuthError, QuotaError, isQuotaError, RateLimitError, isRateLimitError,
+  WorkPickError, isWorkPickError,
   VIDEO_EXT, SAMPLE, EXTRA,
 };

@@ -58,6 +58,38 @@ test('série sem nenhum candidato avisa que a temporada está sendo procurada', 
   assert.ok(streams[0].externalUrl);
 });
 
+test('aviso continua saindo sem PUBLIC_URL (lista vazia em LAN não pode ser silêncio)', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  config.debrid.publicUrl = '';
+  debrid.checkCached = async () => ({ cached: new Set(), known: true });
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-fake',
+    debridCachedOnly: true,
+    autoFetchBr: false,
+  };
+  try {
+    const streams = await runtime.run({ opts: userOpts, encoded: 'segcfg' }, () =>
+      buildStreams([], {
+        meta: null,
+        titles: null,
+        season: 1,
+        episode: 1,
+        isDemo: false,
+        searchKey: `aviso-sem-url-${Math.random()}`,
+      }));
+    assert.equal(streams.length, 1);
+    assert.match(streams[0].name, /procurando a temporada/);
+    assert.match(streams[0].externalUrl, /127\.0\.0\.1/);
+    assert.match(streams[0].externalUrl, /\/segcfg\/configure/);
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+  }
+});
+
 test('filme sem candidato NÃO recebe aviso: não há busca de pack para prometer', async () => {
   const streams = await build([], { season: null, episode: null });
   assert.deepEqual(streams, []);

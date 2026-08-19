@@ -1,5 +1,8 @@
 const config = require('../config');
-const { magnetFor, json, pickFile, batched } = require('./common');
+const {
+  magnetFor, json, pickFile, batched,
+  AuthError, QuotaError, RateLimitError,
+} = require('./common');
 
 const API = 'https://www.premiumize.me/api';
 
@@ -12,8 +15,17 @@ async function call(apiKey, path, { method = 'GET', params = {}, body, timeout }
   }
 
   const data = await json(url, { method, body, timeout });
+  // HTTP 200 com status:error — rate_limit e account_limit chegam assim.
   if (data.status && data.status !== 'success') {
-    throw new Error(data.message || 'premiumize retornou erro');
+    const code = String(data.code || '');
+    const message = data.message || code || 'premiumize retornou erro';
+    const full = code && !message.includes(code) ? `${message} (${code})` : message;
+    if (code === 'authentication_failed' || code === 'permission_denied') {
+      throw new AuthError(full);
+    }
+    if (code === 'account_limit_reached') throw new QuotaError(full);
+    if (code === 'rate_limit_reached') throw new RateLimitError(full);
+    throw new Error(full);
   }
   return data;
 }
@@ -55,12 +67,29 @@ async function enqueue(apiKey, infoHash) {
   return Boolean(data?.id);
 }
 
+/**
+ * Fair-use da conta (`limit_used` em [0, 1]). É o sinal que falta: magnets
+ * AllDebrid não se aplicam aqui — o teto do Premiumize é tráfego, e até
+ * estourar (`account_limit_reached`) não havia aviso nenhum.
+ */
+async function accountStatus(apiKey) {
+  const data = await call(apiKey, '/account/info');
+  const raw = Number(data.limit_used);
+  const limitUsed = Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : null;
+  return {
+    limitUsed,
+    premiumUntil: data.premium_until == null ? null : Number(data.premium_until) || null,
+  };
+}
+
 module.exports = {
   enqueue,
+  accountStatus,
   id: 'premiumize',
   label: 'Premiumize',
   short: 'PM',
-  // Único dos quatro que ainda expõe checagem de cache em lote confiável.
+  // Lote instantâneo que não escreve na conta (TorBox também; AllDebrid mede
+  // via upload). Sem isto o orquestrador trata todos como "não sei".
   cacheCheck: true,
   keyUrl: 'https://www.premiumize.me/account',
   checkCached,

@@ -73,7 +73,6 @@ set_kv ADDON_DOMAIN "$DOMAIN, www.$DOMAIN"
 set_kv PUBLIC_URL "https://$DOMAIN"
 set_kv BIND_ADDR 127.0.0.1
 ensure_secret RESOLVE_SECRET 32
-ensure_secret POSTGRES_PASSWORD 24
 
 # ------------------------------------------------------- credenciais que faltam
 say "Credenciais"

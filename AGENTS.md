@@ -4,6 +4,10 @@ Guia para agentes de código trabalhando neste repositório. Assume que você j�
 leu o `README.md` (que é voltado ao **usuário**); este arquivo é sobre **como o
 código funciona e como mexer nele sem quebrar**.
 
+Documentos irmãos, quando o assunto for só deles: `DEBRID.md` (conta, ⚡,
+limpeza), `PLANO_CACHE.md` (fases 0–2 já estão no código), `TEST_INFRA.md`
+(harness e2e). Em conflito, o código e este arquivo vencem.
+
 ---
 
 ## O que é
@@ -12,27 +16,35 @@ Addon Stremio self-hosted que devolve streams de torrent, com foco em **conteúd
 brasileiro dublado** — que é o diferencial do projeto e a origem de quase toda a
 complexidade do código.
 
-Dois addons convivem na stack:
-
-- **Comet + Real-Debrid** — addon principal, terceiro, roda em container.
-- **Adom** — o addon Node deste repositório (`src/`), P2P + Premiumize.
+Não há segundo addon na stack. O que sobe é só o **Adom** (`src/`), em container
+único com Jackett + FlareSolverr + Caddy. Play é P2P puro ou via debrid
+(Premiumize, AllDebrid, TorBox, Real-Debrid, Debrid-Link).
 
 Praticamente todo trabalho de código acontece no **Adom**.
+
+---
 
 ## Stack
 
 - **Node ≥ 18**, CommonJS (`require`, não `import`). Sem TypeScript, sem build.
-- **Duas dependências**: `express` e `stremio-addon-sdk`. `dotenv` para config.
-  Sem lodash, sem axios, sem cheerio — HTTP é `fetch` nativo e HTML é parseado
-  com regex. **Não adicione dependências sem necessidade real.**
-- **Docker: container único.** O `Dockerfile` raiz (multi-stage, base
-  `node:22-alpine`) embute addon + Jackett + FlareSolverr + Caddy, e o
-  `docker-compose.yml` tem um serviço só (`adom`). Todos conversam por
-  `127.0.0.1` — **nenhum hostname de container sobreviveu**: `JACKETT_URL`,
-  `BR_RESOLVERS_HOST` (compose), os yml Cardigann (`http://127.0.0.1:870X`),
-  o `Caddyfile` (`reverse_proxy 127.0.0.1:7000`) e o `FlareSolverrUrl` do
-  `ServerConfig.json` foram rewired para loopback. Se adicionar um serviço
-  novo, siga o mesmo padrão.
+  A imagem de produção é `node:22-alpine` (é ela que tem `node:sqlite`).
+- **Três dependências**: `express`, `stremio-addon-sdk`, `dotenv`. Sem lodash,
+  sem axios, sem cheerio — HTTP é `fetch` nativo e HTML é parseado com regex.
+  **Não adicione dependências sem necessidade real.**
+- **Dois módulos de processo, papéis distintos:**
+  - `src/app.js` — fábrica do Express (`createApp()`): manifest, rotas, stream
+    handler. Sem `listen`, sem warmup, sem carregar resolvers. É o que os
+    testes importam.
+  - `src/addon.js` — processo: `listen`, resolvers embutidos, selo, catálogo,
+    inventário do `.env`, varredura de magnets mortos, shutdown. **Importar
+    este arquivo sobe o servidor.**
+- **Docker: container único.** O `Dockerfile` raiz (multi-stage) embute addon +
+  Jackett + FlareSolverr + Caddy, e o `docker-compose.yml` tem um serviço só
+  (`adom`). Todos conversam por `127.0.0.1` — **nenhum hostname de container
+  sobreviveu**: `JACKETT_URL`, `BR_RESOLVERS_HOST` (compose), os yml Cardigann
+  (`http://127.0.0.1:870X`), o `Caddyfile` (`reverse_proxy 127.0.0.1:7000`) e o
+  `FlareSolverrUrl` do `ServerConfig.json` foram rewired para loopback. Se
+  adicionar um serviço novo, siga o mesmo padrão.
 
 ### Stack Docker (o que mora no container)
 
@@ -40,6 +52,10 @@ Praticamente todo trabalho de código acontece no **Adom**.
   flaresolverr → addon) com `wait -n` + `pipefail`: qualquer um que morrer
   derruba o container e o `restart: unless-stopped` recria tudo. Logs saem
   prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`.
+- Os quatro `*-resolver` **não são containers**. `src/br-resolvers.js` os
+  carrega no processo do addon, cada um na própria porta (8700–8703), porque
+  todos leem `PORT`/`SITE_URL` no `require`. `BR_RESOLVERS_EMBEDDED=false`
+  volta ao modo de processos separados (não é o caminho de produção).
 - O healthcheck do Dockerfile é **duplo** (`/manifest.json` na 7000 + API do
   Jackett na 9117 via `node -e fetch`) — healthcheck que olha só o addon deixa
   Jackett morto passar despercebido.
@@ -55,18 +71,27 @@ Praticamente todo trabalho de código acontece no **Adom**.
 - `shm_size: 1gb` (Chromium) e `mem_limit: 3g` no compose: no container único
   um OOM do FlareSolverr reinicia a stack inteira — é o trade-off inerente da
   unificação, mitigado pelo restart.
+- Cache do addon persiste em `./docker-data/addon` (`CACHE_DB_PATH` /
+  `data/cache.db`). Sem o volume, toda rebuild esfria o L2.
+
+---
 
 ## Comandos
 
 ```bash
 npm start                 # sobe o addon em http://127.0.0.1:7000/manifest.json
 npm run dev               # idem, com --watch
-npm test                  # node:test: format, runtime, sign, jackett-catalog, autofetch
-npm run smoke             # valida o pipeline de ponta a ponta
+npm test                  # node:test, lista explícita em package.json (sem rede)
+npm run test:complete     # cobra que todo test/**/*.test.js esteja nessa lista
+npm run smoke             # valida o pipeline de ponta a ponta (rede de verdade)
 npm run docker:up         # stack completa
 npm run docker:logs       # logs do addon
 node scripts/magnets.js   # ocupação da conta do debrid (--apply para limpar)
 ```
+
+A lista do `npm test` é explícita (não é glob) porque `engines` começa no
+Node 18. Arquivo `.test.js` novo que não entra no `package.json` passa
+despercebido e o CI fica verde à toa — por isso existe o `test:complete`.
 
 Quando "o ⚡ sumiu de todos os streams", comece por aqui — é diagnóstico, não
 adivinhação:
@@ -75,12 +100,19 @@ adivinhação:
 curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" http://127.0.0.1:7000/debrid-status.json
 ```
 
+O mesmo token abre `/metrics.json` e `/test-indexer.json`. Sem
+`JACKETT_TEST_TOKEN` no `.env` os três devolvem 503; token errado, 401.
+
 Para checar sintaxe sem subir servidor (`require('./src/addon')` **abre a porta**
 e fica pendurado — não use isso como smoke test):
 
 ```bash
 node --check src/providers/index.js
 ```
+
+CI (`.github/workflows/ci.yml`) roda a suíte em Node 18 e 22, mais
+`node --check` em todo `.js` fora de `node_modules`. Build da imagem só dispara
+quando Dockerfile / compose / cards / lockfile mudam (`docker.yml`).
 
 ---
 
@@ -89,26 +121,45 @@ node --check src/providers/index.js
 Um `stream` request do Stremio percorre exatamente este caminho:
 
 ```
-addon.js  defineStreamHandler
-   └─ providers/index.js  findStreams        ← cache + coalescing + deadline
-        └─ doSearch
-             ├─ cinemeta.getMeta   ─┐ paralelo
-             ├─ tmdb.getTitles     ─┘  (título pt-BR)
-             ├─ collectRaw          ← balde compartilhado + orçamento + passe tardio
-             │    ├─ jackett.search (indexers globais escolhidos pelo usuário, EN)
-             │    ├─ jackett.search (indexers BR escolhidos, query em pt-BR)
-             │    ├─ prowlarr.search
-             │    └─ bludv.search   (scraper direto, query em pt-BR)
-             └─ buildStreams        ← pós-processamento, reusado pelos dois passes
-                  ├─ filtro por título    ← matchesName contra EN + PT
-                  ├─ filtro por episódio  ← matchesEpisode (série)
-                  ├─ sortAndLimit         ← pool ampliado + limites por qualidade
-                  ├─ applyDebrid          ← cache/check + autofetch BR
-                  └─ limitReservingBr     ← corte final, vagas garantidas pra BR
+addon.js  processo (listen, warmup)
+   └─ app.js  defineStreamHandler
+        └─ providers/index.js  findStreams
+             ├─ cache SWR (streams:v4)          ← só lista completa + debridKnown + tocável
+             ├─ coalescing inFlight
+             └─ doSearch
+                  ├─ cinemeta.getMeta  ─┐ paralelo
+                  ├─ tmdb.getTitles    ─┘  (título pt-BR)
+                  ├─ collectRaw          ← search-plan + collection-window + graça BR
+                  │    ├─ jackett.search (globais EN, agrupados)
+                  │    ├─ jackett.search (BR/slow isolados, query em pt-BR nos BR)
+                  │    ├─ prowlarr.search
+                  │    ├─ bludv.search   (scraper direto, se BLUDV_ENABLED)
+                  │    └─ account.search (inventário pronto AllDebrid/TorBox)
+                  ├─ buildStreams        ← latest-writer; parcial e tardio
+                  │    ├─ filtro por título    ← filterRelevantRaw (EN + PT; BR estrito)
+                  │    ├─ pack multi-obra      ← só com debrid + ano (pickFile no play)
+                  │    ├─ filtro por episódio  ← matchesEpisode (série)
+                  │    ├─ sortAndLimit         ← pool ampliado + limites por qualidade
+                  │    ├─ applyDebrid          ← cache/check + autofetch + HMAC
+                  │    ├─ limitReservingBr     ← corte final, vagas BR + teto por indexer
+                  │    └─ notice stream        ← lista vazia explica o estado, não some
+                  └─ enqueueTail (serial, fora da resposta)
+                       ├─ pack complementar (série fraca, mescla no lote)
+                       ├─ refresh debrid (needsFullRefresh)
+                       └─ varredura pt-BR nos globais (se não rodou inline)
 ```
 
-Série sem resultado por episódio tem fallback de pack (`"Nome S01"`, com a
-variante pt-BR junto) — as fontes BR só publicam temporada inteira.
+Série sem resultado por episódio tem fallback de pack no caminho crítico
+(`"Nome S01"`, com a variante pt-BR junto) — as fontes BR só publicam
+temporada inteira. Série com resultado **fraco** (ninguém atinge
+`SEARCH_PACK_MIN_SEEDERS`, e áudio estrangeiro explícito não conta como
+saudável) dispara o **pack tardio**, que mescla em vez de substituir.
+
+A varredura pt-BR (`JACKETT_PT_SWEEP_GLOBAL`) consulta os indexers **globais**
+com a raiz do título em português (`franchiseRoot`: sem subtítulo, sem ano,
+sem SxxEyy). O dublado titulado em PT mora nesses trackers e a query em
+inglês não o encontra. Roda no plano crítico se couber; senão na fila
+tardia, com `recordStatus:false` e `ignoreBreaker:true`.
 
 ### Configuração por usuário (`src/runtime.js`)
 
@@ -124,19 +175,37 @@ indexer, timeouts, credenciais de infra) continua vindo de `config`. Nunca leia
 caminho de busca — esses foram movidos para `opts()` e ler o estático de volta
 faz a config do usuário ser silenciosamente ignorada.
 
+Timers e promises que disparam **depois** da request (recheck do autofetch,
+refresh SWR, `enqueueTail`) saem do `AsyncLocalStorage`. Capture o contexto
+com `runtime.capture()` **dentro** da request e restaure com `runtime.run()`
+— senão `opts()` lê o `.env` e regrava o cache com a config errada.
+
 Para expor uma opção nova: adicione em `SCHEMA` + `defaults()` (chave **curta**,
 ela ocupa espaço na URL), consuma via `opts()`, e adicione o controle em
 `src/public/configure.html` — o mapa `KEYS` do front **precisa bater** com o
 `SCHEMA` do back.
 
-O schema atual já carrega: fontes (`p`), qualidades (`q`), limites por
-qualidade (`q4`/`q1`/`q7`/`q5`/`qs`/`qn`), vagas e prioridade BR (`b`/`bf`/`o`),
-dublado (`d`/`a`), sem CAM (`c`), tamanho máximo (`z`), indexers do Jackett
-(`ji`/`jl`) e o trio debrid (`ds`/`dk`/`dc`). `jackettIndexers` aceita qualquer
-string vinda da URL — o caminho de busca valida cada id contra
-`SAFE_INDEXER_ID` antes de montar a query. Qualidade desconhecida tem balde
-próprio (`qn`), separado do SD: as fontes BR não publicam resolução, e zerar o
-SD não pode desligar a prioridade brasileira junto.
+Schema atual (chave curta → campo):
+
+| chave | campo | nota |
+|---|---|---|
+| `p` | `providers` | jackett / prowlarr / demo |
+| `q` | `qualities` | |
+| `m` / `s` | `maxResults` / `minSeeders` | |
+| `q4`/`q1`/`q7`/`q5`/`qs`/`qn` | cotas 4K…unknown | `qn` é balde próprio, não SD |
+| `qi` | `maxPerIndexer` | teto global; 0 = sem limite |
+| `b`/`bf`/`o` | vagas BR / BR primeiro / só BR | |
+| `d`/`a`/`c`/`z` | dublado / preferir dublado / sem CAM / tamanho | |
+| `ji`/`ip`/`jl` | indexers / prioridade / limites por id | |
+| `ds`/`dk`/`dc` | serviço / chave / só cache | `dk` é `secret` (selo AES) |
+| `bu` | `showUncachedBr` | BR fora do cache como P2P |
+| `ab` | `autoFetchBr` | |
+
+`jackettIndexers` aceita qualquer string vinda da URL — o caminho de busca
+valida cada id contra `SAFE_INDEXER_ID` antes de montar a query. Qualidade
+desconhecida tem balde próprio (`qn`), separado do SD: as fontes BR não
+publicam resolução, e zerar o SD não pode desligar a prioridade brasileira
+junto.
 
 `indexerLimits` (`jl`) é um mapa compacto `id:limite` separado por vírgulas —
 um card por indexador na página. Id fora do mapa herda o teto global
@@ -145,39 +214,70 @@ um card por indexador na página. Id fora do mapa herda o teto global
 qualidade; as vagas reservadas BR passam sem serem barradas, mas continuam
 contando — a reserva fura o teto, não o amplia.
 
+`indexerPriority` (`ip`) só desempatá no `sortAndLimit` / `dedupeByHash`; não
+é ordem de consulta.
+
+Com `RESOLVE_SECRET` definido, a página manda o segmento para `POST /seal-config`
+e recebe o `dk` cifrado (`enc.v1.` + AES-256-GCM). Sem o segredo a chave viaja
+em texto puro no base64url. URL antiga (chave crua) continua abrindo. Trocar o
+`RESOLVE_SECRET` invalida os selos já emitidos — o usuário refaz o install em
+`/configure`. O selo protege a credencial, não o acesso (isso é o `basic_auth`
+do Caddyfile).
+
 `prefix()` devolve o segmento de config da requisição corrente. A rota
 `/resolve` depende dele: o link de play tem que voltar carregando a mesma
 config, senão o debrid do usuário some na hora do play.
 
-Ordem das rotas em `addon.js` é significativa: as rotas sem config vêm **antes**
+Ordem das rotas em `app.js` é significativa: as rotas sem config vêm **antes**
 de `app.use('/:userConfig', ...)`, senão `/manifest.json` seria interpretado como
 segmento de configuração. Segmento que não decodifica devolve 404 — sem isso,
 qualquer caminho de um segmento viraria um manifest válido servindo o `.env`.
 
-### Camada de debrid (`src/debrid/`)
+---
+
+## Camada de debrid (`src/debrid/`)
 
 Registry de adaptadores; nada no resto do código conhece um serviço específico.
 Cada adaptador exporta a mesma forma:
 
 ```js
-{ id, label, cacheCheck, keyUrl, checkCached(apiKey, hashes), resolveLink(apiKey, hash, ep) }
+{ id, label, short, cacheCheck, keyUrl, checkCached(apiKey, hashes), resolveLink(apiKey, hash, ep) }
 ```
 
-**`cacheCheck` é a distinção que mais importa.** Real-Debrid, AllDebrid e
-Debrid-Link aposentaram os endpoints de disponibilidade instantânea; só
-Premiumize e TorBox ainda respondem em lote. Por isso `debrid.checkCached()`
-devolve `{ cached, known }`:
+**`cacheCheck` é a distinção que mais importa.** Declare com honestidade;
+declarar `true` sem endpoint funcional é o pior dos mundos.
+
+| Serviço | `cacheCheck` | Como sabe |
+|---|---|---|
+| Premiumize | `true` | lote instantâneo |
+| TorBox | `true` | lote instantâneo |
+| AllDebrid | `true` | `ready` do `/magnet/upload` (o `/magnet/instant` morreu) |
+| Real-Debrid | `false` | sem consulta; o play adiciona o magnet |
+| Debrid-Link | `false` | idem |
+
+AllDebrid **mede** ⚡, mas a consulta é um upload e **não é abortável**
+(`abortSafeCacheCheck: false`). A corrida da resposta não cancela o trabalho:
+abortar depois do upload perderia os ids necessários para a limpeza.
+
+`debrid.checkCached()` devolve `{ cached, known, unusable? }`:
 
 - `known: true` → dá pra confiar; cacheados ganham ⚡ e o filtro `cachedOnly` vale.
 - `known: false` → **não é "nada em cache"**. Todos os streams passam pelo
-  debrid, sem ⚡, e `cachedOnly` é ignorado.
+  debrid, sem ⚡ nos não-confirmados, e `cachedOnly` é ignorado. O passe tardio
+  tenta de novo (`needsFullRefresh`) e regrava o cache com o ⚡ quando a
+  consulta completa.
 - `unusable: { reason }` → o serviço não vai funcionar agora, por um motivo que
-  só o usuário conserta. A lista volta como **P2P** (ver abaixo).
+  só o usuário conserta. A lista volta como **P2P**.
 
 Confundir os dois primeiros esconde a lista inteira. Foi por isso que `batched()`
 (em `common.js`) **propaga o erro quando todos os lotes falham**: token inválido
 retornando "nenhum cacheado" com `cachedOnly` ligado zerava o resultado sem
 nenhuma pista do motivo.
+
+`partial:false` **não** prova que o debrid foi perguntado. A entrada do cache
+carrega `debridKnown`. Sem esse campo o passe tardio promovia a lista sem ⚡ a
+completa e o refresh desistia — raio nenhum pelo `CACHE_TTL` inteiro.
+Entrada antiga sem o campo cai em `false` de propósito e paga uma checagem.
 
 **Serviço inutilizável ≠ serviço instável.** Duas condições não são
 transitórias e chegam à tela do mesmo jeito — o ⚡ some de TODOS os streams:
@@ -192,7 +292,8 @@ As duas barram o `/magnet/upload`, que é como a AllDebrid **checa cache** e
 play funciona, então `applyDebrid` devolve os streams como torrent puro e o log
 diz qual é o conserto. Elas também não pedem `needsFullRefresh`: como o conserto
 é manual, revalidar a cada request só refazia Jackett + resolvers BR para chegar
-na mesma lista (7s por busca, cache nunca assentando).
+na mesma lista (7s por busca, cache nunca assentando). Autofetch também não
+roda — enfileirar download numa conta que recusa upload só gera erro em série.
 
 Causas **misturadas** (um lote com auth, outro com timeout) não afirmam nada e
 caem no genérico — classificar pela primeira faria a lista virar P2P por engano.
@@ -206,43 +307,73 @@ para sempre (2300 em quatro dias, até estourar o teto e derrubar a checagem
 inteira). Apagar o pronto é seguro: o cache é do SERVIÇO, não da conta, e o
 play reenvia o hash na hora.
 
-Duas coisas nunca entram na limpeza: o hash do autofetch (`protected.js`) e o
-que **já era do usuário**. Como o `/magnet/upload` é idempotente e a resposta
-não diz se criou ou reaproveitou (`{magnet, hash, name, size, ready, id}`, sem
-data), o adaptador inventaria a conta uma vez por processo e protege o que
-encontrou. Enquanto esse inventário não carrega, a limpeza dos prontos não roda
-— o `null` é o fail-safe.
+Três coisas nunca entram na limpeza por busca: o hash do autofetch
+(`protected.js`), o que **já era do usuário** (`knownBefore`) e, enquanto o
+inventário não carrega, **ninguém** — o `null` é o fail-safe. Como o
+`/magnet/upload` é idempotente e a resposta não diz se criou ou reaproveitou
+(`{magnet, hash, name, size, ready, id}`, sem data), o adaptador inventaria a
+conta uma vez por processo.
 
-Para comparação: o Comet delega ao StremThru, que na AllDebrid **não mede** nada
-(o `/magnets/check` devolve palpite de base colaborativa) e só toca a conta no
+Lixo que a limpeza por busca nunca alcança (magnet morto que ninguém pesquisa)
+é a varredura periódica `sweepDead` (`DEBRID_SWEEP_DEAD`). Ao contrário do
+`dropReady`, ela **não** poupa o inventário do usuário: estado terminal não é
+escolha de ninguém. Sem isso, mortos ocupam vaga até a AllDebrid recusar até
+o `/magnet/delete` com 503.
+
+Para comparação: o Comet/StremThru na AllDebrid **não mede** nada (o
+`/magnets/check` devolve palpite de base colaborativa) e só toca a conta no
 play, sem remover depois. O nosso ⚡ é medido; o preço é essa limpeza.
 
 **Verificador (`/debrid-status.json`).** Encher a conta é invisível até estourar,
 e aí o sintoma não aponta para a causa. O endpoint mostra a ocupação antes disso,
-atrás do mesmo token do diagnóstico:
-
-```bash
-curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" http://127.0.0.1:7000/debrid-status.json
-```
-
-Com a config na frente (`/<config>/debrid-status.json`) ele usa a chave **daquela
-instalação** — que é a que o app manda, e pode ser diferente da do `.env`. Acima
-de `DEBRID_ACCOUNT_WARN_TOTAL` (800 magnets) ele devolve `warn: true` e registra
-aviso. Não existe percentual: a AllDebrid tem dois tetos que não batem entre si
-(30 "ativos" na doc oficial, 1000 na mensagem de erro real) e nenhum é
-consultável — a versão anterior dizia "231% ocupado" para uma conta que
-respondia normalmente.
+atrás do mesmo token do diagnóstico. Com a config na frente
+(`/<config>/debrid-status.json`) ele usa a chave **daquela instalação** — que é
+a que o app manda, e pode ser diferente da do `.env`. Acima de
+`DEBRID_ACCOUNT_WARN_TOTAL` (800 magnets) ele devolve `warn: true` e registra
+aviso. Premiumize usa `limit_used` (aviso em `DEBRID_ACCOUNT_WARN_LIMIT_USED`,
+default 0.8); TorBox conta o `mylist`. Rate limit (`rate_limit_reached`) chega
+como `reason: rate` — transitório, a lista **não** vira P2P. Na AllDebrid não
+existe percentual: ela tem dois tetos que não batem entre si (30 "ativos" na
+doc oficial, 1000 na mensagem de erro real) e nenhum é consultável — a versão
+anterior dizia "231% ocupado" para uma conta que respondia normalmente.
 
 Para adicionar um serviço: crie o adaptador, registre em `ADAPTERS` e pronto —
-`SERVICES` alimenta o seletor da página automaticamente. Declare `cacheCheck`
-com honestidade; declarar `true` sem endpoint funcional é o pior dos mundos.
+`SERVICES` alimenta o seletor da página automaticamente.
 
 Resolução acontece **só no play** (rota `/resolve`), nunca na listagem: é uma
-sequência de chamadas por torrent e não caberia no orçamento de busca.
+sequência de chamadas por torrent e não caberia no orçamento de busca. A
+assinatura HMAC cobre `infoHash` + temporada/episódio + dica de obra (`w`).
+Sem dica a string assinada é idêntica à antiga (URLs já cacheadas nos clientes
+continuam verificando). Dica adulterada mudaria o arquivo tocado dentro de um
+pack multi-obra.
 
-O registry também expõe `enqueue()` para o **autofetch BR**: sem fonte dublada
-tocável em cache, o addon manda o debrid baixar o melhor candidato para o play
-da próxima vez. Os detalhes e as travas estão no invariante 6.
+`pickFile` escolhe o episódio (série) ou o maior vídeo (filme único). Pack
+multi-obra (`_multiWork`) manda `work` assinado; `pickWorkFile` casa nomes +
+ano contra o **basename**. Falha explícita (`WorkPickError` → 404) em vez de
+tocar o filme errado. Em P2P o cliente baixaria o torrent inteiro — esses packs
+são retidos na listagem quando não há debrid ou não há ano de catálogo.
+
+`DEBRID_RESOLVE_UNCACHED` (operador, não está no schema) manda o não-cacheado
+pelo `/resolve` marcado `[AD download]`. Default off: escreve na conta a cada
+play de fonte fria. `showUncachedBr` (`bu`) é outra coisa — deixa as vagas BR
+como P2P enquanto o debrid baixa.
+
+O registry também expõe `enqueue()` para o **autofetch**. Sem fonte dublada
+tocável em cache, o addon manda o debrid baixar candidatos para o play da
+próxima vez. Travas atuais (invariante 6):
+
+- desligável (`autoFetchBr` / `ab`); some na página quando `cacheCheck` é false;
+- exige `known` — sem saber o que está em cache enfileiraríamos às cegas
+  (Real-Debrid e Debrid-Link ficam de fora; neles o `/resolve` do play já
+  adiciona o magnet);
+- até `DEBRID_AUTO_FETCH_MAX` (1..4) torrents por busca, vaga compartilhada
+  entre passe parcial e tardio;
+- pool BR vazio cai em dublada global (`DEBRID_AUTO_FETCH_ANY`) e, em série,
+  no pack de mais seeders (`DEBRID_AUTO_FETCH_TOP_SEEDS`);
+- hold **por candidato, antes** da checagem; marker só depois do aceite;
+- recheck em fundo (`DEBRID_AUTO_FETCH_RECHECK_MS`) esquece o cache da busca
+  quando o download fica pronto, senão o ⚡ espera o `CACHE_TTL`;
+- nunca entra no caminho da resposta — erro só vira log.
 
 O registry também expõe `inventory()`: o que já está **pronto** na conta
 (AllDebrid/TorBox; nos demais é no-op) entra na busca como mais uma fonte
@@ -250,48 +381,121 @@ O registry também expõe `inventory()`: o que já está **pronto** na conta
 relevância de inventário (`filterInventoryRelevant`) aceita também **pack de
 franquia** da mesma obra — coisa na conta é escolha do usuário, sinal que
 resultado de tracker não tem; por isso essa exceção NÃO vale no caminho dos
-indexers. Item de inventário é preexistente por definição: o `knownBefore` já
-o protege do `dropReady`.
+indexers. `buildStreams` não re-aplica o filtro estrito em item com
+`fromAccount`. Item de inventário é preexistente por definição: o `knownBefore`
+já o protege do `dropReady`. Teto curto próprio (`DEBRID_INVENTORY_TIMEOUT_MS`,
+1500): a primeira leitura custa ~700ms e a resposta não espera; estourou,
+devolve `[]` e a próxima busca pega do memo (aquecido no boot para a conta do
+operador).
 
-### Os seis invariantes que mais quebram
+---
+
+## Cache multi-nível (fases 0–2 no código)
+
+A chave `streams:v4` isola config do usuário + digest da conta
+(`request-key.js`). Duas instalações do mesmo título **não** compartilham a
+lista — ela carrega URLs de play assinadas. O trabalho caro (Jackett +
+scrapers) é compartilhado mais abaixo.
+
+| camada | chave | o que guarda | kill-switch |
+|---|---|---|---|
+| L1+L2 streams | `streams:v4:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
+| bruto por indexer | `raw1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
+| SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
+
+SWR só serve o que o `finish` promoveria a completa: `partial === false`,
+`debridKnown === true` e pelo menos um stream **tocável** (`url` ou
+`infoHash`). Item de aviso (`name` + `externalUrl`) não conta — senão a
+janela de graça estenderia o estado ruim.
+
+Hit de `raw1` **não** pinta o card de status: medição ~0ms mentiria "online"
+com o indexer no chão. `/all` do Jackett (sem `JACKETT_INDEXERS`) não passa
+por `queryIndexer` e **não** usa o cache bruto — fora de escopo de propósito.
+
+TTL de resultado vazio é curto (`RAW_CACHE_EMPTY_TTL`): 200 com zero itens
+pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
+
+Cotas do L1 (`cache.js`): `streams` 2000, `raw1` 800, `dlmag` 4000, teto
+global 12000. `raw1` é o namespace gordo (~100 KB no pior caso); não suba a
+cota sem refazer a conta de memória do container de 3g.
+
+Fase 3 (cache de disponibilidade por hash) **não** está no código. Gate
+documentado no plano: `debrid.check.repeated / debrid.check.hashes` > 30% em
+15 min. Não implemente por palpite.
+
+---
+
+## Os seis invariantes que mais quebram
 
 **1. O orçamento de tempo é sagrado.**
 O cliente Stremio aborta em 10s. A cadeia é:
 
 ```
 REPLY_DEADLINE_MS (9200) − DEBRID_RESERVE_MS (2800) = orçamento da coleta
+BR_PARTIAL_GRACE_MS (1500), sem invadir DEBRID_CHECK_FLOOR_MS (1500)
 JACKETT_INDEXER_TIMEOUT_MS (4000)      teto por indexer global, dentro do orçamento
 JACKETT_BR_INDEXER_TIMEOUT_MS (20000)  total BR — PODE passar do deadline
 JACKETT_DOWNLOAD_TIMEOUT_MS (8000)     teto por salto DENTRO do orçamento BR
+DEBRID_CHECK_FORMAT_MARGIN_MS (500)    o que a checagem pode gastar na resposta
 ```
 
 Os indexers globais precisam caber no orçamento da coleta; os BR **não**.
 `brIndexerTimeout` é o orçamento **total** de um indexer BR: busca **mais**
 resolução de magnets. `resolveCardigannDownloads` recebe um `deadline` absoluto
-e cada salto de protetor de link usa só o que sobrou. A resposta não espera
-pelas fontes lentas: `collectRaw` despeja num balde compartilhado e devolve o
-que chegou no prazo; quando o resto termina, um **passe tardio** reescreve o
-cache com o lote completo. Na busca fria a raspagem sozinha leva 5-6s e ainda
-faltam os saltos do protetor — cortar no meio descartava os BR por falta de
-infoHash. Por isso `buildStreams` foi extraído de `doSearch`: os dois passes
-(parcial e tardio) rodam o mesmo pós-processamento.
+e cada salto de protetor de link usa só o que sobrou.
+
+`search-plan` **isola** BR e `JACKETT_SLOW_INDEXERS` em tarefas próprias: um
+NerdFilmes de 7s não pode segurar o TPB fora do balde. Globais de teto curto
+continuam agrupados.
+
+A resposta não espera pelas fontes lentas: `collectWithinWindow` despeja num
+balde compartilhado e devolve o que chegou no prazo. Se só chegaram globais,
+concede a graça BR — algumas UIs não repetem a resposta parcial, então o passe
+tardo sozinho não torna o dublado visível. Em **série** a graça só roda com
+itens no balde: balde vazio cai no fallback de pack, e gastar a graça nessa
+hora rouba o tempo dele.
+
+Quando o resto termina, o passe tardio reescreve o cache com o lote completo
+(`createLatestWriter` descarta escrita velha se o pack assumiu). Na busca fria
+a raspagem sozinha leva 5–6s e ainda faltam os saltos do protetor — cortar no
+meio descartava os BR por falta de infoHash. Por isso `buildStreams` foi
+extraído de `doSearch`: os dois passes (parcial e tardio) rodam o mesmo
+pós-processamento.
+
+A checagem de cache no passo de resposta usa o que **sobrou** do deadline
+(`remainingCheckBudget`). Coleta fria que come o orçamento inteiro degrada
+para `known:false` e a lista sai não-vazia; o fundo repete sem teto curto.
 
 Se você adicionar mais uma etapa de rede num provider **global**, ela precisa
 caber no orçamento da coleta — foi exatamente esse o bug de resolves rodando
 fora do `AbortSignal` da busca e somando o próprio timeout por cima.
 
-Quando o deadline estoura, `findStreams` devolve `[]` **mas a busca continua em
-background**. Resultado vazio é cacheado por pouco tempo (≤ 60s): pode ser só
-indexer fora do ar, e o Stremio precisa poder perguntar de novo em breve.
+Quando o deadline estoura, `findStreams` devolve `{ streams: [], partial: true }`
+**mas a busca continua em background**. Resultado vazio ou parcial é cacheado
+por pouco tempo (≤ 60s): pode ser só indexer fora do ar, e o Stremio precisa
+poder perguntar de novo em breve. Handler HTTP: lista que precisa de
+revalidação sai com `cacheMaxAge: 0` (vazio, parcial, debrid desconhecido).
 
-**2. Origem BR é um campo, nunca um regex de título.**
-Providers marcam `isBr: true` no resultado cru; `toStremioStream` converte em
-`_br`; `limitReservingBr` usa esse campo e o remove antes de entregar ao Stremio.
-Não volte a inferir origem por `/BLUDV|DUBLADO/i` no título — releases de
-`comandotorrents`, `nerdfilmes` e `torrentdosfilmesv2` não citam nenhum dos dois.
+**2. Origem BR é um campo, nunca um regex de título como única fonte.**
+Providers marcam `isBr: true` no resultado cru. `looksPtBr(title)` **também**
+liga o flag — tracker global hospeda dublado titulado em português, e sem isso
+o item era julgado contra o nome em inglês e morria antes das vagas BR.
+"Dual" sozinho em tracker global não basta; precisa de PT explícito.
+`toStremioStream` converte em `_br`; `limitReservingBr` usa esse campo e o
+remove antes de entregar ao Stremio.
 
-Campos com prefixo `_` (`_br`, `_seeders`, `_quality`) são **internos**. Se um
-deles vazar no objeto entregue ao Stremio, o player pode rejeitar o stream.
+Não volte a inferir origem por `/BLUDV|DUBLADO/i` no título **no lugar** do
+flag do provider — releases de `comandotorrents`, `nerdfilmes` e
+`torrentdosfilmesv2` não citam nenhum dos dois, e mesmo assim são BR.
+
+Campos com prefixo `_` (`_br`, `_seeders`, `_quality`, `_multiWork`, …) são
+**internos**. Se um deles vazar no objeto entregue ao Stremio, o player pode
+rejeitar o stream.
+
+Agregadores BR podem espelhar magnets globais: origem e áudio pertencem à
+listagem que vence o merge; nunca propague `_br`/`_dubbed` do perdedor.
+DUAL sem PT explícito não ganha vaga, prioridade nem autofetch só porque o
+post veio de site BR.
 
 **3. Fontes BR não publicam seeders.**
 Elas entram com `seeders: 1` (0 seria descartado por `MIN_SEEDERS`). Consequência:
@@ -302,7 +506,7 @@ centenas de seeders. Por isso:
   não no número final;
 - o corte real é `limitReservingBr`, **depois** do debrid, com `BR_RESERVED_SLOTS`
   vagas garantidas.
-- o teto por indexador (`jl`, fallback no `maxPerIndexer` global) roda na mesma
+- o teto por indexador (`jl`, fallback no `maxPerIndexer` / `qi`) roda na mesma
   passada da qualidade, dentro de `limitReservingBr`; as vagas reservadas BR
   estouram o teto sem serem cortadas, mas contam na cota — a reserva fura o
   teto, não o amplia.
@@ -312,9 +516,21 @@ Inverter essa ordem faz as fontes BR sumirem silenciosamente.
 **4. Sites BR indexam por título em português.**
 "Coringa", não "Joker". `tmdb.getTitles` resolve isso e a busca dispara **duas
 queries**: a em inglês para indexers globais e a em pt-BR para os listados em
-`JACKETT_PT_BR_INDEXERS`. Todo caminho de busca precisa carregar as duas —
-inclusive fallbacks. O filtro `matchesName` também aceita qualquer um dos nomes,
-senão a release dublada seria descartada por não bater com o título em inglês.
+`JACKETT_PT_BR_INDEXERS` (default: os quatro cards locais + `redetorrent`,
+`apachetorrent`, `hdrtorrent`). Todo caminho de busca precisa carregar as duas
+— inclusive fallbacks de pack. O filtro `matchesName` também aceita qualquer
+um dos nomes, senão a release dublada seria descartada por não bater com o
+título em inglês.
+
+BR e `JACKETT_BARE_TITLE_INDEXERS` (os três stock) **zeram** com token extra:
+além do SxxEyy, o ano do filme também sai ("Coringa 2019" → 0 no redetorrent).
+Os resolvers locais ficam **fora** dessa lista: lá o ano ajuda a relevância.
+Sequência em romano vira variante arábica (`numeralSearchVariant`) no mesmo
+indexer, dentro do deadline original.
+
+A varredura pt-BR nos globais é o terceiro caminho, não um substituto das duas
+queries. Query da varredura = `franchiseRoot(título pt)` — "Jornada nas
+Estrelas: O Filme 1979" devolve 1 resultado, "Jornada nas Estrelas" devolve 13.
 
 **5. Release BR passa por filtro de título ESTRITO, em duas camadas.**
 Os sites BR são buscadores WordPress que devolvem posts "parecidos" para query
@@ -331,25 +547,33 @@ passa. Ele roda DUAS vezes:
 - no pré-filtro de `resolveCardigannDownloads`, ANTES de pagar o protetor de
   link — o ano vem da própria query de filme ("Coringa 2019"), e é isso que
   corta "Coringa: Delírio a Dois (2024)" sem gastar um magnet;
-- no filtro de título de `buildStreams`, com o `meta.year` do catálogo — sem
-  essa segunda passada o jogo ("Fallout 4 (PC)") passaria pelo pré-filtro
-  (query de série não tem ano) e só morreria no debrid.
+- no filtro de título de `buildStreams` (`filterRelevantRaw`), com o
+  `meta.year` do catálogo — sem essa segunda passada o jogo ("Fallout 4 (PC)")
+  passaria pelo pré-filtro (query de série não tem ano) e só morreria no debrid.
 
 `meta.year` vem sujo do cinemeta ("2024–" para série em andamento): extraia o
 primeiro token de 4 dígitos antes de comparar, senão `Number("2024–")` é NaN e
 a regra de ano condena TODAS as releases reais.
 
+A exceção de franquia do inventário da conta (`filterInventoryRelevant`) **não**
+se aplica aos indexers. Globais usam `matchesName` + estrutura + identidade de
+obra delimitada pelo marcador de episódio (`matchesEpisodeWorkIdentity`) —
+spin-off com o mesmo token no título não pode herdar a vaga.
+
 **6. Autofetch BR e `dropUncached` são forças opostas.**
 `dropUncached` apaga da conta do debrid o que não está em cache (sem isso cada
 busca deixa download fantasma); `autoFetchBrDubbed` faz o oposto de propósito —
-enfileira a melhor fonte BR dublada quando nada tocável está em cache. A ponte
-é `src/debrid/protected.js`: o hash escolhido entra em `hold` **antes** da
+enfileira as melhores fontes dubladas quando nada tocável está em cache. A ponte
+é `src/debrid/protected.js`: cada hash escolhido entra em `hold` **antes** da
 checagem de cache e só é liberado se o download não acontecer. Inverter essa
 ordem deixa a limpeza matar o download no meio da mesma busca — na AllDebrid a
-própria checagem apaga da conta o que não está pronto. Travas do autofetch:
-um torrent por busca, só com `cacheCheck: true` (sem resposta confiável não dá
-pra saber o que falta), desligável por `autoFetchBr`, e o disparo nunca entra
-no caminho da resposta — erro só vira log.
+própria checagem apaga da conta o que não está pronto.
+
+Já não é "um torrent por busca": o teto é `DEBRID_AUTO_FETCH_MAX` (1..4), com
+uma vaga por candidato compartilhada entre os passes (`acquireSearchSlot`).
+`cachedOnly` deixou de ser trava — mesmo no modo misto, sem dublada em cache o
+play da próxima vez depende do download. O resto das travas (known, toggle,
+fire-and-forget) continua.
 
 ---
 
@@ -357,37 +581,51 @@ no caminho da resposta — erro só vira log.
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `src/addon.js` | Manifest, stream handler, servidor Express, rotas `/resolve`, `/configure`, `/defaults.json` e `/test-indexer.json` |
+| `src/addon.js` | Processo: listen, warmup, resolvers, shutdown |
+| `src/app.js` | Fábrica Express: manifest, stream handler, `/resolve`, `/configure`, `/defaults.json`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json` |
 | `src/config.js` | Padrões do operador: todo `process.env` vira config **aqui** |
-| `src/runtime.js` | Config por usuário: schema, encode/decode da URL, `opts()` |
-| `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, zero build) |
-| `src/providers/index.js` | Orquestração: cache, coalescing, deadline, passe tardio, debrid, corte final |
-| `src/providers/jackett.js` | Consulta por indexer em paralelo + resolução Cardigann |
-| `src/providers/jackett-catalog.js` | Catálogo de indexers do Jackett (torznab) pra página de configuração, com TTL e fallback pros do `.env` |
+| `src/runtime.js` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
+| `src/br-resolvers.js` | Carrega os quatro `*-resolver` no processo do addon |
+| `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, ES5, zero build) |
+| `src/providers/index.js` | Orquestração: SWR, coalescing, deadline, collectRaw, passe tardio, debrid, corte, aviso |
+| `src/providers/search-plan.js` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
+| `src/providers/collection-window.js` | Balde compartilhado + graça da primeira fonte BR |
+| `src/providers/jackett.js` | Consulta por indexer, cache `raw1`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
+| `src/providers/jackett-catalog.js` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
+| `src/providers/indexer-status.js` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
 | `src/providers/prowlarr.js` | Alternativa ao Jackett |
-| `src/providers/bludv.js` | Scraper direto do BLUDV (fora do Jackett) |
-| `src/providers/account.js` | A conta do debrid como fonte: inventário pronto da conta entra na busca com ⚡ (AllDebrid/TorBox) |
+| `src/providers/bludv.js` | Scraper direto do BLUDV (fora do Jackett; default desligado) |
+| `src/providers/account.js` | Inventário pronto da conta como fonte (`fromAccount`) |
+| `src/providers/autofetch.js` | Marker, lock e vaga por busca do autofetch |
 | `src/providers/demo.js` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
-| `src/debrid/index.js` | Registry de serviços de debrid + seleção por requisição |
-| `src/debrid/common.js` | `magnetFor`, fetch JSON, `pickFile`, lotes de cache, classificação de erro (`AuthError`/`QuotaError`) |
-| `src/debrid/protected.js` | Hashes protegidos da limpeza `dropUncached` durante o autofetch |
-| `src/debrid/*.js` | Um adaptador por serviço (premiumize, realdebrid, …) |
-| `src/utils/format.js` | Normalização, dedupe, ordenação, `matchesName`, `matchesBrTitle` — **lógica pura** |
-| `src/utils/indexer-priority.js` | `priorityMap`/`compareIndexerPriority` — desempate por indexer escolhido |
-| `src/utils/tmdb.js` | Título pt-BR a partir do IMDb id |
-| `src/utils/cinemeta.js` | Título/ano oficiais do ecossistema Stremio |
-| `src/utils/cache.js` | Cache em memória (L1) persistido em SQLite pra sobreviver a restart |
-| `jackett-bludv/*.yml` | Definições Cardigann dos indexers BR (copiadas para a imagem pelo Dockerfile raiz) |
-| `*-resolver/` | Microserviços que seguem protetores de link dos sites BR (rodam embutidos no addon) |
-| `Dockerfile` | Multi-stage único: caddy + jackett (linuxserver, digest pinado) + flaresolverr + addon |
-| `scripts/entrypoint.sh` | Supervisor dos 4 processos (`wait -n`, prefixos de log) |
-| `scripts/magnets.js` | Inventário/limpeza dos magnets da conta (conta cheia derruba a checagem de cache) |
-| `docker-compose.yml` | Serviço único `adom`: portas, volumes (`docker-data/`), overrides de loopback |
+| `src/debrid/index.js` | Registry + seleção por request + checagem com teto dinâmico + inventário |
+| `src/debrid/common.js` | `magnetFor`, fetch JSON, `pickFile`/`pickWorkFile`, lotes, `AuthError`/`QuotaError` |
+| `src/debrid/protected.js` | Hashes protegidos da limpeza durante o autofetch |
+| `src/debrid/*.js` | Um adaptador por serviço |
+| `src/utils/format.js` | Normalização, matching, dedupe, ordenação, cotas — **lógica pura** |
+| `src/utils/indexer-priority.js` | `priorityMap`/`compareIndexerPriority` |
+| `src/utils/tmdb.js` / `cinemeta.js` | Título pt-BR / título-ano do ecossistema Stremio |
+| `src/utils/cache.js` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
+| `src/utils/request-key.js` | `streams:v4` + digest da conta (nunca a chave crua) |
+| `src/utils/secret-box.js` | AES-256-GCM do `dk` no install URL |
+| `src/utils/sign.js` | HMAC do `/resolve` (hash + ep + dica `w`) |
+| `src/utils/deadline.js` | `raceWithDeadline`, `remainingCheckBudget` |
+| `src/utils/latest-writer.js` | Só a escrita mais nova do passe tardio vence |
+| `src/utils/logger.js` | Níveis via `ADDON_LOG_LEVEL` (não `LOG_LEVEL` — essa é do FlareSolverr) |
+| `src/utils/metrics.js` | Contadores/histogramas do `/metrics.json` |
+| `src/utils/diagnostic-guard.js` | Token + rate limit das rotas operacionais |
+| `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
+| `*-resolver/` | Seguem protetores de link; failover de domínio por saúde de rede |
+| `test/e2e/e2e-harness.js` | App real (`createApp`) + fetch dublê; zero rede externa |
+| `Dockerfile` / `scripts/entrypoint.sh` / `docker-compose.yml` | Imagem única, supervisor, loopback |
+| `scripts/magnets.js` | Inventário/limpeza da conta |
+| `scripts/check-test-list.js` | Cobra a lista explícita do `npm test` |
 
 `src/utils/format.js` concentra as funções puras (`matchesName`,
-`matchesEpisode`, `parseTitleSeasonEpisode`, `parseStremioId`, `sortAndLimit`,
-`dedupeByHash`, limites por qualidade e por indexador) — é o melhor lugar para
-testar comportamento sem subir rede.
+`matchesBrTitle`, `matchesEpisode`, `filterRelevantRaw`,
+`filterInventoryRelevant`, `looksPtBr`, `sortAndLimit`, `limitReservingBr`,
+`dedupeByHash`, `pickBrDubbedCandidates`, …) — é o melhor lugar para testar
+comportamento sem subir rede.
 
 ---
 
@@ -408,24 +646,33 @@ seeders: 1,
 Não escreva `// itera sobre os resultados`.
 
 **Logs são prefixados por subsistema**: `[search]`, `[jackett]`, `[bludv]`,
-`[debrid]`, `[autofetch]`, `[cache]`, `[tmdb]`, `[resolve]`. Use `console.warn`
-para degradação esperada (indexer fora do ar) e `console.error` só para falha
-real.
+`[debrid]`, `[autofetch]`, `[account]`, `[cache]`, `[tmdb]`, `[resolve]`,
+`[br]`. Use `console.warn` / `log.warn` para degradação esperada (indexer fora
+do ar) e `error` só para falha real. Nível do addon: `ADDON_LOG_LEVEL`, nunca
+`LOG_LEVEL`.
 
 **Nada de config hardcoded.** Todo número ajustável entra em `src/config.js` com
 default e comentário, e no `.env.example` com a mesma explicação. Timeouts
 literais espalhados pelo código são bug em potencial — eles escapam da cadeia de
 orçamento do item 1.
 
-**Falha de rede nunca derruba a busca.** Todo fan-out usa `Promise.allSettled`;
-todo provider tem `try/catch` que devolve `[]` e loga. Um indexer fora do ar
-significa menos resultados, nunca erro para o usuário.
+**Falha de rede nunca derruba a busca.** Todo fan-out usa `Promise.allSettled`
+(ou o equivalente no `collection-window`); todo provider tem `try/catch` que
+devolve `[]` e loga. Um indexer fora do ar significa menos resultados, nunca
+erro para o usuário.
+
+**Circuit breaker** (`JACKETT_BREAKER_*`): indexer `offline` em N amostras
+seguidas deixa de receber orçamento até o cooldown. `slow`/`degraded` não
+abrem o circuito. `/test-indexer.json` ignora o breaker — é ele quem repara.
+Varredura pt-BR também ignora (`ignoreBreaker: true`): o dublado raro mora
+justamente no indexer recém-derrubado.
 
 ---
 
 ## Armadilhas conhecidas
 
-- **`require('./src/addon')` sobe o servidor.** Não é importável para teste.
+- **`require('./src/addon')` sobe o servidor.** Testes usam `createApp()` de
+  `src/app.js`. Não copie rotas no harness — o e2e já instancia o app real.
 - **"Sumiu o ⚡ de todos os streams" quase nunca é bug de código.** No fluxo
   normal, stream fora do cache sai **sem prefixo nenhum** (P2P); ver
   `[AD download]` em 100% dos itens significa que a checagem de cache não
@@ -436,9 +683,15 @@ significa menos resultados, nunca erro para o usuário.
 - **A chave do `.env` e a da URL de instalação são independentes.** O app manda
   a dele selada no segmento de config; trocar só o `.env` não muda nada para
   quem já instalou, e uma pode estar quebrada enquanto a outra funciona.
-- **Os sites BR trocam de domínio com frequência.** `BLUDV_URL` e
-  `NERDFILMES_URL` são configuráveis por isso. Parser quebrado geralmente é
-  mudança de layout do WordPress, não bug de lógica.
+- **AllDebrid tem `cacheCheck: true`.** Não trate como Real-Debrid. A consulta
+  é upload, não aborta, e precisa da limpeza. README da tabela "consulta de
+  cache = não" fala do endpoint instantâneo aposentado, não do comportamento
+  atual do adaptador.
+- **Os sites BR trocam de domínio com frequência.** `BLUDV_URL`,
+  `COMANDOTORRENTS_URL`, `NERDFILMES_URL`, `TORRENTDOSFILMES_URL` são
+  configuráveis. Os resolvers ainda têm failover interno por saúde de **rede**
+  (DNS/conexão/timeout — 0 resultados não troca de host). Parser quebrado
+  geralmente é mudança de layout do WordPress, não bug de lógica.
 - **Os protetores de link também trocam de host.** O torrentdosfilmes migrou
   de `systemads.net` para `systemads1.com` e TODO magnet passou a ser barrado
   porque só o host antigo estava na lista permitida. Magnet que some de um
@@ -447,21 +700,17 @@ significa menos resultados, nunca erro para o usuário.
   sentinela "1 KB" (o Jackett exige o campo, e "0 B" invalida a release
   inteira no filtro de tamanho do cardigann); o addon trata ≤ 1 KB como
   desconhecido em vez de exibir valor inventado. Não "conserte" isso.
-- **Agregadores BR podem espelhar magnets globais.** Mesmo infoHash em
-  YTS/RARBG/TPB não prova áudio PT: origem e áudio pertencem à listagem que
-  vence o merge; nunca propague `_br`/`_dubbed` do perdedor.
 - **Não adicione indexers com FlareSolverr a `JACKETT_SLOW_INDEXERS`**
   (1337x, kickasstorrents…). O desafio Cloudflare é re-resolvido a cada busca
-  (13-24s medidos só pra abrir a primeira página); eles abortariam igual, só
+  (13–24s medidos só pra abrir a primeira página); eles abortariam igual, só
   mais tarde e gastando Chromium. Fora da lista de indexers é o lugar deles.
 - **Buscador WordPress engasga com `:`** — `bludv.search` remove antes de
   consultar. Sintomas: título com subtítulo volta vazio.
 - **`AbortSignal.any` não existe no Node 18.** `engines` declara `>=18`; prefira
   calcular orçamento restante a compor sinais.
-- **A rota `/resolve/:infoHash` é assinada com HMAC.** O parâmetro `sig` cobre
-  `infoHash` + temporada/episódio; o segredo é `RESOLVE_SECRET` ou, na falta
-  dele, a API key de debrid da requisição. Se mudar o formato da rota ou os
-  parâmetros que o play usa, mantenha todos eles dentro da assinatura.
+- **HMAC do `/resolve` cobre a dica `w`.** Mudar o formato da rota ou os
+  parâmetros do play exige manter todos eles dentro da assinatura. Sem `w` a
+  string é a antiga.
 - **Instalação sem config usa a `DEBRID_API_KEY` do `.env` por padrão.** Numa
   instância pública isso significa terceiros gastando a conta do operador.
   Defina `DEBRID_ALLOW_ENV_KEY=false` para transformar instalação sem `dk` em
@@ -472,15 +721,16 @@ significa menos resultados, nunca erro para o usuário.
 - **O cache persiste em SQLite** (`data/cache.db` via `node:sqlite`,
   experimental no Node 22). Se o runtime não tiver o módulo o addon segue só
   em memória sem derrubar nada; `CACHE_PERSIST=false` desliga de propósito.
-- **Suíte de testes cobre o que é puro.** `npm test` roda `node:test` sobre
-  `format.js`, `sign.js`, `runtime.js`, `jackett-catalog.js` e a lógica de
-  autofetch/proteção (`test/autofetch.test.js`) — sem rede.
-  `npm run test:nerdfilmes` cobre só um resolver. Ao mexer nesses módulos,
-  estenda os testes em `test/`; para o resto, valide com `npm run smoke` ou um
-  script pontual em `node -e`.
+  Entrada antiga que era só um array ainda é lida (`findStreams`).
+- **Suíte de testes cobre o que é puro e o e2e com fetch dublê.** `npm test`
+  é a lista explícita; `npm run test:complete` cobra que nada tenha ficado de
+  fora. `npm run test:nerdfilmes` cobre um resolver contra a rede. Ao mexer
+  em matching, debrid, cache, runtime, rotas ou o fluxo de busca, estenda
+  `test/` (incluindo o tier e2e se o contrato HTTP mudou). Para o resto,
+  `npm run smoke` ou um script pontual em `node -e`.
 - **`BR_RESOLVERS_HOST` é o único jeito de alcançar os resolvers.** Os cards
   Cardigann chamam `http://{{ ... }}/...` montado com essa env; no container
-  único ela é `127.0.0.1`. Os resolvers escutam em 8700-8703 **só dentro do
+  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8703 **só dentro do
   container** — nenhuma dessas portas é publicada no host.
 - **Jackett no alpine é self-contained** (binário com libcoreclr embutida):
   precisa de `icu-libs`/`zlib`/`libstdc++` e das envs `XDG_CONFIG_HOME=/config`
@@ -488,6 +738,14 @@ significa menos resultados, nunca erro para o usuário.
   do apk (chromedriver precisa estar em `/app/chromedriver`, caminho hardcoded
   no código dele) + `xvfb`. Tudo isso já está no Dockerfile — se trocar a base,
   revalide a lista de pacotes.
+- **Logo do addon é PNG.** O Stremio pede 256×256 png; SVG na lista de addons
+  cai no ícone de engrenagem. `/configure` continua usando o SVG.
+- **Item de aviso não é stream tocável.** Não use `streams.length > 0` como
+  prova de lista boa (SWR, `complete` do finish, `hasPlayableStream`).
+- **Antes de mudar matching, palavra, lista de indexer ou classificação
+  BR/dublado**, meça no Jackett de verdade (saúde, query pt-BR vs título nu vs
+  SxxEyy, varredura, breaker). Chute de regex nesse caminho é a forma mais
+  cara de "consertar" um falso positivo.
 
 ## Git
 

@@ -821,7 +821,7 @@
     <div class="row" id="autoFetchRow" hidden>
       <div class="row-text">
         <strong>Baixar dublado automaticamente</strong>
-        <span>Quando nenhuma fonte BR dublada estiver em cache, manda o serviço baixar a melhor. O play funciona minutos depois. Um torrent por título.</span>
+        <span>Quando nenhuma fonte BR dublada estiver em cache, manda o serviço baixar as melhores (até quatro por busca, com fallback para dublada global). O play funciona minutos depois.</span>
       </div>
       <button type="button" class="switch" id="autoFetchBr" role="switch" aria-checked="true" aria-pressed="true" aria-label="Baixar dublado automaticamente"></button>
     </div>
@@ -839,8 +839,14 @@
       antemão o que toca na hora. Todos os resultados passam pelo debrid e o
       filtro <em>somente em cache</em> fica desligado.
     </p>
+    <p class="notice" id="adMagnetNotice" hidden>
+      A AllDebrid mede o ⚡ fazendo upload de verdade. Conta no teto de magnets
+      tira o raio de <em>todos</em> os streams — limpe com
+      <code>node scripts/magnets.js</code> ou consulte
+      <code>/debrid-status.json</code>.
+    </p>
     <p class="notice">
-      <strong>Autofetch BR e compatibilidade P2P:</strong> quando não houver uma fonte BR dublada em cache, o autofetch enfileira um torrent por título para a próxima tentativa; ele não torna o item tocável imediatamente. Se “Mostrar BR ainda fora do cache” estiver ligado, essas vagas aparecem como P2P/infoHash e só funcionam em clientes compatíveis com torrent. Players que exigem link HTTP podem ignorá-las.
+      <strong>Autofetch BR e compatibilidade P2P:</strong> quando não houver uma fonte BR dublada em cache, o autofetch enfileira até quatro torrents por busca para a próxima tentativa; ele não torna o item tocável imediatamente. Se “Mostrar BR ainda fora do cache” estiver ligado, essas vagas aparecem como P2P/infoHash e só funcionam em clientes compatíveis com torrent. Players que exigem link HTTP podem ignorá-las.
     </p>
   </section>
 
@@ -905,6 +911,7 @@
     showUncachedBr: $("showUncachedBr"), uncachedBrRow: $("uncachedBrRow"),
     autoFetchBr: $("autoFetchBr"), autoFetchRow: $("autoFetchRow"),
     noCacheNotice: $("noCacheNotice"),
+    adMagnetNotice: $("adMagnetNotice"),
     installUrl: $("installUrl"), installBtn: $("installBtn"), copyBtn: $("copyBtn")
   };
 
@@ -1453,6 +1460,7 @@
     el.autoFetchRow.hidden = !svc || !svc.cacheCheck;
     el.uncachedBrRow.hidden = !svc || !svc.cacheCheck || !isOn(el.debridCachedOnly);
     el.noCacheNotice.hidden = !svc || svc.cacheCheck;
+    el.adMagnetNotice.hidden = !svc || svc.id !== "alldebrid";
     if (svc && svc.keyUrl) {
       el.keyLink.href = svc.keyUrl;
       el.keyLink.hidden = false;

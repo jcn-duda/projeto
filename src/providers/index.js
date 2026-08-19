@@ -1171,10 +1171,14 @@ async function buildStreams(
     if (season != null) return 'Nada pronto ainda — procurando a temporada; reabra em instantes';
     return null;
   };
-  if (config.search.noticeStream && streams.length === 0 && config.debrid.publicUrl) {
+  // PUBLIC_URL é o origin certo (VPS/HTTPS). Sem ela o aviso ainda precisa
+  // aparecer — lista vazia em LAN era silêncio. 127.0.0.1 só serve esta
+  // máquina; Fire TV na rede local pede PUBLIC_URL de verdade.
+  if (config.search.noticeStream && streams.length === 0) {
     const name = noticeText();
     if (name) {
-      streams = [{ name, externalUrl: `${config.debrid.publicUrl}${prefix()}/configure` }];
+      const origin = (config.debrid.publicUrl || `http://127.0.0.1:${config.port}`).replace(/\/$/, '');
+      streams = [{ name, externalUrl: `${origin}${prefix()}/configure` }];
     }
   }
 

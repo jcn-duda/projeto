@@ -2,7 +2,7 @@ const { opts } = require('../runtime');
 const config = require('../config');
 const { accountScope } = require('../utils/request-key');
 const { raceWithDeadline } = require('../utils/deadline');
-const { isAuthError, isQuotaError } = require('./common');
+const { isAuthError, isQuotaError, isRateLimitError } = require('./common');
 const cache = require('../utils/cache');
 const metrics = require('../utils/metrics');
 const log = require('../utils/logger');
@@ -80,6 +80,11 @@ function unusableReason(err) {
   return null;
 }
 
+/** Rate limit é transitório: não entra em unusable. Só classifica o diagnóstico. */
+function failureReason(err) {
+  return unusableReason(err) || (isRateLimitError(err) ? 'rate' : 'falha');
+}
+
 function normalizeCacheResult(adapter, result) {
   const cached = result instanceof Set ? result : result?.cached || new Set();
   const complete = result instanceof Set ? true : result?.complete !== false;
@@ -138,9 +143,10 @@ function nonAbortableCheck(adapter, apiKey, infoHashes) {
  *
  *   { id, label, cacheCheck, keyUrl, checkCached(apiKey, hashes), resolveLink(apiKey, hash, ep) }
  *
- * `cacheCheck` é a diferença que mais importa na prática: Real-Debrid,
- * AllDebrid e Debrid-Link aposentaram os endpoints de disponibilidade
- * instantânea, então não dá pra saber de antemão o que toca na hora. Quem
+ * `cacheCheck` é a diferença que mais importa na prática: Real-Debrid e
+ * Debrid-Link aposentaram os endpoints de disponibilidade instantânea, então
+ * não dá pra saber de antemão o que toca na hora. AllDebrid mede via
+ * `/magnet/upload` (`cacheCheck: true`, consulta não abortável). Quem
  * responde `false` faz o orquestrador ignorar o filtro "somente em cache" em
  * vez de esconder a lista inteira.
  */
@@ -225,6 +231,11 @@ async function checkCached(infoHashes, { timeoutMs } = {}) {
   } catch (err) {
     const reason = unusableReason(err);
     if (reason) return unusable(adapter, reason, err);
+    if (isRateLimitError(err)) {
+      metrics.count('debrid.rate_limit');
+      log.warn(`[${adapter.id}] rate limit na checagem de cache (${err.message}); tentando de novo no passe tardio`);
+      return { cached: new Set(), known: false };
+    }
     log.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
     return { cached: new Set(), known: false };
   }
@@ -239,6 +250,11 @@ async function checkCached(infoHashes, { timeoutMs } = {}) {
 // nenhum é consultável. 800 dá margem para limpar antes de quebrar; ajuste se
 // a sua conta aguentar mais.
 const ACCOUNT_WARN_TOTAL = Number(process.env.DEBRID_ACCOUNT_WARN_TOTAL || 800);
+// Fair-use do Premiumize (`limit_used` em [0, 1]). 0 desliga o aviso.
+const parsedWarnLimit = Number(process.env.DEBRID_ACCOUNT_WARN_LIMIT_USED ?? 0.8);
+const ACCOUNT_WARN_LIMIT_USED = Number.isFinite(parsedWarnLimit)
+  ? Math.min(1, Math.max(0, parsedWarnLimit))
+  : 0.8;
 
 /**
  * Saúde da conta do serviço corrente, para o endpoint de diagnóstico.
@@ -256,13 +272,25 @@ async function accountStatus() {
 
   try {
     const status = await adapter.accountStatus(opts().debridApiKey);
-    const warn = status.magnets >= ACCOUNT_WARN_TOTAL;
+    const byFairUse = Number.isFinite(status.limitUsed);
+    const warn = byFairUse
+      ? ACCOUNT_WARN_LIMIT_USED > 0 && status.limitUsed >= ACCOUNT_WARN_LIMIT_USED
+      : Number(status.magnets) >= ACCOUNT_WARN_TOTAL;
+    const warnAt = byFairUse ? ACCOUNT_WARN_LIMIT_USED : ACCOUNT_WARN_TOTAL;
     if (warn) {
-      log.warn(
-        `[${adapter.id}] ${status.magnets} magnet(s) na conta (aviso a partir de ${ACCOUNT_WARN_TOTAL});` +
-          ' quando o serviço recusar novos uploads a checagem de cache para e o ⚡ some da lista inteira' +
-          ' — limpe com scripts/magnets.js',
-      );
+      if (byFairUse) {
+        log.warn(
+          `[${adapter.id}] fair-use ${Math.round(status.limitUsed * 100)}% ` +
+            `(aviso a partir de ${Math.round(ACCOUNT_WARN_LIMIT_USED * 100)}%); ` +
+            'quando o serviço recusar (account_limit_reached) a lista degrada para P2P',
+        );
+      } else {
+        log.warn(
+          `[${adapter.id}] ${status.magnets} magnet(s) na conta (aviso a partir de ${ACCOUNT_WARN_TOTAL});` +
+            ' quando o serviço recusar novos uploads a checagem de cache para e o ⚡ some da lista inteira' +
+            ' — limpe com scripts/magnets.js',
+        );
+      }
     }
     return {
       ok: true,
@@ -270,11 +298,11 @@ async function accountStatus() {
       label: adapter.label,
       supported: true,
       warn,
-      warnAt: ACCOUNT_WARN_TOTAL,
+      warnAt,
       ...status,
     };
   } catch (err) {
-    const reason = unusableReason(err) || 'falha';
+    const reason = failureReason(err);
     return { ok: false, service: adapter.id, label: adapter.label, reason, error: err.message };
   }
 }

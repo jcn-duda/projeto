@@ -14,8 +14,13 @@ const assert = require('node:assert/strict');
  * 200 — o addon lia como "não sei o que está em cache" e seguia prometendo
  * debrid para 52 streams.
  */
-const { batched, isAuthError, AuthError, isQuotaError, QuotaError, json } = require('../src/debrid/common');
+const {
+  batched, isAuthError, AuthError, isQuotaError, QuotaError,
+  isRateLimitError, RateLimitError, json,
+} = require('../src/debrid/common');
 const alldebrid = require('../src/debrid/alldebrid');
+const premiumize = require('../src/debrid/premiumize');
+const torbox = require('../src/debrid/torbox');
 
 const hashes = (n) => Array.from({ length: n }, (_, i) => `h${i}`);
 
@@ -31,6 +36,7 @@ test('isAuthError reconhece os códigos de credencial dos serviços', () => {
 
   // Falha transitória continua sendo transitória: tratar como credencial
   // esconderia a lista de quem só tomou um timeout.
+  assert.equal(isAuthError(new Error('authentication_failed')), true, 'Premiumize HTTP 200');
   assert.equal(isAuthError(new Error('timeout')), false);
   assert.equal(isAuthError(new Error('HTTP 502 — bad gateway')), false);
   assert.equal(isAuthError(new Error('ECONNRESET')), false);
@@ -341,6 +347,129 @@ test('conta no limite devolve a lista como P2P, igual à credencial recusada', a
 // --- Cooldown: o único estado estrutural que merece retry ------------------
 
 const debrid = require('../src/debrid');
+
+test('isRateLimitError reconhece o código HTTP 200 do Premiumize', () => {
+  assert.equal(isRateLimitError(new RateLimitError('rate_limit_reached')), true);
+  assert.equal(isRateLimitError(new Error('rate_limit_reached')), true);
+  assert.equal(isRateLimitError(new Error('too many API requests')), true);
+  assert.equal(isRateLimitError(new QuotaError('Magnets limit reached')), false);
+  assert.equal(isRateLimitError(new Error('timeout')), false);
+});
+
+test('premiumize: rate_limit_reached com HTTP 200 não vira unusable', async () => {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      status: 'error',
+      message: 'too many requests',
+      code: 'rate_limit_reached',
+    }),
+  });
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-pm',
+  };
+
+  try {
+    await assert.rejects(
+      () => premiumize.checkCached('chave-pm', ['a'.repeat(40)]),
+      (err) => {
+        assert.equal(err.isRateLimitError, true);
+        assert.equal(err.isQuotaError, undefined);
+        return true;
+      },
+    );
+    const result = await runtime.run({ opts: userOpts, encoded: '' }, () =>
+      debrid.checkCached(['a'.repeat(40)]),
+    );
+    assert.equal(result.known, false);
+    assert.equal(result.unusable, undefined, 'rate limit é transitório: a lista NÃO vira P2P');
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
+test('premiumize: authentication_failed com HTTP 200 vira AuthError', async () => {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      status: 'error',
+      message: 'API key invalid',
+      code: 'authentication_failed',
+    }),
+  });
+  try {
+    await assert.rejects(
+      () => premiumize.checkCached('ruim', ['a'.repeat(40)]),
+      (err) => err.isAuthError === true,
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
+test('premiumize: account_limit_reached vira QuotaError (fair-use esgotado)', async () => {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      status: 'error',
+      message: 'fair-use exhausted',
+      code: 'account_limit_reached',
+    }),
+  });
+  try {
+    await assert.rejects(
+      () => premiumize.checkCached('chave', ['a'.repeat(40)]),
+      (err) => err.isQuotaError === true,
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
+test('torbox: success:false sobe o detail, não só o código', async () => {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      success: false,
+      error: 'DOWNLOAD_TOO_LARGE',
+      detail: 'File exceeds your plan limit of 10 GB',
+    }),
+  });
+  try {
+    await assert.rejects(
+      () => torbox.resolveLink('chave', 'a'.repeat(40), {}),
+      (err) => {
+        assert.match(err.message, /10 GB/);
+        assert.match(err.message, /DOWNLOAD_TOO_LARGE/);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
 
 test('cooldown na checagem de cache é transitório: known:false, sem unusable', async () => {
   const original = debrid.BY_ID.get('premiumize');
