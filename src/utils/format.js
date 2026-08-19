@@ -185,6 +185,15 @@ function audioFromTitle(title = '') {
   return '';
 }
 
+// Marcas estrangeiras explícitas não devem vencer por seeders quando o objetivo
+// é aquecer um pack utilizável. MULTI/DUAL ficam fora desta lista: carregam a
+// faixa original e não provam que o torrent não serve ao usuário.
+function hasExplicitForeignAudio(title = '') {
+  const t = String(title).toUpperCase();
+  if (explicitPtAudio(title)) return false;
+  return /\b(TRUEFRENCH|FRENCH|VOSTFR|VF|ITA|SUBITA|ESPANOL|CASTELLANO|RUS|GERMAN|NL)\b/.test(t);
+}
+
 /**
  * Dublado pt-BR visível no TÍTULO, independente do indexer. Tracker global
  * hospeda bastante release dublada titulada em português ("Jornada Nas
@@ -1272,6 +1281,25 @@ function anyDubbedPool(streams = [], { season } = {}) {
   });
 }
 
+/** Pool de segurança: prioriza o swarm, não a resolução, para o download terminar. */
+function topSeededPool(streams = [], { season, minSeeders = 0 } = {}) {
+  const seedersOf = (s) => Number(s?._seeders ?? (String(s?.name || '').match(/👤\s*(\d+)/)?.[1] || 0));
+  const candidates = streams.filter((s) =>
+    s && s.infoHash && sourceFromTitle(s.title || s.name || '') !== 'CAM' &&
+    seedersOf(s) >= minSeeders && !hasExplicitForeignAudio(s.title || s.name || ''),
+  );
+  const packOf = season == null ? null : new Map(candidates.map((s) => [s, isSeasonPackRelease(s, season)]));
+  return [...candidates].sort((a, b) => {
+    if (packOf) {
+      const packDiff = (packOf.get(b) ? 1 : 0) - (packOf.get(a) ? 1 : 0);
+      if (packDiff) return packDiff;
+    }
+    const seedDiff = seedersOf(b) - seedersOf(a);
+    if (seedDiff) return seedDiff;
+    return (DUBBED_QUALITY_WEIGHT[streamQuality(b)] || 0) - (DUBBED_QUALITY_WEIGHT[streamQuality(a)] || 0);
+  });
+}
+
 /**
  * Set de hashes comparável com `stream.infoHash`.
  *
@@ -1326,6 +1354,10 @@ function pickBrDubbedCandidate(streams = [], cachedHashes = new Set()) {
 /** Candidatos do fallback global: mesmas regras do pick BR, sobre anyDubbedPool. */
 function pickAnyDubbedCandidates(streams = [], cachedHashes = new Set(), limit = 1, options = {}) {
   return pickFromPool(anyDubbedPool(streams, options), cachedHashes, limit);
+}
+
+function pickTopSeededCandidates(streams = [], cachedHashes = new Set(), limit = 1, options = {}) {
+  return pickFromPool(topSeededPool(streams, options), cachedHashes, limit);
 }
 
 /** Já existe fonte BR dublada tocável na hora? Então não há o que baixar. */
@@ -1646,6 +1678,9 @@ module.exports = {
   pickBrDubbedCandidate,
   pickBrDubbedCandidates,
   pickAnyDubbedCandidates,
+  pickTopSeededCandidates,
+  topSeededPool,
+  hasExplicitForeignAudio,
   hasCachedBrDubbed,
   canAutoFetchBr,
   uncachedBrHashes,

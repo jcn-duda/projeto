@@ -13,6 +13,7 @@ const {
   canAutoFetchBr,
   uncachedBrHashes,
   filterKnownCache,
+  pickTopSeededCandidates,
 } = require('../src/utils/format');
 const { sortAndLimit, toStremioStream, limitReservingBr, dedupeByHash } = require('../src/utils/format');
 const held = require('../src/debrid/protected');
@@ -27,6 +28,16 @@ const { applyDebrid } = require('../src/providers');
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
 const C = 'c'.repeat(40);
+
+test('pickTopSeededCandidates respeita o piso e o teto de dois', () => {
+  const low = stream(A, { title: 'Lost Girl S03E01 HDTV', _seeders: 1 });
+  const first = stream(B, { title: 'Lost Girl S03 720p x265', _seeders: 6 });
+  const second = stream(C, { title: 'Lost Girl S03 1080p', _seeders: 4 });
+  assert.deepEqual(
+    pickTopSeededCandidates([low, first, second], new Set(), 2, { season: 3, minSeeders: 3 }).map((s) => s.infoHash),
+    [B, C],
+  );
+});
 
 const stream = (infoHash, extra = {}) => ({ infoHash, name: 'Release', ...extra });
 

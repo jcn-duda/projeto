@@ -252,6 +252,14 @@ const config = {
     // mais a conta. Clamp 1..4: 0 não desliga o recurso (quem desliga é o toggle
     // DEBRID_AUTO_FETCH_BR); o teto superior 4 respeita o contrato de "até 4".
     autoFetchMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 4)))),
+    // Séries antigas sem dublagem ainda podem ter um pack saudável. O limite é
+    // separado do autofetch dublado para não encher a conta com até quatro
+    // torrents apenas porque o episódio não tem áudio PT.
+    autoFetchTopSeeds: String(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS || 'true') === 'true',
+    autoFetchTopSeedsMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS_MAX, 2)))),
+    // Um torrent com poucos pares costuma morrer na fila do debrid; abaixo de
+    // três seeders o download não é uma alternativa saudável ao episódio vazio.
+    autoFetchMinSeeders: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MIN_SEEDERS, 3))),
     // Recheck pós-enfileiramento: depois de aceitar um torrent, o addon volta a
     // perguntar ao debrid se ele já toca (sem o teto do deadline — é um passe
     // de fundo). Quando fica pronto, o cache da busca é esquecido para a
@@ -283,6 +291,15 @@ const config = {
   // sobrado, aconteça o que acontecer. Era literal (2000) dentro do cálculo da
   // graça, e por isso baixar a reserva encolhia a janela BR em vez de ampliá-la.
   debridCheckFloor: num(process.env.DEBRID_CHECK_FLOOR_MS, 1500),
+  search: {
+    // A busca complementar de pack fica no passe tardio: duas varreduras de
+    // Jackett em série não cabem no deadline da resposta.
+    packTail: String(process.env.SEARCH_PACK_TAIL || 'true') === 'true',
+    // Episódio abaixo deste piso é fraco; o pack pode ter um swarm saudável.
+    packMinSeeders: Math.max(0, Math.trunc(num(process.env.SEARCH_PACK_MIN_SEEDERS, 3))),
+    // Sem uma fonte tocável, explica ao cliente por que a lista não ficou vazia.
+    noticeStream: String(process.env.SEARCH_NOTICE_STREAM || 'true') === 'true',
+  },
 };
 
 module.exports = config;

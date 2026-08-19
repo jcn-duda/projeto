@@ -16,6 +16,7 @@ const {
   markDebridName,
   pickBrDubbedCandidates,
   pickAnyDubbedCandidates,
+  pickTopSeededCandidates,
   hasCachedBrDubbed,
   canAutoFetchBr,
   filterKnownCache,
@@ -77,6 +78,13 @@ function autoFetchCandidates(streams, { season } = {}) {
     candidates = pickAnyDubbedCandidates(streams, new Set(), config.debrid.autoFetchMax, { season });
     pool = 'any';
     if (candidates.length > 0) metrics.count('autofetch.any-dubbed');
+  }
+  if (candidates.length === 0 && season != null && config.debrid.autoFetchTopSeeds) {
+    candidates = pickTopSeededCandidates(streams, new Set(), config.debrid.autoFetchTopSeedsMax, {
+      season, minSeeders: config.debrid.autoFetchMinSeeders,
+    });
+    pool = 'seeds';
+    if (candidates.length > 0) metrics.count('autofetch.top-seeded');
   }
   if (candidates.length === 0) metrics.count('autofetch.no-candidate');
   const account = accountScope(debridApiKey);
@@ -155,6 +163,7 @@ function enqueueAutofetch({ stream, account, pool }, { cached, season, episode, 
       held.release(stream.infoHash, account);
       log.warn('[autofetch] falhou:', err?.message || err);
     });
+  return true;
 }
 
 /**
@@ -219,13 +228,13 @@ function runRecheck(searchKey) {
 }
 
 function autoFetchBrDubbed(streams, candidates, { cached, known, season, episode, searchKey }) {
-  if (!candidates || candidates.length === 0) return;
+  if (!candidates || candidates.length === 0) return 0;
 
   // `known:false` não é "nada em cache" — é "não perguntei". Sem resposta
   // confiável não dá para saber o que falta: libera os holds e não enfileira.
   if (!known) {
     releaseAllHolds(candidates);
-    return;
+    return 0;
   }
 
   // Gate por pool — os dois nunca coexistem (o global só é escolhido quando o
@@ -234,15 +243,18 @@ function autoFetchBrDubbed(streams, candidates, { cached, known, season, episode
   //   próxima release pior encheria a conta do usuário sem melhorar o play;
   // - global: só dispara quando NADA toca — qualquer stream pronto (dublado
   //   ou não) já entrega play sem gastar a conta.
-  const stop = candidates[0].pool === 'any' ? cached.size > 0 : hasCachedBrDubbed(streams, cached);
+  const stop = candidates[0].pool === 'any' || candidates[0].pool === 'seeds'
+    ? cached.size > 0 : hasCachedBrDubbed(streams, cached);
   if (stop) {
     releaseAllHolds(candidates);
-    return;
+    return 0;
   }
 
+  let enqueued = 0;
   for (const selected of candidates) {
-    enqueueAutofetch(selected, { cached, season, episode, searchKey });
+    enqueued += enqueueAutofetch(selected, { cached, season, episode, searchKey }) ? 1 : 0;
   }
+  return enqueued;
 }
 
 /**
@@ -281,20 +293,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
     timeoutMs != null ? { timeoutMs } : {},
   );
   const checkMs = Date.now() - checkStarted;
-  if (onCacheResult) {
-    onCacheResult({
-      known,
-      // Serviço que sabe consultar cache mas voltou unknown sofreu prazo ou
-      // falha. Inclusive no passe tardio isso não pode virar `debridKnown:true`.
-      //
-      // Serviço inutilizável é a exceção: revalidar não muda nada enquanto o
-      // usuário não trocar a chave ou esvaziar a conta, e pedir refresh a cada
-      // request fazia TODA busca refazer Jackett + resolvers BR (medido: 7s por
-      // busca, com o cache nunca assentando). O TTL normal ainda expira, então
-      // a próxima janela tenta de novo sozinha.
-      needsFullRefresh: adapter.cacheCheck && !known && !unusable,
-    });
-  }
+  const needsFullRefresh = adapter.cacheCheck && !known && !unusable;
   // Chave recusada ou conta cheia: a lista inteira sairia como `[AD download]`
   // apontando para o /resolve, e TODO play morreria lá — os dois casos barram o
   // upload, que é como o serviço resolve. Como torrent puro ela ao menos toca.
@@ -305,6 +304,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
     // numa conta que recusa upload só gera erro em série. Libera todos os holds
     // para que os hashes voltem à limpeza normal.
     releaseAllHolds(candidates);
+    if (onCacheResult) onCacheResult({ known, needsFullRefresh: false, autofetchCount: 0 });
     log.warn(
       `[debrid] ${adapter.label} indisponível (${unusable.reason}); ` +
         `${streams.length} stream(s) devolvido(s) como P2P (sem ⚡)`,
@@ -312,7 +312,12 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
     return streams;
   }
 
-  autoFetchBrDubbed(streams, candidates, { cached, known, season, episode, searchKey });
+  const autofetchCount = autoFetchBrDubbed(streams, candidates, { cached, known, season, episode, searchKey });
+  if (onCacheResult) onCacheResult({
+    known,
+    needsFullRefresh,
+    ...(autofetchCount ? { autofetchCount } : {}),
+  });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
   const viaDebrid = (s, instant) => {
     // Pack multi-obra: o /resolve precisa saber que aqui NÃO vale cair no maior
@@ -655,18 +660,22 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   const finish = createLatestWriter(
     async ({ items, partial, deadlineAt: inputDeadline }) => {
       let needsDebridRefresh = false;
+      let autofetchCount = 0;
       const streams = await buildStreams(items, {
         meta, titles, season, episode, isDemo, searchKey: cacheKey,
         deadlineAt: inputDeadline,   // presente SÓ no passo de resposta
-        onDebridResult: (result) => { needsDebridRefresh = result.needsFullRefresh; },
+         onDebridResult: (result) => {
+           needsDebridRefresh = needsDebridRefresh || result.needsFullRefresh;
+           autofetchCount += result.autofetchCount || 0;
+         },
       });
-      return { streams, partial, needsDebridRefresh };
+      return { streams, partial, needsDebridRefresh, autofetchCount };
     },
     ({ streams, partial, needsDebridRefresh }) => {
       // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco
       // tempo. Lote parcial idem: o passe tardio reescreve, mas se ele falhar o
       // TTL curto evita servir a lista sem as fontes BR por 15 minutos.
-      const complete = streams.length && !partial && !needsDebridRefresh;
+      const complete = streams.some((s) => s && (s.url || s.infoHash)) && !partial && !needsDebridRefresh;
       // `debridKnown` registra se ESTA lista nasceu de uma checagem de cache
       // confiável. Sem ele, `partial:false` era usado como prova de "já
       // processado" — e o passe tardio promove a entrada SEM refazer a
@@ -723,8 +732,12 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   // ainda pode receber a fonte BR no passe tardio; só ampliamos o gatilho antigo
   // quando a coleta terminou e o filtro compartilhado provou que tudo era lixo.
   const relevant = filterRelevantRaw(raw.items, matchContext);
+  const episodeIsWeak = season != null && !raw.partial && relevant.length > 0 &&
+    !relevant.some((item) => Number(item.seeders ?? item.Seeders ?? 0) >= config.search.packMinSeeders);
   const needsPack = raw.items.length === 0 || (!raw.partial && relevant.length === 0);
+  let usedPackFallback = false;
   if (needsPack && season != null && !isDemo) {
+    usedPackFallback = true;
     // O passe tardio da busca por episódio não pode sobrescrever o pack que
     // estamos prestes a buscar. `advance` invalida qualquer escrita antiga,
     // inclusive uma build que já começou e ainda está no debrid.
@@ -748,6 +761,36 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   const responsePhase = finish.phase();
   if (raw.sweepInline) metrics.count('search.pt-sweep.inline');
   const result = await finish({ ...raw, deadlineAt }, responsePhase);
+
+  // O episódio fraco já ocupou o caminho crítico; o pack é uma segunda busca
+  // complementar no tail. Mesclar, em vez de substituir, preserva releases do
+  // episódio e permite ao autofetch escolher o swarm saudável do pack.
+  if (config.search.packTail && episodeIsWeak && !usedPackFallback && season != null && !isDemo) {
+    const s = String(season).padStart(2, '0');
+    const packQuery = `${searchMeta.name} S${s}`;
+    const ptPackQuery = ptQuery && titles?.pt ? `${titles.pt} S${s}` : null;
+    enqueueTail(async () => {
+      metrics.count('search.pack-tail.run');
+      const started = Date.now();
+      try {
+        log.info(`[search] sem candidato saudável; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`);
+        const pack = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, null, sweepQuery);
+        if (pack.partial && pack.completion) await pack.completion;
+        const known = new Set(raw.items.map((item) => extractInfoHash(item.infoHash || item.magnet)).filter(Boolean));
+        const fresh = pack.items.filter((item) => {
+          const hash = extractInfoHash(item.infoHash || item.magnet);
+          return hash && !known.has(hash);
+        });
+        if (!fresh.length) return;
+        raw.items.push(...fresh);
+        metrics.count('search.pack-tail.hit');
+        log.info(`[search] pack tardio trouxe ${fresh.length} resultado(s) novo(s); recacheando`);
+        await finish({ items: raw.items, partial: false }, responsePhase);
+      } finally {
+        metrics.observe('search.pack-tail', Date.now() - started);
+      }
+    });
+  }
 
   // Quanto a coleta ainda levou DEPOIS de responder. É o número que diz se o
   // passe tardio virou a regra — e ele só existe quando a resposta saiu
@@ -859,6 +902,7 @@ async function buildStreams(
   { meta, titles, season, episode, isDemo, searchKey, deadlineAt, onDebridResult },
 ) {
   let raw = rawInput;
+  let autofetchCount = 0;
 
   // No modo demo, se não for BBB, lista vazia (esperado)
   if (isDemo && raw.length === 0) {
@@ -988,7 +1032,10 @@ async function buildStreams(
     episode,
     searchKey,
     deadlineAt,
-    onCacheResult: onDebridResult,
+    onCacheResult: (result) => {
+      autofetchCount += result.autofetchCount || 0;
+      if (onDebridResult) onDebridResult(result);
+    },
     workHint,
   });
   streams = limitReservingBr(beforeCut, {
@@ -1000,6 +1047,15 @@ async function buildStreams(
     maxPerIndexer,
     indexerLimits: safeIndexerLimits,
   });
+
+  if (config.search.noticeStream && beforeCut.length > 0 && streams.length === 0 && config.debrid.publicUrl) {
+    streams = [{
+      name: autofetchCount > 0
+        ? '⏳ Baixando no debrid — reabra em alguns minutos'
+        : `Nenhuma fonte pronta — ${beforeCut.length} resultado(s) fora do cache`,
+      externalUrl: `${config.debrid.publicUrl}${prefix()}/configure`,
+    }];
+  }
 
   // "A dublada não ficou em cima" é a queixa mais comum e tem três causas
   // distintas (não veio da fonte / veio mas foi cortada / veio e ficou abaixo).

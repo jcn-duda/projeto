@@ -33,10 +33,31 @@ const {
   parseStremioId,
   buildSearchQuery,
   numeralSearchVariant,
+  topSeededPool,
+  pickTopSeededCandidates,
 } = require('../src/utils/format');
 
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
+
+test('topSeededPool rejeita CAM, piso e idiomas estrangeiros explícitos', () => {
+  const streams = [
+    { infoHash: '1'.repeat(40), title: 'Lost Girl S03 TrueFrench 1080p', _seeders: 10 },
+    { infoHash: '2'.repeat(40), title: 'Lost Girl S03 FRENCH 1080p', _seeders: 9 },
+    { infoHash: '3'.repeat(40), title: 'Lost Girl S03 CAM MULTI 1080p', _seeders: 20 },
+    { infoHash: '4'.repeat(40), title: 'Lost Girl S03 MULTI 720p', _seeders: 6 },
+    { infoHash: '5'.repeat(40), title: 'Lost Girl S03 720p', _seeders: 1 },
+  ];
+  assert.deepEqual(topSeededPool(streams, { season: 3, minSeeders: 3 }).map((s) => s.infoHash), ['4'.repeat(40)]);
+});
+
+test('topSeededPool prefere pack, depois seeders e deixa PT explícito passar', () => {
+  const pack = { infoHash: '6'.repeat(40), title: 'Lost Girl S03 720p MULTI', _seeders: 4 };
+  const episode = { infoHash: '7'.repeat(40), title: 'Lost Girl S03E01 1080p DUBLADO PT-BR', _seeders: 12 };
+  const highQuality = { infoHash: '8'.repeat(40), title: 'Lost Girl S03 2160p', _seeders: 4 };
+  assert.equal(topSeededPool([episode, highQuality, pack], { season: 3, minSeeders: 3 })[0], pack);
+  assert.equal(pickTopSeededCandidates([episode, highQuality, pack], new Set(), 2, { season: 3, minSeeders: 3 }).length, 2);
+});
 
 test('extractInfoHash aceita hash puro, magnet e base32', () => {
   assert.equal(extractInfoHash(HASH), HASH);
