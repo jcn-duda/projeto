@@ -1171,14 +1171,13 @@ async function buildStreams(
     if (season != null) return 'Nada pronto ainda — procurando a temporada; reabra em instantes';
     return null;
   };
-  // PUBLIC_URL é o origin certo (VPS/HTTPS). Sem ela o aviso ainda precisa
-  // aparecer — lista vazia em LAN era silêncio. 127.0.0.1 só serve esta
-  // máquina; Fire TV na rede local pede PUBLIC_URL de verdade.
+  // Sem PUBLIC_URL não há origin honesto para o aparelho remoto. Expor o
+  // loopback faria Fire TV abrir a própria máquina, não a página do addon.
   if (config.search.noticeStream && streams.length === 0) {
     const name = noticeText();
     if (name) {
-      const origin = (config.debrid.publicUrl || `http://127.0.0.1:${config.port}`).replace(/\/$/, '');
-      streams = [{ name, externalUrl: `${origin}${prefix()}/configure` }];
+      const origin = config.debrid.publicUrl?.replace(/\/$/, '');
+      streams = [{ name, ...(origin ? { externalUrl: `${origin}${prefix()}/configure` } : {}) }];
     }
   }
 

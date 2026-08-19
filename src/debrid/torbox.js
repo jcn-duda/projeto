@@ -12,12 +12,9 @@ function envelopeMessage(data) {
   return '';
 }
 
-async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
-  const url = new URL(`${API}${path}`);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const data = await json(url, { method, headers: { Authorization: `Bearer ${apiKey}` }, body });
-  // Envelope `{success, error, detail, data}`: o `detail` é a mensagem pronta
-  // para o usuário e até agora ia embora. Sem ele o play falho só dizia "data".
+function unwrapEnvelope(data) {
+  // TorBox devolve erro de limite com HTTP 200. A checagem de cache também
+  // precisa subir esse envelope: lista vazia seria lida como "nada em cache".
   if (data && data.success === false) {
     const code = String(data.error || '');
     const message = envelopeMessage(data) || code || 'torbox retornou erro';
@@ -29,6 +26,13 @@ async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
   return data;
 }
 
+async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
+  const url = new URL(`${API}${path}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  const data = await json(url, { method, headers: { Authorization: `Bearer ${apiKey}` }, body });
+  return unwrapEnvelope(data);
+}
+
 /** Um dos poucos que ainda expõe checagem de cache em lote. */
 async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
   return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
@@ -37,10 +41,10 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
     url.searchParams.set('format', 'list');
     url.searchParams.set('list_files', 'false');
 
-    const res = await json(url, {
+    const res = unwrapEnvelope(await json(url, {
       headers: { Authorization: `Bearer ${apiKey}` },
       timeout: ctx?.timeoutMs ?? config.debrid.cacheCheckTimeout,
-    });
+    }));
     // `data` vem como lista de objetos com hash, ou como mapa hash → info.
     const data = res?.data;
     const hashes = Array.isArray(data)

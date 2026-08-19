@@ -277,6 +277,7 @@ async function accountStatus() {
       ? ACCOUNT_WARN_LIMIT_USED > 0 && status.limitUsed >= ACCOUNT_WARN_LIMIT_USED
       : Number(status.magnets) >= ACCOUNT_WARN_TOTAL;
     const warnAt = byFairUse ? ACCOUNT_WARN_LIMIT_USED : ACCOUNT_WARN_TOTAL;
+    const warnAtUnit = byFairUse ? 'fair-use' : 'magnets';
     if (warn) {
       if (byFairUse) {
         log.warn(
@@ -293,13 +294,14 @@ async function accountStatus() {
       }
     }
     return {
+      ...status,
       ok: true,
       service: adapter.id,
       label: adapter.label,
       supported: true,
       warn,
       warnAt,
-      ...status,
+      warnAtUnit,
     };
   } catch (err) {
     const reason = failureReason(err);

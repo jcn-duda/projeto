@@ -56,6 +56,9 @@ const QUOTA_MESSAGE = /MAGNET_TOO_MANY_ACTIVE|magnets? limit reached|too many ac
 
 function isQuotaError(error) {
   if (!error) return false;
+  // Rate limit também pode mencionar "limit reached". A marca tipada vence o
+  // regex amplo: esperar é transitório, enquanto quota degrada a lista a P2P.
+  if (error.isRateLimitError) return false;
   if (error.isQuotaError) return true;
   return QUOTA_MESSAGE.test(String(error.message || ''));
 }
@@ -123,6 +126,7 @@ async function json(url, { method = 'GET', headers = {}, body, timeout } = {}) {
     }
     const message = `HTTP ${res.status}${detail ? ` — ${detail}` : ''}`;
     if (res.status === 401 || res.status === 403) throw new AuthError(message);
+    if (res.status === 429) throw new RateLimitError(message);
     throw new Error(message);
   }
   return res.json();

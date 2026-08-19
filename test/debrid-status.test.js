@@ -336,3 +336,45 @@ test('com config na URL o verificador olha a chave DAQUELA instalação', async 
     restore();
   }
 });
+
+// --- A unidade do warnAt: número sem unidade é número mágico ---------------
+
+test('a rota expõe a unidade dos magnets no warnAt', async () => {
+  // O limiar viaja na resposta justamente para não virar número mágico no
+  // cliente; sem a unidade, 800 não diz de quê. O contrato é o corpo do
+  // /debrid-status carregar warnAtUnit junto.
+  const restore = mockAccount(500);
+  const { app } = createApp();
+  try {
+    const { status, body } = await request(app, '/debrid-status.json', {
+      'X-Indexer-Test-Token': TOKEN,
+    });
+    assert.equal(status, 200);
+    assert.equal(body.warnAt, 800);
+    assert.equal(body.warnAtUnit, 'magnets');
+  } finally {
+    restore();
+  }
+});
+
+test('warnAt do fair-use carrega a unidade explícita no corpo', async () => {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('127.0.0.1')) return realFetch(url, init);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'success', limit_used: 0.42, premium_until: 1799999999 }),
+    };
+  };
+  try {
+    const status = await withPremiumize(() => debrid.accountStatus());
+    assert.equal(status.warnAt, 0.8);
+    assert.equal(status.warnAtUnit, 'fair-use');
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});

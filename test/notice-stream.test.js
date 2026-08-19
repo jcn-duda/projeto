@@ -58,7 +58,7 @@ test('série sem nenhum candidato avisa que a temporada está sendo procurada', 
   assert.ok(streams[0].externalUrl);
 });
 
-test('aviso continua saindo sem PUBLIC_URL (lista vazia em LAN não pode ser silêncio)', async () => {
+test('aviso sem PUBLIC_URL não expõe loopback inválido para aparelho remoto', async () => {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   config.debrid.publicUrl = '';
@@ -82,8 +82,7 @@ test('aviso continua saindo sem PUBLIC_URL (lista vazia em LAN não pode ser sil
       }));
     assert.equal(streams.length, 1);
     assert.match(streams[0].name, /procurando a temporada/);
-    assert.match(streams[0].externalUrl, /127\.0\.0\.1/);
-    assert.match(streams[0].externalUrl, /\/segcfg\/configure/);
+    assert.equal(streams[0].externalUrl, undefined);
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;

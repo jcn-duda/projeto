@@ -275,6 +275,11 @@ test('isQuotaError separa conta cheia de falha transitória', () => {
   assert.equal(isQuotaError(new Error('Magnets limit reached (1000 accross all tabs)')), true);
   assert.equal(isQuotaError(new Error('MAGNET_TOO_MANY_ACTIVE')), true);
   assert.equal(isQuotaError(new QuotaError('x')), true);
+  assert.equal(
+    isQuotaError(new RateLimitError('request limit reached')),
+    false,
+    'marca transitória tem precedência sobre o regex amplo de quota',
+  );
   assert.equal(isQuotaError(new Error('timeout')), false);
   assert.equal(isQuotaError(new Error('AUTH_BAD_APIKEY')), false, 'chave inválida tem conserto próprio');
 });
@@ -495,5 +500,127 @@ test('cooldown na checagem de cache é transitório: known:false, sem unusable',
     assert.equal(result.unusable, undefined, 'cooldown não é auth/quota: a lista NÃO vira P2P');
   } finally {
     debrid.BY_ID.set('premiumize', original);
+  }
+});
+
+// --- Envelope success:false na CHECAGEM do TorBox (não só no play) ---------
+
+test('torbox: ACTIVE_LIMIT no envelope da checagem vira QuotaError', async () => {
+  // O `call` do adaptador classifica o envelope `{success:false, error:...}` —
+  // mas a checagem de cache usa o `json` direto. O contrato: conta no teto de
+  // magnets na hora da checagem é o MESMO estado estrutural do play (quota),
+  // e o orquestrador degrada a lista para P2P em vez de marcar "nada em cache".
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      success: false,
+      error: 'ACTIVE_LIMIT',
+      detail: 'Account has reached the active torrent limit',
+    }),
+  });
+
+  try {
+    await assert.rejects(
+      () => torbox.checkCached('chave', ['a'.repeat(40)]),
+      (err) => {
+        assert.equal(err.isQuotaError, true, 'ACTIVE_LIMIT é cota, não falha genérica');
+        assert.equal(err.isAuthError, undefined, 'e não é credencial recusada');
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
+test('torbox: COOLDOWN_LIMIT no envelope da checagem vira RateLimitError', async () => {
+  // Mesma regra do play: cooldown é rajada, não cota — a resposta do serviço
+  // diz para esperar, e a lista NÃO pode virar P2P por causa disso.
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      success: false,
+      error: 'COOLDOWN_LIMIT',
+      detail: 'Too many requests, please wait',
+    }),
+  });
+
+  try {
+    await assert.rejects(
+      () => torbox.checkCached('chave', ['a'.repeat(40)]),
+      (err) => {
+        assert.equal(err.isRateLimitError, true, 'cooldown é rate limit, não cota');
+        assert.equal(err.isQuotaError, undefined);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
+// --- HTTP 429 no transporte: rate limit, não falha genérica -----------------
+
+test('json: HTTP 429 vira RateLimitError', async () => {
+  // 401/403 já viram AuthError no `json`; o contrato é 429 entrar na mesma
+  // categoria própria de rate limit, senão o log diz "falhou" em vez de
+  // "espera um minuto e tenta de novo" (o passe tardio refaz).
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 429,
+    text: async () => 'rate limited, tente de novo em instantes',
+    json: async () => ({}),
+  });
+
+  try {
+    await assert.rejects(
+      () => json('https://x.test/a'),
+      (err) => err.isRateLimitError === true,
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
+test('torbox: HTTP 429 na checagem propaga como RateLimitError, não "nenhum lote"', async () => {
+  // Preferência pelo adaptador: é o caminho que a busca percorre. A marca
+  // precisa sobreviver ao batched — todos os lotes recusados com a MESMA causa
+  // sobem classificados, e a mensagem "nenhum lote respondeu" apagaria o motivo.
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 429,
+    text: async () => 'slow down',
+    json: async () => ({}),
+  });
+
+  try {
+    await assert.rejects(
+      () => torbox.checkCached('chave', ['a'.repeat(40)]),
+      (err) => {
+        assert.equal(err.isRateLimitError, true);
+        assert.doesNotMatch(err.message, /nenhum lote/, 'a causa não pode se perder no batched');
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
   }
 });
