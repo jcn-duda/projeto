@@ -389,7 +389,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
 
-async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
+async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate, sweepQuery = null) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
   const tasks = [];
@@ -415,10 +415,12 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate) {
         selectedIndexers,
         config.jackett.ptBrIndexers,
         config.jackett.slowIndexers,
+        sweepQuery,
       )) {
         const priority = planned.indexers.some((indexer) =>
           config.jackett.ptBrIndexers.includes(indexer),
         );
+        if (sweepQuery && planned.query === sweepQuery) metrics.count('search.pt-sweep.inline');
         addTask(jackett.search(planned.query, type, planned.indexers, {
           fallbackQuery: planned.fallback,
           variantQuery: planned.variant,
@@ -698,9 +700,11 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     season,
     episode,
   };
+  const sweepQuery = ptSweepQueryFor({ season, titles, activePtQuery });
   const episodePhase = finish.phase();
   let raw = await collectRaw(query, type, imdbId, ptQuery, matchContext, (items, grew, partial) =>
     late(items, grew, episodePhase, partial),
+    sweepQuery,
   );
 
   // Série sem candidato útil por episódio tenta o pack. Lote parcial não-vazio
@@ -726,6 +730,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     );
     raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, (items, grew, partial) =>
       late(items, grew, packPhase, partial),
+      sweepQuery,
     );
   }
 
@@ -780,17 +785,18 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   const sweepSelectedIndexers = [...new Set((configuredIndexers || []).filter((idx) =>
     SAFE_INDEXER_ID.test(String(idx)),
   ))];
-  // Filme usa o título pt-BASE (sem subtítulo, sem ano): tracker global casa
-  // por palavras, e "Jornada nas Estrelas: O Filme 1979" devolvia 1 num único
-  // indexer quando "Jornada nas Estrelas" devolvia 13 em três. Série continua
-  // com activePtQuery (com SxxEyy/pack): sem o marcador o indexer devolve a
-  // temporada inteira e o corte por episódio chega depois. O gate "pt difere
-  // do original" fica aqui — sem ele, rodava em todo filme.
-  const sweepQuery = ptSweepQueryFor({ season, titles, activePtQuery });
+  const sweepCritical = Boolean(
+    config.jackett.ptSweepGlobal && wantsJackettSweep && sweepQuery &&
+    ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers)
+      .some((indexer) => !config.jackett.slowIndexers.includes(indexer)),
+  );
+  // A query já foi anexada ao plano crítico: título pt-BASE para filme e série,
+  // sem subtítulo, ano ou SxxEyy. Os globais publicam episódios como
+  // "T01 E004"; o matchContext faz o corte preciso depois da coleta.
   if (config.jackett.ptSweepGlobal && wantsJackettSweep && sweepQuery && sweepSelectedIndexers.length > 0) {
     const sweepTargets = ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers);
     if (sweepTargets.length > 0) {
-      enqueueTail(async () => {
+      if (raw.partial || !sweepCritical) enqueueTail(async () => {
         metrics.count('search.pt-sweep.run');
         const sweepStarted = Date.now();
         try {

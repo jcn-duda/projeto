@@ -804,6 +804,14 @@ function parseTitleSeasonEpisode(title = '') {
     }
   }
 
+  // Sites BR usam "T01 E004". O T só é aceito quando vem acompanhado do E;
+  // assim palavras como "The" e "Torrent" não viram temporada por acidente.
+  for (const m of t.matchAll(/(?:^|\s)t(\d{1,2})(?=\s+e\s?\d{1,3})/g)) {
+    seasons.add(Number(m[1]));
+    const tail = t.slice(m.index + m[0].length);
+    for (const e of tail.matchAll(/e\s?(\d{1,3})/g)) episodes.add(Number(e[1]));
+  }
+
   // "1x04"
   for (const m of t.matchAll(/(\d{1,2})x(\d{1,3})/g)) {
     seasons.add(Number(m[1]));

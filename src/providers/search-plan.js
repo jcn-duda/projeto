@@ -6,7 +6,7 @@
  */
 const { numeralSearchVariant } = require('../utils/format');
 
-function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isolateIndexers = []) {
+function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isolateIndexers = [], sweepQuery = null) {
   const brSet = new Set(ptBrIndexers);
   const isolateSet = new Set([...ptBrIndexers, ...isolateIndexers]);
   const grouped = [];
@@ -36,7 +36,10 @@ function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isol
   }
 
   const plan = [];
-  if (grouped.length) plan.push({ query, indexers: grouped });
+  if (grouped.length) {
+    plan.push({ query, indexers: grouped });
+    if (sweepQuery && sweepQuery !== query) plan.push({ query: sweepQuery, indexers: [...grouped] });
+  }
   plan.push(...isolated);
   return plan;
 }
@@ -104,7 +107,10 @@ function ptSweepQuery(titlePt) {
  *   a busca GLOBAL principal já cobriu o título em inglês.
  */
 function ptSweepQueryFor({ season, titles, activePtQuery }) {
-  if (season != null) return activePtQuery || null;
+  if (season != null) {
+    if (!titles?.pt || titles.pt === titles.original) return null;
+    return ptSweepQuery(titles.pt) || null;
+  }
   if (!titles?.pt || titles.pt === titles.original) return null;
   return ptSweepQuery(titles.pt) || null;
 }

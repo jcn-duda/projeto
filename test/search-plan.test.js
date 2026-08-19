@@ -163,6 +163,21 @@ test('BR com título sem romano NÃO carrega variante (forma antiga preservada)'
 // na varredura seria consultar duas vezes o mesmo site pela mesma coisa.
 const { ptSweepIndexers } = require('../src/providers/search-plan');
 
+test('planJackettQueries acrescenta sweep apenas aos globais', () => {
+  assert.deepEqual(
+    planJackettQueries('Star Trek', 'Jornada nas Estrelas', ['thepiratebay', 'bludv-cardigann'], ['bludv-cardigann'], [], 'Jornada nas Estrelas'),
+    [
+      { query: 'Star Trek', indexers: ['thepiratebay'] },
+      { query: 'Jornada nas Estrelas', indexers: ['thepiratebay'] },
+      { query: 'Jornada nas Estrelas', indexers: ['bludv-cardigann'], fallback: 'Star Trek' },
+    ],
+  );
+  assert.deepEqual(
+    planJackettQueries('Jornada nas Estrelas', 'Jornada nas Estrelas', ['thepiratebay'], [], [], 'Jornada nas Estrelas'),
+    [{ query: 'Jornada nas Estrelas', indexers: ['thepiratebay'] }],
+  );
+});
+
 test('ptSweepIndexers devolve só os globais selecionados', () => {
   assert.deepEqual(
     ptSweepIndexers(
@@ -254,19 +269,16 @@ test('ptSweepQueryFor filme sem pt algum devolve null', () => {
   );
 });
 
-test('ptSweepQueryFor série usa activePtQuery direto (com SxxEyy/pack)', () => {
+test('ptSweepQueryFor série usa o título localizado sem SxxEyy', () => {
   // Série: ptSweepQuery NUNCA é chamado — o activePtQuery já carrega o gate
   // "pt difere do original" e o marcador SxxEyy/pack do qual o corte por
   // episódio depende.
-  const titles = { pt: 'Fallout', original: 'Fallout' };
-  assert.equal(
-    ptSweepQueryFor({ season: 1, titles, activePtQuery: 'Fallout S01E01' }),
-    'Fallout S01E01',
-  );
+  const titles = { pt: 'Queda', original: 'Fallout' };
+  assert.equal(ptSweepQueryFor({ season: 1, titles: { pt: 'Jornada nas Estrelas', original: 'Star Trek' }, activePtQuery: 'Jornada nas Estrelas S01E04' }), 'Jornada nas Estrelas');
   // Pack fallback: activePtQuery foi reatribuído para "Título S01".
   assert.equal(
-    ptSweepQueryFor({ season: 1, titles, activePtQuery: 'Fallout S01' }),
-    'Fallout S01',
+    ptSweepQueryFor({ season: 1, titles, activePtQuery: 'Queda S01' }),
+    'Queda',
   );
 });
 

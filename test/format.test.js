@@ -629,6 +629,18 @@ test('sortAndLimit pode priorizar áudio dublado dentro da mesma qualidade', () 
   assert.match(sortAndLimit([legendado, dublado], { preferDubbed: true })[0].title, /Dublado/);
 });
 
+test('parseTitleSeasonEpisode entende T01 E004 sem interpretar T isolado', () => {
+  assert.deepEqual(parseTitleSeasonEpisode('Jornada nas Estrelas T01 E004 Dublado').seasons, [1]);
+  assert.deepEqual(parseTitleSeasonEpisode('Jornada nas Estrelas T01 E004 Dublado').episodes, [4]);
+  assert.equal(matchesEpisode('Jornada nas Estrelas T01 E004 Dublado', { season: 1, episode: 5 }), false);
+  assert.deepEqual(parseTitleSeasonEpisode('Temporada T').seasons, []);
+  assert.deepEqual(parseTitleSeasonEpisode('Temporada T').episodes, []);
+});
+
+test('parseTitleSeasonEpisode preserva lista T01 E001 e E002', () => {
+  assert.deepEqual(parseTitleSeasonEpisode('Serie T01 E001 e E002').episodes, [1, 2]);
+});
+
 test('sortAndLimit não promove DUAL global sobre dublado BR', () => {
   const globalDual = toStremioStream({
     title: 'Movie 1080p DUAL', infoHash: HASH, seeders: 500,
