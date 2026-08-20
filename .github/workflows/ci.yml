@@ -17,10 +17,10 @@ jobs:
       # ser justamente a diferença entre elas.
       fail-fast: false
       matrix:
-        # 18 é o piso declarado em engines; 22 é o que a imagem de produção usa.
-        # Em 18 o node:sqlite não existe e o cache cai só em memória — o teste de
+        # 20 é o piso declarado em engines; 22 é o que a imagem de produção usa.
+        # Em 20 o node:sqlite não existe e o cache cai só em memória — o teste de
         # persistência tem skip explícito pra isso, então as duas versões passam.
-        node: ['18.x', '22.x']
+        node: ['20.x', '22.x']
 
     steps:
       - uses: actions/checkout@v4
@@ -33,12 +33,9 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
-      # Pega erro de sintaxe em arquivo que nenhum teste carrega — os quatro
-      # resolvers BR e os scripts só são exercidos em produção.
-      - name: Checar sintaxe de todos os .js
-        run: |
-          find . -name '*.js' -not -path './node_modules/*' -not -path './.git/*' \
-            -print0 | xargs -0 -n1 node --check
+      # Compila .ts → .js em dist/ e copia assets estáticos (src/public/).
+      - name: Build
+        run: npm run build
 
       # A lista do script `test` é explícita (glob no --test só a partir do
       # Node 21). Sem esta checagem, arquivo de teste novo fica de fora e o
@@ -49,10 +46,9 @@ jobs:
       - name: Testes
         run: npm test
 
-      # Typecheck via JSDoc (`// @ts-check`) não depende da versão de runtime,
-      # então roda só na 22 da matriz para não dobrar o tempo. Adoção é opt-in
-      # por arquivo: checkJs fica false no jsconfig e cada arquivo entra quando
-      # ganha o comentário no topo.
+      # Typecheck (tsc --noEmit) não depende da versão de runtime, então roda
+      # só na 22 da matriz para não dobrar o tempo. Os .ts são checados por
+      # padrão; noImplicitAny continua desligado.
       - name: Verificar tipos
         if: matrix.node == '22.x'
         run: npm run typecheck

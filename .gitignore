@@ -1,4 +1,6 @@
 node_modules/
+# Saída do tsc: dist/src/, dist/test/, dist/scripts/.
+dist/
 .env
 *.log
 .DS_Store

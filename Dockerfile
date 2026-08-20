@@ -18,6 +18,19 @@ FROM lscr.io/linuxserver/jackett@sha256:6d0c43b533f91f4e88fe4b4082a2b576772072db
 # o deploy sem revisão, como já fazemos com o Jackett acima.
 FROM ghcr.io/flaresolverr/flaresolverr@sha256:139dfee1c6f89249c8d665d1333a42e8ec74ec0a86bc6bb1c8461e10d3a66a47 AS flaresolverr
 
+# --- Build: compila .ts → .js em dist/ e copia assets estáticos.
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+COPY types ./types
+COPY scripts ./scripts
+COPY test ./test
+RUN npm run build
+
+# --- Runtime.
 FROM node:22-alpine
 
 WORKDIR /app
@@ -55,15 +68,20 @@ RUN cp /usr/bin/chromedriver /app/chromedriver \
  && python3 -m pip install --break-system-packages --no-cache-dir \
       -r /app/flaresolverr/requirements.txt
 
-# --- Addon + resolvedores BR embutidos (8700-8703, chamados pelo Jackett).
+# --- Addon compilado + resolvedores BR embutidos (8700-8703, chamados pelo Jackett).
 COPY package.json ./
 RUN npm install --omit=dev
 
-COPY src ./src
+# Saída do tsc: dist/src/, dist/test/, dist/scripts/, dist/src/public/ (assets).
+COPY --from=builder /app/dist ./dist
 COPY bludv-resolver/server.js ./bludv-resolver/server.js
+COPY bludv-resolver/package.json ./bludv-resolver/package.json
 COPY comandotorrents-resolver/server.js ./comandotorrents-resolver/server.js
+COPY comandotorrents-resolver/package.json ./comandotorrents-resolver/package.json
 COPY nerdfilmes-resolver/server.js ./nerdfilmes-resolver/server.js
+COPY nerdfilmes-resolver/package.json ./nerdfilmes-resolver/package.json
 COPY torrentdosfilmes-resolver/server.js ./torrentdosfilmes-resolver/server.js
+COPY torrentdosfilmes-resolver/package.json ./torrentdosfilmes-resolver/package.json
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

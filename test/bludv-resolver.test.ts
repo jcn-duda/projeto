@@ -1,0 +1,296 @@
+import { test, describe, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+
+/**
+ * Camada de resolução do bludv-resolver após a paridade com o comandotorrents:
+ * extractMagnet/extractMetaRefresh ampliados, caches de busca e de magnet
+ * (hit, TTL, FIFO, coalescing) e o fallback do resolvePost — tudo com
+ * globalThis.fetch mockado, sem rede.
+ */
+import bludv from '../bludv-resolver/server.js';
+
+const HASH = '0123456789abcdef0123456789abcdef01234567';
+const toStr = (url) => (typeof url === 'string' ? url : url.href);
+const okHtml = (html) => ({ ok: true, status: 200, text: async () => html });
+
+describe('BluDV Resolver: extractMagnet ampliado', () => {
+  const expectedMagnet = `magnet:?xt=urn:btih:${HASH}&dn=Teste.Filme`;
+
+  test('extrai das variáveis novas dos protetores', () => {
+    const vars = [
+      `<script>var LINK_FINAL = "${expectedMagnet}";</script>`,
+      `<script>const DESTINO = "${expectedMagnet}";</script>`,
+      `<script>window.LINK_DOWNLOAD = "${expectedMagnet}";</script>`,
+      `<script>var URL_DOWNLOAD = "${expectedMagnet}";</script>`,
+      `<a data-download="${expectedMagnet}">Baixar</a>`,
+    ];
+    for (const html of vars) {
+      assert.equal(bludv.extractMagnet(html), expectedMagnet, `Falha em: ${html}`);
+    }
+  });
+
+  test('decodifica magnet encoded com & literal (ramo que o padrão antigo cortava)', () => {
+    // O regex antigo parava no primeiro & e perdia dn/tr; e exigia xt primeiro.
+    const encoded = `magnet%3A%3Fdn=Teste.Filme&xt=urn%3Abtih%3A${HASH}&tr=udp%3A%2F%2Ftracker.example.com`;
+    assert.equal(
+      bludv.extractMagnet(`<a href="/redirect?url=${encoded}">Baixar</a>`),
+      `magnet:?dn=Teste.Filme&xt=urn:btih:${HASH}&tr=udp://tracker.example.com`,
+    );
+  });
+
+  test('decodifica magnet encoded com parâmetros invertidos dentro de variável JS', () => {
+    const encoded = `magnet%3A%3Fdn%3DTeste.Filme%26xt%3Durn%3Abtih%3A${HASH}`;
+    assert.equal(
+      bludv.extractMagnet(`<script>var LINK_FINAL = "${encoded}";</script>`),
+      `magnet:?dn=Teste.Filme&xt=urn:btih:${HASH}`,
+    );
+  });
+});
+
+describe('BluDV Resolver: extractMetaRefresh', () => {
+  const target = 'https://videosad.net/go/step2';
+
+  test('aceita as três formas de aspas no content/url', () => {
+    assert.equal(bludv.extractMetaRefresh(`<meta http-equiv="refresh" content="0; url=${target}">`), target);
+    assert.equal(bludv.extractMetaRefresh(`<meta http-equiv='refresh' content='2;url=${target}'>`), target);
+    assert.equal(bludv.extractMetaRefresh(`<meta http-equiv=refresh content=0;URL=${target}>`), target);
+    // Aspas aninhadas e alvo com entidades também entram.
+    assert.equal(bludv.extractMetaRefresh(`<meta content="0; url='${target}'" http-equiv="refresh">`), target);
+    assert.equal(
+      bludv.extractMetaRefresh(`<meta http-equiv="refresh" content="0; url=https://videosad.net/go?id=1&amp;token=x">`),
+      'https://videosad.net/go?id=1&token=x',
+    );
+  });
+
+  test('meta refresh com magnet direto devolve o magnet', () => {
+    const magnet = `magnet:?xt=urn:btih:${HASH}&dn=Filme`;
+    assert.equal(bludv.extractMetaRefresh(`<meta content="1;url='${magnet}'" http-equiv="refresh">`), magnet);
+  });
+
+  test('nextProtectedUrl usa o meta refresh como primeira tentativa', () => {
+    const base = 'https://systemads1.com/go/step1';
+    const html = `<meta http-equiv="refresh" content="0; url=${target}">`;
+    assert.equal(bludv.nextProtectedUrl(html, base), target);
+    // Host fora da allowlist não vira próximo salto.
+    assert.equal(
+      bludv.nextProtectedUrl(`<meta http-equiv="refresh" content="0; url=https://evil.com/x">`, base),
+      null,
+    );
+  });
+});
+
+describe('BluDV Resolver: caches de magnet e de busca', () => {
+  let originalFetch;
+  let protectorHits;
+  let siteHits;
+
+  const POST_URL = 'https://bludvfilmes.xyz/filme-cache/';
+  const POST_HTML = `
+    <h3>DUAL ÁUDIO</h3>
+    <p><a href="https://systemads1.com/go/btn0">1080p Dublado</a></p>
+  `;
+  const TARGET_MAGNET = `magnet:?xt=urn:btih:2222222222222222222222222222222222222222&dn=Filme`;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    protectorHits = 0;
+    siteHits = 0;
+    bludv.postCache.clear();
+    bludv.searchCache.clear();
+    bludv.magnetCache.clear();
+    bludv.inFlight.clear();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  test('resolveButton: hit, TTL e coalescing do magnetCache', async () => {
+    globalThis.fetch = async (url) => {
+      const u = toStr(url);
+      if (u.includes('filme-cache')) return okHtml(POST_HTML);
+      if (u.includes('btn0')) {
+        protectorHits += 1;
+        await new Promise((r) => setTimeout(r, 15));
+        return okHtml(`<script>var DEST_URL = "${TARGET_MAGNET}";</script>`);
+      }
+      throw new Error(`Unexpected url: ${u}`);
+    };
+
+    // Concorrência se funde: duas chamadas simultâneas, uma cadeia só.
+    const [a, b] = await Promise.all([
+      bludv.resolveButton(POST_URL, 0),
+      bludv.resolveButton(POST_URL, 0),
+    ]);
+    assert.equal(a, TARGET_MAGNET);
+    assert.equal(b, TARGET_MAGNET);
+    assert.equal(protectorHits, 1, 'chamadas simultâneas coalescem');
+
+    // Chamada seguinte bate no cache.
+    const c = await bludv.resolveButton(POST_URL, 0);
+    assert.equal(c, TARGET_MAGNET);
+    assert.equal(protectorHits, 1, 'cache responde sem refazer a cadeia');
+
+    // TTL vencido re-resolve.
+    bludv.magnetCache.get(`magnet:${POST_URL}:0`).expiresAt = Date.now() - 1;
+    await bludv.resolveButton(POST_URL, 0);
+    assert.equal(protectorHits, 2, 'entrada vencida é re-resolvida');
+    assert.equal(bludv.inFlight.size, 0);
+  });
+
+  test('magnetCache: aplica limite máximo de entradas (FIFO)', async () => {
+    globalThis.fetch = async (url) => {
+      const u = toStr(url);
+      if (u.includes('filme-cache')) return okHtml(POST_HTML);
+      if (u.includes('btn0')) return okHtml(`<script>var DEST_URL = "${TARGET_MAGNET}";</script>`);
+      throw new Error(`Unexpected url: ${u}`);
+    };
+
+    for (let i = 0; i < 500; i += 1) {
+      bludv.magnetCache.set(`fake:${i}`, { value: 'magnet:?xt=urn:btih:x', expiresAt: Date.now() + 60000 });
+    }
+    await bludv.resolveButton(POST_URL, 0);
+
+    assert.equal(bludv.magnetCache.size, 500, 'teto de 500 entradas');
+    assert.equal(bludv.magnetCache.has('fake:0'), false, 'a entrada mais antiga sai');
+    assert.ok(bludv.magnetCache.has(`magnet:${POST_URL}:0`));
+  });
+
+  test('searchPosts: hit e coalescing do searchCache', async () => {
+    const SEARCH_HTML = `<div class="posts">
+      <div class="post">
+        <div class="title"><a href="https://bludvfilmes.xyz/post-cache/">Post Cache Torrent</a></div>
+      </div>
+    </div>`;
+    const POST_WITH_MAGNET = `
+      <h3>DUAL ÁUDIO</h3>
+      <p><a href="magnet:?xt=urn:btih:5555555555555555555555555555555555555555&dn=c">1080p Dublado</a></p>
+    `;
+    globalThis.fetch = async (url) => {
+      const u = toStr(url);
+      if (u.includes('/?s=')) {
+        siteHits += 1;
+        await new Promise((r) => setTimeout(r, 15));
+        return okHtml(SEARCH_HTML);
+      }
+      if (u.includes('post-cache')) return okHtml(POST_WITH_MAGNET);
+      throw new Error(`Unexpected url: ${u}`);
+    };
+
+    // Concorrência se funde em uma raspagem só.
+    const [r1, r2] = await Promise.all([bludv.searchPosts('post cache'), bludv.searchPosts('post cache')]);
+    assert.equal(r1.length, 1);
+    assert.equal(r2.length, 1);
+    assert.equal(siteHits, 1, 'buscas simultâneas raspam uma vez');
+
+    // Segunda busca (dentro do TTL) não toca o site.
+    const r3 = await bludv.searchPosts('post cache');
+    assert.equal(r3.length, 1);
+    assert.equal(siteHits, 1, 'cache responde sem re-raspar');
+
+    // A normalização da query faz parte da chave.
+    assert.ok(bludv.searchCache.has('search:post cache'));
+  });
+});
+
+describe('BluDV Resolver: fallback do resolvePost e chaves por preferência', () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    bludv.postCache.clear();
+    bludv.searchCache.clear();
+    bludv.magnetCache.clear();
+    bludv.inFlight.clear();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  test('resolvePost: protetor morto no melhor botão cai para o próximo', async () => {
+    const POST_URL = 'https://bludvfilmes.xyz/post-fallback/';
+    const GOOD_MAGNET = `magnet:?xt=urn:btih:7777777777777777777777777777777777777777&dn=Ok`;
+    const calls = [];
+    globalThis.fetch = async (url) => {
+      const u = toStr(url);
+      calls.push(u);
+      if (u.includes('post-fallback')) {
+        return okHtml(`
+          <h3>DUAL ÁUDIO</h3>
+          <p><a href="https://systemads1.com/go/fail1">1080p</a></p>
+          <p><a href="https://videosad.net/go/ok1">720p</a></p>
+        `);
+      }
+      if (u.includes('fail1')) return { ok: false, status: 502 };
+      if (u.includes('ok1')) return okHtml(`<script>var DEST_URL = "${GOOD_MAGNET}";</script>`);
+      throw new Error(`Unexpected url: ${u}`);
+    };
+
+    const magnet = await bludv.resolvePost(POST_URL);
+    assert.equal(magnet, GOOD_MAGNET);
+    assert.ok(calls.some((u) => u.includes('fail1')), 'o primeiro botão foi tentado');
+    assert.ok(calls.some((u) => u.includes('ok1')), 'o fallback foi tentado');
+
+    // Quando NENHUM botão resolve, o erro do último propaga.
+    bludv.postCache.clear();
+    bludv.magnetCache.clear();
+    globalThis.fetch = async (url) => {
+      const u = toStr(url);
+      if (u.includes('post-fallback')) {
+        return okHtml(`<p><a href="https://systemads1.com/go/fail1">1080p</a></p>`);
+      }
+      return { ok: false, status: 502 };
+    };
+    await assert.rejects(() => bludv.resolvePost(POST_URL), /http_502/);
+  });
+
+  test('resolvePost: o fallback para no teto de tentativas', async () => {
+    // Post com 8 botões e o protetor inteiro fora do ar: sem teto, cada botão
+    // consome TIMEOUT_MS (15s) enquanto o Jackett já desistiu em 8s — a task
+    // seguia viva no inFlight segurando socket. O erro do último tentado é o
+    // que propaga.
+    const POST_URL = 'https://bludvfilmes.xyz/post-teto/';
+    const buttons = Array.from(
+      { length: 8 },
+      (_, i) => `<p><a href="https://systemads1.com/go/dead${i}">1080p</a></p>`,
+    ).join('\n');
+    let protectorHits = 0;
+    globalThis.fetch = async (url) => {
+      const u = toStr(url);
+      if (u.includes('post-teto')) return okHtml(`<h3>DUAL ÁUDIO</h3>${buttons}`);
+      protectorHits += 1;
+      return { ok: false, status: 502 };
+    };
+
+    await assert.rejects(() => bludv.resolvePost(POST_URL), /http_502/);
+    assert.equal(protectorHits, 5, 'tenta no máximo MAX_RESOLVE_ATTEMPTS botões');
+    assert.equal(bludv.inFlight.size, 0, 'nada fica pendurado no inFlight');
+  });
+
+  test('resolvePost: a chave da cache distingue as preferências', async () => {
+    // /resolve aceita audio= e quality=; chave sem prefs serviria o magnet
+    // dublado pra quem pediu legendado na segunda chamada.
+    const POST_URL = 'https://bludvfilmes.xyz/post-prefs/';
+    const DUB_MAGNET = `magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=dub`;
+    const LEG_MAGNET = `magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&dn=leg`;
+    globalThis.fetch = async (url) => {
+      const u = toStr(url);
+      if (u.includes('post-prefs')) {
+        return okHtml(`
+          <h3>VERSÃO MKV DUAL ÁUDIO</h3>
+          <p><a href="${DUB_MAGNET}">1080p Dublado</a></p>
+          <h3>VERSÃO MP4 LEGENDADO</h3>
+          <p><a href="${LEG_MAGNET}">720p</a></p>
+        `);
+      }
+      throw new Error(`Unexpected url: ${u}`);
+    };
+
+    assert.equal(await bludv.resolvePost(POST_URL), DUB_MAGNET, 'sem prefs o dublado vence');
+    assert.equal(await bludv.resolvePost(POST_URL, { audio: 'legendado' }), LEG_MAGNET, 'legendado não recebe o cache do dublado');
+
+    assert.ok(bludv.magnetCache.has(`magnet:best:${POST_URL}::`));
+    assert.ok(bludv.magnetCache.has(`magnet:best:${POST_URL}:legendado:`));
+  });
+});

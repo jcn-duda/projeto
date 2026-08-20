@@ -4,9 +4,12 @@
 node_modules
 docker-data
 data
+dist
 .git
 .qoder
 .kilo
+.agents
+spike-esm
 test
 *.md
 jackett-screenshot.png
