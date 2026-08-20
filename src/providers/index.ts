@@ -41,6 +41,7 @@ import * as autofetch from './autofetch.js';
 import { opts, prefix, capture, run, origin } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
+import { noteUserRequest } from './activity.js';
 
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
@@ -77,12 +78,27 @@ function autoFetchCandidates(streams: Stream[], { season }: { season?: number | 
   // título não indexado", que sem fallback significava não baixar nada. O
   // gate de disparo por pool roda depois da checagem (autoFetchBrDubbed).
   let pool = 'br';
-  if (candidates.length === 0 && config.debrid.autoFetchAnyDubbed) {
-    candidates = pickAnyDubbedCandidates(streams, new Set(), config.debrid.autoFetchMax, { season });
+  // O pool global é montado MESMO com o toggle desligado: ele responde "existe
+  // dublado nesta busca?", e é essa resposta que decide se o terceiro nível
+  // pode correr. Sem isso `DEBRID_AUTO_FETCH_ANY=false` virava letra morta — o
+  // pool por swarm pegava o MESMO dublado global que o operador acabou de
+  // recusar, só que por outro caminho.
+  const dubbedGlobal = candidates.length === 0
+    ? pickAnyDubbedCandidates(streams, new Set(), config.debrid.autoFetchMax, { season })
+    : [];
+  if (dubbedGlobal.length > 0) {
+    if (!config.debrid.autoFetchAnyDubbed) return [];
+    candidates = dubbedGlobal;
     pool = 'any';
-    if (candidates.length > 0) metrics.count('autofetch.any-dubbed');
+    metrics.count('autofetch.any-dubbed');
   }
-  if (candidates.length === 0 && season != null && config.debrid.autoFetchTopSeeds) {
+  // Último pool: nada de dublado em lugar nenhum (nem BR, nem global com áudio
+  // PT). Vale para filme E série — o gate `season != null` de antes deixava o
+  // filme sem dublagem alguma cair no vazio: com "somente já em cache" ligado e
+  // nada pronto no debrid, a lista chegava ao usuário com zero opção e nada
+  // sendo baixado para a próxima vez. O pool prioriza swarm justamente porque o
+  // objetivo aqui é o download TERMINAR, não a melhor resolução.
+  if (candidates.length === 0 && config.debrid.autoFetchTopSeeds) {
     candidates = pickTopSeededCandidates(streams, new Set(), config.debrid.autoFetchTopSeedsMax, {
       season, minSeeders: config.debrid.autoFetchMinSeeders,
     });
@@ -155,7 +171,11 @@ function enqueueAutofetch({ stream, account, pool }: any, { cached, season, epis
         // marcadores antigos que podiam ter sido gravados antes da chamada.
         cache.set(key, 1, config.debrid.autoFetchTtl);
         metrics.count('autofetch.enqueued');
-        const poolLabel = pool === 'any' ? 'dublada global (sem BR na busca)' : 'fonte BR dublada';
+        const poolLabel = pool === 'any'
+          ? 'dublada global (sem BR na busca)'
+          : pool === 'seeds'
+            ? 'melhor swarm (nada dublado na busca)'
+            : 'fonte BR dublada';
         log.info(`[autofetch] ${adapter.label} baixando ${poolLabel}: ${label} (${qStr}${seedsStr})`);
         scheduleRecheck(searchKey, stream.infoHash, requestCtx);
       } else {
@@ -222,7 +242,7 @@ function runRecheck(searchKey: string) {
   // conta do usuário) e a checagem iria para o serviço errado.
   Promise.resolve(run(lot.ctx, async () => {
     // Sem timeoutMs: orçamento completo do passe de fundo, como no tardio.
-    const { cached, known } = await debrid.checkCached([...lot.hashes], {});
+    const { cached, known } = await debrid.checkCached([...lot.hashes], { forceFresh: true });
     if (!known || cached.size === 0) {
       finish(false);
       return;
@@ -383,7 +403,7 @@ async function applyDebrid(streams: any[], { season, episode, searchKey, deadlin
   }
   const out: Stream[] = [];
   for (const s of filtered.streams) {
-    if (cached.has(s.infoHash)) {
+    if (s.infoHash && cached.has(s.infoHash)) {
       out.push(viaDebrid(s, true));
       continue;
     }
@@ -573,6 +593,7 @@ async function collectRaw(
 }
 
 async function findStreams({ type, id }: { type: string; id: string }) {
+  noteUserRequest();
   if (!id || !String(id).startsWith('tt')) {
     return { streams: [], partial: false };
   }

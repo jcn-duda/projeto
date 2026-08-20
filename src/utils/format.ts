@@ -160,7 +160,11 @@ function sourceFromTitle(title = '') {
   if (/\bWEB[-. ]?DL\b/.test(t)) return 'WEB-DL';
   if (/\bWEB[-. ]?RIP\b/.test(t)) return 'WEBRip';
   if (/\bHDTV\b/.test(t)) return 'HDTV';
-  if (/\bCAM\b/.test(t)) return 'CAM';
+  // CAMRip e HDCAM não têm fronteira de palavra em volta de "CAM" e escapavam
+  // do teste anterior (`\bCAM\b`): passavam como fonte desconhecida. Isso pesa
+  // mais desde que o autofetch baixa por swarm — gravação de cinema é
+  // justamente o que costuma ter o maior número de seeders num lançamento.
+  if (/\b(?:HD[-. ]?)?CAM(?:[-. ]?RIP)?\b/.test(t)) return 'CAM';
   return '';
 }
 

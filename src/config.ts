@@ -93,6 +93,17 @@ const config = {
     breakerFailures: num(process.env.JACKETT_BREAKER_FAILURES, 3),
     breakerCooldown: num(process.env.JACKETT_BREAKER_COOLDOWN_MS, 5 * 60_000),
   },
+  warmup: {
+    // Catálogo curado para aquecer raw antes do primeiro usuário. O operador
+    // pode substituir a lista pelo perfil real de consumo da instância.
+    enabled: String(process.env.WARMUP_ENABLED || 'true') === 'true',
+    titles: list(process.env.WARMUP_TITLES || 'tt7286456:movie,tt11198330:movie,tt1630029:movie,tt11126994:series,tt3581920:series,tt2861424:series'),
+    concurrency: num(process.env.WARMUP_CONCURRENCY, 2),
+    indexerDelayMs: num(process.env.WARMUP_INDEXER_DELAY_MS, 250),
+    timeoutMs: num(process.env.WARMUP_TIMEOUT_MS, 600000),
+    // BR/slow têm orçamento de 20s; no boot o padrão aquece só globais.
+    skipSlow: String(process.env.WARMUP_SKIP_SLOW || 'true') === 'true',
+  },
   prowlarr: {
     url: (process.env.PROWLARR_URL || 'http://127.0.0.1:9696').replace(/\/$/, ''),
     apiKey: process.env.PROWLARR_API_KEY || '',
@@ -246,6 +257,12 @@ const config = {
     // abortada (AllDebrid). A chamada continua em background se perder o prazo;
     // abaixo deste valor ela só atrasaria a resposta sem chance útil de vencer.
     nonAbortableRaceFloor: num(process.env.DEBRID_NON_ABORTABLE_RACE_MIN_MS, 400),
+    // Disponibilidade confirmada fica mais tempo; 0 desliga esta metade da
+    // camada sem deploy. Cache pertence à conta, nunca à instalação.
+    availPosTtl: num(process.env.DEBRID_AVAIL_POS_TTL, 900),
+    // Negativo expira cedo para o recheck do autofetch enxergar o download
+    // pronto logo; 0 deixa negativos sempre irem à rede.
+    availNegTtl: num(process.env.DEBRID_AVAIL_NEG_TTL, 120),
     // Remove da conta do debrid o que não está em cache. Sem isso cada consulta
     // deixa um download rodando lá (AllDebrid só informa cache ao dar upload).
     dropUncached: String(process.env.DEBRID_DROP_UNCACHED || 'true') === 'true',
@@ -285,9 +302,11 @@ const config = {
     // mais a conta. Clamp 1..4: 0 não desliga o recurso (quem desliga é o toggle
     // DEBRID_AUTO_FETCH_BR); o teto superior 4 respeita o contrato de "até 4".
     autoFetchMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 4)))),
-    // Séries antigas sem dublagem ainda podem ter um pack saudável. O limite é
-    // separado do autofetch dublado para não encher a conta com até quatro
-    // torrents apenas porque o episódio não tem áudio PT.
+    // Rede de segurança quando o título não tem dublagem NENHUMA (filme antigo,
+    // cult, série sem áudio PT): sem isso a busca acaba sem baixar nada e, com
+    // "somente já em cache" ligado, o usuário vê zero opção para sempre. O
+    // limite é separado do autofetch dublado para não encher a conta com até
+    // quatro torrents apenas porque o título não tem áudio PT.
     autoFetchTopSeeds: String(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS || 'true') === 'true',
     autoFetchTopSeedsMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS_MAX, 2)))),
     // Um torrent com poucos pares costuma morrer na fila do debrid; abaixo de
