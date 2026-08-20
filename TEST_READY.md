@@ -3,7 +3,7 @@
 ## Estado
 
 A suíte E2E está integrada ao gate de regressão por meio de `npm test` e do
-workflow CI para Node 18 e Node 22. Não adiciona dependências npm nem acessa
+workflow CI para Node 20 e Node 22. Não adiciona dependências npm nem acessa
 serviços externos: usa mocks de `fetch` e servidores HTTP efêmeros em loopback.
 
 ## Cobertura
@@ -20,11 +20,15 @@ completo e, portanto, detecta a remoção da escrita tardia.
 
 ## Execução verificada
 
-- `npm run test:complete`: 28 arquivos de teste registrados.
-- `npm test`: 467 testes aprovados.
+Números do snapshot pós-migração TS/ESM (branch `esm`); reconfirme após
+alterações grandes na suíte.
+
+- `npm run test:complete`: 49 arquivos de teste registrados.
+- `npm test`: 906 testes aprovados.
 - `npm run test:stress`: 154 verificações aprovadas.
 - `npm run test:adversarial`: 10/10 mutações detectadas, 20 execuções
   sequenciais e 6 workers paralelos aprovados.
 
-`test:adversarial` modifica e restaura arquivos-fonte para testar as mutações;
-execute-o apenas sem alterações concorrentes no working tree.
+`test:adversarial` modifica e restaura os arquivos compilados em `dist/` para
+testar as mutações; execute-o apenas sem alterações concorrentes no working
+tree (e rebuild antes, se `dist/` estiver velho).

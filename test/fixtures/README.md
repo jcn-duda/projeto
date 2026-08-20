@@ -20,7 +20,7 @@ depois, marcador de áudio válido para os botões seguintes.
 **Atualizando com HTML real.** Vale mais que o reconstruído, e é uma chamada:
 
 ```bash
-node scripts/capture-fixture.js https://exemplo/post/ test/fixtures/bludv-post.html
+node dist/scripts/capture-fixture.js https://exemplo/post/ test/fixtures/bludv-post.html
 ```
 
 Confira o arquivo antes de commitar: página de post costuma trazer link de

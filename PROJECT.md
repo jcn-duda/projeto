@@ -1,5 +1,11 @@
 # Project: ComandoTorrents Jackett Indexer & Microservice Resolver Enhancement
 
+> **Historical record.** This document captures the ComandoTorrents resolver
+> enhancement delivery as originally written (JS/CommonJS era). The current
+> architecture is TypeScript/ESM compiled to `dist/` and is documented in
+> `AGENTS.md` and `README.md`. Kept for history: paths and premises here do
+> not reflect the current tree.
+
 ## Architecture
 - **Resolver Microservice**: `comandotorrents-resolver/server.js` (Express/HTTP server running on port 8701 in container loopback).
 - **Jackett Cardigann Definition**: `jackett-bludv/comandotorrents.yml` (queries `http://127.0.0.1:8701/search` and resolves downloads via `http://127.0.0.1:8701/resolve`).

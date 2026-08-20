@@ -117,7 +117,7 @@ Com `RESOLVE_SECRET` no `.env`, a API key vai **cifrada** no install URL.
 Real-Debrid e Debrid-Link não informam o que toca na hora: todos os resultados
 passam pelo debrid, sem ⚡, e *somente em cache* fica desligado. AllDebrid
 **mede** o ⚡, mas a checagem é um upload — conta no teto de magnets faz o raio
-sumir de todos os streams (`node scripts/magnets.js` / `/debrid-status.json`).
+sumir de todos os streams (`node dist/scripts/magnets.js` / `/debrid-status.json`).
 Premiumize e TorBox checam em lote sem sujar a conta.
 
 Para mudar depois, abra o **botão de engrenagem** do addon no Stremio — ele volta
@@ -330,26 +330,31 @@ versione `.env`.
 ```
 stremio adom/
 ├── src/
-│   ├── addon.js              # entrada + manifest + HTTP + /resolve
-│   ├── config.js             # .env (padrões do operador)
-│   ├── runtime.js            # config por usuário na URL (overlay)
+│   ├── addon.ts              # processo: listen, warmup, resolvers, shutdown
+│   ├── app.ts                # fábrica Express: manifest, rotas, /resolve
+│   ├── config.ts             # .env (padrões do operador)
+│   ├── runtime.ts            # config por usuário na URL (overlay)
+│   ├── br-resolvers.ts       # carrega os *-resolver no processo do addon
 │   ├── providers/
-│   │   ├── index.js          # orquestra busca, cache, deadline, debrid
-│   │   ├── demo.js           # teste sem indexer
-│   │   ├── jackett.js
-│   │   ├── prowlarr.js
-│   │   └── bludv.js          # scraper direto do BLUDV
+│   │   ├── index.ts          # orquestra busca, cache, deadline, debrid
+│   │   ├── demo.ts           # teste sem indexer
+│   │   ├── jackett.ts
+│   │   ├── prowlarr.ts
+│   │   ├── bludv.ts          # scraper direto do BLUDV
+│   │   └── account.ts        # inventário pronto da conta como fonte
 │   ├── debrid/               # adaptadores: premiumize, realdebrid, …
 │   ├── public/configure.html # página de configuração (sem build)
 │   └── utils/
-│       ├── cache.js
-│       ├── cinemeta.js       # título/ano pelo IMDb
-│       ├── tmdb.js           # título pt-BR
-│       ├── sign.js           # HMAC dos links /resolve
-│       └── format.js         # infoHash, qualidade, sort
-├── test/                     # testes unitários (node:test)
+│       ├── cache.ts
+│       ├── cache-keys.ts     # versão dos namespaces (streams:v5, raw:v1, …)
+│       ├── cinemeta.ts       # título/ano pelo IMDb
+│       ├── tmdb.ts           # título pt-BR
+│       ├── sign.ts           # HMAC dos links /resolve
+│       └── format.ts         # infoHash, qualidade, sort
+├── types/domain.d.ts         # contratos do domínio (Stream, DebridAdapter, …)
+├── test/                     # testes (node:test; .test.ts → dist/test/)
 ├── scripts/
-│   ├── smoke.js              # smoke test contra o addon rodando
+│   ├── smoke.ts              # smoke test contra o addon rodando
 │   └── entrypoint.sh         # supervisor dos 4 processos no container único
 ├── docker-compose.yml        # serviço único (adom)
 ├── jackett-bludv/            # definitions Cardigann dos cards BR (yml)
@@ -378,13 +383,21 @@ stremio adom/
 
 | Comando | Função |
 |---------|--------|
-| `npm start` | sobe o addon local |
+| `npm start` | sobe o addon local (de `dist/`) |
 | `npm run dev` | local com `--watch` |
-| `npm test` | testes unitários (format.js + HMAC) |
-| `npm run smoke` | smoke test contra o addon rodando |
+| `npm test` | suíte (node:test) sobre `dist/test/`: 49 arquivos, ~900 testes, zero rede |
+| `npm run test:complete` | gate: cobra que todo `test/**/*.test.ts` esteja no `npm test` |
+| `npm run typecheck` | `tsc --noEmit` — portão de tipos, precisa ficar em ZERO |
+| `npm run smoke` | smoke test contra o addon rodando (rede de verdade) |
 | `npm run docker:up` | build + sobe o container único |
 | `npm run docker:down` | para tudo |
 | `npm run docker:logs` | logs da stack (addon/jackett/flaresolverr/caddy) |
+
+`npm test` roda de `dist/test/` com lista explícita no `package.json` — build
+antes. Além da suíte, há os **harnesses de bancada** que ficam fora do CI
+(`test:stress`, `test:adversarial`, `test:adversarial-m1`, `test:protector-m1`
+e o novo `test:challenger-m2`): rodam código de bancada (estresse/mutação) que
+o portão nunca executa.
 
 ---
 
@@ -401,9 +414,8 @@ stremio adom/
 
 ## Próximos passos (quando quiser)
 
-1. Filtros por idioma (ex.: multi, DUAL, PT-BR).
-2. Adicionar outros debrids, proxies de streams e scrapers.
-3. Publicar o manifest em catálogo comunitário.
+1. Proxies de streams (encaminhar o play sem apontar direto para o torrent/debrid).
+2. Publicar o manifest em catálogo comunitário.
 
 ---
 

@@ -22,7 +22,7 @@ Três capacidades, em ordem de importância:
    inteira desaparece. É o divisor de águas entre os serviços.
 2. **Resolução por arquivo no play.** O `/resolve` precisa da lista de arquivos
    do torrent para escolher a obra certa dentro de um pack multi-filme
-   (ver `pickFile`/`pickWorkFile` em [`common.js`](src/debrid/common.js)).
+   (ver `pickFile`/`pickWorkFile` em [`common.ts`](src/debrid/common.ts)).
 3. **Enfileirar download sem esperar.** É o que sustenta o autofetch da fonte
    BR dublada: fonte rara nunca está pré-cacheada, então a primeira busca manda
    baixar e a segunda mostra com ⚡.
@@ -46,7 +46,7 @@ Três capacidades, em ordem de importância:
 
 ## Premiumize
 
-Adaptador: [`src/debrid/premiumize.js`](src/debrid/premiumize.js) — 68 linhas, o
+Adaptador: [`src/debrid/premiumize.ts`](src/debrid/premiumize.ts) — 68 linhas, o
 mais simples dos cinco, e não é coincidência.
 
 **Endpoints usados**
@@ -76,7 +76,7 @@ por tráfego; o `/debrid-status.json` agora avisa em `limit_used` ≥ 0.8.
 
 ## TorBox
 
-Adaptador: [`src/debrid/torbox.js`](src/debrid/torbox.js). Base
+Adaptador: [`src/debrid/torbox.ts`](src/debrid/torbox.ts). Base
 `https://api.torbox.app`, versão `v1`, `Bearer` no header.
 
 **Endpoints**: `GET /v1/api/torrents/checkcached` (aceita `hash` repetido,
@@ -138,7 +138,7 @@ comporta diferente dos outros quatro. Vale como experimento, não como base.
 
 ## AllDebrid
 
-Adaptador: [`src/debrid/alldebrid.js`](src/debrid/alldebrid.js) — 396 linhas,
+Adaptador: [`src/debrid/alldebrid.ts`](src/debrid/alldebrid.ts) — 396 linhas,
 quase seis vezes o Premiumize. O tamanho é a crítica.
 
 **A questão central:** o `/magnet/instant` foi removido. A única forma de saber
@@ -148,7 +148,7 @@ maquinaria que não existe em nenhum outro adaptador:
 
 - `dropUncached` remove da conta o que voltou não-cacheado, senão cada busca
   deixa um download fantasma rodando lá;
-- [`protected.js`](src/debrid/protected.js) protege da limpeza justamente o
+- [`protected.ts`](src/debrid/protected.ts) protege da limpeza justamente o
   hash que o autofetch acabou de mandar baixar — sem isso a busca seguinte
   apagaria o próprio download no meio;
 - `warmInventory` fotografa os magnets que já existiam na conta antes do addon,
@@ -186,7 +186,7 @@ metade desse arquivo desapareceria.
 
 ## Real-Debrid
 
-Adaptador: [`src/debrid/realdebrid.js`](src/debrid/realdebrid.js).
+Adaptador: [`src/debrid/realdebrid.ts`](src/debrid/realdebrid.ts).
 
 `/torrents/instantAvailability` foi aposentado e **não há substituto**:
 `checkCached` devolve `Set` vazio e `cacheCheck: false`. Consequência direta na
@@ -216,7 +216,7 @@ de baixar.
 
 ## Debrid-Link
 
-Adaptador: [`src/debrid/debridlink.js`](src/debrid/debridlink.js) — 77 linhas.
+Adaptador: [`src/debrid/debridlink.ts`](src/debrid/debridlink.ts) — 77 linhas.
 Documentação: <https://debrid-link.com/api_doc/v2/introduction> (SPA; foi
 preciso renderizar no navegador para ler).
 
@@ -274,7 +274,7 @@ No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_CACHED_ONLY`,
 `DEBRID_SHOW_UNCACHED_BR`, `DEBRID_RESOLVE_UNCACHED`, `DEBRID_DROP_UNCACHED`,
 `DEBRID_BATCH_SIZE`, `DEBRID_CACHE_CHECK_TIMEOUT_MS`.
 
-Na URL de instalação (por usuário, ver [`src/runtime.js`](src/runtime.js)):
+Na URL de instalação (por usuário, ver [`src/runtime.ts`](src/runtime.ts)):
 `ds` serviço, `dk` chave, `dc` somente-cacheado, `bu` mostrar BR fora do cache,
 `ab` autofetch BR.
 

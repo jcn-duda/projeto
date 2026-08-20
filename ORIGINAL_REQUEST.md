@@ -1,5 +1,10 @@
 # Original User Request
 
+> **Documento histórico.** Registra a solicitação original (ago/2026). As
+> premissas "CommonJS sem build", `node --check` e os caminhos `.js` não
+> representam o projeto atual — TypeScript/ESM com build (`tsc` → `dist/`) e
+> `npm run typecheck` como portão. Consulte `AGENTS.md` para o estado vigente.
+
 ## 2026-08-15T03:14:16Z
 
 Executar análise arquitetural aprofundada, auditoria de código e implementação de melhorias de resiliência e performance no addon Stremio Adom Power-Movie.

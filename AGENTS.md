@@ -69,9 +69,9 @@ Praticamente todo trabalho de código acontece no **Adom**.
   carrega no processo do addon, cada um na própria porta (8700–8703), porque
   todos leem `PORT`/`SITE_URL` no `require`. `BR_RESOLVERS_EMBEDDED=false`
   volta ao modo de processos separados (não é o caminho de produção).
-- O healthcheck do Dockerfile é **duplo** (`/manifest.json` na 7000 + API do
-  Jackett na 9117 via `node -e fetch`) — healthcheck que olha só o addon deixa
-  Jackett morto passar despercebido.
+- O healthcheck do Dockerfile é **triplo** (`/manifest.json` na 7000 + API do
+  Jackett na 9117 + FlareSolverr na 8191, num `node -e fetch` só) — healthcheck
+  que olha só o addon deixa Jackett ou FlareSolverr morto passar despercebido.
 - **`ServerConfig.json` vive no volume** `./docker-data/jackett`, não na
   imagem: trocar a imagem não corrige nada lá. O `FlareSolverrUrl` precisa ser
   `http://127.0.0.1:8191` (sed de migração documentado no cabeçalho do
@@ -113,10 +113,11 @@ padrão a partir do Node 21. Arquivo `.test.ts` novo que não entra no
 `package.json` passa despercebido e o CI fica verde à toa — por isso existe o
 `test:complete`.
 
-**Três harnesses não passam pelo `npm test`** — `test:stress`,
-`test:adversarial` e `test:adversarial-m1` rodam código de bancada que o CI
-nunca executa. Quebra neles só aparece no dia em que você precisar deles; rode
-antes de mexer em `test/` para ter linha de base.
+**Cinco harnesses não passam pelo `npm test`** — `test:stress`,
+`test:adversarial`, `test:adversarial-m1`, `test:protector-m1` e
+`test:challenger-m2` rodam código de bancada que o CI nunca executa. Quebra
+neles só aparece no dia em que você precisar deles; rode antes de mexer em
+`test/` para ter linha de base.
 
 Quando "o ⚡ sumiu de todos os streams", comece por aqui — é diagnóstico, não
 adivinhação:
@@ -202,8 +203,8 @@ tardia, com `recordStatus:false` e `ignoreBreaker:true`.
 Modelo Torrentio: as preferências viajam **codificadas na URL de instalação**
 (`/<base64url>/manifest.json`), não em banco. O servidor é stateless.
 
-- `config.js` = padrões do **operador** (`.env`), estáticos, carregados uma vez.
-- `runtime.js` = overlay do **usuário**, por requisição, em `AsyncLocalStorage`.
+- `config.ts` = padrões do **operador** (`.env`), estáticos, carregados uma vez.
+- `runtime.ts` = overlay do **usuário**, por requisição, em `AsyncLocalStorage`.
 
 **Regra:** o que o usuário pode escolher lê-se por `opts()`; o resto (URLs de
 indexer, timeouts, credenciais de infra) continua vindo de `config`. Nunca leia
@@ -264,7 +265,7 @@ do Caddyfile).
 `/resolve` depende dele: o link de play tem que voltar carregando a mesma
 config, senão o debrid do usuário some na hora do play.
 
-Ordem das rotas em `app.js` é significativa: as rotas sem config vêm **antes**
+Ordem das rotas em `app.ts` é significativa: as rotas sem config vêm **antes**
 de `app.use('/:userConfig', ...)`, senão `/manifest.json` seria interpretado como
 segmento de configuração. Segmento que não decodifica devolve 404 — sem isso,
 qualquer caminho de um segmento viraria um manifest válido servindo o `.env`.
@@ -306,7 +307,7 @@ abortar depois do upload perderia os ids necessários para a limpeza.
   só o usuário conserta. A lista volta como **P2P**.
 
 Confundir os dois primeiros esconde a lista inteira. Foi por isso que `batched()`
-(em `common.js`) **propaga o erro quando todos os lotes falham**: token inválido
+(em `common.ts`) **propaga o erro quando todos os lotes falham**: token inválido
 retornando "nenhum cacheado" com `cachedOnly` ligado zerava o resultado sem
 nenhuma pista do motivo.
 
@@ -344,7 +345,7 @@ inteira). Apagar o pronto é seguro: o cache é do SERVIÇO, não da conta, e o
 play reenvia o hash na hora.
 
 Três coisas nunca entram na limpeza por busca: o hash do autofetch
-(`protected.js`), o que **já era do usuário** (`knownBefore`) e, enquanto o
+(`protected.ts`), o que **já era do usuário** (`knownBefore`) e, enquanto o
 inventário não carrega, **ninguém** — o `null` é o fail-safe. Como o
 `/magnet/upload` é idempotente e a resposta não diz se criou ou reaproveitou
 (`{magnet, hash, name, size, ready, id}`, sem data), o adaptador inventaria a
@@ -429,7 +430,7 @@ operador).
 ## Cache multi-nível (fases 0–2 no código)
 
 A chave `streams:v5` isola config do usuário + digest da conta
-(`request-key.js`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
+(`request-key.ts`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
 — bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
 que não bate com a versão corrente). Duas instalações do mesmo título **não**
 compartilham a lista — ela carrega URLs de play assinadas. O trabalho caro
@@ -453,7 +454,7 @@ por `queryIndexer` e **não** usa o cache bruto — fora de escopo de propósito
 TTL de resultado vazio é curto (`RAW_CACHE_EMPTY_TTL`): 200 com zero itens
 pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
 
-Cotas do L1 (`cache.js`): `streams` 2000, `raw` 800, `dlmag` 4000, teto
+Cotas do L1 (`cache.ts`): `streams` 2000, `raw` 800, `dlmag` 4000, teto
 global 12000. `raw` é o namespace gordo (~100 KB no pior caso); não suba a
 cota sem refazer a conta de memória do container de 3g.
 
@@ -575,7 +576,7 @@ Os sites BR são buscadores WordPress que devolvem posts "parecidos" para query
 curta: buscar "Fallout" trazia "Missão: Impossível – Efeito Fallout", "Fallout
 4 (PC)" e "Cesium Fallout" — todos aprovados por `matchesName` (palavra inteira)
 e `matchesEpisode` (sem pista de temporada, passa), e o lixo tomava as vagas
-reservadas do item 3. `matchesBrTitle` (format.js) endurece com regra de
+reservadas do item 3. `matchesBrTitle` (format.ts) endurece com regra de
 prefixo (primeiro token relevante do título = primeiro do nome procurado) e
 regra de ano por tipo (lógica do pacote BRDUB): filme aceita ±2 (ano do
 lançamento BR) e série só condena quando TODOS os anos do post são anteriores
@@ -855,6 +856,8 @@ justamente no indexer recém-derrubado.
 
 ## Git
 
-Branch de trabalho: `adon-power-movie`. Commits em português, prefixo
-convencional (`feat:`, `fix:`). `.env` é ignorado e **contém chaves reais** —
-nunca faça commit dele nem cole seu conteúdo em output.
+Branch de trabalho: `esm`. Commits em português, prefixo
+convencional (`feat:`, `fix:`). `adon-power-movie` é a linha antiga
+(pré-migração TS/ESM) — o deploy e o cron que ainda a observam precisam ser
+realinhados ou a `esm` precisa ser merged. `.env` é ignorado e **contém chaves
+reais** — nunca faça commit dele nem cole seu conteúdo em output.

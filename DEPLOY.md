@@ -149,12 +149,17 @@ base64 — por isso ele só deve trafegar por HTTPS, e por isso o passo 3 prende
 
 ## 8. Deploy automático (pull da VPS)
 
-Todo push em `adon-power-movie` entra no ar em até 5 minutos: um cron do
+Todo push em `esm` entra no ar em até 5 minutos: um cron do
 usuário da VPS roda `~/adom-deploy.sh`, que faz `git fetch` e, havendo commit
 novo, `checkout` + `docker compose up -d --build`. É pull, não push: o
 provedor só aceita a porta 22 vindo do IP do operador, então CI batendo de
 fora (GitHub Actions) nunca chega — testado de 10 locais do mundo, todos
 bloqueados.
+
+> O cron do servidor que ainda observa `adon-power-movie` (a linha antiga,
+> pré-migração TS/ESM) precisa ser atualizado para `esm` — um sed/edição no
+> agendamento ou script — ou a `esm` precisa ser merged. Enquanto isso o
+> deploy automático continua olhando o branch antigo.
 
 O script tem trava (`~/.adom-deploy.lock`) para o cron não sobrepor um build
 em andamento e registra tudo em `~/adom-deploy.log`. Para deploy na hora,

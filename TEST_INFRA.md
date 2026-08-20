@@ -21,13 +21,13 @@ A suíte E2E foi concebida sob quatro princípios fundamentais:
 
 ---
 
-## 2. Arquitetura do Test Harness (`test/e2e/e2e-harness.js`)
+## 2. Arquitetura do Test Harness (`test/e2e/e2e-harness.ts`)
 
-O arquivo `test/e2e/e2e-harness.js` fornece a infraestrutura compartilhada para os testes E2E:
+O arquivo `test/e2e/e2e-harness.ts` fornece a infraestrutura compartilhada para os testes E2E:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                   e2e-harness.js                         │
+│                   e2e-harness.ts                         │
 ├────────────────────────────┬─────────────────────────────┤
 │   HTTP & Server Lifecycle  │   Mock Fetch & Services     │
 │  - createTestApp()         │  - withMockFetch()          │
@@ -68,17 +68,17 @@ Mapeamento das 14 funcionalidades de `PROJECT.md` para a infraestrutura de teste
 |---|---|---|---|
 | 1 | Dynamic Domain Validation | `*-resolver/server.js` | Testes com domínios dinâmicos, allowlists, fallback suffixes e rejeição de domínios estranhos |
 | 2 | In-Memory Caching & Dedupe in BLUDV Resolver | `bludv-resolver/server.js` | Testes de cache de posts HTML, deduplicação em voo (`inFlight`), TTL e limites de tamanho |
-| 3 | Standardized `siteEnv` Configuration | `src/br-resolvers.js` | Verificação do carregamento das variáveis `BLUDV_URL`, `COMANDOTORRENTS_URL`, `NERDFILMES_URL`, etc. |
+| 3 | Standardized `siteEnv` Configuration | `src/br-resolvers.ts` | Verificação do carregamento das variáveis `BLUDV_URL`, `COMANDOTORRENTS_URL`, `NERDFILMES_URL`, etc. |
 | 4 | Enhanced Protector & JavaScript Extraction | `*-resolver/server.js` | Testes de extração de magnet direto, `DEST_URL`, `window.location` e saltos de redirecionamento |
-| 5 | Title Matching & Deduplication Verification | `src/utils/format.js` | Validação de `matchesBrTitle`, tolerância de ano, preservação de `_br`/`_dubbed` no `dedupeByHash` |
-| 6 | Cache Statement Pre-Compilation | `src/utils/cache.js` | Testes de persistência SQLite com statements pré-compilados, `forgetMany` e `prune` |
-| 7 | Resilient Deserialization in Cache Load | `src/utils/cache.js` | Teste de recuperação tolerante a falhas no `loadFromDisk` com dados corrompidos |
-| 8 | Search & Late-Pass Budget Optimization | `src/providers/index.js` | Testes de janelas de coleta, coalescing de buscas simultâneas e escrita tardia de cache |
-| 9 | Prowlarr Provider Resilience & Unit Testing | `src/providers/prowlarr.js` | Teste defensivo de chamadas à API Torznab JSON do Prowlarr com mock de rede |
-| 10 | Debrid Adapter Mock & Error Coverage | `src/debrid/*.js` | Testes com mocks para checagem em lote, `resolveLink`, `enqueue` e fallbacks em todos os 5 adaptadores |
-| 11 | Torznab XML CDATA Resilience | `src/providers/jackett-catalog.js` | Testes de decodificação e limpeza de blocos `<![CDATA[...]]>` no catálogo Torznab |
+| 5 | Title Matching & Deduplication Verification | `src/utils/format.ts` | Validação de `matchesBrTitle`, tolerância de ano, preservação de `_br`/`_dubbed` no `dedupeByHash` |
+| 6 | Cache Statement Pre-Compilation | `src/utils/cache.ts` | Testes de persistência SQLite com statements pré-compilados, `forgetMany` e `prune` |
+| 7 | Resilient Deserialization in Cache Load | `src/utils/cache.ts` | Teste de recuperação tolerante a falhas no `loadFromDisk` com dados corrompidos |
+| 8 | Search & Late-Pass Budget Optimization | `src/providers/index.ts` | Testes de janelas de coleta, coalescing de buscas simultâneas e escrita tardia de cache |
+| 9 | Prowlarr Provider Resilience & Unit Testing | `src/providers/prowlarr.ts` | Teste defensivo de chamadas à API Torznab JSON do Prowlarr com mock de rede |
+| 10 | Debrid Adapter Mock & Error Coverage | `src/debrid/*.ts` | Testes com mocks para checagem em lote, `resolveLink`, `enqueue` e fallbacks em todos os 5 adaptadores |
+| 11 | Torznab XML CDATA Resilience | `src/providers/jackett-catalog.ts` | Testes de decodificação e limpeza de blocos `<![CDATA[...]]>` no catálogo Torznab |
 | 12 | Architecture & Invariants Preservation | Toda a stack | Testes formais dos 6 invariantes de `AGENTS.md` (orçamentos, reserva BR, queries duplas, etc.) |
-| 13 | E2E Testing Suite (Tiers 1-4) | `src/addon.js` | Testes ponta a ponta das rotas HTTP `/manifest.json`, `/stream/...`, `/resolve/...`, `/configure` |
+| 13 | E2E Testing Suite (Tiers 1-4) | `src/addon.ts` | Testes ponta a ponta das rotas HTTP `/manifest.json`, `/stream/...`, `/resolve/...`, `/configure` |
 | 14 | Final E2E Pass & Adversarial Hardening (Tier 5) | Toda a stack | Testes de segurança adversariais: adulteração de HMAC, configs maliciosas, ataques de payload |
 
 ---
@@ -128,7 +128,7 @@ A suíte completa é estruturada em 4 camadas progressivas de teste:
 Para rodar a suíte E2E Tier 1:
 
 ```bash
-node --test test/e2e/tier1-feature-coverage.test.js
+node --test dist/test/e2e/tier1-feature-coverage.test.js
 ```
 
 Para rodar toda a suíte de testes (unitários + E2E):
@@ -137,18 +137,24 @@ Para rodar toda a suíte de testes (unitários + E2E):
 npm test
 ```
 
-O gate também confirma que todo arquivo `*.test.js` sob `test/` está listado
+O gate também confirma que todo arquivo `*.test.ts` sob `test/` está listado
 explicitamente no script, inclusive os tiers E2E:
 
 ```bash
 npm run test:complete
 ```
 
-Os challengers de hardening não entram no CI principal. O primeiro é seguro
-para rodar localmente; o segundo altera arquivos temporariamente e deve rodar
-somente em um working tree limpo:
+Os **cinco harnesses de bancada** ficam fora do CI e do `npm test`: rodam
+código de bancada (estresse/mutação) que o portão nunca executa. O
+`test:adversarial` (`empirical-e2e-challenger`) **altera arquivos de `dist/`
+temporariamente** — escreve mutações nos arquivos compilados e os restaura —,
+então exige `dist/` íntegro e working tree limpo (rode após o `npm run build`,
+sem edições em andamento):
 
 ```bash
-npm run test:stress
-npm run test:adversarial
+npm run test:stress          # m1-stress-challenge + stress-m1-challenger
+npm run test:adversarial     # empirical-e2e-challenger (muta dist/ e restaura)
+npm run test:adversarial-m1  # adversarial-m1-parser-harness
+npm run test:protector-m1    # m1-protector-adversarial-stress
+npm run test:challenger-m2   # challenger-m2-parser-deep-stress (em adição)
 ```

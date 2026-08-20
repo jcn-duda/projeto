@@ -4,6 +4,14 @@ Substitui o `PLANO_CACHE.md` da raiz. Mantém a direção da v2 (tiers, ordem po
 risco/valor, kill-switch por TTL) e corrige o que a v2 dimensionou ou afirmou
 errado sobre o código real.
 
+> **Status histórico.** Este documento é o plano da época em que o projeto era
+> CommonJS/JS. As **fases 0–2 já estão implementadas** no código; a fase 3
+> continua **gateada** por métrica (`debrid.check.repeated / debrid.check.hashes`
+> > 30% em 15 min). Os namespaces atuais são `streams:v5`, `raw:v1` e `dinv:v1`,
+> centralizados em `src/utils/cache-keys.ts`. Menções a `streams:v4`, `raw1:` e
+> a fontes `.js` no corpo são o nome/forma da época e ficaram como registro
+> histórico — hoje a fonte é `.ts` com build para `dist/`.
+
 ## Contexto
 
 A v2 está certa no diagnóstico principal: o trabalho caro (Jackett + scrapers
@@ -53,8 +61,9 @@ são hit. Esse virou o argumento mais concreto do Fase 1.
 
 ## Premissas (inalteradas da v2)
 
-Node CommonJS, zero dependência nova, comentários em português; nenhum dos seis
-invariantes do AGENTS.md é tocado; toda TTL nova é env com `0` = desligado.
+TypeScript/ESM com build (`tsc` → `dist/`), zero dependência nova, comentários
+em português; nenhum dos seis invariantes do AGENTS.md é tocado; toda TTL nova é
+env com `0` = desligado.
 
 ---
 
