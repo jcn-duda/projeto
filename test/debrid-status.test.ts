@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
 import debrid from '../src/debrid/index.js';
 import { createApp } from '../src/app.js';
+import config from '../src/config.js';
 
 /**
  * O verificador da conta do debrid.
@@ -14,9 +15,18 @@ import { createApp } from '../src/app.js';
  * sinal nenhum, e o sintoma na tela não aponta para a causa. Aqui dá para ver
  * a ocupação antes de quebrar.
  */
-process.env.JACKETT_TEST_TOKEN = process.env.JACKETT_TEST_TOKEN || 'token-de-teste';
+// Em ESM os `import` são içados: mexer em process.env AQUI acontece depois de
+// `src/config.ts` já ter lido a variável. Quem vale é o config carregado — sem
+// isso a rota devolve 503 (token não configurado) e o teste do 401 quebra em
+// qualquer máquina sem JACKETT_TEST_TOKEN no .env, como o CI.
+config.jackett.testToken = config.jackett.testToken || 'token-de-teste';
+// Mesma razão: sem serviço/chave o accountStatus responde "não suportado" e
+// nem chega ao adaptador dublado. O mockAccount intercepta o fetch, então a
+// chave só precisa existir.
+config.debrid.service = config.debrid.service || 'alldebrid';
+config.debrid.apiKey = config.debrid.apiKey || 'chave-de-teste';
 
-const TOKEN = process.env.JACKETT_TEST_TOKEN;
+const TOKEN = config.jackett.testToken;
 
 /**
  * Dublê do /magnet/status: N magnets, dos quais `ready` prontos.

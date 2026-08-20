@@ -45,6 +45,7 @@ before(async () => {
   saved.resolveSecret = config.debrid.resolveSecret;
   saved.testToken = config.jackett.testToken;
   saved.jackettApiKey = config.jackett.apiKey;
+  saved.publicUrl = config.debrid.publicUrl;
   config.debrid.service = '';
   config.debrid.apiKey = '';
   config.debrid.resolveSecret = '';
@@ -52,6 +53,9 @@ before(async () => {
   // O mock intercepta o fetch, mas sem chave o jackett.search aborta antes
   // de perguntar ("JACKETT_API_KEY não configurada").
   config.jackett.apiKey = 'test-jackett-key';
+  // O manifest só aponta para /logo.png quando há PUBLIC_URL; sem ela cai no
+  // logo genérico do Stremio. Fixar aqui tira o teste da dependência do .env.
+  config.debrid.publicUrl = 'https://addon.teste';
 
   debrid.BY_ID.set(FAKE_ADAPTER.id, FAKE_ADAPTER);
   server = await createTestServer(createApp().app);
@@ -65,6 +69,7 @@ after(async () => {
   config.debrid.resolveSecret = saved.resolveSecret;
   config.jackett.testToken = saved.testToken;
   config.jackett.apiKey = saved.jackettApiKey;
+  config.debrid.publicUrl = saved.publicUrl;
 });
 
 test('/manifest.json responde sem segmento de config', async () => {

@@ -38,7 +38,10 @@ function runIsolatedCacheTest(scriptContent: any) {
   const dbPath = path.join(tempDir, 'cache.db');
   try {
     const res = spawnSync(process.execPath, ['-e', scriptContent], {
-      env: { ...process.env, CACHE_DB_PATH: dbPath },
+      // O subprocesso PRECISA do SQLite: tira o CACHE_PERSIST herdado do runner
+      // (o setup-env o define para a suíte inteira) em vez de deixar o teste de
+      // persistência rodar só em memória e falhar com "no such table".
+      env: (({ CACHE_PERSIST, ...resto }) => ({ ...resto, CACHE_DB_PATH: dbPath }))(process.env),
       cwd: path.join(__dirname, '..'),
       encoding: 'utf8',
       timeout: 30_000,
