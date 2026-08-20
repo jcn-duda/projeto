@@ -47,7 +47,9 @@ run '[jackett]' env XDG_CONFIG_HOME=/config XDG_DATA_HOME=/config TMPDIR=/run/ja
 # "Address in use".
 run '[flaresolverr]' env PORT=8191 python3 -u /app/flaresolverr/flaresolverr.py
 
-run '[addon]' node src/addon.js
+# Saída do tsc, não o fonte: a imagem de runtime recebe só `dist/` (o COPY
+# --from=builder do Dockerfile), então `src/addon.js` não existe lá dentro.
+run '[addon]' node dist/src/addon.js
 
 wait -n "${pids[@]}"
 code=$?

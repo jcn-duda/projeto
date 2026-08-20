@@ -27,7 +27,9 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY types ./types
 COPY scripts ./scripts
-COPY test ./test
+# `test/` fica de fora de propósito: está no .dockerignore e a imagem de runtime
+# não roda a suíte. O `include` do tsconfig cobre test/**, mas glob que não casa
+# nada é no-op para o tsc — o build sai com dist/src, dist/scripts e os assets.
 RUN npm run build
 
 # --- Runtime.
@@ -69,19 +71,25 @@ RUN cp /usr/bin/chromedriver /app/chromedriver \
       -r /app/flaresolverr/requirements.txt
 
 # --- Addon compilado + resolvedores BR embutidos (8700-8703, chamados pelo Jackett).
+# Os resolvedores vão para DENTRO de dist/: o br-resolvers os carrega por caminho
+# relativo ao próprio módulo ("../<nome>-resolver/server"), que a partir de
+# dist/src/ resolve em dist/. É o mesmo layout que o npm run build produz
+# localmente — fora do container isso passa despercebido porque o build já os
+# copia para dist/.
 COPY package.json ./
 RUN npm install --omit=dev
 
-# Saída do tsc: dist/src/, dist/test/, dist/scripts/, dist/src/public/ (assets).
+# Saída do tsc: dist/src/, dist/scripts/ e dist/src/public/ (assets). Sem
+# dist/test: a suíte não vai para a imagem (ver o builder).
 COPY --from=builder /app/dist ./dist
-COPY bludv-resolver/server.js ./bludv-resolver/server.js
-COPY bludv-resolver/package.json ./bludv-resolver/package.json
-COPY comandotorrents-resolver/server.js ./comandotorrents-resolver/server.js
-COPY comandotorrents-resolver/package.json ./comandotorrents-resolver/package.json
-COPY nerdfilmes-resolver/server.js ./nerdfilmes-resolver/server.js
-COPY nerdfilmes-resolver/package.json ./nerdfilmes-resolver/package.json
-COPY torrentdosfilmes-resolver/server.js ./torrentdosfilmes-resolver/server.js
-COPY torrentdosfilmes-resolver/package.json ./torrentdosfilmes-resolver/package.json
+COPY bludv-resolver/server.js ./dist/bludv-resolver/server.js
+COPY bludv-resolver/package.json ./dist/bludv-resolver/package.json
+COPY comandotorrents-resolver/server.js ./dist/comandotorrents-resolver/server.js
+COPY comandotorrents-resolver/package.json ./dist/comandotorrents-resolver/package.json
+COPY nerdfilmes-resolver/server.js ./dist/nerdfilmes-resolver/server.js
+COPY nerdfilmes-resolver/package.json ./dist/nerdfilmes-resolver/package.json
+COPY torrentdosfilmes-resolver/server.js ./dist/torrentdosfilmes-resolver/server.js
+COPY torrentdosfilmes-resolver/package.json ./dist/torrentdosfilmes-resolver/package.json
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
