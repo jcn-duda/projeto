@@ -351,7 +351,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     const configSegment = runtime.encode(userConfig);
 
     // Encolhe o orçamento de coleta para o cenário caber no teste. Com o default
-    // (REPLY_DEADLINE 9200 − DEBRID_RESERVE 2800 = 6400ms) a fonte BR de 140ms
+    // (REPLY_DEADLINE 9200 − DEBRID_RESERVE 4500 = 4700ms) a fonte BR de 140ms
     // entrava na janela e a primeira resposta já saía COMPLETA — o passe tardio
     // nunca disparava e o cenário passava de qualquer jeito, mesmo com a escrita
     // do cache removida. Aqui a janela vira 1200ms e a BR fica fora dela: a

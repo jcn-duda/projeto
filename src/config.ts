@@ -214,7 +214,19 @@ const config = {
     // Default off porque isso escreve na conta do usuário a cada play de fonte
     // fria, que é justamente o que o modo padrão evita.
     resolveUncached: String(process.env.DEBRID_RESOLVE_UNCACHED || 'false') === 'true',
-    batchSize: num(process.env.DEBRID_BATCH_SIZE, 100),
+    // Lotes da checagem de cache, em paralelo, cada um com o teto COMPLETO
+    // (não dividido). Não é aceleração: a latência é do serviço (44 hashes em
+    // 1,9s; 43 em 4,7s — mesma conta). É degradação parcial: um lote que
+    // responde marca o ⚡ dos seus itens mesmo quando o outro estoura o prazo
+    // (normalizeCacheResult preserva o Set parcial com known:false). Com 100,
+    // lista de ~45 hashes era 1 lote só — estourou, o Set voltava vazio e a
+    // lista inteira ficava sem ⚡ (medido no Premiumize: 4 de 9 checagens
+    // perderam o teto dinâmico de ~1,8s). Muito pequeno também não: rajada de
+    // requisições paralelas responde rate_limit_reached no Premiumize; 25 é
+    // o ponto de partida medido. Na AllDebrid cada lote é um upload de
+    // verdade — 25 significa mais uploads paralelos, e a limpeza cuida dos
+    // ids de todos.
+    batchSize: num(process.env.DEBRID_BATCH_SIZE, 25),
     // Teto SÓ da checagem de cache. Com os lotes em paralelo é UMA janela, não
     // uma por lote — era a soma em série que estourava o REPLY_DEADLINE.
     //
@@ -316,13 +328,18 @@ const config = {
   // 9200 usa a folga que sobrava e ainda deixa 800ms para rede e parse —
   // passar de ~9500 troca "lista parcial" por "erro de timeout", que é pior.
   replyDeadline: num(process.env.REPLY_DEADLINE_MS, 9200),
-  // Fatia do deadline reservada pra checagem no debrid depois da coleta. Com
-  // 2000 ela não cobria nem o caso rápido (~2,6s) e a coleta comia o prazo
-  // inteiro. 3500 era dimensionado pelo pior caso do Premiumize (75 hashes com
-  // o event loop travado pelos resolvedores BR); medido na AllDebrid a checagem
-  // leva 270-290ms, então 2800 continua com folga de 10x e devolve 700ms para a
-  // coleta — que é onde as fontes BR disputam a primeira resposta.
-  debridReserve: num(process.env.DEBRID_RESERVE_MS, 2800),
+  // Fatia do deadline reservada pra checagem no debrid depois da coleta. O
+  // 2800 antigo era dimensionado pela AllDebrid (270-290ms medidos) — mas quem
+  // manda no prazo é o serviço mais lento da casa: Premiumize medido em
+  // 1,9-4,7s no passo de resposta (mediana ~3,2s), e 2800 perdia a corrida na
+  // maioria das buscas, degradando a lista inteira para known:false (sem ⚡
+  // nenhum). 4500 cobre a mediana com folga e chega perto do pior caso; os
+  // outliers de 6,5-7,5s ficam para o passe tardio, que re-checa sem teto
+  // curto e regrava o cache. O custo é direto: a coleta cai de 6400 para
+  // 4700ms, e fonte BR lenta passa a cair mais no passe tardio — que já é o
+  // caminho dela (orçamento próprio de 20s). NÃO compense subindo o
+  // REPLY_DEADLINE: o cliente Stremio aborta perto de 10s.
+  debridReserve: num(process.env.DEBRID_RESERVE_MS, 4500),
   // Piso que a graça BR nunca invade: o que a checagem de cache precisa ter
   // sobrado, aconteça o que acontecer. Era literal (2000) dentro do cálculo da
   // graça, e por isso baixar a reserva encolhia a janela BR em vez de ampliá-la.
