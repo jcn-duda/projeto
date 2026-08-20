@@ -66,71 +66,71 @@ console.log('\n--- 3. Mutation & Perturbation Testing Matrix ---');
 const mutations = [
   {
     name: 'MUT-01: Invert matchesBrTitle (format.js)',
-    file: 'src/utils/format.js',
-    target: 'return matchesTitleStructure(title, name, year, { isSeries });',
+    file: 'dist/src/utils/format.js',
+    target: 'return matchesTitleStructure(title, name, year, { isSeries, tokens: own });',
     replacement: 'return false; // MUTATED',
     testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
   },
   {
     name: 'MUT-02: Break dedupeByHash seeders preservation (format.js)',
-    file: 'src/utils/format.js',
+    file: 'dist/src/utils/format.js',
     target: 'const seedDiff = (s._seeders || 0) - (prev._seeders || 0);',
     replacement: 'const seedDiff = (prev._seeders || 0) - (s._seeders || 0); // MUTATED',
     testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
   },
   {
     name: 'MUT-03: Corrupt verifyResolve HMAC check (sign.js)',
-    file: 'src/utils/sign.js',
+    file: 'dist/src/utils/sign.js',
     target: 'return a.length === b.length && crypto.timingSafeEqual(a, b);',
     replacement: 'return false; // MUTATED',
     testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
   },
   {
     name: 'MUT-04: Disable runtime URL 8192-byte limit (runtime.js)',
-    file: 'src/runtime.js',
-    target: 'if (!segment || segment.length > MAX_CONFIG_SEGMENT || !/^[A-Za-z0-9_-]+$/.test(segment)) return null;',
-    replacement: 'if (!segment || !/^[A-Za-z0-9_-]+$/.test(segment)) return null; // MUTATED',
+    file: 'dist/src/runtime.js',
+    target: 'segment.length > MAX_CONFIG_SEGMENT || ',
+    replacement: '', // MUTATED: derruba o teto de 8192
     testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
   },
   {
     name: 'MUT-05: Break protected.js hold tracking (protected.js)',
-    file: 'src/debrid/protected.js',
+    file: 'dist/src/debrid/protected.js',
     target: 'return true;',
     replacement: 'return false; // MUTATED',
     testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
   },
   {
     name: 'MUT-06: Break BLUDV Resolver Host Security Allowlist (bludv-resolver/server.js)',
-    file: 'bludv-resolver/server.js',
+    file: 'dist/bludv-resolver/server.js',
     target: 'if (!allowed) throw new Error(\'blocked_host\');',
     replacement: '// if (!allowed) throw new Error(\'blocked_host\'); // MUTATED: allow any evil host',
     testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
   },
   {
     name: 'MUT-07: Disable secretBox encryption tag check (secret-box.js)',
-    file: 'src/utils/secret-box.js',
+    file: 'dist/src/utils/secret-box.js',
     target: 'decipher.setAuthTag(raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES));',
     replacement: '// decipher.setAuthTag(raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES)); // MUTATED',
     testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
   },
   {
     name: 'MUT-08: Invert Tier 3 brFirst ranking logic in limitReservingBr (format.js)',
-    file: 'src/utils/format.js',
+    file: 'dist/src/utils/format.js',
     target: 'if (brFirst) {',
     replacement: 'if (!brFirst) { // MUTATED',
     testFile: 'dist/test/e2e/tier3-cross-feature.test.js'
   },
   {
     name: 'MUT-09: Break Tier 4 Scenario 1 Premiumize branding [PM⚡] (providers/index.js)',
-    file: 'src/providers/index.js',
+    file: 'dist/src/providers/index.js',
     target: 'name: markDebridName(s.name, adapter.short || adapter.id, instant),',
     replacement: 'name: s.name, // MUTATED: stripped [PM⚡]',
     testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
   },
   {
     name: 'MUT-10: Break Tier 4 Scenario 2 Late-Pass Refreshed Cache Delivery (providers/index.js)',
-    file: 'src/providers/index.js',
-    target: 'cache.set(cacheKey, { streams, partial }, complete ? config.cacheTtl : Math.min(config.cacheTtl, 60));',
+    file: 'dist/src/providers/index.js',
+    target: 'cache.set(cacheKey, { streams, partial, debridKnown: !needsDebridRefresh }, complete ? config.cacheTtl : Math.min(config.cacheTtl, 60));',
     replacement: '// cache.set(cacheKey, { streams, partial }, complete ? config.cacheTtl : Math.min(config.cacheTtl, 60)); // MUTATED',
     testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
   }

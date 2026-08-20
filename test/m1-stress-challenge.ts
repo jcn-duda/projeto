@@ -406,20 +406,32 @@ async function runTests() {
     recordFail('nerdfilmes: cache map bounded to 500', err);
   }
 
-  // Test 3.4: src/utils/cache.js LRU Bounding under 2500 insertions (MAX_ENTRIES = 2000)
+  // Test 3.4: cota do namespace + LRU sob 2500 inserções.
+  //
+  // O teto que vale aqui é o do NAMESPACE, não o global: chave sem `:` cai no
+  // `__default` (500), enquanto MAX_ENTRIES (12000) é só a proteção de memória
+  // do processo inteiro. O teste nasceu quando MAX_ENTRIES era 2000 e não havia
+  // cotas por balde — daí ele cobrar `k-2000`, que hoje é despejado por ser a
+  // 501ª entrada mais recente.
   try {
     cache.clear();
     const t0 = performance.now();
+    const COTA_DEFAULT = cache.QUOTAS.__default;
 
     for (let i = 1; i <= 2500; i++) {
       cache.set(`k-${i}`, { data: `val-${i}` }, 3600);
     }
 
-    assert.ok(cache.size() <= 2000, `cache.size() must be <= 2000, got ${cache.size()}`);
+    assert.ok(
+      cache.size() <= COTA_DEFAULT,
+      `cache.size() must be <= ${COTA_DEFAULT}, got ${cache.size()}`,
+    );
     assert.equal(cache.get('k-1'), null);
     assert.equal(cache.get('k-100'), null);
     assert.deepEqual(cache.get('k-2500'), { data: 'val-2500' });
-    assert.deepEqual(cache.get('k-2000'), { data: 'val-2000' });
+    // O mais antigo que a cota ainda comporta continua vivo; um a menos, não.
+    assert.deepEqual(cache.get(`k-${2500 - COTA_DEFAULT + 1}`), { data: `val-${2500 - COTA_DEFAULT + 1}` });
+    assert.equal(cache.get(`k-${2500 - COTA_DEFAULT}`), null);
 
     // Test LRU refresh on access:
     cache.set('pinned-key', 'important', 3600);
@@ -431,9 +443,9 @@ async function runTests() {
     }
 
     assert.equal(cache.get('pinned-key'), 'important', 'pinned-key must survive because it was accessed');
-    recordPass('src/utils/cache.js: bounded to 2000 entries with active LRU retention', performance.now() - t0);
+    recordPass('src/utils/cache.ts: cota do namespace __default com LRU ativo', performance.now() - t0);
   } catch (err) {
-    recordFail('src/utils/cache.js: bounded to 2000 entries', err);
+    recordFail('src/utils/cache.ts: cota do namespace __default', err);
   }
 
   // --------------------------------------------------------------------------
