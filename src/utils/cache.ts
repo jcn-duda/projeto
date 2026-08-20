@@ -12,9 +12,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const store = new Map();
-// A soma das cotas conhecidas é 11.500. O teto global fica logo acima dela
+// A soma das cotas conhecidas é 17.000. O teto global fica logo acima dela
 // como proteção para prefixes novos, sem um namespace conhecido expulsar outro.
-const MAX_ENTRIES = 12000;
+const MAX_ENTRIES = 17000;
 const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -24,6 +24,9 @@ const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // ~100 KB (teto de itens no config), então a cota fica bem abaixo das de
   // entrada minúscula — pior caso ~79 MB no L1.
   raw: 800,
+  // Disponibilidade por hash é só 0/1; a cota alta evita reconsultar a mesma
+  // conta em buscas diferentes sem ocupar a memória dos resultados brutos.
+  davail: 5000,
   autofetch: 500,
   'indexer-status': 200,
   __default: 500,
@@ -429,15 +432,36 @@ function getWithStale(key: string, graceSeconds = 0) {
 }
 
 function set(key: string, value: unknown, ttlSeconds: number) {
-  if (!ttlSeconds || ttlSeconds <= 0) return;
-  const expiresAt = Date.now() + ttlSeconds * 1000;
-  const namespace = namespaceFor(key);
-  removeFromStore(key); // reinsere no fim para a ordem refletir o uso mais recente
-  store.set(key, { value, expiresAt, namespace });
-  incrementNamespace(namespace);
-  persist(key, value, expiresAt);
-  const quotaDropped = quotaOverflow(namespace);
-  if (quotaDropped.length) evict(quotaDropped);
+  setMany([{ key, value, ttlSeconds }]);
+}
+
+/**
+ * Escrita em LOTE com UMA passada de evicção por namespace. O `set` unitário
+ * já dava conta dos consumidores antigos; o davail escreve um registro por
+ * hash da busca no caminho de resposta, e em saturação de cota cada `set`
+ * pagava um scan do store global mais uma transação SQLite (fsync) pela
+ * vítima — o custo por chave que os comentários de persistência/forgetMany
+ * dizem que só é aceitável em lote. Aqui o excesso do namespace inteiro é
+ * calculado depois de todas as inserções: mesmo critério de vítima (as mais
+ * antigas do LRU continuam na frente), uma transação só.
+ */
+function setMany(entries: { key: string; value: unknown; ttlSeconds: number }[]) {
+  const valid = entries.filter((e) => e.ttlSeconds && e.ttlSeconds > 0);
+  if (valid.length === 0) return;
+  const namespaces = new Set<string>();
+  for (const { key, value, ttlSeconds } of valid) {
+    const expiresAt = Date.now() + ttlSeconds * 1000;
+    const namespace = namespaceFor(key);
+    removeFromStore(key); // reinsere no fim para a ordem refletir o uso mais recente
+    store.set(key, { value, expiresAt, namespace });
+    incrementNamespace(namespace);
+    persist(key, value, expiresAt);
+    namespaces.add(namespace);
+  }
+  for (const namespace of namespaces) {
+    const quotaDropped = quotaOverflow(namespace);
+    if (quotaDropped.length) evict(quotaDropped);
+  }
   if (store.size > MAX_ENTRIES) prune();
 }
 
@@ -493,4 +517,4 @@ loadFromDisk();
 pruneTimer = setInterval(prune, 10 * 60 * 1000);
 pruneTimer.unref();
 
-export { MAX_ENTRIES, QUOTAS, get, getWithStale, set, forget, forgetMany, prune, clear, size, snapshot, close };
+export { MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, prune, clear, size, snapshot, close };

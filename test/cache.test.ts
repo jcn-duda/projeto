@@ -156,6 +156,48 @@ test('get() de entrada válida renova a recência: no estouro ela sobrevive e o 
   }
 });
 
+test('setMany: lote com UMA evicção por namespace — as mais antigas saem, as do lote ficam', () => {
+  const originalPersist = process.env.CACHE_PERSIST;
+  const originalDbPath = process.env.CACHE_DB_PATH;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    delete _require.cache[CACHE_MODULE];
+    const cache = _require(CACHE_MODULE);
+
+    // Enche a cota do namespace padrão com entradas individuais.
+    const quota = cache.QUOTAS.__default;
+    for (let i = 0; i < quota; i++) cache.set(`a-${i}`, { n: i }, TTL_S);
+
+    // Lote que estoura a cota em 3: a passada única de evicção derruba as três
+    // mais antigas do LRU (a-0..a-2) e mantém todo o lote novo. Entrada com
+    // TTL 0 é ignorada, igual ao set() unitário.
+    cache.setMany([
+      { key: 'b-0', value: 0, ttlSeconds: TTL_S },
+      { key: 'b-1', value: 1, ttlSeconds: TTL_S },
+      { key: 'b-2', value: 2, ttlSeconds: TTL_S },
+      { key: 'b-invalida', value: 9, ttlSeconds: 0 },
+    ]);
+
+    assert.deepEqual(cache.get('b-0'), 0, 'entrada do lote fica');
+    assert.deepEqual(cache.get('b-2'), 2, 'última entrada do lote fica');
+    assert.equal(cache.get('b-invalida'), null, 'TTL 0 não entra, igual ao set()');
+    assert.equal(cache.get('a-0'), null, 'a mais antiga é a vítima da evicção em lote');
+    assert.equal(cache.get('a-2'), null, 'terceira mais antiga também sai (excesso = 3)');
+    assert.deepEqual(cache.get('a-3'), { n: 3 }, 'a partir da quarta mais antiga sobrevive');
+    assert.deepEqual(cache.get(`a-${quota - 1}`), { n: quota - 1 }, 'a mais recente sobrevive');
+    assert.equal(cache.size(), quota, 'namespace volta exatamente à cota');
+
+    // O set() unitário continua valendo (agora delega ao lote de 1).
+    cache.set('single', { ok: true }, TTL_S);
+    assert.deepEqual(cache.get('single'), { ok: true });
+  } finally {
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+    if (originalDbPath === undefined) delete process.env.CACHE_DB_PATH;
+    else process.env.CACHE_DB_PATH = originalDbPath;
+  }
+});
+
 const RESILIENT_LOAD_SCRIPT = [
   "const assert = require('node:assert');",
   'delete process.env.CACHE_PERSIST;',
@@ -339,10 +381,11 @@ test('estouro de dlmag despeja só o próprio namespace e preserva streams', () 
   }
 });
 
-test('cotas da Fase 1: raw limitado, streams ampliado, teto na soma', () => {
-  // Os números do PLANO_CACHE v3: raw guarda itens grandes (até ~100 KB por
-  // entrada), então a cota fica bem abaixo das de entrada minúscula; o teto
-  // global continua sendo a soma das cotas + folga.
+test('cotas da Fase 3: raw limitado, streams ampliado, davail de entrada barata', () => {
+  // raw guarda itens grandes (até ~100 KB por entrada), então a cota fica bem
+  // abaixo das de entrada minúscula; davail é só 0/1 por hash (fase 3), o que
+  // permite cota alta sem custo de memória; o teto global continua sendo a
+  // soma das cotas + folga.
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
@@ -350,7 +393,8 @@ test('cotas da Fase 1: raw limitado, streams ampliado, teto na soma', () => {
     const cache = _require(CACHE_MODULE);
     assert.equal(cache.QUOTAS.raw, 800);
     assert.equal(cache.QUOTAS.streams, 2000);
-    assert.equal(cache.MAX_ENTRIES, 12000);
+    assert.equal(cache.QUOTAS.davail, 5000);
+    assert.equal(cache.MAX_ENTRIES, 17000);
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;

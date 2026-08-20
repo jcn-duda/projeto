@@ -11,6 +11,7 @@ const NAMESPACE_VERSIONS = Object.freeze({
   autofetch: 'v2',
   raw: 'v1',
   dinv: 'v1',
+  davail: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

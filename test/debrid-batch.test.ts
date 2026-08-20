@@ -19,6 +19,11 @@ const hashes = (n: any, prefix = 'h') => Array.from({ length: n }, (_, i) => `${
 // retorno); o helper fixa o tipo do resultado sem inventar valor nenhum.
 const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
 
+// Objeto anotado para o literal viajar com o formato documentado das opções do
+// registry (`{ timeoutMs?, forceFresh? }`) sem depender de inferência na
+// assinatura importada.
+const forceFreshOpts: { timeoutMs?: number; forceFresh?: boolean } = { forceFresh: true };
+
 test('todos os lotes respondem: completo, com o Set inteiro', async () => {
   const { cached, complete } = await batched(hashes(5), 2, async (batch) => batch);
   assert.equal(complete, true);
@@ -163,9 +168,12 @@ test('medição de repetição por hash: janela conta o que volta, ignora degrad
       () => debrid.checkCached(['track-AAA', 'track-bbb']),
     );
     // A janela normaliza caixa: 'aaa' casa com 'track-AAA' da busca anterior.
+    // forceFresh (o mesmo escape do recheck do autofetch) impede o L1 do davail
+    // de responder 'aaa' a partir do positivo gravado na chamada anterior — sem
+    // ele a repetição sumiria da medição e o teste mediria só miss de cache.
     await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(['track-aaa', 'track-ccc']),
+      () => debrid.checkCached(['track-aaa', 'track-ccc'], forceFreshOpts),
     );
 
     const counters = metrics.snapshot().counters;

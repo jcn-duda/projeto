@@ -23,6 +23,12 @@ const NON_ABORTABLE_CHECK_TTL_MS = 60_000;
 const CHECKED_HASH_WINDOW_MS = 15 * 60 * 1000;
 const checkedHashWindow = new Map();
 
+type CacheCheckResult = {
+  cached: Set<string>;
+  known: boolean;
+  unusable?: { reason: string; message: string };
+};
+
 function trackCheckedHashes(infoHashes: string[]) {
   const now = Date.now();
   // Poda preguiçosa na própria chamada: o volume de checagens é baixo e não
@@ -68,7 +74,7 @@ const UNUSABLE = {
   },
 };
 
-function unusable(adapter: any, reason: string, err: any) {
+function unusable(adapter: any, reason: string, err: any): CacheCheckResult {
   const kind = (UNUSABLE as Record<string, any>)[reason];
   metrics.count(kind.metric);
   log.warn(`[${adapter.id}] ${kind.label} (${err.message}); a lista volta como P2P — ${kind.fix(adapter)}`);
@@ -87,8 +93,8 @@ function failureReason(err: any) {
   return unusableReason(err) || (isRateLimitError(err) ? 'rate' : 'falha');
 }
 
-function normalizeCacheResult(adapter: any, result: any) {
-  const cached = result instanceof Set ? result : result?.cached || new Set();
+function normalizeCacheResult(adapter: any, result: any): CacheCheckResult {
+  const cached = new Set<string>(result instanceof Set ? result : result?.cached || []);
   const complete = result instanceof Set ? true : result?.complete !== false;
   if (!complete) {
     log.warn(
@@ -101,6 +107,10 @@ function normalizeCacheResult(adapter: any, result: any) {
 function nonAbortableKey(adapter: any, apiKey: string, infoHashes: string[]) {
   const hashes = [...new Set(infoHashes.map((hash: string) => String(hash).toLowerCase()))].sort();
   return `${adapter.id}:${accountScope(apiKey)}:${hashes.join(',')}`;
+}
+
+function davailKey(adapterId: string, apiKey: string, hash: string) {
+  return `${prefix('davail')}${adapterId}:${accountScope(apiKey)}:${String(hash).toLowerCase()}`;
 }
 
 function nonAbortableCheck(adapter: any, apiKey: string, infoHashes: string[]) {
@@ -212,7 +222,10 @@ function current(): DebridAdapter | null {
  *   do REPLY_DEADLINE menos margem). Quando <=0 degrada na hora, sem rede.
  *   Ausente = timeout completo do adaptador (passe tardio).
  */
-async function checkCached(infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
+async function checkCached(
+  infoHashes: string[],
+  { timeoutMs, forceFresh }: { timeoutMs?: number; forceFresh?: boolean } = {},
+): Promise<CacheCheckResult> {
   const adapter = current();
   if (!adapter || infoHashes.length === 0) return { cached: new Set(), known: false };
   if (!adapter.cacheCheck) return { cached: new Set(), known: false };
@@ -220,39 +233,85 @@ async function checkCached(infoHashes: string[], { timeoutMs }: { timeoutMs?: nu
   // Tempo restante esgotado: degrada na hora, sem rede. É a MESMA semântica de
   // resposta incompleta (lista inteira via debrid, sem ⚡ falso).
   if (timeoutMs != null && timeoutMs <= 0) return { cached: new Set(), known: false };
+  // Os guards de prazo voltam ANTES da camada davail, de propósito: a resposta
+  // que já desistiu de perguntar mantém o contrato known:false — responder pelo
+  // L1 aqui mudaria o comportamento do applyDebrid (needsFullRefresh) sem a
+  // rede ter sido consultada naquela janela.
+  if (
+    adapter.abortSafeCacheCheck === false &&
+    timeoutMs != null &&
+    timeoutMs < config.debrid.nonAbortableRaceFloor
+  ) {
+    return { cached: new Set(), known: false };
+  }
+  const apiKey = opts().debridApiKey;
+  const davailOn = config.debrid.availPosTtl > 0 || config.debrid.availNegTtl > 0;
+  const fromCache = new Set<string>();
+  let toAsk = infoHashes;
+  if (davailOn && !forceFresh) {
+    const unique = [...new Set(infoHashes.map((hash) => String(hash).toLowerCase()))];
+    const missing: string[] = [];
+    for (const hash of unique) {
+      const value = cache.get(davailKey(adapter.id, apiKey, hash));
+      if (value === 1 && config.debrid.availPosTtl > 0) fromCache.add(hash);
+      else if (value === 0 && config.debrid.availNegTtl > 0) {
+        // Negativo confirmado também responde sem rede, mas não entra no Set.
+      } else missing.push(hash);
+    }
+    if (missing.length < unique.length) metrics.count('davail.servedHashes', unique.length - missing.length);
+    toAsk = missing;
+    if (toAsk.length === 0) return { cached: fromCache, known: true };
+  }
+
+  let result: CacheCheckResult;
   // A checagem da AllDebrid faz upload de verdade. Ela pode disputar o prazo,
   // mas nunca é abortada: se perder, continua em background, lê os ids e limpa
   // os não cacheados. O passe tardio junta a mesma promise.
   if (adapter.abortSafeCacheCheck === false) {
-    if (timeoutMs != null && timeoutMs < config.debrid.nonAbortableRaceFloor) {
-      return { cached: new Set(), known: false };
-    }
     // Medição fica no ponto onde a checagem REAL acontece: degradação por
     // prazo ou ausência de serviço não é pergunta feita ao debrid.
-    trackCheckedHashes(infoHashes);
-    const task = nonAbortableCheck(adapter, opts().debridApiKey, infoHashes);
-    if (timeoutMs == null) return task;
-    return raceWithDeadline(task, timeoutMs, () => {
+    trackCheckedHashes(toAsk);
+    const task = nonAbortableCheck(adapter, apiKey, toAsk);
+    result = timeoutMs == null ? await task : await raceWithDeadline(task, timeoutMs, () => {
       metrics.count('debrid.check.raceLost');
       return { cached: new Set(), known: false };
     });
+  } else {
+    trackCheckedHashes(toAsk);
+    try {
+      result = normalizeCacheResult(adapter, await adapter.checkCached(apiKey, toAsk, { timeoutMs }));
+    } catch (err) {
+      const reason = unusableReason(err);
+      if (reason) result = unusable(adapter, reason, err);
+      else if (isRateLimitError(err)) {
+        metrics.count('debrid.rate_limit');
+        log.warn(`[${adapter.id}] rate limit na checagem de cache (${err.message}); tentando de novo no passe tardio`);
+        result = { cached: new Set(), known: false };
+      } else {
+        log.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
+        result = { cached: new Set(), known: false };
+      }
+    }
   }
 
-  trackCheckedHashes(infoHashes);
-  try {
-    const result = await adapter.checkCached(opts().debridApiKey, infoHashes, { timeoutMs });
-    return normalizeCacheResult(adapter, result);
-  } catch (err) {
-    const reason = unusableReason(err);
-    if (reason) return unusable(adapter, reason, err);
-    if (isRateLimitError(err)) {
-      metrics.count('debrid.rate_limit');
-      log.warn(`[${adapter.id}] rate limit na checagem de cache (${err.message}); tentando de novo no passe tardio`);
-      return { cached: new Set(), known: false };
+  if (davailOn && !result.unusable) {
+    // Lote único: com a cota do davail saturada, uma passada de evicção (e UMA
+    // transação SQLite) para a busca inteira, não uma por hash no prazo da
+    // resposta. A persistência já era em lote; a evicção é que não era.
+    const writes: { key: string; value: number; ttlSeconds: number }[] = [];
+    for (const hash of new Set(toAsk.map((value) => String(value).toLowerCase()))) {
+      if (result.cached.has(hash)) {
+        if (config.debrid.availPosTtl > 0) {
+          writes.push({ key: davailKey(adapter.id, apiKey, hash), value: 1, ttlSeconds: config.debrid.availPosTtl });
+        }
+      } else if (result.known && config.debrid.availNegTtl > 0) {
+        writes.push({ key: davailKey(adapter.id, apiKey, hash), value: 0, ttlSeconds: config.debrid.availNegTtl });
+      }
     }
-    log.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
-    return { cached: new Set(), known: false };
+    cache.setMany(writes);
   }
+  result.cached = new Set([...fromCache, ...result.cached]);
+  return result;
 }
 
 // Acima disto o verificador avisa: encher a conta derruba a checagem de cache
