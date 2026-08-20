@@ -130,8 +130,14 @@ const mutations = [
   {
     name: 'MUT-10: Break Tier 4 Scenario 2 Late-Pass Refreshed Cache Delivery (providers/index.js)',
     file: 'dist/src/providers/index.js',
-    target: 'cache.set(cacheKey, { streams, partial, debridKnown: !needsDebridRefresh }, complete ? config.cacheTtl : Math.min(config.cacheTtl, 60));',
-    replacement: '// cache.set(cacheKey, { streams, partial }, complete ? config.cacheTtl : Math.min(config.cacheTtl, 60)); // MUTATED',
+    // O alvo é só o objeto de uma linha: existe como linha física no fonte
+    // (src/providers/index.ts) e sobrevive a qualquer reflow de linhas que o
+    // printer do tsc faça no dist — a chamada inteira colapsada quebraria no
+    // dia em que a formatação do emit mudasse. O mutante força partial:true
+    // em toda escrita do finish, então a entrada nunca transita para
+    // completa — mesma via de captura do mutante original (cenário 2).
+    target: '{ streams, partial, debridKnown: !needsDebridRefresh }',
+    replacement: '{ streams, partial: true /* MUTATED */, debridKnown: !needsDebridRefresh }',
     testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
   }
 ];

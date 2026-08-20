@@ -3,6 +3,11 @@
 # suíte Node não percebe um caminho quebrado: renomear um arquivo passa verde no
 # CI e só falha no deploy. Este workflow existe só para quebrar antes disso.
 #
+# Os filtros de caminho espelham a lista de COPY do Dockerfile: src/, types/ e
+# scripts/ alimentam o builder (tsc), e cada server.js/package.json de resolver
+# entra na imagem de runtime. Mudança em qualquer um deles sem estar aqui é
+# alteração de imagem que o workflow nunca vê.
+#
 # Workflow separado, e não um job no ci.yml, porque o filtro de caminho é por
 # workflow. Rodar isto em todo push custaria caro à toa: o build completo faz
 # apk add, pip install e a cópia do runtime .NET do Jackett.
@@ -13,8 +18,18 @@ on:
     paths:
       - 'Dockerfile'
       - 'docker-compose.yml'
-      - 'scripts/entrypoint.sh'
+      - 'scripts/**'
+      - 'src/**'
+      - 'types/**'
       - 'jackett-bludv/**'
+      - 'bludv-resolver/server.js'
+      - 'bludv-resolver/package.json'
+      - 'comandotorrents-resolver/server.js'
+      - 'comandotorrents-resolver/package.json'
+      - 'nerdfilmes-resolver/server.js'
+      - 'nerdfilmes-resolver/package.json'
+      - 'torrentdosfilmes-resolver/server.js'
+      - 'torrentdosfilmes-resolver/package.json'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'
@@ -23,8 +38,18 @@ on:
     paths:
       - 'Dockerfile'
       - 'docker-compose.yml'
-      - 'scripts/entrypoint.sh'
+      - 'scripts/**'
+      - 'src/**'
+      - 'types/**'
       - 'jackett-bludv/**'
+      - 'bludv-resolver/server.js'
+      - 'bludv-resolver/package.json'
+      - 'comandotorrents-resolver/server.js'
+      - 'comandotorrents-resolver/package.json'
+      - 'nerdfilmes-resolver/server.js'
+      - 'nerdfilmes-resolver/package.json'
+      - 'torrentdosfilmes-resolver/server.js'
+      - 'torrentdosfilmes-resolver/package.json'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'

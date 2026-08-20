@@ -48,7 +48,7 @@ jobs:
 
       # Typecheck (tsc --noEmit) não depende da versão de runtime, então roda
       # só na 22 da matriz para não dobrar o tempo. Os .ts são checados por
-      # padrão; noImplicitAny continua desligado.
+      # padrão, com strictNullChecks e noImplicitAny ligados (portão em zero).
       - name: Verificar tipos
         if: matrix.node == '22.x'
         run: npm run typecheck

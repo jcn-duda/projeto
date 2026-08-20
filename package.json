@@ -16,6 +16,7 @@
     "test:adversarial": "node dist/test/empirical-e2e-challenger.js",
     "test:adversarial-m1": "node dist/test/adversarial-m1-parser-harness.js",
     "test:protector-m1": "node --test dist/test/m1-protector-adversarial-stress.js",
+    "test:challenger-m2": "node dist/test/challenger-m2-parser-deep-stress.js",
     "test:nerdfilmes": "node nerdfilmes-resolver/test.js",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
