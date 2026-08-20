@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert';
 
@@ -13,7 +11,7 @@ function deferred() {
 
 test('fase nova impede passe tardio antigo de sobrescrever o cache', async () => {
   const oldBuild = deferred();
-  const writes = [];
+  const writes: any[] = [];
   const writer = latestWriter.createLatestWriter(
     (value) => value === 'episodio' ? oldBuild.promise : Promise.resolve(value),
     (value) => writes.push(value),
@@ -31,7 +29,7 @@ test('fase nova impede passe tardio antigo de sobrescrever o cache', async () =>
 
 test('episódio tardio útil salva a busca quando o pack fica vazio', async () => {
   const episodeBuild = deferred();
-  const writes = [];
+  const writes: any[] = [];
   const writer = latestWriter.createLatestWriter(
     (value) => value === 'episodio' ? episodeBuild.promise : Promise.resolve(value),
     (value) => writes.push(value),
@@ -49,7 +47,7 @@ test('episódio tardio útil salva a busca quando o pack fica vazio', async () =
 
 test('lote tardio mais novo vence o parcial dentro da mesma fase', async () => {
   const partialBuild = deferred();
-  const writes = [];
+  const writes: any[] = [];
   const writer = latestWriter.createLatestWriter(
     (value) => value === 'parcial' ? partialBuild.promise : Promise.resolve(value),
     (value) => writes.push(value),

@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada.
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -27,6 +26,7 @@ import jackett from '../../src/providers/jackett.js';
 import prowlarr from '../../src/providers/prowlarr.js';
 import bludv from '../../src/providers/bludv.js';
 import { accountScope, streamsCacheKey } from '../../src/utils/request-key.js';
+import type { DebridAdapter } from '../../types/domain.js';
 
 // Helper to create synthetic 40-character hex infoHashes
 function makeHash(prefix, id = 1) {
@@ -35,7 +35,18 @@ function makeHash(prefix, id = 1) {
 }
 
 // Helper to create raw stream objects for testing
-function makeRawStream(title, options = {}) {
+interface RawStreamOptions {
+  infoHash?: string;
+  name?: string;
+  seeders?: number;
+  sizeBytes?: number;
+  isBr?: boolean;
+  tracker?: string;
+  _dubbed?: boolean;
+  [key: string]: unknown;
+}
+
+function makeRawStream(title: string, options: RawStreamOptions = {}) {
   const hash = options.infoHash || makeHash(title);
   const sizeBytes = options.sizeBytes != null ? options.sizeBytes : 2 * 1024 * 1024 * 1024;
   return {
@@ -53,6 +64,10 @@ function makeRawStream(title, options = {}) {
 
 // Helper for asynchronous pauses
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// `runtime.run` devolve unknown (o tipo do AsyncLocalStorage não propaga); o
+// wrapper recebe o tipo do retorno no call site, sem cast espalhado.
+const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
 
 /**
  * Builds an isolated in-memory Express application replicating src/addon.js routing
@@ -106,7 +121,7 @@ function createTestApp() {
         return res.status(403).send('assinatura inválida');
       }
     }
-    let work = null;
+    let work: { names: string[]; year: number | null } | null = null;
     if (hint) {
       try {
         const parsed = JSON.parse(hint);
@@ -134,7 +149,7 @@ function createTestApp() {
   app.use('/:userConfig', (req, res, next) => {
     const parsed = runtime.decode(req.params.userConfig);
     if (!parsed) return res.status(404).send('configuração inválida');
-    runtime.run({ opts: parsed, encoded: req.params.userConfig }, () => next());
+    runWith<void>({ opts: parsed, encoded: req.params.userConfig }, () => next());
   });
 
   app.get('/:userConfig/resolve/:infoHash', resolveHandler);
@@ -257,7 +272,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     ];
 
     // Mock Premiumize Adapter
-    const pmAdapter = debrid.BY_ID.get('premiumize');
+    const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
     const originalCheckCached = pmAdapter.checkCached;
     const originalResolveLink = pmAdapter.resolveLink;
 
@@ -398,13 +413,13 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     };
 
     // Mock Real-Debrid Adapter
-    const rdAdapter = debrid.BY_ID.get('realdebrid');
+    const rdAdapter = debrid.BY_ID.get('realdebrid') as DebridAdapter;
     const originalResolveLink = rdAdapter.resolveLink;
     rdAdapter.resolveLink = async (apiKey, hash, episode) => {
       assert.equal(apiKey, userApiKey);
       assert.equal(hash, slowBrPackHash);
-      assert.equal(episode.season, 1);
-      assert.equal(episode.episode, 1);
+      assert.equal(episode?.season, 1);
+      assert.equal(episode?.episode, 1);
       return 'https://cdn.real-debrid.com/stream/fallout_s01e01_dublado.mkv';
     };
 
@@ -434,7 +449,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       // determinístico no cache em memória: a condição de parada é a transição
       // partial → completo com as 2 fontes, que só a escrita tardia produz.
       const lateDeadline = Date.now() + 5000;
-      let lateHit = null;
+      let lateHit: any = null;
       while (Date.now() < lateDeadline) {
         lateHit = cache.get(cacheKey);
         if (lateHit && lateHit.partial === false && lateHit.streams.length === 2) break;
@@ -533,7 +548,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     ];
 
     // Mock AllDebrid Adapter
-    const adAdapter = debrid.BY_ID.get('alldebrid');
+    const adAdapter = debrid.BY_ID.get('alldebrid') as DebridAdapter;
     const originalCheckCached = adAdapter.checkCached;
     const originalEnqueue = adAdapter.enqueue;
     const originalAbortSafe = adAdapter.abortSafeCacheCheck;
@@ -541,8 +556,8 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     // Enable abortSafeCacheCheck for synchronous testing inside applyDebrid
     adAdapter.abortSafeCacheCheck = true;
 
-    const deletedMagnetHashes = [];
-    const enqueuedHashes = [];
+    const deletedMagnetHashes: string[] = [];
+    const enqueuedHashes: string[] = [];
 
     adAdapter.checkCached = async (apiKey, hashes) => {
       // Simulate dropUncached inside AllDebrid checkCached
@@ -702,12 +717,12 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
         makeRawStream(`${titlePrefix} 2024 SD 480p DUBLADO`, { isBr: true, _dubbed: true, tracker: 'bludv', sizeBytes: 800 * 1024 ** 2 }),
       ];
     };
-    prowlarr.search = jackett.search;
+    prowlarr.search = jackett.search as any;
 
     // Mock Debrid Adapters
-    const pmAdapter = debrid.BY_ID.get('premiumize');
-    const tbAdapter = debrid.BY_ID.get('torbox');
-    const adAdapter = debrid.BY_ID.get('alldebrid');
+    const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+    const tbAdapter = debrid.BY_ID.get('torbox') as DebridAdapter;
+    const adAdapter = debrid.BY_ID.get('alldebrid') as DebridAdapter;
 
     const origPmCheck = pmAdapter.checkCached;
     const origTbCheck = tbAdapter.checkCached;
@@ -732,30 +747,30 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       assert.equal(results.length, 10, 'All 10 concurrent requests completed successfully');
 
       // Verify User 1 (4K BR only via Real-Debrid)
-      const u1 = results.find((r) => r.user.id === 1);
+      const u1 = results.find((r) => r.user.id === 1)!;
       assert.ok(u1.data.streams.length > 0);
       assert.ok(u1.data.streams.every((s) => s.name.includes('2160p') || s.name.includes('4K')), 'User 1 strictly limited to 2160p/4K');
       assert.ok(u1.data.streams.every((s) => s.name.includes('[RD download]')), 'User 1 streams marked [RD download]');
 
       // Verify User 2 (1080p only via Premiumize)
-      const u2 = results.find((r) => r.user.id === 2);
+      const u2 = results.find((r) => r.user.id === 2)!;
       assert.ok(u2.data.streams.length > 0);
       assert.ok(u2.data.streams.every((s) => s.name.includes('1080p')), 'User 2 strictly limited to 1080p');
       assert.ok(u2.data.streams.every((s) => s.name.includes('[PM⚡]')), 'User 2 streams marked [PM⚡]');
 
       // Verify User 5 (P2P unconfigured)
-      const u5 = results.find((r) => r.user.id === 5);
+      const u5 = results.find((r) => r.user.id === 5)!;
       assert.ok(u5.data.streams.length > 0);
       assert.ok(u5.data.streams.every((s) => s.infoHash != null), 'User 5 receives pure P2P streams with infoHash');
       assert.ok(u5.data.streams.every((s) => s.url == null), 'User 5 streams contain no resolve URLs');
 
       // Verify User 6 (Sealed Key with Premiumize)
-      const u6 = results.find((r) => r.user.id === 6);
+      const u6 = results.find((r) => r.user.id === 6)!;
       assert.ok(u6.data.streams.length > 0);
       assert.ok(u6.data.streams[0].url.includes('/resolve/'), 'User 6 sealed key correctly signed in resolve URL');
 
       // Verify User 9 received identical result to User 1 (Coalescing)
-      const u9 = results.find((r) => r.user.id === 9);
+      const u9 = results.find((r) => r.user.id === 9)!;
       assert.equal(u9.data.streams.length, u1.data.streams.length);
     } finally {
       jackett.search = originalJackettSearch;

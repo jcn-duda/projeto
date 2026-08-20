@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -17,9 +15,8 @@ import * as runtime from '../src/runtime.js';
  * `runtime.decode` devolve os defaults ou null; nos testes o segmento é sempre
  * válido por construção, então os acessos diretos assumem o tipo não-nulo — o
  * cast no lugar do `!` (proibido em .js) é o que documenta essa invariante.
- *
- * @typedef {NonNullable<ReturnType<typeof runtime.decode>>} DecodedOptions
  */
+type DecodedOptions = NonNullable<ReturnType<typeof runtime.decode>>;
 
 const KEY = 'chave-de-debrid-do-usuario';
 const SECRET = 'segredo-do-operador';
@@ -85,7 +82,7 @@ test('selo de outro segredo não abre neste servidor', () => {
 test('install URL antigo (chave em texto puro) continua valendo com o selo ligado', () => {
   withSecret(SECRET, () => {
     const legado = runtime.encode({ ds: 'alldebrid', dk: KEY });
-    const parsed = /** @type {DecodedOptions} */ (runtime.decode(legado));
+    const parsed = runtime.decode(legado) as DecodedOptions;
 
     // É isto que permite ligar o RESOLVE_SECRET sem quebrar quem já instalou.
     assert.equal(parsed.debridApiKey, KEY);
@@ -105,7 +102,7 @@ test('sealSegment troca só o dk e o decode devolve a chave em claro', () => {
     // normalizar, senão o link mudaria de significado ao ser selado.
     assert.deepEqual({ ds: raw.ds, m: raw.m, bf: raw.bf }, { ds: 'alldebrid', m: 20, bf: 1 });
 
-    const parsed = /** @type {DecodedOptions} */ (runtime.decode(sealed));
+    const parsed = runtime.decode(sealed) as DecodedOptions;
     assert.equal(parsed.debridApiKey, KEY);
     assert.equal(parsed.maxResults, 20);
   });
@@ -135,6 +132,6 @@ test('chave selada na URL sem RESOLVE_SECRET no servidor vira chave vazia', () =
 
   withSecret('', () => {
     // Modo P2P puro em vez de mandar o blob para a API do debrid a cada busca.
-    assert.equal(/** @type {DecodedOptions} */ (runtime.decode(sealed)).debridApiKey, '');
+    assert.equal((runtime.decode(sealed) as DecodedOptions).debridApiKey, '');
   });
 });

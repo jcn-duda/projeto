@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -9,7 +7,7 @@ const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Helper to fresh-require a resolver module with specific environment variables
-function loadResolverWithEnv(resolverName, envOverrides = {}) {
+function loadResolverWithEnv(resolverName: string, envOverrides: Record<string, string | undefined | null> = {}) {
   const originalEnv = { ...process.env };
   const modulePath = path.resolve(__dirname, `../${resolverName}-resolver/server.js`);
 
@@ -43,7 +41,14 @@ function loadResolverWithEnv(resolverName, envOverrides = {}) {
   return mod;
 }
 
-const results = [];
+interface TestResult {
+  suite: string;
+  name: string;
+  status: 'PASS' | 'FAIL';
+  error?: string;
+  stack?: string;
+}
+const results: TestResult[] = [];
 
 function runTest(suite, name, fn) {
   try {
@@ -301,7 +306,7 @@ async function main() {
       let fetchCount = 0;
       const originalFetch = globalThis.fetch;
       try {
-        globalThis.fetch = async () => {
+        globalThis.fetch = (async () => {
           fetchCount += 1;
           // Simula latência de rede
           await new Promise((resolve) => setTimeout(resolve, 30));
@@ -316,7 +321,7 @@ async function main() {
               </div>
             `,
           };
-        };
+        }) as unknown as typeof globalThis.fetch;
 
         const postUrl = r === 'bludv'
           ? 'https://bludvfilmes.xyz/filme-concorrencia-pesada/'
@@ -353,11 +358,11 @@ async function main() {
 
       const originalFetch = globalThis.fetch;
       try {
-        globalThis.fetch = async () => ({
+        globalThis.fetch = (async () => ({
           ok: false,
           status: 503,
           text: async () => 'Service Unavailable',
-        });
+        })) as unknown as typeof globalThis.fetch;
 
         const postUrl = r === 'bludv'
           ? 'https://bludvfilmes.xyz/filme-erro/'

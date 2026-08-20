@@ -1,11 +1,13 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert';
 
 import { planJackettQueries, ptSweepIndexers, ptSweepQuery, ptSweepQueryFor } from '../src/providers/search-plan.js';
 import jackett from '../src/providers/jackett.js';
 const { shapeSearchQuery } = jackett;
+
+// `plan.find` devolve o elemento ou undefined; os testes garantem a
+// presenca por construcao — o cast documenta a invariante.
+type PlanTask = ReturnType<typeof planJackettQueries>[number];
 
 test('indexers BR viram tarefas independentes para entrar no balde assim que terminam', () => {
   const plan = planJackettQueries(
@@ -112,7 +114,7 @@ test('global nunca carrega fallback nem a query pt-BR', () => {
   );
   assert.ok(globais.length > 0, 'plano tem tarefa sem BR');
   assert.ok(globais.every((tarefa) => tarefa.query === 'Joker 2019' && !('fallback' in tarefa)));
-  const br = plan.find((tarefa) => tarefa.indexers.includes('bludv-cardigann'));
+  const br = plan.find((tarefa) => tarefa.indexers.includes('bludv-cardigann')) as PlanTask;
   assert.equal(br.query, 'Coringa 2019');
   assert.equal(br.fallback, 'Joker 2019');
 });
@@ -127,13 +129,13 @@ test('BR com pt-BR em romano carrega variante numérica E fallback original', ()
     ['thepiratebay', 'bludv-cardigann'],
     ['bludv-cardigann'],
   );
-  const br = plan.find((t) => t.indexers.includes('bludv-cardigann'));
+  const br = plan.find((t) => t.indexers.includes('bludv-cardigann')) as PlanTask;
   assert.equal(br.query, 'Jornada nas Estrelas II: A Ira de Khan 1982');
   // ptQuery é null: sem títulos diferentes não há fallback original, mas o
   // numeral romano da própria query original já gera a variante arábica.
   assert.equal(br.variant, 'Jornada nas Estrelas 2: A Ira de Khan 1982');
   assert.equal('fallback' in br, false);
-  const global = plan.find((t) => t.indexers.includes('thepiratebay'));
+  const global = plan.find((t) => t.indexers.includes('thepiratebay')) as PlanTask;
   assert.equal('variant' in global, false);
   assert.equal('fallback' in global, false);
   assert.equal(global.query, 'Jornada nas Estrelas II: A Ira de Khan 1982');
@@ -209,7 +211,7 @@ test('planJackettQueries: sweepQuery vira UMA task extra dos globais, sem varian
   assert.equal('fallback' in sweeps[0], false, 'task de globais não carrega fallback');
   // A task principal e as isoladas BR ficam intactas.
   assert.equal(plan[0].query, 'Joker 2019');
-  const br = plan.find((t) => t.indexers.includes('bludv-cardigann'));
+  const br = plan.find((t) => t.indexers.includes('bludv-cardigann')) as PlanTask;
   assert.equal(br.query, 'Coringa 2019');
   assert.equal(br.fallback, 'Joker 2019');
 });

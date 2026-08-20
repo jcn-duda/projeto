@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -12,6 +11,7 @@ import * as torbox from '../src/debrid/torbox.js';
 import * as runtime from '../src/runtime.js';
 import { applyDebrid } from '../src/providers/index.js';
 import debrid from '../src/debrid/index.js';
+import type { DebridAdapter } from '../types/domain.js';
 
 /**
  * Credencial recusada vs. serviço instável — a distinção que faltava.
@@ -28,6 +28,23 @@ import debrid from '../src/debrid/index.js';
  */
 
 const hashes = (n) => Array.from({ length: n }, (_, i) => `h${i}`);
+
+/** Stream como o teste o enxerga: name sempre presente; url/infoHash alternam. */
+interface TestStream {
+  name: string;
+  title?: string;
+  url?: string;
+  infoHash?: string;
+}
+
+// `runtime.run` devolve unknown (o tipo do AsyncLocalStorage não propaga); o
+// wrapper recebe o tipo do retorno no call site, sem cast espalhado.
+const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
+
+// Dublê de fetch com corpo parcial (ok/status/text/json) — o contrato que o
+// código sob teste consome; o cast via unknown existe porque o parcial não é
+// comparável ao tipo do fetch global em nenhuma direção (TS2352).
+const fakeFetch = (fn: () => Promise<any>) => fn as unknown as typeof globalThis.fetch;
 
 test('isAuthError reconhece os códigos de credencial dos serviços', () => {
   // AllDebrid manda AUTH_* no corpo; os outros respondem 401/403.
@@ -51,7 +68,7 @@ test('isAuthError reconhece os códigos de credencial dos serviços', () => {
 test('batched: todos os lotes recusados por credencial sobem AuthError', async () => {
   await assert.rejects(
     () => batched(hashes(4), 2, async () => { throw new AuthError('AUTH_BAD_APIKEY'); }),
-    (err) => {
+    (err: any) => {
       assert.equal(err.isAuthError, true);
       assert.match(err.message, /AUTH_BAD_APIKEY/);
       return true;
@@ -62,7 +79,7 @@ test('batched: todos os lotes recusados por credencial sobem AuthError', async (
 test('batched: falha comum continua sendo "nenhum lote respondeu", sem marca de auth', async () => {
   await assert.rejects(
     () => batched(hashes(4), 2, async () => { throw new Error('timeout'); }),
-    (err) => {
+    (err: any) => {
       assert.equal(err.isAuthError, undefined);
       assert.match(err.message, /nenhum lote/);
       return true;
@@ -92,14 +109,14 @@ test('json: 401 e 403 viram AuthError; 500 continua erro comum', async () => {
   });
 
   try {
-    globalThis.fetch = reply(401);
-    await assert.rejects(() => json('https://x.test/a'), (err) => err.isAuthError === true);
+    globalThis.fetch = fakeFetch(reply(401));
+    await assert.rejects(() => json('https://x.test/a'), (err: any) => err.isAuthError === true);
 
-    globalThis.fetch = reply(403);
-    await assert.rejects(() => json('https://x.test/a'), (err) => err.isAuthError === true);
+    globalThis.fetch = fakeFetch(reply(403));
+    await assert.rejects(() => json('https://x.test/a'), (err: any) => err.isAuthError === true);
 
-    globalThis.fetch = reply(500);
-    await assert.rejects(() => json('https://x.test/a'), (err) => err.isAuthError === undefined);
+    globalThis.fetch = fakeFetch(reply(500));
+    await assert.rejects(() => json('https://x.test/a'), (err: any) => err.isAuthError === undefined);
   } finally {
     globalThis.fetch = realFetch;
     AbortSignal.timeout = realTimeout;
@@ -111,19 +128,19 @@ test('alldebrid: AUTH_BAD_APIKEY com HTTP 200 vira AuthError na checagem de cach
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
       status: 'error',
       error: { code: 'AUTH_BAD_APIKEY', message: 'The auth apikey is invalid' },
     }),
-  });
+  }));
 
   try {
     await assert.rejects(
       () => alldebrid.checkCached('chave-invalida', ['a'.repeat(40)]),
-      (err) => {
+      (err: any) => {
         assert.equal(err.isAuthError, true, 'a marca precisa sobreviver ao batched');
         assert.match(err.message, /apikey is invalid/);
         return true;
@@ -139,19 +156,19 @@ test('alldebrid: conta no limite de magnets vira QuotaError, não credencial', a
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
       status: 'error',
       error: { code: 'MAGNET_TOO_MANY_ACTIVE', message: 'Magnets limit reached (1000 accross all tabs)' },
     }),
-  });
+  }));
 
   try {
     await assert.rejects(
       () => alldebrid.checkCached('chave-ok', ['a'.repeat(40)]),
-      (err) => {
+      (err: any) => {
         assert.equal(err.isAuthError, undefined, 'limite de magnets não é credencial recusada');
         assert.equal(err.isQuotaError, true, 'mas é uma causa estrutural própria');
         return true;
@@ -183,18 +200,18 @@ test('credencial recusada devolve a lista como P2P, sem prometer debrid', async 
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
       status: 'error',
       error: { code: 'AUTH_BAD_APIKEY', message: 'The auth apikey is invalid' },
     }),
-  });
+  }));
 
   try {
-    const result = await runtime.run({ opts, encoded: 'ad-conf' }, () =>
-      applyDebrid([stream(A), stream(B)], { deadlineAt: Date.now() + 5000 }),
+    const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
+      applyDebrid([stream(A), stream(B)], { deadlineAt: Date.now() + 5000 } as any),
     );
 
     assert.equal(result.length, 2, 'nenhum stream some da lista');
@@ -219,13 +236,13 @@ test('falha transitória continua mandando pelo debrid, como antes', async () =>
   };
 
   const realFetch = globalThis.fetch;
-  globalThis.fetch = () => {
+  globalThis.fetch = fakeFetch(() => {
     throw new Error('simula serviço fora do ar');
-  };
+  });
 
   try {
-    const result = await runtime.run({ opts, encoded: 'ad-conf' }, () =>
-      applyDebrid([stream(A), stream(B)], { deadlineAt: Date.now() + 5000 }),
+    const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
+      applyDebrid([stream(A), stream(B)], { deadlineAt: Date.now() + 5000 } as any),
     );
     for (const s of result) assert.match(s.name, /\[AD download\]/);
   } finally {
@@ -247,22 +264,22 @@ test('credencial recusada não pede revalidação eterna', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
       status: 'error',
       error: { code: 'AUTH_BAD_APIKEY', message: 'The auth apikey is invalid' },
     }),
-  });
+  }));
 
   let refresh = null;
   try {
-    await runtime.run({ opts, encoded: 'ad-conf' }, () =>
+    await runWith<unknown>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A)], {
         deadlineAt: Date.now() + 5000,
         onCacheResult: (res) => { refresh = res.needsFullRefresh; },
-      }),
+      } as any),
     );
     assert.equal(refresh, false, 'a lista P2P é definitiva enquanto a chave não mudar');
   } finally {
@@ -290,7 +307,7 @@ test('isQuotaError separa conta cheia de falha transitória', () => {
 test('batched: todos os lotes barrados por cota sobem QuotaError', async () => {
   await assert.rejects(
     () => batched(hashes(4), 2, async () => { throw new QuotaError('Magnets limit reached'); }),
-    (err) => err.isQuotaError === true && err.isAuthError === undefined,
+    (err: any) => err.isQuotaError === true && err.isAuthError === undefined,
   );
 });
 
@@ -302,7 +319,7 @@ test('batched: causas MISTURADAS não afirmam nada — erro genérico', async ()
       if (batch.includes('h0')) throw new AuthError('AUTH_BAD_APIKEY');
       throw new Error('timeout');
     }),
-    (err) => {
+    (err: any) => {
       assert.equal(err.isAuthError, undefined);
       assert.equal(err.isQuotaError, undefined);
       assert.match(err.message, /nenhum lote/);
@@ -324,22 +341,22 @@ test('conta no limite devolve a lista como P2P, igual à credencial recusada', a
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
       status: 'error',
       error: { code: 'MAGNET_TOO_MANY_ACTIVE', message: 'Magnets limit reached (1000 accross all tabs)' },
     }),
-  });
+  }));
 
   let refresh = null;
   try {
-    const result = await runtime.run({ opts, encoded: 'ad-conf' }, () =>
+    const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A), stream(B)], {
         deadlineAt: Date.now() + 5000,
         onCacheResult: (res) => { refresh = res.needsFullRefresh; },
-      }),
+      } as any),
     );
     for (const s of result) {
       assert.ok(s.infoHash, 'o hash sustenta o play P2P');
@@ -367,7 +384,7 @@ test('premiumize: rate_limit_reached com HTTP 200 não vira unusable', async () 
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
@@ -375,7 +392,7 @@ test('premiumize: rate_limit_reached com HTTP 200 não vira unusable', async () 
       message: 'too many requests',
       code: 'rate_limit_reached',
     }),
-  });
+  }));
   const userOpts = {
     ...runtime.defaults(),
     debridService: 'premiumize',
@@ -385,13 +402,13 @@ test('premiumize: rate_limit_reached com HTTP 200 não vira unusable', async () 
   try {
     await assert.rejects(
       () => premiumize.checkCached('chave-pm', ['a'.repeat(40)]),
-      (err) => {
+      (err: any) => {
         assert.equal(err.isRateLimitError, true);
         assert.equal(err.isQuotaError, undefined);
         return true;
       },
     );
-    const result = await runtime.run({ opts: userOpts, encoded: '' }, () =>
+    const result = await runWith<{ known: boolean; unusable?: { reason: string } }>({ opts: userOpts, encoded: '' }, () =>
       debrid.checkCached(['a'.repeat(40)]),
     );
     assert.equal(result.known, false);
@@ -406,7 +423,7 @@ test('premiumize: authentication_failed com HTTP 200 vira AuthError', async () =
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
@@ -414,11 +431,11 @@ test('premiumize: authentication_failed com HTTP 200 vira AuthError', async () =
       message: 'API key invalid',
       code: 'authentication_failed',
     }),
-  });
+  }));
   try {
     await assert.rejects(
       () => premiumize.checkCached('ruim', ['a'.repeat(40)]),
-      (err) => err.isAuthError === true,
+      (err: any) => err.isAuthError === true,
     );
   } finally {
     globalThis.fetch = realFetch;
@@ -430,7 +447,7 @@ test('premiumize: account_limit_reached vira QuotaError (fair-use esgotado)', as
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
@@ -438,11 +455,11 @@ test('premiumize: account_limit_reached vira QuotaError (fair-use esgotado)', as
       message: 'fair-use exhausted',
       code: 'account_limit_reached',
     }),
-  });
+  }));
   try {
     await assert.rejects(
       () => premiumize.checkCached('chave', ['a'.repeat(40)]),
-      (err) => err.isQuotaError === true,
+      (err: any) => err.isQuotaError === true,
     );
   } finally {
     globalThis.fetch = realFetch;
@@ -454,7 +471,7 @@ test('torbox: success:false sobe o detail, não só o código', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
@@ -462,11 +479,11 @@ test('torbox: success:false sobe o detail, não só o código', async () => {
       error: 'DOWNLOAD_TOO_LARGE',
       detail: 'File exceeds your plan limit of 10 GB',
     }),
-  });
+  }));
   try {
     await assert.rejects(
       () => torbox.resolveLink('chave', 'a'.repeat(40), {}),
-      (err) => {
+      (err: any) => {
         assert.match(err.message, /10 GB/);
         assert.match(err.message, /DOWNLOAD_TOO_LARGE/);
         return true;
@@ -479,7 +496,7 @@ test('torbox: success:false sobe o detail, não só o código', async () => {
 });
 
 test('cooldown na checagem de cache é transitório: known:false, sem unusable', async () => {
-  const original = debrid.BY_ID.get('premiumize');
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
   debrid.BY_ID.set('premiumize', {
     id: 'premiumize',
     label: 'Premiumize fake',
@@ -487,7 +504,7 @@ test('cooldown na checagem de cache é transitório: known:false, sem unusable',
     async checkCached() {
       throw Object.assign(new Error('MAGNET_PROCESSING_COOLDOWN'), { isCooldown: true });
     },
-  });
+  } as unknown as DebridAdapter);
   const userOpts = {
     ...runtime.defaults(),
     debridService: 'premiumize',
@@ -495,7 +512,7 @@ test('cooldown na checagem de cache é transitório: known:false, sem unusable',
   };
 
   try {
-    const result = await runtime.run({ opts: userOpts, encoded: '' }, () =>
+    const result = await runWith<{ known: boolean; unusable?: { reason: string } }>({ opts: userOpts, encoded: '' }, () =>
       debrid.checkCached(['hash-cooldown']),
     );
     assert.equal(result.known, false, 'cooldown vira "não sei", como qualquer falha transitória');
@@ -515,7 +532,7 @@ test('torbox: ACTIVE_LIMIT no envelope da checagem vira QuotaError', async () =>
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
@@ -523,12 +540,12 @@ test('torbox: ACTIVE_LIMIT no envelope da checagem vira QuotaError', async () =>
       error: 'ACTIVE_LIMIT',
       detail: 'Account has reached the active torrent limit',
     }),
-  });
+  }));
 
   try {
     await assert.rejects(
       () => torbox.checkCached('chave', ['a'.repeat(40)]),
-      (err) => {
+      (err: any) => {
         assert.equal(err.isQuotaError, true, 'ACTIVE_LIMIT é cota, não falha genérica');
         assert.equal(err.isAuthError, undefined, 'e não é credencial recusada');
         return true;
@@ -546,7 +563,7 @@ test('torbox: COOLDOWN_LIMIT no envelope da checagem vira RateLimitError', async
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: true,
     status: 200,
     json: async () => ({
@@ -554,12 +571,12 @@ test('torbox: COOLDOWN_LIMIT no envelope da checagem vira RateLimitError', async
       error: 'COOLDOWN_LIMIT',
       detail: 'Too many requests, please wait',
     }),
-  });
+  }));
 
   try {
     await assert.rejects(
       () => torbox.checkCached('chave', ['a'.repeat(40)]),
-      (err) => {
+      (err: any) => {
         assert.equal(err.isRateLimitError, true, 'cooldown é rate limit, não cota');
         assert.equal(err.isQuotaError, undefined);
         return true;
@@ -580,17 +597,17 @@ test('json: HTTP 429 vira RateLimitError', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: false,
     status: 429,
     text: async () => 'rate limited, tente de novo em instantes',
     json: async () => ({}),
-  });
+  }));
 
   try {
     await assert.rejects(
       () => json('https://x.test/a'),
-      (err) => err.isRateLimitError === true,
+      (err: any) => err.isRateLimitError === true,
     );
   } finally {
     globalThis.fetch = realFetch;
@@ -605,17 +622,17 @@ test('torbox: HTTP 429 na checagem propaga como RateLimitError, não "nenhum lot
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = fakeFetch(async () => ({
     ok: false,
     status: 429,
     text: async () => 'slow down',
     json: async () => ({}),
-  });
+  }));
 
   try {
     await assert.rejects(
       () => torbox.checkCached('chave', ['a'.repeat(40)]),
-      (err) => {
+      (err: any) => {
         assert.equal(err.isRateLimitError, true);
         assert.doesNotMatch(err.message, /nenhum lote/, 'a causa não pode se perder no batched');
         return true;

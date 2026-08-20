@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
@@ -12,7 +11,17 @@ process.env.CACHE_PERSIST = 'false';
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
 
-const stream = (infoHash) => ({ infoHash, name: 'Release 1080p', title: 'Release 1080p' });
+/** Forma mínima do stream que o teste monta e inspeciona depois do applyDebrid. */
+interface TestStream {
+  infoHash: string;
+  name: string;
+  title: string;
+}
+
+const stream = (infoHash: string): TestStream => ({ infoHash, name: 'Release 1080p', title: 'Release 1080p' });
+
+// runtime.run devolve unknown; o helper fixa o tipo do retorno sem mudar o teste.
+const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
 
 /**
  * O bug em produção: nenhum stream ganhava ⚡ na AllDebrid, e a lista sem raio
@@ -36,7 +45,7 @@ test('AllDebrid com orçamento suficiente checa na resposta e devolve ⚡', asyn
   // abortada: com orçamento acima do piso, a checagem REAL roda aqui e a
   // primeira lista já sai com ⚡. O dublê só faz a API responder em cache.
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => {
+  globalThis.fetch = (async (url) => {
     assert.ok(
       String(url).includes('api.alldebrid.com'),
       'a checagem da AllDebrid roda no passo de resposta',
@@ -48,17 +57,17 @@ test('AllDebrid com orçamento suficiente checa na resposta e devolve ⚡', asyn
         data: { magnets: [{ hash: A, ready: true }, { hash: B, ready: true }] },
       }),
     };
-  };
+  }) as unknown as typeof globalThis.fetch;
 
   let flag = null;
   try {
-    const result = await runtime.run({ opts, encoded: 'ad-conf' }, () =>
+    const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A), stream(B)], {
         deadlineAt: Date.now() + 5000, // teto ativo = passo de resposta
         onCacheResult: (res) => {
           flag = res.needsFullRefresh;
         },
-      }),
+      } as any),
     );
 
     assert.equal(result.length, 2);
@@ -86,13 +95,13 @@ test('checagem que falha na resposta mantém download e pede refresh', async () 
 
   let flag = null;
   try {
-    const result = await runtime.run({ opts, encoded: 'ad-conf' }, () =>
+    const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A), stream(B)], {
         deadlineAt: Date.now() + 5000,
         onCacheResult: (res) => {
           flag = res.needsFullRefresh;
         },
-      }),
+      } as any),
     );
 
     assert.equal(result.length, 2);
@@ -123,13 +132,13 @@ test('orçamento abaixo do piso não chama rede e pede refresh', async () => {
 
   let flag = null;
   try {
-    const result = await runtime.run({ opts, encoded: 'ad-conf' }, () =>
+    const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A), stream(B)], {
         deadlineAt: Date.now() + 700, // margem 500 → orçamento ≈ 200 < piso
         onCacheResult: (res) => {
           flag = res.needsFullRefresh;
         },
-      }),
+      } as any),
     );
 
     assert.equal(fetchCalls, 0, 'abaixo do piso a checagem nem começa');
@@ -158,13 +167,13 @@ test('falha sem teto (passe tardio) mantém needsFullRefresh', async () => {
 
   let flag = null;
   try {
-    const result = await runtime.run({ opts, encoded: 'ad-conf' }, () =>
+    const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A), stream(B)], {
         // Sem deadlineAt: o passe tardio consulta com o timeout completo do adaptador.
         onCacheResult: (res) => {
           flag = res.needsFullRefresh;
         },
-      }),
+      } as any),
     );
 
     assert.equal(result.length, 2);

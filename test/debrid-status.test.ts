@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
@@ -30,7 +29,7 @@ function mockAccount(total, ready = 0) {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async (url, init) => {
+  globalThis.fetch = (async (url, init) => {
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     return {
     ok: true,
@@ -47,21 +46,43 @@ function mockAccount(total, ready = 0) {
       },
     }),
     };
-  };
+  }) as unknown as typeof globalThis.fetch;
   return () => {
     globalThis.fetch = realFetch;
     AbortSignal.timeout = realTimeout;
   };
 }
 
-const withKey = (fn) =>
+/** Retorno do /debrid-status: cada campo é opcional porque cada serviço mede o
+ * que consegue (AllDebrid conta magnets, Premiumize publica fair-use, TorBox
+ * conta o mylist). */
+interface AccountStatusResult {
+  ok: boolean;
+  service: string | null;
+  label?: string;
+  supported?: boolean;
+  reason?: string;
+  error?: string;
+  warn?: boolean;
+  warnAt?: number;
+  warnAtUnit?: string;
+  magnets?: number;
+  ready?: number;
+  active?: number;
+  limitUsed?: number | null;
+  premiumUntil?: number | null;
+  oldestAt?: number | string | null;
+  usedPct?: number;
+}
+
+const withKey = (fn: () => unknown) =>
   runtime.run(
     {
       opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'chave-de-teste' },
       encoded: 'cfg',
     },
     fn,
-  );
+  ) as Promise<AccountStatusResult>;
 
 test('conta folgada: ok, sem aviso, com a ocupação medida', async () => {
   const restore = mockAccount(120, 30);
@@ -99,20 +120,20 @@ test('conta estourada é reportada como quota, não como falha genérica', async
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = (async () => ({
     ok: true,
     status: 200,
     json: async () => ({
       status: 'error',
       error: { code: 'MAGNET_TOO_MANY_ACTIVE', message: 'Magnets limit reached (1000 accross all tabs)' },
     }),
-  });
+  })) as unknown as typeof globalThis.fetch;
 
   try {
     const status = await withKey(() => debrid.accountStatus());
     assert.equal(status.ok, false);
     assert.equal(status.reason, 'quota', 'a mesma linguagem da busca serve ao diagnóstico');
-    assert.match(status.error, /limit reached/i);
+    assert.match(status.error as string, /limit reached/i);
   } finally {
     globalThis.fetch = realFetch;
     AbortSignal.timeout = realTimeout;
@@ -124,14 +145,14 @@ test('chave recusada é reportada como auth, e o verificador não explode', asyn
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = (async () => ({
     ok: true,
     status: 200,
     json: async () => ({
       status: 'error',
       error: { code: 'AUTH_BAD_APIKEY', message: 'The auth apikey is invalid' },
     }),
-  });
+  })) as unknown as typeof globalThis.fetch;
 
   try {
     const status = await withKey(() => debrid.accountStatus());
@@ -143,27 +164,27 @@ test('chave recusada é reportada como auth, e o verificador não explode', asyn
   }
 });
 
-const withPremiumize = (fn) =>
+const withPremiumize = (fn: () => unknown) =>
   runtime.run(
     {
       opts: { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: 'chave-pm' },
       encoded: 'cfg',
     },
     fn,
-  );
+  ) as Promise<AccountStatusResult>;
 
 test('premiumize folgado: ok, sem aviso, com o fair-use medido', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async (url, init) => {
+  globalThis.fetch = (async (url, init) => {
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     return {
       ok: true,
       status: 200,
       json: async () => ({ status: 'success', limit_used: 0.42, premium_until: 1799999999 }),
     };
-  };
+  }) as unknown as typeof globalThis.fetch;
   try {
     const status = await withPremiumize(() => debrid.accountStatus());
     assert.equal(status.ok, true);
@@ -183,11 +204,11 @@ test('premiumize perto do teto de fair-use avisa ANTES de account_limit_reached'
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = (async () => ({
     ok: true,
     status: 200,
     json: async () => ({ status: 'success', limit_used: 0.81 }),
-  });
+  })) as unknown as typeof globalThis.fetch;
   try {
     const status = await withPremiumize(() => debrid.accountStatus());
     assert.equal(status.limitUsed, 0.81);
@@ -203,7 +224,7 @@ test('premiumize em rate limit no verificador é reason=rate, não falha genéri
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = (async () => ({
     ok: true,
     status: 200,
     json: async () => ({
@@ -211,7 +232,7 @@ test('premiumize em rate limit no verificador é reason=rate, não falha genéri
       message: 'slow down',
       code: 'rate_limit_reached',
     }),
-  });
+  })) as unknown as typeof globalThis.fetch;
   try {
     const status = await withPremiumize(() => debrid.accountStatus());
     assert.equal(status.ok, false);
@@ -222,20 +243,20 @@ test('premiumize em rate limit no verificador é reason=rate, não falha genéri
   }
 });
 
-const withTorbox = (fn) =>
+const withTorbox = (fn: () => unknown) =>
   runtime.run(
     {
       opts: { ...runtime.defaults(), debridService: 'torbox', debridApiKey: 'chave-tb' },
       encoded: 'cfg',
     },
     fn,
-  );
+  ) as Promise<AccountStatusResult>;
 
 test('torbox: o verificador conta o mylist, não devolve supported:false', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async (url, init) => {
+  globalThis.fetch = (async (url, init) => {
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     return {
       ok: true,
@@ -248,7 +269,7 @@ test('torbox: o verificador conta o mylist, não devolve supported:false', async
         ],
       }),
     };
-  };
+  }) as unknown as typeof globalThis.fetch;
   try {
     const status = await withTorbox(() => debrid.accountStatus());
     assert.equal(status.ok, true);
@@ -362,14 +383,14 @@ test('warnAt do fair-use carrega a unidade explícita no corpo', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async (url, init) => {
+  globalThis.fetch = (async (url, init) => {
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     return {
       ok: true,
       status: 200,
       json: async () => ({ status: 'success', limit_used: 0.42, premium_until: 1799999999 }),
     };
-  };
+  }) as unknown as typeof globalThis.fetch;
   try {
     const status = await withPremiumize(() => debrid.accountStatus());
     assert.equal(status.warnAt, 0.8);

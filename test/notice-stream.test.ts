@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada; o aviso de lista vazia é testado sem rede.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -9,6 +8,7 @@ import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import { originOf } from '../src/app.js';
+import type { RawItem, Stream } from '../types/domain.js';
 
 const A = 'a'.repeat(40);
 
@@ -20,21 +20,21 @@ const A = 'a'.repeat(40);
  * Opções do helper `build`. `season`/`episode` aceitam null de propósito: filme
  * sem candidato não recebe aviso, e é o teste que manda esse estado — o null
  * não é "não informado", é "não é série".
- *
- * @typedef {object} BuildOptions
- * @property {number|null} [season]
- * @property {number|null} [episode]
- * @property {string[]} [cached]
- * @property {boolean} [cachedOnly]
- * @property {string} [publicUrl]
- * @property {string} [origin]
  */
+interface BuildOptions {
+  season?: number | null;
+  episode?: number | null;
+  cached?: string[];
+  cachedOnly?: boolean;
+  publicUrl?: string;
+  origin?: string;
+}
 
 /**
  * @param {import('../types/domain').RawItem[]} raw
  * @param {BuildOptions} [options]
  */
-async function build(raw, { season = 1, episode = 1, cached = [], cachedOnly = true, publicUrl = 'https://addon.teste', origin } = {}) {
+async function build(raw: RawItem[], { season = 1, episode = 1, cached = [], cachedOnly = true, publicUrl = 'https://addon.teste', origin }: BuildOptions = {}): Promise<Stream[]> {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   config.debrid.publicUrl = publicUrl;
@@ -55,18 +55,18 @@ async function build(raw, { season = 1, episode = 1, cached = [], cachedOnly = t
         // A assinatura do `buildStreams` exige `deadlineAt`/`onDebridResult`,
         // que o caminho de teste não manda: o cast `any` cobre o objeto parcial
         // sem inventar valor nenhum (mesmo contrato do helper de outros testes).
-        const streams = await buildStreams(raw, /** @type {any} */ ({
+        const streams = await buildStreams(raw, {
           meta: null,
           titles: null,
           season,
           episode,
           isDemo: false,
           searchKey: `aviso-${Math.random()}`,
-        }));
+        } as any);
         // O que o cliente recebe é a lista já fechada pela resposta — é lá que o
         // link do aviso é montado, e é esse contrato que os testes cobram.
         return applyNoticeOrigin(streams);
-      });
+      }) as Promise<Stream[]>;
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
@@ -84,7 +84,7 @@ const episodio = (extra = {}) => ({
 test('série sem nenhum candidato avisa que a temporada está sendo procurada', async () => {
   const streams = await build([]);
   assert.equal(streams.length, 1);
-  assert.match(streams[0].name, /procurando a temporada/);
+  assert.match(streams[0].name as string, /procurando a temporada/);
   // Não pode parecer tocável: cliente que aceita infoHash tentaria dar play.
   assert.equal(streams[0].url, undefined);
   assert.equal(streams[0].infoHash, undefined);
@@ -106,7 +106,7 @@ test('aviso usa o origin da requisição quando não há PUBLIC_URL', async () =
   // cliente alcança, então é o destino honesto do clique do aviso.
   const streams = await build([], { publicUrl: '', origin: 'http://192.168.0.23:7000' });
   assert.equal(streams.length, 1);
-  assert.match(streams[0].name, /procurando a temporada/);
+  assert.match(streams[0].name as string, /procurando a temporada/);
   assert.equal(streams[0].externalUrl, 'http://192.168.0.23:7000/segcfg/configure');
 });
 
@@ -133,12 +133,13 @@ test('o cache guarda o TEXTO do aviso, nunca o link de um cliente', async () => 
     autoFetchBr: false,
   };
   try {
-    const cacheado = await runtime.run(
+    const cacheado = await (runtime.run(
       { opts: userOpts, encoded: 'segcfg', origin: 'http://192.168.0.23:7000' },
-      () => buildStreams([], /** @type {any} */ ({
+      () => buildStreams([], {
         meta: null, titles: null, season: 1, episode: 1, isDemo: false,
         searchKey: `aviso-cache-${Math.random()}`,
-      })));
+      } as any),
+    ) as Promise<Stream[]>);
     // É isto que vai para o cache: marca interna e texto, sem endereço nenhum.
     assert.equal(cacheado.length, 1);
     assert.equal(cacheado[0].notice, true);
@@ -146,9 +147,9 @@ test('o cache guarda o TEXTO do aviso, nunca o link de um cliente', async () => 
 
     // A MESMA entrada cacheada, servida a dois aparelhos, dá o link de cada um.
     const naTv = runtime.run({ opts: userOpts, encoded: 'segcfg', origin: 'http://192.168.0.23:7000' },
-      () => applyNoticeOrigin(cacheado));
+      () => applyNoticeOrigin(cacheado)) as unknown as Stream[];
     const noCelular = runtime.run({ opts: userOpts, encoded: 'segcfg', origin: 'https://meu.dominio' },
-      () => applyNoticeOrigin(cacheado));
+      () => applyNoticeOrigin(cacheado)) as unknown as Stream[];
     assert.equal(naTv[0].externalUrl, 'http://192.168.0.23:7000/segcfg/configure');
     assert.equal(noCelular[0].externalUrl, 'https://meu.dominio/segcfg/configure');
     // A marca interna não vaza para o objeto que o Stremio recebe.
@@ -183,13 +184,13 @@ test('filme sem candidato NÃO recebe aviso: não há busca de pack para promete
 test('candidato cortado pelo cachedOnly avisa quantos ficaram de fora', async () => {
   const streams = await build([episodio()]);
   assert.equal(streams.length, 1);
-  assert.match(streams[0].name, /1 resultado\(s\) fora do cache/);
+  assert.match(streams[0].name as string, /1 resultado\(s\) fora do cache/);
 });
 
 test('com fonte tocável não há aviso nenhum', async () => {
   const streams = await build([episodio()], { cached: [A] });
   assert.equal(streams.length, 1);
-  assert.doesNotMatch(streams[0].name, /procurando a temporada|fora do cache/);
+  assert.doesNotMatch(streams[0].name as string, /procurando a temporada|fora do cache/);
 });
 
 // Gatilho da busca tardia de pack: a saúde do episódio é seeders E idioma.
@@ -232,14 +233,14 @@ function installFetchStub() {
  * sem debrid, fetch stub que nunca resolve rápido o suficiente para o prazo
  * mínimo. Usa id único para não dividir cacheKey nem inFlight com vizinhos.
  */
-function deadlineRequest(fn) {
+function deadlineRequest(fn: () => unknown): Promise<any> {
   const testOpts = {
     ...runtime.defaults(),
     providers: ['demo'],
     debridService: '',
     debridApiKey: '',
   };
-  return runtime.run({ opts: testOpts, encoded: 'deadlinetest' }, fn);
+  return runtime.run({ opts: testOpts, encoded: 'deadlinetest' }, fn) as Promise<any>;
 }
 
 test('série que estoura o prazo devolve aviso "Procurando fontes"', async () => {

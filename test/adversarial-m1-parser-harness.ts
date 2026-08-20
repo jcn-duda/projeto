@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 /**
  * Adversarial Empirical Stress Test Harness — Milestone 1 (Parser & Metadata Extraction)
  *
@@ -20,8 +18,8 @@ import comando from '../comandotorrents-resolver/server.js';
 const results = {
   passed: 0,
   failed: 0,
-  failures: [],
-  timings: {},
+  failures: [] as { suite: string; name: string; error: string; stack: string | undefined }[],
+  timings: {} as Record<string, number>,
 };
 
 function recordPass(suite, name, durationMs) {

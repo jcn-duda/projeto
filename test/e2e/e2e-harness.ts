@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada; o harness é consumido pelos tiers tipados.
 import http from 'node:http';
 // O app montado é o REAL (src/app.js): o harness parou de manter uma cópia das
 // rotas do addon.js — divergência silenciosa era o risco da cópia.
@@ -9,9 +8,78 @@ import { verifyResolve, signResolve } from '../../src/utils/sign.js';
 import * as cache from '../../src/utils/cache.js';
 
 /**
+ * Resposta HTTP falsa do harness, compatível com o contrato mínimo do fetch.
+ */
+interface HarnessResponse {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  headers: {
+    get(name: string): string | null;
+    has(name: string): boolean;
+  };
+  json(): Promise<unknown>;
+  text(): Promise<string>;
+}
+
+/** Item aceito por makeTorznabXml; o XML padrão preenche o que faltar. */
+interface TorznabItem {
+  cdata?: boolean;
+  title?: string;
+  guid?: string;
+  infoHash?: string;
+  magnet?: string;
+  size?: number;
+  seeders?: number;
+  peers?: number;
+  tracker?: string;
+  indexer?: string;
+  pubDate?: string;
+}
+
+/** Rota do dublê de fetch: matcher + resposta (valor cru ou função). */
+type MockRouteHandler = (url: string, init?: RequestInit, call?: HarnessCallRecord) => unknown;
+interface MockRoute {
+  match: string | RegExp | ((url: string, init?: RequestInit) => boolean);
+  handler: unknown;
+}
+
+/** Chamada capturada pelo dublê, exposta em mockFetch.calls. */
+interface HarnessCallRecord {
+  url: string;
+  init?: RequestInit;
+  started: number;
+  method: string;
+  headers: RequestInit['headers'];
+  body: RequestInit['body'];
+  finished?: number;
+}
+
+/** Dublê de fetch com histórico de chamadas. */
+interface MockFetch {
+  (url: string | URL | Request, init?: RequestInit): Promise<HarnessResponse>;
+  calls: HarnessCallRecord[];
+  clearCalls(): void;
+}
+
+/** Resultado de createTestServer().request(...). */
+interface HarnessRequestResult {
+  status: number;
+  ok: boolean;
+  headers: {
+    get(name: string): string | string[] | null;
+    has(name: string): boolean;
+    raw: http.IncomingHttpHeaders;
+  };
+  text: string;
+  /** any de propósito: os testes acessam campos arbitrários do JSON. */
+  json: any;
+}
+
+/**
  * Cria uma resposta HTTP falsa compatível com fetch nativo.
  */
-function fakeResponse(body, { status = 200, headers = {}, location = null } = {}) {
+function fakeResponse(body: unknown, { status = 200, headers = {}, location = null }: { status?: number; headers?: Record<string, string>; location?: string | null } = {}): HarnessResponse {
   const normalizedHeaders = new Map();
   if (headers) {
     for (const [k, v] of Object.entries(headers)) {
@@ -45,7 +113,7 @@ function fakeResponse(body, { status = 200, headers = {}, location = null } = {}
 /**
  * Cria um gerador de XML Torznab com suporte a CDATA e atributos padrão.
  */
-function makeTorznabXml(items = []) {
+function makeTorznabXml(items: TorznabItem[] = []): string {
   const itemBlocks = items.map((it) => {
     const title = it.cdata ? `<![CDATA[${it.title}]]>` : it.title || 'Torrent Item';
     const guid = it.guid || it.infoHash || 'item-' + Math.random().toString(36).slice(2);
@@ -124,18 +192,18 @@ function makeTmdbFind(id, { ptTitle = 'Título em Português' } = {}) {
 /**
  * Gerenciador de Mock Fetch configurável com suporte a rotas e histórico de chamadas.
  */
-function createMockFetch(routes = []) {
-  const calls = [];
+function createMockFetch(routes: MockRoute[] = []): MockFetch {
+  const calls: HarnessCallRecord[] = [];
 
-  const fetchImpl = async (url, init = {}) => {
+  const fetchImpl: MockFetch = async (url, init) => {
     const urlStr = String(url);
-    const callRecord = {
+    const callRecord: HarnessCallRecord = {
       url: urlStr,
       init,
       started: Date.now(),
-      method: (init.method || 'GET').toUpperCase(),
-      headers: init.headers || {},
-      body: init.body,
+      method: (init?.method || 'GET').toUpperCase(),
+      headers: init?.headers,
+      body: init?.body,
     };
     calls.push(callRecord);
 
@@ -153,8 +221,12 @@ function createMockFetch(routes = []) {
 
         if (match) {
           if (typeof route.handler === 'function') {
-            const res = await route.handler(urlStr, init, callRecord);
-            return res.ok !== undefined && typeof res.json === 'function' ? res : fakeResponse(res);
+            const res = await (route.handler as MockRouteHandler)(urlStr, init, callRecord);
+            const maybe = res as { ok?: unknown; json?: unknown } | null;
+            if (maybe && maybe.ok !== undefined && typeof maybe.json === 'function') {
+              return res as HarnessResponse;
+            }
+            return fakeResponse(res);
           }
           return fakeResponse(route.handler);
         }
@@ -196,13 +268,16 @@ function createMockFetch(routes = []) {
 /**
  * Executa uma função assíncrona com interceptação global do fetch e isolamento de cache.
  */
-async function withMockFetch(routesOrHandler, fn) {
+async function withMockFetch<T>(
+  routesOrHandler: MockRoute | MockRoute[] | MockFetch,
+  fn: (mockFetch: MockFetch) => Promise<T>,
+): Promise<T> {
   const realFetch = globalThis.fetch;
-  const mockFetch = typeof routesOrHandler === 'function' && routesOrHandler.calls
+  const mockFetch = typeof routesOrHandler === 'function'
     ? routesOrHandler
     : createMockFetch(Array.isArray(routesOrHandler) ? routesOrHandler : [routesOrHandler]);
 
-  globalThis.fetch = mockFetch;
+  globalThis.fetch = mockFetch as unknown as typeof globalThis.fetch;
   cache.clear();
 
   try {
@@ -227,21 +302,23 @@ function createTestApp({ configOverrides = {} } = {}) {
 /**
  * Cria um servidor HTTP de teste efêmero na porta 0 com cliente HTTP nativo.
  */
-async function createTestServer(app) {
+async function createTestServer(app?: any) {
   const application = app || createTestApp();
   const server = http.createServer(application);
 
-  await new Promise((resolve, reject) => {
-    server.listen(0, '127.0.0.1', (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => resolve());
   });
 
-  const port = server.address().port;
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    throw new Error('servidor de teste sem endereço válido');
+  }
+  const port = address.port;
   const baseUrl = `http://127.0.0.1:${port}`;
 
-  async function request(method, reqPath, { headers = {}, body = null } = {}) {
+  async function request(method: string, reqPath: string, { headers = {}, body = null }: { headers?: Record<string, string | number>; body?: unknown } = {}): Promise<HarnessRequestResult> {
     return new Promise((resolve, reject) => {
       const parsedUrl = new URL(`${baseUrl}${reqPath.startsWith('/') ? '' : '/'}${reqPath}`);
       const options = {
@@ -252,7 +329,7 @@ async function createTestServer(app) {
         headers: { ...headers },
       };
 
-      let reqBody = null;
+      let reqBody: string | null = null;
       if (body !== null && body !== undefined) {
         if (typeof body === 'object' && !(body instanceof Buffer)) {
           reqBody = JSON.stringify(body);
@@ -264,21 +341,22 @@ async function createTestServer(app) {
       }
 
       const req = http.request(options, (res) => {
-        const chunks = [];
+        const chunks: Buffer[] = [];
         res.on('data', (chunk) => chunks.push(chunk));
         res.on('end', () => {
           const rawBuffer = Buffer.concat(chunks);
           const text = rawBuffer.toString('utf-8');
-          let json = null;
+          let json: any = null;
           try {
             json = JSON.parse(text);
           } catch {
             json = null;
           }
+          const status = res.statusCode ?? 0;
 
           resolve({
-            status: res.statusCode,
-            ok: res.statusCode >= 200 && res.statusCode < 300,
+            status,
+            ok: status >= 200 && status < 300,
             headers: {
               get: (name) => res.headers[String(name).toLowerCase()] ?? null,
               has: (name) => String(name).toLowerCase() in res.headers,

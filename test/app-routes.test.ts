@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -12,6 +10,7 @@ import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import { WorkPickError } from '../src/debrid/common.js';
+import type { DebridAdapter } from '../types/domain.js';
 import * as cache from '../src/utils/cache.js';
 import { createTestServer, encodeConfig, withMockFetch, fakeResponse } from './e2e/e2e-harness.js';
 
@@ -25,17 +24,17 @@ const FAKE_ADAPTER = {
   label: 'FakeBridge',
   short: 'FK',
   cacheCheck: true,
-  keyUrl: null,
-  checkCached: async () => new Set(),
+  keyUrl: null as unknown as string,
+  checkCached: async () => new Set<string>(),
   resolveLink: async () => 'https://fake.test/dl/video.mp4',
-};
+} as DebridAdapter;
 
 function hmacSig(secret, payload) {
   return crypto.createHmac('sha256', secret).update(payload).digest('hex');
 }
 
 let server;
-const saved = {};
+const saved: Record<string, string> = {};
 
 before(async () => {
   // O debrid e o token de diagnóstico efetivos vêm do .env do operador; os

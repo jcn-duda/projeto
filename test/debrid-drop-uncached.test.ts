@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
@@ -31,15 +30,21 @@ const IDS = { [READY]: 111, [COLD]: 222, [HELD]: 333 };
  * Dublê da API v4.1. Só precisa de /magnet/upload (que é a própria checagem de
  * cache da AllDebrid), /magnet/status e /magnet/delete.
  */
-function mockAllDebrid({ ready = [], statusOf = () => 'Ready', files = [] } = {}) {
-  const deleted = [];
-  const uploaded = [];
+/** Arquivo do /magnet/status no formato da API (o que o pickFile lê). */
+interface FileEntry {
+  n: string;
+  e: { n: string; s: number; l: string }[];
+}
+
+function mockAllDebrid({ ready = [], statusOf = () => 'Ready', files = [] }: { ready?: string[]; statusOf?: (id: number) => string; files?: FileEntry[] } = {}) {
+  const deleted: number[] = [];
+  const uploaded: string[] = [];
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   // O AbortSignal.timeout real deixaria um timer pendurado por teste.
   AbortSignal.timeout = () => new AbortController().signal;
 
-  globalThis.fetch = async (input) => {
+  globalThis.fetch = (async (input) => {
     const url = new URL(String(input));
     const body = (data) => ({ ok: true, async json() { return { status: 'success', data }; } });
 
@@ -66,7 +71,7 @@ function mockAllDebrid({ ready = [], statusOf = () => 'Ready', files = [] } = {}
       return body({ link: 'https://cdn.alldebrid.test/arquivo.mkv' });
     }
     throw new Error(`URL inesperada no teste: ${url.pathname}`);
-  };
+  }) as unknown as typeof globalThis.fetch;
 
   return {
     deleted,
@@ -212,12 +217,12 @@ test('erro da API vira exceção em vez de "nada em cache"', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = async () => ({
+  globalThis.fetch = (async () => ({
     ok: true,
     async json() {
       return { status: 'error', error: { code: 'AUTH_BAD_APIKEY', message: 'chave inválida' } };
     },
-  });
+  })) as unknown as typeof globalThis.fetch;
 
   try {
     // batched só deixa passar quando ALGUM lote responde; com todos falhando o
@@ -229,7 +234,7 @@ test('erro da API vira exceção em vez de "nada em cache"', async () => {
     // como P2P em vez de prometer um debrid que não autentica.
     await assert.rejects(
       () => alldebrid.checkCached(KEY, [READY, COLD]),
-      (err) => err.isAuthError === true && /chave inválida/.test(err.message),
+      (err: any) => err.isAuthError === true && /chave inválida/.test(err.message),
     );
   } finally {
     globalThis.fetch = realFetch;
@@ -266,7 +271,7 @@ test('erro da API vira exceção em vez de "nada em cache"', async () => {
  * ele registra primeiro — e o snapshot reflete o estado poluído.
  */
 function mockAccountWith(preexisting, readyHashes, { snapshotAfterUploads = false, failDelete = false } = {}) {
-  const deleted = [];
+  const deleted: number[] = [];
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
@@ -282,7 +287,7 @@ function mockAccountWith(preexisting, readyHashes, { snapshotAfterUploads = fals
     byHash.set(hash, magnet);
   });
 
-  globalThis.fetch = async (input) => {
+  globalThis.fetch = (async (input) => {
     const url = new URL(String(input));
     const body = (data) => ({ ok: true, async json() { return { status: 'success', data }; } });
 
@@ -334,7 +339,7 @@ function mockAccountWith(preexisting, readyHashes, { snapshotAfterUploads = fals
       return body({ message: 'deleted' });
     }
     throw new Error(`URL inesperada: ${url.pathname}`);
-  };
+  }) as unknown as typeof globalThis.fetch;
 
   return {
     deleted,
@@ -600,13 +605,13 @@ test('delete recusado pela conta não vira "removido": conta falha e não infla 
 
 /** Dublê de conta com estados arbitrários, para exercitar a varredura. */
 function mockAccountStates(magnets) {
-  const deleted = [];
+  const deleted: number[] = [];
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
   const byId = new Map(magnets.map((m) => [m.id, m]));
 
-  globalThis.fetch = async (input) => {
+  globalThis.fetch = (async (input) => {
     const url = new URL(String(input));
     const body = (data) => ({ ok: true, async json() { return { status: 'success', data }; } });
     if (url.pathname.endsWith('/magnet/status')) return body({ magnets: [...byId.values()] });
@@ -617,7 +622,7 @@ function mockAccountStates(magnets) {
       return body({ message: 'deleted' });
     }
     throw new Error(`URL inesperada: ${url.pathname}`);
-  };
+  }) as unknown as typeof globalThis.fetch;
   return { deleted, restore() { globalThis.fetch = realFetch; AbortSignal.timeout = realTimeout; } };
 }
 

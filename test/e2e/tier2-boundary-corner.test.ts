@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada; tier 2 (casos de borda e canto) tipado.
 // A suíte precisa ser idêntica no Node 18 e no Node 22, sem criar SQLite local.
 process.env.CACHE_PERSIST = 'false';
 
@@ -27,6 +26,7 @@ import comandotorrentsResolver from '../../comandotorrents-resolver/server.js';
 import { collectWithinWindow } from '../../src/providers/collection-window.js';
 import { createLatestWriter } from '../../src/utils/latest-writer.js';
 import { raceWithDeadline, remainingCheckBudget } from '../../src/utils/deadline.js';
+import type { Stream } from '../../types/domain.js';
 
 // Helper to run code with temporary config modifications
 function withSecret(secret, fn) {
@@ -612,7 +612,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
     });
 
     it('F08-BND-03: latestWriter suppresses stale background updates from earlier search phases', async () => {
-      const writes = [];
+      const writes: unknown[] = [];
       const build = async (input) => input;
       const commit = async (val) => writes.push(val);
       const writer = createLatestWriter(build, commit);
@@ -638,7 +638,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       const futureDeadline = Date.now() + 5000;
       const pastDeadline = Date.now() - 5000;
 
-      assert.ok(remainingCheckBudget(futureDeadline) > 0);
+      assert.ok((remainingCheckBudget(futureDeadline) as number) > 0);
       assert.equal(remainingCheckBudget(pastDeadline), 0);
     });
 
@@ -682,11 +682,11 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       const origApiKey = config.prowlarr.apiKey;
       config.prowlarr.apiKey = 'test-key';
       try {
-        global.fetch = async () => ({
+        global.fetch = (async () => ({
           ok: false,
           status: 502,
           text: async () => 'Bad Gateway',
-        });
+        })) as unknown as typeof globalThis.fetch;
         const res = await prowlarr.search('Test Query');
         assert.deepEqual(res, []);
       } finally {
@@ -700,13 +700,13 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       const origApiKey = config.prowlarr.apiKey;
       config.prowlarr.apiKey = 'test-key';
       try {
-        global.fetch = async () => ({
+        global.fetch = (async () => ({
           ok: true,
           status: 200,
           json: async () => {
             throw new Error('Unexpected token in JSON');
           },
-        });
+        })) as unknown as typeof globalThis.fetch;
         const res = await prowlarr.search('Test Query');
         assert.deepEqual(res, []);
       } finally {
@@ -720,7 +720,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       const origApiKey = config.prowlarr.apiKey;
       config.prowlarr.apiKey = 'test-key';
       try {
-        global.fetch = async () => ({
+        global.fetch = (async () => ({
           ok: true,
           status: 200,
           json: async () => [
@@ -733,7 +733,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
               indexer: '1337x',
             },
           ],
-        });
+        })) as unknown as typeof globalThis.fetch;
         const res = await prowlarr.search('Movie 2024');
         assert.equal(res.length, 1);
         assert.equal(res[0].title, 'Movie 2024 1080p');
@@ -785,13 +785,13 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       // o orquestrador devolver a lista como P2P em vez de prometer debrid.
       await assert.rejects(
         () => debridCommon.batched(hashes, 2, async () => { throw new Error('Debrid 401 Unauthorized'); }),
-        (err) => err.isAuthError === true,
+        (err) => (err as { isAuthError?: boolean }).isAuthError === true,
       );
     });
 
     it('F10-BND-02: batched() partitions items into chunk sizes and merges results', async () => {
       const items = ['a', 'b', 'c', 'd', 'e'];
-      const batches = [];
+      const batches: string[][] = [];
       const result = await debridCommon.batched(items, 2, async (batch) => {
         batches.push(batch);
         return new Set(batch);
@@ -945,7 +945,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
         isBr: true,
       };
 
-      const converted = format.toStremioStream(rawStream);
+      const converted = format.toStremioStream(rawStream) as Stream;
       assert.equal(converted._br, true);
       assert.ok(converted._quality);
 
@@ -973,7 +973,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
         seeders: 1,
         isBr: true,
       };
-      const stream = format.toStremioStream(brItem);
+      const stream = format.toStremioStream(brItem) as Stream;
       assert.equal(stream._seeders, 1);
       assert.equal(stream._br, true);
     });
@@ -1096,7 +1096,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
         const sealedSegment = runtime.sealSegment(rawSegment);
 
         assert.notEqual(sealedSegment, rawSegment);
-        const decoded = runtime.decode(sealedSegment);
+        const decoded = runtime.decode(sealedSegment) as { debridApiKey: string; debridService: string; maxResults: number };
         assert.equal(decoded.debridApiKey, 'my-private-api-key');
         assert.equal(decoded.debridService, 'realdebrid');
         assert.equal(decoded.maxResults, 30);
@@ -1181,11 +1181,11 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       assert.equal(req2.status, 429);
       assert.equal(req2.error, 'busy_slot');
 
-      req1.release();
+      (req1.release as () => void)();
 
       const req3 = gate.enter('test-user');
       assert.equal(req3.ok, true);
-      req3.release();
+      (req3.release as () => void)();
 
       const req4 = gate.enter('test-user');
       assert.equal(req4.ok, false);

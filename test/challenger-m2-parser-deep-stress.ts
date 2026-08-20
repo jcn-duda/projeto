@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,7 +20,7 @@ const fixtures = [
   'comandotorrents-search-extended.html'
 ];
 
-const loadedFixtures = {};
+const loadedFixtures: Record<string, string> = {};
 for (const f of fixtures) {
   const p = path.join(__dirname, 'fixtures', f);
   loadedFixtures[f] = fs.readFileSync(p, 'utf8');
@@ -93,7 +91,7 @@ test('1.4 Legendado-Only Fixture: Pure Legendado Audio Isolation', () => {
   assert.equal(links.length, 3);
   links.forEach((l, idx) => {
     assert.equal(l.audio, 'legendado', 'Link ' + idx + ' must be legendado');
-    const title = comando.releaseTitle('Parasita Torrent (2019) Legendado WEB-DL 1080p', l, idx);
+    const title = comando.releaseTitle('Parasita Torrent (2019) Legendado WEB-DL 1080p', l, idx as any);
     assert.ok(title.includes('LEGENDADO'));
     assert.ok(!/dublado/i.test(title));
   });

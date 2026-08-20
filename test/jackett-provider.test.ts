@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada; o caminho search() do jackett é testado com fetch falso.
 import { test } from 'node:test';
 import assert from 'node:assert';
 
@@ -15,7 +14,7 @@ import * as indexerStatus from '../src/providers/indexer-status.js';
 const HASH = 'a'.repeat(40);
 const MAGNET = 'magnet:?xt=urn:btih:' + HASH + '&dn=Release';
 
-function fakeResponse(body, { status = 200, location = null } = {}) {
+function fakeResponse(body: unknown, { status = 200, location = null }: { status?: number; location?: string | null } = {}) {
   return {
     ok: status >= 200 && status < 300,
     status,
@@ -25,10 +24,30 @@ function fakeResponse(body, { status = 200, location = null } = {}) {
   };
 }
 
-function makeFetch() {
-  const calls = [];
-  const fetchImpl = (url, init = {}) => {
-    const call = { url: String(url), init, started: Date.now() };
+type FakeResponse = ReturnType<typeof fakeResponse>;
+
+interface FetchCall {
+  url: string;
+  init: any;
+  started: number;
+  finished?: number;
+  promise?: Promise<FakeResponse>;
+}
+
+// O dublê é função E acumula estado: chamadas capturadas, o `handler` que cada
+// teste instala e os filtros que contam só as buscas Torznab (/results).
+interface JackettFetch {
+  (url: unknown, init?: any): Promise<FakeResponse>;
+  calls: FetchCall[];
+  handler?: (call: FetchCall) => FakeResponse | Promise<FakeResponse>;
+  searchCalls(): (string | null)[];
+  protectorCalls(): string[];
+}
+
+function makeFetch(): JackettFetch {
+  const calls: FetchCall[] = [];
+  const fetchImpl: JackettFetch = (url, init = {}) => {
+    const call: FetchCall = { url: String(url), init, started: Date.now() };
     calls.push(call);
     const promise = (async () => {
       try {
@@ -54,7 +73,7 @@ async function withJackett(fetchImpl, fn) {
   const saved = { url: config.jackett.url, apiKey: config.jackett.apiKey };
   config.jackett.url = 'http://jackett.test';
   config.jackett.apiKey = 'test-key';
-  globalThis.fetch = fetchImpl;
+  globalThis.fetch = fetchImpl as unknown as typeof globalThis.fetch;
   cache.clear();
   try {
     return await fn();
@@ -80,6 +99,8 @@ const TREK_CTX = {
   names: ['Jornada nas Estrelas II: A Ira de Khan', 'Star Trek II: The Wrath of Khan'],
   year: 1982,
   isSeries: false,
+  season: null,
+  episode: null,
 };
 const TREK_PT = 'Jornada nas Estrelas II: A Ira de Khan 1982';
 const TREK_VARIANT = 'Jornada nas Estrelas 2: A Ira de Khan 1982';
@@ -135,11 +156,11 @@ test('HTTP erro na primary NÃO dispara o fallback', async () => {
 
 test('fallback é sequencial e cabe no orçamento restante, sem duas tentativas no ar', async () => {
   const fetchImpl = makeFetch();
-  const seen = [];
+  const seen: Array<string | null> = [];
   let releasePrimary;
   const primaryGate = new Promise((resolve) => { releasePrimary = resolve; });
   const originalTimeout = AbortSignal.timeout;
-  const timeouts = [];
+  const timeouts: number[] = [];
   AbortSignal.timeout = (ms) => { timeouts.push(ms); return originalTimeout(ms); };
 
   fetchImpl.handler = (call) => {
@@ -238,7 +259,7 @@ test('magnet resolvido pelo protetor é reutilizado do cache em buscas subsequen
 
   await withJackett(fetchImpl, async () => {
     const items1 = await jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
-      matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false },
+      matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false, season: null, episode: null },
     });
     assert.equal(items1.length, 1);
     assert.equal(items1[0].magnet, MAGNET);
@@ -246,7 +267,7 @@ test('magnet resolvido pelo protetor é reutilizado do cache em buscas subsequen
 
     // Segunda busca: o protetor não deve ser chamado de novo
     const items2 = await jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
-      matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false },
+      matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false, season: null, episode: null },
     });
     assert.equal(items2.length, 1);
     assert.equal(items2[0].magnet, MAGNET);
@@ -272,7 +293,7 @@ test('raw cache: segunda busca da mesma query reusa o bruto sem novo fetch', asy
 
   await withJackett(fetchImpl, async () => {
     const run = () => jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
-      matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false },
+      matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false, season: null, episode: null },
     });
     const first = await run();
     assert.equal(first.length, 1);
@@ -329,7 +350,7 @@ test('raw cache: resultado acima do teto de itens não é cacheado', async () =>
   try {
     await withJackett(fetchImpl, async () => {
       const run = () => jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
-        matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false },
+        matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false, season: null, episode: null },
       });
       await run();
       await run();

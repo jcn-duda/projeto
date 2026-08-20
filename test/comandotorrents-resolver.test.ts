@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -165,7 +163,7 @@ describe('ComandoTorrents Resolver: fetchFollowingAllowed & Multi-Hop Traversal'
   test('fetchFollowingAllowed: segue múltiplos saltos (HTTP 302 -> HTML JS -> Magnet)', async () => {
     const targetMagnet = 'magnet:?xt=urn:btih:9999999999999999999999999999999999999999';
 
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
 
       if (u.includes('hop1')) {
@@ -189,17 +187,17 @@ describe('ComandoTorrents Resolver: fetchFollowingAllowed & Multi-Hop Traversal'
         };
       }
       throw new Error(`Unexpected URL: ${u}`);
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const resolved = await comando.fetchFollowingAllowed('https://systemads1.com/go/hop1', 'https://comandotorrents.to/post');
     assert.equal(resolved, targetMagnet);
   });
 
   test('fetchFollowingAllowed: interrompe e lança erro em loops de redirecionamento ou excedendo MAX_HOPS', async () => {
-    globalThis.fetch = async () => ({
+    globalThis.fetch = (async () => ({
       status: 302,
       headers: new Map([['location', 'https://systemads1.com/go/loop']]),
-    });
+    })) as unknown as typeof globalThis.fetch;
 
     await assert.rejects(
       () => comando.fetchFollowingAllowed('https://systemads1.com/go/loop', 'https://comandotorrents.to/'),
@@ -244,7 +242,7 @@ describe('ComandoTorrents Resolver: In-Memory Caching & Coalescing', () => {
 
   test('getPostLinks: armazena no cache e coalesces requisições concorrentes', async () => {
     let fetchCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       fetchCount += 1;
       await new Promise((r) => setTimeout(r, 20));
       return {
@@ -258,7 +256,7 @@ describe('ComandoTorrents Resolver: In-Memory Caching & Coalescing', () => {
           </div>
         `,
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const postUrl = 'https://comandotorrents.to/filme-concorrente/';
     const [r1, r2, r3] = await Promise.all([
@@ -283,7 +281,7 @@ describe('ComandoTorrents Resolver: In-Memory Caching & Coalescing', () => {
     const postUrl = 'https://comandotorrents.to/filme-magnet/';
     const targetMagnet = 'magnet:?xt=urn:btih:2222222222222222222222222222222222222222&dn=Filme';
 
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
       if (u.includes('filme-magnet')) {
         return {
@@ -308,7 +306,7 @@ describe('ComandoTorrents Resolver: In-Memory Caching & Coalescing', () => {
         };
       }
       throw new Error(`Unexpected url: ${u}`);
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const mag1 = await comando.resolveButton(postUrl, 0);
     assert.equal(mag1, targetMagnet);
@@ -342,7 +340,7 @@ describe('ComandoTorrents Resolver: HTTP Server & API Endpoints', () => {
 
   beforeEach(async () => {
     server = comando.createServer();
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
       server.listen(0, '127.0.0.1', () => {
         port = server.address().port;
         resolve();
@@ -357,11 +355,11 @@ describe('ComandoTorrents Resolver: HTTP Server & API Endpoints', () => {
   });
 
   const requestHttp = (pathname) =>
-    new Promise((resolve, reject) => {
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
       const req = http.get({ host: '127.0.0.1', port, path: pathname }, (res) => {
         let body = '';
         res.on('data', (chunk) => (body += chunk));
-        res.on('end', () => resolve({ status: res.statusCode, body }));
+        res.on('end', () => resolve({ status: res.statusCode as number, body }));
       });
       req.on('error', reject);
     });

@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -52,7 +50,7 @@ test('toStremioStream marca BR pelo título mesmo vindo de indexer global', () =
     tracker: 'kickasstorrents',
     indexer: 'kickasstorrents',
     isBr: false,
-  });
+  })!;
   assert.equal(stream._br, true);
   assert.equal(stream._dubbed, true);
 
@@ -64,7 +62,7 @@ test('toStremioStream marca BR pelo título mesmo vindo de indexer global', () =
     size: 8 * 1024 ** 3,
     indexer: 'thepiratebay',
     isBr: false,
-  });
+  })!;
   assert.equal(plain._br, false);
   assert.equal(plain._dubbed, false);
 
@@ -77,7 +75,7 @@ test('toStremioStream marca BR pelo título mesmo vindo de indexer global', () =
     size: 1025,
     indexer: 'comandotorrents',
     isBr: true,
-  });
+  })!;
   assert.equal(brProvider._br, true);
 });
 
@@ -181,7 +179,7 @@ test('toStremioStream marca _multiWork em pack detectado', () => {
     size: 40 * 1024 ** 3,
     indexer: 'thepiratebay',
     isBr: false,
-  });
+  })!;
   assert.equal(stream._multiWork, true);
   assert.equal(stream._br, true);
 
@@ -193,7 +191,7 @@ test('toStremioStream marca _multiWork em pack detectado', () => {
     size: 8 * 1024 ** 3,
     indexer: 'thepiratebay',
     isBr: false,
-  });
+  })!;
   assert.equal(plain._multiWork, false);
 });
 

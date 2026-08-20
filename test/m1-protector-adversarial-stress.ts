@@ -1,14 +1,18 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import net from 'node:net';
+import type { AddressInfo } from 'node:net';
 
 import comando from '../comandotorrents-resolver/server.js';
 
 const TEST_HASH = '0123456789abcdef0123456789abcdef01234567';
 const BASE_MAGNET = `magnet:?xt=urn:btih:${TEST_HASH}&dn=Filme.Adversarial.2026`;
+
+interface HttpRes {
+  status: number;
+  body: string;
+}
 
 describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
   let originalFetch;
@@ -22,7 +26,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
   });
 
   test('1.1: Direct 1-hop HTTP 302 to 200 magnet page resolves successfully', async () => {
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
       if (u === 'https://systemads1.com/step1') {
         return {
@@ -38,14 +42,14 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
         };
       }
       throw new Error(`Unexpected URL: ${u}`);
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const res = await comando.fetchFollowingAllowed('https://systemads1.com/step1', 'https://comandotorrents.to/post');
     assert.equal(res, BASE_MAGNET);
   });
 
   test('1.2: 5-hop redirect chain resolves successfully', async () => {
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
       const match = u.match(/step(\d+)/);
       if (!match) throw new Error(`Unexpected URL: ${u}`);
@@ -62,14 +66,14 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
         status: 200,
         text: async () => `<script>const DOWNLOAD_URL = '${BASE_MAGNET}';</script>`,
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const res = await comando.fetchFollowingAllowed('https://systemads1.com/step0', 'https://comandotorrents.to/post');
     assert.equal(res, BASE_MAGNET);
   });
 
   test('1.3: 6-hop redirect chain (exact MAX_HOPS boundary) resolves successfully', async () => {
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
       const match = u.match(/step(\d+)/);
       if (!match) throw new Error(`Unexpected URL: ${u}`);
@@ -86,14 +90,14 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
         status: 200,
         text: async () => `<script>var LINK_FINAL = "${BASE_MAGNET}";</script>`,
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const res = await comando.fetchFollowingAllowed('https://videosad.net/step0', 'https://comandotorrents.to/post');
     assert.equal(res, BASE_MAGNET);
   });
 
   test('1.4: 7-hop redirect chain exceeds MAX_HOPS and safely throws too_many_redirects', async () => {
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
       const match = u.match(/step(\d+)/);
       if (!match) throw new Error(`Unexpected URL: ${u}`);
@@ -103,7 +107,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
         status: 302,
         headers: new Map([['location', `https://systemads1.com/step${step + 1}`]]),
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     await assert.rejects(
       () => comando.fetchFollowingAllowed('https://systemads1.com/step0', 'https://comandotorrents.to/post'),
@@ -113,14 +117,14 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
 
   test('1.5: 20-hop redirect chain terminates promptly with too_many_redirects without infinite loop', async () => {
     let callCount = 0;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       callCount += 1;
       const u = typeof url === 'string' ? url : url.href;
       return {
         status: 302,
         headers: new Map([['location', `${u}_next`]]),
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     await assert.rejects(
       () => comando.fetchFollowingAllowed('https://canalfutebol.com/chain0', 'https://comandotorrents.to/post'),
@@ -130,7 +134,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
   });
 
   test('1.6: Mixed multi-hop redirect chain across HTTP 302, meta refresh, and JS variables', async () => {
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
 
       if (u.includes('hop0')) {
@@ -168,7 +172,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
         };
       }
       throw new Error(`Unexpected URL: ${u}`);
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const res = await comando.fetchFollowingAllowed('https://systemads1.com/hop0', 'https://comandotorrents.to/post');
     assert.equal(res, BASE_MAGNET);
@@ -188,7 +192,7 @@ describe('Suite 2: Circular Redirect Loops & Self-Referential Redirects', () => 
 
   test('2.1: 2-hop circular HTTP 302 redirect loop (A -> B -> A) terminates with too_many_redirects', async () => {
     let callCount = 0;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       callCount += 1;
       const u = typeof url === 'string' ? url : url.href;
       if (u === 'https://systemads1.com/loopA') {
@@ -204,7 +208,7 @@ describe('Suite 2: Circular Redirect Loops & Self-Referential Redirects', () => 
         };
       }
       throw new Error(`Unexpected URL: ${u}`);
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     await assert.rejects(
       () => comando.fetchFollowingAllowed('https://systemads1.com/loopA', 'https://comandotorrents.to/'),
@@ -215,7 +219,7 @@ describe('Suite 2: Circular Redirect Loops & Self-Referential Redirects', () => 
 
   test('2.2: 3-hop circular redirect loop (A -> B -> C -> A) terminates with too_many_redirects', async () => {
     let callCount = 0;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       callCount += 1;
       const u = typeof url === 'string' ? url : url.href;
       if (u === 'https://systemads1.com/circA') {
@@ -228,7 +232,7 @@ describe('Suite 2: Circular Redirect Loops & Self-Referential Redirects', () => 
         return { status: 302, headers: new Map([['location', 'https://systemads1.com/circA']]) };
       }
       throw new Error(`Unexpected URL: ${u}`);
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     await assert.rejects(
       () => comando.fetchFollowingAllowed('https://systemads1.com/circA', 'https://comandotorrents.to/'),
@@ -239,13 +243,13 @@ describe('Suite 2: Circular Redirect Loops & Self-Referential Redirects', () => 
 
   test('2.3: Immediate self-referential HTTP 302 redirect (A -> A) terminates safely', async () => {
     let callCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       callCount += 1;
       return {
         status: 302,
         headers: new Map([['location', 'https://systemads1.com/self']]),
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     await assert.rejects(
       () => comando.fetchFollowingAllowed('https://systemads1.com/self', 'https://comandotorrents.to/'),
@@ -256,14 +260,14 @@ describe('Suite 2: Circular Redirect Loops & Self-Referential Redirects', () => 
 
   test('2.4: HTML meta refresh self-loop (page points to itself) stops cleanly with no_magnet or loop exit', async () => {
     let callCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       callCount += 1;
       return {
         ok: true,
         status: 200,
         text: async () => '<html><head><meta http-equiv="refresh" content="0; url=https://systemads1.com/self-meta"></head></html>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     await assert.rejects(
       () => comando.fetchFollowingAllowed('https://systemads1.com/self-meta', 'https://comandotorrents.to/'),
@@ -274,14 +278,14 @@ describe('Suite 2: Circular Redirect Loops & Self-Referential Redirects', () => 
 
   test('2.5: JS variable pointing to self URL stops cleanly with no_magnet', async () => {
     let callCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       callCount += 1;
       return {
         ok: true,
         status: 200,
         text: async () => '<script>var NEXT_URL = "https://systemads1.com/self-js";</script>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     await assert.rejects(
       () => comando.fetchFollowingAllowed('https://systemads1.com/self-js', 'https://comandotorrents.to/'),
@@ -478,15 +482,15 @@ describe('Suite 6: SSRF Protection & Domain Allowlist Integrity', () => {
 
   test('6.8: End-to-end HTTP GET /resolve SSRF rejection', async () => {
     const server = comando.createServer();
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const port = server.address().port;
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
 
     try {
-      const res = await new Promise((resolve, reject) => {
+      const res = await new Promise<HttpRes>((resolve, reject) => {
         http.get(`http://127.0.0.1:${port}/resolve?url=${encodeURIComponent('http://169.254.169.254/latest/meta-data')}`, (r) => {
           let body = '';
           r.on('data', (c) => (body += c));
-          r.on('end', () => resolve({ status: r.statusCode, body }));
+          r.on('end', () => resolve({ status: r.statusCode as number, body }));
         }).on('error', reject);
       });
 
@@ -502,9 +506,9 @@ describe('Suite 7: Network Fault Resilience & Error Handling', () => {
   test('7.1: Abrupt fetch failure is caught cleanly without process crash', async () => {
     const originalFetch = globalThis.fetch;
     try {
-      globalThis.fetch = async () => {
+      globalThis.fetch = (async () => {
         throw new Error('fetch failed: socket hang up');
-      };
+      }) as unknown as typeof globalThis.fetch;
 
       await assert.rejects(
         () => comando.fetchFollowingAllowed('https://systemads1.com/broken-socket', 'https://comandotorrents.to/'),
@@ -521,11 +525,11 @@ describe('Suite 7: Network Fault Resilience & Error Handling', () => {
 
     try {
       for (const code of errorCodes) {
-        globalThis.fetch = async () => ({
+        globalThis.fetch = (async () => ({
           ok: false,
           status: code,
           text: async () => 'Error Page',
-        });
+        })) as unknown as typeof globalThis.fetch;
 
         await assert.rejects(
           () => comando.fetchFollowingAllowed('https://systemads1.com/error-page', 'https://comandotorrents.to/'),
@@ -541,11 +545,11 @@ describe('Suite 7: Network Fault Resilience & Error Handling', () => {
   test('7.3: Upstream timeout simulation aborts cleanly without unhandled rejection', async () => {
     const originalFetch = globalThis.fetch;
     try {
-      globalThis.fetch = async () => {
+      globalThis.fetch = (async () => {
         const err = new Error('The operation was aborted due to timeout');
         err.name = 'TimeoutError';
         throw err;
-      };
+      }) as unknown as typeof globalThis.fetch;
 
       await assert.rejects(
         () => comando.fetchFollowingAllowed('https://systemads1.com/delayed-step', 'https://comandotorrents.to/'),
@@ -558,15 +562,15 @@ describe('Suite 7: Network Fault Resilience & Error Handling', () => {
 
   test('7.4: End-to-end HTTP server survives upstream errors and remains healthy for subsequent requests', async () => {
     const server = comando.createServer();
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const port = server.address().port;
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
 
-    const requestHttp = (path) =>
-      new Promise((resolve, reject) => {
+    const requestHttp = (path: string) =>
+      new Promise<HttpRes>((resolve, reject) => {
         http.get(`http://127.0.0.1:${port}${path}`, (r) => {
           let body = '';
           r.on('data', (c) => (body += c));
-          r.on('end', () => resolve({ status: r.statusCode, body }));
+          r.on('end', () => resolve({ status: r.statusCode as number, body }));
         }).on('error', reject);
       });
 
@@ -612,7 +616,7 @@ describe('Suite 8: Request Coalescing & Cache Bounding under Concurrency', () =>
     let postFetchCount = 0;
     let buttonFetchCount = 0;
 
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
       if (u.includes('filme-concorrente')) {
         postFetchCount += 1;
@@ -639,7 +643,7 @@ describe('Suite 8: Request Coalescing & Cache Bounding under Concurrency', () =>
         };
       }
       throw new Error(`Unexpected URL: ${u}`);
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const postUrl = 'https://comandotorrents.to/filme-concorrente/';
     const promises = Array.from({ length: 50 }, () => comando.resolveButton(postUrl, 0));
@@ -656,7 +660,7 @@ describe('Suite 8: Request Coalescing & Cache Bounding under Concurrency', () =>
 
   test('8.2: In-flight map cleans up rejected promises on fetch error, allowing immediate retry', async () => {
     let shouldFail = true;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
       if (shouldFail) {
         throw new Error('Network glitch');
@@ -670,7 +674,7 @@ describe('Suite 8: Request Coalescing & Cache Bounding under Concurrency', () =>
           </div>
         `,
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const postUrl = 'https://comandotorrents.to/retry-test/';
     // First attempt fails
@@ -688,16 +692,16 @@ describe('Suite 8: Request Coalescing & Cache Bounding under Concurrency', () =>
 describe('Suite 9: Unwrapping & Malformed Input Handling', () => {
   test('9.1: URL lengths exceeding 4096 bytes are rejected with 400 invalid_url', async () => {
     const server = comando.createServer();
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const port = server.address().port;
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
 
     try {
       const hugeUrl = 'https://comandotorrents.to/' + 'a'.repeat(5000);
-      const res = await new Promise((resolve, reject) => {
+      const res = await new Promise<HttpRes>((resolve, reject) => {
         http.get(`http://127.0.0.1:${port}/resolve?url=${encodeURIComponent(hugeUrl)}`, (r) => {
           let body = '';
           r.on('data', (c) => (body += c));
-          r.on('end', () => resolve({ status: r.statusCode, body }));
+          r.on('end', () => resolve({ status: r.statusCode as number, body }));
         }).on('error', reject);
       });
 

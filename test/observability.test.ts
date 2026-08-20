@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as log from '../src/utils/logger.js';
@@ -16,9 +14,12 @@ import { applyDebrid } from '../src/providers/index.js';
 // desligada para não tocar o data/cache.db real.
 process.env.CACHE_PERSIST = 'false';
 
+/** Forma do timer no snapshot: p50/p95 da janela podem faltar em silencio. */
+type TimerSample = { count: number; avgMs: number; p50Ms: number | null; p95Ms: number | null; maxMs: number };
+
 /** Captura o que o logger escreveria de verdade. */
 function capture(fn) {
-  const lines = { log: [], warn: [], error: [] };
+  const lines: { log: string[]; warn: string[]; error: string[] } = { log: [], warn: [], error: [] };
   const real = { log: console.log, warn: console.warn, error: console.error };
   console.log = (...args) => lines.log.push(args.join(' '));
   console.warn = (...args) => lines.warn.push(args.join(' '));
@@ -114,7 +115,7 @@ test('medição inválida é ignorada em vez de virar NaN no snapshot', () => {
   metrics.observe('x', undefined);
   metrics.observe('x', 10);
 
-  assert.deepEqual(metrics.snapshot().timers.x, {
+  assert.deepEqual((metrics.snapshot().timers as Record<string, TimerSample>).x, {
     count: 1,
     avgMs: 10,
     p50Ms: 10,
@@ -129,7 +130,7 @@ test('timed devolve a duração e registra a amostra', () => {
   const ms = done();
 
   assert.equal(typeof ms, 'number');
-  assert.equal(metrics.snapshot().timers.trecho.count, 1);
+  assert.equal((metrics.snapshot().timers as Record<string, TimerSample>).trecho.count, 1);
 });
 
 // Contadores de degradação: são o único jeito de ver no /metrics.json que a
@@ -140,7 +141,7 @@ test('miss servido do cache conta meta.cinemeta.miss.served', async () => {
   const imdbId = `tt-obs-cinemeta-${process.pid}-${Date.now()}`;
   const key = `meta:movie:${imdbId}`;
   const originalFetch = global.fetch;
-  global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+  global.fetch = (async () => ({ ok: false, status: 404, json: async () => ({}) })) as unknown as typeof globalThis.fetch;
   try {
     await getMeta('movie', imdbId); // grava o sentinela
     await getMeta('movie', imdbId); // servido do miss
@@ -159,11 +160,11 @@ test('miss servido do cache conta meta.tmdb.miss.served', async () => {
   const imdbId = `tt-obs-tmdb-${process.pid}-${Date.now()}`;
   const key = `tmdb:${imdbId}`;
   const originalFetch = global.fetch;
-  global.fetch = async () => ({
+  global.fetch = (async () => ({
     ok: true,
     status: 200,
     json: async () => ({ movie_results: [], tv_results: [] }),
-  });
+  })) as unknown as typeof globalThis.fetch;
   try {
     await getTitles(imdbId);
     await getTitles(imdbId);
@@ -187,7 +188,7 @@ test('checagem de cache sem resposta confiável conta debrid.check.unknown', asy
     checkCached: async () => new Set(),
     resolveLink: async () => null,
   };
-  debrid.BY_ID.set(fake.id, fake);
+  debrid.BY_ID.set(fake.id, fake as any);
   const originalSecret = config.debrid.resolveSecret;
   config.debrid.resolveSecret = '';
   try {
@@ -199,7 +200,7 @@ test('checagem de cache sem resposta confiável conta debrid.check.unknown', asy
         episode: null,
         searchKey: 'obs-test',
         deadlineAt: null,
-      });
+      } as any);
       assert.equal(out.length, 1);
       assert.ok(out[0].url.includes('/resolve/'), 'sem resposta, tudo vai pelo debrid');
     });

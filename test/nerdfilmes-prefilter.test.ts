@@ -1,8 +1,7 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 /**
  * Pré-filtro do resolver NerdFilmes.
@@ -248,7 +247,7 @@ test('nerdfilmes pré-filtro: /search e /api aplicam o mesmo helper (fetch stuba
   // Só o post relevante tem página de detalhe registrada: se algum lixo passar
   // pelo filtro, o fetch stubado lança e a rota responde 502 — o teste falha.
   const realFetch = global.fetch;
-  global.fetch = async (input) => {
+  global.fetch = (async (input) => {
     // fetchText chama fetch(URL) com um objeto URL, não string; String()
     // normaliza os dois casos (e Request) para o href completo.
     const url = String(input);
@@ -259,18 +258,18 @@ test('nerdfilmes pré-filtro: /search e /api aplicam o mesmo helper (fetch stuba
       return { status: 200, ok: true, headers: { get: () => null }, text: async () => POST_HTML };
     }
     throw new Error(`fetch inesperado: ${url}`);
-  };
+  }) as unknown as typeof globalThis.fetch;
 
-  const server = nerd.createServer();
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const port = server.address().port;
-  const get = (path) =>
-    new Promise((resolve, reject) => {
+  const server = nerd.createServer() as http.Server;
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = (server.address() as AddressInfo).port;
+  const get = (path: string) =>
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
       http
         .get({ host: '127.0.0.1', port, path }, (res) => {
           let body = '';
           res.on('data', (chunk) => (body += chunk));
-          res.on('end', () => resolve({ status: res.statusCode, body }));
+          res.on('end', () => resolve({ status: res.statusCode as number, body }));
         })
         .on('error', reject);
     });
@@ -282,10 +281,13 @@ test('nerdfilmes pré-filtro: /search e /api aplicam o mesmo helper (fetch stuba
       get(`/api?t=search&q=${q}`),
     ]);
 
-    for (const [label, res, marker] of [
+    // Tupla explicita: sem ela o literal mistura string com o corpo e o
+    // loop nao enxerga status/body.
+    const checks: [string, { status: number; body: string }, string][] = [
       ['/search', searchRes, 'class="release"'],
       ['/api', apiRes, '<item>'],
-    ]) {
+    ];
+    for (const [label, res, marker] of checks) {
       assert.equal(res.status, 200, `${label} responde 200 (nenhum lixo pediu fetch)`);
       assert.match(res.body, /A Casa do Dragão 1ª Temporada \(2022\)/, `${label} mantém o post relevante`);
       for (const garbage of SHOW_BAR_POSTS) {

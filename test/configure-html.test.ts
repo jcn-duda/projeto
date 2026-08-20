@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -87,7 +85,7 @@ test('copy do autofetch e aviso AllDebrid acompanham o código', () => {
 });
 
 test('switches principais têm role=switch e aria-checked', () => {
-  const tags = [];
+  const tags: string[] = [];
   const re = /<button\b[^>]*\bclass="switch"[^>]*>/g;
   let m;
   while ((m = re.exec(html)) !== null) tags.push(m[0]);

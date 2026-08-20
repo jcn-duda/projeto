@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 /**
  * Empirical Stress and Concurrency Harness for Milestone 1 - Extended Hardening Suite
  *
@@ -58,7 +56,7 @@ async function runTests() {
     resetAll();
     const t0 = performance.now();
     let fetchCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       fetchCount++;
       await new Promise((r) => setTimeout(r, 40));
       return {
@@ -72,7 +70,7 @@ async function runTests() {
           </div>
         `,
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const targetUrl = 'https://bludvfilmes.xyz/filme-concorrencia-50/';
     const promises = Array.from({ length: 50 }, () => bludv.getPostLinks(targetUrl));
@@ -95,7 +93,7 @@ async function runTests() {
     resetAll();
     const t0 = performance.now();
     let fetchCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       fetchCount++;
       await new Promise((r) => setTimeout(r, 35));
       return {
@@ -103,7 +101,7 @@ async function runTests() {
         status: 200,
         text: async () => '<article class="blog-view"><a href="https://videosad.net/go/c1">Link</a></article>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const targetUrl = 'https://comandotorrents.to/filme-concorrencia-50/';
     const promises = Array.from({ length: 50 }, () => comando.getPostLinks(targetUrl));
@@ -122,7 +120,7 @@ async function runTests() {
     resetAll();
     const t0 = performance.now();
     let fetchCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       fetchCount++;
       await new Promise((r) => setTimeout(r, 35));
       return {
@@ -130,7 +128,7 @@ async function runTests() {
         status: 200,
         text: async () => '<article class="col"><a href="https://canalfutebol.com/go/n1">Nerd</a></article>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const targetUrl = 'https://www.xnerdfilmes.net/filme-concorrencia-50/';
     const promises = Array.from({ length: 50 }, () => nerd.getPostLinks(targetUrl));
@@ -149,7 +147,7 @@ async function runTests() {
     resetAll();
     const t0 = performance.now();
     let fetchCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       fetchCount++;
       await new Promise((r) => setTimeout(r, 35));
       return {
@@ -157,7 +155,7 @@ async function runTests() {
         status: 200,
         text: async () => '<div><a href="https://systemads1.com/go/t1">TDF</a></div>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const targetUrl = 'https://torrentdosfilmes-v2.xyz/filme-concorrencia-50/';
     const promises = Array.from({ length: 50 }, () => tdf.getPostLinks(targetUrl));
@@ -183,7 +181,7 @@ async function runTests() {
       'https://bludvfilmes.xyz/filme-e/',
     ];
     let fetchCount = 0;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       fetchCount++;
       const href = typeof url === 'string' ? url : url.href;
       await new Promise((r) => setTimeout(r, 30));
@@ -192,9 +190,9 @@ async function runTests() {
         status: 200,
         text: async () => `<div class="post"><a href="https://systemads1.com/go/${href.slice(-2, -1)}">L</a></div>`,
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
-    const requests = [];
+    const requests: { url: string; id: string }[] = [];
     for (const u of urls) {
       for (let i = 0; i < 20; i++) {
         requests.push({ url: u, id: `${u}-${i}` });
@@ -232,11 +230,11 @@ async function runTests() {
     resetAll();
     const t0 = performance.now();
     let fetchCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       fetchCount++;
       await new Promise((r) => setTimeout(r, 20));
       throw new Error('ETIMEDOUT');
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const targetUrl = 'https://bludvfilmes.xyz/filme-error-50/';
     const promises = Array.from({ length: 50 }, () => bludv.getPostLinks(targetUrl));
@@ -260,7 +258,7 @@ async function runTests() {
     resetAll();
     const t0 = performance.now();
     let attempts = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       attempts++;
       if (attempts === 1) {
         throw new Error('ECONNREFUSED');
@@ -270,7 +268,7 @@ async function runTests() {
         status: 200,
         text: async () => '<div class="post"><a href="https://systemads1.com/go/recovered">Link</a></div>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const targetUrl = 'https://comandotorrents.to/filme-retry/';
 
@@ -293,7 +291,7 @@ async function runTests() {
   try {
     resetAll();
     const t0 = performance.now();
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
       await new Promise((r) => setTimeout(r, 10));
       if (u.includes('bad-url')) {
@@ -304,9 +302,9 @@ async function runTests() {
         status: 200,
         text: async () => '<div class="post"><a href="https://systemads1.com/go/ok">Link</a></div>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
-    const requests = [];
+    const requests: { url: string; isBad: boolean }[] = [];
     for (let i = 0; i < 200; i++) {
       const isBad = i % 4 === 0; // 50 bad, 150 good
       const url = `https://bludvfilmes.xyz/${isBad ? 'bad-url' : 'good-url'}-${i % 10}/`;
@@ -344,11 +342,11 @@ async function runTests() {
   try {
     resetAll();
     const t0 = performance.now();
-    globalThis.fetch = async () => ({
+    globalThis.fetch = (async () => ({
       ok: true,
       status: 200,
       text: async () => '<div class="post"><a href="https://systemads1.com/go/x">Link</a></div>',
-    });
+    })) as unknown as typeof globalThis.fetch;
 
     for (let i = 1; i <= 300; i++) {
       await bludv.getPostLinks(`https://bludvfilmes.xyz/filme-${i}/`);
@@ -368,11 +366,11 @@ async function runTests() {
   try {
     resetAll();
     const t0 = performance.now();
-    globalThis.fetch = async () => ({
+    globalThis.fetch = (async () => ({
       ok: true,
       status: 200,
       text: async () => '<article><a href="https://systemads1.com/go/x">Link</a></article>',
-    });
+    })) as unknown as typeof globalThis.fetch;
 
     for (let i = 1; i <= 150; i++) {
       await comando.getPostLinks(`https://comandotorrents.to/filme-${i}/`);
@@ -535,7 +533,7 @@ async function runTests() {
   try {
     resetAll();
     const t0 = performance.now();
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
 
       if (u === 'https://systemads1.com/hop1') {
@@ -566,7 +564,7 @@ async function runTests() {
         };
       }
       throw new Error(`Unexpected request to: ${u}`);
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const resolvedBludv = await bludv.fetchFollowingAllowed('https://systemads1.com/hop1', 'https://bludvfilmes.xyz/post');
     assert.equal(resolvedBludv, expectedMagnet);
@@ -595,7 +593,7 @@ async function runTests() {
     resetAll();
     const t0 = performance.now();
     let hopCount = 0;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       hopCount++;
       const nextHop = hopCount + 1;
       return {
@@ -603,7 +601,7 @@ async function runTests() {
         status: 200,
         text: async () => `<script>var NEXT_URL = "https://systemads1.com/hop${nextHop}";</script>`,
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     await assert.rejects(
       () => bludv.fetchFollowingAllowed('https://systemads1.com/hop1', 'https://bludvfilmes.xyz/post'),

@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert';
 
@@ -17,8 +15,8 @@ test('diagnóstico limita concorrência e libera a vaga uma vez', () => {
   const first = gate.enter('cliente-a');
   assert.equal(first.ok, true);
   assert.equal(gate.enter('cliente-b').status, 429);
-  first.release();
-  first.release();
+  first.release!();
+  first.release!();
   assert.equal(gate.enter('cliente-b').ok, true);
 });
 
@@ -27,9 +25,9 @@ test('o gate aceita mensagens próprias sem mudar as do diagnóstico', () => {
   // mentira para quem só está gerando o link de instalação.
   const padrao = diagGuard.createDiagnosticGate({ limit: 1, maxConcurrent: 1 });
   const primeiro = padrao.enter('a');
-  assert.match(padrao.enter('b').error, /teste em andamento/);
-  primeiro.release();
-  assert.match(padrao.enter('a').error, /limite de testes/);
+  assert.match(padrao.enter('b').error!, /teste em andamento/);
+  primeiro.release!();
+  assert.match(padrao.enter('a').error!, /limite de testes/);
 
   const selo = diagGuard.createDiagnosticGate({
     limit: 1,
@@ -39,7 +37,7 @@ test('o gate aceita mensagens próprias sem mudar as do diagnóstico', () => {
   });
   const ativo = selo.enter('a');
   assert.equal(selo.enter('b').error, 'selo ocupado');
-  ativo.release();
+  ativo.release!();
   assert.equal(selo.enter('a').error, 'muitos pedidos de selo');
 });
 
@@ -47,9 +45,9 @@ test('diagnóstico limita chamadas por cliente dentro da janela', () => {
   let time = 1000;
   const gate = diagGuard.createDiagnosticGate({ limit: 2, windowMs: 100, maxConcurrent: 1, now: () => time });
   const first = gate.enter('cliente');
-  first.release();
+  first.release!();
   const second = gate.enter('cliente');
-  second.release();
+  second.release!();
   assert.equal(gate.enter('cliente').status, 429);
   time += 101;
   assert.equal(gate.enter('cliente').ok, true);

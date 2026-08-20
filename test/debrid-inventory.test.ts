@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
@@ -11,6 +10,7 @@ import * as cache from '../src/utils/cache.js';
 import { filterRelevantRaw as relevantRaw, filterInventoryRelevant } from '../src/utils/format.js';
 import { buildStreams } from '../src/providers/index.js';
 import * as account from '../src/providers/account.js';
+import type { InventoryItem, RawItem, Stream } from '../types/domain.js';
 
 process.env.CACHE_PERSIST = 'false';
 
@@ -36,14 +36,33 @@ const H3 = '3'.repeat(40);
 const H4 = '4'.repeat(40);
 const H5 = '5'.repeat(40);
 
+/** Magnet do /magnet/status da AllDebrid — o que o inventário lê. */
+interface AllDebridMagnet {
+  id: number;
+  hash?: string;
+  status: string;
+  filename: string;
+  ready: boolean;
+  size?: number;
+}
+
+/** Linha do /torrents/mylist do TorBox. */
+interface TorBoxRow {
+  hash?: string;
+  name: string;
+  size: number;
+  download_finished: boolean;
+  download_present?: boolean;
+}
+
 /** Dublê da API da AllDebrid para o inventário (v4.1 responde {status, data}). */
-function mockAllDebridStatus({ magnetsOf = () => [], failOf = () => false } = {}) {
-  const calls = [];
+function mockAllDebridStatus({ magnetsOf = () => [], failOf = () => false }: { magnetsOf?: () => AllDebridMagnet[]; failOf?: () => boolean } = {}) {
+  const calls: (string | null)[] = [];
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
 
-  globalThis.fetch = async (input) => {
+  globalThis.fetch = (async (input) => {
     const url = new URL(String(input));
     if (url.pathname.endsWith('/magnet/status')) {
       calls.push(url.searchParams.get('id') || null);
@@ -51,7 +70,7 @@ function mockAllDebridStatus({ magnetsOf = () => [], failOf = () => false } = {}
       return { ok: true, async json() { return { status: 'success', data: { magnets: magnetsOf() } }; } };
     }
     throw new Error(`URL inesperada no teste: ${url.pathname}`);
-  };
+  }) as unknown as typeof globalThis.fetch;
 
   return {
     calls,
@@ -63,18 +82,18 @@ function mockAllDebridStatus({ magnetsOf = () => [], failOf = () => false } = {}
 }
 
 /** Dublê da API do TorBox: /torrents/mylist sem id devolve a conta inteira. */
-function mockTorBoxList({ rows = [] } = {}) {
+function mockTorBoxList({ rows = [] }: { rows?: TorBoxRow[] } = {}) {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
 
-  globalThis.fetch = async (input) => {
+  globalThis.fetch = (async (input) => {
     const url = new URL(String(input));
     if (url.pathname.endsWith('/torrents/mylist')) {
       return { ok: true, async json() { return { data: rows }; } };
     }
     throw new Error(`URL inesperada no teste: ${url.pathname}`);
-  };
+  }) as unknown as typeof globalThis.fetch;
 
   return {
     restore() {
@@ -93,11 +112,14 @@ before(() => {
 after(() => clearInterval(keepAlive));
 
 /** Roda debrid.inventory() como a busca faria: dentro da config do usuário. */
-const inventoryOf = (apiKey, service = 'alldebrid') =>
+// runtime.run devolve unknown; o helper fixa o tipo do retorno sem mudar o teste.
+const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
+
+const inventoryOf = (apiKey: string, service = 'alldebrid'): Promise<InventoryItem[]> =>
   runtime.run(
     { opts: { ...runtime.defaults(), debridService: service, debridApiKey: apiKey }, encoded: 'seginv' },
     () => debrid.inventory(),
-  );
+  ) as Promise<InventoryItem[]>;
 
 test('adaptador AllDebrid: só item pronto e com filename de verdade', async () => {
   const api = mockAllDebridStatus({
@@ -201,12 +223,12 @@ test('item do inventário é preexistente: o dropReady não o apaga da conta', a
   const DO_USUARIO = H1;
   const DA_CHECAGEM = H2;
   const IDS = { [DO_USUARIO]: 1000, [DA_CHECAGEM]: 2000 };
-  const deleted = [];
+  const deleted: number[] = [];
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
 
-  globalThis.fetch = async (input) => {
+  globalThis.fetch = (async (input) => {
     const url = new URL(String(input));
     const body = (data) => ({ ok: true, async json() { return { status: 'success', data }; } });
     if (url.pathname.endsWith('/magnet/status')) {
@@ -222,7 +244,7 @@ test('item do inventário é preexistente: o dropReady não o apaga da conta', a
       return body({ message: 'deleted' });
     }
     throw new Error(`URL inesperada no teste: ${url.pathname}`);
-  };
+  }) as unknown as typeof globalThis.fetch;
 
   try {
     // Primeira checagem carrega o inventário (fail-safe: não remove prontos);
@@ -302,7 +324,7 @@ test('buildStreams preserva o pack de franquia da conta e o entrega via /resolve
   const originalCheck = debrid.checkCached;
   debrid.checkCached = async () => ({ cached: new Set([HASH_FILM]), known: true });
   try {
-    const streams = await runtime.run(
+    const streams = await runWith<Stream[]>(
       {
         opts: {
           ...runtime.defaults(),
@@ -320,10 +342,10 @@ test('buildStreams preserva o pack de franquia da conta e o entrega via /resolve
         episode: null,
         isDemo: false,
         searchKey: `inv-${Math.random()}`,
-      }),
+      } as any),
     );
     assert.equal(streams.length, 1);
-    assert.match(streams[0].title, /FILMOGRAFIA/i);
+    assert.match(streams[0].title as string, /FILMOGRAFIA/i);
     assert.ok(streams[0].url, 'item pronto da conta sai pelo /resolve (com ⚡)');
   } finally {
     debrid.checkCached = originalCheck;
@@ -342,7 +364,7 @@ test('account.search avalia itens pt-BR com matchesBrTitle (invariante 5)', asyn
   });
   try {
     const ctx = { names: ['Joker', 'Coringa'], year: 2019, isSeries: false };
-    const items = await runtime.run(
+    const items = await runWith<RawItem[]>(
       {
         opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: KEY_A },
         encoded: 'seginv2',
@@ -350,7 +372,7 @@ test('account.search avalia itens pt-BR com matchesBrTitle (invariante 5)', asyn
       () => account.search(ctx),
     );
     assert.equal(items.length, 1);
-    assert.equal(items[0].infoHash, H1);
+    assert.equal(items[0].infoHash as string, H1);
     assert.equal(items[0].isBr, true);
   } finally {
     api.restore();

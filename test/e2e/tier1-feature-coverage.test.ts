@@ -1,4 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
+// Rodada 2: checagem ligada; tier 1 (cobertura de features) tipado.
 // remover arquivo a arquivo na rodada 2.
 // A suíte precisa ser idêntica no Node 18 e no Node 22, sem criar SQLite local.
 process.env.CACHE_PERSIST = 'false';
@@ -35,6 +35,7 @@ import debrid from '../../src/debrid/index.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
 import * as searchPlan from '../../src/providers/search-plan.js';
 import { createLatestWriter } from '../../src/utils/latest-writer.js';
+import type { Stream } from '../../types/domain.js';
 
 const TEST_HASH_1 = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const TEST_HASH_2 = '11223344556677889900aabbccddeeff00112233';
@@ -44,7 +45,7 @@ const TEST_HASH_3 = '99887766554433221100ffeeddccbbaa99887766';
 // FEATURE 1: Dynamic Domain Validation
 // ════════════════════════════════════════════════════════════════════════════════
 describe('Feature 1: Dynamic Domain Validation', () => {
-  function validateResolverUrl(urlString, { siteUrl, extraProtectors = '' } = {}) {
+  function validateResolverUrl(urlString: string, { siteUrl, extraProtectors = '' }: { siteUrl?: string; extraProtectors?: string } = {}) {
     try {
       const parsed = new URL(urlString);
       const host = parsed.hostname.toLowerCase();
@@ -226,19 +227,19 @@ describe('Feature 3: Standardized siteEnv Configuration', () => {
     const names = brResolvers.RESOLVERS.map((r) => r.name);
     assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes']);
 
-    const bludv = brResolvers.RESOLVERS.find((r) => r.name === 'bludv');
+    const bludv = brResolvers.RESOLVERS.find((r) => r.name === 'bludv') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(bludv.port, 8700);
     assert.equal(bludv.siteEnv, 'BLUDV_URL');
 
-    const comando = brResolvers.RESOLVERS.find((r) => r.name === 'comandotorrents');
+    const comando = brResolvers.RESOLVERS.find((r) => r.name === 'comandotorrents') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(comando.port, 8701);
     assert.equal(comando.siteEnv, 'COMANDOTORRENTS_URL');
 
-    const nerd = brResolvers.RESOLVERS.find((r) => r.name === 'nerdfilmes');
+    const nerd = brResolvers.RESOLVERS.find((r) => r.name === 'nerdfilmes') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(nerd.port, 8702);
     assert.equal(nerd.siteEnv, 'NERDFILMES_URL');
 
-    const tdf = brResolvers.RESOLVERS.find((r) => r.name === 'torrentdosfilmes');
+    const tdf = brResolvers.RESOLVERS.find((r) => r.name === 'torrentdosfilmes') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(tdf.port, 8703);
     assert.equal(tdf.siteEnv, 'TORRENTDOSFILMES_URL');
   });
@@ -257,13 +258,13 @@ describe('Feature 3: Standardized siteEnv Configuration', () => {
   });
 
   it('3.3: Configuração de COMANDOTORRENTS_URL é respeitada pelo siteEnv', () => {
-    const comandoConfig = brResolvers.RESOLVERS.find((r) => r.name === 'comandotorrents');
+    const comandoConfig = brResolvers.RESOLVERS.find((r) => r.name === 'comandotorrents') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(comandoConfig.siteEnv, 'COMANDOTORRENTS_URL');
   });
 
   it('3.4: Configuração de NERDFILMES_URL e TORRENTDOSFILMES_URL são isoladas', () => {
-    const nerd = brResolvers.RESOLVERS.find((r) => r.name === 'nerdfilmes');
-    const tdf = brResolvers.RESOLVERS.find((r) => r.name === 'torrentdosfilmes');
+    const nerd = brResolvers.RESOLVERS.find((r) => r.name === 'nerdfilmes') as (typeof brResolvers.RESOLVERS)[number];
+    const tdf = brResolvers.RESOLVERS.find((r) => r.name === 'torrentdosfilmes') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(nerd.siteEnv, 'NERDFILMES_URL');
     assert.equal(tdf.siteEnv, 'TORRENTDOSFILMES_URL');
     assert.notEqual(nerd.siteEnv, tdf.siteEnv);
@@ -660,7 +661,7 @@ describe('Feature 8: Search & Late-Pass Budget Optimization', () => {
   });
 
   it('8.5: createLatestWriter rejeita revisões antigas de sobrescreverem novas', async () => {
-    const history = [];
+    const history: unknown[] = [];
     const writer = createLatestWriter(
       async (input) => input,
       async (value) => history.push(value)
@@ -800,7 +801,7 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         },
       ],
       async () => {
-        const res = await pmAdapter.checkCached('pm-key', [TEST_HASH_1, TEST_HASH_2]);
+        const res = await pmAdapter.checkCached('pm-key', [TEST_HASH_1, TEST_HASH_2]) as { cached: Set<string>; complete?: boolean };
         assert.ok(res.cached.has(TEST_HASH_1));
         assert.equal(res.cached.has(TEST_HASH_2), false);
 
@@ -841,7 +842,7 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         },
       ],
       async () => {
-        const rawCached = await rdAdapter.checkCached('rd-key', [TEST_HASH_1]);
+        const rawCached = await rdAdapter.checkCached('rd-key', [TEST_HASH_1]) as Set<string>;
         assert.equal(rawCached.size, 0);
 
         await runtime.run({ opts: { debridService: 'realdebrid', debridApiKey: 'rd-key' } }, async () => {
@@ -948,7 +949,7 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         },
       ],
       async () => {
-        const cachedRes = await tbAdapter.checkCached('tb-key', [TEST_HASH_1]);
+        const cachedRes = await tbAdapter.checkCached('tb-key', [TEST_HASH_1]) as { cached: Set<string>; complete?: boolean };
         assert.ok(cachedRes.cached.has(TEST_HASH_1));
 
         const link = await tbAdapter.resolveLink('tb-key', TEST_HASH_1, {});
@@ -1075,7 +1076,7 @@ describe('Feature 12: Architecture & Invariants Preservation', () => {
       name: internalStream.name,
       title: internalStream.title,
       infoHash: internalStream.infoHash,
-    };
+    } as { name: string; title: string; infoHash: string; _br?: unknown; _seeders?: unknown; _quality?: unknown };
 
     assert.equal(publicStream._br, undefined, 'Campos internos com _ não devem vazar');
     assert.equal(publicStream._seeders, undefined);
@@ -1087,7 +1088,7 @@ describe('Feature 12: Architecture & Invariants Preservation', () => {
     const globalStream2 = { name: 'Global 2', _seeders: 90, _quality: '1080p', _br: false };
     const brStream = { name: 'BR Dublado', _seeders: 1, _quality: '1080p', _br: true };
 
-    const selected = format.limitReservingBr([globalStream1, globalStream2, brStream], {
+    const selected = format.limitReservingBr([globalStream1, globalStream2, brStream] as unknown as Stream[], {
       maxResults: 2,
       brReservedSlots: 1,
     });

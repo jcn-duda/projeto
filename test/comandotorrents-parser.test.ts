@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -78,7 +76,7 @@ describe('ComandoTorrents Parser: Complex Movie Download Links', () => {
     // 3. WEB-DL 1080p com redirect relativo
     assert.equal(links[2].url, 'https://comandotorrents.to/redirect?to=https%3A%2F%2Fvideosad.net%2Fgo%2Fct-web1080');
     assert.equal(links[2].quality, 1080);
-    assert.equal(links[2].size.replace(',', '.'), '2.8 GB');
+    assert.equal(links[2].size!.replace(',', '.'), '2.8 GB');
     assert.equal(links[2].audio, 'dublado');
     assert.equal(links[2].source, 'WEB-DL');
 
@@ -209,7 +207,7 @@ describe('ComandoTorrents Parser: Subtitled-Only Isolation', () => {
 
     const postTitle = 'Parasita Torrent (2019) Legendado WEB-DL 1080p / 4K';
     for (let i = 0; i < links.length; i += 1) {
-      const generated = comando.releaseTitle(postTitle, links[i], i);
+      const generated = comando.releaseTitle(postTitle, links[i], i as any);
       assert.ok(generated.includes('LEGENDADO'), `releaseTitle deve conter LEGENDADO: ${generated}`);
       assert.ok(!/DUBLADO|Dual/i.test(generated), `releaseTitle não pode conter DUBLADO ou Dual: ${generated}`);
     }
@@ -278,7 +276,7 @@ describe('ComandoTorrents Parser: Title Cleaning & SEO Normalization', () => {
     const rawPost = 'Interestelar Torrent (2014) BluRay 1080p Dublado';
     const link = { quality: 1080, source: 'BLU-RAY', audio: 'dublado', size: null, episode: null };
 
-    const title = comando.releaseTitle(rawPost, link, 2);
+    const title = comando.releaseTitle(rawPost, link, 2 as any);
     assert.equal(title, 'Interestelar (2014) [1080p BLU-RAY DUBLADO opção 3]');
   });
 });
@@ -381,7 +379,7 @@ describe('ComandoTorrents Parser: isGenericListPost (índices genéricos)', () =
 
   test('aceita entrada vazia ou sem título (defensivo)', () => {
     assert.equal(comando.isGenericListPost(''), false);
-    assert.equal(comando.isGenericListPost(null), false);
+    assert.equal(comando.isGenericListPost(null as any), false);
     assert.equal(comando.isGenericListPost(undefined), false);
   });
 });
@@ -417,7 +415,7 @@ describe('ComandoTorrents Parser: Integração — índice genérico vs MAX_POST
         </h2>
       </article>`).join('');
 
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
       if (u.includes('/?s=')) {
         return {
@@ -440,10 +438,10 @@ describe('ComandoTorrents Parser: Integração — índice genérico vs MAX_POST
         };
       }
       throw new Error(`Unexpected URL: ${u}`);
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     server = comando.createServer();
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
       server.listen(0, '127.0.0.1', () => {
         port = server.address().port;
         resolve();
@@ -458,8 +456,8 @@ describe('ComandoTorrents Parser: Integração — índice genérico vs MAX_POST
     }
   });
 
-  const requestHttp = (pathname) =>
-    new Promise((resolve, reject) => {
+  const requestHttp = (pathname: string) =>
+    new Promise<{ status: number | undefined; body: string }>((resolve, reject) => {
       const req = http.get({ host: '127.0.0.1', port, path: pathname }, (res) => {
         let body = '';
         res.on('data', (chunk) => (body += chunk));

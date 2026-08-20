@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
@@ -40,15 +38,17 @@ async function run({ resolveUncached, cached }) {
   };
 
   try {
-    return await runtime.run({ opts, encoded: 'cfg' }, () =>
+    // `runtime.run` devolve unknown (o tipo do AsyncLocalStorage não propaga);
+    // o cast no recebedor recupera o tipo real do retorno da busca.
+    return (await runtime.run({ opts, encoded: 'cfg' }, () =>
       applyDebrid(
         [
           { infoHash: CACHEADO, name: 'Release 1080p', title: 'Release 1080p' },
           { infoHash: FRIO, name: 'Release 720p', title: 'Release 720p' },
         ],
-        { searchKey: `busca-${resolveUncached}` },
+        { searchKey: `busca-${resolveUncached}` } as any,
       ),
-    );
+    )) as any[];
   } finally {
     config.debrid.resolveUncached = originalResolve;
     config.debrid.publicUrl = originalPublicUrl;

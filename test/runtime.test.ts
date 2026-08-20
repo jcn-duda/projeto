@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada; o contrato do src/runtime.ts é puro (sem rede).
 import { test } from 'node:test';
 import assert from 'node:assert';
 
@@ -14,13 +13,10 @@ import * as runtime from '../src/runtime.js';
 
 const { MAX_CONFIG_SEGMENT, SCHEMA, defaults, normalize, encode, decode } = runtime;
 
-/**
- * `decode` devolve os defaults ou null; nos testes o segmento é sempre válido
- * por construção, então os acessos diretos assumem o tipo não-nulo — o cast
- * no lugar do `!` (proibido em .js) é o que documenta essa invariante.
- *
- * @typedef {NonNullable<ReturnType<typeof decode>>} DecodedOptions
- */
+// `decode` devolve os defaults ou null; nos testes o segmento é sempre válido
+// por construção, então os acessos diretos assumem o tipo não-nulo — o cast
+// (`as` em .ts; `!` era proibido em .js) é o que documenta essa invariante.
+type DecodedOptions = NonNullable<ReturnType<typeof decode>>;
 
 test('SCHEMA declara as opções novas com chave curta, tipo e limites', () => {
   assert.deepEqual(SCHEMA.preferDubbed, { type: 'bool', key: 'a' });
@@ -46,7 +42,7 @@ test('SCHEMA declara exceção BR ao cachedOnly com chave curta', () => {
   assert.deepEqual(SCHEMA.showUncachedBr, { type: 'bool', key: 'bu' });
   assert.equal(defaults().showUncachedBr, false);
   assert.equal(normalize({ bu: 1 }).showUncachedBr, true);
-  assert.equal(/** @type {DecodedOptions} */ (decode(encode({ bu: 0 }))).showUncachedBr, false);
+  assert.equal((decode(encode({ bu: 0 })) as DecodedOptions).showUncachedBr, false);
 });
 
 test('defaults() segue o operador em preferDubbed e não filtra CAM/tamanho', () => {
@@ -80,7 +76,7 @@ test('defaults() traz brFirst true e jackettIndexers herdado do config', () => {
 test('normalize preserva ordem da prioridade de indexadores', () => {
   const out = normalize({ ip: ' NerdFilmes, ComandoTorrents ' });
   assert.deepEqual(out.indexerPriority, ['nerdfilmes', 'comandotorrents']);
-  assert.deepEqual(/** @type {DecodedOptions} */ (decode(encode({ ip: out.indexerPriority }))).indexerPriority, out.indexerPriority);
+  assert.deepEqual((decode(encode({ ip: out.indexerPriority })) as DecodedOptions).indexerPriority, out.indexerPriority);
 });
 
 test('normalize lê as chaves curtas e ignora chave desconhecida', () => {
@@ -153,7 +149,7 @@ test('normalize lê ji com trim/lowercase e vazio explícito vira lista vazia', 
 });
 
 test('roundtrip encode/decode preserva as opções novas e rejeita segmento inválido', () => {
-  const decoded = /** @type {DecodedOptions} */ (decode(encode({ a: true, c: false, z: 42 })));
+  const decoded = (decode(encode({ a: true, c: false, z: 42 })) as DecodedOptions);
   assert.equal(decoded.preferDubbed, true);
   assert.equal(decoded.excludeCam, false);
   assert.equal(decoded.maxSizeGb, 42);
@@ -164,7 +160,7 @@ test('roundtrip encode/decode preserva as opções novas e rejeita segmento inv�
 });
 
 test('roundtrip encode/decode preserva os limites por qualidade', () => {
-  const decoded = /** @type {DecodedOptions} */ (decode(encode({ q4: 0, q1: 25, q7: 50, q5: 75, qs: 100 })));
+  const decoded = (decode(encode({ q4: 0, q1: 25, q7: 50, q5: 75, qs: 100 })) as DecodedOptions);
   assert.equal(decoded.max2160p, 0);
   assert.equal(decoded.max1080p, 25);
   assert.equal(decoded.max720p, 50);
@@ -173,11 +169,11 @@ test('roundtrip encode/decode preserva os limites por qualidade', () => {
 });
 
 test('roundtrip encode/decode preserva brFirst e jackettIndexers normalizados', () => {
-  const decoded = /** @type {DecodedOptions} */ (decode(encode({ bf: false, ji: ['ComandoTorrents', ' NERDFILMES '] })));
+  const decoded = (decode(encode({ bf: false, ji: ['ComandoTorrents', ' NERDFILMES '] })) as DecodedOptions);
   assert.equal(decoded.brFirst, false);
   assert.deepEqual(decoded.jackettIndexers, ['comandotorrents', 'nerdfilmes']);
   // bf ausente cai no default true; ji ausente cai no default do operador.
-  const fallback = /** @type {DecodedOptions} */ (decode(encode({})));
+  const fallback = (decode(encode({})) as DecodedOptions);
   assert.equal(fallback.brFirst, true);
   assert.deepEqual(fallback.jackettIndexers, config.jackett.indexers);
 });
@@ -189,7 +185,7 @@ test('segmento comporta catálogo Jackett grande e mantém teto defensivo', () =
   const segment = encode({ ji: ids, dk: 'x'.repeat(80) });
   assert.ok(segment.length > 2048);
   assert.ok(segment.length < MAX_CONFIG_SEGMENT);
-  assert.deepEqual(/** @type {DecodedOptions} */ (decode(segment)).jackettIndexers, ids);
+  assert.deepEqual((decode(segment) as DecodedOptions).jackettIndexers, ids);
   assert.equal(decode('a'.repeat(MAX_CONFIG_SEGMENT + 1)), null);
 });
 
@@ -247,8 +243,8 @@ test('normalize lê jl em array e em objeto', () => {
 });
 
 test('roundtrip encode/decode preserva os limites por indexador, inclusive o 0', () => {
-  const decoded = /** @type {DecodedOptions} */ (decode(encode({ jl: { yts: 3, bludv: 0 } })));
+  const decoded = (decode(encode({ jl: { yts: 3, bludv: 0 } })) as DecodedOptions);
   // 0 é override explícito de "sem limite" e não pode sumir no caminho.
   assert.deepEqual(decoded.indexerLimits, { bludv: 0, yts: 3 });
-  assert.deepEqual(/** @type {DecodedOptions} */ (decode(encode({ jl: {} }))).indexerLimits, {});
+  assert.deepEqual((decode(encode({ jl: {} })) as DecodedOptions).indexerLimits, {});
 });

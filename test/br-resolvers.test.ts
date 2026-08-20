@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -72,7 +70,7 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
 
   test('bludv: getPostLinks armazena no cache e evita requisições redundantes', async () => {
     let fetchCount = 0;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       fetchCount += 1;
       return {
         ok: true,
@@ -85,7 +83,7 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
           </div>
         `,
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const postUrl = 'https://bludvfilmes.xyz/filme-teste/';
     const res1 = await bludv.getPostLinks(postUrl);
@@ -99,14 +97,14 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
 
   test('bludv: getPostLinks expira após TTL e efetua nova busca', async () => {
     let fetchCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       fetchCount += 1;
       return {
         ok: true,
         status: 200,
         text: async () => '<div class="post-single"><a href="https://systemads1.com/go/test">Link</a></div>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const postUrl = 'https://bludvfilmes.xyz/filme-expiravel/';
     await bludv.getPostLinks(postUrl);
@@ -123,7 +121,7 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
 
   test('bludv: getPostLinks coalesces requisições concorrentes via inFlight', async () => {
     let fetchCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       fetchCount += 1;
       await new Promise((r) => setTimeout(r, 20));
       return {
@@ -131,7 +129,7 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
         status: 200,
         text: async () => '<div class="post-single"><a href="https://systemads1.com/go/concurrent">Link</a></div>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const postUrl = 'https://bludvfilmes.xyz/filme-concorrente/';
     const [r1, r2, r3, r4, r5] = await Promise.all([
@@ -150,7 +148,7 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
 
   test('comandotorrents e torrentdosfilmes: inFlight coalescing para requisições concorrentes', async () => {
     let ctFetchCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       ctFetchCount += 1;
       await new Promise((r) => setTimeout(r, 15));
       return {
@@ -158,7 +156,7 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
         status: 200,
         text: async () => '<article class="blog-view"><a href="https://videosad.net/go/ct">Download</a></article>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const ctUrl = 'https://comandotorrents.to/filme-ct/';
     await Promise.all([
@@ -170,7 +168,7 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
     assert.equal(comando.inFlight.size, 0);
 
     let tdfFetchCount = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       tdfFetchCount += 1;
       await new Promise((r) => setTimeout(r, 15));
       return {
@@ -178,7 +176,7 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
         status: 200,
         text: async () => '<div><a href="https://systemads1.com/go/tdf">Download</a></div>',
       };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const tdfUrl = 'https://torrentdosfilmes-v2.xyz/filme-tdf/';
     await Promise.all([
@@ -273,7 +271,7 @@ describe('Feature 4: Universal extractMagnet & Link Protector Traversal', () => 
     const expectedMagnet = 'magnet:?xt=urn:btih:deadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
 
     let step = 0;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const u = typeof url === 'string' ? url : url.href;
       step += 1;
 
@@ -301,17 +299,17 @@ describe('Feature 4: Universal extractMagnet & Link Protector Traversal', () => 
         };
       }
       throw new Error(`Unexpected url: ${u}`);
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const resolved = await bludv.fetchFollowingAllowed('https://systemads1.com/go/step1', 'https://bludvfilmes.xyz/post');
     assert.equal(resolved, expectedMagnet);
   });
 
   test('fetchFollowingAllowed: interrompe e lança erro quando atinge loop de redirecionamentos', async () => {
-    globalThis.fetch = async () => ({
+    globalThis.fetch = (async () => ({
       status: 302,
       headers: new Map([['location', 'https://systemads1.com/go/loop']]),
-    });
+    })) as unknown as typeof globalThis.fetch;
 
     await assert.rejects(
       () => bludv.fetchFollowingAllowed('https://systemads1.com/go/loop', 'https://bludvfilmes.xyz/'),
@@ -360,13 +358,13 @@ describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
   });
 
   test('probe troca para o primeiro candidato vivo após N falhas de rede', async () => {
-    const hits = [];
-    globalThis.fetch = async (url) => {
+    const hits: string[] = [];
+    globalThis.fetch = (async (url) => {
       const target = String(url);
       hits.push(target);
       if (target.startsWith('https://down.example')) throw new TypeError('fetch failed');
       return { ok: true, status: 200, text: async () => '' };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const selector = bludv.createSiteSelector(
       '[test]',
@@ -374,7 +372,7 @@ describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
       'https://down.example',
       ['live-a.example', 'live-b.example'],
     );
-    const changes = [];
+    const changes: string[] = [];
     selector.onDomainChange((url) => changes.push(url));
 
     assert.equal(selector.url(), 'https://down.example');
@@ -394,12 +392,12 @@ describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
 
   test('TTL do vencedor: falhas dentro da imunidade não re-sondam', async () => {
     let probes = 0;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = (async (url) => {
       const target = String(url);
       if (target.includes('/?s=teste')) probes += 1;
       if (target.startsWith('https://a.example')) throw new TypeError('fetch failed');
       return { ok: true, status: 200, text: async () => '' };
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const selector = tdf.createSiteSelector('[test]', '', 'https://a.example', ['b.example']);
     await selector.noteFailure();
@@ -419,9 +417,9 @@ describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
   });
 
   test('todos os candidatos caídos: mantém o domínio atual', async () => {
-    globalThis.fetch = async () => {
+    globalThis.fetch = (async () => {
       throw new TypeError('fetch failed');
-    };
+    }) as unknown as typeof globalThis.fetch;
 
     const selector = nerd.createSiteSelector('[test]', '', 'https://x.example', ['y.example']);
     await selector.noteFailure();

@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada.
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -20,6 +19,7 @@ import { applyDebrid } from '../../src/providers/index.js';
 import { collectWithinWindow } from '../../src/providers/collection-window.js';
 import { createLatestWriter } from '../../src/utils/latest-writer.js';
 import { accountScope } from '../../src/utils/request-key.js';
+import type { DebridAdapter } from '../../types/domain.js';
 
 // Helper to create synthetic 40-character hex infoHashes
 function makeHash(prefix, id = 1) {
@@ -28,7 +28,18 @@ function makeHash(prefix, id = 1) {
 }
 
 // Helper to create raw stream objects for testing
-function makeRawStream(title, options = {}) {
+interface RawStreamOptions {
+  infoHash?: string;
+  name?: string;
+  seeders?: number;
+  sizeBytes?: number;
+  isBr?: boolean;
+  tracker?: string;
+  _dubbed?: boolean;
+  [key: string]: unknown;
+}
+
+function makeRawStream(title: string, options: RawStreamOptions = {}) {
   const hash = options.infoHash || makeHash(title);
   const sizeBytes = options.sizeBytes != null ? options.sizeBytes : 2 * 1024 * 1024 * 1024;
   return {
@@ -46,6 +57,18 @@ function makeRawStream(title, options = {}) {
 
 // Helper for asynchronous pauses
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Stream como o teste o enxerga: name/url sempre presentes na lista pos-debrid. */
+interface TestStream {
+  name: string;
+  url: string;
+  infoHash?: string;
+  title?: string;
+}
+
+// `runtime.run` devolve unknown (o tipo do AsyncLocalStorage não propaga); o
+// wrapper recebe o tipo do retorno no call site, sem cast espalhado.
+const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
 
 describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
   let originalFetch;
@@ -109,7 +132,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       preferDubbed: true,
     };
 
-    const pmAdapter = debrid.BY_ID.get('premiumize');
+    const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
     const originalCheck = pmAdapter.checkCached;
     pmAdapter.checkCached = async () => ({
       cached: new Set([brHash, global1080Hash]),
@@ -117,8 +140,8 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     });
 
     try {
-      const result = await runtime.run({ opts: userOpts, encoded: 'pm-conf' }, async () => {
-        const afterDebrid = await applyDebrid(streams, {});
+      const result = await runWith<TestStream[]>({ opts: userOpts, encoded: 'pm-conf' }, async () => {
+        const afterDebrid = await applyDebrid(streams, {} as any);
         return format.limitReservingBr(afterDebrid, {
           brReservedSlots: 2,
           maxResults: 5,
@@ -162,7 +185,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       brReservedSlots: 2,
     };
 
-    const pmAdapter = debrid.BY_ID.get('premiumize');
+    const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
     const originalCheck = pmAdapter.checkCached;
     pmAdapter.checkCached = async () => ({
       cached: new Set([globalHash]),
@@ -170,8 +193,8 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     });
 
     try {
-      const result = await runtime.run({ opts: userOpts, encoded: 'pm-conf' }, async () => {
-        const afterDebrid = await applyDebrid(streams, {});
+      const result = await runWith<TestStream[]>({ opts: userOpts, encoded: 'pm-conf' }, async () => {
+        const afterDebrid = await applyDebrid(streams, {} as any);
         return format.limitReservingBr(afterDebrid, {
           brReservedSlots: 2,
           maxResults: 5,
@@ -216,7 +239,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       brReservedSlots: 1,
     };
 
-    const pmAdapter = debrid.BY_ID.get('premiumize');
+    const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
     const originalCheck = pmAdapter.checkCached;
     pmAdapter.checkCached = async () => ({
       cached: new Set([globalHash]),
@@ -224,8 +247,8 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     });
 
     try {
-      const result = await runtime.run({ opts: userOpts, encoded: 'pm-conf' }, async () => {
-        const afterDebrid = await applyDebrid(streams, {});
+      const result = await runWith<TestStream[]>({ opts: userOpts, encoded: 'pm-conf' }, async () => {
+        const afterDebrid = await applyDebrid(streams, {} as any);
         return format.limitReservingBr(afterDebrid, {
           brReservedSlots: 1,
           maxResults: 5,
@@ -272,8 +295,8 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       brFirst: true,
     };
 
-    const result = await runtime.run({ opts: userOpts, encoded: 'rd-conf' }, async () => {
-      const afterDebrid = await applyDebrid(streams, {});
+    const result = await runWith<TestStream[]>({ opts: userOpts, encoded: 'rd-conf' }, async () => {
+      const afterDebrid = await applyDebrid(streams, {} as any);
       return format.limitReservingBr(afterDebrid, {
         brReservedSlots: 1,
         maxResults: 5,
@@ -313,9 +336,9 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     };
 
     const encoded = runtime.encode(rawConfig);
-    const decoded = runtime.decode(encoded);
+    const decoded = runtime.decode(encoded)!;
 
-    const pmAdapter = debrid.BY_ID.get('premiumize');
+    const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
     const originalCheck = pmAdapter.checkCached;
     pmAdapter.checkCached = async (key, hashes) => ({
       cached: new Set(hashes),
@@ -323,7 +346,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     });
 
     try {
-      const result = await runtime.run({ opts: decoded, encoded }, async () => {
+      const result = await runWith<TestStream[]>({ opts: decoded, encoded }, async () => {
         const qualityLimits = {
           '2160p': decoded.max2160p,
           '1080p': decoded.max1080p,
@@ -340,7 +363,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
           brReservedSlots: decoded.brReservedSlots,
         });
 
-        const afterDebrid = await applyDebrid(sorted, {});
+        const afterDebrid = await applyDebrid(sorted, {} as any);
         return format.limitReservingBr(afterDebrid, {
           brReservedSlots: decoded.brReservedSlots,
           maxResults: 10,
@@ -373,7 +396,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     const configA = runtime.decode(runtime.encode({ ds: 'realdebrid', dk: 'key-rd-user-a', q1: 1, q7: 0 }));
     const configB = runtime.decode(runtime.encode({ ds: 'alldebrid', dk: 'key-ad-user-b', q1: 0, q7: 2 }));
 
-    const taskA = runtime.run({ opts: configA, encoded: 'conf-a' }, async () => {
+    const taskA = runWith<{ service: string; sig: string }>({ opts: configA, encoded: 'conf-a' }, async () => {
       await sleep(15);
       const currentOpts = runtime.opts();
       assert.equal(currentOpts.debridService, 'realdebrid');
@@ -385,7 +408,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       return { service: currentOpts.debridService, sig };
     });
 
-    const taskB = runtime.run({ opts: configB, encoded: 'conf-b' }, async () => {
+    const taskB = runWith<{ service: string; sig: string }>({ opts: configB, encoded: 'conf-b' }, async () => {
       await sleep(10);
       const currentOpts = runtime.opts();
       assert.equal(currentOpts.debridService, 'alldebrid');
@@ -416,7 +439,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     const streams = format.sortAndLimit(rawStreams.map(format.toStremioStream), {
       minSeeders: 1,
       maxResults: 6,
-      indexerPriority: ['nerdfilmes', 'bludv'],
+      indexerPriority: ['nerdfilmes', 'bludv'] as never[],
       brReservedSlots: 1,
       brFirst: true,
     });
@@ -451,8 +474,8 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     })();
 
     let latePassCalled = false;
-    let latePassStreams = [];
-    let latePassPartial = null;
+    let latePassStreams: unknown[] = [];
+    let latePassPartial: boolean | null = null;
 
     const collected = await collectWithinWindow(
       [
@@ -528,12 +551,12 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       autoFetchBr: true,
     };
 
-    const adAdapter = debrid.BY_ID.get('alldebrid');
+    const adAdapter = debrid.BY_ID.get('alldebrid') as DebridAdapter;
     const originalCheck = adAdapter.checkCached;
     const originalEnqueue = adAdapter.enqueue;
 
-    let enqueuedHash = null;
-    let deletedHashes = [];
+    let enqueuedHash: string | null = null;
+    let deletedHashes: string[] = [];
 
     // Mock AllDebrid adapter methods
     adAdapter.checkCached = async (key, hashes) => {
@@ -553,7 +576,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
 
     try {
       await runtime.run({ opts: userOpts, encoded: 'ad-conf' }, async () => {
-        await applyDebrid(streams, { searchKey: 'test-search-key' });
+        await applyDebrid(streams, { searchKey: 'test-search-key' } as any);
       });
 
       // Give autofetch background promise time to resolve
@@ -594,7 +617,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       autoFetchBr: true,
     };
 
-    const adAdapter = debrid.BY_ID.get('alldebrid');
+    const adAdapter = debrid.BY_ID.get('alldebrid') as DebridAdapter;
     const originalCheck = adAdapter.checkCached;
     const originalEnqueue = adAdapter.enqueue;
 
@@ -607,7 +630,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
 
     try {
       await runtime.run({ opts: userOpts, encoded: 'ad-conf' }, async () => {
-        await applyDebrid(streams, { searchKey: 'test-search-2' });
+        await applyDebrid(streams, { searchKey: 'test-search-2' } as any);
       });
 
       await sleep(20);
@@ -637,7 +660,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       autoFetchBr: true,
     };
 
-    const pmAdapter = debrid.BY_ID.get('premiumize');
+    const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
     const originalCheck = pmAdapter.checkCached;
     const originalEnqueue = pmAdapter.enqueue;
 
@@ -653,7 +676,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
 
     try {
       await runtime.run({ opts: userOpts, encoded: 'pm-conf' }, async () => {
-        await applyDebrid(streams, { searchKey: 'test-search-3' });
+        await applyDebrid(streams, { searchKey: 'test-search-3' } as any);
       });
 
       await sleep(20);
@@ -690,16 +713,16 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
 
     // Filter by episode
     const episodeFiltered = relevant.filter((r) =>
-      format.matchesEpisode(r.title, { season: 1, episode: 1 }),
+      format.matchesEpisode(r.title || '', { season: 1, episode: 1 }),
     );
 
     assert.equal(episodeFiltered.length, 2, 'Only S01E01 and Season 1 pack pass episode filter');
-    assert.ok(episodeFiltered.some((r) => r.title.includes('S01E01')));
-    assert.ok(episodeFiltered.some((r) => r.title.includes('1ª Temporada')));
+    assert.ok(episodeFiltered.some((r) => r.title?.includes('S01E01')));
+    assert.ok(episodeFiltered.some((r) => r.title?.includes('1ª Temporada')));
   });
 
   test('5B: Multi-Season Pack Fallback across search phases with createLatestWriter', async () => {
-    let committedValue = null;
+    let committedValue: any = null;
 
     const finish = createLatestWriter(
       async ({ items }) => ({ streams: items }),
@@ -826,13 +849,13 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       assert.ok(!sealedSegment.includes(userApiKey), 'Private API key not visible in sealed segment');
 
       // Decoding sealed segment in server runtime decrypts API key
-      const decoded = runtime.decode(sealedSegment);
+      const decoded = runtime.decode(sealedSegment)!;
       assert.equal(decoded.debridApiKey, userApiKey, 'Decrypted API key matches original');
       assert.equal(decoded.maxResults, 30);
       assert.equal(decoded.brFirst, true);
 
       // Verify HMAC signing inside AsyncLocalStorage context
-      runtime.run({ opts: decoded, encoded: sealedSegment }, () => {
+      runWith<void>({ opts: decoded, encoded: sealedSegment }, () => {
         const hash = makeHash('secure_movie', 1);
         const ep = '?s=1&e=2';
         const sig = signResolve(hash, ep);
@@ -952,13 +975,13 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     // Simulate deadline already elapsed before debrid check starts
     const pastDeadlineAt = Date.now() - 100;
 
-    const result = await runtime.run({ opts: userOpts, encoded: 'pm-conf' }, async () => {
+    const result = await runWith<TestStream[]>({ opts: userOpts, encoded: 'pm-conf' }, async () => {
       return applyDebrid(rawStreams, {
         deadlineAt: pastDeadlineAt,
         onCacheResult: (res) => {
           fullRefreshFlag = res.needsFullRefresh;
         },
-      });
+      } as any);
     });
 
     assert.equal(result.length, 2);

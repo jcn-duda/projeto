@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync, spawn } from 'node:child_process';
@@ -10,10 +8,10 @@ console.log(' EMPIRICAL CHALLENGER 1: E2E TEST SUITE STRESS & MUTATION HARNESS')
 console.log('================================================================\n');
 
 const E2E_FILES = [
-  'test/e2e/tier1-feature-coverage.test.js',
-  'test/e2e/tier2-boundary-corner.test.js',
-  'test/e2e/tier3-cross-feature.test.js',
-  'test/e2e/tier4-application-scenarios.test.js'
+  'dist/test/e2e/tier1-feature-coverage.test.js',
+  'dist/test/e2e/tier2-boundary-corner.test.js',
+  'dist/test/e2e/tier3-cross-feature.test.js',
+  'dist/test/e2e/tier4-application-scenarios.test.js'
 ];
 
 function runTest(files, extraArgs = []) {
@@ -71,70 +69,70 @@ const mutations = [
     file: 'src/utils/format.js',
     target: 'return matchesTitleStructure(title, name, year, { isSeries });',
     replacement: 'return false; // MUTATED',
-    testFile: 'test/e2e/tier1-feature-coverage.test.js'
+    testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
   },
   {
     name: 'MUT-02: Break dedupeByHash seeders preservation (format.js)',
     file: 'src/utils/format.js',
     target: 'const seedDiff = (s._seeders || 0) - (prev._seeders || 0);',
     replacement: 'const seedDiff = (prev._seeders || 0) - (s._seeders || 0); // MUTATED',
-    testFile: 'test/e2e/tier1-feature-coverage.test.js'
+    testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
   },
   {
     name: 'MUT-03: Corrupt verifyResolve HMAC check (sign.js)',
     file: 'src/utils/sign.js',
     target: 'return a.length === b.length && crypto.timingSafeEqual(a, b);',
     replacement: 'return false; // MUTATED',
-    testFile: 'test/e2e/tier1-feature-coverage.test.js'
+    testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
   },
   {
     name: 'MUT-04: Disable runtime URL 8192-byte limit (runtime.js)',
     file: 'src/runtime.js',
     target: 'if (!segment || segment.length > MAX_CONFIG_SEGMENT || !/^[A-Za-z0-9_-]+$/.test(segment)) return null;',
     replacement: 'if (!segment || !/^[A-Za-z0-9_-]+$/.test(segment)) return null; // MUTATED',
-    testFile: 'test/e2e/tier2-boundary-corner.test.js'
+    testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
   },
   {
     name: 'MUT-05: Break protected.js hold tracking (protected.js)',
     file: 'src/debrid/protected.js',
     target: 'return true;',
     replacement: 'return false; // MUTATED',
-    testFile: 'test/e2e/tier1-feature-coverage.test.js'
+    testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
   },
   {
     name: 'MUT-06: Break BLUDV Resolver Host Security Allowlist (bludv-resolver/server.js)',
     file: 'bludv-resolver/server.js',
     target: 'if (!allowed) throw new Error(\'blocked_host\');',
     replacement: '// if (!allowed) throw new Error(\'blocked_host\'); // MUTATED: allow any evil host',
-    testFile: 'test/e2e/tier2-boundary-corner.test.js'
+    testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
   },
   {
     name: 'MUT-07: Disable secretBox encryption tag check (secret-box.js)',
     file: 'src/utils/secret-box.js',
     target: 'decipher.setAuthTag(raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES));',
     replacement: '// decipher.setAuthTag(raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES)); // MUTATED',
-    testFile: 'test/e2e/tier2-boundary-corner.test.js'
+    testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
   },
   {
     name: 'MUT-08: Invert Tier 3 brFirst ranking logic in limitReservingBr (format.js)',
     file: 'src/utils/format.js',
     target: 'if (brFirst) {',
     replacement: 'if (!brFirst) { // MUTATED',
-    testFile: 'test/e2e/tier3-cross-feature.test.js'
+    testFile: 'dist/test/e2e/tier3-cross-feature.test.js'
   },
   {
     name: 'MUT-09: Break Tier 4 Scenario 1 Premiumize branding [PM⚡] (providers/index.js)',
     file: 'src/providers/index.js',
     target: 'name: markDebridName(s.name, adapter.short || adapter.id, instant),',
     replacement: 'name: s.name, // MUTATED: stripped [PM⚡]',
-    testFile: 'test/e2e/tier4-application-scenarios.test.js'
+    testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
   },
   {
     name: 'MUT-10: Break Tier 4 Scenario 2 Late-Pass Refreshed Cache Delivery (providers/index.js)',
     file: 'src/providers/index.js',
     target: 'cache.set(cacheKey, { streams, partial }, complete ? config.cacheTtl : Math.min(config.cacheTtl, 60));',
     replacement: '// cache.set(cacheKey, { streams, partial }, complete ? config.cacheTtl : Math.min(config.cacheTtl, 60)); // MUTATED',
-    testFile: 'test/e2e/tier4-application-scenarios.test.js'
+    testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
   }
 ];
 
@@ -169,7 +167,7 @@ assert.equal(mutationsCaught, mutations.length, 'All mutations must be caught by
 console.log('\n--- 4. Repeated Sequential Stress Runs (20 iterations) ---');
 const ITERATIONS = 20;
 let passCount = 0;
-const times = [];
+const times: number[] = [];
 for (let i = 1; i <= ITERATIONS; i++) {
   const r = runTest(E2E_FILES);
   if (r.pass) {
@@ -191,8 +189,8 @@ assert.equal(passCount, ITERATIONS, 'All sequential iterations must pass!');
 // -----------------------------------------------------------------------------
 console.log('\n--- 5. Concurrent Parallel Stress Runs (6 parallel workers) ---');
 const PARALLEL_WORKERS = 6;
-async function runParallelWorker(workerId) {
-  return new Promise((resolve) => {
+async function runParallelWorker(workerId: number) {
+  return new Promise<{ workerId: number; code: number | null; pass: boolean; duration: number; output: string }>((resolve) => {
     const start = Date.now();
     const child = spawn(process.execPath, ['--test', ...E2E_FILES], {
       cwd: process.cwd(),
@@ -208,7 +206,7 @@ async function runParallelWorker(workerId) {
 }
 
 (async () => {
-  const promises = [];
+  const promises: ReturnType<typeof runParallelWorker>[] = [];
   for (let w = 1; w <= PARALLEL_WORKERS; w++) promises.push(runParallelWorker(w));
   const results = await Promise.all(promises);
   let allPassed = true;

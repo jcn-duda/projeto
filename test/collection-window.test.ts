@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert';
 
@@ -143,7 +141,7 @@ test('onBatch avisa cada lote tardio sem esperar todos os providers', async () =
   const budget = deferred();
   const first = deferred();
   const last = deferred();
-  const seen = [];
+  const seen: { batch: string[]; total: number }[] = [];
   const running = collectWithinWindow([
     { promise: first.promise, priority: true },
     { promise: last.promise, priority: true },

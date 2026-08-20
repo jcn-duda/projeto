@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert';
 
@@ -27,22 +25,22 @@ test('catálogo recebe cópia do status recente sem mutar a origem', () => {
 test('status expirado deixa de ser anunciado no catálogo', () => {
   indexerStatus.clear();
   const current = indexerStatus.record('nerdfilmes', { ok: true, ms: 800, budgetMs: 20000 });
-  const staleAt = Date.parse(current.checkedAt) + indexerStatus.TTL_MS + 1;
+  const staleAt = Date.parse(current!.checkedAt) + indexerStatus.TTL_MS + 1;
   assert.equal(indexerStatus.get('nerdfilmes', staleAt), null);
 });
 
 test('falha sem duração não inventa latência zero', () => {
   indexerStatus.clear();
   const recorded = indexerStatus.record('nerdfilmes', { ok: false, ms: null, budgetMs: 20000 });
-  assert.equal(recorded.state, 'offline');
-  assert.equal(recorded.ms, null);
+  assert.equal(recorded!.state, 'offline');
+  assert.equal(recorded!.ms, null);
 });
 
 test('latência numérica serializada continua sendo exibida', () => {
   indexerStatus.clear();
   const recorded = indexerStatus.record('nerdfilmes', { ok: true, ms: '1250', budgetMs: 20000 });
-  assert.equal(recorded.state, 'online');
-  assert.equal(recorded.ms, 1250);
+  assert.equal(recorded!.state, 'online');
+  assert.equal(recorded!.ms, 1250);
 });
 
 // O status só é medido durante busca real. Sem disco, todo restart do container
@@ -62,14 +60,14 @@ test('restart não ressuscita status já expirado', () => {
   indexerStatus.clear();
   const current = indexerStatus.record('yts', { ok: true, ms: 900, budgetMs: 4000 });
   indexerStatus.dropMemory();
-  const staleAt = Date.parse(current.checkedAt) + indexerStatus.TTL_MS + 1;
+  const staleAt = Date.parse(current!.checkedAt) + indexerStatus.TTL_MS + 1;
   assert.equal(indexerStatus.get('yts', staleAt), null);
 });
 
 test('status permanece válido exatamente no limite do TTL', () => {
   indexerStatus.clear();
   const current = indexerStatus.record('nerdfilmes', { ok: true, ms: 800, budgetMs: 20000 });
-  const boundary = Date.parse(current.checkedAt) + indexerStatus.TTL_MS;
+  const boundary = Date.parse(current!.checkedAt) + indexerStatus.TTL_MS;
   assert.equal(indexerStatus.get('nerdfilmes', boundary).state, 'online');
 });
 
@@ -84,8 +82,8 @@ test('failStreak acumula falhas duras seguidas e zera com sucesso', () => {
 
 test('slow e degraded não quebram o circuito', () => {
   indexerStatus.clear();
-  assert.equal(indexerStatus.record('idx-b', { ok: true, ms: 9000, budgetMs: 4000 }).failStreak, 0);
-  assert.equal(indexerStatus.record('idx-b', { ok: false, results: 5 }).failStreak, 0);
+  assert.equal(indexerStatus.record('idx-b', { ok: true, ms: 9000, budgetMs: 4000 })!.failStreak, 0);
+  assert.equal(indexerStatus.record('idx-b', { ok: false, results: 5 })!.failStreak, 0);
   assert.equal(jackett.breakerTripped('idx-b'), false);
 });
 

@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada; os dublês usam test/helpers/stub.ts.
 import { test } from 'node:test';
 import assert from 'node:assert';
 
@@ -12,6 +11,7 @@ process.env.CACHE_PERSIST = 'false';
 const config = (await import('../src/config.js')).default;
 const cache = await import('../src/utils/cache.js');
 const { getTitles } = await import('../src/utils/tmdb.js');
+const { stubFetch } = await import('./helpers/stub.js');
 
 // O .env pode não ter TMDB_API_KEY (aí getTitles devolve null sem rede), então
 // cada teste arma a própria chave e restaura no final.
@@ -30,21 +30,8 @@ function withTmdbKey(fn) {
   };
 }
 
-function stubFetch(handler) {
-  const calls = [];
-  const original = global.fetch;
-  global.fetch = async (url, options) => {
-    calls.push({ url: String(url), options });
-    return handler(String(url), options);
-  };
-  return {
-    calls,
-    restore: () => {
-      global.fetch = original;
-    },
-  };
-}
-
+// O getTitles só consome ok/status/json do fetch; o objeto parcial é o
+// contrato do dublê (helpers/stub.ts).
 const tmdbOk = (body) => ({ ok: true, status: 200, json: async () => body });
 
 test('getTitles resolve pt/original/year para filme e grava no cache', withTmdbKey(async () => {

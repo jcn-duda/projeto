@@ -1,5 +1,3 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -309,7 +307,7 @@ test('comandotorrents: releaseTitle numera a opção quando o botão não anunci
   const link = { quality: 1080, audio: 'dublado', episode: 1, source: null, size: null };
 
   assert.equal(
-    comando.releaseTitle(post, link, 0),
+    comando.releaseTitle(post, link, 0 as any),
     'A Casa do Dragão 1ª Temporada (2022) E01 [1080p DUBLADO opção 1]',
   );
   // Sem índice e sem atributos, sobra só o título limpo — as resoluções da
@@ -324,7 +322,7 @@ test('comandotorrents: releaseTitle numera a opção quando o botão não anunci
   const pack = comando.releaseTitle(
     post,
     { quality: 2160, audio: 'legendado', episode: null, source: null, size: null },
-    22,
+    22 as any,
   );
   assert.equal(pack, 'A Casa do Dragão 1ª Temporada (2022) [2160p LEGENDADO opção 23]');
   assert.equal(/Dual|DUBLADO/.test(pack), false);
@@ -590,7 +588,7 @@ test('nerdfilmes: regex do download.before do cardigann preserva o magnet com dn
   const argsMatch = yml.match(/\n\s*args:\s*"((?:[^"\\]|\\.)*magnet:(?:[^"\\]|\\.)*)"/);
   assert.ok(argsMatch, 'o download.before do nerdfilmes.yml precisa ter args com a regex do magnet');
   // YAML double-quoted: "\\?" e "\\s" vêm escapados no arquivo; virar "\?" e "\s".
-  const magnetRe = new RegExp(argsMatch[1].replace(/\\\\/g, '\\'));
+  const magnetRe = new RegExp(argsMatch![1].replace(/\\\\/g, '\\'));
 
   const cases = [
     {
@@ -759,7 +757,7 @@ test('nerdfilmes: costura parser→resolver→yml aceita MAGNET: e entrega schem
   // fechava o circuito e não era coberta por nenhum teste.
   const yml = fs.readFileSync(path.join(__dirname, '..', 'jackett-bludv', 'nerdfilmes.yml'), 'utf8');
   const argsMatch = yml.match(/\n\s*args:\s*"((?:[^"\\]|\\.)*magnet:(?:[^"\\]|\\.)*)"/);
-  const magnetRe = new RegExp(argsMatch[1].replace(/\\\\/g, '\\'));
+  const magnetRe = new RegExp(argsMatch![1].replace(/\\\\/g, '\\'));
   assert.equal(resolved.match(magnetRe)?.[1], resolved, 'a regex do cardigann captura o magnet normalizado inteiro');
 });
 

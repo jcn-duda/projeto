@@ -1,12 +1,10 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
 import { test } from 'node:test';
 import assert from 'node:assert';
 
 import { priorityMap, compareIndexerPriority } from '../src/utils/indexer-priority.js';
 
 test('prioridade respeita a ordem escolhida e deixa desconhecidos por último', () => {
-  const ranks = priorityMap(['NerdFilmes', 'comandotorrents', 'nerdfilmes']);
+  const ranks = priorityMap(['NerdFilmes', 'comandotorrents', 'nerdfilmes'] as never[]);
   const streams = [
     { id: 'global', _indexer: 'thepiratebay' },
     { id: 'comando', _indexer: 'comandotorrents' },

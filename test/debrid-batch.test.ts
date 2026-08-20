@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { batched } from '../src/debrid/common.js';
@@ -8,12 +7,17 @@ import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as premiumize from '../src/debrid/premiumize.js';
 import * as torbox from '../src/debrid/torbox.js';
+import type { DebridAdapter } from '../types/domain.js';
 
 // O lote de checagem de cache é o ponto onde "não perguntei" virava "não tem":
 // com `cachedOnly`, um lote perdido no timeout apagava 100 streams da lista,
 // inclusive fontes BR que ESTAVAM em cache no serviço.
 
 const hashes = (n, prefix = 'h') => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
+
+// runtime.run devolve unknown (o callback do AsyncLocalStorage não infere o
+// retorno); o helper fixa o tipo do resultado sem inventar valor nenhum.
+const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
 
 test('todos os lotes respondem: completo, com o Set inteiro', async () => {
   const { cached, complete } = await batched(hashes(5), 2, async (batch) => batch);
@@ -61,7 +65,7 @@ test('os lotes vão em paralelo, não em série', async () => {
 });
 
 test('batched repassa o mesmo teto dinâmico para todos os lotes', async () => {
-  const seen = [];
+  const seen: { batch: string[]; options: { timeoutMs?: number } }[] = [];
   await batched(hashes(5), 2, async (batch, options) => {
     seen.push({ batch, options });
     return batch;
@@ -76,7 +80,7 @@ test('batched repassa o mesmo teto dinâmico para todos os lotes', async () => {
 });
 
 test('batched sem teto preserva o timeout próprio do adaptador', async () => {
-  const seen = [];
+  const seen: { timeoutMs?: number }[] = [];
   await batched(hashes(2), 1, async (batch, options) => {
     seen.push(options);
     return batch;
@@ -85,8 +89,8 @@ test('batched sem teto preserva o timeout próprio do adaptador', async () => {
 });
 
 test('checkCached degrada sem rede quando o prazo acabou e propaga teto positivo', async () => {
-  const original = debrid.BY_ID.get('premiumize');
-  const calls = [];
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const calls: { apiKey: string; infoHashes: string[]; options: { timeoutMs?: number } | undefined }[] = [];
   debrid.BY_ID.set('premiumize', {
     id: 'premiumize',
     label: 'Premiumize fake',
@@ -95,7 +99,7 @@ test('checkCached degrada sem rede quando o prazo acabou e propaga teto positivo
       calls.push({ apiKey, infoHashes, options });
       return { cached: new Set(infoHashes), complete: true };
     },
-  });
+  } as unknown as DebridAdapter);
   const userOpts = {
     ...runtime.defaults(),
     debridService: 'premiumize',
@@ -103,7 +107,7 @@ test('checkCached degrada sem rede quando o prazo acabou e propaga teto positivo
   };
 
   try {
-    const expired = await runtime.run(
+    const expired = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(['hash-a'], { timeoutMs: 0 }),
     );
@@ -111,7 +115,7 @@ test('checkCached degrada sem rede quando o prazo acabou e propaga teto positivo
     assert.equal(expired.cached.size, 0);
     assert.equal(calls.length, 0, 'prazo esgotado não pode chamar o serviço');
 
-    const bounded = await runtime.run(
+    const bounded = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(['hash-b'], { timeoutMs: 750 }),
     );
@@ -131,7 +135,7 @@ test('medição de repetição por hash: janela conta o que volta, ignora degrad
   // A razão repeated/hashes na janela de 15 min é o gate do cache de
   // disponibilidade por hash; a medição não pode contar checagem que nem
   // chegou ao serviço (prazo esgotado), senão o número mente pra cima.
-  const original = debrid.BY_ID.get('premiumize');
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
   debrid.BY_ID.set('premiumize', {
     id: 'premiumize',
     label: 'Premiumize fake',
@@ -139,7 +143,7 @@ test('medição de repetição por hash: janela conta o que volta, ignora degrad
     async checkCached(apiKey, infoHashes) {
       return { cached: new Set(infoHashes), complete: true };
     },
-  });
+  } as unknown as DebridAdapter);
   const userOpts = {
     ...runtime.defaults(),
     debridService: 'premiumize',
@@ -149,17 +153,17 @@ test('medição de repetição por hash: janela conta o que volta, ignora degrad
   metrics.reset();
   try {
     // Degradação por prazo não é pergunta ao debrid: nada entra na janela.
-    await runtime.run(
+    await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(['track-degradado'], { timeoutMs: 0 }),
     );
 
-    await runtime.run(
+    await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(['track-AAA', 'track-bbb']),
     );
     // A janela normaliza caixa: 'aaa' casa com 'track-AAA' da busca anterior.
-    await runtime.run(
+    await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(['track-aaa', 'track-ccc']),
     );
@@ -174,8 +178,8 @@ test('medição de repetição por hash: janela conta o que volta, ignora degrad
 });
 
 test('abortSafeCacheCheck:false com orçamento suficiente roda sem teto dinâmico', async () => {
-  const original = debrid.BY_ID.get('premiumize');
-  const calls = [];
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const calls: { apiKey: string; infoHashes: string[]; options: { timeoutMs?: number } | undefined }[] = [];
   debrid.BY_ID.set('premiumize', {
     id: 'premiumize',
     label: 'Adaptador com efeito colateral',
@@ -185,7 +189,7 @@ test('abortSafeCacheCheck:false com orçamento suficiente roda sem teto dinâmic
       calls.push({ apiKey, infoHashes, options });
       return new Set(infoHashes);
     },
-  });
+  } as unknown as DebridAdapter);
   const userOpts = {
     ...runtime.defaults(),
     debridService: 'premiumize',
@@ -193,7 +197,7 @@ test('abortSafeCacheCheck:false com orçamento suficiente roda sem teto dinâmic
   };
 
   try {
-    const result = await runtime.run(
+    const result = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       // 750ms está acima do piso: a consulta disputa a corrida em vez de adiar
       // a checagem inteira para o passe tardio.
@@ -209,7 +213,7 @@ test('abortSafeCacheCheck:false com orçamento suficiente roda sem teto dinâmic
 });
 
 test('orçamento abaixo do piso não chama rede em consulta não abortável', async () => {
-  const original = debrid.BY_ID.get('premiumize');
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
   let calls = 0;
   debrid.BY_ID.set('premiumize', {
     id: 'premiumize',
@@ -220,7 +224,7 @@ test('orçamento abaixo do piso não chama rede em consulta não abortável', as
       calls += 1;
       return new Set();
     },
-  });
+  } as unknown as DebridAdapter);
   const userOpts = {
     ...runtime.defaults(),
     debridService: 'premiumize',
@@ -228,7 +232,7 @@ test('orçamento abaixo do piso não chama rede em consulta não abortável', as
   };
 
   try {
-    const result = await runtime.run(
+    const result = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       // Abaixo do piso a consulta só atrasaria a resposta sem chance útil de
       // vencer — e, na AllDebrid, cada chamada é um upload de verdade.
@@ -243,7 +247,7 @@ test('orçamento abaixo do piso não chama rede em consulta não abortável', as
 });
 
 test('corrida perdida devolve unknown; o sem-teto junta a mesma consulta', async () => {
-  const original = debrid.BY_ID.get('premiumize');
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
   let calls = 0;
   let openCheck;
   const gate = new Promise((resolve) => { openCheck = resolve; });
@@ -258,7 +262,7 @@ test('corrida perdida devolve unknown; o sem-teto junta a mesma consulta', async
       // de propósito, mas o trabalho continua em background.
       return gate.then(() => new Set(infoHashes));
     },
-  });
+  } as unknown as DebridAdapter);
   const userOpts = {
     ...runtime.defaults(),
     debridService: 'premiumize',
@@ -271,7 +275,7 @@ test('corrida perdida devolve unknown; o sem-teto junta a mesma consulta', async
   // cancelaria o teste como pendente; o keepAlive ref'd segura o loop até lá.
   const keepAlive = setInterval(() => {}, 1000);
   try {
-    const lost = await runtime.run(
+    const lost = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(hashes, { timeoutMs: 450 }),
     );
@@ -282,7 +286,7 @@ test('corrida perdida devolve unknown; o sem-teto junta a mesma consulta', async
     openCheck();
 
     // O passe tardio (sem teto) não pode repetir o upload: junta a mesma promise.
-    const joined = await runtime.run(
+    const joined = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(hashes),
     );
@@ -296,8 +300,8 @@ test('corrida perdida devolve unknown; o sem-teto junta a mesma consulta', async
 });
 
 test('resultado conhecido permanece coalescido para o passe tardio', async () => {
-  const original = debrid.BY_ID.get('premiumize');
-  const calls = [];
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const calls: string[][] = [];
   debrid.BY_ID.set('premiumize', {
     id: 'premiumize',
     label: 'Adaptador com efeito colateral',
@@ -307,7 +311,7 @@ test('resultado conhecido permanece coalescido para o passe tardio', async () =>
       calls.push(infoHashes);
       return new Set(infoHashes);
     },
-  });
+  } as unknown as DebridAdapter);
   const userOpts = {
     ...runtime.defaults(),
     debridService: 'premiumize',
@@ -316,7 +320,7 @@ test('resultado conhecido permanece coalescido para o passe tardio', async () =>
   const hashes = ['hash-known-a', 'hash-known-b'];
 
   try {
-    const first = await runtime.run(
+    const first = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(hashes),
     );
@@ -324,7 +328,7 @@ test('resultado conhecido permanece coalescido para o passe tardio', async () =>
 
     // Resposta confiável vira dedupe curto: o passe tardio de uma segunda busca
     // não pode repetir o upload enquanto a consulta ainda vale (60s).
-    const second = await runtime.run(
+    const second = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(hashes),
     );
@@ -337,7 +341,7 @@ test('resultado conhecido permanece coalescido para o passe tardio', async () =>
 });
 
 test('falha da consulta não abortável não fica memorizada', async () => {
-  const original = debrid.BY_ID.get('premiumize');
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
   let calls = 0;
   debrid.BY_ID.set('premiumize', {
     id: 'premiumize',
@@ -349,7 +353,7 @@ test('falha da consulta não abortável não fica memorizada', async () => {
       if (calls === 1) throw new Error('serviço fora do ar');
       return new Set(infoHashes);
     },
-  });
+  } as unknown as DebridAdapter);
   const userOpts = {
     ...runtime.defaults(),
     debridService: 'premiumize',
@@ -358,7 +362,7 @@ test('falha da consulta não abortável não fica memorizada', async () => {
   const hashes = ['hash-fail-a'];
 
   try {
-    const failed = await runtime.run(
+    const failed = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(hashes),
     );
@@ -366,7 +370,7 @@ test('falha da consulta não abortável não fica memorizada', async () => {
 
     // Falha não pode ficar memorizada: se a segunda chamada juntasse a promise
     // morta, o ⚡ nunca se recuperaria quando o serviço voltasse.
-    const recovered = await runtime.run(
+    const recovered = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(hashes),
     );
@@ -379,7 +383,7 @@ test('falha da consulta não abortável não fica memorizada', async () => {
 });
 
 test('resposta incompleta não fica memorizada e permite recuperar known', async () => {
-  const original = debrid.BY_ID.get('premiumize');
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
   let calls = 0;
   debrid.BY_ID.set('premiumize', {
     id: 'premiumize',
@@ -391,7 +395,7 @@ test('resposta incompleta não fica memorizada e permite recuperar known', async
       if (calls === 1) return { cached: new Set([infoHashes[0]]), complete: false };
       return { cached: new Set(infoHashes), complete: true };
     },
-  });
+  } as unknown as DebridAdapter);
   const userOpts = {
     ...runtime.defaults(),
     debridService: 'premiumize',
@@ -400,13 +404,13 @@ test('resposta incompleta não fica memorizada e permite recuperar known', async
   const hashes = ['hash-inc-a', 'hash-inc-b'];
 
   try {
-    const incomplete = await runtime.run(
+    const incomplete = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(hashes),
     );
     assert.equal(incomplete.known, false, 'lote perdido não é "não tem"');
 
-    const recovered = await runtime.run(
+    const recovered = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       () => debrid.checkCached(hashes),
     );
@@ -421,12 +425,12 @@ test('resposta incompleta não fica memorizada e permite recuperar known', async
 test('Premiumize e TorBox aplicam o teto recebido na requisição real do adaptador', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
-  const timeouts = [];
+  const timeouts: number[] = [];
   AbortSignal.timeout = (ms) => {
     timeouts.push(ms);
     return new AbortController().signal;
   };
-  globalThis.fetch = async (url) => {
+  globalThis.fetch = (async (url) => {
     const premiumizeRequest = String(url).includes('premiumize.me');
     return {
       ok: true,
@@ -434,7 +438,7 @@ test('Premiumize e TorBox aplicam o teto recebido na requisição real do adapta
         ? { status: 'success', response: [true] }
         : { data: [{ hash: 'hash-torbox' }] },
     };
-  };
+  }) as unknown as typeof globalThis.fetch;
 
   try {
     const pm = await premiumize.checkCached('chave-fake', ['hash-premiumize'], { timeoutMs: 321 });

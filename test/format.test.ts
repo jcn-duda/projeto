@@ -1,5 +1,4 @@
-// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
-// remover arquivo a arquivo na rodada 2.
+// Rodada 2: checagem ligada; format.js é lógica pura, sem rede.
 import { test } from 'node:test';
 import assert from 'node:assert';
 import config from '../src/config.js';
@@ -36,6 +35,7 @@ import {
   isMultiWorkCollection,
   franchiseRoot,
 } from '../src/utils/format.js';
+import type { RawItem, Stream } from '../types/domain.js';
 
 // format.js concentra as funções puras e os invariantes que "quebram
 // silenciosamente" (origem BR, campos internos, ordenação). Testar aqui
@@ -44,6 +44,17 @@ import {
 
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
+
+// O retorno de toStremioStream é `Stream | null` (null quando falta hash) e os
+// campos de exibição são opcionais no tipo; todos os casos abaixo passam hash
+// válido e os tocam, então o wrapper local só documenta o invariante — em vez
+// de um cast no lugar em 40+ chamadas.
+type TestStream = Stream & { infoHash: string; name: string; title: string; behaviorHints: { bingeGroup: string } };
+const stremioStream = (item: RawItem): TestStream => toStremioStream(item) as TestStream;
+
+// `limitReservingBr` declara `Stream[]`, mas os lotes de cota aqui são minimais
+// (sem url/infoHash/externalUrl — só os campos que a cota lê).
+const quotaStreams = (streams: unknown[]): Stream[] => streams as Stream[];
 
 test('topSeededPool rejeita CAM, piso e idiomas estrangeiros explícitos', () => {
   const streams = [
@@ -122,15 +133,15 @@ test('qualityFromTitle casa os rótulos comuns', () => {
 
 test('sourceFromTitle alimenta o bingeGroup via toStremioStream', () => {
   assert.equal(
-    toStremioStream({ title: 'Movie BluRay 1080p', infoHash: HASH }).behaviorHints.bingeGroup,
+    stremioStream({ title: 'Movie BluRay 1080p', infoHash: HASH }).behaviorHints.bingeGroup,
     'powerm-1080p-BluRay',
   );
   assert.equal(
-    toStremioStream({ title: 'Movie WEB-DL 720p', infoHash: HASH }).behaviorHints.bingeGroup,
+    stremioStream({ title: 'Movie WEB-DL 720p', infoHash: HASH }).behaviorHints.bingeGroup,
     'powerm-720p-WEB-DL',
   );
   assert.equal(
-    toStremioStream({ title: 'Movie sem fonte', infoHash: HASH }).behaviorHints.bingeGroup,
+    stremioStream({ title: 'Movie sem fonte', infoHash: HASH }).behaviorHints.bingeGroup,
     'powerm-na-any',
   );
 });
@@ -142,7 +153,7 @@ test('matchesQualityFilter: vazio passa tudo; senão casa por rótulo', () => {
 });
 
 test('toStremioStream normaliza e guarda campos internos', () => {
-  const s = toStremioStream({
+  const s = stremioStream({
     title: 'Coringa 1080p BluRay',
     magnet: `magnet:?xt=urn:btih:${HASH}`,
     seeders: 42,
@@ -176,19 +187,19 @@ test('audioFromTitle detecta dublado/dual/legendado e entra na linha', () => {
   assert.equal(audioFromTitle('Filme 1080p LEG PT-BR'), 'Legendado');
   assert.equal(audioFromTitle('Filme 1080p [LEG]'), 'Legendado');
   assert.equal(audioFromTitle('Movie 1080p'), '');
-  const s = toStremioStream({ title: 'Coringa Dublado 1080p', infoHash: HASH, seeders: 1 });
+  const s = stremioStream({ title: 'Coringa Dublado 1080p', infoHash: HASH, seeders: 1 });
   assert.ok(s.name.includes('1080p DUB'));
   assert.ok(s.title.includes('Dublado'));
-  const sNac = toStremioStream({ title: 'Filme Nacional 1080p', infoHash: HASH, isBr: true, seeders: 5 });
+  const sNac = stremioStream({ title: 'Filme Nacional 1080p', infoHash: HASH, isBr: true, seeders: 5 });
   assert.equal(sNac._dubbed, true);
   assert.ok(sNac.name.includes('1080p NAC BR'));
 });
 
 test('marca dublado só quando a origem global anuncia áudio PT explícito', () => {
-  const globalDual = toStremioStream({ title: 'Movie 2024 1080p DUAL', infoHash: HASH });
-  const globalPt = toStremioStream({ title: 'Movie 2024 1080p DUAL PT-BR', infoHash: OTHER });
-  const globalDub = toStremioStream({ title: 'Movie 2024 1080p Dublado', infoHash: 'c'.repeat(40) });
-  const brDual = toStremioStream({ title: 'Filme 2024 1080p DUAL', infoHash: 'd'.repeat(40), isBr: true });
+  const globalDual = stremioStream({ title: 'Movie 2024 1080p DUAL', infoHash: HASH });
+  const globalPt = stremioStream({ title: 'Movie 2024 1080p DUAL PT-BR', infoHash: OTHER });
+  const globalDub = stremioStream({ title: 'Movie 2024 1080p Dublado', infoHash: 'c'.repeat(40) });
+  const brDual = stremioStream({ title: 'Filme 2024 1080p DUAL', infoHash: 'd'.repeat(40), isBr: true });
 
   assert.equal(explicitPtAudio('Movie DUAL'), false);
   assert.equal(explicitPtAudio('Movie DUBLADO'), true);
@@ -201,14 +212,14 @@ test('marca dublado só quando a origem global anuncia áudio PT explícito', ()
 });
 
 test('toStremioStream preserva a marca de origem BR do provider', () => {
-  const s = toStremioStream({ title: 'Coringa Dublado', infoHash: HASH, isBr: true, seeders: 1 });
+  const s = stremioStream({ title: 'Coringa Dublado', infoHash: HASH, isBr: true, seeders: 1 });
   assert.equal(s._br, true);
   assert.equal(s.name, 'DUB BR · 👤 1');
 });
 
 test('name traz release e seeds; a coluna larga não duplica marcadores', () => {
   const release = 'Sinners.2025.2160p.iT.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-HONE';
-  const s = toStremioStream({
+  const s = stremioStream({
     title: release,
     infoHash: HASH,
     seeders: 181,
@@ -230,9 +241,9 @@ test('name traz release e seeds; a coluna larga não duplica marcadores', () => 
 });
 
 test('layout compacto diferencia áudio e origem sem inferir dublado', () => {
-  const brUnknown = toStremioStream({ title: 'Pecadores 2025', infoHash: HASH, isBr: true });
-  const dual = toStremioStream({ title: 'Pecadores 1080p Dual Audio', infoHash: OTHER, isBr: true });
-  const legendado = toStremioStream({ title: 'Sinners 720p Legendado', infoHash: 'c'.repeat(40) });
+  const brUnknown = stremioStream({ title: 'Pecadores 2025', infoHash: HASH, isBr: true });
+  const dual = stremioStream({ title: 'Pecadores 1080p Dual Audio', infoHash: OTHER, isBr: true });
+  const legendado = stremioStream({ title: 'Sinners 720p Legendado', infoHash: 'c'.repeat(40) });
 
   // Sem seeders publicados (padrão das fontes BR) a linha não inventa "👤 0".
   assert.equal(brUnknown.name, 'BR');
@@ -246,7 +257,7 @@ test('a coluna estreita cabe numa linha; STREAM_NAME_STYLE=full devolve a antiga
   const release = 'Mestres do Universo (2026) 5.1 WEB-DL | [2160p WEB-DL DUBLADO 20.17 GB]';
   const item = { title: release, infoHash: HASH, seeders: 1, size: 20.17 * 1024 ** 3, tracker: 'TorrentDosFilmes', isBr: true };
 
-  const compacto = toStremioStream(item);
+  const compacto = stremioStream(item);
   assert.equal(compacto.name, '4K WEB-DL DUB BR · TorrentDos · 👤 1');
   assert.equal(compacto.name.includes('\n'), false, 'nada de quebra na coluna estreita');
   // A fonte é limitada antes de entrar na coluna estreita, para não esconder
@@ -259,7 +270,7 @@ test('a coluna estreita cabe numa linha; STREAM_NAME_STYLE=full devolve a antiga
   const original = config.streamNameStyle;
   try {
     config.streamNameStyle = 'full';
-    assert.equal(toStremioStream(item).name, `${release}\n4K WEB-DL DUB BR · TorrentDos · 👤 1`);
+    assert.equal(stremioStream(item).name, `${release}\n4K WEB-DL DUB BR · TorrentDos · 👤 1`);
   } finally {
     config.streamNameStyle = original;
   }
@@ -273,16 +284,16 @@ test('fonte no name remove TLD, não cria separador órfão e pode ser desligada
     seeders: 1,
   };
 
-  assert.equal(toStremioStream(item).name, '1080p BluRay · kickass · 👤 1');
+  assert.equal(stremioStream(item).name, '1080p BluRay · kickass · 👤 1');
   assert.equal(
-    toStremioStream({ title: 'Filme 1080p BluRay', infoHash: OTHER, seeders: 1 }).name,
+    stremioStream({ title: 'Filme 1080p BluRay', infoHash: OTHER, seeders: 1 }).name,
     '1080p BluRay · 👤 1',
   );
 
   const original = config.streamNameShowSource;
   try {
     config.streamNameShowSource = false;
-    assert.equal(toStremioStream(item).name, '1080p BluRay · 👤 1');
+    assert.equal(stremioStream(item).name, '1080p BluRay · 👤 1');
   } finally {
     config.streamNameShowSource = original;
   }
@@ -294,7 +305,7 @@ test('o rótulo da fonte encurta por regra, preferindo fronteira ao corte no mei
   // TLD, sufixo "torrent(s)", fronteira (separador ou camelCase) e só então o
   // corte seco.
   const label = (tracker) =>
-    toStremioStream({ title: 'Filme 1080p BluRay', infoHash: HASH, seeders: 1, tracker })
+    stremioStream({ title: 'Filme 1080p BluRay', infoHash: HASH, seeders: 1, tracker })
       .name.split(' · ')[1];
 
   // Cabe inteiro: nada é tocado (inclusive com espaços e ponto no meio).
@@ -326,14 +337,14 @@ test('quatro releases 4K do mesmo filme não podem sair com a linha idêntica', 
   // Caso real (I Am Legend): a lista trazia quatro 4K em que só o número de
   // seeders mudava. Duas delas são CORTES DIFERENTES do filme — escolher pelo
   // maior seed levava ao final alternativo sem o usuário saber.
-  const releases = [
+  const releases: Array<[string, number]> = [
     ['I Am Legend 2007 Theatrical UHD BluRay 1080p DD 5 1 DV HDR x265-SQS', 35],
     ['I Am Legend 2007 Alternate Ending 2160p 4K UHD BluRay h2', 27],
     ['I.Am.Legend.2007.2160p.MA.WEB-DL.DDP5.1.H.265-PandaQT SDR 4k UHD', 18],
     ['I Am Legend 2007 UHD BluRay 2160p HDR10 DV HEVC DTS HD MA 5 1 x26', 12],
   ];
   const nomes = releases.map(([title, seeders], i) =>
-    toStremioStream({ title, infoHash: String(i).repeat(40).slice(0, 40), seeders }).name,
+    stremioStream({ title, infoHash: String(i).repeat(40).slice(0, 40), seeders }).name,
   );
 
   assert.deepEqual(nomes, [
@@ -370,14 +381,14 @@ test('editionFromTitle reconhece os cortes que mudam o filme, em pt e en', () =>
 test('release que não anuncia nada mostra o título em vez de só os seeders', () => {
   // Sem resolução, corte, fonte nem áudio sobraria "👤 3", que não identifica
   // nada — e nesse caso o nome da release é a única informação que existe.
-  const nada = toStremioStream({ title: 'I Am Legend 2007 [MissouriMike]', infoHash: HASH, seeders: 3 });
+  const nada = stremioStream({ title: 'I Am Legend 2007 [MissouriMike]', infoHash: HASH, seeders: 3 });
   assert.equal(nada.name, 'I Am Legend 2007 [MissouriMike]\n👤 3');
 
-  const s = toStremioStream({ title: 'Filme Obscuro', infoHash: OTHER, seeders: 0 });
+  const s = stremioStream({ title: 'Filme Obscuro', infoHash: OTHER, seeders: 0 });
   assert.equal(s.name, 'Filme Obscuro');
 
   // Basta UM atributo para o resumo valer e o título sair da coluna estreita.
-  const comFonte = toStremioStream({ title: 'Filme Obscuro BluRay', infoHash: HASH, seeders: 3 });
+  const comFonte = stremioStream({ title: 'Filme Obscuro BluRay', infoHash: HASH, seeders: 3 });
   assert.equal(comFonte.name, 'BluRay · 👤 3');
 });
 
@@ -409,10 +420,10 @@ test('matchesName aceita variações mas rejeita título fora', () => {
 });
 
 test('dedupeByHash mantém origem e áudio do post vencedor', () => {
-  const br = toStremioStream({
+  const br = stremioStream({
     title: 'Filme Dublado', infoHash: HASH, seeders: 300, tracker: 'Bludv', isBr: true,
   });
-  const global = toStremioStream({
+  const global = stremioStream({
     title: 'Movie 1080p BluRay DUAL', infoHash: HASH, seeders: 1, tracker: 'The Pirate Bay',
   });
   const [brWinner] = dedupeByHash([br, global]);
@@ -420,10 +431,10 @@ test('dedupeByHash mantém origem e áudio do post vencedor', () => {
   assert.equal(brWinner._dubbed, true);
   assert.match(brWinner.name, /BR/);
 
-  const globalPopular = toStremioStream({
+  const globalPopular = stremioStream({
     title: 'Movie 1080p BluRay DUAL', infoHash: HASH, seeders: 300, tracker: 'The Pirate Bay',
   });
-  const brSparse = toStremioStream({
+  const brSparse = stremioStream({
     title: 'Filme Dublado', infoHash: HASH, seeders: 1, tracker: 'Bludv', isBr: true,
   });
   const [globalWinner] = dedupeByHash([globalPopular, brSparse]);
@@ -445,7 +456,7 @@ test('dedupe usa indexador prioritário no empate sem depender da chegada', () =
   };
 
   for (const input of [[global, preferred], [preferred, global]]) {
-    const [out] = dedupeByHash(input, ['nerdfilmes']);
+    const [out] = dedupeByHash(input, ['nerdfilmes'] as never[]);
     assert.equal(out._indexer, 'nerdfilmes');
     assert.equal(out.title, 'Filme Dublado 1080p');
     assert.equal(out._br, true);
@@ -454,15 +465,15 @@ test('dedupe usa indexador prioritário no empate sem depender da chegada', () =
 });
 
 test('dedupe prioritário preserva resolução e tamanho conhecidos do mesmo hash', () => {
-  const global = toStremioStream({
+  const global = stremioStream({
     title: 'Filme 1080p WEB-DL', infoHash: HASH, seeders: 1,
     size: 4 * 1024 ** 3, tracker: 'The Pirate Bay', indexer: 'thepiratebay',
   });
-  const br = toStremioStream({
+  const br = stremioStream({
     title: 'Filme Dublado', infoHash: HASH, seeders: 1,
     tracker: 'NerdFilmes', indexer: 'nerdfilmes', isBr: true,
   });
-  const [out] = dedupeByHash([global, br], ['nerdfilmes']);
+  const [out] = dedupeByHash([global, br], ['nerdfilmes'] as never[]);
 
   assert.equal(out._indexer, 'nerdfilmes');
   assert.equal(out._quality, '1080p');
@@ -488,42 +499,42 @@ test('sortAndLimit ordena por qualidade e seeders, filtra e limpa internos', () 
   assert.equal(out[0]._quality, '2160p');
   // Piso de seeders descarta; filtro de qualidade restringe.
   assert.equal(sortAndLimit(streams, { minSeeders: 100 }).length, 2);
-  assert.equal(sortAndLimit(streams, { qualityFilter: ['2160p'] })[0].title, 'x 2160p');
+  assert.equal(sortAndLimit(streams, { qualityFilter: ['2160p'] as never[] })[0].title, 'x 2160p');
   assert.equal(sortAndLimit(streams, { maxResults: 1 }).length, 1);
 });
 
 test('prioridade de indexador desempata dentro da qualidade sem vencer resolução', () => {
-  const preferred1080 = toStremioStream({
+  const preferred1080 = stremioStream({
     title: 'Filme 1080p', infoHash: HASH, seeders: 1,
     tracker: 'NerdFilmes', indexer: 'nerdfilmes',
   });
-  const popular1080 = toStremioStream({
+  const popular1080 = stremioStream({
     title: 'Filme 1080p', infoHash: OTHER, seeders: 500,
     tracker: 'The Pirate Bay', indexer: 'thepiratebay',
   });
-  const global4k = toStremioStream({
+  const global4k = stremioStream({
     title: 'Filme 2160p', infoHash: 'c'.repeat(40), seeders: 1,
     tracker: 'The Pirate Bay', indexer: 'thepiratebay',
   });
   const out = sortAndLimit([popular1080, preferred1080, global4k], {
-    indexerPriority: ['nerdfilmes'],
+    indexerPriority: ['nerdfilmes'] as never[],
   });
 
   assert.deepEqual(out.map((stream) => stream.infoHash), [global4k.infoHash, HASH, OTHER]);
 });
 
 test('preferência dublada vence prioridade de indexador na mesma qualidade', () => {
-  const preferredLegendado = toStremioStream({
+  const preferredLegendado = stremioStream({
     title: 'Filme Legendado 1080p', infoHash: HASH, seeders: 100,
     tracker: 'NerdFilmes', indexer: 'nerdfilmes',
   });
-  const dublado = toStremioStream({
+  const dublado = stremioStream({
     title: 'Filme Dublado 1080p', infoHash: OTHER, seeders: 1,
     tracker: 'The Pirate Bay', indexer: 'thepiratebay',
   });
   const out = sortAndLimit([preferredLegendado, dublado], {
     preferDubbed: true,
-    indexerPriority: ['nerdfilmes'],
+    indexerPriority: ['nerdfilmes'] as never[],
   });
 
   assert.equal(out[0].infoHash, OTHER);
@@ -690,17 +701,17 @@ test('matchesEpisode lê "Exx" solto no formato dos resolvers BR', () => {
 });
 
 test('sortAndLimit põe o episódio exato antes do pack da temporada', () => {
-  const pack = toStremioStream({ title: 'Serie 1a Temporada 2160p', infoHash: HASH, seeders: 5 });
-  const ep = toStremioStream({ title: 'Serie S01E01 1080p', infoHash: OTHER, seeders: 1 });
-  const out = sortAndLimit([pack, ep], { season: 1, episode: 1 });
+  const pack = stremioStream({ title: 'Serie 1a Temporada 2160p', infoHash: HASH, seeders: 5 });
+  const ep = stremioStream({ title: 'Serie S01E01 1080p', infoHash: OTHER, seeders: 1 });
+  const out = sortAndLimit([pack, ep], { season: 1 as never, episode: 1 as never });
   assert.match(out[0].title, /S01E01/);
 });
 
 test('sortAndLimit pode priorizar áudio dublado dentro da mesma qualidade', () => {
-  const legendado = toStremioStream({
+  const legendado = stremioStream({
     title: 'Filme Legendado 1080p', infoHash: HASH, seeders: 500,
   });
-  const dublado = toStremioStream({
+  const dublado = stremioStream({
     title: 'Filme Dublado 1080p', infoHash: OTHER, seeders: 5,
   });
 
@@ -805,10 +816,10 @@ test('T-format de série é negado no episódio errado (E05)', () => {
 });
 
 test('sortAndLimit não promove DUAL global sobre dublado BR', () => {
-  const globalDual = toStremioStream({
+  const globalDual = stremioStream({
     title: 'Movie 1080p DUAL', infoHash: HASH, seeders: 500,
   });
-  const brDubbed = toStremioStream({
+  const brDubbed = stremioStream({
     title: 'Filme 1080p Dublado', infoHash: OTHER, seeders: 1, isBr: true,
   });
 
@@ -816,21 +827,21 @@ test('sortAndLimit não promove DUAL global sobre dublado BR', () => {
 });
 
 test('sortAndLimit oculta CAM somente quando solicitado', () => {
-  const cam = toStremioStream({ title: 'Filme CAM 1080p', infoHash: HASH, seeders: 50 });
-  const web = toStremioStream({ title: 'Filme WEB-DL 1080p', infoHash: OTHER, seeders: 5 });
+  const cam = stremioStream({ title: 'Filme CAM 1080p', infoHash: HASH, seeders: 50 });
+  const web = stremioStream({ title: 'Filme WEB-DL 1080p', infoHash: OTHER, seeders: 5 });
 
   assert.equal(sortAndLimit([cam, web]).length, 2);
   assert.deepEqual(sortAndLimit([cam, web], { excludeCam: true }).map((s) => s.infoHash), [OTHER]);
 });
 
 test('sortAndLimit limita tamanho sem descartar tamanho desconhecido', () => {
-  const large = toStremioStream({
+  const large = stremioStream({
     title: 'Filme 1080p', infoHash: HASH, seeders: 50, size: 21 * 1024 ** 3,
   });
-  const small = toStremioStream({
+  const small = stremioStream({
     title: 'Filme 1080p', infoHash: OTHER, seeders: 5, size: 9 * 1024 ** 3,
   });
-  const unknown = toStremioStream({
+  const unknown = stremioStream({
     title: 'Filme 720p', infoHash: 'c'.repeat(40), seeders: 1,
   });
 
@@ -931,7 +942,7 @@ test('limitReservingBr combina reserva, cotas e máximo sem vazar internos', () 
     { id: 'br-1080-b', _quality: '1080p', _br: true, _seeders: 1 },
     { id: 'global-1080', _quality: '1080p', _br: false, _seeders: 50 },
   ];
-  const out = limitReservingBr(streams, {
+  const out = limitReservingBr(quotaStreams(streams), {
     brReservedSlots: 2,
     maxResults: 3,
     qualityLimits: { '2160p': 1, '1080p': 1 },
@@ -971,7 +982,7 @@ test('cota por indexador não consome as vagas reservadas BR', () => {
     { id: 'yts-3', _quality: '1080p', _br: false, _indexer: 'yts' },
   ];
   // Cota 1, mas 2 vagas reservadas: o BluDV entrega 2 dublados mesmo assim.
-  const out = limitReservingBr(streams, { brReservedSlots: 2, maxResults: 10, maxPerIndexer: 1 });
+  const out = limitReservingBr(quotaStreams(streams), { brReservedSlots: 2, maxResults: 10, maxPerIndexer: 1 });
   assert.deepEqual(out.map((s) => s.id), ['br-1', 'br-2', 'yts-1']);
 });
 
@@ -983,7 +994,7 @@ test('cota por indexador limita o BR que passa da reserva', () => {
     { id: 'yts-1', _quality: '1080p', _br: false, _indexer: 'yts' },
   ];
   // Sem reserva, o teto vale para todo mundo: o BluDV para no limite de 2.
-  const out = limitReservingBr(streams, { brReservedSlots: 0, maxResults: 10, maxPerIndexer: 2 });
+  const out = limitReservingBr(quotaStreams(streams), { brReservedSlots: 0, maxResults: 10, maxPerIndexer: 2 });
   assert.deepEqual(out.map((s) => s.id), ['br-1', 'br-2', 'yts-1']);
 });
 
@@ -994,7 +1005,7 @@ test('limitReservingBr coloca todas as fontes BR primeiro quando solicitado', ()
     { id: 'global-1080', _quality: '1080p', _br: false },
     { id: 'br-720', _quality: '720p', _br: true },
   ];
-  const out = limitReservingBr(streams, {
+  const out = limitReservingBr(quotaStreams(streams), {
     brReservedSlots: 0,
     brFirst: true,
     maxResults: 4,
@@ -1009,7 +1020,7 @@ test('limitReservingBr mantém ordem natural sem prioridade e ainda garante BR',
     { id: 'global-1080-b', _quality: '1080p', _br: false },
     { id: 'br-720', _quality: '720p', _br: true },
   ];
-  const out = limitReservingBr(streams, {
+  const out = limitReservingBr(quotaStreams(streams), {
     brReservedSlots: 1,
     brFirst: false,
     maxResults: 3,
@@ -1087,7 +1098,7 @@ test('cota de qualidade não come a fonte BR antes da reserva agir', () => {
   ];
   const limits = { '2160p': 3, '1080p': 3, '720p': 3, '480p': 3 };
 
-  const first = limitReservingBr([...streams], {
+  const first = limitReservingBr(quotaStreams([...streams]), {
     brFirst: true,
     brReservedSlots: 6,
     maxResults: 40,
@@ -1097,7 +1108,7 @@ test('cota de qualidade não come a fonte BR antes da reserva agir', () => {
 
   // Sem prioridade visual a BR mantém a posição natural, mas ainda ocupa uma
   // das três vagas da cota em vez de sumir.
-  const natural = limitReservingBr([...streams], {
+  const natural = limitReservingBr(quotaStreams([...streams]), {
     brFirst: false,
     brReservedSlots: 6,
     maxResults: 40,
@@ -1106,7 +1117,7 @@ test('cota de qualidade não come a fonte BR antes da reserva agir', () => {
   assert.deepEqual(natural.map((s) => s.id), ['global-a', 'global-b', 'br-1080']);
 
   // Sem reserva pedida e sem prioridade, a cota volta a ser puro seeders.
-  const semReserva = limitReservingBr([...streams], {
+  const semReserva = limitReservingBr(quotaStreams([...streams]), {
     brFirst: false,
     brReservedSlots: 0,
     maxResults: 40,
@@ -1131,11 +1142,11 @@ test('selectQualityCandidates preserva todos os BR candidatos quando brFirst est
 });
 
 test('sentinela de 1 KB dos indexers BR conta como tamanho desconhecido', () => {
-  const unknown = toStremioStream({ title: 'Serie 1a Temporada', infoHash: HASH, size: 1024 });
+  const unknown = stremioStream({ title: 'Serie 1a Temporada', infoHash: HASH, size: 1024 });
   assert.ok(!unknown.title.includes('💾'), 'não exibe tamanho inventado');
   assert.equal(unknown._size, 0);
   // Acima do sentinela é tamanho de verdade e volta a aparecer.
-  const real = toStremioStream({ title: 'Serie 1a Temporada', infoHash: HASH, size: 2 * 1024 ** 3 });
+  const real = stremioStream({ title: 'Serie 1a Temporada', infoHash: HASH, size: 2 * 1024 ** 3 });
   assert.ok(real.title.includes('💾 2.00 GB'));
   assert.equal(real._size, 2 * 1024 ** 3);
 });
@@ -1155,8 +1166,8 @@ test('sem resolução no título não é SD e tem balde próprio', () => {
 });
 
 test('zerar a cota de SD não esconde mais as fontes BR', () => {
-  const br = toStremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3]', infoHash: HASH, seeders: 1, isBr: true });
-  const sd = toStremioStream({ title: 'Devoradores de Estrelas 2026 DVDRip', infoHash: OTHER, seeders: 9 });
+  const br = stremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3]', infoHash: HASH, seeders: 1, isBr: true });
+  const sd = stremioStream({ title: 'Devoradores de Estrelas 2026 DVDRip', infoHash: OTHER, seeders: 9 });
   const out = sortAndLimit([br, sd], { qualityLimits: { SD: 0 }, maxResults: 10 });
   assert.equal(out.length, 1, 'só o DVDRip cai na cota zerada de SD');
   assert.match(out[0].title, /opção 3/);
@@ -1165,7 +1176,7 @@ test('zerar a cota de SD não esconde mais as fontes BR', () => {
 });
 
 test('resolução desconhecida não vira rótulo nem grupo de binge do SD', () => {
-  const s = toStremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3] DUBLADO', infoHash: HASH, seeders: 1 });
+  const s = stremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3] DUBLADO', infoHash: HASH, seeders: 1 });
   const details = s.name;
   assert.ok(!/sem resolução|SD/.test(details), `linha não anuncia resolução: ${details}`);
   assert.ok(details.startsWith('DUB'), details);
@@ -1173,13 +1184,13 @@ test('resolução desconhecida não vira rótulo nem grupo de binge do SD', () =
 });
 
 test('filtro de resolução preserva fonte sem resolução pelo balde próprio', () => {
-  const br = toStremioStream({
+  const br = stremioStream({
     title: 'Prometheus (2012) [opção 3] DUBLADO',
     infoHash: 'd'.repeat(40),
     seeders: 1,
     isBr: true,
   });
-  const global4k = toStremioStream({
+  const global4k = stremioStream({
     title: 'Prometheus 2012 2160p WEB-DL',
     infoHash: 'e'.repeat(40),
     seeders: 100,
@@ -1187,7 +1198,7 @@ test('filtro de resolução preserva fonte sem resolução pelo balde próprio',
   const limits = { [UNKNOWN_QUALITY]: 100 };
   const out = sortAndLimit([br, global4k], {
     maxResults: 10,
-    qualityFilter: ['2160p', '1080p', '720p'],
+    qualityFilter: ['2160p', '1080p', '720p'] as never[],
     qualityLimits: limits,
   });
 
@@ -1195,7 +1206,7 @@ test('filtro de resolução preserva fonte sem resolução pelo balde próprio',
 });
 
 test('cota zero de sem resolução continua ocultando esse balde', () => {
-  const br = toStremioStream({
+  const br = stremioStream({
     title: 'Prometheus (2012) [opção 3] DUBLADO',
     infoHash: 'f'.repeat(40),
     seeders: 1,
@@ -1203,7 +1214,7 @@ test('cota zero de sem resolução continua ocultando esse balde', () => {
   });
   const out = sortAndLimit([br], {
     maxResults: 10,
-    qualityFilter: ['2160p', '1080p', '720p'],
+    qualityFilter: ['2160p', '1080p', '720p'] as never[],
     qualityLimits: { [UNKNOWN_QUALITY]: 0 },
   });
 
@@ -1211,7 +1222,7 @@ test('cota zero de sem resolução continua ocultando esse balde', () => {
 });
 
 test('filtro de qualidade usa a resolução declarada, não substring do título', () => {
-  const br4k = toStremioStream({
+  const br4k = stremioStream({
     title: 'Prometheus (2012) 4K UHD DUBLADO',
     infoHash: '1'.repeat(40),
     seeders: 1,
@@ -1219,7 +1230,7 @@ test('filtro de qualidade usa a resolução declarada, não substring do título
   });
   const out = sortAndLimit([br4k], {
     maxResults: 10,
-    qualityFilter: ['2160p'],
+    qualityFilter: ['2160p'] as never[],
   });
 
   assert.equal(out.length, 1);
@@ -1230,13 +1241,13 @@ test('tamanho fabricado pelo indexer vira desconhecido, não valor exibido', () 
   // 1,62 TB é o carimbo da definição Cardigann do redetorrent em 53 das 93
   // releases de uma busca real. Exibi-lo mente para o usuário e, com filtro de
   // tamanho ligado, apagaria a fonte dublada inteira.
-  const absurdo = toStremioStream({
+  const absurdo = stremioStream({
     title: 'House of the Dragon S01E02 DUAL 1080p', infoHash: HASH, seeders: 1, size: 1784881034035,
   });
   assert.equal(absurdo._size, 0);
   assert.doesNotMatch(absurdo.title, /TB/);
   // Tamanho plausível continua intacto.
-  const real = toStremioStream({
+  const real = stremioStream({
     title: 'Filme 1080p', infoHash: OTHER, seeders: 5, size: 8 * 1024 ** 3,
   });
   assert.equal(real._size, 8 * 1024 ** 3);
@@ -1249,11 +1260,11 @@ test('tamanho fabricado pelo indexer vira desconhecido, não valor exibido', () 
 test('merge de hash igual não empresta origem ou áudio do post BR perdedor', () => {
   // Agregador BR pode apontar para o mesmo magnet público: a evidência do post
   // perdedor não pode marcar como dublado a release do tracker global vencedor.
-  const global = toStremioStream({
+  const global = stremioStream({
     title: 'Fallout 1a Temporada 2160p', infoHash: HASH,
     seeders: 100, size: 11 * 1024 ** 3, tracker: 'The Pirate Bay', indexer: 'thepiratebay', isBr: false,
   });
-  const br = toStremioStream({
+  const br = stremioStream({
     title: 'Fallout 1a Temporada (2024) WEB-DL [DUBLADO]', infoHash: HASH,
     seeders: 1, tracker: 'Bludv', indexer: 'bludv-cardigann', isBr: true,
   });
@@ -1262,7 +1273,7 @@ test('merge de hash igual não empresta origem ou áudio do post BR perdedor', (
   assert.equal(merged._dubbed, false);
   assert.doesNotMatch(merged.name, /BR|DUB/);
   // Sem merge, o rótulo global também não muda.
-  const soGlobal = toStremioStream({
+  const soGlobal = stremioStream({
     title: 'Filme 1080p', infoHash: OTHER, seeders: 9, indexer: 'therarbg',
   });
   assert.equal(dedupeByHash([soGlobal])[0].name, soGlobal.name);
@@ -1327,7 +1338,7 @@ test('filtro relevante cru rejeita spin-off global por episódio', () => {
 });
 
 test('identidade global preserva série curta e sufixo regional', () => {
-  const cases = [
+  const cases: Array<[string, string[]]> = [
     ['S01E02.From.1080p.WEBRip.x264-EVOLVE', ['From']],
     ['S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE', ['The Bear']],
     ['S01E02.Shogun.1080p.WEBRip.x264-GROUP', ['Shogun']],
@@ -1388,7 +1399,7 @@ test('filtro relevante cru: artigo inicial do release não desliga o filme globa
   // Hulk" contra a busca "Hulk" tem primeiro token 'the' x 'hulk'. Artigo é
   // ruído do release, não outra obra: "The"/"La" não podem condenar a release
   // certa nem quando o alias omite o artigo.
-  const cases = [
+  const cases: Array<{ title: string; names: string[]; year: number }> = [
     { title: 'The Hulk (2003) 1080p BluRay', names: ['Hulk'], year: 2003 },
     { title: 'The Green Mile (1999) 1080p WEB-DL', names: ['Green Mile'], year: 1999 },
     { title: 'La Vie est Belle (1997) 720p DVDRip', names: ['Vie est Belle'], year: 1997 },
@@ -1554,7 +1565,7 @@ test('reserva BR fura a cota individual por indexador em limitReservingBr', () =
   ];
   // Override 1 no bludv com 2 vagas reservadas: a reserva continua entregando
   // os dois dublados acima da cota individual.
-  const out = limitReservingBr(streams, {
+  const out = limitReservingBr(quotaStreams(streams), {
     brReservedSlots: 2,
     maxResults: 10,
     maxPerIndexer: 1,
@@ -1569,7 +1580,7 @@ test('cota individual rejeitada não consome vaga de qualidade', () => {
     { id: 'yts-2', _quality: '1080p', _br: false, _indexer: 'yts' },
     { id: 'rarbg-1', _quality: '1080p', _br: false, _indexer: 'rarbg' },
   ];
-  const out = limitReservingBr(streams, {
+  const out = limitReservingBr(quotaStreams(streams), {
     brFirst: false,
     maxResults: 10,
     qualityLimits: { '1080p': 2 },
@@ -1591,10 +1602,10 @@ test('sortAndLimit em lote de 200+: episódio exato à frente do pack, determin�
   };
 
   const makeLote = () => {
-    const streams = [];
+    const streams: TestStream[] = [];
     for (let i = 0; i < 220; i += 1) {
       const exact = i % 2 === 0;
-      streams.push(toStremioStream({
+      streams.push(stremioStream({
         title: exact
           ? `Serie S01E05 1080p rel-${i}`
           : `Serie 1a Temporada 1080p rel-${i}`,
@@ -1609,7 +1620,7 @@ test('sortAndLimit em lote de 200+: episódio exato à frente do pack, determin�
     return streams;
   };
 
-  const opts = { season: 1, episode: 5, maxResults: 220 };
+  const opts = { season: 1 as never, episode: 5 as never, maxResults: 220 };
   const out = sortAndLimit(makeLote(), opts);
 
   assert.equal(out.length, 220, 'nada é cortado além do maxResults pedido');
@@ -1631,13 +1642,13 @@ test('sortAndLimit em lote de 200+: episódio exato à frente do pack, determin�
 });
 
 test('sortAndLimit em lote grande respeita o corte de maxResults', () => {
-  const streams = [];
+  const streams: TestStream[] = [];
   const seedersByHash = new Map();
   for (let i = 0; i < 250; i += 1) {
     const infoHash = (i + 1).toString(16).padStart(40, '0');
     const seeders = 1 + ((i * 13) % 900);
     seedersByHash.set(infoHash, seeders);
-    streams.push(toStremioStream({
+    streams.push(stremioStream({
       title: `Filme Nome 1080p rel-${i}`,
       infoHash,
       seeders,
