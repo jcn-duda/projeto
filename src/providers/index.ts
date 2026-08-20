@@ -1,4 +1,5 @@
 import config from '../config.js';
+import type { DebridAdapter, MatchContext, Stream } from '../../types/domain.js';
 import * as demo from './demo.js';
 import jackett from './jackett.js';
 import prowlarr from './prowlarr.js';
@@ -59,11 +60,7 @@ const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
  *   o mesmo torrent de novo;
  * - nunca entra no caminho da resposta: erro só vira log.
  */
-/**
- * @param {import('../../types/domain').Stream[]} streams
- * @param {{ season?: (number|null) }} [options]
- */
-function autoFetchCandidates(streams, { season } = {}) {
+function autoFetchCandidates(streams: Stream[], { season }: { season?: number | null } = {}) {
   const { autoFetchBr, debridApiKey } = opts();
   const adapter = debrid.current();
   // `cacheCheck: false` (Real-Debrid, Debrid-Link) fica fora: sem saber o que
@@ -116,7 +113,7 @@ function enqueueAutofetch({ stream, account, pool }, { cached, season, episode, 
   // `enqueueAutofetch` só roda com autofetch habilitado — o gate
   // `canAutoFetchBr` exige um adaptador de cache confiável antes de qualquer
   // candidato chegar aqui, então `current()` nunca é null neste caminho.
-  const adapter = /** @type {import('../../types/domain').DebridAdapter} */ (debrid.current());
+  const adapter = debrid.current() as DebridAdapter;
   // Capturado AGORA, dentro do request: o recheck dispara num timer fora do
   // AsyncLocalStorage e precisa da conta/opts desta requisição.
   const requestCtx = capture();
@@ -384,7 +381,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
   if (visibleBr.size) {
     log.info(`[debrid] ${visibleBr.size} fonte(s) BR fora do cache mantida(s) como P2P`);
   }
-  const out = [];
+  const out: Stream[] = [];
   for (const s of filtered.streams) {
     if (cached.has(s.infoHash)) {
       out.push(viaDebrid(s, true));
@@ -422,19 +419,18 @@ function hasPlayableStream(streams) {
   return Array.isArray(streams) && streams.some((s) => s && (s.url || s.infoHash));
 }
 
-/**
- * @param {string} query
- * @param {string} type
- * @param {string} imdbId
- * @param {?string} ptQuery
- * @param {{ names: string[], year: (number|string|null), isSeries: boolean, season: (number|null), episode: (number|null) }} matchContext
- * @param {?Function} [onLate]
- * @param {?string} [sweepQuery]
- */
-async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate, sweepQuery = null) {
+async function collectRaw(
+  query: string,
+  type: string,
+  imdbId: string,
+  ptQuery: string | null,
+  matchContext: MatchContext,
+  onLate,
+  sweepQuery: string | null = null,
+) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
-  const tasks = [];
+  const tasks: { promise: Promise<any>; priority: boolean }[] = [];
   const addTask = (promise, priority = false) => tasks.push({ promise, priority });
   let sweepInline = false;
 
@@ -445,9 +441,9 @@ async function collectRaw(query, type, imdbId, ptQuery, matchContext, onLate, sw
   }
 
   const wants = (name) => mode === 'both' || providers.includes(name);
-  const selectedIndexers = [...new Set((opts().jackettIndexers || []).filter((id) =>
+  const selectedIndexers: string[] = [...new Set((opts().jackettIndexers || []).filter((id) =>
     SAFE_INDEXER_ID.test(String(id)),
-  ))];
+  ))].map(String);
 
   // demo sempre disponível como fallback de teste se quiser both+demo — aqui só jackett/prowlarr
   if (wants('jackett')) {
@@ -964,9 +960,9 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   // Só adiciona hashes novos: título pt para hash já listado é assunto do
   // merge, não da varredura.
   const configuredIndexers = opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers;
-  const sweepSelectedIndexers = [...new Set((configuredIndexers || []).filter((idx) =>
+  const sweepSelectedIndexers: string[] = [...new Set((configuredIndexers || []).filter((idx) =>
     SAFE_INDEXER_ID.test(String(idx)),
-  ))];
+  ))].map(String);
   // A query já foi anexada ao plano crítico: título pt-BASE para filme e série,
   // sem subtítulo, ano ou SxxEyy. Os globais publicam episódios como
   // "T01 E004"; o matchContext faz o corte preciso depois da coleta.
@@ -1149,8 +1145,7 @@ async function buildStreams(
   // fecha como item de aviso e entrega ao Stremio. Um item sem `url`/`infoHash`/
   // `externalUrl` (e sem a marca interna `notice`) morre fora da união — o que
   // deixa explícito na origem o aviso que nenhum cliente renderizava.
-  /** @type {import('../../types/domain').Stream[]} */
-  let streams = sortAndLimit(raw.map(toStremioStream), {
+  let streams: Stream[] = sortAndLimit(raw.map(toStremioStream), {
     minSeeders,
     maxResults: maxResults * config.candidatePoolFactor,
     qualityFilter: qualities,
@@ -1245,10 +1240,8 @@ async function buildStreams(
  * `url`/`infoHash`/`externalUrl` nenhum cliente Stremio renderiza a linha, então
  * ela só ocuparia a resposta e sumiria na tela — foi o que deixou o app com
  * "Nenhum stream disponível" enquanto a busca já tinha resultado.
- * @param {import('../../types/domain').Stream[]} [streams]
- * @returns {import('../../types/domain').Stream[]}
  */
-function applyNoticeOrigin(streams = []) {
+function applyNoticeOrigin(streams: Stream[] = []) {
   if (!streams.some((stream) => stream?.notice)) return streams;
   const base = (config.debrid.publicUrl || origin() || '').replace(/\/$/, '');
   const link = base ? `${base}${prefix()}/configure` : '';
@@ -1262,7 +1255,7 @@ function applyNoticeOrigin(streams = []) {
 }
 
 /** A lista não tem resultado nenhum — só o aviso. */
-function onlyNotice(streams = []) {
+function onlyNotice(streams: Stream[] = []) {
   return streams.length > 0 && streams.every((stream) => stream?.notice);
 }
 

@@ -54,7 +54,7 @@ function percentile(sorted, fraction) {
 function snapshot() {
   const timings = {};
   for (const [name, timer] of timers) {
-    const sorted = Array.from(timer.ring.subarray(0, timer.filled)).sort((a, b) => a - b);
+    const sorted = Array.from(timer.ring.subarray(0, timer.filled)).sort((a: number, b: number) => a - b);
     timings[name] = {
       count: timer.count,
       avgMs: timer.count ? Math.round(timer.sum / timer.count) : 0,

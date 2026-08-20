@@ -1,4 +1,5 @@
 import { opts } from '../runtime.js';
+import type { DebridAdapter } from '../../types/domain.js';
 import config from '../config.js';
 import { accountScope } from '../utils/request-key.js';
 import { prefix } from '../utils/cache-keys.js';
@@ -159,7 +160,7 @@ import * as debridlink from './debridlink.js';
 
 // Namespace ESM é congelado; os testes trocam métodos do adaptador (mock) e o
 // registry precisa entregar o MESMO objeto mutável que o module.exports dava.
-const ADAPTERS = [
+const ADAPTERS: DebridAdapter[] = [
   { ...premiumize },
   { ...realdebrid },
   { ...alldebrid },
@@ -182,9 +183,8 @@ const SERVICES = ADAPTERS.map(({ id, label, short, cacheCheck, keyUrl }) => ({
 
 /**
  * Adaptador da requisição corrente, ou null quando o usuário está em P2P puro.
- * @returns {import('../../types/domain').DebridAdapter | null}
  */
-function current() {
+function current(): DebridAdapter | null {
   const { debridService, debridApiKey } = opts();
   if (!debridService || !debridApiKey) return null;
   const adapter = BY_ID.get(debridService);
@@ -212,7 +212,7 @@ function current() {
  *   do REPLY_DEADLINE menos margem). Quando <=0 degrada na hora, sem rede.
  *   Ausente = timeout completo do adaptador (passe tardio).
  */
-async function checkCached(infoHashes, { timeoutMs } = {}) {
+async function checkCached(infoHashes, { timeoutMs }: { timeoutMs?: number } = {}) {
   const adapter = current();
   if (!adapter || infoHashes.length === 0) return { cached: new Set(), known: false };
   if (!adapter.cacheCheck) return { cached: new Set(), known: false };

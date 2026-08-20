@@ -2,12 +2,19 @@ import config from '../config.js';
 import * as indexerStatus from './indexer-status.js';
 import * as log from '../utils/logger.js';
 
-let cached = null;
+interface CatalogItem {
+  id: string;
+  label: string;
+  language: string;
+  isBr: boolean;
+}
+
+let cached: CatalogItem[] | null = null;
 let cachedAt = 0;
-let inFlight = null;
+let inFlight: Promise<CatalogItem[]> | null = null;
 
 function attrs(text) {
-  const out = {};
+  const out: Record<string, string> = {};
   const re = /([A-Za-z_:][\w:.-]*)\s*=\s*(["'])(.*?)\2/g;
   let match;
   while ((match = re.exec(text))) out[match[1].toLowerCase()] = decodeXml(match[3]);
@@ -43,7 +50,7 @@ function tag(body, name) {
 }
 
 function parseXml(xml) {
-  const items = [];
+  const items: CatalogItem[] = [];
   const re = /<(?:indexer|torznab:indexer)\b([^>]*)>([\s\S]*?)<\/(?:indexer|torznab:indexer)>/gi;
   let match;
   while ((match = re.exec(String(xml || '')))) {
@@ -87,7 +94,7 @@ async function load() {
     return indexerStatus.decorate(cached);
   }
   if (inFlight) return inFlight.then(indexerStatus.decorate);
-  inFlight = (async () => {
+  const promise = (async () => {
     try {
       if (!config.jackett.apiKey) return fallback();
       const endpoint = new URL(`${config.jackett.url}/api/v2.0/indexers/all/results/torznab/api`);
@@ -110,7 +117,8 @@ async function load() {
     cachedAt = Date.now();
     return items;
   }).finally(() => { inFlight = null; });
-  return inFlight.then(indexerStatus.decorate);
+  inFlight = promise;
+  return promise.then(indexerStatus.decorate);
 }
 
 export { load, parseXml, fallback };

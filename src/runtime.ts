@@ -11,7 +11,12 @@ import * as secretBox from './utils/secret-box.js';
  * requisição, guardado em AsyncLocalStorage para não precisar arrastar um
  * parâmetro por toda a cadeia de busca.
  */
-const store = new AsyncLocalStorage();
+interface RuntimeContext {
+  opts?: any;
+  encoded?: string | null;
+  origin?: string | null;
+}
+const store = new AsyncLocalStorage<RuntimeContext>();
 // 2048 não comporta um catálogo Jackett real selecionado no campo `ji`. Ainda
 // fica abaixo dos limites usuais de request line de Node/proxies e impede que
 // um segmento arbitrariamente grande seja decodificado como JSON.
@@ -22,18 +27,17 @@ const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
  * Entrada do SCHEMA. O literal de `type` é o discriminante: sem ele o TS amplia
  * para `string` e o `spec.type === 'int'` não estreita para a variante com
  * `min`/`max`, exigidos por `clampInt`.
- *
- * @typedef {{ type: 'list', key: string } |
- *   { type: 'int', key: string, min: number, max: number } |
- *   { type: 'intmap', key: string, min: number, max: number } |
- *   { type: 'bool', key: string } |
- *   { type: 'string', key: string } |
- *   { type: 'secret', key: string }} SchemaEntry
  */
+type SchemaEntry =
+  | { type: 'list'; key: string }
+  | { type: 'int'; key: string; min: number; max: number }
+  | { type: 'intmap'; key: string; min: number; max: number }
+  | { type: 'bool'; key: string }
+  | { type: 'string'; key: string }
+  | { type: 'secret'; key: string };
 
 /** Só estas chaves podem vir da URL — o resto é decisão do operador da instância. */
-/** @type {Record<string, SchemaEntry>} */
-const SCHEMA = {
+const SCHEMA: Record<string, SchemaEntry> = {
   providers: { type: 'list', key: 'p' },
   qualities: { type: 'list', key: 'q' },
   maxResults: { type: 'int', key: 'm', min: 1, max: 100 },
@@ -95,7 +99,7 @@ function defaults() {
   };
 }
 
-function clampInt(value, { min, max }, fallback) {
+function clampInt(value, { min, max }: { min: number; max: number }, fallback) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.trunc(n)));

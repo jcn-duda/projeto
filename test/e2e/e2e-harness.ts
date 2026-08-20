@@ -1,3 +1,5 @@
+// @ts-nocheck — rodada 1: checagem suspensa para fechar o portão do src;
+// remover arquivo a arquivo na rodada 2.
 import http from 'node:http';
 // O app montado é o REAL (src/app.js): o harness parou de manter uma cópia das
 // rotas do addon.js — divergência silenciosa era o risco da cópia.

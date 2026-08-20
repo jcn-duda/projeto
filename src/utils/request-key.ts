@@ -11,7 +11,7 @@ function accountScope(apiKey) {
   return crypto.createHash('sha256').update(String(apiKey), 'utf8').digest('hex');
 }
 
-function streamsCacheKey(type, id, options = {}) {
+function streamsCacheKey(type, id, options: { debridApiKey?: string | null; [key: string]: unknown } = {}) {
   const { debridApiKey, ...shape } = options;
   // Matching e plano de queries fazem parte do conteúdo cacheado. O namespace
   // evita que um deploy continue servindo por 15 minutos listas antigas com

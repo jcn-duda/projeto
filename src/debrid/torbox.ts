@@ -34,7 +34,7 @@ function unwrapEnvelope(data) {
  * @param {*} [options.body]
  * @param {Object} [options.params]
  */
-async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
+async function call(apiKey, path, { method = 'GET', body, params = {} }: { method?: string; body?: any; params?: Record<string, any> } = {}) {
   const url = new URL(`${API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const data = await json(url, { method, headers: { Authorization: `Bearer ${apiKey}` }, body });
@@ -47,7 +47,7 @@ async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
+async function checkCached(apiKey, infoHashes, { timeoutMs }: { timeoutMs?: number } = {}) {
   return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const url = new URL(`${API}/torrents/checkcached`);
     batch.forEach((hash) => url.searchParams.append('hash', hash));
@@ -75,7 +75,7 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
+async function resolveLink(apiKey, infoHash, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const form = new FormData();
   form.append('magnet', magnetFor(infoHash));
   form.append('seed', '3'); // não semear: só queremos o link de leitura
@@ -85,7 +85,7 @@ async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
   const torrentId = created?.data?.torrent_id ?? created?.data?.id;
   if (torrentId == null) return null;
 
-  let entry = null;
+  let entry: any = null;
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const list = await call(apiKey, '/torrents/mylist', {
       params: { id: torrentId, bypass_cache: 'true' },
@@ -133,7 +133,7 @@ async function enqueue(apiKey, infoHash) {
 async function inventory(apiKey) {
   const list = await call(apiKey, '/torrents/mylist');
   const rows = Array.isArray(list?.data) ? list.data : (list?.data ? [list.data] : []);
-  const out = [];
+  const out: any[] = [];
   for (const row of rows) {
     if (!(row?.download_finished || row?.download_present)) continue;
     const infoHash = String(row.hash || '').toLowerCase();

@@ -17,10 +17,10 @@ function magnetFor(infoHash) {
  * sintoma na tela é o mesmo (o ⚡ some) e a causa fica invisível.
  */
 class AuthError extends Error {
+  isAuthError = true;
   constructor(message) {
     super(message);
     this.name = 'AuthError';
-    this.isAuthError = true;
   }
 }
 
@@ -45,10 +45,10 @@ function isAuthError(error) {
  * lista pelo debrid nessa situação entrega links que não resolvem.
  */
 class QuotaError extends Error {
+  isQuotaError = true;
   constructor(message) {
     super(message);
     this.name = 'QuotaError';
-    this.isQuotaError = true;
   }
 }
 
@@ -72,10 +72,10 @@ function isQuotaError(error) {
  * HTTP lia isso como "erro genérico" e o log não dizia o que esperar.
  */
 class RateLimitError extends Error {
+  isRateLimitError = true;
   constructor(message) {
     super(message);
     this.name = 'RateLimitError';
-    this.isRateLimitError = true;
   }
 }
 
@@ -94,10 +94,10 @@ function isRateLimitError(error) {
  * nenhum arquivo individualmente casa com a obra pedida.
  */
 class WorkPickError extends Error {
+  code = 'WORK_PICK';
   constructor() {
     super('não foi possível identificar a obra dentro do pack');
     this.name = 'WorkPickError';
-    this.code = 'WORK_PICK';
   }
 }
 
@@ -116,7 +116,15 @@ function isWorkPickError(error) {
  * @param {*} [options.body]
  * @param {number} [options.timeout]
  */
-async function json(url, { method = 'GET', headers = {}, body, timeout } = {}) {
+async function json(
+  url: string | URL,
+  { method = 'GET', headers = {}, body, timeout }: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: any;
+    timeout?: number;
+  } = {},
+) {
   const res = await fetch(url, {
     method,
     body,
@@ -213,12 +221,12 @@ function looksMultiWorkFiles(files) {
  * @param {string[]} [options.names]
  * @param {(number|string|null)} [options.year]
  */
-function pickWorkFile(files, { names, year } = {}) {
+function pickWorkFile(files, { names, year }: { names?: string[]; year?: number | string | null } = {}) {
   const cleanYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
   const scored = files
     .map((f) => ({
       file: f,
-      cov: Math.max(.../** @type {string[]} */ (names).map((n) => workCoverage(f.path || '', n))),
+      cov: Math.max(...(names || []).map((n) => workCoverage(f.path || '', n))),
     }))
     .filter((x) => x.cov >= WORK_COVERAGE_MIN);
   if (scored.length === 0) return null;
@@ -255,7 +263,7 @@ function pickWorkFile(files, { names, year } = {}) {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-function pickFile(files, { season, episode, work } = {}) {
+function pickFile(files, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const videos = files.filter((f) => VIDEO_EXT.test(f.path || '') && !SAMPLE.test(f.path || ''));
   if (videos.length === 0) return null;
 
@@ -319,14 +327,14 @@ function pickFile(files, { season, episode, work } = {}) {
  *   passo de resposta). Ausente = cada adaptador usa o próprio teto
  *   (config.debrid.cacheCheckTimeout).
  */
-async function batched(infoHashes, size, fn, { timeoutMs } = {}) {
-  const slices = [];
+async function batched(infoHashes, size, fn, { timeoutMs }: { timeoutMs?: number } = {}) {
+  const slices: any[][] = [];
   for (let i = 0; i < infoHashes.length; i += size) {
     slices.push(infoHashes.slice(i, i + size));
   }
 
   const settled = await Promise.allSettled(slices.map((slice) => fn(slice, { timeoutMs })));
-  const cached = new Set();
+  const cached = new Set<string>();
   let failures = 0;
   let authFailures = 0;
   let quotaFailures = 0;

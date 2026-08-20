@@ -26,8 +26,8 @@ const AGENT = 'stremio-adom';
 function parseArgs(argv) {
   // `older` começa null e só ganha número com --older; o tipo preserva o estado
   // "flag ausente" (comparação com 0 é false e não seleciona nada).
-  /** @type {{ older: number | null, all: boolean, apply: boolean, key: string, keep: number }} */
-  const args = { older: null, all: false, apply: false, key: '', keep: 0 };
+  const args: { older: number | null; all: boolean; apply: boolean; key: string; keep: number } =
+    { older: null, all: false, apply: false, key: '', keep: 0 };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--all') args.all = true;
@@ -39,7 +39,7 @@ function parseArgs(argv) {
   return args;
 }
 
-async function call(key, path, params = {}) {
+async function call(key, path, params: Record<string, any> = {}) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('agent', AGENT);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -93,11 +93,11 @@ async function main() {
   console.log(`Mais antigo: ${day(magnets[0].uploadDate)} | mais novo: ${day(magnets[magnets.length - 1].uploadDate)}`);
   console.log(`Limite da AllDebrid: 1000 (${Math.round((magnets.length / 1000) * 100)}% ocupado)\n`);
 
-  let alvo = [];
+  let alvo: any[] = [];
   if (args.all) alvo = magnets;
   // O guard `> 0` já descarta `null` no runtime (null > 0 é false); o cast
   // apenas repete o fato pro checador de tipos.
-  else if (/** @type {number} */ (args.older) > 0) alvo = magnets.slice(0, Math.floor((magnets.length * /** @type {number} */ (args.older)) / 100));
+  else if ((args.older as number) > 0) alvo = magnets.slice(0, Math.floor((magnets.length * (args.older as number)) / 100));
   else if (args.keep > 0) alvo = magnets.slice(0, Math.max(0, magnets.length - args.keep));
 
   if (!alvo.length) {

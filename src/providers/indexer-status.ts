@@ -13,23 +13,22 @@ function normalize(id) {
   return String(id || '').trim().toLowerCase();
 }
 
-/**
- * @typedef {{ ok?: boolean, ms?: (number|string|null), budgetMs?: number, results?: number }} StateSample
- */
+interface StateSample {
+  ok?: boolean;
+  ms?: number | string | null;
+  budgetMs?: number;
+  results?: number;
+}
 
-/**
- * @param {StateSample} [sample]
- */
-function stateFor({ ok, ms, budgetMs, results = 0 } = {}) {
+function stateFor({ ok, ms, budgetMs, results = 0 }: StateSample = {}) {
   if (!ok) return results > 0 ? 'degraded' : 'offline';
   return Number(ms) > Number(budgetMs) ? 'slow' : 'online';
 }
 
 /**
  * @param {*} id
- * @param {StateSample} [sample]
  */
-function record(id, sample = {}) {
+function record(id, sample: StateSample = {}) {
   const key = normalize(id);
   if (!key) return null;
   const measured = sample.ms == null ? null : Number(sample.ms);
@@ -45,7 +44,7 @@ function record(id, sample = {}) {
     // faria a UI inventar "offline · 0.0s" em vez de mostrar só offline.
     // `Number.isFinite(null)` já é false no runtime (não converte), então o cast
     // só repete o fato para a assinatura `(number) => boolean` do lib.
-    ms: Number.isFinite(/** @type {number} */ (measured)) ? Math.max(0, Math.trunc(/** @type {number} */ (measured))) : null,
+    ms: Number.isFinite(measured as number) ? Math.max(0, Math.trunc(measured as number)) : null,
     checkedAt: new Date().toISOString(),
     failStreak: state === 'offline' ? (previous?.failStreak || 0) + 1 : 0,
   };
@@ -75,7 +74,7 @@ function get(id, now = Date.now()) {
   return { ...value };
 }
 
-function decorate(items = []) {
+function decorate(items: any[] = []) {
   return items.map((item) => ({ ...item, status: get(item.id) }));
 }
 

@@ -14,7 +14,7 @@ function auth(apiKey) {
  * @param {string} [options.method]
  * @param {*} [options.body]
  */
-function call(apiKey, path, { method = 'GET', body } = {}) {
+function call(apiKey, path, { method = 'GET', body }: { method?: string; body?: any } = {}) {
   return json(`${API}${path}`, {
     method,
     headers: {
@@ -31,7 +31,7 @@ function call(apiKey, path, { method = 'GET', body } = {}) {
  * trata todos como "não sei" — ver `cacheCheck: false` no final do arquivo.
  */
 async function checkCached() {
-  return new Set();
+  return new Set<string>();
 }
 
 const READY = 'downloaded';
@@ -45,7 +45,7 @@ const WORKING = ['magnet_conversion', 'queued', 'downloading', 'compressing', 'u
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
+async function resolveLink(apiKey, infoHash, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const add = await call(apiKey, '/torrents/addMagnet', {
     method: 'POST',
     body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
@@ -109,7 +109,7 @@ async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
  * @param {?number} [options.season]
  * @param {?number} [options.episode]
  */
-async function enqueue(apiKey, infoHash, { season, episode } = {}) {
+async function enqueue(apiKey, infoHash, { season, episode }: { season?: number | null; episode?: number | null } = {}) {
   const add = await call(apiKey, '/torrents/addMagnet', {
     method: 'POST',
     body: new URLSearchParams({ magnet: magnetFor(infoHash) }),

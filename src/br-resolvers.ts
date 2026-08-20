@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import type { Server } from 'node:http';
 import * as log from './utils/logger.js';
 
 const _require = createRequire(import.meta.url);
@@ -22,7 +23,7 @@ const RESOLVERS = [
   { name: 'nerdfilmes', path: '../nerdfilmes-resolver/server', port: 8702, siteEnv: 'NERDFILMES_URL' },
   { name: 'torrentdosfilmes', path: '../torrentdosfilmes-resolver/server', port: 8703, siteEnv: 'TORRENTDOSFILMES_URL' },
 ];
-const servers = [];
+const servers: Server[] = [];
 
 function load() {
   if (String(process.env.BR_RESOLVERS_EMBEDDED || 'true') !== 'true') {
@@ -38,7 +39,7 @@ function load() {
   };
   const host = process.env.BR_RESOLVERS_HOST || 'addon';
   const portOffset = Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0;
-  const loaded = [];
+  const loaded: string[] = [];
 
   for (const resolver of RESOLVERS) {
     const port = resolver.port + portOffset;

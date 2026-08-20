@@ -1,4 +1,5 @@
 import config from '../config.js';
+import type { MatchContext } from '../../types/domain.js';
 import * as cache from '../utils/cache.js';
 import {
   matchesBrTitle,
@@ -18,6 +19,20 @@ import { prefix } from '../utils/cache-keys.js';
 // Abaixo disso não vale abrir mais um salto de protetor de link: a requisição
 // abortaria no meio e ainda gastaria o resto do orçamento.
 const MIN_RESOLVE_BUDGET = 400;
+
+interface JackettSearchOptions {
+  /** Diagnóstico: mede a consulta de verdade, sem ler/gravar o cache bruto. */
+  noRawCache?: boolean;
+  /** Grafia arábica do numeral (plano BR: II -> 2). */
+  variantQuery?: string;
+  /** Título original como fallback (plano BR+ptQuery). */
+  fallbackQuery?: string;
+  matchContext?: MatchContext | null;
+  /** Varredura tardia: falha não conta no circuito nem pinta o card. */
+  recordStatus?: boolean;
+  /** Varredura tardia: consulta mesmo indexer com circuito aberto. */
+  ignoreBreaker?: boolean;
+}
 
 // TTL do cache de magnet resolvido (7 dias em segundos). Protetor de link não
 // altera o hash de uma release já publicada.
@@ -96,7 +111,7 @@ function dedupeResolveCandidates(items) {
  * @param {{ title?: string }} item
  * @param {{ season?: (number|null), episode?: (number|null) }} [options]
  */
-function resolveCandidateScore(item, { season = null, episode = null } = {}) {
+function resolveCandidateScore(item: { title?: string }, { season = null, episode = null }: { season?: number | null; episode?: number | null } = {}) {
   const title = item.title || '';
   const parsed = parseTitleSeasonEpisode(title);
   let score = 0;
@@ -113,14 +128,7 @@ function resolveCandidateScore(item, { season = null, episode = null } = {}) {
   return score;
 }
 
-/**
- * @param {string} indexer
- * @param {import('../../types/domain').RawItem[]} items
- * @param {string} query
- * @param {number} deadline
- * @param {import('../../types/domain').MatchContext | null} [matchContext]
- */
-async function resolveCardigannDownloads(indexer, items, query, deadline, matchContext = null) {
+async function resolveCardigannDownloads(indexer, items, query, deadline, matchContext: MatchContext | null = null) {
   if (!config.jackett.resolveDownloadIndexers.includes(indexer)) return items;
   if (remaining(deadline) <= MIN_RESOLVE_BUDGET) {
     log.warn(`[jackett] ${indexer}: sem orçamento para resolver magnets`);
@@ -224,13 +232,7 @@ function breakerTripped(indexer, now = Date.now()) {
 // abertura, não por busca; sai do set quando o indexer volta a ser consultado.
 const breakerAnnounced = new Set();
 
-/**
- * @param {string} indexer
- * @param {string} query
- * @param {string} type
- * @param {?number} [timeoutOverride]
- */
-async function queryIndexer(indexer, query, type, timeoutOverride = null, options = {}) {
+async function queryIndexer(indexer, query, type, timeoutOverride: number | null = null, options: JackettSearchOptions = {}) {
   const { url, apiKey } = config.jackett;
   const isBr = config.jackett.ptBrIndexers.includes(indexer);
 
@@ -291,7 +293,7 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null, option
   // MESMO deadline absoluto — nada de duas tentativas no ar dentro do orçamento.
   // `variantQuery` vem do plano BR (II -> 2) e `fallbackQuery` é o título original.
   const shapedSeen = [found.searchQuery];
-  const cascade = [];
+  const cascade: { q: string; label: string }[] = [];
   if (isBr && options.variantQuery) cascade.push({ q: options.variantQuery, label: 'variante numérica' });
   if (isBr && options.fallbackQuery) cascade.push({ q: options.fallbackQuery, label: 'título original' });
   for (const step of cascade) {
@@ -339,7 +341,7 @@ async function queryIndexer(indexer, query, type, timeoutOverride = null, option
  * @param {?string[]} [indexersOverride]
  * @param {object} [options]
  */
-async function search(query, type, indexersOverride = null, options = {}) {
+async function search(query, type, indexersOverride: string[] | null = null, options: JackettSearchOptions = {}) {
   // `recordStatus: false` é a varredura tardia pt-BR: uma SEGUNDA consulta
   // aos mesmos indexers. A falha dela não pode contar falha do indexer no
   // circuito (o caminho principal respondeu bem), nem a lentidão dela pintar
@@ -403,8 +405,8 @@ async function search(query, type, indexersOverride = null, options = {}) {
     activeIndexers.map((i) => queryIndexer(i, query, type, null, options)),
   );
 
-  const out = [];
-  const slow = [];
+  const out: any[] = [];
+  const slow: string[] = [];
   for (let idx = 0; idx < settled.length; idx += 1) {
     const r = settled[idx];
     if (r.status === 'fulfilled') {
@@ -468,7 +470,7 @@ async function test(indexer, query, type = 'movie') {
           [br ? 'A Casa do Dragão' : 'The Last of Us', 'series'],
         ];
   try {
-    let items = [];
+    let items: any[] = [];
     let ms = 0;
     let effective = attempts[0][0];
     let effectiveType = attempts[0][1];

@@ -31,14 +31,12 @@ const SALT = Buffer.from('stremio-adom/dk/v1', 'utf8');
 // scrypt é caro de propósito — o RESOLVE_SECRET costuma ser uma senha escolhida
 // a dedo, não 32 bytes aleatórios. Derivar a cada requisição colocaria ~100ms no
 // caminho de busca, então o resultado fica em cache por segredo.
-/** @type {{ secret: (string | null), key: (Buffer | null) }} */
-let cached = { secret: null, key: null };
+let cached: { secret: string | null; key: Buffer | null } = { secret: null, key: null };
 
-/** @returns {Buffer} */
-function keyFor(secret) {
+function keyFor(secret): Buffer {
   // Se `cached.secret === secret` (strings idênticas), o `key` correspondente já
   // foi derivado — nunca é null nesse ramo. O cast repete a garantia.
-  if (cached.secret === secret) return /** @type {Buffer} */ (cached.key);
+  if (cached.secret === secret) return cached.key as Buffer;
   const key = crypto.scryptSync(secret, SALT, 32);
   cached = { secret, key };
   return key;

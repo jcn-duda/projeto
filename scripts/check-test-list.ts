@@ -17,23 +17,34 @@ const _require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const root = path.join(__dirname, '..');
+// Rodando de dist/scripts/ os testes compilados estão em dist/test e o
+// package.json um nível acima; de scripts/, tudo mora um nível acima.
+const up = path.join(__dirname, '..');
+const buildRoot = fs.existsSync(path.join(up, 'package.json')) ? up : null;
+const root = buildRoot || path.join(up, '..'); // raiz do package.json
+const testsRoot = buildRoot || up; // raiz onde test/ tem os .test.js
 const script = _require(path.join(root, 'package.json')).scripts.test;
-const listed = new Set(script.match(/test\/[\w./-]+\.test\.js/g) || []);
+// As entradas do `npm test` apontam para dist/ (o build compila .ts → .js);
+// normaliza para o caminho relativo à raiz sem o prefixo do build.
+const listed = new Set<string>(
+  (script.match(/(?:dist\/)?test\/[\w./-]+\.test\.js/g) || []).map((p) => p.replace(/^dist\//, '')),
+);
 
 function findTests(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) return findTests(fullPath);
     if (!entry.isFile() || !entry.name.endsWith('.test.js')) return [];
-    return [path.relative(root, fullPath).split(path.sep).join('/')];
+    return [path.relative(testsRoot, fullPath).split(path.sep).join('/')];
   });
 }
 
-const found = findTests(path.join(root, 'test'));
+const found = findTests(path.join(testsRoot, 'test'));
 
 const missing = found.filter((file) => !listed.has(file));
-const stale = [...listed].filter((file) => !fs.existsSync(path.join(root, file)));
+// A fonte do teste é .ts; o .js listado só existe depois do build (em dist/).
+// Checa a existência da fonte, que é o que esta lista se propõe a cobrar.
+const stale = [...listed].filter((file) => !fs.existsSync(path.join(root, file.replace(/\.js$/, '.ts'))));
 
 if (missing.length || stale.length) {
   if (missing.length) console.error(`fora do "npm test": ${missing.join(', ')}`);

@@ -15,7 +15,7 @@ const API = 'https://www.premiumize.me/api';
  * @param {*} [options.body]
  * @param {number} [options.timeout]
  */
-async function call(apiKey, path, { method = 'GET', params = {}, body, timeout } = {}) {
+async function call(apiKey, path, { method = 'GET', params = {}, body, timeout }: { method?: string; params?: Record<string, any>; body?: any; timeout?: number } = {}) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('apikey', apiKey);
   for (const [k, v] of Object.entries(params)) {
@@ -48,7 +48,7 @@ async function call(apiKey, path, { method = 'GET', params = {}, body, timeout }
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
+async function checkCached(apiKey, infoHashes, { timeoutMs }: { timeoutMs?: number } = {}) {
   // A API aceita lote; mantemos blocos pra não montar URLs gigantes.
   return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const data = await call(apiKey, '/cache/check', {
@@ -71,7 +71,7 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
+async function resolveLink(apiKey, infoHash, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const body = new URLSearchParams({ src: magnetFor(infoHash) });
   const data = await call(apiKey, '/transfer/directdl', { method: 'POST', body });
   const file = pickFile(data.content || [], { season, episode, work });

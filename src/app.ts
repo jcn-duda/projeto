@@ -26,23 +26,25 @@ const __dirname = path.dirname(__filename);
  * handler de stream relê. Tipar o pacote inteiro — e não só `streams`, que tem
  * default no destructuring — evita que o TS infira `{ streams?: never[] }` e
  * condene o acesso aos três campos de revalidação.
- *
- * @typedef {object} StreamResultMeta
- * @property {Array<*>} [streams] Streams já filtrados e assinados.
- * @property {boolean} [partial] Coleta cortada pelo prazo da resposta.
- * @property {boolean} [needsDebridRefresh] Refresh de cache pendente no fundo.
- * @property {boolean} [debridKnown] Checagem de cache concluída com confiança.
  */
+interface StreamResultMeta {
+  /** Streams já filtrados e assinados. */
+  streams?: any[];
+  /** Coleta cortada pelo prazo da resposta. */
+  partial?: boolean;
+  /** Refresh de cache pendente no fundo. */
+  needsDebridRefresh?: boolean;
+  /** Checagem de cache concluída com confiança. */
+  debridKnown?: boolean;
+}
 
 /**
  * Quando a consulta da AllDebrid não cabe no prazo, o primeiro lote pode sair
  * como `[AD download]`; o cliente precisa perguntar de novo para pegar o cache
  * do servidor já reconstruído com ⚡. Cachear esse lote por 15 minutos tornava
  * a atualização tardia invisível mesmo quando o hash estava pronto.
- *
- * @param {StreamResultMeta} [result]
  */
-function streamsNeedRevalidation({ streams = [], partial, needsDebridRefresh, debridKnown } = {}) {
+function streamsNeedRevalidation({ streams = [], partial, needsDebridRefresh, debridKnown }: StreamResultMeta = {}) {
   return !streams.length || partial || needsDebridRefresh || debridKnown === false;
 }
 
@@ -74,9 +76,8 @@ function originOf(req) {
  * (`release`, que o `finally` devolve). União discriminada por `ok` — sem ela
  * o TS deixa `status` como `number | undefined` e `release` como possivelmente
  * ausente, porque o tipo inferido do gate é um union de dois shapes soltos.
- *
- * @typedef {{ ok: true, release: () => void } | { ok: false, status: number, error: string }} GateAdmission
  */
+type GateAdmission = { ok: true; release: () => void } | { ok: false; status: number; error: string };
 
 /**
  * Monta o app Express completo do addon sem nenhum efeito colateral (sem
@@ -203,7 +204,7 @@ function createApp() {
     // Dica de obra assinada: nomes + ano para o pickFile escolher o arquivo
     // certo dentro de pack multi-obra. Ilegível = ausente — o pickFile cai no
     // comportamento antigo (maior vídeo) em vez de falhar o play.
-    let work = null;
+    let work: { names: string[]; year: number | null; pack: boolean } | null = null;
     if (hint) {
       try {
         const parsed = JSON.parse(hint);
@@ -274,7 +275,7 @@ function createApp() {
       return res.status(503).json({ error: 'RESOLVE_SECRET não configurado' });
     }
     // `ok: true` garante o `release()` no finally; `ok: false` traz `status`.
-    const admission = /** @type {GateAdmission} */ (sealGate.enter('global'));
+    const admission = sealGate.enter('global') as GateAdmission;
     if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
 
     try {
@@ -327,7 +328,7 @@ function createApp() {
     // A stack passa pelo Caddy; limitar por req.ip trataria o proxy como se fosse
     // cada cliente. O teto é global de propósito e protege a única fila Jackett.
     // Mesma garantia do sealGate: o branch de `ok` decide o campo presente.
-    const admission = /** @type {GateAdmission} */ (diagnosticGate.enter('global'));
+    const admission = diagnosticGate.enter('global') as GateAdmission;
     if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
 
     try {

@@ -6,35 +6,31 @@
  */
 import { numeralSearchVariant, franchiseRoot } from '../utils/format.js';
 
-/**
- * @typedef {object} SearchPlanTask
+interface SearchPlanTask {
+  query: string;
+  indexers: string[];
+  /** Grafia arábica da sequência (só no indexer BR). */
+  variant?: string;
+  /** Query original como fallback (só BR+ptQuery). */
+  fallback?: string;
+}
 
-/**
- * @typedef {object} SearchPlanTask
- * @property {string} query
- * @property {string[]} indexers
- * @property {string} [variant]  Grafia arábica da sequência (Só no indexer BR).
- * @property {string} [fallback] Query original como fallback (só BR+ptQuery).
- */
-
-/**
- * @param {string} query
- * @param {?string} ptQuery
- * @param {string[]} selectedIndexers
- * @param {string[]} ptBrIndexers
- * @param {string[]} [isolateIndexers]
- * @param {?string} [sweepQuery]
- * @returns {SearchPlanTask[]}
- */
-function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isolateIndexers = [], sweepQuery = null) {
+function planJackettQueries(
+  query: string,
+  ptQuery: string | null,
+  selectedIndexers: string[],
+  ptBrIndexers: string[],
+  isolateIndexers: string[] = [],
+  sweepQuery: string | null = null,
+): SearchPlanTask[] {
   const brSet = new Set(ptBrIndexers);
   const isolateSet = new Set([...ptBrIndexers, ...isolateIndexers]);
-  const grouped = [];
-  const isolated = [];
+  const grouped: string[] = [];
+  const isolated: SearchPlanTask[] = [];
 
   for (const indexer of selectedIndexers) {
     if (isolateSet.has(indexer)) {
-      const task = {
+      const task: SearchPlanTask = {
         query: brSet.has(indexer) ? (ptQuery || query) : query,
         indexers: [indexer],
       };
@@ -55,7 +51,7 @@ function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isol
     }
   }
 
-  const plan = [];
+  const plan: SearchPlanTask[] = [];
   if (grouped.length) {
     plan.push({ query, indexers: grouped });
     if (sweepQuery && sweepQuery !== query) plan.push({ query: sweepQuery, indexers: [...grouped] });
@@ -71,7 +67,7 @@ function planJackettQueries(query, ptQuery, selectedIndexers, ptBrIndexers, isol
  * globais); tracker global é quem hospeda dublado titulado em português que a
  * query em inglês não acha.
  */
-function ptSweepIndexers(selectedIndexers, ptBrIndexers) {
+function ptSweepIndexers(selectedIndexers: string[], ptBrIndexers: string[]) {
   const brSet = new Set(ptBrIndexers);
   return selectedIndexers.filter((indexer) => !brSet.has(indexer));
 }

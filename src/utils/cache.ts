@@ -33,16 +33,16 @@ const namespaceCounts = new Map();
 // Memória é o L1; o SQLite só existe pra sobreviver ao restart do container.
 // Sem ele o addon funciona igual, só volta a esquentar do zero a cada subida.
 const DB_PATH = process.env.CACHE_DB_PATH || path.join(__dirname, '..', '..', '..', 'data', 'cache.db');
-let db = null;
-let insertStmt = null;
-let deleteStmt = null;
-let deleteExpiredStmt = null;
-let deleteStaleStmt = null;
-let deleteLegacyStmt = null;
-let selectIndexStmt = null;
-let selectValueStmt = null;
-let clearStmt = null;
-let pruneTimer = null;
+let db: any = null;
+let insertStmt: any = null;
+let deleteStmt: any = null;
+let deleteExpiredStmt: any = null;
+let deleteStaleStmt: any = null;
+let deleteLegacyStmt: any = null;
+let selectIndexStmt: any = null;
+let selectValueStmt: any = null;
+let clearStmt: any = null;
+let pruneTimer: ReturnType<typeof setInterval> | null = null;
 
 function openDatabase() {
   if (process.env.CACHE_PERSIST === 'false') return null;
@@ -131,7 +131,7 @@ function evict(keys) {
 function quotaOverflow(namespace) {
   const excess = (namespaceCounts.get(namespace) || 0) - quotaFor(namespace);
   if (excess <= 0) return [];
-  const dropped = [];
+  const dropped: any[] = [];
   // O Map é LRU global; filtrá-lo preserva a mesma ordem de recência dentro do
   // namespace sem deixar um burst de dlmag desalojar streams.
   for (const [key, entry] of store) {
@@ -169,10 +169,10 @@ function loadFromDisk() {
     // TTL longo não pode monopolizar o L1 depois do restart: cada namespace
     // recebe o próprio orçamento antes da ordem de recência ser reconstruída.
     const rows = selectIndexStmt.all();
-    const selected = [];
+    const selected: { key: any; value: any; expiresAt: number; namespace: string }[] = [];
     const selectedCounts = new Map();
-    const skipped = [];
-    const quotaSkipped = [];
+    const skipped: any[] = [];
+    const quotaSkipped: any[] = [];
     for (const row of rows) {
       const namespace = namespaceFor(row.key);
       if ((selectedCounts.get(namespace) || 0) >= quotaFor(namespace) || selected.length >= MAX_ENTRIES) {
@@ -230,7 +230,7 @@ function loadFromDisk() {
 // corrente: aceitável porque o L2 é best-effort e o passe tardio reconstrói o
 // resultado na busca seguinte.
 const pending = new Map();
-let flushScheduled = null;
+let flushScheduled: ReturnType<typeof setImmediate> | null = null;
 
 function flushPending() {
   if (!db || !insertStmt || pending.size === 0) return;
@@ -326,7 +326,7 @@ function prune() {
   // para o que passou da graça.
   const graceMs = maxGraceMs();
   // Acumula e apaga uma vez só: o disco é o caro, a memória não.
-  const dropped = [];
+  const dropped: any[] = [];
   for (const [key, hit] of store) {
     if (hit.expiresAt && now > hit.expiresAt + graceMs) {
       dropped.push(key);

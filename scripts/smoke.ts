@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-check
 /**
  * Smoke test do addon rodando. Não sobe servidor: aponta para um que já está
  * de pé, porque metade do que interessa (Jackett, TMDB, debrid) depende de
@@ -25,7 +24,7 @@ let failures = 0;
 // Em modo demo não existe fonte BR nenhuma; cobrar isso seria falso negativo.
 let isDemo = false;
 
-function ok(label, pass, detail) {
+function ok(label, pass, detail = '') {
   if (!pass) failures += 1;
   console.log(`${pass ? '  ok  ' : ' FALHA'} ${label}${detail ? ` — ${detail}` : ''}`);
 }
@@ -33,12 +32,13 @@ function ok(label, pass, detail) {
 /**
  * Resposta de uma chamada de teste: status HTTP, corpo desserializado, duração
  * e o sinal "lista incompleta, pergunte de novo" (`complete`, max-age > 0).
- * @typedef {Object} SearchResp
- * @property {number} status
- * @property {any} body
- * @property {number} ms
- * @property {boolean} complete
  */
+interface SearchResp {
+  status: number;
+  body: any;
+  ms: number;
+  complete: boolean;
+}
 
 async function get(path, timeout = 20000) {
   const started = Date.now();
@@ -113,9 +113,8 @@ async function checkSearch() {
     const [type, id, label] = entry.split('|');
     console.log(`  ${label || id}`);
 
-    const tentativas = [];
-    /** @type {SearchResp | null} */
-    let last = null;
+    const tentativas: SearchResp[] = [];
+    let last: SearchResp | null = null;
     try {
       for (let i = 0; i < MAX_TENTATIVAS; i += 1) {
         last = await get(`/stream/${type}/${id}.json`);
@@ -135,9 +134,9 @@ async function checkSearch() {
 
     // Se a 1ª chamada lançasse, o catch faria `continue` e este trecho não
     // rodaria — `last` nunca chega aqui null. O cast repete essa garantia.
-    const s = inspect(/** @type {SearchResp} */ (last).body?.streams || []);
+    const s = inspect((last as SearchResp).body?.streams || []);
     ok('  1ª resposta dentro do limite do Stremio', tentativas[0].ms < 10000, `${tentativas[0].ms}ms`);
-    ok('  chegou a uma lista completa', /** @type {SearchResp} */ (last).complete, /** @type {SearchResp} */ (last).complete ? '' : `${MAX_TENTATIVAS} tentativas`);
+    ok('  chegou a uma lista completa', (last as SearchResp).complete, (last as SearchResp).complete ? '' : `${MAX_TENTATIVAS} tentativas`);
     ok('  encontrou streams', s.total > 0);
     ok('  sem campos internos vazando', !s.vazando);
     if (s.total > 0 && !isDemo) {

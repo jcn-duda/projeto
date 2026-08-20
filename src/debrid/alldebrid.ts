@@ -22,7 +22,12 @@ const AGENT = 'stremio-adom';
  * @param {*} [options.body]
  * @param {number} [options.timeout]
  */
-async function call(apiKey, path, params = {}, { method = 'GET', body, timeout } = {}) {
+async function call(
+  apiKey,
+  path,
+  params: Record<string, any> = {},
+  { method = 'GET', body, timeout }: { method?: string; body?: any; timeout?: number } = {},
+) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('agent', AGENT);
   for (const [k, v] of Object.entries(params)) {
@@ -89,22 +94,22 @@ function knownBefore(apiKey, account) {
 
   // A promessa de inventário só existe enquanto o snapshot não termina; o
   // hashes carregado (ou null em caso de falha) é o que a checagem consulta.
-  /** @type {{ hashes: (Set<string>|null), promise?: Promise<(Set<string>|null)> }} */
-  const loading = { hashes: null };
+  const loading: { hashes: Set<string> | null; promise?: Promise<Set<string> | null> } = { hashes: null };
   preexisting.set(account, loading);
   loading.promise = call(apiKey, '/magnet/status')
     .then((data) => {
       const list = Array.isArray(data?.magnets) ? data.magnets : [];
-      const snapshot = new Set(list.map((m) => String(m.hash || '').toLowerCase()));
+      const snapshot = new Set<string>(list.map((m) => String(m.hash || '').toLowerCase()));
       const ours = submitted.get(account);
-      loading.hashes = ours?.size
+      const merged = ours?.size
         ? new Set([...snapshot].filter((hash) => !ours.has(hash)))
         : snapshot;
+      loading.hashes = merged;
       log.info(
-        `[alldebrid] ${loading.hashes.size} magnet(s) preexistente(s) na conta ficam protegidos da limpeza` +
-          (ours?.size ? ` (${snapshot.size - loading.hashes.size} subido(s) pelo addon)` : ''),
+        `[alldebrid] ${merged.size} magnet(s) preexistente(s) na conta ficam protegidos da limpeza` +
+          (ours?.size ? ` (${snapshot.size - merged.size} subido(s) pelo addon)` : ''),
       );
-      return loading.hashes;
+      return merged;
     })
     .catch((err) => {
       // Sem inventário não há o que proteger: a limpeza dos prontos continua
@@ -133,7 +138,7 @@ function warmInventory(apiKey) {
 const DROP_CONCURRENCY = 4;
 
 async function dropMagnets(apiKey, ids) {
-  const falhas = [];
+  const falhas: any[] = [];
   let ok = 0;
   const alvo = [...ids];
   const worker = async () => {
@@ -222,8 +227,8 @@ async function sweepDead(apiKey, { minAgeMs = config.debrid.sweepDeadMinAgeMs } 
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
-  const drop = [];
+async function checkCached(apiKey, infoHashes, { timeoutMs }: { timeoutMs?: number } = {}) {
+  const drop: any[] = [];
   const account = accountScope(apiKey);
   const hadInventory = preexisting.has(account);
   let preexistentes = config.debrid.dropReady ? knownBefore(apiKey, account) : null;
@@ -244,7 +249,7 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
       { 'magnets[]': batch },
       { timeout: ctx?.timeoutMs ?? config.debrid.cacheCheckTimeout },
     );
-    const ready = [];
+    const ready: string[] = [];
     for (const magnet of data?.magnets || []) {
       const hash = String(magnet.hash || '').toLowerCase();
       rememberSubmitted(account, hash);
@@ -287,7 +292,7 @@ async function checkCached(apiKey, infoHashes, { timeoutMs } = {}) {
  * `e` são as entradas de uma pasta, e a folha traz `s` (tamanho) e `l` (link).
  */
 function flattenFiles(nodes, prefix = '') {
-  const out = [];
+  const out: any[] = [];
   for (const node of nodes || []) {
     const path = prefix ? `${prefix}/${node.n}` : node.n;
     if (Array.isArray(node.e)) {
@@ -307,7 +312,7 @@ function flattenFiles(nodes, prefix = '') {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
+async function resolveLink(apiKey, infoHash, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const account = accountScope(apiKey);
   const upload = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
   const magnet = (upload?.magnets || [])[0];
@@ -413,7 +418,7 @@ async function accountStatus(apiKey) {
 async function inventory(apiKey) {
   const data = await call(apiKey, '/magnet/status');
   const list = Array.isArray(data?.magnets) ? data.magnets : [];
-  const out = [];
+  const out: any[] = [];
   for (const magnet of list) {
     // Mesmo critério de "pronto" do accountStatus: `ready` ou status Ready.
     if (!(magnet.ready || /^ready$/i.test(String(magnet.status || '')))) continue;

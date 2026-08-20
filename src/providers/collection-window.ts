@@ -2,26 +2,22 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)).unref());
 }
 
-/**
- * @typedef {object} CollectWindowOptions
- * @property {number} [budgetMs]
- * @property {number} [priorityGraceMs]
- * @property {boolean} [graceRequiresItems]
- * @property {(items: Array<*>) => boolean} [isPriority]
- * @property {(err: *) => void} [onError]
- * @property {(batch: Array<*>, items: Array<*>, meta: { priority?: boolean }) => void} [onBatch]
- * @property {(ms: number) => Promise<*>} [delay]
- */
+interface CollectWindowOptions {
+  budgetMs?: number;
+  priorityGraceMs?: number;
+  graceRequiresItems?: boolean;
+  isPriority?: (items: any[]) => boolean;
+  onError?: (err: any) => void;
+  onBatch?: (batch: any[], items: any[], meta: { priority?: boolean }) => void;
+  delay?: (ms: number) => Promise<unknown>;
+}
 
 /**
  * Coleta providers até o orçamento normal. Se só chegaram fontes globais,
  * concede uma janela curta para a primeira fonte BR: o cliente exibe a primeira
  * resposta e nem toda UI repete a chamada marcada como parcial.
- *
- * @param {Array<{ promise: *, priority?: boolean }>} tasks
- * @param {CollectWindowOptions} [options]
  */
-async function collectWithinWindow(tasks, {
+async function collectWithinWindow(tasks: { promise: Promise<any>; priority?: boolean }[], {
   budgetMs,
   priorityGraceMs = 0,
   // Quem tem fallback de balde vazio (série → pack) não pode gastar a graça
@@ -32,8 +28,8 @@ async function collectWithinWindow(tasks, {
   onError = () => {},
   onBatch = () => {},
   delay = wait,
-} = {}) {
-  const items = [];
+}: CollectWindowOptions = {}) {
+  const items: any[] = [];
   let done = false;
   let prioritySeen = false;
   let pendingPriority = tasks.filter((task) => task.priority).length;
@@ -63,7 +59,7 @@ async function collectWithinWindow(tasks, {
 
   // `budgetMs` é obrigatório na prática; o default `{}` só existe para chamadas
   // vazias. O cast reflete que todo chamador real fornece o número.
-  await Promise.race([completion, delay(/** @type {number} */ (budgetMs))]);
+  await Promise.race([completion, delay(budgetMs as number)]);
   if (
     !done && !prioritySeen && pendingPriority > 0 && priorityGraceMs > 0 &&
     (!graceRequiresItems || items.length > 0)

@@ -8,6 +8,7 @@
     "allowJs": true,
     "checkJs": false,
     "strictNullChecks": true,
+    "noEmitOnError": true,
     "noImplicitAny": false,
     "useUnknownInCatchVariables": false,
     "skipLibCheck": true,

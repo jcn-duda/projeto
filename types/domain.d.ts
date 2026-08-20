@@ -181,8 +181,8 @@ export interface DebridAdapter {
 export interface MatchContext {
   /** Todos os nomes conhecidos da obra (título original + pt + alias). */
   names: string[];
-  /** Ano de catálogo (primeiro token de 4 dígitos), ou null. */
-  year: number | null;
+  /** Ano de catálogo como veio do metadata (pode trazer sufixo, ex. "2024–"). */
+  year: number | string | null;
   isSeries: boolean;
   season: number | null;
   episode: number | null;

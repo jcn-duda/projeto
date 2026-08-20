@@ -26,11 +26,11 @@ function parseSize(text) {
   const m = String(text).match(/([\d.,]+)\s*(TB|GB|MB|KB)/i);
   if (!m) return null;
   const value = Number(m[1].replace(',', '.'));
-  const mult = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[m[2].toUpperCase()];
+  const mult = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[m[2].toUpperCase()] as number;
   return Number.isFinite(value) ? Math.round(value * mult) : null;
 }
 
-async function get(url, referer) {
+async function get(url, referer = '') {
   const res = await fetch(url, {
     redirect: 'follow',
     headers: {
@@ -46,7 +46,7 @@ async function get(url, referer) {
 
 /** Cards da página de busca: div.post > div.title > a[href] */
 function parsePosts(html) {
-  const posts = [];
+  const posts: { url: string; title: string }[] = [];
   const re = /<div class="post">[\s\S]*?<div class="title">\s*<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
   let m;
   while ((m = re.exec(html))) {
@@ -61,7 +61,7 @@ function parsePosts(html) {
  * separados só por um cabeçalho — sem isso, release legendada entra como dublada.
  */
 function parseDownloadLinks(html) {
-  const out = [];
+  const out: { url: string; label: string; size: string | null; audio: string }[] = [];
   let audio = 'desconhecido';
   let cursor = 0;
 

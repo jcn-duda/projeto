@@ -11,7 +11,7 @@ const API = 'https://debrid-link.com/api/v2';
  * @param {*} [options.body]
  * @param {Object} [options.params]
  */
-async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
+async function call(apiKey, path, { method = 'GET', body, params = {} }: { method?: string; body?: any; params?: Record<string, any> } = {}) {
   const url = new URL(`${API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
@@ -34,7 +34,7 @@ async function call(apiKey, path, { method = 'GET', body, params = {} } = {}) {
  * "não sei" e deixamos o orquestrador decidir.
  */
 async function checkCached() {
-  return new Set();
+  return new Set<string>();
 }
 
 /**
@@ -45,7 +45,7 @@ async function checkCached() {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey, infoHash, { season, episode, work } = {}) {
+async function resolveLink(apiKey, infoHash, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const added = await call(apiKey, '/seedbox/add', {
     method: 'POST',
     body: new URLSearchParams({ url: magnetFor(infoHash), async: 'true' }),

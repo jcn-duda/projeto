@@ -5,7 +5,7 @@
   "description": "Addon Stremio self-hosted: torrents via Jackett/Prowlarr + Docker",
   "main": "dist/src/addon.js",
   "scripts": {
-    "build": "node -e \"try{require('child_process').execSync('tsc',{stdio:'inherit'})}catch(e){}const fs=require('fs');['src/public','test/fixtures','jackett-bludv'].forEach(d=>{if(fs.existsSync(d)){const dd='dist/'+d;fs.mkdirSync(dd,{recursive:true});fs.cpSync(d,dd,{recursive:true})}});['bludv-resolver','comandotorrents-resolver','nerdfilmes-resolver','torrentdosfilmes-resolver'].forEach(d=>{if(fs.existsSync(d)){const dd='dist/'+d;fs.mkdirSync(dd,{recursive:true});fs.cpSync(d,dd,{recursive:true})}})\"",
+    "build": "node -e \"require('child_process').execSync('tsc',{stdio:'inherit'});const fs=require('fs');['src/public','test/fixtures','jackett-bludv'].forEach(d=>{if(fs.existsSync(d)){const dd='dist/'+d;fs.mkdirSync(dd,{recursive:true});fs.cpSync(d,dd,{recursive:true})}});['bludv-resolver','comandotorrents-resolver','nerdfilmes-resolver','torrentdosfilmes-resolver'].forEach(d=>{if(fs.existsSync(d)){const dd='dist/'+d;fs.mkdirSync(dd,{recursive:true});fs.cpSync(d,dd,{recursive:true})}})\"",
     "start": "node dist/src/addon.js",
     "dev": "tsc && node --watch dist/src/addon.js",
     "smoke": "node dist/scripts/smoke.js",

@@ -1,58 +1,53 @@
 import { priorityMap, compareIndexerPriority } from './indexer-priority.js';
 import config from '../config.js';
+import type { RawItem, Stream, ParsedSeasonEpisode, DebridAdapter } from '../../types/domain.js';
 
 // Tamanho <= 1 KB é o sentinela de "desconhecido" dos indexers BR (ver
 // UNKNOWN_SIZE nos resolvedores), não um torrent de verdade.
 
-/**
- * @typedef {object} StreamDisplayOptions
- * @property {string} [title]
- * @property {string} [quality]
- * @property {string} [audio]
- * @property {string} [source]
- * @property {string} [edition]
- * @property {string} [tracker]
- * @property {boolean} [isBr]
- * @property {number} [seeders]
- * @property {string} [style]
- * @property {boolean} [showSource]
- */
+interface StreamDisplayOptions {
+  title?: string;
+  quality?: string;
+  audio?: string;
+  source?: string;
+  edition?: string;
+  tracker?: string;
+  isBr?: boolean;
+  seeders?: number;
+  style?: string;
+  showSource?: boolean;
+}
 
-/**
- * @typedef {object} MatchOptions
- * @property {string[]} [names]
- * @property {?(number|string)} [year]
- * @property {boolean} [isSeries]
- * @property {?number} [season]
- * @property {?number} [episode]
- * @property {?string[]} [allNames]
- * @property {?string[]} [tokens]
- * @property {?string[]} [universeTokens]
- */
+interface MatchOptions {
+  names?: string[];
+  year?: number | string | null;
+  isSeries?: boolean;
+  season?: number | null;
+  episode?: number | null;
+  allNames?: string[] | null;
+  tokens?: string[] | null;
+  universeTokens?: string[] | null;
+}
 
-/**
- * @typedef {object} PoolsOptions
- * @property {?number} [season]
- * @property {number} [minSeeders]
- */
+interface PoolsOptions {
+  season?: number | null;
+  minSeeders?: number;
+}
 
-/**
- * @typedef {object} AutofetchOptions
- * @property {boolean} [autoFetchBr]
- */
+interface AutofetchOptions {
+  autoFetchBr?: boolean;
+}
 
-/**
- * @typedef {object} SearchNamesOptions
- * @property {?{ name?: ?string, year?: ?(number|string), title?: string }} [meta]
- * @property {?{ original?: ?string, pt?: ?string, year?: ?(number|string) }} [titles]
- * @property {?string} [imdbId]
- */
+interface SearchNamesOptions {
+  meta?: { name?: string | null; title?: string; year?: number | string | null } | null;
+  titles?: { original?: string | null; pt?: string | null; year?: number | string | null } | null;
+  imdbId?: string | null;
+}
 
-/**
- * @typedef {object} SeasonEpisodeOptions
- * @property {?number} [season]
- * @property {?number} [episode]
- */
+interface SeasonEpisodeOptions {
+  season?: number | null;
+  episode?: number | null;
+}
 
 const UNKNOWN_SIZE_MAX = 1024;
 
@@ -315,7 +310,6 @@ function compactTracker(tracker = '') {
  * `STREAM_NAME_STYLE=full` devolve o comportamento antigo para quem depende de
  * um cliente que ignora o `title`.
  *
- * @param {StreamDisplayOptions} [options]
  */
 function streamDisplayName({
   title = '',
@@ -328,7 +322,7 @@ function streamDisplayName({
   seeders = 0,
   style = config.streamNameStyle,
   showSource = config.streamNameShowSource,
-} = {}) {
+}: StreamDisplayOptions = {}) {
   // A ordem é a da decisão: primeiro a resolução, depois QUAL corte do filme é,
   // depois de onde veio. Sem corte e fonte, quatro releases 4K do mesmo filme
   // saíam com a linha idêntica e a escolha virava sorteio pelo seed.
@@ -399,14 +393,12 @@ function passesQualityFilter(stream, filters, qualityLimits = {}) {
 /**
  * Normaliza resultados de Jackett/Prowlarr/demo para o formato do Stremio.
  *
- * É a FÁBRICA do que chega ao cliente: o `@returns` faz o typecheck cobrar aqui
- * a união do `Stream` (todo item precisa de ação — `url`, `infoHash`,
- * `externalUrl` ou a marca `notice`), na origem e não na tela.
- * @param {import('../../types/domain').RawItem} item
- * @returns {import('../../types/domain').Stream | null} `null` quando o item não
- *   tem infoHash extraível — não há o que tocar.
+ * É a FÁBRICA do que chega ao cliente: o tipo de retorno faz o typecheck cobrar
+ * aqui a união do `Stream` (todo item precisa de ação — `url`, `infoHash`,
+ * `externalUrl` ou a marca `notice`), na origem e não na tela. Devolve `null`
+ * quando o item não tem infoHash extraível — não há o que tocar.
  */
-function toStremioStream(item) {
+function toStremioStream(item: RawItem): Stream | null {
   const infoHash = extractInfoHash(item.infoHash || item.magnet || item.MagnetUri || item.Guid);
   if (!infoHash) return null;
 
@@ -507,11 +499,8 @@ function normalizeTitle(s = '') {
  *   York" e "Homem-Aranha: Um Novo Dia". As seis vagas reservadas iam para o
  *   lixo e empurravam pra fora a fonte dublada correta.
  *
- * @param {string} title
- * @param {string} name
- * @param {?string[]} [tokens]
  */
-function matchesName(title, name, tokens = null) {
+function matchesName(title: string, name: string, tokens: string[] | null = null) {
   const all = normalizeTitle(name).split(' ').filter(Boolean);
   // Palavra de 1-2 letras costuma ser ruído ("o", "de", "a"). Mas quando sobra
   // menos de dois tokens, ela É o título: aí vale mais que o ruído que evita.
@@ -670,7 +659,7 @@ function titlePrecision(tokens, wanted) {
  * RedeTorrent, o marcador vem antes do nome e costuma se repetir depois dele.
  */
 function episodeWorkTokens(tokens) {
-  const markers = [];
+  const markers: number[] = [];
   for (let i = 0; i < tokens.length; i += 1) {
     if (
       /^(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3})$/.test(tokens[i]) ||
@@ -691,13 +680,12 @@ function episodeWorkTokens(tokens) {
   return tokens.slice(1, end);
 }
 
-/**
- * @param {string} title
- * @param {?string[]} allNames
- * @param {?string[]} [tokens]
- * @param {?string[]} [universeTokens]
- */
-function matchesEpisodeWorkIdentity(title, allNames, tokens = null, universeTokens = null) {
+function matchesEpisodeWorkIdentity(
+  title: string,
+  allNames: string[] | null,
+  tokens: string[] | null = null,
+  universeTokens: string[] | null = null,
+) {
   if (!allNames?.length) return true;
   // `tokens`/`universeTokens` opcionais: o mesmo título passa por várias
   // funções no filtro em lote e cada uma renormalizava a string.
@@ -715,12 +703,13 @@ function matchesEpisodeWorkIdentity(title, allNames, tokens = null, universeToke
  * "Scary Movie 2" e "Titanic 2000 (Scary Sexy Disaster Movie)" não são o
  * "Scary Movie" de 2000 só porque contêm todos os tokens da busca.
  *
- * @param {string} title
- * @param {string} name
- * @param {?(number|string)} [year]
- * @param {{ isSeries?: boolean, tokens?: ?string[] }} [options]
  */
-function matchesTitleStructure(title, name, year = null, { isSeries = false, tokens = null } = {}) {
+function matchesTitleStructure(
+  title: string,
+  name: string,
+  year: number | string | null = null,
+  { isSeries = false, tokens = null }: { isSeries?: boolean; tokens?: string[] | null } = {},
+) {
   // `tokens` opcionais pelo mesmo motivo do matchesName: chamada em lote já
   // trouxe o título normalizado.
   const own = tokens || normalizeTitle(title).split(' ').filter(Boolean);
@@ -756,16 +745,23 @@ function matchesTitleStructure(title, name, year = null, { isSeries = false, tok
 }
 
 /**
- * @param {string} title
- * @param {string} name
- * @param {?(number|string)} [year]
- * @param {object} [options]
- * @param {boolean} [options.isSeries]
- * @param {?string[]} [options.allNames]
- * @param {?string[]} [options.tokens]
- * @param {?string[]} [options.universeTokens]
  */
-function matchesBrTitle(title, name, year = null, { isSeries = false, allNames = null, tokens = null, universeTokens = null } = {}) {
+function matchesBrTitle(
+  title: string,
+  name: string,
+  year: number | string | null = null,
+  {
+    isSeries = false,
+    allNames = null,
+    tokens = null,
+    universeTokens = null,
+  }: {
+    isSeries?: boolean;
+    allNames?: string[] | null;
+    tokens?: string[] | null;
+    universeTokens?: string[] | null;
+  } = {},
+) {
   if (!matchesName(title, name, tokens)) return false;
   const own = tokens || normalizeTitle(title).split(' ').filter(Boolean);
 
@@ -869,8 +865,8 @@ function franchiseRoot(title) {
 }
 
 /** Raízes de franquia normalizadas de todos os nomes conhecidos da obra. */
-function franchiseRoots(names = []) {
-  const roots = new Set();
+function franchiseRoots(names: string[] = []): string[] {
+  const roots = new Set<string>();
   for (const name of names) {
     const normalized = normalizeTitle(franchiseRoot(name)).split(' ').filter(Boolean).join(' ');
     if (normalized) roots.add(normalized);
@@ -903,10 +899,11 @@ function containsTokenRun(title, normalizedRoot) {
  * assim no corte por episódio, e temporada inteira já passa pelo caminho
  * normal ("Lost Girl (2010) S01-S05").
  *
- * @param {import('../../types/domain').RawItem[]} [items]
- * @param {MatchOptions} [options]
  */
-function filterInventoryRelevant(items = [], { names = [], season = null, ...matchContext } = {}) {
+function filterInventoryRelevant(
+  items: RawItem[] = [],
+  { names = [], season = null, ...matchContext }: MatchOptions = {},
+) {
   if (!names.length) return [];
   const direct = filterRelevantRaw(items, { names, season, ...matchContext });
   if (season != null) return direct;
@@ -927,12 +924,10 @@ function filterInventoryRelevant(items = [], { names = [], season = null, ...mat
  * Usar uma função só impede o fallback de discordar do que buildStreams vai
  * descartar alguns milissegundos depois.
  *
- * @param {import('../../types/domain').RawItem[]} [items]
- * @param {MatchOptions} [options]
  */
 function filterRelevantRaw(
-  items = [],
-  { names = [], year = null, isSeries = false, season = null, episode = null } = {},
+  items: RawItem[] = [],
+  { names = [], year = null, isSeries = false, season = null, episode = null }: MatchOptions = {},
 ) {
   if (!names.length) return items;
   // Hot path: os tokens do título e o universo de allNames dependem só de
@@ -973,16 +968,15 @@ function filterRelevantRaw(
  * indexers usam de fato: "S01E04", "S01E01-E10", "1x04", "S01" (pack) e as
  * variações pt-BR dos sites BR ("1ª Temporada", "Temporada 1", "Episódio 4").
  *
- * O `@returns` trava o CONTRATO: acrescentar ou tirar campo daqui sem mexer no
- * typedef vira erro na hora. Foi assim que `seasonPack` quebrou oito `deepEqual`
- * de uma vez — o teste só acusou depois de rodar a suíte inteira.
- * @returns {import('../../types/domain').ParsedSeasonEpisode}
+ * O tipo de retorno trava o CONTRATO: acrescentar ou tirar campo daqui sem
+ * mexer na interface vira erro na hora. Foi assim que `seasonPack` quebrou oito
+ * `deepEqual` de uma vez — o teste só acusou depois de rodar a suíte inteira.
  */
-function parseTitleSeasonEpisode(title = '') {
+function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
   const raw = String(title);
   const t = normalizeTitle(title);
-  const seasons = new Set();
-  const episodes = new Set();
+  const seasons = new Set<number>();
+  const episodes = new Set<number>();
 
   // "s01e04", "s01 e04", "s01e01 e10" (intervalo), "s01e01e02"
   for (const m of t.matchAll(/s(\d{1,2})((?:\s?e\s?\d{1,3})+)/g)) {
@@ -1099,10 +1093,8 @@ function parseTitleSeasonEpisode(title = '') {
  * Pack de temporada (sem episódio no título) continua valendo: é dele que o
  * debrid tira o arquivo certo, e é o formato que as fontes BR publicam.
  *
- * @param {string} title
- * @param {SeasonEpisodeOptions} [options]
  */
-function matchesEpisode(title, { season, episode } = {}) {
+function matchesEpisode(title: string, { season, episode }: SeasonEpisodeOptions = {}) {
   if (season == null || episode == null) return true;
   const { seasons, episodes, complete } = parseTitleSeasonEpisode(title);
 
@@ -1230,23 +1222,19 @@ function selectQualityCandidates(
   const customSet = new Set(custom);
   // Os mapas abaixo são populados para TODA qualidade de `custom` na criação,
   // então `.get(quality)` nunca devolve undefined quando `quality` pertence a
-  // `custom`. O strictNullChecks não enxerga esse invariante; os casts de
-  // `/** @type */` documentam a garantia sem mudar runtime.
-  /** @type {Map<string, import('../../types/domain').Stream[]>} */
-  const buckets = new Map(custom.map((quality) => [quality, []]));
+  // `custom`. O strictNullChecks não enxerga esse invariante; os casts
+  // documentam a garantia sem mudar runtime.
+  const buckets = new Map<string, Stream[]>(custom.map((quality) => [quality, []]));
   for (const stream of streams) {
     const bucket = buckets.get(streamQuality(stream));
     if (bucket) bucket.push(stream);
   }
 
   const selected = new Set();
-  /** @type {Map<string, number>} */
-  const positions = new Map(custom.map((quality) => [quality, 0]));
-  /** @type {Map<string, number>} */
-  const counts = new Map(custom.map((quality) => [quality, 0]));
+  const positions = new Map<string, number>(custom.map((quality) => [quality, 0]));
+  const counts = new Map<string, number>(custom.map((quality) => [quality, 0]));
   const factor = Math.max(1, Math.trunc(candidateFactor));
-  /** @type {Map<string, number>} */
-  const targets = new Map(
+  const targets = new Map<string, number>(
     custom.map((quality) => [
       quality,
       Math.max(0, Math.trunc(Number(qualityLimits[quality]) || 0)) * factor,
@@ -1262,9 +1250,9 @@ function selectQualityCandidates(
     if (!stream._br) continue;
     const quality = streamQuality(stream);
     if (customSet.has(quality) &&
-      /** @type {number} */ (counts.get(quality)) >= /** @type {number} */ (targets.get(quality))) continue;
+      (counts.get(quality) as number) >= (targets.get(quality) as number)) continue;
     selected.add(stream);
-    if (customSet.has(quality)) counts.set(quality, /** @type {number} */ (counts.get(quality)) + 1);
+    if (customSet.has(quality)) counts.set(quality, (counts.get(quality) as number) + 1);
   }
 
   // Round-robin evita que a primeira qualidade consuma todo o pool quando a
@@ -1273,15 +1261,15 @@ function selectQualityCandidates(
   while (selected.size < poolSize && progressed) {
     progressed = false;
     for (const quality of custom) {
-      const bucket = /** @type {import('../../types/domain').Stream[]} */ (buckets.get(quality));
-      let position = /** @type {number} */ (positions.get(quality));
+      const bucket = buckets.get(quality) as Stream[];
+      let position = positions.get(quality) as number;
       while (position < bucket.length && selected.has(bucket[position])) position += 1;
       positions.set(quality, position);
-      if (/** @type {number} */ (counts.get(quality)) >= /** @type {number} */ (targets.get(quality)) ||
+      if ((counts.get(quality) as number) >= (targets.get(quality) as number) ||
         position >= bucket.length) continue;
       selected.add(bucket[position]);
       positions.set(quality, position + 1);
-      counts.set(quality, /** @type {number} */ (counts.get(quality)) + 1);
+      counts.set(quality, (counts.get(quality) as number) + 1);
       progressed = true;
       if (selected.size >= poolSize) break;
     }
@@ -1433,10 +1421,8 @@ const DUBBED_QUALITY_WEIGHT = {
  *   candidato tiver a marca: é o padrão dos sites BR ("Nome (2026) [opção 3]"),
  *   mas um "LEGENDADO" explícito nunca é tratado como dublado.
  *
- * @param {import('../../types/domain').Stream[]} [streams]
- * @param {PoolsOptions} [options]
  */
-function brDubbedPool(streams = [], { season } = {}) {
+function brDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
   const br = streams.filter(
     (s) => s && s.infoHash && s._br && sourceFromTitle(s.title || s.name || '') !== 'CAM',
   );
@@ -1483,10 +1469,8 @@ function brDubbedPool(streams = [], { season } = {}) {
  * pediu. (BR elegível aqui é impossível na prática: se existisse, o pool BR
  * já teria sido escolhido no lugar deste.)
  *
- * @param {import('../../types/domain').Stream[]} [streams]
- * @param {PoolsOptions} [options]
  */
-function anyDubbedPool(streams = [], { season } = {}) {
+function anyDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
   const candidates = streams.filter(
     (s) => s && s.infoHash && s._dubbed && sourceFromTitle(s.title || s.name || '') !== 'CAM',
   );
@@ -1509,10 +1493,8 @@ function anyDubbedPool(streams = [], { season } = {}) {
 /**
  * Pool de segurança: prioriza o swarm, não a resolução, para o download terminar.
  *
- * @param {import('../../types/domain').Stream[]} [streams]
- * @param {PoolsOptions} [options]
  */
-function topSeededPool(streams = [], { season, minSeeders = 0 } = {}) {
+function topSeededPool(streams: Stream[] = [], { season, minSeeders = 0 }: PoolsOptions = {}) {
   const seedersOf = (s) => Number(s?._seeders ?? (String(s?.name || '').match(/👤\s*(\d+)/)?.[1] || 0));
   const candidates = streams.filter((s) =>
     s && s.infoHash && sourceFromTitle(s.title || s.name || '') !== 'CAM' &&
@@ -1551,12 +1533,12 @@ function hashSet(hashes) {
  * - pula hashes já em cache — não há o que baixar para eles;
  * - no máximo `limit` candidatos.
  */
-function pickFromPool(pool = [], cachedHashes = new Set(), limit = 1) {
+function pickFromPool(pool: Stream[] = [], cachedHashes = new Set(), limit = 1) {
   const max = Math.max(0, Math.trunc(Number(limit) || 0));
   if (max === 0) return [];
   const cached = hashSet(cachedHashes);
   const seen = new Set();
-  const out = [];
+  const out: Stream[] = [];
   for (const stream of pool) {
     if (!stream || !stream.infoHash) continue;
     const key = String(stream.infoHash).toLowerCase();
@@ -1572,35 +1554,31 @@ function pickFromPool(pool = [], cachedHashes = new Set(), limit = 1) {
  * Melhores candidatos BR dublados para o autofetch: o pool brDubbedPool já
  * ordena por marca de áudio, resolução e seeders.
  */
-function pickBrDubbedCandidates(streams = [], cachedHashes = new Set(), limit = 1, options = {}) {
+function pickBrDubbedCandidates(streams: Stream[] = [], cachedHashes = new Set(), limit = 1, options: PoolsOptions = {}) {
   return pickFromPool(brDubbedPool(streams, options), cachedHashes, limit);
 }
 
 /** Compatibilidade: o melhor candidato BR dublado, sem olhar cache. */
-function pickBrDubbedCandidate(streams = [], cachedHashes = new Set()) {
+function pickBrDubbedCandidate(streams: Stream[] = [], cachedHashes = new Set()) {
   return pickBrDubbedCandidates(streams, cachedHashes, 1)[0] || null;
 }
 
 /** Candidatos do fallback global: mesmas regras do pick BR, sobre anyDubbedPool. */
-function pickAnyDubbedCandidates(streams = [], cachedHashes = new Set(), limit = 1, options = {}) {
+function pickAnyDubbedCandidates(streams: Stream[] = [], cachedHashes = new Set(), limit = 1, options: PoolsOptions = {}) {
   return pickFromPool(anyDubbedPool(streams, options), cachedHashes, limit);
 }
 
-function pickTopSeededCandidates(streams = [], cachedHashes = new Set(), limit = 1, options = {}) {
+function pickTopSeededCandidates(streams: Stream[] = [], cachedHashes = new Set(), limit = 1, options: PoolsOptions = {}) {
   return pickFromPool(topSeededPool(streams, options), cachedHashes, limit);
 }
 
 /** Já existe fonte BR dublada tocável na hora? Então não há o que baixar. */
-function hasCachedBrDubbed(streams = [], cachedHashes = new Set()) {
+function hasCachedBrDubbed(streams: Stream[] = [], cachedHashes = new Set()) {
   const cached = hashSet(cachedHashes);
   return brDubbedPool(streams).some((s) => cached.has(String(s.infoHash || '').toLowerCase()));
 }
 
-/**
- * @param {AutofetchOptions} [options]
- * @param {import('../../types/domain').DebridAdapter | null} [adapter]
- */
-function canAutoFetchBr({ autoFetchBr } = {}, adapter) {
+function canAutoFetchBr({ autoFetchBr }: AutofetchOptions = {}, adapter?: DebridAdapter | null) {
   // cachedOnly não é mais trava: o objetivo do autofetch é justamente esquentar
   // o cache quando não há BR dublada pronta, independente do modo. As travas
   // reais são o toggle, o cacheCheck confiável e a checagem de cache conhecida.
@@ -1612,7 +1590,7 @@ function canAutoFetchBr({ autoFetchBr } = {}, adapter) {
  * mas as vagas reservadas BR não viram um vazio quando o dublado ainda não
  * chegou ao debrid. O stream fica como torrent P2P, sem selo ⚡.
  */
-function uncachedBrHashes(streams = [], cachedHashes = new Set(), limit = 0) {
+function uncachedBrHashes(streams: Stream[] = [], cachedHashes = new Set(), limit = 0) {
   const selected = new Set();
   const max = Math.max(0, Math.trunc(Number(limit) || 0));
   // Mesmo pool do autofetch: a vaga P2P tem que ser o torrent que vamos baixar,
@@ -1624,7 +1602,7 @@ function uncachedBrHashes(streams = [], cachedHashes = new Set(), limit = 0) {
   return selected;
 }
 
-function filterKnownCache(streams = [], cachedHashes = new Set(), {
+function filterKnownCache(streams: Stream[] = [], cachedHashes = new Set(), {
   cachedOnly = true,
   showUncachedBr = false,
   brReservedSlots = 0,
@@ -1646,7 +1624,7 @@ function filterKnownCache(streams = [], cachedHashes = new Set(), {
 
 /** Reserva origem BR, aplica as cotas finais e remove todos os campos internos. */
 function limitReservingBr(
-  streams,
+  streams: Stream[],
   {
     brReservedSlots = 0,
     maxResults = 40,
@@ -1721,7 +1699,7 @@ function limitReservingBr(
 }
 
 function sortAndLimit(
-  streams,
+  streams: (Stream | null)[],
   {
     minSeeders = 0,
     maxResults = 40,
@@ -1814,10 +1792,12 @@ function sortAndLimit(
  * `name` prefere o título ORIGINAL: é o que os indexadores globais publicam.
  * O pt-BR tem query própria (`ptQuery`) e entra em `names` de qualquer forma.
  *
- * @param {SearchNamesOptions} [options]
- * @returns {{ name: string, year: (number|string|null), names: string[] }}
  */
-function resolveSearchNames({ meta, titles, imdbId } = {}) {
+function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): {
+  name: string;
+  year: number | string | null;
+  names: string[];
+} {
   const fallback = titles?.original || titles?.pt;
   return {
     name: meta?.name || fallback || imdbId || '',
@@ -1825,7 +1805,7 @@ function resolveSearchNames({ meta, titles, imdbId } = {}) {
     // `.filter(Boolean)` remove null/undefined/'' do array de nome; o cast
     // torna explícito o que o filtro já garante no runtime (só strings não
     // vazias sobram) para o consumidor `matchContext.names: string[]`.
-    names: /** @type {string[]} */ ([meta?.name, titles?.pt, titles?.original].filter(Boolean)),
+    names: [meta?.name, titles?.pt, titles?.original].filter(Boolean) as string[],
   };
 }
 
@@ -1839,11 +1819,10 @@ function parseStremioId(id) {
   };
 }
 
-/**
- * @param {{ name?: ?string, title?: ?string, year?: ?(number|string) }} [meta]
- * @param {SeasonEpisodeOptions} [options]
- */
-function buildSearchQuery(meta, { season, episode } = {}) {
+function buildSearchQuery(
+  meta: { name?: string | null; title?: string | null; year?: number | string | null } | null | undefined,
+  { season, episode }: SeasonEpisodeOptions = {},
+) {
   const name = meta?.name || meta?.title || '';
   const year = meta?.year ? String(meta.year).slice(0, 4) : '';
   if (season != null && episode != null) {
