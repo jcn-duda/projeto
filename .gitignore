@@ -16,3 +16,5 @@ prowlarr-config/
 .vscode/
 .kilo/
 .agents/
+# Configuração local de ferramenta de agente (mesmo critério de .kilo/.agents).
+.claude/
