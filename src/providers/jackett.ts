@@ -32,6 +32,8 @@ interface JackettSearchOptions {
   recordStatus?: boolean;
   /** Varredura tardia: consulta mesmo indexer com circuito aberto. */
   ignoreBreaker?: boolean;
+  /** Warmup popula raw sem pagar resolução de protetor de link. */
+  skipResolve?: boolean;
 }
 
 // TTL do cache de magnet resolvido (7 dias em segundos). Protetor de link não
@@ -42,8 +44,42 @@ const RESOLVED_MAGNET_TTL = 7 * 24 * 3600;
 // esperar pra distinguir "indexer morto" de "indexer lento".
 const DIAGNOSTIC_TIMEOUT = 30000;
 
-function mapResults(data: any, { isBr = false, indexer = '' }: { isBr?: boolean; indexer?: string } = {}) {
-  const results = Array.isArray(data?.Results) ? data.Results : Array.isArray(data) ? data : [];
+/**
+ * Indexers que devolvem ZERO quando a consulta leva `Category[]`.
+ *
+ * O TPB some com query de mais de uma palavra sem ano assim que a categoria
+ * entra na URL — "Star Trek Beyond" com `Category[]=2000` dá 0, sem categoria
+ * dá 100, e a mesma query com o ano ("Beyond Re-Animator 2003") dá 19 dos dois
+ * jeitos. Quem paga é a varredura pt-BR e o bare title, que saem sem ano de
+ * propósito: o maior tracker global voltava vazio em silêncio. Aqui a consulta
+ * sai sem categoria e o filtro roda no `mapResults`, sobre o campo `Category`
+ * que o Jackett já devolve. Nenhum outro indexer da lista tem esse
+ * comportamento (therarbg, yts, kickass e torrentgalaxyclone respondem igual
+ * com e sem categoria) — a isenção é nominal de propósito.
+ */
+const CATEGORY_UNFILTERED_INDEXERS = new Set(['thepiratebay']);
+
+/**
+ * Balde Torznab do tipo: 2000–2999 = filme, 5000–5999 = TV. O `Category` do
+ * Jackett traz o id fino (2040 = Movies/HD) junto de ids de tracker fora da
+ * faixa Torznab (100207), então o teste é por faixa. Resultado sem categoria
+ * nenhuma passa: perder release por metadado ausente é pior que deixar entrar
+ * um fora de tipo, que o matchContext ainda descarta depois.
+ */
+function inCategoryBucket(categories: any, bucket: number) {
+  if (!Array.isArray(categories) || categories.length === 0) return true;
+  return categories.some((id: any) => Number(id) >= bucket && Number(id) < bucket + 1000);
+}
+
+function mapResults(
+  data: any,
+  { isBr = false, indexer = '', categoryBucket = 0 }:
+    { isBr?: boolean; indexer?: string; categoryBucket?: number } = {},
+) {
+  const all = Array.isArray(data?.Results) ? data.Results : Array.isArray(data) ? data : [];
+  const results = categoryBucket
+    ? all.filter((r: any) => inCategoryBucket(r?.Category, categoryBucket))
+    : all;
   return results.map((r: any) => ({
     title: r.Title,
     magnet: r.MagnetUri || r.Guid,
@@ -270,8 +306,12 @@ async function queryIndexer(indexer: string, query: string, type: string, timeou
     endpoint.searchParams.set('apikey', apiKey);
     endpoint.searchParams.set('Query', searchQuery);
     // 2000 = Movies, 5000 = TV nos indexers Torznab
-    if (type === 'movie') endpoint.searchParams.append('Category[]', '2000');
-    if (type === 'series') endpoint.searchParams.append('Category[]', '5000');
+    const categoryBucket = type === 'movie' ? 2000 : type === 'series' ? 5000 : 0;
+    // Quem não aguenta categoria na URL filtra depois, sobre a resposta.
+    const filterLocally = CATEGORY_UNFILTERED_INDEXERS.has(indexer);
+    if (categoryBucket && !filterLocally) {
+      endpoint.searchParams.append('Category[]', String(categoryBucket));
+    }
     const budget = remaining(deadline);
     if (budget <= 0) throw new Error('timeout');
     const res = await fetch(endpoint, {
@@ -279,7 +319,11 @@ async function queryIndexer(indexer: string, query: string, type: string, timeou
       signal: AbortSignal.timeout(Math.max(1, budget)),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const items = mapResults(await res.json(), { isBr, indexer });
+    const items = mapResults(await res.json(), {
+      isBr,
+      indexer,
+      categoryBucket: filterLocally ? categoryBucket : 0,
+    });
     liveFetches += 1;
     if (rawTtl > 0 && items.length <= config.rawCache.maxItems) {
       // 200 com zero itens usa o TTL curto: pode ser rate-limit disfarçado.
@@ -319,13 +363,9 @@ async function queryIndexer(indexer: string, query: string, type: string, timeou
     }
   }
 
-  const items = await resolveCardigannDownloads(
-    indexer,
-    found.items,
-    query,
-    deadline,
-    options.matchContext,
-  );
+  const items = options.skipResolve
+    ? found.items
+    : await resolveCardigannDownloads(indexer, found.items, query, deadline, options.matchContext);
   // fromCache diz se NENHUMA consulta Torznab saiu desta chamada: quem veio
   // do cache não mediu nada, e o status do indexer não pode ser inventado.
   return { indexer, items, ms: Date.now() - started, fromCache: liveFetches === 0 };

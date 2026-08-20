@@ -643,3 +643,81 @@ test('search com ignoreBreaker:true e recordStatus:false não atualiza o card', 
     indexerStatus.clear();
   }
 });
+
+// --- Categoria na URL: o TPB some com ela, os outros não ---
+//
+// "Star Trek Beyond" com Category[]=2000 devolve 0 no thepiratebay e 100 sem
+// categoria; a mesma query COM ano devolve 19 dos dois jeitos. Quem paga é a
+// varredura pt-BR e o bare title, que saem sem ano. A consulta do TPB passa a
+// sair sem categoria e o filtro de tipo roda sobre o `Category` da resposta.
+
+const BEYOND_CTX = {
+  names: ['Beyond Re-Animator'],
+  year: 2003,
+  isSeries: false,
+  season: null,
+  episode: null,
+};
+
+function categoryParams(fetchImpl: JackettFetch) {
+  return fetchImpl.calls
+    .filter((c) => c.url.includes('/results'))
+    .map((c) => new URL(c.url).searchParams.getAll('Category[]'));
+}
+
+test('thepiratebay consulta SEM Category[] e filtra o tipo na resposta', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = () => fakeResponse({ Results: [
+    { Title: 'Beyond Re-Animator 2003 1080p BluRay', Seeders: 9, MagnetUri: MAGNET, Category: [2040, 100207] },
+    { Title: 'Beyond Re-Animator 2003 720p WEB', Seeders: 5, MagnetUri: MAGNET, Category: [2000, 100201] },
+    // TV/Other no meio da resposta: é o que o Category[] filtrava no servidor.
+    { Title: 'Beyond Re-Animator 2003 TV Rip', Seeders: 3, MagnetUri: MAGNET, Category: [5050, 100206] },
+    // Sem categoria nenhuma passa: metadado ausente não pode custar release.
+    { Title: 'Beyond Re-Animator 2003 DVDRip', Seeders: 1, MagnetUri: MAGNET },
+  ] });
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search('Beyond Re-Animator', 'movie', ['thepiratebay'], {
+      matchContext: BEYOND_CTX,
+    });
+    assert.deepEqual(categoryParams(fetchImpl), [[]]);
+    assert.deepEqual(items.map((i: any) => i.title).sort(), [
+      'Beyond Re-Animator 2003 1080p BluRay',
+      'Beyond Re-Animator 2003 720p WEB',
+      'Beyond Re-Animator 2003 DVDRip',
+    ]);
+  });
+});
+
+test('indexer normal continua mandando Category[] na URL', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = () => fakeResponse({ Results: [
+    // Categoria de TV chegando de um indexer que já filtrou no servidor: sem
+    // isenção não há filtro local, e o item continua entrando como antes.
+    { Title: 'Beyond Re-Animator 2003 1080p BluRay', Seeders: 9, MagnetUri: MAGNET, Category: [5050] },
+  ] });
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search('Beyond Re-Animator', 'movie', ['therarbg'], {
+      matchContext: BEYOND_CTX,
+    });
+    assert.deepEqual(categoryParams(fetchImpl), [['2000']]);
+    assert.equal(items.length, 1);
+  });
+});
+
+test('série no thepiratebay filtra pelo balde 5000', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = () => fakeResponse({ Results: [
+    { Title: 'Joker S01E01 1080p WEB-DL', Seeders: 9, MagnetUri: MAGNET, Category: [5040] },
+    { Title: 'Joker 2019 1080p BluRay', Seeders: 9, MagnetUri: MAGNET, Category: [2040] },
+  ] });
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search('Joker S01E01', 'series', ['thepiratebay'], {
+      matchContext: SERIES_CTX,
+    });
+    assert.deepEqual(categoryParams(fetchImpl), [[]]);
+    assert.deepEqual(items.map((i: any) => i.title), ['Joker S01E01 1080p WEB-DL']);
+  });
+});
