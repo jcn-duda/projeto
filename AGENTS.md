@@ -26,16 +26,29 @@ Praticamente todo trabalho de código acontece no **Adom**.
 
 ## Stack
 
-- **Node ≥ 18**, CommonJS (`require`, não `import`). Sem TypeScript, sem build.
-  A imagem de produção é `node:22-alpine` (é ela que tem `node:sqlite`).
+- **Node ≥ 20, TypeScript + ESM** (`import`, não `require`), com build: o `tsc`
+  compila `src/` e `test/` para `dist/`, e é `dist/` que roda — `npm start` é
+  `node dist/src/addon.js`. A imagem de produção é `node:22-alpine` (é ela que
+  tem `node:sqlite`).
+  - **`noEmitOnError: true`**: build com erro de tipo não gera `dist/`. Se o
+    `npm run build` falhar, o `dist/` continua sendo o da compilação anterior —
+    não confie num `dist/` de build vermelho.
+  - **Tipo em JSDoc é ignorado em `.ts`.** `@param {T}` e `/** @type {T} */`
+    viram comentário inerte; o que vale é a sintaxe TS. Sobrou JSDoc de tipo
+    pelo código — ele **descreve**, não verifica.
+  - Rigor atual: `strictNullChecks` **e** `noImplicitAny` ligados. Parâmetro sem
+    anotação é erro (TS7006) — o `any` continua permitido, mas só **explícito**,
+    como decisão registrada. Onde o dado vem de API de terceiro (`m: any` num
+    `.map` sobre resposta de debrid), `any` é a resposta honesta; onde o tipo é
+    conhecido, use o tipo.
 - **Três dependências**: `express`, `stremio-addon-sdk`, `dotenv`. Sem lodash,
   sem axios, sem cheerio — HTTP é `fetch` nativo e HTML é parseado com regex.
   **Não adicione dependências sem necessidade real.**
 - **Dois módulos de processo, papéis distintos:**
-  - `src/app.js` — fábrica do Express (`createApp()`): manifest, rotas, stream
+  - `src/app.ts` — fábrica do Express (`createApp()`): manifest, rotas, stream
     handler. Sem `listen`, sem warmup, sem carregar resolvers. É o que os
     testes importam.
-  - `src/addon.js` — processo: `listen`, resolvers embutidos, selo, catálogo,
+  - `src/addon.ts` — processo: `listen`, resolvers embutidos, selo, catálogo,
     inventário do `.env`, varredura de magnets mortos, shutdown. **Importar
     este arquivo sobe o servidor.**
 - **Docker: container único.** O `Dockerfile` raiz (multi-stage) embute addon +
@@ -52,7 +65,7 @@ Praticamente todo trabalho de código acontece no **Adom**.
   flaresolverr → addon) com `wait -n` + `pipefail`: qualquer um que morrer
   derruba o container e o `restart: unless-stopped` recria tudo. Logs saem
   prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`.
-- Os quatro `*-resolver` **não são containers**. `src/br-resolvers.js` os
+- Os quatro `*-resolver` **não são containers**. `src/br-resolvers.ts` os
   carrega no processo do addon, cada um na própria porta (8700–8703), porque
   todos leem `PORT`/`SITE_URL` no `require`. `BR_RESOLVERS_EMBEDDED=false`
   volta ao modo de processos separados (não é o caminho de produção).
@@ -79,20 +92,31 @@ Praticamente todo trabalho de código acontece no **Adom**.
 ## Comandos
 
 ```bash
-npm start                 # sobe o addon em http://127.0.0.1:7000/manifest.json
+npm run build             # tsc -> dist/ + copia assets (src/public, fixtures, resolvers)
+npm start                 # sobe o addon de dist/ em http://127.0.0.1:7000/manifest.json
 npm run dev               # idem, com --watch
-npm test                  # node:test, lista explícita em package.json (sem rede)
-npm run test:complete     # cobra que todo test/**/*.test.js esteja nessa lista
-npm run typecheck         # tsc -p jsconfig.json --noEmit (JSDoc via // @ts-check, opt-in por arquivo)
+npm test                  # node:test sobre dist/test/, lista explícita em package.json (sem rede)
+npm run test:complete     # cobra que todo test/**/*.test.ts esteja nessa lista
+npm run typecheck         # tsc --noEmit — precisa ficar em ZERO
 npm run smoke             # valida o pipeline de ponta a ponta (rede de verdade)
 npm run docker:up         # stack completa
 npm run docker:logs       # logs do addon
-node scripts/magnets.js   # ocupação da conta do debrid (--apply para limpar)
+node dist/scripts/magnets.js  # ocupação da conta do debrid (--apply para limpar)
 ```
 
-A lista do `npm test` é explícita (não é glob) porque `engines` começa no
-Node 18. Arquivo `.test.js` novo que não entra no `package.json` passa
-despercebido e o CI fica verde à toa — por isso existe o `test:complete`.
+**O `npm test` roda `dist/`, então build antes.** Editar `.ts` e rodar teste
+direto exercita a compilação anterior — foi assim que erro de tipo passou
+despercebido enquanto o build engolia a falha do `tsc`.
+
+A lista do `npm test` é explícita (não é glob) porque `node --test` só expande
+padrão a partir do Node 21. Arquivo `.test.ts` novo que não entra no
+`package.json` passa despercebido e o CI fica verde à toa — por isso existe o
+`test:complete`.
+
+**Três harnesses não passam pelo `npm test`** — `test:stress`,
+`test:adversarial` e `test:adversarial-m1` rodam código de bancada que o CI
+nunca executa. Quebra neles só aparece no dia em que você precisar deles; rode
+antes de mexer em `test/` para ter linha de base.
 
 Quando "o ⚡ sumiu de todos os streams", comece por aqui — é diagnóstico, não
 adivinhação:
@@ -104,16 +128,13 @@ curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" http://127.0.0.1:7000/debrid
 O mesmo token abre `/metrics.json` e `/test-indexer.json`. Sem
 `JACKETT_TEST_TOKEN` no `.env` os três devolvem 503; token errado, 401.
 
-Para checar sintaxe sem subir servidor (`require('./src/addon')` **abre a porta**
-e fica pendurado — não use isso como smoke test):
+Para checar o código sem subir servidor (importar `src/addon.ts` **abre a porta**
+e fica pendurado — não use isso como smoke test), use o `npm run typecheck`: ele
+substituiu o `node --check`, que só via sintaxe.
 
-```bash
-node --check src/providers/index.js
-```
-
-CI (`.github/workflows/ci.yml`) roda a suíte em Node 18 e 22, mais
-`node --check` em todo `.js` fora de `node_modules`. Build da imagem só dispara
-quando Dockerfile / compose / cards / lockfile mudam (`docker.yml`).
+CI (`.github/workflows/ci.yml`) roda build + suíte em Node 20 e 22, e o
+`typecheck` só na 22 (não depende da versão de runtime). Build da imagem só
+dispara quando Dockerfile / compose / cards / lockfile mudam (`docker.yml`).
 
 ---
 
@@ -122,9 +143,9 @@ quando Dockerfile / compose / cards / lockfile mudam (`docker.yml`).
 Um `stream` request do Stremio percorre exatamente este caminho:
 
 ```
-addon.js  processo (listen, warmup)
-   └─ app.js  defineStreamHandler
-        └─ providers/index.js  findStreams
+addon.ts  processo (listen, warmup)
+   └─ app.ts  defineStreamHandler
+        └─ providers/index.ts  findStreams
              ├─ cache SWR (streams:v5)          ← só lista completa + debridKnown + tocável
              ├─ coalescing inFlight
              └─ doSearch
@@ -150,6 +171,20 @@ addon.js  processo (listen, warmup)
                        └─ varredura pt-BR nos globais (se não rodou inline)
 ```
 
+**O aviso de lista vazia é montado em duas etapas, de propósito.** O
+`buildStreams` cria só o **texto** (`{ name, notice: true }`), que é conteúdo da
+busca e viaja para o cache; o **link** sai no `applyNoticeOrigin`, já na
+resposta, com o origin daquela requisição (`PUBLIC_URL` ou o `Host` que o
+cliente usou). Montar o link antes gravaria na entrada compartilhada o endereço
+de quem perguntou primeiro — a TV que chama `192.168.0.23` deixaria esse link
+para o celular que chama pelo domínio, e um `Host` forjado envenenaria o cache
+do próximo. Sem origin nenhum o item é **descartado**: stream sem
+`url`/`infoHash`/`externalUrl` não é renderizado por cliente nenhum e só
+ocuparia a resposta. Há um quarto texto que **não** nasce no `buildStreams`: o
+fallback do `raceWithDeadline`, para quando a busca estoura o prazo e continua
+em background — só ali existe a garantia que a promessa "reabra em instantes"
+descreve.
+
 Série sem resultado por episódio tem fallback de pack no caminho crítico
 (`"Nome S01"`, com a variante pt-BR junto) — as fontes BR só publicam
 temporada inteira. Série com resultado **fraco** (ninguém atinge
@@ -162,7 +197,7 @@ sem SxxEyy). O dublado titulado em PT mora nesses trackers e a query em
 inglês não o encontra. Roda no plano crítico se couber; senão na fila
 tardia, com `recordStatus:false` e `ignoreBreaker:true`.
 
-### Configuração por usuário (`src/runtime.js`)
+### Configuração por usuário (`src/runtime.ts`)
 
 Modelo Torrentio: as preferências viajam **codificadas na URL de instalação**
 (`/<base64url>/manifest.json`), não em banco. O servidor é stateless.
@@ -286,7 +321,7 @@ transitórias e chegam à tela do mesmo jeito — o ⚡ some de TODOS os streams
 | `reason` | Como aparece | Conserto |
 |---|---|---|
 | `auth` | `AUTH_BAD_APIKEY` (AllDebrid responde com **HTTP 200**), 401/403 nos outros | chave nova + refazer a URL de instalação |
-| `quota` | `Magnets limit reached (1000 accross all tabs)` | apagar magnets: `node scripts/magnets.js` |
+| `quota` | `Magnets limit reached (1000 accross all tabs)` | apagar magnets: `node dist/scripts/magnets.js` |
 
 As duas barram o `/magnet/upload`, que é como a AllDebrid **checa cache** e
 **resolve o play**. Prometer debrid nesse estado entrega uma lista em que nenhum
@@ -378,7 +413,7 @@ próxima vez. Travas atuais (invariante 6):
 
 O registry também expõe `inventory()`: o que já está **pronto** na conta
 (AllDebrid/TorBox; nos demais é no-op) entra na busca como mais uma fonte
-(`src/providers/account.js`), memoizado por serviço+conta sob `dinv:v1:`. A
+(`src/providers/account.ts`), memoizado por serviço+conta sob `dinv:v1:`. A
 relevância de inventário (`filterInventoryRelevant`) aceita também **pack de
 franquia** da mesma obra — coisa na conta é escolha do usuário, sinal que
 resultado de tracker não tem; por isso essa exceção NÃO vale no caminho dos
@@ -394,7 +429,7 @@ operador).
 ## Cache multi-nível (fases 0–2 no código)
 
 A chave `streams:v5` isola config do usuário + digest da conta
-(`request-key.js`). A versão de cada namespace vive em `src/utils/cache-keys.js`
+(`request-key.js`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
 — bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
 que não bate com a versão corrente). Duas instalações do mesmo título **não**
 compartilham a lista — ela carrega URLs de play assinadas. O trabalho caro
@@ -567,7 +602,7 @@ spin-off com o mesmo token no título não pode herdar a vaga.
 `dropUncached` apaga da conta do debrid o que não está em cache (sem isso cada
 busca deixa download fantasma); `autoFetchBrDubbed` faz o oposto de propósito —
 enfileira as melhores fontes dubladas quando nada tocável está em cache. A ponte
-é `src/debrid/protected.js`: cada hash escolhido entra em `hold` **antes** da
+é `src/debrid/protected.ts`: cada hash escolhido entra em `hold` **antes** da
 checagem de cache e só é liberado se o download não acontecer. Inverter essa
 ordem deixa a limpeza matar o download no meio da mesma busca — na AllDebrid a
 própria checagem apaga da conta o que não está pronto.
@@ -584,48 +619,50 @@ fire-and-forget) continua.
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `src/addon.js` | Processo: listen, warmup, resolvers, shutdown |
-| `src/app.js` | Fábrica Express: manifest, stream handler, `/resolve`, `/configure`, `/defaults.json`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json` |
-| `src/config.js` | Padrões do operador: todo `process.env` vira config **aqui** |
-| `src/runtime.js` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
-| `src/br-resolvers.js` | Carrega os quatro `*-resolver` no processo do addon |
+| `src/addon.ts` | Processo: listen, warmup, resolvers, shutdown |
+| `src/app.ts` | Fábrica Express: manifest, stream handler, `/resolve`, `/configure`, `/defaults.json`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json` |
+| `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
+| `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
+| `src/br-resolvers.ts` | Carrega os quatro `*-resolver` no processo do addon |
 | `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, ES5, zero build) |
-| `src/providers/index.js` | Orquestração: SWR, coalescing, deadline, collectRaw, passe tardio, debrid, corte, aviso |
-| `src/providers/search-plan.js` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
-| `src/providers/collection-window.js` | Balde compartilhado + graça da primeira fonte BR |
-| `src/providers/jackett.js` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
-| `src/providers/jackett-catalog.js` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
-| `src/providers/indexer-status.js` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
-| `src/providers/prowlarr.js` | Alternativa ao Jackett |
-| `src/providers/bludv.js` | Scraper direto do BLUDV (fora do Jackett; default desligado) |
-| `src/providers/account.js` | Inventário pronto da conta como fonte (`fromAccount`) |
-| `src/providers/autofetch.js` | Marker, lock e vaga por busca do autofetch |
-| `src/providers/demo.js` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
-| `src/debrid/index.js` | Registry + seleção por request + checagem com teto dinâmico + inventário |
-| `src/debrid/common.js` | `magnetFor`, fetch JSON, `pickFile`/`pickWorkFile`, lotes, `AuthError`/`QuotaError` |
-| `src/debrid/protected.js` | Hashes protegidos da limpeza durante o autofetch |
-| `src/debrid/*.js` | Um adaptador por serviço |
-| `src/utils/format.js` | Normalização, matching, dedupe, ordenação, cotas — **lógica pura** |
-| `src/utils/indexer-priority.js` | `priorityMap`/`compareIndexerPriority` |
-| `src/utils/tmdb.js` / `cinemeta.js` | Título pt-BR / título-ano do ecossistema Stremio |
-| `src/utils/cache.js` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
-| `src/utils/cache-keys.js` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`) e `prefix(ns)` |
-| `src/utils/request-key.js` | `streams:v5` + digest da conta (nunca a chave crua) |
-| `src/utils/secret-box.js` | AES-256-GCM do `dk` no install URL |
-| `src/utils/sign.js` | HMAC do `/resolve` (hash + ep + dica `w`) |
-| `src/utils/deadline.js` | `raceWithDeadline`, `remainingCheckBudget` |
-| `src/utils/latest-writer.js` | Só a escrita mais nova do passe tardio vence |
-| `src/utils/logger.js` | Níveis via `ADDON_LOG_LEVEL` (não `LOG_LEVEL` — essa é do FlareSolverr) |
-| `src/utils/metrics.js` | Contadores/histogramas do `/metrics.json` |
-| `src/utils/diagnostic-guard.js` | Token + rate limit das rotas operacionais |
+| `src/providers/index.ts` | Orquestração: SWR, coalescing, deadline, collectRaw, passe tardio, debrid, corte, aviso |
+| `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
+| `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR |
+| `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
+| `src/providers/jackett-catalog.ts` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
+| `src/providers/indexer-status.ts` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
+| `src/providers/prowlarr.ts` | Alternativa ao Jackett |
+| `src/providers/bludv.ts` | Scraper direto do BLUDV (fora do Jackett; default desligado) |
+| `src/providers/account.ts` | Inventário pronto da conta como fonte (`fromAccount`) |
+| `src/providers/autofetch.ts` | Marker, lock e vaga por busca do autofetch |
+| `src/providers/demo.ts` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
+| `src/debrid/index.ts` | Registry + seleção por request + checagem com teto dinâmico + inventário |
+| `src/debrid/common.ts` | `magnetFor`, fetch JSON, `pickFile`/`pickWorkFile`, lotes, `AuthError`/`QuotaError` |
+| `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |
+| `src/debrid/*.ts` | Um adaptador por serviço |
+| `src/utils/format.ts` | Normalização, matching, dedupe, ordenação, cotas — **lógica pura** |
+| `src/utils/indexer-priority.ts` | `priorityMap`/`compareIndexerPriority` |
+| `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
+| `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
+| `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`) e `prefix(ns)` |
+| `src/utils/request-key.ts` | `streams:v5` + digest da conta (nunca a chave crua) |
+| `src/utils/secret-box.ts` | AES-256-GCM do `dk` no install URL |
+| `src/utils/sign.ts` | HMAC do `/resolve` (hash + ep + dica `w`) |
+| `src/utils/deadline.ts` | `raceWithDeadline`, `remainingCheckBudget` |
+| `src/utils/latest-writer.ts` | Só a escrita mais nova do passe tardio vence |
+| `src/utils/logger.ts` | Níveis via `ADDON_LOG_LEVEL` (não `LOG_LEVEL` — essa é do FlareSolverr) |
+| `src/utils/metrics.ts` | Contadores/histogramas do `/metrics.json` |
+| `src/utils/diagnostic-guard.ts` | Token + rate limit das rotas operacionais |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
 | `*-resolver/` | Seguem protetores de link; failover de domínio por saúde de rede |
-| `test/e2e/e2e-harness.js` | App real (`createApp`) + fetch dublê; zero rede externa |
+| `types/domain.d.ts` | Tipos do domínio: `Stream` (união que exige ação), `ParsedSeasonEpisode`, `DebridAdapter`, `AccountStatus`, `MatchContext` |
+| `test/helpers/stub.ts` | Dublê de `fetch`, `patch()` de módulo e `testOpts()` — o cast mora aqui, não espalhado |
+| `test/e2e/e2e-harness.ts` | App real (`createApp`) + fetch dublê; zero rede externa |
 | `Dockerfile` / `scripts/entrypoint.sh` / `docker-compose.yml` | Imagem única, supervisor, loopback |
-| `scripts/magnets.js` | Inventário/limpeza da conta |
-| `scripts/check-test-list.js` | Cobra a lista explícita do `npm test` |
+| `scripts/magnets.ts` | Inventário/limpeza da conta |
+| `scripts/check-test-list.ts` | Cobra a lista explícita do `npm test` |
 
-`src/utils/format.js` concentra as funções puras (`matchesName`,
+`src/utils/format.ts` concentra as funções puras (`matchesName`,
 `matchesBrTitle`, `matchesEpisode`, `filterRelevantRaw`,
 `filterInventoryRelevant`, `looksPtBr`, `sortAndLimit`, `limitReservingBr`,
 `dedupeByHash`, `pickBrDubbedCandidates`, …) — é o melhor lugar para testar
@@ -635,19 +672,40 @@ comportamento sem subir rede.
 
 ## Convenções
 
-**Typecheck via JSDoc é opt-in por arquivo.** `jsconfig.json` deixa `checkJs`
-desligado e cada `.js` entra quando carrega `// @ts-check` no topo (na linha 1,
-ou logo após o shebang `#!`). `npm run typecheck` é `tsc --noEmit`; o CI roda
-em Node 22. Ao criar arquivo novo, inclua o `// @ts-check` e as anotações JSDoc
-necessárias — não deixe a ausência do comentário virar dívida nova. Tipos
-compartilhados de domínio (`Stream`, `DebridAdapter`, `MatchContext`,
-`ParsedSeasonEpisode`) ficam em `types/domain.d.ts`, referenciados por
-`import('../../types/domain')` (ou `../` conforme a profundidade). Adoção não
-muda runtime: só comentários, `/** @type */` casts e `.d.ts` — nunca altere
-lógica para "passar"; onde a anotação custar mais que o valor, use
-`// @ts-nocheck` com uma linha explicando o porquê. `!` (non-null assertion) e
-`as` são sintaxe TS proibida em `.js` (tsc recusa com TS8013); para "possível
-undefined/null" use cast JSDoc `/** @type {number} */ (expr)`.
+**O typecheck é portão, não enfeite: `npm run typecheck` fica em ZERO.** Não há
+mais `@ts-check` nem `@ts-nocheck` no repositório — todo `.ts` é verificado, e o
+`noEmitOnError` impede build sujo. Se o contador subir, conserte antes de seguir:
+1.661 erros abertos foi o estado em que o portão deixou de servir para qualquer
+coisa, porque ninguém lê essa lista para achar o que importa.
+
+**Tipe o que a função PRODUZ, não só o que ela recebe.** O valor está aí: por
+muito tempo as anotações eram todas de entrada e nada cobrava o retorno — foi
+assim que `parseTitleSeasonEpisode` ganhou um campo novo e quebrou oito
+`deepEqual` que só apareceram ao rodar a suíte. Os contratos de domínio ficam em
+`types/domain.d.ts`, e três merecem cuidado especial:
+
+- **`Stream` é uma união que exige AÇÃO** (`url`, `infoHash`, `externalUrl` ou a
+  marca interna `notice`). Um `{ name }` puro é reprovado na origem — ele não é
+  renderizado por cliente nenhum e some da tela sem erro. Anotar a fábrica
+  (`toStremioStream`) é o que faz esse erro aparecer em compilação.
+- **`ParsedSeasonEpisode`** distingue `complete` (série inteira) de `seasonPack`
+  (uma temporada nomeada). Mexer no retorno sem mexer no typedef falha na hora.
+- **`DebridAdapter`** é o contrato dos cinco serviços. Foi anotando
+  `debrid.current()` que apareceu um `accountStatus: Promise<unknown>` enquanto
+  o código lia `status.limitUsed` — contrato subespecificado que nenhum teste
+  pegaria.
+
+**Falso positivo do compilador se resolve tornando o código verificável, não com
+cast.** `Number.isFinite(x)` guardado num booleano intermediário não estreita
+tipo; extrair a variável (`const fairUse = … ? Number(x) : null`) mantém o mesmo
+comportamento e dispensa a mentira. Cast é último recurso, e quando for
+inevitável, concentre num helper com comentário — como o dublê de `fetch` em
+`test/helpers/stub.ts`, que guarda o cast num lugar só em vez de espalhar 180.
+
+**Leitura de campo inexistente NÃO é pega** (em `.ts` como era em `.js`): o que
+o portão cobre é construção de objeto fora do contrato e argumento de tipo
+errado. Para a classe de bug que mais dói aqui — como tracker brasileiro escreve
+título — quem protege continua sendo teste com dado real, não o compilador.
 
 **Idioma.** Comentários, logs e mensagens em **português**. Nomes de variáveis e
 funções em **inglês**. Mantenha assim.
@@ -669,7 +727,7 @@ Não escreva `// itera sobre os resultados`.
 do ar) e `error` só para falha real. Nível do addon: `ADDON_LOG_LEVEL`, nunca
 `LOG_LEVEL`.
 
-**Nada de config hardcoded.** Todo número ajustável entra em `src/config.js` com
+**Nada de config hardcoded.** Todo número ajustável entra em `src/config.ts` com
 default e comentário, e no `.env.example` com a mesma explicação. Timeouts
 literais espalhados pelo código são bug em potencial — eles escapam da cadeia de
 orçamento do item 1.
@@ -689,8 +747,35 @@ justamente no indexer recém-derrubado.
 
 ## Armadilhas conhecidas
 
-- **`require('./src/addon')` sobe o servidor.** Testes usam `createApp()` de
-  `src/app.js`. Não copie rotas no harness — o e2e já instancia o app real.
+- **Importar `src/addon.ts` sobe o servidor.** Testes usam `createApp()` de
+  `src/app.ts`. Não copie rotas no harness — o e2e já instancia o app real.
+- **Caminho relativo mudou de profundidade com o `dist/`.** O código roda de
+  `dist/src/...`, então `__dirname` e `require`/`import` relativos apontam para
+  dentro de `dist/`. Dois casos já mordidos: o `DB_PATH` do cache precisa subir
+  **três** níveis para achar `data/cache.db`, e os quatro `*-resolver` são
+  carregados por `../<nome>-resolver/server` — no container eles têm que ser
+  copiados para **`/app/dist/`**, não `/app/`. **Localmente isso passa
+  despercebido** porque o `npm run build` já copia os resolvers para `dist/`; só
+  o `docker run` revela. Mesma armadilha vale para asset: o `tsc` não copia
+  `src/public/`, quem copia é o passo do `npm run build`.
+- **"Temporada Completa" no singular é pack de UMA temporada, não da série.**
+  `2ª Temporada Completa` cobre só a 2ª; `Todas as Temporadas`, `Série Completa`
+  e `Temporadas Completas` (plural) é que cobrem tudo. Tratar o singular como
+  cobertura total fazia S01/S02 entrarem na lista do S04E06. O parser também lê
+  **lista de ordinais antes do plural** (`1ª 2ª 3ª … 7ª Temporadas`), que a regra
+  de temporada única enxergava como só a última. Varredura em 3.794 títulos reais
+  dos sete indexers BR: 470 passaram a ser cortados em alguma temporada, nenhum
+  falso corte. O padrão mais comum entre eles é o post "Todas as Temporadas"
+  cujo arquivo é **uma** temporada (`… Dual 3ª TEMPORADA … 8.27 GB`).
+- **Pack pode mentir na descrição, e o `pickFile` entrega o maior arquivo.**
+  Medido em True Detective: dois posts do NerdFilmes anunciados como "4ª
+  Temporada (2024) DUBLADO", com ⚡, continham a **3ª temporada em inglês** —
+  `pickFile(S4E6)` não achou `S04E06` e caiu no fallback do maior vídeo,
+  devolvendo `S03E04`. Nenhum filtro de título pega isso: o título casa
+  perfeitamente. O único ponto que vê a verdade é o `resolveLink`, onde os
+  arquivos reais são listados. Ao mexer no `pickFile`, lembre que "não casou o
+  episódio" e "não há episódio no nome" são casos **diferentes**: o primeiro é
+  prova de conteúdo errado.
 - **"Sumiu o ⚡ de todos os streams" quase nunca é bug de código.** No fluxo
   normal, stream fora do cache sai **sem prefixo nenhum** (P2P); ver
   `[AD download]` em 100% dos itens significa que a checagem de cache não
@@ -724,8 +809,11 @@ justamente no indexer recém-derrubado.
   mais tarde e gastando Chromium. Fora da lista de indexers é o lugar deles.
 - **Buscador WordPress engasga com `:`** — `bludv.search` remove antes de
   consultar. Sintomas: título com subtítulo volta vazio.
-- **`AbortSignal.any` não existe no Node 18.** `engines` declara `>=18`; prefira
-  calcular orçamento restante a compor sinais.
+- **`node:sqlite` não existe no Node 20.** `engines` declara `>=20` e o CI roda
+  a matriz 20/22; o `openDatabase` faz `require` lazy dentro de `try/catch` (via
+  `createRequire`, porque `import` estático quebraria o carregamento) e cai só
+  em memória quando o módulo não existe. Não troque esse lazy por import
+  estático: derruba o addon inteiro na versão sem o módulo.
 - **HMAC do `/resolve` cobre a dica `w`.** Mudar o formato da rota ou os
   parâmetros do play exige manter todos eles dentro da assinatura. Sem `w` a
   string é a antiga.
