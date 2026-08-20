@@ -3,7 +3,7 @@ import * as log from '../utils/logger.js';
 
 const API = 'https://api.real-debrid.com/rest/1.0';
 
-function auth(apiKey) {
+function auth(apiKey: string) {
   return { Authorization: `Bearer ${apiKey}` };
 }
 
@@ -14,7 +14,7 @@ function auth(apiKey) {
  * @param {string} [options.method]
  * @param {*} [options.body]
  */
-function call(apiKey, path, { method = 'GET', body }: { method?: string; body?: any } = {}) {
+function call(apiKey: string, path: string, { method = 'GET', body }: { method?: string; body?: any } = {}) {
   return json(`${API}${path}`, {
     method,
     headers: {
@@ -45,7 +45,7 @@ const WORKING = ['magnet_conversion', 'queued', 'downloading', 'compressing', 'u
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey, infoHash, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const add = await call(apiKey, '/torrents/addMagnet', {
     method: 'POST',
     body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
@@ -58,7 +58,7 @@ async function resolveLink(apiKey, infoHash, { season, episode, work }: { season
   // sai de "waiting_files_selection" e a lista de links fica vazia.
   if (info.status === 'waiting_files_selection') {
     const wanted = pickFile(
-      (info.files || []).map((f) => ({ ...f, path: f.path, size: f.bytes })),
+      (info.files || []).map((f: any) => ({ ...f, path: f.path, size: f.bytes })),
       { season, episode, work },
     );
     await call(apiKey, `/torrents/selectFiles/${add.id}`, {
@@ -82,10 +82,10 @@ async function resolveLink(apiKey, infoHash, { season, episode, work }: { season
 
   // `links` traz só os arquivos selecionados, na ordem dos selecionados —
   // por isso a escolha do arquivo é refeita sobre esse subconjunto.
-  const selected = (info.files || []).filter((f) => f.selected);
+  const selected = (info.files || []).filter((f: any) => f.selected);
   const idx = selected.length > 1
     ? selected.indexOf(
-        pickFile(selected.map((f) => ({ ...f, path: f.path, size: f.bytes })), { season, episode, work }),
+        pickFile(selected.map((f: any) => ({ ...f, path: f.path, size: f.bytes })), { season, episode, work }),
       )
     : 0;
   const link = (info.links || [])[idx >= 0 ? idx : 0];
@@ -109,7 +109,7 @@ async function resolveLink(apiKey, infoHash, { season, episode, work }: { season
  * @param {?number} [options.season]
  * @param {?number} [options.episode]
  */
-async function enqueue(apiKey, infoHash, { season, episode }: { season?: number | null; episode?: number | null } = {}) {
+async function enqueue(apiKey: string, infoHash: string, { season, episode }: { season?: number | null; episode?: number | null } = {}) {
   const add = await call(apiKey, '/torrents/addMagnet', {
     method: 'POST',
     body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
@@ -120,7 +120,7 @@ async function enqueue(apiKey, infoHash, { season, episode }: { season?: number 
   if (info.status !== 'waiting_files_selection') return true;
 
   const wanted = pickFile(
-    (info.files || []).map((f) => ({ ...f, path: f.path, size: f.bytes })),
+    (info.files || []).map((f: any) => ({ ...f, path: f.path, size: f.bytes })),
     { season, episode },
   );
   await call(apiKey, `/torrents/selectFiles/${add.id}`, {

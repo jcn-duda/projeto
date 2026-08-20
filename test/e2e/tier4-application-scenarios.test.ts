@@ -29,7 +29,7 @@ import { accountScope, streamsCacheKey } from '../../src/utils/request-key.js';
 import type { DebridAdapter } from '../../types/domain.js';
 
 // Helper to create synthetic 40-character hex infoHashes
-function makeHash(prefix, id = 1) {
+function makeHash(prefix: any, id = 1) {
   const seed = `${prefix}${id}`;
   return crypto.createHash('sha1').update(seed).digest('hex');
 }
@@ -63,7 +63,7 @@ function makeRawStream(title: string, options: RawStreamOptions = {}) {
 }
 
 // Helper for asynchronous pauses
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // `runtime.run` devolve unknown (o tipo do AsyncLocalStorage não propaga); o
 // wrapper recebe o tipo do retorno no call site, sem cast espalhado.
@@ -107,7 +107,7 @@ function createTestApp() {
   const addonInterface = builder.getInterface();
   const app = express();
 
-  async function resolveHandler(req, res) {
+  async function resolveHandler(req: any, res: any) {
     const infoHash = String(req.params.infoHash || '').toLowerCase();
     if (!/^[a-f0-9]{40}$/i.test(infoHash)) {
       return res.status(400).send('infoHash inválido');
@@ -159,11 +159,11 @@ function createTestApp() {
 }
 
 describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
-  let server;
-  let baseUrl;
-  let originalFetch;
-  let originalTimeout;
-  let originalConfig;
+  let server: any;
+  let baseUrl: any;
+  let originalFetch: any;
+  let originalTimeout: any;
+  let originalConfig: any;
 
   before(async () => {
     originalFetch = globalThis.fetch;
@@ -205,9 +205,9 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
   });
 
   // Helper to intercept fetch calls that are NOT to our local test server
-  function interceptFetch(mockFn) {
+  function interceptFetch(mockFn: any) {
     globalThis.fetch = async (input, init) => {
-      const url = typeof input === 'string' ? input : (input?.url || String(input));
+      const url = typeof input === 'string' ? input : ((input as any)?.url || String(input));
       if (baseUrl && url.startsWith(baseUrl)) {
         return originalFetch(input, init);
       }
@@ -238,7 +238,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     const configSegment = runtime.encode(userConfig);
 
     // Mock Fetch for Cinemeta, TMDB, and Premiumize
-    interceptFetch(async (url) => {
+    interceptFetch(async (url: any) => {
       const u = String(url);
       if (u.includes('cinemeta.strem.io')) {
         return {
@@ -360,7 +360,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     config.debridReserve = 300;
 
     // Mock Fetch for Cinemeta & TMDB
-    interceptFetch(async (url) => {
+    interceptFetch(async (url: any) => {
       const u = String(url);
       if (u.includes('cinemeta.strem.io')) {
         return {
@@ -458,7 +458,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       assert.ok(lateHit && lateHit.partial === false, 'Late pass rewrote the cache entry as complete');
       assert.equal(lateHit.streams.length, 2, 'Late-pass cache holds both global and BR pack streams');
       assert.ok(
-        lateHit.streams.some((s) => (s.url || '').includes(slowBrPackHash)),
+        lateHit.streams.some((s: any) => (s.url || '').includes(slowBrPackHash)),
         'Late-pass cache contains the slow BR season pack',
       );
 
@@ -521,7 +521,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     const configSegment = runtime.encode(userConfig);
 
     // Mock Fetch for Cinemeta & TMDB
-    interceptFetch(async (url) => {
+    interceptFetch(async (url: any) => {
       const u = String(url);
       if (u.includes('cinemeta.strem.io')) {
         return {
@@ -675,7 +675,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     ];
 
     // Mock Fetch for Cinemeta & TMDB responding to storm IMDb IDs
-    interceptFetch(async (url) => {
+    interceptFetch(async (url: any) => {
       const u = String(url);
       const match = u.match(/tt\d+/);
       const id = match ? match[0] : 'tt1000001';
@@ -749,20 +749,20 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       // Verify User 1 (4K BR only via Real-Debrid)
       const u1 = results.find((r) => r.user.id === 1)!;
       assert.ok(u1.data.streams.length > 0);
-      assert.ok(u1.data.streams.every((s) => s.name.includes('2160p') || s.name.includes('4K')), 'User 1 strictly limited to 2160p/4K');
-      assert.ok(u1.data.streams.every((s) => s.name.includes('[RD download]')), 'User 1 streams marked [RD download]');
+      assert.ok(u1.data.streams.every((s: any) => s.name.includes('2160p') || s.name.includes('4K')), 'User 1 strictly limited to 2160p/4K');
+      assert.ok(u1.data.streams.every((s: any) => s.name.includes('[RD download]')), 'User 1 streams marked [RD download]');
 
       // Verify User 2 (1080p only via Premiumize)
       const u2 = results.find((r) => r.user.id === 2)!;
       assert.ok(u2.data.streams.length > 0);
-      assert.ok(u2.data.streams.every((s) => s.name.includes('1080p')), 'User 2 strictly limited to 1080p');
-      assert.ok(u2.data.streams.every((s) => s.name.includes('[PM⚡]')), 'User 2 streams marked [PM⚡]');
+      assert.ok(u2.data.streams.every((s: any) => s.name.includes('1080p')), 'User 2 strictly limited to 1080p');
+      assert.ok(u2.data.streams.every((s: any) => s.name.includes('[PM⚡]')), 'User 2 streams marked [PM⚡]');
 
       // Verify User 5 (P2P unconfigured)
       const u5 = results.find((r) => r.user.id === 5)!;
       assert.ok(u5.data.streams.length > 0);
-      assert.ok(u5.data.streams.every((s) => s.infoHash != null), 'User 5 receives pure P2P streams with infoHash');
-      assert.ok(u5.data.streams.every((s) => s.url == null), 'User 5 streams contain no resolve URLs');
+      assert.ok(u5.data.streams.every((s: any) => s.infoHash != null), 'User 5 receives pure P2P streams with infoHash');
+      assert.ok(u5.data.streams.every((s: any) => s.url == null), 'User 5 streams contain no resolve URLs');
 
       // Verify User 6 (Sealed Key with Premiumize)
       const u6 = results.find((r) => r.user.id === 6)!;

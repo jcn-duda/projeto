@@ -7,7 +7,7 @@ import { pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, WorkPickErro
 // WorkPickError (falha explícita), nunca cai no maior arquivo — que tocaria o
 // filme errado.
 
-const f = (path, size) => ({ path, size });
+const f = (path: any, size: any) => ({ path, size });
 
 // Pack "Jornada nas Estrelas (Todos os filmes 1979-2016) Dublado": franquia
 // se contém ("Jornada nas Estrelas" está em todos), o ano é o desempate.
@@ -29,7 +29,7 @@ test('workCoverage mede fração de tokens significativos do nome', () => {
 test('pickWorkFile casa por nome e desempata por ano', () => {
   const hint = { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1982 };
   const file = pickWorkFile(PACK, hint);
-  assert.equal(file.path, 'Jornada nas Estrelas II A Ira de Khan (1982) Dublado 1080p.mkv');
+  assert.equal(file!.path, 'Jornada nas Estrelas II A Ira de Khan (1982) Dublado 1080p.mkv');
 
   // Obra que não existe no pack: falha explícita, não o maior arquivo.
   assert.equal(pickWorkFile(PACK, { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1991 }), null);
@@ -46,7 +46,7 @@ test('pickFile com dica escolhe a obra certa em pack multi-filme', () => {
   const file = pickFile(PACK, {
     work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1979 },
   });
-  assert.equal(file.path, 'Jornada nas Estrelas O Filme (1979) Dublado 1080p.mkv');
+  assert.equal(file!.path, 'Jornada nas Estrelas O Filme (1979) Dublado 1080p.mkv');
 });
 
 test('pickFile com dica falha quando a obra não está no pack', () => {
@@ -69,13 +69,13 @@ test('pickFile com dica ignora extras na contagem de vídeos principais', () => 
     f('Extras/Interviews.mkv', 500 * 1024 ** 2),
   ];
   const file = pickFile(pack, { work: { names: ['Jornada nas Estrelas'], year: 1979 } });
-  assert.equal(file.path, 'Jornada nas Estrelas O Filme (1979) Dublado 1080p.mkv');
+  assert.equal(file!.path, 'Jornada nas Estrelas O Filme (1979) Dublado 1080p.mkv');
 });
 
 test('pickFile sem dica mantém o comportamento antigo (maior vídeo)', () => {
   // Compatibilidade: URL antiga sem `w` segue tocando o maior arquivo.
   const file = pickFile(PACK, {});
-  assert.equal(file.path, 'Star Trek Into Darkness (2013) Dublado 1080p.mkv');
+  assert.equal(file!.path, 'Star Trek Into Darkness (2013) Dublado 1080p.mkv');
 });
 
 test('pickFile com s/e tem precedência sobre a dica (série)', () => {
@@ -84,7 +84,7 @@ test('pickFile com s/e tem precedência sobre a dica (série)', () => {
     f('Show S01E03.mkv', 4 * 1024 ** 3),
   ];
   const file = pickFile(series, { season: 1, episode: 2 });
-  assert.equal(file.path, 'Show S01E02.mkv');
+  assert.equal(file!.path, 'Show S01E02.mkv');
 });
 
 test('looksMultiWorkFiles distingue obras por anos dos vídeos principais', () => {
@@ -112,7 +112,7 @@ test('pickFile toca o maior encode quando o filme único não tem ano nos nomes'
     f('Star Trek The Motion Picture 720p.mkv', 4 * 1024 ** 3),
     f('Star Trek The Motion Picture 1080p.mkv', 8 * 1024 ** 3),
   ], { work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1979 } });
-  assert.equal(file.path, 'Star Trek The Motion Picture 1080p.mkv');
+  assert.equal(file!.path, 'Star Trek The Motion Picture 1080p.mkv');
 });
 
 test('pickFile aceita título curto usando todos os tokens disponíveis', () => {
@@ -120,7 +120,7 @@ test('pickFile aceita título curto usando todos os tokens disponíveis', () => 
     f('It (2017) 720p.mkv', 4 * 1024 ** 3),
     f('It (2017) 1080p.mkv', 8 * 1024 ** 3),
   ], { work: { names: ['It'], year: 2017 } });
-  assert.equal(file.path, 'It (2017) 1080p.mkv');
+  assert.equal(file!.path, 'It (2017) 1080p.mkv');
   assert.equal(looksMultiWorkFiles([
     f('It 1920x1080.mkv', 4 * 1024 ** 3),
     f('It 1920x1080 WEB.mkv', 8 * 1024 ** 3),
@@ -147,14 +147,14 @@ test('pickFile sem pack e sem anos toca o maior arquivo (não lança)', () => {
     f('Star Trek The Motion Picture 1080p.mkv', 8 * 1024 ** 3),
   ];
   const file = pickFile(encodes, { work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1979 } });
-  assert.equal(file.path, 'Star Trek The Motion Picture 1080p.mkv');
+  assert.equal(file!.path, 'Star Trek The Motion Picture 1080p.mkv');
 });
 
 test('pickFile com pack=true e obra identificável pelo ano escolhe certo', () => {
   const file = pickFile(PACK, {
     work: { names: ['Jornada nas Estrelas', 'Star Trek'], year: 1982, pack: true },
   });
-  assert.equal(file.path, 'Jornada nas Estrelas II A Ira de Khan (1982) Dublado 1080p.mkv');
+  assert.equal(file!.path, 'Jornada nas Estrelas II A Ira de Khan (1982) Dublado 1080p.mkv');
 });
 
 test('pickFile torrent sem vídeo devolve null (não lança WorkPickError)', () => {
@@ -178,5 +178,5 @@ test('pickWorkFile usa basename: pasta "Trilogia (1985-1990)" não contamina cas
   // "the","future" casam nos basenames → cobertura OK para os 3 → ano desempata.
   const file = pickWorkFile(pack, { names: ['De Volta para o Futuro', 'Back to the Future'], year: 1985 });
   assert.ok(file, 'deve encontrar um arquivo');
-  assert.match(file.path, /1985/, 'deve escolher o filme de 1985, não o de 1990');
+  assert.match(String(file!.path), /1985/, 'deve escolher o filme de 1985, não o de 1990');
 });

@@ -1,4 +1,4 @@
-function wait(ms) {
+function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)).unref());
 }
 
@@ -33,10 +33,10 @@ async function collectWithinWindow(tasks: { promise: Promise<any>; priority?: bo
   let done = false;
   let prioritySeen = false;
   let pendingPriority = tasks.filter((task) => task.priority).length;
-  let notifyPriority;
-  const priority = new Promise((resolve) => { notifyPriority = resolve; });
-  let notifyPriorityDone;
-  const priorityDone = new Promise((resolve) => { notifyPriorityDone = resolve; });
+  let notifyPriority: () => void = () => {};
+  const priority = new Promise<void>((resolve) => { notifyPriority = resolve; });
+  let notifyPriorityDone: () => void = () => {};
+  const priorityDone = new Promise<void>((resolve) => { notifyPriorityDone = resolve; });
 
   const collecting = tasks.map(({ promise, priority: priorityTask }) =>
     Promise.resolve(promise)

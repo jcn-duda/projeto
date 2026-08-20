@@ -42,9 +42,9 @@ const RESOLVED_MAGNET_TTL = 7 * 24 * 3600;
 // esperar pra distinguir "indexer morto" de "indexer lento".
 const DIAGNOSTIC_TIMEOUT = 30000;
 
-function mapResults(data, { isBr = false, indexer = '' } = {}) {
+function mapResults(data: any, { isBr = false, indexer = '' }: { isBr?: boolean; indexer?: string } = {}) {
   const results = Array.isArray(data?.Results) ? data.Results : Array.isArray(data) ? data : [];
-  return results.map((r) => ({
+  return results.map((r: any) => ({
     title: r.Title,
     magnet: r.MagnetUri || r.Guid,
     infoHash: r.InfoHash,
@@ -63,7 +63,7 @@ function mapResults(data, { isBr = false, indexer = '' } = {}) {
   }));
 }
 
-async function resolveDownloadMagnet(url, budgetMs) {
+async function resolveDownloadMagnet(url: string, budgetMs: number) {
   if (!url) return null;
   const cacheKey = `dlmag:${url}`;
   const hit = cache.get(cacheKey);
@@ -91,13 +91,14 @@ async function resolveDownloadMagnet(url, budgetMs) {
 }
 
 /** Milissegundos restantes do orçamento do indexer, ou 0 se já estourou. */
-function remaining(deadline) {
+function remaining(deadline: number | null | undefined): number {
+  if (deadline == null) return Number.POSITIVE_INFINITY;
   return Math.max(0, deadline - Date.now());
 }
 
-function dedupeResolveCandidates(items) {
+function dedupeResolveCandidates(items: any[]) {
   const seen = new Set();
-  return items.filter((item) => {
+  return items.filter((item: any) => {
     const identity = item.infoHash || item.magnet || item.downloadUrl;
     if (!identity) return true;
     const key = String(identity).trim().toLowerCase();
@@ -128,7 +129,7 @@ function resolveCandidateScore(item: { title?: string }, { season = null, episod
   return score;
 }
 
-async function resolveCardigannDownloads(indexer, items, query, deadline, matchContext: MatchContext | null = null) {
+async function resolveCardigannDownloads(indexer: string, items: any[], query: string, deadline: number | null, matchContext: MatchContext | null = null) {
   if (!config.jackett.resolveDownloadIndexers.includes(indexer)) return items;
   if (remaining(deadline) <= MIN_RESOLVE_BUDGET) {
     log.warn(`[jackett] ${indexer}: sem orçamento para resolver magnets`);
@@ -151,13 +152,13 @@ async function resolveCardigannDownloads(indexer, items, query, deadline, matchC
     // Filtro BR estrito antes de pagar o protetor de link: post "parecido"
     // ("Missão: Impossível – Efeito Fallout" numa busca por "Fallout") não
     // merece orçamento de resolução de magnet.
-    .filter((item) => {
+    .filter((item: any) => {
       if (matchContext?.names?.length) {
         return filterRelevantRaw([item], matchContext).length > 0;
       }
       return !wanted || matchesBrTitle(item.title || '', wanted, queryYear || null, { isSeries: Boolean(requestedSeason) });
     })
-    .filter((item) => {
+    .filter((item: any) => {
       if (!requestedSeason) return true;
       const titleSeason = String(item.title || '').match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
       return !titleSeason || Number(titleSeason[1] || titleSeason[2]) === Number(requestedSeason[1]);
@@ -165,15 +166,15 @@ async function resolveCardigannDownloads(indexer, items, query, deadline, matchC
     // Release de outro episódio morre em buildStreams de qualquer jeito —
     // resolvê-la gastava os slots (maxDownloadResolves) e 2-4s de protetor com
     // E02..E10 enquanto o E01 pedido ficava de fora. Pack continua passando.
-    .filter((item) => matchContext?.season != null || !requestedEp || matchesEpisode(item.title || '', {
+    .filter((item: any) => matchContext?.season != null || !requestedEp || matchesEpisode(item.title || '', {
       season: Number(requestedEp[1]),
       episode: Number(requestedEp[2]),
     }));
   candidates = dedupeResolveCandidates(candidates)
-    .map((item, order) => ({ item, order, score: resolveCandidateScore(item, matchContext || {}) }))
-    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .map((item: any, order: number) => ({ item, order, score: resolveCandidateScore(item, matchContext || {}) }))
+    .sort((a: any, b: any) => b.score - a.score || a.order - b.order)
     .slice(0, config.jackett.maxDownloadResolves)
-    .map(({ item }) => item);
+    .map(({ item }: any) => item);
   const resolved = await mapLimit(candidates, config.jackett.resolveConcurrency, async (item) => {
     if (item.infoHash || /^magnet:\?/i.test(item.magnet || '')) return item;
     // Cada salto cabe no que sobrou do orçamento: um protetor de link lento não
@@ -197,7 +198,7 @@ async function resolveCardigannDownloads(indexer, items, query, deadline, matchC
  * do fim, senão o filme "1917" perderia o próprio título. A query original
  * segue intacta para os pré-filtros de temporada/episódio da resolução.
  */
-function shapeSearchQuery(indexer, query, isBr) {
+function shapeSearchQuery(indexer: string, query: string, isBr?: boolean) {
   let shaped = String(query || '');
   if (isBr) shaped = shaped.replace(/\bS\d{1,2}(?:E\d{1,3})?\b/gi, ' ');
   if (config.jackett.bareTitleIndexers.includes(indexer)) {
@@ -208,7 +209,7 @@ function shapeSearchQuery(indexer, query, isBr) {
 }
 
 /** Orçamento que a busca AO VIVO daria a este indexer. */
-function budgetFor(indexer) {
+function budgetFor(indexer: string) {
   const isSlow =
     config.jackett.ptBrIndexers.includes(indexer) || config.jackett.slowIndexers.includes(indexer);
   return isSlow ? config.jackett.brIndexerTimeout : config.jackett.indexerTimeout;
@@ -220,7 +221,7 @@ function budgetFor(indexer) {
 // cooldown — a busca pula o indexer e devolve o prazo aos que entregam. O
 // diagnóstico (test()) NÃO passa por aqui: é o caminho que conserta a fonte,
 // e a meia-abertura pós-cooldown já deixa a busca reavaliar sozinha.
-function breakerTripped(indexer, now = Date.now()) {
+function breakerTripped(indexer: string, now = Date.now()) {
   if (!config.jackett.breakerEnabled) return false;
   const status = indexerStatus.get(indexer, now);
   if (!status || (status.failStreak || 0) < config.jackett.breakerFailures) return false;
@@ -232,7 +233,7 @@ function breakerTripped(indexer, now = Date.now()) {
 // abertura, não por busca; sai do set quando o indexer volta a ser consultado.
 const breakerAnnounced = new Set();
 
-async function queryIndexer(indexer, query, type, timeoutOverride: number | null = null, options: JackettSearchOptions = {}) {
+async function queryIndexer(indexer: string, query: string, type: string, timeoutOverride: number | null = null, options: JackettSearchOptions = {}) {
   const { url, apiKey } = config.jackett;
   const isBr = config.jackett.ptBrIndexers.includes(indexer);
 
@@ -255,7 +256,7 @@ async function queryIndexer(indexer, query, type, timeoutOverride: number | null
     ? 0
     : isBr ? config.rawCache.ttlBr : config.rawCache.ttl;
   let liveFetches = 0;
-  const fetchQuery = async (candidateQuery) => {
+  const fetchQuery = async (candidateQuery: string) => {
     const searchQuery = shapeSearchQuery(indexer, candidateQuery, isBr);
     // A shaped query já remove SxxEyy nos indexers BR, então episódios da
     // mesma temporada compartilham a entrada por construção — é o que faz a
@@ -341,7 +342,7 @@ async function queryIndexer(indexer, query, type, timeoutOverride: number | null
  * @param {?string[]} [indexersOverride]
  * @param {object} [options]
  */
-async function search(query, type, indexersOverride: string[] | null = null, options: JackettSearchOptions = {}) {
+async function search(query: string, type: string, indexersOverride: string[] | null = null, options: JackettSearchOptions = {}) {
   // `recordStatus: false` é a varredura tardia pt-BR: uma SEGUNDA consulta
   // aos mesmos indexers. A falha dela não pode contar falha do indexer no
   // circuito (o caminho principal respondeu bem), nem a lentidão dela pintar
@@ -447,7 +448,7 @@ async function search(query, type, indexersOverride: string[] | null = null, opt
  * resolução de magnet, que é onde os indexers BR costumam falhar de verdade.
  * Devolve dado, não veredito: quem exibe decide como pintar.
  */
-async function test(indexer, query, type = 'movie') {
+async function test(indexer: string, query: string, type = 'movie') {
   const started = Date.now();
   if (!config.jackett.apiKey) {
     return { indexer, ok: false, error: 'JACKETT_API_KEY não configurada', ms: 0 };

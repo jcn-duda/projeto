@@ -27,7 +27,7 @@ function secret() {
  * Compatibilidade: sem dica a string assinada é IDÊNTICA à antiga, então
  * URLs já cacheadas nos clientes (sem `w`) continuam verificando.
  */
-function signResolve(infoHash, ep = '', hint = '') {
+function signResolve(infoHash: string, ep = '', hint = '') {
   const key = secret();
   if (!key) return '';
   const payload = `${infoHash}${ep}${hint ? `&w=${hint}` : ''}`;
@@ -35,7 +35,7 @@ function signResolve(infoHash, ep = '', hint = '') {
 }
 
 /** Comparação em tempo constante; sem segredo ativo a rota não é assinável. */
-function verifyResolve(infoHash, ep, sig, hint = '') {
+function verifyResolve(infoHash: string, ep: string, sig: unknown, hint = '') {
   const expected = signResolve(infoHash, ep, hint);
   if (!expected || typeof sig !== 'string') return false;
   const a = Buffer.from(expected);

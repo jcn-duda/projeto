@@ -25,11 +25,11 @@ const TOKEN = process.env.JACKETT_TEST_TOKEN;
  * próprio app por HTTP, e interceptar essa chamada faria o servidor responder
  * o dublê da AllDebrid em vez do JSON do endpoint.
  */
-function mockAccount(total, ready = 0) {
+function mockAccount(total: any, ready = 0) {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = (async (url, init) => {
+  globalThis.fetch = (async (url: any, init: any) => {
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     return {
     ok: true,
@@ -177,7 +177,7 @@ test('premiumize folgado: ok, sem aviso, com o fair-use medido', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = (async (url, init) => {
+  globalThis.fetch = (async (url: any, init: any) => {
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     return {
       ok: true,
@@ -256,7 +256,7 @@ test('torbox: o verificador conta o mylist, não devolve supported:false', async
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = (async (url, init) => {
+  globalThis.fetch = (async (url: any, init: any) => {
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     return {
       ok: true,
@@ -301,7 +301,7 @@ test('sem debrid configurado o verificador diz isso, sem tocar a rede', async ()
 
 // --- A rota ---------------------------------------------------------------
 
-async function request(app, path, headers = {}) {
+async function request(app: any, path: any, headers = {}) {
   const server = app.listen(0);
   try {
     const { port } = server.address();
@@ -383,7 +383,7 @@ test('warnAt do fair-use carrega a unidade explícita no corpo', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = (async (url, init) => {
+  globalThis.fetch = (async (url: any, init: any) => {
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     return {
       ok: true,

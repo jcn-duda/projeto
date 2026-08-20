@@ -36,7 +36,7 @@ test('pickTopSeededCandidates respeita o piso e o teto de dois', () => {
   );
 });
 
-const stream = (infoHash, extra = {}) => ({ infoHash, name: 'Release', ...extra });
+const stream = (infoHash: any, extra = {}) => ({ infoHash, name: 'Release', ...extra });
 
 test('pickBrDubbedCandidate pega o melhor BR e ignora quem não é BR', () => {
   const global = stream(A, { name: 'Joker 1080p', _dubbed: true });
@@ -237,11 +237,11 @@ test('limitReservingBr prioriza dublados sobre legendados nas vagas BR', () => {
 
   // Com brFirst, o dublado vem antes do legendado
   const outFirst = limitReservingBr([brLeg, brDub, global1], { brFirst: true, maxResults: 3 });
-  assert.deepEqual(outFirst.map((s) => s.id), ['br-dub', 'br-leg', 'global-1']);
+  assert.deepEqual(outFirst.map((s: any) => (s as any).id), ['br-dub', 'br-leg', 'global-1']);
 
   // Com 1 vaga reservada sem brFirst, a vaga reservada de BR é preenchida pelo dublado (substituindo o último global)
   const outReserved = limitReservingBr([global1, global2, brLeg, brDub], { brFirst: false, brReservedSlots: 1, maxResults: 2 });
-  assert.deepEqual(outReserved.map((s) => s.id), ['global-1', 'br-dub']);
+  assert.deepEqual(outReserved.map((s: any) => (s as any).id), ['global-1', 'br-dub']);
 });
 
 test('applyDebrid limita a primeira checagem e mantém resposta não vazia quando cache é desconhecido', async () => {
@@ -276,7 +276,7 @@ test('applyDebrid limita a primeira checagem e mantém resposta não vazia quand
         episode: 2,
         searchKey: 'busca-fria',
         deadlineAt: started + 2000,
-        onCacheResult: (result) => { cacheResult = result; },
+        onCacheResult: (result: any) => { cacheResult = result; },
       } as any),
     ) as Stream[];
 
@@ -310,15 +310,15 @@ test('matriz de enqueue: dc=false enfileira exatamente um BR dublado; cached/kno
   const originalEnqueue = pmAdapter.enqueue;
   const originalCacheCheck = pmAdapter.cacheCheck;
   const account = accountScope('chave-integrada');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const enqueued: string[] = [];
   pmAdapter.enqueue = async (_apiKey, infoHash) => {
     enqueued.push(infoHash);
     return true;
   };
-  const hash = (i) => String(i).repeat(40);
-  const brDub = (h) => ({
+  const hash = (i: any) => String(i).repeat(40);
+  const brDub = (h: any) => ({
     infoHash: h,
     name: 'Coringa Dublado 1080p',
     _br: true,
@@ -330,7 +330,7 @@ test('matriz de enqueue: dc=false enfileira exatamente um BR dublado; cached/kno
   // Cada caso usa hash e searchKey próprios: o marker persistente e a trava por
   // busca são dedupe do autofetch e mascarariam a trava sob teste se fossem
   // reutilizados entre os cenários.
-  const run = async ({ h, autoFetchBr = true, debridCachedOnly, cached = [] as string[], known = true, cacheCheck = true, searchKey }) => {
+  const run = async ({ h, autoFetchBr = true, debridCachedOnly, cached = [] as string[], known = true, cacheCheck = true, searchKey }: any) => {
     pmAdapter.cacheCheck = cacheCheck;
     debrid.checkCached = async () => ({ cached: new Set(cached), known });
     const userOpts = {
@@ -529,8 +529,8 @@ test('matriz integrada: 4 BR uncached com dc=false/known=true enfileiram os quat
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-quatro');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const brDub = (h, q, seeds) => ({
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
+  const brDub = (h: any, q: any, seeds: any) => ({
     infoHash: h, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: q, _seeders: seeds,
   });
 
@@ -583,9 +583,9 @@ test('matriz integrada: dc=false com BR dublado já em cache não enfileira (has
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-sete');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
   const h = '7'.repeat(40);
-  const brDub = (hash) => ({
+  const brDub = (hash: any) => ({
     infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
   });
 
@@ -626,11 +626,11 @@ test('fallback global: sem BR dublado na busca, as melhores dubladas globais sã
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-any');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
   const h1 = '1'.repeat(40);
   const h2 = '2'.repeat(40);
   const h3 = '3'.repeat(40);
-  const globalDub = (h, q, seeds) => ({
+  const globalDub = (h: any, q: any, seeds: any) => ({
     infoHash: h, name: 'Movie Dual', _br: false, _dubbed: true, _quality: q, _seeders: seeds,
   });
   const enqueued: string[] = [];
@@ -677,7 +677,7 @@ test('fallback global respeita os gates: stream tocável, BR presente e toggle o
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-any-gates');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
   const g = 'g'.repeat(40);
   const other = 'h'.repeat(40);
   const br = 'i'.repeat(40);
@@ -693,7 +693,7 @@ test('fallback global respeita os gates: stream tocável, BR presente e toggle o
     debridCachedOnly: true,
     autoFetchBr: true,
   };
-  const run = (streams, searchKey, cached = [] as string[]) => {
+  const run = (streams: any, searchKey: any, cached = [] as string[]) => {
     debrid.checkCached = async () => ({ cached: new Set(cached), known: true });
     return runtime.run({ opts: userOpts, encoded: 'cfg-gates' }, () =>
       applyDebrid(streams, { searchKey } as any),
@@ -741,7 +741,7 @@ test('autofetch de série enfileira o pack em vez do episódio avulso', async ()
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-pack');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
   const ep = '1'.repeat(40);
   const pack = '2'.repeat(40);
   const enqueued: string[] = [];
@@ -795,10 +795,10 @@ test('BR dublado em cache trava o autofetch mesmo com o infoHash em MAIÚSCULO',
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-caixa');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
   const lower = 'abcdef0123456789abcdef0123456789abcdef01';
   const upper = lower.toUpperCase();
-  const brDub = (hash) => ({
+  const brDub = (hash: any) => ({
     infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
   });
 
@@ -839,8 +839,8 @@ test('marker pré-existente pula apenas o hash marcado; um candidato diferente a
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-marker');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const brDub = (hash) => ({
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
+  const brDub = (hash: any) => ({
     infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
   });
 
@@ -856,7 +856,7 @@ test('marker pré-existente pula apenas o hash marcado; um candidato diferente a
     debridCachedOnly: true,
     autoFetchBr: true,
   };
-  const run = (h, searchKey) => runtime.run({ opts: userOpts, encoded: 'cfgm' }, () =>
+  const run = (h: any, searchKey: any) => runtime.run({ opts: userOpts, encoded: 'cfgm' }, () =>
     applyDebrid([brDub(h)], { searchKey } as any),
   );
 
@@ -895,8 +895,8 @@ test('passe parcial e tardio no MESMO searchKey compartilham teto de quatro enqu
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-dupla');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const brDub = (hash) => ({
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
+  const brDub = (hash: any) => ({
     infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
   });
 
@@ -916,7 +916,7 @@ test('passe parcial e tardio no MESMO searchKey compartilham teto de quatro enqu
     autoFetchBr: true,
   };
   const searchKey = 'busca-dupla-passe';
-  const run = (h) => runtime.run({ opts: userOpts, encoded: 'cfgd' }, () =>
+  const run = (h: any) => runtime.run({ opts: userOpts, encoded: 'cfgd' }, () =>
     applyDebrid([brDub(h)], { searchKey } as any),
   );
 
@@ -964,9 +964,9 @@ test('applyDebrid responde sem esperar o enqueue lento (disparo é efeito colate
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-lenta');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
   const h = '5'.repeat(40);
-  const brDub = (hash) => ({
+  const brDub = (hash: any) => ({
     infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
   });
 
@@ -1013,8 +1013,8 @@ test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/know
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalAdapterEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-holds');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const brDub = (hash) => ({
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
+  const brDub = (hash: any) => ({
     infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
   });
 
@@ -1029,7 +1029,7 @@ test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/know
     debridCachedOnly: true,
     autoFetchBr: true,
   };
-  const run = (h, searchKey) => runtime.run({ opts: userOpts, encoded: 'cfgh' }, () =>
+  const run = (h: any, searchKey: any) => runtime.run({ opts: userOpts, encoded: 'cfgh' }, () =>
     applyDebrid([brDub(h)], { searchKey } as any),
   );
 
@@ -1095,7 +1095,7 @@ test('falha definitiva do enqueue não é retentada: libera hold e slot sem mark
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-definitiva');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
   const h = '8'.repeat(40);
   const brDub = {
     infoHash: h, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
@@ -1148,10 +1148,10 @@ test('passe tardio não duplica o candidato do parcial enquanto o enqueue ainda 
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-nao-duplica');
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
   const h1 = '1'.repeat(40);
   const h2 = '2'.repeat(40);
-  const brDub = (hash) => ({
+  const brDub = (hash: any) => ({
     infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
   });
   const userOpts = {
@@ -1162,11 +1162,11 @@ test('passe tardio não duplica o candidato do parcial enquanto o enqueue ainda 
     autoFetchBr: true,
   };
   const searchKey = 'busca-nao-duplica';
-  const run = (streams) => runtime.run({ opts: userOpts, encoded: 'cfg-nd' }, () =>
+  const run = (streams: any) => runtime.run({ opts: userOpts, encoded: 'cfg-nd' }, () =>
     applyDebrid(streams, { searchKey } as any),
   );
 
-  let openEnqueue;
+  let openEnqueue: (value?: any) => void = () => {};
   const gate = new Promise((resolve) => { openEnqueue = resolve; });
   const enqueued: string[] = [];
   pmAdapter.enqueue = async (_apiKey, infoHash) => {

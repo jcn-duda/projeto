@@ -52,7 +52,7 @@ describe('Feature 1: Dynamic Domain Validation', () => {
 });
 
 describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
-  let originalFetch;
+  let originalFetch: any;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -70,7 +70,7 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
 
   test('bludv: getPostLinks armazena no cache e evita requisições redundantes', async () => {
     let fetchCount = 0;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       fetchCount += 1;
       return {
         ok: true,
@@ -271,7 +271,7 @@ describe('Feature 4: Universal extractMagnet & Link Protector Traversal', () => 
     const expectedMagnet = 'magnet:?xt=urn:btih:deadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
 
     let step = 0;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
       step += 1;
 
@@ -319,9 +319,9 @@ describe('Feature 4: Universal extractMagnet & Link Protector Traversal', () => 
 });
 
 describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
-  let originalFetch;
-  let savedTtl;
-  let savedFails;
+  let originalFetch: any;
+  let savedTtl: any;
+  let savedFails: any;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -359,7 +359,7 @@ describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
 
   test('probe troca para o primeiro candidato vivo após N falhas de rede', async () => {
     const hits: string[] = [];
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const target = String(url);
       hits.push(target);
       if (target.startsWith('https://down.example')) throw new TypeError('fetch failed');
@@ -373,7 +373,7 @@ describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
       ['live-a.example', 'live-b.example'],
     );
     const changes: string[] = [];
-    selector.onDomainChange((url) => changes.push(url));
+    selector.onDomainChange((url: any) => changes.push(url));
 
     assert.equal(selector.url(), 'https://down.example');
 
@@ -392,7 +392,7 @@ describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
 
   test('TTL do vencedor: falhas dentro da imunidade não re-sondam', async () => {
     let probes = 0;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const target = String(url);
       if (target.includes('/?s=teste')) probes += 1;
       if (target.startsWith('https://a.example')) throw new TypeError('fetch failed');
@@ -455,7 +455,7 @@ describe('Encerramento: load() sobe os quatro e close() os derruba', () => {
 
   // node:http de propósito, e não fetch: os testes acima dublam globalThis.fetch
   // e um dublê vazando para cá responderia por servidor que nem está de pé.
-  const responde = (porta) =>
+  const responde = (porta: any) =>
     new Promise((resolve) => {
       const req = http.get(
         { host: '127.0.0.1', port: porta, path: '/health', timeout: 1500 },

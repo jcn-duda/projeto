@@ -14,7 +14,7 @@ const runtime = await import('../src/runtime.js');
 const { streamsCacheKey } = await import('../src/utils/request-key.js');
 const { findStreams } = await import('../src/providers/index.js');
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Toda rede externa passa por um 404 com atraso curto. O atraso garante que o
 // refresh de fundo ainda está em voo quando a segunda leitura stale chega —
@@ -34,7 +34,7 @@ function installFetchStub() {
  * debrid (applyDebrid não toca conta nenhuma). Os defaults do .env do operador
  * não podem vazar para o teste — a chave do cache é derivada destas opts.
  */
-function inRequest(fn) {
+function inRequest(fn: any) {
   const testOpts = {
     ...runtime.normalize(null),
     providers: ['demo'],
@@ -44,7 +44,7 @@ function inRequest(fn) {
   return runtime.run({ opts: testOpts, encoded: 'swrtest' }, fn);
 }
 
-function cacheKeyFor(type, id) {
+function cacheKeyFor(type: any, id: any) {
   return streamsCacheKey(type, id, {
     ...runtime.opts(),
     resolveUncached: config.debrid.resolveUncached,

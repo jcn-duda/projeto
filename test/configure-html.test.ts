@@ -14,18 +14,18 @@ const HTML_PATH = path.join(__dirname, '..', 'src', 'public', 'configure.html');
 const html = fs.readFileSync(HTML_PATH, 'utf8');
 
 // O objeto literal usa chaves sem aspas (ES5); cita as chaves e vira JSON.
-function parseObjectLiteral(text) {
+function parseObjectLiteral(text: any) {
   const quoted = text.replace(/([{,]\s*)([A-Za-z_$][A-Za-z0-9_$]*)\s*:/g, '$1"$2":');
   return JSON.parse(quoted);
 }
 
-function sliceFunction(name) {
+function sliceFunction(name: any) {
   const match = html.match(new RegExp('function ' + name + '\\(\\) \\{[\\s\\S]*?\\n  \\}'));
   assert.ok(match, 'function ' + name + ' não encontrada no configure.html');
   return match[0];
 }
 
-function sliceNamedFunction(name) {
+function sliceNamedFunction(name: any) {
   const start = html.indexOf('function ' + name + '(');
   assert.notEqual(start, -1, 'function ' + name + ' não encontrada no configure.html');
   const bodyStart = html.indexOf('{', start);

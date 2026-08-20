@@ -19,6 +19,6 @@ const NAMESPACE_VERSIONS = Object.freeze({
 // padrão para sempre.
 const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:']);
 
-const prefix = (ns) => `${ns}:${NAMESPACE_VERSIONS[ns]}:`;
+const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSIONS[ns]}:`;
 
 export { NAMESPACE_VERSIONS, LEGACY_PREFIXES, prefix };

@@ -18,7 +18,7 @@ process.env.CACHE_PERSIST = 'false';
 type TimerSample = { count: number; avgMs: number; p50Ms: number | null; p95Ms: number | null; maxMs: number };
 
 /** Captura o que o logger escreveria de verdade. */
-function capture(fn) {
+function capture(fn: any) {
   const lines: { log: string[]; warn: string[]; error: string[] } = { log: [], warn: [], error: [] };
   const real = { log: console.log, warn: console.warn, error: console.error };
   console.log = (...args) => lines.log.push(args.join(' '));

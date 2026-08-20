@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-function authorized(expected, supplied) {
+function authorized(expected: string, supplied: unknown) {
   if (!expected || !supplied) return false;
   const left = crypto.createHash('sha256').update(String(expected)).digest();
   const right = crypto.createHash('sha256').update(String(supplied)).digest();
@@ -20,10 +20,10 @@ function createDiagnosticGate({
   const clients = new Map();
   let active = 0;
 
-  function enter(client) {
+  function enter(client: string) {
     const time = now();
     const key = String(client || 'unknown');
-    const recent = (clients.get(key) || []).filter((stamp) => time - stamp < windowMs);
+    const recent = (clients.get(key) || []).filter((stamp: number) => time - stamp < windowMs);
     if (recent.length === 0) clients.delete(key);
     if (recent.length >= limit) return { ok: false, status: 429, error: rateMessage };
     if (active >= maxConcurrent) return { ok: false, status: 429, error: busyMessage };

@@ -21,7 +21,7 @@ import * as log from '../utils/logger.js';
  * não pode esperá-la — estourou, devolve [] e a próxima busca pega o
  * inventário do memo (aquecido no boot para a conta do operador).
  */
-async function search(matchContext) {
+async function search(matchContext: any) {
   if (!matchContext?.names?.length) return [];
   try {
     const items = await raceWithDeadline(
@@ -29,7 +29,7 @@ async function search(matchContext) {
       config.debrid.inventoryTimeoutMs,
       () => [],
     );
-    const raw = items.map((item) => ({
+    const raw = items.map((item: any) => ({
       ...item,
       // Origem BR pelo título: garante que itens em português passem por
       // `matchesBrTitle` (invariante 5) durante o `filterInventoryRelevant`,

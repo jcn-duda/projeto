@@ -2,7 +2,7 @@
  * Provedor demo: Big Buck Bunny (filme livre) para validar o addon sem Jackett.
  * infoHash público do torrent de demonstração.
  */
-async function search({ type, imdbId }) {
+async function search({ type, imdbId }: { type?: string; imdbId?: string }) {
   // Big Buck Bunny — IMDb tt1254207
   if (type === 'movie' && imdbId === 'tt1254207') {
     return [

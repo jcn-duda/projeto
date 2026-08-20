@@ -8,7 +8,7 @@ import * as log from './logger.js';
 // cada uma pagava a chamada ao Cinemeta.
 const inFlight = new Map();
 
-function setMiss(key) {
+function setMiss(key: string) {
   // 0 desliga o cache negativo (operador pode querer sempre perguntar de novo).
   if (config.cinemeta.missTtl > 0) cache.set(key, { miss: true }, config.cinemeta.missTtl);
 }
@@ -20,7 +20,7 @@ function setMiss(key) {
  * título desconhecido pagava os 2,5s de timeout em toda busca. Falha
  * transitória se resolve sozinha quando o miss expira.
  */
-async function getMeta(type, imdbId) {
+async function getMeta(type: string, imdbId: string) {
   const key = `meta:${type}:${imdbId}`;
   const cached = cache.get(key);
   if (cached) {

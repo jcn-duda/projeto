@@ -10,7 +10,7 @@ const API = 'https://api.themoviedb.org/3';
 // pagava a chamada ao TMDB.
 const inFlight = new Map();
 
-function setMiss(key) {
+function setMiss(key: string) {
   // 0 desliga o cache negativo (operador pode querer sempre perguntar de novo).
   if (config.tmdb.missTtl > 0) cache.set(key, { miss: true }, config.tmdb.missTtl);
 }
@@ -25,7 +25,7 @@ function setMiss(key) {
  * conhece pagava os 5s de timeout em toda busca. Miss expira sozinho, então
  * falha transitória não condena o id para sempre.
  */
-async function getTitles(imdbId) {
+async function getTitles(imdbId: string) {
   if (!config.tmdb.apiKey || !imdbId) return null;
 
   const key = `tmdb:${imdbId}`;

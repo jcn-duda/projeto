@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const fixture = (name) => fs.readFileSync(path.join(__dirname, 'fixtures', name), 'utf8');
+const fixture = (name: any) => fs.readFileSync(path.join(__dirname, 'fixtures', name), 'utf8');
 
 import bludv from '../bludv-resolver/server.js';
 import comando from '../comandotorrents-resolver/server.js';

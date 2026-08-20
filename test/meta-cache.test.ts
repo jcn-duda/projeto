@@ -14,7 +14,7 @@ const { getTitles } = await import('../src/utils/tmdb.js');
 
 // Conta quantas vezes cada API externa foi consultada. É o cerne desta suíte:
 // cache negativo e coalescing existem para essas contagens ficarem em 1.
-function stubFetch(handler) {
+function stubFetch(handler: any) {
   const calls = { cinemeta: 0, tmdb: 0, other: 0 };
   const original = global.fetch;
   global.fetch = async (url, options) => {
@@ -27,7 +27,7 @@ function stubFetch(handler) {
   return { calls, restore: () => { global.fetch = original; } };
 }
 
-const okJson = (body) => ({ ok: true, status: 200, json: async () => body });
+const okJson = (body: any) => ({ ok: true, status: 200, json: async () => body });
 
 test('miss cacheado: buscas repetidas do mesmo id desconhecido disparam UM fetch por API', async () => {
   const originalKey = config.tmdb.apiKey;
@@ -41,7 +41,7 @@ test('miss cacheado: buscas repetidas do mesmo id desconhecido disparam UM fetch
   config.tmdb.missTtl = 300;
 
   // Ambas as APIs respondem "não conheço" (404 no Cinemeta, listas vazias no TMDB).
-  const stub = stubFetch((url) => {
+  const stub = stubFetch((url: any) => {
     if (url.includes('v3-cinemeta.strem.io')) return { ok: false, status: 404, json: async () => ({}) };
     return okJson({ movie_results: [], tv_results: [] });
   });

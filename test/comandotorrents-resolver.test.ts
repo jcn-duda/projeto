@@ -144,7 +144,7 @@ describe('ComandoTorrents Resolver: Meta Refresh & Next Protected URL', () => {
 });
 
 describe('ComandoTorrents Resolver: fetchFollowingAllowed & Multi-Hop Traversal', () => {
-  let originalFetch;
+  let originalFetch: any;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -163,7 +163,7 @@ describe('ComandoTorrents Resolver: fetchFollowingAllowed & Multi-Hop Traversal'
   test('fetchFollowingAllowed: segue múltiplos saltos (HTTP 302 -> HTML JS -> Magnet)', async () => {
     const targetMagnet = 'magnet:?xt=urn:btih:9999999999999999999999999999999999999999';
 
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
 
       if (u.includes('hop1')) {
@@ -226,7 +226,7 @@ describe('ComandoTorrents Resolver: Domain Allowlist & Protocol Security', () =>
 });
 
 describe('ComandoTorrents Resolver: In-Memory Caching & Coalescing', () => {
-  let originalFetch;
+  let originalFetch: any;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -281,7 +281,7 @@ describe('ComandoTorrents Resolver: In-Memory Caching & Coalescing', () => {
     const postUrl = 'https://comandotorrents.to/filme-magnet/';
     const targetMagnet = 'magnet:?xt=urn:btih:2222222222222222222222222222222222222222&dn=Filme';
 
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
       if (u.includes('filme-magnet')) {
         return {
@@ -335,8 +335,8 @@ describe('ComandoTorrents Resolver: In-Memory Caching & Coalescing', () => {
 });
 
 describe('ComandoTorrents Resolver: HTTP Server & API Endpoints', () => {
-  let server;
-  let port;
+  let server: any;
+  let port: any;
 
   beforeEach(async () => {
     server = comando.createServer();
@@ -354,7 +354,7 @@ describe('ComandoTorrents Resolver: HTTP Server & API Endpoints', () => {
     }
   });
 
-  const requestHttp = (pathname) =>
+  const requestHttp = (pathname: any) =>
     new Promise<{ status: number; body: string }>((resolve, reject) => {
       const req = http.get({ host: '127.0.0.1', port, path: pathname }, (res) => {
         let body = '';

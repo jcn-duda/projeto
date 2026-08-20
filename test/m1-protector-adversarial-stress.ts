@@ -15,7 +15,7 @@ interface HttpRes {
 }
 
 describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
-  let originalFetch;
+  let originalFetch: any;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -26,7 +26,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
   });
 
   test('1.1: Direct 1-hop HTTP 302 to 200 magnet page resolves successfully', async () => {
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
       if (u === 'https://systemads1.com/step1') {
         return {
@@ -49,7 +49,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
   });
 
   test('1.2: 5-hop redirect chain resolves successfully', async () => {
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
       const match = u.match(/step(\d+)/);
       if (!match) throw new Error(`Unexpected URL: ${u}`);
@@ -73,7 +73,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
   });
 
   test('1.3: 6-hop redirect chain (exact MAX_HOPS boundary) resolves successfully', async () => {
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
       const match = u.match(/step(\d+)/);
       if (!match) throw new Error(`Unexpected URL: ${u}`);
@@ -97,7 +97,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
   });
 
   test('1.4: 7-hop redirect chain exceeds MAX_HOPS and safely throws too_many_redirects', async () => {
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
       const match = u.match(/step(\d+)/);
       if (!match) throw new Error(`Unexpected URL: ${u}`);
@@ -117,7 +117,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
 
   test('1.5: 20-hop redirect chain terminates promptly with too_many_redirects without infinite loop', async () => {
     let callCount = 0;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       callCount += 1;
       const u = typeof url === 'string' ? url : url.href;
       return {
@@ -134,7 +134,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
   });
 
   test('1.6: Mixed multi-hop redirect chain across HTTP 302, meta refresh, and JS variables', async () => {
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
 
       if (u.includes('hop0')) {
@@ -180,7 +180,7 @@ describe('Suite 1: Deep Multi-Hop Redirect Chains (1, 5, 6, 7+ hops)', () => {
 });
 
 describe('Suite 2: Circular Redirect Loops & Self-Referential Redirects', () => {
-  let originalFetch;
+  let originalFetch: any;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -192,7 +192,7 @@ describe('Suite 2: Circular Redirect Loops & Self-Referential Redirects', () => 
 
   test('2.1: 2-hop circular HTTP 302 redirect loop (A -> B -> A) terminates with too_many_redirects', async () => {
     let callCount = 0;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       callCount += 1;
       const u = typeof url === 'string' ? url : url.href;
       if (u === 'https://systemads1.com/loopA') {
@@ -219,7 +219,7 @@ describe('Suite 2: Circular Redirect Loops & Self-Referential Redirects', () => 
 
   test('2.2: 3-hop circular redirect loop (A -> B -> C -> A) terminates with too_many_redirects', async () => {
     let callCount = 0;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       callCount += 1;
       const u = typeof url === 'string' ? url : url.href;
       if (u === 'https://systemads1.com/circA') {
@@ -598,7 +598,7 @@ describe('Suite 7: Network Fault Resilience & Error Handling', () => {
 });
 
 describe('Suite 8: Request Coalescing & Cache Bounding under Concurrency', () => {
-  let originalFetch;
+  let originalFetch: any;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -616,7 +616,7 @@ describe('Suite 8: Request Coalescing & Cache Bounding under Concurrency', () =>
     let postFetchCount = 0;
     let buttonFetchCount = 0;
 
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
       if (u.includes('filme-concorrente')) {
         postFetchCount += 1;
@@ -660,7 +660,7 @@ describe('Suite 8: Request Coalescing & Cache Bounding under Concurrency', () =>
 
   test('8.2: In-flight map cleans up rejected promises on fetch error, allowing immediate retry', async () => {
     let shouldFail = true;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
       if (shouldFail) {
         throw new Error('Network glitch');

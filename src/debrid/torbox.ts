@@ -4,7 +4,7 @@ import * as log from '../utils/logger.js';
 
 const API = 'https://api.torbox.app/v1/api';
 
-function envelopeMessage(data) {
+function envelopeMessage(data: any) {
   const detail = data?.detail;
   const error = data?.error;
   if (typeof detail === 'string' && detail.trim()) return detail.trim();
@@ -12,7 +12,7 @@ function envelopeMessage(data) {
   return '';
 }
 
-function unwrapEnvelope(data) {
+function unwrapEnvelope(data: any) {
   // TorBox devolve erro de limite com HTTP 200. A checagem de cache também
   // precisa subir esse envelope: lista vazia seria lida como "nada em cache".
   if (data && data.success === false) {
@@ -34,7 +34,7 @@ function unwrapEnvelope(data) {
  * @param {*} [options.body]
  * @param {Object} [options.params]
  */
-async function call(apiKey, path, { method = 'GET', body, params = {} }: { method?: string; body?: any; params?: Record<string, any> } = {}) {
+async function call(apiKey: string, path: string, { method = 'GET', body, params = {} }: { method?: string; body?: any; params?: Record<string, any> } = {}) {
   const url = new URL(`${API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const data = await json(url, { method, headers: { Authorization: `Bearer ${apiKey}` }, body });
@@ -47,7 +47,7 @@ async function call(apiKey, path, { method = 'GET', body, params = {} }: { metho
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-async function checkCached(apiKey, infoHashes, { timeoutMs }: { timeoutMs?: number } = {}) {
+async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
   return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const url = new URL(`${API}/torrents/checkcached`);
     batch.forEach((hash) => url.searchParams.append('hash', hash));
@@ -75,7 +75,7 @@ async function checkCached(apiKey, infoHashes, { timeoutMs }: { timeoutMs?: numb
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey, infoHash, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const form = new FormData();
   form.append('magnet', magnetFor(infoHash));
   form.append('seed', '3'); // não semear: só queremos o link de leitura
@@ -99,7 +99,7 @@ async function resolveLink(apiKey, infoHash, { season, episode, work }: { season
     return null;
   }
 
-  const files = (entry.files || []).map((f) => ({
+  const files = (entry.files || []).map((f: any) => ({
     path: f.short_name || f.name,
     size: f.size,
     id: f.id,
@@ -114,7 +114,7 @@ async function resolveLink(apiKey, infoHash, { season, episode, work }: { season
 }
 
 /** Mesmo createtorrent do resolveLink, mas sem esperar ficar pronto. */
-async function enqueue(apiKey, infoHash) {
+async function enqueue(apiKey: string, infoHash: string) {
   const form = new FormData();
   form.append('magnet', magnetFor(infoHash));
   form.append('seed', '3'); // não semear
@@ -130,7 +130,7 @@ async function enqueue(apiKey, infoHash) {
  * download_finished/download_present é o que o resolveLink já considera
  * "pronto para leitura".
  */
-async function inventory(apiKey) {
+async function inventory(apiKey: string) {
   const list = await call(apiKey, '/torrents/mylist');
   const rows = Array.isArray(list?.data) ? list.data : (list?.data ? [list.data] : []);
   const out: any[] = [];
@@ -150,7 +150,7 @@ async function inventory(apiKey) {
  * um teto consultável de magnets (o que dói é ACTIVE_LIMIT / 60 createtorrent
  * por hora); o número ainda serve para ver a conta crescer antes do recusar.
  */
-async function accountStatus(apiKey) {
+async function accountStatus(apiKey: string) {
   const list = await call(apiKey, '/torrents/mylist');
   const rows = Array.isArray(list?.data) ? list.data : (list?.data ? [list.data] : []);
   let ready = 0;

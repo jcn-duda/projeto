@@ -2,7 +2,12 @@ import config from '../config.js';
 import { TRACKERS, normalizeTitle } from '../utils/format.js';
 import * as log from '../utils/logger.js';
 
-function magnetFor(infoHash) {
+/** Arquivo dentro de um torrent, como cada serviço o reporta. */
+export type DebridFile = { path?: string; size?: number; [k: string]: any };
+/** Erro como ele chega aqui: Error, envelope da API ou nada. */
+export type MaybeError = any;
+
+function magnetFor(infoHash: string) {
   const trackers = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join('');
   return `magnet:?xt=urn:btih:${infoHash}${trackers}`;
 }
@@ -18,7 +23,7 @@ function magnetFor(infoHash) {
  */
 class AuthError extends Error {
   isAuthError = true;
-  constructor(message) {
+  constructor(message: string) {
     super(message);
     this.name = 'AuthError';
   }
@@ -29,7 +34,7 @@ class AuthError extends Error {
 // demais respondem 401/403.
 const AUTH_MESSAGE = /AUTH_(?:BAD_APIKEY|MISSING_APIKEY|BLOCKED|USER_BANNED)|authentication_failed|apikey is invalid|invalid (?:api )?(?:key|token)|unauthor[iz]|forbidden|bad token/i;
 
-function isAuthError(error) {
+function isAuthError(error: MaybeError) {
   if (!error) return false;
   if (error.isAuthError) return true;
   return AUTH_MESSAGE.test(String(error.message || ''));
@@ -46,7 +51,7 @@ function isAuthError(error) {
  */
 class QuotaError extends Error {
   isQuotaError = true;
-  constructor(message) {
+  constructor(message: string) {
     super(message);
     this.name = 'QuotaError';
   }
@@ -54,7 +59,7 @@ class QuotaError extends Error {
 
 const QUOTA_MESSAGE = /MAGNET_TOO_MANY_ACTIVE|magnets? limit reached|too many active|quota exceeded|limit reached/i;
 
-function isQuotaError(error) {
+function isQuotaError(error: MaybeError) {
   if (!error) return false;
   // Rate limit também pode mencionar "limit reached". A marca tipada vence o
   // regex amplo: esperar é transitório, enquanto quota degrada a lista a P2P.
@@ -73,7 +78,7 @@ function isQuotaError(error) {
  */
 class RateLimitError extends Error {
   isRateLimitError = true;
-  constructor(message) {
+  constructor(message: string) {
     super(message);
     this.name = 'RateLimitError';
   }
@@ -81,7 +86,7 @@ class RateLimitError extends Error {
 
 const RATE_LIMIT_MESSAGE = /rate_limit_reached|too many (?:api )?requests|slow down/i;
 
-function isRateLimitError(error) {
+function isRateLimitError(error: MaybeError) {
   if (!error) return false;
   if (error.isRateLimitError) return true;
   return RATE_LIMIT_MESSAGE.test(String(error.message || ''));
@@ -101,7 +106,7 @@ class WorkPickError extends Error {
   }
 }
 
-function isWorkPickError(error) {
+function isWorkPickError(error: MaybeError) {
   return error?.code === 'WORK_PICK';
 }
 
@@ -156,7 +161,7 @@ const SAMPLE = /(^|[^a-z])sample([^a-z]|$)/i;
 const EXTRA = /(^|[^a-z])(extras?|b[oô]nus|bonus|featurettes?|interviews?|entrevistas?|behind[ ._-]?the[ ._-]?scenes|trailers?|deleted[ ._-]?scenes?|cenas[ ._-]?deletadas|bloopers?|gags?|making[ ._-]?of)([^a-z]|$)/i;
 
 /** Nome do arquivo sem a pasta: "Trilogia (1985-1990)/video (1985).mkv" → "video (1985).mkv". */
-function baseName(p) {
+function baseName(p: string) {
   return String(p || '').split(/[/\\]/).pop() || '';
 }
 
@@ -165,7 +170,7 @@ function baseName(p) {
 const WORK_COVERAGE_MIN = 0.7;
 
 /** Fração dos tokens significativos do nome presentes no nome do arquivo. */
-function workCoverage(fileName, name) {
+function workCoverage(fileName: string, name: string) {
   const tokens = normalizeTitle(name).split(' ').filter(Boolean);
   const longTokens = tokens.filter((w) => w.length > 2);
   // Títulos curtos ("It", "Us", "Ela") não podem virar cobertura zero:
@@ -189,7 +194,7 @@ function workCoverage(fileName, name) {
  * suficiente; vários encodes do mesmo filme, ou nomes sem ano, seguem o
  * fallback permissivo do maior arquivo.
  */
-function looksMultiWorkFiles(files) {
+function looksMultiWorkFiles(files: DebridFile[]) {
   const mains = files.filter(
     (f) => VIDEO_EXT.test(f.path || '') && !SAMPLE.test(f.path || '') && !EXTRA.test(f.path || ''),
   );
@@ -199,7 +204,7 @@ function looksMultiWorkFiles(files) {
     // O ano que prova multi-obra vem do ARQUIVO, não da pasta: a raiz
     // "Trilogia (1985-1990)" contém 1985 em todos os arquivos e faria
     // qualquer pack de filme único parecer multi-obra.
-    const match = String(baseName(file.path) || '').match(/(?:^|[^0-9])((?:19|20)\d{2})(?:$|[^0-9])/);
+    const match = String(baseName(file.path || '') || '').match(/(?:^|[^0-9])((?:19|20)\d{2})(?:$|[^0-9])/);
     if (match) years.add(Number(match[1]));
   }
   return years.size >= 2;
@@ -221,7 +226,7 @@ function looksMultiWorkFiles(files) {
  * @param {string[]} [options.names]
  * @param {(number|string|null)} [options.year]
  */
-function pickWorkFile(files, { names, year }: { names?: string[]; year?: number | string | null } = {}) {
+function pickWorkFile(files: DebridFile[], { names, year }: { names?: string[]; year?: number | string | null } = {}) {
   const cleanYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
   const scored = files
     .map((f) => ({
@@ -263,7 +268,7 @@ function pickWorkFile(files, { names, year }: { names?: string[]; year?: number 
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-function pickFile(files, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
+function pickFile(files: DebridFile[], { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const videos = files.filter((f) => VIDEO_EXT.test(f.path || '') && !SAMPLE.test(f.path || ''));
   if (videos.length === 0) return null;
 
@@ -275,7 +280,7 @@ function pickFile(files, { season, episode, work }: { season?: number | null; ep
       new RegExp(`\\b${season}x${e}\\b`, 'i'),
       new RegExp(`\\b${s}${e}\\b`),
     ];
-    const match = videos.find((f) => patterns.some((p) => p.test(f.path)));
+    const match = videos.find((f) => patterns.some((p) => p.test(f.path || '')));
     if (match) return match;
   }
 
@@ -327,7 +332,7 @@ function pickFile(files, { season, episode, work }: { season?: number | null; ep
  *   passo de resposta). Ausente = cada adaptador usa o próprio teto
  *   (config.debrid.cacheCheckTimeout).
  */
-async function batched(infoHashes, size, fn, { timeoutMs }: { timeoutMs?: number } = {}) {
+async function batched(infoHashes: string[], size: number, fn: (batch: string[], ctx?: any) => Promise<any>, { timeoutMs }: { timeoutMs?: number } = {}) {
   const slices: any[][] = [];
   for (let i = 0; i < infoHashes.length; i += size) {
     slices.push(infoHashes.slice(i, i + size));
@@ -343,7 +348,7 @@ async function batched(infoHashes, size, fn, { timeoutMs }: { timeoutMs?: number
 
   for (const result of settled) {
     if (result.status === 'fulfilled') {
-      result.value.forEach((hash) => cached.add(hash));
+      result.value.forEach((hash: string) => cached.add(hash));
     } else {
       failures += 1;
       const message = result.reason?.message || String(result.reason);
@@ -377,7 +382,7 @@ async function batched(infoHashes, size, fn, { timeoutMs }: { timeoutMs?: number
 }
 
 /** Espera curta entre polls — o serviço acabou de receber o magnet. */
-function wait(ms) {
+function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms).unref());
 }
 

@@ -99,14 +99,14 @@ function defaults() {
   };
 }
 
-function clampInt(value, { min, max }: { min: number; max: number }, fallback) {
+function clampInt(value: unknown, { min, max }: { min: number; max: number }, fallback: number) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
 /** Mapa compacto `id:limite,id:limite`; 0 é override explícito sem limite. */
-function normalizeIntMap(value, spec) {
+function normalizeIntMap(value: unknown, spec: any) {
   let entries;
   if (Array.isArray(value)) {
     entries = value.map((item) => String(item).split(':', 2));
@@ -129,8 +129,9 @@ function normalizeIntMap(value, spec) {
 }
 
 /** Aplica o overlay sobre os defaults, ignorando qualquer chave desconhecida. */
-function normalize(raw) {
-  const base = defaults();
+function normalize(raw: any) {
+  // Indexado por nome de opção (as chaves do SCHEMA), não por chave conhecida.
+  const base: Record<string, any> = defaults();
   if (!raw || typeof raw !== 'object') return base;
 
   for (const [name, spec] of Object.entries(SCHEMA)) {
@@ -159,7 +160,7 @@ function normalize(raw) {
   return base;
 }
 
-function encode(raw) {
+function encode(raw: unknown) {
   return Buffer.from(JSON.stringify(raw), 'utf8').toString('base64url');
 }
 
@@ -172,7 +173,7 @@ function encode(raw) {
  * Reescreve o objeto cru, sem normalizar: o que o usuário escolheu tem que
  * voltar exatamente igual, só com o `dk` trocado.
  */
-function sealSegment(segment) {
+function sealSegment(segment: string) {
   if (!segment || segment.length > MAX_CONFIG_SEGMENT || !/^[A-Za-z0-9_-]+$/.test(segment)) return null;
   try {
     const parsed = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
@@ -190,7 +191,7 @@ function sealSegment(segment) {
  * `null` quando o segmento não é uma config — é assim que o roteador distingue
  * `/<config>/manifest.json` de qualquer outra rota de um segmento só.
  */
-function decode(segment) {
+function decode(segment: string | null | undefined) {
   if (!segment || segment.length > MAX_CONFIG_SEGMENT || !/^[A-Za-z0-9_-]+$/.test(segment)) return null;
   try {
     const parsed = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
@@ -241,7 +242,7 @@ function origin() {
  * com o middleware de config (`/:userConfig`): o segundo roda `run({ opts,
  * encoded })` depois do primeiro e não pode apagar o origin que aquele capturou.
  */
-function run(patch, fn) {
+function run<T>(patch: any, fn: () => T): T {
   return store.run({ ...store.getStore(), ...patch }, fn);
 }
 

@@ -62,7 +62,7 @@ function mockAllDebridStatus({ magnetsOf = () => [], failOf = () => false }: { m
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
 
-  globalThis.fetch = (async (input) => {
+  globalThis.fetch = (async (input: any) => {
     const url = new URL(String(input));
     if (url.pathname.endsWith('/magnet/status')) {
       calls.push(url.searchParams.get('id') || null);
@@ -87,7 +87,7 @@ function mockTorBoxList({ rows = [] }: { rows?: TorBoxRow[] } = {}) {
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
 
-  globalThis.fetch = (async (input) => {
+  globalThis.fetch = (async (input: any) => {
     const url = new URL(String(input));
     if (url.pathname.endsWith('/torrents/mylist')) {
       return { ok: true, async json() { return { data: rows }; } };
@@ -105,7 +105,7 @@ function mockTorBoxList({ rows = [] }: { rows?: TorBoxRow[] } = {}) {
 
 // O json() do common usa AbortSignal.timeout; com o fetch dublado não sobra
 // handle vivo e o event loop esvazia antes do fim do arquivo.
-let keepAlive;
+let keepAlive: any;
 before(() => {
   keepAlive = setInterval(() => {}, 1000);
 });
@@ -228,9 +228,9 @@ test('item do inventário é preexistente: o dropReady não o apaga da conta', a
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
 
-  globalThis.fetch = (async (input) => {
+  globalThis.fetch = (async (input: any) => {
     const url = new URL(String(input));
-    const body = (data) => ({ ok: true, async json() { return { status: 'success', data }; } });
+    const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
     if (url.pathname.endsWith('/magnet/status')) {
       // O inventário da conta: só o que já era do usuário.
       return body({ magnets: [{ id: IDS[DO_USUARIO], hash: DO_USUARIO, status: 'Ready', filename: 'Acervo do usuário' }] });

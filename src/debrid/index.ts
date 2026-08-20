@@ -23,7 +23,7 @@ const NON_ABORTABLE_CHECK_TTL_MS = 60_000;
 const CHECKED_HASH_WINDOW_MS = 15 * 60 * 1000;
 const checkedHashWindow = new Map();
 
-function trackCheckedHashes(infoHashes) {
+function trackCheckedHashes(infoHashes: string[]) {
   const now = Date.now();
   // Poda preguiçosa na própria chamada: o volume de checagens é baixo e não
   // justifica timer dedicado.
@@ -55,7 +55,7 @@ const UNUSABLE = {
   auth: {
     metric: 'debrid.auth.invalid',
     label: 'credencial recusada',
-    fix: (adapter) =>
+    fix: (adapter: any) =>
       `gere uma chave nova em ${adapter.keyUrl || 'sua conta'} e atualize DEBRID_API_KEY` +
       ' ou refaça a URL de instalação em /configure',
   },
@@ -68,26 +68,26 @@ const UNUSABLE = {
   },
 };
 
-function unusable(adapter, reason, err) {
-  const kind = UNUSABLE[reason];
+function unusable(adapter: any, reason: string, err: any) {
+  const kind = (UNUSABLE as Record<string, any>)[reason];
   metrics.count(kind.metric);
   log.warn(`[${adapter.id}] ${kind.label} (${err.message}); a lista volta como P2P — ${kind.fix(adapter)}`);
   return { cached: new Set(), known: false, unusable: { reason, message: err.message } };
 }
 
 /** Classifica o que impede o serviço de funcionar, ou null se for transitório. */
-function unusableReason(err) {
+function unusableReason(err: any) {
   if (isAuthError(err)) return 'auth';
   if (isQuotaError(err)) return 'quota';
   return null;
 }
 
 /** Rate limit é transitório: não entra em unusable. Só classifica o diagnóstico. */
-function failureReason(err) {
+function failureReason(err: any) {
   return unusableReason(err) || (isRateLimitError(err) ? 'rate' : 'falha');
 }
 
-function normalizeCacheResult(adapter, result) {
+function normalizeCacheResult(adapter: any, result: any) {
   const cached = result instanceof Set ? result : result?.cached || new Set();
   const complete = result instanceof Set ? true : result?.complete !== false;
   if (!complete) {
@@ -98,12 +98,12 @@ function normalizeCacheResult(adapter, result) {
   return { cached, known: complete };
 }
 
-function nonAbortableKey(adapter, apiKey, infoHashes) {
-  const hashes = [...new Set(infoHashes.map((hash) => String(hash).toLowerCase()))].sort();
+function nonAbortableKey(adapter: any, apiKey: string, infoHashes: string[]) {
+  const hashes = [...new Set(infoHashes.map((hash: string) => String(hash).toLowerCase()))].sort();
   return `${adapter.id}:${accountScope(apiKey)}:${hashes.join(',')}`;
 }
 
-function nonAbortableCheck(adapter, apiKey, infoHashes) {
+function nonAbortableCheck(adapter: any, apiKey: string, infoHashes: string[]) {
   const key = nonAbortableKey(adapter, apiKey, infoHashes);
   let entry = nonAbortableChecks.get(key);
   if (entry) return entry.promise;
@@ -115,7 +115,7 @@ function nonAbortableCheck(adapter, apiKey, infoHashes) {
     // valendo, mas a corrida da resposta não cancela este trabalho.
     .then(() => adapter.checkCached(apiKey, infoHashes))
     .then((result) => normalizeCacheResult(adapter, result))
-    .catch((err) => {
+    .catch((err: any) => {
       // A AllDebrid é justamente o serviço que passa por aqui, então a
       // credencial recusada precisa ser reconhecida NESTE catch também — não
       // só no caminho abortável lá embaixo.
@@ -125,7 +125,7 @@ function nonAbortableCheck(adapter, apiKey, infoHashes) {
       return { cached: new Set(), known: false };
     });
   nonAbortableChecks.set(key, entry);
-  entry.promise.then(({ known }) => {
+  entry.promise.then(({ known }: { known?: boolean }) => {
     // Falha não pode ficar memorizada: o passe tardio deve poder tentar de novo
     // assim que o serviço voltar. Só resultado confiável serve como dedupe curto.
     if (!known) {
@@ -212,7 +212,7 @@ function current(): DebridAdapter | null {
  *   do REPLY_DEADLINE menos margem). Quando <=0 degrada na hora, sem rede.
  *   Ausente = timeout completo do adaptador (passe tardio).
  */
-async function checkCached(infoHashes, { timeoutMs }: { timeoutMs?: number } = {}) {
+async function checkCached(infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
   const adapter = current();
   if (!adapter || infoHashes.length === 0) return { cached: new Set(), known: false };
   if (!adapter.cacheCheck) return { cached: new Set(), known: false };
@@ -327,7 +327,7 @@ async function accountStatus() {
   }
 }
 
-async function resolveLink(infoHash, episode) {
+async function resolveLink(infoHash: string, episode?: any) {
   const adapter = current();
   if (!adapter) return null;
   return adapter.resolveLink(opts().debridApiKey, infoHash, episode);
@@ -337,7 +337,7 @@ async function resolveLink(infoHash, episode) {
 // leitura da conta.
 const inventoryInFlight = new Map();
 
-function inventoryFor(adapter, apiKey) {
+function inventoryFor(adapter: any, apiKey: string) {
   const key = `${prefix('dinv')}${adapter.id}:${accountScope(apiKey)}`;
   const hit = cache.get(key);
   if (hit) return Promise.resolve(hit);
@@ -384,7 +384,7 @@ async function inventory() {
  * É o que sustenta o download automático da fonte BR dublada: o play só
  * funciona depois, quando o serviço terminar.
  */
-async function enqueue(infoHash, episode) {
+async function enqueue(infoHash: string, episode?: any) {
   const adapter = current();
   if (!adapter || typeof adapter.enqueue !== 'function') return false;
   try {
@@ -412,14 +412,14 @@ function warmupEnv() {
     typeof adapter.inventory === 'function' &&
     config.debrid.apiKey && config.debrid.allowEnvKey
   ) {
-    inventoryFor(adapter, config.debrid.apiKey).catch((err) => {
+    inventoryFor(adapter, config.debrid.apiKey).catch((err: any) => {
       log.warn(`[${adapter.id}] não consegui aquecer o inventário como fonte:`, err.message);
     });
   }
 
   if (typeof adapter.warmInventory !== 'function') return Promise.resolve(null);
   if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.dropReady) return Promise.resolve(null);
-  return adapter.warmInventory(config.debrid.apiKey).catch((err) => {
+  return adapter.warmInventory(config.debrid.apiKey).catch((err: any) => {
     log.warn(`[${adapter.id}] não consegui aquecer o inventário:`, err.message);
     return null;
   });

@@ -4,7 +4,7 @@ import assert from 'node:assert';
 import * as latestWriter from '../src/utils/latest-writer.js';
 
 function deferred() {
-  let resolve;
+  let resolve: (value?: any) => void = () => {};
   const promise = new Promise((done) => { resolve = done; });
   return { promise, resolve };
 }

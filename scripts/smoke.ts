@@ -24,7 +24,7 @@ let failures = 0;
 // Em modo demo não existe fonte BR nenhuma; cobrar isso seria falso negativo.
 let isDemo = false;
 
-function ok(label, pass, detail = '') {
+function ok(label: string, pass: boolean, detail = '') {
   if (!pass) failures += 1;
   console.log(`${pass ? '  ok  ' : ' FALHA'} ${label}${detail ? ` — ${detail}` : ''}`);
 }
@@ -40,7 +40,7 @@ interface SearchResp {
   complete: boolean;
 }
 
-async function get(path, timeout = 20000) {
+async function get(path: string, timeout = 20000) {
   const started = Date.now();
   const res = await fetch(`${BASE}${path}`, { signal: AbortSignal.timeout(timeout) });
   const body = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
@@ -75,24 +75,24 @@ async function checkRoutes() {
   ok(
     'lista de debrids',
     Array.isArray(defaults.body?.services) && defaults.body.services.length > 0,
-    (defaults.body?.services || []).map((s) => s.id).join(', '),
+    (defaults.body?.services || []).map((s: any) => s.id).join(', '),
   );
 
   const bogus = await get('/naoehumaconfig/manifest.json');
   ok('segmento inválido → 404', bogus.status === 404, `recebido ${bogus.status}`);
 }
 
-function inspect(streams) {
-  const titles = streams.map((s) => String(s.title || ''));
+function inspect(streams: any[]) {
+  const titles = streams.map((s: any) => String(s.title || ''));
   return {
     total: streams.length,
     // As fontes BR são reconhecíveis pelo indexer no rodapé do título (a 2ª
     // linha, formato "👤 seeds 💾 tamanho ⚙️ Indexer ..."), ou pelo rótulo
     // antigo "bludv/comando" na 1ª linha.
-    br: titles.filter((t) => /bludv|comando|nerdfilmes|torrentdosfilmes|redetorrent|apachetorrent/i.test(t)).length,
-    cacheados: streams.filter((s) => String(s.name || '').includes('⚡')).length,
-    viaDebrid: streams.filter((s) => s.url).length,
-    p2p: streams.filter((s) => s.infoHash).length,
+    br: titles.filter((t: string) => /bludv|comando|nerdfilmes|torrentdosfilmes|redetorrent|apachetorrent/i.test(t)).length,
+    cacheados: streams.filter((s: any) => String(s.name || '').includes('⚡')).length,
+    viaDebrid: streams.filter((s: any) => s.url).length,
+    p2p: streams.filter((s: any) => s.infoHash).length,
     // Campos internos nunca podem chegar ao Stremio.
     vazando: streams.some((s) => Object.keys(s).some((key) => key.startsWith('_'))),
   };
@@ -149,7 +149,7 @@ async function checkSearch() {
 async function checkUserConfig() {
   console.log('── Config por usuário ───────────────────');
 
-  const encode = (obj) => Buffer.from(JSON.stringify(obj), 'utf8').toString('base64url');
+  const encode = (obj: any) => Buffer.from(JSON.stringify(obj), 'utf8').toString('base64url');
 
   // Sem debrid: os streams têm que voltar como torrent P2P puro.
   const p2p = encode({ ds: '', dc: 0 });
@@ -166,10 +166,10 @@ async function checkUserConfig() {
   // Filtro de qualidade.
   const only4k = encode({ q: '2160p' });
   const c = await get(`/${only4k}/stream/movie/tt7286456.json`);
-  const titles = (c.body?.streams || []).map((s) => String(s.title));
+  const titles = (c.body?.streams || []).map((s: any) => String(s.title));
   ok(
     'config "só 2160p" filtrou',
-    titles.length === 0 || titles.every((t) => /2160p|4k|uhd/i.test(t)),
+    titles.length === 0 || titles.every((t: string) => /2160p|4k|uhd/i.test(t)),
     `${titles.length} stream(s)`,
   );
 }

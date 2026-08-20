@@ -17,23 +17,23 @@ function sweep() {
   for (const [hash, expiresAt] of held) if (expiresAt <= now) held.delete(hash);
 }
 
-function key(hash, account = 'none') {
+function key(hash: string, account = 'none') {
   return `${account}:${String(hash || '').toLowerCase()}`;
 }
 
 /** Protege o hash por `ttlSeconds`. Chamar de novo renova o prazo. */
-function hold(hash, ttlSeconds, account = 'none') {
+function hold(hash: string, ttlSeconds: number, account = 'none') {
   if (!hash) return;
   sweep();
   held.set(key(hash, account), Date.now() + Math.max(1, Number(ttlSeconds) || 0) * 1000);
 }
 
 /** Libera o hash: volta a valer a limpeza normal. */
-function release(hash, account = 'none') {
+function release(hash: string, account = 'none') {
   held.delete(key(hash, account));
 }
 
-function isHeld(hash, account = 'none') {
+function isHeld(hash: string, account = 'none') {
   const heldKey = key(hash, account);
   const expiresAt = held.get(heldKey);
   if (!expiresAt) return false;

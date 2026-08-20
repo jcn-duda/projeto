@@ -29,11 +29,11 @@ const FAKE_ADAPTER = {
   resolveLink: async () => 'https://fake.test/dl/video.mp4',
 } as DebridAdapter;
 
-function hmacSig(secret, payload) {
+function hmacSig(secret: any, payload: any) {
   return crypto.createHmac('sha256', secret).update(payload).digest('hex');
 }
 
-let server;
+let server: any;
 const saved: Record<string, string> = {};
 
 before(async () => {
@@ -116,7 +116,7 @@ test('segmento base64url válido serve o manifest e o overlay chega na busca', a
   ];
 
   await withMockFetch(routes, async () => {
-    const busca = (maxResults) =>
+    const busca = (maxResults: any) =>
       server.request(
         'GET',
         `/${encodeConfig({

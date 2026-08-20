@@ -22,21 +22,21 @@ const results = {
   timings: {} as Record<string, number>,
 };
 
-function recordPass(suite, name, durationMs) {
+function recordPass(suite: any, name: any, durationMs: any) {
   results.passed++;
   const key = `${suite} > ${name}`;
   results.timings[key] = durationMs;
   console.log(`  [PASS] ${key} (${durationMs.toFixed(2)}ms)`);
 }
 
-function recordFail(suite, name, err) {
+function recordFail(suite: any, name: any, err: any) {
   results.failed++;
   const key = `${suite} > ${name}`;
   results.failures.push({ suite, name, error: err.message, stack: err.stack });
   console.error(`  [FAIL] ${key}: ${err.message}`);
 }
 
-function runSync(suite, name, fn) {
+function runSync(suite: any, name: any, fn: any) {
   const t0 = performance.now();
   try {
     fn();
@@ -46,7 +46,7 @@ function runSync(suite, name, fn) {
   }
 }
 
-async function runAsync(suite, name, fn) {
+async function runAsync(suite: any, name: any, fn: any) {
   const t0 = performance.now();
   try {
     await fn();

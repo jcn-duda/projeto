@@ -15,7 +15,7 @@ const store = new Map();
 // A soma das cotas conhecidas é 11.500. O teto global fica logo acima dela
 // como proteção para prefixes novos, sem um namespace conhecido expulsar outro.
 const MAX_ENTRIES = 12000;
-const QUOTAS = Object.freeze({
+const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
   tmdb: 2000,
@@ -94,20 +94,20 @@ function openDatabase() {
   }
 }
 
-function namespaceFor(key) {
+function namespaceFor(key: string) {
   const separator = String(key).indexOf(':');
   return separator === -1 ? '__default' : String(key).slice(0, separator);
 }
 
-function quotaFor(namespace) {
+function quotaFor(namespace: string) {
   return QUOTAS[namespace] || QUOTAS.__default;
 }
 
-function incrementNamespace(namespace) {
+function incrementNamespace(namespace: string) {
   namespaceCounts.set(namespace, (namespaceCounts.get(namespace) || 0) + 1);
 }
 
-function removeFromStore(key) {
+function removeFromStore(key: string) {
   const entry = store.get(key);
   if (!entry) return false;
   store.delete(key);
@@ -117,7 +117,7 @@ function removeFromStore(key) {
   return true;
 }
 
-function evict(keys) {
+function evict(keys: string[]) {
   for (const key of keys) {
     // A cota cheia é o estado normal de um namespace quente. `cache.evicted`
     // fica reservado ao teto global, para continuar alertando só pressão real
@@ -128,7 +128,7 @@ function evict(keys) {
   forgetMany(keys);
 }
 
-function quotaOverflow(namespace) {
+function quotaOverflow(namespace: string) {
   const excess = (namespaceCounts.get(namespace) || 0) - quotaFor(namespace);
   if (excess <= 0) return [];
   const dropped: any[] = [];
@@ -266,14 +266,14 @@ function scheduleFlush() {
   flushScheduled.unref?.();
 }
 
-function persist(key, value, expiresAt) {
+function persist(key: string, value: unknown, expiresAt: number) {
   if (!insertStmt) return;
   // A última escrita da chave é a que vale; o Map já substitui a anterior.
   pending.set(key, { value, expiresAt });
   scheduleFlush();
 }
 
-function forget(key) {
+function forget(key: string) {
   removeFromStore(key);
   // Se a chave ainda está na fila de despejo, o lote não pode ressuscitá-la.
   pending.delete(key);
@@ -291,7 +291,7 @@ function forget(key) {
  * expira muitas chaves de uma vez vira um commit por chave, síncrono, no meio
  * do caminho de busca. Uma transação faz um fsync para o lote inteiro.
  */
-function forgetMany(keys) {
+function forgetMany(keys: string[]) {
   if (!keys.length) return;
   // L1 é a fonte das leituras. A limpeza precisa valer mesmo quando o SQLite
   // não existe; o L2 é apenas a cópia best-effort para sobreviver ao restart.
@@ -356,14 +356,14 @@ function size() {
 }
 
 function snapshot() {
-  const namespaces = {};
+  const namespaces: Record<string, { entries: number; maxEntries: number }> = {};
   for (const [namespace, entries] of namespaceCounts) {
     namespaces[namespace] = { entries, maxEntries: quotaFor(namespace) };
   }
   return { entries: size(), maxEntries: MAX_ENTRIES, namespaces };
 }
 
-function get(key) {
+function get(key: string) {
   const hit = store.get(key);
   if (!hit) {
     // O contador por namespace diz QUAL balde está pagando rede de novo; o
@@ -397,7 +397,7 @@ function get(key) {
  * ela enquanto revalida em fundo; depois devolve null. O get() normal mantém a
  * semântica dura (expirou = apagou), por isso os dois convivem.
  */
-function getWithStale(key, graceSeconds = 0) {
+function getWithStale(key: string, graceSeconds = 0) {
   const hit = store.get(key);
   if (!hit) {
     metrics.count('cache.miss');
@@ -428,7 +428,7 @@ function getWithStale(key, graceSeconds = 0) {
   return { value: hit.value, stale: false };
 }
 
-function set(key, value, ttlSeconds) {
+function set(key: string, value: unknown, ttlSeconds: number) {
   if (!ttlSeconds || ttlSeconds <= 0) return;
   const expiresAt = Date.now() + ttlSeconds * 1000;
   const namespace = namespaceFor(key);

@@ -111,7 +111,7 @@ describe('Feature 2: In-Memory Caching & Dedupe in BLUDV Resolver', () => {
     const MAX_CACHE_SIZE = 200;
     const POST_CACHE_MS = 1000;
 
-    async function resolvePost(postUrl, fetcher) {
+    async function resolvePost(postUrl: any, fetcher: any) {
       const now = Date.now();
       const hit = postCache.get(postUrl);
       if (hit && now - hit.timestamp < POST_CACHE_MS) {
@@ -166,7 +166,7 @@ describe('Feature 2: In-Memory Caching & Dedupe in BLUDV Resolver', () => {
 
   it('2.2: Requisições concorrentes em voo compartilham a mesma Promise (inFlight dedupe)', async () => {
     const service = createPostResolverService();
-    let resolverFn;
+    let resolverFn: (value?: any) => void = () => {};
     const delayedFetcher = () => new Promise((resolve) => { resolverFn = resolve; });
 
     const p1 = service.resolvePost('https://bludv.test/post2', delayedFetcher);
@@ -201,7 +201,7 @@ describe('Feature 2: In-Memory Caching & Dedupe in BLUDV Resolver', () => {
 
   it('2.4: Cache respeita o limite máximo de entradas (MAX_CACHE_SIZE) expulsando a mais antiga', async () => {
     const service = createPostResolverService();
-    const fetcher = async (url) => ['magnet:?xt=urn:btih:' + TEST_HASH_1 + '&url=' + url];
+    const fetcher = async (url: any) => ['magnet:?xt=urn:btih:' + TEST_HASH_1 + '&url=' + url];
 
     for (let i = 0; i < 205; i++) {
       await service.resolvePost(`https://bludv.test/item-${i}`, fetcher);
@@ -292,7 +292,7 @@ describe('Feature 3: Standardized siteEnv Configuration', () => {
 // FEATURE 4: Enhanced Protector & JavaScript Extraction
 // ════════════════════════════════════════════════════════════════════════════════
 describe('Feature 4: Enhanced Protector & JavaScript Extraction', () => {
-  function extractDestinationFromHtml(html) {
+  function extractDestinationFromHtml(html: any) {
     if (!html) return null;
     const magnetMatch = html.match(/href=["'](magnet:\?[^"']+)["']/i);
     if (magnetMatch) return magnetMatch[1];
@@ -338,7 +338,7 @@ describe('Feature 4: Enhanced Protector & JavaScript Extraction', () => {
   it('4.5: Simulador de saltos aborta de forma limpa ao atingir MAX_HOPS sem lançar exceção', async () => {
     const MAX_HOPS = 6;
     let hops = 0;
-    const hopFetcher = async (url) => {
+    const hopFetcher = async (url: any) => {
       hops += 1;
       return `<meta http-equiv="refresh" content="0; url=https://protector.test/hop-${hops}">`;
     };
@@ -632,7 +632,7 @@ describe('Feature 8: Search & Late-Pass Budget Optimization', () => {
     const inFlight = new Map();
     let actualSearches = 0;
 
-    async function executeSearch(queryKey) {
+    async function executeSearch(queryKey: any) {
       if (inFlight.has(queryKey)) return inFlight.get(queryKey);
 
       const promise = (async () => {
@@ -1130,7 +1130,7 @@ describe('Feature 12: Architecture & Invariants Preservation', () => {
 // FEATURE 13: E2E Testing Suite (Tiers 1-4)
 // ════════════════════════════════════════════════════════════════════════════════
 describe('Feature 13: E2E Testing Suite (Tiers 1-4)', () => {
-  let server;
+  let server: any;
 
   beforeEach(async () => {
     server = await createTestServer();
@@ -1208,7 +1208,7 @@ describe('Feature 13: E2E Testing Suite (Tiers 1-4)', () => {
 // FEATURE 14: Final E2E Pass & Adversarial Hardening (Tier 5)
 // ════════════════════════════════════════════════════════════════════════════════
 describe('Feature 14: Final E2E Pass & Adversarial Hardening (Tier 5)', () => {
-  let server;
+  let server: any;
 
   beforeEach(async () => {
     server = await createTestServer();

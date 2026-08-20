@@ -11,7 +11,7 @@ const API = 'https://debrid-link.com/api/v2';
  * @param {*} [options.body]
  * @param {Object} [options.params]
  */
-async function call(apiKey, path, { method = 'GET', body, params = {} }: { method?: string; body?: any; params?: Record<string, any> } = {}) {
+async function call(apiKey: string, path: string, { method = 'GET', body, params = {} }: { method?: string; body?: any; params?: Record<string, any> } = {}) {
   const url = new URL(`${API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
@@ -45,7 +45,7 @@ async function checkCached() {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey, infoHash, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const added = await call(apiKey, '/seedbox/add', {
     method: 'POST',
     body: new URLSearchParams({ url: magnetFor(infoHash), async: 'true' }),
@@ -63,7 +63,7 @@ async function resolveLink(apiKey, infoHash, { season, episode, work }: { season
     return null;
   }
 
-  const files = (entry.files || []).map((f) => ({
+  const files = (entry.files || []).map((f: any) => ({
     path: f.name,
     size: f.size,
     link: f.downloadUrl,
@@ -73,7 +73,7 @@ async function resolveLink(apiKey, infoHash, { season, episode, work }: { season
 }
 
 /** `async: true` devolve na hora e deixa a seedbox baixando. */
-async function enqueue(apiKey, infoHash) {
+async function enqueue(apiKey: string, infoHash: string) {
   const added = await call(apiKey, '/seedbox/add', {
     method: 'POST',
     body: new URLSearchParams({ url: magnetFor(infoHash), async: 'true' }),

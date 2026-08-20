@@ -10,8 +10,8 @@ import assert from 'node:assert/strict';
 import bludv from '../bludv-resolver/server.js';
 
 const HASH = '0123456789abcdef0123456789abcdef01234567';
-const toStr = (url) => (typeof url === 'string' ? url : url.href);
-const okHtml = (html) => ({ ok: true, status: 200, text: async () => html });
+const toStr = (url: any) => (typeof url === 'string' ? url : url.href);
+const okHtml = (html: any) => ({ ok: true, status: 200, text: async () => html });
 
 describe('BluDV Resolver: extractMagnet ampliado', () => {
   const expectedMagnet = `magnet:?xt=urn:btih:${HASH}&dn=Teste.Filme`;
@@ -80,9 +80,9 @@ describe('BluDV Resolver: extractMetaRefresh', () => {
 });
 
 describe('BluDV Resolver: caches de magnet e de busca', () => {
-  let originalFetch;
-  let protectorHits;
-  let siteHits;
+  let originalFetch: any;
+  let protectorHits: any;
+  let siteHits: any;
 
   const POST_URL = 'https://bludvfilmes.xyz/filme-cache/';
   const POST_HTML = `
@@ -106,7 +106,7 @@ describe('BluDV Resolver: caches de magnet e de busca', () => {
   });
 
   test('resolveButton: hit, TTL e coalescing do magnetCache', async () => {
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = toStr(url);
       if (u.includes('filme-cache')) return okHtml(POST_HTML);
       if (u.includes('btn0')) {
@@ -139,7 +139,7 @@ describe('BluDV Resolver: caches de magnet e de busca', () => {
   });
 
   test('magnetCache: aplica limite máximo de entradas (FIFO)', async () => {
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = toStr(url);
       if (u.includes('filme-cache')) return okHtml(POST_HTML);
       if (u.includes('btn0')) return okHtml(`<script>var DEST_URL = "${TARGET_MAGNET}";</script>`);
@@ -166,7 +166,7 @@ describe('BluDV Resolver: caches de magnet e de busca', () => {
       <h3>DUAL ÁUDIO</h3>
       <p><a href="magnet:?xt=urn:btih:5555555555555555555555555555555555555555&dn=c">1080p Dublado</a></p>
     `;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = toStr(url);
       if (u.includes('/?s=')) {
         siteHits += 1;
@@ -194,7 +194,7 @@ describe('BluDV Resolver: caches de magnet e de busca', () => {
 });
 
 describe('BluDV Resolver: fallback do resolvePost e chaves por preferência', () => {
-  let originalFetch;
+  let originalFetch: any;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -212,7 +212,7 @@ describe('BluDV Resolver: fallback do resolvePost e chaves por preferência', ()
     const POST_URL = 'https://bludvfilmes.xyz/post-fallback/';
     const GOOD_MAGNET = `magnet:?xt=urn:btih:7777777777777777777777777777777777777777&dn=Ok`;
     const calls: string[] = [];
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = toStr(url);
       calls.push(u);
       if (u.includes('post-fallback')) {
@@ -235,7 +235,7 @@ describe('BluDV Resolver: fallback do resolvePost e chaves por preferência', ()
     // Quando NENHUM botão resolve, o erro do último propaga.
     bludv.postCache.clear();
     bludv.magnetCache.clear();
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = toStr(url);
       if (u.includes('post-fallback')) {
         return okHtml(`<p><a href="https://systemads1.com/go/fail1">1080p</a></p>`);
@@ -256,7 +256,7 @@ describe('BluDV Resolver: fallback do resolvePost e chaves por preferência', ()
       (_, i) => `<p><a href="https://systemads1.com/go/dead${i}">1080p</a></p>`,
     ).join('\n');
     let protectorHits = 0;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = toStr(url);
       if (u.includes('post-teto')) return okHtml(`<h3>DUAL ÁUDIO</h3>${buttons}`);
       protectorHits += 1;
@@ -274,7 +274,7 @@ describe('BluDV Resolver: fallback do resolvePost e chaves por preferência', ()
     const POST_URL = 'https://bludvfilmes.xyz/post-prefs/';
     const DUB_MAGNET = `magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=dub`;
     const LEG_MAGNET = `magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&dn=leg`;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = toStr(url);
       if (u.includes('post-prefs')) {
         return okHtml(`

@@ -8,7 +8,7 @@ import * as deadline from '../src/utils/deadline.js';
 // findStreams (providers/index.js) usa pra devolver lista parcial antes do
 // timeout do cliente Stremio sem derrubar a busca que segue em background.
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test('tarefa vence e onDeadline não dispara depois', async () => {
   let deadlineFired = false;

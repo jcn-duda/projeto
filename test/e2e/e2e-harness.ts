@@ -151,7 +151,7 @@ function makeTorznabXml(items: TorznabItem[] = []): string {
 /**
  * Cria metadados Cinemeta padrão para testes.
  */
-function makeCinemetaMeta(id, { name = 'Test Title', type = 'movie', year = '2024' } = {}) {
+function makeCinemetaMeta(id: any, { name = 'Test Title', type = 'movie', year = '2024' } = {}) {
   return {
     meta: {
       id,
@@ -168,7 +168,7 @@ function makeCinemetaMeta(id, { name = 'Test Title', type = 'movie', year = '202
 /**
  * Cria resposta do TMDB para testes.
  */
-function makeTmdbFind(id, { ptTitle = 'Título em Português' } = {}) {
+function makeTmdbFind(id: any, { ptTitle = 'Título em Português' } = {}) {
   return {
     movie_results: [
       {

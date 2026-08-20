@@ -9,16 +9,18 @@
  */
 const SAMPLES = 256;
 
-const counters = new Map();
-const timers = new Map();
+const counters: Map<string, number> = new Map();
+/** Janela deslizante por métrica: `ring` é o buffer circular das últimas SAMPLES. */
+type Timer = { count: number; sum: number; max: number; ring: Float64Array; filled: number; next: number };
+const timers: Map<string, Timer> = new Map();
 const startedAt = Date.now();
 
-function count(name, delta = 1) {
+function count(name: string, delta = 1) {
   counters.set(name, (counters.get(name) || 0) + delta);
 }
 
 /** Guarda uma medição de duração. Só as últimas SAMPLES entram no percentil. */
-function observe(name, ms) {
+function observe(name: string, ms: number | undefined) {
   const value = Number(ms);
   if (!Number.isFinite(value)) return;
 
@@ -36,7 +38,7 @@ function observe(name, ms) {
 }
 
 /** Cronômetro de um trecho; devolve a duração para quem também quiser logar. */
-function timed(name) {
+function timed(name: string) {
   const started = Date.now();
   return () => {
     const ms = Date.now() - started;
@@ -45,14 +47,14 @@ function timed(name) {
   };
 }
 
-function percentile(sorted, fraction) {
+function percentile(sorted: number[], fraction: number) {
   if (!sorted.length) return null;
   const index = Math.min(sorted.length - 1, Math.floor(fraction * sorted.length));
   return Math.round(sorted[index]);
 }
 
 function snapshot() {
-  const timings = {};
+  const timings: Record<string, any> = {};
   for (const [name, timer] of timers) {
     const sorted = Array.from(timer.ring.subarray(0, timer.filled)).sort((a: number, b: number) => a - b);
     timings[name] = {

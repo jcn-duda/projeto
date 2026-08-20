@@ -83,8 +83,8 @@ function ptSweepIndexers(selectedIndexers: string[], ptBrIndexers: string[]) {
  * inventário da conta precisa da MESMA raiz, e duplicar a regra faria os dois
  * caminhos divergirem.
  */
-function ptSweepQuery(titlePt) {
-  return franchiseRoot(titlePt);
+function ptSweepQuery(titlePt: string | null | undefined) {
+  return franchiseRoot(String(titlePt || ''));
 }
 
 /**
@@ -98,7 +98,7 @@ function ptSweepQuery(titlePt) {
  * "T01 E004 … Dub PT-BR". O corte por episódio é responsabilidade do
  * matchContext, depois da coleta.
  */
-function ptSweepQueryFor({ titles }) {
+function ptSweepQueryFor({ titles }: { titles?: any }) {
   if (!titles?.pt || titles.pt === titles.original) return null;
   return ptSweepQuery(titles.pt) || null;
 }

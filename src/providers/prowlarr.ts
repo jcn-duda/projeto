@@ -1,7 +1,7 @@
 import config from '../config.js';
 import * as log from '../utils/logger.js';
 
-async function search(query) {
+async function search(query: string) {
   const { url, apiKey } = config.prowlarr;
   if (!apiKey) {
     log.warn('[prowlarr] PROWLARR_API_KEY não configurada');

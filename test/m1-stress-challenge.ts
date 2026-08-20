@@ -33,15 +33,15 @@ function resetAll() {
 
 async function runTests() {
   console.log('=== Starting Milestone 1 Empirical Stress Test Harness ===\n');
-  const results = { passed: 0, failed: 0, timings: {} };
+  const results: { passed: number; failed: number; timings: Record<string, number> } = { passed: 0, failed: 0, timings: {} };
 
-  function recordPass(name, durationMs) {
+  function recordPass(name: any, durationMs: any) {
     results.passed++;
     results.timings[name] = durationMs;
     console.log(`[PASS] ${name} (${durationMs.toFixed(2)}ms)`);
   }
 
-  function recordFail(name, err) {
+  function recordFail(name: any, err: any) {
     results.failed++;
     console.error(`[FAIL] ${name}:`, err.message);
   }
@@ -181,7 +181,7 @@ async function runTests() {
       'https://bludvfilmes.xyz/filme-e/',
     ];
     let fetchCount = 0;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       fetchCount++;
       const href = typeof url === 'string' ? url : url.href;
       await new Promise((r) => setTimeout(r, 30));
@@ -291,7 +291,7 @@ async function runTests() {
   try {
     resetAll();
     const t0 = performance.now();
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
       await new Promise((r) => setTimeout(r, 10));
       if (u.includes('bad-url')) {
@@ -533,7 +533,7 @@ async function runTests() {
   try {
     resetAll();
     const t0 = performance.now();
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
 
       if (u === 'https://systemads1.com/hop1') {
@@ -593,7 +593,7 @@ async function runTests() {
     resetAll();
     const t0 = performance.now();
     let hopCount = 0;
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       hopCount++;
       const nextHop = hopCount + 1;
       return {

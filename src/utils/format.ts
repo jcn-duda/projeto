@@ -70,7 +70,7 @@ const TRACKERS = [
   'udp://tracker.openbittorrent.com:6969/announce',
 ];
 
-function bytesToSize(bytes) {
+function bytesToSize(bytes: unknown) {
   const n = Number(bytes);
   if (!Number.isFinite(n) || n <= 0) return null;
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -90,7 +90,7 @@ const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
  * Magnet de indexer BR às vezes vem nesse formato; repassado cru, o item
  * aparece na lista mas o cliente não monta o magnet e o play morre.
  */
-function base32ToHex(input) {
+function base32ToHex(input: string) {
   const s = String(input).toUpperCase();
   let bits = '';
   for (const ch of s) {
@@ -103,7 +103,7 @@ function base32ToHex(input) {
   return hex;
 }
 
-function extractInfoHash(magnetOrHash) {
+function extractInfoHash(magnetOrHash: unknown) {
   if (!magnetOrHash) return null;
   const raw = String(magnetOrHash).trim();
 
@@ -118,7 +118,7 @@ function extractInfoHash(magnetOrHash) {
   return null;
 }
 
-const NAMED_ENTITIES = {
+const NAMED_ENTITIES: Record<string, string> = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
   hellip: '…', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘',
   ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
@@ -133,7 +133,7 @@ function decodeEntities(text = '') {
   return String(text)
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
-    .replace(/&([a-z]+);/gi, (whole, name) => NAMED_ENTITIES[name.toLowerCase()] ?? whole);
+    .replace(/&([a-z]+);/gi, (whole: string, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? whole);
 }
 
 /**
@@ -364,20 +364,20 @@ function markDebridName(name = '', short = '', cached = false) {
   return `[${tag}${cached ? '⚡' : ' download'}] ${name}`;
 }
 
-function matchesQualityFilter(title, filters) {
+function matchesQualityFilter(title: string, filters?: string[]) {
   if (!filters || filters.length === 0) return true;
   const upper = String(title).toUpperCase();
-  return filters.some((f) => upper.includes(String(f).toUpperCase()));
+  return filters.some((f: string) => upper.includes(String(f).toUpperCase()));
 }
 
-const QUALITY_FILTER_ALIASES = { '4k': '2160p', uhd: '2160p' };
+const QUALITY_FILTER_ALIASES: Record<string, string> = { '4k': '2160p', uhd: '2160p' };
 
 /**
  * A whitelist julga `_quality`, não substring do título: "4K"/"UHD" já viram
  * 2160p na declaração e o chip é `2160p`. Fonte BR sem resolução tem balde
  * próprio; excluí-la aqui tornaria `maxUnknown` inoperante.
  */
-function passesQualityFilter(stream, filters, qualityLimits = {}) {
+function passesQualityFilter(stream: any, filters?: string[], qualityLimits: Record<string, any> = {}) {
   if (!filters || filters.length === 0) return true;
   const quality = streamQuality(stream);
   if (stream?._br && quality === UNKNOWN_QUALITY) {
@@ -385,7 +385,7 @@ function passesQualityFilter(stream, filters, qualityLimits = {}) {
     return unknownLimit == null || Number(unknownLimit) > 0;
   }
   const allowed = new Set(
-    filters.map((f) => QUALITY_FILTER_ALIASES[String(f).toLowerCase()] || String(f)),
+    filters.map((f: string) => QUALITY_FILTER_ALIASES[String(f).toLowerCase()] || String(f)),
   );
   return allowed.has(quality);
 }
@@ -596,7 +596,7 @@ const SERIES_TITLE_PRECISION_MIN = 0.70;
 // Onde o nome da obra termina: ruído técnico ou palavra de empacotamento.
 const STOP_AT = new Set([...TECH_NOISE, ...PACK_WORDS]);
 
-const NUMERAL_CANON = {
+const NUMERAL_CANON: Record<string, number> = {
   ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9,
   um: 1, dois: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -616,7 +616,7 @@ const NUMERAL_CANON = {
  * - o 1 não conta: ele aparece em canal de áudio e em "Parte 1" da obra base,
  *   onde a busca não o traz — barraria o que deveria passar.
  */
-function extractSequenceMarkers(text) {
+function extractSequenceMarkers(text: string) {
   const markers = new Set();
   for (const raw of normalizeTitle(text).split(' ')) {
     if (!raw) continue;
@@ -639,7 +639,7 @@ const EPISODE_TOKEN = /^(?:s\d{1,2}(?:e\d{1,3})?|t\d{1,2}(?:e\d{1,3})?|e\d{1,3}|
  * release, empacotamento e ano. 1 = o título não acrescenta nada; perto de 0 =
  * é outra obra que só começa com o mesmo nome.
  */
-function titlePrecision(tokens, wanted) {
+function titlePrecision(tokens: string[], wanted: Iterable<string>) {
   const want = new Set(wanted);
   const significant = tokens.filter(
     (w) =>
@@ -658,7 +658,7 @@ function titlePrecision(tokens, wanted) {
  * depois de SxxEyy e não pode contar como obra estranha; no formato inverso do
  * RedeTorrent, o marcador vem antes do nome e costuma se repetir depois dele.
  */
-function episodeWorkTokens(tokens) {
+function episodeWorkTokens(tokens: string[]) {
   const markers: number[] = [];
   for (let i = 0; i < tokens.length; i += 1) {
     if (
@@ -674,7 +674,7 @@ function episodeWorkTokens(tokens) {
   // mantém "From" como obra sem aceitar "Rick and Morty The Anime" — nesse
   // caso os tokens extras ficam antes de 1080p e continuam sendo medidos.
   if (markers.length === 1) {
-    const noiseAt = tokens.findIndex((token, index) => index > 0 && STOP_AT.has(token));
+    const noiseAt = tokens.findIndex((token: string, index: number) => index > 0 && STOP_AT.has(token));
     if (noiseAt > 0) end = noiseAt;
   }
   return tokens.slice(1, end);
@@ -714,7 +714,7 @@ function matchesTitleStructure(
   // trouxe o título normalizado.
   const own = tokens || normalizeTitle(title).split(' ').filter(Boolean);
   const wanted = normalizeTitle(name).split(' ').filter(Boolean);
-  const firstSig = (arr) =>
+  const firstSig = (arr: string[]) =>
     arr.find(
       (w) =>
         w.length > 2 &&
@@ -848,7 +848,7 @@ const SEQUENCE_TAIL = /\s+(?:parte\s+)?(?:[ivx]{1,4}|\d{1,2})$/i;
  * Alimenta a varredura pt-BR (search-plan) e a exceção de franquia do
  * inventário da conta (`filterInventoryRelevant`).
  */
-function franchiseRoot(title) {
+function franchiseRoot(title: string) {
   const raw = String(title || '').trim();
   if (!raw) return '';
   // Casa o PRIMEIRO separador entre os três suportados; a âncora inicial
@@ -875,7 +875,7 @@ function franchiseRoots(names: string[] = []): string[] {
 }
 
 /** O título contém a raiz como sequência contígua de palavras normalizadas. */
-function containsTokenRun(title, normalizedRoot) {
+function containsTokenRun(title: string, normalizedRoot: string) {
   const haystack = normalizeTitle(title).split(' ').filter(Boolean);
   const needle = String(normalizedRoot || '').split(' ').filter(Boolean);
   if (!needle.length || haystack.length < needle.length) return false;
@@ -935,7 +935,7 @@ function filterRelevantRaw(
   // 3-5 vezes (matchesName, matchesBrTitle, matchesTitleStructure,
   // matchesEpisodeWorkIdentity), e o universo de nomes era remontado por item.
   const tokenMemo = new Map();
-  const tokensOf = (title) => {
+  const tokensOf = (title: string) => {
     let tokens = tokenMemo.get(title);
     if (!tokens) {
       tokens = normalizeTitle(title).split(' ').filter(Boolean);
@@ -1122,7 +1122,7 @@ function matchesEpisode(title: string, { season, episode }: SeasonEpisodeOptions
  * dois modos: em `full` o texto é a release, em `compact` é o resumo — que
  * carrega os mesmos termos.
  */
-function relabel(stream, { isBr, dubbedFrom }) {
+function relabel(stream: any, { isBr, dubbedFrom }: { isBr?: boolean; dubbedFrom?: any }) {
   const [title = '', stats = ''] = String(stream.name || '').split('\n');
   const seeders = Number(String(stats).match(/👤\s*(\d+)/)?.[1] || stream._seeders || 0);
   const borrowedTitle = isBr ? dubbedFrom : '';
@@ -1140,7 +1140,7 @@ function relabel(stream, { isBr, dubbedFrom }) {
 }
 
 /** Mesma release aparece em vários indexers; fica a de maior seeders. */
-function dedupeByHash(streams, indexerPriority = []) {
+function dedupeByHash(streams: any[], indexerPriority: string[] = []) {
   const best = new Map();
   const ranks = priorityMap(indexerPriority);
   for (const s of streams) {
@@ -1197,7 +1197,7 @@ function dedupeByHash(streams, indexerPriority = []) {
 
 const QUALITY_KEYS = ['2160p', '1080p', '720p', '480p', 'SD', UNKNOWN_QUALITY];
 
-function streamQuality(stream) {
+function streamQuality(stream: any) {
   return stream?._quality || qualityFromTitle(stream?.title || stream?.name || '');
 }
 
@@ -1207,10 +1207,10 @@ function streamQuality(stream) {
  * 1080p tivesse candidatos para sobreviver ao filtro de cache.
  */
 function selectQualityCandidates(
-  streams,
+  streams: any[],
   {
     maxResults = 40,
-    qualityLimits = {},
+    qualityLimits = {} as Record<string, any>,
     brReservedSlots = 0,
     candidateFactor = 1,
     brFirst = true,
@@ -1218,7 +1218,7 @@ function selectQualityCandidates(
   } = {},
 ) {
   const poolSize = Math.max(0, Math.trunc(maxResults));
-  const custom = QUALITY_KEYS.filter((quality) => Number(qualityLimits[quality]) < 100);
+  const custom = QUALITY_KEYS.filter((quality: string) => Number(qualityLimits[quality]) < 100);
   const customSet = new Set(custom);
   // Os mapas abaixo são populados para TODA qualidade de `custom` na criação,
   // então `.get(quality)` nunca devolve undefined quando `quality` pertence a
@@ -1286,7 +1286,7 @@ function selectQualityCandidates(
 
   // A seleção reserva espaço, mas a ordem original de qualidade/seeders segue
   // intacta para a listagem e para o debrid.
-  return streams.filter((stream) => selected.has(stream));
+  return streams.filter((stream: any) => selected.has(stream));
 }
 
 /**
@@ -1302,13 +1302,13 @@ function selectQualityCandidates(
  * continuam contando. Assim a reserva fura o teto sem ampliá-lo para os itens
  * seguintes da mesma fonte.
  */
-function limitByIndexer(streams, maxPerIndexer = 0, exempt = new Set(), indexerLimits = {}) {
+function limitByIndexer(streams: any[], maxPerIndexer = 0, exempt: Set<any> = new Set(), indexerLimits: Record<string, any> = {}) {
   const globalLimit = Math.max(0, Math.trunc(Number(maxPerIndexer) || 0));
   const hasOverrides = indexerLimits && typeof indexerLimits === 'object' &&
     Object.keys(indexerLimits).length > 0;
   if (!globalLimit && !hasOverrides) return streams;
   const counts = new Map();
-  return streams.filter((stream) => {
+  return streams.filter((stream: any) => {
     // Stream sem indexador conhecido não vira um balde comum com os outros:
     // eles se limitariam entre si por acidente de metadado ausente.
     const source = String(stream?._indexer || '').trim().toLowerCase();
@@ -1336,17 +1336,17 @@ function limitByIndexer(streams, maxPerIndexer = 0, exempt = new Set(), indexerL
  * o backfill da lista final.
  */
 function limitByQualityAndIndexer(
-  streams,
-  qualityLimits,
-  maxPerIndexer,
-  exempt,
-  indexerLimits,
+  streams: any[],
+  qualityLimits: Record<string, any>,
+  maxPerIndexer: number,
+  exempt: Set<any>,
+  indexerLimits: Record<string, any>,
 ) {
   const qualityCounts = new Map();
   const indexerCounts = new Map();
   const globalLimit = Math.max(0, Math.trunc(Number(maxPerIndexer) || 0));
 
-  return streams.filter((stream) => {
+  return streams.filter((stream: any) => {
     const quality = streamQuality(stream);
     const rawQualityLimit = qualityLimits[quality];
     const qualityLimit = rawQualityLimit == null || rawQualityLimit >= 100
@@ -1369,9 +1369,9 @@ function limitByQualityAndIndexer(
 }
 
 /** Aplica as cotas na lista pós-debrid, quando só os streams reais são contados. */
-function limitByQuality(streams, qualityLimits = {}) {
+function limitByQuality(streams: any[], qualityLimits: Record<string, any> = {}) {
   const counts = new Map();
-  return streams.filter((stream) => {
+  return streams.filter((stream: any) => {
     const quality = streamQuality(stream);
     const rawLimit = qualityLimits[quality];
     const limit = rawLimit == null || rawLimit >= 100 ? Infinity : Math.max(0, Math.trunc(rawLimit));
@@ -1387,7 +1387,7 @@ function limitByQuality(streams, qualityLimits = {}) {
  * "Série Completa"/"Todas as Temporadas"). Em busca de série o autofetch
  * prefere pack a episódio avulso: um download serve o binge todo.
  */
-function isSeasonPackRelease(stream, season) {
+function isSeasonPackRelease(stream: any, season: number | null) {
   if (season == null || !stream) return false;
   const { seasons, episodes, complete, seasonPack } = parseTitleSeasonEpisode(stream.title || stream.name || '');
   if (complete && !seasons.length) return true;
@@ -1400,7 +1400,7 @@ function isSeasonPackRelease(stream, season) {
 // Peso de resolução dos pools de autofetch (BR e global): 1080p/720p vencem
 // 2160p porque o download esquenta o cache para o play rápido, não para baixar
 // o maior arquivo; SD fica por último.
-const DUBBED_QUALITY_WEIGHT = {
+const DUBBED_QUALITY_WEIGHT: Record<string, number> = {
   '1080p': 6,
   '720p': 5,
   '2160p': 4,
@@ -1495,7 +1495,7 @@ function anyDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
  *
  */
 function topSeededPool(streams: Stream[] = [], { season, minSeeders = 0 }: PoolsOptions = {}) {
-  const seedersOf = (s) => Number(s?._seeders ?? (String(s?.name || '').match(/👤\s*(\d+)/)?.[1] || 0));
+  const seedersOf = (s: any) => Number(s?._seeders ?? (String(s?.name || '').match(/👤\s*(\d+)/)?.[1] || 0));
   const candidates = streams.filter((s) =>
     s && s.infoHash && sourceFromTitle(s.title || s.name || '') !== 'CAM' &&
     seedersOf(s) >= minSeeders && !hasExplicitForeignAudio(s.title || s.name || ''),
@@ -1520,7 +1520,7 @@ function topSeededPool(streams: Stream[] = [], { season, minSeeders = 0 }: Pools
  * Torznab devolve o btih em MAIÚSCULO. Comparar os dois direto erra silencioso:
  * o hash cacheado não é reconhecido e o autofetch baixa o que já estava pronto.
  */
-function hashSet(hashes) {
+function hashSet(hashes: Iterable<string> | null | undefined) {
   return new Set([...(hashes || [])].map((h) => String(h || '').toLowerCase()).filter(Boolean));
 }
 
@@ -1533,7 +1533,7 @@ function hashSet(hashes) {
  * - pula hashes já em cache — não há o que baixar para eles;
  * - no máximo `limit` candidatos.
  */
-function pickFromPool(pool: Stream[] = [], cachedHashes = new Set(), limit = 1) {
+function pickFromPool(pool: Stream[] = [], cachedHashes: Set<string> = new Set(), limit = 1) {
   const max = Math.max(0, Math.trunc(Number(limit) || 0));
   if (max === 0) return [];
   const cached = hashSet(cachedHashes);
@@ -1554,26 +1554,26 @@ function pickFromPool(pool: Stream[] = [], cachedHashes = new Set(), limit = 1) 
  * Melhores candidatos BR dublados para o autofetch: o pool brDubbedPool já
  * ordena por marca de áudio, resolução e seeders.
  */
-function pickBrDubbedCandidates(streams: Stream[] = [], cachedHashes = new Set(), limit = 1, options: PoolsOptions = {}) {
+function pickBrDubbedCandidates(streams: Stream[] = [], cachedHashes: Set<string> = new Set(), limit = 1, options: PoolsOptions = {}) {
   return pickFromPool(brDubbedPool(streams, options), cachedHashes, limit);
 }
 
 /** Compatibilidade: o melhor candidato BR dublado, sem olhar cache. */
-function pickBrDubbedCandidate(streams: Stream[] = [], cachedHashes = new Set()) {
+function pickBrDubbedCandidate(streams: Stream[] = [], cachedHashes: Set<string> = new Set()) {
   return pickBrDubbedCandidates(streams, cachedHashes, 1)[0] || null;
 }
 
 /** Candidatos do fallback global: mesmas regras do pick BR, sobre anyDubbedPool. */
-function pickAnyDubbedCandidates(streams: Stream[] = [], cachedHashes = new Set(), limit = 1, options: PoolsOptions = {}) {
+function pickAnyDubbedCandidates(streams: Stream[] = [], cachedHashes: Set<string> = new Set(), limit = 1, options: PoolsOptions = {}) {
   return pickFromPool(anyDubbedPool(streams, options), cachedHashes, limit);
 }
 
-function pickTopSeededCandidates(streams: Stream[] = [], cachedHashes = new Set(), limit = 1, options: PoolsOptions = {}) {
+function pickTopSeededCandidates(streams: Stream[] = [], cachedHashes: Set<string> = new Set(), limit = 1, options: PoolsOptions = {}) {
   return pickFromPool(topSeededPool(streams, options), cachedHashes, limit);
 }
 
 /** Já existe fonte BR dublada tocável na hora? Então não há o que baixar. */
-function hasCachedBrDubbed(streams: Stream[] = [], cachedHashes = new Set()) {
+function hasCachedBrDubbed(streams: Stream[] = [], cachedHashes: Set<string> = new Set()) {
   const cached = hashSet(cachedHashes);
   return brDubbedPool(streams).some((s) => cached.has(String(s.infoHash || '').toLowerCase()));
 }
@@ -1590,25 +1590,25 @@ function canAutoFetchBr({ autoFetchBr }: AutofetchOptions = {}, adapter?: Debrid
  * mas as vagas reservadas BR não viram um vazio quando o dublado ainda não
  * chegou ao debrid. O stream fica como torrent P2P, sem selo ⚡.
  */
-function uncachedBrHashes(streams: Stream[] = [], cachedHashes = new Set(), limit = 0) {
+function uncachedBrHashes(streams: Stream[] = [], cachedHashes: Set<string> = new Set(), limit = 0) {
   const selected = new Set();
   const max = Math.max(0, Math.trunc(Number(limit) || 0));
   // Mesmo pool do autofetch: a vaga P2P tem que ser o torrent que vamos baixar,
   // não um LEGENDADO que só estava mais acima na lista.
   for (const stream of brDubbedPool(streams)) {
     if (selected.size >= max) break;
-    if (!cachedHashes.has(stream.infoHash)) selected.add(stream.infoHash);
+    if (!cachedHashes.has(String(stream.infoHash))) selected.add(String(stream.infoHash));
   }
   return selected;
 }
 
-function filterKnownCache(streams: Stream[] = [], cachedHashes = new Set(), {
+function filterKnownCache(streams: Stream[] = [], cachedHashes: Set<string> = new Set(), {
   cachedOnly = true,
   showUncachedBr = false,
   brReservedSlots = 0,
 } = {}) {
   const cachedBr = brDubbedPool(streams).filter((stream) =>
-    cachedHashes.has(stream.infoHash),
+    cachedHashes.has(String(stream.infoHash)),
   ).length;
   const uncachedSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0) - cachedBr);
   const visibleBr = cachedOnly && showUncachedBr
@@ -1617,7 +1617,7 @@ function filterKnownCache(streams: Stream[] = [], cachedHashes = new Set(), {
   return {
     visibleBr,
     streams: streams.filter((stream) =>
-      cachedHashes.has(stream.infoHash) || !cachedOnly || visibleBr.has(stream.infoHash),
+      cachedHashes.has(String(stream.infoHash)) || !cachedOnly || visibleBr.has(String(stream.infoHash)),
     ),
   };
 }
@@ -1721,7 +1721,7 @@ function sortAndLimit(
   // O marcador é estático por stream; o comparador o lia via
   // parseTitleSeasonEpisode a cada comparação (~n·log n parses do mesmo
   // título), então ele é pré-computado uma vez antes do sort.
-  const dubbed = (s) => (s._dubbed ? 1 : 0);
+  const dubbed = (s: any) => (s._dubbed ? 1 : 0);
   const maxSizeBytes = maxSizeGb > 0 ? maxSizeGb * 1024 ** 3 : 0;
   const indexerRanks = priorityMap(indexerPriority);
 
@@ -1746,7 +1746,7 @@ function sortAndLimit(
       if (ed !== 0) return ed;
       // Sem resolução fica acima do SD e abaixo do 720p: é quase sempre um
       // WEB-DL BR que não anuncia resolução, não uma cópia ruim.
-      const qOrder = { '2160p': 5, '1080p': 4, '720p': 3, [UNKNOWN_QUALITY]: 2, '480p': 1, SD: 0 };
+      const qOrder: Record<string, number> = { '2160p': 5, '1080p': 4, '720p': 3, [UNKNOWN_QUALITY]: 2, '480p': 1, SD: 0 };
       const qd = (qOrder[b._quality] || 0) - (qOrder[a._quality] || 0);
       if (qd !== 0) return qd;
       if (preferDubbed) {
@@ -1773,7 +1773,7 @@ function sortAndLimit(
     // marca de áudio venceria mesmo quando existe uma explicitamente dublada.
     // `_indexer` idem, para a cota por indexador do corte final; quem apaga
     // todos os campos internos é `limitReservingBr`.
-    .map(({ _seeders, _size, ...rest }) => rest);
+    .map(({ _seeders, _size, ...rest }: any) => rest);
 }
 
 /**
@@ -1809,7 +1809,7 @@ function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): 
   };
 }
 
-function parseStremioId(id) {
+function parseStremioId(id: string) {
   // movie: tt1234567 | series: tt1234567:1:2
   const parts = String(id).split(':');
   return {
@@ -1851,9 +1851,9 @@ function buildSearchQuery(
 //   ano e o SxxEyy não tocam o padrão romano (são dígitos).
 const ROMAN_SEQUENCE_NUMERAL =
   /(?<![\p{L}\p{N}])(?:VIII|VII|IV|III|IX|VI|II|V)(?![\p{L}\p{N}])/gu;
-const ROMAN_SEQUENCE_VALUE = { viii: 8, vii: 7, vi: 6, v: 5, iv: 4, iii: 3, ix: 9, ii: 2 };
+const ROMAN_SEQUENCE_VALUE: Record<string, number> = { viii: 8, vii: 7, vi: 6, v: 5, iv: 4, iii: 3, ix: 9, ii: 2 };
 
-function numeralSearchVariant(query) {
+function numeralSearchVariant(query: string) {
   const raw = String(query || '');
   const matches = [...raw.matchAll(ROMAN_SEQUENCE_NUMERAL)];
   if (matches.length !== 1) return null;

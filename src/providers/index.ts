@@ -95,12 +95,12 @@ function autoFetchCandidates(streams: Stream[], { season }: { season?: number | 
   // checagem apaga da conta o que não está pronto, e sem o hold individual a
   // limpeza mataria todos os downloads dentro da mesma busca.
   for (const candidate of candidates) {
-    held.hold(candidate.infoHash, config.debrid.autoFetchTtl, account);
+    held.hold(String(candidate.infoHash), config.debrid.autoFetchTtl, account);
   }
   return candidates.map((stream) => ({ stream, account, pool }));
 }
 
-function releaseAllHolds(candidates) {
+function releaseAllHolds(candidates: any[]) {
   for (const { stream, account } of candidates) held.release(stream.infoHash, account);
 }
 
@@ -109,7 +109,7 @@ function releaseAllHolds(candidates) {
  * @param {{ stream: import('../../types/domain').Stream, account: string, pool: string }} candidate
  * @param {{ cached: Set<string>, season: ?number, episode: ?number, searchKey: string }} ctx
  */
-function enqueueAutofetch({ stream, account, pool }, { cached, season, episode, searchKey }) {
+function enqueueAutofetch({ stream, account, pool }: any, { cached, season, episode, searchKey }: any) {
   // `enqueueAutofetch` só roda com autofetch habilitado — o gate
   // `canAutoFetchBr` exige um adaptador de cache confiável antes de qualquer
   // candidato chegar aqui, então `current()` nunca é null neste caminho.
@@ -184,13 +184,13 @@ function enqueueAutofetch({ stream, account, pool }, { cached, season, episode, 
  */
 const recheckLots = new Map();
 
-function armRecheck(searchKey, lot) {
+function armRecheck(searchKey: string, lot: any) {
   lot.timer = setTimeout(() => runRecheck(searchKey), config.debrid.autoFetchRecheckMs);
   // O timer não pode segurar o processo vivo no shutdown.
   lot.timer.unref();
 }
 
-function scheduleRecheck(searchKey, infoHash, requestCtx) {
+function scheduleRecheck(searchKey: string, infoHash: string, requestCtx: any) {
   if (!searchKey || !infoHash || !requestCtx) return;
   if (config.debrid.autoFetchRecheckMs <= 0 || config.debrid.autoFetchRecheckMax <= 0) return;
   let lot = recheckLots.get(searchKey);
@@ -205,14 +205,14 @@ function scheduleRecheck(searchKey, infoHash, requestCtx) {
   armRecheck(searchKey, lot);
 }
 
-function runRecheck(searchKey) {
+function runRecheck(searchKey: string) {
   const lot = recheckLots.get(searchKey);
   if (!lot) return;
   lot.timer = null;
   lot.inFlight = true;
   lot.attempts += 1;
   const attempts = lot.attempts;
-  const finish = (ready) => {
+  const finish = (ready: any) => {
     lot.inFlight = false;
     if (ready || attempts >= config.debrid.autoFetchRecheckMax) recheckLots.delete(searchKey);
     else armRecheck(searchKey, lot);
@@ -237,7 +237,7 @@ function runRecheck(searchKey) {
   });
 }
 
-function autoFetchBrDubbed(streams, candidates, { cached, known, season, episode, searchKey }) {
+function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, season, episode, searchKey }: any) {
   if (!candidates || candidates.length === 0) return 0;
 
   // `known:false` não é "nada em cache" — é "não perguntei". Sem resposta
@@ -271,7 +271,7 @@ function autoFetchBrDubbed(streams, candidates, { cached, known, season, episode
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
  * link de play que passa pela nossa rota /resolve.
  */
-async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, onCacheResult, workHint }) {
+async function applyDebrid(streams: any[], { season, episode, searchKey, deadlineAt, onCacheResult, workHint }: any) {
   const adapter = debrid.current();
   if (!adapter || streams.length === 0) return streams;
 
@@ -283,7 +283,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
   const { publicUrl } = config.debrid;
 
   // Só quem ainda é torrent tem hash pra consultar; stream já resolvido não entra no lote.
-  const hashes = streams.map((s) => s.infoHash).filter(Boolean);
+  const hashes = streams.map((s: any) => s.infoHash).filter(Boolean);
   if (hashes.length === 0) return streams;
 
   // A escolha dos candidatos vem antes da checagem (cada hold protege o hash da
@@ -329,7 +329,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
     ...(autofetchCount ? { autofetchCount } : {}),
   });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
-  const viaDebrid = (s, instant) => {
+  const viaDebrid = (s: any, instant: boolean) => {
     // Pack multi-obra: o /resolve precisa saber que aqui NÃO vale cair no maior
     // arquivo. Vai dentro da dica, então está coberto pela assinatura.
     const hint = workHint && s._multiWork ? { ...workHint, p: 1 } : workHint;
@@ -364,7 +364,7 @@ async function applyDebrid(streams, { season, episode, searchKey, deadlineAt, on
       `[debrid] ${adapter.label} sem resposta completa de cache em ${checkMs}ms${tetoInfo}; ${streams.length} stream(s) via debrid` +
         (cached.size ? ` (${cached.size} confirmado(s) em cache)` : ''),
     );
-    return streams.map((s) => viaDebrid(s, cached.has(s.infoHash)));
+    return streams.map((s: any) => viaDebrid(s, cached.has(s.infoHash)));
   }
 
   // O tempo entra no log porque ele é o que decide o teto: a checagem divide o
@@ -415,7 +415,7 @@ const refreshing = new Map();
  * elegibilidade do SWR usam o MESMO teste, senão os critérios divergem e o
  * stale serviria uma lista que nunca deveria ter sido promovida a completa.
  */
-function hasPlayableStream(streams) {
+function hasPlayableStream(streams: any[]) {
   return Array.isArray(streams) && streams.some((s) => s && (s.url || s.infoHash));
 }
 
@@ -425,13 +425,13 @@ async function collectRaw(
   imdbId: string,
   ptQuery: string | null,
   matchContext: MatchContext,
-  onLate,
+  onLate: ((items: any[], grew: boolean, partial?: boolean) => any) | null,
   sweepQuery: string | null = null,
 ) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
   const tasks: { promise: Promise<any>; priority: boolean }[] = [];
-  const addTask = (promise, priority = false) => tasks.push({ promise, priority });
+  const addTask = (promise: Promise<any>, priority = false) => tasks.push({ promise, priority });
   let sweepInline = false;
 
   if (mode === 'demo') {
@@ -440,8 +440,8 @@ async function collectRaw(
     };
   }
 
-  const wants = (name) => mode === 'both' || providers.includes(name);
-  const selectedIndexers: string[] = [...new Set((opts().jackettIndexers || []).filter((id) =>
+  const wants = (name: string) => mode === 'both' || providers.includes(name);
+  const selectedIndexers: string[] = [...new Set((opts().jackettIndexers || []).filter((id: any) =>
     SAFE_INDEXER_ID.test(String(id)),
   ))].map(String);
 
@@ -480,7 +480,7 @@ async function collectRaw(
   }
 
   // Se misconfigurou PROVIDER, tenta jackett
-  const validProvider = providers.some((name) => ['jackett', 'prowlarr', 'demo', 'both'].includes(name));
+  const validProvider = providers.some((name: string) => ['jackett', 'prowlarr', 'demo', 'both'].includes(name));
   if (tasks.length === 0 && providers.length > 0 && !validProvider) {
     addTask(jackett.search(query, type));
   }
@@ -572,7 +572,7 @@ async function collectRaw(
   return { items: bucket, partial: !done, completion, sweepInline };
 }
 
-async function findStreams({ type, id }) {
+async function findStreams({ type, id }: { type: string; id: string }) {
   if (!id || !String(id).startsWith('tt')) {
     return { streams: [], partial: false };
   }
@@ -634,7 +634,7 @@ async function findStreams({ type, id }) {
     });
     // Se ninguém estiver ouvindo quando ela terminar, o resultado ainda vai pro cache;
     // o catch evita unhandled rejection depois que o deadline devolveu [].
-    task.catch((err) => log.warn('[search] falhou em background:', err.message));
+    task.catch((err: any) => log.warn('[search] falhou em background:', err.message));
     inFlight.set(cacheKey, task);
   } else {
     metrics.count('stream.coalesced');
@@ -674,12 +674,12 @@ async function findStreams({ type, id }) {
  * Entrada antiga (gravada antes deste campo existir) não tem `debridKnown`:
  * cai em `false` de propósito, paga UMA checagem tardia e se corrige sozinha.
  */
-function debridRefreshSatisfied(entry) {
+function debridRefreshSatisfied(entry: any) {
   return Boolean(entry && entry.partial === false && entry.debridKnown === true);
 }
 
 /** SWR só serve o que o finish promoveria a completa + checagem confiável. */
-function staleRefreshEligible(entry) {
+function staleRefreshEligible(entry: any) {
   return debridRefreshSatisfied(entry) && hasPlayableStream(entry?.streams);
 }
 
@@ -687,7 +687,7 @@ function staleRefreshEligible(entry) {
  * Resposta já saiu; a revalidação roda em fundo sem prazo de cliente. Erro
  * só vira log — nunca afeta quem recebeu a lista stale.
  */
-function scheduleStaleRefresh(cacheKey, { type, id }, requestCtx) {
+function scheduleStaleRefresh(cacheKey: string, { type, id }: { type: string; id: string }, requestCtx: any) {
   if (refreshing.has(cacheKey)) return;
   // Busca síncrona da mesma chave já em voo reescreve o cache fresco: o
   // refresh seria trabalho duplicado.
@@ -713,7 +713,7 @@ function scheduleStaleRefresh(cacheKey, { type, id }, requestCtx) {
     .finally(() => refreshing.delete(cacheKey));
 }
 
-async function doSearch({ type, id, cacheKey, deadlineAt }) {
+async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: string; cacheKey: string; deadlineAt: number }) {
   const isDemo = opts().providers.includes('demo');
   const { imdbId, season, episode } = parseStremioId(id);
   // Cinemeta e TMDB em paralelo: o título pt-BR não pode atrasar a busca.
@@ -737,7 +737,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   // Refresh de debrid e varredura pt-BR compartilham uma fila tardia para não
   // executar applyDebrid/upload concorrentes na mesma chave.
   let tail = Promise.resolve();
-  const enqueueTail = (task) => {
+  const enqueueTail = (task: () => any) => {
     tail = tail.then(() => new Promise((resolve) => {
       const handle = setImmediate(async () => {
         try {
@@ -768,7 +768,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
       const streams = await buildStreams(items, {
         meta, titles, season, episode, isDemo, searchKey: cacheKey,
         deadlineAt: inputDeadline,   // presente SÓ no passo de resposta
-         onDebridResult: (result) => {
+         onDebridResult: (result: any) => {
            needsDebridRefresh = needsDebridRefresh || result.needsFullRefresh;
            autofetchCount += result.autofetchCount || 0;
          },
@@ -799,7 +799,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
    * trouxeram, só promove a entrada do cache a completa — sem refazer a
    * checagem no debrid, que é a parte cara e não mudaria de resposta.
    */
-  const late = (items, grew, phase, partial = false) => {
+  const late = (items: any[], grew: boolean, phase: any, partial = false) => {
     if (grew) return finish({ items, partial }, phase);
     if (partial) return undefined;
     // Fase diferente = o fallback de pack assumiu; promover o lote antigo aqui
@@ -827,7 +827,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     episode,
   };
   const episodePhase = finish.phase();
-  let raw = await collectRaw(query, type, imdbId, ptQuery, matchContext, (items, grew, partial) =>
+  let raw = await collectRaw(query, type, imdbId, ptQuery, matchContext, (items: any[], grew: boolean, partial?: boolean) =>
     late(items, grew, episodePhase, partial),
     sweepQuery,
   );
@@ -846,12 +846,12 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   // poupa MULTI/DUAL (carregam a faixa original) e qualquer marca PT. Isso muda
   // so o GATILHO: a release estrangeira continua saindo na lista, porque em
   // titulo sem mais nada ela ainda e a unica opcao.
-  const isHealthy = (item) => {
+  const isHealthy = (item: any) => {
     const title = item.title || item.Title || '';
     return Number(item.seeders ?? item.Seeders ?? 0) >= config.search.packMinSeeders &&
       !hasExplicitForeignAudio(title);
   };
-  const episodeIsWeak = (items) => {
+  const episodeIsWeak = (items: any[]) => {
     const rel = items === raw.items ? relevant : filterRelevantRaw(items, matchContext);
     return rel.length > 0 && !rel.some(isHealthy);
   };
@@ -873,7 +873,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
     log.info(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
-    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, (items, grew, partial) =>
+    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, (items: any[], grew: boolean, partial?: boolean) =>
       late(items, grew, packPhase, partial),
       sweepQuery,
     );
@@ -960,7 +960,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
   // Só adiciona hashes novos: título pt para hash já listado é assunto do
   // merge, não da varredura.
   const configuredIndexers = opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers;
-  const sweepSelectedIndexers: string[] = [...new Set((configuredIndexers || []).filter((idx) =>
+  const sweepSelectedIndexers: string[] = [...new Set((configuredIndexers || []).filter((idx: any) =>
     SAFE_INDEXER_ID.test(String(idx)),
   ))].map(String);
   // A query já foi anexada ao plano crítico: título pt-BASE para filme e série,
@@ -986,7 +986,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
           const known = new Set(
             raw.items.map((item) => extractInfoHash(item.infoHash || item.magnet)).filter(Boolean),
           );
-          const fresh = found.filter((item) => {
+          const fresh = found.filter((item: any) => {
             const h = extractInfoHash(item.infoHash || item.magnet);
             return h && !known.has(h);
           });
@@ -1025,8 +1025,8 @@ async function doSearch({ type, id, cacheKey, deadlineAt }) {
  * @returns {Promise<import('../../types/domain').Stream[]>}
  */
 async function buildStreams(
-  rawInput,
-  { meta, titles, season, episode, isDemo, searchKey, deadlineAt, onDebridResult },
+  rawInput: any[],
+  { meta, titles, season, episode, isDemo, searchKey, deadlineAt, onDebridResult }: any,
 ) {
   let raw = rawInput;
   let autofetchCount = 0;
@@ -1054,10 +1054,10 @@ async function buildStreams(
     // o estrito aqui mataria justamente o pack de franquia que a exceção
     // deixou passar ("FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS" para Star
     // Trek). Os nomes são os mesmos do matchContext que filtrou lá.
-    const fromAccount = raw.filter((r) => r.fromAccount);
+    const fromAccount = raw.filter((r: any) => r.fromAccount);
     const titleCtx = { names, year: catalogYear, isSeries: season != null };
     raw = fromAccount.length
-      ? [...fromAccount, ...filterRelevantRaw(raw.filter((r) => !r.fromAccount), titleCtx)]
+      ? [...fromAccount, ...filterRelevantRaw(raw.filter((r: any) => !r.fromAccount), titleCtx)]
       : filterRelevantRaw(raw, titleCtx);
     if (before !== raw.length) log.info(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
   }
@@ -1071,7 +1071,7 @@ async function buildStreams(
   // dentro de uma coleção mesmo com debrid; retenha o pack nesse caso também.
   if (season == null && !isDemo && (!debrid.current() || !catalogYear)) {
     const beforePack = raw.length;
-    raw = raw.filter((r) => !isMultiWorkCollection(r.title || r.Title || ''));
+    raw = raw.filter((r: any) => !isMultiWorkCollection(r.title || r.Title || ''));
     if (beforePack !== raw.length) {
       log.info(`[search] ${beforePack - raw.length} pack(s) multi-obra retido(s) sem escolha por arquivo`);
     }
@@ -1092,7 +1092,7 @@ async function buildStreams(
   // a temporada e sem episódio) passam — o debrid escolhe o arquivo no play.
   if (season != null && episode != null && !isDemo) {
     const before = raw.length;
-    raw = raw.filter((r) => matchesEpisode(r.title || r.Title || '', { season, episode }));
+    raw = raw.filter((r: any) => matchesEpisode(r.title || r.Title || '', { season, episode }));
     if (before !== raw.length) {
       log.info(`[search] ${before - raw.length} resultado(s) de outro episódio descartado(s)`);
     }
@@ -1121,9 +1121,9 @@ async function buildStreams(
     indexerPriority,
   } = opts();
   const safeIndexerPriority = indexerPriority
-    .filter((id) => SAFE_INDEXER_ID.test(String(id)))
+    .filter((id: any) => SAFE_INDEXER_ID.test(String(id)))
     .slice(0, 100);
-  const safeIndexerLimits = {};
+  const safeIndexerLimits: Record<string, number> = {};
   for (const [rawId, rawLimit] of Object.entries(indexerLimits || {}).slice(0, 100)) {
     const id = String(rawId).toLowerCase();
     if (!SAFE_INDEXER_ID.test(id)) continue;
@@ -1171,7 +1171,7 @@ async function buildStreams(
     episode,
     searchKey,
     deadlineAt,
-    onCacheResult: (result) => {
+    onCacheResult: (result: any) => {
       autofetchCount += result.autofetchCount || 0;
       if (onDebridResult) onDebridResult(result);
     },
@@ -1212,8 +1212,8 @@ async function buildStreams(
   // distintas (não veio da fonte / veio mas foi cortada / veio e ficou abaixo).
   // Sem este log as três são indistinguíveis a partir da lista final, porque o
   // corte apaga os campos internos que responderiam a pergunta.
-  const brIn = beforeCut.filter((s) => s._br);
-  const dubIn = brIn.filter((s) => s._dubbed);
+  const brIn = beforeCut.filter((s: any) => s._br);
+  const dubIn = brIn.filter((s: any) => s._dubbed);
   const head = streams.slice(0, 3).map((s) => (s.name || '').split('\n')[1] || '?').join(' / ');
   log.info(
     `[search] entrada do corte: ${beforeCut.length} stream(s), ${brIn.length} BR (${dubIn.length} dublada(s))` +

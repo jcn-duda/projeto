@@ -53,7 +53,7 @@ const server = app.listen(config.port, config.host, () => {
 });
 
 let shuttingDown = false;
-function shutdown(signal) {
+function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
   log.info(`[shutdown] ${signal} recebido; drenando conexões`);

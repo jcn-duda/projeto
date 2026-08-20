@@ -9,7 +9,7 @@ const TTL_MS = config.jackett.statusTtl * 1000;
 const KEY_PREFIX = 'indexer-status:';
 const statuses = new Map();
 
-function normalize(id) {
+function normalize(id: unknown) {
   return String(id || '').trim().toLowerCase();
 }
 
@@ -28,7 +28,7 @@ function stateFor({ ok, ms, budgetMs, results = 0 }: StateSample = {}) {
 /**
  * @param {*} id
  */
-function record(id, sample: StateSample = {}) {
+function record(id: string, sample: StateSample = {}) {
   const key = normalize(id);
   if (!key) return null;
   const measured = sample.ms == null ? null : Number(sample.ms);
@@ -58,7 +58,7 @@ function record(id, sample: StateSample = {}) {
   return value;
 }
 
-function get(id, now = Date.now()) {
+function get(id: string, now = Date.now()) {
   const key = normalize(id);
   let value = statuses.get(key);
   // Primeira leitura depois do restart: o disco ainda sabe. O TTL do cache é o

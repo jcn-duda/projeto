@@ -3,9 +3,9 @@
  * assim que um lado vence; mantê-lo vivo após o sucesso gerava aviso falso de
  * deadline e uma entrada inútil na fila de timers por busca.
  */
-function raceWithDeadline(task, ms, onDeadline) {
-  let timer;
-  const deadline = new Promise((resolve, reject) => {
+function raceWithDeadline<T, F = T>(task: Promise<T>, ms: number, onDeadline: () => F): Promise<T | F> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<F>((resolve, reject) => {
     timer = setTimeout(() => {
       try {
         resolve(onDeadline());
@@ -13,7 +13,7 @@ function raceWithDeadline(task, ms, onDeadline) {
         reject(err);
       }
     }, ms);
-    timer.unref();
+    timer?.unref();
   });
 
   return Promise.race([Promise.resolve(task), deadline]).finally(() => clearTimeout(timer));
@@ -25,7 +25,7 @@ function raceWithDeadline(task, ms, onDeadline) {
  * `null` = sem teto dinâmico (passe tardio usa o timeout completo do adaptador).
  * 0 = já venceu: quem chama degrada na hora para `known:false`.
  */
-function remainingCheckBudget(deadlineAt, now = Date.now(), margin = 0) {
+function remainingCheckBudget(deadlineAt: number | null | undefined, now = Date.now(), margin = 0) {
   if (deadlineAt == null) return null;
   return Math.max(0, deadlineAt - now - margin);
 }

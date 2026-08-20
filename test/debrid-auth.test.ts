@@ -27,7 +27,7 @@ import type { DebridAdapter } from '../types/domain.js';
  * debrid para 52 streams.
  */
 
-const hashes = (n) => Array.from({ length: n }, (_, i) => `h${i}`);
+const hashes = (n: any) => Array.from({ length: n }, (_, i) => `h${i}`);
 
 /** Stream como o teste o enxerga: name sempre presente; url/infoHash alternam. */
 interface TestStream {
@@ -101,7 +101,7 @@ test('json: 401 e 403 viram AuthError; 500 continua erro comum', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  const reply = (status) => async () => ({
+  const reply = (status: any) => async () => ({
     ok: false,
     status,
     text: async () => 'motivo no corpo',
@@ -185,7 +185,7 @@ test('alldebrid: conta no limite de magnets vira QuotaError, não credencial', a
 
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
-const stream = (infoHash) => ({ infoHash, name: 'Release 1080p', title: 'Release 1080p' });
+const stream = (infoHash: any) => ({ infoHash, name: 'Release 1080p', title: 'Release 1080p' });
 
 test('credencial recusada devolve a lista como P2P, sem prometer debrid', async () => {
   // Era aqui que o usuário se perdia: 52 streams saíam "[AD download]" com URL
@@ -278,7 +278,7 @@ test('credencial recusada não pede revalidação eterna', async () => {
     await runWith<unknown>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A)], {
         deadlineAt: Date.now() + 5000,
-        onCacheResult: (res) => { refresh = res.needsFullRefresh; },
+        onCacheResult: (res: any) => { refresh = res.needsFullRefresh; },
       } as any),
     );
     assert.equal(refresh, false, 'a lista P2P é definitiva enquanto a chave não mudar');
@@ -355,7 +355,7 @@ test('conta no limite devolve a lista como P2P, igual à credencial recusada', a
     const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A), stream(B)], {
         deadlineAt: Date.now() + 5000,
-        onCacheResult: (res) => { refresh = res.needsFullRefresh; },
+        onCacheResult: (res: any) => { refresh = res.needsFullRefresh; },
       } as any),
     );
     for (const s of result) {

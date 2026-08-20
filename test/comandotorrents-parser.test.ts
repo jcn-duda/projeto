@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import comando from '../comandotorrents-resolver/server.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const fixture = (name) => fs.readFileSync(path.join(__dirname, 'fixtures', name), 'utf8');
+const fixture = (name: any) => fs.readFileSync(path.join(__dirname, 'fixtures', name), 'utf8');
 
 describe('ComandoTorrents Parser: Search & Post Extraction', () => {
   test('parsePosts: extrai posts de fixture estendida resolvendo URLs relativas e decodificando entidades', () => {
@@ -385,9 +385,9 @@ describe('ComandoTorrents Parser: isGenericListPost (índices genéricos)', () =
 });
 
 describe('ComandoTorrents Parser: Integração — índice genérico vs MAX_POSTS', () => {
-  let server;
-  let port;
-  let originalFetch;
+  let server: any;
+  let port: any;
+  let originalFetch: any;
 
   // Mesmo default do server.js; se o env estiver setado os dois leem igual.
   const MAX_POSTS = Number(process.env.MAX_POSTS || 5);
@@ -415,7 +415,7 @@ describe('ComandoTorrents Parser: Integração — índice genérico vs MAX_POST
         </h2>
       </article>`).join('');
 
-    globalThis.fetch = (async (url) => {
+    globalThis.fetch = (async (url: any) => {
       const u = typeof url === 'string' ? url : url.href;
       if (u.includes('/?s=')) {
         return {

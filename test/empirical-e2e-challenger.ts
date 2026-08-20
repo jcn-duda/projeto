@@ -14,7 +14,7 @@ const E2E_FILES = [
   'dist/test/e2e/tier4-application-scenarios.test.js'
 ];
 
-function runTest(files, extraArgs = []) {
+function runTest(files: any, extraArgs = []) {
   const args = ['--test', ...(Array.isArray(files) ? files : [files]), ...extraArgs];
   const start = Date.now();
   const res = spawnSync(process.execPath, args, {

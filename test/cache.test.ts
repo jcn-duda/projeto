@@ -30,7 +30,7 @@ try {
 const CACHE_MODULE = _require.resolve('../src/utils/cache.js');
 
 // Helper para executar scripts em processos isolados com banco temporário
-function runIsolatedCacheTest(scriptContent) {
+function runIsolatedCacheTest(scriptContent: any) {
   const originalDbPath = process.env.CACHE_DB_PATH;
   const originalPersist = process.env.CACHE_PERSIST;
   // Banco em tmpdir do SO: o data/cache.db real do repo não pode ser tocado.
@@ -268,7 +268,7 @@ const PRUNE_BATCH_SCRIPT = [
   'dbVerify.close();',
 ].join('\n');
 
-function wrapAsync(scriptLines) {
+function wrapAsync(scriptLines: any) {
   // Os scripts precisam esperar o tick do despejo; `node -e` é CommonJS, então
   // o corpo roda dentro de uma IIFE assíncrona.
   return ["const assert = require('node:assert');", '(async () => {', ...scriptLines.slice(1), '})().catch((err) => { console.error(err); process.exit(1); });'].join('\n');
@@ -581,7 +581,7 @@ test('teto global despeja e termina: prune não pode repetir a mesma chave', () 
   }
 });
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test('getWithStale: três estados — fresco, expirado na graça, fora da janela', async () => {
   // Contrato do SWR: dentro do TTL o valor sai fresco; entre o TTL e o fim da

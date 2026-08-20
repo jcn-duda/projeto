@@ -22,11 +22,11 @@ const genreQueries = ['filmes de terror', 'aventura e guerra', 'filmes acao'];
 
 const catalog = 'Listão De Filmes – Ação,Terror,Aventura,Guerra,Drama,Comedia';
 
-function htmlFor(name, posts) {
-  if (name === 'bludv') return posts.map((p) => `<div class="post"><div class="title"><a href="${p.url}">${p.title}</a></div></div>`).join('');
-  if (name === 'comandotorrents') return posts.map((p) => `<article class="blog-view"><h2 class="entry-title"><a href="${p.url}">${p.title}</a></h2></article>`).join('');
-  if (name === 'nerdfilmes') return posts.map((p) => `<article class="col"><div class="image"><a href="${p.url}" title="${p.title}"></a></div></article>`).join('');
-  return posts.map((p) => `<div class="title"><a href="${p.url}">${p.title}</a></div>`).join('');
+function htmlFor(name: any, posts: any) {
+  if (name === 'bludv') return posts.map((p: any) => `<div class="post"><div class="title"><a href="${p.url}">${p.title}</a></div></div>`).join('');
+  if (name === 'comandotorrents') return posts.map((p: any) => `<article class="blog-view"><h2 class="entry-title"><a href="${p.url}">${p.title}</a></h2></article>`).join('');
+  if (name === 'nerdfilmes') return posts.map((p: any) => `<article class="col"><div class="image"><a href="${p.url}" title="${p.title}"></a></div></article>`).join('');
+  return posts.map((p: any) => `<div class="title"><a href="${p.url}">${p.title}</a></div>`).join('');
 }
 
 for (const [name, resolver] of Object.entries(resolvers)) {

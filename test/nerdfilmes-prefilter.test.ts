@@ -25,10 +25,10 @@ import nerd from '../nerdfilmes-resolver/server.js';
 
 // Helper para montar o HTML de busca no mesmo formato que parsePosts espera
 // (article.col > .image > a[title]).
-function searchHtml(posts) {
+function searchHtml(posts: any) {
   return posts
     .map(
-      ({ title, url }) =>
+      ({ title, url }: any) =>
         `<article class="col"><div class="image"><a title="${title}" href="${url}"></a></div></article>`,
     )
     .join('');
@@ -247,7 +247,7 @@ test('nerdfilmes pré-filtro: /search e /api aplicam o mesmo helper (fetch stuba
   // Só o post relevante tem página de detalhe registrada: se algum lixo passar
   // pelo filtro, o fetch stubado lança e a rota responde 502 — o teste falha.
   const realFetch = global.fetch;
-  global.fetch = (async (input) => {
+  global.fetch = (async (input: any) => {
     // fetchText chama fetch(URL) com um objeto URL, não string; String()
     // normaliza os dois casos (e Request) para o href completo.
     const url = String(input);

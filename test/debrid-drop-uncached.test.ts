@@ -44,9 +44,9 @@ function mockAllDebrid({ ready = [], statusOf = () => 'Ready', files = [] }: { r
   // O AbortSignal.timeout real deixaria um timer pendurado por teste.
   AbortSignal.timeout = () => new AbortController().signal;
 
-  globalThis.fetch = (async (input) => {
+  globalThis.fetch = (async (input: any) => {
     const url = new URL(String(input));
-    const body = (data) => ({ ok: true, async json() { return { status: 'success', data }; } });
+    const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
 
     if (url.pathname.endsWith('/magnet/upload')) {
       const hashes = url.searchParams.getAll('magnets[]');
@@ -94,7 +94,7 @@ const flushImmediate = () => new Promise((resolve) => setImmediate(resolve));
 // handle vivo, o loop esvazia no meio do poll e o runner aborta os testes
 // pendentes. Este handle existe só para manter o loop de pé enquanto o arquivo
 // roda; não muda o comportamento do adaptador.
-let keepAlive;
+let keepAlive: any;
 before(() => {
   keepAlive = setInterval(() => {}, 1000);
 });
@@ -270,7 +270,7 @@ test('erro da API vira exceção em vez de "nada em cache"', async () => {
  * macrotask: como o upload roda no mesmo tick, depois do disparo do snapshot,
  * ele registra primeiro — e o snapshot reflete o estado poluído.
  */
-function mockAccountWith(preexisting, readyHashes, { snapshotAfterUploads = false, failDelete = false } = {}) {
+function mockAccountWith(preexisting: any, readyHashes: any, { snapshotAfterUploads = false, failDelete = false } = {}) {
   const deleted: number[] = [];
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
@@ -281,15 +281,15 @@ function mockAccountWith(preexisting, readyHashes, { snapshotAfterUploads = fals
   const byId = new Map();
   const byHash = new Map();
   let nextId = 2000;
-  preexisting.forEach((hash, i) => {
+  preexisting.forEach((hash: any, i: any) => {
     const magnet = { hash, id: 1000 + i, status: 'Ready', ready: true };
     byId.set(magnet.id, magnet);
     byHash.set(hash, magnet);
   });
 
-  globalThis.fetch = (async (input) => {
+  globalThis.fetch = (async (input: any) => {
     const url = new URL(String(input));
-    const body = (data) => ({ ok: true, async json() { return { status: 'success', data }; } });
+    const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
 
     if (url.pathname.endsWith('/magnet/status')) {
       const id = url.searchParams.get('id');
@@ -604,16 +604,16 @@ test('delete recusado pela conta não vira "removido": conta falha e não infla 
 // sempre — e vaga esgotada é o que faz a conta recusar até o delete.
 
 /** Dublê de conta com estados arbitrários, para exercitar a varredura. */
-function mockAccountStates(magnets) {
+function mockAccountStates(magnets: any) {
   const deleted: number[] = [];
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-  const byId = new Map(magnets.map((m) => [m.id, m]));
+  const byId = new Map(magnets.map((m: any) => [m.id, m]));
 
-  globalThis.fetch = (async (input) => {
+  globalThis.fetch = (async (input: any) => {
     const url = new URL(String(input));
-    const body = (data) => ({ ok: true, async json() { return { status: 'success', data }; } });
+    const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
     if (url.pathname.endsWith('/magnet/status')) return body({ magnets: [...byId.values()] });
     if (url.pathname.endsWith('/magnet/delete')) {
       const id = Number(url.searchParams.get('id'));

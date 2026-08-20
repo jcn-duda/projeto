@@ -8,14 +8,14 @@
  * - 'drop': na falha descarta o item (bludv: sem magnet não há o que exibir).
  * Com 'drop' também saem os valores falsy devolvidos por `fn`.
  */
-async function mapLimit(items, limit, fn, { onItemError = 'keep' } = {}) {
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>, { onItemError = 'keep' }: { onItemError?: string } = {}) {
   const output = new Array(items.length);
   let next = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
     while (next < items.length) {
       const index = next++;
       try {
-        output[index] = await fn(items[index]);
+        output[index] = await fn(items[index], index);
       } catch (error) {
         output[index] = onItemError === 'keep' ? items[index] : null;
       }

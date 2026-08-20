@@ -16,7 +16,7 @@ const H2 = '2222222222222222222222222222222222222222';
 const H3 = '3333333333333333333333333333333333333333';
 const H4 = '4444444444444444444444444444444444444444';
 
-const magnet = (hash, dn = 'x') => `magnet:?xt=urn:btih:${hash}&dn=${dn}`;
+const magnet = (hash: any, dn = 'x') => `magnet:?xt=urn:btih:${hash}&dn=${dn}`;
 
 // --- Âncora decide, mas não persiste -----------------------------------
 

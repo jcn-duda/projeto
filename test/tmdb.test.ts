@@ -15,7 +15,7 @@ const { stubFetch } = await import('./helpers/stub.js');
 
 // O .env pode não ter TMDB_API_KEY (aí getTitles devolve null sem rede), então
 // cada teste arma a própria chave e restaura no final.
-function withTmdbKey(fn) {
+function withTmdbKey(fn: any) {
   return async () => {
     const originalKey = config.tmdb.apiKey;
     const originalMissTtl = config.tmdb.missTtl;
@@ -32,7 +32,7 @@ function withTmdbKey(fn) {
 
 // O getTitles só consome ok/status/json do fetch; o objeto parcial é o
 // contrato do dublê (helpers/stub.ts).
-const tmdbOk = (body) => ({ ok: true, status: 200, json: async () => body });
+const tmdbOk = (body: any) => ({ ok: true, status: 200, json: async () => body });
 
 test('getTitles resolve pt/original/year para filme e grava no cache', withTmdbKey(async () => {
   const imdbId = `tt-movie-${process.pid}-${Date.now()}`;

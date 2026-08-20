@@ -29,7 +29,7 @@ for (const f of fixtures) {
 let passed = 0;
 let failed = 0;
 
-function test(name, fn) {
+function test(name: any, fn: any) {
   const t0 = performance.now();
   try {
     fn();
@@ -132,17 +132,17 @@ test('2.1 Exhaustive Byte-by-Byte Truncation on all 7 fixtures', () => {
 test('2.2 Chaos Bit-Flipping and Tag Corruptions', () => {
   const baseHtml = loadedFixtures['comandotorrents-movie-complex.html'];
   const corruptions = [
-    (s) => s.replace(/<a\b/g, '<a broken_attr='),
-    (s) => s.replace(/href="[^"]+"/g, 'href="javascript:void(0)"'),
-    (s) => s.replace(/href="[^"]+"/g, 'href="http://[::1:invalid-ipv6"'),
-    (s) => s.replace(/href="[^"]+"/g, 'href=""'),
-    (s) => s.replace(/>/g, ''),
-    (s) => s.replace(/</g, ''),
-    (s) => s.replace(/class="[^"]+"/g, ''),
-    (s) => s.replace(/<h3>/g, '<h3>'.repeat(100)),
-    (s) => s + '\x00\x01\x02\x03\x04\x05\x06\x07\x08\x0B\x0C\x0E\x1F',
-    (s) => '<div>'.repeat(500) + s + '</div>'.repeat(500),
-    (s) => s.replace(/DUAL/g, 'D'.repeat(2000)),
+    (s: any) => s.replace(/<a\b/g, '<a broken_attr='),
+    (s: any) => s.replace(/href="[^"]+"/g, 'href="javascript:void(0)"'),
+    (s: any) => s.replace(/href="[^"]+"/g, 'href="http://[::1:invalid-ipv6"'),
+    (s: any) => s.replace(/href="[^"]+"/g, 'href=""'),
+    (s: any) => s.replace(/>/g, ''),
+    (s: any) => s.replace(/</g, ''),
+    (s: any) => s.replace(/class="[^"]+"/g, ''),
+    (s: any) => s.replace(/<h3>/g, '<h3>'.repeat(100)),
+    (s: any) => s + '\x00\x01\x02\x03\x04\x05\x06\x07\x08\x0B\x0C\x0E\x1F',
+    (s: any) => '<div>'.repeat(500) + s + '</div>'.repeat(500),
+    (s: any) => s.replace(/DUAL/g, 'D'.repeat(2000)),
   ];
 
   for (let i = 0; i < corruptions.length; i++) {

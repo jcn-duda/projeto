@@ -15,7 +15,7 @@ const API = 'https://www.premiumize.me/api';
  * @param {*} [options.body]
  * @param {number} [options.timeout]
  */
-async function call(apiKey, path, { method = 'GET', params = {}, body, timeout }: { method?: string; params?: Record<string, any>; body?: any; timeout?: number } = {}) {
+async function call(apiKey: string, path: string, { method = 'GET', params = {}, body, timeout }: { method?: string; params?: Record<string, any>; body?: any; timeout?: number } = {}) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('apikey', apiKey);
   for (const [k, v] of Object.entries(params)) {
@@ -48,7 +48,7 @@ async function call(apiKey, path, { method = 'GET', params = {}, body, timeout }
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-async function checkCached(apiKey, infoHashes, { timeoutMs }: { timeoutMs?: number } = {}) {
+async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
   // A API aceita lote; mantemos blocos pra não montar URLs gigantes.
   return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const data = await call(apiKey, '/cache/check', {
@@ -71,7 +71,7 @@ async function checkCached(apiKey, infoHashes, { timeoutMs }: { timeoutMs?: numb
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey, infoHash, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const body = new URLSearchParams({ src: magnetFor(infoHash) });
   const data = await call(apiKey, '/transfer/directdl', { method: 'POST', body });
   const file = pickFile(data.content || [], { season, episode, work });
@@ -82,7 +82,7 @@ async function resolveLink(apiKey, infoHash, { season, episode, work }: { season
  * Cria a transferência e sai. O directdl do resolveLink também baixaria, mas
  * ele espera o arquivo ficar pronto — aqui só queremos disparar.
  */
-async function enqueue(apiKey, infoHash) {
+async function enqueue(apiKey: string, infoHash: string) {
   const body = new URLSearchParams({ src: magnetFor(infoHash) });
   const data = await call(apiKey, '/transfer/create', { method: 'POST', body });
   return Boolean(data?.id);
@@ -93,7 +93,7 @@ async function enqueue(apiKey, infoHash) {
  * AllDebrid não se aplicam aqui — o teto do Premiumize é tráfego, e até
  * estourar (`account_limit_reached`) não havia aviso nenhum.
  */
-async function accountStatus(apiKey) {
+async function accountStatus(apiKey: string) {
   const data = await call(apiKey, '/account/info');
   const raw = Number(data.limit_used);
   const limitUsed = Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : null;

@@ -45,7 +45,7 @@ test('AllDebrid com orçamento suficiente checa na resposta e devolve ⚡', asyn
   // abortada: com orçamento acima do piso, a checagem REAL roda aqui e a
   // primeira lista já sai com ⚡. O dublê só faz a API responder em cache.
   const realFetch = globalThis.fetch;
-  globalThis.fetch = (async (url) => {
+  globalThis.fetch = (async (url: any) => {
     assert.ok(
       String(url).includes('api.alldebrid.com'),
       'a checagem da AllDebrid roda no passo de resposta',
@@ -64,7 +64,7 @@ test('AllDebrid com orçamento suficiente checa na resposta e devolve ⚡', asyn
     const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A), stream(B)], {
         deadlineAt: Date.now() + 5000, // teto ativo = passo de resposta
-        onCacheResult: (res) => {
+        onCacheResult: (res: any) => {
           flag = res.needsFullRefresh;
         },
       } as any),
@@ -98,7 +98,7 @@ test('checagem que falha na resposta mantém download e pede refresh', async () 
     const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A), stream(B)], {
         deadlineAt: Date.now() + 5000,
-        onCacheResult: (res) => {
+        onCacheResult: (res: any) => {
           flag = res.needsFullRefresh;
         },
       } as any),
@@ -135,7 +135,7 @@ test('orçamento abaixo do piso não chama rede e pede refresh', async () => {
     const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A), stream(B)], {
         deadlineAt: Date.now() + 700, // margem 500 → orçamento ≈ 200 < piso
-        onCacheResult: (res) => {
+        onCacheResult: (res: any) => {
           flag = res.needsFullRefresh;
         },
       } as any),
@@ -170,7 +170,7 @@ test('falha sem teto (passe tardio) mantém needsFullRefresh', async () => {
     const result = await runWith<TestStream[]>({ opts, encoded: 'ad-conf' }, () =>
       applyDebrid([stream(A), stream(B)], {
         // Sem deadlineAt: o passe tardio consulta com o timeout completo do adaptador.
-        onCacheResult: (res) => {
+        onCacheResult: (res: any) => {
           flag = res.needsFullRefresh;
         },
       } as any),

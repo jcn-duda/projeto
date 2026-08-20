@@ -22,7 +22,7 @@ function stripTags(s = '') {
 }
 
 /** "3.39 GB" / "897 MB" → bytes, que é o que o formatador do addon espera. */
-function parseSize(text) {
+function parseSize(text: string) {
   const m = String(text).match(/([\d.,]+)\s*(TB|GB|MB|KB)/i);
   if (!m) return null;
   const value = Number(m[1].replace(',', '.'));
@@ -30,7 +30,7 @@ function parseSize(text) {
   return Number.isFinite(value) ? Math.round(value * mult) : null;
 }
 
-async function get(url, referer = '') {
+async function get(url: string, referer = '') {
   const res = await fetch(url, {
     redirect: 'follow',
     headers: {
@@ -45,7 +45,7 @@ async function get(url, referer = '') {
 }
 
 /** Cards da página de busca: div.post > div.title > a[href] */
-function parsePosts(html) {
+function parsePosts(html: string) {
   const posts: { url: string; title: string }[] = [];
   const re = /<div class="post">[\s\S]*?<div class="title">\s*<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
   let m;
@@ -60,7 +60,7 @@ function parsePosts(html) {
  * BLUDV agrupa um bloco DUBLADO e outro LEGENDADO sob o mesmo post "Dual Áudio",
  * separados só por um cabeçalho — sem isso, release legendada entra como dublada.
  */
-function parseDownloadLinks(html) {
+function parseDownloadLinks(html: string) {
   const out: { url: string; label: string; size: string | null; audio: string }[] = [];
   let audio = 'desconhecido';
   let cursor = 0;
@@ -101,13 +101,13 @@ function parseDownloadLinks(html) {
 }
 
 /** systemads → 302 → videosad → HTML com o magnet. Dois saltos, sem atalho. */
-async function resolveMagnet(link, referer) {
-  const html = await get(link.url, referer);
+async function resolveMagnet(link: string, referer: string) {
+  const html = await get(String((link as any).url ?? link), referer);
   const m = html.match(/magnet:\?[^"'<\s]+/);
   return m ? decodeEntities(m[0]) : null;
 }
 
-async function collectFromPost(post) {
+async function collectFromPost(post: any) {
   const html = await get(post.url, config.bludv.baseUrl);
   let links = parseDownloadLinks(html);
 
@@ -120,7 +120,7 @@ async function collectFromPost(post) {
   const resolved = await mapLimit(
     links,
     config.bludv.concurrency,
-    async (link) => {
+    async (link: any) => {
       const magnet = await resolveMagnet(link, post.url);
       if (!magnet) return null;
       // O magnet não traz `dn`, então o nome vem do título do post + spec do botão.
@@ -145,7 +145,7 @@ async function collectFromPost(post) {
   return resolved;
 }
 
-async function search(query) {
+async function search(query: string) {
   if (!config.bludv.enabled || !query) return [];
 
   // O buscador WordPress dos sites BR engasga com ":" — remover é o que faz

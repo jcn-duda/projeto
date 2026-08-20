@@ -20,7 +20,7 @@ const FRIO = 'b'.repeat(40);
  * `resolveUncached` é a saída opt-in: o não-cacheado também sai pelo /resolve.
  * Default off de propósito, porque isso escreve na conta do usuário no play.
  */
-async function run({ resolveUncached, cached }) {
+async function run({ resolveUncached, cached }: any) {
   const originalResolve = config.debrid.resolveUncached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalCheck = debrid.checkCached;

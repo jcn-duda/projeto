@@ -50,7 +50,7 @@ interface TestResult {
 }
 const results: TestResult[] = [];
 
-function runTest(suite, name, fn) {
+function runTest(suite: any, name: any, fn: any) {
   try {
     fn();
     results.push({ suite, name, status: 'PASS' });
@@ -61,7 +61,7 @@ function runTest(suite, name, fn) {
   }
 }
 
-async function runAsyncTest(suite, name, fn) {
+async function runAsyncTest(suite: any, name: any, fn: any) {
   try {
     await fn();
     results.push({ suite, name, status: 'PASS' });

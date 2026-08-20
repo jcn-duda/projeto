@@ -23,8 +23,8 @@ const AGENT = 'stremio-adom';
  * @param {number} [options.timeout]
  */
 async function call(
-  apiKey,
-  path,
+  apiKey: string,
+  path: string,
   params: Record<string, any> = {},
   { method = 'GET', body, timeout }: { method?: string; body?: any; timeout?: number } = {},
 ) {
@@ -77,7 +77,7 @@ const preexisting = new Map();
 // inventário assíncrono terminou depois do upload.
 const submitted = new Map();
 
-function rememberSubmitted(account, hash) {
+function rememberSubmitted(account: string, hash: string) {
   const normalized = String(hash || '').toLowerCase();
   if (!normalized) return;
   let hashes = submitted.get(account);
@@ -88,7 +88,7 @@ function rememberSubmitted(account, hash) {
   hashes.add(normalized);
 }
 
-function knownBefore(apiKey, account) {
+function knownBefore(apiKey: string, account: string) {
   const entry = preexisting.get(account);
   if (entry) return entry.hashes;
 
@@ -99,7 +99,7 @@ function knownBefore(apiKey, account) {
   loading.promise = call(apiKey, '/magnet/status')
     .then((data) => {
       const list = Array.isArray(data?.magnets) ? data.magnets : [];
-      const snapshot = new Set<string>(list.map((m) => String(m.hash || '').toLowerCase()));
+      const snapshot = new Set<string>(list.map((m: any) => String(m.hash || '').toLowerCase()));
       const ours = submitted.get(account);
       const merged = ours?.size
         ? new Set([...snapshot].filter((hash) => !ours.has(hash)))
@@ -122,7 +122,7 @@ function knownBefore(apiKey, account) {
 }
 
 /** Pré-carrega o inventário do operador antes de qualquer upload no boot. */
-function warmInventory(apiKey) {
+function warmInventory(apiKey: string) {
   if (!apiKey) return Promise.resolve(null);
   const account = accountScope(apiKey);
   knownBefore(apiKey, account);
@@ -137,7 +137,7 @@ function warmInventory(apiKey) {
 // conta cheia derruba a própria checagem de cache, o erro se realimenta.
 const DROP_CONCURRENCY = 4;
 
-async function dropMagnets(apiKey, ids) {
+async function dropMagnets(apiKey: string, ids: Array<string | number>) {
   const falhas: any[] = [];
   let ok = 0;
   const alvo = [...ids];
@@ -181,13 +181,13 @@ const DEAD = /no peer|expired|not available|error|failed/i;
  * terminal não é acervo de ninguém. O `held` continua valendo, para não
  * matar um download do autofetch que a conta marcou cedo demais.
  */
-async function sweepDead(apiKey, { minAgeMs = config.debrid.sweepDeadMinAgeMs } = {}) {
+async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMinAgeMs } = {}) {
   const account = accountScope(apiKey);
   const data = await call(apiKey, '/magnet/status');
   const list = Array.isArray(data?.magnets) ? data.magnets : [];
   const limite = Date.now() - Math.max(0, Number(minAgeMs) || 0);
 
-  const alvo = list.filter((m) => {
+  const alvo = list.filter((m: any) => {
     if (!DEAD.test(String(m.status || ''))) return false;
     if (!m.id) return false;
     if (held.isHeld(m.hash, account)) return false;
@@ -197,7 +197,7 @@ async function sweepDead(apiKey, { minAgeMs = config.debrid.sweepDeadMinAgeMs } 
   });
 
   if (!alvo.length) return { varridos: 0, falhas: 0 };
-  const { ok, falhas } = await dropMagnets(apiKey, alvo.map((m) => m.id));
+  const { ok, falhas } = await dropMagnets(apiKey, alvo.map((m: any) => m.id));
   metrics.count('debrid.swept', ok);
   if (falhas.length) {
     log.warn(
@@ -227,7 +227,7 @@ async function sweepDead(apiKey, { minAgeMs = config.debrid.sweepDeadMinAgeMs } 
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-async function checkCached(apiKey, infoHashes, { timeoutMs }: { timeoutMs?: number } = {}) {
+async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
   const drop: any[] = [];
   const account = accountScope(apiKey);
   const hadInventory = preexisting.has(account);
@@ -242,7 +242,7 @@ async function checkCached(apiKey, infoHashes, { timeoutMs }: { timeoutMs?: numb
   }
   const skipReadyDrop = !hadInventory;
 
-  const result = await batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
+  const result = await batched(infoHashes, config.debrid.batchSize, async (batch: string[], ctx?: { timeoutMs?: number }) => {
     const data = await call(
       apiKey,
       '/magnet/upload',
@@ -291,7 +291,7 @@ async function checkCached(apiKey, infoHashes, { timeoutMs }: { timeoutMs?: numb
  * Na v4.1 os arquivos vêm como árvore, não como lista de links: `n` é o nome,
  * `e` são as entradas de uma pasta, e a folha traz `s` (tamanho) e `l` (link).
  */
-function flattenFiles(nodes, prefix = '') {
+function flattenFiles(nodes: any[], prefix = '') {
   const out: any[] = [];
   for (const node of nodes || []) {
     const path = prefix ? `${prefix}/${node.n}` : node.n;
@@ -312,7 +312,7 @@ function flattenFiles(nodes, prefix = '') {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey, infoHash, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const account = accountScope(apiKey);
   const upload = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
   const magnet = (upload?.magnets || [])[0];
@@ -360,7 +360,7 @@ async function resolveLink(apiKey, infoHash, { season, episode, work }: { season
  * O /magnet/upload já é o próprio "começa a baixar" da AllDebrid: o mesmo
  * endpoint que responde `ready` para o cache é o que enfileira o que não está.
  */
-async function enqueue(apiKey, infoHash) {
+async function enqueue(apiKey: string, infoHash: string) {
   const data = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
   if (data?.magnets?.length) rememberSubmitted(accountScope(apiKey), infoHash);
   return Boolean(data?.magnets?.length);
@@ -381,7 +381,7 @@ async function enqueue(apiKey, infoHash) {
  */
 const ACTIVE_STATES = /^(?:queued|downloading|processing|compressing|moving|uploading)$/i;
 
-async function accountStatus(apiKey) {
+async function accountStatus(apiKey: string) {
   const data = await call(apiKey, '/magnet/status');
   const magnets = Array.isArray(data?.magnets) ? data.magnets : [];
 
@@ -401,7 +401,7 @@ async function accountStatus(apiKey) {
     active,
     error,
     oldestAt: magnets.reduce(
-      (min, m) => (m.uploadDate && (!min || m.uploadDate < min) ? m.uploadDate : min),
+      (min: any, m: any) => (m.uploadDate && (!min || m.uploadDate < min) ? m.uploadDate : min),
       null,
     ),
   };
@@ -415,7 +415,7 @@ async function accountStatus(apiKey) {
  * Entrada cujo filename É o próprio hash é magnet sem metadado resolvido
  * (5 no inventário real medido): título vazio não casa com obra nenhuma.
  */
-async function inventory(apiKey) {
+async function inventory(apiKey: string) {
   const data = await call(apiKey, '/magnet/status');
   const list = Array.isArray(data?.magnets) ? data.magnets : [];
   const out: any[] = [];

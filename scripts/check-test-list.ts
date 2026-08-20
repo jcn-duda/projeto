@@ -27,11 +27,11 @@ const script = _require(path.join(root, 'package.json')).scripts.test;
 // As entradas do `npm test` apontam para dist/ (o build compila .ts → .js);
 // normaliza para o caminho relativo à raiz sem o prefixo do build.
 const listed = new Set<string>(
-  (script.match(/(?:dist\/)?test\/[\w./-]+\.test\.js/g) || []).map((p) => p.replace(/^dist\//, '')),
+  (script.match(/(?:dist\/)?test\/[\w./-]+\.test\.js/g) || []).map((p: string) => p.replace(/^dist\//, '')),
 );
 
-function findTests(dir) {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+function findTests(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry: any) => {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) return findTests(fullPath);
     if (!entry.isFile() || !entry.name.endsWith('.test.js')) return [];
@@ -41,7 +41,7 @@ function findTests(dir) {
 
 const found = findTests(path.join(testsRoot, 'test'));
 
-const missing = found.filter((file) => !listed.has(file));
+const missing = found.filter((file: string) => !listed.has(file));
 // A fonte do teste é .ts; o .js listado só existe depois do build (em dist/).
 // Checa a existência da fonte, que é o que esta lista se propõe a cobrar.
 const stale = [...listed].filter((file) => !fs.existsSync(path.join(root, file.replace(/\.js$/, '.ts'))));

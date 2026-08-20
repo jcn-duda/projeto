@@ -1,11 +1,11 @@
 import 'dotenv/config';
 
-function num(value, fallback) {
+function num(value: unknown, fallback: number) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
 }
 
-function list(value) {
+function list(value: unknown) {
   if (!value || !String(value).trim()) return [];
   return String(value)
     .split(',')

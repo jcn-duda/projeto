@@ -304,7 +304,7 @@ test('o rótulo da fonte encurta por regra, preferindo fronteira ao corte no mei
   // se fosse outra fonte — pior que nome curto. A escada tenta, nesta ordem:
   // TLD, sufixo "torrent(s)", fronteira (separador ou camelCase) e só então o
   // corte seco.
-  const label = (tracker) =>
+  const label = (tracker: any) =>
     stremioStream({ title: 'Filme 1080p BluRay', infoHash: HASH, seeders: 1, tracker })
       .name.split(' · ')[1];
 
@@ -784,7 +784,7 @@ test('parseTitleSeasonEpisode não lê T solto nem T dentro de palavra', () => {
 // dublada morria ANTES do matchesEpisode (risco 5.7). Título real do
 // thepiratebay, nos dois ramos (isBr true e false).
 const T_FORMAT_SERIE = 'Jornada Nas Estrelas T01 E004 1080p Dub PT-BR';
-const tngContext = (episode) => ({
+const tngContext = (episode: any) => ({
   names: ['Jornada Nas Estrelas', 'Star Trek'],
   year: 2024,
   isSeries: true,
@@ -862,7 +862,7 @@ test('limitByQuality aplica cotas por qualidade após o debrid sem reordenar', (
   const out = limitByQuality(streams, {
     '2160p': 1, '1080p': 2, '720p': 0, '480p': 100, SD: 1,
   });
-  assert.deepEqual(out.map((s) => s.id), ['4k-a', '1080-a', '1080-b', 'sd-a']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['4k-a', '1080-a', '1080-b', 'sd-a']);
 });
 
 test('selectQualityCandidates reserva candidatos para cada cota configurada', () => {
@@ -875,7 +875,7 @@ test('selectQualityCandidates reserva candidatos para cada cota configurada', ()
     maxResults: 4,
     qualityLimits: { '2160p': 2, '1080p': 2 },
   });
-  assert.deepEqual(out.map((s) => s.id), ['4k-0', '4k-1', '1080-a', '1080-b']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['4k-0', '4k-1', '1080-a', '1080-b']);
 });
 
 test('selectQualityCandidates não envia excedentes de qualidade limitada ao debrid', () => {
@@ -918,7 +918,7 @@ test('selectQualityCandidates preserva BR dentro de qualidade limitada', () => {
     qualityLimits: { '1080p': 2 },
     brReservedSlots: 1,
   });
-  assert.deepEqual(out.map((s) => s.id), ['global-a', 'br-a']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['global-a', 'br-a']);
 });
 
 test('selectQualityCandidates preserva BR em qualidade ilimitada', () => {
@@ -932,7 +932,7 @@ test('selectQualityCandidates preserva BR em qualidade ilimitada', () => {
     brReservedSlots: 1,
   });
   assert.equal(out.length, 160);
-  assert.ok(out.some((s) => s.id === 'br-a'));
+  assert.ok(out.some((s: any) => (s as any).id === 'br-a'));
 });
 
 test('limitReservingBr combina reserva, cotas e máximo sem vazar internos', () => {
@@ -947,7 +947,7 @@ test('limitReservingBr combina reserva, cotas e máximo sem vazar internos', () 
     maxResults: 3,
     qualityLimits: { '2160p': 1, '1080p': 1 },
   });
-  assert.deepEqual(out.map((s) => s.id), ['br-1080-a', 'global-4k']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['br-1080-a', 'global-4k']);
   assert.ok(out.every((s) => Object.keys(s).every((key) => !key.startsWith('_'))));
   assert.ok(out.every((s) => !('_indexer' in s)));
 });
@@ -961,7 +961,7 @@ test('limitByIndexer aplica teto por fonte e trata 0 como sem limite', () => {
     { id: 'sem-fonte', _indexer: '' },
   ];
   assert.deepEqual(
-    limitByIndexer(streams, 2).map((s) => s.id),
+    limitByIndexer(streams, 2).map((s: any) => (s as any).id),
     ['yts-1', 'yts-2', 'rarbg-1', 'sem-fonte'],
   );
   // Ao contrário das cotas por qualidade, 0 aqui é "desligado", não "nenhum".
@@ -983,7 +983,7 @@ test('cota por indexador não consome as vagas reservadas BR', () => {
   ];
   // Cota 1, mas 2 vagas reservadas: o BluDV entrega 2 dublados mesmo assim.
   const out = limitReservingBr(quotaStreams(streams), { brReservedSlots: 2, maxResults: 10, maxPerIndexer: 1 });
-  assert.deepEqual(out.map((s) => s.id), ['br-1', 'br-2', 'yts-1']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['br-1', 'br-2', 'yts-1']);
 });
 
 test('cota por indexador limita o BR que passa da reserva', () => {
@@ -995,7 +995,7 @@ test('cota por indexador limita o BR que passa da reserva', () => {
   ];
   // Sem reserva, o teto vale para todo mundo: o BluDV para no limite de 2.
   const out = limitReservingBr(quotaStreams(streams), { brReservedSlots: 0, maxResults: 10, maxPerIndexer: 2 });
-  assert.deepEqual(out.map((s) => s.id), ['br-1', 'br-2', 'yts-1']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['br-1', 'br-2', 'yts-1']);
 });
 
 test('limitReservingBr coloca todas as fontes BR primeiro quando solicitado', () => {
@@ -1010,7 +1010,7 @@ test('limitReservingBr coloca todas as fontes BR primeiro quando solicitado', ()
     brFirst: true,
     maxResults: 4,
   });
-  assert.deepEqual(out.map((s) => s.id), ['br-1080-a', 'br-720', 'global-4k', 'global-1080']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['br-1080-a', 'br-720', 'global-4k', 'global-1080']);
 });
 
 test('limitReservingBr mantém ordem natural sem prioridade e ainda garante BR', () => {
@@ -1025,7 +1025,7 @@ test('limitReservingBr mantém ordem natural sem prioridade e ainda garante BR',
     brFirst: false,
     maxResults: 3,
   });
-  assert.deepEqual(out.map((s) => s.id), ['global-4k', 'global-1080-a', 'br-720']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['global-4k', 'global-1080-a', 'br-720']);
 });
 
 test('resolveSearchNames cobre o Cinemeta que não conhece o id', () => {
@@ -1104,7 +1104,7 @@ test('cota de qualidade não come a fonte BR antes da reserva agir', () => {
     maxResults: 40,
     qualityLimits: limits,
   });
-  assert.deepEqual(first.map((s) => s.id), ['br-1080', 'global-a', 'global-b']);
+  assert.deepEqual(first.map((s: any) => (s as any).id), ['br-1080', 'global-a', 'global-b']);
 
   // Sem prioridade visual a BR mantém a posição natural, mas ainda ocupa uma
   // das três vagas da cota em vez de sumir.
@@ -1114,7 +1114,7 @@ test('cota de qualidade não come a fonte BR antes da reserva agir', () => {
     maxResults: 40,
     qualityLimits: limits,
   });
-  assert.deepEqual(natural.map((s) => s.id), ['global-a', 'global-b', 'br-1080']);
+  assert.deepEqual(natural.map((s: any) => (s as any).id), ['global-a', 'global-b', 'br-1080']);
 
   // Sem reserva pedida e sem prioridade, a cota volta a ser puro seeders.
   const semReserva = limitReservingBr(quotaStreams([...streams]), {
@@ -1123,7 +1123,7 @@ test('cota de qualidade não come a fonte BR antes da reserva agir', () => {
     maxResults: 40,
     qualityLimits: limits,
   });
-  assert.deepEqual(semReserva.map((s) => s.id), ['global-a', 'global-b', 'global-c']);
+  assert.deepEqual(semReserva.map((s: any) => (s as any).id), ['global-a', 'global-b', 'global-c']);
 });
 
 test('selectQualityCandidates preserva todos os BR candidatos quando brFirst está ativo', () => {
@@ -1137,8 +1137,8 @@ test('selectQualityCandidates preserva todos os BR candidatos quando brFirst est
     brReservedSlots: 0,
     brFirst: true,
   });
-  assert.ok(out.some((s) => s.id === 'br-a'));
-  assert.ok(out.some((s) => s.id === 'br-b'));
+  assert.ok(out.some((s: any) => (s as any).id === 'br-a'));
+  assert.ok(out.some((s: any) => (s as any).id === 'br-b'));
 });
 
 test('sentinela de 1 KB dos indexers BR conta como tamanho desconhecido', () => {
@@ -1515,7 +1515,7 @@ test('limitByIndexer usa o override individual quando a chave existe', () => {
   ];
   // Cota global 1: o override do yts amplia para 3 e o do rarbg mantém 1.
   const out = limitByIndexer(streams, 1, new Set(), { yts: 3, rarbg: 1 });
-  assert.deepEqual(out.map((s) => s.id), ['yts-1', 'yts-2', 'yts-3', 'rarbg-1']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['yts-1', 'yts-2', 'yts-3', 'rarbg-1']);
 });
 
 test('limitByIndexer: override 0 é sem limite, não "nenhum"', () => {
@@ -1526,7 +1526,7 @@ test('limitByIndexer: override 0 é sem limite, não "nenhum"', () => {
   ];
   // Global 1; yts com override 0 fica sem teto; rarbg sem override cai no global.
   const out = limitByIndexer(streams, 1, new Set(), { yts: 0 });
-  assert.deepEqual(out.map((s) => s.id), ['yts-1', 'yts-2', 'rarbg-1']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['yts-1', 'yts-2', 'rarbg-1']);
 });
 
 test('limitByIndexer cai no teto global para indexador sem override', () => {
@@ -1537,7 +1537,7 @@ test('limitByIndexer cai no teto global para indexador sem override', () => {
   ];
   // Só o rarbg tem override; o yts continua preso ao maxPerIndexer global.
   assert.deepEqual(
-    limitByIndexer(streams, 1, new Set(), { rarbg: 5 }).map((s) => s.id),
+    limitByIndexer(streams, 1, new Set(), { rarbg: 5 }).map((s: any) => (s as any).id),
     ['yts-1', 'rarbg-1'],
   );
 });
@@ -1553,7 +1553,7 @@ test('vaga reservada BR fura o teto individual do indexador', () => {
   // terceira (fora da reserva) é barrada e ainda conta para a contagem.
   const exempt = new Set([streams[0], streams[1]]);
   const out = limitByIndexer(streams, 2, exempt, { bludv: 1, yts: 5 });
-  assert.deepEqual(out.map((s) => s.id), ['br-1', 'br-2', 'yts-1']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['br-1', 'br-2', 'yts-1']);
 });
 
 test('reserva BR fura a cota individual por indexador em limitReservingBr', () => {
@@ -1571,7 +1571,7 @@ test('reserva BR fura a cota individual por indexador em limitReservingBr', () =
     maxPerIndexer: 1,
     indexerLimits: { bludv: 1 },
   });
-  assert.deepEqual(out.map((s) => s.id), ['br-1', 'br-2', 'yts-1']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['br-1', 'br-2', 'yts-1']);
 });
 
 test('cota individual rejeitada não consome vaga de qualidade', () => {
@@ -1586,7 +1586,7 @@ test('cota individual rejeitada não consome vaga de qualidade', () => {
     qualityLimits: { '1080p': 2 },
     indexerLimits: { yts: 1 },
   });
-  assert.deepEqual(out.map((s) => s.id), ['yts-1', 'rarbg-1']);
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['yts-1', 'rarbg-1']);
 });
 
 // Paridade do hot path (Etapa 4): o marcador de episódio exato passou a ser

@@ -22,7 +22,7 @@ import { accountScope } from '../../src/utils/request-key.js';
 import type { DebridAdapter } from '../../types/domain.js';
 
 // Helper to create synthetic 40-character hex infoHashes
-function makeHash(prefix, id = 1) {
+function makeHash(prefix: any, id = 1) {
   const seed = `${prefix}${id}`;
   return crypto.createHash('sha1').update(seed).digest('hex');
 }
@@ -56,7 +56,7 @@ function makeRawStream(title: string, options: RawStreamOptions = {}) {
 }
 
 // Helper for asynchronous pauses
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Stream como o teste o enxerga: name/url sempre presentes na lista pos-debrid. */
 interface TestStream {
@@ -71,9 +71,9 @@ interface TestStream {
 const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
 
 describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
-  let originalFetch;
-  let originalTimeout;
-  let originalConfig;
+  let originalFetch: any;
+  let originalTimeout: any;
+  let originalConfig: any;
 
   before(() => {
     originalFetch = globalThis.fetch;
@@ -454,9 +454,9 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
 
     assert.equal(limited.length, 3);
     const titles = limited.map((s) => s.title);
-    assert.ok(titles[0].includes('NerdFilmes'), 'Highest priority indexer nerdfilmes is 1st');
-    assert.ok(titles[1].includes('Bludv'), 'Second priority indexer bludv is 2nd');
-    assert.ok(titles[2].includes('1337x'), 'Global indexer is 3rd');
+    assert.ok(String(titles[0]).includes('NerdFilmes'), 'Highest priority indexer nerdfilmes is 1st');
+    assert.ok(String(titles[1]).includes('Bludv'), 'Second priority indexer bludv is 2nd');
+    assert.ok(String(titles[2]).includes('1337x'), 'Global indexer is 3rd');
   });
 
   // ---------------------------------------------------------------------------
@@ -797,7 +797,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
 
     const inFlightMap = new Map();
 
-    async function executeCoalesced(key) {
+    async function executeCoalesced(key: any) {
       let task = inFlightMap.get(key);
       if (!task) {
         task = simulateSearch().finally(() => inFlightMap.delete(key));
@@ -846,7 +846,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       const sealedSegment = runtime.sealSegment(plainSegment);
 
       assert.notEqual(sealedSegment, plainSegment, 'Sealed segment differs from plaintext');
-      assert.ok(!sealedSegment.includes(userApiKey), 'Private API key not visible in sealed segment');
+      assert.ok(!String(sealedSegment).includes(userApiKey), 'Private API key not visible in sealed segment');
 
       // Decoding sealed segment in server runtime decrypts API key
       const decoded = runtime.decode(sealedSegment)!;
@@ -919,7 +919,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     });
 
     assert.equal(filtered.length, 1, 'Only the highest ranking compliant BR dubbed stream survives');
-    assert.ok(filtered[0].title.includes('Movie.2024.1080p.DUBLADO.Nacional'));
+    assert.ok(String(filtered[0]!.title).includes('Movie.2024.1080p.DUBLADO.Nacional'));
   });
 
   test('8B: brFirst = false vs brFirst = true preserves resolution ranking and slot reservation', () => {
@@ -943,9 +943,9 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       brFirst: false,
     });
 
-    assert.ok(limitedNoBrFirst[0].title.includes('Movie.2024.1080p.Global.Seeds100'));
-    assert.ok(limitedNoBrFirst[1].title.includes('Movie.2024.1080p.BR.Seeds1'));
-    assert.ok(limitedNoBrFirst[2].title.includes('Movie.2024.720p.Global.Seeds50'));
+    assert.ok(String(limitedNoBrFirst[0]!.title).includes('Movie.2024.1080p.Global.Seeds100'));
+    assert.ok(String(limitedNoBrFirst[1]!.title).includes('Movie.2024.1080p.BR.Seeds1'));
+    assert.ok(String(limitedNoBrFirst[2]!.title).includes('Movie.2024.720p.Global.Seeds50'));
 
     // brFirst = true: BR 1080p is lifted to index 0
     const limitedWithBrFirst = format.limitReservingBr(sorted, {
@@ -954,8 +954,8 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       brFirst: true,
     });
 
-    assert.ok(limitedWithBrFirst[0].title.includes('Movie.2024.1080p.BR.Seeds1'));
-    assert.ok(limitedWithBrFirst[1].title.includes('Movie.2024.1080p.Global.Seeds100'));
+    assert.ok(String(limitedWithBrFirst[0]!.title).includes('Movie.2024.1080p.BR.Seeds1'));
+    assert.ok(String(limitedWithBrFirst[1]!.title).includes('Movie.2024.1080p.Global.Seeds100'));
   });
 
   test('8C: Dynamic Debrid Check Floor Exhaustion: Zero-network degradation to known: false + needsFullRefresh trigger', async () => {
@@ -978,7 +978,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     const result = await runWith<TestStream[]>({ opts: userOpts, encoded: 'pm-conf' }, async () => {
       return applyDebrid(rawStreams, {
         deadlineAt: pastDeadlineAt,
-        onCacheResult: (res) => {
+        onCacheResult: (res: any) => {
           fullRefreshFlag = res.needsFullRefresh;
         },
       } as any);

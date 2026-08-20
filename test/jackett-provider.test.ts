@@ -18,7 +18,7 @@ function fakeResponse(body: unknown, { status = 200, location = null }: { status
   return {
     ok: status >= 200 && status < 300,
     status,
-    headers: { get: (name) => (String(name).toLowerCase() === 'location' ? location : null) },
+    headers: { get: (name: any) => (String(name).toLowerCase() === 'location' ? location : null) },
     json: async () => body,
     text: async () => (typeof body === 'string' ? body : JSON.stringify(body)),
   };
@@ -68,7 +68,7 @@ function makeFetch(): JackettFetch {
   return fetchImpl;
 }
 
-async function withJackett(fetchImpl, fn) {
+async function withJackett(fetchImpl: any, fn: any) {
   const realFetch = globalThis.fetch;
   const saved = { url: config.jackett.url, apiKey: config.jackett.apiKey };
   config.jackett.url = 'http://jackett.test';
@@ -157,7 +157,7 @@ test('HTTP erro na primary NÃO dispara o fallback', async () => {
 test('fallback é sequencial e cabe no orçamento restante, sem duas tentativas no ar', async () => {
   const fetchImpl = makeFetch();
   const seen: Array<string | null> = [];
-  let releasePrimary;
+  let releasePrimary: any;
   const primaryGate = new Promise((resolve) => { releasePrimary = resolve; });
   const originalTimeout = AbortSignal.timeout;
   const timeouts: number[] = [];

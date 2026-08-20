@@ -33,7 +33,7 @@ const SALT = Buffer.from('stremio-adom/dk/v1', 'utf8');
 // caminho de busca, então o resultado fica em cache por segredo.
 let cached: { secret: string | null; key: Buffer | null } = { secret: null, key: null };
 
-function keyFor(secret): Buffer {
+function keyFor(secret: string): Buffer {
   // Se `cached.secret === secret` (strings idênticas), o `key` correspondente já
   // foi derivado — nunca é null nesse ramo. O cast repete a garantia.
   if (cached.secret === secret) return cached.key as Buffer;
@@ -47,12 +47,12 @@ function enabled() {
   return Boolean(config.debrid.resolveSecret);
 }
 
-function isSealed(value) {
+function isSealed(value: unknown): boolean {
   return typeof value === 'string' && value.startsWith(PREFIX);
 }
 
 /** Devolve o valor cifrado, ou o próprio valor quando o selo está desligado. */
-function seal(plaintext) {
+function seal(plaintext: string) {
   const secret = config.debrid.resolveSecret;
   if (!secret || !plaintext || isSealed(plaintext)) return plaintext;
 
@@ -71,7 +71,7 @@ function seal(plaintext) {
  * (ou feito com outro segredo) viraria uma "API key" literal mandada ao
  * serviço de debrid a cada busca.
  */
-function open(value) {
+function open(value: string | null | undefined) {
   if (!isSealed(value)) return value;
   const secret = config.debrid.resolveSecret;
   if (!secret) {
@@ -80,7 +80,7 @@ function open(value) {
   }
 
   try {
-    const raw = Buffer.from(value.slice(PREFIX.length), 'base64url');
+    const raw = Buffer.from(String(value).slice(PREFIX.length), 'base64url');
     if (raw.length <= IV_BYTES + TAG_BYTES) throw new Error('blob curto demais');
     const decipher = crypto.createDecipheriv(
       'aes-256-gcm',

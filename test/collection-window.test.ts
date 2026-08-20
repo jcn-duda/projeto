@@ -4,7 +4,7 @@ import assert from 'node:assert';
 import { collectWithinWindow } from '../src/providers/collection-window.js';
 
 function deferred() {
-  let resolve;
+  let resolve: (value?: any) => void = () => {};
   const promise = new Promise((done) => { resolve = done; });
   return { promise, resolve };
 }

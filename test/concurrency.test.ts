@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mapLimit } from '../src/utils/concurrency.js';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('concurrency.mapLimit', () => {
   it('preserva a ordem de entrada independentemente da ordem de conclusão', async () => {

@@ -66,7 +66,7 @@ async function build(raw: RawItem[], { season = 1, episode = 1, cached = [], cac
         // O que o cliente recebe é a lista já fechada pela resposta — é lá que o
         // link do aviso é montado, e é esse contrato que os testes cobram.
         return applyNoticeOrigin(streams);
-      }) as Promise<Stream[]>;
+      });
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
@@ -164,7 +164,7 @@ test('originOf só aceita hostname/porta válidos (host é input do cliente)', (
   const originalPublicUrl = config.debrid.publicUrl;
   config.debrid.publicUrl = '';
   try {
-    const req = (host) => ({ get: () => host, protocol: 'http' });
+    const req = (host: any) => ({ get: () => host, protocol: 'http' });
     // Barra e caminho no host não casam o regex: não propaga lixo no externalUrl.
     assert.equal(originOf(req('exemplo.com/evil')), null);
     assert.equal(originOf(req(null)), null);
@@ -197,7 +197,7 @@ test('com fonte tocável não há aviso nenhum', async () => {
 // Medido em Lost Girl S01E01 — um "FRENCH HDTV" de 12 seeders passava do piso
 // sozinho e desligava o pack, deixando a lista em francês, holandês e 272p.
 test('release estrangeira não conta como candidato saudável', () => {
-  const saudavel = (title, seeders) =>
+  const saudavel = (title: any, seeders: any) =>
     seeders >= config.search.packMinSeeders && !hasExplicitForeignAudio(title);
 
   assert.equal(saudavel('Lost Girl S01E01 FRENCH HDTV XviD-Scaph', 12), false);
@@ -214,7 +214,7 @@ test('release estrangeira não conta como candidato saudável', () => {
 
 // --- Aviso de deadline: busca que estoura o prazo devolve o quarto texto ---
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Sem rede de verdade (mesmo padrão do swr-streams): o stub atrasa o bastante
 // para o deadline de 1 ms vencer a coleta sempre. Sem ele, o doSearch em

@@ -29,7 +29,7 @@ import { raceWithDeadline, remainingCheckBudget } from '../../src/utils/deadline
 import type { Stream } from '../../types/domain.js';
 
 // Helper to run code with temporary config modifications
-function withSecret(secret, fn) {
+function withSecret(secret: any, fn: any) {
   const original = config.debrid.resolveSecret;
   config.debrid.resolveSecret = secret;
   try {
@@ -93,7 +93,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
     });
 
     it('F01-BND-05: Correctly parses dynamic EXTRA_ALLOWED_PROTECTORS env string', () => {
-      function parseProtectors(val) {
+      function parseProtectors(val: any) {
         if (!val || !String(val).trim()) return [];
         return String(val)
           .split(',')
@@ -124,7 +124,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       const inFlightMap = new Map();
       let fetchCount = 0;
 
-      async function getMockPost(url) {
+      async function getMockPost(url: any) {
         if (inFlightMap.has(url)) return inFlightMap.get(url);
         const task = (async () => {
           fetchCount++;
@@ -192,7 +192,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       const testCache = new Map();
       const url = 'https://bludvfilmes.xyz/fail-post';
 
-      async function failingGet(targetUrl) {
+      async function failingGet(targetUrl: any) {
         if (inFlightMap.has(targetUrl)) return inFlightMap.get(targetUrl);
         const task = (async () => {
           throw new Error('network_timeout');
@@ -613,8 +613,8 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
 
     it('F08-BND-03: latestWriter suppresses stale background updates from earlier search phases', async () => {
       const writes: unknown[] = [];
-      const build = async (input) => input;
-      const commit = async (val) => writes.push(val);
+      const build = async (input: any) => input;
+      const commit = async (val: any) => writes.push(val);
       const writer = createLatestWriter(build, commit);
 
       const phase0 = writer.phase();
@@ -646,7 +646,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       const inFlight = new Map();
       let execs = 0;
 
-      function mockSearch(id) {
+      function mockSearch(id: any) {
         if (inFlight.has(id)) return inFlight.get(id);
         const task = (async () => {
           execs++;

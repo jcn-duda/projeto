@@ -13,7 +13,7 @@ import type { DebridAdapter } from '../types/domain.js';
 // com `cachedOnly`, um lote perdido no timeout apagava 100 streams da lista,
 // inclusive fontes BR que ESTAVAM em cache no serviço.
 
-const hashes = (n, prefix = 'h') => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
+const hashes = (n: any, prefix = 'h') => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
 
 // runtime.run devolve unknown (o callback do AsyncLocalStorage não infere o
 // retorno); o helper fixa o tipo do resultado sem inventar valor nenhum.
@@ -95,7 +95,7 @@ test('checkCached degrada sem rede quando o prazo acabou e propaga teto positivo
     id: 'premiumize',
     label: 'Premiumize fake',
     cacheCheck: true,
-    async checkCached(apiKey, infoHashes, options) {
+    async checkCached(apiKey: any, infoHashes: any, options: any) {
       calls.push({ apiKey, infoHashes, options });
       return { cached: new Set(infoHashes), complete: true };
     },
@@ -140,7 +140,7 @@ test('medição de repetição por hash: janela conta o que volta, ignora degrad
     id: 'premiumize',
     label: 'Premiumize fake',
     cacheCheck: true,
-    async checkCached(apiKey, infoHashes) {
+    async checkCached(apiKey: any, infoHashes: any) {
       return { cached: new Set(infoHashes), complete: true };
     },
   } as unknown as DebridAdapter);
@@ -185,7 +185,7 @@ test('abortSafeCacheCheck:false com orçamento suficiente roda sem teto dinâmic
     label: 'Adaptador com efeito colateral',
     cacheCheck: true,
     abortSafeCacheCheck: false,
-    async checkCached(apiKey, infoHashes, options) {
+    async checkCached(apiKey: any, infoHashes: any, options: any) {
       calls.push({ apiKey, infoHashes, options });
       return new Set(infoHashes);
     },
@@ -249,14 +249,14 @@ test('orçamento abaixo do piso não chama rede em consulta não abortável', as
 test('corrida perdida devolve unknown; o sem-teto junta a mesma consulta', async () => {
   const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
   let calls = 0;
-  let openCheck;
+  let openCheck: (value?: any) => void = () => {};
   const gate = new Promise((resolve) => { openCheck = resolve; });
   debrid.BY_ID.set('premiumize', {
     id: 'premiumize',
     label: 'Adaptador com efeito colateral',
     cacheCheck: true,
     abortSafeCacheCheck: false,
-    checkCached(apiKey, infoHashes) {
+    checkCached(apiKey: any, infoHashes: any) {
       calls += 1;
       // Não resolve até o teste liberar: a corrida da primeira resposta perde
       // de propósito, mas o trabalho continua em background.
@@ -307,7 +307,7 @@ test('resultado conhecido permanece coalescido para o passe tardio', async () =>
     label: 'Adaptador com efeito colateral',
     cacheCheck: true,
     abortSafeCacheCheck: false,
-    async checkCached(apiKey, infoHashes) {
+    async checkCached(apiKey: any, infoHashes: any) {
       calls.push(infoHashes);
       return new Set(infoHashes);
     },
@@ -348,7 +348,7 @@ test('falha da consulta não abortável não fica memorizada', async () => {
     label: 'Adaptador com efeito colateral',
     cacheCheck: true,
     abortSafeCacheCheck: false,
-    async checkCached(apiKey, infoHashes) {
+    async checkCached(apiKey: any, infoHashes: any) {
       calls += 1;
       if (calls === 1) throw new Error('serviço fora do ar');
       return new Set(infoHashes);
@@ -390,7 +390,7 @@ test('resposta incompleta não fica memorizada e permite recuperar known', async
     label: 'Adaptador com efeito colateral',
     cacheCheck: true,
     abortSafeCacheCheck: false,
-    async checkCached(apiKey, infoHashes) {
+    async checkCached(apiKey: any, infoHashes: any) {
       calls += 1;
       if (calls === 1) return { cached: new Set([infoHashes[0]]), complete: false };
       return { cached: new Set(infoHashes), complete: true };
@@ -430,7 +430,7 @@ test('Premiumize e TorBox aplicam o teto recebido na requisição real do adapta
     timeouts.push(ms);
     return new AbortController().signal;
   };
-  globalThis.fetch = (async (url) => {
+  globalThis.fetch = (async (url: any) => {
     const premiumizeRequest = String(url).includes('premiumize.me');
     return {
       ok: true,

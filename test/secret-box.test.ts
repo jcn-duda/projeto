@@ -22,7 +22,7 @@ const KEY = 'chave-de-debrid-do-usuario';
 const SECRET = 'segredo-do-operador';
 
 /** O segredo é lido do config a cada chamada, então dá para trocar em teste. */
-function withSecret(secret, fn) {
+function withSecret(secret: any, fn: any) {
   const original = config.debrid.resolveSecret;
   config.debrid.resolveSecret = secret;
   try {
@@ -96,7 +96,7 @@ test('sealSegment troca só o dk e o decode devolve a chave em claro', () => {
     const sealed = runtime.sealSegment(original);
 
     assert.notEqual(sealed, original);
-    const raw = JSON.parse(Buffer.from(sealed, 'base64url').toString('utf8'));
+    const raw = JSON.parse(Buffer.from(String(sealed), 'base64url').toString('utf8'));
     assert.equal(secretBox.isSealed(raw.dk), true);
     // O resto da configuração atravessa intacto: o segmento é reescrito sem
     // normalizar, senão o link mudaria de significado ao ser selado.
@@ -114,7 +114,7 @@ test('sealSegment é idempotente e ignora config sem chave', () => {
     assert.equal(runtime.sealSegment(semChave), semChave, 'P2P puro não tem o que selar');
 
     const selado = runtime.sealSegment(runtime.encode({ dk: KEY }));
-    assert.equal(runtime.sealSegment(selado), selado, 'selar de novo não pode recifrar');
+    assert.equal(runtime.sealSegment(String(selado)), selado, 'selar de novo não pode recifrar');
   });
 });
 

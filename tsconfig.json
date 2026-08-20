@@ -12,7 +12,7 @@
     // o projeto inteiro está em 0 erros e o build volta a falhar (exit 1) se
     // qualquer erro de tipo voltar a entrar.
     "noEmitOnError": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "useUnknownInCatchVariables": false,
     "skipLibCheck": true,
     "types": ["node"],

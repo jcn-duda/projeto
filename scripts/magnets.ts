@@ -23,7 +23,7 @@ import 'dotenv/config';
 const API = 'https://api.alldebrid.com/v4.1';
 const AGENT = 'stremio-adom';
 
-function parseArgs(argv) {
+function parseArgs(argv: string[]) {
   // `older` começa null e só ganha número com --older; o tipo preserva o estado
   // "flag ausente" (comparação com 0 é false e não seleciona nada).
   const args: { older: number | null; all: boolean; apply: boolean; key: string; keep: number } =
@@ -39,7 +39,7 @@ function parseArgs(argv) {
   return args;
 }
 
-async function call(key, path, params: Record<string, any> = {}) {
+async function call(key: string, path: string, params: Record<string, any> = {}) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('agent', AGENT);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -54,7 +54,7 @@ async function call(key, path, params: Record<string, any> = {}) {
   return data.data;
 }
 
-const fmt = (bytes) => {
+const fmt = (bytes: any) => {
   const n = Number(bytes) || 0;
   if (n <= 0) return '?';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -64,7 +64,7 @@ const fmt = (bytes) => {
   return `${v.toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
 };
 
-const day = (ts) => (ts ? new Date(Number(ts) * 1000).toISOString().slice(0, 10) : '?');
+const day = (ts: any) => (ts ? new Date(Number(ts) * 1000).toISOString().slice(0, 10) : '?');
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));

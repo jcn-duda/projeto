@@ -4,7 +4,7 @@ const pending = new Map();
 const searchSlots = new Map();
 const LOCK_TTL_MS = 60_000;
 
-function markerKey(adapterId, account, infoHash) {
+function markerKey(adapterId: string, account: string, infoHash: string) {
   return `${prefix('autofetch')}${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
 }
 
@@ -12,7 +12,7 @@ function markerKey(adapterId, account, infoHash) {
  * Trava apenas enquanto a API responde. Persistir antes do aceite criava seis
  * horas de falso positivo quando o processo reiniciava ou a chamada falhava.
  */
-function acquire(key) {
+function acquire(key: string) {
   if (pending.has(key)) return false;
   const token = Symbol(key);
   pending.set(key, token);
@@ -22,7 +22,7 @@ function acquire(key) {
   return true;
 }
 
-function release(key) {
+function release(key: string) {
   pending.delete(key);
 }
 
@@ -35,7 +35,7 @@ function release(key) {
  * terminar dezenas de segundos depois); cada `releaseSearchSlot` em refusa/erro
  * devolve a vaga sem vazar o contador.
  */
-function acquireSearchSlot(searchKey, max = 1) {
+function acquireSearchSlot(searchKey: string, max = 1) {
   if (!searchKey) return false;
   const limit = Math.max(1, Math.trunc(Number(max) || 1));
   const entry = searchSlots.get(searchKey);
@@ -52,7 +52,7 @@ function acquireSearchSlot(searchKey, max = 1) {
   return true;
 }
 
-function releaseSearchSlot(searchKey) {
+function releaseSearchSlot(searchKey: string) {
   const entry = searchSlots.get(searchKey);
   if (!entry) return;
   entry.used -= 1;
@@ -60,11 +60,11 @@ function releaseSearchSlot(searchKey) {
 }
 
 /** Compatibilidade com o contrato antigo: uma vaga só por busca. */
-function acquireSearch(searchKey) {
+function acquireSearch(searchKey: string) {
   return acquireSearchSlot(searchKey, 1);
 }
 
-function releaseSearch(searchKey) {
+function releaseSearch(searchKey: string) {
   releaseSearchSlot(searchKey);
 }
 

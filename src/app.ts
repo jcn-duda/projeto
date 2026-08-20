@@ -60,7 +60,7 @@ const ORIGIN_HOST_V6_RE = /^\[[0-9A-Fa-f:.]+\](:\d{1,5})?$/;
  * público quando existe); senão `protocol://host` do cabeçalho. Sem host válido
  * devolve null — e o aviso de lista vazia, sem origin, prefere não sair.
  */
-function originOf(req) {
+function originOf(req: { get(name: string): string | undefined; protocol: string }) {
   if (config.debrid.publicUrl) return config.debrid.publicUrl;
   const host = req.get('host');
   if (!host) return null;
@@ -181,7 +181,7 @@ function createApp() {
 
   // O Stremio chama isso ao dar play num stream de debrid. Resolver aqui (e não
   // na listagem) evita um directdl por torrent na hora da busca.
-  async function resolveHandler(req, res) {
+  async function resolveHandler(req: any, res: any) {
     // Normaliza caixa: infoHash é case-insensitive em magnet URI, e o debrid
     // e a assinatura trabalham sempre com minúsculas.
     const infoHash = String(req.params.infoHash || '').toLowerCase();
@@ -230,7 +230,7 @@ function createApp() {
   }
 
   const CONFIGURE_PAGE = path.join(__dirname, 'public', 'configure.html');
-  const sendConfigure = (_, res) => res.sendFile(CONFIGURE_PAGE);
+  const sendConfigure = (_: any, res: any) => res.sendFile(CONFIGURE_PAGE);
 
   app.get('/health', (_, res) => res.json({ ok: true }));
   app.get('/logo.svg', (_, res) => res.sendFile(path.join(__dirname, 'public', 'logo.svg')));
@@ -361,7 +361,7 @@ function createApp() {
    * Com a config na frente (/<config>/debrid-status.json) ele usa a chave
    * daquela instalação, que é a que o app manda — e não a do .env.
    */
-  async function debridStatusHandler(req, res) {
+  async function debridStatusHandler(req: any, res: any) {
     if (!config.jackett.testToken) {
       return res.status(503).json({ ok: false, error: 'diagnóstico desativado pelo operador' });
     }
