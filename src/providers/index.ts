@@ -779,8 +779,8 @@ async function collectRaw(
 ) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
-  const tasks: { promise: Promise<any>; priority: boolean }[] = [];
-  const addTask = (promise: Promise<any>, priority = false) => tasks.push({ promise, priority });
+  const tasks: { promise: Promise<any>; priority: boolean; source?: string }[] = [];
+  const addTask = (promise: Promise<any>, priority = false, source?: string) => tasks.push({ promise, priority, source });
   let sweepInline = false;
 
   if (mode === 'demo') {
@@ -844,8 +844,9 @@ async function collectRaw(
   // A conta do debrid como fonte: o que já está pronto lá entra com ⚡ sem
   // indexer nenhum. Teto curto dentro da própria tarefa (ver account.js)
   // para a primeira leitura não segurar a resposta.
-  if (config.debrid.inventorySource && debrid.current()) {
-    addTask(account.search(matchContext));
+  const accountSource = config.debrid.inventorySource && Boolean(debrid.current());
+  if (accountSource) {
+    addTask(account.search(matchContext), false, 'account');
   }
 
   // Orçamento menor que o deadline da resposta: o resto do tempo é da checagem
@@ -866,10 +867,24 @@ async function collectRaw(
   let watchLate = false;
   let firstLateBatch = false;
   let lateQueue = Promise.resolve();
+  // Fast-path da conta: inventário suficiente responde NA HORA e o resto da
+  // coleta segue em fundo. A resposta sai partial de propósito — é isso que
+  // faz o passe tardio promovê-la quando os indexers fecharem.
+  const fastPathOn = config.accountFastPath.enabled && accountSource;
   const collected = await collectWithinWindow(tasks, {
     budgetMs: budget,
     priorityGraceMs: priorityGrace,
     graceRequiresItems: type !== 'movie',
+    stopWhen: fastPathOn
+      ? (batch: any[], _items: any[], meta: any) => {
+        if (meta?.source !== 'account' || !Array.isArray(batch)) return false;
+        if (batch.length < config.accountFastPath.minReleases) return false;
+        metrics.count('search.account.sufficient');
+        metrics.count('search.fastPath');
+        log.info(`[search] conta suficiente (${batch.length} release(s)); respondendo sem esperar a coleta`);
+        return true;
+      }
+      : undefined,
     onError: (err) => log.warn('[search] provider falhou:', err?.message || err),
     onBatch: (batch, allItems) => {
       if (!watchLate || firstLateBatch || !batch.length || !onLate) return;
@@ -883,6 +898,7 @@ async function collectRaw(
       });
     },
   });
+  if (collected.stoppedEarly) log.info(`[search] fast-path da conta: resposta antecipada com ${collected.items.length} resultado(s)`);
   const bucket = collected.items;
   const done = collected.done;
   let completion = collected.completion;

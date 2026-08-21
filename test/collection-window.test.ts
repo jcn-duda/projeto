@@ -163,3 +163,35 @@ test('onBatch avisa cada lote tardio sem esperar todos os providers', async () =
   await result.completion;
   assert.deepEqual(seen[1], { batch: ['BR final'], total: 2 });
 });
+
+test('stopWhen resolve a resposta na hora e as tarefas restantes continuam', async () => {
+  const slow = deferred();
+  const running = collectWithinWindow([
+    { promise: Promise.resolve([{ title: 'Conta A' }, { title: 'Conta B' }]), source: 'account' },
+    { promise: slow.promise, priority: true },
+  ], {
+    budgetMs: 10_000,
+    delay: (ms) => new Promise((done) => setTimeout(done, ms)),
+    stopWhen: (batch, _items, meta) => meta?.source === 'account' && batch.length >= 2,
+  });
+  const result = await running;
+  assert.equal(result.stoppedEarly, true, 'parou antes do orçamento');
+  assert.equal(result.done, false, 'a coleta não fechou — resposta parcial de propósito');
+  assert.deepEqual(result.items.map((item) => item.title), ['Conta A', 'Conta B']);
+  // A tarefa que ficou para trás continua e o completion dela vive.
+  slow.resolve([{ title: 'Tardio', isBr: true }]);
+  await result.completion;
+});
+
+test('stopWhen que nunca dispara não muda nada', async () => {
+  const running = collectWithinWindow([
+    { promise: Promise.resolve([{ title: 'A' }]), source: 'jackett' },
+  ], {
+    budgetMs: 5,
+    delay: (ms) => new Promise((done) => setTimeout(done, ms)),
+    stopWhen: (batch, _items, meta) => meta?.source === 'account',
+  });
+  const result = await running;
+  assert.equal(result.stoppedEarly, false);
+  assert.deepEqual(result.items.map((item) => item.title), ['A']);
+});
