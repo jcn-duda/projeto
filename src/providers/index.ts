@@ -769,6 +769,45 @@ function hasPlayableStream(streams: any[]) {
   return Array.isArray(streams) && streams.some((s) => s && (s.url || s.infoHash));
 }
 
+/**
+ * "Índice cobre" NUNCA é contagem pura. Uma temporada indexada só com
+ * legendado não pode impedir a busca BR dublada de rodar — então o critério é
+ * a MESMA noção de pool que o autofetch já usa: BR dublado → global dublado →
+ * melhor swarm saudável. Qualquer um desses pools com candidato serve.
+ */
+function idxPoolCovered(releases: any[]) {
+  const pseudo = releases.map((r) => ({
+    title: r.title,
+    name: r.title,
+    infoHash: r.hash,
+    _seeders: r.seeders,
+    _quality: r.quality,
+    _br: r.isBr,
+    // O degrau "dublado global" do pool lê este flag: sem ele anyDubbedPool
+    // devolveria vazio SEMPRE e o degrau seria código morto.
+    _dubbed: r.dubbed,
+  }));
+  if (pickBrDubbedCandidates(pseudo as any, new Set(), 1).length > 0) return true;
+  if (pickAnyDubbedCandidates(pseudo as any, new Set(), 1).length > 0) return true;
+  return pickTopSeededCandidates(pseudo as any, new Set(), 1, {
+    minSeeders: config.debrid.autoFetchMinSeeders,
+  }).length > 0;
+}
+
+/** Release do índice → item cru no formato que o buildStreams já consome. */
+function idxReleasesToRaw(releases: any[]) {
+  return releases.map((r) => ({
+    title: r.title,
+    infoHash: r.hash,
+    seeders: r.seeders,
+    size: r.size ?? undefined,
+    indexer: r.indexer,
+    tracker: r.indexer,
+    isBr: r.isBr,
+    dubbed: r.dubbed,
+  }));
+}
+
 async function collectRaw(
   query: string,
   type: string,
@@ -1240,10 +1279,48 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
     }
   }
 
-  let raw = await collectRaw(query, type, imdbId, ptQuery, matchContext, (items: any[], grew: boolean, partial?: boolean) =>
-    late(items, grew, episodePhase, partial),
-    sweepQuery,
-  );
+  // Fase 3: o índice é LIDO antes de qualquer indexer. Coberto pelo pool →
+  // responde já e o Jackett vira segundo (tail que enriquece e promove pelo
+  // mesmo SWR de sempre). Lacuna → o caminho atual roda inteiro, sem regressão.
+  let servedFromIndex = false;
+  let raw!: { items: any[]; partial: boolean; completion: Promise<void>; sweepInline: boolean };
+  if (!isDemo && config.releaseIndex.enabled) {
+    const indexed = releaseIndex.lookup(imdbId, { season, episode });
+    if (indexed.length === 0) {
+      metrics.count('search.idx.miss');
+    } else if (idxPoolCovered(indexed)) {
+      metrics.count('search.idx.hit');
+      metrics.count('search.idx.served', indexed.length);
+      servedFromIndex = true;
+      // dinv entra na resposta imediata junto (idx + conta): o que já está
+      // pronto na conta vira ⚡ sem indexer nenhum. Teto curto: a primeira
+      // leitura do inventário custa ~700ms e a resposta não pode esperá-la.
+      const accountItems = await raceWithDeadline(
+        account.search(matchContext),
+        config.accountFastPath.waitMs,
+        () => [] as any[],
+      );
+      log.info(`[search] servido só pela memória: ${indexed.length} release(s) do índice para ${id}`);
+      raw = {
+        items: [...idxReleasesToRaw(indexed), ...accountItems],
+        // partial DE PROPÓSITO: cacheMaxAge curto enquanto a coleta não fechou,
+        // e o tail abaixo promove a lista enriquecida.
+        partial: true,
+        completion: Promise.resolve(),
+        sweepInline: false,
+      };
+    } else {
+      // Existe, mas não cobre o pool (ex.: só legendado): NUNCA impede a busca
+      // BR dublada de rodar. O colhedor completa o que falta.
+      metrics.count('search.idx.gap');
+    }
+  }
+  if (!servedFromIndex) {
+    raw = await collectRaw(query, type, imdbId, ptQuery, matchContext, (items: any[], grew: boolean, partial?: boolean) =>
+      late(items, grew, episodePhase, partial),
+      sweepQuery,
+    );
+  }
 
   // Série sem candidato útil por episódio tenta o pack. Lote parcial não-vazio
   // ainda pode receber a fonte BR no passe tardio; só ampliamos o gatilho antigo
@@ -1296,10 +1373,39 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
   if (raw.sweepInline) metrics.count('search.pt-sweep.inline');
   const result = await finish({ ...raw, deadlineAt }, responsePhase);
 
+  // Jackett como SEGUNDO: a resposta já saiu do índice; a coleta completa roda
+  // no tail, alimenta o índice com o que é novo e promove a lista pelo mesmo
+  // latest-writer de sempre. É o mecanismo do passe tardio, reaproveitado.
+  if (servedFromIndex) {
+    enqueueTail(async () => {
+      const enrichStarted = Date.now();
+      try {
+        const live = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery);
+        if (live.partial && live.completion) await live.completion;
+        const known = new Set(
+          raw.items.map((item) => String(extractInfoHash(item.infoHash || item.magnet) || '').toLowerCase()).filter(Boolean),
+        );
+        const fresh = live.items.filter((item: any) => {
+          const h = String(extractInfoHash(item.infoHash || item.magnet) || '').toLowerCase();
+          return h && !known.has(h);
+        });
+        if (fresh.length) {
+          log.info(`[search] enriquecimento do índice trouxe ${fresh.length} resultado(s) novo(s); recacheando`);
+          raw.items.push(...fresh);
+        }
+        await finish({ items: raw.items, partial: false }, responsePhase);
+      } catch (err) {
+        log.warn('[search] enriquecimento do índice falhou:', err?.message || err);
+      } finally {
+        metrics.observe('search.idx.enrich', Date.now() - enrichStarted);
+      }
+    });
+  }
+
   // O episódio fraco já ocupou o caminho crítico; o pack é uma segunda busca
   // complementar no tail. Mesclar, em vez de substituir, preserva releases do
   // episódio e permite ao autofetch escolher o swarm saudável do pack.
-  if (config.search.packTail && !usedPackFallback && season != null && !isDemo) {
+  if (config.search.packTail && !usedPackFallback && !servedFromIndex && season != null && !isDemo) {
     const s = String(season).padStart(2, '0');
     const packQuery = `${searchMeta.name} S${s}`;
     const ptPackQuery = ptQuery && titles?.pt ? `${titles.pt} S${s}` : null;
@@ -1726,5 +1832,5 @@ function autofetchStatus() {
 
 export {
   findStreams, applyDebrid, buildStreams, debridRefreshSatisfied, applyNoticeOrigin, onlyNotice,
-  autofetchStatus,
+  autofetchStatus, idxPoolCovered,
 };
