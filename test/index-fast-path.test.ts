@@ -12,7 +12,7 @@ import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import * as releaseIndex from '../src/utils/release-index.js';
-import { idxPoolCovered } from '../src/providers/index.js';
+import { idxPoolCovered, poolCovered } from '../src/providers/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 import { createTestServer, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
 
@@ -54,12 +54,13 @@ after(async () => {
   config.debrid.publicUrl = saved.publicUrl;
 });
 
-function userCfg(apiKey: string) {
+function userCfg(apiKey: string, overrides: Record<string, any> = {}) {
   return encodeConfig({
     p: ['jackett'],
     q: ['2160p', '1080p', '720p', '480p'],
     ds: 'premiumize',
     dk: apiKey,
+    ...overrides,
   });
 }
 
@@ -78,12 +79,17 @@ function hangingJackettRoute() {
   return { route, open: () => release() };
 }
 
-test('Fase 1: conta suficiente responde sem esperar a coleta inteira', async () => {
+test('Fase 1: conta suficiente COM DUBLADO responde sem esperar a coleta inteira', async () => {
   const key = 'fast-path-conta-1';
   const hashes = ['11'.repeat(20), '22'.repeat(20), '33'.repeat(20)];
   const originalInventory = (FAKE_ADAPTER as any).inventory;
   (FAKE_ADAPTER as any).inventory = async () =>
-    hashes.map((h) => ({ title: 'Test Title 2024 1080p', infoHash: h, size: 1024 * 1024 * 1024 }));
+    hashes.map((h, idx) => ({
+      title: idx === 0 ? 'Test Title 2024 1080p DUBLADO' : 'Test Title 2024 1080p',
+      infoHash: h,
+      size: 1024 * 1024 * 1024,
+      isBr: idx === 0,
+    }));
   const jackett = hangingJackettRoute();
 
   try {
@@ -110,11 +116,69 @@ test('Fase 1: conta suficiente responde sem esperar a coleta inteira', async () 
   }
 });
 
+test('Fase 1: conta sem dublado + preferDubbed=true NÃO corta a coleta antecipadamente', async () => {
+  const key = 'fast-path-conta-no-dub';
+  const hashes = ['11'.repeat(20), '22'.repeat(20)];
+  const originalInventory = (FAKE_ADAPTER as any).inventory;
+  (FAKE_ADAPTER as any).inventory = async () =>
+    hashes.map((h) => ({
+      title: 'Test Title 2024 1080p EN ONLY',
+      infoHash: h,
+      size: 1024 * 1024 * 1024,
+    }));
+  let jackettConsulted = false;
+  try {
+    await withMockFetch([
+      {
+        match: '/api/v2.0/indexers/',
+        handler: () => {
+          jackettConsulted = true;
+          return { ok: true, status: 200, json: () => ({ Results: [] }) };
+        },
+      },
+    ], async () => {
+      const cfg = userCfg(key, { a: true }); // preferDubbed = true
+      const res = await server.request('GET', `/${cfg}/stream/movie/tt9000108.json`);
+      assert.equal(res.status, 200);
+      assert.equal(jackettConsulted, true, 'não cortou cedo; Jackett foi consultado');
+    });
+  } finally {
+    (FAKE_ADAPTER as any).inventory = originalInventory;
+  }
+});
+
+test('Fase 1: conta sem dublado + preferDubbed=false CORTA a coleta se atingir minReleases', async () => {
+  const key = 'fast-path-conta-no-dub-prefer-off';
+  const hashes = ['11'.repeat(20), '22'.repeat(20)];
+  const originalInventory = (FAKE_ADAPTER as any).inventory;
+  (FAKE_ADAPTER as any).inventory = async () =>
+    hashes.map((h) => ({
+      title: 'Test Title 2024 1080p EN ONLY',
+      infoHash: h,
+      size: 1024 * 1024 * 1024,
+    }));
+  const jackett = hangingJackettRoute();
+  try {
+    const started = Date.now();
+    await withMockFetch([jackett.route], async () => {
+      const cfg = userCfg(key, { a: false }); // preferDubbed = false
+      const res = await server.request('GET', `/${cfg}/stream/movie/tt9000109.json`);
+      const elapsed = Date.now() - started;
+      assert.equal(res.status, 200);
+      assert.ok(elapsed < 2500, `cortou cedo com preferDubbed=false (${elapsed}ms)`);
+    });
+  } finally {
+    jackett.open();
+    (FAKE_ADAPTER as any).inventory = originalInventory;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+});
+
 test('Fase 1: conta insuficiente NÃO corta a coleta (caminho atual)', async () => {
   const key = 'fast-path-conta-2';
   const originalInventory = (FAKE_ADAPTER as any).inventory;
   (FAKE_ADAPTER as any).inventory = async () => [
-    { title: 'Test Title 2024 1080p', infoHash: '44'.repeat(20), size: 1024 },
+    { title: 'Test Title 2024 1080p DUBLADO', infoHash: '44'.repeat(20), size: 1024, isBr: true },
   ];
   try {
     await withMockFetch([
@@ -161,7 +225,7 @@ test('Fase 3: Jackett FORA DO AR — busca respondida pelo índice', async () =>
   });
 });
 
-test('idxPoolCovered: só legendado fraco NÃO cobre (não trava a busca BR)', () => {
+test('poolCovered: valida requireDubbed e swarms', () => {
   const legendadoFraco = [{
     hash: '77'.repeat(20),
     title: 'Test Title 2024 1080p LEGENDADO',
@@ -169,7 +233,17 @@ test('idxPoolCovered: só legendado fraco NÃO cobre (não trava a busca BR)', (
     quality: '1080p',
     isBr: true,
   }];
-  assert.equal(idxPoolCovered(legendadoFraco as any), false, 'contagem pura nunca decide cobertura');
+  assert.equal(poolCovered(legendadoFraco as any, { requireDubbed: false }), false, 'sem seeders suficientes não cobre swarm');
+  assert.equal(poolCovered(legendadoFraco as any, { requireDubbed: true }), false, 'legendado não cobre com requireDubbed');
+
+  const legendadoForte = [{
+    hash: '78'.repeat(20),
+    title: 'Test Title 2024 1080p EN',
+    seeders: 100,
+    quality: '1080p',
+  }];
+  assert.equal(poolCovered(legendadoForte as any, { requireDubbed: false }), true, 'swarm forte cobre se requireDubbed=false');
+  assert.equal(poolCovered(legendadoForte as any, { requireDubbed: true }), false, 'swarm forte NÃO cobre se requireDubbed=true');
 
   const brDublado = [{
     hash: '88'.repeat(20),
@@ -178,5 +252,6 @@ test('idxPoolCovered: só legendado fraco NÃO cobre (não trava a busca BR)', (
     quality: '1080p',
     isBr: true,
   }];
-  assert.equal(idxPoolCovered(brDublado as any), true, 'BR dublado cobre — mesma noção de pool do autofetch');
+  assert.equal(poolCovered(brDublado as any, { requireDubbed: true }), true, 'BR dublado cobre com requireDubbed');
+  assert.equal(idxPoolCovered(brDublado as any), true, 'idxPoolCovered cobre BR dublado');
 });

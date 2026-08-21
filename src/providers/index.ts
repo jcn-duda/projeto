@@ -28,6 +28,9 @@ import {
   isMultiWorkCollection,
   extractInfoHash,
   isSeasonPackFillEligible,
+  qualityFromTitle,
+  audioFromTitle,
+  explicitPtAudio,
 } from '../utils/format.js';
 import * as cache from '../utils/cache.js';
 import debrid from '../debrid/index.js';
@@ -771,28 +774,62 @@ function hasPlayableStream(streams: any[]) {
 }
 
 /**
+ * Normaliza releases (tanto do índice quanto itens crus/debrid) e verifica se
+ * cobrem os requisitos de pool.
+ *
+ * Se requireDubbed for true:
+ *   - BR dublado -> global dublado.
+ * Se requireDubbed for false:
+ *   - BR dublado -> global dublado -> melhor swarm saudável (pickTopSeededCandidates).
+ */
+function poolCovered(
+  items: any[],
+  { season, requireDubbed = false }: { season?: number | null; requireDubbed?: boolean } = {},
+) {
+  if (!Array.isArray(items) || items.length === 0) return false;
+  const pseudo = items.map((r) => {
+    const title = String(r.title || r.Title || r.name || '').trim();
+    const isBr = Boolean(r.isBr);
+    const dubbed = r.dubbed !== undefined
+      ? Boolean(r.dubbed)
+      : isBr
+        ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title)))
+        : explicitPtAudio(title);
+    const quality = r.quality || qualityFromTitle(title);
+    const seeders = Number(r.seeders ?? r.Seeders ?? r._seeders ?? 0) || 0;
+    const hash = String(r.hash || extractInfoHash(r.infoHash || r.magnet || '') || '').toLowerCase();
+
+    return {
+      title,
+      name: title,
+      infoHash: hash,
+      _seeders: seeders,
+      _quality: quality,
+      _br: isBr,
+      // O degrau "dublado global" do pool lê este flag: sem ele anyDubbedPool
+      // devolveria vazio SEMPRE e o degrau seria código morto.
+      _dubbed: dubbed,
+      season: r.season,
+      episode: r.episode,
+    };
+  });
+
+  if (pickBrDubbedCandidates(pseudo as any, new Set(), 1).length > 0) return true;
+  if (pickAnyDubbedCandidates(pseudo as any, new Set(), 1).length > 0) return true;
+  if (requireDubbed) return false;
+  return pickTopSeededCandidates(pseudo as any, new Set(), 1, {
+    minSeeders: config.debrid.autoFetchMinSeeders,
+  }).length > 0;
+}
+
+/**
  * "Índice cobre" NUNCA é contagem pura. Uma temporada indexada só com
  * legendado não pode impedir a busca BR dublada de rodar — então o critério é
  * a MESMA noção de pool que o autofetch já usa: BR dublado → global dublado →
  * melhor swarm saudável. Qualquer um desses pools com candidato serve.
  */
-function idxPoolCovered(releases: any[]) {
-  const pseudo = releases.map((r) => ({
-    title: r.title,
-    name: r.title,
-    infoHash: r.hash,
-    _seeders: r.seeders,
-    _quality: r.quality,
-    _br: r.isBr,
-    // O degrau "dublado global" do pool lê este flag: sem ele anyDubbedPool
-    // devolveria vazio SEMPRE e o degrau seria código morto.
-    _dubbed: r.dubbed,
-  }));
-  if (pickBrDubbedCandidates(pseudo as any, new Set(), 1).length > 0) return true;
-  if (pickAnyDubbedCandidates(pseudo as any, new Set(), 1).length > 0) return true;
-  return pickTopSeededCandidates(pseudo as any, new Set(), 1, {
-    minSeeders: config.debrid.autoFetchMinSeeders,
-  }).length > 0;
+function idxPoolCovered(releases: any[], season?: number | null) {
+  return poolCovered(releases, { season, requireDubbed: false });
 }
 
 /** Release do índice → item cru no formato que o buildStreams já consome. */
@@ -919,9 +956,21 @@ async function collectRaw(
     stopWhen: fastPathOn
       ? (batch: any[], _items: any[], meta: any) => {
         if (meta?.source !== 'account' || !Array.isArray(batch)) return false;
-        if (batch.length < config.accountFastPath.minReleases) return false;
+        if (batch.length < config.accountFastPath.minReleases) {
+          metrics.count('search.fastPath.skipped');
+          return false;
+        }
+        const userPreferDubbed = opts().preferDubbed;
+        if (userPreferDubbed) {
+          const covered = poolCovered(batch, { season: matchContext.season, requireDubbed: true });
+          if (!covered) {
+            metrics.count('search.fastPath.skipped');
+            return false;
+          }
+        }
         metrics.count('search.account.sufficient');
         metrics.count('search.fastPath');
+        metrics.count('search.fastPath.covered');
         log.info(`[search] conta suficiente (${batch.length} release(s)); respondendo sem esperar a coleta`);
         return true;
       }
@@ -1841,5 +1890,5 @@ function autofetchStatus() {
 
 export {
   findStreams, applyDebrid, buildStreams, debridRefreshSatisfied, applyNoticeOrigin, onlyNotice,
-  autofetchStatus, idxPoolCovered,
+  autofetchStatus, idxPoolCovered, poolCovered,
 };
