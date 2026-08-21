@@ -13,6 +13,8 @@ const NAMESPACE_VERSIONS = Object.freeze({
   dinv: 'v1',
   davail: 'v1',
   mag: 'v1',
+  idx: 'v1',
+  harvest: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

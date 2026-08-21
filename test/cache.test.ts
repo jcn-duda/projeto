@@ -395,10 +395,10 @@ test('cotas da Fase 3: raw limitado, streams ampliado, davail e mag de entrada b
     assert.equal(cache.QUOTAS.streams, 2000);
     assert.equal(cache.QUOTAS.davail, 5000);
     assert.equal(cache.QUOTAS.mag, 8000);
-    // Teto global acima da SOMA das cotas (26.000): abaixo disso, em cache
-    // cheio, o despejo global morde antes da cota de namespace e a repartição
-    // que as cotas prometem nunca vale.
-    assert.equal(cache.MAX_ENTRIES, 30000);
+    assert.equal(cache.QUOTAS.idx, 4000);
+    // Teto global acima da SOMA das cotas (30.500 com __default): igual à
+    // soma, o despejo global morde antes da cota de namespace em cache cheio.
+    assert.equal(cache.MAX_ENTRIES, 36000);
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;

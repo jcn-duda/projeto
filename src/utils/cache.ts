@@ -12,14 +12,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const store = new Map();
-// A soma das cotas conhecidas é 26.000 — o teto PRECISA ficar acima dela. Não é
-// medição, é aritmética: com teto ABAIXO da soma, o despejo global passa a
-// morder antes da cota de namespace assim que o cache enche, e a repartição que
-// as cotas prometem fica inalcançável por construção (era o caso em 25.000).
-// Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior caso); os demais
-// namespaces guardam entrada minúscula (0/1) — folga confortável dentro do
-// mem_limit de 3g do container.
-const MAX_ENTRIES = 30000;
+// A soma das cotas conhecidas é 30.500 (30.000 de namespaces nomeados +
+// __default 500, que também cobre o harvest) — o teto PRECISA ficar acima
+// dela. Não é medição, é aritmética: com teto ABAIXO (ou IGUAL) à soma, o
+// despejo global passa a morder antes da cota de namespace assim que o cache
+// enche, e a repartição que as cotas prometem fica inalcançável por
+// construção. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior caso); os
+// demais namespaces guardam entrada minúscula (0/1 ou release de ~200
+// bytes) — folga dentro do mem_limit de 3g do container.
+const MAX_ENTRIES = 36000;
 const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -35,6 +36,10 @@ const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Banco de magnets: histórico durável por hash (vivo/ruim), entrada
   // minúscula como o davail — a cota alta cobre contas com catálogo grande.
   mag: 8000,
+  // Índice de releases por obra (~8 KB por chave no pior caso, 40 releases ×
+  // ~200 bytes): 4.000 chaves ≈ 32 MB. É o que faz o addon responder do
+  // próprio índice sem esperar Jackett.
+  idx: 4000,
   autofetch: 2000,
   'indexer-status': 200,
   __default: 500,

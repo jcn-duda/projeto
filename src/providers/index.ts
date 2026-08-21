@@ -41,6 +41,7 @@ import { collectWithinWindow } from './collection-window.js';
 import { raceWithDeadline, remainingCheckBudget } from '../utils/deadline.js';
 import * as autofetch from './autofetch.js';
 import * as magnetdb from '../utils/magnetdb.js';
+import * as releaseIndex from '../utils/release-index.js';
 import { opts, prefix, capture, run, origin } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -1472,6 +1473,14 @@ async function buildStreams(
       ? [...fromAccount, ...filterRelevantRaw(raw.filter((r: any) => !r.fromAccount), titleCtx)]
       : filterRelevantRaw(raw, titleCtx);
     if (before !== raw.length) log.info(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
+  }
+
+  // Fase 2: toda busca alimenta o índice com o que sobreviveu ao filtro de
+  // relevância — nada muda no caminho da resposta, a leitura vem depois. O
+  // record é idempotente (merge por hash): os múltiplos passes (parcial,
+  // tardio, pack, varredura) convergem para o mesmo conjunto.
+  if (!isDemo && imdbId) {
+    releaseIndex.record(imdbId, { season, episode }, raw);
   }
 
   // Guarda de coleção: pack multi-obra ("Todos os filmes 1979-2016") só é
