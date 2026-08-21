@@ -4,10 +4,22 @@ Revisão do plano v1 de análise do banco de magnets. Mantém a direção da v1
 (prioridade no `markBad`, ordem por dano ativo, kill-switch por TTL) e corrige o
 que a v1 dimensionou ou afirmou errado sobre o código real.
 
-> **Status.** Nada deste documento está implementado. O que já entrou é apenas
-> a correção do crash descrito em "O que a v1 não viu" (`6ee8ff7`), que não faz
-> parte das fases abaixo. Todas as afirmações sobre o código foram conferidas
-> na árvore em 2026-08-21, commit `6ee8ff7`.
+> **Status histórico.** As **fases 1 a 4 foram implementadas** em `98cd842`,
+> commit que também trouxe este documento. O texto abaixo é o plano como estava
+> ANTES da execução — as âncoras `arquivo:linha` apontam para a árvore em
+> `6ee8ff7` e saíram do lugar com o próprio commit que as implementou. Duas
+> coisas mudaram na execução em relação ao planejado, ambas descobertas ao
+> escrever o código:
+>
+> - o `pickFile` que lança também atinge o `waiting_files_selection` do
+>   Real-Debrid (`resolveLink` e `enqueue`), que o plano não tinha mapeado — ver
+>   a revisão do `98cd842`;
+> - a Fase 2 dizia "medido"; a justificativa correta é aritmética (teto abaixo
+>   da soma das cotas torna a repartição inalcançável), e o comentário no
+>   `cache.ts` foi corrigido para dizer isso.
+>
+> O crash descrito em "O que a v1 não viu" já havia entrado antes, em `6ee8ff7`,
+> e não faz parte das fases.
 
 ## Contexto
 

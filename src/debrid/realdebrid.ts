@@ -1,4 +1,4 @@
-import { magnetFor, json, pickFile, wait } from './common.js';
+import { magnetFor, json, pickFile, isNoVideoError, wait } from './common.js';
 import * as log from '../utils/logger.js';
 
 const API = 'https://api.real-debrid.com/rest/1.0';
@@ -57,10 +57,20 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
   // O torrent entra sem nenhum arquivo selecionado; sem selectFiles ele nunca
   // sai de "waiting_files_selection" e a lista de links fica vazia.
   if (info.status === 'waiting_files_selection') {
-    const wanted = pickFile(
-      (info.files || []).map((f: any) => ({ ...f, path: f.path, size: f.bytes })),
-      { season, episode, work },
-    );
+    let wanted;
+    try {
+      wanted = pickFile(
+        (info.files || []).map((f: any) => ({ ...f, path: f.path, size: f.bytes })),
+        { season, episode, work },
+      );
+    } catch (err) {
+      // Sem vídeo na listagem: o torrent JÁ foi adicionado e ficaria preso em
+      // waiting_files_selection ocupando vaga da conta, porque nada seleciona
+      // arquivo depois daqui. Remove antes de deixar o erro subir — quem
+      // condena o hash é o /resolve, no catch do NoVideoError.
+      if (isNoVideoError(err)) await removeTorrent(apiKey, add.id);
+      throw err;
+    }
     await call(apiKey, `/torrents/selectFiles/${add.id}`, {
       method: 'POST',
       body: new URLSearchParams({ files: wanted ? String(wanted.id) : 'all' }),
@@ -119,10 +129,25 @@ async function enqueue(apiKey: string, infoHash: string, { season, episode }: { 
   const info = await call(apiKey, `/torrents/info/${add.id}`);
   if (info.status !== 'waiting_files_selection') return true;
 
-  const wanted = pickFile(
-    (info.files || []).map((f: any) => ({ ...f, path: f.path, size: f.bytes })),
-    { season, episode },
-  );
+  let wanted;
+  try {
+    wanted = pickFile(
+      (info.files || []).map((f: any) => ({ ...f, path: f.path, size: f.bytes })),
+      { season, episode },
+    );
+  } catch (err) {
+    // Antes do NoVideoError, `null` caía no `files: 'all'` e o autofetch baixava
+    // um torrent sem vídeo nenhum. Agora a prova existe: remove o torrent (ele
+    // ficaria preso em waiting_files_selection) e RECUSA. `false` é o contrato
+    // que o chamador entende — ele conta `autofetch.refused` e loga "não
+    // aceitou"; deixar subir viraria "[autofetch] falhou" genérico.
+    if (isNoVideoError(err)) {
+      await removeTorrent(apiKey, add.id);
+      log.warn(`[realdebrid] ${infoHash} não tem arquivo de vídeo; recusando o autofetch`);
+      return false;
+    }
+    throw err;
+  }
   await call(apiKey, `/torrents/selectFiles/${add.id}`, {
     method: 'POST',
     body: new URLSearchParams({ files: wanted ? String(wanted.id) : 'all' }),
