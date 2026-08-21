@@ -426,6 +426,19 @@ function inventoryFor(adapter: any, apiKey: string) {
 }
 
 /**
+ * Leitura síncrona do memo dinv da conta: cache.get, sem rede, sem in-flight.
+ * null = memo frio.
+ */
+function inventoryPeek(adapter?: DebridAdapter | null, apiKey?: string): { title: string; infoHash: string; size: number }[] | null {
+  const ad = adapter || current();
+  const key = apiKey || opts().debridApiKey;
+  if (!ad || !key) return null;
+  const storageKey = `${prefix('dinv')}${ad.id}:${accountScope(key)}`;
+  const hit = cache.get(storageKey);
+  return Array.isArray(hit) ? hit : null;
+}
+
+/**
  * Itens prontos na conta do serviço corrente (`{ title, infoHash, size }`).
  * É o que sustenta a conta-como-fonte: o que o usuário já baixou entra na
  * busca com ⚡ sem depender de indexer. Memoizado por serviço+conta —
@@ -502,5 +515,5 @@ async function sweepDeadEnv() {
 }
 
 export default {
-  SERVICES, BY_ID, current, checkCached, accountStatus, resolveLink, enqueue, inventory, warmupEnv, sweepDeadEnv,
+  SERVICES, BY_ID, current, checkCached, accountStatus, resolveLink, enqueue, inventory, inventoryPeek, warmupEnv, sweepDeadEnv,
 };

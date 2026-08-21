@@ -130,9 +130,64 @@ async function enqueue(apiKey: string, infoHash: string, { season, episode }: { 
   return true;
 }
 
+/**
+ * Inventário PRONTO da conta Real-Debrid (`{ title, infoHash, size }`).
+ */
+async function inventory(apiKey: string) {
+  const list = await call(apiKey, '/torrents/list');
+  const rows = Array.isArray(list) ? list : [];
+  const out: any[] = [];
+  for (const t of rows) {
+    if (t?.status !== READY) continue;
+    const infoHash = String(t.hash || '').toLowerCase();
+    const title = String(t.filename || '').trim();
+    if (!infoHash || !title || title.toLowerCase() === infoHash) continue;
+    out.push({ title, infoHash, size: Number(t.bytes) || 0 });
+  }
+  return out;
+}
+
+/**
+ * Status de torrents na conta Real-Debrid para o ciclo de recheck / detecção de mortos.
+ */
+async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
+  const list = await call(apiKey, '/torrents/list');
+  const rows = Array.isArray(list) ? list : [];
+  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+  for (const t of rows) {
+    const hash = String(t.hash || '').toLowerCase();
+    if (!hash) continue;
+    const status = String(t.status || '').toLowerCase();
+    let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'unknown';
+    if (status === READY) {
+      state = 'ready';
+    } else if (/^(magnet_error|error|virus|dead)$/i.test(status)) {
+      state = 'dead';
+    } else if (WORKING.includes(status) || status === 'waiting_files_selection') {
+      state = 'downloading';
+    }
+    out[hash] = { state, id: t.id };
+  }
+  return out;
+}
+
+/**
+ * Remove torrent pelo id no Real-Debrid.
+ */
+async function removeTorrent(apiKey: string, id: any) {
+  try {
+    await call(apiKey, `/torrents/delete/${id}`, { method: 'DELETE' });
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 export const id = 'realdebrid';
 export const label = 'Real-Debrid';
 export const short = 'RD';
 export const cacheCheck = false;
+export const autofetchSource = true;
 export const keyUrl = 'https://real-debrid.com/apitoken';
-export { enqueue, checkCached, resolveLink };
+export { enqueue, checkCached, resolveLink, inventory, torrentStatus, removeTorrent };
+

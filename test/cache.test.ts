@@ -742,7 +742,7 @@ test(
   () => runIsolatedCacheTest(STREAMS_VERSION_DISCARD_SCRIPT),
 );
 
-// Mesmo contrato para o autofetch: a v1 (formato anterior ao cache-keys.js)
+// Mesmo contrato para o autofetch: a v2 (formato anterior ao cache-keys.js v3)
 // precisa sair do disco no boot, senão um marker antigo sobrevive ao restart e
 // segura vaga de autofetch sem nunca ser lido com a chave nova.
 const AUTOFETCH_VERSION_DISCARD_SCRIPT = [
@@ -753,26 +753,26 @@ const AUTOFETCH_VERSION_DISCARD_SCRIPT = [
   "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
   "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
   'const now = Date.now();',
-  "insert.run('autofetch:v1:alldebrid:acc:abc123', JSON.stringify({ hash: 'abc123' }), now + 900000);",
-  "insert.run('autofetch:v2:alldebrid:acc:def456', JSON.stringify({ hash: 'def456' }), now + 900000);",
+  "insert.run('autofetch:v2:alldebrid:acc:abc123', JSON.stringify({ hash: 'abc123' }), now + 900000);",
+  "insert.run('autofetch:v3:m:alldebrid:acc:def456', JSON.stringify({ hash: 'def456' }), now + 900000);",
   'seed.close();',
   '',
   `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
   `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
   '',
-  "assert.deepStrictEqual(cache.get('autofetch:v2:alldebrid:acc:def456'), { hash: 'def456' }, 'autofetch v2 sobe do disco');",
-  "assert.strictEqual(cache.get('autofetch:v1:alldebrid:acc:abc123'), null, 'autofetch v1 nao entra no L1');",
+  "assert.deepStrictEqual(cache.get('autofetch:v3:m:alldebrid:acc:def456'), { hash: 'def456' }, 'autofetch v3 sobe do disco');",
+  "assert.strictEqual(cache.get('autofetch:v2:alldebrid:acc:abc123'), null, 'autofetch v2 nao entra no L1');",
   '',
   'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "const staleRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'autofetch:v1:%'\").all();",
-  "assert.strictEqual(staleRows.length, 0, 'linha autofetch:v1 apagada do disco');",
-  "const liveRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'autofetch:v2:%'\").all();",
-  "assert.strictEqual(liveRows.length, 1, 'linha autofetch:v2 preservada no disco');",
+  "const staleRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'autofetch:v2:%'\").all();",
+  "assert.strictEqual(staleRows.length, 0, 'linha autofetch:v2 apagada do disco');",
+  "const liveRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'autofetch:v3:%'\").all();",
+  "assert.strictEqual(liveRows.length, 1, 'linha autofetch:v3 preservada no disco');",
   'dbVerify.close();',
 ].join('\n');
 
 test(
-  'descarte de versão obsoleta no disco — autofetch: v1 some, v2 sobe no boot',
+  'descarte de versão obsoleta no disco — autofetch: v2 some, v3 sobe no boot',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(AUTOFETCH_VERSION_DISCARD_SCRIPT),
 );

@@ -319,6 +319,18 @@ const config = {
     // o CACHE_TTL inteiro. 0 em qualquer um desliga o recheck.
     autoFetchRecheckMs: num(process.env.DEBRID_AUTO_FETCH_RECHECK_MS, 120_000),
     autoFetchRecheckMax: num(process.env.DEBRID_AUTO_FETCH_RECHECK_MAX, 3),
+    // Fila persistente de autofetch e drenagem automática
+    autoFetchQueue: String(process.env.DEBRID_AUTO_FETCH_QUEUE || 'true') === 'true',
+    autoFetchQueueDepth: Math.min(12, Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_QUEUE_DEPTH, 6)))),
+    autoFetchDeadTtl: num(process.env.DEBRID_AUTO_FETCH_DEAD_TTL, 86400),
+    autoFetchSettleMs: num(process.env.DEBRID_AUTO_FETCH_SETTLE_MS, 900_000),
+    autoFetchSettleMaxLots: Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS, 50))),
+    autoFetchQueueTtl: num(process.env.DEBRID_AUTO_FETCH_QUEUE_TTL, 86400),
+    autoFetchEnqueueMaxHour: Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR, 50))),
+    autoFetchDrainMaxRefusals: Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_DRAIN_MAX_REFUSALS, 2))),
+    // Prefetch do próximo episódio de séries
+    prefetchNextEp: String(process.env.DEBRID_PREFETCH_NEXT_EP || 'true') === 'true',
+    prefetchTtl: num(process.env.DEBRID_PREFETCH_TTL, 43200),
     // A conta como fonte de busca: o que já está pronto no debrid entra com ⚡
     // sem depender de indexer — inclusive pack de franquia que o casamento
     // estrito dos trackers rejeita (medido: "FILMOGRAFIA COMPLETA JORNADA NAS

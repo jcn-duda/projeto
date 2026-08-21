@@ -72,7 +72,6 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
   return file?.link || null;
 }
 
-/** `async: true` devolve na hora e deixa a seedbox baixando. */
 async function enqueue(apiKey: string, infoHash: string) {
   const added = await call(apiKey, '/seedbox/add', {
     method: 'POST',
@@ -81,9 +80,61 @@ async function enqueue(apiKey: string, infoHash: string) {
   return Boolean(added?.id);
 }
 
+/**
+ * Inventário PRONTO da conta Debrid-Link (`{ title, infoHash, size }`).
+ */
+async function inventory(apiKey: string) {
+  const list = await call(apiKey, '/seedbox/list');
+  const rows = Array.isArray(list) ? list : [];
+  const out: any[] = [];
+  for (const row of rows) {
+    if (Number(row?.downloadPercent) < 100) continue;
+    const infoHash = String(row?.hash || row?.infoHash || '').toLowerCase();
+    const title = String(row?.name || '').trim();
+    if (!infoHash || !title || title.toLowerCase() === infoHash) continue;
+    out.push({ title, infoHash, size: Number(row?.totalSize || row?.size) || 0 });
+  }
+  return out;
+}
+
+/**
+ * Status de torrents na conta Debrid-Link para o ciclo de recheck / detecção de mortos.
+ */
+async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
+  const list = await call(apiKey, '/seedbox/list');
+  const rows = Array.isArray(list) ? list : [];
+  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+  for (const row of rows) {
+    const infoHash = String(row?.hash || row?.infoHash || '').toLowerCase();
+    if (!infoHash) continue;
+    let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'downloading';
+    if (Number(row?.downloadPercent) >= 100) {
+      state = 'ready';
+    } else if (row?.status === 'error' || row?.error || /error|failed|dead/i.test(String(row?.status || ''))) {
+      state = 'dead';
+    }
+    out[infoHash] = { state, id: row?.id };
+  }
+  return out;
+}
+
+/**
+ * Remove torrent da seedbox na Debrid-Link.
+ */
+async function removeTorrent(apiKey: string, id: any) {
+  try {
+    await call(apiKey, `/seedbox/${id}/remove`, { method: 'DELETE' });
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 export const id = 'debridlink';
 export const label = 'Debrid-Link';
 export const short = 'DL';
 export const cacheCheck = false;
+export const autofetchSource = true;
 export const keyUrl = 'https://debrid-link.com/webapp/apikey';
-export { enqueue, checkCached, resolveLink };
+export { enqueue, checkCached, resolveLink, inventory, torrentStatus, removeTorrent };
+

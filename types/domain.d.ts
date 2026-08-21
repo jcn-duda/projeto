@@ -170,6 +170,17 @@ export interface DebridAdapter {
   ): Promise<boolean>;
   warmInventory?(apiKey: string): Promise<unknown>;
   sweepDead?(apiKey: string): Promise<unknown>;
+  /** Mapa hash(minúsculo) -> { state: 'ready'|'downloading'|'dead'|'unknown', id?: any } */
+  torrentStatus?(
+    apiKey: string,
+    infoHashes: string[],
+  ): Promise<Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }>>;
+  /** Remove torrent pelo id no serviço; ausente = não suportado */
+  removeTorrent?(apiKey: string, id: any): Promise<boolean>;
+  /** Teto de enqueues/hora que este serviço aceita para item não-cacheado */
+  enqueueHourlyLimit?: number;
+  /** Pode participar do autofetch sem cacheCheck, sustentado por inventário */
+  autofetchSource?: boolean;
 }
 
 /**

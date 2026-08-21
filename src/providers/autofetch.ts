@@ -1,11 +1,35 @@
+import crypto from 'node:crypto';
 import { prefix } from '../utils/cache-keys.js';
+import * as cache from '../utils/cache.js';
+import config from '../config.js';
+import * as metrics from '../utils/metrics.js';
+import * as log from '../utils/logger.js';
 
 const pending = new Map();
 const searchSlots = new Map();
 const LOCK_TTL_MS = 60_000;
 
+// Janela deslizante de 1h de enqueues por adapter:account
+const hourlyEnqueues = new Map<string, number[]>();
+
+function sha256(str: string) {
+  return crypto.createHash('sha256').update(String(str || '')).digest('hex');
+}
+
 function markerKey(adapterId: string, account: string, infoHash: string) {
-  return `${prefix('autofetch')}${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
+  return `${prefix('autofetch')}m:${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
+}
+
+function deadKey(adapterId: string, account: string, infoHash: string) {
+  return `${prefix('autofetch')}dead:${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
+}
+
+function queueKey(searchKey: string) {
+  return `${prefix('autofetch')}q:${sha256(searchKey)}`;
+}
+
+function prefetchKey(account: string, id: string, s: number | string, e: number | string) {
+  return `${prefix('autofetch')}pf:${account}:${id}:${s}:${e}`;
 }
 
 /**
@@ -68,13 +92,156 @@ function releaseSearch(searchKey: string) {
   releaseSearchSlot(searchKey);
 }
 
+/** Blacklist por adapter:account:hash com TTL 24h */
+function isDead(adapterId: string, account: string, infoHash: string): boolean {
+  if (!adapterId || !account || !infoHash) return false;
+  return cache.get(deadKey(adapterId, account, infoHash)) === 1;
+}
+
+function blacklist(
+  adapterId: string,
+  account: string,
+  infoHash: string,
+  ttlSeconds = config.debrid.autoFetchDeadTtl,
+) {
+  if (!adapterId || !account || !infoHash) return;
+  cache.set(deadKey(adapterId, account, infoHash), 1, ttlSeconds);
+}
+
+/** Fila persistente de candidatos excedentes */
+interface QueueCandidate {
+  infoHash: string;
+  name?: string;
+  title?: string;
+  quality?: string;
+  seeders?: number;
+  br?: boolean;
+  dubbed?: boolean;
+  pool?: string;
+  season?: number | null;
+  episode?: number | null;
+  addedAt?: number;
+  [key: string]: unknown;
+}
+
+function readQueue(searchKey: string): QueueCandidate[] {
+  if (!searchKey) return [];
+  const hit = cache.get(queueKey(searchKey));
+  return Array.isArray(hit) ? hit : [];
+}
+
+function writeQueue(
+  searchKey: string,
+  candidates: QueueCandidate[],
+  ttlSeconds = config.debrid.autoFetchQueueTtl,
+  adapterId?: string,
+  account?: string,
+) {
+  if (!searchKey) return;
+  const seen = new Set<string>();
+  const clean: QueueCandidate[] = [];
+  const depth = config.debrid.autoFetchQueueDepth;
+
+  for (const c of candidates) {
+    if (!c?.infoHash) continue;
+    const hash = String(c.infoHash).toLowerCase();
+    if (seen.has(hash)) continue;
+    seen.add(hash);
+    if (adapterId && account && isDead(adapterId, account, hash)) continue;
+    clean.push({ ...c, infoHash: hash, addedAt: c.addedAt || Date.now() });
+    if (clean.length >= depth) break;
+  }
+
+  if (clean.length > 0) {
+    cache.set(queueKey(searchKey), clean, ttlSeconds);
+    metrics.count('autofetch.queue.added', clean.length);
+  } else {
+    cache.forget(queueKey(searchKey));
+  }
+}
+
+function dropQueue(searchKey: string) {
+  if (!searchKey) return;
+  const k = queueKey(searchKey);
+  if (cache.get(k)) {
+    cache.forget(k);
+    metrics.count('autofetch.queue.dropped');
+  }
+}
+
+function takeNext(
+  queue: QueueCandidate[],
+  skipFn?: (item: QueueCandidate) => boolean,
+): { next: QueueCandidate | null; remaining: QueueCandidate[] } {
+  if (!Array.isArray(queue) || queue.length === 0) {
+    return { next: null, remaining: [] };
+  }
+  for (let i = 0; i < queue.length; i += 1) {
+    const candidate = queue[i];
+    if (!skipFn || !skipFn(candidate)) {
+      const remaining = [...queue.slice(0, i), ...queue.slice(i + 1)];
+      return { next: candidate, remaining };
+    }
+  }
+  return { next: null, remaining: queue };
+}
+
+/**
+ * Orçamento deslizante de enqueues/hora por adapter:account.
+ */
+function checkAndRecordBudget(adapterId: string, account: string, limit?: number): boolean {
+  if (!adapterId || !account) return true;
+  const key = `${adapterId}:${account}`;
+  const now = Date.now();
+  const oneHourAgo = now - 3600_000;
+  let timestamps = (hourlyEnqueues.get(key) || []).filter((t) => t > oneHourAgo);
+  const maxHourly = limit != null && Number.isFinite(limit)
+    ? limit
+    : config.debrid.autoFetchEnqueueMaxHour;
+
+  if (timestamps.length >= maxHourly) {
+    metrics.count('autofetch.budget');
+    log.warn(
+      `[autofetch] orçamento de enqueues esgotado para ${adapterId}:${account} ` +
+        `(${timestamps.length}/${maxHourly} na última hora)`,
+    );
+    hourlyEnqueues.set(key, timestamps);
+    return false;
+  }
+
+  timestamps.push(now);
+  hourlyEnqueues.set(key, timestamps);
+  return true;
+}
+
+function resetBudget(adapterId?: string, account?: string) {
+  if (adapterId && account) {
+    hourlyEnqueues.delete(`${adapterId}:${account}`);
+  } else {
+    hourlyEnqueues.clear();
+  }
+}
+
 export {
   LOCK_TTL_MS,
   markerKey,
+  deadKey,
+  queueKey,
+  prefetchKey,
   acquire,
   release,
   acquireSearch,
   releaseSearch,
   acquireSearchSlot,
   releaseSearchSlot,
+  isDead,
+  blacklist,
+  readQueue,
+  writeQueue,
+  dropQueue,
+  takeNext,
+  checkAndRecordBudget,
+  resetBudget,
 };
+export type { QueueCandidate };
+

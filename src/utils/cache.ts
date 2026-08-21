@@ -27,7 +27,7 @@ const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Disponibilidade por hash é só 0/1; a cota alta evita reconsultar a mesma
   // conta em buscas diferentes sem ocupar a memória dos resultados brutos.
   davail: 5000,
-  autofetch: 500,
+  autofetch: 2000,
   'indexer-status': 200,
   __default: 500,
 });

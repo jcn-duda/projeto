@@ -8,7 +8,7 @@
 // lugares e a do descarte ficou parada na v3 enquanto a chave já ia na v5.
 const NAMESPACE_VERSIONS = Object.freeze({
   streams: 'v5',
-  autofetch: 'v2',
+  autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
   davail: 'v1',

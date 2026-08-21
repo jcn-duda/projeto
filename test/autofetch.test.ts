@@ -82,7 +82,7 @@ test('hasCachedBrDubbed enxerga o dublado que já toca na hora', () => {
 
 test('trava autofetch é concorrente e marcador novo não colide com legado', () => {
   const key = autofetch.markerKey('alldebrid', 'conta', A);
-  assert.equal(key.startsWith('autofetch:v2:'), true);
+  assert.equal(key.startsWith('autofetch:v3:m:'), true);
   assert.equal(autofetch.acquire(key), true);
   assert.equal(autofetch.acquire(key), false);
   autofetch.release(key);
@@ -1214,6 +1214,7 @@ test('recheck pós-enfileiramento esquece a busca quando o download fica pronto'
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
+  const originalTorrentStatus = pmAdapter.torrentStatus;
   const account = accountScope('chave-recheck');
   const h = '1'.repeat(40);
   const searchKey = 'busca-recheck';
@@ -1232,6 +1233,7 @@ test('recheck pós-enfileiramento esquece a busca quando o download fica pronto'
   try {
     config.debrid.publicUrl = 'http://addon.test';
     pmAdapter.enqueue = async () => true;
+    pmAdapter.torrentStatus = async () => ({});
     // 1ª checagem é a da busca; a 2ª (recheck) ainda vazia; a 3ª pronta.
     debrid.checkCached = async () => {
       checks += 1;
@@ -1275,6 +1277,7 @@ test('recheck pós-enfileiramento esquece a busca quando o download fica pronto'
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
+    pmAdapter.torrentStatus = originalTorrentStatus;
     autofetch.releaseSearch(searchKey);
     cache.forget(searchKey);
     cache.forget(autofetch.markerKey('premiumize', account, h));
@@ -1288,6 +1291,7 @@ test('recheck esgota as tentativas sem esquecer a busca quando nada fica pronto'
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
+  const originalTorrentStatus = pmAdapter.torrentStatus;
   const account = accountScope('chave-recheck-max');
   const h = '9'.repeat(40);
   const searchKey = 'busca-recheck-max';
@@ -1305,6 +1309,7 @@ test('recheck esgota as tentativas sem esquecer a busca quando nada fica pronto'
   try {
     config.debrid.publicUrl = 'http://addon.test';
     pmAdapter.enqueue = async () => true;
+    pmAdapter.torrentStatus = async () => ({});
     debrid.checkCached = async () => {
       checks += 1;
       return { cached: new Set(), known: true };
@@ -1334,6 +1339,7 @@ test('recheck esgota as tentativas sem esquecer a busca quando nada fica pronto'
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
+    pmAdapter.torrentStatus = originalTorrentStatus;
     autofetch.releaseSearch(searchKey);
     cache.forget(searchKey);
     cache.forget(autofetch.markerKey('premiumize', account, h));

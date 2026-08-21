@@ -1585,8 +1585,8 @@ function hasCachedBrDubbed(streams: Stream[] = [], cachedHashes: Set<string> = n
 function canAutoFetchBr({ autoFetchBr }: AutofetchOptions = {}, adapter?: DebridAdapter | null) {
   // cachedOnly não é mais trava: o objetivo do autofetch é justamente esquentar
   // o cache quando não há BR dublada pronta, independente do modo. As travas
-  // reais são o toggle, o cacheCheck confiável e a checagem de cache conhecida.
-  return Boolean(autoFetchBr && adapter?.cacheCheck);
+  // reais são o toggle, o cacheCheck confiável ou fonte de autofetch por inventário (RD/DL).
+  return Boolean(autoFetchBr && (adapter?.cacheCheck || adapter?.autofetchSource));
 }
 
 /**

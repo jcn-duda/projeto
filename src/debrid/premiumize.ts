@@ -103,6 +103,45 @@ async function accountStatus(apiKey: string) {
   };
 }
 
+/**
+ * Status detalhado de transferências do Premiumize para detecção de prontos / mortos.
+ */
+async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
+  const data = await call(apiKey, '/transfer/list');
+  const transfers = Array.isArray(data?.transfers) ? data.transfers : [];
+  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+  for (const t of transfers) {
+    const src = String(t?.src || '');
+    const match = src.match(/btih:([a-fA-F0-9]{40})/i);
+    if (!match) continue;
+    const hash = match[1].toLowerCase();
+    const status = String(t?.status || '').toLowerCase();
+    let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'unknown';
+    if (status === 'finished' || status === 'seeding') {
+      state = 'ready';
+    } else if (status === 'queued' || status === 'running') {
+      state = 'downloading';
+    } else if (status === 'error') {
+      state = 'dead';
+    }
+    out[hash] = { state, id: t?.id };
+  }
+  return out;
+}
+
+/**
+ * Remove transferência pelo id no Premiumize.
+ */
+async function removeTorrent(apiKey: string, id: any) {
+  try {
+    const body = new URLSearchParams({ id: String(id) });
+    await call(apiKey, '/transfer/delete', { method: 'POST', body });
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 export const id = 'premiumize';
 export const label = 'Premiumize';
 export const short = 'PM';
@@ -110,4 +149,5 @@ export const short = 'PM';
 // via upload). Sem isto o orquestrador trata todos como "não sei".
 export const cacheCheck = true;
 export const keyUrl = 'https://www.premiumize.me/account';
-export { enqueue, accountStatus, checkCached, resolveLink };
+export { enqueue, accountStatus, checkCached, resolveLink, torrentStatus, removeTorrent };
+

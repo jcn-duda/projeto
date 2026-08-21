@@ -162,9 +162,57 @@ async function accountStatus(apiKey: string) {
   return { magnets: rows.length, ready, active };
 }
 
+/**
+ * Status de torrents na conta TorBox para o ciclo de recheck / detecção de mortos.
+ */
+async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
+  const list = await call(apiKey, '/torrents/mylist');
+  const rows = Array.isArray(list?.data) ? list.data : (list?.data ? [list.data] : []);
+  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+  for (const row of rows) {
+    const hash = String(row?.hash || '').toLowerCase();
+    if (!hash) continue;
+    let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'unknown';
+    if (row?.download_finished || row?.download_present) {
+      state = 'ready';
+    } else if (
+      row?.download_state === 'error' ||
+      row?.download_state === 'failed' ||
+      row?.download_state === 'broken' ||
+      /error|failed|broken|dead/i.test(String(row?.download_state || ''))
+    ) {
+      state = 'dead';
+    } else if (
+      row?.download_state === 'downloading' ||
+      row?.download_state === 'queued' ||
+      row?.download_state === 'processing' ||
+      /downloading|queued|processing|uploading/i.test(String(row?.download_state || ''))
+    ) {
+      state = 'downloading';
+    }
+    out[hash] = { state, id: row?.id };
+  }
+  return out;
+}
+
+/**
+ * Remove torrent pelo id na TorBox.
+ */
+async function removeTorrent(apiKey: string, id: any) {
+  try {
+    await call(apiKey, `/torrents/delete/${id}`, { method: 'DELETE' });
+    return true;
+  } catch (err) {
+    log.warn(`[torbox] falha ao remover torrent ${id}:`, err?.message || err);
+    return false;
+  }
+}
+
 export const id = 'torbox';
 export const label = 'TorBox';
 export const short = 'TB';
 export const cacheCheck = true;
+export const enqueueHourlyLimit = 50;
 export const keyUrl = 'https://torbox.app/settings';
-export { enqueue, inventory, accountStatus, checkCached, resolveLink };
+export { enqueue, inventory, accountStatus, checkCached, resolveLink, torrentStatus, removeTorrent };
+

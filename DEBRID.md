@@ -272,7 +272,10 @@ _checagem em lote + autofetch_:
 
 No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_CACHED_ONLY`,
 `DEBRID_SHOW_UNCACHED_BR`, `DEBRID_RESOLVE_UNCACHED`, `DEBRID_DROP_UNCACHED`,
-`DEBRID_BATCH_SIZE`, `DEBRID_CACHE_CHECK_TIMEOUT_MS`.
+`DEBRID_BATCH_SIZE`, `DEBRID_CACHE_CHECK_TIMEOUT_MS`, `DEBRID_AUTO_FETCH_QUEUE`,
+`DEBRID_AUTO_FETCH_QUEUE_DEPTH`, `DEBRID_AUTO_FETCH_DEAD_TTL`, `DEBRID_AUTO_FETCH_SETTLE_MS`,
+`DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS`, `DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR`,
+`DEBRID_PREFETCH_NEXT_EP`, `DEBRID_PREFETCH_TTL`.
 
 Na URL de instalação (por usuário, ver [`src/runtime.ts`](src/runtime.ts)):
 `ds` serviço, `dk` chave, `dc` somente-cacheado, `bu` mostrar BR fora do cache,
@@ -281,7 +284,10 @@ Na URL de instalação (por usuário, ver [`src/runtime.ts`](src/runtime.ts)):
 Combinação que explica a maior parte das dúvidas de "sumiu o dublado":
 `dc=1` + `bu=0` esconde toda fonte BR fora do cache. Com `ab=1` ela é enviada
 para download assim que aparece — e só fica visível na busca seguinte, já com
-⚡. Ligar `bu=1` troca esse silêncio por uma entrada P2P visível enquanto o
+⚡. Candidatos excedentes entram na fila persistente e downloads mortos são
+substituídos automaticamente pelo próximo da fila. Com `prefetchNextEp=true`,
+pesquisar um episódio já dispara o prefetch em background do próximo (`E+1`).
+Ligar `bu=1` troca o silêncio inicial por uma entrada P2P visível enquanto o
 download acontece.
 
 ## Nota de segurança

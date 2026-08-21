@@ -431,6 +431,43 @@ async function inventory(apiKey: string) {
   return out;
 }
 
+/**
+ * Status detalhado de torrents na conta para o ciclo de recheck / detecção de mortos.
+ */
+async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
+  const data = await call(apiKey, '/magnet/status');
+  const list = Array.isArray(data?.magnets) ? data.magnets : [];
+  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+  for (const magnet of list) {
+    const hash = String(magnet.hash || '').toLowerCase();
+    if (!hash) continue;
+    let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'unknown';
+    const statusStr = String(magnet.status || '');
+    if (magnet.ready || /^ready$/i.test(statusStr)) {
+      state = 'ready';
+    } else if (DEAD.test(statusStr)) {
+      state = 'dead';
+    } else if (ACTIVE_STATES.test(statusStr)) {
+      state = 'downloading';
+    }
+    out[hash] = { state, id: magnet.id };
+  }
+  return out;
+}
+
+/**
+ * Remove torrent específico pelo id na AllDebrid.
+ */
+async function removeTorrent(apiKey: string, id: any) {
+  try {
+    await call(apiKey, '/magnet/delete', { id });
+    return true;
+  } catch (err) {
+    log.warn(`[alldebrid] falha ao remover torrent ${id}:`, err?.message || err);
+    return false;
+  }
+}
+
 export const id = 'alldebrid';
 export const label = 'AllDebrid';
 export const short = 'AD';
@@ -440,4 +477,5 @@ export const cacheCheck = true;
 // em background para ler os ids e remover os magnets que não estavam prontos.
 export const abortSafeCacheCheck = false;
 export const keyUrl = 'https://alldebrid.com/apikeys';
-export { enqueue, accountStatus, inventory, checkCached, warmInventory, sweepDead, resolveLink };
+export { enqueue, accountStatus, inventory, checkCached, warmInventory, sweepDead, resolveLink, torrentStatus, removeTorrent };
+

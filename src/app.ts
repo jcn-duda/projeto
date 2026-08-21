@@ -15,8 +15,12 @@ import * as secretBox from './utils/secret-box.js';
 import * as metrics from './utils/metrics.js';
 import * as cache from './utils/cache.js';
 import * as log from './utils/logger.js';
+import * as autofetch from './providers/autofetch.js';
+import { accountScope } from './utils/request-key.js';
 
 const { addonBuilder, getRouter } = sdk;
+
+const prefetchInFlight = new Set<string>();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -143,22 +147,48 @@ function createApp() {
   builder.defineStreamHandler(async (args) => {
     try {
       const result = await findStreams({ type: args.type, id: args.id });
+      // Prefetch do próximo episódio em background para séries
+      if (args.type === 'series' && typeof args.id === 'string') {
+        const parts = args.id.split(':');
+        if (parts.length >= 3) {
+          const imdbId = parts[0];
+          const s = parseInt(parts[1], 10);
+          const e = parseInt(parts[2], 10);
+          if (Number.isFinite(s) && Number.isFinite(e)) {
+            const nextId = `${imdbId}:${s}:${e + 1}`;
+            const adapter = debrid.current();
+            const { autoFetchBr, debridApiKey } = runtime.opts();
+            if (
+              config.debrid.prefetchNextEp &&
+              autoFetchBr &&
+              adapter &&
+              (adapter.cacheCheck || adapter.autofetchSource)
+            ) {
+              const account = accountScope(debridApiKey);
+              const pfKey = autofetch.prefetchKey(account, imdbId, s, e + 1);
+              if (!cache.get(pfKey) && !prefetchInFlight.has(nextId)) {
+                cache.set(pfKey, 1, config.debrid.prefetchTtl);
+                prefetchInFlight.add(nextId);
+                const capturedCtx = runtime.capture();
+                Promise.resolve(
+                  runtime.run(capturedCtx, () =>
+                    findStreams({ type: 'series', id: nextId, background: true }),
+                  ),
+                )
+                  .catch((err: any) => log.warn('[prefetch] falha em background:', err?.message || err))
+                  .finally(() => prefetchInFlight.delete(nextId));
+              }
+            }
+          }
+        }
+      }
+
       // O link do aviso é montado AQUI, por requisição — o cache guarda só o
       // texto (ver applyNoticeOrigin).
       const streams = applyNoticeOrigin(result.streams);
       // Lista que só tem aviso não é resultado: o cliente precisa perguntar de
       // novo em vez de ficar preso nela pelo cacheMaxAge normal.
       if (onlyNotice(result.streams) || streamsNeedRevalidation(result)) {
-        // Resposta vazia (busca ainda em background) não pode ficar cacheada:
-        // o Stremio precisa perguntar de novo pra pegar o resultado real.
-        //
-        // Lista PARCIAL também não: os indexadores BR levam 6-8s e não cabem no
-        // orçamento de coleta, então a primeira resposta sai só com as fontes
-        // globais. Com cacheMaxAge normal o cliente ficava 15 minutos preso nela
-        // enquanto o passe tardio já tinha recacheado a lista completa no servidor
-        // — era isso que fazia "o BR não aparecer" mesmo estando lá. O mesmo
-        // vale para debrid ainda desconhecido: o refresh tardio pode trocar
-        // `[AD download]` por `[AD⚡]` sem mudar a coleta.
         return { streams, cacheMaxAge: 0 };
       }
       return {

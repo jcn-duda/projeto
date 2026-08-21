@@ -397,23 +397,35 @@ como P2P enquanto o debrid baixa.
 
 O registry também expõe `enqueue()` para o **autofetch**. Sem fonte dublada
 tocável em cache, o addon manda o debrid baixar candidatos para o play da
-próxima vez. Travas atuais (invariante 6):
+próxima vez. Travas e arquitetura atuais (invariante 6):
 
-- desligável (`autoFetchBr` / `ab`); some na página quando `cacheCheck` é false;
-- exige `known` — sem saber o que está em cache enfileiraríamos às cegas
-  (Real-Debrid e Debrid-Link ficam de fora; neles o `/resolve` do play já
-  adiciona o magnet);
-- até `DEBRID_AUTO_FETCH_MAX` (1..4) torrents por busca, vaga compartilhada
-  entre passe parcial e tardio;
+- desligável (`autoFetchBr` / `ab`);
+- suportado em todos os 5 serviços: nos adaptadores com `cacheCheck: true`
+  (Premiumize, TorBox, AllDebrid) usa a disponibilidade; nos sem `cacheCheck`
+  (Real-Debrid e Debrid-Link) habilita via `autofetchSource: true` com dedupe
+  por `inventoryPeek()` síncrono da conta (`cache.get(dinvKey)` sem rede na
+  resposta);
+- até `DEBRID_AUTO_FETCH_MAX` (1..4) torrents imediatos por busca, com os
+  excedentes indo para a **fila persistente** (`readQueue`/`writeQueue`, chave
+  `autofetch:v3:q:sha256(searchKey)`);
 - pool BR vazio cai em dublada global (`DEBRID_AUTO_FETCH_ANY`) e, em série,
   no pack de mais seeders (`DEBRID_AUTO_FETCH_TOP_SEEDS`);
-- hold **por candidato, antes** da checagem; marker só depois do aceite;
-- recheck em fundo (`DEBRID_AUTO_FETCH_RECHECK_MS`) esquece o cache da busca
-  quando o download fica pronto, senão o ⚡ espera o `CACHE_TTL`;
+- hold **por candidato imediato, antes** da checagem; marker só depois do aceite;
+- recheck em fundo (`DEBRID_AUTO_FETCH_RECHECK_MS`) com detecção de **torrent
+  morto** (`adapter.torrentStatus`): duas observações consecutivas de estado terminal
+  removem o torrent da conta (`removeTorrent`), registram blacklist por 24h
+  (`autofetch:v3:dead:`) e drenam automaticamente o próximo item da fila (`takeNext`),
+  respeitando o orçamento horário (`DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR` ou
+  `adapter.enqueueHourlyLimit`);
+- downloads lentos migram para o ciclo de **settle** (`DEBRID_AUTO_FETCH_SETTLE_MS`)
+  até o TTL (`autoFetchTtl`), limitado por LRU (`DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS`);
+- **prefetch de série**: ao pesquisar um episódio de série com debrid ativo,
+  dispara em background a busca do próximo episódio (`E+1`), dedupado por
+  `autofetch:v3:pf:` com TTL de 12h;
 - nunca entra no caminho da resposta — erro só vira log.
 
 O registry também expõe `inventory()`: o que já está **pronto** na conta
-(AllDebrid/TorBox; nos demais é no-op) entra na busca como mais uma fonte
+(AllDebrid/TorBox/RD/DL) entra na busca como mais uma fonte
 (`src/providers/account.ts`), memoizado por serviço+conta sob `dinv:v1:`. A
 relevância de inventário (`filterInventoryRelevant`) aceita também **pack de
 franquia** da mesma obra — coisa na conta é escolha do usuário, sinal que

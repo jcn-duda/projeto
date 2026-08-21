@@ -61,30 +61,22 @@ const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
  *   o mesmo torrent de novo;
  * - nunca entra no caminho da resposta: erro só vira log.
  */
-function autoFetchCandidates(streams: Stream[], { season }: { season?: number | null } = {}) {
+function autoFetchCandidates(streams: Stream[], { season, searchKey }: { season?: number | null; searchKey?: string } = {}) {
   const { autoFetchBr, debridApiKey } = opts();
   const adapter = debrid.current();
-  // `cacheCheck: false` (Real-Debrid, Debrid-Link) fica fora: sem saber o que
-  // está em cache, enfileiraríamos às cegas — e nesses serviços o /resolve do
-  // play já adiciona o magnet de qualquer forma.
-  // cachedOnly deixou de ser trava: mesmo no modo misto, sem BR dublada em
-  // cache o play da próxima vez depende do download, e o torrent P2P sozinho
-  // não resolve o problema do usuário sem servidor torrent local.
   if (!canAutoFetchBr({ autoFetchBr }, adapter)) return [];
-  // Ainda não há resposta de cache: seleciona até o teto sem pular nada (o
-  // skip de hashes cacheados acontece só depois da checagem, no enqueue).
-  let candidates = pickBrDubbedCandidates(streams, new Set(), config.debrid.autoFetchMax, { season });
-  // Pool BR vazio: cai para as dubladas globais — o caso "site BR fora /
-  // título não indexado", que sem fallback significava não baixar nada. O
-  // gate de disparo por pool roda depois da checagem (autoFetchBrDubbed).
+  const account = accountScope(debridApiKey);
+
+  // Torrent morto na blacklist é ignorado antes de montar os pools
+  const liveStreams = streams.filter((s) => !s.infoHash || !autofetch.isDead(adapter!.id, account, s.infoHash));
+
+  const queueDepth = config.debrid.autoFetchQueue ? config.debrid.autoFetchQueueDepth : 0;
+  const totalMax = config.debrid.autoFetchMax + queueDepth;
+
+  let candidates = pickBrDubbedCandidates(liveStreams, new Set(), totalMax, { season });
   let pool = 'br';
-  // O pool global é montado MESMO com o toggle desligado: ele responde "existe
-  // dublado nesta busca?", e é essa resposta que decide se o terceiro nível
-  // pode correr. Sem isso `DEBRID_AUTO_FETCH_ANY=false` virava letra morta — o
-  // pool por swarm pegava o MESMO dublado global que o operador acabou de
-  // recusar, só que por outro caminho.
   const dubbedGlobal = candidates.length === 0
-    ? pickAnyDubbedCandidates(streams, new Set(), config.debrid.autoFetchMax, { season })
+    ? pickAnyDubbedCandidates(liveStreams, new Set(), totalMax, { season })
     : [];
   if (dubbedGlobal.length > 0) {
     if (!config.debrid.autoFetchAnyDubbed) return [];
@@ -92,69 +84,84 @@ function autoFetchCandidates(streams: Stream[], { season }: { season?: number | 
     pool = 'any';
     metrics.count('autofetch.any-dubbed');
   }
-  // Último pool: nada de dublado em lugar nenhum (nem BR, nem global com áudio
-  // PT). Vale para filme E série — o gate `season != null` de antes deixava o
-  // filme sem dublagem alguma cair no vazio: com "somente já em cache" ligado e
-  // nada pronto no debrid, a lista chegava ao usuário com zero opção e nada
-  // sendo baixado para a próxima vez. O pool prioriza swarm justamente porque o
-  // objetivo aqui é o download TERMINAR, não a melhor resolução.
   if (candidates.length === 0 && config.debrid.autoFetchTopSeeds) {
-    candidates = pickTopSeededCandidates(streams, new Set(), config.debrid.autoFetchTopSeedsMax, {
+    candidates = pickTopSeededCandidates(liveStreams, new Set(), config.debrid.autoFetchTopSeedsMax + queueDepth, {
       season, minSeeders: config.debrid.autoFetchMinSeeders,
     });
     pool = 'seeds';
     if (candidates.length > 0) metrics.count('autofetch.top-seeded');
   }
   if (candidates.length === 0) metrics.count('autofetch.no-candidate');
-  const account = accountScope(debridApiKey);
-  // Cada candidato é protegido ANTES da checagem: na AllDebrid a própria
-  // checagem apaga da conta o que não está pronto, e sem o hold individual a
-  // limpeza mataria todos os downloads dentro da mesma busca.
-  for (const candidate of candidates) {
+
+  const immediateLimit = pool === 'seeds' ? config.debrid.autoFetchTopSeedsMax : config.debrid.autoFetchMax;
+  const immediate = candidates.slice(0, immediateLimit);
+  const queued = candidates.slice(immediateLimit);
+
+  // Hold apenas nos candidatos imediatos que serão disparados
+  for (const candidate of immediate) {
     held.hold(String(candidate.infoHash), config.debrid.autoFetchTtl, account);
   }
-  return candidates.map((stream) => ({ stream, account, pool }));
+
+  // Candidatos excedentes vão para a fila persistente (latest-writer)
+  if (config.debrid.autoFetchQueue && searchKey) {
+    autofetch.writeQueue(
+      searchKey,
+      queued.map((s) => ({
+        infoHash: String(s.infoHash || '').toLowerCase(),
+        name: s.name,
+        title: s.title,
+        quality: s._quality,
+        seeders: s._seeders,
+        br: s._br,
+        dubbed: s._dubbed,
+        pool,
+        season,
+        episode: null,
+      })),
+      config.debrid.autoFetchQueueTtl,
+      adapter!.id,
+      account,
+    );
+  }
+
+  return immediate.map((stream) => ({ stream, account, pool }));
 }
 
 function releaseAllHolds(candidates: any[]) {
   for (const { stream, account } of candidates) held.release(stream.infoHash, account);
 }
 
-/** Enfileira UM candidato de forma fire-and-forget, com marker e vaga por busca. */
-/**
- * @param {{ stream: import('../../types/domain').Stream, account: string, pool: string }} candidate
- * @param {{ cached: Set<string>, season: ?number, episode: ?number, searchKey: string }} ctx
- */
+/** Enfileira UM candidato de forma fire-and-forget, com marker, orçamento e vaga por busca. */
 function enqueueAutofetch({ stream, account, pool }: any, { cached, season, episode, searchKey }: any) {
-  // `enqueueAutofetch` só roda com autofetch habilitado — o gate
-  // `canAutoFetchBr` exige um adaptador de cache confiável antes de qualquer
-  // candidato chegar aqui, então `current()` nunca é null neste caminho.
   const adapter = debrid.current() as DebridAdapter;
-  // Capturado AGORA, dentro do request: o recheck dispara num timer fora do
-  // AsyncLocalStorage e precisa da conta/opts desta requisição.
   const requestCtx = capture();
+  const h = String(stream.infoHash || '').toLowerCase();
 
-  // Este candidato específico já está tocável: não há o que baixar para ele.
-  // O `cached` é minúsculo e o infoHash vem cru do Jackett (Torznab manda o
-  // btih em maiúsculo): sem normalizar, o cacheado não é reconhecido e a vaga
-  // da conta é gasta baixando o que já estava pronto.
-  if (cached.has(String(stream.infoHash || '').toLowerCase())) {
+  if (autofetch.isDead(adapter.id, account, h)) {
+    held.release(stream.infoHash, account);
+    return;
+  }
+
+  if (cached.has(h)) {
     held.release(stream.infoHash, account);
     return;
   }
 
   const key = autofetch.markerKey(adapter.id, account, stream.infoHash);
   if (cache.get(key)) {
-    // Marker confirmado significa download iniciado: o hold pertence à chamada
-    // que o aceitou e precisa sobreviver ao passe tardio até o TTL.
     return;
   }
   if (!autofetch.acquire(key)) return;
-  // Uma vaga por candidato, limitada ao teto por busca compartilhado entre os
-  // passes. Se outro passe enfileirou primeiro e o teto já foi usado, este
-  // candidato desiste e libera o hold — nada de slot nem lock vazando.
-  if (!autofetch.acquireSearchSlot(searchKey, config.debrid.autoFetchMax)) {
+
+  if (searchKey && !autofetch.acquireSearchSlot(searchKey, config.debrid.autoFetchMax)) {
     autofetch.release(key);
+    held.release(stream.infoHash, account);
+    return;
+  }
+
+  if (!autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit)) {
+    autofetch.release(key);
+    if (searchKey) autofetch.releaseSearchSlot(searchKey);
     held.release(stream.infoHash, account);
     return;
   }
@@ -167,8 +174,6 @@ function enqueueAutofetch({ stream, account, pool }: any, { cached, season, epis
     .then((ok) => {
       autofetch.release(key);
       if (ok) {
-        // Só o aceite confirmado vira dedupe persistente. O prefixo v2 ignora
-        // marcadores antigos que podiam ter sido gravados antes da chamada.
         cache.set(key, 1, config.debrid.autoFetchTtl);
         metrics.count('autofetch.enqueued');
         const poolLabel = pool === 'any'
@@ -179,9 +184,7 @@ function enqueueAutofetch({ stream, account, pool }: any, { cached, season, epis
         log.info(`[autofetch] ${adapter.label} baixando ${poolLabel}: ${label} (${qStr}${seedsStr})`);
         scheduleRecheck(searchKey, stream.infoHash, requestCtx);
       } else {
-        // Refusa devolve a vaga e libera o hold: um candidato abaixo na lista
-        // pode tentar de novo na próxima busca sem contador vazado.
-        autofetch.releaseSearchSlot(searchKey);
+        if (searchKey) autofetch.releaseSearchSlot(searchKey);
         held.release(stream.infoHash, account);
         metrics.count('autofetch.refused');
         log.warn(`[autofetch] ${adapter.label} não aceitou ${stream.infoHash}`);
@@ -189,7 +192,7 @@ function enqueueAutofetch({ stream, account, pool }: any, { cached, season, epis
     })
     .catch((err) => {
       autofetch.release(key);
-      autofetch.releaseSearchSlot(searchKey);
+      if (searchKey) autofetch.releaseSearchSlot(searchKey);
       held.release(stream.infoHash, account);
       log.warn('[autofetch] falhou:', err?.message || err);
     });
@@ -198,15 +201,31 @@ function enqueueAutofetch({ stream, account, pool }: any, { cached, season, epis
 
 /**
  * Lotes de recheck pós-enfileiramento, por busca: hashes aceitos pelo debrid
- * aguardando ficar tocáveis. Sem isto o ⚡ só reapareceria quando o cache de
- * busca expirasse e o cliente reperguntasse (até CACHE_TTL); o timer adianta
- * o ciclo esquecendo a busca no instante em que o download fica pronto.
+ * aguardando ficar tocáveis, detecção de mortos e drenagem da fila.
  */
-const recheckLots = new Map();
+const recheckLots = new Map<string, any>();
+
+function manageSettleLru() {
+  const settleLots: Array<{ key: string; createdAt: number; lot: any }> = [];
+  for (const [k, lot] of recheckLots) {
+    if (lot.isSettle) settleLots.push({ key: k, createdAt: lot.createdAt || 0, lot });
+  }
+  const maxLots = config.debrid.autoFetchSettleMaxLots;
+  if (settleLots.length > maxLots) {
+    settleLots.sort((a, b) => a.createdAt - b.createdAt);
+    const excess = settleLots.slice(0, settleLots.length - maxLots);
+    for (const { key, lot } of excess) {
+      if (lot.timer) clearTimeout(lot.timer);
+      const account = accountScope(lot.ctx?.opts?.debridApiKey || '');
+      for (const h of lot.hashes) held.release(h, account);
+      recheckLots.delete(key);
+    }
+  }
+}
 
 function armRecheck(searchKey: string, lot: any) {
-  lot.timer = setTimeout(() => runRecheck(searchKey), config.debrid.autoFetchRecheckMs);
-  // O timer não pode segurar o processo vivo no shutdown.
+  const interval = lot.isSettle ? config.debrid.autoFetchSettleMs : config.debrid.autoFetchRecheckMs;
+  lot.timer = setTimeout(() => runRecheck(searchKey), interval);
   lot.timer.unref();
 }
 
@@ -215,14 +234,87 @@ function scheduleRecheck(searchKey: string, infoHash: string, requestCtx: any) {
   if (config.debrid.autoFetchRecheckMs <= 0 || config.debrid.autoFetchRecheckMax <= 0) return;
   let lot = recheckLots.get(searchKey);
   if (!lot) {
-    lot = { hashes: new Set(), attempts: 0, timer: null, inFlight: false, ctx: requestCtx };
+    lot = {
+      hashes: new Set<string>(),
+      attempts: 0,
+      timer: null,
+      inFlight: false,
+      ctx: requestCtx,
+      deadStreak: new Map<string, number>(),
+      createdAt: Date.now(),
+      isSettle: false,
+      refusals: 0,
+    };
     recheckLots.set(searchKey, lot);
   }
   lot.hashes.add(String(infoHash).toLowerCase());
   lot.ctx = requestCtx;
-  // Um recheck em voo já cobre os hashes novos na próxima tentativa.
   if (lot.timer || lot.inFlight) return;
   armRecheck(searchKey, lot);
+}
+
+function drainNext(searchKey: string, lot: any) {
+  if (!searchKey || !config.debrid.autoFetchQueue) return;
+  const queue = autofetch.readQueue(searchKey);
+  if (!queue.length) return;
+  const adapter = debrid.current();
+  if (!adapter) return;
+  const account = accountScope(opts().debridApiKey);
+
+  const { next, remaining } = autofetch.takeNext(queue, (cand) => {
+    const h = String(cand.infoHash).toLowerCase();
+    return (
+      autofetch.isDead(adapter.id, account, h) ||
+      Boolean(cache.get(autofetch.markerKey(adapter.id, account, h))) ||
+      held.isHeld(h, account)
+    );
+  });
+
+  autofetch.writeQueue(searchKey, remaining, config.debrid.autoFetchQueueTtl, adapter.id, account);
+  if (!next) return;
+
+  if ((lot.refusals || 0) >= config.debrid.autoFetchDrainMaxRefusals) {
+    log.warn(`[autofetch] drenagem interrompida após ${lot.refusals} recusas consecutivas`);
+    return;
+  }
+
+  const h = String(next.infoHash).toLowerCase();
+  const mKey = autofetch.markerKey(adapter.id, account, h);
+  if (!autofetch.acquire(mKey)) return;
+
+  if (!autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit)) {
+    autofetch.release(mKey);
+    autofetch.writeQueue(searchKey, [next, ...remaining], config.debrid.autoFetchQueueTtl, adapter.id, account);
+    return;
+  }
+
+  held.hold(h, config.debrid.autoFetchTtl, account);
+  debrid.enqueue(h, { season: next.season, episode: next.episode })
+    .then((ok) => {
+      autofetch.release(mKey);
+      if (ok) {
+        cache.set(mKey, 1, config.debrid.autoFetchTtl);
+        metrics.count('autofetch.queued');
+        metrics.count('autofetch.enqueued');
+        lot.hashes.add(h);
+        lot.refusals = 0;
+        log.info(`[autofetch] ${adapter.label} drenou da fila e baixando: ${next.title || next.name || h}`);
+      } else {
+        held.release(h, account);
+        lot.refusals = (lot.refusals || 0) + 1;
+        metrics.count('autofetch.refused');
+        log.warn(`[autofetch] ${adapter.label} recusou dreno de ${h}`);
+        if (lot.refusals < config.debrid.autoFetchDrainMaxRefusals) {
+          drainNext(searchKey, lot);
+        }
+      }
+    })
+    .catch((err) => {
+      autofetch.release(mKey);
+      held.release(h, account);
+      lot.refusals = (lot.refusals || 0) + 1;
+      log.warn('[autofetch] falha ao drenar da fila:', err?.message || err);
+    });
 }
 
 function runRecheck(searchKey: string) {
@@ -231,48 +323,113 @@ function runRecheck(searchKey: string) {
   lot.timer = null;
   lot.inFlight = true;
   lot.attempts += 1;
-  const attempts = lot.attempts;
-  const finish = (ready: any) => {
-    lot.inFlight = false;
-    if (ready || attempts >= config.debrid.autoFetchRecheckMax) recheckLots.delete(searchKey);
-    else armRecheck(searchKey, lot);
-  };
-  // O timer dispara FORA do AsyncLocalStorage da requisição que enfileirou:
-  // sem restaurar o contexto, `debrid.current()` leria os defaults (sem a
-  // conta do usuário) e a checagem iria para o serviço errado.
+
   Promise.resolve(run(lot.ctx, async () => {
-    // Sem timeoutMs: orçamento completo do passe de fundo, como no tardio.
-    const { cached, known } = await debrid.checkCached([...lot.hashes], { forceFresh: true });
-    if (!known || cached.size === 0) {
-      finish(false);
+    const adapter = debrid.current();
+    if (!adapter) {
+      recheckLots.delete(searchKey);
       return;
     }
-    metrics.count('autofetch.ready');
-    cache.forget(searchKey);
-    log.info(`[autofetch] download ficou pronto; próxima pergunta de ${searchKey} reconstrói com ⚡`);
-    finish(true);
+    const account = accountScope(opts().debridApiKey);
+
+    let checkResult: { cached: Set<string>; known: boolean } = { cached: new Set(), known: false };
+    if (adapter.cacheCheck) {
+      try {
+        checkResult = await debrid.checkCached([...lot.hashes], { forceFresh: true });
+      } catch (err: any) {
+        log.warn(`[autofetch] falha na checagem de cache em ${adapter.id}:`, err?.message || err);
+      }
+    }
+
+    let statuses: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+    if (typeof adapter.torrentStatus === 'function') {
+      try {
+        statuses = await adapter.torrentStatus(opts().debridApiKey, [...lot.hashes]);
+      } catch (err: any) {
+        log.warn(`[autofetch] falha ao consultar torrentStatus em ${adapter.id}:`, err?.message || err);
+      }
+    }
+
+    for (const hash of [...lot.hashes]) {
+      const statusInfo = statuses[hash];
+      const isReady = (checkResult.known && checkResult.cached.has(hash)) || statusInfo?.state === 'ready';
+      if (isReady) {
+        metrics.count('autofetch.ready');
+        if (adapter.cacheCheck) {
+          cache.forget(searchKey);
+          log.info(`[autofetch] download ficou pronto; próxima pergunta de ${searchKey} reconstrói com ⚡`);
+        }
+        autofetch.dropQueue(searchKey);
+        lot.hashes.delete(hash);
+        lot.deadStreak.delete(hash);
+        held.release(hash, account);
+        continue;
+      }
+
+      if (statusInfo?.state === 'dead') {
+        const streak = (lot.deadStreak.get(hash) || 0) + 1;
+        lot.deadStreak.set(hash, streak);
+        if (streak >= 2) {
+          metrics.count('autofetch.dead');
+          autofetch.blacklist(adapter.id, account, hash);
+          held.release(hash, account);
+          if (typeof adapter.removeTorrent === 'function' && statusInfo.id != null) {
+            adapter.removeTorrent(opts().debridApiKey, statusInfo.id).catch(() => {});
+          }
+          lot.hashes.delete(hash);
+          lot.deadStreak.delete(hash);
+          log.info(`[autofetch] torrent ${hash} detectado como morto (dupla observação); removendo e drenando fila`);
+          drainNext(searchKey, lot);
+        }
+      } else {
+        lot.deadStreak.set(hash, 0);
+      }
+    }
+
+    lot.inFlight = false;
+    if (lot.hashes.size === 0) {
+      recheckLots.delete(searchKey);
+      return;
+    }
+
+    if (!lot.isSettle && lot.attempts >= config.debrid.autoFetchRecheckMax) {
+      lot.isSettle = true;
+      manageSettleLru();
+      armRecheck(searchKey, lot);
+    } else if (lot.isSettle) {
+      const ageMs = Date.now() - (lot.createdAt || 0);
+      if (ageMs >= config.debrid.autoFetchTtl * 1000) {
+        // Settle expirado
+        if (typeof adapter.removeTorrent === 'function') {
+          for (const h of lot.hashes) {
+            const sid = statuses[h]?.id;
+            if (sid != null) adapter.removeTorrent(opts().debridApiKey, sid).catch(() => {});
+          }
+        }
+        for (const h of lot.hashes) held.release(h, account);
+        recheckLots.delete(searchKey);
+      } else {
+        armRecheck(searchKey, lot);
+      }
+    } else {
+      armRecheck(searchKey, lot);
+    }
   })).catch((err) => {
+    lot.inFlight = false;
     log.warn('[autofetch] recheck falhou:', err?.message || err);
-    finish(false);
+    if (lot.hashes.size > 0) armRecheck(searchKey, lot);
+    else recheckLots.delete(searchKey);
   });
 }
 
 function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, season, episode, searchKey }: any) {
   if (!candidates || candidates.length === 0) return 0;
 
-  // `known:false` não é "nada em cache" — é "não perguntei". Sem resposta
-  // confiável não dá para saber o que falta: libera os holds e não enfileira.
   if (!known) {
     releaseAllHolds(candidates);
     return 0;
   }
 
-  // Gate por pool — os dois nunca coexistem (o global só é escolhido quando o
-  // BR voltou vazio):
-  // - BR: qualquer fonte BR dublada já tocável encerra o autofetch; baixar a
-  //   próxima release pior encheria a conta do usuário sem melhorar o play;
-  // - global: só dispara quando NADA toca — qualquer stream pronto (dublado
-  //   ou não) já entrega play sem gastar a conta.
   const stop = candidates[0].pool === 'any' || candidates[0].pool === 'seeds'
     ? cached.size > 0 : hasCachedBrDubbed(streams, cached);
   if (stop) {
@@ -308,7 +465,7 @@ async function applyDebrid(streams: any[], { season, episode, searchKey, deadlin
 
   // A escolha dos candidatos vem antes da checagem (cada hold protege o hash da
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
-  const candidates = autoFetchCandidates(streams, { season });
+  const candidates = autoFetchCandidates(streams, { season, searchKey });
   const checkStarted = Date.now();
   // Teto dinâmico: o que resta do REPLY_DEADLINE menos margem para serialização.
   // null = sem teto (passe tardio usa o timeout completo do adaptador).
@@ -342,7 +499,29 @@ async function applyDebrid(streams: any[], { season, episode, searchKey, deadlin
     return streams;
   }
 
-  const autofetchCount = autoFetchBrDubbed(streams, candidates, { cached, known, season, episode, searchKey });
+  // Dedupe por inventário para adaptadores sem cacheCheck (Real-Debrid / Debrid-Link)
+  let cachedForAutofetch = cached;
+  let knownForAutofetch = known;
+  if (!adapter.cacheCheck && adapter.autofetchSource) {
+    const peek = debrid.inventoryPeek(adapter, opts().debridApiKey);
+    if (peek) {
+      cachedForAutofetch = new Set(peek.map((i) => String(i.infoHash || '').toLowerCase()));
+      knownForAutofetch = true;
+    } else {
+      knownForAutofetch = false;
+      debrid.inventory().catch((err: any) =>
+        log.warn(`[${adapter.id}] aquecimento de inventário em fundo falhou:`, err?.message || err),
+      );
+    }
+  }
+
+  const autofetchCount = autoFetchBrDubbed(streams, candidates, {
+    cached: cachedForAutofetch,
+    known: knownForAutofetch,
+    season,
+    episode,
+    searchKey,
+  });
   if (onCacheResult) onCacheResult({
     known,
     needsFullRefresh,
@@ -592,12 +771,18 @@ async function collectRaw(
   return { items: bucket, partial: !done, completion, sweepInline };
 }
 
-async function findStreams({ type, id }: { type: string; id: string }) {
-  noteUserRequest();
+async function findStreams({ type, id, background }: { type: string; id: string; background?: boolean }) {
+  if (!background) {
+    noteUserRequest();
+  }
   if (!id || !String(id).startsWith('tt')) {
     return { streams: [], partial: false };
   }
-  metrics.count('stream.request');
+  if (!background) {
+    metrics.count('stream.request');
+  } else {
+    metrics.count('autofetch.prefetch');
+  }
 
   // A config do usuário entra na chave: dois install URLs com qualidades ou
   // debrid diferentes não podem compartilhar o mesmo resultado cacheado.
@@ -622,14 +807,25 @@ async function findStreams({ type, id }: { type: string; id: string }) {
     // O cache em SQLite sobrevive ao deploy, e a versão anterior gravava só o
     // array de streams. Sem esta linha, a primeira subida serviria `undefined`
     // por até 15 minutos em cima das entradas antigas.
-    if (Array.isArray(cached)) return { streams: cached, partial: false };
-    if (!hit.stale) return cached;
+    if (Array.isArray(cached)) {
+      if (background && (!cached.length || onlyNotice(cached))) metrics.count('autofetch.prefetch.empty');
+      return { streams: cached, partial: false };
+    }
+    if (!hit.stale) {
+      if (background && (!cached?.streams?.length || onlyNotice(cached?.streams))) {
+        metrics.count('autofetch.prefetch.empty');
+      }
+      return cached;
+    }
     // Expirada DENTRO da janela de graça: responde na hora e revalida em
     // fundo. Só entra lista completa com debrid conferido e stream tocável —
     // aviso e parcial estenderiam o estado ruim em vez de consertá-lo.
     if (staleRefreshEligible(cached)) {
       metrics.count('search.swr.served');
       scheduleStaleRefresh(cacheKey, { type, id }, capture());
+      if (background && (!cached?.streams?.length || onlyNotice(cached?.streams))) {
+        metrics.count('autofetch.prefetch.empty');
+      }
       return cached;
     }
     // Inelegível: cai na busca síncrona abaixo; a entrada velha fica no cache
@@ -663,7 +859,7 @@ async function findStreams({ type, id }: { type: string; id: string }) {
 
   // O cliente Stremio aborta em 10s. Devolvemos vazio antes disso em vez de
   // estourar o timeout dele — a busca continua e popula o cache pra próxima.
-  return raceWithDeadline(task, config.replyDeadline, () => {
+  const res: any = await raceWithDeadline(task, config.replyDeadline, () => {
     // Contador separado do timer: a busca que estoura o prazo termina depois e
     // entra no p95 como sucesso lento. Só isto conta quantas vezes o CLIENTE
     // recebeu lista parcial.
@@ -678,6 +874,11 @@ async function findStreams({ type, id }: { type: string; id: string }) {
       : [];
     return { streams, partial: true };
   });
+
+  if (background && (!res?.streams?.length || onlyNotice(res.streams))) {
+    metrics.count('autofetch.prefetch.empty');
+  }
+  return res;
 }
 
 /**
