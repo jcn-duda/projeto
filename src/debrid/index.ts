@@ -9,6 +9,7 @@ import * as cache from '../utils/cache.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import * as magnetdb from '../utils/magnetdb.js';
+import { notify } from '../utils/notify.js';
 
 // Consulta não abortável em andamento (hoje, AllDebrid). O passe tardio junta
 // a mesma promise quando o conjunto de hashes é idêntico; se o balde cresceu,
@@ -79,6 +80,10 @@ function unusable(adapter: any, reason: string, err: any): CacheCheckResult {
   const kind = (UNUSABLE as Record<string, any>)[reason];
   metrics.count(kind.metric);
   log.warn(`[${adapter.id}] ${kind.label} (${err.message}); a lista volta como P2P — ${kind.fix(adapter)}`);
+  notify(`debrid_${reason}`, 'error', `${kind.label} (${err?.message || err})`, {
+    adapter: adapter?.id,
+    fix: kind.fix(adapter),
+  }).catch(() => {});
   return { cached: new Set(), known: false, unusable: { reason, message: err.message } };
 }
 

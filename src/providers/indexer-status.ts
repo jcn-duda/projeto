@@ -1,6 +1,7 @@
 import config from '../config.js';
 import * as cache from '../utils/cache.js';
 import * as metrics from '../utils/metrics.js';
+import { notify } from '../utils/notify.js';
 
 const TTL_MS = config.jackett.statusTtl * 1000;
 // Memória é o L1; o cache em disco só existe pra sobreviver ao restart. O
@@ -55,6 +56,14 @@ function record(id: string, sample: StateSample = {}) {
   // série, que é o que responde "quem está puxando o prazo".
   metrics.count(`indexer.${key}.${value.state}`);
   if (value.ms != null) metrics.observe(`indexer.${key}`, value.ms);
+
+  if (state === 'offline' && config.jackett.ptBrIndexers.some((br) => normalize(br) === key)) {
+    notify('indexer_down', 'warning', `Indexador BR ${key} offline`, {
+      indexer: key,
+      failStreak: value.failStreak,
+    }).catch(() => {});
+  }
+
   return value;
 }
 

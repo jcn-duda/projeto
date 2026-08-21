@@ -22,6 +22,8 @@ import { ptSweepIndexers, ptSweepQueryFor } from './search-plan.js';
 import * as releaseIndex from '../utils/release-index.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
+import debrid from '../debrid/index.js';
+import { notify } from '../utils/notify.js';
 
 type HarvestEntry = {
   imdbId: string;
@@ -226,6 +228,26 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
   return added > 0 || succeeded > 0;
 }
 
+async function checkQuotaWarning() {
+  if (!config.notify.enabled || !config.notify.webhookUrl) return;
+  const adapter = config.debrid.service ? debrid.BY_ID.get(config.debrid.service) : null;
+  if (!adapter || typeof adapter.accountStatus !== 'function') return;
+  if (!config.debrid.apiKey || !config.debrid.allowEnvKey) return;
+  try {
+    const status = await adapter.accountStatus(config.debrid.apiKey);
+    if (status?.magnets >= config.notify.magnetsWarn) {
+      await notify('debrid_quota_warning', 'warning', `Conta ${adapter.id} atingiu ${status.magnets} magnets (próximo do limite de 1000)`, {
+        adapter: adapter.id,
+        magnets: status.magnets,
+        ready: status.ready,
+        active: status.active,
+      });
+    }
+  } catch (err: any) {
+    log.debug('[harvest] verificação de quota falhou:', err?.message || err);
+  }
+}
+
 /**
  * Um passo do ciclo: consome UMA obra da fila. Em produção só o setInterval
  * do start() chama; exportado para o teste cobrir a contabilidade do teto
@@ -233,6 +255,7 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
  */
 async function tick() {
   if (inFlight || activity.recentUserTraffic(config.harvest.idleWindowMs)) return;
+  checkQuotaWarning().catch(() => {});
   if (!queue.length) return;
   if (queriesThisHour() >= config.harvest.maxPerHour) return;
   inFlight = true;
