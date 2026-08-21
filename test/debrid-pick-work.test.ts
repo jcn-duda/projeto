@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, WorkPickError, isWorkPickError } from '../src/debrid/common.js';
+import {
+  pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, WorkPickError, isWorkPickError, isEpisodePickError,
+} from '../src/debrid/common.js';
 
 // Escolha POR OBRA dentro de pack multi-filme: a dica assinada na URL de play
 // (nomes + ano) guia o pickFile; sem casamento confiável a escolha falha com
@@ -85,6 +87,35 @@ test('pickFile com s/e tem precedência sobre a dica (série)', () => {
   ];
   const file = pickFile(series, { season: 1, episode: 2 });
   assert.equal(file!.path, 'Show S01E02.mkv');
+});
+
+test('pickFile reconhece nomenclatura BR de episódios dentro de pack', () => {
+  const formats = [
+    'Show S01E05.mkv', 'Show s1e5.mkv', 'Show S01.E05.mkv', 'Show S01_E05.mkv',
+    'Show S01 - E05.mkv', 'Show 1x05.mkv', 'Show 01x5.mkv', 'Show Episódio 05.mkv',
+    'Show Capitulo 05.mkv', 'Show EP05.mkv', 'Show E05.mkv', 'Show S01E005.mkv',
+    'Show T01 - 005.mkv',
+  ];
+  for (const path of formats) {
+    const file = pickFile([f(path, 1), f('Show S01E06.mkv', 2)], { season: 1, episode: 5 });
+    assert.equal(file!.path, path, path);
+  }
+});
+
+test('pickFile não aceita número nu sem pista da temporada', () => {
+  assert.throws(
+    () => pickFile([f('Show.05.Coisa.mkv', 1), f('Show.06.Coisa.mkv', 2)], { season: 4, episode: 5 }),
+    (err) => isEpisodePickError(err),
+  );
+});
+
+test('pickFile falha explicitamente se pack multi-vídeo não identifica episódio', () => {
+  assert.throws(
+    () => pickFile([f('parte-a.mkv', 1), f('parte-b.mkv', 2)], { season: 1, episode: 5 }),
+    (err) => isEpisodePickError(err),
+  );
+  const only = pickFile([f('episodio-sem-nome.mkv', 1)], { season: 1, episode: 5 });
+  assert.equal(only!.path, 'episodio-sem-nome.mkv');
 });
 
 test('looksMultiWorkFiles distingue obras por anos dos vídeos principais', () => {

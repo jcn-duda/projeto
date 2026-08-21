@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import config from '../config.js';
 import type { DebridAdapter, MatchContext, Stream } from '../../types/domain.js';
 import * as demo from './demo.js';
@@ -26,6 +27,7 @@ import {
   filterRelevantRaw,
   isMultiWorkCollection,
   extractInfoHash,
+  isSeasonPackRelease,
 } from '../utils/format.js';
 import * as cache from '../utils/cache.js';
 import debrid from '../debrid/index.js';
@@ -61,7 +63,10 @@ const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
  *   o mesmo torrent de novo;
  * - nunca entra no caminho da resposta: erro só vira log.
  */
-function autoFetchCandidates(streams: Stream[], { season, searchKey }: { season?: number | null; searchKey?: string } = {}) {
+function autoFetchCandidates(
+  streams: Stream[],
+  { season, imdbId, searchKey }: { season?: number | null; imdbId?: string; searchKey?: string } = {},
+) {
   const { autoFetchBr, debridApiKey } = opts();
   const adapter = debrid.current();
   if (!canAutoFetchBr({ autoFetchBr }, adapter)) return [];
@@ -115,8 +120,10 @@ function autoFetchCandidates(streams: Stream[], { season, searchKey }: { season?
         br: s._br,
         dubbed: s._dubbed,
         pool,
+        imdbId,
         season,
         episode: null,
+        isPack: Boolean(adapter?.cacheCheck && isSeasonPackRelease(s, season ?? null)),
       })),
       config.debrid.autoFetchQueueTtl,
       adapter!.id,
@@ -132,7 +139,7 @@ function releaseAllHolds(candidates: any[]) {
 }
 
 /** Enfileira UM candidato de forma fire-and-forget, com marker, orçamento e vaga por busca. */
-function enqueueAutofetch({ stream, account, pool }: any, { cached, season, episode, searchKey }: any) {
+function enqueueAutofetch({ stream, account, pool }: any, { cached, season, episode, imdbId, searchKey }: any) {
   const adapter = debrid.current() as DebridAdapter;
   const requestCtx = capture();
   const h = String(stream.infoHash || '').toLowerCase();
@@ -182,7 +189,13 @@ function enqueueAutofetch({ stream, account, pool }: any, { cached, season, epis
             ? 'melhor swarm (nada dublado na busca)'
             : 'fonte BR dublada';
         log.info(`[autofetch] ${adapter.label} baixando ${poolLabel}: ${label} (${qStr}${seedsStr})`);
-        scheduleRecheck(searchKey, stream.infoHash, requestCtx);
+        scheduleRecheck(searchKey, stream.infoHash, requestCtx, {
+          imdbId,
+          season,
+          isPack: Boolean(
+            config.debrid.autoFetchSeasonFill && adapter.cacheCheck && isSeasonPackRelease(stream, season),
+          ),
+        });
       } else {
         if (searchKey) autofetch.releaseSearchSlot(searchKey);
         held.release(stream.infoHash, account);
@@ -204,6 +217,39 @@ function enqueueAutofetch({ stream, account, pool }: any, { cached, season, epis
  * aguardando ficar tocáveis, detecção de mortos e drenagem da fila.
  */
 const recheckLots = new Map<string, any>();
+
+// Índice efêmero: só há consumidor enquanto o recheck vive no processo. A conta
+// impede que uma instalação invalide a lista privada de outra.
+const seasonSearchKeys = new Map<string, Set<string>>();
+const MAX_SEASON_KEYS = 128;
+
+function seasonIndexKey(account: string, imdbId: string, season: number) {
+  return `${account}:${imdbId}:${season}`;
+}
+
+function registerSeasonSearchKey(account: string, imdbId: string, season: number, cacheKey: string) {
+  const maxSeasons = config.debrid.autoFetchSeasonIndexMax;
+  if (!config.debrid.autoFetchSeasonFill || maxSeasons <= 0) return;
+  const key = seasonIndexKey(account, imdbId, season);
+  let keys = seasonSearchKeys.get(key);
+  if (!keys) {
+    keys = new Set();
+    seasonSearchKeys.set(key, keys);
+  }
+  if (!keys.has(cacheKey) && keys.size >= MAX_SEASON_KEYS) {
+    const oldest = keys.values().next().value;
+    if (oldest) keys.delete(oldest);
+  }
+  keys.add(cacheKey);
+  // Map preserva inserção; mover para o fim implementa LRU por temporada.
+  seasonSearchKeys.delete(key);
+  seasonSearchKeys.set(key, keys);
+  while (seasonSearchKeys.size > maxSeasons) {
+    const oldest = seasonSearchKeys.keys().next().value;
+    if (oldest == null) break;
+    seasonSearchKeys.delete(oldest);
+  }
+}
 
 function manageSettleLru() {
   const settleLots: Array<{ key: string; createdAt: number; lot: any }> = [];
@@ -229,7 +275,12 @@ function armRecheck(searchKey: string, lot: any) {
   lot.timer.unref();
 }
 
-function scheduleRecheck(searchKey: string, infoHash: string, requestCtx: any) {
+function scheduleRecheck(
+  searchKey: string,
+  infoHash: string,
+  requestCtx: any,
+  hint: { imdbId?: string; season?: number | null; isPack?: boolean } = {},
+) {
   if (!searchKey || !infoHash || !requestCtx) return;
   if (config.debrid.autoFetchRecheckMs <= 0 || config.debrid.autoFetchRecheckMax <= 0) return;
   let lot = recheckLots.get(searchKey);
@@ -241,13 +292,16 @@ function scheduleRecheck(searchKey: string, infoHash: string, requestCtx: any) {
       inFlight: false,
       ctx: requestCtx,
       deadStreak: new Map<string, number>(),
+      seasonHints: new Map<string, { imdbId?: string; season?: number | null; isPack?: boolean }>(),
       createdAt: Date.now(),
       isSettle: false,
       refusals: 0,
     };
     recheckLots.set(searchKey, lot);
   }
-  lot.hashes.add(String(infoHash).toLowerCase());
+  const hash = String(infoHash).toLowerCase();
+  lot.hashes.add(hash);
+  lot.seasonHints.set(hash, hint);
   lot.ctx = requestCtx;
   if (lot.timer || lot.inFlight) return;
   armRecheck(searchKey, lot);
@@ -297,6 +351,11 @@ function drainNext(searchKey: string, lot: any) {
         metrics.count('autofetch.queued');
         metrics.count('autofetch.enqueued');
         lot.hashes.add(h);
+        lot.seasonHints.set(h, {
+          imdbId: typeof next.imdbId === 'string' ? next.imdbId : undefined,
+          season: next.season,
+          isPack: next.isPack === true,
+        });
         lot.refusals = 0;
         log.info(`[autofetch] ${adapter.label} drenou da fila e baixando: ${next.title || next.name || h}`);
       } else {
@@ -341,7 +400,7 @@ function runRecheck(searchKey: string) {
       }
     }
 
-    let statuses: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+    let statuses: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; stalled?: boolean; id?: any }> = {};
     if (typeof adapter.torrentStatus === 'function') {
       try {
         statuses = await adapter.torrentStatus(opts().debridApiKey, [...lot.hashes]);
@@ -357,20 +416,50 @@ function runRecheck(searchKey: string) {
         metrics.count('autofetch.ready');
         if (adapter.cacheCheck) {
           cache.forget(searchKey);
+          const hint = lot.seasonHints.get(hash);
+          if (
+            config.debrid.autoFetchSeasonFill &&
+            hint?.isPack &&
+            hint.imdbId &&
+            hint.season != null
+          ) {
+            const indexKey = seasonIndexKey(account, hint.imdbId, hint.season);
+            const keys = [...(seasonSearchKeys.get(indexKey) || [])];
+            // O índice só serve a este lote vivo. Próximas buscas se registram
+            // de novo, sem re-invalidar para sempre uma temporada já promovida.
+            seasonSearchKeys.delete(indexKey);
+            cache.forgetMany(keys);
+            debrid.noteAvailable(hash);
+            metrics.count('autofetch.season-fill', keys.length);
+            log.info(
+              `[autofetch] pack S${hint.season} de ${hint.imdbId} pronto; ` +
+              `${keys.length} busca(s) da temporada invalidada(s)`,
+            );
+          }
           log.info(`[autofetch] download ficou pronto; próxima pergunta de ${searchKey} reconstrói com ⚡`);
         }
         autofetch.dropQueue(searchKey);
         lot.hashes.delete(hash);
         lot.deadStreak.delete(hash);
+        lot.seasonHints.delete(hash);
         held.release(hash, account);
         continue;
       }
 
-      if (statusInfo?.state === 'dead') {
+      // Um dead colapsa aos 2 rechecks; um parado (`stalled`) merece limiar
+      // PRÓPRIO (`autoFetchStallStreak`): a falta de pares pode ser transitória
+      // e matar na 1ª observação descartaria um download que ainda esquentava.
+      // Ambos partilham o mesmo desfecho final (blacklist + remoção + dreno da
+      // fila), então a parcela do colapso é única — só o contador e a métrica
+      // mudam. `0` desliga o stall: parado nunca mais derruba o download.
+      const stalledHere = statusInfo?.stalled === true && config.debrid.autoFetchStallStreak > 0;
+      if (statusInfo?.state === 'dead' || stalledHere) {
+        const isDead = statusInfo?.state === 'dead';
+        const threshold = isDead ? 2 : config.debrid.autoFetchStallStreak;
         const streak = (lot.deadStreak.get(hash) || 0) + 1;
         lot.deadStreak.set(hash, streak);
-        if (streak >= 2) {
-          metrics.count('autofetch.dead');
+        if (streak >= threshold) {
+          metrics.count(isDead ? 'autofetch.dead' : 'autofetch.stalled');
           autofetch.blacklist(adapter.id, account, hash);
           held.release(hash, account);
           if (typeof adapter.removeTorrent === 'function' && statusInfo.id != null) {
@@ -378,10 +467,16 @@ function runRecheck(searchKey: string) {
           }
           lot.hashes.delete(hash);
           lot.deadStreak.delete(hash);
-          log.info(`[autofetch] torrent ${hash} detectado como morto (dupla observação); removendo e drenando fila`);
+          lot.seasonHints.delete(hash);
+          log.info(
+            `[autofetch] torrent ${hash} detectado como ${isDead ? 'morto' : 'parado'} ` +
+            `(${streak} rechecks consecutivos); removendo e drenando fila`,
+          );
           drainNext(searchKey, lot);
         }
       } else {
+        // Movimento (progresso > 0 / estado que não é dead nem parado): zera a
+        // contagem. Um único recheck com avanço apaga o histórico de stalls.
         lot.deadStreak.set(hash, 0);
       }
     }
@@ -422,7 +517,7 @@ function runRecheck(searchKey: string) {
   });
 }
 
-function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, season, episode, searchKey }: any) {
+function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, season, episode, imdbId, searchKey }: any) {
   if (!candidates || candidates.length === 0) return 0;
 
   if (!known) {
@@ -439,7 +534,7 @@ function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, s
 
   let enqueued = 0;
   for (const selected of candidates) {
-    enqueued += enqueueAutofetch(selected, { cached, season, episode, searchKey }) ? 1 : 0;
+    enqueued += enqueueAutofetch(selected, { cached, season, episode, imdbId, searchKey }) ? 1 : 0;
   }
   return enqueued;
 }
@@ -448,7 +543,7 @@ function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, s
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
  * link de play que passa pela nossa rota /resolve.
  */
-async function applyDebrid(streams: any[], { season, episode, searchKey, deadlineAt, onCacheResult, workHint }: any) {
+async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey, deadlineAt, onCacheResult, workHint }: any) {
   const adapter = debrid.current();
   if (!adapter || streams.length === 0) return streams;
 
@@ -465,7 +560,7 @@ async function applyDebrid(streams: any[], { season, episode, searchKey, deadlin
 
   // A escolha dos candidatos vem antes da checagem (cada hold protege o hash da
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
-  const candidates = autoFetchCandidates(streams, { season, searchKey });
+  const candidates = autoFetchCandidates(streams, { season, imdbId, searchKey });
   const checkStarted = Date.now();
   // Teto dinâmico: o que resta do REPLY_DEADLINE menos margem para serialização.
   // null = sem teto (passe tardio usa o timeout completo do adaptador).
@@ -520,6 +615,7 @@ async function applyDebrid(streams: any[], { season, episode, searchKey, deadlin
     known: knownForAutofetch,
     season,
     episode,
+    imdbId,
     searchKey,
   });
   if (onCacheResult) onCacheResult({
@@ -791,7 +887,14 @@ async function findStreams({ type, id, background }: { type: string; id: string;
   // do primeiro usuário ao segundo; o digest isola sem persistir a credencial.
   // É configuração do operador, mas muda url/infoHash de cada stream e por
   // isso precisa fazer parte do shape persistido como as opções da instalação.
-  const cacheKey = streamsCacheKey(type, id, { ...opts(), resolveUncached: config.debrid.resolveUncached });
+  const requestOpts = opts();
+  const cacheKey = streamsCacheKey(type, id, { ...requestOpts, resolveUncached: config.debrid.resolveUncached });
+  if (type === 'series' && requestOpts.debridApiKey) {
+    const { imdbId, season } = parseStremioId(id);
+    if (season != null) {
+      registerSeasonSearchKey(accountScope(requestOpts.debridApiKey), imdbId, season, cacheKey);
+    }
+  }
   // getWithStale em vez de get(): o get() APAGA a entrada expirada, e é
   // justamente ela que o SWR quer servir enquanto o refresh de fundo roda.
   // Graça 0 restaura a semântica dura anterior (kill-switch).
@@ -988,7 +1091,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
       let needsDebridRefresh = false;
       let autofetchCount = 0;
       const streams = await buildStreams(items, {
-        meta, titles, season, episode, isDemo, searchKey: cacheKey,
+        meta, titles, imdbId, season, episode, isDemo, searchKey: cacheKey,
         deadlineAt: inputDeadline,   // presente SÓ no passo de resposta
          onDebridResult: (result: any) => {
            needsDebridRefresh = needsDebridRefresh || result.needsFullRefresh;
@@ -1248,7 +1351,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
  */
 async function buildStreams(
   rawInput: any[],
-  { meta, titles, season, episode, isDemo, searchKey, deadlineAt, onDebridResult }: any,
+  { meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, onDebridResult }: any,
 ) {
   let raw = rawInput;
   let autofetchCount = 0;
@@ -1391,6 +1494,7 @@ async function buildStreams(
   const beforeCut = await applyDebrid(streams, {
     season,
     episode,
+    imdbId,
     searchKey,
     deadlineAt,
     onCacheResult: (result: any) => {
@@ -1481,6 +1585,28 @@ function onlyNotice(streams: Stream[] = []) {
   return streams.length > 0 && streams.every((stream) => stream?.notice);
 }
 
+/** Snapshot local dos lotes; nunca devolve searchKey nem configuração do usuário. */
+function autofetchStatus() {
+  const now = Date.now();
+  const lots = [...recheckLots.entries()].map(([searchKey, lot]) => ({
+    id: crypto.createHash('sha256').update(searchKey).digest('hex').slice(0, 12),
+    hashes: lot.hashes?.size || 0,
+    attempts: Number(lot.attempts || 0),
+    isSettle: Boolean(lot.isSettle),
+    ageMs: Math.max(0, now - Number(lot.createdAt || now)),
+    refusals: Number(lot.refusals || 0),
+    inFlight: Boolean(lot.inFlight),
+  }));
+  return {
+    recheckLots: recheckLots.size,
+    settleLots: lots.filter((lot) => lot.isSettle).length,
+    lots,
+    seasonSearchKeys: seasonSearchKeys.size,
+    searchesInFlight: inFlight.size,
+  };
+}
+
 export {
   findStreams, applyDebrid, buildStreams, debridRefreshSatisfied, applyNoticeOrigin, onlyNotice,
+  autofetchStatus,
 };

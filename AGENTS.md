@@ -126,8 +126,11 @@ adivinhação:
 curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" http://127.0.0.1:7000/debrid-status.json
 ```
 
-O mesmo token abre `/metrics.json` e `/test-indexer.json`. Sem
-`JACKETT_TEST_TOKEN` no `.env` os três devolvem 503; token errado, 401.
+O mesmo token abre `/metrics.json`, `/test-indexer.json`,
+`/dashboard-status.json` e `/dashboard-action.json`. Sem `JACKETT_TEST_TOKEN`
+no `.env` eles devolvem 503; token errado ou ausente, 401 — o token vale só no
+header `X-Indexer-Test-Token`, nunca como `?token=` (a página `/dashboard` em
+si é pública e estática; o dado consolidado é que não).
 
 Para checar o código sem subir servidor (importar `src/addon.ts` **abre a porta**
 e fica pendurado — não use isso como smoke test), use o `npm run typecheck`: ele
@@ -374,6 +377,14 @@ existe percentual: ela tem dois tetos que não batem entre si (30 "ativos" na
 doc oficial, 1000 na mensagem de erro real) e nenhum é consultável — a versão
 anterior dizia "231% ocupado" para uma conta que respondia normalmente.
 
+**Painel (`/dashboard`).** A página é pública e estática; os dados vêm de
+`/dashboard-status.json` e as ações de `POST /dashboard-action.json`, ambos
+atrás do mesmo token de diagnóstico — só no header `X-Indexer-Test-Token`,
+`?token=` nunca autentica. O status consolida serviços, métricas, cache, debrid
+e resolvers para a página montar. As duas ações (`clear-cache`, `sweep-dead`)
+são **globais**: agem sobre o estado do operador inteiro, não sobre a config de
+uma instalação — limpar o cache esfria a instância toda de uma vez.
+
 Para adicionar um serviço: crie o adaptador, registre em `ADAPTERS` e pronto —
 `SERVICES` alimenta o seletor da página automaticamente.
 
@@ -389,6 +400,16 @@ multi-obra (`_multiWork`) manda `work` assinado; `pickWorkFile` casa nomes +
 ano contra o **basename**. Falha explícita (`WorkPickError` → 404) em vez de
 tocar o filme errado. Em P2P o cliente baixaria o torrent inteiro — esses packs
 são retidos na listagem quando não há debrid ou não há ano de catálogo.
+
+Em série a escolha de episódio também é **explícita**: os padrões do `pickFile`
+cobrem os formatos que os sites BR publicam — `S01E01`, `1x04`, `SSEE`, o `E02`
+solto das releases BR ("1ª Temporada (2022) WEB-DL E02") e as variantes
+`Episódio`/`capítulo`/`ep`/`cap`. Com **vários vídeos** e nenhum casando com o
+episódio pedido, ele **lança `EpisodePickError` → 404** em vez de cair no maior
+arquivo e tocar outro episódio em silêncio (o bug do True Detective: o post
+anunciava S04 dublado e continha S03 em inglês — ali o "não casou o episódio" é
+prova de conteúdo errado). Vídeo único continua compatível com torrent de
+episódio sem nome técnico.
 
 `DEBRID_RESOLVE_UNCACHED` (operador, não está no schema) manda o não-cacheado
 pelo `/resolve` marcado `[AD download]`. Default off: escreve na conta a cada
@@ -423,6 +444,39 @@ próxima vez. Travas e arquitetura atuais (invariante 6):
   dispara em background a busca do próximo episódio (`E+1`), dedupado por
   `autofetch:v3:pf:` com TTL de 12h;
 - nunca entra no caminho da resposta — erro só vira log.
+
+**`torrentStatus` é honesto por serviço, como o `cacheCheck`.** O recheck pede a
+cada adaptador o estado real do torrent (`state` em
+`ready`/`downloading`/`dead`/`unknown`) e, quando há sinal objetivo, `stalled`.
+A diferença entre **morto** e **parado** decide o desfecho: dead colapsa em 2
+rechecks consecutivos; um parado merece limiar próprio
+(`DEBRID_AUTO_FETCH_STALL_STREAK`, default 3) porque falta de pares pode ser
+transitória e matar na 1ª observação descartaria um download que ainda
+esquentava. `0` desliga o stall — parado nunca derruba o download. Movimento
+(progresso > 0 ou estado que não é dead nem stalled) **zera** a contagem: só
+observações consecutivas derrubam.
+
+| Serviço | `stalled` de onde vem | Limite honesto |
+|---|---|---|
+| Premiumize | **heurística**: `running` + progresso 0/ausente + mensagem atascada ("0 Bytes of 0 Bytes"/"from 0 peer") | a API não tem estado nativo de parada |
+| TorBox | **nativo**: `download_state === "stalled"` | nenhuma — campo objetivo da API |
+| AllDebrid / Real-Debrid / Debrid-Link | **nunca** — a API não expõe o sinal | sem `stalled`, só ready/downloading/dead |
+
+O Premiumize ainda precisa **casar** a transferência a um hash antes de
+indexá-la no lote (`transferHash`), em cascata: `src` com `btih:` → nome cru
+com 40 hex → campo direto `hash`/`info_hash`. `src` sem btih (magnet só com
+nome) cai nos campos seguintes; quem não casa com nenhum dos três volta `null`
+e é contado como órfã (`debrid.pm.status.unmatched`), em vez de o recheck
+inventar um hash com o qual limpar a conta por engano.
+
+**Season Pack Fill só promete o que o recheck pode conferir.** Quando um pack
+de temporada enfileirado por autofetch fica pronto, o addon invalida as buscas
+da mesma temporada/conta e semeia a disponibilidade (`noteAvailable`) para o ⚡
+voltar sem esperar o `CACHE_TTL`. Tudo isso roda **só** com `cacheCheck: true`
+(Premiumize, TorBox, AllDebrid) — é o recheck do cache que prova ready. Em
+Real-Debrid e Debrid-Link (`cacheCheck: false`) não existe essa prova: pack
+pronto não marca nem semeia nada, sem promessa de ⚡, e a constatação fica para
+o `resolveLink` do play. Não "conserte" ligando o fill nesses dois.
 
 O registry também expõe `inventory()`: o que já está **pronto** na conta
 (AllDebrid/TorBox/RD/DL) entra na busca como mais uma fonte
@@ -633,7 +687,7 @@ fire-and-forget) continua.
 | Arquivo | Responsabilidade |
 |---|---|
 | `src/addon.ts` | Processo: listen, warmup, resolvers, shutdown |
-| `src/app.ts` | Fábrica Express: manifest, stream handler, `/resolve`, `/configure`, `/defaults.json`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json` |
+| `src/app.ts` | Fábrica Express: manifest, stream handler, `/resolve`, `/configure`, `/defaults.json`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json`, `/dashboard`, `/dashboard-status.json`, `/dashboard-action.json` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
 | `src/br-resolvers.ts` | Carrega os quatro `*-resolver` no processo do addon |
@@ -650,7 +704,7 @@ fire-and-forget) continua.
 | `src/providers/autofetch.ts` | Marker, lock e vaga por busca do autofetch |
 | `src/providers/demo.ts` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
 | `src/debrid/index.ts` | Registry + seleção por request + checagem com teto dinâmico + inventário |
-| `src/debrid/common.ts` | `magnetFor`, fetch JSON, `pickFile`/`pickWorkFile`, lotes, `AuthError`/`QuotaError` |
+| `src/debrid/common.ts` | `magnetFor`, fetch JSON, `pickFile`/`pickWorkFile` (`WorkPickError`/`EpisodePickError`), lotes, `AuthError`/`QuotaError` |
 | `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |
 | `src/debrid/*.ts` | Um adaptador por serviço |
 | `src/utils/format.ts` | Normalização, matching, dedupe, ordenação, cotas — **lógica pura** |

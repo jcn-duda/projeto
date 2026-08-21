@@ -111,6 +111,23 @@ function isWorkPickError(error: MaybeError) {
 }
 
 /**
+ * Episódio não identificável dentro de um pack de série. Com vários vídeos,
+ * cair no maior toca outro episódio em silêncio; o handler devolve 404 para o
+ * cliente escolher outra fonte.
+ */
+class EpisodePickError extends Error {
+  code = 'EPISODE_PICK';
+  constructor() {
+    super('não foi possível identificar o episódio dentro do pack');
+    this.name = 'EpisodePickError';
+  }
+}
+
+function isEpisodePickError(error: MaybeError) {
+  return error?.code === 'EPISODE_PICK';
+}
+
+/**
  * Um fetch JSON com o timeout do debrid já aplicado. Cada serviço tem o seu
  * jeito de autenticar, então o header vai por fora.
  *
@@ -275,13 +292,30 @@ function pickFile(files: DebridFile[], { season, episode, work }: { season?: num
   if (season != null && episode != null) {
     const s = String(season).padStart(2, '0');
     const e = String(episode).padStart(2, '0');
+    const seasonForms = `(?:${s}|${season})`;
+    // Alguns packs BR usam E006/E012. Até dois zeros à esquerda preservam os
+    // formatos comuns sem aceitar o número como trecho de outro episódio.
+    const episodeForms = `(?:0{0,2}${episode})`;
+    const pathHasSeason = (path: string) => new RegExp(
+      `(?:\\bs${seasonForms}(?!\\d)|\\bt${seasonForms}(?!\\d)|\\bseason[\\s._-]*${seasonForms}(?!\\d)|\\b${seasonForms}x)`,
+      'i',
+    ).test(path);
     const patterns = [
-      new RegExp(`s${s}[\\s._-]*e${e}`, 'i'),
-      new RegExp(`\\b${season}x${e}\\b`, 'i'),
+      new RegExp(`\\bs${seasonForms}[\\s._-]*e${episodeForms}\\b`, 'i'),
+      new RegExp(`\\b${seasonForms}x${episodeForms}\\b`, 'i'),
       new RegExp(`\\b${s}${e}\\b`),
+      new RegExp(`\\b(?:epis[oó]dio|cap[ií]tulo|ep|cap)[\\s._-]*0{0,2}${episode}\\b`, 'i'),
+      new RegExp(`\\be[\\s._-]*0{0,2}${episode}\\b`, 'i'),
     ];
-    const match = videos.find((f) => patterns.some((p) => p.test(f.path || '')));
+    const bareEpisode = new RegExp(`(?:^|[\\s._-])0{0,2}${episode}(?:[\\s._-]|$|\\.[a-z0-9]+$)`, 'i');
+    const match = videos.find((f) => {
+      const path = f.path || '';
+      return patterns.some((p) => p.test(path)) || (pathHasSeason(path) && bareEpisode.test(path));
+    });
     if (match) return match;
+    // Vídeo único continua compatível com torrents de episódio sem nome técnico.
+    // Com pack, o maior arquivo é prova nenhuma de qual episódio foi pedido.
+    if (videos.length > 1) throw new EpisodePickError();
   }
 
   // Filme com dica de obra: pack multi-filme exige casamento por nome.
@@ -389,6 +423,6 @@ function wait(ms: number) {
 export {
   magnetFor, json, pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, batched, wait,
   AuthError, isAuthError, QuotaError, isQuotaError, RateLimitError, isRateLimitError,
-  WorkPickError, isWorkPickError,
+  WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError,
   VIDEO_EXT, SAMPLE, EXTRA,
 };

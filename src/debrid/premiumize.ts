@@ -1,4 +1,5 @@
 import config from '../config.js';
+import * as metrics from '../utils/metrics.js';
 import {
   magnetFor, json, pickFile, batched,
   AuthError, QuotaError, RateLimitError,
@@ -61,8 +62,8 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
 }
 
 /**
- * Resolve o link direto de reprodução — só na hora do play, porque o
- * directdl é caro demais pra rodar em cima da lista inteira de torrents.
+ * Resolve o link direto de reprodução — só na hora do play, porque o directdl
+ * é caro demais pra rodar em cima da lista inteira de torrents.
  *
  * @param {string} apiKey
  * @param {string} infoHash
@@ -89,9 +90,9 @@ async function enqueue(apiKey: string, infoHash: string) {
 }
 
 /**
- * Fair-use da conta (`limit_used` em [0, 1]). É o sinal que falta: magnets
- * AllDebrid não se aplicam aqui — o teto do Premiumize é tráfego, e até
- * estourar (`account_limit_reached`) não havia aviso nenhum.
+ * Fair-use da conta (`limit_used` em [0, 1]). É o sinal que falta: o teto do
+ * Premiumize é tráfego, e até estourar (`account_limit_reached`) não havia
+ * aviso nenhum.
  */
 async function accountStatus(apiKey: string) {
   const data = await call(apiKey, '/account/info');
@@ -104,27 +105,72 @@ async function accountStatus(apiKey: string) {
 }
 
 /**
- * Status detalhado de transferências do Premiumize para detecção de prontos / mortos.
+ * Identifica o infoHash de uma transferência do Premiumize em cascata, na
+ * ordem em que cada campo tem confiabilidade decrescente:
+ *
+ *   1. `src` → magnet do torrent, quando chega completo (`btih:40hex`);
+ *   2. `name` → hash v1 cru de 40 hex no nome; o Premiumize às vezes converte
+ *      o próprio filename no hash (sem um nome legível que o vista);
+ *   3. `hash`/`info_hash` → campo direto quando a transferência o publica.
+ *
+ * Quem não casa com nenhum dos três não pode ser indexado no lote do recheck:
+ * volta null e o chamador o conta em `debrid.pm.status.unmatched`, em vez de
+ * inventar um hash com o qual limpar a conta por engano.
+ */
+function transferHash(t: any): string | null {
+  const fromSrc = String(t?.src || '').match(/btih:([a-f0-9]{40})/i);
+  if (fromSrc) return fromSrc[1].toLowerCase();
+  const fromName = String(t?.name || '').match(/(?:^|[\s._-])([a-f0-9]{40})(?:[\s._-]|$)/i);
+  if (fromName) return fromName[1].toLowerCase();
+  const direct = String(t?.hash || t?.info_hash || '');
+  if (/^[a-f0-9]{40}$/i.test(direct)) return direct.toLowerCase();
+  return null;
+}
+
+// Mensagem que denuncia uma parada real (sem avanço): sem pares de onde ler
+// nem progresso para mostrar. O Premiumize reporta "0 Bytes of 0 Bytes" com
+// capitalização variável; o par costuma aparecer como "0 peers"/"0 peer(s)".
+const STALLED_TRANSFER = /0 bytes of 0 bytes|from 0 peer/i;
+
+/**
+ * Status das transferências do Premiumize para detecção de prontos, mortos e
+ * parados. Uma transferência `running` com progresso ausente ou 0 e mensagem
+ * atascada ("0 Bytes of 0 Bytes" ou "from 0 peer") não avança: se marca
+ * `stalled:true` para que o recheck a conte com o próprio limite, em vez de
+ * derrubá-la pela mesma via que um dead de 2 rechecks.
  */
 async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   const data = await call(apiKey, '/transfer/list');
   const transfers = Array.isArray(data?.transfers) ? data.transfers : [];
-  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; stalled?: boolean; id?: any }> = {};
   for (const t of transfers) {
-    const src = String(t?.src || '');
-    const match = src.match(/btih:([a-fA-F0-9]{40})/i);
-    if (!match) continue;
-    const hash = match[1].toLowerCase();
+    const hash = transferHash(t);
+    if (!hash) {
+      // Não dá pra mapeá-la ao lote do recheck: não serve para saber se ficou
+      // pronto nem para limpar. Contá-la torna visível que a conta arrasta
+      // transferências órfãs que o ciclo nunca vai alcançar.
+      metrics.count('debrid.pm.status.unmatched');
+      continue;
+    }
     const status = String(t?.status || '').toLowerCase();
     let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'unknown';
+    let stalled = false;
     if (status === 'finished' || status === 'seeding') {
       state = 'ready';
-    } else if (status === 'queued' || status === 'running') {
+    } else if (status === 'queued') {
       state = 'downloading';
+    } else if (status === 'running') {
+      state = 'downloading';
+      const progress = Number(t?.progress);
+      const moving = Number.isFinite(progress) && progress !== 0;
+      const message = String(t?.message || '');
+      if (!moving && STALLED_TRANSFER.test(message)) {
+        stalled = true;
+      }
     } else if (status === 'error') {
       state = 'dead';
     }
-    out[hash] = { state, id: t?.id };
+    out[hash] = { state, stalled, id: t?.id };
   }
   return out;
 }
@@ -146,8 +192,7 @@ export const id = 'premiumize';
 export const label = 'Premiumize';
 export const short = 'PM';
 // Lote instantâneo que não escreve na conta (TorBox também; AllDebrid mede
-// via upload). Sem isto o orquestrador trata todos como "não sei".
+// via upload). Sem isso o orquestrador trata todos como "não sei".
 export const cacheCheck = true;
 export const keyUrl = 'https://www.premiumize.me/account';
 export { enqueue, accountStatus, checkCached, resolveLink, torrentStatus, removeTorrent };
-

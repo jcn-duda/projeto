@@ -1901,6 +1901,7 @@ export {
   containsTokenRun,
   matchesEpisode,
   parseTitleSeasonEpisode,
+  isSeasonPackRelease,
   dedupeByHash,
   selectQualityCandidates,
   limitByQuality,

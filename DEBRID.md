@@ -37,6 +37,7 @@ Três capacidades, em ordem de importância:
 | `enqueue` (autofetch BR) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Auth | `apikey` na query | `Bearer` | `Bearer` + `agent` | `Bearer` | `Bearer` |
 | Erro fora do HTTP | `status != success` | corpo `data` | **200 com `status:"error"`** | HTTP | HTTP + `success:false` |
+| Detecta **parado** (`stalled`) | ⚠️ heurística | ✅ nativo | ❌ | ❌ | ❌ |
 | Limite documentado | fair-use por tráfego (`limit_used`) | **300/min; `createtorrent` 60/HORA se não-cacheado** | **12 req/s, 600 req/min, 30 magnets ativos** | **250 req/min**, teto de torrents ativos | não publicado (mas há `/seedbox/limits`) |
 | Endpoint de uso/limite | `/account/info` (`limit_used`) | mylist (contagem) | `/magnet/status` | `/torrents/activeCount` (ainda não) | `/seedbox/limits` (ainda não) |
 | Escolhe o arquivo **antes** de baixar | ❌ | ❌ **por projeto** ("baixa todos, não vai mudar") | ❌ | ✅ `selectFiles` | ❌ |
@@ -58,11 +59,13 @@ mais simples dos cinco, e não é coincidência.
 | `POST /api/transfer/create` com `src` | autofetch: dispara o download e sai |
 
 **O que a documentação oficial acrescenta e o addon ainda não usa:** `Bearer`
-no header (hoje mandamos `?apikey=`, que segue aceito como legacy) e
-`/api/transfer/list` com `status`/`progress` (daria para mostrar "baixando 42%"
-em vez do silêncio atual do autofetch). A doc marca `stream_link` como legacy;
-o `resolveLink` daqui usa `file.stream_link || file.link`, nessa ordem — vale
-inverter quando sobrar tempo (TV).
+no header (hoje mandamos `?apikey=`, que segue aceito como legacy).
+`/api/transfer/list` — que a doc descreve com `status`/`progress` — **já é
+usado** pelo `torrentStatus` do ciclo de recheck (`ready`/`downloading`/`dead`
++ `stalled` heurístico); só não serve ainda para mostrar "baixando 42%" ao
+usuário. A doc marca `stream_link` como legacy; o `resolveLink` daqui usa
+`file.stream_link || file.link`, nessa ordem — vale inverter quando sobrar
+tempo (TV).
 
 `/api/account/info` (`limit_used`) e os códigos HTTP 200 `rate_limit_reached`
 (transitório, `known:false`) / `account_limit_reached` (quota, lista P2P) /
@@ -71,8 +74,22 @@ inverter quando sobrar tempo (TV).
 **O que eu acho:** é o encaixe certo para este addon. A checagem em lote é
 barata, não escreve nada na conta e pode ser abortada no deadline; as outras
 duas chamadas são POSTs diretos sem polling. O adaptador ser o menor de todos é
-o sintoma: não há armadilha a contornar. O ponto fraco continua sendo fair-use
-por tráfego; o `/debrid-status.json` agora avisa em `limit_used` ≥ 0.8.
+sintoma da simplicidade do contrato, **não da ausência de armadilha** — e há
+duas coladas ao `torrentStatus`:
+
+- **Casar a transferência a um hash exige cascata (`transferHash`).** O magnet
+  chega como `src` e, quando vem completo, traz o `btih:40hex`; sem `btih`
+  (magnet só com nome), o `name` cru de 40 hex entra, e por fim o campo direto
+  `hash`/`info_hash`. Quem não casa com nenhum dos três volta `null` e é contado
+  como órfã (`debrid.pm.status.unmatched`) — nunca inventa hash para limpar a
+  conta por engano.
+- **Não existe estado nativo de parada.** O `stalled` é **heurístico** (`running`
+  + progresso 0/ausente + mensagem atascada "0 Bytes of 0 Bytes"/"from 0 peer"),
+  e o recheck o conta com o limiar próprio `DEBRID_AUTO_FETCH_STALL_STREAK` em
+  vez de o colapsar como um dead de 2 rechecks.
+
+O ponto fraco real continua sendo fair-use por tráfego; o `/debrid-status.json`
+agora avisa em `limit_used` ≥ 0.8.
 
 ## TorBox
 
@@ -87,6 +104,12 @@ A checagem em lote existe e é honesta, como a do Premiumize. A esquisitice é o
 formato de resposta: `data` volta ora como **lista** de objetos com `hash`, ora
 como **mapa** `hash → info` — o adaptador aceita os dois e normaliza para
 minúsculas, porque hash em caixa alta já causou "0 em cache" com a conta cheia.
+
+É também a única detecção de **parado nativa** dos cinco: a API marca
+`download_state === "stalled"` para o torrent que não avança mas ainda não
+errou. O `torrentStatus` traduz isso em `stalled:true` sem heurística, e o
+recheck o conta com `DEBRID_AUTO_FETCH_STALL_STREAK` — não o colapsa como um
+dead.
 
 **O que a documentação fixa, e pesa aqui:**
 
@@ -256,6 +279,37 @@ se um dia a checagem de cache aparecer, ele sobe várias posições.
 
 ---
 
+## Ciclo de recheck: `torrentStatus` e `stalled`
+
+O autofetch consulta o estado real de cada torrent via `adapter.torrentStatus()`,
+que devolve `{ state: ready|downloading|dead|unknown, stalled?, id }`. A
+diferença entre **morto** e **parado** decide o desfecho: dead colapsa em 2
+rechecks consecutivos (blacklist + remoção + dreno da fila); um parado merece
+o limiar próprio `DEBRID_AUTO_FETCH_STALL_STREAK` (default 3) porque a falta de
+pares pode ser transitória. Movimento zera a contagem — só observações
+consecutivas derrubam. O campo `stalled` só é afirmado onde há sinal objetivo:
+
+| serviço | fonte do `stalled` | limite |
+|---|---|---|
+| Premiumize | heurística (`running` + progresso 0/ausente + mensagem "0 Bytes of 0 Bytes"/"from 0 peer") | `DEBRID_AUTO_FETCH_STALL_STREAK` |
+| TorBox | **nativo** (`download_state === "stalled"`) | idem |
+| AllDebrid / Real-Debrid / Debrid-Link | **nunca** — a API não expõe o sinal | sem `stalled`, só ready/downloading/dead |
+
+`0` no `DEBRID_AUTO_FETCH_STALL_STREAK` desliga o stall: parado nunca derruba o
+download.
+
+## Season Pack Fill e `cacheCheck`
+
+Quando um pack de temporada enfileirado por autofetch fica pronto, o addon
+invalida as buscas da mesma temporada/conta e semeia disponibilidade
+(`noteAvailable`) para o ⚡ voltar sem esperar o `CACHE_TTL`. **Isso só roda em
+adaptador com `cacheCheck: true`** (Premiumize, TorBox, AllDebrid): é o recheck
+do cache que prova ready. Em Real-Debrid e Debrid-Link (`cacheCheck: false`)
+não existe essa prova, então pack pronto **não** marca nem semeia nada e não
+gera promessa de ⚡ — a constatação fica para o `resolveLink` do play.
+
+---
+
 ## Recomendação prática
 
 Para o caso de uso deste addon — **BR dublado, que é raro e quase nunca está
@@ -272,10 +326,17 @@ _checagem em lote + autofetch_:
 
 No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_CACHED_ONLY`,
 `DEBRID_SHOW_UNCACHED_BR`, `DEBRID_RESOLVE_UNCACHED`, `DEBRID_DROP_UNCACHED`,
-`DEBRID_BATCH_SIZE`, `DEBRID_CACHE_CHECK_TIMEOUT_MS`, `DEBRID_AUTO_FETCH_QUEUE`,
-`DEBRID_AUTO_FETCH_QUEUE_DEPTH`, `DEBRID_AUTO_FETCH_DEAD_TTL`, `DEBRID_AUTO_FETCH_SETTLE_MS`,
-`DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS`, `DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR`,
-`DEBRID_PREFETCH_NEXT_EP`, `DEBRID_PREFETCH_TTL`.
+`DEBRID_DROP_READY`, `DEBRID_BATCH_SIZE`, `DEBRID_CACHE_CHECK_TIMEOUT_MS`,
+`DEBRID_AUTO_FETCH_QUEUE`, `DEBRID_AUTO_FETCH_QUEUE_DEPTH`,
+`DEBRID_AUTO_FETCH_DEAD_TTL`, `DEBRID_AUTO_FETCH_STALL_STREAK`,
+`DEBRID_AUTO_FETCH_SETTLE_MS`, `DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS`,
+`DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR`, `DEBRID_AUTO_FETCH_SEASON_FILL`,
+`DEBRID_AUTO_FETCH_SEASON_INDEX_MAX`, `DEBRID_PREFETCH_NEXT_EP`,
+`DEBRID_PREFETCH_TTL`, `DEBRID_SWEEP_DEAD`, `DEBRID_ACCOUNT_WARN_TOTAL`,
+`DEBRID_ACCOUNT_WARN_LIMIT_USED`.
+O `DEBRID_AUTO_FETCH_SEASON_FILL` (default `true`) só tem efeito em serviço com
+`cacheCheck: true` — o ⚡ do Season Pack Fill é garantido pelo recheck do cache,
+que RD/DL não têm.
 
 Na URL de instalação (por usuário, ver [`src/runtime.ts`](src/runtime.ts)):
 `ds` serviço, `dk` chave, `dc` somente-cacheado, `bu` mostrar BR fora do cache,

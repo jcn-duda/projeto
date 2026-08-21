@@ -168,20 +168,28 @@ async function accountStatus(apiKey: string) {
 async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   const list = await call(apiKey, '/torrents/mylist');
   const rows = Array.isArray(list?.data) ? list.data : (list?.data ? [list.data] : []);
-  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; stalled?: boolean; id?: any }> = {};
   for (const row of rows) {
     const hash = String(row?.hash || '').toLowerCase();
     if (!hash) continue;
     let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'unknown';
-    if (row?.download_finished || row?.download_present) {
-      state = 'ready';
-    } else if (
+    let stalled = false;
+    if (
       row?.download_state === 'error' ||
       row?.download_state === 'failed' ||
       row?.download_state === 'broken' ||
       /error|failed|broken|dead/i.test(String(row?.download_state || ''))
     ) {
       state = 'dead';
+    } else if (row?.download_finished || row?.download_present) {
+      state = 'ready';
+    } else if (row?.download_state === 'stalled') {
+      // Estado nativo da API, não heurística: o TorBox marca explicitamente o
+      // torrent que não avança mas ainda não errou. Não é dead (a morte tem
+      // estado próprio) nem ready: o recheck o conta com o limiar de parada,
+      // não o colapsa como um dead de 2 rechecks.
+      state = 'downloading';
+      stalled = true;
     } else if (
       row?.download_state === 'downloading' ||
       row?.download_state === 'queued' ||
@@ -190,7 +198,7 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
     ) {
       state = 'downloading';
     }
-    out[hash] = { state, id: row?.id };
+    out[hash] = { state, stalled, id: row?.id };
   }
   return out;
 }

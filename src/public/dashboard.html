@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Dashboard — Adom Power-Movie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* Os mesmos tokens de configure.html, para que a área operacional não pareça
+     uma segunda aplicação. */
+  :root {
+    --bg: #0d0d0d;
+    --bg-glow: #1a1a1a;
+    --surface: #1a1a1a;
+    --surface-2: #252525;
+    --border: #333333;
+    --border-strong: rgba(250, 163, 26, .35);
+    --text: #fff;
+    --muted: #b3b3b3;
+    --disabled: #666;
+    --accent: #faa31a;
+    --accent-2: #ffa329;
+    --accent-soft: rgba(250, 163, 26, .14);
+    --green: #39d98a;
+    --green-soft: rgba(57, 217, 138, .14);
+    --amber: #faa31a;
+    --red: #ff6b5f;
+    --red-soft: rgba(255, 107, 95, .14);
+    --unknown: #858b96;
+    --radius: 14px;
+    --font: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-display: "Oswald", "Manrope", var(--font);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 20px 80px;
+    background: radial-gradient(1100px 620px at 50% -12%, var(--bg-glow) 0%, transparent 62%), var(--bg);
+    color: var(--text);
+    font: 15px/1.55 var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header { padding: 42px 0 28px; }
+  .topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+  .eyebrow { margin: 0 0 5px; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 500; letter-spacing: .02em; text-transform: uppercase; }
+  h1 { margin: 0; font-size: clamp(30px, 5vw, 44px); line-height: 1.1; }
+  .subtitle { margin: 9px 0 0; color: var(--muted); }
+  .connection { display: flex; align-items: center; gap: 9px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--unknown); box-shadow: 0 0 0 3px rgba(133, 139, 150, .12); }
+  .connection.online .dot, .status-online .dot { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+  .connection.warn .dot, .status-warn .dot, .status-slow .dot { background: var(--amber); box-shadow: 0 0 0 3px rgba(250, 163, 26, .14); }
+  .connection.error .dot, .status-error .dot, .status-offline .dot { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+  section { margin: 16px 0; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+  .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 17px; }
+  .section-head h2 { margin: 0 0 4px; font-size: 19px; }
+  .section-head p { margin: 0; color: var(--muted); font-size: 13px; }
+  .section-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+  .token-box { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 10px; align-items: end; }
+  .token-help { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 12px; }
+  label { display: block; color: var(--muted); font-size: 12px; font-weight: 600; }
+  input, select, button { font: inherit; }
+  input[type="password"], input[type="text"], select {
+    width: 100%; margin-top: 5px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 9px;
+    background: var(--surface-2); color: var(--text); outline: 0;
+  }
+  input[type="password"]:focus, input[type="text"]:focus, select:focus, button:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .remember { display: flex; align-items: center; gap: 8px; margin-top: 9px; color: var(--muted); font-size: 12px; font-weight: 400; }
+  .remember input { accent-color: var(--accent); }
+  button { border: 1px solid var(--border-strong); border-radius: 9px; padding: 10px 14px; background: transparent; color: var(--text); cursor: pointer; transition: background .15s, border-color .15s, transform .1s, opacity .15s; }
+  button:hover { border-color: var(--accent); background: var(--accent-soft); }
+  button:active { transform: scale(.98); }
+  button:disabled { cursor: wait; opacity: .55; }
+  button.primary { border-color: var(--accent); background: linear-gradient(145deg, var(--accent), var(--accent-2)); color: #151515; font-weight: 700; }
+  button.danger { border-color: rgba(255, 107, 95, .48); color: #ffd8d4; }
+  button.danger:hover { background: var(--red-soft); border-color: var(--red); }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+  .refresh-control { min-width: 132px; }
+  .refresh-control select { margin-top: 4px; padding: 8px 10px; }
+  .feedback { min-height: 22px; margin: 13px 0 0; color: var(--muted); font-size: 13px; }
+  .feedback.ok { color: var(--green); }
+  .feedback.error { color: var(--red); }
+  .feedback.warn { color: var(--amber); }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .metric { min-width: 0; padding: 13px 14px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255, 255, 255, .025); }
+  .metric .key { display: block; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .metric .value { display: block; overflow: hidden; margin-top: 3px; font-size: 18px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+  .metric .value.small { font-size: 13px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 10px; }
+  .card { min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255, 255, 255, .025); }
+  .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; min-width: 0; }
+  .card h3 { overflow: hidden; margin: 0; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+  .card-subtitle { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
+  .state { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; color: var(--muted); font-size: 11px; text-transform: lowercase; }
+  .state .dot { width: 7px; height: 7px; box-shadow: none; }
+  .status-list { display: grid; gap: 8px; margin-top: 13px; }
+  .status-line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-top: 1px solid rgba(255, 255, 255, .06); padding-top: 7px; color: var(--muted); font-size: 12px; }
+  .status-line strong { overflow: hidden; color: var(--text); font-size: 12px; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+  .card .mini-action { margin-top: 13px; padding: 7px 10px; font-size: 12px; }
+  .empty { padding: 18px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 13px; }
+  .subsection { margin-top: 18px; }
+  .subsection:first-child { margin-top: 0; }
+  .subsection h3 { margin: 0 0 9px; color: var(--muted); font-size: 13px; }
+  .test-tools { display: grid; grid-template-columns: minmax(170px, 280px) auto; gap: 9px; align-items: end; margin-bottom: 15px; }
+  .test-output { min-height: 20px; color: var(--muted); font-size: 12px; }
+  .test-output.ok { color: var(--green); }
+  .test-output.warn { color: var(--amber); }
+  .test-output.error { color: var(--red); }
+  .action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 10px; }
+  .action-card { padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255, 255, 255, .025); }
+  .action-card h3 { margin: 0 0 5px; font-size: 16px; }
+  .action-card p { min-height: 42px; margin: 0 0 13px; color: var(--muted); font-size: 12px; }
+  .last-updated { color: var(--muted); font-size: 12px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  @media (max-width: 650px) {
+    body { padding-right: 12px; padding-left: 12px; }
+    header { padding-top: 28px; }
+    .topline, .section-head { display: block; }
+    .connection { display: inline-flex; margin-top: 16px; }
+    .section-actions { justify-content: flex-start; margin-top: 13px; }
+    section { padding: 17px; }
+    .token-box, .test-tools { grid-template-columns: 1fr; }
+    .token-help { grid-column: auto; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="topline">
+      <div>
+        <p class="eyebrow">Power Movie · Operação</p>
+        <h1>Dashboard</h1>
+        <p class="subtitle">Saúde do addon, debrid, indexadores, resolvers e cache.</p>
+      </div>
+      <div id="connection" class="connection" role="status"><span class="dot"></span><span id="connectionText">aguardando consulta</span></div>
+    </div>
+  </header>
+
+  <section aria-labelledby="accessTitle">
+    <div class="section-head">
+      <div><h2 id="accessTitle">Acesso operacional</h2><p>O token é usado somente no header <b>X-Indexer-Test-Token</b>.</p></div>
+      <div class="toolbar">
+        <label class="refresh-control">Atualização automática
+          <select id="refreshRate" aria-label="Atualização automática">
+            <option value="off">desligada</option>
+            <option value="5">a cada 5 segundos</option>
+            <option value="10" selected="selected">a cada 10 segundos</option>
+            <option value="30">a cada 30 segundos</option>
+          </select>
+        </label>
+        <button id="refreshButton" type="button">Atualizar agora</button>
+      </div>
+    </div>
+    <div class="token-box">
+      <label for="token">Token de diagnóstico
+        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="X-Indexer-Test-Token" />
+        <span class="remember"><input id="rememberToken" type="checkbox" checked="checked" /> Guardar neste dispositivo</span>
+      </label>
+      <button id="saveToken" class="primary" type="button">Salvar e consultar</button>
+      <p class="token-help">O armazenamento local só é alterado quando esta opção está marcada. O token nunca é colocado na URL.</p>
+    </div>
+    <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+  </section>
+
+  <section aria-labelledby="generalTitle">
+    <div class="section-head"><div><h2 id="generalTitle">Geral</h2><p>Estado do processo e informações da instância.</p></div><span id="lastUpdated" class="last-updated">sem medição</span></div>
+    <div id="generalMetrics" class="metrics"><div class="empty">Aguardando /dashboard-status.json.</div></div>
+  </section>
+
+  <section aria-labelledby="debridTitle">
+    <div class="section-head"><div><h2 id="debridTitle">Debrid e autofetch</h2><p>Visão conjunta dos cinco serviços suportados e das filas de autofetch.</p></div></div>
+    <div id="debridMetrics" class="metrics"></div>
+    <div id="debridCards" class="cards"><div class="empty">Sem dados de debrid.</div></div>
+  </section>
+
+  <section aria-labelledby="sourcesTitle">
+    <div class="section-head"><div><h2 id="sourcesTitle">Indexadores e resolvers BR</h2><p>Saúde medida, breaker e capacidade de resolução dos indexadores brasileiros.</p></div></div>
+    <div class="subsection"><h3>Indexadores</h3><div id="indexerCards" class="cards"><div class="empty">Sem dados de indexadores.</div></div></div>
+    <div class="subsection"><h3>Resolvers BR</h3><div id="resolverCards" class="cards"><div class="empty">Sem dados de resolvers.</div></div></div>
+    <div class="subsection">
+      <h3>Teste individual</h3>
+      <div class="test-tools">
+        <label for="testIndexerId">ID do indexador
+          <input id="testIndexerId" type="text" autocomplete="off" spellcheck="false" placeholder="ex.: bludv-cardigann" />
+        </label>
+        <button id="testIndexerButton" type="button">Testar indexador</button>
+      </div>
+      <div id="testOutput" class="test-output" role="status" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="cacheTitle">
+    <div class="section-head"><div><h2 id="cacheTitle">Cache</h2><p>Uso da memória, persistência e namespaces reportados pelo servidor.</p></div></div>
+    <div id="cacheMetrics" class="metrics"></div>
+    <div id="cacheCards" class="cards"><div class="empty">Sem dados de cache.</div></div>
+  </section>
+
+  <section aria-labelledby="actionsTitle">
+    <div class="section-head"><div><h2 id="actionsTitle">Ações</h2><p>Ações destrutivas pedem confirmação e enviam JSON no corpo do POST.</p></div></div>
+    <div class="action-grid">
+      <div class="action-card">
+        <h3>Varredura de mortos</h3>
+        <p>Remove magnets mortos da conta de debrid, sem esperar o próximo ciclo periódico.</p>
+        <button class="danger action-button" type="button" data-action="sweep-dead">Executar sweep-dead</button>
+      </div>
+      <div class="action-card">
+        <h3>Limpar cache</h3>
+        <p>Limpa os caches locais do addon. A próxima busca pode ser mais lenta.</p>
+        <button class="danger action-button" type="button" data-action="clear-cache">Executar clear-cache</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var TOKEN_KEY = "adom.dashboard.test-token";
+  var RATE_KEY = "adom.dashboard.refresh-rate";
+  var knownServices = [
+    { id: "premiumize", label: "Premiumize" },
+    { id: "alldebrid", label: "AllDebrid" },
+    { id: "torbox", label: "TorBox" },
+    { id: "realdebrid", label: "Real-Debrid" },
+    { id: "debridlink", label: "Debrid-Link" }
+  ];
+  var currentToken = "";
+  var refreshTimer = null;
+  var requestInFlight = false;
+
+  function $(id) { return document.getElementById(id); }
+
+  function isObject(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function copyObject(source) {
+    var out = {};
+    Object.keys(isObject(source) ? source : {}).forEach(function (key) { out[key] = source[key]; });
+    return out;
+  }
+
+  function own(object, key) {
+    return isObject(object) && Object.prototype.hasOwnProperty.call(object, key);
+  }
+
+  function first(object, names, fallback) {
+    var i;
+    if (!object) return fallback;
+    for (i = 0; i < names.length; i += 1) {
+      if (object[names[i]] !== undefined && object[names[i]] !== null) return object[names[i]];
+    }
+    return fallback;
+  }
+
+  function valueText(value) {
+    if (value === undefined || value === null || value === "") return "—";
+    if (typeof value === "boolean") return value ? "sim" : "não";
+    if (typeof value === "number") {
+      if (!isFinite(value)) return "—";
+      return String(value);
+    }
+    if (typeof value === "object") return "ver detalhes";
+    return String(value);
+  }
+
+  function titleText(value) {
+    return String(value || "sem nome").replace(/[-_]+/g, " ");
+  }
+
+  function formatBytes(value) {
+    var number = Number(value);
+    var units = ["B", "KB", "MB", "GB", "TB"];
+    var unit = 0;
+    if (!isFinite(number) || number < 0) return valueText(value);
+    while (number >= 1024 && unit < units.length - 1) { number /= 1024; unit += 1; }
+    return number.toFixed(unit === 0 ? 0 : number < 10 ? 1 : 0) + " " + units[unit];
+  }
+
+  function formatDuration(value) {
+    var number = Number(value);
+    if (!isFinite(number)) return valueText(value);
+    if (number < 1000) return Math.round(number) + " ms";
+    number /= 1000;
+    if (number < 60) return number.toFixed(1) + " s";
+    return Math.floor(number / 60) + " min " + Math.round(number % 60) + " s";
+  }
+
+  function formatDate(value) {
+    var date;
+    if (!value) return "—";
+    date = new Date(value);
+    return isNaN(date.getTime()) ? valueText(value) : date.toLocaleString("pt-BR");
+  }
+
+  function prettyKey(key) {
+    return titleText(key).replace(/\b(ms|id|br|db|rss|l1|l2)\b/gi, function (part) { return part.toUpperCase(); });
+  }
+
+  function displayValue(key, value) {
+    var lower = String(key).toLowerCase();
+    if (lower.indexOf("bytes") !== -1 || lower.indexOf("memory") !== -1 || lower === "rss" || lower === "heapused") return formatBytes(value);
+    if (lower.indexOf("uptime") !== -1 || lower.indexOf("duration") !== -1 || lower.indexOf("latency") !== -1 || lower === "ms") return formatDuration(value);
+    if (lower.indexOf("at") !== -1 && (typeof value === "string" || typeof value === "number")) return formatDate(value);
+    return valueText(value);
+  }
+
+  function stateName(value) {
+    var text = String(value === undefined || value === null ? "unknown" : value).toLowerCase();
+    if (value === true || text === "ok" || text === "online" || text === "ready" || text === "healthy" || text === "up" || text === "available") return "online";
+    if (text.indexOf("slow") !== -1 || text.indexOf("degrad") !== -1 || text === "warn" || text === "warning" || text === "partial") return "warn";
+    if (value === false || text === "offline" || text === "error" || text === "dead" || text === "down" || text === "failed" || text === "unusable") return "error";
+    return "unknown";
+  }
+
+  function stateLabel(value) {
+    var state = stateName(value);
+    if (state === "online") return "online";
+    if (state === "warn") return "atenção";
+    if (state === "error") return "offline";
+    return "não medido";
+  }
+
+  function element(name, className, text) {
+    var node = document.createElement(name);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function empty(container, text) {
+    container.textContent = "";
+    container.appendChild(element("div", "empty", text));
+  }
+
+  function setFeedback(text, kind) {
+    var node = $("feedback");
+    node.className = "feedback" + (kind ? " " + kind : "");
+    node.textContent = text || "";
+  }
+
+  function setConnection(state, text) {
+    var node = $("connection");
+    node.className = "connection" + (state && state !== "unknown" ? " " + (state === "error" ? "error" : state === "warn" ? "warn" : "online") : "");
+    $("connectionText").textContent = text;
+  }
+
+  function authHeaders(extra) {
+    var headers = {};
+    var key;
+    for (key in (extra || {})) {
+      if (Object.prototype.hasOwnProperty.call(extra || {}, key)) headers[key] = extra[key];
+    }
+    if (currentToken) headers["X-Indexer-Test-Token"] = currentToken;
+    return headers;
+  }
+
+  function requestJson(url, options) {
+    var request = options || {};
+    request.headers = authHeaders(request.headers);
+    return fetch(url, request).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) {
+          throw new Error((data && (data.error || data.message)) || "HTTP " + response.status);
+        }
+        return data;
+      });
+    });
+  }
+
+  function readStored(key) {
+    try { return window.localStorage.getItem(key); } catch (error) { return null; }
+  }
+
+  function writeStored(key, value) {
+    try { window.localStorage.setItem(key, value); } catch (error) { /* storage bloqueado não impede o dashboard */ }
+  }
+
+  function removeStored(key) {
+    try { window.localStorage.removeItem(key); } catch (error) { /* storage bloqueado não impede o dashboard */ }
+  }
+
+  function metric(container, key, value) {
+    var item = element("div", "metric");
+    var label = element("span", "key", prettyKey(key));
+    var content = element("span", "value" + (String(valueText(value)).length > 20 ? " small" : ""), displayValue(key, value));
+    item.appendChild(label);
+    item.appendChild(content);
+    container.appendChild(item);
+  }
+
+  function renderMetrics(container, object, excluded) {
+    var keys;
+    var i;
+    if (!isObject(object)) { empty(container, "Nenhuma métrica disponível."); return; }
+    keys = Object.keys(object);
+    for (i = 0; i < keys.length; i += 1) {
+      if (excluded && excluded[keys[i]]) continue;
+      if (object[keys[i]] === null || typeof object[keys[i]] === "object") continue;
+      metric(container, keys[i], object[keys[i]]);
+    }
+    if (!container.children.length) empty(container, "Nenhuma métrica disponível.");
+  }
+
+  function asList(value, preferredKey) {
+    var result = [];
+    var keys;
+    var i;
+    var item;
+    if (Array.isArray(value)) return value;
+    if (!isObject(value)) return result;
+    if (preferredKey && Array.isArray(value[preferredKey])) return value[preferredKey];
+    if (Array.isArray(value.items)) return value.items;
+    keys = Object.keys(value);
+    for (i = 0; i < keys.length; i += 1) {
+      item = value[keys[i]];
+      if (isObject(item)) {
+        if (!own(item, "id") && !own(item, "name") && !own(item, "label")) item.id = keys[i];
+        result.push(item);
+      } else {
+        result.push({ id: keys[i], value: item });
+      }
+    }
+    return result;
+  }
+
+  function card(container, item, options) {
+    var box = element("article", "card");
+    var head = element("div", "card-head");
+    var title = first(item, ["label", "name", "title", "id"], options && options.fallback || "sem nome");
+    var state = first(item, ["state", "status", "health", "online", "ready"], "unknown");
+    var stateBox = element("span", "state status-" + stateName(state));
+    var dot = element("span", "dot");
+    var stateText = element("span", "", stateLabel(state));
+    var keys;
+    var excluded = { id: true, label: true, name: true, title: true, state: true, status: true, health: true, online: true, ready: true, error: true, message: true };
+    var rows = element("div", "status-list");
+    var i;
+    var key;
+    var value;
+    var button;
+    box.setAttribute("data-status", stateName(state));
+    head.appendChild(element("h3", "", titleText(title)));
+    stateBox.appendChild(dot);
+    stateBox.appendChild(stateText);
+    head.appendChild(stateBox);
+    box.appendChild(head);
+    if (first(item, ["description", "detail", "message", "error"], null)) box.appendChild(element("p", "card-subtitle", valueText(first(item, ["description", "detail", "message", "error"], ""))));
+    keys = Object.keys(item);
+    for (i = 0; i < keys.length; i += 1) {
+      key = keys[i]; value = item[key];
+      if (excluded[key] || value === null || typeof value === "object") continue;
+      rows.appendChild(element("div", "status-line"));
+      rows.lastChild.appendChild(element("span", "", prettyKey(key)));
+      rows.lastChild.appendChild(element("strong", "", displayValue(key, value)));
+    }
+    if (rows.children.length) box.appendChild(rows);
+    if (options && options.testable) {
+      button = element("button", "mini-action", "Testar este indexador");
+      button.type = "button";
+      button.setAttribute("data-indexer-id", String(first(item, ["id", "key", "name"], "")));
+      button.addEventListener("click", function () { runIndexerTest(button.getAttribute("data-indexer-id"), button); });
+      box.appendChild(button);
+    }
+    container.appendChild(box);
+  }
+
+  function renderGeneral(data) {
+    var source = first(data, ["general", "overview", "system"], data);
+    var metrics = $("generalMetrics");
+    var excluded = { general: true, overview: true, system: true, debrid: true, autofetch: true, indexers: true, indexerStatus: true, resolvers: true, brResolvers: true, cache: true };
+    metrics.textContent = "";
+    renderMetrics(metrics, source, excluded);
+  }
+
+  function serviceId(item) {
+    var id = String(first(item, ["id", "service", "key", "name"], "")).toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (id === "realdebrid") return "realdebrid";
+    if (id === "debridlink") return "debridlink";
+    return id;
+  }
+
+  function serviceData(source, id) {
+    var list = asList(first(source, ["services", "adapters", "accounts"], []), "services");
+    var i;
+    for (i = 0; i < list.length; i += 1) if (serviceId(list[i]) === id) return list[i];
+    return null;
+  }
+
+  function renderDebrid(data, autofetchData) {
+    var source = isObject(data) ? data : {};
+    var auto = isObject(autofetchData) ? autofetchData : first(source, ["autofetch", "autoFetch", "autofetchStatus"], {});
+    var account = isObject(source.account) ? source.account : {};
+    var active = serviceId({ id: source.active || account.service || "" });
+    var cards = $("debridCards");
+    var metrics = $("debridMetrics");
+    var services = [];
+    var i;
+    var item;
+    var found;
+    metrics.textContent = "";
+    renderMetrics(metrics, isObject(auto) ? auto : {}, { services: true, perService: true });
+    cards.textContent = "";
+    for (i = 0; i < knownServices.length; i += 1) {
+      item = serviceData(source, knownServices[i].id) || { id: knownServices[i].id, label: knownServices[i].label, status: "unknown" };
+      if (active === knownServices[i].id) {
+        item = copyObject(item);
+        Object.keys(account).forEach(function (key) { item[key] = account[key]; });
+        item.status = account.ok === true ? (account.warn ? "warn" : "online") : "error";
+      }
+      if (!item.label) item.label = knownServices[i].label;
+      item.autofetch = first(item, ["autofetch", "autoFetch"], first(asList(auto, "services").filter(function (entry) { return serviceId(entry) === knownServices[i].id; }), ["status", "state"], null));
+      services.push(item);
+    }
+    asList(first(source, ["services", "adapters", "accounts"], []), "services").forEach(function (extra) {
+      found = false;
+      for (i = 0; i < services.length; i += 1) if (serviceId(services[i]) === serviceId(extra)) found = true;
+      if (!found) services.push(extra);
+    });
+    for (i = 0; i < services.length; i += 1) card(cards, services[i], { fallback: "serviço" });
+  }
+
+  function renderCollection(container, source, preferredKey, options) {
+    var list = asList(source, preferredKey);
+    var i;
+    container.textContent = "";
+    if (!list.length) { empty(container, "Nenhum item reportado."); return; }
+    for (i = 0; i < list.length; i += 1) card(container, list[i], options || {});
+  }
+
+  function renderSources(data) {
+    var source = isObject(data) ? data : {};
+    var indexers = first(source, ["indexers", "indexerStatus", "jackett"], []);
+    var resolvers = first(source, ["resolvers", "brResolvers", "resolverStatus", "br"], []);
+    renderCollection($("indexerCards"), indexers, "indexers", { testable: true });
+    renderCollection($("resolverCards"), resolvers, "resolvers", {});
+  }
+
+  function renderCache(data) {
+    var source = isObject(data) ? data : {};
+    var metrics = $("cacheMetrics");
+    var cards = $("cacheCards");
+    var namespaces = first(source, ["namespaces", "byNamespace", "stats"], []);
+    metrics.textContent = "";
+    renderMetrics(metrics, source, { namespaces: true, byNamespace: true, stats: true });
+    renderCollection(cards, namespaces, "namespaces", {});
+  }
+
+  function renderStatus(data) {
+    var root = isObject(data) ? data : {};
+    var status = first(root, ["status", "state", "health"], "online");
+    var generated = first(root, ["generatedAt", "checkedAt", "timestamp", "at"], null);
+    renderGeneral(root);
+    renderDebrid(
+      first(root, ["debrid", "debridStatus"], {}),
+      first(root, ["autofetch", "autoFetch", "autofetchStatus"], {})
+    );
+    renderSources(root);
+    renderCache(first(root, ["cache", "cacheStatus"], {}));
+    setConnection(stateName(status), stateLabel(status));
+    $("lastUpdated").textContent = generated ? "Atualizado " + formatDate(generated) : "Atualizado agora";
+  }
+
+  function saveToken() {
+    var input = $("token");
+    currentToken = input.value.replace(/^\s+|\s+$/g, "");
+    if ($("rememberToken").checked) writeStored(TOKEN_KEY, currentToken);
+    else removeStored(TOKEN_KEY);
+    loadStatus();
+  }
+
+  function loadStatus() {
+    if (requestInFlight) return;
+    requestInFlight = true;
+    setFeedback("Consultando o estado…", "");
+    requestJson("/dashboard-status.json", { method: "GET", cache: "no-store" })
+      .then(function (data) {
+        renderStatus(data);
+        setFeedback("Estado atualizado.", "ok");
+      })
+      .catch(function (error) {
+        setConnection("error", "falha na consulta");
+        setFeedback("Não foi possível consultar o dashboard: " + valueText(error && error.message ? error.message : error), "error");
+      })
+      .then(function () { requestInFlight = false; });
+  }
+
+  function scheduleRefresh() {
+    var value = $("refreshRate").value;
+    var seconds;
+    if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+    try { writeStored(RATE_KEY, value); } catch (error) { /* preferência é opcional */ }
+    seconds = Number(value);
+    if (isFinite(seconds) && seconds > 0) refreshTimer = setInterval(loadStatus, seconds * 1000);
+  }
+
+  function actionLabel(action) {
+    return action === "sweep-dead" ? "a varredura de magnets mortos" : "a limpeza do cache";
+  }
+
+  function runAction(button) {
+    var action = button.getAttribute("data-action");
+    if (!window.confirm("Confirmar " + actionLabel(action) + "?")) return;
+    button.disabled = true;
+    setFeedback("Executando " + action + "…", "warn");
+    requestJson("/dashboard-action.json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: action })
+    })
+      .then(function (data) {
+        setFeedback(valueText(first(data, ["message", "result"], "Ação concluída.")), "ok");
+        loadStatus();
+      })
+      .catch(function (error) { setFeedback("Ação não concluída: " + valueText(error && error.message ? error.message : error), "error"); })
+      .then(function () { button.disabled = false; });
+  }
+
+  function testResultText(data) {
+    if (data && data.ok) return "OK · " + valueText(data.results) + " resultado(s) · " + valueText(data.withMagnet) + " com magnet · " + formatDuration(data.ms);
+    return "Falhou · " + valueText(data && (data.error || data.message) || "nenhum resultado");
+  }
+
+  function runIndexerTest(id, button) {
+    var output = $("testOutput");
+    var safeId = String(id || "").replace(/^\s+|\s+$/g, "");
+    if (!safeId) { output.className = "test-output error"; output.textContent = "Informe o ID do indexador."; return; }
+    if (!currentToken) { output.className = "test-output error"; output.textContent = "Informe o token antes de testar um indexador."; $("token").focus(); return; }
+    if (button) button.disabled = true;
+    output.className = "test-output";
+    output.textContent = "Testando " + safeId + "…";
+    requestJson("/test-indexer.json?id=" + encodeURIComponent(safeId), { method: "GET" })
+      .then(function (data) {
+        output.className = "test-output " + (data && data.ok ? (data.overBudget ? "warn" : "ok") : "error");
+        output.textContent = safeId + " · " + testResultText(data);
+      })
+      .catch(function (error) { output.className = "test-output error"; output.textContent = safeId + " · " + valueText(error && error.message ? error.message : error); })
+      .then(function () { if (button) button.disabled = false; });
+  }
+
+  function bind() {
+    var savedToken = readStored(TOKEN_KEY);
+    var savedRate = readStored(RATE_KEY);
+    var actions = document.querySelectorAll(".action-button");
+    var i;
+    if (savedToken) { $("token").value = savedToken; currentToken = savedToken; }
+    if (savedRate === "5" || savedRate === "10" || savedRate === "30" || savedRate === "off") $("refreshRate").value = savedRate;
+    $("saveToken").addEventListener("click", saveToken);
+    $("refreshButton").addEventListener("click", loadStatus);
+    $("refreshRate").addEventListener("change", scheduleRefresh);
+    $("token").addEventListener("keydown", function (event) { if (event.key === "Enter") saveToken(); });
+    $("testIndexerButton").addEventListener("click", function () { runIndexerTest($("testIndexerId").value, $("testIndexerButton")); });
+    for (i = 0; i < actions.length; i += 1) actions[i].addEventListener("click", function () { runAction(this); });
+    scheduleRefresh();
+    loadStatus();
+  }
+
+  bind();
+}());
+</script>
+</body>
+</html>

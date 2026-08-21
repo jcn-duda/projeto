@@ -11,6 +11,11 @@ const LOCK_TTL_MS = 60_000;
 
 // Janela deslizante de 1h de enqueues por adapter:account
 const hourlyEnqueues = new Map<string, number[]>();
+const hourlyLimits = new Map<string, number>();
+// Índices de diagnóstico deste processo. As filas/blacklists continuam no
+// cache persistente; estes sets só permitem contar sem enumerar chaves privadas.
+const knownQueues = new Map<string, number>();
+const knownDead = new Set<string>();
 
 function sha256(str: string) {
   return crypto.createHash('sha256').update(String(str || '')).digest('hex');
@@ -105,7 +110,9 @@ function blacklist(
   ttlSeconds = config.debrid.autoFetchDeadTtl,
 ) {
   if (!adapterId || !account || !infoHash) return;
-  cache.set(deadKey(adapterId, account, infoHash), 1, ttlSeconds);
+  const key = deadKey(adapterId, account, infoHash);
+  cache.set(key, 1, ttlSeconds);
+  knownDead.add(key);
 }
 
 /** Fila persistente de candidatos excedentes */
@@ -118,6 +125,8 @@ interface QueueCandidate {
   br?: boolean;
   dubbed?: boolean;
   pool?: string;
+  imdbId?: string;
+  isPack?: boolean;
   season?: number | null;
   episode?: number | null;
   addedAt?: number;
@@ -153,10 +162,14 @@ function writeQueue(
   }
 
   if (clean.length > 0) {
-    cache.set(queueKey(searchKey), clean, ttlSeconds);
+    const key = queueKey(searchKey);
+    cache.set(key, clean, ttlSeconds);
+    knownQueues.set(key, clean.length);
     metrics.count('autofetch.queue.added', clean.length);
   } else {
-    cache.forget(queueKey(searchKey));
+    const key = queueKey(searchKey);
+    cache.forget(key);
+    knownQueues.delete(key);
   }
 }
 
@@ -167,6 +180,7 @@ function dropQueue(searchKey: string) {
     cache.forget(k);
     metrics.count('autofetch.queue.dropped');
   }
+  knownQueues.delete(k);
 }
 
 function takeNext(
@@ -198,6 +212,7 @@ function checkAndRecordBudget(adapterId: string, account: string, limit?: number
   const maxHourly = limit != null && Number.isFinite(limit)
     ? limit
     : config.debrid.autoFetchEnqueueMaxHour;
+  hourlyLimits.set(key, maxHourly);
 
   if (timestamps.length >= maxHourly) {
     metrics.count('autofetch.budget');
@@ -217,9 +232,52 @@ function checkAndRecordBudget(adapterId: string, account: string, limit?: number
 function resetBudget(adapterId?: string, account?: string) {
   if (adapterId && account) {
     hourlyEnqueues.delete(`${adapterId}:${account}`);
+    hourlyLimits.delete(`${adapterId}:${account}`);
   } else {
     hourlyEnqueues.clear();
+    hourlyLimits.clear();
   }
+}
+
+/** Estado operacional sem expor searchKey, conta ou infoHash. */
+function snapshot() {
+  const now = Date.now();
+  const oneHourAgo = now - 3600_000;
+  let used = 0;
+  let limit = 0;
+  const budgets: Array<{ id: string; used: number; limit: number }> = [];
+  for (const [key, raw] of hourlyEnqueues) {
+    const timestamps = raw.filter((t) => t > oneHourAgo);
+    hourlyEnqueues.set(key, timestamps);
+    const itemLimit = hourlyLimits.get(key) || config.debrid.autoFetchEnqueueMaxHour;
+    used += timestamps.length;
+    limit += itemLimit;
+    budgets.push({ id: sha256(key).slice(0, 12), used: timestamps.length, limit: itemLimit });
+  }
+
+  let queueItems = 0;
+  for (const [key] of [...knownQueues]) {
+    const value = cache.get(key);
+    if (!Array.isArray(value) || value.length === 0) {
+      knownQueues.delete(key);
+      continue;
+    }
+    knownQueues.set(key, value.length);
+    queueItems += value.length;
+  }
+  for (const key of [...knownDead]) {
+    if (cache.get(key) !== 1) knownDead.delete(key);
+  }
+  let occupiedSlots = 0;
+  for (const entry of searchSlots.values()) occupiedSlots += Number(entry?.used || 0);
+
+  return {
+    pendingLocks: pending.size,
+    searchSlots: { searches: searchSlots.size, occupied: occupiedSlots },
+    budget: { used, limit, accounts: budgets },
+    deadBlacklistCount: knownDead.size,
+    queues: { count: knownQueues.size, items: queueItems },
+  };
 }
 
 export {
@@ -242,6 +300,7 @@ export {
   takeNext,
   checkAndRecordBudget,
   resetBudget,
+  snapshot,
 };
 export type { QueueCandidate };
 

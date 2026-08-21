@@ -9,7 +9,7 @@ process.env.CACHE_PERSIST = 'false';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
-import { WorkPickError } from '../src/debrid/common.js';
+import { WorkPickError, EpisodePickError } from '../src/debrid/common.js';
 import type { DebridAdapter } from '../types/domain.js';
 import * as cache from '../src/utils/cache.js';
 import { createTestServer, encodeConfig, withMockFetch, fakeResponse } from './e2e/e2e-harness.js';
@@ -220,6 +220,21 @@ test('/resolve devolve 404 com mensagem de pack quando pickFile lança WorkPickE
     const res = await server.request('GET', `/${cfg}/resolve/${HASH}?w=${encodeURIComponent(hint)}&sig=${sig}`);
     assert.equal(res.status, 404);
     assert.equal(res.text, 'não foi possível identificar este filme dentro do pack');
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+  }
+});
+
+test('/resolve devolve 404 quando pickFile não identifica episódio no pack', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const sig = hmacSig('fake-key', `${HASH}?s=1&e=5`);
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    FAKE_ADAPTER.resolveLink = async () => { throw new EpisodePickError(); };
+    const res = await server.request('GET', `/${cfg}/resolve/${HASH}?s=1&e=5&sig=${sig}`);
+    assert.equal(res.status, 404);
+    assert.equal(res.text, 'este episódio não foi encontrado no pack');
   } finally {
     FAKE_ADAPTER.resolveLink = originalResolve;
   }

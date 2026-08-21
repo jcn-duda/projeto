@@ -113,6 +113,19 @@ function davailKey(adapterId: string, apiKey: string, hash: string) {
   return `${prefix('davail')}${adapterId}:${accountScope(apiKey)}:${String(hash).toLowerCase()}`;
 }
 
+/**
+ * O recheck acabou de confirmar que o hash ficou pronto. Semeia o positivo para
+ * a próxima lista marcar ⚡ sem repetir a consulta ao debrid.
+ */
+function noteAvailable(infoHash: string) {
+  const adapter = current();
+  const apiKey = opts().debridApiKey;
+  if (!adapter || !apiKey || !infoHash) return;
+  if (config.debrid.availPosTtl > 0) {
+    cache.set(davailKey(adapter.id, apiKey, infoHash), 1, config.debrid.availPosTtl);
+  }
+}
+
 function nonAbortableCheck(adapter: any, apiKey: string, infoHashes: string[]) {
   const key = nonAbortableKey(adapter, apiKey, infoHashes);
   let entry = nonAbortableChecks.get(key);
@@ -515,5 +528,5 @@ async function sweepDeadEnv() {
 }
 
 export default {
-  SERVICES, BY_ID, current, checkCached, accountStatus, resolveLink, enqueue, inventory, inventoryPeek, warmupEnv, sweepDeadEnv,
+  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, resolveLink, enqueue, inventory, inventoryPeek, warmupEnv, sweepDeadEnv,
 };

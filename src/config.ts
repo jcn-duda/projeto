@@ -319,6 +319,19 @@ const config = {
     // o CACHE_TTL inteiro. 0 em qualquer um desliga o recheck.
     autoFetchRecheckMs: num(process.env.DEBRID_AUTO_FETCH_RECHECK_MS, 120_000),
     autoFetchRecheckMax: num(process.env.DEBRID_AUTO_FETCH_RECHECK_MAX, 3),
+    // Torrent que informa "running" com progresso ausente/0 e mensagem "0 Bytes
+    // of 0 Bytes" / "from 0 peer" está PARADO, não baixando. É o mesmo sintoma
+    // de um morto, mas merece limiar próprio: a ausência de pares pode ser
+    // transitória (magnet frio) e matar na 1ª observação descartaria um
+    // download que ainda podia esquentar. Após N rechecks consecutivos parado,
+    // o recheck trata como morto (blacklist, remoção e dreno da fila). 0
+    // desliga a detecção: parado nunca mais derruba um download.
+    autoFetchStallStreak: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_STALL_STREAK, 3))),
+    // Pack de temporada pronto invalida os episódios já buscados daquela mesma
+    // conta/temporada; a próxima lista usa o davail positivo sem esperar CACHE_TTL.
+    autoFetchSeasonFill: String(process.env.DEBRID_AUTO_FETCH_SEASON_FILL || 'true') === 'true',
+    // LRU do índice em memória de temporadas. 0 desliga o índice sem deploy.
+    autoFetchSeasonIndexMax: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_SEASON_INDEX_MAX, 200))),
     // Fila persistente de autofetch e drenagem automática
     autoFetchQueue: String(process.env.DEBRID_AUTO_FETCH_QUEUE || 'true') === 'true',
     autoFetchQueueDepth: Math.min(12, Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_QUEUE_DEPTH, 6)))),

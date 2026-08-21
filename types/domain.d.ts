@@ -174,7 +174,7 @@ export interface DebridAdapter {
   torrentStatus?(
     apiKey: string,
     infoHashes: string[],
-  ): Promise<Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }>>;
+  ): Promise<Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; stalled?: boolean; id?: any }>>;
   /** Remove torrent pelo id no serviço; ausente = não suportado */
   removeTorrent?(apiKey: string, id: any): Promise<boolean>;
   /** Teto de enqueues/hora que este serviço aceita para item não-cacheado */

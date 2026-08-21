@@ -3,9 +3,9 @@ import path from 'node:path';
 import express from 'express';
 import sdk from 'stremio-addon-sdk';
 import config from './config.js';
-import { findStreams, applyNoticeOrigin, onlyNotice } from './providers/index.js';
+import { findStreams, applyNoticeOrigin, onlyNotice, autofetchStatus } from './providers/index.js';
 import debrid from './debrid/index.js';
-import { isWorkPickError } from './debrid/common.js';
+import { isWorkPickError, isEpisodePickError } from './debrid/common.js';
 import * as runtime from './runtime.js';
 import { verifyResolve } from './utils/sign.js';
 import * as jackettCatalog from './providers/jackett-catalog.js';
@@ -17,6 +17,7 @@ import * as cache from './utils/cache.js';
 import * as log from './utils/logger.js';
 import * as autofetch from './providers/autofetch.js';
 import { accountScope } from './utils/request-key.js';
+import { RESOLVERS } from './br-resolvers.js';
 
 const { addonBuilder, getRouter } = sdk;
 
@@ -254,12 +255,16 @@ function createApp() {
       if (isWorkPickError(err)) {
         return res.status(404).send('não foi possível identificar este filme dentro do pack');
       }
+      if (isEpisodePickError(err)) {
+        return res.status(404).send('este episódio não foi encontrado no pack');
+      }
       log.error('[resolve]', err.message);
       return res.status(502).send('falha ao resolver no debrid');
     }
   }
 
   const CONFIGURE_PAGE = path.join(__dirname, 'public', 'configure.html');
+  const DASHBOARD_PAGE = path.join(__dirname, 'public', 'dashboard.html');
   const sendConfigure = (_: any, res: any) => res.sendFile(CONFIGURE_PAGE);
 
   app.get('/health', (_, res) => res.json({ ok: true }));
@@ -269,6 +274,7 @@ function createApp() {
   app.get('/logo.png', (_, res) => res.sendFile(path.join(__dirname, 'public', 'logo.png')));
   app.get('/', (_, res) => res.redirect(302, '/configure'));
   app.get('/configure', sendConfigure);
+  app.get('/dashboard', (_, res) => res.sendFile(DASHBOARD_PAGE));
 
   // Defaults do .env, para a página abrir já refletindo a instância. A chave do
   // debrid NUNCA vai junto: a página é pública e o .env é do operador, não de
@@ -338,6 +344,98 @@ function createApp() {
       logLevel: log.level(),
       cache: cache.snapshot(),
     });
+  });
+
+  /** Painel consolidado. A página é pública; estes dados continuam protegidos. */
+  app.get('/dashboard-status.json', async (req, res) => {
+    if (!config.jackett.testToken) {
+      return res.status(503).json({ error: 'dashboard desativado: defina JACKETT_TEST_TOKEN' });
+    }
+    if (!authorized(config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
+      return res.status(401).json({ error: 'token de diagnóstico inválido' });
+    }
+    const admission = diagnosticGate.enter('global') as GateAdmission;
+    if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
+    try {
+      const [account, indexers] = await Promise.all([
+        debrid.accountStatus(),
+        jackettCatalog.load(),
+      ]);
+      const metricSnapshot = metrics.snapshot();
+      const hits = metricSnapshot.counters['cache.hit'] || 0;
+      const misses = metricSnapshot.counters['cache.miss'] || 0;
+      const memory = process.memoryUsage();
+      const resolvers = RESOLVERS.map((resolver) => ({
+        id: resolver.name,
+        label: resolver.name,
+        port: resolver.port + (Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0),
+        embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
+        domain: process.env[resolver.siteEnv] || null,
+      }));
+      return res.json({
+        generatedAt: new Date().toISOString(),
+        general: {
+          ok: true,
+          version: config.version,
+          uptimeS: metricSnapshot.uptimeS,
+          memory: { rss: memory.rss, heapUsed: memory.heapUsed, heapTotal: memory.heapTotal },
+          services: {
+            addon: true,
+            jackett: indexers.length > 0,
+            debrid: Boolean(account?.ok),
+            resolvers: resolvers.filter((item) => item.embedded).length,
+          },
+        },
+        metrics: metricSnapshot,
+        cache: {
+          ...cache.snapshot(),
+          persistent: String(process.env.CACHE_PERSIST || 'true') === 'true',
+          hits,
+          misses,
+          hitRate: hits + misses > 0 ? hits / (hits + misses) : null,
+          swrServed: metricSnapshot.counters['search.swr.served'] || 0,
+        },
+        debrid: { active: debrid.current()?.id || null, account, services: debrid.SERVICES },
+        autofetch: { ...autofetch.snapshot(), ...autofetchStatus() },
+        indexers,
+        resolvers,
+      });
+    } finally {
+      admission.release();
+    }
+  });
+
+  app.post('/dashboard-action.json', express.json({ limit: '4kb' }), async (req, res) => {
+    if (!config.jackett.testToken) {
+      return res.status(503).json({ ok: false, error: 'dashboard desativado pelo operador' });
+    }
+    if (!authorized(config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
+      return res.status(401).json({ ok: false, error: 'token de diagnóstico inválido' });
+    }
+    const action = String(req.body?.action || '');
+    if (action !== 'sweep-dead' && action !== 'clear-cache') {
+      return res.status(400).json({ ok: false, error: 'ação desconhecida' });
+    }
+    const admission = diagnosticGate.enter('global') as GateAdmission;
+    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
+    try {
+      if (action === 'clear-cache') {
+        const entriesBefore = cache.size();
+        cache.clear();
+        metrics.count('dashboard.cache.clear');
+        return res.json({ ok: true, action, entriesBefore, entriesAfter: cache.size() });
+      }
+      const result = await debrid.sweepDeadEnv();
+      metrics.count('dashboard.sweep-dead');
+      return res.json({
+        ok: result != null,
+        action,
+        result,
+        error: result == null ? 'varredura indisponível ou desativada para o debrid do operador' : undefined,
+      });
+    } finally {
+      admission.release();
+    }
   });
 
   /**
