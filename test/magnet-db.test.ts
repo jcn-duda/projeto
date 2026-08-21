@@ -8,11 +8,14 @@ import assert from 'node:assert/strict';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
+import * as cache from '../src/utils/cache.js';
+import { prefix } from '../src/utils/cache-keys.js';
 import debrid from '../src/debrid/index.js';
 import { applyDebrid, buildStreams } from '../src/providers/index.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { sortAndLimit } from '../src/utils/format.js';
+import { pickFile, NoVideoError } from '../src/debrid/common.js';
 
 const runWith = (patch: { opts: any; encoded: string }, fn: () => any) => runtime.run(patch, fn);
 
@@ -50,17 +53,83 @@ const stream = (hash: string) => ({ name: `filme ${hash}`, title: `Filme Teste $
 
 test('alive/bad: leitura escopada por serviço e conta', () => {
   const hash = 'a'.repeat(40);
-  magnetdb.markAlive('premiumize', 'conta-mag-x', [hash]);
+  // bad antes de alive: markBad apaga o alive do MESMO hash (política "bad
+  // vence"), então a coexistência aqui só existe em hashes distintos.
   magnetdb.markBad('premiumize', 'conta-mag-x', hash);
-  assert.equal(magnetdb.isAlive('premiumize', 'conta-mag-x', hash), true);
+  magnetdb.markAlive('premiumize', 'conta-mag-x', ['6'.repeat(40)]);
   assert.equal(magnetdb.isBad('premiumize', 'conta-mag-x', hash), true);
+  assert.equal(magnetdb.isAlive('premiumize', 'conta-mag-x', '6'.repeat(40)), true);
   // Outra conta e outro serviço não veem o histórico — cache do debrid
   // pertence à conta, e "morto" num serviço não vale para outro.
-  assert.equal(magnetdb.isAlive('premiumize', 'conta-mag-y', hash), false);
+  assert.equal(magnetdb.isAlive('premiumize', 'conta-mag-y', '6'.repeat(40)), false);
   assert.equal(magnetdb.isBad('torbox', 'conta-mag-x', hash), false);
   // Hash é normalizado: marcar em maiúsculas e ler em minúsculas casa.
   magnetdb.markAlive('premiumize', 'conta-mag-x', ['B'.repeat(40)]);
   assert.equal(magnetdb.isAlive('premiumize', 'conta-mag-x', 'b'.repeat(40)), true);
+});
+
+test('bad vence sobre alive: markBad apaga o histórico vivo do mesmo hash', () => {
+  // As janelas de TTL são distintas (24h contra 7 dias), então os dois podem
+  // coexistir — e aí o instantSet empurraria ao topo um hash que o filtro
+  // pré-checagem ia cortar, gastando vaga do pool de candidatos.
+  const hash = '8'.repeat(40);
+  const conta = 'conta-bad-vence';
+  magnetdb.markAlive('premiumize', conta, [hash]);
+  assert.equal(magnetdb.isAlive('premiumize', conta, hash), true);
+  magnetdb.markBad('premiumize', conta, hash);
+  assert.equal(magnetdb.isBad('premiumize', conta, hash), true);
+  assert.equal(magnetdb.isAlive('premiumize', conta, hash), false, 'alive não sobrevive ao bad no mesmo hash');
+});
+
+test('pickFile: listagem vazia é null (transferência fria), não prova de magnet quebrado', () => {
+  // null significa "ainda baixando" — o /resolve NÃO grava bad para null.
+  assert.equal(pickFile([], {}), null);
+});
+
+test('pickFile: arquivos presentes e nenhum vídeo lança NoVideoError', () => {
+  // A única prova determinística de magnet quebrado: a listagem veio COM
+  // arquivos e nenhum é vídeo (pack só de .rar, sample.mkv sozinho).
+  assert.throws(() => pickFile([{ path: 'x.rar' }], {}), NoVideoError);
+  assert.throws(() => pickFile([{ path: 'sample.mkv' }], {}), NoVideoError);
+  // Com vídeo de verdade não lança: escolhe o maior e segue o play.
+  const ok = pickFile([{ path: 'sample.mkv' }, { path: 'filme.mkv' }], {}) as any;
+  assert.equal(ok.path, 'filme.mkv', 'sample sai do balde de vídeos, não condena o torrent');
+});
+
+test('atalho do davail renova o histórico alive sem rede', async () => {
+  const { adapter, calls } = makeFake(async (_apiKey, infoHashes) => ({
+    cached: new Set(infoHashes),
+    complete: true,
+  }));
+  const original = debrid.BY_ID.get('premiumize');
+  debrid.BY_ID.set('premiumize', adapter as any);
+  const key = 'chave-mag-atalho';
+  const hash = '7'.repeat(40);
+  const aliveKey = `${prefix('mag')}alive:premiumize:${accountScope(key)}:${hash}`;
+  try {
+    await runWith({ opts: userOpts(key), encoded: '' }, () => debrid.checkCached([hash]));
+    assert.equal(calls.length, 1, 'primeira passada vai à rede');
+    assert.equal(magnetdb.isAlive('premiumize', key, hash), true);
+    // Simula o alive expirando enquanto o davail (TTL curto) ainda cobre:
+    // sem a renovação no atalho, quanto mais buscado o título, mais cedo o
+    // desempate instant morria no meio do TTL de 7 dias.
+    cache.forget(aliveKey);
+    assert.equal(magnetdb.isAlive('premiumize', key, hash), false);
+    await runWith({ opts: userOpts(key), encoded: '' }, () => debrid.checkCached([hash]));
+    assert.equal(calls.length, 1, 'segunda passada é servida pelo L1 do davail, sem rede');
+    assert.equal(magnetdb.isAlive('premiumize', key, hash), true, 'mesma evidência confirmada, servida da memória, renova o TTL');
+    // Renovação ECONÔMICA: com o alive recém-regravado (TTL cheio pela frente),
+    // um novo hit do atalho NÃO regrava — o hit do L1 não é evidência nova.
+    metrics.reset();
+    await runWith({ opts: userOpts(key), encoded: '' }, () => debrid.checkCached([hash]));
+    assert.equal(calls.length, 1, 'continua sem rede');
+    assert.equal(magnetdb.isAlive('premiumize', key, hash), true);
+    const counters = (metrics.snapshot() as any).counters;
+    assert.equal(counters['magnetdb.alive.set'] == null, true, 'alive fresco não é regravado no hit do atalho');
+  } finally {
+    metrics.reset();
+    debrid.BY_ID.set('premiumize', original as any);
+  }
 });
 
 test('checkCached com positivo confirmado grava o histórico alive', async () => {
@@ -193,5 +262,54 @@ test('buildStreams sobrevive a item sem infoHash com banco de magnets ligado', a
     assert.ok(out.length >= 1, 'o resultado com hash continua entregue');
   } finally {
     debrid.checkCached = originalCheck;
+  }
+});
+
+// O aviso é o que o usuário vê quando o filtro pré-checagem esvazia a lista:
+// sem texto próprio ele sairia como "fora do cache", culpando a checagem pelo
+// que foi histórico ruim. As métricas separadas são o instrumento que valida a
+// correção do markBad em produção (.bad deve despencar depois dela).
+test('buildStreams: filtro pré-checagem esvaziando gera aviso próprio e métricas bad/dead separadas', async () => {
+  const { adapter } = makeFake();
+  const original = debrid.BY_ID.get('premiumize');
+  debrid.BY_ID.set('premiumize', adapter as any);
+  const originalCheck = debrid.checkCached;
+  debrid.checkCached = async () => ({ cached: new Set<string>(), known: true }) as any;
+  const key = 'chave-mag-aviso';
+  const badHash = 'b'.repeat(40);
+  const deadHash = 'e'.repeat(40);
+  magnetdb.markBad('premiumize', key, badHash);
+  autofetch.blacklist('premiumize', accountScope(key), deadHash);
+  metrics.reset();
+  try {
+    const out = await runWith(
+      { opts: { ...userOpts(key), debridCachedOnly: false }, encoded: 'segcfg' },
+      () =>
+        buildStreams(
+          [
+            // Formato já normalizado (minúsculo): `InfoHash` maiúsculo de
+            // Jackett cru viraria null no toStremioStream antes do filtro.
+            { title: `Filme Ruim ${badHash}`, infoHash: badHash, seeders: 10 },
+            { title: `Filme Morto ${deadHash}`, infoHash: deadHash, seeders: 20 },
+          ] as any,
+          {
+            season: null,
+            episode: null,
+            imdbId: 'tt0000003',
+            searchKey: 'magnet-db-aviso',
+            deadlineAt: Date.now() + 8000,
+          } as any,
+        ),
+    );
+    assert.equal(out.length, 1, 'sobra só o item de aviso');
+    assert.match(String(out[0].name), /histórico ruim/, 'o aviso diz o motivo real, não "fora do cache"');
+    const counters = (metrics.snapshot() as any).counters;
+    assert.equal(counters['magnetdb.dropped'], 2);
+    assert.equal(counters['magnetdb.dropped.bad'], 1, 'bad (banco de magnets) contado à parte');
+    assert.equal(counters['magnetdb.dropped.dead'], 1, 'dead (blacklist do autofetch) contado à parte');
+  } finally {
+    metrics.reset();
+    debrid.checkCached = originalCheck;
+    debrid.BY_ID.set('premiumize', original as any);
   }
 });

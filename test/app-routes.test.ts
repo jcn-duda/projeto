@@ -9,7 +9,8 @@ process.env.CACHE_PERSIST = 'false';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
-import { WorkPickError, EpisodePickError } from '../src/debrid/common.js';
+import { WorkPickError, EpisodePickError, NoVideoError } from '../src/debrid/common.js';
+import * as magnetdb from '../src/utils/magnetdb.js';
 import type { DebridAdapter } from '../types/domain.js';
 import * as cache from '../src/utils/cache.js';
 import { createTestServer, encodeConfig, withMockFetch, fakeResponse } from './e2e/e2e-harness.js';
@@ -201,8 +202,10 @@ test('/resolve devolve 502 quando o debrid lança e 404 quando não há vídeo',
 
     FAKE_ADAPTER.resolveLink = async () => null;
     const semVideo = await server.request('GET', `/${cfg}/resolve/${HASH}?sig=${sig}`);
+    // null não distingue "sem vídeo" de "ainda baixando": o texto é honesto
+    // sobre a dúvida, e nada entra no banco de magnets (teste abaixo).
     assert.equal(semVideo.status, 404);
-    assert.equal(semVideo.text, 'nenhum arquivo de vídeo no torrent');
+    assert.equal(semVideo.text, 'o torrent ainda está baixando no debrid');
   } finally {
     FAKE_ADAPTER.resolveLink = originalResolve;
   }
@@ -236,6 +239,93 @@ test('/resolve devolve 404 quando pickFile não identifica episódio no pack', a
     assert.equal(res.status, 404);
     assert.equal(res.text, 'este episódio não foi encontrado no pack');
   } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+  }
+});
+
+// Banco de magnets no /resolve: só a falha DETERMINÍSTICA (NoVideoError) grava
+// bad; null (transitório), pick falho e erro de rede não condenam o hash.
+// Cada caso usa hash próprio para não contaminar o estado entre testes.
+test('/resolve: null NÃO grava bad no banco de magnets', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashNull = 'a'.repeat(40);
+  const sig = hmacSig('fake-key', hashNull);
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    FAKE_ADAPTER.resolveLink = async () => null;
+    const res = await server.request('GET', `/${cfg}/resolve/${hashNull}?sig=${sig}`);
+    assert.equal(res.status, 404);
+    assert.equal(
+      magnetdb.isBad('fakebrid', 'fake-key', hashNull),
+      false,
+      'null é transitório na maioria dos adaptadores — gravar era blacklists de torrent bom',
+    );
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+  }
+});
+
+test('/resolve: NoVideoError grava bad e devolve 404 honesto', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashBad = 'b'.repeat(40);
+  const sig = hmacSig('fake-key', hashBad);
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    FAKE_ADAPTER.resolveLink = async () => { throw new NoVideoError(); };
+    const res = await server.request('GET', `/${cfg}/resolve/${hashBad}?sig=${sig}`);
+    assert.equal(res.status, 404);
+    assert.equal(res.text, 'nenhum arquivo de vídeo no torrent');
+    assert.equal(magnetdb.isBad('fakebrid', 'fake-key', hashBad), true, 'listagem com arquivos e nenhum vídeo é prova');
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+  }
+});
+
+test('/resolve: WorkPickError e EpisodePickError não gravam nada', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashWork = 'c'.repeat(40);
+  const hashEp = 'd'.repeat(40);
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    FAKE_ADAPTER.resolveLink = async () => { throw new WorkPickError(); };
+    await server.request('GET', `/${cfg}/resolve/${hashWork}?sig=${hmacSig('fake-key', hashWork)}`);
+    FAKE_ADAPTER.resolveLink = async () => { throw new EpisodePickError(); };
+    await server.request('GET', `/${cfg}/resolve/${hashEp}?s=1&e=2&sig=${hmacSig('fake-key', `${hashEp}?s=1&e=2`)}`);
+    assert.equal(magnetdb.isBad('fakebrid', 'fake-key', hashWork), false, 'o pack pode servir outra obra');
+    assert.equal(magnetdb.isBad('fakebrid', 'fake-key', hashEp), false, 'o pack pode servir outro episódio');
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+  }
+});
+
+test('/resolve: link resolveu grava alive no banco de magnets', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashOk = '1'.repeat(40);
+  const sig = hmacSig('fake-key', hashOk);
+
+  const res = await server.request('GET', `/${cfg}/resolve/${hashOk}?sig=${sig}`);
+  assert.equal(res.status, 302);
+  assert.equal(magnetdb.isAlive('fakebrid', 'fake-key', hashOk), true, 'play resolvido é evidência de vivo + instantâneo');
+});
+
+test('/resolve: MAGNET_DB=false desliga a gravação', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashOff = '2'.repeat(40);
+  const sig = hmacSig('fake-key', hashOff);
+  const originalEnabled = config.magnetDb.enabled;
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    config.magnetDb.enabled = false;
+    FAKE_ADAPTER.resolveLink = async () => { throw new NoVideoError(); };
+    const res = await server.request('GET', `/${cfg}/resolve/${hashOff}?sig=${sig}`);
+    assert.equal(res.status, 404);
+    assert.equal(magnetdb.isBad('fakebrid', 'fake-key', hashOff), false, 'kill-switch desliga o banco inteiro');
+  } finally {
+    config.magnetDb.enabled = originalEnabled;
     FAKE_ADAPTER.resolveLink = originalResolve;
   }
 });

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, WorkPickError, isWorkPickError, isEpisodePickError,
+  NoVideoError,
 } from '../src/debrid/common.js';
 
 // Escolha POR OBRA dentro de pack multi-filme: a dica assinada na URL de play
@@ -244,8 +245,11 @@ test('pickFile com pack=true e obra identificável pelo ano escolhe certo', () =
   assert.equal(file!.path, 'Jornada nas Estrelas II A Ira de Khan (1982) Dublado 1080p.mkv');
 });
 
-test('pickFile torrent sem vídeo devolve null (não lança WorkPickError)', () => {
-  assert.equal(pickFile([{ path: 'readme.txt', size: 100 }], {}), null);
+test('pickFile distingue listagem vazia de torrent sem vídeo', () => {
+  // Listagem COM arquivos e nenhum vídeo é prova determinística de magnet
+  // quebrado: lança NoVideoError para o /resolve gravar bad no banco.
+  assert.throws(() => pickFile([{ path: 'readme.txt', size: 100 }], {}), NoVideoError);
+  // Listagem VAZIA é transferência fria ("ainda baixando"): null, prova nenhuma.
   assert.equal(pickFile([], {}), null);
 });
 

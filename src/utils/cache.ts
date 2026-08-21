@@ -12,9 +12,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const store = new Map();
-// A soma das cotas conhecidas é 24.200. O teto global fica logo acima dela
-// como proteção para prefixes novos, sem um namespace conhecido expulsar outro.
-const MAX_ENTRIES = 25000;
+// A soma das cotas conhecidas é 26.000 — o teto PRECISA ficar acima dela, senão
+// em cache cheio o despejo global morde antes da cota de namespace e a
+// repartição que as cotas prometem nunca vale (medido: 25k contra 26k fazia o
+// `cache.evicted` global disparar em operação normal). Memória: o raw domina
+// (800 × ~100 KB ≈ 79 MB no pior caso); os demais namespaces guardam entrada
+// minúscula (0/1) — folga confortável dentro do mem_limit de 3g do container.
+const MAX_ENTRIES = 30000;
 const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -439,6 +443,18 @@ function set(key: string, value: unknown, ttlSeconds: number) {
 }
 
 /**
+ * Segundos restantes da entrada, SEM promovê-la no LRU nem contar métrica —
+ * leitura de sondagem, para o consumidor decidir se vale regravar. Expirada ou
+ * ausente devolve null; entrada sem TTL também (não há o que renovar).
+ */
+function peekRemaining(key: string): number | null {
+  const hit = store.get(key);
+  if (!hit || !hit.expiresAt) return null;
+  if (Date.now() > hit.expiresAt) return null;
+  return Math.max(0, Math.round((hit.expiresAt - Date.now()) / 1000));
+}
+
+/**
  * Escrita em LOTE com UMA passada de evicção por namespace. O `set` unitário
  * já dava conta dos consumidores antigos; o davail escreve um registro por
  * hash da busca no caminho de resposta, e em saturação de cota cada `set`
@@ -520,4 +536,4 @@ loadFromDisk();
 pruneTimer = setInterval(prune, 10 * 60 * 1000);
 pruneTimer.unref();
 
-export { MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, prune, clear, size, snapshot, close };
+export { MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, prune, clear, size, snapshot, peekRemaining, close };

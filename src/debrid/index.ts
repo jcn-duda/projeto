@@ -277,7 +277,17 @@ async function checkCached(
     }
     if (missing.length < unique.length) metrics.count('davail.servedHashes', unique.length - missing.length);
     toAsk = missing;
-    if (toAsk.length === 0) return { cached: fromCache, known: true };
+    if (toAsk.length === 0) {
+      // O atalho respondeu TUDO pela memória, mas a evidência é a mesma do
+      // caminho com rede — positivo confirmado. Sem renovar aqui, quanto mais
+      // buscado o título, mais ele era servido pelo atalho e mais cedo o
+      // desempate instant morria no meio do TTL de 7 dias. A renovação é
+      // ECONÔMICA (só quem está na segunda metade do TTL): o hit do L1 não é
+      // evidência nova, e regravar todo hit de título popular era escrita
+      // recorrente sem ganho.
+      magnetdb.renewAlive(adapter.id, apiKey, [...fromCache]);
+      return { cached: fromCache, known: true };
+    }
   }
 
   let result: CacheCheckResult;

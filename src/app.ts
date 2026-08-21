@@ -5,7 +5,7 @@ import sdk from 'stremio-addon-sdk';
 import config from './config.js';
 import { findStreams, applyNoticeOrigin, onlyNotice, autofetchStatus } from './providers/index.js';
 import debrid from './debrid/index.js';
-import { isWorkPickError, isEpisodePickError } from './debrid/common.js';
+import { isWorkPickError, isEpisodePickError, isNoVideoError } from './debrid/common.js';
 import * as runtime from './runtime.js';
 import { verifyResolve } from './utils/sign.js';
 import * as jackettCatalog from './providers/jackett-catalog.js';
@@ -252,18 +252,27 @@ function createApp() {
         work,
       });
       if (!link) {
-        // Torrent sem arquivo de vídeo: evidência DETERMINÍSTICA de magnet
-        // quebrado — entra no banco para sair das próximas listas. Erro
-        // transitório e pick falho (WorkPickError/EpisodePickError) NÃO
-        // gravam: condenariam um hash bom por engano.
-        if (adapter) magnetdb.markBad(adapter.id, runtime.opts().debridApiKey, infoHash);
-        return res.status(404).send('nenhum arquivo de vídeo no torrent');
+        // null NÃO condena o hash: ele cobre tanto "sem vídeo" quanto
+        // "ainda baixando / upload recusado", e só o pickFile distingue —
+        // via NoVideoError, no catch abaixo. Marcar bad aqui blacklists
+        // torrent bom por 24h (pior caso medido: o próprio autofetch baixa
+        // o torrent e o banco esconde o resultado pronto por um dia).
+        return res.status(404).send('o torrent ainda está baixando no debrid');
       }
       // Play que resolveu de verdade é a evidência mais forte de "vivo +
       // instantâneo": renova o histórico durável desta conta.
       if (adapter) magnetdb.markAlive(adapter.id, runtime.opts().debridApiKey, [infoHash]);
       return res.redirect(302, link);
     } catch (err) {
+      // Única falha determinística do play: a listagem veio com arquivos e
+      // nenhum é vídeo. Entra no banco para sair das próximas listas. Erro
+      // transitório, null e pick falho (WorkPickError/EpisodePickError) NÃO
+      // gravam: condenariam um hash bom por engano.
+      if (isNoVideoError(err)) {
+        const adapter = debrid.current();
+        if (adapter) magnetdb.markBad(adapter.id, runtime.opts().debridApiKey, infoHash);
+        return res.status(404).send('nenhum arquivo de vídeo no torrent');
+      }
       if (isWorkPickError(err)) {
         return res.status(404).send('não foi possível identificar este filme dentro do pack');
       }

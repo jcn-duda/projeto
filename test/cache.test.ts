@@ -385,7 +385,7 @@ test('cotas da Fase 3: raw limitado, streams ampliado, davail e mag de entrada b
   // raw guarda itens grandes (até ~100 KB por entrada), então a cota fica bem
   // abaixo das de entrada minúscula; davail e mag são registros pequenos por
   // hash (0/1), o que permite cota alta sem custo de memória; o teto global
-  // continua sendo a soma das cotas + folga.
+  // é a soma das cotas + folga (26.000 → 30.000).
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
@@ -395,7 +395,10 @@ test('cotas da Fase 3: raw limitado, streams ampliado, davail e mag de entrada b
     assert.equal(cache.QUOTAS.streams, 2000);
     assert.equal(cache.QUOTAS.davail, 5000);
     assert.equal(cache.QUOTAS.mag, 8000);
-    assert.equal(cache.MAX_ENTRIES, 25000);
+    // Teto global acima da SOMA das cotas (26.000): abaixo disso, em cache
+    // cheio, o despejo global morde antes da cota de namespace e a repartição
+    // que as cotas prometem nunca vale.
+    assert.equal(cache.MAX_ENTRIES, 30000);
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;

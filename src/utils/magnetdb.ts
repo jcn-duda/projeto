@@ -54,11 +54,22 @@ function isAlive(adapterId: string, apiKey: string, hash: string) {
  * Grava que o hash provou estar quebrado nesta conta (torrent sem arquivo de
  * vídeo no play). TTL próprio: torrent pode ganhar upload novo, então o
  * negativo também envelhece.
+ *
+ * bad VENCE sobre alive: as janelas de TTL são distintas (24h contra 7 dias),
+ * então os dois podem coexistir no mesmo hash — e aí o comportamento seria
+ * indefinido (o filtro pré-checagem corta, mas o instantSet já o empurrou ao
+ * topo do sort, gastando uma vaga do pool de candidatos). Evidência mais
+ * recente e específica (play sem vídeo depois da confirmação de cache) manda.
  */
 function markBad(adapterId: string, apiKey: string, hash: string) {
   const ttl = config.magnetDb.badTtl;
   if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
-  cache.set(badKey(adapterId, apiKey, hash), 1, ttl);
+  const key = badKey(adapterId, apiKey, hash);
+  cache.set(key, 1, ttl);
+  // O alive não pode sobreviver ao bad no mesmo hash: sem o forget ele
+  // continuaria desempatando o sort por até 7 dias num magnet que provou
+  // estar quebrado.
+  cache.forget(aliveKey(adapterId, apiKey, String(hash || '').toLowerCase()));
   metrics.count('magnetdb.bad.set');
 }
 
@@ -67,4 +78,24 @@ function isBad(adapterId: string, apiKey: string, hash: string) {
   return cache.get(badKey(adapterId, apiKey, hash)) === 1;
 }
 
-export { markAlive, isAlive, markBad, isBad };
+/**
+ * Renovação ECONÔMICA para o atalho do davail: regrava só o hash cujo alive
+ * está na segunda metade do TTL. O hit do L1 não é evidência nova — é a mesma
+ * confirmação de antes —, e regravar o histórico inteiro em todo hit de título
+ * popular virava escrita recorrente sem ganho: quem está no começo do TTL de
+ * 7 dias desempata igual. Entrada sem registro (expirou) também renova — o
+ * davail acabou de confirmar o positivo; hash com `bad` NÃO renova (bad vence,
+ * e a renovação não pode ressuscitá-lo pela janela do davail).
+ */
+function renewAlive(adapterId: string, apiKey: string, hashes: string[]) {
+  const ttl = config.magnetDb.aliveTtl;
+  if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey) return;
+  const stale = [...new Set(hashes.map((h) => String(h || '').toLowerCase()))].filter((hash) => {
+    if (!hash || isBad(adapterId, apiKey, hash)) return false;
+    const remaining = cache.peekRemaining(aliveKey(adapterId, apiKey, hash));
+    return remaining == null || remaining < ttl / 2;
+  });
+  markAlive(adapterId, apiKey, stale);
+}
+
+export { markAlive, isAlive, markBad, isBad, renewAlive };

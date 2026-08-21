@@ -578,16 +578,35 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
   // ela, e um morto aqui pode estar vivo em outro serviço.
   const trustApiKey = opts().debridApiKey;
   const trustScope = accountScope(trustApiKey);
-  const beforeTrust = streams.length;
-  streams = streams.filter((s: any) => !(s.infoHash && (
-    magnetdb.isBad(adapter.id, trustApiKey, s.infoHash) ||
-    autofetch.isDead(adapter.id, trustScope, s.infoHash)
-  )));
-  if (streams.length < beforeTrust) {
-    metrics.count('magnetdb.dropped', beforeTrust - streams.length);
-    log.info(`[debrid] ${beforeTrust - streams.length} magnet(s) com histórico ruim descartado(s) antes da checagem`);
+  // Contadores SEPARADOS por origem: bad é play sem vídeo (banco de magnets),
+  // dead é estado terminal no recheck do autofetch. Somados escondem qual dos
+  // dois corta — e é exatamente o que o diagnóstico precisa distinguir.
+  let droppedBad = 0;
+  let droppedDead = 0;
+  streams = streams.filter((s: any) => {
+    if (!s.infoHash) return true;
+    if (magnetdb.isBad(adapter.id, trustApiKey, s.infoHash)) {
+      droppedBad += 1;
+      return false;
+    }
+    if (autofetch.isDead(adapter.id, trustScope, s.infoHash)) {
+      droppedDead += 1;
+      return false;
+    }
+    return true;
+  });
+  if (droppedBad + droppedDead > 0) {
+    metrics.count('magnetdb.dropped', droppedBad + droppedDead);
+    if (droppedBad) metrics.count('magnetdb.dropped.bad', droppedBad);
+    if (droppedDead) metrics.count('magnetdb.dropped.dead', droppedDead);
+    log.info(`[debrid] ${droppedBad + droppedDead} magnet(s) com histórico ruim descartado(s) antes da checagem (${droppedBad} bad, ${droppedDead} dead)`);
   }
-  if (streams.length === 0) return streams;
+  if (streams.length === 0) {
+    // O filtro pré-checagem esvaziou a lista: sem reportar, o aviso sairia como
+    // "fora do cache", culpando a checagem pelo que foi histórico ruim.
+    if (onCacheResult) onCacheResult({ known: true, needsFullRefresh: false, autofetchCount: 0, trustDropped: droppedBad + droppedDead });
+    return streams;
+  }
 
   // Só quem ainda é torrent tem hash pra consultar; stream já resolvido não entra no lote.
   const hashes = streams.map((s: any) => s.infoHash).filter(Boolean);
@@ -1541,6 +1560,10 @@ async function buildStreams(
   // no caso que motivou o aviso (nada em cache) ele volta VAZIO e a condição
   // nunca ligava.
   const candidatesBeforeDebrid = streams.length;
+  // Cortados pelo filtro pré-checagem (histórico ruim), reportados pelo
+  // applyDebrid só quando eles esvaziam a lista — é a única vez em que o texto
+  // "fora do cache" mentiria sobre o motivo.
+  let trustDropped = 0;
   const beforeCut = await applyDebrid(streams, {
     season,
     episode,
@@ -1549,6 +1572,7 @@ async function buildStreams(
     deadlineAt,
     onCacheResult: (result: any) => {
       autofetchCount += result.autofetchCount || 0;
+      trustDropped += result.trustDropped || 0;
       if (onDebridResult) onDebridResult(result);
     },
     workHint,
@@ -1569,6 +1593,9 @@ async function buildStreams(
   // instantes" num filme sem resultado seria mentira.
   const noticeText = () => {
     if (autofetchCount > 0) return '⏳ Baixando no debrid — reabra em alguns minutos';
+    if (candidatesBeforeDebrid > 0 && trustDropped >= candidatesBeforeDebrid) {
+      return `Nenhuma fonte pronta — ${trustDropped} resultado(s) descartado(s) por histórico ruim nesta conta do debrid`;
+    }
     if (candidatesBeforeDebrid > 0) {
       return `Nenhuma fonte pronta — ${candidatesBeforeDebrid} resultado(s) fora do cache`;
     }

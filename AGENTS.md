@@ -296,6 +296,41 @@ declarar `true` sem endpoint funcional é o pior dos mundos.
 | Real-Debrid | `false` | sem consulta; o play adiciona o magnet |
 | Debrid-Link | `false` | idem |
 
+**Banco de magnets (`src/utils/magnetdb.ts`).** Histórico durável POR HASH,
+escopado por serviço+conta (`mag:v1:<lado>:<adapterId>:<sha256(apiKey)>:<hash>`) —
+nunca vaza credencial, não cruza contas. Alimenta duas decisões da listagem: o
+filtro pré-checagem do `applyDebrid` (descarta o que provou estar quebrado,
+antes de gastar lote — ou upload, na AllDebrid) e o desempate `instant` do
+`sortAndLimit` (quem provou tocar na hora sobe acima dos seeders, DEPOIS de
+episódio/qualidade/dublado/prioridade — histórico desempata, não reordena).
+Regra de ouro: só evidência MEDIDA entra, e falso negativo (descartar magnet
+bom) é pior que falso positivo.
+
+- **`alive`** (TTL `MAGNET_ALIVE_TTL`, 7 dias): positivo confirmado na checagem
+  de cache ou play que resolveu de verdade no `/resolve`. O atalho do davail
+  (resposta toda servida do L1) também renova — mesma evidência, servida da
+  memória; sem isso, título muito buscado matava o desempate no meio do TTL.
+- **`bad`** (TTL `MAGNET_BAD_TTL`, 24h): ÚNICA origem é o `NoVideoError` do
+  `pickFile` — a listagem veio com arquivos e nenhum é vídeo. `null` do
+  `resolveLink` NÃO grava: ele cobre "ainda baixando", upload recusado e
+  transferência fria na maioria dos adaptadores; condenar por null blacklists
+  torrent bom por 24h (pior caso: o próprio autofetch baixa o torrent e o
+  banco esconde o resultado pronto por um dia). `WorkPickError`/
+  `EpisodePickError` também não — o pack pode servir outra obra/episódio.
+  `markBad` apaga o `alive` do mesmo hash: bad vence, senão o instantSet
+  empurrava ao topo um hash que o filtro ia cortar.
+
+A fronteira **bad × dead**: mesmo TTL de 24h, mesmo ponto de filtro
+(`applyDebrid`, pré-checagem), origens diferentes — bad é play sem vídeo
+(banco de magnets), dead é estado terminal observado no recheck do autofetch
+(blacklist própria, `autofetch:v3:dead:`). Manter separados: as evidências são
+distintas e as métricas (`magnetdb.dropped.bad` / `magnetdb.dropped.dead`)
+separam para o diagnóstico não culpar o lado errado. Unificar só se um
+terceiro consumidor aparecer.
+
+Kill-switches no `.env`: `MAGNET_DB=false` desliga o banco inteiro;
+`MAGNET_ALIVE_TTL=0` e `MAGNET_BAD_TTL=0` desligam cada lado.
+
 AllDebrid **mede** ⚡, mas a consulta é um upload e **não é abortável**
 (`abortSafeCacheCheck: false`). A corrida da resposta não cancela o trabalho:
 abortar depois do upload perderia os ids necessários para a limpeza.

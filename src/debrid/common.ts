@@ -128,6 +128,27 @@ function isEpisodePickError(error: MaybeError) {
 }
 
 /**
+ * A listagem veio COM arquivos e NENHUM é vídeo — a única prova determinística
+ * de magnet quebrado. Diferente do null: listagem VAZIA é transferência fria
+ * ("ainda baixando") e prova nenhuma, então continua null. Quem lança é o
+ * pickFile, porque é o único ponto que vê files e videos juntos — o null que os
+ * adaptadores devolvem para "não pronto" não distingue nada, e condenar hash
+ * por null era blacklistar torrent bom por até 24h (pior caso: o próprio
+ * autofetch baixa o torrent e o banco esconde o resultado pronto por um dia).
+ */
+class NoVideoError extends Error {
+  code = 'NO_VIDEO';
+  constructor() {
+    super('o torrent não contém nenhum arquivo de vídeo');
+    this.name = 'NoVideoError';
+  }
+}
+
+function isNoVideoError(error: MaybeError) {
+  return error?.code === 'NO_VIDEO';
+}
+
+/**
  * Um fetch JSON com o timeout do debrid já aplicado. Cada serviço tem o seu
  * jeito de autenticar, então o header vai por fora.
  *
@@ -287,7 +308,12 @@ function pickWorkFile(files: DebridFile[], { names, year }: { names?: string[]; 
  */
 function pickFile(files: DebridFile[], { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
   const videos = files.filter((f) => VIDEO_EXT.test(f.path || '') && !SAMPLE.test(f.path || ''));
-  if (videos.length === 0) return null;
+  if (videos.length === 0) {
+    // Listagem COM arquivos e nenhum vídeo é prova; listagem vazia é
+    // transferência fria, e prova nenhuma.
+    if (files.length > 0) throw new NoVideoError();
+    return null;
+  }
 
   if (season != null && episode != null) {
     const s = String(season).padStart(2, '0');
@@ -453,5 +479,6 @@ export {
   magnetFor, json, pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, batched, wait,
   AuthError, isAuthError, QuotaError, isQuotaError, RateLimitError, isRateLimitError,
   WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError,
+  NoVideoError, isNoVideoError,
   VIDEO_EXT, SAMPLE, EXTRA,
 };

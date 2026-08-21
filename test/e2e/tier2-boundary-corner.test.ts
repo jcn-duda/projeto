@@ -805,14 +805,18 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       assert.equal(result.complete, true);
     });
 
-    it('F10-BND-03: pickFile returns null for torrents with zero video files', () => {
+    it('F10-BND-03: pickFile lança NoVideoError para torrents sem nenhum arquivo de vídeo', () => {
       const nonVideoFiles = [
         { path: 'readme.txt', name: 'readme.txt', bytes: 1024 },
         { path: 'sample.nfo', name: 'sample.nfo', bytes: 2048 },
         { path: 'subs.srt', name: 'subs.srt', bytes: 50000 },
         { path: 'setup.exe', name: 'setup.exe', bytes: 5000000 },
       ];
-      assert.equal(debridCommon.pickFile(nonVideoFiles), null);
+      // Listagem COM arquivos e nenhum vídeo é prova determinística de magnet
+      // quebrado — o /resolve usa o erro para gravar bad no banco de magnets.
+      assert.throws(() => debridCommon.pickFile(nonVideoFiles), (err: any) => err?.code === 'NO_VIDEO');
+      // Listagem VAZIA continua null: é transferência fria, prova nenhuma.
+      assert.equal(debridCommon.pickFile([]), null);
     });
 
     it('F10-BND-04: pickFile filters out samples and matches target episode in series pack', () => {
