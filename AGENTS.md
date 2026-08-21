@@ -151,7 +151,7 @@ Um `stream` request do Stremio percorre exatamente este caminho:
 addon.ts  processo (listen, warmup)
    └─ app.ts  defineStreamHandler
         └─ providers/index.ts  findStreams
-             ├─ cache SWR (streams:v5)          ← só lista completa + debridKnown + tocável
+             ├─ cache SWR (streams:v6)          ← só lista completa + debridKnown + tocável
              ├─ coalescing inFlight
              └─ doSearch
                   ├─ cinemeta.getMeta  ─┐ paralelo
@@ -531,7 +531,7 @@ operador).
 
 ## Cache multi-nível (fases 0–2 no código)
 
-A chave `streams:v5` isola config do usuário + digest da conta
+A chave `streams:v6` isola config do usuário + digest da conta
 (`request-key.ts`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
 — bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
 que não bate com a versão corrente). Duas instalações do mesmo título **não**
@@ -540,7 +540,7 @@ compartilham a lista — ela carrega URLs de play assinadas. O trabalho caro
 
 | camada | chave | o que guarda | kill-switch |
 |---|---|---|---|
-| L1+L2 streams | `streams:v5:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
+| L1+L2 streams | `streams:v6:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
 | bruto por indexer | `raw:v1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
 | SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
 
@@ -568,7 +568,7 @@ documentado no plano: `debrid.check.repeated / debrid.check.hashes` > 30% em
 
 ---
 
-## Índice de releases e o addon como servidor (`idx:v1`, PLANO_MAGNETDB... ver
+## Índice de releases e o addon como servidor (`idx:v2`, PLANO_MAGNETDB... ver
 ## PLANO no repo)
 
 O addon responde do PRÓPRIO índice quando ele cobre a obra, e usa o Jackett
@@ -579,7 +579,7 @@ RESPOSTA (<500ms):  /stream → idx + dinv → checagem no debrid → lista
 COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro → idx
 ```
 
-- **`src/utils/release-index.ts`** guarda por obra (`idx:v1:<imdbId>[:S:E]`) o
+- **`src/utils/release-index.ts`** guarda por obra (`idx:v2:<imdbId>[:S:E]`) o
   mínimo da release `{ hash, title, size, indexer, isBr, quality, seeders,
   seenAt }`. Invariantes: sem config/credencial na chave (compartilhado entre
   instalações DE PROPÓSITO — guarda o que EXISTE, nunca o que está pronto em
@@ -741,6 +741,15 @@ passa. Ele roda DUAS vezes:
 primeiro token de 4 dígitos antes de comparar, senão `Number("2024–")` é NaN e
 a regra de ano condena TODAS as releases reais.
 
+Homônimo escondido no MESMO post é outra família de falso positivo, e o título
+não a pega: HDRTorrent publica "O Corvo The Crow e Dual" com magnets de três
+filmes (The Crow 1994, The Raven 2012, The Crow 2024 — todos "O Corvo" em PT).
+Para FILME, a guarda do magnet (`magnetYearContradicts`) decodifica o `dn=` e,
+se ele cita exatamente UM ano que contradiz o catálogo por mais de ±2, corta a
+release mesmo com o título casando. Só roda fora de série/pack (o ano do pack é
+o da temporada) e DEPOIS do titleMatches — falso negativo aqui descartaria
+release boa por ruído de ano no nome; por isso exige um único ano contraditório.
+
 A exceção de franquia do inventário da conta (`filterInventoryRelevant`) **não**
 se aplica aos indexers. Globais usam `matchesName` + estrutura + identidade de
 obra delimitada pelo marcador de episódio (`matchesEpisodeWorkIdentity`) —
@@ -776,8 +785,8 @@ fire-and-forget) continua.
 | `src/providers/index.ts` | Orquestração: SWR, coalescing, deadline, collectRaw, passe tardio, debrid, corte, aviso |
 | `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
-| `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário |
-| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v1`): record/lookup/status — o que faz o addon responder sem Jackett |
+| `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário, varredura pt-BR nos globais |
+| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v2`): record/lookup/status — o que faz o addon responder sem Jackett |
 | `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
 | `src/providers/jackett-catalog.ts` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
 | `src/providers/indexer-status.ts` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
@@ -795,7 +804,7 @@ fire-and-forget) continua.
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
 | `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`) e `prefix(ns)` |
-| `src/utils/request-key.ts` | `streams:v5` + digest da conta (nunca a chave crua) |
+| `src/utils/request-key.ts` | `streams:v6` + digest da conta (nunca a chave crua) |
 | `src/utils/secret-box.ts` | AES-256-GCM do `dk` no install URL |
 | `src/utils/sign.ts` | HMAC do `/resolve` (hash + ep + dica `w`) |
 | `src/utils/deadline.ts` | `raceWithDeadline`, `remainingCheckBudget` |

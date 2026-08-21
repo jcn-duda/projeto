@@ -6,14 +6,18 @@
 // o formato antigo: o loadFromDisk apaga do disco tudo que não bate, em vez de
 // deixar a versão morta ocupando cota até expirar. Antes a versão vivia em dois
 // lugares e a do descarte ficou parada na v3 enquanto a chave já ia na v5.
+// streams v6: a guarda de ano pelo dn= do magnet (remake ≠ clássico) muda o
+// resultado do filtro — listas antigas com obra errada não podem sobreviver
+// ao TTL. idx v2: as releases gravadas sem essa prova morrem no boot e são
+// regravadas já filtradas.
 const NAMESPACE_VERSIONS = Object.freeze({
-  streams: 'v5',
+  streams: 'v6',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
   davail: 'v1',
   mag: 'v1',
-  idx: 'v1',
+  idx: 'v2',
   harvest: 'v1',
 });
 

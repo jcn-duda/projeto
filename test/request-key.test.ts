@@ -12,7 +12,7 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.includes('alice-secret'), false);
   assert.equal(bob.includes('bob-secret'), false);
   assert.equal(alice, streamsCacheKey('movie', 'tt123', { ...base, debridApiKey: 'alice-secret' }));
-  assert.equal(alice.startsWith('streams:v5:'), true);
+  assert.equal(alice.startsWith('streams:v6:'), true);
 });
 
 test('streamsCacheKey preserva a separação por conteúdo e por modo sem conta', () => {

@@ -1740,3 +1740,82 @@ test('filtro de release aceita grafias de versão estendida e extendida', () => 
   ], context);
   assert.equal(items.length, 3);
 });
+
+// ---- Ano verdadeiro escondido no dn= do magnet (caso real "O Corvo") ----
+// Medido no hdrtorrent em 21/08/2026: posts sem ano no título mapeado
+// ("O Corvo The Crow e Dual") entregam magnets de TRÊS filmes — The Crow
+// 1994, The Raven 2012 e The Crow 2024 — e os três se chamam "O Corvo" no
+// Brasil. Só o dn= do magnet separa as obras.
+const MAGNET_CORVO_1994 =
+  'magnet:?xt=urn:btih:7L5BM54D772PVXWVTKP6DWNTUJAL6LQG&dn=SITEDETORRENTS.COM..MKV.O%20Corvo%201994%20BluRay%201080p%20x265%20DUAL%202.0';
+const MAGNET_CROW_2024 =
+  'magnet:?xt=urn:btih:HSAMGJ4JLDVRVWFLCDZHSSATTOR3R5VB&dn=HIDRATORRENTS.ORG..MP4.-LEGENDADO-..The%20Crow%20(2024)%20%5B720p%5D%20%5BWEBRip%5D%20%5BYTS.MX%5D';
+const MAGNET_RAVEN_2012 =
+  'magnet:?xt=urn:btih:4ae7cc5c2140d659f92d1fb40ce9655a6ae55db4&dn=O+Corvo+%282012%29+BluRay+720p+Dublado';
+
+const corvoDual1994 = {
+  title: 'O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay',
+  isBr: true,
+  magnet: MAGNET_CORVO_1994,
+};
+const corvoSubbed2024 = {
+  title: 'O Corvo The Crow e Dual O CORVO  Subbed 5.1  720P 1080p, 2160p, 720p, HD, WEB-DL',
+  isBr: true,
+  magnet: MAGNET_CROW_2024,
+};
+const corvoRaven2012 = {
+  title: 'O Corvo Dublado BluRay 720p',
+  isBr: true,
+  magnet: MAGNET_RAVEN_2012,
+};
+
+test('filme: ano verdadeiro dentro do dn= separa remake do clássico', () => {
+  const nomesCorvo = ['The Crow', 'O Corvo'];
+
+  // Consulta pelo remake de 2024: só o magnet de 2024 sobrevive.
+  assert.deepEqual(
+    relevantRaw([corvoDual1994, corvoSubbed2024, corvoRaven2012], { names: nomesCorvo, year: '2024' }),
+    [corvoSubbed2024],
+  );
+
+  // Consulta pelo clássico de 1994: só o de 1994.
+  assert.deepEqual(
+    relevantRaw([corvoDual1994, corvoSubbed2024, corvoRaven2012], { names: nomesCorvo, year: '1994' }),
+    [corvoDual1994],
+  );
+
+  // Consulta pelo Poe de 2012 (The Raven é "O Corvo" em pt): os dois Crows
+  // caem SÓ pela guarda do dn= — nenhum dos títulos traz ano para julgar.
+  assert.deepEqual(
+    relevantRaw([corvoDual1994, corvoSubbed2024, corvoRaven2012], { names: ['The Raven', 'O Corvo'], year: '2012' }),
+    [corvoRaven2012],
+  );
+});
+
+test('filme: resolução não é ano; anos múltiplos no dn= são ambíguos e ficam', () => {
+  const item = {
+    title: 'Filme Qualquer DUAL 1080p BluRay',
+    isBr: true,
+    magnet: 'magnet:?xt=urn:btih:aabbcc&dn=Filme.Qualquier.2024.1080p.BluRay.x264.1920x1080',
+  };
+  assert.deepEqual(relevantRaw([item], { names: ['Filme Qualquer'], year: '2024' }), [item]);
+
+  const ambiguo = {
+    title: 'Coisa Dual Completa',
+    isBr: true,
+    magnet: 'magnet:?xt=urn:btih:ddee&dn=Pack.Coisa.1994.e.2024.DUAL',
+  };
+  assert.deepEqual(relevantRaw([ambiguo], { names: ['Coisa'], year: '2024' }), [ambiguo]);
+});
+
+test('série não sofre a guarda de ano pelo dn= (ano do post é o da temporada)', () => {
+  const serie = {
+    title: 'Serie Tal S01E01',
+    isBr: false,
+    magnet: 'magnet:?xt=urn:btih:ff11&dn=Serie.Tal.1994.S01E01.720p',
+  };
+  assert.deepEqual(
+    relevantRaw([serie], { names: ['Serie Tal'], year: '2011', isSeries: true, season: 1, episode: 1 }),
+    [serie],
+  );
+});

@@ -924,6 +924,37 @@ function filterInventoryRelevant(
 }
 
 /**
+ * Ano verdadeiro escondido no magnet: sites BR publicam o post sem ano no
+ * título mapeado ("O Corvo The Crow e Dual"), mas o dn= do magnet preserva o
+ * nome real da release. Medido no hdrtorrent: o MESMO post entrega magnets de
+ * três filmes ("The Crow (2024)", "O Corvo 1994", "O Corvo (2012)") — e os
+ * três se chamam "O Corvo" no Brasil, então nenhum filtro de título separa.
+ * Um único ano explícito no magnet contradizendo o catálogo além de ±2 é
+ * outra obra. Vários anos é ambíguo e passa, na mesma régua das regras de
+ * título; resolução (1920x1080) não é ano.
+ */
+function magnetYearContradicts(item: RawItem | null | undefined, catalogYear: number) {
+  const raw = String(item?.magnet || item?.MagnetUri || item?.Guid || '');
+  if (!raw || !catalogYear) return false;
+  // O dn= viaja percent-encoded ("O%20Corvo%201994"): sem decodificar, o '0'
+  // do %20 cola no ano e a fronteira de dígito esconde exatamente o ano
+  // verdadeiro que esta guarda procura. '+' é espaço na forma magnet.
+  let source = raw.replace(/\+/g, ' ');
+  try {
+    source = decodeURIComponent(source);
+  } catch {
+    /* sequência % malformada: segue com o texto que decodificou até aqui */
+  }
+  const cleaned = source.replace(/\d{3,4}x\d{3,4}/gi, ' ');
+  const years = [
+    ...new Set(
+      [...cleaned.matchAll(/(?<!\d)(?:19|20)\d{2}(?!\d)/g)].map((m: any) => Number(m[0])),
+    ),
+  ];
+  return years.length === 1 && Math.abs(years[0] - catalogYear) > 2;
+}
+
+/**
  * Classificação crua compartilhada pelo corte final e pelo gatilho de pack.
  * Usar uma função só impede o fallback de discordar do que buildStreams vai
  * descartar alguns milissegundos depois.
@@ -962,6 +993,13 @@ function filterRelevantRaw(
           matchesEpisodeWorkIdentity(title, names, tokens, universe),
     );
     if (!titleMatches) return false;
+    // Filme: o dn= do magnet carrega o ano verdadeiro quando o título
+    // mapeado não traz (e confirma quando traz). Séries ficam de fora — o
+    // ano do post delas é o da temporada, com regra própria acima.
+    if (!isSeries && season == null) {
+      const catalogYear = Number(String(year ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+      if (catalogYear && magnetYearContradicts(item, catalogYear)) return false;
+    }
     if (season == null || episode == null) return true;
     return matchesEpisode(title, { season, episode });
   });
