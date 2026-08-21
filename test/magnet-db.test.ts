@@ -9,7 +9,7 @@ import * as magnetdb from '../src/utils/magnetdb.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import debrid from '../src/debrid/index.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid, buildStreams } from '../src/providers/index.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { sortAndLimit } from '../src/utils/format.js';
@@ -162,4 +162,36 @@ test('sortAndLimit: histórico instantâneo desempata acima dos seeders', () => 
     instant: (h: string) => h === proven,
   } as any);
   assert.equal((comHistorico[0] as any).infoHash, proven, 'magnet que já provou tocar na hora vence a aposta de seeders');
+});
+
+// Regressão medida no container (tt11198330:2:1, 520 resultados, lista vazia):
+// `toStremioStream` devolve NULL para item sem infoHash — link que resolvedor
+// nenhum abriu — e o desempate do banco de magnets lia `.infoHash` do buraco.
+// Um único resultado assim derrubava a BUSCA INTEIRA com TypeError, e o usuário
+// via zero stream num título com centenas de releases.
+test('buildStreams sobrevive a item sem infoHash com banco de magnets ligado', async () => {
+  const originalCheck = debrid.checkCached;
+  debrid.checkCached = async () => ({ cached: new Set<string>(), known: true }) as any;
+  try {
+    const raw = [
+      // Sem infoHash e sem magnet: vira null no mapeamento.
+      { Title: 'Serie Sem Hash S02E01 1080p', Seeders: 9, Link: 'https://sem-hash.test/x' },
+      { Title: 'Serie Boa S02E01 1080p DUAL', Seeders: 40, InfoHash: '5'.repeat(40) },
+    ];
+    const out = await runWith(
+      { opts: { ...userOpts('chave-mag-null'), debridCachedOnly: false }, encoded: 'segcfg' },
+      () =>
+        buildStreams(raw as any, {
+          season: 2,
+          episode: 1,
+          imdbId: 'tt0000002',
+          searchKey: 'magnet-db-null',
+          deadlineAt: Date.now() + 8000,
+        } as any),
+    );
+    assert.ok(Array.isArray(out), 'a lista não pode morrer por causa do item sem hash');
+    assert.ok(out.length >= 1, 'o resultado com hash continua entregue');
+  } finally {
+    debrid.checkCached = originalCheck;
+  }
 });

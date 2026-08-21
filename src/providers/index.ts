@@ -1511,8 +1511,12 @@ async function buildStreams(
   // como play instantâneo ganha desempate acima dos seeders no sort.
   const aliveAdapter = debrid.current();
   const aliveApiKey = opts().debridApiKey;
+  // `toStremioStream` devolve NULL para item sem infoHash (link que nenhum
+  // resolvedor abriu), e `sortAndLimit` recebe `(Stream | null)[]` de propósito
+  // — o buraco tem que ser filtrado ANTES do acesso, senão um único resultado
+  // sem hash derruba a lista inteira com TypeError.
   const instantSet = aliveAdapter && aliveApiKey
-    ? new Set(mappedStreams.map((s: any) => s.infoHash).filter(Boolean)
+    ? new Set(mappedStreams.map((s: any) => s?.infoHash).filter(Boolean)
         .filter((h: string) => magnetdb.isAlive(aliveAdapter.id, aliveApiKey, h)))
     : null;
   let streams: Stream[] = sortAndLimit(mappedStreams, {
