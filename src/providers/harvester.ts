@@ -105,7 +105,7 @@ function noteQueries(count: number) {
 }
 
 async function harvestOne(entry: HarvestEntry): Promise<boolean> {
-  const started = Date.now();
+  const startedAt = Date.now();
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
   const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
   if (!searchMeta?.name) return false;
@@ -152,6 +152,13 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
     }
   }
 
+  // O teto horário só fecha a conta se as consultas forem ANOTADAS: este
+  // chamado faltava e o acumulador vivia vazio — queriesThisHour() devolvia
+  // sempre 0 e HARVEST_MAX_HOUR não segurava nada entre obras (o guard do
+  // tick via um balde eternamente limpo). Só consultas ao Jackett contam,
+  // na mesma moeda do guard dentro do loop.
+  noteQueries(consulted);
+
   if (config.bludv.enabled && ptQuery) {
     try {
       collected.push(...(await bludv.search(ptQuery)).filter((i: any) => !i.fromAccount));
@@ -164,10 +171,15 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
   const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);
   harvested += 1;
   lastRunAt = Date.now();
-  metrics.observe('harvest.ms', Date.now() - started);
+  metrics.observe('harvest.ms', Date.now() - startedAt);
   return added > 0 || consulted > 0;
 }
 
+/**
+ * Um passo do ciclo: consome UMA obra da fila. Em produção só o setInterval
+ * do start() chama; exportado para o teste cobrir a contabilidade do teto
+ * horário sem subir o timer.
+ */
 async function tick() {
   if (inFlight || activity.recentUserTraffic(config.harvest.idleWindowMs)) return;
   if (!queue.length) return;
@@ -225,5 +237,5 @@ function status() {
   };
 }
 
-export { enqueue, start, status };
-export default { enqueue, start, status };
+export { enqueue, start, status, tick };
+export default { enqueue, start, status, tick };

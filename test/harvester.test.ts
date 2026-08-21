@@ -1,7 +1,7 @@
 // Colhedor (Fase 4): fila persistente de obras, dedupe por obra+razão, teto de
-// fila e freio de atividade em janela deslizante. O ciclo em si não roda nos
-// testes (start() só é chamado pelo addon.ts); aqui o que se cobra é a fila e
-// os freios.
+// fila e freio de atividade em janela deslizante. O ciclo roda SÓ no primeiro
+// teste (tick exportado para isso); em produção quem o chama é o setInterval
+// do start(), nunca o caminho da resposta.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -12,6 +12,52 @@ import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import harvester from '../src/providers/harvester.js';
 import * as activity from '../src/providers/activity.js';
+
+test('teto horário conta as consultas e trava o ciclo seguinte', async () => {
+  // Precisa ser o PRIMEIRO do arquivo: o tick consome a fila do módulo, que
+  // começa vazia. Sem rede — JACKETT_API_KEY vazia faz cada jackett.search
+  // devolver [] na hora e o meta entra pelo cache. O que se cobra é a
+  // CONTABILIDADE do teto, não a consulta em si.
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+  };
+  try {
+    config.harvest.maxPerHour = 2;
+    // Janela 0: tráfego notado por outro teste nunca trava este ciclo.
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['fake-a', 'fake-b', 'fake-c'];
+    config.jackett.apiKey = '';
+    cache.set('meta:movie:tt9500009', { name: 'Harvest Cap Movie', year: '2024', type: 'movie' }, 3600);
+
+    harvester.enqueue({ imdbId: 'tt9500009', type: 'movie', reason: 'miss' } as any);
+    await harvester.tick();
+
+    // 3 indexers, teto 2: o loop para no terceiro e as 2 consultas ficam
+    // anotadas na hora corrente (sem a anotação, queriesThisHour era 0 para
+    // sempre e nenhuma hora travava).
+    let st: any = harvester.status();
+    assert.equal(st.queriesThisHour, 2, 'consultas da obra ficam anotadas na hora');
+    assert.equal(st.queueDepth, 0, 'obra consumida');
+
+    // Ciclo seguinte: teto já alcançado — a próxima obra nem sai da fila.
+    harvester.enqueue({ imdbId: 'tt9500010', type: 'movie', reason: 'miss' } as any);
+    await harvester.tick();
+    st = harvester.status();
+    assert.equal(st.queueDepth, 1, 'teto atingido segura a obra na fila');
+    assert.equal(st.queriesThisHour, 2, 'nenhuma consulta nova além do teto');
+  } finally {
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+  }
+});
 
 test('enqueue deduplica por obra+temporada+episódio', () => {
   harvester.enqueue({ imdbId: 'tt9500001', type: 'movie', reason: 'miss' } as any);
