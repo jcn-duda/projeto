@@ -105,6 +105,13 @@ function noteQueries(count: number) {
   hourBuckets.set(hour, (hourBuckets.get(hour) || 0) + count);
 }
 
+async function awaitIndexerGap(indexer: string) {
+  const gap = Date.now() - (lastQueryAt.get(indexer) || 0);
+  if (gap < config.harvest.indexerDelayMs) {
+    await new Promise((resolve) => setTimeout(resolve, config.harvest.indexerDelayMs - gap).unref());
+  }
+}
+
 async function harvestOne(entry: HarvestEntry): Promise<boolean> {
   const startedAt = Date.now();
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
@@ -123,22 +130,21 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
     : null;
 
   const indexers = [...new Set(config.jackett.indexers)];
-  let consulted = 0;
+  let attempted = 0;
+  let succeeded = 0;
   const collected: any[] = [];
 
   for (const indexer of indexers) {
     // Freio de atividade no MEIO da obra também: tráfego chegou, solta o
     // Jackett na hora (o que já foi coletado entra no índice mesmo assim).
     if (activity.recentUserTraffic(config.harvest.idleWindowMs)) break;
-    if (queriesThisHour() + consulted >= config.harvest.maxPerHour) {
+    if (queriesThisHour() + attempted >= config.harvest.maxPerHour) {
       log.debug('[harvest] teto horário atingido');
       break;
     }
     // Intervalo mínimo entre consultas ao MESMO indexer: educação básica.
-    const gap = Date.now() - (lastQueryAt.get(indexer) || 0);
-    if (gap < config.harvest.indexerDelayMs) {
-      await new Promise((resolve) => setTimeout(resolve, config.harvest.indexerDelayMs - gap).unref());
-    }
+    await awaitIndexerGap(indexer);
+    attempted += 1;
     try {
       const items = await jackett.search(query, entry.type, [indexer], {
         matchContext,
@@ -146,9 +152,10 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
         fallbackQuery: ptQuery || undefined,
       });
       lastQueryAt.set(indexer, Date.now());
-      consulted += 1;
+      succeeded += 1;
       collected.push(...items.filter((i: any) => !i.fromAccount));
     } catch (err: any) {
+      lastQueryAt.set(indexer, Date.now());
       log.warn(`[harvest] ${indexer} falhou para ${entry.imdbId}:`, err?.message || err);
     }
   }
@@ -168,18 +175,28 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
   if (sweepQuery && sweepTargets.length > 0) {
     // A varredura agrupada dispara uma consulta HTTP por alvo: conta no teto
     // com a mesma moeda do loop acima, antes de decidir.
-    if (queriesThisHour() + consulted + sweepTargets.length >= config.harvest.maxPerHour) {
+    if (queriesThisHour() + attempted + sweepTargets.length >= config.harvest.maxPerHour) {
       log.debug('[harvest] teto horário atingido antes da varredura pt');
     } else {
+      for (const target of sweepTargets) {
+        await awaitIndexerGap(target);
+      }
+      attempted += sweepTargets.length;
       metrics.count('harvest.sweep');
       try {
         const items = await jackett.search(sweepQuery, entry.type, sweepTargets, {
           matchContext,
           recordStatus: false,
         });
-        consulted += sweepTargets.length;
+        for (const target of sweepTargets) {
+          lastQueryAt.set(target, Date.now());
+        }
+        succeeded += sweepTargets.length;
         collected.push(...items.filter((i: any) => !i.fromAccount));
       } catch (err: any) {
+        for (const target of sweepTargets) {
+          lastQueryAt.set(target, Date.now());
+        }
         log.warn('[harvest] varredura pt falhou:', err?.message || err);
       }
     }
@@ -199,14 +216,14 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
   // tick via um balde eternamente limpo). Só consultas ao Jackett contam,
   // na mesma moeda dos guards; uma única anotação no fim cobre loop e
   // varredura.
-  noteQueries(consulted);
+  noteQueries(attempted);
 
   const relevant = filterRelevantRaw(collected, matchContext as any);
   const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);
   harvested += 1;
   lastRunAt = Date.now();
   metrics.observe('harvest.ms', Date.now() - startedAt);
-  return added > 0 || consulted > 0;
+  return added > 0 || succeeded > 0;
 }
 
 /**
