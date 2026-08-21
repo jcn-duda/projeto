@@ -14,6 +14,7 @@ import {
 import * as indexerStatus from './indexer-status.js';
 import { mapLimit } from '../utils/concurrency.js';
 import * as log from '../utils/logger.js';
+import * as metrics from '../utils/metrics.js';
 import { prefix } from '../utils/cache-keys.js';
 
 // Abaixo disso não vale abrir mais um salto de protetor de link: a requisição
@@ -466,6 +467,20 @@ async function search(query: string, type: string, indexersOverride: string[] | 
       // gravar ok:true com ms~0 deixaria um indexer caído verde no card pelo
       // TTL inteiro, e é justamente o card usado para diagnosticar os ✗.
       if (!r.value.fromCache && r.value.ms > 2000) slow.push(`${r.value.indexer} ${(r.value.ms / 1000).toFixed(1)}s`);
+      // Fase 0 do índice: tempo gasto em indexer que não contribuiu com NENHUM
+      // item que sobreviveu ao filtro. Só medição real entra (fromCache é
+      // ~0ms e não mediu nada; rejeição não carrega ms confiável).
+      // Semântica: nos indexers de resolução Cardigann o pré-filtro interno já
+      // cortou o que não casa, então a régua aqui é mais branda para eles — a
+      // métrica é diagnóstico de autorização de fase, não comparação exata
+      // entre indexers.
+      if (options.matchContext?.names?.length && !r.value.fromCache && r.value.ms > 0) {
+        const survived = filterRelevantRaw(r.value.items, options.matchContext);
+        if (survived.length === 0) {
+          metrics.count('search.jackett.wastedQueries');
+          metrics.count('search.jackett.wastedMs', r.value.ms);
+        }
+      }
     } else {
       if (recordStatus) {
         indexerStatus.record(activeIndexers[idx], {
@@ -562,4 +577,18 @@ async function test(indexer: string, query: string, type = 'movie') {
   }
 }
 
-export default { search, test, shapeSearchQuery, breakerTripped, name: 'jackett' };
+/**
+ * Chaves do cache bruto que uma busca por estes indexers consultaria — a
+ * simulação da Fase 0 do índice usa isto para medir, ANTES de qualquer rede,
+ * se a matéria-prima da obra já está quente. Reproduz a construção de chave do
+ * queryIndexer (mesma moldagem de query); divergir daqui é medir outra coisa.
+ */
+function rawKeysFor(indexers: string[], query: string, type: string) {
+  return (indexers || []).map((indexer) => {
+    const isBr = config.jackett.ptBrIndexers.includes(indexer);
+    const searchQuery = shapeSearchQuery(indexer, query, isBr);
+    return `${prefix('raw')}jackett:${indexer}:${type}:${searchQuery}`;
+  });
+}
+
+export default { search, test, shapeSearchQuery, breakerTripped, rawKeysFor, name: 'jackett' };

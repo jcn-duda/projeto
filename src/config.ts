@@ -104,6 +104,46 @@ const config = {
     // BR/slow têm orçamento de 20s; no boot o padrão aquece só globais.
     skipSlow: String(process.env.WARMUP_SKIP_SLOW || 'true') === 'true',
   },
+  // Índice de releases por obra (`idx:v1`): o que a busca já provou existir,
+  // filtrado e dedupado por hash. Compartilhado entre instalações DE PROPÓSITO —
+  // guarda o que EXISTE, nunca o que está pronto em qual conta (isso é
+  // davail/mag, escopados por conta). RELEASE_INDEX=false desliga a escrita E a
+  // leitura; RELEASE_INDEX_TTL=0 idem.
+  releaseIndex: {
+    enabled: String(process.env.RELEASE_INDEX || 'true') === 'true',
+    // Release não deixa de existir por envelhecer — quem a desqualifica é o
+    // mag/dead, não o relógio. O TTL longo é só esquecimento lento.
+    ttl: num(process.env.RELEASE_INDEX_TTL, 30 * 24 * 3600),
+    // Teto de releases por obra: pack de temporada + encodes não podem virar
+    // uma entrada gigante (cota de 4.000 chaves assume ~8 KB por chave).
+    maxReleases: num(process.env.RELEASE_INDEX_MAX_RELEASES, 60),
+  },
+  // Fast-path da conta: se o inventário do debrid sozinho entrega releases
+  // suficientes da obra pedida, a resposta sai na hora e o Jackett vai para o
+  // tail enriquecer. Título novo continua no caminho normal.
+  accountFastPath: {
+    enabled: String(process.env.ACCOUNT_FAST_PATH || 'true') === 'true',
+    // Menor que isso não é "suficiente": uma release só pode ser um pack
+    // ambíguo ou encode ruim; o tail enriquece de qualquer forma.
+    minReleases: num(process.env.ACCOUNT_FAST_MIN_RELEASES, 2),
+    // Espera máxima pela conta na resposta imediata do fast-path (a primeira
+    // leitura do inventário custa ~700ms; depois vem do memo, ~0ms).
+    waitMs: num(process.env.ACCOUNT_FAST_WAIT_MS, 450),
+  },
+  // Colhedor: generalização do warmup. Fila de obras colhidas em fundo, com
+  // orçamento largo (ninguém está esperando) e freio de atividade em janela
+  // deslizante — colher só enquanto ninguém usa há N minutos.
+  harvest: {
+    enabled: String(process.env.HARVEST_ENABLED || 'true') === 'true',
+    intervalMs: num(process.env.HARVEST_INTERVAL_MS, 60_000),
+    idleWindowMs: num(process.env.HARVEST_IDLE_WINDOW_MS, 10 * 60_000),
+    queueMax: num(process.env.HARVEST_QUEUE_MAX, 200),
+    // Teto de educação com os indexers: o colhedor reduz carga total (a mesma
+    // obra deixa de ser raspada a cada busca), mas não pode virar crawler.
+    maxPerHour: num(process.env.HARVEST_MAX_HOUR, 30),
+    indexerDelayMs: num(process.env.HARVEST_INDEXER_DELAY_MS, 1500),
+    entryTtl: num(process.env.HARVEST_ENTRY_TTL, 7 * 24 * 3600),
+  },
   prowlarr: {
     url: (process.env.PROWLARR_URL || 'http://127.0.0.1:9696').replace(/\/$/, ''),
     apiKey: process.env.PROWLARR_API_KEY || '',

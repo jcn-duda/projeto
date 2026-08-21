@@ -1207,6 +1207,22 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
     episode,
   };
   const episodePhase = finish.phase();
+
+  // Fase 0 do índice: simular a consulta por obra usando o raw:v1 que já
+  // existe — se alguma chave bruta da obra está quente ANTES de qualquer rede,
+  // um índice por obra teria acertado. É o número que autoriza (ou não) as
+  // fases seguintes; não muda comportamento nenhum.
+  if (config.releaseIndex.enabled && providerMode !== 'demo' && wantsJackettSweep) {
+    const simIndexers: string[] = [...new Set(
+      ((opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers) || [])
+        .filter((i: any) => SAFE_INDEXER_ID.test(String(i))),
+    )].map(String);
+    if (simIndexers.length > 0) {
+      const warm = jackett.rawKeysFor(simIndexers, query, type).some((k) => cache.peekRemaining(k) != null);
+      metrics.count(warm ? 'search.idx.wouldHit' : 'search.idx.wouldMiss');
+    }
+  }
+
   let raw = await collectRaw(query, type, imdbId, ptQuery, matchContext, (items: any[], grew: boolean, partial?: boolean) =>
     late(items, grew, episodePhase, partial),
     sweepQuery,
