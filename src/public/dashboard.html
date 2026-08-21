@@ -200,6 +200,12 @@
     <div id="cacheCards" class="cards"><div class="empty">Sem dados de cache.</div></div>
   </section>
 
+  <section aria-labelledby="idxTitle">
+    <div class="section-head"><div><h2 id="idxTitle">Índice de releases</h2><p>Memória por obra que responde sem Jackett, mais o colhedor que a alimenta em fundo.</p></div></div>
+    <div id="idxMetrics" class="metrics"></div>
+    <div id="harvestMetrics" class="metrics"></div>
+  </section>
+
   <section aria-labelledby="actionsTitle">
     <div class="section-head"><div><h2 id="actionsTitle">Ações</h2><p>Ações destrutivas pedem confirmação e enviam JSON no corpo do POST.</p></div></div>
     <div class="action-grid">
@@ -560,6 +566,30 @@
     renderCollection(cards, namespaces, "namespaces", {});
   }
 
+  // Fase 5: índice de releases + colhedor. Tudo vem pronto do servidor
+  // (releaseIndex/harvest no dashboard-status); aqui só renderiza.
+  function renderReleaseIndex(data) {
+    var idx = isObject(data) ? data : {};
+    var metrics = $("idxMetrics");
+    metrics.textContent = "";
+    if (!first(idx, ["enabled"], false)) {
+      empty(metrics, "Índice desativado (RELEASE_INDEX=false).");
+      return;
+    }
+    renderMetrics(metrics, idx, {});
+  }
+
+  function renderHarvest(data) {
+    var harvest = isObject(data) ? data : {};
+    var metrics = $("harvestMetrics");
+    metrics.textContent = "";
+    if (!first(harvest, ["enabled"], false)) {
+      empty(metrics, "Colhedor desativado (HARVEST_ENABLED=false).");
+      return;
+    }
+    renderMetrics(metrics, harvest, {});
+  }
+
   function renderStatus(data) {
     var root = isObject(data) ? data : {};
     var status = first(root, ["status", "state", "health"], "online");
@@ -571,6 +601,8 @@
     );
     renderSources(root);
     renderCache(first(root, ["cache", "cacheStatus"], {}));
+    renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
+    renderHarvest(first(root, ["harvest", "harvester"], {}));
     setConnection(stateName(status), stateLabel(status));
     $("lastUpdated").textContent = generated ? "Atualizado " + formatDate(generated) : "Atualizado agora";
   }

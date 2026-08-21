@@ -556,13 +556,58 @@ por `queryIndexer` e **não** usa o cache bruto — fora de escopo de propósito
 TTL de resultado vazio é curto (`RAW_CACHE_EMPTY_TTL`): 200 com zero itens
 pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
 
-Cotas do L1 (`cache.ts`): `streams` 2000, `raw` 800, `dlmag` 4000, teto
-global 12000. `raw` é o namespace gordo (~100 KB no pior caso); não suba a
-cota sem refazer a conta de memória do container de 3g.
+Cotas do L1 (`cache.ts`): `streams` 2000, `raw` 800, `dlmag` 4000, `idx` 4000,
+teto global 36000. `raw` é o namespace gordo (~100 KB no pior caso); não suba a
+cota sem refazer a conta de memória do container de 3g. A SOMA das cotas é
+30.500 — teto global **igual ou abaixo** da soma reintroduz o despejo global
+antes da repartição por namespace (foi bug real).
 
 Fase 3 (cache de disponibilidade por hash) **não** está no código. Gate
 documentado no plano: `debrid.check.repeated / debrid.check.hashes` > 30% em
 15 min. Não implemente por palpite.
+
+---
+
+## Índice de releases e o addon como servidor (`idx:v1`, PLANO_MAGNETDB... ver
+## PLANO no repo)
+
+O addon responde do PRÓPRIO índice quando ele cobre a obra, e usa o Jackett
+como alimentador assíncrono. Dois caminhos que não compartilham relógio:
+
+```
+RESPOSTA (<500ms):  /stream → idx + dinv → checagem no debrid → lista
+COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro → idx
+```
+
+- **`src/utils/release-index.ts`** guarda por obra (`idx:v1:<imdbId>[:S:E]`) o
+  mínimo da release `{ hash, title, size, indexer, isBr, quality, seeders,
+  seenAt }`. Invariantes: sem config/credencial na chave (compartilhado entre
+  instalações DE PROPÓSITO — guarda o que EXISTE, nunca o que está pronto em
+  qual conta); só o que passou pelo filtro de relevância; dedupe por hash;
+  item `fromAccount` NUNCA entra (é conhecimento da conta, não evidência
+  pública). `seeders` é foto datada — quem ordena é o `sortAndLimit` sobre o
+  estado atual.
+- **Fast-path da conta** (`ACCOUNT_FAST_PATH`): inventário suficiente
+  (`minReleases`) dispara `stopWhen` no `collectWithinWindow` — resposta sai
+  na hora `partial` e o passe tardio de sempre promove. Não confundir: a
+  resposta parcial com `cacheMaxAge: 0` é o que impede o cliente de segurar
+  lista pobre.
+- **Leitura do índice (Fase 3):** `idxPoolCovered` decide "índice cobre" com a
+  MESMA noção de pool do autofetch (BR dublado → dublado global → melhor
+  swarm). **Contagem pura nunca decide**: temporada só com legendado não pode
+  impedir a busca BR dublada de rodar. Lacuna → caminho atual inteiro +
+  colhedor enfileira a obra.
+- **Colhedor** (`harvest:*`): fila persistente numa chave única
+  (`harvest:v1:q`), alimentada por busca com lacuna e episódio seguinte
+  (dedupe TTL 12h). Freio de atividade em JANELA DESLIZANTE
+  (`activity.recentUserTraffic`) — diferente do `hasUserTraffic()` de boot que
+  o warmup usa. Consulta sequencial com intervalo mínimo por indexer e teto
+  horário: reduz carga total, mas não pode virar crawler.
+- Kill-switches: `RELEASE_INDEX=false` / `RELEASE_INDEX_TTL=0` (índice),
+  `ACCOUNT_FAST_PATH=false`, `HARVEST_ENABLED=false`.
+- Critério de aceitação do plano: busca responde com o Jackett FORA do ar —
+  coberto pelo teste "Fase 3: Jackett FORA DO AR" em
+  `test/index-fast-path.test.ts`.
 
 ---
 
@@ -730,7 +775,9 @@ fire-and-forget) continua.
 | `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, ES5, zero build) |
 | `src/providers/index.ts` | Orquestração: SWR, coalescing, deadline, collectRaw, passe tardio, debrid, corte, aviso |
 | `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
-| `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR |
+| `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
+| `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário |
+| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v1`): record/lookup/status — o que faz o addon responder sem Jackett |
 | `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
 | `src/providers/jackett-catalog.ts` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
 | `src/providers/indexer-status.ts` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |

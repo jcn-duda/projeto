@@ -16,6 +16,8 @@ import * as metrics from './utils/metrics.js';
 import * as cache from './utils/cache.js';
 import * as log from './utils/logger.js';
 import * as autofetch from './providers/autofetch.js';
+import * as releaseIndex from './utils/release-index.js';
+import harvester from './providers/harvester.js';
 import { accountScope } from './utils/request-key.js';
 import * as magnetdb from './utils/magnetdb.js';
 import { RESOLVERS } from './br-resolvers.js';
@@ -52,6 +54,31 @@ interface StreamResultMeta {
  */
 function streamsNeedRevalidation({ streams = [], partial, needsDebridRefresh, debridKnown }: StreamResultMeta = {}) {
   return !streams.length || partial || needsDebridRefresh || debridKnown === false;
+}
+
+/**
+ * Fase 5: visibilidade do índice. Os contadores brutos já viajam no snapshot
+ * global de métricas; aqui eles viram o resumo que o painel mostra sem ninguém
+ * ter de saber os nomes dos contadores.
+ */
+function releaseIndexStatus() {
+  const counters = metrics.snapshot().counters;
+  return {
+    ...releaseIndex.status(),
+    hits: counters['search.idx.hit'] || 0,
+    misses: counters['search.idx.miss'] || 0,
+    gaps: counters['search.idx.gap'] || 0,
+    servedReleases: counters['search.idx.served'] || 0,
+    recordedReleases: counters['search.idx.recorded'] || 0,
+    // Fase 0 (simulação com raw) e custo de indexer inútil — os números que
+    // autorizaram o plano e continuam dizendo se ele se paga.
+    wouldHit: counters['search.idx.wouldHit'] || 0,
+    wouldMiss: counters['search.idx.wouldMiss'] || 0,
+    wastedQueries: counters['search.jackett.wastedQueries'] || 0,
+    wastedMs: counters['search.jackett.wastedMs'] || 0,
+    accountSufficient: counters['search.account.sufficient'] || 0,
+    fastPaths: counters['search.fastPath'] || 0,
+  };
 }
 
 // Host do cabeçalho é input do cliente; aqui ele só volta para o próprio cliente
@@ -425,6 +452,8 @@ function createApp() {
         },
         debrid: { active: debrid.current()?.id || null, account, services: debrid.SERVICES },
         autofetch: { ...autofetch.snapshot(), ...autofetchStatus() },
+        releaseIndex: releaseIndexStatus(),
+        harvest: harvester.status(),
         indexers,
         resolvers,
       });
