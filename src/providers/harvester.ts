@@ -18,6 +18,7 @@ import bludv from './bludv.js';
 import { getMeta } from '../utils/cinemeta.js';
 import * as tmdb from '../utils/tmdb.js';
 import { resolveSearchNames, buildSearchQuery, filterRelevantRaw } from '../utils/format.js';
+import { ptSweepIndexers, ptSweepQueryFor } from './search-plan.js';
 import * as releaseIndex from '../utils/release-index.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
@@ -152,12 +153,37 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
     }
   }
 
-  // O teto horário só fecha a conta se as consultas forem ANOTADAS: este
-  // chamado faltava e o acumulador vivia vazio — queriesThisHour() devolvia
-  // sempre 0 e HARVEST_MAX_HOUR não segurava nada entre obras (o guard do
-  // tick via um balde eternamente limpo). Só consultas ao Jackett contam,
-  // na mesma moeda do guard dentro do loop.
-  noteQueries(consulted);
+  // Varredura pt-BR nos globais, a mesma da busca ao vivo: o dublado
+  // titulado em PT mora em tracker global e a query em inglês não o encontra
+  // — sem isto o índice ficava sistematicamente cego para a release que só a
+  // varredura acha, e o colhedor não a entregava nunca. Divergência DE
+  // PROPÓSITO do caminho ao vivo: aqui o breaker é RESPEITADO (sem
+  // ignoreBreaker) — colheita de fundo não precisa acordar indexer
+  // recém-derrubado, o dublado raro espera o cooldown.
+  const sweepQuery = config.jackett.ptSweepGlobal ? ptSweepQueryFor({ titles }) : null;
+  const sweepTargets =
+    sweepQuery && !activity.recentUserTraffic(config.harvest.idleWindowMs)
+      ? ptSweepIndexers(indexers, config.jackett.ptBrIndexers)
+      : [];
+  if (sweepQuery && sweepTargets.length > 0) {
+    // A varredura agrupada dispara uma consulta HTTP por alvo: conta no teto
+    // com a mesma moeda do loop acima, antes de decidir.
+    if (queriesThisHour() + consulted + sweepTargets.length >= config.harvest.maxPerHour) {
+      log.debug('[harvest] teto horário atingido antes da varredura pt');
+    } else {
+      metrics.count('harvest.sweep');
+      try {
+        const items = await jackett.search(sweepQuery, entry.type, sweepTargets, {
+          matchContext,
+          recordStatus: false,
+        });
+        consulted += sweepTargets.length;
+        collected.push(...items.filter((i: any) => !i.fromAccount));
+      } catch (err: any) {
+        log.warn('[harvest] varredura pt falhou:', err?.message || err);
+      }
+    }
+  }
 
   if (config.bludv.enabled && ptQuery) {
     try {
@@ -166,6 +192,14 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
       log.warn('[harvest] bludv falhou:', err?.message || err);
     }
   }
+
+  // O teto horário só fecha a conta se as consultas forem ANOTADAS: este
+  // chamado faltava e o acumulador vivia vazio — queriesThisHour() devolvia
+  // sempre 0 e HARVEST_MAX_HOUR não segurava nada entre obras (o guard do
+  // tick via um balde eternamente limpo). Só consultas ao Jackett contam,
+  // na mesma moeda dos guards; uma única anotação no fim cobre loop e
+  // varredura.
+  noteQueries(consulted);
 
   const relevant = filterRelevantRaw(collected, matchContext as any);
   const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);

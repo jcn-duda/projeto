@@ -1,7 +1,7 @@
 // Colhedor (Fase 4): fila persistente de obras, dedupe por obra+razão, teto de
-// fila e freio de atividade em janela deslizante. O ciclo roda SÓ no primeiro
-// teste (tick exportado para isso); em produção quem o chama é o setInterval
-// do start(), nunca o caminho da resposta.
+// fila e freio de atividade em janela deslizante. Os dois primeiros testes
+// rodam o ciclo de verdade (tick exportado para isso, sem rede); em produção
+// quem o chama é o setInterval do start(), nunca o caminho da resposta.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -12,6 +12,8 @@ import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import harvester from '../src/providers/harvester.js';
 import * as activity from '../src/providers/activity.js';
+import { stubFetch } from './helpers/stub.js';
+import { ptSweepQueryFor } from '../src/providers/search-plan.js';
 
 test('teto horário conta as consultas e trava o ciclo seguinte', async () => {
   // Precisa ser o PRIMEIRO do arquivo: o tick consome a fila do módulo, que
@@ -56,6 +58,101 @@ test('teto horário conta as consultas e trava o ciclo seguinte', async () => {
     config.harvest.indexerDelayMs = saved.indexerDelayMs;
     config.jackett.indexers = saved.indexers;
     config.jackett.apiKey = saved.apiKey;
+  }
+});
+
+test('colhedor roda a varredura pt-BR nos globais, como a busca ao vivo', async () => {
+  // O dublado titulado em PT mora em tracker global e a query em inglês não
+  // o encontra: o colhedor que só copiasse a query principal alimentaria um
+  // índice cego para essas releases. Aqui a varredura é cobrada com a MESMA
+  // raiz (franchiseRoot) do caminho ao vivo — e provada fora do indexer BR.
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+    ptBrIndexers: config.jackett.ptBrIndexers,
+    tmdbApiKey: config.tmdb.apiKey,
+  };
+  const stub = stubFetch((url: string) => {
+    if (url.includes('api.themoviedb.org')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          movie_results: [
+            {
+              title: 'Star Wars: O Ataque dos Clones',
+              original_title: 'Star Wars: Episode II - Attack of the Clones',
+              release_date: '2002-05-16',
+            },
+          ],
+        }),
+      };
+    }
+    if (url.includes('/api/v2.0/indexers/')) return { ok: true, status: 200, json: async () => ({ Results: [] }) };
+    // Cinemeta (e qualquer outra rede): erro rápido — obra de drenagem
+    // desiste antes de consultar indexer nenhum.
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+  try {
+    config.harvest.maxPerHour = 100;
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['glob-a', 'glob-b', 'br-x'];
+    config.jackett.ptBrIndexers = ['br-x'];
+    config.tmdb.apiKey = 'chave-de-teste';
+
+    // Drena obras deixadas por outros testes SEM rede de Jackett (apiKey
+    // vazia devolve [] na hora); o cinemeta 404 do dublê as faz desistir.
+    config.jackett.apiKey = '';
+    let guard = 0;
+    while ((harvester.status() as any).queueDepth > 0 && guard++ < 250) await harvester.tick();
+
+    cache.set(
+      'meta:movie:tt9500011',
+      { name: 'Star Wars: Episode II - Attack of the Clones', year: '2002', type: 'movie' },
+      3600,
+    );
+    config.jackett.apiKey = 'chave-de-teste';
+    harvester.enqueue({ imdbId: 'tt9500011', type: 'movie', reason: 'miss' } as any);
+    await harvester.tick();
+
+    const jacketUrls = stub.calls.map((c) => c.url).filter((u) => u.includes('/api/v2.0/indexers/'));
+    assert.ok(jacketUrls.length > 0, 'consultou o Jackett');
+    const expectedSweep = ptSweepQueryFor({
+      titles: { pt: 'Star Wars: O Ataque dos Clones', original: 'Star Wars: Episode II - Attack of the Clones' },
+    });
+    assert.ok(expectedSweep, 'sanidade: há raiz pt para o título');
+    const qOf = (u: string) => {
+      try {
+        return new URL(u).searchParams.get('Query') || '';
+      } catch {
+        return '';
+      }
+    };
+    const queries = jacketUrls.map(qOf);
+    assert.ok(
+      queries.includes(expectedSweep),
+      `varredura rodou com a raiz pt (${expectedSweep}); recebido: ${JSON.stringify(queries)}`,
+    );
+    const sweepUrls = jacketUrls.filter((u) => qOf(u) === expectedSweep);
+    assert.ok(sweepUrls.length > 0, 'varredura consultou os globais');
+    assert.ok(
+      sweepUrls.every((u) => !u.includes('/indexers/br-x/')),
+      'varredura pula os indexers BR (eles já recebem o título pt no loop)',
+    );
+    assert.equal((harvester.status() as any).queriesThisHour >= 1, true, 'consultas anotadas no teto');
+  } finally {
+    stub.restore();
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+    config.jackett.ptBrIndexers = saved.ptBrIndexers;
+    config.tmdb.apiKey = saved.tmdbApiKey;
   }
 });
 
