@@ -42,6 +42,7 @@ import { raceWithDeadline, remainingCheckBudget } from '../utils/deadline.js';
 import * as autofetch from './autofetch.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import * as releaseIndex from '../utils/release-index.js';
+import * as harvester from './harvester.js';
 import { opts, prefix, capture, run, origin } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -1288,6 +1289,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
     const indexed = releaseIndex.lookup(imdbId, { season, episode });
     if (indexed.length === 0) {
       metrics.count('search.idx.miss');
+      harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'miss' });
     } else if (idxPoolCovered(indexed)) {
       metrics.count('search.idx.hit');
       metrics.count('search.idx.served', indexed.length);
@@ -1313,6 +1315,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
       // Existe, mas não cobre o pool (ex.: só legendado): NUNCA impede a busca
       // BR dublada de rodar. O colhedor completa o que falta.
       metrics.count('search.idx.gap');
+      harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'gap' });
     }
   }
   if (!servedFromIndex) {
@@ -1400,6 +1403,12 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
         metrics.observe('search.idx.enrich', Date.now() - enrichStarted);
       }
     });
+  }
+
+  // Alimento do colhedor: série assistida com play de verdade semeia o
+  // episódio seguinte (o dedupe por TTL evita re-enfileirar a cada busca).
+  if (config.releaseIndex.enabled && season != null && episode != null && hasPlayableStream(result.streams)) {
+    harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode: episode + 1, reason: 'next-episode' });
   }
 
   // O episódio fraco já ocupou o caminho crítico; o pack é uma segunda busca

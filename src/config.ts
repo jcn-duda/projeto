@@ -130,6 +130,20 @@ const config = {
     // leitura do inventário custa ~700ms; depois vem do memo, ~0ms).
     waitMs: num(process.env.ACCOUNT_FAST_WAIT_MS, 450),
   },
+  // Colhedor: generalização do warmup. Fila de obras colhidas em fundo, com
+  // orçamento largo (ninguém está esperando) e freio de atividade em janela
+  // deslizante — colher só enquanto ninguém usa há N minutos.
+  harvest: {
+    enabled: String(process.env.HARVEST_ENABLED || 'true') === 'true',
+    intervalMs: num(process.env.HARVEST_INTERVAL_MS, 60_000),
+    idleWindowMs: num(process.env.HARVEST_IDLE_WINDOW_MS, 10 * 60_000),
+    queueMax: num(process.env.HARVEST_QUEUE_MAX, 200),
+    // Teto de educação com os indexers: o colhedor reduz carga total (a mesma
+    // obra deixa de ser raspada a cada busca), mas não pode virar crawler.
+    maxPerHour: num(process.env.HARVEST_MAX_HOUR, 30),
+    indexerDelayMs: num(process.env.HARVEST_INDEXER_DELAY_MS, 1500),
+    entryTtl: num(process.env.HARVEST_ENTRY_TTL, 7 * 24 * 3600),
+  },
   prowlarr: {
     url: (process.env.PROWLARR_URL || 'http://127.0.0.1:9696').replace(/\/$/, ''),
     apiKey: process.env.PROWLARR_API_KEY || '',
