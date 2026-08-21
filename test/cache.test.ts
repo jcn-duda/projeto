@@ -381,11 +381,11 @@ test('estouro de dlmag despeja só o próprio namespace e preserva streams', () 
   }
 });
 
-test('cotas da Fase 3: raw limitado, streams ampliado, davail de entrada barata', () => {
+test('cotas da Fase 3: raw limitado, streams ampliado, davail e mag de entrada barata', () => {
   // raw guarda itens grandes (até ~100 KB por entrada), então a cota fica bem
-  // abaixo das de entrada minúscula; davail é só 0/1 por hash (fase 3), o que
-  // permite cota alta sem custo de memória; o teto global continua sendo a
-  // soma das cotas + folga.
+  // abaixo das de entrada minúscula; davail e mag são registros pequenos por
+  // hash (0/1), o que permite cota alta sem custo de memória; o teto global
+  // continua sendo a soma das cotas + folga.
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
@@ -394,7 +394,8 @@ test('cotas da Fase 3: raw limitado, streams ampliado, davail de entrada barata'
     assert.equal(cache.QUOTAS.raw, 800);
     assert.equal(cache.QUOTAS.streams, 2000);
     assert.equal(cache.QUOTAS.davail, 5000);
-    assert.equal(cache.MAX_ENTRIES, 17000);
+    assert.equal(cache.QUOTAS.mag, 8000);
+    assert.equal(cache.MAX_ENTRIES, 25000);
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;

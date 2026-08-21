@@ -17,6 +17,7 @@ import * as cache from './utils/cache.js';
 import * as log from './utils/logger.js';
 import * as autofetch from './providers/autofetch.js';
 import { accountScope } from './utils/request-key.js';
+import * as magnetdb from './utils/magnetdb.js';
 import { RESOLVERS } from './br-resolvers.js';
 
 const { addonBuilder, getRouter } = sdk;
@@ -244,12 +245,23 @@ function createApp() {
       } catch { /* dica ilegível: trata como ausente */ }
     }
     try {
+      const adapter = debrid.current();
       const link = await debrid.resolveLink(infoHash, {
         season: req.query.s ? Number(req.query.s) : null,
         episode: req.query.e ? Number(req.query.e) : null,
         work,
       });
-      if (!link) return res.status(404).send('nenhum arquivo de vídeo no torrent');
+      if (!link) {
+        // Torrent sem arquivo de vídeo: evidência DETERMINÍSTICA de magnet
+        // quebrado — entra no banco para sair das próximas listas. Erro
+        // transitório e pick falho (WorkPickError/EpisodePickError) NÃO
+        // gravam: condenariam um hash bom por engano.
+        if (adapter) magnetdb.markBad(adapter.id, runtime.opts().debridApiKey, infoHash);
+        return res.status(404).send('nenhum arquivo de vídeo no torrent');
+      }
+      // Play que resolveu de verdade é a evidência mais forte de "vivo +
+      // instantâneo": renova o histórico durável desta conta.
+      if (adapter) magnetdb.markAlive(adapter.id, runtime.opts().debridApiKey, [infoHash]);
       return res.redirect(302, link);
     } catch (err) {
       if (isWorkPickError(err)) {
@@ -347,7 +359,7 @@ function createApp() {
   });
 
   /** Painel consolidado. A página é pública; estes dados continuam protegidos. */
-  app.get('/dashboard-status.json', async (req, res) => {
+  const dashboardStatusHandler: express.RequestHandler = async (req, res) => {
     if (!config.jackett.testToken) {
       return res.status(503).json({ error: 'dashboard desativado: defina JACKETT_TEST_TOKEN' });
     }
@@ -403,9 +415,10 @@ function createApp() {
     } finally {
       admission.release();
     }
-  });
+  };
+  app.get('/dashboard-status.json', dashboardStatusHandler);
 
-  app.post('/dashboard-action.json', express.json({ limit: '4kb' }), async (req, res) => {
+  const dashboardActionHandler: express.RequestHandler = async (req, res) => {
     if (!config.jackett.testToken) {
       return res.status(503).json({ ok: false, error: 'dashboard desativado pelo operador' });
     }
@@ -425,18 +438,22 @@ function createApp() {
         metrics.count('dashboard.cache.clear');
         return res.json({ ok: true, action, entriesBefore, entriesAfter: cache.size() });
       }
-      const result = await debrid.sweepDeadEnv();
+      // A conta da instalação primeiro: quem abriu o painel com uma install URL
+      // quer varrer a conta DELA. A do operador continua como retaguarda para o
+      // painel aberto sem segmento de config.
+      const result = (await debrid.sweepDeadCurrent()) ?? (await debrid.sweepDeadEnv());
       metrics.count('dashboard.sweep-dead');
       return res.json({
         ok: result != null,
         action,
         result,
-        error: result == null ? 'varredura indisponível ou desativada para o debrid do operador' : undefined,
+        error: result == null ? 'varredura indisponível: o debrid ativo não implementa varredura, ou ela está desligada' : undefined,
       });
     } finally {
       admission.release();
     }
-  });
+  };
+  app.post('/dashboard-action.json', express.json({ limit: '4kb' }), dashboardActionHandler);
 
   /**
    * Testa um indexer pelo mesmo caminho da busca real. A página usa isso pro botão
@@ -529,6 +546,12 @@ function createApp() {
 
   app.get('/:userConfig/configure', sendConfigure);
   app.get('/:userConfig/debrid-status.json', debridStatusHandler);
+  // O painel também sob o segmento de config: sem ele, `debrid.current()` e o
+  // `accountStatus` caem nos defaults do `.env` e a página mostra a conta do
+  // operador no lugar da instalação que o usuário abriu.
+  app.get('/:userConfig/dashboard', (_, res) => res.sendFile(DASHBOARD_PAGE));
+  app.get('/:userConfig/dashboard-status.json', dashboardStatusHandler);
+  app.post('/:userConfig/dashboard-action.json', express.json({ limit: '4kb' }), dashboardActionHandler);
   app.get('/:userConfig/resolve/:infoHash', resolveHandler);
   app.use('/:userConfig', getRouter(addonInterface));
 

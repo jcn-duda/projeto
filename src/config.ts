@@ -397,6 +397,15 @@ const config = {
     // Sem uma fonte tocável, explica ao cliente por que a lista não ficou vazia.
     noticeStream: String(process.env.SEARCH_NOTICE_STREAM || 'true') === 'true',
   },
+  // Banco de magnets: histórico durável POR HASH (vivo/ruim), escopado por
+  // serviço+conta. Só evidência medida entra — cacheado no debrid = vivo e
+  // instantâneo; "bad" só por falha determinística do play. MAGNET_DB=false
+  // desliga tudo; TTL 0 desliga cada lado.
+  magnetDb: {
+    enabled: String(process.env.MAGNET_DB || 'true') === 'true',
+    aliveTtl: num(process.env.MAGNET_ALIVE_TTL, 7 * 24 * 3600),
+    badTtl: num(process.env.MAGNET_BAD_TTL, 24 * 3600),
+  },
 };
 
 export default config;

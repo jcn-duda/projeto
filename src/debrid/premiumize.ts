@@ -1,5 +1,8 @@
 import config from '../config.js';
 import * as metrics from '../utils/metrics.js';
+import * as log from '../utils/logger.js';
+import * as held from './protected.js';
+import { accountScope } from '../utils/request-key.js';
 import {
   magnetFor, json, pickFile, batched,
   AuthError, QuotaError, RateLimitError,
@@ -188,6 +191,101 @@ async function removeTorrent(apiKey: string, id: any) {
   }
 }
 
+/**
+ * Quando cada hash foi visto parado pela primeira vez.
+ *
+ * O `/transfer/list` do Premiumize não devolve data nenhuma — não há campo de
+ * criação, só `status`, `progress` e `message` (confirmado na API: as chaves
+ * são file_id, folder_id, id, message, name, other_cloud_id, progress, src,
+ * status). Sem carimbo de tempo, `minAgeMs` não tem de onde ser calculado, e
+ * apagar na primeira observação mataria justamente a transferência recém-criada
+ * pelo autofetch — que nasce em "0 Bytes of 0 Bytes, from 0 peer" enquanto
+ * procura pares.
+ *
+ * O `held` já protege esse caso, mas vive em memória e some no restart. Este
+ * mapa reconstrói a idade por observação: a primeira varredura anota, e só uma
+ * varredura posterior, passado `minAgeMs`, remove. É a mesma dupla observação
+ * que o recheck exige antes de matar um torrent.
+ */
+const stallSeenAt = new Map<string, number>();
+
+/**
+ * Varre da conta as transferências terminais e as paradas de vez.
+ *
+ * Existe porque o recheck só alcança o que está num lote vivo: `recheckLots`
+ * é de memória e o restart o zera, então transferência enfileirada por um
+ * processo anterior fica parada para sempre, ocupando vaga da conta e nunca
+ * sendo reavaliada por ninguém. Roda no boot e a cada `sweepDeadIntervalMs`.
+ */
+async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMinAgeMs } = {}) {
+  const account = accountScope(apiKey);
+  const data = await call(apiKey, '/transfer/list');
+  const transfers = Array.isArray(data?.transfers) ? data.transfers : [];
+  const idade = Math.max(0, Number(minAgeMs) || 0);
+  const agora = Date.now();
+
+  const alvo: any[] = [];
+  const vistosAgora = new Set<string>();
+  for (const t of transfers) {
+    if (t?.id == null) continue;
+    const status = String(t?.status || '').toLowerCase();
+
+    // Erro é terminal: some independente de hash, idade ou proteção.
+    if (status === 'error') {
+      alvo.push(t);
+      continue;
+    }
+    if (status !== 'running') continue;
+
+    const progress = Number(t?.progress);
+    const moving = Number.isFinite(progress) && progress !== 0;
+    if (moving || !STALLED_TRANSFER.test(String(t?.message || ''))) continue;
+
+    // Parada, mas só removível quando dá para provar que não é do autofetch
+    // em curso. Sem hash não há como consultar o `held` — e é justamente a
+    // transferência sem metadata resolvida que carrega o hash no `name`.
+    const hash = transferHash(t);
+    if (!hash || held.isHeld(hash, account)) continue;
+
+    vistosAgora.add(hash);
+    const desde = stallSeenAt.get(hash);
+    if (desde == null) {
+      stallSeenAt.set(hash, agora);
+      continue;
+    }
+    if (agora - desde >= idade) alvo.push(t);
+  }
+
+  // Quem voltou a andar (ou saiu da conta) perde o histórico de parada.
+  for (const hash of stallSeenAt.keys()) {
+    if (!vistosAgora.has(hash)) stallSeenAt.delete(hash);
+  }
+
+  if (!alvo.length) return { varridos: 0, falhas: 0, observados: vistosAgora.size };
+
+  let ok = 0;
+  let falhas = 0;
+  for (const t of alvo) {
+    if (await removeTorrent(apiKey, t.id)) {
+      ok += 1;
+      const hash = transferHash(t);
+      if (hash) stallSeenAt.delete(hash);
+    } else {
+      falhas += 1;
+    }
+  }
+
+  metrics.count('debrid.swept', ok);
+  const sufixo = falhas ? ` — ${falhas} falhou(ram)` : '';
+  log.info(`[premiumize] varredura: ${ok}/${alvo.length} transferência(s) morta(s) ou parada(s) removida(s)${sufixo}`);
+  return { varridos: ok, falhas, observados: vistosAgora.size };
+}
+
+/** Só para teste: a memória de paradas é de processo. */
+function resetStallMemory() {
+  stallSeenAt.clear();
+}
+
 export const id = 'premiumize';
 export const label = 'Premiumize';
 export const short = 'PM';
@@ -195,4 +293,4 @@ export const short = 'PM';
 // via upload). Sem isso o orquestrador trata todos como "não sei".
 export const cacheCheck = true;
 export const keyUrl = 'https://www.premiumize.me/account';
-export { enqueue, accountStatus, checkCached, resolveLink, torrentStatus, removeTorrent };
+export { enqueue, accountStatus, checkCached, resolveLink, torrentStatus, removeTorrent, sweepDead, resetStallMemory };

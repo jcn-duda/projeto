@@ -225,7 +225,7 @@ test('POST sweep-dead: 200 ok:true con adaptador configurado e ok:false sem conf
     assert.equal(semConfig.status, 200, 'ação conocida responde 200 mesmo sem poder correr');
     assert.equal(semConfig.json.ok, false);
     assert.equal(semConfig.json.result, null);
-    assert.match(semConfig.json.error, /indisponible|desativada/);
+    assert.match(semConfig.json.error, /indisponível/);
   } finally {
     config.debrid.service = '';
     config.debrid.apiKey = '';

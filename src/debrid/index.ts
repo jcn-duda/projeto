@@ -8,6 +8,7 @@ import { isAuthError, isQuotaError, isRateLimitError } from './common.js';
 import * as cache from '../utils/cache.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
+import * as magnetdb from '../utils/magnetdb.js';
 
 // Consulta não abortável em andamento (hoje, AllDebrid). O passe tardio junta
 // a mesma promise quando o conjunto de hashes é idêntico; se o balde cresceu,
@@ -124,6 +125,9 @@ function noteAvailable(infoHash: string) {
   if (config.debrid.availPosTtl > 0) {
     cache.set(davailKey(adapter.id, apiKey, infoHash), 1, config.debrid.availPosTtl);
   }
+  // Pronto de verdade é evidência durável: entra no banco de magnets além do
+  // davail de TTL curto.
+  magnetdb.markAlive(adapter.id, apiKey, [infoHash]);
 }
 
 function nonAbortableCheck(adapter: any, apiKey: string, infoHashes: string[]) {
@@ -323,6 +327,10 @@ async function checkCached(
     }
     cache.setMany(writes);
   }
+  // Positivo medido vira histórico durável (banco de magnets), independente do
+  // TTL curto do davail. Serviço inutilizável não grava nada: a culpa é da
+  // conta, não dos hashes.
+  if (!result.unusable) magnetdb.markAlive(adapter.id, apiKey, [...result.cached]);
   result.cached = new Set([...fromCache, ...result.cached]);
   return result;
 }
@@ -527,6 +535,28 @@ async function sweepDeadEnv() {
   }
 }
 
+/**
+ * Varredura da conta da INSTALAÇÃO corrente (a chave que veio no segmento de
+ * config), e não a do `.env`.
+ *
+ * `sweepDeadEnv` é do operador: exige `allowEnvKey` e usa `config.debrid.apiKey`.
+ * Quem abre o painel com uma install URL de outro serviço não é atendido por
+ * ele — o botão respondia "varredura indisponível" mesmo com o adaptador certo
+ * do outro lado, porque estava olhando para a conta errada.
+ */
+async function sweepDeadCurrent() {
+  const adapter = current();
+  if (!adapter || typeof adapter.sweepDead !== 'function') return null;
+  const { debridApiKey } = opts();
+  if (!debridApiKey || !config.debrid.sweepDead) return null;
+  try {
+    return await adapter.sweepDead(debridApiKey);
+  } catch (err: any) {
+    log.warn(`[${adapter.id}] varredura de mortos falhou:`, err?.message || err);
+    return null;
+  }
+}
+
 export default {
-  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, resolveLink, enqueue, inventory, inventoryPeek, warmupEnv, sweepDeadEnv,
+  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, resolveLink, enqueue, inventory, inventoryPeek, warmupEnv, sweepDeadEnv, sweepDeadCurrent,
 };

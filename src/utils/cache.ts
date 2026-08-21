@@ -12,9 +12,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const store = new Map();
-// A soma das cotas conhecidas é 17.000. O teto global fica logo acima dela
+// A soma das cotas conhecidas é 24.200. O teto global fica logo acima dela
 // como proteção para prefixes novos, sem um namespace conhecido expulsar outro.
-const MAX_ENTRIES = 17000;
+const MAX_ENTRIES = 25000;
 const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -27,6 +27,9 @@ const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Disponibilidade por hash é só 0/1; a cota alta evita reconsultar a mesma
   // conta em buscas diferentes sem ocupar a memória dos resultados brutos.
   davail: 5000,
+  // Banco de magnets: histórico durável por hash (vivo/ruim), entrada
+  // minúscula como o davail — a cota alta cobre contas com catálogo grande.
+  mag: 8000,
   autofetch: 2000,
   'indexer-status': 200,
   __default: 500,

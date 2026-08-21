@@ -361,10 +361,18 @@
     return headers;
   }
 
+  // Segmento de config em que a página foi aberta ("" na raiz, "/abc123" numa
+  // install URL). Sem isto o painel sempre perguntaria pela conta do .env,
+  // mesmo aberto a partir da instalação do usuário.
+  function basePrefix() {
+    var match = String(window.location.pathname || "").match(/^\/(.+)\/dashboard\/?$/);
+    return match ? "/" + match[1] : "";
+  }
+
   function requestJson(url, options) {
     var request = options || {};
     request.headers = authHeaders(request.headers);
-    return fetch(url, request).then(function (response) {
+    return fetch(basePrefix() + url, request).then(function (response) {
       return response.json().then(function (data) {
         if (!response.ok) {
           throw new Error((data && (data.error || data.message)) || "HTTP " + response.status);

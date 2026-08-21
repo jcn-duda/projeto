@@ -40,6 +40,7 @@ import { planJackettQueries, ptSweepIndexers, ptSweepQueryFor } from './search-p
 import { collectWithinWindow } from './collection-window.js';
 import { raceWithDeadline, remainingCheckBudget } from '../utils/deadline.js';
 import * as autofetch from './autofetch.js';
+import * as magnetdb from '../utils/magnetdb.js';
 import { opts, prefix, capture, run, origin } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -553,6 +554,23 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
     brReservedSlots,
   } = opts();
   const { publicUrl } = config.debrid;
+
+  // Banco de magnets + blacklist do autofetch: o que já PROVOU estar quebrado
+  // sai ANTES da checagem — não se gasta lote (nem upload, na AllDebrid) com
+  // fracasso conhecido. Só histórico desta conta: cache do debrid pertence a
+  // ela, e um morto aqui pode estar vivo em outro serviço.
+  const trustApiKey = opts().debridApiKey;
+  const trustScope = accountScope(trustApiKey);
+  const beforeTrust = streams.length;
+  streams = streams.filter((s: any) => !(s.infoHash && (
+    magnetdb.isBad(adapter.id, trustApiKey, s.infoHash) ||
+    autofetch.isDead(adapter.id, trustScope, s.infoHash)
+  )));
+  if (streams.length < beforeTrust) {
+    metrics.count('magnetdb.dropped', beforeTrust - streams.length);
+    log.info(`[debrid] ${beforeTrust - streams.length} magnet(s) com histórico ruim descartado(s) antes da checagem`);
+  }
+  if (streams.length === 0) return streams;
 
   // Só quem ainda é torrent tem hash pra consultar; stream já resolvido não entra no lote.
   const hashes = streams.map((s: any) => s.infoHash).filter(Boolean);
@@ -1470,7 +1488,16 @@ async function buildStreams(
   // fecha como item de aviso e entrega ao Stremio. Um item sem `url`/`infoHash`/
   // `externalUrl` (e sem a marca interna `notice`) morre fora da união — o que
   // deixa explícito na origem o aviso que nenhum cliente renderizava.
-  let streams: Stream[] = sortAndLimit(raw.map(toStremioStream), {
+  const mappedStreams = raw.map(toStremioStream);
+  // Histórico durável do banco de magnets: quem o debrid desta conta comprovou
+  // como play instantâneo ganha desempate acima dos seeders no sort.
+  const aliveAdapter = debrid.current();
+  const aliveApiKey = opts().debridApiKey;
+  const instantSet = aliveAdapter && aliveApiKey
+    ? new Set(mappedStreams.map((s: any) => s.infoHash).filter(Boolean)
+        .filter((h: string) => magnetdb.isAlive(aliveAdapter.id, aliveApiKey, h)))
+    : null;
+  let streams: Stream[] = sortAndLimit(mappedStreams, {
     minSeeders,
     maxResults: maxResults * config.candidatePoolFactor,
     qualityFilter: qualities,
@@ -1484,6 +1511,7 @@ async function buildStreams(
     candidateFactor: config.candidatePoolFactor,
     brFirst,
     indexerPriority: safeIndexerPriority,
+    instant: instantSet ? (h: string) => instantSet.has(String(h).toLowerCase()) : undefined,
   });
 
   // Contagem ANTES do debrid: `applyDebrid` já devolve a lista pós-cachedOnly,

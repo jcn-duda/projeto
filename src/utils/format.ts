@@ -1718,6 +1718,7 @@ function sortAndLimit(
     candidateFactor = 1,
     brFirst = true,
     indexerPriority = [],
+    instant = null as null | ((hash: string) => boolean),
   } = {},
 ) {
   // Release que nomeia o episódio pedido vem antes do pack da temporada: o pack
@@ -1761,6 +1762,13 @@ function sortAndLimit(
       // fonte preferida. Depois dela, o indexador desempata sem vencer qualidade.
       const pd = compareIndexerPriority(a, b, indexerRanks);
       if (pd !== 0) return pd;
+      // Histórico durável do banco de magnets: hash que o debrid comprovou
+      // como play instantâneo vence a aposta de seeders — evidência medida
+      // contra probabilidade.
+      if (instant) {
+        const hd = (instant(b.infoHash) ? 1 : 0) - (instant(a.infoHash) ? 1 : 0);
+        if (hd !== 0) return hd;
+      }
       return (b._seeders || 0) - (a._seeders || 0);
     });
 
