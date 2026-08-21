@@ -128,7 +128,8 @@ curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" http://127.0.0.1:7000/debrid
 
 O mesmo token abre `/metrics.json`, `/test-indexer.json`,
 `/dashboard-status.json` e `/dashboard-action.json`. Sem `JACKETT_TEST_TOKEN`
-no `.env` eles devolvem 503; token errado ou ausente, 401 — o token vale só no
+no `.env` a rota fica desligada (503, mesmo com header correto); com o token
+configurado, header errado ou ausente devolve 401 — o token vale só no
 header `X-Indexer-Test-Token`, nunca como `?token=` (a página `/dashboard` em
 si é pública e estática; o dado consolidado é que não).
 

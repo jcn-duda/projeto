@@ -1401,6 +1401,23 @@ function isSeasonPackRelease(stream: any, season: number | null) {
   return seasonPack;
 }
 
+/**
+ * Variante ESTREITA do isSeasonPackRelease, só para o Season Pack Fill.
+ * Exige que o título PROVE a temporada: número casando com a pedida, ou
+ * série completa ("Todas as Temporadas" cobre qualquer uma). "Temporada
+ * Completa" SEM número diz qual temporada é só na cabeça de quem publicou —
+ * o post do NerdFilmes anunciando S04 e contendo S03 é exatamente esse caso.
+ * Semear ⚡ e invalidar caches a partir dele promete o que o pack não provou
+ * conter; aí o fill não roda e a constatação fica para o pickFile do play.
+ */
+function isSeasonPackFillEligible(stream: any, season: number | null) {
+  if (season == null || !stream) return false;
+  const { seasons, episodes, complete } = parseTitleSeasonEpisode(stream.title || stream.name || '');
+  if (episodes.length) return false;
+  if (complete && !seasons.length) return true;
+  return seasons.includes(season);
+}
+
 // Peso de resolução dos pools de autofetch (BR e global): 1080p/720p vencem
 // 2160p porque o download esquenta o cache para o play rápido, não para baixar
 // o maior arquivo; SD fica por último.
@@ -1910,6 +1927,7 @@ export {
   matchesEpisode,
   parseTitleSeasonEpisode,
   isSeasonPackRelease,
+  isSeasonPackFillEligible,
   dedupeByHash,
   selectQualityCandidates,
   limitByQuality,

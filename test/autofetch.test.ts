@@ -1825,3 +1825,177 @@ test('movimento zera a contagem de stall: só observações CONSECUTIVAS derruba
     held.release(h, account);
   }
 });
+
+// Dead e stall têm contadores SEPARADOS: um stall prévio não pode valer como
+// primeira observação de morte. O contrato é "2 dead consecutivos" — com o
+// contador compartilhado, um dead transitório único após um stall derrubaria
+// download ainda recuperável.
+test('stall prévio não adianta o colapso do dead: contadores são independentes', async () => {
+  const testMock = mock;
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalStall = config.debrid.autoFetchStallStreak;
+  const originalRecheckMax = config.debrid.autoFetchRecheckMax;
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const originalTorrentStatus = pmAdapter.torrentStatus;
+  const originalRemoveTorrent = pmAdapter.removeTorrent;
+  const account = accountScope('chave-stall-dead');
+  const h = '5'.repeat(40);
+  const searchKey = 'busca-stall-dead';
+  const brDub = { infoHash: h, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-stall-dead',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  let removals = 0;
+  let mode: 'stall' | 'dead' | 'moving' = 'stall';
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    config.debrid.autoFetchStallStreak = 3;
+    config.debrid.autoFetchRecheckMax = 20;
+    pmAdapter.enqueue = async () => true;
+    pmAdapter.torrentStatus = async () => mode === 'stall'
+      ? { [h]: { state: 'downloading', stalled: true, id: 99 } }
+      : mode === 'dead'
+        ? { [h]: { state: 'dead', id: 99 } }
+        : { [h]: { state: 'downloading', id: 99 } };
+    pmAdapter.removeTorrent = async () => { removals += 1; return true; };
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    cache.set(searchKey, { streams: [], partial: false }, 900);
+
+    testMock.timers.enable({ apis: ['setTimeout'] });
+    await runtime.run({ opts: userOpts, encoded: 'cfg-stall-dead' }, () =>
+      applyDebrid([brDub], { searchKey } as any),
+    );
+    await flush();
+
+    // 1º recheck: stall (stallStreak 1; deadStreak 0).
+    testMock.timers.tick(120_000);
+    await flush();
+
+    // 2º recheck: UM dead — herdaria o ponto do stall se o contador fosse
+    // compartilhado e colapsaria aqui. Contadores separados: nada ainda.
+    mode = 'dead';
+    testMock.timers.tick(120_000);
+    await flush();
+    assert.equal(autofetch.isDead('premiumize', account, h), false, '1º dead após stall não colapsa');
+    assert.equal(removals, 0);
+
+    // 3º recheck: SEGUNDO dead consecutivo — agora colapsa.
+    testMock.timers.tick(120_000);
+    await flush();
+    assert.equal(autofetch.isDead('premiumize', account, h), true, '2º dead consecutivo colapsa');
+    assert.equal(removals, 1);
+  } finally {
+    testMock.timers.reset();
+    config.debrid.autoFetchStallStreak = originalStall;
+    config.debrid.autoFetchRecheckMax = originalRecheckMax;
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    pmAdapter.torrentStatus = originalTorrentStatus;
+    pmAdapter.removeTorrent = originalRemoveTorrent;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, h));
+    held.release(h, account);
+  }
+});
+
+// "Temporada Completa" SEM número não prova qual temporada o pack contém (o
+// post do NerdFilmes anunciando S04 com S03 dentro é exatamente esse caso).
+// O Season Pack Fill só roda com prova: número casando com a temporada pedida
+// ou série completa. Sem isso o pack pronto NÃO semeia ⚡ nem invalida a
+// temporada — a constatação fica para o pickFile do play.
+test('pack "Temporada Completa" sem número não dispara season fill', async () => {
+  const testMock = mock;
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalSeasonFill = config.debrid.autoFetchSeasonFill;
+  const originalSeasonIndexMax = config.debrid.autoFetchSeasonIndexMax;
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const originalTorrentStatus = pmAdapter.torrentStatus;
+  const apiKey = 'chave-season-fill-sem-numero';
+  const account = accountScope(apiKey);
+  const imdbId = 'tt7654321';
+  const ids = [`${imdbId}:1:1`, `${imdbId}:1:2`];
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: apiKey,
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const keys = ids.map((id) => streamsCacheKey('series', id, { ...userOpts, resolveUncached: config.debrid.resolveUncached }));
+  const h = '8'.repeat(40);
+  const pack = {
+    infoHash: h,
+    name: 'Show Temporada Completa Dublado',
+    title: 'Show Temporada Completa Dublado',
+    _br: true,
+    _dubbed: true,
+    _quality: '1080p',
+    _seeders: 1,
+  };
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  const davailBefore = cache.snapshot().namespaces.davail?.entries || 0;
+  const fillBefore = metrics.snapshot().counters['autofetch.season-fill'] || 0;
+  let checks = 0;
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    config.debrid.autoFetchSeasonFill = true;
+    config.debrid.autoFetchSeasonIndexMax = 10;
+    pmAdapter.enqueue = async () => true;
+    pmAdapter.torrentStatus = async () => ({});
+    debrid.checkCached = async () => {
+      checks += 1;
+      return checks === 1 ? { cached: new Set(), known: true } : { cached: new Set([h]), known: true };
+    };
+    for (const key of keys) cache.set(key, [{ infoHash: h }], 900);
+
+    await runtime.run({ opts: userOpts, encoded: 'cfg-fill-sem-numero' }, async () => {
+      for (const id of ids) await findStreams({ type: 'series', id });
+    });
+
+    testMock.timers.enable({ apis: ['setTimeout'] });
+    await runtime.run({ opts: userOpts, encoded: 'cfg-fill-sem-numero' }, () =>
+      applyDebrid([pack], { searchKey: keys[0], imdbId, season: 1 } as any),
+    );
+    await flush();
+    testMock.timers.tick(120_000);
+    await flush();
+
+    // A busca que enfileirou é invalidada pelo caminho ready comum; o outro
+    // episódio e o davail seguem intocados: sem prova de temporada, sem fill.
+    assert.equal(cache.get(keys[1]) != null, true, 'episódio vizinho não é invalidado sem prova de temporada');
+    assert.equal(
+      cache.snapshot().namespaces.davail?.entries || 0,
+      davailBefore,
+      'disponibilidade não é semeada por pack sem número de temporada',
+    );
+    assert.equal(
+      (metrics.snapshot().counters['autofetch.season-fill'] || 0) - fillBefore,
+      0,
+      'métrica de fill não conta',
+    );
+  } finally {
+    testMock.timers.reset();
+    config.debrid.autoFetchSeasonFill = originalSeasonFill;
+    config.debrid.autoFetchSeasonIndexMax = originalSeasonIndexMax;
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    pmAdapter.torrentStatus = originalTorrentStatus;
+    for (const key of keys) cache.forget(key);
+    cache.forget(autofetch.markerKey('premiumize', account, h));
+    held.release(h, account);
+  }
+});

@@ -369,8 +369,15 @@ function createApp() {
     const admission = diagnosticGate.enter('global') as GateAdmission;
     if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
     try {
+      // O gate global é de UM por vez: um debrid fora do ar não pode segurar
+      // o assento pelo timeout inteiro e congelar as ações do próprio painel.
+      // A corrida degrada para `timeout` e a próxima rodada tenta de novo.
+      const accountTimeout = new Promise((resolve) => {
+        const timer = setTimeout(() => resolve({ ok: false, error: 'timeout consultando o debrid' }), 3000);
+        timer.unref?.();
+      });
       const [account, indexers] = await Promise.all([
-        debrid.accountStatus(),
+        Promise.race([debrid.accountStatus(), accountTimeout]) as any,
         jackettCatalog.load(),
       ]);
       const metricSnapshot = metrics.snapshot();

@@ -332,6 +332,10 @@ const config = {
     autoFetchSeasonFill: String(process.env.DEBRID_AUTO_FETCH_SEASON_FILL || 'true') === 'true',
     // LRU do índice em memória de temporadas. 0 desliga o índice sem deploy.
     autoFetchSeasonIndexMax: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_SEASON_INDEX_MAX, 200))),
+    // Teto de chaves de busca por temporada no índice. Cada instalação da
+    // mesma conta é uma chave distinta; conta compartilhada por muitas URLs
+    // precisa de teto maior para o fill alcançar todas após um pack pronto.
+    autoFetchSeasonIndexKeys: Math.max(16, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_SEASON_INDEX_KEYS, 256))),
     // Fila persistente de autofetch e drenagem automática
     autoFetchQueue: String(process.env.DEBRID_AUTO_FETCH_QUEUE || 'true') === 'true',
     autoFetchQueueDepth: Math.min(12, Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_QUEUE_DEPTH, 6)))),

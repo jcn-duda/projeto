@@ -118,6 +118,62 @@ test('pickFile falha explicitamente se pack multi-vídeo não identifica episód
   assert.equal(only!.path, 'episodio-sem-nome.mkv');
 });
 
+test('pickFile: EP solto em pack multi-temporada aplainado toca a temporada pedida', () => {
+  // Ambos os arquivos casam "EP09"; só o caminho da temporada distingue. O
+  // resultado tem que ser o da temporada pedida, não o primeiro da listagem.
+  const pack = [
+    f('Show/Season 1/EP09.mkv', 1 * 1024 ** 3),
+    f('Show/Season 4/EP09.mkv', 1 * 1024 ** 3),
+  ];
+  const file = pickFile(pack, { season: 4, episode: 9 });
+  assert.equal(file!.path, 'Show/Season 4/EP09.mkv');
+});
+
+test('pickFile: pack com temporadas divergentes e sem casamento forte falha explícito', () => {
+  // Nenhum arquivo declara a temporada pedida (S03) e há marcadores de outras
+  // temporadas no pack: aceitar o "EP09" solto seria adivinhar a qual
+  // temporada ele pertence. 404 honesto em vez de episódio errado.
+  const pack = [
+    f('Show/S01/EP09.mkv', 1 * 1024 ** 3),
+    f('Show/S02/EP09.mkv', 1 * 1024 ** 3),
+  ];
+  assert.throws(
+    () => pickFile(pack, { season: 3, episode: 9 }),
+    (err) => isEpisodePickError(err),
+  );
+});
+
+test('pickFile: marcador que confirma a temporada pedida não bloqueia o EP solto', () => {
+  // O S01E06 do mesmo pack confirma que o "Episódio 05" é da temporada 1;
+  // só um marcador DIVERGENTE deve criar ambiguidade.
+  const pack = [
+    f('Show Episódio 05.mkv', 1),
+    f('Show S01E06.mkv', 2),
+  ];
+  const file = pickFile(pack, { season: 1, episode: 5 });
+  assert.equal(file!.path, 'Show Episódio 05.mkv');
+});
+
+test('pickFile: pasta "2ª Temporada" declara a temporada pedida (forma pt-BR)', () => {
+  const pack = [
+    f('2ª Temporada/Episodio 05.mkv', 1),
+    f('2ª Temporada/Episodio 06.mkv', 2),
+  ];
+  const file = pickFile(pack, { season: 2, episode: 5 });
+  assert.equal(file!.path, '2ª Temporada/Episodio 05.mkv');
+});
+
+test('pickFile: pack só de EP solto, sem temporada numerada, continua tocando', () => {
+  // Sem marcador de temporada algum, o pack é presumivelmente da temporada
+  // pedida — a forma clássica dos packs BR.
+  const pack = [
+    f('Show/EP05.mkv', 1),
+    f('Show/EP06.mkv', 2),
+  ];
+  const file = pickFile(pack, { season: 1, episode: 5 });
+  assert.equal(file!.path, 'Show/EP05.mkv');
+});
+
 test('looksMultiWorkFiles distingue obras por anos dos vídeos principais', () => {
   assert.equal(looksMultiWorkFiles(PACK), true);
   assert.equal(looksMultiWorkFiles([

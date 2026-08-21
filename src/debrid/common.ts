@@ -296,23 +296,52 @@ function pickFile(files: DebridFile[], { season, episode, work }: { season?: num
     // Alguns packs BR usam E006/E012. Até dois zeros à esquerda preservam os
     // formatos comuns sem aceitar o número como trecho de outro episódio.
     const episodeForms = `(?:0{0,2}${episode})`;
+    // Temporada pedida no caminho, incluindo as formas pt-BR ("2ª Temporada",
+    // "Temporada 2") que os packs locais usam de verdade.
     const pathHasSeason = (path: string) => new RegExp(
-      `(?:\\bs${seasonForms}(?!\\d)|\\bt${seasonForms}(?!\\d)|\\bseason[\\s._-]*${seasonForms}(?!\\d)|\\b${seasonForms}x)`,
+      `(?:\\bs${seasonForms}(?!\\d)|\\bt${seasonForms}(?!\\d)|\\bseason[\\s._-]*${seasonForms}(?!\\d)|\\b${seasonForms}x` +
+      `|\\b(?:temp|temporada)[\\s._-]*${seasonForms}(?!\\d)|\\b${seasonForms}ª?[\\s._-]*(?:temp|temporada)\\b)`,
       'i',
     ).test(path);
-    const patterns = [
+    // Temporada QUALQUER (numerada) no caminho — não só a pedida. Serve para
+    // medir ambiguidade: pack multi-temporada aplainado ("Season 1/EP09" +
+    // "Season 4/EP09" no mesmo torrent) tem arquivo com temporada que não é a
+    // pedida. Só o dígito marca; "Temporada Completa" sem número não declara
+    // qual é e não ambigua por si só.
+    const pathHasAnySeason = /(?:\b[st]\d{1,2}(?!\d)|\bseason[\s._-]*\d|\b\d{1,2}x\d{1,2}\b|\b(?:temp|temporada)[\s._-]*\d|\b\d{1,2}ª?[\s._-]*(?:temp|temporada)\b)/i;
+    // Forte: o padrão carrega a temporada pedida (s01e05, 1x05, 0105) ou um
+    // padrão fraco em caminho que declara a temporada pedida.
+    const strongPatterns = [
       new RegExp(`\\bs${seasonForms}[\\s._-]*e${episodeForms}\\b`, 'i'),
       new RegExp(`\\b${seasonForms}x${episodeForms}\\b`, 'i'),
       new RegExp(`\\b${s}${e}\\b`),
+    ];
+    // Fraco: diz o episódio mas não a temporada ("Episodio 05", "E05", "05").
+    const weakPatterns = [
       new RegExp(`\\b(?:epis[oó]dio|cap[ií]tulo|ep|cap)[\\s._-]*0{0,2}${episode}\\b`, 'i'),
       new RegExp(`\\be[\\s._-]*0{0,2}${episode}\\b`, 'i'),
     ];
     const bareEpisode = new RegExp(`(?:^|[\\s._-])0{0,2}${episode}(?:[\\s._-]|$|\\.[a-z0-9]+$)`, 'i');
-    const match = videos.find((f) => {
+    const strong = videos.filter((f) => {
       const path = f.path || '';
-      return patterns.some((p) => p.test(path)) || (pathHasSeason(path) && bareEpisode.test(path));
+      return strongPatterns.some((p) => p.test(path))
+        || (pathHasSeason(path) && (weakPatterns.some((p) => p.test(path)) || bareEpisode.test(path)));
     });
-    if (match) return match;
+    if (strong.length > 0) return strong[0];
+    // Fraco só vale quando o pack não tem temporada numerada DIVERGENTE da
+    // pedida: se algum arquivo declara outra temporada, o "EP09" solto pode
+    // pertencer a ela — tocar o primeiro seria servir outro episódio em
+    // silêncio. Marcadores que confirmam a temporada pedida não ambiguam.
+    const ambiguousSeason = videos.some((file) => {
+      const path = file.path || '';
+      return pathHasAnySeason.test(path) && !pathHasSeason(path);
+    });
+    if (!ambiguousSeason) {
+      // O número NU não entra aqui: sem a temporada no próprio caminho ele é
+      // ambíguo por natureza ("Serie.05.Coisa") e já foi rejeitado acima.
+      const weak = videos.find((f) => weakPatterns.some((p) => p.test(f.path || '')));
+      if (weak) return weak;
+    }
     // Vídeo único continua compatível com torrents de episódio sem nome técnico.
     // Com pack, o maior arquivo é prova nenhuma de qual episódio foi pedido.
     if (videos.length > 1) throw new EpisodePickError();
