@@ -110,7 +110,12 @@ function noteQueries(count: number) {
 async function awaitIndexerGap(indexer: string) {
   const gap = Date.now() - (lastQueryAt.get(indexer) || 0);
   if (gap < config.harvest.indexerDelayMs) {
-    await new Promise((resolve) => setTimeout(resolve, config.harvest.indexerDelayMs - gap).unref());
+    // SEM unref, diferente do wait() do common.ts: aquele só roda dentro de uma
+    // requisição, onde o servidor segura o event loop. Este roda no colhedor,
+    // trabalho de FUNDO — com unref o Node encerra o loop com a promise ainda
+    // pendente e o await nunca volta, travando a obra no meio. O preço é o
+    // shutdown esperar no máximo um indexerDelayMs.
+    await new Promise((resolve) => setTimeout(resolve, config.harvest.indexerDelayMs - gap));
   }
 }
 
