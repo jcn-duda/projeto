@@ -383,10 +383,22 @@ function pickFile(files: DebridFile[], { season, episode, work }: { season?: num
       new RegExp(`\\be[\\s._-]*0{0,2}${episode}\\b`, 'i'),
     ];
     const bareEpisode = new RegExp(`(?:^|[\\s._-])0{0,2}${episode}(?:[\\s._-]|$|\\.[a-z0-9]+$)`, 'i');
+    // O layout de canais de áudio ("DDP5.1", "TrueHD.7.1", "AAC2.0") deixa um
+    // número NU delimitado no caminho, e o bareEpisode o lia como episódio:
+    // medido em "True.Detective.S03E07…DDP5.1.H.264-NTb.mkv", que casava o
+    // EPISÓDIO 1 — com "S03" ao lado satisfazendo o pathHasSeason, virava
+    // escolha FORTE e o play do E01 recebia o E07. Vale para o episódio 1 de
+    // qualquer série com áudio 5.1/7.1, que é a maioria dos WEB-DL.
+    //
+    // Só o par de canais sai, e o padrão é estreito de propósito: o primeiro
+    // dígito de um layout real nunca é 3 ou 4, e o `s`/`t` à esquerda preserva
+    // "S5.1"/"T3.1" (temporada com episódio), que são episódio de verdade.
+    const epPath = (path: string) => path.replace(/(?<![\dst])[125678]\.[012](?!\d)/gi, ' ');
     const strong = videos.filter((f) => {
       const path = f.path || '';
+      const clean = epPath(path);
       return strongPatterns.some((p) => p.test(path))
-        || (pathHasSeason(path) && (weakPatterns.some((p) => p.test(path)) || bareEpisode.test(path)));
+        || (pathHasSeason(path) && (weakPatterns.some((p) => p.test(clean)) || bareEpisode.test(clean)));
     });
     if (strong.length > 0) return strong[0];
     // Fraco só vale quando o pack não tem temporada numerada DIVERGENTE da
@@ -400,7 +412,7 @@ function pickFile(files: DebridFile[], { season, episode, work }: { season?: num
     if (!ambiguousSeason) {
       // O número NU não entra aqui: sem a temporada no próprio caminho ele é
       // ambíguo por natureza ("Serie.05.Coisa") e já foi rejeitado acima.
-      const weak = videos.find((f) => weakPatterns.some((p) => p.test(f.path || '')));
+      const weak = videos.find((f) => weakPatterns.some((p) => p.test(epPath(f.path || ''))));
       if (weak) return weak;
     }
     // Vídeo único continua compatível com torrents de episódio sem nome técnico.

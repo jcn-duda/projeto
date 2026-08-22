@@ -370,3 +370,40 @@ test('pickWorkFile usa basename: pasta "Trilogia (1985-1990)" não contamina cas
   assert.ok(file, 'deve encontrar um arquivo');
   assert.match(String(file!.path), /1985/, 'deve escolher o filme de 1985, não o de 1990');
 });
+
+test('pickFile: layout de canais de áudio não vira episódio nu', () => {
+  // Caso medido no True Detective: "…S03E07…DDP5.1.H.264-NTb.mkv" casava o
+  // EPISÓDIO 1 pelo "1" nu de "DDP5.1", e como "S03" satisfazia a temporada
+  // isso virava escolha FORTE — o play do E01 recebia o E07 antes de qualquer
+  // checagem. Vale para o episódio 1 de qualquer série com áudio 5.1/7.1.
+  const e07 = 'True.Detective.S03E07.The.Final.Country.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb.mkv';
+  for (const episode of [1, 2, 5]) {
+    assert.throws(
+      () => pickFile([f(e07, 3 * 1024 ** 3)], { season: 3, episode }),
+      (err) => isEpisodePickError(err),
+      `E07 não pode servir o episódio ${episode}`,
+    );
+  }
+  assert.equal(pickFile([f(e07, 1)], { season: 3, episode: 7 })!.path, e07, 'o episódio dele continua tocando');
+  for (const path of ['Show.S02E09.1080p.TrueHD.7.1.Atmos.mkv', 'Show.S02E09.1080p.AAC2.0.mkv']) {
+    assert.throws(
+      () => pickFile([f(path, 1)], { season: 2, episode: 1 }),
+      (err) => isEpisodePickError(err),
+      path,
+    );
+  }
+
+  // O episódio 1 de verdade continua casando, nas três formas que o achavam
+  // antes — inclusive as que dependem do número nu ("S03.01", "S5.1").
+  const ok: [string[], number, number, string][] = [
+    [['True.Detective.S03E01.1080p.AMZN.WEB-DL.DDP5.1.mkv'], 3, 1, 'True.Detective.S03E01.1080p.AMZN.WEB-DL.DDP5.1.mkv'],
+    [['Show/Temporada 3/Episodio 01 DDP5.1.mkv'], 3, 1, 'Show/Temporada 3/Episodio 01 DDP5.1.mkv'],
+    [['Show.S03.01.DDP5.1.mkv', 'Show.S03.02.DDP5.1.mkv'], 3, 1, 'Show.S03.01.DDP5.1.mkv'],
+    [['Show.S5.1.mkv', 'Show.S5.2.mkv'], 5, 1, 'Show.S5.1.mkv'],
+    [['S01E05.1080p.DDP5.1.mkv', 'S01E01.1080p.DDP5.1.mkv'], 1, 1, 'S01E01.1080p.DDP5.1.mkv'],
+  ];
+  for (const [paths, season, episode, esperado] of ok) {
+    const file = pickFile(paths.map((p, i) => f(p, i + 1)), { season, episode });
+    assert.equal(file!.path, esperado, paths.join(' + '));
+  }
+});
