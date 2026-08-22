@@ -36,9 +36,9 @@ const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Banco de magnets: histórico durável por hash (vivo/ruim), entrada
   // minúscula como o davail — a cota alta cobre contas com catálogo grande.
   mag: 8000,
-  // Índice de releases por obra (~8 KB por chave no pior caso, 40 releases ×
-  // ~200 bytes): 4.000 chaves ≈ 32 MB. É o que faz o addon responder do
-  // próprio índice sem esperar Jackett.
+  // Índice de releases por obra (~14,7 KB por chave medido no pior caso, com teto
+  // de 60 releases): 4.000 chaves ≈ 59 MB. É o que faz o addon responder do
+  // próprio índice sem esperar Jackett. Folga tranquila no limite de 3 GB.
   idx: 4000,
   autofetch: 2000,
   'indexer-status': 200,
@@ -504,6 +504,44 @@ function clear() {
   }
 }
 
+/**
+ * Rotina periódica de manutenção do SQLite, chamada em momentos ociosos
+ * (ex: tick do colhedor):
+ * 1. PRAGMA wal_checkpoint(PASSIVE): transfere páginas do WAL para o DB sem travar leitores/escritores.
+ * 2. PRAGMA optimize: atualiza estatísticas do query planner do SQLite.
+ * 3. PRAGMA freelist_count: se houver páginas livres acumuladas (> 500 páginas, ~2 MB), executa VACUUM.
+ */
+function maintain(): { checkpointed: boolean; optimized: boolean; vacuumed: boolean; freelistCount: number } {
+  if (!db) return { checkpointed: false, optimized: false, vacuumed: false, freelistCount: 0 };
+  let checkpointed = false;
+  let optimized = false;
+  let vacuumed = false;
+  let freelistCount = 0;
+
+  try {
+    flushPending();
+    db.exec('PRAGMA wal_checkpoint(PASSIVE)');
+    checkpointed = true;
+    db.exec('PRAGMA optimize');
+    optimized = true;
+
+    // Freelist: páginas liberadas após deletes/expirações que ainda não foram reutilizadas
+    const row = db.prepare('PRAGMA freelist_count').get() as any;
+    freelistCount = Number(row?.freelist_count ?? row?.[0] ?? 0) || 0;
+
+    // Limiar: 500 páginas (tamanho padrão de página 4096 = ~2 MB de espaço ocioso)
+    if (freelistCount > 500) {
+      log.info(`[cache] freelist_count atingiu ${freelistCount} páginas; executando VACUUM`);
+      db.exec('VACUUM');
+      vacuumed = true;
+    }
+  } catch (err: any) {
+    log.warn('[cache] manutenção do SQLite falhou:', err?.message || err);
+  }
+
+  return { checkpointed, optimized, vacuumed, freelistCount };
+}
+
 /** Libera o L2 no encerramento; o L1 continua utilizável até o processo sair. */
 function close() {
   if (pruneTimer) {
@@ -542,4 +580,7 @@ loadFromDisk();
 pruneTimer = setInterval(prune, 10 * 60 * 1000);
 pruneTimer.unref();
 
-export { MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, prune, clear, size, snapshot, peekRemaining, close };
+export {
+  MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany,
+  prune, clear, size, snapshot, peekRemaining, maintain, close,
+};

@@ -894,3 +894,25 @@ test(
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(PK_VALUE_INTEGRITY_SCRIPT),
 );
+
+const MAINTAIN_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  "cache.set('idx:v2:test-maintain-1', { data: 'test1' }, 3600);",
+  "cache.set('idx:v2:test-maintain-2', { data: 'test2' }, 3600);",
+  'const res = cache.maintain();',
+  "assert.strictEqual(res.checkpointed, true, 'checkpoint passivo executado');",
+  "assert.strictEqual(res.optimized, true, 'optimize executado');",
+  "assert.strictEqual(typeof res.freelistCount, 'number', 'freelist_count medido');",
+  "assert.strictEqual(typeof res.vacuumed, 'boolean', 'status de vacuum retornado');",
+  'cache.close();',
+].join('\n');
+
+test(
+  'cache.maintain executa wal_checkpoint passivo, optimize e pragma freelist_count',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => runIsolatedCacheTest(MAINTAIN_SCRIPT),
+);

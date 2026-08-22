@@ -255,6 +255,7 @@ async function checkQuotaWarning() {
  */
 async function tick() {
   if (inFlight || activity.recentUserTraffic(config.harvest.idleWindowMs)) return;
+  try { cache.maintain(); } catch {}
   checkQuotaWarning().catch(() => {});
   if (!queue.length) return;
   if (queriesThisHour() >= config.harvest.maxPerHour) return;
