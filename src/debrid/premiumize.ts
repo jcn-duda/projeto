@@ -7,7 +7,7 @@ import {
   magnetFor, json, pickFile, batched,
   AuthError, QuotaError, RateLimitError,
 } from './common.js';
-import { assertDubbedFiles } from './audio-audit.js';
+import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 
 const API = 'https://www.premiumize.me/api';
 
@@ -80,6 +80,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
   const body = new URLSearchParams({ src: magnetFor(infoHash) });
   const data = await call(apiKey, '/transfer/directdl', { method: 'POST', body });
   const file = pickFile(data.content || [], { season, episode, work });
+  recordFileEvidence(infoHash, data.content || []);
   assertDubbedFiles(data.content || [], Boolean(dubbed));
   return file ? file.stream_link || file.link : null;
 }

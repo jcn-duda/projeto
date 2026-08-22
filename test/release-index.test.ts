@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
-import { record, lookup, status, markMissing, isMissing } from '../src/utils/release-index.js';
+import { record, lookup, status, markMissing, isMissing, markFileEvidence, fileEvidence } from '../src/utils/release-index.js';
 
 const release = (hash: string, extra: any = {}) => ({
   title: `Filme Teste 1080p DUAL ${hash.slice(0, 4)}`,
@@ -250,4 +250,23 @@ test('RELEASE_INDEX=false também desliga a prova de miss', () => {
   } finally {
     config.releaseIndex.enabled = original;
   }
+});
+
+test('prova pelo arquivo: áudio e resolução reais por hash', () => {
+  // "BR" na listagem é a nacionalidade do INDEXER, não o áudio, e a resolução
+  // do post mente: medido no True Detective S03E03, duas fontes RedeTorrent
+  // com rótulo idêntico "1080p BR" — uma "H264-METCON" (inglês) e uma "DUAL"
+  // (dublada, e o arquivo é 720p apesar do post dizer 1080p).
+  const dub = '4014bd0d914c1fffc58921a0e079d01f4a7e0644';
+  const eng = 'fd01ca97a24acb6a7ed9810859348c3cf258d1e4';
+  assert.equal(fileEvidence(dub), null, 'sem prova antes de qualquer play');
+
+  markFileEvidence(dub, { a: 'Dual', q: '720p', n: 'True.Detective.S03E03.720p.WEB-DL.DUAL.mkv' });
+  markFileEvidence(eng, { a: '', e: 1, q: '1080p', n: 'True.Detective.S03E03.1080p.WEB.H264-METCON.mkv' });
+
+  assert.equal(fileEvidence(dub)!.a, 'Dual', 'guarda o RÓTULO do arquivo; quem combina com a origem BR é o toStremioStream');
+  assert.equal(fileEvidence(dub)!.q, '720p', 'a resolução vem do arquivo, não do post');
+  assert.equal(fileEvidence(eng)!.e, 1, 'release de cena reconhecida é a prova negativa');
+  // Por hash e sem escopo de conta: o conteúdo do torrent é o mesmo para todos.
+  assert.equal(fileEvidence('0'.repeat(40)), null, 'hash sem prova continua sem veredito');
 });

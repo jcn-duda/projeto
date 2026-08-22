@@ -1,6 +1,6 @@
 import { magnetFor, json, pickFile, wait } from './common.js';
 import * as log from '../utils/logger.js';
-import { assertDubbedFiles } from './audio-audit.js';
+import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 
 const API = 'https://debrid-link.com/api/v2';
 
@@ -70,6 +70,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
     link: f.downloadUrl,
   }));
   const file = pickFile(files, { season, episode, work });
+  recordFileEvidence(infoHash, files);
   assertDubbedFiles(files, Boolean(dubbed));
   return file?.link || null;
 }

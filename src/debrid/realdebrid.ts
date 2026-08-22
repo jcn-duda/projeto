@@ -1,6 +1,6 @@
 import { magnetFor, json, pickFile, isNoVideoError, wait } from './common.js';
 import * as log from '../utils/logger.js';
-import { assertDubbedFiles } from './audio-audit.js';
+import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 
 const API = 'https://api.real-debrid.com/rest/1.0';
 
@@ -94,7 +94,9 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
   // `links` traz só os arquivos selecionados, na ordem dos selecionados —
   // por isso a escolha do arquivo é refeita sobre esse subconjunto.
   const selected = (info.files || []).filter((f: any) => f.selected);
-  assertDubbedFiles(selected.map((f: any) => ({ ...f, path: f.path, size: f.bytes })), Boolean(dubbed));
+  const normalizados = selected.map((f: any) => ({ ...f, path: f.path, size: f.bytes }));
+  recordFileEvidence(infoHash, normalizados);
+  assertDubbedFiles(normalizados, Boolean(dubbed));
   const idx = selected.length > 1
     ? selected.indexOf(
         pickFile(selected.map((f: any) => ({ ...f, path: f.path, size: f.bytes })), { season, episode, work }),

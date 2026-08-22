@@ -608,5 +608,5 @@ export {
   AuthError, isAuthError, QuotaError, isQuotaError, RateLimitError, isRateLimitError,
   WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError,
   NoVideoError, isNoVideoError, DubLieError, isDubLieError,
-  VIDEO_EXT, SAMPLE, EXTRA,
+  VIDEO_EXT, SAMPLE, EXTRA, isSiteAd, baseName,
 };

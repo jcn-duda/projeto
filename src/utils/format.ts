@@ -463,9 +463,12 @@ function toStremioStream(item: RawItem): Stream | null {
       : 0;
   const size = bytesToSize(knownSize);
   const tracker = item.tracker || item.Tracker || item.Indexer || item.indexer || '';
-  const quality = qualityFromTitle(title);
+  // Prova pelo ARQUIVO tem precedência sobre o título do post: o nome do
+  // arquivo é fato, o título é palpite — e mente sobre áudio e resolução.
+  // Quem grava é o play/tail via releaseIndex; aqui só consumimos o campo.
+  const quality = (item as any).provenQuality || qualityFromTitle(title);
   const source = sourceFromTitle(title);
-  const audio = audioFromTitle(title);
+  const audio = (item as any).provenAudio !== undefined ? (item as any).provenAudio : audioFromTitle(title);
   const edition = editionFromTitle(title);
 
   // Convenção do Torrentio: 👤 seeders, 💾 tamanho, ⚙️ indexer. Os clientes
@@ -503,9 +506,12 @@ function toStremioStream(item: RawItem): Stream | null {
     _size: knownSize,
     // Agregadores BR espelham magnets globais: DUAL sem PT explícito não pode
     // ganhar vaga, prioridade ou autofetch só porque o post foi marcado BR.
+    // A prova do arquivo troca a FONTE do rótulo, não a regra: "DUAL" segue
+    // valendo só em origem BR, e fora dela ainda exige PT explícito — agora
+    // lido no nome do arquivo, que é o que de fato existe dentro do torrent.
     _dubbed: isBr
       ? audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional'
-      : explicitPtAudio(title),
+      : explicitPtAudio((item as any).provenName || title),
     // Origem BR vem marcada pelo provider OU pelo título (dublado em tracker
     // global). Release de site BR sem marca nenhuma no título continua valendo
     // pelo flag do provider: comandotorrents/nerdfilmes não citam "DUBLADO".

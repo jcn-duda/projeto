@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { magnetFor, json, pickFile, batched, wait, QuotaError, RateLimitError } from './common.js';
 import * as log from '../utils/logger.js';
-import { assertDubbedFiles } from './audio-audit.js';
+import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 
 const API = 'https://api.torbox.app/v1/api';
 
@@ -106,6 +106,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
     id: f.id,
   }));
   const file = pickFile(files, { season, episode, work });
+  recordFileEvidence(infoHash, files);
   assertDubbedFiles(files, Boolean(dubbed));
   if (!file) return null;
 

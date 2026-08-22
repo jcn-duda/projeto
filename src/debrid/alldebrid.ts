@@ -7,7 +7,7 @@ import {
 import * as held from './protected.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { assertDubbedFiles } from './audio-audit.js';
+import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 
 // v4.1: a AllDebrid descontinuou /v4/magnet/status ("DISCONTINUED"), o que
 // fazia toda resolução falhar com 502. upload e link/unlock respondem em ambas.
@@ -351,6 +351,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
 
   const files = flattenFiles(info.files);
   const file = pickFile(files, { season, episode, work });
+  recordFileEvidence(infoHash, files);
   assertDubbedFiles(files, Boolean(dubbed));
   if (!file) return null;
 

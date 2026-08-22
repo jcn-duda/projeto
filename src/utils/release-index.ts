@@ -226,6 +226,43 @@ function isMissing(imdbId: string, location: ObraLocation, hash: string) {
   return cache.get(missKey(imdbId, location, hash)) != null;
 }
 
+/**
+ * O que os ARQUIVOS provaram sobre o torrent — áudio e resolução reais, lidos
+ * quando o debrid entregou a listagem (play ou tail). É a única informação que
+ * o título do post não carrega e mente com frequência:
+ *
+ * - "BR" na listagem é a NACIONALIDADE DO INDEXER, não o áudio. O RedeTorrent
+ *   espelha release de cena em inglês e ela herda o mesmo BR do post dublado —
+ *   medido no S03E03: "…H264-METCON" (inglês) e "…DUAL" (dublado) lado a lado,
+ *   com rótulo idêntico e o inglês por cima.
+ * - A resolução do post também mente: o 4014bd0d anuncia "3ª Temporada HD DL
+ *   1080p" e contém um arquivo 720p. Filtrar 1080p escondia justamente o
+ *   dublado, porque o dublado desta temporada só existe em 720p.
+ *
+ * Por hash e SEM escopo de conta: o conteúdo de um torrent é o mesmo para todo
+ * mundo — igual ao resto do índice, que guarda o que EXISTE, não o que está
+ * pronto em qual conta.
+ */
+type FileEvidence = { a: string; e?: 0 | 1; q: string; n: string };
+
+function fileKey(hash: string) {
+  return `${prefix('idx')}file:${String(hash || '').toLowerCase()}`;
+}
+
+function markFileEvidence(hash: string, evidence: FileEvidence) {
+  if (!enabled() || !hash || !evidence) return 0;
+  const key = fileKey(hash);
+  const isNew = cache.get(key) == null;
+  cache.set(key, evidence, config.releaseIndex.ttl);
+  if (isNew) metrics.count('search.idx.file');
+  return isNew ? 1 : 0;
+}
+
+function fileEvidence(hash: string): FileEvidence | null {
+  if (!enabled() || !hash) return null;
+  return (cache.get(fileKey(hash)) as FileEvidence) || null;
+}
+
 /** Para o painel: quanto do índice existe agora. */
 function status() {
   const ns = cache.snapshot().namespaces as Record<string, any>;
@@ -237,4 +274,4 @@ function status() {
   };
 }
 
-export { record, lookup, markLied, markMissing, isMissing, status };
+export { record, lookup, markLied, markMissing, isMissing, markFileEvidence, fileEvidence, status };

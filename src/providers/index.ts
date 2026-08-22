@@ -1022,6 +1022,40 @@ function poolCovered(
 /** O título NOMEIA este episódio? Pack de temporada casa o episódio no
  * `matchesEpisode` de propósito (ele contém o episódio), mas não o NOMEIA —
  * e a diferença decide quem pode sustentar a cobertura do índice. */
+/**
+ * Corrige o stream com o que os ARQUIVOS provaram (áudio e resolução reais,
+ * gravados pelo play/tail em `releaseIndex`). Roda ANTES do sortAndLimit de
+ * propósito: `_dubbed` decide o preferDubbed/brFirst e `_quality` decide o
+ * filtro de resolução e as cotas — corrigir depois arrumaria só o rótulo.
+ *
+ * O título do post é palpite; o nome do arquivo é fato. Medido no True
+ * Detective S03: duas fontes RedeTorrent com rótulo idêntico "1080p BR", uma
+ * inglesa ("H264-METCON") e uma dublada ("DUAL"), com a inglesa por cima; e o
+ * dublado anunciado como 1080p sendo um arquivo 720p — filtrar 1080p escondia
+ * justamente o dublado, porque nesta temporada o dublado só existe em 720p.
+ *
+ * Só corrige o que foi PROVADO: sem evidência o stream passa intacto.
+ */
+function applyFileEvidence(items: any[]) {
+  let corrigidos = 0;
+  const out = items.map((item) => {
+    const hash = String(extractInfoHash(item?.infoHash || item?.magnet || '') || '').toLowerCase();
+    if (!hash) return item;
+    const ev = releaseIndex.fileEvidence(hash);
+    if (!ev) return item;
+    corrigidos += 1;
+    return {
+      ...item,
+      // Rótulo vazio com prova de release EN também é veredito: força o
+      // stream a NÃO passar por dublado (o `_br` do indexer o empatava).
+      ...(ev.a || ev.e ? { provenAudio: ev.a || '', provenName: ev.n || '' } : {}),
+      ...(ev.q ? { provenQuality: ev.q } : {}),
+    };
+  });
+  if (corrigidos) metrics.count('search.file.corrected', corrigidos);
+  return out;
+}
+
 function nomeiaEpisodio(title: string, season: number, episode: number) {
   const { seasons, episodes } = parseTitleSeasonEpisode(String(title || ''));
   return episodes.includes(episode) && (seasons.length === 0 || seasons.includes(season));
@@ -1957,7 +1991,10 @@ async function buildStreams(
   // fecha como item de aviso e entrega ao Stremio. Um item sem `url`/`infoHash`/
   // `externalUrl` (e sem a marca interna `notice`) morre fora da união — o que
   // deixa explícito na origem o aviso que nenhum cliente renderizava.
-  const mappedStreams = raw.map(toStremioStream);
+  // O que os arquivos provaram entra ANTES do mapeamento: o nome, o `_quality`
+  // e o `_dubbed` nascem do item, e sao eles que o filtro de resolucao, as cotas
+  // e o preferDubbed leem depois.
+  const mappedStreams = applyFileEvidence(raw).map(toStremioStream);
   // Histórico durável do banco de magnets: quem o debrid desta conta comprovou
   // como play instantâneo ganha desempate acima dos seeders no sort.
   const aliveAdapter = debrid.current();
