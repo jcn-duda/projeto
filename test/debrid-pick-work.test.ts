@@ -328,6 +328,30 @@ test('pickFile: nomes sem declaração de s/e continuam passando (compatibilidad
   );
 });
 
+test('pickFile: tag de áudio colada em dígito não vira temporada', () => {
+  // O padrão de temporada do parseTitleSeasonEpisode (`s(\d)`) não exige
+  // fronteira à esquerda, então "DTS5.1"/"Atmos5.1" eram lidos como S05 e
+  // condenavam episódio legítimo sem marcador no nome — o arquivo não declara
+  // temporada nenhuma, e recusar aqui é 404 em play bom.
+  for (const path of [
+    'Nome.do.Episodio.DTS5.1.mkv',
+    'Nome.do.Episodio.Atmos5.1.mkv',
+    'O.Distante.Brilho.DTS5.1.x264.mkv',
+  ]) {
+    assert.equal(pickFile([f(path, 1)], { season: 3, episode: 2 })!.path, path, path);
+  }
+  // A limpeza não pode cegar a checagem: "S03"/"S02" com separador antes
+  // continuam sendo temporada de verdade, com ou sem a tag de áudio ao lado.
+  assert.equal(
+    pickFile([f('Show.S03.1080p.DTS5.1.mkv', 1)], { season: 3, episode: 2 })!.path,
+    'Show.S03.1080p.DTS5.1.mkv',
+  );
+  assert.throws(
+    () => pickFile([f('Show.S02.1080p.DTS5.1.mkv', 1)], { season: 3, episode: 2 }),
+    (err) => isEpisodePickError(err),
+  );
+});
+
 test('pickWorkFile usa basename: pasta "Trilogia (1985-1990)" não contamina casamento de ano', () => {
   // Paths reais do AllDebrid: a pasta raiz carrega a faixa de anos do pack.
   const pack = [

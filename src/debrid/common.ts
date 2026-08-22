@@ -410,10 +410,19 @@ function pickFile(files: DebridFile[], { season, episode, work }: { season?: num
     // pedido. Caso real (True Detective S03E02): o pack anunciava a temporada
     // 3 mas continha só "S03E07" — sem esta checagem o fallback tocava o
     // episódio 7. Parse que não declara nada PASSA: torrent de episódio sem
-    // nome técnico ("episodio-sem-nome.mkv") continua compatível, e o
-    // "1920x1080" sai ANTES do parse porque o padrão \d+x\d+ o leria como
-    // S20/E108 (falso positivo conhecido do parseTitleSeasonEpisode).
-    const singleName = baseName(videos[0].path || '').replace(/\b\d{3,4}x\d{3,4}\b/g, ' ');
+    // nome técnico ("episodio-sem-nome.mkv") continua compatível.
+    //
+    // Dois ruídos saem ANTES do parse porque o parseTitleSeasonEpisode os lê
+    // como temporada/episódio, e aqui isso vira recusa de play legítimo:
+    // - "1920x1080" casa \d+x\d+ e vira S20/E108;
+    // - "DTS5.1"/"Atmos5.1" casam o padrão de temporada `s(\d)`, que não exige
+    //   fronteira à esquerda, e viram S05 — medido: um episódio sem marcador
+    //   no nome ("Nome.do.Episodio.DTS5.1.mkv") era recusado pela dimensão de
+    //   temporada. Só o `s` COLADO em letra é ruído; "S05" com separador antes
+    //   continua sendo temporada de verdade.
+    const singleName = baseName(videos[0].path || '')
+      .replace(/\b\d{3,4}x\d{3,4}\b/g, ' ')
+      .replace(/[a-z]s\d{1,2}(?![\de])/gi, ' ');
     const declared = parseTitleSeasonEpisode(singleName);
     // "complete" só é cobertura total quando NÃO há temporada explícita —
     // mesma semântica medida do seasonCoverageExcludes (format.ts): um nome
