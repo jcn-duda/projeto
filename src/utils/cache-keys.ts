@@ -20,6 +20,7 @@ const NAMESPACE_VERSIONS = Object.freeze({
   idx: 'v2',
   harvest: 'v1',
   notify: 'v1',
+  seed: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

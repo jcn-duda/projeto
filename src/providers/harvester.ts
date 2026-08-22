@@ -20,6 +20,7 @@ import * as tmdb from '../utils/tmdb.js';
 import { resolveSearchNames, buildSearchQuery, filterRelevantRaw } from '../utils/format.js';
 import { ptSweepIndexers, ptSweepQueryFor } from './search-plan.js';
 import * as releaseIndex from '../utils/release-index.js';
+import { nextSeeds } from './imdb-seed.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import debrid from '../debrid/index.js';
@@ -127,7 +128,10 @@ async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: b
   const matchContext = {
     names: searchMeta.names,
     year: searchMeta.year,
-    isSeries: entry.season != null,
+    // Pelo TIPO, não pela temporada: obra semeada pela lista de populares
+    // entra sem temporada, e `isSeries: false` aplicaria a precisão de título
+    // de FILME numa série. Para quem já vinha com temporada, é equivalente.
+    isSeries: entry.type === 'series',
     season: entry.season ?? null,
     episode: entry.episode ?? null,
   };
@@ -274,6 +278,12 @@ async function tick() {
   if (inFlight || activity.recentUserTraffic(config.harvest.idleWindowMs)) return;
   try { cache.maintain(); } catch {}
   checkQuotaWarning().catch(() => {});
+  // Semente: descobre obra popular que o índice ainda não conhece. Fora do
+  // await de propósito — a rede da RapidAPI não pode atrasar a colheita, e o
+  // cooldown do próprio módulo evita repetir no tick seguinte.
+  nextSeeds()
+    .then((obras) => obras.forEach((obra) => enqueue(obra as any)))
+    .catch((err: any) => log.debug('[seed] ciclo falhou:', err?.message || err));
   if (!queue.length) return;
   if (queriesThisHour() >= config.harvest.maxPerHour) return;
   inFlight = true;

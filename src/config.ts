@@ -447,6 +447,21 @@ const config = {
     // Sem uma fonte tocável, explica ao cliente por que a lista não ficou vazia.
     noticeStream: String(process.env.SEARCH_NOTICE_STREAM || 'true') === 'true',
   },
+  // Semente do colhedor pela lista de populares do IMDb (RapidAPI). Sem
+  // RAPIDAPI_KEY o modulo e inerte: nao faz requisicao nenhuma. O teto por
+  // ciclo e pequeno de proposito — o gargalo e a vazao do colhedor (~4
+  // obras/hora), nao a cota da API (10.000 requisicoes por periodo contra 2
+  // requisicoes por dia).
+  seed: {
+    enabled: String(process.env.SEED_ENABLED || 'true') === 'true',
+    apiKey: process.env.RAPIDAPI_KEY || '',
+    host: process.env.RAPIDAPI_IMDB_HOST || 'imdb236.p.rapidapi.com',
+    maxPerCycle: Math.max(0, Math.trunc(num(process.env.SEED_MAX_PER_CYCLE, 20))),
+    // Piso de votos: popular sem publico e ruido de metadado.
+    minVotes: Math.max(0, Math.trunc(num(process.env.SEED_MIN_VOTES, 1000))),
+    intervalH: Math.max(1, Math.trunc(num(process.env.SEED_INTERVAL_H, 24))),
+    timeoutMs: num(process.env.SEED_TIMEOUT_MS, 8000),
+  },
   magnetDb: {
     enabled: String(process.env.MAGNET_DB || 'true') === 'true',
     aliveTtl: num(process.env.MAGNET_ALIVE_TTL, 7 * 24 * 3600),
