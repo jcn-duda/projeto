@@ -709,7 +709,14 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
     // `d` prova a promessa feita NA listagem e `i` permite que o play grave a
     // evidência no índice da obra. Campos opcionais ficam dentro do hint já
     // assinado; URLs antigas sem eles continuam verificando normalmente.
-    const hint = workHint || s._dubbed
+    // O `i` entra SEMPRE que a obra é conhecida, não só em filme ou dublado.
+    // Medido: um pack BR não marcado como dublado chegava ao /resolve sem
+    // dica, o play provava o episódio errado com evidência do arquivo e a
+    // prova era jogada fora por não haver obra onde gravá-la — a fonte morta
+    // só saía da lista quando o tail chegasse nela (2 por busca, e só em
+    // cacheado). O clique do usuário é a evidência mais forte que existe;
+    // desperdiçá-la mantinha na tela uma fonte que jamais tocaria.
+    const hint = workHint || s._dubbed || imdbId
       ? {
         ...(workHint || {}),
         ...(workHint && s._multiWork ? { p: 1 } : {}),
