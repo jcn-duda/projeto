@@ -739,7 +739,7 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
     // Fase D também na degradação: o confirmado em cache aqui é candidato tão
     // bom quanto no caminho completo — este return passa por cima da coleta lá
     // de baixo, e era aqui que a fila ficava vazia nas respostas parciais.
-    queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(streams, cached, { season, episode, imdbId, workHint }));
+    queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(streams, cached, { season, episode, imdbId, workHint }), searchKey);
     return streams.map((s: any) => viaDebrid(s, cached.has(s.infoHash)));
   }
 
@@ -760,7 +760,7 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
   // Fase D: candidatos ⚡ dublados desta busca entram na fila do tail. A ordem
   // de `filtered.streams` é a do sort — o topo é o que o usuário toca, então
   // é ele que a auditoria prova primeiro.
-  queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(filtered.streams, cached, { season, episode, imdbId, workHint }));
+  queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(filtered.streams, cached, { season, episode, imdbId, workHint }), searchKey);
   const out: Stream[] = [];
   for (const s of filtered.streams) {
     if (s.infoHash && cached.has(s.infoHash)) {
@@ -789,7 +789,7 @@ const inFlight = new Map();
 // o play descobrir entrega inglês sob selo DUB BR uma vez por hash — o tail
 // prova ANTES, grava a mesma evidência do play e a próxima lista já nasce
 // honesta. Fila curta de propósito: sobra de busca sem tail não acumula.
-const dubAuditPending: Array<{ hash: string; season: number | null; episode: number | null; imdbId: string | null; work: any }> = [];
+const dubAuditPending: Array<{ hash: string; season: number | null; episode: number | null; imdbId: string | null; work: any; key?: string | null }> = [];
 
 /** ⚡ + dublado = o que o usuário vai tocar; é isso que o tail interrogará. */
 function collectAuditCandidates(
@@ -808,14 +808,33 @@ function collectAuditCandidates(
     }));
 }
 
-function queueDubAudit(adapterId: string, apiKey: string, candidates: any[]) {
+function queueDubAudit(adapterId: string, apiKey: string, candidates: any[], searchKey: string | null = null) {
   if (!config.audioAudit.enabled || config.debrid.dubAuditTailMax <= 0) return;
+  let added = false;
   for (const cand of candidates) {
     // Já condenado nesta conta não gasta consulta de novo.
     if (magnetdb.isLie(adapterId, apiKey, cand.hash)) continue;
-    dubAuditPending.push(cand);
+    dubAuditPending.push({ ...cand, key: searchKey });
+    added = true;
   }
   if (dubAuditPending.length > 50) dubAuditPending.splice(0, dubAuditPending.length - 50);
+  // A drenagem é agendada NO enfileiramento, de propósito: os candidatos BR
+  // costumam chegar pelo passe tardio, DEPOIS do ponto da busca que responderia
+  // — e a busca seguinte pode sair do cache sem rodar doSearch de novo. O
+  // setImmediate criado AQUI herda o AsyncLocalStorage da requisição que
+  // enfileirou (opts() continua vendo a conta certa), e cada drenagem leva
+  // consigo a chave da lista para invalidar quem provou mentira.
+  if (added) {
+    const handle = setImmediate(async () => {
+      try {
+        const r = await runDubAudit();
+        if (r.audited > 0) log.info(`[audit] tail: ${r.audited} candidato(s) provado(s), ${r.lies} mentira(s)`);
+      } catch (err) {
+        log.warn('[audit] drenagem falhou:', err?.message || err);
+      }
+    });
+    handle.unref?.();
+  }
 }
 
 /**
@@ -826,6 +845,7 @@ function queueDubAudit(adapterId: string, apiKey: string, candidates: any[]) {
  */async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
   const batch = dubAuditPending.splice(0, Math.max(0, Math.trunc(Number(limit) || 0)));
   let lies = 0;
+  const liedKeys = new Set<string>();
   for (const cand of batch) {
     try {
       await debrid.resolveLink(cand.hash, { season: cand.season, episode: cand.episode, work: cand.work, dubbed: true });
@@ -835,10 +855,14 @@ function queueDubAudit(adapterId: string, apiKey: string, candidates: any[]) {
       const adapter = debrid.current() as DebridAdapter | null;
       if (adapter) magnetdb.markLie(adapter.id, opts().debridApiKey, cand.hash);
       if (cand.imdbId) releaseIndex.markLied(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash);
+      if (cand.key) liedKeys.add(cand.key);
       metrics.count('debrid.audit.lie.tail');
       log.warn(`[audit] tail provou mentira ${String(cand.hash).slice(0, 8)}${err.evidence?.matchedGroup ? ` (${err.evidence.matchedGroup})` : ''}`);
     }
   }
+  // A lista corrente ainda carrega o selo DUB BR do mentiroso: invalida para a
+  // próxima busca nascer limpa, sem esperar TTL nem play de ninguém.
+  for (const key of liedKeys) cache.forget(key);
   return { audited: batch.length, lies };
 }
 
@@ -1538,23 +1562,6 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
   const responsePhase = finish.phase();
   if (raw.sweepInline) metrics.count('search.pt-sweep.inline');
   const result = await finish({ ...raw, deadlineAt }, responsePhase);
-
-  // Auditoria proativa (fase D): prova os top dublados em cache no passe
-  // tardio, nunca no caminho da resposta. Mentira provada invalida a lista
-  // corrente — a próxima requisição já nasce sem o mentiroso, sem esperar TTL
-  // nem depender de alguém tocar no lixo primeiro.
-  if (dubAuditPending.length > 0 && cacheKey) {
-    const auditCtx = capture();
-    enqueueTail(async () => {
-      try {
-        const r = await run(auditCtx, () => runDubAudit());
-        if (r.audited > 0) log.info(`[audit] tail: ${r.audited} candidato(s) provado(s), ${r.lies} mentira(s)`);
-        if (r.lies > 0) cache.forget(cacheKey);
-      } catch (err) {
-        log.warn('[audit] tail falhou:', err?.message || err);
-      }
-    });
-  }
 
   // Jackett como SEGUNDO: a resposta já saiu do índice; a coleta completa roda
   // no tail, alimenta o índice com o que é novo e promove a lista pelo mesmo
