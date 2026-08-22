@@ -31,6 +31,8 @@ type IndexedRelease = {
   quality: string;
   seeders: number;
   seenAt: number;
+  /** Prova por arquivo real: o post prometia PT, mas era release EN. */
+  lied?: boolean;
 };
 
 type IndexEntry = { at: number; releases: IndexedRelease[] };
@@ -130,6 +132,8 @@ function record(imdbId: string, location: ObraLocation, items: any[]) {
         quality: qualityFromTitle(title),
         seeders: Number(item.seeders ?? item.Seeders ?? 0) || 0,
         seenAt: now,
+        // Campo aditivo: uma nova coleta não pode apagar prova de play/tail.
+        lied: Boolean(prior?.lied),
       });
     }
     if (existing.size === 0) continue;
@@ -166,6 +170,33 @@ function lookup(imdbId: string, { season, episode }: ObraLocation = {}): Indexed
   return [...merged.values()];
 }
 
+/**
+ * A evidência de mentira chega do play/tail com hash e obra conhecidos. Campo
+ * opcional preserva entradas antigas e evita invalidar o índice inteiro.
+ */
+function markLied(imdbId: string, location: ObraLocation, hash: string) {
+  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !hash) return 0;
+  const normalized = String(hash).toLowerCase();
+  const keys = new Set<string>([
+    obraKey(imdbId, location),
+    obraKey(imdbId, { season: location.season }),
+    obraKey(imdbId),
+  ]);
+  let changed = 0;
+  for (const key of keys) {
+    const entry = cache.get(key) as IndexEntry | undefined;
+    if (!entry?.releases?.some((release) => release.hash === normalized)) continue;
+    const releases = entry.releases.map((release) => {
+      if (release.hash !== normalized || release.lied) return release;
+      changed += 1;
+      return { ...release, lied: true };
+    });
+    cache.set(key, { ...entry, releases } satisfies IndexEntry, config.releaseIndex.ttl);
+  }
+  if (changed) metrics.count('search.idx.lied', changed);
+  return changed;
+}
+
 /** Para o painel: quanto do índice existe agora. */
 function status() {
   const ns = cache.snapshot().namespaces as Record<string, any>;
@@ -177,4 +208,4 @@ function status() {
   };
 }
 
-export { record, lookup, status };
+export { record, lookup, markLied, status };

@@ -138,6 +138,13 @@ const config = {
     intervalMs: num(process.env.HARVEST_INTERVAL_MS, 60_000),
     idleWindowMs: num(process.env.HARVEST_IDLE_WINDOW_MS, 10 * 60_000),
     queueMax: num(process.env.HARVEST_QUEUE_MAX, 200),
+    // O painel mostra apenas uma amostra; a fila inteira pode conter centenas
+    // de obras e não deve virar payload operacional.
+    queuePreview: Math.max(0, Math.trunc(num(process.env.HARVEST_QUEUE_PREVIEW, 8))),
+    dashboardLastWorks: Math.max(0, Math.trunc(num(process.env.HARVEST_DASHBOARD_LAST, 10))),
+    // Drenar pelo painel continua submetido ao teto horário. Este limite evita
+    // que um clique monopolize o colhedor por muito tempo.
+    drainMaxWorks: Math.max(1, Math.trunc(num(process.env.HARVEST_DRAIN_MAX_WORKS, 5))),
     // Teto de educação com os indexers: o colhedor reduz carga total (a mesma
     // obra deixa de ser raspada a cada busca), mas não pode virar crawler.
     // Teto de consultas ao Jackett por hora. O piso NÃO é gosto: uma obra custa
@@ -409,6 +416,9 @@ const config = {
     // Teto da fonte DENTRO da busca: a primeira leitura custa ~700ms (medido);
     // estourou, a tarefa devolve [] e a próxima busca pega do memo aquecido.
     inventoryTimeoutMs: num(process.env.DEBRID_INVENTORY_TIMEOUT_MS, 1500),
+    // Diagnóstico não pode reter o gate global quando a API da conta está fora
+    // do ar; é separado do timeout da busca de inventário.
+    dashboardAccountTimeoutMs: num(process.env.DEBRID_DASHBOARD_ACCOUNT_TIMEOUT_MS, 3000),
     // URL pública do addon, usada nos links de play resolvidos no debrid.
     publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
     // Segredo do HMAC dos links /resolve. Vazio = assina com a API key de
@@ -466,6 +476,23 @@ const config = {
     enabled: String(process.env.MAGNET_DB || 'true') === 'true',
     aliveTtl: num(process.env.MAGNET_ALIVE_TTL, 7 * 24 * 3600),
     badTtl: num(process.env.MAGNET_BAD_TTL, 24 * 3600),
+    // "Lie" não é bad: há vídeo, mas os paths provaram release EN apesar da
+    // promessa de áudio PT no post. É evidência própria, por conta.
+    lieEnabled: String(process.env.MAGNET_LIE || 'true') === 'true',
+    lieTtl: num(process.env.MAGNET_LIE_TTL, 7 * 24 * 3600),
+  },
+  // Listas calibráveis sem deploy. Ausência de PT nunca condena sozinha: o
+  // veredito ainda exige um marcador forte de release EN.
+  audioAudit: {
+    enabled: String(process.env.AUDIO_AUDIT || 'true') === 'true',
+    ptMarkers: list(
+      process.env.AUDIO_AUDIT_PT_MARKERS ||
+        'dublado,dublada,dublagem,dubbed,dual audio,pt br,ptbr,portugues,portuguese,nacional,fleg',
+    ),
+    enGroups: list(
+      process.env.AUDIO_AUDIT_EN_GROUPS ||
+        'rarbg,killers,ettv,afm72,tovar,evo,megusta,galaxyrg,glxrc,yts,fgt,amzn,dsnp,smi,ntb,roarb,oxy,bae,drs,huzzah',
+    ),
   },
   // Webhooks operacionais: alerta de credenciais recusadas, indexers BR offline
   // e aviso proativo de quota de magnets.

@@ -71,6 +71,8 @@ export interface StreamBase {
   _tracker?: string;
   _indexer?: string;
   _multiWork?: boolean;
+  /** Evidência medida de post dublado com arquivos EN; nunca vai ao cliente. */
+  _lied?: boolean;
   /** Marca interna do item de aviso — some antes do Stremio receber. */
   notice?: true;
 }
@@ -156,7 +158,7 @@ export interface DebridAdapter {
   resolveLink(
     apiKey: string,
     hash: string,
-    episode?: { season?: number | null; episode?: number | null; work?: unknown },
+    episode?: { season?: number | null; episode?: number | null; work?: unknown; dubbed?: boolean },
   ): Promise<string | null>;
   /** Ocupação da conta para o `/debrid-status.json`; ausente = não suportado. */
   accountStatus?(apiKey: string): Promise<AccountStatus>;

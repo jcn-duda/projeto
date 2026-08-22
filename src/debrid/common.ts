@@ -148,6 +148,21 @@ function isNoVideoError(error: MaybeError) {
   return error?.code === 'NO_VIDEO';
 }
 
+/** O post prometeu dublado, mas os paths dos vídeos provaram release EN. */
+class DubLieError extends Error {
+  code = 'DUB_LIE';
+  evidence: { matchedGroup?: string; videoCount: number; sample?: string };
+  constructor(evidence: { matchedGroup?: string; videoCount: number; sample?: string }) {
+    super('o torrent anunciado como dublado contém release em inglês');
+    this.name = 'DubLieError';
+    this.evidence = evidence;
+  }
+}
+
+function isDubLieError(error: MaybeError) {
+  return error?.code === 'DUB_LIE';
+}
+
 /**
  * Um fetch JSON com o timeout do debrid já aplicado. Cada serviço tem o seu
  * jeito de autenticar, então o header vai por fora.
@@ -479,6 +494,6 @@ export {
   magnetFor, json, pickFile, pickWorkFile, looksMultiWorkFiles, workCoverage, batched, wait,
   AuthError, isAuthError, QuotaError, isQuotaError, RateLimitError, isRateLimitError,
   WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError,
-  NoVideoError, isNoVideoError,
+  NoVideoError, isNoVideoError, DubLieError, isDubLieError,
   VIDEO_EXT, SAMPLE, EXTRA,
 };

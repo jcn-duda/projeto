@@ -81,6 +81,14 @@ test('bad vence sobre alive: markBad apaga o histórico vivo do mesmo hash', () 
   assert.equal(magnetdb.isAlive('premiumize', conta, hash), false, 'alive não sobrevive ao bad no mesmo hash');
 });
 
+test('lie é evidência própria, escopada por conta, sem virar bad', () => {
+  const hash = '9'.repeat(40);
+  magnetdb.markLie('premiumize', 'conta-lie', hash);
+  assert.equal(magnetdb.isLie('premiumize', 'conta-lie', hash), true);
+  assert.equal(magnetdb.isLie('premiumize', 'outra-conta', hash), false);
+  assert.equal(magnetdb.isBad('premiumize', 'conta-lie', hash), false);
+});
+
 test('pickFile: listagem vazia é null (transferência fria), não prova de magnet quebrado', () => {
   // null significa "ainda baixando" — o /resolve NÃO grava bad para null.
   assert.equal(pickFile([], {}), null);

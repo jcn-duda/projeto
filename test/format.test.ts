@@ -36,6 +36,8 @@ import {
   pickTopSeededCandidates,
   isMultiWorkCollection,
   franchiseRoot,
+  dubbedLieVerdict,
+  seasonCoverageExcludes,
 } from '../src/utils/format.js';
 import type { RawItem, Stream } from '../types/domain.js';
 
@@ -46,6 +48,30 @@ import type { RawItem, Stream } from '../types/domain.js';
 
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
+
+test('auditoria conservadora dos cinco packs reais de True Detective', () => {
+  const promised = true;
+  const lies = [
+    'True.Detective.S02E01.1080p.WEBRip.x264.DD5.1-RARBG.mkv',
+    'True.Detective.S02E01.HDTV.x264-KILLERS[ettv].mp4',
+    'True Detective (2014) Season 2 S02 + Extras/True.Detective.S02.1080p.BluRay.x265-afm72.mkv',
+    'True.Detective.2014.S02.1080p.BDRip.DDP5.1.10bit.x265-ToVaR.mkv',
+  ];
+  for (const path of lies) assert.equal(dubbedLieVerdict([path], promised).lie, true, path);
+  // É dublado real, mas da temporada errada: idioma não pode condená-lo.
+  assert.equal(dubbedLieVerdict(['1ª Temporada (2014)/S01E01 - Dublado Dual.mp4'], promised).lie, false);
+  // Ausência de PT sem prova EN é ambígua; falso negativo é preferível.
+  assert.equal(dubbedLieVerdict(['True.Detective.S02E01.1080p.mkv'], promised).lie, false);
+});
+
+test('cobertura explícita exclui temporada, mas dois claims continuam ambíguos', () => {
+  const single = parseTitleSeasonEpisode('True Detective 3ª Temporada Completa Dublada');
+  assert.equal(seasonCoverageExcludes(single, 2), true);
+  assert.equal(matchesEpisode('True Detective 3ª Temporada Completa Dublada', { season: 2, episode: 1 }), false);
+  const ambiguous = parseTitleSeasonEpisode('True Detective 2ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA DUBLADA');
+  assert.equal(seasonCoverageExcludes(ambiguous, 2), false);
+  assert.equal(matchesEpisode('True Detective 2ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA DUBLADA', { season: 2, episode: 1 }), true);
+});
 
 // O retorno de toStremioStream é `Stream | null` (null quando falta hash) e os
 // campos de exibição são opcionais no tipo; todos os casos abaixo passam hash

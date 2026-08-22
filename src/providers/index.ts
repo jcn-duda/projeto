@@ -589,10 +589,15 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
   // dois corta — e é exatamente o que o diagnóstico precisa distinguir.
   let droppedBad = 0;
   let droppedDead = 0;
+  let droppedLie = 0;
   streams = streams.filter((s: any) => {
     if (!s.infoHash) return true;
     if (magnetdb.isBad(adapter.id, trustApiKey, s.infoHash)) {
       droppedBad += 1;
+      return false;
+    }
+    if (s._lied || magnetdb.isLie(adapter.id, trustApiKey, s.infoHash)) {
+      droppedLie += 1;
       return false;
     }
     if (autofetch.isDead(adapter.id, trustScope, s.infoHash)) {
@@ -601,16 +606,17 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
     }
     return true;
   });
-  if (droppedBad + droppedDead > 0) {
-    metrics.count('magnetdb.dropped', droppedBad + droppedDead);
+  if (droppedBad + droppedDead + droppedLie > 0) {
+    metrics.count('magnetdb.dropped', droppedBad + droppedDead + droppedLie);
     if (droppedBad) metrics.count('magnetdb.dropped.bad', droppedBad);
     if (droppedDead) metrics.count('magnetdb.dropped.dead', droppedDead);
-    log.info(`[debrid] ${droppedBad + droppedDead} magnet(s) com histórico ruim descartado(s) antes da checagem (${droppedBad} bad, ${droppedDead} dead)`);
+    if (droppedLie) metrics.count('magnetdb.dropped.lie', droppedLie);
+    log.info(`[debrid] ${droppedBad + droppedDead + droppedLie} magnet(s) com histórico ruim descartado(s) antes da checagem (${droppedBad} bad, ${droppedDead} dead, ${droppedLie} lie)`);
   }
   if (streams.length === 0) {
     // O filtro pré-checagem esvaziou a lista: sem reportar, o aviso sairia como
     // "fora do cache", culpando a checagem pelo que foi histórico ruim.
-    if (onCacheResult) onCacheResult({ known: true, needsFullRefresh: false, autofetchCount: 0, trustDropped: droppedBad + droppedDead });
+    if (onCacheResult) onCacheResult({ known: true, needsFullRefresh: false, autofetchCount: 0, trustDropped: droppedBad + droppedDead + droppedLie });
     return streams;
   }
 
@@ -687,7 +693,17 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
   const viaDebrid = (s: any, instant: boolean) => {
     // Pack multi-obra: o /resolve precisa saber que aqui NÃO vale cair no maior
     // arquivo. Vai dentro da dica, então está coberto pela assinatura.
-    const hint = workHint && s._multiWork ? { ...workHint, p: 1 } : workHint;
+    // `d` prova a promessa feita NA listagem e `i` permite que o play grave a
+    // evidência no índice da obra. Campos opcionais ficam dentro do hint já
+    // assinado; URLs antigas sem eles continuam verificando normalmente.
+    const hint = workHint || s._dubbed
+      ? {
+        ...(workHint || {}),
+        ...(workHint && s._multiWork ? { p: 1 } : {}),
+        ...(s._dubbed ? { d: 1 } : {}),
+        ...(imdbId ? { i: imdbId } : {}),
+      }
+      : null;
     const hintJson = hint ? JSON.stringify(hint) : '';
     // Assinatura cobre hash + temporada/episódio + dica: sem ela o /resolve
     // rejeita, então conhecer a PUBLIC_URL e um hash não basta pra gastar o
@@ -873,6 +889,7 @@ function idxReleasesToRaw(releases: any[]) {
     tracker: r.indexer,
     isBr: r.isBr,
     dubbed: r.dubbed,
+    lied: Boolean(r.lied),
   }));
 }
 
@@ -1765,6 +1782,12 @@ async function buildStreams(
   // como play instantâneo ganha desempate acima dos seeders no sort.
   const aliveAdapter = debrid.current();
   const aliveApiKey = opts().debridApiKey;
+  const liedHashes = new Set(
+    raw
+      .filter((item: any) => item?.lied)
+      .map((item: any) => String(extractInfoHash(item.infoHash || item.magnet || '') || '').toLowerCase())
+      .filter(Boolean),
+  );
   // `toStremioStream` devolve NULL para item sem infoHash (link que nenhum
   // resolvedor abriu), e `sortAndLimit` recebe `(Stream | null)[]` de propósito
   // — o buraco tem que ser filtrado ANTES do acesso, senão um único resultado
@@ -1773,7 +1796,14 @@ async function buildStreams(
     ? new Set(mappedStreams.map((s: any) => s?.infoHash).filter(Boolean)
         .filter((h: string) => magnetdb.isAlive(aliveAdapter.id, aliveApiKey, h)))
     : null;
-  let streams: Stream[] = sortAndLimit(mappedStreams, {
+  const liedSet = aliveAdapter && aliveApiKey
+    ? new Set(mappedStreams.map((s: any) => s?.infoHash).filter(Boolean)
+        .filter((h: string) => liedHashes.has(String(h).toLowerCase()) || magnetdb.isLie(aliveAdapter.id, aliveApiKey, h)))
+    : liedHashes;
+  const markedStreams = mappedStreams.map((stream: any) =>
+    stream && liedSet.has(String(stream.infoHash || '').toLowerCase()) ? { ...stream, _lied: true } : stream,
+  );
+  let streams: Stream[] = sortAndLimit(markedStreams, {
     minSeeders,
     maxResults: maxResults * config.candidatePoolFactor,
     qualityFilter: qualities,

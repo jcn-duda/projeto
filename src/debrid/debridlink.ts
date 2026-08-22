@@ -1,5 +1,6 @@
 import { magnetFor, json, pickFile, wait } from './common.js';
 import * as log from '../utils/logger.js';
+import { assertDubbedFiles } from './audio-audit.js';
 
 const API = 'https://debrid-link.com/api/v2';
 
@@ -45,7 +46,7 @@ async function checkCached() {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: { season?: number | null; episode?: number | null; work?: any; dubbed?: boolean } = {}) {
   const added = await call(apiKey, '/seedbox/add', {
     method: 'POST',
     body: new URLSearchParams({ url: magnetFor(infoHash), async: 'true' }),
@@ -69,6 +70,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
     link: f.downloadUrl,
   }));
   const file = pickFile(files, { season, episode, work });
+  assertDubbedFiles(files, Boolean(dubbed));
   return file?.link || null;
 }
 

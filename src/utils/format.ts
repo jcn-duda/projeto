@@ -206,6 +206,39 @@ function explicitPtAudio(title = '') {
   );
 }
 
+/** Marcador de áudio PT no path real do arquivo, não no título do post. */
+function hasPtAudioMark(path = '') {
+  const tokens = normalizeTitle(path).split(' ').filter(Boolean);
+  const joined = ` ${tokens.join(' ')} `;
+  return config.audioAudit.ptMarkers.some((marker: string) => {
+    const normalized = normalizeTitle(marker);
+    return normalized && joined.includes(` ${normalized} `);
+  });
+}
+
+/** Grupo/canal de cena EN forte. Nome sem marca continua ambíguo e passa. */
+function strongEnSceneMark(path = '') {
+  if (hasPtAudioMark(path)) return null;
+  const tokens = new Set(normalizeTitle(path).split(' ').filter(Boolean));
+  return config.audioAudit.enGroups.find((group: string) => tokens.has(normalizeTitle(group))) || null;
+}
+
+/**
+ * Mentira só é provada quando TODOS os vídeos contradizem uma promessa PT com
+ * sinal EN forte. Um único marcador PT preserva o item: falso negativo é pior.
+ */
+function dubbedLieVerdict(videoPaths: string[] = [], promisedDubbed = false) {
+  const paths = videoPaths.map(String).filter(Boolean);
+  if (!config.audioAudit.enabled || !promisedDubbed || paths.length === 0) {
+    return { lie: false, videoCount: paths.length };
+  }
+  if (paths.some((path) => hasPtAudioMark(path))) return { lie: false, videoCount: paths.length };
+  const matchedGroup = paths.map(strongEnSceneMark).find(Boolean);
+  return matchedGroup
+    ? { lie: true, matchedGroup, videoCount: paths.length }
+    : { lie: false, videoCount: paths.length };
+}
+
 /**
  * Áudio é a informação que mais importa neste addon (foco em dublado) e os
  * sites BR a escrevem no título. Sem ela o usuário abre o torrent pra descobrir.
@@ -484,7 +517,8 @@ function toStremioStream(item: RawItem): Stream | null {
     _indexer: String(item.indexer || tracker || '').trim().toLowerCase(),
     // Pack multi-obra detectado pelo título da listagem: o /resolve precisa
     // saber que aqui NÃO vale cair no maior arquivo.
-    _multiWork: isMultiWorkCollection(title),
+      _multiWork: isMultiWorkCollection(title),
+      _lied: Boolean(item.lied),
   };
 }
 
@@ -1137,6 +1171,13 @@ function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
   return { seasons: [...seasons], episodes: [...episodes], complete, seasonPack };
 }
 
+/** Cobertura explícita que exclui a temporada pedida não pode virar "talvez". */
+function seasonCoverageExcludes(parsed: ParsedSeasonEpisode, season: number | null | undefined) {
+  // "Todas as Temporadas ... 3ª Temporada" não cobre implicitamente a S01:
+  // complete só vale como cobertura total quando NÃO há temporada explícita.
+  return season != null && parsed.seasons.length > 0 && !parsed.seasons.includes(season);
+}
+
 /**
  * O indexer devolve a temporada inteira quando a busca é por "Nome S01E01" —
  * sem este filtro a lista de E01 vinha recheada de E03, E04, E06, E09.
@@ -1156,7 +1197,7 @@ function matchesEpisode(title: string, { season, episode }: SeasonEpisodeOptions
   // (release BR costuma vir só como "Nome Dublado"), então passa.
   if (seasons.length === 0 && episodes.length === 0) return true;
 
-  if (seasons.length && !seasons.includes(season)) return false;
+  if (seasonCoverageExcludes({ seasons, episodes, complete, seasonPack: false }, season)) return false;
   if (episodes.length && !episodes.includes(episode)) return false;
   return true;
 }
@@ -1233,6 +1274,7 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = []) {
       // pack, a marca precisa sobreviver ao merge — senão o perdedor BR com
       // título de coleção perderia o estrito para o vencedor EN sem marca.
       _multiWork: Boolean(winner._multiWork || loser._multiWork),
+      _lied: Boolean(winner._lied || loser._lied),
     };
     if (merged._quality !== winner._quality) {
       merged.name = relabel(merged, {
@@ -1762,7 +1804,7 @@ function limitReservingBr(
   }
 
   return selected
-    .map(({ _br, _seeders, _quality, _size, _dubbed, _indexer, _tracker, _multiWork, ...stream }) => stream);
+    .map(({ _br, _seeders, _quality, _size, _dubbed, _indexer, _tracker, _multiWork, _lied, ...stream }) => stream);
 }
 
 function sortAndLimit(
@@ -1832,6 +1874,10 @@ function sortAndLimit(
         const hd = (instant(b.infoHash) ? 1 : 0) - (instant(a.infoHash) ? 1 : 0);
         if (hd !== 0) return hd;
       }
+      // A prova não muda qualidade/dublado/prioridade; só impede que seeders
+      // deixem uma release mentirosa acima de uma alternativa desconhecida.
+      const ld = (a._lied ? 1 : 0) - (b._lied ? 1 : 0);
+      if (ld !== 0) return ld;
       return (b._seeders || 0) - (a._seeders || 0);
     });
 
@@ -1952,6 +1998,9 @@ export {
   sourceFromTitle,
   audioFromTitle,
   explicitPtAudio,
+  hasPtAudioMark,
+  strongEnSceneMark,
+  dubbedLieVerdict,
   editionFromTitle,
   streamDisplayName,
   markDebridName,
@@ -1972,6 +2021,7 @@ export {
   containsTokenRun,
   matchesEpisode,
   parseTitleSeasonEpisode,
+  seasonCoverageExcludes,
   isSeasonPackRelease,
   isSeasonPackFillEligible,
   dedupeByHash,

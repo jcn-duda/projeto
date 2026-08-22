@@ -21,12 +21,43 @@ import * as metrics from './metrics.js';
 import { accountScope } from './request-key.js';
 import { prefix } from './cache-keys.js';
 
+// O cache não oferece scan por prefixo (e fazê-lo só para o painel seria caro).
+// Mantemos a parte observada neste processo para indicar o tamanho aproximado
+// de cada lado; reinício zera a amostra, sem afetar nenhuma decisão de busca.
+const tracked = new Map<string, { side: 'alive' | 'bad' | 'lie'; expiresAt: number }>();
+
+function track(key: string, side: 'alive' | 'bad' | 'lie', ttlSeconds: number) {
+  if (ttlSeconds <= 0) return;
+  tracked.set(key, { side, expiresAt: Date.now() + ttlSeconds * 1000 });
+}
+
+function trackedSizes() {
+  const now = Date.now();
+  let alive = 0;
+  let bad = 0;
+  let lie = 0;
+  for (const [key, item] of tracked) {
+    if (item.expiresAt <= now) {
+      tracked.delete(key);
+      continue;
+    }
+    if (item.side === 'alive') alive += 1;
+    else if (item.side === 'bad') bad += 1;
+    else lie += 1;
+  }
+  return { alive, bad, lie };
+}
+
 function aliveKey(adapterId: string, apiKey: string, hash: string) {
   return `${prefix('mag')}alive:${adapterId}:${accountScope(apiKey)}:${String(hash || '').toLowerCase()}`;
 }
 
 function badKey(adapterId: string, apiKey: string, hash: string) {
   return `${prefix('mag')}bad:${adapterId}:${accountScope(apiKey)}:${String(hash || '').toLowerCase()}`;
+}
+
+function lieKey(adapterId: string, apiKey: string, hash: string) {
+  return `${prefix('mag')}lie:${adapterId}:${accountScope(apiKey)}:${String(hash || '').toLowerCase()}`;
 }
 
 /**
@@ -42,6 +73,7 @@ function markAlive(adapterId: string, apiKey: string, hashes: string[]) {
     .map((hash) => ({ key: aliveKey(adapterId, apiKey, hash), value: 1, ttlSeconds: ttl }));
   if (writes.length === 0) return;
   cache.setMany(writes);
+  for (const write of writes) track(write.key, 'alive', ttl);
   metrics.count('magnetdb.alive.set', writes.length);
 }
 
@@ -69,13 +101,31 @@ function markBad(adapterId: string, apiKey: string, hash: string) {
   // O alive não pode sobreviver ao bad no mesmo hash: sem o forget ele
   // continuaria desempatando o sort por até 7 dias num magnet que provou
   // estar quebrado.
-  cache.forget(aliveKey(adapterId, apiKey, String(hash || '').toLowerCase()));
+  const alive = aliveKey(adapterId, apiKey, String(hash || '').toLowerCase());
+  cache.forget(alive);
+  tracked.delete(alive);
+  track(key, 'bad', ttl);
   metrics.count('magnetdb.bad.set');
 }
 
 function isBad(adapterId: string, apiKey: string, hash: string) {
   if (!config.magnetDb.enabled || !adapterId || !apiKey || !hash) return false;
   return cache.get(badKey(adapterId, apiKey, hash)) === 1;
+}
+
+/** Há vídeo, mas o post prometeu áudio PT e os arquivos provaram release EN. */
+function markLie(adapterId: string, apiKey: string, hash: string) {
+  const ttl = config.magnetDb.lieTtl;
+  if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
+  const key = lieKey(adapterId, apiKey, hash);
+  cache.set(key, 1, ttl);
+  track(key, 'lie', ttl);
+  metrics.count('magnetdb.lie.set');
+}
+
+function isLie(adapterId: string, apiKey: string, hash: string) {
+  if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || !adapterId || !apiKey || !hash) return false;
+  return cache.get(lieKey(adapterId, apiKey, hash)) === 1;
 }
 
 /**
@@ -98,4 +148,28 @@ function renewAlive(adapterId: string, apiKey: string, hashes: string[]) {
   markAlive(adapterId, apiKey, stale);
 }
 
-export { markAlive, isAlive, markBad, isBad, renewAlive };
+/** Estado de diagnóstico; tamanhos são da amostra observada neste processo. */
+function status() {
+  const sizes = trackedSizes();
+  const counters = metrics.snapshot().counters;
+  return {
+    enabled: config.magnetDb.enabled,
+    aliveTtlSeconds: config.magnetDb.aliveTtl,
+    badTtlSeconds: config.magnetDb.badTtl,
+    lieTtlSeconds: config.magnetDb.lieTtl,
+    sizeAlive: sizes.alive,
+    sizeBad: sizes.bad,
+    sizeLie: sizes.lie,
+    counters: {
+      aliveSet: counters['magnetdb.alive.set'] || 0,
+      badSet: counters['magnetdb.bad.set'] || 0,
+      lieSet: counters['magnetdb.lie.set'] || 0,
+      dropped: counters['magnetdb.dropped'] || 0,
+      droppedBad: counters['magnetdb.dropped.bad'] || 0,
+      droppedDead: counters['magnetdb.dropped.dead'] || 0,
+      droppedLie: counters['magnetdb.dropped.lie'] || 0,
+    },
+  };
+}
+
+export { markAlive, isAlive, markBad, isBad, markLie, isLie, renewAlive, status };

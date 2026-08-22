@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { magnetFor, json, pickFile, batched, wait, QuotaError, RateLimitError } from './common.js';
 import * as log from '../utils/logger.js';
+import { assertDubbedFiles } from './audio-audit.js';
 
 const API = 'https://api.torbox.app/v1/api';
 
@@ -75,7 +76,7 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: { season?: number | null; episode?: number | null; work?: any; dubbed?: boolean } = {}) {
   const form = new FormData();
   form.append('magnet', magnetFor(infoHash));
   form.append('seed', '3'); // não semear: só queremos o link de leitura
@@ -105,6 +106,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
     id: f.id,
   }));
   const file = pickFile(files, { season, episode, work });
+  assertDubbedFiles(files, Boolean(dubbed));
   if (!file) return null;
 
   const dl = await call(apiKey, '/torrents/requestdl', {

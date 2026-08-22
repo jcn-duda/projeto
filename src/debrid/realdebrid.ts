@@ -1,5 +1,6 @@
 import { magnetFor, json, pickFile, isNoVideoError, wait } from './common.js';
 import * as log from '../utils/logger.js';
+import { assertDubbedFiles } from './audio-audit.js';
 
 const API = 'https://api.real-debrid.com/rest/1.0';
 
@@ -45,7 +46,7 @@ const WORKING = ['magnet_conversion', 'queued', 'downloading', 'compressing', 'u
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: { season?: number | null; episode?: number | null; work?: any; dubbed?: boolean } = {}) {
   const add = await call(apiKey, '/torrents/addMagnet', {
     method: 'POST',
     body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
@@ -93,6 +94,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
   // `links` traz só os arquivos selecionados, na ordem dos selecionados —
   // por isso a escolha do arquivo é refeita sobre esse subconjunto.
   const selected = (info.files || []).filter((f: any) => f.selected);
+  assertDubbedFiles(selected.map((f: any) => ({ ...f, path: f.path, size: f.bytes })), Boolean(dubbed));
   const idx = selected.length > 1
     ? selected.indexOf(
         pickFile(selected.map((f: any) => ({ ...f, path: f.path, size: f.bytes })), { season, episode, work }),
@@ -215,4 +217,3 @@ export const cacheCheck = false;
 export const autofetchSource = true;
 export const keyUrl = 'https://real-debrid.com/apitoken';
 export { enqueue, checkCached, resolveLink, inventory, torrentStatus, removeTorrent };
-
