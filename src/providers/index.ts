@@ -45,7 +45,7 @@ import { collectWithinWindow } from './collection-window.js';
 import { raceWithDeadline, remainingCheckBudget } from '../utils/deadline.js';
 import * as autofetch from './autofetch.js';
 import * as magnetdb from '../utils/magnetdb.js';
-import { isDubLieError } from '../debrid/common.js';
+import { isDubLieError, isEpisodePickError } from '../debrid/common.js';
 import * as releaseIndex from '../utils/release-index.js';
 import * as harvester from './harvester.js';
 import { opts, prefix, capture, run, origin } from '../runtime.js';
@@ -591,6 +591,7 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
   let droppedBad = 0;
   let droppedDead = 0;
   let droppedLie = 0;
+  let droppedMiss = 0;
   streams = streams.filter((s: any) => {
     if (!s.infoHash) return true;
     if (magnetdb.isBad(adapter.id, trustApiKey, s.infoHash)) {
@@ -601,23 +602,34 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
       droppedLie += 1;
       return false;
     }
+    // Prova fina do índice: este hash já provou NÃO servir ESTE episódio
+    // (play ou tail). Só vale com s/e + obra na busca — filme e série sem
+    // episódio não têm o que conferir.
+    if (season != null && episode != null && imdbId && releaseIndex.isMissing(imdbId, { season, episode }, s.infoHash)) {
+      droppedMiss += 1;
+      return false;
+    }
     if (autofetch.isDead(adapter.id, trustScope, s.infoHash)) {
       droppedDead += 1;
       return false;
     }
     return true;
   });
-  if (droppedBad + droppedDead + droppedLie > 0) {
+  if (droppedBad + droppedDead + droppedLie + droppedMiss > 0) {
+    // O agregado magnetdb.dropped soma SÓ bad/dead/lie de propósito: miss é
+    // marca do release-index (não do banco de magnets) e conta em separado,
+    // como search.idx.miss.dropped — o diagnóstico não pode culpar o lado errado.
     metrics.count('magnetdb.dropped', droppedBad + droppedDead + droppedLie);
     if (droppedBad) metrics.count('magnetdb.dropped.bad', droppedBad);
     if (droppedDead) metrics.count('magnetdb.dropped.dead', droppedDead);
     if (droppedLie) metrics.count('magnetdb.dropped.lie', droppedLie);
-    log.info(`[debrid] ${droppedBad + droppedDead + droppedLie} magnet(s) com histórico ruim descartado(s) antes da checagem (${droppedBad} bad, ${droppedDead} dead, ${droppedLie} lie)`);
+    if (droppedMiss) metrics.count('search.idx.miss.dropped', droppedMiss);
+    log.info(`[debrid] ${droppedBad + droppedDead + droppedLie + droppedMiss} magnet(s) com histórico ruim descartado(s) antes da checagem (${droppedBad} bad, ${droppedDead} dead, ${droppedLie} lie, ${droppedMiss} miss)`);
   }
   if (streams.length === 0) {
     // O filtro pré-checagem esvaziou a lista: sem reportar, o aviso sairia como
     // "fora do cache", culpando a checagem pelo que foi histórico ruim.
-    if (onCacheResult) onCacheResult({ known: true, needsFullRefresh: false, autofetchCount: 0, trustDropped: droppedBad + droppedDead + droppedLie });
+    if (onCacheResult) onCacheResult({ known: true, needsFullRefresh: false, autofetchCount: 0, trustDropped: droppedBad + droppedDead + droppedLie + droppedMiss });
     return streams;
   }
 
@@ -789,23 +801,49 @@ const inFlight = new Map();
 // o play descobrir entrega inglês sob selo DUB BR uma vez por hash — o tail
 // prova ANTES, grava a mesma evidência do play e a próxima lista já nasce
 // honesta. Fila curta de propósito: sobra de busca sem tail não acumula.
-const dubAuditPending: Array<{ hash: string; season: number | null; episode: number | null; imdbId: string | null; work: any; key?: string | null }> = [];
+const dubAuditPending: Array<{ hash: string; season: number | null; episode: number | null; imdbId: string | null; work: any; dubbed: boolean; key?: string | null; extraKeys?: string[] }> = [];
 
-/** ⚡ + dublado = o que o usuário vai tocar; é isso que o tail interrogará. */
+/** ⚡ em cache = o que o usuário vai tocar; é isso que o tail interrogará.
+ * Dois grupos: (1) dublados — provam a promessa de áudio; (2) em série, os
+ * que NÃO nomeiam o episódio pedido — pack de temporada pode conter outra
+ * coisa (caso True Detective). Dedupe por hash preserva a variante dublada. */
 function collectAuditCandidates(
   list: any[],
   cached: Set<string>,
   { season, episode, imdbId, workHint }: { season?: number | null; episode?: number | null; imdbId?: string | null; workHint?: any },
 ) {
-  return list
-    .filter((s: any) => s.infoHash && s._dubbed && cached.has(s.infoHash))
-    .map((s: any) => ({
+  const work = (s: any) => (workHint ? { names: workHint.n, year: workHint.y, pack: Boolean(s._multiWork) } : undefined);
+  const byHash = new Map<string, { hash: string; season: number | null; episode: number | null; imdbId: string | null; work: any; dubbed: boolean }>();
+  for (const s of list) {
+    if (!s.infoHash || !s._dubbed || !cached.has(s.infoHash)) continue;
+    byHash.set(String(s.infoHash), {
       hash: String(s.infoHash),
       season: season ?? null,
       episode: episode ?? null,
       imdbId: imdbId || null,
-      work: workHint ? { names: workHint.n, year: workHint.y, pack: Boolean(s._multiWork) } : undefined,
-    }));
+      work: work(s),
+      dubbed: true,
+    });
+  }
+  if (season != null && episode != null) {
+    for (const s of list) {
+      if (!s.infoHash || !cached.has(s.infoHash)) continue;
+      const hash = String(s.infoHash);
+      // A variante dublada já interrogará este hash — e o resultado dela vale
+      // para os dois grupos (a prova é sobre o conteúdo, não sobre o selo).
+      if (byHash.has(hash)) continue;
+      if (nomeiaEpisodio(s.title || s.name || '', season, episode)) continue;
+      byHash.set(hash, {
+        hash,
+        season,
+        episode,
+        imdbId: imdbId || null,
+        work: work(s),
+        dubbed: false,
+      });
+    }
+  }
+  return [...byHash.values()];
 }
 
 function queueDubAudit(adapterId: string, apiKey: string, candidates: any[], searchKey: string | null = null) {
@@ -814,6 +852,25 @@ function queueDubAudit(adapterId: string, apiKey: string, candidates: any[], sea
   for (const cand of candidates) {
     // Já condenado nesta conta não gasta consulta de novo.
     if (magnetdb.isLie(adapterId, apiKey, cand.hash)) continue;
+    // Já está na fila para o MESMO episódio: busca repetida não pode duplicar
+    // o interrogatório. Temporada/episódio entram na comparação porque o
+    // MESMO pack serve episódios diferentes (navegação E01 → E02 enfileira de
+    // novo, com a própria chave de lista). Se a candidatura repete com chave
+    // de busca diferente, acumula a chave extra: a prova invalida TODAS as
+    // listas afetadas, não só a primeira.
+    const candHash = String(cand.hash || '').toLowerCase();
+    const prev = dubAuditPending.find((p) => String(p.hash || '').toLowerCase() === candHash
+      && p.season === cand.season && p.episode === cand.episode);
+    if (prev) {
+      if (cand.key && prev.key && cand.key !== prev.key) {
+        prev.extraKeys = prev.extraKeys || [];
+        if (!prev.extraKeys.includes(cand.key)) prev.extraKeys.push(cand.key);
+      }
+      continue;
+    }
+    // Já provou não servir ESTE episódio (play ou tail anterior).
+    if (cand.imdbId && cand.season != null && cand.episode != null
+      && releaseIndex.isMissing(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash)) continue;
     dubAuditPending.push({ ...cand, key: searchKey });
     added = true;
   }
@@ -828,7 +885,7 @@ function queueDubAudit(adapterId: string, apiKey: string, candidates: any[], sea
     const handle = setImmediate(async () => {
       try {
         const r = await runDubAudit();
-        if (r.audited > 0) log.info(`[audit] tail: ${r.audited} candidato(s) provado(s), ${r.lies} mentira(s)`);
+        if (r.audited > 0) log.info(`[audit] tail: ${r.audited} candidato(s) provado(s), ${r.lies} mentira(s), ${r.wrongEpisodes} episódio(s) errado(s)`);
       } catch (err) {
         log.warn('[audit] drenagem falhou:', err?.message || err);
       }
@@ -845,25 +902,47 @@ function queueDubAudit(adapterId: string, apiKey: string, candidates: any[], sea
  */async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
   const batch = dubAuditPending.splice(0, Math.max(0, Math.trunc(Number(limit) || 0)));
   let lies = 0;
+  let wrongEpisodes = 0;
   const liedKeys = new Set<string>();
   for (const cand of batch) {
     try {
-      await debrid.resolveLink(cand.hash, { season: cand.season, episode: cand.episode, work: cand.work, dubbed: true });
+      await debrid.resolveLink(cand.hash, { season: cand.season, episode: cand.episode, work: cand.work, dubbed: Boolean(cand.dubbed) });
     } catch (err) {
-      if (!isDubLieError(err)) continue;
-      lies += 1;
-      const adapter = debrid.current() as DebridAdapter | null;
-      if (adapter) magnetdb.markLie(adapter.id, opts().debridApiKey, cand.hash);
-      if (cand.imdbId) releaseIndex.markLied(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash);
-      if (cand.key) liedKeys.add(cand.key);
-      metrics.count('debrid.audit.lie.tail');
-      log.warn(`[audit] tail provou mentira ${String(cand.hash).slice(0, 8)}${err.evidence?.matchedGroup ? ` (${err.evidence.matchedGroup})` : ''}`);
+      if (isDubLieError(err)) {
+        lies += 1;
+        const adapter = debrid.current() as DebridAdapter | null;
+        if (adapter) magnetdb.markLie(adapter.id, opts().debridApiKey, cand.hash);
+        if (cand.imdbId) releaseIndex.markLied(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash);
+        if (cand.key) liedKeys.add(cand.key);
+        for (const extra of cand.extraKeys || []) if (extra) liedKeys.add(extra);
+        metrics.count('debrid.audit.lie.tail');
+        log.warn(`[audit] tail provou mentira ${String(cand.hash).slice(0, 8)}${err.evidence?.matchedGroup ? ` (${err.evidence.matchedGroup})` : ''}`);
+      } else if (isEpisodePickError(err)) {
+        // Ambiguidade (SEM evidência): o throw multi-vídeo diz "não
+        // identifiquei", não "é outro episódio" — loga para observabilidade
+        // e segue sem gravar nada nem invalidar lista.
+        if (!err.evidence) {
+          log.warn(`[audit] tail: episódio não identificado em ${String(cand.hash).slice(0, 8)} (ambiguidade, sem prova)`);
+          continue;
+        }
+        // Prova MEDIDA (com evidência): o nome do arquivo declarou outro s/e.
+        // NÃO é mentira de áudio nem magnet quebrado: markLie/markLied ficam
+        // de fora — a evidência é fina, só o episódio pedido está errado.
+        wrongEpisodes += 1;
+        metrics.count('debrid.audit.episode');
+        if (cand.imdbId && cand.season != null && cand.episode != null) {
+          releaseIndex.markMissing(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash);
+        }
+        if (cand.key) liedKeys.add(cand.key);
+        for (const extra of cand.extraKeys || []) if (extra) liedKeys.add(extra);
+        log.warn(`[audit] tail provou episódio errado ${String(cand.hash).slice(0, 8)} (declara S${err.evidence.declaredSeasons.join(',') || '?'}E${err.evidence.declaredEpisodes.join(',') || '?'})`);
+      }
     }
   }
-  // A lista corrente ainda carrega o selo DUB BR do mentiroso: invalida para a
+  // A lista corrente ainda carrega o candidato provado-ruim: invalida para a
   // próxima busca nascer limpa, sem esperar TTL nem play de ninguém.
   for (const key of liedKeys) cache.forget(key);
-  return { audited: batch.length, lies };
+  return { audited: batch.length, lies, wrongEpisodes };
 }
 
 // Refresh de fundo do stale-while-revalidate: mapa PRÓPRIO, separado do

@@ -257,6 +257,77 @@ test('pickFile distingue listagem vazia de torrent sem vídeo', () => {
   assert.equal(pickFile([], {}), null);
 });
 
+// Vídeo único com nome técnico: o caso True Detective S03E02. O pack anunciava
+// a temporada 3 mas continha só "S03E07" — o fallback antigo tocava o episódio
+// 7 em silêncio. Agora o nome do arquivo é conferido contra o pedido.
+test('pickFile: vídeo único com OUTRO episódio lança EpisodePickError com evidência', () => {
+  assert.throws(
+    () => pickFile([f('True.Detective.S03E07.1080p.WEB.mkv', 2 * 1024 ** 3)], { season: 3, episode: 2 }),
+    (err: any) => {
+      assert.ok(isEpisodePickError(err), 'erro tipado');
+      assert.ok(Array.isArray(err.evidence?.declaredEpisodes), 'evidência presente');
+      assert.ok(err.evidence.declaredEpisodes.includes(7), 'o arquivo declara o episódio 7');
+      assert.equal(err.evidence.wantedEpisode, 2);
+      assert.equal(err.evidence.wantedSeason, 3);
+      return true;
+    },
+  );
+});
+
+test('pickFile: vídeo único de OUTRA temporada (sem episódio) também lança', () => {
+  assert.throws(
+    () => pickFile([f('Show.S02.1080p.mkv', 2 * 1024 ** 3)], { season: 3, episode: 2 }),
+    (err: any) => {
+      assert.ok(isEpisodePickError(err));
+      assert.ok(err.evidence.declaredSeasons.includes(2), 'declara a temporada 2');
+      assert.equal(err.evidence.declaredEpisodes.length, 0, 'sem episódio declarado');
+      return true;
+    },
+  );
+});
+
+test('pickFile: episódio certo em temporada errada lança (dimensões independentes)', () => {
+  // O arquivo casa o episódio 5 pedido, mas declara a temporada 2 — a
+  // checagem de temporada não pode depender de "não haver episódio declarado",
+  // senão este caso tocava o episódio certo da temporada errada.
+  assert.throws(
+    () => pickFile([f('Show.S02E05.1080p.mkv', 2 * 1024 ** 3)], { season: 3, episode: 5 }),
+    (err: any) => {
+      assert.ok(isEpisodePickError(err));
+      assert.ok(err.evidence.declaredSeasons.includes(2), 'declara a temporada 2');
+      assert.ok(err.evidence.declaredEpisodes.includes(5), 'declara o episódio 5 (que casa)');
+      return true;
+    },
+  );
+});
+
+test('pickFile: vídeo único com o episódio certo resolve normalmente', () => {
+  const file = pickFile([f('Show.S03E02.mkv', 2 * 1024 ** 3)], { season: 3, episode: 2 });
+  assert.equal(file!.path, 'Show.S03E02.mkv');
+});
+
+test('pickFile: nomes sem declaração de s/e continuam passando (compatibilidade)', () => {
+  // Torrent de episódio sem nome técnico, filme sem s/e e token de resolução
+  // (1920x1080 não pode virar S20/E108 no parse) — nenhum pode condenar.
+  assert.equal(
+    pickFile([f('episodio-sem-nome.mkv', 1)], { season: 1, episode: 5 })!.path,
+    'episodio-sem-nome.mkv',
+  );
+  assert.equal(
+    pickFile([f('Filme.2019.1080p.BluRay.x264.mkv', 1)], { season: 1, episode: 5 })!.path,
+    'Filme.2019.1080p.BluRay.x264.mkv',
+  );
+  assert.equal(
+    pickFile([f('Show.1920x1080.WEB.mkv', 1)], { season: 1, episode: 5 })!.path,
+    'Show.1920x1080.WEB.mkv',
+  );
+  // Nome de série inteira cobre qualquer episódio.
+  assert.equal(
+    pickFile([f('Show Todas as Temporadas 1080p.mkv', 1)], { season: 1, episode: 5 })!.path,
+    'Show Todas as Temporadas 1080p.mkv',
+  );
+});
+
 test('pickWorkFile usa basename: pasta "Trilogia (1985-1990)" não contamina casamento de ano', () => {
   // Paths reais do AllDebrid: a pasta raiz carrega a faixa de anos do pack.
   const pack = [

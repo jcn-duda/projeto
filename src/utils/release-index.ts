@@ -197,6 +197,35 @@ function markLied(imdbId: string, location: ObraLocation, hash: string) {
   return changed;
 }
 
+/**
+ * Prova de episódio errado: "este hash NÃO serve ESTE episódio". Diferente do
+ * markLied (o post mentiu sobre a obra inteira), aqui a evidência é fina —
+ * marca SÓ a chave do episódio, nunca a da temporada nem a da obra: o mesmo
+ * pack pode servir todos os outros episódios que promete.
+ */
+function missKey(imdbId: string, { season, episode }: ObraLocation, hash: string) {
+  return `${prefix('idx')}miss:${imdbId}:S${season}E${episode}:${hash.toLowerCase()}`;
+}
+
+function markMissing(imdbId: string, location: ObraLocation, hash: string) {
+  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !hash) return 0;
+  // Sem temporada E episódio não há o que marcar: a prova é por episódio.
+  if (location.season == null || location.episode == null) return 0;
+  const key = missKey(imdbId, location, hash);
+  // Conta só a escrita NOVA, espelhando o markLied: re-marcar o que já está
+  // provado renova o TTL mas não é evidência nova.
+  const isNew = cache.get(key) == null;
+  cache.set(key, { at: Date.now() }, config.releaseIndex.ttl);
+  if (isNew) metrics.count('search.idx.miss');
+  return isNew ? 1 : 0;
+}
+
+function isMissing(imdbId: string, location: ObraLocation, hash: string) {
+  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !hash) return false;
+  if (location.season == null || location.episode == null) return false;
+  return cache.get(missKey(imdbId, location, hash)) != null;
+}
+
 /** Para o painel: quanto do índice existe agora. */
 function status() {
   const ns = cache.snapshot().namespaces as Record<string, any>;
@@ -208,4 +237,4 @@ function status() {
   };
 }
 
-export { record, lookup, markLied, status };
+export { record, lookup, markLied, markMissing, isMissing, status };

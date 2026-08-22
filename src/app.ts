@@ -289,6 +289,7 @@ function createApp() {
         // via NoVideoError, no catch abaixo. Marcar bad aqui blacklists
         // torrent bom por 24h (pior caso medido: o próprio autofetch baixa
         // o torrent e o banco esconde o resultado pronto por um dia).
+        log.warn('[resolve] torrent ' + infoHash.slice(0, 8) + ' ainda baixando no debrid');
         return res.status(404).send('o torrent ainda está baixando no debrid');
       }
       // Play que resolveu de verdade é a evidência mais forte de "vivo +
@@ -322,9 +323,27 @@ function createApp() {
         return res.status(404).send('o torrent anunciado como dublado contém conteúdo em inglês');
       }
       if (isWorkPickError(err)) {
+        log.warn(`[resolve] torrent ${infoHash.slice(0, 8)} não identificou a obra dentro do pack`);
         return res.status(404).send('não foi possível identificar este filme dentro do pack');
       }
       if (isEpisodePickError(err)) {
+        log.warn(
+          `[resolve] torrent ${infoHash.slice(0, 8)} não contém o episódio pedido` +
+          `${req.query.s != null && req.query.e != null ? ` (S${req.query.s}E${req.query.e})` : ''}` +
+          `${err.evidence ? ` — arquivo declara S${err.evidence.declaredSeasons.join(',') || '?'}E${err.evidence.declaredEpisodes.join(',') || '?'}${err.evidence.sample ? ` (${err.evidence.sample})` : ''}` : ''}`,
+        );
+        // Prova MEDIDA (evidência presente): o nome do arquivo declarou outro
+        // s/e — "este hash não serve ESTE episódio" vai para o índice da obra,
+        // escopado ao episódio. Sem evidência o erro é ambiguidade multi-vídeo
+        // ("não identifiquei"), não prova — o log acima basta e nada se grava.
+        // `Number.isFinite` barra query string adulterada ("s=abc" viraria NaN
+        // na chave). Streams não-dublados de fora de pack podem chegar sem o
+        // `i` na dica — o tail de auditoria cobre esse caso.
+        const sNum = Number(req.query.s);
+        const eNum = Number(req.query.e);
+        if (err.evidence && hintedImdbId && Number.isFinite(sNum) && Number.isFinite(eNum)) {
+          releaseIndex.markMissing(hintedImdbId, { season: sNum, episode: eNum }, infoHash);
+        }
         return res.status(404).send('este episódio não foi encontrado no pack');
       }
       log.error('[resolve]', err.message);

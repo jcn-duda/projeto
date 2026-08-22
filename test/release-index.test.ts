@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
-import { record, lookup, status } from '../src/utils/release-index.js';
+import { record, lookup, status, markMissing, isMissing } from '../src/utils/release-index.js';
 
 const release = (hash: string, extra: any = {}) => ({
   title: `Filme Teste 1080p DUAL ${hash.slice(0, 4)}`,
@@ -202,4 +202,52 @@ test('filme não é roteado: continua na chave da obra', () => {
   const hash = '4'.repeat(40);
   record('tt9000106', {}, [serieRel(hash, 'Filme Qualquer S02E01 no nome 1080p')]);
   assert.ok(cache.get(`${prefix('idx')}tt9000106`), 'filme ignora marcação de episódio no título');
+});
+
+// --- Prova de episódio errado (miss) ------------------------------------------
+//
+// A evidência é fina: "este hash não serve ESTE episódio". Marca SÓ a chave do
+// episódio — nunca a da temporada nem a da obra — porque o mesmo pack pode
+// servir todos os outros episódios que promete.
+
+test('markMissing grava só a chave do episódio e isMissing é por episódio', () => {
+  const hash = '5'.repeat(40);
+  const written = markMissing('tt9000200', { season: 3, episode: 2 }, hash);
+  assert.equal(written, 1);
+  // Chave exata no cache, com hash em minúsculas.
+  assert.ok(cache.get(`${prefix('idx')}miss:tt9000200:S3E2:${hash}`));
+  assert.equal(isMissing('tt9000200', { season: 3, episode: 2 }, hash), true);
+  // O MESMO hash continua valendo para os outros episódios.
+  assert.equal(isMissing('tt9000200', { season: 3, episode: 7 }, hash), false);
+  assert.equal(isMissing('tt9000200', { season: 2, episode: 2 }, hash), false);
+  // Hash maiúsculo casa com a marca minúscula (infoHash é case-insensitive).
+  assert.equal(isMissing('tt9000200', { season: 3, episode: 2 }, hash.toUpperCase()), true);
+});
+
+test('markMissing sem temporada ou episódio é no-op', () => {
+  const hash = '6'.repeat(40);
+  assert.equal(markMissing('tt9000201', { season: 3 }, hash), 0);
+  assert.equal(markMissing('tt9000201', { episode: 2 }, hash), 0);
+  assert.equal(markMissing('tt9000201', {}, hash), 0);
+  assert.equal(isMissing('tt9000201', { season: 3 }, hash), false);
+});
+
+test('markMissing/isMissing respeitam as mesmas guardas do markLied', () => {
+  const hash = '7'.repeat(40);
+  // Sem tt não é obra válida; sem hash não há o que marcar.
+  assert.equal(markMissing('9000202', { season: 1, episode: 1 }, hash), 0);
+  assert.equal(markMissing('tt9000202', { season: 1, episode: 1 }, ''), 0);
+  assert.equal(isMissing('9000202', { season: 1, episode: 1 }, hash), false);
+});
+
+test('RELEASE_INDEX=false também desliga a prova de miss', () => {
+  const original = config.releaseIndex.enabled;
+  const hash = '8'.repeat(40);
+  try {
+    config.releaseIndex.enabled = false;
+    assert.equal(markMissing('tt9000203', { season: 1, episode: 1 }, hash), 0);
+    assert.equal(isMissing('tt9000203', { season: 1, episode: 1 }, hash), false);
+  } finally {
+    config.releaseIndex.enabled = original;
+  }
 });

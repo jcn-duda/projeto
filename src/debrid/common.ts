@@ -1,5 +1,5 @@
 import config from '../config.js';
-import { TRACKERS, normalizeTitle } from '../utils/format.js';
+import { TRACKERS, normalizeTitle, parseTitleSeasonEpisode } from '../utils/format.js';
 import * as log from '../utils/logger.js';
 
 /** Arquivo dentro de um torrent, como cada serviço o reporta. */
@@ -117,9 +117,25 @@ function isWorkPickError(error: MaybeError) {
  */
 class EpisodePickError extends Error {
   code = 'EPISODE_PICK';
-  constructor() {
+  /** O que o(s) arquivo(s) declararam vs. o que foi pedido — quando a prova
+   * existe (vídeo único com nome técnico). O throw multi-vídeo não tem. */
+  evidence?: {
+    wantedSeason: number;
+    wantedEpisode: number;
+    declaredSeasons: number[];
+    declaredEpisodes: number[];
+    sample?: string;
+  };
+  constructor(evidence?: {
+    wantedSeason: number;
+    wantedEpisode: number;
+    declaredSeasons: number[];
+    declaredEpisodes: number[];
+    sample?: string;
+  }) {
     super('não foi possível identificar o episódio dentro do pack');
     this.name = 'EpisodePickError';
+    this.evidence = evidence;
   }
 }
 
@@ -390,6 +406,36 @@ function pickFile(files: DebridFile[], { season, episode, work }: { season?: num
     // Vídeo único continua compatível com torrents de episódio sem nome técnico.
     // Com pack, o maior arquivo é prova nenhuma de qual episódio foi pedido.
     if (videos.length > 1) throw new EpisodePickError();
+    // Vídeo único que sobrou: se o NOME do arquivo declara s/e, confere com o
+    // pedido. Caso real (True Detective S03E02): o pack anunciava a temporada
+    // 3 mas continha só "S03E07" — sem esta checagem o fallback tocava o
+    // episódio 7. Parse que não declara nada PASSA: torrent de episódio sem
+    // nome técnico ("episodio-sem-nome.mkv") continua compatível, e o
+    // "1920x1080" sai ANTES do parse porque o padrão \d+x\d+ o leria como
+    // S20/E108 (falso positivo conhecido do parseTitleSeasonEpisode).
+    const singleName = baseName(videos[0].path || '').replace(/\b\d{3,4}x\d{3,4}\b/g, ' ');
+    const declared = parseTitleSeasonEpisode(singleName);
+    // "complete" só é cobertura total quando NÃO há temporada explícita —
+    // mesma semântica medida do seasonCoverageExcludes (format.ts): um nome
+    // que declara "Todas as Temporadas" E uma temporada específica ainda
+    // precisa conferir a temporada declarada.
+    if (!declared.complete || declared.seasons.length > 0) {
+      // As duas dimensões são INDEPENDENTES: um arquivo S02E05 casa o
+      // episódio 5 pedido mas prova a temporada ERRADA — checar a temporada
+      // só quando não há episódio declarado deixaria esse caso tocar.
+      // Continua conservador: cada dimensão condena apenas quando declarada.
+      const wrongEpisode = declared.episodes.length > 0 && !declared.episodes.includes(episode);
+      const wrongSeason = declared.seasons.length > 0 && !declared.seasons.includes(season);
+      if (wrongEpisode || wrongSeason) {
+        throw new EpisodePickError({
+          wantedSeason: season,
+          wantedEpisode: episode,
+          declaredSeasons: [...declared.seasons],
+          declaredEpisodes: [...declared.episodes],
+          sample: baseName(videos[0].path || '').slice(0, 60),
+        });
+      }
+    }
   }
 
   // Filme com dica de obra: pack multi-filme exige casamento por nome.

@@ -11,6 +11,7 @@ import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import { WorkPickError, EpisodePickError, NoVideoError } from '../src/debrid/common.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as releaseIndex from '../src/utils/release-index.js';
 import type { DebridAdapter } from '../types/domain.js';
 import * as cache from '../src/utils/cache.js';
 import { createTestServer, encodeConfig, withMockFetch, fakeResponse } from './e2e/e2e-harness.js';
@@ -238,6 +239,40 @@ test('/resolve devolve 404 quando pickFile não identifica episódio no pack', a
     const res = await server.request('GET', `/${cfg}/resolve/${HASH}?s=1&e=5&sig=${sig}`);
     assert.equal(res.status, 404);
     assert.equal(res.text, 'este episódio não foi encontrado no pack');
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+  }
+});
+
+test('/resolve: EpisodePickError com evidência grava miss no índice da obra', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashMiss = 'e'.repeat(40);
+  // A dica carrega o `i` (imdbId) — é ele que permite gravar a evidência no
+  // índice da obra, escopada ao episódio pedido.
+  const hint = JSON.stringify({ n: ['True Detective'], y: 2014, i: 'tt7700009' });
+  const sig = hmacSig('fake-key', `${hashMiss}?s=1&e=5&w=${hint}`);
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    FAKE_ADAPTER.resolveLink = async () => {
+      throw new EpisodePickError({
+        wantedSeason: 1,
+        wantedEpisode: 5,
+        declaredSeasons: [1],
+        declaredEpisodes: [7],
+        sample: 'True.Detective.S01E07.1080p.WEB.mkv',
+      });
+    };
+    const res = await server.request('GET', `/${cfg}/resolve/${hashMiss}?s=1&e=5&w=${encodeURIComponent(hint)}&sig=${sig}`);
+    assert.equal(res.status, 404);
+    assert.equal(res.text, 'este episódio não foi encontrado no pack');
+    assert.equal(
+      releaseIndex.isMissing('tt7700009', { season: 1, episode: 5 }, hashMiss),
+      true,
+      'a prova "este hash não serve este episódio" fica no índice',
+    );
+    // Prova fina: o mesmo hash continua valendo para os outros episódios.
+    assert.equal(releaseIndex.isMissing('tt7700009', { season: 1, episode: 7 }, hashMiss), false);
   } finally {
     FAKE_ADAPTER.resolveLink = originalResolve;
   }
