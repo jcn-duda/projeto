@@ -235,7 +235,7 @@ async function checkQuotaWarning() {
   if (!config.debrid.apiKey || !config.debrid.allowEnvKey) return;
   try {
     const status = await adapter.accountStatus(config.debrid.apiKey);
-    if (status?.magnets >= config.notify.magnetsWarn) {
+    if (status && typeof status.magnets === 'number' && status.magnets >= config.notify.magnetsWarn) {
       await notify('debrid_quota_warning', 'warning', `Conta ${adapter.id} atingiu ${status.magnets} magnets (próximo do limite de 1000)`, {
         adapter: adapter.id,
         magnets: status.magnets,
