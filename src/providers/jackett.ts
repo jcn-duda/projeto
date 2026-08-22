@@ -9,6 +9,7 @@ import {
   audioFromTitle,
   qualityFromTitle,
   looksPtBr,
+  decodeEntities,
   UNKNOWN_QUALITY,
 } from '../utils/format.js';
 import * as indexerStatus from './indexer-status.js';
@@ -81,8 +82,14 @@ function mapResults(
   const results = categoryBucket
     ? all.filter((r: any) => inCategoryBucket(r?.Category, categoryBucket))
     : all;
-  return results.map((r: any) => ({
-    title: r.Title,
+  return results.map((r: any) => {
+    // Decodifica na ENTRADA, não só na exibição: matchesEpisode,
+    // parseTitleSeasonEpisode e o índice leem este título, e a entidade crua
+    // apagava a temporada do pack — "4&ordf; Temporada" virava pack sem
+    // temporada declarada, que casa QUALQUER episódio.
+    const title = decodeEntities(String(r.Title || ''));
+    return {
+    title,
     magnet: r.MagnetUri || r.Guid,
     infoHash: r.InfoHash,
     seeders: r.Seeders,
@@ -96,8 +103,9 @@ function mapResults(
     // titulado em português, e é o título que denuncia. Decidir só pelo
     // indexer fazia esse resultado ser julgado contra o nome em inglês e
     // morrer no filtro, além de não contar nas vagas BR.
-    isBr: isBr || looksPtBr(String(r.Title || '')),
-  }));
+    isBr: isBr || looksPtBr(title),
+    };
+  });
 }
 
 async function resolveDownloadMagnet(url: string, budgetMs: number) {

@@ -123,6 +123,15 @@ const NAMED_ENTITIES: Record<string, string> = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
   hellip: '…', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘',
   ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
+  // Ordinais: as que mais mudam DECISÃO aqui. Todo pack BR se anuncia como
+  // "4ª Temporada", e o Pirate Bay publica isso como "4&ordf; Temporada" —
+  // sem decodificar, o parser não lê temporada nenhuma e o pack da 4ª entra
+  // na lista do S01E01 como se cobrisse qualquer episódio.
+  ordf: 'ª', ordm: 'º', deg: '°',
+  // Acentuadas: aparecem no mesmo corpus ("Dual &Aacute;udio").
+  aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú',
+  acirc: 'â', ecirc: 'ê', ocirc: 'ô', atilde: 'ã', otilde: 'õ',
+  ccedil: 'ç', agrave: 'à', uuml: 'ü', ntilde: 'ñ',
 };
 
 /**
@@ -134,7 +143,14 @@ function decodeEntities(text = '') {
   return String(text)
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
-    .replace(/&([a-z]+);/gi, (whole: string, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? whole);
+    .replace(/&([a-z]+);/gi, (whole: string, name: string) => {
+      const letra = NAMED_ENTITIES[name.toLowerCase()];
+      if (letra === undefined) return whole;
+      // A tabela é consultada em minúsculas, então "&Aacute;" caía em "á" e
+      // "Dual Áudio" virava "Dual áudio" na tela. Só letra única herda a
+      // caixa do nome da entidade; "&Amp;" continua "&".
+      return letra.length === 1 && /^[A-Z]/.test(name) ? letra.toUpperCase() : letra;
+    });
 }
 
 /**

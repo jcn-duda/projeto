@@ -28,6 +28,7 @@ import {
   filterRelevantRaw,
   isMultiWorkCollection,
   extractInfoHash,
+  decodeEntities,
   isSeasonPackFillEligible,
   qualityFromTitle,
   audioFromTitle,
@@ -1866,7 +1867,20 @@ async function buildStreams(
   rawInput: any[],
   { meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, onDebridResult }: any,
 ) {
-  let raw = rawInput;
+  // Entidade HTML some AQUI, onde todas as origens já se juntaram — Jackett,
+  // resolvedores BR, índice e o inventário da conta do debrid. Decodificar só
+  // na saída (toStremioStream) deixava a DECISÃO com a entidade crua: medido
+  // no "Dois Homens e Meio 4&ordf; Temporada Completa", que o parser lia como
+  // pack SEM temporada declarada — e pack sem temporada casa qualquer
+  // episódio, então os packs da 4ª, 5ª e 6ª entravam na lista do S01E01.
+  // O inventário da conta é o que obriga a normalização a ficar aqui: o nome
+  // dele vem do torrent, nunca passou pelo provider.
+  let raw = rawInput.map((item: any) => {
+    const title = item?.title ?? item?.Title;
+    if (typeof title !== 'string' || !title.includes('&')) return item;
+    const limpo = decodeEntities(title);
+    return limpo === title ? item : { ...item, title: limpo, ...(item.Title ? { Title: limpo } : {}) };
+  });
   let autofetchCount = 0;
 
   // No modo demo, se não for BBB, lista vazia (esperado)

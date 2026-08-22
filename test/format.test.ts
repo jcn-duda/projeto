@@ -38,6 +38,7 @@ import {
   franchiseRoot,
   dubbedLieVerdict,
   seasonCoverageExcludes,
+  decodeEntities,
 } from '../src/utils/format.js';
 import type { RawItem, Stream } from '../types/domain.js';
 
@@ -1931,3 +1932,22 @@ test('streamDisplayName consome opções do runtime quando em contexto assíncro
 });
 
 
+
+test('entidade HTML não pode apagar a temporada do pack', () => {
+  // Caso medido (Dois Homens e Meio, The Pirate Bay): o post vem como
+  // "4&ordf; Temporada Completa [Dublado]". Sem `ordf` na tabela, o parser não
+  // lia temporada nenhuma — e pack sem temporada declarada casa QUALQUER
+  // episódio, então os packs da 4ª, 5ª e 6ª apareciam na lista do S01E01.
+  const cru = 'Dois Homens e Meio 4&ordf; Temporada Completa [Dublado]';
+  assert.equal(decodeEntities(cru), 'Dois Homens e Meio 4ª Temporada Completa [Dublado]');
+  assert.deepEqual(parseTitleSeasonEpisode(decodeEntities(cru)).seasons, [4]);
+  assert.equal(matchesEpisode(decodeEntities(cru), { season: 1, episode: 1 }), false);
+  assert.equal(matchesEpisode(decodeEntities(cru), { season: 4, episode: 1 }), true);
+
+  // A tabela é consultada em minúsculas; letra única herda a caixa do nome.
+  assert.equal(decodeEntities('Dual &Aacute;udio'), 'Dual Áudio');
+  assert.equal(decodeEntities('10&ordm; Temp'), '10º Temp');
+  // Entidade desconhecida continua intacta, e "&Amp;" não vira "&" maiúsculo.
+  assert.equal(decodeEntities('&naoexiste; x'), '&naoexiste; x');
+  assert.equal(decodeEntities('&Amp; teste'), '& teste');
+});
