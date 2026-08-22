@@ -140,7 +140,13 @@ const config = {
     queueMax: num(process.env.HARVEST_QUEUE_MAX, 200),
     // Teto de educação com os indexers: o colhedor reduz carga total (a mesma
     // obra deixa de ser raspada a cada busca), mas não pode virar crawler.
-    maxPerHour: num(process.env.HARVEST_MAX_HOUR, 30),
+    // Teto de consultas ao Jackett por hora. O piso NÃO é gosto: uma obra custa
+    // uma consulta por indexer MAIS uma por alvo da varredura pt-BR (medido
+    // nesta instalação: 19 + 12 = 31). Teto abaixo disso faz a varredura ser
+    // pulada SEMPRE — o guard dela soma os alvos antes de decidir — e é
+    // justamente ela que acha o dublado titulado em PT nos trackers globais.
+    // 120 ≈ 4 obras/hora com a varredura inteira em cada uma.
+    maxPerHour: num(process.env.HARVEST_MAX_HOUR, 120),
     indexerDelayMs: num(process.env.HARVEST_INDEXER_DELAY_MS, 1500),
     entryTtl: num(process.env.HARVEST_ENTRY_TTL, 7 * 24 * 3600),
   },

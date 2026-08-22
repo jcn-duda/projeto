@@ -119,11 +119,11 @@ async function awaitIndexerGap(indexer: string) {
   }
 }
 
-async function harvestOne(entry: HarvestEntry): Promise<boolean> {
+async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean }> {
   const startedAt = Date.now();
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
   const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
-  if (!searchMeta?.name) return false;
+  if (!searchMeta?.name) return { ok: false, capped: false };
   const matchContext = {
     names: searchMeta.names,
     year: searchMeta.year,
@@ -138,35 +138,18 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
 
   const indexers = [...new Set(config.jackett.indexers)];
   let attempted = 0;
+  let capped = false;
   let succeeded = 0;
   const collected: any[] = [];
 
-  for (const indexer of indexers) {
-    // Freio de atividade no MEIO da obra também: tráfego chegou, solta o
-    // Jackett na hora (o que já foi coletado entra no índice mesmo assim).
-    if (activity.recentUserTraffic(config.harvest.idleWindowMs)) break;
-    if (queriesThisHour() + attempted >= config.harvest.maxPerHour) {
-      log.debug('[harvest] teto horário atingido');
-      break;
-    }
-    // Intervalo mínimo entre consultas ao MESMO indexer: educação básica.
-    await awaitIndexerGap(indexer);
-    attempted += 1;
-    try {
-      const items = await jackett.search(query, entry.type, [indexer], {
-        matchContext,
-        recordStatus: false,
-        fallbackQuery: ptQuery || undefined,
-      });
-      lastQueryAt.set(indexer, Date.now());
-      succeeded += 1;
-      collected.push(...items.filter((i: any) => !i.fromAccount));
-    } catch (err: any) {
-      lastQueryAt.set(indexer, Date.now());
-      log.warn(`[harvest] ${indexer} falhou para ${entry.imdbId}:`, err?.message || err);
-    }
-  }
-
+  // Varredura pt-BR nos globais, ANTES do laço de propósito: é a consulta de
+  // maior valor por unidade (uma chamada agrupada que acha o dublado titulado
+  // em PT, que a query em inglês nunca encontra), então quando o teto horário
+  // cortar, quem fica pelo caminho é a cauda do laço — não ela. Na ordem
+  // antiga o guard somava as consultas do laço e a varredura era a primeira
+  // sacrificada: com 19 indexers e 12 alvos contra teto de 30, ela NUNCA
+  // rodava.
+  //
   // Varredura pt-BR nos globais, a mesma da busca ao vivo: o dublado
   // titulado em PT mora em tracker global e a query em inglês não o encontra
   // — sem isto o índice ficava sistematicamente cego para a release que só a
@@ -182,7 +165,7 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
   if (sweepQuery && sweepTargets.length > 0) {
     // A varredura agrupada dispara uma consulta HTTP por alvo: conta no teto
     // com a mesma moeda do loop acima, antes de decidir.
-    if (queriesThisHour() + attempted + sweepTargets.length >= config.harvest.maxPerHour) {
+    if (queriesThisHour() + sweepTargets.length >= config.harvest.maxPerHour) {
       log.debug('[harvest] teto horário atingido antes da varredura pt');
     } else {
       for (const target of sweepTargets) {
@@ -209,6 +192,35 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
     }
   }
 
+  for (const indexer of indexers) {
+    // Freio de atividade no MEIO da obra também: tráfego chegou, solta o
+    // Jackett na hora (o que já foi coletado entra no índice mesmo assim).
+    if (activity.recentUserTraffic(config.harvest.idleWindowMs)) break;
+    if (queriesThisHour() + attempted >= config.harvest.maxPerHour) {
+      // A obra sai DAQUI pela metade: quem a desenfileirou precisa saber, senão
+      // ela é dada por colhida com meia dúzia de indexers e nunca mais volta.
+      capped = true;
+      log.debug('[harvest] teto horário atingido');
+      break;
+    }
+    // Intervalo mínimo entre consultas ao MESMO indexer: educação básica.
+    await awaitIndexerGap(indexer);
+    attempted += 1;
+    try {
+      const items = await jackett.search(query, entry.type, [indexer], {
+        matchContext,
+        recordStatus: false,
+        fallbackQuery: ptQuery || undefined,
+      });
+      lastQueryAt.set(indexer, Date.now());
+      succeeded += 1;
+      collected.push(...items.filter((i: any) => !i.fromAccount));
+    } catch (err: any) {
+      lastQueryAt.set(indexer, Date.now());
+      log.warn(`[harvest] ${indexer} falhou para ${entry.imdbId}:`, err?.message || err);
+    }
+  }
+
   if (config.bludv.enabled && ptQuery) {
     try {
       collected.push(...(await bludv.search(ptQuery)).filter((i: any) => !i.fromAccount));
@@ -230,7 +242,7 @@ async function harvestOne(entry: HarvestEntry): Promise<boolean> {
   harvested += 1;
   lastRunAt = Date.now();
   metrics.observe('harvest.ms', Date.now() - startedAt);
-  return added > 0 || succeeded > 0;
+  return { ok: added > 0 || succeeded > 0, capped };
 }
 
 async function checkQuotaWarning() {
@@ -271,9 +283,26 @@ async function tick() {
     if (!entry) return;
     persistQueue();
     const identity = obraIdentity(entry);
-    const ok = await harvestOne(entry);
-    attemptsByObra.delete(identity);
+    const { ok, capped } = await harvestOne(entry);
     metrics.count(ok ? 'harvest.done' : 'harvest.empty');
+    if (capped) {
+      // Obra cortada no meio pelo teto volta para a FRENTE da fila: terminar o
+      // que já começou vale mais que abrir obra nova, porque um registro
+      // parcial no índice já conta como cobertura para o idxPoolCovered — a
+      // busca passaria a ser servida de uma lista incompleta. O contador de
+      // tentativas evita que uma obra cara segure a fila para sempre.
+      const tries = (attemptsByObra.get(identity) || 0) + 1;
+      attemptsByObra.set(identity, tries);
+      if (tries <= 3) {
+        metrics.count('harvest.capped');
+        queue.unshift(entry);
+        persistQueue();
+      } else {
+        attemptsByObra.delete(identity);
+      }
+    } else {
+      attemptsByObra.delete(identity);
+    }
   } catch (err: any) {
     metrics.count('harvest.failed');
     if (entry) {

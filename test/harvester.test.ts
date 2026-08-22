@@ -44,13 +44,16 @@ test('teto horário conta as consultas e trava o ciclo seguinte', async () => {
     // sempre e nenhuma hora travava).
     let st: any = harvester.status();
     assert.equal(st.queriesThisHour, 2, 'consultas da obra ficam anotadas na hora');
-    assert.equal(st.queueDepth, 0, 'obra consumida');
+    // Cortada no meio pelo teto, a obra NÃO é dada por colhida: volta para a
+    // fila. Antes ela era descartada com cobertura parcial e o índice ficava
+    // com um registro incompleto que já contava como cobertura na busca.
+    assert.equal(st.queueDepth, 1, 'obra cortada pelo teto volta para a fila');
 
-    // Ciclo seguinte: teto já alcançado — a próxima obra nem sai da fila.
+    // Ciclo seguinte: teto já alcançado — nenhuma obra sai da fila.
     harvester.enqueue({ imdbId: 'tt9500010', type: 'movie', reason: 'miss' } as any);
     await harvester.tick();
     st = harvester.status();
-    assert.equal(st.queueDepth, 1, 'teto atingido segura a obra na fila');
+    assert.equal(st.queueDepth, 2, 'teto atingido segura as obras na fila');
     assert.equal(st.queriesThisHour, 2, 'nenhuma consulta nova além do teto');
   } finally {
     config.harvest.maxPerHour = saved.maxPerHour;
@@ -379,4 +382,49 @@ test('atividade recente trava o colhedor (janela deslizante)', () => {
   activity.noteUserRequest();
   assert.equal(activity.recentUserTraffic(10_000), true, 'tráfego dentro da janela trava');
   assert.equal(activity.hasUserTraffic(), true, 'marca de boot continua valendo para o warmup');
+});
+
+
+test('obra cortada pelo teto volta para a FRENTE da fila, antes das novas', async () => {
+  // Terminar o que começou vale mais que abrir obra nova: um registro parcial
+  // no índice já satisfaz o idxPoolCovered, e a busca passaria a ser servida
+  // de uma lista incompleta enquanto o resto da fila é colhido.
+  //
+  // A fila é do módulo e carrega sobras dos testes anteriores, então o que se
+  // cobra é a INVARIANTE — depois de um ciclo cortado pelo teto, a obra da
+  // frente continua na frente e nada foi consumido —, não uma obra específica.
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+  };
+  try {
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['fake-a', 'fake-b', 'fake-c'];
+    config.jackett.apiKey = '';
+    const before = (harvester.status() as any).queriesThisHour;
+    config.harvest.maxPerHour = before + 2;
+    cache.set('meta:movie:tt9500061', { name: 'Cortada', year: '2024', type: 'movie' }, 3600);
+    harvester.enqueue({ imdbId: 'tt9500061', type: 'movie', reason: `cap-${Date.now()}` } as any);
+
+    const key = `${prefix('harvest')}q`;
+    const antes = (cache.get(key) || []) as any[];
+    assert.ok(antes.length > 0, 'a fila precisa ter obra para o ciclo cortar');
+    const primeiraAntes = antes[0].imdbId;
+
+    await harvester.tick();
+
+    const depois = (cache.get(key) || []) as any[];
+    assert.equal(depois.length, antes.length, 'obra cortada não é consumida: ela volta');
+    assert.equal(depois[0].imdbId, primeiraAntes, 'e volta para a FRENTE, não para o fim');
+  } finally {
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+  }
 });
