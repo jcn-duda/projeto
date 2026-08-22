@@ -14,6 +14,7 @@ import {
   sortAndLimit,
   resolveSearchNames,
   matchesEpisode,
+  parseTitleSeasonEpisode,
   limitReservingBr,
   UNKNOWN_QUALITY,
   markDebridName,
@@ -822,13 +823,42 @@ function poolCovered(
   }).length > 0;
 }
 
+/** O título NOMEIA este episódio? Pack de temporada casa o episódio no
+ * `matchesEpisode` de propósito (ele contém o episódio), mas não o NOMEIA —
+ * e a diferença decide quem pode sustentar a cobertura do índice. */
+function nomeiaEpisodio(title: string, season: number, episode: number) {
+  const { seasons, episodes } = parseTitleSeasonEpisode(String(title || ''));
+  return episodes.includes(episode) && (seasons.length === 0 || seasons.includes(season));
+}
+
 /**
  * "Índice cobre" NUNCA é contagem pura. Uma temporada indexada só com
  * legendado não pode impedir a busca BR dublada de rodar — então o critério é
  * a MESMA noção de pool que o autofetch já usa: BR dublado → global dublado →
  * melhor swarm saudável. Qualquer um desses pools com candidato serve.
+ *
+ * E, em busca de EPISÓDIO, pack de temporada não decide sozinho. O caso
+ * medido: "True Detective 2ª Temporada [1080p DUBLADO 22.41 GB]" sustentava a
+ * cobertura de S02E01, a busca era servida do índice, e o dublado DO EPISÓDIO
+ * que a coleta ao vivo traria nunca aparecia — o pack promete a temporada, não
+ * a faixa de áudio daquele episódio, e quem descobre a diferença é o usuário
+ * no play. Mesmo princípio do `isSeasonPackFillEligible`: pack só vale como
+ * promessa quando prova o que promete.
+ *
+ * O pack continua ENTRANDO na lista (ele é fonte tocável de verdade); ele só
+ * não decide mais que o Jackett pode ficar de fora.
  */
-function idxPoolCovered(releases: any[], season?: number | null) {
+function idxPoolCovered(
+  releases: any[],
+  { season = null, episode = null }: { season?: number | null; episode?: number | null } = {},
+) {
+  if (season != null && episode != null) {
+    const nomeados = releases.filter((r) => nomeiaEpisodio(r?.title, season, episode));
+    if (nomeados.length === 0) {
+      metrics.count('search.idx.packOnly');
+      return false;
+    }
+  }
   return poolCovered(releases, { season, requireDubbed: false });
 }
 
@@ -1339,7 +1369,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
     if (indexed.length === 0) {
       metrics.count('search.idx.miss');
       harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'miss' });
-    } else if (idxPoolCovered(indexed)) {
+    } else if (idxPoolCovered(indexed, { season, episode })) {
       metrics.count('search.idx.hit');
       metrics.count('search.idx.served', indexed.length);
       servedFromIndex = true;
