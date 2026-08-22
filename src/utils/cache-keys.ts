@@ -17,7 +17,12 @@ const NAMESPACE_VERSIONS = Object.freeze({
   dinv: 'v1',
   davail: 'v1',
   mag: 'v1',
-  idx: 'v2',
+  // v3: a gravação passou a ROTEAR a release pela temporada/episódio que o
+  // título dela declara, em vez de assumir a chave da busca. O formato do
+  // registro é o mesmo, mas metade do conteúdo da v2 estava sob chave errada
+  // (medido: 328 de 659) — e re-rotear o legado custaria mais código que
+  // deixar o índice se refazer, que é o que ele faz sozinho.
+  idx: 'v3',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

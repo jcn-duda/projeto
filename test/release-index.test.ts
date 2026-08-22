@@ -104,3 +104,102 @@ test('status expõe entradas e cota para o painel', () => {
   assert.equal(st.maxEntries, 4000);
   assert.equal(st.enabled, true);
 });
+
+// --- Roteamento por destino declarado ---------------------------------------
+//
+// A coleta de um episódio arrasta releases de outros (o Jackett casa por NOME,
+// não por episódio). Medido no índice real antes desta regra: 328 de 659
+// releases (50%) estavam sob chave que não casavam — envenenando duas vezes,
+// porque ocupavam as vagas do teto que pertenciam ao episódio pedido E davam
+// cobertura falsa ao gate que decide servir do índice.
+
+const serieRel = (hash: string, title: string, extra: any = {}) => ({
+  title,
+  infoHash: hash,
+  seeders: 9,
+  size: 1024 ** 3,
+  indexer: 'globaltracker',
+  ...extra,
+});
+
+test('release de OUTRO episódio vai para a chave dela, não para a da busca', () => {
+  const alvo = 'd'.repeat(40);
+  const forasteira = 'e'.repeat(40);
+  record('tt9000100', { season: 4, episode: 7 }, [
+    serieRel(alvo, 'True Detective S04E07 1080p WEB-DL'),
+    serieRel(forasteira, 'True.Detective.S03E07.The.Final.Country.1080p'),
+  ]);
+
+  const pedida = lookup('tt9000100', { season: 4, episode: 7 }).map((r) => r.hash);
+  assert.deepEqual(pedida, [alvo], 'a chave do episódio pedido só tem o episódio pedido');
+
+  // Roteada, não descartada: a consulta já foi paga e vira cobertura de graça.
+  const dela = lookup('tt9000100', { season: 3, episode: 7 }).map((r) => r.hash);
+  assert.deepEqual(dela, [forasteira], 'a forasteira está indexada no episódio DELA');
+});
+
+test('pack de temporada vai para a chave da temporada e serve qualquer episódio dela', () => {
+  const pack = 'f'.repeat(40);
+  record('tt9000101', { season: 2, episode: 1 }, [
+    serieRel(pack, 'True Detective 2ª Temporada (2015) [1080p DUBLADO 22.41 GB]', { isBr: true }),
+  ]);
+  assert.ok(cache.get(`${prefix('idx')}tt9000101:S2`), 'gravou na chave da temporada');
+  assert.ok(!cache.get(`${prefix('idx')}tt9000101:S2E1`), 'não sujou a chave do episódio');
+  // O lookup lê episódio → temporada → obra, então o pack continua alcançável.
+  for (const ep of [1, 5, 8]) {
+    assert.equal(lookup('tt9000101', { season: 2, episode: ep }).length, 1, `pack alcança E${ep}`);
+  }
+});
+
+test('pack multi-episódio (E01-E02) também cai na temporada, não num episódio só', () => {
+  const pack = '1'.repeat(40);
+  record('tt9000102', { season: 1, episode: 5 }, [serieRel(pack, 'True.Detective.S01E01-E02.1080p')]);
+  assert.ok(cache.get(`${prefix('idx')}tt9000102:S1`));
+  assert.ok(!cache.get(`${prefix('idx')}tt9000102:S1E1`));
+});
+
+test('série completa / faixa de temporadas vai para a chave da OBRA', () => {
+  const completa = '2'.repeat(40);
+  record('tt9000103', { season: 3, episode: 4 }, [
+    serieRel(completa, 'Game of Thrones 1ª até 8ª Temporada Completa Dublada e Dual', { isBr: true }),
+  ]);
+  assert.ok(cache.get(`${prefix('idx')}tt9000103`), 'chave da obra cobre qualquer temporada');
+  assert.ok(!cache.get(`${prefix('idx')}tt9000103:S3E4`));
+  assert.equal(lookup('tt9000103', { season: 7, episode: 2 }).length, 1, 'alcança temporada distante');
+});
+
+test('título que não declara nada fica onde a busca o encontrou', () => {
+  const mudo = '3'.repeat(40);
+  record('tt9000104', { season: 6, episode: 3 }, [serieRel(mudo, 'Serie Sem Marcacao 1080p WEB-DL')]);
+  assert.deepEqual(
+    lookup('tt9000104', { season: 6, episode: 3 }).map((r) => r.hash),
+    [mudo],
+    'sem declaração, o contexto da busca é a melhor evidência',
+  );
+});
+
+test('o teto por chave deixa de ser gasto com episódio alheio', () => {
+  // O caso medido: 49 das 60 vagas de um S1E1 eram de outras temporadas, e as
+  // releases dubladas do episódio certo eram despejadas por elas.
+  const saved = config.releaseIndex.maxReleases;
+  config.releaseIndex.maxReleases = 5;
+  try {
+    const itens = [];
+    for (let i = 0; i < 8; i += 1) {
+      itens.push(serieRel(String(i).repeat(40), `Serie X S02E0${i + 1} 1080p`));
+    }
+    itens.push(serieRel('9'.repeat(40), 'Serie X S01E01 1080p DUBLADO', { isBr: true }));
+    record('tt9000105', { season: 1, episode: 1 }, itens);
+    const doPedido = lookup('tt9000105', { season: 1, episode: 1 });
+    assert.equal(doPedido.length, 1, 'a chave pedida guarda só o que é dela');
+    assert.equal(doPedido[0].hash, '9'.repeat(40), 'e a dublada do episódio sobrevive ao teto');
+  } finally {
+    config.releaseIndex.maxReleases = saved;
+  }
+});
+
+test('filme não é roteado: continua na chave da obra', () => {
+  const hash = '4'.repeat(40);
+  record('tt9000106', {}, [serieRel(hash, 'Filme Qualquer S02E01 no nome 1080p')]);
+  assert.ok(cache.get(`${prefix('idx')}tt9000106`), 'filme ignora marcação de episódio no título');
+});

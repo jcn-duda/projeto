@@ -19,7 +19,7 @@ import config from '../config.js';
 import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { prefix } from './cache-keys.js';
-import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio } from './format.js';
+import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, parseTitleSeasonEpisode } from './format.js';
 
 type IndexedRelease = {
   hash: string;
@@ -54,15 +54,42 @@ function obraKey(imdbId: string, { season, episode }: ObraLocation = {}) {
  * hash, registro mais recente vence. Itens sem hash e itens da conta são
  * ignorados — ver invariantes no cabeçalho.
  */
+/**
+ * Onde a release PERTENCE, pelo que o título dela declara — não pela busca que
+ * a trouxe. É a diferença entre índice e despejo: a coleta de S04E07 arrasta
+ * releases de S03 (o Jackett casa por nome, não por episódio), e gravá-las sob
+ * a chave do episódio pedido envenenava o índice duas vezes — ocupando as
+ * vagas do teto que pertenciam ao episódio certo, e dando cobertura FALSA ao
+ * idxPoolCovered, que servia a busca de um balde cujo conteúdo o matchesEpisode
+ * descartava na hora de exibir. Medido antes desta regra: 328 de 659 releases
+ * (50%) estavam sob chave que não casavam, e TODOS declaravam onde pertenciam.
+ *
+ * Roteia, não descarta: a consulta ao Jackett já foi paga, então a release de
+ * outro episódio vira cobertura de graça do episódio dela.
+ */
+function destinoDe(imdbId: string, pedido: ObraLocation, title: string) {
+  // Filme não tem episódio: a chave é sempre a da obra.
+  if (pedido.season == null) return obraKey(imdbId, pedido);
+  const { seasons, episodes, complete } = parseTitleSeasonEpisode(title);
+  // Série inteira ou faixa de temporadas cobre qualquer episódio: chave da obra.
+  if (complete || seasons.length > 1) return obraKey(imdbId, {});
+  // Nada declarado é ambíguo, e o contexto da busca é a melhor evidência que
+  // existe: fica onde foi encontrada.
+  if (seasons.length === 0) return obraKey(imdbId, pedido);
+  const season = seasons[0];
+  // Um episódio só: chave dele. Vários (pack E01-E02) ou nenhum (pack de
+  // temporada): chave da TEMPORADA, que o lookup lê para qualquer episódio.
+  if (episodes.length === 1) return obraKey(imdbId, { season, episode: episodes[0] });
+  return obraKey(imdbId, { season });
+}
+
 function record(imdbId: string, location: ObraLocation, items: any[]) {
   if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !Array.isArray(items) || items.length === 0) return 0;
   const now = Date.now();
-  const key = obraKey(imdbId, location);
-  const existing = new Map<string, IndexedRelease>();
-  const entry = cache.get(key);
-  for (const rel of entry?.releases || []) existing.set(rel.hash, rel);
-
-  let added = 0;
+  const pedida = obraKey(imdbId, location);
+  // Primeiro passe: agrupa por DESTINO. O merge com o registro anterior precisa
+  // do estado da chave de destino, não da chave da busca.
+  const porChave = new Map<string, any[]>();
   for (const item of items) {
     // Inventário da conta NÃO é evidência pública de existência: o que ele
     // tem pronto diz respeito à conta dele (davail/mag), nunca ao índice.
@@ -70,34 +97,47 @@ function record(imdbId: string, location: ObraLocation, items: any[]) {
     const hash = String(extractInfoHash(item.infoHash || item.magnet || '') || '').toLowerCase();
     if (!hash) continue;
     const title = String(item.title || item.Title || '').trim();
-    const prior = existing.get(hash);
-    if (prior && prior.seenAt >= now) continue;
-    if (!prior) added += 1;
-    // Mesma regra do toStremioStream: DUAL sem PT explícito não vale como
-    // dublado fora dos sites BR — o degrau "dublado global" do gate de
-    // cobertura depende deste flag ser honesto.
-    const isBr = Boolean(item.isBr) || Boolean(prior?.isBr);
-    const dubbed = isBr
-      ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title)))
-      : explicitPtAudio(title);
-    existing.set(hash, {
-      hash,
-      title: title || prior?.title || '',
-      size: Number(item.size ?? item.Size) || null,
-      indexer: String(item.indexer || item.tracker || prior?.indexer || ''),
-      isBr,
-      dubbed: Boolean(dubbed) || Boolean(prior?.dubbed),
-      quality: qualityFromTitle(title),
-      seeders: Number(item.seeders ?? item.Seeders ?? 0) || 0,
-      seenAt: now,
-    });
+    const destino = destinoDe(imdbId, location, title);
+    if (destino !== pedida) metrics.count('search.idx.routed');
+    const lote = porChave.get(destino) || [];
+    lote.push({ item, hash, title });
+    porChave.set(destino, lote);
   }
-  if (existing.size === 0) return 0;
 
-  const releases = [...existing.values()]
-    .sort((a, b) => b.seenAt - a.seenAt)
-    .slice(0, Math.max(1, config.releaseIndex.maxReleases));
-  cache.set(key, { at: now, releases } satisfies IndexEntry, config.releaseIndex.ttl);
+  let added = 0;
+  for (const [key, lote] of porChave) {
+    const existing = new Map<string, IndexedRelease>();
+    const entry = cache.get(key);
+    for (const rel of entry?.releases || []) existing.set(rel.hash, rel);
+    for (const { item, hash, title } of lote) {
+      const prior = existing.get(hash);
+      if (prior && prior.seenAt >= now) continue;
+      if (!prior) added += 1;
+      // Mesma regra do toStremioStream: DUAL sem PT explícito não vale como
+      // dublado fora dos sites BR — o degrau "dublado global" do gate de
+      // cobertura depende deste flag ser honesto.
+      const isBr = Boolean(item.isBr) || Boolean(prior?.isBr);
+      const dubbed = isBr
+        ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title)))
+        : explicitPtAudio(title);
+      existing.set(hash, {
+        hash,
+        title: title || prior?.title || '',
+        size: Number(item.size ?? item.Size) || null,
+        indexer: String(item.indexer || item.tracker || prior?.indexer || ''),
+        isBr,
+        dubbed: Boolean(dubbed) || Boolean(prior?.dubbed),
+        quality: qualityFromTitle(title),
+        seeders: Number(item.seeders ?? item.Seeders ?? 0) || 0,
+        seenAt: now,
+      });
+    }
+    if (existing.size === 0) continue;
+    const releases = [...existing.values()]
+      .sort((a, b) => b.seenAt - a.seenAt)
+      .slice(0, Math.max(1, config.releaseIndex.maxReleases));
+    cache.set(key, { at: now, releases } satisfies IndexEntry, config.releaseIndex.ttl);
+  }
   metrics.count('search.idx.recorded', added);
   if (added > 0) metrics.count('search.idx.grown');
   return added;
