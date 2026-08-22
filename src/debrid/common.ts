@@ -350,10 +350,14 @@ function pickFile(files: DebridFile[], { season, episode, work }: { season?: num
     // pedida. Só o dígito marca; "Temporada Completa" sem número não declara
     // qual é e não ambigua por si só.
     const pathHasAnySeason = /(?:\b[st]\d{1,2}(?!\d)|\bseason[\s._-]*\d|\b\d{1,2}x\d{1,2}\b|\b(?:temp|temporada)[\s._-]*\d|\b\d{1,2}ª?[\s._-]*(?:temp|temporada)\b)/i;
-    // Forte: o padrão carrega a temporada pedida (s01e05, 1x05, 0105) ou um
-    // padrão fraco em caminho que declara a temporada pedida.
+    // Forte: o padrão carrega a temporada pedida (s01e05, t01e05, 1x05, 0105)
+    // ou um padrão fraco em caminho que declara a temporada pedida. A forma
+    // TxxEyy é comum em packs BR ("T01E01 - O Distante Brilho da Escuridão")
+    // e não casa nos padrões fracos porque o \b não existe entre dígito e
+    // letra dentro de "T01E01".
     const strongPatterns = [
       new RegExp(`\\bs${seasonForms}[\\s._-]*e${episodeForms}\\b`, 'i'),
+      new RegExp(`\\bt${seasonForms}[\\s._-]*e${episodeForms}\\b`, 'i'),
       new RegExp(`\\b${seasonForms}x${episodeForms}\\b`, 'i'),
       new RegExp(`\\b${s}${e}\\b`),
     ];

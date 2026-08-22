@@ -96,6 +96,10 @@ test('pickFile reconhece nomenclatura BR de episódios dentro de pack', () => {
     'Show S01 - E05.mkv', 'Show 1x05.mkv', 'Show 01x5.mkv', 'Show Episódio 05.mkv',
     'Show Capitulo 05.mkv', 'Show EP05.mkv', 'Show E05.mkv', 'Show S01E005.mkv',
     'Show T01 - 005.mkv',
+    // Forma TxxEyy de packs BR reais ("True Detective 1ª Temporada Completa
+    // Dual BluRay": arquivos "T01E01 - O Distante Brilho da Escuridão.mkv").
+    // Não casa nos fracos porque o \b não existe entre "T01" e "E05".
+    'Show T01E05.mkv', 'Show.T01E05.mkv', 'T01E05 - Nome do Episódio.mkv',
   ];
   for (const path of formats) {
     const file = pickFile([f(path, 1), f('Show S01E06.mkv', 2)], { season: 1, episode: 5 });
