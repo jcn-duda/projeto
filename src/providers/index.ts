@@ -922,7 +922,10 @@ function queueDubAudit(adapterId: string, apiKey: string, candidates: any[], sea
         // identifiquei", não "é outro episódio" — loga para observabilidade
         // e segue sem gravar nada nem invalidar lista.
         if (!err.evidence) {
-          log.warn(`[audit] tail: episódio não identificado em ${String(cand.hash).slice(0, 8)} (ambiguidade, sem prova)`);
+          log.warn(
+            `[audit] tail: episódio não identificado em ${String(cand.hash).slice(0, 8)} (ambiguidade, sem prova)` +
+            `${err.context ? ` — ${err.context.videoCount} vídeo(s): ${err.context.samples.join(' | ')}` : ''}`,
+          );
           continue;
         }
         // Prova MEDIDA (com evidência): o nome do arquivo declarou outro s/e.

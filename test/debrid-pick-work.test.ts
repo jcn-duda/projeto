@@ -407,3 +407,41 @@ test('pickFile: layout de canais de áudio não vira episódio nu', () => {
     assert.equal(file!.path, esperado, paths.join(' + '));
   }
 });
+
+test('pickFile: propaganda do site não conta como vídeo do pack', () => {
+  // Caso medido (hash 4014bd0d, TorBox): episódio SOLTO anunciado como "3ª
+  // Temporada", com o vídeo de propaganda do site junto. O .mp4 contava na
+  // contagem, `videos.length > 1` disparava o throw AMBÍGUO, e a prova de
+  // episódio errado que existia no nome do conteúdo nunca era lida — a fonte
+  // não tocava e também nunca saía da lista.
+  const pack = [
+    f('COMANDOTORRENTS.COM.mp4', 5 * 1024 ** 2),
+    f('True.Detective.S03E03.720p.WEB-DL.DUAL.WWW.COMANDOTORRENTS.COM.mkv', 2 * 1024 ** 3),
+  ];
+  for (const episode of [1, 2]) {
+    assert.throws(
+      () => pickFile(pack, { season: 3, episode }),
+      (err: any) => isEpisodePickError(err) && Boolean(err.evidence) && err.evidence.declaredEpisodes.includes(3),
+      `E${episode} recusado COM prova de que o conteúdo é o E03`,
+    );
+  }
+  assert.equal(
+    pickFile(pack, { season: 3, episode: 3 })!.path,
+    'True.Detective.S03E03.720p.WEB-DL.DUAL.WWW.COMANDOTORRENTS.COM.mkv',
+    'o episódio dele continua tocando',
+  );
+
+  // O domínio NO MEIO do nome é conteúdo, não propaganda — a âncora do padrão
+  // é o que separa os dois.
+  assert.equal(
+    pickFile([f('True.Detective.S03E01.WWW.COMANDOTORRENTS.COM.mkv', 1)], { season: 3, episode: 1 })!.path,
+    'True.Detective.S03E01.WWW.COMANDOTORRENTS.COM.mkv',
+  );
+
+  // Torrent que SÓ tem propaganda segue pelo caminho antigo: virar NoVideoError
+  // aqui condenaria o hash no banco de magnets por 24h.
+  assert.equal(
+    pickFile([f('WWW.BLUDV.TV.mp4', 5 * 1024 ** 2)], { season: 3, episode: 1 })!.path,
+    'WWW.BLUDV.TV.mp4',
+  );
+});

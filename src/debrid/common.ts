@@ -126,16 +126,26 @@ class EpisodePickError extends Error {
     declaredEpisodes: number[];
     sample?: string;
   };
+  /**
+   * Retrato do throw AMBÍGUO (multi-vídeo). Campo SEPARADO do `evidence` de
+   * propósito: quem decide gravar prova testa `evidence`, e um contexto de
+   * diagnóstico não pode ser confundido com prova de episódio errado. Existe
+   * porque "não contém o episódio pedido" sem dizer o que havia dentro é um
+   * 404 sem diagnóstico — o caso que motivou: pack cacheado que nunca toca e
+   * cujo log não dizia por quê.
+   */
+  context?: { videoCount: number; samples: string[] };
   constructor(evidence?: {
     wantedSeason: number;
     wantedEpisode: number;
     declaredSeasons: number[];
     declaredEpisodes: number[];
     sample?: string;
-  }) {
+  }, context?: { videoCount: number; samples: string[] }) {
     super('não foi possível identificar o episódio dentro do pack');
     this.name = 'EpisodePickError';
     this.evidence = evidence;
+    this.context = context;
   }
 }
 
@@ -232,6 +242,19 @@ const EXTRA = /(^|[^a-z])(extras?|b[oô]nus|bonus|featurettes?|interviews?|entre
 /** Nome do arquivo sem a pasta: "Trilogia (1985-1990)/video (1985).mkv" → "video (1985).mkv". */
 function baseName(p: string) {
   return String(p || '').split(/[/\\]/).pop() || '';
+}
+
+// Nome que é SÓ o domínio do site, com ou sem "www" e sem nada em volta:
+// "COMANDOTORRENTS.COM.mp4", "WWW.BLUDV.TV.mp4", "[BAIXARTORRENT.COM].mp4".
+// Estreito de propósito — o arquivo de conteúdo do mesmo torrent carrega o
+// domínio NO MEIO ("True.Detective.S03E03…WWW.COMANDOTORRENTS.COM.mkv") e a
+// âncora ^...$ o preserva.
+const SITE_AD = /^(?:www[\s._-]+)?[a-z0-9][a-z0-9-]*\.(?:com|net|org|tv|to|me|cc|info|xyz|biz|br|io|se|ws)(?:\.[a-z]{2})?$/i;
+
+/** Vídeo que é propaganda do site, não conteúdo. */
+function isSiteAd(path: string) {
+  const name = baseName(path).replace(/\.[a-z0-9]{2,4}$/i, '');
+  return SITE_AD.test(name.replace(/^[\s[\](){}._-]+|[\s[\](){}._-]+$/g, ''));
 }
 
 // Cobertura mínima do nome no arquivo para o casamento contar como
@@ -338,13 +361,24 @@ function pickWorkFile(files: DebridFile[], { names, year }: { names?: string[]; 
  * @param {*} [options.work]
  */
 function pickFile(files: DebridFile[], { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
-  const videos = files.filter((f) => VIDEO_EXT.test(f.path || '') && !SAMPLE.test(f.path || ''));
+  let videos = files.filter((f) => VIDEO_EXT.test(f.path || '') && !SAMPLE.test(f.path || ''));
   if (videos.length === 0) {
     // Listagem COM arquivos e nenhum vídeo é prova; listagem vazia é
     // transferência fria, e prova nenhuma.
     if (files.length > 0) throw new NoVideoError();
     return null;
   }
+  // Propaganda do site empacotada junto ("COMANDOTORRENTS.COM.mp4",
+  // "WWW.BLUDV.TV.mp4"): é vídeo pela extensão, mas não é conteúdo. Contava na
+  // contagem e transformava episódio SOLTO em "pack multi-vídeo" — medido no
+  // 4014bd0d, cujo conteúdo real era "True.Detective.S03E03…mkv": a prova de
+  // episódio errado existia e ficava escondida atrás do throw ambíguo, então a
+  // fonte nunca saía da lista e nunca tocava.
+  //
+  // Só cai quando sobra conteúdo: torrent que só tem a propaganda continua
+  // seguindo pelo caminho antigo, sem virar NoVideoError (que condena o hash).
+  const semPropaganda = videos.filter((f) => !isSiteAd(f.path || ''));
+  if (semPropaganda.length > 0 && semPropaganda.length < videos.length) videos = semPropaganda;
 
   if (season != null && episode != null) {
     const s = String(season).padStart(2, '0');
@@ -417,7 +451,15 @@ function pickFile(files: DebridFile[], { season, episode, work }: { season?: num
     }
     // Vídeo único continua compatível com torrents de episódio sem nome técnico.
     // Com pack, o maior arquivo é prova nenhuma de qual episódio foi pedido.
-    if (videos.length > 1) throw new EpisodePickError();
+    if (videos.length > 1) {
+      // Sem prova de qual episódio é (por isso `evidence` fica vazio), mas com
+      // o retrato do que havia dentro: é a única forma de descobrir POR QUE um
+      // pack cacheado nunca toca sem pedir a listagem ao debrid de novo.
+      throw new EpisodePickError(undefined, {
+        videoCount: videos.length,
+        samples: videos.slice(0, 3).map((v) => baseName(v.path || '').slice(0, 70)),
+      });
+    }
     // Vídeo único que sobrou: se o NOME do arquivo declara s/e, confere com o
     // pedido. Caso real (True Detective S03E02): o pack anunciava a temporada
     // 3 mas continha só "S03E07" — sem esta checagem o fallback tocava o

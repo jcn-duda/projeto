@@ -330,7 +330,8 @@ function createApp() {
         log.warn(
           `[resolve] torrent ${infoHash.slice(0, 8)} não contém o episódio pedido` +
           `${req.query.s != null && req.query.e != null ? ` (S${req.query.s}E${req.query.e})` : ''}` +
-          `${err.evidence ? ` — arquivo declara S${err.evidence.declaredSeasons.join(',') || '?'}E${err.evidence.declaredEpisodes.join(',') || '?'}${err.evidence.sample ? ` (${err.evidence.sample})` : ''}` : ''}`,
+          `${err.evidence ? ` — arquivo declara S${err.evidence.declaredSeasons.join(',') || '?'}E${err.evidence.declaredEpisodes.join(',') || '?'}${err.evidence.sample ? ` (${err.evidence.sample})` : ''}` : ''}` +
+          `${!err.evidence && err.context ? ` — ${err.context.videoCount} vídeo(s), nenhum identificável: ${err.context.samples.join(' | ')}` : ''}`,
         );
         // Prova MEDIDA (evidência presente): o nome do arquivo declarou outro
         // s/e — "este hash não serve ESTE episódio" vai para o índice da obra,
