@@ -372,15 +372,14 @@ const ACCOUNT_WARN_LIMIT_USED = Number.isFinite(parsedWarnLimit)
  * ruim. Os motivos vêm classificados igual ao da busca (`auth`/`quota`), então
  * a mesma linguagem serve para o log e para o JSON.
  */
-async function accountStatus() {
-  const adapter = current();
+async function accountStatusFor(adapter: DebridAdapter | null, apiKey: string) {
   if (!adapter) return { ok: false, reason: 'sem-debrid', service: null };
   if (typeof adapter.accountStatus !== 'function') {
     return { ok: true, service: adapter.id, label: adapter.label, supported: false };
   }
 
   try {
-    const status = await adapter.accountStatus(opts().debridApiKey);
+    const status = await adapter.accountStatus(apiKey);
     // O fair-use sai numa variável PRÓPRIA em vez de um booleano `byFairUse`
     // consultando `status.limitUsed` depois: `Number.isFinite` não estreita o
     // tipo através de um intermediário, e o campo é opcional (só o Premiumize
@@ -418,8 +417,54 @@ async function accountStatus() {
     };
   } catch (err) {
     const reason = failureReason(err);
-    return { ok: false, service: adapter.id, label: adapter.label, reason, error: err.message };
+    const fix = reason === 'auth'
+      ? UNUSABLE.auth.fix(adapter)
+      : reason === 'quota'
+        ? UNUSABLE.quota.fix()
+        : reason === 'rate'
+          ? 'aguarde alguns minutos para o rate limit passar e consulte novamente'
+          : null;
+    return { ok: false, service: adapter.id, label: adapter.label, reason, error: err.message, fix };
   }
+}
+
+async function accountStatus() {
+  const adapter = current();
+  return accountStatusFor(adapter, opts().debridApiKey);
+}
+
+function withAccountTimeout(task: Promise<any>) {
+  return Promise.race([
+    task,
+    new Promise((resolve) => {
+      const timer = setTimeout(
+        () => resolve({ ok: false, reason: 'timeout', error: 'timeout consultando o debrid' }),
+        config.debrid.dashboardAccountTimeoutMs,
+      );
+      timer.unref?.();
+    }),
+  ]);
+}
+
+/**
+ * Contas que a requisição realmente conhece. Não existe chave para os outros
+ * adaptadores, então exibi-los como "offline" seria uma mentira operacional.
+ */
+async function dashboardAccounts(currentStatus: any) {
+  const accounts: Record<string, any> = {};
+  const active = current();
+  if (active && currentStatus?.service) accounts[active.id] = currentStatus;
+
+  const operator = config.debrid.service ? BY_ID.get(config.debrid.service) || null : null;
+  if (
+    operator &&
+    operator.id !== active?.id &&
+    config.debrid.apiKey &&
+    config.debrid.allowEnvKey
+  ) {
+    accounts[operator.id] = await withAccountTimeout(accountStatusFor(operator, config.debrid.apiKey));
+  }
+  return accounts;
 }
 
 async function resolveLink(infoHash: string, episode?: any) {
@@ -485,6 +530,21 @@ async function inventory() {
   const adapter = current();
   if (!adapter || typeof adapter.inventory !== 'function') return [];
   return inventoryFor(adapter, opts().debridApiKey);
+}
+
+/** Invalida só memos de inventários que esta requisição pode alcançar. */
+function refreshInventory() {
+  const keys = new Set<string>();
+  const active = current();
+  const activeKey = opts().debridApiKey;
+  if (active && activeKey) keys.add(`${prefix('dinv')}${active.id}:${accountScope(activeKey)}`);
+
+  const operator = config.debrid.service ? BY_ID.get(config.debrid.service) : null;
+  if (operator && config.debrid.apiKey && config.debrid.allowEnvKey) {
+    keys.add(`${prefix('dinv')}${operator.id}:${accountScope(config.debrid.apiKey)}`);
+  }
+  cache.forgetMany([...keys]);
+  return { refreshed: keys.size };
 }
 
 /**
@@ -573,5 +633,5 @@ async function sweepDeadCurrent() {
 }
 
 export default {
-  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, resolveLink, enqueue, inventory, inventoryPeek, warmupEnv, sweepDeadEnv, sweepDeadCurrent,
+  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, dashboardAccounts, resolveLink, enqueue, inventory, inventoryPeek, refreshInventory, warmupEnv, sweepDeadEnv, sweepDeadCurrent,
 };

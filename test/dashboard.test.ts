@@ -154,11 +154,16 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
       assert.equal(typeof body.cache.entries, 'number');
       assert.equal(typeof body.cache.hitRate, 'number');
       assert.equal(typeof body.metrics, 'object');
-      assert.equal(typeof body.autofetch, 'object');
+       assert.equal(typeof body.autofetch, 'object');
+       assert.equal(typeof body.magnetdb, 'object');
+       assert.equal(typeof body.magnetdb.enabled, 'boolean');
+       assert.ok(Array.isArray(body.harvest.queuePreview));
+       assert.ok(Array.isArray(body.harvest.lastWorks));
       assert.ok(Array.isArray(body.indexers), 'catálogo de indexers entra como lista');
       assert.ok(Array.isArray(body.resolvers), 'resolvers BR saem como lista');
       assert.equal(body.debrid.active, null, 'sen serviço não há debrid ativo');
-      assert.ok(Array.isArray(body.debrid.services), 'el seletor de servicios mora en el registry');
+       assert.ok(Array.isArray(body.debrid.services), 'el seletor de servicios mora en el registry');
+       assert.deepEqual(body.debrid.accounts, {}, 'sem conta configurada não há serviço inventado');
 
       let secretVazou = false;
       for (const segredo of ['SUPER-DEBRID-SECRETO-123', 'SUPER-RESOLVE-SECRETO-456', 'SUPER-JACKETT-SECRETO-789', TOKEN]) {
@@ -248,3 +253,45 @@ test('POST /dashboard-action.json devolve 400 para ação desconocida', async ()
   }
 });
 
+test('ações operacionais do dashboard são idempotentes ou no-op seguro', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    await withMockFetch([], async () => {
+      const pause = await server.request('POST', '/dashboard-action.json', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+        body: { action: 'harvester-pause', paused: true },
+      });
+      assert.equal(pause.status, 200);
+      assert.equal(pause.json.paused, true);
+
+      const drain = await server.request('POST', '/dashboard-action.json', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+        body: { action: 'harvester-drain' },
+      });
+      assert.equal(drain.status, 200);
+      assert.equal(drain.json.drained, 0);
+
+      const inventory = await server.request('POST', '/dashboard-action.json', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+        body: { action: 'refresh-inventory' },
+      });
+      assert.equal(inventory.status, 200);
+      assert.equal(inventory.json.refreshed, 0);
+
+      const all = await server.request('POST', '/dashboard-action.json', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+        body: { action: 'test-all-indexers' },
+      });
+      assert.equal(all.status, 200);
+      assert.equal(all.json.total, all.json.results.length);
+      assert.ok(all.json.total >= 0, 'catálogo pode usar o fallback local quando o mock não devolve XML');
+
+      await server.request('POST', '/dashboard-action.json', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+        body: { action: 'harvester-pause', paused: false },
+      });
+    });
+  } finally {
+    config.jackett.testToken = '';
+  }
+});

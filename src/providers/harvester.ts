@@ -43,8 +43,14 @@ const QUEUE_KEY = `${prefix('harvest')}q`;
 let queue: HarvestEntry[] = [];
 let started = false;
 let inFlight = false;
+// Pausa é operacional e deliberadamente não persiste: após restart o operador
+// volta ao comportamento configurado no .env, sem uma ação temporária virar
+// desligamento esquecido.
+let paused = false;
 let lastRunAt = 0;
 let harvested = 0;
+type RecentWork = Pick<HarvestEntry, 'imdbId' | 'type' | 'season' | 'episode'> & { at: number; recorded: number };
+const recentWorks: RecentWork[] = [];
 const attemptsByObra = new Map<string, number>();
 const hourBuckets = new Map<number, number>();
 const lastQueryAt = new Map<string, number>();
@@ -245,6 +251,17 @@ async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: b
   const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);
   harvested += 1;
   lastRunAt = Date.now();
+  if (config.harvest.dashboardLastWorks > 0) {
+    recentWorks.unshift({
+      at: lastRunAt,
+      imdbId: entry.imdbId,
+      type: entry.type,
+      season: entry.season ?? null,
+      episode: entry.episode ?? null,
+      recorded: added,
+    });
+    recentWorks.length = Math.min(recentWorks.length, config.harvest.dashboardLastWorks);
+  }
   metrics.observe('harvest.ms', Date.now() - startedAt);
   return { ok: added > 0 || succeeded > 0, capped };
 }
@@ -275,7 +292,7 @@ async function checkQuotaWarning() {
  * horário sem subir o timer.
  */
 async function tick() {
-  if (inFlight || activity.recentUserTraffic(config.harvest.idleWindowMs)) return;
+  if (paused || inFlight || activity.recentUserTraffic(config.harvest.idleWindowMs)) return;
   try { cache.maintain(); } catch {}
   checkQuotaWarning().catch(() => {});
   // Semente: descobre obra popular que o índice ainda não conhece. Fora do
@@ -329,6 +346,30 @@ async function tick() {
   }
 }
 
+/** Pausa operacional do painel: idempotente e só em memória. */
+function setPaused(value: boolean) {
+  paused = Boolean(value);
+  return paused;
+}
+
+/**
+ * Processa uma pequena fatia imediatamente, sem furar freio de tráfego nem
+ * orçamento horário. O painel chama isto explicitamente; o intervalo normal
+ * continua responsável pelo restante da fila.
+ */
+async function drain(maxWorks = config.harvest.drainMaxWorks) {
+  const limit = Math.max(0, Math.min(config.harvest.drainMaxWorks, Math.trunc(Number(maxWorks) || 0)));
+  let drained = 0;
+  while (drained < limit && queue.length && !paused && !inFlight) {
+    if (activity.recentUserTraffic(config.harvest.idleWindowMs) || queriesThisHour() >= config.harvest.maxPerHour) break;
+    const before = queue.length;
+    await tick();
+    if (queue.length >= before) break;
+    drained += 1;
+  }
+  return { drained, queueRemaining: queue.length, paused };
+}
+
 function start() {
   if (started) return;
   started = true;
@@ -346,6 +387,7 @@ function start() {
 function status() {
   return {
     enabled: config.harvest.enabled && config.releaseIndex.enabled,
+    paused,
     queueDepth: queue.length,
     queueMax: config.harvest.queueMax,
     harvested,
@@ -353,8 +395,10 @@ function status() {
     maxPerHour: config.harvest.maxPerHour,
     lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
     idleWindowMs: config.harvest.idleWindowMs,
+    queuePreview: queue.slice(0, config.harvest.queuePreview).map((entry) => ({ ...entry })),
+    lastWorks: recentWorks.map((entry) => ({ ...entry, at: new Date(entry.at).toISOString() })),
   };
 }
 
-export { enqueue, start, status, tick };
-export default { enqueue, start, status, tick };
+export { enqueue, start, status, tick, setPaused, drain };
+export default { enqueue, start, status, tick, setPaused, drain };

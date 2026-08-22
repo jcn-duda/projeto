@@ -92,6 +92,10 @@
   .metric .value.small { font-size: 13px; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 10px; }
   .card { min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255, 255, 255, .025); }
+  details.card > summary { cursor: pointer; list-style: none; }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary:after { content: "+"; color: var(--muted); font-size: 18px; }
+  details.card[open] > summary:after { content: "−"; }
   .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; min-width: 0; }
   .card h3 { overflow: hidden; margin: 0; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
   .card-subtitle { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
@@ -115,6 +119,13 @@
   .action-card h3 { margin: 0 0 5px; font-size: 16px; }
   .action-card p { min-height: 42px; margin: 0 0 13px; color: var(--muted); font-size: 12px; }
   .last-updated { color: var(--muted); font-size: 12px; }
+  .spinner { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border: 2px solid rgba(255,255,255,.3); border-top-color: var(--accent); border-radius: 50%; vertical-align: -2px; animation: spin .7s linear infinite; }
+  .is-loading .spinner { display: inline-block; }
+  .spinner { display: none; }
+  .guidance { margin: 11px 0 0; padding: 9px 10px; border-left: 3px solid var(--amber); border-radius: 6px; background: var(--accent-soft); color: var(--muted); font-size: 12px; }
+  .guidance.error { border-left-color: var(--red); background: var(--red-soft); color: #ffd8d4; }
+  .sparkline { width: 100%; height: 34px; margin-top: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   @media (max-width: 650px) {
     body { padding-right: 12px; padding-left: 12px; }
@@ -153,7 +164,7 @@
             <option value="30">a cada 30 segundos</option>
           </select>
         </label>
-        <button id="refreshButton" type="button">Atualizar agora</button>
+        <button id="refreshButton" type="button"><span class="spinner"></span>Atualizar agora</button>
       </div>
     </div>
     <div class="token-box">
@@ -196,6 +207,7 @@
 
   <section aria-labelledby="cacheTitle">
     <div class="section-head"><div><h2 id="cacheTitle">Cache</h2><p>Uso da memória, persistência e namespaces reportados pelo servidor.</p></div></div>
+    <canvas id="cacheSparkline" class="sparkline" width="500" height="34" aria-hidden="true"></canvas>
     <div id="cacheMetrics" class="metrics"></div>
     <div id="cacheCards" class="cards"><div class="empty">Sem dados de cache.</div></div>
   </section>
@@ -204,6 +216,8 @@
     <div class="section-head"><div><h2 id="idxTitle">Índice de releases</h2><p>Memória por obra que responde sem Jackett, mais o colhedor que a alimenta em fundo.</p></div></div>
     <div id="idxMetrics" class="metrics"></div>
     <div id="harvestMetrics" class="metrics"></div>
+    <div id="harvestCards" class="cards"><div class="empty">Sem dados da fila.</div></div>
+    <canvas id="harvestSparkline" class="sparkline" width="500" height="34" aria-hidden="true"></canvas>
   </section>
 
   <section aria-labelledby="actionsTitle">
@@ -219,6 +233,10 @@
         <p>Limpa os caches locais do addon. A próxima busca pode ser mais lenta.</p>
         <button class="danger action-button" type="button" data-action="clear-cache">Executar clear-cache</button>
       </div>
+      <div class="action-card"><h3>Colhedor</h3><p id="harvesterActionText">Pausa ou retoma a colheita em fundo sem alterar o .env.</p><button id="harvesterPauseButton" class="action-button" type="button" data-action="harvester-pause">Pausar colhedor</button></div>
+      <div class="action-card"><h3>Drenar fila</h3><p>Processa uma pequena fatia agora, ainda respeitando tráfego e teto horário.</p><button id="harvesterDrainButton" class="action-button" type="button" data-action="harvester-drain">Drenar fila agora</button></div>
+      <div class="action-card"><h3>Testar todos os indexadores</h3><p>Executa o mesmo teste real, um indexador por vez.</p><button id="testAllIndexersButton" class="action-button" type="button" data-action="test-all-indexers">Testar todos</button></div>
+      <div class="action-card"><h3>Reavaliar inventário</h3><p>Invalida somente o memo de inventário da conta acessível.</p><button id="refreshInventoryButton" class="action-button" type="button" data-action="refresh-inventory">Reavaliar inventário</button></div>
     </div>
   </section>
 </main>
@@ -239,6 +257,9 @@
   var currentToken = "";
   var refreshTimer = null;
   var requestInFlight = false;
+  var consecutiveFailures = 0;
+  var lastOkAt = 0;
+  var lastUpdatedTimer = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -381,7 +402,9 @@
     return fetch(basePrefix() + url, request).then(function (response) {
       return response.json().then(function (data) {
         if (!response.ok) {
-          throw new Error((data && (data.error || data.message)) || "HTTP " + response.status);
+          var error = new Error((data && (data.error || data.message)) || "HTTP " + response.status);
+          error.status = response.status;
+          throw error;
         }
         return data;
       });
@@ -394,6 +417,43 @@
 
   function writeStored(key, value) {
     try { window.localStorage.setItem(key, value); } catch (error) { /* storage bloqueado não impede o dashboard */ }
+  }
+
+  function seriesKey(name) { return "adom.dashboard.series." + name; }
+
+  function pushSeries(name, value) {
+    var values;
+    var parsed;
+    if (!isFinite(Number(value))) return [];
+    try { parsed = JSON.parse(readStored(seriesKey(name)) || "[]"); } catch (error) { parsed = []; }
+    values = Array.isArray(parsed) ? parsed : [];
+    values.push(Number(value));
+    values = values.slice(-120);
+    writeStored(seriesKey(name), JSON.stringify(values));
+    return values;
+  }
+
+  function drawSparkline(id, values, color) {
+    var canvas = $(id);
+    var context;
+    var max;
+    var min;
+    var i;
+    if (!canvas || !canvas.getContext || values.length < 2) return;
+    context = canvas.getContext("2d");
+    if (!context) return;
+    max = Math.max.apply(Math, values);
+    min = Math.min.apply(Math, values);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.beginPath();
+    context.strokeStyle = color;
+    context.lineWidth = 2;
+    for (i = 0; i < values.length; i += 1) {
+      var x = (i / (values.length - 1)) * canvas.width;
+      var y = max === min ? canvas.height / 2 : canvas.height - ((values[i] - min) / (max - min)) * (canvas.height - 4) - 2;
+      if (i === 0) context.moveTo(x, y); else context.lineTo(x, y);
+    }
+    context.stroke();
   }
 
   function removeStored(key) {
@@ -445,10 +505,11 @@
   }
 
   function card(container, item, options) {
-    var box = element("article", "card");
-    var head = element("div", "card-head");
+    var box = element("details", "card");
+    var head = element("summary", "card-head");
     var title = first(item, ["label", "name", "title", "id"], options && options.fallback || "sem nome");
     var state = first(item, ["state", "status", "health", "online", "ready"], "unknown");
+    if (isObject(state)) state = first(state, ["state", "status", "health"], "unknown");
     var stateBox = element("span", "state status-" + stateName(state));
     var dot = element("span", "dot");
     var stateText = element("span", "", stateLabel(state));
@@ -466,6 +527,9 @@
     head.appendChild(stateBox);
     box.appendChild(head);
     if (first(item, ["description", "detail", "message", "error"], null)) box.appendChild(element("p", "card-subtitle", valueText(first(item, ["description", "detail", "message", "error"], ""))));
+    if (item.reason && item.fix) {
+      box.appendChild(element("p", "guidance" + (item.reason === "rate" ? "" : " error"), "Como corrigir: " + valueText(item.fix)));
+    }
     keys = Object.keys(item);
     for (i = 0; i < keys.length; i += 1) {
       key = keys[i]; value = item[key];
@@ -512,6 +576,7 @@
     var auto = isObject(autofetchData) ? autofetchData : first(source, ["autofetch", "autoFetch", "autofetchStatus"], {});
     var account = isObject(source.account) ? source.account : {};
     var active = serviceId({ id: source.active || account.service || "" });
+    var accounts = isObject(source.accounts) ? source.accounts : {};
     var cards = $("debridCards");
     var metrics = $("debridMetrics");
     var services = [];
@@ -527,6 +592,11 @@
         item = copyObject(item);
         Object.keys(account).forEach(function (key) { item[key] = account[key]; });
         item.status = account.ok === true ? (account.warn ? "warn" : "online") : "error";
+      }
+      if (isObject(accounts[knownServices[i].id])) {
+        item = copyObject(item);
+        Object.keys(accounts[knownServices[i].id]).forEach(function (key) { item[key] = accounts[knownServices[i].id][key]; });
+        if (item.ok === false) item.status = item.reason === "rate" ? "warn" : "error";
       }
       if (!item.label) item.label = knownServices[i].label;
       item.autofetch = first(item, ["autofetch", "autoFetch"], first(asList(auto, "services").filter(function (entry) { return serviceId(entry) === knownServices[i].id; }), ["status", "state"], null));
@@ -552,7 +622,24 @@
     var source = isObject(data) ? data : {};
     var indexers = first(source, ["indexers", "indexerStatus", "jackett"], []);
     var resolvers = first(source, ["resolvers", "brResolvers", "resolverStatus", "br"], []);
+    indexers = asList(indexers, "indexers").map(function (item) {
+      var out = copyObject(item);
+      var status = isObject(item.status) ? item.status : {};
+      var breaker = isObject(item.breaker) ? item.breaker : {};
+      out.status = status.state || "unknown";
+      out.latencyMs = status.ms;
+      out.checkedAt = status.checkedAt;
+      out.failStreak = status.failStreak;
+      out.breaker = breaker.tripped ? "aberto" : "fechado";
+      out.cooldownRemainingMs = breaker.cooldownRemainingMs;
+      return out;
+    });
     renderCollection($("indexerCards"), indexers, "indexers", { testable: true });
+    var offline = indexers.filter(function (item) { return item.breaker === "aberto"; }).map(function (item) { return item.id; });
+    if (offline.length) {
+      var hint = element("p", "guidance error", "Circuit breaker aberto: revise estes IDs em JACKETT_INDEXERS: " + offline.join(", "));
+      $("indexerCards").appendChild(hint);
+    }
     renderCollection($("resolverCards"), resolvers, "resolvers", {});
   }
 
@@ -564,6 +651,15 @@
     metrics.textContent = "";
     renderMetrics(metrics, source, { namespaces: true, byNamespace: true, stats: true });
     renderCollection(cards, namespaces, "namespaces", {});
+  }
+
+  function renderMagnetDb(data) {
+    var source = isObject(data) ? data : {};
+    var metrics = $("cacheMetrics");
+    if (!source.enabled && !own(source, "enabled")) return;
+    metric(metrics, "magnet DB", source.enabled ? "ativo" : "desligado");
+    metric(metrics, "magnets vivos (≈)", source.sizeAlive);
+    metric(metrics, "magnets ruins (≈)", source.sizeBad);
   }
 
   // Fase 5: índice de releases + colhedor. Tudo vem pronto do servidor
@@ -585,9 +681,15 @@
     metrics.textContent = "";
     if (!first(harvest, ["enabled"], false)) {
       empty(metrics, "Colhedor desativado (HARVEST_ENABLED=false).");
+      empty($("harvestCards"), "Colhedor desativado.");
       return;
     }
     renderMetrics(metrics, harvest, {});
+    var queue = asList(first(harvest, ["queuePreview"], []), "queuePreview");
+    var last = asList(first(harvest, ["lastWorks"], []), "lastWorks");
+    queue = queue.map(function (item) { item = copyObject(item); item.label = "Na fila · " + valueText(item.imdbId); return item; });
+    last.forEach(function (item) { item = copyObject(item); item.label = "Colhida · " + valueText(item.imdbId); queue.push(item); });
+    renderCollection($("harvestCards"), queue, "queuePreview", {});
   }
 
   function renderStatus(data) {
@@ -601,47 +703,104 @@
     );
     renderSources(root);
     renderCache(first(root, ["cache", "cacheStatus"], {}));
+    renderMagnetDb(first(root, ["magnetdb", "magnetDb"], {}));
+    if (first(root.metrics || {}, ["counters"], {})["debrid.check.unknown"] || first(root.cache || {}, ["swrServed"], 0)) {
+      $("cacheMetrics").appendChild(element("p", "guidance", "Há respostas revalidadas ou sem confirmação de cache. Verifique primeiro a conta de debrid (teto/chave) e depois o prazo da busca."));
+    }
     renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
     renderHarvest(first(root, ["harvest", "harvester"], {}));
+    drawSparkline("cacheSparkline", pushSeries("cache-hit-rate", first(root.cache || {}, ["hitRate"], 0)), "#39d98a");
+    drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(root.harvest || {}, ["queriesThisHour"], 0)), "#faa31a");
+    if (!own(root, "status") && !own(root, "state") && !own(root, "health")) {
+      var services = first(root.general || {}, ["services"], {});
+      var accounts = first(root.debrid || {}, ["accounts"], {});
+      var tripped = asList(root.indexers, "indexers").some(function (item) { return item.breaker && item.breaker.tripped; });
+      status = services.addon === false || Object.keys(accounts).some(function (id) { return accounts[id].reason === "auth" || accounts[id].reason === "quota"; })
+        ? "offline"
+        : services.jackett === false || tripped ? "warn" : "online";
+    }
     setConnection(stateName(status), stateLabel(status));
-    $("lastUpdated").textContent = generated ? "Atualizado " + formatDate(generated) : "Atualizado agora";
+    lastOkAt = Date.now();
+    updateLastUpdated();
+    updateActionAvailability(root);
   }
 
   function saveToken() {
     var input = $("token");
-    currentToken = input.value.replace(/^\s+|\s+$/g, "");
+    currentToken = String(input.value || "").replace(/\s+/g, "");
+    input.value = currentToken;
     if ($("rememberToken").checked) writeStored(TOKEN_KEY, currentToken);
     else removeStored(TOKEN_KEY);
     loadStatus();
   }
 
   function loadStatus() {
-    if (requestInFlight) return;
+    if (requestInFlight || document.hidden) return;
+    if (!currentToken) {
+      setConnection("warn", "token necessário");
+      setFeedback("Informe o token de diagnóstico para consultar o estado.", "warn");
+      return;
+    }
     requestInFlight = true;
+    $("refreshButton").className = "is-loading";
     setFeedback("Consultando o estado…", "");
     requestJson("/dashboard-status.json", { method: "GET", cache: "no-store" })
       .then(function (data) {
         renderStatus(data);
+        consecutiveFailures = 0;
         setFeedback("Estado atualizado.", "ok");
       })
       .catch(function (error) {
+        var status = Number(error && error.status);
+        consecutiveFailures += 1;
         setConnection("error", "falha na consulta");
-        setFeedback("Não foi possível consultar o dashboard: " + valueText(error && error.message ? error.message : error), "error");
+        if (status === 503) setFeedback("Diagnóstico desligado: defina JACKETT_TEST_TOKEN no .env do operador.", "warn");
+        else if (status === 401) setFeedback("Token rejeitado: cole novamente o token de diagnóstico correto.", "error");
+        else if (status === 429) setFeedback("Outro diagnóstico está em andamento; a consulta será tentada novamente.", "warn");
+        else setFeedback("Instância inalcançável: confira se o addon está no ar e se esta URL está acessível.", "error");
       })
-      .then(function () { requestInFlight = false; });
+      .then(function () { requestInFlight = false; $("refreshButton").className = ""; scheduleRefresh(); });
   }
 
   function scheduleRefresh() {
     var value = $("refreshRate").value;
     var seconds;
-    if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
     try { writeStored(RATE_KEY, value); } catch (error) { /* preferência é opcional */ }
     seconds = Number(value);
-    if (isFinite(seconds) && seconds > 0) refreshTimer = setInterval(loadStatus, seconds * 1000);
+    if (isFinite(seconds) && seconds > 0 && !document.hidden) {
+      seconds = Math.min(300, seconds * Math.pow(2, consecutiveFailures));
+      refreshTimer = setTimeout(loadStatus, seconds * 1000);
+    }
+  }
+
+  function updateLastUpdated() {
+    var seconds;
+    if (!lastOkAt) { $("lastUpdated").textContent = "sem medição"; return; }
+    seconds = Math.max(0, Math.floor((Date.now() - lastOkAt) / 1000));
+    $("lastUpdated").textContent = seconds < 2 ? "Atualizado agora" : "Atualizado há " + seconds + "s";
+  }
+
+  function updateActionAvailability(root) {
+    var harvest = first(root, ["harvest", "harvester"], {});
+    var debrid = first(root, ["debrid", "debridStatus"], {});
+    $("harvesterPauseButton").textContent = harvest.paused ? "Retomar colhedor" : "Pausar colhedor";
+    $("harvesterPauseButton").setAttribute("data-paused", harvest.paused ? "false" : "true");
+    $("harvesterDrainButton").disabled = !harvest.queueDepth;
+    $("testAllIndexersButton").disabled = !asList(root.indexers, "indexers").length;
+    $("refreshInventoryButton").disabled = !debrid.active;
   }
 
   function actionLabel(action) {
-    return action === "sweep-dead" ? "a varredura de magnets mortos" : "a limpeza do cache";
+    var labels = {
+      "sweep-dead": "a varredura de magnets mortos",
+      "clear-cache": "a limpeza do cache",
+      "harvester-pause": "a alteração do estado do colhedor",
+      "harvester-drain": "a drenagem imediata da fila",
+      "test-all-indexers": "o teste sequencial de todos os indexadores",
+      "refresh-inventory": "a reavaliação do inventário"
+    };
+    return labels[action] || "esta ação";
   }
 
   function runAction(button) {
@@ -652,7 +811,7 @@
     requestJson("/dashboard-action.json", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: action })
+      body: JSON.stringify({ action: action, paused: button.getAttribute("data-paused") === "true" })
     })
       .then(function (data) {
         setFeedback(valueText(first(data, ["message", "result"], "Ação concluída.")), "ok");
@@ -689,7 +848,7 @@
     var savedRate = readStored(RATE_KEY);
     var actions = document.querySelectorAll(".action-button");
     var i;
-    if (savedToken) { $("token").value = savedToken; currentToken = savedToken; }
+    if (savedToken) { currentToken = String(savedToken).replace(/\s+/g, ""); $("token").value = currentToken; }
     if (savedRate === "5" || savedRate === "10" || savedRate === "30" || savedRate === "off") $("refreshRate").value = savedRate;
     $("saveToken").addEventListener("click", saveToken);
     $("refreshButton").addEventListener("click", loadStatus);
@@ -697,6 +856,15 @@
     $("token").addEventListener("keydown", function (event) { if (event.key === "Enter") saveToken(); });
     $("testIndexerButton").addEventListener("click", function () { runIndexerTest($("testIndexerId").value, $("testIndexerButton")); });
     for (i = 0; i < actions.length; i += 1) actions[i].addEventListener("click", function () { runAction(this); });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) {
+        if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+        return;
+      }
+      loadStatus();
+      scheduleRefresh();
+    });
+    lastUpdatedTimer = setInterval(updateLastUpdated, 1000);
     scheduleRefresh();
     loadStatus();
   }

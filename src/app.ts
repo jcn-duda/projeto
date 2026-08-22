@@ -5,7 +5,7 @@ import sdk from 'stremio-addon-sdk';
 import config from './config.js';
 import { findStreams, applyNoticeOrigin, onlyNotice, autofetchStatus } from './providers/index.js';
 import debrid from './debrid/index.js';
-import { isWorkPickError, isEpisodePickError, isNoVideoError } from './debrid/common.js';
+import { isWorkPickError, isEpisodePickError, isNoVideoError, isDubLieError } from './debrid/common.js';
 import * as runtime from './runtime.js';
 import { verifyResolve } from './utils/sign.js';
 import * as jackettCatalog from './providers/jackett-catalog.js';
@@ -264,11 +264,15 @@ function createApp() {
     // certo dentro de pack multi-obra. Ilegível = ausente — o pickFile cai no
     // comportamento antigo (maior vídeo) em vez de falhar o play.
     let work: { names: string[]; year: number | null; pack: boolean } | null = null;
+    let promisedDubbed = false;
+    let hintedImdbId = '';
     if (hint) {
       try {
         const parsed = JSON.parse(hint);
         const names = Array.isArray(parsed?.n) ? parsed.n.map(String).slice(0, 4) : [];
         if (names.length) work = { names, year: Number(parsed.y) || null, pack: parsed.p === 1 };
+        promisedDubbed = parsed?.d === 1;
+        hintedImdbId = /^tt\d+$/.test(String(parsed?.i || '')) ? String(parsed.i) : '';
       } catch { /* dica ilegível: trata como ausente */ }
     }
     try {
@@ -277,6 +281,7 @@ function createApp() {
         season: req.query.s ? Number(req.query.s) : null,
         episode: req.query.e ? Number(req.query.e) : null,
         work,
+        dubbed: promisedDubbed,
       });
       if (!link) {
         // null NÃO condena o hash: ele cobre tanto "sem vídeo" quanto
@@ -299,6 +304,22 @@ function createApp() {
         const adapter = debrid.current();
         if (adapter) magnetdb.markBad(adapter.id, runtime.opts().debridApiKey, infoHash);
         return res.status(404).send('nenhum arquivo de vídeo no torrent');
+      }
+      if (isDubLieError(err)) {
+        const adapter = debrid.current();
+        if (adapter) magnetdb.markLie(adapter.id, runtime.opts().debridApiKey, infoHash);
+        if (hintedImdbId) {
+          releaseIndex.markLied(hintedImdbId, {
+            season: req.query.s ? Number(req.query.s) : null,
+            episode: req.query.e ? Number(req.query.e) : null,
+          }, infoHash);
+        }
+        metrics.count('debrid.audit.lie');
+        log.warn(
+          `[resolve] torrent ${infoHash.slice(0, 8)} anunciado como dublado provou release EN` +
+          `${err.evidence?.matchedGroup ? ` (${err.evidence.matchedGroup})` : ''}`,
+        );
+        return res.status(404).send('o torrent anunciado como dublado contém conteúdo em inglês');
       }
       if (isWorkPickError(err)) {
         return res.status(404).send('não foi possível identificar este filme dentro do pack');
@@ -409,13 +430,17 @@ function createApp() {
       // o assento pelo timeout inteiro e congelar as ações do próprio painel.
       // A corrida degrada para `timeout` e a próxima rodada tenta de novo.
       const accountTimeout = new Promise((resolve) => {
-        const timer = setTimeout(() => resolve({ ok: false, error: 'timeout consultando o debrid' }), 3000);
+        const timer = setTimeout(
+          () => resolve({ ok: false, reason: 'timeout', error: 'timeout consultando o debrid' }),
+          config.debrid.dashboardAccountTimeoutMs,
+        );
         timer.unref?.();
       });
       const [account, indexers] = await Promise.all([
         Promise.race([debrid.accountStatus(), accountTimeout]) as any,
         jackettCatalog.load(),
       ]);
+      const accounts = await debrid.dashboardAccounts(account);
       const metricSnapshot = metrics.snapshot();
       const hits = metricSnapshot.counters['cache.hit'] || 0;
       const misses = metricSnapshot.counters['cache.miss'] || 0;
@@ -450,11 +475,16 @@ function createApp() {
           hitRate: hits + misses > 0 ? hits / (hits + misses) : null,
           swrServed: metricSnapshot.counters['search.swr.served'] || 0,
         },
-        debrid: { active: debrid.current()?.id || null, account, services: debrid.SERVICES },
+        debrid: { active: debrid.current()?.id || null, account, accounts, services: debrid.SERVICES },
         autofetch: { ...autofetch.snapshot(), ...autofetchStatus() },
         releaseIndex: releaseIndexStatus(),
         harvest: harvester.status(),
-        indexers,
+        magnetdb: magnetdb.status(),
+        indexers: indexers.map((indexer: any) => ({
+          ...indexer,
+          breaker: jackett.breakerSnapshot(indexer.id),
+          flagSlow: indexer.status?.state === 'slow',
+        })),
         resolvers,
       });
     } finally {
@@ -471,7 +501,7 @@ function createApp() {
       return res.status(401).json({ ok: false, error: 'token de diagnóstico inválido' });
     }
     const action = String(req.body?.action || '');
-    if (action !== 'sweep-dead' && action !== 'clear-cache') {
+    if (!['sweep-dead', 'clear-cache', 'harvester-pause', 'harvester-drain', 'test-all-indexers', 'refresh-inventory'].includes(action)) {
       return res.status(400).json({ ok: false, error: 'ação desconhecida' });
     }
     const admission = diagnosticGate.enter('global') as GateAdmission;
@@ -482,6 +512,41 @@ function createApp() {
         cache.clear();
         metrics.count('dashboard.cache.clear');
         return res.json({ ok: true, action, entriesBefore, entriesAfter: cache.size() });
+      }
+      if (action === 'harvester-pause') {
+        const paused = harvester.setPaused(Boolean(req.body?.paused));
+        metrics.count(paused ? 'dashboard.harvest.pause' : 'dashboard.harvest.resume');
+        log.info(`[dashboard] colhedor ${paused ? 'pausado' : 'retomado'}`);
+        return res.json({ ok: true, action, paused });
+      }
+      if (action === 'harvester-drain') {
+        const result = await harvester.drain();
+        metrics.count('dashboard.harvest.drain', result.drained);
+        log.info(`[dashboard] fila do colhedor drenada: ${result.drained} obra(s)`);
+        return res.json({ ok: true, action, ...result });
+      }
+      if (action === 'refresh-inventory') {
+        const result = debrid.refreshInventory();
+        metrics.count('dashboard.inventory.refresh');
+        log.info(`[dashboard] memo de inventário invalidado: ${result.refreshed} conta(s)`);
+        return res.json({ ok: true, action, ...result });
+      }
+      if (action === 'test-all-indexers') {
+        const catalog = await jackettCatalog.load();
+        const results: any[] = [];
+        for (const indexer of catalog) {
+          // Sequencial: o gate protege a única fila do Jackett; paralelizar
+          // aqui faria um clique competir com a própria busca do usuário.
+          try {
+            results.push({ id: indexer.id, ...(await jackett.test(indexer.id, '', 'movie')) });
+          } catch (err: any) {
+            results.push({ id: indexer.id, ok: false, error: err?.message || String(err) });
+          }
+        }
+        const okCount = results.filter((result) => result.ok).length;
+        log.info(`[dashboard] teste sequencial de ${results.length} indexador(es) concluído`);
+        metrics.count('dashboard.indexers.test-all');
+        return res.json({ ok: true, action, results, total: results.length, okCount, downCount: results.length - okCount });
       }
       // A conta da instalação primeiro: quem abriu o painel com uma install URL
       // quer varrer a conta DELA. A do operador continua como retaguarda para o

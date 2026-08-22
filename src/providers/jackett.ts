@@ -266,6 +266,29 @@ function breakerTripped(indexer: string, now = Date.now()) {
   return Number.isFinite(failedAt) && now - failedAt < config.jackett.breakerCooldown;
 }
 
+/** Estado serializável do breaker para o painel, sem disparar nova medição. */
+function breakerSnapshot(indexer: string, now = Date.now()) {
+  const status = indexerStatus.get(indexer, now);
+  const failedAt = Date.parse(String(status?.checkedAt || ''));
+  const eligible = Boolean(
+    config.jackett.breakerEnabled &&
+      status &&
+      (status.failStreak || 0) >= config.jackett.breakerFailures &&
+      Number.isFinite(failedAt),
+  );
+  const cooldownRemainingMs = eligible
+    ? Math.max(0, config.jackett.breakerCooldown - (now - failedAt))
+    : 0;
+  return {
+    enabled: config.jackett.breakerEnabled,
+    tripped: breakerTripped(indexer, now),
+    failStreak: status?.failStreak || 0,
+    failuresRequired: config.jackett.breakerFailures,
+    cooldownMs: config.jackett.breakerCooldown,
+    cooldownRemainingMs,
+  };
+}
+
 // Quem já teve a abertura anunciada neste episódio — o aviso é UM por
 // abertura, não por busca; sai do set quando o indexer volta a ser consultado.
 const breakerAnnounced = new Set();
@@ -591,4 +614,4 @@ function rawKeysFor(indexers: string[], query: string, type: string) {
   });
 }
 
-export default { search, test, shapeSearchQuery, breakerTripped, rawKeysFor, name: 'jackett' };
+export default { search, test, shapeSearchQuery, breakerTripped, breakerSnapshot, rawKeysFor, name: 'jackett' };
