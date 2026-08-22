@@ -64,13 +64,19 @@ test('auditoria conservadora dos cinco packs reais de True Detective', () => {
   assert.equal(dubbedLieVerdict(['True.Detective.S02E01.1080p.mkv'], promised).lie, false);
 });
 
-test('cobertura explícita exclui temporada, mas dois claims continuam ambíguos', () => {
+test('cobertura explícita exclui temporada — o claim singular COMPLETA vence a menção descritiva', () => {
   const single = parseTitleSeasonEpisode('True Detective 3ª Temporada Completa Dublada');
   assert.equal(seasonCoverageExcludes(single, 2), true);
   assert.equal(matchesEpisode('True Detective 3ª Temporada Completa Dublada', { season: 2, episode: 1 }), false);
+  // Medido no True Detective (hdrtorrent): "2ª Temporada Dublada e Dual 1ª
+  // TEMPORADA COMPLETA" entregava só arquivos S01. Tratar a dupla menção como
+  // ambígua fazia o pack S01 entrar na lista do S02E01 e ocupar vaga BR — o
+  // claim singular COMPLETA é a cobertura real, a outra menção é descrição.
   const ambiguous = parseTitleSeasonEpisode('True Detective 2ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA DUBLADA');
-  assert.equal(seasonCoverageExcludes(ambiguous, 2), false);
-  assert.equal(matchesEpisode('True Detective 2ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA DUBLADA', { season: 2, episode: 1 }), true);
+  assert.equal(seasonCoverageExcludes(ambiguous, 2), false, 'o parser continua unindo; quem decide é a guarda do matchesEpisode');
+  assert.equal(matchesEpisode('True Detective 2ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA DUBLADA', { season: 2, episode: 1 }), false);
+  // A temporada realmente contida continua passando.
+  assert.equal(matchesEpisode('True Detective 2ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA DUBLADA', { season: 1, episode: 1 }), true);
 });
 
 // O retorno de toStremioStream é `Stream | null` (null quando falta hash) e os
@@ -805,6 +811,30 @@ test('parseTitleSeasonEpisode não lê T solto nem T dentro de palavra', () => {
     assert.deepEqual(r.seasons, [], title);
     assert.deepEqual(r.episodes, [], title);
   }
+});
+
+// Fase E — pack de UMA temporada declarada não pode ser ampliado por uma
+// menção descritiva de outra no MESMO título. Caso real (True Detective,
+// hdrtorrent): o post dizia "2ª Temporada Dublada e Dual 1ª TEMPORADA
+// COMPLETA", entregava só arquivos S01 e entrava na lista pedindo S02E01 —
+// o parser fundia as duas menções em seasons=[2,1].
+test('"Nº Temporada Completa" singular declara a cobertura exata do pack', () => {
+  const packMentiroso = 'True Detective 2ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA  DUBLADA Dual  720P 720p, Bluray, HD';
+  // A menção "2ª Temporada" NÃO dá cobertura de S02…
+  assert.equal(matchesEpisode(packMentiroso, { season: 2, episode: 1 }), false, 'pack S1 não cobre S02E01');
+  // …e a temporada realmente contida continua passando (sem falso negativo).
+  assert.equal(matchesEpisode(packMentiroso, { season: 1, episode: 1 }), true, 'pack S1 cobre S01E01');
+
+  // A outra ordem também declara: "Temporada 2 Completa".
+  assert.equal(matchesEpisode('Serie Nacional Temporada 2 Completa Dublado 1080p', { season: 1, episode: 1 }), false);
+  assert.equal(matchesEpisode('Serie Nacional Temporada 2 Completa Dublado 1080p', { season: 2, episode: 1 }), true);
+
+  // Regressão do plural documentado na varredura dos títulos BR: lista de
+  // ordinais antes do PLURAL é multi-temporada de verdade e não pode ser cortada.
+  assert.equal(matchesEpisode('True Detective 1ª 2ª 3ª Temporadas Completa Dual Áudio 1080p', { season: 2, episode: 1 }), true);
+
+  // Regressão do comportamento já medido: pack singular da temporada PEDIDA passa.
+  assert.equal(matchesEpisode('Serie Boa 2ª Temporada Completa Dual Áudio 720p', { season: 2, episode: 3 }), true);
 });
 
 // 6.4 — P1: sem o marcador T-format em EPISODE_TOKEN/episodeWorkTokens, o gate

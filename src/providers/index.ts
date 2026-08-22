@@ -45,6 +45,7 @@ import { collectWithinWindow } from './collection-window.js';
 import { raceWithDeadline, remainingCheckBudget } from '../utils/deadline.js';
 import * as autofetch from './autofetch.js';
 import * as magnetdb from '../utils/magnetdb.js';
+import { isDubLieError } from '../debrid/common.js';
 import * as releaseIndex from '../utils/release-index.js';
 import * as harvester from './harvester.js';
 import { opts, prefix, capture, run, origin } from '../runtime.js';
@@ -735,6 +736,10 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
       `[debrid] ${adapter.label} sem resposta completa de cache em ${checkMs}ms${tetoInfo}; ${streams.length} stream(s) via debrid` +
         (cached.size ? ` (${cached.size} confirmado(s) em cache)` : ''),
     );
+    // Fase D também na degradação: o confirmado em cache aqui é candidato tão
+    // bom quanto no caminho completo — este return passa por cima da coleta lá
+    // de baixo, e era aqui que a fila ficava vazia nas respostas parciais.
+    queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(streams, cached, { season, episode, imdbId, workHint }));
     return streams.map((s: any) => viaDebrid(s, cached.has(s.infoHash)));
   }
 
@@ -752,6 +757,10 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
   if (visibleBr.size) {
     log.info(`[debrid] ${visibleBr.size} fonte(s) BR fora do cache mantida(s) como P2P`);
   }
+  // Fase D: candidatos ⚡ dublados desta busca entram na fila do tail. A ordem
+  // de `filtered.streams` é a do sort — o topo é o que o usuário toca, então
+  // é ele que a auditoria prova primeiro.
+  queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(filtered.streams, cached, { season, episode, imdbId, workHint }));
   const out: Stream[] = [];
   for (const s of filtered.streams) {
     if (s.infoHash && cached.has(s.infoHash)) {
@@ -774,6 +783,64 @@ async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey,
 
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
+
+// Fase D da auditoria de áudio: candidatos ⚡ dublados confirmados em cache
+// nesta busca. A prova (paths reais dos vídeos) só existe no debrid; esperar
+// o play descobrir entrega inglês sob selo DUB BR uma vez por hash — o tail
+// prova ANTES, grava a mesma evidência do play e a próxima lista já nasce
+// honesta. Fila curta de propósito: sobra de busca sem tail não acumula.
+const dubAuditPending: Array<{ hash: string; season: number | null; episode: number | null; imdbId: string | null; work: any }> = [];
+
+/** ⚡ + dublado = o que o usuário vai tocar; é isso que o tail interrogará. */
+function collectAuditCandidates(
+  list: any[],
+  cached: Set<string>,
+  { season, episode, imdbId, workHint }: { season?: number | null; episode?: number | null; imdbId?: string | null; workHint?: any },
+) {
+  return list
+    .filter((s: any) => s.infoHash && s._dubbed && cached.has(s.infoHash))
+    .map((s: any) => ({
+      hash: String(s.infoHash),
+      season: season ?? null,
+      episode: episode ?? null,
+      imdbId: imdbId || null,
+      work: workHint ? { names: workHint.n, year: workHint.y, pack: Boolean(s._multiWork) } : undefined,
+    }));
+}
+
+function queueDubAudit(adapterId: string, apiKey: string, candidates: any[]) {
+  if (!config.audioAudit.enabled || config.debrid.dubAuditTailMax <= 0) return;
+  for (const cand of candidates) {
+    // Já condenado nesta conta não gasta consulta de novo.
+    if (magnetdb.isLie(adapterId, apiKey, cand.hash)) continue;
+    dubAuditPending.push(cand);
+  }
+  if (dubAuditPending.length > 50) dubAuditPending.splice(0, dubAuditPending.length - 50);
+}
+
+/**
+ * Prova os candidatos pendentes no debrid; mentira vira a MESMA evidência do
+ * play (mag lie + idx.lied). Falha de rede/credencial não é evidência — o
+ * candidato volta a entrar na próxima busca. O link resolvido é descartado:
+ * aqui não é play, é interrogatório.
+ */async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
+  const batch = dubAuditPending.splice(0, Math.max(0, Math.trunc(Number(limit) || 0)));
+  let lies = 0;
+  for (const cand of batch) {
+    try {
+      await debrid.resolveLink(cand.hash, { season: cand.season, episode: cand.episode, work: cand.work, dubbed: true });
+    } catch (err) {
+      if (!isDubLieError(err)) continue;
+      lies += 1;
+      const adapter = debrid.current() as DebridAdapter | null;
+      if (adapter) magnetdb.markLie(adapter.id, opts().debridApiKey, cand.hash);
+      if (cand.imdbId) releaseIndex.markLied(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash);
+      metrics.count('debrid.audit.lie.tail');
+      log.warn(`[audit] tail provou mentira ${String(cand.hash).slice(0, 8)}${err.evidence?.matchedGroup ? ` (${err.evidence.matchedGroup})` : ''}`);
+    }
+  }
+  return { audited: batch.length, lies };
+}
 
 // Refresh de fundo do stale-while-revalidate: mapa PRÓPRIO, separado do
 // inFlight — a revalidação não coalesce com a busca síncrona do cliente nem a
@@ -1471,6 +1538,23 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
   const responsePhase = finish.phase();
   if (raw.sweepInline) metrics.count('search.pt-sweep.inline');
   const result = await finish({ ...raw, deadlineAt }, responsePhase);
+
+  // Auditoria proativa (fase D): prova os top dublados em cache no passe
+  // tardio, nunca no caminho da resposta. Mentira provada invalida a lista
+  // corrente — a próxima requisição já nasce sem o mentiroso, sem esperar TTL
+  // nem depender de alguém tocar no lixo primeiro.
+  if (dubAuditPending.length > 0 && cacheKey) {
+    const auditCtx = capture();
+    enqueueTail(async () => {
+      try {
+        const r = await run(auditCtx, () => runDubAudit());
+        if (r.audited > 0) log.info(`[audit] tail: ${r.audited} candidato(s) provado(s), ${r.lies} mentira(s)`);
+        if (r.lies > 0) cache.forget(cacheKey);
+      } catch (err) {
+        log.warn('[audit] tail falhou:', err?.message || err);
+      }
+    });
+  }
 
   // Jackett como SEGUNDO: a resposta já saiu do índice; a coleta completa roda
   // no tail, alimenta o índice com o que é novo e promove a lista pelo mesmo

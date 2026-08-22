@@ -419,6 +419,10 @@ const config = {
     // Diagnóstico não pode reter o gate global quando a API da conta está fora
     // do ar; é separado do timeout da busca de inventário.
     dashboardAccountTimeoutMs: num(process.env.DEBRID_DASHBOARD_ACCOUNT_TIMEOUT_MS, 3000),
+    // Auditoria proativa (fase D): no passe tardio, prova os top N candidatos
+    // dublados em cache listando os arquivos reais no debrid. 0 desliga; a
+    // prova em si continua sujeita a AUDIO_AUDIT=1.
+    dubAuditTailMax: num(process.env.DEBRID_DUB_AUDIT_MAX, 2),
     // URL pública do addon, usada nos links de play resolvidos no debrid.
     publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
     // Segredo do HMAC dos links /resolve. Vazio = assina com a API key de

@@ -1187,11 +1187,33 @@ function seasonCoverageExcludes(parsed: ParsedSeasonEpisode, season: number | nu
  */
 function matchesEpisode(title: string, { season, episode }: SeasonEpisodeOptions = {}) {
   if (season == null || episode == null) return true;
+  const t = normalizeTitle(title);
   const { seasons, episodes, complete } = parseTitleSeasonEpisode(title);
 
   // Série inteira cobre o episódio pedido. Pack de uma temporada não: quem
   // decide é a temporada que o título nomeia, no teste logo abaixo.
   if (complete && seasons.length === 0) return true;
+
+  // "Nº Temporada Completa" no singular declara a cobertura EXATA do pack
+  // (regra medida na varredura dos títulos BR): uma menção descritiva de outra
+  // temporada no MESMO título não amplia o que ele contém. Medido no True
+  // Detective: "2ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA" entregava
+  // só arquivos S01 e entrava na lista pedindo S02E01, porque o parser fundia
+  // as duas menções em seasons=[2,1]. O plural ("1ª 2ª 3ª Temporadas
+  // Completa") não casa aqui — 'temporadas' tem o s antes do espaço. E a
+  // FAIXA declarada ("1ª até 8ª Temporada Completa", caso real do corpus)
+  // cobre o intervalo inteiro, não a última.
+  const rangePack = /\b(\d{1,2})\s*a?\s*(?:ate|a|to)\s+(\d{1,2})\s*a?\s*temporada\s+completa\b/.exec(t);
+  if (rangePack && season != null) {
+    const lo = Math.min(Number(rangePack[1]), Number(rangePack[2]));
+    const hi = Math.max(Number(rangePack[1]), Number(rangePack[2]));
+    if (season < lo || season > hi) return false;
+  } else {
+    const declaredPack =
+      t.match(/\b(\d{1,2})\s*a?\s*temporada\s+completa\b/) ||
+      t.match(/\btemporada\s+(\d{1,2})(?!\d)\s+completa\b/);
+    if (declaredPack && season != null && Number(declaredPack[1]) !== season) return false;
+  }
 
   // Nenhuma pista de temporada/episódio: não dá pra afirmar que é errado
   // (release BR costuma vir só como "Nome Dublado"), então passa.
