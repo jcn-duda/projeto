@@ -248,3 +248,18 @@ test('roundtrip encode/decode preserva os limites por indexador, inclusive o 0',
   assert.deepEqual(decoded.indexerLimits, { bludv: 0, yts: 3 });
   assert.deepEqual((decode(encode({ jl: {} })) as DecodedOptions).indexerLimits, {});
 });
+
+test('SCHEMA e roundtrip para streamNameStyle (ns) e streamNameShowSource (st)', () => {
+  assert.deepEqual(SCHEMA.streamNameStyle, { type: 'string', key: 'ns' });
+  assert.deepEqual(SCHEMA.streamNameShowSource, { type: 'bool', key: 'st' });
+
+  const d = defaults();
+  assert.equal(d.streamNameStyle, config.streamNameStyle);
+  assert.equal(d.streamNameShowSource, config.streamNameShowSource);
+
+  const custom = { ns: 'full', st: 0 };
+  const decoded = decode(encode(custom)) as DecodedOptions;
+  assert.equal(decoded.streamNameStyle, 'full');
+  assert.equal(decoded.streamNameShowSource, false);
+});
+

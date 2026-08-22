@@ -59,7 +59,7 @@ test('render codifica collect() completo e não usa compactConfig', () => {
 
   // collect é a fonte da URL: as opções novas precisam estar no conjunto.
   const collect = sliceFunction('collect');
-  ['maxUnknown', 'excludeCam', 'showUncachedBr', 'autoFetchBr', 'brReservedSlots'].forEach((key) => {
+  ['maxUnknown', 'excludeCam', 'showUncachedBr', 'autoFetchBr', 'brReservedSlots', 'streamNameStyle', 'streamNameShowSource'].forEach((key) => {
     assert.match(collect, new RegExp('KEYS\\.' + key + '\\b'), 'collect() precisa incluir ' + key);
   });
 });

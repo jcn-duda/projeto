@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import config from '../src/config.js';
+import * as runtime from '../src/runtime.js';
 import {
   bytesToSize,
   extractInfoHash,
@@ -9,6 +10,7 @@ import {
   audioFromTitle,
   explicitPtAudio,
   editionFromTitle,
+  streamDisplayName,
   markDebridName,
   matchesQualityFilter,
   toStremioStream,
@@ -1819,3 +1821,57 @@ test('série não sofre a guarda de ano pelo dn= (ano do post é o da temporada)
     [serie],
   );
 });
+
+test('streamDisplayName formata detalhes compactos, omite ou inclui tracker e respeita style full', () => {
+  const nameCompact = streamDisplayName({
+    title: 'Movie.2024.1080p.WEB-DL.DUAL',
+    quality: '1080p',
+    audio: 'Dual',
+    source: 'WEB-DL',
+    tracker: 'bludv',
+    isBr: true,
+    seeders: 15,
+  });
+  assert.match(nameCompact, /1080p WEB-DL DUAL BR · bludv · 👤 15/);
+
+  const nameNoSource = streamDisplayName({
+    title: 'Movie.2024.1080p.WEB-DL.DUAL',
+    quality: '1080p',
+    audio: 'Dual',
+    source: 'WEB-DL',
+    tracker: 'bludv',
+    isBr: true,
+    seeders: 15,
+    showSource: false,
+  });
+  assert.equal(nameNoSource.includes('bludv'), false);
+  assert.match(nameNoSource, /1080p WEB-DL DUAL BR · 👤 15/);
+
+  const nameFull = streamDisplayName({
+    title: 'Movie.2024.1080p.WEB-DL.DUAL',
+    quality: '1080p',
+    audio: 'Dual',
+    source: 'WEB-DL',
+    tracker: 'bludv',
+    isBr: true,
+    seeders: 15,
+    style: 'full',
+  });
+  assert.match(nameFull, /^Movie\.2024\.1080p\.WEB-DL\.DUAL\n1080p WEB-DL DUAL BR · bludv · 👤 15$/);
+});
+
+test('streamDisplayName consome opções do runtime quando em contexto assíncrono', () => {
+  const rawOpts = runtime.normalize({ ns: 'full', st: 0 });
+  runtime.run({ opts: rawOpts }, () => {
+    const name = streamDisplayName({
+      title: 'Movie.Title.2024.2160p',
+      quality: '2160p',
+      tracker: 'yts',
+      seeders: 5,
+    });
+    assert.match(name, /^Movie\.Title\.2024\.2160p\n4K · 👤 5$/);
+    assert.equal(name.includes('yts'), false);
+  });
+});
+
+

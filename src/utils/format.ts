@@ -1,5 +1,6 @@
 import { priorityMap, compareIndexerPriority } from './indexer-priority.js';
 import config from '../config.js';
+import { opts } from '../runtime.js';
 import type { RawItem, Stream, ParsedSeasonEpisode, DebridAdapter } from '../../types/domain.js';
 
 // Tamanho <= 1 KB é o sentinela de "desconhecido" dos indexers BR (ver
@@ -324,9 +325,16 @@ function streamDisplayName({
   tracker,
   isBr = false,
   seeders = 0,
-  style = config.streamNameStyle,
-  showSource = config.streamNameShowSource,
+  style,
+  showSource,
 }: StreamDisplayOptions = {}) {
+  let userOpts: any = null;
+  try { userOpts = opts(); } catch {}
+  const effectiveStyle = style || userOpts?.streamNameStyle || config.streamNameStyle;
+  const effectiveShowSource = showSource !== undefined
+    ? showSource
+    : (userOpts?.streamNameShowSource !== undefined ? userOpts.streamNameShowSource : config.streamNameShowSource);
+
   // A ordem é a da decisão: primeiro a resolução, depois QUAL corte do filme é,
   // depois de onde veio. Sem corte e fonte, quatro releases 4K do mesmo filme
   // saíam com a linha idêntica e a escolha virava sorteio pelo seed.
@@ -339,7 +347,7 @@ function streamDisplayName({
   ].filter(Boolean).join(' ');
   const stats = [
     details,
-    showSource ? compactTracker(tracker) : null,
+    effectiveShowSource ? compactTracker(tracker) : null,
     Number(seeders) > 0 ? `👤 ${seeders}` : null,
   ]
     .filter(Boolean)
@@ -347,7 +355,7 @@ function streamDisplayName({
 
   // Sem o nome do addon: o cliente já o exibe no badge do card ("Localhost:7000",
   // "Power Movie"), e repeti-lo em toda linha só gastava a coluna estreita.
-  if (style === 'full') return [title, stats].filter(Boolean).join('\n');
+  if (effectiveStyle === 'full') return [title, stats].filter(Boolean).join('\n');
   // Release que não anuncia resolução, corte, fonte nem áudio não tem o que
   // resumir: sobraria "👤 1", que não identifica nada. Aí o título é a única
   // informação existente e vale mais que a coluna curta.

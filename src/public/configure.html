@@ -850,6 +850,34 @@
     </p>
   </section>
 
+  <section>
+    <div class="sec-head">
+      <h2>Exibição dos streams</h2>
+      <p>Formatação das linhas de stream na lista do Stremio.</p>
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <label for="streamNameStyle"><strong>Estilo do título</strong></label>
+      </div>
+      <select id="streamNameStyle">
+        <option value="compact">Compacto (recomendado — metadados resumidos)</option>
+        <option value="full">Completo (título original + metadados)</option>
+      </select>
+      <p class="field-hint">Compacto economiza espaço vertical na coluna estreita do Stremio.</p>
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        <label for="streamNameShowSource"><strong>Identificação do indexador / fonte</strong></label>
+      </div>
+      <select id="streamNameShowSource">
+        <option value="true">Exibir fonte no nome (ex.: YTS, BluDV)</option>
+        <option value="false">Ocultar fonte do nome</option>
+      </select>
+    </div>
+  </section>
+
   <div class="install">
     <code class="url" id="installUrl">…</code>
     <div class="actions">
@@ -878,7 +906,8 @@
     brReservedSlots: "b", brOnly: "o", dubbedOnly: "d",
     preferDubbed: "a", excludeCam: "c", maxSizeGb: "z", brFirst: "bf",
     jackettIndexers: "ji", indexerPriority: "ip", indexerLimits: "jl",
-    debridService: "ds", debridApiKey: "dk", debridCachedOnly: "dc", showUncachedBr: "bu", autoFetchBr: "ab"
+    debridService: "ds", debridApiKey: "dk", debridCachedOnly: "dc", showUncachedBr: "bu", autoFetchBr: "ab",
+    streamNameStyle: "ns", streamNameShowSource: "st"
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -904,6 +933,7 @@
     maxSizeGb: $("maxSizeGb"), outMaxSize: $("outMaxSize"),
     brOnly: $("brOnly"), dubbedOnly: $("dubbedOnly"),
     preferDubbed: $("preferDubbed"), excludeCam: $("excludeCam"),
+    streamNameStyle: $("streamNameStyle"), streamNameShowSource: $("streamNameShowSource"),
     debridService: $("debridService"), debridApiKey: $("debridApiKey"),
     keyHintPlain: $("keyHintPlain"), keyHintSealed: $("keyHintSealed"), debridKeyKept: $("debridKeyKept"),
     debridKeyField: $("debridKeyField"), keyLink: $("keyLink"),
@@ -1411,6 +1441,12 @@
     cfg[KEYS.debridCachedOnly] = isOn(el.debridCachedOnly) ? 1 : 0;
     cfg[KEYS.showUncachedBr] = isOn(el.showUncachedBr) ? 1 : 0;
     cfg[KEYS.autoFetchBr] = isOn(el.autoFetchBr) ? 1 : 0;
+    if (el.streamNameStyle && el.streamNameStyle.value && el.streamNameStyle.value !== "compact") {
+      cfg[KEYS.streamNameStyle] = el.streamNameStyle.value;
+    }
+    if (el.streamNameShowSource && el.streamNameShowSource.value === "false") {
+      cfg[KEYS.streamNameShowSource] = 0;
+    }
     // Chave vazia não entra: evita gravar "dk":"" no link à toa.
     if (el.debridService.value && el.debridApiKey.value.trim()) {
       cfg[KEYS.debridApiKey] = el.debridApiKey.value.trim();
@@ -1574,6 +1610,8 @@
   });
 
   el.debridService.addEventListener("change", function () { setPresetChoice("custom"); render(); });
+  if (el.streamNameStyle) el.streamNameStyle.addEventListener("change", function () { setPresetChoice("custom"); render(); });
+  if (el.streamNameShowSource) el.streamNameShowSource.addEventListener("change", function () { setPresetChoice("custom"); render(); });
   el.debridApiKey.addEventListener("input", function () {
     // Digitou qualquer coisa: a chave do link antigo deixa de valer. Sem isto,
     // apagar o campo faria a URL voltar a carregar a chave anterior.
@@ -1667,6 +1705,8 @@
     setOn(el.preferDubbed, state.preferDubbed);
     setOn(el.excludeCam, state.excludeCam);
     el.maxSizeGb.value = state.maxSizeGb;
+    if (el.streamNameStyle) el.streamNameStyle.value = state.streamNameStyle || "compact";
+    if (el.streamNameShowSource) el.streamNameShowSource.value = state.streamNameShowSource === false ? "false" : "true";
     el.debridService.value = state.debridService || "";
     // Chave cifrada não vai para o campo: é um blob opaco e não há o que o
     // usuário faça com ele na tela.
@@ -1712,6 +1752,8 @@
     if (raw[KEYS.preferDubbed] != null) state.preferDubbed = !!raw[KEYS.preferDubbed];
     if (raw[KEYS.excludeCam] != null) state.excludeCam = !!raw[KEYS.excludeCam];
     if (raw[KEYS.maxSizeGb] != null) state.maxSizeGb = raw[KEYS.maxSizeGb];
+    if (raw[KEYS.streamNameStyle] != null) state.streamNameStyle = String(raw[KEYS.streamNameStyle]);
+    if (raw[KEYS.streamNameShowSource] != null) state.streamNameShowSource = !!raw[KEYS.streamNameShowSource];
     // Links antigos não têm bf nem ji: deixar as propriedades ausentes preserva
     // o padrão da instância; na ausência de ji, apply marca todo o catálogo.
     if (raw[KEYS.brFirst] != null) state.brFirst = !!raw[KEYS.brFirst];
@@ -1842,7 +1884,8 @@
        preferDubbed: true, excludeCam: false, maxSizeGb: 0,
        brFirst: true, jackettIndexers: [], jackettIndexersSelected: [],
        indexerPriority: [], indexerLimits: {},
-       debridService: "", debridApiKey: "", debridCachedOnly: true, showUncachedBr: false, autoFetchBr: true, services: []
+       debridService: "", debridApiKey: "", debridCachedOnly: true, showUncachedBr: false, autoFetchBr: true, services: [],
+       streamNameStyle: "compact", streamNameShowSource: true
     }; })
     .then(function (defaults) {
       instanceDefaults = defaults;

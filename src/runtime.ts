@@ -66,6 +66,8 @@ const SCHEMA: Record<string, SchemaEntry> = {
   debridCachedOnly: { type: 'bool', key: 'dc' },
   showUncachedBr: { type: 'bool', key: 'bu' },
   autoFetchBr: { type: 'bool', key: 'ab' },
+  streamNameStyle: { type: 'string', key: 'ns' },
+  streamNameShowSource: { type: 'bool', key: 'st' },
 };
 
 function defaults() {
@@ -96,6 +98,8 @@ function defaults() {
     debridCachedOnly: config.debrid.cachedOnly,
     showUncachedBr: config.debrid.showUncachedBr,
     autoFetchBr: config.debrid.autoFetchBr,
+    streamNameStyle: config.streamNameStyle,
+    streamNameShowSource: config.streamNameShowSource,
   };
 }
 
