@@ -557,23 +557,36 @@ function normalizeTitle(s = '') {
  * Descarta resultados que claramente não são o título procurado — indexers
  * costumam devolver "parecidos" para queries curtas.
  *
- * Duas armadilhas, ambas medidas em título pt-BR curto (que é justamente o que
- * vai pros sites BR):
+ * Três armadilhas. As duas primeiras medidas em título pt-BR curto (que é
+ * justamente o que vai pros sites BR); a terceira, em série global de nome
+ * curto:
  *
  * - comparar por SUBSTRING da string inteira fazia "dia" casar dentro de
  *   "diabo": "Dia D" (Disclosure Day) aceitava "O Diabo Veste Prada 2";
  * - descartar palavra de até 2 letras esvazia o título quando ele é curto —
  *   "Dia D" virava o token único `dia` e aceitava "Um Dia de Sorte em Nova
  *   York" e "Homem-Aranha: Um Novo Dia". As seis vagas reservadas iam para o
- *   lixo e empurravam pra fora a fonte dublada correta.
+ *   lixo e empurravam pra fora a fonte dublada correta;
+ * - token repetido e artigo inglês inflavam os acertos: o filtro de ruído
+ *   (até 2 letras) foi calibrado para artigo pt-BR e não pegava "the" (3
+ *   letras), e o `wanted` não era deduplicado — "The Walking Dead: Dead
+ *   City" pedia [the, walking, dead, dead, city] e "Shaun of the Dead
+ *   (2004)" marcava the + dead + dead = 3/5 = 0.600, exatamente no corte.
+ *   Como o caminho global de série não tem guarda de ano depois desta
+ *   (release de filme não carrega marcador de episódio, então a checagem de
+ *   identidade abstém), o filme entrava na lista da série. Artigo sai do
+ *   conjunto significativo e `wanted` é deduplicado.
  *
  */
 function matchesName(title: string, name: string, tokens: string[] | null = null) {
   const all = normalizeTitle(name).split(' ').filter(Boolean);
-  // Palavra de 1-2 letras costuma ser ruído ("o", "de", "a"). Mas quando sobra
-  // menos de dois tokens, ela É o título: aí vale mais que o ruído que evita.
-  const long = all.filter((w) => w.length > 2);
-  const wanted = long.length >= 2 ? long : all;
+  // Palavra de 1-2 letras costuma ser ruído ("o", "de", "a") — e artigo
+  // inglês também ("the" tem 3 letras e escapa do filtro de comprimento).
+  // Mas quando sobra menos de dois tokens, ela É o título ("The Bear",
+  // "From"): aí vale mais que o ruído que evita.
+  const long = all.filter((w) => w.length > 2 && !LEADING_ARTICLES.has(w));
+  const base = long.length >= 2 ? long : all;
+  const wanted = [...new Set(base)];
   if (wanted.length === 0) return true;
   // Token inteiro, não pedaço de palavra. `tokens` opcionais: quem chama em
   // lote (filterRelevantRaw) já normalizou o título e não paga de novo.
@@ -766,6 +779,25 @@ function matchesEpisodeWorkIdentity(
 }
 
 /**
+ * O ano do título contradiz o ano do catálogo? Definição ÚNICA da regra de
+ * ano, com tolerância por tipo (mesma lógica do pacote BRDUB, calibrada
+ * contra casos reais): filme aceita ±2 — o ano do post BR costuma ser o do
+ * lançamento nacional — e condena com um ÚNICO ano contraditório; série só
+ * condena quando TODOS os anos do título são anteriores à estreia −2, porque
+ * o ano do post de série é o da temporada ("Fallout 2ª Temporada (2025)"
+ * contra catálogo 2024 passa). Dois ou mais anos em FILME deixam o campo
+ * ambíguo ("Blade Runner 2049 (2017)") e a checagem é pulada; em série
+ * basta um ano recente para liberar. Sem ano no catálogo nada é cortado.
+ */
+function yearContradicts(tokens: string[], year: number | string | null, isSeries: boolean) {
+  const catalogYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  if (!catalogYear) return false;
+  const years = tokens.filter((t) => /^(?:19|20)\d{2}$/.test(t)).map(Number);
+  if (isSeries) return years.length > 0 && years.every((y) => y < catalogYear - 2);
+  return years.length === 1 && Math.abs(years[0] - catalogYear) > 2;
+}
+
+/**
  * Identidade estrutural da obra: prefixo, sequência e ano. Diferente da
  * precisão BR, estas regras também valem para filmes de indexers globais —
  * "Scary Movie 2" e "Titanic 2000 (Scary Sexy Disaster Movie)" não são o
@@ -800,16 +832,7 @@ function matchesTitleStructure(
     if (![...extractSequenceMarkers(title)].every((n) => wantedMarkers.has(n))) return false;
   }
 
-  const catalogYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
-  if (catalogYear) {
-    const years = own.filter((t) => /^(?:19|20)\d{2}$/.test(t)).map(Number);
-    if (isSeries) {
-      if (years.length && years.every((y) => y < catalogYear - 2)) return false;
-    } else if (years.length === 1 && Math.abs(years[0] - catalogYear) > 2) {
-      return false;
-    }
-  }
-  return true;
+  return !yearContradicts(own, year, isSeries);
 }
 
 /**
@@ -1050,10 +1073,16 @@ function filterRelevantRaw(
       item?.isBr
         ? matchesBrTitle(title, name, year, { isSeries, allNames: names, tokens, universeTokens: universe })
         : matchesName(title, name, tokens) &&
-          // Séries globais já usam identidade delimitada pelo marcador de
-          // episódio; aplicar o prefixo de filme nelas mudaria formatos
-          // legítimos como "S01E02.From" sem relação com este bug.
-          (isSeries || matchesTitleStructure(title, name, year, { tokens })) &&
+          // Série global continua PULANDO prefixo e sequência — o marcador de
+          // episódio delimita a obra, e o prefixo de filme mudaria formatos
+          // legítimos como "S01E02.From". Mas ficar sem guarda NENHUMA depois
+          // do matchesName deixava a série com um portão só: release de filme
+          // não carrega marcador de episódio, a checagem de identidade
+          // abstém-se, e "Shaun of the Dead (2004)" entrava na lista de
+          // "Dead City" com o 0.600 do token repetido. A metade do ANO da
+          // matchesTitleStructure fecha exatamente essa lacuna, sem tocar nos
+          // formatos que o prefixo protegeria errado.
+          (isSeries ? !yearContradicts(tokens, year, true) : matchesTitleStructure(title, name, year, { tokens })) &&
           matchesEpisodeWorkIdentity(title, names, tokens, universe),
     );
     if (!titleMatches) return false;

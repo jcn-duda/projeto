@@ -1146,6 +1146,130 @@ test('matchesName não aceita pedaço de palavra nem título curto esvaziado', (
   assert.equal(matchesName('WALL-E (2008) BluRay Dublado', 'WALL·E'), true);
 });
 
+// Bug real medido no container: buscando Dead City S01E01 (tt18546730), quatro
+// releases de "Shaun of the Dead (2004)" entravam na lista. No matchesName o
+// nome pedia [the, walking, dead, dead, city] e o candidato marcava the +
+// dead + dead = 3/5 = 0.600 — exatamente o corte. No caminho global de série
+// não havia guarda depois: matchesEpisodeWorkIdentity abstém-se em título sem
+// marcador de episódio (release de filme não tem) e a guarda de ano só rodava
+// para filme.
+test('filterRelevantRaw: série global não recebe filme homônimo parcial (Dead City × Shaun of the Dead)', () => {
+  const shaun = (i: number) => ({
+    title: [
+      'Shaun of the Dead 2004 2160p 4K HDR10 BluRay x265',
+      'Shaun of the Dead 2004 1080p BluRay x264',
+      'Shaun of the Dead 2004 720p BrRip XviD',
+      'Shaun of the Dead 2004 1080p WEB-DL DD5.1 H264',
+      'Shaun of the Dead 2004 x264 AC3',
+    ][i],
+    magnet: `magnet:?xt=urn:btih:${String.fromCharCode(97 + i).repeat(40)}`,
+  });
+  const itens = [
+    { title: 'The Walking Dead Dead City S01E01 1080p WEB-DL x264', magnet: `magnet:?xt=urn:btih:${HASH}` },
+    // Pack da temporada: sem marcador de episódio, cobre pelo S01.
+    { title: 'The Walking Dead Dead City S01 480p', magnet: `magnet:?xt=urn:btih:${OTHER}` },
+    {
+      title: 'The Walking Dead Dead City 1ª Temporada (2023) WEB-DL Dual Áudio',
+      magnet: `magnet:?xt=urn:btih:c${'d'.repeat(39)}`,
+      isBr: true,
+    },
+    ...[0, 1, 2, 3, 4].map(shaun),
+  ];
+
+  const out = relevantRaw(itens, {
+    names: ['The Walking Dead: Dead City'],
+    year: '2023–',
+    isSeries: true,
+    season: 1,
+    episode: 1,
+  });
+
+  // Os cinco Shaun somem; a release por episódio, o pack S01 e a BR dublada
+  // sobrevivem.
+  assert.equal(out.filter((i: RawItem) => /Shaun/i.test(i.title || '')).length, 0, 'nenhum Shaun pode sobrar');
+  assert.equal(out.length, 3, 'episódio + pack + BR dublada');
+  // A guarda do matchesName dispara sozinha, sem depender do ano.
+  assert.equal(matchesName('Shaun of the Dead 2004 2160p 4K HDR10 BluRay x265', 'The Walking Dead: Dead City'), false);
+});
+
+test('matchesName: a série-mãe The Walking Dead também não aceita Shaun (era 0.667)', () => {
+  // Nome mais curto = razão mais inflada: no bug, [the, walking, dead] contra
+  // "Shaun of the Dead" fazia 2/3 = 0.667, ainda acima do corte de Dead City.
+  assert.equal(matchesName('Shaun of the Dead 2004 1080p BluRay x264', 'The Walking Dead'), false);
+  assert.equal(matchesName('The Walking Dead S11E24 1080p AMZN WEB-DL', 'The Walking Dead'), true);
+
+  const out = relevantRaw(
+    [
+      { title: 'The Walking Dead S01E01 1080p WEB-DL x264', magnet: `magnet:?xt=urn:btih:${HASH}` },
+      { title: 'Shaun of the Dead 2004 720p BrRip XviD', magnet: `magnet:?xt=urn:btih:${OTHER}` },
+    ],
+    { names: ['The Walking Dead'], year: '2010–', isSeries: true, season: 1, episode: 1 },
+  );
+  assert.equal(out.length, 1);
+  assert.match(out[0].title || '', /S01E01/);
+});
+
+test('matchesName: token repetido no nome não vale dois acertos', () => {
+  // Isolado do artigo: o nome não tem "the"/"o". Antes do dedup o "zumbi"
+  // duplicado fazia 3/5 = 0.600 e o candidato passava com uma ocorrência só.
+  assert.equal(matchesName('Zumbi Vale 2019 1080p', 'Zumbi Zumbi Vale Oeste Norte'), false);
+  assert.equal(matchesName('Zumbi Zumbi Vale Oeste Norte 2019 1080p', 'Zumbi Zumbi Vale Oeste Norte'), true);
+});
+
+test('matchesName: artigo inglês não conta como token significativo', () => {
+  // Isolado do dedup: o nome não tem token repetido. O "the" do nome fazia
+  // 2/3 = 0.667 contra qualquer candidato que tivesse "the" + uma palavra.
+  assert.equal(matchesName('The Dead Zone 1983 1080p', 'The Walking Dead'), false);
+  // Quando o candidato tem o artigo, ele não atrapalha — só não ajuda.
+  assert.equal(matchesName('The Walking Dead 2010 S01 DVDRip', 'The Walking Dead'), true);
+});
+
+test('matchesName: fallback mantém nome curto que É um artigo', () => {
+  // O artigo só sai do conjunto significativo quando sobram >= 2 tokens
+  // longos; em "The Bear" ele É metade do título e fica. Sem o fallback a
+  // troca do filtro custaria os nomes curros com artigo.
+  assert.equal(matchesName('The Bear S01E01 1080p WEB-DL', 'The Bear'), true);
+  assert.equal(matchesName('The Office S09 720p', 'The Office'), true);
+  assert.equal(matchesName('From S01E01 1080p', 'From'), true);
+  assert.equal(matchesName('Shogun S01E01 2160p', 'Shogun'), true);
+
+  // Pelo caminho real da série, com a guarda de ano nova ativa.
+  const bear = relevantRaw(
+    [{ title: 'The Bear S01E01 1080p WEB-DL x264', magnet: `magnet:?xt=urn:btih:${HASH}` }],
+    { names: ['The Bear'], year: '2022–', isSeries: true, season: 1, episode: 1 },
+  );
+  assert.equal(bear.length, 1, 'The Bear não pode sumir');
+  const shogun = relevantRaw(
+    [{ title: 'Shōgun S01E01 2160p WEB-DL', magnet: `magnet:?xt=urn:btih:${HASH}` }],
+    { names: ['Shōgun'], year: '2024–', isSeries: true, season: 1, episode: 1 },
+  );
+  assert.equal(shogun.length, 1, 'Shogun não pode sumir');
+});
+
+test('série global: guarda de ano com a tolerância de temporada', () => {
+  // A regra é a mesma que o caminho BR já aplicava via matchesTitleStructure:
+  // só condena quando TODOS os anos do título são anteriores à estreia −2 —
+  // o ano do post de série é o da temporada. Agora vale no caminho global.
+  const itens = [
+    { title: 'The Walking Dead S01 1080p BluRay', magnet: `magnet:?xt=urn:btih:${HASH}` }, // sem ano: passa
+    { title: 'The Walking Dead 2011 S01 COMPLETE', magnet: `magnet:?xt=urn:btih:${OTHER}` }, // 2011 >= 2008: passa
+    { title: 'The Walking Dead 2003 S01 DVDRip', magnet: `magnet:?xt=urn:btih:c${'d'.repeat(39)}` }, // tudo antes de 2008: corta
+    { title: 'The Walking Dead 2005 2012 S01', magnet: `magnet:?xt=urn:btih:e${'f'.repeat(39)}` }, // um ano recente libera
+    { title: 'The Walking Dead 1999 2005 S01', magnet: `magnet:?xt=urn:btih:g${'h'.repeat(39)}` }, // todos antigos: corta
+  ];
+  const out = relevantRaw(itens, {
+    names: ['The Walking Dead'],
+    year: '2010–',
+    isSeries: true,
+    season: 1,
+    episode: 1,
+  });
+  assert.deepEqual(
+    out.map((i: RawItem) => i.title),
+    ['The Walking Dead S01 1080p BluRay', 'The Walking Dead 2011 S01 COMPLETE', 'The Walking Dead 2005 2012 S01'],
+  );
+});
+
 test('cota de qualidade não come a fonte BR antes da reserva agir', () => {
   // Config real de usuário: max1080p=3. As fontes BR publicam seeders=1, então
   // chegam no fim do balde de 1080p — a cota levava as três globais mais
