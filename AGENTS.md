@@ -1165,6 +1165,21 @@ o orçamento com a resposta.
   BR/dublado**, meça no Jackett de verdade (saúde, query pt-BR vs título nu vs
   SxxEyy, varredura, breaker). Chute de regex nesse caminho é a forma mais
   cara de "consertar" um falso positivo.
+- **`overrides.path-to-regexp` no `package.json` fecha um ReDoS de verdade,
+  não ruído de `npm audit`.** `stremio-addon-sdk` traz `router@^1.3.3`, que
+  vendoriza `path-to-regexp@0.1.7` (`<=0.1.12` é vulnerável — 3 advisories de
+  backtracking catastrófico). A rota que o `getRouter` monta —
+  `/:resource(catalog|stream|...)/​:type/​:id/​:extra?.json` — encadeia vários
+  params antes do `.json` e fica exposta em `app.ts` (`app.use(getRouter(...))`
+  e `app.use('/:userConfig', getRouter(...))`) **sem** `basic_auth` por padrão
+  (o `Caddyfile` só protege `/configure` e `/defaults.json`, e comentado). O
+  override força `^0.1.13` (mesma major, já corrigida) em toda a árvore —
+  `router` não muda de API, só de patch. **Não faça `npm audit fix --force`**:
+  ele rebaixa `stremio-addon-sdk` para `0.7.1`, quebra `addonBuilder`/
+  `getRouter` como usados aqui. O `tmp`/`external-editor` que sobra no audit
+  (via `inquirer`, dependência do CLI de publish do SDK) é ruído de verdade:
+  nada em `src/` importa `inquirer`, só `addonBuilder` e `getRouter` — o
+  código que chamaria `tmp.dir()` nunca roda no addon.
 
 ## Git
 
