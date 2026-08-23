@@ -198,7 +198,10 @@ const config = {
     host: process.env.BR_RESOLVERS_HOST || '127.0.0.1',
     bludvUrl: (process.env.BLUDV_URL || 'https://bludvfilmes.xyz').replace(/\/$/, ''),
     comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
-    nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.xnerdfilmes.net').replace(/\/$/, ''),
+    // xnerdfilmes.net migrou para nerdviatorrents.net (301 permanente); o
+    // domínio novo precisa estar também na allowlist do resolver, senão o
+    // redirect vira blocked_host e a fonte morre em silêncio.
+    nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.nerdviatorrents.net').replace(/\/$/, ''),
     torrentdosfilmesUrl: (process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, ''),
     extraProtectors: list(process.env.EXTRA_ALLOWED_PROTECTORS),
   },

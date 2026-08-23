@@ -13,7 +13,11 @@ const MAGNET_CACHE_MS = Number(process.env.MAGNET_CACHE_MS || 30 * 60_000);
 // nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
 const UNKNOWN_SIZE = '1 KB';
 const SELF_URL = (process.env.SELF_URL || 'http://nerdfilmes-resolver:8702').replace(/\/$/, '');
-const SITE_URL = (process.env.SITE_URL || process.env.NERDFILMES_URL || 'https://www.xnerdfilmes.net').replace(/\/$/, '');
+// xnerdfilmes.net migrou para nerdviatorrents.net (301 permanente). Sem
+// NERDFILMES_URL/SITE_URL no ambiente (o modo embutido não injeta nada), este
+// default é o que o resolver tenta primeiro — deixá-lo no domínio velho faz o
+// redirect cair na allowlist e a fonte morrer em silêncio.
+const SITE_URL = (process.env.SITE_URL || process.env.NERDFILMES_URL || 'https://www.nerdviatorrents.net').replace(/\/$/, '');
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36';
 
@@ -38,6 +42,8 @@ const FALLBACK_SITE_SUFFIXES = [
   'nerdfilmestorrent.com',
   'nerdfilmestorrent.org',
   'nerdfilmestorrent.net',
+  // Domínio atual (2026): o site responde 200 aqui após 301 do antigo.
+  'nerdviatorrents.net',
 ];
 
 // --- Failover de domínio em runtime ---
@@ -220,7 +226,9 @@ function assertAllowedUrl(value) {
   const allowed = ALLOWED_SUFFIXES.some(
     (suffix) => hostname === suffix || hostname.endsWith(`.${suffix}`),
   );
-  if (!allowed) throw new Error('blocked_host');
+  // O host rejeitado viaja na mensagem: sem ele o sintoma é "0 resultados" e
+  // a causa (redirect para domínio fora da allowlist) só aparece auditando.
+  if (!allowed) throw new Error(`blocked_host:${hostname}`);
   return url;
 }
 
@@ -892,6 +900,12 @@ async function fetchSearchHtml(query) {
     return html;
   } catch (err) {
     if (isNetworkError(err)) await siteSelector.noteFailure();
+    // Redirect permanente para domínio fora da allowlist vira fonte morta
+    // silenciosa (o failover só reage a erro de rede). O warn distinto —
+    // citando o host rejeitado — é o que impede a próxima descoberta tardia.
+    else if (String(err.message || err).startsWith('blocked_host')) {
+      console.warn(`[nerdfilmes] busca em ${siteSelector.url()} bloqueada: ${err.message} — domínio novo fora da allowlist?`);
+    }
     throw err;
   }
 }
