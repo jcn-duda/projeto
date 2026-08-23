@@ -81,3 +81,58 @@ Develop extensive unit and regression tests in the test suite (e.g. expanding `t
 ### Automated Verification
 - [ ] Full test suite (`npm test`) passes with 100% success rate across all existing 340+ tests and new test cases.
 - [ ] Fixture-backed test cases explicitly demonstrate and prove improved extraction accuracy on previously ambiguous or fragile post layouts.
+
+## Follow-up — 2026-08-22T22:25:31Z
+
+Execute the full roadmap of corrections, robustness enhancements, safety mechanisms, and architectural refactoring for the self-hosted Stremio Adom addon, following the specifications of PLANO_MELHORIAS.md and AGENTS.md.
+
+Working directory: E:/stremio adom
+Integrity mode: development
+
+## Requirements
+
+### R1. Debrid Safety & Lifecycle (AllDebrid B1/B2)
+- Implement TTL and refresh logic for pre-existing magnets inventory (`ALLDEBRID_PREEXISTING_TTL_MS`) to protect post-boot user acquisitions.
+- Ensure fail-safe closed behavior: if inventory refresh fails, do not drop ready magnets.
+- Decouple `dropReady` and `dropDownload` cleanup routines so uncached toggle does not disable ready drops.
+- Cover all lifecycle scenarios with comprehensive unit tests (`test/debrid-drop-uncached.test.ts`).
+
+### R2. Runtime Robustness & Network Safety (S1–S5, B4)
+- Add top-level `unhandledRejection` handling and Express 4 async route wrappers to avoid process crashes.
+- Enforce network safety checks on Torznab download URLs to block local/private IP SSRF by default.
+- Gate diagnostic endpoints (`/debrid-status.json`, `/metrics.json`) behind diagnostic rate limiting.
+- Require explicit confirmation payloads for destructive dashboard actions (`clear-cache`, `sweep-dead`).
+- Address auto-fetch drain backoff (`DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS`) to prevent busy spinning.
+
+### R3. Core Guardrails & Regression Safety Suite (T1–T7)
+- Implement automated tests for magnet year contradiction (`magnetYearContradicts`), episode work identity matching (`matchesEpisodeWorkIdentity`), and Brazilian grace budget formulas.
+- Ensure adversarial and empirical e2e test harnesses operate on isolated workspace/snapshots rather than mutating active build artifacts in-place.
+- Verify that all test harnesses and files are registered and tracked in `package.json` test completion checks.
+
+### R4. Search Budget Recalibration (B3)
+- Deduct metadata retrieval time (Cinemeta/TMDB) from the search deadline dynamically so torrent indexers are given an accurate remaining budget without exceeding total deadline.
+- Add regression tests proving partial responses return without tripping timeouts when metadata is slow.
+
+### R5. Modular Architectural Refactoring (A1–A6)
+- Incrementally split monolithic modules (`src/providers/index.ts`, `src/utils/format.ts`) into specialized submodules with clean boundaries (e.g., `autofetch-runner.ts`, `debrid-pipeline.ts`, `search-orchestrator.ts`, `stream-builder.ts`, `title-normalization.ts`, `release-matching.ts`).
+- Maintain backward-compatible barrel re-exports during transition so all existing tests and imports remain intact.
+- Extract common resolver engine logic for Brazilian scrapers while maintaining individual site profiles.
+- Progressively reduce unstructured `any` types across boundaries to explicit, strongly-typed interfaces.
+
+## Acceptance Criteria
+
+### Typecheck & Compilation
+- [ ] `npm run typecheck` passes with exactly 0 type errors (`strictNullChecks` & `noImplicitAny` enabled).
+- [ ] `npm run build` compiles `src/` cleanly into `dist/` with `noEmitOnError: true`.
+
+### Test Suite & Harness Validation
+- [ ] `npm test` executes the complete test suite with 100% passes (0 failures across all 1,070+ test cases).
+- [ ] `npm run test:complete` confirms every `*.test.ts` file is tracked in `package.json`.
+- [ ] Empirical, stress, and adversarial test harnesses (`npm run test:stress`, `npm run test:adversarial`, `npm run test:adversarial-m1`, `npm run test:protector-m1`, `npm run test:challenger-m2`) pass cleanly without corrupting the working tree.
+
+### Functional Invariants
+- [ ] Time budget constraints (Invariant 1) are strictly preserved across all search phases.
+- [ ] Reserved Brazilian stream slots and dubbing priorities remain intact in final stream generation.
+- [ ] Debrid account state integrity is preserved (no accidental deletion of user torrents).
+- [ ] Smoke test (`node dist/scripts/smoke.js`) succeeds against real network endpoints where configured.
+

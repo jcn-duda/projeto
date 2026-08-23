@@ -1,62 +1,107 @@
-# Project: ComandoTorrents Jackett Indexer & Microservice Resolver Enhancement
+# Project: Stremio Adom Improvements Roadmap (PLANO_MELHORIAS)
 
-> **Historical record.** This document captures the ComandoTorrents resolver
-> enhancement delivery as originally written (JS/CommonJS era). The current
-> architecture is TypeScript/ESM compiled to `dist/` and is documented in
-> `AGENTS.md` and `README.md`. Kept for history: paths and premises here do
-> not reflect the current tree.
+> Authoritative architectural specification, feature inventory, milestone plan, and interface contracts for the Stremio Adom enhancements and modular refactoring.
 
 ## Architecture
-- **Resolver Microservice**: `comandotorrents-resolver/server.js` (Express/HTTP server running on port 8701 in container loopback).
-- **Jackett Cardigann Definition**: `jackett-bludv/comandotorrents.yml` (queries `http://127.0.0.1:8701/search` and resolves downloads via `http://127.0.0.1:8701/resolve`).
-- **Test Infrastructure**: `node:test` based suites in `test/`, registered in `package.json` (`scripts.test`), validated by `scripts/check-test-list.js`.
+- **Process & Application Layer**:
+  - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
+  - `src/app.ts`: Express application factory (`createApp()`), route definitions (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`).
+- **Providers & Orchestration Layer**:
+  - `src/providers/search-orchestrator.ts`: Query planning, Cinemeta/TMDB metadata, raw provider fan-out (`collectRaw`), Brazilian priority grace, pack fallbacks, enrichment tails, explicit `SearchPhase` state machine.
+  - `src/providers/search-cache.ts`: Stale-While-Revalidate (SWR) cache handling, request coalescing (`inFlight`), background revalidation (`scheduleStaleRefresh`).
+  - `src/providers/stream-builder.ts`: Stream parsing, relevance filtering, release index evidence, quota clamping, Brazilian slot reservation (`limitReservingBr`), notice generation.
+  - `src/providers/debrid-pipeline.ts`: Bad/dead/miss magnet filtering, dynamic budget allocation (`remainingCheckBudget`), debrid cache checking, P2P degradation, HMAC signing, audio audit tails.
+  - `src/providers/autofetch-runner.ts`: Candidate stream hold acquisition, persistent queue management (`drainNext`), hourly limit backoff, settle LRU, and periodic recheck loop.
+  - `src/providers/index.ts`: Backward-compatible facade re-exporting provider APIs.
+- **Debrid Layer**:
+  - `src/debrid/file-selector.ts`: Video file parsing, multi-work collection resolution, episode matching, and error classes (`WorkPickError`, `EpisodePickError`, `NoVideoError`, `DubLieError`).
+  - `src/debrid/common.ts`: Adapter common utilities, network helpers, re-exports from file-selector.
+  - `src/debrid/alldebrid.ts`: AllDebrid adapter with snapshot TTL (`ALLDEBRID_PREEXISTING_TTL_MS`), fail-safe closed behavior, decoupled `dropReady` and `dropDownload` cleanups.
+  - `src/debrid/{premiumize,torbox,realdebrid,debridlink}.ts`: Debrid adapters for Premiumize, TorBox, Real-Debrid, and Debrid-Link.
+- **Utilities & Formatting Layer**:
+  - `src/utils/title-normalization.ts`: Clean title normalization, entity decoding, sequence numerals.
+  - `src/utils/release-matching.ts`: Precision title matching, `matchesBrTitle`, `matchesEpisodeWorkIdentity`, `magnetYearContradicts`, franchise roots.
+  - `src/utils/episode-matching.ts`: Season/episode parsing, season pack identification.
+  - `src/utils/audio-quality.ts`: Audio/language classifiers, resolution detection, audio lie audit.
+  - `src/utils/stream-ranking.ts`: Sorting algorithms, deduplication by hash, candidate selection pools.
+  - `src/utils/stream-quotas.ts`: Multi-dimensional quotas (quality, indexer, Brazilian reserved slots).
+  - `src/utils/search-names.ts`: Cinemeta/TMDB name resolution, Stremio ID parser, Stremio stream formatter.
+  - `src/utils/format.ts`: Backward-compatible barrel re-exporting all formatting and ranking APIs.
+  - `src/utils/net-safety.ts`: SSRF filter (`isSafeDownloadUrl`) for Torznab download links.
+  - `src/utils/cache.ts`: SQLite L2 + in-memory L1 cache with corrupted database auto-recovery.
+- **Brazilian Resolvers Microservices**:
+  - `bludv-resolver`, `comandotorrents-resolver`, `nerdfilmes-resolver`, `torrentdosfilmes-resolver`: Microservices running on internal ports 8700–8703 with shared core engine (`resolvers/` runtime).
+
+---
 
 ## Code Layout
-- `comandotorrents-resolver/server.js`: Microservice server for scraping, HTML parsing, link unrolling, and caching.
-- `jackett-bludv/comandotorrents.yml`: Cardigann definition for Jackett integration.
-- `test/fixtures/comandotorrents-*.html`: Frozen mock HTML fixtures representing real-world WordPress posts and search pages.
-- `test/comandotorrents-parser.test.js`: Dedicated parser unit tests covering HTML extraction, audio classification, resolution, episode numbering, season packs, and title cleaning.
-- `test/comandotorrents-resolver.test.js`: Dedicated resolver unit tests covering redirect traversal, link protectors, JS variables, domain allowlist, error handling, and timeout resilience.
-- `test/adversarial-m1-parser-harness.js`: Empirical adversarial test harness (69 test cases).
-- `test/m1-protector-adversarial-stress.js`: Adversarial protector stress harness (42 test cases).
-- `test/br-parsers.test.js`: Regression tests for Brazilian resolvers and format utilities.
-- `test/br-resolvers.test.js`: Regression tests for Brazilian protector resolvers.
-- `package.json`: Test script manifest registering all test files.
+- `src/addon.ts`: Process entry point & lifecycle management.
+- `src/app.ts`: Express application composition & route handlers.
+- `src/config.ts`: Centralized operator environment configuration.
+- `src/runtime.ts`: User configuration overlay (`opts()`, `AsyncLocalStorage`).
+- `src/providers/*.ts`: Provider search orchestration, autofetch runner, debrid pipeline, stream builder.
+- `src/debrid/*.ts`: Debrid adapters, file selector, common helpers.
+- `src/utils/*.ts`: Format submodules, cache, net-safety, magnetdb, release-index.
+- `test/*.test.ts`: Complete unit test suite (63+ files tracked in `package.json`).
+- `test/e2e/*.test.ts`: Opaque-box E2E test suite (Tiers 1–4).
+- `test/*challenger*.ts`, `test/*stress*.ts`, `test/*adversarial*.ts`: Empirical bench test harnesses.
+
+---
 
 ## Feature Inventory
-Every feature from the Survey phase appears here with its assigned milestone.
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | Direct Magnet Support | Allow direct `magnet:?` hrefs without requiring `isProtectorHost` check | M1 | Survey |
-| 2 | Robust Audio Extraction | Inspect both `segment` and `anchorText`, support `DUAL[-\s]+[AÁ]UDIO`, `DUBLAD\w*`, `LEGENDAD\w*`, `NACIONAL`, `[DUB]`, `[LEG]`, isolate post headers | M1 | Survey |
-| 3 | Resolution & Codec Extraction | Normalize `4K`/`2160p`/`UHD`, `1080p`/`FULL HD`, `720p`/`HD`, `SD`/`480p`, and canonical source codecs (`REMUX`, `BluRay`, `WEB-DL`, `WEBRip`, `HDTV`, `CAM`) | M1 | Survey |
-| 4 | Episode Numbering vs Season Pack Reset | Support `E01`, `EP.01`, `EPISÓDIO 01` across `segment` and `anchorText`, reset episode to `null` on `TEMPORADA COMPLETA` in either | M1 | Survey |
-| 5 | Clean Release Titles | Decode entities, strip SEO fluff (`Torrent`, `Download`, `Grátis`, `Baixar`, `5.1 /`, `7.1 /`), remove trailing punctuation artifacts | M1 | Survey |
-| 6 | Portuguese Size Extraction & Sentinels | Parse PT units (`GB`, `MB`, `KB`, `TB`), safely default to `1 KB` sentinel when missing | M1 | Survey |
-| 7 | Generalized URL-Encoded Magnet Regex | Support `/magnet%3A%3F[^"'<>\s]+/i` invariant to parameter ordering and literal `&` delimiters | M1 | Survey |
-| 8 | Expanded JS Variable Extraction | Support `DEST_URL`, `DOWNLOAD_URL`, `MAGNET_URL`, `LINK_DOWNLOAD`, `URL_DOWNLOAD`, `DOWNLOAD`, `REDIRECT_URL`, `NEXT_URL`, `LINK_FINAL`, `TARGET_URL`, `DESTINO` | M1 | Survey |
-| 9 | Invariant Meta Refresh Extraction | Support meta refresh regardless of `http-equiv` vs `content` attribute order and nested quotes | M1 | Survey |
-| 10 | Strict Domain Allowlist & Hop Limits | Enforce `ALLOWED_SUFFIXES`, protocol checks, and max 6 hops to prevent SSRF and loops | M1 | Survey |
-| 11 | Defensive Error Handling & Timeout Resilience | Return null/1 KB sentinels on unreachable/malformed protectors without crashing process | M1 | Survey |
-| 12 | In-Memory Caching & Coalescing | Implement search and magnet caching (`SEARCH_CACHE_MS`, `MAGNET_CACHE_MS`) and request coalescing | M1 | Survey |
-| 13 | Cardigann YAML Sync | Verify `jackett-bludv/comandotorrents.yml` search paths, filters, and fields | M1 | Survey |
-| 14 | Mock HTML Fixture Suite | Create 5 comprehensive fixtures covering movies, series episodes, season packs, legendado-only, and search | M1 | Survey |
-| 15 | Dedicated Parser Test Suite | Create `test/comandotorrents-parser.test.js` validating all parsing edge cases | M1 | Survey |
-| 16 | Dedicated Resolver Test Suite | Create `test/comandotorrents-resolver.test.js` validating protector unrolling, JS redirects, and allowlist | M1 | Survey |
-| 17 | Test Manifest & Regression Verification | Update `package.json` test script and ensure 100% pass across all 579+ tests with zero regressions | M1 | Survey |
-| 18 | E2E & Adversarial Coverage Hardening | Run adversarial testing, verify against full Stremio pipeline and check with Forensic Auditor | M2 | Survey |
+| 1 | B1 Snapshot TTL & Fail-Safe Closed | AllDebrid snapshot expiration (`ALLDEBRID_PREEXISTING_TTL_MS`) + fail-safe closed on mock 500 | M1 | PLANO_MELHORIAS §1 |
+| 2 | B2 Decoupled Cleanups | Independent `dropReady` vs `dropDownload` cleanups and metrics in AllDebrid | M1 | PLANO_MELHORIAS §1 |
+| 3 | S1 Unhandled Rejections & Async Routes | Top-level `unhandledRejection` handler + `asyncRoute` Express wrappers | M1 | PLANO_MELHORIAS §2 |
+| 4 | S2 SSRF Net Safety | Torznab `isSafeDownloadUrl` blocking private IPs and link-local addresses | M1 | PLANO_MELHORIAS §2 |
+| 5 | S3 Diagnostic Gate Enclosure | Enforce `diagnosticGate.enter('global')` on `/debrid-status.json` and `/metrics.json` | M1 | PLANO_MELHORIAS §2 |
+| 6 | S4 Destructive Action Confirmation | Require `{"confirm": true}` for `clear-cache` and `sweep-dead` dashboard actions | M1 | PLANO_MELHORIAS §2 |
+| 7 | S5 Node 22 Type Pinning | Pin `@types/node` to `^22.0.0` aligned with `node:22-alpine` runtime | M1 | PLANO_MELHORIAS §2 |
+| 8 | B4 Autofetch Drain Backoff | Queue cycling on hourly budget exhaustion + backoff via `DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS` | M1 | PLANO_MELHORIAS §2 |
+| 9 | Corrupted L2 SQLite Recovery | Auto-rename corrupted database to `cache.db.corrupt` and recreate clean DB on boot | M1 | PLANO_MELHORIAS §2.9 |
+| 10 | Production CI Audit Step | Add `npm audit --omit=dev` non-blocking step to CI workflow | M1 | PLANO_MELHORIAS §2.10 |
+| 11 | T1 Magnet Year Contradiction Tests | Test matrix for `magnetYearContradicts` in `test/format.test.ts` | M2 | PLANO_MELHORIAS §3.1 |
+| 12 | T2 Episode Work Identity Tests | Test matrix for `matchesEpisodeWorkIdentity` in `test/format.test.ts` | M2 | PLANO_MELHORIAS §3.2 |
+| 13 | T3 Debrid-Link Test Suite | Dedicated `test/debridlink.test.ts` covering success flows and mocks | M2 | PLANO_MELHORIAS §3.6 |
+| 14 | T4 Season Fill & Stall Streak Tests | Tests for `cacheCheck:false` exclusion and `STALL_STREAK=0` in `test/autofetch.test.ts` | M2 | PLANO_MELHORIAS §3.4/3.5 |
+| 15 | T5 Brazilian Grace Budget Tests | Test mathematical clamping of `priorityGrace` formula in `test/collection-window.test.ts` | M2 | PLANO_MELHORIAS §3.3 |
+| 16 | T6 Adversarial Harness Mutation Safety | Interruption-safe in-memory snapshot and signal restore handlers in `test/empirical-e2e-challenger.ts` | M2 | PLANO_MELHORIAS §3.7 |
+| 17 | T7 Harness Tracking in Test Complete | Verify all 6 bench harnesses in `scripts/check-test-list.ts` and `package.json` | M2 | PLANO_MELHORIAS §3.8 |
+| 18 | B3 Search Budget Verification | E2E test verifying dynamic budget reduction with slow Cinemeta + TMDB miss | M2 | PLANO_MELHORIAS §4.1 |
+| 19 | A1b File Selector Extraction | Extract `src/debrid/file-selector.ts` and re-export via `src/debrid/common.ts` | M3 | PLANO_MELHORIAS §5.2 |
+| 20 | A2 Format Utility Modularization | Split `src/utils/format.ts` into 7 specialized submodules with barrel re-export | M3 | PLANO_MELHORIAS §5.3 |
+| 21 | A1 Providers Modularization | Split `src/providers/index.ts` into 5 submodules with explicit `SearchPhase` | M3 | PLANO_MELHORIAS §5.1 |
+| 22 | A5 Centralized Config | Remove raw `process.env` calls in `src/app.ts` and route through `src/config.ts` | M3 | PLANO_MELHORIAS §5.6 |
+| 23 | A4 Brazilian Resolvers Shared Core | Extract common microservice engine into `resolvers/` core with site profiles | M3 | PLANO_MELHORIAS §5.4 |
+| 24 | A1c Route Modularization | Modularize `src/app.ts` into route modules (`app/*-routes.ts`) | M3 | PLANO_MELHORIAS §5.5 |
+| 25 | A6 Type Refinements | Reduce explicit `any` types and introduce strongly-typed stream/adapter models | M3 | PLANO_MELHORIAS §5.7 |
+| 26 | Final Full Verification & Tier 5 Audit | Complete verification across all 1,070+ tests, all 5 harnesses, and forensic audit | M4 | ORIGINAL_REQUEST |
+
+---
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | ComandoTorrents Parser, Resolver & Fixture Test Suite Enhancement | Features 1–17 in `comandotorrents-resolver/server.js`, `jackett-bludv/comandotorrents.yml`, `test/fixtures/`, `test/comandotorrents-*.test.js`, and `package.json` | none | DONE |
-| 2 | Final Verification & Adversarial Coverage Hardening | Feature 18: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), white-box adversarial stress testing, and forensic audit | M1 | DONE |
+| M0 | Survey & Planning | Features 1–26 surveyed, mapped, baseline verified | none | DONE |
+| M1 | Debrid Safety & Runtime Robustness | Features 1–10 (B1 tests 1.4/1.5, S3 diagnostic gate, S1.2 asyncRoute, S4 action confirmation, SQLite corrupted recovery, CI audit, SSRF filter remediation) | M0 | DONE |
+| M2 | Core Guardrails, Regression Safety & Budget Verification | Features 11–18 (T1–T7, B3 E2E test verification, harness mutation safety) | M1 | IN_PROGRESS |
+| M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | PLANNED |
+| M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 5 bench harnesses, forensic audit | M3 | PLANNED |
+
+---
 
 ## Interface Contracts
-### `comandotorrents-resolver/server.js` ↔ Jackett Cardigann (`comandotorrents.yml`)
-- `GET /search?q=<query>`: Returns JSON array `[ { title, details, download, size, seeders, peers, publishDate, category } ]`.
-- `GET /resolve?url=<targetUrl>`: Returns JSON `{ url: <magnetUri> }` or HTTP error if unresolvable.
-- Field rules:
-  - `size`: Always string with unit (e.g. `2.4 GB`, `1 KB`). Never `0 B`.
-  - `seeders`: Default `1` if not found.
-  - `download`: Either direct magnet URI or resolve URL (`http://127.0.0.1:8701/resolve?url=...`).
+### `src/debrid/file-selector.ts` ↔ `src/debrid/common.ts`
+- `pickFile(files, hash, opts)`: Selects canonical video file from torrent file list, handling multi-work collections, season/episode filters, audio flags.
+- `pickWorkFile(files, work)`: Selects video matching target work title from collection.
+- `WorkPickError`, `EpisodePickError`, `NoVideoError`, `DubLieError`: Strong error classes with type guards (`isWorkPickError`, etc.).
+
+### `src/utils/format.ts` Barrel Re-export Contract
+- Maintains 100% backward-compatible named exports for all 42+ functions/constants across `title-normalization`, `release-matching`, `episode-matching`, `audio-quality`, `stream-ranking`, `stream-quotas`, `search-names`.
+
+### `src/providers/index.ts` Facade Contract
+- Re-exports `findStreams`, `applyDebrid`, `buildStreams`, `debridRefreshSatisfied`, `applyNoticeOrigin`, `onlyNotice`, `autofetchStatus`, `idxPoolCovered`, `poolCovered`.
+
+### Express Async Route Contract
+- `asyncRoute(fn: (req: Request, res: Response, next: NextFunction) => Promise<any>)`: Catches unhandled rejections, logs error, returns HTTP 500 response, preventing process crash.
