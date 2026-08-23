@@ -98,7 +98,7 @@ vez a cada TTL, e em toda busca enquanto o endpoint estivesse fora do ar. O
 refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado,
 com teto pelo `DEBRID_CHECK_FLOOR_MS`.
 
-**O que continua aberto:** fase 0 (parcialmente — ver abaixo), itens 4.2/4.3,
+**O que continua aberto:** fase 0 (parcialmente — ver abaixo), item 4.2,
 fase 5 e fase 6.
 
 ---
@@ -224,7 +224,7 @@ compilado. Esforço S–M.
 |---|---|
 | 4.1 ✅ | Teste com cinemeta lento (2500ms) + TMDB miss (5000ms): resposta NÃO estoura o deadline. `test/search-budget-metadata.test.ts`, mais os dois T5 do `collection-window` |
 | 4.2 | Métrica: `search.deadline` segmentada por causa (metadata vs providers) para o dashboard não culpar o indexer quando o cinemeta comeu o orçamento — avaliar `search.metadata.duration_ms` |
-| 4.3 | Revisar `Math.max(500, …)`: piso de 500ms para a coleta é intencional? Se a coleta não cabe mais, é melhor devolver parcial imediatamente do que arremessar 500ms de Jackett — decidir e documentar |
+| 4.3 ✅ | Revisar `Math.max(500, …)`: **decisão — manter.** É intencional, não sobra de fatia fixa. `remainingCheckBudget(deadlineAt) − debridReserve` fica negativo quando metadados lentos já corroeram a reserva; sem o piso, `collectRaw` desistiria sem tentar e a resposta sairia known:false/vazia de bandeja. O piso não pode estourar o `replyDeadline`: o `raceWithDeadline` de `findStreams` corta `doSearch` no relógio absoluto (mesmo `deadlineAt`), **independente** do orçamento interno — pior caso é a resposta chegar até 500ms mais perto do corte externo, nunca depois. Trocar por devolver parcial na hora (orçamento 0) não evita corte nenhum (o relógio externo já protege) — só troca uma tentativa real de coleta por known:false garantido, pior para quem usa. Documentado em `src/providers/index.ts` junto do cálculo |
 
 **Risco:** médio — mexe no invariante 1. Qualquer mudança aqui exige releitura
 da seção "orçamento de tempo" do AGENTS.md antes.
