@@ -599,7 +599,7 @@ serve para **calibrar os TTLs**, não para decidir se a fase existe.
 
 ---
 
-## Índice de releases e o addon como servidor (`idx:v2`, PLANO_MAGNETDB... ver
+## Índice de releases e o addon como servidor (`idx:v4`, PLANO_MAGNETDB... ver
 ## PLANO no repo)
 
 O addon responde do PRÓPRIO índice quando ele cobre a obra, e usa o Jackett
@@ -610,7 +610,7 @@ RESPOSTA (<500ms):  /stream → idx + dinv → checagem no debrid → lista
 COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro → idx
 ```
 
-- **`src/utils/release-index.ts`** guarda por obra (`idx:v2:<imdbId>[:S:E]`) o
+- **`src/utils/release-index.ts`** guarda por obra (`idx:v4:<imdbId>[:S:E]`) o
   mínimo da release `{ hash, title, size, indexer, isBr, quality, seeders,
   seenAt }`. Invariantes: sem config/credencial na chave (compartilhado entre
   instalações DE PROPÓSITO — guarda o que EXISTE, nunca o que está pronto em
@@ -634,6 +634,16 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   (`activity.recentUserTraffic`) — diferente do `hasUserTraffic()` de boot que
   o warmup usa. Consulta sequencial com intervalo mínimo por indexer e teto
   horário: reduz carga total, mas não pode virar crawler.
+- **Index-only** (`JACKETT_INDEX_ONLY_INDEXERS`, default: `redetorrent`,
+  `apachetorrent`, `hdrtorrent`): ficam FORA do caminho da resposta e DENTRO
+  do sistema via colhedor. Latência medida de 8–31s contra orçamento total de
+  20s os derrubava no breaker a cada busca, e o retry PT→título original
+  consumia o MESMO orçamento. O filtro roda antes do plano de busca; se todos
+  os selecionados forem index-only, NÃO há fallback `/all` — a obra entra na
+  fila do colhedor pelo caminho de sempre (miss/gap). Separado de
+  `JACKETT_SLOW_INDEXERS`: lá o problema é o agrupamento do plano; aqui é
+  PRESENÇA na resposta. Não "devolva" esses indexers à busca ao vivo sem
+  medir de novo — o breaker aberto era o sintoma, não a causa.
 - Kill-switches: `RELEASE_INDEX=false` / `RELEASE_INDEX_TTL=0` (índice),
   `ACCOUNT_FAST_PATH=false`, `HARVEST_ENABLED=false`.
 - Critério de aceitação do plano: busca responde com o Jackett FORA do ar —
@@ -827,7 +837,7 @@ fire-and-forget) continua.
 | `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
 | `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário, varredura pt-BR nos globais |
-| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v2`): record/lookup/status — o que faz o addon responder sem Jackett |
+| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v4`): record/lookup/status — o que faz o addon responder sem Jackett |
 | `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
 | `src/providers/jackett-catalog.ts` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
 | `src/providers/indexer-status.ts` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
@@ -1071,6 +1081,27 @@ o orçamento com a resposta.
   sentinela "1 KB" (o Jackett exige o campo, e "0 B" invalida a release
   inteira no filtro de tamanho do cardigann); o addon trata ≤ 1 KB como
   desconhecido em vez de exibir valor inventado. Não "conserte" isso.
+- **Post BR publica o blob de todas as qualidades como tag, e o prefixo diz
+  "Dublada e Dual" mesmo no botão legendado.** Títulos REAIS do hdrtorrent:
+  `"Fallout 1ª Temporada Dublada e Dual 1ª TEMPORADA LEGENDADA 720P 1080p,
+  2160p, 720p, HD, WEB-DL"` — o sufixo separado por vírgula lista TODAS as
+  qualidades do post, e o prefixo é convenção do site, não descrição do botão.
+  Sem cortar o blob (`stripQualityTagBlob`), `qualityFromTitle` casava o
+  "2160p" e classificava um botão 720P como 4K; sem a regra do **marcador mais
+  específico vence**, `audioFromTitle` devolvia Dual para LEGENDADA. Duas
+  consequências que não podem voltar: (1) o rótulo errado ocupava vaga BR
+  reservada, enchia a cota de 4K com não-4K e dirigia o autofetch; (2) o
+  índice de releases PERSISTE `dubbed`/`quality` com os mesmos classificadores
+  e vive semanas — **corrigir classificador exige bump da versão do namespace
+  (`idx:v4`), senão o conserto não aparece em obra já indexada**.
+- **Reserva BR é POR FAIXA, e pack cobre faixa sem dublado próprio.**
+  `BR_RESERVED_PER_QUALITY` garante até N fontes BR por balde de qualidade —
+  a reserva global antiga deixava o 1080p BR abundante consumir tudo e a faixa
+  4K/720p sem BR mesmo existindo fonte. Quando a faixa não tem release
+  dublada PRÓPRIA, o pack dublado da temporada preenche a vaga dela (Fallout
+  real: 720p/4K só legendado, dublado só no pack 1080p) — o áudio PT existe
+  dentro do arquivo e o `pickFile` extrai o episódio. O pack nunca desloca
+  dublado próprio nem ocupa duas vagas.
 - **Não adicione indexers com FlareSolverr a `JACKETT_SLOW_INDEXERS`**
   (1337x, kickasstorrents…). O desafio Cloudflare é re-resolvido a cada busca
   (13–24s medidos só pra abrir a primeira página); eles abortariam igual, só
