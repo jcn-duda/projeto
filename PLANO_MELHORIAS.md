@@ -66,29 +66,40 @@ dos achados críticos). Autocontido: pode ser executado por um agente sem acesso
 
 ### Divergências doc × código (AGENTS.md)
 
-| ID | Divergência |
-|---|---|
-| D1 | Doc cita `DEBRID_RESERVE_MS` 2800; código usa 4500 (`config.ts`) |
-| D2 | Doc diz "Fase 3 (davail) não está no código"; está (`debrid/index.ts`) |
-| D3 | Varredura pt-BR inline não passa `ignoreBreaker` (só a tardia passa) — doc ambígua |
+| ID | Divergência | Estado |
+|---|---|---|
+| D1 | Doc cita `DEBRID_RESERVE_MS` 2800; código usa 4500 (`config.ts`) | ✅ corrigido — e o invariante 1 agora descreve o orçamento **dinâmico**, não a fatia fixa |
+| D2 | Doc diz "Fase 3 (davail) não está no código"; está (`debrid/index.ts`) | ✅ corrigido — confirmado em produção local: `davail.servedHashes` contando |
+| D3 | Varredura pt-BR inline não passa `ignoreBreaker` (só a tardia passa) — doc ambígua | ✅ corrigido — os dois caminhos descritos separadamente |
 
 ---
 
-## Estado atual (importante)
+## Estado atual (2026-08-22, pós-auditoria de revisão)
 
-**As tarefas marcadas ✅ abaixo já estão implementas na árvore de trabalho,
-NÃO commitadas** (origem: subagente arquiteto que extrapolou o mandato
-somente-leitura em 2026-08-22; trabalho auditado via diff, typecheck 0,
-build ok, 1.070/1.070 testes e `test:complete` ok). Arquivos envolvidos:
-`.env.example`, `package.json`, `package-lock.json`, `src/addon.ts`,
-`src/config.ts`, `src/debrid/alldebrid.ts`, `src/providers/autofetch.ts`,
-`src/providers/index.ts`, `src/providers/jackett.ts`,
-`src/utils/net-safety.ts` (novo), `test/debrid-drop-uncached.test.ts`,
-`test/jackett-provider.test.ts`.
+**Fases 1, 2 e 3 estão commitadas e verdes.** A decisão de "commitar ou
+descartar a árvore de trabalho" que este documento descrevia foi resolvida —
+o trabalho ficou, em cinco commits:
 
-Decisão pendente do operador: commitar como "fase 1+2" ou descartar
-(`git checkout -- .` + remover `src/utils/net-safety.ts`) e reexecutar do
-zero. O plano assume que **fica**.
+| Commit | Cobre |
+|---|---|
+| `bda6a7c` | B1, B2 — snapshot com TTL, lotes de drop separados |
+| `780809b` | S1 (completo), S2, S3, S4, 2.9, 2.10 |
+| `e69450c` | B3, B4, T6 |
+| `c9a7888` | T1, T2, T3, T7 |
+| `54239f3` | `PROJECT.md` + este plano |
+
+Baseline verificado: `typecheck` 0, build ok, **1.117/1.117 testes**,
+`test:complete` ok com os 6 harnesses validados.
+
+**Uma correção entrou depois, na revisão** (fase 1, ver 1.6 abaixo): o refresh
+do snapshot por TTL era **aguardado** dentro do `checkCached`, o que colocava
+um `/magnet/status` de até 6s dentro de uma reserva de debrid de 4500ms — uma
+vez a cada TTL, e em toda busca enquanto o endpoint estivesse fora do ar. O
+refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado,
+com teto pelo `DEBRID_CHECK_FLOOR_MS`.
+
+**O que continua aberto:** fase 0 (parcialmente — ver abaixo), itens 4.2/4.3,
+fase 5 e fase 6.
 
 ---
 
@@ -98,14 +109,16 @@ zero. O plano assume que **fica**.
 
 | # | Tarefa | Arquivo |
 |---|---|---|
-| 0.1 ✅ (parcial) | Corrigir `DEBRID_RESERVE_MS` 2800→4500 e o orçamento da coleta (4700ms) no invariante 1 | `AGENTS.md` |
-| 0.2 | Corrigir "Fase 3 (davail) não está no código" — descrever o `davail` existente e reavaliar o gate de 30% com as métricas reais | `AGENTS.md` |
-| 0.3 | Documentar que a varredura pt-BR **inline** não ignora breaker (só a tardia) | `AGENTS.md` |
-| 0.4 | Documentar as envs novas desta roadmap (`ALLDEBRID_PREEXISTING_TTL_MS`, `DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS`, `JACKETT_ALLOW_PRIVATE_DOWNLOAD_IPS`) | `AGENTS.md`, `README.md` se couber |
-| 0.5 | Atualizar armadilhas conhecidas: snapshot preexistente agora expira; SSRF bloqueado por padrão em `resolveDownloadMagnet` | `AGENTS.md` |
+| 0.1 ✅ | D1: `DEBRID_RESERVE_MS` 2800→4500 **e** a troca da fatia fixa pelo orçamento dinâmico (`remainingCheckBudget − reserva`, piso 500ms) no invariante 1 | `AGENTS.md` |
+| 0.2 ✅ | D2: o `davail` existe (`debrid/index.ts`) — documentados os TTLs separados, o `forceFresh`, o "unusable não grava", a escrita em lote e o `davail.servedHashes`. O gate de 30% deixou de ser critério de implementação e virou critério de calibragem dos TTLs | `AGENTS.md` |
+| 0.3 ✅ | D3: os dois caminhos da varredura pt-BR descritos separadamente — inline (`recordStatus:false`, **sem** `ignoreBreaker`, divide orçamento) e tardia (os dois flags, fora do caminho da resposta) | `AGENTS.md` |
+| 0.4 ✅ | Envs novas documentadas com o porquê no `.env.example` (as três) e no `AGENTS.md` | `.env.example`, `AGENTS.md` |
+| 0.5 ✅ | Armadilhas novas: snapshot que expira + refresh em fundo, switches de drop independentes, guarda de SSRF (com o resíduo de DNS explícito), `asyncRoute` do Express 4, `cache.db.corrupt` só em corrupção real, `confirm` do painel, harness que muta o `dist/`, `deepEqual` que estreita tipo | `AGENTS.md` |
+| 0.6 ✅ | `README.md`: nada a fazer — ele delega a documentação de envs ao `.env.example` (não mantém tabela própria), e as três entraram lá com o porquê | `README.md` |
 
 **Validação:** leitura; sem código.
-**Critério de aceite:** nenhuma afirmação do AGENTS.md contradiz o código nos pontos D1–D3.
+**Critério de aceite:** nenhuma afirmação do AGENTS.md contradiz o código nos
+pontos D1–D3. **Atingido** para D1, D2 e D3.
 
 ---
 
@@ -117,20 +130,24 @@ o subsistema que já derrubou a conta no passado).
 
 | # | Tarefa | Status |
 |---|---|---|
-| 1.1 | B1: snapshot `preexisting` ganha TTL (`ALLDEBRID_PREEXISTING_TTL_MS`, default 300s). Vencido → refresh **antes** de qualquer drop de prontos; refresh em voo ou falho → `preexistentes` null → prontos **protegidos** (fail-safe fecha, nunca abre). `PreexistingEntry` tipado com `loadedAt` | ✅ implementado |
+| 1.1 | B1: snapshot `preexisting` ganha TTL (`ALLDEBRID_PREEXISTING_TTL_MS`, default 300s). Vencido → refresh disparado **em fundo** (ver 1.6), e enquanto ele não chega nenhum pronto é apagado; refresh em voo ou falho → `preexistentes` null → prontos **protegidos** (fail-safe fecha, nunca abre). `PreexistingEntry` tipado com `loadedAt` | ✅ implementado |
 | 1.2 | B2: lotes separados `dropReady` (dispara sob `DEBRID_DROP_READY`) e `dropDownload` (dispara sob `DEBRID_DROP_UNCACHED`), métrica própria `debrid.dropped.download` | ✅ implementado |
 | 1.3 | Testes: "os dois switches desligados não apagam nada" ajustado; novo "DEBRID_DROP_UNCACHED=false não desliga a limpeza dos prontos" | ✅ implementado |
 
-**Pendência da fase (a fazer):**
-
-| # | Tarefa | Arquivo |
-|---|---|---|
-| 1.4 | Teste do TTL do snapshot: com `preexistingTtlMs` curto, magnet adicionado pelo usuário **depois** do primeiro snapshot (via `/magnet/status` do mock) não é mais removido após expirar | `test/debrid-drop-uncached.test.ts` |
-| 1.5 | Teste do fail-safe: refresh do inventário falhando (mock 500) → nenhuma remoção de prontos, busca segue normal | `test/debrid-drop-uncached.test.ts` |
+| 1.4 ✅ | Teste do TTL do snapshot: magnet adicionado pelo usuário **depois** do primeiro snapshot não é removido após expirar | `test/debrid-drop-uncached.test.ts` |
+| 1.5 ✅ | Teste do fail-safe: refresh do inventário falhando (mock 500) → nenhuma remoção de prontos, busca segue normal | `test/debrid-drop-uncached.test.ts` |
+| 1.6 ✅ | **Correção da correção (achado da revisão):** o refresh por TTL era aguardado dentro do `checkCached` — um `/magnet/status` de até 6s (timeout padrão do adaptador) dentro de uma reserva de 4500ms, uma vez a cada TTL e em TODA busca enquanto o endpoint falhasse (o `.catch` limpa o registro e a passada seguinte retentava). Agora o refresh roda **em fundo**: `knownBefore` dispara e devolve `null`, e enquanto a foto nova não chega os prontos ficam protegidos. Só o PRIMEIRO inventário da conta é esperado, via `waitInventory`, com teto de `DEBRID_CHECK_FLOOR_MS` | `src/debrid/alldebrid.ts` |
+| 1.7 ✅ | Testes de latência do 1.6: (a) `/magnet/status` lento após o TTL não atrasa o `checkCached`; (b) primeiro inventário lento demais devolve a checagem no teto **sem** apagar prontos. O 1.4 passou a cobrar o contrato novo: a passada que dispara o refresh não apaga nada, a seguinte já usa a foto nova | `test/debrid-drop-uncached.test.ts` |
 
 **Validação:** `npm run typecheck && npm run build && npm test`.
-**Aceite:** suíte 100%; cenário do B1 (aquisição pós-boot protegida) coberto por teste.
+**Aceite:** suíte 100%; cenário do B1 (aquisição pós-boot protegida) coberto por teste. **Atingido** (1.117/1.117).
 **Rollback:** as envs novas default mantêm comportamento próximo ao antigo; `ALLDEBRID_PREEXISTING_TTL_MS=0` desliga a expiração (não recomendado).
+
+**Nota de projeto (1.6):** a lição vale para o resto do plano — proteger o
+acervo é uma decisão de *dado*, e o dado que falta protege por si só. Sempre
+que o fail-safe já fecha na ausência de informação, buscar essa informação de
+forma síncrona dentro do prazo da resposta é custo puro: dá para pagar depois,
+em fundo, e deixar a passada atual protegida.
 
 ---
 
@@ -145,41 +162,52 @@ o subsistema que já derrubou a conta no passado).
 | 2.3 | S5: `@types/node` pin `^22` (runtime `node:22-alpine`) + `engines` do lockfile alinhado | ✅ implementado |
 | 2.4 | B4: `drainNext` — recusa por orçamento move a cabeça para o FIM da fila (`[...remaining, next]`) + backoff `budgetBlockedUntil` (`DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS`, default 60s) para não girar fila a cada recheck | ✅ implementado |
 | 2.5 | B3: `collectRaw` aceita `deadlineAt` e calcula `budget` como tempo RESTANTE menos a reserva (`remainingCheckBudget(deadlineAt) - debridReserve`, piso 500ms) em vez de fatia fixa; `doSearch` passa o deadline nas duas coletas (normal e pack) | ✅ implementado |
-| 2.6 | S3: `/debrid-status.json` e `/metrics.json` passam pelo `diagnosticGate.enter()` (mesmo rate limit das outras rotas de diagnóstico) | ☐ a fazer — `src/app.ts` |
-| 2.7 | S1 (parte 2): wrapper `asyncRoute(fn)` (catch → 500 + log) nas 6 rotas async de `src/app.ts` — Express 4 não encaminha rejeição de handler async | ☐ a fazer — `src/app.ts`, novo helper |
-| 2.8 | S4: ações destrutivas do dashboard exigem `{"confirm": true}` no body (`clear-cache`, `sweep-dead`); documentar no painel; avaliar reabilitar `basic_auth` do Caddyfile ou registrar a decisão | ☐ a fazer — `src/app.ts`, `src/public/dashboard.html` |
-| 2.9 | Cache L2 corrompido no boot: renomear para `cache.db.corrupt` e recriar vazio (hoje: fallback memória silenciosa, arquivo ruim fica para sempre) | ☐ a fazer — `src/utils/cache.ts` (`openDatabase`) |
-| 2.10 | `npm audit --omit=dev` como passo do CI (falha soft: warning, não block) | ☐ a fazer — `.github/workflows/ci.yml` |
+| 2.6 ✅ | S3: `/debrid-status.json` e `/metrics.json` passam pelo `diagnosticGate.enter()` (mesmo token e rate limit das outras rotas de diagnóstico) | `src/app.ts` |
+| 2.7 ✅ | S1 (parte 2): wrapper `asyncRoute(fn)` (catch → 500 + log) nas 6 rotas async de `src/app.ts` | `src/app.ts` |
+| 2.8 ✅ | S4: `clear-cache` e `sweep-dead` devolvem 400 `confirmation_required` sem `{"confirm": true}` | `src/app.ts`, `src/public/dashboard.html` |
+| 2.9 ✅ | Cache L2 corrompido no boot vira `cache.db.corrupt` + banco novo — **só em corrupção real** (`SQLITE_CORRUPT`/`SQLITE_NOTADB`/"malformed"). `SQLITE_BUSY`, stall de I/O e `EACCES` caem em memória sem tocar no volume | `src/utils/cache.ts` |
+| 2.10 ✅ | `npm audit --omit=dev` como passo do CI | `.github/workflows/ci.yml` |
 
-**Testes novos:** 2.6 (401/429 sem e com rajada), 2.7 (rota que rejeita devolve 500 e não derruba), 2.8 (ação sem `confirm` é 400; com `confirm` executa), 2.9 (arquivo com lixo no boot → `.corrupt` criado + banco novo).
-**Validação:** typecheck + build + `npm test` + `npm run test:complete`.
+**Validação:** typecheck + build + `npm test` + `npm run test:complete`. **Atingido.**
 **Rollback:** cada item é independente e revertível isoladamente.
 
-**Nota sobre o 2.2:** a proteção cobre IPs/hosts **literais**. Hostname público
-que resolve para IP privado exigiria validação DNS pré-fetch — aceito como
-resíduo (custo/benefício; documentar na armadilha do AGENTS.md).
+**Nota sobre o 2.2 (resíduo aceito):** a proteção cobre IPs/hosts **literais** —
+e cobre bem: esquema, loopback, RFC1918, CGNAT, link-local (incl. o
+`169.254.169.254` de metadado de nuvem), multicast, reservados, e no IPv6 ULA,
+link-local, site-local, IPv4-mapeado, IPv4-compatível, 6to4, NAT64 e o prefixo
+de descarte. O construtor `URL` canonicaliza host numérico (`http://2130706433/`
+vira `127.0.0.1`) antes da checagem, e o `fetch` usa `redirect: 'manual'` — não
+há bypass por notação exótica nem por 302. **O que fica aberto** é hostname
+público que resolve para IP privado: fechar exigiria validar DNS antes do
+fetch, e o custo é transformar indisponibilidade de DNS em falso bloqueio.
+Documentado na armadilha do AGENTS.md.
 
-**Nota sobre o 2.5:** a mudança de semântica do budget precisa do teste 4.1
-(fase 4) para travar o comportamento — não commitar 2.5 sem o teste da fase 4
-no mesmo ramo de trabalho.
+**Nota sobre o 2.4 (dívida menor):** ficaram os dois mecanismos — o backoff
+`budgetBlockedUntil` **e** a rotação `[...remaining, next]`. Com o backoff, a
+rotação não é mais necessária, e como o `takeNext` varre em ordem (a cabeça é o
+melhor candidato), ela rebaixa o melhor item a cada estouro de orçamento.
+Simplificar para `[next, ...remaining]` é um commit de uma linha; não é urgente.
 
 ---
 
-## Fase 3 — Rede de segurança de testes (T1–T5)
+## Fase 3 — Rede de segurança de testes (T1–T7) ✅ CONCLUÍDA
 
 **Objetivo:** fechar as lacunas de maior risco de regressão ANTES de qualquer
 refactor. Esforço M. Risco nulo (só teste).
 
+Todas as oito tarefas estão no código (`c9a7888` e `e69450c`). O gate da fase
+5 (3.1–3.3 + 3.7 verdes) está **satisfeito**.
+
 | # | Tarefa | Onde | O que asserta |
 |---|---|---|---|
-| 3.1 | T1: `magnetYearContradicts` | `test/format.test.ts` (ou novo `test/br-year-guard.test.ts`) | filme com UM ano contraditório >±2 no `dn=` é cortado; 2+ anos passa; série/pack não roda a guarda; roda DEPOIS do titleMatches |
-| 3.2 | T2: `matchesEpisodeWorkIdentity` | idem | spin-off com token compartilhado não herda vaga (obra distinta); mesmo universo passa; sem marcador de episódio não condena |
-| 3.3 | T5: fórmula da graça BR | `test/providers` (ou extender `collection-window.test.ts`) | `min(brPartialGrace, max(0, debridReserve − debridCheckFloor))` com reserve curto/longo — a janela extra nunca invade o floor; cobre também o novo budget restante do 2.5 (metadados lentos ⇒ budget da coleta encolhe, graça respeita floor) |
-| 3.4 | T4a: season fill negativo | `test/autofetch.test.ts` | adaptador com `cacheCheck:false` (RD/DL): pack pronto NÃO semeia `davail` nem conta métrica de season-fill |
-| 3.5 | T4b: `STALL_STREAK=0` | `test/autofetch.test.ts` | `autoFetchStallStreak=0` + `torrentStatus` stalled → NÃO colapsa nem remove (parado nunca derruba) |
-| 3.6 | T3: `debridlink` sucesso | novo `test/debridlink.test.ts` | `resolveLink` de sucesso (seedbox → poll → pickFile), `enqueue`, `checkCached` devolve `Set` vazio com `known` honesto |
-| 3.7 | T6: harness mutante seguro | `test/empirical-e2e-challenger.js` (e irmãos) | operar sobre CÓPIA do `dist/` (snapshot + restore em `finally`), nunca in-place; targets por regex tolerante ou assinatura estrutural |
-| 3.8 | T7: harnesses no `test:complete` | `scripts/check-test-list.ts` + `package.json` | checagem de sanidade dos 5 harnesses (existência, imports resolvem com `node --check`, fixtures presentes) sem executá-los no CI |
+| 3.1 ✅ | T1: `magnetYearContradicts` | `test/format.test.ts` (ou novo `test/br-year-guard.test.ts`) | filme com UM ano contraditório >±2 no `dn=` é cortado; 2+ anos passa; série/pack não roda a guarda; roda DEPOIS do titleMatches |
+| 3.2 ✅ | T2: `matchesEpisodeWorkIdentity` | idem | spin-off com token compartilhado não herda vaga (obra distinta); mesmo universo passa; sem marcador de episódio não condena |
+| 3.3 ✅ | T5: fórmula da graça BR | `test/providers` (ou extender `collection-window.test.ts`) | `min(brPartialGrace, max(0, debridReserve − debridCheckFloor))` com reserve curto/longo — a janela extra nunca invade o floor; cobre também o novo budget restante do 2.5 (metadados lentos ⇒ budget da coleta encolhe, graça respeita floor) |
+| 3.4 ✅ | T4a: season fill negativo | `test/autofetch.test.ts` | adaptador com `cacheCheck:false` (RD/DL): pack pronto NÃO semeia `davail` nem conta métrica de season-fill |
+| 3.5 ✅ | T4b: `STALL_STREAK=0` | `test/autofetch.test.ts` | `autoFetchStallStreak=0` + `torrentStatus` stalled → NÃO colapsa nem remove (parado nunca derruba) |
+| 3.6 ✅ | T3: `debridlink` sucesso | novo `test/debridlink.test.ts` | `resolveLink` de sucesso (seedbox → poll → pickFile), `enqueue`, `checkCached` devolve `Set` vazio com `known` honesto |
+| 3.7 ✅ | T6: harness mutante seguro | `test/empirical-e2e-challenger.js` (e irmãos) | operar sobre CÓPIA do `dist/` (snapshot + restore em `finally`), nunca in-place; targets por regex tolerante ou assinatura estrutural |
+| 3.8 ✅ | T7: harnesses no `test:complete` | `scripts/check-test-list.ts` + `package.json` | checagem de sanidade dos 5 harnesses (existência, imports resolvem com `node --check`, fixtures presentes) sem executá-los no CI |
 
 **Ordem interna:** 3.7 primeiro (protege o próprio instrumento), depois 3.1–3.6, 3.8 por último.
 **Validação:** `npm test` + `test:complete`; 3.7 validado rodando `npm run test:adversarial` UMA vez com interrupt simulado (Ctrl+C no meio → `dist/` intacto).
@@ -194,7 +222,7 @@ compilado. Esforço S–M.
 
 | # | Tarefa |
 |---|---|
-| 4.1 | Teste e2e (tier2 ou `swr-streams`-style) com cinemeta lento (2500ms) + TMDB miss (5000ms): resposta NÃO estoura o deadline; lista parcial sai com BR incluída quando o indexer responde; `cacheMaxAge: 0` no parcial |
+| 4.1 ✅ | Teste com cinemeta lento (2500ms) + TMDB miss (5000ms): resposta NÃO estoura o deadline. `test/search-budget-metadata.test.ts`, mais os dois T5 do `collection-window` |
 | 4.2 | Métrica: `search.deadline` segmentada por causa (metadata vs providers) para o dashboard não culpar o indexer quando o cinemeta comeu o orçamento — avaliar `search.metadata.duration_ms` |
 | 4.3 | Revisar `Math.max(500, …)`: piso de 500ms para a coleta é intencional? Se a coleta não cabe mais, é melhor devolver parcial imediatamente do que arremessar 500ms de Jackett — decidir e documentar |
 
@@ -303,28 +331,37 @@ garante que nenhum consumidor quebra no meio.
 ## Grafo de dependências
 
 ```
-Fase 0 (docs) ────────────────────────────── independente, sempre pode rodar
-Fase 1 (B1,B2) ──┐
-Fase 2 (S*,B3,B4)─┼─→ Fase 4 (fecha B3 com testes; depende de 2.5)
-                  │      │
-                  └─→ Fase 3 (testes T1–T7; independente de 1/2, mas 3.3
-                         cobre o comportamento do 2.5 — rodar 3.3 depois)
-                         │
-                         └─→ Fase 5 (refactors; GATE: 3.1–3.3 + 3.7 verdes)
-                                └─→ Fase 6 (6.1/6.2 dependem do 5.5)
+Fase 0 (docs)      ✅ exceto 0.6 (README)
+Fase 1 (B1,B2)     ✅ + 1.6/1.7 (refresh em fundo, achado da revisão)
+Fase 2 (S*,B3,B4)  ✅ — resíduo menor no 2.4 (rotação + backoff redundantes)
+Fase 3 (T1–T7)     ✅ — GATE da fase 5 satisfeito
+Fase 4             4.1 ✅; 4.2 e 4.3 abertos
+   │
+   └─→ Fase 5 (refactors) ─→ Fase 6 (6.1/6.2 dependem do 5.5)
 ```
 
-- Fase 2.6–2.10 não dependem de nada; podem rodar em paralelo com a fase 1.
 - 5.1–5.7 são sequenciais entre si (mesmos arquivos), mas 5.2 e 5.4 são
   independentes das demais e podem intercalar.
-- Fase 3.7 (harness seguro) é pré-requisito de TODA a fase 5.
+- Fase 3.7 (harness seguro) é pré-requisito de TODA a fase 5 — **atendido**.
+
+**Decisão em aberto sobre a fase 5.** O gate está satisfeito, mas vale
+reavaliar o escopo antes de começar: é a maior fatia de esforço do plano
+(L + M + M + M + S + contínuo) para zero mudança observável, num sistema cujo
+risco real é corrida de latest-writer e orçamento de tempo — exatamente o que
+um split de módulo quebra com mais facilidade. E o gate prova menos do que
+parece: harness que não pega um bug hoje não vai pegar o que o refactor
+introduzir. Recomendação de quem revisou: fazer só **5.6** (`process.env`
+centralizado, S, risco nulo) e **5.2** (`file-selector`, fronteira limpa), e
+adiar 5.1/5.3 até um bug concreto ficar caro por causa do tamanho do arquivo.
+2.194 linhas é ruim; não é urgente. A alternativa de maior retorno agora são
+os itens 4.2/4.3 e o 0.6.
 
 ## Validação global (por fase)
 
 ```
 npm run typecheck      # portão: ZERO
 npm run build          # dist/ atual (test roda dist)
-npm test               # 1.070+ testes, zero falha
+npm test               # 1.117+ testes, zero falha
 npm run test:complete  # lista explícita fechada
 # fase 2+ (tocou runtime de rede/debrid):
 node dist/scripts/smoke.js          # pipeline ponta a ponta, rede de verdade
@@ -343,6 +380,7 @@ separadas.
 | Risco | Mitigação |
 |---|---|
 | 1.1 muda a limpeza que historicamente derrubou contas | TTL default conservador (300s = mesmo ritmo do inventário `dinv`); fail-safe fecha (sem snapshot fresco, prontos ficam); testes 1.4/1.5 |
+| **Materializado:** corrigir um risco de DADO criou um risco de PRAZO (1.6) | O primeiro conserto do B1 pôs uma chamada de rede sem relação com a resposta dentro da reserva do debrid. Lição para o resto do plano: quando o fail-safe já fecha na ausência de informação, buscar essa informação de forma síncrona no caminho da resposta é custo puro — pague em fundo. Ao mexer no invariante 1 ou na limpeza, **meça tempo no teste**, não só comportamento |
 | 2.5 (budget restante) encurta demais a coleta em metadados lentos | piso 500ms + teste 4.1; se o parcial piorar, revisar o 4.3 (devolver parcial imediato) |
 | 5.x refactor introduz corrida latest-writer/passe tardio | extração um commit por vez + harnesses como prova; `SearchPhase` explícito exatamente para isso |
 | 5.4 unificar resolvers quebra failover de domínio | um resolver por vez; `test:nerdfilmes` + fixtures reais por site |

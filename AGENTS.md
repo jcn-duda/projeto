@@ -199,8 +199,19 @@ saudável) dispara o **pack tardio**, que mescla em vez de substituir.
 A varredura pt-BR (`JACKETT_PT_SWEEP_GLOBAL`) consulta os indexers **globais**
 com a raiz do título em português (`franchiseRoot`: sem subtítulo, sem ano,
 sem SxxEyy). O dublado titulado em PT mora nesses trackers e a query em
-inglês não o encontra. Roda no plano crítico se couber; senão na fila
-tardia, com `recordStatus:false` e `ignoreBreaker:true`.
+inglês não o encontra. Ela tem **dois caminhos, e eles não são iguais**:
+
+- **inline**, quando o `search-plan` consegue anexá-la ao plano crítico: vai
+  com `recordStatus:false` (a variante pt-BR não pode marcar como offline um
+  indexer que a busca principal viu de pé), mas **não** passa `ignoreBreaker` —
+  ela divide orçamento com a resposta e respeita o circuito aberto;
+- **tardia**, na fila de cauda quando a coleta saiu parcial ou a inline não
+  rodou (`raw.sweepInline`): `recordStatus:false` **e** `ignoreBreaker:true`.
+  Fora do caminho da resposta ela não disputa orçamento com ninguém, então
+  pode acordar indexer recém-derrubado.
+
+Não "uniformize" os dois passando `ignoreBreaker` na inline: o breaker existe
+justamente para o indexer morto não comer o prazo da resposta.
 
 ### Configuração por usuário (`src/runtime.ts`)
 
@@ -473,7 +484,10 @@ próxima vez. Travas e arquitetura atuais (invariante 6):
   removem o torrent da conta (`removeTorrent`), registram blacklist por 24h
   (`autofetch:v3:dead:`) e drenam automaticamente o próximo item da fila (`takeNext`),
   respeitando o orçamento horário (`DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR` ou
-  `adapter.enqueueHourlyLimit`);
+  `adapter.enqueueHourlyLimit`). **Orçamento cheio não é recusa do torrent**:
+  o `drainNext` pausa a drenagem daquele `adapter:conta` por
+  `DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS` (60s) em vez de reenfileirar a mesma
+  cabeça e reprocessá-la a cada recheck — o giro infinito era bug real;
 - downloads lentos migram para o ciclo de **settle** (`DEBRID_AUTO_FETCH_SETTLE_MS`)
   até o TTL (`autoFetchTtl`), limitado por LRU (`DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS`);
 - **prefetch de série**: ao pesquisar um episódio de série com debrid ativo,
@@ -562,9 +576,26 @@ cota sem refazer a conta de memória do container de 3g. A SOMA das cotas é
 30.500 — teto global **igual ou abaixo** da soma reintroduz o despejo global
 antes da repartição por namespace (foi bug real).
 
-Fase 3 (cache de disponibilidade por hash) **não** está no código. Gate
-documentado no plano: `debrid.check.repeated / debrid.check.hashes` > 30% em
-15 min. Não implemente por palpite.
+Fase 3 (cache de disponibilidade por hash) **está** no código, em
+`src/debrid/index.ts`: o namespace `davail` guarda `1`/`0` por
+`adapter:conta:hash`, com TTLs separados (`DEBRID_AVAIL_POS_TTL` /
+`DEBRID_AVAIL_NEG_TTL`) — o positivo pode durar mais, o negativo é curto porque
+"não estava em cache" envelhece rápido. Detalhes que não são óbvios lendo só a
+chamada:
+
+- os **guards de prazo voltam antes** da camada `davail`, de propósito: a
+  resposta é do prazo, não do cache;
+- `forceFresh` pula a leitura (o passe tardio e o `/resolve` precisam da
+  verdade do momento);
+- serviço `unusable` **não grava nada** — a culpa é da conta, não do hash, e
+  gravar `0` congelaria o erro por todo o TTL negativo;
+- a escrita é em lote único, para não disparar uma evicção por hash com a cota
+  do namespace saturada;
+- `davail.servedHashes` conta o que a camada respondeu sem ir à rede.
+
+O gate de 30% (`debrid.check.repeated / debrid.check.hashes` em 15 min) era o
+critério para *implementar*. Já está implementado; hoje esse par de métricas
+serve para **calibrar os TTLs**, não para decidir se a fase existe.
 
 ---
 
@@ -617,13 +648,23 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
 O cliente Stremio aborta em 10s. A cadeia é:
 
 ```
-REPLY_DEADLINE_MS (9200) − DEBRID_RESERVE_MS (2800) = orçamento da coleta
+tempo QUE SOBROU do deadline − DEBRID_RESERVE_MS (4500) = orçamento da coleta
+REPLY_DEADLINE_MS (9200)               prazo absoluto da resposta
 BR_PARTIAL_GRACE_MS (1500), sem invadir DEBRID_CHECK_FLOOR_MS (1500)
 JACKETT_INDEXER_TIMEOUT_MS (4000)      teto por indexer global, dentro do orçamento
 JACKETT_BR_INDEXER_TIMEOUT_MS (20000)  total BR — PODE passar do deadline
 JACKETT_DOWNLOAD_TIMEOUT_MS (8000)     teto por salto DENTRO do orçamento BR
 DEBRID_CHECK_FORMAT_MARGIN_MS (500)    o que a checagem pode gastar na resposta
 ```
+
+O orçamento da coleta é **dinâmico**: `collectRaw` recebe o `deadlineAt` da
+requisição e calcula `remainingCheckBudget(deadlineAt) − debridReserve`, com
+piso de 500ms. Não é uma fatia fixa de `replyDeadline`. Isso importa porque os
+metadados rodam **antes** da coleta (Cinemeta 2500ms + TMDB 5000ms no pior
+caso): com a fatia fixa, um Cinemeta lento empurrava a coleta para além do
+deadline e o usuário via "reabra em instantes" em vez de lista parcial. Quem
+mexer aqui tem que rodar `test/search-budget-metadata.test.ts`, que fixa esse
+contrato com metadados lentos e assert no prazo.
 
 Os indexers globais precisam caber no orçamento da coleta; os BR **não**.
 `brIndexerTimeout` é o orçamento **total** de um indexer BR: busca **mais**
@@ -899,8 +940,10 @@ erro para o usuário.
 **Circuit breaker** (`JACKETT_BREAKER_*`): indexer `offline` em N amostras
 seguidas deixa de receber orçamento até o cooldown. `slow`/`degraded` não
 abrem o circuito. `/test-indexer.json` ignora o breaker — é ele quem repara.
-Varredura pt-BR também ignora (`ignoreBreaker: true`): o dublado raro mora
-justamente no indexer recém-derrubado.
+A varredura pt-BR **tardia** também ignora (`ignoreBreaker: true`): o dublado
+raro mora justamente no indexer recém-derrubado, e fora do caminho da resposta
+ela não gasta prazo de ninguém. A varredura **inline** não ignora — ela divide
+o orçamento com a resposta.
 
 ---
 
@@ -949,6 +992,53 @@ justamente no indexer recém-derrubado.
   é upload, não aborta, e precisa da limpeza. README da tabela "consulta de
   cache = não" fala do endpoint instantâneo aposentado, não do comportamento
   atual do adaptador.
+- **O snapshot que protege o acervo do usuário EXPIRA, e o refresh nunca é
+  aguardado.** `ALLDEBRID_PREEXISTING_TTL_MS` (300s) existe porque o usuário
+  também administra a conta fora do addon: uma referência congelada por
+  processo autorizava apagar o que ele adicionou depois do boot. Duas regras
+  que não podem ser invertidas ao mexer em `knownBefore`/`checkCached`:
+  1. **Fail-safe fecha.** Enquanto `hashes` for `null` — refresh em voo,
+     inventário que falhou, primeiro carregamento — os prontos ficam
+     **protegidos**. Ausência de referência nunca autoriza remoção.
+  2. **O refresh por TTL roda em fundo.** Só o PRIMEIRO inventário da conta é
+     esperado, e mesmo esse com teto (`waitInventory`, limitado pelo
+     `DEBRID_CHECK_FLOOR_MS`). Aguardar o refresh dentro do `checkCached` era
+     um bug real: colocava um `/magnet/status` (timeout padrão de 6s, contra
+     uma reserva de 4500ms) dentro do prazo da resposta uma vez a cada TTL —
+     e, com o endpoint fora do ar, em TODA busca, porque a falha limpa o
+     registro e a passada seguinte tentava de novo. Testes:
+     `test/debrid-drop-uncached.test.ts`, que mede o tempo gasto.
+- **`DEBRID_DROP_READY` e `DEBRID_DROP_UNCACHED` são switches independentes.**
+  São dois lotes separados (`dropReady` e `dropDownload`) com métrica própria
+  (`debrid.dropped.download`). Já foram um `if` só, e desligar o de download
+  desligava silenciosamente a limpeza dos prontos.
+- **O Link do indexer é input de terceiro.** `resolveDownloadMagnet` passa por
+  `isSafeDownloadUrl` (`src/utils/net-safety.ts`) antes do fetch: bloqueia
+  esquema não-http(s), loopback, RFC1918, CGNAT, link-local (incluindo o
+  `169.254.169.254` de metadado de nuvem), multicast, reservados e os
+  equivalentes IPv6 — ULA, link-local, IPv4-mapeado, 6to4, NAT64. O `fetch`
+  usa `redirect: 'manual'`, então não há bypass por 302. **A proteção é sobre
+  o literal**: hostname público que resolve para IP privado passaria, e fechar
+  isso exigiria validar DNS antes do fetch — resíduo aceito de propósito, para
+  não transformar indisponibilidade de DNS em falso bloqueio. `JACKETT_ALLOW_
+  PRIVATE_DOWNLOAD_IPS=true` é o escape para quem roda resolvedor em rede
+  privada nesse caminho.
+- **Rota async no Express 4 precisa do `asyncRoute`.** O Express 4 não
+  encaminha rejeição de handler `async` para o middleware de erro: sem
+  wrapper, a requisição pendura até o cliente desistir. Toda rota async de
+  `src/app.ts` vai embrulhada em `asyncRoute` (loga e responde 500 JSON). O
+  `process.on('unhandledRejection')` do `src/addon.ts` é a rede de baixo, para
+  promessa de fundo — **não** substitui o wrapper, e usá-lo como desculpa para
+  não embrulhar uma rota troca crash ruidoso por requisição pendurada.
+- **`cache.db` corrompido é renomeado, transiente não.** `openDatabase` só
+  move para `.corrupt` e recria quando o erro é corrupção de verdade
+  (`SQLITE_CORRUPT`/`SQLITE_NOTADB`, "malformed", "not a database"). `SQLITE_
+  BUSY` (segunda instância no mesmo volume), stall de I/O e `EACCES` caem em
+  memória e tentam de novo na próxima subida — renomear neles apagaria cache
+  vivo por um glitch.
+- **Ação destrutiva do painel exige `{"confirm": true}`.** `clear-cache` e
+  `sweep-dead` devolvem 400 `confirmation_required` sem ele. São globais: não
+  há escopo por instalação hoje.
 - **Os sites BR trocam de domínio com frequência.** `BLUDV_URL`,
   `COMANDOTORRENTS_URL`, `NERDFILMES_URL`, `TORRENTDOSFILMES_URL` são
   configuráveis. Os resolvers ainda têm failover interno por saúde de **rede**
@@ -989,10 +1079,24 @@ justamente no indexer recém-derrubado.
   Entrada antiga que era só um array ainda é lida (`findStreams`).
 - **Suíte de testes cobre o que é puro e o e2e com fetch dublê.** `npm test`
   é a lista explícita; `npm run test:complete` cobra que nada tenha ficado de
-  fora. `npm run test:nerdfilmes` cobre um resolver contra a rede. Ao mexer
-  em matching, debrid, cache, runtime, rotas ou o fluxo de busca, estenda
-  `test/` (incluindo o tier e2e se o contrato HTTP mudou). Para o resto,
-  `npm run smoke` ou um script pontual em `node -e`.
+  fora — e também que os 6 harnesses existam, compilem para `dist/` e estejam
+  referenciados em algum script do `package.json` (eles ficam fora do CI, e
+  sem essa checagem apodreciam sem ninguém notar). `npm run test:nerdfilmes`
+  cobre um resolver contra a rede. Ao mexer em matching, debrid, cache,
+  runtime, rotas ou o fluxo de busca, estenda `test/` (incluindo o tier e2e se
+  o contrato HTTP mudou). Para o resto, `npm run smoke` ou um script pontual
+  em `node -e`.
+- **O harness adversarial MUTA o `dist/`.** `test/empirical-e2e-challenger.ts`
+  injeta defeitos nos arquivos construídos para provar que a suíte os pega.
+  Ele guarda o conteúdo original em memória e restaura em `finally` **e** nos
+  handlers de `SIGINT`/`SIGTERM`/`uncaughtException`/`exit`. Se você adicionar
+  uma mutação, ela tem que entrar na mesma lista de snapshot — mutação fora
+  dela deixa o `dist/` corrompido quando o harness é interrompido, e o sintoma
+  seguinte é um teste "falhando" que não tem nada a ver com o seu commit.
+- **`assert.deepEqual` do `node:assert/strict` estreita o tipo.** A assinatura
+  é `asserts actual is T`: depois de `assert.deepEqual(lista, [])`, o TS trata
+  `lista` como `never[]` e qualquer uso posterior (`.includes(n)`) vira erro de
+  compilação. Em asserção intermediária use `assert.equal(lista.length, 0)`.
 - **`BR_RESOLVERS_HOST` é o único jeito de alcançar os resolvers.** Os cards
   Cardigann chamam `http://{{ ... }}/...` montado com essa env; no container
   único ela é `127.0.0.1`. Os resolvers escutam em 8700–8703 **só dentro do
