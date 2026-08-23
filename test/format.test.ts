@@ -7,6 +7,7 @@ import {
   bytesToSize,
   extractInfoHash,
   qualityFromTitle,
+  stripQualityTagBlob,
   audioFromTitle,
   explicitPtAudio,
   editionFromTitle,
@@ -247,6 +248,82 @@ test('marca dublado só quando a origem global anuncia áudio PT explícito', ()
   assert.equal(globalDub._dubbed, true);
   assert.equal(brDual._dubbed, true);
 });
+
+// --- Causa A: blob de tags do hdrtorrent ---------------------------------
+//
+// Títulos REAIS capturados na investigação (Jackett, indexer hdrtorrent). O
+// post anexa ao fim um blob de tags listando TODAS as qualidades, e o prefixo
+// é sempre "... Dublada e Dual" mesmo no botão LEGENDADA. Sem cortar a cauda,
+// o addon classificava tudo como 2160p/Dual — e o rótulo errado ocupava vaga
+// BR, cota de 4K, prioridade de autofetch e o índice (que persiste semanas).
+
+test('blob de tags no fim não engana qualityFromTitle nem audioFromTitle', () => {
+  // Botão real: 1080P DUBLADO — o "Dual" do prefixo é convenção do site.
+  assert.equal(
+    qualityFromTitle('Fallout 1ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA DUBLADA Dual 1080P 1080p, 2160p, 720p, HD, WEB-DL'),
+    '1080p',
+  );
+  // Botão LEGENDADA 720P: qualidade certa E áudio legendado apesar do prefixo.
+  assert.equal(
+    qualityFromTitle('Fallout 1ª Temporada Dublada e Dual 1ª TEMPORADA LEGENDADA 720P 1080p, 2160p, 720p, HD, WEB-DL'),
+    '720p',
+  );
+  assert.equal(
+    audioFromTitle('Fallout 1ª Temporada Dublada e Dual 1ª TEMPORADA LEGENDADA 720P 1080p, 2160p, 720p, HD, WEB-DL'),
+    'Legendado',
+  );
+  // Botão LEGENDADA 2160P.
+  assert.equal(
+    qualityFromTitle('Fallout 1ª Temporada Dublada e Dual 1ª TEMPORADA LEGENDADA 2160P ULTRA HD 4K 1080p, 2160p, 720p, HD, WEB-DL'),
+    '2160p',
+  );
+  assert.equal(
+    audioFromTitle('Fallout 1ª Temporada Dublada e Dual 1ª TEMPORADA LEGENDADA 2160P ULTRA HD 4K 1080p, 2160p, 720p, HD, WEB-DL'),
+    'Legendado',
+  );
+});
+
+test('dublado real do hdrtorrent continua dublado apesar do blob', () => {
+  // "COMPLETA DUBLADA Dual" fora da frase de convenção prova o áudio.
+  assert.equal(
+    audioFromTitle('Fallout 1ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA DUBLADA Dual 1080P 1080p, 2160p, 720p, HD, WEB-DL'),
+    'Dual',
+  );
+});
+
+test('stripQualityTagBlob preserva título legítimo que termina em tag única', () => {
+  // Tag única no fim NÃO é cortada: release legítima pode terminar em "1080p".
+  assert.equal(stripQualityTagBlob('Coringa 2019 1080p'), 'Coringa 2019 1080p');
+  assert.equal(qualityFromTitle('Coringa 2019 1080p'), '1080p');
+  // Duas tags viram corte; uma não.
+  assert.equal(stripQualityTagBlob('Nome 1080p WEB-DL'), 'Nome 1080p WEB-DL');
+  // Cabeça do blob sem repetição no corpo sai com a cauda (é a enumeração).
+  assert.equal(
+    stripQualityTagBlob('Nome 1080p, 2160p, 720p, HD, WEB-DL'),
+    'Nome',
+  );
+  // Cabeça que REPETE valor do corpo é o botão real e permanece.
+  assert.equal(
+    stripQualityTagBlob('Nome Dual 1080P 1080p, 2160p, 720p, HD, WEB-DL'),
+    'Nome Dual 1080P',
+  );
+  // Tag fora do vocabulário interrompe o corte no meio, sem tocar o corpo.
+  assert.equal(
+    stripQualityTagBlob('Missão: Impossível – Efeito Fallout, análise, 1080p'),
+    'Missão: Impossível – Efeito Fallout, análise, 1080p',
+  );
+});
+
+test('anti-regressão: títulos limpos de comandotorrents/torrentdosfilmesv2 classificam igual', () => {
+  // Formato medido nos dois indexers com resolver local: sem blob de tags.
+  assert.equal(qualityFromTitle('Fallout 1ª Temporada Completa Dublado 1080p WEB-DL'), '1080p');
+  assert.equal(audioFromTitle('Fallout 1ª Temporada Completa Dublado 1080p WEB-DL'), 'Dublado');
+  assert.equal(qualityFromTitle('Série Nome 2ª Temporada Legendada 720p'), '720p');
+  assert.equal(audioFromTitle('Série Nome 2ª Temporada Legendada 720p'), 'Legendado');
+  // "Dual Áudio" legítimo continua Dual (fora da frase de convenção).
+  assert.equal(audioFromTitle('Filme Nacional Dual Áudio 1080p'), 'Dual');
+});
+
 
 test('toStremioStream preserva a marca de origem BR do provider', () => {
   const s = stremioStream({ title: 'Coringa Dublado', infoHash: HASH, isBr: true, seeders: 1 });

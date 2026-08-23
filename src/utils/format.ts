@@ -161,7 +161,7 @@ function decodeEntities(text = '') {
  * SD agora exige uma marca explícita de baixa qualidade.
  */
 function qualityFromTitle(title = '') {
-  const t = title.toUpperCase();
+  const t = stripQualityTagBlob(title).toUpperCase();
   if (/\b(2160P|4K|UHD)\b/.test(t)) return '2160p';
   if (/\b1080P\b/.test(t)) return '1080p';
   if (/\b720P\b/.test(t)) return '720p';
@@ -260,7 +260,24 @@ function dubbedLieVerdict(videoPaths: string[] = [], promisedDubbed = false) {
  * sites BR a escrevem no título. Sem ela o usuário abre o torrent pra descobrir.
  */
 function audioFromTitle(title = '') {
-  const t = title.toUpperCase();
+  // O blob de tags do fim não descreve áudio, mas pode citar "DUAL" entre as
+  // tags — classifica sobre o título sem a cauda.
+  const t = stripQualityTagBlob(title).toUpperCase();
+
+  // Convenção de nome de post (hdrtorrent medido): o PREFIXO é sempre
+  // "... Dublada e Dual", mesmo quando o botão é LEGENDADA. O marcador do
+  // segmento do botão é mais específico e vence: se existe LEGENDADA/
+  // LEGENDADO/SUBBED fora dessa frase e nenhum outro marcador de dublagem,
+  // o título é legendado — o prefixo do post não pode mentir melhor que o
+  // botão. Um DUBLADO/DUAL FORA da frase ("... COMPLETA DUBLADA Dual 1080P")
+  // mantém o comportamento de sempre.
+  const semConvencao = t.replace(/\bDUBLAD[OA]\s+E\s+DUAL\b/g, ' ');
+  const isExplicitSub =
+    /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(semConvencao) ||
+    /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(semConvencao);
+  const isExplicitDub = explicitPtAudio(semConvencao);
+
+  if (isExplicitSub && explicitPtAudio(t) && !isExplicitDub) return 'Legendado';
 
   // Dual / Multi áudio
   if (/\b(DUAL|DOUBLE|DUAL[- ]?AUDIO|AUDIO[- ]?DUPLO|DUPLO[- ]?AUDIO|MULTI[- ]?AUDIO|MULTIAUDIO)\b/.test(t)) {
@@ -271,12 +288,6 @@ function audioFromTitle(title = '') {
   if (/\b(NACIONAL|NAC)\b/.test(t) && !/\b(LEG|LEGENDAD[OA]|SUB|SUBBED)\b/.test(t)) {
     return 'Nacional';
   }
-
-  // Legendado explícito
-  const isExplicitSub =
-    /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
-    /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
-  const isExplicitDub = explicitPtAudio(title);
 
   if (isExplicitDub && isExplicitSub) return 'Dual';
   if (isExplicitDub) return 'Dublado';
@@ -647,6 +658,61 @@ const LINK_WORDS = 'de do da das dos e a o os as um uma em no na para por com so
 // daqui, "… Dublado Portugues Brasil" vindo de tracker global media precisão
 // 0 no matchesBrTitle (portugues/brasil fora de qualquer universo de nomes)
 // e morria no filtro logo depois de ser classificado BR pelo título.
+/**
+ * Posts de site BR (hdrtorrent medido) anexam ao FIM do título um blob de tags
+ * separadas por vírgula listando TODAS as qualidades do post:
+ *
+ *   "Fallout 1ª Temporada … LEGENDADA 720P 1080p, 2160p, 720p, HD, WEB-DL"
+ *
+ * Sem cortar essa cauda, `qualityFromTitle` varre a string inteira, casa o
+ * "2160p" do blob e classifica um botão 720P como 4K — e o rótulo errado
+ * alimenta cota de qualidade, reserva BR, autofetch e o índice (que persiste
+ * por semanas). O corte exige 2+ tags do vocabulário de qualidade/fonte
+ * separadas por vírgula NO FIM: título legítimo que termina em "1080p" (tag
+ * única) não perde o sufixo.
+ */
+const normalizeBlobTag = (tag: string) => tag.toLowerCase().replace(/[^a-z0-9+]/g, '');
+
+// Recorte do TECH_NOISE com as tags de qualidade/fonte que aparecem no blob.
+// Derivado daqui (e não de lista nova) para os dois vocabulários não
+// divergirem; tokens curtos não-técnicos ("h", "tv", "us", "gb") ficam de fora
+// — cortar cauda por eles é convidar falso corte de título legítimo.
+const TAG_BLOB_VOCAB = new Set(
+  TECH_NOISE.filter((w) =>
+    /^(?:\d{3,4}p|4k|uhd|sd|hd|hdrip|fullhd|webdl|webrip|bluray|bdrip|brrip|hdtv|remux|hybrid|x264|x265|h264|h265|avc|hevc|av1|xvid|divx|10bit|8bit|hdr|hdr10|imax|mkv|mp4|avi|web|dl|blu|ray)$/.test(w),
+  ).map(normalizeBlobTag),
+);
+
+function stripQualityTagBlob(title = '') {
+  const raw = String(title || '');
+  if (!raw.includes(',')) return raw;
+  let cut = raw.length;
+  let tags = 0;
+  for (;;) {
+    // Consome uma tag por vez do fim; o índice do separador é onde a cauda
+    // começa. Parar na primeira tag fora do vocabulário preserva o corpo.
+    const m = raw.slice(0, cut).match(/[,;]\s*([A-Za-z0-9][A-Za-z0-9+.\-]*)\s*$/);
+    if (!m) break;
+    if (!TAG_BLOB_VOCAB.has(normalizeBlobTag(m[1]))) break;
+    cut = m.index as number;
+    tags += 1;
+  }
+  if (tags < 2) return raw;
+
+  // O post cola a PRIMEIRA tag do blob direto na qualidade do botão, sem
+  // vírgula ("… LEGENDADA 720P 1080p, 2160p, …"). Essa cabeça é enumeração do
+  // post e sai com a cauda: se o mesmo valor já existe no corpo ("… Dual
+  // 1080P 1080p, …"), o corpo o retém; se não existe, era só o blob repetindo
+  // a lista — e mantê-la faria qualityFromTitle escolher a maior resolução da
+  // enumeração em vez da qualidade do botão.
+  const before = raw.slice(0, cut);
+  const head = before.match(/(?:^|\s)([A-Za-z0-9][A-Za-z0-9+.\-]*)$/);
+  if (head && TAG_BLOB_VOCAB.has(normalizeBlobTag(head[1]))) {
+    return before.slice(0, before.length - head[1].length).trimEnd();
+  }
+  return before.trimEnd();
+}
+
 const LANG_NOISE = 'portugues portuguesa portugueses brasil brasileiro brasileira'.split(' ');
 
 const RELEASE_NOISE = new Set([...TECH_NOISE, ...LINK_WORDS, ...LANG_NOISE]);
@@ -2068,6 +2134,7 @@ export {
   bytesToSize,
   extractInfoHash,
   qualityFromTitle,
+  stripQualityTagBlob,
   sourceFromTitle,
   audioFromTitle,
   explicitPtAudio,

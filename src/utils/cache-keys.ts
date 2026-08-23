@@ -22,7 +22,12 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // registro é o mesmo, mas metade do conteúdo da v2 estava sob chave errada
   // (medido: 328 de 659) — e re-rotear o legado custaria mais código que
   // deixar o índice se refazer, que é o que ele faz sozinho.
-  idx: 'v3',
+  // v4: qualityFromTitle/audioFromTitle aprenderam a cortar o blob de tags
+  // que o hdrtorrent anexa ao fim do título ("… 720P 1080p, 2160p, 720p, HD,
+  // WEB-DL") — releases gravadas como 2160p/Dual quando eram 720p/Legendado.
+  // O rótulo errado vive semanas no TTL do índice; sem o bump, o conserto do
+  // classificador não aparece para obra já indexada.
+  idx: 'v4',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',
