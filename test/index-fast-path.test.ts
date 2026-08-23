@@ -11,6 +11,7 @@ process.env.CACHE_PERSIST = 'false';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
+import jackett from '../src/providers/jackett.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import { idxPoolCovered, poolCovered } from '../src/providers/index.js';
 import type { DebridAdapter } from '../types/domain.js';
@@ -223,6 +224,137 @@ test('Fase 3: Jackett FORA DO AR — busca respondida pelo índice', async () =>
     }
     assert.ok(elapsed < 3000, `sem esperar indexer morto (${elapsed}ms)`);
   });
+});
+
+test('Fase 3: índice não esconde a primeira fonte BR viva dentro da janela crítica', async () => {
+  const key = 'idx-br-vivo';
+  const indexedHash = '91'.repeat(20);
+  const liveBrHash = '92'.repeat(20);
+  const originalSearch = jackett.search;
+  let priorityCalls = 0;
+
+  jackett.search = async (_query, _type, indexers) => {
+    if (!indexers?.includes('torrentdosfilmesv2')) return [];
+    priorityCalls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    return [{
+      title: 'Zumbilândia 2009 720p DUBLADO',
+      infoHash: liveBrHash,
+      seeders: 1,
+      tracker: 'torrentdosfilmesv2',
+      indexer: 'torrentdosfilmesv2',
+      isBr: true,
+    }];
+  };
+
+  try {
+    await withMockFetch([
+      {
+        match: 'cinemeta.strem.io',
+        handler: () => ({ meta: { name: 'Zombieland', year: '2009', type: 'movie' } }),
+      },
+      {
+        match: 'themoviedb.org',
+        handler: () => ({ movie_results: [{ title: 'Zumbilândia', original_title: 'Zombieland', release_date: '2009-09-25' }] }),
+      },
+    ], async () => {
+      // O harness limpa o cache no início da requisição simulada; o índice
+      // precisa ser semeado depois disso, como no cenário de Jackett fora do ar.
+      releaseIndex.record('tt9000110', {}, [{
+        title: 'Zumbilândia 2009 720p DUBLADO',
+        infoHash: indexedHash,
+        seeders: 1,
+        indexer: 'indice',
+        isBr: true,
+      }]);
+      const res = await server.request('GET', `/${userCfg(key, { ji: ['torrentdosfilmesv2'], b: 2 })}/stream/movie/tt9000110.json`);
+
+      assert.equal(res.status, 200);
+      const dump = JSON.stringify(res.json.streams || []).toLowerCase();
+      assert.ok(dump.includes(indexedHash), 'mantém a release que já estava no índice');
+      assert.ok(dump.includes(liveBrHash), 'inclui a fonte BR viva na primeira resposta');
+      assert.equal(priorityCalls, 1, 'não repete a consulta BR no enriquecimento tardio');
+    });
+  } finally {
+    jackett.search = originalSearch;
+  }
+});
+
+test('Fase 3: tail do índice reconcilia BR tardio antes da única promoção', async () => {
+  const key = 'idx-br-tail-unico';
+  const indexedHash = '93'.repeat(20);
+  const lateBrHash = '94'.repeat(20);
+  const globalHash = '95'.repeat(20);
+  let releasePriority!: () => void;
+  let releaseGlobal!: () => void;
+  let notifyGlobalStarted!: () => void;
+  const priority = new Promise<void>((resolve) => { releasePriority = resolve; });
+  const global = new Promise<void>((resolve) => { releaseGlobal = resolve; });
+  const globalStarted = new Promise<void>((resolve) => { notifyGlobalStarted = resolve; });
+  const originalSearch = jackett.search;
+  const savedDeadline = config.replyDeadline;
+  const savedReserve = config.debridReserve;
+  const savedFloor = config.debridCheckFloor;
+  const cfg = userCfg(key, { ji: ['torrentdosfilmesv2', 'thepiratebay'], b: 2 });
+
+  // Encurta só a janela do teste: o BR fica pendente quando a resposta do
+  // índice sai, enquanto o global do tail continua fechado de forma determinística.
+  config.replyDeadline = 800;
+  config.debridReserve = 200;
+  config.debridCheckFloor = 100;
+  jackett.search = async (_query, _type, indexers) => {
+    if (indexers?.includes('torrentdosfilmesv2')) {
+      await priority;
+      return [{ title: 'Zumbilândia 2009 720p DUBLADO', infoHash: lateBrHash, seeders: 1, indexer: 'torrentdosfilmesv2', isBr: true }];
+    }
+    notifyGlobalStarted();
+    await global;
+    return [{ title: 'Zombieland 2009 1080p', infoHash: globalHash, seeders: 10, indexer: 'thepiratebay' }];
+  };
+
+  try {
+    await withMockFetch([
+      { match: 'cinemeta.strem.io', handler: () => ({ meta: { name: 'Zombieland', year: '2009', type: 'movie' } }) },
+      { match: 'themoviedb.org', handler: () => ({ movie_results: [{ title: 'Zumbilândia', original_title: 'Zombieland', release_date: '2009-09-25' }] }) },
+    ], async () => {
+      releaseIndex.record('tt9000111', {}, [{
+        title: 'Zumbilândia 2009 720p DUBLADO', infoHash: indexedHash, seeders: 1, indexer: 'indice', isBr: true,
+      }]);
+      const res = await server.request('GET', `/${cfg}/stream/movie/tt9000111.json`);
+      assert.equal(res.status, 200);
+
+      releasePriority();
+      await globalStarted;
+      const beforeGlobal = await server.request('GET', `/${cfg}/stream/movie/tt9000111.json`);
+      const beforeDump = JSON.stringify(beforeGlobal.json.streams || []).toLowerCase();
+      assert.ok(beforeDump.includes(indexedHash), 'o writer prioritário não substitui o índice');
+      assert.equal(beforeDump.includes(lateBrHash), false, 'BR tardio não promove antes do global');
+
+      releaseGlobal();
+      let promoted: any;
+      for (let turn = 0; turn < 20; turn += 1) {
+        const hit = await server.request('GET', `/${cfg}/stream/movie/tt9000111.json`);
+        const dump = JSON.stringify(hit.json.streams || []).toLowerCase();
+        if (dump.includes(indexedHash) && dump.includes(lateBrHash) && dump.includes(globalHash)) {
+          promoted = hit.json;
+          break;
+        }
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      assert.ok(promoted, 'o tail promove depois de reconciliar as duas coletas');
+      const dump = JSON.stringify(promoted.streams || []).toLowerCase();
+      assert.ok(dump.includes(indexedHash), 'a promoção preserva o índice');
+      assert.ok(dump.includes(lateBrHash), 'a promoção preserva o BR tardio');
+      assert.ok(dump.includes(globalHash), 'a promoção inclui o enriquecimento global');
+    });
+  } finally {
+    releasePriority();
+    releaseGlobal();
+    jackett.search = originalSearch;
+    config.replyDeadline = savedDeadline;
+    config.debridReserve = savedReserve;
+    config.debridCheckFloor = savedFloor;
+  }
 });
 
 test('poolCovered: valida requireDubbed e swarms', () => {

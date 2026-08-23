@@ -142,11 +142,16 @@ export async function collectRaw(
   onLate: ((items: any[], grew: boolean, partial?: boolean) => any) | null,
   sweepQuery: string | null = null,
   deadlineAt: number | null = null,
+  taskScope: 'all' | 'priority' | 'nonpriority' = 'all',
 ) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
   const tasks: { promise: Promise<any>; priority: boolean; source?: string }[] = [];
-  const addTask = (promise: Promise<any>, priority = false, source?: string) => tasks.push({ promise, priority, source });
+  const addTask = (create: () => Promise<any>, priority = false, source?: string) => {
+    if (taskScope === 'priority' && !priority) return;
+    if (taskScope === 'nonpriority' && priority) return;
+    tasks.push({ promise: create(), priority, source });
+  };
   let sweepInline = false;
 
   if (mode === 'demo') {
@@ -175,7 +180,7 @@ export async function collectRaw(
       // inventário; a obra entra na fila do colhedor pelo caminho de sempre.
       metrics.count('search.indexonly.all');
     } else if (selectedIndexers.length === 0) {
-      addTask(jackett.search(query, type));
+      addTask(() => jackett.search(query, type));
     } else {
       const plan = planJackettQueries(
         query,
@@ -191,7 +196,7 @@ export async function collectRaw(
         );
         const inlineSweep = Boolean(sweepQuery) && sweepQuery !== query && planned.query === sweepQuery;
         if (inlineSweep) sweepInline = true;
-        addTask(jackett.search(planned.query, type, planned.indexers, {
+        addTask(() => jackett.search(planned.query, type, planned.indexers, {
           fallbackQuery: planned.fallback,
           variantQuery: planned.variant,
           matchContext,
@@ -203,20 +208,20 @@ export async function collectRaw(
     }
   }
   if (wants('prowlarr')) {
-    addTask(prowlarr.search(query));
+    addTask(() => prowlarr.search(query));
   }
 
   // Se misconfigurou PROVIDER, tenta jackett
   const validProvider = providers.some((name: string) => ['jackett', 'prowlarr', 'demo', 'both'].includes(name));
   if (tasks.length === 0 && providers.length > 0 && !validProvider) {
-    addTask(jackett.search(query, type));
+    addTask(() => jackett.search(query, type));
   }
 
   // Fonte BR dublada, independente do PROVIDER: entra no mesmo allSettled,
   // então se o site cair ou demorar, o resto da busca sai normalmente.
   if (config.bludv.enabled) {
     // Sites BR indexam por título pt-BR ("Coringa", não "Joker").
-    addTask(bludv.search(ptQuery || query), true);
+    addTask(() => bludv.search(ptQuery || query), true);
   }
 
   // A conta do debrid como fonte: o que já está pronto lá entra com ⚡ sem
@@ -224,7 +229,7 @@ export async function collectRaw(
   // para a primeira leitura não segurar a resposta.
   const accountSource = config.debrid.inventorySource && Boolean(debrid.current());
   if (accountSource) {
-    addTask(account.search(matchContext), false, 'account');
+    addTask(() => account.search(matchContext), false, 'account');
   }
 
   // Orçamento menor que o deadline da resposta: o resto do tempo é da checagem
@@ -262,6 +267,10 @@ export async function collectRaw(
   // coleta segue em fundo. A resposta sai partial de propósito — é isso que
   // faz o passe tardio promovê-la quando os indexers fecharem.
   const fastPathOn = config.accountFastPath.enabled && accountSource;
+  // Quando o índice já cobre a obra, a primeira resposta ainda pode esperar
+  // somente os BR vivos: eles são a parte que o índice não sabe atualizar. Os
+  // globais ficam no enriquecimento, sem transformar um hit do índice em uma
+  // espera pelo caminho inteiro nem consultar index-only.
   const collected = await collectWithinWindow(tasks, {
     budgetMs: budget,
     priorityGraceMs: priorityGrace,
@@ -492,15 +501,29 @@ export async function doSearch({ type, id, cacheKey, deadlineAt }: { type: strin
         config.accountFastPath.waitMs,
         () => [] as any[],
       );
-      log.info(`[search] servido só pela memória: ${indexed.length} release(s) do índice para ${id}`);
-      raw = {
-        items: [...idxReleasesToRaw(indexed), ...accountItems],
-        // partial DE PROPÓSITO: cacheMaxAge curto enquanto a coleta não fechou,
-        // e o tail abaixo promove a lista enriquecida.
-        partial: true,
-        completion: Promise.resolve(),
-        sweepInline: false,
-      };
+      // O índice responde mesmo sem Jackett, mas não pode esconder a primeira
+      // fonte BR saudável que ainda cabe na janela crítica. Consultamos apenas
+      // as tarefas BR isoladas; globais e index-only continuam no enriquecimento
+      // em fundo, como antes.
+      raw = await collectRaw(
+        query,
+        type,
+        imdbId,
+        ptQuery,
+        matchContext,
+        // O BR prioritário compartilha `raw.items` com o tail abaixo. Não pode
+        // ter writer próprio: se chegar atrasado, ele ainda não conhece os
+        // globais e promoveria uma coleta incompleta antes da reconciliação.
+        null,
+        sweepQuery,
+        deadlineAt,
+        'priority',
+      );
+      raw.items.unshift(...idxReleasesToRaw(indexed), ...accountItems);
+      // Mesmo se as tarefas BR fecharem cedo, o lote global ainda será buscado
+      // abaixo. Mantém cache curto até o enriquecimento completar a lista.
+      raw.partial = true;
+      log.info(`[search] índice + ${raw.items.length - indexed.length - accountItems.length} resultado(s) BR ao vivo para ${id}`);
     } else {
       // Existe, mas não cobre o pool (ex.: só legendado): NUNCA impede a busca
       // BR dublada de rodar. O colhedor completa o que falta.
@@ -575,8 +598,14 @@ export async function doSearch({ type, id, cacheKey, deadlineAt }: { type: strin
     enqueueTail(async () => {
       const enrichStarted = Date.now();
       try {
-        const live = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery);
+        // As tarefas BR já rodaram na janela crítica acima. Não as repetimos no
+        // tail; só o restante enriquece o índice.
+        const live = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery, null, 'nonpriority');
         if (live.partial && live.completion) await live.completion;
+        // A janela crítica pode ter devolvido antes do BR terminar. Espera-o
+        // aqui, no único writer do caminho do índice, para mesclar o lote no
+        // `raw` compartilhado antes de promover a coleta completa.
+        if (raw.partial && raw.completion) await raw.completion;
         const known = new Set(
           raw.items.map((item) => String(extractInfoHash(item.infoHash || item.magnet) || '').toLowerCase()).filter(Boolean),
         );
