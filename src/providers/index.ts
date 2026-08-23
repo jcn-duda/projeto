@@ -2054,6 +2054,7 @@ async function buildStreams(
     maxSizeGb,
     qualityLimits,
     brReservedSlots,
+    brReservedPerQuality: config.brReservedPerQuality,
     candidateFactor: config.candidatePoolFactor,
     brFirst,
     indexerPriority: safeIndexerPriority,
@@ -2084,6 +2085,7 @@ async function buildStreams(
   });
   streams = limitReservingBr(beforeCut, {
     brReservedSlots,
+    brReservedPerQuality: config.brReservedPerQuality,
     maxResults,
     brOnly,
     qualityLimits,

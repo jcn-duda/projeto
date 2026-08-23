@@ -1443,6 +1443,7 @@ function selectQualityCandidates(
     maxResults = 40,
     qualityLimits = {} as Record<string, any>,
     brReservedSlots = 0,
+    brReservedPerQuality = 0,
     candidateFactor = 1,
     brFirst = true,
     indexerPriority = [],
@@ -1476,9 +1477,30 @@ function selectQualityCandidates(
   // forem considerados só no corte final, seeders globais podem preencher o
   // pool ampliado antes deles chegarem ao debrid.
   const brTarget = brFirst ? poolSize : brReservedSlots;
+
+  // Reserva por faixa: sem ela, BR de 1080p abundante consumia as vagas BR na
+  // ordem em que chegam e a faixa 4K/720p ficava sem BR no pool pré-debrid —
+  // o corte final nunca vê candidato que aqui foi cortado.
+  const perFaixa = Math.max(0, Math.trunc(Number(brReservedPerQuality) || 0));
+  if (perFaixa > 0) {
+    const faixaCounts = new Map<string, number>();
+    for (const stream of streams) {
+      if (selected.size >= poolSize || selected.size >= brTarget) break;
+      if (!stream._br || selected.has(stream)) continue;
+      const quality = streamQuality(stream);
+      const usados = faixaCounts.get(quality) || 0;
+      if (usados >= perFaixa) continue;
+      if (customSet.has(quality) &&
+        (counts.get(quality) as number) >= (targets.get(quality) as number)) continue;
+      faixaCounts.set(quality, usados + 1);
+      selected.add(stream);
+      if (customSet.has(quality)) counts.set(quality, (counts.get(quality) as number) + 1);
+    }
+  }
+
   for (const stream of streams) {
     if (selected.size >= poolSize || selected.size >= brTarget) break;
-    if (!stream._br) continue;
+    if (!stream._br || selected.has(stream)) continue;
     const quality = streamQuality(stream);
     if (customSet.has(quality) &&
       (counts.get(quality) as number) >= (targets.get(quality) as number)) continue;
@@ -1875,6 +1897,7 @@ function limitReservingBr(
   streams: Stream[],
   {
     brReservedSlots = 0,
+    brReservedPerQuality = 0,
     maxResults = 40,
     brOnly = false,
     qualityLimits = {},
@@ -1924,14 +1947,54 @@ function limitReservingBr(
   const brStreams = eligible
     .filter((stream) => stream._br)
     .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0));
-  let selected;
+
+  // Reserva por faixa: até `brReservedPerQuality` BR por balde de qualidade,
+  // escolhidos dubbed-first. É o seguro contra a abundância de 1080p BR
+  // empurrar a única BR 4K/720p para fora — na reserva global e no teto de
+  // maxResults. Faixa sem candidato BR simplesmente não ganha vaga fantasma.
+  const perFaixa = Math.max(0, Math.trunc(Number(brReservedPerQuality) || 0));
+  const garantidas: Stream[] = [];
+  if (perFaixa > 0) {
+    const faixaCounts = new Map<string, number>();
+    for (const stream of brStreams) {
+      const quality = streamQuality(stream);
+      const usados = faixaCounts.get(quality) || 0;
+      if (usados >= perFaixa) continue;
+      faixaCounts.set(quality, usados + 1);
+      garantidas.push(stream);
+    }
+  }
+  const encaixaGarantida = (selected: Stream[]) => {
+    const dentro = new Set(selected);
+    for (const stream of garantidas) {
+      if (dentro.has(stream)) continue;
+      if (selected.length < maxResults) {
+        selected.push(stream);
+        dentro.add(stream);
+        continue;
+      }
+      // Troca o último global da lista: a garantia fura a ordem, não o teto.
+      const posGlobal = selected.map((s) => !s._br).lastIndexOf(true);
+      if (posGlobal === -1) break;
+      dentro.delete(selected[posGlobal]);
+      selected[posGlobal] = stream;
+      dentro.add(stream);
+    }
+  };
+
+  let selected: Stream[];
 
   if (brFirst) {
     selected = [...brStreams, ...eligible.filter((stream) => !stream._br)].slice(0, maxResults);
+    if (garantidas.length) encaixaGarantida(selected);
   } else {
     // Sem prioridade visual, as vagas continuam garantidas: entram no lugar
     // dos últimos globais e preservam sua posição natural na ordem original.
-    const reserved = brStreams.slice(0, brReservedSlots);
+    // As garantias por faixa vêm ANTES do resto da reserva, senão a abundância
+    // de uma faixa consumia as vagas e elas não valiam nada.
+    const garantidasSet = new Set(garantidas);
+    const reserved = [...garantidas, ...brStreams.filter((stream) => !garantidasSet.has(stream))]
+      .slice(0, Math.max(brReservedSlots, garantidas.length));
     const chosen = new Set(eligible.slice(0, maxResults));
     for (const stream of reserved) {
       if (chosen.has(stream)) continue;
@@ -1940,6 +2003,7 @@ function limitReservingBr(
       if (chosen.size < maxResults) chosen.add(stream);
     }
     selected = eligible.filter((stream) => chosen.has(stream)).slice(0, maxResults);
+    if (garantidas.length) encaixaGarantida(selected);
   }
 
   return selected
@@ -1959,6 +2023,7 @@ function sortAndLimit(
     maxSizeGb = 0,
     qualityLimits = {},
     brReservedSlots = 0,
+    brReservedPerQuality = 0,
     candidateFactor = 1,
     brFirst = true,
     indexerPriority = [],
@@ -2024,6 +2089,7 @@ function sortAndLimit(
     maxResults,
     qualityLimits,
     brReservedSlots,
+    brReservedPerQuality,
     candidateFactor,
     brFirst,
   })

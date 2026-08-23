@@ -1166,6 +1166,85 @@ test('limitReservingBr mantém ordem natural sem prioridade e ainda garante BR',
   assert.deepEqual(out.map((s: any) => (s as any).id), ['global-4k', 'global-1080-a', 'br-720']);
 });
 
+// --- Causa B: reserva BR por faixa de qualidade ---------------------------
+//
+// Cenário medido no Fallout: 1080p BR abundante consumia a reserva global e a
+// única BR de outra faixa ficava fora — a faixa ficava sem BR mesmo existindo
+// fonte. A garantia por faixa entrega BR em cada balde que tem candidato.
+
+test('reserva por faixa: 1080p BR abundante não come a vaga da BR 4K', () => {
+  const globals = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map((letra) => ({
+    id: `global-${letra}`,
+    _quality: '1080p',
+    _br: false,
+    _seeders: 100,
+  }));
+  const streams = [
+    ...globals,
+    { id: 'br-1080-a', _quality: '1080p', _br: true, _dubbed: true },
+    { id: 'br-1080-b', _quality: '1080p', _br: true, _dubbed: true },
+    { id: 'br-4k', _quality: '2160p', _br: true, _dubbed: true },
+  ];
+  // Lista cheia de globais bem semeados: sem garantia por faixa, as duas vagas
+  // da reserva iam para os 1080p e o BR 4K nunca entrava.
+  const comFaixa = limitReservingBr(quotaStreams([...streams]), {
+    brReservedSlots: 2,
+    brFirst: false,
+    maxResults: 10,
+    brReservedPerQuality: 1,
+  });
+  const ids = comFaixa.map((s: any) => (s as any).id);
+  assert.ok(ids.includes('br-4k'), 'BR 4K precisa entrar pela reserva de faixa');
+  assert.ok(ids.includes('br-1080-a'));
+  assert.equal(comFaixa.length, 10);
+
+  // 0 restaura o comportamento atual: só a reserva global clássica.
+  const semFaixa = limitReservingBr(quotaStreams([...streams]), {
+    brReservedSlots: 2,
+    brFirst: false,
+    maxResults: 10,
+    brReservedPerQuality: 0,
+  });
+  assert.equal(semFaixa.some((s: any) => (s as any).id === 'br-4k'), false);
+});
+
+test('reserva por faixa também protege o pool pré-debrid', () => {
+  // O corte pré-debrid é o que decide se o BR chega ao corte final; sem o
+  // mesmo cuidado aqui, a garantia do final nunca veria o candidato.
+  const streams = [
+    { id: 'global-a', _quality: '2160p', _br: false, _seeders: 50 },
+    { id: 'global-b', _quality: '1080p', _br: false, _seeders: 40 },
+    { id: 'global-c', _quality: '720p', _br: false, _seeders: 30 },
+    { id: 'br-1080-a', _quality: '1080p', _br: true, _dubbed: true },
+    { id: 'br-1080-b', _quality: '1080p', _br: true, _dubbed: true },
+    { id: 'br-720', _quality: '720p', _br: true, _dubbed: true },
+  ];
+  const out = selectQualityCandidates(streams, {
+    maxResults: 3,
+    qualityLimits: { '2160p': 1, '1080p': 1, '720p': 1 },
+    brReservedSlots: 2,
+    brReservedPerQuality: 1,
+    brFirst: false,
+  });
+  const ids = out.map((s: any) => (s as any).id);
+  assert.ok(ids.includes('br-720'), 'BR 720p não pode ser cortada antes do corte final');
+  assert.ok(ids.some((id: string) => id.startsWith('br-1080')));
+});
+
+test('faixa sem candidato BR não ganha vaga fantasma na reserva por faixa', () => {
+  const streams = [
+    { id: 'global-a', _quality: '2160p', _br: false, _seeders: 50 },
+    { id: 'br-1080', _quality: '1080p', _br: true, _dubbed: true },
+  ];
+  const out = limitReservingBr(quotaStreams([...streams]), {
+    brReservedSlots: 2,
+    brFirst: false,
+    maxResults: 10,
+    brReservedPerQuality: 1,
+  });
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['global-a', 'br-1080']);
+});
+
 test('resolveSearchNames cobre o Cinemeta que não conhece o id', () => {
   const titles = { pt: 'A Origem', original: 'Inception', year: '2010' };
 

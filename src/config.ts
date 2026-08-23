@@ -233,6 +233,12 @@ const config = {
   candidatePoolFactor: num(process.env.CANDIDATE_POOL_FACTOR, 4),
   // Vagas garantidas para fontes BR dubladas no resultado final.
   brReservedSlots: num(process.env.BR_RESERVED_SLOTS, 6),
+  // Reserva BR POR FAIXA de qualidade: com a reserva global, 1080p BR
+  // abundante tomava todas as vagas e a faixa 4K/720p ficava sem BR mesmo
+  // quando existia fonte. Garante até N BR (dublado primeiro) por balde de
+  // qualidade antes de a cota da faixa ser preenchida por globais.
+  // 0 restaura o comportamento de reserva única global.
+  brReservedPerQuality: num(process.env.BR_RESERVED_PER_QUALITY, 1),
   // Se o orçamento normal terminou só com globais, espera um pouco pela
   // primeira fonte BR. Algumas UIs não repetem a resposta parcial, então o
   // passe tardio sozinho não torna o dublado visível na lista já aberta.
