@@ -131,14 +131,17 @@ const mutations = [
     testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
   },
   {
-    name: 'MUT-10: Break Tier 4 Scenario 2 Late-Pass Refreshed Cache Delivery (providers/index.js)',
-    file: 'dist/src/providers/index.js',
+    // PLANO_MELHORIAS 5.1: doSearch (e o cache.set do finish) saiu de
+    // providers/index.js para providers/search-orchestrator.js no split de
+    // providers. O alvo segue este arquivo se ele mudar de novo.
+    name: 'MUT-10: Break Tier 4 Scenario 2 Late-Pass Refreshed Cache Delivery (providers/search-orchestrator.js)',
+    file: 'dist/src/providers/search-orchestrator.js',
     // O alvo é só o objeto de uma linha: existe como linha física no fonte
-    // (src/providers/index.ts) e sobrevive a qualquer reflow de linhas que o
-    // printer do tsc faça no dist — a chamada inteira colapsada quebraria no
-    // dia em que a formatação do emit mudasse. O mutante força partial:true
-    // em toda escrita do finish, então a entrada nunca transita para
-    // completa — mesma via de captura do mutante original (cenário 2).
+    // (src/providers/search-orchestrator.ts) e sobrevive a qualquer reflow de
+    // linhas que o printer do tsc faça no dist — a chamada inteira colapsada
+    // quebraria no dia em que a formatação do emit mudasse. O mutante força
+    // partial:true em toda escrita do finish, então a entrada nunca transita
+    // para completa — mesma via de captura do mutante original (cenário 2).
     target: '{ streams, partial, debridKnown: !needsDebridRefresh }',
     replacement: '{ streams, partial: true /* MUTATED */, debridKnown: !needsDebridRefresh }',
     testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
