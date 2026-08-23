@@ -27,7 +27,10 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // WEB-DL") — releases gravadas como 2160p/Dual quando eram 720p/Legendado.
   // O rótulo errado vive semanas no TTL do índice; sem o bump, o conserto do
   // classificador não aparece para obra já indexada.
-  idx: 'v4',
+  // v5: marcas d'água de trackers BR ("derew", "www ThePiratefilmes")
+  // deixavam releases legítimas abaixo da precisão mínima. O índice antigo
+  // nunca reconsulta obra já coberta; descartar o legado permite colhê-las.
+  idx: 'v5',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

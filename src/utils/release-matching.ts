@@ -105,7 +105,17 @@ const LINK_WORDS = 'de do da das dos e a o os as um uma em no na para por com so
 
 const LANG_NOISE = 'portugues portuguesa portugueses brasil brasileiro brasileira'.split(' ');
 
-const RELEASE_NOISE = new Set([...TECH_NOISE, ...LINK_WORDS, ...LANG_NOISE]);
+// Marca de copyright: press do encoder ou dominio do tracker no titulo,
+// como "derew" ou "www.algo.com". Nao e conteudo e nao deve contar na
+// precisao. Sem isto, "Zumbilandia BDRip derew 720p" caia a 0.50 e perdia
+// a vaga BR reservada; e o mesmo para "Zumbilandia (www ThePirateFilms.com)".
+// A franquia "Atire Duas Vezes" continua sendo outra obra: suas palavras
+// seguem medidas fora desta lista.
+const WATERMARK_NOISE = new Set(
+  'derew www thepiratefilmes'.split(' '),
+);
+
+const RELEASE_NOISE = new Set([...TECH_NOISE, ...LINK_WORDS, ...LANG_NOISE, ...WATERMARK_NOISE]);
 
 // O alias do catálogo e o nome publicado pelo indexer podem divergir só no
 // artigo inicial ("Hulk" / "The Hulk"). Ignoramos apenas determinantes — não

@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+﻿import { test } from 'node:test';
 import assert from 'node:assert';
 
 // O filtro estrito de releases BR (matchesBrTitle) existe porque os sites BR
@@ -302,4 +302,27 @@ test('variações do parâmetro allNames (vazio, null, duplicatas, caracteres es
   assert.equal(matchesBrTitle('Coringa (2019) [1080p DUBLADO]', 'Coringa', 2019, { allNames: null }), true);
   assert.equal(matchesBrTitle('Coringa (2019) [1080p DUBLADO]', 'Coringa', 2019, { allNames: ['Coringa', 'Coringa'] }), true);
   assert.equal(matchesBrTitle('Coringa (2019) [1080p DUBLADO]', 'Coringa', 2019, { allNames: ['!@#$%', 'Coringa'] }), true);
+});
+
+// Zombieland real (2009): os sites BR carimbam marcas de watermark no post
+// ("BDRip derew", "(www ThePiratefilmes Com)"). Antes de WATERMARK_NOISE, a
+// marca d'água contava na precisão e derrubava a vaga BR reservada. A franquia
+// Atire Duas Vezes (2020) é outra obra: suas palavras seguem fora da lista.
+test('watermark no título não mata a release BR real (Zombieland)', () => {
+  const names = ['Zumbilândia'];
+  assert.equal(
+    matchesBrTitle('Zumbilândia BDRip derew 720p', 'Zumbilândia', 2009, { allNames: names }),
+    true,
+  );
+  assert.equal(
+    matchesBrTitle('Zumbilândia (www ThePiratefilmes Com)', 'Zumbilândia', 2009, { allNames: names }),
+    true,
+  );
+});
+test('a franquia seguinte (Atire Duas Vezes) continua rejeitada', () => {
+  const names = ['Zumbilândia'];
+  assert.equal(
+    matchesBrTitle('Zumbilândia Atire Duas Vezes (2020) DUBLADO', 'Zumbilândia', 2009, { allNames: names }),
+    false,
+  );
 });
