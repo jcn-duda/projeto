@@ -41,7 +41,7 @@ import * as tmdb from '../utils/tmdb.js';
 import { signResolve } from '../utils/sign.js';
 import { accountScope, streamsCacheKey } from '../utils/request-key.js';
 import { createLatestWriter } from '../utils/latest-writer.js';
-import { planJackettQueries, ptSweepIndexers, ptSweepQueryFor } from './search-plan.js';
+import { planJackettQueries, ptSweepIndexers, ptSweepQueryFor, liveIndexers } from './search-plan.js';
 import { collectWithinWindow } from './collection-window.js';
 import { raceWithDeadline, remainingCheckBudget } from '../utils/deadline.js';
 import * as autofetch from './autofetch.js';
@@ -1135,13 +1135,25 @@ async function collectRaw(
   }
 
   const wants = (name: string) => mode === 'both' || providers.includes(name);
-  const selectedIndexers: string[] = [...new Set((opts().jackettIndexers || []).filter((id: any) =>
+  const rawSelected: string[] = [...new Set((opts().jackettIndexers || []).filter((id: any) =>
     SAFE_INDEXER_ID.test(String(id)),
   ))].map(String);
+  // Index-only ficam fora do caminho da resposta (colhem em fundo para o
+  // índice). O filtro é ANTES do plano: se o operador mandou todos os
+  // selecionados embora, o resultado é NENHUMA consulta Jackett — cair no
+  // fallback `/all` reabriria a porta que o filtro acabou de fechar.
+  const selectedIndexers = liveIndexers(rawSelected, config.jackett.indexOnlyIndexers);
+  if (selectedIndexers.length < rawSelected.length) {
+    metrics.count('search.indexonly.excluded', rawSelected.length - selectedIndexers.length);
+  }
 
   // demo sempre disponível como fallback de teste se quiser both+demo — aqui só jackett/prowlarr
   if (wants('jackett')) {
-    if (selectedIndexers.length === 0) {
+    if (rawSelected.length > 0 && selectedIndexers.length === 0) {
+      // Todos os selecionados são index-only: a resposta sai do índice +
+      // inventário; a obra entra na fila do colhedor pelo caminho de sempre.
+      metrics.count('search.indexonly.all');
+    } else if (selectedIndexers.length === 0) {
       addTask(jackett.search(query, type));
     } else {
       const plan = planJackettQueries(

@@ -87,6 +87,17 @@ const config = {
     slowIndexers: list(
       process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent,apachetorrent,hdrtorrent',
     ),
+    // Fora do caminho da resposta, DENTRO do sistema: estes indexers não
+    // recebem busca ao vivo de nenhum usuário (latência medida de 8–31s contra
+    // orçamento total de 20s derrubava-os no breaker e ainda consumia o prazo
+    // com o retry PT→título original). Alimentam o índice pelo COLHEDOR, que
+    // tem fila persistente, orçamento largo e cujas falhas não pintam card —
+    // e a busca ao vivo serve do índice quando ele cobre a obra. Separado de
+    // JACKETT_SLOW_INDEXERS de propósito: lá o problema é o agrupamento do
+    // plano; aqui é PRESENÇA na resposta.
+    indexOnlyIndexers: list(
+      process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent,apachetorrent,hdrtorrent',
+    ),
     // Circuit breaker: indexer offline em N amostras seguidas deixa de
     // receber orçamento de busca (20s nos BR) até a falha esfriar — busca
     // real nunca conserta fonte morta, só queima prazo. slow/degraded não

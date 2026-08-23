@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 
-import { planJackettQueries, ptSweepIndexers, ptSweepQuery, ptSweepQueryFor } from '../src/providers/search-plan.js';
+import { planJackettQueries, ptSweepIndexers, ptSweepQuery, ptSweepQueryFor, liveIndexers } from '../src/providers/search-plan.js';
 import jackett from '../src/providers/jackett.js';
 const { shapeSearchQuery } = jackett;
 
@@ -372,4 +372,37 @@ test('ptSweepQuery preserva nÃºmero que Ã© o nome da obra', () => {
   assert.equal(ptSweepQuery('Onze Homens e um Segredo'), 'Onze Homens e um Segredo');
   // Ano de 4 dÃ­gitos nÃ£o Ã© marcador de sequÃªncia.
   assert.equal(ptSweepQuery('Blade Runner 2049'), 'Blade Runner 2049');
+});
+
+// --- Causa C: index-only ficam fora do caminho da resposta ----------------
+//
+// Latência medida de 8-31s nos três BR stock contra orçamento total de 20s:
+// falha -> failStreak -> breaker -> indexer fora do ar na PRÓXIMA busca, e o
+// retry PT->título original consumia o mesmo orçamento. Quem mantém as
+// releases deles frescas agora é o colhedor; a busca ao vivo serve do índice.
+
+test('liveIndexers tira os index-only do plano ao vivo e preserva os demais', () => {
+  assert.deepEqual(
+    liveIndexers(
+      ['thepiratebay', 'redetorrent', 'apachetorrent', 'hdrtorrent', 'bludv-cardigann'],
+      ['redetorrent', 'apachetorrent', 'hdrtorrent'],
+    ),
+    ['thepiratebay', 'bludv-cardigann'],
+  );
+});
+
+test('liveIndexers com lista vazia (default antigo) não filtra nada', () => {
+  const todos = ['thepiratebay', 'redetorrent'];
+  assert.deepEqual(liveIndexers(todos), todos);
+  assert.deepEqual(liveIndexers(todos, []), todos);
+});
+
+test('liveIndexers pode esvaziar a seleção inteira (sem fallback /all)', () => {
+  // O caller precisa distinguir "usuário não selecionou nada" (fallback /all
+  // vale) de "operador tirou todos os selecionados da resposta" (nenhuma
+  // consulta Jackett no caminho crítico).
+  assert.deepEqual(
+    liveIndexers(['redetorrent', 'hdrtorrent'], ['redetorrent', 'hdrtorrent']),
+    [],
+  );
 });

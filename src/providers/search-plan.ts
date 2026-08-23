@@ -73,6 +73,19 @@ function ptSweepIndexers(selectedIndexers: string[], ptBrIndexers: string[]) {
 }
 
 /**
+ * Indexers que só alimentam o índice pelo colhedor NÃO entram no plano ao
+ * vivo: latência de 8–31s contra orçamento total de 20s derrubava-os no
+ * breaker a cada busca e ainda queimava o prazo com o retry PT→título
+ * original. A busca ao vivo serve do índice (idxPoolCovered decide); quem
+ * mantém as releases deles frescas é o colhedor, cujas falhas não contam no
+ * breaker nem pintam card. Lista vazia = comportamento antigo.
+ */
+function liveIndexers(selectedIndexers: string[], indexOnlyIndexers: string[] = []) {
+  const fora = new Set(indexOnlyIndexers);
+  return selectedIndexers.filter((indexer) => !fora.has(indexer));
+}
+
+/**
  * Query da varredura: título pt SEM subtítulo e SEM ano. Buscador de tracker
  * global casa por palavras do título — "Jornada nas Estrelas: O Filme 1979"
  * devolve 1 resultado num único indexer, "Jornada nas Estrelas" devolve 13 em
@@ -103,4 +116,4 @@ function ptSweepQueryFor({ titles }: { titles?: any }) {
   return ptSweepQuery(titles.pt) || null;
 }
 
-export { planJackettQueries, ptSweepIndexers, ptSweepQuery, ptSweepQueryFor };
+export { planJackettQueries, ptSweepIndexers, ptSweepQuery, ptSweepQueryFor, liveIndexers };
