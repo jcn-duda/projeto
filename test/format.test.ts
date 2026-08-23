@@ -39,6 +39,8 @@ import {
   dubbedLieVerdict,
   seasonCoverageExcludes,
   decodeEntities,
+  magnetYearContradicts,
+  matchesEpisodeWorkIdentity,
 } from '../src/utils/format.js';
 import type { RawItem, Stream } from '../types/domain.js';
 
@@ -1951,3 +1953,273 @@ test('entidade HTML não pode apagar a temporada do pack', () => {
   assert.equal(decodeEntities('&naoexiste; x'), '&naoexiste; x');
   assert.equal(decodeEntities('&Amp; teste'), '& teste');
 });
+
+// -----------------------------------------------------------------------------
+// T1 (Tarefa 3.1): Guarda de Ano no Magnet (magnetYearContradicts)
+// -----------------------------------------------------------------------------
+test('magnetYearContradicts: matriz completa de bordas e tolerância ±2 anos', () => {
+  const mkItem = (dn: string) => ({
+    magnet: `magnet:?xt=urn:btih:${HASH}&dn=${encodeURIComponent(dn)}`,
+    title: 'Post sem ano no titulo',
+  });
+
+  // 1. Diferença 0: ano idêntico -> aceito (false)
+  assert.equal(magnetYearContradicts(mkItem('The.Crow.2024.1080p.WEB-DL'), 2024), false);
+  assert.equal(magnetYearContradicts(mkItem('Movie.Title.1994.BluRay'), 1994), false);
+
+  // 2. Diferença 1 e 2: dentro da margem de ±2 anos -> aceito (false)
+  assert.equal(magnetYearContradicts(mkItem('The.Crow.2023.1080p'), 2024), false, 'diff -1 aceito');
+  assert.equal(magnetYearContradicts(mkItem('The.Crow.2025.1080p'), 2024), false, 'diff +1 aceito');
+  assert.equal(magnetYearContradicts(mkItem('The.Crow.2022.1080p'), 2024), false, 'diff -2 aceito');
+  assert.equal(magnetYearContradicts(mkItem('The.Crow.2026.1080p'), 2024), false, 'diff +2 aceito');
+
+  // 3. Diferença 3+: fora da margem de ±2 anos -> contradiz / rejeitado (true)
+  assert.equal(magnetYearContradicts(mkItem('The.Crow.2021.1080p'), 2024), true, 'diff -3 rejeitado');
+  assert.equal(magnetYearContradicts(mkItem('The.Crow.2027.1080p'), 2024), true, 'diff +3 rejeitado');
+  assert.equal(magnetYearContradicts(mkItem('O.Corvo.1994.Dual.Audio.1080p'), 2024), true, '1994 vs 2024 rejeitado');
+  assert.equal(magnetYearContradicts(mkItem('O.Corvo.2012.Dublado.720p'), 2024), true, '2012 vs 2024 rejeitado');
+
+  // 4. Múltiplos anos no magnet: ambíguo (coletânea/franquia) -> aceito (false)
+  assert.equal(
+    magnetYearContradicts(mkItem('The.Crow.Collection.1994.2024.1080p.BluRay'), 2024),
+    false,
+    'dois anos declarados passa como ambíguo',
+  );
+  assert.equal(
+    magnetYearContradicts(mkItem('Trilogia.Matrix.1999.2003.2021.1080p'), 1999),
+    false,
+    'tres anos declarados passa',
+  );
+
+  // 5. Resoluções com dimensões (1920x1080, 3840x2160, 1280x720) não são anos
+  assert.equal(
+    magnetYearContradicts(mkItem('The.Crow.2024.1920x1080.x264'), 2024),
+    false,
+    '1920x1080 limpo antes do match de ano',
+  );
+  assert.equal(
+    magnetYearContradicts(mkItem('Filme.Sem.Ano.1920x1080.mkv'), 2024),
+    false,
+    '1920x1080 não vira ano 1920 isolado',
+  );
+
+  // 6. Decodificação de espaços com '+' e '%20'
+  const itemPlus = { magnet: `magnet:?xt=urn:btih:${HASH}&dn=O+Corvo+1994+Dublado` };
+  assert.equal(magnetYearContradicts(itemPlus, 2024), true, '+ vira espaço e 1994 é extraído');
+
+  const itemPct = { magnet: `magnet:?xt=urn:btih:${HASH}&dn=O%20Corvo%201994%20Dual` };
+  assert.equal(magnetYearContradicts(itemPct, 2024), true, '%20 decodifica e 1994 é isolado');
+
+  // 7. Sequência % malformada (tolerante a erro de decodificação)
+  const itemMalformed = { magnet: `magnet:?xt=urn:btih:${HASH}&dn=O%ZZCorvo+1994` };
+  assert.equal(magnetYearContradicts(itemMalformed, 2024), true, 'continua com texto após erro de decodificação');
+
+  const itemMalformedOk = { magnet: `magnet:?xt=urn:btih:${HASH}&dn=O%ZZCorvo+2024` };
+  assert.equal(magnetYearContradicts(itemMalformedOk, 2024), false, 'recupera 2024 mesmo com %ZZ');
+
+  // 8. Suporte a propriedades alternativas MagnetUri e Guid
+  assert.equal(
+    magnetYearContradicts({ MagnetUri: `magnet:?xt=urn:btih:${HASH}&dn=Movie.1994` } as any, 2024),
+    true,
+    'MagnetUri suportado',
+  );
+  assert.equal(
+    magnetYearContradicts({ Guid: `magnet:?xt=urn:btih:${HASH}&dn=Movie.1994` } as any, 2024),
+    true,
+    'Guid suportado',
+  );
+
+  // 9. Entradas nulas, vazias ou catálogo sem ano
+  assert.equal(magnetYearContradicts(null, 2024), false);
+  assert.equal(magnetYearContradicts(undefined, 2024), false);
+  assert.equal(magnetYearContradicts({} as any, 2024), false);
+  assert.equal(magnetYearContradicts(mkItem('Movie.2024'), 0), false);
+  assert.equal(magnetYearContradicts({ magnet: 'magnet:?xt=urn:btih:xxx' }, 2024), false);
+});
+
+test('magnetYearContradicts integrado a filterRelevantRaw: filme aplica guarda, série/pack não', () => {
+  const item1994 = {
+    title: 'O Corvo Dual Audio 1080p',
+    magnet: `magnet:?xt=urn:btih:${HASH}&dn=O.Corvo.1994.1080p`,
+    isBr: true,
+  };
+  const item2024 = {
+    title: 'O Corvo Dual Audio 1080p',
+    magnet: `magnet:?xt=urn:btih:${OTHER}&dn=The.Crow.2024.1080p`,
+    isBr: true,
+  };
+
+  // Filme com ano 2024 no catálogo: 1994 é cortado pela guarda de ano no magnet
+  const movieResults = relevantRaw([item1994, item2024], {
+    names: ['The Crow', 'O Corvo'],
+    year: 2024,
+    isSeries: false,
+  });
+  assert.equal(movieResults.length, 1);
+  assert.equal(movieResults[0].magnet, item2024.magnet);
+
+  // Série com season definida: guarda de ano de filme NÃO roda (anos de série são por temporada)
+  const seriesPack = {
+    title: 'Série Clássica S01 Dublado',
+    magnet: `magnet:?xt=urn:btih:${HASH}&dn=Serie.Classica.S01.1994.1080p`,
+    isBr: true,
+  };
+  const seriesResults = relevantRaw([seriesPack], {
+    names: ['Série Clássica', 'Classic Series'],
+    year: 2024,
+    isSeries: true,
+    season: 1,
+  });
+  assert.equal(seriesResults.length, 1, 'série não é barrada pela guarda de ano de filme');
+});
+
+// -----------------------------------------------------------------------------
+// T2 (Tarefa 3.2): Identidade de Obra em Episódio (matchesEpisodeWorkIdentity)
+// -----------------------------------------------------------------------------
+test('matchesEpisodeWorkIdentity: rejeição estrita de spin-offs e preservação da obra principal', () => {
+  // 1. Spin-offs com tokens compartilhados rejeitados (< 70% de precisão)
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'Rick.and.Morty.The.Anime.S01E01.1080p.WEB-DL.x264',
+      ['Rick and Morty', 'Rick & Morty'],
+    ),
+    false,
+    'The Anime não é Rick and Morty principal',
+  );
+
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'The.Walking.Dead.World.Beyond.S01E01.1080p.WEB-DL',
+      ['The Walking Dead'],
+    ),
+    false,
+    'World Beyond é spin-off separado',
+  );
+
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'The.Walking.Dead.Daryl.Dixon.S01E01.1080p.AMZN.WEBRip',
+      ['The Walking Dead'],
+    ),
+    false,
+    'Daryl Dixon é spin-off separado',
+  );
+
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'The.Walking.Dead.The.Ones.Who.Live.S01E01.1080p',
+      ['The Walking Dead'],
+    ),
+    false,
+    'The Ones Who Live é spin-off separado',
+  );
+
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'Game.of.Thrones.House.of.the.Dragon.S01E01.1080p',
+      ['Game of Thrones'],
+    ),
+    false,
+    'House of the Dragon não herda busca de Game of Thrones',
+  );
+
+  // 2. Releases legítimas da obra principal aceitas
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'Rick.and.Morty.S01E01.1080p.WEBRip.x264-FLUX',
+      ['Rick and Morty'],
+    ),
+    true,
+    'Rick and Morty padrão aceito',
+  );
+
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'The.Walking.Dead.S11E24.Rest.in.Peace.1080p.AMZN.WEB-DL',
+      ['The Walking Dead'],
+    ),
+    true,
+    'The Walking Dead com título de episódio após S11E24 aceito',
+  );
+
+  // 3. Formato inverso (marcador de episódio à esquerda, ex: RedeTorrent) aceito
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'S01E02 From 1080p WEBRip x264-EVOLVE',
+      ['From'],
+    ),
+    true,
+    'formato inverso com marcador à esquerda aceito',
+  );
+
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      '1x04 Breaking Bad 720p HDTV',
+      ['Breaking Bad'],
+    ),
+    true,
+    'marcador 1x04 à esquerda aceito',
+  );
+
+  // 4. Formato duplo delimitado (marcador antes e depois do título) aceito
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'S02E01 A Casa do Dragão S02E01 1080p Dual Audio',
+      ['House of the Dragon', 'A Casa do Dragão'],
+    ),
+    true,
+    'formato duplo delimitado aceito',
+  );
+
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'S01E01 Rick and Morty S01E01 720p Dublado',
+      ['Rick and Morty'],
+    ),
+    true,
+    'duplo marcador Rick and Morty aceito',
+  );
+
+  // 5. Releases sem marcador de episódio (pack de temporada, filme) não são condenadas
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'From 2022 Season 1 1080p BluRay x264',
+      ['From'],
+    ),
+    true,
+    'sem marcador de episódio específico retorna true',
+  );
+
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'The Walking Dead Complete Series S01-S11 1080p',
+      ['The Walking Dead'],
+    ),
+    true,
+    'pack de temporadas completas retorna true',
+  );
+
+  // 6. Universo multilíngue (títulos em português e inglês)
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'O.Urso.S01E01.1080p.Dublado',
+      ['The Bear', 'O Urso'],
+    ),
+    true,
+    'nome pt-BR aceito no universo multilíngue',
+  );
+
+  assert.equal(
+    matchesEpisodeWorkIdentity(
+      'The.Bear.S01E01.1080p.WEB-DL',
+      ['The Bear', 'O Urso'],
+    ),
+    true,
+    'nome original aceito no universo multilíngue',
+  );
+
+  // 7. Entradas nulas ou array de nomes vazio
+  assert.equal(matchesEpisodeWorkIdentity('Rick and Morty S01E01', null), true);
+  assert.equal(matchesEpisodeWorkIdentity('Rick and Morty S01E01', []), true);
+});
+

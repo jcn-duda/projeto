@@ -46,10 +46,39 @@ const missing = found.filter((file: string) => !listed.has(file));
 // Checa a existência da fonte, que é o que esta lista se propõe a cobrar.
 const stale = [...listed].filter((file) => !fs.existsSync(path.join(root, file.replace(/\.js$/, '.ts'))));
 
-if (missing.length || stale.length) {
+const HARNESS_FILES = [
+  'test/m1-stress-challenge.ts',
+  'test/stress-m1-challenger.ts',
+  'test/empirical-e2e-challenger.ts',
+  'test/adversarial-m1-parser-harness.ts',
+  'test/m1-protector-adversarial-stress.ts',
+  'test/challenger-m2-parser-deep-stress.ts',
+];
+
+const allScripts = Object.values(_require(path.join(root, 'package.json')).scripts as Record<string, string>).join(' ');
+
+const harnessErrors: string[] = [];
+for (const harness of HARNESS_FILES) {
+  const srcPath = path.join(root, harness);
+  if (!fs.existsSync(srcPath)) {
+    harnessErrors.push(`harness fonte não encontrado: ${harness}`);
+  }
+  const jsName = harness.replace(/\.ts$/, '.js');
+  const distPath = path.join(root, 'dist', jsName);
+  if (!fs.existsSync(distPath)) {
+    harnessErrors.push(`harness compilado (dist) não encontrado: dist/${jsName}`);
+  }
+  if (!allScripts.includes(jsName)) {
+    harnessErrors.push(`harness não referenciado em package.json scripts: ${jsName}`);
+  }
+}
+
+if (missing.length || stale.length || harnessErrors.length) {
   if (missing.length) console.error(`fora do "npm test": ${missing.join(', ')}`);
   if (stale.length) console.error(`no "npm test" mas não existe: ${stale.join(', ')}`);
+  if (harnessErrors.length) console.error(`erros nos harnesses:\n  ${harnessErrors.join('\n  ')}`);
   process.exit(1);
 }
 
-console.log(`${found.length} arquivo(s) de teste, todos no "npm test".`);
+console.log(`${found.length} arquivo(s) de teste no "npm test", ${HARNESS_FILES.length} harness(es) validados.`);
+

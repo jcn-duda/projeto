@@ -2087,4 +2087,6 @@ export {
   decodeEntities,
   looksPtBr,
   isMultiWorkCollection,
+  magnetYearContradicts,
+  matchesEpisodeWorkIdentity,
 };
