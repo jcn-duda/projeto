@@ -1073,6 +1073,23 @@ o orçamento com a resposta.
   configuráveis. Os resolvers ainda têm failover interno por saúde de **rede**
   (DNS/conexão/timeout — 0 resultados não troca de host). Parser quebrado
   geralmente é mudança de layout do WordPress, não bug de lógica.
+- **Redirect permanente para domínio fora da allowlist vira fonte morta
+  silenciosa.** O nerdfilmes migrou `xnerdfilmes.net` → `nerdviatorrents.net`
+  (301) e o host novo não estava em `FALLBACK_SITE_SUFFIXES`: toda busca caía
+  em `blocked_host` — que o `isNetworkError` exclui de propósito (erro de
+  aplicação prova que o host respondeu), então o failover nunca sondava e o
+  sintoma era "0 resultados" para sempre. O domínio novo precisa entrar na
+  allowlist E no default de config (o modo embutido não injeta env ausente).
+  O erro agora viaja com o host (`blocked_host:<host>`) e a busca loga warn
+  distinto citando-o — fonte BR que só devolve vazio: procure esse warn antes
+  de culpar o parser.
+- **O bludv está fora do ar por bloqueio de borda (aceito, não é config).**
+  `bludvfilmes.xyz` → 301 → `bludvfilmes1.xyz`, que devolve 403 mesmo com
+  User-Agent de navegador — bloqueio ativo (Cloudflare ou equivalente), não
+  troca de domínio. Roteá-lo pelo FlareSolverr custaria o desafio re-resolvido
+  a cada busca (13–24s medidos), incompatível com o orçamento da resposta;
+  portanto o card fica vermelho por motivo conhecido, e o conserto seria um
+  mirror vivo, não código.
 - **Os protetores de link também trocam de host.** O torrentdosfilmes migrou
   de `systemads.net` para `systemads1.com` e TODO magnet passou a ser barrado
   porque só o host antigo estava na lista permitida. Magnet que some de um
@@ -1108,6 +1125,14 @@ o orçamento com a resposta.
   mais tarde e gastando Chromium. Fora da lista de indexers é o lugar deles.
 - **Buscador WordPress engasga com `:`** — `bludv.search` remove antes de
   consultar. Sintomas: título com subtítulo volta vazio.
+- **Buscador WordPress BR devolve 0 para QUALQUER query acentuada.** Medido
+  ao vivo em 5 títulos × 5 indexers BR: "Extermínio" → 0, "Exterminio" →
+  8–16; com acento sempre 0. Por isso o `shapeSearchQuery` aplica
+  `stripDiacritics` sob `isBr` — tira SÓ o diacrítico (caixa e pontuação
+  ficam; `normalizeTitle` destruiria a query). Não "uniformize" aplicando aos
+  globais: eles casam bem com acento (TPB achou 6 para "Extermínio") e a
+  varredura pt-BR roda neles. O filtro pós-indexer não precisou mudar —
+  `normalizeTitle` normaliza os dois lados.
 - **`node:sqlite` não existe no Node 20.** `engines` declara `>=20` e o CI roda
   a matriz 20/22; o `openDatabase` faz `require` lazy dentro de `try/catch` (via
   `createRequire`, porque `import` estático quebraria o carregamento) e cai só
