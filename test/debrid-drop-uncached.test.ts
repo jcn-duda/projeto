@@ -151,18 +151,21 @@ test('a proteção é por conta: o mesmo hash em outra conta continua sendo limp
   }
 });
 
-test('DEBRID_DROP_UNCACHED=false não apaga nada, e ainda assim informa o cache', async () => {
+test('os dois switches desligados não apagam nada, e ainda assim informa o cache', async () => {
   const api = mockAllDebrid({ ready: [READY] });
-  const original = config.debrid.dropUncached;
+  const origUncached = config.debrid.dropUncached;
+  const origReady = config.debrid.dropReady;
   try {
     config.debrid.dropUncached = false;
+    config.debrid.dropReady = false;
     const result = await alldebrid.checkCached(KEY, [READY, COLD]);
     await settle();
 
     assert.deepEqual([...result.cached], [READY]);
     assert.deepEqual(api.deleted, [], 'desligado é desligado: a conta não é tocada');
   } finally {
-    config.debrid.dropUncached = original;
+    config.debrid.dropUncached = origUncached;
+    config.debrid.dropReady = origReady;
     api.restore();
   }
 });
@@ -270,8 +273,9 @@ test('erro da API vira exceção em vez de "nada em cache"', async () => {
  * macrotask: como o upload roda no mesmo tick, depois do disparo do snapshot,
  * ele registra primeiro — e o snapshot reflete o estado poluído.
  */
-function mockAccountWith(preexisting: any, readyHashes: any, { snapshotAfterUploads = false, failDelete = false } = {}) {
+function mockAccountWith(preexisting: any, readyHashes: any, { snapshotAfterUploads = false, failDelete = false, failStatus = false } = {}) {
   const deleted: number[] = [];
+  let failStatusActive = failStatus;
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
@@ -292,6 +296,13 @@ function mockAccountWith(preexisting: any, readyHashes: any, { snapshotAfterUplo
     const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
 
     if (url.pathname.endsWith('/magnet/status')) {
+      if (failStatusActive) {
+        return {
+          ok: false,
+          status: 500,
+          async json() { return { status: 'error', error: { message: 'Internal Server Error' } }; },
+        };
+      }
       const id = url.searchParams.get('id');
       if (id != null) {
         const magnet = byId.get(Number(id));
@@ -343,6 +354,22 @@ function mockAccountWith(preexisting: any, readyHashes: any, { snapshotAfterUplo
 
   return {
     deleted,
+    set failStatus(val: boolean) {
+      failStatusActive = val;
+    },
+    get failStatus() {
+      return failStatusActive;
+    },
+    addExternal(hash: string, ready = true) {
+      const id = nextId++;
+      const magnet = { hash, id, status: 'Ready', ready };
+      byId.set(id, magnet);
+      byHash.set(hash, magnet);
+      if (ready && !readyHashes.includes(hash)) {
+        readyHashes.push(hash);
+      }
+      return id;
+    },
     restore() {
       globalThis.fetch = realFetch;
       AbortSignal.timeout = realTimeout;
@@ -594,6 +621,87 @@ test('delete recusado pela conta não vira "removido": conta falha e não infla 
   } finally {
     api.restore();
     metrics.reset();
+  }
+});
+
+test('snapshot com TTL expirado recarrega inventário e protege magnet adicionado pelo usuário pós-boot (Tarefa 1.4)', async () => {
+  const KEY = 'chave-snapshot-ttl-expira';
+  const PRIMEIRO = '11'.repeat(20);
+  const DO_USUARIO_POSTERIOR = '22'.repeat(20);
+  const DA_SEGUNDA_BUSCA = '33'.repeat(20);
+
+  const originalTtl = config.debrid.preexistingTtlMs;
+  config.debrid.preexistingTtlMs = 40; // 40ms TTL
+
+  const api = mockAccountWith([], [PRIMEIRO, DO_USUARIO_POSTERIOR, DA_SEGUNDA_BUSCA]);
+
+  try {
+    // 1. Primeira busca cria o snapshot inicial (sem o magnet posterior do usuário)
+    await alldebrid.checkCached(KEY, [PRIMEIRO]);
+    await settle();
+    await flushImmediate();
+    api.deleted.length = 0;
+
+    // 2. Usuário adiciona um magnet diretamente na conta dele (fora do addon)
+    const idUsuario = api.addExternal(DO_USUARIO_POSTERIOR, true);
+
+    // 3. Espera o TTL do snapshot expirar
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    // 4. Segunda busca com o magnet do usuário e um novo da busca
+    const { cached } = await alldebrid.checkCached(KEY, [DO_USUARIO_POSTERIOR, DA_SEGUNDA_BUSCA]);
+    await settle();
+
+    assert.equal(cached.has(DO_USUARIO_POSTERIOR), true);
+    assert.equal(cached.has(DA_SEGUNDA_BUSCA), true);
+
+    // O magnet adicionado pelo usuário pós-boot NÃO deve ser deletado após a expiração do snapshot!
+    assert.ok(!api.deleted.includes(idUsuario), 'magnet adicionado pelo usuário pós-boot não pode ser deletado');
+    // Apenas o magnet criado pela busca corrente deve ter sido deletado
+    assert.deepEqual(api.deleted, [2002], 'apenas o magnet novo criado pela busca é removido');
+  } finally {
+    config.debrid.preexistingTtlMs = originalTtl;
+    api.restore();
+  }
+});
+
+test('fail-safe closed: erro HTTP 500 no refresh do inventário não apaga prontos e busca segue normal (Tarefa 1.5)', async () => {
+  const KEY = 'chave-failsafe-refresh-erro';
+  const NOVO_1 = '44'.repeat(20);
+  const NOVO_2 = '55'.repeat(20);
+
+  const originalTtl = config.debrid.preexistingTtlMs;
+  config.debrid.preexistingTtlMs = 40;
+
+  // Inicia com mock normal
+  const api = mockAccountWith([], [NOVO_1, NOVO_2]);
+
+  try {
+    // Primeira passada cria snapshot
+    await alldebrid.checkCached(KEY, [NOVO_1]);
+    await settle();
+    await flushImmediate();
+    api.deleted.length = 0;
+
+    // Expira o snapshot
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    // Ativa falha HTTP 500 no /magnet/status
+    api.failStatus = true;
+
+    // Segunda busca: o refresh de inventário vai falhar com 500
+    const result = await alldebrid.checkCached(KEY, [NOVO_2]);
+    await settle();
+
+    // A busca tem que suceder normalmente
+    assert.equal(result.complete, true);
+    assert.equal(result.cached.has(NOVO_2), true);
+
+    // Fail-safe closed: com falha no refresh do inventário, nenhum pronto pode ser removido!
+    assert.deepEqual(api.deleted, [], 'nenhum magnet pronto é apagado quando o inventário falha');
+  } finally {
+    config.debrid.preexistingTtlMs = originalTtl;
+    api.restore();
   }
 });
 

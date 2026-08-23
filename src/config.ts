@@ -45,6 +45,9 @@ const config = {
     resolveConcurrency: num(process.env.JACKETT_RESOLVE_CONCURRENCY, 10),
     maxDownloadResolves: num(process.env.JACKETT_MAX_DOWNLOAD_RESOLVES, 20),
     downloadTimeout: num(process.env.JACKETT_DOWNLOAD_TIMEOUT_MS, 8000),
+    // O Link do indexer é input externo; destinos locais são SSRF salvo quando
+    // o operador explicitamente usa um resolvedor privado nesse caminho.
+    allowPrivateDownloadIps: String(process.env.JACKETT_ALLOW_PRIVATE_DOWNLOAD_IPS || 'false') === 'true',
     ptBrIndexers: list(
       // redetorrent é definição stock do Jackett (sem resolver local): entrega
       // magnet/infoHash direto, mas a query precisa ir sem SxxEyy — o strip
@@ -326,6 +329,10 @@ const config = {
     // serviço, e o play reenvia o hash na hora. Desligue se preferir ver na
     // conta tudo que passou pela lista.
     dropReady: String(process.env.DEBRID_DROP_READY || 'true') === 'true',
+    // O snapshot protege os magnets que já eram da conta antes do addon. Ele
+    // precisa vencer: o usuário pode adicionar algo no site do debrid depois
+    // do boot, e uma referência congelada nunca pode autorizar o apagamento.
+    preexistingTtlMs: Math.max(0, num(process.env.ALLDEBRID_PREEXISTING_TTL_MS, 300_000)),
     // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
     // "Expired", "File not available"). A limpeza por busca só alcança hashes
     // que estão na consulta do momento; um torrent que morreu e nunca mais é
@@ -398,6 +405,9 @@ const config = {
     autoFetchQueueTtl: num(process.env.DEBRID_AUTO_FETCH_QUEUE_TTL, 86400),
     autoFetchEnqueueMaxHour: Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR, 50))),
     autoFetchDrainMaxRefusals: Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_DRAIN_MAX_REFUSALS, 2))),
+    // Orçamento horário cheio não é recusa do torrent. Pausa a drenagem para
+    // não girar a mesma fila até a janela deslizante voltar a ter espaço.
+    autoFetchDrainBackoffMs: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS, 60_000)),
     // Prefetch do próximo episódio de séries
     prefetchNextEp: String(process.env.DEBRID_PREFETCH_NEXT_EP || 'true') === 'true',
     prefetchTtl: num(process.env.DEBRID_PREFETCH_TTL, 43200),

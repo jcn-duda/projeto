@@ -68,11 +68,18 @@ async function call(
  * usuário guardou de propósito na conta, na primeira vez que ele aparecesse
  * numa busca.
  *
- * Carrega uma vez por processo. O boot aquece a conta do operador em segundo
- * plano; para uma chave que chega na primeira requisição, o primeiro upload
- * espera o snapshot para não arriscar classificar magnet do usuário como nosso.
+ * O boot aquece a conta do operador em segundo plano; para uma chave que chega
+ * na primeira requisição, o primeiro upload espera o snapshot para não arriscar
+ * classificar magnet do usuário como nosso. A referência expira: usuário também
+ * administra a conta fora do addon, e snapshot congelado autorizaria apagá-lo.
  */
-const preexisting = new Map();
+interface PreexistingEntry {
+  hashes: Set<string> | null;
+  loadedAt: number;
+  promise?: Promise<Set<string> | null>;
+}
+
+const preexisting = new Map<string, PreexistingEntry>();
 // Upload é idempotente e a API não informa se criou ou reaproveitou o magnet.
 // O que este processo submeteu nunca pode virar "preexistente" só porque o
 // inventário assíncrono terminou depois do upload.
@@ -89,13 +96,20 @@ function rememberSubmitted(account: string, hash: string) {
   hashes.add(normalized);
 }
 
-function knownBefore(apiKey: string, account: string) {
-  const entry = preexisting.get(account);
-  if (entry) return entry.hashes;
+function snapshotFresh(entry: PreexistingEntry | undefined) {
+  if (!entry || entry.hashes === null) return false;
+  const ttl = config.debrid.preexistingTtlMs;
+  return ttl > 0 && Date.now() - entry.loadedAt < ttl;
+}
 
-  // A promessa de inventário só existe enquanto o snapshot não termina; o
-  // hashes carregado (ou null em caso de falha) é o que a checagem consulta.
-  const loading: { hashes: Set<string> | null; promise?: Promise<Set<string> | null> } = { hashes: null };
+function knownBefore(apiKey: string, account: string, { force = false } = {}): Set<string> | null {
+  const entry = preexisting.get(account);
+  if (!force && snapshotFresh(entry)) return entry!.hashes;
+  if (entry?.hashes === null) return null;
+
+  // Enquanto o refresh está em voo, ninguém pode usar a referência velha para
+  // apagar prontos. Falha de inventário mantém esse fail-safe e tenta de novo.
+  const loading: PreexistingEntry = { hashes: null, loadedAt: 0 };
   preexisting.set(account, loading);
   loading.promise = call(apiKey, '/magnet/status')
     .then((data) => {
@@ -106,6 +120,7 @@ function knownBefore(apiKey: string, account: string) {
         ? new Set([...snapshot].filter((hash) => !ours.has(hash)))
         : snapshot;
       loading.hashes = merged;
+      loading.loadedAt = Date.now();
       log.info(
         `[alldebrid] ${merged.size} magnet(s) preexistente(s) na conta ficam protegidos da limpeza` +
           (ours?.size ? ` (${snapshot.size - merged.size} subido(s) pelo addon)` : ''),
@@ -229,17 +244,30 @@ async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMin
  * @param {number} [options.timeoutMs]
  */
 async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
-  const drop: any[] = [];
+  const dropReady: Array<string | number> = [];
+  const dropDownload: Array<string | number> = [];
   const account = accountScope(apiKey);
   const hadInventory = preexisting.has(account);
   let preexistentes = config.debrid.dropReady ? knownBefore(apiKey, account) : null;
   const loading = preexisting.get(account);
+  // Se ESTA checagem acabou de aguardar o refresh concluír, o snapshot já é o
+  // mais novo que a API pode dar — revalidar de novo seria uma segunda chamada
+  // redundante (só dispara com TTL patologicamente curto, mas o custo é real).
+  let refreshAguardado = false;
   if (loading?.hashes === null) {
     // Não há proveniência na resposta idempotente do upload. Antes de subir o
     // primeiro lote desta conta, esperamos o inventário para não confundir um
     // magnet que já era do usuário com um que a busca acabou de criar. Mantém o
     // fail-safe: a primeira checagem ainda não remove prontos.
-    preexistentes = await loading.promise;
+    preexistentes = (await loading.promise) || null;
+    refreshAguardado = true;
+  }
+  // Referência vencida não pode autorizar uma ação destrutiva. Se o refresh
+  // falhar, `preexistentes` fica null e os prontos permanecem protegidos.
+  if (!refreshAguardado && config.debrid.dropReady && !snapshotFresh(preexisting.get(account))) {
+    preexistentes = knownBefore(apiKey, account, { force: true });
+    const refreshing = preexisting.get(account);
+    if (refreshing?.hashes === null) preexistentes = (await refreshing.promise) || null;
   }
   const skipReadyDrop = !hadInventory;
 
@@ -258,33 +286,37 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
         ready.push(hash);
         // Só entra na limpeza o que o inventário garante não ser do usuário.
         if (!skipReadyDrop && preexistentes && magnet.id && !preexistentes.has(hash) && !held.isHeld(magnet.hash, account)) {
-          drop.push(magnet.id);
+          dropReady.push(magnet.id);
         }
       // Hash em download automático não entra na limpeza: ele está "não pronto"
       // justamente porque pedimos que baixasse.
-      } else if (magnet.id && !held.isHeld(magnet.hash, account)) drop.push(magnet.id);
+       } else if (magnet.id && !held.isHeld(magnet.hash, account)) dropDownload.push(magnet.id);
     }
     return ready;
   }, { timeoutMs });
 
-  if (drop.length && config.debrid.dropUncached) {
+  const scheduleDrop = (ids: Array<string | number>, kind: 'prontos' | 'downloads') => {
+    if (!ids.length) return;
     // Sem travar a busca: limpeza é efeito colateral, não resposta.
     // O resultado É lido — antes o allSettled engolia a rejeição, o log contava
     // TENTATIVA como remoção, e a conta crescia enquanto o addon afirmava estar
     // limpando. Ver dropMagnets: as falhas eram 503 por rajada.
-    dropMagnets(apiKey, drop).then(({ ok, falhas }) => {
+    dropMagnets(apiKey, ids).then(({ ok, falhas }) => {
       metrics.count('debrid.dropped', ok);
+      if (kind === 'downloads') metrics.count('debrid.dropped.download', ok);
       if (falhas.length) {
         metrics.count('debrid.drop_failed', falhas.length);
         const motivo = falhas[0]?.message || String(falhas[0]);
         log.warn(
-          `[alldebrid] ${ok}/${drop.length} magnet(s) removido(s) da conta — ${falhas.length} falhou(ram): ${motivo}`,
+          `[alldebrid] ${ok}/${ids.length} magnet(s) ${kind} removido(s) da conta — ${falhas.length} falhou(ram): ${motivo}`,
         );
         return;
       }
-      log.info(`[alldebrid] ${ok} magnet(s) da checagem removido(s) da conta`);
+      log.info(`[alldebrid] ${ok} magnet(s) ${kind} da checagem removido(s) da conta`);
     });
-  }
+  };
+  if (config.debrid.dropReady) scheduleDrop(dropReady, 'prontos');
+  if (config.debrid.dropUncached) scheduleDrop(dropDownload, 'downloads');
   return result;
 }
 
