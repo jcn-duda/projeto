@@ -1999,3 +1999,161 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
     held.release(h, account);
   }
 });
+
+// -----------------------------------------------------------------------------
+// T4a (Tarefa 3.4): Season Fill Negativo para Adaptadores sem cacheCheck
+// -----------------------------------------------------------------------------
+test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail nem conta season-fill', async () => {
+  const testMock = mock;
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalSeasonFill = config.debrid.autoFetchSeasonFill;
+  const originalSeasonIndexMax = config.debrid.autoFetchSeasonIndexMax;
+  const rdAdapter = debrid.BY_ID.get('realdebrid') as DebridAdapter;
+  const originalEnqueue = rdAdapter.enqueue;
+  const originalTorrentStatus = rdAdapter.torrentStatus;
+  const apiKey = 'chave-season-fill-rd';
+  const account = accountScope(apiKey);
+  const imdbId = 'tt8888888';
+  const ids = [`${imdbId}:1:1`, `${imdbId}:1:2`];
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'realdebrid',
+    debridApiKey: apiKey,
+    debridCachedOnly: false,
+    autoFetchBr: true,
+  };
+  const keys = ids.map((id) => streamsCacheKey('series', id, { ...userOpts, resolveUncached: config.debrid.resolveUncached }));
+  const h = '8'.repeat(40);
+  const pack = {
+    infoHash: h,
+    name: 'Show RD S01 Dublado',
+    title: 'Show RD S01 Dublado',
+    _br: true,
+    _dubbed: true,
+    _quality: '1080p',
+    _seeders: 1,
+  };
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  const davailBefore = cache.snapshot().namespaces.davail?.entries || 0;
+  const fillBefore = metrics.snapshot().counters['autofetch.season-fill'] || 0;
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    config.debrid.autoFetchSeasonFill = true;
+    config.debrid.autoFetchSeasonIndexMax = 10;
+    rdAdapter.enqueue = async () => true;
+    rdAdapter.torrentStatus = async () => ({ [h]: { state: 'ready', id: 'rd-1' } });
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+
+    for (const key of keys) cache.set(key, [{ infoHash: h }], 900);
+
+    await runtime.run({ opts: userOpts, encoded: 'cfg-sf-rd' }, async () => {
+      for (const id of ids) await findStreams({ type: 'series', id });
+    });
+
+    testMock.timers.enable({ apis: ['setTimeout'] });
+    await runtime.run({ opts: userOpts, encoded: 'cfg-sf-rd' }, () =>
+      applyDebrid([pack], { searchKey: keys[0], imdbId, season: 1 } as any),
+    );
+    await flush();
+    testMock.timers.tick(120_000);
+    await flush();
+
+    assert.equal(
+      cache.snapshot().namespaces.davail?.entries || 0,
+      davailBefore,
+      'adaptador com cacheCheck: false não semeia davail',
+    );
+    assert.equal(
+      (metrics.snapshot().counters['autofetch.season-fill'] || 0) - fillBefore,
+      0,
+      'adaptador com cacheCheck: false não incrementa autofetch.season-fill',
+    );
+  } finally {
+    testMock.timers.reset();
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.autoFetchSeasonFill = originalSeasonFill;
+    config.debrid.autoFetchSeasonIndexMax = originalSeasonIndexMax;
+    rdAdapter.enqueue = originalEnqueue;
+    rdAdapter.torrentStatus = originalTorrentStatus;
+    for (const key of keys) cache.forget(key);
+    cache.forget(autofetch.markerKey('realdebrid', account, h));
+    held.release(h, account);
+  }
+});
+
+// -----------------------------------------------------------------------------
+// T4b (Tarefa 3.5): autoFetchStallStreak = 0 Desativa Colapso por Stall
+// -----------------------------------------------------------------------------
+test('T4b: autoFetchStallStreak = 0 não colapsa nem remove torrent stalled (parado nunca derruba)', async () => {
+  const testMock = mock;
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalStall = config.debrid.autoFetchStallStreak;
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const originalTorrentStatus = pmAdapter.torrentStatus;
+  const originalRemoveTorrent = pmAdapter.removeTorrent;
+  const account = accountScope('chave-stall-zero');
+  const h = '9'.repeat(40);
+  const searchKey = 'busca-stall-zero';
+  const brDub = { infoHash: h, name: 'Filme Stall Zero Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-stall-zero',
+    debridCachedOnly: false,
+    autoFetchBr: true,
+  };
+  let removals = 0;
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  const stalledBefore = metrics.snapshot().counters['autofetch.stalled'] || 0;
+
+  try {
+    config.debrid.autoFetchStallStreak = 0; // Desativa remoção por stall
+    config.debrid.publicUrl = 'http://addon.test';
+    pmAdapter.enqueue = async () => true;
+    pmAdapter.torrentStatus = async () => ({ [h]: { state: 'downloading', stalled: true, id: 99 } });
+    pmAdapter.removeTorrent = async () => { removals += 1; return true; };
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+
+    testMock.timers.enable({ apis: ['setTimeout'] });
+    await runtime.run({ opts: userOpts, encoded: 'cfg-stall-zero' }, () =>
+      applyDebrid([brDub], { searchKey } as any),
+    );
+    await flush();
+
+    // Executa múltiplos ciclos de recheck com stalled: true reportado
+    for (let i = 0; i < 5; i++) {
+      testMock.timers.tick(120_000);
+      await flush();
+    }
+
+    assert.equal(removals, 0, 'com autoFetchStallStreak=0 removeTorrent nunca é chamado');
+    assert.equal(
+      autofetch.isDead('premiumize', account, h),
+      false,
+      'torrent stalled não entra em blacklist quando stallStreak é 0',
+    );
+    assert.equal(
+      (metrics.snapshot().counters['autofetch.stalled'] || 0) - stalledBefore,
+      0,
+      'métrica autofetch.stalled não é incrementada',
+    );
+  } finally {
+    testMock.timers.reset();
+    config.debrid.autoFetchStallStreak = originalStall;
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    pmAdapter.torrentStatus = originalTorrentStatus;
+    pmAdapter.removeTorrent = originalRemoveTorrent;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, h));
+    held.release(h, account);
+  }
+});
+

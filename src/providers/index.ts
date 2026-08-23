@@ -333,6 +333,7 @@ function drainNext(searchKey: string, lot: any) {
   const adapter = debrid.current();
   if (!adapter) return;
   const account = accountScope(opts().debridApiKey);
+  if (autofetch.budgetBlockedUntil(adapter.id, account) > Date.now()) return;
 
   const { next, remaining } = autofetch.takeNext(queue, (cand) => {
     const h = String(cand.infoHash).toLowerCase();
@@ -357,7 +358,10 @@ function drainNext(searchKey: string, lot: any) {
 
   if (!autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit)) {
     autofetch.release(mKey);
-    autofetch.writeQueue(searchKey, [next, ...remaining], config.debrid.autoFetchQueueTtl, adapter.id, account);
+    // Orçamento cheio não torna este torrent ruim. Rodar a cabeça evita
+    // reprocessar para sempre o mesmo item quando a fila for acordada de novo.
+    autofetch.blockBudget(adapter.id, account, config.debrid.autoFetchDrainBackoffMs);
+    autofetch.writeQueue(searchKey, [...remaining, next], config.debrid.autoFetchQueueTtl, adapter.id, account);
     return;
   }
 
@@ -1116,6 +1120,7 @@ async function collectRaw(
   matchContext: MatchContext,
   onLate: ((items: any[], grew: boolean, partial?: boolean) => any) | null,
   sweepQuery: string | null = null,
+  deadlineAt: number | null = null,
 ) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
@@ -1191,7 +1196,9 @@ async function collectRaw(
 
   // Orçamento menor que o deadline da resposta: o resto do tempo é da checagem
   // no debrid, que ainda precisa rodar em cima do que foi coletado.
-  const budget = Math.max(1000, config.replyDeadline - config.debridReserve);
+  const budget = deadlineAt == null
+    ? Math.max(1000, config.replyDeadline - config.debridReserve)
+    : Math.max(500, (remainingCheckBudget(deadlineAt) ?? 0) - config.debridReserve);
   // A graça sai da reserva, mas nunca invade o piso configurado pro debrid. No
   // caso
   // medido de Disclosure Day, a primeira fonte BR chegava pouco depois dos 5s;
@@ -1633,6 +1640,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
     raw = await collectRaw(query, type, imdbId, ptQuery, matchContext, (items: any[], grew: boolean, partial?: boolean) =>
       late(items, grew, episodePhase, partial),
       sweepQuery,
+      deadlineAt,
     );
   }
 
@@ -1680,6 +1688,7 @@ async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: 
     raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, (items: any[], grew: boolean, partial?: boolean) =>
       late(items, grew, packPhase, partial),
       sweepQuery,
+      deadlineAt,
     );
   }
 

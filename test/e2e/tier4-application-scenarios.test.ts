@@ -657,6 +657,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
   // ---------------------------------------------------------------------------
 
   test('Scenario 5: High-Concurrency Multi-User Request Storm with Divergent Runtime Configs & Isolated Caches', async () => {
+    const origSecret = config.debrid.resolveSecret;
     const operatorSecret = 'oper-master-secret-12345';
     config.debrid.resolveSecret = operatorSecret;
 
@@ -773,6 +774,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       const u9 = results.find((r) => r.user.id === 9)!;
       assert.equal(u9.data.streams.length, u1.data.streams.length);
     } finally {
+      config.debrid.resolveSecret = origSecret;
       jackett.search = originalJackettSearch;
       prowlarr.search = originalProwlarrSearch;
       pmAdapter.checkCached = origPmCheck;

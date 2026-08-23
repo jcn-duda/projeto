@@ -12,6 +12,7 @@ const LOCK_TTL_MS = 60_000;
 // Janela deslizante de 1h de enqueues por adapter:account
 const hourlyEnqueues = new Map<string, number[]>();
 const hourlyLimits = new Map<string, number>();
+const budgetBlocked = new Map<string, number>();
 // Índices de diagnóstico deste processo. As filas/blacklists continuam no
 // cache persistente; estes sets só permitem contar sem enumerar chaves privadas.
 const knownQueues = new Map<string, number>();
@@ -229,13 +230,35 @@ function checkAndRecordBudget(adapterId: string, account: string, limit?: number
   return true;
 }
 
+function budgetKey(adapterId: string, account: string) {
+  return `${adapterId}:${account}`;
+}
+
+/** Pausa a drenagem quando o limite horário já foi consumido. */
+function blockBudget(adapterId: string, account: string, backoffMs: number) {
+  if (!adapterId || !account || backoffMs <= 0) return;
+  budgetBlocked.set(budgetKey(adapterId, account), Date.now() + backoffMs);
+}
+
+function budgetBlockedUntil(adapterId: string, account: string) {
+  const key = budgetKey(adapterId, account);
+  const until = budgetBlocked.get(key) || 0;
+  if (until <= Date.now()) {
+    budgetBlocked.delete(key);
+    return 0;
+  }
+  return until;
+}
+
 function resetBudget(adapterId?: string, account?: string) {
   if (adapterId && account) {
     hourlyEnqueues.delete(`${adapterId}:${account}`);
     hourlyLimits.delete(`${adapterId}:${account}`);
+    budgetBlocked.delete(budgetKey(adapterId, account));
   } else {
     hourlyEnqueues.clear();
     hourlyLimits.clear();
+    budgetBlocked.clear();
   }
 }
 
@@ -299,6 +322,8 @@ export {
   dropQueue,
   takeNext,
   checkAndRecordBudget,
+  blockBudget,
+  budgetBlockedUntil,
   resetBudget,
   snapshot,
 };

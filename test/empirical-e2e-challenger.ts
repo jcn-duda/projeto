@@ -15,7 +15,7 @@ const E2E_FILES = [
 ];
 
 function runTest(files: any, extraArgs = []) {
-  const args = ['--test', ...(Array.isArray(files) ? files : [files]), ...extraArgs];
+  const args = ['--test', '--test-concurrency=1', ...(Array.isArray(files) ? files : [files]), ...extraArgs];
   const start = Date.now();
   const res = spawnSync(process.execPath, args, {
     cwd: process.cwd(),
@@ -142,12 +142,54 @@ const mutations = [
   }
 ];
 
+// -----------------------------------------------------------------------------
+// Safe snapshotting: preserve original build files in memory and install
+// emergency restore handlers on process exit/signals so dist/ is NEVER corrupted.
+// -----------------------------------------------------------------------------
+const originalSnapshots = new Map<string, string>();
+for (const mut of mutations) {
+  if (!originalSnapshots.has(mut.file)) {
+    if (!fs.existsSync(mut.file)) {
+      console.error(`Mutation target file not found: ${mut.file}`);
+      process.exit(1);
+    }
+    originalSnapshots.set(mut.file, fs.readFileSync(mut.file, 'utf8'));
+  }
+}
+
+function restoreAllSnapshots() {
+  for (const [filePath, content] of originalSnapshots.entries()) {
+    try {
+      fs.writeFileSync(filePath, content, 'utf8');
+    } catch (err: any) {
+      console.error(`Failed to restore snapshot for ${filePath}:`, err?.message || err);
+    }
+  }
+}
+
+let cleanedUp = false;
+const safeExitHandler = (reason: string) => {
+  if (cleanedUp) return;
+  cleanedUp = true;
+  restoreAllSnapshots();
+};
+
+process.on('SIGINT', () => { safeExitHandler('SIGINT'); process.exit(130); });
+process.on('SIGTERM', () => { safeExitHandler('SIGTERM'); process.exit(143); });
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception during mutation harness:', err);
+  safeExitHandler('uncaughtException');
+  process.exit(1);
+});
+process.on('exit', () => { safeExitHandler('exit'); });
+
 let mutationsCaught = 0;
 for (const mut of mutations) {
   const filePath = mut.file;
-  const origContent = fs.readFileSync(filePath, 'utf8');
+  const origContent = originalSnapshots.get(filePath)!;
   if (!origContent.includes(mut.target)) {
     console.error(`Target not found in ${filePath} for ${mut.name}`);
+    restoreAllSnapshots();
     process.exit(1);
   }
   const mutatedContent = origContent.replace(mut.target, mut.replacement);
@@ -198,7 +240,7 @@ const PARALLEL_WORKERS = 6;
 async function runParallelWorker(workerId: number) {
   return new Promise<{ workerId: number; code: number | null; pass: boolean; duration: number; output: string }>((resolve) => {
     const start = Date.now();
-    const child = spawn(process.execPath, ['--test', ...E2E_FILES], {
+    const child = spawn(process.execPath, ['--test', '--test-concurrency=1', ...E2E_FILES], {
       cwd: process.cwd(),
       env: { ...process.env, CACHE_PERSIST: 'false' }
     });
