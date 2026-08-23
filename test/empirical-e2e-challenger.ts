@@ -65,15 +65,19 @@ for (const f of E2E_FILES) {
 console.log('\n--- 3. Mutation & Perturbation Testing Matrix ---');
 const mutations = [
   {
-    name: 'MUT-01: Invert matchesBrTitle (format.js)',
-    file: 'dist/src/utils/format.js',
+    // PLANO_MELHORIAS 5.3: matchesBrTitle saiu de utils/format.js para
+    // utils/release-matching.js no split de format.ts.
+    name: 'MUT-01: Invert matchesBrTitle (release-matching.js)',
+    file: 'dist/src/utils/release-matching.js',
     target: 'return matchesTitleStructure(title, name, year, { isSeries, tokens: own });',
     replacement: 'return false; // MUTATED',
     testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
   },
   {
-    name: 'MUT-02: Break dedupeByHash seeders preservation (format.js)',
-    file: 'dist/src/utils/format.js',
+    // PLANO_MELHORIAS 5.3: dedupeByHash saiu de utils/format.js para
+    // utils/stream-ranking.js no split de format.ts.
+    name: 'MUT-02: Break dedupeByHash seeders preservation (stream-ranking.js)',
+    file: 'dist/src/utils/stream-ranking.js',
     target: 'const seedDiff = (s._seeders || 0) - (prev._seeders || 0);',
     replacement: 'const seedDiff = (prev._seeders || 0) - (s._seeders || 0); // MUTATED',
     testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
@@ -114,8 +118,10 @@ const mutations = [
     testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
   },
   {
-    name: 'MUT-08: Invert Tier 3 brFirst ranking logic in limitReservingBr (format.js)',
-    file: 'dist/src/utils/format.js',
+    // PLANO_MELHORIAS 5.3: limitReservingBr saiu de utils/format.js para
+    // utils/stream-quotas.js no split de format.ts.
+    name: 'MUT-08: Invert Tier 3 brFirst ranking logic in limitReservingBr (stream-quotas.js)',
+    file: 'dist/src/utils/stream-quotas.js',
     target: 'if (brFirst) {',
     replacement: 'if (!brFirst) { // MUTATED',
     testFile: 'dist/test/e2e/tier3-cross-feature.test.js'

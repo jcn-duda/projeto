@@ -26,8 +26,8 @@
   - `src/debrid/alldebrid.ts`: AllDebrid adapter with snapshot TTL (`ALLDEBRID_PREEXISTING_TTL_MS`), fail-safe closed behavior, decoupled `dropReady` and `dropDownload` cleanups.
   - `src/debrid/{premiumize,torbox,realdebrid,debridlink}.ts`: Debrid adapters for Premiumize, TorBox, Real-Debrid, and Debrid-Link.
 - **Utilities & Formatting Layer**:
-  - `src/utils/title-normalization.ts`: Clean title normalization, entity decoding, sequence numerals.
-  - `src/utils/release-matching.ts`: Precision title matching, `matchesBrTitle`, `matchesEpisodeWorkIdentity`, `magnetYearContradicts`, franchise roots.
+  - `src/utils/title-normalization.ts`: Clean title normalization, entity decoding, infoHash extraction (base32 magnets included).
+  - `src/utils/release-matching.ts`: Precision title matching, `matchesBrTitle`, `matchesEpisodeWorkIdentity`, `magnetYearContradicts`, franchise roots, sequence numerals (`extractSequenceMarkers`).
   - `src/utils/episode-matching.ts`: Season/episode parsing, season pack identification.
   - `src/utils/audio-quality.ts`: Audio/language classifiers, resolution detection, audio lie audit.
   - `src/utils/stream-ranking.ts`: Sorting algorithms, deduplication by hash, candidate selection pools.
@@ -77,7 +77,7 @@
 | 17 | T7 Harness Tracking in Test Complete | Verify all 6 bench harnesses in `scripts/check-test-list.ts` and `package.json` | M2 | PLANO_MELHORIAS §3.8 |
 | 18 | B3 Search Budget Verification | E2E test verifying dynamic budget reduction with slow Cinemeta + TMDB miss | M2 | PLANO_MELHORIAS §4.1 |
 | 19 | A1b File Selector Extraction | Extract `src/debrid/file-selector.ts` and re-export via `src/debrid/common.ts` | M3 | PLANO_MELHORIAS §5.2 |
-| 20 | A2 Format Utility Modularization | Split `src/utils/format.ts` into 7 specialized submodules with barrel re-export | M3 | PLANO_MELHORIAS §5.3 |
+| 20 | A2 Format Utility Modularization | Split `src/utils/format.ts` into 7 specialized submodules with barrel re-export | M3 | DONE (2026-08-23) — PLANO_MELHORIAS §5.3 |
 | 21 | A1 Providers Modularization | Split `src/providers/index.ts` into 5 submodules | M3 | DONE (2026-08-23) — PLANO_MELHORIAS §5.1. Explicit `SearchPhase` (A3) not done; phase control stays implicit via latest-writer |
 | 22 | A5 Centralized Config | Remove raw `process.env` calls in `src/app.ts` and route through `src/config.ts` | M3 | PLANO_MELHORIAS §5.6 |
 | 23 | A4 Brazilian Resolvers Shared Core | Extract common microservice engine into `resolvers/` core with site profiles | M3 | PLANO_MELHORIAS §5.4 |
@@ -93,7 +93,7 @@
 | M0 | Survey & Planning | Features 1–26 surveyed, mapped, baseline verified | none | DONE |
 | M1 | Debrid Safety & Runtime Robustness | Features 1–10 (B1 tests 1.4/1.5, S3 diagnostic gate, S1.2 asyncRoute, S4 action confirmation, SQLite corrupted recovery, CI audit, SSRF filter remediation) | M0 | DONE |
 | M2 | Core Guardrails, Regression Safety & Budget Verification | Features 11–18 (T1–T7, B3 E2E test verification, harness mutation safety) | M1 | IN_PROGRESS |
-| M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | IN_PROGRESS (21/A1 done) |
+| M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | IN_PROGRESS (20/A2 and 21/A1 done) |
 | M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 5 bench harnesses, forensic audit | M3 | PLANNED |
 
 ---

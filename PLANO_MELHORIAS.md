@@ -99,7 +99,8 @@ refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado
 com teto pelo `DEBRID_CHECK_FLOOR_MS`.
 
 **O que continua aberto:** fase 0 (parcialmente — ver abaixo), item 4.2,
-fase 5 (5.1 concluída em 2026-08-23; 5.2–5.7 abertas) e fase 6.
+fase 5 (5.1 e 5.3 concluídas em 2026-08-23; 5.2/5.4/5.5/5.6/5.7 abertas) e
+fase 6.
 
 ---
 
@@ -294,13 +295,62 @@ gate completo (`typecheck`, `build`, `npm test`, `test:complete`,
 `selectMovieVideo` (tipos `WorkPickError`/`EpisodePickError` juntos).
 `common.ts` reexporta. Testes existentes de `debrid-pick-work` não mudam.
 
-### 5.3 — Split de `src/utils/format.ts` (A2) — esforço M
+### 5.3 ✅ — Split de `src/utils/format.ts` (A2) — esforço M — CONCLUÍDA (2026-08-23)
 
-`utils/title-normalization.ts`, `release-matching.ts`, `episode-matching.ts`,
-`audio-quality.ts`, `stream-ranking.ts`, `stream-quotas.ts`,
-`search-names.ts`; `format.ts` vira barrel de reexports (a remoção do barrel
-é decisão posterior, com grep de uso). Testes novos ficam nos módulos novos;
-os antigos continuam passando via reexport.
+2.307 linhas / 57 exports em 7 módulos, camadas sem ciclo (cada um só importa
+dos que vêm antes):
+
+1. `title-normalization.ts` — base, zero dependência interna:
+   `bytesToSize`, `extractInfoHash`, `decodeEntities`, `normalizeTitle`;
+2. `episode-matching.ts` — usa title-normalization: `parseTitleSeasonEpisode`,
+   `seasonCoverageExcludes`, `matchesEpisode`, `isSeasonPackRelease`,
+   `isSeasonPackFillEligible`;
+3. `release-matching.ts` — usa title-normalization + episode-matching:
+   `matchesName`, `matchesBrTitle`, `matchesTitleStructure`,
+   `matchesEpisodeWorkIdentity`, `isMultiWorkCollection`, `franchiseRoot(s)`,
+   `containsTokenRun`, `filterInventoryRelevant`, `filterRelevantRaw`,
+   `magnetYearContradicts` — exporta `TECH_NOISE`/`LEADING_ARTICLES` para
+   quem precisa deles fora do módulo;
+4. `audio-quality.ts` — usa title-normalization + release-matching (só
+   `TECH_NOISE`, para o vocabulário do blob de tags): `UNKNOWN_QUALITY`,
+   `qualityFromTitle`, `stripQualityTagBlob`, `sourceFromTitle`,
+   `audioFromTitle`, `editionFromTitle`, `explicitPtAudio`, `hasPtAudioMark`,
+   `strongEnSceneMark`, `dubbedLieVerdict`, `hasExplicitForeignAudio`,
+   `looksPtBr`, `compactAudio`, `compactTracker`;
+5. `stream-quotas.ts` — usa audio-quality + episode-matching:
+   `QUALITY_KEYS`, `streamQuality`, `selectQualityCandidates`,
+   `limitByIndexer`, `limitByQualityAndIndexer`, `limitByQuality`,
+   `limitReservingBr`;
+6. `search-names.ts` — usa title-normalization + release-matching +
+   stream-quotas: `TRACKERS`, `streamDisplayName`, `markDebridName`,
+   `matchesQualityFilter`, `passesQualityFilter`, `toStremioStream`,
+   `resolveSearchNames`, `parseStremioId`, `buildSearchQuery`,
+   `numeralSearchVariant` — "search-names" é nome de compromisso: o módulo
+   também é o formatador de stream do Stremio, porque `toStremioStream` usa
+   os mesmos classificadores de áudio/qualidade que os nomes de busca;
+7. `stream-ranking.ts` — o mais dependente (audio-quality + episode-matching +
+   stream-quotas + search-names): `relabel`, `dedupeByHash`, `brDubbedPool`,
+   `anyDubbedPool`, `topSeededPool`, `pickBrDubbedCandidate(s)`,
+   `pickAnyDubbedCandidates`, `pickTopSeededCandidates`, `hasCachedBrDubbed`,
+   `canAutoFetchBr`, `uncachedBrHashes`, `filterKnownCache`, `sortAndLimit`.
+
+`format.ts` virou barrel puro: reexporta os mesmos 57 nomes de antes, na
+mesma assinatura — os ~19 arquivos de teste e os consumidores em
+`src/providers/`/`src/debrid/` que importam de `utils/format.js` não
+mudaram uma linha. A remoção do barrel continua decisão posterior.
+
+Diferente do 5.1 (uma extração por commit), o split de `format.ts` saiu num
+commit só: as constantes de matching (`TECH_NOISE`, `PACK_WORDS`,
+`LEADING_ARTICLES`, `STOP_AT`…) são compartilhadas por funções de módulos-
+alvo DIFERENTES de um jeito que não dá pra separar em fatias
+independentemente verificáveis sem duplicar constante ou deixar um estado
+intermediário quebrado. O gate rodou inteiro (typecheck, build, suíte,
+`test:complete`, os 5 harnesses) antes do commit, não entre extrações.
+
+O harness adversarial (`test/empirical-e2e-challenger.ts`) precisou de mais
+3 ajustes de caminho — MUT-01 (`matchesBrTitle` → `release-matching.js`),
+MUT-02 (`dedupeByHash` → `stream-ranking.js`), MUT-08 (`limitReservingBr` →
+`stream-quotas.js`) — mesmo padrão do MUT-09/MUT-10 no 5.1.
 
 ### 5.4 — Núcleo comum dos resolvers (A4) — esforço M
 
@@ -375,11 +425,12 @@ adiar 5.1/5.3 até um bug concreto ficar caro por causa do tamanho do
 arquivo, e fazer só 5.6/5.2 no lugar — risco real do sistema é corrida de
 latest-writer e orçamento de tempo, exatamente o que um split de módulo
 quebra com mais facilidade, e harness que não pega um bug hoje não pega o
-que o refactor introduzir. **Decisão explícita, 2026-08-23: fazer 5.1 mesmo
-assim**, contra essa recomendação — 5.1 saiu completa (ver acima) com gate
-cheio (typecheck, build, suíte, `test:complete`, os 5 harnesses adversariais)
-entre cada uma das 4 extrações, e nenhum deles quebrou. 5.3 (`format.ts`,
-2.307 linhas) é a próxima candidata pela mesma lógica de risco/benefício;
+que o refactor introduzir. **Decisão explícita, 2026-08-23: fazer 5.1 e 5.3
+mesmo assim**, contra essa recomendação — as duas saíram completas (ver
+acima) com o gate cheio (typecheck, build, suíte, `test:complete`, os 5
+harnesses adversariais) rodando verde antes de cada commit, e nenhum deles
+quebrou. `providers/index.ts` (2.220 linhas) e `utils/format.ts` (2.307
+linhas), os dois maiores arquivos do repo, não existem mais como monólito.
 5.2/5.4/5.5/5.6/5.7 continuam em aberto e fora do escopo desta rodada.
 
 ## Validação global (por fase)
