@@ -2092,6 +2092,7 @@ async function buildStreams(
     brFirst,
     maxPerIndexer,
     indexerLimits: safeIndexerLimits,
+    season,
   });
 
   // Tres estados, nesta ordem de precisao: ja mandamos baixar / achamos mas o

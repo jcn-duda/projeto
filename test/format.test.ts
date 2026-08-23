@@ -1245,6 +1245,108 @@ test('faixa sem candidato BR não ganha vaga fantasma na reserva por faixa', () 
   assert.deepEqual(out.map((s: any) => (s as any).id), ['global-a', 'br-1080']);
 });
 
+// --- Causa D: pack dublado cobre faixa sem dublado próprio ----------------
+//
+// Fallout real: o dublado da temporada só existe como pack 1080p; 720p e 4K
+// têm só legendado. O áudio PT existe dentro do pack e o pickFile extrai o
+// episódio — então o pack preenche a vaga BR da faixa que ficou devendo,
+// sem deslocar dublado próprio de faixa nenhuma.
+
+const globaisLotando = (quantidade: number) =>
+  Array.from({ length: quantidade }, (_, indice) => ({
+    id: `global-${indice}`,
+    _quality: '1080p',
+    _br: false,
+    _seeders: 100,
+  }));
+
+test('pack dublado da temporada cobre a vaga da faixa sem dublado próprio', () => {
+  const streams = [
+    ...globaisLotando(10),
+    {
+      id: 'br-pack-1080',
+      _quality: '1080p',
+      _br: true,
+      _dubbed: true,
+      title: 'Fallout 1ª Temporada Completa DUBLADA Dual 1080p WEB-DL',
+    },
+    {
+      id: 'br-ep-720',
+      _quality: '720p',
+      _br: true,
+      _dubbed: true,
+      title: 'Fallout S01E02 DUBLADO 720p',
+    },
+  ];
+  const out = limitReservingBr(quotaStreams([...streams]), {
+    brReservedSlots: 2,
+    brFirst: false,
+    maxResults: 10,
+    brReservedPerQuality: 1,
+    season: 1,
+  });
+  const ids = out.map((s: any) => (s as any).id);
+  // O episódio 720p entra pela faixa própria; o pack cobre a faixa 1080p,
+  // que não tem dublado solto na fonte.
+  assert.ok(ids.includes('br-ep-720'), 'dublado próprio da faixa entra primeiro');
+  assert.ok(ids.includes('br-pack-1080'), 'pack cobre a faixa sem dublado próprio');
+});
+
+test('faixa com dublado próprio não é ocupada pelo pack', () => {
+  const streams = [
+    ...globaisLotando(10),
+    {
+      id: 'br-ep-1080',
+      _quality: '1080p',
+      _br: true,
+      _dubbed: true,
+      title: 'Fallout S01E03 DUBLADO 1080p',
+    },
+    {
+      id: 'br-pack-1080',
+      _quality: '1080p',
+      _br: true,
+      _dubbed: true,
+      title: 'Fallout 1ª Temporada Completa DUBLADA Dual 1080p WEB-DL',
+    },
+  ];
+  const out = limitReservingBr(quotaStreams([...streams]), {
+    brReservedSlots: 1,
+    brFirst: false,
+    maxResults: 10,
+    brReservedPerQuality: 1,
+    season: 1,
+  });
+  const ids = out.map((s: any) => (s as any).id);
+  assert.ok(ids.includes('br-ep-1080'));
+  // A lista está cheia de globais e a única vaga da reserva vai para o
+  // dublado próprio: o pack não disputa a faixa com ele.
+  assert.equal(ids.includes('br-pack-1080'), false);
+});
+
+test('o mesmo pack nunca ocupa duas vagas de faixa', () => {
+  const streams = [
+    ...globaisLotando(10),
+    {
+      id: 'br-pack-1080',
+      _quality: '1080p',
+      _br: true,
+      _dubbed: true,
+      title: 'Fallout 1ª Temporada Completa DUBLADA Dual 1080p WEB-DL',
+    },
+  ];
+  const out = limitReservingBr(quotaStreams([...streams]), {
+    brReservedSlots: 3,
+    brFirst: false,
+    maxResults: 12,
+    brReservedPerQuality: 1,
+    season: 1,
+  });
+  const ids = out.map((s: any) => (s as any).id);
+  assert.equal(ids.filter((id: string) => id === 'br-pack-1080').length, 1);
+});
+
+
 test('resolveSearchNames cobre o Cinemeta que não conhece o id', () => {
   const titles = { pt: 'A Origem', original: 'Inception', year: '2010' };
 

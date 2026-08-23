@@ -1892,6 +1892,19 @@ function filterKnownCache(streams: Stream[] = [], cachedHashes: Set<string> = ne
   };
 }
 
+interface LimitBrOptions {
+  brReservedSlots?: number;
+  brReservedPerQuality?: number;
+  maxResults?: number;
+  brOnly?: boolean;
+  qualityLimits?: Record<string, any>;
+  brFirst?: boolean;
+  maxPerIndexer?: number;
+  indexerLimits?: Record<string, any>;
+  /** Temporada pedida: liga a cobertura de pack por faixa (Causa D). */
+  season?: number | null;
+}
+
 /** Reserva origem BR, aplica as cotas finais e remove todos os campos internos. */
 function limitReservingBr(
   streams: Stream[],
@@ -1904,7 +1917,8 @@ function limitReservingBr(
     brFirst = true,
     maxPerIndexer = 0,
     indexerLimits = {},
-  } = {},
+    season = null,
+  }: LimitBrOptions = {},
 ) {
   const pool = brOnly ? streams.filter((stream) => stream._br) : streams;
 
@@ -1952,16 +1966,45 @@ function limitReservingBr(
   // escolhidos dubbed-first. É o seguro contra a abundância de 1080p BR
   // empurrar a única BR 4K/720p para fora — na reserva global e no teto de
   // maxResults. Faixa sem candidato BR simplesmente não ganha vaga fantasma.
+  //
+  // Cobertura por pack (Causa D): quando a faixa não tem release dublada
+  // PRÓPRIA, o pack dublado da temporada pedida preenche a vaga dela — o áudio
+  // PT existe de verdade dentro do arquivo e o pickFile extrai o episódio.
+  // Usa os mesmos primitivos do poolCovered/brDubbedPool (_br + _dubbed +
+  // isSeasonPackRelease), então "cobertura" significa a mesma coisa nos dois
+  // caminhos. O pack NÃO desloca dublado próprio: só entra em faixa que ficou
+  // devendo, uma vez por faixa descoberta (o mesmo hash nunca ocupa duas
+  // vagas), e na prioridade QUALITY_KEYS — 4K antes de 720p.
   const perFaixa = Math.max(0, Math.trunc(Number(brReservedPerQuality) || 0));
   const garantidas: Stream[] = [];
   if (perFaixa > 0) {
     const faixaCounts = new Map<string, number>();
+    const comPropria = new Set<string>();
     for (const stream of brStreams) {
       const quality = streamQuality(stream);
-      const usados = faixaCounts.get(quality) || 0;
-      if (usados >= perFaixa) continue;
-      faixaCounts.set(quality, usados + 1);
+      if ((faixaCounts.get(quality) || 0) >= perFaixa) continue;
+      // Passada 1: só dublado próprio (não-pack). Packs são adiados para
+      // cobrir exatamente as faixas que ficarem sem candidato próprio.
+      if (season != null && isSeasonPackRelease(stream, season)) continue;
+      comPropria.add(quality);
+      faixaCounts.set(quality, (faixaCounts.get(quality) || 0) + 1);
       garantidas.push(stream);
+    }
+    if (season != null) {
+      const usados = new Set(garantidas);
+      for (const quality of QUALITY_KEYS) {
+        if (comPropria.has(quality)) continue;
+        const pack = brStreams.find(
+          (stream) =>
+            !usados.has(stream) &&
+            streamQuality(stream) === quality &&
+            isSeasonPackRelease(stream, season),
+        );
+        if (!pack) continue;
+        usados.add(pack);
+        comPropria.add(quality);
+        garantidas.push(pack);
+      }
     }
   }
   const encaixaGarantida = (selected: Stream[]) => {
