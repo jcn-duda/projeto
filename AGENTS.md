@@ -978,6 +978,25 @@ o orçamento com a resposta.
   arquivos reais são listados. Ao mexer no `pickFile`, lembre que "não casou o
   episódio" e "não há episódio no nome" são casos **diferentes**: o primeiro é
   prova de conteúdo errado.
+- **`matchesName` é o único portão de TÍTULO do caminho global de série — e a
+  razão 0.6 é frágil em nome curto.** No caminho BR, `matchesBrTitle` encadeia
+  três guardas por cima dele (precisão, prefixo, ano); no global de série, as
+  guardas seguintes abstêm-se — `matchesEpisodeWorkIdentity` só decide quando o
+  título carrega marcador de episódio (release de filme não carrega), e o
+  prefixo/sequência de filme são pulados de propósito ("S01E02.From"). Caso
+  medido: "Shaun of the Dead (2004)" entrava na busca de "The Walking Dead:
+  Dead City" porque o nome pedia [the, walking, dead, dead, city] e o candidato
+  marcava the + dead + dead = 3/5 = 0.600, exatamente o corte. Duas regras
+  consertaram e **não podem voltar atrás**: `wanted` deduplicado (token
+  repetido no nome não vale acerto dobrado) e artigo inglês fora do conjunto
+  significativo (o filtro de comprimento `> 2` foi calibrado para ruído pt-BR
+  de 1–2 letras e não pegava "the"; use o `LEADING_ARTICLES` existente, não
+  uma lista nova — e preserve o fallback de nome curto que É artigo: "The
+  Bear", "From"). Para a lacuna de ano, a série global ganhou a metade do ANO
+  da `matchesTitleStructure` (helper `yearContradicts`, mesma regra que o BR
+  já aplicava: só condena quando TODOS os anos do título são anteriores à
+  estreia −2). Quanto mais curto o nome, mais exposta a razão: série-mãe
+  "The Walking Dead" fazia 2/3 = 0.667 — pior que o spin-off.
 - **"Sumiu o ⚡ de todos os streams" quase nunca é bug de código.** No fluxo
   normal, stream fora do cache sai **sem prefixo nenhum** (P2P); ver
   `[AD download]` em 100% dos itens significa que a checagem de cache não
