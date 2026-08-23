@@ -495,7 +495,17 @@ function toStremioStream(item: RawItem): Stream | null {
   // Quem grava é o play/tail via releaseIndex; aqui só consumimos o campo.
   const quality = (item as any).provenQuality || qualityFromTitle(title);
   const source = sourceFromTitle(title);
-  const audio = (item as any).provenAudio !== undefined ? (item as any).provenAudio : audioFromTitle(title);
+  // Prova VAZIA (release EN sem marca PT no arquivo) é veredito sobre DUBLADO,
+  // não sobre o rótulo. Quando o título já diz "Legendado" ele CONCORDA com a
+  // prova — apagá-lo trocava "720p WEB-DL LEG BR" por "720p WEB-DL BR" e
+  // escondia do usuário a única informação de áudio que existia, sem mudar
+  // decisão nenhuma (`_dubbed` é false dos dois jeitos). Rótulo que afirma
+  // dublado continua sendo derrubado pela prova, que é o motivo dela existir.
+  const provenAudio = (item as any).provenAudio;
+  const titleAudio = audioFromTitle(title);
+  const audio = provenAudio !== undefined
+    ? provenAudio || (titleAudio === 'Legendado' ? 'Legendado' : '')
+    : titleAudio;
   const edition = editionFromTitle(title);
 
   // Convenção do Torrentio: 👤 seeders, 💾 tamanho, ⚙️ indexer. Os clientes

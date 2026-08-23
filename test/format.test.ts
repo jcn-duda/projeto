@@ -291,6 +291,49 @@ test('dublado real do hdrtorrent continua dublado apesar do blob', () => {
   );
 });
 
+// Prova pelo ARQUIVO com rótulo vazio (release EN sem marca PT) existe para
+// derrubar a promessa de dublado do post. Ela NÃO pode apagar um rótulo que já
+// concorda com ela: medido no Fallout S01, o 720p LEGENDADO do comandotorrents
+// saía como "720p WEB-DL BR" — sem o LEG — enquanto o 4K e o 1080p legendados
+// do MESMO post mantinham a marca. O `_dubbed` é false nos dois caminhos, então
+// o que se perdia era só informação na tela.
+test('prova de release EN não apaga o rótulo LEG de quem já é legendado', () => {
+  const legendado = {
+    title: 'Fallout 1ª Temporada (2024) [720p WEB-DL LEGENDADO 2.55 GB]',
+    infoHash: 'b7efcb48193a4a9e11497d00930d754c0bf1c65b',
+    seeders: 1,
+    size: 2_550_000_000,
+    indexer: 'comandotorrents',
+    isBr: true,
+  };
+  const comProva = stremioStream({ ...legendado, provenAudio: '', provenName: '' } as any);
+  const semProva = stremioStream({ ...legendado } as any);
+  assert.match(comProva.name, /LEG/);
+  assert.equal(comProva.name, semProva.name);
+  assert.equal(comProva._dubbed, false);
+  assert.equal(semProva._dubbed, false);
+});
+
+test('prova de release EN continua derrubando post que promete dublado', () => {
+  // A contraparte: aqui o título CONTRADIZ a prova, e é para isso que ela serve.
+  const promete = {
+    title: 'Fallout 1ª Temporada (2024) [1080p WEB-DL DUBLADO 11.58 GB]',
+    infoHash: 'c7efcb48193a4a9e11497d00930d754c0bf1c65b',
+    seeders: 1,
+    size: 11_580_000_000,
+    indexer: 'comandotorrents',
+    isBr: true,
+  };
+  const comProva = stremioStream({ ...promete, provenAudio: '', provenName: '' } as any);
+  assert.equal(comProva._dubbed, false);
+  assert.doesNotMatch(comProva.name, /DUB|DUAL|NAC/);
+  // Sem prova o post vale, e prova POSITIVA troca o rótulo em vez de apagá-lo.
+  assert.equal(stremioStream({ ...promete } as any)._dubbed, true);
+  const provaDual = stremioStream({ ...promete, provenAudio: 'Dual' } as any);
+  assert.equal(provaDual._dubbed, true);
+  assert.match(provaDual.name, /DUAL/);
+});
+
 test('stripQualityTagBlob preserva título legítimo que termina em tag única', () => {
   // Tag única no fim NÃO é cortada: release legítima pode terminar em "1080p".
   assert.equal(stripQualityTagBlob('Coringa 2019 1080p'), 'Coringa 2019 1080p');
