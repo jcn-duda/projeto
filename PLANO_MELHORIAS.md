@@ -99,7 +99,7 @@ refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado
 com teto pelo `DEBRID_CHECK_FLOOR_MS`.
 
 **O que continua aberto:** fase 0 (parcialmente — ver abaixo), item 4.2,
-fase 5 e fase 6.
+fase 5 (5.1 concluída em 2026-08-23; 5.2–5.7 abertas) e fase 6.
 
 ---
 
@@ -239,28 +239,54 @@ subfase termina com suíte 100% + `test:adversarial`/`test:stress` verdes
 
 **Ordem** (da maior razão risco/benefício para a menor):
 
-### 5.1 — Split de `src/providers/index.ts` (A1) — esforço L
+### 5.1 ✅ — Split de `src/providers/index.ts` (A1) — esforço L — CONCLUÍDA (2026-08-23)
 
-Migrar funções para módulos irmãos mantendo `index.ts` como fachada que
-reexporta (imports atuais dos 63 testes não mudam):
+Migradas as funções para módulos irmãos, `index.ts` como fachada que
+reexporta (os imports dos 63 arquivos de teste que consomem a fachada não
+mudaram):
 
 - `providers/autofetch-runner.ts` — seleção de candidatos, holds/markers,
-  `drainNext`, recheck, settle, detecção de morte (`index.ts:74–544` hoje);
+  `drainNext`, recheck, settle, detecção de morte;
 - `providers/debrid-pipeline.ts` — `applyDebrid`, filtro pré-checagem,
-  refresh (`:545–715`);
-- `providers/search-orchestrator.ts` — `doSearch`, `collectRaw`, passes,
-  fallback de pack, harvest, varredura pt-BR (`:1076–1824`);
-- `providers/stream-builder.ts` — `buildStreams`, `limitReservingBr`,
-  notices (`:1831–2090`);
-- `providers/search-cache.ts` — coalescing, SWR, latest-writer (`:1257–1373`).
+  auditoria de áudio (`collectAuditCandidates`, `queueDubAudit`, `runDubAudit`);
+- `providers/stream-builder.ts` — `buildStreams`, `applyFileEvidence`,
+  `applyNoticeOrigin`, `onlyNotice`;
+- `providers/search-cache.ts` — `findStreams`, coalescing (`inFlight`), SWR
+  (`debridRefreshSatisfied`, `staleRefreshEligible`, `scheduleStaleRefresh`),
+  `hasPlayableStream`;
+- `providers/search-orchestrator.ts` — `doSearch`, `collectRaw`,
+  `poolCovered`, `idxPoolCovered`, `idxReleasesToRaw`.
 
-Contrato: cada módulo exporta funções puras + fábricas que recebem
-dependências (cache, debrid, metrics) por parâmetro; nada de singleton
-escondido. Estados implícitos de fase viram `SearchPhase` explícito (A3):
-`'collecting' | 'response-built' | 'late-collecting' | 'pack-fallback' | 'enriching' | 'completed'`.
+`search-cache.ts` e `search-orchestrator.ts` saíram no MESMO commit: eles se
+referenciam em ciclo (`doSearch` chama `hasPlayableStream`/
+`debridRefreshSatisfied`; `findStreams`/`scheduleStaleRefresh` chamam
+`doSearch`). ESM aceita import circular entre módulos irmãos quando o uso
+fica dentro de corpo de função — nunca em top-level — e é exatamente esse o
+caso; confirmado pelo typecheck, build e pela suíte inteira.
 
-**Estratégia:** uma extração por commit, suíte + harnesses entre cada uma.
-Começar pela `autofetch-runner` (fronteira mais limpa).
+`index.ts` caiu de 2220 para 17 linhas: só import + reexport dos 9 nomes
+públicos, mais o glue de `autofetchStatus` (agrega `autofetchRunnerStatus()`
+de `autofetch-runner.js` com `searchesInFlightCount()` de `search-cache.js`
+— não guarda mais estado próprio).
+
+**Não feito:** o `SearchPhase` explícito (A3, `'collecting' |
+'response-built' | 'late-collecting' | 'pack-fallback' | 'enriching' |
+'completed'`) mencionado no contrato original — o split foi mecânico, sem
+introduzir a máquina de estados nova. O controle de fase continua implícito
+via `finish.phase()`/`finish.advance()` do `latest-writer`. Fica como
+follow-up separado se algum dia valer o risco.
+
+`test/empirical-e2e-challenger.ts` precisou de dois ajustes: MUT-09 e MUT-10
+miravam string literal em `dist/src/providers/index.js`, e as duas saíram de
+lá com `applyDebrid`/`doSearch` — o harness falhou alto ("Target not found")
+até os `file:` apontarem para `debrid-pipeline.js`/`search-orchestrator.js`.
+Exatamente o comportamento que a rede de segurança deveria ter.
+
+**Estratégia usada:** uma extração por commit (autofetch-runner →
+debrid-pipeline → stream-builder → search-cache+search-orchestrator juntos),
+gate completo (`typecheck`, `build`, `npm test`, `test:complete`,
+`test:adversarial`, `test:adversarial-m1`, `test:protector-m1`,
+`test:challenger-m2`, `test:stress`) entre cada uma.
 
 ### 5.2 — Extração de `pickFile`/`pickWorkFile` (A1b) — esforço S
 
@@ -344,17 +370,17 @@ Fase 4             4.1 ✅; 4.2 e 4.3 abertos
   independentes das demais e podem intercalar.
 - Fase 3.7 (harness seguro) é pré-requisito de TODA a fase 5 — **atendido**.
 
-**Decisão em aberto sobre a fase 5.** O gate está satisfeito, mas vale
-reavaliar o escopo antes de começar: é a maior fatia de esforço do plano
-(L + M + M + M + S + contínuo) para zero mudança observável, num sistema cujo
-risco real é corrida de latest-writer e orçamento de tempo — exatamente o que
-um split de módulo quebra com mais facilidade. E o gate prova menos do que
-parece: harness que não pega um bug hoje não vai pegar o que o refactor
-introduzir. Recomendação de quem revisou: fazer só **5.6** (`process.env`
-centralizado, S, risco nulo) e **5.2** (`file-selector`, fronteira limpa), e
-adiar 5.1/5.3 até um bug concreto ficar caro por causa do tamanho do arquivo.
-2.194 linhas é ruim; não é urgente. A alternativa de maior retorno agora são
-os itens 4.2/4.3 e o 0.6.
+**Decisão sobre a fase 5 (histórico).** Uma revisão anterior recomendava
+adiar 5.1/5.3 até um bug concreto ficar caro por causa do tamanho do
+arquivo, e fazer só 5.6/5.2 no lugar — risco real do sistema é corrida de
+latest-writer e orçamento de tempo, exatamente o que um split de módulo
+quebra com mais facilidade, e harness que não pega um bug hoje não pega o
+que o refactor introduzir. **Decisão explícita, 2026-08-23: fazer 5.1 mesmo
+assim**, contra essa recomendação — 5.1 saiu completa (ver acima) com gate
+cheio (typecheck, build, suíte, `test:complete`, os 5 harnesses adversariais)
+entre cada uma das 4 extrações, e nenhum deles quebrou. 5.3 (`format.ts`,
+2.307 linhas) é a próxima candidata pela mesma lógica de risco/benefício;
+5.2/5.4/5.5/5.6/5.7 continuam em aberto e fora do escopo desta rodada.
 
 ## Validação global (por fase)
 

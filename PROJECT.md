@@ -14,7 +14,7 @@
   - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
   - `src/app.ts`: Express application factory (`createApp()`), route definitions (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`).
 - **Providers & Orchestration Layer**:
-  - `src/providers/search-orchestrator.ts`: Query planning, Cinemeta/TMDB metadata, raw provider fan-out (`collectRaw`), Brazilian priority grace, pack fallbacks, enrichment tails, explicit `SearchPhase` state machine.
+  - `src/providers/search-orchestrator.ts`: Query planning, Cinemeta/TMDB metadata, raw provider fan-out (`collectRaw`), Brazilian priority grace, pack fallbacks, enrichment tails. Phase control stays implicit via `latest-writer`'s `finish.phase()`/`finish.advance()` — no explicit `SearchPhase` state machine (A3 not implemented).
   - `src/providers/search-cache.ts`: Stale-While-Revalidate (SWR) cache handling, request coalescing (`inFlight`), background revalidation (`scheduleStaleRefresh`).
   - `src/providers/stream-builder.ts`: Stream parsing, relevance filtering, release index evidence, quota clamping, Brazilian slot reservation (`limitReservingBr`), notice generation.
   - `src/providers/debrid-pipeline.ts`: Bad/dead/miss magnet filtering, dynamic budget allocation (`remainingCheckBudget`), debrid cache checking, P2P degradation, HMAC signing, audio audit tails.
@@ -78,7 +78,7 @@
 | 18 | B3 Search Budget Verification | E2E test verifying dynamic budget reduction with slow Cinemeta + TMDB miss | M2 | PLANO_MELHORIAS §4.1 |
 | 19 | A1b File Selector Extraction | Extract `src/debrid/file-selector.ts` and re-export via `src/debrid/common.ts` | M3 | PLANO_MELHORIAS §5.2 |
 | 20 | A2 Format Utility Modularization | Split `src/utils/format.ts` into 7 specialized submodules with barrel re-export | M3 | PLANO_MELHORIAS §5.3 |
-| 21 | A1 Providers Modularization | Split `src/providers/index.ts` into 5 submodules with explicit `SearchPhase` | M3 | PLANO_MELHORIAS §5.1 |
+| 21 | A1 Providers Modularization | Split `src/providers/index.ts` into 5 submodules | M3 | DONE (2026-08-23) — PLANO_MELHORIAS §5.1. Explicit `SearchPhase` (A3) not done; phase control stays implicit via latest-writer |
 | 22 | A5 Centralized Config | Remove raw `process.env` calls in `src/app.ts` and route through `src/config.ts` | M3 | PLANO_MELHORIAS §5.6 |
 | 23 | A4 Brazilian Resolvers Shared Core | Extract common microservice engine into `resolvers/` core with site profiles | M3 | PLANO_MELHORIAS §5.4 |
 | 24 | A1c Route Modularization | Modularize `src/app.ts` into route modules (`app/*-routes.ts`) | M3 | PLANO_MELHORIAS §5.5 |
@@ -93,7 +93,7 @@
 | M0 | Survey & Planning | Features 1–26 surveyed, mapped, baseline verified | none | DONE |
 | M1 | Debrid Safety & Runtime Robustness | Features 1–10 (B1 tests 1.4/1.5, S3 diagnostic gate, S1.2 asyncRoute, S4 action confirmation, SQLite corrupted recovery, CI audit, SSRF filter remediation) | M0 | DONE |
 | M2 | Core Guardrails, Regression Safety & Budget Verification | Features 11–18 (T1–T7, B3 E2E test verification, harness mutation safety) | M1 | IN_PROGRESS |
-| M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | PLANNED |
+| M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | IN_PROGRESS (21/A1 done) |
 | M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 5 bench harnesses, forensic audit | M3 | PLANNED |
 
 ---
