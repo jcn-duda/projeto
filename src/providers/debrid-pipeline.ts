@@ -404,6 +404,9 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
   return { audited: batch.length, lies, wrongEpisodes };
 }
 
+/** O título NOMEIA este episódio? Pack de temporada casa o episódio no
+ * `matchesEpisode` de propósito (ele contém o episódio), mas não o NOMEIA —
+ * e a diferença decide quem pode sustentar a cobertura do índice. */
 export function nomeiaEpisodio(title: string, season: number, episode: number) {
   const { seasons, episodes } = parseTitleSeasonEpisode(String(title || ''));
   return episodes.includes(episode) && (seasons.length === 0 || seasons.includes(season));
