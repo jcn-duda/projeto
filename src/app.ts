@@ -113,6 +113,24 @@ function originOf(req: { get(name: string): string | undefined; protocol: string
 type GateAdmission = { ok: true; release: () => void } | { ok: false; status: number; error: string };
 
 /**
+ * Express 4 não captura exceções assíncronas (rejeições de Promise) em handlers de rota.
+ * Sem um wrapper, exceções não tratadas escapam do Express e caem no processo (unhandledRejection).
+ * asyncRoute intercepta qualquer erro assíncrono, loga e responde com 500 JSON { error: 'internal_error' }.
+ */
+function asyncRoute(
+  fn: (req: any, res: any, next: express.NextFunction) => Promise<any>,
+): express.RequestHandler {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch((err) => {
+      log.error('[app] erro assíncrono não tratado:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'internal_error' });
+      }
+    });
+  };
+}
+
+/**
  * Monta o app Express completo do addon sem nenhum efeito colateral (sem
  * listen, sem warmup, sem carregar resolvers). Existe para os testes poderem
  * exercitar as rotas REAIS — antes o harness e2e mantinha uma cópia de ~160
@@ -240,7 +258,7 @@ function createApp() {
 
   // O Stremio chama isso ao dar play num stream de debrid. Resolver aqui (e não
   // na listagem) evita um directdl por torrent na hora da busca.
-  async function resolveHandler(req: any, res: any) {
+  const resolveHandler = asyncRoute(async (req: any, res: any) => {
     // Normaliza caixa: infoHash é case-insensitive em magnet URI, e o debrid
     // e a assinatura trabalham sempre com minúsculas.
     const infoHash = String(req.params.infoHash || '').toLowerCase();
@@ -350,7 +368,7 @@ function createApp() {
       log.error('[resolve]', err.message);
       return res.status(502).send('falha ao resolver no debrid');
     }
-  }
+  });
 
   const CONFIGURE_PAGE = path.join(__dirname, 'public', 'configure.html');
   const DASHBOARD_PAGE = path.join(__dirname, 'public', 'dashboard.html');
@@ -368,7 +386,7 @@ function createApp() {
   // Defaults do .env, para a página abrir já refletindo a instância. A chave do
   // debrid NUNCA vai junto: a página é pública e o .env é do operador, não de
   // quem está instalando.
-  app.get('/defaults.json', async (_, res) => {
+  app.get('/defaults.json', asyncRoute(async (_, res) => {
     const { debridApiKey, ...safe } = runtime.defaults();
     // `services` monta o seletor de debrid na página: a lista de serviços mora no
     // registry, não duplicada no HTML. `addonName` evita hardcodear a marca no
@@ -385,7 +403,7 @@ function createApp() {
       // Liga o passo de selo na página; sem RESOLVE_SECRET não há o que cifrar.
       sealKeyEnabled: secretBox.enabled(),
     });
-  });
+  }));
 
   /**
    * Devolve o segmento de config com a chave de debrid cifrada. A página monta a
@@ -428,15 +446,21 @@ function createApp() {
     if (!authorized(config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
       return res.status(401).json({ error: 'token de diagnóstico inválido' });
     }
-    return res.json({
-      ...metrics.snapshot(),
-      logLevel: log.level(),
-      cache: cache.snapshot(),
-    });
+    const admission = diagnosticGate.enter('global') as GateAdmission;
+    if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
+    try {
+      return res.json({
+        ...metrics.snapshot(),
+        logLevel: log.level(),
+        cache: cache.snapshot(),
+      });
+    } finally {
+      admission.release();
+    }
   });
 
   /** Painel consolidado. A página é pública; estes dados continuam protegidos. */
-  const dashboardStatusHandler: express.RequestHandler = async (req, res) => {
+  const dashboardStatusHandler: express.RequestHandler = asyncRoute(async (req, res) => {
     if (!config.jackett.testToken) {
       return res.status(503).json({ error: 'dashboard desativado: defina JACKETT_TEST_TOKEN' });
     }
@@ -510,10 +534,10 @@ function createApp() {
     } finally {
       admission.release();
     }
-  };
+  });
   app.get('/dashboard-status.json', dashboardStatusHandler);
 
-  const dashboardActionHandler: express.RequestHandler = async (req, res) => {
+  const dashboardActionHandler: express.RequestHandler = asyncRoute(async (req, res) => {
     if (!config.jackett.testToken) {
       return res.status(503).json({ ok: false, error: 'dashboard desativado pelo operador' });
     }
@@ -523,6 +547,9 @@ function createApp() {
     const action = String(req.body?.action || '');
     if (!['sweep-dead', 'clear-cache', 'harvester-pause', 'harvester-drain', 'test-all-indexers', 'refresh-inventory'].includes(action)) {
       return res.status(400).json({ ok: false, error: 'ação desconhecida' });
+    }
+    if (['clear-cache', 'sweep-dead'].includes(action) && req.body?.confirm !== true) {
+      return res.status(400).json({ ok: false, error: 'confirmation_required' });
     }
     const admission = diagnosticGate.enter('global') as GateAdmission;
     if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
@@ -582,7 +609,7 @@ function createApp() {
     } finally {
       admission.release();
     }
-  };
+  });
   app.post('/dashboard-action.json', express.json({ limit: '4kb' }), dashboardActionHandler);
 
   /**
@@ -593,7 +620,7 @@ function createApp() {
    * O `id` é validado contra o catálogo do Jackett em vez de ir cru pra URL: sem
    * isso qualquer string viraria um caminho na API do Jackett.
    */
-  app.get('/test-indexer.json', async (req, res) => {
+  app.get('/test-indexer.json', asyncRoute(async (req, res) => {
     if (!config.jackett.testToken) {
       return res.status(503).json({ ok: false, error: 'diagnóstico desativado pelo operador' });
     }
@@ -620,7 +647,7 @@ function createApp() {
     } finally {
       admission.release();
     }
-  });
+  }));
 
   /**
    * Saúde da conta do debrid — o verificador que faltava.
@@ -636,18 +663,34 @@ function createApp() {
    * Com a config na frente (/<config>/debrid-status.json) ele usa a chave
    * daquela instalação, que é a que o app manda — e não a do .env.
    */
-  async function debridStatusHandler(req: any, res: any) {
+  const debridStatusHandler: express.RequestHandler = asyncRoute(async (req: any, res: any) => {
     if (!config.jackett.testToken) {
       return res.status(503).json({ ok: false, error: 'diagnóstico desativado pelo operador' });
     }
     if (!authorized(config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
       return res.status(401).json({ ok: false, error: 'token de diagnóstico inválido' });
     }
-    const status = await debrid.accountStatus();
-    // 200 mesmo com a conta ruim: o corpo é o diagnóstico. Só falta de token
-    // ou de serviço vira status de erro.
-    return res.json(status);
-  }
+    const admission = diagnosticGate.enter('global') as GateAdmission;
+    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
+    try {
+      // Mesma proteção do painel: um debrid fora do ar não pode segurar o
+      // assento único do gate pelo timeout inteiro — senão a monitoração toda
+      // (metrics, test-indexer, painel) morre com 429 exatamente no incidente.
+      const statusTimeout = new Promise((resolve) => {
+        const timer = setTimeout(
+          () => resolve({ ok: false, reason: 'timeout', error: 'timeout consultando o debrid' }),
+          config.debrid.dashboardAccountTimeoutMs,
+        );
+        timer.unref?.();
+      });
+      const status = await Promise.race([debrid.accountStatus(), statusTimeout]) as any;
+      // 200 mesmo com a conta ruim: o corpo é o diagnóstico. Só falta de token
+      // ou de serviço vira status de erro.
+      return res.json(status);
+    } finally {
+      admission.release();
+    }
+  });
 
   app.get('/debrid-status.json', debridStatusHandler);
   app.get('/resolve/:infoHash', resolveHandler);
@@ -688,4 +731,4 @@ function createApp() {
   return { app, manifest, addonInterface };
 }
 
-export { createApp, streamsNeedRevalidation, originOf };
+export { createApp, streamsNeedRevalidation, originOf, asyncRoute };

@@ -808,10 +808,15 @@
     if (!window.confirm("Confirmar " + actionLabel(action) + "?")) return;
     button.disabled = true;
     setFeedback("Executando " + action + "…", "warn");
+    var payload = {
+      action: action,
+      paused: button.getAttribute("data-paused") === "true",
+      confirm: true
+    };
     requestJson("/dashboard-action.json", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: action, paused: button.getAttribute("data-paused") === "true" })
+      body: JSON.stringify(payload)
     })
       .then(function (data) {
         setFeedback(valueText(first(data, ["message", "result"], "Ação concluída.")), "ok");

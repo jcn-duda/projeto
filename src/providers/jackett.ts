@@ -1,6 +1,7 @@
 import config from '../config.js';
 import type { MatchContext } from '../../types/domain.js';
 import * as cache from '../utils/cache.js';
+import { isSafeDownloadUrl } from '../utils/net-safety.js';
 import {
   matchesBrTitle,
   matchesEpisode,
@@ -110,6 +111,10 @@ function mapResults(
 
 async function resolveDownloadMagnet(url: string, budgetMs: number) {
   if (!url) return null;
+  if (!isSafeDownloadUrl(url, config.jackett.allowPrivateDownloadIps)) {
+    log.warn(`[jackett] URL de download bloqueada por segurança: ${String(url).slice(0, 160)}`);
+    return null;
+  }
   const cacheKey = `dlmag:${url}`;
   const hit = cache.get(cacheKey);
   if (hit) return hit;

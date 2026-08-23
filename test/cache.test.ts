@@ -29,6 +29,29 @@ try {
 
 const CACHE_MODULE = _require.resolve('../src/utils/cache.js');
 
+test(
+  'cache.ts recovery: erro transiente (caminho do banco é um diretório) NÃO gera .corrupt e cai em memória',
+  { skip: !hasNodeSqlite && 'node:sqlite unavailable' },
+  () => {
+    const script = `
+      const assert = require('node:assert');
+      const fs = require('node:fs');
+      delete process.env.CACHE_PERSIST;
+      const dbPath = process.env.CACHE_DB_PATH;
+      fs.mkdirSync(dbPath); // abertura falha sem ser corrupção (CANTOPEN/EISDIR)
+      delete require.cache[${JSON.stringify(CACHE_MODULE)}];
+      const cache = require(${JSON.stringify(CACHE_MODULE)});
+
+      // L1 memória segue de pé e o dado persistido NÃO é destruído.
+      cache.set('test:transient', { ok: 1 }, 3600);
+      assert.deepStrictEqual(cache.get('test:transient'), { ok: 1 });
+      assert.strictEqual(fs.existsSync(dbPath + '.corrupt'), false, '.corrupt criado por erro transiente');
+      assert.strictEqual(fs.statSync(dbPath).isDirectory(), true, 'caminho original alterado');
+    `;
+    runIsolatedCacheTest(script);
+  },
+);
+
 // Helper para executar scripts em processos isolados com banco temporário
 function runIsolatedCacheTest(scriptContent: any) {
   const originalDbPath = process.env.CACHE_DB_PATH;
@@ -915,4 +938,36 @@ test(
   'cache.maintain executa wal_checkpoint passivo, optimize e pragma freelist_count',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(MAINTAIN_SCRIPT),
+);
+
+const CORRUPT_RECOVERY_SCRIPT = [
+  "const assert = require('node:assert');",
+  "const fs = require('node:fs');",
+  "const path = require('node:path');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  'const dbPath = process.env.CACHE_DB_PATH;',
+  "fs.writeFileSync(dbPath, 'LIXO_CORROMPIDO_NOT_A_SQLITE_DATABASE_!!!');",
+  "const corruptPath = dbPath + '.corrupt';",
+  "assert.strictEqual(fs.existsSync(corruptPath), false, 'corruptPath nao existe antes do boot');",
+  '',
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  "assert.strictEqual(fs.existsSync(corruptPath), true, 'arquivo corrompido renomeado para .corrupt');",
+  "assert.strictEqual(fs.readFileSync(corruptPath, 'utf8'), 'LIXO_CORROMPIDO_NOT_A_SQLITE_DATABASE_!!!', 'conteudo original preservado no .corrupt');",
+  "assert.strictEqual(fs.existsSync(dbPath), true, 'novo banco SQLite criado');",
+  "cache.set('test:corrupt-recovered', { ok: true }, 3600);",
+  "assert.deepStrictEqual(cache.get('test:corrupt-recovered'), { ok: true }, 'novo cache funcional em L1/L2');",
+  'if (cache.close) cache.close();',
+  'const verify = new DatabaseSync(dbPath);',
+  "const row = verify.prepare('SELECT value FROM cache WHERE key = ?').get('test:corrupt-recovered');",
+  "assert.ok(row, 'valor persistido com sucesso no banco recriado');",
+  'verify.close();',
+].join('\n');
+
+test(
+  'recuperação de SQLite corrompido: renomeia para .corrupt e recria banco limpo no boot (Tarefa 2.9)',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => runIsolatedCacheTest(CORRUPT_RECOVERY_SCRIPT),
 );

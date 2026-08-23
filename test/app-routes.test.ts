@@ -6,7 +6,8 @@ import crypto from 'node:crypto';
 // cache e o data/cache.db do repo não pode ser tocado pelos testes.
 process.env.CACHE_PERSIST = 'false';
 
-import { createApp } from '../src/app.js';
+import express from 'express';
+import { createApp, asyncRoute } from '../src/app.js';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import { WorkPickError, EpisodePickError, NoVideoError } from '../src/debrid/common.js';
@@ -413,5 +414,115 @@ test('/metrics.json: 503 sem token configurado, 401 com token errado, 200 com o 
     assert.equal(typeof certo.json.cache.entries, 'number');
   } finally {
     config.jackett.testToken = '';
+  }
+});
+
+test('asyncRoute intercepta rejeição assíncrona, responde 500 e não derruba o processo (Tarefa 2.7)', async () => {
+  const miniApp = express();
+  // Registra uma rota async que falha com rejeição proposital
+  miniApp.get('/test-async-crash', asyncRoute(async () => {
+    throw new Error('Falha assíncrona simulada proposital');
+  }));
+
+  const testSrv = await createTestServer(miniApp);
+  try {
+    const res = await testSrv.request('GET', '/test-async-crash');
+    assert.equal(res.status, 500);
+    assert.deepEqual(res.json, { error: 'internal_error' });
+  } finally {
+    await testSrv.close();
+  }
+});
+
+test('/metrics.json e /debrid-status.json passam pelo diagnosticGate e devolvem 429 sob concorrência (Tarefa 2.6)', async () => {
+  config.jackett.testToken = 'tok-diagnostico-gate';
+  // Cria uma instância isolada para ter seu próprio gate
+  const isolatedApp = createApp().app;
+  const isolatedSrv = await createTestServer(isolatedApp);
+
+  try {
+    let releaseHold: (() => void) | null = null;
+    const holdPromise = new Promise<void>((resolve) => {
+      releaseHold = resolve;
+    });
+
+    await withMockFetch([], async () => {
+      // Fazemos o debrid accountStatus segurar o assento do gate
+      const originalAccountStatus = debrid.accountStatus;
+      try {
+        debrid.accountStatus = (async () => {
+          await holdPromise;
+          return { ok: true, service: 'alldebrid', label: 'AllDebrid', supported: true, warn: false, warnAt: 800, warnAtUnit: 'magnets', magnets: 10 };
+        }) as any;
+
+        // Dispara uma chamada ao /debrid-status.json que segura a vaga
+        const inFlightReq = isolatedSrv.request('GET', '/debrid-status.json', {
+          headers: { 'X-Indexer-Test-Token': 'tok-diagnostico-gate' },
+        });
+
+        // Aguarda brevemente para garantir que inFlightReq adquiriu a vaga no gate
+        await new Promise((r) => setTimeout(r, 20));
+
+        // Segunda chamada concorrente ao /metrics.json deve receber 429 pelo gate ocupado
+        const metricsRes = await isolatedSrv.request('GET', '/metrics.json', {
+          headers: { 'X-Indexer-Test-Token': 'tok-diagnostico-gate' },
+        });
+        assert.equal(metricsRes.status, 429);
+        assert.match(metricsRes.json.error, /teste em andamento|limite de testes/i);
+
+        // Terceira chamada concorrente ao /debrid-status.json deve também receber 429
+        const debridRes = await isolatedSrv.request('GET', '/debrid-status.json', {
+          headers: { 'X-Indexer-Test-Token': 'tok-diagnostico-gate' },
+        });
+        assert.equal(debridRes.status, 429);
+        assert.equal(debridRes.json.ok, false);
+        assert.match(debridRes.json.error, /teste em andamento|limite de testes/i);
+
+        // Libera a requisição inicial
+        releaseHold?.();
+        const firstRes = await inFlightReq;
+        assert.equal(firstRes.status, 200);
+      } finally {
+        debrid.accountStatus = originalAccountStatus;
+      }
+    });
+  } finally {
+    config.jackett.testToken = '';
+    await isolatedSrv.close();
+  }
+});
+
+test('/debrid-status.json: debrid pendurado solta o assento no prazo e a monitoração segue viva (race do gate)', async () => {
+  config.jackett.testToken = 'tok-diagnostico-race';
+  const originalTimeout = config.debrid.dashboardAccountTimeoutMs;
+  // Prazo curto: o teste não pode esperar os 3s de produção.
+  config.debrid.dashboardAccountTimeoutMs = 80;
+  const isolatedApp = createApp().app;
+  const isolatedSrv = await createTestServer(isolatedApp);
+  try {
+    await withMockFetch([], async () => {
+      const originalAccountStatus = debrid.accountStatus;
+      try {
+        // Nunca resolve: sem o race, o assento ficaria preso até o teto do fetch.
+        debrid.accountStatus = (() => new Promise(() => {})) as any;
+        const res = await isolatedSrv.request('GET', '/debrid-status.json', {
+          headers: { 'X-Indexer-Test-Token': 'tok-diagnostico-race' },
+        });
+        assert.equal(res.status, 200, 'o diagnóstico sai mesmo com o debrid pendurado');
+        assert.equal(res.json.reason, 'timeout');
+
+        // O finally liberou o assento: a próxima monitoração não leva 429.
+        const metricsRes = await isolatedSrv.request('GET', '/metrics.json', {
+          headers: { 'X-Indexer-Test-Token': 'tok-diagnostico-race' },
+        });
+        assert.equal(metricsRes.status, 200);
+      } finally {
+        debrid.accountStatus = originalAccountStatus;
+      }
+    });
+  } finally {
+    config.debrid.dashboardAccountTimeoutMs = originalTimeout;
+    config.jackett.testToken = '';
+    await isolatedSrv.close();
   }
 });

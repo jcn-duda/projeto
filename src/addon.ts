@@ -4,6 +4,7 @@ import * as jackettCatalog from './providers/jackett-catalog.js';
 import * as secretBox from './utils/secret-box.js';
 import * as cache from './utils/cache.js';
 import * as log from './utils/logger.js';
+import * as metrics from './utils/metrics.js';
 import debrid from './debrid/index.js';
 import { createApp } from './app.js';
 import warmup from './warmup.js';
@@ -74,6 +75,13 @@ function shutdown(signal: string) {
 
 process.once('SIGTERM', () => shutdown('SIGTERM'));
 process.once('SIGINT', () => shutdown('SIGINT'));
+// Express 4 não encaminha rejeição de handler async ao middleware de erro. O
+// handler de rota deve responder 500, mas esta rede evita que uma promessa de
+// fundo derrube o processo inteiro e o supervisor leve a stack junto.
+process.on('unhandledRejection', (reason) => {
+  metrics.count('process.unhandled_rejection');
+  log.error('[process] rejeição não tratada:', reason);
+});
 
 // Mantido para compatibilidade com quem importa o módulo; o manifest vem junto
 // porque agora é criado dentro da fábrica.

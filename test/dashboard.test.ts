@@ -1,4 +1,4 @@
-﻿import { test, before, after } from 'node:test';
+import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 // Persistência desligada ANTES dos requires: o app real abre o módulo de cache
@@ -183,7 +183,38 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
 // Accións do POST: clear-cache e sweep-dead (ambas 200 com token certo).
 // ---------------------------------------------------------------------------
 
-test('POST clear-cache esvazia o cache e devolve a contagem', async () => {
+test('POST clear-cache e sweep-dead exigem confirm: true (Tarefa 2.8)', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    const semConfirmCache = await server.request('POST', '/dashboard-action.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'clear-cache' },
+    });
+    assert.equal(semConfirmCache.status, 400);
+    assert.equal(semConfirmCache.json.ok, false);
+    assert.equal(semConfirmCache.json.error, 'confirmation_required');
+
+    const falseConfirmCache = await server.request('POST', '/dashboard-action.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'clear-cache', confirm: false },
+    });
+    assert.equal(falseConfirmCache.status, 400);
+    assert.equal(falseConfirmCache.json.ok, false);
+    assert.equal(falseConfirmCache.json.error, 'confirmation_required');
+
+    const semConfirmSweep = await server.request('POST', '/dashboard-action.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'sweep-dead' },
+    });
+    assert.equal(semConfirmSweep.status, 400);
+    assert.equal(semConfirmSweep.json.ok, false);
+    assert.equal(semConfirmSweep.json.error, 'confirmation_required');
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+test('POST clear-cache com confirm: true esvazia o cache e devolve a contagem', async () => {
   config.jackett.testToken = TOKEN;
   try {
     await withMockFetch([], async () => {
@@ -192,7 +223,7 @@ test('POST clear-cache esvazia o cache e devolve a contagem', async () => {
 
       const res = await server.request('POST', '/dashboard-action.json', {
         headers: { 'X-Indexer-Test-Token': TOKEN },
-        body: { action: 'clear-cache' },
+        body: { action: 'clear-cache', confirm: true },
       });
       assert.equal(res.status, 200);
       assert.equal(res.json.ok, true);
@@ -206,7 +237,7 @@ test('POST clear-cache esvazia o cache e devolve a contagem', async () => {
   }
 });
 
-test('POST sweep-dead: 200 ok:true con adaptador configurado e ok:false sem config', async () => {
+test('POST sweep-dead: 200 ok:true con adaptador configurado e ok:false sem config (com confirm: true)', async () => {
   config.jackett.testToken = TOKEN;
   config.debrid.service = 'sweepfake';
   config.debrid.apiKey = 'chave-operador';
@@ -214,7 +245,7 @@ test('POST sweep-dead: 200 ok:true con adaptador configurado e ok:false sem conf
     // Sin rede: o sweepDead do adaptador falso responde de memoria.
     const com = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { action: 'sweep-dead' },
+      body: { action: 'sweep-dead', confirm: true },
     });
     assert.equal(com.status, 200);
     assert.equal(com.json.ok, true, 'o adaptador corrente varriu de verdade');
@@ -225,7 +256,7 @@ test('POST sweep-dead: 200 ok:true con adaptador configurado e ok:false sem conf
     config.debrid.service = '';
     const semConfig = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { action: 'sweep-dead' },
+      body: { action: 'sweep-dead', confirm: true },
     });
     assert.equal(semConfig.status, 200, 'ação conocida responde 200 mesmo sem poder correr');
     assert.equal(semConfig.json.ok, false);

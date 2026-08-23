@@ -66,7 +66,7 @@ jobs:
           node-version: '22.x'
           cache: npm
       - run: npm ci
-      - run: npm audit --audit-level=high
+      - run: npm audit --omit=dev
 
   # O build da imagem mora em .github/workflows/docker.yml: ele só precisa rodar
   # quando o Dockerfile e o que ele copia mudam, e filtro de caminho é por
