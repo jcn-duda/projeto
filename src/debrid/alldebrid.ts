@@ -7,6 +7,7 @@ import {
 import * as held from './protected.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
+import { raceWithDeadline } from '../utils/deadline.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 
 // v4.1: a AllDebrid descontinuou /v4/magnet/status ("DISCONTINUED"), o que
@@ -102,9 +103,31 @@ function snapshotFresh(entry: PreexistingEntry | undefined) {
   return ttl > 0 && Date.now() - entry.loadedAt < ttl;
 }
 
-function knownBefore(apiKey: string, account: string, { force = false } = {}): Set<string> | null {
+/**
+ * Espera o inventário sem deixá-lo mandar no prazo da resposta.
+ *
+ * O teto existe porque esta chamada não tem relação com o que a busca precisa
+ * responder: ela mora dentro da reserva do debrid (`DEBRID_RESERVE_MS`), e um
+ * `/magnet/status` lento — conta grande, incidente na AllDebrid — passaria a
+ * estourar o prazo de toda busca. Vencido o teto, quem chamou segue com `null`:
+ * os prontos ficam protegidos nesta passada e o snapshot, que continua
+ * carregando em fundo, vale da próxima em diante.
+ */
+function waitInventory(promise: Promise<Set<string> | null> | undefined, timeoutMs?: number) {
+  if (!promise) return Promise.resolve(null);
+  const teto = Math.max(0, Math.min(timeoutMs ?? Number.POSITIVE_INFINITY, config.debridCheckFloor));
+  if (!teto) return Promise.resolve(null);
+  return raceWithDeadline(promise, teto, () => {
+    metrics.count('debrid.inventory.timeout');
+    return null;
+  });
+}
+
+function knownBefore(apiKey: string, account: string): Set<string> | null {
   const entry = preexisting.get(account);
-  if (!force && snapshotFresh(entry)) return entry!.hashes;
+  if (snapshotFresh(entry)) return entry!.hashes;
+  // Refresh já em voo: ninguém espera por ele aqui e ninguém usa a referência
+  // velha — enquanto `hashes` for null, os prontos ficam protegidos.
   if (entry?.hashes === null) return null;
 
   // Enquanto o refresh está em voo, ninguém pode usar a referência velha para
@@ -248,26 +271,22 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
   const dropDownload: Array<string | number> = [];
   const account = accountScope(apiKey);
   const hadInventory = preexisting.has(account);
+  // `knownBefore` já dispara o refresh quando o snapshot vence e devolve null
+  // enquanto ele não chega: referência vencida nunca autoriza apagar nada.
   let preexistentes = config.debrid.dropReady ? knownBefore(apiKey, account) : null;
   const loading = preexisting.get(account);
-  // Se ESTA checagem acabou de aguardar o refresh concluír, o snapshot já é o
-  // mais novo que a API pode dar — revalidar de novo seria uma segunda chamada
-  // redundante (só dispara com TTL patologicamente curto, mas o custo é real).
-  let refreshAguardado = false;
-  if (loading?.hashes === null) {
+  if (!hadInventory && loading?.hashes === null) {
     // Não há proveniência na resposta idempotente do upload. Antes de subir o
     // primeiro lote desta conta, esperamos o inventário para não confundir um
     // magnet que já era do usuário com um que a busca acabou de criar. Mantém o
     // fail-safe: a primeira checagem ainda não remove prontos.
-    preexistentes = (await loading.promise) || null;
-    refreshAguardado = true;
-  }
-  // Referência vencida não pode autorizar uma ação destrutiva. Se o refresh
-  // falhar, `preexistentes` fica null e os prontos permanecem protegidos.
-  if (!refreshAguardado && config.debrid.dropReady && !snapshotFresh(preexisting.get(account))) {
-    preexistentes = knownBefore(apiKey, account, { force: true });
-    const refreshing = preexisting.get(account);
-    if (refreshing?.hashes === null) preexistentes = (await refreshing.promise) || null;
+    //
+    // Só o PRIMEIRO inventário é esperado. O refresh por TTL roda em fundo e
+    // vale da próxima busca em diante: aguardá-lo aqui punia uma busca a cada
+    // `ALLDEBRID_PREEXISTING_TTL_MS` com uma chamada de rede inteira dentro da
+    // reserva do debrid — e, com o `/magnet/status` fora do ar, TODA busca,
+    // porque a falha limpa o registro e a próxima passada tenta de novo.
+    preexistentes = (await waitInventory(loading.promise, timeoutMs)) || null;
   }
   const skipReadyDrop = !hadInventory;
 

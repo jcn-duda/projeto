@@ -273,9 +273,15 @@ test('erro da API vira exceção em vez de "nada em cache"', async () => {
  * macrotask: como o upload roda no mesmo tick, depois do disparo do snapshot,
  * ele registra primeiro — e o snapshot reflete o estado poluído.
  */
-function mockAccountWith(preexisting: any, readyHashes: any, { snapshotAfterUploads = false, failDelete = false, failStatus = false } = {}) {
+function mockAccountWith(
+  preexisting: any,
+  readyHashes: any,
+  { snapshotAfterUploads = false, failDelete = false, failStatus = false, statusDelayMs = 0 } = {},
+) {
   const deleted: number[] = [];
   let failStatusActive = failStatus;
+  let statusDelay = statusDelayMs;
+  let statusCalls = 0;
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
@@ -309,6 +315,8 @@ function mockAccountWith(preexisting: any, readyHashes: any, { snapshotAfterUplo
         return body({ magnets: magnet ? [magnet] : [] });
       }
       // Sem id é o inventário/ocupação: a lista do que existe NESTE instante.
+      statusCalls += 1;
+      if (statusDelay) await new Promise((resolve) => setTimeout(resolve, statusDelay));
       if (snapshotAfterUploads) {
         // A resposta só é montada no macrotask seguinte: o upload desta
         // checagem (disparado depois do status) registra antes, e o snapshot
@@ -359,6 +367,12 @@ function mockAccountWith(preexisting: any, readyHashes: any, { snapshotAfterUplo
     },
     get failStatus() {
       return failStatusActive;
+    },
+    set statusDelayMs(val: number) {
+      statusDelay = val;
+    },
+    get statusCalls() {
+      return statusCalls;
     },
     addExternal(hash: string, ready = true) {
       const id = nextId++;
@@ -629,11 +643,12 @@ test('snapshot com TTL expirado recarrega inventário e protege magnet adicionad
   const PRIMEIRO = '11'.repeat(20);
   const DO_USUARIO_POSTERIOR = '22'.repeat(20);
   const DA_SEGUNDA_BUSCA = '33'.repeat(20);
+  const DA_TERCEIRA_BUSCA = '99'.repeat(20);
 
   const originalTtl = config.debrid.preexistingTtlMs;
   config.debrid.preexistingTtlMs = 40; // 40ms TTL
 
-  const api = mockAccountWith([], [PRIMEIRO, DO_USUARIO_POSTERIOR, DA_SEGUNDA_BUSCA]);
+  const api = mockAccountWith([], [PRIMEIRO, DO_USUARIO_POSTERIOR, DA_SEGUNDA_BUSCA, DA_TERCEIRA_BUSCA]);
 
   try {
     // 1. Primeira busca cria o snapshot inicial (sem o magnet posterior do usuário)
@@ -648,19 +663,90 @@ test('snapshot com TTL expirado recarrega inventário e protege magnet adicionad
     // 3. Espera o TTL do snapshot expirar
     await new Promise((resolve) => setTimeout(resolve, 60));
 
-    // 4. Segunda busca com o magnet do usuário e um novo da busca
+    // 4. Segunda busca: dispara o refresh EM FUNDO e não espera por ele. Sem
+    //    referência fresca, esta passada não apaga nada — nem o que ela criou.
     const { cached } = await alldebrid.checkCached(KEY, [DO_USUARIO_POSTERIOR, DA_SEGUNDA_BUSCA]);
     await settle();
 
     assert.equal(cached.has(DO_USUARIO_POSTERIOR), true);
     assert.equal(cached.has(DA_SEGUNDA_BUSCA), true);
+    // `deepEqual` do assert/strict é assertion function e estreitaria o tipo de
+    // `api.deleted` para never[]; aqui o que importa é só a contagem.
+    assert.equal(api.deleted.length, 0, 'com o snapshot vencido, a passada do refresh não apaga nada');
 
-    // O magnet adicionado pelo usuário pós-boot NÃO deve ser deletado após a expiração do snapshot!
+    // 5. O refresh terminou: a busca seguinte já trabalha com a foto nova.
+    await settle();
+    await flushImmediate();
+    await alldebrid.checkCached(KEY, [DO_USUARIO_POSTERIOR, DA_TERCEIRA_BUSCA]);
+    await settle();
+
+    // O magnet adicionado pelo usuário pós-boot NÃO pode ser deletado nunca.
     assert.ok(!api.deleted.includes(idUsuario), 'magnet adicionado pelo usuário pós-boot não pode ser deletado');
-    // Apenas o magnet criado pela busca corrente deve ter sido deletado
-    assert.deepEqual(api.deleted, [2002], 'apenas o magnet novo criado pela busca é removido');
+    // O magnet que a busca acabou de criar continua sendo limpo normalmente.
+    assert.deepEqual(api.deleted, [2003], 'apenas o magnet novo criado pela busca é removido');
   } finally {
     config.debrid.preexistingTtlMs = originalTtl;
+    api.restore();
+  }
+});
+
+test('refresh do snapshot por TTL não entra no prazo da resposta: /magnet/status lento não atrasa a checagem', async () => {
+  const KEY = 'chave-refresh-nao-bloqueia';
+  const PRIMEIRO = '66'.repeat(20);
+  const SEGUNDO = '77'.repeat(20);
+
+  const originalTtl = config.debrid.preexistingTtlMs;
+  config.debrid.preexistingTtlMs = 40;
+
+  const api = mockAccountWith([], [PRIMEIRO, SEGUNDO]);
+
+  try {
+    await alldebrid.checkCached(KEY, [PRIMEIRO]);
+    await settle();
+    await flushImmediate();
+
+    // O inventário passa a demorar MAIS que a resposta inteira pode esperar.
+    api.statusDelayMs = 400;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    const inicio = Date.now();
+    const { cached } = await alldebrid.checkCached(KEY, [SEGUNDO]);
+    const gasto = Date.now() - inicio;
+
+    // O bug original: o refresh era aguardado dentro do checkCached, então a
+    // busca pagava a latência inteira do /magnet/status (até 6s, o timeout
+    // padrão do adaptador) dentro da reserva do debrid, uma vez a cada TTL.
+    assert.ok(gasto < 300, `checkCached não pode esperar o inventário lento (gastou ${gasto}ms)`);
+    assert.equal(cached.has(SEGUNDO), true, 'a checagem responde normalmente');
+  } finally {
+    config.debrid.preexistingTtlMs = originalTtl;
+    api.restore();
+  }
+});
+
+test('o PRIMEIRO inventário é esperado, mas com teto: lento demais devolve a checagem sem apagar prontos', async () => {
+  const KEY = 'chave-primeiro-inventario-lento';
+  const DO_USUARIO = '88'.repeat(20);
+  const DA_BUSCA = 'aa'.repeat(20);
+
+  const originalFloor = config.debridCheckFloor;
+  config.debridCheckFloor = 80;
+
+  // Conta com um magnet do usuário e o inventário mais lento que o teto.
+  const api = mockAccountWith([DO_USUARIO], [DO_USUARIO, DA_BUSCA], { statusDelayMs: 300 });
+
+  try {
+    const inicio = Date.now();
+    const { cached } = await alldebrid.checkCached(KEY, [DA_BUSCA]);
+    const gasto = Date.now() - inicio;
+    await settle();
+
+    assert.ok(gasto < 250, `a espera do primeiro inventário tem teto (gastou ${gasto}ms)`);
+    assert.equal(cached.has(DA_BUSCA), true);
+    // Sem inventário em mãos, nada de destrutivo: fail-safe fecha.
+    assert.deepEqual(api.deleted, [], 'sem inventário no prazo, nenhum pronto é apagado');
+  } finally {
+    config.debridCheckFloor = originalFloor;
     api.restore();
   }
 });
