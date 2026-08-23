@@ -11,6 +11,7 @@ import {
   qualityFromTitle,
   looksPtBr,
   decodeEntities,
+  stripDiacritics,
   UNKNOWN_QUALITY,
 } from '../utils/format.js';
 import * as indexerStatus from './indexer-status.js';
@@ -247,10 +248,19 @@ async function resolveCardigannDownloads(indexer: string, items: any[], query: s
  * `bareTitleIndexers` o ANO no fim também sai ("Coringa 2019" → 0 lá) — só o
  * do fim, senão o filme "1917" perderia o próprio título. A query original
  * segue intacta para os pré-filtros de temporada/episódio da resolução.
+ *
+ * O diacrítico também sai, mas SÓ nos BR (`isBr`): medido ao vivo, o buscador
+ * WordPress dos sites BR devolve 0 para qualquer query acentuada
+ * ("Extermínio" → 0 contra 8–16 de "Exterminio" nos 5 indexers BR), enquanto
+ * os globais casam bem com acento — a varredura pt-BR roda neles com
+ * `isBr = false` e não pode ser tocada.
  */
 function shapeSearchQuery(indexer: string, query: string, isBr?: boolean) {
   let shaped = String(query || '');
-  if (isBr) shaped = shaped.replace(/\bS\d{1,2}(?:E\d{1,3})?\b/gi, ' ');
+  if (isBr) {
+    shaped = shaped.replace(/\bS\d{1,2}(?:E\d{1,3})?\b/gi, ' ');
+    shaped = stripDiacritics(shaped);
+  }
   if (config.jackett.bareTitleIndexers.includes(indexer)) {
     shaped = shaped.replace(/\s+(?:19|20)\d{2}\s*$/, ' ');
   }

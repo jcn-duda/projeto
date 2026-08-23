@@ -89,4 +89,16 @@ function normalizeTitle(s = '') {
     .trim();
 }
 
-export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle };
+/**
+ * Tira só o diacrítico, preservando caixa, pontuação e espaços.
+ * Diferente de normalizeTitle, que também faz lowercase e troca todo
+ * não-alfanumérico por espaço — usar aquela numa QUERY a destruiria.
+ * Medido ao vivo: o buscador WordPress dos sites BR devolve 0 para
+ * QUALQUER query acentuada ("Extermínio" → 0, "Exterminio" → 8–16 nos
+ * 5 indexers BR); os globais lidam bem com acento e não passam por aqui.
+ */
+function stripDiacritics(s = '') {
+  return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics };

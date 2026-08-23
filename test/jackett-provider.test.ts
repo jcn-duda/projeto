@@ -823,3 +823,22 @@ test('série no thepiratebay filtra pelo balde 5000', async () => {
     assert.deepEqual(items.map((i: any) => i.title), ['Joker S01E01 1080p WEB-DL']);
   });
 });
+
+// --- Diacrítico na query: contrato ponta a ponta ---
+//
+// O buscador WordPress dos sites BR devolve 0 para QUALQUER query acentuada
+// (medido: "Extermínio" → 0 contra 8–16 de "Exterminio" em 5 títulos × 5
+// indexers BR). A URL final que sai para o Jackett leva a query sem acento no
+// indexer BR — e COM acento no global, que casa bem e ainda recebe a
+// varredura pt-BR.
+
+test('URL final sai sem acento no indexer BR e com acento no global', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = () => fakeResponse({ Results: [] });
+
+  await withJackett(fetchImpl, async () => {
+    await jackett.search('Extermínio', 'movie', ['comandotorrents'], { skipResolve: true });
+    await jackett.search('Extermínio', 'movie', ['therarbg'], { skipResolve: true });
+    assert.deepEqual(fetchImpl.searchCalls(), ['Exterminio', 'Extermínio']);
+  });
+});

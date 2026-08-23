@@ -7,7 +7,7 @@
  * precisarem mudar. A remoção do barrel (migrar cada consumidor para o
  * submódulo direto) é decisão posterior, com grep de uso.
  */
-export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle } from './title-normalization.js';
+export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics } from './title-normalization.js';
 
 export {
   matchesEpisode,

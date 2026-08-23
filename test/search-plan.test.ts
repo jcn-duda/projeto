@@ -51,11 +51,43 @@ test('indexer lento não-BR vira tarefa sozinha e mantém a query em inglês', (
 // resolvers locais já fazem isso no servidor; definição stock como o
 // redetorrent zerava com ele) e bare-title perde também o ano do fim.
 test('shapeSearchQuery remove SxxEyy para indexer BR e preserva para global', () => {
-  assert.equal(shapeSearchQuery('bludv-cardigann', 'A Casa do Dragão S01E01', true), 'A Casa do Dragão');
-  assert.equal(shapeSearchQuery('hdrtorrent', 'A Casa do Dragão S01E01', true), 'A Casa do Dragão');
+  assert.equal(shapeSearchQuery('bludv-cardigann', 'A Casa do Dragão S01E01', true), 'A Casa do Dragao');
+  assert.equal(shapeSearchQuery('hdrtorrent', 'A Casa do Dragão S01E01', true), 'A Casa do Dragao');
   assert.equal(shapeSearchQuery('therarbg', 'House of the Dragon S01E01', false), 'House of the Dragon S01E01');
   // Pack de temporada idem.
   assert.equal(shapeSearchQuery('comandotorrents', 'Fallout S01', true), 'Fallout');
+});
+
+// O acento zera a busca nos 7 indexers BR (cards locais E stock): o problema
+// é do buscador WordPress dos sites, não da definição Cardigann — por isso a
+// condição é isBr. Os globais lidam bem com acento (TPB achou 6 para
+// "Extermínio") e a varredura pt-BR roda neles — não podem ser tocados.
+test('shapeSearchQuery tira o acento da query BR e preserva no global', () => {
+  assert.equal(shapeSearchQuery('comandotorrents', 'Extermínio 2002', true), 'Exterminio 2002');
+  assert.equal(shapeSearchQuery('therarbg', 'Extermínio', false), 'Extermínio');
+});
+
+test('shapeSearchQuery tira só o diacrítico: caixa e pontuação ficam', () => {
+  // Se fosse normalizeTitle (lowercase + não-alfanumérico → espaço) a query
+  // viraria "o poderoso chefao parte ii" — a prova de que não é.
+  assert.equal(shapeSearchQuery('comandotorrents', 'O Poderoso Chefão: Parte II', true), 'O Poderoso Chefao: Parte II');
+  // Cobertura dos diacríticos do pt-BR: ã á â à é ê í ó ô õ ú ç.
+  assert.equal(
+    shapeSearchQuery('nerdfilmes', 'Ação Órfã Pânico Círculo Coração', true),
+    'Acao Orfa Panico Circulo Coracao',
+  );
+});
+
+test('shapeSearchQuery: strip de acento combina com os strips existentes', () => {
+  // bare-title tira também o ano do fim; o acento sai junto, na passada BR.
+  assert.equal(shapeSearchQuery('hdrtorrent', 'Extermínio 2002', true), 'Exterminio');
+});
+
+test('shapeSearchQuery nunca devolve string vazia', () => {
+  // Query que a moldagem esvazia cai no fallback `|| query`: o Jackett nunca
+  // recebe consulta em branco.
+  assert.equal(shapeSearchQuery('comandotorrents', 'S01E01', true), 'S01E01');
+  assert.equal(shapeSearchQuery('redetorrent', '  ', true), '  ');
 });
 
 test('shapeSearchQuery tira o ano do fim só nos bare-title', () => {
@@ -376,10 +408,10 @@ test('ptSweepQuery preserva número que é o nome da obra', () => {
 
 // --- Causa C: index-only ficam fora do caminho da resposta ----------------
 //
-// Lat�ncia medida de 8-31s nos tr�s BR stock contra or�amento total de 20s:
-// falha -> failStreak -> breaker -> indexer fora do ar na PR�XIMA busca, e o
-// retry PT->t�tulo original consumia o mesmo or�amento. Quem mant�m as
-// releases deles frescas agora � o colhedor; a busca ao vivo serve do �ndice.
+// Lat�ncia medida de 8-31s nos tr�s BR stock contra or�amento total de 20s:
+// falha -> failStreak -> breaker -> indexer fora do ar na PR�XIMA busca, e o
+// retry PT->t�tulo original consumia o mesmo or�amento. Quem mant�m as
+// releases deles frescas agora � o colhedor; a busca ao vivo serve do �ndice.
 
 test('liveIndexers tira os index-only do plano ao vivo e preserva os demais', () => {
   assert.deepEqual(
@@ -391,16 +423,16 @@ test('liveIndexers tira os index-only do plano ao vivo e preserva os demais', ()
   );
 });
 
-test('liveIndexers com lista vazia (default antigo) n�o filtra nada', () => {
+test('liveIndexers com lista vazia (default antigo) n�o filtra nada', () => {
   const todos = ['thepiratebay', 'redetorrent'];
   assert.deepEqual(liveIndexers(todos), todos);
   assert.deepEqual(liveIndexers(todos, []), todos);
 });
 
-test('liveIndexers pode esvaziar a sele��o inteira (sem fallback /all)', () => {
-  // O caller precisa distinguir "usu�rio n�o selecionou nada" (fallback /all
+test('liveIndexers pode esvaziar a sele��o inteira (sem fallback /all)', () => {
+  // O caller precisa distinguir "usu�rio n�o selecionou nada" (fallback /all
   // vale) de "operador tirou todos os selecionados da resposta" (nenhuma
-  // consulta Jackett no caminho cr�tico).
+  // consulta Jackett no caminho cr�tico).
   assert.deepEqual(
     liveIndexers(['redetorrent', 'hdrtorrent'], ['redetorrent', 'hdrtorrent']),
     [],
