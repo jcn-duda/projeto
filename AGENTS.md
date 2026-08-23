@@ -1083,13 +1083,24 @@ o orçamento com a resposta.
   O erro agora viaja com o host (`blocked_host:<host>`) e a busca loga warn
   distinto citando-o — fonte BR que só devolve vazio: procure esse warn antes
   de culpar o parser.
-- **O bludv está fora do ar por bloqueio de borda (aceito, não é config).**
-  `bludvfilmes.xyz` → 301 → `bludvfilmes1.xyz`, que devolve 403 mesmo com
-  User-Agent de navegador — bloqueio ativo (Cloudflare ou equivalente), não
-  troca de domínio. Roteá-lo pelo FlareSolverr custaria o desafio re-resolvido
-  a cada busca (13–24s medidos), incompatível com o orçamento da resposta;
-  portanto o card fica vermelho por motivo conhecido, e o conserto seria um
-  mirror vivo, não código.
+- **O bludv foi derrubado por copyright (aceito, não é config).** Medido em
+  2026-08: `bludvfilmes.xyz` → 301 → `bludvfilmes1.xyz`, que está atrás do
+  Cloudflare e deu `HTTP ERROR 522` (origin fora do ar) mesmo via FlareSolverr
+  (`Challenge solved!` mas o Chromium devolve a tela "This page isn't working").
+  Os demais candidatos do resolver são domínios parkeados da ParkLogic
+  (`bludvfilmes.net`/`bludv.to` devolvem "Redirecting..." para
+  `router.parklogic.com`) e `bludvfilmes.org` cai na página "Website is no
+  Longer Available" da **Alliance for Creativity and Entertainment (ACE)**.
+  Sem mirror vivo; o card fica vermelho por motivo conhecido. O conserto é um
+  mirror novo, não código.
+- **O resolver bludv ganhou passagem pelo FlareSolverr** (para quando o site
+  voltar): `fetchText` agora, ao receber 403 do Cloudflare, re-resolve via
+  `POST <FLARE_SOLVERR_URL>/v1` e memoriza a sessão (`cf_clearance` + userAgent)
+  por host em `flareSessions` (TTL `FLARE_SESSION_TTL_MS`, 20min). O fetch
+  direto seguinte do MESMO host reusa o cookie sem pagar os ~20s do browser;
+  `onDomainChange` limpa a sessão (o cf_clearance é por host). Só o domínio
+  precisa estar na allowlist/candidatos — `bludvfilmes1.xyz` já entrou em
+  `FALLBACK_SITE_SUFFIXES`.
 - **Os protetores de link também trocam de host.** O torrentdosfilmes migrou
   de `systemads.net` para `systemads1.com` e TODO magnet passou a ser barrado
   porque só o host antigo estava na lista permitida. Magnet que some de um

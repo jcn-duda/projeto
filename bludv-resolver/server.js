@@ -52,10 +52,24 @@ function parseExtraProtectors(envVal) {
 
 const FALLBACK_SITE_SUFFIXES = [
   'bludvfilmes.xyz',
+  'bludvfilmes1.xyz',
   'bludv.net',
   'bludv.xyz',
   'bludv.to',
 ];
+
+// --- FlareSolverr (Cloudflare) ---
+// bludvfilmes.xyz faz 301 para bludvfilmes1.xyz e o domínio novo responde 403
+// com "Just a moment..." (challenge JavaScript do Cloudflare). O fetch direto
+// não executa o desafio; o FlareSolverr resolve. Para não pagar os ~20s do
+// browser a cada busca, a sessão resolvida (cf_clearance + userAgent) é
+// memorizada por host e reusada no fetch direto enquanto for válida — só
+// re-resolve quando o Cloudflare voltar a recusar.
+const FLARE_SOLVERR_URL = (process.env.FLARE_SOLVERR_URL || 'http://127.0.0.1:8191').replace(/\/$/, '');
+const FLARE_TIMEOUT_MS = Number(process.env.FLARE_TIMEOUT_MS || 55_000);
+const FLARE_SESSION_TTL_MS = Number(process.env.FLARE_SESSION_TTL_MS || 20 * 60_000);
+// hostname -> { cookies, userAgent, expiresAt }
+const flareSessions = new Map();
 
 // --- Failover de domínio em runtime ---
 // O SITE_URL era const lida no boot: domínio morto = fonte morta até editar
@@ -69,7 +83,7 @@ const FALLBACK_SITE_SUFFIXES = [
 function isNetworkError(err) {
   if (!err) return false;
   const message = String(err.message || err);
-  return !/^(?:http_|blocked_host|unsupported_protocol|missing_redirect|not_detail_page|no_magnet|too_many_redirects)/.test(message);
+  return !/^(?:http_|blocked_host|unsupported_protocol|missing_redirect|not_detail_page|no_magnet|too_many_redirects|flare_)/.test(message);
 }
 
 function createSiteSelector(tag, envUrlsCsv, primaryUrl, fallbackHosts) {
@@ -199,6 +213,8 @@ siteSelector.onDomainChange(() => {
   postCache.clear();
   searchCache.clear();
   magnetCache.clear();
+  // O cf_clearance é do host antigo; reusá-lo no novo só garante 403.
+  flareSessions.clear();
 });
 
 // Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
@@ -401,16 +417,101 @@ function parseSize(text) {
   return Number.isFinite(value) ? Math.round(value * mult) : null;
 }
 
+function getFlareSession(hostname) {
+  const hit = flareSessions.get(hostname);
+  if (hit && hit.expiresAt > Date.now()) return hit;
+  return null;
+}
+
+function buildCookies(cookies) {
+  return (cookies || [])
+    .map((c) => `${c.name}=${c.value}`)
+    .join('; ');
+}
+
+// Roteia a resposta HTML pelo FlareSolverr quando o site exigir desafio
+// Cloudflare. Salva a sessão (cf_clearance + userAgent) por host para o fetch
+// direto seguinte reusar sem pagar o browser de novo. Retorna o HTML resolvido.
+async function fetchTextViaFlare(url, referer) {
+  const body = JSON.stringify({ cmd: 'request.get', url, maxTimeout: FLARE_TIMEOUT_MS });
+  const res = await fetch(`${FLARE_SOLVERR_URL}/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    signal: AbortSignal.timeout(FLARE_TIMEOUT_MS + 10_000),
+  });
+  // Falha do FlareSolverr (5xx/HTML) NÃO é falha do site: propaga com prefixo
+  // flare_ (excluído do isNetworkError) para o failover de domínio não morder.
+  if (!res.ok) throw new Error(`flare_http_${res.status}`);
+  const data = await res.json();
+  if (data.status !== 'ok' || !data.solution) {
+    throw new Error(`flare_error_${data.status || '?'}:${data.message || 'sem solução'}`);
+  }
+  const { solution } = data;
+  // FlareSolverr reporta status:'ok' mesmo quando a página final é a tela de
+  // erro do Chromium (ex.: origin 522). `solution.status` é o HTTP real da
+  // página: só 2xx é sucesso — senão o erro de origin viraria "0 posts" e o
+  // noteSuccess() zerava o streak do failover, escondendo a fonte morta.
+  const solvedStatus = Number(solution.status || 200);
+  if (solvedStatus < 200 || solvedStatus >= 300) {
+    throw new Error(`flare_site_${solvedStatus}`);
+  }
+  const response = solution.response || '';
+  // Guarda extra: a tela de erro do Chromium ("This page isn't working"/"HTTP
+  // ERROR NNN") chega com status 200 internamente em alguns cenários. Rejeitá-la
+  // mantém a falha diagnosticável em vez de silenciar em "0 resultados".
+  if (/This page isn.t working|HTTP ERROR \d{3}/i.test(response)) {
+    throw new Error('flare_site_error_page');
+  }
+  const session = {
+    cookies: buildCookies(solution.cookies),
+    userAgent: solution.userAgent,
+    expiresAt: Date.now() + FLARE_SESSION_TTL_MS,
+  };
+  // Grava sob o host PEDIDO e o RESOLVIDO: no cenário 301 (bludvfilmes.xyz →
+  // bludvfilmes1.xyz) o próximo fetch direto consulta o host pedido e acha a
+  // sessão — senão pagava o browser de novo a cada expiração do cache.
+  flareSessions.set(new URL(url).hostname, session);
+  flareSessions.set(new URL(solution.url || url).hostname, session);
+  return response;
+}
+
+function buildFlareHeaders(url, referer) {
+  // O fetch direto só reusa a sessão do MESMO host: um domain change limpa o
+  // mapa, e o cf_clearance é por host — misturar UA/cookies de outro domínio
+  // só garante rejeição. O host é o do alvo pedido, não do referer (o referer
+  // chega undefined no fetchText do post).
+  const hostname = new URL(url).hostname;
+  const session = getFlareSession(hostname);
+  return {
+    'User-Agent': session?.userAgent || USER_AGENT,
+    Accept: 'text/html,application/xhtml+xml',
+    ...(session?.cookies ? { Cookie: session.cookies } : {}),
+    ...(referer ? { Referer: referer } : {}),
+  };
+}
+
 async function fetchText(url, referer) {
   const res = await fetch(url, {
     redirect: 'follow',
-    headers: {
-      'User-Agent': USER_AGENT,
-      Accept: 'text/html,application/xhtml+xml',
-      ...(referer ? { Referer: referer } : {}),
-    },
+    headers: buildFlareHeaders(url, referer),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
+  // 403 do Cloudflare ("Just a moment...") não é o site fora do ar: é o desafio
+  // JS que o fetch direto não executa. Re-resolve pelo FlareSolverr. Mas 403 por
+  // outro motivo (rate-limit, bloqueio de região/proxy) não é desafio e virar
+  // página de erro do FlareSolverr silenciaria a falha em "0 resultados" — só
+  // deriva quando o corpo/header confirmam o desafio Cloudflare.
+  if (res.status === 403) {
+    const body = await res.text();
+    const isCloudflareChallenge =
+      res.headers.get('cf-mitigated') === 'challenge' ||
+      /Just a moment|cf-chl|__cf_chl|challenge-platform|cf-browser-verification|cf_chl/i.test(body);
+    if (isCloudflareChallenge) {
+      return fetchTextViaFlare(url, referer);
+    }
+    throw new Error(`http_403`);
+  }
   if (!res.ok) throw new Error(`http_${res.status}`);
   return res.text();
 }
@@ -1345,6 +1446,10 @@ module.exports = {
   siteSelector,
   createSiteSelector,
   isNetworkError,
+  getFlareSession,
+  buildFlareHeaders,
+  fetchText,
+  fetchTextViaFlare,
   postCache,
   searchCache,
   magnetCache,

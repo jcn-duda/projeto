@@ -191,6 +191,141 @@ describe('BluDV Resolver: caches de magnet e de busca', () => {
     // A normalização da query faz parte da chave.
     assert.ok(bludv.searchCache.has('search:post cache'));
   });
+
+  test('fetchText: 403 do Cloudflare cai no FlareSolverr e reusa a sessão', async () => {
+    let siteFetches = 0;
+    let flareCalls = 0;
+    let lastHeaders: any;
+
+    globalThis.fetch = (async (url: any, init: any) => {
+      const u = toStr(url);
+      if (u.includes('bludvfilmes')) {
+        siteFetches += 1;
+        lastHeaders = init?.headers;
+        // 1ª tentativa do site: Cloudflare recusa (desafio JS); 2ª (com cookie)
+        // devolve o HTML. O corpo do 403 traz o marcador do desafio para o
+        // fetchText reconhecer e derivar ao FlareSolverr.
+        return siteFetches === 1
+          ? {
+              status: 403,
+              ok: false,
+              headers: { get: () => null },
+              text: async () => 'Just a moment... at https://challenges.cloudflare.com',
+            }
+          : {
+              status: 200,
+              ok: true,
+              headers: { get: () => null },
+              text: async () => '<html>resultado</html>',
+            };
+      }
+      if (u.includes('/v1')) {
+        flareCalls += 1;
+        return {
+          status: 200,
+          ok: true,
+          json: async () => ({
+            status: 'ok',
+            solution: {
+              // Cenário real do 301: o site resolve no domínio novo.
+              url: 'https://bludvfilmes1.xyz/?s=exterminio',
+              response: '<html>flare</html>',
+              userAgent: 'FlareUA/1.0',
+              cookies: [{ name: 'cf_clearance', value: 'abc123' }],
+            },
+          }),
+        };
+      }
+      throw new Error(`Unexpected url: ${u}`);
+    }) as unknown as typeof globalThis.fetch;
+
+    const first = await bludv.fetchText('https://bludvfilmes.xyz/?s=exterminio');
+    assert.equal(first, '<html>flare</html>', '403 vira response do FlareSolverr');
+    assert.equal(flareCalls, 1, 'só um POST no FlareSolverr');
+    assert.equal(siteFetches, 1, 'site foi tocado uma vez antes do 403');
+
+    // Sessão memorizada Sob o host PEDIDO (bludvfilmes.xyz) mesmo o FlareSolverr
+    // resolvendo no domínio novo — senão o 301 pagaria o browser toda vez.
+    const session = bludv.getFlareSession('bludvfilmes.xyz');
+    assert.ok(session, 'sessão cf_clearance guardada no host pedido');
+    assert.equal(session.userAgent, 'FlareUA/1.0');
+    assert.ok(session.cookies.includes('cf_clearance=abc123'));
+    assert.ok(bludv.getFlareSession('bludvfilmes1.xyz'), 'sessão também no host resolvido');
+
+    // Segunda chamada do MESMO host reusa o cookie no fetch direto (sem FlareSolverr).
+    const second = await bludv.fetchText('https://bludvfilmes.xyz/?s=exterminio');
+    assert.equal(second, '<html>resultado</html>');
+    assert.equal(flareCalls, 1, 'não re-resolve com cookie válido');
+    assert.equal(siteFetches, 2);
+    assert.ok(
+      String(lastHeaders?.['User-Agent']).includes('FlareUA') && String(lastHeaders?.['Cookie']).includes('cf_clearance'),
+      'headers do fetch direto usam a sessão',
+    );
+  });
+
+  test('fetchText: 403 sem desafio Cloudflare NÃO deriva e mantém erro diagnosticável', async () => {
+    let flareCalls = 0;
+    globalThis.fetch = (async (url: any) => {
+      const u = toStr(url);
+      if (u.includes('bludvfilmes')) {
+        return {
+          status: 403,
+          ok: false,
+          headers: { get: () => null },
+          text: async () => '<html>Access denied</html>',
+        };
+      }
+      if (u.includes('/v1')) {
+        flareCalls += 1;
+        throw new Error('não deve chamar o FlareSolverr');
+      }
+      throw new Error(`Unexpected url: ${u}`);
+    }) as unknown as typeof globalThis.fetch;
+
+    await assert.rejects(
+      () => bludv.fetchText('https://bludvfilmes.xyz/?s=exterminio'),
+      /http_403/,
+      '403 sem challenge vira http_403 e não silencia em 0 resultados',
+    );
+    assert.equal(flareCalls, 0, 'FlareSolverr não é chamado sem desafio Cloudflare');
+  });
+
+  test('fetchTextViaFlare: página de erro do origin (522) é rejeitada, não devolvida', async () => {
+    globalThis.fetch = (async (url: any) => {
+      const u = toStr(url);
+      if (u.includes('/v1')) {
+        return {
+          status: 200,
+          ok: true,
+          json: async () => ({
+            status: 'ok',
+            solution: {
+              url: 'https://bludvfilmes1.xyz/?s=exterminio',
+              status: 200,
+              response: 'This page isn\u2019t working. HTTP ERROR 522',
+              userAgent: 'FlareUA/1.0',
+              cookies: [],
+            },
+          }),
+        };
+      }
+      if (u.includes('bludvfilmes')) {
+        return {
+          status: 403,
+          ok: false,
+          headers: { get: () => null },
+          text: async () => 'Just a moment...',
+        };
+      }
+      throw new Error(`Unexpected url: ${u}`);
+    }) as unknown as typeof globalThis.fetch;
+
+    await assert.rejects(
+      () => bludv.fetchText('https://bludvfilmes.xyz/?s=exterminio'),
+      /flare_site_error_page/,
+      'página de erro do Chromium é tratada como falha, não como 0 releases',
+    );
+  });
 });
 
 describe('BluDV Resolver: fallback do resolvePost e chaves por preferência', () => {
