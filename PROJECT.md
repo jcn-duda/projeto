@@ -3,6 +3,13 @@
 > Authoritative architectural specification, feature inventory, milestone plan, and interface contracts for the Stremio Adom enhancements and modular refactoring.
 
 ## Architecture
+
+> **Estado (2026-08-23):** as seções abaixo descrevem o layout **alvo do M3**
+> (`PLANO_MELHORIAS.md` fase 5), não necessariamente o que já existe em
+> `src/`. Confira a tabela de **Milestones** para o status real de cada item
+> (`DONE` = já existe no código; `PLANNED`/`IN_PROGRESS` = ainda não). Para o
+> layout **atual** e o porquê de cada decisão, `AGENTS.md` é a fonte de
+> verdade — ele nunca descreve estado futuro como presente.
 - **Process & Application Layer**:
   - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
   - `src/app.ts`: Express application factory (`createApp()`), route definitions (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`).
