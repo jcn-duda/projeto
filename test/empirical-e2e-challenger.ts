@@ -121,8 +121,11 @@ const mutations = [
     testFile: 'dist/test/e2e/tier3-cross-feature.test.js'
   },
   {
-    name: 'MUT-09: Break Tier 4 Scenario 1 Premiumize branding [PM⚡] (providers/index.js)',
-    file: 'dist/src/providers/index.js',
+    // PLANO_MELHORIAS 5.1: applyDebrid (e markDebridName) saiu de
+    // providers/index.js para providers/debrid-pipeline.js no split de
+    // providers. O alvo segue este arquivo se ele mudar de novo.
+    name: 'MUT-09: Break Tier 4 Scenario 1 Premiumize branding [PM⚡] (providers/debrid-pipeline.js)',
+    file: 'dist/src/providers/debrid-pipeline.js',
     target: 'name: markDebridName(s.name, adapter.short || adapter.id, instant),',
     replacement: 'name: s.name, // MUTATED: stripped [PM⚡]',
     testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
