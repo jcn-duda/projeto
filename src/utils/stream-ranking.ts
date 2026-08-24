@@ -1,6 +1,6 @@
 import { priorityMap, compareIndexerPriority } from './indexer-priority.js';
 import type { Stream, DebridAdapter } from '../../types/domain.js';
-import { UNKNOWN_QUALITY, audioFromTitle, sourceFromTitle, editionFromTitle, hasExplicitForeignAudio } from './audio-quality.js';
+import { UNKNOWN_QUALITY, audioFromTitle, sourceFromTitle, editionFromTitle, hasExplicitForeignAudio, looksPtBr, hasPtSigns } from './audio-quality.js';
 import { isSeasonPackRelease, parseTitleSeasonEpisode } from './episode-matching.js';
 import { streamQuality, selectQualityCandidates } from './stream-quotas.js';
 import { streamDisplayName, passesQualityFilter } from './search-names.js';
@@ -8,6 +8,12 @@ import { streamDisplayName, passesQualityFilter } from './search-names.js';
 interface PoolsOptions {
   season?: number | null;
   minSeeders?: number;
+  /**
+   * Preferência PT no pool de swarm: candidato com sinal de português vence
+   * a contagem bruta de seeders. É PREFERÊNCIA, não filtro — sem nenhum
+   * candidato PT a ordenação por seeders continua valendo.
+   */
+  ptFirst?: boolean;
 }
 
 interface AutofetchOptions {
@@ -196,17 +202,35 @@ function anyDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
  * Pool de segurança: prioriza o swarm, não a resolução, para o download terminar.
  *
  */
-function topSeededPool(streams: Stream[] = [], { season, minSeeders = 0 }: PoolsOptions = {}) {
+function topSeededPool(
+  streams: Stream[] = [],
+  { season, minSeeders = 0, ptFirst = true }: PoolsOptions = {},
+) {
   const seedersOf = (s: any) => Number(s?._seeders ?? (String(s?.name || '').match(/👤\s*(\d+)/)?.[1] || 0));
   const candidates = streams.filter((s) =>
     s && s.infoHash && sourceFromTitle(s.title || s.name || '') !== 'CAM' &&
     seedersOf(s) >= minSeeders && !hasExplicitForeignAudio(s.title || s.name || ''),
   );
   const packOf = season == null ? null : new Map(candidates.map((s) => [s, isSeasonPackRelease(s, season)]));
+  // Pré-computado uma vez, como o packOf: o sort consultaria o parse do mesmo
+  // título n·log n vezes. Marca de áudio PT (looksPtBr) ou título que denuncia
+  // português (hasPtSigns) — a rede de segurança baixava a release estrangeira
+  // com mais pares e o usuário ficava sem dublagem mesmo havendo alternativa.
+  const ptOf = ptFirst
+    ? new Map(candidates.map((s) => {
+      const t = String(s.title || s.name || '');
+      return [s, looksPtBr(t) || hasPtSigns(t)];
+    }))
+    : null;
   return [...candidates].sort((a, b) => {
     if (packOf) {
       const packDiff = (packOf.get(b) ? 1 : 0) - (packOf.get(a) ? 1 : 0);
       if (packDiff) return packDiff;
+    }
+    // Entre o pack e os seeders: o candidato com sinal PT baixa primeiro.
+    if (ptOf) {
+      const ptDiff = (ptOf.get(b) ? 1 : 0) - (ptOf.get(a) ? 1 : 0);
+      if (ptDiff) return ptDiff;
     }
     const seedDiff = seedersOf(b) - seedersOf(a);
     if (seedDiff) return seedDiff;

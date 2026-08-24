@@ -64,6 +64,7 @@ export function autoFetchCandidates(
   if (candidates.length === 0 && config.debrid.autoFetchTopSeeds) {
     candidates = pickTopSeededCandidates(liveStreams, new Set(), config.debrid.autoFetchTopSeedsMax + queueDepth, {
       season, minSeeders: config.debrid.autoFetchMinSeeders,
+      ptFirst: config.debrid.autoFetchSeedsPtFirst,
     });
     pool = 'seeds';
     if (candidates.length > 0) metrics.count('autofetch.top-seeded');
@@ -140,6 +141,17 @@ export function enqueueAutofetch({ stream, account, pool }: any, { cached, seaso
     return;
   }
 
+  // Gate de ocupação: conta cheia não recebe mais download. Fail-open por
+  // design (memo frio não bloqueia) e sem rede no caminho síncrono — o
+  // enqueue é efeito colateral fora da resposta, nunca o contrário.
+  if (autofetch.accountGateBlocked(adapter, opts().debridApiKey)) {
+    autofetch.release(key);
+    if (searchKey) autofetch.releaseSearchSlot(searchKey);
+    held.release(stream.infoHash, account);
+    warnAccountGated(adapter, account);
+    return;
+  }
+
   if (!autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit)) {
     autofetch.release(key);
     if (searchKey) autofetch.releaseSearchSlot(searchKey);
@@ -184,6 +196,27 @@ export function enqueueAutofetch({ stream, account, pool }: any, { cached, seaso
       log.warn('[autofetch] falhou:', err?.message || err);
     });
   return true;
+}
+
+/**
+ * Warn do gate UMA vez por transição, não por candidato × busca: com a conta
+ * cheia toda busca é gateada, e o log virava spam. A métrica continua
+ * contando sempre; só o log silencia dentro da janela (reaproveita o refresh
+ * do memo do gate, ~15 min).
+ */
+const lastGatedWarnAt = new Map<string, number>();
+
+function warnAccountGated(adapter: DebridAdapter, account: string) {
+  metrics.count('autofetch.account-gated');
+  const key = `${adapter.id}:${account}`;
+  const last = lastGatedWarnAt.get(key) || 0;
+  if (Date.now() - last < config.debrid.autoFetchPauseRefreshMs) return;
+  lastGatedWarnAt.set(key, Date.now());
+  log.warn(
+    `[autofetch] ${adapter.label} com conta cheia — nenhum download enfileirado; ` +
+    'a varredura automática (DEBRID_SWEEP_UNDUBBED*) remove o excesso respeitando o acervo; ' +
+    'o painel /dashboard mostra a ocupação',
+  );
 }
 
 /**
@@ -297,6 +330,9 @@ export function drainNext(searchKey: string, lot: any) {
   if (!adapter) return;
   const account = accountScope(opts().debridApiKey);
   if (autofetch.budgetBlockedUntil(adapter.id, account) > Date.now()) return;
+  // Mesmo padrão da pausa por orçamento: a cabeça fica na fila intacta, sem
+  // girar, até a conta voltar abaixo do limiar de ocupação.
+  if (autofetch.accountGateBlocked(adapter, opts().debridApiKey)) return;
 
   const { next, remaining } = autofetch.takeNext(queue, (cand) => {
     const h = String(cand.infoHash).toLowerCase();
@@ -400,8 +436,15 @@ function runRecheck(searchKey: string) {
       const isReady = (checkResult.known && checkResult.cached.has(hash)) || statusInfo?.state === 'ready';
       if (isReady) {
         metrics.count('autofetch.ready');
+        // Quanto tempo o download levou do enfileiramento ao pronto (hit-rate).
+        // Duração é observe (janela com percentil), não somatório de count.
+        metrics.observe('autofetch.ready-ms', Date.now() - (lot.createdAt || Date.now()));
         if (adapter.cacheCheck) {
           cache.forget(searchKey);
+          // TODO hash pronto recebe o positivo davail (não só pack): a próxima
+          // lista marca ⚡ sem repetir a consulta ao debrid, seja episódio ou
+          // filme. É a mesma evidência do season fill, servida a qualquer obra.
+          debrid.noteAvailable(hash);
           const hint = lot.seasonHints.get(hash);
           if (
             config.debrid.autoFetchSeasonFill &&
@@ -415,7 +458,6 @@ function runRecheck(searchKey: string) {
             // de novo, sem re-invalidar para sempre uma temporada já promovida.
             seasonSearchKeys.delete(indexKey);
             cache.forgetMany(keys);
-            debrid.noteAvailable(hash);
             metrics.count('autofetch.season-fill', keys.length);
             log.info(
               `[autofetch] pack S${hint.season} de ${hint.imdbId} pronto; ` +
@@ -487,7 +529,8 @@ function runRecheck(searchKey: string) {
     } else if (lot.isSettle) {
       const ageMs = Date.now() - (lot.createdAt || 0);
       if (ageMs >= config.debrid.autoFetchTtl * 1000) {
-        // Settle expirado
+        // Settle expirado: o download nunca ficou tocável dentro do prazo.
+        metrics.count('autofetch.expired-unready', lot.hashes.size);
         if (typeof adapter.removeTorrent === 'function') {
           for (const h of lot.hashes) {
             const sid = statuses[h]?.id;

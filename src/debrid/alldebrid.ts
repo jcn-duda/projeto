@@ -9,6 +9,7 @@ import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
+import { audioBucket } from '../utils/audio-quality.js';
 
 // v4.1: a AllDebrid descontinuou /v4/magnet/status ("DISCONTINUED"), o que
 // fazia toda resolução falhar com 502. upload e link/unlock respondem em ambas.
@@ -244,6 +245,68 @@ async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMin
     );
   } else {
     log.info(`[alldebrid] varredura: ${ok} magnet(s) morto(s) removido(s) da conta`);
+  }
+  return { varridos: ok, falhas: falhas.length };
+}
+
+/**
+ * Varre da conta os magnets ANTIGOS sem áudio PT (balde `lixo` do
+ * `audioBucket`): legendado ou estrangeiro que o autofetch acumulou antes do
+ * filtro de áudio existir. É a única limpeza que alcança o que nem está morto
+ * nem aparece mais em busca — está pronto, só não serve a este addon.
+ *
+ * Por ser destrutiva sobre conteúdo TOCÁVEL, as travas andam juntas:
+ *   - idade mínima (só o que passou de `sweepUndubbedMinAgeMs`);
+ *   - `held` (download do autofetch em curso);
+ *   - `knownBefore` (o acervo que já era do usuário);
+ *   - sem data de upload, a idade não está PROVADA — fica (diferente do
+ *     sweepDead: morto é lixo em qualquer idade; tocável exige prova).
+ *
+ * FAIL-SAFE: inventário frio ou falho (`knownBefore === null`) pula a rodada
+ * inteira — mesmo padrão do dropReady: sem prova de proveniência, nada sai.
+ */
+async function sweepUndubbed(
+  apiKey: string,
+  {
+    minAgeMs = config.debrid.sweepUndubbedMinAgeMs,
+    max = config.debrid.sweepUndubbedMax,
+  }: { minAgeMs?: number; max?: number } = {},
+): Promise<{ varridos: number; falhas: number; pulado?: string }> {
+  const account = accountScope(apiKey);
+  const preexistentes = knownBefore(apiKey, account);
+  if (preexistentes === null) {
+    log.info('[alldebrid] varredura de não-dublados pulada: inventário frio ou falhou');
+    return { varridos: 0, falhas: 0, pulado: 'inventário frio' };
+  }
+
+  const data = await call(apiKey, '/magnet/status');
+  const list = Array.isArray(data?.magnets) ? data.magnets : [];
+  const limite = Date.now() - Math.max(0, Number(minAgeMs) || 0);
+
+  const alvo = list.filter((m: any) => {
+    if (!m.id) return false;
+    if (held.isHeld(m.hash, account)) return false;
+    if (preexistentes.has(String(m.hash || '').toLowerCase())) return false;
+    if (audioBucket(String(m.filename || '')) !== 'lixo') return false;
+    // uploadDate vem em segundos; sem data, não há prova de idade — fica.
+    const quando = Number(m.uploadDate || 0) * 1000;
+    return quando > 0 && quando <= limite;
+  });
+
+  if (!alvo.length) return { varridos: 0, falhas: 0 };
+  // Teto por rodada: os mais antigos saem primeiro — o corte pega o resto.
+  alvo.sort((a: any, b: any) => Number(a.uploadDate || 0) - Number(b.uploadDate || 0));
+  const corte = alvo.slice(0, Math.max(0, Math.trunc(Number(max) || 0)));
+  if (!corte.length) return { varridos: 0, falhas: 0 };
+
+  const { ok, falhas } = await dropMagnets(apiKey, corte.map((m: any) => m.id));
+  metrics.count('debrid.swept.undubbed', ok);
+  if (falhas.length) {
+    log.warn(
+      `[alldebrid] varredura de não-dublados: ${ok}/${corte.length} removido(s) — ${falhas.length} falhou(ram): ${falhas[0]?.message || falhas[0]}`,
+    );
+  } else {
+    log.info(`[alldebrid] varredura de não-dublados: ${ok} magnet(s) antigo(s) sem áudio PT removido(s)`);
   }
   return { varridos: ok, falhas: falhas.length };
 }
@@ -531,5 +594,5 @@ export const cacheCheck = true;
 // em background para ler os ids e remover os magnets que não estavam prontos.
 export const abortSafeCacheCheck = false;
 export const keyUrl = 'https://alldebrid.com/apikeys';
-export { enqueue, accountStatus, inventory, checkCached, warmInventory, sweepDead, resolveLink, torrentStatus, removeTorrent };
+export { enqueue, accountStatus, inventory, checkCached, warmInventory, sweepDead, sweepUndubbed, resolveLink, torrentStatus, removeTorrent };
 

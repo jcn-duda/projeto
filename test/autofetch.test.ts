@@ -37,6 +37,39 @@ test('pickTopSeededCandidates respeita o piso e o teto de dois', () => {
   );
 });
 
+test('pool de swarm prefere release com sinal PT à contagem bruta de seeders', () => {
+  // Release estrangeira sem marca com MUITOS pares vs release PT com menos:
+  // a PT vence — é preferência, não filtro. As duas são releases de episódio
+  // (nenhuma é pack), então é o critério PT que decide, entre pack e seeders.
+  const gringa = stream(A, { title: 'Some Show S01E05 1080p WEB-DL x264 GRiP', _seeders: 80 });
+  const ptDub = stream(B, { title: 'Alguma Série S01E05 Dublada 1080p', _seeders: 6 });
+  assert.deepEqual(
+    pickTopSeededCandidates([gringa, ptDub], new Set(), 2, { season: 1, minSeeders: 3 }).map((s) => s.infoHash),
+    [B, A],
+  );
+  // Sinal PT por acento/vocabulário (sem marca de áudio) também conta.
+  const ptAcento = stream(C, { title: 'Alguma Série S01E05 Não Há Como Fugir Ação', _seeders: 5 });
+  assert.equal(
+    pickTopSeededCandidates([gringa, ptAcento], new Set(), 1, { season: 1, minSeeders: 3 })[0].infoHash,
+    C,
+  );
+  // Flag desligada restaura a ordenação antiga (seeders brutos).
+  assert.deepEqual(
+    pickTopSeededCandidates([gringa, ptDub], new Set(), 2, { season: 1, minSeeders: 3, ptFirst: false }).map((s) => s.infoHash),
+    [A, B],
+  );
+});
+
+test('pool de swarm sem nenhum sinal PT preserva o desempate por seeders', () => {
+  // Contrato do teste do piso/teto: sem candidato PT, seeders decide.
+  const few = stream(A, { title: 'Lost Girl S03E01 HDTV', _seeders: 4 });
+  const many = stream(B, { title: 'Lost Girl S03 720p x265', _seeders: 9 });
+  assert.deepEqual(
+    pickTopSeededCandidates([few, many], new Set(), 2, { season: 3, minSeeders: 3 }).map((s) => s.infoHash),
+    [B, A],
+  );
+});
+
 const stream = (infoHash: any, extra = {}) => ({ infoHash, name: 'Release', ...extra });
 
 test('pickBrDubbedCandidate pega o melhor BR e ignora quem não é BR', () => {
@@ -1973,13 +2006,13 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
     testMock.timers.tick(120_000);
     await flush();
 
-    // A busca que enfileirou é invalidada pelo caminho ready comum; o outro
-    // episódio e o davail seguem intocados: sem prova de temporada, sem fill.
+    // A busca que enfileirou é invalidada pelo caminho ready comum e TODO hash
+    // pronto semeia davail; só a invalidação da temporada exige prova (fill).
     assert.equal(cache.get(keys[1]) != null, true, 'episódio vizinho não é invalidado sem prova de temporada');
     assert.equal(
       cache.snapshot().namespaces.davail?.entries || 0,
-      davailBefore,
-      'disponibilidade não é semeada por pack sem número de temporada',
+      davailBefore + 1,
+      'hash pronto é semeado no cache de disponibilidade mesmo sem prova de temporada',
     );
     assert.equal(
       (metrics.snapshot().counters['autofetch.season-fill'] || 0) - fillBefore,
@@ -1995,6 +2028,76 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
     pmAdapter.enqueue = originalEnqueue;
     pmAdapter.torrentStatus = originalTorrentStatus;
     for (const key of keys) cache.forget(key);
+    cache.forget(autofetch.markerKey('premiumize', account, h));
+    held.release(h, account);
+  }
+});
+
+// TODO hash pronto recebe o positivo davail — não só pack de temporada. Hash
+// de filme/episódio que fica tocável no recheck semeia disponibilidade para a
+// próxima lista marcar ⚡ sem repetir a consulta ao debrid.
+test('hash NÃO-pack pronto no recheck semeia davail', async () => {
+  const testMock = mock;
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const originalTorrentStatus = pmAdapter.torrentStatus;
+  const apiKey = 'chave-davail-nao-pack';
+  const account = accountScope(apiKey);
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: apiKey,
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const searchKey = streamsCacheKey('movie', 'tt5555555', { ...userOpts, resolveUncached: config.debrid.resolveUncached });
+  const h = 'f'.repeat(40);
+  const filme = {
+    infoHash: h,
+    name: 'Filme Qualquer Dublado',
+    title: 'Filme Qualquer Dublado',
+    _br: true,
+    _dubbed: true,
+    _quality: '1080p',
+    _seeders: 1,
+  };
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  const davailBefore = cache.snapshot().namespaces.davail?.entries || 0;
+  let checks = 0;
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    pmAdapter.enqueue = async () => true;
+    pmAdapter.torrentStatus = async () => ({});
+    debrid.checkCached = async () => {
+      checks += 1;
+      return checks === 1 ? { cached: new Set(), known: true } : { cached: new Set([h]), known: true };
+    };
+
+    testMock.timers.enable({ apis: ['setTimeout'] });
+    await runtime.run({ opts: userOpts, encoded: 'cfg-davail-nao-pack' }, () =>
+      applyDebrid([filme], { searchKey } as any),
+    );
+    await flush();
+    testMock.timers.tick(120_000);
+    await flush();
+
+    assert.equal(checks >= 2, true, 'o recheck consultou o debrid depois do aceite');
+    assert.equal(cache.get(searchKey), null, 'a busca que enfileirou é invalidada quando o download fica pronto');
+    assert.equal(
+      cache.snapshot().namespaces.davail?.entries || 0,
+      davailBefore + 1,
+      'hash NÃO-pack pronto é semeado no cache de disponibilidade',
+    );
+  } finally {
+    testMock.timers.reset();
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    pmAdapter.torrentStatus = originalTorrentStatus;
+    cache.forget(searchKey);
     cache.forget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
@@ -2154,6 +2257,86 @@ test('T4b: autoFetchStallStreak = 0 não colapsa nem remove torrent stalled (par
     cache.forget(searchKey);
     cache.forget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
+  }
+});
+
+test('gate de ocupação: memo frio é fail-open e memo quente acima do limiar bloqueia o enqueue', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalPauseAt = config.debrid.autoFetchPauseAt;
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const originalStatus = pmAdapter.accountStatus;
+  const account = accountScope('chave-gate-cheia');
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
+  const brDub = (hash: any) => ({
+    infoHash: hash, name: 'Filme Conta Cheia Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+  });
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-gate-cheia',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const run = (h: any, searchKey: any) => runtime.run({ opts: userOpts, encoded: 'cfg-gate' }, () =>
+    applyDebrid([brDub(h)], { searchKey } as any),
+  );
+  const hCold = 'e'.repeat(40);
+  const hHot = 'f'.repeat(40);
+  let enqueues = 0;
+  const gatedBefore = metrics.snapshot().counters['autofetch.account-gated'] || 0;
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    config.debrid.autoFetchPauseAt = 5;
+    pmAdapter.enqueue = async () => { enqueues += 1; return true; };
+    pmAdapter.accountStatus = async () => ({ magnets: 900 });
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    autofetch.resetAccountGate();
+
+    // (1) Memo frio: a primeira chamada não bloqueia (fail-open) e o refresh
+    // em background grava a contagem — a segunda já decide com evidência.
+    assert.equal(autofetch.accountGateBlocked(pmAdapter, 'chave-gate-cheia'), false, 'memo frio não bloqueia');
+    await sleep(20);
+    assert.equal(autofetch.accountGateBlocked(pmAdapter, 'chave-gate-cheia'), true, 'memo quente acima do limiar bloqueia');
+
+    // (2) Memo quente: o enqueue NÃO chega no debrid e o hold é liberado.
+    await run(hHot, 'gate-cheio');
+    await sleep(20);
+    assert.equal(enqueues, 0, 'conta cheia impede o debrid.enqueue');
+    assert.equal(held.isHeld(hHot, account), false, 'bloqueio libera o hold do candidato');
+    assert.equal(cache.get(autofetch.markerKey('premiumize', account, hHot)), null, 'bloqueio não grava marker');
+    assert.equal(
+      (metrics.snapshot().counters['autofetch.account-gated'] || 0) - gatedBefore,
+      1,
+      'bloqueio contado uma vez em autofetch.account-gated',
+    );
+
+    // (3) Fail-open no caminho real: memo frio de novo, a busca enfileira.
+    autofetch.resetAccountGate();
+    await run(hCold, 'gate-frio');
+    await sleep(20);
+    assert.equal(enqueues, 1, 'primeira chamada com memo frio enfileira normalmente');
+    assert.equal(held.isHeld(hCold, account), true, 'aceite mantém o hold');
+
+    // (4) Flag 0 desliga o gate mesmo com memo quente.
+    assert.equal(autofetch.accountGateBlocked(pmAdapter, 'chave-gate-cheia'), true, 'refresh da busca fria reaqueceu o memo');
+    config.debrid.autoFetchPauseAt = 0;
+    assert.equal(autofetch.accountGateBlocked(pmAdapter, 'chave-gate-cheia'), false, 'flag 0 desliga o gate');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.autoFetchPauseAt = originalPauseAt;
+    pmAdapter.enqueue = originalEnqueue;
+    pmAdapter.accountStatus = originalStatus;
+    autofetch.resetAccountGate();
+    autofetch.releaseSearch('gate-frio');
+    autofetch.releaseSearch('gate-cheio');
+    for (const h of [hCold, hHot]) {
+      cache.forget(autofetch.markerKey('premiumize', account, h));
+      held.release(h, account);
+    }
   }
 });
 

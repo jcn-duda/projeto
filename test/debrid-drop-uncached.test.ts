@@ -871,3 +871,184 @@ test('varredura respeita a margem de idade: morto recém-marcado fica', async ()
     api.restore();
   }
 });
+
+// --- Varredura de não-dublados antigos ------------------------------------
+//
+// A única limpeza que alcança o lixo tocável: não está morto nem aparece mais
+// em busca. Por ser destrutiva, cada trava (balde de áudio, idade, held,
+// inventário conhecido, fail-safe, teto) é exercitada individualmente.
+
+/**
+ * Dublê de conta com lista MUTÁVEL: o primeiro inventário carrega o acervo e
+ * o que entra depois simula uploads do addon pós-snapshot — é a única forma
+ * de algo ser candidato à limpeza (knownBefore protege tudo que já estava).
+ */
+function mockAccountMutable(magnets: any[]) {
+  const deleted: number[] = [];
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+
+  globalThis.fetch = (async (input: any) => {
+    const url = new URL(String(input));
+    const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
+    if (url.pathname.endsWith('/magnet/status')) return body({ magnets: [...magnets] });
+    if (url.pathname.endsWith('/magnet/delete')) {
+      const id = Number(url.searchParams.get('id'));
+      deleted.push(id);
+      return body({ message: 'deleted' });
+    }
+    throw new Error(`URL inesperada: ${url.pathname}`);
+  }) as unknown as typeof globalThis.fetch;
+  return { deleted, magnets, restore() { globalThis.fetch = realFetch; AbortSignal.timeout = realTimeout; } };
+}
+
+const velhoSec = Math.floor(Date.now() / 1000) - 10 * 24 * 3600; // 10 dias
+const novoSec = Math.floor(Date.now() / 1000) - 60;               // agora há pouco
+const SETE_DIAS = 7 * 24 * 3600 * 1000;
+
+test('varredura undubbed: lixo velho sai; dub/dual/pt e o acervo ficam', async () => {
+  const CHAVE = 'chave-varredura-undubbed-baldes';
+  const api = mockAccountMutable([
+    // Acervo no primeiro inventário com título de lixo: só o knownBefore o
+    // protege — isola essa trava junto com as demais.
+    { id: 1, hash: 'c1'.repeat(20), status: 'Ready', filename: 'Old Movie 1990 1080p BluRay x264', uploadDate: velhoSec },
+  ]);
+  try {
+    await alldebrid.warmInventory(CHAVE);
+    await settle();
+
+    api.magnets.push(
+      { id: 2, hash: 'c2'.repeat(20), status: 'Ready', filename: 'Foreign Movie 2019 1080p WEBRip x264', uploadDate: velhoSec },
+      { id: 3, hash: 'c3'.repeat(20), status: 'Ready', filename: 'Nome do Filme 2019 Dublado 1080p', uploadDate: velhoSec },
+      { id: 4, hash: 'c4'.repeat(20), status: 'Ready', filename: 'Nome do Filme 2019 Dual Audio 1080p', uploadDate: velhoSec },
+      { id: 5, hash: 'c5'.repeat(20), status: 'Ready', filename: 'Coração de Vingança 2019 720p', uploadDate: velhoSec },
+    );
+
+    const r = await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
+    assert.deepEqual(api.deleted, [2], 'só o balde lixo antigo sai; dub/dual/pt e knownBefore ficam');
+    assert.equal(r.varridos, 1);
+  } finally {
+    api.restore();
+  }
+});
+
+test('varredura undubbed: lixo recente sobrevive à idade mínima', async () => {
+  const CHAVE = 'chave-varredura-undubbed-idade';
+  const api = mockAccountMutable([
+    { id: 1, hash: 'd1'.repeat(20), status: 'Ready', filename: 'Acervo Dublado do Usuário', uploadDate: velhoSec },
+  ]);
+  try {
+    await alldebrid.warmInventory(CHAVE);
+    await settle();
+
+    api.magnets.push(
+      { id: 2, hash: 'd2'.repeat(20), status: 'Ready', filename: 'Recent Movie 2024 1080p WEBRip', uploadDate: novoSec },
+      { id: 3, hash: 'd3'.repeat(20), status: 'Ready', filename: 'Old Movie 2015 720p HDTV', uploadDate: velhoSec },
+    );
+
+    await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
+    assert.deepEqual(api.deleted, [3], 'o recente fica, o velho sai');
+  } finally {
+    api.restore();
+  }
+});
+
+test('varredura undubbed: sem uploadDate não há prova de idade — fica', async () => {
+  // Tocável exige prova: o sweepDead trata "sem data" como antigo (morto é
+  // lixo em qualquer idade), mas aqui a trava é a inversa — sem idade
+  // PROVADA, o magnet fica (uploadDate ausente ou 0).
+  const CHAVE = 'chave-varredura-undubbed-sem-data';
+  const api = mockAccountMutable([
+    { id: 1, hash: 'g1'.repeat(20), status: 'Ready', filename: 'Acervo Dublado do Usuário', uploadDate: velhoSec },
+  ]);
+  try {
+    await alldebrid.warmInventory(CHAVE);
+    await settle();
+
+    api.magnets.push(
+      { id: 2, hash: 'g2'.repeat(20), status: 'Ready', filename: 'Old Foreign Movie 2012 1080p WEBRip x264' },
+      { id: 3, hash: 'g3'.repeat(20), status: 'Ready', filename: 'Another Old Movie 2013 BRRip x264', uploadDate: 0 },
+      { id: 4, hash: 'g4'.repeat(20), status: 'Ready', filename: 'Third Old Movie 2011 HDTV x264', uploadDate: velhoSec },
+    );
+
+    await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
+    assert.deepEqual(api.deleted, [4], 'sem prova de idade, fica; só o datado e velho sai');
+  } finally {
+    api.restore();
+  }
+});
+
+test('varredura undubbed: download do autofetch em hold sobrevive', async () => {
+  const CHAVE = 'chave-varredura-undubbed-held';
+  const PROTEGIDO = 'e2'.repeat(20);
+  const api = mockAccountMutable([
+    { id: 1, hash: 'e1'.repeat(20), status: 'Ready', filename: 'Acervo Dublado do Usuário', uploadDate: velhoSec },
+  ]);
+  held.hold(PROTEGIDO, 60, accountScope(CHAVE));
+  try {
+    await alldebrid.warmInventory(CHAVE);
+    await settle();
+
+    api.magnets.push(
+      { id: 2, hash: PROTEGIDO, status: 'Downloading', filename: 'New Movie 2024 1080p WEBRip', uploadDate: velhoSec },
+      { id: 3, hash: 'e3'.repeat(20), status: 'Ready', filename: 'Another Old Movie 2014 BRRip', uploadDate: velhoSec },
+    );
+
+    await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
+    assert.deepEqual(api.deleted, [3], 'o held sobrevive à varredura');
+  } finally {
+    held.release(PROTEGIDO, accountScope(CHAVE));
+    api.restore();
+  }
+});
+
+test('varredura undubbed: inventário frio pula a rodada inteira (fail-safe)', async () => {
+  const CHAVE = 'chave-varredura-undubbed-fria';
+  const api = mockAccountMutable([
+    { id: 2, hash: 'f2'.repeat(20), status: 'Ready', filename: 'Old Movie 2010 720p HDTV', uploadDate: velhoSec },
+  ]);
+  try {
+    // Sem aquecer o inventário: não há prova de proveniência, nada pode sair
+    // (mesmo padrão do dropReady).
+    const r = await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
+    assert.equal(r.pulado, 'inventário frio');
+    assert.equal(r.varridos, 0);
+    assert.deepEqual(api.deleted, [], 'fail-safe: nada é removido sem inventário');
+    await settle(); // deixa o carregamento disparado em fundo assentar
+  } finally {
+    api.restore();
+  }
+});
+
+test('varredura undubbed: teto corta pelos mais antigos, independente da ordem', async () => {
+  const CHAVE = 'chave-varredura-undubbed-teto';
+  const agora = Math.floor(Date.now() / 1000);
+  const api = mockAccountMutable([
+    { id: 1, hash: 'a1'.repeat(20), status: 'Ready', filename: 'Acervo Dublado', uploadDate: velhoSec },
+  ]);
+  try {
+    await alldebrid.warmInventory(CHAVE);
+    await settle();
+
+    // Cinco lixos velhos (16–20 dias), inseridos fora de ordem de idade.
+    const ordem = [3, 0, 4, 1, 2];
+    for (const i of ordem) {
+      api.magnets.push({
+        id: 10 + i,
+        hash: `a${i + 2}`.repeat(20),
+        status: 'Ready',
+        filename: `Old Movie ${2010 + i} 720p HDTV x264`,
+        uploadDate: agora - (20 - i) * 24 * 3600,
+      });
+    }
+
+    // O teto de produção é 100 (config.sweepUndubbedMax); o override exercita
+    // o MESMO corte — ordenar por idade antes de cortar.
+    const r = await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS, max: 2 });
+    assert.deepEqual(api.deleted.sort((a, b) => a - b), [10, 11], 'os dois mais antigos saem');
+    assert.equal(r.varridos, 2);
+  } finally {
+    api.restore();
+  }
+});

@@ -33,6 +33,17 @@ if (config.debrid.sweepDead) {
   debrid.sweepDeadEnv();
   setInterval(() => { debrid.sweepDeadEnv(); }, config.debrid.sweepDeadIntervalMs).unref();
 }
+// O outro lixo que a limpeza por busca nunca alcança: magnet antigo sem áudio
+// PT que o autofetch acumulou — pronto, só inútil para este addon.
+// Defasado do sweepDead: os dois têm o mesmo intervalo default e disparar os
+// dois no boot é rajada de deletes concorrentes — a AllDebrid responde 503.
+if (config.debrid.sweepUndubbed) {
+  const undubbedDelay = Math.max(60_000, Math.floor(config.debrid.sweepUndubbedIntervalMs / 2));
+  setTimeout(() => {
+    debrid.sweepUndubbedEnv();
+    setInterval(() => { debrid.sweepUndubbedEnv(); }, config.debrid.sweepUndubbedIntervalMs).unref();
+  }, undubbedDelay).unref();
+}
 
 const server = app.listen(config.port, config.host, () => {
   const local = `http://127.0.0.1:${config.port}/manifest.json`;

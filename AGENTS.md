@@ -407,6 +407,14 @@ Lixo que a limpeza por busca nunca alcança (magnet morto que ninguém pesquisa)
 escolha de ninguém. Sem isso, mortos ocupam vaga até a AllDebrid recusar até
 o `/magnet/delete` com 503.
 
+Lixo **tocável** tem a própria varredura: `sweepUndubbed`
+(`DEBRID_SWEEP_UNDUBBED`) remove magnets com mais de
+`DEBRID_SWEEP_UNDUBBED_MIN_AGE_MS` cujo título cai no balde `lixo` do
+`audioBucket` (legendado/estrangeiro que o autofetch acumulou). Por apagar
+conteúdo que toca, as travas andam juntas — idade mínima, `held`, inventário
+`knownBefore` — e inventário frio pula a rodada inteira (mesmo fail-safe do
+`dropReady`).
+
 Para comparação: o Comet/StremThru na AllDebrid **não mede** nada (o
 `/magnets/check` devolve palpite de base colaborativa) e só toca a conta no
 play, sem remover depois. O nosso ⚡ é medido; o preço é essa limpeza.

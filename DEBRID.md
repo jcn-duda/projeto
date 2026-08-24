@@ -177,7 +177,11 @@ maquinaria que não existe em nenhum outro adaptador:
 - `warmInventory` fotografa os magnets que já existiam na conta antes do addon,
   porque o upload é idempotente e não diz se criou ou reaproveitou — sem essa
   referência a limpeza apagaria o filme que o usuário guardou de propósito;
-- `sweepDead` remove os que nunca vão baixar;
+- `sweepDead` remove os que nunca vão baixar; magnets PRONTOS sem áudio PT
+  têm limpeza própria: a varredura automática `DEBRID_SWEEP_UNDUBBED*`
+  (respeita o acervo via `knownBefore`, idade mínima e `held`) ou
+  `scripts/clean-undubbed.ts` para limpeza manual com preview (`--apply`
+  executa);
 - `abortSafeCacheCheck: false`: como a chamada cria estado remoto, ela não pode
   ser simplesmente abortada no deadline — segue em background para limpar.
 

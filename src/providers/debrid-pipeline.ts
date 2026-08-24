@@ -124,6 +124,19 @@ export async function applyDebrid(streams: any[], { season, episode, imdbId, sea
     return streams;
   }
 
+  // Hit-rate do autofetch: hash cacheado que carrega marker ativo é download
+  // que o chupim enfileirou e agora toca na hora — a métrica mede o retorno do
+  // mecanismo. Contagem pura, fora do caminho da resposta: erro vira no-op.
+  if (known && cached.size > 0) {
+    try {
+      let hits = 0;
+      for (const hash of cached) {
+        if (cache.get(autofetch.markerKey(adapter.id, trustScope, hash))) hits += 1;
+      }
+      if (hits > 0) metrics.count('autofetch.hit', hits);
+    } catch { /* diagnóstico nunca derruba a resposta */ }
+  }
+
   // Dedupe por inventário para adaptadores sem cacheCheck (Real-Debrid / Debrid-Link)
   let cachedForAutofetch = cached;
   let knownForAutofetch = known;

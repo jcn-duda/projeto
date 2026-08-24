@@ -611,6 +611,23 @@ async function sweepDeadEnv() {
 }
 
 /**
+ * Varredura dos magnets antigos sem áudio PT da conta do operador. Mesma
+ * guarda do `sweepDeadEnv`: só a chave do `.env`, com `allowEnvKey` e o
+ * toggle ligado — é varredura do operador, não de uma instalação.
+ */
+async function sweepUndubbedEnv() {
+  const adapter = config.debrid.service ? BY_ID.get(config.debrid.service) : null;
+  if (!adapter || typeof adapter.sweepUndubbed !== 'function') return null;
+  if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.sweepUndubbed) return null;
+  try {
+    return await adapter.sweepUndubbed(config.debrid.apiKey);
+  } catch (err) {
+    log.warn(`[${adapter.id}] varredura de não-dublados falhou:`, err.message);
+    return null;
+  }
+}
+
+/**
  * Varredura da conta da INSTALAÇÃO corrente (a chave que veio no segmento de
  * config), e não a do `.env`.
  *
@@ -633,5 +650,5 @@ async function sweepDeadCurrent() {
 }
 
 export default {
-  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, dashboardAccounts, resolveLink, enqueue, inventory, inventoryPeek, refreshInventory, warmupEnv, sweepDeadEnv, sweepDeadCurrent,
+  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, dashboardAccounts, resolveLink, enqueue, inventory, inventoryPeek, refreshInventory, warmupEnv, sweepDeadEnv, sweepUndubbedEnv, sweepDeadCurrent,
 };

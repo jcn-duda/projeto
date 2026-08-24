@@ -376,6 +376,17 @@ const config = {
     // Margem antes de considerar um estado terminal definitivo: evita varrer um
     // magnet que a conta acabou de marcar e ainda pode reavaliar.
     sweepDeadMinAgeMs: num(process.env.DEBRID_SWEEP_DEAD_MIN_AGE_MS, 30 * 60 * 1000),
+    // Varredura dos magnets ANTIGOS sem áudio PT (balde `lixo` do audioBucket):
+    // legendado/estrangeiro que o autofetch acumulou antes do filtro de áudio.
+    // Destrutiva sobre conteúdo tocável — as travas andam juntas: idade mínima,
+    // `held`, inventário conhecido (frio = rodada pulada). false desliga tudo
+    // (rollback de uma linha).
+    sweepUndubbed: String(process.env.DEBRID_SWEEP_UNDUBBED || 'true') === 'true',
+    sweepUndubbedIntervalMs: num(process.env.DEBRID_SWEEP_UNDUBBED_INTERVAL_MS, 6 * 3600 * 1000),
+    // Idade mínima: só magnet mais antigo que isso entra na varredura (7 dias).
+    sweepUndubbedMinAgeMs: num(process.env.DEBRID_SWEEP_UNDUBBED_MIN_AGE_MS, 7 * 24 * 3600 * 1000),
+    // Teto por rodada; os mais antigos saem primeiro.
+    sweepUndubbedMax: Math.max(0, Math.trunc(num(process.env.DEBRID_SWEEP_UNDUBBED_MAX, 100))),
     timeout: num(process.env.DEBRID_TIMEOUT_MS, 6000),
     // Sem fonte BR dublada em cache, manda o serviço baixar a melhor. O TTL vale
     // pra duas coisas: não reenviar o mesmo torrent a cada busca e por quanto
@@ -403,6 +414,11 @@ const config = {
     // Um torrent com poucos pares costuma morrer na fila do debrid; abaixo de
     // três seeders o download não é uma alternativa saudável ao episódio vazio.
     autoFetchMinSeeders: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MIN_SEEDERS, 3))),
+    // Preferência PT no pool de swarm: candidato com sinal de português
+    // (dublado/nacional ou título que denuncia pt-BR) vence a contagem bruta
+    // de seeders. É preferência, não filtro: sem nenhum candidato PT a ordem
+    // por seeders continua valendo. false restaura a ordenação antiga.
+    autoFetchSeedsPtFirst: String(process.env.DEBRID_AUTO_FETCH_SEEDS_PT_FIRST || 'true') === 'true',
     // Recheck pós-enfileiramento: depois de aceitar um torrent, o addon volta a
     // perguntar ao debrid se ele já toca (sem o teto do deadline — é um passe
     // de fundo). Quando fica pronto, o cache da busca é esquecido para a
@@ -439,6 +455,15 @@ const config = {
     // Orçamento horário cheio não é recusa do torrent. Pausa a drenagem para
     // não girar a mesma fila até a janela deslizante voltar a ter espaço.
     autoFetchDrainBackoffMs: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS, 60_000)),
+    // Gate de ocupação da conta (backpressure): com este número de magnets ou
+    // mais, o autofetch para de enfileirar — conta no teto derruba a checagem
+    // de cache (upload, na AllDebrid) e o ⚡ some da lista inteira. Alinhado ao
+    // teto de aviso do /debrid-status.json. 0 desliga o gate.
+    autoFetchPauseAt: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_PAUSE_AT, 800))),
+    // Validade do memo de ocupação do gate: vencida, a contagem é renovada em
+    // background (fail-open enquanto o refresh não volta — nunca rede no
+    // caminho síncrono).
+    autoFetchPauseRefreshMs: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_PAUSE_REFRESH_MS, 900_000)),
     // Prefetch do próximo episódio de séries
     prefetchNextEp: String(process.env.DEBRID_PREFETCH_NEXT_EP || 'true') === 'true',
     prefetchTtl: num(process.env.DEBRID_PREFETCH_TTL, 43200),

@@ -172,6 +172,8 @@ export interface DebridAdapter {
   ): Promise<boolean>;
   warmInventory?(apiKey: string): Promise<unknown>;
   sweepDead?(apiKey: string): Promise<unknown>;
+  /** Remove magnets antigos sem áudio PT da conta; ausente = não suportado. */
+  sweepUndubbed?(apiKey: string): Promise<unknown>;
   /** Mapa hash(minúsculo) -> { state: 'ready'|'downloading'|'dead'|'unknown', id?: any } */
   torrentStatus?(
     apiKey: string,
