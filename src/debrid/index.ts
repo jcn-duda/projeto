@@ -362,12 +362,9 @@ async function checkCached(
 // não batem entre si (30 "ativos" na doc, 1000 na mensagem de erro real) e
 // nenhum é consultável. 800 dá margem para limpar antes de quebrar; ajuste se
 // a sua conta aguentar mais.
-const ACCOUNT_WARN_TOTAL = Number(process.env.DEBRID_ACCOUNT_WARN_TOTAL || 800);
+const ACCOUNT_WARN_TOTAL = config.debrid.accountWarnTotal;
 // Fair-use do Premiumize (`limit_used` em [0, 1]). 0 desliga o aviso.
-const parsedWarnLimit = Number(process.env.DEBRID_ACCOUNT_WARN_LIMIT_USED ?? 0.8);
-const ACCOUNT_WARN_LIMIT_USED = Number.isFinite(parsedWarnLimit)
-  ? Math.min(1, Math.max(0, parsedWarnLimit))
-  : 0.8;
+const ACCOUNT_WARN_LIMIT_USED = config.debrid.accountWarnLimitUsed;
 
 /**
  * Saúde da conta do serviço corrente, para o endpoint de diagnóstico.

@@ -70,8 +70,8 @@ function makeDiagnosticHandlers(services: AppServices) {
       const resolvers = services.brResolvers.RESOLVERS.map((resolver) => ({
         id: resolver.name,
         label: resolver.name,
-        port: resolver.port + (Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0),
-        embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
+        port: resolver.port + services.config.resolvers.portOffset,
+        embedded: services.config.resolvers.embedded,
         domain: services.brResolvers.activeSite(resolver.name),
       }));
       return res.json({
@@ -91,7 +91,7 @@ function makeDiagnosticHandlers(services: AppServices) {
         metrics: metricSnapshot,
         cache: {
           ...services.cache.snapshot(),
-          persistent: String(process.env.CACHE_PERSIST || 'true') === 'true',
+          persistent: services.config.cache.persist,
           hits,
           misses,
           hitRate: hits + misses > 0 ? hits / (hits + misses) : null,

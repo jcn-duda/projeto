@@ -48,7 +48,7 @@ const namespaceCounts = new Map();
 
 // Memória é o L1; o SQLite só existe pra sobreviver ao restart do container.
 // Sem ele o addon funciona igual, só volta a esquentar do zero a cada subida.
-const DB_PATH = process.env.CACHE_DB_PATH || path.join(__dirname, '..', '..', '..', 'data', 'cache.db');
+const DB_PATH = config.cache.dbPath;
 let db: any = null;
 let insertStmt: any = null;
 let deleteStmt: any = null;
@@ -92,7 +92,7 @@ function isCorruptionError(err: any) {
 }
 
 function openDatabase() {
-  if (process.env.CACHE_PERSIST === 'false') return null;
+  if (!config.cache.persist) return null;
   try {
     fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
     // node:sqlite é experimental no Node 22 — se o runtime não tiver, seguimos

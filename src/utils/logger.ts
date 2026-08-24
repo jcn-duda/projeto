@@ -1,3 +1,5 @@
+import config from '../config.js';
+
 /**
  * Níveis de log do addon.
  *
@@ -24,7 +26,7 @@ function resolve(raw: unknown) {
   return LEVELS[name];
 }
 
-let threshold = resolve(process.env.ADDON_LOG_LEVEL);
+let threshold = resolve(config.logging.level);
 
 /** Só para teste: em produção o nível é decidido uma vez, na subida. */
 function setLevel(name: unknown) {

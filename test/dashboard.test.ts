@@ -133,6 +133,14 @@ test('dashboard: ?token= nunca autentica (GET e POST)', async () => {
 
 test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem segredos', async () => {
   config.jackett.testToken = TOKEN;
+  const savedRuntimeConfig = {
+    cachePersist: config.cache.persist,
+    resolversEmbedded: config.resolvers.embedded,
+    resolversPortOffset: config.resolvers.portOffset,
+  };
+  config.cache.persist = false;
+  config.resolvers.embedded = false;
+  config.resolvers.portOffset = 37;
   // Semillas nos campos que nenhun endpoint pode vazar: as credenciales do
   // debrid, o resolveSecret, a do Jackett e o próprio token da prova.
   config.debrid.apiKey = 'SUPER-DEBRID-SECRETO-123';
@@ -154,6 +162,7 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
       assert.equal(typeof body.general.memory.rss, 'number');
       assert.equal(typeof body.cache.entries, 'number');
       assert.equal(typeof body.cache.hitRate, 'number');
+      assert.equal(body.cache.persistent, false, 'dashboard lê a persistência centralizada');
       assert.equal(typeof body.metrics, 'object');
        assert.equal(typeof body.autofetch, 'object');
        assert.equal(typeof body.magnetdb, 'object');
@@ -164,6 +173,8 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
        assert.ok(Array.isArray(body.harvest.lastWorks));
       assert.ok(Array.isArray(body.indexers), 'catálogo de indexers entra como lista');
       assert.ok(Array.isArray(body.resolvers), 'resolvers BR saem como lista');
+      assert.ok(body.resolvers.every((resolver: any) => resolver.embedded === false));
+      assert.deepEqual(body.resolvers.map((resolver: any) => resolver.port), [8737, 8738, 8739, 8740]);
       assert.equal(body.debrid.active, null, 'sen serviço não há debrid ativo');
        assert.ok(Array.isArray(body.debrid.services), 'el seletor de servicios mora en el registry');
        assert.deepEqual(body.debrid.accounts, {}, 'sem conta configurada não há serviço inventado');
@@ -179,6 +190,9 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
     config.debrid.resolveSecret = '';
     config.jackett.apiKey = saved.jackettApiKey || 'jackett-key-teste';
     config.jackett.testToken = '';
+    config.cache.persist = savedRuntimeConfig.cachePersist;
+    config.resolvers.embedded = savedRuntimeConfig.resolversEmbedded;
+    config.resolvers.portOffset = savedRuntimeConfig.resolversPortOffset;
   }
 });
 

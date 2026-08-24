@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 function num(value: unknown, fallback: number) {
   const n = Number(value);
@@ -17,6 +19,10 @@ function list(value: unknown) {
 // MESMA BLUDV_URL; com dois defaults diferentes, quem não define a env fazia
 // os dois buscarem em sites distintos. Trocar de domínio se faz aqui.
 const BLUDV_DEFAULT_URL = 'https://bludvfilmes.xyz';
+const CONFIG_DIR = path.dirname(fileURLToPath(import.meta.url));
+// config.ts roda em dist/src; subir dois níveis preserva data/cache.db tanto no
+// build quanto no checkout TypeScript, sem depender do diretório de trabalho.
+const DEFAULT_CACHE_DB_PATH = path.join(CONFIG_DIR, '..', '..', 'data', 'cache.db');
 
 const config = {
   port: num(process.env.PORT, 7000),
@@ -205,6 +211,7 @@ const config = {
   resolvers: {
     embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
     host: process.env.BR_RESOLVERS_HOST || '127.0.0.1',
+    portOffset: Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0,
     bludvUrl: (process.env.BLUDV_URL || BLUDV_DEFAULT_URL).replace(/\/$/, ''),
     comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
     // xnerdfilmes.net migrou para nerdviatorrents.net (301 permanente); o
@@ -213,6 +220,9 @@ const config = {
     nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.nerdviatorrents.net').replace(/\/$/, ''),
     torrentdosfilmesUrl: (process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, ''),
     extraProtectors: list(process.env.EXTRA_ALLOWED_PROTECTORS),
+  },
+  logging: {
+    level: process.env.ADDON_LOG_LEVEL || 'info',
   },
   bludv: {
     enabled: String(process.env.BLUDV_ENABLED || 'false') === 'true',
@@ -296,6 +306,11 @@ const config = {
   // um refresh de fundo a reconstrói. Só vale para lista completa com debrid
   // conferido e stream tocável. 0 volta à semântica dura (expirou = busca nova).
   streamStaleGrace: num(process.env.STREAM_STALE_GRACE_SECONDS, 300),
+  cache: {
+    // Memória é sempre L1; SQLite só preserva o aquecimento entre restarts.
+    persist: String(process.env.CACHE_PERSIST || 'true') !== 'false',
+    dbPath: process.env.CACHE_DB_PATH || DEFAULT_CACHE_DB_PATH,
+  },
   debrid: {
     // premiumize | realdebrid | alldebrid | torbox | debridlink
     // Vazio = modo P2P puro (infoHash direto). A lista viva está em src/debrid/index.js.
@@ -491,6 +506,13 @@ const config = {
     // Diagnóstico não pode reter o gate global quando a API da conta está fora
     // do ar; é separado do timeout da busca de inventário.
     dashboardAccountTimeoutMs: num(process.env.DEBRID_DASHBOARD_ACCOUNT_TIMEOUT_MS, 3000),
+    // Limiares operacionais do /debrid-status.json. O total mantém Number()
+    // para preservar o comportamento histórico para valor inválido (NaN não avisa).
+    accountWarnTotal: Number(process.env.DEBRID_ACCOUNT_WARN_TOTAL || 800),
+    accountWarnLimitUsed: (() => {
+      const value = Number(process.env.DEBRID_ACCOUNT_WARN_LIMIT_USED ?? 0.8);
+      return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.8;
+    })(),
     // Auditoria proativa (fase D): no passe tardio, prova os top N candidatos
     // dublados em cache listando os arquivos reais no debrid. 0 desliga; a
     // prova em si continua sujeita a AUDIO_AUDIT=1.
