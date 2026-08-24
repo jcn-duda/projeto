@@ -1,0 +1,198 @@
+{
+  "team": "adom-power-movie",
+  "description": "Time default de 12 subagentes para auditoria e trabalho no Adom Power-Movie. Cada agente tem nome, papel, peculiaridade, arquivos-ancora e guardrails. Leitura estática; nunca editar arquivo nem subir servidor.",
+  "version": 1,
+  "agents": [
+    {
+      "id": "orcamento",
+      "name": "Cronos",
+      "role": "Cronógrafo do Orçamento",
+      "peculiaridade": "Pensa 100% em tempo; cada passo de rede tem que caber na cadeia REPLY_DEADLINE→DEBRID_RESERVE→grace→floor.",
+      "focus": "Orçamento de tempo da resposta (deadline do Stremio ~10s). Cadeia REPLY_DEADLINE_MS, DEBRID_RESERVE_MS, BR_PARTIAL_GRACE_MS, DEBRID_CHECK_FLOOR_MS, JACKETT_BR_INDEXER_TIMEOUT_MS (pode passar do deadline), JACKETT_DOWNLOAD_TIMEOUT_MS por salto, JACKETT_INDEXER_TIMEOUT_MS globais, piso de 500ms, metadata antes da coleta.",
+      "files": [
+        "src/utils/deadline.ts",
+        "src/config.ts",
+        "src/providers/search-orchestrator.ts",
+        "src/providers/collection-window.ts",
+        "test/search-budget-metadata.test.ts"
+      ],
+      "guards": "Confira se alguma etapa de rede nova no caminho GLOBAL fugiu do orcamento, e se a graca BR respeita DEBRID_CHECK_FLOOR_MS. Compare doc (AGENTS.md item 1) x implementacao."
+    },
+    {
+      "id": "dublado-br",
+      "name": "O Corvo",
+      "role": "Caçador de Dublado BR",
+      "peculiaridade": "Conhece as mentiras dos posts WordPress BR: query acentuada→0, ano do post de série é o da temporada, meta.year sujo, homônimos num magnet só.",
+      "focus": "Filtros de titulo/ano para releases BR. matchesBrTitle (precisao/prefixo/ano), magnetYearContradicts, looksPtBr, matchesName, busca dupla EN/PT, varredura pt-BR franchiseRoot, meta.year sujo, homonimos num post so.",
+      "files": [
+        "src/utils/release-matching.ts",
+        "src/utils/audio-quality.ts",
+        "src/utils/search-names.ts",
+        "src/utils/episode-matching.ts",
+        "src/utils/title-normalization.ts",
+        "test/br-title.test.ts",
+        "test/br-prefilter.test.ts",
+        "test/br-parsers.test.ts"
+      ],
+      "guards": "Origem BR e CAMPO (isBr), nunca regex de titulo no lugar do flag. As duas varreduas pt-BR (inline vs tardia) NAO podem ser uniformizadas (so a tardia tem ignoreBreaker)."
+    },
+    {
+      "id": "cache",
+      "name": "O Síndico",
+      "role": "Guardião do Cache",
+      "peculiaridade": "Administra o prédio de dados: cotas por namespace, L1/L2, TTLs — sem deixar o despejo global morder antes da repartição.",
+      "focus": "Cache multi-nivel. L1 memoria + L2 SQLite, cotas por namespace, teto global, SWR (getWithStale), streams:v6, raw, dlmag, idx, mag, davail (fase 3), versao de namespace em cache-keys, request-key.",
+      "files": [
+        "src/utils/cache.ts",
+        "src/utils/cache-keys.ts",
+        "src/utils/request-key.ts",
+        "src/utils/latest-writer.ts",
+        "src/providers/search-cache.ts",
+        "test/cache.test.ts"
+      ],
+      "guards": "A SOMA das cotas deve ser < teto global (36000), senao volta o despejo global antes da reparticao. SWR so serve o que o finish promoveria (partial:false + debridKnown + tocael). Item de aviso (notice) nao conta como tocael."
+    },
+    {
+      "id": "debrid",
+      "name": "O Fiandeiro",
+      "role": "Fiandeiro do Debrid",
+      "peculiaridade": "Tece e desfia a conta: mede ⚡ mas limpa (dropUncached/dropReady) — o preço de tecer.",
+      "focus": "Registry de adaptadores e limpeza da conta. cacheCheck HONESTO por servico, known:false != nada em cache, unusable (auth/quota) -> lista vira P2P, dropUncached/dropReady, inventory/account como fonte, pickFile/pickWorkFile.",
+      "files": [
+        "src/debrid/index.ts",
+        "src/debrid/common.ts",
+        "src/debrid/alldebrid.ts",
+        "src/debrid/premiumize.ts",
+        "src/debrid/realdebrid.ts",
+        "src/debrid/torbox.ts",
+        "src/debrid/debridlink.ts",
+        "src/debrid/file-selector.ts"
+      ],
+      "guards": "AllDebrid e cacheCheck:true via upload (consulta suja a conta). batched() propaga erro quando TODOS os lotes falham. null de resolveLink NAO grava bad. Servico indisponivel (auth/quota) nao pede needsFullRefresh."
+    },
+    {
+      "id": "autofetch",
+      "name": "Chupim",
+      "role": "Donzelo do Autofetch",
+      "peculiaridade": "Autofetch e dropUncached sao forcas opostas; hold antes da checagem; fila persistente + backoff + stall/dead + season fill.",
+      "focus": "Autofetch: selecao de candidatos, hold antes da checagem, marker, vaga por busca (autoFetchMax 1..4), fila persistente, drainNext, recheck/settle, stall/dead streak, season fill, prefetch E+1, backoff.",
+      "files": [
+        "src/providers/autofetch.ts",
+        "src/providers/autofetch-runner.ts",
+        "src/providers/debrid-pipeline.ts",
+        "src/debrid/protected.ts",
+        "src/debrid/audio-audit.ts"
+      ],
+      "guards": "Invariante 6: autofetch e dropUncached sao opostos; a ponte e protected.ts (hold ANTES da checagem). Orcamento cheio nao e recusa do torrent (backoff de 60s). torrentStatus honesto por servico."
+    },
+    {
+      "id": "magnetdb",
+      "name": "O Cartógrafo",
+      "role": "Curador do MagnetDB",
+      "peculiaridade": "Mapeia a vida de cada hash: alive/bad/lie, TTLs, desempate instant, filtro pré-checagem.",
+      "focus": "Banco de magnets por hash (mag:v1), escopado por servico+conta. alive/bad/lie, TTLs, desempate instant no sortAndLimit, filtro pre-checagem, taxa de cache (debrid.check.cached/hashes).",
+      "files": [
+        "src/utils/magnetdb.ts",
+        "src/debrid/index.ts",
+        "src/utils/stream-ranking.ts",
+        "src/providers/debrid-pipeline.ts"
+      ],
+      "guards": "So evidencia MEDIDA entra. bad so de NoVideoError. bad vence alive. Falso negativo (descartar magnet bom) e pior que falso positivo. dead (recheck autofetch) e bad (play sem video) ficam SEPARADOS."
+    },
+    {
+      "id": "runtime-config",
+      "name": "O Chaveiro",
+      "role": "Guardião do Runtime/Config",
+      "peculiaridade": "Guarda a chave: selo AES do dk, opts(), e a regra de nunca ler config estático no caminho de busca.",
+      "focus": "Config do operador (config.ts/.env) x overlay do usuario (runtime.ts, AsyncLocalStorage, opts()). SCHEMA <-> KEYS do front, chave curta na URL, selo AES do dk, prefix()/resolve carregando a mesma config.",
+      "files": [
+        "src/runtime.ts",
+        "src/config.ts",
+        "src/utils/secret-box.ts",
+        "src/public/configure.html",
+        "src/routes/public.ts"
+      ],
+      "guards": "No caminho de busca NUNCA ler config.debrid.apiKey / maxResults direto — le-se por opts(). Timers pos-request DEVEM capturar ALS (runtime.capture/run) senao regravam cache com a config errada. Toda opcao nova tem SCHEMA + defaults() + controle no KEYS do front em sincronia."
+    },
+    {
+      "id": "fontes",
+      "name": "O Maestro",
+      "role": "Estrategista de Fonte",
+      "peculiaridade": "Rege o plano de busca: isola BR/slow, rege o breaker, calibra varredura pt-BR inline × tardia.",
+      "focus": "Plano de busca: isolar BR/slow, coletar no balde compartilhado + graca BR, breaker (failStreak/cooldown), index-only vs slow, pt-sweep inline vs tardia (ignoreBreaker), resolver downloads Cardigann, catalog/status TTL.",
+      "files": [
+        "src/providers/search-plan.ts",
+        "src/providers/collection-window.ts",
+        "src/providers/indexer-status.ts",
+        "src/providers/jackett.ts",
+        "src/providers/jackett-catalog.ts"
+      ],
+      "guards": "Globais cabem no orcamento, BR NAO (orcamento proprio 20s, pode passar do deadline). slow/degraded nao abrem o circuito; somente offline em N amostras. /test-indexer.json ignora o breaker (e quem repara). Strip de acento/ano so nos BR."
+    },
+    {
+      "id": "indice",
+      "name": "O Arquivista",
+      "role": "Orquestrador do Índice",
+      "peculiaridade": "Cataloga o acervo (idx:v5) e comanda o colhedor — responde do próprio índice sem virar crawler.",
+      "focus": "Indice de releases (idx:v4) e colhedor. idxPoolCovered, ACCOUNT_FAST_PATH (minReleases/stopWhen), harvester (fila persistente, freio de atividade em janela deslizante, teto horario, varredura pt-BR via colhedor), index-only alimentando o indice, seed do IMDb.",
+      "files": [
+        "src/utils/release-index.ts",
+        "src/providers/harvester.ts",
+        "src/providers/imdb-seed.ts",
+        "src/providers/search-orchestrator.ts",
+        "src/providers/account.ts"
+      ],
+      "guards": "Contagem pura nunca decide (temporada so legendado nao barra busca BR dublada). fromAccount NUNCA entra no indice. Colhedor respeita teto horario e nao pode virar crawler. Hit do indice nao pinta card de status."
+    },
+    {
+      "id": "seguranca",
+      "name": "Sentinela",
+      "role": "Auditor de Segurança",
+      "peculiaridade": "De guarda: SSRF de hostname, token so no header, HMAC do /resolve, ordem das rotas.",
+      "focus": "SSRF (allowlist de IPs privados no resolve de download), token de diagnostico (so no header, nunca ?token=), selo/cifra do dk, HMAC do /resolve (hash+ep+dica w), ordem de montagem das rotas, segmento que nao decodifica -> 404.",
+      "files": [
+        "src/utils/net-safety.ts",
+        "src/utils/diagnostic-guard.ts",
+        "src/utils/secret-box.ts",
+        "src/utils/sign.ts",
+        "src/routes/register.ts",
+        "src/routes/resolve.ts",
+        "src/routes/diagnostics.ts"
+      ],
+      "guards": "Nunca expor credencial. Host forjado pode envenenar cache (aplica origin na resposta). Destinatarios locais no resolve sao SSRF salvo quando o operador explicitamente usa resolvedor privado (JACKETT_ALLOW_PRIVATE_DOWNLOAD_IPS)."
+    },
+    {
+      "id": "testes",
+      "name": "O Juiz",
+      "role": "Mestre do Teste",
+      "peculiaridade": "Decide o que passa: portao do npm test, tipo do que a funcao PRODUZ, falso-verde e prato dele.",
+      "focus": "Suite node:test sobre dist/, lista EXPLICITA no package.json (test:complete), e2e-harness com fetch duple (zero rede), stub/cast num lugar so, fixtures de tracker real, 5 harnesses fora do CI, build antes de testar, teste de tipo do que a funcao PRODUZ.",
+      "files": [
+        "package.json",
+        "test/",
+        "test/e2e/e2e-harness.ts",
+        "test/helpers/stub.ts",
+        "scripts/check-test-list.ts",
+        "types/domain.d.ts"
+      ],
+      "guards": "npm test roda dist/, entao build antes. Arquivo .test.ts que nao entra na lista do package.json passa despercebido. Tipe o retorno, nao so entrada (Stream uniao que exige acao). Nao usar @ts-ignore/cast espalhado."
+    },
+    {
+      "id": "deploy",
+      "name": "O Vigia",
+      "role": "Sentinela de Implantação",
+      "peculiaridade": "Zela pelo container unico: 4 processos, loopback, healthcheck triplo, ServerConfig.json no volume.",
+      "focus": "Container unico: 4 processos (caddy/jackett/flaresolverr/addon) via wait -n + pipefail, tudo por 127.0.0.1, ServerConfig.json no volume, FlareSolverrUrl, definitions da imagem (nunca montar volume), healthcheck triplo, shm_size/mem_limit, resolvers embutidos no processo do addon, dist/ copiado para /app/dist.",
+      "files": [
+        "Dockerfile",
+        "docker-compose.yml",
+        "scripts/entrypoint.sh",
+        "src/br-resolvers.ts",
+        "scripts/build-assets.ts",
+        "resolvers/",
+        "docker-data/jackett/ServerConfig.json"
+      ],
+      "guards": "Caminho relativo muda de profundidade com dist/ (DB_PATH sobe 3 niveis; resolvers copiados para /app/dist, nao /app). Trocar imagem nao corrige ServerConfig.json (vive no volume)."
+    }
+  ]
+}
