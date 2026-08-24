@@ -28,7 +28,47 @@ export interface RawItem {
   indexer?: string;
   Indexer?: string;
   isBr?: boolean;
+  /** Evidência observada no play/tail; sobrepõe o palpite do título. */
+  provenQuality?: string;
+  provenAudio?: string;
+  provenName?: string;
+  /** Campos preservados pelo índice e pela conta como fonte de busca. */
+  fromAccount?: boolean;
+  dubbed?: boolean;
+  lied?: boolean;
+  quality?: string;
+  hash?: string;
+  season?: number | null;
+  episode?: number | null;
   [key: string]: unknown;
+}
+
+/** Dica assinada que acompanha o play para escolher arquivo de pack. */
+export interface WorkHint {
+  names?: string[];
+  year?: number | null;
+  pack?: boolean;
+}
+
+export interface PlayHint {
+  season?: number | null;
+  episode?: number | null;
+  work?: WorkHint | null;
+  dubbed?: boolean;
+}
+
+/** Estado observado por hash durante o recheck do autofetch. */
+export interface TorrentStatusEntry {
+  state: 'ready' | 'downloading' | 'dead' | 'unknown';
+  stalled?: boolean;
+  id?: string | number;
+}
+
+/** Entrada persistida da busca; arrays legados são tratados no leitor. */
+export interface StreamCacheEntry {
+  streams: Stream[];
+  partial?: boolean;
+  debridKnown?: boolean;
 }
 
 /**
@@ -75,6 +115,12 @@ export interface StreamBase {
   _lied?: boolean;
   /** Marca interna do item de aviso — some antes do Stremio receber. */
   notice?: true;
+}
+
+/** Stream ainda em seleção interna; pools e testes podem omitir a ação final. */
+export interface StreamCandidate extends StreamBase {
+  /** Identificador auxiliar usado nos testes de cotas/prioridade. */
+  id?: string;
 }
 
 export type Stream =
@@ -158,7 +204,7 @@ export interface DebridAdapter {
   resolveLink(
     apiKey: string,
     hash: string,
-    episode?: { season?: number | null; episode?: number | null; work?: unknown; dubbed?: boolean },
+    episode?: PlayHint,
   ): Promise<string | null>;
   /** Ocupação da conta para o `/debrid-status.json`; ausente = não suportado. */
   accountStatus?(apiKey: string): Promise<AccountStatus>;
@@ -178,9 +224,9 @@ export interface DebridAdapter {
   torrentStatus?(
     apiKey: string,
     infoHashes: string[],
-  ): Promise<Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; stalled?: boolean; id?: any }>>;
+  ): Promise<Record<string, TorrentStatusEntry>>;
   /** Remove torrent pelo id no serviço; ausente = não suportado */
-  removeTorrent?(apiKey: string, id: any): Promise<boolean>;
+  removeTorrent?(apiKey: string, id: string | number): Promise<boolean>;
   /** Teto de enqueues/hora que este serviço aceita para item não-cacheado */
   enqueueHourlyLimit?: number;
   /** Pode participar do autofetch sem cacheCheck, sustentado por inventário */

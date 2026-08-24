@@ -1,5 +1,5 @@
 import config from '../config.js';
-import type { Stream } from '../../types/domain.js';
+import type { RawItem, Stream } from '../../types/domain.js';
 import {
   decodeEntities,
   resolveSearchNames,
@@ -39,7 +39,7 @@ export const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
  *
  * Só corrige o que foi PROVADO: sem evidência o stream passa intacto.
  */
-export function applyFileEvidence(items: any[]) {
+export function applyFileEvidence(items: RawItem[]) {
   let corrigidos = 0;
   const out = items.map((item) => {
     const hash = String(extractInfoHash(item?.infoHash || item?.magnet || '') || '').toLowerCase();
@@ -64,10 +64,21 @@ export function applyFileEvidence(items: any[]) {
  * ordenação, debrid e limite final.
  * @returns {Promise<import('../../types/domain').Stream[]>}
  */
-export async function buildStreams(
-  rawInput: any[],
-  { meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, onDebridResult }: any,
-) {
+interface BuildStreamsOptions {
+  meta?: { name?: string | null; title?: string; year?: number | string | null } | null;
+  titles?: { original?: string | null; pt?: string | null; year?: number | string | null } | null;
+  imdbId?: string | null;
+  season?: number | null;
+  episode?: number | null;
+  isDemo?: boolean;
+  searchKey?: string | null;
+  deadlineAt?: number | null;
+  onDebridResult?: (result: { autofetchCount?: number; trustDropped?: number }) => void;
+}
+
+export async function buildStreams(rawInput: RawItem[], {
+  meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, onDebridResult,
+}: BuildStreamsOptions = {}) {
   // Entidade HTML some AQUI, onde todas as origens já se juntaram — Jackett,
   // resolvedores BR, índice e o inventário da conta do debrid. Decodificar só
   // na saída (toStremioStream) deixava a DECISÃO com a entidade crua: medido
@@ -76,7 +87,7 @@ export async function buildStreams(
   // episódio, então os packs da 4ª, 5ª e 6ª entravam na lista do S01E01.
   // O inventário da conta é o que obriga a normalização a ficar aqui: o nome
   // dele vem do torrent, nunca passou pelo provider.
-  let raw = rawInput.map((item: any) => {
+  let raw = rawInput.map((item) => {
     const title = item?.title ?? item?.Title;
     if (typeof title !== 'string' || !title.includes('&')) return item;
     const limpo = decodeEntities(title);
@@ -107,10 +118,10 @@ export async function buildStreams(
     // o estrito aqui mataria justamente o pack de franquia que a exceção
     // deixou passar ("FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS" para Star
     // Trek). Os nomes são os mesmos do matchContext que filtrou lá.
-    const fromAccount = raw.filter((r: any) => r.fromAccount);
+    const fromAccount = raw.filter((r) => r.fromAccount);
     const titleCtx = { names, year: catalogYear, isSeries: season != null };
     raw = fromAccount.length
-      ? [...fromAccount, ...filterRelevantRaw(raw.filter((r: any) => !r.fromAccount), titleCtx)]
+      ? [...fromAccount, ...filterRelevantRaw(raw.filter((r) => !r.fromAccount), titleCtx)]
       : filterRelevantRaw(raw, titleCtx);
     if (before !== raw.length) log.info(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
   }
@@ -132,7 +143,7 @@ export async function buildStreams(
   // dentro de uma coleção mesmo com debrid; retenha o pack nesse caso também.
   if (season == null && !isDemo && (!debrid.current() || !catalogYear)) {
     const beforePack = raw.length;
-    raw = raw.filter((r: any) => !isMultiWorkCollection(r.title || r.Title || ''));
+    raw = raw.filter((r) => !isMultiWorkCollection(r.title || r.Title || ''));
     if (beforePack !== raw.length) {
       log.info(`[search] ${beforePack - raw.length} pack(s) multi-obra retido(s) sem escolha por arquivo`);
     }
@@ -153,7 +164,7 @@ export async function buildStreams(
   // a temporada e sem episódio) passam — o debrid escolhe o arquivo no play.
   if (season != null && episode != null && !isDemo) {
     const before = raw.length;
-    raw = raw.filter((r: any) => matchesEpisode(r.title || r.Title || '', { season, episode }));
+    raw = raw.filter((r) => matchesEpisode(r.title || r.Title || '', { season, episode }));
     if (before !== raw.length) {
       log.info(`[search] ${before - raw.length} resultado(s) de outro episódio descartado(s)`);
     }
@@ -182,7 +193,7 @@ export async function buildStreams(
     indexerPriority,
   } = opts();
   const safeIndexerPriority = indexerPriority
-    .filter((id: any) => SAFE_INDEXER_ID.test(String(id)))
+    .filter((id: string) => SAFE_INDEXER_ID.test(String(id)))
     .slice(0, 100);
   const safeIndexerLimits: Record<string, number> = {};
   for (const [rawId, rawLimit] of Object.entries(indexerLimits || {}).slice(0, 100)) {
@@ -216,8 +227,8 @@ export async function buildStreams(
   const aliveApiKey = opts().debridApiKey;
   const liedHashes = new Set(
     raw
-      .filter((item: any) => item?.lied)
-      .map((item: any) => String(extractInfoHash(item.infoHash || item.magnet || '') || '').toLowerCase())
+      .filter((item) => item.lied)
+      .map((item) => String(extractInfoHash(item.infoHash || item.magnet || '') || '').toLowerCase())
       .filter(Boolean),
   );
   // `toStremioStream` devolve NULL para item sem infoHash (link que nenhum
@@ -225,14 +236,14 @@ export async function buildStreams(
   // — o buraco tem que ser filtrado ANTES do acesso, senão um único resultado
   // sem hash derruba a lista inteira com TypeError.
   const instantSet = aliveAdapter && aliveApiKey
-    ? new Set(mappedStreams.map((s: any) => s?.infoHash).filter(Boolean)
+    ? new Set(mappedStreams.flatMap((s) => s?.infoHash ? [s.infoHash] : [])
         .filter((h: string) => magnetdb.isAlive(aliveAdapter.id, aliveApiKey, h)))
     : null;
   const liedSet = aliveAdapter && aliveApiKey
-    ? new Set(mappedStreams.map((s: any) => s?.infoHash).filter(Boolean)
+    ? new Set(mappedStreams.flatMap((s) => s?.infoHash ? [s.infoHash] : [])
         .filter((h: string) => liedHashes.has(String(h).toLowerCase()) || magnetdb.isLie(aliveAdapter.id, aliveApiKey, h)))
     : liedHashes;
-  const markedStreams = mappedStreams.map((stream: any) =>
+  const markedStreams = mappedStreams.map((stream) =>
     stream && liedSet.has(String(stream.infoHash || '').toLowerCase()) ? { ...stream, _lied: true } : stream,
   );
   let streams: Stream[] = sortAndLimit(markedStreams, {
@@ -268,7 +279,7 @@ export async function buildStreams(
     imdbId,
     searchKey,
     deadlineAt,
-    onCacheResult: (result: any) => {
+    onCacheResult: (result: { autofetchCount?: number; trustDropped?: number }) => {
       autofetchCount += result.autofetchCount || 0;
       trustDropped += result.trustDropped || 0;
       if (onDebridResult) onDebridResult(result);
@@ -315,8 +326,8 @@ export async function buildStreams(
   // distintas (não veio da fonte / veio mas foi cortada / veio e ficou abaixo).
   // Sem este log as três são indistinguíveis a partir da lista final, porque o
   // corte apaga os campos internos que responderiam a pergunta.
-  const brIn = beforeCut.filter((s: any) => s._br);
-  const dubIn = brIn.filter((s: any) => s._dubbed);
+  const brIn = beforeCut.filter((s) => s._br);
+  const dubIn = brIn.filter((s) => s._dubbed);
   const head = streams.slice(0, 3).map((s) => (s.name || '').split('\n')[1] || '?').join(' / ');
   log.info(
     `[search] entrada do corte: ${beforeCut.length} stream(s), ${brIn.length} BR (${dubIn.length} dublada(s))` +

@@ -10,6 +10,7 @@ import * as metrics from '../utils/metrics.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import { audioBucket } from '../utils/audio-quality.js';
+import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
 // v4.1: a AllDebrid descontinuou /v4/magnet/status ("DISCONTINUED"), o que
 // fazia toda resolução falhar com 502. upload e link/unlock respondem em ambas.
@@ -28,14 +29,14 @@ const AGENT = 'stremio-adom';
 async function call(
   apiKey: string,
   path: string,
-  params: Record<string, any> = {},
-  { method = 'GET', body, timeout }: { method?: string; body?: any; timeout?: number } = {},
+  params: Record<string, string | number | string[] | undefined> = {},
+  { method = 'GET', body, timeout }: { method?: string; body?: BodyInit | null; timeout?: number } = {},
 ) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('agent', AGENT);
   for (const [k, v] of Object.entries(params)) {
     if (Array.isArray(v)) v.forEach((item) => url.searchParams.append(k, item));
-    else url.searchParams.set(k, v);
+    else if (v !== undefined) url.searchParams.set(k, String(v));
   }
 
   const data = await json(url, {
@@ -427,7 +428,7 @@ function flattenFiles(nodes: any[], prefix = '') {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: { season?: number | null; episode?: number | null; work?: any; dubbed?: boolean } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
   const account = accountScope(apiKey);
   const upload = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
   const magnet = (upload?.magnets || [])[0];
@@ -554,7 +555,7 @@ async function inventory(apiKey: string) {
 async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   const data = await call(apiKey, '/magnet/status');
   const list = Array.isArray(data?.magnets) ? data.magnets : [];
-  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+  const out: Record<string, TorrentStatusEntry> = {};
   for (const magnet of list) {
     const hash = String(magnet.hash || '').toLowerCase();
     if (!hash) continue;
@@ -575,7 +576,7 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
 /**
  * Remove torrent específico pelo id na AllDebrid.
  */
-async function removeTorrent(apiKey: string, id: any) {
+async function removeTorrent(apiKey: string, id: string | number) {
   try {
     await call(apiKey, '/magnet/delete', { id });
     return true;

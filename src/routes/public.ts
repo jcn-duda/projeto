@@ -1,9 +1,10 @@
 import { asyncRoute } from './async.js';
 import type { AppServices, GateAdmission } from './types.js';
+import type express from 'express';
 
 function makePublicHandlers(services: AppServices) {
-  const sendConfigure = (_: any, res: any) => res.sendFile(services.publicPath('configure.html'));
-  const sendDashboard = (_: any, res: any) => res.sendFile(services.publicPath('dashboard.html'));
+  const sendConfigure = (_: express.Request, res: express.Response) => res.sendFile(services.publicPath('configure.html'));
+  const sendDashboard = (_: express.Request, res: express.Response) => res.sendFile(services.publicPath('dashboard.html'));
 
   const defaults = asyncRoute(async (_req, res) => {
     const { debridApiKey, ...safe } = services.runtime.defaults();
@@ -20,7 +21,7 @@ function makePublicHandlers(services: AppServices) {
     });
   });
 
-  const seal = (req: any, res: any) => {
+  const seal = (req: express.Request, res: express.Response) => {
     if (!services.secretBox.enabled()) {
       return res.status(503).json({ error: 'RESOLVE_SECRET não configurado' });
     }

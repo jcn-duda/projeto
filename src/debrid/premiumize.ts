@@ -8,6 +8,7 @@ import {
   AuthError, QuotaError, RateLimitError,
 } from './common.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
+import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
 const API = 'https://www.premiumize.me/api';
 
@@ -20,7 +21,7 @@ const API = 'https://www.premiumize.me/api';
  * @param {*} [options.body]
  * @param {number} [options.timeout]
  */
-async function call(apiKey: string, path: string, { method = 'GET', params = {}, body, timeout }: { method?: string; params?: Record<string, any>; body?: any; timeout?: number } = {}) {
+async function call(apiKey: string, path: string, { method = 'GET', params = {}, body, timeout }: { method?: string; params?: Record<string, string | string[]>; body?: BodyInit | null; timeout?: number } = {}) {
   const url = new URL(`${API}${path}`);
   url.searchParams.set('apikey', apiKey);
   for (const [k, v] of Object.entries(params)) {
@@ -76,7 +77,7 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: { season?: number | null; episode?: number | null; work?: any; dubbed?: boolean } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
   const body = new URLSearchParams({ src: magnetFor(infoHash) });
   const data = await call(apiKey, '/transfer/directdl', { method: 'POST', body });
   const file = pickFile(data.content || [], { season, episode, work });
@@ -148,7 +149,7 @@ const STALLED_TRANSFER = /0 bytes of 0 bytes|from 0 peer/i;
 async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   const data = await call(apiKey, '/transfer/list');
   const transfers = Array.isArray(data?.transfers) ? data.transfers : [];
-  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; stalled?: boolean; id?: any }> = {};
+  const out: Record<string, TorrentStatusEntry> = {};
   for (const t of transfers) {
     const hash = transferHash(t);
     if (!hash) {
@@ -184,7 +185,7 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
 /**
  * Remove transferência pelo id no Premiumize.
  */
-async function removeTorrent(apiKey: string, id: any) {
+async function removeTorrent(apiKey: string, id: string | number) {
   try {
     const body = new URLSearchParams({ id: String(id) });
     await call(apiKey, '/transfer/delete', { method: 'POST', body });

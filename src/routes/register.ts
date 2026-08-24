@@ -13,7 +13,7 @@ const { getRouter } = sdk;
  * configuração vem antes do overlay, e as rotas específicas vêm antes do SDK
  * com configuração.
  */
-function registerRoutes(app: express.Express, services: AppServices, addonInterface: any) {
+function registerRoutes(app: express.Express, services: AppServices, addonInterface: unknown) {
   const publicHandlers = makePublicHandlers(services);
   const diagnosticHandlers = makeDiagnosticHandlers(services);
   const resolveHandler = makeResolveHandler(services);

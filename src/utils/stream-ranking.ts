@@ -20,6 +20,24 @@ interface AutofetchOptions {
   autoFetchBr?: boolean;
 }
 
+interface SortOptions {
+  minSeeders?: number;
+  maxResults?: number;
+  qualityFilter?: string[];
+  season?: number | null;
+  episode?: number | null;
+  preferDubbed?: boolean;
+  excludeCam?: boolean;
+  maxSizeGb?: number;
+  qualityLimits?: Partial<Record<string, number>>;
+  brReservedSlots?: number;
+  brReservedPerQuality?: number;
+  candidateFactor?: number;
+  brFirst?: boolean;
+  indexerPriority?: string[];
+  instant?: ((hash: string) => boolean) | null;
+}
+
 /**
  * Reescreve a linha do vencedor BR quando o perdedor traz metadados melhores.
  * Origem e áudio pertencem ao post vencedor; só o post BR pode aproveitar o
@@ -366,7 +384,7 @@ function sortAndLimit(
     brFirst = true,
     indexerPriority = [],
     instant = null as null | ((hash: string) => boolean),
-  } = {},
+  }: SortOptions = {},
 ) {
   // Release que nomeia o episódio pedido vem antes do pack da temporada: o pack
   // serve, mas quem pediu o E01 quer ver o E01 no topo da lista.

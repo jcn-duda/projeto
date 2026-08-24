@@ -1,5 +1,5 @@
 import config from '../config.js';
-import type { DebridAdapter, Stream } from '../../types/domain.js';
+import type { DebridAdapter, Stream, WorkHint } from '../../types/domain.js';
 import { markDebridName, filterKnownCache, parseTitleSeasonEpisode } from '../utils/format.js';
 import * as cache from '../utils/cache.js';
 import debrid from '../debrid/index.js';
@@ -19,7 +19,27 @@ import { autoFetchCandidates, releaseAllHolds, autoFetchBrDubbed } from './autof
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
  * link de play que passa pela nossa rota /resolve.
  */
-export async function applyDebrid(streams: any[], { season, episode, imdbId, searchKey, deadlineAt, onCacheResult, workHint }: any) {
+type WorkHintInput = { n: string[]; y: number | null } | null;
+type CacheResultSignal = {
+  known: boolean;
+  needsFullRefresh: boolean;
+  autofetchCount?: number;
+  trustDropped?: number;
+};
+interface ApplyDebridOptions {
+  season?: number | null;
+  episode?: number | null;
+  imdbId?: string | null;
+  searchKey?: string | null;
+  deadlineAt?: number | null;
+  onCacheResult?: (result: CacheResultSignal) => void;
+  workHint?: WorkHintInput;
+}
+
+export async function applyDebrid(input: Array<Stream | null>, {
+  season, episode, imdbId, searchKey, deadlineAt, onCacheResult, workHint,
+}: ApplyDebridOptions = {}) {
+  let streams: Stream[] = input.filter((stream): stream is Stream => stream !== null);
   const adapter = debrid.current();
   if (!adapter || streams.length === 0) return streams;
 
@@ -43,7 +63,7 @@ export async function applyDebrid(streams: any[], { season, episode, imdbId, sea
   let droppedDead = 0;
   let droppedLie = 0;
   let droppedMiss = 0;
-  streams = streams.filter((s: any) => {
+  streams = streams.filter((s) => {
     if (!s.infoHash) return true;
     if (magnetdb.isBad(adapter.id, trustApiKey, s.infoHash)) {
       droppedBad += 1;
@@ -85,12 +105,16 @@ export async function applyDebrid(streams: any[], { season, episode, imdbId, sea
   }
 
   // Só quem ainda é torrent tem hash pra consultar; stream já resolvido não entra no lote.
-  const hashes = streams.map((s: any) => s.infoHash).filter(Boolean);
+  const hashes = streams.flatMap((s) => s.infoHash ? [s.infoHash] : []);
   if (hashes.length === 0) return streams;
 
   // A escolha dos candidatos vem antes da checagem (cada hold protege o hash da
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
-  const candidates = autoFetchCandidates(streams, { season, imdbId, searchKey });
+  const candidates = autoFetchCandidates(streams, {
+    season,
+    imdbId: imdbId || undefined,
+    searchKey: searchKey || undefined,
+  });
   const checkStarted = Date.now();
   // Teto dinâmico: o que resta do REPLY_DEADLINE menos margem para serialização.
   // null = sem teto (passe tardio usa o timeout completo do adaptador).
@@ -147,8 +171,8 @@ export async function applyDebrid(streams: any[], { season, episode, imdbId, sea
       knownForAutofetch = true;
     } else {
       knownForAutofetch = false;
-      debrid.inventory().catch((err: any) =>
-        log.warn(`[${adapter.id}] aquecimento de inventário em fundo falhou:`, err?.message || err),
+      debrid.inventory().catch((err: unknown) =>
+        log.warn(`[${adapter.id}] aquecimento de inventário em fundo falhou:`, log.errorMessage(err)),
       );
     }
   }
@@ -167,7 +191,8 @@ export async function applyDebrid(streams: any[], { season, episode, imdbId, sea
     ...(autofetchCount ? { autofetchCount } : {}),
   });
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
-  const viaDebrid = (s: any, instant: boolean) => {
+  const viaDebrid = (s: Stream, instant: boolean): Stream => {
+    if (!s.infoHash) return s;
     // Pack multi-obra: o /resolve precisa saber que aqui NÃO vale cair no maior
     // arquivo. Vai dentro da dica, então está coberto pela assinatura.
     // `d` prova a promessa feita NA listagem e `i` permite que o play grave a
@@ -223,7 +248,7 @@ export async function applyDebrid(streams: any[], { season, episode, imdbId, sea
     // bom quanto no caminho completo — este return passa por cima da coleta lá
     // de baixo, e era aqui que a fila ficava vazia nas respostas parciais.
     queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(streams, cached, { season, episode, imdbId, workHint }), searchKey);
-    return streams.map((s: any) => viaDebrid(s, cached.has(s.infoHash)));
+    return streams.map((s) => viaDebrid(s, Boolean(s.infoHash && cached.has(s.infoHash))));
   }
 
   // O tempo entra no log porque ele é o que decide o teto: a checagem divide o
@@ -269,19 +294,29 @@ export async function applyDebrid(streams: any[], { season, episode, imdbId, sea
 // o play descobrir entrega inglês sob selo DUB BR uma vez por hash — o tail
 // prova ANTES, grava a mesma evidência do play e a próxima lista já nasce
 // honesta. Fila curta de propósito: sobra de busca sem tail não acumula.
-const dubAuditPending: Array<{ hash: string; season: number | null; episode: number | null; imdbId: string | null; work: any; dubbed: boolean; key?: string | null; extraKeys?: string[] }> = [];
+type DubAuditCandidate = {
+  hash: string;
+  season: number | null;
+  episode: number | null;
+  imdbId: string | null;
+  work?: WorkHint;
+  dubbed: boolean;
+  key?: string | null;
+  extraKeys?: string[];
+};
+const dubAuditPending: DubAuditCandidate[] = [];
 
 /** ⚡ em cache = o que o usuário vai tocar; é isso que o tail interrogará.
  * Dois grupos: (1) dublados — provam a promessa de áudio; (2) em série, os
  * que NÃO nomeiam o episódio pedido — pack de temporada pode conter outra
  * coisa (caso True Detective). Dedupe por hash preserva a variante dublada. */
 export function collectAuditCandidates(
-  list: any[],
+  list: Stream[],
   cached: Set<string>,
-  { season, episode, imdbId, workHint }: { season?: number | null; episode?: number | null; imdbId?: string | null; workHint?: any },
+  { season, episode, imdbId, workHint }: Pick<ApplyDebridOptions, 'season' | 'episode' | 'imdbId' | 'workHint'>,
 ) {
-  const work = (s: any) => (workHint ? { names: workHint.n, year: workHint.y, pack: Boolean(s._multiWork) } : undefined);
-  const byHash = new Map<string, { hash: string; season: number | null; episode: number | null; imdbId: string | null; work: any; dubbed: boolean }>();
+  const work = (s: Stream): WorkHint | undefined => (workHint ? { names: workHint.n, year: workHint.y, pack: Boolean(s._multiWork) } : undefined);
+  const byHash = new Map<string, DubAuditCandidate>();
   for (const s of list) {
     if (!s.infoHash || !s._dubbed || !cached.has(s.infoHash)) continue;
     byHash.set(String(s.infoHash), {
@@ -314,7 +349,7 @@ export function collectAuditCandidates(
   return [...byHash.values()];
 }
 
-export function queueDubAudit(adapterId: string, apiKey: string, candidates: any[], searchKey: string | null = null) {
+export function queueDubAudit(adapterId: string, apiKey: string, candidates: DubAuditCandidate[], searchKey: string | null = null) {
   if (!config.audioAudit.enabled || config.debrid.dubAuditTailMax <= 0) return;
   let added = false;
   for (const cand of candidates) {

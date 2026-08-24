@@ -2,6 +2,7 @@ import config from '../config.js';
 import { magnetFor, json, pickFile, batched, wait, QuotaError, RateLimitError } from './common.js';
 import * as log from '../utils/logger.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
+import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
 const API = 'https://api.torbox.app/v1/api';
 
@@ -35,7 +36,7 @@ function unwrapEnvelope(data: any) {
  * @param {*} [options.body]
  * @param {Object} [options.params]
  */
-async function call(apiKey: string, path: string, { method = 'GET', body, params = {} }: { method?: string; body?: any; params?: Record<string, any> } = {}) {
+async function call(apiKey: string, path: string, { method = 'GET', body, params = {} }: { method?: string; body?: BodyInit | null; params?: Record<string, string> } = {}) {
   const url = new URL(`${API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const data = await json(url, { method, headers: { Authorization: `Bearer ${apiKey}` }, body });
@@ -76,7 +77,7 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: { season?: number | null; episode?: number | null; work?: any; dubbed?: boolean } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
   const form = new FormData();
   form.append('magnet', magnetFor(infoHash));
   form.append('seed', '3'); // não semear: só queremos o link de leitura
@@ -171,7 +172,7 @@ async function accountStatus(apiKey: string) {
 async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   const list = await call(apiKey, '/torrents/mylist');
   const rows = Array.isArray(list?.data) ? list.data : (list?.data ? [list.data] : []);
-  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; stalled?: boolean; id?: any }> = {};
+  const out: Record<string, TorrentStatusEntry> = {};
   for (const row of rows) {
     const hash = String(row?.hash || '').toLowerCase();
     if (!hash) continue;
@@ -209,7 +210,7 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
 /**
  * Remove torrent pelo id na TorBox.
  */
-async function removeTorrent(apiKey: string, id: any) {
+async function removeTorrent(apiKey: string, id: string | number) {
   try {
     await call(apiKey, `/torrents/delete/${id}`, { method: 'DELETE' });
     return true;

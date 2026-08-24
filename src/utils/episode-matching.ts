@@ -1,4 +1,4 @@
-import type { ParsedSeasonEpisode } from '../../types/domain.js';
+import type { ParsedSeasonEpisode, StreamCandidate } from '../../types/domain.js';
 import { normalizeTitle } from './title-normalization.js';
 
 interface SeasonEpisodeOptions {
@@ -188,7 +188,7 @@ function matchesEpisode(title: string, { season, episode }: SeasonEpisodeOptions
  * "Série Completa"/"Todas as Temporadas"). Em busca de série o autofetch
  * prefere pack a episódio avulso: um download serve o binge todo.
  */
-function isSeasonPackRelease(stream: any, season: number | null) {
+function isSeasonPackRelease(stream: StreamCandidate, season: number | null) {
   if (season == null || !stream) return false;
   const { seasons, episodes, complete, seasonPack } = parseTitleSeasonEpisode(stream.title || stream.name || '');
   if (complete && !seasons.length) return true;
@@ -207,7 +207,7 @@ function isSeasonPackRelease(stream: any, season: number | null) {
  * Semear ⚡ e invalidar caches a partir dele promete o que o pack não provou
  * conter; aí o fill não roda e a constatação fica para o pickFile do play.
  */
-function isSeasonPackFillEligible(stream: any, season: number | null) {
+function isSeasonPackFillEligible(stream: StreamCandidate, season: number | null) {
   if (season == null || !stream) return false;
   const { seasons, episodes, complete } = parseTitleSeasonEpisode(stream.title || stream.name || '');
   if (episodes.length) return false;

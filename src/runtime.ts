@@ -12,10 +12,11 @@ import * as secretBox from './utils/secret-box.js';
  * parâmetro por toda a cadeia de busca.
  */
 interface RuntimeContext {
-  opts?: any;
+  opts?: RuntimeOptions;
   encoded?: string | null;
   origin?: string | null;
 }
+type RuntimeOptions = ReturnType<typeof defaults>;
 const store = new AsyncLocalStorage<RuntimeContext>();
 // 2048 não comporta um catálogo Jackett real selecionado no campo `ji`. Ainda
 // fica abaixo dos limites usuais de request line de Node/proxies e impede que
@@ -264,3 +265,4 @@ export {
   capture,
   run,
 };
+export type { RuntimeContext, RuntimeOptions };

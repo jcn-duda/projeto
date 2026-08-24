@@ -202,7 +202,7 @@ test('checagem de cache sem resposta confiável conta debrid.check.unknown', asy
         deadlineAt: null,
       } as any);
       assert.equal(out.length, 1);
-      assert.ok(out[0].url.includes('/resolve/'), 'sem resposta, tudo vai pelo debrid');
+      assert.ok(out[0]?.url?.includes('/resolve/'), 'sem resposta, tudo vai pelo debrid');
     });
     assert.equal(metrics.snapshot().counters['debrid.check.unknown'], 1);
   } finally {

@@ -193,11 +193,11 @@ async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: b
         }
         succeeded += sweepTargets.length;
         collected.push(...items.filter((i: any) => !i.fromAccount));
-      } catch (err: any) {
+      } catch (err: unknown) {
         for (const target of sweepTargets) {
           lastQueryAt.set(target, Date.now());
         }
-        log.warn('[harvest] varredura pt falhou:', err?.message || err);
+        log.warn('[harvest] varredura pt falhou:', log.errorMessage(err));
       }
     }
   }
@@ -225,17 +225,17 @@ async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: b
       lastQueryAt.set(indexer, Date.now());
       succeeded += 1;
       collected.push(...items.filter((i: any) => !i.fromAccount));
-    } catch (err: any) {
+    } catch (err: unknown) {
       lastQueryAt.set(indexer, Date.now());
-      log.warn(`[harvest] ${indexer} falhou para ${entry.imdbId}:`, err?.message || err);
+      log.warn(`[harvest] ${indexer} falhou para ${entry.imdbId}:`, log.errorMessage(err));
     }
   }
 
   if (config.bludv.enabled && ptQuery) {
     try {
       collected.push(...(await bludv.search(ptQuery)).filter((i: any) => !i.fromAccount));
-    } catch (err: any) {
-      log.warn('[harvest] bludv falhou:', err?.message || err);
+    } catch (err: unknown) {
+      log.warn('[harvest] bludv falhou:', log.errorMessage(err));
     }
   }
 
@@ -281,8 +281,8 @@ async function checkQuotaWarning() {
         active: status.active,
       });
     }
-  } catch (err: any) {
-    log.debug('[harvest] verificação de quota falhou:', err?.message || err);
+  } catch (err: unknown) {
+    log.debug('[harvest] verificação de quota falhou:', log.errorMessage(err));
   }
 }
 
@@ -300,7 +300,7 @@ async function tick() {
   // cooldown do próprio módulo evita repetir no tick seguinte.
   nextSeeds()
     .then((obras) => obras.forEach((obra) => enqueue(obra as any)))
-    .catch((err: any) => log.debug('[seed] ciclo falhou:', err?.message || err));
+    .catch((err: unknown) => log.debug('[seed] ciclo falhou:', log.errorMessage(err)));
   if (!queue.length) return;
   if (queriesThisHour() >= config.harvest.maxPerHour) return;
   inFlight = true;
@@ -330,7 +330,7 @@ async function tick() {
     } else {
       attemptsByObra.delete(identity);
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     metrics.count('harvest.failed');
     if (entry) {
       const tries = (attemptsByObra.get(obraIdentity(entry)) || 0) + 1;
@@ -340,7 +340,7 @@ async function tick() {
       else attemptsByObra.delete(obraIdentity(entry));
       persistQueue();
     }
-    log.warn('[harvest] ciclo falhou:', err?.message || err);
+    log.warn('[harvest] ciclo falhou:', log.errorMessage(err));
   } finally {
     inFlight = false;
   }

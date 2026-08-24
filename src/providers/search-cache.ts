@@ -119,7 +119,7 @@ export async function findStreams({ type, id, background }: { type: string; id: 
     });
     // Se ninguém estiver ouvindo quando ela terminar, o resultado ainda vai pro cache;
     // o catch evita unhandled rejection depois que o deadline devolveu [].
-    task.catch((err: any) => log.warn('[search] falhou em background:', err.message));
+    task.catch((err: unknown) => log.warn('[search] falhou em background:', log.errorMessage(err)));
     inFlight.set(cacheKey, task);
   } else {
     metrics.count('stream.coalesced');

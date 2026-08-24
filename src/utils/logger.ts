@@ -54,4 +54,9 @@ const debug = (...args: unknown[]) => {
 /** Vale a pena medir só o que vai ser logado — formatar custa. */
 const enabled = (name: string) => threshold >= (LEVELS[name] ?? LEVELS.info);
 
-export { LEVELS, error, warn, info, debug, enabled, setLevel, level };
+/** Normaliza erro de fronteira sem fingir que todo rejeitado é `Error`. */
+function errorMessage(err: unknown) {
+  return err instanceof Error ? err.message : String(err);
+}
+
+export { LEVELS, error, warn, info, debug, enabled, setLevel, level, errorMessage };

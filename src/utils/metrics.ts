@@ -12,6 +12,7 @@ const SAMPLES = 256;
 const counters: Map<string, number> = new Map();
 /** Janela deslizante por métrica: `ring` é o buffer circular das últimas SAMPLES. */
 type Timer = { count: number; sum: number; max: number; ring: Float64Array; filled: number; next: number };
+type TimingSnapshot = { count: number; avgMs: number; p50Ms: number; p95Ms: number; maxMs: number };
 const timers: Map<string, Timer> = new Map();
 const startedAt = Date.now();
 
@@ -54,7 +55,7 @@ function percentile(sorted: number[], fraction: number) {
 }
 
 function snapshot() {
-  const timings: Record<string, any> = {};
+  const timings: Record<string, TimingSnapshot> = {};
   for (const [name, timer] of timers) {
     const sorted = Array.from(timer.ring.subarray(0, timer.filled)).sort((a: number, b: number) => a - b);
     timings[name] = {
@@ -62,8 +63,10 @@ function snapshot() {
       avgMs: timer.count ? Math.round(timer.sum / timer.count) : 0,
       // p50/p95 da JANELA (últimas SAMPLES), não da vida do processo: é o que
       // responde "está lento AGORA".
-      p50Ms: percentile(sorted, 0.5),
-      p95Ms: percentile(sorted, 0.95),
+      // Timer existente sempre tem ao menos uma amostra; 0 só protege estado
+      // impossível caso alguém altere essa invariante no futuro.
+      p50Ms: percentile(sorted, 0.5) ?? 0,
+      p95Ms: percentile(sorted, 0.95) ?? 0,
       maxMs: Math.round(timer.max),
     };
   }

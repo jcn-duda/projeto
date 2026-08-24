@@ -102,7 +102,7 @@ function openDatabase() {
 
     try {
       database = initDb(DatabaseSync, DB_PATH);
-    } catch (initialErr: any) {
+    } catch (initialErr: unknown) {
       // Erro transiente/ambiente NÃO toca no arquivo do volume: o catch de
       // fora cai em memória e a próxima subida tenta de novo.
       if (!isCorruptionError(initialErr)) throw initialErr;
@@ -121,8 +121,8 @@ function openDatabase() {
           }
           log.warn(`[cache] banco SQLite corrompido; renomeado para ${path.basename(corruptPath)} e recriando banco limpo`);
           database = initDb(DatabaseSync, DB_PATH);
-        } catch (recoverErr: any) {
-          log.warn('[cache] falha na recuperação do banco corrompido:', recoverErr.message);
+        } catch (recoverErr: unknown) {
+          log.warn('[cache] falha na recuperação do banco corrompido:', log.errorMessage(recoverErr));
           throw initialErr;
         }
       } else {
@@ -147,8 +147,8 @@ function openDatabase() {
     clearStmt = database.prepare('DELETE FROM cache');
 
     return database;
-  } catch (err: any) {
-    log.warn('[cache] persistência indisponível, seguindo só em memória:', err?.message || String(err));
+  } catch (err: unknown) {
+    log.warn('[cache] persistência indisponível, seguindo só em memória:', log.errorMessage(err));
     insertStmt = null;
     deleteStmt = null;
     deleteExpiredStmt = null;
@@ -586,8 +586,8 @@ function maintain(): { checkpointed: boolean; optimized: boolean; vacuumed: bool
       db.exec('VACUUM');
       vacuumed = true;
     }
-  } catch (err: any) {
-    log.warn('[cache] manutenção do SQLite falhou:', err?.message || err);
+  } catch (err: unknown) {
+    log.warn('[cache] manutenção do SQLite falhou:', log.errorMessage(err));
   }
 
   return { checkpointed, optimized, vacuumed, freelistCount };

@@ -1,8 +1,10 @@
 import { asyncRoute } from './async.js';
 import type { AppServices } from './types.js';
+import type express from 'express';
+import { errorMessage } from '../utils/logger.js';
 
 function makeResolveHandler(services: AppServices) {
-  return asyncRoute(async (req: any, res: any) => {
+  return asyncRoute(async (req: express.Request, res: express.Response) => {
     const infoHash = String(req.params.infoHash || '').toLowerCase();
     if (!/^[a-f0-9]{40}$/i.test(infoHash)) return res.status(400).send('infoHash inválido');
 
@@ -81,7 +83,7 @@ function makeResolveHandler(services: AppServices) {
         }
         return res.status(404).send('este episódio não foi encontrado no pack');
       }
-      services.log.error('[resolve]', err.message);
+      services.log.error('[resolve]', errorMessage(err));
       return res.status(502).send('falha ao resolver no debrid');
     }
   });

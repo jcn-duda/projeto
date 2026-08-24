@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { opts } from '../runtime.js';
-import type { RawItem, Stream } from '../../types/domain.js';
+import type { RawItem, Stream, StreamCandidate } from '../../types/domain.js';
 import { extractInfoHash, decodeEntities, bytesToSize, normalizeTitle } from './title-normalization.js';
 import { LEADING_ARTICLES, isMultiWorkCollection } from './release-matching.js';
 import {
@@ -85,7 +85,7 @@ function streamDisplayName({
   style,
   showSource,
 }: StreamDisplayOptions = {}) {
-  let userOpts: any = null;
+  let userOpts: { streamNameStyle?: string; streamNameShowSource?: boolean } | null = null;
   try { userOpts = opts(); } catch {}
   const effectiveStyle = style || userOpts?.streamNameStyle || config.streamNameStyle;
   const effectiveShowSource = showSource !== undefined
@@ -146,7 +146,7 @@ const QUALITY_FILTER_ALIASES: Record<string, string> = { '4k': '2160p', uhd: '21
  * 2160p na declaração e o chip é `2160p`. Fonte BR sem resolução tem balde
  * próprio; excluí-la aqui tornaria `maxUnknown` inoperante.
  */
-function passesQualityFilter(stream: any, filters?: string[], qualityLimits: Record<string, any> = {}) {
+function passesQualityFilter(stream: StreamCandidate, filters?: string[], qualityLimits: Partial<Record<string, number>> = {}) {
   if (!filters || filters.length === 0) return true;
   const quality = streamQuality(stream);
   if (stream?._br && quality === UNKNOWN_QUALITY) {
@@ -190,7 +190,7 @@ function toStremioStream(item: RawItem): Stream | null {
   // Prova pelo ARQUIVO tem precedência sobre o título do post: o nome do
   // arquivo é fato, o título é palpite — e mente sobre áudio e resolução.
   // Quem grava é o play/tail via releaseIndex; aqui só consumimos o campo.
-  const quality = (item as any).provenQuality || qualityFromTitle(title);
+  const quality = item.provenQuality || qualityFromTitle(title);
   const source = sourceFromTitle(title);
   // Prova VAZIA (release EN sem marca PT no arquivo) é veredito sobre DUBLADO,
   // não sobre o rótulo. Quando o título já diz "Legendado" ele CONCORDA com a
@@ -198,7 +198,7 @@ function toStremioStream(item: RawItem): Stream | null {
   // escondia do usuário a única informação de áudio que existia, sem mudar
   // decisão nenhuma (`_dubbed` é false dos dois jeitos). Rótulo que afirma
   // dublado continua sendo derrubado pela prova, que é o motivo dela existir.
-  const provenAudio = (item as any).provenAudio;
+  const provenAudio = item.provenAudio;
   const titleAudio = audioFromTitle(title);
   const audio = provenAudio !== undefined
     ? provenAudio || (titleAudio === 'Legendado' ? 'Legendado' : '')
@@ -245,7 +245,7 @@ function toStremioStream(item: RawItem): Stream | null {
     // lido no nome do arquivo, que é o que de fato existe dentro do torrent.
     _dubbed: isBr
       ? audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional'
-      : explicitPtAudio((item as any).provenName || title),
+      : explicitPtAudio(item.provenName || title),
     // Origem BR vem marcada pelo provider OU pelo título (dublado em tracker
     // global). Release de site BR sem marca nenhuma no título continua valendo
     // pelo flag do provider: comandotorrents/nerdfilmes não citam "DUBLADO".

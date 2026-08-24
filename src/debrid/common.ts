@@ -57,7 +57,7 @@ function isRateLimitError(error: MaybeError) {
 /** Um fetch JSON com o timeout do debrid já aplicado. */
 async function json(
   url: string | URL,
-  { method = 'GET', headers = {}, body, timeout }: { method?: string; headers?: Record<string, string>; body?: any; timeout?: number } = {},
+  { method = 'GET', headers = {}, body, timeout }: { method?: string; headers?: Record<string, string>; body?: BodyInit | null; timeout?: number } = {},
 ) {
   const res = await fetch(url, {
     method,

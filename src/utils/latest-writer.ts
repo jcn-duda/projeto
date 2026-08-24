@@ -3,12 +3,16 @@
  * antiga (episódio quando o fallback de pack começa); a revisão garante que o
  * lote mais novo da fase vença mesmo se o pós-processamento terminar antes.
  */
-function createLatestWriter(build: (input: any) => any, commit: (value: any) => void, useful: (value: any) => boolean = (value: any) => Array.isArray(value) && value.length > 0) {
+function createLatestWriter<TInput, TValue>(
+  build: (input: TInput) => TValue | Promise<TValue>,
+  commit: (value: TValue) => unknown | Promise<unknown>,
+  useful: (value: TValue) => boolean = (value) => Array.isArray(value) && value.length > 0,
+) {
   let phase = 0;
   let revision = 0;
   let usefulPhase = -1;
 
-  async function run(input: any, expectedPhase = phase) {
+  async function run(input: TInput, expectedPhase = phase) {
     const ownRevision = ++revision;
     const value = await build(input);
     const current = expectedPhase === phase && ownRevision === revision;

@@ -1,6 +1,7 @@
 import { magnetFor, json, pickFile, isNoVideoError, wait } from './common.js';
 import * as log from '../utils/logger.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
+import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
 const API = 'https://api.real-debrid.com/rest/1.0';
 
@@ -15,7 +16,7 @@ function auth(apiKey: string) {
  * @param {string} [options.method]
  * @param {*} [options.body]
  */
-function call(apiKey: string, path: string, { method = 'GET', body }: { method?: string; body?: any } = {}) {
+function call(apiKey: string, path: string, { method = 'GET', body }: { method?: string; body?: BodyInit | null } = {}) {
   return json(`${API}${path}`, {
     method,
     headers: {
@@ -46,7 +47,7 @@ const WORKING = ['magnet_conversion', 'queued', 'downloading', 'compressing', 'u
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: { season?: number | null; episode?: number | null; work?: any; dubbed?: boolean } = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
   const add = await call(apiKey, '/torrents/addMagnet', {
     method: 'POST',
     body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
@@ -182,7 +183,7 @@ async function inventory(apiKey: string) {
 async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   const list = await call(apiKey, '/torrents/list');
   const rows = Array.isArray(list) ? list : [];
-  const out: Record<string, { state: 'ready' | 'downloading' | 'dead' | 'unknown'; id?: any }> = {};
+  const out: Record<string, TorrentStatusEntry> = {};
   for (const t of rows) {
     const hash = String(t.hash || '').toLowerCase();
     if (!hash) continue;
@@ -203,7 +204,7 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
 /**
  * Remove torrent pelo id no Real-Debrid.
  */
-async function removeTorrent(apiKey: string, id: any) {
+async function removeTorrent(apiKey: string, id: string | number) {
   try {
     await call(apiKey, `/torrents/delete/${id}`, { method: 'DELETE' });
     return true;

@@ -1,10 +1,11 @@
-import type { Stream } from '../../types/domain.js';
+import type { Stream, StreamCandidate } from '../../types/domain.js';
 import { UNKNOWN_QUALITY, qualityFromTitle } from './audio-quality.js';
 import { isSeasonPackRelease } from './episode-matching.js';
 
 const QUALITY_KEYS = ['2160p', '1080p', '720p', '480p', 'SD', UNKNOWN_QUALITY];
+type QualityLimits = Partial<Record<string, number>>;
 
-function streamQuality(stream: any) {
+function streamQuality(stream: StreamCandidate) {
   return stream?._quality || qualityFromTitle(stream?.title || stream?.name || '');
 }
 
@@ -14,10 +15,10 @@ function streamQuality(stream: any) {
  * 1080p tivesse candidatos para sobreviver ao filtro de cache.
  */
 function selectQualityCandidates(
-  streams: any[],
+  streams: StreamCandidate[],
   {
     maxResults = 40,
-    qualityLimits = {} as Record<string, any>,
+    qualityLimits = {} as QualityLimits,
     brReservedSlots = 0,
     brReservedPerQuality = 0,
     candidateFactor = 1,
@@ -32,7 +33,7 @@ function selectQualityCandidates(
   // então `.get(quality)` nunca devolve undefined quando `quality` pertence a
   // `custom`. O strictNullChecks não enxerga esse invariante; os casts
   // documentam a garantia sem mudar runtime.
-  const buckets = new Map<string, Stream[]>(custom.map((quality) => [quality, []]));
+  const buckets = new Map<string, StreamCandidate[]>(custom.map((quality) => [quality, []]));
   for (const stream of streams) {
     const bucket = buckets.get(streamQuality(stream));
     if (bucket) bucket.push(stream);
@@ -90,7 +91,7 @@ function selectQualityCandidates(
   while (selected.size < poolSize && progressed) {
     progressed = false;
     for (const quality of custom) {
-      const bucket = buckets.get(quality) as Stream[];
+      const bucket = buckets.get(quality) as StreamCandidate[];
       let position = positions.get(quality) as number;
       while (position < bucket.length && selected.has(bucket[position])) position += 1;
       positions.set(quality, position);
@@ -115,7 +116,7 @@ function selectQualityCandidates(
 
   // A seleção reserva espaço, mas a ordem original de qualidade/seeders segue
   // intacta para a listagem e para o debrid.
-  return streams.filter((stream: any) => selected.has(stream));
+  return streams.filter((stream) => selected.has(stream));
 }
 
 /**
@@ -131,13 +132,13 @@ function selectQualityCandidates(
  * continuam contando. Assim a reserva fura o teto sem ampliá-lo para os itens
  * seguintes da mesma fonte.
  */
-function limitByIndexer(streams: any[], maxPerIndexer = 0, exempt: Set<any> = new Set(), indexerLimits: Record<string, any> = {}) {
+function limitByIndexer(streams: StreamCandidate[], maxPerIndexer = 0, exempt: Set<StreamCandidate> = new Set(), indexerLimits: QualityLimits = {}) {
   const globalLimit = Math.max(0, Math.trunc(Number(maxPerIndexer) || 0));
   const hasOverrides = indexerLimits && typeof indexerLimits === 'object' &&
     Object.keys(indexerLimits).length > 0;
   if (!globalLimit && !hasOverrides) return streams;
   const counts = new Map();
-  return streams.filter((stream: any) => {
+  return streams.filter((stream) => {
     // Stream sem indexador conhecido não vira um balde comum com os outros:
     // eles se limitariam entre si por acidente de metadado ausente.
     const source = String(stream?._indexer || '').trim().toLowerCase();
@@ -165,22 +166,22 @@ function limitByIndexer(streams: any[], maxPerIndexer = 0, exempt: Set<any> = ne
  * o backfill da lista final.
  */
 function limitByQualityAndIndexer(
-  streams: any[],
-  qualityLimits: Record<string, any>,
+  streams: StreamCandidate[],
+  qualityLimits: QualityLimits,
   maxPerIndexer: number,
-  exempt: Set<any>,
-  indexerLimits: Record<string, any>,
+  exempt: Set<StreamCandidate>,
+  indexerLimits: QualityLimits,
   // Vagas reservadas para BR. Elas atravessam a cota do balde de qualidade E
   // não a consomem: "reservada" precisa significar vaga A MAIS, senão vira
   // apenas ordem de chegada dentro do mesmo teto -- que é o que era antes, e
   // fazia `brReservedSlots: 4` render 2 BR quando a cota de 1080p era 2.
-  reservedBr: Set<any> = new Set(),
+  reservedBr: Set<StreamCandidate> = new Set(),
 ) {
   const qualityCounts = new Map();
   const indexerCounts = new Map();
   const globalLimit = Math.max(0, Math.trunc(Number(maxPerIndexer) || 0));
 
-  return streams.filter((stream: any) => {
+  return streams.filter((stream) => {
     const quality = streamQuality(stream);
     const rawQualityLimit = qualityLimits[quality];
     const qualityLimit = rawQualityLimit == null || rawQualityLimit >= 100
@@ -207,9 +208,9 @@ function limitByQualityAndIndexer(
 }
 
 /** Aplica as cotas na lista pós-debrid, quando só os streams reais são contados. */
-function limitByQuality(streams: any[], qualityLimits: Record<string, any> = {}) {
+function limitByQuality(streams: StreamCandidate[], qualityLimits: QualityLimits = {}) {
   const counts = new Map();
-  return streams.filter((stream: any) => {
+  return streams.filter((stream) => {
     const quality = streamQuality(stream);
     const rawLimit = qualityLimits[quality];
     const limit = rawLimit == null || rawLimit >= 100 ? Infinity : Math.max(0, Math.trunc(rawLimit));
@@ -225,10 +226,10 @@ interface LimitBrOptions {
   brReservedPerQuality?: number;
   maxResults?: number;
   brOnly?: boolean;
-  qualityLimits?: Record<string, any>;
+  qualityLimits?: QualityLimits;
   brFirst?: boolean;
   maxPerIndexer?: number;
-  indexerLimits?: Record<string, any>;
+  indexerLimits?: QualityLimits;
   /** Temporada pedida: liga a cobertura de pack por faixa (Causa D). */
   season?: number | null;
 }

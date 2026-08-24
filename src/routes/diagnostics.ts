@@ -1,5 +1,7 @@
 import { asyncRoute } from './async.js';
 import type { AppServices, GateAdmission } from './types.js';
+import type express from 'express';
+import { errorMessage } from '../utils/logger.js';
 
 function releaseIndexStatus(services: AppServices) {
   const counters = services.metrics.snapshot().counters;
@@ -19,7 +21,7 @@ function releaseIndexStatus(services: AppServices) {
   };
 }
 
-function unavailable(services: AppServices, req: any, res: any, message: string, shape: Record<string, unknown> = {}) {
+function unavailable(services: AppServices, req: express.Request, res: express.Response, message: string, shape: Record<string, unknown> = {}) {
   if (!services.config.jackett.testToken) {
     res.status(503).json({ ...shape, error: message });
     return true;
@@ -42,7 +44,7 @@ function accountTimeout(services: AppServices) {
 }
 
 function makeDiagnosticHandlers(services: AppServices) {
-  const metrics = (req: any, res: any) => {
+  const metrics = (req: express.Request, res: express.Response) => {
     if (unavailable(services, req, res, 'métricas desativadas: defina JACKETT_TEST_TOKEN')) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
     if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
@@ -156,8 +158,8 @@ function makeDiagnosticHandlers(services: AppServices) {
         for (const indexer of catalog) {
           try {
             results.push({ id: indexer.id, ...(await services.jackett.test(indexer.id, '', 'movie')) });
-          } catch (err: any) {
-            results.push({ id: indexer.id, ok: false, error: err?.message || String(err) });
+          } catch (err: unknown) {
+            results.push({ id: indexer.id, ok: false, error: errorMessage(err) });
           }
         }
         const okCount = results.filter((result) => result.ok).length;
@@ -196,7 +198,7 @@ function makeDiagnosticHandlers(services: AppServices) {
     }
   });
 
-  const debridStatus = asyncRoute(async (req: any, res: any) => {
+  const debridStatus = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'diagnóstico desativado pelo operador', { ok: false })) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
     if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });

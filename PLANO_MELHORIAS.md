@@ -50,7 +50,7 @@ dos achados críticos). Autocontido: pode ser executado por um agente sem acesso
 | A3 | `doSearch` (~396 linhas) com estados implícitos (parcial, fase, latest-writer, tails) |
 | A4 | 4 resolvers JS duplicam núcleo inteiro (parseHost, allowlist, probe, cache, hops, HTTP server) |
 | A5 | `process.env` lido fora de `config.ts` (`app.ts`, `cache.ts`, `logger.ts`; `br-resolvers.ts` muta `process.env`) |
-| A6 | 286 `any` explícitos concentrados nas fronteiras internas (80 em `providers/index.ts`) |
+| A6 | 274 `any` explícitos (baseline 2026-08-24) concentrados nas fronteiras internas — meta por ocorrências explícitas de código; ver §5.7 para a medição atual |
 
 ### Gaps de teste
 
@@ -98,9 +98,11 @@ vez a cada TTL, e em toda busca enquanto o endpoint estivesse fora do ar. O
 refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado,
 com teto pelo `DEBRID_CHECK_FLOOR_MS`.
 
-**O que continua aberto:** fase 0 (parcialmente — ver abaixo), item 4.2,
-fase 5 (5.1 e 5.3 concluídas em 2026-08-23; 5.2, 5.4 e 5.5 concluídas em
-2026-08-24; 5.6/5.7 parciais) e fase 6.
+**O que continua aberto:** fase 0 (parcialmente — ver abaixo), item 4.2 e
+fase 6. A fase 5 foi concluída: 5.1 e 5.3 em 2026-08-23; 5.2, 5.4 e 5.5 em
+2026-08-24; 5.6 e 5.7 em 2026-08-24 (meta por código explícito hoje em 149,
+sem converter payloads externos cegamente). A alegação anterior de 147 não é
+uma métrica válida e foi substituída pelo contador de AST em §5.7.
 
 ---
 
@@ -432,16 +434,43 @@ encontrar `config.ts` e a ponte de compatibilidade documentada em
 Scripts CLI, testes e `resolvers/**/*.js` ficam fora desta métrica porque são
 processos/ambientes distintos.
 
-### 5.7 — Redução de `any` (A6) — esforço contínuo — PARCIAL
+### 5.7 ✅ — Redução de `any` (A6) — esforço contínuo — CONCLUÍDA (2026-08-24)
 
-Prioridade: opções de `applyDebrid`/`buildStreams`, respostas por adaptador
-(`PremiumizeTransfer`, `TorboxRow`, `AllDebridMagnet`), handlers Express com
-`Request`/`Response`. `unknown` na fronteira externa + normalização imediata.
-Meta da fase: menos de 150 ocorrências explícitas em `src/`, medida por
-`git grep -n -E '\bany\b' -- 'src/**/*.ts' | Measure-Object -Line` no
-PowerShell. A linha de base de 2026-08-24 é 274 ocorrências; payload externo,
-compatibilidade de SDK/SQLite e código de teste devem ser classificados antes
-de uma redução, não convertidos cegamente em `unknown`.
+Prioridade atendida: opções de `applyDebrid`/`buildStreams`, respostas por
+adaptador (`PremiumizeTransfer`, `TorboxRow`, `AllDebridMagnet`), handlers
+Express com `Request`/`Response`. Metodologia: `unknown` na fronteira externa
++ normalização imediata — `any` só permanece onde a tipagem seria uma mentira
+ou um cast cego sobre contrato de terceiro.
+
+**Métrica reproduzível:** a sondagem oficial é
+`@(git grep -n -E '\bany\b' -- src).Count` no PowerShell. Ela conta **linhas**
+com o token e hoje retorna **146**. Quando ela retornava 152, os cinco itens
+subtraídos para chegar aos 147 documentados eram os quatro literais em
+`autofetch-runner.ts` — `pool = 'any'`, `autofetch.any-dubbed` e os dois testes
+de `pool === 'any'` — e `source || 'any'` em `search-names.ts`; nenhum é o tipo
+`any`. Logo, os cinco são falsos positivos de strings, não tipos reais. Há ainda
+um sexto falso positivo independente, o comentário em `net-safety.ts`; por isso
+147 não era uma métrica honesta de ocorrências explícitas e foi aposentado.
+
+A meta “menos de 150” usa ocorrências explícitas do tipo `any`, não linhas nem
+texto. Para reproduzi-la, execute o contador da AST do TypeScript:
+`node -e "const ts=require('typescript'),fs=require('fs'),cp=require('child_process');let n=0;for(const f of cp.execFileSync('git',['ls-files','src/**/*.ts'],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)){const s=ts.createSourceFile(f,fs.readFileSync(f,'utf8'),ts.ScriptTarget.Latest,true);const w=x=>{if(x.kind===ts.SyntaxKind.AnyKeyword)n++;ts.forEachChild(x,w)};w(s)};console.log(n)"`.
+Baseline registrado em 2026-08-24: **274**; a alegação intermediária de **147**
+não é comparável por misturar linhas e texto. Medição atual da AST: **149**
+(<150), sem converter payloads externos cegamente em `unknown`.
+
+**Categorias residuais legítimas (mantidas como `any`, decisão registrada):**
+- **Payloads de terceiros** — respostas de debrid, Jackett/Torznab e sites BR,
+  cujas formas não são contrato nosso; normaliza-se após o `fetch`, não se
+  tipa como `unknown` no ponto de recebimento.
+- **`node:sqlite` sem tipagem no Node 20** — o `require` lazy (compat 20/22)
+  não expõe tipos; o `any` documenta o acesso à API que só existe em runtime.
+- **Compatibilidade SDK/Jackett** — superfícies herdadas do
+  `stremio-addon-sdk` e das definitions Cardigann cujo contrato não é
+  verificável por tipo.
+- **Pools polimórficos** — coleções heterogêneas de fontes/streams de natureza
+  distinta, em que a união tipada custaria casts mais frágeis que o `any`
+  anotado no ponto de acesso.
 
 **Gate da fase 5:** após CADA subfase: `npm run typecheck && npm run build
 && npm test && npm run test:complete` + `npm run test:stress && npm run

@@ -1,5 +1,5 @@
 import { opts } from '../runtime.js';
-import type { DebridAdapter } from '../../types/domain.js';
+import type { DebridAdapter, PlayHint } from '../../types/domain.js';
 import config from '../config.js';
 import { accountScope } from '../utils/request-key.js';
 import { prefix } from '../utils/cache-keys.js';
@@ -30,6 +30,7 @@ type CacheCheckResult = {
   known: boolean;
   unusable?: { reason: string; message: string };
 };
+type AdapterCacheResponse = Set<string> | { cached: Set<string>; complete?: boolean };
 
 function trackCheckedHashes(infoHashes: string[]) {
   const now = Date.now();
@@ -63,7 +64,7 @@ const UNUSABLE = {
   auth: {
     metric: 'debrid.auth.invalid',
     label: 'credencial recusada',
-    fix: (adapter: any) =>
+    fix: (adapter: DebridAdapter) =>
       `gere uma chave nova em ${adapter.keyUrl || 'sua conta'} e atualize DEBRID_API_KEY` +
       ' ou refaça a URL de instalação em /configure',
   },
@@ -76,31 +77,32 @@ const UNUSABLE = {
   },
 };
 
-function unusable(adapter: any, reason: string, err: any): CacheCheckResult {
-  const kind = (UNUSABLE as Record<string, any>)[reason];
+function unusable(adapter: DebridAdapter, reason: keyof typeof UNUSABLE, err: unknown): CacheCheckResult {
+  const kind = UNUSABLE[reason];
+  const message = log.errorMessage(err);
   metrics.count(kind.metric);
-  log.warn(`[${adapter.id}] ${kind.label} (${err.message}); a lista volta como P2P — ${kind.fix(adapter)}`);
-  notify(`debrid_${reason}`, 'error', `${kind.label} (${err?.message || err})`, {
-    adapter: adapter?.id,
+  log.warn(`[${adapter.id}] ${kind.label} (${message}); a lista volta como P2P — ${kind.fix(adapter)}`);
+  notify(`debrid_${reason}`, 'error', `${kind.label} (${message})`, {
+    adapter: adapter.id,
     fix: kind.fix(adapter),
   }).catch(() => {});
-  return { cached: new Set(), known: false, unusable: { reason, message: err.message } };
+  return { cached: new Set(), known: false, unusable: { reason, message } };
 }
 
 /** Classifica o que impede o serviço de funcionar, ou null se for transitório. */
-function unusableReason(err: any) {
+function unusableReason(err: unknown): keyof typeof UNUSABLE | null {
   if (isAuthError(err)) return 'auth';
   if (isQuotaError(err)) return 'quota';
   return null;
 }
 
 /** Rate limit é transitório: não entra em unusable. Só classifica o diagnóstico. */
-function failureReason(err: any) {
+function failureReason(err: unknown) {
   return unusableReason(err) || (isRateLimitError(err) ? 'rate' : 'falha');
 }
 
-function normalizeCacheResult(adapter: any, result: any): CacheCheckResult {
-  const cached = new Set<string>(result instanceof Set ? result : result?.cached || []);
+function normalizeCacheResult(adapter: DebridAdapter, result: AdapterCacheResponse): CacheCheckResult {
+  const cached = new Set<string>(result instanceof Set ? result : result.cached);
   const complete = result instanceof Set ? true : result?.complete !== false;
   if (!complete) {
     log.warn(
@@ -110,7 +112,7 @@ function normalizeCacheResult(adapter: any, result: any): CacheCheckResult {
   return { cached, known: complete };
 }
 
-function nonAbortableKey(adapter: any, apiKey: string, infoHashes: string[]) {
+function nonAbortableKey(adapter: DebridAdapter, apiKey: string, infoHashes: string[]) {
   const hashes = [...new Set(infoHashes.map((hash: string) => String(hash).toLowerCase()))].sort();
   return `${adapter.id}:${accountScope(apiKey)}:${hashes.join(',')}`;
 }
@@ -135,7 +137,7 @@ function noteAvailable(infoHash: string) {
   magnetdb.markAlive(adapter.id, apiKey, [infoHash]);
 }
 
-function nonAbortableCheck(adapter: any, apiKey: string, infoHashes: string[]) {
+function nonAbortableCheck(adapter: DebridAdapter, apiKey: string, infoHashes: string[]) {
   const key = nonAbortableKey(adapter, apiKey, infoHashes);
   let entry = nonAbortableChecks.get(key);
   if (entry) return entry.promise;
@@ -147,13 +149,13 @@ function nonAbortableCheck(adapter: any, apiKey: string, infoHashes: string[]) {
     // valendo, mas a corrida da resposta não cancela este trabalho.
     .then(() => adapter.checkCached(apiKey, infoHashes))
     .then((result) => normalizeCacheResult(adapter, result))
-    .catch((err: any) => {
+    .catch((err: unknown) => {
       // A AllDebrid é justamente o serviço que passa por aqui, então a
       // credencial recusada precisa ser reconhecida NESTE catch também — não
       // só no caminho abortável lá embaixo.
       const reason = unusableReason(err);
       if (reason) return unusable(adapter, reason, err);
-      log.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
+      log.warn(`[${adapter.id}] falha na checagem de cache:`, log.errorMessage(err));
       return { cached: new Set(), known: false };
     });
   nonAbortableChecks.set(key, entry);
@@ -468,7 +470,7 @@ async function dashboardAccounts(currentStatus: any) {
   return accounts;
 }
 
-async function resolveLink(infoHash: string, episode?: any) {
+async function resolveLink(infoHash: string, episode?: PlayHint) {
   const adapter = current();
   if (!adapter) return null;
   return adapter.resolveLink(opts().debridApiKey, infoHash, episode);
@@ -478,7 +480,9 @@ async function resolveLink(infoHash: string, episode?: any) {
 // leitura da conta.
 const inventoryInFlight = new Map();
 
-function inventoryFor(adapter: any, apiKey: string) {
+function inventoryFor(adapter: DebridAdapter, apiKey: string) {
+  if (typeof adapter.inventory !== 'function') return Promise.resolve([]);
+  const loadInventory = adapter.inventory;
   const key = `${prefix('dinv')}${adapter.id}:${accountScope(apiKey)}`;
   const hit = cache.get(key);
   if (hit) return Promise.resolve(hit);
@@ -486,7 +490,7 @@ function inventoryFor(adapter: any, apiKey: string) {
   let task = inventoryInFlight.get(key);
   if (!task) {
     task = Promise.resolve()
-      .then(() => adapter.inventory(apiKey))
+      .then(() => loadInventory(apiKey))
       .then((items) => {
         // Teto defensivo: a conta real medida tem 1208 prontos; resposta
         // degenerada não pode entrar inteira no cache.
@@ -553,7 +557,7 @@ function refreshInventory() {
  * É o que sustenta o download automático da fonte BR dublada: o play só
  * funciona depois, quando o serviço terminar.
  */
-async function enqueue(infoHash: string, episode?: any) {
+async function enqueue(infoHash: string, episode?: PlayHint) {
   const adapter = current();
   if (!adapter || typeof adapter.enqueue !== 'function') return false;
   try {
@@ -581,15 +585,15 @@ function warmupEnv() {
     typeof adapter.inventory === 'function' &&
     config.debrid.apiKey && config.debrid.allowEnvKey
   ) {
-    inventoryFor(adapter, config.debrid.apiKey).catch((err: any) => {
-      log.warn(`[${adapter.id}] não consegui aquecer o inventário como fonte:`, err.message);
+    inventoryFor(adapter, config.debrid.apiKey).catch((err: unknown) => {
+      log.warn(`[${adapter.id}] não consegui aquecer o inventário como fonte:`, log.errorMessage(err));
     });
   }
 
   if (typeof adapter.warmInventory !== 'function') return Promise.resolve(null);
   if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.dropReady) return Promise.resolve(null);
-  return adapter.warmInventory(config.debrid.apiKey).catch((err: any) => {
-    log.warn(`[${adapter.id}] não consegui aquecer o inventário:`, err.message);
+  return adapter.warmInventory(config.debrid.apiKey).catch((err: unknown) => {
+    log.warn(`[${adapter.id}] não consegui aquecer o inventário:`, log.errorMessage(err));
     return null;
   });
 }
@@ -644,8 +648,8 @@ async function sweepDeadCurrent() {
   if (!debridApiKey || !config.debrid.sweepDead) return null;
   try {
     return await adapter.sweepDead(debridApiKey);
-  } catch (err: any) {
-    log.warn(`[${adapter.id}] varredura de mortos falhou:`, err?.message || err);
+  } catch (err: unknown) {
+    log.warn(`[${adapter.id}] varredura de mortos falhou:`, log.errorMessage(err));
     return null;
   }
 }

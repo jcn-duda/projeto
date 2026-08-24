@@ -1,8 +1,11 @@
 import type { AppServices } from './types.js';
 import { streamsNeedRevalidation } from './origin.js';
+import { errorMessage } from '../utils/logger.js';
+
+type StreamArgs = { type: string; id: string };
 
 function createStreamHandler(services: AppServices) {
-  return async (args: any) => {
+  return async (args: StreamArgs) => {
     try {
       const result = await services.providers.findStreams({ type: args.type, id: args.id });
       if (args.type === 'series' && typeof args.id === 'string') {
@@ -32,7 +35,7 @@ function createStreamHandler(services: AppServices) {
                     services.providers.findStreams({ type: 'series', id: nextId, background: true }),
                   ),
                 )
-                  .catch((err: any) => services.log.warn('[prefetch] falha em background:', err?.message || err))
+                  .catch((err: unknown) => services.log.warn('[prefetch] falha em background:', errorMessage(err)))
                   .finally(() => services.prefetchInFlight.delete(nextId));
               }
             }

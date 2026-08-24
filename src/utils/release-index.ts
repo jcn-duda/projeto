@@ -21,7 +21,7 @@ import * as metrics from './metrics.js';
 import { prefix } from './cache-keys.js';
 import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, parseTitleSeasonEpisode } from './format.js';
 
-type IndexedRelease = {
+export type IndexedRelease = {
   hash: string;
   title: string;
   size: number | null;

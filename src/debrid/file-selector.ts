@@ -1,5 +1,6 @@
 import { normalizeTitle, parseTitleSeasonEpisode } from '../utils/format.js';
 import type { MaybeError } from './common.js';
+import type { PlayHint } from '../../types/domain.js';
 
 /** Arquivo dentro de um torrent, como cada serviço o reporta. */
 export type DebridFile = { path?: string; size?: number; [k: string]: any };
@@ -80,7 +81,7 @@ function pickWorkFile(files: DebridFile[], { names, year }: { names?: string[]; 
   }
   return null;
 }
-function pickFile(files: DebridFile[], { season, episode, work }: { season?: number | null; episode?: number | null; work?: any } = {}) {
+function pickFile(files: DebridFile[], { season, episode, work }: PlayHint = {}) {
   let videos = files.filter((file) => VIDEO_EXT.test(file.path || '') && !SAMPLE.test(file.path || ''));
   if (videos.length === 0) {
     if (files.length > 0) throw new NoVideoError();

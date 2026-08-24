@@ -13,22 +13,27 @@ import * as log from './logger.js';
 import * as metrics from './metrics.js';
 
 export type NotifySeverity = 'info' | 'warning' | 'error';
+export type NotifyData = Record<string, unknown>;
 
 export interface NotifyPayload {
   event: string;
   severity: NotifySeverity;
   message: string;
-  data: Record<string, any>;
+  data: NotifyData;
   at: string;
 }
 
+function isNotifyData(value: unknown): value is NotifyData {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /** Remove chaves ou propriedades que possam conter credenciais antes de enviar. */
-function sanitizeData(data: Record<string, any> = {}): Record<string, any> {
-  const safe: Record<string, any> = {};
+function sanitizeData(data: NotifyData = {}): NotifyData {
+  const safe: NotifyData = {};
   const forbidden = /api[_-]?key|secret|token|pass|auth/i;
   for (const [k, v] of Object.entries(data)) {
     if (forbidden.test(k)) continue;
-    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+    if (isNotifyData(v)) {
       safe[k] = sanitizeData(v);
     } else {
       safe[k] = v;
@@ -41,7 +46,7 @@ async function notify(
   event: string,
   severity: NotifySeverity,
   message: string,
-  data: Record<string, any> = {},
+  data: NotifyData = {},
 ): Promise<boolean> {
   if (!config.notify.enabled || !config.notify.webhookUrl) return false;
   if (!event || !message) return false;
@@ -78,8 +83,8 @@ async function notify(
       return false;
     }
     return true;
-  } catch (err: any) {
-    log.warn(`[notify] falha ao enviar webhook (${event}):`, err?.message || err);
+  } catch (err: unknown) {
+    log.warn(`[notify] falha ao enviar webhook (${event}):`, log.errorMessage(err));
     return false;
   }
 }

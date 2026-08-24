@@ -1,3 +1,5 @@
+import type { StreamCandidate } from '../../types/domain.js';
+
 function priorityMap(ids: string[] = []) {
   const map: Map<string, number> = new Map();
   ids.forEach((id: string, index: number) => {
@@ -7,13 +9,13 @@ function priorityMap(ids: string[] = []) {
   return map;
 }
 
-function rankFor(stream: any, ranks: Map<string, number>): number {
+function rankFor(stream: StreamCandidate, ranks: Map<string, number>): number {
   const source = String(stream?._indexer || '').trim().toLowerCase();
   return ranks.get(source) ?? Number.MAX_SAFE_INTEGER;
 }
 
 /** Prioridade só desempata dentro da mesma qualidade; busca segue paralela. */
-function compareIndexerPriority(a: any, b: any, ranks: Map<string, number>): number {
+function compareIndexerPriority(a: StreamCandidate, b: StreamCandidate, ranks: Map<string, number>): number {
   if (!ranks || ranks.size === 0) return 0;
   return rankFor(a, ranks) - rankFor(b, ranks);
 }

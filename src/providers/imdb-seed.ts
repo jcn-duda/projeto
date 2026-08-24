@@ -96,8 +96,8 @@ async function nextSeeds(): Promise<SeedEntry[]> {
     try {
       itens = await fetchList(lista.path);
       metrics.count('seed.fetched', itens.length);
-    } catch (err: any) {
-      log.warn(`[seed] lista ${lista.path} falhou:`, err?.message || err);
+    } catch (err: unknown) {
+      log.warn(`[seed] lista ${lista.path} falhou:`, log.errorMessage(err));
       continue;
     }
     for (const item of itens) {
