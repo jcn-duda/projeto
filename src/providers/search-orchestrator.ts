@@ -349,11 +349,45 @@ export async function collectRaw(
   return { items: bucket, partial: !done, completion, sweepInline };
 }
 
-export async function doSearch({ type, id, cacheKey, deadlineAt }: { type: string; id: string; cacheKey: string; deadlineAt: number }) {
+interface SearchProgress {
+  metadataDone: boolean;
+  metadataConsumedProviderBudget: boolean;
+}
+
+export async function doSearch({
+  type,
+  id,
+  cacheKey,
+  deadlineAt,
+  progress,
+}: {
+  type: string;
+  id: string;
+  cacheKey: string;
+  deadlineAt: number;
+  progress?: SearchProgress;
+}) {
   const isDemo = opts().providers.includes('demo');
   const { imdbId, season, episode } = parseStremioId(id);
   // Cinemeta e TMDB em paralelo: o título pt-BR não pode atrasar a busca.
-  const [meta, titles] = await Promise.all([getMeta(type, imdbId), tmdb.getTitles(imdbId)]);
+  const metadataDone = metrics.timed('search.metadata');
+  let metadataComplete = false;
+  let meta: any;
+  let titles: any;
+  try {
+    [meta, titles] = await Promise.all([getMeta(type, imdbId), tmdb.getTitles(imdbId)]);
+    metadataComplete = true;
+  } finally {
+    const endedAt = Date.now();
+    metadataDone();
+    if (progress) {
+      progress.metadataDone = metadataComplete;
+      // Esta é a fronteira do orçamento normal de providers. A coleta ainda
+      // ganha o piso de 500ms para degradar com alguma lista, mas esse piso não
+      // transforma metadata lenta em culpa do indexer.
+      progress.metadataConsumedProviderBudget = endedAt >= deadlineAt - config.debridReserve;
+    }
+  }
   // Cinemeta é a fonte preferida, mas ele volta 404 em título obscuro/regional
   // ou lançamento novo demais — ver `resolveSearchNames`.
   const searchMeta = resolveSearchNames({ meta, titles, imdbId });

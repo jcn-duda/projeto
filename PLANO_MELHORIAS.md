@@ -98,8 +98,8 @@ vez a cada TTL, e em toda busca enquanto o endpoint estivesse fora do ar. O
 refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado,
 com teto pelo `DEBRID_CHECK_FLOOR_MS`.
 
-**O que continua aberto:** fase 0 (parcialmente — ver abaixo), item 4.2 e
-fase 6. A fase 5 foi concluída: 5.1 e 5.3 em 2026-08-23; 5.2, 5.4 e 5.5 em
+**O que continua aberto:** fase 0 (parcialmente — ver abaixo) e fase 6. A fase
+4 foi concluída em 2026-08-24; a fase 5 foi concluída: 5.1 e 5.3 em 2026-08-23; 5.2, 5.4 e 5.5 em
 2026-08-24; 5.6 e 5.7 em 2026-08-24 (meta por código explícito hoje em 149,
 sem converter payloads externos cegamente). A alegação anterior de 147 não é
 uma métrica válida e foi substituída pelo contador de AST em §5.7.
@@ -226,7 +226,7 @@ compilado. Esforço S–M.
 | # | Tarefa |
 |---|---|
 | 4.1 ✅ | Teste com cinemeta lento (2500ms) + TMDB miss (5000ms): resposta NÃO estoura o deadline. `test/search-budget-metadata.test.ts`, mais os dois T5 do `collection-window` |
-| 4.2 | Métrica: `search.deadline` segmentada por causa (metadata vs providers) para o dashboard não culpar o indexer quando o cinemeta comeu o orçamento — avaliar `search.metadata.duration_ms` |
+| 4.2 ✅ | `search.deadline` agora preserva o total e segmenta em `.metadata`/`.providers`. O corte é de metadata também quando ela termina depois da janela normal de coleta (`deadlineAt − debridReserve`): o piso de 500ms pode deixar provider em voo, mas não muda a causa. `search.metadata` é timer (avg/p95/max) no `/metrics.json`, consolidado no `/dashboard-status.json` e exibido no dashboard. Prova: `test/search-budget-metadata.test.ts` reproduz os dois lados, inclusive provider lento depois de metadata que já consumiu seu orçamento. |
 | 4.3 ✅ | Revisar `Math.max(500, …)`: **decisão — manter.** É intencional, não sobra de fatia fixa. `remainingCheckBudget(deadlineAt) − debridReserve` fica negativo quando metadados lentos já corroeram a reserva; sem o piso, `collectRaw` desistiria sem tentar e a resposta sairia known:false/vazia de bandeja. O piso não pode estourar o `replyDeadline`: o `raceWithDeadline` de `findStreams` corta `doSearch` no relógio absoluto (mesmo `deadlineAt`), **independente** do orçamento interno — pior caso é a resposta chegar até 500ms mais perto do corte externo, nunca depois. Trocar por devolver parcial na hora (orçamento 0) não evita corte nenhum (o relógio externo já protege) — só troca uma tentativa real de coleta por known:false garantido, pior para quem usa. Documentado em `src/providers/index.ts` junto do cálculo |
 
 **Risco:** médio — mexe no invariante 1. Qualquer mudança aqui exige releitura
@@ -500,7 +500,7 @@ Fase 0 (docs)      ✅ exceto 0.6 (README)
 Fase 1 (B1,B2)     ✅ + 1.6/1.7 (refresh em fundo, achado da revisão)
 Fase 2 (S*,B3,B4)  ✅ — resíduo menor no 2.4 (rotação + backoff redundantes)
 Fase 3 (T1–T7)     ✅ — GATE da fase 5 satisfeito
-Fase 4             4.1 ✅; 4.2 e 4.3 abertos
+Fase 4             ✅ 4.1–4.3
    │
    └─→ Fase 5 (refactors) ─→ Fase 6 (6.1/6.2 dependem do 5.5)
 ```

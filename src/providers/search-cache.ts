@@ -14,6 +14,9 @@ import { doSearch } from './search-orchestrator.js';
 
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
+// A classificação do deadline é compartilhada com requisições coalescidas: a
+// segunda chamada observa a mesma busca e, portanto, a mesma etapa em voo.
+const inFlightProgress = new Map<string, { metadataDone: boolean; metadataConsumedProviderBudget: boolean }>();
 
 
 // Refresh de fundo do stale-while-revalidate: mapa PRÓPRIO, separado do
@@ -107,14 +110,22 @@ export async function findStreams({ type, id, background }: { type: string; id: 
   const deadlineAt = Date.now() + config.replyDeadline;
 
   let task = inFlight.get(cacheKey);
+  let progress = inFlightProgress.get(cacheKey);
   if (!task) {
     // Mede até a RESPOSTA — que é onde `doSearch` resolve. A coleta pode
     // continuar depois disso (fontes BR não cabem no orçamento), e esse rabo é
     // medido separado, em `search.late`: juntar os dois num número só faria a
     // busca fria parecer lenta e a quente parecer rápida pelo motivo errado.
     const done = metrics.timed('search.response');
-    task = doSearch({ type, id, cacheKey, deadlineAt }).finally(() => {
+    // A causa do corte pertence ao estágio que esgotou o orçamento. Quando os
+    // metadados já consumiram a janela reservada para a coleta, o provider pode
+    // até estar em voo por causa do piso de 500ms, mas não foi ele que roubou
+    // seu orçamento original.
+    progress = { metadataDone: false, metadataConsumedProviderBudget: false };
+    inFlightProgress.set(cacheKey, progress);
+    task = doSearch({ type, id, cacheKey, deadlineAt, progress }).finally(() => {
       inFlight.delete(cacheKey);
+      inFlightProgress.delete(cacheKey);
       done();
     });
     // Se ninguém estiver ouvindo quando ela terminar, o resultado ainda vai pro cache;
@@ -132,6 +143,9 @@ export async function findStreams({ type, id, background }: { type: string; id: 
     // entra no p95 como sucesso lento. Só isto conta quantas vezes o CLIENTE
     // recebeu lista parcial.
     metrics.count('search.deadline');
+    metrics.count(progress?.metadataDone && !progress.metadataConsumedProviderBudget
+      ? 'search.deadline.providers'
+      : 'search.deadline.metadata');
     log.warn(`[search] deadline de ${config.replyDeadline}ms atingido para ${id}; segue em background`);
     // Quarto estado do aviso, e o único que NÃO sai do buildStreams: aqui a busca
     // nem terminou, enquanto os outros três explicam uma lista que ficou vazia

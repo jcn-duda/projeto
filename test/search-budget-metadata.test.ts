@@ -11,6 +11,102 @@ import { findStreams } from '../src/providers/index.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function waitForBackground(ms = 180) {
+  // `findStreams` devolve no deadline, mas deixa a busca completar para aquecer
+  // o cache. Não restaure o fetch antes desse rabo terminar.
+  await sleep(ms);
+}
+
+async function withDeadlineScenario(
+  { metadataDelay, providerDelay }: { metadataDelay: number; providerDelay: number },
+  fn: () => Promise<void>,
+) {
+  const realFetch = globalThis.fetch;
+  const saved = {
+    replyDeadline: config.replyDeadline,
+    debridReserve: config.debridReserve,
+    cinemetaTimeout: config.cinemeta.timeout,
+    tmdbTimeout: config.tmdb.timeout,
+    tmdbKey: config.tmdb.apiKey,
+    jackettUrl: config.jackett.url,
+    jackettApiKey: config.jackett.apiKey,
+  };
+  config.replyDeadline = 120;
+  config.debridReserve = 80;
+  config.cinemeta.timeout = 1000;
+  config.tmdb.timeout = 1000;
+  config.tmdb.apiKey = 'fake-tmdb-key';
+  config.jackett.url = 'http://jackett.test';
+  config.jackett.apiKey = 'fake-jackett-key';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('cinemeta')) {
+      await sleep(metadataDelay);
+      return new Response(JSON.stringify({ meta: { name: 'Big Buck Bunny', year: '2008', type: 'movie' } }), { status: 200 });
+    }
+    if (url.includes('themoviedb.org')) {
+      await sleep(metadataDelay);
+      return new Response(JSON.stringify({ movie_results: [] }), { status: 404 });
+    }
+    if (url.includes('jackett.test')) {
+      await sleep(providerDelay);
+      return new Response(JSON.stringify({ Results: [] }), { status: 200 });
+    }
+    return new Response('', { status: 404 });
+  }) as typeof globalThis.fetch;
+
+  const testOpts = { ...runtime.normalize(null), providers: ['jackett'], jackettIndexers: [], debridService: '', debridApiKey: '' };
+  try {
+    await runtime.run({ opts: testOpts, encoded: `deadline-${metadataDelay}-${providerDelay}` }, fn);
+    await waitForBackground();
+  } finally {
+    globalThis.fetch = realFetch;
+    config.replyDeadline = saved.replyDeadline;
+    config.debridReserve = saved.debridReserve;
+    config.cinemeta.timeout = saved.cinemetaTimeout;
+    config.tmdb.timeout = saved.tmdbTimeout;
+    config.tmdb.apiKey = saved.tmdbKey;
+    config.jackett.url = saved.jackettUrl;
+    config.jackett.apiKey = saved.jackettApiKey;
+    cache.clear();
+  }
+}
+
+test('4.2: deadline após metadata consumir a janela de providers é atribuído a metadata', async () => {
+  cache.clear();
+  metrics.reset();
+  try {
+    await withDeadlineScenario({ metadataDelay: 90, providerDelay: 140 }, async () => {
+      const result = await findStreams({ type: 'movie', id: 'tt1254207' });
+      assert.equal(result.partial, true);
+    });
+    const snapshot = metrics.snapshot();
+    assert.equal(snapshot.counters['search.deadline'], 1);
+    assert.equal(snapshot.counters['search.deadline.metadata'], 1);
+    assert.equal(snapshot.counters['search.deadline.providers'] ?? 0, 0, 'o provider lento não leva culpa quando metadata já consumiu sua janela');
+    assert.equal(snapshot.timers['search.metadata']?.count, 1, 'a duração de metadata entra no diagnóstico');
+  } finally {
+    metrics.reset();
+  }
+});
+
+test('4.2: deadline com metadata dentro da janela é atribuído aos providers', async () => {
+  cache.clear();
+  metrics.reset();
+  try {
+    await withDeadlineScenario({ metadataDelay: 1, providerDelay: 180 }, async () => {
+      const result = await findStreams({ type: 'movie', id: 'tt1254207' });
+      assert.equal(result.partial, true);
+    });
+    const snapshot = metrics.snapshot();
+    assert.equal(snapshot.counters['search.deadline'], 1);
+    assert.equal(snapshot.counters['search.deadline.providers'], 1);
+    assert.equal(snapshot.counters['search.deadline.metadata'] ?? 0, 0);
+  } finally {
+    metrics.reset();
+  }
+});
+
 test('B3: Cinemeta lento (2500ms) + TMDB miss (5000ms) devolve resposta parcial dentro do prazo sem acionar search.deadline', async () => {
   cache.clear();
   metrics.reset();

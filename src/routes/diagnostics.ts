@@ -68,6 +68,7 @@ function makeDiagnosticHandlers(services: AppServices) {
       const metricSnapshot = services.metrics.snapshot();
       const hits = metricSnapshot.counters['cache.hit'] || 0;
       const misses = metricSnapshot.counters['cache.miss'] || 0;
+      const metadataTiming = metricSnapshot.timers['search.metadata'];
       const memory = process.memoryUsage();
       const resolvers = services.brResolvers.RESOLVERS.map((resolver) => ({
         id: resolver.name,
@@ -88,6 +89,13 @@ function makeDiagnosticHandlers(services: AppServices) {
             jackett: indexers.length > 0,
             debrid: Boolean(account?.ok),
             resolvers: resolvers.filter((item) => item.embedded).length,
+          },
+          search: {
+            deadlineMetadata: metricSnapshot.counters['search.deadline.metadata'] || 0,
+            deadlineProviders: metricSnapshot.counters['search.deadline.providers'] || 0,
+            metadataAvgMs: metadataTiming?.avgMs ?? null,
+            metadataP95Ms: metadataTiming?.p95Ms ?? null,
+            metadataMaxMs: metadataTiming?.maxMs ?? null,
           },
         },
         metrics: metricSnapshot,

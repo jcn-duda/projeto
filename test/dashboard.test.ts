@@ -160,6 +160,9 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
       assert.equal(typeof body.general.version, 'string');
       assert.equal(typeof body.general.uptimeS, 'number');
       assert.equal(typeof body.general.memory.rss, 'number');
+      assert.equal(typeof body.general.search.deadlineMetadata, 'number');
+      assert.equal(typeof body.general.search.deadlineProviders, 'number');
+      assert.ok(body.general.search.metadataAvgMs === null || typeof body.general.search.metadataAvgMs === 'number');
       assert.equal(typeof body.cache.entries, 'number');
       assert.equal(typeof body.cache.hitRate, 'number');
       assert.equal(body.cache.persistent, false, 'dashboard lê a persistência centralizada');
@@ -201,6 +204,7 @@ test('dashboard permanece ES5 e renderiza a observabilidade do Magnet DB', () =>
   assert.match(html, /function renderMagnetDb\(data, counters\)/);
   assert.match(html, /debrid\.check\.cached/);
   assert.match(html, /source\.byAdapter/);
+  assert.match(html, /source\.search/);
   assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/);
 });
 
