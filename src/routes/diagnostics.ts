@@ -2,6 +2,7 @@ import { asyncRoute } from './async.js';
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 import { errorMessage } from '../utils/logger.js';
+import { streamsCacheScope } from '../utils/request-key.js';
 
 function releaseIndexStatus(services: AppServices) {
   const counters = services.metrics.snapshot().counters;
@@ -138,9 +139,39 @@ function makeDiagnosticHandlers(services: AppServices) {
     try {
       if (action === 'clear-cache') {
         const entriesBefore = services.cache.size();
-        services.cache.clear();
+        const scope = req.body?.scope;
+        let removed = entriesBefore;
+        let appliedScope: { kind: 'global' | 'namespace' | 'installation'; namespace?: string } = { kind: 'global' };
+        if (scope != null) {
+          if (!scope || typeof scope !== 'object' || Array.isArray(scope)) {
+            return res.status(400).json({ ok: false, error: 'escopo de cache inválido' });
+          }
+          const namespace = typeof scope.namespace === 'string' ? scope.namespace : '';
+          const installation = scope.installation === true;
+          if (namespace && installation) {
+            return res.status(400).json({ ok: false, error: 'escolha namespace ou instalação, não os dois' });
+          }
+          if (namespace) {
+            if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(namespace)) {
+              return res.status(400).json({ ok: false, error: 'namespace de cache inválido' });
+            }
+            removed = services.cache.clearNamespace(namespace);
+            appliedScope = { kind: 'namespace', namespace };
+          } else if (installation) {
+            if (!services.runtime.prefix()) {
+              return res.status(400).json({ ok: false, error: 'escopo por instalação exige URL configurada' });
+            }
+            const suffix = `:${streamsCacheScope(services.runtime.opts())}`;
+            removed = services.cache.clearWhere((key) => key.startsWith('streams:') && key.endsWith(suffix));
+            appliedScope = { kind: 'installation' };
+          } else {
+            return res.status(400).json({ ok: false, error: 'escopo de cache inválido' });
+          }
+        } else {
+          services.cache.clear();
+        }
         services.metrics.count('dashboard.cache.clear');
-        return res.json({ ok: true, action, entriesBefore, entriesAfter: services.cache.size() });
+        return res.json({ ok: true, action, scope: appliedScope, removed, entriesBefore, entriesAfter: services.cache.size() });
       }
       if (action === 'harvester-pause') {
         const paused = services.harvester.setPaused(Boolean(req.body?.paused));

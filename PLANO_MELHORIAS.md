@@ -465,9 +465,8 @@ não é comparável por misturar linhas e texto. Medição atual da AST: **149**
   tipa como `unknown` no ponto de recebimento.
 - **`node:sqlite` sem tipagem no Node 20** — o `require` lazy (compat 20/22)
   não expõe tipos; o `any` documenta o acesso à API que só existe em runtime.
-- **Compatibilidade SDK/Jackett** — superfícies herdadas do
-  `stremio-addon-sdk` e das definitions Cardigann cujo contrato não é
-  verificável por tipo.
+- **Compatibilidade Jackett** — superfícies das definitions Cardigann cujo
+  contrato não é verificável por tipo.
 - **Pools polimórficos** — coleções heterogêneas de fontes/streams de natureza
   distinta, em que a união tipada custaria casts mais frágeis que o `any`
   anotado no ponto de acesso.
@@ -485,11 +484,11 @@ garante que nenhum consumidor quebra no meio.
 
 | # | Tarefa | Nota |
 |---|---|---|
-| 6.1 | Avaliar substituir `stremio-addon-sdk` (parado desde 2019, ~30 transitivas): implementação própria do router (o app já monta Express) | só depois do 5.5 |
-| 6.2 | Dashboard: escopo seletivo de `clear-cache` (por namespace/instalação) | depende do 5.5 |
-| 6.3 | `davail`/fase-3: reavaliar o gate `debrid.check.repeated > 30%` com métricas reais (D2 diz que já existe) | análise, não código |
-| 6.4 | Rate limit no decode de segmento `/<config>/…` (CPU leve, sem observabilidade) | teórico |
-| 6.5 | Healthcheck do Caddy no triplo (hoje coberto só pelo `wait -n`) | operacional |
+| 6.1 ✅ | `stremio-addon-sdk` saiu do runtime: router Express próprio preserva manifest/stream, CORS, `Cache-Control` e mounts raiz/config; SDK ficou em devDeps como referência dos 3 e2e | concluída após 5.5 |
+| 6.2 ✅ | Dashboard: `clear-cache` seletivo por namespace ou pela instalação corrente; sem `scope` preserva limpeza global | concluída após 5.5 |
+| 6.3 ✅ | `davail`: amostra local de 2026-08-24 (uptime 1.822s) teve 112/360 = **31,1%** de hashes repetidos e 186 servidos do L1; acima do gate histórico de 30%, mantém TTLs 900s/120s | análise, sem código |
+| 6.4 ✅ | Decode de config (máximo 8 KB, regex + base64 + JSON) é CPU limitado; risco aceito sem rate limit enquanto não houver abuso observado. `/seal-config` já tem gate próprio | decisão teórica, sem código |
+| 6.5 ✅ | Healthcheck passou a quádruplo: addon, Jackett, FlareSolverr e API admin loopback do Caddy (`:2019/config/`) | operacional |
 
 ---
 

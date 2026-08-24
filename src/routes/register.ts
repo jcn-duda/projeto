@@ -1,19 +1,18 @@
 import express from 'express';
-import sdk from 'stremio-addon-sdk';
 import { makePublicHandlers } from './public.js';
 import { makeDiagnosticHandlers } from './diagnostics.js';
 import { makeResolveHandler } from './resolve.js';
 import { originOf } from './origin.js';
+import { makeAddonRouter } from './addon-router.js';
+import type { AddonInterface } from './addon-router.js';
 import type { AppServices } from './types.js';
-
-const { getRouter } = sdk;
 
 /**
  * Único ponto que monta rotas. A sequência abaixo é contrato: o SDK sem
  * configuração vem antes do overlay, e as rotas específicas vêm antes do SDK
  * com configuração.
  */
-function registerRoutes(app: express.Express, services: AppServices, addonInterface: unknown) {
+function registerRoutes(app: express.Express, services: AppServices, addonInterface: AddonInterface) {
   const publicHandlers = makePublicHandlers(services);
   const diagnosticHandlers = makeDiagnosticHandlers(services);
   const resolveHandler = makeResolveHandler(services);
@@ -35,7 +34,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/resolve/:infoHash', resolveHandler);
 
   app.use((req, _res, next) => services.runtime.run({ origin: originOf(req) }, () => next()));
-  app.use(getRouter(addonInterface));
+  app.use(makeAddonRouter(addonInterface));
 
   app.use('/:userConfig', (req, res, next) => {
     const parsed = services.runtime.decode(req.params.userConfig);
@@ -49,7 +48,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/:userConfig/dashboard-status.json', diagnosticHandlers.dashboardStatus);
   app.post('/:userConfig/dashboard-action.json', express.json({ limit: '4kb' }), diagnosticHandlers.dashboardAction);
   app.get('/:userConfig/resolve/:infoHash', resolveHandler);
-  app.use('/:userConfig', getRouter(addonInterface));
+  app.use('/:userConfig', makeAddonRouter(addonInterface));
 }
 
 export { registerRoutes };

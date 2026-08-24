@@ -1,12 +1,11 @@
 /**
- * Contrato mínimo do `stremio-addon-sdk` — só o que este projeto usa, não uma
- * tipagem completa da lib. O pacote não publica tipos próprios, então o módulo
- * é declarado aqui POR NOME (declaração ambiente) para que o
- * `require('stremio-addon-sdk')` de `src/app.js` tipe em vez de virar `any`.
+ * Contrato mínimo do `stremio-addon-sdk` — só o que os e2e sintéticos usam,
+ * não uma tipagem completa da lib. O pacote não publica tipos próprios; ele
+ * fica em devDependencies como referência do protocolo, enquanto produção usa
+ * o router Express de src/routes/addon-router.ts.
  *
- * `getRouter` devolve `any` de propósito: o router do SDK não casa com os
- * tipos `RequestHandler` do Express, e forçar a compatibilidade só para o
- * `app.use(getRouter(...))` tipar viraria atrito sem ganho real.
+ * `getRouter` devolve `any` de propósito: o router legado não casa com os
+ * tipos `RequestHandler` do Express, e os e2e o montam somente como referência.
  */
 
 declare module 'stremio-addon-sdk' {
@@ -30,9 +29,8 @@ declare module 'stremio-addon-sdk' {
     ): void;
 
     /**
-     * Retorna a interface que o `getRouter` transforma em rotas Express. É
-     * `any` porque `src/addon.js` a muta (`module.exports.manifest =`) e não
-     * modelamos o shape interno do SDK.
+     * Retorna a interface que o `getRouter` transforma em rotas Express. O
+     * shape interno do SDK não é contrato de produção deste projeto.
      */
     getInterface(): any;
   }

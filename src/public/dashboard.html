@@ -231,6 +231,9 @@
       <div class="action-card">
         <h3>Limpar cache</h3>
         <p>Limpa os caches locais do addon. A próxima busca pode ser mais lenta.</p>
+        <label for="cacheNamespace">Escopo</label>
+        <select id="cacheNamespace"><option value="">Todo o cache</option></select>
+        <label id="cacheInstallationLabel"><input id="cacheInstallation" type="checkbox"> Apenas esta instalação</label>
         <button class="danger action-button" type="button" data-action="clear-cache">Executar clear-cache</button>
       </div>
       <div class="action-card"><h3>Colhedor</h3><p id="harvesterActionText">Pausa ou retoma a colheita em fundo sem alterar o .env.</p><button id="harvesterPauseButton" class="action-button" type="button" data-action="harvester-pause">Pausar colhedor</button></div>
@@ -783,7 +786,7 @@
     requestInFlight = true;
     $("refreshButton").className = "is-loading";
     setFeedback("Consultando o estado…", "");
-    requestJson("/dashboard-status.json", { method: "GET", cache: "no-store" })
+    requestJson(dashboardPath("/dashboard-status.json"), { method: "GET", cache: "no-store" })
       .then(function (data) {
         renderStatus(data);
         consecutiveFailures = 0;
@@ -828,6 +831,42 @@
     $("harvesterDrainButton").disabled = !harvest.queueDepth;
     $("testAllIndexersButton").disabled = !asList(root.indexers, "indexers").length;
     $("refreshInventoryButton").disabled = !debrid.active;
+    updateCacheScopes(root);
+  }
+
+  function hasConfiguredInstallation() {
+    var parts = String(window.location.pathname || "").replace(/^\/+|\/+$/g, "").split("/");
+    return parts.length === 2 && parts[1] === "dashboard" && parts[0] !== "dashboard";
+  }
+
+  function dashboardPath(path) {
+    if (!hasConfiguredInstallation()) return path;
+    return "/" + String(window.location.pathname).replace(/^\/+|\/dashboard\/?$/g, "") + path;
+  }
+
+  function updateCacheScopeAvailability() {
+    var available = hasConfiguredInstallation();
+    var checkbox = $("cacheInstallation");
+    checkbox.disabled = !available || Boolean($("cacheNamespace").value);
+    if (checkbox.disabled) checkbox.checked = false;
+    $("cacheInstallationLabel").style.opacity = available ? "1" : "0.55";
+  }
+
+  function updateCacheScopes(root) {
+    var select = $("cacheNamespace");
+    var cache = first(root, ["cache"], {});
+    var namespaces = first(cache, ["namespaces"], {});
+    var current = select.value;
+    var names = Object.keys(namespaces || {}).sort();
+    select.innerHTML = '<option value="">Todo o cache</option>';
+    names.forEach(function (name) {
+      var option = document.createElement("option");
+      option.value = name;
+      option.textContent = "Somente " + name;
+      if (name === current) option.selected = true;
+      select.appendChild(option);
+    });
+    updateCacheScopeAvailability();
   }
 
   function actionLabel(action) {
@@ -852,7 +891,12 @@
       paused: button.getAttribute("data-paused") === "true",
       confirm: true
     };
-    requestJson("/dashboard-action.json", {
+    if (action === "clear-cache") {
+      var namespace = $("cacheNamespace").value;
+      if (namespace) payload.scope = { namespace: namespace };
+      else if ($("cacheInstallation").checked) payload.scope = { installation: true };
+    }
+    requestJson(dashboardPath("/dashboard-action.json"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -899,6 +943,7 @@
     $("refreshRate").addEventListener("change", scheduleRefresh);
     $("token").addEventListener("keydown", function (event) { if (event.key === "Enter") saveToken(); });
     $("testIndexerButton").addEventListener("click", function () { runIndexerTest($("testIndexerId").value, $("testIndexerButton")); });
+    $("cacheNamespace").addEventListener("change", updateCacheScopeAvailability);
     for (i = 0; i < actions.length; i += 1) actions[i].addEventListener("click", function () { runAction(this); });
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) {

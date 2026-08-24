@@ -11,12 +11,16 @@ function accountScope(apiKey: string | null | undefined) {
   return crypto.createHash('sha256').update(String(apiKey), 'utf8').digest('hex');
 }
 
-function streamsCacheKey(type: string, id: string, options: { debridApiKey?: string | null; [key: string]: unknown } = {}) {
+function streamsCacheScope(options: { debridApiKey?: string | null; [key: string]: unknown } = {}) {
   const { debridApiKey, ...shape } = options;
+  return `${JSON.stringify(shape)}:account:${accountScope(debridApiKey)}`;
+}
+
+function streamsCacheKey(type: string, id: string, options: { debridApiKey?: string | null; [key: string]: unknown } = {}) {
   // Matching e plano de queries fazem parte do conteúdo cacheado. O namespace
   // evita que um deploy continue servindo por 15 minutos listas antigas com
   // spin-offs já rejeitados pela versão nova do pipeline.
-  return `${prefix('streams')}${type}:${id}:${JSON.stringify(shape)}:account:${accountScope(debridApiKey)}`;
+  return `${prefix('streams')}${type}:${id}:${streamsCacheScope(options)}`;
 }
 
-export { accountScope, streamsCacheKey };
+export { accountScope, streamsCacheKey, streamsCacheScope };

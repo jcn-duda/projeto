@@ -555,6 +555,27 @@ function clear() {
   }
 }
 
+/** Remove só o namespace pedido, sem esfriar os outros baldes. */
+function clearNamespace(namespace: string) {
+  const wanted = String(namespace || '');
+  if (!wanted) return 0;
+  return clearWhere((key) => namespaceFor(key) === wanted);
+}
+
+/**
+ * Limpeza seletiva para ações operacionais. A varredura é sobre o L1, que é a
+ * fonte das leituras deste processo; forgetMany mantém L1, fila pendente e L2
+ * coerentes na mesma operação.
+ */
+function clearWhere(matches: (key: string) => boolean) {
+  const keys: string[] = [];
+  for (const key of store.keys()) {
+    if (matches(key)) keys.push(key);
+  }
+  forgetMany(keys);
+  return keys.length;
+}
+
 /**
  * Rotina periódica de manutenção do SQLite, chamada em momentos ociosos
  * (ex: tick do colhedor):
@@ -633,5 +654,5 @@ pruneTimer.unref();
 
 export {
   MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany,
-  prune, clear, size, snapshot, peekRemaining, maintain, close,
+  prune, clear, clearNamespace, clearWhere, size, snapshot, peekRemaining, maintain, close,
 };

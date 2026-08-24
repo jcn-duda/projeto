@@ -41,8 +41,10 @@ Praticamente todo trabalho de código acontece no **Adom**.
     como decisão registrada. Onde o dado vem de API de terceiro (`m: any` num
     `.map` sobre resposta de debrid), `any` é a resposta honesta; onde o tipo é
     conhecido, use o tipo.
-- **Três dependências**: `express`, `stremio-addon-sdk`, `dotenv`. Sem lodash,
-  sem axios, sem cheerio — HTTP é `fetch` nativo e HTML é parseado com regex.
+- **Duas dependências de produção**: `express`, `dotenv`. O
+  `stremio-addon-sdk` ficou em `devDependencies` apenas como referência dos e2e;
+  o protocolo em produção usa router Express próprio. Sem lodash, sem axios,
+  sem cheerio — HTTP é `fetch` nativo e HTML é parseado com regex.
   **Não adicione dependências sem necessidade real.**
 - **Dois módulos de processo, papéis distintos:**
   - `src/app.ts` — fábrica do Express (`createApp()`): manifest, stream
@@ -74,9 +76,11 @@ Praticamente todo trabalho de código acontece no **Adom**.
   shim que faz `require('../resolvers/profiles/<nome>')` — a lógica vive no
   `resolvers/` (CommonJS puro), e o `npm run build` copia o diretório inteiro
   para `dist/` junto dos shims.
-- O healthcheck do Dockerfile é **triplo** (`/manifest.json` na 7000 + API do
-  Jackett na 9117 + FlareSolverr na 8191, num `node -e fetch` só) — healthcheck
-  que olha só o addon deixa Jackett ou FlareSolverr morto passar despercebido.
+- O healthcheck do Dockerfile é **quádruplo** (`/manifest.json` na 7000 + API
+  do Jackett na 9117 + FlareSolverr na 8191 + API admin do Caddy na 2019, num
+  `node -e fetch` só). A API do Caddy fica em loopback e prova processo+config
+  sem depender de ACME/DNS; healthcheck que olha só o addon deixa os demais
+  serviços mortos passarem despercebidos.
 - **`ServerConfig.json` vive no volume** `./docker-data/jackett`, não na
   imagem: trocar a imagem não corrige nada lá. O `FlareSolverrUrl` precisa ser
   `http://127.0.0.1:8191` (sed de migração documentado no cabeçalho do
@@ -1249,25 +1253,15 @@ o orçamento com a resposta.
   SxxEyy, varredura, breaker). Chute de regex nesse caminho é a forma mais
   cara de "consertar" um falso positivo.
 - **`overrides.path-to-regexp` no `package.json` fecha um ReDoS de verdade,
-  não ruído de `npm audit`.** `stremio-addon-sdk` traz `router@^1.3.3`, que
-  vendoriza `path-to-regexp@0.1.7` (`<=0.1.12` é vulnerável — 3 advisories de
-  backtracking catastrófico). A rota que o `getRouter` monta —
-  `/:resource(catalog|stream|...)/​:type/​:id/​:extra?.json` — encadeia vários
-  params antes do `.json` e fica exposta em `app.ts` (`app.use(getRouter(...))`
-  e `app.use('/:userConfig', getRouter(...))`) **sem** `basic_auth` por padrão
-  (o `Caddyfile` só protege `/configure` e `/defaults.json`, e comentado). O
-  override força `^0.1.13` (mesma major, já corrigida) em toda a árvore —
-  `router` não muda de API, só de patch. **Não faça `npm audit fix --force`**:
-  ele rebaixa `stremio-addon-sdk` para `0.7.1`, quebra `addonBuilder`/
-  `getRouter` como usados aqui. **Waiver temporário de audit (revisado em
-  2026-08-24):** `tmp@0.0.33` e a cadeia
-  `stremio-addon-sdk@1.6.10 → inquirer@6.5.2 → external-editor@3.1.0 → tmp`
-  permanecem visíveis em `npm audit --omit=dev`, mas não bloqueiam o CI.
-  Nada em `src/` importa `inquirer`; o processo usa somente `addonBuilder` e
-  `getRouter`, logo o caminho de CLI que chama `tmp.dir()` não é carregado.
-  O audit continua no CI para expor advisory novo; qualquer pacote fora desta
-  cadeia exige revisão, e o waiver termina quando houver SDK compatível sem a
-  cadeia ou quando 6.1 o substituir. Não use `npm audit fix --force`.
+  não ruído de `npm audit`.** O Express 4 depende diretamente de
+  `path-to-regexp@~0.1.12` (`<=0.1.12` é vulnerável — 3 advisories de
+  backtracking catastrófico), e o router próprio expõe
+  `/stream/:type/:id/:extra?.json` sem `basic_auth` por padrão. O override
+  força `^0.1.13` (mesma major, já corrigida) em toda a árvore. O
+  `stremio-addon-sdk` ficou apenas em `devDependencies`, como referência nos
+  três e2e que constroem um addon sintético; a cadeia
+  `inquirer → external-editor → tmp` não entra na imagem nem em
+  `npm audit --omit=dev`. Não faça `npm audit fix --force`.
 
 ## Git
 

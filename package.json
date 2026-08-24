@@ -36,8 +36,7 @@
   "license": "MIT",
   "dependencies": {
     "dotenv": "^16.4.7",
-    "express": "^4.22.2",
-    "stremio-addon-sdk": "^1.6.10"
+    "express": "^4.22.2"
   },
   "overrides": {
     "path-to-regexp": "^0.1.13"
@@ -45,6 +44,7 @@
   "devDependencies": {
     "@types/express": "^4.17.25",
     "@types/node": "^22.0.0",
+    "stremio-addon-sdk": "^1.6.10",
     "typescript": "^5.9.3"
   }
 }

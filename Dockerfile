@@ -98,9 +98,10 @@ RUN chmod +x /app/entrypoint.sh
 # expostos só se o compose publicar 127.0.0.1:9117/8191.
 EXPOSE 7000 80 443
 
-# Os TRÊS serviços que a busca precisa: addon, Jackett e FlareSolverr — senão
-# container "healthy" com um deles morto passa despercebido e a busca degrada em
-# silêncio. 302 do Jackett (login) conta como vivo.
+# Os QUATRO serviços da stack: addon, Jackett, FlareSolverr e Caddy. A API
+# administrativa do Caddy fica só no loopback e confirma processo + config sem
+# acoplar o healthcheck ao desafio ACME/DNS do site público. 302 do Jackett
+# (login) conta como vivo.
 #
 # Escopo, pra não confiar demais nisto:
 #  - o HEALTHCHECK sozinho NÃO reinicia nada aqui. `restart: unless-stopped`
@@ -112,6 +113,6 @@ EXPOSE 7000 80 443
 #    no meio de um desafio. Cobrir isso exigiria um request.get real a cada
 #    30s — caro e falso-positivo fácil.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-  CMD node -e "Promise.all(['http://127.0.0.1:7000/manifest.json','http://127.0.0.1:9117/','http://127.0.0.1:8191/'].map(u=>fetch(u,{redirect:'manual'}))).then(rs=>{for(const r of rs)if(!(r.ok||r.status<400))process.exit(1)}).catch(()=>process.exit(1))"
+  CMD node -e "Promise.all(['http://127.0.0.1:7000/manifest.json','http://127.0.0.1:9117/','http://127.0.0.1:8191/','http://127.0.0.1:2019/config/'].map(u=>fetch(u,{redirect:'manual'}))).then(rs=>{for(const r of rs)if(!(r.ok||r.status<400))process.exit(1)}).catch(()=>process.exit(1))"
 
 CMD ["/app/entrypoint.sh"]

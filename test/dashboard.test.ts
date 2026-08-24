@@ -11,7 +11,8 @@ import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 import * as cache from '../src/utils/cache.js';
-import { createTestServer, withMockFetch } from './e2e/e2e-harness.js';
+import { streamsCacheKey } from '../src/utils/request-key.js';
+import { createTestServer, decodeConfig, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
 
 // Adaptador fake gravado no registry real: o clear-cache é puro estado em
 // memória, mas o sweep-dead só devuelve ok:true de verdade se o serviço
@@ -262,6 +263,67 @@ test('POST clear-cache com confirm: true esvazia o cache e devolve a contagem', 
       assert.equal(cache.size(), 0, 'o clear limpió o store de verdade');
     });
   } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+test('POST clear-cache por namespace preserva os outros namespaces', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    cache.set('raw:dashboard-scope', { ok: 1 }, 60);
+    cache.set('idx:dashboard-scope', { ok: 1 }, 60);
+    const res = await server.request('POST', '/dashboard-action.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'clear-cache', confirm: true, scope: { namespace: 'raw' } },
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.json.scope, { kind: 'namespace', namespace: 'raw' });
+    assert.equal(cache.get('raw:dashboard-scope'), null);
+    assert.deepEqual(cache.get('idx:dashboard-scope'), { ok: 1 });
+  } finally {
+    cache.clear();
+    config.jackett.testToken = '';
+  }
+});
+
+test('POST clear-cache por instalação apaga somente streams do segmento corrente', async () => {
+  config.jackett.testToken = TOKEN;
+  const segmentA = encodeConfig({ m: 2, ds: 'sweepfake', dk: 'conta-a' });
+  const segmentB = encodeConfig({ m: 4, ds: 'sweepfake', dk: 'conta-b' });
+  const optionsA = decodeConfig(segmentA);
+  const optionsB = decodeConfig(segmentB);
+  assert.ok(optionsA && optionsB);
+  const keyA = streamsCacheKey('movie', 'tt1000001', optionsA);
+  const keyB = streamsCacheKey('movie', 'tt1000002', optionsB);
+  try {
+    cache.set(keyA, { streams: [] }, 60);
+    cache.set(keyB, { streams: [] }, 60);
+    const res = await server.request('POST', `/${segmentA}/dashboard-action.json`, {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'clear-cache', confirm: true, scope: { installation: true } },
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.json.scope, { kind: 'installation' });
+    assert.equal(cache.get(keyA), null);
+    assert.deepEqual(cache.get(keyB), { streams: [] });
+  } finally {
+    cache.clear();
+    config.jackett.testToken = '';
+  }
+});
+
+test('POST clear-cache rejeita escopo inválido sem apagar entradas', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    cache.set('raw:dashboard-invalid-scope', { ok: 1 }, 60);
+    const res = await server.request('POST', '/dashboard-action.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'clear-cache', confirm: true, scope: { namespace: '../raw' } },
+    });
+    assert.equal(res.status, 400);
+    assert.deepEqual(cache.get('raw:dashboard-invalid-scope'), { ok: 1 });
+  } finally {
+    cache.clear();
     config.jackett.testToken = '';
   }
 });

@@ -527,6 +527,19 @@ test('/debrid-status.json: debrid pendurado solta o assento no prazo e a monitor
   }
 });
 
+test('router do protocolo preserva CORS e responde preflight sem chegar à busca', async () => {
+  const manifest = await server.request('GET', '/manifest.json');
+  assert.equal(manifest.headers.get('access-control-allow-origin'), '*');
+
+  const preflight = await server.request('OPTIONS', '/stream/movie/tt1254207.json', {
+    headers: { 'Access-Control-Request-Headers': 'X-Stremio-Test' },
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), '*');
+  assert.match(String(preflight.headers.get('access-control-allow-methods')), /GET/);
+  assert.equal(preflight.headers.get('access-control-allow-headers'), 'X-Stremio-Test');
+});
+
 test('rotas globais não caem sob o overlay', async () => {
   const manifest = await server.request('GET', '/manifest.json');
   assert.equal(manifest.status, 200);

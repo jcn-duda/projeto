@@ -1,10 +1,8 @@
 import express from 'express';
-import sdk from 'stremio-addon-sdk';
 import { buildServices } from './routes/services.js';
 import { createStreamHandler } from './routes/stream.js';
 import { registerRoutes } from './routes/register.js';
-
-const { addonBuilder } = sdk;
+import { createAddonInterface } from './routes/addon-router.js';
 
 /** Monta o app sem listen, warmup ou carregamento de resolvedores. */
 function createApp() {
@@ -26,9 +24,7 @@ function createApp() {
     catalogs: [],
     behaviorHints: { adult: false, configurable: true, configurationRequired: false },
   };
-  const builder = new addonBuilder(manifest);
-  builder.defineStreamHandler(createStreamHandler(services));
-  const addonInterface = builder.getInterface();
+  const addonInterface = createAddonInterface(manifest, createStreamHandler(services));
   const app = express();
   registerRoutes(app, services, addonInterface);
   return { app, manifest, addonInterface };
