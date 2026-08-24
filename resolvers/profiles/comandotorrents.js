@@ -2,6 +2,7 @@ const http = require('node:http');
 const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createServer: createHttpServer, reply } = require('../http-server');
+const { mapLimit: sharedMapLimit } = require('../concurrency');
 const { followProtectedUrl } = require('../transport');
 const { selectSearchPosts: selectSharedSearchPosts } = require('../search-posts');
 const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
@@ -12,6 +13,7 @@ const {
   escapeHtml,
   parseSize,
   attribute,
+  extractMetaRefresh,
 } = require('../text');
 const {
   normalizeFilterText,
@@ -240,25 +242,6 @@ function extractMagnet(html) {
   return null;
 }
 
-function extractMetaRefresh(html) {
-  if (!html) return null;
-  const metaTags = String(html).match(/<meta\b[^>]*>/gi) || [];
-  for (const tag of metaTags) {
-    const isRefresh = /\bhttp-equiv\s*=\s*["']?refresh["']?/i.test(tag);
-    if (!isRefresh) continue;
-    const contentMatch = tag.match(/\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
-    if (!contentMatch) continue;
-    const rawContent = contentMatch[1] ?? contentMatch[2] ?? contentMatch[3] ?? '';
-    const content = decodeEntities(rawContent);
-    const urlMatch = content.match(/\burl\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s;]+))/i);
-    if (urlMatch) {
-      let target = (urlMatch[1] || urlMatch[2] || urlMatch[3] || '').trim();
-      target = target.replace(/^['"]|['"]$/g, '');
-      if (target) return decodeEntities(target);
-    }
-  }
-  return null;
-}
 
 function nextProtectedUrl(html, baseUrl) {
   if (!html) return null;
@@ -567,19 +550,7 @@ async function resolveButton(postUrl, index, hash, count) {
 }
 
 async function mapLimit(items, fn) {
-  const output = new Array(items.length);
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
-    while (next < items.length) {
-      const index = next++;
-      try {
-        output[index] = await fn(items[index]);
-      } catch {
-        output[index] = null;
-      }
-    }
-  }));
-  return output.filter(Boolean);
+  return sharedMapLimit(items, CONCURRENCY, fn);
 }
 
 function releaseTitle(post, link, index = null) {

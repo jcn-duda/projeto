@@ -3,6 +3,7 @@ const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = requir
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createFlareSessions } = require('../flare');
 const { createServer: createHttpServer, reply } = require('../http-server');
+const { mapLimit: sharedMapLimit } = require('../concurrency');
 const { followProtectedUrl } = require('../transport');
 const { capsXml: sharedCapsXml } = require('../torznab');
 const { selectSearchPosts: selectSharedSearchPosts } = require('../search-posts');
@@ -14,6 +15,7 @@ const {
   parseSize,
   escapeXml,
   escapeHtml,
+  extractMetaRefresh,
 } = require('../text');
 const {
   normalizeFilterText,
@@ -236,25 +238,6 @@ function extractMagnet(html) {
 // duplas, entre aspas simples e sem aspas; url= com aspas aninhadas ou não.
 // O regex inline antigo exigia content entre aspas e url= sem aspas — só
 // cobria um dos casos.
-function extractMetaRefresh(html) {
-  if (!html) return null;
-  const metaTags = String(html).match(/<meta\b[^>]*>/gi) || [];
-  for (const tag of metaTags) {
-    const isRefresh = /\bhttp-equiv\s*=\s*["']?refresh["']?/i.test(tag);
-    if (!isRefresh) continue;
-    const contentMatch = tag.match(/\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
-    if (!contentMatch) continue;
-    const rawContent = contentMatch[1] ?? contentMatch[2] ?? contentMatch[3] ?? '';
-    const content = decodeEntities(rawContent);
-    const urlMatch = content.match(/\burl\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s;]+))/i);
-    if (urlMatch) {
-      let target = (urlMatch[1] || urlMatch[2] || urlMatch[3] || '').trim();
-      target = target.replace(/^['"]|['"]$/g, '');
-      if (target) return decodeEntities(target);
-    }
-  }
-  return null;
-}
 
 function nextProtectedUrl(html, baseUrl) {
   if (!html) return null;
@@ -778,21 +761,9 @@ function parsePosts(html) {
 // Preserva a ordem do feed: out.push na conclusão fazia a ordem variar entre
 // chamadas conforme o timing da rede, e o Stremio reordena a lista toda vez.
 async function mapLimit(items, fn) {
-  const output = new Array(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(SEARCH_CONCURRENCY, items.length) }, async () => {
-    while (next < items.length) {
-      const index = next++;
-      try {
-        output[index] = await fn(items[index]);
-      } catch (err) {
-        console.warn(`[search] post sem botões (${err.message})`);
-        output[index] = null;
-      }
-    }
+  return sharedMapLimit(items, SEARCH_CONCURRENCY, fn, (err) => {
+    console.warn(`[search] post sem botões (${err.message})`);
   });
-  await Promise.all(workers);
-  return output.filter(Boolean);
 }
 
 // Limpeza do título do post em 7 passos: quem manda são os atributos do

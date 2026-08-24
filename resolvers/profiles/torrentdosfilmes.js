@@ -2,6 +2,8 @@ const http = require('node:http');
 const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createServer: createHttpServer, reply } = require('../http-server');
+const { mapLimit: sharedMapLimit } = require('../concurrency');
+const { followProtectedUrl } = require('../transport');
 const { selectSearchPosts: selectSharedSearchPosts } = require('../search-posts');
 const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
 const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
@@ -11,6 +13,7 @@ const {
   parseSize,
   escapeXml,
   attribute,
+  extractMetaRefresh: sharedExtractMetaRefresh,
 } = require('../text');
 const {
   normalizeFilterText,
@@ -261,43 +264,11 @@ function parseDownloadLinks(html) {
 }
 
 async function fetchFollowingAllowed(value, referer) {
-  if (String(value).startsWith('magnet:')) return decodeEntities(value);
-  let current = assertAllowedUrl(value);
-  let previousReferer = referer;
-  for (let hop = 0; hop <= MAX_HOPS; hop += 1) {
-    const response = await fetch(current, {
-      redirect: 'manual',
-      headers: {
-        'User-Agent': USER_AGENT,
-        Accept: 'text/html,application/xhtml+xml',
-        ...(previousReferer ? { Referer: previousReferer } : {}),
-      },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location');
-      if (!location) throw new Error('missing_redirect');
-      if (location.startsWith('magnet:')) return decodeEntities(location);
-      previousReferer = current.href;
-      current = assertAllowedUrl(new URL(location, current).href);
-      continue;
-    }
-    if (!response.ok) throw new Error(`http_${response.status}`);
-    const html = await response.text();
-    const magnet = extractMagnet(html);
-    if (magnet) return magnet;
-    const next = nextProtectedUrl(html, current.href);
-    if (next) {
-      previousReferer = current.href;
-      current = assertAllowedUrl(next);
-      continue;
-    }
-    const refresh = html.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]+content=["'][^"']*url=([^"'>\s]+)/i);
-    if (!refresh) throw new Error('no_magnet');
-    previousReferer = current.href;
-    current = assertAllowedUrl(new URL(decodeEntities(refresh[1]), current).href);
-  }
-  throw new Error('too_many_redirects');
+  return followProtectedUrl(value, referer, {
+    assertAllowedUrl, decodeEntities, extractMagnet, nextProtectedUrl,
+    extractMetaRefresh: (html) => sharedExtractMetaRefresh(html, decodeEntities),
+    maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS, userAgent: USER_AGENT,
+  });
 }
 
 async function getPostLinks(postUrl) {
@@ -356,19 +327,7 @@ async function resolveBest(postUrl) {
 }
 
 async function mapLimit(items, fn) {
-  const output = new Array(items.length);
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
-    while (next < items.length) {
-      const index = next++;
-      try {
-        output[index] = await fn(items[index]);
-      } catch {
-        output[index] = null;
-      }
-    }
-  }));
-  return output.filter(Boolean);
+  return sharedMapLimit(items, CONCURRENCY, fn);
 }
 
 function releaseTitle(post, link, index = null) {
