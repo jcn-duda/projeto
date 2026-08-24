@@ -1078,8 +1078,14 @@ o orçamento com a resposta.
   (301) e o host novo não estava em `FALLBACK_SITE_SUFFIXES`: toda busca caía
   em `blocked_host` — que o `isNetworkError` exclui de propósito (erro de
   aplicação prova que o host respondeu), então o failover nunca sondava e o
-  sintoma era "0 resultados" para sempre. O domínio novo precisa entrar na
-  allowlist E no default de config (o modo embutido não injeta env ausente).
+  sintoma era "0 resultados" para sempre. O domínio novo precisa entrar em
+  DOIS lugares: a allowlist (`FALLBACK_SITE_SUFFIXES` no
+  `<nome>-resolver/server.js`) e o default em `src/config.ts`
+  (`resolvers.<nome>Url`), que o carregador embutido injeta no `SITE_URL`
+  quando a env falta. Até 2026-08 esse default não era lido por ninguém e o
+  modo embutido caía no default hardcoded do server.js: editar config.ts era
+  um no-op silencioso. O painel também passou a mostrar o host EFETIVO
+  (`activeSite`, do seletor) em vez da env crua.
   O erro agora viaja com o host (`blocked_host:<host>`) e a busca loga warn
   distinto citando-o — fonte BR que só devolve vazio: procure esse warn antes
   de culpar o parser.

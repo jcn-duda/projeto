@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import type { Server } from 'node:http';
 import * as log from './utils/logger.js';
+import config from './config.js';
 
 const _require = createRequire(import.meta.url);
 
@@ -18,12 +19,15 @@ const _require = createRequire(import.meta.url);
  */
 
 const RESOLVERS = [
-  { name: 'bludv', path: '../bludv-resolver/server', port: 8700, siteEnv: 'BLUDV_URL' },
-  { name: 'comandotorrents', path: '../comandotorrents-resolver/server', port: 8701, siteEnv: 'COMANDOTORRENTS_URL' },
-  { name: 'nerdfilmes', path: '../nerdfilmes-resolver/server', port: 8702, siteEnv: 'NERDFILMES_URL' },
-  { name: 'torrentdosfilmes', path: '../torrentdosfilmes-resolver/server', port: 8703, siteEnv: 'TORRENTDOSFILMES_URL' },
+  { name: 'bludv', path: '../bludv-resolver/server', port: 8700, siteEnv: 'BLUDV_URL', siteUrl: config.resolvers.bludvUrl },
+  { name: 'comandotorrents', path: '../comandotorrents-resolver/server', port: 8701, siteEnv: 'COMANDOTORRENTS_URL', siteUrl: config.resolvers.comandotorrentsUrl },
+  { name: 'nerdfilmes', path: '../nerdfilmes-resolver/server', port: 8702, siteEnv: 'NERDFILMES_URL', siteUrl: config.resolvers.nerdfilmesUrl },
+  { name: 'torrentdosfilmes', path: '../torrentdosfilmes-resolver/server', port: 8703, siteEnv: 'TORRENTDOSFILMES_URL', siteUrl: config.resolvers.torrentdosfilmesUrl },
 ];
 const servers: Server[] = [];
+// Módulo carregado de cada resolvedor, para ler o domínio ATIVO deles depois
+// (o failover troca de host em runtime; a env congelada no boot mente).
+const modules = new Map<string, any>();
 
 function load() {
   if (String(process.env.BR_RESOLVERS_EMBEDDED || 'true') !== 'true') {
@@ -46,11 +50,16 @@ function load() {
     process.env.PORT = String(port);
     process.env.SELF_URL = `http://${host}:${port}`;
 
-    // Injeta a URL do site específico no SITE_URL para o módulo filho
-    if (resolver.siteEnv && process.env[resolver.siteEnv]) {
-      process.env.SITE_URL = process.env[resolver.siteEnv];
+    // Injeta a URL do site específico no SITE_URL para o módulo filho. Env
+    // AUSENTE cai no default de config.ts -- e não mais no default hardcoded
+    // dentro do server.js do resolvedor. Enquanto caía lá, trocar o domínio
+    // derrubado em config.ts não tinha efeito nenhum no modo embutido (que é o
+    // padrão): a fonte seguia batendo no host morto, em silêncio.
+    const siteUrl = (resolver.siteEnv && process.env[resolver.siteEnv]) || resolver.siteUrl;
+    if (siteUrl) {
+      process.env.SITE_URL = siteUrl;
       if (resolver.name === 'bludv') {
-        process.env.BLUDV_URL = process.env[resolver.siteEnv];
+        process.env.BLUDV_URL = siteUrl;
       }
     } else {
       delete process.env.SITE_URL;
@@ -66,6 +75,7 @@ function load() {
         const server = mod.createServer().listen(port, '0.0.0.0');
         servers.push(server);
       }
+      modules.set(resolver.name, mod);
       loaded.push(`${resolver.name}:${port}`);
     } catch (err) {
       log.warn(`[br] falha ao carregar o resolvedor ${resolver.name}:`, err.message);
@@ -81,6 +91,27 @@ function load() {
   if (loaded.length) log.info(`[br] resolvedores embutidos: ${loaded.join(', ')}`);
 }
 
+/**
+ * Domínio que o resolvedor está REALMENTE usando agora.
+ *
+ * O painel mostrava `process.env[siteEnv]`, que é null quando vale o default
+ * e vira mentira assim que o failover de domínio troca o site em runtime --
+ * justo no diagnóstico de "a fonte BR não responde", onde saber o host real é
+ * a primeira pergunta. O seletor do resolvedor é a única fonte verdadeira;
+ * env e default de config ficam como fallback do modo container separado.
+ */
+function activeSite(name: string): string | null {
+  try {
+    const url = modules.get(name)?.siteSelector?.url?.();
+    if (url) return String(url);
+  } catch {
+    // Resolvedor sem seletor exposto: cai no configurado, abaixo.
+  }
+  const resolver = RESOLVERS.find((item) => item.name === name);
+  if (!resolver) return null;
+  return process.env[resolver.siteEnv] || resolver.siteUrl || null;
+}
+
 /** Fecha sockets embutidos antes do processo sair; seguro para chamadas repetidas. */
 function close() {
   for (const server of servers.splice(0)) {
@@ -93,4 +124,4 @@ function close() {
   }
 }
 
-export { load, close, RESOLVERS };
+export { load, close, activeSite, RESOLVERS };

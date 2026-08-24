@@ -1,4 +1,4 @@
-﻿import { test } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert';
 
 // O filtro estrito de releases BR (matchesBrTitle) existe porque os sites BR

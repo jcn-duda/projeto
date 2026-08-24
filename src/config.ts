@@ -13,6 +13,11 @@ function list(value: unknown) {
     .filter(Boolean);
 }
 
+// Default único do bludv. O resolvedor embutido e o scraper direto leem a
+// MESMA BLUDV_URL; com dois defaults diferentes, quem não define a env fazia
+// os dois buscarem em sites distintos. Trocar de domínio se faz aqui.
+const BLUDV_DEFAULT_URL = 'https://bludvfilmes.xyz';
+
 const config = {
   port: num(process.env.PORT, 7000),
   host: process.env.HOST || '0.0.0.0',
@@ -193,10 +198,14 @@ const config = {
     // 2,5s de rede em toda busca. 0 desliga.
     missTtl: num(process.env.CINEMETA_MISS_TTL, 300),
   },
+  // Defaults dos sites BR. O carregador embutido (src/br-resolvers.ts) injeta
+  // estes valores no SITE_URL de cada resolvedor quando a env não vem do .env,
+  // então É AQUI que se troca um domínio derrubado -- o default hardcoded no
+  // <nome>-resolver/server.js só vale para o modo container separado.
   resolvers: {
     embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
     host: process.env.BR_RESOLVERS_HOST || '127.0.0.1',
-    bludvUrl: (process.env.BLUDV_URL || 'https://bludvfilmes.xyz').replace(/\/$/, ''),
+    bludvUrl: (process.env.BLUDV_URL || BLUDV_DEFAULT_URL).replace(/\/$/, ''),
     comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
     // xnerdfilmes.net migrou para nerdviatorrents.net (301 permanente); o
     // domínio novo precisa estar também na allowlist do resolver, senão o
@@ -207,8 +216,10 @@ const config = {
   },
   bludv: {
     enabled: String(process.env.BLUDV_ENABLED || 'false') === 'true',
-    // bludv.net é o alias estável; o site troca de domínio com frequência.
-    baseUrl: (process.env.BLUDV_URL || 'https://bludv.net').replace(/\/$/, ''),
+    // Mesmo default do resolvedor. O alias antigo (bludv.net) divergia do
+    // primário: sem BLUDV_URL no .env, o scraper direto e o resolvedor
+    // embutido buscavam em sites diferentes.
+    baseUrl: (process.env.BLUDV_URL || BLUDV_DEFAULT_URL).replace(/\/$/, ''),
     dubbedOnly: String(process.env.BLUDV_DUBBED_ONLY || 'true') === 'true',
     maxPosts: num(process.env.BLUDV_MAX_POSTS, 3),
     maxLinksPerPost: num(process.env.BLUDV_MAX_LINKS, 12),

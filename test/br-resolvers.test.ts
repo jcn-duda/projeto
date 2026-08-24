@@ -213,6 +213,37 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
     assert.ok(config.resolvers.torrentdosfilmesUrl);
     assert.ok(Array.isArray(config.resolvers.extraProtectors));
   });
+
+  // A invariante que faltava. `config.resolvers.*Url` não era lido por
+  // ninguém: no modo embutido (o padrão) cada resolvedor caía no default
+  // hardcoded do próprio server.js, então os dois podiam divergir em silêncio
+  // e trocar o domínio em config.ts não mudava nada. Sem env, os dois lados
+  // têm que resolver para o MESMO host.
+  test('o domínio ativo de cada resolvedor bate com o default de config.js', () => {
+    const host = (url: string) => new URL(String(url)).hostname.replace(/^www\./, '');
+    assert.equal(host(bludv.siteSelector.url()), host(config.resolvers.bludvUrl));
+    assert.equal(host(comando.siteSelector.url()), host(config.resolvers.comandotorrentsUrl));
+    assert.equal(host(nerd.siteSelector.url()), host(config.resolvers.nerdfilmesUrl));
+    assert.equal(host(tdf.siteSelector.url()), host(config.resolvers.torrentdosfilmesUrl));
+  });
+
+  // BLUDV_URL alimenta DOIS consumidores: o resolvedor embutido e o scraper
+  // direto (src/providers/bludv.ts). Os defaults tinham divergido
+  // (bludvfilmes.xyz x bludv.net) -- sem a env, cada um buscava em um site.
+  test('bludv: resolvedor embutido e scraper direto apontam para o mesmo site', () => {
+    const host = (url: string) => new URL(String(url)).hostname.replace(/^www\./, '');
+    assert.equal(host(config.bludv.baseUrl), host(config.resolvers.bludvUrl));
+  });
+
+  // O painel mostrava a env crua: null com o default valendo, e o host antigo
+  // depois que o failover troca de domínio.
+  test('activeSite devolve o host configurado mesmo sem env e sem carga', () => {
+    for (const resolver of brResolvers.RESOLVERS) {
+      const active = brResolvers.activeSite(resolver.name);
+      assert.ok(active, `activeSite('${resolver.name}') não pode ser vazio`);
+    }
+    assert.equal(brResolvers.activeSite('inexistente'), null);
+  });
 });
 
 describe('Feature 4: Universal extractMagnet & Link Protector Traversal', () => {

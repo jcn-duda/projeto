@@ -20,7 +20,7 @@ import * as releaseIndex from './utils/release-index.js';
 import harvester from './providers/harvester.js';
 import { accountScope } from './utils/request-key.js';
 import * as magnetdb from './utils/magnetdb.js';
-import { RESOLVERS } from './br-resolvers.js';
+import { RESOLVERS, activeSite } from './br-resolvers.js';
 
 const { addonBuilder, getRouter } = sdk;
 
@@ -494,7 +494,10 @@ function createApp() {
         label: resolver.name,
         port: resolver.port + (Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0),
         embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
-        domain: process.env[resolver.siteEnv] || null,
+        // Host EFETIVO: o seletor pode ter trocado de domínio em runtime, e a
+        // env é null quando vale o default -- o painel mostrava vazio com a
+        // fonte funcionando (ou o host antigo depois do failover).
+        domain: activeSite(resolver.name),
       }));
       return res.json({
         generatedAt: new Date().toISOString(),

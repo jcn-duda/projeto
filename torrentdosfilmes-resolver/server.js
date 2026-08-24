@@ -753,6 +753,8 @@ if (require.main === module) {
 
 module.exports = {
   createServer,
+  // Exposto para o painel ler o domínio ATIVO (o failover troca em runtime).
+  siteSelector,
   parsePosts,
   parseDownloadLinks,
   parseSize,
