@@ -1,5 +1,12 @@
 'use strict';
 
+const BASE_PROTECTOR_SUFFIXES = [
+  'systemads1.com',
+  'systemads.net',
+  'videosad.net',
+  'canalfutebol.com',
+];
+
 function hasAllowedHost(hostname, suffixes) {
   const host = String(hostname || '').toLowerCase();
   return suffixes.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
@@ -14,4 +21,4 @@ function assertAllowedUrl(value, suffixes, blockedHostDetail = false) {
   return url;
 }
 
-module.exports = { hasAllowedHost, assertAllowedUrl };
+module.exports = { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl };

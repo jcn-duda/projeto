@@ -1,9 +1,16 @@
 const http = require('node:http');
-const { parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
+const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createFlareSessions } = require('../flare');
-const { createServer: createHttpServer } = require('../http-server');
-const { assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const { createServer: createHttpServer, reply } = require('../http-server');
+const { BASE_PROTECTOR_SUFFIXES, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const {
+  decodeEntities,
+  stripTags: stripTagsShared,
+  parseSize,
+  escapeXml,
+  escapeHtml,
+} = require('../text');
 const {
   normalizeFilterText,
   stripTrailingYears,
@@ -19,8 +26,6 @@ const {
 const PORT = Number(process.env.PORT || 8700);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
 const MAX_HOPS = 6;
-const USER_AGENT =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36';
 
 // --- Modo indexer Torznab ---
 // SELF_URL é como o JACKETT alcança este serviço (nome DNS na rede Docker);
@@ -96,12 +101,6 @@ const siteSelector = createSharedSiteSelector('[bludv]', process.env.BLUDV_URLS,
 // que o failover escolher, sem restart.
 const CANDIDATE_HOSTS = siteSelector.hosts();
 
-const BASE_PROTECTOR_SUFFIXES = [
-  'systemads1.com',
-  'systemads.net',
-  'videosad.net',
-  'canalfutebol.com',
-];
 
 const EXTRA_PROTECTORS = parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS);
 
@@ -152,21 +151,6 @@ function extractEpisode(text) {
   const last = matches[matches.length - 1];
   const num = Number(last[1] || last[2] || last[3] || last[4]);
   return Number.isFinite(num) ? num : null;
-}
-
-const NAMED_ENTITIES = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
-  hellip: '…', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘',
-  ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
-};
-
-// Genérico: hex, decimal e tabela de nomes. O decode antigo de 4 regras deixava
-// &#8211;/&hellip; vazarem crus pro Jackett (e pro título da release).
-function decodeEntities(value = '') {
-  return String(value)
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
-    .replace(/&([a-z]+);/gi, (whole, name) => NAMED_ENTITIES[name.toLowerCase()] ?? whole);
 }
 
 function assertAllowedUrl(value) {
@@ -312,18 +296,7 @@ function nextProtectedUrl(html, baseUrl) {
   return null;
 }
 
-function stripTags(value = '') {
-  return decodeEntities(String(value).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
-}
-
-/** "3.39 GB" / "897 MB" → bytes. */
-function parseSize(text) {
-  const m = String(text || '').match(/([\d.,]+)\s*(TB|GB|MB|KB)/i);
-  if (!m) return null;
-  const value = Number(m[1].replace(',', '.'));
-  const mult = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[m[2].toUpperCase()];
-  return Number.isFinite(value) ? Math.round(value * mult) : null;
-}
+const stripTags = (value = '') => stripTagsShared(value, decodeEntities);
 
 function getFlareSession(hostname) {
   const hit = flareSessions.get(hostname);
@@ -804,18 +777,6 @@ async function resolveButton(postUrl, index, hash, count) {
 
 // --- Indexer Torznab ---
 
-function escapeXml(value = '') {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/** Mesma saída da escapeXml: serve tanto para XML quanto para HTML (texto/atributo). */
-function escapeHtml(value = '') {
-  return escapeXml(value);
-}
 
 /** Cards da página de busca: div.post > div.title > a + bloco .content com
  * poster (img), "Título Original" e a data de .icon .infos. */
@@ -1207,10 +1168,6 @@ function unwrapResolverUrl(value, seed = {}) {
   return { url, index, hash, count, audio, quality };
 }
 
-function reply(response, status, body, type = 'text/plain; charset=utf-8') {
-  response.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' });
-  response.end(body);
-}
 
 function createServer() {
   return createHttpServer(async (request, response) => {

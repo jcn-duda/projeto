@@ -1,8 +1,15 @@
 const http = require('node:http');
-const { parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
+const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
-const { createServer: createHttpServer } = require('../http-server');
-const { assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const { createServer: createHttpServer, reply } = require('../http-server');
+const { BASE_PROTECTOR_SUFFIXES, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const {
+  decodeEntities,
+  stripTags: stripTagsShared,
+  escapeHtml,
+  parseSize,
+  attribute,
+} = require('../text');
 const {
   normalizeFilterText,
   stripTrailingYears,
@@ -25,7 +32,6 @@ const SEARCH_CACHE_MS = Number(process.env.SEARCH_CACHE_MS || 5 * 60_000);
 const MAGNET_CACHE_MS = Number(process.env.MAGNET_CACHE_MS || 30 * 60_000);
 const SELF_URL = (process.env.SELF_URL || 'http://comandotorrents-resolver:8701').replace(/\/$/, '');
 const SITE_URL = (process.env.SITE_URL || process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, '');
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36';
 
 function parseExtraProtectors(envVal) {
   return runtimeParseExtraProtectors(envVal);
@@ -59,12 +65,6 @@ const siteSelector = createSharedSiteSelector('[comandotorrents]', process.env.C
 // que o failover escolher, sem restart.
 const CANDIDATE_HOSTS = siteSelector.hosts();
 
-const BASE_PROTECTOR_SUFFIXES = [
-  'systemads1.com',
-  'systemads.net',
-  'videosad.net',
-  'canalfutebol.com',
-];
 
 const EXTRA_PROTECTORS = parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS);
 
@@ -111,42 +111,7 @@ function extractEpisode(text) {
   return Number.isFinite(num) ? num : null;
 }
 
-const NAMED_ENTITIES = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
-  hellip: '…', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘',
-  ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
-};
-
-function decodeEntities(value = '') {
-  return String(value)
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
-    .replace(/&([a-z]+);/gi, (whole, name) => NAMED_ENTITIES[name.toLowerCase()] ?? whole);
-}
-
-function stripTags(value = '') {
-  return decodeEntities(String(value).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
-}
-
-function escapeHtml(value = '') {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function attribute(tag, name) {
-  return String(tag).match(new RegExp(`\\b${name}=["']([^"']*)["']`, 'i'))?.[1] || null;
-}
-
-function parseSize(value) {
-  const match = String(value || '').match(/([\d.,]+)\s*(TB|GB|MB|KB)/i);
-  if (!match) return null;
-  const number = Number(match[1].replace(',', '.'));
-  const multiplier = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[match[2].toUpperCase()];
-  return Number.isFinite(number) ? Math.round(number * multiplier) : null;
-}
+const stripTags = (value = '') => stripTagsShared(value, decodeEntities);
 
 function extractQualityToken(raw) {
   const token = String(raw || '').toUpperCase().trim();
@@ -692,10 +657,6 @@ function searchPageHtml(items) {
   return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
 }
 
-function reply(response, status, body, type = 'text/plain; charset=utf-8') {
-  response.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' });
-  response.end(body);
-}
 
 // `seed` são os params da requisição externa: chamada direta
 // (/resolve?url=<post>&i=0&h=..) não tem nível aninhado de onde ler.

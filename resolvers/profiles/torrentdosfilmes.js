@@ -1,8 +1,15 @@
 const http = require('node:http');
-const { parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
+const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
-const { createServer: createHttpServer } = require('../http-server');
-const { assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const { createServer: createHttpServer, reply } = require('../http-server');
+const { BASE_PROTECTOR_SUFFIXES, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const {
+  decodeEntitiesBasic,
+  stripTags: stripTagsShared,
+  parseSize,
+  escapeXml,
+  attribute,
+} = require('../text');
 const {
   normalizeFilterText,
   stripTrailingYears,
@@ -23,8 +30,6 @@ const CONCURRENCY = 3;
 const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
 const SELF_URL = (process.env.SELF_URL || 'http://torrentdosfilmes-resolver:8703').replace(/\/$/, '');
 const SITE_URL = (process.env.SITE_URL || process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, '');
-const USER_AGENT =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36';
 
 function parseExtraProtectors(envVal) {
   return runtimeParseExtraProtectors(envVal);
@@ -58,12 +63,6 @@ const siteSelector = createSharedSiteSelector('[torrentdosfilmes]', process.env.
 // que o failover escolher, sem restart.
 const CANDIDATE_HOSTS = siteSelector.hosts();
 
-const BASE_PROTECTOR_SUFFIXES = [
-  'systemads1.com',
-  'systemads.net',
-  'videosad.net',
-  'canalfutebol.com',
-];
 
 const EXTRA_PROTECTORS = parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS);
 
@@ -92,17 +91,8 @@ siteSelector.onDomainChange(() => {
 // nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
 const UNKNOWN_SIZE = '1 KB';
 
-function decodeEntities(value = '') {
-  return String(value)
-    .replace(/&#0?38;|&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#8217;|&#039;|&apos;/gi, "'")
-    .replace(/&nbsp;/gi, ' ');
-}
-
-function stripTags(value = '') {
-  return decodeEntities(String(value).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
-}
+const decodeEntities = decodeEntitiesBasic;
+const stripTags = (value = '') => stripTagsShared(value, decodeEntities);
 
 function assertAllowedUrl(value) {
   return sharedAssertAllowedUrl(value, ALLOWED_SUFFIXES);
@@ -116,10 +106,6 @@ function isDetailHost(hostname) {
 function isProtectorHost(hostname) {
   const host = String(hostname || '').toLowerCase();
   return ALL_PROTECTOR_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
-}
-
-function attribute(attributes, name) {
-  return String(attributes).match(new RegExp(`\\b${name}=["']([^"']*)["']`, 'i'))?.[1] || null;
 }
 
 function extractMagnet(html) {
@@ -205,14 +191,6 @@ function parsePosts(html) {
     posts.push({ url: new URL(decodeEntities(url), siteSelector.url()).href, title });
   }
   return [...new Map(posts.map((post) => [post.url, post])).values()];
-}
-
-function parseSize(value) {
-  const match = String(value || '').match(/([\d.,]+)\s*(TB|GB|MB|KB)/i);
-  if (!match) return null;
-  const number = Number(match[1].replace(',', '.'));
-  const multiplier = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[match[2].toUpperCase()];
-  return Number.isFinite(number) ? Math.round(number * multiplier) : null;
 }
 
 function cleanPostTitle(title = '') {
@@ -393,10 +371,6 @@ async function mapLimit(items, fn) {
   return output.filter(Boolean);
 }
 
-function escapeXml(value = '') {
-  return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 function releaseTitle(post, link, index = null) {
   const postTitle = typeof post === 'string' ? post : post?.title || '';
   const clean = cleanPostTitle(postTitle);
@@ -473,10 +447,6 @@ function unwrapResolverUrl(value, seed = {}) {
   return { url, index, hash, count };
 }
 
-function reply(response, status, body, type = 'text/plain; charset=utf-8') {
-  response.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' });
-  response.end(body);
-}
 
 // Busca WordPress com nota de saúde para o failover de domínio: sucesso zera
 // o streak; erro de rede (DNS/conexão/timeout) acumula e pode disparar o

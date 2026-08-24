@@ -5,6 +5,7 @@ import bludv from '../bludv-resolver/server.js';
 import comandotorrents from '../comandotorrents-resolver/server.js';
 import nerdfilmes from '../nerdfilmes-resolver/server.js';
 import torrentdosfilmes from '../torrentdosfilmes-resolver/server.js';
+import text from '../resolvers/text.js';
 
 const resolvers = {
   bludv,
@@ -60,3 +61,28 @@ for (const [name, resolver] of Object.entries(resolvers)) {
     });
   });
 }
+
+test('texto comum dos resolvers preserva as variantes de entidades', () => {
+  assert.equal(text.decodeEntities('A&#x26;B &#8211; &hellip; &NDASH; &foo;'), 'A&B – … – &foo;');
+  assert.equal(text.decodeEntitiesBasic('&amp; &quot; &#8217; &#039; &apos; &nbsp; &ndash;'), '& " \' \' \'   &ndash;');
+  assert.equal(text.stripTags(' <b>A&#8211;B</b> <i>&hellip;</i> '), 'A–B …');
+  assert.equal(
+    text.stripTags(' <b>A&#8211;B</b> <i>&hellip;</i> ', text.decodeEntitiesBasic),
+    'A&#8211;B &hellip;',
+  );
+});
+
+test('texto comum dos resolvers preserva tamanho, escaping e atributos', () => {
+  assert.equal(text.parseSize('2,8 GB'), Math.round(2.8 * 1024 ** 3));
+  assert.equal(text.parseSize('invalido'), null);
+  assert.equal(text.escapeXml('&<>"'), '&amp;&lt;&gt;&quot;');
+  assert.equal(text.escapeHtml, text.escapeXml);
+  assert.equal(text.attribute('<a href = "https://site.test/?q=A&amp;B">', 'href'), null);
+  assert.equal(
+    text.attribute('<a href = "https://site.test/?q=A&amp;B">', 'href', {
+      decode: text.decodeEntitiesBasic,
+      allowWhitespace: true,
+    }),
+    'https://site.test/?q=A&B',
+  );
+});
