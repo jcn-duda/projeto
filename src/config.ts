@@ -212,6 +212,14 @@ const config = {
     embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
     host: process.env.BR_RESOLVERS_HOST || '127.0.0.1',
     portOffset: Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0,
+    // As portas também pertencem à infraestrutura do addon. Os profiles
+    // CommonJS recebem-nas pela ponte temporária em br-resolvers.ts.
+    ports: {
+      bludv: 8700,
+      comandotorrents: 8701,
+      nerdfilmes: 8702,
+      torrentdosfilmes: 8703,
+    },
     bludvUrl: (process.env.BLUDV_URL || BLUDV_DEFAULT_URL).replace(/\/$/, ''),
     comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
     // xnerdfilmes.net migrou para nerdviatorrents.net (301 permanente); o

@@ -211,6 +211,12 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
     assert.ok(config.resolvers);
     assert.equal(typeof config.resolvers.embedded, 'boolean');
     assert.ok(config.resolvers.host);
+    assert.deepEqual(config.resolvers.ports, {
+      bludv: 8700,
+      comandotorrents: 8701,
+      nerdfilmes: 8702,
+      torrentdosfilmes: 8703,
+    });
     assert.ok(config.resolvers.bludvUrl);
     assert.ok(config.resolvers.comandotorrentsUrl);
     assert.ok(config.resolvers.nerdfilmesUrl);
@@ -504,17 +510,29 @@ describe('Encerramento: load() sobe os quatro e close() os derruba', () => {
     });
 
   test('as quatro portas respondem depois do load e param depois do close', async () => {
-    const saved = {
-      offset: process.env.BR_RESOLVERS_PORT_OFFSET,
-      host: process.env.BR_RESOLVERS_HOST,
-      embedded: process.env.BR_RESOLVERS_EMBEDDED,
+    const parentEnv = {
+      PORT: process.env.PORT,
+      SELF_URL: process.env.SELF_URL,
+      SITE_URL: process.env.SITE_URL,
+      BLUDV_URL: process.env.BLUDV_URL,
     };
-    process.env.BR_RESOLVERS_PORT_OFFSET = String(OFFSET);
-    process.env.BR_RESOLVERS_HOST = '127.0.0.1';
-    process.env.BR_RESOLVERS_EMBEDDED = 'true';
-
     try {
-      brResolvers.load();
+      brResolvers.load({
+        ...config.resolvers,
+        embedded: true,
+        host: '127.0.0.1',
+        portOffset: OFFSET,
+      });
+      assert.deepEqual(
+        {
+          PORT: process.env.PORT,
+          SELF_URL: process.env.SELF_URL,
+          SITE_URL: process.env.SITE_URL,
+          BLUDV_URL: process.env.BLUDV_URL,
+        },
+        parentEnv,
+        'a ponte CommonJS deve restaurar o ambiente do addon logo após cada require',
+      );
       await new Promise((r) => setTimeout(r, 500));
       assert.deepEqual(
         await Promise.all(PORTAS.map(responde)),
@@ -535,14 +553,6 @@ describe('Encerramento: load() sobe os quatro e close() os derruba', () => {
       assert.doesNotThrow(() => brResolvers.close());
     } finally {
       brResolvers.close();
-      for (const [chave, valor] of Object.entries({
-        BR_RESOLVERS_PORT_OFFSET: saved.offset,
-        BR_RESOLVERS_HOST: saved.host,
-        BR_RESOLVERS_EMBEDDED: saved.embedded,
-      })) {
-        if (valor === undefined) delete process.env[chave];
-        else process.env[chave] = valor;
-      }
     }
   });
 });

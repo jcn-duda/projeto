@@ -19,18 +19,20 @@ const _require = createRequire(import.meta.url);
  */
 
 const RESOLVERS = [
-  { name: 'bludv', path: '../bludv-resolver/server', port: 8700, siteEnv: 'BLUDV_URL', siteUrl: config.resolvers.bludvUrl },
-  { name: 'comandotorrents', path: '../comandotorrents-resolver/server', port: 8701, siteEnv: 'COMANDOTORRENTS_URL', siteUrl: config.resolvers.comandotorrentsUrl },
-  { name: 'nerdfilmes', path: '../nerdfilmes-resolver/server', port: 8702, siteEnv: 'NERDFILMES_URL', siteUrl: config.resolvers.nerdfilmesUrl },
-  { name: 'torrentdosfilmes', path: '../torrentdosfilmes-resolver/server', port: 8703, siteEnv: 'TORRENTDOSFILMES_URL', siteUrl: config.resolvers.torrentdosfilmesUrl },
+  { name: 'bludv', path: '../bludv-resolver/server', port: config.resolvers.ports.bludv, siteEnv: 'BLUDV_URL', siteUrl: config.resolvers.bludvUrl },
+  { name: 'comandotorrents', path: '../comandotorrents-resolver/server', port: config.resolvers.ports.comandotorrents, siteEnv: 'COMANDOTORRENTS_URL', siteUrl: config.resolvers.comandotorrentsUrl },
+  { name: 'nerdfilmes', path: '../nerdfilmes-resolver/server', port: config.resolvers.ports.nerdfilmes, siteEnv: 'NERDFILMES_URL', siteUrl: config.resolvers.nerdfilmesUrl },
+  { name: 'torrentdosfilmes', path: '../torrentdosfilmes-resolver/server', port: config.resolvers.ports.torrentdosfilmes, siteEnv: 'TORRENTDOSFILMES_URL', siteUrl: config.resolvers.torrentdosfilmesUrl },
 ];
 const servers: Server[] = [];
 // Módulo carregado de cada resolvedor, para ler o domínio ATIVO deles depois
 // (o failover troca de host em runtime; a env congelada no boot mente).
 const modules = new Map<string, any>();
 
-function load() {
-  if (String(process.env.BR_RESOLVERS_EMBEDDED || 'true') !== 'true') {
+type ResolverControls = typeof config.resolvers;
+
+function load(controls: ResolverControls = config.resolvers) {
+  if (!controls.embedded) {
     log.info('[br] resolvedores embutidos desligados; esperando os containers separados');
     return;
   }
@@ -41,8 +43,7 @@ function load() {
     SITE_URL: process.env.SITE_URL,
     BLUDV_URL: process.env.BLUDV_URL,
   };
-  const host = process.env.BR_RESOLVERS_HOST || 'addon';
-  const portOffset = Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0;
+  const { host, portOffset } = controls;
   const loaded: string[] = [];
 
   for (const resolver of RESOLVERS) {
@@ -55,7 +56,7 @@ function load() {
     // dentro do server.js do resolvedor. Enquanto caía lá, trocar o domínio
     // derrubado em config.ts não tinha efeito nenhum no modo embutido (que é o
     // padrão): a fonte seguia batendo no host morto, em silêncio.
-    const siteUrl = (resolver.siteEnv && process.env[resolver.siteEnv]) || resolver.siteUrl;
+    const siteUrl = resolver.siteUrl;
     if (siteUrl) {
       process.env.SITE_URL = siteUrl;
       if (resolver.name === 'bludv') {
@@ -109,7 +110,7 @@ function activeSite(name: string): string | null {
   }
   const resolver = RESOLVERS.find((item) => item.name === name);
   if (!resolver) return null;
-  return process.env[resolver.siteEnv] || resolver.siteUrl || null;
+  return resolver.siteUrl || null;
 }
 
 /** Fecha sockets embutidos antes do processo sair; seguro para chamadas repetidas. */

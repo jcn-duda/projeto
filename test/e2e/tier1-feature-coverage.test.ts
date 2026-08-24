@@ -244,13 +244,12 @@ describe('Feature 3: Standardized siteEnv Configuration', () => {
     assert.equal(tdf.siteEnv, 'TORRENTDOSFILMES_URL');
   });
 
-  it('3.2: Configuração de BLUDV_URL é mapeada para process.env.BLUDV_URL no carregador', () => {
+  it('3.2: controles da configuração desligam o carregador sem alterar o ambiente pai', () => {
     const saved = { ...process.env };
     process.env.BLUDV_URL = 'https://custom-bludv.xyz';
-    process.env.BR_RESOLVERS_EMBEDDED = 'false';
 
     try {
-      brResolvers.load();
+      brResolvers.load({ ...config.resolvers, embedded: false });
       assert.equal(process.env.BLUDV_URL, 'https://custom-bludv.xyz');
     } finally {
       process.env = saved;
@@ -275,10 +274,8 @@ describe('Feature 3: Standardized siteEnv Configuration', () => {
     const savedSelfUrl = process.env.SELF_URL;
     process.env.PORT = '7000';
     process.env.SELF_URL = 'http://127.0.0.1:7000';
-    process.env.BR_RESOLVERS_EMBEDDED = 'false';
-
     try {
-      brResolvers.load();
+      brResolvers.load({ ...config.resolvers, embedded: false });
       assert.equal(process.env.PORT, '7000', 'PORT deve ser restaurada');
       assert.equal(process.env.SELF_URL, 'http://127.0.0.1:7000', 'SELF_URL deve ser restaurada');
     } finally {

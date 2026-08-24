@@ -417,13 +417,14 @@ async. Os testes de rota seguem passando por cima do app real (`createApp`).
 O nome de diretório ficou `routes/`, não `app/*-routes.ts` como o plano
 provisório sugeria.
 
-### 5.6 — `process.env` centralizado (A5) — esforço S — PARCIAL
+### 5.6 — `process.env` centralizado (A5) — esforço S — CONCLUÍDO
 
-`config.resolvers.portOffset`, `config.cache.persist`, `config.cache.dbPath`,
-`config.logging.level` e os limiares de conta do debrid já são a fonte dos
-consumidores TypeScript. `br-resolvers.ts` ainda mantém a ponte explícita de
-`process.env` para compatibilidade dos profiles CommonJS, com restauração
-garantida; ela não é alvo de uma troca mecânica.
+`config.resolvers` (inclusive controles de carga, host, offset, portas e URLs
+dos sites), `config.cache.persist`, `config.cache.dbPath`, `config.logging.level`
+e os limiares de conta do debrid são a fonte dos consumidores TypeScript.
+`br-resolvers.ts` mantém apenas a ponte explícita de mutação/restauração de
+`process.env` para compatibilidade dos profiles CommonJS; seus valores vêm de
+`config` e ela não faz leitura de controle do ambiente.
 
 Critério de saída: `git grep -n 'process\.env' -- 'src/**/*.ts'` só pode
 encontrar `config.ts` e a ponte de compatibilidade documentada em

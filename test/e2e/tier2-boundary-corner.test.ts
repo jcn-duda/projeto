@@ -262,15 +262,8 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       }
     });
 
-    it('F03-BND-04: BR_RESOLVERS_EMBEDDED="false" turns off local resolver loading', () => {
-      const orig = process.env.BR_RESOLVERS_EMBEDDED;
-      process.env.BR_RESOLVERS_EMBEDDED = 'false';
-      try {
-        assert.doesNotThrow(() => brResolvers.load());
-      } finally {
-        if (orig === undefined) delete process.env.BR_RESOLVERS_EMBEDDED;
-        else process.env.BR_RESOLVERS_EMBEDDED = orig;
-      }
+    it('F03-BND-04: config.resolvers.embedded=false turns off local resolver loading', () => {
+      assert.doesNotThrow(() => brResolvers.load({ ...config.resolvers, embedded: false }));
     });
 
     it('F03-BND-05: Resolver createServer methods can be instantiated safely', () => {
