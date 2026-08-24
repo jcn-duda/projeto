@@ -44,7 +44,12 @@ test('preset BR recomendado carrega as escolhas comportamentais novas', () => {
   const presets = parseObjectLiteral(match[1]);
 
   const rec = presets.recommended;
-  assert.equal(rec.maxUnknown, 6, 'BR recomendado amplia a cota de sem resolução');
+  // A página passou a ter UM controle de vagas por qualidade no lugar de seis.
+  // O 6 aqui era a cota de 'sem resolução' -- o balde das fontes BR, que não
+  // publicam resolução no título. O controle único herdou esse 6 em vez do 4 das
+  // demais qualidades: uniformizar por baixo cortaria vaga de BR em silêncio.
+  assert.equal(rec.maxPerQuality, 6, 'BR recomendado não pode encolher a cota das fontes sem resolução');
+  assert.equal(presets.powerBr.maxPerQuality, 6, 'Power Movie usa a mesma cota');
   assert.equal(rec.excludeCam, true, 'BR recomendado oculta CAM');
   assert.equal(rec.showUncachedBr, false, 'BR recomendado mantém fora-do-cache escondido');
   assert.equal(rec.autoFetchBr, true, 'BR recomendado liga o autofetch');
@@ -75,6 +80,39 @@ test('URL existente entra no ramo saved e não aplica preset', () => {
   assert.doesNotMatch(savedBranch, /applyPreset/, 'saved branch não pode aplicar preset sobre a URL');
   assert.match(elseBranch, /apply\(initial\)/, 'configure novo parte dos defaults');
   assert.match(elseBranch, /applyPreset\("recommended"\)/, 'configure novo parte do preset recomendado');
+});
+
+// A página é de quem INSTALA o addon, não de quem opera a instância: a escolha
+// de provider (jackett/prowlarr/demo) e o teste de indexador sob demanda saíram
+// daqui -- o teste vive no painel, que já pede o token. Fixar isso evita que
+// eles voltem por hábito na próxima edição.
+test('página não tem escolha de provider nem diagnóstico de indexador', () => {
+  assert.equal(html.includes('id="providers"'), false, 'chips de provider saíram da página');
+  assert.equal(html.includes('id="testIndexers"'), false, 'teste de indexador sai da página');
+  assert.equal(html.includes('id="jackettTestToken"'), false, 'token de teste não pode ficar na página');
+  // Sem chip, mas a fonte de quem já usa outra (prowlarr) não pode ser reescrita:
+  // collect() devolve o que veio do link salvo ou dos defaults da instância.
+  const collect = sliceFunction('collect');
+  assert.ok(collect.includes('cfg[KEYS.providers] = providerChoice;'), 'a fonte viaja intacta');
+  const apply = sliceNamedFunction('apply');
+  assert.ok(apply.includes('providerChoice = state.providers.join(",")'), 'apply guarda a fonte que chegou');
+});
+
+// Um controle no lugar de seis. As SEIS chaves continuam indo na URL: o backend
+// (SCHEMA em src/runtime.js) não mudou e link antigo com cotas diferentes ainda
+// abre -- apply() mostra a maior delas para nenhuma vaga sumir sem o usuário pedir.
+test('vagas por qualidade são um controle só, e ele alimenta as seis chaves', () => {
+  assert.match(html, /id="maxPerQuality"/, 'o controle único precisa existir');
+  ['max2160p', 'max1080p', 'max720p', 'max480p', 'maxSd', 'maxUnknown'].forEach((id) => {
+    assert.equal(html.includes('id="' + id + '"'), false, id + ' não pode ter controle próprio');
+  });
+  const collect = sliceFunction('collect');
+  assert.match(collect, /var perQuality = Number\(el\.maxPerQuality\.value\);/);
+  ['max2160p', 'max1080p', 'max720p', 'max480p', 'maxSd', 'maxUnknown'].forEach((key) => {
+    assert.ok(collect.includes('cfg[KEYS.' + key + '] = perQuality;'), key + ' recebe o valor único');
+  });
+  const apply = sliceNamedFunction('apply');
+  assert.match(apply, /el\.maxPerQuality\.value = Math\.max\(/, 'link antigo entra pela maior cota');
 });
 
 test('copy do autofetch e aviso AllDebrid acompanham o código', () => {

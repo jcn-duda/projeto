@@ -496,31 +496,6 @@
   .btn-ghost.ok { border-color: var(--accent); color: var(--accent); }
   .btn[disabled] { opacity: .55; cursor: progress; }
 
-  /* ---------- teste de indexador ---------- */
-  .test-bar {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    margin-top: 16px;
-  }
-  .test-bar .field-hint { flex: 1; min-width: 200px; margin: 0; }
-
-  .test-token-field { margin-top: 18px; }
-  .test-token-field .field-hint { margin-bottom: 0; }
-
-  .test-line {
-    display: flex; align-items: baseline; gap: 10px;
-    padding: 8px 0;
-    border-top: 1px solid var(--border);
-    font-size: 13px;
-  }
-  .test-line:first-child { margin-top: 12px; }
-  .test-line .name { flex: 1; min-width: 0; font-weight: 600; word-break: break-word; }
-  .test-line .verdict { flex-shrink: 0; font-weight: 650; }
-  .test-line.ok .verdict { color: var(--accent); }
-  .test-line.fail .verdict { color: var(--muted); }
-  .test-line.warn .verdict { color: var(--accent); }
-  .test-line.pending .verdict { color: var(--muted); }
-  .test-line .detail { flex-shrink: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
-
   footer {
     margin-top: 34px;
     color: var(--muted);
@@ -553,7 +528,7 @@
     <h1 id="addonName"></h1>
     <p class="tagline">Torrents self-hosted com prioridade para conteúdo brasileiro dublado.</p>
     <div class="badges">
-      <span class="badge">Jackett · Prowlarr</span>
+      <span class="badge">Jackett</span>
       <span class="badge" id="debridBadge">Debrid</span>
       <span class="badge">Fontes BR: <b>BLUDV · Comando · NerdFilmes</b></span>
     </div>
@@ -583,12 +558,7 @@
   <section>
     <div class="sec-head">
       <h2>Fontes</h2>
-      <p>De onde os torrents são buscados. As fontes BR entram sempre, em paralelo.</p>
-    </div>
-    <div class="chips" id="providers">
-      <button type="button" class="chip" data-value="jackett">Jackett</button>
-      <button type="button" class="chip" data-value="prowlarr">Prowlarr</button>
-      <button type="button" class="chip" data-value="demo">Demo (teste)</button>
+      <p>Os torrents vêm do Jackett. As fontes BR entram sempre, em paralelo — elas não dependem desta lista.</p>
     </div>
 
     <div class="row">
@@ -599,7 +569,7 @@
       <button type="button" class="switch" id="brFirst" role="switch" aria-checked="true" aria-pressed="true" aria-label="Fontes BR primeiro"></button>
     </div>
 
-    <div id="jackettIndexersSection" hidden>
+    <div id="jackettIndexersSection">
       <div class="sec-head">
         <h2>Indexadores Jackett</h2>
         <p>Escolha quais indexadores serão consultados. Nenhum marcado usa o padrão da instância — ou todos, quando ela usa o agregado do Jackett.</p>
@@ -610,19 +580,6 @@
         <span class="priority-order" id="indexerPriorityOrder">nenhuma marcada</span>
         <span> · desempata resultados dentro da mesma qualidade.</span>
       </div>
-      <div class="field test-token-field" id="testTokenField" hidden>
-        <div class="field-label">
-          <strong>Token de teste</strong>
-          <span class="field-link">JACKETT_TEST_TOKEN</span>
-        </div>
-        <input type="password" id="jackettTestToken" placeholder="token configurado nesta instância" autocomplete="off" spellcheck="false" />
-        <p class="field-hint">Usado somente ao testar sob demanda. Fica apenas na memória desta página e nunca entra na URL ou no armazenamento local.</p>
-      </div>
-      <div class="test-bar">
-        <button type="button" class="btn btn-ghost" id="testIndexers">Testar indexadores</button>
-        <span class="field-hint" id="testHint">Faz uma busca real em cada um, inclusive a resolução do magnet. Indexador BR recebe o título em português; os globais, o original.</span>
-      </div>
-      <div id="indexerTestOut"></div>
     </div>
   </section>
 
@@ -703,58 +660,17 @@
     </div>
 
     <div class="sec-head">
-      <h2>Fontes por qualidade</h2>
-      <p>Limita quantos streams de cada qualidade aparecem: 0 esconde e 100 é sem limite. As cotas contam após o filtro de debrid e o máximo total ainda vale.</p>
+      <h2>Streams por qualidade</h2>
+      <p>Quantos streams de cada qualidade aparecem. O mesmo número vale para todas: 4 = até 4 de 4K, 4 de 1080p, e assim por diante. A cota conta após o filtro de debrid e o máximo total acima ainda vale.</p>
     </div>
 
     <div class="field">
       <div class="field-label">
-        <strong>4K / 2160p</strong>
-         <output id="out2160p">4</output>
+        <strong>Vagas por qualidade</strong>
+        <output id="outPerQuality">6</output>
       </div>
-      <input type="range" id="max2160p" min="0" max="100" step="1" value="4" aria-label="Máximo de streams 4K" />
-    </div>
-
-    <div class="field">
-      <div class="field-label">
-        <strong>1080p</strong>
-         <output id="out1080p">4</output>
-      </div>
-      <input type="range" id="max1080p" min="0" max="100" step="1" value="4" aria-label="Máximo de streams 1080p" />
-    </div>
-
-    <div class="field">
-      <div class="field-label">
-        <strong>720p</strong>
-         <output id="out720p">4</output>
-      </div>
-      <input type="range" id="max720p" min="0" max="100" step="1" value="4" aria-label="Máximo de streams 720p" />
-    </div>
-
-    <div class="field">
-      <div class="field-label">
-        <strong>480p</strong>
-         <output id="out480p">4</output>
-      </div>
-      <input type="range" id="max480p" min="0" max="100" step="1" value="4" aria-label="Máximo de streams 480p" />
-    </div>
-
-    <div class="field">
-      <div class="field-label">
-        <strong>SD</strong>
-         <output id="outSd">4</output>
-      </div>
-      <input type="range" id="maxSd" min="0" max="100" step="1" value="4" aria-label="Máximo de streams SD" />
-      <p class="field-hint">Só o que o título marca como baixa qualidade: DVDRip, SDTV, TS.</p>
-    </div>
-
-    <div class="field">
-      <div class="field-label">
-        <strong>Sem resolução declarada</strong>
-         <output id="outUnknown">4</output>
-      </div>
-      <input type="range" id="maxUnknown" min="0" max="100" step="1" value="4" aria-label="Máximo de streams sem resolução declarada" />
-      <p class="field-hint">Quase sempre fonte BR: os sites não publicam resolução. Zerar aqui esconde as fontes brasileiras.</p>
+      <input type="range" id="maxPerQuality" min="0" max="100" step="1" value="6" aria-label="Máximo de streams por qualidade" />
+      <p class="field-hint">Vale para 4K, 1080p, 720p, 480p, SD e para o que não declara resolução — este último é quase sempre fonte BR, porque os sites brasileiros não publicam resolução no título. 0 esconde tudo; 100 é sem limite.</p>
     </div>
 
     <div class="field">
@@ -914,19 +830,12 @@
 
   var el = {
     presets: $("presets"),
-    providers: $("providers"), qualities: $("qualities"),
-    brFirst: $("brFirst"), jackettIndexersSection: $("jackettIndexersSection"),
+    qualities: $("qualities"),
+    brFirst: $("brFirst"),
     jackettIndexers: $("jackettIndexers"), indexerPriorityOrder: $("indexerPriorityOrder"),
-    testTokenField: $("testTokenField"), jackettTestToken: $("jackettTestToken"),
-    testIndexers: $("testIndexers"), testHint: $("testHint"), indexerTestOut: $("indexerTestOut"),
     brSlots: $("brSlots"), outBr: $("outBr"),
     maxResults: $("maxResults"), outMax: $("outMax"),
-    max2160p: $("max2160p"), out2160p: $("out2160p"),
-    max1080p: $("max1080p"), out1080p: $("out1080p"),
-    max720p: $("max720p"), out720p: $("out720p"),
-    max480p: $("max480p"), out480p: $("out480p"),
-    maxSd: $("maxSd"), outSd: $("outSd"),
-    maxUnknown: $("maxUnknown"), outUnknown: $("outUnknown"),
+    maxPerQuality: $("maxPerQuality"), outPerQuality: $("outPerQuality"),
     maxPerIndexer: $("maxPerIndexer"), outPerIndexer: $("outPerIndexer"),
     debridBadge: $("debridBadge"),
     minSeeders: $("minSeeders"), outSeed: $("outSeed"),
@@ -953,21 +862,27 @@
   // Chave cifrada que veio no link aberto. Fica fora do campo (é um blob opaco)
   // e é reaproveitada se o usuário mexer noutra opção sem colar outra chave.
   var sealedKey = "";
+  // A página não oferece mais escolha de fonte, mas também não pode reescrever a
+  // de quem já usa outra: guarda o que veio do link salvo ou dos defaults da
+  // instância e devolve igual. Só quem chega sem nada disso cai em jackett.
+  var providerChoice = "jackett";
   var INDEXER_STATUS_POLL_MS = 10000;
   var indexerStatusPollInFlight = false;
+  // maxPerQuality: 6 era a cota de "sem resolução", o balde das fontes BR --
+  // elas não publicam resolução no título. Com um controle único no lugar de
+  // seis, descer para o 4 das outras qualidades cortaria vaga de BR em nome da
+  // uniformidade; subir as demais não corta nada e o máximo total (40) manda.
   var PRESET_BEHAVIORS = {
     recommended: {
       brFirst: true, preferDubbed: true, dubbedOnly: true, brOnly: false,
       excludeCam: true, brReservedSlots: 6, maxResults: 40,
-      max2160p: 4, max1080p: 4, max720p: 4, max480p: 4, maxSd: 4,
-      maxUnknown: 6, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
+      maxPerQuality: 6, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
       debridCachedOnly: true, showUncachedBr: false, autoFetchBr: true
     },
     powerBr: {
       brFirst: true, preferDubbed: true, dubbedOnly: true, brOnly: false,
       excludeCam: true, brReservedSlots: 6, maxResults: 40,
-      max2160p: 4, max1080p: 4, max720p: 4, max480p: 4, maxSd: 4,
-      maxUnknown: 6, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
+      maxPerQuality: 6, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
       debridCachedOnly: true, showUncachedBr: true, autoFetchBr: true
     }
   };
@@ -1350,12 +1265,7 @@
     }
     el.brSlots.value = preset.brReservedSlots;
     el.maxResults.value = preset.maxResults;
-    el.max2160p.value = preset.max2160p;
-    el.max1080p.value = preset.max1080p;
-    el.max720p.value = preset.max720p;
-    el.max480p.value = preset.max480p;
-    el.maxSd.value = preset.maxSd;
-    el.maxUnknown.value = preset.maxUnknown;
+    el.maxPerQuality.value = preset.maxPerQuality;
     el.maxPerIndexer.value = preset.maxPerIndexer;
     el.minSeeders.value = preset.minSeeders;
     el.maxSizeGb.value = preset.maxSizeGb;
@@ -1416,15 +1326,21 @@
 
   function collect() {
     var cfg = {};
-    cfg[KEYS.providers] = chipsSelected(el.providers).join(",");
+    // A fonte saiu da página (era configuração de operador, não de quem instala)
+    // e viaja intacta: as fontes BR entram por fora, independente dela.
+    cfg[KEYS.providers] = providerChoice;
     cfg[KEYS.qualities] = chipsSelected(el.qualities).join(",");
     cfg[KEYS.maxResults] = Number(el.maxResults.value);
-    cfg[KEYS.max2160p] = Number(el.max2160p.value);
-    cfg[KEYS.max1080p] = Number(el.max1080p.value);
-    cfg[KEYS.max720p] = Number(el.max720p.value);
-    cfg[KEYS.max480p] = Number(el.max480p.value);
-    cfg[KEYS.maxSd] = Number(el.maxSd.value);
-    cfg[KEYS.maxUnknown] = Number(el.maxUnknown.value);
+    // Um controle, seis cotas. As chaves seguem separadas na URL -- o backend
+    // (SCHEMA em src/runtime.js) não muda e link antigo com cotas diferentes
+    // continua válido.
+    var perQuality = Number(el.maxPerQuality.value);
+    cfg[KEYS.max2160p] = perQuality;
+    cfg[KEYS.max1080p] = perQuality;
+    cfg[KEYS.max720p] = perQuality;
+    cfg[KEYS.max480p] = perQuality;
+    cfg[KEYS.maxSd] = perQuality;
+    cfg[KEYS.maxUnknown] = perQuality;
     cfg[KEYS.maxPerIndexer] = Number(el.maxPerIndexer.value);
     cfg[KEYS.minSeeders] = Number(el.minSeeders.value);
     cfg[KEYS.brReservedSlots] = Number(el.brSlots.value);
@@ -1464,17 +1380,11 @@
     };
     el.outBr.textContent = el.brSlots.value;
     el.outMax.textContent = el.maxResults.value;
-    el.out2160p.textContent = qualityLimitLabel(el.max2160p.value);
-    el.out1080p.textContent = qualityLimitLabel(el.max1080p.value);
-    el.out720p.textContent = qualityLimitLabel(el.max720p.value);
-    el.out480p.textContent = qualityLimitLabel(el.max480p.value);
-    el.outSd.textContent = qualityLimitLabel(el.maxSd.value);
-    el.outUnknown.textContent = qualityLimitLabel(el.maxUnknown.value);
+    el.outPerQuality.textContent = qualityLimitLabel(el.maxPerQuality.value);
     // 0 aqui é "desligado", não "nenhuma" — semântica oposta às cotas acima.
     el.outPerIndexer.textContent = el.maxPerIndexer.value === "0" ? "sem limite" : el.maxPerIndexer.value;
     el.outSeed.textContent = el.minSeeders.value === "0" ? "sem filtro" : el.minSeeders.value;
     el.outMaxSize.textContent = el.maxSizeGb.value === "0" ? "sem limite" : el.maxSizeGb.value + " GB";
-    el.jackettIndexersSection.hidden = chipsSelected(el.providers).indexOf("jackett") === -1;
     renderPriority();
 
     var svc = serviceById(el.debridService.value);
@@ -1570,7 +1480,7 @@
 
   /* ---------- eventos ---------- */
 
-  [el.providers, el.qualities, el.jackettIndexers].forEach(function (group) {
+  [el.qualities, el.jackettIndexers].forEach(function (group) {
     group.addEventListener("click", function (ev) {
       var priority = group === el.jackettIndexers ? ancestorWithClass(ev.target, "priority-btn", group) : null;
       if (priority) {
@@ -1580,21 +1490,11 @@
       }
       var chip = ancestorWithClass(ev.target, "chip", group);
       if (!chip) return;
-      // Fonte é escolha exclusiva por natureza (demo substitui os indexers reais),
-      // mas manter multi permite jackett+prowlarr juntos.
       var value = chip.getAttribute("data-value");
-      if (group === el.providers && value === "demo") {
-        setChips(group, isOn(chip) ? [] : ["demo"]);
-      } else {
-        if (group === el.providers) {
-          var demo = $("providers").querySelector('[data-value="demo"]');
-          if (demo) setOn(demo, false);
-        }
-        setOn(chip, !isOn(chip));
-        if (group === el.jackettIndexers && !isOn(chip)) {
-          var priorityAt = indexerPriority.indexOf(value);
-          if (priorityAt !== -1) indexerPriority.splice(priorityAt, 1);
-        }
+      setOn(chip, !isOn(chip));
+      if (group === el.jackettIndexers && !isOn(chip)) {
+        var priorityAt = indexerPriority.indexOf(value);
+        if (priorityAt !== -1) indexerPriority.splice(priorityAt, 1);
       }
       setPresetChoice("custom");
       render();
@@ -1605,7 +1505,7 @@
     sw.addEventListener("click", function () { setOn(sw, !isOn(sw)); setPresetChoice("custom"); render(); });
   });
 
-  [el.brSlots, el.maxResults, el.max2160p, el.max1080p, el.max720p, el.max480p, el.maxSd, el.maxUnknown, el.maxPerIndexer, el.minSeeders, el.maxSizeGb].forEach(function (r) {
+  [el.brSlots, el.maxResults, el.maxPerQuality, el.maxPerIndexer, el.minSeeders, el.maxSizeGb].forEach(function (r) {
     r.addEventListener("input", function () { setPresetChoice("custom"); render(); });
   });
 
@@ -1667,7 +1567,7 @@
   }
 
   function apply(state) {
-    setChips(el.providers, state.providers || []);
+    if (state.providers && state.providers.length) providerChoice = state.providers.join(",");
     setChips(el.qualities, state.qualities || []);
     setOn(el.brFirst, state.brFirst == null ? true : state.brFirst);
     var selectedJackett = isIdList(state.jackettIndexers)
@@ -1691,12 +1591,13 @@
       if (instanceDefaults && instanceDefaults[name] != null) return instanceDefaults[name];
       return 4;
     };
-    el.max2160p.value = qualityValue("max2160p");
-    el.max1080p.value = qualityValue("max1080p");
-    el.max720p.value = qualityValue("max720p");
-    el.max480p.value = qualityValue("max480p");
-    el.maxSd.value = qualityValue("maxSd");
-    el.maxUnknown.value = qualityValue("maxUnknown");
+    // Link antigo pode trazer as seis cotas diferentes entre si; o controle
+    // único mostra a maior, para nenhuma vaga sumir sem o usuário pedir.
+    el.maxPerQuality.value = Math.max(
+      Number(qualityValue("max2160p")), Number(qualityValue("max1080p")),
+      Number(qualityValue("max720p")), Number(qualityValue("max480p")),
+      Number(qualityValue("maxSd")), Number(qualityValue("maxUnknown"))
+    );
     el.maxPerIndexer.value = state.maxPerIndexer;
     el.minSeeders.value = state.minSeeders;
     el.brSlots.value = state.brReservedSlots;
@@ -1769,117 +1670,12 @@
   /* ---------- teste de indexador ---------- */
 
   // Uma linha por indexador, criada como "testando" e preenchida quando volta.
-  function testLine(id, label) {
-    var line = document.createElement("div");
-    line.className = "test-line pending";
-    line.setAttribute("data-indexer-id", id);
-    var name = document.createElement("span");
-    name.className = "name";
-    name.textContent = label;
-    var verdict = document.createElement("span");
-    verdict.className = "verdict";
-    verdict.textContent = "testando…";
-    var detail = document.createElement("span");
-    detail.className = "detail";
-    line.appendChild(name);
-    line.appendChild(detail);
-    line.appendChild(verdict);
-    el.indexerTestOut.appendChild(line);
-    return { id: id, line: line, verdict: verdict, detail: detail };
-  }
-
-  function statusFromTest(data) {
-    var state;
-    if (data && data.ok) state = data.overBudget ? "slow" : "online";
-    else if (data && data.results) state = "degraded";
-    else state = "offline";
-    return {
-      state: state,
-      ms: data && typeof data.ms === "number" && isFinite(data.ms) && data.ms >= 0 ? data.ms : null,
-      checkedAt: new Date().toISOString()
-    };
-  }
-
-  function showResult(slot, data) {
-    var ok = data && data.ok;
-    setIndexerStatus(slot.id, statusFromTest(data));
-    // "responde mas nao cabe" e um terceiro estado: o indexer esta vivo e ainda
-    // assim nao serve, porque a busca ao vivo o aborta antes de terminar.
-    var over = ok && data.overBudget;
-    slot.line.className = "test-line " + (ok ? (over ? "warn" : "ok") : "fail");
-    if (ok) {
-      slot.verdict.textContent = over
-        ? "lento (" + (data.ms / 1000).toFixed(1) + "s > " + (data.budgetMs / 1000).toFixed(0) + "s)"
-        : "ok";
-      // Sem magnet o resultado é inútil pro addon; o número que importa é esse.
-      slot.detail.textContent =
-        data.withMagnet + "/" + data.results + " com magnet · " + (data.ms / 1000).toFixed(1) + "s" +
-        (data.query ? ' · "' + data.query + '"' : "") +
-        (data.type === "series" ? " (série)" : "");
-      return;
-    }
-    slot.verdict.textContent = "falhou";
-    if (data && data.error) {
-      slot.detail.textContent =
-        data.error + (data.budgetMs ? " · orçamento " + (data.budgetMs / 1000).toFixed(0) + "s" : "");
-    }
-    else if (data && data.results) slot.detail.textContent = data.results + " resultado(s), nenhum magnet";
-    else slot.detail.textContent = "nenhum resultado";
-  }
-
-  function runIndexerTests() {
-    // Testa o que está marcado; nada marcado = todos, que é o mesmo critério da
-    // busca real quando o usuário não escolhe indexador.
-    var ids = chipsSelected(el.jackettIndexers);
-    if (ids.length === 0) ids = allJackettIndexerIds();
-    if (ids.length === 0) return;
-    var token = el.jackettTestToken.value.trim();
-    if (!token) {
-      el.testHint.textContent = "Informe o token de teste para iniciar a verificação. Ele fica somente na memória desta página.";
-      el.jackettTestToken.focus();
-      return;
-    }
-
-    el.testIndexers.disabled = true;
-    el.testIndexers.textContent = "Testando…";
-    el.indexerTestOut.textContent = "";
-
-    var byId = {};
-    jackettIndexers.forEach(function (item) { byId[item.id] = item; });
-
-    // Um por vez de propósito: em paralelo os indexers BR disputam o mesmo
-    // Jackett e o teste mediria a fila, não o indexador. A cadeia de promises
-    // mantém a página em ES5 para os WebViews antigos de TV.
-    var i = 0;
-    function next() {
-      if (i >= ids.length) {
-        el.testIndexers.disabled = false;
-        el.testIndexers.textContent = "Testar indexadores";
-        return;
-      }
-      var item = byId[ids[i]];
-      var slot = testLine(ids[i], (item ? item.label : ids[i]) + (item && item.isBr ? " · BR" : ""));
-      i += 1;
-      fetch("/test-indexer.json?id=" + encodeURIComponent(ids[i - 1]), {
-        headers: { "X-Indexer-Test-Token": token }
-      })
-        .then(function (res) { return res.json(); })
-        .then(function (data) { showResult(slot, data); })
-        .catch(function (err) {
-          showResult(slot, { ok: false, error: String(err && err.message ? err.message : err) });
-        })
-        .then(next);
-    }
-    next();
-  }
-
-  el.testIndexers.addEventListener("click", runIndexerTests);
 
   fetch("/defaults.json")
     .then(function (r) { return r.json(); })
     .catch(function () { return {
       providers: ["jackett"], qualities: [], maxResults: 40, minSeeders: 1,
-       max2160p: 4, max1080p: 4, max720p: 4, max480p: 4, maxSd: 4, maxUnknown: 4, maxPerIndexer: 0,
+       max2160p: 6, max1080p: 6, max720p: 6, max480p: 6, maxSd: 6, maxUnknown: 6, maxPerIndexer: 0,
        brReservedSlots: 6, brOnly: false, dubbedOnly: true,
        preferDubbed: true, excludeCam: false, maxSizeGb: 0,
        brFirst: true, jackettIndexers: [], jackettIndexersSelected: [],
@@ -1897,8 +1693,6 @@
       if (h1) h1.textContent = brand;
       fillServices(defaults.services);
       fillJackettIndexers(defaults.jackettIndexers);
-      el.testIndexers.hidden = !defaults.indexerTestEnabled;
-      el.testTokenField.hidden = !defaults.indexerTestEnabled;
       var saved = fromUrl();
       var initial = mergeState({}, defaults);
       // O catálogo ocupa o mesmo nome da opção no JSON de defaults, mas não é
