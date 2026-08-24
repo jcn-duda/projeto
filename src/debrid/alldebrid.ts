@@ -10,7 +10,8 @@ import * as metrics from '../utils/metrics.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import { audioBucket } from '../utils/audio-quality.js';
-import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+import type { InventoryItem, PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+import type { DebridFile } from './file-selector.js';
 
 // v4.1: a AllDebrid descontinuou /v4/magnet/status ("DISCONTINUED"), o que
 // fazia toda resolução falhar com 502. upload e link/unlock respondem em ambas.
@@ -82,6 +83,30 @@ interface PreexistingEntry {
   promise?: Promise<Set<string> | null>;
 }
 
+/**
+ * Linha de `/magnet/status`. Todo campo é opcional de propósito: a forma vem da
+ * API, não do nosso código, e quem usa é que decide o default — daí o
+ * `String(m.hash || '')` repetido nos filtros em vez de confiar no tipo.
+ */
+interface AllDebridMagnet {
+  id?: string | number;
+  hash?: string;
+  status?: string;
+  filename?: string;
+  /** Em segundos, não milissegundos. */
+  uploadDate?: number;
+  size?: number;
+  ready?: boolean;
+}
+
+/** Nó da árvore de arquivos da v4.1: `n` nome, `e` entradas, `s` tamanho, `l` link. */
+interface AllDebridFileNode {
+  n?: string;
+  e?: AllDebridFileNode[];
+  s?: number;
+  l?: string;
+}
+
 const preexisting = new Map<string, PreexistingEntry>();
 // Upload é idempotente e a API não informa se criou ou reaproveitou o magnet.
 // O que este processo submeteu nunca pode virar "preexistente" só porque o
@@ -138,8 +163,8 @@ function knownBefore(apiKey: string, account: string): Set<string> | null {
   preexisting.set(account, loading);
   loading.promise = call(apiKey, '/magnet/status')
     .then((data) => {
-      const list = Array.isArray(data?.magnets) ? data.magnets : [];
-      const snapshot = new Set<string>(list.map((m: any) => String(m.hash || '').toLowerCase()));
+      const list: AllDebridMagnet[] = Array.isArray(data?.magnets) ? data.magnets : [];
+      const snapshot = new Set<string>(list.map((m) => String(m.hash || '').toLowerCase()));
       const ours = submitted.get(account);
       const merged = ours?.size
         ? new Set([...snapshot].filter((hash) => !ours.has(hash)))
@@ -179,7 +204,7 @@ function warmInventory(apiKey: string) {
 const DROP_CONCURRENCY = 4;
 
 async function dropMagnets(apiKey: string, ids: Array<string | number>) {
-  const falhas: any[] = [];
+  const falhas: Array<{ message?: string }> = [];
   let ok = 0;
   const alvo = [...ids];
   const worker = async () => {
@@ -225,20 +250,20 @@ const DEAD = /no peer|expired|not available|error|failed/i;
 async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMinAgeMs } = {}) {
   const account = accountScope(apiKey);
   const data = await call(apiKey, '/magnet/status');
-  const list = Array.isArray(data?.magnets) ? data.magnets : [];
+  const list: AllDebridMagnet[] = Array.isArray(data?.magnets) ? data.magnets : [];
   const limite = Date.now() - Math.max(0, Number(minAgeMs) || 0);
 
-  const alvo = list.filter((m: any) => {
+  const alvo = list.filter((m) => {
     if (!DEAD.test(String(m.status || ''))) return false;
     if (!m.id) return false;
-    if (held.isHeld(m.hash, account)) return false;
+    if (held.isHeld(String(m.hash || ''), account)) return false;
     // uploadDate vem em segundos; sem data, trata como antigo o bastante.
     const quando = Number(m.uploadDate || 0) * 1000;
     return !quando || quando <= limite;
   });
 
   if (!alvo.length) return { varridos: 0, falhas: 0 };
-  const { ok, falhas } = await dropMagnets(apiKey, alvo.map((m: any) => m.id));
+  const { ok, falhas } = await dropMagnets(apiKey, alvo.flatMap((m) => (m.id == null ? [] : [m.id])));
   metrics.count('debrid.swept', ok);
   if (falhas.length) {
     log.warn(
@@ -281,12 +306,12 @@ async function sweepUndubbed(
   }
 
   const data = await call(apiKey, '/magnet/status');
-  const list = Array.isArray(data?.magnets) ? data.magnets : [];
+  const list: AllDebridMagnet[] = Array.isArray(data?.magnets) ? data.magnets : [];
   const limite = Date.now() - Math.max(0, Number(minAgeMs) || 0);
 
-  const alvo = list.filter((m: any) => {
+  const alvo = list.filter((m) => {
     if (!m.id) return false;
-    if (held.isHeld(m.hash, account)) return false;
+    if (held.isHeld(String(m.hash || ''), account)) return false;
     if (preexistentes.has(String(m.hash || '').toLowerCase())) return false;
     if (audioBucket(String(m.filename || '')) !== 'lixo') return false;
     // uploadDate vem em segundos; sem data, não há prova de idade — fica.
@@ -296,11 +321,11 @@ async function sweepUndubbed(
 
   if (!alvo.length) return { varridos: 0, falhas: 0 };
   // Teto por rodada: os mais antigos saem primeiro — o corte pega o resto.
-  alvo.sort((a: any, b: any) => Number(a.uploadDate || 0) - Number(b.uploadDate || 0));
+  alvo.sort((a, b) => Number(a.uploadDate || 0) - Number(b.uploadDate || 0));
   const corte = alvo.slice(0, Math.max(0, Math.trunc(Number(max) || 0)));
   if (!corte.length) return { varridos: 0, falhas: 0 };
 
-  const { ok, falhas } = await dropMagnets(apiKey, corte.map((m: any) => m.id));
+  const { ok, falhas } = await dropMagnets(apiKey, corte.flatMap((m) => (m.id == null ? [] : [m.id])));
   metrics.count('debrid.swept.undubbed', ok);
   if (falhas.length) {
     log.warn(
@@ -407,8 +432,8 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
  * Na v4.1 os arquivos vêm como árvore, não como lista de links: `n` é o nome,
  * `e` são as entradas de uma pasta, e a folha traz `s` (tamanho) e `l` (link).
  */
-function flattenFiles(nodes: any[], prefix = '') {
-  const out: any[] = [];
+function flattenFiles(nodes: AllDebridFileNode[], prefix = ''): DebridFile[] {
+  const out: DebridFile[] = [];
   for (const node of nodes || []) {
     const path = prefix ? `${prefix}/${node.n}` : node.n;
     if (Array.isArray(node.e)) {
@@ -519,7 +544,7 @@ async function accountStatus(apiKey: string) {
     active,
     error,
     oldestAt: magnets.reduce(
-      (min: any, m: any) => (m.uploadDate && (!min || m.uploadDate < min) ? m.uploadDate : min),
+      (min: number | null, m: AllDebridMagnet) => (m.uploadDate && (!min || m.uploadDate < min) ? m.uploadDate : min),
       null,
     ),
   };
@@ -535,8 +560,8 @@ async function accountStatus(apiKey: string) {
  */
 async function inventory(apiKey: string) {
   const data = await call(apiKey, '/magnet/status');
-  const list = Array.isArray(data?.magnets) ? data.magnets : [];
-  const out: any[] = [];
+  const list: AllDebridMagnet[] = Array.isArray(data?.magnets) ? data.magnets : [];
+  const out: InventoryItem[] = [];
   for (const magnet of list) {
     // Mesmo critério de "pronto" do accountStatus: `ready` ou status Ready.
     if (!(magnet.ready || /^ready$/i.test(String(magnet.status || '')))) continue;
@@ -554,7 +579,7 @@ async function inventory(apiKey: string) {
  */
 async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   const data = await call(apiKey, '/magnet/status');
-  const list = Array.isArray(data?.magnets) ? data.magnets : [];
+  const list: AllDebridMagnet[] = Array.isArray(data?.magnets) ? data.magnets : [];
   const out: Record<string, TorrentStatusEntry> = {};
   for (const magnet of list) {
     const hash = String(magnet.hash || '').toLowerCase();
