@@ -99,8 +99,8 @@ refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado
 com teto pelo `DEBRID_CHECK_FLOOR_MS`.
 
 **O que continua aberto:** fase 0 (parcialmente — ver abaixo), item 4.2,
-fase 5 (5.1 e 5.3 concluídas em 2026-08-23; 5.2 e 5.5 concluídas em
-2026-08-24; 5.4/5.6/5.7 parciais) e fase 6.
+fase 5 (5.1 e 5.3 concluídas em 2026-08-23; 5.2, 5.4 e 5.5 concluídas em
+2026-08-24; 5.6/5.7 parciais) e fase 6.
 
 ---
 
@@ -360,29 +360,44 @@ O harness adversarial (`test/empirical-e2e-challenger.ts`) precisou de mais
 MUT-02 (`dedupeByHash` → `stream-ranking.js`), MUT-08 (`limitReservingBr` →
 `stream-quotas.js`) — mesmo padrão do MUT-09/MUT-10 no 5.1.
 
-### 5.4 — Núcleo comum dos resolvers (A4) — esforço M — PARCIAL (2026-08-24)
+### 5.4 ✅ — Núcleo comum dos resolvers (A4) — esforço M — CONCLUÍDA (2026-08-24)
 
-`resolvers/` virou o núcleo CommonJS dos quatro resolvedores do processo
-embutido: `runtime.js`, `site-selector.js`, `cache.js`, `protector.js`,
-`http-server.js` + `flare.js` (passagem Cloudflare/FlareSolverr), com os
-perfis por site em `resolvers/profiles/{bludv,comandotorrents,nerdfilmes,torrentdosfilmes}.js`.
-Cada `<nome>-resolver/server.js` é um shim de compatibilidade que faz
-`require('../resolvers/profiles/<nome>')` e reexporta o módulo, então o
-carregador embutido da `br-resolvers.ts` (caminho histórico
+`resolvers/` é o núcleo CommonJS dos quatro resolvedores do processo
+embutido. Os perfis por site em
+`resolvers/profiles/{bludv,comandotorrents,nerdfilmes,torrentdosfilmes}.js`
+passaram a conter apenas parsers, regras e caches **específicos do site** —
+por desenho, não como duplicação a migrar; cada um carrega o que o núcleo
+comum não deve assumir. Cada `<nome>-resolver/server.js` é um shim de
+compatibilidade que faz `require('../resolvers/profiles/<nome>')` e reexporta
+o módulo, então o carregador embutido da `br-resolvers.ts` (caminho histórico
 `../<nome>-resolver/server`) e os consumidores legados não mudaram.
 `scripts/build-assets.ts` passou a copiar `resolvers/` inteiro para `dist/`
 (junto dos shims), e o `Dockerfile` mantém o núcleo em `/app/resolvers` no
 stage final para inspeção operacional. Testes de parser por site continuam
 apontando para os profiles.
 
-O núcleo de processo foi entregue, mas isto não basta para encerrar A4: os
-profiles ainda retêm lógica repetida. A primeira extração verificável está em
-`resolvers/matching.js` (matching da busca, temporada, listas genéricas e
-identidade de botão), compartilhada pelos quatro profiles. A4 só conclui quando
-as funções comuns restantes tiverem um único dono, os profiles contiverem apenas
-regras de site e um inventário reproduzível provar que não há cópias dessas
-funções nos quatro arquivos. Cada extração preserva os exports dos shims e roda
-o gate completo da fase 5.
+Núcleos compartilhados relevantes em `resolvers/`, com um dono único e sem
+cópia nos profiles:
+
+- **Processo**: `runtime.js`, `site-selector.js` (failover por host),
+  `cache.js` (L1), `http-server.js` e `flare.js` (passagem
+  Cloudflare/FlareSolverr) — núcleo de boot já entregue antes desta
+  conclusão.
+- **Seleção de posts**: `search-posts.js` (pré-filtro de posts e da
+  temporada antes do limite, ordem comum reutilizada pelos quatro profiles).
+- **Documento e texto**: `text.js` (decode de entidades e texto comum das
+  páginas).
+- **Matching e identidade**: `matching.js` (matching da busca, temporada,
+  listas genéricas e identidade de botão — `createHash` de dedupe).
+- **Transporte e protetores**: `transport.js` (cadeia HTTP idêntica de BluDV
+  e ComandoTorrents: `followProtectedUrl`, saltos/protetor de link,
+  `assertAllowedUrl`), `nested-url.js` (desempacotamento da URL envelope do
+  Cardigann em `/resolve`), `torznab.js` (capacidades/`capsXml` dos feeds
+  com formato idêntico) e `protector.js` (allowlist de host).
+
+As quatro extrações desta conclusão rodaram o gate completo da fase 5 e
+preservaram os exports dos shims; parser por site continua nos profiles,
+que é exatamente onde a regra específica deve morar.
 
 ### 5.5 ✅ — Rotas de `app.ts` (A1c) — esforço M — CONCLUÍDA (2026-08-24)
 
