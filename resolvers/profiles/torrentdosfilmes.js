@@ -2,8 +2,9 @@ const http = require('node:http');
 const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createServer: createHttpServer, reply } = require('../http-server');
+const { selectSearchPosts: selectSharedSearchPosts } = require('../search-posts');
 const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
-const { BASE_PROTECTOR_SUFFIXES, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
 const {
   decodeEntitiesBasic,
   stripTags: stripTagsShared,
@@ -100,13 +101,11 @@ function assertAllowedUrl(value) {
 }
 
 function isDetailHost(hostname) {
-  const host = String(hostname || '').toLowerCase();
-  return CANDIDATE_HOSTS.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+  return hasAllowedHost(hostname, CANDIDATE_HOSTS);
 }
 
 function isProtectorHost(hostname) {
-  const host = String(hostname || '').toLowerCase();
-  return ALL_PROTECTOR_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+  return hasAllowedHost(hostname, ALL_PROTECTOR_SUFFIXES);
 }
 
 function extractMagnet(html) {
@@ -389,9 +388,7 @@ function releaseTitle(post, link, index = null) {
 }
 
 function selectSearchPosts(sourceHtml, query, requestedSeason) {
-  let posts = parsePosts(sourceHtml).filter((post) => matchesResolverQuery(post, query));
-  if (requestedSeason) posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
-  return posts.slice(0, MAX_POSTS);
+  return selectSharedSearchPosts(parsePosts, sourceHtml, query, requestedSeason, MAX_POSTS);
 }
 
 function searchPageHtml(items) {

@@ -8,6 +8,8 @@ import torrentdosfilmes from '../torrentdosfilmes-resolver/server.js';
 import text from '../resolvers/text.js';
 import torznab from '../resolvers/torznab.js';
 import nestedUrl from '../resolvers/nested-url.js';
+import searchPosts from '../resolvers/search-posts.js';
+import protector from '../resolvers/protector.js';
 
 const resolvers = {
   bludv,
@@ -116,4 +118,21 @@ test('núcleo Torznab e URLs aninhadas preserva o contrato dos profiles', () => 
   assert.deepEqual(nested, {
     url: 'https://site.test/post/', index: '4', audio: 'dublado', quality: '720',
   });
+});
+
+test('seleção comum filtra título e temporada antes de aplicar o limite', () => {
+  const posts = [
+    { title: 'A Casa do Dragão 1ª Temporada' },
+    { title: 'A Casa do Dragão 2ª Temporada' },
+    { title: 'A Casa do Dragão 2ª Temporada Extra' },
+    { title: 'Outro título 2ª Temporada' },
+  ];
+  const selected = searchPosts.selectSearchPosts(() => posts, '<html>', 'A Casa do Dragão', ['S02', '2'], 1);
+  assert.deepEqual(selected, [{ title: 'A Casa do Dragão 2ª Temporada' }]);
+});
+
+test('matcher comum de hosts preserva domínio e subdomínio permitidos', () => {
+  assert.equal(protector.hasAllowedHost('site.test', ['site.test']), true);
+  assert.equal(protector.hasAllowedHost('cdn.site.test', ['site.test']), true);
+  assert.equal(protector.hasAllowedHost('site.test.evil.test', ['site.test']), false);
 });

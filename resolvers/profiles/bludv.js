@@ -5,8 +5,9 @@ const { createFlareSessions } = require('../flare');
 const { createServer: createHttpServer, reply } = require('../http-server');
 const { followProtectedUrl } = require('../transport');
 const { capsXml: sharedCapsXml } = require('../torznab');
+const { selectSearchPosts: selectSharedSearchPosts } = require('../search-posts');
 const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
-const { BASE_PROTECTOR_SUFFIXES, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
 const {
   decodeEntities,
   stripTags: stripTagsShared,
@@ -161,13 +162,11 @@ function assertAllowedUrl(value) {
 }
 
 function isDetailHost(hostname) {
-  const host = String(hostname || '').toLowerCase();
-  return CANDIDATE_HOSTS.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+  return hasAllowedHost(hostname, CANDIDATE_HOSTS);
 }
 
 function isProtectorHost(hostname) {
-  const host = String(hostname || '').toLowerCase();
-  return ALL_PROTECTOR_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+  return hasAllowedHost(hostname, ALL_PROTECTOR_SUFFIXES);
 }
 
 // Decodifica o valor se vier URL-encoded; protetores publicam o magnet nos dois
@@ -876,9 +875,7 @@ function normalizeQuery(raw) {
 }
 
 function selectSearchPosts(sourceHtml, query, requestedSeason) {
-  let posts = parsePosts(sourceHtml).filter((post) => matchesResolverQuery(post, query));
-  if (requestedSeason) posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
-  return posts.slice(0, MAX_POSTS);
+  return selectSharedSearchPosts(parsePosts, sourceHtml, query, requestedSeason, MAX_POSTS);
 }
 
 /**
