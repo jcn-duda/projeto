@@ -112,9 +112,11 @@ test('limites por qualidade truncam e clampam em 0..100; fora do range cai no de
   assert.equal(normalize({ q4: 12.9 }).max2160p, 12);
   assert.equal(normalize({ q1: -5 }).max1080p, 0);
   assert.equal(normalize({ q7: 999 }).max720p, 100);
-  assert.equal(normalize({ q5: 'abc' }).max480p, 4);
+  // Valor imprestável cai no default DA INSTÂNCIA, não num número fixo: o
+  // default mudou de 4 para 6 quando as seis cotas viraram um controle só.
+  assert.equal(normalize({ q5: 'abc' }).max480p, config.qualityLimits['480p']);
   // null é ignorado na normalização e mantém o default.
-  assert.equal(normalize({ qs: null }).maxSd, 4);
+  assert.equal(normalize({ qs: null }).maxSd, config.qualityLimits.SD);
 });
 
 test('preferDubbed (a) e excludeCam (c) só são true com valores afirmativos', () => {

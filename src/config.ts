@@ -242,13 +242,16 @@ const config = {
   qualityFilter: list(process.env.QUALITY_FILTER),
   minSeeders: num(process.env.MIN_SEEDERS, 1),
   maxResults: num(process.env.MAX_RESULTS, 40),
+  // 6 em todas: a página de configurar tem UM controle para as seis cotas, e
+  // 6 era o número que o balde "unknown" (as fontes BR, que não publicam
+  // resolução) já usava. Uniformizar por baixo encolheria BR sem motivo.
   qualityLimits: {
-    '2160p': num(process.env.MAX_STREAMS_2160P, 4),
-    '1080p': num(process.env.MAX_STREAMS_1080P, 4),
-    '720p': num(process.env.MAX_STREAMS_720P, 4),
-    '480p': num(process.env.MAX_STREAMS_480P, 4),
-    SD: num(process.env.MAX_STREAMS_SD, 4),
-    unknown: num(process.env.MAX_STREAMS_UNKNOWN, 4),
+    '2160p': num(process.env.MAX_STREAMS_2160P, 6),
+    '1080p': num(process.env.MAX_STREAMS_1080P, 6),
+    '720p': num(process.env.MAX_STREAMS_720P, 6),
+    '480p': num(process.env.MAX_STREAMS_480P, 6),
+    SD: num(process.env.MAX_STREAMS_SD, 6),
+    unknown: num(process.env.MAX_STREAMS_UNKNOWN, 6),
   },
   // Teto de streams por indexador no resultado final (0 = sem limite). Impede
   // que uma fonte com muitos resultados ocupe quase todas as vagas. As vagas
@@ -256,7 +259,10 @@ const config = {
   maxPerIndexer: num(process.env.MAX_STREAMS_PER_INDEXER, 0),
   // Quantos candidatos considerar antes do filtro do debrid.
   candidatePoolFactor: num(process.env.CANDIDATE_POOL_FACTOR, 4),
-  // Vagas garantidas para fontes BR dubladas no resultado final.
+  // Vagas garantidas para fontes BR dubladas no resultado final. "Garantidas"
+  // ao pé da letra: elas atravessam a cota por qualidade E o teto por indexador,
+  // e não consomem a cota -- as globais ficam com o balde inteiro delas. Só o
+  // MAX_RESULTS as corta.
   brReservedSlots: num(process.env.BR_RESERVED_SLOTS, 6),
   // Reserva BR POR FAIXA de qualidade: com a reserva global, 1080p BR
   // abundante tomava todas as vagas e a faixa 4K/720p ficava sem BR mesmo

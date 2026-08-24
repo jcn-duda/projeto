@@ -278,6 +278,60 @@ test('limitReservingBr prioriza dublados sobre legendados nas vagas BR', () => {
   assert.deepEqual(outReserved.map((s: any) => (s as any).id), ['global-1', 'br-dub']);
 });
 
+// Medido em Fallout S02E04 com a config real de um usuário: quatro BR dubladas
+// disponíveis, todas 1080p, cota de qualidade em 2 e brReservedSlots em 4 --
+// saíam 2. A página chama isso de "vagas garantidas", então a reserva tem que
+// atravessar a cota do balde, como já atravessava o teto por indexador.
+test('vaga reservada BR atravessa a cota por qualidade', () => {
+  const br = (n: number) => ({ id: 'br-' + n, _br: true, _dubbed: true, _quality: '1080p' }) as any;
+  const global = (n: number) => ({ id: 'g-' + n, _br: false, _dubbed: false, _quality: '1080p' }) as any;
+  const pool = [br(1), br(2), br(3), br(4), global(1), global(2), global(3)];
+
+  const out = limitReservingBr(pool, {
+    brFirst: true,
+    brReservedSlots: 4,
+    qualityLimits: { '1080p': 2 },
+    maxResults: 40,
+  });
+  const ids = out.map((s: any) => s.id);
+  assert.equal(ids.filter((id: string) => id.indexOf('br-') === 0).length, 4, 'as 4 reservadas precisam sair');
+  // A reservada não consome a cota: as globais mantêm as 2 vagas do balde.
+  assert.equal(ids.filter((id: string) => id.indexOf('g-') === 0).length, 2, 'a cota das globais fica intacta');
+
+  // Reserva menor que a oferta: só as 2 reservadas atravessam. Sem brFirst e
+  // com as globais na frente na ordem natural, as outras duas BR disputam a
+  // cota como qualquer uma -- e perdem.
+  const menor = limitReservingBr([global(1), global(2), global(3), br(1), br(2), br(3), br(4)], {
+    brFirst: false,
+    brReservedSlots: 2,
+    qualityLimits: { '1080p': 2 },
+    maxResults: 40,
+  });
+  const idsMenor = menor.map((s: any) => s.id);
+  assert.equal(idsMenor.filter((id: string) => id.indexOf('br-') === 0).length, 2, 'a reserva é o tamanho da isenção');
+  assert.equal(idsMenor.filter((id: string) => id.indexOf('g-') === 0).length, 2, 'globais mantêm a cota');
+
+  // Sem reserva, nada muda: o balde inteiro continua sendo a cota.
+  const semReserva = limitReservingBr(pool, {
+    brFirst: true,
+    brReservedSlots: 0,
+    qualityLimits: { '1080p': 2 },
+    maxResults: 40,
+  });
+  assert.equal(semReserva.length, 2, 'brReservedSlots=0 mantém o comportamento antigo');
+});
+
+test('maxResults continua sendo o teto acima da reserva', () => {
+  const br = (n: number) => ({ id: 'br-' + n, _br: true, _dubbed: true, _quality: '1080p' }) as any;
+  const out = limitReservingBr([br(1), br(2), br(3), br(4)], {
+    brFirst: true,
+    brReservedSlots: 4,
+    qualityLimits: { '1080p': 2 },
+    maxResults: 3,
+  });
+  assert.equal(out.length, 3, 'a reserva fura a cota, nunca o máximo de streams');
+});
+
 test('applyDebrid limita a primeira checagem e mantém resposta não vazia quando cache é desconhecido', async () => {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;

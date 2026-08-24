@@ -1128,7 +1128,10 @@ test('limitReservingBr combina reserva, cotas e máximo sem vazar internos', () 
     maxResults: 3,
     qualityLimits: { '2160p': 1, '1080p': 1 },
   });
-  assert.deepEqual(out.map((s: any) => (s as any).id), ['br-1080-a', 'global-4k']);
+  // brReservedSlots: 2 significa DUAS vagas BR, e elas não são mais cortadas
+  // pela cota de 1080p (que é 1). Antes só uma BR passava e a "reserva de 2"
+  // não valia nada. O maxResults (3) segue sendo o teto de verdade.
+  assert.deepEqual(out.map((s: any) => (s as any).id), ['br-1080-a', 'br-1080-b', 'global-4k']);
   assert.ok(out.every((s) => Object.keys(s).every((key) => !key.startsWith('_'))));
   assert.ok(out.every((s) => !('_indexer' in s)));
 });
@@ -1590,17 +1593,19 @@ test('cota de qualidade não come a fonte BR antes da reserva agir', () => {
     maxResults: 40,
     qualityLimits: limits,
   });
-  assert.deepEqual(first.map((s: any) => (s as any).id), ['br-1080', 'global-a', 'global-b']);
+  // A vaga reservada não consome a cota: a BR entra E as três globais mantêm as
+  // três vagas do balde. Antes a BR ocupava uma delas e a global-c sumia.
+  assert.deepEqual(first.map((s: any) => (s as any).id), ['br-1080', 'global-a', 'global-b', 'global-c']);
 
-  // Sem prioridade visual a BR mantém a posição natural, mas ainda ocupa uma
-  // das três vagas da cota em vez de sumir.
+  // Sem prioridade visual a BR mantém a posição natural e entra ALÉM da cota:
+  // as três globais mais semeadas continuam lá, a BR vem depois delas.
   const natural = limitReservingBr(quotaStreams([...streams]), {
     brFirst: false,
     brReservedSlots: 6,
     maxResults: 40,
     qualityLimits: limits,
   });
-  assert.deepEqual(natural.map((s: any) => (s as any).id), ['global-a', 'global-b', 'br-1080']);
+  assert.deepEqual(natural.map((s: any) => (s as any).id), ['global-a', 'global-b', 'global-c', 'br-1080']);
 
   // Sem reserva pedida e sem prioridade, a cota volta a ser puro seeders.
   const semReserva = limitReservingBr(quotaStreams([...streams]), {

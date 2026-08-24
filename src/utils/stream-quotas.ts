@@ -170,6 +170,11 @@ function limitByQualityAndIndexer(
   maxPerIndexer: number,
   exempt: Set<any>,
   indexerLimits: Record<string, any>,
+  // Vagas reservadas para BR. Elas atravessam a cota do balde de qualidade E
+  // não a consomem: "reservada" precisa significar vaga A MAIS, senão vira
+  // apenas ordem de chegada dentro do mesmo teto -- que é o que era antes, e
+  // fazia `brReservedSlots: 4` render 2 BR quando a cota de 1080p era 2.
+  reservedBr: Set<any> = new Set(),
 ) {
   const qualityCounts = new Map();
   const indexerCounts = new Map();
@@ -182,7 +187,8 @@ function limitByQualityAndIndexer(
       ? Infinity
       : Math.max(0, Math.trunc(rawQualityLimit));
     const qualityCount = qualityCounts.get(quality) || 0;
-    if (qualityCount >= qualityLimit) return false;
+    const reserved = reservedBr.has(stream);
+    if (!reserved && qualityCount >= qualityLimit) return false;
 
     const source = String(stream?._indexer || '').trim().toLowerCase();
     const sourceCount = source ? indexerCounts.get(source) || 0 : 0;
@@ -191,7 +197,10 @@ function limitByQualityAndIndexer(
       : globalLimit;
     if (source && !exempt.has(stream) && sourceLimit && sourceCount >= sourceLimit) return false;
 
-    qualityCounts.set(quality, qualityCount + 1);
+    // A reservada não entra na conta do balde: as globais mantêm a cota inteira
+    // delas e a lista cresce, no máximo, o tamanho da reserva. O teto real
+    // continua sendo maxResults, aplicado no fim de limitReservingBr.
+    if (!reserved) qualityCounts.set(quality, qualityCount + 1);
     if (source) indexerCounts.set(source, sourceCount + 1);
     return true;
   });
@@ -253,14 +262,20 @@ function limitReservingBr(
     .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0))
     .slice(0, reserved);
   const prioritized = new Set(priority);
-  // A isenção da cota por indexador é o TAMANHO DA RESERVA, não todo o pool BR:
-  // com brFirst (default) `priority` é o BR inteiro, e isentá-lo por completo
-  // deixaria o indexador BR sem teto nenhum — o oposto do que a cota faz.
-  // Mesmo critério da reserva mais abaixo (`brStreams.slice`): `_br` puro. O
-  // pool dublado exige infoHash, que um stream já resolvido no debrid não tem —
-  // usá-lo aqui esvaziaria a isenção justamente na lista com play instantâneo.
+  // A reserva é o TAMANHO DE brReservedSlots, não todo o pool BR: com brFirst
+  // (default) `priority` é o BR inteiro, e isentá-lo por completo deixaria o
+  // indexador BR sem teto nenhum — o oposto do que a cota faz. Mesmo critério
+  // da reserva mais abaixo (`brStreams.slice`): `_br` puro. O pool dublado exige
+  // infoHash, que um stream já resolvido no debrid não tem — usá-lo aqui
+  // esvaziaria a isenção justamente na lista com play instantâneo.
+  //
+  // As MESMAS N streams atravessam os DOIS tetos: o por indexador e o por
+  // qualidade. Enquanto só o primeiro existia, a página prometia "vagas
+  // garantidas" e o balde de qualidade cortava em silêncio -- medido em Fallout
+  // S02E04, com quatro BR dubladas disponíveis, cota 1080p em 2 e reserva em 4:
+  // saíam 2. O teto real continua sendo maxResults, no fim desta função.
   const brSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
-  const exemptFromIndexerQuota = new Set(
+  const reservedBr = new Set(
     pool
       .filter((stream) => stream._br)
       .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0))
@@ -271,8 +286,9 @@ function limitReservingBr(
       [...priority, ...pool.filter((stream) => !prioritized.has(stream))],
       qualityLimits,
       maxPerIndexer,
-      exemptFromIndexerQuota,
+      reservedBr,
       indexerLimits,
+      reservedBr,
     ),
   );
   // Volta à ordem original: sem `brFirst` o corte final depende dela.
