@@ -331,26 +331,37 @@ versione `.env`.
 stremio adom/
 ├── src/
 │   ├── addon.ts              # processo: listen, warmup, resolvers, shutdown
-│   ├── app.ts                # fábrica Express: manifest, rotas, /resolve
+│   ├── app.ts                # createApp(): só compõe (manifest + registerRoutes)
 │   ├── config.ts             # .env (padrões do operador)
 │   ├── runtime.ts            # config por usuário na URL (overlay)
 │   ├── br-resolvers.ts       # carrega os *-resolver no processo do addon
+│   ├── routes/               # as rotas de verdade moram aqui
+│   │   ├── register.ts       # único ponto que monta as rotas (ordem importa)
+│   │   ├── addon-router.ts   # protocolo Stremio (substituiu o SDK no runtime)
+│   │   ├── stream.ts         # /stream por cima do findStreams
+│   │   ├── resolve.ts        # /resolve (HMAC)
+│   │   ├── public.ts         # /configure, /dashboard, /seal-config
+│   │   └── diagnostics.ts    # /metrics.json, /dashboard-*.json
 │   ├── providers/
-│   │   ├── index.ts          # orquestra busca, cache, deadline, debrid
+│   │   ├── index.ts          # fachada: reexporta os módulos irmãos
+│   │   ├── search-cache.ts   # findStreams, coalescing, SWR
+│   │   ├── search-orchestrator.ts  # doSearch, collectRaw, deadline
+│   │   ├── stream-builder.ts # filtro, cotas, vagas BR
+│   │   ├── debrid-pipeline.ts# checagem de cache, ⚡, assinatura
+│   │   ├── autofetch-runner.ts    # fila, holds, recheck
 │   │   ├── demo.ts           # teste sem indexer
-│   │   ├── jackett.ts
-│   │   ├── prowlarr.ts
+│   │   ├── jackett.ts / prowlarr.ts
 │   │   ├── bludv.ts          # scraper direto do BLUDV
 │   │   └── account.ts        # inventário pronto da conta como fonte
 │   ├── debrid/               # adaptadores: premiumize, realdebrid, …
 │   ├── public/configure.html # página de configuração (sem build)
 │   └── utils/
 │       ├── cache.ts
-│       ├── cache-keys.ts     # versão dos namespaces (streams:v5, raw:v1, …)
+│       ├── cache-keys.ts     # versão dos namespaces (streams:v6, idx:v5, …)
 │       ├── cinemeta.ts       # título/ano pelo IMDb
 │       ├── tmdb.ts           # título pt-BR
 │       ├── sign.ts           # HMAC dos links /resolve
-│       └── format.ts         # infoHash, qualidade, sort
+│       └── format.ts         # barrel dos 7 submódulos de formatação
 ├── types/domain.d.ts         # contratos do domínio (Stream, DebridAdapter, …)
 ├── test/                     # testes (node:test; .test.ts → dist/test/)
 ├── scripts/
@@ -358,10 +369,11 @@ stremio adom/
 │   └── entrypoint.sh         # supervisor dos 4 processos no container único
 ├── docker-compose.yml        # serviço único (adom)
 ├── jackett-bludv/            # definitions Cardigann dos cards BR (yml)
-├── bludv-resolver/           # segue o protetor de links do BLUDV
-├── comandotorrents-resolver/ # segue o protetor do ComandoTorrents
-├── nerdfilmes-resolver/      # resolver do NerdFilmesTorrent
-├── torrentdosfilmes-resolver/ # resolver do TorrentDosFilmes V2
+├── resolvers/                # núcleo comum dos 4 resolvers BR + profiles/
+├── bludv-resolver/           # shim → resolvers/profiles/bludv.js
+├── comandotorrents-resolver/ # shim → resolvers/profiles/comandotorrents.js
+├── nerdfilmes-resolver/      # shim → resolvers/profiles/nerdfilmes.js
+├── torrentdosfilmes-resolver/ # shim → resolvers/profiles/torrentdosfilmes.js
 ├── Caddyfile
 ├── Dockerfile
 ├── .env.example
@@ -385,7 +397,7 @@ stremio adom/
 |---------|--------|
 | `npm start` | sobe o addon local (de `dist/`) |
 | `npm run dev` | local com `--watch` |
-| `npm test` | suíte (node:test) sobre `dist/test/`: 49 arquivos, ~900 testes, zero rede |
+| `npm test` | suíte (node:test) sobre `dist/test/`: 66 arquivos, 1.193 testes, zero rede |
 | `npm run test:complete` | gate: cobra que todo `test/**/*.test.ts` esteja no `npm test` |
 | `npm run typecheck` | `tsc --noEmit` — portão de tipos, precisa ficar em ZERO |
 | `npm run smoke` | smoke test contra o addon rodando (rede de verdade) |

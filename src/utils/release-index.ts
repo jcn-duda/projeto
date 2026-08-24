@@ -1,4 +1,4 @@
-// Índice de releases por obra (`idx:v1`): a memória que faz o addon virar
+// Índice de releases por obra (`idx:v5`): a memória que faz o addon virar
 // servidor. O `raw:v1` guarda a raspagem por QUERY de indexer e vive minutos;
 // aqui guarda o que a obra TEM, filtrado e dedupado por hash, e vive semanas.
 //
@@ -43,7 +43,7 @@ function enabled() {
   return config.releaseIndex.enabled && config.releaseIndex.ttl > 0;
 }
 
-/** `idx:v1:tt123` no filme; `idx:v1:tt123:S2:E5` / `idx:v1:tt123:S2` em série. */
+/** `idx:v5:tt123` no filme; `idx:v5:tt123:S2:E5` / `idx:v5:tt123:S2` em série. */
 function obraKey(imdbId: string, { season, episode }: ObraLocation = {}) {
   let key = `${prefix('idx')}${imdbId}`;
   if (season != null) key += `:S${season}`;

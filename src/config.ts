@@ -129,7 +129,7 @@ const config = {
     // BR/slow têm orçamento de 20s; no boot o padrão aquece só globais.
     skipSlow: String(process.env.WARMUP_SKIP_SLOW || 'true') === 'true',
   },
-  // Índice de releases por obra (`idx:v1`): o que a busca já provou existir,
+  // Índice de releases por obra (`idx:v5`): o que a busca já provou existir,
   // filtrado e dedupado por hash. Compartilhado entre instalações DE PROPÓSITO —
   // guarda o que EXISTE, nunca o que está pronto em qual conta (isso é
   // davail/mag, escopados por conta). RELEASE_INDEX=false desliga a escrita E a

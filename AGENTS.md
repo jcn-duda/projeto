@@ -80,7 +80,12 @@ Praticamente todo trabalho de código acontece no **Adom**.
   do Jackett na 9117 + FlareSolverr na 8191 + API admin do Caddy na 2019, num
   `node -e fetch` só). A API do Caddy fica em loopback e prova processo+config
   sem depender de ACME/DNS; healthcheck que olha só o addon deixa os demais
-  serviços mortos passarem despercebidos.
+  serviços mortos passarem despercebidos. **A sonda do Caddy vai com `Origin`
+  explícito** (`http://127.0.0.1:2019`): a API admin faz origin check e o
+  `fetch` do Node não manda o header, então sem ele a resposta é 403
+  (`client is not allowed to access from origin ''`) e o container inteiro cai
+  em unhealthy com os quatro processos vivos. Trocar `127.0.0.1` por
+  `localhost` não resolve — é o header, não o host.
 - **`ServerConfig.json` vive no volume** `./docker-data/jackett`, não na
   imagem: trocar a imagem não corrige nada lá. O `FlareSolverrUrl` precisa ser
   `http://127.0.0.1:8191` (sed de migração documentado no cabeçalho do
@@ -624,7 +629,7 @@ serve para **calibrar os TTLs**, não para decidir se a fase existe.
 
 ---
 
-## Índice de releases e o addon como servidor (`idx:v4`, PLANO_MAGNETDB... ver
+## Índice de releases e o addon como servidor (`idx:v5`, PLANO_MAGNETDB... ver
 ## PLANO no repo)
 
 O addon responde do PRÓPRIO índice quando ele cobre a obra, e usa o Jackett
@@ -635,7 +640,7 @@ RESPOSTA (<500ms):  /stream → idx + dinv → checagem no debrid → lista
 COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro → idx
 ```
 
-- **`src/utils/release-index.ts`** guarda por obra (`idx:v4:<imdbId>[:S:E]`) o
+- **`src/utils/release-index.ts`** guarda por obra (`idx:v5:<imdbId>[:S:E]`) o
   mínimo da release `{ hash, title, size, indexer, isBr, quality, seeders,
   seenAt }`. Invariantes: sem config/credencial na chave (compartilhado entre
   instalações DE PROPÓSITO — guarda o que EXISTE, nunca o que está pronto em
@@ -854,9 +859,10 @@ fire-and-forget) continua.
 |---|---|
 | `src/addon.ts` | Processo: listen, warmup, resolvers, shutdown |
 | `src/routes/services.ts` | `buildServices()`: monta o `AppServices` (config, debrid, cache, metrics, jackett, …) que os handlers de rota recebem |
-| `src/routes/register.ts` | `registerRoutes()` — único ponto que monta as rotas (contrato de ordem: SDK sem config, específicas, depois SDK com config) |
-| `src/routes/stream.ts` | `createStreamHandler`: o handler de `/stream` (fábrica do SDK) por cima do `findStreams` |
+| `src/routes/register.ts` | `registerRoutes()` — único ponto que monta as rotas (contrato de ordem: router do addon sem config, específicas, depois router com config) |
+| `src/routes/stream.ts` | `createStreamHandler`: o handler de `/stream` por cima do `findStreams` |
 | `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config`), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/debrid-status.json`) |
+| `src/routes/addon-router.ts` | Router do protocolo Stremio que substituiu o `stremio-addon-sdk` no runtime (6.1): `createAddonInterface` + `makeAddonRouter` (manifest, `/stream`, CORS, `Cache-Control`). Lê o último segmento **cru** de `req.url`: `req.params` vem decodificado e quebraria a divisão dos extras |
 | `src/routes/origin.ts` / `async.ts` / `state.ts` / `types.ts` | `originOf`/`streamsNeedRevalidation`; `asyncRoute` (wrapper do Express 4); `prefetchInFlight`; `AppServices`/`HandlerFactory` |
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
@@ -872,7 +878,7 @@ fire-and-forget) continua.
 | `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
 | `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário, varredura pt-BR nos globais |
-| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v4`): record/lookup/status — o que faz o addon responder sem Jackett |
+| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v5`): record/lookup/status — o que faz o addon responder sem Jackett |
 | `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
 | `src/providers/jackett-catalog.ts` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
 | `src/providers/indexer-status.ts` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
@@ -886,7 +892,7 @@ fire-and-forget) continua.
 | `src/debrid/common.ts` | `magnetFor`, fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
 | `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |
 | `src/debrid/*.ts` | Um adaptador por serviço |
-| `src/utils/format.ts` | Barrel pós split 5.3: reexporta os mesmos 57 nomes dos 7 submódulos (ver abaixo) |
+| `src/utils/format.ts` | Barrel pós split 5.3: reexporta os mesmos 58 nomes dos 7 submódulos (ver abaixo) |
 | `src/utils/indexer-priority.ts` | `priorityMap`/`compareIndexerPriority` |
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
@@ -901,7 +907,7 @@ fire-and-forget) continua.
 | `src/utils/diagnostic-guard.ts` | Token + rate limit das rotas operacionais |
 | `src/utils/magnetdb.ts` | Banco de magnets por hash/adapter; panorama no dashboard: tamanhos por adapter, TTLs (e restante) e taxa ⚡ (`debrid.check.cached`/`hashes`) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
-| `resolvers/` | Núcleo comum dos resolvers (CommonJS puro): `runtime.js`, `site-selector.js`, `cache.js`, `protector.js`, `http-server.js` + perfis em `profiles/*.js` |
+| `resolvers/` | Núcleo comum dos resolvers (CommonJS puro). Processo: `runtime.js`, `site-selector.js` (failover de host), `cache.js`, `http-server.js`, `flare.js`. Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os quatro), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` |
 | `*-resolver/` | Shims de compatibilidade: `<nome>/server.js` faz `require('../resolvers/profiles/<nome>')` — a lógica está no núcleo em `resolvers/` |
 | `types/domain.d.ts` | Tipos do domínio: `Stream` (união que exige ação), `ParsedSeasonEpisode`, `DebridAdapter`, `AccountStatus`, `MatchContext` |
 | `test/helpers/stub.ts` | Dublê de `fetch`, `patch()` de módulo e `testOpts()` — o cast mora aqui, não espalhado |
@@ -912,7 +918,7 @@ fire-and-forget) continua.
 | `scripts/build-assets.ts` | Copia para `dist/` os assets (`src/public`, `test/fixtures`, `jackett-bludv`), o `resolvers/` e os `*-resolver` |
 
 Pós split 5.3, `src/utils/format.ts` virou um barrel que reexporta os mesmos
-57 nomes de antes; a lógica mora nos 7 submódulos em `src/utils/` (sem ciclo,
+58 nomes de antes; a lógica mora nos 7 submódulos em `src/utils/` (sem ciclo,
 cada um só importa dos que vêm antes): `title-normalization.ts` (base),
 `episode-matching.ts` (episódio/temporada), `release-matching.ts`
 (título/estrutura/filtros puros: `matchesName`, `matchesBrTitle`,
@@ -1156,6 +1162,14 @@ o orçamento com a resposta.
   de `systemads.net` para `systemads1.com` e TODO magnet passou a ser barrado
   porque só o host antigo estava na lista permitida. Magnet que some de um
   resolver só: cheque a allowlist do protetor antes de culpar o parser.
+- **O laço de saltos do protetor é UM só, em `resolvers/transport.js`.** Os
+  quatro perfis chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
+  importa porque é ele que chama `assertAllowedUrl` a cada salto — o mutante
+  MUT-06 do harness adversarial cobre os quatro por esse caminho. Se algum
+  perfil voltar a escrever o próprio laço, ele sai da cobertura sem que teste
+  nenhum reclame. O teste do scheme é case-insensitive e a saída sai
+  normalizada em `magnet:` minúsculo: o NerdFilmes publica `MAGNET:` em parte
+  dos botões, e foi só por causa disso que ele teve laço próprio um dia.
 - **Fontes BR não publicam tamanho por botão.** Os resolvedores mandam o
   sentinela "1 KB" (o Jackett exige o campo, e "0 B" invalida a release
   inteira no filtro de tamanho do cardigann); o addon trata ≤ 1 KB como
@@ -1172,7 +1186,7 @@ o orçamento com a resposta.
   reservada, enchia a cota de 4K com não-4K e dirigia o autofetch; (2) o
   índice de releases PERSISTE `dubbed`/`quality` com os mesmos classificadores
   e vive semanas — **corrigir classificador exige bump da versão do namespace
-  (`idx:v4`), senão o conserto não aparece em obra já indexada**.
+  (`idx:v5`), senão o conserto não aparece em obra já indexada**.
 - **Reserva BR é POR FAIXA, e pack cobre faixa sem dublado próprio.**
   `BR_RESERVED_PER_QUALITY` garante até N fontes BR por balde de qualidade —
   a reserva global antiga deixava o 1080p BR abundante consumir tudo e a faixa

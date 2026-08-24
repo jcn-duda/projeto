@@ -4,12 +4,12 @@
 
 ## Architecture
 
-> **Estado (2026-08-23):** as seções abaixo descrevem o layout **alvo do M3**
-> (`PLANO_MELHORIAS.md` fase 5), não necessariamente o que já existe em
-> `src/`. Confira a tabela de **Milestones** para o status real de cada item
-> (`DONE` = já existe no código; `PLANNED`/`IN_PROGRESS` = ainda não). Para o
-> layout **atual** e o porquê de cada decisão, `AGENTS.md` é a fonte de
-> verdade — ele nunca descreve estado futuro como presente.
+> **Estado (2026-08-24):** o M3 fechou, então as seções abaixo descrevem o
+> layout que **já existe** em `src/` — não mais um alvo. A ressalva histórica
+> ("isto é o alvo, não o presente") valia enquanto 22/A5 e 25/A6 estavam
+> abertos. Confira a tabela de **Milestones** para o status de cada item; o
+> único aberto é o M4. Para o porquê de cada decisão, `AGENTS.md` continua
+> sendo a fonte de verdade — ele nunca descreve estado futuro como presente.
 - **Process & Application Layer**:
   - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
   - `src/app.ts`: Express application factory (`createApp()`), route definitions (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`).
@@ -49,7 +49,8 @@
 - `src/providers/*.ts`: Provider search orchestration, autofetch runner, debrid pipeline, stream builder.
 - `src/debrid/*.ts`: Debrid adapters, file selector, common helpers.
 - `src/utils/*.ts`: Format submodules, cache, net-safety, magnetdb, release-index.
-- `test/*.test.ts`: Complete unit test suite (63+ files tracked in `package.json`).
+- `resolvers/*.js`: Shared CommonJS core of the four Brazilian resolvers; `resolvers/profiles/*.js`: per-site parsers and rules.
+- `test/*.test.ts`: Complete unit test suite (66 files tracked in `package.json`).
 - `test/e2e/*.test.ts`: Opaque-box E2E test suite (Tiers 1–4).
 - `test/*challenger*.ts`, `test/*stress*.ts`, `test/*adversarial*.ts`: Empirical bench test harnesses.
 
@@ -79,11 +80,11 @@
 | 19 | A1b File Selector Extraction | Extract `src/debrid/file-selector.ts` and re-export via `src/debrid/common.ts` | M3 | DONE (2026-08-24) — PLANO_MELHORIAS §5.2. `src/debrid/file-selector.ts`: `pickFile`/`pickWorkFile`/`workCoverage`/`baseName` + `WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError`; `src/debrid/common.ts` re-exporta (autores originais preservados) |
 | 20 | A2 Format Utility Modularization | Split `src/utils/format.ts` into 7 specialized submodules with barrel re-export | M3 | DONE (2026-08-23) — PLANO_MELHORIAS §5.3 |
 | 21 | A1 Providers Modularization | Split `src/providers/index.ts` into 5 submodules | M3 | DONE (2026-08-23) — PLANO_MELHORIAS §5.1. Explicit `SearchPhase` (A3) not done; phase control stays implicit via latest-writer |
-| 22 | A5 Centralized Config | Remove raw `process.env` calls in `src/app.ts` and route through `src/config.ts` | M3 | PLANO_MELHORIAS §5.6 |
-| 23 | A4 Brazilian Resolvers Shared Core | Extract common microservice engine into `resolvers/` core with site profiles | M3 | DONE (2026-08-24) — PLANO_MELHORIAS §5.4. CommonJS core in `resolvers/` (`runtime.js`, `site-selector.js`, `cache.js`, `protector.js`, `http-server.js`, `flare.js`) + per-site profiles in `resolvers/profiles/*.js`; each `*-resolver/server.js` is a shim doing `require('../resolvers/profiles/<nome>')`; `build-assets.ts` copies `resolvers/` into `dist/` |
+| 22 | A5 Centralized Config | Remove raw `process.env` calls in `src/app.ts` and route through `src/config.ts` | M3 | DONE (2026-08-24) — PLANO_MELHORIAS §5.6. `app.ts`, `routes/diagnostics.ts`, `utils/cache.ts`, `utils/logger.ts` and `debrid/index.ts` now read from `config`. The 12 remaining `process.env` hits are all in `src/br-resolvers.ts`, which mutates the env on purpose to hand it to the child resolvers, with guaranteed restore |
+| 23 | A4 Brazilian Resolvers Shared Core | Extract common microservice engine into `resolvers/` core with site profiles | M3 | DONE (2026-08-24) — PLANO_MELHORIAS §5.4. CommonJS core in `resolvers/` (`runtime.js`, `site-selector.js`, `cache.js`, `protector.js`, `http-server.js`, `flare.js`, `text.js`, `matching.js`, `transport.js`, `nested-url.js`, `torznab.js`, `search-posts.js`, `concurrency.js`) + per-site profiles in `resolvers/profiles/*.js`; each `*-resolver/server.js` is a shim doing `require('../resolvers/profiles/<nome>')`; `build-assets.ts` copies `resolvers/` into `dist/`. **Second pass at `48b6773`:** the first conclusion left real duplication behind — NerdFilmes and TorrentDosFilmes still hand-rolled the protector hop loop (46 and 39 lines) instead of `followProtectedUrl`, `extractMetaRefresh` was byte-identical in two profiles and absent in the other two, and `mapLimit` had four copies. All four sites now share one transport, so mutant MUT-06 (host allowlist) covers four by the same path instead of two. Profiles 3,263 → 3,115 lines; core 474 → 539 |
 | 24 | A1c Route Modularization | Modularize `src/app.ts` into route modules (`src/routes/*.ts`) | M3 | DONE (2026-08-24) — PLANO_MELHORIAS §5.5. Real path is `src/routes/` (`register.ts`, `services.ts`, `stream.ts`, `resolve.ts`, `public.ts`, `diagnostics.ts`, `origin.ts`, `state.ts`, `async.ts`, `types.ts`); `createApp()` only composes |
-| 25 | A6 Type Refinements | Reduce explicit `any` types and introduce strongly-typed stream/adapter models | M3 | PLANO_MELHORIAS §5.7 |
-| 26 | Final Full Verification & Tier 5 Audit | Complete verification across all 1,070+ tests, all 5 harnesses, and forensic audit | M4 | ORIGINAL_REQUEST |
+| 25 | A6 Type Refinements | Reduce explicit `any` types and introduce strongly-typed stream/adapter models | M3 | DONE (2026-08-24) — PLANO_MELHORIAS §5.7. Target was <150 explicit `any`; **143** at `e25ef29`, measured with the corrected AST counter (the previous one used `git ls-files 'src/**/*.ts'`, which skips the 6 files at the root of `src/` — it read 66 of 72 files and reported 149 where the real number was 156). Closed by `debrid/alldebrid.ts` 13 → 0 via `AllDebridMagnet`/`AllDebridFileNode` plus the existing `DebridFile[]`/`InventoryItem[]`; typing surfaced 4 latent `undefined` defects the `any` was hiding |
+| 26 | Final Full Verification & Tier 5 Audit | Complete verification across all 1,193 tests, all 5 harnesses, and forensic audit | M4 | ORIGINAL_REQUEST |
 
 ---
 
@@ -92,9 +93,9 @@
 |---|------|-------|-------------|--------|
 | M0 | Survey & Planning | Features 1–26 surveyed, mapped, baseline verified | none | DONE |
 | M1 | Debrid Safety & Runtime Robustness | Features 1–10 (B1 tests 1.4/1.5, S3 diagnostic gate, S1.2 asyncRoute, S4 action confirmation, SQLite corrupted recovery, CI audit, SSRF filter remediation) | M0 | DONE |
-| M2 | Core Guardrails, Regression Safety & Budget Verification | Features 11–18 (T1–T7, B3 E2E test verification, harness mutation safety) | M1 | IN_PROGRESS |
-| M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | IN_PROGRESS (20/A2, 21/A1, 19/A1b, 23/A4, 24/A1c done; 22/A5 and 25/A6 open) |
-| M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 5 bench harnesses, forensic audit | M3 | PLANNED |
+| M2 | Core Guardrails, Regression Safety & Budget Verification | Features 11–18 (T1–T7, B3 E2E test verification, harness mutation safety) | M1 | DONE — T1–T7 in PLANO_MELHORIAS phase 3 (`c9a7888`, `e69450c`), B3 closed by phase 4 (4.1–4.3) |
+| M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | DONE (2026-08-24) — 20/A2 and 21/A1 on 08-23; 19/A1b, 23/A4, 24/A1c, 22/A5 and 25/A6 on 08-24. A3 (explicit `SearchPhase`) was never in scope: phase control stays implicit via latest-writer |
+| M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 5 bench harnesses, forensic audit | M3 | OPEN — the regression half runs green after every commit (build, 1,193 tests, `test:complete` 66+6, the 5 harnesses, mutation score 10/10). What is still missing is the part that does not run in the gate: `npm run smoke` against real network, and the Tier 5 forensic audit |
 
 ---
 
@@ -105,7 +106,7 @@
 - `WorkPickError`, `EpisodePickError`, `NoVideoError`, `DubLieError`: Strong error classes with type guards (`isWorkPickError`, etc.).
 
 ### `src/utils/format.ts` Barrel Re-export Contract
-- Maintains 100% backward-compatible named exports for all 42+ functions/constants across `title-normalization`, `release-matching`, `episode-matching`, `audio-quality`, `stream-ranking`, `stream-quotas`, `search-names`.
+- Maintains 100% backward-compatible named exports for all 58 exported functions/constants across `title-normalization`, `release-matching`, `episode-matching`, `audio-quality`, `stream-ranking`, `stream-quotas`, `search-names`.
 
 ### `src/providers/index.ts` Facade Contract
 - Re-exports `findStreams`, `applyDebrid`, `buildStreams`, `debridRefreshSatisfied`, `applyNoticeOrigin`, `onlyNotice`, `autofetchStatus`, `idxPoolCovered`, `poolCovered`.
