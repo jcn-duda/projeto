@@ -6,6 +6,8 @@ import comandotorrents from '../comandotorrents-resolver/server.js';
 import nerdfilmes from '../nerdfilmes-resolver/server.js';
 import torrentdosfilmes from '../torrentdosfilmes-resolver/server.js';
 import text from '../resolvers/text.js';
+import torznab from '../resolvers/torznab.js';
+import nestedUrl from '../resolvers/nested-url.js';
 
 const resolvers = {
   bludv,
@@ -85,4 +87,33 @@ test('texto comum dos resolvers preserva tamanho, escaping e atributos', () => {
     }),
     'https://site.test/?q=A&B',
   );
+});
+
+test('núcleo Torznab e URLs aninhadas preserva o contrato dos profiles', () => {
+  assert.equal(
+    torznab.capsXml('Perfil &amp; teste'),
+    `<?xml version="1.0" encoding="UTF-8"?>
+<caps>
+  <server title="Perfil &amp; teste" version="1.0"/>
+  <limits max="100" default="100"/>
+  <searching>
+    <search available="yes" supportedParams="q"/>
+    <tv-search available="yes" supportedParams="q,season,ep"/>
+    <movie-search available="yes" supportedParams="q"/>
+  </searching>
+  <categories>
+    <category id="2000" name="Movies"/>
+    <category id="5000" name="TV"/>
+  </categories>
+</caps>`,
+  );
+  const nested = nestedUrl.unwrapResolverUrl(
+    'https://resolver/dl?url=https%3A%2F%2Fsite.test%2Fpost%2F&i=4&audio=dublado',
+    'https://resolver',
+    { quality: '720' },
+    { paths: ['/resolve', '/dl'], fields: { index: 'i', audio: 'audio', quality: 'quality' } },
+  );
+  assert.deepEqual(nested, {
+    url: 'https://site.test/post/', index: '4', audio: 'dublado', quality: '720',
+  });
 });

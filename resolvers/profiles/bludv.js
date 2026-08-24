@@ -3,6 +3,9 @@ const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = requir
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createFlareSessions } = require('../flare');
 const { createServer: createHttpServer, reply } = require('../http-server');
+const { followProtectedUrl } = require('../transport');
+const { capsXml: sharedCapsXml } = require('../torznab');
+const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
 const { BASE_PROTECTOR_SUFFIXES, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
 const {
   decodeEntities,
@@ -598,58 +601,10 @@ function pickBestLink(links, prefs) {
 }
 
 async function fetchFollowingAllowed(value, referer) {
-  if (!value) throw new Error('invalid_url');
-  if (String(value).startsWith('magnet:')) return decodeEntities(value);
-  let current = assertAllowedUrl(value);
-  let previousReferer = referer;
-
-  for (let hop = 0; hop <= MAX_HOPS; hop += 1) {
-    const response = await fetch(current, {
-      redirect: 'manual',
-      headers: {
-        'User-Agent': USER_AGENT,
-        Accept: 'text/html,application/xhtml+xml',
-        ...(previousReferer ? { Referer: previousReferer } : {}),
-      },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location');
-      if (!location) throw new Error('missing_redirect');
-      if (location.startsWith('magnet:')) return decodeEntities(location);
-      previousReferer = current.href;
-      current = assertAllowedUrl(new URL(location, current).href);
-      continue;
-    }
-    if (!response.ok) throw new Error(`http_${response.status}`);
-
-    const html = await response.text();
-    const magnet = extractMagnet(html);
-    if (magnet) return magnet;
-
-    const next = nextProtectedUrl(html, current.href);
-    if (next) {
-      previousReferer = current.href;
-      current = assertAllowedUrl(next);
-      continue;
-    }
-
-    // nextProtectedUrl já testou o meta refresh contra hosts de protetor;
-    // aqui ele ainda serve para alvos fora da allowlist virarem erro cedo e
-    // para magnet direto dentro do refresh.
-    const refreshTarget = extractMetaRefresh(html);
-    if (refreshTarget) {
-      if (refreshTarget.startsWith('magnet:')) return decodeEntities(refreshTarget);
-      previousReferer = current.href;
-      current = assertAllowedUrl(new URL(refreshTarget, current).href);
-      continue;
-    }
-
-    throw new Error('no_magnet');
-  }
-
-  throw new Error('too_many_redirects');
+  return followProtectedUrl(value, referer, {
+    assertAllowedUrl, decodeEntities, extractMagnet, nextProtectedUrl, extractMetaRefresh,
+    maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS, userAgent: USER_AGENT,
+  });
 }
 
 function setMagnetCache(cacheKey, magnet) {
@@ -1011,20 +966,7 @@ ${rows}
 }
 
 function capsXml() {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<caps>
-  <server title="BLUDV (resolver)" version="1.0"/>
-  <limits max="100" default="100"/>
-  <searching>
-    <search available="yes" supportedParams="q"/>
-    <tv-search available="yes" supportedParams="q,season,ep"/>
-    <movie-search available="yes" supportedParams="q"/>
-  </searching>
-  <categories>
-    <category id="2000" name="Movies"/>
-    <category id="5000" name="TV"/>
-  </categories>
-</caps>`;
+  return sharedCapsXml('BLUDV (resolver)');
 }
 
 function rssXml(items, category) {
@@ -1144,28 +1086,10 @@ async function handleResolve(url, response) {
 // Sem checar a origem: o host varia (`addon` embutido vs. nome do
 // container), e o alvo final passa por assertAllowedUrl de todo jeito.
 function unwrapResolverUrl(value, seed = {}) {
-  let url = value;
-  let index = seed.index ?? null;
-  let hash = seed.hash ?? null;
-  let count = seed.count ?? null;
-  let audio = seed.audio ?? null;
-  let quality = seed.quality ?? null;
-  for (let hop = 0; hop < 3; hop += 1) {
-    let inner;
-    try {
-      inner = new URL(url, SELF_URL);
-    } catch {
-      break;
-    }
-    if (!['/resolve', '/dl'].includes(inner.pathname) || !inner.searchParams.get('url')) break;
-    url = inner.searchParams.get('url');
-    audio = inner.searchParams.get('audio') ?? audio;
-    quality = inner.searchParams.get('quality') ?? quality;
-    index = inner.searchParams.get('i') ?? index;
-    hash = inner.searchParams.get('h') ?? hash;
-    count = inner.searchParams.get('n') ?? count;
-  }
-  return { url, index, hash, count, audio, quality };
+  return unwrapSharedResolverUrl(value, SELF_URL, seed, {
+    paths: ['/resolve', '/dl'],
+    fields: { index: 'i', hash: 'h', count: 'n', audio: 'audio', quality: 'quality' },
+  });
 }
 
 

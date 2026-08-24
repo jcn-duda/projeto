@@ -2,6 +2,8 @@ const http = require('node:http');
 const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createServer: createHttpServer, reply } = require('../http-server');
+const { capsXml: sharedCapsXml } = require('../torznab');
+const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
 const { BASE_PROTECTOR_SUFFIXES, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
 const { createCache } = require('../cache');
 const {
@@ -560,20 +562,7 @@ function pubDate(post) {
 }
 
 function capsXml() {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<caps>
-  <server title="NerdFilmesTorrent / XNerdFilmes" version="1.0"/>
-  <limits max="100" default="100"/>
-  <searching>
-    <search available="yes" supportedParams="q"/>
-    <tv-search available="yes" supportedParams="q,season,ep"/>
-    <movie-search available="yes" supportedParams="q"/>
-  </searching>
-  <categories>
-    <category id="2000" name="Movies"/>
-    <category id="5000" name="TV"/>
-  </categories>
-</caps>`;
+  return sharedCapsXml('NerdFilmesTorrent / XNerdFilmes');
 }
 
 function rssXml(items, category) {
@@ -615,24 +604,7 @@ ${body}
 // Sem checar a origem: o host varia (`addon` embutido vs. nome do
 // container), e o alvo final passa por assertAllowedUrl de todo jeito.
 function unwrapResolverUrl(value, seed = {}) {
-  let url = value;
-  let index = seed.index ?? null;
-  let hash = seed.hash ?? null;
-  let count = seed.count ?? null;
-  for (let hop = 0; hop < 3; hop += 1) {
-    let inner;
-    try {
-      inner = new URL(url, SELF_URL);
-    } catch {
-      break;
-    }
-    if (inner.pathname !== '/resolve' || !inner.searchParams.get('url')) break;
-    url = inner.searchParams.get('url');
-    index = inner.searchParams.get('i') ?? index;
-    hash = inner.searchParams.get('h') ?? hash;
-    count = inner.searchParams.get('n') ?? count;
-  }
-  return { url, index, hash, count };
+  return unwrapSharedResolverUrl(value, SELF_URL, seed);
 }
 
 

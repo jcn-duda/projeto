@@ -2,6 +2,8 @@ const http = require('node:http');
 const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createServer: createHttpServer, reply } = require('../http-server');
+const { followProtectedUrl } = require('../transport');
+const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
 const { BASE_PROTECTOR_SUFFIXES, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
 const {
   decodeEntities,
@@ -474,55 +476,10 @@ function parseDownloadLinks(html, baseUrl) {
 }
 
 async function fetchFollowingAllowed(value, referer) {
-  if (!value) throw new Error('invalid_url');
-  if (String(value).startsWith('magnet:')) return decodeEntities(value);
-  let current = assertAllowedUrl(value);
-  let previousReferer = referer;
-
-  for (let hop = 0; hop <= MAX_HOPS; hop += 1) {
-    const response = await fetch(current, {
-      redirect: 'manual',
-      headers: {
-        'User-Agent': USER_AGENT,
-        Accept: 'text/html,application/xhtml+xml',
-        ...(previousReferer ? { Referer: previousReferer } : {}),
-      },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location');
-      if (!location) throw new Error('missing_redirect');
-      if (location.startsWith('magnet:')) return decodeEntities(location);
-      previousReferer = current.href;
-      current = assertAllowedUrl(new URL(location, current).href);
-      continue;
-    }
-    if (!response.ok) throw new Error(`http_${response.status}`);
-
-    const html = await response.text();
-    const magnet = extractMagnet(html);
-    if (magnet) return magnet;
-
-    const next = nextProtectedUrl(html, current.href);
-    if (next) {
-      previousReferer = current.href;
-      current = assertAllowedUrl(next);
-      continue;
-    }
-
-    const refreshTarget = extractMetaRefresh(html);
-    if (refreshTarget) {
-      if (refreshTarget.startsWith('magnet:')) return decodeEntities(refreshTarget);
-      previousReferer = current.href;
-      current = assertAllowedUrl(new URL(refreshTarget, current).href);
-      continue;
-    }
-
-    throw new Error('no_magnet');
-  }
-
-  throw new Error('too_many_redirects');
+  return followProtectedUrl(value, referer, {
+    assertAllowedUrl, decodeEntities, extractMagnet, nextProtectedUrl, extractMetaRefresh,
+    maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS, userAgent: USER_AGENT,
+  });
 }
 
 async function getPostLinks(postUrl) {
@@ -661,24 +618,7 @@ function searchPageHtml(items) {
 // `seed` são os params da requisição externa: chamada direta
 // (/resolve?url=<post>&i=0&h=..) não tem nível aninhado de onde ler.
 function unwrapResolverUrl(value, seed = {}) {
-  let url = value;
-  let index = seed.index ?? null;
-  let hash = seed.hash ?? null;
-  let count = seed.count ?? null;
-  for (let hop = 0; hop < 3; hop += 1) {
-    let inner;
-    try {
-      inner = new URL(url, SELF_URL);
-    } catch {
-      break;
-    }
-    if (inner.pathname !== '/resolve' || !inner.searchParams.get('url')) break;
-    url = inner.searchParams.get('url');
-    index = inner.searchParams.get('i') ?? index;
-    hash = inner.searchParams.get('h') ?? hash;
-    count = inner.searchParams.get('n') ?? count;
-  }
-  return { url, index, hash, count };
+  return unwrapSharedResolverUrl(value, SELF_URL, seed);
 }
 
 async function searchPosts(query) {
