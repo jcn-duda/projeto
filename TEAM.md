@@ -37,6 +37,14 @@ leitura humana (roster + papéis + peculiaridades).
 3. Os 6 invariantes da `AGENTS.md` valem por área (orçamento, origem BR, seeders, título PT, filtro 2 camadas, autofetch×dropUncached).
 4. Drift doc×código é achado válido (marca como severidade baixa/média; não é bug vivo).
 
+## Skills de domínio
+
+Cada agente tem a própria skill nomeada em `team/skills/<id>/SKILL.md` (mesmo
+recorte do manifesto: foco, arquivos-âncora, guardrails e contrato de saída).
+Ao disparar o time, injete o conteúdo da skill correspondente no prompt de cada
+agente (ou registre o diretório via `skill-filesystem` `customSkillDirs` numa
+composição, se quiser que sessões futuras carreguem com `skill`).
+
 ## Como invocar
 
 "Roda a auditoria com o time default" → eu leio `team/adom-team.json` e gero o
