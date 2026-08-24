@@ -346,6 +346,10 @@ async function checkCached(
   // TTL curto do davail. Serviço inutilizável não grava nada: a culpa é da
   // conta, não dos hashes.
   if (!result.unusable) magnetdb.markAlive(adapter.id, apiKey, [...result.cached]);
+  // A taxa ⚡ compara somente a resposta confirmada pela rede com os hashes
+  // enviados à rede. `fromCache` já foi contabilizado em davail.servedHashes;
+  // somá-lo aqui faria o numerador superar o denominador numa chamada mista.
+  if (result.known && result.cached.size > 0) metrics.count('debrid.check.cached', result.cached.size);
   result.cached = new Set([...fromCache, ...result.cached]);
   return result;
 }

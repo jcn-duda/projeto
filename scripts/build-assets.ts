@@ -6,6 +6,7 @@
  * - src/public -> dist/src/public (página /configure e dashboard)
  * - test/fixtures -> dist/test/fixtures (fixtures de teste)
  * - jackett-bludv -> dist/jackett-bludv (definições cardigann)
+ * - resolvers/ -> dist/resolvers/ (núcleo CommonJS e profiles dos resolvers)
  * - *-resolver/ -> dist/*-resolver/ (os 4 micro-resolvers carregados pelo br-resolvers)
  *
  * Falha em voz alta caso qualquer diretório essencial falhe ao ser copiado ou não exista.
@@ -31,6 +32,7 @@ const assetsToCopy = [
   'src/public',
   'test/fixtures',
   'jackett-bludv',
+  'resolvers',
 ];
 
 const resolversToCopy = [

@@ -179,6 +179,7 @@ test('medição de repetição por hash: janela conta o que volta, ignora degrad
     const counters = metrics.snapshot().counters;
     assert.equal(counters['debrid.check.hashes'], 4, 'só as checagens reais contam');
     assert.equal(counters['debrid.check.repeated'], 1, 'hash repetido na janela é contado');
+    assert.equal(counters['debrid.check.cached'], 4, '⚡ conta hashes confirmados após cada merge completo');
   } finally {
     metrics.reset();
     debrid.BY_ID.set('premiumize', original);

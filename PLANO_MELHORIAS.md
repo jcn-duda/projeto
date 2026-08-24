@@ -99,8 +99,8 @@ refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado
 com teto pelo `DEBRID_CHECK_FLOOR_MS`.
 
 **O que continua aberto:** fase 0 (parcialmente — ver abaixo), item 4.2,
-fase 5 (5.1 e 5.3 concluídas em 2026-08-23; 5.2/5.4/5.5/5.6/5.7 abertas) e
-fase 6.
+fase 5 (5.1 e 5.3 concluídas em 2026-08-23; 5.2/5.4/5.5 concluídas em
+2026-08-24; 5.6/5.7 abertas) e fase 6.
 
 ---
 
@@ -289,11 +289,19 @@ gate completo (`typecheck`, `build`, `npm test`, `test:complete`,
 `test:adversarial`, `test:adversarial-m1`, `test:protector-m1`,
 `test:challenger-m2`, `test:stress`) entre cada uma.
 
-### 5.2 — Extração de `pickFile`/`pickWorkFile` (A1b) — esforço S
+### 5.2 ✅ — Extração de `pickFile`/`pickWorkFile` (A1b) — esforço S — CONCLUÍDA (2026-08-24)
 
-`src/debrid/file-selector.ts` com `selectEpisodeFile`, `selectWorkFile`,
-`selectMovieVideo` (tipos `WorkPickError`/`EpisodePickError` juntos).
-`common.ts` reexporta. Testes existentes de `debrid-pick-work` não mudam.
+`src/debrid/file-selector.ts` ganhou a lógica do play: `pickFile`,
+`pickWorkFile`, `workCoverage`, `looksMultiWorkFiles`, `baseName`, `isSiteAd`
+e as marcas `VIDEO_EXT`/`SAMPLE`/`EXTRA`, junto dos erros
+`WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError` (com os
+respectivos type guards, reexportados abertos via `export { … }`). `common.ts`
+virou reexport do módulo — manteve só `magnetFor`, fetch JSON, lotes,
+`AuthError`/`QuotaError` e re-exporta `DebridFile` — então os consumidores que
+importavam de `common.js` não mudaram uma linha. Os nomes originais foram
+preservados (a extração não seguiu os nomes provisórios
+`selectEpisodeFile`/`selectWorkFile`/`selectMovieVideo` do plano original).
+Testes existentes de `debrid-pick-work` passam sem mudança.
 
 ### 5.3 ✅ — Split de `src/utils/format.ts` (A2) — esforço M — CONCLUÍDA (2026-08-23)
 
@@ -352,21 +360,38 @@ O harness adversarial (`test/empirical-e2e-challenger.ts`) precisou de mais
 MUT-02 (`dedupeByHash` → `stream-ranking.js`), MUT-08 (`limitReservingBr` →
 `stream-quotas.js`) — mesmo padrão do MUT-09/MUT-10 no 5.1.
 
-### 5.4 — Núcleo comum dos resolvers (A4) — esforço M
+### 5.4 ✅ — Núcleo comum dos resolvers (A4) — esforço M — CONCLUÍDA (2026-08-24)
 
-`resolvers/runtime.js`, `site-selector.js`, `cache.js`, `protector.js`,
-`http-server.js` + `profiles/{bludv,comandotorrents,nerdfilmes,torrentdosfilmes}.js`.
-CommonJS puro, sem build novo; `npm run build` passa a copiar `resolvers/`
-para `dist/` (mesmo mecanismo dos `*-resolver/` hoje). Os testes de parser
-por site continuam apontando para os profiles. Migração um resolver por vez,
-começando pelo `torrentdosfilmes` (o que mais troca de protetor — maior dor).
+`resolvers/` virou o núcleo CommonJS dos quatro resolvedores do processo
+embutido: `runtime.js`, `site-selector.js`, `cache.js`, `protector.js`,
+`http-server.js` + `flare.js` (passagem Cloudflare/FlareSolverr), com os
+perfis por site em `resolvers/profiles/{bludv,comandotorrents,nerdfilmes,torrentdosfilmes}.js`.
+Cada `<nome>-resolver/server.js` é um shim de compatibilidade que faz
+`require('../resolvers/profiles/<nome>')` e reexporta o módulo, então o
+carregador embutido da `br-resolvers.ts` (caminho histórico
+`../<nome>-resolver/server`) e os consumidores legados não mudaram.
+`scripts/build-assets.ts` passou a copiar `resolvers/` inteiro para `dist/`
+(junto dos shims), e o `Dockerfile` mantém o núcleo em `/app/resolvers` no
+stage final para inspeção operacional. Testes de parser por site continuam
+apontando para os profiles.
 
-### 5.5 — Rotas de `app.ts` (A1c) — esforço M
+### 5.5 ✅ — Rotas de `app.ts` (A1c) — esforço M — CONCLUÍDA (2026-08-24)
 
-`app/stream-route.ts`, `resolve-route.ts`, `diagnostic-routes.ts`,
-`dashboard-routes.ts`, `config-routes.ts`; handlers recebem `AppServices`
-(debrid, cache, metrics, jackett). `createApp()` só compõe e registra.
-Aproveitar para aplicar o wrapper `asyncRoute` (2.7) em tudo que for movido.
+`app.ts` caiu de 737 para 39 linhas: virou `createApp()` que só compõe —
+manifest, `createStreamHandler` (de `routes/stream.ts`) e `registerRoutes`
+(de `routes/register.ts`); reexporta `asyncRoute`, `originOf` e
+`streamsNeedRevalidation`. A montagem toda mora em `src/routes/`:
+`services.ts` (`buildServices()` → `AppServices`), `register.ts` (único ponto
+de montagem das rotas), `stream.ts`, `resolve.ts` (`makeResolveHandler`),
+`public.ts` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config`),
+`diagnostics.ts` (`/metrics.json`, `/dashboard-status.json`,
+`/dashboard-action.json`, `/test-indexer.json`, `/debrid-status.json`),
+`origin.ts`, `async.ts`, `state.ts` (`prefetchInFlight`) e `types.ts`
+(`AppServices`/`HandlerFactory`). Os handlers recebem `AppServices` (debrid,
+cache, metrics, jackett). `asyncRoute` (2.7) continua aplicado nas rotas
+async. Os testes de rota seguem passando por cima do app real (`createApp`).
+O nome de diretório ficou `routes/`, não `app/*-routes.ts` como o plano
+provisório sugeria.
 
 ### 5.6 — `process.env` centralizado (A5) — esforço S
 
@@ -416,7 +441,7 @@ Fase 4             4.1 ✅; 4.2 e 4.3 abertos
    └─→ Fase 5 (refactors) ─→ Fase 6 (6.1/6.2 dependem do 5.5)
 ```
 
-- 5.1–5.7 são sequenciais entre si (mesmos arquivos), mas 5.2 e 5.4 são
+- 5.1–5.7 são sequenciais entre si (mesmos arquivos), mas 5.2, 5.4 e 5.5 são
   independentes das demais e podem intercalar.
 - Fase 3.7 (harness seguro) é pré-requisito de TODA a fase 5 — **atendido**.
 
@@ -431,7 +456,7 @@ acima) com o gate cheio (typecheck, build, suíte, `test:complete`, os 5
 harnesses adversariais) rodando verde antes de cada commit, e nenhum deles
 quebrou. `providers/index.ts` (2.220 linhas) e `utils/format.ts` (2.307
 linhas), os dois maiores arquivos do repo, não existem mais como monólito.
-5.2/5.4/5.5/5.6/5.7 continuam em aberto e fora do escopo desta rodada.
+5.6/5.7 continuam em aberto e fora do escopo desta rodada.
 
 ## Validação global (por fase)
 

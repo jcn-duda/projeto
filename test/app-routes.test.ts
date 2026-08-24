@@ -526,3 +526,31 @@ test('/debrid-status.json: debrid pendurado solta o assento no prazo e a monitor
     await isolatedSrv.close();
   }
 });
+
+test('rotas globais não caem sob o overlay', async () => {
+  const manifest = await server.request('GET', '/manifest.json');
+  assert.equal(manifest.status, 200);
+  assert.equal(manifest.json.id, config.addonId);
+
+  // Se o decode do overlay viesse antes desta rota, "resolve" seria tratado
+  // como config inválida e responderia 404, não a validação do infoHash.
+  const resolve = await server.request('GET', '/resolve/nao-eh-hash');
+  assert.equal(resolve.status, 400);
+  assert.equal(resolve.text, 'infoHash inválido');
+});
+
+test('segmento inválido não vira overlay válido', async () => {
+  const res = await server.request('GET', '/nao-e-config/manifest.json');
+  assert.equal(res.status, 404);
+});
+
+test('overlay válido preserva manifest e resolve configurados', async () => {
+  const userConfig = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const manifest = await server.request('GET', `/${userConfig}/manifest.json`);
+  assert.equal(manifest.status, 200);
+  assert.equal(manifest.json.id, config.addonId);
+
+  const resolve = await server.request('GET', `/${userConfig}/resolve/nao-eh-hash`);
+  assert.equal(resolve.status, 400);
+  assert.equal(resolve.text, 'infoHash inválido');
+});

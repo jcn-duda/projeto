@@ -653,13 +653,48 @@
     renderCollection(cards, namespaces, "namespaces", {});
   }
 
-  function renderMagnetDb(data) {
+  function formatTtlSeconds(value) {
+    var seconds = Number(value);
+    if (!isFinite(seconds) || seconds < 0) return "—";
+    if (seconds < 60) return Math.round(seconds) + " s";
+    if (seconds < 3600) return Math.floor(seconds / 60) + " min";
+    return Math.floor(seconds / 3600) + " h";
+  }
+
+  function renderMagnetDb(data, counters) {
     var source = isObject(data) ? data : {};
     var metrics = $("cacheMetrics");
+    var dbCounters = isObject(source.counters) ? source.counters : {};
+    var allCounters = isObject(counters) ? counters : {};
+    var ttl = isObject(source.ttlRemainingSeconds) ? source.ttlRemainingSeconds : {};
+    var adapters = isObject(source.byAdapter) ? source.byAdapter : {};
+    var hashes = Number(allCounters["debrid.check.hashes"] || 0);
+    var cached = Number(allCounters["debrid.check.cached"] || 0);
+    var adapterIds;
+    var i;
     if (!source.enabled && !own(source, "enabled")) return;
     metric(metrics, "magnet DB", source.enabled ? "ativo" : "desligado");
     metric(metrics, "magnets vivos (≈)", source.sizeAlive);
     metric(metrics, "magnets ruins (≈)", source.sizeBad);
+    metric(metrics, "magnets mentira (≈)", source.sizeLie);
+    metric(metrics, "TTL vivo", formatTtlSeconds(source.aliveTtlSeconds));
+    metric(metrics, "TTL ruim", formatTtlSeconds(source.badTtlSeconds));
+    metric(metrics, "TTL mentira", formatTtlSeconds(source.lieTtlSeconds));
+    metric(metrics, "TTL vivo restante (≈)", formatTtlSeconds(ttl.alive));
+    metric(metrics, "TTL ruim restante (≈)", formatTtlSeconds(ttl.bad));
+    metric(metrics, "TTL mentira restante (≈)", formatTtlSeconds(ttl.lie));
+    metric(metrics, "descartados ruins", dbCounters.droppedBad);
+    metric(metrics, "descartados mortos", dbCounters.droppedDead);
+    metric(metrics, "descartados mentira", dbCounters.droppedLie);
+    metric(metrics, "taxa ⚡", hashes ? Math.round((cached / hashes) * 100) + "% (" + cached + "/" + hashes + ")" : "—");
+    adapterIds = Object.keys(adapters).sort();
+    for (i = 0; i < adapterIds.length; i += 1) {
+      var adapter = isObject(adapters[adapterIds[i]]) ? adapters[adapterIds[i]] : {};
+      var adapterTtl = isObject(adapter.ttlRemainingSeconds) ? adapter.ttlRemainingSeconds : {};
+      metric(metrics, "magnet DB " + adapterIds[i],
+        "vivos " + valueText(adapter.sizeAlive) + ", ruins " + valueText(adapter.sizeBad) + ", mentira " + valueText(adapter.sizeLie) +
+        " · TTL ≈ " + formatTtlSeconds(adapterTtl.alive) + "/" + formatTtlSeconds(adapterTtl.bad) + "/" + formatTtlSeconds(adapterTtl.lie));
+    }
   }
 
   // Fase 5: índice de releases + colhedor. Tudo vem pronto do servidor
@@ -703,7 +738,7 @@
     );
     renderSources(root);
     renderCache(first(root, ["cache", "cacheStatus"], {}));
-    renderMagnetDb(first(root, ["magnetdb", "magnetDb"], {}));
+    renderMagnetDb(first(root, ["magnetdb", "magnetDb"], {}), first(root.metrics || {}, ["counters"], {}));
     if (first(root.metrics || {}, ["counters"], {})["debrid.check.unknown"] || first(root.cache || {}, ["swrServed"], 0)) {
       $("cacheMetrics").appendChild(element("p", "guidance", "Há respostas revalidadas ou sem confirmação de cache. Verifique primeiro a conta de debrid (teto/chave) e depois o prazo da busca."));
     }

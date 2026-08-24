@@ -104,10 +104,13 @@ const mutations = [
     testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
   },
   {
-    name: 'MUT-06: Break BLUDV Resolver Host Security Allowlist (bludv-resolver/server.js)',
-    file: 'dist/bludv-resolver/server.js',
-    target: 'if (!allowed) throw new Error(\'blocked_host\');',
-    replacement: '// if (!allowed) throw new Error(\'blocked_host\'); // MUTATED: allow any evil host',
+    // O entrypoint histórico agora é apenas um shim; a guarda executável mora
+    // no núcleo compartilhado carregado pelos profiles. Mutar o shim fazia o
+    // desafio passar sem exercer a defesa.
+    name: 'MUT-06: Break resolver host security allowlist (protector.js)',
+    file: 'dist/resolvers/protector.js',
+    target: 'if (!hasAllowedHost(url.hostname, suffixes)) {',
+    replacement: 'if (false) { // MUTATED: allow any evil host',
     testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
   },
   {

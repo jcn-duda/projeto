@@ -40,6 +40,10 @@ describe('Feature 1: Dynamic Domain Validation', () => {
     assert.equal(nerd.isDetailHost('nerdfilmestorrent.org'), true);
     assert.equal(nerd.isDetailHost('videosad.net'), false);
     assert.equal(nerd.isDetailHost('google.com'), false);
+    assert.throws(
+      () => nerd.assertAllowedUrl('https://dominio-novo.example/post'),
+      /blocked_host:dominio-novo\.example/,
+    );
   });
 
   test('torrentdosfilmes: isDetailHost e assertAllowedUrl tratam domínios e protocolos com segurança', () => {

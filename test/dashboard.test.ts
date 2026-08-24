@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 // Persistência desligada ANTES dos requires: o app real abre o módulo de cache
 // e o data/cache.db do repo não pode ser tocado pelos testes.
@@ -157,6 +158,8 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
        assert.equal(typeof body.autofetch, 'object');
        assert.equal(typeof body.magnetdb, 'object');
        assert.equal(typeof body.magnetdb.enabled, 'boolean');
+       assert.equal(typeof body.magnetdb.byAdapter, 'object');
+       assert.equal(typeof body.magnetdb.ttlRemainingSeconds, 'object');
        assert.ok(Array.isArray(body.harvest.queuePreview));
        assert.ok(Array.isArray(body.harvest.lastWorks));
       assert.ok(Array.isArray(body.indexers), 'catálogo de indexers entra como lista');
@@ -177,6 +180,14 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
     config.jackett.apiKey = saved.jackettApiKey || 'jackett-key-teste';
     config.jackett.testToken = '';
   }
+});
+
+test('dashboard permanece ES5 e renderiza a observabilidade do Magnet DB', () => {
+  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+  assert.match(html, /function renderMagnetDb\(data, counters\)/);
+  assert.match(html, /debrid\.check\.cached/);
+  assert.match(html, /source\.byAdapter/);
+  assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/);
 });
 
 // ---------------------------------------------------------------------------

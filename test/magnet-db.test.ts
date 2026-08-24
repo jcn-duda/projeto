@@ -89,6 +89,23 @@ test('lie é evidência própria, escopada por conta, sem virar bad', () => {
   assert.equal(magnetdb.isBad('premiumize', 'conta-lie', hash), false);
 });
 
+test('status observa por adaptador e TTL sem expor o escopo da conta', () => {
+  const secretAccount = 'conta-que-nao-pode-vazar';
+  magnetdb.markAlive('premiumize', secretAccount, ['a1'.repeat(20)]);
+  magnetdb.markBad('torbox', secretAccount, 'b1'.repeat(20));
+  magnetdb.markLie('torbox', secretAccount, 'c1'.repeat(20));
+
+  const snapshot = magnetdb.status();
+  assert.ok(snapshot.sizeAlive >= 1);
+  assert.ok(snapshot.sizeBad >= 1);
+  assert.ok(snapshot.sizeLie >= 1);
+  assert.ok(snapshot.ttlRemainingSeconds.alive !== null);
+  assert.ok(snapshot.byAdapter.premiumize.sizeAlive >= 1);
+  assert.ok(snapshot.byAdapter.torbox.sizeBad >= 1);
+  assert.ok(snapshot.byAdapter.torbox.ttlRemainingSeconds.lie !== null);
+  assert.equal(JSON.stringify(snapshot).includes(secretAccount), false, 'o diagnóstico não vaza chave nem digest de conta');
+});
+
 test('pickFile: listagem vazia é null (transferência fria), não prova de magnet quebrado', () => {
   // null significa "ainda baixando" — o /resolve NÃO grava bad para null.
   assert.equal(pickFile([], {}), null);

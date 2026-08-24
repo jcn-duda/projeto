@@ -300,6 +300,25 @@ test('merge: o Set de retorno soma positivos do L1 e da rede parcial', async () 
   }
 });
 
+test('métrica cached só conta confirmação após merge final conhecido', async () => {
+  const { adapter } = makeFake(async (_apiKey, infoHashes) => ({
+    cached: new Set(infoHashes),
+    complete: false,
+  }));
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  debrid.BY_ID.set('premiumize', adapter);
+  metrics.reset();
+  try {
+    const result = await check(userOpts('chave-fake-cached-parcial'), ['cached-parcial']);
+    assert.equal(result.known, false);
+    assert.equal(result.cached.size, 1, 'o positivo parcial segue útil para marcar o stream');
+    assert.equal(metrics.snapshot().counters['debrid.check.cached'] ?? 0, 0, 'known:false não afirma cache para a taxa ⚡');
+  } finally {
+    metrics.reset();
+    debrid.BY_ID.set('premiumize', original);
+  }
+});
+
 test('medição: hit de L1 não infla o denominador do gate', async () => {
   const { adapter } = makeFake(async (_apiKey, infoHashes) => ({
     cached: new Set(infoHashes),
@@ -318,6 +337,36 @@ test('medição: hit de L1 não infla o denominador do gate', async () => {
     assert.equal(counters['debrid.check.repeated'] ?? 0, 0, 'repetição absorvida pelo L1 não é repetição');
     assert.equal(counters['davail.servedHashes'], 1, 'o hash respondido pelo L1 é contabilizado à parte');
     assert.equal(counters['cache.hit.davail'], 1, 'o positivo do L1 conta como hit do namespace');
+  } finally {
+    metrics.reset();
+    debrid.BY_ID.set('premiumize', original);
+  }
+});
+
+test('métrica ⚡ separa L1 do resultado da rede numa consulta mista', async () => {
+  const { adapter, calls } = makeFake(async (_apiKey, infoHashes) => ({
+    cached: new Set(infoHashes),
+    complete: true,
+  }));
+  const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  debrid.BY_ID.set('premiumize', adapter);
+  const opts = userOpts('chave-fake-metrics-mixed');
+  try {
+    // Semeia o positivo local fora da janela que será exibida no dashboard.
+    await check(opts, ['local-cached']);
+    metrics.reset();
+
+    const result = await check(opts, ['local-cached', 'network-cached']);
+    const counters = metrics.snapshot().counters;
+    assert.deepEqual(calls[1], ['network-cached'], 'só o hash ausente chega à rede');
+    assert.deepEqual([...result.cached].sort(), ['local-cached', 'network-cached']);
+    assert.equal(counters['davail.servedHashes'], 1, 'o positivo local mantém métrica própria');
+    assert.equal(counters['debrid.check.hashes'], 1, 'o denominador conta somente a rede');
+    assert.equal(counters['debrid.check.cached'], 1, 'o numerador conta somente a confirmação da rede');
+    assert.ok(
+      (counters['debrid.check.cached'] ?? 0) <= (counters['debrid.check.hashes'] ?? 0),
+      'a taxa ⚡ do dashboard não ultrapassa 100%',
+    );
   } finally {
     metrics.reset();
     debrid.BY_ID.set('premiumize', original);

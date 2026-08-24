@@ -45,9 +45,10 @@ Praticamente todo trabalho de código acontece no **Adom**.
   sem axios, sem cheerio — HTTP é `fetch` nativo e HTML é parseado com regex.
   **Não adicione dependências sem necessidade real.**
 - **Dois módulos de processo, papéis distintos:**
-  - `src/app.ts` — fábrica do Express (`createApp()`): manifest, rotas, stream
-    handler. Sem `listen`, sem warmup, sem carregar resolvers. É o que os
-    testes importam.
+  - `src/app.ts` — fábrica do Express (`createApp()`): manifest, stream
+    handler e o registro das rotas (a montagem em si mora em `src/routes/`).
+    Sem `listen`, sem warmup, sem carregar resolvers. É o que os testes
+    importam.
   - `src/addon.ts` — processo: `listen`, resolvers embutidos, selo, catálogo,
     inventário do `.env`, varredura de magnets mortos, shutdown. **Importar
     este arquivo sobe o servidor.**
@@ -68,7 +69,11 @@ Praticamente todo trabalho de código acontece no **Adom**.
 - Os quatro `*-resolver` **não são containers**. `src/br-resolvers.ts` os
   carrega no processo do addon, cada um na própria porta (8700–8703), porque
   todos leem `PORT`/`SITE_URL` no `require`. `BR_RESOLVERS_EMBEDDED=false`
-  volta ao modo de processos separados (não é o caminho de produção).
+  volta ao modo de processos separados (não é o caminho de produção). Desde o
+  núcleo comum (PLANO_MELHORIAS 5.4), cada `<nome>-resolver/server.js` é um
+  shim que faz `require('../resolvers/profiles/<nome>')` — a lógica vive no
+  `resolvers/` (CommonJS puro), e o `npm run build` copia o diretório inteiro
+  para `dist/` junto dos shims.
 - O healthcheck do Dockerfile é **triplo** (`/manifest.json` na 7000 + API do
   Jackett na 9117 + FlareSolverr na 8191, num `node -e fetch` só) — healthcheck
   que olha só o addon deixa Jackett ou FlareSolverr morto passar despercebido.
@@ -341,6 +346,14 @@ terceiro consumidor aparecer.
 
 Kill-switches no `.env`: `MAGNET_DB=false` desliga o banco inteiro;
 `MAGNET_ALIVE_TTL=0` e `MAGNET_BAD_TTL=0` desligam cada lado.
+
+**Panorama no painel** (`/dashboard-status.json` → `magnetdb`): além dos
+totais, o status agrega **por adapter** (`byAdapter`) os tamanhos de
+alive/bad/lie e o TTL médio restante de cada lado, e mostra a **taxa ⚡**
+(`debrid.check.cached` / `debrid.check.hashes`). Ambos contam exclusivamente
+hashes enviados à rede: o numerador são positivos de resposta completa, e o
+denominador são consultas reais. Hit local de `davail` fica separado em
+`davail.servedHashes`; nunca entra na taxa, que assim não ultrapassa 100%.
 
 AllDebrid **mede** ⚡, mas a consulta é um upload e **não é abortável**
 (`abortSafeCacheCheck: false`). A corrida da resposta não cancela o trabalho:
@@ -836,12 +849,22 @@ fire-and-forget) continua.
 | Arquivo | Responsabilidade |
 |---|---|
 | `src/addon.ts` | Processo: listen, warmup, resolvers, shutdown |
-| `src/app.ts` | Fábrica Express: manifest, stream handler, `/resolve`, `/configure`, `/defaults.json`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json`, `/dashboard`, `/dashboard-status.json`, `/dashboard-action.json` |
+| `src/routes/services.ts` | `buildServices()`: monta o `AppServices` (config, debrid, cache, metrics, jackett, …) que os handlers de rota recebem |
+| `src/routes/register.ts` | `registerRoutes()` — único ponto que monta as rotas (contrato de ordem: SDK sem config, específicas, depois SDK com config) |
+| `src/routes/stream.ts` | `createStreamHandler`: o handler de `/stream` (fábrica do SDK) por cima do `findStreams` |
+| `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config`), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/debrid-status.json`) |
+| `src/routes/origin.ts` / `async.ts` / `state.ts` / `types.ts` | `originOf`/`streamsNeedRevalidation`; `asyncRoute` (wrapper do Express 4); `prefetchInFlight`; `AppServices`/`HandlerFactory` |
+| `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
 | `src/br-resolvers.ts` | Carrega os quatro `*-resolver` no processo do addon |
 | `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, ES5, zero build) |
-| `src/providers/index.ts` | Orquestração: SWR, coalescing, deadline, collectRaw, passe tardio, debrid, corte, aviso |
+| `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
+| `src/providers/search-cache.ts` | `findStreams`, coalescing (`inFlight`), SWR (`debridRefreshSatisfied`, `staleRefreshEligible`, `scheduleStaleRefresh`), `hasPlayableStream` |
+| `src/providers/search-orchestrator.ts` | `doSearch`, `collectRaw`, `poolCovered`, `idxPoolCovered`, `idxReleasesToRaw` |
+| `src/providers/debrid-pipeline.ts` | `applyDebrid`, filtro pré-checagem, auditoria de áudio (`collectAuditCandidates`, `queueDubAudit`, `runDubAudit`) |
+| `src/providers/stream-builder.ts` | `buildStreams`, `applyFileEvidence`, `applyNoticeOrigin`, `onlyNotice` |
+| `src/providers/autofetch-runner.ts` | Seleção de candidatos, holds/markers, `drainNext`, recheck, settle, detecção de morte |
 | `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
 | `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário, varredura pt-BR nos globais |
@@ -855,10 +878,11 @@ fire-and-forget) continua.
 | `src/providers/autofetch.ts` | Marker, lock e vaga por busca do autofetch |
 | `src/providers/demo.ts` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
 | `src/debrid/index.ts` | Registry + seleção por request + checagem com teto dinâmico + inventário |
-| `src/debrid/common.ts` | `magnetFor`, fetch JSON, `pickFile`/`pickWorkFile` (`WorkPickError`/`EpisodePickError`), lotes, `AuthError`/`QuotaError` |
+| `src/debrid/file-selector.ts` | Seleção de arquivo no play: `pickFile`/`pickWorkFile`, `workCoverage`, `baseName`, erros (`WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError`) — extraído em 5.2, `common.ts` reexporta |
+| `src/debrid/common.ts` | `magnetFor`, fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
 | `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |
 | `src/debrid/*.ts` | Um adaptador por serviço |
-| `src/utils/format.ts` | Normalização, matching, dedupe, ordenação, cotas — **lógica pura** |
+| `src/utils/format.ts` | Barrel pós split 5.3: reexporta os mesmos 57 nomes dos 7 submódulos (ver abaixo) |
 | `src/utils/indexer-priority.ts` | `priorityMap`/`compareIndexerPriority` |
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
@@ -871,20 +895,29 @@ fire-and-forget) continua.
 | `src/utils/logger.ts` | Níveis via `ADDON_LOG_LEVEL` (não `LOG_LEVEL` — essa é do FlareSolverr) |
 | `src/utils/metrics.ts` | Contadores/histogramas do `/metrics.json` |
 | `src/utils/diagnostic-guard.ts` | Token + rate limit das rotas operacionais |
+| `src/utils/magnetdb.ts` | Banco de magnets por hash/adapter; panorama no dashboard: tamanhos por adapter, TTLs (e restante) e taxa ⚡ (`debrid.check.cached`/`hashes`) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
-| `*-resolver/` | Seguem protetores de link; failover de domínio por saúde de rede |
+| `resolvers/` | Núcleo comum dos resolvers (CommonJS puro): `runtime.js`, `site-selector.js`, `cache.js`, `protector.js`, `http-server.js` + perfis em `profiles/*.js` |
+| `*-resolver/` | Shims de compatibilidade: `<nome>/server.js` faz `require('../resolvers/profiles/<nome>')` — a lógica está no núcleo em `resolvers/` |
 | `types/domain.d.ts` | Tipos do domínio: `Stream` (união que exige ação), `ParsedSeasonEpisode`, `DebridAdapter`, `AccountStatus`, `MatchContext` |
 | `test/helpers/stub.ts` | Dublê de `fetch`, `patch()` de módulo e `testOpts()` — o cast mora aqui, não espalhado |
 | `test/e2e/e2e-harness.ts` | App real (`createApp`) + fetch dublê; zero rede externa |
 | `Dockerfile` / `scripts/entrypoint.sh` / `docker-compose.yml` | Imagem única, supervisor, loopback |
 | `scripts/magnets.ts` | Inventário/limpeza da conta |
 | `scripts/check-test-list.ts` | Cobra a lista explícita do `npm test` |
+| `scripts/build-assets.ts` | Copia para `dist/` os assets (`src/public`, `test/fixtures`, `jackett-bludv`), o `resolvers/` e os `*-resolver` |
 
-`src/utils/format.ts` concentra as funções puras (`matchesName`,
-`matchesBrTitle`, `matchesEpisode`, `filterRelevantRaw`,
-`filterInventoryRelevant`, `looksPtBr`, `sortAndLimit`, `limitReservingBr`,
-`dedupeByHash`, `pickBrDubbedCandidates`, …) — é o melhor lugar para testar
-comportamento sem subir rede.
+Pós split 5.3, `src/utils/format.ts` virou um barrel que reexporta os mesmos
+57 nomes de antes; a lógica mora nos 7 submódulos em `src/utils/` (sem ciclo,
+cada um só importa dos que vêm antes): `title-normalization.ts` (base),
+`episode-matching.ts` (episódio/temporada), `release-matching.ts`
+(título/estrutura/filtros puros: `matchesName`, `matchesBrTitle`,
+`filterRelevantRaw`, `magnetYearContradicts`, …), `audio-quality.ts`
+(qualidade e áudio: `qualityFromTitle`, `looksPtBr`, …), `stream-quotas.ts`
+(cotas: `limitByQualityAndIndexer`, `limitReservingBr`, …),
+`search-names.ts` (queries de busca + `toStremioStream`) e
+`stream-ranking.ts` (ordenação: `sortAndLimit`, `dedupeByHash`, pools do
+autofetch). É o melhor lugar para testar comportamento sem subir rede.
 
 ---
 

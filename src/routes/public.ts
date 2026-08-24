@@ -1,0 +1,41 @@
+import { asyncRoute } from './async.js';
+import type { AppServices, GateAdmission } from './types.js';
+
+function makePublicHandlers(services: AppServices) {
+  const sendConfigure = (_: any, res: any) => res.sendFile(services.publicPath('configure.html'));
+  const sendDashboard = (_: any, res: any) => res.sendFile(services.publicPath('dashboard.html'));
+
+  const defaults = asyncRoute(async (_req, res) => {
+    const { debridApiKey, ...safe } = services.runtime.defaults();
+    const jackettIndexers = await services.jackettCatalog.load();
+    res.json({
+      ...safe,
+      jackettIndexersSelected: safe.jackettIndexers,
+      jackettIndexers,
+      debridApiKey: '',
+      services: services.debrid.SERVICES,
+      addonName: services.config.addonName,
+      indexerTestEnabled: Boolean(services.config.jackett.testToken),
+      sealKeyEnabled: services.secretBox.enabled(),
+    });
+  });
+
+  const seal = (req: any, res: any) => {
+    if (!services.secretBox.enabled()) {
+      return res.status(503).json({ error: 'RESOLVE_SECRET não configurado' });
+    }
+    const admission = services.sealGate.enter('global') as GateAdmission;
+    if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
+    try {
+      const sealed = services.runtime.sealSegment(String(req.body || '').trim());
+      if (!sealed) return res.status(400).json({ error: 'configuração inválida' });
+      return res.json({ segment: sealed });
+    } finally {
+      admission.release();
+    }
+  };
+
+  return { sendConfigure, sendDashboard, defaults, seal };
+}
+
+export { makePublicHandlers };

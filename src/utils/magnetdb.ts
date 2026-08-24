@@ -24,28 +24,93 @@ import { prefix } from './cache-keys.js';
 // O cache não oferece scan por prefixo (e fazê-lo só para o painel seria caro).
 // Mantemos a parte observada neste processo para indicar o tamanho aproximado
 // de cada lado; reinício zera a amostra, sem afetar nenhuma decisão de busca.
-const tracked = new Map<string, { side: 'alive' | 'bad' | 'lie'; expiresAt: number }>();
+type MagnetSide = 'alive' | 'bad' | 'lie';
 
-function track(key: string, side: 'alive' | 'bad' | 'lie', ttlSeconds: number) {
+type TrackedMagnet = {
+  adapterId: string;
+  side: MagnetSide;
+  expiresAt: number;
+};
+
+type MagnetSizes = { alive: number; bad: number; lie: number };
+type TtlRemaining = { alive: number | null; bad: number | null; lie: number | null };
+
+export type MagnetDbAdapterStatus = {
+  sizeAlive: number;
+  sizeBad: number;
+  sizeLie: number;
+  // Média da amostra observada; não representa entradas persistidas antes do
+  // processo atual e nunca expõe o escopo (digest) da conta.
+  ttlRemainingSeconds: TtlRemaining;
+};
+
+export type MagnetDbStatus = {
+  enabled: boolean;
+  aliveTtlSeconds: number;
+  badTtlSeconds: number;
+  lieTtlSeconds: number;
+  sizeAlive: number;
+  sizeBad: number;
+  sizeLie: number;
+  ttlRemainingSeconds: TtlRemaining;
+  byAdapter: Record<string, MagnetDbAdapterStatus>;
+  counters: {
+    aliveSet: number;
+    badSet: number;
+    lieSet: number;
+    dropped: number;
+    droppedBad: number;
+    droppedDead: number;
+    droppedLie: number;
+  };
+};
+
+const tracked = new Map<string, TrackedMagnet>();
+
+function track(key: string, adapterId: string, side: MagnetSide, ttlSeconds: number) {
   if (ttlSeconds <= 0) return;
-  tracked.set(key, { side, expiresAt: Date.now() + ttlSeconds * 1000 });
+  tracked.set(key, { adapterId, side, expiresAt: Date.now() + ttlSeconds * 1000 });
 }
 
-function trackedSizes() {
+function emptySizes(): MagnetSizes {
+  return { alive: 0, bad: 0, lie: 0 };
+}
+
+function trackedStatus() {
   const now = Date.now();
-  let alive = 0;
-  let bad = 0;
-  let lie = 0;
+  const sizes = emptySizes();
+  const ttlTotals = { alive: 0, bad: 0, lie: 0 };
+  const byAdapter: Record<string, { sizes: MagnetSizes; ttlTotals: Record<MagnetSide, number> }> = Object.create(null);
   for (const [key, item] of tracked) {
     if (item.expiresAt <= now) {
       tracked.delete(key);
       continue;
     }
-    if (item.side === 'alive') alive += 1;
-    else if (item.side === 'bad') bad += 1;
-    else lie += 1;
+    const remaining = Math.max(0, item.expiresAt - now);
+    sizes[item.side] += 1;
+    ttlTotals[item.side] += remaining;
+    if (!byAdapter[item.adapterId]) {
+      byAdapter[item.adapterId] = { sizes: emptySizes(), ttlTotals: { alive: 0, bad: 0, lie: 0 } };
+    }
+    byAdapter[item.adapterId].sizes[item.side] += 1;
+    byAdapter[item.adapterId].ttlTotals[item.side] += remaining;
   }
-  return { alive, bad, lie };
+  const ttlRemaining = (counts: MagnetSizes, totals: Record<MagnetSide, number>): TtlRemaining => ({
+    alive: counts.alive ? Math.ceil(totals.alive / counts.alive / 1000) : null,
+    bad: counts.bad ? Math.ceil(totals.bad / counts.bad / 1000) : null,
+    lie: counts.lie ? Math.ceil(totals.lie / counts.lie / 1000) : null,
+  });
+  const adapters: Record<string, MagnetDbAdapterStatus> = Object.create(null);
+  for (const adapterId of Object.keys(byAdapter)) {
+    const item = byAdapter[adapterId];
+    adapters[adapterId] = {
+      sizeAlive: item.sizes.alive,
+      sizeBad: item.sizes.bad,
+      sizeLie: item.sizes.lie,
+      ttlRemainingSeconds: ttlRemaining(item.sizes, item.ttlTotals),
+    };
+  }
+  return { sizes, ttlRemainingSeconds: ttlRemaining(sizes, ttlTotals), byAdapter: adapters };
 }
 
 function aliveKey(adapterId: string, apiKey: string, hash: string) {
@@ -73,7 +138,7 @@ function markAlive(adapterId: string, apiKey: string, hashes: string[]) {
     .map((hash) => ({ key: aliveKey(adapterId, apiKey, hash), value: 1, ttlSeconds: ttl }));
   if (writes.length === 0) return;
   cache.setMany(writes);
-  for (const write of writes) track(write.key, 'alive', ttl);
+  for (const write of writes) track(write.key, adapterId, 'alive', ttl);
   metrics.count('magnetdb.alive.set', writes.length);
 }
 
@@ -104,7 +169,7 @@ function markBad(adapterId: string, apiKey: string, hash: string) {
   const alive = aliveKey(adapterId, apiKey, String(hash || '').toLowerCase());
   cache.forget(alive);
   tracked.delete(alive);
-  track(key, 'bad', ttl);
+  track(key, adapterId, 'bad', ttl);
   metrics.count('magnetdb.bad.set');
 }
 
@@ -119,7 +184,7 @@ function markLie(adapterId: string, apiKey: string, hash: string) {
   if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
   const key = lieKey(adapterId, apiKey, hash);
   cache.set(key, 1, ttl);
-  track(key, 'lie', ttl);
+  track(key, adapterId, 'lie', ttl);
   metrics.count('magnetdb.lie.set');
 }
 
@@ -149,8 +214,9 @@ function renewAlive(adapterId: string, apiKey: string, hashes: string[]) {
 }
 
 /** Estado de diagnóstico; tamanhos são da amostra observada neste processo. */
-function status() {
-  const sizes = trackedSizes();
+function status(): MagnetDbStatus {
+  const trackedState = trackedStatus();
+  const sizes = trackedState.sizes;
   const counters = metrics.snapshot().counters;
   return {
     enabled: config.magnetDb.enabled,
@@ -160,6 +226,8 @@ function status() {
     sizeAlive: sizes.alive,
     sizeBad: sizes.bad,
     sizeLie: sizes.lie,
+    ttlRemainingSeconds: trackedState.ttlRemainingSeconds,
+    byAdapter: trackedState.byAdapter,
     counters: {
       aliveSet: counters['magnetdb.alive.set'] || 0,
       badSet: counters['magnetdb.bad.set'] || 0,

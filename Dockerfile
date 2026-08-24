@@ -27,6 +27,11 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY types ./types
 COPY scripts ./scripts
+COPY resolvers ./resolvers
+COPY bludv-resolver ./bludv-resolver
+COPY comandotorrents-resolver ./comandotorrents-resolver
+COPY nerdfilmes-resolver ./nerdfilmes-resolver
+COPY torrentdosfilmes-resolver ./torrentdosfilmes-resolver
 # `test/` fica de fora de propósito: está no .dockerignore e a imagem de runtime
 # não roda a suíte. O `include` do tsconfig cobre test/**, mas glob que não casa
 # nada é no-op para o tsc — o build sai com dist/src, dist/scripts e os assets.
@@ -82,14 +87,9 @@ RUN npm install --omit=dev
 # Saída do tsc: dist/src/, dist/scripts/ e dist/src/public/ (assets). Sem
 # dist/test: a suíte não vai para a imagem (ver o builder).
 COPY --from=builder /app/dist ./dist
-COPY bludv-resolver/server.js ./dist/bludv-resolver/server.js
-COPY bludv-resolver/package.json ./dist/bludv-resolver/package.json
-COPY comandotorrents-resolver/server.js ./dist/comandotorrents-resolver/server.js
-COPY comandotorrents-resolver/package.json ./dist/comandotorrents-resolver/package.json
-COPY nerdfilmes-resolver/server.js ./dist/nerdfilmes-resolver/server.js
-COPY nerdfilmes-resolver/package.json ./dist/nerdfilmes-resolver/package.json
-COPY torrentdosfilmes-resolver/server.js ./dist/torrentdosfilmes-resolver/server.js
-COPY torrentdosfilmes-resolver/package.json ./dist/torrentdosfilmes-resolver/package.json
+# Mantém o núcleo também no stage final para inspeção operacional; os shims em
+# dist/ o carregam pelo layout copiado pelo build-assets.
+COPY --from=builder /app/resolvers ./resolvers
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
