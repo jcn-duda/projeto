@@ -1,10 +1,20 @@
 const http = require('node:http');
-const { createHash } = require('node:crypto');
 const { parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createServer: createHttpServer } = require('../http-server');
 const { assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
 const { createCache } = require('../cache');
+const {
+  normalizeFilterText,
+  stripTrailingYears,
+  computeWantedTokens,
+  matchesResolverQuery,
+  normalizeSeasonValue,
+  matchesSeasonSeason,
+  isGenericListPost,
+  buttonId,
+  pickButton,
+} = require('../matching');
 
 const PORT = Number(process.env.PORT || 8702);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -244,35 +254,6 @@ function normalizeSource(value) {
 }
 
 /** Resultados da busca WordPress: article.col > .item > .image > a. */
-// Post de índice/lista que expande dezenas de opções de 1 KB e inunda o
-// Manual Search (ex.: "Lista De Filmes – Ação, Terror, Aventura...").
-// Conservadora de propósito: só casa quando o TÍTULO COMEÇA como um índice e
-// nomeia uma categoria de mídia. "A Lista de Schindler" (começa com "a") ou
-// um título que apenas contém "lista" no meio passam intactos.
-function isGenericListPost(title = '') {
-  if (!title) return false;
-  const clean = String(title)
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[–\-—/|:&+,–.()]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!/^(lista|listao|indice)/.test(clean)) return false;
-  const categories = [
-    'filme', 'filmes', 'serie', 'series', 'anime', 'animes', 'desenho', 'desenhos',
-    'documentario', 'documentarios', 'temporada', 'temporadas', 'dorama', 'doramas',
-    'jogo', 'jogos', 'musica', 'musicas', 'categoria', 'categorias', 'todo', 'todos',
-    'toda', 'todas', 'tudo', 'geral', 'completa', 'completo',
-  ].join('|');
-  const match = clean.match(new RegExp(`^(lista|listao|indice)\\s+de\\s+(${categories})\\b(.*)$`));
-  if (!match) return false;
-  // "Lista de Filmes do Cliente" pode ser um título/curadoria específica;
-  // um índice genérico costuma terminar na categoria ou continuar com uma
-  // enumeração de gêneros, nunca com um qualificador possessivo.
-  return !/^(?:do|da|dos|das|de)\b/.test(match[3].trim());
-}
-
 function parsePosts(html) {
   const posts = [];
   const article = /<article\b[^>]*class=["'][^"']*\bcol\b[^"']*["'][^>]*>([\s\S]*?)<\/article>/gi;
@@ -300,86 +281,6 @@ function cleanPostTitle(title = '') {
     .replace(/\b(?:Dublado|Legendado|Dual\s*Áudio|Download|Online|Grátis|Completo|Completa)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-// Pré-filtro puro, conservador e autocontido. O WordPress devolve "parecidos"
-// para query curta (busca "show bar" traz posts sem relação); em vez de
-// expandir 5 posts de lixo, recusa o que claramente não é o título procurado
-// ANTES de gastar MAX_POSTS e de pagar os protetores de link. Semântica
-// alinhada ao `matchesName` do addon (src/utils/format.js), mas reimplementada
-// aqui porque o contêiner standalone copia só este server.js — nada de importar
-// src/. O addon continua autoritativo: este filtro só derruba o que com certeza
-// não é a obra (nada de endurecer spin-off/ano/episódio além disso).
-function normalizeFilterText(s = '') {
-  return String(s)
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-// A query de filme pode carregar um ano de lançamento ("Coringa 2019", "Duna
-// (2021)"). Ele é contexto, não parte do título, e o post BR publica o ano do
-// lançamento nacional (±2) — exigir que o post tenha exatamente aquele ano
-// derrubaria release legítima. Removemos no máximo UM token final de 4 dígitos
-// e só quando sobra outro token antes: "Coringa 2019" -> "coringa", mas
-// "Blade Runner 2049 2017" mantém o 2049 que é parte do título, "1917 2019"
-// mantém o 1917, e uma query manual só com o ano ("1917", "2012") preserva o
-// token porque não é seguro decidir que ele é ruído. Nunca mais do que um, senão
-// "Blade Runner 2049 2017" perderia os dois.
-function stripTrailingYears(tokens) {
-  const out = tokens.slice();
-  if (out.length >= 2 && /^\d{4}$/.test(out[out.length - 1])) out.pop();
-  return out;
-}
-
-// Cobre apenas tokens inteiros (nunca pedaço de palavra), no mesmo espírito do
-// `matchesName`: palavra de 1-2 letras costuma ser ruído ("o", "de"), mas quando
-// sobram menos de dois tokens ela É o título e vale mais que o ruído que evita.
-function computeWantedTokens(query) {
-  const all = stripTrailingYears(normalizeFilterText(query).split(' ').filter(Boolean));
-  const long = all.filter((w) => w.length > 2);
-  const wanted = long.length >= 2 ? long : all;
-  return wanted;
-}
-
-function matchesResolverQuery(post, query) {
-  const wanted = computeWantedTokens(query);
-  if (wanted.length === 0) return true;
-  const got = new Set(normalizeFilterText(post.title).split(' ').filter(Boolean));
-  const hits = wanted.filter((w) => got.has(w)).length;
-  return hits / wanted.length >= 0.6;
-}
-
-// Normaliza o valor da temporada pedida, que chega em três formas possíveis:
-// o array do match (requestedSeason[1]), uma string ("2") ou um número. Sem
-// isso, Number(Array) vira NaN e a comparação rejeita TUDO que tem temporada
-// marcada. Fora dos três casos, retorna null (sem filtro).
-function normalizeSeasonValue(value) {
-  const v = Array.isArray(value) ? value[1] : value;
-  const n = Number(v);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-function matchesSeasonSeason(post, requestedSeason) {
-  const wantedSeason = normalizeSeasonValue(requestedSeason);
-  if (wantedSeason == null) return true;
-  const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
-  return !season || Number(season[1] || season[2]) === wantedSeason;
-}
-
-function buttonId(link) {
-  return createHash('sha1').update(String(link?.url || '')).digest('hex').slice(0, 10);
-}
-
-function pickButton(links, index, hash, count) {
-  if (hash) {
-    const found = links.find((link) => buttonId(link) === hash);
-    if (found) return found;
-    if (count != null && links.length !== Number(count)) return null;
-  }
-  return links[index] ?? null;
 }
 
 // Scheme de URI é case-insensitive (RFC 3986) e o site pode publicar MAGNET:.

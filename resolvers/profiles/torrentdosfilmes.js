@@ -1,9 +1,19 @@
 const http = require('node:http');
-const { createHash } = require('node:crypto');
 const { parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createServer: createHttpServer } = require('../http-server');
 const { assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const {
+  normalizeFilterText,
+  stripTrailingYears,
+  computeWantedTokens,
+  matchesResolverQuery,
+  normalizeSeasonValue,
+  matchesSeasonSeason,
+  isGenericListPost,
+  buttonId,
+  pickButton,
+} = require('../matching');
 
 const PORT = Number(process.env.PORT || 8703);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -183,35 +193,6 @@ function nextProtectedUrl(html, baseUrl) {
   return null;
 }
 
-// Post de índice/lista que expande dezenas de opções de 1 KB e inunda o
-// Manual Search (ex.: "Lista De Filmes – Ação, Terror, Aventura...").
-// Conservadora de propósito: só casa quando o TÍTULO COMEÇA como um índice e
-// nomeia uma categoria de mídia. "A Lista de Schindler" (começa com "a") ou
-// um título que apenas contém "lista" no meio passam intactos.
-function isGenericListPost(title = '') {
-  if (!title) return false;
-  const clean = String(title)
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[–\-—/|:&+,–.()]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!/^(lista|listao|indice)/.test(clean)) return false;
-  const categories = [
-    'filme', 'filmes', 'serie', 'series', 'anime', 'animes', 'desenho', 'desenhos',
-    'documentario', 'documentarios', 'temporada', 'temporadas', 'dorama', 'doramas',
-    'jogo', 'jogos', 'musica', 'musicas', 'categoria', 'categorias', 'todo', 'todos',
-    'toda', 'todas', 'tudo', 'geral', 'completa', 'completo',
-  ].join('|');
-  const match = clean.match(new RegExp(`^(lista|listao|indice)\\s+de\\s+(${categories})\\b(.*)$`));
-  if (!match) return false;
-  // "Lista de Filmes do Cliente" pode ser um título/curadoria específica;
-  // um índice genérico costuma terminar na categoria ou continuar com uma
-  // enumeração de gêneros, nunca com um qualificador possessivo.
-  return !/^(?:do|da|dos|das|de)\b/.test(match[3].trim());
-}
-
 function parsePosts(html) {
   const posts = [];
   const title = /<div\b[^>]*class=["'][^"']*\btitle\b[^"']*["'][^>]*>\s*<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
@@ -376,19 +357,6 @@ function scoreLink(link) {
   return audio + source + Number(link.quality || 0);
 }
 
-function buttonId(link) {
-  return createHash('sha1').update(String(link?.url || '')).digest('hex').slice(0, 10);
-}
-
-function pickButton(links, index, hash, count) {
-  if (hash) {
-    const found = links.find((link) => buttonId(link) === hash);
-    if (found) return found;
-    if (count != null && links.length !== Number(count)) return null;
-  }
-  return links[index] ?? null;
-}
-
 async function resolveButton(postUrl, index, hash, count) {
   const { post, links } = await getPostLinks(postUrl);
   const link = pickButton(links, index, hash, count);
@@ -443,41 +411,6 @@ function releaseTitle(post, link, index = null) {
 
   const base = epPart ? `${clean} ${epPart}` : clean;
   return tags.length ? `${base} [${tags.join(' ')}]` : base;
-}
-
-function normalizeFilterText(s = '') {
-  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function stripTrailingYears(tokens) {
-  const out = tokens.slice();
-  if (out.length >= 2 && /^\d{4}$/.test(out[out.length - 1])) out.pop();
-  return out;
-}
-
-function computeWantedTokens(query) {
-  const all = stripTrailingYears(normalizeFilterText(query).split(' ').filter(Boolean));
-  const long = all.filter((w) => w.length > 2);
-  return long.length >= 2 ? long : all;
-}
-
-function matchesResolverQuery(post, query) {
-  const wanted = computeWantedTokens(query);
-  if (wanted.length === 0) return true;
-  const got = new Set(normalizeFilterText(post.title).split(' ').filter(Boolean));
-  return wanted.filter((w) => got.has(w)).length / wanted.length >= 0.6;
-}
-
-function normalizeSeasonValue(value) {
-  const n = Number(Array.isArray(value) ? value[1] : value);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-function matchesSeasonSeason(post, requestedSeason) {
-  const wantedSeason = normalizeSeasonValue(requestedSeason);
-  if (wantedSeason == null) return true;
-  const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
-  return !season || Number(season[1] || season[2]) === wantedSeason;
 }
 
 function selectSearchPosts(sourceHtml, query, requestedSeason) {

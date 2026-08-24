@@ -1,10 +1,20 @@
 const http = require('node:http');
-const { createHash } = require('node:crypto');
 const { parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
 const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
 const { createFlareSessions } = require('../flare');
 const { createServer: createHttpServer } = require('../http-server');
 const { assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const {
+  normalizeFilterText,
+  stripTrailingYears,
+  computeWantedTokens,
+  matchesResolverQuery,
+  normalizeSeasonValue,
+  matchesSeasonSeason,
+  isGenericListPost,
+  buttonId,
+  pickButton,
+} = require('../matching');
 
 const PORT = Number(process.env.PORT || 8700);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -809,35 +819,6 @@ function escapeHtml(value = '') {
 
 /** Cards da página de busca: div.post > div.title > a + bloco .content com
  * poster (img), "Título Original" e a data de .icon .infos. */
-// Post de índice/lista que expande dezenas de opções de 1 KB e inunda o
-// Manual Search (ex.: "Lista De Filmes – Ação, Terror, Aventura...").
-// Conservadora de propósito: só casa quando o TÍTULO COMEÇA como um índice e
-// nomeia uma categoria de mídia. "A Lista de Schindler" (começa com "a") ou
-// um título que apenas contém "lista" no meio passam intactos.
-function isGenericListPost(title = '') {
-  if (!title) return false;
-  const clean = String(title)
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[–\-—/|:&+,–.()]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!/^(lista|listao|indice)/.test(clean)) return false;
-  const categories = [
-    'filme', 'filmes', 'serie', 'series', 'anime', 'animes', 'desenho', 'desenhos',
-    'documentario', 'documentarios', 'temporada', 'temporadas', 'dorama', 'doramas',
-    'jogo', 'jogos', 'musica', 'musicas', 'categoria', 'categorias', 'todo', 'todos',
-    'toda', 'todas', 'tudo', 'geral', 'completa', 'completo',
-  ].join('|');
-  const match = clean.match(new RegExp(`^(lista|listao|indice)\\s+de\\s+(${categories})\\b(.*)$`));
-  if (!match) return false;
-  // "Lista de Filmes do Cliente" pode ser um título/curadoria específica;
-  // um índice genérico costuma terminar na categoria ou continuar com uma
-  // enumeração de gêneros, nunca com um qualificador possessivo.
-  return !/^(?:do|da|dos|das|de)\b/.test(match[3].trim());
-}
-
 function parsePosts(html) {
   const posts = [];
   // O tema repete card (widget de relacionados) e publica href relativo em
@@ -978,60 +959,10 @@ function normalizeQuery(raw) {
     .trim();
 }
 
-function normalizeFilterText(s = '') {
-  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function stripTrailingYears(tokens) {
-  const out = tokens.slice();
-  if (out.length >= 2 && /^\d{4}$/.test(out[out.length - 1])) out.pop();
-  return out;
-}
-
-function computeWantedTokens(query) {
-  const all = stripTrailingYears(normalizeFilterText(query).split(' ').filter(Boolean));
-  const long = all.filter((w) => w.length > 2);
-  return long.length >= 2 ? long : all;
-}
-
-function matchesResolverQuery(post, query) {
-  const wanted = computeWantedTokens(query);
-  if (wanted.length === 0) return true;
-  const got = new Set(normalizeFilterText(post.title).split(' ').filter(Boolean));
-  return wanted.filter((w) => got.has(w)).length / wanted.length >= 0.6;
-}
-
-function normalizeSeasonValue(value) {
-  const n = Number(Array.isArray(value) ? value[1] : value);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-function matchesSeasonSeason(post, requestedSeason) {
-  const wantedSeason = normalizeSeasonValue(requestedSeason);
-  if (wantedSeason == null) return true;
-  const season = post.title.match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
-  return !season || Number(season[1] || season[2]) === wantedSeason;
-}
-
 function selectSearchPosts(sourceHtml, query, requestedSeason) {
   let posts = parsePosts(sourceHtml).filter((post) => matchesResolverQuery(post, query));
   if (requestedSeason) posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
   return posts.slice(0, MAX_POSTS);
-}
-
-// Identidade do botão: hash curto do href de destino. O `i=` posicional segue
-// na URL para compatibilidade, mas o alvo é a referência estável.
-function buttonId(link) {
-  return createHash('sha1').update(String(link?.url || '')).digest('hex').slice(0, 10);
-}
-
-function pickButton(links, index, hash, count) {
-  if (hash) {
-    const found = links.find((link) => buttonId(link) === hash);
-    if (found) return found;
-    if (count != null && links.length !== Number(count)) return null;
-  }
-  return links[index] ?? null;
 }
 
 /**
