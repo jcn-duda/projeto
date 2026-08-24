@@ -98,11 +98,21 @@ vez a cada TTL, e em toda busca enquanto o endpoint estivesse fora do ar. O
 refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado,
 com teto pelo `DEBRID_CHECK_FLOOR_MS`.
 
-**O que continua aberto:** fase 0 (parcialmente — ver abaixo) e fase 6. A fase
-4 foi concluída em 2026-08-24; a fase 5 foi concluída: 5.1 e 5.3 em 2026-08-23; 5.2, 5.4 e 5.5 em
-2026-08-24; 5.6 e 5.7 em 2026-08-24 (meta por código explícito hoje em 149,
-sem converter payloads externos cegamente). A alegação anterior de 147 não é
-uma métrica válida e foi substituída pelo contador de AST em §5.7.
+**O que continua aberto:** fase 0 (parcialmente — ver abaixo). A fase 4 foi
+concluída em 2026-08-24; a fase 5 foi concluída: 5.1 e 5.3 em 2026-08-23; 5.2,
+5.4 e 5.5 em 2026-08-24; 5.6 e 5.7 em 2026-08-24. A fase 6 fechou em 2026-08-24
+(6.1–6.5b).
+
+A meta de `any` está em **143** (`e25ef29`), medida com o contador de AST
+corrigido de §5.7 — o anterior varria 66 dos 72 arquivos e por isso reportava
+149 onde o número real era 156. As alegações de 147 e 149 foram substituídas.
+
+Duas conclusões desta rodada foram declaradas antes de estarem completas e
+ficaram registradas com a correção no lugar: **5.4** (três funções ainda eram
+duplicação real nos profiles, migradas em `48b6773`) e **5.7** (a meta só foi
+batida em `e25ef29`). Ambas seguem o mesmo padrão — o critério de conclusão era
+descritivo ("os arquivos existem") em vez de uma métrica verificável. Ver
+"Riscos do próprio plano".
 
 ---
 
@@ -367,8 +377,7 @@ MUT-02 (`dedupeByHash` → `stream-ranking.js`), MUT-08 (`limitReservingBr` →
 `resolvers/` é o núcleo CommonJS dos quatro resolvedores do processo
 embutido. Os perfis por site em
 `resolvers/profiles/{bludv,comandotorrents,nerdfilmes,torrentdosfilmes}.js`
-passaram a conter apenas parsers, regras e caches **específicos do site** —
-por desenho, não como duplicação a migrar; cada um carrega o que o núcleo
+carregam parsers, regras e caches **específicos do site** — o que o núcleo
 comum não deve assumir. Cada `<nome>-resolver/server.js` é um shim de
 compatibilidade que faz `require('../resolvers/profiles/<nome>')` e reexporta
 o módulo, então o carregador embutido da `br-resolvers.ts` (caminho histórico
@@ -391,15 +400,51 @@ cópia nos profiles:
   páginas).
 - **Matching e identidade**: `matching.js` (matching da busca, temporada,
   listas genéricas e identidade de botão — `createHash` de dedupe).
-- **Transporte e protetores**: `transport.js` (cadeia HTTP idêntica de BluDV
-  e ComandoTorrents: `followProtectedUrl`, saltos/protetor de link,
-  `assertAllowedUrl`), `nested-url.js` (desempacotamento da URL envelope do
-  Cardigann em `/resolve`), `torznab.js` (capacidades/`capsXml` dos feeds
-  com formato idêntico) e `protector.js` (allowlist de host).
+- **Transporte e protetores**: `transport.js` (cadeia HTTP dos **quatro**
+  perfis: `followProtectedUrl`, saltos/protetor de link, `assertAllowedUrl`),
+  `nested-url.js` (desempacotamento da URL envelope do Cardigann em
+  `/resolve`), `torznab.js` (capacidades/`capsXml` dos feeds com formato
+  idêntico) e `protector.js` (allowlist de host).
+- **Concorrência**: `concurrency.js` (`mapLimit` com teto, `limit` e
+  `onError` explícitos).
 
 As quatro extrações desta conclusão rodaram o gate completo da fase 5 e
 preservaram os exports dos shims; parser por site continua nos profiles,
 que é exatamente onde a regra específica deve morar.
+
+**Segunda passada (2026-08-24, `48b6773`) — o que ainda era duplicação real.**
+A redação anterior desta seção dizia que o resíduo nos profiles era "por
+desenho, não duplicação a migrar". Não era verdade para três funções, e a
+contagem que sustentava a afirmação (nomes de função repetidos nos quatro
+arquivos) inflava o problema em um sentido e o escondia em outro: das 19
+repetidas, 5 já eram adaptadores de 3 linhas ligando as constantes do site ao
+núcleo — `assertAllowedUrl` já delegava a `sharedAssertAllowedUrl`, então o
+risco de "corrigir a allowlist em quatro lugares" **não existia**. A métrica
+honesta é linha de lógica duplicada, não nome repetido.
+
+O que de fato faltava migrar:
+
+- **`fetchFollowingAllowed`** — NerdFilmes e TorrentDosFilmes ainda tinham o
+  laço de saltos do protetor escrito à mão (46 e 39 linhas), repetindo o que
+  `followProtectedUrl` já fazia, enquanto BluDV e ComandoTorrents delegavam.
+  Com os quatro no mesmo transporte, o mutante **MUT-06** (allowlist de host)
+  passa a cobrir os quatro pelo mesmo caminho em vez de dois.
+- **`extractMetaRefresh`** — byte-idêntico em BluDV e ComandoTorrents, ausente
+  nos outros dois, que usavam um regex inline mais fraco. Virou um só em
+  `text.js`, com o `decode` por parâmetro (variante rica × histórica); os
+  quatro ganharam o parser que aguenta aspas aninhadas no `content`.
+- **`mapLimit`** — quatro cópias diferindo só na fonte do limite e em logar ou
+  não o erro.
+
+Para absorver o NerdFilmes, `followProtectedUrl` ficou case-insensitive no
+scheme e normaliza para `magnet:` minúsculo — era só por causa do `MAGNET:`
+que ele publica em parte dos botões que o laço próprio existia; para os outros
+três a normalização é no-op. Perfis **3.263 → 3.115** linhas, núcleo
+**474 → 539**.
+
+Continuam nos profiles, corretamente, as seis funções com quatro
+implementações genuinamente distintas: `parseDownloadLinks`, `parsePosts`,
+`getPostLinks`, `resolveButton`, `searchPageHtml` e `releaseTitle`.
 
 ### 5.5 ✅ — Rotas de `app.ts` (A1c) — esforço M — CONCLUÍDA (2026-08-24)
 
@@ -454,10 +499,37 @@ um sexto falso positivo independente, o comentário em `net-safety.ts`; por isso
 
 A meta “menos de 150” usa ocorrências explícitas do tipo `any`, não linhas nem
 texto. Para reproduzi-la, execute o contador da AST do TypeScript:
-`node -e "const ts=require('typescript'),fs=require('fs'),cp=require('child_process');let n=0;for(const f of cp.execFileSync('git',['ls-files','src/**/*.ts'],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)){const s=ts.createSourceFile(f,fs.readFileSync(f,'utf8'),ts.ScriptTarget.Latest,true);const w=x=>{if(x.kind===ts.SyntaxKind.AnyKeyword)n++;ts.forEachChild(x,w)};w(s)};console.log(n)"`.
+`node -e "const ts=require('typescript'),cp=require('child_process');let n=0;for(const f of cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','src'],{encoding:'utf8'}).trim().split(/\r?\n/).filter(f=>f.endsWith('.ts'))){const s=ts.createSourceFile(f,cp.execFileSync('git',['show','HEAD:'+f],{encoding:'utf8'}),ts.ScriptTarget.Latest,true);const w=x=>{if(x.kind===ts.SyntaxKind.AnyKeyword)n++;ts.forEachChild(x,w)};w(s)};console.log(n)"`.
+
+> **Correção do contador (2026-08-24).** A versão anterior usava
+> `git ls-files 'src/**/*.ts'`, e esse pathspec **não casa os arquivos na raiz
+> de `src/`**: ficavam de fora `addon.ts`, `app.ts`, `br-resolvers.ts`,
+> `config.ts`, `runtime.ts` e `warmup.ts` — 66 arquivos contados de 72 reais,
+> escondendo 5 ocorrências (`runtime.ts` 4, `br-resolvers.ts` 1). O comando
+> acima usa `git ls-tree -r`, que enxerga os 72. Por isso o **149** registrado
+> antes não era o número real: medido com o contador corrigido, o mesmo commit
+> (`4b84127`) tinha **156** — ou seja, a meta ainda não estava batida quando
+> foi declarada.
+
 Baseline registrado em 2026-08-24: **274**; a alegação intermediária de **147**
-não é comparável por misturar linhas e texto. Medição atual da AST: **149**
-(<150), sem converter payloads externos cegamente em `unknown`.
+não é comparável por misturar linhas e texto. Medições com o contador
+corrigido, todas sobre os 72 arquivos:
+
+| Commit | `any` (AST) | Nota |
+|---|---|---|
+| `4b84127` | 156 | quando 5.7 foi declarada concluída — acima da meta |
+| `e25ef29` | **143** | **abaixo de 150** ✅ |
+
+O fechamento veio de `src/debrid/alldebrid.ts` (13 → 0): `AllDebridMagnet` e
+`AllDebridFileNode` dão forma ao que `/magnet/status` e a árvore de arquivos da
+v4.1 devolvem, e `flattenFiles`/`inventory` passaram a declarar `DebridFile[]` e
+`InventoryItem[]` — tipos que já existiam e eram reconstruídos como `any[]`.
+
+Tipar expôs **quatro defeitos latentes** que o `any` escondia: `m.hash` e `m.id`
+são opcionais na resposta da API e iam direto para `held.isHeld(hash: string)` e
+`dropMagnets(ids: (string|number)[])`. O filtro logo acima já garantia `m.id`,
+mas o compilador não propaga isso pelo `filter`: os dois usos viraram `flatMap`,
+que diz o mesmo sem asserção. Corrigidos na fronteira, não silenciados com cast.
 
 **Categorias residuais legítimas (mantidas como `any`, decisão registrada):**
 - **Payloads de terceiros** — respostas de debrid, Jackett/Torznab e sites BR,
@@ -489,6 +561,7 @@ garante que nenhum consumidor quebra no meio.
 | 6.3 ✅ | `davail`: amostra local de 2026-08-24 (uptime 1.822s) teve 112/360 = **31,1%** de hashes repetidos e 186 servidos do L1; acima do gate histórico de 30%, mantém TTLs 900s/120s | análise, sem código |
 | 6.4 ✅ | Decode de config (máximo 8 KB, regex + base64 + JSON) é CPU limitado; risco aceito sem rate limit enquanto não houver abuso observado. `/seal-config` já tem gate próprio | decisão teórica, sem código |
 | 6.5 ✅ | Healthcheck passou a quádruplo: addon, Jackett, FlareSolverr e API admin loopback do Caddy (`:2019/config/`) | operacional |
+| 6.5b ✅ | A sonda do Caddy precisa de `Origin` explícito (`http://127.0.0.1:2019`): a API admin faz origin check e o `fetch` do Node não manda o header, então ela respondia **403** e reprovava o container com os quatro processos vivos. Não apareceu na hora porque o container em pé era anterior à quarta sonda; só quebraria no rebuild seguinte | `23c64c2` |
 
 ---
 
@@ -519,14 +592,14 @@ acima) com o gate cheio (typecheck, build, suíte, `test:complete`, os 5
 harnesses adversariais) rodando verde antes de cada commit, e nenhum deles
 quebrou. `providers/index.ts` (2.220 linhas) e `utils/format.ts` (2.307
 linhas), os dois maiores arquivos do repo, não existem mais como monólito.
-5.6/5.7 continuam em aberto e fora do escopo desta rodada.
+5.6 e 5.7 foram concluídas depois, em 2026-08-24.
 
 ## Validação global (por fase)
 
 ```
 npm run typecheck      # portão: ZERO
 npm run build          # dist/ atual (test roda dist)
-npm test               # 1.117+ testes, zero falha
+npm test               # 1.193 testes hoje, zero falha
 npm run test:complete  # lista explícita fechada
 # fase 2+ (tocou runtime de rede/debrid):
 node dist/scripts/smoke.js          # pipeline ponta a ponta, rede de verdade
@@ -550,3 +623,5 @@ separadas.
 | 5.x refactor introduz corrida latest-writer/passe tardio | extração um commit por vez + harnesses como prova; `SearchPhase` explícito exatamente para isso |
 | 5.4 unificar resolvers quebra failover de domínio | um resolver por vez; `test:nerdfilmes` + fixtures reais por site |
 | Commits empilhados confundirem rollback | um commit por tarefa coesa; mensagem referencia o ID (ex.: `fix: B1 snapshot preexistente expira (PLANO_MELHORIAS 1.1)`) |
+| **Materializado:** subfase declarada concluída sem métrica que sustente a conclusão (5.4 e 5.7) | As duas foram marcadas ✅ com critério descritivo — "o núcleo existe", "os tipos foram criados" — e as duas estavam incompletas: 5.4 deixou três funções ainda duplicadas nos profiles, 5.7 declarou <150 quando o contador real dava 156. Lição: **toda subfase fecha com um número reproduzível no próprio plano** (linhas duplicadas, `any` da AST, ocorrências de `process.env`), com o comando ao lado. Métrica também pode mentir: a contagem por nome de função repetido inflava o resíduo de 5.4 (adaptador de 3 linhas conta igual a laço de 46), e o glob `src/**/*.ts` do contador de 5.7 varria 66 dos 72 arquivos — **valide o instrumento antes de declarar a meta batida** |
+| **Materializado:** healthcheck novo passou despercebido porque o container em pé era antigo (6.5b) | A quarta sonda respondia 403 e só quebraria no rebuild seguinte. Lição: mudança em `HEALTHCHECK`/`Dockerfile` exige `docker compose up -d --build` **e** verificar o `Health.Log` do container recriado — mais um caso negativo (derrubar a dependência e ver o check reprovar), senão um check que passa por acidente parece correto |
