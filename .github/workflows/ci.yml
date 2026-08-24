@@ -53,9 +53,9 @@ jobs:
         if: matrix.node == '22.x'
         run: npm run typecheck
 
-  # Fora do portão de propósito: com três dependências diretas, o audit falha
-  # por transitiva alheia que não temos como corrigir, e um vermelho que sempre
-  # aparece é um vermelho que ninguém mais lê. Aqui ele fica visível sem travar.
+  # Waiver temporário: a cadeia conhecida sdk → inquirer → external-editor → tmp
+  # não é carregada pelo processo do addon. O audit permanece visível; advisory
+  # fora da cadeia exige revisão. Ver AGENTS.md para prazo e condição de saída.
   audit:
     runs-on: ubuntu-latest
     continue-on-error: true

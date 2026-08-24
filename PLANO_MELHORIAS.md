@@ -99,8 +99,8 @@ refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado
 com teto pelo `DEBRID_CHECK_FLOOR_MS`.
 
 **O que continua aberto:** fase 0 (parcialmente — ver abaixo), item 4.2,
-fase 5 (5.1 e 5.3 concluídas em 2026-08-23; 5.2/5.4/5.5 concluídas em
-2026-08-24; 5.6/5.7 abertas) e fase 6.
+fase 5 (5.1 e 5.3 concluídas em 2026-08-23; 5.2 e 5.5 concluídas em
+2026-08-24; 5.4/5.6/5.7 parciais) e fase 6.
 
 ---
 
@@ -360,7 +360,7 @@ O harness adversarial (`test/empirical-e2e-challenger.ts`) precisou de mais
 MUT-02 (`dedupeByHash` → `stream-ranking.js`), MUT-08 (`limitReservingBr` →
 `stream-quotas.js`) — mesmo padrão do MUT-09/MUT-10 no 5.1.
 
-### 5.4 ✅ — Núcleo comum dos resolvers (A4) — esforço M — CONCLUÍDA (2026-08-24)
+### 5.4 — Núcleo comum dos resolvers (A4) — esforço M — PARCIAL (2026-08-24)
 
 `resolvers/` virou o núcleo CommonJS dos quatro resolvedores do processo
 embutido: `runtime.js`, `site-selector.js`, `cache.js`, `protector.js`,
@@ -374,6 +374,15 @@ carregador embutido da `br-resolvers.ts` (caminho histórico
 (junto dos shims), e o `Dockerfile` mantém o núcleo em `/app/resolvers` no
 stage final para inspeção operacional. Testes de parser por site continuam
 apontando para os profiles.
+
+O núcleo de processo foi entregue, mas isto não basta para encerrar A4: os
+profiles ainda retêm lógica repetida. A primeira extração verificável está em
+`resolvers/matching.js` (matching da busca, temporada, listas genéricas e
+identidade de botão), compartilhada pelos quatro profiles. A4 só conclui quando
+as funções comuns restantes tiverem um único dono, os profiles contiverem apenas
+regras de site e um inventário reproduzível provar que não há cópias dessas
+funções nos quatro arquivos. Cada extração preserva os exports dos shims e roda
+o gate completo da fase 5.
 
 ### 5.5 ✅ — Rotas de `app.ts` (A1c) — esforço M — CONCLUÍDA (2026-08-24)
 
@@ -393,20 +402,30 @@ async. Os testes de rota seguem passando por cima do app real (`createApp`).
 O nome de diretório ficou `routes/`, não `app/*-routes.ts` como o plano
 provisório sugeria.
 
-### 5.6 — `process.env` centralizado (A5) — esforço S
+### 5.6 — `process.env` centralizado (A5) — esforço S — PARCIAL
 
 `config.resolvers.portOffset`, `config.cache.persist`, `config.cache.dbPath`,
-`config.logging.level`. `br-resolvers.ts` mantém a mutação de `process.env`
-(compatibilidade dos servidores legados) mas encapsulada com restauração
-garantida e comentário. Leituras diretas em `app.ts`/`cache.ts`/`logger.ts`
-sóno bootstrap, vindo da config.
+`config.logging.level` e os limiares de conta do debrid já são a fonte dos
+consumidores TypeScript. `br-resolvers.ts` ainda mantém a ponte explícita de
+`process.env` para compatibilidade dos profiles CommonJS, com restauração
+garantida; ela não é alvo de uma troca mecânica.
 
-### 5.7 — Redução de `any` (A6) — esforço contínuo
+Critério de saída: `git grep -n 'process\.env' -- 'src/**/*.ts'` só pode
+encontrar `config.ts` e a ponte de compatibilidade documentada em
+`br-resolvers.ts`; os valores de controle dessa ponte precisam vir de `config`.
+Scripts CLI, testes e `resolvers/**/*.js` ficam fora desta métrica porque são
+processos/ambientes distintos.
+
+### 5.7 — Redução de `any` (A6) — esforço contínuo — PARCIAL
 
 Prioridade: opções de `applyDebrid`/`buildStreams`, respostas por adaptador
 (`PremiumizeTransfer`, `TorboxRow`, `AllDebridMagnet`), handlers Express com
 `Request`/`Response`. `unknown` na fronteira externa + normalização imediata.
-Meta da fase: <150 ocorrências em `src/`.
+Meta da fase: menos de 150 ocorrências explícitas em `src/`, medida por
+`git grep -n -E '\bany\b' -- 'src/**/*.ts' | Measure-Object -Line` no
+PowerShell. A linha de base de 2026-08-24 é 274 ocorrências; payload externo,
+compatibilidade de SDK/SQLite e código de teste devem ser classificados antes
+de uma redução, não convertidos cegamente em `unknown`.
 
 **Gate da fase 5:** após CADA subfase: `npm run typecheck && npm run build
 && npm test && npm run test:complete` + `npm run test:stress && npm run

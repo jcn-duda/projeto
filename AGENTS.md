@@ -1259,10 +1259,15 @@ o orçamento com a resposta.
   override força `^0.1.13` (mesma major, já corrigida) em toda a árvore —
   `router` não muda de API, só de patch. **Não faça `npm audit fix --force`**:
   ele rebaixa `stremio-addon-sdk` para `0.7.1`, quebra `addonBuilder`/
-  `getRouter` como usados aqui. O `tmp`/`external-editor` que sobra no audit
-  (via `inquirer`, dependência do CLI de publish do SDK) é ruído de verdade:
-  nada em `src/` importa `inquirer`, só `addonBuilder` e `getRouter` — o
-  código que chamaria `tmp.dir()` nunca roda no addon.
+  `getRouter` como usados aqui. **Waiver temporário de audit (revisado em
+  2026-08-24):** `tmp@0.0.33` e a cadeia
+  `stremio-addon-sdk@1.6.10 → inquirer@6.5.2 → external-editor@3.1.0 → tmp`
+  permanecem visíveis em `npm audit --omit=dev`, mas não bloqueiam o CI.
+  Nada em `src/` importa `inquirer`; o processo usa somente `addonBuilder` e
+  `getRouter`, logo o caminho de CLI que chama `tmp.dir()` não é carregado.
+  O audit continua no CI para expor advisory novo; qualquer pacote fora desta
+  cadeia exige revisão, e o waiver termina quando houver SDK compatível sem a
+  cadeia ou quando 6.1 o substituir. Não use `npm audit fix --force`.
 
 ## Git
 
