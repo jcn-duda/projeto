@@ -506,7 +506,7 @@ const config = {
     // addMagnet na mesma janela; sem folga a sonda herda 429 na hora.
     rdProbeInitialDelayMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_INITIAL_DELAY_MS, 8_000)),
     // Após 429, pausa novas sondas (doc: bruteforce bloqueia por tempo indefinido).
-    rdProbeCooldownCooldownMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_RATE_COOLDOWN_MS, 90_000)),
+    rdProbeRateCooldownMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_RATE_COOLDOWN_MS, 90_000)),
     // Miss recente não re-sonda (evita martelar o mesmo hash pending).
     rdProbeMissTtlMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_MISS_TTL_MS, 120_000)),
     // Prefetch do próximo episódio de séries
