@@ -15,6 +15,12 @@
  */
 process.env.CACHE_PERSIST = 'false';
 
+// O config le a .env do operador, entao um DEBRID_CACHED_ONLY=true na maquina
+// de quem roda a suite mudava o comportamento de applyDebrid e quebrava testes
+// que nada tem a ver com cache. Quem quer testar o corte liga o `dc` na config
+// da propria requisicao.
+process.env.DEBRID_CACHED_ONLY = 'false';
+
 // TTLs curtos do cache de disponibilidade por hash (davail, fase 3). Os únicos
 // consumidores da camada são os testes do debrid-avail, e o teste de expiração
 // espera o timer REAL (~1,3s e ~2,6s). O par <2s,1s> também mantém as entradas

@@ -164,16 +164,55 @@ export async function applyDebrid(input: Array<Stream | null>, {
   // Dedupe por inventário para adaptadores sem cacheCheck (Real-Debrid / Debrid-Link)
   let cachedForAutofetch = cached;
   let knownForAutofetch = known;
+  // O inventario da conta respondeu? So com ele em maos o corte do cachedOnly
+  // pode rodar num adaptador sem cacheCheck — com memo frio o conjunto vem
+  // vazio e o corte apagaria a lista inteira.
+  let accountKnown = false;
   if (!adapter.cacheCheck && adapter.autofetchSource) {
     const peek = debrid.inventoryPeek(adapter, opts().debridApiKey);
     if (peek) {
       cachedForAutofetch = new Set(peek.map((i) => String(i.infoHash || '').toLowerCase()));
       knownForAutofetch = true;
+      // O que ja esta PRONTO na conta toca na hora — isso e ⚡ de verdade, e o
+      // unico que sobrou desde que o Real-Debrid aposentou o
+      // /torrents/instantAvailability. Sem isto o inventario so alimentava o
+      // autofetch e a lista inteira saia [RD Download] mesmo com o arquivo
+      // baixado. `known` fica como esta de proposito: a conta nao responde pelo
+      // cache GLOBAL do servico, entao o corte do cachedOnly continua sem base
+      // para descartar o resto.
+      for (const hash of cachedForAutofetch) cached.add(hash);
+      accountKnown = true;
     } else {
       knownForAutofetch = false;
       debrid.inventory().catch((err: unknown) =>
         log.warn(`[${adapter.id}] aquecimento de inventário em fundo falhou:`, log.errorMessage(err)),
       );
+    }
+  }
+
+  // Historico duravel desta conta: hash que JA tocou pelo /resolve volta com ⚡.
+  // O markAlive grava no play bem-sucedido (TTL de 7 dias) e o `bad`/`lie`, mais
+  // recentes e mais especificos, vencem sobre ele no filtro la de cima — o que
+  // provou quebrar ja saiu da lista antes de chegar aqui.
+  //
+  // So para adaptador SEM cacheCheck: onde a checagem de cache funciona de
+  // verdade (AllDebrid) ela e a autoridade, e sobrepor com memoria antiga criaria
+  // ⚡ falso justamente onde existe resposta melhor. Isto tambem NAO liga
+  // `accountKnown`: e conhecimento pontual, nao um retrato completo da conta,
+  // entao nao pode autorizar o corte do cachedOnly a descartar o resto.
+  if (!adapter.cacheCheck && trustApiKey) {
+    let doHistorico = 0;
+    for (const s of streams) {
+      const hash = String(s.infoHash || '').toLowerCase();
+      if (!hash || cached.has(hash)) continue;
+      if (magnetdb.isAlive(adapter.id, trustApiKey, hash)) {
+        cached.add(hash);
+        doHistorico += 1;
+      }
+    }
+    if (doHistorico) {
+      metrics.count('debrid.instant.fromHistory', doHistorico);
+      log.info(`[debrid] ${doHistorico} stream(s) com ⚡ pelo histórico de play desta conta`);
     }
   }
 
@@ -248,6 +287,21 @@ export async function applyDebrid(input: Array<Stream | null>, {
     // bom quanto no caminho completo — este return passa por cima da coleta lá
     // de baixo, e era aqui que a fila ficava vazia nas respostas parciais.
     queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(streams, cached, { season, episode, imdbId, workHint }), searchKey);
+    // Com cachedOnly ligado, "sem raio nao aparece" tambem vale aqui: o
+    // inventario da conta e conhecimento COMPLETO sobre o que toca na hora,
+    // mesmo o servico nao respondendo pelo cache global dele. Sem
+    // `accountKnown` o corte nao roda — apagar a lista por memo frio seria pior
+    // do que mostrar de mais.
+    if (cachedOnly && accountKnown) {
+      const corte = filterKnownCache(streams, cached, { cachedOnly, showUncachedBr, brReservedSlots });
+      if (corte.visibleBr.size) {
+        log.info(`[debrid] ${corte.visibleBr.size} fonte(s) BR fora do cache mantida(s) como P2P`);
+      }
+      log.info(
+        `[debrid] cachedOnly: ${corte.streams.length}/${streams.length} stream(s) com play instantaneo na conta ${adapter.label}`,
+      );
+      return corte.streams.map((s) => viaDebrid(s, Boolean(s.infoHash && cached.has(s.infoHash))));
+    }
     return streams.map((s) => viaDebrid(s, Boolean(s.infoHash && cached.has(s.infoHash))));
   }
 

@@ -1,9 +1,15 @@
-import { magnetFor, json, pickFile, isNoVideoError, wait } from './common.js';
+import { magnetFor, json, pickFile, isBlockedError, isNoVideoError, wait } from './common.js';
 import * as log from '../utils/logger.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
 const API = 'https://api.real-debrid.com/rest/1.0';
+
+// O Real-Debrid nao tem /torrents/list: a listagem e GET /torrents, e sem
+// ?limit ela devolve so a primeira pagina (100). Com o endpoint errado o
+// inventario 404ava, nada era marcado como cacheado e a lista inteira saia
+// como [RD Download].
+const LIST_LIMIT = 2500;
 
 function auth(apiKey: string) {
   return { Authorization: `Bearer ${apiKey}` };
@@ -82,6 +88,22 @@ async function pollTorrent(apiKey: string, torrentId: string | number, hint: Pla
 }
 
 /**
+ * Id do torrent JA baixado na conta para este infoHash, ou '' se nao houver.
+ * Serve pro resolve reusar o que o usuario ja tem em vez de re-adicionar.
+ */
+async function readyTorrentId(apiKey: string, infoHash: string) {
+  try {
+    const list = await call(apiKey, '/torrents?limit=' + LIST_LIMIT);
+    const rows = Array.isArray(list) ? list : [];
+    const hit = rows.find((t: any) => String(t?.hash || '').toLowerCase() === infoHash.toLowerCase() && t?.status === READY);
+    return hit ? String(hit.id) : '';
+  } catch {
+    // Listagem indisponivel nao pode derrubar o play: segue pelo addMagnet.
+    return '';
+  }
+}
+
+/**
  * @param {string} apiKey
  * @param {string} infoHash
  * @param {object} [options]
@@ -90,20 +112,27 @@ async function pollTorrent(apiKey: string, torrentId: string | number, hint: Pla
  * @param {*} [options.work]
  */
 async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
-  const add = await call(apiKey, '/torrents/addMagnet', {
-    method: 'POST',
-    body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
-  });
-  if (!add?.id) return null;
+  // O que ja esta pronto na conta nao passa pelo addMagnet de novo: re-adicionar
+  // duplicava o torrent na conta e, pior, esbarrava no 451 `infringing_file` do
+  // Real-Debrid — o play morria em conteudo que o usuario JA tinha baixado.
+  let torrentId = await readyTorrentId(apiKey, infoHash);
+  if (!torrentId) {
+    const add = await call(apiKey, '/torrents/addMagnet', {
+      method: 'POST',
+      body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
+    });
+    if (!add?.id) return null;
+    torrentId = add.id;
+  }
 
   let info: TorrentInfo;
   try {
-    ({ info } = await pollTorrent(apiKey, add.id, { season, episode, work }));
+    ({ info } = await pollTorrent(apiKey, torrentId, { season, episode, work }));
   } catch (err) {
     // Sem vídeo na listagem: o torrent JÁ foi adicionado e ficaria preso em
     // waiting_files_selection ocupando vaga da conta. O NoVideoError precisa
     // continuar chegando ao /resolve para condenar o hash no banco.
-    if (isNoVideoError(err)) await removeTorrent(apiKey, add.id);
+    if (isNoVideoError(err)) await removeTorrent(apiKey, torrentId);
     throw err;
   }
 
@@ -148,10 +177,21 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
  * @param {?number} [options.episode]
  */
 async function enqueue(apiKey: string, infoHash: string, { season, episode }: { season?: number | null; episode?: number | null } = {}) {
-  const add = await call(apiKey, '/torrents/addMagnet', {
-    method: 'POST',
-    body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
-  });
+  let add: any;
+  try {
+    add = await call(apiKey, '/torrents/addMagnet', {
+      method: 'POST',
+      body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
+    });
+  } catch (err) {
+    // O 451 recusa o magnet antes de existir um id; não há torrent para limpar
+    // nem motivo para o runner tentar de novo como se fosse falha transitória.
+    if (isBlockedError(err)) {
+      log.warn(`[realdebrid] torrent ${infoHash.slice(0, 8)} bloqueado por motivo legal; recusando o autofetch`);
+      return false;
+    }
+    throw err;
+  }
   if (!add?.id) return false;
 
   let result: { info: TorrentInfo; selected: boolean };
@@ -168,6 +208,10 @@ async function enqueue(apiKey: string, infoHash: string, { season, episode }: { 
       log.warn(`[realdebrid] ${infoHash} não tem arquivo de vídeo; recusando o autofetch`);
       return false;
     }
+    if (isBlockedError(err)) {
+      log.warn(`[realdebrid] torrent ${infoHash.slice(0, 8)} bloqueado por motivo legal; recusando o autofetch`);
+      return false;
+    }
     throw err;
   }
   // Torrent já pronto não precisa selecionar. Fora isso, só é sucesso depois
@@ -181,7 +225,7 @@ async function enqueue(apiKey: string, infoHash: string, { season, episode }: { 
  * Inventário PRONTO da conta Real-Debrid (`{ title, infoHash, size }`).
  */
 async function inventory(apiKey: string) {
-  const list = await call(apiKey, '/torrents/list');
+  const list = await call(apiKey, '/torrents?limit=' + LIST_LIMIT);
   const rows = Array.isArray(list) ? list : [];
   const out: any[] = [];
   for (const t of rows) {
@@ -198,7 +242,7 @@ async function inventory(apiKey: string) {
  * Status de torrents na conta Real-Debrid para o ciclo de recheck / detecção de mortos.
  */
 async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
-  const list = await call(apiKey, '/torrents/list');
+  const list = await call(apiKey, '/torrents?limit=' + LIST_LIMIT);
   const rows = Array.isArray(list) ? list : [];
   const out: Record<string, TorrentStatusEntry> = {};
   for (const t of rows) {

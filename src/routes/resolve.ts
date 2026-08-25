@@ -49,6 +49,20 @@ function makeResolveHandler(services: AppServices) {
         if (adapter) services.magnetdb.markBad(adapter.id, services.runtime.opts().debridApiKey, infoHash);
         return res.status(404).send('nenhum arquivo de vídeo no torrent');
       }
+      // 429 nao e culpa do torrent: o debrid pediu para esperar. Sem isto virava
+      // "falha ao resolver" generico, que manda o usuario trocar de fonte a esmo
+      // quando trocar nao adianta — e cada tentativa nova so piora o limite.
+      if (services.debridCommon.isRateLimitError(err)) {
+        services.log.warn('[resolve] ' + infoHash.slice(0, 8) + ': debrid pediu para desacelerar (429)');
+        return res.status(429).send('o debrid está limitando as requisições; espere um pouco e tente de novo');
+      }
+      // 451 é uma recusa legal do serviço, não evidência de torrent sem vídeo.
+      // Só NoVideoError pode alimentar o magnetdb; bloquear este hash ali
+      // esconderia uma fonte potencialmente tocável em outro debrid.
+      if (services.debridCommon.isBlockedError(err)) {
+        services.log.warn('[resolve] torrent ' + infoHash.slice(0, 8) + ' bloqueado pelo debrid (451)');
+        return res.status(451).send('o debrid bloqueou este conteúdo por motivo legal');
+      }
       if (services.debridCommon.isDubLieError(err)) {
         const adapter = services.debrid.current();
         if (adapter) services.magnetdb.markLie(adapter.id, services.runtime.opts().debridApiKey, infoHash);

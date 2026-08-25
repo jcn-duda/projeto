@@ -10,7 +10,7 @@ import express from 'express';
 import { createApp, asyncRoute } from '../src/app.js';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
-import { WorkPickError, EpisodePickError, NoVideoError } from '../src/debrid/common.js';
+import { BlockedError, WorkPickError, EpisodePickError, NoVideoError } from '../src/debrid/common.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import type { DebridAdapter } from '../types/domain.js';
@@ -524,6 +524,24 @@ test('/debrid-status.json: debrid pendurado solta o assento no prazo e a monitor
     config.debrid.dashboardAccountTimeoutMs = originalTimeout;
     config.jackett.testToken = '';
     await isolatedSrv.close();
+  }
+});
+
+test('/resolve: BlockedError devolve 451 legal sem gravar bad ou alive', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashBlocked = '3'.repeat(40);
+  const sig = hmacSig('fake-key', hashBlocked);
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    FAKE_ADAPTER.resolveLink = async () => { throw new BlockedError('HTTP 451 — infringing_file'); };
+    const res = await server.request('GET', `/${cfg}/resolve/${hashBlocked}?sig=${sig}`);
+    assert.equal(res.status, 451);
+    assert.equal(res.text, 'o debrid bloqueou este conteúdo por motivo legal');
+    assert.equal(magnetdb.isBad('fakebrid', 'fake-key', hashBlocked), false, '451 não prova ausência de vídeo');
+    assert.equal(magnetdb.isAlive('fakebrid', 'fake-key', hashBlocked), false, '451 nunca é play resolvido');
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
   }
 });
 

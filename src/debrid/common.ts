@@ -17,6 +17,19 @@ function magnetFor(infoHash: string) {
   return `magnet:?xt=urn:btih:${infoHash}${trackers}`;
 }
 
+/**
+ * Conteúdo que o debrid se recusa a servir (HTTP 451 `infringing_file` no
+ * Real-Debrid). É permanente por torrent: não adianta tentar de novo, e o
+ * usuário merece ouvir isso em vez de um "falha ao resolver" genérico.
+ */
+class BlockedError extends Error {
+  isBlockedError = true;
+  constructor(message: string) { super(message); this.name = 'BlockedError'; }
+}
+function isBlockedError(error: MaybeError) {
+  return Boolean(error && error.isBlockedError);
+}
+
 /** Credencial recusada pelo serviço. */
 class AuthError extends Error {
   isAuthError = true;
@@ -71,8 +84,14 @@ async function json(
     const message = `HTTP ${res.status}${detail ? ` — ${detail}` : ''}`;
     if (res.status === 401 || res.status === 403) throw new AuthError(message);
     if (res.status === 429) throw new RateLimitError(message);
+    if (res.status === 451) throw new BlockedError(message);
     throw new Error(message);
   }
+  // 204 sem corpo e resposta legitima: o /torrents/selectFiles do Real-Debrid
+  // sempre responde assim. Mandar isso pro res.json() estourava "Unexpected end
+  // of JSON input" no meio do resolve, e o play virava 502 mesmo com o arquivo
+  // ja 100% pronto na conta.
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -114,4 +133,5 @@ function wait(ms: number) { return new Promise((resolve) => setTimeout(resolve, 
 export {
   magnetFor, json, batched, wait,
   AuthError, isAuthError, QuotaError, isQuotaError, RateLimitError, isRateLimitError,
+  BlockedError, isBlockedError,
 };

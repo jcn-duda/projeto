@@ -160,7 +160,7 @@ test('alldebrid: parser do /magnet/status mapeia ready, ativo e morto', async ()
 
 // --- Real-Debrid ----------------------------------------------------------
 
-test('realdebrid: parser do /torrents/list cobre downloaded, downloading e magnet_error', async () => {
+test('realdebrid: parser do GET /torrents cobre downloaded, downloading e magnet_error', async () => {
   const a = 'a'.repeat(40);
   const b = 'b'.repeat(40);
   const c = 'c'.repeat(40);
