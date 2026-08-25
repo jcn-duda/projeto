@@ -173,6 +173,8 @@ export interface InventoryItem {
   title: string;
   infoHash: string;
   size: number;
+  /** Id do torrent no serviço (Real-Debrid); o pipeline só precisa do hash. */
+  id?: string;
 }
 
 /**

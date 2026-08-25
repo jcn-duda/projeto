@@ -110,9 +110,23 @@ function mapResults(
   });
 }
 
+/**
+ * O Link do Cardigann (`/dl/<indexer>/...`) aponta para o PRÓPRIO Jackett —
+ * no container único ele mora em loopback, e o guard genérico (feito para
+ * input de terceiros) bloqueava todos os magnets BR. Origem conhecida do
+ * próprio serviço não é input de terceiro.
+ */
+function isJackettOrigin(url: string): boolean {
+  try {
+    return new URL(url).origin === new URL(config.jackett.url).origin;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveDownloadMagnet(url: string, budgetMs: number) {
   if (!url) return null;
-  if (!isSafeDownloadUrl(url, config.jackett.allowPrivateDownloadIps)) {
+  if (!isJackettOrigin(url) && !isSafeDownloadUrl(url, config.jackett.allowPrivateDownloadIps)) {
     log.warn(`[jackett] URL de download bloqueada por segurança: ${String(url).slice(0, 160)}`);
     return null;
   }

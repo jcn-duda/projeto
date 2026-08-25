@@ -253,9 +253,20 @@ export async function buildStreams(rawInput: RawItem[], {
   // resolvedor abriu), e `sortAndLimit` recebe `(Stream | null)[]` de propósito
   // — o buraco tem que ser filtrado ANTES do acesso, senão um único resultado
   // sem hash derruba a lista inteira com TypeError.
+  // Item já PRONTO na conta (memo dinv quente) é a mesma evidência medida do
+  // alive: sem contá-lo aqui, o item do inventário com seeders baixos perde
+  // para os globais dentro do balde e morre no pool de candidatos, ANTES do
+  // debrid — a fonte que tocava na hora sumia da lista por aposta de seeders.
+  const inventoryReady = new Set(
+    (debrid.inventoryPeek(aliveAdapter, aliveApiKey) || [])
+      .map((item) => String(item.infoHash || '').toLowerCase())
+      .filter(Boolean),
+  );
   const instantSet = aliveAdapter && aliveApiKey
     ? new Set(mappedStreams.flatMap((s) => s?.infoHash ? [s.infoHash] : [])
-        .filter((h: string) => magnetdb.isAlive(aliveAdapter.id, aliveApiKey, h)))
+        .filter((h: string) =>
+          magnetdb.isAlive(aliveAdapter.id, aliveApiKey, h) ||
+          inventoryReady.has(String(h).toLowerCase())))
     : null;
   const liedSet = aliveAdapter && aliveApiKey
     ? new Set(mappedStreams.flatMap((s) => s?.infoHash ? [s.infoHash] : [])

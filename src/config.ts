@@ -500,7 +500,7 @@ const config = {
     // sem depender de indexer — inclusive pack de franquia que o casamento
     // estrito dos trackers rejeita (medido: "FILMOGRAFIA COMPLETA JORNADA NAS
     // ESTRELAS" pronto na conta e invisível, porque nenhum indexer devolve o
-    // título). Só AllDebrid e TorBox expõem inventário; nos demais é no-op.
+    // título). AllDebrid, TorBox e Real-Debrid expõem inventário; nos demais é no-op.
     inventorySource: String(process.env.DEBRID_INVENTORY_SOURCE || 'true') === 'true',
     // Validade do inventário memoizado: ele só muda quando o usuário mexe na
     // conta, então 300s troca "refletir uploads novos" por "não bater na API

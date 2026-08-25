@@ -1,5 +1,7 @@
 import { magnetFor, json, pickFile, isBlockedError, isNoVideoError, wait } from './common.js';
 import * as log from '../utils/logger.js';
+import * as metrics from '../utils/metrics.js';
+import * as memo from './inventory-memo.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
@@ -10,6 +12,10 @@ const API = 'https://api.real-debrid.com/rest/1.0';
 // inventario 404ava, nada era marcado como cacheado e a lista inteira saia
 // como [RD Download].
 const LIST_LIMIT = 2500;
+// Teto defensivo da paginação: a conta real medida tem ~1200 magnets; quatro
+// páginas de 2500 cobrem dez vezes isso sem transformar resposta degenerada
+// em laço infinito.
+const LIST_MAX_ROWS = 10000;
 
 function auth(apiKey: string) {
   return { Authorization: `Bearer ${apiKey}` };
@@ -34,6 +40,22 @@ function call(apiKey: string, path: string, { method = 'GET', body }: { method?:
 }
 
 /**
+ * Listagem completa da conta, paginada. O Real-Debrid devolve só a primeira
+ * página sem `?limit` (e `offset` anda em passos de `limit`), então uma conta
+ * com mais de 2500 magnets perderia o inventário silenciosamente numa chamada só.
+ */
+async function listTorrents(apiKey: string) {
+  const rows: any[] = [];
+  for (let offset = 0; offset < LIST_MAX_ROWS; offset += LIST_LIMIT) {
+    const page = await call(apiKey, `/torrents?limit=${LIST_LIMIT}&offset=${offset}`);
+    const chunk = Array.isArray(page) ? page : [];
+    rows.push(...chunk);
+    if (chunk.length < LIST_LIMIT) break;
+  }
+  return rows;
+}
+
+/**
  * O Real-Debrid aposentou o /torrents/instantAvailability: não há mais como
  * perguntar em lote o que está em cache. Devolvemos vazio e o orquestrador
  * trata todos como "não sei" — ver `cacheCheck: false` no final do arquivo.
@@ -46,7 +68,7 @@ const READY = 'downloaded';
 const WORKING = ['magnet_conversion', 'queued', 'downloading', 'compressing', 'uploading'];
 const WAITING_SELECTION = 'waiting_files_selection';
 
-type TorrentInfo = { status?: string; files?: any[]; links?: string[] };
+type TorrentInfo = { status?: string; files?: any[]; links?: string[]; filename?: string; bytes?: number | string; id?: string | number };
 
 /** Seleciona uma única vez o arquivo que o RD liberou para escolha. */
 async function selectWaitingFiles(apiKey: string, torrentId: string | number, info: TorrentInfo, hint: PlayHint) {
@@ -92,10 +114,21 @@ async function pollTorrent(apiKey: string, torrentId: string | number, hint: Pla
  * Serve pro resolve reusar o que o usuario ja tem em vez de re-adicionar.
  */
 async function readyTorrentId(apiKey: string, infoHash: string) {
+  const hash = infoHash.toLowerCase();
+  // Memo quente responde sem tocar na rede: a listagem completa custava uma
+  // chamada larga em TODO play, e o memo é a mesma evidência servida da
+  // memória. Item sem id (formato antigo) cai no caminho de rede.
+  const peeked = memo.peek(id, apiKey);
+  if (peeked) {
+    const hit = peeked.find((i) => String(i.infoHash || '').toLowerCase() === hash);
+    if (hit?.id) {
+      metrics.count('debrid.rd.readyFromMemo');
+      return String(hit.id);
+    }
+  }
   try {
-    const list = await call(apiKey, '/torrents?limit=' + LIST_LIMIT);
-    const rows = Array.isArray(list) ? list : [];
-    const hit = rows.find((t: any) => String(t?.hash || '').toLowerCase() === infoHash.toLowerCase() && t?.status === READY);
+    const rows = await listTorrents(apiKey);
+    const hit = rows.find((t: any) => String(t?.hash || '').toLowerCase() === hash && t?.status === READY);
     return hit ? String(hit.id) : '';
   } catch {
     // Listagem indisponivel nao pode derrubar o play: segue pelo addMagnet.
@@ -132,7 +165,10 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
     // Sem vídeo na listagem: o torrent JÁ foi adicionado e ficaria preso em
     // waiting_files_selection ocupando vaga da conta. O NoVideoError precisa
     // continuar chegando ao /resolve para condenar o hash no banco.
-    if (isNoVideoError(err)) await removeTorrent(apiKey, torrentId);
+    if (isNoVideoError(err)) {
+      await removeTorrent(apiKey, torrentId);
+      memo.forget(id, apiKey, infoHash);
+    }
     throw err;
   }
 
@@ -143,6 +179,15 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
     log.warn(`[realdebrid] torrent não está em cache (status: ${info.status})`);
     return null;
   }
+
+  // Pronto na conta atualiza o memo quente: a próxima busca marca ⚡ sem
+  // esperar o TTL do inventário. Memo frio continua lazy (não cria retrato).
+  memo.note(id, apiKey, {
+    title: String(info.filename || '').trim(),
+    infoHash,
+    size: Number(info.bytes) || 0,
+    id: String(torrentId),
+  });
 
   // `links` traz só os arquivos selecionados, na ordem dos selecionados —
   // por isso a escolha do arquivo é refeita sobre esse subconjunto.
@@ -205,6 +250,7 @@ async function enqueue(apiKey: string, infoHash: string, { season, episode }: { 
     // aceitou"; deixar subir viraria "[autofetch] falhou" genérico.
     if (isNoVideoError(err)) {
       await removeTorrent(apiKey, add.id);
+      memo.forget(id, apiKey, infoHash);
       log.warn(`[realdebrid] ${infoHash} não tem arquivo de vídeo; recusando o autofetch`);
       return false;
     }
@@ -213,6 +259,16 @@ async function enqueue(apiKey: string, infoHash: string, { season, episode }: { 
       return false;
     }
     throw err;
+  }
+  // Pronto na conta entra no memo quente agora: o ⚡ da próxima busca não
+  // espera o TTL do inventário.
+  if (result.info.status === READY) {
+    memo.note(id, apiKey, {
+      title: String(result.info.filename || '').trim(),
+      infoHash,
+      size: Number(result.info.bytes) || 0,
+      id: String(add.id),
+    });
   }
   // Torrent já pronto não precisa selecionar. Fora isso, só é sucesso depois
   // que esta execução selecionou ou o RD prova que já havia arquivo escolhido.
@@ -225,15 +281,15 @@ async function enqueue(apiKey: string, infoHash: string, { season, episode }: { 
  * Inventário PRONTO da conta Real-Debrid (`{ title, infoHash, size }`).
  */
 async function inventory(apiKey: string) {
-  const list = await call(apiKey, '/torrents?limit=' + LIST_LIMIT);
-  const rows = Array.isArray(list) ? list : [];
+  const rows = await listTorrents(apiKey);
   const out: any[] = [];
   for (const t of rows) {
     if (t?.status !== READY) continue;
     const infoHash = String(t.hash || '').toLowerCase();
     const title = String(t.filename || '').trim();
     if (!infoHash || !title || title.toLowerCase() === infoHash) continue;
-    out.push({ title, infoHash, size: Number(t.bytes) || 0 });
+    // O id viaja junto: com ele o play resolve pelo memo sem re-listar a conta.
+    out.push({ title, infoHash, size: Number(t.bytes) || 0, ...(t.id != null ? { id: String(t.id) } : {}) });
   }
   return out;
 }
@@ -242,8 +298,7 @@ async function inventory(apiKey: string) {
  * Status de torrents na conta Real-Debrid para o ciclo de recheck / detecção de mortos.
  */
 async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
-  const list = await call(apiKey, '/torrents?limit=' + LIST_LIMIT);
-  const rows = Array.isArray(list) ? list : [];
+  const rows = await listTorrents(apiKey);
   const out: Record<string, TorrentStatusEntry> = {};
   for (const t of rows) {
     const hash = String(t.hash || '').toLowerCase();
@@ -274,10 +329,36 @@ async function removeTorrent(apiKey: string, id: string | number) {
   }
 }
 
+/**
+ * Saúde da conta para o `/debrid-status.json`: ocupação (o aviso por contagem
+ * vem do `DEBRID_ACCOUNT_WARN_TOTAL`, como na AllDebrid) e validade do
+ * premium. O RD não publica teto consultável — o limiar é nosso.
+ */
+async function accountStatus(apiKey: string) {
+  const [user, rows] = await Promise.all([call(apiKey, '/user'), listTorrents(apiKey)]);
+  let ready = 0;
+  let active = 0;
+  let error = 0;
+  for (const t of rows) {
+    const status = String(t?.status || '').toLowerCase();
+    if (status === READY) ready += 1;
+    else if (/^(magnet_error|error|virus|dead)$/.test(status)) error += 1;
+    else active += 1;
+  }
+  const expiration = user?.expiration ? new Date(String(user.expiration)).getTime() : NaN;
+  return {
+    magnets: rows.length,
+    ready,
+    active,
+    error,
+    premiumUntil: Number.isFinite(expiration) ? expiration : null,
+  };
+}
+
 export const id = 'realdebrid';
 export const label = 'Real-Debrid';
 export const short = 'RD';
 export const cacheCheck = false;
 export const autofetchSource = true;
 export const keyUrl = 'https://real-debrid.com/apitoken';
-export { enqueue, checkCached, resolveLink, inventory, torrentStatus, removeTorrent };
+export { enqueue, checkCached, resolveLink, inventory, torrentStatus, removeTorrent, accountStatus };

@@ -1,10 +1,11 @@
 import { opts } from '../runtime.js';
-import type { DebridAdapter, PlayHint } from '../../types/domain.js';
+import type { DebridAdapter, InventoryItem, PlayHint } from '../../types/domain.js';
 import config from '../config.js';
 import { accountScope } from '../utils/request-key.js';
 import { prefix } from '../utils/cache-keys.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { isAuthError, isQuotaError, isRateLimitError } from './common.js';
+import * as inventoryMemo from './inventory-memo.js';
 import * as cache from '../utils/cache.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
@@ -483,7 +484,7 @@ const inventoryInFlight = new Map();
 function inventoryFor(adapter: DebridAdapter, apiKey: string) {
   if (typeof adapter.inventory !== 'function') return Promise.resolve([]);
   const loadInventory = adapter.inventory;
-  const key = `${prefix('dinv')}${adapter.id}:${accountScope(apiKey)}`;
+  const key = inventoryMemo.memoKey(adapter.id, apiKey);
   const hit = cache.get(key);
   if (hit) return Promise.resolve(hit);
 
@@ -495,7 +496,7 @@ function inventoryFor(adapter: DebridAdapter, apiKey: string) {
         // Teto defensivo: a conta real medida tem 1208 prontos; resposta
         // degenerada não pode entrar inteira no cache.
         const list = (Array.isArray(items) ? items : []).slice(0, config.debrid.inventoryMax);
-        cache.set(key, list, config.debrid.inventoryTtl);
+        inventoryMemo.store(adapter.id, apiKey, list);
         log.info(`[${adapter.id}] inventário da conta: ${list.length} item(ns) pronto(s)`);
         return list;
       });
@@ -515,13 +516,11 @@ function inventoryFor(adapter: DebridAdapter, apiKey: string) {
  * Leitura síncrona do memo dinv da conta: cache.get, sem rede, sem in-flight.
  * null = memo frio.
  */
-function inventoryPeek(adapter?: DebridAdapter | null, apiKey?: string): { title: string; infoHash: string; size: number }[] | null {
+function inventoryPeek(adapter?: DebridAdapter | null, apiKey?: string): InventoryItem[] | null {
   const ad = adapter || current();
   const key = apiKey || opts().debridApiKey;
   if (!ad || !key) return null;
-  const storageKey = `${prefix('dinv')}${ad.id}:${accountScope(key)}`;
-  const hit = cache.get(storageKey);
-  return Array.isArray(hit) ? hit : null;
+  return inventoryMemo.peek(ad.id, key);
 }
 
 /**
@@ -542,11 +541,11 @@ function refreshInventory() {
   const keys = new Set<string>();
   const active = current();
   const activeKey = opts().debridApiKey;
-  if (active && activeKey) keys.add(`${prefix('dinv')}${active.id}:${accountScope(activeKey)}`);
+  if (active && activeKey) keys.add(inventoryMemo.memoKey(active.id, activeKey));
 
   const operator = config.debrid.service ? BY_ID.get(config.debrid.service) : null;
   if (operator && config.debrid.apiKey && config.debrid.allowEnvKey) {
-    keys.add(`${prefix('dinv')}${operator.id}:${accountScope(config.debrid.apiKey)}`);
+    keys.add(inventoryMemo.memoKey(operator.id, config.debrid.apiKey));
   }
   cache.forgetMany([...keys]);
   return { refreshed: keys.size };

@@ -180,7 +180,13 @@ export async function applyDebrid(input: Array<Stream | null>, {
       // baixado. `known` fica como esta de proposito: a conta nao responde pelo
       // cache GLOBAL do servico, entao o corte do cachedOnly continua sem base
       // para descartar o resto.
-      for (const hash of cachedForAutofetch) cached.add(hash);
+      let fromInventory = 0;
+      for (const hash of cachedForAutofetch) {
+        if (cached.has(hash)) continue;
+        cached.add(hash);
+        fromInventory += 1;
+      }
+      if (fromInventory) metrics.count('debrid.instant.fromInventory', fromInventory);
       accountKnown = true;
     } else {
       knownForAutofetch = false;
