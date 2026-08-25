@@ -501,7 +501,12 @@ const config = {
     rdProbeMax: Math.min(8, Math.max(0, Math.trunc(num(process.env.DEBRID_RD_PROBE_MAX, 4)))),
     rdProbeMaxHour: Math.max(0, Math.trunc(num(process.env.DEBRID_RD_PROBE_MAX_HOUR, 40))),
     // Folga entre sondas — longe do teto de 250 req/min e do aviso de bruteforce.
-    rdProbeGapMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_GAP_MS, 400)),
+    rdProbeGapMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_GAP_MS, 800)),
+    // Espera após a resposta antes da 1ª sonda: o autofetch RD também faz
+    // addMagnet na mesma janela; sem folga a sonda herda 429 na hora.
+    rdProbeInitialDelayMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_INITIAL_DELAY_MS, 8_000)),
+    // Após 429, pausa novas sondas (doc: bruteforce bloqueia por tempo indefinido).
+    rdProbeCooldownCooldownMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_RATE_COOLDOWN_MS, 90_000)),
     // Miss recente não re-sonda (evita martelar o mesmo hash pending).
     rdProbeMissTtlMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_MISS_TTL_MS, 120_000)),
     // Prefetch do próximo episódio de séries

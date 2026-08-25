@@ -37,6 +37,8 @@ type ProbeOpts = {
 
 const recentMiss = new Map<string, number>();
 const hourly: number[] = [];
+/** Pausa global após 429 — compartilhada entre buscas deste processo. */
+let rateCooldownUntil = 0;
 
 function missKey(account: string, hash: string) {
   return `${account}:${hash}`;
@@ -105,6 +107,9 @@ export function selectProbeCandidates(
 
   const picked: string[] = [];
   const seen = new Set<string>();
+  // Oversample: o autofetch segura hold nos melhores BR antes da sonda —
+  // pedir só `max` fazia a lista inteira cair no skip e a sonda virar no-op.
+  const poolLimit = Math.max(max * 4, max + 8);
   const push = (list: Stream[]) => {
     for (const s of list) {
       const h = String(s.infoHash || '').toLowerCase();
@@ -116,9 +121,9 @@ export function selectProbeCandidates(
     return false;
   };
 
-  if (push(pickBrDubbedCandidates(streams, cachedSet, max))) return picked;
-  if (push(pickAnyDubbedCandidates(streams, cachedSet, max))) return picked;
-  push(pickTopSeededCandidates(streams, cachedSet, max, { minSeeders: 1 }));
+  if (push(pickBrDubbedCandidates(streams, cachedSet, poolLimit))) return picked;
+  if (push(pickAnyDubbedCandidates(streams, cachedSet, poolLimit))) return picked;
+  push(pickTopSeededCandidates(streams, cachedSet, poolLimit, { minSeeders: 1 }));
   return picked;
 }
 
@@ -128,6 +133,15 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
     if (!apiKey) return;
     const account = accountScope(apiKey);
 
+    if (config.debrid.rdProbeInitialDelayMs > 0) {
+      await wait(config.debrid.rdProbeInitialDelayMs);
+    }
+    if (Date.now() < rateCooldownUntil) {
+      metrics.count('debrid.rd.probe.cooldown');
+      log.info(`[rd-probe] em cooldown de rate-limit por mais ${Math.ceil((rateCooldownUntil - Date.now()) / 1000)}s`);
+      return;
+    }
+
     const active = await realdebrid.activeTorrentCount(apiKey);
     if (active && active.limit > 0 && active.nb >= active.limit) {
       metrics.count('debrid.rd.probe.skippedActive');
@@ -136,6 +150,7 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
     }
 
     let instant = 0;
+    log.info(`[rd-probe] sondando ${hashes.length} hash(es)`);
     for (let i = 0; i < hashes.length; i += 1) {
       const hash = hashes[i];
       try {
@@ -154,8 +169,12 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
         // 'active' / 'memo': sem miss — active pode ficar pronto depois; memo já era ⚡
       } catch (err) {
         if (isRateLimitError(err) || isQuotaError(err)) {
+          rateCooldownUntil = Date.now() + config.debrid.rdProbeRateCooldownMs;
           metrics.count('debrid.rd.probe.aborted');
-          log.warn(`[rd-probe] interrompido (${(err as Error).message || err})`);
+          log.warn(
+            `[rd-probe] interrompido (${(err as Error).message || err}); ` +
+            `cooldown ${Math.round(config.debrid.rdProbeRateCooldownMs / 1000)}s`,
+          );
           break;
         }
         noteMiss(account, hash);
@@ -186,6 +205,10 @@ export function queueRdProbe(streams: Stream[], { cached, searchKey }: ProbeOpts
   const adapter = debrid.current();
   if (!adapter || adapter.id !== 'realdebrid') return;
   if (!opts().debridApiKey) return;
+  if (Date.now() < rateCooldownUntil) {
+    metrics.count('debrid.rd.probe.cooldown');
+    return;
+  }
 
   const apiKey = opts().debridApiKey;
   const account = accountScope(apiKey);
@@ -199,6 +222,8 @@ export function queueRdProbe(streams: Stream[], { cached, searchKey }: ProbeOpts
   if (hashes.length === 0) {
     // Devolve os slots não usados à janela (evita contar o ar).
     for (let i = 0; i < slots; i += 1) hourly.pop();
+    metrics.count('debrid.rd.probe.noCandidates');
+    log.info('[rd-probe] nenhum candidato livre (cache/hold/miss recente)');
     return;
   }
   // Ajustar contagem horária ao que de fato vamos sondar.

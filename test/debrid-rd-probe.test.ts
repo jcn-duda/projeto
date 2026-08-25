@@ -147,3 +147,24 @@ test('selectProbeCandidates prioriza BR dublado e pula já cacheado', () => {
   assert.equal(picked[0], H2, 'BR dublado primeiro');
   assert.ok(!picked.includes(H3), 'já em cached não entra');
 });
+
+test('selectProbeCandidates oversample: hold nos top BR nao zera a sonda', async () => {
+  const held = await import('../src/debrid/protected.js');
+  const extras = Array.from({ length: 6 }, (_, i) => {
+    const h = `${i.toString(16).padStart(2, '0')}`.repeat(20);
+    return { infoHash: h, name: `BR DUB ${i}\n👤 ${10 - i}`, _seeders: 10 - i, _dubbed: true, _br: true };
+  });
+  // Segura os 2 melhores — a sonda tem que pegar os seguintes.
+  held.hold(extras[0].infoHash, 60, 'acct');
+  held.hold(extras[1].infoHash, 60, 'acct');
+  try {
+    const picked = selectProbeCandidates(extras as any, new Set(), 'acct', 2, 'chave');
+    assert.equal(picked.length, 2);
+    assert.ok(!picked.includes(extras[0].infoHash));
+    assert.ok(!picked.includes(extras[1].infoHash));
+    assert.equal(picked[0], extras[2].infoHash);
+  } finally {
+    held.release(extras[0].infoHash, 'acct');
+    held.release(extras[1].infoHash, 'acct');
+  }
+});
