@@ -498,13 +498,15 @@ const config = {
     // torrent da sonda. Fora do caminho da resposta. false desliga tudo.
     rdProbe: String(process.env.DEBRID_RD_PROBE || 'true') === 'true',
     // Teto por busca (e por janela horária abaixo). Concurrency implícita = 1.
-    rdProbeMax: Math.min(8, Math.max(0, Math.trunc(num(process.env.DEBRID_RD_PROBE_MAX, 4)))),
+    // Default 2: cada sonda é addMagnet+info+delete; com autofetch na mesma
+    // conta, 4 em paralelo com o passe tardio estourava 429 com facilidade.
+    rdProbeMax: Math.min(8, Math.max(0, Math.trunc(num(process.env.DEBRID_RD_PROBE_MAX, 2)))),
     rdProbeMaxHour: Math.max(0, Math.trunc(num(process.env.DEBRID_RD_PROBE_MAX_HOUR, 40))),
     // Folga entre sondas — longe do teto de 250 req/min e do aviso de bruteforce.
     rdProbeGapMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_GAP_MS, 800)),
     // Espera após a resposta antes da 1ª sonda: o autofetch RD também faz
     // addMagnet na mesma janela; sem folga a sonda herda 429 na hora.
-    rdProbeInitialDelayMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_INITIAL_DELAY_MS, 8_000)),
+    rdProbeInitialDelayMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_INITIAL_DELAY_MS, 15_000)),
     // Após 429, pausa novas sondas (doc: bruteforce bloqueia por tempo indefinido).
     rdProbeRateCooldownMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_RATE_COOLDOWN_MS, 90_000)),
     // Miss recente não re-sonda (evita martelar o mesmo hash pending).

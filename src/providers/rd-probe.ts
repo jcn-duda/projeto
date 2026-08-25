@@ -39,6 +39,8 @@ const recentMiss = new Map<string, number>();
 const hourly: number[] = [];
 /** Pausa global após 429 — compartilhada entre buscas deste processo. */
 let rateCooldownUntil = 0;
+/** No máximo UMA sonda em voo: parcial + passe tardio enfileiravam 3×4 addMagnet. */
+let probeInFlight = false;
 
 function missKey(account: string, hash: string) {
   return `${account}:${hash}`;
@@ -192,8 +194,12 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
       log.info(`[rd-probe] ${instant} instantâneo(s); cache de ${searchKey} invalidado`);
     }
   };
-  if (ctx) await run(ctx, body);
-  else await body();
+  try {
+    if (ctx) await run(ctx, body);
+    else await body();
+  } finally {
+    probeInFlight = false;
+  }
 }
 
 /**
@@ -207,6 +213,10 @@ export function queueRdProbe(streams: Stream[], { cached, searchKey }: ProbeOpts
   if (!opts().debridApiKey) return;
   if (Date.now() < rateCooldownUntil) {
     metrics.count('debrid.rd.probe.cooldown');
+    return;
+  }
+  if (probeInFlight) {
+    metrics.count('debrid.rd.probe.busy');
     return;
   }
 
@@ -233,9 +243,11 @@ export function queueRdProbe(streams: Stream[], { cached, searchKey }: ProbeOpts
   }
 
   metrics.count('debrid.rd.probe.queued', hashes.length);
+  probeInFlight = true;
   const ctx = capture();
   // Fire-and-forget: rejeição não pode virar unhandledRejection.
   runProbeLot(hashes, searchKey, ctx).catch((err) => {
+    probeInFlight = false;
     log.warn('[rd-probe] lote falhou:', (err as Error)?.message || err);
   });
 }
