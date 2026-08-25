@@ -521,7 +521,6 @@ module.exports = {
   matchesSeasonSeason,
   selectSearchPosts,
   fetchFollowingAllowed,
-  siteSelector,
   createSiteSelector,
   isNetworkError,
   postCache,

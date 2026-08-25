@@ -722,7 +722,6 @@ module.exports = {
   normalizeSeasonValue,
   matchesSeasonSeason,
   selectSearchPosts,
-  siteSelector,
   createSiteSelector,
   isNetworkError,
   postCache,

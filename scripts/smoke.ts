@@ -102,12 +102,21 @@ function inspect(streams: any[]) {
 // depois que a resposta já saiu. O addon marca essa resposta com `max-age=0`
 // pedindo pra perguntar de novo, e é isso que o cliente Stremio faz — então o
 // smoke test faz o mesmo em vez de julgar a primeira lista que receber.
-const MAX_TENTATIVAS = 5;
+//
+// A janela precisa caber o pior caso REAL, não um palpite: o orçamento total
+// de um indexer BR é `JACKETT_BR_INDEXER_TIMEOUT_MS` (20s, busca + resolução
+// dos magnets), e a varredura pt-BR nos globais ainda roda depois. Com 5
+// tentativas espaçadas de 1,5s a janela era de ~12s contando a primeira
+// resposta — menor que o orçamento de UM indexer BR, então cache
+// genuinamente frio reprovava por construção e todo deploy novo dava
+// vermelho falso. Medido: a lista só converge por volta dos 25s.
+const MAX_TENTATIVAS = 8;
+const ESPERA_ENTRE_TENTATIVAS_MS = 3500;
 
 async function checkSearch() {
   console.log('\n── Busca ────────────────────────────────');
   console.log('  (busca fria: a resposta sai incompleta e o addon pede pra repetir;');
-  console.log('   as fontes BR costumam entrar na 3ª chamada)\n');
+  console.log(`   até ${MAX_TENTATIVAS} tentativas a cada ${ESPERA_ENTRE_TENTATIVAS_MS / 1000}s — a lista BR converge por volta dos 25s)\n`);
 
   for (const entry of TITLES) {
     const [type, id, label] = entry.split('|');
@@ -125,7 +134,7 @@ async function checkSearch() {
             ` em ${last.ms}ms${last.complete ? ' ✓ completa' : ' … incompleta, repetindo'}`,
         );
         if (last.complete) break;
-        if (i < MAX_TENTATIVAS - 1) await new Promise((r) => setTimeout(r, 1500));
+        if (i < MAX_TENTATIVAS - 1) await new Promise((r) => setTimeout(r, ESPERA_ENTRE_TENTATIVAS_MS));
       }
     } catch (err) {
       ok(label || id, false, err.message);

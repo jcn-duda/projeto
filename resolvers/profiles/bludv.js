@@ -1123,7 +1123,6 @@ module.exports = {
   resolveButton,
   searchPosts,
   fetchFollowingAllowed,
-  siteSelector,
   createSiteSelector,
   isNetworkError,
   getFlareSession,

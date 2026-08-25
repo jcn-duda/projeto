@@ -562,6 +562,9 @@ garante que nenhum consumidor quebra no meio.
 | 6.4 ✅ | Decode de config (máximo 8 KB, regex + base64 + JSON) é CPU limitado; risco aceito sem rate limit enquanto não houver abuso observado. `/seal-config` já tem gate próprio | decisão teórica, sem código |
 | 6.5 ✅ | Healthcheck passou a quádruplo: addon, Jackett, FlareSolverr e API admin loopback do Caddy (`:2019/config/`) | operacional |
 | 6.5b ✅ | A sonda do Caddy precisa de `Origin` explícito (`http://127.0.0.1:2019`): a API admin faz origin check e o `fetch` do Node não manda o header, então ela respondia **403** e reprovava o container com os quatro processos vivos. Não apareceu na hora porque o container em pé era anterior à quarta sonda; só quebraria no rebuild seguinte | `23c64c2` |
+| 6.6 ✅ | Janela do `npm run smoke` recalibrada: 5 tentativas × 1,5s davam ~12s contra um orçamento de **20s** de UM indexer BR (`JACKETT_BR_INDEXER_TIMEOUT_MS`), então cache genuinamente frio reprovava **por construção** e todo deploy novo dava vermelho falso. Agora 8 × 3,5s; medido: converge na 3ª–4ª tentativa e o smoke passa com o cache zerado |
+| 6.7 | `checkJs` nos `resolvers/`: **medido, não feito.** Ligar `checkJs: true` + `resolvers/**/*.js` no include produz **354 erros**, dos quais 306 são ruído de `noImplicitAny` (TS7006/TS7031 — parâmetro de função JS sem anotação) e 21 são artefato de inferência em default `= {}` (TS2339), não defeitos. Com `noEmitOnError` isso quebra o build, então a mudança exige anotar ~306 parâmetros e é tarefa própria, não um ajuste de config. O que o experimento pagou está na 6.8 |
+| 6.8 ✅ | `siteSelector` estava **exportado duas vezes** no mesmo `module.exports` de `bludv`, `comandotorrents` e `torrentdosfilmes` (achado do experimento da 6.7, TS1117). Sem efeito hoje — o segundo sobrescreve com o mesmo valor —, mas é a chave duplicada que vira bug silencioso no dia em que os dois lados divergirem |
 
 ---
 
