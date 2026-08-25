@@ -38,6 +38,48 @@ async function checkCached() {
 
 const READY = 'downloaded';
 const WORKING = ['magnet_conversion', 'queued', 'downloading', 'compressing', 'uploading'];
+const WAITING_SELECTION = 'waiting_files_selection';
+
+type TorrentInfo = { status?: string; files?: any[]; links?: string[] };
+
+/** Seleciona uma única vez o arquivo que o RD liberou para escolha. */
+async function selectWaitingFiles(apiKey: string, torrentId: string | number, info: TorrentInfo, hint: PlayHint) {
+  const wanted = pickFile(
+    (info.files || []).map((file: any) => ({ ...file, path: file.path, size: file.bytes })),
+    hint,
+  );
+  await call(apiKey, `/torrents/selectFiles/${torrentId}`, {
+    method: 'POST',
+    body: new URLSearchParams({ files: wanted ? String(wanted.id) : 'all' }),
+  });
+}
+
+/**
+ * O RD pode expor magnet_conversion/queued antes de pedir os arquivos. A
+ * seleção precisa acontecer no primeiro poll que chegar nesse estado, não só
+ * no snapshot logo após addMagnet; depois disso seguimos o mesmo orçamento de
+ * polls até ficar pronto ou estabilizar fora de um estado de trabalho.
+ */
+async function pollTorrent(apiKey: string, torrentId: string | number, hint: PlayHint) {
+  let info: TorrentInfo = await call(apiKey, `/torrents/info/${torrentId}`);
+  let selected = false;
+
+  for (let attempt = 0; attempt <= 3; attempt += 1) {
+    // O RD às vezes anuncia o estado antes de materializar o catálogo. Sem
+    // arquivos não há prova para escolher nem motivo para mandar `all`.
+    if (info.status === WAITING_SELECTION && !selected && (info.files || []).length > 0) {
+      await selectWaitingFiles(apiKey, torrentId, info, hint);
+      selected = true;
+    }
+    if (info.status === READY || (!WORKING.includes(String(info.status)) && info.status !== WAITING_SELECTION) || attempt === 3) {
+      return { info, selected };
+    }
+    await wait(700);
+    info = await call(apiKey, `/torrents/info/${torrentId}`);
+  }
+
+  return { info, selected };
+}
 
 /**
  * @param {string} apiKey
@@ -54,39 +96,20 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
   });
   if (!add?.id) return null;
 
-  let info = await call(apiKey, `/torrents/info/${add.id}`);
-
-  // O torrent entra sem nenhum arquivo selecionado; sem selectFiles ele nunca
-  // sai de "waiting_files_selection" e a lista de links fica vazia.
-  if (info.status === 'waiting_files_selection') {
-    let wanted;
-    try {
-      wanted = pickFile(
-        (info.files || []).map((f: any) => ({ ...f, path: f.path, size: f.bytes })),
-        { season, episode, work },
-      );
-    } catch (err) {
-      // Sem vídeo na listagem: o torrent JÁ foi adicionado e ficaria preso em
-      // waiting_files_selection ocupando vaga da conta, porque nada seleciona
-      // arquivo depois daqui. Remove antes de deixar o erro subir — quem
-      // condena o hash é o /resolve, no catch do NoVideoError.
-      if (isNoVideoError(err)) await removeTorrent(apiKey, add.id);
-      throw err;
-    }
-    await call(apiKey, `/torrents/selectFiles/${add.id}`, {
-      method: 'POST',
-      body: new URLSearchParams({ files: wanted ? String(wanted.id) : 'all' }),
-    });
-    info = await call(apiKey, `/torrents/info/${add.id}`);
+  let info: TorrentInfo;
+  try {
+    ({ info } = await pollTorrent(apiKey, add.id, { season, episode, work }));
+  } catch (err) {
+    // Sem vídeo na listagem: o torrent JÁ foi adicionado e ficaria preso em
+    // waiting_files_selection ocupando vaga da conta. O NoVideoError precisa
+    // continuar chegando ao /resolve para condenar o hash no banco.
+    if (isNoVideoError(err)) await removeTorrent(apiKey, add.id);
+    throw err;
   }
 
   // Já em cache o status vira "downloaded" quase imediatamente. Se ainda
   // estiver baixando, não há o que tocar agora — o play falharia num buffer
   // eterno, então é melhor devolver nada e deixar o usuário escolher outro.
-  for (let attempt = 0; attempt < 3 && WORKING.includes(info.status); attempt += 1) {
-    await wait(700);
-    info = await call(apiKey, `/torrents/info/${add.id}`);
-  }
   if (info.status !== READY) {
     log.warn(`[realdebrid] torrent não está em cache (status: ${info.status})`);
     return null;
@@ -131,15 +154,9 @@ async function enqueue(apiKey: string, infoHash: string, { season, episode }: { 
   });
   if (!add?.id) return false;
 
-  const info = await call(apiKey, `/torrents/info/${add.id}`);
-  if (info.status !== 'waiting_files_selection') return true;
-
-  let wanted;
+  let result: { info: TorrentInfo; selected: boolean };
   try {
-    wanted = pickFile(
-      (info.files || []).map((f: any) => ({ ...f, path: f.path, size: f.bytes })),
-      { season, episode },
-    );
+    result = await pollTorrent(apiKey, add.id, { season, episode });
   } catch (err) {
     // Antes do NoVideoError, `null` caía no `files: 'all'` e o autofetch baixava
     // um torrent sem vídeo nenhum. Agora a prova existe: remove o torrent (ele
@@ -153,11 +170,11 @@ async function enqueue(apiKey: string, infoHash: string, { season, episode }: { 
     }
     throw err;
   }
-  await call(apiKey, `/torrents/selectFiles/${add.id}`, {
-    method: 'POST',
-    body: new URLSearchParams({ files: wanted ? String(wanted.id) : 'all' }),
-  });
-  return true;
+  // Torrent já pronto não precisa selecionar. Fora isso, só é sucesso depois
+  // que esta execução selecionou ou o RD prova que já havia arquivo escolhido.
+  // magnet_conversion/queued sem essa evidência não pode ganhar marker de
+  // autofetch: uma tentativa futura ainda pode receber o catálogo e selecionar.
+  return result.info.status === READY || result.selected || Boolean(result.info.files?.some((file: any) => file.selected));
 }
 
 /**

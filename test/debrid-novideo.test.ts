@@ -11,7 +11,7 @@
 // Estes testes cobrem a fronteira com o shape real da API do RD e fetch
 // dublado, sem rede: quem prova que não tem vídeo é removido da conta; quem
 // tem vídeo segue o caminho normal; e listagem VAZIA (transferência fria)
-// continua caindo no `files: 'all'`, porque prova nenhuma.
+// espera o catálogo sem selecionar tudo nem condenar o torrent.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as realdebrid from '../src/debrid/realdebrid.js';
@@ -30,7 +30,15 @@ function stubRd(files: any[]) {
   const calls: string[] = [];
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
+  const realSetTimeout = globalThis.setTimeout;
   AbortSignal.timeout = () => new AbortController().signal;
+  // `wait()` usa timer unref para não segurar o addon. No node:test, sem um
+  // handle ativo, isso cancela a promise antes do próximo poll; o dublê avança
+  // o relógio sem transformar o contrato do adaptador em espera real.
+  globalThis.setTimeout = ((callback: (...args: any[]) => void, _ms?: number, ...args: any[]) => {
+    queueMicrotask(() => callback(...args));
+    return { unref() {} } as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
   globalThis.fetch = (async (url: any, init: any) => {
     const path = String(url).replace('https://api.real-debrid.com/rest/1.0', '');
     calls.push(`${init?.method || 'GET'} ${path}`);
@@ -44,11 +52,42 @@ function stubRd(files: any[]) {
     restore() {
       globalThis.fetch = realFetch;
       AbortSignal.timeout = realTimeout;
+      globalThis.setTimeout = realSetTimeout;
     },
   };
 }
 
 const file = (id: number, path: string) => ({ id, path, bytes: 1024 ** 3 });
+
+function stubRdPoll(statuses: Array<{ status: string; files?: any[]; links?: string[] }>) {
+  const calls: string[] = [];
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  const realSetTimeout = globalThis.setTimeout;
+  let infoCall = 0;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.setTimeout = ((callback: (...args: any[]) => void, _ms?: number, ...args: any[]) => {
+    queueMicrotask(() => callback(...args));
+    return { unref() {} } as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+  globalThis.fetch = (async (url: any, init: any) => {
+    const path = String(url).replace('https://api.real-debrid.com/rest/1.0', '');
+    calls.push(`${init?.method || 'GET'} ${path}`);
+    let body: any = {};
+    if (path === '/torrents/addMagnet') body = { id: 'RD1' };
+    else if (path.startsWith('/torrents/info/')) body = statuses[Math.min(infoCall++, statuses.length - 1)];
+    else if (path === '/unrestrict/link') body = { download: 'https://cdn.example/video.mkv' };
+    return { ok: true, status: 200, json: async () => body };
+  }) as unknown as typeof globalThis.fetch;
+  return {
+    calls,
+    restore() {
+      globalThis.fetch = realFetch;
+      AbortSignal.timeout = realTimeout;
+      globalThis.setTimeout = realSetTimeout;
+    },
+  };
+}
 
 test('enqueue: listagem só com .rar recusa, remove o torrent e NÃO seleciona arquivo', async () => {
   const rd = stubRd([file(1, 'pack/parte.rar'), file(2, 'pack/parte.r00')]);
@@ -68,15 +107,14 @@ test('enqueue: listagem só com .rar recusa, remove o torrent e NÃO seleciona a
   }
 });
 
-test('enqueue: listagem VAZIA (transferência fria) continua caindo no files: all', async () => {
-  // Listagem vazia não é prova de nada: o torrent pode estar só frio. O
-  // comportamento antigo (selecionar tudo) é o certo aqui, e o adaptador não
-  // pode remover o torrent que acabou de enfileirar.
+test('enqueue: waiting vazio até o teto recusa sem selecionar nem remover', async () => {
+  // Listagem vazia não é prova de ausência de vídeo. Esperamos o catálogo, mas
+  // não mandamos `all` nem removemos/condenamos o torrent sem essa prova.
   const rd = stubRd([]);
   try {
     const ok = await realdebrid.enqueue('chave-de-teste', HASH, { season: null, episode: null });
-    assert.equal(ok, true);
-    assert.ok(rd.calls.some((c) => c.includes('/torrents/selectFiles/')), 'seleciona tudo, como antes');
+    assert.equal(ok, false);
+    assert.ok(!rd.calls.some((c) => c.includes('/torrents/selectFiles/')), 'snapshot vazio não seleciona tudo');
     assert.ok(!rd.calls.some((c) => c.startsWith('DELETE')), 'nada a remover: não houve prova');
   } finally {
     rd.restore();
@@ -111,5 +149,79 @@ test('resolveLink: sem vídeo remove o torrent e DEIXA o NoVideoError subir', as
     );
   } finally {
     rd.restore();
+  }
+});
+
+test('resolveLink: seleciona no poll tardio magnet_conversion → queued → waiting → downloaded', async () => {
+  const selected = { ...file(7, 'Filme 1080p.mkv'), selected: 1 };
+  const rd = stubRdPoll([
+    { status: 'magnet_conversion' },
+    { status: 'queued' },
+    { status: 'waiting_files_selection', files: [selected] },
+    { status: 'downloaded', files: [selected], links: ['https://rd.example/link'] },
+  ]);
+  try {
+    const link = await realdebrid.resolveLink('chave-de-teste', HASH, {});
+    assert.equal(link, 'https://cdn.example/video.mkv');
+    assert.equal(rd.calls.filter((call) => call === 'POST /torrents/selectFiles/RD1').length, 1);
+  } finally {
+    rd.restore();
+  }
+});
+
+test('resolveLink: waiting vazio espera catálogo e seleciona uma única vez quando há vídeo', async () => {
+  const selected = { ...file(9, 'Filme 1080p.mkv'), selected: 1 };
+  const rd = stubRdPoll([
+    { status: 'waiting_files_selection', files: [] },
+    { status: 'waiting_files_selection', files: [selected] },
+    { status: 'downloaded', files: [selected], links: ['https://rd.example/link'] },
+  ]);
+  try {
+    assert.equal(await realdebrid.resolveLink('chave-de-teste', HASH, {}), 'https://cdn.example/video.mkv');
+    assert.equal(rd.calls.filter((call) => call === 'POST /torrents/selectFiles/RD1').length, 1);
+  } finally {
+    rd.restore();
+  }
+});
+
+test('resolveLink: waiting vazio até o teto retorna null sem selecionar ou remover', async () => {
+  const rd = stubRdPoll([{ status: 'waiting_files_selection', files: [] }]);
+  try {
+    assert.equal(await realdebrid.resolveLink('chave-de-teste', HASH, {}), null);
+    assert.equal(rd.calls.filter((call) => call.includes('/torrents/selectFiles/')).length, 0);
+    assert.equal(rd.calls.filter((call) => call.startsWith('DELETE')).length, 0);
+  } finally {
+    rd.restore();
+  }
+});
+
+test('enqueue: espera a seleção tardia e não declara sucesso se ela não vier', async () => {
+  const selected = file(8, 'Serie S01E01.mkv');
+  const rd = stubRdPoll([
+    { status: 'magnet_conversion' },
+    { status: 'waiting_files_selection', files: [selected] },
+    { status: 'downloaded', files: [{ ...selected, selected: 1 }] },
+  ]);
+  try {
+    assert.equal(await realdebrid.enqueue('chave-de-teste', HASH, { season: 1, episode: 1 }), true);
+    assert.equal(rd.calls.filter((call) => call === 'POST /torrents/selectFiles/RD1').length, 1);
+  } finally {
+    rd.restore();
+  }
+
+  const alreadySelected = stubRdPoll([{ status: 'downloading', files: [{ ...selected, selected: 1 }] }]);
+  try {
+    assert.equal(await realdebrid.enqueue('chave-de-teste', HASH), true, 'arquivo já selecionado é evidência objetiva');
+    assert.equal(alreadySelected.calls.filter((call) => call.includes('/torrents/selectFiles/')).length, 0);
+  } finally {
+    alreadySelected.restore();
+  }
+
+  const notSelected = stubRdPoll([{ status: 'magnet_conversion' }, { status: 'queued' }]);
+  try {
+    assert.equal(await realdebrid.enqueue('chave-de-teste', HASH), false);
+    assert.equal(notSelected.calls.filter((call) => call.includes('/torrents/selectFiles/')).length, 0);
+  } finally {
+    notSelected.restore();
   }
 });
