@@ -1039,6 +1039,25 @@ o orçamento com a resposta.
   arquivos reais são listados. Ao mexer no `pickFile`, lembre que "não casou o
   episódio" e "não há episódio no nome" são casos **diferentes**: o primeiro é
   prova de conteúdo errado.
+- **A PASTA do torrent carrega o `SxxEyy`, então todo arquivo dentro dela casa
+  o episódio pelo caminho.** Medido em House of the Dragon S01E01 (fonte
+  dublada do comandotorrents): a pasta era
+  `House.of.the.Dragon.S01E01.1080p.FULL.WEB-DL.DUAL.5.1/` e os três arquivos
+  dentro dela — propaganda de 22 MB, um `.mp4` de 65 MB e o episódio de 4,6 GB
+  — casavam igual. O desempate era `strong[0]`, a **ordem do torrent**, que não
+  diz nada sobre conteúdo: o player abria
+  `1XBET.COM_promo_SHREK_dinheiro_livre.mp4` com a legenda certa por cima.
+  Por isso o casamento mede primeiro o **nome do arquivo** (onde está a
+  informação que distingue) e só cai para o caminho inteiro quando nenhum nome
+  traz o marcador; empate real entre arquivos do MESMO episódio é decidido por
+  tamanho. Não volte a decidir isso por ordem.
+- **`isSiteAd` precisa pegar domínio COM texto depois.** Ele nasceu casando só
+  o nome que é o domínio inteiro (`www.BLUDV.com.mp4`) e deixava passar
+  `1XBET.COM_promo_SHREK_dinheiro_livre.mp4`. O separador exigido depois do TLD
+  é `_`/`-`/espaço, **nunca ponto**: com ponto, `Filme.se.algo.mkv` (nome
+  legítimo cujo token do meio é um TLD) viraria propaganda e o arquivo real
+  sairia do pool. Ao afrouxar esse regex, rode
+  `test/debrid-pick-work.test.ts` — o caso do TLD acidental está lá.
 - **`matchesName` é o único portão de TÍTULO do caminho global de série — e a
   razão 0.6 é frágil em nome curto.** No caminho BR, `matchesBrTitle` encadeia
   três guardas por cima dele (precisão, prefixo, ano); no global de série, as
@@ -1116,6 +1135,25 @@ o orçamento com a resposta.
   BUSY` (segunda instância no mesmo volume), stall de I/O e `EACCES` caem em
   memória e tentam de novo na próxima subida — renomear neles apagaria cache
   vivo por um glitch.
+- **Mudou regra de matching? O rebuild do container NÃO invalida o cache.**
+  `data/cache.db` é volume: sobrevive a `docker compose up -d --build`, e o
+  `streams:v6` (lista pronta) e o `idx:v5` (acervo de releases já aprovadas)
+  continuam servindo o que o filtro **antigo** deixou passar. Custou uma
+  validação falsa: a correção estava no container, o teste isolado passava, e
+  a resposta HTTP continuava trazendo o item errado. Depois de mexer em
+  filtro/matching, zere antes de reconsultar:
+
+  ```
+  curl -s -X POST http://127.0.0.1:7000/dashboard-action.json \
+    -H 'Content-Type: application/json' \
+    -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" \
+    -d '{"action":"clear-cache","confirm":true}'
+  ```
+
+  O header é `X-Indexer-Test-Token` (não `Authorization`) e `confirm: true` é
+  obrigatório. Escopo por namespace (`{"scope":{"namespace":"streams"}}`) NÃO
+  basta quando a regra afeta o índice — o `idx:v5` reentrega o item por outro
+  caminho. Use o escopo global.
 - **Ação destrutiva do painel exige `{"confirm": true}`.** `clear-cache` e
   `sweep-dead` devolvem 400 `confirmation_required` sem ele. São globais: não
   há escopo por instalação hoje.

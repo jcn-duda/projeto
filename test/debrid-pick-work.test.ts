@@ -445,3 +445,57 @@ test('pickFile: propaganda do site não conta como vídeo do pack', () => {
     'WWW.BLUDV.TV.mp4',
   );
 });
+
+// Bug real medido no addon (2026-08-24): tocando House of the Dragon S01E01
+// pela fonte dublada do comandotorrents, o player abria
+// "1XBET.COM_promo_SHREK_dinheiro_livre.mp4" — legenda certa, vídeo de
+// propaganda. Duas falhas somadas, e cada uma sozinha já bastava:
+//
+// 1. `isSiteAd` só reconhecia o nome que é SÓ o domínio ("www.BLUDV.com.mp4");
+//    com a propaganda depois do TLD ("1XBET.COM_promo_...") o arquivo passava
+//    como vídeo comum.
+// 2. A PASTA do torrent carrega o SxxEyy, então os três arquivos casavam o
+//    episódio pelo caminho e o desempate era `strong[0]` — a ORDEM do torrent,
+//    que não diz nada sobre conteúdo. A propaganda vinha primeiro.
+const HOTD_DIR = 'House.of.the.Dragon.S01E01.1080p.FULL.WEB-DL.DUAL.5.1';
+const HOTD_PACK = [
+  f(`${HOTD_DIR}/1XBET.COM_promo_SHREK_dinheiro_livre.mp4`, 22_983_105),
+  f(`${HOTD_DIR}/House.of.the.Dragon.S01E01.1080p.WEB-DL.DUAL.5.1.mp4`, 65_685_451),
+  f(`${HOTD_DIR}/House.of.the.Dragon.S01E01.1080p.WEB-DL.DUAL.mkv`, 4_605_702_076),
+];
+
+test('pickFile: propaganda com texto depois do domínio não vence o episódio (1XBET × House of the Dragon)', () => {
+  assert.equal(
+    pickFile(HOTD_PACK, { season: 1, episode: 1 })!.path,
+    `${HOTD_DIR}/House.of.the.Dragon.S01E01.1080p.WEB-DL.DUAL.mkv`,
+  );
+});
+
+test('pickFile: pasta com SxxEyy não deixa a ORDEM do torrent decidir o empate', () => {
+  // Sem nenhum nome de arquivo trazendo o marcador, o caminho inteiro volta a
+  // valer (a pasta é a única pista) — e aí o tamanho desempata, não a ordem.
+  const soPasta = [
+    f('Serie.S02E05.1080p/1XBET.COM_promo.mp4', 20_000_000),
+    f('Serie.S02E05.1080p/video.mkv', 3_000_000_000),
+  ];
+  assert.equal(pickFile(soPasta, { season: 2, episode: 5 })!.path, 'Serie.S02E05.1080p/video.mkv');
+});
+
+test('pickFile: pack de temporada continua entregando o episódio PEDIDO, não o maior', () => {
+  // A guarda de tamanho só desempata entre arquivos do MESMO episódio; num pack
+  // com um episódio por arquivo, cada pedido tem um só candidato.
+  const temporada = [
+    f('Serie.S01.COMPLETA/Serie.S01E01.mkv', 1_000_000_000),
+    f('Serie.S01.COMPLETA/Serie.S01E02.mkv', 9_000_000_000),
+    f('Serie.S01.COMPLETA/Serie.S01E03.mkv', 2_000_000_000),
+  ];
+  assert.equal(pickFile(temporada, { season: 1, episode: 1 })!.path, 'Serie.S01.COMPLETA/Serie.S01E01.mkv');
+  assert.equal(pickFile(temporada, { season: 1, episode: 2 })!.path, 'Serie.S01.COMPLETA/Serie.S01E02.mkv');
+});
+
+test('pickFile: token que por acaso é TLD não transforma arquivo legítimo em propaganda', () => {
+  // O separador exigido depois do TLD é `_`/`-`/espaço, nunca ponto: com ponto,
+  // "Filme.se.algo..." seria classificado como propaganda e sairia do pool.
+  const legitimo = [f('Filme.se.algo.S01E01.mkv', 1_500_000_000)];
+  assert.equal(pickFile(legitimo, { season: 1, episode: 1 })!.path, 'Filme.se.algo.S01E01.mkv');
+});

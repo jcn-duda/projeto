@@ -40,10 +40,19 @@ const VIDEO_EXT = /\.(mkv|mp4|avi|mov|m4v|ts|webm)$/i;
 const SAMPLE = /(^|[^a-z])sample([^a-z]|$)/i;
 const EXTRA = /(^|[^a-z])(extras?|b[oô]nus|bonus|featurettes?|interviews?|entrevistas?|behind[ ._-]?the[ ._-]?scenes|trailers?|deleted[ ._-]?scenes?|cenas[ ._-]?deletadas|bloopers?|gags?|making[ ._-]?of)([^a-z]|$)/i;
 function baseName(p: string) { return String(p || '').split(/[/\\]/).pop() || ''; }
-const SITE_AD = /^(?:www[\s._-]+)?[a-z0-9][a-z0-9-]*\.(?:com|net|org|tv|to|me|cc|info|xyz|biz|br|io|se|ws)(?:\.[a-z]{2})?$/i;
+const SITE_AD_DOMAIN = '[a-z0-9][a-z0-9-]*\\.(?:com|net|org|tv|to|me|cc|info|xyz|biz|br|io|se|ws)(?:\\.[a-z]{2})?';
+const SITE_AD = new RegExp(`^(?:www[\\s._-]+)?${SITE_AD_DOMAIN}$`, 'i');
+// O nome do arquivo é SÓ o domínio ("www.BLUDV.com.mp4"), ou o domínio abre o
+// nome e o resto é a propaganda ("1XBET.COM_promo_SHREK_dinheiro_livre.mp4",
+// medido num pack real de House of the Dragon). O separador depois do TLD é
+// `_`/`-`/espaço de propósito, NUNCA ponto: com ponto, "Filme.se.algo.mkv"
+// (nome legítimo com um token que por acaso é TLD) seria classificado como
+// propaganda e o arquivo real sairia do pool.
+const SITE_AD_PREFIX = new RegExp(`^(?:www[\\s._-]+)?${SITE_AD_DOMAIN}[\\s_-]`, 'i');
 function isSiteAd(path: string) {
   const name = baseName(path).replace(/\.[a-z0-9]{2,4}$/i, '');
-  return SITE_AD.test(name.replace(/^[\s[\](){}._-]+|[\s[\](){}._-]+$/g, ''));
+  const trimmed = name.replace(/^[\s[\](){}._-]+|[\s[\](){}._-]+$/g, '');
+  return SITE_AD.test(trimmed) || SITE_AD_PREFIX.test(trimmed);
 }
 
 const WORK_COVERAGE_MIN = 0.7;
@@ -100,8 +109,29 @@ function pickFile(files: DebridFile[], { season, episode, work }: PlayHint = {})
     const weakPatterns = [new RegExp(`\\b(?:epis[oó]dio|cap[ií]tulo|ep|cap)[\\s._-]*0{0,2}${episode}\\b`, 'i'), new RegExp(`\\be[\\s._-]*0{0,2}${episode}\\b`, 'i')];
     const bareEpisode = new RegExp(`(?:^|[\\s._-])0{0,2}${episode}(?:[\\s._-]|$|\\.[a-z0-9]+$)`, 'i');
     const epPath = (path: string) => path.replace(/(?<![\dst])[125678]\.[012](?!\d)/gi, ' ');
-    const strong = videos.filter((file) => { const path = file.path || ''; const clean = epPath(path); return strongPatterns.some((pattern) => pattern.test(path)) || (pathHasSeason(path) && (weakPatterns.some((pattern) => pattern.test(clean)) || bareEpisode.test(clean))); });
-    if (strong.length > 0) return strong[0];
+    const matchesEpisodeIn = (path: string) => {
+      const clean = epPath(path);
+      return strongPatterns.some((pattern) => pattern.test(path))
+        || (pathHasSeason(path) && (weakPatterns.some((pattern) => pattern.test(clean)) || bareEpisode.test(clean)));
+    };
+    // A pasta do torrent costuma carregar o SxxEyy ("House.of.the.Dragon.S01E01.
+    // 1080p.FULL.WEB-DL.DUAL.5.1/"), e aí TODO arquivo dentro dela casa o
+    // episódio pelo caminho — inclusive a propaganda. Medir primeiro pelo NOME
+    // do arquivo desempata com a informação que realmente distingue; só quando
+    // nenhum nome traz o marcador (pasta "S01E01" com "video.mkv" dentro) o
+    // caminho inteiro volta a valer.
+    const byName = videos.filter((file) => matchesEpisodeIn(baseName(file.path || '')));
+    const strong = byName.length > 0 ? byName : videos.filter((file) => matchesEpisodeIn(file.path || ''));
+    // Empate real (vários arquivos do MESMO episódio: a propaganda de 23 MB, um
+    // .mp4 de 65 MB e o episódio de 4,6 GB no pack medido) era decidido pela
+    // ORDEM do torrent, que não diz nada sobre o conteúdo — e a propaganda vinha
+    // primeiro. O maior é o episódio; extra e propaganda são sempre menores.
+    if (strong.length === 1) return strong[0];
+    if (strong.length > 1) {
+      const semExtra = strong.filter((file) => !EXTRA.test(file.path || ''));
+      const pool = semExtra.length > 0 ? semExtra : strong;
+      return pool.reduce((a, b) => (Number(b.size || 0) > Number(a.size || 0) ? b : a));
+    }
     const ambiguousSeason = videos.some((file) => { const path = file.path || ''; return pathHasAnySeason.test(path) && !pathHasSeason(path); });
     if (!ambiguousSeason) {
       const weak = videos.find((file) => weakPatterns.some((pattern) => pattern.test(epPath(file.path || ''))));
