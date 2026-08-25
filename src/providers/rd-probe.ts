@@ -22,6 +22,7 @@ import {
   pickBrDubbedCandidates,
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
+  markDebridName,
 } from '../utils/format.js';
 import * as autofetch from './autofetch.js';
 import * as log from '../utils/logger.js';
@@ -79,6 +80,39 @@ function takeHourlySlots(n: number) {
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)).unref());
+}
+
+/** Extrai infoHash de uma URL /resolve/... gravada na lista cacheada. */
+function hashFromResolveUrl(url: string): string | null {
+  const m = String(url || '').match(/\/resolve\/([a-fA-F0-9]{40})\b/);
+  return m ? m[1].toLowerCase() : null;
+}
+
+/**
+ * Reescreve nomes [RD download] → [RD⚡] na entrada streams:v6 atual.
+ * Devolve quantos itens promoveu; 0 se não havia cache.
+ */
+function promoteCachedBolts(searchKey: string, instantHashes: string[]): number {
+  const entry = cache.get(searchKey) as { streams?: Stream[]; partial?: boolean; debridKnown?: boolean } | undefined;
+  if (!entry || !Array.isArray(entry.streams) || instantHashes.length === 0) return 0;
+  const want = new Set(instantHashes.map((h) => h.toLowerCase()));
+  let promoted = 0;
+  const streams = entry.streams.map((s) => {
+    const hash = hashFromResolveUrl(String((s as any).url || ''));
+    if (!hash || !want.has(hash)) return s;
+    const raw = String(s.name || '');
+    if (raw.includes('\u26a1')) return s;
+    const without = raw.replace(/^\[[^\]]+\]\s*/, '');
+    promoted += 1;
+    return { ...s, name: markDebridName(without, 'RD', true) };
+  });
+  if (!promoted) return 0;
+  const remainingMs = cache.peekRemaining(searchKey);
+  const ttlSeconds = remainingMs != null && remainingMs > 0
+    ? Math.max(1, Math.ceil(remainingMs / 1000))
+    : config.cacheTtl;
+  cache.set(searchKey, { ...entry, streams }, ttlSeconds);
+  return promoted;
 }
 
 /**
@@ -152,6 +186,7 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
     }
 
     let instant = 0;
+    const instantHashes: string[] = [];
     log.info(`[rd-probe] sondando ${hashes.length} hash(es)`);
     for (let i = 0; i < hashes.length; i += 1) {
       const hash = hashes[i];
@@ -159,6 +194,7 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
         const result = await realdebrid.probeInstant(apiKey, hash);
         if (result.instant) {
           instant += 1;
+          instantHashes.push(hash);
           magnetdb.markAlive('realdebrid', apiKey, [hash]);
           debrid.noteAvailable(hash);
           log.info(`[rd-probe] ⚡ ${hash.slice(0, 8)} (${result.reason})`);
@@ -188,10 +224,18 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
     }
 
     if (instant > 0 && searchKey) {
-      // Próxima abertura reconstrói com isAlive → ⚡. Igual ao recheck do autofetch.
-      cache.forget(searchKey);
-      metrics.count('debrid.rd.probe.cacheForgot');
-      log.info(`[rd-probe] ${instant} instantâneo(s); cache de ${searchKey} invalidado`);
+      // Preferir reescrever a entrada atual: forget sozinho falha se o passe
+      // tardio gravou outra chave, e a próxima abertura serviria nomes velhos
+      // [RD download]. O hash está no path do /resolve.
+      const promoted = promoteCachedBolts(searchKey, instantHashes);
+      if (!promoted) {
+        cache.forget(searchKey);
+        metrics.count('debrid.rd.probe.cacheForgot');
+        log.info(`[rd-probe] ${instant} instantâneo(s); cache esquecido (sem entrada pra reescrever)`);
+      } else {
+        metrics.count('debrid.rd.probe.cachePromoted', promoted);
+        log.info(`[rd-probe] ${instant} instantâneo(s); ${promoted} stream(s) promovido(s) a ⚡ no cache`);
+      }
     }
   };
   try {
