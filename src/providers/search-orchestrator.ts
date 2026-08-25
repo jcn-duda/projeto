@@ -435,28 +435,32 @@ export async function doSearch({
     async ({ items, partial, deadlineAt: inputDeadline }) => {
       let needsDebridRefresh = false;
       let autofetchCount = 0;
+      let debridKnown: boolean | undefined = undefined;
       const streams = await buildStreams(items, {
         meta, titles, imdbId, season, episode, isDemo, searchKey: cacheKey,
         deadlineAt: inputDeadline,   // presente SÓ no passo de resposta
-         onDebridResult: (result: any) => {
-           needsDebridRefresh = needsDebridRefresh || result.needsFullRefresh;
-           autofetchCount += result.autofetchCount || 0;
-         },
+        onDebridResult: (result: any) => {
+          needsDebridRefresh = needsDebridRefresh || result.needsFullRefresh;
+          autofetchCount += result.autofetchCount || 0;
+          if (result.known !== undefined) debridKnown = result.known;
+        },
       });
-      return { streams, partial, needsDebridRefresh, autofetchCount };
+      const isDebridKnown = debridKnown !== undefined ? Boolean(debridKnown && !needsDebridRefresh) : !needsDebridRefresh;
+      return { streams, partial, needsDebridRefresh, autofetchCount, debridKnown: isDebridKnown };
     },
-    ({ streams, partial, needsDebridRefresh }) => {
+    ({ streams, partial, needsDebridRefresh, debridKnown }) => {
       // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco
       // tempo. Lote parcial idem: o passe tardio reescreve, mas se ele falhar o
       // TTL curto evita servir a lista sem as fontes BR por 15 minutos.
-      const complete = hasPlayableStream(streams) && !partial && !needsDebridRefresh;
+      const isDebridKnown = debridKnown !== undefined ? Boolean(debridKnown && !needsDebridRefresh) : !needsDebridRefresh;
+      const complete = hasPlayableStream(streams) && !partial && isDebridKnown;
       // `debridKnown` registra se ESTA lista nasceu de uma checagem de cache
       // confiável. Sem ele, `partial:false` era usado como prova de "já
       // processado" — e o passe tardio promove a entrada SEM refazer a
       // checagem, o que congelava a lista sem ⚡ pelo TTL inteiro.
       cache.set(
         cacheKey,
-        { streams, partial, debridKnown: !needsDebridRefresh },
+        { streams, partial, debridKnown: isDebridKnown },
         complete ? config.cacheTtl : Math.min(config.cacheTtl, 60),
       );
       log.info(`[search] ${streams.length} stream(s)${partial ? ' (parcial)' : ''} para ${id}`);

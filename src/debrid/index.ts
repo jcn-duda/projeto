@@ -12,6 +12,7 @@ import * as log from '../utils/logger.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import { notify } from '../utils/notify.js';
 import * as rdOracle from './rd-oracle.js';
+import * as rdLedger from './rd-ledger.js';
 
 // Consulta não abortável em andamento (hoje, AllDebrid). O passe tardio junta
 // a mesma promise quando o conjunto de hashes é idêntico; se o balde cresceu,
@@ -663,6 +664,20 @@ async function sweepDeadCurrent() {
   }
 }
 
+/**
+ * Consulta se o hash é um play instantâneo já comprovado para o adaptador
+ * corrente (hoje, Real-Debrid via ledger quando ledger e oráculo estão ativos).
+ * Outros adaptadores devolvem false.
+ */
+function knownInstant(hash: string): boolean {
+  const adapter = current();
+  if (!adapter || adapter.id !== 'realdebrid') return false;
+  if (!config.debrid.rdLedger.enabled || !rdOracle.available()) return false;
+  return rdLedger.isHit(hash);
+}
+
+export { knownInstant };
+
 export default {
-  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, dashboardAccounts, resolveLink, enqueue, inventory, inventoryPeek, refreshInventory, warmupEnv, sweepDeadEnv, sweepUndubbedEnv, sweepDeadCurrent,
+  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, dashboardAccounts, resolveLink, enqueue, inventory, inventoryPeek, refreshInventory, warmupEnv, sweepDeadEnv, sweepUndubbedEnv, sweepDeadCurrent, knownInstant,
 };

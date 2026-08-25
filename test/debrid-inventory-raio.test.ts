@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
+import config from '../src/config.js';
+import * as rdLedger from '../src/debrid/rd-ledger.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { applyDebrid } from '../src/providers/debrid-pipeline.js';
@@ -59,20 +61,45 @@ test('item pronto na conta do Real-Debrid sai com ⚡; o resto segue download', 
 
 /**
  * "Sem raio nao aparece": com cachedOnly ligado o corte tambem vale no caminho
- * `known: false` do Real-Debrid. So roda porque o inventario da conta
- * respondeu — e conhecimento COMPLETO sobre o que toca na hora.
+ * `known: false` do Real-Debrid.
+ * Na Fase F4 com ledger, miss confirmado é removido e desconhecido sobrevive.
+ * No modo sem ledger (legado), o inventário pronto corta tudo fora da conta.
  */
-test('cachedOnly esconde quem nao tem ⚡ mesmo com known false', async () => {
+test('cachedOnly esconde quem nao tem ⚡ mesmo com known false (miss confirmado no ledger ou sem ledger)', async () => {
   semeiaInventario();
+  rdLedger.noteMiss(FORA);
   const out = await comConfig({ dc: true, bu: false }, [
     stream(NA_CONTA, 'Filme Pronto 1080p'),
     stream(FORA, 'Outro Filme 1080p'),
   ]);
-  assert.equal(out.length, 1, 'so sobra o que toca na hora');
+  assert.equal(out.length, 1, 'so sobra o que toca na hora (miss confirmado cortado)');
   assert.match(String(out[0].name || ''), /⚡/);
-  // O viaDebrid troca o infoHash por uma URL de /resolve: a identidade do que
-  // sobrou se confere pelo hash dentro dela.
   assert.match(String(out[0].url || ''), new RegExp(NA_CONTA));
+
+  // No modo sem ledger (legado com rdLedger disabled), tudo fora da conta é cortado
+  config.debrid.rdLedger.enabled = false;
+  try {
+    const outLegado = await comConfig({ dc: true, bu: false }, [
+      stream(NA_CONTA, 'Filme Pronto 1080p'),
+      stream(FORA, 'Outro Filme 1080p'),
+    ]);
+    assert.equal(outLegado.length, 1, 'legado corta tudo que não está no inventário');
+  } finally {
+    config.debrid.rdLedger.enabled = true;
+  }
+});
+
+test('cachedOnly preserva desconhecido no Real-Debrid com ledger ativo (regra ternária)', async () => {
+  cache.clear();
+  semeiaInventario();
+  const DESCONHECIDO = 'c'.repeat(40);
+  const out = await comConfig({ dc: true, bu: false }, [
+    stream(NA_CONTA, 'Filme Pronto 1080p'),
+    stream(DESCONHECIDO, 'Desconhecido 1080p'),
+  ]);
+  assert.equal(out.length, 2, 'desconhecido sobrevive na regra ternária');
+  assert.match(String(out[0].name || ''), /⚡/);
+  assert.doesNotMatch(String(out[1].name || ''), /⚡/);
 });
 
 /**

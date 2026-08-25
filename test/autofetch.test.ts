@@ -212,6 +212,67 @@ test('BR já cacheado desconta das vagas P2P', () => {
   assert.equal(out.visibleBr.size, 0);
 });
 
+test('filterKnownCache ternário: known=true + cachedOnly remove não-cacheados (AllDebrid/Premiumize)', () => {
+  const cachedStream = stream(A, { _br: false });
+  const unknownStream = stream(B, { _br: false });
+  const missStream = stream(C, { _br: false });
+  const out = filterKnownCache(
+    [cachedStream, unknownStream, missStream],
+    new Set([A]),
+    { cachedOnly: true, known: true },
+  );
+  assert.deepEqual(out.streams.map((item) => item.infoHash), [A]);
+});
+
+test('filterKnownCache ternário: known=false + missHashes remove apenas miss confirmado e desconhecido sobrevive', () => {
+  const cachedStream = stream(A, { _br: false });
+  const unknownStream = stream(B, { _br: false });
+  const missStream = stream(C, { _br: false });
+  const out = filterKnownCache(
+    [cachedStream, unknownStream, missStream],
+    new Set([A]),
+    { cachedOnly: true, known: false, missHashes: new Set([C]) },
+  );
+  // A (cached) e B (desconhecido) sobrevivem; C (miss confirmado) é removido.
+  assert.deepEqual(out.streams.map((item) => item.infoHash), [A, B]);
+});
+
+test('filterKnownCache ternário: known=false sem missHashes não corta nada (AllDebrid/Premiumize quando known=false)', () => {
+  const cachedStream = stream(A, { _br: false });
+  const unknownStream = stream(B, { _br: false });
+  const missStream = stream(C, { _br: false });
+  const out = filterKnownCache(
+    [cachedStream, unknownStream, missStream],
+    new Set([A]),
+    { cachedOnly: true, known: false },
+  );
+  // Sem missHashes com known=false, nada é cortado
+  assert.deepEqual(out.streams.map((item) => item.infoHash), [A, B, C]);
+});
+
+test('filterKnownCache ternário: cachedOnly=false não corta nada', () => {
+  const cachedStream = stream(A, { _br: false });
+  const unknownStream = stream(B, { _br: false });
+  const missStream = stream(C, { _br: false });
+  const out = filterKnownCache(
+    [cachedStream, unknownStream, missStream],
+    new Set([A]),
+    { cachedOnly: false, known: false, missHashes: new Set([C]) },
+  );
+  assert.deepEqual(out.streams.map((item) => item.infoHash), [A, B, C]);
+});
+
+test('filterKnownCache ternário: visibleBr (vaga BR) sobrevive mesmo se constar em missHashes', () => {
+  const brMiss = stream(C, { _br: true, _dubbed: true });
+  const out = filterKnownCache(
+    [brMiss],
+    new Set(),
+    { cachedOnly: true, showUncachedBr: true, brReservedSlots: 1, known: false, missHashes: new Set([C]) },
+  );
+  assert.deepEqual(out.streams.map((item) => item.infoHash), [C]);
+  assert.deepEqual([...out.visibleBr], [C]);
+});
+
 test('pipeline preserva _dubbed até o debrid e remove antes de responder', () => {
   const items = [
     { title: 'Coringa Dublado 1080p', infoHash: A, seeders: 1, isBr: true },

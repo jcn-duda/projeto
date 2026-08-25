@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
+import config from '../src/config.js';
+import * as rdLedger from '../src/debrid/rd-ledger.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { buildStreams } from '../src/providers/index.js';
@@ -134,4 +136,55 @@ test('repro (mínimo): só o item da conta, sem concorrentes', async () => {
   const streams = await busca(raw);
   assert.equal(streams.length, 1, `esperava o item da conta; saiu: ${JSON.stringify(streams.map((s) => ({ n: (s.name || '').split('\n')[0], t: (s.title || '').slice(0, 80) })))}`);
   assert.match(String(streams[0].name || ''), /⚡/);
+});
+
+test('ledger: hit do ledger RD sobrevive ao POOL mesmo com swarm fraco', async () => {
+  cache.clear();
+  const prevLedger = config.debrid.rdLedger.enabled;
+  const prevOracleEnabled = config.debrid.rdOracle.enabled;
+  const prevOracleTorrentio = config.debrid.rdOracle.torrentio;
+  config.debrid.rdLedger.enabled = true;
+  config.debrid.rdOracle.enabled = true;
+  config.debrid.rdOracle.torrentio = true;
+
+  const HASH_LEDGER = '8'.repeat(40);
+  rdLedger.noteHit([HASH_LEDGER]);
+
+  const tituloLedger = 'Masters of the Universe 1987 1080p BluRay x264 DUAL PT';
+  const globais: any[] = [];
+  const grupos = ['GROUP', 'RARBG', 'YIFY', 'SPARKS', 'AMIABLE', 'DRONES'];
+  for (let i = 0; i < 30; i += 1) {
+    globais.push({
+      title: `Masters of the Universe 1987 1080p BluRay x264-${grupos[i % grupos.length]}${i}`,
+      infoHash: `${(i + 2).toString(16).padStart(2, '0')}${'d'.repeat(38)}`,
+      seeders: 20 + i * 7,
+      size: 5_000_000_000 + i * 100_000_000,
+      indexer: i % 2 ? 'yts' : 'thepiratebay',
+      tracker: i % 2 ? 'YTS' : 'The Pirate Bay',
+    });
+  }
+  const raw = [
+    {
+      title: tituloLedger,
+      infoHash: HASH_LEDGER,
+      seeders: 1,
+      size: 8_500_000_000,
+      indexer: 'comandotorrents',
+      tracker: 'Comando',
+      isBr: true,
+    },
+    ...globais,
+  ];
+  try {
+    const streams = await busca(raw);
+    const comRaio = streams.filter((s) => /⚡/.test(String(s.name || '')));
+    assert.ok(
+      comRaio.some((s) => String(s.url || '').includes(HASH_LEDGER)),
+      `o item com hit no ledger tem que sair com ⚡; saiu: ${JSON.stringify(streams.map((s) => (s.name || '').split('\n')[0]))}`,
+    );
+  } finally {
+    config.debrid.rdLedger.enabled = prevLedger;
+    config.debrid.rdOracle.enabled = prevOracleEnabled;
+    config.debrid.rdOracle.torrentio = prevOracleTorrentio;
+  }
 });

@@ -266,7 +266,8 @@ export async function buildStreams(rawInput: RawItem[], {
     ? new Set(mappedStreams.flatMap((s) => s?.infoHash ? [s.infoHash] : [])
         .filter((h: string) =>
           magnetdb.isAlive(aliveAdapter.id, aliveApiKey, h) ||
-          inventoryReady.has(String(h).toLowerCase())))
+          inventoryReady.has(String(h).toLowerCase()) ||
+          debrid.knownInstant(h)))
     : null;
   const liedSet = aliveAdapter && aliveApiKey
     ? new Set(mappedStreams.flatMap((s) => s?.infoHash ? [s.infoHash] : [])

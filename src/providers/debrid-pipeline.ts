@@ -342,8 +342,31 @@ export async function applyDebrid(input: Array<Stream | null>, {
     // mesmo o servico nao respondendo pelo cache global dele. Sem
     // `accountKnown` o corte nao roda — apagar a lista por memo frio seria pior
     // do que mostrar de mais.
-    if (cachedOnly && accountKnown) {
-      const corte = filterKnownCache(streams, cached, { cachedOnly, showUncachedBr, brReservedSlots });
+    //
+    // No Real-Debrid com ledger habilitado, a regra ternária entra: os misses
+    // confirmados pelo ledger são descartados pelo cachedOnly, enquanto os
+    // desconhecidos continuam visíveis.
+    let missHashes: Set<string> | undefined;
+    if (adapter.id === 'realdebrid' && config.debrid.rdLedger.enabled) {
+      missHashes = new Set<string>();
+      for (const s of streams) {
+        const h = String(s.infoHash || '').toLowerCase();
+        if (!h) continue;
+        const state = rdLedger.peek(h);
+        if (state === 'miss' || state === 'blocked') {
+          missHashes.add(h);
+        }
+      }
+    }
+
+    if (cachedOnly && (accountKnown || missHashes)) {
+      const corte = filterKnownCache(streams, cached, {
+        cachedOnly,
+        showUncachedBr,
+        brReservedSlots,
+        known: Boolean(accountKnown && !missHashes),
+        missHashes,
+      });
       if (corte.visibleBr.size) {
         log.info(`[debrid] ${corte.visibleBr.size} fonte(s) BR fora do cache mantida(s) como P2P`);
       }

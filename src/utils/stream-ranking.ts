@@ -335,34 +335,60 @@ function canAutoFetchBr({ autoFetchBr }: AutofetchOptions = {}, adapter?: Debrid
  * chegou ao debrid. O stream fica como torrent P2P, sem selo ⚡.
  */
 function uncachedBrHashes(streams: Stream[] = [], cachedHashes: Set<string> = new Set(), limit = 0) {
-  const selected = new Set();
+  const selected = new Set<string>();
   const max = Math.max(0, Math.trunc(Number(limit) || 0));
+  const cached = hashSet(cachedHashes);
   // Mesmo pool do autofetch: a vaga P2P tem que ser o torrent que vamos baixar,
   // não um LEGENDADO que só estava mais acima na lista.
   for (const stream of brDubbedPool(streams)) {
     if (selected.size >= max) break;
-    if (!cachedHashes.has(String(stream.infoHash))) selected.add(String(stream.infoHash));
+    if (!cached.has(String(stream.infoHash || '').toLowerCase())) {
+      selected.add(String(stream.infoHash));
+    }
   }
   return selected;
 }
 
-function filterKnownCache(streams: Stream[] = [], cachedHashes: Set<string> = new Set(), {
-  cachedOnly = true,
-  showUncachedBr = false,
-  brReservedSlots = 0,
-} = {}) {
+function filterKnownCache(
+  streams: Stream[] = [],
+  cachedHashes: Set<string> = new Set(),
+  {
+    cachedOnly = true,
+    showUncachedBr = false,
+    brReservedSlots = 0,
+    known = true,
+    missHashes,
+  }: {
+    cachedOnly?: boolean;
+    showUncachedBr?: boolean;
+    brReservedSlots?: number;
+    known?: boolean;
+    missHashes?: Set<string>;
+  } = {},
+) {
+  const cached = hashSet(cachedHashes);
+  const miss = missHashes ? hashSet(missHashes) : null;
   const cachedBr = brDubbedPool(streams).filter((stream) =>
-    cachedHashes.has(String(stream.infoHash)),
+    cached.has(String(stream.infoHash || '').toLowerCase()),
   ).length;
   const uncachedSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0) - cachedBr);
   const visibleBr = cachedOnly && showUncachedBr
-    ? uncachedBrHashes(streams, cachedHashes, uncachedSlots)
+    ? uncachedBrHashes(streams, cached, uncachedSlots)
     : new Set();
   return {
     visibleBr,
-    streams: streams.filter((stream) =>
-      cachedHashes.has(String(stream.infoHash)) || !cachedOnly || visibleBr.has(String(stream.infoHash)),
-    ),
+    streams: streams.filter((stream) => {
+      if (!cachedOnly) return true;
+      const h = String(stream.infoHash || '').toLowerCase();
+      if (cached.has(h) || visibleBr.has(String(stream.infoHash))) return true;
+      if (known) {
+        return false;
+      }
+      if (miss) {
+        return !miss.has(h);
+      }
+      return true;
+    }),
   };
 }
 
