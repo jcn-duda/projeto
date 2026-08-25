@@ -98,10 +98,12 @@ vez a cada TTL, e em toda busca enquanto o endpoint estivesse fora do ar. O
 refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado,
 com teto pelo `DEBRID_CHECK_FLOOR_MS`.
 
-**O que continua aberto:** fase 0 (parcialmente — ver abaixo). A fase 4 foi
-concluída em 2026-08-24; a fase 5 foi concluída: 5.1 e 5.3 em 2026-08-23; 5.2,
-5.4 e 5.5 em 2026-08-24; 5.6 e 5.7 em 2026-08-24. A fase 6 fechou em 2026-08-24
-(6.1–6.5b).
+**O que continua aberto (2026-08-24):** fases 0–6 estão no código (0.6 ✅ —
+o grafo antigo que dizia “exceto README” estava atrasado). Aberto de verdade:
+janela de 7 dias do **6.3** (TTL do `davail` ainda não se mexe), resíduo
+menor do **2.4** (rotação da fila com backoff já pausando), **6.7** (`checkJs`
+medido, não feito) e a **Fase 7** (operação / produção — só especificada, sem
+execução neste commit). A auditoria forense do Tier 5 (M4) não é gate.
 
 A meta de `any` está em **143** (`e25ef29`), medida com o contador de AST
 corrigido de §5.7 — o anterior varria 66 dos 72 arquivos e por isso reportava
@@ -568,16 +570,82 @@ garante que nenhum consumidor quebra no meio.
 
 ---
 
+## Fase 7 — Operação e produção (PLANEJADA — 2026-08-24)
+
+**Objetivo:** 30 dias de produção estável. A Fase 6 fechou o refactor; esta
+fase **não** abre split de módulo. Código de `HEAD` na auditoria: `esm`
+`4baf8e1`. Esforço: A/B = S operacional; C1 = S de código quando autorizado.
+Risco: **deploy** (A1) e **dado/conta** (A2) — não prazo de busca.
+
+**Princípio:** não abrir refactor amplo. Cada item tem trilha, aceite e o
+que é proibido. `AGENTS.md` descreve só o presente; o futuro mora aqui.
+Este capítulo **não autoriza** limpeza de magnets, `push`, rebuild na VPS
+nem commit de `metrics_live.json`.
+
+Ordem: trilha A → B → C. C só com A verde e medida (ou bug) da B.
+
+```
+Trilha A (produção, 0 código)
+  └─→ Trilha B (medir, depois de A1)
+        └─→ Trilha C (código mínimo)
+              └─→ explicitamente fora
+```
+
+### Trilha A — Produção (primeiro; 0 código)
+
+| # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
+|---|---|---|---|---|---|---|---|
+| 7.1 | Qual código está no ar. O cron em `DEPLOY.md` ainda pode observar `adon-power-movie` | A1 | S | deploy | — | PLANEJADO | script/`crontab` puxa `esm`; `git log -1` na VPS = `origin/esm`. Sem isso, melhoria local não chega na TV |
+| 7.2 | Saúde do debrid. “Sumiu o raio” quase nunca é bug (teto / chave) | A2 | S | dado | 7.1 ajuda o diagnóstico, não bloqueia o check | PLANEJADO | `GET /debrid-status.json` com `X-Indexer-Test-Token`; ocupação abaixo do aviso. Teto → `node dist/scripts/magnets.js` **só com autorização explícita** — este plano não autoriza |
+| 7.3 | Página de configurar na internet. `Caddyfile` tem `basic_auth` comentado; `CONFIGURE_PAGE_PASSWORD` não é lido por ninguém | A3 | S | acesso | VPS com `ADDON_DOMAIN` público | PLANEJADO | na VPS, `/configure` pede senha. Em LAN pode ficar aberto |
+| 7.4 | Fonte BR morta. BLUDV fora do ar (ACE / 522). Amostra local (`metrics_live.json`, **não commitado**): `bludv-cardigann` ~20s | A4 | S | prazo | mirror vivo **ou** fora da resposta | PLANEJADO | env com mirror **ou** indexer fora do caminho crítico (padrão `JACKETT_INDEX_ONLY_INDEXERS`). Sem mirror, não “consertar parser” |
+
+### Trilha B — Medir (depois de A1)
+
+| # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
+|---|---|---|---|---|---|---|---|
+| 7.5 | Janela `davail` (continuação do 6.3). Baseline 0: 878 servidos vs 736 de rede (~54% local). Decisão: `servedHashes / (servedHashes + hashes)` — **não** `repeated/hashes` | B1 | S (coleta) | prazo se TTL errado | 7.1 (métrica da instância no ar) | PLANEJADO | 7 dias de coleta autenticada **antes** de mudar `DEBRID_AVAIL_POS_TTL` / `NEG_TTL`. Código só depois da janela |
+| 7.6 | Jackett desperdiçado (`search.jackett.wastedQueries` / `wastedMs` em `src/providers/jackett.ts`) | B2 | S | prazo | 7.1 | PLANEJADO | 7 dias de série; só então cortar indexer. Sem feeling |
+| 7.7 | Premiumize órfãos (`debrid.pm.status.unmatched` alto na amostra) | B3 | S | dado se reescrever `transferHash` no escuro | 7.1 | PLANEJADO | confirmar transferência sem hash casável (já em `AGENTS.md`) vs regressão. Sem evidência nova, não reescrever `transferHash` |
+| 7.8 | M4 / Tier 5 forense (HMAC adulterado, config maliciosa — `TEST_INFRA.md` item 14) | B4 | M | nulo se só auditoria | M3 feito; **não** é gate de deploy | PLANEJADO | agendar quando houver tempo. Não misturar com 7.1. Metade regressão já rodou (build, ~1200 testes, harnesses, smoke 6.6) |
+
+### Trilha C — Código mínimo (só com A verde e bug/medida)
+
+| # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
+|---|---|---|---|---|---|---|---|
+| 7.9 | Resíduo 2.4: orçamento cheio em `autofetch-runner.ts` escreve `[...remaining, next]` e rebaixa o melhor; `budgetBlockedUntil` já pausa | C1 | S | dado (fila) | A verde; não urgente | PLANEJADO | `[next, ...remaining]` + teste do `drainNext`. Um commit |
+| 7.10 | `checkJs` nos `resolvers/` (6.7): 354 erros, 306 `noImplicitAny` | C2 | L | build (`noEmitOnError`) | — | **FORA dos 30 dias** | anotar JS é tarefa própria, não ajuste de `tsconfig` |
+| 7.11 | `SearchPhase` explícito (A3). Fase já é `latest-writer` | C3 | M | passe tardio | bug concreto de corrida | **NÃO FAZER** sem bug | — |
+
+### Explicitamente fora (não fazer nesta fase)
+
+- Novo split de `providers/` / `format.ts` / `app.ts`.
+- Caça a `any` nas APIs de debrid.
+- Validar DNS no SSRF (hostname público → IP privado): custo é busca morta quando o DNS falha.
+- Commitar `metrics_live.json`.
+- `npm audit fix --force`.
+- Devolver BLUDV / index-only ao caminho crítico sem medir latência de novo.
+- Tratar este capítulo como autorização de limpeza de magnets, `push` ou rebuild na VPS.
+
+**Validação desta edição (2026-08-24):** só `git diff --check` nos markdowns.
+Não alegar suíte, smoke ou Docker. Executar a Fase 7 começa por **7.1 na VPS**.
+Código (7.9) e TTL do `davail` só com medida da trilha B.
+
+**Rollback:** reverter o commit de docs; nenhum comportamento executável muda.
+
+---
+
 ## Grafo de dependências
 
 ```
-Fase 0 (docs)      ✅ exceto 0.6 (README)
+Fase 0 (docs)      ✅ (0.6 README: nada a fazer — envs no .env.example)
 Fase 1 (B1,B2)     ✅ + 1.6/1.7 (refresh em fundo, achado da revisão)
-Fase 2 (S*,B3,B4)  ✅ — resíduo menor no 2.4 (rotação + backoff redundantes)
+Fase 2 (S*,B3,B4)  ✅ — resíduo menor no 2.4 (rotação + backoff; 7.9)
 Fase 3 (T1–T7)     ✅ — GATE da fase 5 satisfeito
 Fase 4             ✅ 4.1–4.3
    │
-   └─→ Fase 5 (refactors) ─→ Fase 6 (6.1/6.2 dependem do 5.5)
+   └─→ Fase 5 (refactors) ─→ Fase 6 (6.1–6.8; 6.3 janela; 6.7 medido)
+                                └─→ Fase 7 (operação) PLANEJADA
 ```
 
 - 5.1–5.7 são sequenciais entre si (mesmos arquivos), mas 5.2, 5.4 e 5.5 são
