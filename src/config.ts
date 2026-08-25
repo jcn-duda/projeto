@@ -511,6 +511,45 @@ const config = {
     rdProbeRateCooldownMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_RATE_COOLDOWN_MS, 90_000)),
     // Miss recente não re-sonda (evita martelar o mesmo hash pending).
     rdProbeMissTtlMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_MISS_TTL_MS, 120_000)),
+    // Ledger durável GLOBAL do CDN Real-Debrid. Ao contrário do magnetdb,
+    // disponibilidade do RD é do serviço, não da conta que a observou.
+    rdLedger: {
+      enabled: String(process.env.DEBRID_RD_LEDGER || 'true') === 'true',
+      hitTtl: Math.max(0, num(process.env.DEBRID_RD_LEDGER_HIT_TTL, 2_592_000)),
+      blockedTtl: Math.max(0, num(process.env.DEBRID_RD_LEDGER_BLOCKED_TTL, 2_592_000)),
+      // Miss só evita re-sondar um pending; cresce para não martelar, mas nunca
+      // vira filtro de stream — falso negativo aqui é pior que falso positivo.
+      missBackoffMs: (list(process.env.DEBRID_RD_LEDGER_MISS_BACKOFF_MS || '1800000,7200000,43200000,259200000')
+        .map((value) => Math.max(0, Math.trunc(num(value, 0))))
+        .filter((value) => value > 0)),
+    },
+    // Oráculo externo do cache global RD. Só habilita o cacheCheck dinâmico
+    // quando há fonte e ledger: sem uma das duas, RD continua honesto como
+    // "não sei" e cachedOnly não pode esconder a lista.
+    rdOracle: {
+      enabled: String(process.env.DEBRID_RD_ORACLE || 'false') === 'true',
+      timeoutMs: Math.max(1, num(process.env.DEBRID_RD_ORACLE_TIMEOUT_MS, 800)),
+      maxHashes: Math.min(500, Math.max(1, Math.trunc(num(process.env.DEBRID_RD_ORACLE_MAX_HASHES, 100)))),
+      stremthruUrl: (process.env.DEBRID_RD_ORACLE_STREMTHRU_URL || '').replace(/\/$/, ''),
+      stremthruToken: process.env.DEBRID_RD_ORACLE_STREMTHRU_TOKEN || '',
+      stremthruStore: process.env.DEBRID_RD_ORACLE_STREMTHRU_STORE || 'realdebrid',
+      torrentio: String(process.env.DEBRID_RD_ORACLE_TORRENTIO || 'false') === 'true',
+      torrentioUrl: (process.env.DEBRID_RD_ORACLE_TORRENTIO_URL || 'https://torrentio.strem.fun').replace(/\/$/, ''),
+      // Vazio usa a chave efetiva da instalação, nunca a do operador por engano.
+      torrentioKey: process.env.DEBRID_RD_ORACLE_TORRENTIO_KEY || '',
+      torrentioTtl: Math.max(0, num(process.env.DEBRID_RD_ORACLE_TORRENTIO_TTL, 21600)),
+    },
+    // Governador por conta das escritas no Real-Debrid. false preserva o fluxo
+    // anterior, inclusive o gap e o cooldown próprios da sonda.
+    rdGate: {
+      enabled: String(process.env.DEBRID_RD_GATE || 'true') === 'true',
+      minGapMs: Math.max(0, num(process.env.DEBRID_RD_GATE_MIN_GAP_MS, 1_000)),
+      maxGapMs: Math.max(0, num(process.env.DEBRID_RD_GATE_MAX_GAP_MS, 30_000)),
+      cooldownMs: Math.max(0, num(process.env.DEBRID_RD_GATE_COOLDOWN_MS, 90_000)),
+      // Depois deste teto play fura só gap/cooldown; job já em voo não é
+      // preemptado e ainda precisa terminar.
+      playMaxWaitMs: Math.max(0, num(process.env.DEBRID_RD_GATE_PLAY_MAX_WAIT_MS, 1_500)),
+    },
     // Prefetch do próximo episódio de séries
     prefetchNextEp: String(process.env.DEBRID_PREFETCH_NEXT_EP || 'true') === 'true',
     prefetchTtl: num(process.env.DEBRID_PREFETCH_TTL, 43200),

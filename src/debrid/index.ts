@@ -11,6 +11,7 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import { notify } from '../utils/notify.js';
+import * as rdOracle from './rd-oracle.js';
 
 // Consulta não abortável em andamento (hoje, AllDebrid). O passe tardio junta
 // a mesma promise quando o conjunto de hashes é idêntico; se o balde cresceu,
@@ -226,6 +227,12 @@ function current(): DebridAdapter | null {
   if (!adapter) {
     log.warn(`[debrid] serviço desconhecido: ${debridService}`);
     return null;
+  }
+  // RD só passa a prometer cacheCheck quando o ledger pode conservar a prova e
+  // existe pelo menos uma fonte externa. O clone evita mudar a semântica dos
+  // outros serviços nem congelar o kill-switch no carregamento do módulo.
+  if (adapter.id === 'realdebrid') {
+    return { ...adapter, cacheCheck: config.debrid.rdLedger.enabled && rdOracle.available() };
   }
   return adapter;
 }
@@ -562,6 +569,9 @@ async function enqueue(infoHash: string, episode?: PlayHint) {
   try {
     return await adapter.enqueue(opts().debridApiKey, infoHash, episode || {});
   } catch (err) {
+    // O runner precisa distinguir cooldown RD de recusa do torrent para repor
+    // a cabeça da fila. Os demais adapters preservam o fail-soft histórico.
+    if (adapter.id === 'realdebrid' && isRateLimitError(err)) throw err;
     log.warn(`[${adapter.id}] falha ao enfileirar ${infoHash}:`, err.message);
     return false;
   }

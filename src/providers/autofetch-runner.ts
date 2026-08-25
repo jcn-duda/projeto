@@ -19,6 +19,9 @@ import type { RuntimeContext } from '../runtime.js';
 import * as autofetch from './autofetch.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
+import { rdGate } from '../debrid/rd-gate.js';
+import { isRateLimitError } from '../debrid/common.js';
+import * as rdLedger from '../debrid/rd-ledger.js';
 
 type AutoFetchStream = Stream & { infoHash: string };
 type AutoFetchCandidate = { stream: AutoFetchStream; account: string; pool: string };
@@ -360,6 +363,9 @@ export function drainNext(searchKey: string, lot: any) {
   if (!adapter) return;
   const account = accountScope(opts().debridApiKey);
   if (autofetch.budgetBlockedUntil(adapter.id, account) > Date.now()) return;
+  // O gate nega background durante cooldown. Verificar antes de `takeNext`
+  // mantém a cabeça persistente, em vez de removê-la para falhar em seguida.
+  if (adapter.id === 'realdebrid' && rdGate.isCoolingDown(account)) return;
   // Mesmo padrão da pausa por orçamento: a cabeça fica na fila intacta, sem
   // girar, até a conta voltar abaixo do limiar de ocupação.
   if (autofetch.accountGateBlocked(adapter, opts().debridApiKey)) return;
@@ -423,6 +429,22 @@ export function drainNext(searchKey: string, lot: any) {
     .catch((err) => {
       autofetch.release(mKey);
       held.release(h, account);
+      if (adapter.id === 'realdebrid' && isRateLimitError(err)) {
+        // O cooldown pode abrir entre o `takeNext` e a admissão no gate. O
+        // candidato não foi recusado pelo torrent: volta para a FRENTE e a
+        // próxima drenagem só acontece depois do cooldown.
+        const current = autofetch.readQueue(searchKey);
+        autofetch.writeQueue(
+          searchKey,
+          [next, ...current.filter((item) => String(item.infoHash).toLowerCase() !== h)],
+          config.debrid.autoFetchQueueTtl,
+          adapter.id,
+          account,
+        );
+        metrics.count('autofetch.rdGateRequeued');
+        log.info(`[autofetch] cooldown RD abriu durante o dreno; ${h} voltou à frente da fila`);
+        return;
+      }
       lot.refusals = (lot.refusals || 0) + 1;
       log.warn('[autofetch] falha ao drenar da fila:', err?.message || err);
     });
@@ -465,6 +487,9 @@ function runRecheck(searchKey: string) {
       const statusInfo = statuses[hash];
       const isReady = (checkResult.known && checkResult.cached.has(hash)) || statusInfo?.state === 'ready';
       if (isReady) {
+        // `torrentStatus: ready` no RD é confirmação do cache GLOBAL. O
+        // ranking ainda não lê este ledger nesta fase; só preservamos a prova.
+        if (adapter.id === 'realdebrid') rdLedger.noteHit([hash]);
         metrics.count('autofetch.ready');
         // Quanto tempo o download levou do enfileiramento ao pronto (hit-rate).
         // Duração é observe (janela com percentil), não somatório de count.

@@ -82,6 +82,10 @@ RUN cp /usr/bin/chromedriver /app/chromedriver \
 # localmente — fora do container isso passa despercebido porque o build já os
 # copia para dist/.
 COPY package.json ./
+# O FlareSolverr procura package.json no diretório PAI (/app/package.json),
+# que é o do addon — escrito no Windows com BOM. Python 3.14+ rejeita BOM
+# no json.loads.
+RUN python3 -c "p='/app/package.json';b=open(p,'rb').read();open(p,'wb').write(b[3:]if b[:3]==b'\xef\xbb\xbf'else b)"
 RUN npm install --omit=dev
 
 # Saída do tsc: dist/src/, dist/scripts/ e dist/src/public/ (assets). Sem

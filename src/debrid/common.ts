@@ -58,13 +58,32 @@ function isQuotaError(error: MaybeError) {
 /** Rajada demais — a credencial e a cota estão boas, o serviço pediu para esperar. */
 class RateLimitError extends Error {
   isRateLimitError = true;
-  constructor(message: string) { super(message); this.name = 'RateLimitError'; }
+  retryAfterMs?: number;
+  constructor(message: string, retryAfterMs?: number) {
+    super(message);
+    this.name = 'RateLimitError';
+    if (retryAfterMs != null) this.retryAfterMs = retryAfterMs;
+  }
 }
 const RATE_LIMIT_MESSAGE = /rate_limit_reached|too many (?:api )?requests|slow down/i;
 function isRateLimitError(error: MaybeError) {
   if (!error) return false;
   if (error.isRateLimitError) return true;
   return RATE_LIMIT_MESSAGE.test(String(error.message || ''));
+}
+
+/** Converte Retry-After em milissegundos (delta-seconds ou data HTTP). */
+function parseRetryAfter(value: string | null | undefined, now = Date.now()): number | undefined {
+  const raw = String(value || '').trim();
+  if (!raw) return undefined;
+  if (/^\d+(?:\.\d+)?$/.test(raw)) return Math.max(0, Number(raw) * 1000);
+  const at = Date.parse(raw);
+  return Number.isFinite(at) ? Math.max(0, at - now) : undefined;
+}
+
+function retryAfterMsOf(error: MaybeError): number | undefined {
+  const value = Number(error?.retryAfterMs);
+  return Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 /** Um fetch JSON com o timeout do debrid já aplicado. */
@@ -83,7 +102,13 @@ async function json(
     try { detail = (await res.text()).slice(0, 200); } catch { /* corpo ilegível: o status já basta */ }
     const message = `HTTP ${res.status}${detail ? ` — ${detail}` : ''}`;
     if (res.status === 401 || res.status === 403) throw new AuthError(message);
-    if (res.status === 429) throw new RateLimitError(message);
+    if (res.status === 429) {
+      // Retry-After não é documentado pelo Real-Debrid, mas alguns proxies o
+      // acrescentam. Preservamos a pista no erro; cada adaptador decide como
+      // usá-la. Ausência ou valor ilegível continua com a semântica antiga.
+      const retryAfterMs = parseRetryAfter(res.headers?.get?.('retry-after'));
+      throw new RateLimitError(message, retryAfterMs);
+    }
     if (res.status === 451) throw new BlockedError(message);
     throw new Error(message);
   }
@@ -133,5 +158,6 @@ function wait(ms: number) { return new Promise((resolve) => setTimeout(resolve, 
 export {
   magnetFor, json, batched, wait,
   AuthError, isAuthError, QuotaError, isQuotaError, RateLimitError, isRateLimitError,
+  parseRetryAfter, retryAfterMsOf,
   BlockedError, isBlockedError,
 };

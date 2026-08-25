@@ -1,4 +1,4 @@
-// Rodada 2: checagem ligada; tier 1 (cobertura de features) tipado.
+﻿// Rodada 2: checagem ligada; tier 1 (cobertura de features) tipado.
 // remover arquivo a arquivo na rodada 2.
 // A suíte precisa ser idêntica no Node 18 e no Node 22, sem criar SQLite local.
 process.env.CACHE_PERSIST = 'false';
@@ -839,8 +839,8 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         },
       ],
       async () => {
-        const rawCached = await rdAdapter.checkCached('rd-key', [TEST_HASH_1]) as Set<string>;
-        assert.equal(rawCached.size, 0);
+        const rawCached = await rdAdapter.checkCached('rd-key', [TEST_HASH_1]) as { cached: Set<string>; complete?: boolean };
+        assert.equal(rawCached.cached.size, 0); assert.equal(rawCached.complete, false);
 
         await runtime.run({ opts: { debridService: 'realdebrid', debridApiKey: 'rd-key' } }, async () => {
           const res = await debrid.checkCached([TEST_HASH_1]);

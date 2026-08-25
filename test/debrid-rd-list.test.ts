@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as realdebrid from '../src/debrid/realdebrid.js';
+import { rdGate } from '../src/debrid/rd-gate.js';
 
 /**
  * Regressão: o Real-Debrid não tem `/torrents/list` — esse caminho responde
@@ -13,6 +14,11 @@ import * as realdebrid from '../src/debrid/realdebrid.js';
  */
 
 const H1 = 'a'.repeat(40);
+
+// Com o governador ativo por padrão, cada cenário do adaptador precisa começar
+// sem admissão anterior da mesma conta; serialização é coberta no arquivo próprio.
+test.beforeEach(() => rdGate.reset());
+test.afterEach(() => rdGate.reset());
 const H2 = 'b'.repeat(40);
 
 function mockRealDebridList(rows: any[]) {

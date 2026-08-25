@@ -101,7 +101,7 @@ test('teto de releases por obra corta as mais antigas', () => {
 test('status expõe entradas e cota para o painel', () => {
   const st = status() as any;
   assert.equal(typeof st.entries, 'number');
-  assert.equal(st.maxEntries, 4000);
+  assert.equal(st.maxEntries, 2000);
   assert.equal(st.enabled, true);
 });
 

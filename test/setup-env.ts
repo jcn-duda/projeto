@@ -21,6 +21,10 @@ process.env.CACHE_PERSIST = 'false';
 // da propria requisicao.
 process.env.DEBRID_CACHED_ONLY = 'false';
 
+// A suíte roda com o mesmo governador que a produção; os testes isolam contas
+// e restauram o estado global do gate quando exercitam Real-Debrid.
+process.env.DEBRID_RD_GATE = 'true';
+
 // TTLs curtos do cache de disponibilidade por hash (davail, fase 3). Os únicos
 // consumidores da camada são os testes do debrid-avail, e o teste de expiração
 // espera o timer REAL (~1,3s e ~2,6s). O par <2s,1s> também mantém as entradas

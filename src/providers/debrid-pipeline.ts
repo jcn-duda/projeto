@@ -9,6 +9,8 @@ import { prefix, opts } from '../runtime.js';
 import { remainingCheckBudget } from '../utils/deadline.js';
 import * as autofetch from './autofetch.js';
 import * as magnetdb from '../utils/magnetdb.js';
+import * as rdLedger from '../debrid/rd-ledger.js';
+import * as rdOracle from '../debrid/rd-oracle.js';
 import { isDubLieError, isEpisodePickError } from '../debrid/common.js';
 import * as releaseIndex from '../utils/release-index.js';
 import * as log from '../utils/logger.js';
@@ -125,9 +127,36 @@ export async function applyDebrid(input: Array<Stream | null>, {
     checkStarted,
     config.debrid.checkFormatMargin,
   );
+  // O RD não expõe mais instantAvailability. O oráculo consulta fontes que
+  // conhecem o CDN e registra somente as respostas autoritativas no ledger;
+  // hash ausente no Torrentio continua desconhecido, nunca vira miss.
+  if (adapter.id === 'realdebrid' && adapter.cacheCheck && imdbId && hashes.length > 0) {
+    const oracleBudget = remainingCheckBudget(deadlineAt, Date.now(), config.debrid.checkFormatMargin);
+    if (oracleBudget == null || oracleBudget > 0) {
+      const limit = Math.min(hashes.length, 500);
+      const oracleHashes = [...new Set(hashes.map((hash) => String(hash).toLowerCase()))].slice(0, limit);
+      const type = season != null || episode != null ? 'series' as const : 'movie' as const;
+      const id = type === 'series' ? `${imdbId}:${season ?? 0}:${episode ?? 0}` : imdbId;
+      const verdicts = await rdOracle.check({
+        hashes: oracleHashes,
+        type,
+        id,
+        timeoutMs: oracleBudget == null ? config.debrid.rdOracle.timeoutMs : Math.min(oracleBudget, config.debrid.rdOracle.timeoutMs),
+      }, trustApiKey);
+      const hits: string[] = [];
+      for (const [hash, cachedByOracle] of verdicts) {
+        if (cachedByOracle) hits.push(hash);
+        else rdLedger.noteMiss(hash);
+      }
+      if (hits.length) rdLedger.noteHit(hits);
+    }
+  }
+  // A etapa do oráculo também consome o deadline: recalcula o teto antes de
+  // chamar o adapter, para não transformar o último milissegundo em atraso HTTP.
+  const adapterTimeoutMs = remainingCheckBudget(deadlineAt, Date.now(), config.debrid.checkFormatMargin);
   const { cached, known, unusable } = await debrid.checkCached(
     hashes,
-    timeoutMs != null ? { timeoutMs } : {},
+    adapterTimeoutMs != null ? { timeoutMs: adapterTimeoutMs } : {},
   );
   const checkMs = Date.now() - checkStarted;
   const needsFullRefresh = adapter.cacheCheck && !known && !unusable;
@@ -188,6 +217,9 @@ export async function applyDebrid(input: Array<Stream | null>, {
         fromInventory += 1;
       }
       if (fromInventory) metrics.count('debrid.instant.fromInventory', fromInventory);
+      // Inventário pronto é uma observação gratuita do CDN do RD. O magnetdb
+      // continua por conta; o ledger é global porque o cache é do serviço.
+      if (adapter.id === 'realdebrid') rdLedger.noteHit([...cachedForAutofetch]);
       accountKnown = true;
     } else {
       knownForAutofetch = false;
@@ -209,14 +241,17 @@ export async function applyDebrid(input: Array<Stream | null>, {
   // entao nao pode autorizar o corte do cachedOnly a descartar o resto.
   if (!adapter.cacheCheck && trustApiKey) {
     let doHistorico = 0;
+    const aliveHashes: string[] = [];
     for (const s of streams) {
       const hash = String(s.infoHash || '').toLowerCase();
       if (!hash || cached.has(hash)) continue;
       if (magnetdb.isAlive(adapter.id, trustApiKey, hash)) {
         cached.add(hash);
         doHistorico += 1;
+        aliveHashes.push(hash);
       }
     }
+    if (adapter.id === 'realdebrid') rdLedger.noteHit(aliveHashes);
     if (doHistorico) {
       metrics.count('debrid.instant.fromHistory', doHistorico);
       log.info(`[debrid] ${doHistorico} stream(s) com ⚡ pelo histórico de play desta conta`);

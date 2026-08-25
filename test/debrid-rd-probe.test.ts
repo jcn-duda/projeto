@@ -2,10 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as realdebrid from '../src/debrid/realdebrid.js';
 import { selectProbeCandidates } from '../src/providers/rd-probe.js';
+import { rdGate } from '../src/debrid/rd-gate.js';
+import * as rdLedger from '../src/debrid/rd-ledger.js';
+import * as cache from '../src/utils/cache.js';
 
 const H1 = 'a'.repeat(40);
 const H2 = 'b'.repeat(40);
 const H3 = 'c'.repeat(40);
+
+// As sondas unitárias não compartilham admissão; o contrato de fila é exercido
+// em debrid-rd-gate.test.ts. Reset evita carregar o gap do cenário anterior.
+test.beforeEach(() => rdGate.reset());
+test.afterEach(() => rdGate.reset());
 
 function mockFetch(handler: (url: URL, init?: RequestInit) => any) {
   const realFetch = globalThis.fetch;
@@ -166,5 +174,30 @@ test('selectProbeCandidates oversample: hold nos top BR nao zera a sonda', async
   } finally {
     held.release(extras[0].infoHash, 'acct');
     held.release(extras[1].infoHash, 'acct');
+  }
+});
+
+test('sonda pending/error não grava miss no ledger, apenas em memória', async () => {
+  cache.clearNamespace('rdc');
+  const mock = mockFetch((url) => {
+    if (url.pathname === '/rest/1.0/torrents/addMagnet') {
+      return jsonOk({ id: 'TORR_PEND' });
+    }
+    if (url.pathname.startsWith('/rest/1.0/torrents/info/')) {
+      return jsonOk({ id: 'TORR_PEND', status: 'downloading', filename: 'Baixando.mkv', bytes: 0, files: [] });
+    }
+    if (url.pathname.startsWith('/rest/1.0/torrents/delete/')) {
+      return { ok: true, status: 204, async json() { return null; }, async text() { return ''; } };
+    }
+    return jsonOk({}, 404);
+  });
+  try {
+    const result = await realdebrid.probeInstant('chave', H2);
+    assert.equal(result.instant, false);
+    assert.equal(result.reason, 'pending');
+    // Ledger NÃO deve ser marcado com miss por sonda pendente
+    assert.equal(rdLedger.peek(H2), 'unknown', 'pending da sonda não é miss autoritativo no ledger');
+  } finally {
+    mock.restore();
   }
 });

@@ -28,6 +28,8 @@ import * as autofetch from './autofetch.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { isRateLimitError, isQuotaError } from '../debrid/common.js';
+import { rdGate } from '../debrid/rd-gate.js';
+import * as rdLedger from '../debrid/rd-ledger.js';
 
 type ProbeOpts = {
   cached: Set<string>;
@@ -48,6 +50,7 @@ function missKey(account: string, hash: string) {
 }
 
 function wasRecentMiss(account: string, hash: string) {
+  if (config.debrid.rdLedger.enabled && rdLedger.peek(hash) === 'miss') return true;
   const at = recentMiss.get(missKey(account, hash));
   if (at == null) return false;
   if (Date.now() - at > config.debrid.rdProbeMissTtlMs) {
@@ -136,6 +139,10 @@ export function selectProbeCandidates(
     if (cachedSet.has(h)) return true;
     if (held.isHeld(h, account)) return true;
     if (cache.get(autofetch.markerKey('realdebrid', account, h))) return true;
+    // O ledger é por serviço: hit/blocked também não precisam de nova sonda.
+    // Miss usa o backoff durável; com o kill-switch, wasRecentMiss preserva o
+    // mapa por conta que existia antes desta fase.
+    if (config.debrid.rdLedger.enabled && (rdLedger.isHit(h) || rdLedger.peek(h) === 'blocked')) return true;
     if (wasRecentMiss(account, h)) return true;
     if (apiKey && magnetdb.isBad('realdebrid', apiKey, h)) return true;
     return false;
@@ -172,7 +179,7 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
     if (config.debrid.rdProbeInitialDelayMs > 0) {
       await wait(config.debrid.rdProbeInitialDelayMs);
     }
-    if (Date.now() < rateCooldownUntil) {
+    if (!config.debrid.rdGate.enabled && Date.now() < rateCooldownUntil) {
       metrics.count('debrid.rd.probe.cooldown');
       log.info(`[rd-probe] em cooldown de rate-limit por mais ${Math.ceil((rateCooldownUntil - Date.now()) / 1000)}s`);
       return;
@@ -196,10 +203,12 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
           instant += 1;
           instantHashes.push(hash);
           magnetdb.markAlive('realdebrid', apiKey, [hash]);
+          rdLedger.noteHit([hash]);
           debrid.noteAvailable(hash);
           log.info(`[rd-probe] ⚡ ${hash.slice(0, 8)} (${result.reason})`);
         } else if (result.reason === 'blocked') {
           magnetdb.markBad('realdebrid', apiKey, hash);
+          rdLedger.noteBlocked(hash);
           noteMiss(account, hash);
         } else if (result.reason === 'pending' || result.reason === 'error') {
           noteMiss(account, hash);
@@ -207,18 +216,22 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
         // 'active' / 'memo': sem miss — active pode ficar pronto depois; memo já era ⚡
       } catch (err) {
         if (isRateLimitError(err) || isQuotaError(err)) {
-          rateCooldownUntil = Date.now() + config.debrid.rdProbeRateCooldownMs;
+          if (!config.debrid.rdGate.enabled) {
+            rateCooldownUntil = Date.now() + config.debrid.rdProbeRateCooldownMs;
+          }
           metrics.count('debrid.rd.probe.aborted');
-          log.warn(
-            `[rd-probe] interrompido (${(err as Error).message || err}); ` +
-            `cooldown ${Math.round(config.debrid.rdProbeRateCooldownMs / 1000)}s`,
-          );
+          const cooldownText = config.debrid.rdGate.enabled
+            ? `cooldown do gate ${Math.ceil(rdGate.cooldownRemainingMs(account) / 1000)}s`
+            : `cooldown ${Math.round(config.debrid.rdProbeRateCooldownMs / 1000)}s`;
+          log.warn(`[rd-probe] interrompido (${(err as Error).message || err}); ${cooldownText}`);
           break;
         }
         noteMiss(account, hash);
         log.warn(`[rd-probe] falha em ${hash.slice(0, 8)}:`, (err as Error)?.message || err);
       }
-      if (i + 1 < hashes.length && config.debrid.rdProbeGapMs > 0) {
+      // Com o gate ligado, o gap adaptativo já separa os jobs compostos. O
+      // intervalo legado só existe no kill-switch para reproduzir 9c9c714.
+      if (!config.debrid.rdGate.enabled && i + 1 < hashes.length && config.debrid.rdProbeGapMs > 0) {
         await wait(config.debrid.rdProbeGapMs);
       }
     }
@@ -245,15 +258,39 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
     + 5000;
   try {
     const runBody = ctx ? run(ctx, body) : body();
-    await Promise.race([
-      runBody,
-      wait(lotBudgetMs).then(() => {
-        metrics.count('debrid.rd.probe.lotTimeout');
-        log.warn(`[rd-probe] lote excedeu ${Math.round(lotBudgetMs / 1000)}s; abandonando`);
-      }),
-    ]);
+    await settleProbeLot(runBody, lotBudgetMs);
   } finally {
     probeInFlight = false;
+  }
+}
+
+/**
+ * Com o gate ligado, o teto vira só telemetria: liberar o lote antes do body
+ * deixaria a próxima sonda criar waiters enquanto a anterior ainda executa.
+ * O risco de probeInFlight ficar preso é aceito: AbortSignal.timeout das
+ * chamadas HTTP continua sendo a rede de baixo. O kill-switch preserva o
+ * Promise.race legado de 9c9c714.
+ */
+export async function settleProbeLot(runBody: Promise<void>, lotBudgetMs: number): Promise<void> {
+  const timeout = async () => {
+    await wait(lotBudgetMs);
+    metrics.count('debrid.rd.probe.lotTimeout');
+    log.warn(`[rd-probe] lote excedeu ${Math.round(lotBudgetMs / 1000)}s${config.debrid.rdGate.enabled ? '; aguardando término real' : '; abandonando'}`);
+  };
+  if (!config.debrid.rdGate.enabled) {
+    await Promise.race([runBody, timeout()]);
+    return;
+  }
+  let done = false;
+  void wait(lotBudgetMs).then(() => {
+    if (done) return;
+    metrics.count('debrid.rd.probe.lotTimeout');
+    log.warn(`[rd-probe] lote excedeu ${Math.round(lotBudgetMs / 1000)}s; aguardando término real`);
+  });
+  try {
+    await runBody;
+  } finally {
+    done = true;
   }
 }
 
@@ -266,7 +303,12 @@ export function queueRdProbe(streams: Stream[], { cached, searchKey }: ProbeOpts
   const adapter = debrid.current();
   if (!adapter || adapter.id !== 'realdebrid') return;
   if (!opts().debridApiKey) return;
-  if (Date.now() < rateCooldownUntil) {
+  const apiKey = opts().debridApiKey;
+  const account = accountScope(apiKey);
+  if (
+    (!config.debrid.rdGate.enabled && Date.now() < rateCooldownUntil) ||
+    (config.debrid.rdGate.enabled && rdGate.isCoolingDown(account))
+  ) {
     metrics.count('debrid.rd.probe.cooldown');
     return;
   }
@@ -275,8 +317,6 @@ export function queueRdProbe(streams: Stream[], { cached, searchKey }: ProbeOpts
     return;
   }
 
-  const apiKey = opts().debridApiKey;
-  const account = accountScope(apiKey);
   let slots = takeHourlySlots(config.debrid.rdProbeMax);
   if (slots <= 0) {
     metrics.count('debrid.rd.probe.hourlyFull');

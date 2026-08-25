@@ -404,11 +404,11 @@ test('estouro de dlmag despeja só o próprio namespace e preserva streams', () 
   }
 });
 
-test('cotas da Fase 3: raw limitado, streams ampliado, davail e mag de entrada barata', () => {
+test('cotas: rdc global preserva folga sob o teto e reduz os baldes de hash', () => {
   // raw guarda itens grandes (até ~100 KB por entrada), então a cota fica bem
   // abaixo das de entrada minúscula; davail e mag são registros pequenos por
-  // hash (0/1), o que permite cota alta sem custo de memória; o teto global
-  // é a soma das cotas + folga (26.000 → 30.000).
+  // hash (0/1). O ledger RD é global e recebe 20 mil entradas; os históricos
+  // por conta cedem espaço para manter folga sob o teto global de 36 mil.
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
@@ -416,11 +416,12 @@ test('cotas da Fase 3: raw limitado, streams ampliado, davail e mag de entrada b
     const cache = _require(CACHE_MODULE);
     assert.equal(cache.QUOTAS.raw, 800);
     assert.equal(cache.QUOTAS.streams, 2000);
-    assert.equal(cache.QUOTAS.davail, 5000);
-    assert.equal(cache.QUOTAS.mag, 8000);
-    assert.equal(cache.QUOTAS.idx, 4000);
-    // Teto global acima da SOMA das cotas (30.500 com __default): igual à
-    // soma, o despejo global morde antes da cota de namespace em cache cheio.
+    assert.equal(cache.QUOTAS.davail, 1000);
+    assert.equal(cache.QUOTAS.mag, 2000);
+    assert.equal(cache.QUOTAS.rdc, 20000);
+    assert.equal(cache.QUOTAS.idx, 2000);
+    // Soma das cotas (34.500) fica abaixo do teto, preservando folga para o
+    // LRU global não morder antes de uma cota de namespace.
     assert.equal(cache.MAX_ENTRIES, 36000);
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;

@@ -17,6 +17,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
   dinv: 'v1',
   davail: 'v1',
   mag: 'v1',
+  // Disponibilidade medida do CDN do Real-Debrid. Não leva escopo de conta:
+  // cache do RD é propriedade do serviço, não da credencial que o mediu.
+  rdc: 'v1',
   // v3: a gravação passou a ROTEAR a release pela temporada/episódio que o
   // título dela declara, em vez de assumir a chave da busca. O formato do
   // registro é o mesmo, mas metade do conteúdo da v2 estava sob chave errada

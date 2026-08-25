@@ -23,8 +23,8 @@ config.jackett.testToken = config.jackett.testToken || 'token-de-teste';
 // Mesma razão: sem serviço/chave o accountStatus responde "não suportado" e
 // nem chega ao adaptador dublado. O mockAccount intercepta o fetch, então a
 // chave só precisa existir.
-config.debrid.service = config.debrid.service || 'alldebrid';
-config.debrid.apiKey = config.debrid.apiKey || 'chave-de-teste';
+config.debrid.service = 'alldebrid';
+config.debrid.apiKey = 'chave-de-teste';
 
 const TOKEN = config.jackett.testToken;
 

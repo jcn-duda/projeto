@@ -12,35 +12,36 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const store = new Map();
-// A soma das cotas conhecidas é 30.500 (30.000 de namespaces nomeados +
-// __default 500, que também cobre o harvest) — o teto PRECISA ficar acima
-// dela. Não é medição, é aritmética: com teto ABAIXO (ou IGUAL) à soma, o
-// despejo global passa a morder antes da cota de namespace assim que o cache
-// enche, e a repartição que as cotas prometem fica inalcançável por
-// construção. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior caso); os
-// demais namespaces guardam entrada minúscula (0/1 ou release de ~200
-// bytes) — folga dentro do mem_limit de 3g do container.
+// A soma das cotas conhecidas é 34.500 (inclui rdc=20.000), deixando 1.500
+// entradas de folga sob o teto global. `rdc` é global por hash e precisa reter
+// muito mais histórico que os caches por conta; os demais baldes foram
+// calibrados para abrir esse espaço sem deixar o despejo global invalidar suas
+// cotas antes da hora. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior
+// caso); rdc/davail/mag guardam só registros minúsculos.
 const MAX_ENTRIES = 36000;
 const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
-  tmdb: 2000,
-  meta: 2000,
+  tmdb: 500,
+  meta: 500,
   // Resultado bruto da busca por indexer/scraper: cada entrada pode chegar a
   // ~100 KB (teto de itens no config), então a cota fica bem abaixo das de
   // entrada minúscula — pior caso ~79 MB no L1.
   raw: 800,
   // Disponibilidade por hash é só 0/1; a cota alta evita reconsultar a mesma
   // conta em buscas diferentes sem ocupar a memória dos resultados brutos.
-  davail: 5000,
+  davail: 1000,
   // Banco de magnets: histórico durável por hash (vivo/ruim), entrada
   // minúscula como o davail — a cota alta cobre contas com catálogo grande.
-  mag: 8000,
+  mag: 2000,
+  // Ledger global do Real-Debrid: cache de serviço, sem credencial na chave.
+  // A cota alta evita perder a evidência rara das sondas entre instalações.
+  rdc: 20000,
   // Índice de releases por obra (~14,7 KB por chave medido no pior caso, com teto
   // de 60 releases): 4.000 chaves ≈ 59 MB. É o que faz o addon responder do
   // próprio índice sem esperar Jackett. Folga tranquila no limite de 3 GB.
-  idx: 4000,
-  autofetch: 2000,
+  idx: 2000,
+  autofetch: 1000,
   'indexer-status': 200,
   __default: 500,
 });
