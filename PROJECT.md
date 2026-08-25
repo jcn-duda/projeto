@@ -7,8 +7,9 @@
 > **Estado (2026-08-24):** o M3 fechou, então as seções abaixo descrevem o
 > layout que **já existe** em `src/` — não mais um alvo. A ressalva histórica
 > ("isto é o alvo, não o presente") valia enquanto 22/A5 e 25/A6 estavam
-> abertos. Confira a tabela de **Milestones** para o status de cada item; o
-> único aberto é o M4. Para o porquê de cada decisão, `AGENTS.md` continua
+> abertos. Confira a tabela de **Milestones** para o status de cada item;
+> abertos: M4 (só a auditoria forense do Tier 5) e a janela de baseline do
+> 6.3 dentro do M5. Para o porquê de cada decisão, `AGENTS.md` continua
 > sendo a fonte de verdade — ele nunca descreve estado futuro como presente.
 - **Process & Application Layer**:
   - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
@@ -95,7 +96,8 @@
 | M1 | Debrid Safety & Runtime Robustness | Features 1–10 (B1 tests 1.4/1.5, S3 diagnostic gate, S1.2 asyncRoute, S4 action confirmation, SQLite corrupted recovery, CI audit, SSRF filter remediation) | M0 | DONE |
 | M2 | Core Guardrails, Regression Safety & Budget Verification | Features 11–18 (T1–T7, B3 E2E test verification, harness mutation safety) | M1 | DONE — T1–T7 in PLANO_MELHORIAS phase 3 (`c9a7888`, `e69450c`), B3 closed by phase 4 (4.1–4.3) |
 | M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | DONE (2026-08-24) — 20/A2 and 21/A1 on 08-23; 19/A1b, 23/A4, 24/A1c, 22/A5 and 25/A6 on 08-24. A3 (explicit `SearchPhase`) was never in scope: phase control stays implicit via latest-writer |
-| M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 5 bench harnesses, forensic audit | M3 | OPEN — the regression half runs green after every commit (build, 1,193 tests, `test:complete` 66+6, the 5 harnesses, mutation score 10/10). What is still missing is the part that does not run in the gate: `npm run smoke` against real network, and the Tier 5 forensic audit |
+| M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 5 bench harnesses, forensic audit | M3 | OPEN — regression half re-validated on 08-24 after Fase 6: build, **1.200 tests**, `test:complete` 66+6, the 6 harnesses, mutation score 10/10 (20 sequential + 6 parallel, APPROVE). `npm run smoke` had its window recalibrated (PLANO_MELHORIAS 6.6) and passes with cold cache. What is still missing is the Tier 5 forensic audit, which does not run in any gate |
+| M5 | Fase 6 — Longo prazo / opcionais | 6.1 SDK-out (router Express próprio), 6.2 clear-cache seletivo, 6.3 análise `davail`, 6.4 risco aceito do decode, 6.5/6.5b healthcheck quádruplo do Caddy, 6.6 janela do smoke, 6.7 checkJs medido, 6.8 export duplicado | M4 (6.1/6.2 dependiam do 5.5) | DONE (2026-08-24), exceto 6.3 com janela aberta: baseline 0 registrada (878 servidos vs 736 de rede = 54,4% de bypass local; gate antigo `repeated/hashes` em 20,9%), decisão de TTL após amostra de 7 dias. 6.7 documentada como "medido, não feito" (354 erros, 306 de `noImplicitAny` — tarefa própria, não ajuste de config) |
 
 ---
 
