@@ -238,9 +238,20 @@ async function runProbeLot(hashes: string[], searchKey: string | null | undefine
       }
     }
   };
+  // Teto do lote inteiro: se a API do RD pendurar (throttle sem 429), a sonda
+  // nao pode segurar probeInFlight para sempre e calar as buscas seguintes.
+  const lotBudgetMs = config.debrid.rdProbeInitialDelayMs
+    + (hashes.length * (config.debrid.timeout + config.debrid.rdProbeGapMs + 2000))
+    + 5000;
   try {
-    if (ctx) await run(ctx, body);
-    else await body();
+    const runBody = ctx ? run(ctx, body) : body();
+    await Promise.race([
+      runBody,
+      wait(lotBudgetMs).then(() => {
+        metrics.count('debrid.rd.probe.lotTimeout');
+        log.warn(`[rd-probe] lote excedeu ${Math.round(lotBudgetMs / 1000)}s; abandonando`);
+      }),
+    ]);
   } finally {
     probeInFlight = false;
   }
