@@ -42,6 +42,7 @@ import {
   decodeEntities,
   magnetYearContradicts,
   matchesEpisodeWorkIdentity,
+  matchesGlobalSeriesNoMarker,
 } from '../src/utils/format.js';
 import type { RawItem, Stream } from '../types/domain.js';
 
@@ -1494,6 +1495,87 @@ test('filterRelevantRaw: série global não recebe filme homônimo parcial (Dead
   assert.equal(out.length, 3, 'episódio + pack + BR dublada');
   // A guarda do matchesName dispara sozinha, sem depender do ano.
   assert.equal(matchesName('Shaun of the Dead 2004 2160p 4K HDR10 BluRay x265', 'The Walking Dead: Dead City'), false);
+});
+
+// Bug real medido no container (2026-08-24): buscando Demon Slayer S01E01
+// (tt9335498), o filme "Demon Slayer: Infinity Castle" (2025) entrava na
+// lista vindo de dois trackers globais de anime (Nyaasi, Feibanyama/Bilibili).
+// Diferente do Dead City: aqui NÃO é homônimo parcial, é a MESMA franquia — o
+// filme carrega o nome inteiro da série. yearContradicts não pega porque só
+// condena série contra ano ANTERIOR ao catálogo (2025 não é < 2019-2), e
+// matchesEpisodeWorkIdentity abstém-se porque episodeWorkTokens só delimita a
+// obra a partir de um SxxEyy explícito — release de filme não tem.
+test('filterRelevantRaw: série global não recebe filme da MESMA franquia sem marcador (Demon Slayer × Infinity Castle)', () => {
+  const itens = [
+    {
+      title: 'Demon Slayer: Kimetsu no Yaiba 1ª Temporada [1080p WEB DL DUBLADO]',
+      magnet: `magnet:?xt=urn:btih:${HASH}`,
+      isBr: true,
+    },
+    {
+      title: 'Demon Slayer No Yaiba S01E01 VOSTFR 1080p WEB H 264 Tsundere Raws (CR) (Multi Subs, Kimetsu No Yaiba)',
+      magnet: `magnet:?xt=urn:btih:${OTHER}`,
+    },
+    // Os dois vazadores: filme da franquia, sem SxxEyy, ano mais NOVO que o catálogo.
+    {
+      title: 'Demon Slayer Kimetsu No Yaiba Infinity Castle 2025 720p WEB JFF (Nyaasi)',
+      magnet: `magnet:?xt=urn:btih:c${'d'.repeat(39)}`,
+    },
+    {
+      title: '[Feibanyama] Demon Slayer Kimetsu No Yaiba Infinity Castle [BILIBILI WebRip 2160p Multi Audio Multi Sub]',
+      magnet: `magnet:?xt=urn:btih:e${'f'.repeat(39)}`,
+    },
+    // Packs com "S01" espaçado do número do episódio (scene release de anime):
+    // parseTitleSeasonEpisode reconhece a temporada mesmo sem SxxEyy num token
+    // só, então não podem cair na guarda nova.
+    {
+      title: 'Kimetsu No Yaiba (Demon Slayer) S01 (2160p) (Bilibili)',
+      magnet: `magnet:?xt=urn:btih:g${'h'.repeat(39)}`,
+    },
+    {
+      title: '[Trix] Kimetsu No Yaiba S01 03 [Dual Audio] [Multi Subs] (BD 720p AV1) Demon Slayer VOSTFR',
+      magnet: `magnet:?xt=urn:btih:i${'j'.repeat(39)}`,
+    },
+    {
+      title: '[Trix] Kimetsu No Yaiba S01 05 [Dual Audio] [Multi Subs] (BD 1080p AV1) Demon Slayer VOSTFR (Batch)',
+      magnet: `magnet:?xt=urn:btih:k${'l'.repeat(39)}`,
+    },
+  ];
+
+  const out = relevantRaw(itens, {
+    names: ['Demon Slayer: Kimetsu no Yaiba', 'Kimetsu no Yaiba'],
+    year: 2019,
+    isSeries: true,
+    season: 1,
+    episode: 1,
+  });
+
+  assert.equal(out.filter((i: RawItem) => /Infinity Castle/i.test(i.title || '')).length, 0, 'nenhum Infinity Castle pode sobrar');
+  assert.equal(out.length, 5, 'BR dublada + S01E01 + 3 packs S01-espaçado');
+
+  // Não-regressão: na busca de FILME (season/episode nulos), o mesmo título
+  // do filme continua entrando — a guarda só roda com episódio pedido.
+  const comoFilme = relevantRaw(
+    [{ title: 'Demon Slayer Kimetsu No Yaiba Infinity Castle 2025 720p WEB JFF (Nyaasi)', magnet: `magnet:?xt=urn:btih:${HASH}` }],
+    { names: ['Demon Slayer: Kimetsu no Yaiba Infinity Castle'], year: 2025, isSeries: false },
+  );
+  assert.equal(comoFilme.length, 1, 'o filme continua entrando na própria busca de filme');
+});
+
+test('matchesGlobalSeriesNoMarker: pack "S01 03" com grupo de release fora do universo continua passando', () => {
+  const tokens = 'trix kimetsu no yaiba s01 03 dual audio multi subs bd 720p av1 demon slayer vostfr'.split(' ');
+  const universe = 'demon slayer kimetsu no yaiba'.split(' ');
+  assert.equal(
+    matchesGlobalSeriesNoMarker('[Trix] Kimetsu No Yaiba S01 03 [Dual Audio] [Multi Subs] (BD 720p AV1) Demon Slayer VOSTFR', tokens, universe),
+    true,
+    'parseTitleSeasonEpisode acha a temporada em "S01 03" e a guarda nem mede precisão',
+  );
+});
+
+test('matchesGlobalSeriesNoMarker: filme da franquia sem marcador nenhum é rejeitado pela precisão', () => {
+  const tokens = 'demon slayer kimetsu no yaiba infinity castle 2025 720p web jff'.split(' ');
+  const universe = 'demon slayer kimetsu no yaiba'.split(' ');
+  assert.equal(matchesGlobalSeriesNoMarker('Demon Slayer Kimetsu No Yaiba Infinity Castle 2025 720p WEB JFF', tokens, universe), false);
 });
 
 test('matchesName: a série-mãe The Walking Dead também não aceita Shaun (era 0.667)', () => {

@@ -1,6 +1,6 @@
 import type { RawItem } from '../../types/domain.js';
 import { normalizeTitle } from './title-normalization.js';
-import { matchesEpisode } from './episode-matching.js';
+import { matchesEpisode, parseTitleSeasonEpisode } from './episode-matching.js';
 
 interface MatchOptions {
   names?: string[];
@@ -191,6 +191,11 @@ function titlePrecision(tokens: string[], wanted: Iterable<string>) {
     (w) =>
       !RELEASE_NOISE.has(w) &&
       !PACK_WORDS.has(w) &&
+      // STRONG_PACK_WORDS ("filmografia", "colecao", "trilogia", …) descreve
+      // EMPACOTAMENTO, não um nome de obra — "FILMOGRAFIA COMPLETA <Série>"
+      // é a mesma obra em pack, e sem este filtro "filmografia" contava como
+      // token fora do universo e derrubava a precisão de um pack legítimo.
+      !STRONG_PACK_WORDS.has(w) &&
       !EPISODE_TOKEN.test(w) &&
       !/^\d+$/.test(w), // número solto é temporada, ano ou tamanho
   );
@@ -241,6 +246,38 @@ function matchesEpisodeWorkIdentity(
   const universe =
     universeTokens || allNames.flatMap((name) => normalizeTitle(name).split(' ')).filter(Boolean);
   return titlePrecision(work, universe) >= SERIES_TITLE_PRECISION_MIN;
+}
+
+/**
+ * Filme/spin-off da MESMA franquia sem marcador de temporada/episódio algum,
+ * em release GLOBAL (indexer de anime, não WordPress BR). Medido no addon:
+ * "Demon Slayer: Infinity Castle" (2025, filme da franquia) entrava na lista
+ * do S01E01 porque contém os 5 tokens do nome da série inteiros — não é
+ * homônimo parcial (que `matchesName`/`matchesTitleStructure` já cortam), é
+ * a MESMA franquia, então nome sozinho nunca vai separar os dois.
+ *
+ * `matchesEpisodeWorkIdentity` já abstém aqui (`episodeWorkTokens` só
+ * delimita a obra a partir de um SxxEyy explícito) e `yearContradicts` só
+ * condena série contra ano ANTERIOR ao catálogo — um filme mais novo da
+ * mesma franquia (2025 contra catálogo 2019) não contradiz.
+ *
+ * O portão usa `parseTitleSeasonEpisode` (o mesmo do `matchesEpisode` logo
+ * abaixo), não `episodeWorkTokens`: o marcador de episódio exige o par
+ * SxxEyy num token só, e recorte de scene release tipo "S01 03" (temporada e
+ * episódio em tokens separados) não bate nele — mediria a precisão contra o
+ * título inteiro e reprovaria pack legítimo por causa do grupo de release
+ * ("Trix", "AV1", "VOSTFR") que não está no universo de nomes.
+ * `parseTitleSeasonEpisode` reconhece "S01 03" como temporada 1 (mesmo sem
+ * episódio), então releases desse formato nunca chegam a esta guarda.
+ *
+ * Só roda em item global (`!isBr`): o item BR equivalente já passa pela
+ * mesma medição de precisão dentro de `matchesBrTitle` (`measured =
+ * episodeWork || own`), calibrada para o formato de post BR.
+ */
+function matchesGlobalSeriesNoMarker(title: string, tokens: string[], universe: string[]) {
+  const { seasons, episodes, complete, seasonPack } = parseTitleSeasonEpisode(title);
+  if (seasons.length || episodes.length || complete || seasonPack) return true;
+  return titlePrecision(tokens, universe) >= SERIES_TITLE_PRECISION_MIN;
 }
 
 /**
@@ -525,7 +562,9 @@ function filterRelevantRaw(
       if (catalogYear && magnetYearContradicts(item, catalogYear)) return false;
     }
     if (season == null || episode == null) return true;
-    return matchesEpisode(title, { season, episode });
+    if (!matchesEpisode(title, { season, episode })) return false;
+    if (item?.isBr) return true;
+    return matchesGlobalSeriesNoMarker(title, tokens, universe);
   });
 }
 
@@ -570,6 +609,7 @@ export {
   matchesBrTitle,
   matchesTitleStructure,
   matchesEpisodeWorkIdentity,
+  matchesGlobalSeriesNoMarker,
   yearContradicts,
   isMultiWorkCollection,
   franchiseRoot,

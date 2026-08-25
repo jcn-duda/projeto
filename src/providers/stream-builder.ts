@@ -6,6 +6,8 @@ import {
   filterRelevantRaw,
   isMultiWorkCollection,
   matchesEpisode,
+  matchesGlobalSeriesNoMarker,
+  normalizeTitle,
   UNKNOWN_QUALITY,
   toStremioStream,
   extractInfoHash,
@@ -162,9 +164,25 @@ export async function buildStreams(rawInput: RawItem[], {
   // Série: o indexer responde a "Nome S01E01" com a temporada inteira, então
   // sem este corte a lista do E01 vinha cheia de E03/E04/E09. Packs (título com
   // a temporada e sem episódio) passam — o debrid escolhe o arquivo no play.
+  //
+  // `filterRelevantRaw` (título, acima) roda SEM season/episode de propósito
+  // — os itens da conta (`fromAccount`) já vieram filtrados pelo provider com
+  // a exceção de franquia, e season/episode ali re-aplicaria a mesma checagem
+  // duas vezes. Por isso a guarda de franquia-sem-marcador
+  // (`matchesGlobalSeriesNoMarker`) mora AQUI, onde season/episode são reais:
+  // medido no addon, "Demon Slayer: Infinity Castle" (filme, sem SxxEyy)
+  // sobrevivia ao filtro de título (mesma franquia, sem homônimo parcial) e
+  // ao `matchesEpisode` de baixo (abstém sem marcador) — as duas guardas
+  // OMITEM exatamente o mesmo caso, e nenhuma das duas sozinha decide.
+  const seriesUniverse = names.flatMap((n) => normalizeTitle(n).split(' ')).filter(Boolean);
   if (season != null && episode != null && !isDemo) {
     const before = raw.length;
-    raw = raw.filter((r) => matchesEpisode(r.title || r.Title || '', { season, episode }));
+    raw = raw.filter((r) => {
+      const title = r.title || r.Title || '';
+      if (!matchesEpisode(title, { season, episode })) return false;
+      if (r.fromAccount || r.isBr) return true;
+      return matchesGlobalSeriesNoMarker(title, normalizeTitle(title).split(' ').filter(Boolean), seriesUniverse);
+    });
     if (before !== raw.length) {
       log.info(`[search] ${before - raw.length} resultado(s) de outro episódio descartado(s)`);
     }

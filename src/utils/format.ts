@@ -21,6 +21,7 @@ export {
   matchesName,
   matchesBrTitle,
   matchesEpisodeWorkIdentity,
+  matchesGlobalSeriesNoMarker,
   isMultiWorkCollection,
   franchiseRoot,
   franchiseRoots,
