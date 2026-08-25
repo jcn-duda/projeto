@@ -1,9 +1,17 @@
-import { magnetFor, json, pickFile, isBlockedError, isNoVideoError, wait } from './common.js';
+import {
+  magnetFor, json, pickFile, isBlockedError, isNoVideoError, isRateLimitError, isQuotaError, wait,
+} from './common.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import * as memo from './inventory-memo.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+
+/** Resultado da sonda de disponibilidade (substituto honesto do instantAvailability). */
+export type ProbeInstantResult = {
+  instant: boolean;
+  reason: 'ready' | 'pending' | 'blocked' | 'active' | 'error' | 'memo';
+};
 
 const API = 'https://api.real-debrid.com/rest/1.0';
 
@@ -355,10 +363,114 @@ async function accountStatus(apiKey: string) {
   };
 }
 
+/**
+ * Torrents ativos agora (`GET /torrents/activeCount`). Doc oficial: erro 21
+ * quando o teto estoura. Usado pela sonda antes de addMagnet — se já estamos
+ * no limite, a rodada inteira pula em vez de gerar 21 em série.
+ */
+async function activeTorrentCount(apiKey: string): Promise<{ nb: number; limit: number } | null> {
+  try {
+    const data = await call(apiKey, '/torrents/activeCount');
+    const nb = Number(data?.nb);
+    const limit = Number(data?.limit);
+    if (!Number.isFinite(nb) || !Number.isFinite(limit)) return null;
+    return { nb, limit };
+  } catch (err) {
+    log.warn('[realdebrid] activeCount falhou:', (err as Error)?.message || err);
+    return null;
+  }
+}
+
+function looksAlreadyActive(err: unknown): boolean {
+  const msg = String((err as any)?.message || err || '');
+  return /torrent already active|error_code["']?\s*:\s*33|\b33\b.*already/i.test(msg);
+}
+
+/**
+ * Sonda se um hash toca NA HORA no CDN do Real-Debrid — o substituto honesto
+ * do `/torrents/instantAvailability` (aposentado, erro 37).
+ *
+ * Fluxo: addMagnet → poll curto (com selectFiles se precisar) → se
+ * `downloaded`, é instant; caso contrário, não. Em TODOS os caminhos que
+ * criaram o torrent, ele é apagado: a evidência fica no magnetdb/davail, não
+ * ocupando vaga na conta. Inventário do usuário (memo quente) short-circuita.
+ */
+async function probeInstant(apiKey: string, infoHash: string): Promise<ProbeInstantResult> {
+  const hash = String(infoHash || '').toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(hash)) return { instant: false, reason: 'error' };
+
+  const peeked = memo.peek(id, apiKey);
+  if (peeked?.some((i) => String(i.infoHash || '').toLowerCase() === hash)) {
+    metrics.count('debrid.rd.probe.instant');
+    return { instant: true, reason: 'memo' };
+  }
+
+  let torrentId: string | number | null = null;
+  let created = false;
+  try {
+    const add = await call(apiKey, '/torrents/addMagnet', {
+      method: 'POST',
+      body: new URLSearchParams({ magnet: magnetFor(hash) }),
+    });
+    if (!add?.id) {
+      metrics.count('debrid.rd.probe.error');
+      return { instant: false, reason: 'error' };
+    }
+    torrentId = add.id;
+    created = true;
+  } catch (err) {
+    if (isBlockedError(err)) {
+      metrics.count('debrid.rd.probe.blocked');
+      return { instant: false, reason: 'blocked' };
+    }
+    if (looksAlreadyActive(err)) {
+      metrics.count('debrid.rd.probe.active');
+      return { instant: false, reason: 'active' };
+    }
+    // Rate/quota sobem: o orquestrador interrompe o lote.
+    if (isRateLimitError(err) || isQuotaError(err)) throw err;
+    metrics.count('debrid.rd.probe.error');
+    return { instant: false, reason: 'error' };
+  }
+
+  try {
+    // Sem espera longa: cache global costuma estar `downloaded` já no primeiro
+    // info (ou logo após selectFiles). Ficar em downloading/queued = miss —
+    // esperar viraria autofetch disfarçado e atrasaria o lote da sonda.
+    const idToPoll = torrentId as string | number;
+    let info: TorrentInfo = await call(apiKey, `/torrents/info/${idToPoll}`);
+    if (info.status === WAITING_SELECTION && (info.files || []).length > 0) {
+      await selectWaitingFiles(apiKey, idToPoll, info, {});
+      info = await call(apiKey, `/torrents/info/${idToPoll}`);
+    }
+    if (info.status === READY) {
+      metrics.count('debrid.rd.probe.instant');
+      return { instant: true, reason: 'ready' };
+    }
+    metrics.count('debrid.rd.probe.miss');
+    return { instant: false, reason: 'pending' };
+  } catch (err) {
+    if (isBlockedError(err)) {
+      metrics.count('debrid.rd.probe.blocked');
+      return { instant: false, reason: 'blocked' };
+    }
+    if (isRateLimitError(err) || isQuotaError(err)) throw err;
+    metrics.count('debrid.rd.probe.error');
+    return { instant: false, reason: 'error' };
+  } finally {
+    if (created && torrentId != null) {
+      await removeTorrent(apiKey, torrentId);
+    }
+  }
+}
+
 export const id = 'realdebrid';
 export const label = 'Real-Debrid';
 export const short = 'RD';
 export const cacheCheck = false;
 export const autofetchSource = true;
 export const keyUrl = 'https://real-debrid.com/apitoken';
-export { enqueue, checkCached, resolveLink, inventory, torrentStatus, removeTorrent, accountStatus };
+export {
+  enqueue, checkCached, resolveLink, inventory, torrentStatus, removeTorrent,
+  accountStatus, activeTorrentCount, probeInstant,
+};

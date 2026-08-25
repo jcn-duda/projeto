@@ -233,6 +233,16 @@ export interface DebridAdapter {
   enqueueHourlyLimit?: number;
   /** Pode participar do autofetch sem cacheCheck, sustentado por inventário */
   autofetchSource?: boolean;
+  /**
+   * Sonda se o hash toca na hora (só RD hoje). Ausente = serviço com
+   * cacheCheck real ou sem substituto. Nunca no caminho da resposta.
+   */
+  probeInstant?(
+    apiKey: string,
+    infoHash: string,
+  ): Promise<{ instant: boolean; reason: string }>;
+  /** `GET /torrents/activeCount` (RD); ausente = não consultável. */
+  activeTorrentCount?(apiKey: string): Promise<{ nb: number; limit: number } | null>;
 }
 
 /**

@@ -39,9 +39,9 @@ Três capacidades, em ordem de importância:
 | Erro fora do HTTP | `status != success` | corpo `data` | **200 com `status:"error"`** | HTTP | HTTP + `success:false` |
 | Detecta **parado** (`stalled`) | ⚠️ heurística | ✅ nativo | ❌ | ❌ | ❌ |
 | Limite documentado | fair-use por tráfego (`limit_used`) | **300/min; `createtorrent` 60/HORA se não-cacheado** | **12 req/s, 600 req/min, 30 magnets ativos** | **250 req/min**, teto de torrents ativos | não publicado (mas há `/seedbox/limits`) |
-| Endpoint de uso/limite | `/account/info` (`limit_used`) | mylist (contagem) | `/magnet/status` | `/torrents/activeCount` (ainda não) | `/seedbox/limits` (ainda não) |
+| Endpoint de uso/limite | `/account/info` (`limit_used`) | mylist (contagem) | `/magnet/status` | `/torrents/activeCount` | `/seedbox/limits` (ainda não) |
 | Escolhe o arquivo **antes** de baixar | ❌ | ❌ **por projeto** ("baixa todos, não vai mudar") | ❌ | ✅ `selectFiles` | ❌ |
-| Veredito para este addon | **melhor encaixe** | alternativa boa | funciona, cobra caro | lista sem ⚡ | lista sem ⚡ |
+| Veredito para este addon | **melhor encaixe** | alternativa boa | funciona, cobra caro | ⚡ via conta/histórico/sonda | lista sem ⚡ |
 
 ---
 
@@ -215,11 +215,26 @@ metade desse arquivo desapareceria.
 
 Adaptador: [`src/debrid/realdebrid.ts`](src/debrid/realdebrid.ts).
 
-`/torrents/instantAvailability` foi aposentado e **não há substituto**:
-`checkCached` devolve `Set` vazio e `cacheCheck: false`. Consequência direta na
-tela: nada aparece com ⚡, tudo vira "download", e com `DEBRID_CACHED_ONLY=true`
-o resultado seria uma lista vazia — por isso o orquestrador ignora o filtro
-"somente em cache" quando o adaptador declara `cacheCheck: false`.
+`/torrents/instantAvailability` foi aposentado (doc oficial atual: o método
+**não existe**; quem chama leva erro `37 Disabled endpoint`).
+`checkCached` continua devolvendo `Set` vazio e `cacheCheck: false`.
+
+**Como o ⚡ existe mesmo assim** (não é inventado):
+
+| Fonte | Quando |
+|---|---|
+| Inventário pronto da conta (`dinv` / `inventoryPeek`) | Hash já baixado em `/torrents` |
+| Histórico de play (`magnetdb.isAlive`) | `/resolve` devolveu link de verdade |
+| Sonda em fundo (`DEBRID_RD_PROBE`, [`rd-probe.ts`](src/providers/rd-probe.ts)) | Após a lista: `addMagnet` → se vira `downloaded` na hora, marca alive e **apaga** o torrent da sonda |
+
+O Torrentio mostra mais `[RD+]` porque mantém **banco colaborativo**; a sonda
+só mede na *sua* conta, com teto por busca/hora e `GET /torrents/activeCount`
+antes do lote (erro `21` = conta no limite de ativos). Não empatamos a
+primeira pintura fria do Torrentio — a reabertura, sim, cresce.
+
+`DEBRID_CACHED_ONLY=true` no RD só corta com inventário **quente**; memo frio
+não zera a lista. Na prática o cruzamento conta×indexers é baixo: o botão
+esvazia a maioria das buscas.
 
 O play funciona bem: `addMagnet` → `waiting_files_selection` → `selectFiles`
 com o arquivo escolhido pelo `pickFile` → `unrestrict`. É o único que deixa o
@@ -227,19 +242,10 @@ addon **escolher o arquivo antes de baixar**, o que em pack multi-filme é a
 opção mais econômica de todas — em vez de puxar os 22 GB da coleção para
 entregar um filme, ele baixa só o arquivo pedido.
 
-**O que a documentação oficial acrescenta:** base `https://api.real-debrid.com/rest/1.0/`,
-`Bearer` no header (o adaptador já usa), **250 requisições por minuto** com 429
-no excedente — e o aviso de que força bruta bloqueia a conta por tempo
-indeterminado. Existe teto de torrents ativos, consultável em
-`/torrents/activeCount`, que o adaptador ainda não lê. E o
-`/torrents/instantAvailability` **não aparece mais** na documentação, o que
-confirma a aposentadoria que o código já assume.
-
-**O que eu acho:** ótimo serviço, encaixe ruim aqui. Sem checagem em lote o
-addon perde a informação que organiza a lista inteira. Use se você já paga por
-ele e aceita que tudo apareça como "download" — e note a ironia: é justamente
-o RD que tem o melhor play para pack multi-filme, por escolher o arquivo antes
-de baixar.
+**Contratos oficiais usados:** base `https://api.real-debrid.com/rest/1.0/`,
+`Bearer`, **250 req/min** (429 / erro `34`; bruteforce = bloqueio por tempo
+indeterminado), `activeCount`, erros `21` (ativos), `33` (already active),
+`35` (infringing), `37` (disabled endpoint).
 
 ## Debrid-Link
 

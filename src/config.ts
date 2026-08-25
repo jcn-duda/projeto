@@ -493,6 +493,17 @@ const config = {
     // background (fail-open enquanto o refresh não volta — nunca rede no
     // caminho síncrono).
     autoFetchPauseRefreshMs: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_PAUSE_REFRESH_MS, 900_000)),
+    // Sonda em fundo no Real-Debrid: substituto honesto do instantAvailability
+    // aposentado. Mede addMagnet→downloaded na conta, grava magnetdb, apaga o
+    // torrent da sonda. Fora do caminho da resposta. false desliga tudo.
+    rdProbe: String(process.env.DEBRID_RD_PROBE || 'true') === 'true',
+    // Teto por busca (e por janela horária abaixo). Concurrency implícita = 1.
+    rdProbeMax: Math.min(8, Math.max(0, Math.trunc(num(process.env.DEBRID_RD_PROBE_MAX, 4)))),
+    rdProbeMaxHour: Math.max(0, Math.trunc(num(process.env.DEBRID_RD_PROBE_MAX_HOUR, 40))),
+    // Folga entre sondas — longe do teto de 250 req/min e do aviso de bruteforce.
+    rdProbeGapMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_GAP_MS, 400)),
+    // Miss recente não re-sonda (evita martelar o mesmo hash pending).
+    rdProbeMissTtlMs: Math.max(0, num(process.env.DEBRID_RD_PROBE_MISS_TTL_MS, 120_000)),
     // Prefetch do próximo episódio de séries
     prefetchNextEp: String(process.env.DEBRID_PREFETCH_NEXT_EP || 'true') === 'true',
     prefetchTtl: num(process.env.DEBRID_PREFETCH_TTL, 43200),

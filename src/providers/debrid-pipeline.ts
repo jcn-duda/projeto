@@ -14,6 +14,7 @@ import * as releaseIndex from '../utils/release-index.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { autoFetchCandidates, releaseAllHolds, autoFetchBrDubbed } from './autofetch-runner.js';
+import { queueRdProbe } from './rd-probe.js';
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -229,6 +230,14 @@ export async function applyDebrid(input: Array<Stream | null>, {
     episode,
     imdbId,
     searchKey,
+  });
+  // Sonda RD em fundo: descobre ⚡ no CDN global sem atrasar a resposta.
+  // Roda DEPOIS do autofetch ter marcado holds — a seleção da sonda pula held.
+  queueRdProbe(streams, {
+    cached,
+    searchKey,
+    season,
+    episode,
   });
   if (onCacheResult) onCacheResult({
     known,
