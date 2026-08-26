@@ -62,6 +62,7 @@ export type MagnetDbStatus = {
     droppedBad: number;
     droppedDead: number;
     droppedLie: number;
+    badClearedBlocked: number;
   };
 };
 
@@ -178,6 +179,32 @@ function isBad(adapterId: string, apiKey: string, hash: string) {
   return cache.get(badKey(adapterId, apiKey, hash)) === 1;
 }
 
+/**
+ * Esquece um registro `bad` (e a amostra local), SEM tocar em alive/lie do
+ * mesmo hash. É a função do REPARO do dano do F3: um ramo antigo do warmer
+ * marcava `bad` no hash cuja resposta era `blocked` — recusa legal
+ * (HTTP 451/error_code 35) do Real-Debrid, não magnet quebrado. Recusa legal
+ * não grava `blocked` no magnetdb, e NoVideoError legítimo não grava blocked
+ * no ledger; portanto `bad + blocked` por definição é aquela escrita
+ * equivocada e pode ser desfeita com segurança. Retorna true se havia um
+ * registro para apagar.
+ */
+function forgetBad(adapterId: string, apiKey: string, hash: string): boolean {
+  return forgetBadKey(badKey(adapterId, apiKey, hash));
+}
+
+/**
+ * Apaga um `bad` pela chave crua (usada pela varredura de reparo que enumera
+ * o L1 por prefixo de adapter). Idempotente: segunda passada devolve false
+ * porque a chave já não existe. `alive`/`lie` do mesmo hash não são tocados.
+ */
+function forgetBadKey(key: string): boolean {
+  const existed = cache.peek(key) != null;
+  cache.forget(key);
+  tracked.delete(key);
+  return existed;
+}
+
 /** Há vídeo, mas o post prometeu áudio PT e os arquivos provaram release EN. */
 function markLie(adapterId: string, apiKey: string, hash: string) {
   const ttl = config.magnetDb.lieTtl;
@@ -236,8 +263,9 @@ function status(): MagnetDbStatus {
       droppedBad: counters['magnetdb.dropped.bad'] || 0,
       droppedDead: counters['magnetdb.dropped.dead'] || 0,
       droppedLie: counters['magnetdb.dropped.lie'] || 0,
+      badClearedBlocked: counters['magnetdb.bad.clearedBlocked'] || 0,
     },
   };
 }
 
-export { markAlive, isAlive, markBad, isBad, markLie, isLie, renewAlive, status };
+export { markAlive, isAlive, markBad, isBad, forgetBad, forgetBadKey, markLie, isLie, renewAlive, status };

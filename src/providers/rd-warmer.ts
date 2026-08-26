@@ -27,6 +27,11 @@ type WarmEntry = {
 
 const QUEUE_KEY = `${prefix('rdq')}wq`;
 
+// Prefixo das chaves `bad` do magnetdb escopadas ao Real-Debrid (qualquer
+// conta): é o que delimita o reparo seletivo dos hashes que a varredura
+// correlaciona com o ledger `blocked`.
+const BAD_RD_PREFIX = `${prefix('mag')}bad:realdebrid:`;
+
 let queue: WarmEntry[] = [];
 let loaded = false;
 let started = false;
@@ -204,8 +209,12 @@ async function processBatch(maxItems: number): Promise<number> {
         promoteCachedBoltsAcrossStreams([hash]);
       } else if (result.reason === 'blocked') {
         rdLedger.noteBlocked(hash);
-        magnetdb.markBad('realdebrid', apiKey, hash);
-        metrics.count('debrid.rd.warm.miss');
+        // Recusa legal do Real-Debrid (HTTP 451 / error_code 35), não magnet
+        // quebrado: não toca no magnetdb. Antes este ramo marcava `bad`, o que
+        // escondia um magnet potencialmente bom e poluía o histórico — o
+        // dedupe pelo `blocked` do ledger e o corte ternário do cachedOnly já
+        // cobrem o que é preciso para NÃO re-sondar e NÃO prometer ⚡.
+        metrics.count('debrid.rd.warm.blocked');
       } else {
         rdLedger.noteMiss(hash);
         metrics.count('debrid.rd.warm.miss');
@@ -253,6 +262,43 @@ async function tick(): Promise<void> {
   }
 }
 
+/** Último token 40-hex de uma chave `bad` = hash do conteúdo (sem expor digest de conta). */
+function hashFromBadKey(key: string): string {
+  const last = key.split(':').pop() || '';
+  return /^[a-f0-9]{40}$/.test(last) ? last : '';
+}
+
+/**
+ * Reparo idempotente dos bads que um ramo antigo deste mesmo warmer gravou:
+ * hash que o Real-Debrid recusou por lei (HTTP 451) era marcado `bad` no
+ * magnetdb. Recusa legal NÃO é magnet quebrado — e o NoVideoError legítimo
+ * nunca grava `blocked` no ledger, então `bad + blocked` é, por definição,
+ * esse dano. Varre o L1 (carregado do SQLite no boot) uma vez por processo e
+ * apaga o `bad` de todo hash RD cujo ledger diga `blocked`. Não usa clear
+ * amplo nem bump de namespace; a segunda execução encontra nada e devolve 0.
+ * Entradas tardias/L2 são cobertas pelo self-healing no applyDebrid.
+ */
+function scanBlockedRdBads(): number {
+  if (!config.debrid.rdLedger.enabled) return 0;
+  let cleared = 0;
+  for (const key of cache.keysMatching(BAD_RD_PREFIX)) {
+    const hash = hashFromBadKey(key);
+    if (!hash || rdLedger.peekQuiet(hash) !== 'blocked') continue;
+    if (magnetdb.forgetBadKey(key)) {
+      cleared += 1;
+      metrics.count('magnetdb.bad.clearedBlocked');
+    }
+  }
+  if (cleared) {
+    // As listas prontas foram construídas SEM esses hashes; só limpar o bad não
+    // os reinsere. Invalida streams uma vez no reparo para a próxima abertura
+    // reconstruir a lista a partir do índice/raw já persistido.
+    cache.clearNamespace('streams');
+    log.info(`[rd-warmer] ${cleared} bad(s) RD recusa legal recuperado(s); cache de streams invalidado`);
+  }
+  return cleared;
+}
+
 /**
  * Inicia o timer em background do warmer.
  */
@@ -260,6 +306,13 @@ function start(): void {
   if (started) return;
   started = true;
   ensureQueueLoaded();
+  // Reparo do dano do ramo antigo roda no boot, mesmo com o warmer desativado
+  // (os bads persistem no L2 e não dependem de o aquecimento estar ligado).
+  try {
+    scanBlockedRdBads();
+  } catch (err) {
+    log.warn('[rd-warmer] varredura de reparo falhou:', (err as Error)?.message || err);
+  }
   if (!config.debrid.rdWarm.enabled) {
     log.info('[rd-warmer] desativado');
     return;
@@ -323,5 +376,5 @@ function reset(): void {
   hourBuckets.clear();
 }
 
-export { enqueue, tick, start, drain, setPaused, status, reset, noteCredential, rdInPlay };
-export default { enqueue, tick, start, drain, setPaused, status, reset, noteCredential, rdInPlay };
+export { enqueue, tick, start, drain, setPaused, status, reset, scanBlockedRdBads, noteCredential, rdInPlay };
+export default { enqueue, tick, start, drain, setPaused, status, reset, scanBlockedRdBads, noteCredential, rdInPlay };

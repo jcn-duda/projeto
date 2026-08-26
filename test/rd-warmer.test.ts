@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
+import * as magnetdb from '../src/utils/magnetdb.js';
 import * as rdLedger from '../src/debrid/rd-ledger.js';
 import { rdGate } from '../src/debrid/rd-gate.js';
 import * as activity from '../src/providers/activity.js';
@@ -327,4 +328,76 @@ test('rd-warmer: .env do operador tem precedência sobre a credencial da URL', (
   rdWarmer.reset();
   rdWarmer.noteCredential('chave-da-url');
   assert.equal(rdWarmer.rdInPlay(), true);
+});
+
+test('rd-warmer: 451 deixa ledger blocked e magnetdb bad=false; segunda tentativa não re-sonda', async () => {
+  config.debrid.rdLedger.enabled = true;
+  let addCalls = 0;
+  const mock = mockFetch((url, init) => {
+    if (url.pathname === '/rest/1.0/torrents/addMagnet' && String(init?.method || 'GET').toUpperCase() === 'POST') {
+      addCalls += 1;
+      // 451 / error_code 35 = recusa legal do conteúdo; a sonda vira
+      // { instant:false, reason:'blocked' }.
+      return {
+        ok: false,
+        status: 451,
+        async text() { return JSON.stringify({ error_code: 35, error: 'infringing_file' }); },
+        async json() { return null; },
+      };
+    }
+    return jsonOk({}, 404);
+  });
+  try {
+    rdWarmer.enqueue([H1], 100);
+    await rdWarmer.tick();
+
+    assert.equal(rdLedger.peek(H1), 'blocked', 'recusa legal marca o ledger');
+    assert.equal(magnetdb.isBad('realdebrid', config.debrid.apiKey, H1), false, '451 não vira magnet quebrado');
+
+    const counters = (metrics.snapshot() as any).counters;
+    assert.equal(counters['debrid.rd.warm.blocked'], 1, 'métrica própria do caminho bloqueado');
+    assert.equal(counters['debrid.rd.warm.miss'] == null, true, 'bloqueio não conta como miss no quente');
+
+    // Re-enfileirar o mesmo hash não pode gerar outra sonda: o `blocked` já
+    // deduplica no enqueue.
+    rdWarmer.enqueue([H1], 100);
+    await rdWarmer.tick();
+    assert.equal(addCalls, 1, 'hash bloqueado não é re-sondado');
+  } finally {
+    mock.restore();
+  }
+});
+
+test('rd-warmer: reparo idempotente limpa só o bad RD correlacionado com ledger blocked', () => {
+  config.debrid.rdLedger.enabled = true;
+  const blockedHash = 'b'.repeat(40); // dano antigo: bad + blocked
+  const noVideoHash = 'c'.repeat(40); // NoVideo legítimo: bad, sem blocked
+  const otherHash = 'd'.repeat(40);   // bad de outro adapter
+  magnetdb.markBad('realdebrid', config.debrid.apiKey, blockedHash);
+  magnetdb.markBad('realdebrid', config.debrid.apiKey, noVideoHash);
+  magnetdb.markBad('torbox', 'outra-conta', otherHash);
+  rdLedger.noteBlocked(blockedHash);
+  const staleStreamKey = 'streams:v6:movie:ttBlockedRepair';
+  cache.set(staleStreamKey, { streams: [] }, 600);
+  metrics.reset();
+
+  const cleared = rdWarmer.scanBlockedRdBads();
+  assert.equal(cleared, 1, 'só o par bad+blocked é recuperado');
+
+  const scanCounters = (metrics.snapshot() as any).counters;
+  assert.equal(scanCounters['cache.hit.rdc'], undefined, 'varredura não promove nem conta hit do ledger');
+  assert.equal(scanCounters['cache.miss.rdc'], undefined, 'varredura não conta miss do ledger');
+
+  assert.equal(magnetdb.isBad('realdebrid', config.debrid.apiKey, blockedHash), false, 'bad+blocked limpo');
+  assert.equal(magnetdb.isBad('realdebrid', config.debrid.apiKey, noVideoHash), true, 'NoVideo sem blocked preservado');
+  assert.equal(magnetdb.isBad('torbox', 'outra-conta', otherHash), true, 'bad de outro adapter preservado');
+  assert.equal(cache.peek(staleStreamKey), null, 'lista pronta antiga é invalidada para o hash voltar na próxima abertura');
+
+  const counters = (metrics.snapshot() as any).counters;
+  assert.equal(counters['magnetdb.bad.clearedBlocked'], 1, 'métrica específica do reparo');
+
+  // Idempotente: segunda execução não acha nada a limpar.
+  metrics.reset();
+  assert.equal(rdWarmer.scanBlockedRdBads(), 0);
+  assert.equal((metrics.snapshot() as any).counters['magnetdb.bad.clearedBlocked'] ?? 0, 0, 'nada recuperado no segundo passe');
 });

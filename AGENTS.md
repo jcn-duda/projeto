@@ -345,6 +345,23 @@ bom) é pior que falso positivo.
   `markBad` apaga o `alive` do mesmo hash: bad vence, senão o instantSet
   empurrava ao topo um hash que o filtro ia cortar.
 
+  **Recusa legal do Real-Debrid NÃO é `bad`.** Um ramo antigo do `rd-warmer`
+  marcava `bad` no hash cuja sonda voltava `blocked` (HTTP 451 / error_code 35)
+  — o serviço recusando o magnet por infringimento, não um torrent sem vídeo.
+  Hoje o ramo `blocked` só grava `rdLedger.noteBlocked` (dedupe da sonda + corte
+  ternário do `cachedOnly`) e nenhum `bad`. Os bads legados desse ramo são
+  recuperados de forma seletiva: o fingerprint é `bad` do adapter `realdebrid` +
+  `rdLedger.peek(hash) === 'blocked'` (NoVideoError legítimo nunca grava
+  `blocked`). A varredura roda uma vez por processo no boot do warmer
+  (`scanBlockedRdBads`, idempotente, sem clear amplo nem bump de namespace) e o
+  reparo invalida o namespace `streams` uma vez quando encontra dano — as listas
+  prontas foram construídas sem esses hashes e não se corrigiriam só apagando o
+  `bad`. O índice/raw permanece quente para reconstruí-las. O
+  `applyDebrid` tem self-healing por entrada (`bad+blocked` → `forgetBad`, o
+  stream permanece; em `cachedOnly` o corte remove pelo ledger; fora dele volta
+  P2P/sem ⚡). Métrica própria: `magnetdb.bad.clearedBlocked` — **não** conta
+  como `magnetdb.dropped.bad`.
+
 A fronteira **bad × dead**: mesmo TTL de 24h, mesmo ponto de filtro
 (`applyDebrid`, pré-checagem), origens diferentes — bad é play sem vídeo
 (banco de magnets), dead é estado terminal observado no recheck do autofetch

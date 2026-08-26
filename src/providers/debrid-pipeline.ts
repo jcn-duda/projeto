@@ -76,6 +76,20 @@ export async function applyDebrid(input: Array<Stream | null>, {
   streams = streams.filter((s) => {
     if (!s.infoHash) return true;
     if (magnetdb.isBad(adapter.id, trustApiKey, s.infoHash)) {
+      // Autocorreção tardia do dano F3: um ramo antigo marcava `bad` no hash
+      // que o Real-Debrid recusou por lei (HTTP 451/error_code 35). Recusa
+      // legal não é magnet quebrado, e NoVideoError legítimo não grava
+      // `blocked`; logo `bad + blocked` neste adapter só pode ser aquela
+      // escrita equivocada. Limpa e deixa o stream seguir: fora do cachedOnly
+      // volta como P2P/sem ⚡; no cachedOnly o corte ternário o remove logo
+      // abaixo pelo próprio ledger.
+      if (config.debrid.rdLedger.enabled && adapter.id === 'realdebrid' && rdLedger.peek(s.infoHash) === 'blocked') {
+        if (magnetdb.forgetBad(adapter.id, trustApiKey, s.infoHash)) {
+          metrics.count('magnetdb.bad.clearedBlocked');
+          log.info(`[debrid] bad RD de recusa legal recuperado (${String(s.infoHash).slice(0, 8)})`);
+        }
+        return true;
+      }
       droppedBad += 1;
       return false;
     }

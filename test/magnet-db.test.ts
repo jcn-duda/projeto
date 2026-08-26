@@ -5,7 +5,9 @@
 // o descarte em `applyDebrid` e o desempate em `sortAndLimit`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import config from '../src/config.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as rdLedger from '../src/debrid/rd-ledger.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
@@ -336,5 +338,70 @@ test('buildStreams: filtro pré-checagem esvaziando gera aviso próprio e métri
     metrics.reset();
     debrid.checkCached = originalCheck;
     debrid.BY_ID.set('premiumize', original as any);
+  }
+});
+
+test('applyDebrid: bad+blocked RD é limpo e mantém o stream fora do cachedOnly; bad sem blocked continua descartado', async () => {
+  const { adapter } = makeFake();
+  const original = debrid.BY_ID.get('realdebrid');
+  // Aplica o filtro para o adapter Real-Debrid sem rede na checagem (default do fake).
+  debrid.BY_ID.set('realdebrid', { ...adapter, id: 'realdebrid' } as any);
+  const key = 'chave-rd-heal';
+  const blockedHash = 'a'.repeat(40); // dano antigo: bad + blocked
+  const noVideoHash = 'b'.repeat(40); // NoVideo legítimo: bad, sem blocked
+  magnetdb.markBad('realdebrid', key, blockedHash);
+  magnetdb.markBad('realdebrid', key, noVideoHash);
+  rdLedger.noteBlocked(blockedHash);
+  const priorLedgerEnabled = config.debrid.rdLedger.enabled;
+  config.debrid.rdLedger.enabled = true;
+  metrics.reset();
+  try {
+    const out = await runWith(
+      { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: false }, encoded: 'seg' },
+      () =>
+        applyDebrid([stream(blockedHash), stream(noVideoHash)] as any, {
+          season: null,
+          episode: null,
+          imdbId: null,
+          searchKey: 'magnet-rd-heal',
+          deadlineAt: Date.now() + 8000,
+          onCacheResult: null,
+          workHint: null,
+        } as any),
+    );
+    const dump = JSON.stringify(out);
+    assert.ok(dump.includes(blockedHash), 'bad+blocked (fora do cachedOnly) volta como stream sem ⚡');
+    assert.ok(!dump.includes(noVideoHash), 'bad deixado sem blocked continua descartado');
+
+    assert.equal(magnetdb.isBad('realdebrid', key, blockedHash), false, 'bad+blocked foi limpo no self-heal');
+    assert.equal(magnetdb.isBad('realdebrid', key, noVideoHash), true, 'bad legítimo preservado');
+
+    const counters = (metrics.snapshot() as any).counters;
+    assert.equal(counters['magnetdb.bad.clearedBlocked'], 1, 'métrica específica do reparo');
+    assert.equal(counters['magnetdb.dropped.bad'], 1, 'bad legítimo conta como derrubado');
+    assert.equal(counters['magnetdb.dropped'], 1, 'dropped agrega sem o recuperado');
+
+    // O mesmo fingerprint em cachedOnly ainda se autocorrige no magnetdb, mas
+    // o ledger blocked faz o corte ternário depois: não promete play instantâneo.
+    magnetdb.markBad('realdebrid', key, blockedHash);
+    const cachedOnlyOut = await runWith(
+      { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: true }, encoded: 'seg' },
+      () =>
+        applyDebrid([stream(blockedHash)] as any, {
+          season: null,
+          episode: null,
+          imdbId: null,
+          searchKey: 'magnet-rd-heal-cached-only',
+          deadlineAt: Date.now() + 8000,
+          onCacheResult: null,
+          workHint: null,
+        } as any),
+    );
+    assert.equal(cachedOnlyOut.length, 0, 'cachedOnly continua cortando o blocked pelo ledger');
+    assert.equal(magnetdb.isBad('realdebrid', key, blockedHash), false, 'self-healing também limpa antes do corte cachedOnly');
+  } finally {
+    metrics.reset();
+    config.debrid.rdLedger.enabled = priorLedgerEnabled;
+    debrid.BY_ID.set('realdebrid', original as any);
   }
 });

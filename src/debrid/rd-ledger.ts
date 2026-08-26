@@ -74,6 +74,15 @@ function peek(hash: string): LedgerState {
   return value?.s || 'unknown';
 }
 
+/** Leitura para varreduras: não promove LRU nem incrementa hit/miss do cache. */
+function peekQuiet(hash: string): LedgerState {
+  const normalized = hashOf(hash);
+  if (!config.debrid.rdLedger.enabled || !normalized) return 'unknown';
+  const value = cache.peek(key(normalized)) as LedgerValue | null;
+  if (!value || !['hit', 'miss', 'blocked'].includes(value.s)) return 'unknown';
+  return value.s;
+}
+
 function isHit(hash: string) {
   return peek(hash) === 'hit';
 }
@@ -158,4 +167,4 @@ function reset() {
   tracked.clear();
 }
 
-export { key, peek, isHit, noteHit, noteMiss, noteBlocked, renewHits, status, reset };
+export { key, peek, peekQuiet, isHit, noteHit, noteMiss, noteBlocked, renewHits, status, reset };
