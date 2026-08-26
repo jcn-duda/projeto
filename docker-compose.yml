@@ -79,15 +79,29 @@ services:
   # O banco começa VAZIO — no início ele responde `unknown` para quase tudo, o
   # que o parser trata como "não sei" (nunca miss). Ele esquenta com o uso.
   stremthru:
-    image: ghcr.io/muniftanjim/stremthru:latest
+    # O Adom usa somente o check Torz como oráculo RD. Fixar a versão evita
+    # upgrade silencioso e `STREMTHRU_FEATURE=torz` não sobe os workers de
+    # catálogo/IMDB que reiniciavam o processo por heartbeat expirado.
+    image: ghcr.io/muniftanjim/stremthru:0.103.2
     container_name: stremthru
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/v0/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     ports:
       # Só loopback: quem consome é o `adom`, pelo DNS interno do compose.
       # Publicado apenas para debug local (curl no host).
       - "127.0.0.1:8080:8080"
     environment:
       TZ: America/Sao_Paulo
+      STREMTHRU_FEATURE: torz
+      # Vazio ativa o peer público embutido e encaminha a credencial do store.
+      # "-" é o sentinel upstream para manter o oráculo realmente local; hashes
+      # ainda não conhecidos ficam `unknown`, que o Adom trata em fail-open.
+      STREMTHRU_PEER_URI: "-"
       # Sem proxy auth: o único cliente é o addon, na rede interna do compose.
       STREMTHRU_AUTH: ""
       # A credencial do store viaja POR REQUISIÇÃO no header
