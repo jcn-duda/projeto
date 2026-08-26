@@ -1,11 +1,24 @@
 ﻿import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import config from "../src/config.js";
 import * as cache from "../src/utils/cache.js";
 import * as metrics from "../src/utils/metrics.js";
 import * as rdOracle from "../src/debrid/rd-oracle.js";
 import * as rdLedger from "../src/debrid/rd-ledger.js";
 import * as realdebrid from "../src/debrid/realdebrid.js";
+
+// Fixtures reais capturados em 2026-08-26 (evidência do contrato ao vivo).
+const TORRENTIO_FIX = JSON.parse(
+  readFileSync(new URL("./fixtures/rd-oracle-torrentio-2026-08-26.json", import.meta.url), "utf8"),
+);
+const STREMTHRU_FIX = JSON.parse(
+  readFileSync(new URL("./fixtures/rd-oracle-stremthru-2026-08-26.json", import.meta.url), "utf8"),
+);
+// Hash cacheado no fixture do Torrentio (stream `[RD+]`, depois do token no path).
+const FIX_H1 = TORRENTIO_FIX.streams[0].url.match(/[a-f0-9]{40}/gi)[1].toLowerCase();
+// Hash do stream `[RD download]` — NÃO está no conjunto pedido nesses testes.
+const FIX_OTHER = TORRENTIO_FIX.streams[1].url.match(/[a-f0-9]{40}/gi)[1].toLowerCase();
 
 // Oráculo multi-fonte do CDN Real-Debrid. O CDN pertence ao SERVIZO, non á
 // conta; o veredicto é global (ledger), nunca por chave. Estes testes cobren:
@@ -40,7 +53,7 @@ test.beforeEach(() => {
   config.debrid.rdOracle.timeoutMs = 800;
   config.debrid.rdOracle.maxHashes = 2;
   config.debrid.rdOracle.stremthruUrl = "";
-  config.debrid.rdOracle.stremthruToken = "";
+  config.debrid.rdOracle.stremthruToken = "teste-token";
   config.debrid.rdOracle.stremthruStore = "realdebrid";
   config.debrid.rdOracle.torrentio = false;
   config.debrid.rdOracle.torrentioUrl = "https://torrentio.strem.fun";
@@ -194,6 +207,104 @@ test("6. falha de una fonte non tumba a outra (allSettled)", async () => {
   }
 });
 
+test("7. fixture real Torrentio: segmento em TEXTO (realdebrid=<key>), hash após o token, [RD+] hit e [RD download] fora do conjunto = unknown", async () => {
+  config.debrid.rdOracle.torrentio = true;
+  const mock = mockFetch((url) => {
+    // O segmento de config viaja cru, nunca base64url.
+    assert.match(
+      url.pathname,
+      /^\/realdebrid=chave\/stream\//,
+      `segmento em texto puro: ${url.pathname}`,
+    );
+    assert.ok(!url.pathname.includes("cmVhbGRlYnJpZD0"), "não pode ser base64url");
+    return jsonOk(TORRENTIO_FIX);
+  });
+  try {
+    const result = await rdOracle.check({ hashes: [FIX_H1], type: "movie", id: "tt20", timeoutMs: 800 }, "chave");
+    assert.equal(result.get(FIX_H1), true, "escolheu o hash pedido (não o token) e [RD+] = cacheado");
+    // O stream `[RD download]` tem hash FORA do conjunto pedido -> nunca é ecoado.
+    assert.equal(result.has(FIX_OTHER), false, "hash de outro conjunto não é miss nem hit");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("7b. fixture real StremThru: item 'cached' => true; item presente sem cached => false (miss autoritativo)", async () => {
+  config.debrid.rdOracle.stremthruUrl = "https://st.example";
+  const cachedHash = STREMTHRU_FIX.data.items[0].hash.toLowerCase();
+  const unknownHash = STREMTHRU_FIX.data.items[1].hash.toLowerCase();
+  const mock = mockFetch((url) => {
+    if (url.pathname === "/v0/store/torz/check") return jsonOk(STREMTHRU_FIX);
+    return jsonOk({}, 404);
+  });
+  try {
+    const result = await rdOracle.check({ hashes: [cachedHash, unknownHash], type: "movie", id: "tt21", timeoutMs: 800 }, "chave");
+    assert.equal(result.get(cachedHash), true, "status cached = hit");
+    assert.equal(result.get(unknownHash), false, "item presente sem cached = miss autoritativo");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("7c. StremThru: token vazio usa a apiKey efetiva da instalação (Bearer)", async () => {
+  config.debrid.rdOracle.stremthruUrl = "https://st.example";
+  config.debrid.rdOracle.stremthruToken = "";
+  let auth: any = null;
+  const mock = mockFetch((url, init) => {
+    auth = (init?.headers as any)?.["X-StremThru-Store-Authorization"];
+    return jsonOk({ data: { items: [{ hash: H1, status: "cached" }] } });
+  });
+  try {
+    await rdOracle.check({ hashes: [H1], type: "movie", id: "tt24", timeoutMs: 800 }, "chave-inst");
+    assert.equal(auth, "Bearer chave-inst", "vazio usa a apiKey da instalação");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("7d. Torrentio: [RD+] exato é hit; [RD] e [RD download] são miss autoritativo", async () => {
+  config.debrid.rdOracle.torrentio = true;
+  const mock = mockFetch(() =>
+    jsonOk({
+      streams: [
+        { name: "[RD+] A", infoHash: H1 },
+        { name: "[RD] B", infoHash: H2 },
+        { name: "[RD download] C", infoHash: H3 },
+      ],
+    }),
+  );
+  try {
+    const result = await rdOracle.check({ hashes: [H1, H2, H3], type: "movie", id: "tt25", timeoutMs: 800 }, "chave");
+    assert.equal(result.get(H1), true, "[RD+] = hit");
+    assert.equal(result.get(H2), false, "[RD] sem + = miss, nunca hit");
+    assert.equal(result.get(H3), false, "[RD download] = miss, nunca hit");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("7e. deadline ÚNICO: 5 lotes não somam o timeout por lote", async () => {
+  config.debrid.rdOracle.stremthruUrl = "https://st.example";
+  config.debrid.rdOracle.maxHashes = 1;
+  let calls = 0;
+  const delayer = 40;
+  const mock = mockFetch(async (url) => {
+    calls += 1;
+    await new Promise((r) => setTimeout(r, delayer));
+    return jsonOk({ data: { items: stremthruItems(url.searchParams.get("hash") || "") } });
+  });
+  try {
+    const start = Date.now();
+    await rdOracle.check({ hashes: [H1, H2, H3, H4, H5], type: "movie", id: "ttx", timeoutMs: 90 }, "chave");
+    const elapsed = Date.now() - start;
+    assert.ok(calls < 5, `não inicia lote depois do deadline; rodou ${calls}`);
+    assert.ok(elapsed < 5 * delayer, `não multiplicou o prazo por lote: ${elapsed}ms`);
+    assert.ok(elapsed <= 90 + 2 * delayer + 40, `próximo do deadline único: ${elapsed}ms`);
+  } finally {
+    mock.restore();
+  }
+});
+
 test("7. resultado do oráculo grava ledger: hit e miss autoritativo", async () => {
   config.debrid.rdOracle.stremthruUrl = "https://st.example";
   const mock = mockFetch((url) => {
@@ -219,6 +330,65 @@ test("7. resultado do oráculo grava ledger: hit e miss autoritativo", async () 
     assert.equal(rdLedger.peek(H2), "miss");
   } finally {
     mock.restore();
+  }
+});
+
+test("G7-regressão: cache por título filtra pelo conjunto pedido; hash que o ledger já resolveu não é ecoado", async () => {
+  config.debrid.rdOracle.torrentio = true;
+  // Semeia o cache por título com a resposta antiga da obra: A=true, B=false.
+  // Esta chamada pede [A, B], mas o ledger já decidiu B — o dedupe do caller
+  // deixa B fora da rede; o retorno do cache tem que respeitar o mesmo conjunto.
+  cache.set("rdt:v1:trt:movie:tt-reg", [[H1, true], [H2, false]], 21600);
+  rdLedger.noteHit([H2]);
+  let rede = 0;
+  const mock = mockFetch(() => {
+    rede += 1;
+    return jsonOk({});
+  });
+  try {
+    const result = await rdOracle.check({ hashes: [H1, H2], type: "movie", id: "tt-reg", timeoutMs: 800 }, "chave");
+    assert.equal(rede, 0, "resposta servida do cache por título, sem rede");
+    assert.equal(result.get(H1), true, "true do cache preservado para o hash pedido (true-wins)");
+    assert.equal(result.has(H2), false, "B fora do conjunto efetivo não é ecoado do cache — pipeline não pode rebaixar hit");
+    assert.equal(result.size, 1, "só o pedido efetivo volta");
+    for (const [hash, cached] of result) {
+      if (!cached) rdLedger.noteMiss(hash);
+    }
+    assert.equal(rdLedger.peek(H2), "hit", "evidência antiga do cache não rebaixa hit confirmado depois");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("7f. deadline compartilhado: duas fontes abrem AbortSignal REAL sob o MESMO teto (sem temporização rígida)", async () => {
+  config.debrid.rdOracle.stremthruUrl = "https://st.deadline";
+  config.debrid.rdOracle.torrentioUrl = "https://torrentio.deadline";
+  config.debrid.rdOracle.torrentio = true;
+  const realAbort = AbortSignal.timeout;
+  const seen: number[] = [];
+  AbortSignal.timeout = ((ms: number) => { seen.push(ms); return realAbort(ms); }) as typeof AbortSignal.timeout;
+  const realFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = ((input: any) => {
+    const url = new URL(String(input));
+    calls.push(url.pathname);
+    if (url.pathname.startsWith("/v0/store/torz/check")) {
+      return Promise.resolve(jsonOk({ data: { items: [{ hash: H1, status: "cached" }] } }, 200));
+    }
+    if (url.pathname.startsWith("/realdebrid=")) {
+      return Promise.resolve(jsonOk({ streams: [{ name: "[RD+] x", infoHash: H1 }] }, 200));
+    }
+    return Promise.resolve(jsonOk({}, 404));
+  }) as unknown as typeof globalThis.fetch;
+  try {
+    const result = await rdOracle.check({ hashes: [H1], type: "movie", id: "tt-dl", timeoutMs: 120 }, "chave");
+    assert.ok(calls.length >= 2, `duas fontes paralelas consultadas de fato: ${calls.length}`);
+    assert.ok(seen.length >= 2, `abaixo de tudo, cada fonte abriu AbortSignal.timeout real: ${seen.length}`);
+    assert.ok(seen.every((ms) => ms <= 120), `cada signal respeita o teto ÚNICO (< = timeoutMs): ${seen}`);
+    assert.equal(result.get(H1), true, "true-wins preservado com as duas fontes no ar");
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realAbort;
   }
 });
 

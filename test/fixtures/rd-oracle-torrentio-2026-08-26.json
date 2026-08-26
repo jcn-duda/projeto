@@ -1,0 +1,24 @@
+{
+  "streams": [
+    {
+      "name": "[RD+] Torrentio\n4k DV",
+      "title": "Mad.Max.Fury.Road.2015.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR\n👤 99 💾 42.66 GB ⚙️ TorrentGalaxy",
+      "url": "https://torrentio.strem.fun/resolve/realdebrid/0000000000000000000000000000000000000000/396bb92b45c6564088c3c676352a0dc9395ff510/null/0/Mad.Max.Fury.Road.2015.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR.mkv",
+      "behaviorHints": {
+        "bingeGroup": "torrentio|4k|BluRay REMUX|hevc|DV",
+        "filename": "Mad.Max.Fury.Road.2015.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR.mkv"
+      }
+    },
+    {
+      "name": "[RD download] Torrentio\n4k HDR",
+      "title": "Mad.Max.Fury.Road.2015.4K.HDR.2160p.BDRip Ita Eng x265-NAHOM\n👤 7 💾 17.7 GB ⚙️ 1337x\n🇬🇧 / 🇮🇹",
+      "url": "https://torrentio.strem.fun/resolve/realdebrid/0000000000000000000000000000000000000000/53faae6678c855f8c1396d2c2dee4baf0c78f23d/null/undefined/Mad.Max.Fury.Road.2015.4K.HDR.2160p.BDRip%20Ita%20Eng%20x265-NAHOM",
+      "behaviorHints": {
+        "bingeGroup": "torrentio|4k|BDRip|x265|HDR"
+      }
+    }
+  ],
+  "cacheMaxAge": 3600,
+  "staleRevalidate": 14400,
+  "staleError": 604800
+}

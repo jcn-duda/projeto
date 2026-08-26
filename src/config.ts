@@ -524,18 +524,22 @@ const config = {
         .filter((value) => value > 0)),
     },
     // Oráculo externo do cache global RD. Só habilita o cacheCheck dinâmico
-    // quando há fonte e ledger: sem uma das duas, RD continua honesto como
-    // "não sei" e cachedOnly não pode esconder a lista.
+    // quando há fonte COM credencial e ledger: sem as duas, RD continua honesto
+    // como "não sei" e cachedOnly não pode esconder a lista. Ativado por padrão
+    // (decisão do usuário): envia a apiKey da instalação às fontes (StremThru e
+    // Torrentio) quando não há token/key explícitos — terceiros veem a chave.
     rdOracle: {
-      enabled: String(process.env.DEBRID_RD_ORACLE || 'false') === 'true',
+      enabled: String(process.env.DEBRID_RD_ORACLE || 'true') === 'true',
       timeoutMs: Math.max(1, num(process.env.DEBRID_RD_ORACLE_TIMEOUT_MS, 800)),
       maxHashes: Math.min(500, Math.max(1, Math.trunc(num(process.env.DEBRID_RD_ORACLE_MAX_HASHES, 100)))),
-      stremthruUrl: (process.env.DEBRID_RD_ORACLE_STREMTHRU_URL || '').replace(/\/$/, ''),
+      // Endpoint canônico/público (medido ao vivo); limite confirmado de 500/hash.
+      stremthruUrl: (process.env.DEBRID_RD_ORACLE_STREMTHRU_URL || 'https://stremthru.13377001.xyz').replace(/\/$/, ''),
       stremthruToken: process.env.DEBRID_RD_ORACLE_STREMTHRU_TOKEN || '',
       stremthruStore: process.env.DEBRID_RD_ORACLE_STREMTHRU_STORE || 'realdebrid',
-      torrentio: String(process.env.DEBRID_RD_ORACLE_TORRENTIO || 'false') === 'true',
+      torrentio: String(process.env.DEBRID_RD_ORACLE_TORRENTIO || 'true') === 'true',
       torrentioUrl: (process.env.DEBRID_RD_ORACLE_TORRENTIO_URL || 'https://torrentio.strem.fun').replace(/\/$/, ''),
-      // Vazio usa a chave efetiva da instalação, nunca a do operador por engano.
+      // Vazio usa a chave efetiva da instalação (a mesma recebida por rdOracle.check),
+      // nunca a do operador por engano.
       torrentioKey: process.env.DEBRID_RD_ORACLE_TORRENTIO_KEY || '',
       torrentioTtl: Math.max(0, num(process.env.DEBRID_RD_ORACLE_TORRENTIO_TTL, 21600)),
     },

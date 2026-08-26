@@ -498,14 +498,24 @@ sustentam isso:
 - **`rd-oracle.ts` — oráculo multi-fonte.** Consulta as fontes habilitadas
   (StremThru `GET /v0/store/torz/check?hash=<csv>`, lotes de `maxHashes`, com
   headers `X-StremThru-Store-Name`/`X-StremThru-Store-Authorization`; e
-  Torrentio `/…/stream/<type>/<id>.json`, `[RD+]` no `name`, hash de `infoHash`
-  ou url de resolve) em paralelo, com `Promise.allSettled` + fail-open. Fusão
-  **true-wins**: `true` de qualquer fonte vence; `false` só da fonte que enumera
-  com autoridade — item **não listado** pelo Torrentio é **desconhecido**, nunca
+  Torrentio `/…/stream/<type>/<id>.json`) em paralelo, com `Promise.allSettled`
+  + fail-open e **um deadline único** para a chamada toda (não multiplica por
+  lote/fonte): cada lote StremThru usa só o restante e **não inicia lote depois
+  do prazo**; o Torrentio usa o mesmo restante. O segmento de config do
+  Torrentio é **texto puro** `realdebrid=<key>` (não base64url), e a extração de
+  hash **só aceita hash do conjunto pedido** — o token apiKey no path também é
+  40-hex, e o antigo "primeiro 40-hex" confundia a chave com o hash real. Hit
+  exige o marcador `[RD+]` exato no `name` (não `[RD]`; `[RD download]` é miss
+  autoritativo). Fusão **true-wins**: `true` de qualquer fonte vence; `false` só
+  da fonte que enumera com autoridade — item **não listado** pelo Torrentio
+  (nem via `infoHash` nem via URL do conjunto pedido) é **desconhecido**, nunca
   miss (o acervo BR dublado que interessa é justamente o que o Torrentio não
   indexa). A chamada do Torrentio é cacheada por título (`rdt:v1:trt:`, TTL ~6h)
-  para não bater em infra de terceiro a cada busca. Kill-switch:
-  `DEBRID_RD_ORACLE=false`.
+  para não bater em infra de terceiro a cada busca. **Ativado por padrão** (decisão
+  do usuário): token/key explícitos das fontes têm precedência; vazios, usam a
+  apiKey efetiva da instalação recebida por `rdOracle.check` — atenção: isso
+  envia a chave às fontes (terceiros a veem). `available()` exige fonte realmente
+  utilizável com credencial efetiva. Kill-switch: `DEBRID_RD_ORACLE=false`.
 
 Com ledger+oráculo ativos, o oráculo roda ANTES do `checkCached` no
 `applyDebrid` e grava os veredictos no ledger; o `checkCached` do adaptador só

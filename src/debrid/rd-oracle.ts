@@ -7,9 +7,14 @@
 //
 // Regra de fusão: true de qualquer fonte vence (evidência positiva). false
 // só conta de fonte que enumera com autoridade: StremThru item presente sem
-// 'cached'; Torrentio listado sem [RD+] com hash extraível. Hash NÃO
-// listado pelo Torrentio é DESCONHECIDO, nunca miss — o acervo BR dublado
-// que interessa é justamente o que ele não indexa.
+// 'cached'; Torrentio listado sem [RD+] a partir do HASH SOLICITADO. Hash que
+// NÃO está no conjunto pedido (ou não listado) é DESCONHECIDO, nunca miss — o
+// acervo BR dublado que interessa é justamente o que ele não indexa.
+//
+// Deadlines: a chamada tem UM único prazo (deadlineAt), calculado uma vez em
+// `check()`. Cada fonte usa APENAS o tempo restante desse prazo — nunca
+// multiplica o timeout por lote/fonte. Um lote StremThru que esgotaria o
+// deadline não é iniciado; o Torrentio usa o mesmo restante no seu fetch.
 import config from '../config.js';
 import * as cache from '../utils/cache.js';
 import * as metrics from '../utils/metrics.js';
@@ -22,6 +27,11 @@ export type OracleQuery = {
   type: 'movie' | 'series';
   id: string; // imdbId, com :S:E quando série
   timeoutMs: number;
+  // Marca temporal ABSOLUTA (ms desde epoch) do fim da chamada total. `check()`
+  // calcula uma única vez e injeta; as fontes só leem o restante. É opcional no
+  // tipo porque o chamador pode não montar (o `check` preenche) e a pipeline
+  // passa `timeoutMs`.
+  deadlineAt?: number;
 };
 
 type OracleSource = {
@@ -29,11 +39,21 @@ type OracleSource = {
   check: (q: OracleQuery, apiKey?: string) => Promise<Map<string, boolean>>;
 };
 
+/** Milissegundos restantes até o deadline compartilhado (mínimo 1). */
+function remainingMs(deadlineAt?: number): number {
+  if (!deadlineAt) return Number.MAX_SAFE_INTEGER;
+  return Math.max(1, deadlineAt - Date.now());
+}
+
 // ─── StremThru ───────────────────────────────────────────────────────────────
 
-async function checkStremthru(q: OracleQuery, _apiKey?: string): Promise<Map<string, boolean>> {
+async function checkStremthru(q: OracleQuery, apiKey?: string): Promise<Map<string, boolean>> {
   const { stremthruUrl, stremthruToken, stremthruStore, maxHashes } = config.debrid.rdOracle;
   if (!stremthruUrl) return new Map();
+
+  // Chave da fonte tem precedência; vazia, usa a apiKey efetiva da instalação
+  // recebida por rdOracle.check. Nunca logamos este valor.
+  const effectiveToken = stremthruToken || apiKey || '';
 
   const result = new Map<string, boolean>();
   const batchSize = Math.min(500, Math.max(1, maxHashes));
@@ -41,21 +61,21 @@ async function checkStremthru(q: OracleQuery, _apiKey?: string): Promise<Map<str
   let totalBatches = 0;
   let failedBatches = 0;
 
-  // Lotes de maxHashes; StremThru aceita até 500 por chamada.
+  // Lotes de batchSize; StremThru aceita até 500 por chamada. Cada lote usa só o
+  // tempo RESTANTE do deadline único e não inicia lote depois que ele esgotou.
   for (let i = 0; i < targetHashes.length; i += batchSize) {
+    if (Date.now() >= (q.deadlineAt ?? Infinity)) break;
     totalBatches += 1;
     const batch = targetHashes.slice(i, i + batchSize);
     const url = `${stremthruUrl}/v0/store/torz/check?hash=${batch.join(',')}`;
     const headers: Record<string, string> = {
       'X-StremThru-Store-Name': stremthruStore,
+      'X-StremThru-Store-Authorization': `Bearer ${effectiveToken}`,
     };
-    if (stremthruToken) {
-      headers['X-StremThru-Store-Authorization'] = `Bearer ${stremthruToken}`;
-    }
     try {
       const res = await fetch(url, {
         headers,
-        signal: AbortSignal.timeout(q.timeoutMs),
+        signal: AbortSignal.timeout(remainingMs(q.deadlineAt)),
       });
       if (!res.ok) {
         failedBatches += 1;
@@ -85,9 +105,9 @@ async function checkStremthru(q: OracleQuery, _apiKey?: string): Promise<Map<str
 
 const HASH_RE = /^[a-f0-9]{40}$/;
 
-function hashFromUrl(url: string): string {
-  const match = url.match(/([a-f0-9]{40})/i);
-  return match ? match[1].toLowerCase() : '';
+/** Todos os candidatos de 40-hex num URL (o token apiKey também é 40-hex). */
+function hashCandidatesFromUrl(url: string): string[] {
+  return (String(url).match(/[a-f0-9]{40}/gi) || []).map((h) => h.toLowerCase());
 }
 
 function torrentioCacheKey(type: string, id: string) {
@@ -98,61 +118,77 @@ async function checkTorrentio(q: OracleQuery, apiKey?: string): Promise<Map<stri
   const { torrentioUrl, torrentioKey, torrentioTtl } = config.debrid.rdOracle;
   if (!torrentioUrl) return new Map();
 
+  // Só aceitamos hash que o chamador pediu. O token (apiKey no path) também é
+  // 40-hex; o antigo "primeiro 40-hex" confundia token com hash real. Analisamos
+  // os segmentos do URL e selecionamos o candidato pertencente ao conjunto pedido.
+  const requested = new Set(q.hashes.map((h) => String(h).toLowerCase()));
+
+  // Filtra um Map pelo conjunto SOLICITADO. O cache por título guarda TODAS as
+  // respostas da obra, inclusive hashes que esta chamada não pediu (ou que o
+  // ledger, dedupe do caller, já resolveu — simplesmente não estão em q.hashes).
+  // Devolvê-los inteiros deixaria o pipeline re-aplicar noteHit/noteMiss com
+  // evidência desta obra de outra consulta e até rebaixar um hit que já virou
+  // hit global — por isso o retorno cacheado passa SEMPRE por este filtro.
+  const onlyRequested = (map: Map<string, boolean>): Map<string, boolean> => {
+    const out = new Map<string, boolean>();
+    for (const [hash, cached] of map) {
+      if (requested.has(hash)) out.set(hash, cached);
+    }
+    return out;
+  };
+
   // Cache por título: uma chamada por obra, TTL ~6h. É infra de terceiro;
   // não pode virar uma chamada por busca repetida.
   const cacheKey = torrentioCacheKey(q.type, q.id);
   const cached = cache.get(cacheKey) as Array<[string, boolean]> | Map<string, boolean> | null;
-  if (cached instanceof Map) return cached;
-  if (Array.isArray(cached)) return new Map<string, boolean>(cached);
+  if (cached instanceof Map) return onlyRequested(cached);
+  if (Array.isArray(cached)) return onlyRequested(new Map<string, boolean>(cached));
 
   const effectiveKey = torrentioKey || apiKey || '';
   if (!effectiveKey) return new Map();
 
-  // O segmento de config do Torrentio é base64url de "realdebrid=<key>".
-  const configSegment = Buffer.from(`realdebrid=${effectiveKey}`)
-    .toString('base64url')
-    .replace(/=+$/, '');
+  // O segmento de config do Torrentio é TEXTO PURO `realdebrid=<key>`, não
+  // base64url (medido ao vivo hoje). A chave viaja crua no path — nunca logada.
+  const configSegment = `realdebrid=${effectiveKey}`;
   const url = `${torrentioUrl}/${configSegment}/stream/${q.type}/${q.id}.json`;
 
   const result = new Map<string, boolean>();
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(q.timeoutMs) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(remainingMs(q.deadlineAt)) });
     if (!res.ok) return result;
     const body = await res.json() as any;
     const streams: any[] = body?.streams || [];
 
-    // Conjunto de hashes que conhecemos para decidir "não listado" vs "listado
-    // sem marcador". O Torrentio devolve infoHash OU url de resolve.
-    const knownHashes = new Set<string>();
-
     for (const stream of streams) {
       const name: string = stream?.name || '';
-      let hash = '';
+      // Candidatos: infoHash direto (quando presente) somado aos segmentos 40-hex
+      // do URL de resolve. O hash válido é o que pertence ao conjunto pedido —
+      // stream cujo hash não pedimos é pulado (fica desconhecido para o chamador).
+      const candidates: string[] = [];
       if (stream?.infoHash && HASH_RE.test(String(stream.infoHash).toLowerCase())) {
-        hash = String(stream.infoHash).toLowerCase();
-      } else if (stream?.url) {
-        hash = hashFromUrl(stream.url);
+        candidates.push(String(stream.infoHash).toLowerCase());
       }
+      if (stream?.url) candidates.push(...hashCandidatesFromUrl(stream.url));
+      const hash = candidates.find((c) => requested.has(c)) || '';
       if (!hash) continue;
-      knownHashes.add(hash);
 
-      // [RD+] no início do name = cacheado no RD.
-      if (/^\[RD\+?\]/i.test(name)) {
+      // [RD+] exato no início do name = cacheado no RD. `[RD]` sozinho e
+      // `[RD download]` NÃO são hit — `[RD download]` listado é miss autoritativo.
+      if (/^\[RD\+\]/i.test(name)) {
         result.set(hash, true);
       } else {
-        // Listado sem marcador = miss autoritativo (Torrentio sabe que não
-        // está cacheado para esta chave).
+        // Listado sem o marcador de cacheado = miss autoritativo (Torrentio sabe
+        // que não está pronto para esta chave).
         result.set(hash, false);
       }
     }
 
-    // Hashes que pedimos mas o Torrentio NÃO listou ficam como DESCONHECIDOS
-    // (não entram no Map). O acervo BR dublado que nos interessa é justamente
-    // o que o Torrentio não indexa — tratar como miss envenenaria o ledger.
-    // Os hashes pedidos que NÃO estão no knownHashes simplesmente não entram
-    // no resultado, e o caller os trata como unknown.
+    // Hashes que pedimos e o Torrentio NÃO listou (nem via infoHash nem via URL)
+    // não entram no Map → o caller os trata como DESCONHECIDOS. O acervo BR
+    // dublado que interessa é justamente o que o Torrentio não indexa — tratar
+    // como miss envenenaria o ledger.
 
-    // Salva no cache para não repetir a chamada (armazenado como array para serializar no L2).
+    // Salva no cache para não repetir a chamada (array p/ serializar no L2).
     if (torrentioTtl > 0) cache.set(cacheKey, Array.from(result.entries()), torrentioTtl);
   } catch { /* fail-open */ }
   return result;
@@ -165,11 +201,21 @@ const sources: OracleSource[] = [
   { name: 'torrentio', check: checkTorrentio },
 ];
 
-/** True se ao menos uma fonte está habilitada. */
-export function available(): boolean {
+/**
+ * True se ao menos uma fonte está de fato utilizável com credencial efetiva.
+ *
+ * Exige: oráculo ligado E um endpoint configurado E (token/key explícitos da
+ * fonte OU apiKey efetiva da instalação). Sem credencial alguma, nenhuma fonte
+ * responde pela conta → `false` (RD continua honesto "não sei"). Apesar do
+ * nome, o flag do `current()` é por requisição (víamos o `debridApiKey`); não
+ * chame sem passar a chave quando ela existir no contexto.
+ */
+export function available(apiKey?: string): boolean {
   if (!config.debrid.rdOracle.enabled) return false;
-  const { stremthruUrl, torrentio } = config.debrid.rdOracle;
-  return Boolean(stremthruUrl) || torrentio;
+  const { stremthruUrl, stremthruToken, torrentio, torrentioKey, torrentioUrl } = config.debrid.rdOracle;
+  const stremthruLive = Boolean(stremthruUrl) && Boolean(stremthruToken || apiKey);
+  const torrentioLive = Boolean(torrentioUrl && torrentio) && Boolean(torrentioKey || apiKey);
+  return stremthruLive || torrentioLive;
 }
 
 /**
@@ -191,6 +237,10 @@ export async function check(q: OracleQuery, apiKey?: string): Promise<Map<string
   const started = Date.now();
   metrics.count('debrid.rd.oracle.called');
 
+  // Deadlines ÚNICO de toda a chamada, compartilhado pelas fontes em paralelo:
+  // calculado aqui (não somado por fonte/lote, não multiplicado por batch).
+  const deadlineAt = Date.now() + q.timeoutMs;
+
   // Só hashes que o ledger ainda não decidiu vão à rede. Já resolvidos
   // (hit/miss/blocked) não pagam chamada E não entram no resultado — o
   // pipeline não tem nada novo a gravar para eles.
@@ -202,9 +252,21 @@ export async function check(q: OracleQuery, apiKey?: string): Promise<Map<string
     unknownHashes.push(hash);
   }
 
+  // Só chamada com credencial EFETIVA vai à rede: uma fonte sem token/key da
+  // fonte nem apiKey da instalação enviaria `Bearer ` vazio (StremThru) ou um
+  // segmento `realdebrid=` sem valor (Torrentio) a terceiros — ruído e pior,
+  // vazamento de intenção sem resposta. O `available()` já guarda essa porta
+  // para o flag do `current()`; aqui fechamos o mesmo buraco para chamadas
+  // diretas a `check()`.
   const enabledSources = sources.filter((source) => {
-    if (source.name === 'stremthru') return Boolean(config.debrid.rdOracle.stremthruUrl);
-    if (source.name === 'torrentio') return config.debrid.rdOracle.torrentio;
+    if (source.name === 'stremthru') {
+      return Boolean(config.debrid.rdOracle.stremthruUrl)
+        && Boolean(config.debrid.rdOracle.stremthruToken || apiKey);
+    }
+    if (source.name === 'torrentio') {
+      return Boolean(config.debrid.rdOracle.torrentio)
+        && Boolean(config.debrid.rdOracle.torrentioKey || apiKey);
+    }
     return false;
   });
 
@@ -213,7 +275,7 @@ export async function check(q: OracleQuery, apiKey?: string): Promise<Map<string
     return new Map();
   }
 
-  const netQuery: OracleQuery = { ...q, hashes: unknownHashes };
+  const netQuery: OracleQuery = { ...q, hashes: unknownHashes, deadlineAt };
   const results = await Promise.allSettled(
     enabledSources.map((source) => source.check(netQuery, apiKey)),
   );

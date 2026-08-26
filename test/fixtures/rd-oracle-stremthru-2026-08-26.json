@@ -1,0 +1,29 @@
+{
+  "data": {
+    "items": [
+      {
+        "hash": "396bb92b45c6564088c3c676352a0dc9395ff510",
+        "magnet": "magnet:?xt=urn:btih:396bb92b45c6564088c3c676352a0dc9395ff510",
+        "name": "Mad.Max.Fury.Road.2015.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+        "status": "cached",
+        "files": [
+          {
+            "index": 0,
+            "name": "Mad.Max.Fury.Road.2015.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR.mkv",
+            "path": "/Mad.Max.Fury.Road.2015.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR.mkv",
+            "size": 45809156345,
+            "video_hash": "4b880f2509c4f61e",
+            "link": "<redacted-direct-link>"
+          }
+        ]
+      },
+      {
+        "hash": "840a3cb19163d3daebfb30d4cad5a13ff64c5e9d",
+        "magnet": "magnet:?xt=urn:btih:840a3cb19163d3daebfb30d4cad5a13ff64c5e9d",
+        "name": "Mad Max - Fury Road (2015) (2160p BluRay x265 HEVC 10bit HDR AAC 7.1 Tigole)",
+        "status": "unknown",
+        "files": []
+      }
+    ]
+  }
+}

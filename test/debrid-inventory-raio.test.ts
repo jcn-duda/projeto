@@ -11,6 +11,12 @@ import type { Stream } from '../types/domain.js';
 
 process.env.CACHE_PERSIST = 'false';
 
+// Com o G2 o oráculo RD liga por padrão, e com ele o `cacheCheck` do Real-Debrid
+// vira true — o que não está no ledger sairia `[RD download]` em vez do ⚡ que o
+// inventário/histórico dá. Este arquivo isola justamente o contrato de "RD
+// honesto sem cacheCheck" (⚡ só da conta), então desliga o oráculo de propósito.
+config.debrid.rdOracle.enabled = false;
+
 /**
  * O ⚡ no Real-Debrid.
  *

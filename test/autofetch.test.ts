@@ -2228,6 +2228,10 @@ test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail
   const originalSeasonFill = config.debrid.autoFetchSeasonFill;
   const originalSeasonIndexMax = config.debrid.autoFetchSeasonIndexMax;
   const rdAdapter = debrid.BY_ID.get('realdebrid') as DebridAdapter;
+  // O G2 ligou o oráculo por padrão; para exercitar o contrato "adaptador SEM
+  // cacheCheck" este teste desliga ledger+oráculo (que juntos elevam o flag).
+  const originalLedger = config.debrid.rdLedger.enabled;
+  const originalOracle = config.debrid.rdOracle.enabled;
   const originalEnqueue = rdAdapter.enqueue;
   const originalTorrentStatus = rdAdapter.torrentStatus;
   const apiKey = 'chave-season-fill-rd';
@@ -2260,6 +2264,8 @@ test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail
     config.debrid.publicUrl = 'http://addon.test';
     config.debrid.autoFetchSeasonFill = true;
     config.debrid.autoFetchSeasonIndexMax = 10;
+    config.debrid.rdLedger.enabled = false;
+    config.debrid.rdOracle.enabled = false;
     rdAdapter.enqueue = async () => true;
     rdAdapter.torrentStatus = async () => ({ [h]: { state: 'ready', id: 'rd-1' } });
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
@@ -2294,6 +2300,8 @@ test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchSeasonFill = originalSeasonFill;
     config.debrid.autoFetchSeasonIndexMax = originalSeasonIndexMax;
+    config.debrid.rdLedger.enabled = originalLedger;
+    config.debrid.rdOracle.enabled = originalOracle;
     rdAdapter.enqueue = originalEnqueue;
     rdAdapter.torrentStatus = originalTorrentStatus;
     for (const key of keys) cache.forget(key);

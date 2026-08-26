@@ -233,7 +233,9 @@ function current(): DebridAdapter | null {
   // existe pelo menos uma fonte externa. O clone evita mudar a semântica dos
   // outros serviços nem congelar o kill-switch no carregamento do módulo.
   if (adapter.id === 'realdebrid') {
-    return { ...adapter, cacheCheck: config.debrid.rdLedger.enabled && rdOracle.available() };
+    // available() exige fonte utilizável COM a credencial efetiva da instalação;
+    // sem apiKey (P2P puro) o RD honesto não promete cacheCheck.
+    return { ...adapter, cacheCheck: config.debrid.rdLedger.enabled && rdOracle.available(debridApiKey) };
   }
   return adapter;
 }
@@ -672,7 +674,10 @@ async function sweepDeadCurrent() {
 function knownInstant(hash: string): boolean {
   const adapter = current();
   if (!adapter || adapter.id !== 'realdebrid') return false;
-  if (!config.debrid.rdLedger.enabled || !rdOracle.available()) return false;
+  // O clone do current() já embute a credencial da requisição no cacheCheck
+  // (rdLedger.enabled && rdOracle.available(debridApiKey)); reaproveitá-lo aqui
+  // evita re-resolver a chave fora do ALS.
+  if (!adapter.cacheCheck) return false;
   return rdLedger.isHit(hash);
 }
 

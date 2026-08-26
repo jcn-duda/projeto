@@ -29,6 +29,22 @@ const NA_CONTA = '7'.repeat(40);
 
 const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
 
+// Cinco sub-casos deste arquivo isolam o caminho da CONTA (inventário pronto →
+// ⚡ sem depender do oráculo/ledger). Com DEBRID_RD_ORACLE default=true a partir
+// do G2, o cacheCheck do RD ficaria ligado nessas buscas e um item que o ledger
+// ainda não viu sairia como `[RD download]` em vez de ⚡. Esses casos apagam o
+// oráculo de propósito (operador) para preservar o contrato que testam.
+const ORACLE_SNAPSHOT = { ...config.debrid.rdOracle };
+function desligaOracle() {
+  config.debrid.rdOracle.enabled = false;
+}
+test.afterEach(() => {
+  config.debrid.rdOracle.enabled = ORACLE_SNAPSHOT.enabled;
+  config.debrid.rdOracle.stremthruUrl = ORACLE_SNAPSHOT.stremthruUrl;
+  config.debrid.rdOracle.torrentio = ORACLE_SNAPSHOT.torrentio;
+  config.debrid.rdOracle.torrentioKey = ORACLE_SNAPSHOT.torrentioKey;
+});
+
 function optsUsuario(extra: Record<string, unknown> = {}) {
   return {
     ...runtime.defaults(),
@@ -75,6 +91,7 @@ function busca(raw: any[], extra: Record<string, unknown> = {}) {
 }
 
 test('repro: item pronto da conta sobrevive ao POOL com balde 1080p cheio', async () => {
+  desligaOracle();
   cache.clear();
   semeiaInventario();
   const tituloConta = 'Mestres do Universo 1987 BluRay 1080p X264 DUAL 2.0';
@@ -118,6 +135,7 @@ test('repro: item pronto da conta sobrevive ao POOL com balde 1080p cheio', asyn
 });
 
 test('repro (mínimo): só o item da conta, sem concorrentes', async () => {
+  desligaOracle();
   cache.clear();
   semeiaInventario();
   const tituloConta = 'Mestres do Universo 1987 BluRay 1080p X264 DUAL 2.0';

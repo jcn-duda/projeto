@@ -253,14 +253,24 @@ oráculo consulta o ledger ANTES de ir à rede (dedupe); hash já resolvido não
 paga chamada.
 
 **Oráculo (`rd-oracle.ts`).** Despachante com `Promise.allSettled` + fail-open
-(erro devolve `Map` vazio, nunca lança) sobre as fontes habilitadas em paralelo.
-Fusão **true-wins**: `true` de qualquer fonte vence; `false` só conta de fonte
-que enumera com autoridade — StremThru (item presente sem `cached`) e Torrentio
-(listado sem `[RD+]` com hash extraível). Hash **não listado** pelo Torrentio é
-**desconhecido**, nunca miss: o acervo BR dublado que interessa é justamente o
-que o Torrentio não indexa, e tratar como miss envenenaria o ledger. A chamada
-do Torrentio é cacheada por título (`rdt:v1:trt:<type>:<id>`, TTL ~6h) para não
-virar uma chamada por busca repetida contra infra de terceiro.
+(erro devolve `Map` vazio, nunca lança) sobre as fontes habilitadas em paralelo,
+com **um deadline único** para a chamada toda (não soma por lote/fonte): cada
+lote StremThru usa só o restante e não inicia lote depois do prazo; o Torrentio
+usa o mesmo restante. Fusão **true-wins**: `true` de qualquer fonte vence;
+`false` só conta de fonte que enumera com autoridade — StremThru (item presente
+sem `cached`) e Torrentio (listado com hash do conjunto pedido, sem o marcador
+`[RD+]` exato). Hash **não listado** pelo Torrentio — ou cuja URL pertence a um
+hash que não pedimos — é **desconhecido**, nunca miss: o acervo BR dublado que
+interessa é justamente o que o Torrentio não indexa, e tratar como miss
+envenenaria o ledger. O segmento de config do Torrentio é **texto puro**
+`realdebrid=<key>` (não base64url), e a extração de hash **só aceita hash do
+conjunto pedido**: o token apiKey no path também é 40-hex, e o antigo "primeiro
+40-hex" confundia a chave com o hash real. A chamada do Torrentio é cacheada por
+título (`rdt:v1:trt:<type>:<id>`, TTL ~6h) para não virar uma chamada por busca
+repetida contra infra de terceiro. **Ativado por padrão**: token/key explícitos
+das fontes têm precedência; vazios, usam a apiKey efetiva da instalação (que vai
+às fontes — terceiros a veem). `available()` exige fonte realmente utilizável
+com credencial efetiva; sem uma, o RD honesto não promete `cacheCheck`.
 
 **Governador de escrita (`rd-gate.ts`).** O RD tem teto de 250 req/min e
 bruteforce = bloqueio por tempo indefinido; o gate serializa as escritas **por
@@ -424,16 +434,21 @@ No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_CACHED_ONLY`,
   `DEBRID_RD_LEDGER_HIT_TTL` (2592000), `DEBRID_RD_LEDGER_BLOCKED_TTL`
   (2592000), `DEBRID_RD_LEDGER_MISS_BACKOFF_MS`
   (`1800000,7200000,43200000,259200000` — backoff exponencial do miss).
-- Oráculo (`DEBRID_RD_ORACLE*`): `DEBRID_RD_ORACLE` (default **`false`** — é ele
-  que junto com o ledger eleva o `cacheCheck` do RD a `true`; sem fonte externa,
-  RD segue honesto em `false`), `DEBRID_RD_ORACLE_TIMEOUT_MS` (800),
+- Oráculo (`DEBRID_RD_ORACLE*`): `DEBRID_RD_ORACLE` (default **`true`** — ativado
+  por decisão do usuário; é ele que junto com o ledger eleva o `cacheCheck` do RD
+  a `true`. Atenção: envia a apiKey efetiva da instalação às fontes quando não há
+  token/key explícitos — terceiros veem a chave. Kill-switch `false` o desliga;
+  sem fonte externa, RD segue honesto em `false`),
+  `DEBRID_RD_ORACLE_TIMEOUT_MS` (800 — prazo ÚNICO, compartilhado pelas fontes),
   `DEBRID_RD_ORACLE_MAX_HASHES` (100, teto 500), `DEBRID_RD_ORACLE_STREMTHRU_URL`
-  (vazio = desligado), `DEBRID_RD_ORACLE_STREMTHRU_TOKEN`,
+  (default `https://stremthru.13377001.xyz`; vazio = desligado e não envia a
+  chave a essa fonte), `DEBRID_RD_ORACLE_STREMTHRU_TOKEN`,
   `DEBRID_RD_ORACLE_STREMTHRU_STORE` (`realdebrid`),
-  `DEBRID_RD_ORACLE_TORRENTIO` (default `false`),
-  `DEBRID_RD_ORACLE_TORRENTIO_URL` (`https://torrentio.strem.fun`),
-  `DEBRID_RD_ORACLE_TORRENTIO_KEY` (vazio usa a chave efetiva da instalação),
-  `DEBRID_RD_ORACLE_TORRENTIO_TTL` (21600 — cache da resposta por título).
+  `DEBRID_RD_ORACLE_TORRENTIO` (default `true`; `false` = desligado e não envia a
+  chave a essa fonte), `DEBRID_RD_ORACLE_TORRENTIO_URL`
+  (`https://torrentio.strem.fun`), `DEBRID_RD_ORACLE_TORRENTIO_KEY` (vazio usa a
+  chave efetiva da instalação), `DEBRID_RD_ORACLE_TORRENTIO_TTL` (21600 — cache
+  da resposta por título).
 - Sonda (`DEBRID_RD_PROBE*`): já vistos acima, agora com o cooldown delegado ao
   gate quando ele está ligado.
 - **`DEBRID_RD_WARM*` (F3)** ainda **não existe** no código — reservado para a
