@@ -1202,6 +1202,28 @@ o orçamento com a resposta.
   magnets, chave recusada, e só então prazo. Cheque `/debrid-status.json` antes
   de investigar o pipeline — foi um caso real em que o "culpado" aparente era um
   commit de formatação de título.
+- **"A primeira resposta veio sem dublado" também costuma ser config/prazo, não
+  matching.** O BR existe e chega; o problema é quando (depois do deadline, no
+  passe tardio) e o que o `cachedOnly` faz com os que chegam frios. Com
+  `DEBRID_SHOW_UNCACHED_BR=false` (default), BR fora do cache é ocultado pelo
+  corte — e `limitReservingBr` só traz de volta o que veio a tempo. Um log
+  `[debrid]` distinto avisa "N fonte(s) BR fora do cache ocultada(s) pelo
+  cachedOnly" apontando a página; a métrica que separa "veio e foi ocultado" de
+  "nunca veio" é o bloco `searchFirst` do `/dashboard-status.json`. Ela mede
+  sobre a primeira resposta **fria** de uma busca síncrona real e conta
+  **fontes, não buscas**: `responses` é o denominador — uma resposta por
+  primeira build COLD CONCLUÍDA DENTRO DO PRAZO (a que estourou o deadline cai
+  no `search.deadline`, não conta aqui); `brFound`/`brCached`/`brHidden` veem o
+  que entrou e o que o corte tirou (funil no buildStreams + corte no debrid);
+  `brVisible` é quanto foi realmente entregue na abertura; e `brLate` soma só o
+  **delta** positivo que os recaches tardios agregam acima do máximo já visto,
+  nunca o total repetido (um recache não re-cobra o que o anterior já cobrou, e
+  um recache que correu enquanto o first ainda não confirmou não conta nada).
+  SWR, prefetch e o `observeFirstPass`/`observeLatePass` do `finish` separam a
+  primeira resposta dos recaches. Não "consertar" trocando o default de
+  `showUncachedBr` para `true` antes de medir — muda de comportamento
+  silenciosamente para quem escolheu `cachedOnly` e o próprio log + métrica
+  existem justamente para decidir com base na janela de dados.
 - **A chave do `.env` e a da URL de instalação são independentes.** O app manda
   a dele selada no segmento de config; trocar só o `.env` não muda nada para
   quem já instalou, e uma pode estar quebrada enquanto a outra funciona.

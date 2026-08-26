@@ -232,6 +232,14 @@ interface LimitBrOptions {
   indexerLimits?: QualityLimits;
   /** Temporada pedida: liga a cobertura de pack por faixa (Causa D). */
   season?: number | null;
+  /**
+   * Callback interno de observabilidade: recebe os streams selecionados ANTES
+   * de esta função limpar os campos internos (`_br`, `_seeders`, ...). É por
+   * aqui que o `search.first.brVisible` vê a quantidade de fontes BR realmente
+   * entregues — depois do `map` de limpeza os campos internos já não existem e
+   * qualquer contagem de `_br` voltaria zero. Não faz parte do objeto público.
+   */
+  onSelected?: (selected: Stream[]) => void;
 }
 
 /** Reserva origem BR, aplica as cotas finais e remove todos os campos internos. */
@@ -247,6 +255,7 @@ function limitReservingBr(
     maxPerIndexer = 0,
     indexerLimits = {},
     season = null,
+    onSelected,
   }: LimitBrOptions = {},
 ) {
   const pool = brOnly ? streams.filter((stream) => stream._br) : streams;
@@ -384,6 +393,10 @@ function limitReservingBr(
     selected = eligible.filter((stream) => chosen.has(stream)).slice(0, maxResults);
     if (garantidas.length) encaixaGarantida(selected);
   }
+
+  // Observa os selecionados ANTES da limpeza: é aqui que o `_br` ainda existe e
+  // o `search.first.brVisible` pode medir quantas fontes BR realmente entregues.
+  if (onSelected) onSelected(selected);
 
   return selected
     .map(({ _br, _seeders, _quality, _size, _dubbed, _indexer, _tracker, _multiWork, _lied, ...stream }) => stream);

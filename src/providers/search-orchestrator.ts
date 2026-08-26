@@ -32,7 +32,8 @@ import * as harvester from './harvester.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { SAFE_INDEXER_ID, buildStreams } from './stream-builder.js';
+import { SAFE_INDEXER_ID, buildStreams, createFirstObserver, firstObserverClaim } from './stream-builder.js';
+import type { FirstObserverState } from './stream-builder.js';
 import { nomeiaEpisodio } from './debrid-pipeline.js';
 import { hasPlayableStream, debridRefreshSatisfied } from './search-cache.js';
 
@@ -360,12 +361,16 @@ export async function doSearch({
   cacheKey,
   deadlineAt,
   progress,
+  firstObserver = createFirstObserver(false),
 }: {
   type: string;
   id: string;
   cacheKey: string;
   deadlineAt: number;
   progress?: SearchProgress;
+  /** Estado compartilhado do observador de primeira resposta (search-cache o
+   * cria, pode promovê-lo via coalescing e o reusa entre os passes do finish). */
+  firstObserver?: FirstObserverState;
 }) {
   const isDemo = opts().providers.includes('demo');
   const { imdbId, season, episode } = parseStremioId(id);
@@ -433,12 +438,20 @@ export async function doSearch({
   // quando as fontes lentas terminam (aí só pra reescrever o cache).
   const finish = createLatestWriter(
     async ({ items, partial, deadlineAt: inputDeadline }) => {
+      // I0 — reclama a passada first ATOMICAMENTE no início, antes de qualquer
+      // await/build, via helper puro: só uma busca síncrona real com prazo de
+      // resposta presente reclama; recaches sem `inputDeadline` nunca — e, se
+      // correrem antes do first confirmar, não observam (firstCounted=false).
+      const { observeFirstPass, observeLatePass } = firstObserverClaim(firstObserver, inputDeadline != null);
       let needsDebridRefresh = false;
       let autofetchCount = 0;
       let debridKnown: boolean | undefined = undefined;
       const streams = await buildStreams(items, {
         meta, titles, imdbId, season, episode, isDemo, searchKey: cacheKey,
-        deadlineAt: inputDeadline,   // presente SÓ no passo de resposta
+        deadlineAt: inputDeadline,   // presente SÓ no passo de resposta (orçamento do debrid e gate de prazo do first)
+        observeFirstPass,             // só a passada reclamada
+        observeLatePass,              // recache tardio com o first já contado
+        firstObserver,                // estado persistido entre os passes do finish
         onDebridResult: (result: any) => {
           needsDebridRefresh = needsDebridRefresh || result.needsFullRefresh;
           autofetchCount += result.autofetchCount || 0;

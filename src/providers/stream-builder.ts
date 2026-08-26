@@ -76,10 +76,122 @@ interface BuildStreamsOptions {
   searchKey?: string | null;
   deadlineAt?: number | null;
   onDebridResult?: (result: { autofetchCount?: number; trustDropped?: number }) => void;
+  /**
+   * I0 — observabilidade da PRIMEIRA resposta. Vem `true` SÓ na passada
+   * reclamada atomicamente pelo `finish` de uma busca síncrona real com prazo
+   * de resposta; SWR/background e recaches tardios vêm com `observeFirstPass`
+   * false e não podem reclamar nem contar a primeira resposta.
+   */
+  observeFirstPass?: boolean;
+  /**
+   * Marca a passada como recache tardio observável (JÁ com a primeira resposta
+   * contada): conta `search.first.brLate` pelo delta acima do máximo visto.
+   */
+  observeLatePass?: boolean;
+  /** Estado marginal do observador de primeira resposta, persistido entre os
+   * passes do `finish` de UMA execução de `doSearch`. */
+  firstObserver?: FirstObserverState;
+}
+
+/** Estado do observador de primeira resposta, por execução de `doSearch`. */
+export interface FirstObserverState {
+  /** Execução elegível (busca síncrona de requisição real). Pode ser promovida
+   * por coalescing prefetch→foreground. */
+  eligible: boolean;
+  /** A passada first foi reclamada atomicamente no início do `finish`. */
+  firstClaimed: boolean;
+  /** A passada first CONCLUIU dentro do prazo e teve as métricas finalizadas. */
+  firstCounted: boolean;
+  maxBrVisible: number;
+  /** BR no pool imediatamente antes do applyDebrid (funil), estagiado para a
+   * finalização única e coerente das métricas first no `onSelected`. */
+  pendingBrFound: number;
+  pendingBrCached: number;
+  pendingBrHidden: number;
+}
+
+/** Fábrica do estado do observador de primeira resposta, por execução. */
+export function createFirstObserver(eligible: boolean): FirstObserverState {
+  return {
+    eligible,
+    firstClaimed: false,
+    firstCounted: false,
+    maxBrVisible: 0,
+    pendingBrFound: 0,
+    pendingBrCached: 0,
+    pendingBrHidden: 0,
+  };
+}
+
+/**
+ * I0 — classifica uma passada do `finish` como a primeira resposta (fria),
+ * um recache tardio (late) ou nada (execução não elegível, ou recache que
+ * correu enquanto o first ainda estava em voo e portanto não pode contar).
+ * Puro e testável. `late` reporta o DELTA positivo acima do máximo de BR
+ * visíveis já visto — nunca o total repetido, então múltiplos recaches não
+ * inflam `brLate`. Não expõe dado sensível, apenas números do corte final. A
+ * aplicação de métricas e a atualização do estado ficam com quem chama.
+ */
+export function firstObserverStep(
+  state: FirstObserverState | null | undefined,
+  opts: { observeFirstPass: boolean; observeLatePass: boolean; brVisible: number },
+): { kind: 'none' | 'first' | 'late'; delta: number } {
+  if (!state) return { kind: 'none', delta: 0 };
+  // Execução não elegível (SWR/background) nunca observa — mesmo que um
+  // chamador passasse flags por engano.
+  if (state.eligible === false) return { kind: 'none', delta: 0 };
+  // A passada first só existe para a reclamada (observeFirstPass) e ainda não
+  // contada. Recache antes do first confirmar (firstCounted=false) cai no none.
+  if (opts.observeFirstPass && !state.firstCounted) {
+    return { kind: 'first', delta: Math.max(0, opts.brVisible) };
+  }
+  if (opts.observeLatePass && state.firstCounted) {
+    return { kind: 'late', delta: Math.max(0, opts.brVisible - (state.maxBrVisible || 0)) };
+  }
+  return { kind: 'none', delta: 0 };
+}
+
+/**
+ * I0 — reclama a passada first ATOMICAMENTE no início de uma passada do
+ * `finish`, antes de qualquer await/build. Só uma busca síncrona real com prazo
+ * de resposta presente (`hasDeadline`) pode; recaches sem prazo NUNCA reclamam.
+ * `firstClaimed` é mutado de forma síncrona, fechando a corrida de um recache
+ * que terminasse antes do first confirmar (esse recache só conta late quando o
+ * first CONCLUI com `firstCounted`). Puro e testável.
+ */
+export function firstObserverClaim(
+  state: FirstObserverState | null | undefined,
+  hasDeadline: boolean,
+): { observeFirstPass: boolean; observeLatePass: boolean } {
+  if (!state) return { observeFirstPass: false, observeLatePass: false };
+  let observeFirstPass = false;
+  let observeLatePass = false;
+  if (hasDeadline && state.eligible && !state.firstClaimed) {
+    state.firstClaimed = true;
+    observeFirstPass = true;
+  } else if (!hasDeadline && state.firstCounted) {
+    observeLatePass = true;
+  }
+  return { observeFirstPass, observeLatePass };
+}
+
+/**
+ * I0 — promove a elegibilidade da primeira resposta de uma execução em voo
+ * quando uma REQUISIÇÃO REAL (foreground) coalesce sobre uma busca de
+ * pré-aquecimento (background). Um coalescing foreground→background é um no-op:
+ * a background NÃO desce o eligible já promovido. Nunca toca `firstClaimed` nem
+ * contadores — só autoriza a passada first a ser reclamada depois.
+ */
+export function promoteFirstObserverEligible(
+  state: FirstObserverState | null | undefined,
+  foreground: boolean,
+): void {
+  if (!state || !foreground) return;
+  state.eligible = true;
 }
 
 export async function buildStreams(rawInput: RawItem[], {
-  meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, onDebridResult,
+  meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, onDebridResult, observeFirstPass, observeLatePass, firstObserver,
 }: BuildStreamsOptions = {}) {
   // Entidade HTML some AQUI, onde todas as origens já se juntaram — Jackett,
   // resolvedores BR, índice e o inventário da conta do debrid. Decodificar só
@@ -299,6 +411,14 @@ export async function buildStreams(rawInput: RawItem[], {
   // no caso que motivou o aviso (nada em cache) ele volta VAZIO e a condição
   // nunca ligava.
   const candidatesBeforeDebrid = streams.length;
+  // I0 — funil da primeira resposta, contado AQUI (no buildStreams, não no
+  // debrid): é o BR que ENTRARIA no debrid, independente de haver adapter. Por
+  // ser estagiado no estado e finalizado no `onSelected` junto de brVisible,
+  // P2P/sem adapter fica coerente — ou todas as métricas first contam (build
+  // concluída dentro do prazo) ou nenhuma.
+  if (observeFirstPass && firstObserver && !firstObserver.firstCounted) {
+    firstObserver.pendingBrFound = streams.filter((s) => (s as any)._br).length;
+  }
   // Cortados pelo filtro pré-checagem (histórico ruim), reportados pelo
   // applyDebrid só quando eles esvaziam a lista — é a única vez em que o texto
   // "fora do cache" mentiria sobre o motivo.
@@ -309,6 +429,9 @@ export async function buildStreams(rawInput: RawItem[], {
     imdbId,
     searchKey,
     deadlineAt,
+    // Só a passada reclamada e ainda não contada observa o `search.first.*`.
+    observeFirstPass: Boolean(observeFirstPass && firstObserver && !firstObserver.firstCounted),
+    firstObserver,
     onCacheResult: (result: { autofetchCount?: number; trustDropped?: number }) => {
       autofetchCount += result.autofetchCount || 0;
       trustDropped += result.trustDropped || 0;
@@ -326,6 +449,34 @@ export async function buildStreams(rawInput: RawItem[], {
     maxPerIndexer,
     indexerLimits: safeIndexerLimits,
     season,
+    // I0 — finaliza as métricas first aqui, num ÚNICO bloco coerente: o
+    // `onSelected` roda depois do debrid e do limite, então `Date.now() <=
+    // deadlineAt` aqui é a prova de que a build da primeira resposta CONCLUIU
+    // dentro do prazo. Estourou, o cliente já recebeu o corte do
+    // `raceWithDeadline` e `search.deadline` mede esse caso — nada é contado
+    // (firstCounted segue false e nenhum recache tardio pode virar late).
+    onSelected: (selected) => {
+      const state = firstObserver;
+      if (!state) return;
+      const brVisible = selected.filter((s) => (s as any)._br).length;
+      const step = firstObserverStep(state, { observeFirstPass: Boolean(observeFirstPass), observeLatePass: Boolean(observeLatePass), brVisible });
+      if (step.kind === 'none') return;
+      if (step.kind === 'first') {
+        if (deadlineAt == null || Date.now() > deadlineAt) return;
+        state.firstCounted = true;
+        state.maxBrVisible = Math.max(state.maxBrVisible || 0, brVisible);
+        metrics.count('search.first.responses');
+        if ((state.pendingBrFound || 0) > 0) metrics.count('search.first.brFound', state.pendingBrFound);
+        if ((state.pendingBrCached || 0) > 0) metrics.count('search.first.brCached', state.pendingBrCached);
+        if ((state.pendingBrHidden || 0) > 0) metrics.count('search.first.brHidden', state.pendingBrHidden);
+        if (brVisible > 0) metrics.count('search.first.brVisible', brVisible);
+      } else if (step.kind === 'late') {
+        if (step.delta > 0) {
+          state.maxBrVisible = Math.max(state.maxBrVisible || 0, brVisible);
+          metrics.count('search.first.brLate', step.delta);
+        }
+      }
+    },
   });
 
   // Tres estados, nesta ordem de precisao: ja mandamos baixar / achamos mas o

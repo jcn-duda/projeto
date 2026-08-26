@@ -78,8 +78,27 @@ function makeDiagnosticHandlers(services: AppServices) {
         embedded: services.config.resolvers.embedded,
         domain: services.brResolvers.activeSite(resolver.name),
       }));
+      const c1Counters = metricSnapshot.counters;
       return res.json({
         generatedAt: new Date().toISOString(),
+        // Observabilidade I0: BR na primeira (e FRIA) resposta. `responses` é o
+        // denominador — uma resposta por primeira build COLD concluída dentro
+        // do prazo (SWR, prefetch e recaches tardios ficam de fora; build que
+        // estourou o deadline cai no `search.deadline`). Mede por FONTES (não
+        // buscas) e distingue "BR veio e foi ocultado" (brFound/brHidden) de
+        // "BR nunca veio" (brFound baixo); brVisible é quanto realmente foi
+        // entregue na abertura e brLate é só o DELTA positivo que os recaches
+        // tardios agregam acima do máximo já visto (nunca o total repetido).
+        // Pré-requisito de qualquer tuning no invariante 1
+        // (PLANO_MELHORIAS: meça antes de mexer no orçamento).
+        searchFirst: {
+          responses: c1Counters['search.first.responses'] || 0,
+          brFound: c1Counters['search.first.brFound'] || 0,
+          brCached: c1Counters['search.first.brCached'] || 0,
+          brHidden: c1Counters['search.first.brHidden'] || 0,
+          brVisible: c1Counters['search.first.brVisible'] || 0,
+          brLate: c1Counters['search.first.brLate'] || 0,
+        },
         general: {
           ok: true,
           version: services.config.version,

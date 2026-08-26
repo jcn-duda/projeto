@@ -8,11 +8,21 @@ import * as runtime from '../src/runtime.js';
 import debrid from '../src/debrid/index.js';
 import { getMeta } from '../src/utils/cinemeta.js';
 import { getTitles } from '../src/utils/tmdb.js';
-import { applyDebrid } from '../src/providers/index.js';
+import {
+  applyDebrid, buildStreams, firstObserverStep, createFirstObserver,
+  firstObserverClaim, promoteFirstObserverEligible,
+} from '../src/providers/index.js';
+import { limitReservingBr } from '../src/utils/format.js';
 
 // Os contadores de degradação passam pelo cache de metadados; persistência
 // desligada para não tocar o data/cache.db real.
 process.env.CACHE_PERSIST = 'false';
+
+const CACHED_H = 'c'.repeat(40);
+const UNKNOWN_H = 'u'.repeat(40);
+// Mesmo hash de CACHED_H, em caixa MISTA: o helper normaliza o lote de cache
+// para lowercase antes de casar com o infoHash (já normalizado do stream).
+const CACHED_MIXED = 'C'.repeat(20) + 'c'.repeat(20);
 
 /** Forma do timer no snapshot: p50/p95 da janela podem faltar em silencio. */
 type TimerSample = { count: number; avgMs: number; p50Ms: number | null; p95Ms: number | null; maxMs: number };
@@ -208,5 +218,298 @@ test('checagem de cache sem resposta confiável conta debrid.check.unknown', asy
   } finally {
     debrid.BY_ID.delete(fake.id);
     config.debrid.resolveSecret = originalSecret;
+  }
+});
+
+// I0 — observabilidade da primeira resposta BR (FRIA). O `observeFirstPass`
+// explícito marca a passada reclamada; `deadlineAt` sozinho (refresh SWR, que
+// passa o prazo mas roda em background) não basta. O `brFound` agora mora no
+// funil do buildStreams; no corte do debrid ficam brCached/brHidden (estagiados
+// no estado para a finalização coerente) e o aviso do cachedOnly — que vale em
+// TODO passe, inclusive nos tardios.
+test('applyDebrid estagia brCached/brHidden (hash de cache em caixa mista) e avisa BR oculto; NÃO conta brFound', async () => {
+  metrics.reset();
+  const originalSecret = config.debrid.resolveSecret;
+  const fake = {
+    id: 'fakeobs',
+    label: 'FakeObs',
+    short: 'FO',
+    cacheCheck: true,
+    checkCached: async () => new Set([CACHED_MIXED]), // hash EM CAIXA MISTA no lote
+    resolveLink: async () => null,
+  };
+  debrid.BY_ID.set(fake.id, fake as any);
+  config.debrid.resolveSecret = '';
+  const userOpts = runtime.decode(runtime.encode({ ds: fake.id, dk: 'obs-key', dc: true, bu: false }));
+  const warns: string[] = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => warns.push(args.join(' '));
+  try {
+    const streams = [
+      { infoHash: CACHED_H, title: 'Filme BR Cacheado', name: 'n', _br: true, _seeders: 1 },
+      { infoHash: UNKNOWN_H, title: 'Filme BR Frio', name: 'n', _br: true, _seeders: 1 },
+    ];
+    const state = createFirstObserver(true);
+    await runtime.run({ opts: userOpts, encoded: '' }, () =>
+      applyDebrid(streams as any, { deadlineAt: Date.now() + 5000, observeFirstPass: true, firstObserver: state } as any),
+    );
+    const counts = metrics.snapshot().counters;
+    // brFound saiu do debrid (funil do buildStreams); não é contado aqui.
+    assert.equal(counts['search.first.brFound'], undefined, 'brFound não é contado no debrid');
+    // O hash do cache em caixa mista foi normalizado para lowercase: o BR
+    // cacheado casa e o frio é ocultado.
+    assert.equal(state.pendingBrCached, 1, 'normaliza cache para lowercase e casa o BR cacheado');
+    assert.equal(state.pendingBrHidden, 1, 'o BR frio foi ocultado pelo cachedOnly');
+
+    // O aviso aponta o switch — o problema é config, não ausência de acervo.
+    const hiddenWarn = warns.find((line) => line.includes('ocultada(s) pelo cachedOnly'));
+    assert.ok(hiddenWarn, 'o corte de BR fora do cache loga aviso distinto');
+    assert.match(hiddenWarn, /Mostrar BR ainda fora do cache/);
+  } finally {
+    console.warn = realWarn;
+    debrid.BY_ID.delete(fake.id);
+    config.debrid.resolveSecret = originalSecret;
+    metrics.reset();
+  }
+});
+
+test('observability: deadlineAt presente SEM observeFirstPass (refresh SWR) NÃO estagia nem conta', async () => {
+  metrics.reset();
+  const fake = {
+    id: 'fakeobs2',
+    label: 'FakeObs2',
+    short: 'FO2',
+    cacheCheck: true,
+    checkCached: async () => new Set(),
+    resolveLink: async () => null,
+  };
+  debrid.BY_ID.set(fake.id, fake as any);
+  const originalSecret = config.debrid.resolveSecret;
+  config.debrid.resolveSecret = '';
+  try {
+    const userOpts = runtime.decode(runtime.encode({ ds: fake.id, dk: 'obs-late', dc: true, bu: false }));
+    const state = createFirstObserver(true);
+    await runtime.run({ opts: userOpts, encoded: '' }, async () => {
+      // SWR/background passam `deadlineAt` (o refresh usa o orçamento completo)
+      // mas NÃO são observáveis: o gate é o `observeFirstPass` da passada
+      // reclamada, não o prazo.
+      await applyDebrid([{ infoHash: UNKNOWN_H, title: 'Filme BR', _br: true }] as any, {
+        deadlineAt: Date.now() + 5000,
+        observeFirstPass: false,
+        firstObserver: state,
+      } as any);
+    });
+    // A pergunta que o search.first.* responde é a da PRIMEIRA resposta — não
+    // pode ser inflada por refresh/recache que só regravam o cache.
+    assert.equal(metrics.snapshot().counters['search.first.brFound'], undefined, 'refresh SWR não conta search.first.brFound');
+    assert.equal(metrics.snapshot().counters['search.first.responses'], undefined, 'refresh SWR não conta o denominador');
+    assert.equal(state.pendingBrHidden, 0, 'sem observeFirstPass nada é estagiado no estado');
+  } finally {
+    debrid.BY_ID.delete(fake.id);
+    config.debrid.resolveSecret = originalSecret;
+    metrics.reset();
+  }
+});
+
+test('limitReservingBr observa os BR selecionados ANTES de limpar os campos internos', () => {
+  metrics.reset();
+  const brStream = { name: 'Filme BR', infoHash: 'a'.repeat(40), _br: true, _seeders: 1, _quality: '1080p' };
+  const global1 = { name: 'G1', infoHash: 'b'.repeat(40) };
+  const global2 = { name: 'G2', infoHash: 'c'.repeat(40) };
+  let observed: any[] | undefined;
+  const out = limitReservingBr([global1, global2, brStream] as any, {
+    brReservedSlots: 1,
+    maxResults: 3,
+    brFirst: true,
+    onSelected: (sel) => { observed = sel; },
+  });
+  // O callback recebe os selecionados AINDA com `_br` — é isso que permite medir
+  // quantas fontes BR realmente serão entregues.
+  assert.ok(observed, 'callback é chamado com os selecionados');
+  assert.ok(observed!.some((s) => s._br === true), 'callback vê o campo interno _br antes da limpeza');
+  assert.ok(observed!.some((s) => s.name === 'Filme BR'), 'o BR reservado está entre os observados');
+  // E a saída pública não expõe o campo interno (contrato preservado).
+  assert.ok(out.some((s: any) => s.name === 'Filme BR'), 'o BR segue na lista final');
+  assert.equal((out.find((s: any) => s.name === 'Filme BR') as any)?._br, undefined, 'saída não expõe _br');
+});
+
+test('firstObserverStep: passe tardio antes do first não reclama nem conta; Alita dá delta 3; repetição zero', () => {
+  const s = createFirstObserver(true);
+
+  // Recache tardio enquanto o first ainda está em voo (primeira não confirmou):
+  // não pode reclamar nem contar — flags first/late ambos ausentes no correr.
+  let step = firstObserverStep(s, { observeFirstPass: false, observeLatePass: false, brVisible: 3 });
+  assert.equal(step.kind, 'none', 'tardio antes do first confirmar não é nada');
+  assert.equal(step.delta, 0, 'e não conta delta');
+  // Mesmo que um chamador passasse observeLatePass por engano, sem firstCounted
+  // não conta (a guarda é o estado, não o flag).
+  step = firstObserverStep(s, { observeFirstPass: false, observeLatePass: true, brVisible: 3 });
+  assert.equal(step.kind, 'none', 'observeLatePass sem firstCounted não conta');
+
+  // Primeira passada reclamada: first (Alita com 1 BR visível).
+  step = firstObserverStep(s, { observeFirstPass: true, observeLatePass: false, brVisible: 1 });
+  assert.equal(step.kind, 'first', 'passada reclamada e ainda não contada é first');
+  assert.equal(step.delta, 1);
+  s.firstCounted = true;
+  s.maxBrVisible = 1;
+
+  // Recache tardio sobe para 4: delta é 4 - 1 = 3, nunca 4.
+  step = firstObserverStep(s, { observeFirstPass: false, observeLatePass: true, brVisible: 4 });
+  assert.equal(step.kind, 'late');
+  assert.equal(step.delta, 3, 'Alita: first=1 e late=4 geram delta 3');
+  s.maxBrVisible = 4;
+
+  // Repetição em 4: delta 0 — nunca re-cobra o total.
+  step = firstObserverStep(s, { observeFirstPass: false, observeLatePass: true, brVisible: 4 });
+  assert.equal(step.delta, 0, 'repetição em 4 não conta nada');
+
+  // Queda para 2: delta 0 (máximo já visto era 4).
+  step = firstObserverStep(s, { observeFirstPass: false, observeLatePass: true, brVisible: 2 });
+  assert.equal(step.delta, 0, 'recache abaixo do máximo não conta nada');
+});
+
+test('firstObserverStep ignora execução não elegível (SWR/background) mesmo com flags', () => {
+  const s = createFirstObserver(false);
+  const step = firstObserverStep(s, { observeFirstPass: true, observeLatePass: false, brVisible: 5 });
+  assert.equal(step.kind, 'none');
+  assert.equal(step.delta, 0);
+});
+
+test('buildStreams finaliza search.first.* da primeira build fria de forma coerente (responses/brFound/brVisible)', async () => {
+  metrics.reset();
+  const originalSecret = config.debrid.resolveSecret;
+  config.debrid.resolveSecret = '';
+  const fake = {
+    id: 'fakefunnel',
+    label: 'FakeFunnel',
+    short: 'FF',
+    cacheCheck: true,
+    checkCached: async () => new Set(),
+    resolveLink: async () => null,
+  };
+  debrid.BY_ID.set(fake.id, fake as any);
+  const originalCheck = debrid.checkCached;
+  debrid.checkCached = async () => ({ cached: new Set<string>(), known: true }) as any;
+  try {
+    const raw = [
+      // BR (vira _br no toStremioStream) e global — mede o funil e a entrega.
+      { title: 'Filme BR', infoHash: 'a'.repeat(40), isBr: true, seeders: 1, dubbed: true },
+      { title: 'Global', infoHash: 'b'.repeat(40), isBr: false, seeders: 50 },
+    ];
+    const state = createFirstObserver(true);
+    const userOpts = runtime.decode(runtime.encode({ ds: fake.id, dk: 'obs-funnel', dc: false }));
+    await runtime.run({ opts: userOpts, encoded: '' }, () =>
+      buildStreams(raw as any, {
+        imdbId: 'tt0000001',
+        searchKey: 'obs-funnel-key',
+        deadlineAt: Date.now() + 8000,
+        observeFirstPass: true,
+        observeLatePass: false,
+        firstObserver: state,
+      } as any),
+    );
+    const counts = metrics.snapshot().counters;
+    assert.equal(counts['search.first.responses'], 1, 'uma primeira build fria concluída dentro do prazo');
+    assert.equal(counts['search.first.brFound'], 1, 'brFound conta a fonte BR que entrou no funil (pré-debrid)');
+    assert.equal(counts['search.first.brVisible'], 1, 'brVisible conta a fonte BR entregue na abertura');
+    assert.equal(state.firstCounted, true, 'a build finaliza como primeira resposta contada');
+  } finally {
+    debrid.BY_ID.delete(fake.id);
+    debrid.checkCached = originalCheck;
+    config.debrid.resolveSecret = originalSecret;
+    metrics.reset();
+  }
+});
+
+test('firstObserverClaim: só a primeira tentativa com deadline reclama; late antes do first não observa', () => {
+  const s = createFirstObserver(true);
+
+  // Primeiro finish com deadline: reclama first.
+  let r = firstObserverClaim(s, true);
+  assert.equal(r.observeFirstPass, true, 'primeira passada com deadline reclama o first');
+  assert.equal(r.observeLatePass, false);
+  assert.equal(s.firstClaimed, true, 'o claim é mutado sync');
+
+  // Segundo finish também com deadline (recache com prazo): NÃO reclama de novo.
+  r = firstObserverClaim(s, true);
+  assert.equal(r.observeFirstPass, false, 'segunda passada com deadline não re-reclama');
+  assert.equal(r.observeLatePass, false, 'e ainda não é late (first não confirmou)');
+
+  // Recache sem deadline enquanto o first está em voo: não observa nada.
+  r = firstObserverClaim(s, false);
+  assert.equal(r.observeFirstPass, false);
+  assert.equal(r.observeLatePass, false, 'late antes de firstCounted não observa');
+});
+
+test('firstObserverClaim: após firstCounted, sem deadline vira late', () => {
+  const s = createFirstObserver(true);
+  firstObserverClaim(s, true); // reclama o first
+  s.firstCounted = true;       // first CONCLUIU
+
+  const r = firstObserverClaim(s, false);
+  assert.equal(r.observeFirstPass, false);
+  assert.equal(r.observeLatePass, true, 'recache tardio após firstConfirmado observa');
+});
+
+test('promoteFirstObserverEligible: foreground promove false→true sem mexer em firstClaimed/contadores', () => {
+  metrics.reset();
+  const s = createFirstObserver(false);
+  s.firstClaimed = true; // já reclamado por outro caminho — não pode mudar
+  const snapshotBefore = metrics.snapshot().counters['stream.coalesced'];
+
+  promoteFirstObserverEligible(s, true); // prefetch→foreground (busca real assumindo)
+  assert.equal(s.eligible, true, 'foreground promove elegibilidade');
+  assert.equal(s.firstClaimed, true, 'não mexe no firstClaimed');
+
+  // Foreground→background (no-op): não rebaixa quem já foi promovido.
+  promoteFirstObserverEligible(s, false);
+  assert.equal(s.eligible, true, 'background não desce elegibilidade já promovida');
+
+  assert.equal(metrics.snapshot().counters['stream.coalesced'], snapshotBefore, 'helper não toca contadores');
+});
+
+test('buildStreams com deadline já expirado: NÃO conta search.first.* e firstCounted segue false', async () => {
+  metrics.reset();
+  const originalSecret = config.debrid.resolveSecret;
+  config.debrid.resolveSecret = '';
+  const fake = {
+    id: 'fakeexp',
+    label: 'FakeExp',
+    short: 'FE',
+    cacheCheck: true,
+    checkCached: async () => new Set(),
+    resolveLink: async () => null,
+  };
+  debrid.BY_ID.set(fake.id, fake as any);
+  const originalCheck = debrid.checkCached;
+  debrid.checkCached = async () => ({ cached: new Set<string>(), known: true }) as any;
+  try {
+    const raw = [
+      { title: 'Filme BR', infoHash: 'a'.repeat(40), isBr: true, seeders: 1, dubbed: true },
+    ];
+    const state = createFirstObserver(true);
+    const userOpts = runtime.decode(runtime.encode({ ds: fake.id, dk: 'obs-exp', dc: false }));
+    await runtime.run({ opts: userOpts, encoded: '' }, () =>
+      buildStreams(raw as any, {
+        imdbId: 'tt0000001',
+        searchKey: 'obs-exp-key',
+        // deadline já no passado: a build concluiu FORA do prazo — o cliente já
+        // recebeu o corte do raceWithDeadline e `search.deadline` mede o caso.
+        deadlineAt: Date.now() - 5000,
+        observeFirstPass: true,
+        observeLatePass: false,
+        firstObserver: state,
+      } as any),
+    );
+    const counts = metrics.snapshot().counters;
+    assert.equal(counts['search.first.responses'], undefined, 'build expirada não conta o denominador');
+    assert.equal(counts['search.first.brFound'], undefined, 'build expirada não conta brFound');
+    assert.equal(counts['search.first.brVisible'], undefined, 'build expirada não conta brVisible');
+    assert.equal(state.firstCounted, false, 'firstCounted fica false (nada foi contado)');
+  } finally {
+    debrid.BY_ID.delete(fake.id);
+    debrid.checkCached = originalCheck;
+    config.debrid.resolveSecret = originalSecret;
+    metrics.reset();
   }
 });

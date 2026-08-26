@@ -24,6 +24,7 @@ import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { autoFetchCandidates, releaseAllHolds, autoFetchBrDubbed } from './autofetch-runner.js';
 import rdWarmer from './rd-warmer.js';
+import type { FirstObserverState } from './stream-builder.js';
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -42,12 +43,64 @@ interface ApplyDebridOptions {
   imdbId?: string | null;
   searchKey?: string | null;
   deadlineAt?: number | null;
+  /**
+   * Só a passada REIVINDICADA como primeira resposta observa as métricas
+   * `search.first.*`. Refresh de SWR/background e recaches tardios vêm sem este
+   * flag, então não podem inflar a métrica.
+   */
+  observeFirstPass?: boolean;
+  /** Estado marginal do observador de primeira resposta (finalização no
+   * `onSelected` do buildStreams mantém brFound/brCached/brHidden/brVisible
+   * coerentes num único bloco). */
+  firstObserver?: FirstObserverState | null;
   onCacheResult?: (result: CacheResultSignal) => void;
   workHint?: WorkHintInput;
 }
 
+// I0 — observabilidade do funil da primeira resposta BR no corte do debrid.
+// O brFound agora é contado no buildStreams (funil pré-debrid); aqui ficam
+// apenas brCached/brHidden (ESTAGIADOS no estado para a finalização coerente
+// no `onSelected`) e o aviso do cachedOnly. Métricas first só na passada
+// reclamada (`observeFirstPass`); o aviso, porém, vale em TODOS os passes,
+// inclusive nos tardios — é transparência do corte, não diagnóstico de
+// primeira resposta. Estes contadores não mudam comportamento; só observam os
+// pontos de corte que já existem.
+function countFirstBr(
+  streams: Stream[],
+  cached: Set<string>,
+  after: Stream[],
+  observeFirstPass: boolean,
+  firstObserver: FirstObserverState | null | undefined,
+  showCachedOnly: { cachedOnly: boolean; showUncachedBr: boolean },
+) {
+  const isBr = (s: Stream) => Boolean((s as any)._br);
+  const brEntered = streams.filter(isBr).length;
+  if (!brEntered) return;
+  // Normaliza o lote de cache para minúsculo antes de comparar: o hash do CDN
+  // pode chegar em caixa mista e o `infoHash` do stream já vem normalizado.
+  const cachedLc = new Set([...cached].map((h) => String(h).toLowerCase()));
+  const brCached = streams.filter((s) => isBr(s) && s.infoHash && cachedLc.has(String(s.infoHash).toLowerCase())).length;
+  const brSurvived = after.filter(isBr).length;
+  const hidden = brEntered - brSurvived;
+  if (observeFirstPass && firstObserver && !firstObserver.firstCounted) {
+    firstObserver.pendingBrCached = brCached;
+    if (hidden > 0) firstObserver.pendingBrHidden = hidden;
+  }
+  // I1 — transparência do corte cachedOnly. "Sumiu o dublado" é a queixa mais
+  // comum e sem esta mensagem é indistinguível de "não existe dublado no
+  // acervo". O conserto não é código, é escolha de config, então o log aponta
+  // a página e o switch. Só informa quando o corte realmente removeu BR fora
+  // do cache e o usuário não optou por mostrá-los como P2P. Roda em TODO passe.
+  if (showCachedOnly.cachedOnly && !showCachedOnly.showUncachedBr && hidden > 0) {
+    log.warn(
+      `[debrid] ${hidden} fonte(s) BR fora do cache ocultada(s) pelo cachedOnly ` +
+      `(${brCached} em cache); ligue "Mostrar BR ainda fora do cache" para vê-las como P2P`,
+    );
+  }
+}
+
 export async function applyDebrid(input: Array<Stream | null>, {
-  season, episode, imdbId, searchKey, deadlineAt, onCacheResult, workHint,
+  season, episode, imdbId, searchKey, deadlineAt, observeFirstPass = false, firstObserver, onCacheResult, workHint,
 }: ApplyDebridOptions = {}) {
   let streams: Stream[] = input.filter((stream): stream is Stream => stream !== null);
   const adapter = debrid.current();
@@ -402,6 +455,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
         known: Boolean(accountKnown && !missHashes),
         missHashes,
       });
+      countFirstBr(streams, cached, corte.streams, observeFirstPass, firstObserver, { cachedOnly, showUncachedBr });
       if (corte.visibleBr.size) {
         log.info(`[debrid] ${corte.visibleBr.size} fonte(s) BR fora do cache mantida(s) como P2P`);
       }
@@ -410,6 +464,10 @@ export async function applyDebrid(input: Array<Stream | null>, {
       );
       return corte.streams.map((s) => viaDebrid(s, Boolean(s.infoHash && cached.has(s.infoHash))));
     }
+    // Sem corte (não-cachedOnly, ou cachedOnly sem conta/miss conhecidos): o BR
+    // segue inteiro para a listagem. Estagia cached/hidden para a finalização
+    // coerente; o brFound (funil) já foi registrado no buildStreams.
+    countFirstBr(streams, cached, streams, observeFirstPass, firstObserver, { cachedOnly, showUncachedBr });
     return streams.map((s) => viaDebrid(s, Boolean(s.infoHash && cached.has(s.infoHash))));
   }
 
@@ -423,6 +481,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
     showUncachedBr,
     brReservedSlots,
   });
+  countFirstBr(streams, cached, filtered.streams, observeFirstPass, firstObserver, { cachedOnly, showUncachedBr });
   const { visibleBr } = filtered;
   if (visibleBr.size) {
     log.info(`[debrid] ${visibleBr.size} fonte(s) BR fora do cache mantida(s) como P2P`);

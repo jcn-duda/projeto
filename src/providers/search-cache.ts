@@ -9,11 +9,16 @@ import { noteUserRequest } from './activity.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { parseStremioId } from '../utils/format.js';
 import { registerSeasonSearchKey } from './autofetch-runner.js';
-import { onlyNotice } from './stream-builder.js';
+import { onlyNotice, createFirstObserver, promoteFirstObserverEligible } from './stream-builder.js';
+import type { FirstObserverState } from './stream-builder.js';
 import { doSearch } from './search-orchestrator.js';
 
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
+// Observador de primeira resposta da busca EM VOO, por chave. Viver num mapa
+// próprio permite a um coalescing prefetch→foreground PROMOVER a elegibilidade
+// da execução já em andamento (requisição real assumindo um pré-aquecimento).
+const inFlightObserver = new Map<string, FirstObserverState>();
 // A classificação do deadline é compartilhada com requisições coalescidas: a
 // segunda chamada observa a mesma busca e, portanto, a mesma etapa em voo.
 const inFlightProgress = new Map<string, { metadataDone: boolean; metadataConsumedProviderBudget: boolean }>();
@@ -111,6 +116,9 @@ export async function findStreams({ type, id, background }: { type: string; id: 
 
   let task = inFlight.get(cacheKey);
   let progress = inFlightProgress.get(cacheKey);
+  // Estado compartilhado do observador de primeira resposta. Cria-se antes do
+  // if/else: na criação vira o da execução; no coalescing permitiria promover.
+  const firstObserver = createFirstObserver(!background);
   if (!task) {
     // Mede até a RESPOSTA — que é onde `doSearch` resolve. A coleta pode
     // continuar depois disso (fontes BR não cabem no orçamento), e esse rabo é
@@ -123,9 +131,11 @@ export async function findStreams({ type, id, background }: { type: string; id: 
     // seu orçamento original.
     progress = { metadataDone: false, metadataConsumedProviderBudget: false };
     inFlightProgress.set(cacheKey, progress);
-    task = doSearch({ type, id, cacheKey, deadlineAt, progress }).finally(() => {
+    inFlightObserver.set(cacheKey, firstObserver);
+    task = doSearch({ type, id, cacheKey, deadlineAt, progress, firstObserver }).finally(() => {
       inFlight.delete(cacheKey);
       inFlightProgress.delete(cacheKey);
+      inFlightObserver.delete(cacheKey);
       done();
     });
     // Se ninguém estiver ouvindo quando ela terminar, o resultado ainda vai pro cache;
@@ -134,6 +144,12 @@ export async function findStreams({ type, id, background }: { type: string; id: 
     inFlight.set(cacheKey, task);
   } else {
     metrics.count('stream.coalesced');
+    // Coalescing prefetch→foreground: uma requisição real assumindo uma busca
+    // de pré-aquecimento em voo promove a elegibilidade da primeira resposta
+    // via estado COMPARTILHADO (helper puro, não toca firstClaimed/contadores).
+    // Se o first ainda não foi reclamado, a busca passa a contar a primeira
+    // resposta que o usuário realmente verá.
+    promoteFirstObserverEligible(inFlightObserver.get(cacheKey), !background);
   }
 
   // O cliente Stremio aborta em 10s. Devolvemos vazio antes disso em vez de
@@ -210,7 +226,8 @@ export function scheduleStaleRefresh(cacheKey: string, { type, id }: { type: str
     if (current && !current.stale) return;
     const started = Date.now();
     // Sem deadlineAt encurtado: passe de fundo tem o orçamento completo.
-    await doSearch({ type, id, cacheKey, deadlineAt: Date.now() + config.replyDeadline });
+    // Observador inerte: refresh SWR nunca é primeira resposta.
+    await doSearch({ type, id, cacheKey, deadlineAt: Date.now() + config.replyDeadline, firstObserver: createFirstObserver(false) });
     metrics.observe('search.swr', Date.now() - started);
   }))
     .catch((err) => log.warn('[search] refresh SWR falhou:', err?.message || err))
