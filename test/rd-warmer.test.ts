@@ -213,3 +213,40 @@ test('rd-warmer: drain processa e devolve contagem', async () => {
     mock.restore();
   }
 });
+
+test('rd-warmer: serviço que não é Real-Debrid não vira sonda nem miss no ledger', async () => {
+  // A guarda antiga (`service !== 'realdebrid' && typeof probeInstant !== 'function'`)
+  // nunca disparava: instalação AllDebrid sondava api.real-debrid.com com a
+  // chave errada e gravava o 401 como miss no ledger GLOBAL.
+  config.debrid.service = 'alldebrid';
+  config.debrid.apiKey = 'chave-de-alldebrid';
+  const mock = mockFetch(() => jsonOk({ error: 'bad token' }, 401));
+  try {
+    rdWarmer.enqueue([H1], 100);
+    await rdWarmer.tick();
+    assert.deepEqual(mock.calls, [], 'nenhuma chamada de rede com outro debrid configurado');
+    assert.equal(rdLedger.peek(H1), 'unknown', 'ledger global não pode receber veredito de outro serviço');
+  } finally {
+    mock.restore();
+  }
+});
+
+test('rd-warmer: DELETE de limpeza que falha não transforma ⚡ em miss', async () => {
+  // O rawRemoveTorrent roda no `finally` da sonda; lançando ali, ele substituía
+  // o `{instant:true}` e o warmer gravava miss (backoff de até 3 dias) num hash
+  // que ESTÁ em cache.
+  const mock = mockFetch((url, init) => {
+    if (String(init?.method || 'GET').toUpperCase() === 'DELETE') return jsonOk({ error: 'boom' }, 500);
+    if (url.pathname.endsWith('/torrents/addMagnet')) return jsonOk({ id: 'T-CLEAN' });
+    if (url.pathname.includes('/torrents/info/')) return jsonOk({ status: 'downloaded', files: [], links: [] });
+    throw new Error(`URL inesperada: ${url.pathname}`);
+  });
+  try {
+    rdWarmer.enqueue([H2], 100);
+    await rdWarmer.tick();
+    assert.equal(rdLedger.peek(H2), 'hit', 'a sonda viu downloaded; a limpeza não pode apagar a evidência');
+    assert.equal(mock.calls.some((c) => c.method === 'DELETE'), true, 'a limpeza foi tentada');
+  } finally {
+    mock.restore();
+  }
+});

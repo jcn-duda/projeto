@@ -260,7 +260,7 @@ async function resolveLink(apiKey: string, infoHash: string, hint: PlayHint = {}
         // Sem vídeo, o torrent ficaria preso ocupando vaga. A limpeza pertence
         // ao mesmo job para não reentrar no gate.
         if (isNoVideoError(error)) {
-          await rawRemoveTorrent(apiKey, add.id);
+          await cleanupTorrent(apiKey, add.id);
           memo.forget(id, apiKey, infoHash);
         }
         throw error;
@@ -313,7 +313,7 @@ async function enqueueUngated(apiKey: string, infoHash: string, { season, episod
     // que o chamador entende — ele conta `autofetch.refused` e loga "não
     // aceitou"; deixar subir viraria "[autofetch] falhou" genérico.
     if (isNoVideoError(err)) {
-      await rawRemoveTorrent(apiKey, add.id);
+      await cleanupTorrent(apiKey, add.id);
       memo.forget(id, apiKey, infoHash);
       log.warn(`[realdebrid] ${infoHash} não tem arquivo de vídeo; recusando o autofetch`);
       return false;
@@ -399,6 +399,21 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
 async function rawRemoveTorrent(apiKey: string, id: string | number) {
   await rawWrite(apiKey, `/torrents/delete/${id}`, { method: 'DELETE' });
   return true;
+}
+
+/**
+ * Limpeza best-effort: NUNCA fala. Ela roda dentro de `finally`/`catch`, onde
+ * uma exceção substituiria o valor de retorno ou o erro original — um DELETE
+ * que falha chegava a transformar sonda com `downloaded` em miss gravado no
+ * ledger durável, e NoVideoError em erro genérico.
+ */
+async function cleanupTorrent(apiKey: string, id: string | number) {
+  try {
+    await rawRemoveTorrent(apiKey, id);
+  } catch (err) {
+    metrics.count('debrid.rd.cleanupFailed');
+    log.warn(`[realdebrid] limpeza do torrent ${id} falhou:`, (err as Error)?.message || err);
+  }
 }
 
 async function removeTorrentWithPriority(apiKey: string, id: string | number, priority: 'cleanup') {
@@ -528,7 +543,7 @@ async function probeInstantUngated(apiKey: string, infoHash: string): Promise<Pr
     return { instant: false, reason: 'error' };
   } finally {
     if (created && torrentId != null) {
-      await rawRemoveTorrent(apiKey, torrentId);
+      await cleanupTorrent(apiKey, torrentId);
     }
   }
 }

@@ -250,7 +250,7 @@ async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: b
 
   const relevant = filterRelevantRaw(collected, matchContext as any);
   const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);
-  if (config.debrid.rdWarm.enabled && relevant.length) {
+  if (config.debrid.rdWarm.enabled && config.debrid.service === 'realdebrid' && relevant.length) {
     const topReleases = relevant
       .map((r: any) => ({
         hash: String(r.hash || r.infoHash || '').toLowerCase(),
