@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as realdebrid from '../src/debrid/realdebrid.js';
-import { selectProbeCandidates } from '../src/providers/rd-probe.js';
+import { selectProbeCandidates, promoteCachedBolts, hashFromResolveUrl, promoteCachedBoltsAcrossStreams } from '../src/providers/rd-probe.js';
 import { rdGate } from '../src/debrid/rd-gate.js';
 import * as rdLedger from '../src/debrid/rd-ledger.js';
 import * as cache from '../src/utils/cache.js';
@@ -199,5 +199,60 @@ test('sonda pending/error não grava miss no ledger, apenas em memória', async 
     assert.equal(rdLedger.peek(H2), 'unknown', 'pending da sonda não é miss autoritativo no ledger');
   } finally {
     mock.restore();
+  }
+});
+
+test('hashFromResolveUrl extrai o infoHash da rota /resolve', () => {
+  assert.equal(hashFromResolveUrl('http://127.0.0.1:7000/cfg/resolve/abcdef0123456789abcdef0123456789abcdef01?w=1'), 'abcdef0123456789abcdef0123456789abcdef01');
+  assert.equal(hashFromResolveUrl('/prefix/resolve/ABCDEF0123456789ABCDEF0123456789ABCDEF01'), 'abcdef0123456789abcdef0123456789abcdef01');
+  assert.equal(hashFromResolveUrl('http://invalido/sem-hash'), null);
+});
+
+test('promoteCachedBolts reescreve apenas o stream do hash informado', () => {
+  const key = 'streams:v6:movie:ttProbePromote';
+  cache.set(key, {
+    streams: [
+      { name: '[RD download] 1080p', url: `http://localhost:7000/resolve/${H1}?sig=1` },
+      { name: '[RD download] 720p', url: `http://localhost:7000/resolve/${H2}?sig=2` },
+    ],
+    partial: false,
+    debridKnown: true,
+  }, 600);
+
+  try {
+    const promoted = promoteCachedBolts(key, [H1]);
+    assert.equal(promoted, 1);
+    const entry = cache.get(key) as any;
+    assert.equal(entry.streams[0].name, '[RD⚡] 1080p');
+    assert.equal(entry.streams[1].name, '[RD download] 720p');
+  } finally {
+    cache.forget(key);
+  }
+});
+
+test('promoteCachedBoltsAcrossStreams itera todas as chaves de stream ativas', () => {
+  const k1 = 'streams:v6:movie:ttAcross1';
+  const k2 = 'streams:v6:movie:ttAcross2';
+  cache.set(k1, {
+    streams: [{ name: '[RD download] 1080p', url: `http://localhost:7000/resolve/${H3}?sig=1` }],
+    partial: false,
+    debridKnown: true,
+  }, 600);
+  cache.set(k2, {
+    streams: [{ name: '[RD download] 720p', url: `http://localhost:7000/resolve/${H3}?sig=2` }],
+    partial: false,
+    debridKnown: true,
+  }, 600);
+
+  try {
+    const total = promoteCachedBoltsAcrossStreams([H3]);
+    assert.equal(total, 2);
+    const e1 = cache.get(k1) as any;
+    const e2 = cache.get(k2) as any;
+    assert.equal(e1.streams[0].name, '[RD⚡] 1080p');
+    assert.equal(e2.streams[0].name, '[RD⚡] 720p');
+  } finally {
+    cache.forget(k1);
+    cache.forget(k2);
   }
 });

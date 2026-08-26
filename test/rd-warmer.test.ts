@@ -250,3 +250,44 @@ test('rd-warmer: DELETE de limpeza que falha não transforma ⚡ em miss', async
     mock.restore();
   }
 });
+
+test('rd-warmer: confirmação de ⚡ promove entrada [RD download] para [RD⚡] no cache ativo', async () => {
+  const searchKey = 'streams:v6:movie:ttWarmPromote:cfg';
+  cache.set(searchKey, {
+    streams: [
+      {
+        name: '[RD download] 1080p',
+        title: 'Filme.2026.1080p',
+        url: `http://localhost:7000/prefix/resolve/${H1}?sig=test`,
+      },
+    ],
+    partial: false,
+    debridKnown: true,
+  }, 900);
+
+  const mock = mockFetch((url) => {
+    if (url.pathname === '/rest/1.0/torrents/addMagnet') return jsonOk({ id: 'T-PROMOTE' });
+    if (url.pathname.includes('/torrents/info/')) {
+      return jsonOk({
+        id: 'T-PROMOTE',
+        status: 'downloaded',
+        files: [{ id: 1, path: '/Filme.mkv', bytes: 1000, selected: 1 }],
+      });
+    }
+    if (url.pathname.includes('/torrents/delete/')) return { ok: true, status: 204, async json() { return null; }, async text() { return ''; } };
+    return jsonOk({}, 404);
+  });
+
+  try {
+    rdWarmer.enqueue([H1], 100);
+    await rdWarmer.tick();
+
+    assert.equal(rdLedger.peek(H1), 'hit');
+    const entry = cache.get(searchKey) as any;
+    assert.ok(entry && Array.isArray(entry.streams));
+    assert.equal(entry.streams[0].name, '[RD⚡] 1080p', 'stream foi promovido de [RD download] para [RD⚡]');
+  } finally {
+    mock.restore();
+    cache.forget(searchKey);
+  }
+});

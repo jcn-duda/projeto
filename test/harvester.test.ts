@@ -11,6 +11,7 @@ import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import harvester from '../src/providers/harvester.js';
+import rdWarmer from '../src/providers/rd-warmer.js';
 import * as activity from '../src/providers/activity.js';
 import { stubFetch } from './helpers/stub.js';
 import { ptSweepQueryFor } from '../src/providers/search-plan.js';
@@ -426,5 +427,132 @@ test('obra cortada pelo teto volta para a FRENTE da fila, antes das novas', asyn
     config.harvest.indexerDelayMs = saved.indexerDelayMs;
     config.jackett.indexers = saved.indexers;
     config.jackett.apiKey = saved.apiKey;
+  }
+});
+
+test('colhedor extrai hash de magnet URI e calcula score correto (80/40/5) para o rdWarmer', async () => {
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+    tmdbApiKey: config.tmdb.apiKey,
+    rdWarmEnabled: config.debrid.rdWarm.enabled,
+    debridService: config.debrid.service,
+  };
+
+  const hBrDub = 'a'.repeat(40);
+  const hGlobDub = 'b'.repeat(40);
+  const hLeg = 'c'.repeat(40);
+
+  const stub = stubFetch((url: string) => {
+    if (url.includes('api.themoviedb.org')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          movie_results: [
+            {
+              title: 'Filme Teste Score',
+              original_title: 'Test Score Movie',
+              release_date: '2024-01-01',
+            },
+          ],
+        }),
+      };
+    }
+    if (url.includes('/api/v2.0/indexers/')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          Results: [
+            // 1: BR Dublado (só magnet, sem infoHash)
+            {
+              Title: 'Filme Teste Score (2024) 1080p DUAL Dublado',
+              MagnetUri: `magnet:?xt=urn:btih:${hBrDub}&dn=Filme.BR`,
+              Seeders: 5,
+              Tracker: 'comandotorrents',
+              isBr: true,
+            },
+            // 2: Dublado global (sem isBr, mas com r.dubbed)
+            {
+              Title: 'Test Score Movie (2024) 1080p Dual Audio',
+              MagnetUri: `magnet:?xt=urn:btih:${hGlobDub}&dn=Filme.Glob`,
+              Seeders: 10,
+              Tracker: 'thepiratebay',
+              dubbed: true,
+              isBr: false,
+            },
+            // 3: Legendado/original
+            {
+              Title: 'Test Score Movie (2024) 1080p English Subbed',
+              MagnetUri: `magnet:?xt=urn:btih:${hLeg}&dn=Filme.Leg`,
+              Seeders: 20,
+              Tracker: 'thepiratebay',
+            },
+          ],
+        }),
+      };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+
+  try {
+    cache.clearNamespace('raw');
+    cache.clearNamespace('tmdb');
+    cache.clearNamespace('meta');
+    cache.clearNamespace('rdc');
+    rdWarmer.reset();
+    config.debrid.rdWarm.enabled = true;
+    config.debrid.service = 'realdebrid';
+
+    // Drena obras residuais deixadas por outros testes
+    config.jackett.apiKey = '';
+    let guard = 0;
+    while ((harvester.status() as any).queueDepth > 0 && guard++ < 250) await harvester.tick();
+
+    const before = (harvester.status() as any).queriesThisHour || 0;
+    config.harvest.maxPerHour = before + 50;
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['test-score-idx'];
+    config.jackett.apiKey = 'fake-key';
+    config.tmdb.apiKey = 'fake-key';
+
+    cache.set('meta:movie:tt9500099', { name: 'Test Score Movie', year: '2024', type: 'movie' }, 3600);
+    harvester.enqueue({ imdbId: 'tt9500099', type: 'movie', reason: `score-test-${Date.now()}` } as any);
+    await harvester.tick();
+
+    const warmStatus = rdWarmer.status();
+    assert.equal(warmStatus.queueDepth, 3, 'todos os 3 hashes extraídos de magnet foram enfileirados');
+
+    const warmQueue = cache.get(`${prefix('rdc')}wq`) as any[];
+    assert.ok(Array.isArray(warmQueue), 'fila do rdWarmer foi persistida no cache');
+
+    const brEntry = warmQueue.find((e) => e.hash === hBrDub);
+    const globEntry = warmQueue.find((e) => e.hash === hGlobDub);
+    const legEntry = warmQueue.find((e) => e.hash === hLeg);
+
+    assert.ok(brEntry, 'BR dublado está na fila');
+    assert.equal(brEntry.score, 80, 'BR dublado recebe score 80');
+
+    assert.ok(globEntry, 'Dublado global está na fila');
+    assert.equal(globEntry.score, 40, 'Dublado global recebe score 40');
+
+    assert.ok(legEntry, 'Legendado está na fila');
+    assert.equal(legEntry.score, 5, 'Legendado recebe score 5');
+  } finally {
+    stub.restore();
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+    config.tmdb.apiKey = saved.tmdbApiKey;
+    config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
+    config.debrid.service = saved.debridService;
+    rdWarmer.reset();
   }
 });

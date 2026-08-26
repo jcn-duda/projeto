@@ -615,6 +615,16 @@ function maintain(): { checkpointed: boolean; optimized: boolean; vacuumed: bool
   return { checkpointed, optimized, vacuumed, freelistCount };
 }
 
+/** Devolve todas as chaves do L1 que iniciam com o prefixo informado. */
+function keysMatching(prefix: string): string[] {
+  const result: string[] = [];
+  const p = String(prefix || '');
+  for (const key of store.keys()) {
+    if (key.startsWith(p)) result.push(key);
+  }
+  return result;
+}
+
 /** Libera o L2 no encerramento; o L1 continua utilizável até o processo sair. */
 function close() {
   if (pruneTimer) {
@@ -655,5 +665,5 @@ pruneTimer.unref();
 
 export {
   MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany,
-  prune, clear, clearNamespace, clearWhere, size, snapshot, peekRemaining, maintain, close,
+  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, peekRemaining, maintain, close,
 };

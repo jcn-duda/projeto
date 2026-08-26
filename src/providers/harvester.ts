@@ -17,7 +17,15 @@ import jackett from './jackett.js';
 import bludv from './bludv.js';
 import { getMeta } from '../utils/cinemeta.js';
 import * as tmdb from '../utils/tmdb.js';
-import { resolveSearchNames, buildSearchQuery, filterRelevantRaw } from '../utils/format.js';
+import {
+  resolveSearchNames,
+  buildSearchQuery,
+  filterRelevantRaw,
+  extractInfoHash,
+  looksPtBr,
+  audioFromTitle,
+  explicitPtAudio,
+} from '../utils/format.js';
 import { ptSweepIndexers, ptSweepQueryFor } from './search-plan.js';
 import * as releaseIndex from '../utils/release-index.js';
 import { nextSeeds } from './imdb-seed.js';
@@ -252,10 +260,15 @@ async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: b
   const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);
   if (config.debrid.rdWarm.enabled && config.debrid.service === 'realdebrid' && relevant.length) {
     const topReleases = relevant
-      .map((r: any) => ({
-        hash: String(r.hash || r.infoHash || '').toLowerCase(),
-        score: r.isBr && r.dubbed ? 80 : (r.dubbed ? 40 : 5),
-      }))
+      .map((r: any) => {
+        const title = String(r.title || r.Title || '');
+        const hash = String(extractInfoHash(r.infoHash || r.magnet || r.MagnetUri || r.Guid || r.hash) || '').toLowerCase();
+        const isBr = Boolean(r.isBr) || looksPtBr(title);
+        const audio = audioFromTitle(title);
+        const dubbed = Boolean(r.dubbed) || ['Dublado', 'Dual', 'Nacional'].includes(String(audio)) || explicitPtAudio(title);
+        const score = isBr && dubbed ? 80 : (dubbed ? 40 : 5);
+        return { hash, score };
+      })
       .filter((r: any) => /^[a-f0-9]{40}$/.test(r.hash));
     for (const item of topReleases.slice(0, 10)) {
       rdWarmer.enqueue([item.hash], item.score);

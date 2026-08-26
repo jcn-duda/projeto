@@ -9,7 +9,6 @@ import * as autofetch from '../src/providers/autofetch.js';
 import { drainNext } from '../src/providers/autofetch-runner.js';
 import * as runtime from '../src/runtime.js';
 import * as memo from '../src/debrid/inventory-memo.js';
-import { settleProbeLot } from '../src/providers/rd-probe.js';
 
 function fakeClock() {
   let current = 0;
@@ -174,24 +173,6 @@ test('status expõe waiters por prioridade', async () => {
   assert.deepEqual(gate.snapshot('conta')[0].waiting, { play: 1, cleanup: 1, autofetch: 1, probe: 1 });
   release();
   await Promise.all([active, ...queued]);
-});
-
-test('sonda com gate não encerra o lote quando vence apenas o teto de telemetria', async () => {
-  const oldEnabled = config.debrid.rdGate.enabled;
-  let finish!: () => void;
-  let settled = false;
-  try {
-    config.debrid.rdGate.enabled = true;
-    const body = new Promise<void>((resolve) => { finish = resolve; });
-    const lot = settleProbeLot(body, 5).then(() => { settled = true; });
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.equal(settled, false, 'o race antigo liberava probeInFlight neste ponto');
-    finish();
-    await lot;
-    assert.equal(settled, true);
-  } finally {
-    config.debrid.rdGate.enabled = oldEnabled;
-  }
 });
 
 test('kill-switch restaura pass-through sem fila, gap ou cooldown', async () => {

@@ -17,6 +17,7 @@ import { prefix } from '../utils/cache-keys.js';
 import { accountScope } from '../utils/request-key.js';
 import { rdGate } from '../debrid/rd-gate.js';
 import { isRateLimitError, isQuotaError } from '../debrid/common.js';
+import { promoteCachedBoltsAcrossStreams } from './rd-probe.js';
 
 type WarmEntry = {
   hash: string;
@@ -172,6 +173,7 @@ async function processBatch(maxItems: number): Promise<number> {
         rdLedger.noteHit([hash]);
         magnetdb.markAlive('realdebrid', apiKey, [hash]);
         metrics.count('debrid.rd.warm.hit');
+        promoteCachedBoltsAcrossStreams([hash]);
       } else if (result.reason === 'blocked') {
         rdLedger.noteBlocked(hash);
         magnetdb.markBad('realdebrid', apiKey, hash);
