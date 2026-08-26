@@ -511,11 +511,18 @@ sustentam isso:
   (nem via `infoHash` nem via URL do conjunto pedido) é **desconhecido**, nunca
   miss (o acervo BR dublado que interessa é justamente o que o Torrentio não
   indexa). A chamada do Torrentio é cacheada por título (`rdt:v1:trt:`, TTL ~6h)
-  para não bater em infra de terceiro a cada busca. **Ativado por padrão** (decisão
-  do usuário): token/key explícitos das fontes têm precedência; vazios, usam a
-  apiKey efetiva da instalação recebida por `rdOracle.check` — atenção: isso
-  envia a chave às fontes (terceiros a veem). `available()` exige fonte realmente
-  utilizável com credencial efetiva. Kill-switch: `DEBRID_RD_ORACLE=false`.
+  para não bater em infra de terceiro a cada busca. **Fontes opt-in por padrão**:
+  o oráculo liga (`enabled` true), mas `stremthruUrl` nasce **vazio** e
+  `torrentio` nasce **`false`** — nenhuma credencial sai para terceiro sem
+  endpoint/flag explícito (o URL do Torrentio permanece como default apenas para
+  documentar o alvo; o `false` é o opt-in). Habilitada a fonte, token/key
+  explícitos têm precedência; vazios, usam a apiKey efetiva da instalação
+  recebida por `rdOracle.check` — atenção: isso envia a chave à fonte (terceiro
+  a vê). `available()` exige fonte realmente utilizável com credencial efetiva.
+  No `docker-compose.yml`, o `adom` recebe explicitamente
+  `http://stremthru:8080`, a instância self-hosted da própria stack; o default
+  vazio vale para execuções fora do compose. Kill-switch:
+  `DEBRID_RD_ORACLE=false`.
 
 Com ledger+oráculo ativos, o oráculo roda ANTES do `checkCached` no
 `applyDebrid` e grava os veredictos no ledger; o `checkCached` do adaptador só

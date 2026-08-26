@@ -55,7 +55,10 @@ export function hashFromResolveUrl(url: string): string | null {
  * Devolve quantos itens promoveu; 0 se não havia cache.
  */
 export function promoteCachedBolts(searchKey: string, instantHashes: string[]): number {
-  const entry = cache.get(searchKey) as { streams?: Stream[]; partial?: boolean; debridKnown?: boolean } | undefined;
+  // peek: só LÊ — a varredura de toda a lista de streams não pode contar
+  // cache.hit.streams nem promover o LRU para cada título sem match. A promoção
+  // de verdade acontece no set() abaixo, com o TTL preservado via peekRemaining.
+  const entry = cache.peek(searchKey) as { streams?: Stream[]; partial?: boolean; debridKnown?: boolean } | undefined;
   if (!entry || !Array.isArray(entry.streams) || instantHashes.length === 0) return 0;
   const want = new Set(instantHashes.map((h) => h.toLowerCase()));
   let promoted = 0;

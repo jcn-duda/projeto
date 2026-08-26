@@ -109,10 +109,10 @@ async function checkStremthru(q: OracleQuery, apiKey?: string): Promise<Map<stri
       // o pipeline gravar miss no ledger GLOBAL com backoff de até 3 dias, que
       // é o oposto da regra deste módulo ("desconhecido nunca vira miss").
       //
-      // Só token confirmado contra resposta real decide. Nenhum negativo
-      // explícito foi observado até agora, então NEGATIVE está vazio de
-      // propósito: acrescente aqui quando a métrica abaixo revelar um. Status
-      // fora dos dois conjuntos não produz veredicto nenhum.
+      // `cached` afirma hit; `uncached`/`not_cached` afirmam ausência. A fixture
+      // real também traz `unknown`, que deliberadamente fica fora dos dois
+      // conjuntos. Status novo só alimenta a métrica abaixo e não produz
+      // veredicto até o vocabulário ser medido.
       for (const item of items) {
         const hash = String(item?.hash || '').toLowerCase();
         if (!hash) continue;

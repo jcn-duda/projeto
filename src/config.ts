@@ -524,19 +524,30 @@ const config = {
         .filter((value) => value > 0)),
     },
     // Oráculo externo do cache global RD. Só habilita o cacheCheck dinâmico
-    // quando há fonte COM credencial e ledger: sem as duas, RD continua honesto
-    // como "não sei" e cachedOnly não pode esconder a lista. Ativado por padrão
-    // (decisão do usuário): envia a apiKey da instalação às fontes (StremThru e
-    // Torrentio) quando não há token/key explícitos — terceiros veem a chave.
+    // quando há fonte COM credencial e ledger: sem as duas, o RD continua honesto
+    // como "não sei" e cachedOnly não pode esconder a lista.
+    //
+    // Opt-in seguro: `enabled` é true por padrão, mas as FONTES são off por
+    // padrão — `stremthruUrl` nasce VAZIO e `torrentio` false. Sem endpoint/flag
+    // explícito nenhuma credencial sai para terceiros: a `available()` exige
+    // fonte realmente utilizável com credencial efetiva, então sem elas o RD
+    // segue honesto em "não sei". Um terceiro só vê a apiKey da instalação (nos
+    // headers/Bearer/token quando não há token/key explícitos) se o operador
+    // configurar deliberadamente a fonte.
     rdOracle: {
       enabled: String(process.env.DEBRID_RD_ORACLE || 'true') === 'true',
       timeoutMs: Math.max(1, num(process.env.DEBRID_RD_ORACLE_TIMEOUT_MS, 800)),
       maxHashes: Math.min(500, Math.max(1, Math.trunc(num(process.env.DEBRID_RD_ORACLE_MAX_HASHES, 100)))),
-      // Endpoint canônico/público (medido ao vivo); limite confirmado de 500/hash.
-      stremthruUrl: (process.env.DEBRID_RD_ORACLE_STREMTHRU_URL || 'https://stremthru.13377001.xyz').replace(/\/$/, ''),
+      // Vazio por padrão: endpoint público canonico só vira destino depois que o
+      // operador o define (e ainda assim exige credencial efetiva). Documentado
+      // no .env.example; o valor canônico pode ser reposto ali. Limite 500/hash.
+      stremthruUrl: (process.env.DEBRID_RD_ORACLE_STREMTHRU_URL || '').replace(/\/$/, ''),
       stremthruToken: process.env.DEBRID_RD_ORACLE_STREMTHRU_TOKEN || '',
       stremthruStore: process.env.DEBRID_RD_ORACLE_STREMTHRU_STORE || 'realdebrid',
-      torrentio: String(process.env.DEBRID_RD_ORACLE_TORRENTIO || 'true') === 'true',
+      torrentio: String(process.env.DEBRID_RD_ORACLE_TORRENTIO || 'false') === 'true',
+      // O URL canônico permanece como default, mas isso NÃO vale por envio: o
+      // flag `torrentio` nasce false e é o opt-in. Só com ele true a fonte é
+      // consultada (e só com credencial efetiva a chamada vai à rede).
       torrentioUrl: (process.env.DEBRID_RD_ORACLE_TORRENTIO_URL || 'https://torrentio.strem.fun').replace(/\/$/, ''),
       // Vazio usa a chave efetiva da instalação (a mesma recebida por rdOracle.check),
       // nunca a do operador por engano.

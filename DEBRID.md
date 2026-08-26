@@ -434,19 +434,20 @@ No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_CACHED_ONLY`,
   `DEBRID_RD_LEDGER_HIT_TTL` (2592000), `DEBRID_RD_LEDGER_BLOCKED_TTL`
   (2592000), `DEBRID_RD_LEDGER_MISS_BACKOFF_MS`
   (`1800000,7200000,43200000,259200000` — backoff exponencial do miss).
-- Oráculo (`DEBRID_RD_ORACLE*`): `DEBRID_RD_ORACLE` (default **`true`** — ativado
-  por decisão do usuário; é ele que junto com o ledger eleva o `cacheCheck` do RD
-  a `true`. Atenção: envia a apiKey efetiva da instalação às fontes quando não há
-  token/key explícitos — terceiros veem a chave. Kill-switch `false` o desliga;
-  sem fonte externa, RD segue honesto em `false`),
+- Oráculo (`DEBRID_RD_ORACLE*`): `DEBRID_RD_ORACLE` (default **`true`** — o oráculo
+  liga, e junto com o ledger eleva o `cacheCheck` do RD a **`true`**; mas isso
+  **só** quando há fonte de fato: as fontes são **opt-in por padrão**).
   `DEBRID_RD_ORACLE_TIMEOUT_MS` (800 — prazo ÚNICO, compartilhado pelas fontes),
   `DEBRID_RD_ORACLE_MAX_HASHES` (100, teto 500), `DEBRID_RD_ORACLE_STREMTHRU_URL`
-  (default `https://stremthru.13377001.xyz`; vazio = desligado e não envia a
-  chave a essa fonte), `DEBRID_RD_ORACLE_STREMTHRU_TOKEN`,
+  (default do runtime **vazio** — sem endpoint, nada sai; o compose injeta
+  `http://stremthru:8080`, a instância self-hosted da própria stack),
+  `DEBRID_RD_ORACLE_STREMTHRU_TOKEN`,
   `DEBRID_RD_ORACLE_STREMTHRU_STORE` (`realdebrid`),
-  `DEBRID_RD_ORACLE_TORRENTIO` (default `true`; `false` = desligado e não envia a
-  chave a essa fonte), `DEBRID_RD_ORACLE_TORRENTIO_URL`
-  (`https://torrentio.strem.fun`), `DEBRID_RD_ORACLE_TORRENTIO_KEY` (vazio usa a
+  `DEBRID_RD_ORACLE_TORRENTIO` (default **`false`** — o flag é o opt-in; com
+  `true` e credencial efetiva a fonte é consultada e pode enviar a chave),
+  `DEBRID_RD_ORACLE_TORRENTIO_URL`
+  (`https://torrentio.strem.fun`, doc do alvo; sem o flag `true` ele não é
+  usado), `DEBRID_RD_ORACLE_TORRENTIO_KEY` (vazio usa a
   chave efetiva da instalação), `DEBRID_RD_ORACLE_TORRENTIO_TTL` (21600 — cache
   da resposta por título).
 - Sonda (`DEBRID_RD_PROBE*`): já vistos acima, agora com o cooldown delegado ao

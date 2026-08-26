@@ -251,6 +251,72 @@ test("7b. fixture real StremThru: 'cached' => true; 'unknown' => SEM veredicto (
   }
 });
 
+test("7A. StremThru tri-estado no MESMO envelope: cached→true, uncached/not_cached→false, unknown/estranho ausentes (sem noteMiss)", async () => {
+  config.debrid.rdOracle.stremthruUrl = "https://st.example";
+  const items = [
+    { hash: H1, status: "cached" },
+    { hash: H2, status: "uncached" },
+    { hash: H3, status: "not_cached" },
+    { hash: H4, status: "unknown" },
+    { hash: H5, status: "algum_status_novo" },
+  ];
+  const mock = mockFetch((url) => {
+    if (url.pathname === "/v0/store/torz/check") return jsonOk({ data: { items } });
+    return jsonOk({}, 404);
+  });
+  try {
+    const verdicts = await rdOracle.check(
+      { hashes: [H1, H2, H3, H4, H5], type: "movie", id: "tt-tri", timeoutMs: 800 },
+      "chave",
+    );
+    assert.equal(verdicts.get(H1), true, "cached = hit");
+    assert.equal(verdicts.get(H2), false, "uncached = miss autoritativo");
+    assert.equal(verdicts.get(H3), false, "not_cached = miss autoritativo");
+    assert.equal(verdicts.has(H4), false, "unknown fica fora do Map (nunca false)");
+    assert.equal(verdicts.has(H5), false, "status desconhecido sem veredicto nenhum");
+
+    // Replica o loop exato do pipeline (debrid-pipeline.ts) apos check().
+    const hitsArr: string[] = [];
+    for (const [hash, cached] of verdicts) {
+      if (cached) hitsArr.push(String(hash));
+      else rdLedger.noteMiss(hash);
+    }
+    if (hitsArr.length) rdLedger.noteHit(hitsArr);
+
+    // Só cached e os negativos EXPLÍCITOS tocam o ledger; unknown (e status
+    // estranho) não geram noteMiss — virar miss envenenaria o ledger por 3 dias.
+    assert.equal(rdLedger.peek(H1), "hit");
+    assert.equal(rdLedger.peek(H2), "miss");
+    assert.equal(rdLedger.peek(H3), "miss");
+    assert.equal(rdLedger.peek(H4), "unknown", "unknown não vira miss no loop do pipeline");
+    assert.equal(rdLedger.peek(H5), "unknown", "status desconhecido também não grava nada");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("7B. sem fonte explicitamente habilitada, nenhuma credencial sai para terceiro", async () => {
+  config.debrid.rdOracle.stremthruUrl = "";
+  config.debrid.rdOracle.stremthruToken = "token-que-nao-deve-sair";
+  config.debrid.rdOracle.torrentio = false;
+  let fetches = 0;
+  const mock = mockFetch(() => {
+    fetches += 1;
+    return jsonOk({});
+  });
+  try {
+    assert.equal(rdOracle.available("chave-da-instalacao"), false);
+    const result = await rdOracle.check(
+      { hashes: [H1], type: "movie", id: "tt-opt-in", timeoutMs: 800 },
+      "chave-da-instalacao",
+    );
+    assert.equal(result.size, 0);
+    assert.equal(fetches, 0, "sem endpoint/flag explícito não há chamada externa");
+  } finally {
+    mock.restore();
+  }
+});
+
 test("7c. StremThru: token vazio usa a apiKey efetiva da instalação (Bearer)", async () => {
   config.debrid.rdOracle.stremthruUrl = "https://st.example";
   config.debrid.rdOracle.stremthruToken = "";

@@ -5,6 +5,8 @@ import { selectProbeCandidates, promoteCachedBolts, hashFromResolveUrl, promoteC
 import { rdGate } from '../src/debrid/rd-gate.js';
 import * as rdLedger from '../src/debrid/rd-ledger.js';
 import * as cache from '../src/utils/cache.js';
+import * as metrics from '../src/utils/metrics.js';
+import config from '../src/config.js';
 
 const H1 = 'a'.repeat(40);
 const H2 = 'b'.repeat(40);
@@ -225,6 +227,59 @@ test('promoteCachedBolts reescreve apenas o stream do hash informado', () => {
     const entry = cache.get(key) as any;
     assert.equal(entry.streams[0].name, '[RD⚡] 1080p');
     assert.equal(entry.streams[1].name, '[RD download] 720p');
+  } finally {
+    cache.forget(key);
+  }
+});
+
+test('promoteCachedBolts sem match não conta cache.hit.streams nem reescreve', () => {
+  const key = 'streams:v6:movie:ttNoMatch';
+  cache.set(key, {
+    streams: [{ name: '[RD download] 1080p', url: `http://localhost:7000/resolve/${H1}?sig=1` }],
+    partial: false,
+    debridKnown: true,
+  }, 600);
+  metrics.reset();
+  try {
+    // H2 não está na lista: a varredura volta 0 sem tocar em nada.
+    const promoted = promoteCachedBolts(key, [H2]);
+    assert.equal(promoted, 0);
+    const counters = metrics.snapshot().counters;
+    assert.equal(counters['cache.hit.streams'], undefined, 'a leitura via peek não conta hit do balde streams');
+    assert.equal(counters['cache.hit'], undefined, 'nem o contador global de hit');
+    assert.equal(counters['cache.miss.streams'], undefined, 'nem miss — não existe leitura de rede/ausente aqui');
+    const entry = cache.peek(key) as any;
+    assert.equal(entry.streams[0].name, '[RD download] 1080p', 'sem match não reescreve nenhum stream');
+  } finally {
+    metrics.reset();
+    cache.forget(key);
+  }
+});
+
+test('promoteCachedBolts preserva (não reseta) o TTL restante na promoção', async () => {
+  const key = 'streams:v6:movie:ttPreservaTtl';
+  // TTL curto de propósito: muito menor que o config.cacheTtl — se a promoção
+  // resetasse para o default, o `after` estouraria e o teste pegaria.
+  cache.set(key, {
+    streams: [{ name: '[RD download] 1080p', url: `http://localhost:7000/resolve/${H1}?sig=1` }],
+    partial: false,
+    debridKnown: true,
+  }, 10);
+  await new Promise((r) => setTimeout(r, 1100));
+  try {
+    const before = cache.peekRemaining(key);
+    assert.ok(before != null && before > 0, `restante antes da promoção: ${before}`);
+    const promoted = promoteCachedBolts(key, [H1]);
+    assert.equal(promoted, 1);
+    const entry = cache.peek(key) as any;
+    assert.equal(entry.streams[0].name, '[RD⚡] 1080p');
+    const after = cache.peekRemaining(key);
+    assert.ok(after != null && after > 0, `restante após promover: ${after}`);
+    assert.ok(
+      after < config.cacheTtl,
+      `TTL herdado do restante (${after}s), não resetado para o default (${config.cacheTtl}s)`,
+    );
+    assert.ok(after < 10, `não renovou para o TTL original: ${after} < 10 (perdeu ~1s do sleep)`);
   } finally {
     cache.forget(key);
   }

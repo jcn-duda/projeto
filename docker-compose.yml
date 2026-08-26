@@ -26,6 +26,8 @@ services:
       - "127.0.0.1:8191:8191"
     env_file:
       - .env
+    depends_on:
+      - stremthru
     environment:
       HOST: 0.0.0.0
       PORT: 7000
@@ -33,6 +35,10 @@ services:
       JACKETT_URL: http://127.0.0.1:9117
       PROWLARR_URL: http://127.0.0.1:9696
       BR_RESOLVERS_HOST: 127.0.0.1
+      # No compose, a fonte opt-in é a instância self-hosted abaixo. Fora do
+      # compose o default do código continua vazio: nenhuma chave sai para um
+      # terceiro sem configuração explícita.
+      DEBRID_RD_ORACLE_STREMTHRU_URL: ${DEBRID_RD_ORACLE_STREMTHRU_URL:-http://stremthru:8080}
       # Jackett (linuxserver) dentro do container único: sem auto-update pra
       # definição local BR não ser sobrescrita.
       AUTO_UPDATE: "false"

@@ -522,6 +522,21 @@ function peekRemaining(key: string): number | null {
 }
 
 /**
+ * Leitura SEM efeito: devolve o valor se ainda válido, sem promover o LRU (o
+ * Map preserva a posição de recência) e sem contar `cache.hit`/`cache.miss`.
+ * Para sondas que só querem LER e decidir depois se escrevem — ex: a promoção
+ * de ⚡ do rd-probe reescreve via `set`, que aí sim promove e renova o TTL com
+ * `peekRemaining`, então a varredura sem match não pode inflar os contadores
+ * do painel nem reordenar o cache. Expirada/ausente devolve null (não apaga).
+ */
+function peek(key: string): unknown {
+  const hit = store.get(key);
+  if (!hit) return null;
+  if (hit.expiresAt && Date.now() > hit.expiresAt) return null;
+  return hit.value;
+}
+
+/**
  * Escrita em LOTE com UMA passada de evicção por namespace. O `set` unitário
  * já dava conta dos consumidores antigos; o davail escreve um registro por
  * hash da busca no caminho de resposta, e em saturação de cota cada `set`
@@ -674,5 +689,5 @@ pruneTimer.unref();
 
 export {
   MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany,
-  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, peekRemaining, maintain, close,
+  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, peek, peekRemaining, maintain, close,
 };
