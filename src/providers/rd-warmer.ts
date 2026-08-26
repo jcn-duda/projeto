@@ -76,13 +76,41 @@ function noteQueries(count: number): void {
   hourBuckets.set(hour, (hourBuckets.get(hour) || 0) + count);
 }
 
-function getEnvApiKey(): string | null {
-  // O && com o typeof era guarda morta: probeInstant e SEMPRE funcao, entao
-  // instalacao com outro debrid sondava api.real-debrid.com com a chave errada
-  // e gravava o 401 como miss no ledger global.
-  if (config.debrid.service !== 'realdebrid') return null;
-  if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.rdWarm.enabled) return null;
-  return config.debrid.apiKey;
+/**
+ * Credencial RD observada numa requisição real. A config selada na URL do app
+ * nunca chega ao `.env`, então sem isto o warmer fica permanentemente inerte
+ * numa instalação que só configura o debrid pelo link de instalação — e sem
+ * nenhum log dizendo por quê.
+ *
+ * Vive SÓ em memória do processo: nunca é persistida no cache nem logada.
+ */
+let notedApiKey = '';
+
+/** Registra a chave RD efetiva de uma requisição que de fato usou Real-Debrid. */
+function noteCredential(apiKey: string): void {
+  const key = String(apiKey || '');
+  if (!key || key === notedApiKey) return;
+  const first = !notedApiKey;
+  notedApiKey = key;
+  if (first) log.info('[rd-warmer] credencial RD vista numa requisição; aquecimento habilitado');
+}
+
+/**
+ * Chave para o aquecimento. O `.env` do operador tem precedência — é a conta
+ * que ele escolheu gastar; sem ela, vale a última credencial vista numa
+ * requisição com Real-Debrid.
+ */
+function resolveApiKey(): string | null {
+  if (!config.debrid.rdWarm.enabled) return null;
+  if (config.debrid.service === 'realdebrid' && config.debrid.apiKey && config.debrid.allowEnvKey) {
+    return config.debrid.apiKey;
+  }
+  return notedApiKey || null;
+}
+
+/** Real-Debrid está em uso aqui, seja pelo `.env` ou pela config da URL. */
+function rdInPlay(): boolean {
+  return Boolean(resolveApiKey());
 }
 
 /**
@@ -133,7 +161,7 @@ function enqueue(hashes: string[], score = 0): void {
 
 async function processBatch(maxItems: number): Promise<number> {
   ensureQueueLoaded();
-  const apiKey = getEnvApiKey();
+  const apiKey = resolveApiKey();
   if (!apiKey) return 0;
   const account = accountScope(apiKey);
   if (rdGate.isCoolingDown(account)) return 0;
@@ -208,7 +236,7 @@ async function processBatch(maxItems: number): Promise<number> {
 async function tick(): Promise<void> {
   if (paused || inFlight || !config.debrid.rdWarm.enabled) return;
   if (activity.recentUserTraffic(config.debrid.rdWarm.idleWindowMs)) return;
-  const apiKey = getEnvApiKey();
+  const apiKey = resolveApiKey();
   if (!apiKey) return;
   const account = accountScope(apiKey);
   if (rdGate.isCoolingDown(account)) return;
@@ -291,8 +319,9 @@ function reset(): void {
   inFlight = false;
   paused = false;
   lastTickAt = 0;
+  notedApiKey = '';
   hourBuckets.clear();
 }
 
-export { enqueue, tick, start, drain, setPaused, status, reset };
-export default { enqueue, tick, start, drain, setPaused, status, reset };
+export { enqueue, tick, start, drain, setPaused, status, reset, noteCredential, rdInPlay };
+export default { enqueue, tick, start, drain, setPaused, status, reset, noteCredential, rdInPlay };

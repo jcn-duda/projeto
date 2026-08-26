@@ -275,6 +275,9 @@ export async function applyDebrid(input: Array<Stream | null>, {
   });
   // Warmer RD em fundo (F3): enfileira os top-N desconhecidos sem rede nem atraso na resposta.
   if (config.debrid.rdWarm.enabled && (adapter.id === 'realdebrid' || config.debrid.service === 'realdebrid')) {
+    // A config selada na URL nunca chega ao .env; sem registrar a chave vista
+    // aqui, o warmer ficaria inerte nesta instalacao.
+    if (adapter.id === 'realdebrid' && trustApiKey) rdWarmer.noteCredential(trustApiKey);
     const cachedSet = new Set([...cached].map((h) => String(h).toLowerCase()));
     const topN = 10;
     const brCands = pickBrDubbedCandidates(streams, cachedSet, topN)
