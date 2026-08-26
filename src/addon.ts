@@ -9,6 +9,7 @@ import debrid from './debrid/index.js';
 import { createApp } from './app.js';
 import warmup from './warmup.js';
 import harvester from './providers/harvester.js';
+import rdWarmer from './providers/rd-warmer.js';
 
 // O Express app + manifest + rotas vivem em ./app (sem listen), para os testes
 // poderem exercitar o roteamento real sem subir servidor.
@@ -66,6 +67,7 @@ const server = app.listen(config.port, config.host, () => {
   }
   warmup.start().catch((err) => log.warn('[warmup] falha no boot:', err?.message || err));
   harvester.start();
+  rdWarmer.start();
 });
 
 let shuttingDown = false;

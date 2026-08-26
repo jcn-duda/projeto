@@ -31,8 +31,8 @@ Três capacidades, em ordem de importância:
 
 | | Premiumize | TorBox | AllDebrid | Real-Debrid | Debrid-Link |
 |---|---|---|---|---|---|
-| `cacheCheck` em lote | ✅ real | ✅ real | ⚠️ via upload | ❌ | ❌ |
-| Custo da checagem | 1 POST, sem escrever na conta | 1 GET, sem escrever | **cria transferência** | — | — |
+| `cacheCheck` em lote | ✅ real | ✅ real | ⚠️ via upload | ⚠️ dinâmico (ledger+oráculo) | ❌ |
+| Custo da checagem | 1 POST, sem escrever na conta | 1 GET, sem escrever | **cria transferência** | ledger local + oráculo (rede) | — |
 | Abortável no deadline | ✅ | ✅ | ❌ (`abortSafeCacheCheck: false`) | — | — |
 | `enqueue` (autofetch BR) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Auth | `apikey` na query | `Bearer` | `Bearer` + `agent` | `Bearer` | `Bearer` |
@@ -41,7 +41,7 @@ Três capacidades, em ordem de importância:
 | Limite documentado | fair-use por tráfego (`limit_used`) | **300/min; `createtorrent` 60/HORA se não-cacheado** | **12 req/s, 600 req/min, 30 magnets ativos** | **250 req/min**, teto de torrents ativos | não publicado (mas há `/seedbox/limits`) |
 | Endpoint de uso/limite | `/account/info` (`limit_used`) | mylist (contagem) | `/magnet/status` | `/torrents/activeCount` | `/seedbox/limits` (ainda não) |
 | Escolhe o arquivo **antes** de baixar | ❌ | ❌ **por projeto** ("baixa todos, não vai mudar") | ❌ | ✅ `selectFiles` | ❌ |
-| Veredito para este addon | **melhor encaixe** | alternativa boa | funciona, cobra caro | ⚡ via conta/histórico/sonda | lista sem ⚡ |
+| Veredito para este addon | **melhor encaixe** | alternativa boa | funciona, cobra caro | ⚡ via conta/histórico/sonda/ledger/oráculo | lista sem ⚡ |
 
 ---
 
@@ -213,34 +213,89 @@ metade desse arquivo desapareceria.
 
 ## Real-Debrid
 
-Adaptador: [`src/debrid/realdebrid.ts`](src/debrid/realdebrid.ts).
+Adaptador: [`src/debrid/realdebrid.ts`](src/debrid/realdebrid.ts), com uma
+camada própria de paridade no `cacheCheck`: [`rd-ledger.ts`](src/debrid/rd-ledger.ts),
+[`rd-oracle.ts`](src/debrid/rd-oracle.ts) e [`rd-gate.ts`](src/debrid/rd-gate.ts).
 
 `/torrents/instantAvailability` foi aposentado (doc oficial atual: o método
-**não existe**; quem chama leva erro `37 Disabled endpoint`).
-`checkCached` continua devolvendo `Set` vazio e `cacheCheck: false`.
+**não existe**; quem chama leva erro `37 Disabled endpoint`). O `checkCached`
+em si segue devolvendo `Set` vazio e `complete` apenas quando todo hash tem
+evidência no ledger, mas o **`cacheCheck` agora é DINÂMICO**: o registry o
+promete como `true` quando `config.debrid.rdLedger.enabled` **e**
+`rdOracle.available()` (ao menos uma fonte externa ligada) — só então o addon
+tem como conversar a confirmação do CDN. Sem as duas, continua honesto em
+`false` (e `cachedOnly` não pode esconder a lista). Não volte para o `false`
+fixo: o `current()` em `debrid/index.ts` traduz o flag por requisição num clone.
 
-**Como o ⚡ existe mesmo assim** (não é inventado):
+**Como o ⚡ existe** (camadas, da mais barata à mais cara):
 
 | Fonte | Quando |
 |---|---|
+| Ledger global (`rdc:v1:<hash>`, **sem conta**) | Hit/miss/blocked confirmados por qualquer caminho (ver abaixo) |
 | Inventário pronto da conta (`dinv` / `inventoryPeek`) | Hash já baixado em `/torrents` |
 | Histórico de play (`magnetdb.isAlive`) | `/resolve` devolveu link de verdade |
-| Sonda em fundo (`DEBRID_RD_PROBE`, [`rd-probe.ts`](src/providers/rd-probe.ts)) | Após a lista: `addMagnet` → se vira `downloaded` na hora, marca alive e **apaga** o torrent da sonda |
+| Oráculo Torrentio (`[RD+]` no `name`) | Busca: item listado com marcador = cacheado; listado sem = miss autoritativo; **não-listado ≠ miss** |
+| Oráculo StremThru (`GET /v0/store/torz/check`) | Busca: item presente (`status: 'cached'`) = hit; presente sem cached = miss |
+| Sonda em fundo (`DEBRID_RD_PROBE`, [`rd-probe.ts`](src/providers/rd-probe.ts)) | Após a lista: `addMagnet` → se vira `downloaded` na hora, marca hit no ledger e **apaga** o torrent da sonda |
 
-O Torrentio mostra mais `[RD+]` porque mantém **banco colaborativo**; a sonda
-só mede na *sua* conta, com teto por busca/hora e `GET /torrents/activeCount`
-antes do lote (erro `21` = conta no limite de ativos). Não empatamos a
-primeira pintura fria do Torrentio — a reabertura, sim, cresce.
+**Ledger (`rd-ledger.ts`).** O CDN/cache do RD pertence ao SERVIÇO, não à conta
+que observou o resultado — a chave `rdc:v1:<hash>` não leva `apiKey` nem
+`accountScope`, então uma confirmação de uma instalação vale para todas. Estados
+`hit`/`miss`/`blocked`; `blocked` vence hit (451 legal não pode ser apagado por
+caminho atrasado). Miss usa **backoff exponencial** (`DEBRID_RD_LEDGER_MISS_BACKOFF_MS`,
+30min→3d nos passos padrão) e, como falso negativo aqui é pior que falso
+positivo, **nunca condena uma release**: serve só para a sonda não martelar e
+para o filtro do `cachedOnly`. Sinais gratuitos que alimentam o ledger:
+inventário, play/downloaded (`/resolve`), 451 (`noteBlocked`), `enqueue` pronto,
+recheck pronto, `torrentStatus` e sonda RD. Convive com o `mag:alive` (que
+continua por conta e registra um play que funcionou naquela credencial). O
+oráculo consulta o ledger ANTES de ir à rede (dedupe); hash já resolvido não
+paga chamada.
 
-`DEBRID_CACHED_ONLY=true` no RD só corta com inventário **quente**; memo frio
-não zera a lista. Na prática o cruzamento conta×indexers é baixo: o botão
-esvazia a maioria das buscas.
+**Oráculo (`rd-oracle.ts`).** Despachante com `Promise.allSettled` + fail-open
+(erro devolve `Map` vazio, nunca lança) sobre as fontes habilitadas em paralelo.
+Fusão **true-wins**: `true` de qualquer fonte vence; `false` só conta de fonte
+que enumera com autoridade — StremThru (item presente sem `cached`) e Torrentio
+(listado sem `[RD+]` com hash extraível). Hash **não listado** pelo Torrentio é
+**desconhecido**, nunca miss: o acervo BR dublado que interessa é justamente o
+que o Torrentio não indexa, e tratar como miss envenenaria o ledger. A chamada
+do Torrentio é cacheada por título (`rdc:trt:<type>:<id>`, TTL ~6h) para não
+virar uma chamada por busca repetida contra infra de terceiro.
+
+**Governador de escrita (`rd-gate.ts`).** O RD tem teto de 250 req/min e
+bruteforce = bloqueio por tempo indefinido; o gate serializa as escritas **por
+conta** (concorrência 1) com filas por prioridade
+`play > cleanup > autofetch > probe`. AIMD no intervalo entre admissões: 429
+dobra o gap (limitado por `DEBRID_RD_GATE_MAX_GAP_MS`) e, com `Retry-After`,
+entra em cooldown honorido; cinco sucessos consecutivos reduzem o gap em 10%.
+Play fura gap/cooldown só depois de `playMaxWaitMs`, e nunca preempta job já em
+voo; **`cleanup` (DELETE) fura o cooldown imediatamente** — liberar vaga na
+conta não consome o recurso que o cooldown protege. `autofetch` e `probe`
+respeitam o cooldown. A sonda delega cooldown ao gate; `settleProbeLot` espera o
+término real com o gate ligado.
+
+**Filtro ternário do `cachedOnly`.** Com `DEBRID_CACHED_ONLY` (`dc`) e ledger ativo,
+o corte remove **só o miss confirmado** (`rdLedger.peek` = `miss`/`blocked`);
+hash **desconhecido sobrevive** (ranqueado abaixo) em vez de a lista inteira
+sumir. Sem ledger + oráculo, cai na regra antiga do inventário quente. No
+`sortAndLimit`, `knownInstant()` (via ledger) entra ao lado de `magnetdb.isAlive`
+e `inventoryReady` — o ⚡ real sobrevive às cotas de qualidade.
+
+**cacheMaxAge real.** Quando o ledger cobriu o top-N da busca (`debridKnown:
+true` na entrada do cache), `streamsNeedRevalidation` devolve `false` e a
+resposta sai com `cacheMaxAge` completo (TTL de 900s) em vez dos 60s de "precisa
+revalidar". O custo: a garantia passa a depender do oráculo ter marcado aquele
+lote no momento da gravação — é a troca consciente de "re-perguntar a cada
+reabertura" por "confiar no ledger até expirar".
 
 O play funciona bem: `addMagnet` → `waiting_files_selection` → `selectFiles`
-com o arquivo escolhido pelo `pickFile` → `unrestrict`. É o único que deixa o
-addon **escolher o arquivo antes de baixar**, o que em pack multi-filme é a
-opção mais econômica de todas — em vez de puxar os 22 GB da coleção para
-entregar um filme, ele baixa só o arquivo pedido.
+com o arquivo escolhido pelo `pickFile` → `unrestrict` — tudo dentro de um job
+só admissado como `play` no gate. É o único que deixa o addon **escolher o
+arquivo antes de baixar**, o que em pack multi-filme é a opção mais econômica
+de todas — em vez de puxar os 22 GB da coleção para entregar um filme, ele
+baixa só o arquivo pedido. O Ready-id memoizado (`readyTorrentId`) evita
+re-addMagnet do que já está pronto, e o `451` de infringimento grava `blocked`
+no ledger.
 
 **Contratos oficiais usados:** base `https://api.real-debrid.com/rest/1.0/`,
 `Bearer`, **250 req/min** (429 / erro `34`; bruteforce = bloqueio por tempo
@@ -313,10 +368,13 @@ download.
 Quando um pack de temporada enfileirado por autofetch fica pronto, o addon
 invalida as buscas da mesma temporada/conta e semeia disponibilidade
 (`noteAvailable`) para o ⚡ voltar sem esperar o `CACHE_TTL`. **Isso só roda em
-adaptador com `cacheCheck: true`** (Premiumize, TorBox, AllDebrid): é o recheck
-do cache que prova ready. Em Real-Debrid e Debrid-Link (`cacheCheck: false`)
-não existe essa prova, então pack pronto **não** marca nem semeia nada e não
-gera promessa de ⚡ — a constatação fica para o `resolveLink` do play.
+adaptador com `cacheCheck: true`** (Premiumize, TorBox, AllDebrid e o
+Real-Debrid quando o ledger+oráculo o elevam para `true`): é o recheck do cache
+que prova ready. Em Debrid-Link (`cacheCheck: false`) não existe essa prova,
+então pack pronto **não** marca nem semeia nada e não gera promessa de ⚡ — a
+constatação fica para o `resolveLink` do play. Se o kill-switch do ledger
+(`DEBRID_RD_LEDGER=false`) ou do oráculo removerem a prova RD, o fill volta a
+não valer lá — a promessa só existe onde a confirmação existe.
 
 ---
 
@@ -328,9 +386,18 @@ _checagem em lote + autofetch_:
 
 1. **Premiumize** — melhor equilíbrio. Checagem barata, autofetch simples.
 2. **TorBox** — equivalente em capacidade, um pouco mais de cerimônia no play.
-3. **AllDebrid** — funciona, mas cada busca escreve na conta e depende da
-   limpeza automática se comportar.
-4. **Real-Debrid / Debrid-Link** — só se você já paga; conviva com a lista sem ⚡.
+3. **Real-Debrid** — subiu de posição com a paridade F1–F5: com o ledger global
+   + oráculo ligados (`DEBRID_RD_ORACLE*`), o ⚡ aparece **na primeira abertura**,
+   não mais só na reabertura via sonda. Mantém as duas vantagens estruturais —
+   a única seleção de arquivo *antes* de baixar entre os cinco e o custo de
+   checagem que não escreve na conta por mero diagnóstico (o oráculo consulta
+   fontes externas; o ledger é local). Preço: depende do oráculo/ledger ativos e
+   do governador `rd-gate` domar o teto apertado de 250 req/min.
+4. **AllDebrid** — funciona, mas cada busca escreve na conta e depende da
+   limpeza automática se comportar; ficou abaixo do RD justamente onde ele
+   melhora sem custo estrutural.
+5. **Debrid-Link** — o menos exercitado dos cinco; herda a lista sem ⚡ e fica
+   de fora da paridade RD por não expor checagem nem oráculo.
 
 ## Configuração relevante
 
@@ -344,9 +411,37 @@ No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_CACHED_ONLY`,
 `DEBRID_AUTO_FETCH_SEASON_INDEX_MAX`, `DEBRID_PREFETCH_NEXT_EP`,
 `DEBRID_PREFETCH_TTL`, `DEBRID_SWEEP_DEAD`, `DEBRID_ACCOUNT_WARN_TOTAL`,
 `DEBRID_ACCOUNT_WARN_LIMIT_USED`.
+
+**Paridade Real-Debrid (F1/F2/F5; F3 vem depois):**
+
+- Governador de escrita (`DEBRID_RD_GATE*`): `DEBRID_RD_GATE` (default `true`;
+  `false` restaura o fluxo pré-governador, inclusive gap/cooldown locais da
+  sonda), `DEBRID_RD_GATE_MIN_GAP_MS` (1000), `DEBRID_RD_GATE_MAX_GAP_MS`
+  (30000), `DEBRID_RD_GATE_COOLDOWN_MS` (90000),
+  `DEBRID_RD_GATE_PLAY_MAX_WAIT_MS` (1500 — play fura gap/cooldown só depois
+  deste teto).
+- Ledger global (`DEBRID_RD_LEDGER*`): `DEBRID_RD_LEDGER` (default `true`),
+  `DEBRID_RD_LEDGER_HIT_TTL` (2592000), `DEBRID_RD_LEDGER_BLOCKED_TTL`
+  (2592000), `DEBRID_RD_LEDGER_MISS_BACKOFF_MS`
+  (`1800000,7200000,43200000,259200000` — backoff exponencial do miss).
+- Oráculo (`DEBRID_RD_ORACLE*`): `DEBRID_RD_ORACLE` (default **`false`** — é ele
+  que junto com o ledger eleva o `cacheCheck` do RD a `true`; sem fonte externa,
+  RD segue honesto em `false`), `DEBRID_RD_ORACLE_TIMEOUT_MS` (800),
+  `DEBRID_RD_ORACLE_MAX_HASHES` (100, teto 500), `DEBRID_RD_ORACLE_STREMTHRU_URL`
+  (vazio = desligado), `DEBRID_RD_ORACLE_STREMTHRU_TOKEN`,
+  `DEBRID_RD_ORACLE_STREMTHRU_STORE` (`realdebrid`),
+  `DEBRID_RD_ORACLE_TORRENTIO` (default `false`),
+  `DEBRID_RD_ORACLE_TORRENTIO_URL` (`https://torrentio.strem.fun`),
+  `DEBRID_RD_ORACLE_TORRENTIO_KEY` (vazio usa a chave efetiva da instalação),
+  `DEBRID_RD_ORACLE_TORRENTIO_TTL` (21600 — cache da resposta por título).
+- Sonda (`DEBRID_RD_PROBE*`): já vistos acima, agora com o cooldown delegado ao
+  gate quando ele está ligado.
+- **`DEBRID_RD_WARM*` (F3)** ainda **não existe** no código — reservado para a
+  futura fase de aquecimento do oráculo/ledger. Não configure até chegar.
+
 O `DEBRID_AUTO_FETCH_SEASON_FILL` (default `true`) só tem efeito em serviço com
 `cacheCheck: true` — o ⚡ do Season Pack Fill é garantido pelo recheck do cache,
-que RD/DL não têm.
+que DL não tem e o RD passa a ter quando o ledger+oráculo o elevam a `true`.
 
 Na URL de instalação (por usuário, ver [`src/runtime.ts`](src/runtime.ts)):
 `ds` serviço, `dk` chave, `dc` somente-cacheado, `bu` mostrar BR fora do cache,

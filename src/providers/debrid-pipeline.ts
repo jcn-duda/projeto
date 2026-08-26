@@ -1,6 +1,13 @@
 import config from '../config.js';
 import type { DebridAdapter, Stream, WorkHint } from '../../types/domain.js';
-import { markDebridName, filterKnownCache, parseTitleSeasonEpisode } from '../utils/format.js';
+import {
+  markDebridName,
+  filterKnownCache,
+  parseTitleSeasonEpisode,
+  pickBrDubbedCandidates,
+  pickAnyDubbedCandidates,
+  pickTopSeededCandidates,
+} from '../utils/format.js';
 import * as cache from '../utils/cache.js';
 import debrid from '../debrid/index.js';
 import { accountScope } from '../utils/request-key.js';
@@ -16,7 +23,7 @@ import * as releaseIndex from '../utils/release-index.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { autoFetchCandidates, releaseAllHolds, autoFetchBrDubbed } from './autofetch-runner.js';
-import { queueRdProbe } from './rd-probe.js';
+import rdWarmer from './rd-warmer.js';
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -266,14 +273,25 @@ export async function applyDebrid(input: Array<Stream | null>, {
     imdbId,
     searchKey,
   });
-  // Sonda RD em fundo: descobre ⚡ no CDN global sem atrasar a resposta.
-  // Roda DEPOIS do autofetch ter marcado holds — a seleção da sonda pula held.
-  queueRdProbe(streams, {
-    cached,
-    searchKey,
-    season,
-    episode,
-  });
+  // Warmer RD em fundo (F3): enfileira os top-N desconhecidos sem rede nem atraso na resposta.
+  if (config.debrid.rdWarm.enabled && (adapter.id === 'realdebrid' || config.debrid.service === 'realdebrid')) {
+    const cachedSet = new Set([...cached].map((h) => String(h).toLowerCase()));
+    const topN = 10;
+    const brCands = pickBrDubbedCandidates(streams, cachedSet, topN)
+      .map((s) => String(s.infoHash || '').toLowerCase())
+      .filter(Boolean);
+    if (brCands.length) rdWarmer.enqueue(brCands, 100);
+
+    const anyDubbedCands = pickAnyDubbedCandidates(streams, cachedSet, topN)
+      .map((s) => String(s.infoHash || '').toLowerCase())
+      .filter(Boolean);
+    if (anyDubbedCands.length) rdWarmer.enqueue(anyDubbedCands, 50);
+
+    const topSeededCands = pickTopSeededCandidates(streams, cachedSet, topN, { minSeeders: 1 })
+      .map((s) => String(s.infoHash || '').toLowerCase())
+      .filter(Boolean);
+    if (topSeededCands.length) rdWarmer.enqueue(topSeededCands, 10);
+  }
   if (onCacheResult) onCacheResult({
     known,
     needsFullRefresh,

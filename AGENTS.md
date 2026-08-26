@@ -318,7 +318,7 @@ declarar `true` sem endpoint funcional é o pior dos mundos.
 | Premiumize | `true` | lote instantâneo |
 | TorBox | `true` | lote instantâneo |
 | AllDebrid | `true` | `ready` do `/magnet/upload` (o `/magnet/instant` morreu) |
-| Real-Debrid | `false` | sem consulta; o play adiciona o magnet |
+| Real-Debrid | ⚠️ dinâmico | `rdLedger.enabled && rdOracle.available()`. Com as duas, o `current()` do registry devolve `true` num clone; senão `false` (sem consulta; o play adiciona o magnet) |
 | Debrid-Link | `false` | idem |
 
 **Banco de magnets (`src/utils/magnetdb.ts`).** Histórico durável POR HASH,
@@ -464,6 +464,64 @@ uma instalação — limpar o cache esfria a instância toda de uma vez.
 
 Para adicionar um serviço: crie o adaptador, registre em `ADAPTERS` e pronto —
 `SERVICES` alimenta o seletor da página automaticamente.
+
+**Paridade Real-Debrid (fases F1–F5).** O RD aposentou o
+`/torrents/instantAvailability` (erro `37`), então o `cacheCheck` passou a ser
+**dinâmico** em vez de `false` fixo. Três módulos próprios em `src/debrid/`
+sustentam isso:
+
+- **`rd-gate.ts` — governador único de escrita, por conta.** Serializa o
+  `addMagnet`/escritas (concorrência 1) com filas por prioridade
+  `play > cleanup > autofetch > probe`. AIMD no intervalo entre admissões: 429
+  dobra o gap e, com `Retry-After` no erro, honra o cooldown sugerido; cinco
+  sucessos consecutivos reduzem o gap em 10%. `cleanup` (DELETE) **fura o
+  cooldown** — liberar vaga na conta não consome o recurso que o cooldown
+  protege; play fura gap/cooldown só após `playMaxWaitMs`, e nem outro job em
+  voo é preemptado. A sonda delega o cooldown ao gate. Motivo: o RD tem teto de
+  250 req/min e bruteforce = bloqueio por tempo indefinido — é o serviço onde
+  rajada de escrita é mais cara. Kill-switch: `DEBRID_RD_GATE=false` restaura o
+  fluxo anterior (inclusive gap/cooldown locais da sonda).
+- **`rd-ledger.ts` — ledger global e durável, sem escopo de conta.** O CDN do
+  RD pertence ao SERVIÇO, não à conta que observou o resultado, então a chave
+  `rdc:v1:<hash>` não leva `apiKey` nem `accountScope` — uma confirmação de uma
+  instalação vale para todas. Estados `hit`/`miss`/`blocked` (`blocked` vence
+  hit: 451 legal não pode ser apagado por caminho atrasado). Miss usa **backoff
+  exponencial** (`DEBRID_RD_LEDGER_MISS_BACKOFF_MS`, 30min→3d) e **nunca
+  condena**: falso negativo é pior que falso positivo, então serve só para a
+  sonda não martelar e para o filtro do `cachedOnly`. Sinais gratuitos que
+  alimentam o ledger (todos com `noteHit`/`noteMiss`/`noteBlocked`):
+  inventário, `magnetdb.isAlive`, play/downloaded no `/resolve`, 451, `enqueue`
+  pronto, recheck pronto, `torrentStatus` e a sonda RD. O oráculo consulta o
+  ledger ANTES da rede (dedupe) — hash já resolvido não paga chamada. Convive
+  com o `mag:alive` (por conta, play que funcionou naquela credencial).
+  Kill-switch: `DEBRID_RD_LEDGER=false`.
+- **`rd-oracle.ts` — oráculo multi-fonte.** Consulta as fontes habilitadas
+  (StremThru `GET /v0/store/torz/check?hash=<csv>`, lotes de `maxHashes`, com
+  headers `X-StremThru-Store-Name`/`X-StremThru-Store-Authorization`; e
+  Torrentio `/…/stream/<type>/<id>.json`, `[RD+]` no `name`, hash de `infoHash`
+  ou url de resolve) em paralelo, com `Promise.allSettled` + fail-open. Fusão
+  **true-wins**: `true` de qualquer fonte vence; `false` só da fonte que enumera
+  com autoridade — item **não listado** pelo Torrentio é **desconhecido**, nunca
+  miss (o acervo BR dublado que interessa é justamente o que o Torrentio não
+  indexa). A chamada do Torrentio é cacheada por título (`rdc:trt:`, TTL ~6h)
+  para não bater em infra de terceiro a cada busca. Kill-switch:
+  `DEBRID_RD_ORACLE=false`.
+
+Com ledger+oráculo ativos, o oráculo roda ANTES do `checkCached` no
+`applyDebrid` e grava os veredictos no ledger; o `checkCached` do adaptador só
+afirma `complete` quando todo hash tem evidência. **Filtro ternário do
+`cachedOnly` para RD**: em vez de "tudo ou nada", remove **apenas o miss
+confirmado** (`peek` = `miss`/`blocked`); o **desconhecido sobrevive** (abaixo
+na ordenação). AllDebrid/Premiumize/TorBox não passam `missHashes` e mantêm o
+comportamento antigo. No ranking, `debrid.knownInstant()` (via `rdLedger.isHit`)
+entra ao lado de `magnetdb.isAlive` e `inventoryReady` — o ⚡ real sobrevive às
+cotas de qualidade mesmo com seeders baixos. **cacheMaxAge real:** quando o
+ledger cobriu o top-N (`debridKnown: true`), `streamsNeedRevalidation` devolve
+`false` e a resposta sai com TTL completo (900s) em vez de 60s — a garantia do
+`cachedOnly` passa a ser "confiar no ledger até expirar", não re-perguntar a
+cada reabertura. Os três kill-switches juntos (`DEBRID_RD_GATE` /
+`DEBRID_RD_LEDGER` / `DEBRID_RD_ORACLE`) derrubam a paridade e devolvem o RD ao
+comportamento honesto de "não sei".
 
 Resolução acontece **só no play** (rota `/resolve`), nunca na listagem: é uma
 sequência de chamadas por torrent e não caberia no orçamento de busca. A
@@ -626,6 +684,18 @@ chamada:
 O gate de 30% (`debrid.check.repeated / debrid.check.hashes` em 15 min) era o
 critério para *implementar*. Já está implementado; hoje esse par de métricas
 serve para **calibrar os TTLs**, não para decidir se a fase existe.
+
+**O ledger do Real-Debrid (`rdc:v1`) é um namespace irmão do `davail`.** Ele
+vive no MESMO L1/L2 (chave `rdc:v1:<hash>` sem `adapter`/`apiKey`/`accountScope`),
+e por isso herda a cotação do cache global — o `davail` isola por conta porque a
+disponibilidade ali é da conta; o `rdc` já nasce sem escopo porque o CDN do RD
+pertence ao serviço. As entradas `rdc:trt:` (resposta do oráculo Torrentio por
+título) são cache por Obra e não por hash, com TTL próprio. Não "consolide" os
+dois em um namespace só: `davail` grava `0`/`1` por conta e envelhece rápido no
+negativo; `rdc` tem backoff exponencial no miss e precisa que `blocked`
+sobreviva a caminhos atrasados. Bump de versão em `rdc` (via `cache-keys.ts`,
+`NAMESPACE_VERSIONS`) invalida o formato antigo no boot — se o veredicto ficar
+antigo, é esse o lugar de corretores de forma, não leitura híbrida.
 
 ---
 

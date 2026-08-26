@@ -25,6 +25,7 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import debrid from '../debrid/index.js';
 import { notify } from '../utils/notify.js';
+import rdWarmer from './rd-warmer.js';
 
 type HarvestEntry = {
   imdbId: string;
@@ -249,6 +250,17 @@ async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: b
 
   const relevant = filterRelevantRaw(collected, matchContext as any);
   const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);
+  if (config.debrid.rdWarm.enabled && relevant.length) {
+    const topReleases = relevant
+      .map((r: any) => ({
+        hash: String(r.hash || r.infoHash || '').toLowerCase(),
+        score: r.isBr && r.dubbed ? 80 : (r.dubbed ? 40 : 5),
+      }))
+      .filter((r: any) => /^[a-f0-9]{40}$/.test(r.hash));
+    for (const item of topReleases.slice(0, 10)) {
+      rdWarmer.enqueue([item.hash], item.score);
+    }
+  }
   harvested += 1;
   lastRunAt = Date.now();
   if (config.harvest.dashboardLastWorks > 0) {

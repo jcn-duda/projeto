@@ -550,6 +550,15 @@ const config = {
       // preemptado e ainda precisa terminar.
       playMaxWaitMs: Math.max(0, num(process.env.DEBRID_RD_GATE_PLAY_MAX_WAIT_MS, 1_500)),
     },
+    // Warmer contínuo em fundo para o Real-Debrid (Fase F3).
+    rdWarm: {
+      enabled: String(process.env.DEBRID_RD_WARM || 'true') === 'true',
+      intervalMs: Math.max(1, num(process.env.DEBRID_RD_WARM_INTERVAL_MS, 30_000)),
+      batch: Math.max(1, Math.trunc(num(process.env.DEBRID_RD_WARM_BATCH, 10))),
+      maxPerHour: Math.max(0, Math.trunc(num(process.env.DEBRID_RD_WARM_MAX_HOUR, 300))),
+      idleWindowMs: Math.max(0, num(process.env.DEBRID_RD_WARM_IDLE_WINDOW_MS, 120_000)),
+      queueMax: Math.max(1, Math.trunc(num(process.env.DEBRID_RD_WARM_QUEUE_MAX, 5000))),
+    },
     // Prefetch do próximo episódio de séries
     prefetchNextEp: String(process.env.DEBRID_PREFETCH_NEXT_EP || 'true') === 'true',
     prefetchTtl: num(process.env.DEBRID_PREFETCH_TTL, 43200),
