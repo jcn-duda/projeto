@@ -2547,6 +2547,22 @@ test('magnetYearContradicts: matriz completa de bordas e tolerância ±2 anos', 
   assert.equal(magnetYearContradicts({} as any, 2024), false);
   assert.equal(magnetYearContradicts(mkItem('Movie.2024'), 0), false);
   assert.equal(magnetYearContradicts({ magnet: 'magnet:?xt=urn:btih:xxx' }, 2024), false);
+
+  // 10. URL de protetor de link NÃO é magnet: slug do post pode citar qualquer
+  //     ano da franquia. Medido no nerdviatorrents: slug "exterminio-2025" mata
+  //     o filme correto de 2002.
+  const resolverUrl = {
+    magnet: 'http://127.0.0.1:8702/resolve?url=https%3A%2F%2Fwww.nerdviatorrents.net%2Fexterminio-2025%2F&i=0&h=228c1b010e&n=1',
+  };
+  assert.equal(magnetYearContradicts(resolverUrl, 2002), false, 'URL de protetor não deve condenar');
+  assert.equal(magnetYearContradicts(resolverUrl, 2025), false, 'URL de protetor não confirma ano nem quando casa');
+
+  // 11. Magnet real COM dn= continua funcionando normalmente
+  assert.equal(magnetYearContradicts(mkItem('Exterminio.2002.Dublado.1080p'), 2002), false, 'ano correto no dn= aceito');
+  assert.equal(magnetYearContradicts(mkItem('Exterminio.2025.Dublado.1080p'), 2002), true, 'ano errado no dn= rejeitado');
+
+  // 12. Magnet sem dn= não extrai ano (sem evidência)
+  assert.equal(magnetYearContradicts({ magnet: `magnet:?xt=urn:btih:${HASH}` }, 2024), false, 'sem dn= não condena');
 });
 
 test('magnetYearContradicts integrado a filterRelevantRaw: filme aplica guarda, série/pack não', () => {

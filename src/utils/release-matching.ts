@@ -491,10 +491,25 @@ function containsTokenRun(title: string, normalizedRoot: string) {
 function magnetYearContradicts(item: RawItem | null | undefined, catalogYear: number) {
   const raw = String(item?.magnet || item?.MagnetUri || item?.Guid || '');
   if (!raw || !catalogYear) return false;
+  // Só analisa o dn= de um magnet real. URLs de protetor de link (http/https)
+  // não contêm informação de release — o slug do post pode citar qualquer ano
+  // da franquia. Medido no nerdviatorrents: slug "exterminio-2025" mata o filme
+  // correto de 2002 porque |2025-2002|=23>2.
+  const isMagnet = /^magnet:/i.test(raw.trim());
+  let source: string;
+  if (isMagnet) {
+    // Extrai APENAS o dn= do magnet: é onde a release declara o nome/ano real.
+    const dnMatch = raw.match(/[&?]dn=([^&]+)/i);
+    source = dnMatch ? dnMatch[1] : '';
+  } else {
+    // URL de protetor/resolver: sem dn=, sem evidência de ano da release.
+    return false;
+  }
+  if (!source) return false;
   // O dn= viaja percent-encoded ("O%20Corvo%201994"): sem decodificar, o '0'
   // do %20 cola no ano e a fronteira de dígito esconde exatamente o ano
   // verdadeiro que esta guarda procura. '+' é espaço na forma magnet.
-  let source = raw.replace(/\+/g, ' ');
+  source = source.replace(/\+/g, ' ');
   try {
     source = decodeURIComponent(source);
   } catch {
