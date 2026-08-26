@@ -1,7 +1,33 @@
 import { asyncRoute } from './async.js';
 import type { AppServices } from './types.js';
 import type express from 'express';
+import config from '../config.js';
 import { errorMessage } from '../utils/logger.js';
+
+// O 451 só aparece no play: a lista pronta foi construída quando o ledger
+// ainda não sabia do bloqueio e segue oferecendo [RD⚡] morto até o fim do
+// TTL. O adaptador grava noteBlocked; invalidar o namespace streams faz a
+// próxima abertura reconstruir a lista — e o corte ternário do cachedOnly
+// remove o hash bloqueado. Precedente: scanBlockedRdBads no rd-warmer.
+// Debounce: o usuário clicando vários cards bloqueados em sequência não pode
+// esfriar o cache de todo mundo repetidamente.
+let lastBlockedInvalidateAt = 0;
+function invalidateStreamsOnBlocked(services: AppServices) {
+  const cooldown = Math.max(0, Number(config.debrid.resolveBlockedInvalidateCooldownMs) || 0);
+  if (!cooldown) return;
+  const now = Date.now();
+  if (now - lastBlockedInvalidateAt < cooldown) return;
+  lastBlockedInvalidateAt = now;
+  try {
+    const removed = services.cache.clearNamespace('streams');
+    if (removed) {
+      services.metrics.count('resolve.streamsInvalidated.blocked');
+      services.log.info(`[resolve] cache de streams invalidado por bloqueio legal (${removed} entrada(s)); a próxima abertura reconstrói sem o hash bloqueado`);
+    }
+  } catch (err) {
+    services.log.warn('[resolve] falhou ao invalidar streams após 451:', errorMessage(err));
+  }
+}
 
 function makeResolveHandler(services: AppServices) {
   return asyncRoute(async (req: express.Request, res: express.Response) => {
@@ -61,6 +87,7 @@ function makeResolveHandler(services: AppServices) {
       // esconderia uma fonte potencialmente tocável em outro debrid.
       if (services.debridCommon.isBlockedError(err)) {
         services.log.warn('[resolve] torrent ' + infoHash.slice(0, 8) + ' bloqueado pelo debrid (451)');
+        invalidateStreamsOnBlocked(services);
         return res.status(451).send('o debrid bloqueou este conteúdo por motivo legal');
       }
       if (services.debridCommon.isDubLieError(err)) {

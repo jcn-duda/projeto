@@ -533,6 +533,12 @@ test('/resolve: BlockedError devolve 451 legal sem gravar bad ou alive', async (
   const sig = hmacSig('fake-key', hashBlocked);
   const originalResolve = FAKE_ADAPTER.resolveLink;
 
+  // A lista pronta é a única "prova" que sobrevive quando o bloqueio só
+  // aparece no play: sem invalidar o namespace, o card [RD⚡] morto
+  // continuaria sendo servido até o fim do TTL.
+  cache.set('streams:v6:teste-bloqueio-451', { streams: [{ name: 'x', infoHash: hashBlocked }] }, 900);
+  assert.ok(cache.get('streams:v6:teste-bloqueio-451'), 'precondição: entrada de streams existe');
+
   try {
     FAKE_ADAPTER.resolveLink = async () => { throw new BlockedError('HTTP 451 — infringing_file'); };
     const res = await server.request('GET', `/${cfg}/resolve/${hashBlocked}?sig=${sig}`);
@@ -540,6 +546,7 @@ test('/resolve: BlockedError devolve 451 legal sem gravar bad ou alive', async (
     assert.equal(res.text, 'o debrid bloqueou este conteúdo por motivo legal');
     assert.equal(magnetdb.isBad('fakebrid', 'fake-key', hashBlocked), false, '451 não prova ausência de vídeo');
     assert.equal(magnetdb.isAlive('fakebrid', 'fake-key', hashBlocked), false, '451 nunca é play resolvido');
+    assert.equal(cache.get('streams:v6:teste-bloqueio-451'), null, 'o play bloqueado invalidou a lista pronta');
   } finally {
     FAKE_ADAPTER.resolveLink = originalResolve;
   }

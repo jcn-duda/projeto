@@ -611,6 +611,12 @@ const config = {
     // Segredo do HMAC dos links /resolve. Vazio = assina com a API key de
     // debrid efetiva da requisição (basta pra uso de um usuário só).
     resolveSecret: process.env.RESOLVE_SECRET || '',
+    // Play que descobre 451 invalida o cache de streams: a lista prometia ⚡
+    // para hash que o serviço recusa, e ela só seria reconstruída no fim do
+    // TTL. Debounce para uma rajada de plays bloqueados (usuário clicando
+    // vários cards mortos em seguida) não esfriar o cache repetidamente.
+    // 0 desliga a invalidação.
+    resolveBlockedInvalidateCooldownMs: num(process.env.RESOLVE_BLOCKED_INVALIDATE_COOLDOWN_MS, 30000),
   },
   // Menor que o limite de 10s do cliente Stremio.
   searchTimeout: num(process.env.SEARCH_TIMEOUT_MS, 8000),
