@@ -496,10 +496,13 @@ function runRecheck(searchKey: string) {
         metrics.observe('autofetch.ready-ms', Date.now() - (lot.createdAt || Date.now()));
         if (adapter.cacheCheck) {
           cache.forget(searchKey);
-          // TODO hash pronto recebe o positivo davail (não só pack): a próxima
-          // lista marca ⚡ sem repetir a consulta ao debrid, seja episódio ou
-          // filme. É a mesma evidência do season fill, servida a qualquer obra.
+          // I2 — o hash pronto semeia o positivo do davail (⚡ na reabertura sem
+          // repetir a consulta ao debrid) para QUALQUER obra, filme ou episódio,
+          // não só pack. Fica DENTRO do `cacheCheck` de propósito: só quem
+          // confere cache provou ready; RD/DL sem ledger não têm essa prova e
+          // não semeiam (contrato T4a). `ready-note` conta o ready que semeia.
           debrid.noteAvailable(hash);
+          metrics.count('autofetch.ready-note');
           const hint = lot.seasonHints.get(hash);
           if (
             config.debrid.autoFetchSeasonFill &&

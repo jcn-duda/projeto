@@ -2148,9 +2148,10 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
   }
 });
 
-// TODO hash pronto recebe o positivo davail — não só pack de temporada. Hash
+// I2 — hash pronto recebe o positivo davail, não só pack de temporada. Hash
 // de filme/episódio que fica tocável no recheck semeia disponibilidade para a
-// próxima lista marcar ⚡ sem repetir a consulta ao debrid.
+// próxima lista marcar ⚡ sem repetir a consulta ao debrid, e o contador
+// autofetch.ready-note registra cada ready que semeia.
 test('hash NÃO-pack pronto no recheck semeia davail', async () => {
   const testMock = mock;
   const originalCheck = debrid.checkCached;
@@ -2180,6 +2181,7 @@ test('hash NÃO-pack pronto no recheck semeia davail', async () => {
   };
   const flush = () => new Promise((resolve) => setImmediate(resolve));
   const davailBefore = cache.snapshot().namespaces.davail?.entries || 0;
+  const readyNoteBefore = metrics.snapshot().counters['autofetch.ready-note'] || 0;
   let checks = 0;
 
   try {
@@ -2205,6 +2207,11 @@ test('hash NÃO-pack pronto no recheck semeia davail', async () => {
       cache.snapshot().namespaces.davail?.entries || 0,
       davailBefore + 1,
       'hash NÃO-pack pronto é semeado no cache de disponibilidade',
+    );
+    assert.equal(
+      (metrics.snapshot().counters['autofetch.ready-note'] || 0) - readyNoteBefore,
+      1,
+      'o ready que semeia o davail conta em autofetch.ready-note',
     );
   } finally {
     testMock.timers.reset();
@@ -2462,4 +2469,3 @@ test('gate de ocupação: memo frio é fail-open e memo quente acima do limiar b
     }
   }
 });
-
