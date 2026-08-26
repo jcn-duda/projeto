@@ -72,9 +72,9 @@ services:
   # Container SEPARADO de propósito: o `adom` é a stack única com Caddy/Jackett
   # na mesma imagem, e o StremThru não tem nada a ver com aquele build.
   #
-  # Por que próprio em vez da instância pública: o addon manda a chave RD no
-  # header X-StremThru-Store-Authorization. Apontando para stremthru.13377001.xyz
-  # essa credencial sairia da máquina em todo request com Real-Debrid.
+  # A API permanece self-hosted, mas o fallback abaixo usa conscientemente o
+  # peer público para ampliar a cobertura. O StremThru encaminha a chave RD no
+  # header X-StremThru-Store-Authorization ao peer em cada cache miss local.
   #
   # O banco começa VAZIO — no início ele responde `unknown` para quase tudo, o
   # que o parser trata como "não sei" (nunca miss). Ele esquenta com o uso.
@@ -98,10 +98,9 @@ services:
     environment:
       TZ: America/Sao_Paulo
       STREMTHRU_FEATURE: torz
-      # Vazio ativa o peer público embutido e encaminha a credencial do store.
-      # "-" é o sentinel upstream para manter o oráculo realmente local; hashes
-      # ainda não conhecidos ficam `unknown`, que o Adom trata em fail-open.
-      STREMTHRU_PEER_URI: "-"
+      # Opt-in explícito: amplia a base de disponibilidade, aceitando que o peer
+      # receba a credencial do store durante o fallback de hashes desconhecidos.
+      STREMTHRU_PEER_URI: https://stremthru.13377001.xyz
       # Sem proxy auth: o único cliente é o addon, na rede interna do compose.
       STREMTHRU_AUTH: ""
       # A credencial do store viaja POR REQUISIÇÃO no header
