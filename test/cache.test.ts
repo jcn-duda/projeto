@@ -404,11 +404,14 @@ test('estouro de dlmag despeja só o próprio namespace e preserva streams', () 
   }
 });
 
-test('cotas: rdc global preserva folga sob o teto e reduz os baldes de hash', () => {
+test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva folga sob o teto', () => {
   // raw guarda itens grandes (até ~100 KB por entrada), então a cota fica bem
   // abaixo das de entrada minúscula; davail e mag são registros pequenos por
-  // hash (0/1). O ledger RD é global e recebe 20 mil entradas; os históricos
-  // por conta cedem espaço para manter folga sob o teto global de 36 mil.
+  // hash (0/1). O ledger RD é global por hash e recebe 14 mil entradas; a fila
+  // do warmer (rdq) e o cache por título do Torrentio (rdt) ganham balde próprio
+  // para o bump do ledger não derrubá-los. A soma das cotas (31.000) fica abaixo
+  // do teto global de 36 mil, preservando folga para o LRU global não morder
+  // antes de uma cota de namespace.
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
@@ -418,11 +421,13 @@ test('cotas: rdc global preserva folga sob o teto e reduz os baldes de hash', ()
     assert.equal(cache.QUOTAS.streams, 2000);
     assert.equal(cache.QUOTAS.davail, 1000);
     assert.equal(cache.QUOTAS.mag, 2000);
-    assert.equal(cache.QUOTAS.rdc, 20000);
+    assert.equal(cache.QUOTAS.rdc, 14000);
+    assert.equal(cache.QUOTAS.rdq, 500);
+    assert.equal(cache.QUOTAS.rdt, 2500);
     assert.equal(cache.QUOTAS.idx, 2000);
-    // Soma das cotas (34.500) fica abaixo do teto, preservando folga para o
-    // LRU global não morder antes de uma cota de namespace.
     assert.equal(cache.MAX_ENTRIES, 36000);
+    const sumQuotas = Object.entries(cache.QUOTAS).reduce((sum, [ns, quota]) => ns === '__default' ? sum : sum + (quota as number), 0);
+    assert.ok(sumQuotas < cache.MAX_ENTRIES, `soma das cotas (${sumQuotas}) < teto (${cache.MAX_ENTRIES})`);
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
@@ -803,6 +808,61 @@ test(
   'descarte de versão obsoleta no disco — autofetch: v2 some, v3 sobe no boot',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(AUTOFETCH_VERSION_DISCARD_SCRIPT),
+);
+
+// Migração RD (G1): o ledger `rdc` ficou MISTURADO com o cache por título do
+// Torrentio (`rdc:v1:trt:...`) e com a fila do warmer (`rdc:v1:wq`) sob o mesmo
+// prefixo v1. Em v2 o ledger é só de hashes; o cache por título de Torrentio migrou
+// para `rdt:v1` e a fila para `rdq:v1`. Este teste garante que o boot:
+//   * apaga TODOS os `rdc:v1:*` (ledger histórico + trt/wq legados embutidos) —
+//     a limpeza única dos misses suspeitos, idempotente (não se repete em
+//     subidas seguintes porque a versão corrente já é v2);
+//   * preserva `rdc:v2`, `rdt:v1` e `rdq:v1` — os formatos novos não são lixo,
+//     e a fila/cache Torrentio vivos não podem ser derrubados pelo bump.
+const RD_VERSION_DISCARD_SCRIPT = [
+  "const assert = require('node:assert');",
+  'delete process.env.CACHE_PERSIST;',
+  "const { DatabaseSync } = require('node:sqlite');",
+  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
+  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
+  'const now = Date.now();',
+  // Legado embutido no ledger: miss histórico suspeito + cache Torrentio + fila.
+  "insert.run('rdc:v1:aaaa', JSON.stringify({ s: 'miss', n: 23, at: now }), now + 900000);",
+  "insert.run('rdc:v1:trt:movie:ttantigo', JSON.stringify([['bbbbbbb', true]]), now + 900000);",
+  "insert.run('rdc:v1:wq', JSON.stringify([{ hash: 'ccccccc', score: 5, enqueuedAt: now }]), now + 900000);",
+  // Formatos novos: ledger v2, cache Torrentio separado (rdt), fila separada (rdq).
+  "insert.run('rdc:v2:ddddddd', JSON.stringify({ s: 'hit', n: 0, at: now }), now + 900000);",
+  "insert.run('rdt:v1:trt:movie:ttnovo', JSON.stringify([['eeeeeee', true]]), now + 900000);",
+  "insert.run('rdq:v1:wq', JSON.stringify([{ hash: 'fffffff', score: 7, enqueuedAt: now }]), now + 900000);",
+  'seed.close();',
+  '',
+  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
+  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  '',
+  // Só os formatos novos sobem no L1.
+  "assert.deepStrictEqual(cache.get('rdc:v2:ddddddd'), { s: 'hit', n: 0, at: now }, 'rdc:v2 sobe do disco');",
+  "assert.deepStrictEqual(cache.get('rdt:v1:trt:movie:ttnovo'), [['eeeeeee', true]], 'rdt:v1 preservado');",
+  "assert.strictEqual(cache.get('rdc:v1:aaaa'), null, 'miss legado do ledger não entra no L1');",
+  "assert.strictEqual(cache.get('rdc:v1:wq'), null, 'fila legada embutida no v1 não entra no L1');",
+  '',
+  // O DELETE tem que ter corrido no SQLite, não só no Map.
+  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
+  "const rdcV1 = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdc:v1:%'\").all();",
+  "assert.strictEqual(rdcV1.length, 0, 'todo rdc:v1 apagado do disco (ledger + trt/wq legados)');",
+  "const rdcV2 = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdc:v2:%'\").all();",
+  "assert.strictEqual(rdcV2.length, 1, 'rdc:v2 preservado no disco');",
+  "const rdtRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdt:v1:%'\").all();",
+  "assert.strictEqual(rdtRows.length, 1, 'rdt:v1 (cache Torrentio vivo) preservado no disco');",
+  "const rdqRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdq:v1:%'\").all();",
+  "assert.strictEqual(rdqRows.length, 1, 'rdq:v1 (fila do warmer viva) preservado no disco');",
+  'dbVerify.close();',
+].join('\n');
+
+test(
+  'migração RD (G1): rdc v2 limpa o v1 inteiro (ledger+trt+wq) numa passada; rdt/rdq sobrevivem',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => runIsolatedCacheTest(RD_VERSION_DISCARD_SCRIPT),
 );
 
 // `raw1:` e `dinv1:` eram a versão colada no nome; hoje vivem como `raw:v1:` e

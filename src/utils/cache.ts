@@ -12,12 +12,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const store = new Map();
-// A soma das cotas conhecidas é 34.500 (inclui rdc=20.000), deixando 1.500
-// entradas de folga sob o teto global. `rdc` é global por hash e precisa reter
-// muito mais histórico que os caches por conta; os demais baldes foram
-// calibrados para abrir esse espaço sem deixar o despejo global invalidar suas
-// cotas antes da hora. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior
-// caso); rdc/davail/mag guardam só registros minúsculos.
+// A soma das cotas conhecidas é 31.000 (inclui rdc=14.000, rdq=500 e rdt=2.500),
+// deixando 5.000 entradas de folga sob o teto global. O ledger RD é global por
+// hash e precisa reter muito mais histórico que os caches por conta; os demais
+// baldes foram calibrados para abrir esse espaço sem deixar o despejo global
+// invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB ≈
+// 79 MB no pior caso); rdc/davail/mag/rdt guardam só registros minúsculos.
 const MAX_ENTRIES = 36000;
 const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
@@ -36,7 +36,16 @@ const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   mag: 2000,
   // Ledger global do Real-Debrid: cache de serviço, sem credencial na chave.
   // A cota alta evita perder a evidência rara das sondas entre instalações.
-  rdc: 20000,
+  // Era 20 mil, mas agora o namespace é só de hashes (o cache por título do
+  // Torrentio migrou para `rdt` e a fila do warmer para `rdq`), então abriu
+  // espaço para os dois novos baldes sem estourar o teto global.
+  rdc: 14000,
+  // Fila do rdWarmer: uma única chave `rdq:v1:wq` carrega o array inteiro;
+  // cota pequena por ser essencialmente um registro de estado, não histórico.
+  rdq: 500,
+  // Cache por título do Torrentio (`rdt:v1:trt:<type>:<id>`): uma entrada por
+  // obra consultada, TTL ~6h — cota média para conviver com o ledger.
+  rdt: 2500,
   // Índice de releases por obra (~14,7 KB por chave medido no pior caso, com teto
   // de 60 releases): 4.000 chaves ≈ 59 MB. É o que faz o addon responder do
   // próprio índice sem esperar Jackett. Folga tranquila no limite de 3 GB.

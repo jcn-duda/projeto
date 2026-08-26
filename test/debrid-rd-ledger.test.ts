@@ -58,7 +58,7 @@ test('ledger: blocked vence hit atrasado', () => {
 
 test('ledger: chave é global e não carrega conta', () => {
   ledger.noteHit([H4]);
-  assert.equal(ledger.key(H4), `rdc:v1:${H4}`);
+  assert.equal(ledger.key(H4), `rdc:v2:${H4}`);
   // A API não recebe apiKey: a mesma leitura vale para duas instalações RD.
   assert.equal(ledger.isHit(H4), true);
   assert.equal(ledger.isHit(H4), true);

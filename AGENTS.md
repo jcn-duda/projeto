@@ -483,7 +483,7 @@ sustentam isso:
   fluxo anterior (inclusive gap/cooldown locais da sonda).
 - **`rd-ledger.ts` — ledger global e durável, sem escopo de conta.** O CDN do
   RD pertence ao SERVIÇO, não à conta que observou o resultado, então a chave
-  `rdc:v1:<hash>` não leva `apiKey` nem `accountScope` — uma confirmação de uma
+  `rdc:v2:<hash>` não leva `apiKey` nem `accountScope` — uma confirmação de uma
   instalação vale para todas. Estados `hit`/`miss`/`blocked` (`blocked` vence
   hit: 451 legal não pode ser apagado por caminho atrasado). Miss usa **backoff
   exponencial** (`DEBRID_RD_LEDGER_MISS_BACKOFF_MS`, 30min→3d) e **nunca
@@ -503,7 +503,7 @@ sustentam isso:
   **true-wins**: `true` de qualquer fonte vence; `false` só da fonte que enumera
   com autoridade — item **não listado** pelo Torrentio é **desconhecido**, nunca
   miss (o acervo BR dublado que interessa é justamente o que o Torrentio não
-  indexa). A chamada do Torrentio é cacheada por título (`rdc:trt:`, TTL ~6h)
+  indexa). A chamada do Torrentio é cacheada por título (`rdt:v1:trt:`, TTL ~6h)
   para não bater em infra de terceiro a cada busca. Kill-switch:
   `DEBRID_RD_ORACLE=false`.
 
@@ -685,17 +685,31 @@ O gate de 30% (`debrid.check.repeated / debrid.check.hashes` em 15 min) era o
 critério para *implementar*. Já está implementado; hoje esse par de métricas
 serve para **calibrar os TTLs**, não para decidir se a fase existe.
 
-**O ledger do Real-Debrid (`rdc:v1`) é um namespace irmão do `davail`.** Ele
-vive no MESMO L1/L2 (chave `rdc:v1:<hash>` sem `adapter`/`apiKey`/`accountScope`),
-e por isso herda a cotação do cache global — o `davail` isola por conta porque a
-disponibilidade ali é da conta; o `rdc` já nasce sem escopo porque o CDN do RD
-pertence ao serviço. As entradas `rdc:trt:` (resposta do oráculo Torrentio por
-título) são cache por Obra e não por hash, com TTL próprio. Não "consolide" os
-dois em um namespace só: `davail` grava `0`/`1` por conta e envelhece rápido no
-negativo; `rdc` tem backoff exponencial no miss e precisa que `blocked`
-sobreviva a caminhos atrasados. Bump de versão em `rdc` (via `cache-keys.ts`,
-`NAMESPACE_VERSIONS`) invalida o formato antigo no boot — se o veredicto ficar
-antigo, é esse o lugar de corretores de forma, não leitura híbrida.
+**O Real-Debrid tem três namespaces irmãos, separados de propósito (G1).** O
+antigo `rdc:v1` nasceu **misturado** — a mesma chave `rdc:v1:<hash>` convivia
+com o cache por título do Torrentio (`rdc:v1:trt:...`) e com a fila do warmer
+(`rdc:v1:wq`) sob o MESMO prefixo. Cada um migrou para o próprio balde:
+
+- **`rdc:v2:<hash>`, ledger de hashes.** Veredicto `hit`/`miss`/`blocked` por
+  hash, sem `adapter`/`apiKey`/`accountScope` (o CDN do RD é do serviço, não da
+  conta). É o namespace irmão do `davail` no MESMO L1/L2: herda a cotação do
+  cache global, tem backoff exponencial no miss e precisa que `blocked`
+  sobreviva a caminhos atrasados. `davail` grava `0`/`1` por conta e envelhece
+  rápido no negativo — não "consolide" os dois em um só.
+- **`rdt:v1:trt:<type>:<id>`, cache por título do Torrentio.** Guarda a resposta
+  do oráculo por **Obra**, não por hash, com TTL próprio (~6h). Separado do
+  ledger para o histórico por título não disputar cota com o veredicto por hash.
+- **`rdq:v1:wq`, fila persistente do warmer.** Uma única chave que carrega o
+  array de trabalho pendente. Isolado do ledger porque a fila não é histórico
+  reconstructivo — é estado vivo; o bump do `rdc` tem que sobreviver ao contrário.
+
+O bump de `rdc` v1→v2 (via `cache-keys.ts`, `NAMESPACE_VERSIONS`) executa uma
+limpeza **one-shot e idempotente** no boot: descarrega, numa única passada,
+**todos** os `rdc:v1:*` — misses suspeitos históricos (inflados pelo eco antigo
+do oráculo) e os legados `trt`/`wq` embutidos. Na segunda subida a versão já é
+v2, então a passada não se repete, e nada se perde funcionalmente: o Torrentio
+é reconsultado e a fila é re-enfileirada sob demanda. `rdc:v2`, `rdt:v1` e
+`rdq:v1` sobrevivem ao bump.
 
 ---
 

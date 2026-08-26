@@ -17,9 +17,25 @@ const NAMESPACE_VERSIONS = Object.freeze({
   dinv: 'v1',
   davail: 'v1',
   mag: 'v1',
-  // Disponibilidade medida do CDN do Real-Debrid. Não leva escopo de conta:
-  // cache do RD é propriedade do serviço, não da credencial que o mediu.
-  rdc: 'v1',
+  // Ledger durável do CDN do Real-Debrid (veredictos por hash). Não leva escopo
+  // de conta: cache do RD é propriedade do serviço, não da credencial que o
+  // mediu. v1 nasceu MISTURADO — a mesma chave `rdc:v1:<hash>` convivia com o
+  // cache por título do Torrentio (`rdc:v1:trt:...`) e com a fila do warmer
+  // (`rdc:v1:wq`) sob o MESMO prefixo. Em v2 o ledger fica só com hashes; o
+  // cache por título migra para `rdt` e a fila para `rdq`. O bump descarrega,
+  // numa ÚNICA passada idempotente do boot, os misses suspeitos históricos
+  // (inflados pelo eco do oráculo) e os legados trt/wq embutidos — todos
+  // reconstruíveis (Torrentio reconsultado, fila re-enfileirada sob demanda),
+  // então não há perda funcional e não se apaga hit corrente em toda subida.
+  rdc: 'v2',
+  // Cache por título da resposta do Torrentio do oráculo (*rd-oracle*), chave
+  // `rdt:v1:trt:<type>:<id>` com TTL ~6h por obra. Separado do ledger para o
+  // veredicto por hash não competir com o histórico por título na mesma cota.
+  rdt: 'v1',
+  // Fila persistente do rdWarmer, chave `rdq:v1:wq` (uma única entrada que
+  // carrega o array). Separado do ledger para o bump do rdc não arrastar um
+  // estado vivo: a fila não é histórico reconstructivo — é trabalho pendente.
+  rdq: 'v1',
   // v3: a gravação passou a ROTEAR a release pela temporada/episódio que o
   // título dela declara, em vez de assumir a chave da busca. O formato do
   // registro é o mesmo, mas metade do conteúdo da v2 estava sob chave errada

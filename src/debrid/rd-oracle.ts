@@ -91,7 +91,7 @@ function hashFromUrl(url: string): string {
 }
 
 function torrentioCacheKey(type: string, id: string) {
-  return `${prefix('rdc')}trt:${type}:${id}`;
+  return `${prefix('rdt')}trt:${type}:${id}`;
 }
 
 async function checkTorrentio(q: OracleQuery, apiKey?: string): Promise<Map<string, boolean>> {
@@ -175,6 +175,14 @@ export function available(): boolean {
 /**
  * Consulta fontes habilitadas em paralelo e funde resultados.
  * true de qualquer fonte vence; false só de enumeração autoritativa.
+ *
+ * O retorno carrega APENAS os hashes com veredicto novo nesta chamada (fonte
+ * externa ou cache por título). Estados que o ledger já sabe
+ * (hit/miss/blocked) ficam de fora: o resultado alimenta
+ * o loop de escrita do pipeline (noteHit/noteMiss), e ecoar um miss do próprio
+ * ledger faria a pipeline reescrever o mesmo miss com evidência fantasma —
+ * avançando `n`/`at` a cada reabertura da mesma lista. `blocked` também não é
+ * ecoado, então segue dominante sem risco de ser tocado por um caminho atrasado.
  * Erro devolve Map vazio — nunca lança.
  */
 export async function check(q: OracleQuery, apiKey?: string): Promise<Map<string, boolean>> {
@@ -183,24 +191,14 @@ export async function check(q: OracleQuery, apiKey?: string): Promise<Map<string
   const started = Date.now();
   metrics.count('debrid.rd.oracle.called');
 
-  // Filtra hashes que o ledger já tem estado fresco antes de ir à rede.
-  const preResolved = new Map<string, boolean>();
+  // Só hashes que o ledger ainda não decidiu vão à rede. Já resolvidos
+  // (hit/miss/blocked) não pagam chamada E não entram no resultado — o
+  // pipeline não tem nada novo a gravar para eles.
   const unknownHashes: string[] = [];
-
   for (const raw of q.hashes) {
     const hash = String(raw || '').toLowerCase();
     if (!hash) continue;
-    if (config.debrid.rdLedger.enabled) {
-      const state = rdLedger.peek(hash);
-      if (state === 'hit') {
-        preResolved.set(hash, true);
-        continue;
-      }
-      if (state === 'miss' || state === 'blocked') {
-        preResolved.set(hash, false);
-        continue;
-      }
-    }
+    if (config.debrid.rdLedger.enabled && rdLedger.peek(hash) !== 'unknown') continue;
     unknownHashes.push(hash);
   }
 
@@ -211,13 +209,8 @@ export async function check(q: OracleQuery, apiKey?: string): Promise<Map<string
   });
 
   if (enabledSources.length === 0 || unknownHashes.length === 0) {
-    let hits = 0;
-    for (const [, cached] of preResolved) {
-      if (cached) hits += 1;
-    }
-    if (hits > 0) metrics.count('debrid.rd.oracle.hits', hits);
     metrics.observe('debrid.rd.oracle.ms', Date.now() - started);
-    return preResolved;
+    return new Map();
   }
 
   const netQuery: OracleQuery = { ...q, hashes: unknownHashes };
@@ -226,11 +219,8 @@ export async function check(q: OracleQuery, apiKey?: string): Promise<Map<string
   );
 
   // Fusão: true de qualquer fonte vence; false só se autoritativo.
-  const merged = new Map<string, boolean>(preResolved);
+  const merged = new Map<string, boolean>();
   let hits = 0;
-  for (const [, cached] of preResolved) {
-    if (cached) hits += 1;
-  }
   for (const result of results) {
     if (result.status !== 'fulfilled') {
       metrics.count('debrid.rd.oracle.fail');

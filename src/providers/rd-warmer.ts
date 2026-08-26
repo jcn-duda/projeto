@@ -25,7 +25,7 @@ type WarmEntry = {
   enqueuedAt: number;
 };
 
-const QUEUE_KEY = `${prefix('rdc')}wq`;
+const QUEUE_KEY = `${prefix('rdq')}wq`;
 
 let queue: WarmEntry[] = [];
 let loaded = false;

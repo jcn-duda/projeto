@@ -66,6 +66,7 @@ function jsonOk(body: any, status = 200) {
 test.beforeEach(() => {
   restoreConfig();
   cache.clearNamespace('rdc');
+  cache.clearNamespace('rdq');
   metrics.reset();
   rdLedger.reset();
   rdGate.reset();

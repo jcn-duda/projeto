@@ -1,11 +1,12 @@
 // Ledger durável de disponibilidade do Real-Debrid.
 //
 // O CDN/cache do RD pertence ao SERVIÇO, não à conta que observou o resultado;
-// por isso `rdc:v1:<hash>` deliberadamente não leva apiKey nem accountScope.
-// Isto convive com `mag:alive`, que continua por conta e registra um play que
-// funcionou naquela credencial. Nesta fase o ledger só orienta a sonda: ainda
-// não altera ranking nem filtra streams. Falso negativo é pior que falso
-// positivo, então miss expira com backoff e nunca condena uma release.
+// por isso a chave deste ledger (`rdc:v2:<hash>`) deliberadamente não leva
+// apiKey nem accountScope. Isto convive com `mag:alive`, que continua por conta
+// e registra um play que funcionou naquela credencial. O ledger alimenta o
+// ranking, o filtro ternário do cachedOnly e o oráculo. Falso negativo é pior
+// que falso positivo, então miss expira com backoff e nunca condena uma release
+// sem nova medição.
 import config from '../config.js';
 import * as cache from '../utils/cache.js';
 import * as metrics from '../utils/metrics.js';

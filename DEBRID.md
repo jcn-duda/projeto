@@ -231,7 +231,7 @@ fixo: o `current()` em `debrid/index.ts` traduz o flag por requisição num clon
 
 | Fonte | Quando |
 |---|---|
-| Ledger global (`rdc:v1:<hash>`, **sem conta**) | Hit/miss/blocked confirmados por qualquer caminho (ver abaixo) |
+| Ledger global (`rdc:v2:<hash>`, **sem conta**) | Hit/miss/blocked confirmados por qualquer caminho (ver abaixo) |
 | Inventário pronto da conta (`dinv` / `inventoryPeek`) | Hash já baixado em `/torrents` |
 | Histórico de play (`magnetdb.isAlive`) | `/resolve` devolveu link de verdade |
 | Oráculo Torrentio (`[RD+]` no `name`) | Busca: item listado com marcador = cacheado; listado sem = miss autoritativo; **não-listado ≠ miss** |
@@ -239,7 +239,7 @@ fixo: o `current()` em `debrid/index.ts` traduz o flag por requisição num clon
 | Sonda em fundo (`DEBRID_RD_PROBE`, [`rd-probe.ts`](src/providers/rd-probe.ts)) | Após a lista: `addMagnet` → se vira `downloaded` na hora, marca hit no ledger e **apaga** o torrent da sonda |
 
 **Ledger (`rd-ledger.ts`).** O CDN/cache do RD pertence ao SERVIÇO, não à conta
-que observou o resultado — a chave `rdc:v1:<hash>` não leva `apiKey` nem
+que observou o resultado — a chave `rdc:v2:<hash>` não leva `apiKey` nem
 `accountScope`, então uma confirmação de uma instalação vale para todas. Estados
 `hit`/`miss`/`blocked`; `blocked` vence hit (451 legal não pode ser apagado por
 caminho atrasado). Miss usa **backoff exponencial** (`DEBRID_RD_LEDGER_MISS_BACKOFF_MS`,
@@ -259,7 +259,7 @@ que enumera com autoridade — StremThru (item presente sem `cached`) e Torrenti
 (listado sem `[RD+]` com hash extraível). Hash **não listado** pelo Torrentio é
 **desconhecido**, nunca miss: o acervo BR dublado que interessa é justamente o
 que o Torrentio não indexa, e tratar como miss envenenaria o ledger. A chamada
-do Torrentio é cacheada por título (`rdc:trt:<type>:<id>`, TTL ~6h) para não
+do Torrentio é cacheada por título (`rdt:v1:trt:<type>:<id>`, TTL ~6h) para não
 virar uma chamada por busca repetida contra infra de terceiro.
 
 **Governador de escrita (`rd-gate.ts`).** O RD tem teto de 250 req/min e

@@ -33,6 +33,8 @@ const LEDGER_SNAPSHOT = { ...config.debrid.rdLedger };
 // así a suíte non abre SQLite de verdad.
 test.beforeEach(() => {
   cache.clearNamespace("rdc");
+  cache.clearNamespace("rdt");
+  cache.clearNamespace("rdq");
   metrics.reset();
   config.debrid.rdOracle.enabled = true;
   config.debrid.rdOracle.timeoutMs = 800;
@@ -271,7 +273,7 @@ test("10. integración mínima: oracle+ledger → checkCached do RD known=true e
   }
 });
 
-test("11. dedupe contra ledger: hashes con estado fresco non van á rede", async () => {
+test("11. dedupe contra ledger: hashes já decididos não vão à rede nem são ecoados", async () => {
   config.debrid.rdOracle.stremthruUrl = "https://st.example";
   rdLedger.noteHit([H1]);
   rdLedger.noteMiss(H2);
@@ -286,9 +288,9 @@ test("11. dedupe contra ledger: hashes con estado fresco non van á rede", async
   try {
     const result = await rdOracle.check({ hashes: [H1, H2, H3], type: "movie", id: "tt13", timeoutMs: 800 });
     assert.deepEqual(networkHashes, [H3], "só o unknown H3 foi consultado na rede");
-    assert.equal(result.get(H1), true, "H1 veio do ledger como hit");
-    assert.equal(result.get(H2), false, "H2 veio do ledger como miss");
     assert.equal(result.get(H3), true, "H3 veio da rede como cached");
+    assert.equal(result.has(H1), false, "hit do ledger não é ecoado: o pipeline não tem nada novo a gravar");
+    assert.equal(result.has(H2), false, "miss do ledger não é ecoado: reabrir a lista não re-carimba o miss");
   } finally {
     mock.restore();
   }
@@ -317,7 +319,7 @@ test("13. cache por título do Torrentio serializa como Array para L2", async ()
   const mock = mockFetch(() => jsonOk({ streams: [{ name: "[RD+] Filme", infoHash: H1 }, { name: "Filme", infoHash: H2 }] }));
   try {
     await rdOracle.check({ hashes: [H1, H2], type: "movie", id: "tt15", timeoutMs: 800 }, "chave");
-    const rawInCache = cache.get("rdc:v1:trt:movie:tt15");
+    const rawInCache = cache.get("rdt:v1:trt:movie:tt15");
     assert.ok(Array.isArray(rawInCache), "debe gardarse como Array no cache para serializar a L2");
     // Segunda chamada recupera do cache convertido a Map
     const result2 = await rdOracle.check({ hashes: [H1, H2], type: "movie", id: "tt15", timeoutMs: 800 }, "chave");
@@ -326,4 +328,44 @@ test("13. cache por título do Torrentio serializa como Array para L2", async ()
   } finally {
     mock.restore();
   }
+});
+
+test("14. reabrir a mesma lista N vezes não move attempts/at de um miss do ledger", async () => {
+  // 1ª leitura: StremThru enumera H1 como não-cacheado — miss MEDIDO agora.
+  config.debrid.rdOracle.stremthruUrl = "https://st.example";
+  const mock1 = mockFetch((url) => {
+    if (url.pathname === "/v0/store/torz/check") {
+      return jsonOk({ data: { items: [{ hash: H1, status: "uncached" }] } });
+    }
+    return jsonOk({}, 404);
+  });
+  try {
+    const v1 = await rdOracle.check({ hashes: [H1], type: "movie", id: "tt16", timeoutMs: 800 });
+    assert.equal(v1.get(H1), false, "false medido agora é autoritativo");
+    rdLedger.noteMiss(H1); // replica o bucle do pipeline (debrid-pipeline.ts)
+    const before = cache.get(rdLedger.key(H1)) as { s: string; n: number; at: number };
+    assert.equal(before.s, "miss");
+    assert.equal(before.n, 1, "miss recém-medido nasce com 1 tentativa");
+  } finally {
+    mock1.restore();
+  }
+
+  // 2. reabrir a MESMA lista: H1 já é miss conhecido do ledger — o oráculo não
+  // mede de novo nem ecoa, então o pipeline não re-escreve o miss.
+  let networkCalls = 0;
+  const mock2 = mockFetch(() => {
+    networkCalls += 1;
+    return jsonOk({});
+  });
+  try {
+    const v2 = await rdOracle.check({ hashes: [H1], type: "movie", id: "tt1", timeoutMs: 800 });
+    assert.equal(networkCalls, 0, "ledger conhece o miss; não re-mede");
+    assert.equal(v2.has(H1), false, "miss do ledger não é ecoado → sem re-carimbo");
+  } finally {
+    mock2.restore();
+  }
+
+  const after = cache.get(rdLedger.key(H1)) as { s: string; n: number; at: number };
+  assert.equal(after.s, "miss");
+  assert.equal(after.n, 1, "attempts NÃO avança ao reabrir sem evidência nova");
 });

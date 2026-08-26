@@ -504,6 +504,7 @@ test('colhedor extrai hash de magnet URI e calcula score correto (80/40/5) para 
     cache.clearNamespace('tmdb');
     cache.clearNamespace('meta');
     cache.clearNamespace('rdc');
+    cache.clearNamespace('rdq');
     rdWarmer.reset();
     config.debrid.rdWarm.enabled = true;
     config.debrid.service = 'realdebrid';
@@ -528,7 +529,7 @@ test('colhedor extrai hash de magnet URI e calcula score correto (80/40/5) para 
     const warmStatus = rdWarmer.status();
     assert.equal(warmStatus.queueDepth, 3, 'todos os 3 hashes extraídos de magnet foram enfileirados');
 
-    const warmQueue = cache.get(`${prefix('rdc')}wq`) as any[];
+    const warmQueue = cache.get(`${prefix('rdq')}wq`) as any[];
     assert.ok(Array.isArray(warmQueue), 'fila do rdWarmer foi persistida no cache');
 
     const brEntry = warmQueue.find((e) => e.hash === hBrDub);
