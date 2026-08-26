@@ -229,10 +229,11 @@ test("7. fixture real Torrentio: segmento em TEXTO (realdebrid=<key>), hash apó
   }
 });
 
-test("7b. fixture real StremThru: item 'cached' => true; item presente sem cached => false (miss autoritativo)", async () => {
+test("7b. fixture real StremThru: 'cached' => true; 'unknown' => SEM veredicto (nunca miss)", async () => {
   config.debrid.rdOracle.stremthruUrl = "https://st.example";
   const cachedHash = STREMTHRU_FIX.data.items[0].hash.toLowerCase();
   const unknownHash = STREMTHRU_FIX.data.items[1].hash.toLowerCase();
+  assert.equal(STREMTHRU_FIX.data.items[1].status, "unknown", "a fixture real precisa manter o tri-estado");
   const mock = mockFetch((url) => {
     if (url.pathname === "/v0/store/torz/check") return jsonOk(STREMTHRU_FIX);
     return jsonOk({}, 404);
@@ -240,7 +241,11 @@ test("7b. fixture real StremThru: item 'cached' => true; item presente sem cache
   try {
     const result = await rdOracle.check({ hashes: [cachedHash, unknownHash], type: "movie", id: "tt21", timeoutMs: 800 }, "chave");
     assert.equal(result.get(cachedHash), true, "status cached = hit");
-    assert.equal(result.get(unknownHash), false, "item presente sem cached = miss autoritativo");
+    assert.equal(
+      result.has(unknownHash),
+      false,
+      "'unknown' é o StremThru dizendo que não sabe; virar false gravaria miss de até 3 dias no ledger global",
+    );
   } finally {
     mock.restore();
   }

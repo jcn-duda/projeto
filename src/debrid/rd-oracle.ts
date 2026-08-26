@@ -5,11 +5,16 @@
 // às fontes habilitadas (StremThru, Torrentio) em paralelo e funde os
 // resultados. Qualquer erro devolve Map vazio — nunca lança.
 //
-// Regra de fusão: true de qualquer fonte vence (evidência positiva). false
-// só conta de fonte que enumera com autoridade: StremThru item presente sem
-// 'cached'; Torrentio listado sem [RD+] a partir do HASH SOLICITADO. Hash que
-// NÃO está no conjunto pedido (ou não listado) é DESCONHECIDO, nunca miss — o
-// acervo BR dublado que interessa é justamente o que ele não indexa.
+// Regra de fusão: true de qualquer fonte vence (evidência positiva). false só
+// conta de fonte que enumera com autoridade: Torrentio listado sem [RD+] a
+// partir do HASH SOLICITADO. Hash que NÃO está no conjunto pedido (ou não
+// listado) é DESCONHECIDO, nunca miss — o acervo BR dublado que interessa é
+// justamente o que ele não indexa.
+//
+// O `status` do StremThru é TRI-ESTADO: `cached` é hit, um negativo explícito
+// é miss, e `unknown` NÃO produz veredicto — é o serviço
+// dizendo que não sabe (instância recém-subida responde isso para quase tudo),
+// e traduzir isso em miss envenenaria o ledger global por até 3 dias.
 //
 // Deadlines: a chamada tem UM único prazo (deadlineAt), calculado uma vez em
 // `check()`. Cada fonte usa APENAS o tempo restante desse prazo — nunca
@@ -47,6 +52,20 @@ function remainingMs(deadlineAt?: number): number {
 
 // ─── StremThru ───────────────────────────────────────────────────────────────
 
+/** Status que o StremThru usa para afirmar cache. Só o que foi visto em resposta real. */
+const STREMTHRU_POSITIVE = new Set(['cached']);
+/**
+ * Status que afirmam AUSÊNCIA de cache. Diferente de `unknown`, estes são
+ * negativos inequívocos: o serviço afirma que o hash não está no cache, e
+ * honrar isso como miss é correto.
+ *
+ * Ressalva: nenhum deles apareceu ainda numa resposta CAPTURADA — a fixture de
+ * 2026-08-26 só traz `cached` e `unknown`. Estão aqui porque o custo de errar é
+ * nulo (token inexistente nunca casa), ao contrário de `unknown`, cujo erro
+ * gravava miss durável. A métrica em checkStremthru revela o vocabulário real.
+ */
+const STREMTHRU_NEGATIVE = new Set<string>(['uncached', 'not_cached']);
+
 async function checkStremthru(q: OracleQuery, apiKey?: string): Promise<Map<string, boolean>> {
   const { stremthruUrl, stremthruToken, stremthruStore, maxHashes } = config.debrid.rdOracle;
   if (!stremthruUrl) return new Map();
@@ -83,12 +102,30 @@ async function checkStremthru(q: OracleQuery, apiKey?: string): Promise<Map<stri
       }
       const body = await res.json() as any;
       const items: any[] = body?.data?.items || [];
-      // StremThru enumera os hashes consultados; item presente = resposta
-      // autoritativa. 'cached' é hit; qualquer outro status é miss.
+      // O `status` do StremThru é TRI-ESTADO, não booleano. A fixture real de
+      // 2026-08-26 traz `cached` e `unknown` no mesmo envelope: `unknown` é o
+      // serviço dizendo que NÃO SABE — instância nova responde isso para quase
+      // tudo, porque o banco dela começa vazio. Traduzir isso em `false` fazia
+      // o pipeline gravar miss no ledger GLOBAL com backoff de até 3 dias, que
+      // é o oposto da regra deste módulo ("desconhecido nunca vira miss").
+      //
+      // Só token confirmado contra resposta real decide. Nenhum negativo
+      // explícito foi observado até agora, então NEGATIVE está vazio de
+      // propósito: acrescente aqui quando a métrica abaixo revelar um. Status
+      // fora dos dois conjuntos não produz veredicto nenhum.
       for (const item of items) {
         const hash = String(item?.hash || '').toLowerCase();
         if (!hash) continue;
-        result.set(hash, item.status === 'cached');
+        const status = String(item?.status || '').toLowerCase();
+        if (STREMTHRU_POSITIVE.has(status)) {
+          result.set(hash, true);
+        } else if (STREMTHRU_NEGATIVE.has(status)) {
+          result.set(hash, false);
+        } else if (status !== 'unknown') {
+          // Vocabulário novo: conta para aparecer no dump de métricas em vez de
+          // ser engolido em silêncio como o `unknown` foi.
+          metrics.count(`debrid.rd.oracle.stremthruStatus.${status.replace(/[^a-z0-9_]/g, '') || 'vazio'}`);
+        }
       }
     } catch {
       failedBatches += 1;
