@@ -224,6 +224,13 @@ export function createRdGate(options: RdGateOptions = {}) {
     }] : []);
   }
 
+  function status(accountScope?: string) {
+    return {
+      enabled: enabled(),
+      accounts: snapshot(accountScope),
+    };
+  }
+
   function reset(): void {
     for (const state of states.values()) {
       for (const priority of ['play', 'cleanup', 'autofetch', 'probe'] as const) {
@@ -234,7 +241,7 @@ export function createRdGate(options: RdGateOptions = {}) {
     order = 0;
   }
 
-  return { run, isCoolingDown, cooldownRemainingMs, snapshot, reset };
+  return { run, isCoolingDown, cooldownRemainingMs, snapshot, status, reset };
 }
 
 export const rdGate = createRdGate();

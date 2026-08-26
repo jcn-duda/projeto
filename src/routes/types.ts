@@ -18,6 +18,9 @@ import type * as debridCommon from '../debrid/common.js';
 import type { accountScope } from '../utils/request-key.js';
 import type { verifyResolve } from '../utils/sign.js';
 import type { authorized, createDiagnosticGate } from '../utils/diagnostic-guard.js';
+import type * as rdLedger from '../debrid/rd-ledger.js';
+import type { rdGate } from '../debrid/rd-gate.js';
+import type rdWarmer from '../providers/rd-warmer.js';
 
 export type GateAdmission =
   | { ok: true; release: () => void }
@@ -51,6 +54,9 @@ export interface AppServices {
   /** Estado do processo, compartilhado entre instâncias de createApp. */
   prefetchInFlight: Set<string>;
   publicPath(file: string): string;
+  rdLedger: typeof rdLedger;
+  rdGate: typeof rdGate;
+  rdWarmer: typeof rdWarmer;
 }
 
 export type HandlerFactory<T = express.RequestHandler> = (services: AppServices) => T;

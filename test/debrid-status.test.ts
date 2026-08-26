@@ -262,6 +262,60 @@ const withTorbox = (fn: () => unknown) =>
     fn,
   ) as Promise<AccountStatusResult>;
 
+const withRealDebrid = (fn: () => unknown) =>
+  runtime.run(
+    {
+      opts: { ...runtime.defaults(), debridService: 'realdebrid', debridApiKey: 'chave-rd' },
+      encoded: 'cfg',
+    },
+    fn,
+  ) as Promise<AccountStatusResult & { rd?: any }>;
+
+function mockRealDebridAccount(torrents = [{ id: '1', status: 'downloaded' }, { id: '2', status: 'downloading' }]) {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = (async (url: any, init: any) => {
+    const strUrl = String(url);
+    if (strUrl.includes('127.0.0.1')) return realFetch(url, init);
+    if (strUrl.includes('/user')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 12345, username: 'testuser', expiration: '2028-01-01T00:00:00.000Z' }),
+      };
+    }
+    if (strUrl.includes('/torrents')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => torrents,
+      };
+    }
+    return { ok: true, status: 200, json: async () => ({}) };
+  }) as unknown as typeof globalThis.fetch;
+  return () => {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  };
+}
+
+test('realdebrid: o verificador mede magnets, ready, active e premiumUntil', async () => {
+  const restore = mockRealDebridAccount();
+  try {
+    const status = await withRealDebrid(() => debrid.accountStatus());
+    assert.equal(status.ok, true);
+    assert.equal(status.service, 'realdebrid');
+    assert.equal(status.supported, true);
+    assert.equal(status.magnets, 2);
+    assert.equal(status.ready, 1);
+    assert.equal(status.active, 1);
+    assert.equal(typeof status.premiumUntil, 'number');
+  } finally {
+    restore();
+  }
+});
+
 test('torbox: o verificador conta o mylist, não devolve supported:false', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
@@ -408,5 +462,68 @@ test('warnAt do fair-use carrega a unidade explícita no corpo', async () => {
   } finally {
     globalThis.fetch = realFetch;
     AbortSignal.timeout = realTimeout;
+  }
+});
+
+// --- Bloco RD no /debrid-status.json ----------------------------------------
+
+test('a rota /debrid-status.json inclui bloco rd quando o serviço é realdebrid', async () => {
+  const oldService = config.debrid.service;
+  const oldApiKey = config.debrid.apiKey;
+  config.debrid.service = 'realdebrid';
+  config.debrid.apiKey = 'chave-rd-teste';
+  const restore = mockRealDebridAccount();
+  const { app } = createApp();
+  try {
+    const { status, body } = await request(app, '/debrid-status.json', {
+      'X-Indexer-Test-Token': TOKEN,
+    });
+    assert.equal(status, 200);
+    assert.equal(body.service, 'realdebrid');
+    assert.ok(body.rd, 'bloco rd deve estar presente');
+    assert.equal(typeof body.rd.ledger, 'object');
+    assert.equal(typeof body.rd.ledger.tracked, 'number');
+    assert.equal(typeof body.rd.ledger.hits, 'number');
+    assert.equal(typeof body.rd.ledger.misses, 'number');
+    assert.equal(typeof body.rd.ledger.blocked, 'number');
+    assert.equal(typeof body.rd.oracle, 'object');
+    assert.equal(typeof body.rd.oracle.enabled, 'boolean');
+    assert.equal(typeof body.rd.oracle.stremthru, 'boolean');
+    assert.equal(typeof body.rd.oracle.torrentio, 'boolean');
+    assert.equal(typeof body.rd.gate, 'object');
+    assert.equal(typeof body.rd.gate.enabled, 'boolean');
+    assert.ok(Array.isArray(body.rd.gate.accounts));
+    assert.equal(typeof body.rd.warm, 'object');
+    assert.equal(typeof body.rd.warm.enabled, 'boolean');
+    assert.equal(typeof body.rd.warm.queueDepth, 'number');
+    assert.equal(typeof body.rd.warm.paused, 'boolean');
+    assert.equal(typeof body.rd.warm.processedLastHour, 'number');
+  } finally {
+    restore();
+    config.debrid.service = oldService;
+    config.debrid.apiKey = oldApiKey;
+  }
+});
+
+test('com config na URL apontando para realdebrid, /debrid-status.json inclui o bloco rd', async () => {
+  const segment = runtime.encode({
+    ds: 'realdebrid',
+    dk: 'chave-rd-instalacao',
+  });
+  const restore = mockRealDebridAccount();
+  const { app } = createApp();
+  try {
+    const { status, body } = await request(app, `/${segment}/debrid-status.json`, {
+      'X-Indexer-Test-Token': TOKEN,
+    });
+    assert.equal(status, 200);
+    assert.equal(body.service, 'realdebrid');
+    assert.ok(body.rd, 'bloco rd deve estar presente');
+    assert.equal(typeof body.rd.ledger.tracked, 'number');
+    assert.equal(typeof body.rd.oracle.enabled, 'boolean');
+    assert.equal(typeof body.rd.gate.enabled, 'boolean');
+    assert.equal(typeof body.rd.warm.queueDepth, 'number');
+  } finally {
+    restore();
   }
 });

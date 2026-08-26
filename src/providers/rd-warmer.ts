@@ -76,7 +76,10 @@ function noteQueries(count: number): void {
 }
 
 function getEnvApiKey(): string | null {
-  if (config.debrid.service !== 'realdebrid' && typeof (realdebrid as any).probeInstant !== 'function') return null;
+  // O && com o typeof era guarda morta: probeInstant e SEMPRE funcao, entao
+  // instalacao com outro debrid sondava api.real-debrid.com com a chave errada
+  // e gravava o 401 como miss no ledger global.
+  if (config.debrid.service !== 'realdebrid') return null;
   if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.rdWarm.enabled) return null;
   return config.debrid.apiKey;
 }
@@ -268,9 +271,10 @@ function setPaused(v: boolean): void {
 }
 
 /** Estado operacional do warmer. */
-function status(): { queueDepth: number; lastTickAt: number | null; paused: boolean; processedLastHour: number } {
+function status(): { enabled: boolean; queueDepth: number; lastTickAt: number | null; paused: boolean; processedLastHour: number } {
   ensureQueueLoaded();
   return {
+    enabled: config.debrid.rdWarm.enabled,
     queueDepth: queue.length,
     lastTickAt: lastTickAt || null,
     paused,

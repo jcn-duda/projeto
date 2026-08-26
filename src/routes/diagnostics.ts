@@ -128,7 +128,7 @@ function makeDiagnosticHandlers(services: AppServices) {
   const dashboardAction = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'dashboard desativado pelo operador', { ok: false })) return;
     const action = String(req.body?.action || '');
-    if (!['sweep-dead', 'clear-cache', 'harvester-pause', 'harvester-drain', 'test-all-indexers', 'refresh-inventory'].includes(action)) {
+    if (!['sweep-dead', 'clear-cache', 'harvester-pause', 'harvester-drain', 'test-all-indexers', 'refresh-inventory', 'warm-pause', 'warm-resume', 'warm-drain'].includes(action)) {
       return res.status(400).json({ ok: false, error: 'ação desconhecida' });
     }
     if (['clear-cache', 'sweep-dead'].includes(action) && req.body?.confirm !== true) {
@@ -183,6 +183,27 @@ function makeDiagnosticHandlers(services: AppServices) {
         const result = await services.harvester.drain();
         services.metrics.count('dashboard.harvest.drain', result.drained);
         services.log.info(`[dashboard] fila do colhedor drenada: ${result.drained} obra(s)`);
+        return res.json({ ok: true, action, ...result });
+      }
+      if (action === 'warm-pause') {
+        services.rdWarmer.setPaused(true);
+        services.metrics.count('dashboard.rd.warm.pause');
+        services.log.info('[dashboard] warmer RD pausado');
+        return res.json({ ok: true, action, paused: true });
+      }
+      if (action === 'warm-resume') {
+        services.rdWarmer.setPaused(false);
+        services.metrics.count('dashboard.rd.warm.resume');
+        services.log.info('[dashboard] warmer RD retomado');
+        return res.json({ ok: true, action, paused: false });
+      }
+      if (action === 'warm-drain') {
+        const max = typeof req.body?.max === 'number' && Number.isFinite(req.body.max) && req.body.max > 0
+          ? Math.trunc(req.body.max)
+          : undefined;
+        const result = await services.rdWarmer.drain(max);
+        services.metrics.count('dashboard.rd.warm.drain', result.processed);
+        services.log.info(`[dashboard] warmer RD drenado: ${result.processed} item(ns) processado(s), ${result.queueRemaining} restante(s)`);
         return res.json({ ok: true, action, ...result });
       }
       if (action === 'refresh-inventory') {
@@ -243,6 +264,19 @@ function makeDiagnosticHandlers(services: AppServices) {
     if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
     try {
       const status = await Promise.race([services.debrid.accountStatus(), accountTimeout(services)]) as any;
+      if (status?.service === 'realdebrid') {
+        const rd = {
+          ledger: services.rdLedger.status(),
+          oracle: {
+            enabled: services.config.debrid.rdOracle.enabled,
+            stremthru: Boolean(services.config.debrid.rdOracle.stremthruUrl),
+            torrentio: Boolean(services.config.debrid.rdOracle.torrentio),
+          },
+          gate: services.rdGate.status(),
+          warm: services.rdWarmer.status(),
+        };
+        return res.json({ ...status, rd });
+      }
       return res.json(status);
     } finally {
       admission.release();

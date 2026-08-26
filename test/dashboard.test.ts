@@ -12,6 +12,7 @@ import debrid from '../src/debrid/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 import * as cache from '../src/utils/cache.js';
 import { streamsCacheKey } from '../src/utils/request-key.js';
+import rdWarmer from '../src/providers/rd-warmer.js';
 import { createTestServer, decodeConfig, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
 
 // Adaptador fake gravado no registry real: o clear-cache é puro estado em
@@ -413,6 +414,43 @@ test('ações operacionais do dashboard são idempotentes ou no-op seguro', asyn
         body: { action: 'harvester-pause', paused: false },
       });
     });
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+test('ações warm-pause, warm-resume e warm-drain operam sobre o rdWarmer', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    const pause = await server.request('POST', '/dashboard-action.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'warm-pause' },
+    });
+    assert.equal(pause.status, 200);
+    assert.equal(pause.json.ok, true);
+    assert.equal(pause.json.action, 'warm-pause');
+    assert.equal(pause.json.paused, true);
+    assert.equal(rdWarmer.status().paused, true);
+
+    const resume = await server.request('POST', '/dashboard-action.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'warm-resume' },
+    });
+    assert.equal(resume.status, 200);
+    assert.equal(resume.json.ok, true);
+    assert.equal(resume.json.action, 'warm-resume');
+    assert.equal(resume.json.paused, false);
+    assert.equal(rdWarmer.status().paused, false);
+
+    const drain = await server.request('POST', '/dashboard-action.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'warm-drain', max: 5 },
+    });
+    assert.equal(drain.status, 200);
+    assert.equal(drain.json.ok, true);
+    assert.equal(drain.json.action, 'warm-drain');
+    assert.equal(typeof drain.json.processed, 'number');
+    assert.equal(typeof drain.json.queueRemaining, 'number');
   } finally {
     config.jackett.testToken = '';
   }

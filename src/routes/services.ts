@@ -19,6 +19,9 @@ import * as debridCommon from '../debrid/common.js';
 import { accountScope } from '../utils/request-key.js';
 import { verifyResolve } from '../utils/sign.js';
 import { authorized, createDiagnosticGate } from '../utils/diagnostic-guard.js';
+import * as rdLedger from '../debrid/rd-ledger.js';
+import { rdGate } from '../debrid/rd-gate.js';
+import rdWarmer from '../providers/rd-warmer.js';
 import { prefetchInFlight } from './state.js';
 import type { AppServices } from './types.js';
 
@@ -55,6 +58,9 @@ function buildServices(): AppServices {
     }),
     prefetchInFlight,
     publicPath: (file) => path.join(__dirname, '..', 'public', file),
+    rdLedger,
+    rdGate,
+    rdWarmer,
   };
 }
 
