@@ -61,3 +61,36 @@ services:
     # cobre a stack inteira (~1 GB de Chromium + ~300 MB do resto). Estourando,
     # tudo reinicia via `restart` em vez do OOM killer escolher a vítima no host.
     mem_limit: 3g
+
+  # Oráculo de disponibilidade do Real-Debrid, self-hosted (MIT, Go).
+  # Container SEPARADO de propósito: o `adom` é a stack única com Caddy/Jackett
+  # na mesma imagem, e o StremThru não tem nada a ver com aquele build.
+  #
+  # Por que próprio em vez da instância pública: o addon manda a chave RD no
+  # header X-StremThru-Store-Authorization. Apontando para stremthru.13377001.xyz
+  # essa credencial sairia da máquina em todo request com Real-Debrid.
+  #
+  # O banco começa VAZIO — no início ele responde `unknown` para quase tudo, o
+  # que o parser trata como "não sei" (nunca miss). Ele esquenta com o uso.
+  stremthru:
+    image: ghcr.io/muniftanjim/stremthru:latest
+    container_name: stremthru
+    restart: unless-stopped
+    ports:
+      # Só loopback: quem consome é o `adom`, pelo DNS interno do compose.
+      # Publicado apenas para debug local (curl no host).
+      - "127.0.0.1:8080:8080"
+    environment:
+      TZ: America/Sao_Paulo
+      # Sem proxy auth: o único cliente é o addon, na rede interna do compose.
+      STREMTHRU_AUTH: ""
+      # A credencial do store viaja POR REQUISIÇÃO no header
+      # X-StremThru-Store-Authorization; a instância não guarda chave nenhuma.
+      STREMTHRU_STORE_AUTH: ""
+      STREMTHRU_LOG_LEVEL: info
+    volumes:
+      # sqlite://./data/stremthru.db com WorkingDir /app (confirmado no
+      # internal/config/config.go). Sem isto o banco zera a cada recreate e o
+      # oráculo volta a responder `unknown` para tudo.
+      - ./docker-data/stremthru:/app/data
+    mem_limit: 512m
