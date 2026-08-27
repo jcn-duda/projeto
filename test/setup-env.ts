@@ -21,6 +21,13 @@ process.env.CACHE_PERSIST = 'false';
 // da propria requisicao.
 process.env.DEBRID_CACHED_ONLY = 'false';
 
+// O verificador de conta captura o limiar de aviso em constante de MÓDULO no
+// load (`ACCOUNT_WARN_TOTAL` em src/debrid/index.ts), então pinar o config
+// dentro do teste chega tarde. O `.env` do operador pode ter outro valor (uma
+// máquina de desenvolvimento rodava com 4000) e o verde/vermelho do
+// debrid-status.test.ts passava a depender de quem rodou a suíte.
+process.env.DEBRID_ACCOUNT_WARN_TOTAL = '800';
+
 // A suíte roda com o mesmo governador que a produção; os testes isolam contas
 // e restauram o estado global do gate quando exercitam Real-Debrid.
 process.env.DEBRID_RD_GATE = 'true';

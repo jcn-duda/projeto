@@ -500,6 +500,15 @@ const config = {
     autoFetchSettleMs: num(process.env.DEBRID_AUTO_FETCH_SETTLE_MS, 900_000),
     autoFetchSettleMaxLots: Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS, 50))),
     autoFetchQueueTtl: num(process.env.DEBRID_AUTO_FETCH_QUEUE_TTL, 86400),
+    // Proteção durável dos BR no AllDebrid (`adprot:v1`): o hold volátil morre
+    // no restart, e sem uma marca persistida a limpeza apagava do acervo o que o
+    // autofetch subiu para o usuário. O custo é um registro por hash retido na
+    // conta (BR tocável — `any`/`seeds` não entram). `false` desliga a proteção.
+    autoFetchProtectBr: String(process.env.DEBRID_AUTO_FETCH_PROTECT_BR || 'true') === 'true',
+    // Por quanto tempo o registro durável fica de pé. 10 anos é "até o acervo
+    // deixar de ser dela": a retirada real é o estado terminal (dead/stalled/
+    // expired) ou o `DubLieError`, não o relógio. Clamp >=1s.
+    autoFetchProtectBrTtl: Math.max(1, num(process.env.DEBRID_AUTO_FETCH_PROTECT_BR_TTL, 315_360_000)),
     autoFetchEnqueueMaxHour: Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR, 50))),
     autoFetchDrainMaxRefusals: Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_DRAIN_MAX_REFUSALS, 2))),
     // Orçamento horário cheio não é recusa do torrent. Pausa a drenagem para

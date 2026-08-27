@@ -210,6 +210,12 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
       if (ok) {
         cache.set(key, 1, live.autoFetchTtl);
         metrics.count('autofetch.enqueued');
+        // Proteção durável SÓ no pool BR do AllDebrid com flags reais (não
+        // `_lied`): é o acervo que o usuário quer retido. `any`/`seeds` não
+        // passam — dublagem global ou melhor swarm não viram acervo a reter.
+        if (adapter.id === 'alldebrid' && pool === 'br' && Boolean(stream._br) && Boolean(stream._dubbed) && !stream._lied) {
+          held.protectBr(adapter.id, account, h);
+        }
         const poolLabel = pool === 'any'
           ? 'dublada global (sem BR na busca)'
           : pool === 'seeds'
@@ -387,7 +393,9 @@ export function drainNext(searchKey: string, lot: any) {
     return (
       autofetch.isDead(adapter.id, account, h) ||
       Boolean(cache.get(autofetch.markerKey(adapter.id, account, h))) ||
-      held.isHeld(h, account)
+      held.isHeld(h, account) ||
+      // Já está duravelmente protegido (no acervo): não há o que baixar de novo.
+      held.isDurablyProtected(adapter.id, account, h)
     );
   });
 
@@ -420,6 +428,11 @@ export function drainNext(searchKey: string, lot: any) {
         cache.set(mKey, 1, live.autoFetchTtl);
         metrics.count('autofetch.queued');
         metrics.count('autofetch.enqueued');
+        // Dreno da fila: proteção durável só quando o item de fila é o pool BR
+        // com `br` e `dubbed` reais — o contrato de retenção do acervo.
+        if (adapter.id === 'alldebrid' && next.pool === 'br' && Boolean(next.br) && Boolean(next.dubbed)) {
+          held.protectBr(adapter.id, account, h);
+        }
         lot.hashes.add(h);
         lot.seasonHints.set(h, {
           imdbId: typeof next.imdbId === 'string' ? next.imdbId : undefined,
@@ -542,6 +555,9 @@ function runRecheck(searchKey: string) {
         lot.deadStreak.delete(hash);
         lot.stallStreak.delete(hash);
         lot.seasonHints.delete(hash);
+        // Confirmou PRONTO: assenta o registro durável (renova/grava readyAt)
+        // e libera apenas o hold volátil — a proteção durável continua de pé.
+        held.noteReady(adapter.id, account, hash);
         held.release(hash, account);
         continue;
       }
@@ -566,6 +582,10 @@ function runRecheck(searchKey: string) {
         if (streak >= threshold) {
           metrics.count(isDead ? 'autofetch.dead' : 'autofetch.stalled');
           autofetch.blacklist(adapter.id, account, hash);
+          // Estado terminal (morto/parado) retira o BR do acervo retido:
+          // sem unprotect, a proteção durável seguraria um hash que a conta
+          // vai remover — resíduo que depois o wipe limpa.
+          held.unprotect(adapter.id, account, hash);
           held.release(hash, account);
           if (typeof adapter.removeTorrent === 'function' && statusInfo.id != null) {
             adapter.removeTorrent(opts().debridApiKey, statusInfo.id).catch(() => {});
@@ -610,7 +630,12 @@ function runRecheck(searchKey: string) {
             if (sid != null) adapter.removeTorrent(opts().debridApiKey, sid).catch(() => {});
           }
         }
-        for (const h of lot.hashes) held.release(h, account);
+        // Settle expirado: o download nunca tocou dentro do prazo — o BR não
+        // entrou no acervo, então sai também a proteção durável junto à remoção.
+        for (const h of lot.hashes) {
+          held.unprotect(adapter.id, account, h);
+          held.release(h, account);
+        }
         recheckLots.delete(searchKey);
       } else {
         armRecheck(searchKey, lot);

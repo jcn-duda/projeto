@@ -12,12 +12,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const store = new Map();
-// A soma das cotas conhecidas é 31.000 (inclui rdc=14.000, rdq=500 e rdt=2.500),
-// deixando 5.000 entradas de folga sob o teto global. O ledger RD é global por
-// hash e precisa reter muito mais histórico que os caches por conta; os demais
-// baldes foram calibrados para abrir esse espaço sem deixar o despejo global
-// invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB ≈
-// 79 MB no pior caso); rdc/davail/mag/rdt guardam só registros minúsculos.
+// A soma das cotas de namespaces conhecidos é 33.050 (inclui rdc=14.000,
+// rdq=500, rdt=2.500 e adprot=2.000), deixando 2.950 entradas de folga sob o
+// teto global. O ledger RD
+// é global por hash e precisa reter muito mais histórico que os caches por conta;
+// os demais baldes foram calibrados para abrir esse espaço sem deixar o despejo
+// global invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB
+// ≈ 79 MB no pior caso); rdc/davail/mag/rdt/adprot guardam só registros minúsculos.
 const MAX_ENTRIES = 36000;
 const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
@@ -53,6 +54,9 @@ const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   autofetch: 1000,
   'indexer-status': 200,
   cfg: 50,
+  // Proteção durável dos BRs AllDebrid (`adprot:v1`): registro minúsculo por
+  // hash, TTL de 10 anos — é a garantia do acervo BR sobreviver ao restart.
+  adprot: 2000,
   __default: 500,
 });
 const namespaceCounts = new Map();

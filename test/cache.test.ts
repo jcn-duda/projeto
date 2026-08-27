@@ -409,7 +409,7 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva folga sob o
   // abaixo das de entrada minúscula; davail e mag são registros pequenos por
   // hash (0/1). O ledger RD é global por hash e recebe 14 mil entradas; a fila
   // do warmer (rdq) e o cache por título do Torrentio (rdt) ganham balde próprio
-  // para o bump do ledger não derrubá-los. A soma das cotas (31.000) fica abaixo
+  // para o bump do ledger não derrubá-los. A soma das cotas (33.050, incluindo o adprot de 2.000) fica abaixo
   // do teto global de 36 mil, preservando folga para o LRU global não morder
   // antes de uma cota de namespace.
   const originalPersist = process.env.CACHE_PERSIST;
@@ -424,6 +424,7 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva folga sob o
     assert.equal(cache.QUOTAS.rdc, 14000);
     assert.equal(cache.QUOTAS.rdq, 500);
     assert.equal(cache.QUOTAS.rdt, 2500);
+    assert.equal(cache.QUOTAS.adprot, 2000);
     assert.equal(cache.QUOTAS.idx, 2000);
     assert.equal(cache.MAX_ENTRIES, 36000);
     const sumQuotas = Object.entries(cache.QUOTAS).reduce((sum, [ns, quota]) => ns === '__default' ? sum : sum + (quota as number), 0);

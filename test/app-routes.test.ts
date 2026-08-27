@@ -10,11 +10,13 @@ import express from 'express';
 import { createApp, asyncRoute } from '../src/app.js';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
-import { BlockedError, WorkPickError, EpisodePickError, NoVideoError } from '../src/debrid/common.js';
+import { BlockedError, WorkPickError, EpisodePickError, NoVideoError, DubLieError } from '../src/debrid/common.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import type { DebridAdapter } from '../types/domain.js';
 import * as cache from '../src/utils/cache.js';
+import { prefix } from '../src/utils/cache-keys.js';
+import { accountScope } from '../src/utils/request-key.js';
 import { createTestServer, encodeConfig, withMockFetch, fakeResponse } from './e2e/e2e-harness.js';
 
 const HASH = 'f'.repeat(40);
@@ -591,4 +593,37 @@ test('overlay válido preserva manifest e resolve configurados', async () => {
   const resolve = await server.request('GET', `/${userConfig}/resolve/nao-eh-hash`);
   assert.equal(resolve.status, 400);
   assert.equal(resolve.text, 'infoHash inválido');
+});
+
+test('/resolve: DubLieError destrava a proteção durável da conta/adapter do play', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashLie = '4'.repeat(40);
+  const account = accountScope('fake-key');
+  const markerKey = `${prefix('adprot')}fakebrid:${account}:${hashLie}`;
+  const sig = hmacSig('fake-key', hashLie);
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    // Pré-condição: registro durável retido (o que o autofetch do AllDebrid
+    // deixaria). A rota destrava pelo adapter/conta EFETIVOS do play — aqui,
+    // o adaptador fake registrado no registry real.
+    cache.set(markerKey, { acceptedAt: Date.now(), readyAt: null }, 3600);
+    assert.ok(cache.peek(markerKey), 'precondição: retenção durável de pé');
+
+    FAKE_ADAPTER.resolveLink = async () => {
+      throw new DubLieError({ videoCount: 1, matchedGroup: 'WEB', sample: 'Movie.2024.1080p.WEB.mkv' });
+    };
+    const res = await server.request('GET', `/${cfg}/resolve/${hashLie}?sig=${sig}`);
+    assert.equal(res.status, 404);
+    assert.equal(res.text, 'o torrent anunciado como dublado contém conteúdo em inglês');
+    assert.equal(cache.get(markerKey), null, 'a prova de release EN destrava a retenção no play');
+    assert.equal(magnetdb.isLie('fakebrid', 'fake-key', hashLie), true, 'a mentira também vai para o banco de magnets');
+
+    // Sem registro, a rota segue respondendo igual (idempotente: nada a limpar).
+    const res2 = await server.request('GET', `/${cfg}/resolve/${hashLie}?sig=${sig}`);
+    assert.equal(res2.status, 404);
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+    cache.forget(markerKey);
+  }
 });

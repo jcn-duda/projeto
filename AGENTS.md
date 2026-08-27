@@ -397,6 +397,24 @@ terceiro consumidor aparecer.
 Kill-switches no `.env`: `MAGNET_DB=false` desliga o banco inteiro;
 `MAGNET_ALIVE_TTL=0` e `MAGNET_BAD_TTL=0` desligam cada lado.
 
+**Retenção durável do acervo BR (`adprot:v1`, `src/debrid/protected.ts`).** O
+`held` volátil morre no restart e é liberado no ready — sozinho, ele deixava o
+`dropReady` da busca seguinte apagar da conta justamente o BR dublado que o
+autofetch subiu (o conteúdo caro de aquecer, sem cache no serviço). A camada
+durável grava `{acceptedAt, readyAt}` por `adapter:conta:hash` (AllDebrid,
+TTL ~10 anos, cota `adprot: 2000`) **só** quando o enqueue do pool `br`
+real (`_br`+`_dubbed`, não `_lied`) é aceito — `any`/`seeds` nunca entram.
+`dropReady`, `dropUncached`, `resolveLink` não-pronto e `sweepUndubbed`
+consultam `isCleanupProtected` (volátil OU durável) e contam
+`debrid.cleanup.protectedBrSkipped`. A retenção **não é eterna cega**:
+`sweepDead` remove estado terminal (unprotect antes do delete),
+`pruneMissing` cata registro de hash que saiu da conta, o `DubLieError` do
+play destrava a liberação, e o `reconcile` (dentro do `checkCached`, na
+conta de QUALQUER busca — a de usuário não tem varredura agendada) destrava
+pending mais velho que o settle (`autoFetchTtl`) e acervo pronto que
+regrediu a não-pronto. Kill-switch: `DEBRID_AUTO_FETCH_PROTECT_BR=false`
+(restaura a limpeza sobre registro retido).
+
 **Panorama no painel** (`/dashboard-status.json` → `magnetdb`): além dos
 totais, o status agrega **por adapter** (`byAdapter`) os tamanhos de
 alive/bad/lie e o TTL médio restante de cada lado, e mostra a **taxa ⚡**

@@ -19,6 +19,18 @@ const API = 'https://api.alldebrid.com/v4.1';
 const AGENT = 'stremio-adom';
 
 /**
+ * Um magnet está a salvo da limpeza se há proteção VOLÁTIL (hold, autofetch em
+ * voo) OU DURÁVEL (`adprot:v1`, acervo BR retido). Quando a proteção durável é
+ * a que poupou o item, conta a métrica própria — o volátil é o comportamento
+ * antigo e não é acervo retido, então não conta aqui.
+ */
+function skipCleanup(account: string, hash: string): boolean {
+  if (!held.isCleanupProtected(hash, account, id)) return false;
+  if (held.isDurablyProtected(id, account, hash)) metrics.count('debrid.cleanup.protectedBrSkipped');
+  return true;
+}
+
+/**
  * @param {string} apiKey
  * @param {string} path
  * @param {Object} [params]
@@ -251,11 +263,18 @@ async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMin
   const account = accountScope(apiKey);
   const data = await call(apiKey, '/magnet/status');
   const list: AllDebridMagnet[] = Array.isArray(data?.magnets) ? data.magnets : [];
+  // Após ler o status, poda o acervo durável dos hashes que NÃO estão mais na
+  // conta — o registro de um BR retido que sumiu por outra via é resíduo. O
+  // hold volátil adia a poda (download fresco pode ainda não constar aqui).
+  held.pruneMissing(id, account, list.map((m) => m.hash).filter((h): h is string => Boolean(h)), minAgeMs);
   const limite = Date.now() - Math.max(0, Number(minAgeMs) || 0);
 
   const alvo = list.filter((m) => {
     if (!DEAD.test(String(m.status || ''))) return false;
     if (!m.id) return false;
+    // A proteção DURÁVEL NÃO bloqueia a varredura de mortos — estado terminal
+    // é lixo que ocupa vaga, não acervo. Só o hold volátil segue adiando, para
+    // não matar um download que a conta acabou de aceitar.
     if (held.isHeld(String(m.hash || ''), account)) return false;
     // uploadDate vem em segundos; sem data, trata como antigo o bastante.
     const quando = Number(m.uploadDate || 0) * 1000;
@@ -263,6 +282,9 @@ async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMin
   });
 
   if (!alvo.length) return { varridos: 0, falhas: 0 };
+  // Estado terminal: destrava a proteção durável dos alvos ANTES de apagar —
+  // sem unprotect, o registro retido apontaria para um hash que vai sair da conta.
+  for (const m of alvo) held.unprotect(id, account, String(m.hash || ''));
   const { ok, falhas } = await dropMagnets(apiKey, alvo.flatMap((m) => (m.id == null ? [] : [m.id])));
   metrics.count('debrid.swept', ok);
   if (falhas.length) {
@@ -311,7 +333,8 @@ async function sweepUndubbed(
 
   const alvo = list.filter((m) => {
     if (!m.id) return false;
-    if (held.isHeld(String(m.hash || ''), account)) return false;
+    // BR retido no acervo (durável) ou autofetch em voo (volátil) não saem.
+    if (skipCleanup(account, String(m.hash || ''))) return false;
     if (preexistentes.has(String(m.hash || '').toLowerCase())) return false;
     if (audioBucket(String(m.filename || '')) !== 'lixo') return false;
     // uploadDate vem em segundos; sem data, não há prova de idade — fica.
@@ -392,13 +415,24 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
       rememberSubmitted(account, hash);
       if (magnet.ready) {
         ready.push(hash);
-        // Só entra na limpeza o que o inventário garante não ser do usuário.
-        if (!skipReadyDrop && preexistentes && magnet.id && !preexistentes.has(hash) && !held.isHeld(magnet.hash, account)) {
+        // Ready de hash com registro durável assenta a proteção (noteReady): o
+        // ⚡ já existe no serviço. É renovação/confirmação — nunca destrava.
+        held.noteReady(id, account, hash);
+        // Só entra na limpeza o que o inventário garante não ser do usuário e
+        // não está protegido — volátil NEM durável (BR retido no acervo).
+        if (!skipReadyDrop && preexistentes && magnet.id && !preexistentes.has(hash) && !skipCleanup(account, hash)) {
           dropReady.push(magnet.id);
         }
       // Hash em download automático não entra na limpeza: ele está "não pronto"
-      // justamente porque pedimos que baixasse.
-       } else if (magnet.id && !held.isHeld(magnet.hash, account)) dropDownload.push(magnet.id);
+      // justamente porque pedimos que baixasse. Antes de decidir, porém, o
+      // registro durável é reconciliado com o estado real — pending que nunca
+      // tocou no prazo do settle, ou acervo que deixou de ter ⚡, destravam na
+      // hora (é o único reaper que a conta de um USUÁRIO vê, sem varredura
+      // agendada própria).
+      } else {
+        held.reconcile(id, account, hash);
+        if (magnet.id && !skipCleanup(account, hash)) dropDownload.push(magnet.id);
+      }
     }
     return ready;
   }, { timeoutMs });
@@ -479,7 +513,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
     // então apagar não custa nada — se o usuário voltar, ele é reenviado.
     // Idem no play: se o usuário clicou num BR que está baixando por nossa
     // conta, apagar aqui jogaria fora o progresso.
-    if (config.debrid.dropUncached && !held.isHeld(infoHash, account)) {
+    if (config.debrid.dropUncached && !skipCleanup(account, infoHash)) {
       try {
         await call(apiKey, '/magnet/delete', { id: magnet.id });
       } catch (err) {

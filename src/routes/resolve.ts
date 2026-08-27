@@ -3,6 +3,8 @@ import type { AppServices } from './types.js';
 import type express from 'express';
 import config from '../config.js';
 import { errorMessage } from '../utils/logger.js';
+import { accountScope } from '../utils/request-key.js';
+import * as protectedApi from '../debrid/protected.js';
 
 // O 451 só aparece no play: a lista pronta foi construída quando o ledger
 // ainda não sabia do bloqueio e segue oferecendo [RD⚡] morto até o fim do
@@ -93,6 +95,11 @@ function makeResolveHandler(services: AppServices) {
       if (services.debridCommon.isDubLieError(err)) {
         const adapter = services.debrid.current();
         if (adapter) services.magnetdb.markLie(adapter.id, services.runtime.opts().debridApiKey, infoHash);
+        if (adapter) {
+          // Release provou EN apesar da promessa de dublado: não é acervo BR
+          // confiável — destrava a proteção durável daquela conta/adapter.
+          protectedApi.unprotect(adapter.id, accountScope(services.runtime.opts().debridApiKey), infoHash);
+        }
         if (hintedImdbId) {
           services.releaseIndex.markLied(hintedImdbId, {
             season: req.query.s ? Number(req.query.s) : null,

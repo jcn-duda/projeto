@@ -54,6 +54,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
   notify: 'v1',
   seed: 'v1',
   cfg: 'v1',
+  // Proteção durável dos BR no AllDebrid (`adprot:v1:<adapter>:<account>:<hash>`),
+  // registro `{ acceptedAt, readyAt }`. Não leva apiKey — escopo é conta + adapter.
+  adprot: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e
