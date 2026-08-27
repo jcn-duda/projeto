@@ -170,6 +170,24 @@ function lookup(imdbId: string, { season, episode }: ObraLocation = {}): Indexed
   return [...merged.values()];
 }
 
+/** Variante de leitura sem efeito para ordenadores/sondas de fundo. */
+function lookupQuiet(imdbId: string, { season, episode }: ObraLocation = {}): IndexedRelease[] {
+  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt')) return [];
+  const merged = new Map<string, IndexedRelease>();
+  const keys: string[] = [];
+  if (season != null && episode != null) keys.push(obraKey(imdbId, { season, episode }));
+  if (season != null) keys.push(obraKey(imdbId, { season }));
+  keys.push(obraKey(imdbId));
+  for (const key of keys) {
+    const entry = cache.peek(key) as IndexEntry | null;
+    for (const rel of entry?.releases || []) {
+      const prior = merged.get(rel.hash);
+      if (!prior || rel.seenAt > prior.seenAt) merged.set(rel.hash, rel);
+    }
+  }
+  return [...merged.values()];
+}
+
 /**
  * A evidência de mentira chega do play/tail com hash e obra conhecidos. Campo
  * opcional preserva entradas antigas e evita invalidar o índice inteiro.
@@ -274,4 +292,47 @@ function status() {
   };
 }
 
-export { record, lookup, markLied, markMissing, isMissing, markFileEvidence, fileEvidence, status };
+/**
+ * Leitura em LOTE para o sampler de cobertura BR: agrega TODAS as chaves `idx`
+ * de cada obra pedida (filme `idx:v5:ttX`, temporada `…:S2`, episódio
+ * `…:S2E5`) numa lista única, dedupada por hash mantendo o `seenAt` mais
+ * recente. Não muda formato nem namespace — é o agrupador do `lookup`, só que
+ * sem a escala do episódio: aqui uma obra de um episódio agrupa todos os seus
+ * episódios, porque a pergunta é "a OBRA tem ⚡", não "este episódio".
+ *
+ * Read-only de propósito: `keysMatching` + `peek` não promovem LRU nem contam
+ * `cache.hit`/`cache.miss` — a varredura roda a cada 5 min e não pode reordenar
+ * o cache nem inflar o painel com as próprias leituras.
+ */
+function snapshotWorks(imdbIds: string[]): Map<string, IndexedRelease[]> {
+  const result = new Map<string, IndexedRelease[]>();
+  const needed = new Set<string>();
+  for (const id of imdbIds || []) {
+    const norm = String(id || '');
+    if (norm.startsWith('tt')) needed.add(norm);
+  }
+  const base = prefix('idx');
+  const mergedByWork = new Map<string, Map<string, IndexedRelease>>();
+  // UMA varredura do namespace: chamar keysMatching uma vez por cada uma das
+  // 200 obras faria o sampler pagar O(coorte × índice) a cada cinco minutos.
+  for (const key of cache.keysMatching(base)) {
+    const match = key.slice(base.length).match(/^(tt\d+)(?::|$)/);
+    const imdbId = match?.[1];
+    if (!imdbId || !needed.has(imdbId)) continue;
+    const entry = cache.peek(key) as { releases?: IndexedRelease[] } | undefined;
+    if (!entry || !Array.isArray(entry.releases)) continue;
+    const merged = mergedByWork.get(imdbId) || new Map<string, IndexedRelease>();
+    for (const rel of entry.releases) {
+      if (!rel || !rel.hash) continue;
+      const prior = merged.get(rel.hash);
+      if (!prior || rel.seenAt > prior.seenAt) merged.set(rel.hash, rel);
+    }
+    mergedByWork.set(imdbId, merged);
+  }
+  for (const [imdbId, merged] of mergedByWork) {
+    if (merged.size) result.set(imdbId, [...merged.values()]);
+  }
+  return result;
+}
+
+export { record, lookup, lookupQuiet, markLied, markMissing, isMissing, markFileEvidence, fileEvidence, status, snapshotWorks };

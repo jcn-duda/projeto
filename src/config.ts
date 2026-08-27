@@ -181,6 +181,16 @@ const config = {
     maxPerHour: num(process.env.HARVEST_MAX_HOUR, 120),
     indexerDelayMs: num(process.env.HARVEST_INDEXER_DELAY_MS, 1500),
     entryTtl: num(process.env.HARVEST_ENTRY_TTL, 7 * 24 * 3600),
+    // Priorizacao da fila por evidencia BR (Fase 3.2): obra com sinal de
+    // conteudo BR dublado (play do usuario = next-episode, ou indice ja com
+    // release BR dublada) sai na frente, para o BR chegar ao indice — e dai
+    // ao warmer que gera o raio — antes de obra sem BR. Desligar restaura a
+    // ordem FIFO exata. O contrapeso `brMaxWaitMs` impede fome da obra
+    // pedida: obra sem evidencia BR esperando alem do prazo sobe para a frente.
+    brFirst: String(process.env.HARVEST_BR_FIRST || 'true') === 'true',
+    // Prazo maximo que uma obra sem evidencia BR pode esperar (fome-bound).
+    // 0 desliga o prazo (rotulo de quem aceita starvation).
+    brMaxWaitMs: Math.max(0, num(process.env.HARVEST_BR_MAX_WAIT_MS, 6 * 3600 * 1000)),
   },
   prowlarr: {
     url: (process.env.PROWLARR_URL || 'http://127.0.0.1:9696').replace(/\/$/, ''),
@@ -705,6 +715,22 @@ const config = {
     webhookUrl: process.env.NOTIFY_WEBHOOK_URL || '',
     cooldownS: num(process.env.NOTIFY_COOLDOWN_S, 3600),
     magnetsWarn: num(process.env.NOTIFY_MAGNETS_WARN, 900),
+  },
+  // Fase 3 — cobertura BR com raio: baseline, priorizacao do colhedor e decisao
+  // de vazao. A 3.1 e observabilidade pura (metrica em memoria, zero mudanca de
+  // comportamento); o sampler `f3.br` varre o indice periodicamente e conta
+  // quantas obras com BR dublada no indice ja tem raio confirmado (ledger RD hit,
+  // davail positivo ou magnetdb alive para a conta do operador).
+  f3: {
+    enabled: String(process.env.F3_ENABLED || 'true') === 'true',
+    br: {
+      enabled: String(process.env.F3_BR_ENABLED || 'true') === 'true',
+      sampleMs: Math.max(30_000, num(process.env.F3_BR_SAMPLE_MS, 5 * 60_000)),
+      // Teto por tipo na coorte popular do baseline: quantos IDs (filmes E
+      // séries) entram em `popularCohort` para medir a cobertura BR. Cada
+      // lista IMDb devolve 100 títulos; o default 100 é o top completo. 1..100.
+      topPerType: Math.min(100, Math.max(1, Math.trunc(num(process.env.F3_BR_TOP_PER_TYPE, 100)))),
+    },
   },
 };
 

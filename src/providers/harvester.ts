@@ -69,9 +69,55 @@ function obraIdentity(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'episode'>
   return `${entry.imdbId}:${entry.season ?? ''}:${entry.episode ?? ''}`;
 }
 
+/**
+ * Evidência BR para priorizar a fila (Fase 3.2). Pura e barata (in-memory):
+ * play real (`next-episode`) vence; na ausência, o índice já ter provado
+ * release BR dublada conta; o resto segue FIFO. Nunca escreve no debrid.
+ */
+function brEvidenceRank(entry: HarvestEntry): number {
+  if (entry.reason === 'next-episode') return 3;
+  // Evidência por OBRA (pack cobre a temporada), nunca release lied: o post
+  // que prometia PT mas era EN não prova BR tocável — só enganaria a fila.
+  if (releaseIndex.lookupQuiet(entry.imdbId, { season: entry.season, episode: entry.episode }).some((r) => r.isBr && r.dubbed && !r.lied)) return 2;
+  return 0;
+}
+
+/**
+ * Ordena a fila e devolve UMA CÓPIA — nunca muta a entrada. Com `harvestBrFirst`
+ * ligado, rank de evidência BR desc, depois FIFO por enqueuedAt, com bound de
+ * fome: obra sem evidência BR esperando além de `harvestBrMaxWaitMs` sobe para
+ * a frente — obra pedida pelo usuário não pode morrer de fome atrás de conteúdo
+ * BR. Desligado devolve a ordem exata (FIFO) por enqueuedAt: a ordem persistida
+ * pode ter sido priorizada por uma sessão anterior com a flag ligada, e
+ * desligar ao vivo precisa restaurar FIFO mesmo assim.
+ */
+function prioritizeQueue(queue: HarvestEntry[]): HarvestEntry[] {
+  const live = harvesterLive.effective();
+  const now = Date.now();
+  if (!live.harvestBrFirst) {
+    return [...queue].sort((a, b) => a.enqueuedAt - b.enqueuedAt);
+  }
+  const wait = live.harvestBrMaxWaitMs;
+  const rank = new Map<string, number>();
+  for (const e of queue) rank.set(obraIdentity(e), brEvidenceRank(e));
+  return [...queue].sort((a, b) => {
+    const ra = rank.get(obraIdentity(a)) ?? 0;
+    const rb = rank.get(obraIdentity(b)) ?? 0;
+    const aStarved = wait > 0 && now - a.enqueuedAt >= wait && ra === 0;
+    const bStarved = wait > 0 && now - b.enqueuedAt >= wait && rb === 0;
+    if (aStarved !== bStarved) return aStarved ? -1 : 1;
+    if (ra !== rb) return rb - ra;
+    return a.enqueuedAt - b.enqueuedAt;
+  });
+}
+
+
 function loadQueue() {
   const stored = cache.get(QUEUE_KEY);
   if (Array.isArray(stored)) queue = stored.filter((e) => e && /^tt\d+$/.test(String(e.imdbId)));
+  // Sempre unifica a ordem após carregar: a sessão que gravou pode ter usado
+  // outra config de priorização, e a ordem persistida não vale quando ela muda.
+  queue = prioritizeQueue(queue);
 }
 
 function persistQueue() {
@@ -105,10 +151,20 @@ function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>) {
   const full: HarvestEntry = { ...entry, imdbId, enqueuedAt: Date.now() };
   if (recentlyQueued(full)) return;
   if (queue.some((q) => obraIdentity(q) === obraIdentity(full))) return;
-  // Teto da fila: obra nova empurra a mais velha — a fila é oportunidade de
-  // colheita, não backlog sagrado.
-  while (queue.length >= live.harvestQueueMax) queue.shift();
-  queue.push(full);
+  if (live.harvestBrFirst) {
+    // Com prioridade ativa, o teto NUNCA pode descartar a cabeça mais
+    // importante só porque ela é mais antiga. Reordena e remove da CAUDA — a
+    // de menor prioridade (empate: a mais nova) — até abrir espaço, depois
+    // adiciona a nova; a ordem efetiva volta a valer no próximo passo/status.
+    queue = prioritizeQueue(queue);
+    while (queue.length >= live.harvestQueueMax) queue.pop();
+    queue.push(full);
+  } else {
+    // Sem priorização mantém a semântica antiga: obra nova empurra a mais
+    // velha. A fila é oportunidade de colheita, não backlog sagrado.
+    while (queue.length >= live.harvestQueueMax) queue.shift();
+    queue.push(full);
+  }
   persistQueue();
   metrics.count('harvest.enqueued');
 }
@@ -336,6 +392,9 @@ async function tick() {
   inFlight = true;
   let entry: HarvestEntry | undefined;
   try {
+    // Sempre prioriza: com a flag desligada restaura FIFO, com ligada respeita
+    // o rank BR e a fome — independentemente da ordem em que a fila estava.
+    queue = prioritizeQueue(queue);
     entry = queue.shift();
     if (!entry) return;
     persistQueue();
@@ -437,11 +496,11 @@ function status() {
     maxPerHour: live.harvestMaxPerHour,
     lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
     idleWindowMs: live.harvestIdleWindowMs,
-    queuePreview: queue.slice(0, config.harvest.queuePreview).map((entry) => ({ ...entry })),
+    queuePreview: prioritizeQueue(queue).slice(0, config.harvest.queuePreview).map((entry) => ({ ...entry })),
     lastWorks: recentWorks.map((entry) => ({ ...entry, at: new Date(entry.at).toISOString() })),
     config: harvesterLive.snapshot(),
   };
 }
 
-export { enqueue, start, status, tick, setPaused, drain, clearQueue };
-export default { enqueue, start, status, tick, setPaused, drain, clearQueue };
+export { enqueue, start, status, tick, setPaused, drain, clearQueue, prioritizeQueue };
+export default { enqueue, start, status, tick, setPaused, drain, clearQueue, prioritizeQueue };

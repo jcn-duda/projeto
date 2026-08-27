@@ -14,10 +14,26 @@ const counters: Map<string, number> = new Map();
 type Timer = { count: number; sum: number; max: number; ring: Float64Array; filled: number; next: number };
 type TimingSnapshot = { count: number; avgMs: number; p50Ms: number; p95Ms: number; maxMs: number };
 const timers: Map<string, Timer> = new Map();
+// Valores de ESTADO atual (nível, não acumulado): cobertura, ocupação, taxa no
+// momento. Ao contrário dos contadores, um gauge pode VOLTAR a cair — o último
+// `set` é a verdade corrente, e o snapshot lê o que está no Map agora.
+const gauges: Map<string, number> = new Map();
 const startedAt = Date.now();
 
 function count(name: string, delta = 1) {
   counters.set(name, (counters.get(name) || 0) + delta);
+}
+
+/** Define o valor ATUAL de um estado. Nunca acumula: é um nível que cai. */
+function gauge(name: string, value: number) {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized)) return;
+  gauges.set(name, normalized);
+}
+
+/** Remove um estado que deixou de ter denominador válido. */
+function clearGauge(name: string) {
+  gauges.delete(name);
 }
 
 /** Guarda uma medição de duração. Só as últimas SAMPLES entram no percentil. */
@@ -73,6 +89,8 @@ function snapshot() {
   return {
     uptimeS: Math.round((Date.now() - startedAt) / 1000),
     counters: Object.fromEntries([...counters.entries()].sort(([a], [b]) => a.localeCompare(b))),
+    // Gauges ordenados pelo nome para o painel não depender da ordem de escrita.
+    gauges: Object.fromEntries([...gauges.entries()].sort(([a], [b]) => a.localeCompare(b))),
     timers: timings,
   };
 }
@@ -80,7 +98,8 @@ function snapshot() {
 /** Só para teste: o processo real acumula desde a subida. */
 function reset() {
   counters.clear();
+  gauges.clear();
   timers.clear();
 }
 
-export { count, observe, timed, snapshot, reset };
+export { count, gauge, clearGauge, observe, timed, snapshot, reset };

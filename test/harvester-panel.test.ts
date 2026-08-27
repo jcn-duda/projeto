@@ -1,5 +1,6 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
@@ -187,3 +188,35 @@ test('rotas escopadas /:userConfig/harvester, status e action suportam Colhedor'
   }
 });
 
+
+
+test('dashboard.html: os controles novos do colhedor têm ID, entram em harvestKeys e o JS segue ES5', () => {
+  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+  // IDs dos dois controles novos introduzidos na Fase 3.2.
+  assert.match(html, /id="harvest_harvestBrFirst"/);
+  assert.match(html, /id="harvest_harvestBrMaxWaitMs"/);
+  assert.match(html, /id="env_harvest_harvestBrFirst"/);
+  assert.match(html, /id="env_harvest_harvestBrMaxWaitMs"/);
+
+  // A lista de chaves que o painel serializa precisa cobrir os dois campos.
+  const harvestKeysMatch = html.match(/var harvestKeys\s*=\s*\[([^\]]*)\]/);
+  assert.ok(harvestKeysMatch, 'harvestKeys declarado no dashboard');
+  const keys = harvestKeysMatch![1].split(',').map((s) => s.replace(/["'\s]/g, '')).filter(Boolean);
+  assert.ok(keys.includes('harvestBrFirst'), 'harvestBrFirst entra em harvestKeys');
+  assert.ok(keys.includes('harvestBrMaxWaitMs'), 'harvestBrMaxWaitMs entra em harvestKeys');
+
+  // Só o toggle (booleano) pertence a booleanHarvestKeys; o prazo é numérico.
+  const boolMatch = html.match(/var booleanHarvestKeys\s*=\s*\[([^\]]*)\]/);
+  assert.ok(boolMatch, 'booleanHarvestKeys declarado no dashboard');
+  const bools = boolMatch![1].split(',').map((s) => s.replace(/["'\s]/g, '')).filter(Boolean);
+  assert.ok(bools.includes('harvestBrFirst'), 'harvestBrFirst é booleano');
+  assert.ok(!bools.includes('harvestBrMaxWaitMs'), 'harvestBrMaxWaitMs é numérico — fora de booleanHarvestKeys');
+
+  assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard.html continua ES5 (WebView de Smart TV)');
+});
+
+test('dashboard.html: o preset de referência aplica os campos novos (ES5 literais)', () => {
+  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+  assert.match(html, /\$\("harvest_harvestBrFirst"\)\.checked = true/);
+  assert.match(html, /\$\("harvest_harvestBrMaxWaitMs"\)\.value = 21600000/);
+});

@@ -169,6 +169,7 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
       assert.equal(typeof body.cache.hitRate, 'number');
       assert.equal(body.cache.persistent, false, 'dashboard lê a persistência centralizada');
       assert.equal(typeof body.metrics, 'object');
+       assert.equal(typeof body.metrics.gauges, 'object');
        assert.equal(typeof body.autofetch, 'object');
        assert.equal(typeof body.magnetdb, 'object');
        assert.equal(typeof body.magnetdb.enabled, 'boolean');
@@ -176,6 +177,10 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
        assert.equal(typeof body.magnetdb.ttlRemainingSeconds, 'object');
        assert.ok(Array.isArray(body.harvest.queuePreview));
        assert.ok(Array.isArray(body.harvest.lastWorks));
+       assert.equal(typeof body.f3, 'object');
+       assert.equal(typeof body.f3.enabled, 'boolean');
+       assert.equal(typeof body.f3.baselineAt, 'number');
+       assert.ok(body.f3.latest === null || typeof body.f3.latest === 'object');
       assert.ok(Array.isArray(body.indexers), 'catálogo de indexers entra como lista');
       assert.ok(Array.isArray(body.resolvers), 'resolvers BR saem como lista');
       assert.ok(body.resolvers.every((resolver: any) => resolver.embedded === false));

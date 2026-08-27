@@ -567,3 +567,46 @@ test('buildStreams com deadline jÃ¡ expirado: NÃƒO conta search.first.* e firstC
     metrics.reset();
   }
 });
+
+
+// ---------------------------------------------------------------------------
+// Fase 3.1 — gauge (estado atual): sobrescreve, pode cair, snapshot ordenado e
+// reset limpa. Isso é a base das métricas `f3.br.*` do baseline de cobertura.
+// ---------------------------------------------------------------------------
+
+test('gauge publica NIVEL, sobrescreve (pode cair) e o snapshot é ordenado', () => {
+  metrics.reset();
+  metrics.gauge('f3.br.popular.cached', 5);
+  metrics.gauge('f3.br.popular.cached', 2); // nível cai: pode voltar a baixo
+  assert.equal(metrics.snapshot().gauges['f3.br.popular.cached'], 2, 'gauge é estado atual, sobrescreve');
+
+  metrics.gauge('c2', 1);
+  metrics.gauge('a1', 2);
+  metrics.gauge('ignorado', Number.NaN);
+  // O snapshot entrega os gauges SEMPRE ordenados para o painel não depender
+  // da ordem de escrita.
+  assert.deepEqual(Object.keys(metrics.snapshot().gauges), ['a1', 'c2', 'f3.br.popular.cached']);
+});
+
+test('gauge não participa dos contadores nem dos timers (espaço separado)', () => {
+  metrics.reset();
+  metrics.gauge('soco', 1);
+  metrics.count('soco'); // mesmo nome em outro espaço não se confunde
+  metrics.observe('soco', 12);
+  const snap = metrics.snapshot();
+  assert.equal(snap.counters['soco'], 1);
+  assert.equal(snap.gauges['soco'], 1);
+  assert.equal(snap.timers['soco']?.count, 1);
+});
+
+test('metrics.reset limpa contadores, gauges e timers', () => {
+  metrics.reset();
+  metrics.count('a', 3);
+  metrics.gauge('b', 2);
+  metrics.observe('c', 5);
+  metrics.reset();
+  const snap = metrics.snapshot();
+  assert.deepEqual(snap.counters, {});
+  assert.deepEqual(snap.gauges, {});
+  assert.deepEqual(snap.timers, {});
+});

@@ -696,6 +696,50 @@ Configuração em nível de **operador** para o colhedor em segundo plano e seme
 - `clearQueue()` esvazia a fila de obras pendentes de colheita.
 Ações protegidas atrás de `JACKETT_TEST_TOKEN` (`POST /dashboard-action.json`): `harvest-config-get`, `harvest-config-set`, `harvest-config-reset`, `harvester-pause`, `harvester-drain`, `harvester-clear-queue`.
 
+**Fase 3 — cobertura BR ⚡ (module `src/utils/br-coverage.ts`, knobs `harvestBrFirst`/`harvestBrMaxWaitMs`).**
+
+A **3.1** torna a cadeia mensurável: o sampler `f3.br` (`start`) varre periodicamente a **coorte popular
+persistida** — as mesmas listas IMDb que alimentam o colhedor (`src/providers/imdb-seed.ts`, chave
+`seed:v1:cohort`), com o **top `F3_BR_TOP_PER_TYPE` por tipo** (default 100, clamp 1..100), incluindo
+obras **já conhecidas** no índice e as **novas** enfileiradas. A coorte **exige a semente ativa**
+(`seedEnabled` + `config.seed.apiKey` RAPIDAPI + `releaseIndex.enabled`); **sem coorte não há o que
+medir** — `baselineAt=0` e `latest=null`, e a baseline só começa no primeiro sample com coorte. O
+mesmo vale se a coorte expirar: gauges/latest são limpos e a janela de 48h recomeça, para a 3.3 nunca
+decidir vazão com um alvo obsoleto. O
+denominador é a coorte, **não o índice inteiro** (medir tudo dizia o que o addon já viu, não o que as
+pessoas estão prestes a abrir). Candidatas são releases **BR dubladas e não-`lied`** (o post que mentiu o
+áudio é ruído, não candidata; na obra, hit se qualquer hit; miss só se TODAS são miss; senão unknown).
+
+O ⚡ é medido **no Real-Debrid**, por release, só com leituras quietas: ledger RD (`hit`/`miss`/`blocked`)
+mais `davail`/`magnetdb.alive` **somente da conta do operador** — e só quando o serviço ativo é mesmo
+`realdebrid` com `allowEnvKey` + `apiKey`. **`blocked` (451 legal) vence**: um davail/alive antigo não
+ressuscita hash bloqueado, e volta `miss`. Sem conta do operador configurada, só o ledger decide. `miss`
+e `unknown` ficam **separados** (positivo vence miss — falso negativo é o erro que a decisão de vazão
+pagaria). Observabilidade pura: **zero rede e zero escrita no debrid** — nenhuma chamada a
+`checkCached`/`enqueue`/`addMagnet` no sampler. Métricas/gauges ficam em memória (`metrics.ts`); só a
+coorte persiste (SQLite pela semente). No `dashboard-status.json` o bloco `f3` expõe
+`baselineAt`/`samples`/`latest` (com `cohortAt`, `targetWorks`, `indexedWorks`, `worksWithBr`,
+`worksCached`, `worksKnownMiss`, `worksUnknown`, `releasesWithBr`/`releasesCached`, e os `TypeCounts`
+de movie/series) e as razões `popularCoverage` (cached/target), `discoveryRate` (withBr/target) e
+`brWarmRate` (cached/withBr). Em `/metrics.json` os gauges `f3.br.popular.*` publicam
+`target`/`indexed`/`withBr`/`cached`/`knownMiss`/`unknown` (+ releases e as três razões). Kill-switches:
+`F3_ENABLED=false` desliga a fase inteira; `F3_BR_ENABLED=false` desliga só o sampler, e
+`F3_BR_TOP_PER_TYPE` regula o tamanho da coorte.
+
+A **3.2** prioriza a fila do colhedor **só com evidência já conhecida, sem pré-sonda**: `next-episode`
+(play real, rank 3) ou release BR dublada **não-`lied`** já no índice (rank 2) saem antes do FIFO;
+obra sem evidência (pedida pelo usuário) fica no FIFO. **`lied` não prioriza.** `harvestBrMaxWaitMs`
+(default 6h) é o bound de fome que impede obra sem evidência de ficar para trás para sempre. São flip
+ao vivo no dashboard (`harvestBrFirst`/`harvestBrMaxWaitMs`, aba `[Colhedor / Harvester]`); desligar
+`harvestBrFirst` restaura a ordem FIFO exata. Formato da fila `harvest:v1:q` NÃO muda (a priorização é
+só reordenação no consumo, e a janela de capacidade preserva a cabeça prioritária já na fila).
+
+A **3.3** é um **gate de decisão documentado**, não auto-tuning: após ≥48h do baseline no ar, o operador
+decide a vazão com o bloco `f3` + `harvest.*` + `debrid.rd.warm.*` + `rdGate` (sobe colheita só se o
+warmer drena; sobe warmer só sem 429/quota e com conta abaixo do teto). A 3.3 **não muda vazão nem faz
+tuning sozinha** — nenhum knob dela ajusta nada automaticamente. Nunca subir a colheita além do que o
+warmer absorve — fila `rdq` crescendo é backlog, não valor.
+
 
 O registry também expõe `inventory()`: o que já está **pronto** na conta
 (AllDebrid/TorBox/RD/DL) entra na busca como mais uma fonte

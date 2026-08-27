@@ -16,6 +16,9 @@ import rdWarmer from '../src/providers/rd-warmer.js';
 import * as activity from '../src/providers/activity.js';
 import { stubFetch } from './helpers/stub.js';
 import { ptSweepQueryFor } from '../src/providers/search-plan.js';
+import * as harvesterLive from '../src/utils/harvester-live.js';
+import * as releaseIndex from '../src/utils/release-index.js';
+import * as metrics from '../src/utils/metrics.js';
 
 test('teto horário conta as consultas e trava o ciclo seguinte', async () => {
   // Precisa ser o PRIMEIRO do arquivo: o tick consome a fila do módulo, que
@@ -556,5 +559,124 @@ test('colhedor extrai hash de magnet URI e calcula score correto (80/40/5) para 
     config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
     config.debrid.service = saved.debridService;
     rdWarmer.reset();
+  }
+});
+
+
+test("3.2: prioritizeQueue põe evidência BR antes e é estável (FIFO no mesmo rank)", () => {
+  harvesterLive.reset();
+  const now = Date.now();
+  const a = { imdbId: 'tt3000001', type: 'movie', reason: 'next-episode' as any, season: null, episode: null, enqueuedAt: now - 1000 };
+  const b = { imdbId: 'tt3000002', type: 'movie', reason: 'miss' as any, season: null, episode: null, enqueuedAt: now - 900 };
+  const c = { imdbId: 'tt3000003', type: 'movie', reason: 'popular' as any, season: null, episode: null, enqueuedAt: now - 800 };
+  // tt3000002 tem release BR dublada no índice (evidência BR rank 2).
+  releaseIndex.record('tt3000002', {}, [{ infoHash: '9'.repeat(40), title: 'Filme BR (2024) DUBLADO 1080p', isBr: true, indexer: 'x', seeders: 1 }]);
+  const out = (harvester as any).prioritizeQueue([a, b, c]);
+  assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000001', 'tt3000002', 'tt3000003'], 'next-episode > índice-BR > FIFO');
+});
+
+test("3.2: bound de fome — obra sem BR muito antiga sobe acima do next-episode", () => {
+  harvesterLive.reset();
+  harvesterLive.set({ harvestBrMaxWaitMs: 1000 });
+  const now = Date.now();
+  const old = { imdbId: 'tt3000010', type: 'movie', reason: 'popular' as any, season: null, episode: null, enqueuedAt: now - 5000 };
+  const fresh = { imdbId: 'tt3000011', type: 'movie', reason: 'next-episode' as any, season: null, episode: null, enqueuedAt: now };
+  const out = (harvester as any).prioritizeQueue([fresh, old]);
+  assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000010', 'tt3000011'], 'starved rank-0 sobe na frente');
+  harvesterLive.reset();
+});
+
+test('3.2: harvestBrMaxWaitMs=0 desliga o bound de fome', () => {
+  harvesterLive.reset();
+  harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 0 });
+  const old = { imdbId: 'tt3000012', type: 'movie', reason: 'popular', season: null, episode: null, enqueuedAt: 1 };
+  const next = { imdbId: 'tt3000013', type: 'series', reason: 'next-episode', season: 1, episode: 2, enqueuedAt: Date.now() };
+  const out = (harvester as any).prioritizeQueue([old, next]);
+  assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000013', 'tt3000012']);
+  harvesterLive.reset();
+});
+
+test("3.2: harvestBrFirst=false restaura FIFO exato", () => {
+  harvesterLive.reset();
+  harvesterLive.set({ harvestBrFirst: false });
+  const now = Date.now();
+  const a = { imdbId: 'tt3000020', type: 'movie', reason: 'next-episode' as any, season: null, episode: null, enqueuedAt: now - 100 };
+  const b = { imdbId: 'tt3000021', type: 'movie', reason: 'popular' as any, season: null, episode: null, enqueuedAt: now - 50 };
+  const out = (harvester as any).prioritizeQueue([b, a]);
+  assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000020', 'tt3000021'], 'sem priorização, ordem de chegada vence');
+  harvesterLive.reset();
+});
+
+test('3.2: rank 2 para SÉRIE via season/episode no índice', () => {
+  harvesterLive.reset();
+  harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 0 });
+  const idx = 'a'.repeat(40);
+  // Evidência BR da série gravada na chave da temporada (pack cobre episódio).
+  releaseIndex.record('tt3000031', { season: 2, episode: 3 }, [
+    { infoHash: idx, title: 'Serie (2020) S02E03 1080p DUBLADO', isBr: true, indexer: 'x', seeders: 1 },
+  ]);
+  metrics.reset();
+  const serieComBR = { imdbId: 'tt3000031', type: 'series', reason: 'miss', season: 2, episode: 3, enqueuedAt: Date.now() - 500 };
+  const outro = { imdbId: 'tt3000032', type: 'movie', reason: 'miss', season: null, episode: null, enqueuedAt: Date.now() - 1 };
+  const plain = { imdbId: 'tt3000033', type: 'movie', reason: 'popular', season: null, episode: null, enqueuedAt: Date.now() };
+  const out = (harvester as any).prioritizeQueue([outro, serieComBR as any, plain]);
+  assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000031', 'tt3000032', 'tt3000033'], 'série com evidência BR na temporada sobe acima do FIFO, no rank 2');
+  assert.equal(metrics.snapshot().counters['cache.hit.idx'], undefined, 'priorização consulta o índice sem promover LRU/métricas');
+  harvesterLive.reset();
+});
+
+test('3.2: lied (post prometeu PT, arquivo EN) NÃO prioriza', () => {
+  harvesterLive.reset();
+  harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 0 });
+  const idx = 'b'.repeat(40);
+  releaseIndex.record('tt3000040', {}, [
+    { infoHash: idx, title: 'Filme (2020) 1080p DUBLADO', isBr: true, indexer: 'x', seeders: 1 },
+  ]);
+  releaseIndex.markLied('tt3000040', {}, idx); // os arquivos provaram release EN
+  const plain = { imdbId: 'tt3000041', type: 'movie', reason: 'popular', season: null, episode: null, enqueuedAt: Date.now() - 1000 };
+  const lied = { imdbId: 'tt3000040', type: 'movie', reason: 'miss', season: null, episode: null, enqueuedAt: Date.now() };
+  const out = (harvester as any).prioritizeQueue([lied, plain]);
+  assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000041', 'tt3000040'], 'lied não ganha rank 2: FIFO puro decide');
+  harvesterLive.reset();
+});
+
+test('3.2: toggle false restaura FIFO de um array já priorizado', () => {
+  harvesterLive.reset();
+  harvesterLive.set({ harvestBrFirst: false });
+  const a = { imdbId: 'tt3000050', type: 'movie', reason: 'next-episode', season: null, episode: null, enqueuedAt: 2000 };
+  const b = { imdbId: 'tt3000051', type: 'movie', reason: 'popular', season: null, episode: null, enqueuedAt: 1000 };
+  // Primeiro prioriza (flag ligada): a ganha.
+  harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 0 });
+  assert.deepEqual((harvester as any).prioritizeQueue([a, b]).map((e: any) => e.imdbId), ['tt3000050', 'tt3000051'], 'priorizado: next-episode na frente');
+  // O toggle desliga ao vivo: FIFO exato volta, mesmo sobre a ordem priorizada anterior.
+  harvesterLive.set({ harvestBrFirst: false });
+  assert.deepEqual((harvester as any).prioritizeQueue([a, b]).map((e: any) => e.imdbId), ['tt3000051', 'tt3000050'], 'sem priorização a ordem de chegada original é restaurada');
+  harvesterLive.reset();
+});
+
+test('3.2: capacidade com prioridade ativa NÃO remove a cabeça prioritária', () => {
+  harvesterLive.reset();
+  try {
+    harvester.setPaused(true); // não consome nada durante o teste
+    harvester.clearQueue();
+    harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 0, harvestQueueMax: 10 });
+    const cap = 'c'.repeat(40);
+    releaseIndex.record('tt3000060', { season: 1, episode: 1 }, [
+      { infoHash: cap, title: 'Serie (2020) S01E01 1080p DUBLADO', isBr: true, indexer: 'x', seeders: 1 },
+    ]);
+    // Cabeça prioritária + dez entradas comuns estouram o teto mínimo (10).
+    harvester.enqueue({ imdbId: 'tt3000060', type: 'series', season: 1, episode: 1, reason: 'next-episode' });
+    for (let i = 61; i <= 70; i += 1) {
+      harvester.enqueue({ imdbId: `tt30000${i}`, type: 'movie', reason: 'popular' });
+    }
+
+    const st: any = harvester.status();
+    assert.equal(st.queueDepth, 10, 'nunca passa do teto mesmo com evidência');
+    assert.ok(st.queuePreview.some((e: any) => e.imdbId === 'tt3000060'), 'a cabeça prioritária continua na fila');
+    assert.equal(st.queuePreview[0].imdbId, 'tt3000060', 'status devolve a ordem efetiva com a prioritária primeiro');
+  } finally {
+    harvester.setPaused(false);
+    harvesterLive.reset();
+    harvester.clearQueue();
   }
 });

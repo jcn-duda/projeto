@@ -3,6 +3,7 @@ import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 import { errorMessage } from '../utils/logger.js';
 import { streamsCacheScope } from '../utils/request-key.js';
+import * as brCoverage from '../utils/br-coverage.js';
 
 function releaseIndexStatus(services: AppServices) {
   const counters = services.metrics.snapshot().counters;
@@ -131,6 +132,7 @@ function makeDiagnosticHandlers(services: AppServices) {
         autofetch: { ...services.autofetch.snapshot(), ...services.providers.autofetchStatus() },
         releaseIndex: releaseIndexStatus(services),
         harvest: services.harvester.status(),
+        f3: brCoverage.status(),
         magnetdb: services.magnetdb.status(),
         indexers: indexers.map((indexer: any) => ({
           ...indexer,

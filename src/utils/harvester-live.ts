@@ -12,6 +12,8 @@ export interface HarvesterLiveConfig {
   harvestDrainMaxWorks: number;
   harvestIndexerDelayMs: number;
   harvestEntryTtl: number;
+  harvestBrFirst: boolean;
+  harvestBrMaxWaitMs: number;
   seedEnabled: boolean;
   seedMaxPerCycle: number;
   seedMinVotes: number;
@@ -43,6 +45,7 @@ const INFINITE_TTL = 315_360_000; // 10 anos em segundos
 
 const BOOLEAN_KEYS = new Set<string>([
   'harvestEnabled',
+  'harvestBrFirst',
   'seedEnabled',
   'paused',
 ]);
@@ -55,6 +58,7 @@ const NUMBER_KEYS = new Set<string>([
   'harvestDrainMaxWorks',
   'harvestIndexerDelayMs',
   'harvestEntryTtl',
+  'harvestBrMaxWaitMs',
   'seedMaxPerCycle',
   'seedMinVotes',
   'seedIntervalH',
@@ -75,6 +79,8 @@ function envDefaults(): Omit<HarvesterLiveConfig, 'paused' | 'pausedSince'> {
     harvestDrainMaxWorks: config.harvest.drainMaxWorks,
     harvestIndexerDelayMs: config.harvest.indexerDelayMs,
     harvestEntryTtl: config.harvest.entryTtl,
+    harvestBrFirst: config.harvest.brFirst,
+    harvestBrMaxWaitMs: config.harvest.brMaxWaitMs,
     seedEnabled: config.seed.enabled,
     seedMaxPerCycle: config.seed.maxPerCycle,
     seedMinVotes: config.seed.minVotes,
@@ -176,6 +182,26 @@ export function schema(): HarvesterSchemaField[] {
       unit: 'segundos',
       envDefault: env.harvestEntryTtl,
       description: 'Tempo de expiração das obras na fila do colhedor.',
+    },
+    {
+      key: 'harvestBrFirst',
+      label: 'Priorizar Fila por BR',
+      type: 'boolean',
+      group: 'queue',
+      envDefault: env.harvestBrFirst,
+      description: 'Obra com evidência BR (play ou release BR dublada no índice) sai antes na fila do colhedor.'
+    },
+    {
+      key: 'harvestBrMaxWaitMs',
+      label: 'Prazo Máx. sem BR (Fome)',
+      type: 'number',
+      group: 'queue',
+      min: 0,
+      max: 172_800_000,
+      step: 3600_000,
+      unit: 'ms',
+      envDefault: env.harvestBrMaxWaitMs,
+      description: 'Prazo que uma obra sem evidência BR pode esperar antes de subir na frente (evita fome).'
     },
     {
       key: 'seedEnabled',
@@ -296,6 +322,9 @@ function sanitizePatch(patch: Record<string, unknown>): {
           break;
         case 'harvestEntryTtl':
           clamped = Math.max(3600, Math.min(2_592_000, Math.trunc(num)));
+          break;
+        case 'harvestBrMaxWaitMs':
+          clamped = Math.max(0, Math.min(172_800_000, Math.trunc(num)));
           break;
         case 'seedMaxPerCycle':
           clamped = Math.max(1, Math.min(100, Math.trunc(num)));

@@ -579,6 +579,20 @@
           <input id="harvest_harvestEntryTtl" type="number" min="3600" max="2592000" step="3600" />
           <span class="field-env">Padrão .env: <span id="env_harvest_harvestEntryTtl">—</span></span>
         </div>
+        <div class="form-item checkbox-item">
+          <input id="harvest_harvestBrFirst" type="checkbox" />
+          <div>
+            <label for="harvest_harvestBrFirst">Priorizar Fila por BR <span id="badge_harvest_harvestBrFirst" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+            <p class="field-desc">Obra com evidência BR (play ou release BR dublada no índice) sai antes na fila do colhedor. Desligar restaura FIFO exato ao vivo.</p>
+            <span class="field-env">Padrão .env: <span id="env_harvest_harvestBrFirst">—</span></span>
+          </div>
+        </div>
+        <div class="form-item">
+          <label for="harvest_harvestBrMaxWaitMs">Prazo Máx. sem BR (Fome) <span id="badge_harvest_harvestBrMaxWaitMs" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Prazo que uma obra sem evidência BR pode esperar antes de subir na frente da fila (evita fome; 0..172800000, passos de 3600000).</p>
+          <input id="harvest_harvestBrMaxWaitMs" type="number" min="0" max="172800000" step="3600000" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_harvestBrMaxWaitMs">—</span></span>
+        </div>
       </div>
     </section>
 
@@ -1413,9 +1427,10 @@
   var harvestKeys = [
     "harvestEnabled", "harvestMaxPerHour", "harvestIdleWindowMs", "harvestIntervalMs",
     "harvestIndexerDelayMs", "harvestQueueMax", "harvestDrainMaxWorks", "harvestEntryTtl",
+    "harvestBrFirst", "harvestBrMaxWaitMs",
     "seedEnabled", "seedMaxPerCycle", "seedMinVotes", "seedIntervalH"
   ];
-  var booleanHarvestKeys = ["harvestEnabled", "seedEnabled"];
+  var booleanHarvestKeys = ["harvestEnabled", "harvestBrFirst", "seedEnabled"];
   var isHarvestPaused = false;
 
   function setHarvestFeedback(text, kind) {
@@ -1635,6 +1650,8 @@
       $("harvest_harvestIndexerDelayMs").value = 1500;
       $("harvest_harvestQueueMax").value = 200;
       $("harvest_harvestDrainMaxWorks").value = 5;
+      $("harvest_harvestBrFirst").checked = true;
+      $("harvest_harvestBrMaxWaitMs").value = 21600000;
       $("harvest_seedEnabled").checked = true;
       $("harvest_seedMaxPerCycle").value = 20;
       $("harvest_seedMinVotes").value = 1000;
@@ -1648,6 +1665,8 @@
       $("harvest_harvestIndexerDelayMs").value = 1000;
       $("harvest_harvestQueueMax").value = 500;
       $("harvest_harvestDrainMaxWorks").value = 15;
+      $("harvest_harvestBrFirst").checked = true;
+      $("harvest_harvestBrMaxWaitMs").value = 21600000;
       $("harvest_seedEnabled").checked = true;
       $("harvest_seedMaxPerCycle").value = 40;
       $("harvest_seedMinVotes").value = 500;
@@ -1661,6 +1680,8 @@
       $("harvest_harvestIndexerDelayMs").value = 3000;
       $("harvest_harvestQueueMax").value = 100;
       $("harvest_harvestDrainMaxWorks").value = 2;
+      $("harvest_harvestBrFirst").checked = true;
+      $("harvest_harvestBrMaxWaitMs").value = 21600000;
       $("harvest_seedEnabled").checked = false;
       setHarvestFeedback("Preset Silencioso / Econômico carregado. Clique em 'Salvar Alterações' para aplicar.", "warn");
     }

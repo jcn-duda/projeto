@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as harvesterLive from '../src/utils/harvester-live.js';
 
-test('harvesterLive: schema expõe os 12 campos esperados', () => {
+test('harvesterLive: schema expõe os 14 campos esperados', () => {
   const s = harvesterLive.schema();
-  assert.equal(s.length, 12);
+  assert.equal(s.length, 14);
   const keys = s.map((f) => f.key);
   assert.ok(keys.includes('harvestEnabled'));
   assert.ok(keys.includes('harvestMaxPerHour'));
@@ -18,6 +18,8 @@ test('harvesterLive: schema expõe os 12 campos esperados', () => {
   assert.ok(keys.includes('seedMaxPerCycle'));
   assert.ok(keys.includes('seedMinVotes'));
   assert.ok(keys.includes('seedIntervalH'));
+  assert.ok(keys.includes('harvestBrFirst'));
+  assert.ok(keys.includes('harvestBrMaxWaitMs'));
 });
 
 test('harvesterLive: clamps numéricos e validação de tipos', () => {
@@ -35,6 +37,9 @@ test('harvesterLive: clamps numéricos e validação de tipos', () => {
   assert.equal(r1.effective.harvestQueueMax, 10);
   assert.equal(r1.effective.harvestDrainMaxWorks, 50);
   assert.equal(r1.effective.seedMaxPerCycle, 1);
+  const rb = harvesterLive.set({ harvestBrMaxWaitMs: 999999999 });
+  assert.equal(rb.ok, true);
+  assert.equal(rb.effective.harvestBrMaxWaitMs, 172_800_000);
 
   // Teste de chave desconhecida
   const r2 = harvesterLive.set({ chaveInvalida: 123 } as any);
