@@ -9,6 +9,8 @@ import type * as metrics from '../utils/metrics.js';
 import type * as cache from '../utils/cache.js';
 import type * as log from '../utils/logger.js';
 import type * as autofetch from '../providers/autofetch.js';
+import type * as autofetchRunner from '../providers/autofetch-runner.js';
+import type * as autofetchLive from '../utils/autofetch-live.js';
 import type * as releaseIndex from '../utils/release-index.js';
 import type harvester from '../providers/harvester.js';
 import type * as magnetdb from '../utils/magnetdb.js';
@@ -40,6 +42,8 @@ export interface AppServices {
   cache: typeof cache;
   log: typeof log;
   autofetch: typeof autofetch;
+  autofetchRunner: typeof autofetchRunner;
+  autofetchLive: typeof autofetchLive;
   releaseIndex: typeof releaseIndex;
   harvester: typeof harvester;
   magnetdb: typeof magnetdb;

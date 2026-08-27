@@ -52,6 +52,7 @@ const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   idx: 2000,
   autofetch: 1000,
   'indexer-status': 200,
+  cfg: 50,
   __default: 500,
 });
 const namespaceCounts = new Map();

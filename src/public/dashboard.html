@@ -137,6 +137,26 @@
     .token-box, .test-tools { grid-template-columns: 1fr; }
     .token-help { grid-column: auto; }
   }
+  .tabs { display: flex; gap: 8px; margin-top: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+  .tab-btn { border: 1px solid var(--border); border-radius: 999px; padding: 8px 18px; background: var(--surface); color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+  .tab-btn:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+  .tab-btn.active { border-color: var(--accent); background: linear-gradient(145deg, var(--accent), var(--accent-2)); color: #151515; font-weight: 700; }
+  .tab-view { display: block; }
+  .tab-view.hidden { display: none; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; margin-top: 14px; }
+  .form-item { padding: 12px 14px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255, 255, 255, .02); }
+  .form-item label { display: block; margin-bottom: 4px; color: var(--text); font-size: 13px; font-weight: 600; }
+  .form-item .field-desc { margin: 0 0 8px; color: var(--muted); font-size: 11px; }
+  .form-item input[type="number"], .form-item input[type="text"] { width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface-2); color: var(--text); }
+  .form-item input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px; vertical-align: middle; margin-right: 8px; cursor: pointer; }
+  .form-item.checkbox-item { display: flex; align-items: flex-start; gap: 10px; }
+  .form-item.checkbox-item label { margin-bottom: 0; cursor: pointer; }
+  .field-env { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; font-family: monospace; }
+  .field-badge-override { display: inline-block; margin-left: 6px; padding: 2px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: bold; }
+  .presets-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+  .preset-btn { font-size: 12px; padding: 6px 12px; border-radius: 6px; }
+  .pause-banner { margin-bottom: 16px; padding: 12px 16px; border: 1px solid var(--red); border-radius: 10px; background: var(--red-soft); color: #ffd8d4; font-size: 13px; font-weight: 600; display: none; }
+  .pause-banner.visible { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 </style>
 </head>
 <body>
@@ -150,6 +170,10 @@
       </div>
       <div id="connection" class="connection" role="status"><span class="dot"></span><span id="connectionText">aguardando consulta</span></div>
     </div>
+    <nav class="tabs" role="tablist" aria-label="Navegação do Dashboard">
+      <button id="tabGeral" class="tab-btn active" role="tab" aria-selected="true" aria-controls="viewGeral" type="button">Visão Geral</button>
+      <button id="tabAutofetch" class="tab-btn" role="tab" aria-selected="false" aria-controls="viewAutofetch" type="button">Chupim / Autofetch</button>
+    </nav>
   </header>
 
   <section aria-labelledby="accessTitle">
@@ -178,6 +202,7 @@
     <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
   </section>
 
+  <div id="viewGeral" class="tab-view" role="tabpanel" aria-labelledby="tabGeral">
   <section aria-labelledby="generalTitle">
     <div class="section-head"><div><h2 id="generalTitle">Geral</h2><p>Estado do processo e informações da instância.</p></div><span id="lastUpdated" class="last-updated">sem medição</span></div>
     <div id="generalMetrics" class="metrics"><div class="empty">Aguardando /dashboard-status.json.</div></div>
@@ -242,6 +267,220 @@
       <div class="action-card"><h3>Reavaliar inventário</h3><p>Invalida somente o memo de inventário da conta acessível.</p><button id="refreshInventoryButton" class="action-button" type="button" data-action="refresh-inventory">Reavaliar inventário</button></div>
     </div>
   </section>
+  </div>
+
+  <div id="viewAutofetch" class="tab-view hidden" role="tabpanel" aria-labelledby="tabAutofetch">
+    <div id="afPauseBanner" class="pause-banner" role="alert">
+      <span id="afPauseBannerText">Chupim PAUSADO. Nenhum download será enviado ao debrid.</span>
+      <button id="afBannerResumeBtn" class="primary" type="button" style="padding: 4px 12px; font-size: 12px;">Retomar agora</button>
+    </div>
+
+    <section aria-labelledby="afLiveTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="afLiveTitle">Visão viva do Chupim</h2>
+          <p>Estado operacional em tempo real e controle de emergência.</p>
+        </div>
+        <div class="section-actions">
+          <button id="afPauseToggleBtn" class="primary" type="button">Pausar Chupim</button>
+          <button id="afDrainBtn" class="danger" type="button">Drenar Filas Agora</button>
+        </div>
+      </div>
+      <div id="afLiveMetrics" class="metrics">
+        <div class="metric"><span class="key">Estado</span><span id="afMetricState" class="value">—</span></div>
+        <div class="metric"><span class="key">Filas ativas</span><span id="afMetricQueues" class="value">0 fila(s) / 0 item(ns)</span></div>
+        <div class="metric"><span class="key">Lotes recheck</span><span id="afMetricRechecks" class="value">0 (0 settle)</span></div>
+        <div class="metric"><span class="key">Blacklist mortos</span><span id="afMetricDead" class="value">0</span></div>
+        <div class="metric"><span class="key">Orçamento hora</span><span id="afMetricBudget" class="value">0 / 0</span></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="afSourcesVolTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="afSourcesVolTitle">Fontes e Volume</h2>
+          <p>Seleção de pools e cotas de downloads imediatos e em fila.</p>
+        </div>
+      </div>
+      <div class="subsection">
+        <h3>Fontes</h3>
+        <div class="form-grid">
+          <div class="form-item checkbox-item">
+            <input id="af_autoFetchBr" type="checkbox" />
+            <div>
+              <label for="af_autoFetchBr">Fontes BR dubladas <span id="badge_autoFetchBr" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+              <p class="field-desc">Baixa releases de indexadores brasileiros identificadas como dubladas.</p>
+              <span class="field-env">Padrão .env: <span id="env_autoFetchBr">—</span></span>
+            </div>
+          </div>
+          <div class="form-item checkbox-item">
+            <input id="af_autoFetchAnyDubbed" type="checkbox" />
+            <div>
+              <label for="af_autoFetchAnyDubbed">Dublado global (fallback) <span id="badge_autoFetchAnyDubbed" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+              <p class="field-desc">Busca áudio dublado nos indexadores globais se os BR não tiverem.</p>
+              <span class="field-env">Padrão .env: <span id="env_autoFetchAnyDubbed">—</span></span>
+            </div>
+          </div>
+          <div class="form-item checkbox-item">
+            <input id="af_autoFetchTopSeeds" type="checkbox" />
+            <div>
+              <label for="af_autoFetchTopSeeds">Melhor swarm (quando nada dublado) <span id="badge_autoFetchTopSeeds" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+              <p class="field-desc">Se não houver nada dublado, baixa as releases mais semeadas do enxame.</p>
+              <span class="field-env">Padrão .env: <span id="env_autoFetchTopSeeds">—</span></span>
+            </div>
+          </div>
+          <div class="form-item checkbox-item">
+            <input id="af_autoFetchSeedsPtFirst" type="checkbox" />
+            <div>
+              <label for="af_autoFetchSeedsPtFirst">Priorizar PT no swarm <span id="badge_autoFetchSeedsPtFirst" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+              <p class="field-desc">Dá prioridade para títulos em português dentro do pool de sementes.</p>
+              <span class="field-env">Padrão .env: <span id="env_autoFetchSeedsPtFirst">—</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="subsection" style="margin-top: 20px;">
+        <h3>Volume e Filas</h3>
+        <div class="form-grid">
+          <div class="form-item">
+            <label for="af_autoFetchMax">Candidatos imediatos (BR / Global) <span id="badge_autoFetchMax" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+            <p class="field-desc">Máximo de downloads disparados de imediato por busca (1..4).</p>
+            <input id="af_autoFetchMax" type="number" min="1" max="4" step="1" />
+            <span class="field-env">Padrão .env: <span id="env_autoFetchMax">—</span></span>
+          </div>
+          <div class="form-item">
+            <label for="af_autoFetchTopSeedsMax">Candidatos imediatos (Swarm) <span id="badge_autoFetchTopSeedsMax" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+            <p class="field-desc">Limite de downloads disparados do pool de melhores sementes (1..4).</p>
+            <input id="af_autoFetchTopSeedsMax" type="number" min="1" max="4" step="1" />
+            <span class="field-env">Padrão .env: <span id="env_autoFetchTopSeedsMax">—</span></span>
+          </div>
+          <div class="form-item checkbox-item">
+            <input id="af_autoFetchQueue" type="checkbox" />
+            <div>
+              <label for="af_autoFetchQueue">Fila persistente <span id="badge_autoFetchQueue" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+              <p class="field-desc">Enfileira candidatos excedentes para drenagem escalonada.</p>
+              <span class="field-env">Padrão .env: <span id="env_autoFetchQueue">—</span></span>
+            </div>
+          </div>
+          <div class="form-item">
+            <label for="af_autoFetchQueueDepth">Profundidade da fila <span id="badge_autoFetchQueueDepth" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+            <p class="field-desc">Número máximo de itens mantidos na fila por busca (0..12).</p>
+            <input id="af_autoFetchQueueDepth" type="number" min="0" max="12" step="1" />
+            <span class="field-env">Padrão .env: <span id="env_autoFetchQueueDepth">—</span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="afProtectTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="afProtectTitle">Proteção e Gate de Conta</h2>
+          <p>Limites para proteger o debrid contra saturação ou bloqueio de downloads.</p>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-item">
+          <label for="af_autoFetchMinSeeders">Mínimo de Seeders (Swarm) <span id="badge_autoFetchMinSeeders" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Seeders mínimos para admitir release do swarm (≥ 0).</p>
+          <input id="af_autoFetchMinSeeders" type="number" min="0" step="1" />
+          <span class="field-env">Padrão .env: <span id="env_autoFetchMinSeeders">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="af_autoFetchEnqueueMaxHour">Teto horário de downloads <span id="badge_autoFetchEnqueueMaxHour" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Orçamento global de novos downloads iniciados por hora (≥ 1).</p>
+          <input id="af_autoFetchEnqueueMaxHour" type="number" min="1" step="1" />
+          <span class="field-env">Padrão .env: <span id="env_autoFetchEnqueueMaxHour">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="af_autoFetchPauseAt">Pausa por ocupação da conta <span id="badge_autoFetchPauseAt" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Pausa novos downloads se a conta atingir este total de torrents (0 = desativado).</p>
+          <input id="af_autoFetchPauseAt" type="number" min="0" step="1" />
+          <span class="field-env">Padrão .env: <span id="env_autoFetchPauseAt">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="af_autoFetchPauseRefreshMs">Intervalo de checagem da conta (ms) <span id="badge_autoFetchPauseRefreshMs" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Frequência com que o gate verifica o número de torrents na conta.</p>
+          <input id="af_autoFetchPauseRefreshMs" type="number" min="1000" step="1000" />
+          <span class="field-env">Padrão .env: <span id="env_autoFetchPauseRefreshMs">—</span></span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="afLifecycleTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="afLifecycleTitle">Ciclo de Vida e Rechecks</h2>
+          <p>Comportamento temporal da checagem de conclusão e descarte de mortos.</p>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-item">
+          <label for="af_autoFetchTtl">TTL anti-duplicação (segundos) <span id="badge_autoFetchTtl" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Tempo durante o qual o mesmo magnet não é baixado de novo.</p>
+          <input id="af_autoFetchTtl" type="number" min="60" step="60" />
+          <span class="field-env">Padrão .env: <span id="env_autoFetchTtl">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="af_autoFetchRecheckMs">Intervalo de recheck (ms) <span id="badge_autoFetchRecheckMs" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Tempo entre verificações iniciais de progresso do download.</p>
+          <input id="af_autoFetchRecheckMs" type="number" min="500" step="500" />
+          <span class="field-env">Padrão .env: <span id="env_autoFetchRecheckMs">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="af_autoFetchRecheckMax">Tentativas iniciais de recheck <span id="badge_autoFetchRecheckMax" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Quantas vezes verificar em cadência rápida antes de ir para settle.</p>
+          <input id="af_autoFetchRecheckMax" type="number" min="1" step="1" />
+          <span class="field-env">Padrão .env: <span id="env_autoFetchRecheckMax">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="af_autoFetchStallStreak">Limiar de stall (rechecks sem progresso) <span id="badge_autoFetchStallStreak" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Quantos rechecks parados seguidos condenam o torrent (0 desliga).</p>
+          <input id="af_autoFetchStallStreak" type="number" min="0" step="1" />
+          <span class="field-env">Padrão .env: <span id="env_autoFetchStallStreak">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="af_autoFetchSettleMs">Intervalo de settle (ms) <span id="badge_autoFetchSettleMs" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Cadência mais lenta após estourar os rechecks rápidos.</p>
+          <input id="af_autoFetchSettleMs" type="number" min="1000" step="1000" />
+          <span class="field-env">Padrão .env: <span id="env_autoFetchSettleMs">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="af_autoFetchDeadTtl">TTL da blacklist de mortos (segundos) <span id="badge_autoFetchDeadTtl" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Tempo que torrents confirmados como mortos ficam banidos.</p>
+          <input id="af_autoFetchDeadTtl" type="number" min="60" step="60" />
+          <span class="field-env">Padrão .env: <span id="env_autoFetchDeadTtl">—</span></span>
+        </div>
+        <div class="form-item checkbox-item">
+          <input id="af_autoFetchSeasonFill" type="checkbox" />
+          <div>
+            <label for="af_autoFetchSeasonFill">Season Fill (pack de temporada) <span id="badge_autoFetchSeasonFill" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+            <p class="field-desc">Quando um pack fica pronto, invalida e reconstrói as buscas de todos os episódios da temporada.</p>
+            <span class="field-env">Padrão .env: <span id="env_autoFetchSeasonFill">—</span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="afActionsTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="afActionsTitle">Presets e Aplicação</h2>
+          <p>Ajuste em lote ou salve suas preferências manuais persistidas no SQLite.</p>
+        </div>
+      </div>
+      <div class="presets-bar">
+        <button id="afPresetConservador" class="preset-btn" type="button">Preset Conservador</button>
+        <button id="afPresetAgressivo" class="preset-btn" type="button">Preset Agressivo</button>
+        <button id="afPresetSwarm" class="preset-btn" type="button">Preset Foco em Swarm</button>
+      </div>
+      <div class="toolbar" style="margin-top: 18px; display: flex; gap: 12px; align-items: center;">
+        <button id="afSaveBtn" class="primary" type="button">Salvar Alterações</button>
+        <button id="afResetBtn" class="danger" type="button">Restaurar Padrões (.env)</button>
+      </div>
+      <p id="afFeedback" class="feedback" role="status" aria-live="polite"></p>
+    </section>
+  </div>
 </main>
 
 <script>
@@ -734,6 +973,266 @@
     renderCollection($("harvestCards"), queue, "queuePreview", {});
   }
 
+  var afKeys = [
+    "autoFetchBr", "autoFetchAnyDubbed", "autoFetchTopSeeds", "autoFetchSeedsPtFirst",
+    "autoFetchMinSeeders", "autoFetchMax", "autoFetchTopSeedsMax", "autoFetchEnqueueMaxHour",
+    "autoFetchQueue", "autoFetchQueueDepth", "autoFetchPauseAt", "autoFetchPauseRefreshMs",
+    "autoFetchTtl", "autoFetchRecheckMs", "autoFetchRecheckMax", "autoFetchStallStreak",
+    "autoFetchSettleMs", "autoFetchDeadTtl", "autoFetchSeasonFill"
+  ];
+  var booleanAfKeys = [
+    "autoFetchBr", "autoFetchAnyDubbed", "autoFetchTopSeeds", "autoFetchSeedsPtFirst",
+    "autoFetchQueue", "autoFetchSeasonFill"
+  ];
+  var isAfPaused = false;
+
+  function switchTab(name) {
+    var tabGeral = $("tabGeral");
+    var tabAf = $("tabAutofetch");
+    var viewGeral = $("viewGeral");
+    var viewAf = $("viewAutofetch");
+    if (!tabGeral || !tabAf || !viewGeral || !viewAf) return;
+    if (name === "autofetch") {
+      tabAf.className = "tab-btn active";
+      tabAf.setAttribute("aria-selected", "true");
+      tabGeral.className = "tab-btn";
+      tabGeral.setAttribute("aria-selected", "false");
+      viewAf.className = "tab-view";
+      viewGeral.className = "tab-view hidden";
+      if (window.location.hash !== "#autofetch") window.location.hash = "#autofetch";
+    } else {
+      tabGeral.className = "tab-btn active";
+      tabGeral.setAttribute("aria-selected", "true");
+      tabAf.className = "tab-btn";
+      tabAf.setAttribute("aria-selected", "false");
+      viewGeral.className = "tab-view";
+      viewAf.className = "tab-view hidden";
+      if (window.location.hash === "#autofetch") window.location.hash = "#geral";
+    }
+  }
+
+  function handleHash() {
+    var hash = String(window.location.hash || "").replace(/^#/, "");
+    if (hash === "autofetch") switchTab("autofetch");
+    else switchTab("geral");
+  }
+
+  function setAfFeedback(text, kind) {
+    var el = $("afFeedback");
+    if (!el) return;
+    el.textContent = text || "";
+    el.className = "feedback" + (kind ? " " + kind : "");
+  }
+
+  function renderAutofetchPanel(af) {
+    if (!af) return;
+    var cfg = af.config || {};
+    var eff = cfg.effective || {};
+    var env = cfg.envDefaults || {};
+    var overridden = cfg.overriddenKeys || [];
+    var i, k, input, envSpan, badge;
+
+    isAfPaused = Boolean(cfg.paused);
+
+    var stEl = $("afMetricState");
+    if (stEl) {
+      if (isAfPaused) {
+        stEl.textContent = "PAUSADO";
+        stEl.style.color = "var(--red)";
+      } else {
+        stEl.textContent = "ATIVO";
+        stEl.style.color = "var(--green)";
+      }
+    }
+
+    var qEl = $("afMetricQueues");
+    if (qEl && af.queues) {
+      qEl.textContent = (af.queues.count || 0) + " fila(s) / " + (af.queues.items || 0) + " item(ns)";
+    }
+
+    var rEl = $("afMetricRechecks");
+    if (rEl) {
+      rEl.textContent = (af.recheckLots || 0) + " (" + (af.settleLots || 0) + " settle)";
+    }
+
+    var dEl = $("afMetricDead");
+    if (dEl) {
+      dEl.textContent = String(af.deadBlacklistCount || 0);
+    }
+
+    var bEl = $("afMetricBudget");
+    if (bEl && af.budget) {
+      bEl.textContent = (af.budget.used || 0) + " / " + (af.budget.limit || 0);
+    }
+
+    var pauseBtn = $("afPauseToggleBtn");
+    if (pauseBtn) {
+      pauseBtn.textContent = isAfPaused ? "Retomar Chupim" : "Pausar Chupim";
+      pauseBtn.className = isAfPaused ? "danger" : "primary";
+    }
+
+    var banner = $("afPauseBanner");
+    if (banner) {
+      if (isAfPaused) {
+        banner.className = "pause-banner visible";
+        var txt = "Chupim está PAUSADO";
+        if (cfg.pausedSince) txt += " desde " + formatDate(cfg.pausedSince);
+        txt += ". Nenhum download será enviado ao debrid.";
+        $("afPauseBannerText").textContent = txt;
+      } else {
+        banner.className = "pause-banner";
+      }
+    }
+
+    for (i = 0; i < afKeys.length; i += 1) {
+      k = afKeys[i];
+      input = $("af_" + k);
+      envSpan = $("env_" + k);
+      badge = $("badge_" + k);
+      if (input) {
+        if (booleanAfKeys.indexOf(k) !== -1) {
+          input.checked = Boolean(eff[k]);
+        } else {
+          input.value = eff[k] !== undefined && eff[k] !== null ? eff[k] : "";
+        }
+      }
+      if (envSpan) {
+        envSpan.textContent = env[k] !== undefined && env[k] !== null ? String(env[k]) : "—";
+      }
+      if (badge) {
+        badge.style.display = overridden.indexOf(k) !== -1 ? "inline-block" : "none";
+      }
+    }
+  }
+
+  function saveAutofetchConfig() {
+    var patch = {};
+    var i, k, input;
+    for (i = 0; i < afKeys.length; i += 1) {
+      k = afKeys[i];
+      input = $("af_" + k);
+      if (input) {
+        if (booleanAfKeys.indexOf(k) !== -1) {
+          patch[k] = Boolean(input.checked);
+        } else {
+          var val = Number(input.value);
+          if (isFinite(val)) patch[k] = val;
+        }
+      }
+    }
+    $("afSaveBtn").disabled = true;
+    setAfFeedback("Salvando configurações…", "warn");
+    requestJson(dashboardPath("/dashboard-action.json"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "autofetch-config-set", patch: patch })
+    })
+      .then(function (data) {
+        if (data && data.ok) {
+          setAfFeedback("Configurações do Chupim salvas com sucesso!", "ok");
+          loadStatus();
+        } else {
+          var errStr = data && data.errors ? data.errors.join(", ") : "erro desconhecido";
+          setAfFeedback("Erro ao salvar: " + errStr, "error");
+        }
+      })
+      .catch(function (err) {
+        setAfFeedback("Falha na requisição: " + valueText(err && err.message ? err.message : err), "error");
+      })
+      .then(function () { $("afSaveBtn").disabled = false; });
+  }
+
+  function resetAutofetchConfig() {
+    if (!window.confirm("Restaurar todos os parâmetros do Chupim aos padrões do .env?")) return;
+    $("afResetBtn").disabled = true;
+    setAfFeedback("Restaurando padrões…", "warn");
+    requestJson(dashboardPath("/dashboard-action.json"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "autofetch-config-reset", confirm: true })
+    })
+      .then(function (data) {
+        if (data && data.ok) {
+          setAfFeedback("Padrões do .env restaurados com sucesso!", "ok");
+          loadStatus();
+        } else {
+          setAfFeedback("Erro ao restaurar padrões.", "error");
+        }
+      })
+      .catch(function (err) {
+        setAfFeedback("Falha na requisição: " + valueText(err && err.message ? err.message : err), "error");
+      })
+      .then(function () { $("afResetBtn").disabled = false; });
+  }
+
+  function toggleAutofetchPause(forcedState) {
+    var nextState = typeof forcedState === "boolean" ? forcedState : !isAfPaused;
+    var msg = nextState
+      ? "Deseja pausar o Chupim? Novos downloads não serão enviados ao debrid."
+      : "Deseja retomar o Chupim?";
+    if (!window.confirm(msg)) return;
+    setAfFeedback("Atualizando estado de pausa…", "warn");
+    requestJson(dashboardPath("/dashboard-action.json"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "autofetch-pause", paused: nextState })
+    })
+      .then(function () {
+        setAfFeedback(nextState ? "Chupim pausado com sucesso." : "Chupim retomado com sucesso.", "ok");
+        loadStatus();
+      })
+      .catch(function (err) {
+        setAfFeedback("Erro ao alterar pausa: " + valueText(err && err.message ? err.message : err), "error");
+      });
+  }
+
+  function drainAutofetchQueues() {
+    if (!window.confirm("Deseja realmente esvaziar todas as filas do Chupim?")) return;
+    $("afDrainBtn").disabled = true;
+    setAfFeedback("Drenando filas…", "warn");
+    requestJson(dashboardPath("/dashboard-action.json"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "autofetch-drain", confirm: true })
+    })
+      .then(function (data) {
+        var q = data && data.queues ? data.queues : 0;
+        var it = data && data.items ? data.items : 0;
+        setAfFeedback("Filas drenadas: " + q + " fila(s), " + it + " item(ns) removidos.", "ok");
+        loadStatus();
+      })
+      .catch(function (err) {
+        setAfFeedback("Erro ao drenar filas: " + valueText(err && err.message ? err.message : err), "error");
+      })
+      .then(function () { $("afDrainBtn").disabled = false; });
+  }
+
+  function applyAutofetchPreset(preset) {
+    if (preset === "conservador") {
+      $("af_autoFetchMax").value = 1;
+      $("af_autoFetchTopSeedsMax").value = 1;
+      $("af_autoFetchQueueDepth").value = 2;
+      $("af_autoFetchEnqueueMaxHour").value = 15;
+      $("af_autoFetchMinSeeders").value = 2;
+      $("af_autoFetchStallStreak").value = 2;
+      setAfFeedback("Preset Conservador carregado no formulário. Clique em 'Salvar Alterações' para aplicar.", "warn");
+    } else if (preset === "agressivo") {
+      $("af_autoFetchMax").value = 3;
+      $("af_autoFetchTopSeedsMax").value = 2;
+      $("af_autoFetchQueueDepth").value = 6;
+      $("af_autoFetchEnqueueMaxHour").value = 40;
+      $("af_autoFetchMinSeeders").value = 0;
+      $("af_autoFetchStallStreak").value = 3;
+      setAfFeedback("Preset Agressivo carregado no formulário. Clique em 'Salvar Alterações' para aplicar.", "warn");
+    } else if (preset === "swarm") {
+      $("af_autoFetchTopSeeds").checked = true;
+      $("af_autoFetchSeedsPtFirst").checked = true;
+      $("af_autoFetchTopSeedsMax").value = 3;
+      $("af_autoFetchAnyDubbed").checked = true;
+      setAfFeedback("Preset Foco em Swarm carregado no formulário. Clique em 'Salvar Alterações' para aplicar.", "warn");
+    }
+  }
+
   function renderStatus(data) {
     var root = isObject(data) ? data : {};
     var status = first(root, ["status", "state", "health"], "online");
@@ -751,6 +1250,7 @@
     }
     renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
     renderHarvest(first(root, ["harvest", "harvester"], {}));
+    renderAutofetchPanel(first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}));
     drawSparkline("cacheSparkline", pushSeries("cache-hit-rate", first(root.cache || {}, ["hitRate"], 0)), "#39d98a");
     drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(root.harvest || {}, ["queriesThisHour"], 0)), "#faa31a");
     if (!own(root, "status") && !own(root, "state") && !own(root, "health")) {
@@ -953,6 +1453,19 @@
       loadStatus();
       scheduleRefresh();
     });
+    $("tabGeral").addEventListener("click", function () { switchTab("geral"); });
+    $("tabAutofetch").addEventListener("click", function () { switchTab("autofetch"); });
+    $("afPauseToggleBtn").addEventListener("click", function () { toggleAutofetchPause(); });
+    $("afBannerResumeBtn").addEventListener("click", function () { toggleAutofetchPause(false); });
+    $("afDrainBtn").addEventListener("click", drainAutofetchQueues);
+    $("afSaveBtn").addEventListener("click", saveAutofetchConfig);
+    $("afResetBtn").addEventListener("click", resetAutofetchConfig);
+    $("afPresetConservador").addEventListener("click", function () { applyAutofetchPreset("conservador"); });
+    $("afPresetAgressivo").addEventListener("click", function () { applyAutofetchPreset("agressivo"); });
+    $("afPresetSwarm").addEventListener("click", function () { applyAutofetchPreset("swarm"); });
+    window.addEventListener("hashchange", handleHash);
+    handleHash();
+
     lastUpdatedTimer = setInterval(updateLastUpdated, 1000);
     scheduleRefresh();
     loadStatus();

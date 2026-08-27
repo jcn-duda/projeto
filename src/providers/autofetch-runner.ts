@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import config from '../config.js';
+import autofetchLive from '../utils/autofetch-live.js';
 import type { DebridAdapter, Stream, TorrentStatusEntry } from '../../types/domain.js';
 import {
   markDebridName,
@@ -78,9 +79,10 @@ export function autoFetchCandidates(
 
   // Torrent morto na blacklist é ignorado antes de montar os pools
   const liveStreams = streams.filter((s) => !s.infoHash || !autofetch.isDead(adapter!.id, account, s.infoHash));
+  const live = autofetchLive.effective();
 
-  const queueDepth = config.debrid.autoFetchQueue ? config.debrid.autoFetchQueueDepth : 0;
-  const totalMax = config.debrid.autoFetchMax + queueDepth;
+  const queueDepth = live.autoFetchQueue ? live.autoFetchQueueDepth : 0;
+  const totalMax = live.autoFetchMax + queueDepth;
 
   let candidates = pickBrDubbedCandidates(liveStreams, new Set(), totalMax, { season }).filter(isAutoFetchStream);
   let pool = 'br';
@@ -88,32 +90,32 @@ export function autoFetchCandidates(
     ? pickAnyDubbedCandidates(liveStreams, new Set(), totalMax, { season }).filter(isAutoFetchStream)
     : [];
   if (dubbedGlobal.length > 0) {
-    if (!config.debrid.autoFetchAnyDubbed) return [];
+    if (!live.autoFetchAnyDubbed) return [];
     candidates = dubbedGlobal;
     pool = 'any';
     metrics.count('autofetch.any-dubbed');
   }
-  if (candidates.length === 0 && config.debrid.autoFetchTopSeeds) {
-    candidates = pickTopSeededCandidates(liveStreams, new Set(), config.debrid.autoFetchTopSeedsMax + queueDepth, {
-      season, minSeeders: config.debrid.autoFetchMinSeeders,
-      ptFirst: config.debrid.autoFetchSeedsPtFirst,
+  if (candidates.length === 0 && live.autoFetchTopSeeds) {
+    candidates = pickTopSeededCandidates(liveStreams, new Set(), live.autoFetchTopSeedsMax + queueDepth, {
+      season, minSeeders: live.autoFetchMinSeeders,
+      ptFirst: live.autoFetchSeedsPtFirst,
     }).filter(isAutoFetchStream);
     pool = 'seeds';
     if (candidates.length > 0) metrics.count('autofetch.top-seeded');
   }
   if (candidates.length === 0) metrics.count('autofetch.no-candidate');
 
-  const immediateLimit = pool === 'seeds' ? config.debrid.autoFetchTopSeedsMax : config.debrid.autoFetchMax;
+  const immediateLimit = pool === 'seeds' ? live.autoFetchTopSeedsMax : live.autoFetchMax;
   const immediate = candidates.slice(0, immediateLimit);
   const queued = candidates.slice(immediateLimit);
 
   // Hold apenas nos candidatos imediatos que serão disparados
   for (const candidate of immediate) {
-    held.hold(String(candidate.infoHash), config.debrid.autoFetchTtl, account);
+    held.hold(String(candidate.infoHash), live.autoFetchTtl, account);
   }
 
   // Candidatos excedentes vão para a fila persistente (latest-writer)
-  if (config.debrid.autoFetchQueue && searchKey) {
+  if (live.autoFetchQueue && searchKey) {
     autofetch.writeQueue(
       searchKey,
       queued.map((s) => ({
@@ -129,7 +131,7 @@ export function autoFetchCandidates(
         season,
         episode: null,
         isPack: Boolean(
-          config.debrid.autoFetchSeasonFill && adapter?.cacheCheck && isSeasonPackFillEligible(s, season ?? null),
+          live.autoFetchSeasonFill && adapter?.cacheCheck && isSeasonPackFillEligible(s, season ?? null),
         ),
       })),
       config.debrid.autoFetchQueueTtl,
@@ -152,6 +154,11 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
   const h = String(stream.infoHash || '').toLowerCase();
   if (!h) return;
 
+  if (autofetchLive.isPaused()) {
+    held.release(stream.infoHash, account);
+    return;
+  }
+
   if (autofetch.isDead(adapter.id, account, h)) {
     held.release(stream.infoHash, account);
     return;
@@ -162,13 +169,14 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
     return;
   }
 
+  const live = autofetchLive.effective();
   const key = autofetch.markerKey(adapter.id, account, h);
   if (cache.get(key)) {
     return;
   }
   if (!autofetch.acquire(key)) return;
 
-  if (searchKey && !autofetch.acquireSearchSlot(searchKey, config.debrid.autoFetchMax)) {
+  if (searchKey && !autofetch.acquireSearchSlot(searchKey, live.autoFetchMax)) {
     autofetch.release(key);
     held.release(stream.infoHash, account);
     return;
@@ -200,7 +208,7 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
     .then((ok) => {
       autofetch.release(key);
       if (ok) {
-        cache.set(key, 1, config.debrid.autoFetchTtl);
+        cache.set(key, 1, live.autoFetchTtl);
         metrics.count('autofetch.enqueued');
         const poolLabel = pool === 'any'
           ? 'dublada global (sem BR na busca)'
@@ -212,7 +220,7 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
           imdbId,
           season,
           isPack: Boolean(
-            config.debrid.autoFetchSeasonFill && adapter.cacheCheck && isSeasonPackFillEligible(stream, season ?? null),
+            live.autoFetchSeasonFill && adapter.cacheCheck && isSeasonPackFillEligible(stream, season ?? null),
           ),
         });
       } else {
@@ -243,7 +251,7 @@ function warnAccountGated(adapter: DebridAdapter, account: string) {
   metrics.count('autofetch.account-gated');
   const key = `${adapter.id}:${account}`;
   const last = lastGatedWarnAt.get(key) || 0;
-  if (Date.now() - last < config.debrid.autoFetchPauseRefreshMs) return;
+  if (Date.now() - last < autofetchLive.effective().autoFetchPauseRefreshMs) return;
   lastGatedWarnAt.set(key, Date.now());
   log.warn(
     `[autofetch] ${adapter.label} com conta cheia — nenhum download enfileirado; ` +
@@ -274,8 +282,9 @@ export function registerSeasonSearchKey(
   season: number,
   cacheKey: string,
 ) {
+  const live = autofetchLive.effective();
   const maxSeasons = config.debrid.autoFetchSeasonIndexMax;
-  if (!config.debrid.autoFetchSeasonFill || maxSeasons <= 0) return;
+  if (!live.autoFetchSeasonFill || maxSeasons <= 0) return;
   const maxKeys = config.debrid.autoFetchSeasonIndexKeys;
   const key = seasonIndexKey(adapterId, account, imdbId, season);
   let keys = seasonSearchKeys.get(key);
@@ -317,7 +326,8 @@ function manageSettleLru() {
 }
 
 function armRecheck(searchKey: string, lot: RecheckLot) {
-  const interval = lot.isSettle ? config.debrid.autoFetchSettleMs : config.debrid.autoFetchRecheckMs;
+  const live = autofetchLive.effective();
+  const interval = lot.isSettle ? live.autoFetchSettleMs : live.autoFetchRecheckMs;
   lot.timer = setTimeout(() => runRecheck(searchKey), interval);
   lot.timer.unref();
 }
@@ -329,7 +339,8 @@ export function scheduleRecheck(
   hint: SeasonHint = {},
 ) {
   if (!searchKey || !infoHash || !requestCtx) return;
-  if (config.debrid.autoFetchRecheckMs <= 0 || config.debrid.autoFetchRecheckMax <= 0) return;
+  const live = autofetchLive.effective();
+  if (live.autoFetchRecheckMs <= 0 || live.autoFetchRecheckMax <= 0) return;
   let lot = recheckLots.get(searchKey);
   if (!lot) {
     lot = {
@@ -356,7 +367,8 @@ export function scheduleRecheck(
 }
 
 export function drainNext(searchKey: string, lot: any) {
-  if (!searchKey || !config.debrid.autoFetchQueue) return;
+  const live = autofetchLive.effective();
+  if (!searchKey || !live.autoFetchQueue || autofetchLive.isPaused()) return;
   const queue = autofetch.readQueue(searchKey);
   if (!queue.length) return;
   const adapter = debrid.current();
@@ -400,12 +412,12 @@ export function drainNext(searchKey: string, lot: any) {
     return;
   }
 
-  held.hold(h, config.debrid.autoFetchTtl, account);
+  held.hold(h, live.autoFetchTtl, account);
   debrid.enqueue(h, { season: next.season, episode: next.episode })
     .then((ok) => {
       autofetch.release(mKey);
       if (ok) {
-        cache.set(mKey, 1, config.debrid.autoFetchTtl);
+        cache.set(mKey, 1, live.autoFetchTtl);
         metrics.count('autofetch.queued');
         metrics.count('autofetch.enqueued');
         lot.hashes.add(h);
@@ -504,8 +516,9 @@ function runRecheck(searchKey: string) {
           debrid.noteAvailable(hash);
           metrics.count('autofetch.ready-note');
           const hint = lot.seasonHints.get(hash);
+          const live = autofetchLive.effective();
           if (
-            config.debrid.autoFetchSeasonFill &&
+            live.autoFetchSeasonFill &&
             hint?.isPack &&
             hint.imdbId &&
             hint.season != null
@@ -542,11 +555,12 @@ function runRecheck(searchKey: string) {
       // contar como primeira observação de morte — um dead transitório único
       // derrubaria download ainda recuperável. `0` desliga o stall: parado
       // nunca mais derruba o download.
+      const live = autofetchLive.effective();
       const isDead = statusInfo?.state === 'dead';
-      const stalledHere = statusInfo?.stalled === true && config.debrid.autoFetchStallStreak > 0;
+      const stalledHere = statusInfo?.stalled === true && live.autoFetchStallStreak > 0;
       if (isDead || stalledHere) {
         const counter = isDead ? lot.deadStreak : lot.stallStreak;
-        const threshold = isDead ? 2 : config.debrid.autoFetchStallStreak;
+        const threshold = isDead ? 2 : live.autoFetchStallStreak;
         const streak = (counter.get(hash) || 0) + 1;
         counter.set(hash, streak);
         if (streak >= threshold) {
@@ -580,13 +594,14 @@ function runRecheck(searchKey: string) {
       return;
     }
 
-    if (!lot.isSettle && lot.attempts >= config.debrid.autoFetchRecheckMax) {
+    const liveAfter = autofetchLive.effective();
+    if (!lot.isSettle && lot.attempts >= liveAfter.autoFetchRecheckMax) {
       lot.isSettle = true;
       manageSettleLru();
       armRecheck(searchKey, lot);
     } else if (lot.isSettle) {
       const ageMs = Date.now() - (lot.createdAt || 0);
-      if (ageMs >= config.debrid.autoFetchTtl * 1000) {
+      if (ageMs >= liveAfter.autoFetchTtl * 1000) {
         // Settle expirado: o download nunca ficou tocável dentro do prazo.
         metrics.count('autofetch.expired-unready', lot.hashes.size);
         if (typeof adapter.removeTorrent === 'function') {
@@ -633,9 +648,18 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
   return enqueued;
 }
 
+export function setPaused(paused: boolean): boolean {
+  return autofetchLive.setPaused(paused);
+}
+
+export function isPaused(): boolean {
+  return autofetchLive.isPaused();
+}
+
 /** Snapshot local dos lotes; nunca devolve searchKey nem configuração do usuário. */
 export function autofetchRunnerStatus() {
   const now = Date.now();
+  const live = autofetchLive.snapshot();
   const lots = [...recheckLots.entries()].map(([searchKey, lot]) => ({
     id: crypto.createHash('sha256').update(searchKey).digest('hex').slice(0, 12),
     hashes: lot.hashes?.size || 0,
@@ -650,5 +674,7 @@ export function autofetchRunnerStatus() {
     settleLots: lots.filter((lot) => lot.isSettle).length,
     lots,
     seasonSearchKeys: seasonSearchKeys.size,
+    paused: live.paused,
+    pausedSince: live.pausedSince,
   };
 }

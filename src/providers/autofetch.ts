@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { prefix } from '../utils/cache-keys.js';
 import * as cache from '../utils/cache.js';
 import config from '../config.js';
+import autofetchLive from '../utils/autofetch-live.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import debrid from '../debrid/index.js';
@@ -111,7 +112,7 @@ function blacklist(
   adapterId: string,
   account: string,
   infoHash: string,
-  ttlSeconds = config.debrid.autoFetchDeadTtl,
+  ttlSeconds = autofetchLive.effective().autoFetchDeadTtl,
 ) {
   if (!adapterId || !account || !infoHash) return;
   const key = deadKey(adapterId, account, infoHash);
@@ -153,7 +154,7 @@ function writeQueue(
   if (!searchKey) return;
   const seen = new Set<string>();
   const clean: QueueCandidate[] = [];
-  const depth = config.debrid.autoFetchQueueDepth;
+  const depth = autofetchLive.effective().autoFetchQueueDepth;
 
   for (const c of candidates) {
     if (!c?.infoHash) continue;
@@ -177,14 +178,26 @@ function writeQueue(
   }
 }
 
-function dropQueue(searchKey: string) {
-  if (!searchKey) return;
-  const k = queueKey(searchKey);
+function dropQueue(keyOrSearchKey: string) {
+  if (!keyOrSearchKey) return;
+  const k = keyOrSearchKey.startsWith('autofetch:') ? keyOrSearchKey : queueKey(keyOrSearchKey);
   if (cache.get(k)) {
     cache.forget(k);
     metrics.count('autofetch.queue.dropped');
   }
   knownQueues.delete(k);
+}
+
+function drainQueues(): { queues: number; items: number } {
+  let queues = 0;
+  let items = 0;
+  for (const [key, count] of [...knownQueues.entries()]) {
+    dropQueue(key);
+    queues += 1;
+    items += count;
+  }
+  metrics.count('autofetch.queue.drained_all', items);
+  return { queues, items };
 }
 
 function takeNext(
@@ -215,7 +228,7 @@ function checkAndRecordBudget(adapterId: string, account: string, limit?: number
   let timestamps = (hourlyEnqueues.get(key) || []).filter((t) => t > oneHourAgo);
   const maxHourly = limit != null && Number.isFinite(limit)
     ? limit
-    : config.debrid.autoFetchEnqueueMaxHour;
+    : autofetchLive.effective().autoFetchEnqueueMaxHour;
   hourlyLimits.set(key, maxHourly);
 
   if (timestamps.length >= maxHourly) {
@@ -282,7 +295,8 @@ const accountGateMemo = new Map<string, { count: number; at: number }>();
 const accountGateInFlight = new Set<string>();
 
 function accountGateBlocked(adapter: DebridAdapter, apiKey: string): boolean {
-  const pauseAt = config.debrid.autoFetchPauseAt;
+  const live = autofetchLive.effective();
+  const pauseAt = live.autoFetchPauseAt;
   if (pauseAt <= 0) return false;
   if (!adapter || !apiKey) return false;
 
@@ -300,7 +314,7 @@ function accountGateBlocked(adapter: DebridAdapter, apiKey: string): boolean {
 
   const key = `${adapter.id}:${accountScope(apiKey)}`;
   const memo = accountGateMemo.get(key);
-  if (memo && Date.now() - memo.at < config.debrid.autoFetchPauseRefreshMs) {
+  if (memo && Date.now() - memo.at < live.autoFetchPauseRefreshMs) {
     return memo.count >= pauseAt;
   }
 
@@ -331,13 +345,14 @@ function resetAccountGate() {
 function snapshot() {
   const now = Date.now();
   const oneHourAgo = now - 3600_000;
+  const live = autofetchLive.effective();
   let used = 0;
   let limit = 0;
   const budgets: Array<{ id: string; used: number; limit: number }> = [];
   for (const [key, raw] of hourlyEnqueues) {
     const timestamps = raw.filter((t) => t > oneHourAgo);
     hourlyEnqueues.set(key, timestamps);
-    const itemLimit = hourlyLimits.get(key) || config.debrid.autoFetchEnqueueMaxHour;
+    const itemLimit = hourlyLimits.get(key) || live.autoFetchEnqueueMaxHour;
     used += timestamps.length;
     limit += itemLimit;
     budgets.push({ id: sha256(key).slice(0, 12), used: timestamps.length, limit: itemLimit });
@@ -365,6 +380,7 @@ function snapshot() {
     budget: { used, limit, accounts: budgets },
     deadBlacklistCount: knownDead.size,
     queues: { count: knownQueues.size, items: queueItems },
+    config: autofetchLive.snapshot(),
   };
 }
 
@@ -385,6 +401,7 @@ export {
   readQueue,
   writeQueue,
   dropQueue,
+  drainQueues,
   takeNext,
   checkAndRecordBudget,
   blockBudget,

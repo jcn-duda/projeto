@@ -674,6 +674,19 @@ Real-Debrid e Debrid-Link (`cacheCheck: false`) não existe essa prova: pack
 pronto não marca nem semeia nada, sem promessa de ⚡, e a constatação fica para
 o `resolveLink` do play. Não "conserte" ligando o fill nesses dois.
 
+**Painel e configuração ao vivo do chupim (`src/utils/autofetch-live.ts`).**
+Configuração em nível de **operador** (afeta a conta de debrid do operador,
+enquanto `ab` na URL continua o opt-out individual). Mudanças aplicam ao vivo,
+persistidas no SQLite sob `cfg:v1:autofetch` com cópia em memória, sem restart.
+Integrado na aba `[Chupim / Autofetch]` do `/dashboard#autofetch` (as rotas
+`/autofetch` e `/:userConfig/autofetch` redirecionam 302 para lá).
+- `effective()` junta defaults do `.env` com overrides gravados;
+- `set(patch)` valida cada campo com os mesmos clamps do `config.ts` (`autoFetchMax` 1..4, `queueDepth` 0..12, etc.) e rejeita chaves desconhecidas (400);
+- `reset()` restaura os padrões do `.env`;
+- `setPaused(bool)` / `isPaused()` permite pausar novos downloads de emergência mantendo a infra viva;
+- `drainQueues()` esvazia todas as filas pendentes.
+Ações protegidas atrás de `JACKETT_TEST_TOKEN` (`POST /dashboard-action.json`): `autofetch-pause`, `autofetch-drain`, `autofetch-config-get`, `autofetch-config-set`, `autofetch-config-reset`.
+
 O registry também expõe `inventory()`: o que já está **pronto** na conta
 (AllDebrid/TorBox/RD/DL) entra na busca como mais uma fonte
 (`src/providers/account.ts`), memoizado por serviço+conta sob `dinv:v1:`. A

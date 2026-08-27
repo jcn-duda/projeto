@@ -210,6 +210,20 @@ test('dashboard permanece ES5 e renderiza a observabilidade do Magnet DB', () =>
   assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/);
 });
 
+test('dashboard renderiza o painel do Chupim e navegação por abas em ES5', () => {
+  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+  assert.match(html, /id="tabGeral"/);
+  assert.match(html, /id="tabAutofetch"/);
+  assert.match(html, /id="viewGeral"/);
+  assert.match(html, /id="viewAutofetch"/);
+  assert.match(html, /function renderAutofetchPanel/);
+  assert.match(html, /function saveAutofetchConfig/);
+  assert.match(html, /function resetAutofetchConfig/);
+  assert.match(html, /function toggleAutofetchPause/);
+  assert.match(html, /function drainAutofetchQueues/);
+  assert.match(html, /function applyAutofetchPreset/);
+});
+
 // ---------------------------------------------------------------------------
 // Accións do POST: clear-cache e sweep-dead (ambas 200 com token certo).
 // ---------------------------------------------------------------------------

@@ -147,10 +147,25 @@ function makeDiagnosticHandlers(services: AppServices) {
   const dashboardAction = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'dashboard desativado pelo operador', { ok: false })) return;
     const action = String(req.body?.action || '');
-    if (!['sweep-dead', 'clear-cache', 'harvester-pause', 'harvester-drain', 'test-all-indexers', 'refresh-inventory', 'warm-pause', 'warm-resume', 'warm-drain'].includes(action)) {
+    if (![
+      'sweep-dead',
+      'clear-cache',
+      'harvester-pause',
+      'harvester-drain',
+      'test-all-indexers',
+      'refresh-inventory',
+      'warm-pause',
+      'warm-resume',
+      'warm-drain',
+      'autofetch-pause',
+      'autofetch-drain',
+      'autofetch-config-get',
+      'autofetch-config-set',
+      'autofetch-config-reset',
+    ].includes(action)) {
       return res.status(400).json({ ok: false, error: 'ação desconhecida' });
     }
-    if (['clear-cache', 'sweep-dead'].includes(action) && req.body?.confirm !== true) {
+    if (['clear-cache', 'sweep-dead', 'autofetch-drain', 'autofetch-config-reset'].includes(action) && req.body?.confirm !== true) {
       return res.status(400).json({ ok: false, error: 'confirmation_required' });
     }
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
@@ -245,6 +260,37 @@ function makeDiagnosticHandlers(services: AppServices) {
         services.log.info(`[dashboard] teste sequencial de ${results.length} indexador(es) concluído`);
         services.metrics.count('dashboard.indexers.test-all');
         return res.json({ ok: true, action, results, total: results.length, okCount, downCount: results.length - okCount });
+      }
+      if (action === 'autofetch-pause') {
+        const paused = services.autofetchLive.setPaused(Boolean(req.body?.paused));
+        services.metrics.count(paused ? 'dashboard.autofetch.pause' : 'dashboard.autofetch.resume');
+        services.log.info(`[dashboard] chupim ${paused ? 'pausado' : 'retomado'}`);
+        return res.json({ ok: true, action, paused });
+      }
+      if (action === 'autofetch-drain') {
+        const result = services.autofetch.drainQueues();
+        services.metrics.count('dashboard.autofetch.drain');
+        services.log.info(`[dashboard] filas do chupim drenadas: ${result.queues} fila(s), ${result.items} item(ns)`);
+        return res.json({ ok: true, action, ...result });
+      }
+      if (action === 'autofetch-config-get') {
+        return res.json({ ok: true, action, config: services.autofetchLive.snapshot() });
+      }
+      if (action === 'autofetch-config-set') {
+        const patch = req.body?.patch;
+        const outcome = services.autofetchLive.set(patch);
+        if (!outcome.ok) {
+          return res.status(400).json({ ok: false, error: 'validation_error', errors: outcome.errors });
+        }
+        services.metrics.count('dashboard.autofetch.config.set');
+        services.log.info(`[dashboard] config do chupim atualizada: ${outcome.overriddenKeys.join(', ')}`);
+        return res.json({ action, ...outcome });
+      }
+      if (action === 'autofetch-config-reset') {
+        const effective = services.autofetchLive.reset();
+        services.metrics.count('dashboard.autofetch.config.reset');
+        services.log.info('[dashboard] config do chupim restaurada aos padrões do .env');
+        return res.json({ ok: true, action, effective });
       }
       const result = (await services.debrid.sweepDeadCurrent()) ?? (await services.debrid.sweepDeadEnv());
       services.metrics.count('dashboard.sweep-dead');

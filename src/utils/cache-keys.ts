@@ -53,6 +53,7 @@ const NAMESPACE_VERSIONS = Object.freeze({
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',
+  cfg: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

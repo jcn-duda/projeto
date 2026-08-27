@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import config from './config.js';
+import autofetchLive from './utils/autofetch-live.js';
 import * as secretBox from './utils/secret-box.js';
 
 /**
@@ -118,7 +119,7 @@ function defaults() {
     debridApiKey: config.debrid.allowEnvKey ? config.debrid.apiKey : '',
     debridCachedOnly: config.debrid.cachedOnly,
     showUncachedBr: config.debrid.showUncachedBr,
-    autoFetchBr: config.debrid.autoFetchBr,
+    autoFetchBr: autofetchLive.effective().autoFetchBr,
     streamNameStyle: config.streamNameStyle,
     streamNameShowSource: config.streamNameShowSource,
   };

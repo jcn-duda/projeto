@@ -10,6 +10,8 @@ import * as metrics from '../utils/metrics.js';
 import * as cache from '../utils/cache.js';
 import * as log from '../utils/logger.js';
 import * as autofetch from '../providers/autofetch.js';
+import * as autofetchRunner from '../providers/autofetch-runner.js';
+import * as autofetchLive from '../utils/autofetch-live.js';
 import * as releaseIndex from '../utils/release-index.js';
 import harvester from '../providers/harvester.js';
 import * as magnetdb from '../utils/magnetdb.js';
@@ -39,6 +41,8 @@ function buildServices(): AppServices {
     cache,
     log,
     autofetch,
+    autofetchRunner,
+    autofetchLive,
     releaseIndex,
     harvester,
     magnetdb,

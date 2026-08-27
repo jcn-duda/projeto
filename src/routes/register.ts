@@ -23,6 +23,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/', (_req, res) => res.redirect(302, '/configure'));
   app.get('/configure', publicHandlers.sendConfigure);
   app.get('/dashboard', publicHandlers.sendDashboard);
+  app.get('/autofetch', (_req, res) => res.redirect(302, '/dashboard#autofetch'));
   app.get('/defaults.json', publicHandlers.defaults);
   app.post('/seal-config', express.text({ type: () => true, limit: '16kb' }), publicHandlers.seal);
 
@@ -45,6 +46,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/:userConfig/configure', publicHandlers.sendConfigure);
   app.get('/:userConfig/debrid-status.json', diagnosticHandlers.debridStatus);
   app.get('/:userConfig/dashboard', publicHandlers.sendDashboard);
+  app.get('/:userConfig/autofetch', (req, res) => res.redirect(302, `/${req.params.userConfig}/dashboard#autofetch`));
   app.get('/:userConfig/dashboard-status.json', diagnosticHandlers.dashboardStatus);
   app.post('/:userConfig/dashboard-action.json', express.json({ limit: '4kb' }), diagnosticHandlers.dashboardAction);
   app.get('/:userConfig/resolve/:infoHash', resolveHandler);

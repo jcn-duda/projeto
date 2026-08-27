@@ -9,6 +9,7 @@ process.env.CACHE_PERSIST = 'false';
 
 import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
+config.seed.enabled = false;
 import { prefix } from '../src/utils/cache-keys.js';
 import harvester from '../src/providers/harvester.js';
 import rdWarmer from '../src/providers/rd-warmer.js';

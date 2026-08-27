@@ -1,4 +1,5 @@
 import config from '../config.js';
+import autofetchLive from '../utils/autofetch-live.js';
 import type { MatchContext } from '../../types/domain.js';
 import * as demo from './demo.js';
 import jackett from './jackett.js';
@@ -83,7 +84,7 @@ export function poolCovered(
   if (pickAnyDubbedCandidates(pseudo as any, new Set(), 1).length > 0) return true;
   if (requireDubbed) return false;
   return pickTopSeededCandidates(pseudo as any, new Set(), 1, {
-    minSeeders: config.debrid.autoFetchMinSeeders,
+    minSeeders: autofetchLive.effective().autoFetchMinSeeders,
   }).length > 0;
 }
 
