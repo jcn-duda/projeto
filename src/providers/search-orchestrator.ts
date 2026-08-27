@@ -4,6 +4,7 @@ import * as demo from './demo.js';
 import jackett from './jackett.js';
 import prowlarr from './prowlarr.js';
 import bludv from './bludv.js';
+import * as torrentio from './torrentio.js';
 import * as account from './account.js';
 import { getMeta } from '../utils/cinemeta.js';
 import {
@@ -211,9 +212,21 @@ export async function collectRaw(
   if (wants('prowlarr')) {
     addTask(() => prowlarr.search(query));
   }
+  // Pool global Torrentio (Fase 1). Endpoint público, sem config/debrid; o
+  // `matchContext` já carrega season/episódio da obra. A fonte entra no mesmo
+  // balde dos indexers e respeita o orçamento da coleta.
+  if (wants('torrentio') && config.torrentio.enabled) {
+    addTask(() => torrentio.search({
+      type,
+      imdbId,
+      season: matchContext.season,
+      episode: matchContext.episode,
+    }));
+  }
 
   // Se misconfigurou PROVIDER, tenta jackett
-  const validProvider = providers.some((name: string) => ['jackett', 'prowlarr', 'demo', 'both'].includes(name));
+  const validProvider = providers.some((name: string) =>
+    ['jackett', 'prowlarr', 'torrentio', 'demo', 'both'].includes(name));
   if (tasks.length === 0 && providers.length > 0 && !validProvider) {
     addTask(() => jackett.search(query, type));
   }

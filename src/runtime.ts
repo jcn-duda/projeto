@@ -71,9 +71,29 @@ const SCHEMA: Record<string, SchemaEntry> = {
   streamNameShowSource: { type: 'bool', key: 'st' },
 };
 
+function defaultProviders(): string[] {
+  const selected = String(config.provider)
+    .split(/[,+]/)
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+  const base = selected.includes('both')
+    ? [...new Set([...selected.filter((name) => name !== 'both'), 'jackett', 'prowlarr'])]
+    : [...new Set(selected)];
+  // Demo fica isolado (sem rede). Torrentio pode ser a fonte única quando o
+  // operador escolhe isso explicitamente; nas demais fontes reais entra junto.
+  if (base.includes('demo')) return ['demo'];
+  const hasKnownSearchProvider = base.some((name) => ['jackett', 'prowlarr', 'torrentio'].includes(name));
+  if (config.torrentio.enabled && hasKnownSearchProvider && !base.includes('torrentio')) base.push('torrentio');
+  return base.length ? base : ['demo'];
+}
+
 function defaults() {
   return {
-    providers: config.provider === 'both' ? ['jackett', 'prowlarr'] : [config.provider],
+    // Pool global Torrentio entra por PADRÃO quando o operador usa uma fonte de
+    // busca real (jackett/prowlarr/both) e a env habilita — o demo segue
+    // isolado (sem rede). O usuário ainda pode desligar/ligar por instalação
+    // via o toggle da página (p... sem/com torrentio).
+    providers: defaultProviders(),
     qualities: config.qualityFilter,
     maxResults: config.maxResults,
     minSeeders: config.minSeeders,
@@ -144,7 +164,10 @@ function normalize(raw: any) {
     if (value === undefined || value === null) continue;
 
     if (spec.type === 'list') {
-      const items = (Array.isArray(value) ? value : String(value).split(','))
+      // `+` é um separador alternativo de lista (ex.: `p: jackett+torrentio`),
+      // além da vírgula. IDs/qualidades nunca contêm `+`, então é seguro.
+      const items = (Array.isArray(value) ? value : [value])
+        .flatMap((item) => String(item).split(/[,+]/))
         .map((s) => String(s).trim().toLowerCase())
         .filter(Boolean);
       base[name] = items;

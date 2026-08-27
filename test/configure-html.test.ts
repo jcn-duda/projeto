@@ -93,9 +93,10 @@ test('página não tem escolha de provider nem diagnóstico de indexador', () =>
   // Sem chip, mas a fonte de quem já usa outra (prowlarr) não pode ser reescrita:
   // collect() devolve o que veio do link salvo ou dos defaults da instância.
   const collect = sliceFunction('collect');
-  assert.ok(collect.includes('cfg[KEYS.providers] = providerChoice;'), 'a fonte viaja intacta');
+  assert.match(collect, /cfg\[KEYS\.providers\] = providerChoice\(\);/);
   const apply = sliceNamedFunction('apply');
-  assert.ok(apply.includes('providerChoice = state.providers.join(",")'), 'apply guarda a fonte que chegou');
+  assert.match(apply, /providerBase = state\.providers\.filter/);
+  assert.match(apply, /return name !== "torrentio"/);
 });
 
 // Um controle no lugar de seis. As SEIS chaves continuam indo na URL: o backend
@@ -128,7 +129,7 @@ test('switches principais têm role=switch e aria-checked', () => {
   let m;
   while ((m = re.exec(html)) !== null) tags.push(m[0]);
 
-  assert.equal(tags.length, 8, 'esperava os 8 switches principais');
+  assert.equal(tags.length, 9, 'esperava os 9 switches (8 + toggle do Torrentio)');
   tags.forEach((tag) => {
     assert.match(tag, /\brole="switch"/, 'switch sem role=switch: ' + tag);
     assert.match(tag, /\b(?:aria-checked="true"|aria-checked="false")/, 'switch sem aria-checked: ' + tag);
@@ -238,4 +239,48 @@ test('código de limite por card mantém JavaScript ES5', () => {
   const added = html.slice(start, end);
   assert.doesNotMatch(added, /\b(?:const|let|class|async|await)\b|=>|`/,
     'JS dos limites precisa continuar compatível com WebViews ES5');
+});
+
+// --- Pool global Torrentio (Fase 1): toggle específico, nunca seletor genérico. ---
+// A página não ganhou um seletor de fonte de novo; só um switch que liga/desliga
+// o 'torrentio' na lista de providers ('p'), preservando a base (jackett/prowlarr/
+// demo). O mesmo toggle fecha quando não há fonte de busca real (modo demo).
+
+test('toggle do pool global Torrentio existe e é switch específico, não seletor', () => {
+  assert.match(html, /class="switch" id="torrentioToggle"/);
+  assert.match(html, /aria-label="Pool global Torrentio"/);
+  assert.match(html, /role="switch"/);
+  // Continua SEM diagnóstico e SEM seletor genérico de fonte.
+  assert.equal(html.includes('id="providers"'), false, 'seletor de fonte não pode reaparecer');
+  assert.equal(html.includes('id="testIndexers"'), false, 'teste de indexador continua fora');
+  assert.equal(html.includes('id="jackettTokenTest"'), false, 'token de teste segue no painel');
+});
+
+test('providerChoice() recompõe a lista: base intacta + torrentio quando há base de busca', () => {
+  assert.match(html, /var providerBase = \["jackett"\]/);
+  assert.match(html, /var torrentioOn = false/);
+  assert.notEqual(html.indexOf('function providerChoice()'), -1, 'providerChoice passou a ser função');
+  assert.match(html, /if \(torrentioOn && hasSearchBase\(\)\) list\.push\("torrentio"\)/);
+  assert.match(html, /if \(!list\.length\) list\.push\("jackett"\)/);
+});
+
+test('modo demo isola o pool do Torrentio (sem rede)', () => {
+  // A base exige uma fonte de busca real: só 'demo' não oferece o toggle.
+  assert.match(html, /providerBase\.some\(function \(name\) \{ return name !== "demo"; \}\)/);
+  const apply = sliceNamedFunction('apply');
+  assert.match(apply, /el\.torrentioRow\.hidden = !offerTorrentio/);
+  assert.match(apply, /if \(!offerTorrentio\) torrentioOn = false/);
+});
+
+test('aplica separa torrentio da base e restaura o toggle preservando a ordem', () => {
+  const d = sliceNamedFunction('apply');
+  assert.match(d, /providerBase = state\.providers\.filter/);
+  assert.match(d, /torrentioOn = state\.providers\.indexOf\("torrentio"\) !== -1/);
+  assert.match(d, /setOn\(el\.torrentioToggle, torrentioOn\)/);
+  assert.equal(d.includes('providerBase = state.providers.join'), false);
+});
+
+test('fromUrl reconhece `+` como separador de lista junto da vírgula', () => {
+  const fromUrl = sliceNamedFunction('fromUrl');
+  assert.ok(fromUrl.includes('split(/[,+]/)'), 'toList separa por `+` além da vírgula');
 });

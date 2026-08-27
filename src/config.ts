@@ -186,6 +186,17 @@ const config = {
     url: (process.env.PROWLARR_URL || 'http://127.0.0.1:9696').replace(/\/$/, ''),
     apiKey: process.env.PROWLARR_API_KEY || '',
   },
+  // Pool GLOBAL Torrentio (Fase 1). Consulta a API pública do serviço — sem
+  // config nem credencial — para trazer releases já indexadas no acervo global.
+  // `url` é só o host canônico; a fonte pode ser desligada por instalação via
+  // o toggle na página. Nenhuma chave do usuário sai do processo.
+  torrentio: {
+    enabled: String(process.env.TORRENTIO_ENABLED || 'true') === 'true',
+    url: (process.env.TORRENTIO_URL || 'https://torrentio.strem.fun').replace(/\/$/, ''),
+    timeout: Math.max(1, num(process.env.TORRENTIO_TIMEOUT_MS, 1500)),
+    breakerFailures: Math.max(1, Math.trunc(num(process.env.TORRENTIO_BREAKER_FAILURES, 3))),
+    breakerCooldown: Math.max(0, num(process.env.TORRENTIO_BREAKER_COOLDOWN_MS, 5 * 60_000)),
+  },
   tmdb: {
     apiKey: process.env.TMDB_API_KEY || '',
     timeout: num(process.env.TMDB_TIMEOUT_MS, 5000),

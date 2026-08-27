@@ -265,3 +265,45 @@ test('SCHEMA e roundtrip para streamNameStyle (ns) e streamNameShowSource (st)',
   assert.equal(decoded.streamNameShowSource, false);
 });
 
+
+// --- Pool global Torrentio (Fase 1): chave 'p' com '+' e defaults com o pool. ---
+// O runtime agora encara `+` como separador de lista (ex.: 'jackett+torrentio')
+// e o defaults() injeta o 'torrentio' por padrao quando a base e de busca real,
+// isolando-o no modo demo (sem rede).
+
+test('normalize le p com `+`/virgula e expande jackett+torrentio', () => {
+  assert.deepEqual(normalize({ p: 'jackett+torrentio' }).providers, ['jackett', 'torrentio']);
+  assert.deepEqual(normalize({ p: 'prowlarr,torrentio' }).providers, ['prowlarr', 'torrentio']);
+  assert.deepEqual(normalize({ p: ' jackett + torrentio ' }).providers, ['jackett', 'torrentio']);
+  // Sem fonte de busca a lista seca: um unico 'demo' nunca pede rede.
+  assert.deepEqual(normalize({ p: 'demo' }).providers, ['demo']);
+});
+
+test('defaults() adiciona o pool do Torrentio a base real e o isola no demo', () => {
+  const origProvider = config.provider;
+  const origEnabled = config.torrentio.enabled;
+  try {
+    config.provider = 'jackett';
+    config.torrentio.enabled = true;
+    assert.deepEqual(defaults().providers, ['jackett', 'torrentio'], 'busca real ganha o pool por padrao');
+
+    config.provider = 'both';
+    config.torrentio.enabled = true;
+    assert.deepEqual(defaults().providers, ['jackett', 'prowlarr', 'torrentio'], 'both expande as duas + pool');
+
+    config.provider = 'demo';
+    config.torrentio.enabled = true;
+    assert.deepEqual(defaults().providers, ['demo'], 'demo nao mistura com torrentio');
+
+    config.provider = 'jackett';
+    config.torrentio.enabled = false;
+    assert.deepEqual(defaults().providers, ['jackett'], 'env desligada nao inclui o pool');
+
+    config.provider = 'jackett-com-erro';
+    config.torrentio.enabled = true;
+    assert.deepEqual(defaults().providers, ['jackett-com-erro'], 'torrentio nao mascara provider invalido nem seu fallback');
+  } finally {
+    config.provider = origProvider;
+    config.torrentio.enabled = origEnabled;
+  }
+});

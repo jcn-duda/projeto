@@ -174,6 +174,7 @@ addon.ts  processo (listen, warmup)
                   │    ├─ jackett.search (globais EN, agrupados)
                   │    ├─ jackett.search (BR/slow isolados, query em pt-BR nos BR)
                   │    ├─ prowlarr.search
+                  │    ├─ torrentio.search  (pool global público, sem config/debrid)
                   │    ├─ bludv.search   (scraper direto, se BLUDV_ENABLED)
                   │    └─ account.search (inventário pronto AllDebrid/TorBox)
                   ├─ buildStreams        ← latest-writer; parcial e tardio
@@ -255,7 +256,7 @@ Schema atual (chave curta → campo):
 
 | chave | campo | nota |
 |---|---|---|
-| `p` | `providers` | jackett / prowlarr / demo |
+| `p` | `providers` | jackett / prowlarr / torrentio / demo — `+` também separa lista |
 | `q` | `qualities` | |
 | `m` / `s` | `maxResults` / `minSeeders` | |
 | `q4`/`q1`/`q7`/`q5`/`qs`/`qn` | cotas 4K…unknown | `qn` é balde próprio, não SD |
@@ -266,6 +267,29 @@ Schema atual (chave curta → campo):
 | `ds`/`dk`/`dc` | serviço / chave / só cache | `dk` é `secret` (selo AES) |
 | `bu` | `showUncachedBr` | BR fora do cache como P2P |
 | `ab` | `autoFetchBr` | |
+
+### Pool global Torrentio (Fase 1)
+
+`src/providers/torrentio.ts` consulta a **API pública** do Torrentio
+(`/stream/movie/<id>.json` e `/stream/series/<id>:<S>:<E>.json`) como mais uma
+fonte no mesmo balde dos indexers — **sem segmento de config, sem apiKey, sem
+debrid**; nenhuma chave do usuário sai do processo. Falha NUNCA derruba a busca:
+fail-open (`[]`), com **circuit breaker local** (não é o do Jackett) cujo
+timeout é `TORRENTIO_TIMEOUT_MS` e que abre em `TORRENTIO_BREAKER_FAILURES`
+falhas seguidas por `TORRENTIO_BREAKER_COOLDOWN_MS`, meia-abrindo depois do
+cooldown — só 429/5xx alimentam o breaker; 4xx (inclusive 400) pertencem à
+obra/requisição e não provam o host caído. O `fileIdx` que o Torrentio propaga
+por stream é **preservado inteiro** no `RawItem` (campo atravessa o pipeline com
+`indexer: 'torrentio'`, `tracker` = rótulo após o ⚙️), mas **ainda não é
+consumido** no play — nenhum toque em file-selector/HMAC.
+
+Na configuração a fonte é um **toggle específico** (`torrentioToggle` na
+configure), jamais um seletor genérico: liga/desliga só a presença de
+`torrentio` na chave `p`, preservando base e ordem (jackett/prowlarr/demo vêm
+do link salvo ou dos defaults). O `defaults()` injeta `torrentio` **por padrão**
+na base real quando `TORRENTIO_ENABLED=true` (jackett/prowlarr/both ganham o
+pool junto); o modo **demo é isolado** — sem rede, não mistura com o pool e o
+toggle sequer é oferecido.
 
 `jackettIndexers` aceita qualquer string vinda da URL — o caminho de busca
 valida cada id contra `SAFE_INDEXER_ID` antes de montar a query. Qualidade
@@ -1001,6 +1025,7 @@ fire-and-forget) continua.
 | `src/providers/jackett-catalog.ts` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
 | `src/providers/indexer-status.ts` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
 | `src/providers/prowlarr.ts` | Alternativa ao Jackett |
+| `src/providers/torrentio.ts` | Pool global público da API Torrentio (Fase 1): fail-open, breaker local, `fileIdx` preservado |
 | `src/providers/bludv.ts` | Scraper direto do BLUDV (fora do Jackett; default desligado) |
 | `src/providers/account.ts` | Inventário pronto da conta como fonte (`fromAccount`) |
 | `src/providers/autofetch.ts` | Marker, lock e vaga por busca do autofetch |

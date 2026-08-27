@@ -569,6 +569,18 @@
       <button type="button" class="switch" id="brFirst" role="switch" aria-checked="true" aria-pressed="true" aria-label="Fontes BR primeiro"></button>
     </div>
 
+    <!-- Pool global Torrentio (Fase 1). Toggle específico: só adiciona/remove o
+         'torrentio' do providerChoice; não reabre um seletor genérico de fonte.
+         A escolha viaja no mesmo KEYS.providers ('p'), então links antigos e a
+         ordem dos demais provedores são preservados. -->
+    <div class="row" id="torrentioRow">
+      <div class="row-text">
+        <strong>Pool global Torrentio</strong>
+        <span>Consulta a API pública do Torrentio (sem config nem credencial) junto de Jackett/Prowlarr — amplia a cobertura do acervo global com releases já indexadas por lá.</span>
+      </div>
+      <button type="button" class="switch" id="torrentioToggle" role="switch" aria-checked="false" aria-pressed="false" aria-label="Pool global Torrentio"></button>
+    </div>
+
     <div id="jackettIndexersSection">
       <div class="sec-head">
         <h2>Indexadores Jackett</h2>
@@ -832,6 +844,7 @@
     presets: $("presets"),
     qualities: $("qualities"),
     brFirst: $("brFirst"),
+    torrentioToggle: $("torrentioToggle"), torrentioRow: $("torrentioRow"),
     jackettIndexers: $("jackettIndexers"), indexerPriorityOrder: $("indexerPriorityOrder"),
     brSlots: $("brSlots"), outBr: $("outBr"),
     maxResults: $("maxResults"), outMax: $("outMax"),
@@ -865,7 +878,20 @@
   // A página não oferece mais escolha de fonte, mas também não pode reescrever a
   // de quem já usa outra: guarda o que veio do link salvo ou dos defaults da
   // instância e devolve igual. Só quem chega sem nada disso cai em jackett.
-  var providerChoice = "jackett";
+  // O pool global Torrentio é um TOGGLE específico em cima dessa base: o
+  // providerChoice resultante é a base + 'torrentio' quando o toggle está on.
+  var providerBase = ["jackett"];
+  var torrentioOn = false;
+  var hasSearchBase = function () {
+    // Base vazia representa o modo torrentio-only; demo continua isolado.
+    return providerBase.length === 0 || providerBase.some(function (name) { return name !== "demo"; });
+  };
+  function providerChoice() {
+    var list = providerBase.slice();
+    if (torrentioOn && hasSearchBase()) list.push("torrentio");
+    if (!list.length) list.push("jackett");
+    return list.join(",");
+  }
   var INDEXER_STATUS_POLL_MS = 10000;
   var indexerStatusPollInFlight = false;
   // maxPerQuality: 6 era a cota de "sem resolução", o balde das fontes BR --
@@ -1328,7 +1354,7 @@
     var cfg = {};
     // A fonte saiu da página (era configuração de operador, não de quem instala)
     // e viaja intacta: as fontes BR entram por fora, independente dela.
-    cfg[KEYS.providers] = providerChoice;
+    cfg[KEYS.providers] = providerChoice();
     cfg[KEYS.qualities] = chipsSelected(el.qualities).join(",");
     cfg[KEYS.maxResults] = Number(el.maxResults.value);
     // Um controle, seis cotas. As chaves seguem separadas na URL -- o backend
@@ -1505,6 +1531,18 @@
     sw.addEventListener("click", function () { setOn(sw, !isOn(sw)); setPresetChoice("custom"); render(); });
   });
 
+  // Pool global Torrentio: toggle específico sobre a base de provedores. Não
+  // existe no schema como opção própria — grava no KEYS.providers ('p'), então
+  // a URL carrega a escolha junto das demais fontes, e links antigos continuam.
+  if (el.torrentioToggle) {
+    el.torrentioToggle.addEventListener("click", function () {
+      setOn(el.torrentioToggle, !isOn(el.torrentioToggle));
+      torrentioOn = isOn(el.torrentioToggle);
+      setPresetChoice("custom");
+      render();
+    });
+  }
+
   [el.brSlots, el.maxResults, el.maxPerQuality, el.maxPerIndexer, el.minSeeders, el.maxSizeGb].forEach(function (r) {
     r.addEventListener("input", function () { setPresetChoice("custom"); render(); });
   });
@@ -1567,7 +1605,18 @@
   }
 
   function apply(state) {
-    if (state.providers && state.providers.length) providerChoice = state.providers.join(",");
+    if (state.providers && state.providers.length) {
+      // 'torrentio' vira toggle; o resto é a base. Ordem e demais fontes
+      // (jackett/prowlarr/demo) vêm do link salvo ou dos defaults, intactas.
+      providerBase = state.providers.filter(function (name) { return name !== "torrentio"; });
+      torrentioOn = state.providers.indexOf("torrentio") !== -1;
+    }
+    // Instância em modo demo mantém o pool isolado (sem rede): o toggle não é
+    // oferecido e nada de torrentio é adicionado por engano.
+    var offerTorrentio = hasSearchBase();
+    el.torrentioRow.hidden = !offerTorrentio;
+    if (!offerTorrentio) torrentioOn = false;
+    setOn(el.torrentioToggle, torrentioOn);
     setChips(el.qualities, state.qualities || []);
     setOn(el.brFirst, state.brFirst == null ? true : state.brFirst);
     var selectedJackett = isIdList(state.jackettIndexers)
@@ -1627,7 +1676,9 @@
     if (!seg || seg === "configure") return null;
     var raw = decodeConfig(seg);
     if (!raw) return null;
-    var toList = function (v) { return v ? String(v).split(",").filter(Boolean) : []; };
+    // `+` também separa lista nos links (ex.: "jackett+torrentio"), além da
+    // vírgula — mesma regra do runtime.
+    var toList = function (v) { return v ? String(v).split(/[,+]/).filter(Boolean) : []; };
     var state = {};
     if (Object.prototype.hasOwnProperty.call(raw, KEYS.providers)) state.providers = toList(raw[KEYS.providers]);
     if (Object.prototype.hasOwnProperty.call(raw, KEYS.qualities)) state.qualities = toList(raw[KEYS.qualities]);
