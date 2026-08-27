@@ -181,6 +181,24 @@ export async function applyDebrid(input: Array<Stream | null>, {
     return streams;
   }
 
+  // Recusa legal do Real-Debrid (ledger `blocked`) é DEFINITIVA: o serviço
+  // jamais aceitará este hash, então ele não pode virar [RD⚡] nem sair pelo
+  // /resolve — ambos chamam addMagnet e morreriam em 451 de novo. Fora do
+  // cachedOnly volta como torrent P2P puro; sob cachedOnly o corte o remove.
+  // O conjunto alimenta as duas garantias: purgar o hash do `cached` (sem ⚡)
+  // e pular o `viaDebrid` na saída. É construído UMA vez e reusado, porque o
+  // hash pode ressurgir em `cached` por vários caminhos (memo davail,
+  // inventário, histórico alive) e a purga precisa pegá-lo em todos.
+  const blockedHashes = new Set<string>();
+  if (adapter.id === 'realdebrid' && config.debrid.rdLedger.enabled) {
+    for (const s of streams) {
+      const h = String(s.infoHash || '').toLowerCase();
+      if (h && rdLedger.peek(h) === 'blocked') blockedHashes.add(h);
+    }
+  }
+  const isBlocked = (s: Stream): boolean =>
+    Boolean(s.infoHash && blockedHashes.has(String(s.infoHash).toLowerCase()));
+
   // Só quem ainda é torrent tem hash pra consultar; stream já resolvido não entra no lote.
   const hashes = streams.flatMap((s) => s.infoHash ? [s.infoHash] : []);
   if (hashes.length === 0) return streams;
@@ -332,6 +350,21 @@ export async function applyDebrid(input: Array<Stream | null>, {
     }
   }
 
+  // O `blocked` não pode sobreviver em `cached` por NENHUM vetor de
+  // ressurreição (memo davail, inventário, histórico alive): um ⚡ aqui é um
+  // play garantido em 451. Purga DEPOIS que todos os re-adds rodaram, num
+  // único ponto de estrangulamento.
+  if (blockedHashes.size) {
+    let removedBlocked = 0;
+    for (const h of blockedHashes) {
+      if (cached.delete(h)) removedBlocked += 1;
+    }
+    if (removedBlocked) {
+      metrics.count('debrid.blocked.dropped');
+      log.info(`[debrid] ${removedBlocked} hash(es) com recusa legal do RD fora do cache (sem ⚡)`);
+    }
+  }
+
   const autofetchCount = autoFetchBrDubbed(streams, candidates, {
     cached: cachedForAutofetch,
     known: knownForAutofetch,
@@ -407,6 +440,12 @@ export async function applyDebrid(input: Array<Stream | null>, {
     };
   };
 
+  // `blocked` (recusa legal RD) nunca sai pelo /resolve nem leva ⚡: volta como
+  // torrent P2P puro. Sem este desvio, o hash bloqueado voltaria como
+  // [RD⚡]/[RD download] e o play morreria em 451 outra vez — a invalidação do
+  // cache feita no /resolve não surtiria efeito.
+  const materialize = (s: Stream, instant: boolean): Stream => (isBlocked(s) ? s : viaDebrid(s, instant));
+
   // Serviço que não sabe informar cache (Real-Debrid, Debrid-Link) ou resposta
   // incompleta (lote perdido no timeout): filtrar por "somente em cache"
   // esconderia a lista inteira. Mandamos tudo pelo debrid — a resolução no play
@@ -462,13 +501,13 @@ export async function applyDebrid(input: Array<Stream | null>, {
       log.info(
         `[debrid] cachedOnly: ${corte.streams.length}/${streams.length} stream(s) com play instantaneo na conta ${adapter.label}`,
       );
-      return corte.streams.map((s) => viaDebrid(s, Boolean(s.infoHash && cached.has(s.infoHash))));
+      return corte.streams.map((s) => materialize(s, Boolean(s.infoHash && cached.has(s.infoHash))));
     }
     // Sem corte (não-cachedOnly, ou cachedOnly sem conta/miss conhecidos): o BR
     // segue inteiro para a listagem. Estagia cached/hidden para a finalização
     // coerente; o brFound (funil) já foi registrado no buildStreams.
     countFirstBr(streams, cached, streams, observeFirstPass, firstObserver, { cachedOnly, showUncachedBr });
-    return streams.map((s) => viaDebrid(s, Boolean(s.infoHash && cached.has(s.infoHash))));
+    return streams.map((s) => materialize(s, Boolean(s.infoHash && cached.has(s.infoHash))));
   }
 
   // O tempo entra no log porque ele é o que decide o teto: a checagem divide o
@@ -492,6 +531,11 @@ export async function applyDebrid(input: Array<Stream | null>, {
   queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(filtered.streams, cached, { season, episode, imdbId, workHint }), searchKey);
   const out: Stream[] = [];
   for (const s of filtered.streams) {
+    // Recusa legal: nunca aponta para o /resolve. Volta como P2P puro.
+    if (isBlocked(s)) {
+      out.push(s);
+      continue;
+    }
     if (s.infoHash && cached.has(s.infoHash)) {
       out.push(viaDebrid(s, true));
       continue;

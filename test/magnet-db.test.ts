@@ -405,3 +405,69 @@ test('applyDebrid: bad+blocked RD é limpo e mantém o stream fora do cachedOnly
     debrid.BY_ID.set('realdebrid', original as any);
   }
 });
+
+test('applyDebrid: blocked RD recém-gravado NUNCA sai pelo /resolve mesmo voltando como cacheado', async () => {
+  // O /resolve descobriu o 451 e gravou noteBlocked, mas o magnet NÃO é bad
+  // (recusa legal não é magnet quebrado). A checagem de cache ainda o devolve
+  // como cacheado (memo/avaliador não sabem do bloqueio) — sem a purga ele
+  // ressuscitaria como [RD⚡]/[RD download] e o play morreria em 451 de novo.
+  const blockedHash = 'd'.repeat(40);
+  const liveHash = 'e'.repeat(40);
+  const { adapter } = makeFake((_apiKey, infoHashes) => ({
+    cached: new Set(infoHashes.filter((h) => h === blockedHash || h === liveHash)),
+    complete: true,
+  }));
+  const original = debrid.BY_ID.get('realdebrid');
+  debrid.BY_ID.set('realdebrid', { ...adapter, id: 'realdebrid' } as any);
+  const key = 'chave-rd-blocked-fresh';
+  rdLedger.noteBlocked(blockedHash);
+  const priorLedgerEnabled = config.debrid.rdLedger.enabled;
+  config.debrid.rdLedger.enabled = true;
+  metrics.reset();
+  try {
+    // Fora do cachedOnly: o bloqueado volta como P2P puro (infoHash intacto,
+    // sem URL de /resolve e sem ⚡); o saudável segue com o link assinado.
+    const out = await runWith(
+      { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: false }, encoded: 'seg' },
+      () =>
+        applyDebrid([stream(blockedHash), stream(liveHash)] as any, {
+          season: null,
+          episode: null,
+          imdbId: null,
+          searchKey: 'magnet-rd-blocked-fresh',
+          deadlineAt: Date.now() + 8000,
+          onCacheResult: null,
+          workHint: null,
+        } as any),
+    );
+    assert.equal(out.length, 2, 'nenhum dos dois some da lista');
+    const blockedOut = out.find((s: any) => s.infoHash === blockedHash) as any;
+    assert.ok(blockedOut, 'hash bloqueado volta como P2P fora do cachedOnly');
+    assert.equal(blockedOut.url, undefined, 'bloqueado não aponta para o /resolve');
+    assert.doesNotMatch(String(blockedOut.name), /⚡/, 'bloqueado não leva ⚡');
+    const liveOut = out.find((s: any) => (s as any).url && String((s as any).url).includes(liveHash)) as any;
+    assert.ok(liveOut, 'hash saudável confirmado em cache sai pelo /resolve');
+    const counters = (metrics.snapshot() as any).counters;
+    assert.equal(counters['debrid.blocked.dropped'], 1, 'purga do blocked contada em métrica própria');
+
+    // Sob cachedOnly o corte o remove por completo (sem raio não aparece).
+    const cachedOnlyOut = await runWith(
+      { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: true }, encoded: 'seg' },
+      () =>
+        applyDebrid([stream(blockedHash)] as any, {
+          season: null,
+          episode: null,
+          imdbId: null,
+          searchKey: 'magnet-rd-blocked-fresh-cached-only',
+          deadlineAt: Date.now() + 8000,
+          onCacheResult: null,
+          workHint: null,
+        } as any),
+    );
+    assert.equal(cachedOnlyOut.length, 0, 'cachedOnly remove o hash bloqueado da lista');
+  } finally {
+    metrics.reset();
+    config.debrid.rdLedger.enabled = priorLedgerEnabled;
+    debrid.BY_ID.set('realdebrid', original as any);
+  }
+});

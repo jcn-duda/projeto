@@ -22,7 +22,7 @@ function invalidateStreamsOnBlocked(services: AppServices) {
     const removed = services.cache.clearNamespace('streams');
     if (removed) {
       services.metrics.count('resolve.streamsInvalidated.blocked');
-      services.log.info(`[resolve] cache de streams invalidado por bloqueio legal (${removed} entrada(s)); a próxima abertura reconstrói sem o hash bloqueado`);
+      services.log.info(`[resolve] cache de streams invalidado por bloqueio legal (${removed} entrada(s)); a próxima abertura não oferece mais este hash pelo debrid (ledger blocked)`);
     }
   } catch (err) {
     services.log.warn('[resolve] falhou ao invalidar streams após 451:', errorMessage(err));
