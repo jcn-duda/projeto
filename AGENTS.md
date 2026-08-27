@@ -687,6 +687,16 @@ Integrado na aba `[Chupim / Autofetch]` do `/dashboard#autofetch` (as rotas
 - `drainQueues()` esvazia todas as filas pendentes.
 Ações protegidas atrás de `JACKETT_TEST_TOKEN` (`POST /dashboard-action.json`): `autofetch-pause`, `autofetch-drain`, `autofetch-config-get`, `autofetch-config-set`, `autofetch-config-reset`.
 
+**Painel e configuração ao vivo do colhedor (`src/utils/harvester-live.ts`).**
+Configuração em nível de **operador** para o colhedor em segundo plano e sementes populares do IMDb (`config.harvest` e `config.seed`). Mudanças aplicam ao vivo, persistidas no SQLite sob `cfg:v1:harvester` com cópia em memória, sem restart. Integrado na aba `[Colhedor / Harvester]` do `/dashboard#colhedor` (as rotas `/harvester` e `/:userConfig/harvester` redirecionam 302 para lá).
+- `effective()` reúne defaults do `.env` com overrides gravados;
+- `set(patch)` valida cada campo com os mesmos clamps do `config.ts` (`harvestMaxPerHour` 1..1000, `harvestQueueMax` 10..1000, `harvestDrainMaxWorks` 1..50, `harvestIdleWindowMs` 0..3600000, `seedMaxPerCycle` 1..100, `seedMinVotes` 0..100000, `seedIntervalH` 1..168, etc.) e rejeita chaves desconhecidas (400);
+- `reset()` restaura os padrões do `.env`;
+- `setPaused(bool)` / `isPaused()` pausa operacionalmente a colheita em segundo plano;
+- `clearQueue()` esvazia a fila de obras pendentes de colheita.
+Ações protegidas atrás de `JACKETT_TEST_TOKEN` (`POST /dashboard-action.json`): `harvest-config-get`, `harvest-config-set`, `harvest-config-reset`, `harvester-pause`, `harvester-drain`, `harvester-clear-queue`.
+
+
 O registry também expõe `inventory()`: o que já está **pronto** na conta
 (AllDebrid/TorBox/RD/DL) entra na busca como mais uma fonte
 (`src/providers/account.ts`), memoizado por serviço+conta sob `dinv:v1:`. A
@@ -1033,6 +1043,7 @@ fire-and-forget) continua.
 | `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
 | `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário, varredura pt-BR nos globais |
+| `src/utils/harvester-live.ts` | Camada de configuração ao vivo do Colhedor e Sementes IMDb persistida em SQLite |
 | `src/utils/release-index.ts` | Índice de releases por obra (`idx:v5`): record/lookup/status — o que faz o addon responder sem Jackett |
 | `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
 | `src/providers/jackett-catalog.ts` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |

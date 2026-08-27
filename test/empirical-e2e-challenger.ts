@@ -151,8 +151,8 @@ const mutations = [
     // quebraria no dia em que a formatação do emit mudasse. O mutante força
     // partial:true em toda escrita do finish, então a entrada nunca transita
     // para completa — mesma via de captura do mutante original (cenário 2).
-    target: '{ streams, partial, debridKnown: !needsDebridRefresh }',
-    replacement: '{ streams, partial: true /* MUTATED */, debridKnown: !needsDebridRefresh }',
+    target: '{ streams, partial, debridKnown: isDebridKnown }',
+    replacement: '{ streams, partial: true /* MUTATED */, debridKnown: isDebridKnown }',
     testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
   }
 ];

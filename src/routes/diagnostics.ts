@@ -152,6 +152,7 @@ function makeDiagnosticHandlers(services: AppServices) {
       'clear-cache',
       'harvester-pause',
       'harvester-drain',
+      'harvester-clear-queue',
       'test-all-indexers',
       'refresh-inventory',
       'warm-pause',
@@ -162,10 +163,13 @@ function makeDiagnosticHandlers(services: AppServices) {
       'autofetch-config-get',
       'autofetch-config-set',
       'autofetch-config-reset',
+      'harvest-config-get',
+      'harvest-config-set',
+      'harvest-config-reset',
     ].includes(action)) {
       return res.status(400).json({ ok: false, error: 'ação desconhecida' });
     }
-    if (['clear-cache', 'sweep-dead', 'autofetch-drain', 'autofetch-config-reset'].includes(action) && req.body?.confirm !== true) {
+    if (['clear-cache', 'sweep-dead', 'autofetch-drain', 'autofetch-config-reset', 'harvest-config-reset', 'harvester-clear-queue'].includes(action) && req.body?.confirm !== true) {
       return res.status(400).json({ ok: false, error: 'confirmation_required' });
     }
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
@@ -291,6 +295,31 @@ function makeDiagnosticHandlers(services: AppServices) {
         services.metrics.count('dashboard.autofetch.config.reset');
         services.log.info('[dashboard] config do chupim restaurada aos padrões do .env');
         return res.json({ ok: true, action, effective });
+      }
+      if (action === 'harvest-config-get') {
+        return res.json({ ok: true, action, config: services.harvesterLive.snapshot() });
+      }
+      if (action === 'harvest-config-set') {
+        const patch = req.body?.patch;
+        const outcome = services.harvesterLive.set(patch);
+        if (!outcome.ok) {
+          return res.status(400).json({ ok: false, error: 'validation_error', errors: outcome.errors });
+        }
+        services.metrics.count('dashboard.harvest.config.set');
+        services.log.info(`[dashboard] config do colhedor atualizada: ${outcome.overriddenKeys.join(', ')}`);
+        return res.json({ action, ...outcome });
+      }
+      if (action === 'harvest-config-reset') {
+        const effective = services.harvesterLive.reset();
+        services.metrics.count('dashboard.harvest.config.reset');
+        services.log.info('[dashboard] config do colhedor restaurada aos padrões do .env');
+        return res.json({ ok: true, action, effective });
+      }
+      if (action === 'harvester-clear-queue') {
+        const result = services.harvester.clearQueue();
+        services.metrics.count('dashboard.harvest.clear_queue');
+        services.log.info(`[dashboard] fila do colhedor limpa: ${result.cleared} obra(s) removida(s)`);
+        return res.json({ ok: true, action, ...result });
       }
       const result = (await services.debrid.sweepDeadCurrent()) ?? (await services.debrid.sweepDeadEnv());
       services.metrics.count('dashboard.sweep-dead');

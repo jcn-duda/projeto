@@ -224,6 +224,22 @@ test('dashboard renderiza o painel do Chupim e navegação por abas em ES5', () 
   assert.match(html, /function applyAutofetchPreset/);
 });
 
+test('dashboard renderiza o painel do Colhedor / Harvester em ES5', () => {
+  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+  assert.match(html, /id="tabColhedor"/);
+  assert.match(html, /id="viewColhedor"/);
+  assert.match(html, /id="harvestPauseBanner"/);
+  assert.match(html, /id="harvestLiveMetrics"/);
+  assert.match(html, /function renderHarvesterPanel/);
+  assert.match(html, /function saveHarvesterConfig/);
+  assert.match(html, /function resetHarvesterConfig/);
+  assert.match(html, /function toggleHarvesterPause/);
+  assert.match(html, /function drainHarvesterQueue/);
+  assert.match(html, /function clearHarvesterQueue/);
+  assert.match(html, /function applyHarvesterPreset/);
+  assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/);
+});
+
 // ---------------------------------------------------------------------------
 // Accións do POST: clear-cache e sweep-dead (ambas 200 com token certo).
 // ---------------------------------------------------------------------------

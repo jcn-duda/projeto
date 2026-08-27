@@ -24,6 +24,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/configure', publicHandlers.sendConfigure);
   app.get('/dashboard', publicHandlers.sendDashboard);
   app.get('/autofetch', (_req, res) => res.redirect(302, '/dashboard#autofetch'));
+  app.get('/harvester', (_req, res) => res.redirect(302, '/dashboard#colhedor'));
   app.get('/defaults.json', publicHandlers.defaults);
   app.post('/seal-config', express.text({ type: () => true, limit: '16kb' }), publicHandlers.seal);
 
@@ -47,8 +48,11 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/:userConfig/debrid-status.json', diagnosticHandlers.debridStatus);
   app.get('/:userConfig/dashboard', publicHandlers.sendDashboard);
   app.get('/:userConfig/autofetch', (req, res) => res.redirect(302, `/${req.params.userConfig}/dashboard#autofetch`));
+  app.get('/:userConfig/harvester', (req, res) => res.redirect(302, `/${req.params.userConfig}/dashboard#colhedor`));
   app.get('/:userConfig/dashboard-status.json', diagnosticHandlers.dashboardStatus);
   app.post('/:userConfig/dashboard-action.json', express.json({ limit: '4kb' }), diagnosticHandlers.dashboardAction);
+  app.get('/:userConfig/test-indexer.json', diagnosticHandlers.testIndexer);
+  app.get('/:userConfig/metrics.json', diagnosticHandlers.metrics);
   app.get('/:userConfig/resolve/:infoHash', resolveHandler);
   app.use('/:userConfig', makeAddonRouter(addonInterface));
 }

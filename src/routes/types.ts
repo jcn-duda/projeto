@@ -13,6 +13,7 @@ import type * as autofetchRunner from '../providers/autofetch-runner.js';
 import type * as autofetchLive from '../utils/autofetch-live.js';
 import type * as releaseIndex from '../utils/release-index.js';
 import type harvester from '../providers/harvester.js';
+import type * as harvesterLive from '../utils/harvester-live.js';
 import type * as magnetdb from '../utils/magnetdb.js';
 import type * as brResolvers from '../br-resolvers.js';
 import type * as providers from '../providers/index.js';
@@ -46,6 +47,7 @@ export interface AppServices {
   autofetchLive: typeof autofetchLive;
   releaseIndex: typeof releaseIndex;
   harvester: typeof harvester;
+  harvesterLive: typeof harvesterLive;
   magnetdb: typeof magnetdb;
   brResolvers: typeof brResolvers;
   providers: typeof providers;

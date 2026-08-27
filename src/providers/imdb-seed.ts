@@ -27,6 +27,7 @@ import { prefix } from '../utils/cache-keys.js';
 import * as releaseIndex from '../utils/release-index.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
+import * as harvesterLive from '../utils/harvester-live.js';
 
 type SeedEntry = { imdbId: string; type: 'movie' | 'series'; reason: string };
 
@@ -44,7 +45,8 @@ const TIPOS: Record<string, 'movie' | 'series'> = {
 };
 
 function enabled() {
-  return config.seed.enabled && Boolean(config.seed.apiKey) && config.releaseIndex.enabled;
+  const live = harvesterLive.effective();
+  return live.seedEnabled && Boolean(config.seed.apiKey) && config.releaseIndex.enabled;
 }
 
 async function fetchList(path: string): Promise<any[]> {
@@ -65,7 +67,8 @@ async function fetchList(path: string): Promise<any[]> {
 function aproveitavel(item: any, hoje: string) {
   if (!/^tt\d+$/.test(String(item?.id || ''))) return false;
   if (!TIPOS[String(item?.type || '')]) return false;
-  if (Number(item?.numVotes || 0) < config.seed.minVotes) return false;
+  const live = harvesterLive.effective();
+  if (Number(item?.numVotes || 0) < live.seedMinVotes) return false;
   const lancamento = String(item?.releaseDate || '');
   // Sem data conhecida, o ano serve de aproximação grosseira: melhor deixar
   // passar um limítrofe do que descartar obra antiga por metadado ausente.
@@ -82,16 +85,17 @@ async function nextSeeds(): Promise<SeedEntry[]> {
   if (!enabled()) return [];
   const marca = `${prefix('seed')}last`;
   if (cache.get(marca)) return [];
+  const live = harvesterLive.effective();
   // A marca é gravada ANTES da rede: API fora do ar não pode fazer o ciclo
   // seguinte tentar de novo em 60s, que é o intervalo do tick.
-  cache.set(marca, Date.now(), Math.max(1, config.seed.intervalH) * 3600);
+  cache.set(marca, Date.now(), Math.max(1, live.seedIntervalH) * 3600);
 
   const hoje = new Date().toISOString().slice(0, 10);
   const escolhidas: SeedEntry[] = [];
   let vistos = 0;
   let conhecidas = 0;
   for (const lista of LISTS) {
-    if (escolhidas.length >= config.seed.maxPerCycle) break;
+    if (escolhidas.length >= live.seedMaxPerCycle) break;
     let itens: any[] = [];
     try {
       itens = await fetchList(lista.path);

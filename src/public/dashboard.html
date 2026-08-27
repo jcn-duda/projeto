@@ -173,6 +173,7 @@
     <nav class="tabs" role="tablist" aria-label="Navegação do Dashboard">
       <button id="tabGeral" class="tab-btn active" role="tab" aria-selected="true" aria-controls="viewGeral" type="button">Visão Geral</button>
       <button id="tabAutofetch" class="tab-btn" role="tab" aria-selected="false" aria-controls="viewAutofetch" type="button">Chupim / Autofetch</button>
+      <button id="tabColhedor" class="tab-btn" role="tab" aria-selected="false" aria-controls="viewColhedor" type="button">Colhedor / Harvester</button>
     </nav>
   </header>
 
@@ -479,6 +480,162 @@
         <button id="afResetBtn" class="danger" type="button">Restaurar Padrões (.env)</button>
       </div>
       <p id="afFeedback" class="feedback" role="status" aria-live="polite"></p>
+    </section>
+  </div>
+
+  <div id="viewColhedor" class="tab-view hidden" role="tabpanel" aria-labelledby="tabColhedor">
+    <div id="harvestPauseBanner" class="pause-banner" role="alert">
+      <span id="harvestPauseBannerText">Colhedor PAUSADO. Nenhuma obra em segundo plano será colhida.</span>
+      <button id="harvestBannerResumeBtn" class="primary" type="button" style="padding: 4px 12px; font-size: 12px;">Retomar agora</button>
+    </div>
+
+    <section aria-labelledby="harvestLiveTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="harvestLiveTitle">Visão viva do Colhedor</h2>
+          <p>Estado operacional em tempo real, fila e histórico da colheita em segundo plano.</p>
+        </div>
+        <div class="section-actions">
+          <button id="harvestPauseToggleBtn" class="primary" type="button">Pausar Colhedor</button>
+          <button id="harvestDrainBtn" class="action-button" type="button">Drenar Fila Agora</button>
+          <button id="harvestClearQueueBtn" class="danger" type="button">Limpar Fila</button>
+        </div>
+      </div>
+      <div id="harvestLiveMetrics" class="metrics">
+        <div class="metric"><span class="key">Estado</span><span id="harvestMetricState" class="value">—</span></div>
+        <div class="metric"><span class="key">Obras na fila</span><span id="harvestMetricQueue" class="value">0 / max 0</span></div>
+        <div class="metric"><span class="key">Consultas nesta hora</span><span id="harvestMetricQueries" class="value">0 / 0</span></div>
+        <div class="metric"><span class="key">Obras colhidas</span><span id="harvestMetricHarvested" class="value">0</span></div>
+        <div class="metric"><span class="key">Última execução</span><span id="harvestMetricLastRun" class="value">—</span></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="harvestTrafficTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="harvestTrafficTitle">Ritmo de Colheita e Tráfego</h2>
+          <p>Controle de educação com indexadores e proteção de banda durante uso humano.</p>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-item checkbox-item">
+          <input id="harvest_harvestEnabled" type="checkbox" />
+          <div>
+            <label for="harvest_harvestEnabled">Colhedor ativo <span id="badge_harvest_harvestEnabled" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+            <p class="field-desc">Habilita ou desabilita o ciclo de colheita em segundo plano.</p>
+            <span class="field-env">Padrão .env: <span id="env_harvest_harvestEnabled">—</span></span>
+          </div>
+        </div>
+        <div class="form-item">
+          <label for="harvest_harvestMaxPerHour">Teto de Consultas por Hora <span id="badge_harvest_harvestMaxPerHour" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Máximo de consultas enviadas aos indexadores por hora (1..1000).</p>
+          <input id="harvest_harvestMaxPerHour" type="number" min="1" max="1000" step="1" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_harvestMaxPerHour">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="harvest_harvestIdleWindowMs">Janela de Ociosidade (ms) <span id="badge_harvest_harvestIdleWindowMs" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Pausa a colheita se houver requisições de usuários nos últimos N ms.</p>
+          <input id="harvest_harvestIdleWindowMs" type="number" min="0" max="3600000" step="10000" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_harvestIdleWindowMs">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="harvest_harvestIntervalMs">Intervalo do Ciclo (ms) <span id="badge_harvest_harvestIntervalMs" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Frequência em que o colhedor acorda para processar uma obra.</p>
+          <input id="harvest_harvestIntervalMs" type="number" min="1000" max="600000" step="1000" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_harvestIntervalMs">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="harvest_harvestIndexerDelayMs">Atraso entre Indexadores (ms) <span id="badge_harvest_harvestIndexerDelayMs" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Intervalo mínimo entre consultas consecutivas ao mesmo indexador.</p>
+          <input id="harvest_harvestIndexerDelayMs" type="number" min="0" max="10000" step="100" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_harvestIndexerDelayMs">—</span></span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="harvestQueueTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="harvestQueueTitle">Fila e Armazenamento</h2>
+          <p>Capacidade e retenção das obras pendentes de colheita no índice.</p>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-item">
+          <label for="harvest_harvestQueueMax">Capacidade Máxima da Fila <span id="badge_harvest_harvestQueueMax" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Limite de obras mantidas na fila de espera (10..1000).</p>
+          <input id="harvest_harvestQueueMax" type="number" min="10" max="1000" step="10" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_harvestQueueMax">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="harvest_harvestDrainMaxWorks">Lote de Drenagem Manual <span id="badge_harvest_harvestDrainMaxWorks" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Obras colhidas em sequência ao clicar no botão de drenagem manual.</p>
+          <input id="harvest_harvestDrainMaxWorks" type="number" min="1" max="50" step="1" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_harvestDrainMaxWorks">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="harvest_harvestEntryTtl">TTL de Entrada na Fila (segundos) <span id="badge_harvest_harvestEntryTtl" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Tempo durante o qual uma obra permanece na fila aguardando colheita.</p>
+          <input id="harvest_harvestEntryTtl" type="number" min="3600" max="2592000" step="3600" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_harvestEntryTtl">—</span></span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="harvestSeedTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="harvestSeedTitle">Sementes Populares IMDb</h2>
+          <p>Descoberta proativa de filmes e séries populares em alta antes da primeira busca.</p>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-item checkbox-item">
+          <input id="harvest_seedEnabled" type="checkbox" />
+          <div>
+            <label for="harvest_seedEnabled">Sementes populares ativas <span id="badge_harvest_seedEnabled" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+            <p class="field-desc">Consulta automática das listas de mais populares do IMDb via RapidAPI.</p>
+            <span class="field-env">Padrão .env: <span id="env_harvest_seedEnabled">—</span></span>
+          </div>
+        </div>
+        <div class="form-item">
+          <label for="harvest_seedMaxPerCycle">Máximo de Sementes por Ciclo <span id="badge_harvest_seedMaxPerCycle" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Teto de novas obras populares enfileiradas a cada ciclo (1..100).</p>
+          <input id="harvest_seedMaxPerCycle" type="number" min="1" max="100" step="1" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_seedMaxPerCycle">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="harvest_seedMinVotes">Piso de Votos Populares <span id="badge_harvest_seedMinVotes" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Mínimo de avaliações no IMDb para descartar ruídos ou títulos obscuros.</p>
+          <input id="harvest_seedMinVotes" type="number" min="0" max="100000" step="100" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_seedMinVotes">—</span></span>
+        </div>
+        <div class="form-item">
+          <label for="harvest_seedIntervalH">Intervalo de Semente (horas) <span id="badge_harvest_seedIntervalH" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+          <p class="field-desc">Tempo mínimo entre consultas consecutivas à RapidAPI (1..168).</p>
+          <input id="harvest_seedIntervalH" type="number" min="1" max="168" step="1" />
+          <span class="field-env">Padrão .env: <span id="env_harvest_seedIntervalH">—</span></span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="harvestActionsTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="harvestActionsTitle">Presets e Aplicação</h2>
+          <p>Ajustes em lote ou salvamento individual persistido no SQLite.</p>
+        </div>
+      </div>
+      <div class="presets-bar">
+        <button id="harvestPresetPadrao" class="preset-btn" type="button">Preset Padrão Balanceado</button>
+        <button id="harvestPresetAcelerado" class="preset-btn" type="button">Preset Acelerado (Madrugada)</button>
+        <button id="harvestPresetSilencioso" class="preset-btn" type="button">Preset Silencioso / Econômico</button>
+      </div>
+      <div class="toolbar" style="margin-top: 18px; display: flex; gap: 12px; align-items: center;">
+        <button id="harvestSaveBtn" class="primary" type="button">Salvar Alterações</button>
+        <button id="harvestResetBtn" class="danger" type="button">Restaurar Padrões (.env)</button>
+      </div>
+      <p id="harvestFeedback" class="feedback" role="status" aria-live="polite"></p>
     </section>
   </div>
 </main>
@@ -989,31 +1146,51 @@
   function switchTab(name) {
     var tabGeral = $("tabGeral");
     var tabAf = $("tabAutofetch");
+    var tabColhedor = $("tabColhedor");
     var viewGeral = $("viewGeral");
     var viewAf = $("viewAutofetch");
-    if (!tabGeral || !tabAf || !viewGeral || !viewAf) return;
-    if (name === "autofetch") {
+    var viewColhedor = $("viewColhedor");
+    if (!tabGeral || !tabAf || !tabColhedor || !viewGeral || !viewAf || !viewColhedor) return;
+    if (name === "colhedor") {
+      tabColhedor.className = "tab-btn active";
+      tabColhedor.setAttribute("aria-selected", "true");
+      tabGeral.className = "tab-btn";
+      tabGeral.setAttribute("aria-selected", "false");
+      tabAf.className = "tab-btn";
+      tabAf.setAttribute("aria-selected", "false");
+      viewColhedor.className = "tab-view";
+      viewGeral.className = "tab-view hidden";
+      viewAf.className = "tab-view hidden";
+      if (window.location.hash !== "#colhedor") window.location.hash = "#colhedor";
+    } else if (name === "autofetch") {
       tabAf.className = "tab-btn active";
       tabAf.setAttribute("aria-selected", "true");
       tabGeral.className = "tab-btn";
       tabGeral.setAttribute("aria-selected", "false");
+      tabColhedor.className = "tab-btn";
+      tabColhedor.setAttribute("aria-selected", "false");
       viewAf.className = "tab-view";
       viewGeral.className = "tab-view hidden";
+      viewColhedor.className = "tab-view hidden";
       if (window.location.hash !== "#autofetch") window.location.hash = "#autofetch";
     } else {
       tabGeral.className = "tab-btn active";
       tabGeral.setAttribute("aria-selected", "true");
       tabAf.className = "tab-btn";
       tabAf.setAttribute("aria-selected", "false");
+      tabColhedor.className = "tab-btn";
+      tabColhedor.setAttribute("aria-selected", "false");
       viewGeral.className = "tab-view";
       viewAf.className = "tab-view hidden";
-      if (window.location.hash === "#autofetch") window.location.hash = "#geral";
+      viewColhedor.className = "tab-view hidden";
+      if (window.location.hash === "#autofetch" || window.location.hash === "#colhedor") window.location.hash = "#geral";
     }
   }
 
   function handleHash() {
     var hash = String(window.location.hash || "").replace(/^#/, "");
-    if (hash === "autofetch") switchTab("autofetch");
+    if (hash === "colhedor") switchTab("colhedor");
+    else if (hash === "autofetch") switchTab("autofetch");
     else switchTab("geral");
   }
 
@@ -1122,7 +1299,7 @@
     }
     $("afSaveBtn").disabled = true;
     setAfFeedback("Salvando configurações…", "warn");
-    requestJson(dashboardPath("/dashboard-action.json"), {
+    requestJson("/dashboard-action.json", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "autofetch-config-set", patch: patch })
@@ -1146,7 +1323,7 @@
     if (!window.confirm("Restaurar todos os parâmetros do Chupim aos padrões do .env?")) return;
     $("afResetBtn").disabled = true;
     setAfFeedback("Restaurando padrões…", "warn");
-    requestJson(dashboardPath("/dashboard-action.json"), {
+    requestJson("/dashboard-action.json", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "autofetch-config-reset", confirm: true })
@@ -1172,7 +1349,7 @@
       : "Deseja retomar o Chupim?";
     if (!window.confirm(msg)) return;
     setAfFeedback("Atualizando estado de pausa…", "warn");
-    requestJson(dashboardPath("/dashboard-action.json"), {
+    requestJson("/dashboard-action.json", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "autofetch-pause", paused: nextState })
@@ -1190,7 +1367,7 @@
     if (!window.confirm("Deseja realmente esvaziar todas as filas do Chupim?")) return;
     $("afDrainBtn").disabled = true;
     setAfFeedback("Drenando filas…", "warn");
-    requestJson(dashboardPath("/dashboard-action.json"), {
+    requestJson("/dashboard-action.json", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "autofetch-drain", confirm: true })
@@ -1233,6 +1410,262 @@
     }
   }
 
+  var harvestKeys = [
+    "harvestEnabled", "harvestMaxPerHour", "harvestIdleWindowMs", "harvestIntervalMs",
+    "harvestIndexerDelayMs", "harvestQueueMax", "harvestDrainMaxWorks", "harvestEntryTtl",
+    "seedEnabled", "seedMaxPerCycle", "seedMinVotes", "seedIntervalH"
+  ];
+  var booleanHarvestKeys = ["harvestEnabled", "seedEnabled"];
+  var isHarvestPaused = false;
+
+  function setHarvestFeedback(text, kind) {
+    var el = $("harvestFeedback");
+    if (!el) return;
+    el.textContent = text || "";
+    el.className = "feedback" + (kind ? " " + kind : "");
+  }
+
+  function renderHarvesterPanel(harvest) {
+    if (!harvest) return;
+    var cfg = harvest.config || {};
+    var eff = cfg.effective || {};
+    var env = cfg.envDefaults || {};
+    var overridden = cfg.overriddenKeys || [];
+    var i, k, input, envSpan, badge;
+
+    isHarvestPaused = Boolean(cfg.paused || harvest.paused);
+
+    var stEl = $("harvestMetricState");
+    if (stEl) {
+      if (isHarvestPaused) {
+        stEl.textContent = "PAUSADO";
+        stEl.style.color = "var(--red)";
+      } else {
+        stEl.textContent = "ATIVO";
+        stEl.style.color = "var(--green)";
+      }
+    }
+
+    var qEl = $("harvestMetricQueue");
+    if (qEl) {
+      qEl.textContent = valueText(harvest.queueDepth) + " obra(s) / max " + valueText(harvest.queueMax);
+    }
+
+    var cEl = $("harvestMetricQueries");
+    if (cEl) {
+      cEl.textContent = valueText(harvest.queriesThisHour) + " / " + valueText(harvest.maxPerHour);
+    }
+
+    var hEl = $("harvestMetricHarvested");
+    if (hEl) {
+      hEl.textContent = valueText(harvest.harvested);
+    }
+
+    var rEl = $("harvestMetricLastRun");
+    if (rEl) {
+      rEl.textContent = harvest.lastRunAt ? formatDate(harvest.lastRunAt) : "—";
+    }
+
+    var pauseBtn = $("harvestPauseToggleBtn");
+    if (pauseBtn) {
+      pauseBtn.textContent = isHarvestPaused ? "Retomar Colhedor" : "Pausar Colhedor";
+      pauseBtn.className = isHarvestPaused ? "danger" : "primary";
+    }
+
+    var banner = $("harvestPauseBanner");
+    if (banner) {
+      if (isHarvestPaused) {
+        banner.className = "pause-banner visible";
+        var txt = "Colhedor está PAUSADO";
+        if (cfg.pausedSince) txt += " desde " + formatDate(cfg.pausedSince);
+        txt += ". Nenhuma obra em segundo plano será colhida.";
+        $("harvestPauseBannerText").textContent = txt;
+      } else {
+        banner.className = "pause-banner";
+      }
+    }
+
+    for (i = 0; i < harvestKeys.length; i += 1) {
+      k = harvestKeys[i];
+      input = $("harvest_" + k);
+      envSpan = $("env_harvest_" + k);
+      badge = $("badge_harvest_" + k);
+      if (input) {
+        if (booleanHarvestKeys.indexOf(k) !== -1) {
+          input.checked = Boolean(eff[k]);
+        } else {
+          input.value = eff[k] !== undefined && eff[k] !== null ? eff[k] : "";
+        }
+      }
+      if (envSpan) {
+        envSpan.textContent = env[k] !== undefined && env[k] !== null ? String(env[k]) : "—";
+      }
+      if (badge) {
+        badge.style.display = overridden.indexOf(k) !== -1 ? "inline-block" : "none";
+      }
+    }
+  }
+
+  function saveHarvesterConfig() {
+    var patch = {};
+    var i, k, input;
+    for (i = 0; i < harvestKeys.length; i += 1) {
+      k = harvestKeys[i];
+      input = $("harvest_" + k);
+      if (input) {
+        if (booleanHarvestKeys.indexOf(k) !== -1) {
+          patch[k] = Boolean(input.checked);
+        } else {
+          var val = Number(input.value);
+          if (isFinite(val)) patch[k] = val;
+        }
+      }
+    }
+    $("harvestSaveBtn").disabled = true;
+    setHarvestFeedback("Salvando configurações…", "warn");
+    requestJson(dashboardPath("/dashboard-action.json"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "harvest-config-set", patch: patch })
+    })
+      .then(function (data) {
+        if (data && data.ok) {
+          setHarvestFeedback("Configurações do Colhedor salvas com sucesso!", "ok");
+          loadStatus();
+        } else {
+          var errStr = data && data.errors ? data.errors.join(", ") : "erro desconhecido";
+          setHarvestFeedback("Erro ao salvar: " + errStr, "error");
+        }
+      })
+      .catch(function (err) {
+        setHarvestFeedback("Falha na requisição: " + valueText(err && err.message ? err.message : err), "error");
+      })
+      .then(function () { $("harvestSaveBtn").disabled = false; });
+  }
+
+  function resetHarvesterConfig() {
+    if (!window.confirm("Restaurar todos os parâmetros do Colhedor aos padrões do .env?")) return;
+    $("harvestResetBtn").disabled = true;
+    setHarvestFeedback("Restaurando padrões…", "warn");
+    requestJson(dashboardPath("/dashboard-action.json"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "harvest-config-reset", confirm: true })
+    })
+      .then(function (data) {
+        if (data && data.ok) {
+          setHarvestFeedback("Padrões do .env restaurados com sucesso!", "ok");
+          loadStatus();
+        } else {
+          setHarvestFeedback("Erro ao restaurar padrões.", "error");
+        }
+      })
+      .catch(function (err) {
+        setHarvestFeedback("Falha na requisição: " + valueText(err && err.message ? err.message : err), "error");
+      })
+      .then(function () { $("harvestResetBtn").disabled = false; });
+  }
+
+  function toggleHarvesterPause(forcedState) {
+    var nextState = typeof forcedState === "boolean" ? forcedState : !isHarvestPaused;
+    var msg = nextState
+      ? "Deseja pausar o Colhedor? Obras em segundo plano não serão colhidas."
+      : "Deseja retomar o Colhedor?";
+    if (!window.confirm(msg)) return;
+    setHarvestFeedback("Atualizando estado de pausa…", "warn");
+    requestJson(dashboardPath("/dashboard-action.json"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "harvester-pause", paused: nextState })
+    })
+      .then(function () {
+        setHarvestFeedback(nextState ? "Colhedor pausado com sucesso." : "Colhedor retomado com sucesso.", "ok");
+        loadStatus();
+      })
+      .catch(function (err) {
+        setHarvestFeedback("Erro ao alterar pausa: " + valueText(err && err.message ? err.message : err), "error");
+      });
+  }
+
+  function drainHarvesterQueue() {
+    $("harvestDrainBtn").disabled = true;
+    setHarvestFeedback("Drenando fatia da fila…", "warn");
+    requestJson(dashboardPath("/dashboard-action.json"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "harvester-drain" })
+    })
+      .then(function (data) {
+        var d = data && data.drained !== undefined ? data.drained : 0;
+        setHarvestFeedback("Fila drenada: " + d + " obra(s) processada(s).", "ok");
+        loadStatus();
+      })
+      .catch(function (err) {
+        setHarvestFeedback("Erro ao drenar: " + valueText(err && err.message ? err.message : err), "error");
+      })
+      .then(function () { $("harvestDrainBtn").disabled = false; });
+  }
+
+  function clearHarvesterQueue() {
+    if (!window.confirm("Deseja realmente esvaziar todas as obras pendentes na fila do Colhedor?")) return;
+    $("harvestClearQueueBtn").disabled = true;
+    setHarvestFeedback("Limpando fila…", "warn");
+    requestJson(dashboardPath("/dashboard-action.json"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "harvester-clear-queue", confirm: true })
+    })
+      .then(function (data) {
+        var c = data && data.cleared !== undefined ? data.cleared : 0;
+        setHarvestFeedback("Fila esvaziada: " + c + " obra(s) removida(s).", "ok");
+        loadStatus();
+      })
+      .catch(function (err) {
+        setHarvestFeedback("Erro ao limpar fila: " + valueText(err && err.message ? err.message : err), "error");
+      })
+      .then(function () { $("harvestClearQueueBtn").disabled = false; });
+  }
+
+  function applyHarvesterPreset(preset) {
+    if (preset === "padrao") {
+      $("harvest_harvestEnabled").checked = true;
+      $("harvest_harvestMaxPerHour").value = 120;
+      $("harvest_harvestIdleWindowMs").value = 600000;
+      $("harvest_harvestIntervalMs").value = 60000;
+      $("harvest_harvestIndexerDelayMs").value = 1500;
+      $("harvest_harvestQueueMax").value = 200;
+      $("harvest_harvestDrainMaxWorks").value = 5;
+      $("harvest_seedEnabled").checked = true;
+      $("harvest_seedMaxPerCycle").value = 20;
+      $("harvest_seedMinVotes").value = 1000;
+      $("harvest_seedIntervalH").value = 24;
+      setHarvestFeedback("Preset Padrão Balanceado carregado. Clique em 'Salvar Alterações' para aplicar.", "warn");
+    } else if (preset === "acelerado") {
+      $("harvest_harvestEnabled").checked = true;
+      $("harvest_harvestMaxPerHour").value = 300;
+      $("harvest_harvestIdleWindowMs").value = 120000;
+      $("harvest_harvestIntervalMs").value = 30000;
+      $("harvest_harvestIndexerDelayMs").value = 1000;
+      $("harvest_harvestQueueMax").value = 500;
+      $("harvest_harvestDrainMaxWorks").value = 15;
+      $("harvest_seedEnabled").checked = true;
+      $("harvest_seedMaxPerCycle").value = 40;
+      $("harvest_seedMinVotes").value = 500;
+      $("harvest_seedIntervalH").value = 12;
+      setHarvestFeedback("Preset Acelerado (Madrugada) carregado. Clique em 'Salvar Alterações' para aplicar.", "warn");
+    } else if (preset === "silencioso") {
+      $("harvest_harvestEnabled").checked = true;
+      $("harvest_harvestMaxPerHour").value = 40;
+      $("harvest_harvestIdleWindowMs").value = 1800000;
+      $("harvest_harvestIntervalMs").value = 120000;
+      $("harvest_harvestIndexerDelayMs").value = 3000;
+      $("harvest_harvestQueueMax").value = 100;
+      $("harvest_harvestDrainMaxWorks").value = 2;
+      $("harvest_seedEnabled").checked = false;
+      setHarvestFeedback("Preset Silencioso / Econômico carregado. Clique em 'Salvar Alterações' para aplicar.", "warn");
+    }
+  }
+
   function renderStatus(data) {
     var root = isObject(data) ? data : {};
     var status = first(root, ["status", "state", "health"], "online");
@@ -1251,6 +1684,7 @@
     renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
     renderHarvest(first(root, ["harvest", "harvester"], {}));
     renderAutofetchPanel(first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}));
+    renderHarvesterPanel(first(root, ["harvest", "harvester"], {}));
     drawSparkline("cacheSparkline", pushSeries("cache-hit-rate", first(root.cache || {}, ["hitRate"], 0)), "#39d98a");
     drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(root.harvest || {}, ["queriesThisHour"], 0)), "#faa31a");
     if (!own(root, "status") && !own(root, "state") && !own(root, "health")) {
@@ -1286,7 +1720,7 @@
     requestInFlight = true;
     $("refreshButton").className = "is-loading";
     setFeedback("Consultando o estado…", "");
-    requestJson(dashboardPath("/dashboard-status.json"), { method: "GET", cache: "no-store" })
+    requestJson("/dashboard-status.json", { method: "GET", cache: "no-store" })
       .then(function (data) {
         renderStatus(data);
         consecutiveFailures = 0;
@@ -1337,11 +1771,6 @@
   function hasConfiguredInstallation() {
     var parts = String(window.location.pathname || "").replace(/^\/+|\/+$/g, "").split("/");
     return parts.length === 2 && parts[1] === "dashboard" && parts[0] !== "dashboard";
-  }
-
-  function dashboardPath(path) {
-    if (!hasConfiguredInstallation()) return path;
-    return "/" + String(window.location.pathname).replace(/^\/+|\/dashboard\/?$/g, "") + path;
   }
 
   function updateCacheScopeAvailability() {
@@ -1396,7 +1825,7 @@
       if (namespace) payload.scope = { namespace: namespace };
       else if ($("cacheInstallation").checked) payload.scope = { installation: true };
     }
-    requestJson(dashboardPath("/dashboard-action.json"), {
+    requestJson("/dashboard-action.json", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -1455,6 +1884,16 @@
     });
     $("tabGeral").addEventListener("click", function () { switchTab("geral"); });
     $("tabAutofetch").addEventListener("click", function () { switchTab("autofetch"); });
+    $("tabColhedor").addEventListener("click", function () { switchTab("colhedor"); });
+    $("harvestPauseToggleBtn").addEventListener("click", function () { toggleHarvesterPause(); });
+    $("harvestBannerResumeBtn").addEventListener("click", function () { toggleHarvesterPause(false); });
+    $("harvestDrainBtn").addEventListener("click", drainHarvesterQueue);
+    $("harvestClearQueueBtn").addEventListener("click", clearHarvesterQueue);
+    $("harvestSaveBtn").addEventListener("click", saveHarvesterConfig);
+    $("harvestResetBtn").addEventListener("click", resetHarvesterConfig);
+    $("harvestPresetPadrao").addEventListener("click", function () { applyHarvesterPreset("padrao"); });
+    $("harvestPresetAcelerado").addEventListener("click", function () { applyHarvesterPreset("acelerado"); });
+    $("harvestPresetSilencioso").addEventListener("click", function () { applyHarvesterPreset("silencioso"); });
     $("afPauseToggleBtn").addEventListener("click", function () { toggleAutofetchPause(); });
     $("afBannerResumeBtn").addEventListener("click", function () { toggleAutofetchPause(false); });
     $("afDrainBtn").addEventListener("click", drainAutofetchQueues);

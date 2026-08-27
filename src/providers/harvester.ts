@@ -34,6 +34,7 @@ import * as log from '../utils/logger.js';
 import debrid from '../debrid/index.js';
 import { notify } from '../utils/notify.js';
 import rdWarmer from './rd-warmer.js';
+import * as harvesterLive from '../utils/harvester-live.js';
 
 type HarvestEntry = {
   imdbId: string;
@@ -78,7 +79,8 @@ function persistQueue() {
     cache.forget(QUEUE_KEY);
     return;
   }
-  cache.set(QUEUE_KEY, queue.slice(0, config.harvest.queueMax), config.harvest.entryTtl);
+  const live = harvesterLive.effective();
+  cache.set(QUEUE_KEY, queue.slice(0, live.harvestQueueMax), live.harvestEntryTtl);
 }
 
 /** Marca dedupe por obra com TTL — re-enfileirar a cada busca enchia a fila. */
@@ -95,7 +97,8 @@ function recentlyQueued(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'episode
  * nunca bloqueia — é fogo-e-esquece por contrato.
  */
 function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>) {
-  if (!config.harvest.enabled || !config.releaseIndex.enabled) return;
+  const live = harvesterLive.effective();
+  if (!live.harvestEnabled || !config.releaseIndex.enabled) return;
   const imdbId = String(entry.imdbId || '');
   if (!/^tt\d+$/.test(imdbId)) return;
   if (entry.type !== 'movie' && entry.type !== 'series') return;
@@ -104,7 +107,7 @@ function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>) {
   if (queue.some((q) => obraIdentity(q) === obraIdentity(full))) return;
   // Teto da fila: obra nova empurra a mais velha — a fila é oportunidade de
   // colheita, não backlog sagrado.
-  while (queue.length >= config.harvest.queueMax) queue.shift();
+  while (queue.length >= live.harvestQueueMax) queue.shift();
   queue.push(full);
   persistQueue();
   metrics.count('harvest.enqueued');
@@ -125,13 +128,14 @@ function noteQueries(count: number) {
 
 async function awaitIndexerGap(indexer: string) {
   const gap = Date.now() - (lastQueryAt.get(indexer) || 0);
-  if (gap < config.harvest.indexerDelayMs) {
+  const delay = harvesterLive.effective().harvestIndexerDelayMs;
+  if (gap < delay) {
     // SEM unref, diferente do wait() do common.ts: aquele só roda dentro de uma
     // requisição, onde o servidor segura o event loop. Este roda no colhedor,
     // trabalho de FUNDO — com unref o Node encerra o loop com a promise ainda
     // pendente e o await nunca volta, travando a obra no meio. O preço é o
     // shutdown esperar no máximo um indexerDelayMs.
-    await new Promise((resolve) => setTimeout(resolve, config.harvest.indexerDelayMs - gap));
+    await new Promise((resolve) => setTimeout(resolve, delay - gap));
   }
 }
 
@@ -317,7 +321,8 @@ async function checkQuotaWarning() {
  * horário sem subir o timer.
  */
 async function tick() {
-  if (paused || inFlight || activity.recentUserTraffic(config.harvest.idleWindowMs)) return;
+  const live = harvesterLive.effective();
+  if (!live.harvestEnabled || paused || harvesterLive.isPaused() || inFlight || activity.recentUserTraffic(live.harvestIdleWindowMs)) return;
   try { cache.maintain(); } catch {}
   checkQuotaWarning().catch(() => {});
   // Semente: descobre obra popular que o índice ainda não conhece. Fora do
@@ -327,7 +332,7 @@ async function tick() {
     .then((obras) => obras.forEach((obra) => enqueue(obra as any)))
     .catch((err: unknown) => log.debug('[seed] ciclo falhou:', log.errorMessage(err)));
   if (!queue.length) return;
-  if (queriesThisHour() >= config.harvest.maxPerHour) return;
+  if (queriesThisHour() >= live.harvestMaxPerHour) return;
   inFlight = true;
   let entry: HarvestEntry | undefined;
   try {
@@ -371,10 +376,19 @@ async function tick() {
   }
 }
 
-/** Pausa operacional do painel: idempotente e só em memória. */
+/** Pausa operacional do painel: comuta no módulo e persiste no live. */
 function setPaused(value: boolean) {
   paused = Boolean(value);
+  harvesterLive.setPaused(paused);
   return paused;
+}
+
+/** Esvazia a fila de colheita imediatamente a pedido do operador. */
+function clearQueue(): { cleared: number } {
+  const count = queue.length;
+  queue = [];
+  cache.forget(QUEUE_KEY);
+  return { cleared: count };
 }
 
 /**
@@ -382,17 +396,18 @@ function setPaused(value: boolean) {
  * orçamento horário. O painel chama isto explicitamente; o intervalo normal
  * continua responsável pelo restante da fila.
  */
-async function drain(maxWorks = config.harvest.drainMaxWorks) {
-  const limit = Math.max(0, Math.min(config.harvest.drainMaxWorks, Math.trunc(Number(maxWorks) || 0)));
+async function drain(maxWorks?: number) {
+  const live = harvesterLive.effective();
+  const limit = Math.max(0, Math.min(live.harvestDrainMaxWorks, Math.trunc(Number(maxWorks ?? live.harvestDrainMaxWorks) || 0)));
   let drained = 0;
-  while (drained < limit && queue.length && !paused && !inFlight) {
-    if (activity.recentUserTraffic(config.harvest.idleWindowMs) || queriesThisHour() >= config.harvest.maxPerHour) break;
+  while (drained < limit && queue.length && !paused && !harvesterLive.isPaused() && !inFlight) {
+    if (activity.recentUserTraffic(live.harvestIdleWindowMs) || queriesThisHour() >= live.harvestMaxPerHour) break;
     const before = queue.length;
     await tick();
     if (queue.length >= before) break;
     drained += 1;
   }
-  return { drained, queueRemaining: queue.length, paused };
+  return { drained, queueRemaining: queue.length, paused: paused || harvesterLive.isPaused() };
 }
 
 function start() {
@@ -410,20 +425,23 @@ function start() {
 
 /** Para o painel: estado do colhedor sem expor nada sensível. */
 function status() {
+  const live = harvesterLive.effective();
+  const isPause = paused || harvesterLive.isPaused();
   return {
-    enabled: config.harvest.enabled && config.releaseIndex.enabled,
-    paused,
+    enabled: live.harvestEnabled && config.releaseIndex.enabled,
+    paused: isPause,
     queueDepth: queue.length,
-    queueMax: config.harvest.queueMax,
+    queueMax: live.harvestQueueMax,
     harvested,
     queriesThisHour: queriesThisHour(),
-    maxPerHour: config.harvest.maxPerHour,
+    maxPerHour: live.harvestMaxPerHour,
     lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
-    idleWindowMs: config.harvest.idleWindowMs,
+    idleWindowMs: live.harvestIdleWindowMs,
     queuePreview: queue.slice(0, config.harvest.queuePreview).map((entry) => ({ ...entry })),
     lastWorks: recentWorks.map((entry) => ({ ...entry, at: new Date(entry.at).toISOString() })),
+    config: harvesterLive.snapshot(),
   };
 }
 
-export { enqueue, start, status, tick, setPaused, drain };
-export default { enqueue, start, status, tick, setPaused, drain };
+export { enqueue, start, status, tick, setPaused, drain, clearQueue };
+export default { enqueue, start, status, tick, setPaused, drain, clearQueue };
