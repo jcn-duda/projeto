@@ -12,6 +12,7 @@ import {
   applyDebrid, buildStreams, firstObserverStep, createFirstObserver,
   firstObserverClaim, promoteFirstObserverEligible,
 } from '../src/providers/index.js';
+import { stageFirstTiming } from '../src/providers/stream-builder.js';
 import { limitReservingBr } from '../src/utils/format.js';
 
 // Os contadores de degradação passam pelo cache de metadados; persistência
@@ -375,6 +376,31 @@ test('firstObserverStep ignora execução não elegível (SWR/background) mesmo 
   assert.equal(step.delta, 0);
 });
 
+test('stageFirstTiming seta passos únicos, acumula coletas e ignora valor inválido/recache', () => {
+  const state = createFirstObserver(true);
+  stageFirstTiming(state, 'metadata', 100);
+  stageFirstTiming(state, 'metadata', 80);
+  stageFirstTiming(state, 'debrid', 30);
+  stageFirstTiming(state, 'debrid', 20);
+  stageFirstTiming(state, 'global', 40);
+  stageFirstTiming(state, 'global', 10);
+  stageFirstTiming(state, 'br', 7);
+  stageFirstTiming(state, 'br', 3);
+
+  assert.equal(state.pendingMetadata, 80);
+  assert.equal(state.pendingDebrid, 20);
+  assert.equal(state.pendingGlobal, 50);
+  assert.equal(state.pendingBr, 10);
+
+  stageFirstTiming(state, 'metadata', Number.NaN);
+  stageFirstTiming(state, 'global', -1);
+  state.firstCounted = true;
+  stageFirstTiming(state, 'br', 999);
+  assert.equal(state.pendingMetadata, 80, 'NaN não substitui valor válido');
+  assert.equal(state.pendingGlobal, 50, 'negativo não entra no acumulado');
+  assert.equal(state.pendingBr, 10, 'recache após firstCounted não altera estágio');
+});
+
 test('buildStreams finaliza search.first.* da primeira build fria de forma coerente (responses/brFound/brVisible)', async () => {
   metrics.reset();
   const originalSecret = config.debrid.resolveSecret;
@@ -397,6 +423,12 @@ test('buildStreams finaliza search.first.* da primeira build fria de forma coere
       { title: 'Global', infoHash: 'b'.repeat(40), isBr: false, seeders: 50 },
     ];
     const state = createFirstObserver(true);
+    state.timingStartedAt = Date.now() - 500;
+    stageFirstTiming(state, 'metadata', 7);
+    stageFirstTiming(state, 'global', 100);
+    stageFirstTiming(state, 'global', 200);
+    stageFirstTiming(state, 'br', 40);
+    stageFirstTiming(state, 'br', 10);
     const userOpts = runtime.decode(runtime.encode({ ds: fake.id, dk: 'obs-funnel', dc: false }));
     await runtime.run({ opts: userOpts, encoded: '' }, () =>
       buildStreams(raw as any, {
@@ -413,6 +445,14 @@ test('buildStreams finaliza search.first.* da primeira build fria de forma coere
     assert.equal(counts['search.first.brFound'], 1, 'brFound conta a fonte BR que entrou no funil (pré-debrid)');
     assert.equal(counts['search.first.brVisible'], 1, 'brVisible conta a fonte BR entregue na abertura');
     assert.equal(state.firstCounted, true, 'a build finaliza como primeira resposta contada');
+    const timers = metrics.snapshot().timers;
+    assert.equal(timers['search.first.metadata']?.count, 1);
+    assert.equal(timers['search.first.metadata']?.maxMs, 7);
+    assert.equal(timers['search.first.collect.global']?.maxMs, 300);
+    assert.equal(timers['search.first.collect.br']?.maxMs, 50);
+    assert.equal(timers['search.first.debrid']?.count, 1);
+    assert.equal(timers['search.first.total']?.count, 1);
+    assert.ok((timers['search.first.total']?.maxMs ?? -1) >= 500);
   } finally {
     debrid.BY_ID.delete(fake.id);
     debrid.checkCached = originalCheck;
@@ -488,6 +528,10 @@ test('buildStreams com deadline já expirado: NÃO conta search.first.* e firstC
       { title: 'Filme BR', infoHash: 'a'.repeat(40), isBr: true, seeders: 1, dubbed: true },
     ];
     const state = createFirstObserver(true);
+    stageFirstTiming(state, 'metadata', 150);
+    stageFirstTiming(state, 'global', 250);
+    stageFirstTiming(state, 'br', 60);
+    stageFirstTiming(state, 'debrid', 25);
     const userOpts = runtime.decode(runtime.encode({ ds: fake.id, dk: 'obs-exp', dc: false }));
     await runtime.run({ opts: userOpts, encoded: '' }, () =>
       buildStreams(raw as any, {
@@ -506,6 +550,16 @@ test('buildStreams com deadline já expirado: NÃO conta search.first.* e firstC
     assert.equal(counts['search.first.brFound'], undefined, 'build expirada não conta brFound');
     assert.equal(counts['search.first.brVisible'], undefined, 'build expirada não conta brVisible');
     assert.equal(state.firstCounted, false, 'firstCounted fica false (nada foi contado)');
+    const timers = metrics.snapshot().timers;
+    for (const name of [
+      'search.first.metadata',
+      'search.first.collect.global',
+      'search.first.collect.br',
+      'search.first.debrid',
+      'search.first.total',
+    ]) {
+      assert.equal(timers[name], undefined, `${name} não pode existir após deadline expirado`);
+    }
   } finally {
     debrid.BY_ID.delete(fake.id);
     debrid.checkCached = originalCheck;

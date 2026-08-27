@@ -108,6 +108,23 @@ export interface FirstObserverState {
   pendingBrFound: number;
   pendingBrCached: number;
   pendingBrHidden: number;
+  /** Início da EXECUÇÃO (criação do observador). É a base do timer
+   * `search.first.total`: se um prefetch for promovido por coalescing, inclui o
+   * head-start anterior à requisição foreground — mede o trabalho frio total,
+   * não apenas quanto aquele caller esperou. */
+  timingStartedAt: number;
+  /** Duração em ms do passo de metadados (Cinemeta+TMDB). Seta-se uma vez; null
+   * até o estagio acontecer. */
+  pendingMetadata: number | null;
+  /** Soma dos envelopes de coleta GLOBAL entre invocações sequenciais de
+   * collectRaw (busca por episódio + fallback de pack). null até a primeira
+   * coleta global com prazo. */
+  pendingGlobal: number | null;
+  /** Soma dos envelopes de coleta BR (mesma semântica de acumulação). */
+  pendingBr: number | null;
+  /** Duração da checagem de debrid do passo de resposta. Seta-se uma vez; null
+   * até o `applyDebrid` do passo de resposta rodar. */
+  pendingDebrid: number | null;
 }
 
 /** Fábrica do estado do observador de primeira resposta, por execução. */
@@ -120,7 +137,42 @@ export function createFirstObserver(eligible: boolean): FirstObserverState {
     pendingBrFound: 0,
     pendingBrCached: 0,
     pendingBrHidden: 0,
+    timingStartedAt: Date.now(),
+    pendingMetadata: null,
+    pendingGlobal: null,
+    pendingBr: null,
+    pendingDebrid: null,
   };
+}
+
+/**
+ * I0 — estagia um trecho de tempo da PRIMEIRA resposta no estado do observador
+ * SEM emitir métrica sozinho: os valores só são comitados no `finish` da
+ * resposta first, no MESMO denominador de `search.first.responses`. `metadata`
+ * e `debrid` SETAM (são passos únicos); `global` e `br` ACUMULAM entre
+ * invocações sequenciais de `collectRaw` (episódio + fallback de pack), porque
+ * cada invocação é um envelope do início ao fim daquela coleta.
+ *
+ * Estaga mesmo com `eligible` false de propósito: uma execução de prefetch
+ * (background) pode ser promovida a foreground pelo coalescing ANTES do
+ * `finish`, e os timers registrados no meio do caminho não podem ser perdidos.
+ * Só para de estagiar quando a primeira resposta já foi contada — recaches
+ * tardios não podem virar timers first.
+ */
+export function stageFirstTiming(
+  state: FirstObserverState | null | undefined,
+  stage: 'metadata' | 'global' | 'br' | 'debrid',
+  ms: number,
+): void {
+  if (!state || state.firstCounted) return;
+  if (!Number.isFinite(ms) || ms < 0) return;
+  if (stage === 'global' || stage === 'br') {
+    const key = stage === 'global' ? 'pendingGlobal' : 'pendingBr';
+    state[key] = (state[key] ?? 0) + ms;
+  } else {
+    const key = stage === 'metadata' ? 'pendingMetadata' : 'pendingDebrid';
+    state[key] = ms;
+  }
 }
 
 /**
@@ -423,6 +475,7 @@ export async function buildStreams(rawInput: RawItem[], {
   // applyDebrid só quando eles esvaziam a lista — é a única vez em que o texto
   // "fora do cache" mentiria sobre o motivo.
   let trustDropped = 0;
+  const debridStart = deadlineAt != null ? Date.now() : null;
   const beforeCut = await applyDebrid(streams, {
     season,
     episode,
@@ -439,6 +492,12 @@ export async function buildStreams(rawInput: RawItem[], {
     },
     workHint,
   });
+  // I0 — mede a checagem de debrid SOMENTE no passo de resposta (`deadlineAt`
+  // presente). Passes tardios vêm com `deadlineAt` null; SWR pode carregar um
+  // prazo próprio, mas usa observador inelegível e nunca chega ao commit first.
+  if (debridStart != null) {
+    stageFirstTiming(firstObserver, 'debrid', Date.now() - debridStart);
+  }
   streams = limitReservingBr(beforeCut, {
     brReservedSlots,
     brReservedPerQuality: config.brReservedPerQuality,
@@ -466,6 +525,20 @@ export async function buildStreams(rawInput: RawItem[], {
         state.firstCounted = true;
         state.maxBrVisible = Math.max(state.maxBrVisible || 0, brVisible);
         metrics.count('search.first.responses');
+        // I0 — cinco timers da primeira resposta fria, comitados aqui, no mesmo
+        // denominador de `search.first.responses` (só a passada first contada).
+        // Buscas cortadas pelo deadline ficam deliberadamente fora destes
+        // histogramas: `search.deadline` conta o corte e `search.response`/
+        // `search.metadata` retêm a cauda da execução que terminou em fundo.
+        // `collect.global` e `collect.br` se sobrepõem (BR divide o relógio com
+        // os globais na mesma coleta) e não devem ser somados entre si; cada um
+        // é um envelope da SUA faixa. Sem estagio (null) o timer simplesmente
+        // não aparece — recaches tardios/SWR/deadline expirado nunca emitem.
+        if (state.pendingMetadata != null) metrics.observe('search.first.metadata', state.pendingMetadata);
+        if (state.pendingGlobal != null) metrics.observe('search.first.collect.global', state.pendingGlobal);
+        if (state.pendingBr != null) metrics.observe('search.first.collect.br', state.pendingBr);
+        if (state.pendingDebrid != null) metrics.observe('search.first.debrid', state.pendingDebrid);
+        metrics.observe('search.first.total', Math.max(0, Date.now() - state.timingStartedAt));
         if ((state.pendingBrFound || 0) > 0) metrics.count('search.first.brFound', state.pendingBrFound);
         if ((state.pendingBrCached || 0) > 0) metrics.count('search.first.brCached', state.pendingBrCached);
         if ((state.pendingBrHidden || 0) > 0) metrics.count('search.first.brHidden', state.pendingBrHidden);

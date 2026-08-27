@@ -34,7 +34,7 @@ import * as harvester from './harvester.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { SAFE_INDEXER_ID, buildStreams, createFirstObserver, firstObserverClaim } from './stream-builder.js';
+import { SAFE_INDEXER_ID, buildStreams, createFirstObserver, firstObserverClaim, stageFirstTiming } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { nomeiaEpisodio } from './debrid-pipeline.js';
 import { hasPlayableStream, debridRefreshSatisfied } from './search-cache.js';
@@ -146,20 +146,51 @@ export async function collectRaw(
   sweepQuery: string | null = null,
   deadlineAt: number | null = null,
   taskScope: 'all' | 'priority' | 'nonpriority' = 'all',
+  /** Observador da primeira resposta (Fase 2). Passado apenas no caminho de
+   * resposta; tails (`deadlineAt` null) não estagiam. Sem ele, a coleta mede
+   * envelopes, mas não os registra em lugar nenhum. */
+  firstObserver?: FirstObserverState | null,
 ) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
+  // I0 — relógio comum de UMA invocação de coleta. Cada grupo (BR/global) mede
+  // o envelope do início até os SEUS tasks assentarem (limitado ao momento em
+  // que o `collectWithinWindow` devolve): mede quanto da JANELA DA RESPOSTA o
+  // grupo consumiu, não o trabalho que seguiu no tail. Invocações sequenciais
+  // (episódio + fallback de pack) SOMAM os envelopes. Grupos NÃO são somados
+  // entre si. Conta/índice são residuais no `total`, não global nem BR.
+  const collectStart = Date.now();
+  const grpBr = { present: false, pending: 0, maxSettle: 0 };
+  const grpGlobal = { present: false, pending: 0, maxSettle: 0 };
   const tasks: { promise: Promise<any>; priority: boolean; source?: string }[] = [];
   const addTask = (create: () => Promise<any>, priority = false, source?: string) => {
     if (taskScope === 'priority' && !priority) return;
     if (taskScope === 'nonpriority' && priority) return;
-    tasks.push({ promise: create(), priority, source });
+    const promise = create();
+    tasks.push({ promise, priority, source });
+    // Classificação: priority → BR; source='account' → neutra (excluída); o
+    // resto → global. Só instrumentamos quando há prazo (passo de resposta).
+    if (deadlineAt != null) {
+      const g = priority ? grpBr : source !== 'account' ? grpGlobal : null;
+      if (g) {
+        g.present = true;
+        g.pending += 1;
+        const settle = () => { g.maxSettle = Math.max(g.maxSettle, Date.now()); g.pending -= 1; };
+        Promise.resolve(promise).then(settle, settle);
+      }
+    }
   };
   let sweepInline = false;
 
+  // Demo é um provider único, sem tarefas internas — trata-se como faixa global
+  // (o envelope é a própria busca demo com prazo).
   if (mode === 'demo') {
+    const items = await demo.search({ type, imdbId });
+    if (deadlineAt != null) {
+      stageFirstTiming(firstObserver, 'global', Date.now() - collectStart);
+    }
     return {
-      items: await demo.search({ type, imdbId }), partial: false, completion: Promise.resolve(), sweepInline: false,
+      items, partial: false, completion: Promise.resolve(), sweepInline: false,
     };
   }
 
@@ -326,6 +357,19 @@ export async function collectRaw(
     },
   });
   if (collected.stoppedEarly) log.info(`[search] fast-path da conta: resposta antecipada com ${collected.items.length} resultado(s)`);
+  // I0 — estagia os envelopes de coleta desta invocação. O fim de UM grupo é o
+  // momento em que TODOS os tasks dele assentam; se algum ainda pendia quando o
+  // `collectWithinWindow` devolveu (orçamento, stopEarly, graça), o retorno do
+  // window é o fim (o cliente já recebeu a resposta). Envelope ≥ 0, acumulado
+  // para as invocações sequenciais se somarem. Só quando há prazo de resposta.
+  if (deadlineAt != null) {
+    const windowEnd = Date.now();
+    for (const [g, stage] of [[grpBr, 'br'], [grpGlobal, 'global']] as const) {
+      if (!g.present) continue;
+      const end = g.pending > 0 ? windowEnd : g.maxSettle;
+      stageFirstTiming(firstObserver, stage, Math.max(0, end - collectStart));
+    }
+  }
   const bucket = collected.items;
   const done = collected.done;
   let completion = collected.completion;
@@ -393,12 +437,17 @@ export async function doSearch({
   let metadataComplete = false;
   let meta: any;
   let titles: any;
+  const metadataStartedAt = Date.now();
   try {
     [meta, titles] = await Promise.all([getMeta(type, imdbId), tmdb.getTitles(imdbId)]);
     metadataComplete = true;
   } finally {
     const endedAt = Date.now();
     metadataDone();
+    // I0 — estagia a parede de tempo dos metadados na primeira resposta, SEM
+    // substituir o timer `search.metadata` já existente. O valor só é comitado
+    // no mesmo denominador de `search.first.responses`.
+    stageFirstTiming(firstObserver, 'metadata', endedAt - metadataStartedAt);
     if (progress) {
       progress.metadataDone = metadataComplete;
       // Esta é a fronteira do orçamento normal de providers. A coleta ainda
@@ -583,6 +632,7 @@ export async function doSearch({
         sweepQuery,
         deadlineAt,
         'priority',
+        firstObserver,
       );
       raw.items.unshift(...idxReleasesToRaw(indexed), ...accountItems);
       // Mesmo se as tarefas BR fecharem cedo, o lote global ainda será buscado
@@ -601,6 +651,8 @@ export async function doSearch({
       late(items, grew, episodePhase, partial),
       sweepQuery,
       deadlineAt,
+      undefined,
+      firstObserver,
     );
   }
 
@@ -649,6 +701,8 @@ export async function doSearch({
       late(items, grew, packPhase, partial),
       sweepQuery,
       deadlineAt,
+      undefined,
+      firstObserver,
     );
   }
 

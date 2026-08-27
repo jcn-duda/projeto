@@ -1273,6 +1273,24 @@ o orçamento com a resposta.
   `showUncachedBr` para `true` antes de medir — muda de comportamento
   silenciosamente para quem escolheu `cachedOnly` e o próprio log + métrica
   existem justamente para decidir com base na janela de dados.
+- **Fase 2 de timing da primeira resposta (métricas em `/metrics.json`).** Onde
+  o bloco `searchFirst` do dashboard conta **fontes**, cinco timers registram
+  o **tempo** da mesma abertura: `search.first.metadata`, `search.first.collect.global`,
+  `search.first.collect.br`, `search.first.debrid` e `search.first.total`. Os
+  cinco são emitidos **atomicamente no mesmo bloco** e só quando o
+  `search.first.responses` conta — ou seja, apenas quando a primeira build
+  COLD de uma busca síncrona real terminou **dentro do deadline**. Corte por
+  prazo não gera bloco: cai em `search.deadline`; `search.response` e
+  `search.metadata` continuam registrando a execução quando ela termina em
+  background, fora deste bloco.
+  Global e BR são **envelopes paralelos** da janela de coleta: cada um mede o
+  próprio orçamento e **não se somam** — o cheque não aprovaria `total ≈
+  metadata + global + br + debrid`. Invocações **sequenciais** da mesma obra
+  (episódio + pack complementar) **acumulam**: a abertura verdadeira é a do
+  primeiro call; os demais entram juntos no mesmo `search.first`. Inventário da
+  conta e leitura do índice aparecem como **residual no `total`** (não têm
+  envelope próprio). O `search.first.total` mede a **execução fria**; quando o
+  prefetch é promovido, ele inclui o **head-start** já feito em background.
 - **A chave do `.env` e a da URL de instalação são independentes.** O app manda
   a dele selada no segmento de config; trocar só o `.env` não muda nada para
   quem já instalou, e uma pode estar quebrada enquanto a outra funciona.

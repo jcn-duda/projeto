@@ -191,6 +191,17 @@ test('B3: Cinemeta lento (2500ms) + TMDB miss (5000ms) devolve resposta parcial 
 
     // 4. Primeiro stream é tocável do demo
     assert.match(result.streams[0].title || result.streams[0].name || '', /Big Buck Bunny/i);
+
+    // 5. A decomposição da primeira resposta é comitada no mesmo denominador.
+    // Demo ocupa a faixa global; sem fonte BR o timer BR fica ausente.
+    const first = metrics.snapshot();
+    assert.equal(first.counters['search.first.responses'], 1);
+    assert.equal(first.timers['search.first.metadata']?.count, 1);
+    assert.ok((first.timers['search.first.metadata']?.maxMs ?? 0) >= 4900);
+    assert.equal(first.timers['search.first.collect.global']?.count, 1);
+    assert.equal(first.timers['search.first.collect.br'], undefined);
+    assert.equal(first.timers['search.first.debrid']?.count, 1);
+    assert.equal(first.timers['search.first.total']?.count, 1);
   } finally {
     globalThis.fetch = realFetch;
     config.replyDeadline = originalReplyDeadline;
