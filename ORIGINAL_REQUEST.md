@@ -136,3 +136,61 @@ Integrity mode: development
 - [ ] Debrid account state integrity is preserved (no accidental deletion of user torrents).
 - [ ] Smoke test (`node dist/scripts/smoke.js`) succeeds against real network endpoints where configured.
 
+## Follow-up — 2026-08-27T02:22:06Z
+
+This is a single self-contained fix; keep it small and focused.
+
+Executar uma bateria completa de testes e validação ponta a ponta no painel do Dashboard do Stremio Adom, com foco principal na aba do Chupim (Autofetch ao vivo), incluindo verificação de endpoints de diagnóstico ao vivo no Docker, conformidade estrita de interface (ES5), persistência no SQLite e tratamento de casos de borda.
+
+Working directory: e:\stremio adom
+Integrity mode: development
+
+## Verification Resources
+- Servidor Docker ativo em `http://127.0.0.1:7000`
+- Token de diagnóstico configurado em `JACKETT_TEST_TOKEN` no arquivo `.env`
+- Suítes de teste existentes em `test/dashboard.test.ts`, `test/autofetch-panel.test.ts` e `test/autofetch-live.test.ts`
+- Arquivo de interface em `src/public/dashboard.html`
+
+## Requirements
+
+### R1. Validação de Endpoints e Ações ao Vivo (Live Docker)
+Testar contra a instância viva em `http://127.0.0.1:7000`:
+- Autenticação e segurança: rejeição com 401 sem header `X-Indexer-Test-Token` ou com token incorreto em GET `/dashboard-status.json` e POST `/dashboard-action.json`.
+- Redirecionamento 302: verificar que GET `/autofetch` e GET `/:userConfig/autofetch` redirecionam para `/dashboard#autofetch`.
+- Leitura de status: verificar que GET `/dashboard-status.json` expõe a estrutura `autofetch.config` completa (schema, effective, envDefaults, overriddenKeys, paused, pausedSince).
+- Execução das ações do Chupim:
+  - `autofetch-config-get`: retorna schema com 19 campos.
+  - `autofetch-config-set`: aplica alterações válidas, grava persistência sob `cfg:v1:autofetch` e atualiza `overriddenKeys`.
+  - `autofetch-pause`: alterna pausa para `true` e `false`, garantindo que requisições subsequentes reflitam o estado.
+  - `autofetch-drain`: exige `confirm: true` e retorna contagem de filas/itens drenados.
+  - `autofetch-config-reset`: exige `confirm: true` e restaura todos os parâmetros para os padrões originais do `.env`.
+
+### R2. Integridade e Conformidade da Interface (Frontend ES5)
+Validar estaticamente e funcionalmente `src/public/dashboard.html`:
+- Conformidade estrita ES5: garantir ausência total de sintaxe moderna (`const`, `let`, `=>`, `?.`, `??`).
+- Estrutura de abas: existência das abas `tabGeral` e `tabAutofetch`, e dos painéis correspondentes `viewGeral` e `viewAutofetch`.
+- Funções de renderização e controle: presença de `renderAutofetchPanel`, `saveAutofetchConfig`, `resetAutofetchConfig`, `toggleAutofetchPause`, `drainAutofetchQueues` e `applyAutofetchPreset`.
+
+### R3. Resiliência, Clamps e Tratamento de Erros
+Submeter entradas inválidas ao endpoint `/dashboard-action.json`:
+- Chaves desconhecidas não pertencentes ao schema do Chupim devem retornar 400 com lista de erros.
+- Tipos de dados inválidos (ex: string onde se espera número ou boolean) devem ser rejeitados com 400.
+- Valores numéricos fora dos limites devem ser devidamente clamped (ex: `autoFetchMax` limitado a 1..4, `queueDepth` limitado a 0..12).
+
+## Acceptance Criteria
+
+### API e Persistência
+- [ ] Requisições não autorizadas (sem token / token incorreto) recebem estritamente HTTP 401.
+- [ ] Todas as 5 ações do Chupim executam com sucesso contra o servidor live e reportam `ok: true`.
+- [ ] Os overrides de configuração são mantidos após gravação e refletidos em `/dashboard-status.json`.
+- [ ] O reset com confirmação remove todos os overrides persistidos.
+
+### Interface e Regras de Código
+- [ ] O arquivo `src/public/dashboard.html` passa 100% no teste regex de ES5 (`/\b(?:const|let)\b|=>|\?\.|\?\?/`).
+- [ ] A suíte de testes do projeto (`npm test`) passa integralmente com 0 falhas.
+- [ ] O typecheck (`npm run typecheck`) passa sem nenhum erro.
+
+### Relatório de Resultados
+- [ ] Emissão de um sumário objetivo demonstrando a execução de cada teste com seu respectivo status e tempos de resposta.
+
+
