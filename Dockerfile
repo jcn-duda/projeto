@@ -32,6 +32,7 @@ COPY bludv-resolver ./bludv-resolver
 COPY comandotorrents-resolver ./comandotorrents-resolver
 COPY nerdfilmes-resolver ./nerdfilmes-resolver
 COPY torrentdosfilmes-resolver ./torrentdosfilmes-resolver
+COPY vacatorrent-resolver ./vacatorrent-resolver
 # `test/` fica de fora de propósito: está no .dockerignore e a imagem de runtime
 # não roda a suíte. O `include` do tsconfig cobre test/**, mas glob que não casa
 # nada é no-op para o tsc — o build sai com dist/src, dist/scripts e os assets.
@@ -66,6 +67,7 @@ COPY jackett-bludv/bludv-cardigann.yml /app/Jackett/Definitions/bludv-cardigann.
 COPY jackett-bludv/comandotorrents.yml /app/Jackett/Definitions/comandotorrents.yml
 COPY jackett-bludv/nerdfilmes.yml /app/Jackett/Definitions/nerdfilmes.yml
 COPY jackett-bludv/torrentdosfilmesv2.yml /app/Jackett/Definitions/torrentdosfilmesv2.yml
+COPY jackett-bludv/vacatorrent.yml /app/Jackett/Definitions/vacatorrent.yml
 
 # --- FlareSolverr: scripts são puro python; o chromedriver glibc da imagem
 # oficial NÃO roda em alpine. O código checa exatamente /app/chromedriver,
@@ -75,7 +77,7 @@ RUN cp /usr/bin/chromedriver /app/chromedriver \
  && python3 -m pip install --break-system-packages --no-cache-dir \
       -r /app/flaresolverr/requirements.txt
 
-# --- Addon compilado + resolvedores BR embutidos (8700-8703, chamados pelo Jackett).
+# --- Addon compilado + resolvedores BR embutidos (8700-8704, chamados pelo Jackett).
 # Os resolvedores vão para DENTRO de dist/: o br-resolvers os carrega por caminho
 # relativo ao próprio módulo ("../<nome>-resolver/server"), que a partir de
 # dist/src/ resolve em dist/. É o mesmo layout que o npm run build produz

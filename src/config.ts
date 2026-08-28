@@ -47,12 +47,12 @@ const config = {
     statusTtl: num(process.env.JACKETT_STATUS_TTL, 900),
     // Cardigann pode entregar o magnet apenas no endpoint Link. Resolvemos
     // sob demanda somente nos indexadores locais explicitamente permitidos.
-    // Os quatro entregam Link em vez de magnet: fora desta lista, o resultado
+    // Os cinco entregam Link em vez de magnet: fora desta lista, o resultado
     // é descartado por falta de infoHash. Com só dois aqui, bludv e
     // torrentdosfilmes perdiam ~2/3 do que achavam.
     resolveDownloadIndexers: list(
       process.env.JACKETT_RESOLVE_DOWNLOAD_INDEXERS ||
-        'comandotorrents,nerdfilmes,bludv-cardigann,torrentdosfilmesv2',
+        'comandotorrents,nerdfilmes,bludv-cardigann,torrentdosfilmesv2,vacatorrent',
     ),
     resolveConcurrency: num(process.env.JACKETT_RESOLVE_CONCURRENCY, 10),
     maxDownloadResolves: num(process.env.JACKETT_MAX_DOWNLOAD_RESOLVES, 20),
@@ -65,7 +65,7 @@ const config = {
       // magnet/infoHash direto, mas a query precisa ir sem SxxEyy — o strip
       // acontece em queryIndexer para todos os desta lista.
       process.env.JACKETT_PT_BR_INDEXERS ||
-        'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,redetorrent,apachetorrent,hdrtorrent',
+        'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,vacatorrent,redetorrent,apachetorrent,hdrtorrent',
     ),
     // Buscadores WordPress stock que zeram com QUALQUER token extra: além do
     // SxxEyy, o ano do filme também sai ("Coringa 2019" → 0 no redetorrent,
@@ -241,6 +241,7 @@ const config = {
       comandotorrents: 8701,
       nerdfilmes: 8702,
       torrentdosfilmes: 8703,
+      vacatorrent: 8704,
     },
     bludvUrl: (process.env.BLUDV_URL || BLUDV_DEFAULT_URL).replace(/\/$/, ''),
     comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
@@ -249,6 +250,11 @@ const config = {
     // redirect vira blocked_host e a fonte morre em silêncio.
     nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.nerdviatorrents.net').replace(/\/$/, ''),
     torrentdosfilmesUrl: (process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, ''),
+    // Vaca Torrent trocou de domínio: vacatorrentmov.com redireciona para
+    // vaqueirofilmes.com (mesmo tema WP, marca "VACA TT"), e o domínio antigo
+    // ainda responde "Acesso Bloqueado" a crawler. Os dois ficam na allowlist
+    // do profile para o redirect não virar blocked_host.
+    vacatorrentUrl: (process.env.VACATORRENT_URL || 'https://vaqueirofilmes.com').replace(/\/$/, ''),
     extraProtectors: list(process.env.EXTRA_ALLOWED_PROTECTORS),
   },
   logging: {

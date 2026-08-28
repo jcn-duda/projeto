@@ -68,8 +68,8 @@ Praticamente todo trabalho de código acontece no **Adom**.
   flaresolverr → addon) com `wait -n` + `pipefail`: qualquer um que morrer
   derruba o container e o `restart: unless-stopped` recria tudo. Logs saem
   prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`.
-- Os quatro `*-resolver` **não são containers**. `src/br-resolvers.ts` os
-  carrega no processo do addon, cada um na própria porta (8700–8703), porque
+- Os cinco `*-resolver` **não são containers**. `src/br-resolvers.ts` os
+  carrega no processo do addon, cada um na própria porta (8700–8704), porque
   todos leem `PORT`/`SITE_URL` no `require`. `BR_RESOLVERS_EMBEDDED=false`
   volta ao modo de processos separados (não é o caminho de produção). Desde o
   núcleo comum (PLANO_MELHORIAS 5.4), cada `<nome>-resolver/server.js` é um
@@ -1010,7 +1010,7 @@ Inverter essa ordem faz as fontes BR sumirem silenciosamente.
 **4. Sites BR indexam por título em português.**
 "Coringa", não "Joker". `tmdb.getTitles` resolve isso e a busca dispara **duas
 queries**: a em inglês para indexers globais e a em pt-BR para os listados em
-`JACKETT_PT_BR_INDEXERS` (default: os quatro cards locais + `redetorrent`,
+`JACKETT_PT_BR_INDEXERS` (default: os cinco cards locais + `redetorrent`,
 `apachetorrent`, `hdrtorrent`). Todo caminho de busca precisa carregar as duas
 — inclusive fallbacks de pack. O filtro `matchesName` também aceita qualquer
 um dos nomes, senão a release dublada seria descartada por não bater com o
@@ -1094,7 +1094,7 @@ fire-and-forget) continua.
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
-| `src/br-resolvers.ts` | Carrega os quatro `*-resolver` no processo do addon |
+| `src/br-resolvers.ts` | Carrega os cinco `*-resolver` no processo do addon |
 | `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, ES5, zero build) |
 | `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
 | `src/providers/search-cache.ts` | `findStreams`, coalescing (`inFlight`), SWR (`debridRefreshSatisfied`, `staleRefreshEligible`, `scheduleStaleRefresh`), `hasPlayableStream` |
@@ -1136,7 +1136,7 @@ fire-and-forget) continua.
 | `src/utils/diagnostic-guard.ts` | Token + rate limit das rotas operacionais |
 | `src/utils/magnetdb.ts` | Banco de magnets por hash/adapter; panorama no dashboard: tamanhos por adapter, TTLs (e restante) e taxa ⚡ (`debrid.check.cached`/`hashes`) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
-| `resolvers/` | Núcleo comum dos resolvers (CommonJS puro). Processo: `runtime.js`, `site-selector.js` (failover de host), `cache.js`, `http-server.js`, `flare.js`. Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os quatro), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` |
+| `resolvers/` | Núcleo comum dos resolvers (CommonJS puro). Processo: `runtime.js`, `site-selector.js` (failover de host), `cache.js`, `http-server.js`, `flare.js`. Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os cinco), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` |
 | `*-resolver/` | Shims de compatibilidade: `<nome>/server.js` faz `require('../resolvers/profiles/<nome>')` — a lógica está no núcleo em `resolvers/` |
 | `types/domain.d.ts` | Tipos do domínio: `Stream` (união que exige ação), `ParsedSeasonEpisode`, `DebridAdapter`, `AccountStatus`, `MatchContext` |
 | `test/helpers/stub.ts` | Dublê de `fetch`, `patch()` de módulo e `testOpts()` — o cast mora aqui, não espalhado |
@@ -1244,7 +1244,7 @@ o orçamento com a resposta.
 - **Caminho relativo mudou de profundidade com o `dist/`.** O código roda de
   `dist/src/...`, então `__dirname` e `require`/`import` relativos apontam para
   dentro de `dist/`. Dois casos já mordidos: o `DB_PATH` do cache precisa subir
-  **três** níveis para achar `data/cache.db`, e os quatro `*-resolver` são
+  **três** níveis para achar `data/cache.db`, e os cinco `*-resolver` são
   carregados por `../<nome>-resolver/server` — no container eles têm que ser
   copiados para **`/app/dist/`**, não `/app/`. **Localmente isso passa
   despercebido** porque o `npm run build` já copia os resolvers para `dist/`; só
@@ -1447,16 +1447,17 @@ o orçamento com a resposta.
   O erro agora viaja com o host (`blocked_host:<host>`) e a busca loga warn
   distinto citando-o — fonte BR que só devolve vazio: procure esse warn antes
   de culpar o parser.
-- **O bludv foi derrubado por copyright (aceito, não é config).** Medido em
-  2026-08: `bludvfilmes.xyz` → 301 → `bludvfilmes1.xyz`, que está atrás do
-  Cloudflare e deu `HTTP ERROR 522` (origin fora do ar) mesmo via FlareSolverr
-  (`Challenge solved!` mas o Chromium devolve a tela "This page isn't working").
-  Os demais candidatos do resolver são domínios parkeados da ParkLogic
-  (`bludvfilmes.net`/`bludv.to` devolvem "Redirecting..." para
-  `router.parklogic.com`) e `bludvfilmes.org` cai na página "Website is no
-  Longer Available" da **Alliance for Creativity and Entertainment (ACE)**.
-  Sem mirror vivo; o card fica vermelho por motivo conhecido. O conserto é um
-  mirror novo, não código.
+- **O bludv VOLTOU (2026-08-28), atrás de challenge do Cloudflare.** A queda
+  por copyright (ACE) de agosto/2026 durou semanas: `bludvfilmes.xyz` → 301 →
+  `bludvfilmes1.xyz`, que respondia 522 (origin morto) — e `bludvfilmes.org`
+  ainda cai na página "Website is no Longer Available" da **Alliance for
+  Creativity and Entertainment (ACE)**. Na revalidação de 2026-08-28 o
+  `bludvfilmes1.xyz` passou a responder **403 "Just a moment..."** (origin
+  vivo, só CF) e a passagem pelo FlareSolverr acima resolveu sem nenhuma
+  mudança de código: busca real devolveu 11 resultados com magnet em ~2s
+  (sessão quente) e o `/test-indexer.json` do card ficou verde. Os magnets
+  voltaram a ser **diretos no HTML do post** (sem protetor). `bludvfilmes.net`
+  e `bludv.to` continuam parkeados (ParkLogic) — inúteis como fallback.
 - **O resolver bludv ganhou passagem pelo FlareSolverr** (para quando o site
   voltar): `fetchText` agora, ao receber 403 do Cloudflare, re-resolve via
   `POST <FLARE_SOLVERR_URL>/v1` e memoriza a sessão (`cf_clearance` + userAgent)
@@ -1469,10 +1470,20 @@ o orçamento com a resposta.
   de `systemads.net` para `systemads1.com` e TODO magnet passou a ser barrado
   porque só o host antigo estava na lista permitida. Magnet que some de um
   resolver só: cheque a allowlist do protetor antes de culpar o parser.
+- **Vaca Torrent (vaqueirofilmes.com) tem protetor de múltiplos saltos.** A
+  cadeia é `systemtech.space` → `t.co` → relay → landing `vacadb.org`
+  (`URL_ETAPA2`) → gate-2 com o magnet em base64 no atributo `data-link` do
+  body. Os contadores de 50s/clique/nova-aba são teatro client-side — o
+  resolvedor replica tudo via HTTP, com seedCookies `enc_liberado` e
+  `enc_etapa1_visto`, e decodifica o `data-link` (~7 saltos, ~1-2s em sessão
+  quente). `vacadb.org` e `t.co` são hosts **assert-only** (endpoint do
+  protetor, nunca descoberta). O domínio histórico `vacatorrentmov.com` faz
+  301 → `vaqueirofilmes.com`; os dois ficam na allowlist do perfil para o
+  redirect não virar `blocked_host`.
 - **O laço de saltos do protetor é UM só, em `resolvers/transport.js`.** Os
-  quatro perfis chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
+  cinco perfis chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
   importa porque é ele que chama `assertAllowedUrl` a cada salto — o mutante
-  MUT-06 do harness adversarial cobre os quatro por esse caminho. Se algum
+  MUT-06 do harness adversarial cobre os cinco por esse caminho. Se algum
   perfil voltar a escrever o próprio laço, ele sai da cobertura sem que teste
   nenhum reclame. O teste do scheme é case-insensitive e a saída sai
   normalizada em `magnet:` minúsculo: o NerdFilmes publica `MAGNET:` em parte
@@ -1557,7 +1568,7 @@ o orçamento com a resposta.
   compilação. Em asserção intermediária use `assert.equal(lista.length, 0)`.
 - **`BR_RESOLVERS_HOST` é o único jeito de alcançar os resolvers.** Os cards
   Cardigann chamam `http://{{ ... }}/...` montado com essa env; no container
-  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8703 **só dentro do
+  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8704 **só dentro do
   container** — nenhuma dessas portas é publicada no host.
 - **Jackett no alpine é self-contained** (binário com libcoreclr embutida):
   precisa de `icu-libs`/`zlib`/`libstdc++` e das envs `XDG_CONFIG_HOME=/config`

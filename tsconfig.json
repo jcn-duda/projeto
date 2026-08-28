@@ -33,6 +33,7 @@
     "bludv-resolver",
     "comandotorrents-resolver",
     "nerdfilmes-resolver",
-    "torrentdosfilmes-resolver"
+    "torrentdosfilmes-resolver",
+    "vacatorrent-resolver"
   ]
 }

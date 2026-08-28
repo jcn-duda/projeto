@@ -2,12 +2,17 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 
+// O config importa 'dotenv/config' (lê o .env do operador). Importar ANTES
+// dos profiles faz o dotenv rodar primeiro e o env do operador valer para
+// todos — senão os profiles veem o env vazio (default hardcoded) enquanto o
+// config vê o .env, e o domínio ativo diverge quando o .env tem *Url.
+import config from '../src/config.js';
 import bludv from '../bludv-resolver/server.js';
 import comando from '../comandotorrents-resolver/server.js';
 import nerd from '../nerdfilmes-resolver/server.js';
 import tdf from '../torrentdosfilmes-resolver/server.js';
+import vaca from '../vacatorrent-resolver/server.js';
 import * as brResolvers from '../src/br-resolvers.js';
-import config from '../src/config.js';
 
 describe('Feature 1: Dynamic Domain Validation', () => {
   test('bludv: valida domínios padrão, subdomínios e fallbacks', () => {
@@ -193,10 +198,10 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
 });
 
 describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => {
-  test('brResolvers exporta matriz RESOLVERS com 4 entradas padronizadas', () => {
-    assert.equal(brResolvers.RESOLVERS.length, 4);
+  test('brResolvers exporta matriz RESOLVERS com 5 entradas padronizadas', () => {
+    assert.equal(brResolvers.RESOLVERS.length, 5);
     const names = brResolvers.RESOLVERS.map((r) => r.name);
-    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes']);
+    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent']);
 
     const envs = brResolvers.RESOLVERS.map((r) => r.siteEnv);
     assert.deepEqual(envs, [
@@ -204,6 +209,7 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
       'COMANDOTORRENTS_URL',
       'NERDFILMES_URL',
       'TORRENTDOSFILMES_URL',
+      'VACATORRENT_URL',
     ]);
   });
 
@@ -216,11 +222,13 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
       comandotorrents: 8701,
       nerdfilmes: 8702,
       torrentdosfilmes: 8703,
+      vacatorrent: 8704,
     });
     assert.ok(config.resolvers.bludvUrl);
     assert.ok(config.resolvers.comandotorrentsUrl);
     assert.ok(config.resolvers.nerdfilmesUrl);
     assert.ok(config.resolvers.torrentdosfilmesUrl);
+    assert.ok(config.resolvers.vacatorrentUrl);
     assert.ok(Array.isArray(config.resolvers.extraProtectors));
   });
 
@@ -235,6 +243,7 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
     assert.equal(host(comando.siteSelector.url()), host(config.resolvers.comandotorrentsUrl));
     assert.equal(host(nerd.siteSelector.url()), host(config.resolvers.nerdfilmesUrl));
     assert.equal(host(tdf.siteSelector.url()), host(config.resolvers.torrentdosfilmesUrl));
+    assert.equal(host(vaca.siteSelector.url()), host(config.resolvers.vacatorrentUrl));
   });
 
   // BLUDV_URL alimenta DOIS consumidores: o resolvedor embutido e o scraper

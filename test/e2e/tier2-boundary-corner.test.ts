@@ -226,15 +226,15 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
   // Feature 3: Standardized siteEnv Configuration
   // =========================================================================
   describe('Feature 3: Standardized siteEnv Configuration', () => {
-    it('F03-BND-01: RESOLVERS matrix defines all 4 resolvers with ports 8700..8703 and siteEnv', () => {
-      assert.equal(brResolvers.RESOLVERS.length, 4);
+    it('F03-BND-01: RESOLVERS matrix defines all 5 resolvers with ports 8700..8704 and siteEnv', () => {
+      assert.equal(brResolvers.RESOLVERS.length, 5);
       const names = brResolvers.RESOLVERS.map((r) => r.name);
       const ports = brResolvers.RESOLVERS.map((r) => r.port);
       const siteEnvs = brResolvers.RESOLVERS.map((r) => r.siteEnv);
 
-      assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes']);
-      assert.deepEqual(ports, [8700, 8701, 8702, 8703]);
-      assert.deepEqual(siteEnvs, ['BLUDV_URL', 'COMANDOTORRENTS_URL', 'NERDFILMES_URL', 'TORRENTDOSFILMES_URL']);
+      assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent']);
+      assert.deepEqual(ports, [8700, 8701, 8702, 8703, 8704]);
+      assert.deepEqual(siteEnvs, ['BLUDV_URL', 'COMANDOTORRENTS_URL', 'NERDFILMES_URL', 'TORRENTDOSFILMES_URL', 'VACATORRENT_URL']);
     });
 
     it('F03-BND-02: Environment isolation restores process.env without leakage', () => {

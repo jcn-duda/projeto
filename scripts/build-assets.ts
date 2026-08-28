@@ -7,7 +7,9 @@
  * - test/fixtures -> dist/test/fixtures (fixtures de teste)
  * - jackett-bludv -> dist/jackett-bludv (definições cardigann)
  * - resolvers/ -> dist/resolvers/ (núcleo CommonJS e profiles dos resolvers)
- * - *-resolver/ -> dist/*-resolver/ (os 4 micro-resolvers carregados pelo br-resolvers)
+ * - *-resolver/ -> dist/*-resolver/ (os 4 micro-resolvers carregados pelo
+ *   br-resolvers, mais o vacatorrent copiado como artefato de teste — NÃO é
+ *   carregado no pool ao vivo)
  *
  * Falha em voz alta caso qualquer diretório essencial falhe ao ser copiado ou não exista.
  */
@@ -40,6 +42,7 @@ const resolversToCopy = [
   'comandotorrents-resolver',
   'nerdfilmes-resolver',
   'torrentdosfilmes-resolver',
+  'vacatorrent-resolver',
 ];
 
 function copyAndVerify(relativeSrc: string, relativeDst?: string) {

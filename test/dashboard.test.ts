@@ -184,7 +184,7 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
       assert.ok(Array.isArray(body.indexers), 'catálogo de indexers entra como lista');
       assert.ok(Array.isArray(body.resolvers), 'resolvers BR saem como lista');
       assert.ok(body.resolvers.every((resolver: any) => resolver.embedded === false));
-      assert.deepEqual(body.resolvers.map((resolver: any) => resolver.port), [8737, 8738, 8739, 8740]);
+      assert.deepEqual(body.resolvers.map((resolver: any) => resolver.port), [8737, 8738, 8739, 8740, 8741]);
       assert.equal(body.debrid.active, null, 'sen serviço não há debrid ativo');
        assert.ok(Array.isArray(body.debrid.services), 'el seletor de servicios mora en el registry');
        assert.deepEqual(body.debrid.accounts, {}, 'sem conta configurada não há serviço inventado');

@@ -223,9 +223,9 @@ describe('Feature 2: In-Memory Caching & Dedupe in BLUDV Resolver', () => {
 // FEATURE 3: Standardized siteEnv Configuration
 // ════════════════════════════════════════════════════════════════════════════════
 describe('Feature 3: Standardized siteEnv Configuration', () => {
-  it('3.1: brResolvers.RESOLVERS declara todos os 4 microserviços com portas e siteEnv corretos', () => {
+  it('3.1: brResolvers.RESOLVERS declara todos os 5 microserviços com portas e siteEnv corretos', () => {
     const names = brResolvers.RESOLVERS.map((r) => r.name);
-    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes']);
+    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent']);
 
     const bludv = brResolvers.RESOLVERS.find((r) => r.name === 'bludv') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(bludv.port, 8700);

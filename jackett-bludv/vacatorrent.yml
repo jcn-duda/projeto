@@ -1,0 +1,90 @@
+---
+id: vacatorrent
+name: Vaca Torrent
+description: "Vaca Torrent (vaqueirofilmes.com) — filmes e séries torrent em português"
+language: pt-BR
+type: public
+encoding: UTF-8
+# Uma única página mantém a resposta dentro do orçamento de 4 s do addon.
+requestDelay: 1
+links:
+  - https://vaqueirofilmes.com/
+
+caps:
+  categorymappings:
+    - {id: media, cat: Movies, desc: Movies and TV}
+    - {id: media, cat: TV, desc: Movies and TV}
+  modes:
+    search: [q]
+    tv-search: [q, season, ep]
+    movie-search: [q]
+  allowrawsearch: true
+
+settings: []
+
+search:
+  keywordsfilters:
+    - name: re_replace
+      args: ["[:]+", " "]
+    # O search_posts do site é LIKE sobre o título SEM ano: query com ano
+    # casa zero. O ano volta ao título da release no profile, devolvendo ao
+    # filtro do addon a proteção que o strip tira aqui.
+    - name: re_replace
+      args: ["\\b(19|20)\\d{2}\\b", " "]
+    - name: re_replace
+      args: ["\\s+", " "]
+    - name: trim
+  paths:
+    - path: "http://127.0.0.1:8704/search?q={{ .Query.Keywords }}"
+
+  rows:
+    selector: "div.posts > div.release"
+
+  fields:
+    title:
+      selector: "div.title > a"
+    details:
+      selector: "div.title > a"
+      attribute: href
+    download:
+      selector: "div.title > a"
+      attribute: href
+    category:
+      text: media
+    poster:
+      optional: true
+      selector: "div.poster img"
+      attribute: src
+    size:
+      optional: true
+      selector: "div.size"
+      filters:
+        - name: regexp
+          args: "([\\d.,]+\\s*(?:TB|GB|MB|KB))"
+        - name: re_replace
+          args: [",", "."]
+    date:
+      text: now
+    seeders:
+      # O tracker não divulga swarm; preserve a release quando MIN_SEEDERS=1.
+      text: 1
+    leechers:
+      text: 0
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1
+
+# O resolver expande cada botão em uma linha de busca, preservando o índice
+# exato em `i` até a resolução do magnet.
+download:
+  before:
+    path: "http://127.0.0.1:8704/resolve"
+    inputs:
+      url: "{{ .DownloadUri.AbsoluteUri }}"
+  selectors:
+    - selector: body
+      usebeforeresponse: true
+      filters:
+        - name: regexp
+          args: "(magnet:\\?[^\\s\"'<>]+)"
