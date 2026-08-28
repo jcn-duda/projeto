@@ -610,6 +610,7 @@ plano:
 | item 8 — `diagnostics.ts` (Fase 2) | 17.674 | 49 | despacho por ação extraído (`dashboard-actions.ts`, 341 — mapa com as 28 ações, allowlist derivada das chaves, `DESTRUCTIVE_ACTIONS` com confirm); `diagnostics.ts` fica em 203 com os mesmos 5 handlers; 2 testes do `catalog-panel` que regexavam o TEXTO do fonte passam a importar os conjuntos exportados |
 | item 9, passo 1 — núcleo `site-profile.js` (Fase 2) | 17.509 | 49 | factory do bootstrap repetido nos 5 profiles (206 linhas: allowlist, trio de guards delegando ao `protector.js` — MUT-06 intacto, failover, boot); perfis encolhem 27-38 linhas cada, exports idênticos (47/54/40/32/31); sem estado mutável em núcleo (fresh-require do stress prova) |
 | item 9, passo 2 — adoção de `cache.js` (Fase 2) | 17.341 | 49 | bludv/comando/tdf/vaca trocam os mapas TTL+coalescing+escritos à mão por `createCache(limit, { inFlight })` (+4 no núcleo, retrocompatível); shapes e chaves literais dos testes preservados (R-3), tetos não uniformizados; −164 líquidas |
+| item 9, passo 3 — núcleo `magnet-extract.js` (Fase 2) | 17.024 | 49 | extractor parametrizado das 3 variantes (básica tdf/nerd, rica comando/bludv, rica+base64 vaca — R-6 provado por fixture) + `discoverNextUrl` do `nextProtectedUrl` com `jsVarPattern` por perfil (listas de variável JS divergem de propósito); regex pré-compiladas no closure (R-7); −317 líquidas |
 
 **Backlog de resgate, ordenado por churn** (commits nos últimos 90 dias — os
 que mais se mexem primeiro, não os maiores primeiro; é onde a catraca morde,

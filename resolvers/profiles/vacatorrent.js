@@ -53,6 +53,9 @@ const {
   pickButton,
 } = require('../matching');
 const { createProfile } = require('../site-profile');
+// Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
+// vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
+const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
 
 const PORT = Number(process.env.PORT || 8704);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -235,71 +238,17 @@ function extractEpisode(text) {
 // nextProtectedUrl adiciona o caso `const next` + decode inline de `q` do
 // youtube redirect → t.co. O laço HTTP segue no transport.
 // ---------------------------------------------------------------------------
-function extractMagnet(html) {
-  if (!html) return null;
-  const str = String(html);
+// Variante RICA + passo do data-link em base64 (gate-2 vacadb) — a factory
+// do núcleo parametriza exatamente isso (passo 3 do item 9).
+const extractMagnet = createMagnetExtractor({
+  decodeEntities,
+  encodedVariants: true,
+  b64DataLink: true,
+});
 
-  const jsVar = str.match(
-    /(?:DEST_URL|DOWNLOAD_URL|MAGNET_URL|LINK_DOWNLOAD|URL_DOWNLOAD|DOWNLOAD|REDIRECT_URL|NEXT_URL|LINK_FINAL|TARGET_URL|DESTINO|download_url|download_link|magnet_link|target_url|dest|target|link|url|magnet)\s*[:=]\s*["'](magnet:\?[^"']+|magnet%3A%3F[^"']+)["']/i,
-  );
-  if (jsVar) {
-    let val = jsVar[1];
-    if (/^magnet%3A%3F/i.test(val)) {
-      try { val = decodeURIComponent(val); } catch {}
-    }
-    if (val.startsWith('magnet:?')) return decodeEntities(val);
-  }
-
-  const jsNav = str.match(
-    /(?:(?:window\.|document\.)?location(?:\.href|\.replace|\.assign)?|window\.open)\s*(?:=|\()\s*["'](magnet:\?[^"']+|magnet%3A%3F[^"']+)["']/i,
-  );
-  if (jsNav) {
-    let val = jsNav[1];
-    if (/^magnet%3A%3F/i.test(val)) {
-      try { val = decodeURIComponent(val); } catch {}
-    }
-    if (val.startsWith('magnet:?')) return decodeEntities(val);
-  }
-
-  const attrMatch = str.match(
-    /(?:data-magnet|data-url|data-link|data-href|data-download)\s*=\s*["'](magnet:\?[^"']+|magnet%3A%3F[^"']+)["']/i,
-  );
-  if (attrMatch) {
-    let val = attrMatch[1];
-    if (/^magnet%3A%3F/i.test(val)) {
-      try { val = decodeURIComponent(val); } catch {}
-    }
-    if (val.startsWith('magnet:?')) return decodeEntities(val);
-  }
-
-  // data-link base64 (gate-2 do protetor vacadb). No body da pasta final o
-  // magnet viaja em Base64 (`<body data-link="...">`); decodificar e validar
-  // antes de devolver. Vem ANTES do regex cru de magnet (o base64 não casa
-  // nele, mas a ordem documenta a prioridade do conteúdo decodificado).
-  const b64Link = str.match(/data-link=["']([A-Za-z0-9+/=]{32,})["']/i);
-  if (b64Link) {
-    try {
-      const value = b64Link[1].replace(/\s+/g, '');
-      const decoded = Buffer.from(value, 'base64').toString('utf8').trim();
-      if (/^magnet:\?xt=urn:btih:[a-zA-Z0-9]{32,40}/i.test(decoded)) {
-        return decoded;
-      }
-    } catch {}
-  }
-
-  const rawMatch = str.match(/magnet:\?[^"'<>\s]+/i);
-  if (rawMatch) return decodeEntities(rawMatch[0]);
-
-  const encodedMatch = str.match(/magnet%3A%3F[^"'<>\s]+/i);
-  if (encodedMatch) {
-    try {
-      const decoded = decodeURIComponent(encodedMatch[0]);
-      if (decoded.startsWith('magnet:?')) return decodeEntities(decoded);
-    } catch {}
-  }
-
-  return null;
-}
+// Lista de variáveis JS própria deste perfil (inclui LOCATION/next_url/next —
+// unificar com as irmãs mudaria comportamento, R-6).
+const JS_URL_VAR_RE = /(?:DEST_URL|DOWNLOAD_URL|REDIRECT_URL|NEXT_URL|LOCATION|next_url|target_url|dest|target|link|url|next)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i;
 
 function nextProtectedUrl(html, baseUrl) {
   if (!html) return null;
@@ -350,33 +299,13 @@ function nextProtectedUrl(html, baseUrl) {
     } catch {}
   }
 
-  // 4. Lote de variáveis JS apontando para protetor permitido.
-  const jsMatch = str.match(
-    /(?:DEST_URL|DOWNLOAD_URL|REDIRECT_URL|NEXT_URL|LOCATION|next_url|target_url|dest|target|link|url|next)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i,
-  );
-  if (jsMatch) {
-    try {
-      const u = new URL(decodeEntities(jsMatch[1]), baseUrl);
-      if (isProtectorHost(u.hostname) && u.href !== baseUrl) return u.href;
-    } catch {}
-  }
-
-  // 5. Busca genérica de URLs no corpo apontando para protetores permitidos.
-  const escapedProtectors = ALL_PROTECTOR_SUFFIXES
-    .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|');
-  if (escapedProtectors) {
-    const re = new RegExp(`https?:\\/\\/[^"'<>\\s]*?(?:${escapedProtectors})[^"'<>\\s]*`, 'i');
-    const match = str.match(re);
-    if (match) {
-      try {
-        const u = new URL(decodeEntities(match[0]), baseUrl);
-        if (isProtectorHost(u.hostname) && u.href !== baseUrl) return u.href;
-      } catch {}
-    }
-  }
-
-  return null;
+  // 4. Bloco genérico (variável JS de protetor + busca por sufixos) → núcleo.
+  return discoverNextUrl(str, baseUrl, {
+    isProtectorHost,
+    decodeEntities,
+    protectorSuffixes: ALL_PROTECTOR_SUFFIXES,
+    jsVarPattern: JS_URL_VAR_RE,
+  });
 }
 
 // ---------------------------------------------------------------------------

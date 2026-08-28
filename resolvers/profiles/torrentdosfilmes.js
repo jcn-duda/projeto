@@ -20,6 +20,9 @@ const {
   pickButton,
 } = require('../matching');
 const { createProfile } = require('../site-profile');
+// Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
+// vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
+const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
 
 const PORT = Number(process.env.PORT || 8703);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -87,75 +90,22 @@ siteSelector.onDomainChange(() => {
 // nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
 const UNKNOWN_SIZE = '1 KB';
 
-function extractMagnet(html) {
-  if (!html) return null;
-  const str = String(html);
+// Variante BÁSICA da factory: o passo encoded EXIGE `xt%3D` e para no `&` —
+// fixture do br-parsers.test.ts fixa isso; não troque por encodedVariants:true.
+const extractMagnet = createMagnetExtractor({ decodeEntities });
 
-  // 1. Variáveis JavaScript explícitas (DEST_URL, DOWNLOAD_URL, url, link, target, dest, etc.)
-  const jsVar = str.match(
-    /(?:DEST_URL|DOWNLOAD_URL|MAGNET_URL|download_url|download_link|magnet_link|target_url|dest|target|link|url|magnet)\s*[:=]\s*["'](magnet:\?[^"']+)["']/i,
-  );
-  if (jsVar) return decodeEntities(jsVar[1]);
-
-  // 2. Redirecionamentos / atribuições de navegação JavaScript
-  const jsNav = str.match(
-    /(?:location(?:\.href|\.replace|\.assign)?|window\.open)\s*(?:=|\()\s*["'](magnet:\?[^"']+)["']/i,
-  );
-  if (jsNav) return decodeEntities(jsNav[1]);
-
-  // 3. Atributos HTML customizados (data-magnet, data-url, data-link, data-href)
-  const attrMatch = str.match(
-    /(?:data-magnet|data-url|data-link|data-href)\s*=\s*["'](magnet:\?[^"']+)["']/i,
-  );
-  if (attrMatch) return decodeEntities(attrMatch[1]);
-
-  // 4. Regex direto de URI magnet no documento
-  const rawMatch = str.match(/magnet:\?[^"'<>\s]+/i);
-  if (rawMatch) return decodeEntities(rawMatch[0]);
-
-  // 5. Magnet URL-encoded (ex.: magnet%3A%3Fxt%3Durn)
-  const encodedMatch = str.match(/magnet%3A%3Fxt%3D[^"'<>\s&]+/i);
-  if (encodedMatch) {
-    try {
-      const decoded = decodeURIComponent(encodedMatch[0]);
-      if (decoded.startsWith('magnet:?')) return decodeEntities(decoded);
-    } catch {}
-  }
-
-  return null;
-}
+// Lista de variáveis JS própria deste perfil (a rica casa a mais — R-6).
+const JS_URL_VAR_RE = /(?:DEST_URL|DOWNLOAD_URL|REDIRECT_URL|NEXT_URL|target_url|dest|target|link|url)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i;
 
 function nextProtectedUrl(html, baseUrl) {
   if (!html) return null;
-  const str = String(html);
-
-  // 1. Variável JavaScript apontando para URL HTTP(S) de protetor permitido
-  const jsMatch = str.match(
-    /(?:DEST_URL|DOWNLOAD_URL|REDIRECT_URL|NEXT_URL|target_url|dest|target|link|url)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i,
-  );
-  if (jsMatch) {
-    try {
-      const u = new URL(decodeEntities(jsMatch[1]), baseUrl);
-      if (isProtectorHost(u.hostname) && u.href !== baseUrl) return u.href;
-    } catch {}
-  }
-
-  // 2. Busca genérica de URLs no corpo HTML apontando para domínios de protetor
-  const escapedProtectors = ALL_PROTECTOR_SUFFIXES
-    .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|');
-  if (escapedProtectors) {
-    const re = new RegExp(`https?:\\/\\/[^"'<>\\s]*?(?:${escapedProtectors})[^"'<>\\s]*`, 'i');
-    const match = str.match(re);
-    if (match) {
-      try {
-        const u = new URL(decodeEntities(match[0]), baseUrl);
-        if (isProtectorHost(u.hostname) && u.href !== baseUrl) return u.href;
-      } catch {}
-    }
-  }
-
-  return null;
+  // Bloco genérico (variável JS de protetor + busca por sufixos) → núcleo.
+  return discoverNextUrl(String(html), baseUrl, {
+    isProtectorHost,
+    decodeEntities,
+    protectorSuffixes: ALL_PROTECTOR_SUFFIXES,
+    jsVarPattern: JS_URL_VAR_RE,
+  });
 }
 
 function parsePosts(html) {
