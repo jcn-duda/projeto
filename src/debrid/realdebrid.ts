@@ -1,85 +1,37 @@
-import {
-  magnetFor, json, pickFile, isBlockedError, isNoVideoError, isRateLimitError, isQuotaError, wait,
-} from './common.js';
+/**
+ * Adaptador Real-Debrid — montagem e superfície pública.
+ *
+ * Dividido por fronteiras reais para respeitar o teto de 400 linhas:
+ * - `realdebrid-core.ts`: plumbing HTTP compartilhado, constantes de estado
+ *   do torrent, limpeza best-effort e identidade do adaptador;
+ * - `realdebrid-play.ts`: fluxo de play/autofetch (resolve, poll, enqueue).
+ * Este arquivo mantém a checagem via ledger, inventário, status da conta e a
+ * sonda, e REEXPORTA os demais nomes — a superfície de exports é a MESMA de
+ * antes da divisão (o registry faz spread do namespace e não muda).
+ */
+import { magnetFor, isBlockedError, isRateLimitError, isQuotaError } from './common.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import * as memo from './inventory-memo.js';
-import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
-import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+import type { TorrentStatusEntry } from '../../types/domain.js';
 import { accountScope } from '../utils/request-key.js';
 import { rdGate } from './rd-gate.js';
 import * as rdLedger from './rd-ledger.js';
+import {
+  id, READY, WORKING, WAITING_SELECTION, readCall, rawWrite, rawRemoveTorrent, listTorrents,
+  cleanupTorrent, looksAlreadyActive,
+} from './realdebrid-core.js';
+import type { TorrentInfo, ProbeInstantResult } from './realdebrid-core.js';
+import { selectWaitingFiles } from './realdebrid-play.js';
 
-/** Resultado da sonda de disponibilidade (substituto honesto do instantAvailability). */
-export type ProbeInstantResult = {
-  instant: boolean;
-  reason: 'ready' | 'pending' | 'blocked' | 'active' | 'error' | 'memo';
-};
-
-const API = 'https://api.real-debrid.com/rest/1.0';
-
-// O Real-Debrid nao tem /torrents/list: a listagem e GET /torrents, e sem
-// ?limit ela devolve so a primeira pagina (100). Com o endpoint errado o
-// inventario 404ava, nada era marcado como cacheado e a lista inteira saia
-// como [RD Download].
-const LIST_LIMIT = 2500;
-// Teto defensivo da paginação: a conta real medida tem ~1200 magnets; quatro
-// páginas de 2500 cobrem dez vezes isso sem transformar resposta degenerada
-// em laço infinito.
-const LIST_MAX_ROWS = 10000;
-
-function auth(apiKey: string) {
-  return { Authorization: `Bearer ${apiKey}` };
-}
-
-/**
- * @param {string} apiKey
- * @param {string} path
- * @param {object} [options]
- * @param {string} [options.method]
- * @param {*} [options.body]
- */
-type CallOptions = { method?: string; body?: BodyInit | null };
-
-async function request(apiKey: string, path: string, { method = 'GET', body }: CallOptions = {}) {
-  return json(`${API}${path}`, {
-    method,
-    headers: {
-      ...auth(apiKey),
-      ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
-    },
-    body,
-  });
-}
-
-function readCall(apiKey: string, path: string) {
-  return request(apiKey, path);
-}
-
-function rawWrite(apiKey: string, path: string, options: CallOptions) {
-  return request(apiKey, path, options);
-}
-
-/**
- * Listagem completa da conta, paginada. O Real-Debrid devolve só a primeira
- * página sem `?limit` (e `offset` anda em passos de `limit`), então uma conta
- * com mais de 2500 magnets perderia o inventário silenciosamente numa chamada só.
- */
-async function listTorrents(apiKey: string) {
-  const rows: any[] = [];
-  for (let offset = 0; offset < LIST_MAX_ROWS; offset += LIST_LIMIT) {
-    const page = await readCall(apiKey, `/torrents?limit=${LIST_LIMIT}&offset=${offset}`);
-    const chunk = Array.isArray(page) ? page : [];
-    rows.push(...chunk);
-    if (chunk.length < LIST_LIMIT) break;
-  }
-  return rows;
-}
+export { id, label, short, cacheCheck, autofetchSource, keyUrl } from './realdebrid-core.js';
+export { resolveLink, enqueue } from './realdebrid-play.js';
+export type { ProbeInstantResult } from './realdebrid-core.js';
 
 /**
  * O Real-Debrid aposentou o /torrents/instantAvailability: não há mais como
  * perguntar em lote o que está em cache. Devolvemos vazio e o orquestrador
- * trata todos como "não sei" — ver `cacheCheck: false` no final do arquivo.
+ * trata todos como "não sei" — ver `cacheCheck` em `realdebrid-core.ts`.
  */
 async function checkCached(_apiKey: string, hashes: string[]) {
   // O endpoint oficial aposentou a disponibilidade em lote. Quando o oráculo
@@ -94,257 +46,6 @@ async function checkCached(_apiKey: string, hashes: string[]) {
     else if (state === 'unknown') known = false;
   }
   return { cached, complete: known };
-}
-
-const READY = 'downloaded';
-const WORKING = ['magnet_conversion', 'queued', 'downloading', 'compressing', 'uploading'];
-const WAITING_SELECTION = 'waiting_files_selection';
-
-type TorrentInfo = { status?: string; files?: any[]; links?: string[]; filename?: string; bytes?: number | string; id?: string | number };
-
-/** Seleciona uma única vez o arquivo que o RD liberou para escolha. */
-async function selectWaitingFiles(
-  apiKey: string,
-  torrentId: string | number,
-  info: TorrentInfo,
-  hint: PlayHint,
-) {
-  const wanted = pickFile(
-    (info.files || []).map((file: any) => ({ ...file, path: file.path, size: file.bytes })),
-    hint,
-  );
-  await rawWrite(apiKey, `/torrents/selectFiles/${torrentId}`, {
-    method: 'POST',
-    body: new URLSearchParams({ files: wanted ? String(wanted.id) : 'all' }),
-  });
-}
-
-/**
- * O RD pode expor magnet_conversion/queued antes de pedir os arquivos. A
- * seleção precisa acontecer no primeiro poll que chegar nesse estado, não só
- * no snapshot logo após addMagnet; depois disso seguimos o mesmo orçamento de
- * polls até ficar pronto ou estabilizar fora de um estado de trabalho.
- */
-async function pollTorrent(apiKey: string, torrentId: string | number, hint: PlayHint) {
-  let info: TorrentInfo = await readCall(apiKey, `/torrents/info/${torrentId}`);
-  let selected = false;
-
-  for (let attempt = 0; attempt <= 3; attempt += 1) {
-    // O RD às vezes anuncia o estado antes de materializar o catálogo. Sem
-    // arquivos não há prova para escolher nem motivo para mandar `all`.
-    if (info.status === WAITING_SELECTION && !selected && (info.files || []).length > 0) {
-      await selectWaitingFiles(apiKey, torrentId, info, hint);
-      selected = true;
-    }
-    if (info.status === READY || (!WORKING.includes(String(info.status)) && info.status !== WAITING_SELECTION) || attempt === 3) {
-      return { info, selected };
-    }
-    await wait(700);
-    info = await readCall(apiKey, `/torrents/info/${torrentId}`);
-  }
-
-  return { info, selected };
-}
-
-/**
- * Id do torrent JA baixado na conta para este infoHash, ou '' se nao houver.
- * Serve pro resolve reusar o que o usuario ja tem em vez de re-adicionar.
- */
-async function readyTorrentId(apiKey: string, infoHash: string) {
-  const hash = infoHash.toLowerCase();
-  // Memo quente responde sem tocar na rede: a listagem completa custava uma
-  // chamada larga em TODO play, e o memo é a mesma evidência servida da
-  // memória. Item sem id (formato antigo) cai no caminho de rede.
-  const peeked = memo.peek(id, apiKey);
-  if (peeked) {
-    const hit = peeked.find((i) => String(i.infoHash || '').toLowerCase() === hash);
-    if (hit?.id) {
-      metrics.count('debrid.rd.readyFromMemo');
-      return String(hit.id);
-    }
-  }
-  try {
-    const rows = await listTorrents(apiKey);
-    const hit = rows.find((t: any) => String(t?.hash || '').toLowerCase() === hash && t?.status === READY);
-    return hit ? String(hit.id) : '';
-  } catch {
-    // Listagem indisponivel nao pode derrubar o play: segue pelo addMagnet.
-    return '';
-  }
-}
-
-/**
- * @param {string} apiKey
- * @param {string} infoHash
- * @param {object} [options]
- * @param {?number} [options.season]
- * @param {?number} [options.episode]
- * @param {*} [options.work]
- */
-async function finishResolve(
-  apiKey: string,
-  infoHash: string,
-  torrentId: string | number,
-  info: TorrentInfo,
-  { season, episode, work, dubbed }: PlayHint,
-) {
-  // Já em cache o status vira "downloaded" quase imediatamente. Se ainda
-  // estiver baixando, não há o que tocar agora — o play falharia num buffer
-  // eterno, então é melhor devolver nada e deixar o usuário escolher outro.
-  if (info.status !== READY) {
-    log.warn(`[realdebrid] torrent não está em cache (status: ${info.status})`);
-    return null;
-  }
-
-  // `downloaded` é confirmação gratuita do CDN do serviço. Ao contrário do
-  // magnetdb por conta, este ledger global pode beneficiar outra instalação RD.
-  rdLedger.noteHit([infoHash]);
-
-  // Pronto na conta atualiza o memo quente: a próxima busca marca ⚡ sem
-  // esperar o TTL do inventário. Memo frio continua lazy (não cria retrato).
-  memo.note(id, apiKey, {
-    title: String(info.filename || '').trim(),
-    infoHash,
-    size: Number(info.bytes) || 0,
-    id: String(torrentId),
-  });
-
-  // `links` traz só os arquivos selecionados, na ordem dos selecionados —
-  // por isso a escolha do arquivo é refeita sobre esse subconjunto.
-  const selected = (info.files || []).filter((f: any) => f.selected);
-  const normalizados = selected.map((f: any) => ({ ...f, path: f.path, size: f.bytes }));
-  recordFileEvidence(infoHash, normalizados);
-  assertDubbedFiles(normalizados, Boolean(dubbed));
-  const idx = selected.length > 1
-    ? selected.indexOf(
-        pickFile(selected.map((f: any) => ({ ...f, path: f.path, size: f.bytes })), { season, episode, work }),
-      )
-    : 0;
-  const link = (info.links || [])[idx >= 0 ? idx : 0];
-  if (!link) return null;
-
-  const unrestricted = await rawWrite(apiKey, '/unrestrict/link', {
-    method: 'POST',
-    body: new URLSearchParams({ link }),
-  });
-  return unrestricted?.download || null;
-}
-
-async function resolveLink(apiKey: string, infoHash: string, hint: PlayHint = {}) {
-  try {
-    // O que já está pronto evita addMagnet e espera do fluxo composto. Só a
-    // escrita inevitável de unrestrict passa por uma admissão de play.
-    const readyId = await readyTorrentId(apiKey, infoHash);
-    if (readyId) {
-      const info: TorrentInfo = await readCall(apiKey, `/torrents/info/${readyId}`);
-      return rdGate.run(
-        accountScope(apiKey),
-        'play',
-        () => finishResolve(apiKey, infoHash, readyId, info, hint),
-      );
-    }
-
-    // addMagnet, seleção e unrestrict formam um job só: concorrência 1 sem
-    // reentrância. O teto do play só fura cooldown/gap; job já em voo termina
-    // antes, pois o gate não preempta escrita composta.
-    return await rdGate.run(accountScope(apiKey), 'play', async () => {
-      const add = await rawWrite(apiKey, '/torrents/addMagnet', {
-        method: 'POST',
-        body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
-      });
-      if (!add?.id) return null;
-      try {
-        const { info } = await pollTorrent(apiKey, add.id, hint);
-        return finishResolve(apiKey, infoHash, add.id, info, hint);
-      } catch (error) {
-        // Sem vídeo, o torrent ficaria preso ocupando vaga. A limpeza pertence
-        // ao mesmo job para não reentrar no gate.
-        if (isNoVideoError(error)) {
-          await cleanupTorrent(apiKey, add.id);
-          memo.forget(id, apiKey, infoHash);
-        }
-        throw error;
-      }
-    });
-  } catch (err) {
-    // 451 é uma decisão do catálogo global do RD, não um problema da conta.
-    if (isBlockedError(err)) rdLedger.noteBlocked(infoHash);
-    throw err;
-  }
-}
-
-/**
- * Só ENFILEIRA o download e sai; quem quer o link usa resolveLink.
- * O selectFiles não é opcional: sem ele o torrent fica parado em
- * "waiting_files_selection" para sempre e nada é baixado.
- *
- * @param {string} apiKey
- * @param {string} infoHash
- * @param {object} [options]
- * @param {?number} [options.season]
- * @param {?number} [options.episode]
- */
-async function enqueueUngated(apiKey: string, infoHash: string, { season, episode }: { season?: number | null; episode?: number | null } = {}) {
-  let add: any;
-  try {
-    add = await rawWrite(apiKey, '/torrents/addMagnet', {
-      method: 'POST',
-      body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
-    });
-  } catch (err) {
-    // O 451 recusa o magnet antes de existir um id; não há torrent para limpar
-    // nem motivo para o runner tentar de novo como se fosse falha transitória.
-    if (isBlockedError(err)) {
-      rdLedger.noteBlocked(infoHash);
-      log.warn(`[realdebrid] torrent ${infoHash.slice(0, 8)} bloqueado por motivo legal; recusando o autofetch`);
-      return false;
-    }
-    throw err;
-  }
-  if (!add?.id) return false;
-
-  let result: { info: TorrentInfo; selected: boolean };
-  try {
-    result = await pollTorrent(apiKey, add.id, { season, episode });
-  } catch (err) {
-    // Antes do NoVideoError, `null` caía no `files: 'all'` e o autofetch baixava
-    // um torrent sem vídeo nenhum. Agora a prova existe: remove o torrent (ele
-    // ficaria preso em waiting_files_selection) e RECUSA. `false` é o contrato
-    // que o chamador entende — ele conta `autofetch.refused` e loga "não
-    // aceitou"; deixar subir viraria "[autofetch] falhou" genérico.
-    if (isNoVideoError(err)) {
-      await cleanupTorrent(apiKey, add.id);
-      memo.forget(id, apiKey, infoHash);
-      log.warn(`[realdebrid] ${infoHash} não tem arquivo de vídeo; recusando o autofetch`);
-      return false;
-    }
-    if (isBlockedError(err)) {
-      rdLedger.noteBlocked(infoHash);
-      log.warn(`[realdebrid] torrent ${infoHash.slice(0, 8)} bloqueado por motivo legal; recusando o autofetch`);
-      return false;
-    }
-    throw err;
-  }
-  // Pronto na conta entra no memo quente agora: o ⚡ da próxima busca não
-  // espera o TTL do inventário.
-  if (result.info.status === READY) {
-    rdLedger.noteHit([infoHash]);
-    memo.note(id, apiKey, {
-      title: String(result.info.filename || '').trim(),
-      infoHash,
-      size: Number(result.info.bytes) || 0,
-      id: String(add.id),
-    });
-  }
-  // Torrent já pronto não precisa selecionar. Fora isso, só é sucesso depois
-  // que esta execução selecionou ou o RD prova que já havia arquivo escolhido.
-  // magnet_conversion/queued sem essa evidência não pode ganhar marker de
-  // autofetch: uma tentativa futura ainda pode receber o catálogo e selecionar.
-  return result.info.status === READY || result.selected || Boolean(result.info.files?.some((file: any) => file.selected));
-}
-
-async function enqueue(apiKey: string, infoHash: string, options: { season?: number | null; episode?: number | null } = {}) {
-  return rdGate.run(accountScope(apiKey), 'autofetch', () => enqueueUngated(apiKey, infoHash, options));
 }
 
 /**
@@ -391,29 +92,6 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   }
   rdLedger.noteHit(readyHashes);
   return out;
-}
-
-/**
- * Remove torrent pelo id no Real-Debrid.
- */
-async function rawRemoveTorrent(apiKey: string, id: string | number) {
-  await rawWrite(apiKey, `/torrents/delete/${id}`, { method: 'DELETE' });
-  return true;
-}
-
-/**
- * Limpeza best-effort: NUNCA fala. Ela roda dentro de `finally`/`catch`, onde
- * uma exceção substituiria o valor de retorno ou o erro original — um DELETE
- * que falha chegava a transformar sonda com `downloaded` em miss gravado no
- * ledger durável, e NoVideoError em erro genérico.
- */
-async function cleanupTorrent(apiKey: string, id: string | number) {
-  try {
-    await rawRemoveTorrent(apiKey, id);
-  } catch (err) {
-    metrics.count('debrid.rd.cleanupFailed');
-    log.warn(`[realdebrid] limpeza do torrent ${id} falhou:`, (err as Error)?.message || err);
-  }
 }
 
 async function removeTorrentWithPriority(apiKey: string, id: string | number, priority: 'cleanup') {
@@ -470,11 +148,6 @@ async function activeTorrentCount(apiKey: string): Promise<{ nb: number; limit: 
     log.warn('[realdebrid] activeCount falhou:', (err as Error)?.message || err);
     return null;
   }
-}
-
-function looksAlreadyActive(err: unknown): boolean {
-  const msg = String((err as any)?.message || err || '');
-  return /torrent already active|error_code["']?\s*:\s*33|\b33\b.*already/i.test(msg);
 }
 
 /**
@@ -560,13 +233,7 @@ async function probeInstant(apiKey: string, infoHash: string): Promise<ProbeInst
   return rdGate.run(accountScope(apiKey), 'probe', () => probeInstantUngated(apiKey, infoHash));
 }
 
-export const id = 'realdebrid';
-export const label = 'Real-Debrid';
-export const short = 'RD';
-export const cacheCheck = false;
-export const autofetchSource = true;
-export const keyUrl = 'https://real-debrid.com/apitoken';
 export {
-  enqueue, checkCached, resolveLink, inventory, torrentStatus, removeTorrent,
+  checkCached, inventory, torrentStatus, removeTorrent,
   accountStatus, activeTorrentCount, probeInstant,
 };
