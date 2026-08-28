@@ -32,6 +32,7 @@
 // caches, failover de domínio via seletor compartilhado, e o laço do protetor
 // EXCLUSIVAMENTE em `followProtectedUrl` do transport.
 const { USER_AGENT } = require('../runtime');
+const { createCache } = require('../cache');
 const { createServer: createHttpServer } = require('../http-server');
 const {
   decodeEntities,
@@ -116,10 +117,16 @@ const {
 } = bootstrap;
 const SELF_URL = bootstrap.selfUrl;
 
-const postCache = new Map();
-const searchCache = new Map();
-const magnetCache = new Map();
+// --- Cache (núcleo resolvers/cache.js) ---
+// TTL + coalescing + FIFO, escrevendo APENAS no sucesso (erro nunca entra no
+// mapa — contrato fixado pelo teste "postCache must not store errors"). Os
+// três mapas compartilham UM inFlight: é o shape que testes e harnesses
+// consomem (limpam e contam `mod.inFlight` diretamente). Tetos mantidos dos
+// laços manuais (fixados pelo teste de stress): post/search 100, magnet 500.
 const inFlight = new Map();
+const { values: postCache, cached: cachedPost } = createCache(100, { inFlight });
+const { values: searchCache, cached: cachedSearch } = createCache(100, { inFlight });
+const { values: magnetCache, cached: cachedMagnet } = createCache(500, { inFlight });
 
 // Troca de domínio invalida o que foi raspado do domínio antigo; o inFlight
 // segue vivo para não quebrar o coalescing das promises em andamento.
@@ -678,74 +685,65 @@ async function fetchText(url, accept = 'text/html,application/xhtml+xml') {
   return response.text();
 }
 
+// Sinal interno (não escapa do módulo): post/página interna sem link de
+// download. O laço manual retornava [] SEM gravar no cache (o set só rodava
+// depois do parse); para preservar isso sobre o cached() do núcleo, o loader
+// sinaliza e o chamador converte em [] — o valor vazio nunca entra no mapa,
+// como antes (chamadores coalescidos recebem o mesmo [] pela rejeição).
+const NO_LINKS_SIGNAL = new Error('vacatorrent: sem link de download na página');
+
 async function fetchMovieLinks(post) {
   const cacheKey = `movie:${post.url}`;
-  const cached = postCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (cached) postCache.delete(cacheKey);
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
-    const pageHtml = await fetchText(post.url);
-    const linksUrl = extractMovieLinks(pageHtml, post.url);
-    if (!linksUrl) return [];
-    const linksHtml = await fetchText(linksUrl);
-    const links = parseDownloadLinks(linksHtml, linksUrl);
-    postCache.set(cacheKey, { value: links, expiresAt: Date.now() + POST_CACHE_MS });
-    if (postCache.size > 100) postCache.delete(postCache.keys().next().value);
-    return links;
-  })().finally(() => {
-    inFlight.delete(cacheKey);
-  });
-
-  inFlight.set(cacheKey, task);
-  return task;
+  try {
+    return await cachedPost(cacheKey, POST_CACHE_MS, async () => {
+      const pageHtml = await fetchText(post.url);
+      const linksUrl = extractMovieLinks(pageHtml, post.url);
+      if (!linksUrl) throw NO_LINKS_SIGNAL;
+      const linksHtml = await fetchText(linksUrl);
+      return parseDownloadLinks(linksHtml, linksUrl);
+    });
+  } catch (err) {
+    if (err === NO_LINKS_SIGNAL) return [];
+    throw err;
+  }
 }
 
 async function fetchSeriesLinks(post, requestedSeason) {
   const seasonKey = requestedSeason ? String(requestedSeason[1]) : '';
   const cacheKey = `serie:${post.url}:${seasonKey}`;
-  const cached = postCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (cached) postCache.delete(cacheKey);
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
+  try {
+    return await cachedPost(cacheKey, POST_CACHE_MS, async () => {
+      const pageHtml = await fetchText(post.url);
+      const internalUrl = seriesSeasonInternalUrl(pageHtml, post.url);
+      if (!internalUrl) throw NO_LINKS_SIGNAL;
+      const internalHtml = await fetchText(internalUrl);
+      const cards = filterSeasonCards(parseSeasonInternal(internalHtml, internalUrl), requestedSeason);
 
-  const task = (async () => {
-    const pageHtml = await fetchText(post.url);
-    const internalUrl = seriesSeasonInternalUrl(pageHtml, post.url);
-    if (!internalUrl) return [];
-    const internalHtml = await fetchText(internalUrl);
-    const cards = filterSeasonCards(parseSeasonInternal(internalHtml, internalUrl), requestedSeason);
-
-    const out = [];
-    for (const card of cards) {
-      try {
-        const cardHtml = await fetchText(card.url);
-        if (card.isBatch) {
-          const realTitle = extractBatchTitle(cardHtml);
-          const links = parseDownloadLinks(cardHtml, card.url, {
-            season: card.season,
-            realTitle: realTitle || null,
-          });
-          out.push(...links);
-        } else {
-          const links = parseDownloadLinks(cardHtml, card.url, { season: card.season });
-          out.push(...links);
+      const out = [];
+      for (const card of cards) {
+        try {
+          const cardHtml = await fetchText(card.url);
+          if (card.isBatch) {
+            const realTitle = extractBatchTitle(cardHtml);
+            const links = parseDownloadLinks(cardHtml, card.url, {
+              season: card.season,
+              realTitle: realTitle || null,
+            });
+            out.push(...links);
+          } else {
+            const links = parseDownloadLinks(cardHtml, card.url, { season: card.season });
+            out.push(...links);
+          }
+        } catch (err) {
+          console.warn(`[vac] card ${card.url}: ${err.message}`);
         }
-      } catch (err) {
-        console.warn(`[vac] card ${card.url}: ${err.message}`);
       }
-    }
-
-    postCache.set(cacheKey, { value: out, expiresAt: Date.now() + POST_CACHE_MS });
-    if (postCache.size > 100) postCache.delete(postCache.keys().next().value);
-    return out;
-  })().finally(() => {
-    inFlight.delete(cacheKey);
-  });
-
-  inFlight.set(cacheKey, task);
-  return task;
+      return out;
+    });
+  } catch (err) {
+    if (err === NO_LINKS_SIGNAL) return [];
+    throw err;
+  }
 }
 
 async function postToItems(post, requestedSeason) {
@@ -760,12 +758,7 @@ async function postToItems(post, requestedSeason) {
 // ---------------------------------------------------------------------------
 async function searchPosts(query) {
   const cacheKey = `search:${String(query || '')}`;
-  const cached = searchCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (cached) searchCache.delete(cacheKey);
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedSearch(cacheKey, SEARCH_CACHE_MS, async () => {
     const requestedSeason = requestedSeasonFromQuery(query);
     const normalized = normalizeQuery(query);
     if (!normalized) return [];
@@ -783,17 +776,8 @@ async function searchPosts(query) {
         return [];
       }
     });
-    const items = chunks.flat();
-
-    searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + SEARCH_CACHE_MS });
-    if (searchCache.size > 100) searchCache.delete(searchCache.keys().next().value);
-    return items;
-  })().finally(() => {
-    inFlight.delete(cacheKey);
+    return chunks.flat();
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 // ---------------------------------------------------------------------------
@@ -827,54 +811,29 @@ async function collectLinks(postUrl) {
 
 async function resolveBest(postUrl) {
   const post = assertAllowedUrl(postUrl);
-  const cacheKey = `best:${post.href}`;
-  const cached = magnetCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedMagnet(`best:${post.href}`, MAGNET_CACHE_MS, async () => {
     const links = await collectLinks(post.href);
     let lastError;
     for (const link of [...links].sort((a, b) => scoreLink(b) - scoreLink(a))) {
       try {
-        const magnet = await fetchFollowingAllowed(link.url, post.href);
-        magnetCache.set(cacheKey, { value: magnet, expiresAt: Date.now() + MAGNET_CACHE_MS });
-        if (magnetCache.size > 500) magnetCache.delete(magnetCache.keys().next().value);
-        return magnet;
+        return await fetchFollowingAllowed(link.url, post.href);
       } catch (error) {
         lastError = error;
       }
     }
     throw lastError || new Error('no_magnet');
-  })().finally(() => {
-    inFlight.delete(cacheKey);
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 async function resolveButton(postUrl, index, hash, count) {
   const post = assertAllowedUrl(postUrl);
   const cacheKey = `magnet:${post.href}:${index}:${hash || ''}`;
-  const cached = magnetCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedMagnet(cacheKey, MAGNET_CACHE_MS, async () => {
     const links = await collectLinks(post.href);
     const link = pickButton(links, index, hash, count);
     if (!link) throw new Error('no_such_button');
-    const magnet = await fetchFollowingAllowed(link.url, post.href);
-    magnetCache.set(cacheKey, { value: magnet, expiresAt: Date.now() + MAGNET_CACHE_MS });
-    if (magnetCache.size > 500) magnetCache.delete(magnetCache.keys().next().value);
-    return magnet;
-  })().finally(() => {
-    inFlight.delete(cacheKey);
+    return fetchFollowingAllowed(link.url, post.href);
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 function scoreLink(link) {

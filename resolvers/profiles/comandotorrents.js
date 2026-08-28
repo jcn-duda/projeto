@@ -1,4 +1,5 @@
 const { USER_AGENT } = require('../runtime');
+const { createCache } = require('../cache');
 const { createServer: createHttpServer } = require('../http-server');
 const {
   decodeEntities,
@@ -69,10 +70,16 @@ const {
 } = bootstrap;
 const SELF_URL = bootstrap.selfUrl;
 
-const postCache = new Map();
-const searchCache = new Map();
-const magnetCache = new Map();
+// --- Cache (núcleo resolvers/cache.js) ---
+// TTL + coalescing + FIFO, escrevendo APENAS no sucesso (erro nunca entra no
+// mapa — contrato fixado pelo teste "postCache must not store errors"). Os
+// três mapas compartilham UM inFlight: é o shape que testes e harnesses
+// consomem (limpam e contam `mod.inFlight` diretamente). Tetos mantidos dos
+// laços manuais (fixados pelo teste de stress): post/search 100, magnet 500.
 const inFlight = new Map();
+const { values: postCache, cached: cachedPost } = createCache(100, { inFlight });
+const { values: searchCache, cached: cachedSearch } = createCache(100, { inFlight });
+const { values: magnetCache, cached: cachedMagnet } = createCache(500, { inFlight });
 
 // Troca de domínio invalida o que foi raspado do domínio antigo (chaves de
 // cache são URLs absolutas); o inFlight segue vivo para não quebrar o
@@ -435,30 +442,14 @@ const fetchFollowingAllowed = bootstrap.fetchFollowingAllowed({
 async function getPostLinks(postUrl) {
   const post = assertAllowedUrl(postUrl);
   if (!isDetailHost(post.hostname)) throw new Error('not_detail_page');
-  const cacheKey = post.href;
-
-  const cached = postCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (cached) postCache.delete(cacheKey);
-
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedPost(post.href, POST_CACHE_MS, async () => {
     const response = await fetch(post, {
       headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`http_${response.status}`);
-    const value = { post, links: parseDownloadLinks(await response.text(), post.href) };
-    postCache.set(cacheKey, { value, expiresAt: Date.now() + POST_CACHE_MS });
-    if (postCache.size > 100) postCache.delete(postCache.keys().next().value);
-    return value;
-  })().finally(() => {
-    inFlight.delete(cacheKey);
+    return { post, links: parseDownloadLinks(await response.text(), post.href) };
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 function scoreLink(link) {
@@ -466,57 +457,28 @@ function scoreLink(link) {
 }
 
 async function resolveBest(postUrl) {
-  const cacheKey = `magnet:best:${postUrl}`;
-  const cached = magnetCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (cached) magnetCache.delete(cacheKey);
-
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedMagnet(`magnet:best:${postUrl}`, MAGNET_CACHE_MS, async () => {
     const { post, links } = await getPostLinks(postUrl);
     let lastError;
     for (const link of [...links].sort((a, b) => scoreLink(b) - scoreLink(a))) {
       try {
-        const magnet = await fetchFollowingAllowed(link.url, post.href);
-        magnetCache.set(cacheKey, { value: magnet, expiresAt: Date.now() + MAGNET_CACHE_MS });
-        if (magnetCache.size > 500) magnetCache.delete(magnetCache.keys().next().value);
-        return magnet;
+        return await fetchFollowingAllowed(link.url, post.href);
       } catch (error) {
         lastError = error;
       }
     }
     throw lastError || new Error('no_magnet');
-  })().finally(() => {
-    inFlight.delete(cacheKey);
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 async function resolveButton(postUrl, index, hash, count) {
   const cacheKey = hash ? `magnet:${postUrl}:${index}:${hash}` : `magnet:${postUrl}:${index}`;
-  const cached = magnetCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (cached) magnetCache.delete(cacheKey);
-
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedMagnet(cacheKey, MAGNET_CACHE_MS, async () => {
     const { post, links } = await getPostLinks(postUrl);
     const link = Number.isInteger(index) && index >= 0 ? pickButton(links, index, hash, count) : null;
     if (!link) throw new Error('no_such_button');
-    const magnet = await fetchFollowingAllowed(link.url, post.href);
-    magnetCache.set(cacheKey, { value: magnet, expiresAt: Date.now() + MAGNET_CACHE_MS });
-    if (magnetCache.size > 500) magnetCache.delete(magnetCache.keys().next().value);
-    return magnet;
-  })().finally(() => {
-    inFlight.delete(cacheKey);
+    return fetchFollowingAllowed(link.url, post.href);
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 function releaseTitle(post, link, index = null) {
@@ -558,13 +520,8 @@ async function searchPosts(query) {
   const normalized = normalizeQuery(query);
   if (!normalized) return [];
   const cacheKey = `search:${String(query || '')}`;
-  const cached = searchCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (cached) searchCache.delete(cacheKey);
 
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedSearch(cacheKey, SEARCH_CACHE_MS, async () => {
     try {
       const source = await fetch(`${siteSelector.url()}/?s=${encodeURIComponent(normalized)}`, {
         headers: { 'User-Agent': USER_AGENT },
@@ -584,22 +541,14 @@ async function searchPosts(query) {
           return [];
         }
       });
-      const items = chunks.flat();
-      searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + SEARCH_CACHE_MS });
-      if (searchCache.size > 100) searchCache.delete(searchCache.keys().next().value);
-      return items;
+      return chunks.flat();
     } catch (err) {
       // Só erro de rede (DNS/conexão/timeout) alimenta o failover: 0
       // resultados ou HTTP de erro não dizem nada sobre o domínio.
       if (isNetworkError(err)) await siteSelector.noteFailure();
       throw err;
     }
-  })().finally(() => {
-    inFlight.delete(cacheKey);
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 async function handleRequest(request, response) {

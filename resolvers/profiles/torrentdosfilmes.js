@@ -1,4 +1,5 @@
 const { USER_AGENT } = require('../runtime');
+const { createCache } = require('../cache');
 const { createServer: createHttpServer } = require('../http-server');
 const {
   decodeEntitiesBasic,
@@ -69,8 +70,11 @@ const {
 } = bootstrap;
 const SELF_URL = bootstrap.selfUrl;
 
-const postCache = new Map();
-const inFlight = new Map();
+// --- Cache (núcleo resolvers/cache.js) ---
+// TTL + coalescing + FIFO, escrevendo APENAS no sucesso (erro nunca entra no
+// mapa — contrato fixado pelo teste "postCache must not store errors"). Teto
+// 100 mantido do laço manual (fixado pelo teste de stress).
+const { values: postCache, inFlight, cached: cachedPost } = createCache(100);
 
 // Troca de domínio invalida o que foi raspado do domínio antigo (chaves de
 // cache são URLs absolutas); o inFlight segue vivo para não quebrar o
@@ -247,30 +251,14 @@ const fetchFollowingAllowed = bootstrap.fetchFollowingAllowed({
 async function getPostLinks(postUrl) {
   const post = assertAllowedUrl(postUrl);
   if (!isDetailHost(post.hostname)) throw new Error('not_detail_page');
-  const cacheKey = post.href;
-
-  const cached = postCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (cached) postCache.delete(cacheKey);
-
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedPost(post.href, POST_CACHE_MS, async () => {
     const response = await fetch(post, {
       headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`http_${response.status}`);
-    const value = { post, links: parseDownloadLinks(await response.text()) };
-    postCache.set(cacheKey, { value, expiresAt: Date.now() + POST_CACHE_MS });
-    if (postCache.size > 100) postCache.delete(postCache.keys().next().value);
-    return value;
-  })().finally(() => {
-    inFlight.delete(cacheKey);
+    return { post, links: parseDownloadLinks(await response.text()) };
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 function scoreLink(link) {

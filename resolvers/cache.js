@@ -1,8 +1,12 @@
 'use strict';
 
-function createCache(limit) {
+// options.inFlight é OPCIONAL (retrocompatível): permite compartilhar UM único
+// mapa de coalescing entre várias instâncias de cache. Os perfis que expõem
+// post/search/magnetCache precisam de um único `inFlight` — é o shape que
+// testes e harnesses consomem (limpam e contam `mod.inFlight` diretamente).
+function createCache(limit, options = {}) {
   const values = new Map();
-  const inFlight = new Map();
+  const inFlight = options.inFlight || new Map();
   async function cached(key, ttl, loader) {
     const hit = values.get(key);
     if (hit && hit.expiresAt > Date.now()) return hit.value;

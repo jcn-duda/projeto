@@ -1,4 +1,5 @@
 const { USER_AGENT } = require('../runtime');
+const { createCache } = require('../cache');
 const { createFlareSessions } = require('../flare');
 const { createServer: createHttpServer } = require('../http-server');
 const { capsXml: sharedCapsXml } = require('../torznab');
@@ -118,10 +119,15 @@ const FLARE_SESSION_TTL_MS = Number(process.env.FLARE_SESSION_TTL_MS || 20 * 60_
 // hostname -> { cookies, userAgent, expiresAt }
 const { sessions: flareSessions } = createFlareSessions();
 
-const postCache = new Map();
-const searchCache = new Map();
-const magnetCache = new Map();
+// --- Cache (núcleo resolvers/cache.js) ---
+// TTL + coalescing + FIFO, escrevendo APENAS no sucesso (erro nunca entra no
+// mapa — contrato fixado pelo teste "postCache must not store errors"). Os
+// três mapas compartilham UM inFlight: é o shape que testes e harnesses
+// consomem (limpam e contam `mod.inFlight` diretamente).
 const inFlight = new Map();
+const { values: postCache, cached: cachedPost } = createCache(MAX_CACHE_SIZE, { inFlight });
+const { values: searchCache, cached: cachedSearch } = createCache(MAX_SEARCH_CACHE_SIZE, { inFlight });
+const { values: magnetCache, cached: cachedMagnet } = createCache(MAX_MAGNET_CACHE_SIZE, { inFlight });
 
 // Troca de domínio invalida o que foi raspado do domínio antigo (chaves de
 // cache são URLs absolutas); o inFlight segue vivo para não quebrar o
@@ -573,45 +579,13 @@ const fetchFollowingAllowed = bootstrap.fetchFollowingAllowed({
   maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS,
 });
 
-function setMagnetCache(cacheKey, magnet) {
-  magnetCache.set(cacheKey, { value: magnet, expiresAt: Date.now() + MAGNET_CACHE_MS });
-  if (magnetCache.size > MAX_MAGNET_CACHE_SIZE) {
-    magnetCache.delete(magnetCache.keys().next().value);
-  }
-}
-
 async function getPostLinks(postUrl) {
   const post = assertAllowedUrl(postUrl);
   if (!isDetailHost(post.hostname)) throw new Error('not_detail_page');
-  const cacheKey = post.href;
-
-  const hit = postCache.get(cacheKey);
-  if (hit && hit.expiresAt > Date.now()) {
-    return hit.value;
-  }
-  if (hit) {
-    postCache.delete(cacheKey);
-  }
-
-  if (inFlight.has(cacheKey)) {
-    return inFlight.get(cacheKey);
-  }
-
-  const task = (async () => {
+  return cachedPost(post.href, POST_CACHE_MS, async () => {
     const html = await fetchText(post);
-    const value = { post, links: parseDownloadLinks(html) };
-    postCache.set(cacheKey, { value, expiresAt: Date.now() + POST_CACHE_MS });
-    if (postCache.size > MAX_CACHE_SIZE) {
-      const oldestKey = postCache.keys().next().value;
-      postCache.delete(oldestKey);
-    }
-    return value;
-  })().finally(() => {
-    inFlight.delete(cacheKey);
+    return { post, links: parseDownloadLinks(html) };
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 /**
@@ -624,18 +598,15 @@ async function getPostLinks(postUrl) {
  * a segunda.
  */
 async function resolvePost(postUrl, prefs = {}) {
+  // A chave inclui as preferências: /resolve aceita audio= e quality=, e chave
+  // sem prefs serviria o magnet da primeira preferência para quem pediu a
+  // segunda.
   const cacheKey = `magnet:best:${postUrl}:${prefs.audio || ''}:${prefs.quality || ''}`;
-
+  // Log de hit preservado do laço manual (o cached() do núcleo não loga).
   const hit = magnetCache.get(cacheKey);
-  if (hit && hit.expiresAt > Date.now()) {
-    console.log(`[cache] hit magnet(best) ${postUrl}`);
-    return hit.value;
-  }
-  if (hit) magnetCache.delete(cacheKey);
+  if (hit && hit.expiresAt > Date.now()) console.log(`[cache] hit magnet(best) ${postUrl}`);
 
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedMagnet(cacheKey, MAGNET_CACHE_MS, async () => {
     const { post, links } = await getPostLinks(postUrl);
     const sorted = sortLinks(links, prefs).slice(0, MAX_RESOLVE_ATTEMPTS);
     if (!sorted.length) throw new Error('no_protector');
@@ -645,9 +616,7 @@ async function resolvePost(postUrl, prefs = {}) {
     let lastError;
     for (const link of sorted) {
       try {
-        const magnet = await fetchFollowingAllowed(link.url, post.href);
-        setMagnetCache(cacheKey, magnet);
-        return magnet;
+        return await fetchFollowingAllowed(link.url, post.href);
       } catch (error) {
         // Degradação esperada: protetor morre com frequência. Segue o próximo.
         lastError = error;
@@ -655,12 +624,7 @@ async function resolvePost(postUrl, prefs = {}) {
       }
     }
     throw lastError || new Error('no_magnet');
-  })().finally(() => {
-    inFlight.delete(cacheKey);
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 /**
@@ -670,30 +634,17 @@ async function resolvePost(postUrl, prefs = {}) {
  */
 async function resolveButton(postUrl, index, hash, count) {
   const cacheKey = hash ? `magnet:${postUrl}:${index}:${hash}` : `magnet:${postUrl}:${index}`;
-
+  // Log de hit preservado do laço manual (o cached() do núcleo não loga).
   const hit = magnetCache.get(cacheKey);
-  if (hit && hit.expiresAt > Date.now()) {
-    console.log(`[cache] hit magnet botão ${index} ${postUrl}`);
-    return hit.value;
-  }
-  if (hit) magnetCache.delete(cacheKey);
+  if (hit && hit.expiresAt > Date.now()) console.log(`[cache] hit magnet botão ${index} ${postUrl}`);
 
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedMagnet(cacheKey, MAGNET_CACHE_MS, async () => {
     const { post, links } = await getPostLinks(postUrl);
     const link = pickButton(links, index, hash, count);
     if (!link) throw new Error('no_such_button');
     console.log(`[dl] botão ${index} → ${link.quality || '?'}p ${link.audio} ${link.size || ''} ${post.pathname}`);
-    const magnet = await fetchFollowingAllowed(link.url, post.href);
-    setMagnetCache(cacheKey, magnet);
-    return magnet;
-  })().finally(() => {
-    inFlight.delete(cacheKey);
+    return fetchFollowingAllowed(link.url, post.href);
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 // --- Indexer Torznab ---
@@ -840,17 +791,11 @@ async function searchPosts(query) {
   const normalized = normalizeQuery(query);
   if (!normalized) return [];
   const cacheKey = `search:${String(query || '')}`;
-
+  // Log de hit preservado do laço manual (o cached() do núcleo não loga).
   const hit = searchCache.get(cacheKey);
-  if (hit && hit.expiresAt > Date.now()) {
-    console.log(`[cache] hit search "${normalized}"`);
-    return hit.value;
-  }
-  if (hit) searchCache.delete(cacheKey);
+  if (hit && hit.expiresAt > Date.now()) console.log(`[cache] hit search "${normalized}"`);
 
-  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
-
-  const task = (async () => {
+  return cachedSearch(cacheKey, SEARCH_CACHE_MS, async () => {
     try {
       const html = await fetchText(assertAllowedUrl(`${siteSelector.url()}/?s=${encodeURIComponent(normalized)}`));
       // Sucesso da busca zera o streak ANTES de raspar posts/protetores:
@@ -862,10 +807,6 @@ async function searchPosts(query) {
         return links.map((link, index) => ({ post, link, index, count: links.length }));
       });
       const items = chunks.flat();
-      searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + SEARCH_CACHE_MS });
-      if (searchCache.size > MAX_SEARCH_CACHE_SIZE) {
-        searchCache.delete(searchCache.keys().next().value);
-      }
       console.log(`[search] "${normalized}" → ${posts.length} post(s), ${items.length} release(s)`);
       return items;
     } catch (err) {
@@ -874,12 +815,7 @@ async function searchPosts(query) {
       if (isNetworkError(err)) await siteSelector.noteFailure();
       throw err;
     }
-  })().finally(() => {
-    inFlight.delete(cacheKey);
   });
-
-  inFlight.set(cacheKey, task);
-  return task;
 }
 
 /**
