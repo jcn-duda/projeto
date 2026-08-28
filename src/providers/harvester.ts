@@ -8,348 +8,34 @@
 // crawler — consulta sequencial, intervalo mínimo entre consultas ao mesmo
 // indexer e teto horário. Falha não conta no breaker nem pinta card: o status
 // continua sendo o da busca ao vivo do usuário.
-import crypto from 'node:crypto';
+//
+// Este módulo é a ORQUESTRAÇÃO (tick/drain/start/status): a fila persistente
+// mora em harvest-queue.ts e a colheita de uma obra (com o teto horário e o
+// intervalo por indexer) em harvest-worker.ts. A direção é uma só — daqui para
+// os irmãos; nenhum deles importa de volta.
 import config from '../config.js';
 import * as cache from '../utils/cache.js';
-import { prefix } from '../utils/cache-keys.js';
 import * as activity from './activity.js';
-import jackett from './jackett.js';
-import bludv from './bludv.js';
-import { getMeta } from '../utils/cinemeta.js';
-import * as tmdb from '../utils/tmdb.js';
-import {
-  resolveSearchNames,
-  buildSearchQuery,
-  filterRelevantRaw,
-  extractInfoHash,
-  looksPtBr,
-  audioFromTitle,
-  explicitPtAudio,
-} from '../utils/format.js';
-import { ptSweepIndexers, ptSweepQueryFor } from './search-plan.js';
-import * as releaseIndex from '../utils/release-index.js';
-import { nextSeeds } from './imdb-seed.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import debrid from '../debrid/index.js';
 import { notify } from '../utils/notify.js';
-import rdWarmer from './rd-warmer.js';
+import { nextSeeds } from './imdb-seed.js';
 import * as harvesterLive from '../utils/harvester-live.js';
+import { enqueue, clearQueue, prioritizeQueue, obraIdentity } from './harvest-queue.js';
+import * as harvestQueue from './harvest-queue.js';
+import type { HarvestEntry } from './harvest-queue.js';
+import * as harvestWorker from './harvest-worker.js';
 
-type HarvestEntry = {
-  imdbId: string;
-  type: 'movie' | 'series';
-  season?: number | null;
-  episode?: number | null;
-  reason: string;
-  enqueuedAt: number;
-};
-
-// A fila inteira vive numa chave só: obras são poucas (teto HARVEST_QUEUE_MAX),
-// e ler/escrever um array é atômico dentro do processo — sem scan de chaves,
-// que o cache Map não oferece. Persistência best-effort como todo L2.
-const QUEUE_KEY = `${prefix('harvest')}q`;
-
-let queue: HarvestEntry[] = [];
 let started = false;
 let inFlight = false;
 // Pausa é operacional e deliberadamente não persiste: após restart o operador
 // volta ao comportamento configurado no .env, sem uma ação temporária virar
 // desligamento esquecido.
 let paused = false;
-let lastRunAt = 0;
-let harvested = 0;
-type RecentWork = Pick<HarvestEntry, 'imdbId' | 'type' | 'season' | 'episode'> & { at: number; recorded: number };
-const recentWorks: RecentWork[] = [];
+// Contador de tentativas por obra: uma obra cara (teto estourando sempre ou
+// rede morta) não pode segurar a fila para sempre.
 const attemptsByObra = new Map<string, number>();
-const hourBuckets = new Map<number, number>();
-const lastQueryAt = new Map<string, number>();
-
-function obraIdentity(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'episode'>) {
-  return `${entry.imdbId}:${entry.season ?? ''}:${entry.episode ?? ''}`;
-}
-
-/**
- * Evidência BR para priorizar a fila (Fase 3.2). Pura e barata (in-memory):
- * play real (`next-episode`) vence; na ausência, o índice já ter provado
- * release BR dublada conta; o resto segue FIFO. Nunca escreve no debrid.
- */
-function brEvidenceRank(entry: HarvestEntry): number {
-  if (entry.reason === 'next-episode') return 3;
-  // Evidência por OBRA (pack cobre a temporada), nunca release lied: o post
-  // que prometia PT mas era EN não prova BR tocável — só enganaria a fila.
-  if (releaseIndex.lookupQuiet(entry.imdbId, { season: entry.season, episode: entry.episode }).some((r) => r.isBr && r.dubbed && !r.lied)) return 2;
-  return 0;
-}
-
-/**
- * Ordena a fila e devolve UMA CÓPIA — nunca muta a entrada. Com `harvestBrFirst`
- * ligado, rank de evidência BR desc, depois FIFO por enqueuedAt, com bound de
- * fome: obra sem evidência BR esperando além de `harvestBrMaxWaitMs` sobe para
- * a frente — obra pedida pelo usuário não pode morrer de fome atrás de conteúdo
- * BR. Desligado devolve a ordem exata (FIFO) por enqueuedAt: a ordem persistida
- * pode ter sido priorizada por uma sessão anterior com a flag ligada, e
- * desligar ao vivo precisa restaurar FIFO mesmo assim.
- */
-function prioritizeQueue(queue: HarvestEntry[]): HarvestEntry[] {
-  const live = harvesterLive.effective();
-  const now = Date.now();
-  if (!live.harvestBrFirst) {
-    return [...queue].sort((a, b) => a.enqueuedAt - b.enqueuedAt);
-  }
-  const wait = live.harvestBrMaxWaitMs;
-  const rank = new Map<string, number>();
-  for (const e of queue) rank.set(obraIdentity(e), brEvidenceRank(e));
-  return [...queue].sort((a, b) => {
-    const ra = rank.get(obraIdentity(a)) ?? 0;
-    const rb = rank.get(obraIdentity(b)) ?? 0;
-    const aStarved = wait > 0 && now - a.enqueuedAt >= wait && ra === 0;
-    const bStarved = wait > 0 && now - b.enqueuedAt >= wait && rb === 0;
-    if (aStarved !== bStarved) return aStarved ? -1 : 1;
-    if (ra !== rb) return rb - ra;
-    return a.enqueuedAt - b.enqueuedAt;
-  });
-}
-
-
-function loadQueue() {
-  const stored = cache.get(QUEUE_KEY);
-  if (Array.isArray(stored)) queue = stored.filter((e) => e && /^tt\d+$/.test(String(e.imdbId)));
-  // Sempre unifica a ordem após carregar: a sessão que gravou pode ter usado
-  // outra config de priorização, e a ordem persistida não vale quando ela muda.
-  queue = prioritizeQueue(queue);
-}
-
-function persistQueue() {
-  if (!queue.length) {
-    cache.forget(QUEUE_KEY);
-    return;
-  }
-  const live = harvesterLive.effective();
-  cache.set(QUEUE_KEY, queue.slice(0, live.harvestQueueMax), live.harvestEntryTtl);
-}
-
-/** Marca dedupe por obra com TTL — re-enfileirar a cada busca enchia a fila. */
-function recentlyQueued(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'episode' | 'reason'>) {
-  const key = `${prefix('harvest')}seen:${crypto.createHash('sha256').update(`${obraIdentity(entry)}:${entry.reason}`).digest('hex')}`;
-  if (cache.get(key) === 1) return true;
-  cache.set(key, 1, 12 * 3600);
-  return false;
-}
-
-/**
- * Enfileira uma obra para colheita em fundo. Alimentado por: busca com lacuna
- * no índice (miss/gap) e episódio seguinte de série assistida. Nunca lança e
- * nunca bloqueia — é fogo-e-esquece por contrato.
- */
-function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>) {
-  const live = harvesterLive.effective();
-  if (!live.harvestEnabled || !config.releaseIndex.enabled) return;
-  const imdbId = String(entry.imdbId || '');
-  if (!/^tt\d+$/.test(imdbId)) return;
-  if (entry.type !== 'movie' && entry.type !== 'series') return;
-  const full: HarvestEntry = { ...entry, imdbId, enqueuedAt: Date.now() };
-  if (recentlyQueued(full)) return;
-  if (queue.some((q) => obraIdentity(q) === obraIdentity(full))) return;
-  if (live.harvestBrFirst) {
-    // Com prioridade ativa, o teto NUNCA pode descartar a cabeça mais
-    // importante só porque ela é mais antiga. Reordena e remove da CAUDA — a
-    // de menor prioridade (empate: a mais nova) — até abrir espaço, depois
-    // adiciona a nova; a ordem efetiva volta a valer no próximo passo/status.
-    queue = prioritizeQueue(queue);
-    while (queue.length >= live.harvestQueueMax) queue.pop();
-    queue.push(full);
-  } else {
-    // Sem priorização mantém a semântica antiga: obra nova empurra a mais
-    // velha. A fila é oportunidade de colheita, não backlog sagrado.
-    while (queue.length >= live.harvestQueueMax) queue.shift();
-    queue.push(full);
-  }
-  persistQueue();
-  metrics.count('harvest.enqueued');
-}
-
-function queriesThisHour() {
-  const hour = Math.floor(Date.now() / 3_600_000);
-  for (const bucket of [...hourBuckets.keys()]) {
-    if (bucket < hour) hourBuckets.delete(bucket);
-  }
-  return hourBuckets.get(hour) || 0;
-}
-
-function noteQueries(count: number) {
-  const hour = Math.floor(Date.now() / 3_600_000);
-  hourBuckets.set(hour, (hourBuckets.get(hour) || 0) + count);
-}
-
-async function awaitIndexerGap(indexer: string) {
-  const gap = Date.now() - (lastQueryAt.get(indexer) || 0);
-  const delay = harvesterLive.effective().harvestIndexerDelayMs;
-  if (gap < delay) {
-    // SEM unref, diferente do wait() do common.ts: aquele só roda dentro de uma
-    // requisição, onde o servidor segura o event loop. Este roda no colhedor,
-    // trabalho de FUNDO — com unref o Node encerra o loop com a promise ainda
-    // pendente e o await nunca volta, travando a obra no meio. O preço é o
-    // shutdown esperar no máximo um indexerDelayMs.
-    await new Promise((resolve) => setTimeout(resolve, delay - gap));
-  }
-}
-
-async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean }> {
-  const startedAt = Date.now();
-  const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
-  const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
-  if (!searchMeta?.name) return { ok: false, capped: false };
-  const matchContext = {
-    names: searchMeta.names,
-    year: searchMeta.year,
-    // Pelo TIPO, não pela temporada: obra semeada pela lista de populares
-    // entra sem temporada, e `isSeries: false` aplicaria a precisão de título
-    // de FILME numa série. Para quem já vinha com temporada, é equivalente.
-    isSeries: entry.type === 'series',
-    season: entry.season ?? null,
-    episode: entry.episode ?? null,
-  };
-  const query = buildSearchQuery(searchMeta, { season: entry.season ?? null, episode: entry.episode ?? null });
-  const ptQuery = titles?.pt && titles.pt !== titles.original
-    ? buildSearchQuery({ name: titles.pt, year: titles.year }, { season: entry.season ?? null, episode: entry.episode ?? null })
-    : null;
-
-  const indexers = [...new Set(config.jackett.indexers)];
-  let attempted = 0;
-  let capped = false;
-  let succeeded = 0;
-  const collected: any[] = [];
-
-  // Varredura pt-BR nos globais, ANTES do laço de propósito: é a consulta de
-  // maior valor por unidade (uma chamada agrupada que acha o dublado titulado
-  // em PT, que a query em inglês nunca encontra), então quando o teto horário
-  // cortar, quem fica pelo caminho é a cauda do laço — não ela. Na ordem
-  // antiga o guard somava as consultas do laço e a varredura era a primeira
-  // sacrificada: com 19 indexers e 12 alvos contra teto de 30, ela NUNCA
-  // rodava.
-  //
-  // Varredura pt-BR nos globais, a mesma da busca ao vivo: o dublado
-  // titulado em PT mora em tracker global e a query em inglês não o encontra
-  // — sem isto o índice ficava sistematicamente cego para a release que só a
-  // varredura acha, e o colhedor não a entregava nunca. Divergência DE
-  // PROPÓSITO do caminho ao vivo: aqui o breaker é RESPEITADO (sem
-  // ignoreBreaker) — colheita de fundo não precisa acordar indexer
-  // recém-derrubado, o dublado raro espera o cooldown.
-  const sweepQuery = config.jackett.ptSweepGlobal ? ptSweepQueryFor({ titles }) : null;
-  const sweepTargets =
-    sweepQuery && !activity.recentUserTraffic(config.harvest.idleWindowMs)
-      ? ptSweepIndexers(indexers, config.jackett.ptBrIndexers)
-      : [];
-  if (sweepQuery && sweepTargets.length > 0) {
-    // A varredura agrupada dispara uma consulta HTTP por alvo: conta no teto
-    // com a mesma moeda do loop acima, antes de decidir.
-    if (queriesThisHour() + sweepTargets.length >= config.harvest.maxPerHour) {
-      log.debug('[harvest] teto horário atingido antes da varredura pt');
-    } else {
-      for (const target of sweepTargets) {
-        await awaitIndexerGap(target);
-      }
-      attempted += sweepTargets.length;
-      metrics.count('harvest.sweep');
-      try {
-        const items = await jackett.search(sweepQuery, entry.type, sweepTargets, {
-          matchContext,
-          recordStatus: false,
-        });
-        for (const target of sweepTargets) {
-          lastQueryAt.set(target, Date.now());
-        }
-        succeeded += sweepTargets.length;
-        collected.push(...items.filter((i: any) => !i.fromAccount));
-      } catch (err: unknown) {
-        for (const target of sweepTargets) {
-          lastQueryAt.set(target, Date.now());
-        }
-        log.warn('[harvest] varredura pt falhou:', log.errorMessage(err));
-      }
-    }
-  }
-
-  for (const indexer of indexers) {
-    // Freio de atividade no MEIO da obra também: tráfego chegou, solta o
-    // Jackett na hora (o que já foi coletado entra no índice mesmo assim).
-    if (activity.recentUserTraffic(config.harvest.idleWindowMs)) break;
-    if (queriesThisHour() + attempted >= config.harvest.maxPerHour) {
-      // A obra sai DAQUI pela metade: quem a desenfileirou precisa saber, senão
-      // ela é dada por colhida com meia dúzia de indexers e nunca mais volta.
-      capped = true;
-      log.debug('[harvest] teto horário atingido');
-      break;
-    }
-    // Intervalo mínimo entre consultas ao MESMO indexer: educação básica.
-    await awaitIndexerGap(indexer);
-    attempted += 1;
-    try {
-      const items = await jackett.search(query, entry.type, [indexer], {
-        matchContext,
-        recordStatus: false,
-        fallbackQuery: ptQuery || undefined,
-      });
-      lastQueryAt.set(indexer, Date.now());
-      succeeded += 1;
-      collected.push(...items.filter((i: any) => !i.fromAccount));
-    } catch (err: unknown) {
-      lastQueryAt.set(indexer, Date.now());
-      log.warn(`[harvest] ${indexer} falhou para ${entry.imdbId}:`, log.errorMessage(err));
-    }
-  }
-
-  if (config.bludv.enabled && ptQuery) {
-    try {
-      collected.push(...(await bludv.search(ptQuery)).filter((i: any) => !i.fromAccount));
-    } catch (err: unknown) {
-      log.warn('[harvest] bludv falhou:', log.errorMessage(err));
-    }
-  }
-
-  // O teto horário só fecha a conta se as consultas forem ANOTADAS: este
-  // chamado faltava e o acumulador vivia vazio — queriesThisHour() devolvia
-  // sempre 0 e HARVEST_MAX_HOUR não segurava nada entre obras (o guard do
-  // tick via um balde eternamente limpo). Só consultas ao Jackett contam,
-  // na mesma moeda dos guards; uma única anotação no fim cobre loop e
-  // varredura.
-  noteQueries(attempted);
-
-  const relevant = filterRelevantRaw(collected, matchContext as any);
-  const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);
-  if (config.debrid.rdWarm.enabled && rdWarmer.rdInPlay() && relevant.length) {
-    const topReleases = relevant
-      .map((r: any) => {
-        const title = String(r.title || r.Title || '');
-        const hash = String(extractInfoHash(r.infoHash || r.magnet || r.MagnetUri || r.Guid || r.hash) || '').toLowerCase();
-        const isBr = Boolean(r.isBr) || looksPtBr(title);
-        const audio = audioFromTitle(title);
-        const dubbed = Boolean(r.dubbed) || ['Dublado', 'Dual', 'Nacional'].includes(String(audio)) || explicitPtAudio(title);
-        const score = isBr && dubbed ? 80 : (dubbed ? 40 : 5);
-        return { hash, score };
-      })
-      .filter((r: any) => /^[a-f0-9]{40}$/.test(r.hash));
-    for (const item of topReleases.slice(0, 10)) {
-      rdWarmer.enqueue([item.hash], item.score);
-    }
-  }
-  harvested += 1;
-  lastRunAt = Date.now();
-  if (config.harvest.dashboardLastWorks > 0) {
-    recentWorks.unshift({
-      at: lastRunAt,
-      imdbId: entry.imdbId,
-      type: entry.type,
-      season: entry.season ?? null,
-      episode: entry.episode ?? null,
-      recorded: added,
-    });
-    recentWorks.length = Math.min(recentWorks.length, config.harvest.dashboardLastWorks);
-  }
-  metrics.observe('harvest.ms', Date.now() - startedAt);
-  return { ok: added > 0 || succeeded > 0, capped };
-}
 
 async function checkQuotaWarning() {
   if (!config.notify.enabled || !config.notify.webhookUrl) return;
@@ -385,21 +71,21 @@ async function tick() {
   // await de propósito — a rede da RapidAPI não pode atrasar a colheita, e o
   // cooldown do próprio módulo evita repetir no tick seguinte.
   nextSeeds()
-    .then((obras) => obras.forEach((obra) => enqueue(obra as any)))
+    .then((obras) => obras.forEach((obra) => harvestQueue.enqueue(obra as any)))
     .catch((err: unknown) => log.debug('[seed] ciclo falhou:', log.errorMessage(err)));
-  if (!queue.length) return;
-  if (queriesThisHour() >= live.harvestMaxPerHour) return;
+  if (harvestQueue.isEmpty()) return;
+  if (harvestWorker.queriesThisHour() >= live.harvestMaxPerHour) return;
   inFlight = true;
   let entry: HarvestEntry | undefined;
   try {
     // Sempre prioriza: com a flag desligada restaura FIFO, com ligada respeita
     // o rank BR e a fome — independentemente da ordem em que a fila estava.
-    queue = prioritizeQueue(queue);
-    entry = queue.shift();
+    harvestQueue.reorder();
+    entry = harvestQueue.takeHead();
     if (!entry) return;
-    persistQueue();
+    harvestQueue.persist();
     const identity = obraIdentity(entry);
-    const { ok, capped } = await harvestOne(entry);
+    const { ok, capped } = await harvestWorker.harvestOne(entry);
     metrics.count(ok ? 'harvest.done' : 'harvest.empty');
     if (capped) {
       // Obra cortada no meio pelo teto volta para a FRENTE da fila: terminar o
@@ -411,8 +97,8 @@ async function tick() {
       attemptsByObra.set(identity, tries);
       if (tries <= 3) {
         metrics.count('harvest.capped');
-        queue.unshift(entry);
-        persistQueue();
+        harvestQueue.head(entry);
+        harvestQueue.persist();
       } else {
         attemptsByObra.delete(identity);
       }
@@ -425,9 +111,9 @@ async function tick() {
       const tries = (attemptsByObra.get(obraIdentity(entry)) || 0) + 1;
       attemptsByObra.set(obraIdentity(entry), tries);
       // Falha de rede pode ser transitória: volta pro fim da fila até 3 vezes.
-      if (tries <= 3) queue.push(entry);
+      if (tries <= 3) harvestQueue.tail(entry);
       else attemptsByObra.delete(obraIdentity(entry));
-      persistQueue();
+      harvestQueue.persist();
     }
     log.warn('[harvest] ciclo falhou:', log.errorMessage(err));
   } finally {
@@ -442,14 +128,6 @@ function setPaused(value: boolean) {
   return paused;
 }
 
-/** Esvazia a fila de colheita imediatamente a pedido do operador. */
-function clearQueue(): { cleared: number } {
-  const count = queue.length;
-  queue = [];
-  cache.forget(QUEUE_KEY);
-  return { cleared: count };
-}
-
 /**
  * Processa uma pequena fatia imediatamente, sem furar freio de tráfego nem
  * orçamento horário. O painel chama isto explicitamente; o intervalo normal
@@ -459,14 +137,14 @@ async function drain(maxWorks?: number) {
   const live = harvesterLive.effective();
   const limit = Math.max(0, Math.min(live.harvestDrainMaxWorks, Math.trunc(Number(maxWorks ?? live.harvestDrainMaxWorks) || 0)));
   let drained = 0;
-  while (drained < limit && queue.length && !paused && !harvesterLive.isPaused() && !inFlight) {
-    if (activity.recentUserTraffic(live.harvestIdleWindowMs) || queriesThisHour() >= live.harvestMaxPerHour) break;
-    const before = queue.length;
+  while (drained < limit && !harvestQueue.isEmpty() && !paused && !harvesterLive.isPaused() && !inFlight) {
+    if (activity.recentUserTraffic(live.harvestIdleWindowMs) || harvestWorker.queriesThisHour() >= live.harvestMaxPerHour) break;
+    const before = harvestQueue.depth();
     await tick();
-    if (queue.length >= before) break;
+    if (harvestQueue.depth() >= before) break;
     drained += 1;
   }
-  return { drained, queueRemaining: queue.length, paused: paused || harvesterLive.isPaused() };
+  return { drained, queueRemaining: harvestQueue.depth(), paused: paused || harvesterLive.isPaused() };
 }
 
 function start() {
@@ -476,8 +154,9 @@ function start() {
     log.info('[harvest] desativado (colhedor ou índice off)');
     return;
   }
-  loadQueue();
-  if (queue.length) log.info(`[harvest] fila recuperada do disco: ${queue.length} obra(s)`);
+  harvestQueue.load();
+  const recovered = harvestQueue.depth();
+  if (recovered) log.info(`[harvest] fila recuperada do disco: ${recovered} obra(s)`);
   const timer = setInterval(() => { tick().catch(() => {}); }, config.harvest.intervalMs);
   timer.unref();
 }
@@ -486,21 +165,24 @@ function start() {
 function status() {
   const live = harvesterLive.effective();
   const isPause = paused || harvesterLive.isPaused();
+  const workerStats = harvestWorker.stats();
   return {
     enabled: live.harvestEnabled && config.releaseIndex.enabled,
     paused: isPause,
-    queueDepth: queue.length,
+    queueDepth: harvestQueue.depth(),
     queueMax: live.harvestQueueMax,
-    harvested,
-    queriesThisHour: queriesThisHour(),
+    harvested: workerStats.harvested,
+    queriesThisHour: harvestWorker.queriesThisHour(),
     maxPerHour: live.harvestMaxPerHour,
-    lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
+    lastRunAt: workerStats.lastRunAt ? new Date(workerStats.lastRunAt).toISOString() : null,
     idleWindowMs: live.harvestIdleWindowMs,
-    queuePreview: prioritizeQueue(queue).slice(0, config.harvest.queuePreview).map((entry) => ({ ...entry })),
-    lastWorks: recentWorks.map((entry) => ({ ...entry, at: new Date(entry.at).toISOString() })),
+    queuePreview: harvestQueue.preview(config.harvest.queuePreview),
+    lastWorks: workerStats.recentWorks.map((entry) => ({ ...entry, at: new Date(entry.at).toISOString() })),
     config: harvesterLive.snapshot(),
   };
 }
 
-export { enqueue, start, status, tick, setPaused, drain, clearQueue, prioritizeQueue };
+// Superfície pública preservada: enqueue/clearQueue/prioritizeQueue vivem na
+// fila, mas são reexportados daqui — consumidores e testes não mudam.
+export { enqueue, clearQueue, prioritizeQueue, start, status, tick, setPaused, drain };
 export default { enqueue, start, status, tick, setPaused, drain, clearQueue, prioritizeQueue };

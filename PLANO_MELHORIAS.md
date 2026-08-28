@@ -603,6 +603,7 @@ plano:
 | item 1 — `src/config.ts` (Fase 2) | 19.653 | 57 | split em 10 seções por domínio (`src/config/`); a entrada saiu do JSON (779 → 58) e a superfície `export default config` não mudou |
 | item 2 — `src/debrid/index.ts` (Fase 2) | 19.111 | 56 | barrel de 53 linhas sobre 7 módulos irmãos sem ciclo (registry, cache-check/davail, inventário, status de conta, env-ops, actions, catálogo); default com as mesmas 27 chaves na mesma ordem |
 | item 3 — `src/utils/cache.ts` (Fase 2) | 18.813 | 55 | estado mutável ficou no `cache.ts` (286); irmãos são política pura (`cache-quotas.ts`) e fábrica de persistência (`cache-db.ts`) — o teste de cache-busting com `import('?query')` pegou o vazamento de estado entre instâncias e ditou a forma |
+| item 4 — par harvester (Fase 2) | 18.648 | 53 | `harvester.ts` 506 → 180 (fila em `harvest-queue.ts`, colheita unitária em `harvest-worker.ts`) e `harvester-live.ts` 459 → 138 (validação/clamps em `harvester-live-schema.ts`); ambos saíram do JSON. No gate seguinte a catraca pegou `cache-db.ts` do item 3 com 409 linhas (invisível à regra A enquanto não-rastreado) — extraído em `cache-db-open.ts` (`0aa41bf`) |
 
 **Backlog de resgate, ordenado por churn** (commits nos últimos 90 dias — os
 que mais se mexem primeiro, não os maiores primeiro; é onde a catraca morde,

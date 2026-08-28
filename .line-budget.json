@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-08-28",
-  "excedente": 18813,
+  "excedente": 18648,
   "arquivos": {
     "resolvers/profiles/bludv.js": 1136,
     "resolvers/profiles/comandotorrents.js": 731,
@@ -13,14 +13,12 @@
     "src/providers/autofetch-runner.ts": 705,
     "src/providers/autofetch.ts": 415,
     "src/providers/debrid-pipeline.ts": 726,
-    "src/providers/harvester.ts": 506,
     "src/providers/jackett.ts": 654,
     "src/providers/search-orchestrator.ts": 888,
     "src/providers/stream-builder.ts": 628,
     "src/routes/diagnostics.ts": 492,
     "src/utils/autofetch-live.ts": 495,
     "src/utils/catalog.ts": 1064,
-    "src/utils/harvester-live.ts": 459,
     "src/utils/release-matching.ts": 636,
     "src/utils/stream-quotas.ts": 413,
     "src/utils/stream-ranking.ts": 499,
