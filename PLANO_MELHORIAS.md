@@ -599,8 +599,7 @@ plano:
 
 | Commit | Excedente | Entradas (>400) | Nota |
 |---|---|---|---|
-| — (Fase 1 pendente) | 20.031 | 58 | medição do plano (wc -l, 206 arquivos varridos) em 2026-08-28; o script é a autoridade e pode divergir ±1 por arquivo sem newline final |
-| — (Fase 1, portão no ar, pré-commit) | **20.032** | 58 | primeira medição do script: 210 varridos com o pathspec corrigido (203 dos diretórios + os 7 `.js` dos cinco `*-resolver/`); os 10 arquivos sem newline final somam +1 na contagem, mas só o `vacatorrent.js` (1024 → 1025) está acima do teto |
+| `a9932aa` (Fase 1, portão no ar) | **20.032** | 58 | primeira medição do script: 210 varridos com o pathspec corrigido (203 dos diretórios + os 7 `.js` dos cinco `*-resolver/`); os 10 arquivos sem newline final somam +1 na contagem, mas só o `vacatorrent.js` (1024 → 1025) está acima do teto. Medição do plano que originou a fase: 20.031 / 58 em 206 arquivos (`wc -l`, 2026-08-28) |
 
 **Backlog de resgate, ordenado por churn** (commits nos últimos 90 dias — os
 que mais se mexem primeiro, não os maiores primeiro; é onde a catraca morde,
