@@ -318,7 +318,9 @@
           </select>
         </label>
         <button id="catalogListBtn" type="button">Listar</button>
+        <button id="catalogSelectAllBtn" type="button">Selecionar todos</button>
         <button id="catalogManualDeleteBtn" class="danger" type="button">Apagar selecionados</button>
+        <span id="catalog_selection" class="catalog-option">nada selecionado</span>
       </div>
       <div id="catalog_manual" class="cards"><div class="empty">Clique em Listar.</div></div>
     </div>
@@ -2087,6 +2089,8 @@
   function renderCatalogManual(data) {
     var out = $("catalog_manual");
     empty(out, "Sem linhas.");
+    // Já sem checkboxes no DOM: zera o resumo antes de qualquer saída curta.
+    refreshCatalogSelection();
     if (!data || !data.ok) { empty(out, bucketError(data)); return; }
     var rows = data.rows || [];
     if (!rows.length) { empty(out, "Nenhuma linha neste balde."); return; }
@@ -2099,6 +2103,7 @@
       box.type = "checkbox";
       box.className = "catalog-pick";
       box.setAttribute("data-id", String(r.serviceId));
+      box.setAttribute("data-size", String(r.size || 0));
       // Download em curso o servidor pula de qualquer jeito; desabilitar aqui
       // evita o operador achar que selecionou algo que vai sair.
       if (r.active) { box.disabled = true; }
@@ -2111,16 +2116,70 @@
       ));
       out.appendChild(line);
     }
+    // Lista nova zera o resumo: os checkboxes antigos saíram do DOM.
+    refreshCatalogSelection();
+  }
+
+  function catalogBoxes() {
+    return document.querySelectorAll("#catalog_manual .catalog-pick");
   }
 
   function catalogPicked() {
-    var nodes = document.querySelectorAll("#catalog_manual .catalog-pick");
+    var nodes = catalogBoxes();
     var ids = [];
     var i;
     for (i = 0; i < nodes.length; i += 1) {
       if (nodes[i].checked) ids.push(nodes[i].getAttribute("data-id"));
     }
     return ids;
+  }
+
+  /**
+   * Resumo da seleção. Mostra o TAMANHO junto porque a ação seguinte é
+   * irreversível: "12 selecionados" não diz se são 2 GB ou 2 TB.
+   */
+  function refreshCatalogSelection() {
+    var nodes = catalogBoxes();
+    var alvo = $("catalog_selection");
+    var marcados = 0;
+    var bytes = 0;
+    var elegiveis = 0;
+    var i;
+    for (i = 0; i < nodes.length; i += 1) {
+      if (nodes[i].disabled) continue;
+      elegiveis += 1;
+      if (nodes[i].checked) {
+        marcados += 1;
+        bytes += Number(nodes[i].getAttribute("data-size")) || 0;
+      }
+    }
+    if (alvo) {
+      alvo.textContent = marcados
+        ? marcados + " de " + elegiveis + " selecionados · " + formatBytes(bytes)
+        : "nada selecionado";
+    }
+    var botao = $("catalogSelectAllBtn");
+    if (botao) botao.textContent = (elegiveis > 0 && marcados === elegiveis) ? "Limpar seleção" : "Selecionar todos";
+  }
+
+  /** Marca tudo que dá para apagar; se já está tudo marcado, limpa. */
+  function toggleCatalogSelectAll() {
+    var nodes = catalogBoxes();
+    var elegiveis = 0;
+    var marcados = 0;
+    var i;
+    for (i = 0; i < nodes.length; i += 1) {
+      if (nodes[i].disabled) continue;
+      elegiveis += 1;
+      if (nodes[i].checked) marcados += 1;
+    }
+    // Download em curso fica de fora: o checkbox está desabilitado e o servidor
+    // o pularia de qualquer forma.
+    var ligar = marcados < elegiveis;
+    for (i = 0; i < nodes.length; i += 1) {
+      if (!nodes[i].disabled) nodes[i].checked = ligar;
+    }
+    refreshCatalogSelection();
   }
 
   function catalogIncludeKnown() {
@@ -2260,6 +2319,8 @@
     $("catalogAuditBtn").addEventListener("click", runCatalogAudit);
     $("catalogRequeueBtn").addEventListener("click", runCatalogRequeue);
     $("catalogListBtn").addEventListener("click", runCatalogList);
+    $("catalogSelectAllBtn").addEventListener("click", toggleCatalogSelectAll);
+    $("catalog_manual").addEventListener("change", refreshCatalogSelection);
     $("catalogManualDeleteBtn").addEventListener("click", runCatalogManualDelete);
     $("catalogDedupPreviewBtn").addEventListener("click", runCatalogDedupPreview);
     $("catalogDedupApplyBtn").addEventListener("click", runCatalogDedupApply);

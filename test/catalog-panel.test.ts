@@ -158,3 +158,20 @@ test('dashboard.html: callback do catalogAction roda isolado em try/catch', () =
   const html = dashboardHtml();
   assert.match(html, /callback\(data\);\s*\}\s*catch \(renderError\)/);
 });
+
+// Selecionar todos: conveniência sobre uma ação IRREVERSÍVEL, então duas
+// invariantes. (a) download em curso nunca entra na seleção em massa — o
+// checkbox nasce `disabled` e o toggle o ignora; (b) o resumo mostra o TAMANHO
+// junto da contagem, porque "12 selecionados" não diz se são 2 GB ou 2 TB.
+test('dashboard.html: selecionar todos pula os desabilitados e resume com tamanho', () => {
+  const html = dashboardHtml();
+  assert.match(html, /id="catalogSelectAllBtn"/);
+  assert.match(html, /id="catalog_selection"/);
+  const idx = html.indexOf('function toggleCatalogSelectAll');
+  assert.ok(idx !== -1, 'handler do selecionar-todos presente');
+  const corpo = html.slice(idx, idx + 900);
+  assert.match(corpo, /if \(!nodes\[i\]\.disabled\) nodes\[i\]\.checked = ligar;/, 'só marca o que não está desabilitado');
+  assert.match(html, /box\.setAttribute\("data-size"/, 'o checkbox carrega o tamanho para o resumo somar');
+  const resumo = html.slice(html.indexOf('function refreshCatalogSelection'), html.indexOf('function toggleCatalogSelectAll'));
+  assert.match(resumo, /formatBytes\(bytes\)/, 'o resumo mostra bytes, não só contagem');
+});
