@@ -346,8 +346,10 @@ const config = {
   catalog: {
     dbPath: process.env.CATALOG_DB_PATH || DEFAULT_CATALOG_DB_PATH,
     // Idade mínima para a limpeza automática de estrangeiro provado tocar um
-    // magnet: antigo o bastante para não ser download fresco (7 dias).
-    cleanupMinAgeMs: num(process.env.CATALOG_CLEANUP_MIN_AGE_MS, 7 * 24 * 3600 * 1000),
+    // magnet. 48h é o limite operacional: o acervo da AllDebrid se recicla em
+    // até ~3 dias, então 7d nunca liberava nada; duas janelas de observação
+    // (48h) ainda descartam o download que acabou de ser aquecido.
+    cleanupMinAgeMs: num(process.env.CATALOG_CLEANUP_MIN_AGE_MS, 48 * 3600 * 1000),
     // Teto de magnets por rodada da limpeza de estrangeiro provado.
     cleanupMaxPerRound: Math.max(0, Math.trunc(num(process.env.CATALOG_CLEANUP_MAX, 100))),
     // Teto de linhas por rodada da auditoria de arquivos (quem ainda não tem

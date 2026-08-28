@@ -683,8 +683,11 @@ export function planDedup(account: string, adapterId?: string): { t1: DedupGroup
       for (const m of sorted) {
         if (clusterBase != null && m.size - clusterBase > clusterBase * 0.005) {
           emit(t2, nome, clusterBase, cluster);
+          // O `m` que disparou o corte abre o NOVO cluster — se aqui víssemos
+          // `cluster = []`, o item se perderia e o último cluster (que vem só
+          // do `else`) nunca incluiria a release que cruzou a tolerância.
           clusterBase = m.size;
-          cluster = [];
+          cluster = [m];
         } else {
           if (clusterBase == null) clusterBase = m.size;
           cluster.push(m);

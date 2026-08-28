@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import config from '../src/config.js';
 
 const ACTIONS = [
   'catalog-scan',
@@ -88,4 +89,30 @@ test('dashboard.html: checkbox catalog_include_known presente e enviado como inc
 test('dashboard.html: alvo com t.known é marcado (preexistente) na lista da limpeza', () => {
   const html = dashboardHtml();
   assert.match(html, /preexistente/);
+});
+
+// Limpador BR com prova: o default de idade mínima foi fixado em 48h. Motivo
+// medido: o acervo da AllDebrid se recicla em até ~3 dias, então o antigo
+// default de 7 dias nunca liberava vaga; duas janelas de observação (48h)
+// ainda descartam o download que acabou de ser aquecido.
+test('cleanupMinAgeMs default é 48h, não 7 dias', () => {
+  assert.equal(config.catalog.cleanupMinAgeMs, 48 * 3600 * 1000);
+});
+
+// Valor explícito da env ainda vence o default: config.js lê o process.env uma
+// vez no load, então este teste importa uma cópia fresca do módulo (bust de
+// cache via query) com a variável setada antes, sem tocar o singleton do topo
+// deste arquivo nem o estado de outros testes do processo.
+test('CATALOG_CLEANUP_MIN_AGE_MS explícito vence o default de 48h', async () => {
+  process.env.CATALOG_CLEANUP_MIN_AGE_MS = '999000';
+  try {
+    // Expressão não-literal: mantém o cache bust via query (instância fresca
+    // do módulo) sem o TS tentar resolver a URL literal (TS2307). O default
+    // do módulo é o objeto config.
+    const fresh = (await import('../src/config.js' + '?cleanup-age=override')) as any;
+    const cfg: { catalog: { cleanupMinAgeMs: number } } = fresh.default;
+    assert.equal(cfg.catalog.cleanupMinAgeMs, 999000);
+  } finally {
+    delete process.env.CATALOG_CLEANUP_MIN_AGE_MS;
+  }
 });

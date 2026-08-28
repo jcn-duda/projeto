@@ -120,6 +120,30 @@ test('planDedup T2: filenames iguais após normalização e tamanhos na tolerân
   assert.ok(ids.includes('713999816') && ids.includes('713999501'), 'as duas reproduções entram no grupo');
 });
 
+test('planDedup T2: item que cruza a tolerância abre o próximo cluster (não se perde)', () => {
+  // Regressão: o ítem que dispara o corte entrava como `cluster = []` e se
+  // perdia — o segundo par (na fronteira do corte) sumia do plano. Quatro
+  // magnets, mesmo nome normalizado (quatro grafias de separador distintas),
+  // sizes formando DOIS pares 0,5%-apartados e ~100% apartados entre pares:
+  // espera-se EXATAMENTE 2 grupos T2. Grafias SEM ponto final para não casar
+  // com o strip de extensão do `filenameNormalized` (o " 5.1" do caso real
+  // estaria ancorado; aqui o foco é só o cluster, não o igualador de nomes).
+  scan(ACCOUNT, [
+    magnet({ id: '104', hash: '3c'.repeat(20), filename: 'Devaradores de Estrelas 2026 Dual', size: 1_000_000_000, uploadDate: 1000 }),
+    magnet({ id: '103', hash: '3b'.repeat(20), filename: 'Devaradores-de-Estrelas-2026-dual', size: 1_000_001_000, uploadDate: 2000 }),
+    magnet({ id: '102', hash: '3a'.repeat(20), filename: 'Devaradores [de Estrelas] 2026 DUAL', size: 2_000_000_000, uploadDate: 3000 }),
+    magnet({ id: '101', hash: '30'.repeat(20), filename: 'Devaradores_de_Estrelas_2026_Dual', size: 2_000_001_000, uploadDate: 4000 }),
+  ]);
+  const { t2 } = catalog.planDedup(ACCOUNT);
+  assert.equal(t2.length, 2, 'dois clusters por tolerância 0,5% contra o menor de cada cluster');
+  const memberIds = new Set(t2.flatMap((g) => [String(g.keep.serviceId), ...g.kill.map((k) => String(k.serviceId))]));
+  assert.equal(memberIds.size, 4, 'os 4 magnets entram no plano (nenhum se perde)');
+  assert.ok(memberIds.has('101') && memberIds.has('102'), 'o segundo par (C e D) não pode sumir');
+  for (const g of t2) {
+    assert.equal(g.kill.length, 1, 'cada grupo tem keep + 1 kill');
+  }
+});
+
 test('planDedup T2 NÃO agrupa tamanhos fora da tolerância (10% apartados)', () => {
   // Controle: mesmo nome normalizado, mas tamanhos 10% apartados — cada um é
   // um cluster de tamanho 1, então nenhum grupo T2 é formado.
