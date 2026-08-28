@@ -70,10 +70,10 @@ const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
 const SEARCH_CACHE_MS = Number(process.env.SEARCH_CACHE_MS || 5 * 60_000);
 const MAGNET_CACHE_MS = Number(process.env.MAGNET_CACHE_MS || 30 * 60_000);
 const SELF_URL = (process.env.SELF_URL || 'http://vacatorrent-resolver:8704').replace(/\/$/, '');
-// Este perfil NÃO está wireado no pool ao vivo (ver bloco de cabeçalho):
-// `config.resolvers.vacatorrentUrl` ainda não existe — religar exige adicionar
-// a config (+ env) E o resolver em src/br-resolvers.ts. O default abaixo vale
-// para execução direta do resolver standalone.
+// Wireado no pool ao vivo: `config.resolvers.vacatorrentUrl` (env
+// VACATORRENT_URL) e a entrada em `src/br-resolvers.ts` existem, então em modo
+// embutido o SITE_URL chega injetado por lá. O default abaixo vale para a
+// execução direta do resolver standalone.
 const SITE_URL = (process.env.SITE_URL || process.env.VACATORRENT_URL || 'https://vaqueirofilmes.com').replace(/\/$/, '');
 
 function parseExtraProtectors(envVal) {
