@@ -827,6 +827,89 @@ export function planForeignCleanup(
  * arquivos em `Ready`, e um não-pronto não é alvo de limpeza de qualquer
  * forma (será auditado quando ficar pronto).
  */
+export type ReviewRow = DedupRow & {
+  bucket: string;
+  foreignProof: string;
+  ptProof: string;
+  cached: string;
+  imdbId: string;
+};
+
+/**
+ * Linhas para o operador ESCOLHER na mão, maiores primeiro (é espaço que ele
+ * quer de volta). Leitura pura.
+ *
+ * Existe porque as regras automáticas são deliberadamente conservadoras: o
+ * `foreignVerdict` só condena com prova positiva de estrangeiro, e a trava de
+ * idade segura o resto. Numa conta que gira em menos de 48h isso deixa a
+ * limpeza quase parada, e o operador — que enxerga o título e sabe o que é
+ * dele — precisa de uma saída manual. `bucket` filtra o balde ('lixo', 'dual',
+ * 'pt', 'dub'); vazio traz todos.
+ */
+export function listForReview(
+  account: string,
+  adapterId?: string,
+  { bucket, limit }: { bucket?: string; limit?: number } = {},
+): ReviewRow[] {
+  const e = engine();
+  const adapter = adapterId || configOperatorAdapter();
+  const teto = limit == null ? 100 : Math.max(0, Math.trunc(limit));
+  const out: ReviewRow[] = [];
+  for (const r of e.listRows(adapter, account)) {
+    if (r.deletedAt !== 0) continue;
+    if (bucket && r.bucket !== bucket) continue;
+    out.push({
+      ...toDedupRow(r, account, adapter),
+      bucket: r.bucket,
+      foreignProof: r.foreignProof,
+      ptProof: r.ptProof,
+      cached: r.cached,
+      imdbId: r.imdbId,
+    });
+  }
+  out.sort((a, b) => (b.size || 0) - (a.size || 0));
+  return out.slice(0, teto);
+}
+
+/**
+ * Plano da deleção MANUAL: o operador mandou estes `serviceIds` e nada mais.
+ *
+ * Sem regra de classificação e sem trava de idade — a escolha explícita É a
+ * autorização, e é justamente por isso que existe. A única guarda que fica é
+ * `active`: download em curso não aparece como tal no título, e apagá-lo joga
+ * fora trabalho que o operador não tinha como ver na tela. Protegido passa,
+ * mas volta marcado no relatório para ele saber o que fez.
+ */
+export function planManualDeletion(
+  account: string,
+  adapterId: string,
+  serviceIds: Array<string | number>,
+): { targets: CleanupTarget[]; skipped: { missing: number; active: number } } {
+  const e = engine();
+  const skipped = { missing: 0, active: 0 };
+  const targets: CleanupTarget[] = [];
+  const vistos = new Set<string>();
+  for (const raw of serviceIds || []) {
+    const serviceId = String(raw ?? '');
+    if (!serviceId || vistos.has(serviceId)) continue;
+    vistos.add(serviceId);
+    const r = e.getRow(adapterId, account, serviceId);
+    if (!r || r.deletedAt !== 0) { skipped.missing += 1; continue; }
+    if (isActive(r.status)) { skipped.active += 1; continue; }
+    targets.push({
+      serviceId: r.serviceId,
+      hash: r.hash,
+      filename: r.filename,
+      size: r.size,
+      reason: 'manual',
+      // A deleção manual não consulta o snapshot de preexistentes: a escolha
+      // explícita do operador já é a autorização que o `known` representaria.
+      known: false,
+    });
+  }
+  return { targets, skipped };
+}
+
 export function rowsNeedingAudit(account: string, limit?: number): Array<{ serviceId: string | number; hash: string }> {
   const e = engine();
   const adapter = configOperatorAdapter();

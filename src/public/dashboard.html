@@ -304,6 +304,24 @@
     <div class="catalog-report"><h3>Relatório</h3><div id="catalog_report" class="metrics"><div class="empty">Execute a varredura ou o relatório para popular.</div></div></div>
     <div class="catalog-report"><h3>Duplicados</h3><div id="catalog_dedup_preview" class="metrics"><div class="empty">Execute o preview de duplicados.</div></div></div>
     <div class="catalog-report"><h3>Alvos (top 10)</h3><div id="catalog_targets" class="cards"><div class="empty">Sem alvos de preview.</div></div></div>
+    <div class="catalog-report">
+      <h3>Escolher na mão</h3>
+      <p>Lista o que está na conta, maiores primeiro. A seleção é a autorização: não passa por classificação nem por trava de idade. Download em curso é sempre pulado.</p>
+      <div class="catalog-actions">
+        <label class="catalog-max">Balde
+          <select id="catalog_bucket">
+            <option value="">todos</option>
+            <option value="lixo">lixo / indefinido</option>
+            <option value="dual">dual</option>
+            <option value="pt">português</option>
+            <option value="dub">dublado</option>
+          </select>
+        </label>
+        <button id="catalogListBtn" type="button">Listar</button>
+        <button id="catalogManualDeleteBtn" class="danger" type="button">Apagar selecionados</button>
+      </div>
+      <div id="catalog_manual" class="cards"><div class="empty">Clique em Listar.</div></div>
+    </div>
   </section>
   </div>
 
@@ -2061,6 +2079,50 @@
     }
   }
 
+  /**
+   * Lista para escolha manual: uma linha por magnet, com checkbox. O
+   * `data-id` carrega o service_id, que é o que a ação manual-delete envia —
+   * o filename é só rótulo e nunca identifica a linha.
+   */
+  function renderCatalogManual(data) {
+    var out = $("catalog_manual");
+    empty(out, "Sem linhas.");
+    if (!data || !data.ok) { empty(out, bucketError(data)); return; }
+    var rows = data.rows || [];
+    if (!rows.length) { empty(out, "Nenhuma linha neste balde."); return; }
+    var i;
+    for (i = 0; i < rows.length; i += 1) {
+      var r = rows[i] || {};
+      var line = document.createElement("label");
+      line.className = "catalog-target-row";
+      var box = document.createElement("input");
+      box.type = "checkbox";
+      box.className = "catalog-pick";
+      box.setAttribute("data-id", String(r.serviceId));
+      // Download em curso o servidor pula de qualquer jeito; desabilitar aqui
+      // evita o operador achar que selecionou algo que vai sair.
+      if (r.active) { box.disabled = true; }
+      line.appendChild(box);
+      var marca = r.foreignProof ? " [estrangeiro: " + r.foreignProof + "]" : (r.ptProof ? " [PT: " + r.ptProof + "]" : "");
+      line.appendChild(document.createTextNode(
+        " " + formatBytes(r.size) + "  [" + valueText(r.bucket) + "]" + marca
+          + (r.active ? "  (baixando)" : "") + (r.protected ? "  (protegido)" : "")
+          + "  " + titleText(r.filename || "")
+      ));
+      out.appendChild(line);
+    }
+  }
+
+  function catalogPicked() {
+    var nodes = document.querySelectorAll("#catalog_manual .catalog-pick");
+    var ids = [];
+    var i;
+    for (i = 0; i < nodes.length; i += 1) {
+      if (nodes[i].checked) ids.push(nodes[i].getAttribute("data-id"));
+    }
+    return ids;
+  }
+
   function catalogIncludeKnown() {
     var el = document.getElementById("catalog_include_known");
     return !!el && !!el.checked;
@@ -2069,6 +2131,8 @@
   function catalogAction(action, extra, callback) {
     var payload = { action: action, confirm: true, includeKnown: catalogIncludeKnown() };
     if (extra && extra.max !== undefined) payload.max = extra.max;
+    if (extra && extra.bucket !== undefined) payload.bucket = extra.bucket;
+    if (extra && extra.serviceIds !== undefined) payload.serviceIds = extra.serviceIds;
     setCatalogFeedback("Executando " + action + "…", "warn");
     requestJson("/dashboard-action.json", {
       method: "POST",
@@ -2100,6 +2164,8 @@
   function renderCatalogOutcome(data) {
     if (!data || !data.ok) { empty($("catalog_report"), bucketError(data)); return; }
     var partes = [];
+    if (data.missing !== undefined) partes.push("ignorados: " + valueText(data.missing));
+    if (data.active !== undefined) partes.push("baixando (pulados): " + valueText(data.active));
     if (data.requeued !== undefined) partes.push("reenfileirados: " + valueText(data.requeued));
     if (data.keptWithEvidence !== undefined) partes.push("com evidência viva: " + valueText(data.keptWithEvidence));
     if (data.scanned !== undefined) partes.push("auditados: " + valueText(data.scanned));
@@ -2122,6 +2188,19 @@
   function runCatalogReport() { catalogAction("catalog-report", {}, renderCatalogReport); }
   function runCatalogAudit() { catalogAction("audit-backfill", { max: catalogMax() }, renderCatalogOutcome); }
   function runCatalogRequeue() { catalogAction("audit-requeue", { max: catalogMax() }, renderCatalogOutcome); }
+  function runCatalogList() {
+    var sel = document.getElementById("catalog_bucket");
+    catalogAction("catalog-list", { bucket: sel ? sel.value : "", max: catalogMax() }, renderCatalogManual);
+  }
+  function runCatalogManualDelete() {
+    var ids = catalogPicked();
+    if (!ids.length) { setCatalogFeedback("Selecione ao menos um magnet.", "warn"); return; }
+    if (!window.confirm("Apagar " + ids.length + " magnet(s) da conta? A ação é irreversível.")) return;
+    catalogAction("manual-delete", { serviceIds: ids }, function (data) {
+      renderCatalogOutcome(data);
+      runCatalogList();
+    });
+  }
   function runCatalogDedupPreview() { catalogAction("dedup-preview", {}, renderCatalogDedup); }
   function runCatalogDedupApply() {
     if (!window.confirm("Confirmar a deduplicação (apagar os duplicados do catálogo)?")) return;
@@ -2180,6 +2259,8 @@
     $("catalogReportBtn").addEventListener("click", runCatalogReport);
     $("catalogAuditBtn").addEventListener("click", runCatalogAudit);
     $("catalogRequeueBtn").addEventListener("click", runCatalogRequeue);
+    $("catalogListBtn").addEventListener("click", runCatalogList);
+    $("catalogManualDeleteBtn").addEventListener("click", runCatalogManualDelete);
     $("catalogDedupPreviewBtn").addEventListener("click", runCatalogDedupPreview);
     $("catalogDedupApplyBtn").addEventListener("click", runCatalogDedupApply);
     $("catalogCleanupPreviewBtn").addEventListener("click", runCatalogCleanupPreview);

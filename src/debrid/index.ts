@@ -830,6 +830,43 @@ async function operatorKnownHashes(adapter: DebridAdapter): Promise<Set<string> 
   }
 }
 
+/** Linhas para o operador escolher na mão (leitura pura, maiores primeiro). */
+function catalogListEnv({ bucket, limit }: { bucket?: string; limit?: number } = {}) {
+  const { adapter, guardos } = catalogContext();
+  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  const rows = catalog.listForReview(accountScope(config.debrid.apiKey), adapter.id, { bucket, limit });
+  return { ok: true, rows };
+}
+
+/**
+ * Deleção MANUAL dos ids que o operador marcou. Não passa por classificação
+ * nem por trava de idade: a escolha explícita é a autorização. A rota exige
+ * `confirm: true`, como as outras destrutivas.
+ */
+async function manualDeleteEnv({ serviceIds }: { serviceIds?: Array<string | number> } = {}) {
+  const { adapter, guardos } = catalogContext();
+  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
+    return { ok: false, reason: 'sem-selecao' };
+  }
+  const account = accountScope(config.debrid.apiKey);
+  const plan = catalog.planManualDeletion(account, adapter.id, serviceIds);
+  if (plan.targets.length === 0) return { ok: true, total: 0, deleted: 0, falhas: 0, ...plan.skipped };
+  try {
+    const res = await catalog.applyDeletions(
+      account,
+      adapter.id,
+      plan.targets.map((t) => ({ serviceId: t.serviceId, hash: t.hash, reason: t.reason })),
+      (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids),
+    );
+    metrics.count('dashboard.catalog.manual', res.ok);
+    return { ok: true, total: plan.targets.length, deleted: res.ok, falhas: res.falhas, ...plan.skipped };
+  } catch (err: unknown) {
+    log.warn('[catalog] deleção manual falhou:', log.errorMessage(err));
+    return { ok: false, reason: 'erro' };
+  }
+}
+
 /**
  * Devolve à fila as linhas cuja evidência de arquivo expirou (medido: 616 de
  * 790 na conta do operador). Não faz rede — só limpa o carimbo `audited_at`,
@@ -901,5 +938,5 @@ async function cleanupApplyEnv(max?: number, { includeKnown }: { includeKnown?: 
 }
 
 export default {
-  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, dashboardAccounts, resolveLink, enqueue, inventory, inventoryPeek, refreshInventory, warmupEnv, sweepDeadEnv, sweepUndubbedEnv, sweepDeadCurrent, knownInstant, catalogScanEnv, auditRequeueEnv, catalogStatusEnv, dedupPreviewEnv, dedupApplyEnv, auditBackfillEnv, cleanupPreviewEnv, cleanupApplyEnv,
+  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, dashboardAccounts, resolveLink, enqueue, inventory, inventoryPeek, refreshInventory, warmupEnv, sweepDeadEnv, sweepUndubbedEnv, sweepDeadCurrent, knownInstant, catalogScanEnv, catalogListEnv, manualDeleteEnv, auditRequeueEnv, catalogStatusEnv, dedupPreviewEnv, dedupApplyEnv, auditBackfillEnv, cleanupPreviewEnv, cleanupApplyEnv,
 };

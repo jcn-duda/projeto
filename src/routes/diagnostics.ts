@@ -175,12 +175,14 @@ function makeDiagnosticHandlers(services: AppServices) {
       'dedup-apply',
       'audit-backfill',
       'audit-requeue',
+      'catalog-list',
+      'manual-delete',
       'cleanup-preview',
       'cleanup-apply',
     ].includes(action)) {
       return res.status(400).json({ ok: false, error: 'ação desconhecida' });
     }
-    if (['clear-cache', 'sweep-dead', 'autofetch-drain', 'autofetch-config-reset', 'harvest-config-reset', 'harvester-clear-queue', 'dedup-apply', 'cleanup-apply'].includes(action) && req.body?.confirm !== true) {
+    if (['clear-cache', 'sweep-dead', 'autofetch-drain', 'autofetch-config-reset', 'harvest-config-reset', 'harvester-clear-queue', 'dedup-apply', 'cleanup-apply', 'manual-delete'].includes(action) && req.body?.confirm !== true) {
       return res.status(400).json({ ok: false, error: 'confirmation_required' });
     }
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
@@ -358,6 +360,29 @@ function makeDiagnosticHandlers(services: AppServices) {
         const result = await services.debrid.dedupApplyEnv(max);
         services.metrics.count('dashboard.catalog.dedup', result.ok ? 1 : 0);
         services.log.info('[dashboard] deduplicação aplicada ao catálogo');
+        return res.json({ ...result, action });
+      }
+      if (action === 'catalog-list') {
+        const bucket = typeof req.body?.bucket === 'string' ? req.body.bucket : undefined;
+        const limit = typeof req.body?.max === 'number' && Number.isFinite(req.body.max) && req.body.max > 0
+          ? Math.trunc(req.body.max)
+          : undefined;
+        const result = services.debrid.catalogListEnv({ bucket, limit });
+        return res.json({ ...result, action });
+      }
+      if (action === 'manual-delete') {
+        // Só ids: a seleção do operador é a autorização, mas o corpo vem da
+        // rede — corta em 200 e normaliza para string antes de chegar ao plano.
+        const ids = Array.isArray(req.body?.serviceIds)
+          ? req.body.serviceIds.slice(0, 200).map((x: unknown) => String(x ?? '')).filter(Boolean)
+          : [];
+        const result = await services.debrid.manualDeleteEnv({ serviceIds: ids });
+        if ('deleted' in result) {
+          services.metrics.count('dashboard.catalog.manual', result.deleted);
+          services.log.info(`[dashboard] deleção manual: ${result.deleted} de ${result.total} magnet(s)`);
+        } else {
+          services.log.info('[dashboard] deleção manual indisponível');
+        }
         return res.json({ ...result, action });
       }
       if (action === 'audit-requeue') {

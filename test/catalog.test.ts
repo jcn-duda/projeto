@@ -607,3 +607,43 @@ test('requeueAudit respeita o teto', () => {
   assert.equal(res.requeued, 2, 'para no teto');
   assert.equal(catalog.rowsNeedingAudit(ACCOUNT).length, 2);
 });
+
+// ---------------------------------------------------------------------------
+// Escolha manual: quando as regras automáticas não liberam.
+// ---------------------------------------------------------------------------
+
+test('listForReview ordena por tamanho (maiores primeiro) e filtra por balde', () => {
+  scan(ACCOUNT, [
+    magnet({ id: '1', hash: 'm1'.repeat(20), filename: 'Some English Movie 2020 1080p', size: 1_000 }),
+    magnet({ id: '2', hash: 'm2'.repeat(20), filename: 'Another English 2021 1080p', size: 9_000 }),
+    magnet({ id: '3', hash: 'm3'.repeat(20), filename: 'Filme 2024 Dublado 1080p', size: 5_000 }),
+  ]);
+  const todos = catalog.listForReview(ACCOUNT, 'alldebrid');
+  assert.deepEqual(todos.map((r) => r.serviceId), ['2', '3', '1'], 'maiores primeiro');
+
+  const soDub = catalog.listForReview(ACCOUNT, 'alldebrid', { bucket: 'dub' });
+  assert.deepEqual(soDub.map((r) => r.serviceId), ['3'], 'o filtro de balde vale');
+  assert.equal(soDub[0].bucket, 'dub');
+});
+
+test('planManualDeletion aceita o que o operador marcou e pula download em curso', () => {
+  // A escolha explícita é a autorização: não há trava de idade nem exigência de
+  // condenação. A ÚNICA guarda é `active` — download em curso não aparece como
+  // tal no título, e apagá-lo joga fora trabalho que o operador não podia ver.
+  scan(ACCOUNT, [
+    magnet({ id: '1', hash: 'n1'.repeat(20), filename: 'Filme 2024 Dublado 1080p', size: 10 }),
+    magnet({ id: '2', hash: 'n2'.repeat(20), filename: 'Baixando 2024 1080p', size: 10, status: 'Downloading', ready: false }),
+  ]);
+  const plano = catalog.planManualDeletion(ACCOUNT, 'alldebrid', ['1', '2', '999']);
+  assert.deepEqual(plano.targets.map((t) => String(t.serviceId)), ['1'], 'só o que dá para apagar');
+  assert.equal(plano.targets[0].reason, 'manual');
+  assert.equal(plano.skipped.active, 1, 'o download em curso é pulado');
+  assert.equal(plano.skipped.missing, 1, 'id inexistente é ignorado');
+});
+
+test('planManualDeletion apaga BR e condenado por igual: a regra não filtra a escolha', () => {
+  scan(ACCOUNT, [magnet({ id: '1', hash: 'n3'.repeat(20), filename: 'Filme 2024 Dublado 1080p', size: 10 })]);
+  assert.equal(catalog.row(ACCOUNT, '1')!.bucket, 'dub', 'precondição: é BR dublado, que a limpeza automática nunca tocaria');
+  const plano = catalog.planManualDeletion(ACCOUNT, 'alldebrid', ['1']);
+  assert.equal(plano.targets.length, 1, 'a escolha do operador vence a classificação');
+});

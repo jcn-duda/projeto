@@ -10,11 +10,13 @@ const ACTIONS = [
   'dedup-apply',
   'audit-backfill',
   'audit-requeue',
+  'catalog-list',
+  'manual-delete',
   'cleanup-preview',
   'cleanup-apply',
 ];
 // As destrutivas exigem confirm: true. Nenhuma das outras é destrutiva.
-const DESTRUCTIVE = ['dedup-apply', 'cleanup-apply'];
+const DESTRUCTIVE = ['dedup-apply', 'cleanup-apply', 'manual-delete'];
 
 function diagnosticsSource() {
   // relativo ao arquivo de teste compilado em dist/test: ../../ volta à raiz
@@ -26,7 +28,7 @@ function dashboardHtml() {
   return readFileSync(new URL('../../src/public/dashboard.html', import.meta.url), 'utf8');
 }
 
-test('diagnostics.ts: as 8 ações do catálogo estão na allowlist do dashboardAction', () => {
+test('diagnostics.ts: as 10 ações do catálogo estão na allowlist do dashboardAction', () => {
   const src = diagnosticsSource();
   const match = src.match(/if \(!\[([\s\S]*?)\]\s*\.includes\(action\)\)/);
   assert.ok(match, 'allowlist declarada no dashboardAction');
