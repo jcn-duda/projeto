@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-08-28",
-  "excedente": 19653,
+  "excedente": 19111,
   "arquivos": {
     "resolvers/profiles/bludv.js": 1136,
     "resolvers/profiles/comandotorrents.js": 731,
@@ -9,7 +9,6 @@
     "resolvers/profiles/torrentdosfilmes.js": 528,
     "resolvers/profiles/vacatorrent.js": 1025,
     "src/debrid/alldebrid.ts": 784,
-    "src/debrid/index.ts": 942,
     "src/debrid/realdebrid.ts": 572,
     "src/providers/autofetch-runner.ts": 705,
     "src/providers/autofetch.ts": 415,
