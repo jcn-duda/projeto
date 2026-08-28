@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-08-28",
-  "excedente": 18648,
+  "excedente": 18322,
   "arquivos": {
     "resolvers/profiles/bludv.js": 1136,
     "resolvers/profiles/comandotorrents.js": 731,
@@ -12,7 +12,6 @@
     "src/debrid/realdebrid.ts": 572,
     "src/providers/autofetch-runner.ts": 705,
     "src/providers/autofetch.ts": 415,
-    "src/providers/debrid-pipeline.ts": 726,
     "src/providers/jackett.ts": 654,
     "src/providers/search-orchestrator.ts": 888,
     "src/providers/stream-builder.ts": 628,

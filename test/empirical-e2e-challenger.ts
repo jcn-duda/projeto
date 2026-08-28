@@ -132,9 +132,11 @@ const mutations = [
   {
     // PLANO_MELHORIAS 5.1: applyDebrid (e markDebridName) saiu de
     // providers/index.js para providers/debrid-pipeline.js no split de
-    // providers. O alvo segue este arquivo se ele mudar de novo.
-    name: 'MUT-09: Break Tier 4 Scenario 1 Premiumize branding [PM⚡] (providers/debrid-pipeline.js)',
-    file: 'dist/src/providers/debrid-pipeline.js',
+    // providers. PLANO_MELHORIAS 5.8 dividiu o pipeline: o branding
+    // viaDebrid/markDebridName mora agora no core. O alvo segue o arquivo que
+    // herda a lógica — atualização de alvo, não enfraquecimento.
+    name: 'MUT-09: Break Tier 4 Scenario 1 Premiumize branding [PM⚡] (providers/debrid-pipeline-core.js)',
+    file: 'dist/src/providers/debrid-pipeline-core.js',
     target: 'name: markDebridName(s.name, adapter.short || adapter.id, instant),',
     replacement: 'name: s.name, // MUTATED: stripped [PM⚡]',
     testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
