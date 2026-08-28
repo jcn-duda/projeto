@@ -116,3 +116,42 @@ test('CATALOG_CLEANUP_MIN_AGE_MS explícito vence o default de 48h', async () =>
     delete process.env.CATALOG_CLEANUP_MIN_AGE_MS;
   }
 });
+
+// Regressão do painel: `audit-backfill`, `dedup-apply` e `cleanup-apply`
+// devolvem CONTADORES (`scanned`/`deleted`/`falhas`), nunca um relatório.
+// Ligá-los ao renderCatalogReport fazia `report.byCached["hit"]` estourar
+// sobre `undefined` — e, por acontecer DENTRO do .then(), o .catch() do
+// catalogAction pintava "Ação não concluída" para uma auditoria que já tinha
+// rodado e gravado evidência no servidor. Medido no dashboard ao vivo:
+// "Cannot read properties of undefined (reading 'hit')".
+test('dashboard.html: ações que mutam usam renderCatalogOutcome, não renderCatalogReport', () => {
+  const html = dashboardHtml();
+  const linhas = html.split('\n');
+  for (const action of ['audit-backfill', 'dedup-apply', 'cleanup-apply']) {
+    const alvo = `catalogAction("${action}"`;
+    const linha = linhas.find((l) => l.includes(alvo));
+    assert.ok(linha, `ação ${action} não encontrada no painel`);
+    assert.ok(
+      linha!.includes('renderCatalogOutcome'),
+      `${action} deve renderizar contadores, não relatório`,
+    );
+  }
+});
+
+// Um relatório ausente ou parcial não pode derrubar o render: os dois mapas
+// agregados (`byCached` e `byBucket`) precisam de default próprio, do mesmo
+// jeito que `report.works` e `report.totals` já são acessados com guarda.
+test('dashboard.html: byCached e byBucket têm default antes do acesso indexado', () => {
+  const html = dashboardHtml();
+  assert.match(html, /var cached = report\.byCached \|\| \{\};/);
+  assert.match(html, /var buckets = report\.byBucket \|\| \{\};/);
+  assert.doesNotMatch(html, /report\.byCached\[/);
+  assert.doesNotMatch(html, /report\.byBucket\[/);
+});
+
+// Erro de RENDER não pode ser reportado como falha da AÇÃO: o servidor já
+// executou (a auditoria escreve evidência antes de a tela desenhar).
+test('dashboard.html: callback do catalogAction roda isolado em try/catch', () => {
+  const html = dashboardHtml();
+  assert.match(html, /callback\(data\);\s*\}\s*catch \(renderError\)/);
+});

@@ -1960,9 +1960,10 @@
     head.appendChild(hr);
     table.className = "catalog-table";
     table.appendChild(head);
+    var buckets = report.byBucket || {};
     for (i = 0; i < CATALOG_BUCKETS.length; i += 1) {
       var bucket = CATALOG_BUCKETS[i];
-      var meta = report.byBucket[bucket] || { count: 0, bytes: 0 };
+      var meta = buckets[bucket] || { count: 0, bytes: 0 };
       var tr = document.createElement("tr");
       var tdName = document.createElement("td");
       tdName.textContent = bucketLabel(bucket);
@@ -1979,10 +1980,15 @@
 
   function cachedPills(report) {
     var keys = ["hit", "miss", "blocked", "unknown"];
+    // `byCached` some quando a resposta não é um relatório (audit-backfill,
+    // dedup-apply e cleanup-apply devolvem contadores próprios). Sem o default
+    // o acesso `undefined["hit"]` estourava DENTRO do .then() e o .catch() do
+    // catalogAction reportava "Ação não concluída" para uma ação que rodou.
+    var cached = report.byCached || {};
     var wrap = document.createElement("div");
     var i;
     for (i = 0; i < keys.length; i += 1) {
-      wrap.appendChild(element("span", "catalog-pill", "⚡ " + keys[i] + ": " + valueText(report.byCached[keys[i]])));
+      wrap.appendChild(element("span", "catalog-pill", "⚡ " + keys[i] + ": " + valueText(cached[keys[i]])));
     }
     return wrap;
   }
@@ -2068,22 +2074,59 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     })
-      .then(function (data) { setCatalogFeedback("Ação " + action + " concluída.", "ok"); if (callback) callback(data); loadStatus(); })
+      .then(function (data) {
+        setCatalogFeedback("Ação " + action + " concluída.", "ok");
+        // O render fica ISOLADO do resultado da ação: uma falha ao desenhar não
+        // pode ser reportada como "ação não concluída" quando o servidor já
+        // executou (a auditoria chega a gravar evidência antes de a tela quebrar).
+        if (callback) {
+          try {
+            callback(data);
+          } catch (renderError) {
+            setCatalogFeedback("Ação " + action + " concluída, mas a tela falhou: " + valueText(renderError && renderError.message ? renderError.message : renderError), "warn");
+          }
+        }
+        loadStatus();
+      })
       .catch(function (error) { setCatalogFeedback("Ação não concluída: " + valueText(error && error.message ? error.message : error), "error"); });
+  }
+
+  /**
+   * Resultado das ações que MUTAM (auditoria e os dois apply): elas devolvem
+   * contadores próprios, nunca um relatório. Mostra o que a ação fez e recarrega
+   * o relatório do servidor, que é quem sabe o estado novo do catálogo.
+   */
+  function renderCatalogOutcome(data) {
+    if (!data || !data.ok) { empty($("catalog_report"), bucketError(data)); return; }
+    var partes = [];
+    if (data.scanned !== undefined) partes.push("auditados: " + valueText(data.scanned));
+    if (data.evidenced !== undefined) partes.push("com evidência: " + valueText(data.evidenced));
+    if (data.total !== undefined) partes.push("alvos: " + valueText(data.total));
+    if (data.deleted !== undefined) partes.push("apagados: " + valueText(data.deleted));
+    if (data.failed !== undefined) partes.push("falhas: " + valueText(data.failed));
+    if (data.falhas !== undefined) partes.push("falhas: " + valueText(data.falhas));
+    setCatalogFeedback(partes.length ? partes.join(" · ") : "Ação concluída.", "ok");
+    requestJson("/dashboard-action.json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "catalog-report", confirm: true, includeKnown: catalogIncludeKnown() })
+    })
+      .then(function (relatorio) { renderCatalogReport(relatorio); })
+      .catch(function () { /* o resumo acima já informou; relatório recarrega no próximo clique */ });
   }
 
   function runCatalogScan() { catalogAction("catalog-scan", {}, renderCatalogReport); }
   function runCatalogReport() { catalogAction("catalog-report", {}, renderCatalogReport); }
-  function runCatalogAudit() { catalogAction("audit-backfill", { max: catalogMax() }, renderCatalogReport); }
+  function runCatalogAudit() { catalogAction("audit-backfill", { max: catalogMax() }, renderCatalogOutcome); }
   function runCatalogDedupPreview() { catalogAction("dedup-preview", {}, renderCatalogDedup); }
   function runCatalogDedupApply() {
     if (!window.confirm("Confirmar a deduplicação (apagar os duplicados do catálogo)?")) return;
-    catalogAction("dedup-apply", { max: catalogMax() }, renderCatalogReport);
+    catalogAction("dedup-apply", { max: catalogMax() }, renderCatalogOutcome);
   }
   function runCatalogCleanupPreview() { catalogAction("cleanup-preview", {}, renderCatalogDedup); }
   function runCatalogCleanupApply() {
     if (!window.confirm("Confirmar a limpeza BR (apagar o estrangeiro provado do catálogo)?")) return;
-    catalogAction("cleanup-apply", { max: catalogMax() }, renderCatalogReport);
+    catalogAction("cleanup-apply", { max: catalogMax() }, renderCatalogOutcome);
   }
   // ----------------------------------------------------------------------
 
