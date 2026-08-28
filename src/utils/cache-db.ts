@@ -12,17 +12,12 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
 import config from '../config.js';
 import * as log from './logger.js';
 import * as metrics from './metrics.js';
 import { NAMESPACE_VERSIONS, LEGACY_PREFIXES } from './cache-keys.js';
 import { MAX_ENTRIES, namespaceFor, quotaFor } from './cache-quotas.js';
-
-const _require = createRequire(import.meta.url);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { openWithRecovery } from './cache-db-open.js';
 
 /** Pontos de contato com o L1, dono do store (cache.ts fornece as amarras). */
 export interface CacheDbHooks {
@@ -52,77 +47,14 @@ export function createPersistence() {
   const pending = new Map();
   let flushScheduled: ReturnType<typeof setImmediate> | null = null;
 
-  function initDb(DatabaseSync: any, dbPath: string) {
-    const database = new DatabaseSync(dbPath);
-    try {
-      database.exec(`
-        PRAGMA journal_mode = WAL;
-        PRAGMA busy_timeout = 5000;
-        CREATE TABLE IF NOT EXISTS cache (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL,
-          expires_at INTEGER NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS cache_expires ON cache (expires_at);
-      `);
-      return database;
-    } catch (err) {
-      try { database.close(); } catch {}
-      throw err;
-    }
-  }
-
-  // Só corrupção REAL autoriza o rename destrutivo — o banco é dado persistido
-  // em volume. SQLITE_BUSY (segunda instância compartilhando o volume), stall
-  // de I/O ou EACCES pontual são transientes: renomear aqui apagaria cache vivo
-  // por um glitch. Cobre errcode nativo (node:sqlite expõe errcode/errstr) e
-  // mensagem, porque a forma do erro varia entre versões do runtime.
-  function isCorruptionError(err: any) {
-    const code = String(err?.errcode || err?.code || '').toUpperCase();
-    if (/SQLITE_(CORRUPT|NOTADB)/.test(code)) return true;
-    return /malformed|not a database|encrypted/i.test(String(err?.message || ''));
-  }
-
   function open() {
     if (!config.cache.persist) return null;
     try {
       fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-      // node:sqlite é experimental no Node 22 — se o runtime não tiver, seguimos
-      // só em memória em vez de derrubar o addon. O require é LAZY de propósito:
-      // no Node 20 o módulo não existe, e um import estático derrubaria o addon
-      // inteiro no carregamento.
-      const { DatabaseSync } = _require('node:sqlite');
-      let database: any = null;
-
-      try {
-        database = initDb(DatabaseSync, DB_PATH);
-      } catch (initialErr: unknown) {
-        // Erro transiente/ambiente NÃO toca no arquivo do volume: o catch de
-        // fora cai em memória e a próxima subida tenta de novo.
-        if (!isCorruptionError(initialErr)) throw initialErr;
-        if (fs.existsSync(DB_PATH)) {
-          const corruptPath = `${DB_PATH}.corrupt`;
-          try {
-            if (fs.existsSync(corruptPath)) {
-              fs.unlinkSync(corruptPath);
-            }
-            fs.renameSync(DB_PATH, corruptPath);
-            for (const suffix of ['-wal', '-shm']) {
-              const sidecar = `${DB_PATH}${suffix}`;
-              if (fs.existsSync(sidecar)) {
-                try { fs.unlinkSync(sidecar); } catch {}
-              }
-            }
-            log.warn(`[cache] banco SQLite corrompido; renomeado para ${path.basename(corruptPath)} e recriando banco limpo`);
-            database = initDb(DatabaseSync, DB_PATH);
-          } catch (recoverErr: unknown) {
-            log.warn('[cache] falha na recuperação do banco corrompido:', log.errorMessage(recoverErr));
-            throw initialErr;
-          }
-        } else {
-          throw initialErr;
-        }
-      }
+      // A abertura lazy (node:sqlite) e a recuperação de corrupção moram em
+      // cache-db-open.js — só corrupção REAL autoriza o rename destrutivo do
+      // banco; erro transiente rethrow e cai no catch de fora (só memória).
+      const database = openWithRecovery(DB_PATH);
 
       insertStmt = database.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');
       deleteStmt = database.prepare('DELETE FROM cache WHERE key = ?');
