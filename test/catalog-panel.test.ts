@@ -2,6 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import config from '../src/config.js';
+// Extração §5.8: a allowlist e a lista de confirmação moram em
+// dashboard-actions.ts. Importar os conjuntos exportados verifica o ESTADO
+// real do despacho (em vez de regex sobre o texto do fonte, que quebrava a
+// cada refactor de formato sem relação com comportamento).
+import { DASHBOARD_ACTIONS, DESTRUCTIVE_ACTIONS } from '../src/routes/dashboard-actions.js';
 
 const ACTIONS = [
   'catalog-scan',
@@ -18,38 +23,23 @@ const ACTIONS = [
 // As destrutivas exigem confirm: true. Nenhuma das outras é destrutiva.
 const DESTRUCTIVE = ['dedup-apply', 'cleanup-apply', 'manual-delete'];
 
-function diagnosticsSource() {
-  // relativo ao arquivo de teste compilado em dist/test: ../../ volta à raiz
-  // do repositório, onde o FONTE .ts existe (não é copiado para dist/).
-  return readFileSync(new URL('../../src/routes/diagnostics.ts', import.meta.url), 'utf8');
-}
-
 function dashboardHtml() {
   return readFileSync(new URL('../../src/public/dashboard.html', import.meta.url), 'utf8');
 }
 
-test('diagnostics.ts: as 10 ações do catálogo estão na allowlist do dashboardAction', () => {
-  const src = diagnosticsSource();
-  const match = src.match(/if \(!\[([\s\S]*?)\]\s*\.includes\(action\)\)/);
-  assert.ok(match, 'allowlist declarada no dashboardAction');
-  const allowed = match![1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean);
+test('dashboard-actions: as 10 ações do catálogo estão na allowlist do despacho', () => {
   for (const action of ACTIONS) {
-    assert.ok(allowed.includes(action), `${action} deve estar na allowlist`);
+    assert.ok(DASHBOARD_ACTIONS.has(action), `${action} deve estar na allowlist`);
   }
 });
 
-test('diagnostics.ts: exatamente dedup-apply e cleanup-apply exigem confirm', () => {
-  const src = diagnosticsSource();
-  const match = src.match(/(\[[^\]]*\]\.includes\(action\) && req\.body\?\.confirm\s*!==\s*true)/);
-  assert.ok(match, 'linha de confirmação presente no dashboardAction');
-  const arrayText = (match![1] as string).match(/^\[([\s\S]*?)\]\./)![1];
-  const confirmed = arrayText.split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean);
+test('dashboard-actions: exatamente dedup-apply, cleanup-apply e manual-delete exigem confirm', () => {
   for (const action of DESTRUCTIVE) {
-    assert.ok(confirmed.includes(action), `${action} deve estar na lista de confirmação`);
+    assert.ok(DESTRUCTIVE_ACTIONS.has(action), `${action} deve estar na lista de confirmação`);
   }
   for (const action of ACTIONS) {
     if (DESTRUCTIVE.includes(action)) continue;
-    assert.ok(!confirmed.includes(action), `${action} NÃO deve exigir confirmação`);
+    assert.ok(!DESTRUCTIVE_ACTIONS.has(action), `${action} NÃO deve exigir confirmação`);
   }
 });
 
