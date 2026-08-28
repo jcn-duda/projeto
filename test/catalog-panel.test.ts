@@ -9,6 +9,7 @@ const ACTIONS = [
   'dedup-preview',
   'dedup-apply',
   'audit-backfill',
+  'audit-requeue',
   'cleanup-preview',
   'cleanup-apply',
 ];
@@ -25,7 +26,7 @@ function dashboardHtml() {
   return readFileSync(new URL('../../src/public/dashboard.html', import.meta.url), 'utf8');
 }
 
-test('diagnostics.ts: as 7 ações do catálogo estão na allowlist do dashboardAction', () => {
+test('diagnostics.ts: as 8 ações do catálogo estão na allowlist do dashboardAction', () => {
   const src = diagnosticsSource();
   const match = src.match(/if \(!\[([\s\S]*?)\]\s*\.includes\(action\)\)/);
   assert.ok(match, 'allowlist declarada no dashboardAction');

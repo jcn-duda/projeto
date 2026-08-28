@@ -290,6 +290,7 @@
       <button id="catalogScanBtn" type="button">Varrer conta (catálogo)</button>
       <button id="catalogReportBtn" type="button">Relatório</button>
       <button id="catalogAuditBtn" type="button">Auditar arquivos</button>
+      <button id="catalogRequeueBtn" type="button">Reauditar (fila)</button>
       <button id="catalogDedupPreviewBtn" type="button">Dedup — preview</button>
       <button id="catalogDedupApplyBtn" class="danger" type="button">Dedup — aplicar</button>
       <button id="catalogCleanupPreviewBtn" type="button">Limpeza BR — preview</button>
@@ -2099,6 +2100,8 @@
   function renderCatalogOutcome(data) {
     if (!data || !data.ok) { empty($("catalog_report"), bucketError(data)); return; }
     var partes = [];
+    if (data.requeued !== undefined) partes.push("reenfileirados: " + valueText(data.requeued));
+    if (data.keptWithEvidence !== undefined) partes.push("com evidência viva: " + valueText(data.keptWithEvidence));
     if (data.scanned !== undefined) partes.push("auditados: " + valueText(data.scanned));
     if (data.evidenced !== undefined) partes.push("com evidência: " + valueText(data.evidenced));
     if (data.total !== undefined) partes.push("alvos: " + valueText(data.total));
@@ -2118,6 +2121,7 @@
   function runCatalogScan() { catalogAction("catalog-scan", {}, renderCatalogReport); }
   function runCatalogReport() { catalogAction("catalog-report", {}, renderCatalogReport); }
   function runCatalogAudit() { catalogAction("audit-backfill", { max: catalogMax() }, renderCatalogOutcome); }
+  function runCatalogRequeue() { catalogAction("audit-requeue", { max: catalogMax() }, renderCatalogOutcome); }
   function runCatalogDedupPreview() { catalogAction("dedup-preview", {}, renderCatalogDedup); }
   function runCatalogDedupApply() {
     if (!window.confirm("Confirmar a deduplicação (apagar os duplicados do catálogo)?")) return;
@@ -2175,6 +2179,7 @@
     $("catalogScanBtn").addEventListener("click", runCatalogScan);
     $("catalogReportBtn").addEventListener("click", runCatalogReport);
     $("catalogAuditBtn").addEventListener("click", runCatalogAudit);
+    $("catalogRequeueBtn").addEventListener("click", runCatalogRequeue);
     $("catalogDedupPreviewBtn").addEventListener("click", runCatalogDedupPreview);
     $("catalogDedupApplyBtn").addEventListener("click", runCatalogDedupApply);
     $("catalogCleanupPreviewBtn").addEventListener("click", runCatalogCleanupPreview);

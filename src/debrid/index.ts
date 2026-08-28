@@ -831,6 +831,20 @@ async function operatorKnownHashes(adapter: DebridAdapter): Promise<Set<string> 
 }
 
 /**
+ * Devolve à fila as linhas cuja evidência de arquivo expirou (medido: 616 de
+ * 790 na conta do operador). Não faz rede — só limpa o carimbo `audited_at`,
+ * para a auditoria poder reler com o classificador atual.
+ */
+function auditRequeueEnv({ max }: { max?: number } = {}) {
+  const { guardos } = catalogContext();
+  if (guardos) return guardos;
+  const account = accountScope(config.debrid.apiKey);
+  const resultado = catalog.requeueAudit(account, config.debrid.service, { limit: max });
+  log.info(`[catalog] auditoria reenfileirada: ${resultado.requeued} linha(s)`);
+  return { ok: true, ...resultado };
+}
+
+/**
  * Plano da limpeza de estrangeiro provado (leitura pura).
  *
  * `includeKnown` liga a limpeza pelo OPERADOR sobre o acervo que JÁ ERA da
@@ -887,5 +901,5 @@ async function cleanupApplyEnv(max?: number, { includeKnown }: { includeKnown?: 
 }
 
 export default {
-  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, dashboardAccounts, resolveLink, enqueue, inventory, inventoryPeek, refreshInventory, warmupEnv, sweepDeadEnv, sweepUndubbedEnv, sweepDeadCurrent, knownInstant, catalogScanEnv, catalogStatusEnv, dedupPreviewEnv, dedupApplyEnv, auditBackfillEnv, cleanupPreviewEnv, cleanupApplyEnv,
+  SERVICES, BY_ID, current, checkCached, noteAvailable, accountStatus, dashboardAccounts, resolveLink, enqueue, inventory, inventoryPeek, refreshInventory, warmupEnv, sweepDeadEnv, sweepUndubbedEnv, sweepDeadCurrent, knownInstant, catalogScanEnv, auditRequeueEnv, catalogStatusEnv, dedupPreviewEnv, dedupApplyEnv, auditBackfillEnv, cleanupPreviewEnv, cleanupApplyEnv,
 };

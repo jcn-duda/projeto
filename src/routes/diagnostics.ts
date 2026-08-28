@@ -174,6 +174,7 @@ function makeDiagnosticHandlers(services: AppServices) {
       'dedup-preview',
       'dedup-apply',
       'audit-backfill',
+      'audit-requeue',
       'cleanup-preview',
       'cleanup-apply',
     ].includes(action)) {
@@ -357,6 +358,20 @@ function makeDiagnosticHandlers(services: AppServices) {
         const result = await services.debrid.dedupApplyEnv(max);
         services.metrics.count('dashboard.catalog.dedup', result.ok ? 1 : 0);
         services.log.info('[dashboard] deduplicação aplicada ao catálogo');
+        return res.json({ ...result, action });
+      }
+      if (action === 'audit-requeue') {
+        const max = typeof req.body?.max === 'number' && Number.isFinite(req.body.max) && req.body.max > 0
+          ? Math.trunc(req.body.max)
+          : undefined;
+        const result = services.debrid.auditRequeueEnv({ max });
+        if (result.ok) {
+          services.metrics.count('dashboard.catalog.audit_requeue', result.requeued);
+          services.log.info(`[dashboard] auditoria reenfileirada: ${result.requeued} linha(s), ${result.keptWithEvidence} com evidência viva`);
+        } else {
+          services.metrics.count('dashboard.catalog.audit_requeue', 0);
+          services.log.info('[dashboard] reenfileiramento de auditoria indisponível');
+        }
         return res.json({ ...result, action });
       }
       if (action === 'audit-backfill') {

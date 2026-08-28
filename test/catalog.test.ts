@@ -556,3 +556,54 @@ migrationTest('migração: ADD COLUMN audited_at marca linhas pt_proof=arquivo e
   assert.ok(!fila.includes('1'), 'migrante provado (audited_at>0) fica fora da fila');
   assert.ok(fila.includes('2'), 'linha que a migração não carimbou continua na fila');
 });
+// ---------------------------------------------------------------------------
+// requeueAudit: reabrir a fila quando a evidência de arquivo expirou.
+// ---------------------------------------------------------------------------
+
+test('requeueAudit devolve à fila só quem perdeu a evidência de arquivo', () => {
+  // `upsertRow` guarda `auditedAt` com Math.max — o carimbo nunca regride. Quem
+  // foi auditado e depois perdeu o `fileEvidence` (TTL de 30 dias do índice)
+  // ficava fora da fila para sempre, e uma correção do classificador não o
+  // alcançava. Quem AINDA tem evidência não precisa de rede: o scan já
+  // reclassifica de graça.
+  scan(ACCOUNT, [
+    magnet({ id: "1", hash: "e1".repeat(20), filename: "Some English Movie 2020 1080p" }),
+    magnet({ id: "2", hash: "e2".repeat(20), filename: "Outro 2022 Dual 720p" }),
+  ]);
+  releaseIndex.markFileEvidence("e2".repeat(20), { a: "Dual", q: "720p", n: "Outro.2022.mkv" });
+  catalog.markAudited(ACCOUNT, '1');
+  catalog.markAudited(ACCOUNT, '2');
+  assert.equal(catalog.rowsNeedingAudit(ACCOUNT).length, 0, 'precondição: fila drenada');
+
+  const res = catalog.requeueAudit(ACCOUNT, 'alldebrid');
+  assert.equal(res.requeued, 1, 'só a linha sem evidência volta');
+  assert.equal(res.keptWithEvidence, 1, 'a linha com evidência viva é preservada');
+  const fila = catalog.rowsNeedingAudit(ACCOUNT).map((n) => String(n.serviceId));
+  assert.deepEqual(fila, ['1']);
+});
+
+test('requeueAudit NÃO apaga as provas já medidas em arquivo', () => {
+  // Limpar a prova junto abriria uma janela em que a linha volta a valer só
+  // pelo TÍTULO — e título condena o que o arquivo tinha absolvido. A prova só
+  // pode ser substituída por uma leitura NOVA.
+  scan(ACCOUNT, [magnet({ id: "1", hash: "e3".repeat(20), filename: "Some English Movie 2020 1080p" })]);
+  catalog.noteAudit(ACCOUNT, "1", "e3".repeat(20), [{ path: 'dir/Filme.DUBLADO.mkv' }]);
+  assert.equal(catalog.row(ACCOUNT, '1')!.ptProof, 'arquivo', 'precondição: absolvido por arquivo');
+
+  catalog.requeueAudit(ACCOUNT, 'alldebrid');
+  const linha = catalog.row(ACCOUNT, '1')!;
+  assert.equal(linha.ptProof, 'arquivo', 'a absolvição medida sobrevive ao reenfileiramento');
+  assert.equal(linha.deletedAt, 0);
+});
+
+test('requeueAudit respeita o teto', () => {
+  scan(ACCOUNT, [
+    magnet({ id: '1', hash: '1a'.repeat(20), filename: 'Some English Movie 2020 1080p' }),
+    magnet({ id: '2', hash: '2b'.repeat(20), filename: 'Another English 2021 1080p' }),
+    magnet({ id: '3', hash: '3c'.repeat(20), filename: 'Third English 2022 1080p' }),
+  ]);
+  for (const id of ['1', '2', '3']) catalog.markAudited(ACCOUNT, id);
+  const res = catalog.requeueAudit(ACCOUNT, 'alldebrid', { limit: 2 });
+  assert.equal(res.requeued, 2, 'para no teto');
+  assert.equal(catalog.rowsNeedingAudit(ACCOUNT).length, 2);
+});

@@ -845,6 +845,47 @@ export function rowsNeedingAudit(account: string, limit?: number): Array<{ servi
 }
 
 /**
+ * Devolve à fila as linhas PRESAS: já marcadas `audited_at`, mas sem
+ * `fileEvidence` no cache. Elas nunca mais seriam relidas — `upsertRow` guarda
+ * `auditedAt` com `Math.max`, então o carimbo não regride, e o `scan` só
+ * reclassifica de graça quem AINDA tem evidência viva. Quando o TTL do índice
+ * (30 dias) vence, a linha fica fora da fila para sempre e uma correção do
+ * classificador não a alcança — foi o caso depois de `foreignVerdict`,
+ * `BR_MARK` e o generic DUB mudarem no mesmo dia.
+ *
+ * NÃO mexe nas provas, de propósito: a absolvição medida em arquivo
+ * (`ptProof === 'arquivo'`) segue protegendo o acervo BR até que uma leitura
+ * NOVA a substitua. Limpar a prova junto abriria uma janela em que a linha vale
+ * só pelo título — e título condena o que o arquivo tinha absolvido.
+ *
+ * Quem ainda tem evidência em cache não é tocado: essa linha já reclassifica
+ * sozinha no próximo `scan`, sem gastar rede.
+ */
+export function requeueAudit(
+  account: string,
+  adapterId?: string,
+  { limit }: { limit?: number } = {},
+): { requeued: number; keptWithEvidence: number; alreadyQueued: number } {
+  const e = engine();
+  const adapter = adapterId || configOperatorAdapter();
+  const teto = limit == null ? Number.POSITIVE_INFINITY : Math.max(0, Math.trunc(limit));
+  let requeued = 0;
+  let keptWithEvidence = 0;
+  let alreadyQueued = 0;
+  for (const r of e.listRows(adapter, account)) {
+    if (r.deletedAt !== 0) continue;
+    if (r.auditedAt === 0) { alreadyQueued += 1; continue; }
+    if (fileEvidence(r.hash)) { keptWithEvidence += 1; continue; }
+    if (requeued >= teto) continue;
+    r.auditedAt = 0;
+    e.updateRow(r);
+    requeued += 1;
+  }
+  metrics.count('catalog.audit.requeued', requeued);
+  return { requeued, keptWithEvidence, alreadyQueued };
+}
+
+/**
  * Espelha no catálogo a auditoria de arquivos que o wrapper (debrid/index)
  * acabou de medir (o `recordFileEvidence` já persistiu a evidência no
  * release-index; aqui é só a linha do catálogo).
