@@ -626,23 +626,23 @@ test('delete recusado pela conta não vira "removido": conta falha e não infla 
   // contavam TENTATIVA como remoção — e a conta crescia enquanto o addon
   // afirmava estar limpando. Com a conta no teto, que é quando a AllDebrid
   // recusa o /magnet/delete, era justamente aí que a medição mentia.
-  const CHAVE = 'chave-delete-recusado';
+const CHAVE = 'chave-delete-recusado';
   const CRIADO = 'b2'.repeat(20);
   const api = mockAccountWith([], [], { failDelete: true });
   metrics.reset();
 
   try {
     await alldebrid.checkCached(CHAVE, [CRIADO]);
-    // Mais que o backoff de 400ms do dropMagnets: sem esperar a retentativa, o
-    // teste mediria só a primeira tentativa e não veria a repetição.
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    // A rajada de 503 faz o id ser tentado 3× na 1ª rodada (400→800→1600ms),
+    // reenfileirado e tentado mais 3× na 2ª. Só aí a falha é contabilizada e
+    // a conta não mente que limpou. Esperamos o backoff real (≃5,6s).
+    await new Promise((resolve) => setTimeout(resolve, 7000));
 
-    // Duas entradas do mesmo id: a rajada leva 503 e dropMagnets tenta de novo
-    // antes de desistir. Só depois da segunda recusa é que conta como falha.
-    assert.deepEqual(api.deleted, [2000, 2000], 'tenta, falha e repete uma vez');
+    // 6 tentativas = 3 da primeira rodada + 3 da segunda (reenfileirado).
+    assert.equal(api.deleted.filter((n) => n === 2000).length, 6, 'reeenfileirado na 2ª rodada: 3+3 tentativas');
     const snap = metrics.snapshot();
     assert.equal(snap.counters['debrid.dropped'] || 0, 0, 'nada foi removido de fato');
-    assert.equal(snap.counters['debrid.drop_failed'], 1, 'a falha é contabilizada');
+    assert.equal(snap.counters['debrid.drop_failed'], 1, 'a falha é contabilizada depois das duas rodadas');
   } finally {
     api.restore();
     metrics.reset();
@@ -930,7 +930,7 @@ test('varredura undubbed: lixo velho sai; dub/dual/pt e o acervo ficam', async (
     await settle();
 
     api.magnets.push(
-      { id: 2, hash: 'c2'.repeat(20), status: 'Ready', filename: 'Foreign Movie 2019 1080p WEBRip x264', uploadDate: velhoSec },
+      { id: 2, hash: 'c2'.repeat(20), status: 'Ready', filename: 'Foreign Movie 2019 TrueFrench 1080p WEBRip', uploadDate: velhoSec },
       { id: 3, hash: 'c3'.repeat(20), status: 'Ready', filename: 'Nome do Filme 2019 Dublado 1080p', uploadDate: velhoSec },
       { id: 4, hash: 'c4'.repeat(20), status: 'Ready', filename: 'Nome do Filme 2019 Dual Audio 1080p', uploadDate: velhoSec },
       { id: 5, hash: 'c5'.repeat(20), status: 'Ready', filename: 'Coração de Vingança 2019 720p', uploadDate: velhoSec },
@@ -955,7 +955,7 @@ test('varredura undubbed: lixo recente sobrevive à idade mínima', async () => 
 
     api.magnets.push(
       { id: 2, hash: 'd2'.repeat(20), status: 'Ready', filename: 'Recent Movie 2024 1080p WEBRip', uploadDate: novoSec },
-      { id: 3, hash: 'd3'.repeat(20), status: 'Ready', filename: 'Old Movie 2015 720p HDTV', uploadDate: velhoSec },
+      { id: 3, hash: 'd3'.repeat(20), status: 'Ready', filename: 'Old Movie 2015 TrueFrench 720p HDTV', uploadDate: velhoSec },
     );
 
     await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
@@ -980,7 +980,7 @@ test('varredura undubbed: sem uploadDate não há prova de idade — fica', asyn
     api.magnets.push(
       { id: 2, hash: 'g2'.repeat(20), status: 'Ready', filename: 'Old Foreign Movie 2012 1080p WEBRip x264' },
       { id: 3, hash: 'g3'.repeat(20), status: 'Ready', filename: 'Another Old Movie 2013 BRRip x264', uploadDate: 0 },
-      { id: 4, hash: 'g4'.repeat(20), status: 'Ready', filename: 'Third Old Movie 2011 HDTV x264', uploadDate: velhoSec },
+      { id: 4, hash: 'g4'.repeat(20), status: 'Ready', filename: 'Third Old Movie 2011 TrueFrench HDTV x264', uploadDate: velhoSec },
     );
 
     await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
@@ -1003,7 +1003,7 @@ test('varredura undubbed: download do autofetch em hold sobrevive', async () => 
 
     api.magnets.push(
       { id: 2, hash: PROTEGIDO, status: 'Downloading', filename: 'New Movie 2024 1080p WEBRip', uploadDate: velhoSec },
-      { id: 3, hash: 'e3'.repeat(20), status: 'Ready', filename: 'Another Old Movie 2014 BRRip', uploadDate: velhoSec },
+      { id: 3, hash: 'e3'.repeat(20), status: 'Ready', filename: 'Another Old Movie 2014 TrueFrench BRRip', uploadDate: velhoSec },
     );
 
     await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
@@ -1014,19 +1014,21 @@ test('varredura undubbed: download do autofetch em hold sobrevive', async () => 
   }
 });
 
-test('varredura undubbed: inventário frio pula a rodada inteira (fail-safe)', async () => {
+test('varredura undubbed: inventário frio é AGUARDADO, não pula a rodada (bug dos 812)', async () => {
   const CHAVE = 'chave-varredura-undubbed-fria';
   const api = mockAccountMutable([
-    { id: 2, hash: 'f2'.repeat(20), status: 'Ready', filename: 'Old Movie 2010 720p HDTV', uploadDate: velhoSec },
+    { id: 2, hash: 'f2'.repeat(20), status: 'Ready', filename: 'Acervo Dublado do Usuário', uploadDate: velhoSec },
   ]);
   try {
-    // Sem aquecer o inventário: não há prova de proveniência, nada pode sair
-    // (mesmo padrão do dropReady).
+    // O bug documentado: com snapshot frio, `knownBefore` devolvia null e a
+    // rodada inteira pulava ('inventário frio') — a guarda de 5min do TTL
+    // contra o timer de 6h deixou a conta chegar a 812 magnets. Como a
+    // varredura é em FUNDO, o snapshot agora é AGUARDADO em vez de desistir.
     const r = await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
-    assert.equal(r.pulado, 'inventário frio');
-    assert.equal(r.varridos, 0);
-    assert.deepEqual(api.deleted, [], 'fail-safe: nada é removido sem inventário');
-    await settle(); // deixa o carregamento disparado em fundo assentar
+    assert.equal(r.pulado, undefined, 'inventário frio: aguarda e não pula a rodada');
+    // O único magnet da conta é o acervo do snapshot (preexistente): nada sai.
+    assert.deepEqual(api.deleted, [], 'preexistente continua protegido');
+    await settle(); // deixa o snapshot aguardado assentar
   } finally {
     api.restore();
   }
@@ -1049,7 +1051,7 @@ test('varredura undubbed: teto corta pelos mais antigos, independente da ordem',
         id: 10 + i,
         hash: `a${i + 2}`.repeat(20),
         status: 'Ready',
-        filename: `Old Movie ${2010 + i} 720p HDTV x264`,
+        filename: `Old Movie ${2010 + i} TrueFrench 720p HDTV x264`,
         uploadDate: agora - (20 - i) * 24 * 3600,
       });
     }
@@ -1142,7 +1144,7 @@ test('varredura undubbed pula o BR retido pela proteção durável', async () =>
 
     api.magnets.push(
       { id: 2, hash: BR_RETIDO, status: 'Ready', filename: 'Foreign Old Movie 2009 720p WEBRip', uploadDate: velhoSec },
-      { id: 3, hash: LIXO, status: 'Ready', filename: 'Another Foreign Movie 2010 BRRip', uploadDate: velhoSec },
+      { id: 3, hash: LIXO, status: 'Ready', filename: 'Another Foreign Movie 2010 TrueFrench BRRip', uploadDate: velhoSec },
     );
 
     const r = await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });

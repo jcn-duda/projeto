@@ -229,6 +229,24 @@ export interface DebridAdapter {
   ): Promise<Record<string, TorrentStatusEntry>>;
   /** Remove torrent pelo id no serviço; ausente = não suportado */
   removeTorrent?(apiKey: string, id: string | number): Promise<boolean>;
+  /**
+   * Lista normalizada dos magnets da conta (só a AllDebrid implementa hoje).
+   * Ausente = o catálogo/limpador não lista este serviço; os guardas usam
+   * `typeof adapter.x === 'function'`.
+   */
+  magnetList?(apiKey: string): Promise<import('../src/debrid/alldebrid').AllDebridMagnetRow[]>;
+  /** Arquivos de UM magnet por id; ausente = catálogo não audita arquivos aqui. */
+  magnetFiles?(apiKey: string, serviceId: string | number): Promise<import('../src/debrid/file-selector.js').DebridFile[]>;
+  /** Remove magnet(s) por id com backoff; ausente = sem delete dedicado. */
+  deleteMagnets?(
+    apiKey: string,
+    ids: Array<string | number>,
+  ): Promise<{ ok: number; falhas: Array<{ message?: string }> }>;
+  /**
+   * Snapshot `knownBefore` AGUARDADO para limpezas de fundo (30s de teto).
+   * `null` = inventário não chegou: fail-safe fecha, nada pode ser apagado.
+   */
+  preexistingHashes?(apiKey: string): Promise<Set<string> | null>;
   /** Teto de enqueues/hora que este serviço aceita para item não-cacheado */
   enqueueHourlyLimit?: number;
   /** Pode participar do autofetch sem cacheCheck, sustentado por inventário */

@@ -1,4 +1,4 @@
-// Índice de releases por obra (`idx:v5`): a memória que faz o addon virar
+// Índice de releases por obra (`idx:v6`): a memória que faz o addon virar
 // servidor. O `raw:v1` guarda a raspagem por QUERY de indexer e vive minutos;
 // aqui guarda o que a obra TEM, filtrado e dedupado por hash, e vive semanas.
 //
@@ -43,7 +43,7 @@ function enabled() {
   return config.releaseIndex.enabled && config.releaseIndex.ttl > 0;
 }
 
-/** `idx:v5:tt123` no filme; `idx:v5:tt123:S2:E5` / `idx:v5:tt123:S2` em série. */
+/** `idx:v6:tt123` no filme; `idx:v6:tt123:S2:E5` / `idx:v6:tt123:S2` em série. */
 function obraKey(imdbId: string, { season, episode }: ObraLocation = {}) {
   let key = `${prefix('idx')}${imdbId}`;
   if (season != null) key += `:S${season}`;
@@ -294,7 +294,7 @@ function status() {
 
 /**
  * Leitura em LOTE para o sampler de cobertura BR: agrega TODAS as chaves `idx`
- * de cada obra pedida (filme `idx:v5:ttX`, temporada `…:S2`, episódio
+ * de cada obra pedida (filme `idx:v6:ttX`, temporada `…:S2`, episódio
  * `…:S2E5`) numa lista única, dedupada por hash mantendo o `seenAt` mais
  * recente. Não muda formato nem namespace — é o agrupador do `lookup`, só que
  * sem a escala do episódio: aqui uma obra de um episódio agrupa todos os seus
@@ -335,4 +335,37 @@ function snapshotWorks(imdbIds: string[]): Map<string, IndexedRelease[]> {
   return result;
 }
 
-export { record, lookup, lookupQuiet, markLied, markMissing, isMissing, markFileEvidence, fileEvidence, status, snapshotWorks };
+/**
+ * Variação de `snapshotWorks` SEM o filtro `needed` para o CATÁLOGO: agrega
+ * TODAS as chaves `idx` em um Mapa hash → Obra. O catálogo da conta consulta
+ * com um único hash (o magnet) e precisa saber a que obra ele pertence —
+ * percorrer chave a chave seria O(índice) por magnet. Mesma disciplina
+ * read-only: `keysMatching` + `peek` não promovem LRU nem contam hit/miss, e o
+ * dedupe por hash mantém o registro mais recente. Retorna Map<imdbId,
+ * IndexedRelease[]>, como o `snapshotWorks`.
+ */
+function snapshotAllWorks(): Map<string, IndexedRelease[]> {
+  const result = new Map<string, IndexedRelease[]>();
+  const base = prefix('idx');
+  const mergedByWork = new Map<string, Map<string, IndexedRelease>>();
+  for (const key of cache.keysMatching(base)) {
+    const match = key.slice(base.length).match(/^(tt\d+)(?::|$)/);
+    const imdbId = match?.[1];
+    if (!imdbId) continue;
+    const entry = cache.peek(key) as { releases?: IndexedRelease[] } | undefined;
+    if (!entry || !Array.isArray(entry.releases)) continue;
+    const merged = mergedByWork.get(imdbId) || new Map<string, IndexedRelease>();
+    for (const rel of entry.releases) {
+      if (!rel || !rel.hash) continue;
+      const prior = merged.get(rel.hash);
+      if (!prior || rel.seenAt > prior.seenAt) merged.set(rel.hash, rel);
+    }
+    mergedByWork.set(imdbId, merged);
+  }
+  for (const [imdbId, merged] of mergedByWork) {
+    if (merged.size) result.set(imdbId, [...merged.values()]);
+  }
+  return result;
+}
+
+export { record, lookup, lookupQuiet, markLied, markMissing, isMissing, markFileEvidence, fileEvidence, status, snapshotWorks, snapshotAllWorks };

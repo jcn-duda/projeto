@@ -23,6 +23,7 @@ const CONFIG_DIR = path.dirname(fileURLToPath(import.meta.url));
 // config.ts roda em dist/src; subir dois níveis preserva data/cache.db tanto no
 // build quanto no checkout TypeScript, sem depender do diretório de trabalho.
 const DEFAULT_CACHE_DB_PATH = path.join(CONFIG_DIR, '..', '..', 'data', 'cache.db');
+const DEFAULT_CATALOG_DB_PATH = path.join(CONFIG_DIR, '..', '..', 'data', 'catalog.db');
 
 const config = {
   port: num(process.env.PORT, 7000),
@@ -129,7 +130,7 @@ const config = {
     // BR/slow têm orçamento de 20s; no boot o padrão aquece só globais.
     skipSlow: String(process.env.WARMUP_SKIP_SLOW || 'true') === 'true',
   },
-  // Índice de releases por obra (`idx:v5`): o que a busca já provou existir,
+  // Índice de releases por obra (`idx:v6`): o que a busca já provou existir,
   // filtrado e dedupado por hash. Compartilhado entre instalações DE PROPÓSITO —
   // guarda o que EXISTE, nunca o que está pronto em qual conta (isso é
   // davail/mag, escopados por conta). RELEASE_INDEX=false desliga a escrita E a
@@ -339,6 +340,21 @@ const config = {
     // Memória é sempre L1; SQLite só preserva o aquecimento entre restarts.
     persist: String(process.env.CACHE_PERSIST || 'true') !== 'false',
     dbPath: process.env.CACHE_DB_PATH || DEFAULT_CACHE_DB_PATH,
+  },
+  // Catálogo durável da conta AllDebrid (o cache destrói conhecimento por
+  // cota/TTL/bump de namespace; catálogo é HISTÓRICO, separado de propósito).
+  catalog: {
+    dbPath: process.env.CATALOG_DB_PATH || DEFAULT_CATALOG_DB_PATH,
+    // Idade mínima para a limpeza automática de estrangeiro provado tocar um
+    // magnet: antigo o bastante para não ser download fresco (7 dias).
+    cleanupMinAgeMs: num(process.env.CATALOG_CLEANUP_MIN_AGE_MS, 7 * 24 * 3600 * 1000),
+    // Teto de magnets por rodada da limpeza de estrangeiro provado.
+    cleanupMaxPerRound: Math.max(0, Math.trunc(num(process.env.CATALOG_CLEANUP_MAX, 100))),
+    // Teto de linhas por rodada da auditoria de arquivos (quem ainda não tem
+    // evidência de áudio no release-index).
+    auditMaxPerRound: Math.max(0, Math.trunc(num(process.env.CATALOG_AUDIT_MAX, 20))),
+    // Workers paralelos da auditoria de arquivos (1..3).
+    auditConcurrency: Math.min(3, Math.max(1, Math.trunc(num(process.env.CATALOG_AUDIT_CONCURRENCY, 2)))),
   },
   debrid: {
     // premiumize | realdebrid | alldebrid | torbox | debridlink
@@ -710,11 +726,20 @@ const config = {
     enabled: String(process.env.AUDIO_AUDIT || 'true') === 'true',
     ptMarkers: list(
       process.env.AUDIO_AUDIT_PT_MARKERS ||
-        'dublado,dublada,dublagem,dubbed,dual audio,pt br,ptbr,portugues,portuguese,nacional,fleg',
+        // `dual` sozinho entrou depois de `dual audio`: o padrão dominante do
+        // WEB-DL dublado BR é "…AMZN.WEB-DL.DUAL.5.1…" (DUAL sem "audio"), e
+        // sem o marcador o audit de mentira olhava o AMZN — que é PLATAFORMA,
+        // não prova de idioma — e condenava o dublado como release EN, chamando
+        // unprotect no acervo retido. Medido: Coringa.2019.1080p.AMZN.WEB-DL.
+        // DUAL.5.1.x264.mkv virava lie.
+        'dublado,dublada,dublagem,dubbed,dual audio,dual,pt br,ptbr,portugues,portuguese,nacional,fleg',
     ),
     enGroups: list(
       process.env.AUDIO_AUDIT_EN_GROUPS ||
-        'rarbg,killers,ettv,afm72,tovar,evo,megusta,galaxyrg,glxrc,yts,fgt,amzn,dsnp,smi,ntb,roarb,oxy,bae,drs,huzzah',
+        // amzn/dsnp/smi saíram: são plataformas de streaming (Amazon, Disney+,
+        // Showtime), presentes em release dublada e legenda igualmente — só
+        // grupo de CENA prova idioma do conteúdo.
+        'rarbg,killers,ettv,afm72,tovar,evo,megusta,galaxyrg,glxrc,yts,fgt,ntb,roarb,oxy,bae,drs,huzzah',
     ),
   },
   // Webhooks operacionais: alerta de credenciais recusadas, indexers BR offline

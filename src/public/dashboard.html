@@ -118,6 +118,21 @@
   .action-card { padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255, 255, 255, .025); }
   .action-card h3 { margin: 0 0 5px; font-size: 16px; }
   .action-card p { min-height: 42px; margin: 0 0 13px; color: var(--muted); font-size: 12px; }
+  .catalog-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+  .catalog-actions button { padding: 8px 14px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-2); color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; }
+  .catalog-actions button:hover { border-color: var(--accent); color: var(--accent); }
+  .catalog-actions button.danger { border-color: var(--red); color: #ffd8d4; }
+  .catalog-max { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .catalog-max input { width: 110px; margin-top: 0; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface-2); color: var(--text); }
+  .catalog-report { margin-top: 18px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255, 255, 255, .02); }
+  .catalog-report h3 { margin: 0 0 8px; color: var(--text); font-size: 14px; }
+  .catalog-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12px; }
+  .catalog-table th, .catalog-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; color: var(--text); }
+  .catalog-table th { color: var(--muted); font-weight: 600; }
+  .catalog-totals { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  .catalog-pill { display: inline-block; margin: 2px 8px 2px 0; padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 600; }
+  .catalog-target-row { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .catalog-target-row .hash { font-family: monospace; color: var(--muted); }
   .last-updated { color: var(--muted); font-size: 12px; }
   .spinner { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border: 2px solid rgba(255,255,255,.3); border-top-color: var(--accent); border-radius: 50%; vertical-align: -2px; animation: spin .7s linear infinite; }
   .is-loading .spinner { display: inline-block; }
@@ -267,6 +282,27 @@
       <div class="action-card"><h3>Testar todos os indexadores</h3><p>Executa o mesmo teste real, um indexador por vez.</p><button id="testAllIndexersButton" class="action-button" type="button" data-action="test-all-indexers">Testar todos</button></div>
       <div class="action-card"><h3>Reavaliar inventário</h3><p>Invalida somente o memo de inventário da conta acessível.</p><button id="refreshInventoryButton" class="action-button" type="button" data-action="refresh-inventory">Reavaliar inventário</button></div>
     </div>
+  </section>
+
+  <section aria-labelledby="catalogTitle">
+    <div class="section-head"><div><h2 id="catalogTitle">Conta / Catálogo</h2><p>Ocupação da conta do operador, classificação BR, duplicados e limpeza de estrangeiro provado. As ações de aplicar são destrutivas e pedem confirmação.</p></div></div>
+    <div class="catalog-actions">
+      <button id="catalogScanBtn" type="button">Varrer conta (catálogo)</button>
+      <button id="catalogReportBtn" type="button">Relatório</button>
+      <button id="catalogAuditBtn" type="button">Auditar arquivos</button>
+      <button id="catalogDedupPreviewBtn" type="button">Dedup — preview</button>
+      <button id="catalogDedupApplyBtn" class="danger" type="button">Dedup — aplicar</button>
+      <button id="catalogCleanupPreviewBtn" type="button">Limpeza BR — preview</button>
+      <button id="catalogCleanupApplyBtn" class="danger" type="button">Limpeza BR — aplicar</button>
+      <label class="catalog-option"><input id="catalog_include_known" type="checkbox" /> incluir acervo preexistente do operador</label>
+      <label class="catalog-max">Limite (máx.)
+        <input id="catalog_max" type="number" min="1" step="1" placeholder="sem limite" />
+      </label>
+    </div>
+    <p id="catalog_feedback" class="feedback" role="status" aria-live="polite"></p>
+    <div class="catalog-report"><h3>Relatório</h3><div id="catalog_report" class="metrics"><div class="empty">Execute a varredura ou o relatório para popular.</div></div></div>
+    <div class="catalog-report"><h3>Duplicados</h3><div id="catalog_dedup_preview" class="metrics"><div class="empty">Execute o preview de duplicados.</div></div></div>
+    <div class="catalog-report"><h3>Alvos (top 10)</h3><div id="catalog_targets" class="cards"><div class="empty">Sem alvos de preview.</div></div></div>
   </section>
   </div>
 
@@ -1881,6 +1917,176 @@
       .then(function () { if (button) button.disabled = false; });
   }
 
+  // --- Conta / Catálogo ------------------------------------------------
+  var CATALOG_BUCKETS = ["dub", "dual", "pt", "lixo"];
+
+  function setCatalogFeedback(text, kind) {
+    var node = $("catalog_feedback");
+    node.className = "feedback" + (kind ? " " + kind : "");
+    node.textContent = text || "";
+  }
+
+  function catalogMax() {
+    var raw = $("catalog_max").value;
+    var number = Number(raw);
+    if (!raw || !isFinite(number) || number <= 0) return undefined;
+    return Math.floor(number);
+  }
+
+  function bucketLabel(bucket) {
+    if (bucket === "dub") return "Dublado";
+    if (bucket === "dual") return "Dual";
+    if (bucket === "pt") return "Português";
+    if (bucket === "lixo") return "Lixo / indefinido";
+    return titleText(bucket);
+  }
+
+  function bucketError(data) {
+    return valueText(data && (data.reason || data.error || data.message) || "indisponível");
+  }
+
+  function buildBucketTable(report) {
+    var table = document.createElement("table");
+    var head = document.createElement("thead");
+    var body = document.createElement("tbody");
+    var hr = document.createElement("tr");
+    var i;
+    var headCells = ["Balde", "Magnets", "Bytes"];
+    for (i = 0; i < headCells.length; i += 1) {
+      var th = document.createElement("th");
+      th.textContent = headCells[i];
+      hr.appendChild(th);
+    }
+    head.appendChild(hr);
+    table.className = "catalog-table";
+    table.appendChild(head);
+    for (i = 0; i < CATALOG_BUCKETS.length; i += 1) {
+      var bucket = CATALOG_BUCKETS[i];
+      var meta = report.byBucket[bucket] || { count: 0, bytes: 0 };
+      var tr = document.createElement("tr");
+      var tdName = document.createElement("td");
+      tdName.textContent = bucketLabel(bucket);
+      var tdCount = document.createElement("td");
+      tdCount.textContent = String(meta.count);
+      var tdBytes = document.createElement("td");
+      tdBytes.textContent = formatBytes(meta.bytes);
+      tr.appendChild(tdName); tr.appendChild(tdCount); tr.appendChild(tdBytes);
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    return table;
+  }
+
+  function cachedPills(report) {
+    var keys = ["hit", "miss", "blocked", "unknown"];
+    var wrap = document.createElement("div");
+    var i;
+    for (i = 0; i < keys.length; i += 1) {
+      wrap.appendChild(element("span", "catalog-pill", "⚡ " + keys[i] + ": " + valueText(report.byCached[keys[i]])));
+    }
+    return wrap;
+  }
+
+  function renderCatalogReport(data) {
+    var out = $("catalog_report");
+    empty(out, "sem relatório");
+    if (!data || !data.ok) { empty(out, bucketError(data)); return; }
+    var report = data.report || {};
+    out.appendChild(element("div", "", "Magnets ativos: " + valueText(report.magnets) + " · prontos: " + valueText(report.ready) + " · obras conhecidas: " + valueText(report.works && report.works.known) + " · desconhecidas: " + valueText(report.works && report.works.unknown)));
+    out.appendChild(cachedPills(report));
+    out.appendChild(buildBucketTable(report));
+    out.appendChild(element("p", "catalog-totals", "Totais: " + valueText(report.totals && report.totals.count) + " magnets · " + formatBytes(report.totals && report.totals.bytes)));
+  }
+
+  function countKills(plan) {
+    var total = 0;
+    var i;
+    for (i = 0; i < plan.t1.length; i += 1) total += plan.t1[i].kill.length;
+    for (i = 0; i < plan.t2.length; i += 1) total += plan.t2[i].kill.length;
+    return total;
+  }
+
+  function dedupKills(plan) {
+    var out = [];
+    var i, j;
+    for (i = 0; i < plan.t1.length; i += 1) {
+      for (j = 0; j < plan.t1[i].kill.length; j += 1) out.push(plan.t1[i].kill[j]);
+    }
+    for (i = 0; i < plan.t2.length; i += 1) {
+      for (j = 0; j < plan.t2[i].kill.length; j += 1) out.push(plan.t2[i].kill[j]);
+    }
+    return out;
+  }
+
+  function renderCatalogDedup(data) {
+    var out = $("catalog_dedup_preview");
+    empty(out, "Sem plano.");
+    if (!data || !data.ok) { empty(out, bucketError(data)); return; }
+    if (data.plan) {
+      out.appendChild(element("div", "", "Grupos T1 (mesmo hash): " + valueText(data.plan.t1.length) + " · Grupos T2 (mesmo arquivo): " + valueText(data.plan.t2.length) + " · Alvos: " + valueText(countKills(data.plan))));
+      renderCatalogRows(dedupKills(data.plan));
+    } else if (data.targets) {
+      out.appendChild(element("div", "", "Alvos da limpeza: " + valueText(data.targets.length)));
+      var skipped = data.skipped || {};
+      out.appendChild(element("div", "", "Pulados — protegidos: " + valueText(skipped.protected) + " · ativos: " + valueText(skipped.active) + " · jovens: " + valueText(skipped.young) + " · não condenados: " + valueText(skipped.notCondemned) + " · preexistentes: " + valueText(skipped.known)));
+      renderCatalogRows(data.targets);
+    } else {
+      out.appendChild(element("div", "", "Ação concluída."));
+    }
+  }
+
+  function renderCatalogRows(rows) {
+    var out = $("catalog_targets");
+    empty(out, "Sem alvos.");
+    var top = rows.slice(0, 10);
+    var i;
+    for (i = 0; i < top.length; i += 1) {
+      var target = top[i] || {};
+      var row = document.createElement("div");
+      row.className = "catalog-target-row";
+      var hash = String(target.hash || "?");
+      var hashNode = document.createElement("span");
+      hashNode.className = "hash";
+      hashNode.textContent = hash.slice(0, 8);
+      row.appendChild(hashNode);
+      row.appendChild(document.createTextNode("  " + titleText(target.filename || "") + (target.ready ? "  [pronto]" : "") + (target.known ? "  (preexistente)" : "")));
+      out.appendChild(row);
+    }
+  }
+
+  function catalogIncludeKnown() {
+    var el = document.getElementById("catalog_include_known");
+    return !!el && !!el.checked;
+  }
+
+  function catalogAction(action, extra, callback) {
+    var payload = { action: action, confirm: true, includeKnown: catalogIncludeKnown() };
+    if (extra && extra.max !== undefined) payload.max = extra.max;
+    setCatalogFeedback("Executando " + action + "…", "warn");
+    requestJson("/dashboard-action.json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+      .then(function (data) { setCatalogFeedback("Ação " + action + " concluída.", "ok"); if (callback) callback(data); loadStatus(); })
+      .catch(function (error) { setCatalogFeedback("Ação não concluída: " + valueText(error && error.message ? error.message : error), "error"); });
+  }
+
+  function runCatalogScan() { catalogAction("catalog-scan", {}, renderCatalogReport); }
+  function runCatalogReport() { catalogAction("catalog-report", {}, renderCatalogReport); }
+  function runCatalogAudit() { catalogAction("audit-backfill", { max: catalogMax() }, renderCatalogReport); }
+  function runCatalogDedupPreview() { catalogAction("dedup-preview", {}, renderCatalogDedup); }
+  function runCatalogDedupApply() {
+    if (!window.confirm("Confirmar a deduplicação (apagar os duplicados do catálogo)?")) return;
+    catalogAction("dedup-apply", { max: catalogMax() }, renderCatalogReport);
+  }
+  function runCatalogCleanupPreview() { catalogAction("cleanup-preview", {}, renderCatalogDedup); }
+  function runCatalogCleanupApply() {
+    if (!window.confirm("Confirmar a limpeza BR (apagar o estrangeiro provado do catálogo)?")) return;
+    catalogAction("cleanup-apply", { max: catalogMax() }, renderCatalogReport);
+  }
+  // ----------------------------------------------------------------------
+
   function bind() {
     var savedToken = readStored(TOKEN_KEY);
     var savedRate = readStored(RATE_KEY);
@@ -1923,6 +2129,13 @@
     $("afPresetConservador").addEventListener("click", function () { applyAutofetchPreset("conservador"); });
     $("afPresetAgressivo").addEventListener("click", function () { applyAutofetchPreset("agressivo"); });
     $("afPresetSwarm").addEventListener("click", function () { applyAutofetchPreset("swarm"); });
+    $("catalogScanBtn").addEventListener("click", runCatalogScan);
+    $("catalogReportBtn").addEventListener("click", runCatalogReport);
+    $("catalogAuditBtn").addEventListener("click", runCatalogAudit);
+    $("catalogDedupPreviewBtn").addEventListener("click", runCatalogDedupPreview);
+    $("catalogDedupApplyBtn").addEventListener("click", runCatalogDedupApply);
+    $("catalogCleanupPreviewBtn").addEventListener("click", runCatalogCleanupPreview);
+    $("catalogCleanupApplyBtn").addEventListener("click", runCatalogCleanupApply);
     window.addEventListener("hashchange", handleHash);
     handleHash();
 

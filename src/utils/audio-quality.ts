@@ -188,8 +188,11 @@ function audioFromTitle(title = '') {
 
   if (isExplicitSub && explicitPtAudio(t) && !isExplicitDub) return 'Legendado';
 
-  // Dual / Multi áudio
-  if (/\b(DUAL|DOUBLE|DUAL[- ]?AUDIO|AUDIO[- ]?DUPLO|DUPLO[- ]?AUDIO|MULTI[- ]?AUDIO|MULTIAUDIO)\b/.test(t)) {
+  // Dual / Multi áudio. MULTI sozinho entra aqui: o comentário do
+  // hasExplicitForeignAudio já dizia que MULTI carrega a faixa original e não
+  // prova conteúdo estrangeiro — cair no balde `lixo` contradizia isso e
+  // entregava o magnet à limpeza por ausência de marcador.
+  if (/\b(DUAL|DOUBLE|MULTI|DUAL[- ]?AUDIO|AUDIO[- ]?DUPLO|DUPLO[- ]?AUDIO|MULTI[- ]?AUDIO|MULTIAUDIO)\b/.test(t)) {
     return 'Dual';
   }
 
@@ -237,7 +240,11 @@ function looksPtBr(title = '') {
 // a limpeza da conta (scripts/clean-undubbed.ts) usa a mesma lógica da busca —
 // uma segunda lista divergiria.
 const PT_VOCAB = /\b(temporadas?|epis[oó]dios?|dublad[oa]s?|dublagem|nacional|complet[oa]s?|cole[cç][aã]o|vers[oõ]es?|estendid[oa]s?|guerra|mundial|estreia|cap[ií]tulos?|caminho|cidade|noite|vingan[cç]a|cora[cç][aã]o|paix[aã]o|f[uú]ria|selvagem|assassino|assassina|maldi[cç][aã]o)\b/i;
-const PT_STOP_TWO = (t: string) => (t.match(/\b(das?|dos?|n[ao]s?|umas?|para|com|entre|sobre|atr[aá]s)\b/gi) || []).length >= 2;
+// `de` entra aqui: é a preposição portuguesa mais comum e sua ausência era a
+// maior causa isolada de títulos BR sem acento caírem no balde `lixo`
+// (medido: 19 de 20 títulos de teste). Exige 2+ ocorrências, então título
+// estrangeiro com um "de" solto não basta.
+const PT_STOP_TWO = (t: string) => (t.match(/\b(das?|de|dos?|n[ao]s?|umas?|para|com|entre|sobre|atr[aá]s)\b/gi) || []).length >= 2;
 const BR_MARK = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolverdon|andretpf|lapumia|megatorrents|hdtorrent|torrentbr|bthd|www\.\w+\.org\s*-\s*)/i;
 
 /** Sem marca de áudio, mas o título denuncia português (post BR sem marcação é o padrão). */
@@ -262,6 +269,31 @@ function audioBucket(title = ''): AudioBucket {
   if (audioFromTitle(title) === 'Dual') return 'dual';
   if (hasPtSigns(title)) return 'pt';
   return 'lixo';
+}
+
+/**
+ * Veredito de ESTRANGEIRO com a assimetria do dubbedLieVerdict invertida para
+ * o caminho da deleção: ausência de PT nunca condena — condenar exige prova
+ * positiva de idioma estrangeiro. Um único marcador PT em qualquer lugar
+ * (título do post OU path real de arquivo) absolve, porque falso positivo
+ * aqui destrói acervo BR que custou horas de download.
+ *
+ *   absolve  — sinal PT em algum lugar;
+ *   condena  — marca de áudio estrangeiro explícita OU grupo de cena EN
+ *              reconhecido, e NENHUM sinal PT em lugar nenhum;
+ *   unknown  — sem prova nos dois lados: nunca apaga (é o caso que o
+ *              catálogo resolve com auditoria de arquivos, não com palpite).
+ */
+type ForeignVerdict = 'absolve' | 'condena' | 'unknown';
+
+function foreignVerdict(filename = '', videoPaths: string[] = []): ForeignVerdict {
+  const candidates = [String(filename || ''), ...videoPaths.map(String)].filter(Boolean);
+  const temSinalPt = candidates.some((p) => looksPtBr(p) || hasPtSigns(p) || hasPtAudioMark(p));
+  if (temSinalPt) return 'absolve';
+  const provaEstrangeira = candidates.some(
+    (p) => hasExplicitForeignAudio(p) || Boolean(strongEnSceneMark(p)),
+  );
+  return provaEstrangeira ? 'condena' : 'unknown';
 }
 
 function compactAudio(audio = '') {
@@ -319,7 +351,8 @@ export {
   looksPtBr,
   hasPtSigns,
   audioBucket,
+  foreignVerdict,
   compactAudio,
   compactTracker,
 };
-export type { AudioBucket };
+export type { AudioBucket, ForeignVerdict };

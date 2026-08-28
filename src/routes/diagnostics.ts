@@ -134,6 +134,7 @@ function makeDiagnosticHandlers(services: AppServices) {
         harvest: services.harvester.status(),
         f3: brCoverage.status(),
         magnetdb: services.magnetdb.status(),
+        catalog: services.debrid.catalogStatusEnv(),
         indexers: indexers.map((indexer: any) => ({
           ...indexer,
           breaker: services.jackett.breakerSnapshot(indexer.id),
@@ -168,10 +169,17 @@ function makeDiagnosticHandlers(services: AppServices) {
       'harvest-config-get',
       'harvest-config-set',
       'harvest-config-reset',
+      'catalog-scan',
+      'catalog-report',
+      'dedup-preview',
+      'dedup-apply',
+      'audit-backfill',
+      'cleanup-preview',
+      'cleanup-apply',
     ].includes(action)) {
       return res.status(400).json({ ok: false, error: 'ação desconhecida' });
     }
-    if (['clear-cache', 'sweep-dead', 'autofetch-drain', 'autofetch-config-reset', 'harvest-config-reset', 'harvester-clear-queue'].includes(action) && req.body?.confirm !== true) {
+    if (['clear-cache', 'sweep-dead', 'autofetch-drain', 'autofetch-config-reset', 'harvest-config-reset', 'harvester-clear-queue', 'dedup-apply', 'cleanup-apply'].includes(action) && req.body?.confirm !== true) {
       return res.status(400).json({ ok: false, error: 'confirmation_required' });
     }
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
@@ -322,6 +330,65 @@ function makeDiagnosticHandlers(services: AppServices) {
         services.metrics.count('dashboard.harvest.clear_queue');
         services.log.info(`[dashboard] fila do colhedor limpa: ${result.cleared} obra(s) removida(s)`);
         return res.json({ ok: true, action, ...result });
+      }
+      if (action === 'catalog-scan') {
+        const result = await services.debrid.catalogScanEnv();
+        services.metrics.count('dashboard.catalog.scan', result.ok ? 1 : 0);
+        services.log.info('[dashboard] varredura do catálogo da conta executada');
+        // `ok:false` aqui é indisponibilidade de diagnóstico (sem adapter/conta),
+        // não erro HTTP — devolve 200 com o corpo do wrapper.
+        return res.json({ ...result, action });
+      }
+      if (action === 'catalog-report') {
+        const result = services.debrid.catalogStatusEnv();
+        services.metrics.count('dashboard.catalog.report', result.ok ? 1 : 0);
+        return res.json({ ...result, action });
+      }
+      if (action === 'dedup-preview') {
+        const result = services.debrid.dedupPreviewEnv();
+        services.metrics.count('dashboard.catalog.dedup_preview', result.ok ? 1 : 0);
+        services.log.info('[dashboard] plano de deduplicação calculado');
+        return res.json({ ...result, action });
+      }
+      if (action === 'dedup-apply') {
+        const max = typeof req.body?.max === 'number' && Number.isFinite(req.body.max) && req.body.max > 0
+          ? Math.trunc(req.body.max)
+          : undefined;
+        const result = await services.debrid.dedupApplyEnv(max);
+        services.metrics.count('dashboard.catalog.dedup', result.ok ? 1 : 0);
+        services.log.info('[dashboard] deduplicação aplicada ao catálogo');
+        return res.json({ ...result, action });
+      }
+      if (action === 'audit-backfill') {
+        const max = typeof req.body?.max === 'number' && Number.isFinite(req.body.max) && req.body.max > 0
+          ? Math.trunc(req.body.max)
+          : undefined;
+        const result = await services.debrid.auditBackfillEnv({ max, concurrency: undefined });
+        if (result.ok) {
+          services.metrics.count('dashboard.catalog.audit', result.evidenced);
+          services.log.info(`[dashboard] auditoria de arquivos: ${result.scanned} registro(s), ${result.evidenced} com prova`);
+        } else {
+          services.metrics.count('dashboard.catalog.audit', 0);
+          services.log.info('[dashboard] auditoria de arquivos indisponível');
+        }
+        return res.json({ ...result, action });
+      }
+      if (action === 'cleanup-preview') {
+        const includeKnown = req.body?.includeKnown === true;
+        const result = await services.debrid.cleanupPreviewEnv({ includeKnown });
+        services.metrics.count('dashboard.catalog.cleanup_preview', result.ok ? 1 : 0);
+        services.log.info('[dashboard] plano de limpeza BR calculado');
+        return res.json({ ...result, action });
+      }
+      if (action === 'cleanup-apply') {
+        const max = typeof req.body?.max === 'number' && Number.isFinite(req.body.max) && req.body.max > 0
+          ? Math.trunc(req.body.max)
+          : undefined;
+        const includeKnown = req.body?.includeKnown === true;
+        const result = await services.debrid.cleanupApplyEnv(max, { includeKnown });
+        services.metrics.count('dashboard.catalog.cleanup', result.ok ? 1 : 0);
+        services.log.info('[dashboard] limpeza BR aplicada ao catálogo');
+        return res.json({ ...result, action });
       }
       const result = (await services.debrid.sweepDeadCurrent()) ?? (await services.debrid.sweepDeadEnv());
       services.metrics.count('dashboard.sweep-dead');

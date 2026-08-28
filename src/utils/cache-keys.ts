@@ -49,7 +49,11 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // v5: marcas d'água de trackers BR ("derew", "www ThePiratefilmes")
   // deixavam releases legítimas abaixo da precisão mínima. O índice antigo
   // nunca reconsulta obra já coberta; descartar o legado permite colhê-las.
-  idx: 'v5',
+  // v6: o classificador de áudio aprendeu que MULTI sozinho é Dual (não
+  // "sem marca") — releases já indexadas carregam `dubbed`/qualidade gravados
+  // pelo classificador antigo e vivem semanas; sem o bump o conserto não
+  // aparece em obra já indexada.
+  idx: 'v6',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

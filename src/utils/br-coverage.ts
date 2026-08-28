@@ -74,7 +74,7 @@ type BrCoverageStatus = {
 };
 
 /** Conta do operador (quem olha o dashboard) — sem credencial vazada. */
-type OperatorCtx = { adapterId: string | null; apiKey: string };
+export type OperatorCtx = { adapterId: string | null; apiKey: string };
 
 let latest: BrCoverageSample | null = null;
 let baselineAt = 0;
@@ -97,7 +97,7 @@ function aliveKey(adapterId: string, apiKey: string, hash: string) {
 type ReleaseStatus = 'hit' | 'miss' | 'unknown';
 
 /** Classificação pura de uma release. Somente leituras quietas de L1. */
-function releaseStatus(release: IndexedRelease, ctx: OperatorCtx): ReleaseStatus {
+export function releaseStatus(release: { hash: string }, ctx: OperatorCtx): ReleaseStatus {
   const ledger = rdLedger.peekQuiet(release.hash);
   let hasHit = false;
   let hasMiss = false;
@@ -121,7 +121,7 @@ function releaseStatus(release: IndexedRelease, ctx: OperatorCtx): ReleaseStatus
 }
 
 /** Candidata BR dublada e não-lied (o post mente não é candidata). */
-function isBrRelease(rel: IndexedRelease): boolean {
+export function isBrRelease(rel: IndexedRelease): boolean {
   return Boolean(rel && rel.isBr && rel.dubbed && !rel.lied);
 }
 
@@ -301,4 +301,6 @@ export function reset(): void {
   }
 }
 
-export default { sample, status, start, reset };
+export { operatorCtx };
+
+export default { sample, status, start, reset, releaseStatus, isBrRelease, operatorCtx };

@@ -9,7 +9,7 @@ import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
-import { audioBucket } from '../utils/audio-quality.js';
+import { foreignVerdict } from '../utils/audio-quality.js';
 import type { InventoryItem, PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 import type { DebridFile } from './file-selector.js';
 
@@ -207,43 +207,135 @@ function warmInventory(apiKey: string) {
   return preexisting.get(account)?.promise || Promise.resolve(null);
 }
 
-// Limpeza em fila curta, com uma segunda tentativa.
+/**
+ * Linha NORMALIZADA de magnet da conta, para o catálogo e o limpador. A API
+ * entrega `uploadDate` em SEGUNDOS e o resto do addon trabalha em ms, e o hash
+ * é normalizado em minúsculo como em todos os outros pontos de uso. `ready`
+ * aceita tanto o booleano quanto o status `Ready` textual.
+ */
+export interface AllDebridMagnetRow {
+  id: string | number;
+  hash: string;
+  filename: string;
+  size: number;
+  status: string;
+  ready: boolean;
+  /** Em milissegundos (a API manda segundos); 0 quando ausente. */
+  uploadDate: number;
+}
+
+/**
+ * Lista TODOS os magnets da conta (uma chamada a `/magnet/status`). Itens sem
+ * `id` ou sem `hash` não fazem sentido para o catálogo/limpador — hash é o que
+ * liga ao resto do pipeline e id é o que o delete usa.
+ */
+export async function magnetList(apiKey: string): Promise<AllDebridMagnetRow[]> {
+  const data = await call(apiKey, '/magnet/status');
+  const list: AllDebridMagnet[] = Array.isArray(data?.magnets) ? data.magnets : [];
+  const out: AllDebridMagnetRow[] = [];
+  for (const magnet of list) {
+    const id = magnet.id;
+    const hash = String(magnet.hash || '').toLowerCase();
+    if (id == null || !hash) continue;
+    out.push({
+      id,
+      hash,
+      filename: String(magnet.filename || ''),
+      size: Number(magnet.size) || 0,
+      status: String(magnet.status || ''),
+      ready: Boolean(magnet.ready) || /^ready$/i.test(String(magnet.status || '')),
+      uploadDate: (Number(magnet.uploadDate) || 0) * 1000,
+    });
+  }
+  return out;
+}
+
+/**
+ * Árvore de arquivos de UM magnet pronta para o catálogo auditar conteúdo.
+ * Magnet ausente ou ainda não `Ready` devolve `[]` — estado de download é
+ * transição, não erro de rede/auth (só o `call` lança nesses casos).
+ */
+export function magnetFiles(apiKey: string, serviceId: string | number): Promise<DebridFile[]> {
+  return (async () => {
+    const status = await call(apiKey, '/magnet/status', { id: serviceId });
+    let info = status?.magnets;
+    // A resposta às vezes vem como lista de um item só (mesmo shape do resolveLink).
+    if (Array.isArray(info)) info = info[0];
+    if (!info || !/^ready$/i.test(String(info.status || ''))) return [];
+    if (!Array.isArray(info.files)) return [];
+    return flattenFiles(info.files);
+  })();
+}
+
+// Limpeza em fila curta com backoff exponencial e reenfileiramento.
 //
 // Disparar os ~50 deletes de uma checagem em paralelo fazia a AllDebrid
 // devolver 503 (página HTML, não JSON) em parte deles — medido: 13 de 45 numa
 // única busca. Cada 503 é um magnet que fica na conta para sempre, e como a
 // conta cheia derruba a própria checagem de cache, o erro se realimenta.
+// O backoff não é firula: o 503 é sintoma de rajada, não de id inválido, e
+// esperas crescentes (400 → 800 → 1600ms) dão tempo da rajada passar antes de
+// reenfileirar o id para uma segunda rodada. Só aí falha de verdade.
 const DROP_CONCURRENCY = 4;
+const DROP_RETRY_DELAYS = [400, 800, 1600];
 
-async function dropMagnets(apiKey: string, ids: Array<string | number>) {
+/**
+ * Remove magnets por id. O contrato de retorno é o mesmo de sempre
+ * (`{ ok, falhas }`), mas a execução tolera o 503 em rajada:
+ *
+ *   - cada id tem até `delays.length` tentativas com espera crescente a partir
+ *     de 400ms (400 → 800 → 1600);
+ *   - se ainda falhar, é REENFILEIRADO no fim da fila UMA vez, para a segunda
+ *     rodada rodar só depois de a rajada passar;
+ *   - na segunda rodada a falha é de verdade e o id vai para `falhas`.
+ *
+ * `waitFn`/`delays` são injeção opcional para os testes encurtarem as esperas
+ * sem esperar o backoff real; produção usa `wait` (de `common.js`) e os
+ * padrões acima.
+ */
+async function deleteMagnets(
+  apiKey: string,
+  ids: Array<string | number>,
+  { waitFn = wait, delays = DROP_RETRY_DELAYS }: { waitFn?: (ms: number) => Promise<unknown>; delays?: number[] } = {},
+) {
   const falhas: Array<{ message?: string }> = [];
   let ok = 0;
-  const alvo = [...ids];
-  const worker = async () => {
-    while (alvo.length) {
-      const id = alvo.shift();
-      try {
-        await call(apiKey, '/magnet/delete', { id });
-        ok += 1;
-      } catch (primeira) {
-        // 503 é o sintoma de rajada, não de id inválido: uma pausa curta
-        // costuma bastar. Falhou de novo, aí é falha de verdade e entra na
-        // contagem em vez de sumir no allSettled.
-        try {
-          await wait(400);
-          await call(apiKey, '/magnet/delete', { id });
-          ok += 1;
-        } catch (segunda) {
-          falhas.push(segunda);
+
+  const round = async (alvo: Array<string | number>) => {
+    const pendentes: Array<string | number> = [];
+    const worker = async () => {
+      while (alvo.length) {
+        const id = alvo.shift();
+        if (id === undefined) continue;
+        let removido = false;
+        for (const espera of delays) {
+          try {
+            await call(apiKey, '/magnet/delete', { id });
+            ok += 1;
+            removido = true;
+            break;
+          } catch {
+            await waitFn(espera);
+          }
         }
+        if (!removido) pendentes.push(id);
       }
-    }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(DROP_CONCURRENCY, alvo.length) }, worker),
+    );
+    return pendentes;
   };
-  await Promise.all(
-    Array.from({ length: Math.min(DROP_CONCURRENCY, alvo.length) }, worker),
-  );
+
+  const primeiraRodada = await round([...ids]);
+  // Reenfileirados: a fila curta já drenou, a rajada passou — agora falha a sério.
+  const segundaRodada = await round(primeiraRodada);
+  for (const id of segundaRodada) falhas.push({ message: `falhou ao remover magnet ${id}` });
   return { ok, falhas };
 }
+
+/** Alias interno não exportado: os demais pontos de limpeza seguem chamando-o. */
+const dropMagnets = deleteMagnets;
 // Estados dos quais a AllDebrid não volta: o torrent não vai baixar.
 const DEAD = /no peer|expired|not available|error|failed/i;
 
@@ -298,20 +390,47 @@ async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMin
 }
 
 /**
- * Varre da conta os magnets ANTIGOS sem áudio PT (balde `lixo` do
- * `audioBucket`): legendado ou estrangeiro que o autofetch acumulou antes do
- * filtro de áudio existir. É a única limpeza que alcança o que nem está morto
- * nem aparece mais em busca — está pronto, só não serve a este addon.
+ * Snapshot `knownBefore` AGUARDADO, para caminhos de FUNDO (varreduras
+ * agendadas e limpezas manuais do painel) que não disputam o prazo da
+ * resposta. O fail-safe fecha: `null` = sem prova de proveniência, e ausência
+ * de referência NUNCA autoriza remoção — quem recebe null pula a rodada.
+ */
+async function preexistingHashes(apiKey: string): Promise<Set<string> | null> {
+  const account = accountScope(apiKey);
+  const direto = knownBefore(apiKey, account);
+  if (direto) return direto;
+  const loading = preexisting.get(account);
+  return raceWithDeadline(loading?.promise ?? Promise.resolve(null), 30_000, () => null);
+}
+
+/**
+ * Varre da conta os magnets ANTIGOS com idioma ESTRANGEIRO PROVADO: só o que
+ * o `foreignVerdict` CONdena — marca de áudio estrangeiro explícita
+ * (TrueFrench/German etc.) ou grupo de cena EN — e nenhum sinal PT em lugar
+ * nenhum. É a única limpeza que alcança o que nem está morto nem aparece mais
+ * em busca — está pronto, só não serve a este addon.
+ *
+ * O antigo critério (balde `lixo` do `audioBucket`) condenava qualquer nordo
+ * sem marca PT — foi assim que a conta chegou a 812 magnets, cheia de generic
+ * estrangeiro que o enunciado do plano chamou de "conteúdo que não é BR".
+ * Ausência de marca PT NUNCA mais é condenação: falso positivo aqui destrói
+ * acervo que custou horas de download. Ambíguo (`unknown`) fica — o catálogo
+ * resolve com auditoria dos ARQUIVOS, não com palpite de título.
  *
  * Por ser destrutiva sobre conteúdo TOCÁVEL, as travas andam juntas:
  *   - idade mínima (só o que passou de `sweepUndubbedMinAgeMs`);
- *   - `held` (download do autofetch em curso);
+ *   - `held` (download do autofetch em curso) e a retenção durável;
  *   - `knownBefore` (o acervo que já era do usuário);
+ *   - estados ATIVOS (`ACTIVE_STATES`) — download em curso não é lixo;
  *   - sem data de upload, a idade não está PROVADA — fica (diferente do
  *     sweepDead: morto é lixo em qualquer idade; tocável exige prova).
  *
- * FAIL-SAFE: inventário frio ou falho (`knownBefore === null`) pula a rodada
- * inteira — mesmo padrão do dropReady: sem prova de proveniência, nada sai.
+ * INVENTÁRIO FRIO: como a varredura é em FUNDO (fora do prazo da resposta), o
+ * snapshot é AGUARDADO em vez de pular a rodada — a guarda de 5min do TTL
+ * contra o timer de 6h fazia a rodada inteira desistir (fail-safe fechado) e a
+ * conta entupir. Aguarda até 30s (`raceWithDeadline`); só se o inventário não
+ * chegar (timeout/falha/servidor fora do ar) é que o fail-safe mantém-se:
+ * `pulado: 'inventário frio'` e nada sai.
  */
 async function sweepUndubbed(
   apiKey: string,
@@ -321,9 +440,12 @@ async function sweepUndubbed(
   }: { minAgeMs?: number; max?: number } = {},
 ): Promise<{ varridos: number; falhas: number; pulado?: string }> {
   const account = accountScope(apiKey);
-  const preexistentes = knownBefore(apiKey, account);
+  // O snapshot frio dispara o refresh e devolve null; a varredura é em fundo,
+  // então AGUARDA via preexistingHashes (teto generoso de 30s, independente do
+  // `debridCheckFloor` porque este caminho não disputa o prazo da resposta).
+  const preexistentes = await preexistingHashes(apiKey);
   if (preexistentes === null) {
-    log.info('[alldebrid] varredura de não-dublados pulada: inventário frio ou falhou');
+    log.info('[alldebrid] varredura de não-dublados pulada: inventário não chegou no teto de 30s');
     return { varridos: 0, falhas: 0, pulado: 'inventário frio' };
   }
 
@@ -333,10 +455,14 @@ async function sweepUndubbed(
 
   const alvo = list.filter((m) => {
     if (!m.id) return false;
+    // Download em curso não é lixo: estado ativo NUNCA é alvo.
+    if (ACTIVE_STATES.test(String(m.status || ''))) return false;
     // BR retido no acervo (durável) ou autofetch em voo (volátil) não saem.
     if (skipCleanup(account, String(m.hash || ''))) return false;
     if (preexistentes.has(String(m.hash || '').toLowerCase())) return false;
-    if (audioBucket(String(m.filename || '')) !== 'lixo') return false;
+    // Só estrangeiro PROVADO; ambíguo (`unknown`) fica para a auditoria de
+    // arquivos do catálogo. Ausência de marca PT nunca mais condena.
+    if (foreignVerdict(String(m.filename || '')) !== 'condena') return false;
     // uploadDate vem em segundos; sem data, não há prova de idade — fica.
     const quando = Number(m.uploadDate || 0) * 1000;
     return quando > 0 && quando <= limite;
@@ -654,5 +780,5 @@ export const cacheCheck = true;
 // em background para ler os ids e remover os magnets que não estavam prontos.
 export const abortSafeCacheCheck = false;
 export const keyUrl = 'https://alldebrid.com/apikeys';
-export { enqueue, accountStatus, inventory, checkCached, warmInventory, sweepDead, sweepUndubbed, resolveLink, torrentStatus, removeTorrent };
+export { enqueue, accountStatus, inventory, checkCached, warmInventory, sweepDead, sweepUndubbed, resolveLink, torrentStatus, removeTorrent, deleteMagnets, preexistingHashes };
 
