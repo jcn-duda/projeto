@@ -122,6 +122,10 @@
   .catalog-actions button { padding: 8px 14px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-2); color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; }
   .catalog-actions button:hover { border-color: var(--accent); color: var(--accent); }
   .catalog-actions button.danger { border-color: var(--red); color: #ffd8d4; }
+  /* Dez botões numa fileira só viram sopa. Cada grupo é uma etapa do fluxo
+     (ler → provar → duplicados → limpeza), e o rótulo diz qual é. */
+  .catalog-group { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255, 255, 255, .02); }
+  .catalog-group-label { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
   .catalog-max { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
   .catalog-max input { width: 110px; margin-top: 0; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface-2); color: var(--text); }
   .catalog-report { margin-top: 18px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255, 255, 255, .02); }
@@ -131,8 +135,37 @@
   .catalog-table th { color: var(--muted); font-weight: 600; }
   .catalog-totals { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
   .catalog-pill { display: inline-block; margin: 2px 8px 2px 0; padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 600; }
-  .catalog-target-row { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  /* Empilha em bloco: o container era .metrics (grid auto-fit), e resumo,
+     pílulas, tabela e totais viravam COLUNAS espremidas lado a lado. */
+  .catalog-body { display: block; }
+  .catalog-summary { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 10px; color: var(--text); font-size: 13px; }
+  .catalog-summary b { color: var(--accent); font-weight: 700; }
+  .catalog-skips { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  /* Números à direita: coluna de tamanho só é comparável alinhada. */
+  .catalog-table td.num, .catalog-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .catalog-table td.label { white-space: nowrap; }
+  .catalog-table tbody tr:hover { background: rgba(255, 255, 255, .03); }
+  .catalog-list { display: block; max-height: 420px; overflow-y: auto; }
+  /* Uma linha = grid de colunas fixas; sem isso tamanho e título correm
+     juntos e a lista fica ilegível a partir de umas poucas dezenas. */
+  .catalog-target-row {
+    display: grid; grid-template-columns: auto 78px 92px 1fr; align-items: center;
+    gap: 10px; padding: 7px 8px; border-bottom: 1px solid var(--border);
+    font-size: 12px; border-radius: 6px;
+  }
+  .catalog-target-row:nth-child(odd) { background: rgba(255, 255, 255, .015); }
+  .catalog-target-row:hover { background: var(--accent-soft); }
+  .catalog-target-row input[type="checkbox"] { margin: 0; cursor: pointer; }
+  .catalog-target-row .size { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .catalog-target-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
   .catalog-target-row .hash { font-family: monospace; color: var(--muted); }
+  /* Badge por SIGNIFICADO: vermelho condena, verde absolve, cinza é "não sei"
+     — o operador precisa distinguir isso de relance antes de apagar. */
+  .catalog-tag { display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; text-align: center; }
+  .catalog-tag.foreign { background: rgba(255, 92, 92, .16); color: #ff8f8f; }
+  .catalog-tag.pt { background: rgba(80, 210, 130, .15); color: #6fdb9c; }
+  .catalog-tag.none { background: rgba(255, 255, 255, .06); color: var(--muted); }
+  .catalog-flag { margin-left: 6px; color: var(--muted); font-size: 11px; }
   .last-updated { color: var(--muted); font-size: 12px; }
   .spinner { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border: 2px solid rgba(255,255,255,.3); border-top-color: var(--accent); border-radius: 50%; vertical-align: -2px; animation: spin .7s linear infinite; }
   .is-loading .spinner { display: inline-block; }
@@ -287,23 +320,35 @@
   <section aria-labelledby="catalogTitle">
     <div class="section-head"><div><h2 id="catalogTitle">Conta / Catálogo</h2><p>Ocupação da conta do operador, classificação BR, duplicados e limpeza de estrangeiro provado. As ações de aplicar são destrutivas e pedem confirmação.</p></div></div>
     <div class="catalog-actions">
-      <button id="catalogScanBtn" type="button">Varrer conta (catálogo)</button>
-      <button id="catalogReportBtn" type="button">Relatório</button>
-      <button id="catalogAuditBtn" type="button">Auditar arquivos</button>
-      <button id="catalogRequeueBtn" type="button">Reauditar (fila)</button>
-      <button id="catalogDedupPreviewBtn" type="button">Dedup — preview</button>
-      <button id="catalogDedupApplyBtn" class="danger" type="button">Dedup — aplicar</button>
-      <button id="catalogCleanupPreviewBtn" type="button">Limpeza BR — preview</button>
-      <button id="catalogCleanupApplyBtn" class="danger" type="button">Limpeza BR — aplicar</button>
+      <span class="catalog-group">
+        <span class="catalog-group-label">Ler</span>
+        <button id="catalogScanBtn" type="button">Varrer conta (catálogo)</button>
+        <button id="catalogReportBtn" type="button">Relatório</button>
+      </span>
+      <span class="catalog-group">
+        <span class="catalog-group-label">Provar</span>
+        <button id="catalogAuditBtn" type="button">Auditar arquivos</button>
+        <button id="catalogRequeueBtn" type="button">Reauditar (fila)</button>
+      </span>
+      <span class="catalog-group">
+        <span class="catalog-group-label">Duplicados</span>
+        <button id="catalogDedupPreviewBtn" type="button">Preview</button>
+        <button id="catalogDedupApplyBtn" class="danger" type="button">Aplicar</button>
+      </span>
+      <span class="catalog-group">
+        <span class="catalog-group-label">Limpeza BR</span>
+        <button id="catalogCleanupPreviewBtn" type="button">Preview</button>
+        <button id="catalogCleanupApplyBtn" class="danger" type="button">Aplicar</button>
+      </span>
       <label class="catalog-option"><input id="catalog_include_known" type="checkbox" /> incluir acervo preexistente do operador</label>
       <label class="catalog-max">Limite (máx.)
         <input id="catalog_max" type="number" min="1" step="1" placeholder="sem limite" />
       </label>
     </div>
     <p id="catalog_feedback" class="feedback" role="status" aria-live="polite"></p>
-    <div class="catalog-report"><h3>Relatório</h3><div id="catalog_report" class="metrics"><div class="empty">Execute a varredura ou o relatório para popular.</div></div></div>
-    <div class="catalog-report"><h3>Duplicados</h3><div id="catalog_dedup_preview" class="metrics"><div class="empty">Execute o preview de duplicados.</div></div></div>
-    <div class="catalog-report"><h3>Alvos (top 10)</h3><div id="catalog_targets" class="cards"><div class="empty">Sem alvos de preview.</div></div></div>
+    <div class="catalog-report"><h3>Relatório</h3><div id="catalog_report" class="catalog-body"><div class="empty">Execute a varredura ou o relatório para popular.</div></div></div>
+    <div class="catalog-report"><h3>Duplicados</h3><div id="catalog_dedup_preview" class="catalog-body"><div class="empty">Execute o preview de duplicados.</div></div></div>
+    <div class="catalog-report"><h3>Alvos (top 10)</h3><div id="catalog_targets" class="catalog-list"><div class="empty">Sem alvos de preview.</div></div></div>
     <div class="catalog-report">
       <h3>Escolher na mão</h3>
       <p>Lista o que está na conta, maiores primeiro. A seleção é a autorização: não passa por classificação nem por trava de idade. Download em curso é sempre pulado.</p>
@@ -322,7 +367,7 @@
         <button id="catalogManualDeleteBtn" class="danger" type="button">Apagar selecionados</button>
         <span id="catalog_selection" class="catalog-option">nada selecionado</span>
       </div>
-      <div id="catalog_manual" class="cards"><div class="empty">Clique em Listar.</div></div>
+      <div id="catalog_manual" class="catalog-list"><div class="empty">Clique em Listar.</div></div>
     </div>
   </section>
   </div>
@@ -834,6 +879,16 @@
   function empty(container, text) {
     container.textContent = "";
     container.appendChild(element("div", "empty", text));
+  }
+
+  /**
+   * Esvazia SEM deixar placeholder. `empty()` insere a caixa "vazio" e quem
+   * renderiza logo em seguida ANEXA — o placeholder ficava visível colado no
+   * conteúdo real ("sem relatório" ao lado dos números). Quem vai desenhar
+   * algo usa `clear()`; `empty()` fica só para o caso realmente vazio.
+   */
+  function clear(container) {
+    container.textContent = "";
   }
 
   function setFeedback(text, kind) {
@@ -1976,6 +2031,7 @@
     for (i = 0; i < headCells.length; i += 1) {
       var th = document.createElement("th");
       th.textContent = headCells[i];
+      if (i > 0) th.className = "num";
       hr.appendChild(th);
     }
     head.appendChild(hr);
@@ -1987,16 +2043,29 @@
       var meta = buckets[bucket] || { count: 0, bytes: 0 };
       var tr = document.createElement("tr");
       var tdName = document.createElement("td");
+      tdName.className = "label";
       tdName.textContent = bucketLabel(bucket);
       var tdCount = document.createElement("td");
+      tdCount.className = "num";
       tdCount.textContent = String(meta.count);
       var tdBytes = document.createElement("td");
+      tdBytes.className = "num";
       tdBytes.textContent = formatBytes(meta.bytes);
       tr.appendChild(tdName); tr.appendChild(tdCount); tr.appendChild(tdBytes);
       body.appendChild(tr);
     }
     table.appendChild(body);
     return table;
+  }
+
+  /** "Rótulo <b>valor</b>" do resumo. Sem innerHTML: o valor vem da rede. */
+  function catalogStat(label, value) {
+    var wrap = document.createElement("span");
+    wrap.appendChild(document.createTextNode(label + " "));
+    var forte = document.createElement("b");
+    forte.textContent = valueText(value);
+    wrap.appendChild(forte);
+    return wrap;
   }
 
   function cachedPills(report) {
@@ -2016,10 +2085,15 @@
 
   function renderCatalogReport(data) {
     var out = $("catalog_report");
-    empty(out, "sem relatório");
+    clear(out);
     if (!data || !data.ok) { empty(out, bucketError(data)); return; }
     var report = data.report || {};
-    out.appendChild(element("div", "", "Magnets ativos: " + valueText(report.magnets) + " · prontos: " + valueText(report.ready) + " · obras conhecidas: " + valueText(report.works && report.works.known) + " · desconhecidas: " + valueText(report.works && report.works.unknown)));
+    var resumo = element("div", "catalog-summary", "");
+    resumo.appendChild(catalogStat("Magnets", report.magnets));
+    resumo.appendChild(catalogStat("Prontos", report.ready));
+    resumo.appendChild(catalogStat("Obras conhecidas", report.works && report.works.known));
+    resumo.appendChild(catalogStat("Desconhecidas", report.works && report.works.unknown));
+    out.appendChild(resumo);
     out.appendChild(cachedPills(report));
     out.appendChild(buildBucketTable(report));
     out.appendChild(element("p", "catalog-totals", "Totais: " + valueText(report.totals && report.totals.count) + " magnets · " + formatBytes(report.totals && report.totals.bytes)));
@@ -2047,15 +2121,15 @@
 
   function renderCatalogDedup(data) {
     var out = $("catalog_dedup_preview");
-    empty(out, "Sem plano.");
+    clear(out);
     if (!data || !data.ok) { empty(out, bucketError(data)); return; }
     if (data.plan) {
-      out.appendChild(element("div", "", "Grupos T1 (mesmo hash): " + valueText(data.plan.t1.length) + " · Grupos T2 (mesmo arquivo): " + valueText(data.plan.t2.length) + " · Alvos: " + valueText(countKills(data.plan))));
+      out.appendChild(element("div", "catalog-summary", "Grupos T1 (mesmo hash): " + valueText(data.plan.t1.length) + " · Grupos T2 (mesmo arquivo): " + valueText(data.plan.t2.length) + " · Alvos: " + valueText(countKills(data.plan))));
       renderCatalogRows(dedupKills(data.plan));
     } else if (data.targets) {
-      out.appendChild(element("div", "", "Alvos da limpeza: " + valueText(data.targets.length)));
+      out.appendChild(element("div", "catalog-summary", "Alvos da limpeza: " + valueText(data.targets.length)));
       var skipped = data.skipped || {};
-      out.appendChild(element("div", "", "Pulados — protegidos: " + valueText(skipped.protected) + " · ativos: " + valueText(skipped.active) + " · jovens: " + valueText(skipped.young) + " · não condenados: " + valueText(skipped.notCondemned) + " · preexistentes: " + valueText(skipped.known)));
+      out.appendChild(element("p", "catalog-skips", "Pulados — protegidos: " + valueText(skipped.protected) + " · ativos: " + valueText(skipped.active) + " · jovens: " + valueText(skipped.young) + " · não condenados: " + valueText(skipped.notCondemned) + " · preexistentes: " + valueText(skipped.known)));
       renderCatalogRows(data.targets);
     } else {
       out.appendChild(element("div", "", "Ação concluída."));
@@ -2064,19 +2138,21 @@
 
   function renderCatalogRows(rows) {
     var out = $("catalog_targets");
-    empty(out, "Sem alvos.");
+    clear(out);
+    if (!rows.length) { empty(out, "Sem alvos."); return; }
     var top = rows.slice(0, 10);
     var i;
     for (i = 0; i < top.length; i += 1) {
       var target = top[i] || {};
       var row = document.createElement("div");
       row.className = "catalog-target-row";
-      var hash = String(target.hash || "?");
-      var hashNode = document.createElement("span");
-      hashNode.className = "hash";
-      hashNode.textContent = hash.slice(0, 8);
-      row.appendChild(hashNode);
-      row.appendChild(document.createTextNode("  " + titleText(target.filename || "") + (target.ready ? "  [pronto]" : "") + (target.known ? "  (preexistente)" : "")));
+      row.appendChild(element("span", "hash", String(target.hash || "?").slice(0, 8)));
+      row.appendChild(element("span", "size", formatBytes(target.size)));
+      row.appendChild(element("span", "catalog-tag " + (target.reason === "manual" ? "none" : "foreign"), target.ready ? "pronto" : "—"));
+      var nome = element("span", "name", titleText(target.filename || ""));
+      if (target.known) nome.appendChild(element("span", "catalog-flag", "(preexistente)"));
+      nome.title = String(target.filename || "");
+      row.appendChild(nome);
       out.appendChild(row);
     }
   }
@@ -2088,7 +2164,7 @@
    */
   function renderCatalogManual(data) {
     var out = $("catalog_manual");
-    empty(out, "Sem linhas.");
+    clear(out);
     // Já sem checkboxes no DOM: zera o resumo antes de qualquer saída curta.
     refreshCatalogSelection();
     if (!data || !data.ok) { empty(out, bucketError(data)); return; }
@@ -2108,16 +2184,28 @@
       // evita o operador achar que selecionou algo que vai sair.
       if (r.active) { box.disabled = true; }
       line.appendChild(box);
-      var marca = r.foreignProof ? " [estrangeiro: " + r.foreignProof + "]" : (r.ptProof ? " [PT: " + r.ptProof + "]" : "");
-      line.appendChild(document.createTextNode(
-        " " + formatBytes(r.size) + "  [" + valueText(r.bucket) + "]" + marca
-          + (r.active ? "  (baixando)" : "") + (r.protected ? "  (protegido)" : "")
-          + "  " + titleText(r.filename || "")
-      ));
+      line.appendChild(element("span", "size", formatBytes(r.size)));
+      line.appendChild(catalogTag(r));
+      var nome = element("span", "name", titleText(r.filename || ""));
+      if (r.active) nome.appendChild(element("span", "catalog-flag", "(baixando)"));
+      if (r.protected) nome.appendChild(element("span", "catalog-flag", "(protegido)"));
+      nome.title = String(r.filename || "");
+      line.appendChild(nome);
       out.appendChild(line);
     }
     // Lista nova zera o resumo: os checkboxes antigos saíram do DOM.
     refreshCatalogSelection();
+  }
+
+  /**
+   * Badge do veredito. Vermelho só quando há prova de estrangeiro, verde só
+   * quando há prova PT — a mesma assimetria do foreignVerdict no servidor.
+   * "sem prova" é cinza de propósito: é ignorância, não permissão.
+   */
+  function catalogTag(r) {
+    if (r.foreignProof) return element("span", "catalog-tag foreign", "estrangeiro");
+    if (r.ptProof) return element("span", "catalog-tag pt", "PT");
+    return element("span", "catalog-tag none", valueText(r.bucket));
   }
 
   function catalogBoxes() {
