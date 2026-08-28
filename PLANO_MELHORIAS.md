@@ -606,6 +606,7 @@ plano:
 | item 4 — par harvester (Fase 2) | 18.648 | 53 | `harvester.ts` 506 → 180 (fila em `harvest-queue.ts`, colheita unitária em `harvest-worker.ts`) e `harvester-live.ts` 459 → 138 (validação/clamps em `harvester-live-schema.ts`); ambos saíram do JSON. No gate seguinte a catraca pegou `cache-db.ts` do item 3 com 409 linhas (invisível à regra A enquanto não-rastreado) — extraído em `cache-db-open.ts` (`0aa41bf`) |
 | item 5 — `debrid-pipeline.ts` (Fase 2) | 18.322 | 52 | barrel de 10 linhas sobre core (`applyDebrid`, 375), etapas extraídas (`debrid-pipeline-steps.ts`, 271) e auditoria de áudio (`dub-audit.ts`, 185); a MUT-09 do harness adversarial foi repontuada para `debrid-pipeline-core.js` (mesmo defeito injetado, "CAUGHT" confirmado) |
 | item 6 — `realdebrid.ts` (Fase 2) | 18.150 | 51 | três módulos em camada única sem ciclo: core HTTP/paginação (`realdebrid-core.ts`, 117), fluxo de play/autofetch (`realdebrid-play.ts`, 264) e montagem do adaptador (239); os 15 exports do adaptador preservados, spread do registry idêntico |
+| item 7 — `alldebrid.ts` (Fase 2) | 17.766 | 50 | fachada de 37 linhas sobre api (216), inventory (124, dono do snapshot `knownBefore`), cleanup (210, `skipCleanup`/BR preservado), check (109, upload + `dropReady`/`dropUncached` independentes) e play (102); 20 exports de runtime verificados no `dist/` |
 
 **Backlog de resgate, ordenado por churn** (commits nos últimos 90 dias — os
 que mais se mexem primeiro, não os maiores primeiro; é onde a catraca morde,

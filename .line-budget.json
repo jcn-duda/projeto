@@ -1,14 +1,13 @@
 {
   "limite": 400,
   "gerado": "2026-08-28",
-  "excedente": 18150,
+  "excedente": 17766,
   "arquivos": {
     "resolvers/profiles/bludv.js": 1136,
     "resolvers/profiles/comandotorrents.js": 731,
     "resolvers/profiles/nerdfilmes.js": 717,
     "resolvers/profiles/torrentdosfilmes.js": 528,
     "resolvers/profiles/vacatorrent.js": 1025,
-    "src/debrid/alldebrid.ts": 784,
     "src/providers/autofetch-runner.ts": 705,
     "src/providers/autofetch.ts": 415,
     "src/providers/jackett.ts": 654,
