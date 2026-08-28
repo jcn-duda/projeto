@@ -51,6 +51,7 @@ dos achados críticos). Autocontido: pode ser executado por um agente sem acesso
 | A4 | 4 resolvers JS duplicam núcleo inteiro (parseHost, allowlist, probe, cache, hops, HTTP server) |
 | A5 | `process.env` lido fora de `config.ts` (`app.ts`, `cache.ts`, `logger.ts`; `br-resolvers.ts` muta `process.env`) |
 | A6 | 274 `any` explícitos (baseline 2026-08-24) concentrados nas fronteiras internas — meta por ocorrências explícitas de código; ver §5.7 para a medição atual |
+| A7 | Teto de 400 linhas/arquivo sem gatilho automático: 58 arquivos acima do teto (excedente 20.031) na medição de 2026-08-28; vacatorrent.js nasceu com 1.025 linhas e nada reclamou — wc -l nos arquivos versionados; ver §5.8 |
 
 ### Gaps de teste
 
@@ -551,6 +552,107 @@ test:adversarial && npm run test:adversarial-m1 && npm run test:protector-m1
 && npm run test:challenger-m2` (baseline dos harnesses tirada na fase 3.7).
 **Rollback:** subfase inteira revertível por commit revert; barrel/reexport
 garante que nenhum consumidor quebra no meio.
+
+### 5.8 — Orçamento de linhas por arquivo (A7)
+
+**Decisão (catraca, não teto retroativo).** A medição de 2026-08-28 — 206
+arquivos versionados no escopo (`src/`, `resolvers/`, `scripts/`, `test/`,
+`types/`, `*-resolver/`), 65.864 linhas, **58 acima de 400**, excedente somado
+**20.031** — inviabiliza teto duro retroativo: ninguém reescreve vinte mil
+linhas para o CI ficar verde, e um teto que reprova sempre é um teto que ninguém
+lê. A catraca resolve porque só encolhe sozinha, com três regras: **(A)**
+arquivo NOVO acima de 400 reprova sempre, sem escape; **(B)** arquivo existente
+acima do baseline reprova, com escape explícito `npm run lint:lines -- --bless`,
+que regrava o baseline daquele arquivo — o diff do `.line-budget.json` entra no
+commit; **(C)** quando o arquivo diminui, o script regrava o baseline para baixo
+sozinho. O gate nunca reprova em silêncio: todo agravamento fica escrito no
+JSON e todo bless fica visível no diff.
+
+**Modos.** `npm run lint:lines` verifica e aplica a regra C;
+`npm run lint:lines -- --bless` regrava crescimentos (não dispensa a regra A —
+arquivo novo acima de 400 reprova mesmo em modo bless);
+`npm run lint:lines -- --check` é o modo CI: nunca escreve, e a regra C vira
+aviso (a máquina não commita).
+
+**Métrica reproduzível.** O comando oficial é `npm run lint:lines -- --check`
+(roda de `dist/` como todo script — build antes). O baseline é
+`.line-budget.json` na raiz do repositório, commitado, com `limite`, `gerado`,
+`excedente` e `arquivos` (só os arquivos acima de 400). A contagem de linhas é
+bytes `\n` + 1 se o último byte não for `\n` — imune a CRLF (`* text=auto` +
+autocrlf no Windows) e conta **1025** no `resolvers/profiles/vacatorrent.js`,
+não os 1024 do `wc -l`: o arquivo termina sem newline. O script é a autoridade,
+não a medição que originou o plano.
+
+> **Correção do pathspec (2026-08-28).** O escopo da varredura é
+> `git ls-files src resolvers scripts test types "*-resolver/**"`, filtrado a
+> `.ts`/`.js` sem `.d.ts`. Duas armadilhas, ambas medidas: GLOBS de pathspec
+> `'src/**/*.ts'` **não casam os arquivos na raiz de `src/`** — o mesmo
+> precedente do contador da §5.7, que varria 66 dos 72 arquivos; e o glob puro
+> `"*-resolver"`, a forma escrita primeiro neste plano, casa **zero** arquivos
+> dos shims — `git ls-files src resolvers scripts test types "*-resolver"`
+> devolve exatamente os mesmos 237 caminhos que sem o argumento, enquanto
+> `*-resolver/**` adiciona os 21 arquivos dos cinco `*-resolver/`. Por isso a
+> forma com `/**` é a oficial.
+
+**Baseline por commit.** Como na §5.7, a catraca é medida pelo script, não pelo
+plano:
+
+| Commit | Excedente | Entradas (>400) | Nota |
+|---|---|---|---|
+| — (Fase 1 pendente) | 20.031 | 58 | medição do plano (wc -l, 206 arquivos varridos) em 2026-08-28; o script é a autoridade e pode divergir ±1 por arquivo sem newline final |
+| — (Fase 1, portão no ar, pré-commit) | **20.032** | 58 | primeira medição do script: 210 varridos com o pathspec corrigido (203 dos diretórios + os 7 `.js` dos cinco `*-resolver/`); os 10 arquivos sem newline final somam +1 na contagem, mas só o `vacatorrent.js` (1024 → 1025) está acima do teto |
+
+**Backlog de resgate, ordenado por churn** (commits nos últimos 90 dias — os
+que mais se mexem primeiro, não os maiores primeiro; é onde a catraca morde,
+porque é nesses arquivos que o `--bless` vai aparecer):
+
+| # | Arquivo | Linhas | Commits (90d) | Costura |
+|---|---|---|---|---|
+| 1 | `src/config.ts` | 779 | 42 | objeto com seções nítidas (debrid sozinho ocupa as linhas 367–676, jackett as 35–121) → `src/config/<seção>.ts` compostos num `config.ts` de ~50 linhas, mesmo padrão de barrel do §5.1 |
+| 2 | `src/debrid/index.ts` | 942 | 21 | camada de env (`catalogListEnv`/`manualDeleteEnv`, `b159524`) separável do core |
+| 3 | `src/utils/cache.ts` | 698 | 20 | os níveis de cache já são camadas conceituais |
+| 4 | `src/providers/harvester.ts` | 506 | 18 | par com `harvester-live.ts` (459), também acima |
+| 5 | `src/providers/debrid-pipeline.ts` | 726 | 14 | |
+| 6 | `src/debrid/realdebrid.ts` | 572 | 14 | |
+| 7 | `src/debrid/alldebrid.ts` | 784 | 13 | |
+| 8 | `src/routes/diagnostics.ts` | 492 | 13 | cresce a cada ação nova do dashboard; despacho por ação é a costura óbvia |
+
+Baixo churn/alto tamanho ficam para depois — a catraca não morde neles:
+`catalog.ts` (1.064 linhas / 5 commits), `vacatorrent.js` (1.024 / 2),
+`autofetch-live.ts` (495 / 1). Caso à parte único: os cinco profiles de
+resolver (`bludv` 1.136, `vacatorrent` 1.024, `comandotorrents` 731, `nerdfilmes`
+717, `torrentdosfilmes` 528 — 4.136 linhas com estrutura repetida). O §5.4 já
+extraiu o núcleo comum uma vez e o vacatorrent chegou depois; uma **segunda**
+rodada de núcleo comum vale mais que cinco splits independentes.
+
+**Regra de execução do backlog** (herdada do §5.1/§5.4): uma extração por
+commit, barrel/reexport preservando os nomes públicos, e o gate da fase 5 após
+cada subfase (`npm run typecheck && npm run build && npm test &&
+npm run test:complete` + os cinco harnesses: `test:stress`, `test:adversarial`,
+`test:adversarial-m1`, `test:protector-m1`, `test:challenger-m2`).
+**Rollback:** `git revert` da subfase inteira. A cada subfase, anotar na tabela
+de baseline acima o novo excedente (como a §5.7 faz com o contador de `any`) e
+remover a entrada do arquivo que caiu abaixo de 400.
+
+**Riscos registrados.** Ruído de `--bless` no começo: `format.test.ts` (2.753
+linhas) e `autofetch.test.ts` (2.861) somam 33 commits em 90 dias — uma
+sequência de blesses sem queda aparece na tabela e é sinal para agendar a
+extração daquele arquivo, não para continuar abençoando. Split mecânico
+piorando o código: TS/ESM obriga a exportar o que era interno — seguir o padrão
+de camadas sem ciclo do §5.3 e preferir deixar o débito no JSON a forçar split
+ruim.
+
+### 5.9 — Extração dos HTML do painel
+
+Sem data forçada. Extrair o JS e o CSS inline de `src/public/dashboard.html`
+(2.429 linhas) e `src/public/configure.html` (1.771) para arquivos próprios em
+`src/public/`, servidos como estáticos — o `scripts/build-assets.ts` já copia o
+diretório inteiro para `dist/`, então não há passo de build novo. Feito isso, os
+módulos resultantes entram no escopo da catraca (5.8) sem exceção nenhuma e o
+`.html` volta a ser marcação. Enquanto isso, os dois HTML ficam fora da catraca
+— é a única exceção do gate, e ela morre com esta subfase. **Guarda-corpo:**
+`test/dashboard.test.ts` e `test/configure-html.test.ts` têm que passar **sem
+alteração** — ou não foi extração, foi reescrita.
 
 ---
 

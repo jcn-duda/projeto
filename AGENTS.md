@@ -1168,6 +1168,17 @@ mais `@ts-check` nem `@ts-nocheck` no repositório — todo `.ts` é verificado,
 1.661 erros abertos foi o estado em que o portão deixou de servir para qualquer
 coisa, porque ninguém lê essa lista para achar o que importa.
 
+**O teto de 400 linhas por arquivo é portão, com catraca: `npm run lint:lines`,**
+baseline commitado em `.line-budget.json`. Arquivo NOVO acima de 400 reprova
+sempre, sem escape; legado só reprova se CRESCER além do baseline — o escape é
+`npm run lint:lines -- --bless`, que regrava o baseline daquele arquivo e o diff
+do JSON entra no commit, visível na revisão. Quando o arquivo diminui, o script
+regrava o baseline para baixo sozinho: a folga não acumula. `src/public/*.html`
+(dashboard, configure) está fora da catraca até a extração do JS/CSS inline
+(PLANO_MELHORIAS §5.9) — os dois não têm bundler e congelá-los bloquearia o
+painel. Sem o gatilho, arquivo novo nasce com mil linhas e ninguém percebe até a
+extração ficar cara: `vacatorrent.js` entrou com 1.025 linhas e nada reclamou.
+
 **Tipe o que a função PRODUZ, não só o que ela recebe.** O valor está aí: por
 muito tempo as anotações eram todas de entrada e nada cobrava o retorno — foi
 assim que `parseTitleSeasonEpisode` ganhou um campo novo e quebrou oito

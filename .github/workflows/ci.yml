@@ -37,6 +37,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Teto de 400 linhas por arquivo, com catraca: arquivo novo acima do teto
+      # reprova; arquivo já grande só reprova se crescer além do baseline
+      # commitado em .line-budget.json. Sem isto, arquivo novo nasce com mil
+      # linhas e ninguém percebe até a extração ficar cara.
+      - name: Orçamento de linhas
+        run: npm run lint:lines -- --check
+
       # A lista do script `test` é explícita (glob no --test só a partir do
       # Node 21). Sem esta checagem, arquivo de teste novo fica de fora e o
       # verde do CI não quer dizer nada.
