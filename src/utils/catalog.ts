@@ -318,12 +318,22 @@ function upsertRow(e: Engine, row: Row): void {
   const prev = e.getRow(row.adapter, row.account, row.serviceId);
   if (!prev) { e.insertRow(row); return; }
   // A prova medida em AUDITORIA DE ARQUIVOS é durável. O `fileEvidence` do
-  // índice tem TTL curto (15min, herdado do pipeline de busca): quando ele
-  // expira, o scan recalcula só pelo título do post — e NÃO pode apagar o
+  // índice tem TTL finito (herdado do pipeline de busca): quando ele expira,
+  // o scan recalcula só pelo título do post — e NÃO pode apagar o
   // veredito que foi medido nos arquivos reais. Só uma evidência NOVA
   // (row.auditedAt > 0, ou seja, este scan ainda vê fileEvidence) sobrescreve.
   // Título nunca vence arquivo: um post pode mentir o áudio, o .mkv não.
-  const keepAudited = prev.auditedAt > 0 && row.auditedAt === 0;
+  //
+  // Preservar NÃO é incondicional: só vale evidência REAL de arquivo. Uma
+  // absolvição por TÍTULO (`ptProof === 'titulo'`, ex. produzida pelo BR_MARK
+  // genérico `.org`) NÃO congela: um re-scan com o título corrigido precisa
+  // poder recalcular e revogar a prova falsa. A condição de arquivo é
+  // `prev.ptProof === 'arquivo'` ou a condena medida em path no runtime
+  // (`prev.foreignProof !== '' && prev.auditedAt > 0` — `markAuditedUnlessCondemned`
+  // nunca marca quem está condenado; foreignProof+auditedAt vem de `noteAudit`).
+  const keepAudited =
+    row.auditedAt === 0 &&
+    (prev.ptProof === 'arquivo' || (prev.foreignProof !== '' && prev.auditedAt > 0));
   const merged: Row = {
     ...row,
     // first_seen é a primeira aparição — nunca regride.

@@ -8,10 +8,14 @@
 // lugares e a do descarte ficou parada na v3 enquanto a chave já ia na v5.
 // streams v6: a guarda de ano pelo dn= do magnet (remake ≠ clássico) muda o
 // resultado do filtro — listas antigas com obra errada não podem sobreviver
-// ao TTL. idx v2: as releases gravadas sem essa prova morrem no boot e são
-// regravadas já filtradas.
+// ao TTL. streams v7: o classificador de sinal BR foi corrigido (remoção do
+// alternador genérico `www.…org -` que absolvia `www.UIndex.org -`) e a marca
+// DUB/DUBBED genérica passou a depender da ausência de HINDI — as listas
+// prontas carregam bolts/ranking gerados pelo matching antigo e não se
+// corrigiriam só com o reboot. idx v2: as releases gravadas sem essa prova
+// morrem no boot e são regravadas já filtradas.
 const NAMESPACE_VERSIONS = Object.freeze({
-  streams: 'v6',
+  streams: 'v7',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
@@ -53,7 +57,11 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // "sem marca") — releases já indexadas carregam `dubbed`/qualidade gravados
   // pelo classificador antigo e vivem semanas; sem o bump o conserto não
   // aparece em obra já indexada.
-  idx: 'v6',
+  // v7: `audioFromTitle`/`dubbed` persistido em fileEvidence/índice mudou com
+  // a correção DUB/HINDI (generic DUB só valida áudio PT sem HINDI ao lado).
+  // Sem o bump, obra já indexada continuaria gravada como dublada quando o
+  // release é dublagem indiana.
+  idx: 'v7',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

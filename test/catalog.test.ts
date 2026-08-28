@@ -399,8 +399,29 @@ test('rowsNeedingAudit ignora não-prontos e lista prontos', () => {
     magnet({ id: '2', hash: '4d'.repeat(20), filename: 'Outro 2022 Dual 720p', ready: true, status: 'Ready' }),
   ]);
   const ids = catalog.rowsNeedingAudit(ACCOUNT).map((n) => String(n.serviceId));
-  assert.ok(!ids.includes('1'), 'não-pronto NUNCA entra na fila');
+  assert.ok(!ids.includes('1'), 'não-pronto nunca entra na fila');
   assert.ok(ids.includes('2'), 'pronto e fraco entra na fila');
+});
+
+test('keptAudited não congela: prova por TÍTULO (pt_proof="titulo") com auditedAt é recalculada no re-scan', () => {
+  const h = '77'.repeat(20); // hash próprio, sem fileEvidence de outro teste
+  // (a) scan POR TÍTULO absolve pelo TÍTULO (sem arquivos): ptProof='titulo'.
+  scan(ACCOUNT, [magnet({ id: '1', hash: h, filename: 'Nome do Filme Dublado 2024 1080p' })]);
+  assert.equal(catalog.row(ACCOUNT, '1')!.ptProof, 'titulo', 'precondição: absolvição provisória (só pelo título)');
+
+  // (b) linha marcada auditada (paths vazios → markAudited): auditedAt>0.
+  catalog.markAudited(ACCOUNT, '1');
+  assert.ok(catalog.row(ACCOUNT, '1')!.auditedAt > 0, 'precondição: audited_at com a prova de título');
+
+  // O BUG a corrigir: o antigo keepAudited (prev.auditedAt>0) congelava a
+  // pt_proof='titulo' aqui — um re-scan com título estrangeiro/EN não revogava
+  // a falsa absolvição (ex. produzida pelo BR_MARK .org). Nova regra: 'titulo'
+  // NÃO é evidência de arquivo; o re-scan recalcula pelo título.
+  scan(ACCOUNT, [magnet({ id: '1', hash: h, filename: 'Movie.Foreign.2023.1080p.x264-RARBG' })]);
+  const apos = catalog.row(ACCOUNT, '1')!;
+  assert.equal(apos.ptProof, '', 'absolvição por título é revogada — não é prova de arquivo');
+  assert.equal(apos.foreignProof, 'cena', 'a condenação pelo re-scan de título entra');
+  assert.ok(apos.auditedAt > 0, 'auditedAt continua avançando (Math.max)');
 });
 
 test('keepAudited preserva prova de arquivo quando o scan perde a evidência (título nunca vence arquivo)', () => {

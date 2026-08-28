@@ -124,9 +124,15 @@ function explicitPtAudio(title = '') {
     /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
     /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
 
+  // A marca genérica DUB/DUBBED só entrega "áudio PT" na AUSÊNCIA de idioma
+  // estrangeiro: `HINDI.HQ.DUB`/`HINDI.DUBBED` são dublagem indiana (medido: a
+  // absolvição indevida desse `\bDUB\b` mantinha releases EN vivas no catálogo).
+  // O PT explícito ao lado (`HINDI… DUB PT-BR`) continua vencendo.
+  const isGenericDub = !/\bHINDI\b/.test(t) && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
+
   return (
-    /\b(DUBLAD[OA]|DUBLAGEM|DUBBED|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR|DUBLADO[- ]?PT[-.]?BR)\b/.test(t) ||
-    /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t) ||
+    /\b(DUBLAD[OA]|DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR|DUBLADO[- ]?PT[-.]?BR)\b/.test(t) ||
+    isGenericDub ||
     (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub)
   );
 }
@@ -135,9 +141,14 @@ function explicitPtAudio(title = '') {
 function hasPtAudioMark(path = '') {
   const tokens = normalizeTitle(path).split(' ').filter(Boolean);
   const joined = ` ${tokens.join(' ')} `;
+  // Generic 'dubbed' também é áudio PT apenas na ausência de HINDI (dublagem
+  // indiana; mesma regra do explicitPtAudio). Formas BR explícitas seguem PT.
+  const hasHindi = /\bHINDI\b/.test(String(path).toUpperCase());
   return config.audioAudit.ptMarkers.some((marker: string) => {
     const normalized = normalizeTitle(marker);
-    return normalized && joined.includes(` ${normalized} `);
+    if (!normalized) return false;
+    if (hasHindi && normalized === 'dubbed') return false;
+    return joined.includes(` ${normalized} `);
   });
 }
 
@@ -214,7 +225,10 @@ function audioFromTitle(title = '') {
 function hasExplicitForeignAudio(title = '') {
   const t = String(title).toUpperCase();
   if (explicitPtAudio(title)) return false;
-  return /\b(TRUEFRENCH|FRENCH|VOSTFR|VF|ITA|SUBITA|ESPANOL|CASTELLANO|RUS|GERMAN|NL)\b/.test(t);
+  // HINDI entra como prova de idioma estrangeiro: após o generic DUB não
+  // absolver mais, `HINDI.HQ.DUB` precisa condenar no foreignVerdict. Assimetria
+  // preservada — com PT-BR explícito ao lado, explicitPtAudio corta aqui.
+  return /\b(TRUEFRENCH|FRENCH|VOSTFR|VF|ITA|SUBITA|ESPANOL|CASTELLANO|RUS|GERMAN|NL|HINDI)\b/.test(t);
 }
 
 /**
@@ -245,7 +259,12 @@ const PT_VOCAB = /\b(temporadas?|epis[oó]dios?|dublad[oa]s?|dublagem|nacional|c
 // (medido: 19 de 20 títulos de teste). Exige 2+ ocorrências, então título
 // estrangeiro com um "de" solto não basta.
 const PT_STOP_TWO = (t: string) => (t.match(/\b(das?|de|dos?|n[ao]s?|umas?|para|com|entre|sobre|atr[aá]s)\b/gi) || []).length >= 2;
-const BR_MARK = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolverdon|andretpf|lapumia|megatorrents|hdtorrent|torrentbr|bthd|www\.\w+\.org\s*-\s*)/i;
+// Só hosts BR NOMEADOS contam. O alternador `www\.\w+\.org\s*-\s*` aceitava
+// QUALQUER domínio `.org` — inclusive `www.UIndex.org -`, um espelho de cena EN
+// que carimbava dezenas de releases da conta como sinal PT (medido: 122 linhas
+// casando `www.UIndex.org -`, nenhuma delas BR). A marca do site BR já casa
+// pelo token próprio (`www.nerdfilmes.org -` continua coberto por `nerdfilmes`).
+const BR_MARK = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolverdon|andretpf|lapumia|megatorrents|hdtorrent|torrentbr|bthd)/i;
 
 /** Sem marca de áudio, mas o título denuncia português (post BR sem marcação é o padrão). */
 function hasPtSigns(title = ''): boolean {

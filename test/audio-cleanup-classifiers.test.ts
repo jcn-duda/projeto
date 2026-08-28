@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   audioBucket, dubbedLieVerdict, hasPtSigns, audioFromTitle, looksPtBr, foreignVerdict,
+  hasExplicitForeignAudio,
 } from '../src/utils/audio-quality.js';
 
 // Regressão dos consertos de classificador da Fase 0 (catálogo + limpador BR).
@@ -115,4 +116,45 @@ test('Fase 0: título só resgata quem tem sinal PT; o resto fica fraco MAS nunc
     // …e a prova de estrangeiro por grupo de cena não existe neles.
     assert.equal(dubbedLieVerdict([titulo], true).lie, false, titulo);
   }
+});
+
+// ---------------------------------------------------------------------------
+// BR_MARK: o alternador genérico `www.…org -` absolvia espelhos de cena EN.
+// ---------------------------------------------------------------------------
+
+test('BR_MARK: `www.uindex.org -` NÃO é sinal PT (espelho de cena EN)', () => {
+  const release = 'www.UIndex.org - Some.Movie.2024.1080p.WEB-DL.Amzn';
+  assert.equal(hasPtSigns(release), false, 'uindex não casa mais o BR_MARK genérico .org');
+  assert.equal(audioFromTitle(release), '', 'não vira dublado');
+  // Sem grupo EN → unknown, NUNCA absolve (o catálogo dá a palavra final).
+  assert.equal(foreignVerdict(release), 'unknown');
+  // Com grupo EN (sem PT) → condena; nunca absolve.
+  assert.equal(foreignVerdict('www.UIndex.org - Some.Movie.2024.1080p.x264-RARBG'), 'condena');
+  assert.equal(foreignVerdict('www.UIndex.org - Some.Show.S01.1080p-MeGusta'), 'condena');
+});
+
+test('BR_MARK: host BR NOMEADO continua sinal PT (`www.nerdfilmes.org -`)', () => {
+  assert.equal(hasPtSigns('www.nerdfilmes.org - Filme Dublado 2024'), true);
+  assert.equal(audioBucket('www.nerdfilmes.org - Filme Dublado 2024'), 'dub');
+});
+
+// ---------------------------------------------------------------------------
+// DUB HINDI (B): generic DUB/DUBBED não valida áudio PT quando há HINDI.
+// ---------------------------------------------------------------------------
+
+test('DUB/HINDI: HINDI.HQ.DUB e HINDI.DUBBED não são dublado pt-BR', () => {
+  for (const t of ['HINDI.HQ.DUB', 'HINDI.DUBBED']) {
+    assert.equal(audioFromTitle(t), '', `${t}: não vira Dublado`);
+    assert.equal(looksPtBr(t), false, `${t}: looksPtBr false`);
+    assert.equal(hasExplicitForeignAudio(t), true, `${t}: HINDI condena como estrangeiro`);
+    assert.equal(foreignVerdict(t), 'condena', `${t}: condenado (sem PT)`);
+  }
+});
+
+test('DUB/HINDI: PT-BR explícito ao lado vence (absolve), [DUB] genérico continua Dublado', () => {
+  assert.equal(audioFromTitle('HINDI.HQ.DUB PT-BR'), 'Dublado', 'marca PT explícita vence o HINDI');
+  assert.equal(foreignVerdict('HINDI.HQ.DUB PT-BR'), 'absolve', 'assimetria preservada: com PT, absolve');
+  assert.equal(audioFromTitle('Coringa 2019 DUB PT-BR 1080p'), 'Dublado', 'DUB genérico sem HINDI = PT');
+  assert.equal(foreignVerdict('[DUB] Some Movie 2024'), 'absolve', 'generic [DUB] sem idioma estrangeiro absolve');
+  assert.equal(audioFromTitle('Some.Movie.2024.[DUB]'), 'Dublado', 'generic [DUB] = Dublado');
 });
