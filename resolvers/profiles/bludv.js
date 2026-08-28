@@ -1,17 +1,9 @@
-const http = require('node:http');
-const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
-const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
+const { USER_AGENT } = require('../runtime');
 const { createFlareSessions } = require('../flare');
-const { createServer: createHttpServer, reply } = require('../http-server');
-const { mapLimit: sharedMapLimit } = require('../concurrency');
-const { followProtectedUrl } = require('../transport');
+const { createServer: createHttpServer } = require('../http-server');
 const { capsXml: sharedCapsXml } = require('../torznab');
-const { selectSearchPosts: selectSharedSearchPosts } = require('../search-posts');
-const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
-const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
 const {
   decodeEntities,
-  stripTags: stripTagsShared,
   parseSize,
   escapeXml,
   escapeHtml,
@@ -28,6 +20,7 @@ const {
   buttonId,
   pickButton,
 } = require('../matching');
+const { createProfile } = require('../site-profile');
 
 const PORT = Number(process.env.PORT || 8700);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -36,17 +29,14 @@ const MAX_HOPS = 6;
 // --- Modo indexer Torznab ---
 // SELF_URL é como o JACKETT alcança este serviço (nome DNS na rede Docker);
 // os links de download do feed apontam pra cá e são resolvidos sob demanda.
-const SELF_URL = (process.env.SELF_URL || 'http://bludv-resolver:8700').replace(/\/$/, '');
-// O site troca de domínio com frequência; alinhar com o links: do cardigann.
-// Este é o PRIMÁRIO — em runtime o siteSelector abaixo faila para os demais
-// candidatos (csv BLUDV_URLS + FALLBACK_SITE_SUFFIXES) quando ele cai.
-const SITE_URL = (process.env.SITE_URL || process.env.BLUDV_URL || 'https://bludvfilmes.xyz').replace(/\/$/, '');
+// O site troca de domínio com frequência; alinhar com o links: do cardigann —
+// o valor de fallback é o PRIMÁRIO, e em runtime o siteSelector faila para os
+// demais candidatos (csv BLUDV_URLS + FALLBACK_SITE_SUFFIXES) quando ele cai.
 const MAX_POSTS = Number(process.env.BLUDV_MAX_POSTS || 5);
-const SEARCH_CONCURRENCY = 4;
-const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
 // Busca repete muito (o Stremio refaz a consulta); 5 min evitam re-raspar o
 // site a cada retry. Magnet é imutável por definição; 30 min poupam a cadeia
 // do protetor inteira a cada play do mesmo botão.
+const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
 const SEARCH_CACHE_MS = Number(process.env.SEARCH_CACHE_MS || 5 * 60_000);
 const MAGNET_CACHE_MS = Number(process.env.MAGNET_CACHE_MS || 30 * 60_000);
 const MAX_CACHE_SIZE = 200;
@@ -60,10 +50,6 @@ const MAX_RESOLVE_ATTEMPTS = Number(process.env.MAX_RESOLVE_ATTEMPTS || 5);
 // teto, o ÚLTIMO card ia até o fim do documento e herdaria img/data do rodapé.
 const MAX_CARD_WINDOW = 8000;
 
-function parseExtraProtectors(envVal) {
-  return runtimeParseExtraProtectors(envVal);
-}
-
 const FALLBACK_SITE_SUFFIXES = [
   'bludvfilmes.xyz',
   'bludvfilmes1.xyz',
@@ -71,6 +57,53 @@ const FALLBACK_SITE_SUFFIXES = [
   'bludv.xyz',
   'bludv.to',
 ];
+
+// --- Bootstrap comum (site-profile) ---
+// Toda a montagem repetida nos cinco perfis (leitura de env no require, seletor
+// de failover, conjuntos de sufixos, trio de allowlist, wrappers cosméticos)
+// nasce aqui, por chamada — sem estado de módulo compartilhado.
+//
+// --- Failover de domínio em runtime ---
+// O SITE_URL era const lida no boot: domínio morto = fonte morta até editar
+// .env + restart. O seletor trata os FALLBACK_SITE_SUFFIXES (e o csv
+// BLUDV_URLS) como candidatos ATIVOS, não só allowlist: quando a busca falha
+// por erro de rede (DNS/conexão/timeout — HTTP de erro prova que o host
+// respondeu) N vezes seguidas, um probe GET /?s=teste escolhe o primeiro
+// candidato que responda 2xx. O vencedor fica imune a novo probe por
+// BR_DOMAIN_PROBE_TTL_MS (sondar de novo não ressuscita site caído) e o
+// probe nunca roda no require — módulo carregado em teste não tem rede.
+const bootstrap = createProfile({
+  name: 'bludv',
+  port: PORT,
+  selfUrlEnv: 'http://bludv-resolver:8700',
+  siteUrl: 'https://bludvfilmes.xyz',
+  siteUrlEnv: 'BLUDV_URL',
+  urlsCsv: process.env.BLUDV_URLS,
+  fallbackSuffixes: FALLBACK_SITE_SUFFIXES,
+  // Erros do FlareSolverr chegam com prefixo flare_ e são excluídos do
+  // isNetworkError: falha do resolvedor de challenge não é o site fora do ar,
+  // e o failover de domínio não pode morder por causa dela.
+  networkErrorExtra: '|flare_',
+  concurrency: 4,
+  // O download.before do cardigann encoda a href inteira no param url — e a
+  // href já é um /resolve nosso, então o alvo real vem aninhado. Aqui os
+  // níveis aninhados também podem vir por /dl e carregar audio/quality.
+  unwrapOptions: {
+    paths: ['/resolve', '/dl'],
+    fields: { index: 'i', hash: 'h', count: 'n', audio: 'audio', quality: 'quality' },
+  },
+  decodeEntities,
+});
+
+const {
+  reply, siteSelector, CANDIDATE_HOSTS, createSiteSelector,
+} = bootstrap;
+const { ALL_PROTECTOR_SUFFIXES, ALLOWED_SUFFIXES, unwrapResolverUrl } = bootstrap;
+const {
+  assertAllowedUrl, isDetailHost, isProtectorHost,
+  isNetworkError, stripTags,
+} = bootstrap;
+const SELF_URL = bootstrap.selfUrl;
 
 // --- FlareSolverr (Cloudflare) ---
 // bludvfilmes.xyz faz 301 para bludvfilmes1.xyz e o domínio novo responde 403
@@ -84,42 +117,6 @@ const FLARE_TIMEOUT_MS = Number(process.env.FLARE_TIMEOUT_MS || 55_000);
 const FLARE_SESSION_TTL_MS = Number(process.env.FLARE_SESSION_TTL_MS || 20 * 60_000);
 // hostname -> { cookies, userAgent, expiresAt }
 const { sessions: flareSessions } = createFlareSessions();
-
-// --- Failover de domínio em runtime ---
-// O SITE_URL era const lida no boot: domínio morto = fonte morta até editar
-// .env + restart. O seletor trata os FALLBACK_SITE_SUFFIXES (e o csv
-// BLUDV_URLS) como candidatos ATIVOS, não só allowlist: quando a busca falha
-// por erro de rede (DNS/conexão/timeout — HTTP de erro prova que o host
-// respondeu) N vezes seguidas, um probe GET /?s=teste escolhe o primeiro
-// candidato que responda 2xx. O vencedor fica imune a novo probe por
-// BR_DOMAIN_PROBE_TTL_MS (sondar de novo não ressuscita site caído) e o
-// probe nunca roda no require — módulo carregado em teste não tem rede.
-function isNetworkError(err) {
-  return sharedIsNetworkError(err, '|flare_');
-}
-
-// Mantém a superfície histórica do profile sem duplicar o seletor compartilhado.
-const createSiteSelector = createSharedSiteSelector;
-
-const siteSelector = createSharedSiteSelector('[bludv]', process.env.BLUDV_URLS, SITE_URL, FALLBACK_SITE_SUFFIXES);
-// Hosts de TODOS os candidatos são confiáveis desde o boot (vêm de env ou da
-// lista de mirrors históricos): allowlist e isDetailHost já aceitam o domínio
-// que o failover escolher, sem restart.
-const CANDIDATE_HOSTS = siteSelector.hosts();
-
-
-const EXTRA_PROTECTORS = parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS);
-
-const ALL_PROTECTOR_SUFFIXES = Array.from(
-  new Set([...BASE_PROTECTOR_SUFFIXES, ...EXTRA_PROTECTORS]),
-);
-
-const ALLOWED_SUFFIXES = Array.from(
-  new Set([
-    ...CANDIDATE_HOSTS,
-    ...ALL_PROTECTOR_SUFFIXES,
-  ]),
-);
 
 const postCache = new Map();
 const searchCache = new Map();
@@ -157,18 +154,6 @@ function extractEpisode(text) {
   const last = matches[matches.length - 1];
   const num = Number(last[1] || last[2] || last[3] || last[4]);
   return Number.isFinite(num) ? num : null;
-}
-
-function assertAllowedUrl(value) {
-  return sharedAssertAllowedUrl(value, ALLOWED_SUFFIXES);
-}
-
-function isDetailHost(hostname) {
-  return hasAllowedHost(hostname, CANDIDATE_HOSTS);
-}
-
-function isProtectorHost(hostname) {
-  return hasAllowedHost(hostname, ALL_PROTECTOR_SUFFIXES);
 }
 
 // Decodifica o valor se vier URL-encoded; protetores publicam o magnet nos dois
@@ -280,8 +265,6 @@ function nextProtectedUrl(html, baseUrl) {
 
   return null;
 }
-
-const stripTags = (value = '') => stripTagsShared(value, decodeEntities);
 
 function getFlareSession(hostname) {
   const hit = flareSessions.get(hostname);
@@ -582,12 +565,13 @@ function pickBestLink(links, prefs) {
   return sortLinks(links, prefs)[0] || null;
 }
 
-async function fetchFollowingAllowed(value, referer) {
-  return followProtectedUrl(value, referer, {
-    assertAllowedUrl, decodeEntities, extractMagnet, nextProtectedUrl, extractMetaRefresh,
-    maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS, userAgent: USER_AGENT,
-  });
-}
+// O laço do protetor é UM só (transport); o perfil aporta apenas os parsers.
+// O assertAllowedUrl injetado no laço é o da factory (que delega ao
+// protector.js) — nunca uma checagem reimplementada aqui.
+const fetchFollowingAllowed = bootstrap.fetchFollowingAllowed({
+  decodeEntities, extractMagnet, nextProtectedUrl, extractMetaRefresh,
+  maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS,
+});
 
 function setMagnetCache(cacheKey, magnet) {
   magnetCache.set(cacheKey, { value: magnet, expiresAt: Date.now() + MAGNET_CACHE_MS });
@@ -760,11 +744,9 @@ function parsePosts(html) {
 
 // Preserva a ordem do feed: out.push na conclusão fazia a ordem variar entre
 // chamadas conforme o timing da rede, e o Stremio reordena a lista toda vez.
-async function mapLimit(items, fn) {
-  return sharedMapLimit(items, SEARCH_CONCURRENCY, fn, (err) => {
-    console.warn(`[search] post sem botões (${err.message})`);
-  });
-}
+const mapLimit = (items, fn) => bootstrap.mapLimit(items, fn, {
+  onError: (err) => console.warn(`[search] post sem botões (${err.message})`),
+});
 
 // Limpeza do título do post em 7 passos: quem manda são os atributos do
 // botão, então a vitrine do site (qualidades, codec, canais de áudio, termos
@@ -845,9 +827,7 @@ function normalizeQuery(raw) {
     .trim();
 }
 
-function selectSearchPosts(sourceHtml, query, requestedSeason) {
-  return selectSharedSearchPosts(parsePosts, sourceHtml, query, requestedSeason, MAX_POSTS);
-}
+const selectSearchPosts = bootstrap.makeSelectSearchPosts(parsePosts, MAX_POSTS);
 
 /**
  * Busca com cache + coalescing: os DOIS modos (Torznab e Cardigann) passam
@@ -1053,13 +1033,8 @@ async function handleResolve(url, response) {
 // (/resolve?url=<post>&i=0&h=..) não tem nível interno de onde ler.
 // Sem checar a origem: o host varia (`addon` embutido vs. nome do
 // container), e o alvo final passa por assertAllowedUrl de todo jeito.
-function unwrapResolverUrl(value, seed = {}) {
-  return unwrapSharedResolverUrl(value, SELF_URL, seed, {
-    paths: ['/resolve', '/dl'],
-    fields: { index: 'i', hash: 'h', count: 'n', audio: 'audio', quality: 'quality' },
-  });
-}
-
+// (A variante /dl + audio/quality está configurada no unwrapOptions da
+// factory.)
 
 function createServer() {
   return createHttpServer(async (request, response) => {
@@ -1079,9 +1054,7 @@ function createServer() {
 // Abrir a porta no require deixava o parser impossível de exercitar em teste
 // sem tomar a 8700 de quem estivesse rodando.
 if (require.main === module) {
-  createServer().listen(PORT, '0.0.0.0', () => {
-    console.log(`bludv-resolver :${PORT} — torznab em /api, fonte ${siteSelector.url()} (failover: ${CANDIDATE_HOSTS.join(', ')})`);
-  });
+  bootstrap.serveMain(createServer);
 }
 
 module.exports = {

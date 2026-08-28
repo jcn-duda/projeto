@@ -608,6 +608,7 @@ plano:
 | item 6 — `realdebrid.ts` (Fase 2) | 18.150 | 51 | três módulos em camada única sem ciclo: core HTTP/paginação (`realdebrid-core.ts`, 117), fluxo de play/autofetch (`realdebrid-play.ts`, 264) e montagem do adaptador (239); os 15 exports do adaptador preservados, spread do registry idêntico |
 | item 7 — `alldebrid.ts` (Fase 2) | 17.766 | 50 | fachada de 37 linhas sobre api (216), inventory (124, dono do snapshot `knownBefore`), cleanup (210, `skipCleanup`/BR preservado), check (109, upload + `dropReady`/`dropUncached` independentes) e play (102); 20 exports de runtime verificados no `dist/` |
 | item 8 — `diagnostics.ts` (Fase 2) | 17.674 | 49 | despacho por ação extraído (`dashboard-actions.ts`, 341 — mapa com as 28 ações, allowlist derivada das chaves, `DESTRUCTIVE_ACTIONS` com confirm); `diagnostics.ts` fica em 203 com os mesmos 5 handlers; 2 testes do `catalog-panel` que regexavam o TEXTO do fonte passam a importar os conjuntos exportados |
+| item 9, passo 1 — núcleo `site-profile.js` (Fase 2) | 17.509 | 49 | factory do bootstrap repetido nos 5 profiles (206 linhas: allowlist, trio de guards delegando ao `protector.js` — MUT-06 intacto, failover, boot); perfis encolhem 27-38 linhas cada, exports idênticos (47/54/40/32/31); sem estado mutável em núcleo (fresh-require do stress prova) |
 
 **Backlog de resgate, ordenado por churn** (commits nos últimos 90 dias — os
 que mais se mexem primeiro, não os maiores primeiro; é onde a catraca morde,

@@ -31,16 +31,10 @@
 // requisições, ~1-2s (sessão quente). Este perfil segue o contrato dos demais:
 // caches, failover de domínio via seletor compartilhado, e o laço do protetor
 // EXCLUSIVAMENTE em `followProtectedUrl` do transport.
-const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
-const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
-const { createServer: createHttpServer, reply } = require('../http-server');
-const { mapLimit: sharedMapLimit } = require('../concurrency');
-const { followProtectedUrl } = require('../transport');
-const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
-const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const { USER_AGENT } = require('../runtime');
+const { createServer: createHttpServer } = require('../http-server');
 const {
   decodeEntities,
-  stripTags: stripTagsShared,
   escapeHtml,
   parseSize,
   attribute,
@@ -57,6 +51,7 @@ const {
   buttonId,
   pickButton,
 } = require('../matching');
+const { createProfile } = require('../site-profile');
 
 const PORT = Number(process.env.PORT || 8704);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -65,44 +60,22 @@ const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
 // infinito (o transport ainda aborta com too_many_redirects após N).
 const MAX_HOPS = 10;
 const MAX_POSTS = Number(process.env.MAX_POSTS || 3);
-const CONCURRENCY = 3;
 const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
 const SEARCH_CACHE_MS = Number(process.env.SEARCH_CACHE_MS || 5 * 60_000);
 const MAGNET_CACHE_MS = Number(process.env.MAGNET_CACHE_MS || 30 * 60_000);
-const SELF_URL = (process.env.SELF_URL || 'http://vacatorrent-resolver:8704').replace(/\/$/, '');
+// SELF_URL é como o JACKETT alcança este serviço; SITE_URL é o default do
+// site standalone.
+//
 // Wireado no pool ao vivo: `config.resolvers.vacatorrentUrl` (env
 // VACATORRENT_URL) e a entrada em `src/br-resolvers.ts` existem, então em modo
-// embutido o SITE_URL chega injetado por lá. O default abaixo vale para a
-// execução direta do resolver standalone.
-const SITE_URL = (process.env.SITE_URL || process.env.VACATORRENT_URL || 'https://vaqueirofilmes.com').replace(/\/$/, '');
-
-function parseExtraProtectors(envVal) {
-  return runtimeParseExtraProtectors(envVal);
-}
+// embutido o SITE_URL chega injetado por lá (a factory lê SITE_URL/VACATORRENT_URL
+// no require). O default abaixo vale para a execução direta do resolver standalone.
 
 // Hosts históricos. `vaqueirofilmes.com` cobre também `www.`.
 const FALLBACK_SITE_SUFFIXES = [
   'vaqueirofilmes.com',
   'vacatorrentmov.com',
 ];
-
-function isNetworkError(err) {
-  return sharedIsNetworkError(err);
-}
-
-const createSiteSelector = createSharedSiteSelector;
-
-const siteSelector = createSharedSiteSelector('[vacatorrent]', process.env.VACATORRENT_URLS, SITE_URL, FALLBACK_SITE_SUFFIXES);
-// Hosts de TODOS os candidatos são confiáveis desde o boot.
-const CANDIDATE_HOSTS = siteSelector.hosts();
-
-const EXTRA_PROTECTORS = parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS);
-
-// Protetor do site. NÃO alteramos o transport nem no BASE_PROTECTOR_SUFFIXES
-// (fora do escopo); a allowlist do protetor fica própria no perfil.
-const ALL_PROTECTOR_SUFFIXES = Array.from(
-  new Set([...BASE_PROTECTOR_SUFFIXES, ...EXTRA_PROTECTORS, 'systemtech.space']),
-);
 
 // `t.co` e `vacadb.org` são apenas hosts de SALTO do protetor (go.php → youtube
 // → t.co → relay.php → vacadb.org): entram no `assertAllowedUrl` (o transport
@@ -112,13 +85,36 @@ const ALL_PROTECTOR_SUFFIXES = Array.from(
 // fica no próximo salto do `nextProtectedUrl`, não aqui.
 const ASSERT_ONLY_SUFFIXES = ['t.co', 'vacadb.org'];
 
-const ALLOWED_SUFFIXES = Array.from(
-  new Set([
-    ...CANDIDATE_HOSTS,
-    ...ALL_PROTECTOR_SUFFIXES,
-    ...ASSERT_ONLY_SUFFIXES,
-  ]),
-);
+// --- Bootstrap comum (site-profile) ---
+// Toda a montagem repetida nos cinco perfis (leitura de env no require, seletor
+// de failover, conjuntos de sufixos, trio de allowlist, wrappers cosméticos)
+// nasce aqui, por chamada — sem estado de módulo compartilhado.
+const bootstrap = createProfile({
+  name: 'vacatorrent',
+  port: PORT,
+  selfUrlEnv: 'http://vacatorrent-resolver:8704',
+  siteUrl: 'https://vaqueirofilmes.com',
+  siteUrlEnv: 'VACATORRENT_URL',
+  urlsCsv: process.env.VACATORRENT_URLS,
+  fallbackSuffixes: FALLBACK_SITE_SUFFIXES,
+  // Protetor do site. NÃO alteramos o transport nem o BASE_PROTECTOR_SUFFIXES
+  // (fora do escopo); o sufixo próprio entra como extra da allowlist do perfil.
+  extraProtectorSuffixes: ['systemtech.space'],
+  // Hosts só de salto: assert sim, descoberta nunca.
+  assertOnlySuffixes: ASSERT_ONLY_SUFFIXES,
+  concurrency: 3,
+  decodeEntities,
+});
+
+const {
+  reply, siteSelector, CANDIDATE_HOSTS, createSiteSelector,
+} = bootstrap;
+const { ALL_PROTECTOR_SUFFIXES, ALLOWED_SUFFIXES, unwrapResolverUrl, mapLimit } = bootstrap;
+const {
+  assertAllowedUrl, isDetailHost, isProtectorHost, isAssertOnlyHost,
+  isNetworkError, stripTags,
+} = bootstrap;
+const SELF_URL = bootstrap.selfUrl;
 
 const postCache = new Map();
 const searchCache = new Map();
@@ -137,27 +133,8 @@ siteSelector.onDomainChange(() => {
 // release nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
 const UNKNOWN_SIZE = '1 KB';
 
-const stripTags = (value = '') => stripTagsShared(value, decodeEntities);
 // Variante rica de entidades (WordPress), como no comandotorrents.
 const extractMetaRefresh = (html) => sharedExtractMetaRefresh(html, decodeEntities);
-
-function assertAllowedUrl(value) {
-  return sharedAssertAllowedUrl(value, ALLOWED_SUFFIXES);
-}
-
-function isDetailHost(hostname) {
-  return hasAllowedHost(hostname, CANDIDATE_HOSTS);
-}
-
-function isProtectorHost(hostname) {
-  return hasAllowedHost(hostname, ALL_PROTECTOR_SUFFIXES);
-}
-
-// Hosts só de passagem (t.co, vacadb.org): permitidos no transporte e no salto
-// explícito do `URL_ETAPA2`, mas nunca alvo de descoberta genérica.
-function isAssertOnlyHost(hostname) {
-  return hasAllowedHost(hostname, ASSERT_ONLY_SUFFIXES);
-}
 
 // ---------------------------------------------------------------------------
 // Query. O `search_posts` é LIKE sobre o título SEM ano; query com ano dá 0.
@@ -819,26 +796,21 @@ async function searchPosts(query) {
   return task;
 }
 
-async function mapLimit(items, fn) {
-  return sharedMapLimit(items, CONCURRENCY, fn);
-}
-
 // ---------------------------------------------------------------------------
-// Resolve: segue o protetor até o magnet. O laço é do transport.
+// Resolve: segue o protetor até o magnet. O laço é do transport; o
+// assertAllowedUrl injetado nele é o da factory (que delega ao protector.js).
 // ---------------------------------------------------------------------------
-async function fetchFollowingAllowed(value, referer) {
-  return followProtectedUrl(value, referer, {
-    assertAllowedUrl, decodeEntities, extractMagnet, nextProtectedUrl,
-    extractMetaRefresh: (html) => extractMetaRefresh(html, decodeEntities),
-    maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS, userAgent: USER_AGENT,
-    // Cookies de liberação do gatilhagem client-side. O JS (`liberar()`) setaria
-    // `enc_liberado`/`enc_etapa1_visto` após o contador (teatro); aqui pré-semeamos
-    // no host vacadb.org. O transport cria o jar e re-popula com esses pares via
-    // o parser `harvest().from()`, além de continuar colhendo os `Set-Cookie` reais
-    // (go.php/processar.php/_svu) durante a cadeia.
-    cookieJar: { seed: { 'vacadb.org': { enc_liberado: '1', enc_etapa1_visto: '1' } } },
-  });
-}
+const fetchFollowingAllowed = bootstrap.fetchFollowingAllowed({
+  decodeEntities, extractMagnet, nextProtectedUrl,
+  extractMetaRefresh: (html) => extractMetaRefresh(html, decodeEntities),
+  maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS,
+  // Cookies de liberação do gatilhagem client-side. O JS (`liberar()`) setaria
+  // `enc_liberado`/`enc_etapa1_visto` após o contador (teatro); aqui pré-semeamos
+  // no host vacadb.org. O transport cria o jar e re-popula com esses pares via
+  // o parser `harvest().from()`, além de continuar colhendo os `Set-Cookie` reais
+  // (go.php/processar.php/_svu) durante a cadeia.
+  cookieJar: { seed: { 'vacadb.org': { enc_liberado: '1', enc_etapa1_visto: '1' } } },
+});
 
 async function collectLinks(postUrl) {
   const post = assertAllowedUrl(postUrl);
@@ -914,9 +886,6 @@ function scoreLink(link) {
 // ---------------------------------------------------------------------------
 // HTTP.
 // ---------------------------------------------------------------------------
-function unwrapResolverUrl(value, seed = {}) {
-  return unwrapSharedResolverUrl(value, SELF_URL, seed);
-}
 
 async function handleRequest(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
@@ -961,9 +930,7 @@ function createServer() {
 }
 
 if (require.main === module) {
-  createServer().listen(PORT, '0.0.0.0', () => {
-    console.log(`vacatorrent-resolver :${PORT} — torznab em /search, fonte ${siteSelector.url()} (failover: ${CANDIDATE_HOSTS.join(', ')})`);
-  });
+  bootstrap.serveMain(createServer);
 }
 
 module.exports = {

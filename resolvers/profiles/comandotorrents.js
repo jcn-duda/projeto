@@ -1,15 +1,7 @@
-const http = require('node:http');
-const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
-const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
-const { createServer: createHttpServer, reply } = require('../http-server');
-const { mapLimit: sharedMapLimit } = require('../concurrency');
-const { followProtectedUrl } = require('../transport');
-const { selectSearchPosts: selectSharedSearchPosts } = require('../search-posts');
-const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
-const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const { USER_AGENT } = require('../runtime');
+const { createServer: createHttpServer } = require('../http-server');
 const {
   decodeEntities,
-  stripTags: stripTagsShared,
   escapeHtml,
   parseSize,
   attribute,
@@ -26,21 +18,15 @@ const {
   buttonId,
   pickButton,
 } = require('../matching');
+const { createProfile } = require('../site-profile');
 
 const PORT = Number(process.env.PORT || 8701);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
 const MAX_HOPS = 6;
 const MAX_POSTS = Number(process.env.MAX_POSTS || 5);
-const CONCURRENCY = 3;
 const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
 const SEARCH_CACHE_MS = Number(process.env.SEARCH_CACHE_MS || 5 * 60_000);
 const MAGNET_CACHE_MS = Number(process.env.MAGNET_CACHE_MS || 30 * 60_000);
-const SELF_URL = (process.env.SELF_URL || 'http://comandotorrents-resolver:8701').replace(/\/$/, '');
-const SITE_URL = (process.env.SITE_URL || process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, '');
-
-function parseExtraProtectors(envVal) {
-  return runtimeParseExtraProtectors(envVal);
-}
 
 const FALLBACK_SITE_SUFFIXES = [
   'comandotorrents.to',
@@ -48,6 +34,11 @@ const FALLBACK_SITE_SUFFIXES = [
   'comandotorrents.org',
 ];
 
+// --- Bootstrap comum (site-profile) ---
+// Toda a montagem repetida nos cinco perfis (leitura de env no require, seletor
+// de failover, conjuntos de sufixos, trio de allowlist, wrappers cosméticos)
+// nasce aqui, por chamada — sem estado de módulo compartilhado.
+//
 // --- Failover de domínio em runtime ---
 // O SITE_URL era const lida no boot: domínio morto = fonte morta até editar
 // .env + restart. O seletor trata os FALLBACK_SITE_SUFFIXES (e o csv
@@ -57,32 +48,26 @@ const FALLBACK_SITE_SUFFIXES = [
 // primeiro candidato que responda 2xx. O vencedor fica imune a novo probe
 // por BR_DOMAIN_PROBE_TTL_MS (sondar de novo não ressuscita site caído) e o
 // probe nunca roda no require — módulo carregado em teste não tem rede.
-function isNetworkError(err) {
-  return sharedIsNetworkError(err);
-}
+const bootstrap = createProfile({
+  name: 'comandotorrents',
+  port: PORT,
+  selfUrlEnv: 'http://comandotorrents-resolver:8701',
+  siteUrl: 'https://comandotorrents.to',
+  siteUrlEnv: 'COMANDOTORRENTS_URL',
+  urlsCsv: process.env.COMANDOTORRENTS_URLS,
+  fallbackSuffixes: FALLBACK_SITE_SUFFIXES,
+  concurrency: 3,
+  decodeEntities,
+});
 
-// Mantém a superfície histórica do profile sem duplicar o seletor compartilhado.
-const createSiteSelector = createSharedSiteSelector;
-
-const siteSelector = createSharedSiteSelector('[comandotorrents]', process.env.COMANDOTORRENTS_URLS, SITE_URL, FALLBACK_SITE_SUFFIXES);
-// Hosts de TODOS os candidatos são confiáveis desde o boot (vêm de env ou da
-// lista de mirrors históricos): allowlist e isDetailHost já aceitam o domínio
-// que o failover escolher, sem restart.
-const CANDIDATE_HOSTS = siteSelector.hosts();
-
-
-const EXTRA_PROTECTORS = parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS);
-
-const ALL_PROTECTOR_SUFFIXES = Array.from(
-  new Set([...BASE_PROTECTOR_SUFFIXES, ...EXTRA_PROTECTORS]),
-);
-
-const ALLOWED_SUFFIXES = Array.from(
-  new Set([
-    ...CANDIDATE_HOSTS,
-    ...ALL_PROTECTOR_SUFFIXES,
-  ]),
-);
+const {
+  reply, siteSelector, CANDIDATE_HOSTS, createSiteSelector,
+} = bootstrap;
+const { ALL_PROTECTOR_SUFFIXES, ALLOWED_SUFFIXES, unwrapResolverUrl, mapLimit } = bootstrap;
+const {
+  assertAllowedUrl, isDetailHost, isProtectorHost, isNetworkError, stripTags,
+} = bootstrap;
+const SELF_URL = bootstrap.selfUrl;
 
 const postCache = new Map();
 const searchCache = new Map();
@@ -115,8 +100,6 @@ function extractEpisode(text) {
   const num = Number(last[1] || last[2] || last[3] || last[4]);
   return Number.isFinite(num) ? num : null;
 }
-
-const stripTags = (value = '') => stripTagsShared(value, decodeEntities);
 
 function extractQualityToken(raw) {
   const token = String(raw || '').toUpperCase().trim();
@@ -156,18 +139,6 @@ function normalizeSource(context) {
   return extractSourceToken(lastToken);
 }
 
-function assertAllowedUrl(value) {
-  return sharedAssertAllowedUrl(value, ALLOWED_SUFFIXES);
-}
-
-function isDetailHost(hostname) {
-  return hasAllowedHost(hostname, CANDIDATE_HOSTS);
-}
-
-function isProtectorHost(hostname) {
-  return hasAllowedHost(hostname, ALL_PROTECTOR_SUFFIXES);
-}
-
 function normalizeQuery(value) {
   return String(value || '')
     .replace(/\b[sS]\d{1,2}(?:[eE]\d{1,2})?\b/gi, ' ')
@@ -176,9 +147,7 @@ function normalizeQuery(value) {
     .trim();
 }
 
-function selectSearchPosts(sourceHtml, query, requestedSeason) {
-  return selectSharedSearchPosts(parsePosts, sourceHtml, query, requestedSeason, MAX_POSTS);
-}
+const selectSearchPosts = bootstrap.makeSelectSearchPosts(parsePosts, MAX_POSTS);
 
 function extractMagnet(html) {
   if (!html) return null;
@@ -455,12 +424,13 @@ function parseDownloadLinks(html, baseUrl) {
   return links;
 }
 
-async function fetchFollowingAllowed(value, referer) {
-  return followProtectedUrl(value, referer, {
-    assertAllowedUrl, decodeEntities, extractMagnet, nextProtectedUrl, extractMetaRefresh,
-    maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS, userAgent: USER_AGENT,
-  });
-}
+// O laço do protetor é UM só (transport); o perfil aporta apenas os parsers.
+// O assertAllowedUrl injetado no laço é o da factory (que delega ao
+// protector.js) — nunca uma checagem reimplementada aqui.
+const fetchFollowingAllowed = bootstrap.fetchFollowingAllowed({
+  decodeEntities, extractMagnet, nextProtectedUrl, extractMetaRefresh,
+  maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS,
+});
 
 async function getPostLinks(postUrl) {
   const post = assertAllowedUrl(postUrl);
@@ -549,10 +519,6 @@ async function resolveButton(postUrl, index, hash, count) {
   return task;
 }
 
-async function mapLimit(items, fn) {
-  return sharedMapLimit(items, CONCURRENCY, fn);
-}
-
 function releaseTitle(post, link, index = null) {
   const postTitle = typeof post === 'string' ? post : post?.title || '';
   let clean = cleanPostTitle(postTitle);
@@ -585,9 +551,7 @@ function searchPageHtml(items) {
 
 // `seed` são os params da requisição externa: chamada direta
 // (/resolve?url=<post>&i=0&h=..) não tem nível aninhado de onde ler.
-function unwrapResolverUrl(value, seed = {}) {
-  return unwrapSharedResolverUrl(value, SELF_URL, seed);
-}
+// (A variante com defaults do núcleo está no unwrapResolverUrl da factory.)
 
 async function searchPosts(query) {
   const requestedSeason = String(query || '').match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
@@ -681,9 +645,7 @@ function createServer() {
 }
 
 if (require.main === module) {
-  createServer().listen(PORT, '0.0.0.0', () => {
-    console.log(`comandotorrents-resolver :${PORT} — torznab em /api, fonte ${siteSelector.url()} (failover: ${CANDIDATE_HOSTS.join(', ')})`);
-  });
+  bootstrap.serveMain(createServer);
 }
 
 module.exports = {

@@ -1,15 +1,7 @@
-const http = require('node:http');
-const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
-const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
-const { createServer: createHttpServer, reply } = require('../http-server');
-const { mapLimit: sharedMapLimit } = require('../concurrency');
-const { followProtectedUrl } = require('../transport');
-const { selectSearchPosts: selectSharedSearchPosts } = require('../search-posts');
-const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
-const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const { USER_AGENT } = require('../runtime');
+const { createServer: createHttpServer } = require('../http-server');
 const {
   decodeEntitiesBasic,
-  stripTags: stripTagsShared,
   parseSize,
   escapeXml,
   attribute,
@@ -26,19 +18,15 @@ const {
   buttonId,
   pickButton,
 } = require('../matching');
+const { createProfile } = require('../site-profile');
 
 const PORT = Number(process.env.PORT || 8703);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
 const MAX_HOPS = 6;
 const MAX_POSTS = Number(process.env.MAX_POSTS || 5);
-const CONCURRENCY = 3;
 const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
-const SELF_URL = (process.env.SELF_URL || 'http://torrentdosfilmes-resolver:8703').replace(/\/$/, '');
-const SITE_URL = (process.env.SITE_URL || process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, '');
-
-function parseExtraProtectors(envVal) {
-  return runtimeParseExtraProtectors(envVal);
-}
+// SELF_URL é como o JACKETT alcança este serviço; SITE_URL é o default do site.
+const decodeEntities = decodeEntitiesBasic;
 
 const FALLBACK_SITE_SUFFIXES = [
   'torrentdosfilmes-v2.xyz',
@@ -46,6 +34,11 @@ const FALLBACK_SITE_SUFFIXES = [
   'torrentdosfilmes.net',
 ];
 
+// --- Bootstrap comum (site-profile) ---
+// Toda a montagem repetida nos cinco perfis (leitura de env no require, seletor
+// de failover, conjuntos de sufixos, trio de allowlist, wrappers cosméticos)
+// nasce aqui, por chamada — sem estado de módulo compartilhado.
+//
 // --- Failover de domínio em runtime ---
 // O SITE_URL era const lida no boot: domínio morto = fonte morta até editar
 // .env + restart. O seletor trata os FALLBACK_SITE_SUFFIXES (e o csv
@@ -55,32 +48,26 @@ const FALLBACK_SITE_SUFFIXES = [
 // primeiro candidato que responda 2xx. O vencedor fica imune a novo probe
 // por BR_DOMAIN_PROBE_TTL_MS (sondar de novo não ressuscita site caído) e o
 // probe nunca roda no require — módulo carregado em teste não tem rede.
-function isNetworkError(err) {
-  return sharedIsNetworkError(err);
-}
+const bootstrap = createProfile({
+  name: 'torrentdosfilmes',
+  port: PORT,
+  selfUrlEnv: 'http://torrentdosfilmes-resolver:8703',
+  siteUrl: 'https://torrentdosfilmes-v2.xyz',
+  siteUrlEnv: 'TORRENTDOSFILMES_URL',
+  urlsCsv: process.env.TORRENTDOSFILMES_URLS,
+  fallbackSuffixes: FALLBACK_SITE_SUFFIXES,
+  concurrency: 3,
+  decodeEntities,
+});
 
-// Mantém a superfície histórica do profile sem duplicar o seletor compartilhado.
-const createSiteSelector = createSharedSiteSelector;
-
-const siteSelector = createSharedSiteSelector('[torrentdosfilmes]', process.env.TORRENTDOSFILMES_URLS, SITE_URL, FALLBACK_SITE_SUFFIXES);
-// Hosts de TODOS os candidatos são confiáveis desde o boot (vêm de env ou da
-// lista de mirrors históricos): allowlist e isDetailHost já aceitam o domínio
-// que o failover escolher, sem restart.
-const CANDIDATE_HOSTS = siteSelector.hosts();
-
-
-const EXTRA_PROTECTORS = parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS);
-
-const ALL_PROTECTOR_SUFFIXES = Array.from(
-  new Set([...BASE_PROTECTOR_SUFFIXES, ...EXTRA_PROTECTORS]),
-);
-
-const ALLOWED_SUFFIXES = Array.from(
-  new Set([
-    ...CANDIDATE_HOSTS,
-    ...ALL_PROTECTOR_SUFFIXES,
-  ]),
-);
+const {
+  reply, siteSelector, CANDIDATE_HOSTS, createSiteSelector,
+} = bootstrap;
+const { ALL_PROTECTOR_SUFFIXES, ALLOWED_SUFFIXES, unwrapResolverUrl, mapLimit } = bootstrap;
+const {
+  assertAllowedUrl, isDetailHost, isProtectorHost, isNetworkError, stripTags,
+} = bootstrap;
+const SELF_URL = bootstrap.selfUrl;
 
 const postCache = new Map();
 const inFlight = new Map();
@@ -95,21 +82,6 @@ siteSelector.onDomainChange(() => {
 // Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
 // nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
 const UNKNOWN_SIZE = '1 KB';
-
-const decodeEntities = decodeEntitiesBasic;
-const stripTags = (value = '') => stripTagsShared(value, decodeEntities);
-
-function assertAllowedUrl(value) {
-  return sharedAssertAllowedUrl(value, ALLOWED_SUFFIXES);
-}
-
-function isDetailHost(hostname) {
-  return hasAllowedHost(hostname, CANDIDATE_HOSTS);
-}
-
-function isProtectorHost(hostname) {
-  return hasAllowedHost(hostname, ALL_PROTECTOR_SUFFIXES);
-}
 
 function extractMagnet(html) {
   if (!html) return null;
@@ -263,13 +235,14 @@ function parseDownloadLinks(html) {
   return links;
 }
 
-async function fetchFollowingAllowed(value, referer) {
-  return followProtectedUrl(value, referer, {
-    assertAllowedUrl, decodeEntities, extractMagnet, nextProtectedUrl,
-    extractMetaRefresh: (html) => sharedExtractMetaRefresh(html, decodeEntities),
-    maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS, userAgent: USER_AGENT,
-  });
-}
+// O laço do protetor é UM só (transport); o perfil aporta apenas os parsers.
+// O assertAllowedUrl injetado no laço é o da factory (que delega ao
+// protector.js) — nunca uma checagem reimplementada aqui.
+const fetchFollowingAllowed = bootstrap.fetchFollowingAllowed({
+  decodeEntities, extractMagnet, nextProtectedUrl,
+  extractMetaRefresh: (html) => sharedExtractMetaRefresh(html, decodeEntities),
+  maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS,
+});
 
 async function getPostLinks(postUrl) {
   const post = assertAllowedUrl(postUrl);
@@ -326,10 +299,6 @@ async function resolveBest(postUrl) {
   throw lastError || new Error('no_magnet');
 }
 
-async function mapLimit(items, fn) {
-  return sharedMapLimit(items, CONCURRENCY, fn);
-}
-
 function releaseTitle(post, link, index = null) {
   const postTitle = typeof post === 'string' ? post : post?.title || '';
   const clean = cleanPostTitle(postTitle);
@@ -346,9 +315,7 @@ function releaseTitle(post, link, index = null) {
   return tags.length ? `${base} [${tags.join(' ')}]` : base;
 }
 
-function selectSearchPosts(sourceHtml, query, requestedSeason) {
-  return selectSharedSearchPosts(parsePosts, sourceHtml, query, requestedSeason, MAX_POSTS);
-}
+const selectSearchPosts = bootstrap.makeSelectSearchPosts(parsePosts, MAX_POSTS);
 
 function searchPageHtml(items) {
   const rows = items.map(({ post, link, index, count }) => {
@@ -383,9 +350,7 @@ function rssXml(items, category) {
 // (/resolve?url=<post>&i=0&h=..) não tem nível interno de onde ler.
 // Sem checar a origem: o host varia (`addon` embutido vs. nome do
 // container), e o alvo final passa por assertAllowedUrl de todo jeito.
-function unwrapResolverUrl(value, seed = {}) {
-  return unwrapSharedResolverUrl(value, SELF_URL, seed);
-}
+// (A variante com defaults do núcleo está no unwrapResolverUrl da factory.)
 
 
 // Busca WordPress com nota de saúde para o failover de domínio: sucesso zera
@@ -487,9 +452,7 @@ function createServer() {
 // chama createServer quando o módulo o exporta. Abrir a porta no require
 // deixava o parser impossível de exercitar em teste sem tomar a 8703.
 if (require.main === module) {
-  createServer().listen(PORT, '0.0.0.0', () => {
-    console.log(`torrentdosfilmes-resolver :${PORT} — torznab em /api, fonte ${siteSelector.url()} (failover: ${CANDIDATE_HOSTS.join(', ')})`);
-  });
+  bootstrap.serveMain(createServer);
 }
 
 module.exports = {

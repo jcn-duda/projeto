@@ -1,17 +1,9 @@
-const http = require('node:http');
-const { USER_AGENT, parseExtraProtectors: runtimeParseExtraProtectors } = require('../runtime');
-const { createSiteSelector: createSharedSiteSelector, isNetworkError: sharedIsNetworkError } = require('../site-selector');
-const { createServer: createHttpServer, reply } = require('../http-server');
-const { mapLimit: sharedMapLimit } = require('../concurrency');
-const { followProtectedUrl } = require('../transport');
-const { capsXml: sharedCapsXml } = require('../torznab');
-const { selectSearchPosts: selectSharedSearchPosts } = require('../search-posts');
-const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('../nested-url');
-const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl: sharedAssertAllowedUrl } = require('../protector');
+const { USER_AGENT } = require('../runtime');
+const { createServer: createHttpServer } = require('../http-server');
 const { createCache } = require('../cache');
+const { capsXml: sharedCapsXml } = require('../torznab');
 const {
   decodeEntitiesBasic,
-  stripTags: stripTagsShared,
   parseSize,
   escapeXml,
   attribute: attributeShared,
@@ -28,6 +20,7 @@ const {
   buttonId,
   pickButton,
 } = require('../matching');
+const { createProfile } = require('../site-profile');
 
 const PORT = Number(process.env.PORT || 8702);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -40,16 +33,8 @@ const MAGNET_CACHE_MS = Number(process.env.MAGNET_CACHE_MS || 30 * 60_000);
 // Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
 // nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
 const UNKNOWN_SIZE = '1 KB';
-const SELF_URL = (process.env.SELF_URL || 'http://nerdfilmes-resolver:8702').replace(/\/$/, '');
-// xnerdfilmes.net migrou para nerdviatorrents.net (301 permanente). Sem
-// NERDFILMES_URL/SITE_URL no ambiente (o modo embutido não injeta nada), este
-// default é o que o resolver tenta primeiro — deixá-lo no domínio velho faz o
-// redirect cair na allowlist e a fonte morrer em silêncio.
-const SITE_URL = (process.env.SITE_URL || process.env.NERDFILMES_URL || 'https://www.nerdviatorrents.net').replace(/\/$/, '');
-
-function parseExtraProtectors(envVal) {
-  return runtimeParseExtraProtectors(envVal);
-}
+// SELF_URL é como o JACKETT alcança este serviço; SITE_URL é o default do site.
+const decodeEntities = decodeEntitiesBasic;
 
 const FALLBACK_SITE_SUFFIXES = [
   'xnerdfilmes.net',
@@ -60,6 +45,16 @@ const FALLBACK_SITE_SUFFIXES = [
   'nerdviatorrents.net',
 ];
 
+// xnerdfilmes.net migrou para nerdviatorrents.net (301 permanente). Sem
+// NERDFILMES_URL/SITE_URL no ambiente (o modo embutido não injeta nada), o
+// default abaixo é o que o resolver tenta primeiro — deixá-lo no domínio velho
+// faz o redirect cair na allowlist e a fonte morrer em silêncio.
+//
+// --- Bootstrap comum (site-profile) ---
+// Toda a montagem repetida nos cinco perfis (leitura de env no require, seletor
+// de failover, conjuntos de sufixos, trio de allowlist, wrappers cosméticos)
+// nasce aqui, por chamada — sem estado de módulo compartilhado.
+//
 // --- Failover de domínio em runtime ---
 // O SITE_URL era const lida no boot: domínio morto = fonte morta até editar
 // .env + restart. O seletor trata os FALLBACK_SITE_SUFFIXES (e o csv
@@ -69,32 +64,29 @@ const FALLBACK_SITE_SUFFIXES = [
 // primeiro candidato que responda 2xx. O vencedor fica imune a novo probe
 // por BR_DOMAIN_PROBE_TTL_MS (sondar de novo não ressuscita site caído) e o
 // probe nunca roda no require — módulo carregado em teste não tem rede.
-function isNetworkError(err) {
-  return sharedIsNetworkError(err);
-}
+const bootstrap = createProfile({
+  name: 'nerdfilmes',
+  port: PORT,
+  selfUrlEnv: 'http://nerdfilmes-resolver:8702',
+  siteUrl: 'https://www.nerdviatorrents.net',
+  siteUrlEnv: 'NERDFILMES_URL',
+  urlsCsv: process.env.NERDFILMES_URLS,
+  fallbackSuffixes: FALLBACK_SITE_SUFFIXES,
+  // O host rejeitado viaja na mensagem: sem ele o sintoma é "0 resultados" e
+  // a causa (redirect para domínio fora da allowlist) só aparece auditando.
+  blockedHostDetail: true,
+  concurrency: CONCURRENCY,
+  decodeEntities,
+});
 
-// Mantém a superfície histórica do profile sem duplicar o seletor compartilhado.
-const createSiteSelector = createSharedSiteSelector;
-
-const siteSelector = createSharedSiteSelector('[nerdfilmes]', process.env.NERDFILMES_URLS, SITE_URL, FALLBACK_SITE_SUFFIXES);
-// Hosts de TODOS os candidatos são confiáveis desde o boot (vêm de env ou da
-// lista de mirrors históricos): allowlist e isDetailHost já aceitam o domínio
-// que o failover escolher, sem restart.
-const CANDIDATE_HOSTS = siteSelector.hosts();
-
-
-const EXTRA_PROTECTORS = parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS);
-
-const ALL_PROTECTOR_SUFFIXES = Array.from(
-  new Set([...BASE_PROTECTOR_SUFFIXES, ...EXTRA_PROTECTORS]),
-);
-
-const ALLOWED_SUFFIXES = Array.from(
-  new Set([
-    ...CANDIDATE_HOSTS,
-    ...ALL_PROTECTOR_SUFFIXES,
-  ]),
-);
+const {
+  reply, siteSelector, CANDIDATE_HOSTS, createSiteSelector,
+} = bootstrap;
+const { ALL_PROTECTOR_SUFFIXES, ALLOWED_SUFFIXES, unwrapResolverUrl } = bootstrap;
+const {
+  assertAllowedUrl, isDetailHost, isProtectorHost, isNetworkError, stripTags,
+} = bootstrap;
+const SELF_URL = bootstrap.selfUrl;
 
 const { values: cache, inFlight, cached: cachedCore } = createCache(500);
 
@@ -107,23 +99,6 @@ siteSelector.onDomainChange(() => {
 
 async function cached(key, ttl, loader) {
   return cachedCore(key, ttl, loader);
-}
-
-const decodeEntities = decodeEntitiesBasic;
-const stripTags = (value = '') => stripTagsShared(value, decodeEntities);
-
-function assertAllowedUrl(value) {
-  // O host rejeitado viaja na mensagem: sem ele o sintoma é "0 resultados" e
-  // a causa (redirect para domínio fora da allowlist) só aparece auditando.
-  return sharedAssertAllowedUrl(value, ALLOWED_SUFFIXES, true);
-}
-
-function isDetailHost(hostname) {
-  return hasAllowedHost(hostname, CANDIDATE_HOSTS);
-}
-
-function isProtectorHost(hostname) {
-  return hasAllowedHost(hostname, ALL_PROTECTOR_SUFFIXES);
 }
 
 function extractMagnet(html) {
@@ -398,13 +373,14 @@ function parsePostDate(html) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-async function fetchFollowingAllowed(value, referer) {
-  return followProtectedUrl(value, referer, {
-    assertAllowedUrl, decodeEntities, extractMagnet, nextProtectedUrl,
-    extractMetaRefresh: (html) => sharedExtractMetaRefresh(html, decodeEntities),
-    maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS, userAgent: USER_AGENT,
-  });
-}
+// O laço do protetor é UM só (transport); o perfil aporta apenas os parsers.
+// O assertAllowedUrl injetado no laço é o da factory (que delega ao
+// protector.js) — nunca uma checagem reimplementada aqui.
+const fetchFollowingAllowed = bootstrap.fetchFollowingAllowed({
+  decodeEntities, extractMagnet, nextProtectedUrl,
+  extractMetaRefresh: (html) => sharedExtractMetaRefresh(html, decodeEntities),
+  maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS,
+});
 
 async function getPostLinks(postUrl) {
   const post = assertAllowedUrl(postUrl);
@@ -445,9 +421,9 @@ async function resolveButton(postUrl, index, hash, count) {
   });
 }
 
-async function mapLimit(items, limit, fn) {
-  return sharedMapLimit(items, limit, fn);
-}
+// Mantém a assinatura histórica de 3 argumentos: o searchPipeline passa o
+// limite junto na chamada.
+const mapLimit = (items, limit, fn) => bootstrap.mapLimit(items, fn, { limit });
 
 /**
  * Seleção pura de posts: parsePosts -> matchesResolverQuery (título) -> filtro
@@ -455,9 +431,7 @@ async function mapLimit(items, limit, fn) {
  * para não perder a temporada pedida quando 5 posts errados vêm primeiro — do
  * contrário o slice(MAX_POSTS) jogava fora exatamente a do usuário.
  */
-function selectSearchPosts(sourceHtml, query, requestedSeason) {
-  return selectSharedSearchPosts(parsePosts, sourceHtml, query, requestedSeason, MAX_POSTS);
-}
+const selectSearchPosts = bootstrap.makeSelectSearchPosts(parsePosts, MAX_POSTS);
 
 /**
  * Pipeline comum aos dois caminhos (/api e /search) para não deixar drift:
@@ -551,9 +525,7 @@ ${body}
 // (/resolve?url=<post>&i=0&h=..) não tem nível interno de onde ler.
 // Sem checar a origem: o host varia (`addon` embutido vs. nome do
 // container), e o alvo final passa por assertAllowedUrl de todo jeito.
-function unwrapResolverUrl(value, seed = {}) {
-  return unwrapSharedResolverUrl(value, SELF_URL, seed);
-}
+// (A variante com defaults do núcleo está no unwrapResolverUrl da factory.)
 
 
 // Busca WordPress com nota de saúde para o failover de domínio: sucesso zera
@@ -676,9 +648,7 @@ function createServer() {
 }
 
 if (require.main === module) {
-  createServer().listen(PORT, '0.0.0.0', () => {
-    console.log(`nerdfilmes-resolver :${PORT} — torznab em /api, fonte ${siteSelector.url()} (failover: ${CANDIDATE_HOSTS.join(', ')})`);
-  });
+  bootstrap.serveMain(createServer);
 }
 
 module.exports = {
