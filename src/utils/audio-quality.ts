@@ -118,17 +118,35 @@ function editionFromTitle(title = '') {
   return '';
 }
 
+/**
+ * Guarda compartilhada da dublagem GENÉRICA (título e path usam o mesmo
+ * intento). Marcador genérico de DUB/DUBBED NÃO prova áudio PT quando há
+ * HINDI (dublagem indiana — medido: `HINDI.HQ.DUB`/`HINDI.DUBBED` entravam
+ * como dublado pt-BR e a absolvição indevida mantinha releases EN vivas no
+ * catálogo). O PT explícito ao lado (`HINDI… DUB PT-BR`) continua vencendo
+ * FORA deste predicado, nas regras próprias de cada chamador.
+ */
+function genericDubProvesPt(text: string): boolean {
+  const t = String(text || '').toUpperCase();
+  return !/\bHINDI\b/.test(t) && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
+}
+
+// Lado marcador do mesmo intento, para o path: um marker de
+// AUDIO_AUDIT_PT_MARKERS é genérico quando normaliza para exatamente
+// 'dub'/'dubbed' — só ele sofre a guarda do HINDI. Marcador explícito
+// ('dublado', 'dual', 'pt br'…) não prova menos por causa de HINDI.
+// Limitação honesta: marcador genérico CUSTOMIZADO novo (ex.: 'dubs') é
+// tratado como explícito e escapa da guarda — o fechamento cobre as formas
+// genéricas conhecidas, não qualquer vocabulário futuro.
+const GENERIC_DUB_MARKER_RE = /^dub(?:bed)?$/;
+
 function explicitPtAudio(title = '') {
   const t = title.toUpperCase();
   const isExplicitSub =
     /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
     /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
 
-  // A marca genérica DUB/DUBBED só entrega "áudio PT" na AUSÊNCIA de idioma
-  // estrangeiro: `HINDI.HQ.DUB`/`HINDI.DUBBED` são dublagem indiana (medido: a
-  // absolvição indevida desse `\bDUB\b` mantinha releases EN vivas no catálogo).
-  // O PT explícito ao lado (`HINDI… DUB PT-BR`) continua vencendo.
-  const isGenericDub = !/\bHINDI\b/.test(t) && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
+  const isGenericDub = genericDubProvesPt(t);
 
   return (
     /\b(DUBLAD[OA]|DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR|DUBLADO[- ]?PT[-.]?BR)\b/.test(t) ||
@@ -141,13 +159,14 @@ function explicitPtAudio(title = '') {
 function hasPtAudioMark(path = '') {
   const tokens = normalizeTitle(path).split(' ').filter(Boolean);
   const joined = ` ${tokens.join(' ')} `;
-  // Generic 'dubbed' também é áudio PT apenas na ausência de HINDI (dublagem
-  // indiana; mesma regra do explicitPtAudio). Formas BR explícitas seguem PT.
+  // Mesma regra do explicitPtAudio (genericDubProvesPt): marcador genérico de
+  // dublagem não prova PT na presença de HINDI (dublagem indiana). Marcador
+  // explícito segue valendo — HINDI só desmente a promessa GENÉRICA.
   const hasHindi = /\bHINDI\b/.test(String(path).toUpperCase());
   return config.audioAudit.ptMarkers.some((marker: string) => {
     const normalized = normalizeTitle(marker);
     if (!normalized) return false;
-    if (hasHindi && normalized === 'dubbed') return false;
+    if (hasHindi && GENERIC_DUB_MARKER_RE.test(normalized)) return false;
     return joined.includes(` ${normalized} `);
   });
 }
@@ -225,9 +244,13 @@ function audioFromTitle(title = '') {
 function hasExplicitForeignAudio(title = '') {
   const t = String(title).toUpperCase();
   if (explicitPtAudio(title)) return false;
-  // HINDI entra como prova de idioma estrangeiro: após o generic DUB não
-  // absolver mais, `HINDI.HQ.DUB` precisa condenar no foreignVerdict. Assimetria
-  // preservada — com PT-BR explícito ao lado, explicitPtAudio corta aqui.
+  // Esta lista é OUTRA coisa da guarda genericDubProvesPt: aqui é EVIDÊNCIA de
+  // idioma estrangeiro (prova positiva que autoriza condenar), não guarda de
+  // marcador PT — por isso a assimetria é deliberada. HINDI entra como prova
+  // de idioma estrangeiro: após o generic DUB não absolver mais,
+  // `HINDI.HQ.DUB` precisa condenar no foreignVerdict. Assimetria preservada
+  // (travada por test/audio-cleanup-classifiers.test.ts) — com PT-BR
+  // explícito ao lado, explicitPtAudio corta aqui.
   return /\b(TRUEFRENCH|FRENCH|VOSTFR|VF|ITA|SUBITA|ESPANOL|CASTELLANO|RUS|GERMAN|NL|HINDI)\b/.test(t);
 }
 

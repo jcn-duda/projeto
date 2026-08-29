@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   audioBucket, dubbedLieVerdict, hasPtSigns, audioFromTitle, looksPtBr, foreignVerdict,
-  hasExplicitForeignAudio,
+  hasExplicitForeignAudio, hasPtAudioMark,
 } from '../src/utils/audio-quality.js';
+import config from '../src/config.js';
+import { patch } from './helpers/stub.js';
 
 // Regressão dos consertos de classificador da Fase 0 (catálogo + limpador BR).
 // Os casos vêm de medição real: 19 de 20 títulos BR sem acento caíam no balde
@@ -157,4 +159,16 @@ test('DUB/HINDI: PT-BR explícito ao lado vence (absolve), [DUB] genérico conti
   assert.equal(audioFromTitle('Coringa 2019 DUB PT-BR 1080p'), 'Dublado', 'DUB genérico sem HINDI = PT');
   assert.equal(foreignVerdict('[DUB] Some Movie 2024'), 'absolve', 'generic [DUB] sem idioma estrangeiro absolve');
   assert.equal(audioFromTitle('Some.Movie.2024.[DUB]'), 'Dublado', 'generic [DUB] = Dublado');
+});
+
+test('DUB/HINDI: marcador genérico CUSTOMIZADO em AUDIO_AUDIT_PT_MARKERS sofre a mesma guarda do HINDI', () => {
+  // O fechamento é por construção: marcador que normaliza para 'dub'/'dubbed'
+  // exato é genérico, venha do default ou do env do operador.
+  const restore = patch(config.audioAudit, 'ptMarkers', [...config.audioAudit.ptMarkers, 'dub']);
+  try {
+    assert.equal(hasPtAudioMark('Show.2024.Dub.1080p.mkv'), true, 'dub genérico sem HINDI prova PT');
+    assert.equal(hasPtAudioMark('Show.2024.Hindi.Dub.1080p.mkv'), false, 'HINDI desmente o marcador genérico custom');
+  } finally {
+    restore();
+  }
 });
