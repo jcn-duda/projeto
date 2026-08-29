@@ -95,6 +95,22 @@ test('logo do manifest é PNG e a rota serve o arquivo', async () => {
   assert.equal(png.status, 200);
 });
 
+test('páginas referenciam assets com ?v=<hash> e a rota ignora a query', async () => {
+  // O acoplamento HTML↔módulos anda nos dois sentidos (o inline chama funções
+  // dos módulos; os módulos buscam IDs do HTML): sem o versionamento por hash,
+  // um deploy emparelharia HTML novo com módulo velho do cache do browser.
+  const configure = await server.request('GET', '/configure');
+  assert.equal(configure.status, 200);
+  assert.match(configure.text, /\/configure\.css\?v=[0-9a-f]{10}/);
+  assert.match(configure.text, /\/configure-app\.js\?v=[0-9a-f]{10}/);
+  const dashboard = await server.request('GET', '/dashboard');
+  assert.equal(dashboard.status, 200);
+  assert.match(dashboard.text, /\/dashboard-core\.js\?v=[0-9a-f]{10}/);
+  // A allowlist casa pelo path: o `?v=` não precisa constar dela.
+  const asset = await server.request('GET', '/configure.css?v=0000000000');
+  assert.equal(asset.status, 200);
+});
+
 test('segmento de 1 segmento que não é config vira 404, não manifest', async () => {
   // Sem o 404 do decode, qualquer caminho de um segmento serviria o manifest
   // com a config do .env — inclusive erro de digitação no install URL.

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import { asyncRoute } from './async.js';
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
@@ -15,16 +17,38 @@ const PAGE_ASSETS = [
 ];
 
 function makePublicHandlers(services: AppServices) {
-  const sendConfigure = (_: express.Request, res: express.Response) => res.sendFile(services.publicPath('configure.html'));
-  const sendDashboard = (_: express.Request, res: express.Response) => res.sendFile(services.publicPath('dashboard.html'));
+  // Fingerprint do CONTEÚDO dos assets (e não da versão do package/manifest,
+  // que não muda a cada deploy): a URL só muda quando o arquivo muda. Restart
+  // sem rebuild mantém a URL e o cache do cliente continua válido — que é o
+  // correto; deploy que muda o asset muda a URL junto. Lido uma vez por app:
+  // o addon serve de dist/ e os arquivos não mudam no decorrer do processo.
+  const fingerprint = createHash('sha256');
+  for (const name of PAGE_ASSETS) {
+    fingerprint.update(fs.readFileSync(services.publicPath(name)));
+  }
+  const assetVersion = fingerprint.digest('hex').slice(0, 10);
+
+  // O HTML sai da memória, sempre fresco, referenciando os assets com
+  // ?v=<hash>. É isso que elimina o skew de deploy: HTML novo só aponta para
+  // URLs que o cache do browser ainda não tem — impossível emparelhar HTML
+  // novo com módulo velho, num acoplamento que anda nos dois sentidos (o
+  // inline chama funções dos módulos; os módulos buscam IDs declarados no HTML).
+  const sendVersionedHtml = (name: string) => {
+    const html = fs
+      .readFileSync(services.publicPath(name), 'utf8')
+      .replace(/((?:src|href)="\/(?:configure|dashboard)[-\w]*\.(?:css|js))/g, `$1?v=${assetVersion}"`);
+    return (_: express.Request, res: express.Response) => res.type('html').send(html);
+  };
+  const sendConfigure = sendVersionedHtml('configure.html');
+  const sendDashboard = sendVersionedHtml('dashboard.html');
+
   // Os HTML referenciam os assets por caminho absoluto porque a página responde
-  // tanto em /configure quanto em /:userConfig/configure. maxAge curto de
-  // propósito: o nome do arquivo não é versionado (sem hash), então cache longo
-  // serviria JS/CSS velho depois de um deploy; 5 min + ETag cobre o caso —
-  // sem isso o default do sendFile (max-age=0) custa uma revalidação
-  // condicional por asset a cada load do painel (4 no dashboard).
+  // tanto em /configure quanto em /:userConfig/configure. maxAge ALTO é seguro
+  // porque a URL carrega o hash do conteúdo (?v= acima): o cache só devolve o
+  // byte-idêntico. A rota ignora a query — o Express casa pelo path, então
+  // `?v=` não precisa (e não deve) constar da allowlist.
   const sendPageAsset = (name: string) => (_: express.Request, res: express.Response) =>
-    res.sendFile(services.publicPath(name), { maxAge: '5m' });
+    res.sendFile(services.publicPath(name), { maxAge: '30d' });
 
   const defaults = asyncRoute(async (_req, res) => {
     const { debridApiKey, ...safe } = services.runtime.defaults();
