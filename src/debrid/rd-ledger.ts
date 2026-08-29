@@ -53,9 +53,16 @@ function pruneTracked() {
   }
 }
 
-function track(hash: string, state: Exclude<LedgerState, 'unknown'>, ttlSeconds: number) {
+// `prune=false` é para lotes: noteHit já podou uma vez antes do laço, e podar
+// por hash faria a varredura de expirados custar O(|lote| × |tracked|).
+function track(
+  hash: string,
+  state: Exclude<LedgerState, 'unknown'>,
+  ttlSeconds: number,
+  prune = true,
+) {
   if (ttlSeconds <= 0) return;
-  pruneTracked();
+  if (prune) pruneTracked();
   tracked.set(hash, { state, expiresAt: Date.now() + ttlSeconds * 1000 });
 }
 
@@ -92,14 +99,26 @@ function noteHit(hashes: string[]) {
   if (!config.debrid.rdLedger.enabled || ttl <= 0) return;
   const unique = [...new Set(hashes.map(hashOf))].filter(Boolean);
   const now = Date.now();
-  const writes = unique
+  // A lista elegível (não-blocked) é calculada UMA vez e serve tanto para a
+  // escrita quanto para o `track` do processo. Antes o `track` reconsultava
+  // `peek` pós-escrita, custando mais uma leitura L1+SQLite por hash; o peek
+  // pós-write só distinguia "escrita venceu" de "blocked", e assumindo que o
+  // writeMany não falha silenciosamente a elegibilidade já cobre isso.
+  const eligible = unique
     // Bloqueio legal é mais específico que confirmação anterior e não pode ser
     // apagado por um caminho atrasado de inventário/recheck.
-    .filter((hash) => peek(hash) !== 'blocked')
-    .map((hash) => ({ key: key(hash), value: { s: 'hit' as const, at: now, n: 0 }, ttlSeconds: ttl }));
+    .filter((hash) => peek(hash) !== 'blocked');
+  const writes = eligible.map((hash) => ({
+    key: key(hash),
+    value: { s: 'hit' as const, at: now, n: 0 },
+    ttlSeconds: ttl,
+  }));
   writeMany(writes);
-  for (const hash of unique) {
-    if (peek(hash) === 'hit') track(hash, 'hit', ttl);
+  // Podar uma vez pelo lote inteiro: o prune varre o Map `tracked` inteiro, e
+  // chamá-lo por hash seria O(|lote| × |tracked|).
+  if (eligible.length) pruneTracked();
+  for (const hash of eligible) {
+    track(hash, 'hit', ttl, false);
   }
   if (writes.length) {
     metrics.count('debrid.rd.ledger.hit', writes.length);
