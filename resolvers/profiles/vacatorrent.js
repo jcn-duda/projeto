@@ -56,6 +56,16 @@ const { createProfile } = require('../site-profile');
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
 const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
+// Passo 4 do item 9: classificadores, máquina de estados da âncora
+// (release-rules.js) e títulos/feeds/laço de fallback (release-format.js).
+const {
+  createQualityRules, createSourceRules, VACA_SOURCE_MATCH_RE,
+  createEpisodeRules, createEpisodeStep, createLinkCollector,
+  createProtectorHrefResolver,
+} = require('../release-rules');
+const {
+  createReleaseTitle, createSearchPageHtml, createNormalizeQuery, tryLinksInOrder,
+} = require('../release-format');
 
 const PORT = Number(process.env.PORT || 8704);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -139,74 +149,29 @@ siteSelector.onDomainChange(() => {
   magnetCache.clear();
 });
 
-// Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a
-// release nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
-const UNKNOWN_SIZE = '1 KB';
-
 // Variante rica de entidades (WordPress), como no comandotorrents.
 const extractMetaRefresh = (html) => sharedExtractMetaRefresh(html, decodeEntities);
 
 // ---------------------------------------------------------------------------
 // Query. O `search_posts` é LIKE sobre o título SEM ano; query com ano dá 0.
-// `normalizeQuery` tira SxxEyy E ano de 4 dígitos antes de consultar.
+// `normalizeQuery` tira SxxEyy E ano de 4 dígitos antes de consultar — a
+// variante dropYear é exclusiva da vaca (R-4).
 // ---------------------------------------------------------------------------
-function normalizeQuery(value) {
-  return String(value || '')
-    .replace(/\b[Ss]\d{1,2}(?:[Ee]\d{1,2})?\b/gi, ' ')
-    .replace(/\b(?:19|20)\d{2}\b/g, ' ')
-    .replace(/:/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+const normalizeQuery = createNormalizeQuery({ dropYear: true });
 
 function requestedSeasonFromQuery(value) {
   return String(value || '').match(/\b[Ss](\d{1,2})(?:[Ee]\d{1,2})?\b/i);
 }
 
 // ---------------------------------------------------------------------------
-// Parsers de qualidade/fonte/áudio a partir do rótulo real das âncoras.
+// Classificadores de qualidade/fonte (núcleo) e áudio PRÓPRIO: a vaca
+// classifica pelo rótulo real e produz 'dual' ("Português | Inglês") — nada
+// disso passa pelos hooks comuns de áudio (R-4).
+// O matcher de fonte mantém o typo BLRAY do card vivo (R-4).
 // ---------------------------------------------------------------------------
-function extractQualityToken(raw) {
-  const token = String(raw || '').toUpperCase().trim();
-  if (/\b(?:2160\s*P|4K|UHD)\b/.test(token)) return 2160;
-  if (/\b(?:1080\s*P|FULL\s*HD)\b/.test(token)) return 1080;
-  if (/\b(?:720\s*P|\bHD\b(?!\s*TV))\b/.test(token)) return 720;
-  if (/\b(?:576\s*P)\b/.test(token)) return 576;
-  if (/\b(?:480\s*P|\bSD\b)\b/.test(token)) return 480;
-  const m = token.match(/\b(\d{3,4})\s*P\b/);
-  return m ? Number(m[1]) : null;
-}
+const { normalizeQuality } = createQualityRules();
+const { normalizeSource } = createSourceRules({ matchPattern: VACA_SOURCE_MATCH_RE });
 
-function normalizeQuality(context) {
-  const text = String(context || '').toUpperCase();
-  const matches = [...text.matchAll(/\b(2160\s*P|4K|UHD|1080\s*P|FULL\s*HD|720\s*P|\bHD\b(?!\s*TV)|576\s*P|480\s*P|\bSD\b|\d{3,4}\s*P)\b/gi)];
-  if (!matches.length) return null;
-  return extractQualityToken(matches[matches.length - 1][0]);
-}
-
-function extractSourceToken(raw) {
-  const token = String(raw || '').toUpperCase().trim();
-  if (/\b(?:BDREMUX|REMUX)\b/.test(token)) return 'REMUX';
-  if (/\b(?:BLU[- ]?RAY|BLURAY|BD\b|BDRIP)\b/.test(token)) return 'BLU-RAY';
-  if (/\b(?:WEB[-. ]?DL)\b/.test(token)) return 'WEB-DL';
-  if (/\b(?:WEB[-. ]?RIP|WEBRIP)\b/.test(token)) return 'WEBRIP';
-  if (/\bHDTV\b/.test(token)) return 'HDTV';
-  if (/\b(?:CAMRIP|CAM)\b/.test(token)) return 'CAM';
-  return null;
-}
-
-function normalizeSource(context) {
-  const text = String(context || '').toUpperCase();
-  const matches = [...text.matchAll(/\b(BDREMUX|REMUX|BLU[- ]?RAY|BLRAY|BD\b|BDRIP|WEB[-. ]?DL|WEB[-. ]?RIP|WEBRIP|HDTV|CAMRIP|CAM)\b/gi)];
-  if (!matches.length) return null;
-  return extractSourceToken(matches[matches.length - 1][0]);
-}
-
-// Áudio a partir do contexto (rótulo + texto ao redor da âncora).
-//    só Português        → 'dublado'
-//    "Português | Inglês" → 'dual'
-//    sem Português        → 'legendado'
-//    nada detectado        → null
 function classifyAudio(context) {
   const text = String(context || '').toUpperCase();
   const hasPt = /PORTUGU[ÊE]S|PORTUGUES/.test(text);
@@ -217,21 +182,25 @@ function classifyAudio(context) {
 }
 
 // ---------------------------------------------------------------------------
-// Contexto de episódio entre âncoras (mesma estratégia do comandotorrents).
+// Episódio/pack: a vaca aceita \bbatch\b no pack e usa [.\-s]* (com "s"
+// literal) na faixa — diferenças vivas dos cards publicados hoje (R-4).
 // ---------------------------------------------------------------------------
-const PACK_RESET_PATTERN = /\b(?:TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA|PACK\s+COMPLETO|PACOTE\s+COMPLETO|\bPACK\b|\bbatch\b)\b/i;
-const EPISODE_RANGE_PATTERN = /(?:EPIS[ÓO]DIOS?|EP|CAP[ÍI]TULOS?|CAP|E)[.\-s]*\d{1,3}[.\s-]*(?:A|AO|[-–—])[.\s-]*\d{1,3}\b/i;
-const EPISODE_PATTERN = /(?:EPIS[ÓO]DIO|EP|CAP[ÍI]TULO|CAP)[.\s-]*(\d{1,3})\b|\bS\d{1,2}E(\d{1,3})\b|\bE(\d{1,3})\b|\b\d{1,2}X(\d{1,3})\b/gi;
-
-function extractEpisode(text) {
-  if (!text) return null;
-  if (EPISODE_RANGE_PATTERN.test(text)) return null;
-  const matches = [...text.matchAll(EPISODE_PATTERN)];
-  if (matches.length === 0) return null;
-  const last = matches[matches.length - 1];
-  const num = Number(last[1] || last[2] || last[3] || last[4]);
-  return Number.isFinite(num) ? num : null;
-}
+const episodeRules = createEpisodeRules({
+  packPattern: /\b(?:TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA|PACK\s+COMPLETO|PACOTE\s+COMPLETO|\bPACK\b|\bbatch\b)\b/i,
+  rangePattern: /(?:EPIS[ÓO]DIOS?|EP|CAP[ÍI]TULOS?|CAP|E)[.\-s]*\d{1,3}[.\s-]*(?:A|AO|[-–—])[.\s-]*\d{1,3}\b/i,
+});
+const extractEpisode = episodeRules.extractEpisode;
+const episodeStep = createEpisodeStep({
+  scope: 'anchor-writes',
+  packRe: episodeRules.packPattern,
+  rangeRe: episodeRules.rangePattern,
+  epRe: episodeRules.episodePattern,
+  extract: episodeRules.extractEpisode,
+  // Padrão CRU /i: o matchAll lança TypeError no ramo de desempate —
+  // comportamento vivo preservado (não troque pelo clone /g).
+  packMatchAll: episodeRules.packPattern,
+  tieBreak: true,
+});
 
 // ---------------------------------------------------------------------------
 // extractMagnet reusa o padrão dos profiles irmãos (nenhum laço próprio).
@@ -369,99 +338,28 @@ function filterSearchPosts(entries, query, requestedSeason) {
 }
 
 // ---------------------------------------------------------------------------
-// Parse de âncoras systemtech. Cada âncora vira um "link" com url, qualidade,
-// fonte, áudio, tamanho e contexto de episódio. `options.season` injeta a
-// temporada da página. `realTitle` (batch) reescreve o título da release.
+// Parse de âncoras systemtech (máquina de estados do núcleo
+// createLinkCollector): cada âncora vira um "link" com url, qualidade, fonte,
+// áudio, tamanho e contexto de episódio. `options.season` injeta a temporada
+// da página e `options.realTitle` (batch) reescreve o título da release —
+// extras próprios da vaca via extrasOf. O HTML é decodificado antes do
+// casamento e o cursor AVANÇA nos descartes de URL/host, como no laço
+// original; href vazio não avança.
 // ---------------------------------------------------------------------------
-function parseDownloadLinks(html, baseUrl, options = {}) {
-  const links = [];
-  const pattern = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
-  let match;
-  let cursor = 0;
-  let currentAudio = null;
-  let currentEpisode = null;
-
-  const decodedHtml = decodeEntities(html);
-
-  while ((match = pattern.exec(decodedHtml))) {
-    const rawHref = (attribute(match[1], 'href') || '').trim();
-    if (!rawHref) continue;
-
-    const isMagnet = /^magnet:\?/i.test(rawHref);
-    let downloadUrl;
-    if (isMagnet) downloadUrl = rawHref;
-    else {
-      let resolvedUrl;
-      try {
-        resolvedUrl = new URL(rawHref, baseUrl);
-      } catch {
-        cursor = pattern.lastIndex;
-        continue;
-      }
-      // Só accepted systemtech (Download); players embed não são protetores.
-      const toParam = resolvedUrl.searchParams.get('to');
-      let targetHost = resolvedUrl.hostname;
-      if (toParam) {
-        try { targetHost = new URL(decodeEntities(toParam)).hostname; } catch {}
-      }
-      if (!isProtectorHost(targetHost)) {
-        cursor = pattern.lastIndex;
-        continue;
-      }
-      downloadUrl = resolvedUrl.href;
-    }
-
-    const rawSegment = decodedHtml.slice(cursor, match.index);
-    const segment = stripTags(rawSegment).toUpperCase();
-    const anchorText = stripTags(match[2] || '').toUpperCase();
-    cursor = pattern.lastIndex;
-
-    const segAudio = classifyAudio(segment);
-    if (segAudio) currentAudio = segAudio;
-    const anchorAudio = classifyAudio(anchorText);
-    const audio = anchorAudio ?? currentAudio;
-
-    const anchorEp = extractEpisode(anchorText);
-    const anchorIsPack = PACK_RESET_PATTERN.test(anchorText) || EPISODE_RANGE_PATTERN.test(anchorText);
-    if (anchorEp !== null) {
-      currentEpisode = anchorEp;
-    } else if (anchorIsPack) {
-      currentEpisode = null;
-    } else {
-      const segEp = extractEpisode(segment);
-      const segIsPack = PACK_RESET_PATTERN.test(segment) || EPISODE_RANGE_PATTERN.test(segment);
-      if (segEp !== null && segIsPack) {
-        const lastEpMatches = [...segment.matchAll(EPISODE_PATTERN)];
-        const lastPackMatches = [...segment.matchAll(PACK_RESET_PATTERN)];
-        const lastEpIdx = lastEpMatches.length ? lastEpMatches[lastEpMatches.length - 1].index : -1;
-        const lastPackIdx = lastPackMatches.length ? lastPackMatches[lastPackMatches.length - 1].index : -1;
-        currentEpisode = lastEpIdx > lastPackIdx ? segEp : null;
-      } else if (segEp !== null) {
-        currentEpisode = segEp;
-      } else if (segIsPack) {
-        currentEpisode = null;
-      }
-    }
-
-    const context = `${segment} ${anchorText}`;
-    const quality = normalizeQuality(context);
-    const source = normalizeSource(context);
-    const sizeHit = [...context.matchAll(/([\d.,]+)\s*(TB|GB|MB|KB)\b/g)].pop();
-    const size = sizeHit ? `${sizeHit[1]} ${sizeHit[2]}` : null;
-
-    links.push({
-      url: downloadUrl,
-      quality,
-      source,
-      size,
-      audio,
-      episode: currentEpisode,
-      season: options.season ?? null,
-      realTitle: options.realTitle ?? null,
-    });
-  }
-  return links;
-}
+const parseDownloadLinks = createLinkCollector({
+  anchorRe: /<a\b([^>]*)>([\s\S]*?)<\/a>/gi,
+  resolveHref: createProtectorHrefResolver({ isProtectorHost, decodeEntities, attribute }),
+  anchorTextOf: (match) => stripTags(match[2] || ''),
+  stripTags,
+  decodeHtml: decodeEntities,
+  initialAudio: null,
+  audioFromSegment: classifyAudio,
+  audioFromAnchor: classifyAudio,
+  episodeStep,
+  qualityFn: normalizeQuality,
+  sourceFn: normalizeSource,
+  extrasOf: (options) => ({ season: options.season ?? null, realTitle: options.realTitle ?? null }),
+});
 
 // ---------------------------------------------------------------------------
 // Filme: página do post → link da página de botões (/movie-links/<id>/).
@@ -567,39 +465,32 @@ function cleanMarkTitle(title = '') {
   return clean;
 }
 
-function releaseTitle(post, link, index = null) {
-  const isBatch = Boolean(link?.realTitle);
-  const sourceTitle = isBatch ? link.realTitle : (typeof post === 'string' ? post : post?.title) || '';
-  const clean = cleanMarkTitle(sourceTitle);
-  const yearPart = !isBatch && post?.year ? ` (${post.year})` : '';
+// Título da release via factory comum com hooks da vaca: ano re-injetado
+// (proteção de ano do addon); batch usa o título real (`.bl-hero-title`) —
+// pode ser de OUTRA série, então ano/temporada/episódio do post NÃO entram.
+// audioTag DUAL é exclusivo da vaca (R-4).
+const releaseTitle = createReleaseTitle({
+  cleanTitle: cleanMarkTitle,
+  titleOf: (post, link) => link?.realTitle || (typeof post === 'string' ? post : post?.title) || '',
+  audioTagOf: (link) =>
+    link?.audio === 'dublado' ? 'DUBLADO'
+      : link?.audio === 'dual' ? 'DUAL'
+        : link?.audio === 'legendado' ? 'LEGENDADO' : null,
+  seasonOf: (post, link) => (!link?.realTitle && link?.season != null)
+    ? `S${String(link.season).padStart(2, '0')}` : '',
+  episodeOf: (post, link) => (!link?.realTitle && link?.episode != null)
+    ? `E${String(link.episode).padStart(2, '0')}` : '',
+  yearOf: (post, link) => (!link?.realTitle && post?.year) ? ` (${post.year})` : '',
+});
 
-  const seasonPart = !isBatch && link?.season != null ? `S${String(link.season).padStart(2, '0')}` : '';
-  const episodePart = !isBatch && link?.episode != null ? `E${String(link.episode).padStart(2, '0')}` : '';
-  const sePart = [seasonPart, episodePart].filter(Boolean).join('');
-
-  const audioTag = link?.audio === 'dublado' ? 'DUBLADO' : link?.audio === 'dual' ? 'DUAL' : link?.audio === 'legendado' ? 'LEGENDADO' : null;
-  const tags = [
-    link?.quality ? `${link.quality}p` : null,
-    link?.source,
-    audioTag,
-    link?.size || (index == null ? null : `opção ${index + 1}`),
-  ].filter(Boolean);
-
-  const base = `${clean}${yearPart}${sePart ? ` ${sePart}` : ''}`;
-  return tags.length ? `${base} [${tags.join(' ')}]` : base;
-}
-
-function searchPageHtml(items) {
-  const rows = items.map(({ post, link, index, count }) => {
-    const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
-    return `<div class="release">` +
-      `<div class="title"><a href="${escapeHtml(download)}">${escapeHtml(releaseTitle(post, link, index))}</a></div>` +
-      `<div class="size">${escapeHtml(link.size || UNKNOWN_SIZE)}</div>` +
-      `${post.poster ? `<div class="poster"><img src="${escapeHtml(post.poster)}"></div>` : ''}<div class="description">${escapeHtml(post.title || '')}</div>` +
-      `<div class="seeders">1</div></div>`;
-  }).join('');
-  return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
-}
+// Página compacta com poster (sem alt) entre size e description.
+const searchPageHtml = createSearchPageHtml({
+  selfUrl: SELF_URL,
+  escape: escapeHtml,
+  releaseTitle,
+  rowExtras: (post) => (post.poster ? `<div class="poster"><img src="${escapeHtml(post.poster)}"></div>` : ''),
+  descriptionOf: (post) => post.title || '',
+});
 
 // ---------------------------------------------------------------------------
 // Coleta de fontes por obra (filme/série/batch).
@@ -742,15 +633,10 @@ async function resolveBest(postUrl) {
   const post = assertAllowedUrl(postUrl);
   return cachedMagnet(`best:${post.href}`, MAGNET_CACHE_MS, async () => {
     const links = await collectLinks(post.href);
-    let lastError;
-    for (const link of [...links].sort((a, b) => scoreLink(b) - scoreLink(a))) {
-      try {
-        return await fetchFollowingAllowed(link.url, post.href);
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError || new Error('no_magnet');
+    return tryLinksInOrder(
+      [...links].sort((a, b) => scoreLink(b) - scoreLink(a)),
+      (link) => fetchFollowingAllowed(link.url, post.href),
+    );
   });
 }
 

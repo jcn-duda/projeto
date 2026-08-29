@@ -25,6 +25,16 @@ const { createProfile } = require('../site-profile');
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
 const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
+// Passo 4 do item 9: classificadores, máquina de estados da âncora
+// (release-rules.js) e títulos/feeds/laço de fallback (release-format.js).
+const {
+  createQualityRules, createSourceRules, createBrAudioHooks,
+  createEpisodeRules, createEpisodeStep, createLinkCollector,
+} = require('../release-rules');
+const {
+  UNKNOWN_SIZE, cleanPostTitle, createReleaseTitle, createRssXml,
+  createNormalizeQuery, tryLinksInOrder, magnetButtonCacheKey,
+} = require('../release-format');
 
 const PORT = Number(process.env.PORT || 8700);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -143,27 +153,22 @@ siteSelector.onDomainChange(() => {
   flareSessions.clear();
 });
 
-// Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
-// nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
-const UNKNOWN_SIZE = '1 KB';
-
 // Faixa "Episódios 01 ao 10" é PACK: quem casa por episódio no addon precisa
 // ver episode null, não o 10 (senão vira um episódio de temporada inteira).
-const PACK_RESET_PATTERN = /\b(?:TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA|PACK\s+COMPLETO|PACOTE\s+COMPLETO|\bPACK\b)\b/i;
-// Clone global: matchAll exige a flag /g e o original é /i apenas (test()).
-const PACK_RESET_PATTERN_G = new RegExp(PACK_RESET_PATTERN.source, 'gi');
-const EPISODE_RANGE_PATTERN = /(?:EPIS[ÓO]DIOS?|EP|CAP[ÍI]TULOS?|CAP|E)[.\s-]*\d{1,3}[.\s-]*(?:A|AO|[-–—])[.\s-]*\d{1,3}\b/i;
-const EPISODE_PATTERN = /(?:EPIS[ÓO]DIO|EP|CAP[ÍI]TULO|CAP)[.\s-]*(\d{1,3})\b|\bS\d{1,2}E(\d{1,3})\b|\bE(\d{1,3})\b|\b\d{1,2}X(\d{1,3})\b/gi;
-
-function extractEpisode(text) {
-  if (!text) return null;
-  if (EPISODE_RANGE_PATTERN.test(text)) return null;
-  const matches = [...String(text).matchAll(EPISODE_PATTERN)];
-  if (matches.length === 0) return null;
-  const last = matches[matches.length - 1];
-  const num = Number(last[1] || last[2] || last[3] || last[4]);
-  return Number.isFinite(num) ? num : null;
-}
+// Padrões, extração e a máquina de estados da âncora são do núcleo
+// (release-rules.js); aqui só o cabeamento, com o escopo anchor-local: o
+// sinal da âncora vale SÓ para o próprio botão.
+const episodeRules = createEpisodeRules();
+const extractEpisode = episodeRules.extractEpisode;
+const episodeStep = createEpisodeStep({
+  scope: 'anchor-local',
+  packRe: episodeRules.packPattern,
+  rangeRe: episodeRules.rangePattern,
+  epRe: episodeRules.episodePattern,
+  extract: episodeRules.extractEpisode,
+  packMatchAll: episodeRules.packPatternG,
+  tieBreak: true,
+});
 
 // Variante RICA da factory: lista de variáveis ampliada, variante URL-encoded
 // dentro das aspas, `data-download` e encoded sem exigir xt nem cortar no `&`.
@@ -298,50 +303,12 @@ async function fetchText(url, referer) {
   return res.text();
 }
 
-// Marcadores de trilha: os posts do site usam DUAL ÁUDIO/DUBLADO/LEGENDADO,
-// mas temas novos também publicam NACIONAL/PORTUGUÊS/[DUB]/[LEG] na âncora.
-const AUDIO_SEGMENT_RE = /(?:VERS[AÃ]O\s+)?(?:MKV\s+|MP4\s+)?(DUAL[-\s]+[AÁ]UDIO|AUDIO[-\s]+DUPLO|DUPLO[-\s]+AUDIO|DUBLAD\w*|LEGENDAD\w*|NACIONAL|PORTUGU[ÊE]S|PORTUGUES|\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b|\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b)/gi;
-const AUDIO_ANCHOR_RE = /(DUAL[-\s]+[AÁ]UDIO|AUDIO[-\s]+DUPLO|DUPLO[-\s]+AUDIO|DUBLAD\w*|LEGENDAD\w*|NACIONAL|PORTUGU[ÊE]S|PORTUGUES|\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b|\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b)/gi;
-const LEGENDADO_RE = /LEGENDAD|\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/i;
-
-// Qualidade e fonte normalizadas: o site publica "UHD"/"Full HD"/"HD"/"SD"
-// sem o sufixo p; o parser antigo só entendia \d{3,4}p e 4K. Vale o ÚLTIMO
-// token do contexto (segmento + âncora) — o mais próximo do botão.
-function extractQualityToken(raw) {
-  const token = String(raw || '').toUpperCase().trim();
-  if (/\b(?:2160\s*P|4K|UHD)\b/.test(token)) return 2160;
-  if (/\b(?:1080\s*P|FULL\s*HD)\b/.test(token)) return 1080;
-  if (/\b(?:720\s*P|\bHD\b(?!\s*TV))\b/.test(token)) return 720;
-  if (/\b(?:576\s*P)\b/.test(token)) return 576;
-  if (/\b(?:480\s*P|\bSD\b)\b/.test(token)) return 480;
-  const m = token.match(/\b(\d{3,4})\s*P\b/);
-  return m ? Number(m[1]) : null;
-}
-
-function normalizeQuality(context) {
-  const text = String(context || '').toUpperCase();
-  const matches = [...text.matchAll(/\b(2160\s*P|4K|UHD|1080\s*P|FULL\s*HD|720\s*P|\bHD\b(?!\s*TV)|576\s*P|480\s*P|\bSD\b|\d{3,4}\s*P)\b/gi)];
-  if (!matches.length) return null;
-  return extractQualityToken(matches[matches.length - 1][0]);
-}
-
-function extractSourceToken(raw) {
-  const token = String(raw || '').toUpperCase().trim();
-  if (/\b(?:BDREMUX|REMUX)\b/.test(token)) return 'REMUX';
-  if (/\b(?:BLU[- ]?RAY|BLURAY|BD\b|BDRIP)\b/.test(token)) return 'BLU-RAY';
-  if (/\b(?:WEB[-. ]?DL)\b/.test(token)) return 'WEB-DL';
-  if (/\b(?:WEB[-. ]?RIP|WEBRIP)\b/.test(token)) return 'WEBRIP';
-  if (/\bHDTV\b/.test(token)) return 'HDTV';
-  if (/\b(?:CAMRIP|CAM)\b/.test(token)) return 'CAM';
-  return null;
-}
-
-function normalizeSource(context) {
-  const text = String(context || '').toUpperCase();
-  const matches = [...text.matchAll(/\b(BDREMUX|REMUX|BLU[- ]?RAY|BLURAY|BD\b|BDRIP|WEB[-. ]?DL|WEB[-. ]?RIP|WEBRIP|HDTV|CAMRIP|CAM)\b/gi)];
-  if (!matches.length) return null;
-  return extractSourceToken(matches[matches.length - 1][0]);
-}
+// Classificadores de áudio (hooks de segmento/âncora), qualidade e fonte são
+// os compartilhados (release-rules.js) — idênticos nos cinco perfis que os
+// usam; aqui só o cabeamento.
+const { audioFromSegment, audioFromAnchor } = createBrAudioHooks();
+const { normalizeQuality } = createQualityRules();
+const { normalizeSource } = createSourceRules();
 
 /** Hash btih válido: 40 hex ou 32 base32 (alfabeto A-Z2-7), case-insensitive. */
 function isValidBtihHash(hash) {
@@ -372,100 +339,48 @@ function isValidMagnetUri(value) {
 
 /**
  * Percorre o post EM ORDEM DE DOCUMENTO mantendo o estado da seção corrente
- * (áudio do <h3> e episódio do segmento) e extrai cada botão Magnet-Link.
+ * (áudio do <h3> e episódio do segmento) e extrai cada botão Magnet-Link —
+ * máquina de estados comum no núcleo (createLinkCollector, release-rules.js).
  *
  * Metadados que moram NO TEXTO DA ÂNCORA ("S01.1080p | Episódio 01 | Dual
  * Áudio", o layout de magnet direto) valem SÓ para o próprio botão: são
  * calculados locais e não vão para o estado, senão um botão avulso
  * contaminaria todos os seguintes. O segmento continua escrevendo no estado,
  * como sempre fez — é o que preserva a semântica de seção dos posts antigos.
+ *
+ * O regex de âncora aceita aspas simples e duplas (o tema emite as duas) e
+ * atributos antes do href; só entra magnet com btih válido (validador próprio
+ * deste perfil, abaixo) e http(s) continua exigindo host de protetor.
+ * Falha de validação NUNCA avança o cursor (advance ausente): o segmento do
+ * botão descartado continua valendo para o seguinte, como no laço original.
  */
-function parseDownloadLinks(html) {
-  const links = [];
-  let audio = 'desconhecido';
-  let currentEpisode = null;
-  let cursor = 0;
-
-  // O post novo (House of the Dragon S1) publica 57 botões com href magnet
-  // direto, e o tema emite aspas simples e atributos antes do href. O padrão
-  // aceita os dois protocolos e os dois tipos de aspas; só entra magnet com
-  // btih válido, http(s) continua exigindo host de protetor permitido abaixo.
-  const anchor = /<a\s+[^>]*?href\s*=\s*(["'])([^"']+)\1[^>]*>([\s\S]*?)<\/a>/gi;
-  let m;
-  while ((m = anchor.exec(html))) {
+const parseDownloadLinks = createLinkCollector({
+  anchorRe: /<a\s+[^>]*?href\s*=\s*(["'])([^"']+)\1[^>]*>([\s\S]*?)<\/a>/gi,
+  resolveHref: (match) => {
     // A URI decodificada É o download: o magnet resolve no cliente de torrent,
     // sem fetch — o href vira o url do botão direto.
-    const href = decodeEntities(m[2].trim());
+    const href = decodeEntities(match[2].trim());
     // Magnet malformado, sem btih ou só com btmh cai no branch http e morre no
     // allowlist (hostname do magnet é vazio, nunca é protetor).
-    const isMagnet = isValidMagnetUri(href);
-    if (!isMagnet) {
-      let u;
-      try {
-        u = new URL(href);
-      } catch {
-        continue;
-      }
-      if (!isProtectorHost(u.hostname)) continue;
+    if (isValidMagnetUri(href)) return { url: href };
+    let u;
+    try {
+      u = new URL(href);
+    } catch {
+      return { skip: true };
     }
-
-    const segment = stripTags(html.slice(cursor, m.index)).toUpperCase();
-    const anchorText = stripTags(m[3]).toUpperCase();
-    cursor = anchor.lastIndex;
-
-    // 1. Áudio: o marcador do segmento atualiza o estado (vale para os botões
-    // seguintes até a próxima seção); o marcador da âncora é local ao botão.
-    const marker = [...segment.matchAll(AUDIO_SEGMENT_RE)].pop();
-    if (marker) audio = LEGENDADO_RE.test(marker[1]) ? 'legendado' : 'dublado';
-    const selfAudioMarker = [...anchorText.matchAll(AUDIO_ANCHOR_RE)].pop();
-    const selfAudio = selfAudioMarker
-      ? (LEGENDADO_RE.test(selfAudioMarker[1]) ? 'legendado' : 'dublado')
-      : null;
-
-    // 2. Episódio: o segmento escreve no estado; a âncora só decide o botão
-    // corrente. Âncora com episódio vence; âncora com marcador de pack zera;
-    // senão vale o estado do segmento. Quando os dois sinais convivem no
-    // MESMO segmento, desempata pela posição do último marcador — "PACK ...
-    // EPISÓDIO 05" vale 5, "EPISÓDIO 05 ... TEMPORADA COMPLETA" vale null.
-    const segEp = extractEpisode(segment);
-    const segIsPack = PACK_RESET_PATTERN.test(segment) || EPISODE_RANGE_PATTERN.test(segment);
-    if (segEp !== null && segIsPack) {
-      const lastEpMatches = [...segment.matchAll(EPISODE_PATTERN)];
-      const lastPackMatches = [...segment.matchAll(PACK_RESET_PATTERN_G)];
-      const lastEpIdx = lastEpMatches.length > 0 ? lastEpMatches[lastEpMatches.length - 1].index : -1;
-      const lastPackIdx = lastPackMatches.length > 0 ? lastPackMatches[lastPackMatches.length - 1].index : -1;
-      currentEpisode = lastEpIdx > lastPackIdx ? segEp : null;
-    } else if (segEp !== null) {
-      currentEpisode = segEp;
-    } else if (segIsPack) {
-      currentEpisode = null;
-    }
-
-    const anchorIsPack = PACK_RESET_PATTERN.test(anchorText) || EPISODE_RANGE_PATTERN.test(anchorText);
-    const selfEpisode = extractEpisode(anchorText);
-    const episode = anchorIsPack ? null : (selfEpisode ?? currentEpisode);
-
-    // 3. Qualidade, fonte e tamanho do contexto (segmento + texto da âncora).
-    // O tamanho já sai normalizado aqui ("3.39 GB"): o site cola lixo depois
-    // do parêntese ("3.39 GB &#8211; MKV") e cortar no feed chegava tarde —
-    // o RSS e o card leem o mesmo campo.
-    const context = `${segment} ${anchorText}`;
-    const quality = normalizeQuality(context);
-    const source = normalizeSource(context);
-    const sizeHit = [...context.matchAll(/([\d.,]+)\s*(TB|GB|MB|KB)\b/g)].pop();
-    const size = sizeHit ? `${sizeHit[1]} ${sizeHit[2]}` : null;
-
-    links.push({
-      url: href,
-      quality,
-      size,
-      audio: selfAudio || audio,
-      episode,
-      source,
-    });
-  }
-  return links;
-}
+    if (!isProtectorHost(u.hostname)) return { skip: true };
+    return { url: href };
+  },
+  anchorTextOf: (match) => stripTags(match[3]),
+  stripTags,
+  initialAudio: 'desconhecido',
+  audioFromSegment,
+  audioFromAnchor,
+  episodeStep,
+  qualityFn: normalizeQuality,
+  sourceFn: normalizeSource,
+});
 
 const AUDIO_RANK = { dublado: 0, desconhecido: 1, legendado: 2 };
 
@@ -540,17 +455,10 @@ async function resolvePost(postUrl, prefs = {}) {
     console.log(
       `[resolve] ${links.length} botão(ões), tentando ${sorted.length} em ordem de preferência ${post.pathname}`,
     );
-    let lastError;
-    for (const link of sorted) {
-      try {
-        return await fetchFollowingAllowed(link.url, post.href);
-      } catch (error) {
-        // Degradação esperada: protetor morre com frequência. Segue o próximo.
-        lastError = error;
-        console.warn(`[resolve] botão ${link.quality || '?'}p falhou (${error.message}); tentando o próximo`);
-      }
-    }
-    throw lastError || new Error('no_magnet');
+    return tryLinksInOrder(sorted, (link) => fetchFollowingAllowed(link.url, post.href), {
+      onError: (link, error) =>
+        console.warn(`[resolve] botão ${link.quality || '?'}p falhou (${error.message}); tentando o próximo`),
+    });
   });
 }
 
@@ -560,7 +468,7 @@ async function resolvePost(postUrl, prefs = {}) {
  * outro devolveria o torrent errado pro item que o Jackett listou.
  */
 async function resolveButton(postUrl, index, hash, count) {
-  const cacheKey = hash ? `magnet:${postUrl}:${index}:${hash}` : `magnet:${postUrl}:${index}`;
+  const cacheKey = magnetButtonCacheKey(postUrl, index, hash);
   // Log de hit preservado do laço manual (o cached() do núcleo não loga).
   const hit = magnetCache.get(cacheKey);
   if (hit && hit.expiresAt > Date.now()) console.log(`[cache] hit magnet botão ${index} ${postUrl}`);
@@ -626,62 +534,20 @@ const mapLimit = (items, fn) => bootstrap.mapLimit(items, fn, {
   onError: (err) => console.warn(`[search] post sem botões (${err.message})`),
 });
 
-// Limpeza do título do post em 7 passos: quem manda são os atributos do
-// botão, então a vitrine do site (qualidades, codec, canais de áudio, termos
-// de SEO) sai — senão tudo pareceria 4K/Dual Áudio pra quem consome.
-function cleanPostTitle(title = '') {
-  let clean = decodeEntities(String(title || ''));
-
-  // 1. Remove "Torrent(s)" e separador adjacente (ex: "Torrent – (2024)")
-  clean = clean.replace(/\s*Torrent(?:s)?\s*(?:[–\-—/|:&+]|&#8211;)?\s*/gi, ' ');
-
-  // 2. Remove resoluções (2160p, 1080p, 720p, 576p, 480p, 4K, UHD, etc.)
-  clean = clean.replace(/\b(?:2160p|1080p|720p|576p|480p|\d{3,4}p|4K|8K|UHD|ULTRA\s*HD|FULL\s*HD|\bHD\b(?!\s*TV)|\bSD\b)\b/gi, ' ');
-
-  // 3. Remove codecs de vídeo e fontes (BluRay, WEB-DL, Remux, IMAX, etc.)
-  clean = clean.replace(/\b(?:BDREMUX|REMUX|BLU[- ]?RAY|BLURAY|BDRIP|BRRIP|WEB[-. ]?DL|WEB[-. ]?RIP|WEBRIP|HDTV|CAMRIP|CAM|IMAX|3D|REMASTERED|REMASTER|HDR(?:10\+?)?|DOLBY\s*VISION|DV)\b/gi, ' ');
-
-  // 4. Remove especificações de áudio e canais (5.1, 7.1, 2.0, Atmos, etc.)
-  clean = clean.replace(/\b(?:5\.1|7\.1|2\.0|7\.2|DDP\s*5\.1|ATMOS)\b/gi, ' ');
-
-  // 5. Remove tags de áudio e idioma
-  clean = clean.replace(/\b(?:Dublado|Dublada|Legendado|Legendada|Dual\s*[AÁ]udio|Nacional|Multi\s*[AÁ]udio|Tri\s*[AÁ]udio|[AÁ]udio\s*Original)\b/gi, ' ');
-
-  // 6. Remove termos de vitrine / SEO
-  clean = clean.replace(/\b(?:Download|Baixar|Gr[áa]tis|Online|Completo|Completa|Assistir)\b/gi, ' ');
-
-  // 7. Limpa separadores órfãos / múltiplos e aparas nas bordas
-  clean = clean.replace(/\s*[/|–\-—:&+]\s*([/|–\-—:&+]\s*)+/g, ' ');
-  clean = clean.replace(/^[–\-—/|:&+\s]+/g, '');
-  clean = clean.replace(/[–\-—/|:&+\s]+$/g, '');
-  clean = clean.replace(/\s+/g, ' ').trim();
-
-  return clean;
-}
+// cleanPostTitle (7 passos) é o do núcleo (release-format.js) — idêntico ao
+// do comandotorrents; importado no topo e reexportado abaixo.
 
 /**
  * Título da release: o do post limpo + os atributos do botão na tag. A fonte
  * entra na tag ([720p WEB-DL DUBLADO]) e é removida do título limpo pra não
  * duplicar. Sem tamanho na tag: o card Cardigann já publica <div class="size">.
+ * (Factory comum no release-format.js — diferenças do bludv via parâmetro.)
  */
-function releaseTitle(postTitle, link) {
-  let clean = cleanPostTitle(postTitle);
-  const epPart = link.episode != null ? `E${String(link.episode).padStart(2, '0')}` : '';
-  const audioTag = link.audio === 'dublado' ? 'DUBLADO' : link.audio === 'legendado' ? 'LEGENDADO' : null;
-  if (link.source) {
-    const sourceEscaped = link.source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '[-. ]?');
-    clean = clean
-      .replace(new RegExp(`\\b${sourceEscaped}\\b`, 'gi'), '')
-      .replace(/[–\-—/|:&+\s]+$/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-  const tag = [link.quality ? `${link.quality}p` : null, link.source, audioTag]
-    .filter(Boolean)
-    .join(' ');
-  const base = epPart ? `${clean} ${epPart}` : clean;
-  return tag ? `${base} [${tag}]` : base;
-}
+const releaseTitle = createReleaseTitle({
+  cleanTitle: cleanPostTitle,
+  withSize: false,
+  stripSource: true,
+});
 
 function pubDate(date) {
   const m = String(date || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
@@ -693,17 +559,11 @@ function pubDate(date) {
  * "Nome S01E01" → "Nome"; o buscador WordPress engasga com ":" (vide o scraper
  * nativo do addon). Ano ajuda a relevância, então fica.
  *
- * As fronteiras \\b são obrigatórias: sem elas o strip comia pedaço de título
+ * As fronteiras \b são obrigatórias: sem elas o strip comia pedaço de título
  * com S+número dentro de palavra ("S1m0ne" virava "m0ne" e a busca zerava).
  * Usada pelos DOIS modos (Torznab e Cardigann) para não divergirem.
  */
-function normalizeQuery(raw) {
-  return String(raw || '')
-    .replace(/\bS\d{1,2}(?:E\d{1,2})?\b/gi, ' ')
-    .replace(/:/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+const normalizeQuery = createNormalizeQuery();
 
 const selectSearchPosts = bootstrap.makeSelectSearchPosts(parsePosts, MAX_POSTS);
 
@@ -780,38 +640,16 @@ function capsXml() {
   return sharedCapsXml('BLUDV (resolver)');
 }
 
-function rssXml(items, category) {
-  const body = items
-    .map(({ post, link, index, count }) => {
-      const dl = `${SELF_URL}/dl?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
-      const size = parseSize(link.size) || 0;
-      return `    <item>
-      <title>${escapeXml(releaseTitle(post.title, link))}</title>
-      <guid isPermaLink="false">${escapeXml(dl)}</guid>
-      <link>${escapeXml(dl)}</link>
-      <comments>${escapeXml(post.url)}</comments>
-      <pubDate>${pubDate(post.date)}</pubDate>
-      <size>${size}</size>
-      <description>${escapeXml(post.title)}</description>
-      <category>${category}</category>
-      <torznab:attr name="category" value="${category}"/>
-      <torznab:attr name="size" value="${size}"/>
-      <!-- O BLUDV não publica seeds; 1 neutro pra não ser descartado por filtros. -->
-      <torznab:attr name="seeders" value="1"/>
-      <torznab:attr name="peers" value="1"/>
-      <torznab:attr name="downloadvolumefactor" value="0"/>
-      <torznab:attr name="uploadvolumefactor" value="1"/>
-    </item>`;
-    })
-    .join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
-  <channel>
-    <title>BLUDV (resolver)</title>
-${body}
-  </channel>
-</rss>`;
-}
+// Feed multilinha com description e comentário dos seeds — as diferenças do
+// bludv viram parâmetros da factory comum (release-format.js).
+const rssXml = createRssXml({
+  selfUrl: SELF_URL,
+  channelTitle: 'BLUDV (resolver)',
+  titleOf: ({ post, link }) => releaseTitle(post.title, link),
+  pubDateOf: ({ post }) => pubDate(post.date),
+  withDescription: true,
+  seedersComment: '<!-- O BLUDV não publica seeds; 1 neutro pra não ser descartado por filtros. -->',
+});
 
 async function handleApi(url, response) {
   const t = url.searchParams.get('t') || 'caps';

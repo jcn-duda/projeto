@@ -24,6 +24,18 @@ const { createProfile } = require('../site-profile');
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
 const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
+// Passo 4 do item 9: máquina de estados da âncora (release-rules.js) e
+// títulos/feeds/laço de fallback (release-format.js). Os classificadores de
+// qualidade/fonte do nerd têm saída própria (BluRay/WEB-DL/WEBRip) e ficam
+// AQUI (R-4) — só a máquina de estados e a formatação vêm do núcleo.
+const {
+  createEpisodeStep, createLinkCollector, lastAudioMarker,
+  NERD_AUDIO_RE, NERD_LEGENDADO_RE, NARROW_PACK_RESET_RE, NARROW_EPISODE_RE,
+} = require('../release-rules');
+const {
+  createReleaseTitle, createSearchPageHtml, createRssXml, createNormalizeQuery,
+  tryLinksInOrder,
+} = require('../release-format');
 
 const PORT = Number(process.env.PORT || 8702);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -33,11 +45,13 @@ const CONCURRENCY = 4;
 const SEARCH_CACHE_MS = Number(process.env.SEARCH_CACHE_MS || 2 * 60_000);
 const POST_CACHE_MS = Number(process.env.POST_CACHE_MS || 10 * 60_000);
 const MAGNET_CACHE_MS = Number(process.env.MAGNET_CACHE_MS || 30 * 60_000);
-// Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
-// nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
-const UNKNOWN_SIZE = '1 KB';
 // SELF_URL é como o JACKETT alcança este serviço; SITE_URL é o default do site.
 const decodeEntities = decodeEntitiesBasic;
+
+// "Nome S01E01" → "Nome" — variante HISTÓRICA do nerd: SEM fronteiras \b no
+// strip de SxxEyy (R-4: mudar para a variante com \b mudaria o resultado da
+// busca; "S1m0ne" já era afetado antes e continua sendo).
+const normalizeQuery = createNormalizeQuery({ boundary: false });
 
 const FALLBACK_SITE_SUFFIXES = [
   'xnerdfilmes.net',
@@ -150,6 +164,8 @@ async function fetchText(value, referer) {
 
 const attribute = (tag, name) => attributeShared(tag, name, { decode: decodeEntities, allowWhitespace: true });
 
+// Classificadores do nerd com saída PRÓPRIA (R-4: não passa pela factory
+// comum — "BluRay"/"WEB-DL"/"WEBRip" em vez de "BLU-RAY"/"WEBRIP" maiúsculo).
 function normalizeSource(value) {
   const source = String(value || '').toUpperCase().replace(/[. ]/g, '-');
   if (source.startsWith('BLU')) return 'BluRay';
@@ -157,6 +173,21 @@ function normalizeSource(value) {
   if (source.startsWith('WEB-RIP')) return 'WEBRip';
   if (source === 'HDTV') return 'HDTV';
   return null;
+}
+
+// Regex de descoberta de qualidade/fonte no contexto (segmento + âncora) —
+// nascem no topo do módulo, fora do laço (R-7).
+const NERD_QUALITY_RE = /(?:\b(\d{3,4})\s*P\b|\b(4K)\b)/g;
+const NERD_SOURCE_RE = /(WEB[-. ]?DL|WEB[-. ]?RIP|BLU[- ]?RAY|HDTV)/g;
+
+function qualityOf(context) {
+  const qualityHit = [...context.matchAll(NERD_QUALITY_RE)].pop();
+  return qualityHit ? (qualityHit[1] ? Number(qualityHit[1]) : 2160) : null;
+}
+
+function sourceOf(context) {
+  const sourceHit = [...context.matchAll(NERD_SOURCE_RE)].pop();
+  return sourceHit ? normalizeSource(sourceHit[1]) : null;
 }
 
 /** Resultados da busca WordPress: article.col > .item > .image > a. */
@@ -226,92 +257,43 @@ function isValidDirectMagnet(value) {
   return false;
 }
 
-/** Cada botão protegido representa uma qualidade/tamanho diferente. */
-function parseDownloadLinks(html) {
-  const links = [];
-  const anchor = /<a\b[^>]*>[\s\S]*?<\/a>/gi;
-  let match;
-  let cursor = 0;
-  let currentAudio = 'desconhecido';
-  let currentEpisode = null;
+/** Cada botão protegido representa uma qualidade/tamanho diferente. Máquina
+ * de estados do núcleo (createLinkCollector), com escopo anchor-local (o sinal
+ * da âncora vale SÓ para o botão) e o par estreito de pack/episódio do nerd.
+ * Falha de validação NUNCA avança o cursor — corte de segmento do laço
+ * original. */
+const episodeStep = createEpisodeStep({
+  scope: 'anchor-local',
+  packRe: NARROW_PACK_RESET_RE,
+  epRe: NARROW_EPISODE_RE,
+});
 
-  while ((match = anchor.exec(html))) {
+const parseDownloadLinks = createLinkCollector({
+  anchorRe: /<a\b[^>]*>[\s\S]*?<\/a>/gi,
+  resolveHref: (match) => {
     const tag = match[0].match(/<a\b[^>]*>/i)?.[0] || '';
     const rawHref = attribute(tag, 'href');
-    if (!rawHref) continue;
+    if (!rawHref) return { skip: true };
     const href = decodeEntities(rawHref);
-    const isDirectMagnet = isValidDirectMagnet(href);
-    if (!isDirectMagnet) {
-      let u;
-      try {
-        u = new URL(href);
-      } catch {
-        continue;
-      }
-      if (!isProtectorHost(u.hostname)) continue;
+    if (isValidDirectMagnet(href)) return { url: href };
+    let u;
+    try {
+      u = new URL(href);
+    } catch {
+      return { skip: true };
     }
-    const rawSegment = html.slice(cursor, match.index);
-    const segment = stripTags(rawSegment).toUpperCase();
-    const anchorText = stripTags(match[0]).toUpperCase();
-    cursor = anchor.lastIndex;
-
-    // Audio/episódio da própria âncora. Magnets diretos (ex. "S01.1080p |
-    // Episódio 01 | Dual Áudio") carregam tudo no texto do botão; estes valores
-    // ficam locais e não vazam para o estado das âncoras seguintes.
-    const selfAudioMarker = [...anchorText.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*|PORTUGU[ÊE]S)/g)].pop();
-    const selfAudio = selfAudioMarker
-      ? /LEGENDAD/.test(selfAudioMarker[1]) ? 'legendado' : 'dublado'
-      : null;
-    let selfEpisode = null;
-    let selfEpisodeComplete = false;
-    if (/TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA/i.test(anchorText)) {
-      // Temporada inteira no próprio botão: episódio é null por definição,
-      // sem herdar currentEpisode das âncoras anteriores.
-      selfEpisodeComplete = true;
-    } else {
-      const selfEp = [...anchorText.matchAll(/(?:EPIS[ÓO]DIO|EP)\s*(\d{1,3})\b/gi)].pop();
-      if (selfEp) selfEpisode = Number(selfEp[1]);
-    }
-
-    // Inferência legada pelo texto anterior ao botão (protetores antigos).
-    const audioMarker = [...segment.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*|PORTUGU[ÊE]S)/g)].pop();
-    if (audioMarker) {
-      currentAudio = /LEGENDAD/.test(audioMarker[1]) ? 'legendado' : 'dublado';
-    }
-
-    if (/TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA/i.test(segment)) {
-      currentEpisode = null;
-    } else {
-      const epMatch = [...segment.matchAll(/(?:EPIS[ÓO]DIO|EP)\s*(\d{1,3})\b/gi)].pop();
-      if (epMatch) {
-        currentEpisode = Number(epMatch[1]);
-      }
-    }
-
-    const context = `${segment} ${anchorText}`;
-    const qualities = [...context.matchAll(/(?:\b(\d{3,4})\s*P\b|\b(4K)\b)/g)];
-    const qualityHit = qualities.pop();
-    const sizes = [...context.matchAll(/([\d.,]+)\s*(TB|GB|MB|KB)\b/g)];
-    const sizeHit = sizes.pop();
-    const sourceHit = [...context.matchAll(/(WEB[-. ]?DL|WEB[-. ]?RIP|BLU[- ]?RAY|HDTV)/g)].pop();
-
-    // Magnet direto ou protetor: usa primeiro o metadado do próprio botão, com
-    // fallback no estado legado. O valor local nunca é persistido no estado,
-    // então não contamina os metadados das âncoras seguintes.
-    const audio = selfAudio || currentAudio;
-    const episode = selfEpisodeComplete ? null : (selfEpisode ?? currentEpisode);
-
-    links.push({
-      url: href,
-      quality: qualityHit ? (qualityHit[1] ? Number(qualityHit[1]) : 2160) : null,
-      size: sizeHit ? `${sizeHit[1]} ${sizeHit[2]}` : null,
-      audio,
-      episode,
-      source: sourceHit ? normalizeSource(sourceHit[1]) : null,
-    });
-  }
-  return links;
-}
+    if (!isProtectorHost(u.hostname)) return { skip: true };
+    return { url: href };
+  },
+  anchorTextOf: (match) => stripTags(match[0]),
+  stripTags,
+  initialAudio: 'desconhecido',
+  audioFromSegment: (segment) => lastAudioMarker(segment, NERD_AUDIO_RE, NERD_LEGENDADO_RE),
+  audioFromAnchor: (anchorText) => lastAudioMarker(anchorText, NERD_AUDIO_RE, NERD_LEGENDADO_RE),
+  episodeStep,
+  qualityFn: qualityOf,
+  sourceFn: sourceOf,
+});
 
 function parsePostDate(html) {
   const meta = String(html).match(
@@ -350,20 +332,14 @@ async function resolveBest(postUrl) {
   return cached(`magnet:best:${postUrl}`, MAGNET_CACHE_MS, async () => {
     const { post, links } = await getPostLinks(postUrl);
     const ordered = [...links].sort((a, b) => scoreLink(b) - scoreLink(a));
-    let lastError;
-    for (const link of ordered) {
-      try {
-        return await fetchFollowingAllowed(link.url, post.href);
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError || new Error('no_protector');
+    return tryLinksInOrder(ordered, (link) => fetchFollowingAllowed(link.url, post.href), {
+      emptyError: 'no_protector',
+    });
   });
 }
 
 async function resolveButton(postUrl, index, hash, count) {
-  return cached(hash ? `magnet:${postUrl}:${index}:${hash}` : `magnet:${postUrl}:${index}`, MAGNET_CACHE_MS, async () => {
+  return cached(magnetButtonCacheKey(postUrl, index, hash), MAGNET_CACHE_MS, async () => {
     const { post, links } = await getPostLinks(postUrl);
     const link = pickButton(links, index, hash, count);
     if (!link) throw new Error('no_such_button');
@@ -398,33 +374,18 @@ async function searchPipeline(sourceHtml, query, requestedSeason) {
   return { posts, items: chunks.flat() };
 }
 
-function releaseTitle(postTitle, link, index = null) {
-  const clean = cleanPostTitle(typeof postTitle === 'string' ? postTitle : postTitle?.title || '');
-  const epPart = link.episode != null ? `E${String(link.episode).padStart(2, '0')}` : '';
-  const audioTag = link.audio === 'dublado' ? 'DUBLADO' : link.audio === 'legendado' ? 'LEGENDADO' : null;
-  const tags = [
-    link.quality ? `${link.quality}p` : null,
-    link.source,
-    audioTag,
-    link.size || (index == null ? null : `opção ${index + 1}`),
-  ].filter(Boolean);
+// Título da release via factory comum: o nerd usa os defaults (tag com
+// tamanho/`opção N`, audioTag DUBLADO/LEGENDADO, sem strip de fonte).
+const releaseTitle = createReleaseTitle({ cleanTitle: cleanPostTitle });
 
-  const base = epPart ? `${clean} ${epPart}` : clean;
-  return tags.length ? `${base} [${tags.join(' ')}]` : base;
-}
-
-function searchPageHtml(items) {
-  const rows = items
-    .map(({ post, link, index, count }) => {
-      const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
-      // O Jackett descarta QUALQUER release sem tamanho ("No size provided"), e
-      // "0 B" não casa o filtro de `size` do cardigann. UNKNOWN_SIZE satisfaz o
-      // Jackett e o addon o esconde em vez de exibir um tamanho inventado.
-      return `<div class="release"><div class="title"><a href="${escapeXml(download)}">${escapeXml(releaseTitle(post.title, link, index))}</a></div><div class="size">${escapeXml(link.size || UNKNOWN_SIZE)}</div>${post.date ? `<div class="date">${escapeXml(post.date)}</div>` : ''}<div class="description">${escapeXml(post.title)}</div><div class="seeders">1</div></div>`;
-    })
-    .join('');
-  return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
-}
+// Página compacta com a data do post entre size e description (rowExtras);
+// o nerd escreve a página com escapeXml (mesmo algoritmo do escapeHtml hoje).
+const searchPageHtml = createSearchPageHtml({
+  selfUrl: SELF_URL,
+  escape: escapeXml,
+  releaseTitle,
+  rowExtras: (post) => (post.date ? `<div class="date">${escapeXml(post.date)}</div>` : ''),
+});
 
 function pubDate(post) {
   const explicit = new Date(post.date || '');
@@ -437,36 +398,13 @@ function capsXml() {
   return sharedCapsXml('NerdFilmesTorrent / XNerdFilmes');
 }
 
-function rssXml(items, category) {
-  const body = items
-    .map(({ post, link, index, count }) => {
-      const download = `${SELF_URL}/dl?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
-      const size = parseSize(link.size) || 0;
-      return `    <item>
-      <title>${escapeXml(releaseTitle(post.title, link))}</title>
-      <guid isPermaLink="false">${escapeXml(download)}</guid>
-      <link>${escapeXml(download)}</link>
-      <comments>${escapeXml(post.url)}</comments>
-      <pubDate>${pubDate(post)}</pubDate>
-      <size>${size}</size>
-      <category>${category}</category>
-      <torznab:attr name="category" value="${category}"/>
-      <torznab:attr name="size" value="${size}"/>
-      <torznab:attr name="seeders" value="1"/>
-      <torznab:attr name="peers" value="1"/>
-      <torznab:attr name="downloadvolumefactor" value="0"/>
-      <torznab:attr name="uploadvolumefactor" value="1"/>
-    </item>`;
-    })
-    .join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
-  <channel>
-    <title>NerdFilmesTorrent / XNerdFilmes</title>
-${body}
-  </channel>
-</rss>`;
-}
+// Feed multilinha sem description nem <enclosure> — defaults da factory comum.
+const rssXml = createRssXml({
+  selfUrl: SELF_URL,
+  channelTitle: 'NerdFilmesTorrent / XNerdFilmes',
+  titleOf: ({ post, link }) => releaseTitle(post.title, link),
+  pubDateOf: ({ post }) => pubDate(post),
+});
 
 // O download.before do cardigann encoda a href inteira no param url — e a
 // href já é um /resolve nosso, então o alvo real vem aninhado. Desempacota
@@ -504,11 +442,7 @@ async function handleApi(url, response) {
   if (!['search', 'movie', 'tvsearch'].includes(type)) return reply(response, 400, 'unsupported_t');
   const rawQuery = String(url.searchParams.get('q') || '');
   const requestedSeason = rawQuery.match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
-  const query = rawQuery
-    .replace(/[sS]\d{1,2}(?:[eE]\d{1,2})?/g, ' ')
-    .replace(/:/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const query = normalizeQuery(rawQuery);
   const category = type === 'tvsearch' ? 5000 : 2000;
   if (!query) return reply(response, 200, rssXml([], category), 'application/xml; charset=utf-8');
 
@@ -535,11 +469,7 @@ async function handleApi(url, response) {
 async function handleSearch(url, response) {
   const rawQuery = String(url.searchParams.get('q') || '');
   const requestedSeason = rawQuery.match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
-  const query = rawQuery
-    .replace(/[sS]\d{1,2}(?:[eE]\d{1,2})?/g, ' ')
-    .replace(/:/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const query = normalizeQuery(rawQuery);
   if (!query) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
   try {
     const html = await cached(`search-html:${rawQuery}`, SEARCH_CACHE_MS, async () => {

@@ -23,6 +23,16 @@ const { createProfile } = require('../site-profile');
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
 const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
+// Passo 4 do item 9: máquina de estados da âncora (release-rules.js) e
+// títulos/feeds/laço de fallback (release-format.js). O classificador de fonte
+// do tdf tem normalização própria (replace de [. ] por '-') e fica AQUI (R-4).
+const {
+  createEpisodeStep, createLinkCollector, lastAudioMarker,
+  NERD_AUDIO_RE, NERD_LEGENDADO_RE, NARROW_PACK_RESET_RE, NARROW_EPISODE_RE,
+} = require('../release-rules');
+const {
+  createReleaseTitle, createSearchPageHtml, createRssXml, tryLinksInOrder,
+} = require('../release-format');
 
 const PORT = Number(process.env.PORT || 8703);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 15_000);
@@ -86,10 +96,6 @@ siteSelector.onDomainChange(() => {
   postCache.clear();
 });
 
-// Tamanho desconhecido. Não é 0 nem ausente porque o Jackett descarta a release
-// nos dois casos; o addon trata qualquer coisa <= 1 KB como "não sei".
-const UNKNOWN_SIZE = '1 KB';
-
 // Variante BÁSICA da factory: o passo encoded EXIGE `xt%3D` e para no `&` —
 // fixture do br-parsers.test.ts fixa isso; não troque por encodedVariants:true.
 const extractMagnet = createMagnetExtractor({ decodeEntities });
@@ -132,62 +138,54 @@ function cleanPostTitle(title = '') {
     .trim();
 }
 
-function parseDownloadLinks(html) {
-  const links = [];
-  const anchor = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-  let match;
-  let cursor = 0;
-  let currentAudio = 'desconhecido';
-  let currentEpisode = null;
+// Classificador de fonte do tdf: normalização PRÓPRIA (o token casado sai com
+// [. ] trocado por '-', então "BLU RAY" vira "BLU-RAY" e "BLURAY" fica inteiro
+// — diferença viva do perfil, R-4). Qualidade idem (\d{3,4}P / 4K nu).
+const TDF_QUALITY_RE = /(?:\b(\d{3,4})\s*P\b|\b(4K)\b)/g;
+const TDF_SOURCE_RE = /(REMUX|BLU[- ]?RAY|WEB[-. ]?DL|WEB[-. ]?RIP|HDTV|CAMRIP|CAM)/g;
 
-  while ((match = anchor.exec(html))) {
-    const rawHref = decodeEntities(match[1]);
-    const isMagnet = rawHref.startsWith('magnet:?');
-    if (!isMagnet) {
-      let u;
-      try {
-        u = new URL(rawHref);
-      } catch {
-        continue;
-      }
-      if (!isProtectorHost(u.hostname)) continue;
-    }
-
-    const rawSegment = html.slice(cursor, match.index);
-    const segment = stripTags(rawSegment).toUpperCase();
-    const anchorText = stripTags(match[2]).toUpperCase();
-    cursor = anchor.lastIndex;
-
-    const audioMarker = [...segment.matchAll(/(DUAL\s+ÁUDIO|DUBLAD\w*|LEGENDAD\w*|PORTUGU[ÊE]S)/g)].pop();
-    if (audioMarker) {
-      currentAudio = /LEGENDAD/.test(audioMarker[1]) ? 'legendado' : 'dublado';
-    }
-
-    if (/TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA/i.test(segment)) {
-      currentEpisode = null;
-    } else {
-      const epMatch = [...segment.matchAll(/(?:EPIS[ÓO]DIO|EP)\s*(\d{1,3})\b/gi)].pop();
-      if (epMatch) {
-        currentEpisode = Number(epMatch[1]);
-      }
-    }
-
-    const context = `${segment} ${anchorText}`;
-    const quality = [...context.matchAll(/(?:\b(\d{3,4})\s*P\b|\b(4K)\b)/g)].pop();
-    const size = [...context.matchAll(/([\d.,]+)\s*(TB|GB|MB|KB)\b/g)].pop();
-    const source = [...context.matchAll(/(REMUX|BLU[- ]?RAY|WEB[-. ]?DL|WEB[-. ]?RIP|HDTV|CAMRIP|CAM)/g)].pop();
-
-    links.push({
-      url: rawHref,
-      quality: quality ? (quality[1] ? Number(quality[1]) : 2160) : null,
-      size: size ? `${size[1]} ${size[2]}` : null,
-      audio: currentAudio,
-      episode: currentEpisode,
-      source: source ? source[1].replace(/[. ]/g, '-') : null,
-    });
-  }
-  return links;
+function qualityOf(context) {
+  const quality = [...context.matchAll(TDF_QUALITY_RE)].pop();
+  return quality ? (quality[1] ? Number(quality[1]) : 2160) : null;
 }
+
+function sourceOf(context) {
+  const source = [...context.matchAll(TDF_SOURCE_RE)].pop();
+  return source ? source[1].replace(/[. ]/g, '-') : null;
+}
+
+/** Máquina de estados do núcleo (createLinkCollector) com escopo
+ * segment-only: a âncora NUNCA interfere — nem áudio nem episódio dela tocam
+ * o estado ou o botão. Falha de validação NUNCA avança o cursor. */
+const episodeStep = createEpisodeStep({
+  scope: 'segment-only',
+  packRe: NARROW_PACK_RESET_RE,
+  epRe: NARROW_EPISODE_RE,
+});
+
+const parseDownloadLinks = createLinkCollector({
+  anchorRe: /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+  resolveHref: (match) => {
+    const rawHref = decodeEntities(match[1]);
+    // startsWith case-SENSITIVE é o comportamento histórico do perfil.
+    if (rawHref.startsWith('magnet:?')) return { url: rawHref };
+    let u;
+    try {
+      u = new URL(rawHref);
+    } catch {
+      return { skip: true };
+    }
+    if (!isProtectorHost(u.hostname)) return { skip: true };
+    return { url: rawHref };
+  },
+  anchorTextOf: (match) => stripTags(match[2]),
+  stripTags,
+  initialAudio: 'desconhecido',
+  audioFromSegment: (segment) => lastAudioMarker(segment, NERD_AUDIO_RE, NERD_LEGENDADO_RE),
+  episodeStep,
+  qualityFn: qualityOf,
+  sourceFn: sourceOf,
+});
 
 // O laço do protetor é UM só (transport); o perfil aporta apenas os parsers.
 // O assertAllowedUrl injetado no laço é o da factory (que delega ao
@@ -226,60 +224,39 @@ async function resolveButton(postUrl, index, hash, count) {
 
 async function resolveBest(postUrl) {
   const { post, links } = await getPostLinks(postUrl);
-  let lastError;
-  for (const link of [...links].sort((a, b) => scoreLink(b) - scoreLink(a))) {
-    try {
-      return await fetchFollowingAllowed(link.url, post.href);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError || new Error('no_magnet');
+  return tryLinksInOrder(
+    [...links].sort((a, b) => scoreLink(b) - scoreLink(a)),
+    (link) => fetchFollowingAllowed(link.url, post.href),
+  );
 }
 
-function releaseTitle(post, link, index = null) {
-  const postTitle = typeof post === 'string' ? post : post?.title || '';
-  const clean = cleanPostTitle(postTitle);
-  const epPart = link.episode != null ? `E${String(link.episode).padStart(2, '0')}` : '';
-  const audioTag = link.audio === 'dublado' ? 'DUBLADO' : link.audio === 'legendado' ? 'LEGENDADO' : null;
-  const tags = [
-    link.quality ? `${link.quality}p` : null,
-    link.source,
-    audioTag,
-    link.size || (index == null ? null : `opção ${index + 1}`),
-  ].filter(Boolean);
+// Título da release via factory comum (defaults: tag com tamanho/`opção N`,
+// audioTag DUBLADO/LEGENDADO, sem strip de fonte; cleanPostTitle é a variante
+// curta deste perfil, que fica aqui).
+const releaseTitle = createReleaseTitle({ cleanTitle: cleanPostTitle });
 
-  const base = epPart ? `${clean} ${epPart}` : clean;
-  return tags.length ? `${base} [${tags.join(' ')}]` : base;
-}
+// Página compacta, sem poster nem data (rowExtras default vazio).
+const searchPageHtml = createSearchPageHtml({
+  selfUrl: SELF_URL,
+  escape: escapeXml,
+  releaseTitle,
+});
 
-const selectSearchPosts = bootstrap.makeSelectSearchPosts(parsePosts, MAX_POSTS);
-
-function searchPageHtml(items) {
-  const rows = items.map(({ post, link, index, count }) => {
-    const download = `${SELF_URL}/resolve?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
-    // O Jackett descarta QUALQUER release sem tamanho ("No size provided"), e
-    // "0 B" não casa o filtro de `size` do cardigann — era assim que os posts de
-    // pack (que não publicam tamanho por botão) perdiam ~50 releases de uma vez.
-    // UNKNOWN_SIZE é o sentinela: satisfaz o Jackett e o addon o esconde em vez
-    // de exibir um tamanho inventado.
-    return `<div class="release"><div class="title"><a href="${escapeXml(download)}">${escapeXml(releaseTitle(post, link, index))}</a></div><div class="size">${escapeXml(link.size || UNKNOWN_SIZE)}</div><div class="description">${escapeXml(post.title)}</div><div class="seeders">1</div></div>`;
-  }).join('');
-  return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
-}
+// Feed compacto com <enclosure> — exclusividade do tdf (R-4).
+const rssXml = createRssXml({
+  selfUrl: SELF_URL,
+  channelTitle: 'TorrentDosFilmes V2',
+  titleOf: ({ post, link }) => releaseTitle(post, link),
+  pubDateOf: () => new Date().toUTCString(),
+  withEnclosure: true,
+  compact: true,
+});
 
 function capsXml() {
   return '<?xml version="1.0"?><caps><server title="TorrentDosFilmes V2" version="1.0"/><limits max="100" default="100"/><searching><search available="yes" supportedParams="q"/><tv-search available="yes" supportedParams="q,season,ep"/><movie-search available="yes" supportedParams="q"/></searching><categories><category id="2000" name="Movies"/><category id="5000" name="TV"/></categories></caps>';
 }
 
-function rssXml(items, category) {
-  const body = items.map(({ post, link, index, count }) => {
-    const download = `${SELF_URL}/dl?url=${encodeURIComponent(post.url)}&i=${index}&h=${buttonId(link)}&n=${count}`;
-    const size = parseSize(link.size) || 0;
-    return `<item><title>${escapeXml(releaseTitle(post, link))}</title><guid isPermaLink="false">${escapeXml(download)}</guid><link>${escapeXml(download)}</link><comments>${escapeXml(post.url)}</comments><pubDate>${new Date().toUTCString()}</pubDate><size>${size}</size><category>${category}</category><enclosure url="${escapeXml(download)}" type="application/x-bittorrent" length="${size}"/><torznab:attr name="category" value="${category}"/><torznab:attr name="size" value="${size}"/><torznab:attr name="seeders" value="1"/><torznab:attr name="peers" value="1"/><torznab:attr name="downloadvolumefactor" value="0"/><torznab:attr name="uploadvolumefactor" value="1"/></item>`;
-  }).join('');
-  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel><title>TorrentDosFilmes V2</title>${body}</channel></rss>`;
-}
+const selectSearchPosts = bootstrap.makeSelectSearchPosts(parsePosts, MAX_POSTS);
 
 // O download.before do cardigann encoda a href inteira no param url — e a
 // href já é um /resolve nosso, então o alvo real vem aninhado. Desempacota
