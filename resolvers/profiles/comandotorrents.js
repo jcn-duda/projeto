@@ -20,6 +20,12 @@ const {
   pickButton,
 } = require('../matching');
 const { createProfile } = require('../site-profile');
+// Passo 5 do item 9: esqueleto de roteador HTTP comum — despacho por pathname
+// + rotas padrão (/health, /search, /resolve). Handlers próprios do perfil
+// entram no mapa de rotas sem `if` na factory.
+const {
+  createResolverRouter, createHealthRoute, createSearchRoute, createResolveRoute,
+} = require('../resolver-http');
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
 const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
@@ -311,43 +317,19 @@ async function searchPosts(query) {
   });
 }
 
-async function handleRequest(request, response) {
-  const url = new URL(request.url, `http://${request.headers.host}`);
-  if (request.method !== 'GET') return reply(response, 404, 'not_found');
-  if (url.pathname === '/health') return reply(response, 200, 'ok');
-  if (url.pathname === '/search') {
-    const rawQuery = url.searchParams.get('q');
-    if (!rawQuery || !rawQuery.trim()) {
-      return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
-    }
-    try {
-      const items = await searchPosts(rawQuery);
-      return reply(response, 200, searchPageHtml(items), 'text/html; charset=utf-8');
-    } catch (error) {
-      return reply(response, 502, error.message);
-    }
-  }
-  if (url.pathname === '/resolve') {
-    const value = url.searchParams.get('url');
-    if (!value || value.length > 4096) return reply(response, 400, 'invalid_url');
-    try {
-      const unwrapped = unwrapResolverUrl(value, {
-        index: url.searchParams.get('i'),
-        hash: url.searchParams.get('h'),
-        count: url.searchParams.get('n'),
-      });
-      const index = unwrapped.index == null ? null : Number(unwrapped.index);
-      return reply(
-        response,
-        200,
-        index == null ? await resolveBest(unwrapped.url) : await resolveButton(unwrapped.url, index, unwrapped.hash, unwrapped.count),
-      );
-    } catch (error) {
-      return reply(response, 502, error.message);
-    }
-  }
-  return reply(response, 404, 'not_found');
-}
+// --- Rotas HTTP (esqueleto comum em resolver-http.js) ---
+// Comando expõe só /health, /search e /resolve — sem /api nem /dl.
+// validateIndex fica OFF de propósito: ?i= inválido cai no pickButton e volta
+// 'no_such_button' (502), como sempre — não vira 502 invalid_index (variante
+// tdf/nerd). O unwrap carrega i/h/n pelos defaults da rota.
+const handleRequest = createResolverRouter({
+  reply,
+  routes: {
+    '/health': createHealthRoute({ reply }),
+    '/search': createSearchRoute({ reply, search: searchPosts, renderHtml: searchPageHtml }),
+    '/resolve': createResolveRoute({ reply, unwrapResolverUrl, resolveBest, resolveButton }),
+  },
+});
 
 function createServer() {
   return createHttpServer(handleRequest);

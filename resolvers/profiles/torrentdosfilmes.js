@@ -20,6 +20,13 @@ const {
   pickButton,
 } = require('../matching');
 const { createProfile } = require('../site-profile');
+// Passo 5 do item 9: esqueleto de roteador HTTP comum — despacho por pathname
+// + rotas padrão (/health, /search, /resolve, /dl, /api). Handlers próprios do
+// perfil entram no mapa de rotas sem `if` na factory.
+const {
+  createResolverRouter, createHealthRoute, createSearchRoute, createResolveRoute,
+  createDlRoute, createApiRoute,
+} = require('../resolver-http');
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
 const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
@@ -296,68 +303,41 @@ async function searchPosts(query, requestedSeason) {
   }
 }
 
-async function handleRequest(request, response) {
-  const url = new URL(request.url, `http://${request.headers.host}`);
-  if (request.method !== 'GET') return reply(response, 404, 'not_found');
-  if (url.pathname === '/health') return reply(response, 200, 'ok');
-  if (url.pathname === '/api') {
-    const type = url.searchParams.get('t') || 'caps';
-    if (type === 'caps') return reply(response, 200, capsXml(), 'application/xml; charset=utf-8');
-    if (!['search', 'movie', 'tvsearch'].includes(type)) return reply(response, 400, 'unsupported_t');
-    const query = String(url.searchParams.get('q') || '');
-    const category = type === 'tvsearch' ? 5000 : 2000;
-    if (!query.trim()) return reply(response, 200, rssXml([], category), 'application/xml; charset=utf-8');
-    try {
-      const { posts, items } = await searchPosts(query);
-      console.log(`[api] ${posts.length} post(s) -> ${items.length} release(s)`);
-      return reply(response, 200, rssXml(items, category), 'application/xml; charset=utf-8');
-    } catch (error) {
-      return reply(response, 502, error.message);
-    }
-  }
-  if (url.pathname === '/search') {
-    const query = String(url.searchParams.get('q') || '');
-    if (!query.trim()) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
-    try {
-      const { posts, items } = await searchPosts(query);
-      console.log(`[search] ${posts.length} post(s) -> ${items.length} release(s)`);
-      return reply(response, 200, searchPageHtml(items), 'text/html; charset=utf-8');
-    } catch (error) {
-      return reply(response, 502, error.message);
-    }
-  }
-  if (url.pathname === '/resolve') {
-    let postUrl = url.searchParams.get('url');
-    if (!postUrl || postUrl.length > 4096) return reply(response, 400, 'invalid_url');
-    try {
-      const unwrapped = unwrapResolverUrl(postUrl, {
-        index: url.searchParams.get('i'),
-        hash: url.searchParams.get('h'),
-        count: url.searchParams.get('n'),
-      });
-      postUrl = unwrapped.url;
-      const { index, hash, count } = unwrapped;
-      const button = index == null ? null : Number(index);
-      if (button != null && (!Number.isInteger(button) || button < 0)) throw new Error('invalid_index');
-      if (button == null) return reply(response, 200, await resolveBest(postUrl));
-      return reply(response, 200, await resolveButton(postUrl, button, hash, count));
-    } catch (error) {
-      return reply(response, 502, error.message);
-    }
-  }
-  if (url.pathname === '/dl') {
-    const postUrl = url.searchParams.get('url');
-    const index = Number(url.searchParams.get('i'));
-    if (!postUrl || postUrl.length > 4096 || !Number.isInteger(index) || index < 0) return reply(response, 400, 'invalid_params');
-    try {
-      response.writeHead(302, { Location: await resolveButton(postUrl, index, url.searchParams.get('h'), url.searchParams.get('n')), 'Cache-Control': 'no-store' });
-      return response.end();
-    } catch (error) {
-      return reply(response, 502, error.message);
-    }
-  }
-  return reply(response, 404, 'not_found');
+// Adaptação das buscas para as rotas comuns: o searchPosts do tdf devolve
+// { posts, items } e o log do perfil acontece ENTRE a busca e a resposta —
+// a ordem (e o prefixo [search]/[api]) é preservada pelos adaptadores.
+async function searchForPage(query) {
+  const { posts, items } = await searchPosts(query);
+  console.log(`[search] ${posts.length} post(s) -> ${items.length} release(s)`);
+  return items;
 }
+
+async function searchForApi(query) {
+  const { posts, items } = await searchPosts(query);
+  console.log(`[api] ${posts.length} post(s) -> ${items.length} release(s)`);
+  return items;
+}
+
+// --- Rotas HTTP (esqueleto comum em resolver-http.js) ---
+// tdf expõe /api (torznab) e /dl além de /health, /search e /resolve. No
+// /resolve o índice inválido é erro EXPLÍCITO (invalid_index → 502) —
+// validateIndex:true, a variante do tdf/nerd, diferente de comando/vaca. O
+// feed vazio do /api espelha a categoria pedida (tvsearch → 5000).
+const handleRequest = createResolverRouter({
+  reply,
+  routes: {
+    '/health': createHealthRoute({ reply }),
+    '/api': createApiRoute({
+      reply, capsXml,
+      search: searchForApi,
+      renderXml: (items, category) => rssXml(items, category),
+      emptyXml: (category) => rssXml([], category),
+    }),
+    '/search': createSearchRoute({ reply, search: searchForPage, renderHtml: searchPageHtml }),
+    '/resolve': createResolveRoute({ reply, unwrapResolverUrl, resolveBest, resolveButton, validateIndex: true }),
+    '/dl': createDlRoute({ reply, resolveButton }),
+  },
+});
 
 function createServer() {
   return createHttpServer(handleRequest);

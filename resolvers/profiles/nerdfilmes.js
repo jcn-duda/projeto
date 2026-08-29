@@ -21,6 +21,12 @@ const {
   pickButton,
 } = require('../matching');
 const { createProfile } = require('../site-profile');
+// Passo 5 do item 9: esqueleto de roteador HTTP comum — despacho por pathname
+// + rotas padrão (/health, /resolve, /dl). /api e /search ficam no perfil
+// (cache de busca próprio) e entram no mapa de rotas como handlers diretos.
+const {
+  createResolverRouter, createHealthRoute, createResolveRoute, createDlRoute,
+} = require('../resolver-http');
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
 const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
@@ -34,7 +40,7 @@ const {
 } = require('../release-rules');
 const {
   createReleaseTitle, createSearchPageHtml, createRssXml, createNormalizeQuery,
-  tryLinksInOrder,
+  magnetButtonCacheKey,
 } = require('../release-format');
 
 const PORT = Number(process.env.PORT || 8702);
@@ -484,47 +490,21 @@ async function handleSearch(url, response) {
   }
 }
 
+// --- Rotas HTTP (esqueleto comum em resolver-http.js) ---
+// /api e /search têm cache próprio (chaves `search:${type}:` e `search-html:`
+// distintas) e ficam AQUI; /resolve e /dl são as rotas padrão — o resolve do
+// nerd valida índice (invalid_index → 502), variante validateIndex:true.
 function createServer() {
-  return createHttpServer(async (request, response) => {
-    const url = new URL(request.url, `http://${request.headers.host}`);
-    if (request.method !== 'GET') return reply(response, 404, 'not_found');
-    if (url.pathname === '/health') return reply(response, 200, 'ok');
-    if (url.pathname === '/api') return handleApi(url, response);
-    if (url.pathname === '/search') return handleSearch(url, response);
-    if (url.pathname === '/resolve') {
-      let postUrl = url.searchParams.get('url');
-      if (!postUrl || postUrl.length > 4096) return reply(response, 400, 'invalid_url');
-      try {
-        const unwrapped = unwrapResolverUrl(postUrl, {
-          index: url.searchParams.get('i'),
-          hash: url.searchParams.get('h'),
-          count: url.searchParams.get('n'),
-        });
-        postUrl = unwrapped.url;
-        const { index, hash, count } = unwrapped;
-        const button = index == null ? null : Number(index);
-        if (button != null && (!Number.isInteger(button) || button < 0)) throw new Error('invalid_index');
-        return reply(response, 200, button == null ? await resolveBest(postUrl) : await resolveButton(postUrl, button, hash, count));
-      } catch (error) {
-        return reply(response, 502, error.message);
-      }
-    }
-    if (url.pathname === '/dl') {
-      const postUrl = url.searchParams.get('url');
-      const index = Number(url.searchParams.get('i'));
-      if (!postUrl || postUrl.length > 4096 || !Number.isInteger(index) || index < 0) {
-        return reply(response, 400, 'invalid_params');
-      }
-      try {
-        const magnet = await resolveButton(postUrl, index, url.searchParams.get('h'), url.searchParams.get('n'));
-        response.writeHead(302, { Location: magnet, 'Cache-Control': 'no-store' });
-        return response.end();
-      } catch (error) {
-        return reply(response, 502, error.message);
-      }
-    }
-    return reply(response, 404, 'not_found');
-  });
+  return createHttpServer(createResolverRouter({
+    reply,
+    routes: {
+      '/health': createHealthRoute({ reply }),
+      '/api': handleApi,
+      '/search': handleSearch,
+      '/resolve': createResolveRoute({ reply, unwrapResolverUrl, resolveBest, resolveButton, validateIndex: true }),
+      '/dl': createDlRoute({ reply, resolveButton }),
+    },
+  }));
 }
 
 if (require.main === module) {

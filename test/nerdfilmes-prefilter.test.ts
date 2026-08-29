@@ -72,6 +72,50 @@ test('nerdfilmes pré-filtro: os 5 posts reais de "show bar" são rejeitados', (
   assert.deepEqual(nerd.selectSearchPosts(html, 'show bar', null), []);
 });
 
+// 1b. O /resolve do nerd por índice de botão resolve o magnet DIRETO do post.
+// Regressão do item 9 passo 4: a migração para o núcleo release-format passou a
+// chamar magnetButtonCacheKey no resolveButton sem importá-lo — o ReferenceError
+// derrubava /resolve e /dl com 502, e NENHUM teste exercitava o caminho (o
+// resolveButton é interno do perfil, então o teste vai pela rota HTTP real).
+test('nerdfilmes /resolve?i=0: magnet direto do post (import de magnetButtonCacheKey)', async () => {
+  const realFetch = global.fetch;
+  global.fetch = (async (input: any) => {
+    const url = String(input);
+    if (url.endsWith('/casa-1/')) {
+      return { status: 200, ok: true, headers: { get: () => null }, text: async () => POST_HTML };
+    }
+    throw new Error(`fetch inesperado: ${url}`);
+  }) as unknown as typeof globalThis.fetch;
+
+  const server = nerd.createServer() as http.Server;
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = (server.address() as AddressInfo).port;
+  const get = (path: string) =>
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
+      http
+        .get({ host: '127.0.0.1', port, path }, (res) => {
+          let body = '';
+          res.on('data', (chunk) => (body += chunk));
+          res.on('end', () => resolve({ status: res.statusCode as number, body }));
+        })
+        .on('error', reject);
+    });
+
+  try {
+    const url = encodeURIComponent('https://www.xnerdfilmes.net/casa-1/');
+    const res = await get(`/resolve?url=${url}&i=0`);
+    assert.equal(res.status, 200, 'resolve com botão índice 0 responde 200');
+    assert.match(
+      res.body,
+      /^magnet:\?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=ep01\.1080p$/,
+      'corpo é o magnet direto do botão 0 normalizado',
+    );
+  } finally {
+    global.fetch = realFetch;
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 // 2. A Casa do Dragão (temporadas) passa; Caverna do Dragão e A Arte do Amor não.
 test('nerdfilmes pré-filtro: A Casa do Dragão passa; Caverna do Dragão e A Arte do Amor não', () => {
   const query = 'A Casa do Dragão';

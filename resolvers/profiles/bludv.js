@@ -1,7 +1,19 @@
 const { USER_AGENT } = require('../runtime');
 const { createCache } = require('../cache');
-const { createFlareSessions } = require('../flare');
+// Passo 6 do item 9: a mecânica FlareSolverr (fetchTextViaFlare,
+// buildFlareHeaders, getFlareSession, buildCookies e a derivação do desafio
+// CF) mora no núcleo (resolvers/flare.js) — aqui só o cabeamento. O desafio
+// do 403 é reconhecido pelo núcleo (isCloudflareChallenge); o perfil mantém
+// o fetchText com o redirect-follow e o timeout próprios.
+const { createFlareFetcher, isCloudflareChallenge } = require('../flare');
 const { createServer: createHttpServer } = require('../http-server');
+// Passo 5 do item 9: esqueleto de roteador HTTP comum — despacho por pathname
+// + rotas padrão (/health, /search, /resolve, /dl, /api). O /resolve do bludv
+// tem prefs audio=/quality= e fica no perfil, como handler direto do mapa.
+const {
+  createResolverRouter, createHealthRoute, createSearchRoute,
+  createDlRoute, createApiRoute,
+} = require('../resolver-http');
 const { capsXml: sharedCapsXml } = require('../torznab');
 const {
   decodeEntities,
@@ -129,8 +141,15 @@ const SELF_URL = bootstrap.selfUrl;
 const FLARE_SOLVERR_URL = (process.env.FLARE_SOLVERR_URL || 'http://127.0.0.1:8191').replace(/\/$/, '');
 const FLARE_TIMEOUT_MS = Number(process.env.FLARE_TIMEOUT_MS || 55_000);
 const FLARE_SESSION_TTL_MS = Number(process.env.FLARE_SESSION_TTL_MS || 20 * 60_000);
-// hostname -> { cookies, userAgent, expiresAt }
-const { sessions: flareSessions } = createFlareSessions();
+// hostname -> { cookies, userAgent, expiresAt } — sessões nascem aqui (R-2);
+// os knobs de env continuam sendo lidos no require do perfil, como antes.
+const flare = createFlareFetcher({
+  solverUrl: FLARE_SOLVERR_URL,
+  timeoutMs: FLARE_TIMEOUT_MS,
+  sessionTtlMs: FLARE_SESSION_TTL_MS,
+  userAgent: USER_AGENT,
+});
+const { sessions: flareSessions, getFlareSession, buildFlareHeaders, fetchTextViaFlare } = flare;
 
 // --- Cache (núcleo resolvers/cache.js) ---
 // TTL + coalescing + FIFO, escrevendo APENAS no sucesso (erro nunca entra no
@@ -204,79 +223,9 @@ function nextProtectedUrl(html, baseUrl) {
   });
 }
 
-function getFlareSession(hostname) {
-  const hit = flareSessions.get(hostname);
-  if (hit && hit.expiresAt > Date.now()) return hit;
-  return null;
-}
-
-function buildCookies(cookies) {
-  return (cookies || [])
-    .map((c) => `${c.name}=${c.value}`)
-    .join('; ');
-}
-
-// Roteia a resposta HTML pelo FlareSolverr quando o site exigir desafio
-// Cloudflare. Salva a sessão (cf_clearance + userAgent) por host para o fetch
-// direto seguinte reusar sem pagar o browser de novo. Retorna o HTML resolvido.
-async function fetchTextViaFlare(url, referer) {
-  const body = JSON.stringify({ cmd: 'request.get', url, maxTimeout: FLARE_TIMEOUT_MS });
-  const res = await fetch(`${FLARE_SOLVERR_URL}/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-    signal: AbortSignal.timeout(FLARE_TIMEOUT_MS + 10_000),
-  });
-  // Falha do FlareSolverr (5xx/HTML) NÃO é falha do site: propaga com prefixo
-  // flare_ (excluído do isNetworkError) para o failover de domínio não morder.
-  if (!res.ok) throw new Error(`flare_http_${res.status}`);
-  const data = await res.json();
-  if (data.status !== 'ok' || !data.solution) {
-    throw new Error(`flare_error_${data.status || '?'}:${data.message || 'sem solução'}`);
-  }
-  const { solution } = data;
-  // FlareSolverr reporta status:'ok' mesmo quando a página final é a tela de
-  // erro do Chromium (ex.: origin 522). `solution.status` é o HTTP real da
-  // página: só 2xx é sucesso — senão o erro de origin viraria "0 posts" e o
-  // noteSuccess() zerava o streak do failover, escondendo a fonte morta.
-  const solvedStatus = Number(solution.status || 200);
-  if (solvedStatus < 200 || solvedStatus >= 300) {
-    throw new Error(`flare_site_${solvedStatus}`);
-  }
-  const response = solution.response || '';
-  // Guarda extra: a tela de erro do Chromium ("This page isn't working"/"HTTP
-  // ERROR NNN") chega com status 200 internamente em alguns cenários. Rejeitá-la
-  // mantém a falha diagnosticável em vez de silenciar em "0 resultados".
-  if (/This page isn.t working|HTTP ERROR \d{3}/i.test(response)) {
-    throw new Error('flare_site_error_page');
-  }
-  const session = {
-    cookies: buildCookies(solution.cookies),
-    userAgent: solution.userAgent,
-    expiresAt: Date.now() + FLARE_SESSION_TTL_MS,
-  };
-  // Grava sob o host PEDIDO e o RESOLVIDO: no cenário 301 (bludvfilmes.xyz →
-  // bludvfilmes1.xyz) o próximo fetch direto consulta o host pedido e acha a
-  // sessão — senão pagava o browser de novo a cada expiração do cache.
-  flareSessions.set(new URL(url).hostname, session);
-  flareSessions.set(new URL(solution.url || url).hostname, session);
-  return response;
-}
-
-function buildFlareHeaders(url, referer) {
-  // O fetch direto só reusa a sessão do MESMO host: um domain change limpa o
-  // mapa, e o cf_clearance é por host — misturar UA/cookies de outro domínio
-  // só garante rejeição. O host é o do alvo pedido, não do referer (o referer
-  // chega undefined no fetchText do post).
-  const hostname = new URL(url).hostname;
-  const session = getFlareSession(hostname);
-  return {
-    'User-Agent': session?.userAgent || USER_AGENT,
-    Accept: 'text/html,application/xhtml+xml',
-    ...(session?.cookies ? { Cookie: session.cookies } : {}),
-    ...(referer ? { Referer: referer } : {}),
-  };
-}
+// getFlareSession, buildCookies, buildFlareHeaders e fetchTextViaFlare são do
+// núcleo (flare.js, passo 6 do item 9) — reexportados abaixo com os mesmos
+// nomes (R-9: o bludv-resolver.test.ts consome esses exports com 403-CF).
 
 async function fetchText(url, referer) {
   const res = await fetch(url, {
@@ -287,14 +236,11 @@ async function fetchText(url, referer) {
   // 403 do Cloudflare ("Just a moment...") não é o site fora do ar: é o desafio
   // JS que o fetch direto não executa. Re-resolve pelo FlareSolverr. Mas 403 por
   // outro motivo (rate-limit, bloqueio de região/proxy) não é desafio e virar
-  // página de erro do FlareSolverr silenciaria a falha em "0 resultados" — só
-  // deriva quando o corpo/header confirmam o desafio Cloudflare.
+  // página de erro do FlareSolverr silenciaria a falha em "0 resultados" — a
+  // derivação (header cf-mitigated OU marcadores no corpo) é do núcleo.
   if (res.status === 403) {
     const body = await res.text();
-    const isCloudflareChallenge =
-      res.headers.get('cf-mitigated') === 'challenge' ||
-      /Just a moment|cf-chl|__cf_chl|challenge-platform|cf-browser-verification|cf_chl/i.test(body);
-    if (isCloudflareChallenge) {
+    if (isCloudflareChallenge(res, body)) {
       return fetchTextViaFlare(url, referer);
     }
     throw new Error(`http_403`);
@@ -651,48 +597,14 @@ const rssXml = createRssXml({
   seedersComment: '<!-- O BLUDV não publica seeds; 1 neutro pra não ser descartado por filtros. -->',
 });
 
-async function handleApi(url, response) {
-  const t = url.searchParams.get('t') || 'caps';
-  if (t === 'caps') return reply(response, 200, capsXml(), 'application/xml; charset=utf-8');
-  if (!['search', 'movie', 'tvsearch'].includes(t)) return reply(response, 400, 'unsupported_t');
-
-  const q = url.searchParams.get('q');
-  if (!q || !q.trim()) return reply(response, 200, rssXml([], 2000), 'application/xml; charset=utf-8');
-
-  const category = t === 'tvsearch' ? 5000 : 2000;
-  try {
-    const items = await searchPosts(q);
-    return reply(response, 200, rssXml(items, category), 'application/xml; charset=utf-8');
-  } catch (error) {
-    return reply(response, 502, error.message);
-  }
-}
-
-async function handleDl(url, response) {
-  const postUrl = url.searchParams.get('url');
-  const index = Number(url.searchParams.get('i'));
-  if (!postUrl || postUrl.length > 4096 || !Number.isInteger(index) || index < 0) {
-    return reply(response, 400, 'invalid_params');
-  }
-  try {
-    const magnet = await resolveButton(postUrl, index, url.searchParams.get('h'), url.searchParams.get('n'));
-    response.writeHead(302, { Location: magnet, 'Cache-Control': 'no-store' });
-    return response.end();
-  } catch (error) {
-    return reply(response, 502, error.message);
-  }
-}
-
-async function handleSearch(url, response) {
-  const q = url.searchParams.get('q');
-  if (!q || !q.trim()) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
-  try {
-    const items = await searchPosts(q);
-    return reply(response, 200, searchPageHtml(items), 'text/html; charset=utf-8');
-  } catch (error) {
-    return reply(response, 502, error.message);
-  }
-}
+// /api, /search e /dl são as rotas padrão do esqueleto (resolver-http.js);
+// o feed vazio do /api é SEMPRE categoria 2000 no bludv (decisão própria,
+// via emptyXml) e o log de busca acontece dentro do searchPosts. O /resolve
+// fica AQUI (handleResolve): aceita prefs audio=/quality= com validação
+// própria (invalid_audio/invalid_quality/invalid_index → 400) e o unwrap
+// carrega os campos extras — lógica exclusiva do perfil, não vira if na
+// factory. O bloco download.before do cardigann (URL aninhada) é tratado pelo
+// unwrapOptions da factory (paths /resolve + /dl, campos i/h/n/audio/quality).
 
 async function handleResolve(url, response) {
   let postUrl = url.searchParams.get('url');
@@ -727,27 +639,24 @@ async function handleResolve(url, response) {
   }
 }
 
-// O download.before do cardigann encoda a href inteira no param url — e a
-// href já é um /resolve nosso, então o alvo real vem aninhado. Desempacota
-// quantos níveis vierem, carregando i/h/n do nível mais interno que os
-// declarar. `seed` são os params da requisição externa: chamada direta
-// (/resolve?url=<post>&i=0&h=..) não tem nível interno de onde ler.
-// Sem checar a origem: o host varia (`addon` embutido vs. nome do
-// container), e o alvo final passa por assertAllowedUrl de todo jeito.
-// (A variante /dl + audio/quality está configurada no unwrapOptions da
-// factory.)
+const handleRequest = createResolverRouter({
+  reply,
+  routes: {
+    '/health': createHealthRoute({ reply }),
+    '/api': createApiRoute({
+      reply, capsXml,
+      search: searchPosts,
+      renderXml: (items, category) => rssXml(items, category),
+      emptyXml: () => rssXml([], 2000),
+    }),
+    '/dl': createDlRoute({ reply, resolveButton }),
+    '/search': createSearchRoute({ reply, search: searchPosts, renderHtml: searchPageHtml }),
+    '/resolve': handleResolve,
+  },
+});
 
 function createServer() {
-  return createHttpServer(async (request, response) => {
-    const url = new URL(request.url, `http://${request.headers.host}`);
-    if (request.method !== 'GET') return reply(response, 404, 'not_found');
-    if (url.pathname === '/health') return reply(response, 200, 'ok');
-    if (url.pathname === '/api') return handleApi(url, response);
-    if (url.pathname === '/dl') return handleDl(url, response);
-    if (url.pathname === '/search') return handleSearch(url, response);
-    if (url.pathname === '/resolve') return handleResolve(url, response);
-    return reply(response, 404, 'not_found');
-  });
+  return createHttpServer(handleRequest);
 }
 
 // Mesmo desenho do nerdfilmes: quem sobe o servidor é o processo principal ou o
