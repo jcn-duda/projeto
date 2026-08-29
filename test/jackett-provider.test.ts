@@ -116,6 +116,104 @@ test('Link de download bloqueia SSRF para destinos locais literais (IPv4, IPv6, 
   assert.equal(isSafeDownloadUrl('file:///etc/passwd', true), false);
 });
 
+// --- Exceção de download do próprio Jackett (isJackettDownloadLink) ---
+//
+// O `<link>` Torznab é input de TERCEIRO: o Cardigann aponta o download para o
+// PRÓPRIO Jackett (`/dl/<indexer>/...`, loopback no container único) e a
+// exceção existe para não derrubar esses magnets. Mas a exceção é pelo SHAPE,
+// não pela origem sozinha — same-origin fora de `/dl/` é admin local e segue
+// bloqueado (com warn), e origem diferente não herda a exceção.
+
+test('link /dl/ do próprio Jackett resolve magnet (caminho feliz da exceção)', async () => {
+  const fetchImpl = makeFetch();
+  const dlLink = 'http://jackett.test/dl/bludv-cardigann/?jackett_apikey=test-key&path=Release.torrent';
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Predador (1987) 1080p DUBLADO', Seeders: 3, Link: dlLink },
+      ] });
+    }
+    return fakeResponse(null, { location: MAGNET });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
+      matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false, season: null, episode: null },
+    });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].magnet, MAGNET);
+    // O download foi buscado na origem do Jackett (não é protetor externo).
+    assert.equal(fetchImpl.protectorCalls().includes(dlLink), true);
+  });
+});
+
+test('link same-origin FORA de /dl/ é bloqueado (admin local não é download)', async () => {
+  const fetchImpl = makeFetch();
+  // Base do Jackett em loopback, como no container único: same-origin com o
+  // link abaixo, e o IP privado garante que SÓ a exceção nova poderia deixá-lo
+  // passar (o isSafeDownloadUrl rejeita por si só qualquer outro host).
+  const adminLink = 'http://127.0.0.1:9117/api/v2.0/server/config?apikey=x';
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Predador (1987) 1080p DUBLADO', Seeders: 3, Link: adminLink },
+      ] });
+    }
+    return fakeResponse(null, { location: MAGNET });
+  };
+  const warnings: string[] = [];
+  const realWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warnings.push(args.join(' ')); };
+
+  try {
+    await withJackett(fetchImpl, async () => {
+      config.jackett.url = 'http://127.0.0.1:9117';
+      const items = await jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
+        matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false, season: null, episode: null },
+      });
+      // Bloqueado antes do fetch: sem magnet, sem chamada de download.
+      assert.equal(items.length, 1);
+      assert.equal(items[0].magnet, undefined);
+      assert.equal(fetchImpl.protectorCalls().includes(adminLink), false);
+      assert.ok(warnings.some((w) => w.includes('[jackett] URL de download bloqueada por segurança')), warnings.join('\n'));
+    });
+  } finally {
+    console.warn = realWarn;
+  }
+});
+
+test('exceção não vaza: /dl/ em origem PRIVADA diferente do Jackett segue no guard', async () => {
+  const fetchImpl = makeFetch();
+  // Porta diferente = origem diferente; isSafeDownloadUrl derruba o IP privado
+  // literal e o shape /dl/ NÃO autoriza fora da origem do próprio serviço.
+  const foreignLink = 'http://127.0.0.1:9999/dl/bludv-cardigann/?path=Release.torrent';
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Predador (1987) 1080p DUBLADO', Seeders: 3, Link: foreignLink },
+      ] });
+    }
+    return fakeResponse(null, { location: MAGNET });
+  };
+  const warnings: string[] = [];
+  const realWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warnings.push(args.join(' ')); };
+
+  try {
+    await withJackett(fetchImpl, async () => {
+      const items = await jackett.search('Predador 1987', 'movie', ['comandotorrents'], {
+        matchContext: { names: ['Predador', 'Predator'], year: 1987, isSeries: false, season: null, episode: null },
+      });
+      assert.equal(items.length, 1);
+      assert.equal(items[0].magnet, undefined);
+      assert.equal(fetchImpl.protectorCalls().includes(foreignLink), false);
+      assert.ok(warnings.some((w) => w.includes('[jackett] URL de download bloqueada por segurança')));
+    });
+  } finally {
+    console.warn = realWarn;
+  }
+});
+
 function fakeResponse(body: unknown, { status = 200, location = null }: { status?: number; location?: string | null } = {}) {
   return {
     ok: status >= 200 && status < 300,

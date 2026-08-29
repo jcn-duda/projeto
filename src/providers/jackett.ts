@@ -111,14 +111,27 @@ function mapResults(
 }
 
 /**
- * O Link do Cardigann (`/dl/<indexer>/...`) aponta para o PRÓPRIO Jackett —
- * no container único ele mora em loopback, e o guard genérico (feito para
- * input de terceiros) bloqueava todos os magnets BR. Origem conhecida do
- * próprio serviço não é input de terceiro.
+ * Exceção ao guard de download (criada no 0c22158 para desbloquear o magnet
+ * BR): o `<link>` Torznab é input de TERCEIRO, e o Cardigann aponta o download
+ * para o PRÓPRIO Jackett (`/dl/<indexer>/...`) — no container único ele mora
+ * em loopback, e o guard genérico bloqueava todos os magnets BR.
+ *
+ * A exceção NÃO é por origem sozinha: "mesmo origin" deixaria um tracker
+ * hostil apontar qualquer path do admin local (ex.: `/api/v2.0/server/config`,
+ * que leria a apikey). Ela vale apenas para o shape de download do próprio
+ * serviço: origem do Jackett + pathname `/dl/<indexer>/` RELATIVO à base (a
+ * base pode ter prefixo de path no futuro — por isso startsWith em string,
+ * sem escapar regex do prefixo). O teste do caminho feliz em
+ * test/jackett-provider.test.ts impede a regressão do magnet BR.
  */
-function isJackettOrigin(url: string): boolean {
+function isJackettDownloadLink(url: string): boolean {
   try {
-    return new URL(url).origin === new URL(config.jackett.url).origin;
+    const target = new URL(url);
+    const base = new URL(config.jackett.url);
+    if (target.origin !== base.origin) return false;
+    const basePrefix = base.pathname.replace(/\/+$/, '');
+    if (!target.pathname.startsWith(basePrefix)) return false;
+    return /^\/dl\/[A-Za-z0-9._-]+\//.test(target.pathname.slice(basePrefix.length));
   } catch {
     return false;
   }
@@ -126,7 +139,7 @@ function isJackettOrigin(url: string): boolean {
 
 async function resolveDownloadMagnet(url: string, budgetMs: number) {
   if (!url) return null;
-  if (!isJackettOrigin(url) && !isSafeDownloadUrl(url, config.jackett.allowPrivateDownloadIps)) {
+  if (!isJackettDownloadLink(url) && !isSafeDownloadUrl(url, config.jackett.allowPrivateDownloadIps)) {
     log.warn(`[jackett] URL de download bloqueada por segurança: ${String(url).slice(0, 160)}`);
     return null;
   }
