@@ -99,13 +99,19 @@ test('páginas referenciam assets com ?v=<hash> e a rota ignora a query', async 
   // O acoplamento HTML↔módulos anda nos dois sentidos (o inline chama funções
   // dos módulos; os módulos buscam IDs do HTML): sem o versionamento por hash,
   // um deploy emparelharia HTML novo com módulo velho do cache do browser.
+  // As asserções casam o ATRIBUTO INTEIRO, com a aspa de fechamento. A primeira
+  // versão parava em `\?v=[0-9a-f]{10}` e passava verde com o HTML malformado
+  // que a substituição gerava (`href="/configure.css?v=abc""`, atributo espúrio
+  // `"` em cada tag) — regex frouxa demais para distinguir os dois casos.
   const configure = await server.request('GET', '/configure');
   assert.equal(configure.status, 200);
-  assert.match(configure.text, /\/configure\.css\?v=[0-9a-f]{10}/);
-  assert.match(configure.text, /\/configure-app\.js\?v=[0-9a-f]{10}/);
+  assert.match(configure.text, /href="\/configure\.css\?v=[0-9a-f]{10}"[^"]/);
+  assert.match(configure.text, /src="\/configure-app\.js\?v=[0-9a-f]{10}"[^"]/);
+  assert.doesNotMatch(configure.text, /\?v=[0-9a-f]{10}""/);
   const dashboard = await server.request('GET', '/dashboard');
   assert.equal(dashboard.status, 200);
-  assert.match(dashboard.text, /\/dashboard-core\.js\?v=[0-9a-f]{10}/);
+  assert.match(dashboard.text, /src="\/dashboard-core\.js\?v=[0-9a-f]{10}"[^"]/);
+  assert.doesNotMatch(dashboard.text, /\?v=[0-9a-f]{10}""/);
   // A allowlist casa pelo path: o `?v=` não precisa constar dela.
   const asset = await server.request('GET', '/configure.css?v=0000000000');
   assert.equal(asset.status, 200);

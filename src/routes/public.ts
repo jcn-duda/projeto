@@ -36,7 +36,12 @@ function makePublicHandlers(services: AppServices) {
   const sendVersionedHtml = (name: string) => {
     const html = fs
       .readFileSync(services.publicPath(name), 'utf8')
-      .replace(/((?:src|href)="\/(?:configure|dashboard)[-\w]*\.(?:css|js))/g, `$1?v=${assetVersion}"`);
+      // A aspa de fechamento faz parte do PADRÃO (e não só da substituição):
+      // sem ela o match parava no `.css` sem consumir a aspa, a substituição
+      // acrescentava outra e o HTML saía `href="/dashboard.css?v=abc""` — o
+      // navegador recuperava, mas criava um atributo espúrio chamado `"` em
+      // cada uma das 4 tags. Casar a aspa também ancora o fim real do valor.
+      .replace(/((?:src|href)="\/(?:configure|dashboard)[-\w]*\.(?:css|js))"/g, `$1?v=${assetVersion}"`);
     return (_: express.Request, res: express.Response) => res.type('html').send(html);
   };
   const sendConfigure = sendVersionedHtml('configure.html');
