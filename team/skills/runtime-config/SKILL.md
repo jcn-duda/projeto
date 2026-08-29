@@ -29,8 +29,11 @@ errada.
 - `src/runtime.ts`
 - `src/config.ts`
 - `src/utils/secret-box.ts`
-- `src/public/configure.html`
-- `src/routes/public.ts`
+- `src/public/configure.html` (o mapa `KEYS` e `collect`/`apply`/`fromUrl` ficam
+  **inline** aqui por contrato — os testes regexam o corpo dessas funções no html)
+- `src/public/configure-app.js` (extraído em §5.9: el/estado, base64url, selo,
+  wiring — top-level, ES5, sem IIFE, escopo compartilhado com o inline)
+- `src/routes/public.ts` (inclui a allowlist FECHADA `PAGE_ASSETS`)
 - `src/routes/register.ts` (ordem: rota sem config antes do overlay `/:userConfig`)
 
 ## Guardrails
@@ -40,6 +43,12 @@ errada.
    do front em **sincronia**.
 3. Segmento que não decodifica -> 404 (senão qualquer caminho viraria manifest
    válido servindo o `.env`).
+3b. Asset novo do painel entra na `PAGE_ASSETS` **por nome**. Nome arbitrário
+   vindo da URL abriria leitura fora de `public/`; o HTML referencia por
+   caminho ABSOLUTO (`/configure.css`) porque a página responde tanto em
+   `/configure` quanto em `/<config>/configure`; e o `?v=<hash>` é injetado no
+   HTML em memória (a rota casa pelo path, então a query não entra na
+   allowlist) — é o que permite `maxAge` de 30d sem skew de deploy.
 4. `prefix()` carrega a mesma config no link de play (`/resolve`).
 
 ## Contrato de saída (auditoria)

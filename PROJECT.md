@@ -4,16 +4,17 @@
 
 ## Architecture
 
-> **Estado (2026-08-24):** o M3 fechou, então as seções abaixo descrevem o
+> **Estado (2026-08-29):** o M3 fechou, então as seções abaixo descrevem o
 > layout que **já existe** em `src/` — não mais um alvo. A ressalva histórica
 > ("isto é o alvo, não o presente") valia enquanto 22/A5 e 25/A6 estavam
 > abertos. Confira a tabela de **Milestones** para o status de cada item;
 > abertos: M4 (só a auditoria forense do Tier 5) e a janela de baseline do
-> 6.3 dentro do M5. Para o porquê de cada decisão, `AGENTS.md` continua
+> 6.3 dentro do M5. O M6 (catraca de linhas 5.8 + extração dos HTML do painel
+> 5.9) fechou em 08-29. Para o porquê de cada decisão, `AGENTS.md` continua
 > sendo a fonte de verdade — ele nunca descreve estado futuro como presente.
 - **Process & Application Layer**:
   - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
-  - `src/app.ts`: Express application factory (`createApp()`), route definitions (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`).
+  - `src/app.ts`: Express application factory (`createApp()`); route *registration* lives in `src/routes/register.ts` since §5.5 (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/dashboard`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`, plus the `PAGE_ASSETS` allowlist of panel CSS/JS added by §5.9).
 - **Providers & Orchestration Layer**:
   - `src/providers/search-orchestrator.ts`: Query planning, Cinemeta/TMDB metadata, raw provider fan-out (`collectRaw`), Brazilian priority grace, pack fallbacks, enrichment tails. Phase control stays implicit via `latest-writer`'s `finish.phase()`/`finish.advance()` — no explicit `SearchPhase` state machine (A3 not implemented).
   - `src/providers/search-cache.ts`: Stale-While-Revalidate (SWR) cache handling, request coalescing (`inFlight`), background revalidation (`scheduleStaleRefresh`).
@@ -38,20 +39,24 @@
   - `src/utils/net-safety.ts`: SSRF filter (`isSafeDownloadUrl`) for Torznab download links.
   - `src/utils/cache.ts`: SQLite L2 + in-memory L1 cache with corrupted database auto-recovery.
 - **Brazilian Resolvers Microservices**:
-  - `bludv-resolver`, `comandotorrents-resolver`, `nerdfilmes-resolver`, `torrentdosfilmes-resolver`: Microservices running on internal ports 8700–8703 with shared core engine (`resolvers/` runtime).
+  - `bludv-resolver`, `comandotorrents-resolver`, `nerdfilmes-resolver`, `torrentdosfilmes-resolver`, `vacatorrent-resolver`: Microservices running on internal ports 8700–8704 with shared core engine (`resolvers/` runtime).
+- **Panel Layer** (`src/public/`):
+  - `configure.html` + `configure.css` + `configure-app.js`; `dashboard.html` + `dashboard.css` + `dashboard-core.js` + `dashboard-panels.js` + `dashboard-status.js`. ES5, zero build, served as static files through the closed `PAGE_ASSETS` allowlist in `src/routes/public.ts`. The HTML is served from memory with `?v=<content hash>` injected into the asset references, so the assets ship with `maxAge: '30d'` and a deploy can never pair new HTML with a cached old module. The JS anchored by the tests (function bodies matched by regex: `collect`/`apply`/`fromUrl`, `KEYS`, `renderMagnetDb`, the Chupim/Colhedor panels) stays **inline in the HTML by contract** — only the unanchored code was extracted (§5.9).
 
 ---
 
 ## Code Layout
 - `src/addon.ts`: Process entry point & lifecycle management.
-- `src/app.ts`: Express application composition & route handlers.
+- `src/app.ts`: Express application composition only; `src/routes/*.ts` holds registration and handlers.
 - `src/config.ts`: Centralized operator environment configuration.
 - `src/runtime.ts`: User configuration overlay (`opts()`, `AsyncLocalStorage`).
 - `src/providers/*.ts`: Provider search orchestration, autofetch runner, debrid pipeline, stream builder.
 - `src/debrid/*.ts`: Debrid adapters, file selector, common helpers.
 - `src/utils/*.ts`: Format submodules, cache, net-safety, magnetdb, release-index.
-- `resolvers/*.js`: Shared CommonJS core of the four Brazilian resolvers; `resolvers/profiles/*.js`: per-site parsers and rules.
-- `test/*.test.ts`: Complete unit test suite (66 files tracked in `package.json`).
+- `resolvers/*.js`: Shared CommonJS core of the five Brazilian resolvers; `resolvers/profiles/*.js`: per-site parsers and rules.
+- `src/public/*`: Panel pages (ES5, zero build) — HTML plus the CSS/JS extracted in §5.9.
+- `scripts/check-line-budget.ts` + `.line-budget.json`: 400-line ratchet over `.ts`/`.js`/`.css` (§5.8, scope extended to `.css` on 08-29); `npm run lint:lines`.
+- `test/*.test.ts`: Complete unit test suite (81 unit + 6 E2E = 87 files tracked in `package.json`).
 - `test/e2e/*.test.ts`: Opaque-box E2E test suite (Tiers 1–4).
 - `test/*challenger*.ts`, `test/*stress*.ts`, `test/*adversarial*.ts`: Empirical bench test harnesses.
 
@@ -85,7 +90,7 @@
 | 23 | A4 Brazilian Resolvers Shared Core | Extract common microservice engine into `resolvers/` core with site profiles | M3 | DONE (2026-08-24) — PLANO_MELHORIAS §5.4. CommonJS core in `resolvers/` (`runtime.js`, `site-selector.js`, `cache.js`, `protector.js`, `http-server.js`, `flare.js`, `text.js`, `matching.js`, `transport.js`, `nested-url.js`, `torznab.js`, `search-posts.js`, `concurrency.js`) + per-site profiles in `resolvers/profiles/*.js`; each `*-resolver/server.js` is a shim doing `require('../resolvers/profiles/<nome>')`; `build-assets.ts` copies `resolvers/` into `dist/`. **Second pass at `48b6773`:** the first conclusion left real duplication behind — NerdFilmes and TorrentDosFilmes still hand-rolled the protector hop loop (46 and 39 lines) instead of `followProtectedUrl`, `extractMetaRefresh` was byte-identical in two profiles and absent in the other two, and `mapLimit` had four copies. All four sites now share one transport, so mutant MUT-06 (host allowlist) covers four by the same path instead of two. Profiles 3,263 → 3,115 lines; core 474 → 539 |
 | 24 | A1c Route Modularization | Modularize `src/app.ts` into route modules (`src/routes/*.ts`) | M3 | DONE (2026-08-24) — PLANO_MELHORIAS §5.5. Real path is `src/routes/` (`register.ts`, `services.ts`, `stream.ts`, `resolve.ts`, `public.ts`, `diagnostics.ts`, `origin.ts`, `state.ts`, `async.ts`, `types.ts`); `createApp()` only composes |
 | 25 | A6 Type Refinements | Reduce explicit `any` types and introduce strongly-typed stream/adapter models | M3 | DONE (2026-08-24) — PLANO_MELHORIAS §5.7. Target was <150 explicit `any`; **143** at `e25ef29`, measured with the corrected AST counter (the previous one used `git ls-files 'src/**/*.ts'`, which skips the 6 files at the root of `src/` — it read 66 of 72 files and reported 149 where the real number was 156). Closed by `debrid/alldebrid.ts` 13 → 0 via `AllDebridMagnet`/`AllDebridFileNode` plus the existing `DebridFile[]`/`InventoryItem[]`; typing surfaced 4 latent `undefined` defects the `any` was hiding |
-| 26 | Final Full Verification & Tier 5 Audit | Complete verification across all 1,193 tests, all 5 harnesses, and forensic audit | M4 | ORIGINAL_REQUEST |
+| 26 | Final Full Verification & Tier 5 Audit | Complete verification across the whole suite (1,193 at the time of writing; **1,509** on 2026-08-29), all 6 harnesses, and forensic audit | M4 | ORIGINAL_REQUEST |
 
 ---
 
@@ -96,8 +101,9 @@
 | M1 | Debrid Safety & Runtime Robustness | Features 1–10 (B1 tests 1.4/1.5, S3 diagnostic gate, S1.2 asyncRoute, S4 action confirmation, SQLite corrupted recovery, CI audit, SSRF filter remediation) | M0 | DONE |
 | M2 | Core Guardrails, Regression Safety & Budget Verification | Features 11–18 (T1–T7, B3 E2E test verification, harness mutation safety) | M1 | DONE — T1–T7 in PLANO_MELHORIAS phase 3 (`c9a7888`, `e69450c`), B3 closed by phase 4 (4.1–4.3) |
 | M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | DONE (2026-08-24) — 20/A2 and 21/A1 on 08-23; 19/A1b, 23/A4, 24/A1c, 22/A5 and 25/A6 on 08-24. A3 (explicit `SearchPhase`) was never in scope: phase control stays implicit via latest-writer |
-| M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 5 bench harnesses, forensic audit | M3 | OPEN — regression half re-validated on 08-24 after Fase 6: build, **1.200 tests**, `test:complete` 66+6, the 6 harnesses, mutation score 10/10 (20 sequential + 6 parallel, APPROVE). `npm run smoke` had its window recalibrated (PLANO_MELHORIAS 6.6) and passes with cold cache. What is still missing is the Tier 5 forensic audit, which does not run in any gate |
+| M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 6 bench harnesses, forensic audit | M3 | OPEN — regression half re-validated on 08-24 after Fase 6 (build, 1.200 tests, `test:complete` 66+6, the 6 harnesses, mutation score 10/10 — 20 sequential + 6 parallel, APPROVE) and again on **08-29** after M6: build, **1.509 tests**, `test:complete` **87+6**, `lint:lines` baseline OK, `npm run smoke` green against the rebuilt container. `npm run smoke` had its window recalibrated (PLANO_MELHORIAS 6.6) and passes with cold cache. What is still missing is the Tier 5 forensic audit, which does not run in any gate |
 | M5 | Fase 6 — Longo prazo / opcionais | 6.1 SDK-out (router Express próprio), 6.2 clear-cache seletivo, 6.3 análise `davail`, 6.4 risco aceito do decode, 6.5/6.5b healthcheck quádruplo do Caddy, 6.6 janela do smoke, 6.7 checkJs medido, 6.8 export duplicado | M4 (6.1/6.2 dependiam do 5.5) | DONE (2026-08-24), exceto 6.3 com janela aberta: baseline 0 registrada (878 servidos vs 736 de rede = 54,4% de bypass local; gate antigo `repeated/hashes` em 20,9%), decisão de TTL após amostra de 7 dias. 6.7 documentada como "medido, não feito" (354 erros, 306 de `noImplicitAny` — tarefa própria, não ajuste de config) |
+| M6 | Catraca de linhas & extração dos HTML do painel | §5.8 (teto de 400 linhas com baseline em `.line-budget.json`, núcleos compartilhados dos 5 perfis de resolver) e §5.9 (CSS/JS dos painéis em arquivos próprios) | M5 | DONE (2026-08-29) — `configure.html` 1.771→1.056 e `dashboard.html` 2.429→1.556, com 6 assets servidos por allowlist fechada; o JS ancorado pelos testes ficou inline por contrato. O scanner da catraca passou a varrer `.css` e o `configure.css` (505) entrou no baseline como débito registrado. Guarda-corpo: os testes de painel passaram **sem alteração**. A validação ao vivo achou 2 defeitos **pré-existentes** que a extração tornou visíveis (`displayValue` tratava "at" como substring — `hitRate` virava 31/12/1969 — e `uptimeS` em segundos ia para um formatador de milissegundos), corrigidos com teste de regressão que **executa** o módulo extraído |
 
 ---
 

@@ -25,11 +25,21 @@ falso-verde é prato dele.
   `types/domain.d.ts`: `Stream` (união que exige ação), `ParsedSeasonEpisode`,
   `DebridAdapter`.
 - Não usar `@ts-ignore`/cast espalhado; centralizar o dublê em `test/helpers/stub.ts`.
+- **Regex de texto não é teste de comportamento.** Os testes de painel casam
+  corpos de função dentro do html — isso trava a *forma*, não o resultado, e foi
+  por isso que dois defeitos do `displayValue` sobreviveram a 1.507 testes até
+  alguém abrir a página. Para código extraído em `src/public/*.js`, **execute** o
+  módulo (`new Function(code + 'return {...}')`) e afirme a saída; ver
+  `test/dashboard.test.ts`.
+- **Catraca de linhas** (`npm run lint:lines`): teto de 400 sobre `.ts`/`.js`/`.css`,
+  baseline em `.line-budget.json`. Arquivo de teste que cresce precisa de
+  `-- --bless` no mesmo commit, senão o portão reprova.
 
 ## Arquivos-âncora
 
 - `package.json`
 - `test/` (os `.test.ts` essenciais)
+- `scripts/check-line-budget.ts` + `.line-budget.json`
 - `test/e2e/e2e-harness.ts`
 - `test/helpers/stub.ts`
 - `scripts/check-test-list.ts`

@@ -37,7 +37,7 @@ O arquivo `test/e2e/e2e-harness.ts` fornece a infraestrutura compartilhada para 
 ├────────────────────────────┼─────────────────────────────┤
 │   Config & Cryptography    │   Debrid & Resolver Mocks   │
 │  - encodeConfig()          │  - PM / RD / AD / TB / DL   │
-│  - decodeConfig()          │  - BR Resolvers (8700-8703) │
+│  - decodeConfig()          │  - BR Resolvers (8700-8704) │
 │  - signResolve()           │  - Fixtures & Generators    │
 └────────────────────────────┴─────────────────────────────┘
 ```
@@ -144,7 +144,7 @@ explicitamente no script, inclusive os tiers E2E:
 npm run test:complete
 ```
 
-Os **cinco harnesses de bancada** ficam fora do CI e do `npm test`: rodam
+Os **seis harnesses de bancada** ficam fora do CI e do `npm test`: rodam
 código de bancada (estresse/mutação) que o portão nunca executa. O
 `test:adversarial` (`empirical-e2e-challenger`) **altera arquivos de `dist/`
 temporariamente** — escreve mutações nos arquivos compilados e os restaura —,

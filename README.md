@@ -38,8 +38,8 @@ os quatro processos e qualquer um que morrer derruba o container para o
 - **Adom** = addon Node deste repositório: busca em paralelo no Jackett
   (indexers globais + cards brasileiros), no Prowlarr e no scraper do BLUDV.
 - **Jackett** = gerenciador de indexers; os cards BR (Bludv, ComandoTorrents,
-  NerdFilmes, TorrentDosFilmes V2) vêm embutidos na imagem e dependem
-  dos microserviços `*-resolver` para seguir protetores de links.
+  NerdFilmes, TorrentDosFilmes V2, VacaTorrent) vêm embutidos na imagem e
+  dependem dos microserviços `*-resolver` para seguir protetores de links.
 - **FlareSolverr** = resolve desafios Cloudflare dos indexers que exigem.
 - **Caddy** = HTTPS automático na frente do addon.
 - **Debrid** = opcional: com ele o play passa pela rota `/resolve` assinada
@@ -354,7 +354,9 @@ stremio adom/
 │   │   ├── bludv.ts          # scraper direto do BLUDV
 │   │   └── account.ts        # inventário pronto da conta como fonte
 │   ├── debrid/               # adaptadores: premiumize, realdebrid, …
-│   ├── public/configure.html # página de configuração (sem build)
+│   ├── public/               # painéis ES5, sem build (§5.9)
+│   │   ├── configure.html    # + configure.css, configure-app.js
+│   │   └── dashboard.html    # + dashboard.css, dashboard-{core,panels,status}.js
 │   └── utils/
 │       ├── cache.ts
 │       ├── cache-keys.ts     # versão dos namespaces (streams:v6, idx:v5, …)
@@ -369,7 +371,7 @@ stremio adom/
 │   └── entrypoint.sh         # supervisor dos 4 processos no container único
 ├── docker-compose.yml        # serviço único (adom)
 ├── jackett-bludv/            # definitions Cardigann dos cards BR (yml)
-├── resolvers/                # núcleo comum dos 4 resolvers BR + profiles/
+├── resolvers/                # núcleo comum dos 5 resolvers BR + profiles/
 ├── bludv-resolver/           # shim → resolvers/profiles/bludv.js
 ├── comandotorrents-resolver/ # shim → resolvers/profiles/comandotorrents.js
 ├── nerdfilmes-resolver/      # shim → resolvers/profiles/nerdfilmes.js
@@ -397,8 +399,9 @@ stremio adom/
 |---------|--------|
 | `npm start` | sobe o addon local (de `dist/`) |
 | `npm run dev` | local com `--watch` |
-| `npm test` | suíte (node:test) sobre `dist/test/`: 66 arquivos, 1.193 testes, zero rede |
+| `npm test` | suíte (node:test) sobre `dist/test/`: 87 arquivos, 1.509 testes, zero rede |
 | `npm run test:complete` | gate: cobra que todo `test/**/*.test.ts` esteja no `npm test` |
+| `npm run lint:lines` | catraca de 400 linhas sobre `.ts`/`.js`/`.css`, baseline em `.line-budget.json` (`-- --bless` regrava) |
 | `npm run typecheck` | `tsc --noEmit` — portão de tipos, precisa ficar em ZERO |
 | `npm run smoke` | smoke test contra o addon rodando (rede de verdade) |
 | `npm run docker:up` | build + sobe o container único |

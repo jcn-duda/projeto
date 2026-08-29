@@ -110,7 +110,9 @@
         "src/config.ts",
         "src/utils/secret-box.ts",
         "src/public/configure.html",
-        "src/routes/public.ts"
+        "src/public/configure-app.js",
+        "src/routes/public.ts",
+        "src/routes/register.ts"
       ],
       "guards": "No caminho de busca NUNCA ler config.debrid.apiKey / maxResults direto — le-se por opts(). Timers pos-request DEVEM capturar ALS (runtime.capture/run) senao regravam cache com a config errada. Toda opcao nova tem SCHEMA + defaults() + controle no KEYS do front em sincronia."
     },
