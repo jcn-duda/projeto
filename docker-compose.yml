@@ -26,8 +26,6 @@ services:
       - "127.0.0.1:8191:8191"
     env_file:
       - .env
-    depends_on:
-      - stremthru
     environment:
       HOST: 0.0.0.0
       PORT: 7000
@@ -35,10 +33,14 @@ services:
       JACKETT_URL: http://127.0.0.1:9117
       PROWLARR_URL: http://127.0.0.1:9696
       BR_RESOLVERS_HOST: 127.0.0.1
-      # No compose, a fonte opt-in é a instância self-hosted abaixo. Fora do
-      # compose o default do código continua vazio: nenhuma chave sai para um
-      # terceiro sem configuração explícita.
-      DEBRID_RD_ORACLE_STREMTHRU_URL: ${DEBRID_RD_ORACLE_STREMTHRU_URL:-http://stremthru:8080}
+      # Sem default aqui de propósito: a URL e o container são UM interruptor
+      # só, ambos no .env (DEBRID_RD_ORACLE_STREMTHRU_URL + COMPOSE_PROFILES=
+      # stremthru). O available() do oráculo decide pela configuração, não por
+      # alcançabilidade — URL setada com o container parado (profile off)
+      # faria toda busca em RD pagar o prazo do oráculo num host morto. Fora
+      # do compose o default do código também é vazio: nenhuma chave sai para
+      # um terceiro sem configuração explícita.
+      DEBRID_RD_ORACLE_STREMTHRU_URL: ${DEBRID_RD_ORACLE_STREMTHRU_URL:-}
       # Jackett (linuxserver) dentro do container único: sem auto-update pra
       # definição local BR não ser sobrescrita.
       AUTO_UPDATE: "false"
@@ -79,6 +81,12 @@ services:
   # O banco começa VAZIO — no início ele responde `unknown` para quase tudo, o
   # que o parser trata como "não sei" (nunca miss). Ele esquenta com o uso.
   stremthru:
+    # OPT-IN: só sobe com COMPOSE_PROFILES=stremthru no .env — e esse profile
+    # anda PAR com DEBRID_RD_ORACLE_STREMTHRU_URL (mesmo interruptor; ver o
+    # environment do adom). Serviço com profile inativo NÃO pode receber
+    # depends_on: um depends_on para serviço fora do profile invalida o
+    # projeto inteiro do compose (nem o adom sobe).
+    profiles: ["stremthru"]
     # O Adom usa somente o check Torz como oráculo RD. Fixar a versão evita
     # upgrade silencioso e `STREMTHRU_FEATURE=torz` não sobe os workers de
     # catálogo/IMDB que reiniciavam o processo por heartbeat expirado.

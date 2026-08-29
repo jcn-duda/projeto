@@ -2,6 +2,8 @@ node_modules/
 # Saída do tsc: dist/src/, dist/test/, dist/scripts/.
 dist/
 .env
+# Backups locais do .env: cópias com chaves reais não podem entrar no histórico.
+.env.bak*
 *.log
 .DS_Store
 Thumbs.db

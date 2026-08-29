@@ -450,8 +450,11 @@ No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_CACHED_ONLY`,
   **só** quando há fonte de fato: as fontes são **opt-in por padrão**).
   `DEBRID_RD_ORACLE_TIMEOUT_MS` (800 — prazo ÚNICO, compartilhado pelas fontes),
   `DEBRID_RD_ORACLE_MAX_HASHES` (100, teto 500), `DEBRID_RD_ORACLE_STREMTHRU_URL`
-  (default do runtime **vazio** — sem endpoint, nada sai; o compose injeta
-  `http://stremthru:8080`, a instância self-hosted da própria stack),
+  (default do runtime **vazio** — sem endpoint, nada sai; no compose a
+  instância self-hosted é **opt-in por par**: `COMPOSE_PROFILES=stremthru`
+  sobe o container e a URL `http://stremthru:8080` vai junto no `.env`, nunca
+  um só — `available()` decide por configuração, e URL com container morto
+  queima o prazo do oráculo em toda busca RD),
   `DEBRID_RD_ORACLE_STREMTHRU_TOKEN`,
   `DEBRID_RD_ORACLE_STREMTHRU_STORE` (`realdebrid`),
   `DEBRID_RD_ORACLE_TORRENTIO` (default **`false`** — o flag é o opt-in; com

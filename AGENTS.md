@@ -578,10 +578,16 @@ sustentam isso:
   explícitos têm precedência; vazios, usam a apiKey efetiva da instalação
   recebida por `rdOracle.check` — atenção: isso envia a chave à fonte (terceiro
   a vê). `available()` exige fonte realmente utilizável com credencial efetiva.
-  No `docker-compose.yml`, o `adom` recebe explicitamente
-  `http://stremthru:8080`, a instância self-hosted da própria stack; o default
-  vazio vale para execuções fora do compose. Kill-switch:
-  `DEBRID_RD_ORACLE=false`.
+  No `docker-compose.yml` o StremThru é **opt-in por profile**
+  (`profiles: ["stremthru"]`): só sobe com `COMPOSE_PROFILES=stremthru` no
+  `.env`, e a URL `http://stremthru:8080` mora no MESMO interruptor — as duas
+  linhas do `.env` andam juntas (descomentar as duas liga; comentar as duas
+  desliga). O motivo é que `available()` decide pela configuração, não por
+  alcançabilidade: URL setada com o container parado faz toda busca em RD
+  gastar o prazo do oráculo num host morto. Por isso o compose não injeta URL
+  default e o `depends_on` do `adom` saiu — `depends_on` para serviço com
+  profile inativo invalida o projeto inteiro. O default vazio do código vale
+  fora do compose. Kill-switch: `DEBRID_RD_ORACLE=false`.
 
 Com ledger+oráculo ativos, o oráculo roda ANTES do `checkCached` no
 `applyDebrid` e grava os veredictos no ledger; o `checkCached` do adaptador só
