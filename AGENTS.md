@@ -1176,7 +1176,8 @@ do JSON entra no commit, visível na revisão. Quando o arquivo diminui, o scrip
 regrava o baseline para baixo sozinho: a folga não acumula. A extração do JS/CSS
 inline dos HTML do painel (§5.9) já foi feita: os módulos resultantes
 (`configure-app.js`, `dashboard-*.js`) estão sob a catraca como qualquer `.js`;
-os `.html` seguem fora da varredura porque o filtro só lê `.ts`/`.js` — mas o
+os `.html` seguem fora da varredura (o filtro lê `.ts`/`.js`/`.css` — os módulos
+extraídos e o CSS estão sob a catraca) — mas o
 JS ancorado pelos testes continua INLINE neles por contrato (os testes regexam
 corpos de função no html; mover seria quebra, ver §5.9). Sem o gatilho, arquivo
 novo nasce com mil linhas e ninguém percebe até a extração ficar cara:

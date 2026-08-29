@@ -18,8 +18,13 @@ function makePublicHandlers(services: AppServices) {
   const sendConfigure = (_: express.Request, res: express.Response) => res.sendFile(services.publicPath('configure.html'));
   const sendDashboard = (_: express.Request, res: express.Response) => res.sendFile(services.publicPath('dashboard.html'));
   // Os HTML referenciam os assets por caminho absoluto porque a página responde
-  // tanto em /configure quanto em /:userConfig/configure.
-  const sendPageAsset = (name: string) => (_: express.Request, res: express.Response) => res.sendFile(services.publicPath(name));
+  // tanto em /configure quanto em /:userConfig/configure. maxAge curto de
+  // propósito: o nome do arquivo não é versionado (sem hash), então cache longo
+  // serviria JS/CSS velho depois de um deploy; 5 min + ETag cobre o caso —
+  // sem isso o default do sendFile (max-age=0) custa uma revalidação
+  // condicional por asset a cada load do painel (4 no dashboard).
+  const sendPageAsset = (name: string) => (_: express.Request, res: express.Response) =>
+    res.sendFile(services.publicPath(name), { maxAge: '5m' });
 
   const defaults = asyncRoute(async (_req, res) => {
     const { debridApiKey, ...safe } = services.runtime.defaults();

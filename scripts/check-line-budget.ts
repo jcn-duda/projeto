@@ -66,7 +66,10 @@ function listarArquivos(): string[] {
     .filter(
       (linha) =>
         linha.length > 0 &&
-        (linha.endsWith('.ts') || linha.endsWith('.js')) &&
+        // .css entrou na varredura com a Fase 3 (5.9): os CSS passaram a ter
+        // arquivo próprio depois de viverem inline no html (fora de qualquer
+        // escopo). Sem isso, o configure.css de 505 linhas seria débito invisível.
+        (linha.endsWith('.ts') || linha.endsWith('.js') || linha.endsWith('.css')) &&
         !linha.endsWith('.d.ts'), // types/ é contrato declarativo, não código
     );
 }

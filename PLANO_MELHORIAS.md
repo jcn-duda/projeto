@@ -583,9 +583,12 @@ autocrlf no Windows) e conta **1025** no `resolvers/profiles/vacatorrent.js`,
 não os 1024 do `wc -l`: o arquivo termina sem newline. O script é a autoridade,
 não a medição que originou o plano.
 
-> **Correção do pathspec (2026-08-28).** O escopo da varredura é
+> **Correção do pathspec (2026-08-28; escopo estendido a `.css` em 2026-08-29).**
+> O escopo da varredura é
 > `git ls-files src resolvers scripts test types "*-resolver/**"`, filtrado a
-> `.ts`/`.js` sem `.d.ts`. Duas armadilhas, ambas medidas: GLOBS de pathspec
+> `.ts`/`.js`/`.css` sem `.d.ts` (o `.css` entrou quando a Fase 3 deu arquivo
+> próprio ao CSS dos painéis — antes ele vivia inline no html, fora de escopo).
+> Duas armadilhas, ambas medidas: GLOBS de pathspec
 > `'src/**/*.ts'` **não casam os arquivos na raiz de `src/`** — o mesmo
 > precedente do contador da §5.7, que varria 66 dos 72 arquivos; e o glob puro
 > `"*-resolver"`, a forma escrita primeiro neste plano, casa **zero** arquivos
@@ -613,6 +616,7 @@ plano:
 | item 9, passo 3 — núcleo `magnet-extract.js` (Fase 2) | 17.024 | 49 | extractor parametrizado das 3 variantes (básica tdf/nerd, rica comando/bludv, rica+base64 vaca — R-6 provado por fixture) + `discoverNextUrl` do `nextProtectedUrl` com `jsVarPattern` por perfil (listas de variável JS divergem de propósito); regex pré-compiladas no closure (R-7); −317 líquidas |
 | item 9, passo 4 — núcleos `release-rules.js` + `release-format.js` (Fase 2) | 16.488 | 49 | classificadores/episódio/máquina de estados da âncora (301) e títulos/feeds/normalizeQuery/laço de fallback (232); 5 perfis encolhem (bludv 972→810, vaca 880→766, nerd 637→567, comando 569→402, tdf 429→406 — ainda acima do teto, débito honesto no JSON); 2 divergências do módulo parcial abortado corrigidas na auditoria; R-4/R-5 preservados por parâmetro (typo BLRAY da vaca, saída própria do nerd/tdf, pack `\bbatch\b`) |
 | item 9, passos 5+6 — núcleo `resolver-http.js` + flare (Fase 2) | 16.351 | 47 | roteador comum (157 linhas, hooks por perfil — zero `if` por site) e `flare.js` absorve o FlareSolverr do bludv (16→133, relocalização com reexport); **comando e tdf SAÍRAM do JSON** (384/386); bludv 719, vaca 748, nerd 547 ficam como débito honesto — split horizontal só se churn justificar. Bônus: o gate pegou regressão do passo 4 (`magnetButtonCacheKey` sem import no nerd — `/resolve` e `/dl` com 502) que os 1506 testes não viam; corrigida com import + teste novo da rota (1507 testes) |
+| escopo estendido a `.css` (pós-Fase 3, achado de revisão) | 16.456 | 48 | o scanner passou a varrer `.css` e o baseline foi regenerado: `src/public/configure.css` (505, era inline no html fora de qualquer escopo) entra como débito registrado — sem isso a garantia "sem exceção nenhuma" do 5.9 não se sustentava |
 
 **Backlog de resgate, ordenado por churn** (commits nos últimos 90 dias — os
 que mais se mexem primeiro, não os maiores primeiro; é onde a catraca morde,
@@ -660,8 +664,13 @@ ruim.
 CSS inline de `src/public/dashboard.html` (2.429 linhas) e `src/public/configure.html`
 (1.771) para arquivos próprios em `src/public/`, servidos como estáticos — o
 `scripts/build-assets.ts` já copia o diretório inteiro para `dist/`, então não há
-passo de build novo. Os módulos resultantes entraram no escopo da catraca (5.8)
-sem exceção nenhuma (todos ≤ 400 no nascimento). **Guarda-corpo:**
+passo de build novo. Os módulos JS resultantes entraram no escopo da catraca
+(5.8) sem exceção nenhuma (todos ≤ 400 no nascimento); o CSS ganhou arquivo
+próprio na mesma fase e o **scanner foi estendido a `.css`** na sequência — o
+`configure.css` (505 linhas, até então inline no html e fora de qualquer escopo)
+entrou no baseline como débito registrado, sujeito à catraca como qualquer
+legado (correção de revisão: a redação original prometia "sem exceção nenhuma"
+que a ferramenta não sustentava). **Guarda-corpo:**
 `test/dashboard.test.ts` e `test/configure-html.test.ts` (e os de painel
 `catalog-panel`/`harvester-panel`) passaram **sem alteração**.
 
