@@ -236,7 +236,6 @@ fixo: o `current()` em `debrid/index.ts` traduz o flag por requisição num clon
 | Histórico de play (`magnetdb.isAlive`) | `/resolve` devolveu link de verdade |
 | Oráculo Torrentio (`[RD+]` no `name`) | Busca: item listado com marcador = cacheado; listado sem = miss autoritativo; **não-listado ≠ miss** |
 | Oráculo StremThru (`GET /v0/store/torz/check`) | Busca: item presente (`status: 'cached'`) = hit; presente sem cached = miss |
-| Sonda em fundo (`DEBRID_RD_PROBE`, [`rd-probe.ts`](src/providers/rd-probe.ts)) | Após a lista: `addMagnet` → se vira `downloaded` na hora, marca hit no ledger e **apaga** o torrent da sonda |
 
 **Ledger (`rd-ledger.ts`).** O CDN/cache do RD pertence ao SERVIÇO, não à conta
 que observou o resultado — a chave `rdc:v2:<hash>` não leva `apiKey` nem
@@ -464,10 +463,13 @@ No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_CACHED_ONLY`,
   usado), `DEBRID_RD_ORACLE_TORRENTIO_KEY` (vazio usa a
   chave efetiva da instalação), `DEBRID_RD_ORACLE_TORRENTIO_TTL` (21600 — cache
   da resposta por título).
-- Sonda (`DEBRID_RD_PROBE*`): já vistos acima, agora com o cooldown delegado ao
-  gate quando ele está ligado.
-- **`DEBRID_RD_WARM*` (F3)** ainda **não existe** no código — reservado para a
-  futura fase de aquecimento do oráculo/ledger. Não configure até chegar.
+- Warmer em fundo (`DEBRID_RD_WARM*`, F3): `DEBRID_RD_WARM` (default `true`),
+  `DEBRID_RD_WARM_INTERVAL_MS` (30000), `DEBRID_RD_WARM_BATCH` (10),
+  `DEBRID_RD_WARM_MAX_HOUR` (300), `DEBRID_RD_WARM_IDLE_WINDOW_MS` (120000 —
+  freio de atividade do usuário), `DEBRID_RD_WARM_QUEUE_MAX` (5000). Consome a
+  fila persistente (`rdq:v1:wq`) de hashes desconhecidos, aquecendo o ledger
+  sem atrasar resposta e respeitando rdGate/teto horário; é ele quem substituiu
+  a antiga sonda `DEBRID_RD_PROBE*` (removida).
 
 O `DEBRID_AUTO_FETCH_SEASON_FILL` (default `true`) só tem efeito em serviço com
 `cacheCheck: true` — o ⚡ do Season Pack Fill é garantido pelo recheck do cache,

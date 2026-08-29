@@ -550,7 +550,7 @@ sustentam isso:
   sonda não martelar e para o filtro do `cachedOnly`. Sinais gratuitos que
   alimentam o ledger (todos com `noteHit`/`noteMiss`/`noteBlocked`):
   inventário, `magnetdb.isAlive`, play/downloaded no `/resolve`, 451, `enqueue`
-  pronto, recheck pronto, `torrentStatus` e a sonda RD. O oráculo consulta o
+  pronto, recheck pronto, `torrentStatus` e o warmer RD. O oráculo consulta o
   ledger ANTES da rede (dedupe) — hash já resolvido não paga chamada. Convive
   com o `mag:alive` (por conta, play que funcionou naquela credencial).
   Kill-switch: `DEBRID_RD_LEDGER=false`.
