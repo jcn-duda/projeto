@@ -8,6 +8,10 @@ import type express from 'express';
 const PAGE_ASSETS = [
   'configure.css',
   'configure-app.js',
+  'dashboard.css',
+  'dashboard-core.js',
+  'dashboard-panels.js',
+  'dashboard-status.js',
 ];
 
 function makePublicHandlers(services: AppServices) {
