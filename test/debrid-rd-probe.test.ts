@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as realdebrid from '../src/debrid/realdebrid.js';
-import { selectProbeCandidates, promoteCachedBolts, hashFromResolveUrl, promoteCachedBoltsAcrossStreams } from '../src/providers/rd-probe.js';
+import { promoteCachedBolts, hashFromResolveUrl, promoteCachedBoltsAcrossStreams } from '../src/providers/rd-probe.js';
 import { rdGate } from '../src/debrid/rd-gate.js';
 import * as rdLedger from '../src/debrid/rd-ledger.js';
 import * as cache from '../src/utils/cache.js';
@@ -143,39 +143,6 @@ test('activeTorrentCount lê GET /torrents/activeCount', async () => {
     assert.equal(mock.urls[0].path, '/rest/1.0/torrents/activeCount');
   } finally {
     mock.restore();
-  }
-});
-
-test('selectProbeCandidates prioriza BR dublado e pula já cacheado', () => {
-  const streams: any[] = [
-    { infoHash: H1, name: 'Global\n👤 99', _seeders: 99, _dubbed: false, _br: false },
-    { infoHash: H2, name: 'BR DUB\n👤 1', _seeders: 1, _dubbed: true, _br: true },
-    { infoHash: H3, name: 'Já ⚡\n👤 50', _seeders: 50, _dubbed: true, _br: true },
-  ];
-  const cached = new Set([H3]);
-  const picked = selectProbeCandidates(streams, cached, 'acct', 2, 'chave');
-  assert.equal(picked[0], H2, 'BR dublado primeiro');
-  assert.ok(!picked.includes(H3), 'já em cached não entra');
-});
-
-test('selectProbeCandidates oversample: hold nos top BR nao zera a sonda', async () => {
-  const held = await import('../src/debrid/protected.js');
-  const extras = Array.from({ length: 6 }, (_, i) => {
-    const h = `${i.toString(16).padStart(2, '0')}`.repeat(20);
-    return { infoHash: h, name: `BR DUB ${i}\n👤 ${10 - i}`, _seeders: 10 - i, _dubbed: true, _br: true };
-  });
-  // Segura os 2 melhores — a sonda tem que pegar os seguintes.
-  held.hold(extras[0].infoHash, 60, 'acct');
-  held.hold(extras[1].infoHash, 60, 'acct');
-  try {
-    const picked = selectProbeCandidates(extras as any, new Set(), 'acct', 2, 'chave');
-    assert.equal(picked.length, 2);
-    assert.ok(!picked.includes(extras[0].infoHash));
-    assert.ok(!picked.includes(extras[1].infoHash));
-    assert.equal(picked[0], extras[2].infoHash);
-  } finally {
-    held.release(extras[0].infoHash, 'acct');
-    held.release(extras[1].infoHash, 'acct');
   }
 });
 

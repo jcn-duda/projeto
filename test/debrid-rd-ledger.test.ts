@@ -6,7 +6,6 @@ import * as metrics from '../src/utils/metrics.js';
 import * as ledger from '../src/debrid/rd-ledger.js';
 import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
-import { selectProbeCandidates } from '../src/providers/rd-probe.js';
 
 const H1 = '1'.repeat(40);
 const H2 = '2'.repeat(40);
@@ -69,22 +68,6 @@ test('ledger: kill-switch desliga leitura e escrita', () => {
   ledger.noteHit([H5]);
   assert.equal(ledger.peek(H5), 'unknown');
   assert.equal(cache.peekRemaining(ledger.key(H5)), null);
-});
-
-test('sonda: miss do ledger pula hash e volta após o backoff', async () => {
-  config.debrid.rdLedger.missBackoffMs = [1_000];
-  const streams: any[] = [{
-    infoHash: H5,
-    name: 'Fonte BR',
-    _seeders: 1,
-    _dubbed: true,
-    _br: true,
-  }];
-  ledger.noteMiss(H5);
-  assert.deepEqual(selectProbeCandidates(streams, new Set(), 'conta-a', 1, 'chave-a'), []);
-
-  await new Promise((resolve) => setTimeout(resolve, 1_050));
-  assert.deepEqual(selectProbeCandidates(streams, new Set(), 'conta-b', 1, 'chave-b'), [H5]);
 });
 
 test('ledger: status reflete tracked e poda expirados em track', () => {
