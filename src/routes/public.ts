@@ -2,9 +2,20 @@ import { asyncRoute } from './async.js';
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 
+// CSS/JS extraídos dos HTML (Fase 3, PLANO_MELHORIAS §5.9). A lista é FECHADA
+// de propósito: publicPath() junta o nome ao diretório público, então aceitar
+// nome arbitrário vindo da URL abriria leitura fora de public/ (traversal).
+const PAGE_ASSETS = [
+  'configure.css',
+  'configure-app.js',
+];
+
 function makePublicHandlers(services: AppServices) {
   const sendConfigure = (_: express.Request, res: express.Response) => res.sendFile(services.publicPath('configure.html'));
   const sendDashboard = (_: express.Request, res: express.Response) => res.sendFile(services.publicPath('dashboard.html'));
+  // Os HTML referenciam os assets por caminho absoluto porque a página responde
+  // tanto em /configure quanto em /:userConfig/configure.
+  const sendPageAsset = (name: string) => (_: express.Request, res: express.Response) => res.sendFile(services.publicPath(name));
 
   const defaults = asyncRoute(async (_req, res) => {
     const { debridApiKey, ...safe } = services.runtime.defaults();
@@ -36,7 +47,7 @@ function makePublicHandlers(services: AppServices) {
     }
   };
 
-  return { sendConfigure, sendDashboard, defaults, seal };
+  return { sendConfigure, sendDashboard, sendPageAsset, pageAssets: PAGE_ASSETS, defaults, seal };
 }
 
 export { makePublicHandlers };

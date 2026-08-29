@@ -20,6 +20,12 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/health', (_req, res) => res.json({ ok: true }));
   app.get('/logo.svg', (_req, res) => res.sendFile(services.publicPath('logo.svg')));
   app.get('/logo.png', (_req, res) => res.sendFile(services.publicPath('logo.png')));
+  // Assets das páginas (CSS/JS extraídos do HTML inline — Fase 3, §5.9). Rotas
+  // explícitas com nome em allowlist, no mesmo padrão do logo; caminho absoluto
+  // no HTML porque a página responde em /configure e em /:userConfig/configure.
+  for (const asset of publicHandlers.pageAssets) {
+    app.get(`/${asset}`, publicHandlers.sendPageAsset(asset));
+  }
   app.get('/', (_req, res) => res.redirect(302, '/configure'));
   app.get('/configure', publicHandlers.sendConfigure);
   app.get('/dashboard', publicHandlers.sendDashboard);
