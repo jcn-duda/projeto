@@ -654,17 +654,41 @@ piorando o código: TS/ESM obriga a exportar o que era interno — seguir o padr
 de camadas sem ciclo do §5.3 e preferir deixar o débito no JSON a forçar split
 ruim.
 
-### 5.9 — Extração dos HTML do painel
+### 5.9 — Extração dos HTML do painel ✅
 
-Sem data forçada. Extrair o JS e o CSS inline de `src/public/dashboard.html`
-(2.429 linhas) e `src/public/configure.html` (1.771) para arquivos próprios em
-`src/public/`, servidos como estáticos — o `scripts/build-assets.ts` já copia o
-diretório inteiro para `dist/`, então não há passo de build novo. Feito isso, os
-módulos resultantes entram no escopo da catraca (5.8) sem exceção nenhuma e o
-`.html` volta a ser marcação. Enquanto isso, os dois HTML ficam fora da catraca
-— é a única exceção do gate, e ela morre com esta subfase. **Guarda-corpo:**
-`test/dashboard.test.ts` e `test/configure-html.test.ts` têm que passar **sem
-alteração** — ou não foi extração, foi reescrita.
+**Concluída** (configure no `80de8fc`, dashboard no `f98b677`). Extrair o JS e o
+CSS inline de `src/public/dashboard.html` (2.429 linhas) e `src/public/configure.html`
+(1.771) para arquivos próprios em `src/public/`, servidos como estáticos — o
+`scripts/build-assets.ts` já copia o diretório inteiro para `dist/`, então não há
+passo de build novo. Os módulos resultantes entraram no escopo da catraca (5.8)
+sem exceção nenhuma (todos ≤ 400 no nascimento). **Guarda-corpo:**
+`test/dashboard.test.ts` e `test/configure-html.test.ts` (e os de painel
+`catalog-panel`/`harvester-panel`) passaram **sem alteração**.
+
+Resultado:
+
+| Arquivo | Antes | Depois | Extraído |
+|---|---|---|---|
+| `configure.html` | 1.771 | 1.056 | `configure.css` (505) + `configure-app.js` (221: el/estado, base64url, selo, wiring) |
+| `dashboard.html` | 2.429 | 1.556 | `dashboard.css` (201) + `dashboard-core.js` (324) + `dashboard-panels.js` (186) + `dashboard-status.js` (203) |
+
+**O contrato que a extração revelou:** os testes regexam CORPOS de função e
+âncoras de texto DENTRO do html (`collect`/`apply`/`render`/`fromUrl`,
+`renderMagnetDb`, os painéis do Chupim/Colhedor, a seção Conta/Catálogo inteira,
+bloco de limites, boot saved/else) — **essas partes continuam inline por
+contrato**, e só o não-ancorado sai. Scripts extraídos são top-level (a IIFE do
+inline foi desembrulhada para o escopo global compartilhado), ES5 puro, ordem
+core → panels → status → inline; caminhos absolutos (`/configure.css`) porque as
+páginas respondem em `/configure` e `/:userConfig/configure`. Servidor:
+`PAGE_ASSETS` em `src/routes/public.ts` — allowlist FECHADA (nome arbitrário na
+URL abriria traversal), rotas no loop de `register.ts`.
+
+**Lição registrada** (tentativa descartada): a primeira extração foi feita num
+worktree criado sobre base desatualizada do `origin/esm` — o dashboard de lá
+não tinha os +1.471 linhas de painéis novos e o configure não tinha o toggle do
+Torrentio; cherry-pick conflitou e o trabalho foi refeito direto no checkout.
+Worktree de agente herda o push, não o HEAD local — conferir a base antes de
+delegar trabalho que depende do estado corrente.
 
 ---
 
