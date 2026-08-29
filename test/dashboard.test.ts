@@ -215,6 +215,30 @@ test('dashboard permanece ES5 e renderiza a observabilidade do Magnet DB', () =>
   assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/);
 });
 
+// displayValue vive no dashboard-core.js extraído (Fase 3) e nada roda no load
+// lá — só declarações — então o teste EXECUTA o módulo em vez de regexar o
+// texto. Os dois casos abaixo são bugs pré-existentes que a extração tornou
+// visíveis, confirmados no DOM ao vivo pelo QA antes do conserto.
+test('displayValue do dashboard-core: data é sufixo -at e uptimeS vem em segundos', () => {
+  const code = readFileSync(new URL('../src/public/dashboard-core.js', import.meta.url), 'utf8');
+  const api = new Function(code + '\nreturn { displayValue: displayValue };')() as {
+    displayValue: (key: string, value: unknown) => string;
+  };
+
+  // Chave que TERMINA em "at" continua data (generatedAt, lastRunAt, lastWriteAt).
+  assert.match(api.displayValue('generatedAt', 1700000000000), /^\d{2}\/\d{2}\/\d{4}/);
+
+  // Chave que só CONTÉM "at" não é data: com o indexOf antigo, hitRate,
+  // deadlineMetadata e brLate pintavam 31/12/1969, 21:00:00 no painel.
+  assert.equal(api.displayValue('hitRate', 0.311), '0.311');
+  assert.equal(api.displayValue('deadlineMetadata', 7), '7');
+  assert.equal(api.displayValue('brLate', 3), '3');
+
+  // uptimeS chega em SEGUNDOS de metrics.ts; formatDuration espera ms. Sem a
+  // conversão, 3612 s de container renderizava "3.6 s" (erro de 1000x).
+  assert.equal(api.displayValue('uptimeS', 3612), '60 min 12 s');
+});
+
 test('dashboard renderiza o painel do Chupim e navegação por abas em ES5', () => {
   const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
   assert.match(html, /id="tabGeral"/);

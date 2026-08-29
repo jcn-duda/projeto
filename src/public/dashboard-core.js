@@ -96,8 +96,15 @@
   function displayValue(key, value) {
     var lower = String(key).toLowerCase();
     if (lower.indexOf("bytes") !== -1 || lower.indexOf("memory") !== -1 || lower === "rss" || lower === "heapused") return formatBytes(value);
+    // metrics.ts produz uptimeS em SEGUNDOS ((now - startedAt)/1000);
+    // formatDuration espera milissegundos. Sem a conversão, um container de pé
+    // há 1 h (3612 s) renderizava "3.6 s" — erro de 1000x.
+    if (lower === "uptimes") return formatDuration(value * 1000);
     if (lower.indexOf("uptime") !== -1 || lower.indexOf("duration") !== -1 || lower.indexOf("latency") !== -1 || /ms$/.test(lower)) return formatDuration(value);
-    if (lower.indexOf("at") !== -1 && (typeof value === "string" || typeof value === "number")) return formatDate(value);
+    // Data é a chave que TERMINA em "at" (generatedAt, lastRunAt...), não a que
+    // contém "at" em qualquer posição: com indexOf, hitRate, deadlineMetadata e
+    // brLate viravam 31/12/1969 no painel.
+    if (/at$/.test(lower) && (typeof value === "string" || typeof value === "number")) return formatDate(value);
     return valueText(value);
   }
 
