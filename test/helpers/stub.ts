@@ -22,7 +22,8 @@ export interface FetchCall {
 export interface FetchResponse {
   ok: boolean;
   status?: number;
-  json(): Promise<unknown>;
+  json?(): Promise<unknown>;
+  text?(): Promise<string>;
 }
 
 /** Quem responde por uma chamada do dublê. */

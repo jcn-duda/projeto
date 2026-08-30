@@ -15,6 +15,7 @@
 // os irmãos; nenhum deles importa de volta.
 import config from '../config.js';
 import * as cache from '../utils/cache.js';
+import { prefix } from '../utils/cache-keys.js';
 import * as activity from './activity.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
@@ -42,8 +43,14 @@ async function checkQuotaWarning() {
   const adapter = config.debrid.service ? debrid.BY_ID.get(config.debrid.service) : null;
   if (!adapter || typeof adapter.accountStatus !== 'function') return;
   if (!config.debrid.apiKey || !config.debrid.allowEnvKey) return;
+  const quotaWarnKey = `${prefix('harvest')}quotaWarn`;
+  const cooldownMs = config.harvest.quotaWarnCooldownMs;
+  if (cooldownMs > 0 && cache.get(quotaWarnKey)) return;
   try {
     const status = await adapter.accountStatus(config.debrid.apiKey);
+    if (cooldownMs > 0) {
+      cache.set(quotaWarnKey, 1, Math.ceil(cooldownMs / 1000));
+    }
     if (status && typeof status.magnets === 'number' && status.magnets >= config.notify.magnetsWarn) {
       await notify('debrid_quota_warning', 'warning', `Conta ${adapter.id} atingiu ${status.magnets} magnets (próximo do limite de 1000)`, {
         adapter: adapter.id,
@@ -100,6 +107,7 @@ async function tick() {
         harvestQueue.head(entry);
         harvestQueue.persist();
       } else {
+        metrics.count('harvest.capped.dropped');
         attemptsByObra.delete(identity);
       }
     } else {

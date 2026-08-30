@@ -39,3 +39,18 @@ process.env.DEBRID_RD_GATE = 'true';
 // `0` desliga cada lado — se a camada estiver inerte, nenhum outro teste muda.
 process.env.DEBRID_AVAIL_POS_TTL = '2';
 process.env.DEBRID_AVAIL_NEG_TTL = '1';
+
+// Filtro de qualidade e cotas por faixa: a suíte monta as próprias fixtures e
+// espera o comportamento SEM filtro (o default do código: lista vazia = tudo
+// passa, 6 vagas por faixa). Quando o operador aperta esses valores no `.env`
+// — foi o caso ao alinhar a instância à config de referência: QUALITY_FILTER
+// com três faixas e as cotas em 2 —, streams das fixtures somem antes da
+// asserção e testes de aviso/notice quebram sem que nada no código tenha
+// mudado. Mesmo motivo dos pins acima: o verde não pode depender de quem roda.
+process.env.QUALITY_FILTER = '';
+process.env.MAX_STREAMS_2160P = '6';
+process.env.MAX_STREAMS_1080P = '6';
+process.env.MAX_STREAMS_720P = '6';
+process.env.MAX_STREAMS_480P = '6';
+process.env.MAX_STREAMS_SD = '6';
+process.env.MAX_STREAMS_UNKNOWN = '6';

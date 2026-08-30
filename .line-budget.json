@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-08-30",
-  "excedente": 16642,
+  "excedente": 17236,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
@@ -12,6 +12,7 @@
     "src/providers/search-orchestrator.ts": 888,
     "src/providers/stream-builder.ts": 628,
     "src/public/configure.css": 505,
+    "src/utils/audio-quality.ts": 432,
     "src/utils/autofetch-live.ts": 495,
     "src/utils/catalog.ts": 1064,
     "src/utils/release-matching.ts": 636,
@@ -41,7 +42,7 @@
     "test/e2e/tier3-cross-feature.test.ts": 993,
     "test/e2e/tier4-application-scenarios.test.ts": 786,
     "test/format.test.ts": 2753,
-    "test/harvester.test.ts": 682,
+    "test/harvester.test.ts": 1276,
     "test/index-fast-path.test.ts": 449,
     "test/jackett-provider.test.ts": 942,
     "test/m1-protector-adversarial-stress.ts": 728,

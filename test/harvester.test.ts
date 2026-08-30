@@ -19,6 +19,7 @@ import { ptSweepQueryFor } from '../src/providers/search-plan.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import * as metrics from '../src/utils/metrics.js';
+import * as harvestWorker from '../src/providers/harvest-worker.js';
 
 test('teto horário conta as consultas e trava o ciclo seguinte', async () => {
   // Precisa ser o PRIMEIRO do arquivo: o tick consome a fila do módulo, que
@@ -280,8 +281,7 @@ test('varredura pt NÃO roda quando estouraria o teto horário', async () => {
     return { ok: false, status: 404, json: async () => ({}) };
   });
   try {
-    // 2 indexers globais no loop + 2 na varredura = 4 necessários.
-    // Com maxPerHour = (já usado + 2), o loop gasta 2 e a varredura não cabe.
+    // Com maxPerHour = before (sem saldo restante), a varredura não cabe e é suprimida.
     config.harvest.idleWindowMs = 0;
     config.harvest.indexerDelayMs = 0;
     config.jackett.indexers = ['glob-1', 'glob-2'];
@@ -289,11 +289,10 @@ test('varredura pt NÃO roda quando estouraria o teto horário', async () => {
     config.jackett.apiKey = 'fake-key';
     config.tmdb.apiKey = 'fake-key';
     const before = (harvester.status() as any).queriesThisHour;
-    config.harvest.maxPerHour = before + 2;
+    config.harvest.maxPerHour = before;
 
     cache.set('meta:movie:tt9500051', { name: 'Star Wars: Episode II', year: '2002', type: 'movie' }, 3600);
-    harvester.enqueue({ imdbId: 'tt9500051', type: 'movie', reason: `miss-${Date.now()}` } as any);
-    await harvester.tick();
+    await harvestWorker.harvestOne({ imdbId: 'tt9500051', type: 'movie', reason: `miss-${Date.now()}` } as any);
 
     const expectedSweep = ptSweepQueryFor({
       titles: { pt: 'Star Wars: O Ataque dos Clones', original: 'Star Wars: Episode II - Attack of the Clones' },
@@ -310,6 +309,71 @@ test('varredura pt NÃO roda quando estouraria o teto horário', async () => {
     assert.equal(sweepUrls.length, 0, 'varredura foi suprimida pelo teto');
   } finally {
     stub.restore();
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.ptBrIndexers = saved.ptBrIndexers;
+    config.jackett.apiKey = saved.apiKey;
+    config.tmdb.apiKey = saved.tmdbApiKey;
+  }
+});
+
+test('varredura pt-BR parcial: consulta apenas a fatia permitida e conta harvest.sweep.partial', async () => {
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    ptBrIndexers: config.jackett.ptBrIndexers,
+    apiKey: config.jackett.apiKey,
+    tmdbApiKey: config.tmdb.apiKey,
+  };
+  const stub = stubFetch((url: string) => {
+    if (url.includes('api.themoviedb.org')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          movie_results: [
+            {
+              title: 'Star Wars: O Ataque dos Clones',
+              original_title: 'Star Wars: Episode II - Attack of the Clones',
+              release_date: '2002-05-16',
+            },
+          ],
+        }),
+      };
+    }
+    if (url.includes('/api/v2.0/indexers/')) {
+      return { ok: true, status: 200, json: async () => ({ Results: [] }) };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+  try {
+    harvesterLive.reset();
+    metrics.reset();
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['glob-1', 'glob-2', 'glob-3'];
+    config.jackett.ptBrIndexers = [];
+    config.jackett.apiKey = 'fake-key';
+    config.tmdb.apiKey = 'fake-key';
+
+    // Se temos 3 globais e o orçamento restante é 2, a fatia da varredura será 2 alvos (< 3).
+    const before = (harvester.status() as any).queriesThisHour;
+    harvesterLive.set({ harvestMaxPerHour: before + 2 });
+
+    cache.set('meta:movie:tt9500055', { name: 'Star Wars: Episode II', year: '2002', type: 'movie' }, 3600);
+    harvester.enqueue({ imdbId: 'tt9500055', type: 'movie', reason: `sweep-partial-${Date.now()}` } as any);
+    await harvester.tick();
+
+    const snap = metrics.snapshot().counters;
+    assert.equal(snap['harvest.sweep'], 1, 'varredura executou');
+    assert.equal(snap['harvest.sweep.partial'], 1, 'varredura parcial foi contabilizada');
+  } finally {
+    stub.restore();
+    harvesterLive.reset();
     config.harvest.maxPerHour = saved.maxPerHour;
     config.harvest.idleWindowMs = saved.idleWindowMs;
     config.harvest.indexerDelayMs = saved.indexerDelayMs;
@@ -680,3 +744,533 @@ test('3.2: capacidade com prioridade ativa NÃO remove a cabeça prioritária', 
     harvester.clearQueue();
   }
 });
+
+test('M1: override live de harvestMaxPerHour e harvestIdleWindowMs afeta harvestOne diretamente', async () => {
+  harvesterLive.reset();
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+  };
+  try {
+    // Config estática define teto alto (100) e janela 0
+    config.harvest.maxPerHour = 100;
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['idx-a', 'idx-b', 'idx-c'];
+    config.jackett.apiKey = '';
+
+    // Override live define teto baixo (1 consulta)
+    const before = (harvester.status() as any).queriesThisHour;
+    harvesterLive.set({ harvestMaxPerHour: before + 1 });
+
+    cache.set('meta:movie:tt9500070', { name: 'Live Override Movie', year: '2024', type: 'movie' }, 3600);
+    harvester.clearQueue();
+    harvester.enqueue({ imdbId: 'tt9500070', type: 'movie', reason: `live-${Date.now()}` } as any);
+
+    await harvester.tick();
+
+    const st: any = harvester.status();
+    assert.equal(st.queriesThisHour, before + 1, 'harvestOne respeitou o teto do override live (1)');
+    assert.equal(st.queueDepth, 1, 'obra cortada voltou para a fila');
+  } finally {
+    harvesterLive.reset();
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+    harvester.clearQueue();
+  }
+});
+
+test('M2: rdWarmer recebe releases ordenadas por score (80 > 40 > 5)', async () => {
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+    tmdbApiKey: config.tmdb.apiKey,
+    rdWarmEnabled: config.debrid.rdWarm.enabled,
+    debridService: config.debrid.service,
+  };
+
+  const hBrDub = '1'.repeat(40);
+  const hGlobDub = '2'.repeat(40);
+  const hLeg = '3'.repeat(40);
+
+  const stub = stubFetch((url: string) => {
+    if (url.includes('api.themoviedb.org')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          movie_results: [
+            {
+              title: 'Filme Score Sort',
+              original_title: 'Score Sort Movie',
+              release_date: '2024-01-01',
+            },
+          ],
+        }),
+      };
+    }
+    if (url.includes('/api/v2.0/indexers/')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          Results: [
+            // Ordem de retorno invertida: primeiro legendado (5), depois glob (40), depois BR (80)
+            {
+              Title: 'Score Sort Movie (2024) 1080p English Subbed',
+              MagnetUri: `magnet:?xt=urn:btih:${hLeg}&dn=Filme.Leg`,
+              Seeders: 20,
+              Tracker: 'thepiratebay',
+            },
+            {
+              Title: 'Score Sort Movie (2024) 1080p Dual Audio',
+              MagnetUri: `magnet:?xt=urn:btih:${hGlobDub}&dn=Filme.Glob`,
+              Seeders: 10,
+              Tracker: 'thepiratebay',
+              dubbed: true,
+              isBr: false,
+            },
+            {
+              Title: 'Filme Score Sort (2024) 1080p DUAL Dublado',
+              MagnetUri: `magnet:?xt=urn:btih:${hBrDub}&dn=Filme.BR`,
+              Seeders: 5,
+              Tracker: 'comandotorrents',
+              isBr: true,
+            },
+          ],
+        }),
+      };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+
+  try {
+    cache.clearNamespace('rdc');
+    cache.clearNamespace('rdq');
+    rdWarmer.reset();
+    config.debrid.rdWarm.enabled = true;
+    config.debrid.service = 'realdebrid';
+
+    config.harvest.maxPerHour = 100;
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['test-score-sort'];
+    config.jackett.apiKey = 'fake-key';
+    config.tmdb.apiKey = 'fake-key';
+
+    cache.set('meta:movie:tt9500072', { name: 'Score Sort Movie', year: '2024', type: 'movie' }, 3600);
+    harvester.clearQueue();
+    harvester.enqueue({ imdbId: 'tt9500072', type: 'movie', reason: `score-order-${Date.now()}` } as any);
+    await harvester.tick();
+
+    const warmQueue = (cache.get(`${prefix('rdq')}wq`) || []) as any[];
+    assert.equal(warmQueue.length, 3);
+    assert.equal(warmQueue[0].hash, hBrDub, 'BR Dublado (score 80) vem em primeiro');
+    assert.equal(warmQueue[1].hash, hGlobDub, 'Dublado global (score 40) vem em segundo');
+    assert.equal(warmQueue[2].hash, hLeg, 'Legendado (score 5) vem em terceiro');
+  } finally {
+    stub.restore();
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+    config.tmdb.apiKey = saved.tmdbApiKey;
+    config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
+    config.debrid.service = saved.debridService;
+    rdWarmer.reset();
+    harvester.clearQueue();
+  }
+});
+
+test('M3: checkQuotaWarning respeita o cooldown de cache e não repete accountStatus', async () => {
+  const saved = {
+    notifyEnabled: config.notify.enabled,
+    webhookUrl: config.notify.webhookUrl,
+    magnetsWarn: config.notify.magnetsWarn,
+    service: config.debrid.service,
+    apiKey: config.debrid.apiKey,
+    allowEnvKey: config.debrid.allowEnvKey,
+    quotaWarnCooldownMs: config.harvest.quotaWarnCooldownMs,
+    idleWindowMs: config.harvest.idleWindowMs,
+  };
+
+  let accountStatusCalls = 0;
+  const debridModule = (await import('../src/debrid/index.js')).default;
+  const originalAdapter = debridModule.BY_ID.get('alldebrid');
+  const mockAdapter = {
+    ...originalAdapter,
+    id: 'alldebrid',
+    accountStatus: async () => {
+      accountStatusCalls += 1;
+      return { magnets: 950, ready: 10, active: 5 };
+    },
+  };
+  debridModule.BY_ID.set('alldebrid', mockAdapter as any);
+
+  try {
+    cache.clearNamespace('harvest');
+    cache.clearNamespace('notify');
+    config.harvest.idleWindowMs = 0;
+    config.notify.enabled = true;
+    config.notify.webhookUrl = 'http://127.0.0.1:9999/webhook';
+    config.notify.magnetsWarn = 900;
+    config.debrid.service = 'alldebrid';
+    config.debrid.apiKey = 'fake-key';
+    config.debrid.allowEnvKey = true;
+    config.harvest.quotaWarnCooldownMs = 3600_000;
+
+    // 1ª execução do tick chama accountStatus e grava marcador
+    await harvester.tick();
+    assert.equal(accountStatusCalls, 1, 'primeiro tick chamou accountStatus');
+    assert.ok(cache.get(`${prefix('harvest')}quotaWarn`), 'marcador gravado no cache');
+
+    // 2ª execução dentro do cooldown não deve chamar accountStatus novamente
+    await harvester.tick();
+    assert.equal(accountStatusCalls, 1, 'segundo tick respeitou cooldown e não chamou accountStatus');
+  } finally {
+    if (originalAdapter) debridModule.BY_ID.set('alldebrid', originalAdapter);
+    config.notify.enabled = saved.notifyEnabled;
+    config.notify.webhookUrl = saved.webhookUrl;
+    config.notify.magnetsWarn = saved.magnetsWarn;
+    config.debrid.service = saved.service;
+    config.debrid.apiKey = saved.apiKey;
+    config.debrid.allowEnvKey = saved.allowEnvKey;
+    config.harvest.quotaWarnCooldownMs = saved.quotaWarnCooldownMs;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+  }
+});
+
+test('M4: bludv é consultado com fallback para query original quando ptQuery é nulo', async () => {
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+    bludvEnabled: config.bludv.enabled,
+    bludvBaseUrl: config.bludv.baseUrl,
+  };
+
+  const searchedUrls: string[] = [];
+  const stub = stubFetch((url: string) => {
+    if (url.includes('api.themoviedb.org')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          movie_results: [
+            {
+              // Título pt igual ao original -> ptQuery vira null
+              title: 'Original Title Only',
+              original_title: 'Original Title Only',
+              release_date: '2024-01-01',
+            },
+          ],
+        }),
+      };
+    }
+    if (url.includes('/?s=')) {
+      searchedUrls.push(url);
+      return { ok: true, status: 200, text: async () => '<div class="post"></div>' };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+
+  try {
+    config.harvest.maxPerHour = 100;
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = [];
+    config.jackett.apiKey = '';
+    config.bludv.enabled = true;
+    config.bludv.baseUrl = 'http://fake-bludv.local';
+
+    cache.set('meta:movie:tt9500075', { name: 'Original Title Only', year: '2024', type: 'movie' }, 3600);
+    harvester.clearQueue();
+    harvester.enqueue({ imdbId: 'tt9500075', type: 'movie', reason: `bludv-fallback-${Date.now()}` } as any);
+    await harvester.tick();
+
+    assert.ok(searchedUrls.length > 0, 'bludv foi consultado');
+    assert.ok(searchedUrls[0].includes('Original%20Title%20Only'), 'consultou bludv com a query original');
+  } finally {
+    stub.restore();
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+    config.bludv.enabled = saved.bludvEnabled;
+    config.bludv.baseUrl = saved.bludvBaseUrl;
+    harvester.clearQueue();
+  }
+});
+
+test('M6: obra cortada 4 vezes emite a métrica harvest.capped.dropped', async () => {
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+  };
+  try {
+    harvesterLive.reset();
+    metrics.reset();
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['idx-a', 'idx-b', 'idx-c'];
+    config.jackett.apiKey = '';
+
+    cache.set('meta:movie:tt9500080', { name: 'Capped Obra', year: '2024', type: 'movie' }, 3600);
+    harvester.clearQueue();
+    harvester.enqueue({ imdbId: 'tt9500080', type: 'movie', reason: `capped-dropped-${Date.now()}` } as any);
+
+    // Executa 4 ciclos cortando pelo teto
+    for (let i = 0; i < 4; i++) {
+      const before = (harvester.status() as any).queriesThisHour;
+      harvesterLive.set({ harvestMaxPerHour: before + 1 });
+      await harvester.tick();
+    }
+
+    const snap = metrics.snapshot().counters;
+    assert.equal(snap['harvest.capped.dropped'], 1, 'contou harvest.capped.dropped ao descartar após 3 retentativas');
+    assert.equal((harvester.status() as any).queueDepth, 0, 'obra foi descartada da fila');
+  } finally {
+    harvesterLive.reset();
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+    harvester.clearQueue();
+  }
+});
+
+test('M3 edge case: checkQuotaWarning com quotaWarnCooldownMs=0 executa a cada tick sem gravar marcador', async () => {
+  const saved = {
+    notifyEnabled: config.notify.enabled,
+    webhookUrl: config.notify.webhookUrl,
+    magnetsWarn: config.notify.magnetsWarn,
+    service: config.debrid.service,
+    apiKey: config.debrid.apiKey,
+    allowEnvKey: config.debrid.allowEnvKey,
+    quotaWarnCooldownMs: config.harvest.quotaWarnCooldownMs,
+    idleWindowMs: config.harvest.idleWindowMs,
+  };
+
+  let accountStatusCalls = 0;
+  const debridModule = (await import('../src/debrid/index.js')).default;
+  const originalAdapter = debridModule.BY_ID.get('alldebrid');
+  const mockAdapter = {
+    ...originalAdapter,
+    id: 'alldebrid',
+    accountStatus: async () => {
+      accountStatusCalls += 1;
+      return { magnets: 800, ready: 10, active: 5 };
+    },
+  };
+  debridModule.BY_ID.set('alldebrid', mockAdapter as any);
+
+  try {
+    cache.clearNamespace('harvest');
+    config.harvest.idleWindowMs = 0;
+    config.notify.enabled = true;
+    config.notify.webhookUrl = 'http://127.0.0.1:9999/webhook';
+    config.notify.magnetsWarn = 900;
+    config.debrid.service = 'alldebrid';
+    config.debrid.apiKey = 'fake-key';
+    config.debrid.allowEnvKey = true;
+    config.harvest.quotaWarnCooldownMs = 0; // Cooldown desligado
+
+    await harvester.tick();
+    assert.equal(accountStatusCalls, 1, 'primeiro tick chamou accountStatus');
+    assert.equal(cache.get(`${prefix('harvest')}quotaWarn`), null, 'marcador não é gravado quando cooldown é 0');
+
+    await harvester.tick();
+    assert.equal(accountStatusCalls, 2, 'segundo tick chamou accountStatus novamente');
+  } finally {
+    if (originalAdapter) debridModule.BY_ID.set('alldebrid', originalAdapter);
+    config.notify.enabled = saved.notifyEnabled;
+    config.notify.webhookUrl = saved.webhookUrl;
+    config.notify.magnetsWarn = saved.magnetsWarn;
+    config.debrid.service = saved.service;
+    config.debrid.apiKey = saved.apiKey;
+    config.debrid.allowEnvKey = saved.allowEnvKey;
+    config.harvest.quotaWarnCooldownMs = saved.quotaWarnCooldownMs;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+  }
+});
+
+test('M3 edge case: checkQuotaWarning quando accountStatus lança erro não grava marcador', async () => {
+  const saved = {
+    notifyEnabled: config.notify.enabled,
+    webhookUrl: config.notify.webhookUrl,
+    magnetsWarn: config.notify.magnetsWarn,
+    service: config.debrid.service,
+    apiKey: config.debrid.apiKey,
+    allowEnvKey: config.debrid.allowEnvKey,
+    quotaWarnCooldownMs: config.harvest.quotaWarnCooldownMs,
+    idleWindowMs: config.harvest.idleWindowMs,
+  };
+
+  let accountStatusCalls = 0;
+  const debridModule = (await import('../src/debrid/index.js')).default;
+  const originalAdapter = debridModule.BY_ID.get('alldebrid');
+  const mockAdapter = {
+    ...originalAdapter,
+    id: 'alldebrid',
+    accountStatus: async () => {
+      accountStatusCalls += 1;
+      throw new Error('AllDebrid network error');
+    },
+  };
+  debridModule.BY_ID.set('alldebrid', mockAdapter as any);
+
+  try {
+    cache.clearNamespace('harvest');
+    config.harvest.idleWindowMs = 0;
+    config.notify.enabled = true;
+    config.notify.webhookUrl = 'http://127.0.0.1:9999/webhook';
+    config.notify.magnetsWarn = 900;
+    config.debrid.service = 'alldebrid';
+    config.debrid.apiKey = 'fake-key';
+    config.debrid.allowEnvKey = true;
+    config.harvest.quotaWarnCooldownMs = 3600_000;
+
+    await harvester.tick();
+    assert.equal(accountStatusCalls, 1, 'primeiro tick tentou chamar accountStatus');
+    assert.equal(cache.get(`${prefix('harvest')}quotaWarn`), null, 'marcador não foi gravado após falha');
+
+    await harvester.tick();
+    assert.equal(accountStatusCalls, 2, 'segundo tick tentou chamar novamente após falha anterior');
+  } finally {
+    if (originalAdapter) debridModule.BY_ID.set('alldebrid', originalAdapter);
+    config.notify.enabled = saved.notifyEnabled;
+    config.notify.webhookUrl = saved.webhookUrl;
+    config.notify.magnetsWarn = saved.magnetsWarn;
+    config.debrid.service = saved.service;
+    config.debrid.apiKey = saved.apiKey;
+    config.debrid.allowEnvKey = saved.allowEnvKey;
+    config.harvest.quotaWarnCooldownMs = saved.quotaWarnCooldownMs;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+  }
+});
+
+test('M2 edge case: rdWarmer com mais de 10 releases enfileira estritamente as top 10 com maior score', async () => {
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+    tmdbApiKey: config.tmdb.apiKey,
+    rdWarmEnabled: config.debrid.rdWarm.enabled,
+    debridService: config.debrid.service,
+  };
+
+  // Cria 5 BR dublado (80), 5 dublado global (40) e 5 legendado (5) = 15 releases com hashes válidos
+  const brHashes = ['11', '12', '13', '14', '15'].map((h) => h.repeat(20));
+  const globHashes = ['21', '22', '23', '24', '25'].map((h) => h.repeat(20));
+  const legHashes = ['31', '32', '33', '34', '35'].map((h) => h.repeat(20));
+  const tags = ['WEB-DL', 'BluRay', 'REMUX', 'WEBRip', 'HDRip'];
+
+  const results: any[] = [
+    // 5 legendadas primeiro
+    ...legHashes.map((h, i) => ({
+      Title: `Movie Big (2024) 1080p ${tags[i]} English Subbed`,
+      MagnetUri: `magnet:?xt=urn:btih:${h}&dn=Movie.Big`,
+      Seeders: 20,
+      Tracker: 'thepiratebay',
+    })),
+    // 5 globais dublados
+    ...globHashes.map((h, i) => ({
+      Title: `Movie Big (2024) 1080p ${tags[i]} Dual Audio`,
+      MagnetUri: `magnet:?xt=urn:btih:${h}&dn=Movie.Big`,
+      Seeders: 10,
+      Tracker: 'thepiratebay',
+      dubbed: true,
+      isBr: false,
+    })),
+    // 5 BR dublados
+    ...brHashes.map((h, i) => ({
+      Title: `Filme Big (2024) 1080p ${tags[i]} DUAL Dublado`,
+      MagnetUri: `magnet:?xt=urn:btih:${h}&dn=Filme.Big`,
+      Seeders: 5,
+      Tracker: 'comandotorrents',
+      isBr: true,
+    })),
+  ];
+
+  const stub = stubFetch((url: string) => {
+    if (url.includes('api.themoviedb.org')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          movie_results: [{ title: 'Filme Big', original_title: 'Movie Big', release_date: '2024-01-01' }],
+        }),
+      };
+    }
+    if (url.includes('/api/v2.0/indexers/')) {
+      return { ok: true, status: 200, json: async () => ({ Results: results }) };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+
+  try {
+    cache.clearNamespace('rdc');
+    cache.clearNamespace('rdq');
+    rdWarmer.reset();
+    config.debrid.rdWarm.enabled = true;
+    config.debrid.service = 'realdebrid';
+
+    config.harvest.maxPerHour = 100;
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['test-score-top10'];
+    config.jackett.apiKey = 'fake-key';
+    config.tmdb.apiKey = 'fake-key';
+
+    cache.set('meta:movie:tt9500095', { name: 'Movie Big', year: '2024', type: 'movie' }, 3600);
+    harvester.clearQueue();
+    harvester.enqueue({ imdbId: 'tt9500095', type: 'movie', reason: `score-top10-${Date.now()}` } as any);
+    await harvester.tick();
+
+    const warmQueue = (cache.get(`${prefix('rdq')}wq`) || []) as any[];
+    assert.equal(warmQueue.length, 10, 'apenas 10 releases foram enfileiradas no rdWarmer');
+    // As 5 de score 80 e as 5 de score 40 devem estar na fila; nenhuma de score 5 deve ter entrado
+    for (const h of brHashes) {
+      assert.ok(warmQueue.some((e) => e.hash === h && e.score === 80), `BR dublado ${h} está na fila com score 80`);
+    }
+    for (const h of globHashes) {
+      assert.ok(warmQueue.some((e) => e.hash === h && e.score === 40), `Dublado global ${h} está na fila com score 40`);
+    }
+    for (const h of legHashes) {
+      assert.ok(!warmQueue.some((e) => e.hash === h), `Legendado de menor score ${h} foi descartado do top 10`);
+    }
+  } finally {
+    stub.restore();
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+    config.tmdb.apiKey = saved.tmdbApiKey;
+    config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
+    config.debrid.service = saved.debridService;
+    rdWarmer.reset();
+    harvester.clearQueue();
+  }
+});
+
+

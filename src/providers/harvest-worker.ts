@@ -67,6 +67,7 @@ async function awaitIndexerGap(indexer: string) {
 
 export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean }> {
   const startedAt = Date.now();
+  const live = harvesterLive.effective();
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
   const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
   if (!searchMeta?.name) return { ok: false, capped: false };
@@ -108,32 +109,38 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // recém-derrubado, o dublado raro espera o cooldown.
   const sweepQuery = config.jackett.ptSweepGlobal ? ptSweepQueryFor({ titles }) : null;
   const sweepTargets =
-    sweepQuery && !activity.recentUserTraffic(config.harvest.idleWindowMs)
+    sweepQuery && !activity.recentUserTraffic(live.harvestIdleWindowMs)
       ? ptSweepIndexers(indexers, config.jackett.ptBrIndexers)
       : [];
   if (sweepQuery && sweepTargets.length > 0) {
     // A varredura agrupada dispara uma consulta HTTP por alvo: conta no teto
-    // com a mesma moeda do loop acima, antes de decidir.
-    if (queriesThisHour() + sweepTargets.length >= config.harvest.maxPerHour) {
+    // com a mesma moeda do loop acima, antes de decidir. A fatia parcial
+    // permite colher o que couber no orçamento em vez de tudo-ou-nada.
+    const restante = live.harvestMaxPerHour - queriesThisHour();
+    const fatia = restante > 0 ? sweepTargets.slice(0, restante) : [];
+    if (!fatia.length) {
       log.debug('[harvest] teto horário atingido antes da varredura pt');
     } else {
-      for (const target of sweepTargets) {
+      for (const target of fatia) {
         await awaitIndexerGap(target);
       }
-      attempted += sweepTargets.length;
+      attempted += fatia.length;
       metrics.count('harvest.sweep');
+      if (fatia.length < sweepTargets.length) {
+        metrics.count('harvest.sweep.partial');
+      }
       try {
-        const items = await jackett.search(sweepQuery, entry.type, sweepTargets, {
+        const items = await jackett.search(sweepQuery, entry.type, fatia, {
           matchContext,
           recordStatus: false,
         });
-        for (const target of sweepTargets) {
+        for (const target of fatia) {
           lastQueryAt.set(target, Date.now());
         }
-        succeeded += sweepTargets.length;
+        succeeded += fatia.length;
         collected.push(...items.filter((i: any) => !i.fromAccount));
       } catch (err: unknown) {
-        for (const target of sweepTargets) {
+        for (const target of fatia) {
           lastQueryAt.set(target, Date.now());
         }
         log.warn('[harvest] varredura pt falhou:', log.errorMessage(err));
@@ -144,8 +151,8 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   for (const indexer of indexers) {
     // Freio de atividade no MEIO da obra também: tráfego chegou, solta o
     // Jackett na hora (o que já foi coletado entra no índice mesmo assim).
-    if (activity.recentUserTraffic(config.harvest.idleWindowMs)) break;
-    if (queriesThisHour() + attempted >= config.harvest.maxPerHour) {
+    if (activity.recentUserTraffic(live.harvestIdleWindowMs)) break;
+    if (queriesThisHour() + attempted >= live.harvestMaxPerHour) {
       // A obra sai DAQUI pela metade: quem a desenfileirou precisa saber, senão
       // ela é dada por colhida com meia dúzia de indexers e nunca mais volta.
       capped = true;
@@ -170,9 +177,10 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     }
   }
 
-  if (config.bludv.enabled && ptQuery) {
+  const bludvQuery = ptQuery || query;
+  if (config.bludv.enabled && bludvQuery) {
     try {
-      collected.push(...(await bludv.search(ptQuery)).filter((i: any) => !i.fromAccount));
+      collected.push(...(await bludv.search(bludvQuery)).filter((i: any) => !i.fromAccount));
     } catch (err: unknown) {
       log.warn('[harvest] bludv falhou:', log.errorMessage(err));
     }
@@ -189,17 +197,23 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   const relevant = filterRelevantRaw(collected, matchContext as any);
   const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);
   if (config.debrid.rdWarm.enabled && rdWarmer.rdInPlay() && relevant.length) {
-    const topReleases = relevant
-      .map((r: any) => {
-        const title = String(r.title || r.Title || '');
-        const hash = String(extractInfoHash(r.infoHash || r.magnet || r.MagnetUri || r.Guid || r.hash) || '').toLowerCase();
-        const isBr = Boolean(r.isBr) || looksPtBr(title);
-        const audio = audioFromTitle(title);
-        const dubbed = Boolean(r.dubbed) || ['Dublado', 'Dual', 'Nacional'].includes(String(audio)) || explicitPtAudio(title);
-        const score = isBr && dubbed ? 80 : (dubbed ? 40 : 5);
-        return { hash, score };
-      })
-      .filter((r: any) => /^[a-f0-9]{40}$/.test(r.hash));
+    const scoresByHash = new Map<string, number>();
+    for (const r of relevant) {
+      const title = String(r.title || r.Title || '');
+      const hash = String(extractInfoHash(r.infoHash || r.magnet || r.MagnetUri || r.Guid || r.hash) || '').toLowerCase();
+      if (!/^[a-f0-9]{40}$/.test(hash)) continue;
+      const isBr = Boolean(r.isBr) || looksPtBr(title);
+      const audio = audioFromTitle(title);
+      const dubbed = Boolean(r.dubbed) || ['Dublado', 'Dual', 'Nacional'].includes(String(audio)) || explicitPtAudio(title);
+      const score = isBr && dubbed ? 80 : (dubbed ? 40 : 5);
+      const existing = scoresByHash.get(hash);
+      if (existing === undefined || score > existing) {
+        scoresByHash.set(hash, score);
+      }
+    }
+    const topReleases = [...scoresByHash.entries()]
+      .map(([hash, score]) => ({ hash, score }))
+      .sort((a, b) => b.score - a.score);
     for (const item of topReleases.slice(0, 10)) {
       rdWarmer.enqueue([item.hash], item.score);
     }

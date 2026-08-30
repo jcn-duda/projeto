@@ -81,6 +81,7 @@ export const harvest = () => ({
   // Prazo maximo que uma obra sem evidencia BR pode esperar (fome-bound).
   // 0 desliga o prazo (rotulo de quem aceita starvation).
   brMaxWaitMs: Math.max(0, num(process.env.HARVEST_BR_MAX_WAIT_MS, 6 * 3600 * 1000)),
+  quotaWarnCooldownMs: Math.max(0, num(process.env.HARVEST_QUOTA_WARN_COOLDOWN_MS, 6 * 3600 * 1000)),
 });
 
 // Semente do colhedor pela lista de populares do IMDb (RapidAPI). Sem
