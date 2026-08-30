@@ -119,16 +119,45 @@ function editionFromTitle(title = '') {
 }
 
 /**
+ * Idiomas que desmentem a promessa GENÉRICA de dublagem. `[Ukr Dub]`,
+ * `HINDI.HQ.DUB` e `Rus Dubbed` dizem dublado PARA aquele idioma — nenhum
+ * deles é pt-BR, e o `\bDUB\b` sozinho não sabe distinguir.
+ *
+ * HINDI foi o primeiro caso medido; a construção `<idioma> Dub` é a mesma para
+ * todos, então a lista generaliza o predicado em vez de caçar um idioma por
+ * vez. Medido em produção (2026-08-30, `tt22084616`): as TRÊS primeiras vagas
+ * eram `Spider-Man: Brand New Day 2026 … [Ukr Dub]` rotuladas DUB BR, ocupando
+ * as três vagas reservadas de BR — quem clicava no topo ouvia ucraniano.
+ *
+ * Presença em qualquer posição basta, como já valia para HINDI: exigir
+ * adjacência ao DUB deixaria passar `Ukr HQ Dub`. O custo é um título que
+ * LISTA faixas (`Multi DUB Eng/Rus/Por`) perder a prova genérica — mas marca
+ * PT explícita ao lado continua absolvendo pelas OUTRAS alternativas de
+ * explicitPtAudio, que correm fora deste predicado.
+ *
+ * Só formas inequívocas entram: `POLISH` sim, `POL` não — token de três letras
+ * casa dentro de nome de grupo e condenaria release BR por acidente.
+ */
+const FOREIGN_DUB_LANG_RE = new RegExp(
+  '\\b(HINDI|TAMIL|TELUGU|MALAYALAM|KANNADA|BENGALI|PUNJABI|MARATHI'
+  + '|UKR|UKRAINIAN|RUS|RUSSIAN|POLISH|CZECH|SLOVAK|HUNGARIAN|ROMANIAN|BULGARIAN'
+  + '|GREEK|HEBREW|ARABIC|PERSIAN|TURKISH|THAI|VIETNAMESE'
+  + '|KOREAN|JAPANESE|CHINESE|MANDARIN|CANTONESE'
+  + '|GERMAN|FRENCH|TRUEFRENCH|ITALIAN|ITA|SPANISH|ESPANOL|CASTELLANO|LATINO'
+  + '|DUTCH|SWEDISH|NORWEGIAN|DANISH|FINNISH)\\b',
+);
+
+/**
  * Guarda compartilhada da dublagem GENÉRICA (título e path usam o mesmo
- * intento). Marcador genérico de DUB/DUBBED NÃO prova áudio PT quando há
- * HINDI (dublagem indiana — medido: `HINDI.HQ.DUB`/`HINDI.DUBBED` entravam
- * como dublado pt-BR e a absolvição indevida mantinha releases EN vivas no
- * catálogo). O PT explícito ao lado (`HINDI… DUB PT-BR`) continua vencendo
- * FORA deste predicado, nas regras próprias de cada chamador.
+ * intento). Marcador genérico de DUB/DUBBED NÃO prova áudio PT quando o
+ * título nomeia um idioma estrangeiro. O PT explícito ao lado
+ * (`HINDI… DUB PT-BR`) continua vencendo FORA deste predicado, nas regras
+ * próprias de cada chamador.
  */
 function genericDubProvesPt(text: string): boolean {
   const t = String(text || '').toUpperCase();
-  return !/\bHINDI\b/.test(t) && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
+  return !FOREIGN_DUB_LANG_RE.test(t)
+    && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
 }
 
 // Lado marcador do mesmo intento, para o path: um marker de
@@ -159,14 +188,14 @@ function explicitPtAudio(title = '') {
 function hasPtAudioMark(path = '') {
   const tokens = normalizeTitle(path).split(' ').filter(Boolean);
   const joined = ` ${tokens.join(' ')} `;
-  // Mesma regra do explicitPtAudio (genericDubProvesPt): marcador genérico de
-  // dublagem não prova PT na presença de HINDI (dublagem indiana). Marcador
-  // explícito segue valendo — HINDI só desmente a promessa GENÉRICA.
-  const hasHindi = /\bHINDI\b/.test(String(path).toUpperCase());
+  // Mesma regra do explicitPtAudio (FOREIGN_DUB_LANG_RE): marcador genérico de
+  // dublagem não prova PT quando o path nomeia idioma estrangeiro. Marcador
+  // explícito segue valendo — o idioma só desmente a promessa GENÉRICA.
+  const hasForeignLang = FOREIGN_DUB_LANG_RE.test(String(path).toUpperCase());
   return config.audioAudit.ptMarkers.some((marker: string) => {
     const normalized = normalizeTitle(marker);
     if (!normalized) return false;
-    if (hasHindi && GENERIC_DUB_MARKER_RE.test(normalized)) return false;
+    if (hasForeignLang && GENERIC_DUB_MARKER_RE.test(normalized)) return false;
     return joined.includes(` ${normalized} `);
   });
 }
@@ -244,14 +273,17 @@ function audioFromTitle(title = '') {
 function hasExplicitForeignAudio(title = '') {
   const t = String(title).toUpperCase();
   if (explicitPtAudio(title)) return false;
-  // Esta lista é OUTRA coisa da guarda genericDubProvesPt: aqui é EVIDÊNCIA de
+  // Esta lista é OUTRA coisa da guarda FOREIGN_DUB_LANG_RE: aqui é EVIDÊNCIA de
   // idioma estrangeiro (prova positiva que autoriza condenar), não guarda de
-  // marcador PT — por isso a assimetria é deliberada. HINDI entra como prova
-  // de idioma estrangeiro: após o generic DUB não absolver mais,
-  // `HINDI.HQ.DUB` precisa condenar no foreignVerdict. Assimetria preservada
-  // (travada por test/audio-cleanup-classifiers.test.ts) — com PT-BR
-  // explícito ao lado, explicitPtAudio corta aqui.
-  return /\b(TRUEFRENCH|FRENCH|VOSTFR|VF|ITA|SUBITA|ESPANOL|CASTELLANO|RUS|GERMAN|NL|HINDI)\b/.test(t);
+  // marcador PT — por isso a assimetria é deliberada, e por isso esta lista é
+  // a MENOR das duas. Condenar aciona sweepUndubbed, que APAGA da conta: um
+  // idioma entra aqui só depois de aparecer numa medição real, um por vez.
+  // HINDI entrou assim; UKRAINIAN entra agora pelo mesmo motivo (`[Ukr Dub]`
+  // medido em produção). A guarda pode ser generosa porque só deixa de
+  // absolver; esta não pode, porque destrói. Assimetria travada por
+  // test/audio-cleanup-classifiers.test.ts — com PT-BR explícito ao lado,
+  // explicitPtAudio corta aqui antes.
+  return /\b(TRUEFRENCH|FRENCH|VOSTFR|VF|ITA|SUBITA|ESPANOL|CASTELLANO|RUS|GERMAN|NL|HINDI|UKR|UKRAINIAN)\b/.test(t);
 }
 
 /**

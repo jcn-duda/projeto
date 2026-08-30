@@ -172,3 +172,50 @@ test('DUB/HINDI: marcador genérico CUSTOMIZADO em AUDIO_AUDIT_PT_MARKERS sofre 
     restore();
   }
 });
+
+// ---------------------------------------------------------------------------
+// `<idioma> Dub` (generalização do caso HINDI). Medido em produção
+// (powermovie.net, 2026-08-30, tt22084616): as três primeiras vagas de
+// "Spider-Man: Brand New Day" eram `[Ukr Dub]` rotuladas DUB BR e ocupavam as
+// TRÊS vagas reservadas de BR — o topo da lista entregava ucraniano.
+
+test('DUB/idioma: [Ukr Dub] não é dublado pt-BR (caso medido em produção)', () => {
+  const ukr = 'Spider-Man: Brand New Day 2026 1080p TELESYNC HEVC [Ukr Dub]';
+  assert.notEqual(audioFromTitle(ukr), 'Dublado', 'dublagem ucraniana não é pt-BR');
+  assert.equal(looksPtBr(ukr), false, 'não pode ocupar vaga reservada de BR');
+  assert.equal(hasExplicitForeignAudio(ukr), true, 'UKR condena como estrangeiro');
+});
+
+test('DUB/idioma: a guarda generaliza além do HINDI', () => {
+  // Mesma construção, idiomas diferentes: o predicado é sobre a FORMA
+  // `<idioma> Dub`, não sobre uma lista caçada caso a caso.
+  for (const t of ['Movie 2024 [Rus Dub]', 'Movie 2024 POLISH DUBBED', 'Movie 2024 [Turkish Dub]']) {
+    assert.notEqual(audioFromTitle(t), 'Dublado', `${t}: idioma estrangeiro desmente o DUB genérico`);
+    assert.equal(looksPtBr(t), false, `${t}: fora das vagas BR`);
+  }
+});
+
+test('DUB/idioma: PT explícito ao lado do idioma estrangeiro continua vencendo', () => {
+  // A assimetria do commit anterior vale para toda a lista, não só HINDI: a
+  // guarda derruba a prova GENÉRICA, e a marca PT explícita corre fora dela.
+  assert.equal(audioFromTitle('Movie 2024 [Ukr Dub] DUBLADO'), 'Dublado', 'DUBLADO explícito vence');
+  assert.equal(foreignVerdict('Movie 2024 [Ukr Dub] PT-BR'), 'absolve', 'com PT explícito, absolve');
+});
+
+test('DUB/idioma: release BR sem idioma estrangeiro não regride', () => {
+  // A lista não pode encolher o BR legítimo — o DUB genérico segue valendo.
+  assert.equal(audioFromTitle('Coringa 2019 DUB 1080p'), 'Dublado', 'DUB genérico sozinho = PT');
+  assert.equal(looksPtBr('Homem-Aranha: Um Novo Dia (2026) [1080p DUBLADO 4.32 GB]'), true);
+});
+
+test('DUB/idioma: guarda do path acompanha a do título', () => {
+  // hasPtAudioMark usa o MESMO predicado; marcador genérico no path não pode
+  // provar PT quando o arquivo nomeia idioma estrangeiro.
+  const restore = patch(config.audioAudit, 'ptMarkers', ['dub', 'dublado']);
+  try {
+    assert.equal(hasPtAudioMark('Movie.2024.Ukr.Dub.1080p.mkv'), false, 'genérico sob idioma estrangeiro');
+    assert.equal(hasPtAudioMark('Movie.2024.Dublado.1080p.mkv'), true, 'marcador explícito segue valendo');
+  } finally {
+    restore();
+  }
+});
