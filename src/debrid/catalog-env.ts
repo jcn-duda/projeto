@@ -12,20 +12,35 @@ import { BY_ID } from './registry.js';
 // ---------------------------------------------------------------------------
 //
 // Mesmo padrão do `sweepUndubbedEnv`: adapter vem de `config.debrid.service`
-// via BY_ID, chave de `config.debrid.apiKey` com `allowEnvKey`. NUNCA lançam —
+// via BY_ID, chave de `config.debrid.apiKey` com o gate de operador
+// (`envOperatorAccount`). NUNCA lançam —
 // devolvem `{ ok:false, reason }` e capturam erro com log.warn, para a rota
 // operacional responder diagnóstico em vez de cair.
 
 /** Operador configurado para o catálogo, ou null + reason de indisponibilidade. */
-function catalogContext(): { adapter: DebridAdapter | null; guardos: { ok: false; reason: string } | null } {
+function catalogContext(): { adapter: DebridAdapter | null; guardos: { ok: false; reason: string; hint?: string } | null } {
   if (!config.debrid.service) return { adapter: null, guardos: { ok: false, reason: 'sem-debrid' } };
   const adapter = BY_ID.get(config.debrid.service) || null;
   // magnetList é quem prova que o adaptador suporta a varredura da conta.
   if (!adapter || typeof adapter.magnetList !== 'function') {
     return { adapter, guardos: { ok: false, reason: 'sem-adapter-catalogo' } };
   }
-  if (!config.debrid.apiKey || !config.debrid.allowEnvKey) {
+  // Dois motivos DE PROPÓSITO distintos: "sem conta" (chave ausente) é outro
+  // estado do que "conta existe mas o uso está desligado no .env" — colapsar
+  // os dois escondia o conserto (ligar o flag + recriar a stack) num painel
+  // cujo .env claramente tem a conta configurada.
+  if (!config.debrid.apiKey) {
     return { adapter, guardos: { ok: false, reason: 'sem-conta-operador' } };
+  }
+  if (!config.debrid.envOperatorAccount) {
+    return {
+      adapter,
+      guardos: {
+        ok: false,
+        reason: 'chave-operador-desativada',
+        hint: 'DEBRID_API_KEY existe, mas o uso da conta do operador está desligado; ligue DEBRID_OPERATOR_ENV_ACCOUNT (só as features do painel) ou DEBRID_ALLOW_ENV_KEY (também herda a chave em instalações sem dk) e recrie a stack',
+      },
+    };
   }
   return { adapter, guardos: null };
 }

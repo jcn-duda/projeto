@@ -1146,7 +1146,11 @@
   }
 
   function bucketError(data) {
-    return valueText(data && (data.reason || data.error || data.message) || "indisponível");
+    var motivo = valueText(data && (data.reason || data.error || data.message) || "indisponível");
+    // O hint do backend traz o conserto (ex.: chave do operador desativada no
+    // .env). valueText/createTextNode escapam — nada de innerHTML aqui.
+    if (data && data.hint) motivo += " — " + valueText(data.hint);
+    return motivo;
   }
 
   function buildBucketTable(report) {
@@ -1415,7 +1419,14 @@
       body: JSON.stringify(payload)
     })
       .then(function (data) {
-        setCatalogFeedback("Ação " + action + " concluída.", "ok");
+        // `ok:false` é indisponibilidade (ex.: conta do operador desligada no
+        // .env), devolvida como 200: feedback de ERRO com o motivo — o verde
+        // "concluída" escondia a falha do operador.
+        if (data && !data.ok) {
+          setCatalogFeedback("Ação " + action + " indisponível: " + bucketError(data), "error");
+        } else {
+          setCatalogFeedback("Ação " + action + " concluída.", "ok");
+        }
         // O render fica ISOLADO do resultado da ação: uma falha ao desenhar não
         // pode ser reportada como "ação não concluída" quando o servidor já
         // executou (a auditoria chega a gravar evidência antes de a tela quebrar).

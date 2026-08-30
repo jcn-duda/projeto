@@ -73,7 +73,7 @@ function refreshInventory() {
   if (active && activeKey) keys.add(inventoryMemo.memoKey(active.id, activeKey));
 
   const operator = config.debrid.service ? BY_ID.get(config.debrid.service) : null;
-  if (operator && config.debrid.apiKey && config.debrid.allowEnvKey) {
+  if (operator && config.debrid.apiKey && config.debrid.envOperatorAccount) {
     keys.add(inventoryMemo.memoKey(operator.id, config.debrid.apiKey));
   }
   cache.forgetMany([...keys]);

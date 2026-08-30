@@ -1561,6 +1561,15 @@ o orçamento com a resposta.
   instância pública isso significa terceiros gastando a conta do operador.
   Defina `DEBRID_ALLOW_ENV_KEY=false` para transformar instalação sem `dk` em
   P2P puro; a chave explícita e selada do usuário continua funcionando.
+  **Esse flag é SÓ a herança.** As features de operador sobre a conta do
+  `.env` (catálogo/limpeza do painel, `sweepDead`/`sweepUndubbed`, warmer RD,
+  quota-warn do colhedor, conta no painel, sampler F3) têm gate próprio:
+  `DEBRID_OPERATOR_ENV_ACCOUNT=true` as liga sem herdar a chave — o gate
+  efetivo é `config.debrid.envOperatorAccount` (OU dos dois). Instância
+  pública completa = `ALLOW_ENV_KEY=false` + `OPERATOR_ENV_ACCOUNT=true`:
+  painel funciona, anônimo fica em P2P. Não re-acople os dois flags: o motivo
+  do catálogo quando a chave existe mas o gate está fechado é
+  `chave-operador-desativada` (com `hint`), distinto de `sem-conta-operador`.
 - **`src/public/` não passa por build.** É HTML/CSS/JS servido cru, e o JS é ES5
   por escolha (roda no WebView de Fire TV e smart TV). Não introduza sintaxe
   moderna nem bundler ali.

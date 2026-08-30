@@ -107,7 +107,8 @@ function noteCredential(apiKey: string): void {
  */
 function resolveApiKey(): string | null {
   if (!config.debrid.rdWarm.enabled) return null;
-  if (config.debrid.service === 'realdebrid' && config.debrid.apiKey && config.debrid.allowEnvKey) {
+  // Gate de OPERADOR (conta do .env), não o de herança para installs.
+  if (config.debrid.service === 'realdebrid' && config.debrid.apiKey && config.debrid.envOperatorAccount) {
     return config.debrid.apiKey;
   }
   return notedApiKey || null;

@@ -112,7 +112,7 @@ async function dashboardAccounts(currentStatus: any) {
     operator &&
     operator.id !== active?.id &&
     config.debrid.apiKey &&
-    config.debrid.allowEnvKey
+    config.debrid.envOperatorAccount
   ) {
     accounts[operator.id] = await withAccountTimeout(accountStatusFor(operator, config.debrid.apiKey));
   }

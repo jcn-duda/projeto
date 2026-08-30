@@ -116,6 +116,10 @@ function defaults() {
     maxUnknown: config.qualityLimits.unknown,
     maxPerIndexer: config.maxPerIndexer,
     debridService: config.debrid.service,
+    // ÚNICO ponto que HERDA a chave do .env para instalação sem dk — gate
+    // `allowEnvKey`, de propósito. Features de operador (catálogo, varreduras,
+    // painel, warmer) usam `envOperatorAccount` e NÃO passam por aqui: ligar
+    // `DEBRID_OPERATOR_ENV_ACCOUNT` não entrega a conta a installs anônimas.
     debridApiKey: config.debrid.allowEnvKey ? config.debrid.apiKey : '',
     debridCachedOnly: config.debrid.cachedOnly,
     showUncachedBr: config.debrid.showUncachedBr,

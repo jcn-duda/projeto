@@ -42,7 +42,7 @@ async function checkQuotaWarning() {
   if (!config.notify.enabled || !config.notify.webhookUrl) return;
   const adapter = config.debrid.service ? debrid.BY_ID.get(config.debrid.service) : null;
   if (!adapter || typeof adapter.accountStatus !== 'function') return;
-  if (!config.debrid.apiKey || !config.debrid.allowEnvKey) return;
+  if (!config.debrid.apiKey || !config.debrid.envOperatorAccount) return;
   const quotaWarnKey = `${prefix('harvest')}quotaWarn`;
   const cooldownMs = config.harvest.quotaWarnCooldownMs;
   if (cooldownMs > 0 && cache.get(quotaWarnKey)) return;

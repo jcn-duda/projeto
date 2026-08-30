@@ -12,7 +12,22 @@ export const debrid = () => ({
   apiKey: process.env.DEBRID_API_KEY || '',
   // Em instância pública, não deixe uma instalação sem config gastar a conta
   // do operador. O default preserva o modo de usuário único já existente.
+  // Este gate autoriza SÓ a HERANÇA da chave para instalações sem dk
+  // (runtime.ts); as features de operador (catálogo, varreduras, painel,
+  // warmer) usam `envOperatorAccount` abaixo, que é o OU com o flag próprio.
   allowEnvKey: String(process.env.DEBRID_ALLOW_ENV_KEY || 'true') === 'true',
+  // Features de operador sobre a conta do .env SEM herdar a chave para
+  // installs: instância pública com ALLOW_ENV_KEY=false + OPERATOR_ENV_ACCOUNT
+  // = true deixa o painel/catálogo funcionando e o anônimo em P2P puro.
+  operatorEnvAccount: String(process.env.DEBRID_OPERATOR_ENV_ACCOUNT || 'false') === 'true',
+  // Gate das features de OPERADOR (catalog-env, env-ops, account-status,
+  // inventory warmup, harvester quota-warn, br-coverage, rd-warmer). Getter
+  // (não valor congelado) porque o OU precisa refletir os campos vivos — os
+  // testes mutam os campos do singleton, e um booleano pré-calculado na
+  // fábrica dessincronizaria do par de flags real.
+  get envOperatorAccount() {
+    return this.allowEnvKey || this.operatorEnvAccount;
+  },
   cachedOnly: String(process.env.DEBRID_CACHED_ONLY || 'true') === 'true',
   // Exceção opt-in ao cachedOnly: devolve as vagas BR como P2P enquanto o
   // debrid baixa o dublado. Default off preserva o contrato antigo — web e

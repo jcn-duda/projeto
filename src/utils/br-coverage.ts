@@ -85,7 +85,9 @@ function operatorCtx(): OperatorCtx {
   const service = String(config.debrid.service || '').toLowerCase();
   // A Fase 3 mede o alvo deste plano: cobertura no Real-Debrid. Histórico de
   // outra conta/adapter não pode pintar de ⚡ um hash que o warmer RD atende.
-  const active = service === 'realdebrid' && config.debrid.allowEnvKey && Boolean(config.debrid.apiKey);
+  // Leitura quietamente sobre a conta do operador: gate de OPERADOR
+  // (envOperatorAccount), não o de herança para installs.
+  const active = service === 'realdebrid' && config.debrid.envOperatorAccount && Boolean(config.debrid.apiKey);
   return { adapterId: active ? service : null, apiKey: active ? config.debrid.apiKey : '' };
 }
 

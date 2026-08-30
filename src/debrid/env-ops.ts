@@ -19,7 +19,7 @@ function warmupEnv() {
   if (
     config.debrid.inventorySource &&
     typeof adapter.inventory === 'function' &&
-    config.debrid.apiKey && config.debrid.allowEnvKey
+    config.debrid.apiKey && config.debrid.envOperatorAccount
   ) {
     inventoryFor(adapter, config.debrid.apiKey).catch((err: unknown) => {
       log.warn(`[${adapter.id}] não consegui aquecer o inventário como fonte:`, log.errorMessage(err));
@@ -27,7 +27,7 @@ function warmupEnv() {
   }
 
   if (typeof adapter.warmInventory !== 'function') return Promise.resolve(null);
-  if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.dropReady) return Promise.resolve(null);
+  if (!config.debrid.apiKey || !config.debrid.envOperatorAccount || !config.debrid.dropReady) return Promise.resolve(null);
   return adapter.warmInventory(config.debrid.apiKey).catch((err: unknown) => {
     log.warn(`[${adapter.id}] não consegui aquecer o inventário:`, log.errorMessage(err));
     return null;
@@ -42,7 +42,7 @@ function warmupEnv() {
 async function sweepDeadEnv() {
   const adapter = config.debrid.service ? BY_ID.get(config.debrid.service) : null;
   if (!adapter || typeof adapter.sweepDead !== 'function') return null;
-  if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.sweepDead) return null;
+  if (!config.debrid.apiKey || !config.debrid.envOperatorAccount || !config.debrid.sweepDead) return null;
   try {
     return await adapter.sweepDead(config.debrid.apiKey);
   } catch (err) {
@@ -53,13 +53,14 @@ async function sweepDeadEnv() {
 
 /**
  * Varredura dos magnets antigos sem áudio PT da conta do operador. Mesma
- * guarda do `sweepDeadEnv`: só a chave do `.env`, com `allowEnvKey` e o
- * toggle ligado — é varredura do operador, não de uma instalação.
+ * guarda do `sweepDeadEnv`: só a chave do `.env`, com gate de operador
+ * (`envOperatorAccount`) e o toggle ligado — é varredura do operador, não de
+ * uma instalação.
  */
 async function sweepUndubbedEnv() {
   const adapter = config.debrid.service ? BY_ID.get(config.debrid.service) : null;
   if (!adapter || typeof adapter.sweepUndubbed !== 'function') return null;
-  if (!config.debrid.apiKey || !config.debrid.allowEnvKey || !config.debrid.sweepUndubbed) return null;
+  if (!config.debrid.apiKey || !config.debrid.envOperatorAccount || !config.debrid.sweepUndubbed) return null;
   try {
     return await adapter.sweepUndubbed(config.debrid.apiKey);
   } catch (err) {
@@ -72,7 +73,7 @@ async function sweepUndubbedEnv() {
  * Varredura da conta da INSTALAÇÃO corrente (a chave que veio no segmento de
  * config), e não a do `.env`.
  *
- * `sweepDeadEnv` é do operador: exige `allowEnvKey` e usa `config.debrid.apiKey`.
+ * `sweepDeadEnv` é do operador: exige `envOperatorAccount` e usa `config.debrid.apiKey`.
  * Quem abre o painel com uma install URL de outro serviço não é atendido por
  * ele — o botão respondia "varredura indisponível" mesmo com o adaptador certo
  * do outro lado, porque estava olhando para a conta errada.

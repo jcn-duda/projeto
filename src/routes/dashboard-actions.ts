@@ -222,6 +222,11 @@ const ACTIONS: Record<string, ActionHandler> = {
   'catalog-scan': async ({ services, res, action }) => {
     const result = await services.debrid.catalogScanEnv();
     services.metrics.count('dashboard.catalog.scan', result.ok ? 1 : 0);
+    // Indisponibilidade por MOTIVO (ex.: chave-operador-desativada): o 1/0
+    // agregado não dizia por que o painel não via a conta do operador.
+    if (!result.ok) {
+      services.metrics.count(`dashboard.catalog.unavailable.${(result as { reason?: string }).reason || 'desconhecido'}`);
+    }
     services.log.info('[dashboard] varredura do catálogo da conta executada');
     // `ok:false` aqui é indisponibilidade de diagnóstico (sem adapter/conta),
     // não erro HTTP — devolve 200 com o corpo do wrapper.

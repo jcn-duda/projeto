@@ -149,6 +149,29 @@ test('dashboard.html: callback do catalogAction roda isolado em try/catch', () =
   assert.match(html, /callback\(data\);\s*\}\s*catch \(renderError\)/);
 });
 
+// Indisponibilidade (`ok:false` com 200 — ex.: conta do operador desligada no
+// .env) não pode pintar feedback verde "concluída": o operador via sucesso na
+// tela e o motivo cru só no corpo do painel. O ramo de erro precisa vir ANTES
+// do feedback de sucesso dentro do .then, e o hint do backend (o conserto)
+// tem de chegar ao painel via bucketError.
+test('dashboard.html: indisponibilidade da ação vira feedback de erro com hint, antes do sucesso', () => {
+  const html = dashboardHtml();
+  const idx = html.indexOf('function catalogAction');
+  assert.ok(idx !== -1, 'catalogAction presente');
+  const corpo = html.slice(idx, idx + 1400);
+  const erroIdx = corpo.indexOf('!data.ok');
+  assert.ok(erroIdx !== -1, 'ramo de indisponibilidade presente no .then');
+  const sucessoIdx = corpo.indexOf('concluída.');
+  assert.ok(sucessoIdx !== -1 && erroIdx < sucessoIdx, 'erro avaliado antes do feedback de sucesso');
+  assert.match(corpo, /setCatalogFeedback\("Ação " \+ action \+ " indisponível: " \+ bucketError\(data\), "error"\)/);
+  // bucketError anexa o hint (com escaping de valueText, sem innerHTML).
+  const bucketIdx = html.indexOf('function bucketError');
+  assert.ok(bucketIdx !== -1);
+  const bucket = html.slice(bucketIdx, bucketIdx + 400);
+  assert.match(bucket, /data\.hint/);
+  assert.match(bucket, /valueText\(data\.hint\)/);
+});
+
 // Selecionar todos: conveniência sobre uma ação IRREVERSÍVEL, então duas
 // invariantes. (a) download em curso nunca entra na seleção em massa — o
 // checkbox nasce `disabled` e o toggle o ignora; (b) o resumo mostra o TAMANHO
