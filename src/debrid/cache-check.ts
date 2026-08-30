@@ -138,6 +138,38 @@ function noteAvailable(infoHash: string) {
   magnetdb.markAlive(adapter.id, apiKey, [infoHash]);
 }
 
+/**
+ * Leitura de SONDAGEM do davail, sem efeito algum: usa `cache.peek`, que não
+ * promove o LRU, não conta cache.hit/miss e não lê o L2 — negativo "fresco"
+ * aqui significa escrito NESTE processo, que é exatamente o que o consumidor
+ * (DEBRID_ALIVE_AS_CACHE) quer usar para vetar o atalho do histórico. Não é
+ * autoridade: 1 no peek não pinta ⚡ sozinho, só 0 (prova recente de que o
+ * hash não está pronto) é que contradiz.
+ *
+ * @returns {0|1|null} valor gravado e ainda válido, ou null (ausente/expirado).
+ */
+function peekDavail(adapterId: string, apiKey: string, hash: string): 0 | 1 | null {
+  const value = cache.peek(davailKey(adapterId, apiKey, hash));
+  if (value === 1) return 1;
+  if (value === 0) return 0;
+  return null;
+}
+
+/**
+ * Negativo MEDIDO pelo play: o /resolve acabou de constatar que o hash não
+ * estava pronto no serviço. Grava davail=0 pela janela curta do availNegTtl
+ * (a mesma do caminho da checagem) para o atalho do histórico não pintar ⚡
+ * no que o play acabou de provar frio — o erro do atalho custa uma janela,
+ * não os 7 dias do alive. Não toca no magnetdb: o alive de plays antigos
+ * continua de pé, e um play futuro bem-sucedido o renova.
+ */
+function noteUnavailable(adapterId: string, apiKey: string, infoHash: string) {
+  if (!adapterId || !apiKey || !infoHash) return;
+  if (config.debrid.availNegTtl > 0) {
+    cache.set(davailKey(adapterId, apiKey, infoHash), 0, config.debrid.availNegTtl);
+  }
+}
+
 function nonAbortableCheck(adapter: DebridAdapter, apiKey: string, infoHashes: string[]) {
   const key = nonAbortableKey(adapter, apiKey, infoHashes);
   let entry = nonAbortableChecks.get(key);
@@ -302,5 +334,5 @@ async function checkCached(
   return result;
 }
 
-export { checkCached, noteAvailable, UNUSABLE, failureReason };
+export { checkCached, noteAvailable, peekDavail, noteUnavailable, UNUSABLE, failureReason };
 export type { CacheCheckResult };

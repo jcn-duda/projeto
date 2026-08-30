@@ -2,11 +2,29 @@ import config from '../config.js';
 import { accountScope } from '../utils/request-key.js';
 import { pickFile, wait } from './common.js';
 import * as log from '../utils/logger.js';
-import { call, flattenFiles, DEAD, ACTIVE_STATES, type AllDebridMagnet } from './alldebrid-api.js';
+import { call, flattenFiles, DEAD, ACTIVE_STATES, id, type AllDebridMagnet } from './alldebrid-api.js';
 import { rememberSubmitted } from './alldebrid-inventory.js';
 import { skipCleanup } from './alldebrid-cleanup.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+
+/**
+ * Anota o negativo medido pelo play (davail=0 pela janela do availNegTtl) para
+ * o atalho do histórico (`DEBRID_ALIVE_AS_CACHE`) não pintar ⚡ no hash que o
+ * play acabou de provar frio. Import dinâmico DE PROPÓSITO: um estático
+ * criaria o ciclo alldebrid-play → cache-check → registry → alldebrid →
+ * alldebrid-play, e o grafo dos irmãos alldebrid é sem ciclo por contrato
+ * (ver cabeçalho de alldebrid.ts). Best-effort: falha de anotação nunca
+ * derruba o play.
+ */
+async function annotateUnavailable(apiKey: string, infoHash: string) {
+  try {
+    const { noteUnavailable } = await import('./cache-check.js');
+    noteUnavailable(id, apiKey, infoHash);
+  } catch (err) {
+    log.warn('[alldebrid] não consegui anotar davail=0 do play:', log.errorMessage(err));
+  }
+}
 
 /**
  * @param {string} apiKey
@@ -48,6 +66,11 @@ export async function resolveLink(apiKey: string, infoHash: string, { season, ep
       } catch (err) {
         log.warn('[alldebrid] não consegui remover o magnet:', err.message);
       }
+      // MESMA GUARDA do delete: só onde o magnet saiu (ou sairia) da conta é
+      // que "não está pronto" é evidência sobre o cache. Magnet protegido
+      // (hold/adprot) continua na conta baixando — gravar 0 aqui esconderia o
+      // ⚡ do download que o próprio autofetch está fazendo.
+      await annotateUnavailable(apiKey, infoHash);
     }
     return null;
   }

@@ -28,6 +28,8 @@ export default {
   current: registry.current,
   checkCached: cacheCheck.checkCached,
   noteAvailable: cacheCheck.noteAvailable,
+  peekDavail: cacheCheck.peekDavail,
+  noteUnavailable: cacheCheck.noteUnavailable,
   accountStatus: accountStatus.accountStatus,
   dashboardAccounts: accountStatus.dashboardAccounts,
   resolveLink: actions.resolveLink,

@@ -1,6 +1,7 @@
 import config from '../config.js';
 import type { DebridAdapter, Stream } from '../../types/domain.js';
 import debrid from '../debrid/index.js';
+import { peekDavail } from '../debrid/cache-check.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import * as rdLedger from '../debrid/rd-ledger.js';
 import * as rdOracle from '../debrid/rd-oracle.js';
@@ -193,6 +194,11 @@ export type InstantEnrichment = {
  * aqui só se ACRESCENTAM hits gratuitos) com duas fontes que só valem para
  * adaptador SEM `cacheCheck` (Real-Debrid / Debrid-Link): o inventário pronto
  * da conta e o histórico durável de play desta credencial.
+ *
+ * Apesar do nome, a função é também o ponto de gancho do atalho do histórico
+ * em adaptador COM `cacheCheck` quando a checagem DEGRADA
+ * (`DEBRID_ALIVE_AS_CACHE`): o núcleo do pipeline chama este passo para todo
+ * adaptador, então a sobra da checagem mora aqui sem tocar o `debrid-pipeline-core.ts`.
  */
 export function enrichInstantWithoutCacheCheck(
   adapter: DebridAdapter,
@@ -202,7 +208,7 @@ export function enrichInstantWithoutCacheCheck(
   apiKey: string,
 ): InstantEnrichment {
   // Dedupe por inventário para adaptadores sem cacheCheck (Real-Debrid / Debrid-Link)
-  const cachedForAutofetch = cached;
+  let cachedForAutofetch: Set<string> = cached;
   let knownForAutofetch = known;
   // O inventario da conta respondeu? So com ele em maos o corte do cachedOnly
   // pode rodar num adaptador sem cacheCheck — com memo frio o conjunto vem
@@ -265,6 +271,46 @@ export function enrichInstantWithoutCacheCheck(
     if (doHistorico) {
       metrics.count('debrid.instant.fromHistory', doHistorico);
       log.info(`[debrid] ${doHistorico} stream(s) com ⚡ pelo histórico de play desta conta`);
+    }
+  }
+
+  // DEBRID_ALIVE_AS_CACHE — sobra da checagem em adaptador COM cacheCheck
+  // (AllDebrid na prática): a resposta do serviço é a autoridade e vale sobre
+  // a memória; o que se faz aqui é completar, APENAS quando ela degrada
+  // (`known:false` — prazo, lote perdido, hash omitido), os hashes que o
+  // banco de magnets provou vivos (play desta conta, TTL 7d) e nenhum davail 0
+  // fresco contradiz. Guardas do desenho, todas obrigatórias:
+  //   - bad/lie venceram antes (pruneKnownBroken cortou na entrada) e markBad
+  //     apaga o alive do mesmo hash — histórico ruim não ressuscita aqui;
+  //   - peekDavail 0 fresco VETA: o play acabou de provar o hash frio;
+  //   - accountKnown segue false — memória com TTL não é retrato da conta e
+  //     não pode autorizar o corte do cachedOnly a descartar o resto;
+  //   - o snapshot para o autofetch é capturado ANTES da inflação: ⚡ pintado
+  //     por histórico não pode convencer o chupim de que o download já está
+  //     pronto (ele decide com a evidência medida, que degradou);
+  //   - nada é escrito (davail, magnetdb, ledger): falso positivo do atalho
+  //     morre no TTL do alive, não se consolida; um play que se apoiar nele e
+  //     voltar não-ready grava o negativo de 120s pelo noteUnavailable.
+  if (adapter.cacheCheck && apiKey && config.debrid.aliveAsCache && !known) {
+    cachedForAutofetch = new Set(cached);
+    let doHistorico = 0;
+    for (const s of streams) {
+      const hash = String(s.infoHash || '').toLowerCase();
+      if (!hash || cached.has(hash)) continue;
+      // O negativo só VETA quando negativos estão ligados (availNegTtl > 0):
+      // 0 desliga a leitura/escrita negativa por contrato, então um 0 na chave
+      // não é evidência — é lixo que o próprio sistema deixaria de escrever.
+      const negativoFresco = config.debrid.availNegTtl > 0 && peekDavail(adapter.id, apiKey, hash) === 0;
+      if (magnetdb.isAlive(adapter.id, apiKey, hash) && !negativoFresco) {
+        cached.add(hash);
+        doHistorico += 1;
+      }
+    }
+    if (doHistorico) {
+      // Métrica PRÓPRIA, distinta do `fromHistory` legado (RD/DL por play):
+      // misturar as duas semânticas esconderia qual fonte pintou o ⚡.
+      metrics.count('debrid.instant.fromAliveAsCache', doHistorico);
+      log.info(`[debrid] ${doHistorico} stream(s) com ⚡ pelo histórico (checagem degradada, alive-as-cache)`);
     }
   }
   return { cachedForAutofetch, knownForAutofetch, accountKnown };

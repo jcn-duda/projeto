@@ -165,7 +165,7 @@ Um `stream` request do Stremio percorre exatamente este caminho:
 addon.ts  processo (listen, warmup)
    └─ app.ts  defineStreamHandler
         └─ providers/index.ts  findStreams
-             ├─ cache SWR (streams:v6)          ← só lista completa + debridKnown + tocável
+             ├─ cache SWR (streams:v7)          ← só lista completa + debridKnown + tocável
              ├─ coalescing inFlight
              └─ doSearch
                   ├─ cinemeta.getMeta  ─┐ paralelo
@@ -396,6 +396,34 @@ terceiro consumidor aparecer.
 
 Kill-switches no `.env`: `MAGNET_DB=false` desliga o banco inteiro;
 `MAGNET_ALIVE_TTL=0` e `MAGNET_BAD_TTL=0` desligam cada lado.
+
+**Alive como cache no degradado (`DEBRID_ALIVE_AS_CACHE`, default `false`).**
+Evolução da sessão de limpeza de 2026-08-30, implementada em
+`src/providers/debrid-pipeline-steps.ts` (gancho `enrichInstantWithoutCacheCheck`,
+que o núcleo chama para todo adaptador). O problema que ela ataca: na AllDebrid
+a checagem é upload, e quando ela degrada (prazo estourado, lote que não voltou,
+hash omitido na resposta) a lista perde o ⚡ de hashes que o banco provou vivos
+há menos de 7 dias. Com o knob ligado, `mag:alive` pode virar ⚡ **apenas** quando
+a `cacheCheck` degradou ou omitiu aquele hash E nenhum `davail` `0` fresco o
+contradiz (o veto do negativo só vale com `availNegTtl > 0` — 0 desliga a
+leitura/escrita negativa por contrato). Vale para TODO adaptador com
+`cacheCheck` (AllDebrid, Premiumize, TorBox e o RD dinâmico quando degradado —
+sem `noteHit`, e o `blocked` continua purgado depois da inflação). Métrica
+própria `debrid.instant.fromAliveAsCache` (distinta do histórico legado RD/DL).
+As travas do desenho não são negociáveis:
+
+- a checagem viva continua autoridade: o que ela medir na busca vale sobre a
+  memória — positivo confirma, negativo derruba o atalho;
+- o atalho **não** satisfaz `accountKnown`/`debridKnown`, nem habilita o corte
+  `cachedOnly`, nem trava o autofetch, nem conta na medição ⚡ do sampler F3 —
+  esses consumidores exigem evidência medida, não memória com TTL;
+- play que se apoiou no atalho e voltou não-ready grava negativo de 120s no
+  `davail` (o mesmo `DEBRID_AVAIL_NEG_TTL`): o erro do atalho custa uma janela,
+  não 7 dias;
+- não é ledger eterno: o atalho morre com o TTL do `alive` e **não** estica
+  `DEBRID_AVAIL_POS_TTL` — esticar o positivo foi a alternativa rejeitada,
+  porque a AllDebrid recicla inativos em ~3 dias e um `1` velho mentiria para
+  sempre.
 
 **Retenção durável do acervo BR (`adprot:v1`, `src/debrid/protected.ts`).** O
 `held` volátil morre no restart e é liberado no ready — sozinho, ele deixava o
@@ -782,7 +810,7 @@ operador).
 
 ## Cache multi-nível (fases 0–2 no código)
 
-A chave `streams:v6` isola config do usuário + digest da conta
+A chave `streams:v7` isola config do usuário + digest da conta
 (`request-key.ts`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
 — bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
 que não bate com a versão corrente). Duas instalações do mesmo título **não**
@@ -791,7 +819,7 @@ compartilham a lista — ela carrega URLs de play assinadas. O trabalho caro
 
 | camada | chave | o que guarda | kill-switch |
 |---|---|---|---|
-| L1+L2 streams | `streams:v6:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
+| L1+L2 streams | `streams:v7:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
 | bruto por indexer | `raw:v1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
 | SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
 
@@ -828,7 +856,14 @@ chamada:
   gravar `0` congelaria o erro por todo o TTL negativo;
 - a escrita é em lote único, para não disparar uma evicção por hash com a cota
   do namespace saturada;
-- `davail.servedHashes` conta o que a camada respondeu sem ir à rede.
+- `davail.servedHashes` conta o que a camada respondeu sem ir à rede;
+- com `DEBRID_ALIVE_AS_CACHE` (implementado em `debrid-pipeline-steps.ts`), o
+  `mag:alive` pode pintar ⚡ **só** quando a checagem degradou ou omitiu o hash
+  — e um `0` fresco do `davail` continua vetando o atalho (detalhes em **Banco
+  de magnets**). Observadores da primeira resposta (`searchFirst.brCached`,
+  log de confirmados, candidatos do áudio-audit) veem o conjunto JÁ inflado —
+  é de propósito: o ⚡ de memória é apresentado na lista; a medição de checagem
+  real (`debrid.check.cached/hashes`, sampler F3) fica limpa.
 
 O gate de 30% (`debrid.check.repeated / debrid.check.hashes` em 15 min) era o
 critério para *implementar*. Já está implementado; hoje esse par de métricas
@@ -862,7 +897,7 @@ v2, então a passada não se repete, e nada se perde funcionalmente: o Torrentio
 
 ---
 
-## Índice de releases e o addon como servidor (`idx:v5`, PLANO_MAGNETDB... ver
+## Índice de releases e o addon como servidor (`idx:v7`, PLANO_MAGNETDB... ver
 ## PLANO no repo)
 
 O addon responde do PRÓPRIO índice quando ele cobre a obra, e usa o Jackett
@@ -873,7 +908,7 @@ RESPOSTA (<500ms):  /stream → idx + dinv → checagem no debrid → lista
 COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro → idx
 ```
 
-- **`src/utils/release-index.ts`** guarda por obra (`idx:v5:<imdbId>[:S:E]`) o
+- **`src/utils/release-index.ts`** guarda por obra (`idx:v7:<imdbId>[:S:E]`) o
   mínimo da release `{ hash, title, size, indexer, isBr, quality, seeders,
   seenAt }`. Invariantes: sem config/credencial na chave (compartilhado entre
   instalações DE PROPÓSITO — guarda o que EXISTE, nunca o que está pronto em
@@ -1113,7 +1148,7 @@ fire-and-forget) continua.
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
 | `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário, varredura pt-BR nos globais |
 | `src/utils/harvester-live.ts` | Camada de configuração ao vivo do Colhedor e Sementes IMDb persistida em SQLite |
-| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v5`): record/lookup/status — o que faz o addon responder sem Jackett |
+| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v7`): record/lookup/status — o que faz o addon responder sem Jackett |
 | `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
 | `src/providers/jackett-catalog.ts` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
 | `src/providers/indexer-status.ts` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
@@ -1133,7 +1168,7 @@ fire-and-forget) continua.
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
 | `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`) e `prefix(ns)` |
-| `src/utils/request-key.ts` | `streams:v6` + digest da conta (nunca a chave crua) |
+| `src/utils/request-key.ts` | `streams:v7` + digest da conta (nunca a chave crua) |
 | `src/utils/secret-box.ts` | AES-256-GCM do `dk` no install URL |
 | `src/utils/sign.ts` | HMAC do `/resolve` (hash + ep + dica `w`) |
 | `src/utils/deadline.ts` | `raceWithDeadline`, `remainingCheckBudget` |
@@ -1428,7 +1463,7 @@ o orçamento com a resposta.
   vivo por um glitch.
 - **Mudou regra de matching? O rebuild do container NÃO invalida o cache.**
   `data/cache.db` é volume: sobrevive a `docker compose up -d --build`, e o
-  `streams:v6` (lista pronta) e o `idx:v5` (acervo de releases já aprovadas)
+  `streams:v7` (lista pronta) e o `idx:v7` (acervo de releases já aprovadas)
   continuam servindo o que o filtro **antigo** deixou passar. Custou uma
   validação falsa: a correção estava no container, o teste isolado passava, e
   a resposta HTTP continuava trazendo o item errado. Depois de mexer em
@@ -1443,7 +1478,7 @@ o orçamento com a resposta.
 
   O header é `X-Indexer-Test-Token` (não `Authorization`) e `confirm: true` é
   obrigatório. Escopo por namespace (`{"scope":{"namespace":"streams"}}`) NÃO
-  basta quando a regra afeta o índice — o `idx:v5` reentrega o item por outro
+  basta quando a regra afeta o índice — o `idx:v7` reentrega o item por outro
   caminho. Use o escopo global.
 - **Ação destrutiva do painel exige `{"confirm": true}`.** `clear-cache` e
   `sweep-dead` devolvem 400 `confirmation_required` sem ele. São globais: não
@@ -1526,7 +1561,7 @@ o orçamento com a resposta.
   reservada, enchia a cota de 4K com não-4K e dirigia o autofetch; (2) o
   índice de releases PERSISTE `dubbed`/`quality` com os mesmos classificadores
   e vive semanas — **corrigir classificador exige bump da versão do namespace
-  (`idx:v5`), senão o conserto não aparece em obra já indexada**.
+  (`idx:v7`), senão o conserto não aparece em obra já indexada**.
 - **Reserva BR é POR FAIXA, e pack cobre faixa sem dublado próprio.**
   `BR_RESERVED_PER_QUALITY` garante até N fontes BR por balde de qualidade —
   a reserva global antiga deixava o 1080p BR abundante consumir tudo e a faixa

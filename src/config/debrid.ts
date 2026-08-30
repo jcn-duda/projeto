@@ -80,6 +80,15 @@ export const debrid = () => ({
   // Negativo expira cedo para o recheck do autofetch enxergar o download
   // pronto logo; 0 deixa negativos sempre irem à rede.
   availNegTtl: num(process.env.DEBRID_AVAIL_NEG_TTL, 120),
+  // Atalho do histórico quando a checagem de cache DEGRADA (prazo estourado,
+  // lote que não voltou, hash omitido na resposta). Com o knob ligado, o
+  // `mag:alive` (play provado desta conta, TTL 7d) pode pintar ⚡ APENAS no que
+  // a checagem não confirmou e nenhum davail 0 fresco contradiz. A checagem
+  // viva continua autoridade (positivo confirma, negativo derruba o atalho);
+  // o ⚡ do atalho NÃO satisfaz accountKnown/cachedOnly, não trava o autofetch
+  // (o snapshot dele é anterior à inflação) nem conta na medição ⚡ do sampler
+  // F3. Default off: sem o knob, degradação continua respondendo sem ⚡.
+  aliveAsCache: String(process.env.DEBRID_ALIVE_AS_CACHE || 'false') === 'true',
   // Remove da conta do debrid o que não está em cache. Sem isso cada consulta
   // deixa um download rodando lá (AllDebrid só informa cache ao dar upload).
   dropUncached: String(process.env.DEBRID_DROP_UNCACHED || 'true') === 'true',
