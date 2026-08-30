@@ -206,6 +206,7 @@ interface FakeNode {
   children: FakeNode[];
   appendChild(child: FakeNode): FakeNode;
   setAttribute(key: string, value: string): void;
+  focus(): void;
 }
 
 function fakeNode(): FakeNode {
@@ -219,11 +220,12 @@ function fakeNode(): FakeNode {
       return child;
     },
     setAttribute() { /* não usado nestes testes */ },
+    focus() { /* gate de token chama focus no input */ },
   };
   return node;
 }
 
-function loadDashboardStatusApi(): { els: Record<string, FakeNode>; renderStatus: (data: any) => void } {
+function loadDashboardStatusApi(fetch?: (url: string, init?: any) => Promise<any>): { els: Record<string, FakeNode>; renderStatus: (data: any) => void; runResolverTest: (id: string, button?: FakeNode | null) => void; setToken: (token: string) => void } {
   const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
   const status = readFileSync(new URL('../../src/public/dashboard-status.js', import.meta.url), 'utf8');
   // Renderizadores que vivem em dashboard-panels.js / no inline do HTML são
@@ -258,10 +260,11 @@ function loadDashboardStatusApi(): { els: Record<string, FakeNode>; renderStatus
     addEventListener: () => {},
   };
   // dashboard-core.js + dashboard-status.js compartilham escopo global (sem
-  // IIFE); os parâmetros document/window sombreiam os globals ausentes.
-  const factory = new Function('document', 'window', core + '\n' + status + '\n' + stubs + '\nreturn { renderStatus: renderStatus };') as
-    (doc: unknown, win: unknown) => { renderStatus: (data: any) => void };
-  return { els, renderStatus: factory(document, window).renderStatus };
+  // IIFE); os parâmetros document/window/fetch sombreiam os globals ausentes.
+  const factory = new Function('document', 'window', 'fetch', core + '\n' + status + '\n' + stubs + '\nreturn { renderStatus: renderStatus, runResolverTest: runResolverTest, setToken: function (token) { currentToken = String(token || ""); } };') as
+    (doc: unknown, win: unknown, fn: unknown) => { renderStatus: (data: any) => void; runResolverTest: (id: string, b?: FakeNode | null) => void; setToken: (t: string) => void };
+  const result = factory(document, window, fetch);
+  return { els, renderStatus: result.renderStatus, runResolverTest: result.runResolverTest, setToken: result.setToken };
 }
 
 function bannerLines(els: Record<string, FakeNode>): string {
@@ -345,4 +348,53 @@ test('banner persistente existe no HTML e dashboard-status.js permanece ES5 sem 
   const uses = statusJs.match(/innerHTML\s*=[^;]+;/g) || [];
   assert.equal(uses.length, 1, 'único innerHTML permitido é o option estático');
   assert.doesNotMatch(uses[0], /\+/, 'sem concatenação de dados no innerHTML');
+});
+
+// Teste de resolver BR no painel: o card kind=resolver usa endpoint próprio
+// (/test-resolver.json, backend em escopo separado); o frontend espelha o
+// gate/feedback de runIndexerTest e reconsulta o estado depois de medir.
+
+test('dashboard-core/panels: kind=resolver ganha botão Testar este resolver; indexador segue igual; ES5', () => {
+  const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8'); const panels = readFileSync(new URL('../../src/public/dashboard-panels.js', import.meta.url), 'utf8');
+  assert.match(core, /"Testar este resolver"/);
+  assert.match(core, /setAttribute\("data-resolver-id"/);
+  assert.match(core, /runResolverTest\(button\.getAttribute\("data-resolver-id"\), button\)/);
+  assert.match(core, /"Testar este indexador"/); // caminho do indexador permanece intacto
+  assert.match(core, /runIndexerTest\(button\.getAttribute\("data-indexer-id"\), button\)/);
+  assert.match(panels, /renderCollection\(\$\("resolverCards"\), resolvers, "resolvers", \{ testable: true, kind: "resolver" \}\)/);
+  for (const js of [core, panels]) {
+    assert.doesNotMatch(js, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'ES5 (WebView de TV)');
+    assert.doesNotMatch(js, /innerHTML/, 'dados só por textContent/appendChild');
+  }
+});
+
+test('runResolverTest: gate de id/token, falha vira erro e sucesso mostra releases/latência/host e reconsulta', async () => {
+  const calls: Array<{ url: string; init: any }> = [];
+  let payload: any = { ok: false, error: 'resolver fora do ar' };
+  const api = loadDashboardStatusApi((url: string, init: any) => {
+    calls.push({ url: String(url), init });
+    const body = String(url).indexOf('/test-resolver.json') !== -1 ? payload : { general: { ok: true, services: {} } };
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+  });
+  // `els` é preguiçoso: o elemento só existe depois do primeiro $("testOutput")
+  // dentro de runResolverTest — ler antes da chamada captura undefined.
+  api.runResolverTest('', null);
+  assert.match(api.els.testOutput.textContent, /Informe o ID do resolver/);
+  api.runResolverTest('bludv', null);
+  assert.match(api.els.testOutput.textContent, /Informe o token antes de testar um resolver/);
+  assert.equal(calls.length, 0, 'gate: nenhuma chamada sem id ou sem token');
+  api.setToken('segredo');
+  api.runResolverTest('vacatorrent', null);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.match(calls[0].url, /\/test-resolver\.json\?id=vacatorrent$/, 'endpoint do resolver chamado com o id');
+  assert.equal(calls[0].init.method, 'GET');
+  assert.equal(calls[0].init.headers['X-Indexer-Test-Token'], 'segredo');
+  assert.match(api.els.testOutput.className, /\berror\b/);
+  assert.match(api.els.testOutput.textContent, /Falhou · resolver fora do ar/);
+  payload = { ok: true, results: 7, ms: 800, host: 'vaqueirofilmes.com' };
+  api.runResolverTest('vacatorrent', null);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.match(api.els.testOutput.className, /\bok\b/);
+  assert.match(api.els.testOutput.textContent, /vacatorrent · OK · 7 release\(s\) · 800 ms · host vaqueirofilmes\.com/);
+  assert.ok(calls.some((c) => c.url.indexOf('/dashboard-status.json') !== -1), 'loadStatus roda após medir (card sai de não medido)');
 });

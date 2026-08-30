@@ -10,7 +10,14 @@ import { BLUDV_DEFAULT_URL, list } from './helpers.js';
 export const resolvers = () => ({
   embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
   host: process.env.BR_RESOLVERS_HOST || '127.0.0.1',
+  // Desloca as portas dos resolvedores (8700..8704); o probe do painel usa a
+  // mesma base para achar a porta certa de cada card.
   portOffset: Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0,
+  // Teto do teste DIRETO do resolvedor pelo painel (/test-resolver.json). A
+  // busca no site pode passar por FlareSolverr/protetor de link, então o
+  // default é largo; mínimo de 1s porque abaixo disso o probe não mede
+  // busca nenhuma, só registra ruído de rede local.
+  probeTimeoutMs: Math.max(1000, Number(process.env.RESOLVERS_PROBE_TIMEOUT_MS) || 25000),
   // As portas também pertencem à infraestrutura do addon. Os profiles
   // CommonJS recebem-nas pela ponte temporária em br-resolvers.ts.
   ports: {

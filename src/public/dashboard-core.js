@@ -320,10 +320,19 @@
     }
     if (rows.children.length) box.appendChild(rows);
     if (options && options.testable) {
-      button = element("button", "mini-action", "Testar este indexador");
-      button.type = "button";
-      button.setAttribute("data-indexer-id", String(first(item, ["id", "key", "name"], "")));
-      button.addEventListener("click", function () { runIndexerTest(button.getAttribute("data-indexer-id"), button); });
+      // Resolver BR tem teste próprio (/test-resolver.json): botão e handler
+      // distintos, o card em si continua igual ao do indexador.
+      if (options.kind === "resolver") {
+        button = element("button", "mini-action", "Testar este resolver");
+        button.type = "button";
+        button.setAttribute("data-resolver-id", String(first(item, ["id", "key", "name"], "")));
+        button.addEventListener("click", function () { runResolverTest(button.getAttribute("data-resolver-id"), button); });
+      } else {
+        button = element("button", "mini-action", "Testar este indexador");
+        button.type = "button";
+        button.setAttribute("data-indexer-id", String(first(item, ["id", "key", "name"], "")));
+        button.addEventListener("click", function () { runIndexerTest(button.getAttribute("data-indexer-id"), button); });
+      }
       box.appendChild(button);
     }
     container.appendChild(box);

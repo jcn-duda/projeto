@@ -13,7 +13,7 @@ import type { DebridAdapter } from '../types/domain.js';
 import * as cache from '../src/utils/cache.js';
 import { streamsCacheKey } from '../src/utils/request-key.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
-import { createTestServer, decodeConfig, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
+import { createTestServer, decodeConfig, encodeConfig, fakeResponse, withMockFetch } from './e2e/e2e-harness.js';
 
 // Adaptador fake gravado no registry real: o clear-cache é puro estado em
 // memória, mas o sweep-dead só devuelve ok:true de verdade se o serviço
@@ -510,6 +510,130 @@ test('ações warm-pause, warm-resume e warm-drain operam sobre o rdWarmer', asy
     assert.equal(drain.json.action, 'warm-drain');
     assert.equal(typeof drain.json.processed, 'number');
     assert.equal(typeof drain.json.queueRemaining, 'number');
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Teste direto dos resolvedores BR (GET /test-resolver.json): mesmo esqueleto
+// de token do test-indexer, mas o alvo é o resolvedor embutido — o probe fala
+// com a porta local do card, então o fetch mockado é o da porta do resolver.
+// ---------------------------------------------------------------------------
+
+test('GET /test-resolver.json: 503 sem token, 401 com token errado e ?token= rejeitado', async () => {
+  // Estado do before(): sem token configurado, rota desligada.
+  const semToken = await server.request('GET', '/test-resolver.json?id=bludv');
+  assert.equal(semToken.status, 503);
+  assert.equal(semToken.json.ok, false);
+  assert.match(semToken.json.error, /diagnóstico/);
+
+  config.jackett.testToken = TOKEN;
+  try {
+    const errado = await server.request('GET', '/test-resolver.json?id=bludv', {
+      headers: { 'X-Indexer-Test-Token': 'tok-errado' },
+    });
+    assert.equal(errado.status, 401);
+
+    const semHeader = await server.request('GET', '/test-resolver.json?id=bludv');
+    assert.equal(semHeader.status, 401);
+
+    const naQuery = await server.request('GET', `/test-resolver.json?id=bludv&token=${TOKEN}`);
+    assert.equal(naQuery.status, 401, 'token na query é ignorado; só o header conta');
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+test('GET /test-resolver.json: 400 para id desconhecido', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    const res = await server.request('GET', '/test-resolver.json?id=nao-existe', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+    });
+    assert.equal(res.status, 400);
+    assert.equal(res.json.ok, false);
+    assert.match(res.json.error, /resolvedor desconhecido/);
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+test('GET /test-resolver.json: probe ok conta as class="release" do HTML e o status mergeia a medição', async () => {
+  config.jackett.testToken = TOKEN;
+  const port = config.resolvers.ports.bludv + config.resolvers.portOffset;
+  try {
+    await withMockFetch([
+      {
+        match: (url: string) => url.includes(`:${port}/search`),
+        handler: '<html><div class="release">a</div><div class="release">b</div></html>',
+      },
+    ], async (mock) => {
+      const res = await server.request('GET', '/test-resolver.json?id=bludv&q=teste', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.resolver, 'bludv');
+      assert.equal(res.json.ok, true);
+      assert.equal(res.json.results, 2, 'uma ocorrência de class="release" por release');
+      assert.equal(typeof res.json.ms, 'number');
+      assert.match(res.json.host, /^https?:\/\//, 'host é o domínio ativo do resolvedor');
+      assert.equal(res.json.error, undefined);
+
+      const probe = mock.calls.find((call) => call.url.includes('/search'));
+      assert.ok(probe, 'probe fez o fetch interno na porta do resolvedor');
+      assert.ok(probe.url.includes(`:${port}/search`), 'porta é a do resolver (base + offset)');
+      assert.ok(probe.url.endsWith(`q=${encodeURIComponent('teste')}`), 'query viaja no parâmetro q');
+    });
+
+    await withMockFetch([], async () => {
+      const st = await server.request('GET', '/dashboard-status.json', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+      });
+      assert.equal(st.status, 200);
+      const entry = st.json.resolvers.find((resolver: any) => resolver.id === 'bludv');
+      assert.equal(entry.status, 'ok');
+      assert.equal(entry.results, 2);
+      assert.ok(entry.checkedAt, 'medição carrega o momento');
+      assert.equal(typeof entry.lastMs, 'number');
+      assert.equal(entry.lastError, null);
+    });
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+test('GET /test-resolver.json: 502 do resolvedor vira ok:false com o corpo do erro no status', async () => {
+  config.jackett.testToken = TOKEN;
+  const port = config.resolvers.ports.nerdfilmes + config.resolvers.portOffset;
+  try {
+    await withMockFetch([
+      {
+        match: (url: string) => url.includes(`:${port}/search`),
+        handler: () => fakeResponse('FALHA-PROPOSITAL-DO-SITE', { status: 502 }),
+      },
+    ], async () => {
+      const res = await server.request('GET', '/test-resolver.json?id=nerdfilmes&q=x', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.resolver, 'nerdfilmes');
+      assert.equal(res.json.ok, false);
+      assert.equal(res.json.results, null);
+      assert.match(res.json.error, /FALHA-PROPOSITAL-DO-SITE/, 'corpo do erro volta truncável e diagnosticável');
+    });
+
+    await withMockFetch([], async () => {
+      const st = await server.request('GET', '/dashboard-status.json', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+      });
+      const entry = st.json.resolvers.find((resolver: any) => resolver.id === 'nerdfilmes');
+      // 'error' (não 'erro'): o stateName() do painel reconhece 'error' e pinta
+      // o card de vermelho; 'erro' voltaria ao cinza "não medido".
+      assert.equal(entry.status, 'error');
+      assert.equal(entry.results, null);
+      assert.match(entry.lastError, /FALHA-PROPOSITAL-DO-SITE/);
+    });
   } finally {
     config.jackett.testToken = '';
   }

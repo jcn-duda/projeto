@@ -45,6 +45,20 @@ function accountTimeout(services: AppServices) {
 }
 
 function makeDiagnosticHandlers(services: AppServices) {
+  // Último probe de cada resolvedor (/test-resolver.json), SÓ em memória e
+  // por instância de app: é estado do momento para o painel, não histórico —
+  // reiniciou, volta sem campos e o próximo probe repinta. Vive na factory
+  // (não no módulo) para não vazar entre instâncias de createApp nos testes.
+  const lastResolverProbes = new Map<string, {
+    // 'error' (não 'erro'): é o valor que o stateName() do painel reconhece —
+    // um probe falho tem que acender vermelho no card, não voltar a cinza.
+    status: 'ok' | 'error';
+    checkedAt: string;
+    lastMs: number;
+    lastError: string | null;
+    results: number | null;
+  }>();
+
   const metrics = (req: express.Request, res: express.Response) => {
     if (unavailable(services, req, res, 'métricas desativadas: defina JACKETT_TEST_TOKEN')) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
@@ -71,13 +85,26 @@ function makeDiagnosticHandlers(services: AppServices) {
       const misses = metricSnapshot.counters['cache.miss'] || 0;
       const metadataTiming = metricSnapshot.timers['search.metadata'];
       const memory = process.memoryUsage();
-      const resolvers = services.brResolvers.RESOLVERS.map((resolver) => ({
-        id: resolver.name,
-        label: resolver.name,
-        port: resolver.port + services.config.resolvers.portOffset,
-        embedded: services.config.resolvers.embedded,
-        domain: services.brResolvers.activeSite(resolver.name),
-      }));
+      const resolvers = services.brResolvers.RESOLVERS.map((resolver) => {
+        // Medição do /test-resolver.json quando existe: ausente significa
+        // "nunca medido neste processo" — inventar null/false aqui confundiria
+        // nunca-medido com medição falha.
+        const last = lastResolverProbes.get(resolver.name);
+        return {
+          id: resolver.name,
+          label: resolver.name,
+          port: resolver.port + services.config.resolvers.portOffset,
+          embedded: services.config.resolvers.embedded,
+          domain: services.brResolvers.activeSite(resolver.name),
+          ...(last ? {
+            status: last.status,
+            checkedAt: last.checkedAt,
+            lastMs: last.lastMs,
+            lastError: last.lastError,
+            results: last.results,
+          } : {}),
+        };
+      });
       const c1Counters = metricSnapshot.counters;
       return res.json({
         generatedAt: new Date().toISOString(),
@@ -172,6 +199,43 @@ function makeDiagnosticHandlers(services: AppServices) {
     }
   });
 
+  // Mesmo esqueleto do test-indexer: token no header (nunca ?token=), gate
+  // global e 400 para id fora da lista. A diferença é o alvo: o resolvedor BR
+  // embutido, medido direto (br-resolvers.probe) sem passar pelo Jackett —
+  // por isso resultado é gravado no Map do painel e não em indexerStatus.
+  const testResolver = asyncRoute(async (req, res) => {
+    if (unavailable(services, req, res, 'diagnóstico desativado pelo operador', { ok: false })) return;
+    const admission = services.diagnosticGate.enter('global') as GateAdmission;
+    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
+    try {
+      const id = String(req.query.id || '');
+      const query = req.query.q ? String(req.query.q).slice(0, 80) : '';
+      const probe = await services.brResolvers.probe(id, query);
+      if (!probe) {
+        return res.status(400).json({ ok: false, error: 'resolvedor desconhecido' });
+      }
+      lastResolverProbes.set(id, {
+        status: probe.ok ? 'ok' : 'error',
+        checkedAt: new Date().toISOString(),
+        lastMs: probe.ms,
+        lastError: probe.error,
+        results: probe.results,
+      });
+      services.metrics.count(probe.ok ? 'resolvers.probe.ok' : 'resolvers.probe.fail');
+      const payload: Record<string, unknown> = {
+        resolver: probe.resolver,
+        ok: probe.ok,
+        results: probe.results,
+        ms: probe.ms,
+        host: probe.host,
+      };
+      if (probe.error) payload.error = probe.error;
+      return res.json(payload);
+    } finally {
+      admission.release();
+    }
+  });
+
   const debridStatus = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'diagnóstico desativado pelo operador', { ok: false })) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
@@ -197,7 +261,7 @@ function makeDiagnosticHandlers(services: AppServices) {
     }
   });
 
-  return { metrics, dashboardStatus, dashboardAction, testIndexer, debridStatus };
+  return { metrics, dashboardStatus, dashboardAction, testIndexer, testResolver, debridStatus };
 }
 
 export { makeDiagnosticHandlers };

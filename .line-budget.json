@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-08-30",
-  "excedente": 17524,
+  "excedente": 17648,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
@@ -29,7 +29,7 @@
     "test/catalog.test.ts": 649,
     "test/challenger-m1-adversarial.test.ts": 676,
     "test/comandotorrents-parser.test.ts": 485,
-    "test/dashboard.test.ts": 516,
+    "test/dashboard.test.ts": 640,
     "test/debrid-auth.test.ts": 645,
     "test/debrid-batch.test.ts": 462,
     "test/debrid-drop-uncached.test.ts": 1305,

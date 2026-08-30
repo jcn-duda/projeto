@@ -90,7 +90,9 @@
       var hint = element("p", "guidance error", "Circuit breaker aberto: revise estes IDs em JACKETT_INDEXERS: " + offline.join(", "));
       $("indexerCards").appendChild(hint);
     }
-    renderCollection($("resolverCards"), resolvers, "resolvers", {});
+    // Resolvers BR são testáveis (kind resolver): mesmo card, botão e endpoint
+    // de teste próprios, decididos dentro de card().
+    renderCollection($("resolverCards"), resolvers, "resolvers", { testable: true, kind: "resolver" });
   }
 
   function renderCache(data) {

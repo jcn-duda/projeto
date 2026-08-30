@@ -114,6 +114,57 @@ function activeSite(name: string): string | null {
   return resolver.siteUrl || null;
 }
 
+/** Resultado do teste direto de um resolvedor; `error` só vem quando falhou. */
+type ResolverProbe = {
+  resolver: string;
+  ok: boolean;
+  results: number | null;
+  ms: number;
+  error: string | null;
+  host: string | null;
+};
+
+/**
+ * Teste DIRETO do resolvedor: repete o mesmo caminho que o card Cardigann
+ * percorre (GET /search?q= na porta local) sem passar pelo Jackett, para o
+ * painel separar "o site caiu" de "o Jackett caiu".
+ *
+ * - Nome fora da lista devolve null (a rota responde 400).
+ * - HTTP 200 é saudável e `results` conta as `class="release"` do HTML — o
+ *   mesmo marcador que os cinco perfis renderizam, estável entre eles.
+ * - Não-2xx volta ok:false com o corpo do erro truncado (máx 200 chars): é
+ *   a mensagem original do perfil (ex.: 502 do /search), diagnosticável.
+ * - Timeout e erro de rede NÃO lançam: diagnóstico é dado, não exceção — um
+ *   resolvedor morto tem que aparecer como ok:false, não derrubar a rota.
+ * - `host` é o domínio ATIVO do seletor (activeSite), não a env congelada.
+ * - De propósito NÃO toca indexerStatus nem breaker do Jackett: medida
+ *   avulsa do painel não pode abrir circuito nem pintar card de indexer.
+ */
+async function probe(name: string, query = ''): Promise<ResolverProbe | null> {
+  const resolver = RESOLVERS.find((item) => item.name === name);
+  if (!resolver) return null;
+  const port = resolver.port + config.resolvers.portOffset;
+  const host = activeSite(name);
+  const url = `http://${config.resolvers.host}:${port}/search?q=${encodeURIComponent(query)}`;
+  const startedAt = Date.now();
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(config.resolvers.probeTimeoutMs) });
+    const body = await response.text();
+    const ms = Date.now() - startedAt;
+    if (response.status === 200) {
+      return { resolver: name, ok: true, results: body.split('class="release"').length - 1, ms, error: null, host };
+    }
+    return { resolver: name, ok: false, results: null, ms, error: body.slice(0, 200), host };
+  } catch (err: any) {
+    const ms = Date.now() - startedAt;
+    // AbortSignal.timeout nomeia o abort como TimeoutError; AbortError cobre
+    // cancelamentos externos do mesmo signal.
+    const timeout = err?.name === 'TimeoutError' || err?.name === 'AbortError';
+    const message = timeout ? `timeout após ${ms}ms` : String(err?.message || err);
+    return { resolver: name, ok: false, results: null, ms, error: message.slice(0, 200), host };
+  }
+}
+
 /** Fecha sockets embutidos antes do processo sair; seguro para chamadas repetidas. */
 function close() {
   for (const server of servers.splice(0)) {
@@ -126,4 +177,4 @@ function close() {
   }
 }
 
-export { load, close, activeSite, RESOLVERS };
+export { load, close, activeSite, probe, RESOLVERS };

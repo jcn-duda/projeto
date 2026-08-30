@@ -1,7 +1,8 @@
 /* Adom Power-Movie - pagina /dashboard: consulta, polling e acoes (Fase 3, PLANO_MELHORIAS 5.9).
  * renderStatus, token, refresh automatico, acoes com confirmacao, teste de
- * indexador e disponibilidade de controles, extraidos do script inline do
- * dashboard.html. Escopo global compartilhado (sem IIFE); carregado depois de
+ * indexador e de resolver BR, disponibilidade de controles, extraidos do
+ * script inline do dashboard.html. Escopo global compartilhado (sem IIFE);
+ * carregado depois de
  * core/panels e ANTES do script inline. Nada roda no load - as chamadas que
  * cruzam para o inline (renderMagnetDb, paineis, catalogo) acontecem em tempo
  * de evento. ES5 puro: WebView de Fire TV e smart TV. Sem build, sem bundler. */
@@ -310,6 +311,41 @@
       .then(function (data) {
         output.className = "test-output " + (data && data.ok ? (data.overBudget ? "warn" : "ok") : "error");
         output.textContent = safeId + " · " + testResultText(data);
+      })
+      .catch(function (error) { output.className = "test-output error"; output.textContent = safeId + " · " + valueText(error && error.message ? error.message : error); })
+      .then(function () { if (button) button.disabled = false; });
+  }
+
+  // Texto do teste de resolver BR: ok + N releases + latência + host ativo.
+  // O contrato real do backend é `results` (contagem de class="release" no
+  // HTML do /search) — NÃO `releases`; ler o campo errado mostrava "—" sempre.
+  function resolverTestResultText(data) {
+    var releases = data ? data.results : null;
+    var count = Array.isArray(releases) ? releases.length : Number(releases);
+    if (data && data.ok) {
+      return "OK · " + (isFinite(count) ? String(count) : valueText(releases)) + " release(s) · " +
+        formatDuration(data.ms) + " · host " + valueText(first(data, ["host", "activeSite", "site"], ""));
+    }
+    return "Falhou · " + valueText(data && (data.error || data.message) || "nenhum resultado");
+  }
+
+  // Espelho de runIndexerTest para os resolvers BR: mesmo gate de token e
+  // mesmo feedback no #testOutput. Depois de um teste que mediu, chama
+  // loadStatus — o card sai de "não medido" sem esperar o próximo polling.
+  // Em erro não há medição nova no servidor, então não reconsulta.
+  function runResolverTest(id, button) {
+    var output = $("testOutput");
+    var safeId = String(id || "").replace(/^\s+|\s+$/g, "");
+    if (!safeId) { output.className = "test-output error"; output.textContent = "Informe o ID do resolver."; return; }
+    if (!currentToken) { output.className = "test-output error"; output.textContent = "Informe o token antes de testar um resolver."; $("token").focus(); return; }
+    if (button) button.disabled = true;
+    output.className = "test-output";
+    output.textContent = "Testando " + safeId + "…";
+    requestJson("/test-resolver.json?id=" + encodeURIComponent(safeId), { method: "GET" })
+      .then(function (data) {
+        output.className = "test-output " + (data && data.ok ? "ok" : "error");
+        output.textContent = safeId + " · " + resolverTestResultText(data);
+        if (data && data.ok) loadStatus();
       })
       .catch(function (error) { output.className = "test-output error"; output.textContent = safeId + " · " + valueText(error && error.message ? error.message : error); })
       .then(function () { if (button) button.disabled = false; });

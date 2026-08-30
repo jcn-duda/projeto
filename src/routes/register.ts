@@ -38,6 +38,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/dashboard-status.json', diagnosticHandlers.dashboardStatus);
   app.post('/dashboard-action.json', express.json({ limit: '4kb' }), diagnosticHandlers.dashboardAction);
   app.get('/test-indexer.json', diagnosticHandlers.testIndexer);
+  app.get('/test-resolver.json', diagnosticHandlers.testResolver);
   app.get('/debrid-status.json', diagnosticHandlers.debridStatus);
   app.get('/resolve/:infoHash', resolveHandler);
 
@@ -58,6 +59,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/:userConfig/dashboard-status.json', diagnosticHandlers.dashboardStatus);
   app.post('/:userConfig/dashboard-action.json', express.json({ limit: '4kb' }), diagnosticHandlers.dashboardAction);
   app.get('/:userConfig/test-indexer.json', diagnosticHandlers.testIndexer);
+  app.get('/:userConfig/test-resolver.json', diagnosticHandlers.testResolver);
   app.get('/:userConfig/metrics.json', diagnosticHandlers.metrics);
   app.get('/:userConfig/resolve/:infoHash', resolveHandler);
   app.use('/:userConfig', makeAddonRouter(addonInterface));
