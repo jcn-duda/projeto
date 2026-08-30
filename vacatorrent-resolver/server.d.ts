@@ -31,6 +31,7 @@ interface VacaProfile {
   extractBatchTitle(html: string): string | null;
   releaseTitle(post: { title?: string; year?: number | string | null } | string, link: Partial<VacaLink>, index?: number): string;
   searchPageHtml(items: Array<unknown>): string;
+  searchPosts(query: string): Promise<Array<{ post: VacaWork; link: VacaLink; index: number; count: number }>>;
   assertAllowedUrl(url: string): URL;
   isDetailHost(url: string): boolean;
   isProtectorHost(url: string): boolean;

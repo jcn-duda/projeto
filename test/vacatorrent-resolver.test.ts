@@ -173,3 +173,28 @@ describe('VacaTorrent Parser: searchPageHtml (feed do Jackett)', () => {
     assert.ok(html.includes('Um Dia de Sorte em Nova York (2025)'));
   });
 });
+
+describe('VacaTorrent: browse do cardigann (query vazia)', () => {
+  test('searchPosts(""): usa termo amplo no AJAX (o AJAX não lista sem termo) e devolve releases', async () => {
+    let ajaxUrl = '';
+    globalThis.fetch = (async (url: any) => {
+      const u = typeof url === 'string' ? url : url.href;
+      if (u.includes('admin-ajax.php')) {
+        ajaxUrl = u;
+        return { ok: true, status: 200, text: async () => fixture('search-dia-d.json') };
+      }
+      if (u.includes('um-dia-de-sorte-em-nova-york')) {
+        return { ok: true, status: 200, text: async () => fixture('movie-page.html') };
+      }
+      if (u.includes('movie-links')) {
+        return { ok: true, status: 200, text: async () => fixture('movie-links.html') };
+      }
+      throw new Error(`fetch inesperado: ${u}`);
+    }) as unknown as typeof globalThis.fetch;
+
+    const items = await vaca.searchPosts('');
+    assert.ok(ajaxUrl.includes('s=de'), 'browse usa termo amplo do acervo como prova de vida');
+    assert.ok(items.length >= 1, 'browse devolve ao menos uma release');
+    assert.ok(items[0].post.title.includes('Um Dia de Sorte'), 'obra do JSON vira release com o título preservado');
+  });
+});

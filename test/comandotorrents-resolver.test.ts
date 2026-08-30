@@ -370,10 +370,26 @@ describe('ComandoTorrents Resolver: HTTP Server & API Endpoints', () => {
     assert.equal(res.body, 'ok');
   });
 
-  test('GET /search sem query: retorna página HTML vazia com status 200', async () => {
+  test('GET /search sem query: browse serve os últimos posts (Test do Jackett)', async () => {
+    // `/?s=` vazio lista os posts recentes; o filtro de título passa tudo.
+    globalThis.fetch = (async (url: any) => {
+      const u = typeof url === 'string' ? url : url.href;
+      if (u.includes('/?s=')) {
+        return { ok: true, status: 200, text: async () =>
+          '<article class="blog-view"><h2 class="entry-title">' +
+          '<a href="https://comandotorrents.to/filme-magnet/" title="Filme Real">Filme Real Torrent</a></h2></article>' };
+      }
+      if (u.includes('filme-magnet')) {
+        return { ok: true, status: 200, text: async () =>
+          '<div class="entry-content"><h3>DUBLADO</h3><p>1080p (2.0 GB)</p>' +
+          '<a href="https://systemads1.com/go/btn0">Download 1</a></div>' };
+      }
+      throw new Error(`Unexpected url: ${u}`);
+    }) as unknown as typeof globalThis.fetch;
     const res = await requestHttp('/search');
     assert.equal(res.status, 200);
-    assert.ok(res.body.includes('<div class="posts"></div>'));
+    assert.ok(res.body.includes('class="release"'), 'browse devolve linhas de release');
+    assert.ok(res.body.includes('Filme Real'), 'post recente entra na página do card');
   });
 
   test('GET /resolve com URL ausente: retorna status 400 invalid_url', async () => {

@@ -522,7 +522,6 @@ const selectSearchPosts = bootstrap.makeSelectSearchPosts(parsePosts, MAX_POSTS)
 async function searchPosts(query) {
   const requestedSeason = String(query || '').match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
   const normalized = normalizeQuery(query);
-  if (!normalized) return [];
   const cacheKey = `search:${String(query || '')}`;
   // Log de hit preservado do laço manual (o cached() do núcleo não loga).
   const hit = searchCache.get(cacheKey);
@@ -530,6 +529,10 @@ async function searchPosts(query) {
 
   return cachedSearch(cacheKey, SEARCH_CACHE_MS, async () => {
     try {
+      // Query vazia (browse do cardigann, Test do Jackett) roda o MESMO
+      // caminho: `/?s=` sem termo é o arquivo de posts recentes do WordPress
+      // e o matchesResolverQuery passa tudo com query vazia — o Test prova o
+      // pipeline inteiro em vez de reprovar por 0 resultados.
       const html = await fetchText(assertAllowedUrl(`${siteSelector.url()}/?s=${encodeURIComponent(normalized)}`));
       // Sucesso da busca zera o streak ANTES de raspar posts/protetores:
       // queda do protetor não conta como falha do domínio.

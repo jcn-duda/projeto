@@ -587,13 +587,18 @@ async function searchPosts(query) {
   return cachedSearch(cacheKey, SEARCH_CACHE_MS, async () => {
     const requestedSeason = requestedSeasonFromQuery(query);
     const normalized = normalizeQuery(query);
-    if (!normalized) return [];
+    // O AJAX não expõe listagem sem termo (s vazio devolve []): o browse do
+    // cardigann (Test do Jackett) usa um termo amplo do acervo como prova de
+    // vida do pipeline — não é listagem real de novidades. Com browse o
+    // filtro de título recebe query vazia e passa tudo.
+    const browse = !normalized;
+    const term = browse ? 'de' : normalized;
 
-    const ajaxUrl = `${siteSelector.url()}/wp-admin/admin-ajax.php?action=search_posts&s=${encodeURIComponent(normalized)}&lang=pt-BR`;
+    const ajaxUrl = `${siteSelector.url()}/wp-admin/admin-ajax.php?action=search_posts&s=${encodeURIComponent(term)}&lang=pt-BR`;
     const text = await fetchText(ajaxUrl, 'application/json, text/html, */*');
     siteSelector.noteSuccess();
 
-    const posts = filterSearchPosts(parseSearchJson(text), normalized, requestedSeason);
+    const posts = filterSearchPosts(parseSearchJson(text), browse ? '' : normalized, requestedSeason);
     const chunks = await mapLimit(posts, async (post) => {
       try {
         return await postToItems(post, requestedSeason);

@@ -283,8 +283,10 @@ async function searchPosts(query, requestedSeason) {
   const rawQuery = String(query || '');
   const season = requestedSeason ?? rawQuery.match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
   const normalized = rawQuery.replace(/\b[sS]\d{1,2}(?:[eE]\d{1,2})?\b/g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!normalized) return { posts: [], items: [] };
   try {
+    // Query vazia (browse do cardigann, Test do Jackett) roda o MESMO
+    // caminho: `/?s=` sem termo é o arquivo de posts recentes do WordPress
+    // e o matchesResolverQuery passa tudo com query vazia.
     const search = await fetch(`${siteSelector.url()}/?s=${encodeURIComponent(normalized)}`, {
       headers: { 'User-Agent': USER_AGENT },
       signal: AbortSignal.timeout(TIMEOUT_MS),

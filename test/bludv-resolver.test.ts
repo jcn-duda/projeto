@@ -192,6 +192,24 @@ describe('BluDV Resolver: caches de magnet e de busca', () => {
     assert.ok(bludv.searchCache.has('search:post cache'));
   });
 
+  test('searchPosts(""): browse do cardigann (Test do Jackett) serve os últimos posts', async () => {
+    const HOME_HTML = '<div class="posts"><div class="post">' +
+      '<div class="title"><a href="https://bludvfilmes.xyz/post-browse/">Post Browse Torrent</a></div></div></div>';
+    const POST_WITH_MAGNET = '<h3>DUAL ÁUDIO</h3>' +
+      '<p><a href="magnet:?xt=urn:btih:6666666666666666666666666666666666666666&dn=b">1080p Dublado</a></p>';
+    let browseUrl = '';
+    globalThis.fetch = (async (url: any) => {
+      const u = toStr(url);
+      if (u.includes('/?s=')) { browseUrl = u; return okHtml(HOME_HTML); }
+      if (u.includes('post-browse')) return okHtml(POST_WITH_MAGNET);
+      throw new Error(`Unexpected url: ${u}`);
+    }) as unknown as typeof globalThis.fetch;
+
+    const items = await bludv.searchPosts('');
+    assert.equal(items.length, 1);
+    assert.ok(browseUrl.endsWith('/?s='), 'browse consulta o arquivo do WordPress sem termo');
+  });
+
   test('fetchText: 403 do Cloudflare cai no FlareSolverr e reusa a sessão', async () => {
     let siteFetches = 0;
     let flareCalls = 0;

@@ -12,9 +12,8 @@
  * da rota direto no mapa de rotas — esta factory NÃO ganha `if` por perfil.
  *
  * Contratos preservados EXATAMENTE (fixados pelos testes de resolver):
- * status/mensagens `invalid_url` / `invalid_params` / `invalid_index` /
- * `unsupported_t` / `not_found`, 502 com `error.message`, 302 no /dl e a
- * página HTML vazia (200) quando a query vem vazia.
+ * `not_found`, status/mensagens 502 com `error.message`, 302 no /dl e o
+ * browse do /search delegando a decisão da query vazia ao perfil do site.
  *
  * Sem estado de módulo (R-2): tudo nasce por chamada e o que a rota usa entra
  * INJETADO (`reply`, `unwrapResolverUrl`, resolvers do perfil) — nenhum perfil
@@ -44,17 +43,16 @@ function createHealthRoute({ reply }) {
 }
 
 /**
- * GET /search?q= → página HTML do card Cardigann. Query vazia (ausente ou só
- * espaço) devolve a página SEM linhas com 200 — é o que os cinco perfis fazem.
- * `search(q)` devolve os itens; `renderHtml(items)` formata. Erro da busca é
- * 502 com a mensagem original (o Jackett precisa da causa diagnosticável).
+ * GET /search?q= → página HTML do card Cardigann. Query vazia (browse, sem
+ * q) NÃO é atalho aqui: quem decide é o `search(q)` do perfil — nos BR o
+ * browse serve os últimos posts para o Test do Jackett provar o pipeline
+ * inteiro em vez de reprovar por 0 resultados. (O feed do /api torznab
+ * continua vazio na query vazia — semântica de RSS preservada.) Erro da busca
+ * é 502 com a mensagem original (o Jackett precisa da causa diagnosticável).
  */
 function createSearchRoute({ reply, search, renderHtml }) {
   return async function handleSearch(url, response) {
-    const q = url.searchParams.get('q');
-    if (!q || !q.trim()) {
-      return reply(response, 200, renderHtml([]), 'text/html; charset=utf-8');
-    }
+    const q = url.searchParams.get('q') || '';
     try {
       const items = await search(q);
       return reply(response, 200, renderHtml(items), 'text/html; charset=utf-8');

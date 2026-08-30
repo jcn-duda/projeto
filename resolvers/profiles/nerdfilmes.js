@@ -476,7 +476,10 @@ async function handleSearch(url, response) {
   const rawQuery = String(url.searchParams.get('q') || '');
   const requestedSeason = rawQuery.match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
   const query = normalizeQuery(rawQuery);
-  if (!query) return reply(response, 200, searchPageHtml([]), 'text/html; charset=utf-8');
+  // Sem atalho de query vazia: o browse do cardigann (Test do Jackett) roda o
+  // MESMO caminho — `/?s=` sem termo é o arquivo de posts recentes do
+  // WordPress e o matchesResolverQuery passa tudo com query vazia. (O /api
+  // torznab mantém o feed vazio na query vazia — semântica de RSS.)
   try {
     const html = await cached(`search-html:${rawQuery}`, SEARCH_CACHE_MS, async () => {
       const source = await fetchSearchHtml(query);

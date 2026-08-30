@@ -284,11 +284,13 @@ const searchPageHtml = createSearchPageHtml({
 async function searchPosts(query) {
   const requestedSeason = String(query || '').match(/\bS(\d{1,2})(?:E\d{1,2})?\b/i);
   const normalized = normalizeQuery(query);
-  if (!normalized) return [];
   const cacheKey = `search:${String(query || '')}`;
 
   return cachedSearch(cacheKey, SEARCH_CACHE_MS, async () => {
     try {
+      // Query vazia (browse do cardigann, Test do Jackett) roda o MESMO
+      // caminho: `/?s=` sem termo é o arquivo de posts recentes do WordPress
+      // e o matchesResolverQuery passa tudo com query vazia.
       const source = await fetch(`${siteSelector.url()}/?s=${encodeURIComponent(normalized)}`, {
         headers: { 'User-Agent': USER_AGENT },
         signal: AbortSignal.timeout(TIMEOUT_MS),
