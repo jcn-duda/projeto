@@ -188,3 +188,161 @@ test('dashboard.html: selecionar todos pula os desabilitados e resume com tamanh
   const resumo = html.slice(html.indexOf('function refreshCatalogSelection'), html.indexOf('function toggleCatalogSelectAll'));
   assert.match(resumo, /formatBytes\(bytes\)/, 'o resumo mostra bytes, não só contagem');
 });
+
+// ---------------------------------------------------------------------------
+// Pill + banner persistente refletem o ok:false JÁ presente em
+// /dashboard-status.json (incidente de 2026-08-30: o pill ficava verde com
+// timeout da conta, catálogo indisponível ou serviço debrid morto, porque o
+// cálculo só olhava auth/quota e Jackett — o resto morria num <details>
+// fechado). dashboard-status.js é módulo de declarações (nada roda no load),
+// então o teste EXECUTA renderStatus com um DOM falso, sobre o escopo global
+// compartilhado core + status — mesmo padrão do displayValue.
+// ---------------------------------------------------------------------------
+
+interface FakeNode {
+  className: string;
+  textContent: string;
+  style: Record<string, string>;
+  children: FakeNode[];
+  appendChild(child: FakeNode): FakeNode;
+  setAttribute(key: string, value: string): void;
+}
+
+function fakeNode(): FakeNode {
+  const node: FakeNode = {
+    className: '',
+    textContent: '',
+    style: {},
+    children: [],
+    appendChild(child: FakeNode) {
+      node.children.push(child);
+      return child;
+    },
+    setAttribute() { /* não usado nestes testes */ },
+  };
+  return node;
+}
+
+function loadDashboardStatusApi(): { els: Record<string, FakeNode>; renderStatus: (data: any) => void } {
+  const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
+  const status = readFileSync(new URL('../../src/public/dashboard-status.js', import.meta.url), 'utf8');
+  // Renderizadores que vivem em dashboard-panels.js / no inline do HTML são
+  // irrelevantes aqui: stubs só para renderStatus não estourar.
+  const stubs = [
+    'function renderGeneral() {}',
+    'function renderDebrid() {}',
+    'function renderSources() {}',
+    'function renderCache() {}',
+    'function renderMagnetDb() {}',
+    'function renderReleaseIndex() {}',
+    'function renderHarvest() {}',
+    'function renderAutofetchPanel() {}',
+    'function renderHarvesterPanel() {}',
+    'function drawSparkline() {}',
+    'function pushSeries() { return []; }',
+    'function updateLastUpdated() {}',
+    'function updateActionAvailability() {}',
+  ].join('\n');
+  const els: Record<string, FakeNode> = {};
+  const document = {
+    hidden: false,
+    createElement: () => fakeNode(),
+    createTextNode: (text: string) => ({ text }),
+    getElementById: (id: string) => (els[id] = els[id] || fakeNode()),
+    addEventListener: () => {},
+  };
+  const window = {
+    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    location: { pathname: '/dashboard' },
+    confirm: () => false,
+    addEventListener: () => {},
+  };
+  // dashboard-core.js + dashboard-status.js compartilham escopo global (sem
+  // IIFE); os parâmetros document/window sombreiam os globals ausentes.
+  const factory = new Function('document', 'window', core + '\n' + status + '\n' + stubs + '\nreturn { renderStatus: renderStatus };') as
+    (doc: unknown, win: unknown) => { renderStatus: (data: any) => void };
+  return { els, renderStatus: factory(document, window).renderStatus };
+}
+
+function bannerLines(els: Record<string, FakeNode>): string {
+  return els.statusBannerText.children.map((child) => child.textContent).join('\n');
+}
+
+test('pill fica warn (não verde) e o banner mostra timeout da conta com o erro', () => {
+  const { els, renderStatus } = loadDashboardStatusApi();
+  renderStatus({
+    general: { ok: true, services: { addon: true, jackett: true, debrid: false, resolvers: 5 } },
+    debrid: {
+      active: 'alldebrid',
+      account: { ok: false, service: 'alldebrid', label: 'AllDebrid', reason: 'timeout', error: 'timeout consultando o debrid' },
+      accounts: {},
+    },
+  });
+  assert.equal(els.connection.className, 'connection warn', 'timeout não pode deixar o pill verde');
+  assert.match(els.connectionText.textContent, /problema/);
+  assert.match(els.statusBanner.className, /\bvisible\b/, 'banner persistente aparece com ok:false');
+  assert.match(els.statusBanner.className, /\bwarn\b/);
+  const texto = bannerLines(els);
+  assert.match(texto, /AllDebrid/, 'a conta culpada é nomeada');
+  assert.match(texto, /timeout consultando o debrid/, 'o erro medido viaja no texto');
+  assert.match(texto, /tempo esgotado consultando o serviço/, 'reason traduzido em texto claro');
+});
+
+test('auth e quota sobem o pill a erro e o banner traz o fix de cada serviço', () => {
+  const { els, renderStatus } = loadDashboardStatusApi();
+  renderStatus({
+    general: { ok: true, services: { addon: true, jackett: true, debrid: false, resolvers: 5 } },
+    debrid: {
+      active: 'alldebrid',
+      account: { ok: false, service: 'alldebrid', label: 'AllDebrid', reason: 'auth', error: 'AUTH_BAD_APIKEY', fix: 'renove a chave em alldebrid.com/account/api' },
+      accounts: {
+        realdebrid: { ok: false, service: 'realdebrid', label: 'Real-Debrid', reason: 'quota', fix: 'apague magnets com node dist/scripts/magnets.js' },
+      },
+    },
+  });
+  assert.equal(els.connection.className, 'connection error', 'auth/quota provam conta inutilizável');
+  assert.match(els.statusBanner.className, /\berror\b/);
+  const texto = bannerLines(els);
+  assert.match(texto, /renove a chave/, 'fix da conta ativa aparece no banner');
+  assert.match(texto, /node dist\/scripts\/magnets\.js/, 'fix da conta do operador (accounts[*]) aparece no banner');
+});
+
+test('catalog.ok:false com hint sobe no banner e o pill não fica verde', () => {
+  const { els, renderStatus } = loadDashboardStatusApi();
+  renderStatus({
+    general: { ok: true, services: { addon: true, jackett: true, debrid: true, resolvers: 5 } },
+    debrid: { active: 'alldebrid', account: { ok: true, service: 'alldebrid', label: 'AllDebrid' }, accounts: {} },
+    catalog: { ok: false, reason: 'chave-operador-desativada', hint: 'ligue DEBRID_OPERATOR_ENV_ACCOUNT e recrie a stack' },
+  });
+  assert.equal(els.connection.className, 'connection warn', 'catálogo indisponível é atenção, não verde');
+  const texto = bannerLines(els);
+  assert.match(texto, /Catálogo da conta indisponível/);
+  assert.match(texto, /uso da conta do operador desligado no \.env/, 'reason traduzido');
+  assert.match(texto, /DEBRID_OPERATOR_ENV_ACCOUNT/, 'hint do backend viaja intacto');
+});
+
+test('resposta saudável esconde o banner e devolve o pill ao verde', () => {
+  const { els, renderStatus } = loadDashboardStatusApi();
+  renderStatus({
+    general: { ok: true, services: { addon: true, jackett: true, debrid: true, resolvers: 5 } },
+    debrid: { active: 'alldebrid', account: { ok: true, service: 'alldebrid', label: 'AllDebrid' }, accounts: {} },
+    catalog: { ok: true },
+  });
+  assert.equal(els.connection.className, 'connection online');
+  assert.equal(els.statusBanner.className, 'status-banner', 'banner some sozinho quando a resposta é saudável');
+  assert.equal(els.statusBannerText.children.length, 0);
+});
+
+test('banner persistente existe no HTML e dashboard-status.js permanece ES5 sem innerHTML', () => {
+  const html = dashboardHtml();
+  assert.match(html, /id="statusBanner"/);
+  assert.match(html, /id="statusBannerText"/);
+  const statusJs = readFileSync(new URL('../../src/public/dashboard-status.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(statusJs, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard-status.js continua ES5');
+  // Sem innerHTML COM DADOS: o único uso é o option estático do seletor de
+  // namespace (string literal, nada da rede); o banner é preenchido por
+  // textContent/appendChild.
+  const uses = statusJs.match(/innerHTML\s*=[^;]+;/g) || [];
+  assert.equal(uses.length, 1, 'único innerHTML permitido é o option estático');
+  assert.doesNotMatch(uses[0], /\+/, 'sem concatenação de dados no innerHTML');
+});

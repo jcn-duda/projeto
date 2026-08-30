@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
 import debrid from '../src/debrid/index.js';
+import { resetAccountStatusMemo } from '../src/debrid/account-status.js';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 
@@ -83,6 +84,9 @@ interface AccountStatusResult {
   premiumUntil?: number | null;
   oldestAt?: number | string | null;
   usedPct?: number;
+  cached?: boolean;
+  fetchedAt?: number;
+  fix?: string | null;
 }
 
 const withKey = (fn: () => unknown) =>
@@ -115,6 +119,7 @@ test('conta cheia avisa ANTES de a checagem quebrar', async () => {
   // O limiar é nosso, não do serviço: a AllDebrid tem dois tetos que não batem
   // (30 ativos na doc, 1000 na mensagem real) e nenhum é consultável. O que
   // importa é existir aviso — sem ele, o primeiro sinal é o ⚡ sumindo de tudo.
+  resetAccountStatusMemo();
   const restore = mockAccount(800);
   try {
     const status = await withKey(() => debrid.accountStatus());
@@ -127,6 +132,7 @@ test('conta cheia avisa ANTES de a checagem quebrar', async () => {
 });
 
 test('conta estourada é reportada como quota, não como falha genérica', async () => {
+  resetAccountStatusMemo();
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
@@ -152,6 +158,7 @@ test('conta estourada é reportada como quota, não como falha genérica', async
 
 test('chave recusada é reportada como auth, e o verificador não explode', async () => {
   // O verificador precisa responder JUSTAMENTE quando o serviço está ruim.
+  resetAccountStatusMemo();
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
@@ -211,6 +218,7 @@ test('premiumize folgado: ok, sem aviso, com o fair-use medido', async () => {
 });
 
 test('premiumize perto do teto de fair-use avisa ANTES de account_limit_reached', async () => {
+  resetAccountStatusMemo();
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
@@ -231,6 +239,7 @@ test('premiumize perto do teto de fair-use avisa ANTES de account_limit_reached'
 });
 
 test('premiumize em rate limit no verificador é reason=rate, não falha genérica', async () => {
+  resetAccountStatusMemo();
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
@@ -387,6 +396,7 @@ test('a rota exige o token de diagnóstico', async () => {
 
 test('a rota responde 200 com o diagnóstico mesmo com a conta ruim', async () => {
   // Conta estourada não é erro de request: o corpo É a resposta útil.
+  resetAccountStatusMemo();
   const restore = mockAccount(1000);
   const { app } = createApp();
   try {
@@ -404,12 +414,51 @@ test('a rota responde 200 com o diagnóstico mesmo com a conta ruim', async () =
 test('com config na URL o verificador olha a chave DAQUELA instalação', async () => {
   // É a diferença que importa na prática: a chave do .env pode estar quebrada
   // enquanto a do app está boa (foi exatamente o caso real).
+  //
+  // O segmento precisa ser codificado com as CHAVES CURTAS do SCHEMA (`ds`,
+  // `dk`) — é o que o /configure real produz. `normalize()` ignora chave
+  // desconhecida, então um segmento com nomes completos (`debridApiKey`) era
+  // silenciosamente descartado e este teste validava nada: o mock devolvia o
+  // mesmo valor para qualquer chave. O memo da conta expôs o teste vazio —
+  // a rota lia os defaults, batia no memo da entrada anterior e devolvia o
+  // magnets de OUTRA conta.
+  resetAccountStatusMemo();
   const segment = runtime.encode({
-    ...runtime.defaults(),
-    debridService: 'alldebrid',
-    debridApiKey: 'chave-da-instalacao',
+    [runtime.SCHEMA.debridService.key]: 'alldebrid',
+    [runtime.SCHEMA.debridApiKey.key]: 'chave-da-instalacao',
   });
-  const restore = mockAccount(500);
+  // O dublê DISCRIMINA por chave (a AllDebrid leva a apikey no header
+  // Authorization): 500 para a da instalação, 999 para qualquer outra. Asserir
+  // 500 só prova a chave certa se OUTRA chave devolver outro número — era aqui
+  // que este teste validava nada antes do memo (o mock antigo devolvia o mesmo
+  // corpo para qualquer chave).
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  globalThis.fetch = (async (url: any, init: any) => {
+    if (String(url).includes('127.0.0.1')) return realFetch(url, init);
+    const auth = String((init && init.headers && (init.headers.Authorization || init.headers.authorization)) || '');
+    const total = auth.includes('chave-da-instalacao') ? 500 : 999;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'success',
+        data: {
+          magnets: Array.from({ length: total }, (_, i) => ({
+            id: i,
+            ready: true,
+            size: 1024,
+            uploadDate: 1_700_000_000 + i,
+          })),
+        },
+      }),
+    };
+  }) as unknown as typeof globalThis.fetch;
+  const restore = () => {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
+  };
   const { app } = createApp();
   try {
     const { status, body } = await request(app, `/${segment}/debrid-status.json`, {
@@ -428,7 +477,9 @@ test('com config na URL o verificador olha a chave DAQUELA instalação', async 
 test('a rota expõe a unidade dos magnets no warnAt', async () => {
   // O limiar viaja na resposta justamente para não virar número mágico no
   // cliente; sem a unidade, 800 não diz de quê. O contrato é o corpo do
-  // /debrid-status carregar warnAtUnit junto.
+  // /debrid-status carregar warnAtUnit junto. O memo reinicia: a leitura
+  // anterior desta mesma chave (1000 magnets) não pode vazar para cá.
+  resetAccountStatusMemo();
   const restore = mockAccount(500);
   const { app } = createApp();
   try {
@@ -444,6 +495,7 @@ test('a rota expõe a unidade dos magnets no warnAt', async () => {
 });
 
 test('warnAt do fair-use carrega a unidade explícita no corpo', async () => {
+  resetAccountStatusMemo();
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
@@ -525,5 +577,209 @@ test('com config na URL apontando para realdebrid, /debrid-status.json inclui o 
     assert.equal(typeof body.rd.warm.queueDepth, 'number');
   } finally {
     restore();
+  }
+});
+
+// --- Memo curto da conta no dashboard ---------------------------------------
+//
+// Consultar saúde na AllDebrid É um upload: N abas do painel abertas em
+// rajada não podem virar N uploads na conta. O memo é curto de propósito —
+// falha transiente congela no máximo até o TTL (default 60s), e 0 desliga.
+
+/** Dublê que CONTA chamadas: o assert é no delta, não no total absoluto,
+ * porque cada adaptador pode fazer mais de um fetch por consulta. */
+function mockAccountCounting(payload: () => any) {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = () => new AbortController().signal;
+  let calls = 0;
+  globalThis.fetch = (async (url: any, init: any) => {
+    if (String(url).includes('127.0.0.1')) return realFetch(url, init);
+    calls += 1;
+    return { ok: true, status: 200, json: async () => payload() };
+  }) as unknown as typeof globalThis.fetch;
+  return {
+    count: () => calls,
+    restore: () => {
+      globalThis.fetch = realFetch;
+      AbortSignal.timeout = realTimeout;
+    },
+  };
+}
+
+const okPayload = () => ({
+  status: 'success',
+  data: {
+    magnets: Array.from({ length: 5 }, (_, i) => ({
+      id: i,
+      ready: true,
+      size: 1024,
+      uploadDate: 1_700_000_000 + i,
+    })),
+  },
+});
+
+const authPayload = () => ({
+  status: 'error',
+  error: { code: 'AUTH_BAD_APIKEY', message: 'The auth apikey is invalid' },
+});
+
+test('memo: duas leituras dentro do TTL = 1 consulta; corpo traz fetchedAt e cached', async () => {
+  const savedTtl = config.debrid.dashboardAccountTtlMs;
+  config.debrid.dashboardAccountTtlMs = 60_000;
+  resetAccountStatusMemo();
+  const mock = mockAccountCounting(okPayload);
+  try {
+    const first = await withKey(() => debrid.accountStatus());
+    const oneFlight = mock.count();
+    assert.ok(oneFlight > 0, 'a primeira leitura foi à rede');
+    assert.equal(first.cached, false);
+    assert.equal(typeof first.fetchedAt, 'number');
+    const second = await withKey(() => debrid.accountStatus());
+    assert.equal(mock.count(), oneFlight, 'segunda leitura veio do memo');
+    assert.equal(second.cached, true);
+    assert.equal(second.fetchedAt, first.fetchedAt, 'fetchedAt marca a consulta, não a leitura');
+    assert.equal(second.magnets, first.magnets);
+  } finally {
+    config.debrid.dashboardAccountTtlMs = savedTtl;
+    mock.restore();
+  }
+});
+
+test('memo: TTL expirado reconsulta, e TTL=0 desliga o memo', async () => {
+  const savedTtl = config.debrid.dashboardAccountTtlMs;
+  resetAccountStatusMemo();
+  const mock = mockAccountCounting(okPayload);
+  try {
+    config.debrid.dashboardAccountTtlMs = 25;
+    await withKey(() => debrid.accountStatus());
+    const oneFlight = mock.count();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    const depois = await withKey(() => debrid.accountStatus());
+    assert.equal(mock.count(), oneFlight * 2, 'TTL vencido foi à rede de novo');
+    assert.equal(depois.cached, false);
+
+    config.debrid.dashboardAccountTtlMs = 0;
+    resetAccountStatusMemo();
+    await withKey(() => debrid.accountStatus());
+    const base = mock.count();
+    await withKey(() => debrid.accountStatus());
+    assert.equal(mock.count(), base + oneFlight, 'com 0 cada leitura consulta');
+    const direto = await withKey(() => debrid.accountStatus());
+    assert.equal(direto.cached, false, 'memo desligado nunca diz cached');
+  } finally {
+    config.debrid.dashboardAccountTtlMs = savedTtl;
+    mock.restore();
+  }
+});
+
+test('memo: chaves distintas nunca dividem entrada', async () => {
+  const savedTtl = config.debrid.dashboardAccountTtlMs;
+  config.debrid.dashboardAccountTtlMs = 60_000;
+  resetAccountStatusMemo();
+  const mock = mockAccountCounting(okPayload);
+  try {
+    const primeira = await withKey(() => debrid.accountStatus());
+    const umaChave = mock.count();
+    const outra = await runtime.run(
+      { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'outra-chave' }, encoded: 'cfg' },
+      () => debrid.accountStatus(),
+    ) as AccountStatusResult;
+    assert.equal(outra.cached, false, 'chave nova não herda memo da anterior');
+    assert.equal(mock.count(), umaChave * 2, 'cada conta pagou a própria consulta');
+    const repetida = await withKey(() => debrid.accountStatus());
+    assert.equal(repetida.cached, true);
+    assert.equal(repetida.fetchedAt, primeira.fetchedAt);
+    assert.equal(mock.count(), umaChave * 2, 'memo da primeira chave continua valendo');
+  } finally {
+    config.debrid.dashboardAccountTtlMs = savedTtl;
+    mock.restore();
+  }
+});
+
+test('memo: chamada concorrente é coalescida em uma consulta só', async () => {
+  const savedTtl = config.debrid.dashboardAccountTtlMs;
+  config.debrid.dashboardAccountTtlMs = 60_000;
+  resetAccountStatusMemo();
+  const mock = mockAccountCounting(okPayload);
+  try {
+    await withKey(() => debrid.accountStatus());
+    const umVoo = mock.count();
+    resetAccountStatusMemo();
+    const antes = mock.count();
+    const [a, b] = await Promise.all([
+      withKey(() => debrid.accountStatus()),
+      withKey(() => debrid.accountStatus()),
+    ]);
+    assert.equal(mock.count() - antes, umVoo, 'duas leituras concorrentes = 1 consulta');
+    assert.equal(a.cached, false);
+    assert.equal(b.cached, false, 'quem participou da consulta em voo viu dado novo');
+    assert.equal(a.fetchedAt, b.fetchedAt);
+  } finally {
+    config.debrid.dashboardAccountTtlMs = savedTtl;
+    mock.restore();
+  }
+});
+
+test('memo: falha auth preserva reason/fix e não congela além do TTL', async () => {
+  const savedTtl = config.debrid.dashboardAccountTtlMs;
+  config.debrid.dashboardAccountTtlMs = 60_000;
+  resetAccountStatusMemo();
+  const mock = mockAccountCounting(authPayload);
+  try {
+    const primeira = await withKey(() => debrid.accountStatus());
+    assert.equal(primeira.ok, false);
+    assert.equal(primeira.reason, 'auth');
+    assert.ok(primeira.fix, 'o conserto viaja no corpo da falha');
+    const memoizada = await withKey(() => debrid.accountStatus());
+    assert.equal(memoizada.cached, true);
+    assert.equal(memoizada.reason, primeira.reason);
+    assert.equal(memoizada.fix, primeira.fix, 'reason/fix sobrevivem ao memo');
+    config.debrid.dashboardAccountTtlMs = 25;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    const renovada = await withKey(() => debrid.accountStatus());
+    assert.equal(renovada.cached, false, 'TTL curto é o teto do congelamento da falha');
+    assert.equal(renovada.reason, 'auth');
+  } finally {
+    config.debrid.dashboardAccountTtlMs = savedTtl;
+    mock.restore();
+  }
+});
+
+test('dashboardAccounts reutiliza o memo para a conta do operador', async () => {
+  resetAccountStatusMemo();
+  const saved = {
+    service: config.debrid.service,
+    apiKey: config.debrid.apiKey,
+    allowEnvKey: config.debrid.allowEnvKey,
+    ttl: config.debrid.dashboardAccountTtlMs,
+  };
+  const mock = mockAccountCounting(okPayload);
+  config.debrid.service = 'alldebrid';
+  config.debrid.apiKey = 'chave-do-operador';
+  config.debrid.allowEnvKey = true;
+  config.debrid.dashboardAccountTtlMs = 60_000;
+  try {
+    // Ativo ≠ operador (premiumize na requisição): é o caso em que o painel
+    // consulta a conta do .env por fora, e é ela que precisa do memo.
+    const ler = () =>
+      runtime.run(
+        { opts: { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: 'chave-pm' }, encoded: 'cfg' },
+        () => debrid.dashboardAccounts({ ok: true, service: 'premiumize' }),
+      ) as Promise<Record<string, any>>;
+    const first = await ler();
+    const umVoo = mock.count();
+    assert.ok(first.alldebrid, 'conta do operador entra no mapa');
+    assert.equal(first.alldebrid.cached, false);
+    const second = await ler();
+    assert.equal(mock.count(), umVoo, 'segunda leitura do operador veio do memo');
+    assert.equal(second.alldebrid.cached, true);
+    assert.equal(second.alldebrid.fetchedAt, first.alldebrid.fetchedAt);
+  } finally {
+    mock.restore();
+    config.debrid.service = saved.service;
+    config.debrid.apiKey = saved.apiKey;
+    config.debrid.allowEnvKey = saved.allowEnvKey;
+    config.debrid.dashboardAccountTtlMs = saved.ttl;
   }
 });

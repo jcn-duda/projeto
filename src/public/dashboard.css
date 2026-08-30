@@ -78,6 +78,17 @@
   .feedback.ok { color: var(--green); }
   .feedback.error { color: var(--red); }
   .feedback.warn { color: var(--amber); }
+
+  /* Banner persistente de saúde do pill: usa a MESMA evidência de ok:false da
+     resposta (erro = auth/quota, atenção = rate/timeout/unknown). Escondido é
+     o estado padrão; .visible só entra quando há problema — sumir sozinho
+     quando a resposta volta saudável é comportamento do renderStatusBanner. */
+  .status-banner { display: none; margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--amber); border-radius: 10px; background: var(--accent-soft); font-size: 13px; }
+  .status-banner.visible { display: block; }
+  .status-banner.error { border-color: var(--red); background: var(--red-soft); color: #ffd8d4; }
+  .status-banner .banner-line { margin: 4px 0; }
+  .status-banner .banner-line.error { color: #ffd8d4; font-weight: 600; }
+  .status-banner .banner-line.warn { color: var(--muted); }
   .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
   .metric { min-width: 0; padding: 13px 14px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255, 255, 255, .025); }
   .metric .key { display: block; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }

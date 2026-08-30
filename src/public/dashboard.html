@@ -29,6 +29,14 @@
     </nav>
   </header>
 
+  <!-- Banner persistente de saude: reflete o ok:false que ja viaja em
+       /dashboard-status.json (conta de debrid, todas as contas, catalogo,
+       general.services). Preenchido por renderStatusBanner() em
+       dashboard-status.js e some sozinho quando a resposta volta saudavel. -->
+  <div id="statusBanner" class="status-banner" role="alert">
+    <div id="statusBannerText" class="status-banner-text"></div>
+  </div>
+
   <section aria-labelledby="accessTitle">
     <div class="section-head">
       <div><h2 id="accessTitle">Acesso operacional</h2><p>O token é usado somente no header <b>X-Indexer-Test-Token</b>.</p></div>

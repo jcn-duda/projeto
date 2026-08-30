@@ -287,6 +287,13 @@ export const debrid = () => ({
   // Diagnóstico não pode reter o gate global quando a API da conta está fora
   // do ar; é separado do timeout da busca de inventário.
   dashboardAccountTimeoutMs: num(process.env.DEBRID_DASHBOARD_ACCOUNT_TIMEOUT_MS, 3000),
+  // Memo curto da saúde da conta no painel: cada aba do dashboard disparava a
+  // própria consulta — e na AllDebrid consultar saúde É um upload, então N
+  // abas abertas em rajada viravam N uploads, empurrando a conta para o rate
+  // limit que o painel existe para diagnosticar. O TTL é o próprio teto de
+  // congelamento de falha transiente (rate/timeout ficam servidos no máximo
+  // até aqui; expirou, a leitura seguinte reconsulta). 0 desliga o memo.
+  dashboardAccountTtlMs: Math.max(0, num(process.env.DEBRID_DASHBOARD_ACCOUNT_TTL_MS, 60_000)),
   // Limiares operacionais do /debrid-status.json. O total mantém Number()
   // para preservar o comportamento histórico para valor inválido (NaN não avisa).
   accountWarnTotal: Number(process.env.DEBRID_ACCOUNT_WARN_TOTAL || 800),
