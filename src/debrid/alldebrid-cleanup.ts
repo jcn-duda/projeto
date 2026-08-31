@@ -33,6 +33,36 @@ export function skipCleanup(account: string, hash: string): boolean {
 const DROP_CONCURRENCY = 4;
 const DROP_RETRY_DELAYS = [400, 800, 1600];
 
+// ---------------------------------------------------------------------------
+// Gate ÚNICO de deleção por conta (Fase 8, B-4 — par do 8.16).
+//
+// Cinco executores chamam deleteMagnets (dropReady, dropDownload, sweepDead,
+// sweepUndubbed/catálogo, evicção 8.16) e cada chamada abre os 4 workers
+// internos — sem travessão comum, uma busca que deposita 23 ids somada a uma
+// varredura simultânea chegava a 5 × 4 = 20 deletes concorrentes para a MESMA
+// conta, exatamente a rajada de 503 que o backoff abaixo existe para absorver.
+// O gate serializa por accountScope: só UMA chamada deleteMagnets em voo por
+// conta; os 4 workers internos continuam valendo DENTRO da chamada. Sem
+// preempção: a ordem de chegada é a ordem de execução.
+// ---------------------------------------------------------------------------
+const deleteQueues = new Map<string, Promise<void>>();
+
+function enqueueDelete<T>(account: string, job: () => Promise<T>): Promise<T> {
+  const anterior = deleteQueues.get(account) ?? Promise.resolve();
+  // `then(job, job)`: o job roda depois do anterior ASSENTAR (sucesso ou
+  // falha) — a fila nunca fica travada por um erro antigo.
+  const resultado = anterior.then(job, job);
+  // A CAUDA nunca rejeita: a falha é do chamador; o encadeamento segue.
+  const cauda = resultado.then(() => undefined, () => undefined);
+  deleteQueues.set(account, cauda);
+  cauda.then(() => {
+    // Só apaga a entrada se nenhum job novo assumiu a cabeça enquanto esta
+    // cauda assentava (evita vazar Map para contas de um request só).
+    if (deleteQueues.get(account) === cauda) deleteQueues.delete(account);
+  });
+  return resultado;
+}
+
 /**
  * Remove magnets por id. O contrato de retorno é o mesmo de sempre
  * (`{ ok, falhas }`), mas a execução tolera o 503 em rajada:
@@ -52,8 +82,19 @@ const DROP_RETRY_DELAYS = [400, 800, 1600];
  * falha — magnet que a conta recusou apagar continua lá, e marcá-lo o
  * esconderia da checagem de cache à toa. Chamadores antigos que leem só
  * `{ ok, falhas }` continuam funcionando.
+ *
+ * TODA chamada passa pelo gate único da conta (B-4): o corpo em
+ * `deleteMagnetsNow` roda com exclusão mútua por accountScope.
  */
-export async function deleteMagnets(
+export function deleteMagnets(
+  apiKey: string,
+  ids: Array<string | number>,
+  opts: { waitFn?: (ms: number) => Promise<unknown>; delays?: number[] } = {},
+) {
+  return enqueueDelete(accountScope(apiKey), () => deleteMagnetsNow(apiKey, ids, opts));
+}
+
+async function deleteMagnetsNow(
   apiKey: string,
   ids: Array<string | number>,
   { waitFn = wait, delays = DROP_RETRY_DELAYS }: { waitFn?: (ms: number) => Promise<unknown>; delays?: number[] } = {},

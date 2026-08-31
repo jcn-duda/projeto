@@ -8,6 +8,7 @@ import { call, id } from './alldebrid-api.js';
 import { preexisting, knownBefore, waitInventory, rememberSubmitted } from './alldebrid-inventory.js';
 import { skipCleanup, deleteMagnets as dropMagnets } from './alldebrid-cleanup.js';
 import { filterReuploadBlocked } from './alldebrid-reupload.js';
+import { scheduleEvict } from './alldebrid-evict.js';
 
 /**
  * O /magnet/instant foi removido, mas o próprio /magnet/upload responde
@@ -31,6 +32,10 @@ import { filterReuploadBlocked } from './alldebrid-reupload.js';
 export async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
   const dropReady: Array<string | number> = [];
   const dropDownload: Array<string | number> = [];
+  // 8.16 — hashes que ESTA busca realmente consultou: o ECO do /magnet/upload
+  // é o que prova o que trafegou (lote que estourou o prazo não ecoa). Alimenta
+  // o alvo da evicção e a exclusão do que a própria busca acabou de subir.
+  const consultados = new Set<string>();
   const account = accountScope(apiKey);
   const hadInventory = preexisting.has(account);
   // `knownBefore` já dispara o refresh quando o snapshot vence e devolve null
@@ -72,6 +77,7 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
     const ready: string[] = [];
     for (const magnet of data?.magnets || []) {
       const hash = String(magnet.hash || '').toLowerCase();
+      if (hash) consultados.add(hash);
       rememberSubmitted(account, hash);
       if (magnet.ready) {
         ready.push(hash);
@@ -119,5 +125,10 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
   };
   if (config.debrid.dropReady) scheduleDrop(dropReady, 'prontos');
   if (config.debrid.dropUncached) scheduleDrop(dropDownload, 'downloads');
+  // 8.16 — evicção por busca, irmã de dropReady/dropUncached: fire-and-forget
+  // DEPOIS da checagem, zero await da seleção/rede no prazo da resposta. O
+  // guard do knob mora aqui (custo zero quando OFF) e de novo dentro do módulo
+  // (a função é pública); escopo B-2 e anti-reentrada são do módulo.
+  if (config.debrid.evictPerSearch) scheduleEvict(apiKey, consultados);
   return result;
 }

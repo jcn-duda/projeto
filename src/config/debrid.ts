@@ -121,6 +121,19 @@ export const debrid = () => ({
   // busca) sem eternizar o bloqueio sobre um hash que pode voltar a ser útil.
   // 0 desliga a gravação E a leitura (rollback de uma linha).
   alldebridReuploadBlockTtlMs: Math.max(0, num(process.env.ALLDEBRID_REUPLOAD_BLOCK_TTL_MS, 3 * 24 * 3600 * 1000)),
+  // Evicção por busca (Fase 8, item 8.16): a busca que deposita ~23 magnets no
+  // AllDebrid remove os mais antigos PROVADAMENTE estrangeiros, tornando a
+  // ocupação estacionária em vez de monotônica. É limpeza destrutiva disparada
+  // pelo caminho quente — default OFF e o rollback é uma linha. Escopo B-2:
+  // só a conta do OPERADOR (envOperatorAccount + a chave exata do .env);
+  // chave de usuário (BYO) nunca sofre evicção.
+  evictPerSearch: String(process.env.DEBRID_EVICT_PER_SEARCH || 'false') === 'true',
+  // Teto de remoções por busca, na ordem do que UMA busca deposita; nunca
+  // ilimitado. Clamp 0..25; 0 desliga a evicção mesmo com o knob acima ligado.
+  harvestEvictMaxPerSearch: Math.min(25, Math.max(0, Math.trunc(num(process.env.HARVEST_EVICT_MAX_PER_SEARCH, 25)))),
+  // Piso de ocupação: só evicta acima disso. Conta folgada não apaga nada —
+  // sem o piso, o addon corroeria o acervo em uso normal.
+  harvestEvictFloor: Math.max(0, Math.trunc(num(process.env.HARVEST_EVICT_FLOOR, 600))),
   // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
   // "Expired", "File not available"). A limpeza por busca só alcança hashes
   // que estão na consulta do momento; um torrent que morreu e nunca mais é
