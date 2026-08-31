@@ -141,6 +141,45 @@ test('BR_MARK: host BR NOMEADO continua sinal PT (`www.nerdfilmes.org -`)', () =
 });
 
 // ---------------------------------------------------------------------------
+// 8.4 — Blindagem de ORIGEM BR na limpeza. Os 4 títulos são releases REAIS
+// da conta (medido em produção, 2026-08-31): site BR, título em português,
+// sem a palavra "dublado" — o balde `lixo` os condenava e a varredura
+// destrutiva os apagaria. A blindagem é no caminho de LIMPEZA
+// (audioBucket/foreignVerdict); hasPtSigns, que a busca consome, NÃO muda.
+// ---------------------------------------------------------------------------
+
+test('8.4: os 4 falsos positivos medidos saem da mira da limpeza', () => {
+  const fixtures = [
+    'X-Men - O Filme 1080p - The Pirate Filmes',
+    'Troia - The Pirate Filmes',
+    'Zumbilândia (2009) Bluray 1080p Filmes M.H.G',
+    'zumbilandia (www.thepiratefilmes.com)',
+  ];
+  for (const t of fixtures) {
+    // A busca fica intocada: o predicado que ela consome segue sem sinal para
+    // estes títulos (sem ã/õ/ç, sem vocabulário, sem site na lista antiga).
+    assert.equal(hasPtSigns(t), false, `${t}: hasPtSigns inalterado (busca não muda)`);
+    // A limpeza protege: sai do balde `lixo` e o veredito absolve.
+    assert.notEqual(audioBucket(t), 'lixo', `${t}: fora do balde lixo`);
+    assert.equal(audioBucket(t), 'pt', t);
+    assert.equal(foreignVerdict(t), 'absolve', `${t}: origem BR no nome protege`);
+  }
+});
+
+test('8.4: estrangeiro genuíno continua condenável — blindagem não absolve cena EN', () => {
+  // Contraprova do aceite: espelho de cena EN sem NENHUM sinal BR continua
+  // condenável, e release genérica sem marca continua `unknown`/lixo.
+  assert.equal(foreignVerdict('www.UIndex.org - Some.Movie.2024.1080p.x264-RARBG'), 'condena');
+  assert.equal(audioBucket('Some.Movie.2024.1080p.WEB.x264'), 'lixo');
+  assert.equal(foreignVerdict('Some.Movie.2024.1080p.WEB.x264'), 'unknown');
+  // "Filme" sozinho, sem acento, sem vocabulário e sem site: hasPtSigns
+  // permanece false e SOMENTE a blindagem nova tira o título da mira.
+  assert.equal(hasPtSigns('Matrix.1999.filme.1080p.BluRay'), false);
+  assert.equal(foreignVerdict('Matrix.1999.filme.1080p.BluRay'), 'absolve');
+});
+
+
+// ---------------------------------------------------------------------------
 // DUB HINDI (B): generic DUB/DUBBED não valida áudio PT quando há HINDI.
 // ---------------------------------------------------------------------------
 

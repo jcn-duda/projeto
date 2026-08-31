@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { normalizeTitle } from './title-normalization.js';
 import { TECH_NOISE } from './release-matching.js';
+import { hasPtSigns, brOriginMark } from './br-origin.js';
 
 // Resolução que o título não informa. Balde e cota próprios, separados do SD.
 const UNKNOWN_QUALITY = 'sem resolução';
@@ -302,46 +303,21 @@ function looksPtBr(title = '') {
   return audio === 'Dual' && explicitPtAudio(title);
 }
 
-// Sinais de título em português para o balde "sem marca mas parece BR":
-// acentos quase exclusivos do pt-BR, vocabulário de post BR e marcadores de
-// site/grupo nacional. Sem nada disso e sem marca de áudio, é release
-// estrangeira — o padrão do que entope a conta. Classificador COMPARTILHADO:
-// a limpeza da conta (scripts/clean-undubbed.ts) usa a mesma lógica da busca —
-// uma segunda lista divergiria.
-const PT_VOCAB = /\b(temporadas?|epis[oó]dios?|dublad[oa]s?|dublagem|nacional|complet[oa]s?|cole[cç][aã]o|vers[oõ]es?|estendid[oa]s?|guerra|mundial|estreia|cap[ií]tulos?|caminho|cidade|noite|vingan[cç]a|cora[cç][aã]o|paix[aã]o|f[uú]ria|selvagem|assassino|assassina|maldi[cç][aã]o)\b/i;
-// `de` entra aqui: é a preposição portuguesa mais comum e sua ausência era a
-// maior causa isolada de títulos BR sem acento caírem no balde `lixo`
-// (medido: 19 de 20 títulos de teste). Exige 2+ ocorrências, então título
-// estrangeiro com um "de" solto não basta.
-const PT_STOP_TWO = (t: string) => (t.match(/\b(das?|de|dos?|n[ao]s?|umas?|para|com|entre|sobre|atr[aá]s)\b/gi) || []).length >= 2;
-// Só hosts BR NOMEADOS contam. O alternador `www\.\w+\.org\s*-\s*` aceitava
-// QUALQUER domínio `.org` — inclusive `www.UIndex.org -`, um espelho de cena EN
-// que carimbava dezenas de releases da conta como sinal PT (medido: 122 linhas
-// casando `www.UIndex.org -`, nenhuma delas BR). A marca do site BR já casa
-// pelo token próprio (`www.nerdfilmes.org -` continua coberto por `nerdfilmes`).
-const BR_MARK = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolverdon|andretpf|lapumia|megatorrents|hdtorrent|torrentbr|bthd)/i;
-
-/** Sem marca de áudio, mas o título denuncia português (post BR sem marcação é o padrão). */
-function hasPtSigns(title = ''): boolean {
-  // Acentos case-insensitive: título TODO EM CAIXA ALTA ("OPERAÇÃO INVASÃO")
-  // tem Ã/Ç maiúsculos e perdia o sinal — caía no balde 'lixo' e a varredura
-  // destrutiva sweepUndubbed o apagava.
-  return /[ãõ]/i.test(title) || /ç/i.test(title) || PT_VOCAB.test(title) || PT_STOP_TWO(title) || BR_MARK.test(title);
-}
-
 type AudioBucket = 'dub' | 'dual' | 'pt' | 'lixo';
 
 /**
  * Balde de áudio por título:
  *   dub  — dublado/nacional/dual+PT explícito (looksPtBr);
  *   dual — Dual/Multi sem PT ao lado (ambíguo);
- *   pt   — sem marca de áudio, mas com sinal de português no título;
+ *   pt   — sem marca de áudio, mas com sinal de português ou ORIGEM BR no
+ *          título (brOriginMark, blindagem 8.4 — os 4 falsos positivos
+ *          medidos eram site BR condenado por não citar "dublado");
  *   lixo — legendado, áudio estrangeiro explícito, ou sem marca NEM sinal de PT.
  */
 function audioBucket(title = ''): AudioBucket {
   if (looksPtBr(title)) return 'dub';
   if (audioFromTitle(title) === 'Dual') return 'dual';
-  if (hasPtSigns(title)) return 'pt';
+  if (hasPtSigns(title) || brOriginMark(title)) return 'pt';
   return 'lixo';
 }
 
@@ -362,7 +338,9 @@ type ForeignVerdict = 'absolve' | 'condena' | 'unknown';
 
 function foreignVerdict(filename = '', videoPaths: string[] = []): ForeignVerdict {
   const candidates = [String(filename || ''), ...videoPaths.map(String)].filter(Boolean);
-  const temSinalPt = candidates.some((p) => looksPtBr(p) || hasPtSigns(p) || hasPtAudioMark(p));
+  // brOriginMark (8.4) entra no lado que ABSOLVE: origem BR no nome protege
+  // mesmo sem marca de áudio — condenar aqui apaga acervo da conta.
+  const temSinalPt = candidates.some((p) => looksPtBr(p) || hasPtSigns(p) || hasPtAudioMark(p) || brOriginMark(p));
   if (temSinalPt) return 'absolve';
   const provaEstrangeira = candidates.some(
     (p) => hasExplicitForeignAudio(p) || Boolean(strongEnSceneMark(p)),
@@ -423,10 +401,10 @@ export {
   audioFromTitle,
   hasExplicitForeignAudio,
   looksPtBr,
-  hasPtSigns,
   audioBucket,
   foreignVerdict,
   compactAudio,
   compactTracker,
 };
 export type { AudioBucket, ForeignVerdict };
+export { hasPtSigns, brOriginMark } from './br-origin.js';
