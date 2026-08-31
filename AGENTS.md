@@ -511,6 +511,52 @@ inventário não carrega, **ninguém** — o `null` é o fail-safe. Como o
 (`{magnet, hash, name, size, ready, id}`, sem data), o adaptador inventaria a
 conta uma vez por processo.
 
+O fail-safe vale para as **duas** listas. O `dropDownload` não o tinha: ele
+apagava por `!skipCleanup` apenas, sem consultar o snapshot — magnet que o
+**usuário** pôs para baixar era removido pela nossa checagem de cache. Hoje as
+duas passam pela mesma regra (`preexistentes && !has`; `null` nunca autoriza), e
+por isso o snapshot é adquirido quando **qualquer** das duas limpezas está ativa,
+não só o `dropReady`: desligar uma não pode desligar a autoridade da outra.
+
+Distinguir **decisão** de **supressão** importa no diagnóstico. Não apagar
+porque o snapshot prova que é do usuário é uma decisão; não apagar porque o
+snapshot não chegou (primeira checagem do processo, refresh em voo) é falta de
+autoridade — a rodada não decidiu nada, e o hash fica na conta sem que ninguém
+volte para buscá-lo. O segundo caso conta `debrid.drop.suppressedReady`
+separado. Somar os dois num número só foi o que escondeu o vazamento por
+semanas.
+
+**Posse durável (`adsub:v1`).** `submitted` era `Map` em memória: sumia no
+restart, e o snapshot seguinte lia `/magnet/status` e classificava **tudo que
+estivesse na conta** como acervo do usuário, imune ao `sweepUndubbed`. Como o
+container reinicia a cada deploy, *o addon lavava a própria sujeira como acervo
+do usuário a cada deploy* — a conta saiu de ~0 para 904 magnets em 8 dias com o
+autofetch gateado. A etiqueta agora é persistida (TTL 7d,
+`ALLDEBRID_SUBMITTED_TTL_MS`) e só com **prova de criação** (hash ausente do
+snapshot): posse mal atribuída autorizaria apagar acervo, então a etiqueta se
+recusa a existir na dúvida. É purgada quando o magnet sai de verdade da conta —
+falha de delete não purga, porque o magnet continua lá e continua sendo nosso.
+
+**Anti-reenchimento (`adrm:v1`).** A limpeza deletava e não registrava nada,
+enquanto a memória de cache dura 900s (`availPosTtl`): 15 minutos depois, a
+busca seguinte re-subia o mesmo gringo para checar cache e a conta reenchia com
+o que acabara de sair — limpeza virava esteira. O marcador (TTL 3d,
+`DEBRID_REUPLOAD_BLOCK`) é gravado **só** por deleção intencional bem-sucedida e
+tira o hash do `/magnet/upload`. Deliberadamente **não** é um `davail=1` eterno:
+ele não toca o ⚡, então não mente quando a AllDebrid reciclar. Nunca bloqueia
+play explícito.
+
+**Reconcile da posse.** Sobra um canto que nenhuma varredura pegava: hash
+etiquetado como nosso que a limpeza da própria checagem **não alcançou** (lote
+que estourou o prazo, delete recusado com 503, hash omitido no eco do upload).
+Ele não está morto (escapa do `sweepDead`) nem provado estrangeiro (escapa do
+`sweepUndubbed`), e ficava pronto na conta para sempre. `alldebrid-reconcile.ts`
+varre exatamente esses, disparado pela checagem — que é quem deposita e quem
+limpa. As sete regras de seleção valem **em conjunção**, e a que menos se adivinha
+é o anti-re-add: `uploadDate` **posterior** à etiqueta significa que o usuário
+readicionou o hash depois, e aí ele nunca sai; sem `uploadDate` também não sai.
+Ausência de dado nunca autoriza remoção, aqui como no resto.
+
 Lixo que a limpeza por busca nunca alcança (magnet morto que ninguém pesquisa)
 é a varredura periódica `sweepDead` (`DEBRID_SWEEP_DEAD`). Ao contrário do
 `dropReady`, ela **não** poupa o inventário do usuário: estado terminal não é
@@ -1205,6 +1251,7 @@ fire-and-forget) continua.
 | `src/debrid/file-selector.ts` | Seleção de arquivo no play: `pickFile`/`pickWorkFile`, `workCoverage`, `baseName`, erros (`WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError`) — extraído em 5.2, `common.ts` reexporta |
 | `src/debrid/common.ts` | `magnetFor`, fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
 | `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |
+| `src/debrid/alldebrid*.ts` | A AllDebrid não é um arquivo, é uma família (~1230 linhas): `alldebrid.ts` é só a fachada (38 linhas). `-api.ts` (chamada crua, `magnetList`, `ACTIVE_STATES`), `-check.ts` (a checagem que é upload — e por isso agenda as limpezas), `-inventory.ts` (snapshot `knownBefore` + posse durável `adsub`), `-cleanup.ts` (`skipCleanup`, gate único `deleteMagnets`, `sweepUndubbed`), `-reupload.ts` (marcador `adrm`), `-evict.ts` (evicção por busca), `-reconcile.ts` (posse órfã que a limpeza não alcançou), `-play.ts`. O tamanho é consequência de `/magnet/instant` não existir: consultar cache escreve na conta |
 | `src/debrid/*.ts` | Um adaptador por serviço |
 | `src/utils/format.ts` | Barrel pós split 5.3: reexporta os mesmos 58 nomes dos 7 submódulos (ver abaixo) |
 | `src/utils/indexer-priority.ts` | `priorityMap`/`compareIndexerPriority` |

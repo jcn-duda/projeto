@@ -818,6 +818,58 @@ tela já na busca seguinte).
 - Gates dos 4 commits: typecheck 0, build verde, 1594/1594 testes,
   `test:complete` 94+6, catraca verde, revisão independente APPROVE no 8.14
   (após corrigir o T1) e no 8.16.
+- **8.17 NO CÓDIGO** (`bdf00ea`): reconcile da posse órfã + fail-safe do
+  `dropDownload`. Fecha H1/H2 (abaixo). Default **ON**, teto 25/rodada,
+  intervalo mínimo 5min, só conta do operador. Ver a linha 8.17 na Trilha C.
+- **Painel** (`fba39e1`, `1c297ca`): `sem-debrid` do anônimo deixa de virar
+  banner de problema numa instância pública segura, e conta do operador `ok`
+  em `accounts` mostra online/warn em vez de "não medido". Testes de runtime
+  do painel extraídos para `test/dashboard-panel-runtime.test.ts`.
+- Gates conferidos de forma independente em `bdf00ea`: typecheck 0, build
+  verde, **1617/1617**, `test:complete` **97+6**, catraca baseline OK.
+
+**H1/H2 — o vazamento que sobrou depois do 8.15** (medido: resíduo +25 após uma
+rodada de buscas). Dois buracos distintos, ambos no `alldebrid-check.ts`:
+
+- **H1 — supressão silenciosa.** O `dropReady` não apagava quando o snapshot
+  `knownBefore` estava em refresh ou era a primeira checagem do processo. Isso
+  é falta de **autoridade**, não decisão de proteger — mas o código somava os
+  dois casos e ninguém voltava para buscar o hash depois. Agora a supressão por
+  falta de autoridade conta `debrid.drop.suppressedReady` à parte.
+- **H2 — eco perdido nunca retomado.** Hash etiquetado como nosso que a limpeza
+  não conseguiu remover (lote que estourou o prazo, delete recusado com 503,
+  hash omitido no eco do upload) ficava pronto na conta **para sempre**: não
+  está morto (escapa do `sweepDead`) nem provado estrangeiro (escapa do
+  `sweepUndubbed`). É o alvo exclusivo do reconcile.
+
+Achado colateral, e o mais grave dos três: o **`dropDownload` nunca teve o
+fail-safe do `dropReady`**. Ele apagava por `!skipCleanup` apenas, sem consultar
+o snapshot — magnet que o **usuário** pôs para baixar era removido pela nossa
+checagem de cache. Não é ocupação, é dano ao acervo, e estava no código desde
+antes desta fase.
+
+**Teste ao vivo em Docker (2026-08-31, `bdf00ea`)** — duas rodadas na conta
+real, faseadas:
+
+- *Rodada 1, reconcile OFF.* Busca fria `tt1119646` em 5,27s, recache 3ms; 10
+  streams, todos tocáveis, 9 ⚡, 4 BR (2 DUAL, 1 DUB, 1 dublado PT). Checagem de
+  25 hashes, 21 em cache, **21 removidos** (18 prontos + 3 downloads). Resíduo
+  da busca: **+4**, contra os +23 medidos em produção. Boot mostrou `838
+  preexistente(s) […] (23 subido(s) pelo addon)` — o `adsub` do 8.15 provado ao
+  vivo **através de um recreate de container**, que é exatamente onde a catraca
+  agia.
+- *Rodada 2, reconcile ON com teto 3.* `reconcile: 3/3 magnet(s) com posse
+  remanescente removido(s) (3 marcado(s) "não re-subir") (3 posse(s)
+  purgada(s))`. Diff completo da conta (853 hashes antes × 855 depois)
+  confirma **exatamente 3** removidos: dois `The Hangover` em inglês com upload
+  às 18:51 — *o resíduo da rodada 1* — e um `BIG_BUCK_BUNNY.iso` órfão bem mais
+  antigo. **Nenhum** com marca BR, nome em português ou origem de site BR; os
+  838 preexistentes intocados. `cache.db`: `adrm=3` (um por removido, bate com
+  `removedIds`), `adsub=55`. Sem regressão de latência — o reconcile roda
+  depois da resposta.
+- **Sem cobertura ao vivo:** `debrid.drop.suppressedReady` ficou **0** nas duas
+  rodadas (inventário quente as duas vezes). O guard de H1 tem teste unitário,
+  mas só apareceria numa busca disparada nos primeiros segundos após o boot.
 - **Docker local validado ao vivo** (2026-08-31): rebuild verde, container
   healthy (addon + Jackett + FlareSolverr + Caddy, zero restart/OOM). Busca
   `Se Beber, Não Case` (`tt1119646`) fria em 5,18s: 8 streams tocáveis,
@@ -828,12 +880,16 @@ tela já na busca seguinte).
   upload (`complete=true`, `cached=0`) e foi liberado ao final. Probe real:
   resolver Nerdfilmes 5 resultados/3,52s; Jackett/Cardigann 2 resultados com
   magnet/3,00s. O 8.16 permaneceu OFF e não apagou nada.
-- **Ainda sem push/deploy dos quatro commits:** só 8.2 está na VPS. 8.4/8.15/
-  8.14/8.16 foram validados no Docker local; produção continua no código
-  anterior até autorização de push/deploy.
+- **Ainda sem push/deploy — agora são SETE commits:** só 8.2 está na VPS.
+  8.4/8.15/8.14/8.16/8.17 (`d7db22d`, `289dbfd`, `b06d440`, `a264b7c`,
+  `bdf00ea`) e os dois do painel (`fba39e1`, `1c297ca`) foram validados no
+  Docker local; produção continua em `3d6f89d` até autorização de push/deploy.
+  A fila cresceu, e com ela o tamanho do salto — o `adsub` do 8.15 nunca rodou
+  em produção, e é nele que o 8.17 confia para autorizar deleção.
 - **Pendências da fase:** 8.5 (Trilha B destrutiva — exige ok por rodada),
-  8.6/8.3 (só depois de folga medida), re-save da URL de install (8.2), e a
-  decisão de ligar o knob do 8.16 na VPS depois de 48h de observação.
+  8.6/8.3 (só depois de folga medida), re-save da URL de install (8.2), a
+  decisão de ligar o knob do 8.16 na VPS depois de 48h de observação, e a
+  primeira subida do 8.17 (ver a nota de sequência na linha dele).
 
 **Princípio:** nenhuma decisão de ocupação sem o teto real medido, e nenhum
 `--apply` sem a blindagem BR no lugar. O checklist do 7.2 (Fase 7, ainda
@@ -944,6 +1000,7 @@ AllDebrid é um upload, e conta no teto derruba o ⚡ de TODOS os streams.
 | 8.10 | `sweepUndubbed` alcançar preexistentes **sob trava explícita** (opt-in, default desligado). Hoje `knownBefore` os torna imortais: certo como padrão, errado quando 96% da conta é preexistente | C4 | M | **alto** (dado) | 8.4 no ar; 8.5 executada com sucesso ao menos uma vez | PLANEJADO | knob próprio, default `false`, com a blindagem de 8.4 obrigatória no caminho. Havendo dúvida, **não fazer**: o operador limpa à mão com o script |
 | 8.15 | **Quebrar a catraca do `preexistente`** (raiz da vazão). Persistir `submitted` no `cache.db` para que o que o addon subiu continue sendo dele após o restart, em vez de virar "acervo do usuário" no snapshot seguinte. Sem isto, qualquer limpeza é esteira: 5 deploys/dia relançam a catraca | C5 | M | médio (a varredura passa a alcançar de verdade) | — | **DONE NO CÓDIGO (`289dbfd`)** — ainda sem deploy | `adsub:v1`, TTL 7d, prova de criação; teste de restart/B-1. Docker local: 26 registros persistidos; após restart, 4 resíduos ainda na conta continuaram fora de `knownBefore` |
 | 8.16 | **Evicção por busca** (ideia do operador: "cada busca temos que deletar os gringos mais velhos"). Terceiro `scheduleDrop` em `alldebrid-check.ts:89`, irmão de `dropReady`/`dropUncached`: a busca que deposita ~23 magnets remove ~23 dos mais antigos provadamente estrangeiros. Torna a ocupação **estacionária em vez de monotônica** e dispensa o relógio (8.7) para este fim — o gatilho é o próprio tráfego. **Desenho completo na seção abaixo** | C6 | M | médio (destrutivo no caminho quente; mitigado por ser em fundo) | **8.15 obrigatório antes** — com a catraca de pé não alcança 96% da conta | **DONE NO CÓDIGO (`a264b7c`), DEFAULT OFF; aguardando deploy + decisão de ativar** | mecânica coberta por 11 testes + gate global de delete B-4; aceite de ocupação/p50/zero BR exige 48h em produção com knob ligado deliberadamente |
+| 8.17 | **Reconcile da posse órfã + fail-safe do `dropDownload`** (H1/H2, medidos como resíduo +25 após uma rodada de buscas). Três peças: (a) varredura em fundo do que é NOSSO por `adsub`, está pronto, não é preexistente e passa no anti-re-add (`uploadDate` posterior à etiqueta NUNCA sai; sem data também não) — é o único mecanismo que alcança o eco perdido; (b) `dropDownload` adota o fail-safe do `dropReady`, fechando o apagamento de magnet que o **usuário** pôs para baixar; (c) métrica `debrid.drop.suppressedReady` separando supressão por falta de autoridade de decisão de proteger | C7 | M | médio (destrutivo, mas só sobre posse provada) | **8.15 obrigatório** — a etiqueta `adsub` é a autorização de deleção | **DONE NO CÓDIGO (`bdf00ea`), DEFAULT ON; validado ao vivo com teto 3** | 1617/1617, revisão independente APPROVE (O2 corrigido). Docker local: 3/3 removidos no teto, todos sem sinal BR, dois deles o resíduo comprovado da busca anterior; `adrm=3` bate com `removedIds`; 838 preexistentes intocados. **Nota de sequência:** é o único destrutivo com default ON, e chega em produção ANTES do 8.15 acumular etiquetas lá. Subir com `DEBRID_RECONCILE=false`, deixar o `adsub` rodar um ciclo, conferir o `/metrics.json` e só então ligar — custa um dia e torna o deploy reversível |
 
 ### Trilha D — Política (decisão de produto; depois dos números)
 

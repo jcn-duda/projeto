@@ -161,8 +161,10 @@ comporta diferente dos outros quatro. Vale como experimento, não como base.
 
 ## AllDebrid
 
-Adaptador: [`src/debrid/alldebrid.ts`](src/debrid/alldebrid.ts) — 396 linhas,
-quase seis vezes o Premiumize. O tamanho é a crítica.
+Adaptador: [`src/debrid/alldebrid.ts`](src/debrid/alldebrid.ts) — hoje só a
+fachada, 38 linhas. A lógica virou uma **família** de módulos `alldebrid-*.ts`
+somando ~1230 linhas, contra 300 do Premiumize inteiro. O split não encolheu
+nada: o tamanho continua sendo a crítica, e ele tem uma causa única, abaixo.
 
 **A questão central:** o `/magnet/instant` foi removido. A única forma de saber
 se um torrent está em cache é **dar upload dele** e ler o campo `ready` da
@@ -182,6 +184,18 @@ maquinaria que não existe em nenhum outro adaptador:
   (respeita o acervo via `knownBefore`, idade mínima e `held`) ou
   `scripts/clean-undubbed.ts` para limpeza manual com preview (`--apply`
   executa);
+- a posse do que o addon subiu é **durável** (`adsub:v1`, TTL 7d): sem isso ela
+  morria no restart e o snapshot seguinte adotava o próprio lixo do addon como
+  acervo do usuário, tornando-o imortal — a cada deploy;
+- o que a limpeza apaga **de propósito** ganha marcador de "não re-subir"
+  (`adrm:v1`, TTL 3d), senão a busca 15 minutos depois re-sobe o mesmo hash
+  para checar cache e a conta reenche com o que acabou de sair;
+- `alldebrid-reconcile.ts` varre a posse **órfã**: o que era nosso, está pronto
+  e a limpeza da checagem não conseguiu remover (lote que estourou o prazo,
+  delete recusado com 503). Nenhuma outra varredura alcançava esse caso;
+- `DEBRID_EVICT_PER_SEARCH` (default **off**) torna a ocupação estacionária em
+  vez de monotônica: a busca que deposita N magnets remove N dos mais antigos
+  provadamente estrangeiros;
 - `abortSafeCacheCheck: false`: como a chamada cria estado remoto, ela não pode
   ser simplesmente abortada no deadline — segue em background para limpar.
 
@@ -493,6 +507,27 @@ No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_ALLOW_ENV_KEY`
 `DEBRID_PREFETCH_TTL`, `DEBRID_SWEEP_DEAD`, `DEBRID_ACCOUNT_WARN_TOTAL`,
 `DEBRID_ACCOUNT_WARN_LIMIT_USED`, `DEBRID_DASHBOARD_ACCOUNT_TIMEOUT_MS`,
 `DEBRID_DASHBOARD_ACCOUNT_TTL_MS`.
+
+**Ocupação da conta AllDebrid (Fase 8).** Todos tocam uma conta real; os três
+primeiros são os que apagam.
+
+- Posse durável: `ALLDEBRID_SUBMITTED_TTL_MS` (7d; `0` volta ao `Map` de
+  memória — e à catraca que ele causava), `ALLDEBRID_PREEXISTING_TTL_MS`
+  (300000).
+- Anti-reenchimento: `DEBRID_REUPLOAD_BLOCK` (default `true`) e o TTL do
+  marcador. Expurgo manual pelo `--unblock`.
+- Reconcile da posse órfã: `DEBRID_RECONCILE` (default **`true`**),
+  `DEBRID_RECONCILE_MAX_PER_ROUND` (25, clamp 0..50 — `0` desliga),
+  `DEBRID_RECONCILE_MIN_INTERVAL_MS` (300000),
+  `DEBRID_RECONCILE_AGE_MARGIN_MS` (600000, margem anti-re-add).
+- Evicção por busca: `DEBRID_EVICT_PER_SEARCH` (default **`false`**).
+
+Os dois destrutivos têm defaults **opostos**, e a assimetria é deliberada: o
+reconcile nasce ligado porque só alcança o que o addon provadamente subiu e não
+conseguiu remover; a evicção nasce desligada porque escolhe vítima por idade
+entre magnets que ninguém provou serem nossos. Ambos valem só para a conta do
+**operador** (nunca chave BYO de instalação) e ambos dependem de `dropReady` ou
+`dropUncached` estar ativo.
 
 **Paridade Real-Debrid (F1/F2/F5; F3 vem depois):**
 
