@@ -141,7 +141,8 @@ curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" http://127.0.0.1:7000/debrid
 ```
 
 O mesmo token abre `/metrics.json`, `/test-indexer.json`,
-`/dashboard-status.json` e `/dashboard-action.json`. Sem `JACKETT_TEST_TOKEN`
+`/test-resolver.json`, `/dashboard-status.json` e `/dashboard-action.json`.
+Sem `JACKETT_TEST_TOKEN`
 no `.env` a rota fica desligada (503, mesmo com header correto); com o token
 configurado, header errado ou ausente devolve 401 — o token vale só no
 header `X-Indexer-Test-Token`, nunca como `?token=` (a página `/dashboard` em
@@ -545,9 +546,39 @@ anterior dizia "231% ocupado" para uma conta que respondia normalmente.
 `/dashboard-status.json` e as ações de `POST /dashboard-action.json`, ambos
 atrás do mesmo token de diagnóstico — só no header `X-Indexer-Test-Token`,
 `?token=` nunca autentica. O status consolida serviços, métricas, cache, debrid
-e resolvers para a página montar. As duas ações (`clear-cache`, `sweep-dead`)
-são **globais**: agem sobre o estado do operador inteiro, não sobre a config de
-uma instalação — limpar o cache esfria a instância toda de uma vez.
+e resolvers para a página montar. As duas ações de estado (`clear-cache`,
+`sweep-dead`) são **globais**: agem sobre o estado do operador inteiro, não
+sobre a config de uma instalação — limpar o cache esfria a instância toda de
+uma vez.
+
+A saúde da conta no painel sai de uma consulta com **memo curto**
+(`DEBRID_DASHBOARD_ACCOUNT_TTL_MS`, default 60s; 0 desliga) e coalescing: abas
+concorrentes dividem a mesma leitura — na AllDebrid consultar saúde É um
+upload, e N abas em rajada empurravam a conta para o rate limit que o painel
+existe para diagnosticar. Falha transiente (rate/timeout) também entra no memo,
+mas nunca fica congelada além do TTL; o corpo viaja com `fetchedAt`/`cached`
+para a página mostrar a idade da leitura. A evidência que já vinha na resposta
+(conta `ok:false`, catálogo indisponível, breaker aberto, processo morto) agora
+é **visível**: banner persistente com `reason` + `fix`/`hint`, que some sozinho
+quando a rodada volta saudável, e o pill combina o status declarado com o pior
+estado local — `auth`/`quota` derrubam para erro, `rate`/`timeout` ficam em
+atenção. Um "online" declarado não pode mais abafar um `ok:false` da mesma
+resposta (era o buraco que escondia o incidente de 2026-08-30).
+
+`POST /dashboard-action.json` também aceita `debrid-account-test` (Fase 1 do
+debrid configurável): valida `{service, key}` contra o registry e consulta a
+saúde daquela chave **sem memo, sem persistir nada e sem trocar config de
+instalação** — é diagnóstico de credencial ANTES de salvar, não aplicação dela;
+por isso não é destrutiva (não pede `confirm`). O payload nunca contém a chave:
+só `last4` e 8 chars do fingerprint, campos do status por allowlist fechada, e
+mensagem de erro de terceiro mascarada porque ela pode ecoar a credencial.
+`GET /test-resolver.json` testa um resolvedor BR embutido **direto** (`?id=`,
+`?q=` opcional; teto `RESOLVERS_PROBE_TIMEOUT_MS`, default 25s, mínimo 1s) pelo
+mesmo caminho do card Cardigann, sem passar pelo Jackett — separa "o site
+caiu" de "o Jackett caiu". De propósito não toca `indexerStatus` nem o breaker
+(medida avulsa não abre circuito); o último probe vive em memória, por
+instância de app, e aparece no card do resolver no `/dashboard-status.json` —
+ausente significa "nunca medido neste processo", não medição falha.
 
 Para adicionar um serviço: crie o adaptador, registre em `ADAPTERS` e pronto —
 `SERVICES` alimenta o seletor da página automaticamente.
@@ -931,7 +962,19 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   (dedupe TTL 12h). Freio de atividade em JANELA DESLIZANTE
   (`activity.recentUserTraffic`) — diferente do `hasUserTraffic()` de boot que
   o warmup usa. Consulta sequencial com intervalo mínimo por indexer e teto
-  horário: reduz carga total, mas não pode virar crawler.
+  horário: reduz carga total, mas não pode virar crawler. Correções de
+  2026-08-30 (`1062ef8` — tarefas M1–M6 do **plano do colhedor**
+  (`docs/superpowers/plans/2026-08-30-colhedor-correcoes-cobertura-br.md`),
+  rótulos do plano, não os milestones do `PROJECT.md`): o `harvestOne` captura
+  UM snapshot do `harvesterLive.effective()` por obra — knob mexido no painel
+  vale para a colheita em fundo, não só para o tick; as releases enviadas ao
+  warmer RD saem ordenadas por score (BR dublado 80 / dublado 40 / resto 5,
+  melhor score por hash) ANTES do corte top-10; o quota-warn da conta respeita
+  cooldown (`HARVEST_QUOTA_WARN_COOLDOWN_MS`, default 6h) em vez de consultar
+  a API a cada vez; o bludv cai na query original quando a pt-BR é nula; a
+  varredura pt-BR processa a fatia que couber no teto horário em vez de
+  tudo-ou-nada (conta `harvest.sweep.partial`); e obra descartada após 3
+  retentativas conta `harvest.capped.dropped` em vez de sumir sem rastro.
 - **Index-only** (`JACKETT_INDEX_ONLY_INDEXERS`, default: `redetorrent`,
   `apachetorrent`, `hdrtorrent`): ficam FORA do caminho da resposta e DENTRO
   do sistema via colhedor. Latência medida de 8–31s contra orçamento total de
@@ -1129,15 +1172,15 @@ fire-and-forget) continua.
 | `src/routes/services.ts` | `buildServices()`: monta o `AppServices` (config, debrid, cache, metrics, jackett, …) que os handlers de rota recebem |
 | `src/routes/register.ts` | `registerRoutes()` — único ponto que monta as rotas (contrato de ordem: router do addon sem config, específicas, depois router com config) |
 | `src/routes/stream.ts` | `createStreamHandler`: o handler de `/stream` por cima do `findStreams` |
-| `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config` e os assets do painel pela allowlist **fechada** `PAGE_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/debrid-status.json`) |
+| `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config` e os assets do painel pela allowlist **fechada** `PAGE_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`) |
 | `src/routes/addon-router.ts` | Router do protocolo Stremio que substituiu o `stremio-addon-sdk` no runtime (6.1): `createAddonInterface` + `makeAddonRouter` (manifest, `/stream`, CORS, `Cache-Control`). Lê o último segmento **cru** de `req.url`: `req.params` vem decodificado e quebraria a divisão dos extras |
 | `src/routes/origin.ts` / `async.ts` / `state.ts` / `types.ts` | `originOf`/`streamsNeedRevalidation`; `asyncRoute` (wrapper do Express 4); `prefetchInFlight`; `AppServices`/`HandlerFactory` |
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
-| `src/br-resolvers.ts` | Carrega os cinco `*-resolver` no processo do addon |
+| `src/br-resolvers.ts` | Carrega os cinco `*-resolver` no processo do addon; `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
 | `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, ES5, zero build). Desde §5.9: `configure.css` + `configure-app.js` ao lado; o `KEYS` e o `collect`/`apply`/`fromUrl` seguem **inline** porque os testes regexam o corpo deles no html |
-| `src/public/dashboard.html` | Painel de operação (mesmas regras). Desde §5.9: `dashboard.css` + `dashboard-core.js` (estado, formatação, HTTP autenticado) + `dashboard-panels.js` (abas e painéis da Geral) + `dashboard-status.js` (consulta, polling, ações). Os módulos são **top-level sem IIFE**, escopo global compartilhado, ordem core → panels → status → inline; `renderMagnetDb` e os painéis do Chupim/Colhedor ficam inline por contrato de teste |
+| `src/public/dashboard.html` | Painel de operação (mesmas regras). Desde §5.9: `dashboard.css` + `dashboard-core.js` (estado, formatação, HTTP autenticado) + `dashboard-panels.js` (abas e painéis da Geral) + `dashboard-status.js` (consulta, polling, ações) + `dashboard-debrid-test.js` (teste seguro de conta de debrid). Os módulos são **top-level sem IIFE**, escopo global compartilhado, ordem core → panels → status → debrid-test → inline; `renderMagnetDb` e os painéis do Chupim/Colhedor ficam inline por contrato de teste |
 | `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
 | `src/providers/search-cache.ts` | `findStreams`, coalescing (`inFlight`), SWR (`debridRefreshSatisfied`, `staleRefreshEligible`, `scheduleStaleRefresh`), `hasPlayableStream` |
 | `src/providers/search-orchestrator.ts` | `doSearch`, `collectRaw`, `poolCovered`, `idxPoolCovered`, `idxReleasesToRaw` |

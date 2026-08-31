@@ -396,6 +396,66 @@ As alterações persistem no cache (`cfg:v1:autofetch`) sem restart. O botão de
 pausa emergencial suspende o envio de novos downloads para a conta do debrid
 mantendo os rechecks e a resolução de links ativos.
 
+## Conta do operador × herança de chave (`DEBRID_ALLOW_ENV_KEY` / `DEBRID_OPERATOR_ENV_ACCOUNT`)
+
+Dois gates que foram um só até 2026-08-30 (`a33f96a`), agora desacoplados:
+
+- **`DEBRID_ALLOW_ENV_KEY` (default `true`) autoriza SÓ a herança**: uma
+  instalação sem `dk` no segmento de config recebe a `DEBRID_API_KEY` do
+  `.env`. O único ponto que lê isso é o `defaults()` em `src/runtime.ts`.
+- **`DEBRID_OPERATOR_ENV_ACCOUNT` (default `false`) liga as features de
+  operador** sobre a conta do `.env` — catálogo/limpeza do painel,
+  `sweepDead`/`sweepUndubbed`, aquecimento de inventário no boot, warmer RD,
+  quota-warn do colhedor, conta do operador no painel, sampler F3 — **sem**
+  entregar a chave a instalações anônimas.
+- O gate efetivo é `config.debrid.envOperatorAccount` — o **OU** dos dois
+  flags, e como getter (não valor congelado na fábrica): os testes mutam os
+  campos do singleton, e um booleano pré-calculado dessincronizaria do par
+  real.
+- Instância pública completa = `ALLOW_ENV_KEY=false` + `OPERATOR_ENV_ACCOUNT=true`:
+  o painel funciona e o anônimo fica em P2P puro.
+
+O diagnóstico acompanhou o desacoplamento: com a chave no `.env` mas o gate
+de operador fechado, o catálogo responde `reason: chave-operador-desativada`
+(com `hint` citando as duas envs), distinto de `sem-conta-operador` (chave
+ausente). Teste: `test/operator-env-account.test.ts`.
+
+## ⚡ de memória no degradado (`DEBRID_ALIVE_AS_CACHE`)
+
+Evolução da sessão de limpeza de 2026-08-30, implementada em
+`src/providers/debrid-pipeline-steps.ts` (gancho `enrichInstantWithoutCacheCheck`,
+que o núcleo chama para todo adaptador). Default `false`. O problema que ele
+ataca é da AllDebrid — a checagem é upload — mas o atalho vale para TODO
+adaptador com `cacheCheck` (Premiumize, TorBox e o RD dinâmico quando
+degradado): quando a checagem degrada (prazo estourado, lote que não voltou,
+hash omitido na resposta), a lista perde o ⚡ de hashes que o banco de magnets
+provou vivos há menos de 7 dias (`mag:alive`).
+
+Com o knob ligado, o `alive` pode pintar ⚡ **apenas** nesses silêncios, e
+nenhum `davail` `0` fresco pode contradizer — o veto do negativo só vale com
+`DEBRID_AVAIL_NEG_TTL > 0` (0 desliga a leitura/escrita negativa por
+contrato). As travas do desenho não são negociáveis:
+
+- a checagem viva continua autoridade: o que ela medir na busca vale sobre a
+  memória — positivo confirma, negativo derruba o atalho;
+- o atalho **não** satisfaz `accountKnown`/`debridKnown`, não habilita o
+  corte `cachedOnly`, não trava o autofetch (o snapshot dele é anterior à
+  inflação) e não conta na medição ⚡ do sampler F3 — esses consumidores
+  exigem evidência medida, não memória com TTL;
+- play que se apoiou no atalho e voltou não-ready grava negativo de 120s no
+  `davail`: o erro do atalho custa uma janela, não 7 dias;
+- não é ledger eterno: o atalho morre com o TTL do `alive` e **não** estica
+  `DEBRID_AVAIL_POS_TTL` — esticar o positivo foi a alternativa rejeitada,
+  porque a AllDebrid recicla inativos em ~3 dias e um `1` velho mentiria para
+  sempre.
+
+Métrica própria: `debrid.instant.fromAliveAsCache` (distinta do histórico
+legado RD/DL). Observadores da primeira resposta (`searchFirst.brCached`, log
+de confirmados, candidatos do áudio-audit) veem o conjunto JÁ inflado — de
+propósito: o ⚡ de memória é apresentado na lista; a medição de checagem real
+(`debrid.check.cached/hashes`, sampler F3) fica limpa. Teste:
+`test/alldebrid-alive-cache.test.ts`.
+
 ---
 
 ## Recomendação prática
@@ -421,16 +481,18 @@ _checagem em lote + autofetch_:
 
 ## Configuração relevante
 
-No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_CACHED_ONLY`,
-`DEBRID_SHOW_UNCACHED_BR`, `DEBRID_RESOLVE_UNCACHED`, `DEBRID_DROP_UNCACHED`,
-`DEBRID_DROP_READY`, `DEBRID_BATCH_SIZE`, `DEBRID_CACHE_CHECK_TIMEOUT_MS`,
+No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_ALLOW_ENV_KEY`,
+`DEBRID_OPERATOR_ENV_ACCOUNT`, `DEBRID_CACHED_ONLY`, `DEBRID_SHOW_UNCACHED_BR`,
+`DEBRID_RESOLVE_UNCACHED`, `DEBRID_DROP_UNCACHED`, `DEBRID_DROP_READY`,
+`DEBRID_BATCH_SIZE`, `DEBRID_CACHE_CHECK_TIMEOUT_MS`, `DEBRID_ALIVE_AS_CACHE`,
 `DEBRID_AUTO_FETCH_QUEUE`, `DEBRID_AUTO_FETCH_QUEUE_DEPTH`,
 `DEBRID_AUTO_FETCH_DEAD_TTL`, `DEBRID_AUTO_FETCH_STALL_STREAK`,
 `DEBRID_AUTO_FETCH_SETTLE_MS`, `DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS`,
 `DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR`, `DEBRID_AUTO_FETCH_SEASON_FILL`,
 `DEBRID_AUTO_FETCH_SEASON_INDEX_MAX`, `DEBRID_PREFETCH_NEXT_EP`,
 `DEBRID_PREFETCH_TTL`, `DEBRID_SWEEP_DEAD`, `DEBRID_ACCOUNT_WARN_TOTAL`,
-`DEBRID_ACCOUNT_WARN_LIMIT_USED`.
+`DEBRID_ACCOUNT_WARN_LIMIT_USED`, `DEBRID_DASHBOARD_ACCOUNT_TIMEOUT_MS`,
+`DEBRID_DASHBOARD_ACCOUNT_TTL_MS`.
 
 **Paridade Real-Debrid (F1/F2/F5; F3 vem depois):**
 

@@ -4,17 +4,35 @@
 
 ## Architecture
 
-> **Estado (2026-08-29):** o M3 fechou, então as seções abaixo descrevem o
+> **Estado (2026-08-31):** o M3 fechou, então as seções abaixo descrevem o
 > layout que **já existe** em `src/` — não mais um alvo. A ressalva histórica
 > ("isto é o alvo, não o presente") valia enquanto 22/A5 e 25/A6 estavam
 > abertos. Confira a tabela de **Milestones** para o status de cada item;
 > abertos: M4 (só a auditoria forense do Tier 5) e a janela de baseline do
-> 6.3 dentro do M5. O M6 (catraca de linhas 5.8 + extração dos HTML do painel
-> 5.9) fechou em 08-29. Para o porquê de cada decisão, `AGENTS.md` continua
-> sendo a fonte de verdade — ele nunca descreve estado futuro como presente.
+> 6.3 dentro do M5 (aberta em 2026-08-24 22:58; os 7 dias vencem
+> 2026-08-31 22:58 — a decisão de TTL só é legítima depois disso). O M6
+> (catraca de linhas 5.8 + extração dos HTML do painel 5.9) fechou em 08-29.
+>
+> **Pós-M6 (2026-08-30)** — seis commits estendem o que já existe, sem
+> milestone novo: `1062ef8` corrige o colhedor (tarefas M1–M6 do **plano do
+> colhedor**, `docs/superpowers/plans/2026-08-30-colhedor-correcoes-cobertura-br.md`
+> — rótulos do plano, **não** os milestones M1–M6 desta tabela); `a33f96a`
+> desacopla o gate das features de operador (`DEBRID_OPERATOR_ENV_ACCOUNT`)
+> da herança de chave; `f468fb0` põe banner de incidente com `reason`/`fix`
+> no painel e memo de 60s na consulta de saúde da conta; `9b9d72d` adiciona
+> `GET /test-resolver.json` (probe direto dos resolvedores BR, sem passar
+> pelo Jackett); `9d3e2a6` implementa o ⚡ de memória no degradado
+> (`DEBRID_ALIVE_AS_CACHE`, default desligado); `3d6f89d` adiciona o teste
+> seguro de conta de debrid no painel (Fase 1 — sem salvar, sem trocar
+> config). Medido no checkout em 2026-08-31: **117** arquivos `.ts` em
+> `src/` totalizando **20.728 linhas**, e **90** arquivos `*.test.ts`
+> (84 unit + 6 e2e), todos na lista explícita do `npm test`
+> (`test:complete` verde). Para o porquê de cada decisão, `AGENTS.md`
+> continua sendo a fonte de verdade — ele nunca descreve estado futuro como
+> presente.
 - **Process & Application Layer**:
   - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
-  - `src/app.ts`: Express application factory (`createApp()`); route *registration* lives in `src/routes/register.ts` since §5.5 (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/dashboard`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`, plus the `PAGE_ASSETS` allowlist of panel CSS/JS added by §5.9).
+  - `src/app.ts`: Express application factory (`createApp()`); route *registration* lives in `src/routes/register.ts` since §5.5 (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/dashboard`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`, plus the `PAGE_ASSETS` allowlist of panel CSS/JS added by §5.9).
 - **Providers & Orchestration Layer**:
   - `src/providers/search-orchestrator.ts`: Query planning, Cinemeta/TMDB metadata, raw provider fan-out (`collectRaw`), Brazilian priority grace, pack fallbacks, enrichment tails. Phase control stays implicit via `latest-writer`'s `finish.phase()`/`finish.advance()` — no explicit `SearchPhase` state machine (A3 not implemented).
   - `src/providers/search-cache.ts`: Stale-While-Revalidate (SWR) cache handling, request coalescing (`inFlight`), background revalidation (`scheduleStaleRefresh`).
@@ -41,11 +59,12 @@
 - **Brazilian Resolvers Microservices**:
   - `bludv-resolver`, `comandotorrents-resolver`, `nerdfilmes-resolver`, `torrentdosfilmes-resolver`, `vacatorrent-resolver`: Microservices running on internal ports 8700–8704 with shared core engine (`resolvers/` runtime).
 - **Panel Layer** (`src/public/`):
-  - `configure.html` + `configure.css` + `configure-app.js`; `dashboard.html` + `dashboard.css` + `dashboard-core.js` + `dashboard-panels.js` + `dashboard-status.js`. ES5, zero build, served as static files through the closed `PAGE_ASSETS` allowlist in `src/routes/public.ts`. The HTML is served from memory with `?v=<content hash>` injected into the asset references, so the assets ship with `maxAge: '30d'` and a deploy can never pair new HTML with a cached old module. The JS anchored by the tests (function bodies matched by regex: `collect`/`apply`/`fromUrl`, `KEYS`, `renderMagnetDb`, the Chupim/Colhedor panels) stays **inline in the HTML by contract** — only the unanchored code was extracted (§5.9).
+  - `configure.html` + `configure.css` + `configure-app.js`; `dashboard.html` + `dashboard.css` + `dashboard-core.js` + `dashboard-panels.js` + `dashboard-status.js` + `dashboard-debrid-test.js` (teste seguro de conta, extraído dos panels ao se aproximar do teto da catraca — `3d6f89d`). ES5, zero build, served as static files through the closed `PAGE_ASSETS` allowlist in `src/routes/public.ts`. The HTML is served from memory with `?v=<content hash>` injected into the asset references, so the assets ship with `maxAge: '30d'` and a deploy can never pair new HTML with a cached old module. The JS anchored by the tests (function bodies matched by regex: `collect`/`apply`/`fromUrl`, `KEYS`, `renderMagnetDb`, the Chupim/Colhedor panels) stays **inline in the HTML by contract** — only the unanchored code was extracted (§5.9).
 
 ---
 
 ## Code Layout
+- `src/**/*.ts`: 117 arquivos, 20.728 linhas (medido no checkout em 2026-08-31).
 - `src/addon.ts`: Process entry point & lifecycle management.
 - `src/app.ts`: Express application composition only; `src/routes/*.ts` holds registration and handlers.
 - `src/config.ts`: Centralized operator environment configuration.
@@ -56,7 +75,7 @@
 - `resolvers/*.js`: Shared CommonJS core of the five Brazilian resolvers; `resolvers/profiles/*.js`: per-site parsers and rules.
 - `src/public/*`: Panel pages (ES5, zero build) — HTML plus the CSS/JS extracted in §5.9.
 - `scripts/check-line-budget.ts` + `.line-budget.json`: 400-line ratchet over `.ts`/`.js`/`.css` (§5.8, scope extended to `.css` on 08-29); `npm run lint:lines`.
-- `test/*.test.ts`: Complete unit test suite (81 unit + 6 E2E = 87 files tracked in `package.json`).
+- `test/*.test.ts`: Complete unit test suite (84 unit + 6 E2E = 90 files tracked in `package.json`; `test:complete` verde em 2026-08-31).
 - `test/e2e/*.test.ts`: Opaque-box E2E test suite (Tiers 1–4).
 - `test/*challenger*.ts`, `test/*stress*.ts`, `test/*adversarial*.ts`: Empirical bench test harnesses.
 
@@ -102,7 +121,7 @@
 | M2 | Core Guardrails, Regression Safety & Budget Verification | Features 11–18 (T1–T7, B3 E2E test verification, harness mutation safety) | M1 | DONE — T1–T7 in PLANO_MELHORIAS phase 3 (`c9a7888`, `e69450c`), B3 closed by phase 4 (4.1–4.3) |
 | M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | DONE (2026-08-24) — 20/A2 and 21/A1 on 08-23; 19/A1b, 23/A4, 24/A1c, 22/A5 and 25/A6 on 08-24. A3 (explicit `SearchPhase`) was never in scope: phase control stays implicit via latest-writer |
 | M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 6 bench harnesses, forensic audit | M3 | OPEN — regression half re-validated on 08-24 after Fase 6 (build, 1.200 tests, `test:complete` 66+6, the 6 harnesses, mutation score 10/10 — 20 sequential + 6 parallel, APPROVE) and again on **08-29** after M6: build, **1.509 tests**, `test:complete` **87+6**, `lint:lines` baseline OK, `npm run smoke` green against the rebuilt container. `npm run smoke` had its window recalibrated (PLANO_MELHORIAS 6.6) and passes with cold cache. What is still missing is the Tier 5 forensic audit, which does not run in any gate |
-| M5 | Fase 6 — Longo prazo / opcionais | 6.1 SDK-out (router Express próprio), 6.2 clear-cache seletivo, 6.3 análise `davail`, 6.4 risco aceito do decode, 6.5/6.5b healthcheck quádruplo do Caddy, 6.6 janela do smoke, 6.7 checkJs medido, 6.8 export duplicado | M4 (6.1/6.2 dependiam do 5.5) | DONE (2026-08-24), exceto 6.3 com janela aberta: baseline 0 registrada (878 servidos vs 736 de rede = 54,4% de bypass local; gate antigo `repeated/hashes` em 20,9%), decisão de TTL após amostra de 7 dias. 6.7 documentada como "medido, não feito" (354 erros, 306 de `noImplicitAny` — tarefa própria, não ajuste de config) |
+| M5 | Fase 6 — Longo prazo / opcionais | 6.1 SDK-out (router Express próprio), 6.2 clear-cache seletivo, 6.3 análise `davail`, 6.4 risco aceito do decode, 6.5/6.5b healthcheck quádruplo do Caddy, 6.6 janela do smoke, 6.7 checkJs medido, 6.8 export duplicado | M4 (6.1/6.2 dependiam do 5.5) | DONE (2026-08-24), exceto 6.3 com janela aberta: baseline 0 registrada (878 servidos vs 736 de rede = 54,4% de bypass local; gate antigo `repeated/hashes` em 20,9%), decisão de TTL (`DEBRID_AVAIL_POS_TTL`/`DEBRID_AVAIL_NEG_TTL`) após amostra de 7 dias — janela ainda em curso no sync de 2026-08-31: baseline aberta 2026-08-24 22:58, vence 2026-08-31 22:58; decidir antes disso é decidir sem dado. 6.7 documentada como "medido, não feito" (354 erros, 306 de `noImplicitAny` — tarefa própria, não ajuste de config) |
 | M6 | Catraca de linhas & extração dos HTML do painel | §5.8 (teto de 400 linhas com baseline em `.line-budget.json`, núcleos compartilhados dos 5 perfis de resolver) e §5.9 (CSS/JS dos painéis em arquivos próprios) | M5 | DONE (2026-08-29) — `configure.html` 1.771→1.056 e `dashboard.html` 2.429→1.556, com 6 assets servidos por allowlist fechada; o JS ancorado pelos testes ficou inline por contrato. O scanner da catraca passou a varrer `.css` e o `configure.css` (505) entrou no baseline como débito registrado. Guarda-corpo: os testes de painel passaram **sem alteração**. A validação ao vivo achou 2 defeitos **pré-existentes** que a extração tornou visíveis (`displayValue` tratava "at" como substring — `hitRate` virava 31/12/1969 — e `uptimeS` em segundos ia para um formatador de milissegundos), corrigidos com teste de regressão que **executa** o módulo extraído |
 
 ---
