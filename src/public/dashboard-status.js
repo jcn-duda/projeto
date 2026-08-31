@@ -72,8 +72,19 @@
     var item;
     var viuDebrid = false;
     if (isObject(account) && account.ok === false) {
+      // "sem-debrid" é estado de CONFIGURAÇÃO, não problema operacional: numa
+      // instância pública segura (DEBRID_ALLOW_ENV_KEY=false +
+      // DEBRID_OPERATOR_ENV_ACCOUNT=true) o anônimo não herda debrid de
+      // propósito — o backend é honesto (active=null, account=sem-debrid) e a
+      // conta real do operador viaja em debrid.accounts, onde os erros dela
+      // continuam subindo pelo laço abaixo. viuDebrid segue true porque o
+      // backend calcula services.debrid = Boolean(account.ok): a evidência
+      // detalhada já existe e, sem isso, o aviso genérico "indisponível no
+      // geral, sem motivo detalhado" dispararia por cima.
       viuDebrid = true;
-      issues.push(accountIssue((account.label || account.service || "Debrid") + " (conta ativa)", account));
+      if (account.reason !== "sem-debrid") {
+        issues.push(accountIssue((account.label || account.service || "Debrid") + " (conta ativa)", account));
+      }
     }
     keys = Object.keys(isObject(accounts) ? accounts : {});
     for (i = 0; i < keys.length; i += 1) {

@@ -47,6 +47,11 @@
         item = copyObject(item);
         Object.keys(accounts[knownServices[i].id]).forEach(function (key) { item[key] = accounts[knownServices[i].id][key]; });
         if (item.ok === false) item.status = item.reason === "rate" ? "warn" : "error";
+        // Conta ok em accounts é saudável (ex.: a do operador numa instância
+        // pública segura, onde a instalação anônima não tem debrid ativo) —
+        // mesmo critério do espelho da conta ativa acima; sem isto o card da
+        // conta saudável ficava em "não medido".
+        else if (item.ok === true) item.status = item.warn ? "warn" : "online";
       }
       if (!item.label) item.label = knownServices[i].label;
       item.autofetch = first(item, ["autofetch", "autoFetch"], first(asList(auto, "services").filter(function (entry) { return serviceId(entry) === knownServices[i].id; }), ["status", "state"], null));
