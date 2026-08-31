@@ -782,6 +782,313 @@ Código (7.9) e TTL do `davail` só com medida da trilha B.
 
 ---
 
+## Fase 8 — Desentupimento da conta AllDebrid e retorno do BR dublado (EM EXECUÇÃO — 2026-08-31)
+
+**Objetivo:** o dublado voltar à lista. Hoje ele some 100% das vezes, medido.
+Esta fase **não** abre refactor e **não** mexe em busca, parser ou ranking — o
+defeito não está lá. Código de `HEAD` no diagnóstico: `esm` `3d6f89d`
+(produção no ar no mesmo commit). Risco dominante: **dado/conta** (a Trilha B é
+destrutiva e irreversível), depois **prazo** (a Trilha A muda o que aparece na
+tela já na busca seguinte).
+
+**Progresso executado (2026-08-31):**
+
+- **8.2 aplicado na VPS** (`DEBRID_SHOW_UNCACHED_BR=true`, stack recriada e
+  saudável). Limite medido: o toggle só vale para install URL que **não**
+  codifica `bu` — a página `/configure` grava `bu` sempre, então o re-save da
+  URL de instalação é o passo que fecha o `brHidden` (modelo stateless
+  funcionando como desenhado).
+- **8.4 NO CÓDIGO** (`d7db22d`): blindagem `brOriginMark` nos caminhos de
+  limpeza (`audioBucket`/`foreignVerdict`); `hasPtSigns` da busca intocado.
+  Mira 347 → ~343 (4 falsos positivos saem com fixture).
+- **8.15 NO CÓDIGO** (`289dbfd`): posse durável `adsub:v1` (TTL 7d, knob
+  `ALLDEBRID_SUBMITTED_TTL_MS`) com regra de proveniência — etiqueta só com
+  prova de criação (hash ausente do snapshot); enqueue do autofetch etiqueta
+  incondicional (`proven: true`). Catraca quebrada.
+- **8.14 NO CÓDIGO** (`b06d440`): marcador `adrm:v1` (TTL 3d,
+  `DEBRID_REUPLOAD_BLOCK`) gravado só por deleção intencional bem-sucedida
+  (`sweepUndubbed`, catálogo/painel, 8.16); T1 do dedup nunca marca (o hash
+  sobrevive); bloqueia checagem e autofetch, nunca play explícito; guarda no
+  atalho `DEBRID_ALIVE_AS_CACHE`; expurgo `--unblock`.
+- **8.16 NO CÓDIGO** (`a264b7c`): evicção por busca, **default OFF**
+  (`DEBRID_EVICT_PER_SEARCH`), só conta do operador, seleção em conjunção,
+  piso/teto, fire-and-forget, in-flight por conta, `adrm` do 8.14 nos
+  removidos, e **gate único de delete por conta** (serializa dropReady,
+  dropUncached, sweeps, painel e evicção — B-4).
+- Gates dos 4 commits: typecheck 0, build verde, 1594/1594 testes,
+  `test:complete` 94+6, catraca verde, revisão independente APPROVE no 8.14
+  (após corrigir o T1) e no 8.16.
+- **Docker local validado ao vivo** (2026-08-31): rebuild verde, container
+  healthy (addon + Jackett + FlareSolverr + Caddy, zero restart/OOM). Busca
+  `Se Beber, Não Case` (`tt1119646`) fria em 5,18s: 8 streams tocáveis,
+  6 ⚡ e 2 BR; recache em 33ms: `max-age=900`, 9 streams, 6 ⚡ e 3 BR
+  (Kickass, Comando, BluDV). A checagem enviou 28 hashes, removeu 22 sem falha
+  e persistiu 26 `adsub`; após restart, 4 resíduos ainda na conta continuaram
+  reconhecidos como uploads do addon. Hash sintético `adrm` ficou fora do
+  upload (`complete=true`, `cached=0`) e foi liberado ao final. Probe real:
+  resolver Nerdfilmes 5 resultados/3,52s; Jackett/Cardigann 2 resultados com
+  magnet/3,00s. O 8.16 permaneceu OFF e não apagou nada.
+- **Ainda sem push/deploy dos quatro commits:** só 8.2 está na VPS. 8.4/8.15/
+  8.14/8.16 foram validados no Docker local; produção continua no código
+  anterior até autorização de push/deploy.
+- **Pendências da fase:** 8.5 (Trilha B destrutiva — exige ok por rodada),
+  8.6/8.3 (só depois de folga medida), re-save da URL de install (8.2), e a
+  decisão de ligar o knob do 8.16 na VPS depois de 48h de observação.
+
+**Princípio:** nenhuma decisão de ocupação sem o teto real medido, e nenhum
+`--apply` sem a blindagem BR no lugar. O checklist do 7.2 (Fase 7, ainda
+PLANEJADA como trilha) foi aplicado aqui como diagnóstico e respondeu
+"ocupação no limite, teto/chave ok" — o palpite era que o problema seria teto
+ou chave; a medição mostrou que é **gate nosso + relógio que nunca dispara**.
+Esta fase substitui aquele palpite pelos números abaixo.
+
+> Referências de linha no texto abaixo (ex.: `catalog-env.ts:224`,
+> `alldebrid-check.ts:89`) estão pinadas no diagnóstico `3d6f89d` — os
+> símbolos (`includeKnown`, `scheduleDrop`, `sweepUndubbed`) é que valem depois
+> dos commits desta fase. B-1/B-2/B-3/B-4 e T1 são os achados da revisão
+> adversarial independente de 2026-08-31 sobre esta fase (B-1 = re-etiqueta de
+> acervo pela posse persistida; B-2 = evicção alcançando conta de usuário;
+> B-3 = condenação por título vs prova de arquivo; B-4 = rajada de deletes
+> concorrentes; T1 = dedup de mesmo hash).
+
+### Diagnóstico (medido em produção, 2026-08-31)
+
+Cadeia causal completa, cada elo com a sua evidência:
+
+| # | Elo | Evidência |
+|---|---|---|
+| 1 | A descoberta funciona | `[search] varredura pt-BR: 84 resultado(s)` para "Se Beber, Não Case!" |
+| 2 | 100% do BR é ocultado | `search.first.brFound=10`, `search.first.brHidden=10` |
+| 3 | Quem oculta | `DEBRID_CACHED_ONLY=true` + `DEBRID_SHOW_UNCACHED_BR` ausente (default `false`, `src/config/debrid.ts:35`); log `(0 em cache)` em **toda** busca — nunca um BR cacheado |
+| 4 | O Chupim, que consertaria o elo 3, está parado | `autofetch.account-gated=22`; `[autofetch] AllDebrid com conta cheia — nenhum download enfileirado` |
+| 5 | Por que está parado | `autoFetchPauseAt` default **800** (`src/config/debrid.ts:210`) contra **904** magnets na conta. É limiar NOSSO, não da AllDebrid — `src/debrid/account-status.ts:13` já dizia "ajuste se a sua conta aguentar mais" |
+| 6 | A varredura que liberaria espaço nunca roda | `src/addon.ts:43`: 1º disparo em `interval/2` = **3h** após o boot, via `setTimeout` em memória. Deploys de 30/08: 15:19, 16:21, 17:40, 19:33, 22:11 — intervalos de 1h02, 1h19, 1h53 e 2h38. **Nenhum alcançou 3h.** Cada deploy recria o container e zera o timer |
+| 7 | E se rodasse, não resolveria | `sweepUndubbed` exclui `preexistentes` (trava `knownBefore` em `alldebrid-cleanup.ts`): dos 904, ~870 são preexistentes e **imunes por desenho**. A varredura só alcança o que o próprio addon subiu |
+| 8 | **A catraca do `preexistente`** (achado de 2026-08-31; a hipótese anterior, "`uploadDate` não mede idade", foi **refutada** pelo operador: a conta foi zerada, as datas são reais) | A conta saiu de ~0 para **904 em 8 dias** (2026-08-24 a 08-31; 423 só em 08-30) **sem o autofetch participar** — ele está gateado desde cedo. Causa: `submitted` é `Map` em MEMÓRIA (`alldebrid-inventory.ts:37`) e some no restart; o snapshot seguinte lê `/magnet/status` e classifica **tudo que estiver na conta** como acervo do usuário (`knownBefore`), imune ao `sweepUndubbed`. Como o container reinicia a cada deploy (5× em 08-30), **o addon lava a própria sujeira como acervo do usuário a cada deploy**. Já conhecido para o painel, que ganhou o escape `includeKnown` (`catalog-env.ts:224`); a varredura automática continua presa |
+
+**CUSTO POR BUSCA (medido 2026-08-31, painel da AllDebrid + API):** uma única
+busca de "Se Beber, Não Case" deixou **23 magnets** na conta — todos com
+`Completed on` de 30/08 entre 22:03 e 23:07, a janela de teste. Destes, **1**
+é dublado (e do *Parte 3*, não do filme aberto). Painel: `890 Ready + 8 in
+progress + 30 failed = 928` — `failed` e `in progress` **também ocupam slot**,
+logo restam ~**72 vagas**, não 96. A 23 slots por busca, o teto de 1000 é
+atingido em **~3 buscas**. A vazão é a checagem de cache (que na AllDebrid é
+upload), **não** o autofetch — ele está gateado. Consequência para o plano: a
+Trilha B (estoque) compra dias; só o 8.15 (catraca) e o 8.14 (anti-reentrada)
+mudam o regime.
+
+**Composição da conta** (`clean-undubbed.js`, modo leitura, sem `--apply`):
+
+```
+904 magnet(s), 10.1 TB — teto AllDebrid 1000 (90%)
+  38   171.8 GB  dublado PT (mantido sempre)
+ 278     2.7 TB  dual/multi sem PT (ambíguo, mantido por padrão)
+  37   405.8 GB  sem marca, sinal de PT (mantido por padrão)
+ 347     4.4 TB  SEM áudio PT (mira da limpeza)
+Mira: 347 -> conta cairia para ~557 (56% do teto)
+```
+
+> Trecho do relatório: os quatro baldes exibidos somam 700; os 204 restantes
+> ficaram em saídas residuais do script (sem balde exibido acima).
+
+**Falsos positivos já identificados na mira** — varredura própria sobre os 904
+com o classificador do addon achou **4 releases brasileiros condenados** por não
+terem a palavra "dublado" no título:
+
+```
+X-Men - O Filme 1080p - The Pirate Filmes
+Troia - The Pirate Filmes
+Zumbilândia (2009) Bluray 1080p Filmes M.H.G
+zumbilandia (www.thepiratefilmes.com)
+```
+
+Todos de site BR, título em português. É exatamente a cicatriz registrada em
+`alldebrid-cleanup.ts:150` ("foi assim que a conta chegou a 812 magnets" /
+"falso positivo aqui destrói acervo que custou horas de download").
+
+**Conflito de teto a resolver antes de tudo:** o operador informou que a conta
+aguenta ~2000 magnets; o script reporta teto **1000**, número que vem da
+mensagem de erro real da AllDebrid citada em `scripts/magnets.ts:6`
+(`"Magnets limit reached (1000 accross all tabs)"`). Com 904 no ar, a diferença
+entre 1000 e 2000 decide se existem 96 ou 1096 vagas. **Subir o gate sem fechar
+isso troca "sem dublado" por "sem debrid nenhum"**: a checagem de cache da
+AllDebrid é um upload, e conta no teto derruba o ⚡ de TODOS os streams.
+
+### Trilha A — Parar o sangramento (reversível; nada é apagado)
+
+| # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
+|---|---|---|---|---|---|---|---|
+| 8.1 | **Teto real da conta — RESOLVIDO (2026-08-31).** É **1000 magnets**. Confirmado por fonte EXTERNA e independente: o erro `MAGNET_TOO_MANY` da AllDebrid devolve `"Magnets limit reached (1000 accross all tabs)"` (mesmo typo em "accross" da resposta real), reportado no cliente `rdt-client` (issue 421), sem relação com este projeto. O "2000" informado é `limitedHostersQuotas.dailyuploads` do `/user` — quota de **hoster**, não slot de magnet. O `/user` **não expõe** o teto de magnets, e o 1000 dos nossos scripts (`clean-undubbed.ts:126`/`:147`, `magnets.ts:94`) é hardcoded — correto por acaso, mas era circular como evidência. Há também relato de teto de **30 simultâneos em download** (bate com a nota de `account-status.ts`); irrelevante aqui (`In progress` = 8) | A1 | S | dado | — | **DONE (2026-08-31)** | ocupação real **928/1000** (890 ready + 8 in progress + 30 failed — `failed` e `in progress` ocupam slot): restam **72 vagas**. A 23 slots/busca, ~3 buscas até o teto. Libera 8.3 e, com o 8.4 no ar, destrava 8.5→8.6 |
+| 8.2 | Visibilidade imediata do BR: `DEBRID_SHOW_UNCACHED_BR=true` no `.env` da VPS. Os BR ocultados voltam como P2P puro, sem depender de cache nem de ocupação de conta | A2 | S | prazo | nenhuma (não toca ocupação) | **DONE na VPS (2026-08-31)** — falta re-save da URL de install | `search.first.brHidden` cai a 0 na busca seguinte e o dublado aparece na lista. Reversível numa linha. **Não substitui a Trilha C** — trata sintoma. **Limite medido:** a página grava `bu` sempre na URL; installs antigas com `bu=0` continuam ocultando até o usuário regenerar o link |
+| 8.3 | Alinhar `accountWarnTotal` (hoje 800) ao teto de 8.1; senão o aviso vira ruído permanente e deixa de significar alguma coisa | A3 | S | nulo | 8.1 | PLANEJADO | o log de aviso volta a ser exceção, não linha de toda rodada |
+
+### Trilha B — Desentupir (DESTRUTIVA; autorização explícita por rodada)
+
+> Esta trilha apaga conteúdo de uma conta real. **Nada aqui é autorizado por
+> este documento.** Cada `--apply` exige "ok" do operador na hora, para aquela
+> rodada, com a mira revisada. O que sai não volta.
+
+| # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
+|---|---|---|---|---|---|---|---|
+| 8.4 | **Blindagem BR antes de qualquer `--apply`** (pré-requisito absoluto). Origem de site BR no nome (`thepiratefilmes`, `filmes`, `comando`, `bludv`, `lapumia`, `torrentdosfilmes`) ou título em português **nunca** condena, mesmo sem a marca "dublado". Regra do operador: *se tem nome BR, só pode ser BR* — e como a regra serve para **não apagar**, errar protegendo é o lado certo do erro | B1 | S | dado, se pulada | — | **DONE (`d7db22d`)** | os 4 falsos positivos conhecidos saem da mira (347 -> ~343), com os 4 nomes reais como fixture de teste. **Sem isto, 8.5 não roda** |
+| 8.5 | Limpeza faseada, nunca de uma vez: `--limit 50` na 1ª rodada, conferir a conta, só então ampliar. Os mais antigos primeiro (o script já ordena) | B2 | M | dado | 8.1, 8.4 | PLANEJADO | a ocupação cai; **nenhum** item dos baldes `dublado PT`, `sinal de PT` ou `dual` some; a diferença de contagem bate exatamente com o `--limit` pedido |
+| 8.6 | Só então reavaliar `autoFetchPauseAt`, com folga mínima de 200 slots até o teto de 8.1 | B3 | S | prazo | 8.5 | PLANEJADO | `autofetch.account-gated` para de crescer e `autofetch.enqueued` volta a subir. Ajuste ao vivo pela aba `[Chupim / Autofetch]`, sem deploy nem restart |
+
+### Trilha C — Corrigir os mecanismos (código; é aqui que fica consertado)
+
+| # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
+|---|---|---|---|---|---|---|---|
+| 8.7 | **Relógio persistente da varredura.** Trocar o `setTimeout`/`setInterval` em memória (`src/addon.ts:42-48`) por marca de "última execução" no `cache.db`, que sobrevive ao rebuild. Deploy frequente deixa de matar a rotina por inanição | C1 | S | dado (varre mais cedo) | — | PLANEJADO | com deploys a cada 1h, a varredura roda dentro da janela configurada. Teste que simula reinício antes do intervalo e prova que a rodada acontece |
+| 8.8 | **Instrumentar a varredura.** Hoje é silenciosa quando não roda — o "nunca disparou" só apareceu por arqueologia de log. Contadores `debrid.sweep.undubbed.{run,skipped,swept}` com o motivo do skip | C2 | S | nulo | — | PLANEJADO | `/metrics.json` mostra a última execução e o motivo da última pulada, sem precisar de `docker logs` |
+| 8.9 | **Gate degradar em vez de desistir.** Conta cheia hoje para o Chupim inteiro; havendo BR dublado na fila e não-dublado antigo ocupando espaço, a troca vale. Liberar espaço sob demanda, ou ao menos manter o pool `br` enfileirando | C3 | M | dado (apaga sob pressão) | 8.7 e 8.8 no ar e medidos | PLANEJADO | com a conta no limiar, o pool `br` ainda enfileira e `any`/`seeds` seguem barrados. **Não** fazer antes de 8.7/8.8 — sem medição é palpite |
+| 8.10 | `sweepUndubbed` alcançar preexistentes **sob trava explícita** (opt-in, default desligado). Hoje `knownBefore` os torna imortais: certo como padrão, errado quando 96% da conta é preexistente | C4 | M | **alto** (dado) | 8.4 no ar; 8.5 executada com sucesso ao menos uma vez | PLANEJADO | knob próprio, default `false`, com a blindagem de 8.4 obrigatória no caminho. Havendo dúvida, **não fazer**: o operador limpa à mão com o script |
+| 8.15 | **Quebrar a catraca do `preexistente`** (raiz da vazão). Persistir `submitted` no `cache.db` para que o que o addon subiu continue sendo dele após o restart, em vez de virar "acervo do usuário" no snapshot seguinte. Sem isto, qualquer limpeza é esteira: 5 deploys/dia relançam a catraca | C5 | M | médio (a varredura passa a alcançar de verdade) | — | **DONE NO CÓDIGO (`289dbfd`)** — ainda sem deploy | `adsub:v1`, TTL 7d, prova de criação; teste de restart/B-1. Docker local: 26 registros persistidos; após restart, 4 resíduos ainda na conta continuaram fora de `knownBefore` |
+| 8.16 | **Evicção por busca** (ideia do operador: "cada busca temos que deletar os gringos mais velhos"). Terceiro `scheduleDrop` em `alldebrid-check.ts:89`, irmão de `dropReady`/`dropUncached`: a busca que deposita ~23 magnets remove ~23 dos mais antigos provadamente estrangeiros. Torna a ocupação **estacionária em vez de monotônica** e dispensa o relógio (8.7) para este fim — o gatilho é o próprio tráfego. **Desenho completo na seção abaixo** | C6 | M | médio (destrutivo no caminho quente; mitigado por ser em fundo) | **8.15 obrigatório antes** — com a catraca de pé não alcança 96% da conta | **DONE NO CÓDIGO (`a264b7c`), DEFAULT OFF; aguardando deploy + decisão de ativar** | mecânica coberta por 11 testes + gate global de delete B-4; aceite de ocupação/p50/zero BR exige 48h em produção com knob ligado deliberadamente |
+
+### Trilha D — Política (decisão de produto; depois dos números)
+
+| # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
+|---|---|---|---|---|---|---|---|
+| 8.11 | Orçamento de ocupação: teto alvo, quanto do acervo é intocável, quanto fica para o giro do Chupim | D1 | S | nulo (doc) | 8.1, 8.5 | PLANEJADO | números escritos aqui, com o comando que os reproduz ao lado |
+| 8.12 | **Auditoria de áudio por ARQUIVO** para o balde ambíguo (278 `dual/multi`, 2,7 TB). É a saída que o próprio código aponta: "o catálogo resolve com auditoria dos ARQUIVOS, não com palpite de título" | D2 | L | nulo, se só leitura | 8.11 | PLANEJADO | amostra auditada pela faixa de áudio real; só então decidir se `dual` vira mira. **Nunca** condenar `dual` por título |
+| 8.13 | **Positivo longo para o acervo BR protegido** (ideia do operador: "memorizar os magnets como positivo sempre"). Como regra geral **é a alternativa já rejeitada** em `AGENTS.md:423` — a AllDebrid recicla inativo em ~3 dias e um `1` velho mentiria para sempre, gerando ⚡ que não toca. A variante defensável é restrita ao pool `adprot` (BR retido, que o addon mantém vivo de propósito): ali o argumento do reciclo não vale igual | D3 | M | **alto** (confiança no ⚡) | 8.12; medição de falha de play | PLANEJADO | taxa de play que falha após ⚡ medida ANTES e DEPOIS; se subir, reverter. Escopo máximo: hashes com `adprot` ativo. **Nunca** global — ⚡ que mente é pior que ⚡ ausente |
+| 8.14 | **Anti-reenchimento: marcador durável do que a limpeza apagou** (ideia do operador). Hoje `sweepUndubbed` deleta e **não registra nada** (`alldebrid-cleanup.ts:214`), e a memória de cache dura **900s** (`availPosTtl`, `config/debrid.ts:79`). Resultado: 15 min depois da limpeza, a busca seguinte re-sobe o mesmo gringo para checar cache e a conta reenche com o que acabou de sair — a limpeza vira esteira eterna. Gravar por hash um marcador **"apagado de propósito, não re-subir"**, NÃO um `davail=1` eterno: o marcador não toca o ⚡ (logo não mente quando a AllDebrid reciclar) e ainda cobre o gringo que nunca esteve cacheado | D4 | M | baixo | 8.4 no ar; 8.5 para medir efeito real | **DONE NO CÓDIGO (`b06d440`)** — ainda sem deploy/8.5 | `adrm:v1`, TTL 3d, blindagem BR, `--unblock`, guarda alive-as-cache; Docker local com hash sintético provou bloqueio (`complete=true`, `cached=0`) e expurgo. Efeito de ocupação depende da primeira limpeza autorizada |
+
+### Atalho já existente (usar antes de escrever código)
+
+A limpeza pelo painel tem o escape `includeKnown` (`catalog-env.ts:224`), criado justamente porque o `knownBefore` anulava a limpeza no processo recém-subido. Ou seja: **para a rodada manual de 8.5 a ferramenta já existe** — 8.10 deixa de ser "escrever a limpeza de preexistentes" e passa a ser "decidir se a varredura AUTOMÁTICA ganha o mesmo escape". Fazer 8.15 primeiro pode tornar 8.10 desnecessário: com `submitted` persistido, o lixo do addon deixa de ser classificado como acervo e a varredura normal já o alcança.
+
+### 8.16 — Evicção por busca: cada busca paga a própria conta (DESENHO)
+
+**Ideia do operador (2026-08-31):** *"cada busca temos que deletar os gringos
+mais velhos"*. É a melhor resposta ao problema desta fase, e **substitui** a
+varredura periódica como mecanismo principal — 8.7 (relógio persistente) deixa
+de ser necessário para este fim, porque **não há relógio**: o gatilho é o
+próprio tráfego que causa o entupimento.
+
+**Por que é superior à varredura de 6h:**
+
+| | varredura periódica (hoje) | evicção por busca (8.16) |
+|---|---|---|
+| gatilho | timer de 6h em memória | a busca que acabou de encher |
+| sobrevive a deploy | não (elo 6 do diagnóstico) | sim — não depende de uptime |
+| acompanha a vazão | não (fixa) | sim — auto-balanceada |
+| quando a conta está parada | roda à toa | não roda (nada entrou) |
+
+Uma busca deposita ~23 magnets; se ela também remover ~23 dos mais antigos, a
+ocupação vira **estacionária em vez de monotônica**. É o único item do plano que
+ataca o regime, não o estoque.
+
+**Onde:** `scheduleDrop` em `src/debrid/alldebrid-check.ts:89`, que já é
+fire-and-forget (`"Sem travar a busca: limpeza é efeito colateral, não
+resposta"`) e já lê o resultado de `dropMagnets`. Um terceiro `scheduleDrop`,
+irmão de `dropReady`/`dropUncached`.
+
+**Regras de seleção (todas obrigatórias, conjunção):**
+
+1. `foreignVerdict(...) === 'condena'` — estrangeiro **provado**, nunca
+   "ausência de marca PT" (trava dura 2).
+2. Blindagem BR do 8.4 aplicada antes de tudo (trava dura 3).
+3. Nunca `held` nem `adprot` (acervo BR retido).
+4. Nunca estado ativo (`ACTIVE_STATES`) — download em curso não é lixo.
+5. Ordem: **mais antigo primeiro** (`uploadDate` crescente).
+6. Nunca o que esta própria busca acabou de subir.
+
+**Orçamento (a parte que evita o desastre):**
+
+- **Teto por busca:** `HARVEST_EVICT_MAX_PER_SEARCH`, default **conservador**
+  (sugestão: 25, na ordem do que uma busca deposita). Nunca ilimitado.
+- **Piso de ocupação:** só evicta acima de `HARVEST_EVICT_FLOOR` (sugestão:
+  600). Conta folgada **não** apaga nada — sem isso, o addon corroeria o acervo
+  em uso normal.
+- **Alvo, não corte:** evictar aproximadamente o que a busca depositou, não
+  "tudo que se qualifica".
+
+**Dependência crítica:** enquanto a catraca do `preexistente` (elo 8) estiver de
+pé, esta evicção **não alcança 96% da conta** — `knownBefore` protege tudo.
+Logo **8.15 vem antes**, ou o 8.16 nasce inócuo. Os dois juntos são o conserto:
+8.15 devolve ao addon a posse do próprio lixo, 8.16 faz o lixo sair no ritmo em
+que entra, e 8.14 impede que volte.
+
+**Risco e a lição que ele reabre:** é limpeza destrutiva disparada pelo caminho
+quente. A Fase 1 já registrou o caso "corrigir um risco de DADO criou um risco
+de PRAZO" (item 1.6, em *Riscos do próprio plano*), quando uma chamada de rede
+entrou na reserva do debrid. Aqui a mitigação é a mesma lição aplicada: **fora
+da resposta, em fundo, sem `await` no caminho do stream**, exatamente como o
+`scheduleDrop` já faz. Se qualquer variante exigir esperar o resultado antes de
+responder, **está errada**.
+
+**Aceite:**
+
+- ocupação **estacionária** por 48h de uso real (não monotônica): série de
+  `debrid.account.total` sem tendência de alta;
+- `debrid.evicted.perSearch` contando, e **zero** remoção de item dos baldes
+  `dublado PT`, `sinal de PT` ou `dual`;
+- p50 da busca **inalterado** (a evicção não pode aparecer no prazo);
+- com a conta abaixo do piso, o contador fica em zero.
+
+**Rollback:** knob próprio com default desligado até o aceite; desligar é uma
+linha.
+
+### Travas duras (não podem regredir em nenhum item)
+
+1. **Balde `dublado PT` nunca entra em mira** — nenhuma rodada, nenhuma flag.
+2. **Ausência da marca "dublado" não é condenação** — foi o que causou o
+   incidente das 812.
+3. **Origem BR no nome protege**, mesmo sem marca de áudio (8.4).
+4. **`--apply` só com autorização da rodada**, e sempre com `--limit`.
+5. **Nenhuma mudança de ocupação antes de 8.1** (teto real medido).
+6. Ambíguo (`dual`, `unknown`) **fica**, até a auditoria de arquivo (8.12).
+
+### Explicitamente fora (não fazer nesta fase)
+
+- Mexer em busca, parser, ranking ou cotas: o diagnóstico isenta os três.
+- `DEBRID_CACHED_ONLY=false` global — desliga o ⚡ como política e troca um
+  problema por outro; o 8.2 resolve o BR sem esse custo.
+- Subir `autoFetchPauseAt` antes de 8.1 e 8.5.
+- `--apply` sem `--limit`, ou sobre os 347 de uma vez.
+- Novo documento de plano: esta fase mora aqui, junto da Fase 7.
+- Tratar este capítulo como autorização de limpeza — ele **descreve** a limpeza
+  e a **condiciona**; não a autoriza.
+
+**Ordem executada/revista em 2026-08-31:**
+
+1. `8.2` — **aplicado na VPS**; falta re-save da URL com `bu=1` para installs
+   que gravaram o default antigo.
+2. `8.4` — **feito primeiro no código (`d7db22d`)**: proteger antes de
+   destravar. A ordem original punha 8.15 antes; revisão adversarial mostrou
+   que isso ampliaria o alcance da varredura enquanto os 4 BR falsos positivos
+   ainda estavam na mira.
+3. `8.15` — **feito (`289dbfd`)**: quebra a catraca com proveniência B-1.
+4. `8.14` — **feito (`b06d440`)**: marcador anti-reentrada pronto antes do
+   evictor; revisão corrigiu T1 do dedup (o mesmo hash sobrevive, então não
+   pode receber bloqueio).
+5. `8.16` — **feito (`a264b7c`), default OFF**: torna a ocupação estacionária
+   quando ligado; `8.7`/`8.8` viram opcionais para este fim (8.8 continua útil
+   como observabilidade). Gate B-4 serializa todos os deletes por conta.
+6. **Próximo:** push/deploy dos commits 2–5, ainda não autorizado; depois
+   decidir deliberadamente quando ligar o 8.16 e observar 48h.
+7. `8.5` — limpeza de estoque com `includeKnown`, **somente com autorização
+   explícita por rodada**. Os mecanismos agora fazem a limpeza durar; nenhuma
+   rodada foi executada nesta sessão.
+8. `8.6`/`8.3` só depois de folga real; `8.9`/`8.10` com métrica na mão; por
+   fim `8.11`/`8.12`/`8.13`.
+
+> **Inversão registrada:** a primeira leitura desta fase pôs `8.7` (relógio
+> persistente) como "o conserto real e barato". O 8.16 o superou: não adianta
+> consertar o relógio de uma varredura que roda a cada 6h quando a vazão é de
+> ~23 magnets por busca. Consertar o gatilho errado teria custado um commit e
+> deixado o regime intacto.
+
+**Rollback:** 8.2 é uma linha do `.env` (reversível na hora). No código,
+`git revert` individual de `d7db22d` (8.4), `289dbfd` (8.15) ou `b06d440`
+(8.14); o 8.14 ainda tem escape em runtime (`DEBRID_REUPLOAD_BLOCK=false`,
+TTL 0) e expurgo por hash (`--unblock`); o 8.16 é revert de `a264b7c` ou só
+`DEBRID_EVICT_PER_SEARCH=false` (default OFF). **A Trilha B não tem rollback**
+— é exatamente a razão de 8.4 vir antes de 8.5.
+
+---
+
 ## Grafo de dependências
 
 ```
@@ -793,6 +1100,10 @@ Fase 4             ✅ 4.1–4.3
    │
    └─→ Fase 5 (refactors) ─→ Fase 6 (6.1–6.8; 6.3 janela; 6.7 medido)
                                 └─→ Fase 7 (operação) PLANEJADA
+                                      └─→ Fase 8 EM EXECUÇÃO (derivada do
+                                          diagnóstico do 7.2 aplicado)
+                                          8.2 na VPS; 8.4/8.15/8.14/8.16
+                                          em commits locais validados, sem push
 ```
 
 - 5.1–5.7 são sequenciais entre si (mesmos arquivos), mas 5.2, 5.4 e 5.5 são

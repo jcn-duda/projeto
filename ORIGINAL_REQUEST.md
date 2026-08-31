@@ -193,4 +193,48 @@ Submeter entradas inválidas ao endpoint `/dashboard-action.json`:
 ### Relatório de Resultados
 - [ ] Emissão de um sumário objetivo demonstrando a execução de cada teste com seu respectivo status e tempos de resposta.
 
+## Follow-up — 2026-08-30T05:13:47Z
 
+This is a single self-contained fix and improvement task; keep it small and focused with a 2-agent team.
+Complete the approved design "Colhedor — Correções + Cobertura BR" (M1–M6) for Stremio Adom.
+
+Working directory: e:/stremio adom
+Integrity mode: development
+
+## Requirements
+
+### R1. Live Config Snapshot inside Worker (M1)
+`harvestOne` in `src/providers/harvest-worker.ts` must capture `harvesterLive.effective()` once at the top of the function and use `live.harvestIdleWindowMs` and `live.harvestMaxPerHour` throughout the harvest run instead of reading static `config.harvest.*`.
+
+### R2. rdWarmer Score Sorting (M2)
+In `src/providers/harvest-worker.ts`, `topReleases` must sort candidates by score descending (`b.score - a.score`, where scores are 80 for BR dubbed, 40 for dubbed, 5 for others) before slicing the top 10 items sent to `rdWarmer.enqueue`.
+
+### R3. Quota Warning Cooldown (M3)
+Implement `quotaWarnCooldownMs` (default 6h / 21,600,000 ms, env `HARVEST_QUOTA_WARN_COOLDOWN_MS`) in `src/config/harvest.ts`. In `src/providers/harvester.ts` (`checkQuotaWarning`), avoid calling `adapter.accountStatus` if a cache marker under prefix `harvest` (`quotaWarn`) is present and cooldown > 0. On successful API checks, store the marker with the configured cooldown TTL. If the call fails or throws, do not store the marker. (Note: use `prefix('harvest')` from `../utils/cache-keys.js`).
+
+### R4. BluDV Fallback Query (M4)
+In `src/providers/harvest-worker.ts`, use `const bludvQuery = ptQuery || query;` and query BluDV whenever `config.bludv.enabled && bludvQuery`, so titles without a Portuguese title in TMDB fall back to the original title query.
+
+### R5. Partial pt-BR Global Sweep (M5)
+In `src/providers/harvest-worker.ts`, replace the all-or-nothing sweep guard with partial sweep calculation based on remaining hourly quota (`restante = live.harvestMaxPerHour - queriesThisHour()`). If `restante > 0`, query the slice `sweepTargets.slice(0, restante)`. Count `harvest.sweep` when sweep runs, and count `harvest.sweep.partial` if `fatia.length < sweepTargets.length`. If `fatia.length === 0`, log debug and skip.
+
+### R6. Observability for Dropped Capped Works (M6)
+In `src/providers/harvester.ts`, when a capped work exceeds `tries > 3` and is dropped from the queue, increment `metrics.count('harvest.capped.dropped')`.
+
+## Verification Resources
+- Test suite in `test/harvester.test.ts`
+- Build and typecheck commands: `npm run typecheck`, `npm run build`, `npm test`
+
+## Acceptance Criteria
+
+### Correctness & Build
+- [ ] `npm run typecheck` passes with 0 errors (`tsc --noEmit`).
+- [ ] `npm run build` succeeds cleanly.
+- [ ] `npm test` passes all tests without failures.
+- [ ] All 6 test cases for M1–M6 in `test/harvester.test.ts` pass cleanly:
+  1. Live override of `harvestMaxPerHour`/`harvestIdleWindowMs` takes effect inside `harvestOne`.
+  2. `rdWarmer` queue receives items sorted by score (80 > 40 > 5).
+  3. `checkQuotaWarning` suppresses duplicate API calls within cooldown.
+  4. BluDV queries with fallback query when `ptQuery` is null.
+  5. Partial sweep queries exactly available slice and emits `harvest.sweep.partial`.
+  6. Works dropped after 4 capped attempts emit `harvest.capped.dropped`.
