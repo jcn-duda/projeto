@@ -1104,9 +1104,32 @@ revalidação sai com `cacheMaxAge: 0` (vazio, parcial, debrid desconhecido).
 Providers marcam `isBr: true` no resultado cru. `looksPtBr(title)` **também**
 liga o flag — tracker global hospeda dublado titulado em português, e sem isso
 o item era julgado contra o nome em inglês e morria antes das vagas BR.
-"Dual" sozinho em tracker global não basta; precisa de PT explícito.
 `toStremioStream` converte em `_br`; `limitReservingBr` usa esse campo e o
 remove antes de entregar ao Stremio.
+
+**Dual + título em português.** "Dual" sozinho continua não bastando — é o
+invariante do 8.12, e vale nos dois sentidos: dual nunca condena (limpeza) nem
+promove (vagas BR) por si só. Mas exigir PT **explícito** (`DUBLADO`, `PT-BR`)
+deixava de fora a release brasileira que escreve **"Dual Áudio"**, e o efeito
+não era cosmético: sem `_br` ela não recebe vaga reservada nem a prioridade do
+`brFirst`, vira um stream comum e disputa a cota da faixa contra gringo de
+100–170 seeds — com o 1 seed que uma fonte da conta tem. Ela perde e some.
+
+Medido: `Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio
+1080p` sumia da lista enquanto a irmã 720p, idêntica exceto por escrever
+"Dublado", aparecia. O sintoma na tela era "o 1080p dublado não existe".
+
+Por isso `looksPtBr` aceita `Dual` com `hasPtSigns` — título em português é a
+mesma **prova positiva de origem** que o `brOriginMark` do 8.4 e a rede de
+segurança do ranking já usavam; não é palpite sobre o áudio. Nos 853 magnets da
+conta do operador, 42 dos 291 duals não reconhecidos viram BR, e 41 são
+inequívocos (site BR nomeado, "1ª Temporada", título em português).
+
+O caminho do **inventário da conta** é o mais exposto, e vale saber por quê:
+`src/providers/account.ts` decide `isBr` **só** por este predicado. Não há
+indexer BR ali para carimbar a origem pelo campo do provider, então o título é
+a única evidência que existe — o oposto do caso do Jackett, onde o flag do
+provider já resolve.
 
 Não volte a inferir origem por `/BLUDV|DUBLADO/i` no título **no lugar** do
 flag do provider — releases de `comandotorrents`, `nerdfilmes` e

@@ -27,6 +27,19 @@ const PT_STOP_TWO = (t: string) => (t.match(/\b(das?|de|dos?|n[ao]s?|umas?|para|
 // que carimbava dezenas de releases da conta como sinal PT (medido: 122 linhas
 // casando `www.UIndex.org -`, nenhuma delas BR). A marca do site BR já casa
 // pelo token próprio (`www.nerdfilmes.org -` continua coberto por `nerdfilmes`).
+// DEFEITO CONHECIDO, ainda NÃO corrigido de propósito: `bthd` não tem fronteira
+// e casa DENTRO de outras palavras — `www.HDBTHD.com` (tracker chinês) vira
+// "sinal PT". É a mesma forma do bug do `www.UIndex.org` descrito acima, e foi
+// o único falso positivo entre os 42 duals que o `looksPtBr` passou a
+// reconhecer (medido na conta do operador, 853 magnets).
+//
+// Por que não está consertado aqui: apertar este predicado tira proteção de
+// itens hoje protegidos da limpeza (`audioBucket` devolveria `lixo` em vez de
+// `pt`), ou seja, anda na direção DESTRUTIVA — exatamente o que a Fase 8 exige
+// medir e autorizar antes, não corrigir de passagem. O custo de deixar como
+// está é uma vaga BR ocupada por engano na lista; o custo de errar o conserto
+// é acervo apagado. Ao consertar: exigir fronteira (`(?:^|[^a-z0-9])bthd`) e
+// medir quantos itens saem do balde `pt` ANTES de qualquer `--apply`.
 const BR_MARK = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolverdon|andretpf|lapumia|megatorrents|hdtorrent|torrentbr|bthd)/i;
 
 /** Sem marca de áudio, mas o título denuncia português (post BR sem marcação é o padrão). */

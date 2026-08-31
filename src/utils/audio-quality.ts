@@ -300,7 +300,12 @@ function hasExplicitForeignAudio(title = '') {
 function looksPtBr(title = '') {
   const audio = audioFromTitle(title);
   if (audio === 'Dublado' || audio === 'Nacional') return true;
-  return audio === 'Dual' && explicitPtAudio(title);
+  // `Dual` SOZINHO segue ambíguo (invariante 8.12): `hasPtSigns` entra em
+  // CONJUNÇÃO, nunca no lugar da marca de áudio. Sem isto a release BR escrita
+  // "Dual Áudio" (em vez de "Dublado") não era reconhecida e sumia da lista na
+  // disputa de cota. Medição e cadeia causal em AGENTS.md, "Dual + título em
+  // português".
+  return audio === 'Dual' && (explicitPtAudio(title) || hasPtSigns(title));
 }
 
 type AudioBucket = 'dub' | 'dual' | 'pt' | 'lixo';

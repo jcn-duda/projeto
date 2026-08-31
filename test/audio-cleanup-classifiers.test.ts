@@ -39,12 +39,49 @@ test('Fase 0: Dual Audio (Hindi) continua ambíguo — não é lie nem estrangei
 });
 
 test('Fase 0: MULTI sozinho cai no balde dual, não no lixo', () => {
-  const multi = 'Filme.Nacional.2024.MULTI.1080p.BluRay.x264';
+  // A fixture era `Filme.Nacional.2024.MULTI...`, que se contradizia: o teste
+  // diz "MULTI SOZINHO" mas o nome carrega "Nacional" — o termo brasileiro de
+  // áudio português, que está no PT_VOCAB. Nome neutro testa o que a frase
+  // promete; o caso com palavra PT ao lado tem teste próprio logo abaixo.
+  const multi = 'Movie.2024.MULTI.1080p.BluRay.x264';
   assert.equal(audioFromTitle(multi), 'Dual');
   assert.equal(audioBucket(multi), 'dual');
   // MULTI sem PT explícito não vira dublado para ranking (comportamento
   // de sempre: só conta com PT ao lado).
   assert.equal(looksPtBr(multi), false);
+});
+
+test('Dual + título em português é BR; Dual sozinho continua ambíguo', () => {
+  // Regressão do caso medido em produção: release BR escrita "Dual Áudio" (em
+  // vez de "Dublado") não era reconhecida como brasileira, não ganhava vaga
+  // reservada e sumia da lista na disputa de cota — enquanto a irmã 720p, que
+  // escreve "Dublado", aparecia. Nomes REAIS da conta do operador.
+  const dubladoQueAparecia = 'Trilogia Se Beber Não Case (2009 - 2011 - 2013) Bluray 720p Dublado - WWW.BLUDV.COM';
+  const dualQueSumia = 'Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio 1080p By.Luan.Harper';
+  assert.equal(looksPtBr(dubladoQueAparecia), true, 'o que já funcionava não pode regredir');
+  assert.equal(looksPtBr(dualQueSumia), true, 'Dual + título PT é brasileiro');
+  assert.equal(audioBucket(dualQueSumia), 'dub', 'sai do balde ambíguo');
+
+  // Outros nomes reais da mesma conta: site BR nomeado e título em português.
+  for (const t of [
+    'Matrix (1999) BDRip 1080p Dual Audio - WWW.WOLVERDONFILMES.COM',
+    'A Casa do Dragão S01E04 WEB-DL 1080p DUAL 5.1',
+    'Guardiões da Galáxia - Vol. 3 2023 1080p BluRay DUAL 5.1',
+    'Troia.Versão.Diretor.2004.BluRay.1080p.Dual.Audio.SF',
+  ]) {
+    assert.equal(looksPtBr(t), true, `${t}: BR de verdade`);
+  }
+
+  // O invariante do 8.12 NÃO se afrouxa: dual SEM sinal de português continua
+  // ambíguo — nunca ocupa vaga reservada de BR só por ser dual.
+  for (const t of [
+    'Movie.2024.DUAL.1080p',
+    'The.Matrix.1999.MULTI.1080p',
+    'Zombieland.Double.Tap.2019.2160p.WEB-DL.DDP5.1.Atmos.H265-DreamHD',
+  ]) {
+    assert.equal(looksPtBr(t), false, `${t}: dual sem sinal PT segue ambíguo`);
+    assert.equal(audioBucket(t), 'dual', `${t}: permanece no balde dual`);
+  }
 });
 
 test('Fase 0: a preposição "de" conta para o sinal de português (2+ ocorrências)', () => {
