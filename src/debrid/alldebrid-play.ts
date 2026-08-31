@@ -5,6 +5,8 @@ import * as log from '../utils/logger.js';
 import { call, flattenFiles, DEAD, ACTIVE_STATES, id, type AllDebridMagnet } from './alldebrid-api.js';
 import { rememberSubmitted } from './alldebrid-inventory.js';
 import { skipCleanup } from './alldebrid-cleanup.js';
+import { reuploadBlocked } from './alldebrid-reupload.js';
+import * as metrics from '../utils/metrics.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
@@ -90,12 +92,22 @@ export async function resolveLink(apiKey: string, infoHash: string, { season, ep
  * endpoint que responde `ready` para o cache é o que enfileira o que não está.
  */
 export async function enqueue(apiKey: string, infoHash: string) {
+  const account = accountScope(apiKey);
+  const hash = String(infoHash || '').toLowerCase();
+  // 8.14 — o chupim não re-sobe o que a limpeza intencional apagou: enfileirar
+  // hash bloqueado reabriria a ferida que o marcador fecha. O play explícito
+  // (resolveLink) NÃO é bloqueado de propósito — escolha do usuário vence.
+  if (reuploadBlocked(account, hash)) {
+    metrics.count('debrid.reupload.blocked');
+    log.info(`[alldebrid] enqueue de ${hash.slice(0, 8)}… recusado: hash bloqueado para re-upload`);
+    return false;
+  }
   const data = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
   // `proven: true`: o enqueue é escrita iniciada pelo addon (candidato
   // escolhido pelo chupim) — não há reuso ambíguo a descartar, e sem a
   // etiqueta incondicional o download viraria preexistente no snapshot
   // seguinte após o restart (a catraca do 8.15 pelo caminho do autofetch).
-  if (data?.magnets?.length) rememberSubmitted(accountScope(apiKey), infoHash, { proven: true });
+  if (data?.magnets?.length) rememberSubmitted(account, infoHash, { proven: true });
   return Boolean(data?.magnets?.length);
 }
 

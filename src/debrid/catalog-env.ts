@@ -5,6 +5,7 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import * as catalog from '../utils/catalog.js';
 import { recordFileEvidence } from './audio-audit.js';
+import { markReuploadBlocked } from './alldebrid-reupload.js';
 import { BY_ID } from './registry.js';
 
 // ---------------------------------------------------------------------------
@@ -43,6 +44,20 @@ function catalogContext(): { adapter: DebridAdapter | null; guardos: { ok: false
     };
   }
   return { adapter, guardos: null };
+}
+
+/**
+ * 8.14 — hooks do anti-reenchimento para `applyDeletions`: deleção INTENCIONAL
+ * do catálogo/painel marca "não re-subir" (só para o AllDebrid, único serviço
+ * com o marcador; a blindagem BR de 8.4 vive dentro do próprio mark). Falha de
+ * delete não chega ao hook — o `applyDeletions` só o dispara com o id em
+ * `removedIds`.
+ */
+function reuploadHook(account: string, adapterId: string): { onDeleted: (hash: string, filename?: string) => void } | undefined {
+  if (adapterId !== 'alldebrid') return undefined;
+  return {
+    onDeleted: (hash: string, filename?: string) => markReuploadBlocked(account, hash, filename),
+  };
 }
 
 /** Varre a conta do operador e devolve o relatório do catálogo. */
@@ -89,15 +104,33 @@ async function dedupApplyEnv(max?: number) {
   if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
   const account = accountScope(config.debrid.apiKey);
   const plan = catalog.planDedup(account, adapter.id);
-  const deletions: Array<{ serviceId: string | number; hash: string; reason: string }> = [];
-  for (const g of plan.t1) for (const k of g.kill) deletions.push({ serviceId: k.serviceId, hash: k.hash, reason: 'duplicado' });
-  for (const g of plan.t2) for (const k of g.kill) deletions.push({ serviceId: k.serviceId, hash: k.hash, reason: 'duplicado por arquivo' });
+  // 8.14 — marca anti-reenchimento APENAS onde o hash realmente sai da conta:
+  //  - T1 (mesmo hash em 2+ ids): o kill remove um service_id, mas o
+  //    sobrevivente mantém o MESMO hash na conta — marcar esconderia o ⚡ dele
+  //    por 3 dias. `skipMark` em todos.
+  //  - T2 (mesmo arquivo, hashes diferentes): o hash sai — marca COM o
+  //    filename (a blindagem BR de 8.4 vive no mark e precisa do nome), e
+  //    NUNCA quando o mesmo hash sobrevive pelo keep de outro grupo.
+  const keeps = new Set([...plan.t1, ...plan.t2].map((g) => String(g.keep.hash).toLowerCase()));
+  const deletions: Array<{ serviceId: string | number; hash: string; reason: string; filename?: string; skipMark?: boolean }> = [];
+  for (const g of plan.t1) for (const k of g.kill) deletions.push({ serviceId: k.serviceId, hash: k.hash, reason: 'duplicado', skipMark: true });
+  for (const g of plan.t2) {
+    for (const k of g.kill) {
+      deletions.push({
+        serviceId: k.serviceId,
+        hash: k.hash,
+        reason: 'duplicado por arquivo',
+        filename: k.filename,
+        skipMark: keeps.has(String(k.hash).toLowerCase()),
+      });
+    }
+  }
   const byId = new Map<string, (typeof deletions)[number]>();
   for (const d of deletions) byId.set(String(d.serviceId), d);
   let list = [...byId.values()];
   if (max != null && Number.isFinite(max)) list = list.slice(0, Math.max(0, Math.trunc(max)));
   try {
-    const res = await catalog.applyDeletions(account, adapter.id, list, (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids));
+    const res = await catalog.applyDeletions(account, adapter.id, list, (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids), reuploadHook(account, adapter.id));
     metrics.count('dashboard.catalog.dedup', res.ok);
     return { ok: true, deleted: res.ok, falhas: res.falhas };
   } catch (err: unknown) {
@@ -193,8 +226,9 @@ async function manualDeleteEnv({ serviceIds }: { serviceIds?: Array<string | num
     const res = await catalog.applyDeletions(
       account,
       adapter.id,
-      plan.targets.map((t) => ({ serviceId: t.serviceId, hash: t.hash, reason: t.reason })),
+      plan.targets.map((t) => ({ serviceId: t.serviceId, hash: t.hash, reason: t.reason, filename: t.filename })),
       (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids),
+      reuploadHook(account, adapter.id),
     );
     metrics.count('dashboard.catalog.manual', res.ok);
     return { ok: true, total: plan.targets.length, deleted: res.ok, falhas: res.falhas, ...plan.skipped };
@@ -258,13 +292,14 @@ async function cleanupApplyEnv(max?: number, { includeKnown }: { includeKnown?: 
     includeKnown: includeKnown === true,
   });
   const list = max != null && Number.isFinite(max) ? plan.targets.slice(0, Math.max(0, Math.trunc(max))) : plan.targets;
-  const deletions = list.map((t) => ({ serviceId: t.serviceId, hash: t.hash, reason: t.reason }));
+  const deletions = list.map((t) => ({ serviceId: t.serviceId, hash: t.hash, reason: t.reason, filename: t.filename }));
   try {
     const res = await catalog.applyDeletions(
       account,
       adapter.id,
       deletions,
       (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids),
+      reuploadHook(account, adapter.id),
     );
     metrics.count('dashboard.catalog.cleanup', res.ok);
     return { ok: true, total: list.length, deleted: res.ok, falhas: res.falhas };

@@ -5,6 +5,7 @@ import * as held from './protected.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { foreignVerdict } from '../utils/audio-quality.js';
+import { markReuploadBlocked } from './alldebrid-reupload.js';
 import { call, id, DEAD, ACTIVE_STATES, type AllDebridMagnet } from './alldebrid-api.js';
 import { preexistingHashes } from './alldebrid-inventory.js';
 
@@ -45,6 +46,12 @@ const DROP_RETRY_DELAYS = [400, 800, 1600];
  * `waitFn`/`delays` são injeção opcional para os testes encurtarem as esperas
  * sem esperar o backoff real; produção usa `wait` (de `common.js`) e os
  * padrões acima.
+ *
+ * O retorno inclui `removedIds` (8.14): os ids que SAÍRAM de verdade. É o que
+ * permite o chamador de deleção INTENCIONAL marcar "não re-subir" sem marcar
+ * falha — magnet que a conta recusou apagar continua lá, e marcá-lo o
+ * esconderia da checagem de cache à toa. Chamadores antigos que leem só
+ * `{ ok, falhas }` continuam funcionando.
  */
 export async function deleteMagnets(
   apiKey: string,
@@ -52,6 +59,7 @@ export async function deleteMagnets(
   { waitFn = wait, delays = DROP_RETRY_DELAYS }: { waitFn?: (ms: number) => Promise<unknown>; delays?: number[] } = {},
 ) {
   const falhas: Array<{ message?: string }> = [];
+  const removidos: Array<string | number> = [];
   let ok = 0;
 
   const round = async (alvo: Array<string | number>) => {
@@ -65,6 +73,7 @@ export async function deleteMagnets(
           try {
             await call(apiKey, '/magnet/delete', { id });
             ok += 1;
+            removidos.push(id);
             removido = true;
             break;
           } catch {
@@ -84,7 +93,7 @@ export async function deleteMagnets(
   // Reenfileirados: a fila curta já drenou, a rajada passou — agora falha a sério.
   const segundaRodada = await round(primeiraRodada);
   for (const id of segundaRodada) falhas.push({ message: `falhou ao remover magnet ${id}` });
-  return { ok, falhas };
+  return { ok, falhas, removedIds: removidos };
 }
 
 /** Alias interno não exportado: os demais pontos de limpeza seguem chamando-o. */
@@ -211,7 +220,18 @@ export async function sweepUndubbed(
   const corte = alvo.slice(0, Math.max(0, Math.trunc(Number(max) || 0)));
   if (!corte.length) return { varridos: 0, falhas: 0 };
 
-  const { ok, falhas } = await dropMagnets(apiKey, corte.flatMap((m) => (m.id == null ? [] : [m.id])));
+  const { ok, falhas, removedIds } = await dropMagnets(apiKey, corte.flatMap((m) => (m.id == null ? [] : [m.id])));
+  // 8.14 — anti-reenchimento: marca "não re-subir" SÓ o que saiu de verdade
+  // (removedIds; falha de delete não marca). A blindagem BR (brOriginMark no
+  // filename) vive dentro do mark — falso positivo aqui esconderia o acervo
+  // que a limpeza errou ao apagar. dropReady/dropDownload da checagem NÃO
+  // marcam: lá a remoção é rotina de higiene, não decisão sobre o conteúdo.
+  const porId = new Map(corte.map((m) => [String(m.id), m]));
+  let marcados = 0;
+  for (const rid of removedIds || []) {
+    const m = porId.get(String(rid));
+    if (m && markReuploadBlocked(account, String(m.hash || ''), m.filename)) marcados += 1;
+  }
   metrics.count('debrid.swept.undubbed', ok);
   if (falhas.length) {
     log.warn(
@@ -220,5 +240,6 @@ export async function sweepUndubbed(
   } else {
     log.info(`[alldebrid] varredura de não-dublados: ${ok} magnet(s) antigo(s) sem áudio PT removido(s)`);
   }
+  if (marcados) log.info(`[alldebrid] ${marcados} hash(es) marcado(s) como "não re-subir" (anti-reenchimento)`);
   return { varridos: ok, falhas: falhas.length };
 }

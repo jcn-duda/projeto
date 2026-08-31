@@ -22,6 +22,7 @@ import debrid from '../src/debrid/index.js';
 import { peekDavail, noteUnavailable } from '../src/debrid/cache-check.js';
 import { enrichInstantWithoutCacheCheck } from '../src/providers/debrid-pipeline-steps.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { markReuploadBlocked, forgetReuploadBlock } from '../src/debrid/alldebrid-reupload.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
@@ -244,6 +245,33 @@ test('knob on + availNegTtl=0: guarda do negativo desligada, alive-⚡ aplica', 
     assert.equal(counter('debrid.instant.fromAliveAsCache'), antes + 1);
   } finally {
     restore();
+  }
+});
+
+test('knob on + alive + hash marcado "não re-subir" (8.14): o atalho não pinta ⚡', () => {
+  // O registro `adrm` diz que a limpeza INTENCIONAL apagou o hash: a memória
+  // de play não pode ressuscitá-lo como tocável — o enqueue dele já é recusado
+  // e oferecer ⚡ seria prometer um play que o serviço não tem.
+  const KEY = 'conta-alive-adrm';
+  const HASH = '7'.repeat(40);
+  const restore = withDebrid({ aliveAsCache: true });
+  try {
+    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    assert.equal(
+      markReuploadBlocked(accountScope(KEY), HASH, 'Old Foreign Movie 2019 TrueFrench 1080p'),
+      true,
+      'precondição: hash marcado como não re-subir',
+    );
+    const antes = counter('debrid.instant.fromAliveAsCache');
+    const adapter = makeAdapter('alldebrid', () => ({}));
+    const cached = new Set<string>();
+    const result = enrichInstantWithoutCacheCheck(adapter, [streamFor(HASH)], cached, false, KEY);
+    assert.equal(cached.has(HASH), false, 'hash apagado de propósito não recebe ⚡ do atalho');
+    assert.equal(result.accountKnown, false);
+    assert.equal(counter('debrid.instant.fromAliveAsCache'), antes, 'não conta como histórico aplicado');
+  } finally {
+    restore();
+    forgetReuploadBlock(accountScope(KEY), HASH);
   }
 });
 

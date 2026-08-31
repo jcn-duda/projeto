@@ -11,13 +11,13 @@
  * instância nova de cache.ts reusando o irmão cacheado, com o store alheio).
  */
 
-// A soma das cotas de namespaces conhecidos é 34.050 (inclui rdc=14.000,
-// rdq=500, rdt=2.500, adprot=2.000 e adsub=1.000), deixando 1.950
+// A soma das cotas de namespaces conhecidos é 34.550 (inclui rdc=14.000,
+// rdq=500, rdt=2.500, adprot=2.000, adsub=1.000 e adrm=500), deixando 1.450
 // entradas de folga sob o teto global. O ledger RD
 // é global por hash e precisa reter muito mais histórico que os caches por conta;
 // os demais baldes foram calibrados para abrir esse espaço sem deixar o despejo
 // global invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB
-// ≈ 79 MB no pior caso); rdc/davail/mag/rdt/adprot/adsub guardam só
+// ≈ 79 MB no pior caso); rdc/davail/mag/rdt/adprot/adsub/adrm guardam só
 // registros minúsculos.
 export const MAX_ENTRIES = 36000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
@@ -63,6 +63,10 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // usuário e a limpeza nunca mais o alcança (medido: 904 magnets em 8 dias
   // sem o autofetch participar). Registro minúsculo, mesmo formato do adprot.
   adsub: 1000,
+  // Anti-reenchimento do AllDebrid (`adrm:v1`, 8.14): registro { at, name? }
+  // por hash apagado de propósito, TTL de 3 dias — bloco minúsculo no tamanho
+  // da rodada de limpeza (teto de 100/rodada), não do acervo inteiro.
+  adrm: 500,
   __default: 500,
 });
 

@@ -2,6 +2,8 @@ import config from '../config.js';
 import type { DebridAdapter, Stream } from '../../types/domain.js';
 import debrid from '../debrid/index.js';
 import { peekDavail } from '../debrid/cache-check.js';
+import { reuploadBlocked } from '../debrid/alldebrid-reupload.js';
+import { accountScope } from '../utils/request-key.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import * as rdLedger from '../debrid/rd-ledger.js';
 import * as rdOracle from '../debrid/rd-oracle.js';
@@ -293,6 +295,7 @@ export function enrichInstantWithoutCacheCheck(
   //     voltar não-ready grava o negativo de 120s pelo noteUnavailable.
   if (adapter.cacheCheck && apiKey && config.debrid.aliveAsCache && !known) {
     cachedForAutofetch = new Set(cached);
+    const account = accountScope(apiKey);
     let doHistorico = 0;
     for (const s of streams) {
       const hash = String(s.infoHash || '').toLowerCase();
@@ -301,6 +304,11 @@ export function enrichInstantWithoutCacheCheck(
       // 0 desliga a leitura/escrita negativa por contrato, então um 0 na chave
       // não é evidência — é lixo que o próprio sistema deixaria de escrever.
       const negativoFresco = config.debrid.availNegTtl > 0 && peekDavail(adapter.id, apiKey, hash) === 0;
+      // 8.14 — hash marcado "não re-subir" não ganha ⚡ do atalho: o registro
+      // diz que a limpeza INTENCIONAL o apagou, e pintá-lo de tocável ofereceria
+      // um play que o serviço não tem (o enqueue dele já é recusado). Para
+      // adaptador não-AD não há registro — a guarda é um peek síncrono, sem rede.
+      if (reuploadBlocked(account, hash)) continue;
       if (magnetdb.isAlive(adapter.id, apiKey, hash) && !negativoFresco) {
         cached.add(hash);
         doHistorico += 1;

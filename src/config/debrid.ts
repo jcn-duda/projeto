@@ -109,6 +109,18 @@ export const debrid = () => ({
   // catraca — a conta saiu de ~0 para 904 magnets em 8 dias com o autofetch
   // gateado. 0 desliga a persistência (rollback: volta ao Map de memória).
   alldebridSubmittedTtlMs: Math.max(0, num(process.env.ALLDEBRID_SUBMITTED_TTL_MS, 7 * 24 * 3600 * 1000)),
+  // Anti-reenchimento durável (`adrm:v1`, Fase 8 item 8.14): hash que a limpeza
+  // INTENCIONAL (sweepUndubbed, catálogo/painel) apagou recebe o registro
+  // "não re-subir" e a checagem de cache da AllDebrid deixa de enviá-lo ao
+  // /magnet/upload — sem isso a busca seguinte re-sobe o gringo recém-apagado
+  // (900s de davail não seguram) e a limpeza vira esteira eterna. NÃO cobre
+  // dropReady/dropUncached nem play explícito. false desliga o bloqueio.
+  reuploadBlock: String(process.env.DEBRID_REUPLOAD_BLOCK || 'true') === 'true',
+  // Validade do registro de re-upload bloqueado. 3 dias cobre o regime de
+  // re-entrada (a checagem martela o hash enquanto ele interessar a alguma
+  // busca) sem eternizar o bloqueio sobre um hash que pode voltar a ser útil.
+  // 0 desliga a gravação E a leitura (rollback de uma linha).
+  alldebridReuploadBlockTtlMs: Math.max(0, num(process.env.ALLDEBRID_REUPLOAD_BLOCK_TTL_MS, 3 * 24 * 3600 * 1000)),
   // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
   // "Expired", "File not available"). A limpeza por busca só alcança hashes
   // que estão na consulta do momento; um torrent que morreu e nunca mais é

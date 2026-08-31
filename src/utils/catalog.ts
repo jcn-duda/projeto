@@ -709,7 +709,7 @@ export function planDedup(account: string, adapterId?: string): { t1: DedupGroup
   return { t1, t2 };
 }
 
-type Deletion = { serviceId: string | number; hash: string; reason: string };
+type Deletion = { serviceId: string | number; hash: string; reason: string; filename?: string; skipMark?: boolean };
 
 function flattenDeletions(plan: { t1: DedupGroup[]; t2: DedupGroup[] }, max?: number): Deletion[] {
   const out: Deletion[] = [];
@@ -726,12 +726,19 @@ function flattenDeletions(plan: { t1: DedupGroup[]; t2: DedupGroup[] }, max?: nu
  * Executa deletes via `executor` (injetado; quem chama liga ao `deleteMagnets`
  * do adapter) e marca tombstone SÓ do que saiu. Falha do executor deixa a
  * linha VIVA. Registra `catalog.dedup.deleted`/`catalog.dedup.failed`.
+ *
+ * `hooks.onDeleted` (opcional, 8.14): chamado por deleção BEM-SUCEDIDA com o
+ * hash e o nome da release — é onde o chamador liga o anti-reenchimento
+ * (`markReuploadBlocked`) para o adaptador que tem o marcador (AllDebrid).
+ * Com `removedIds` no retorno do executor, a sucesso exige o id NELE: falha
+ * de delete nunca dispara o hook.
  */
 export async function applyDeletions(
   account: string,
   adapterId: string,
   deletions: Deletion[],
-  executor: (ids: Array<string | number>) => Promise<{ ok: number; falhas: Array<{ message?: string }> }>,
+  executor: (ids: Array<string | number>) => Promise<{ ok: number; falhas: Array<{ message?: string }>; removedIds?: Array<string | number> }>,
+  hooks?: { onDeleted?: (hash: string, filename?: string) => void },
 ): Promise<{ ok: number; falhas: number }> {
   const e = engine();
   let ok = 0;
@@ -739,8 +746,13 @@ export async function applyDeletions(
   for (const del of deletions) {
     try {
       const res = await executor([del.serviceId]);
-      if (res && Array.isArray(res.falhas) && res.falhas.length === 0 && Number(res.ok) >= 1) {
+      const saiu = Boolean(
+        res && Array.isArray(res.falhas) && res.falhas.length === 0 && Number(res.ok) >= 1 &&
+        (!res.removedIds || res.removedIds.map(String).includes(String(del.serviceId))),
+      );
+      if (saiu) {
         e.markDeleted(adapterId, account, [{ serviceId: del.serviceId, reason: del.reason }]);
+        if (!del.skipMark) hooks?.onDeleted?.(del.hash, del.filename);
         ok += 1;
       } else {
         failed += 1;

@@ -74,6 +74,13 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // é o que impede o snapshot seguinte de reclassificar o upload do addon como
   // acervo do usuário (a catraca que encheu a conta sem o autofetch).
   adsub: 'v1',
+  // Anti-reenchimento do AllDebrid (`adrm:v1:<account>:<hash>`, registro
+  // `{ at, name? }`, Fase 8 item 8.14): hash que a limpeza INTENCIONAL
+  // (sweepUndubbed, catálogo/painel) apagou não volta a ser enviado ao
+  // /magnet/upload — que é a própria checagem de cache. Sem escopo de adapter
+  // de propósito: só o AllDebrid marca, e a leitura por outras contas/keys
+  // simplesmente não encontra registro.
+  adrm: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

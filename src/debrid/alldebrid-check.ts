@@ -7,6 +7,7 @@ import * as metrics from '../utils/metrics.js';
 import { call, id } from './alldebrid-api.js';
 import { preexisting, knownBefore, waitInventory, rememberSubmitted } from './alldebrid-inventory.js';
 import { skipCleanup, deleteMagnets as dropMagnets } from './alldebrid-cleanup.js';
+import { filterReuploadBlocked } from './alldebrid-reupload.js';
 
 /**
  * O /magnet/instant foi removido, mas o próprio /magnet/upload responde
@@ -51,7 +52,17 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
   }
   const skipReadyDrop = !hadInventory;
 
-  const result = await batched(infoHashes, config.debrid.batchSize, async (batch: string[], ctx?: { timeoutMs?: number }) => {
+  // 8.14 — anti-reenchimento: hash que a limpeza INTENCIONAL apagou não volta
+  // ao /magnet/upload (que é a própria checagem). O bloqueado fica FORA do Set
+  // de cache — vazio conhecido é intencional, o hash foi apagado de propósito —
+  // e nunca chega à resposta do upload, portanto não entra em dropReady/
+  // dropDownload. Leitura é peek síncrono: zero rede adicional no prazo.
+  const { send, blocked } = filterReuploadBlocked(account, infoHashes);
+  if (blocked.length) {
+    log.info(`[alldebrid] ${blocked.length} hash(es) bloqueado(s) para re-upload ficam fora da checagem`);
+  }
+
+  const result = await batched(send, config.debrid.batchSize, async (batch: string[], ctx?: { timeoutMs?: number }) => {
     const data = await call(
       apiKey,
       '/magnet/upload',

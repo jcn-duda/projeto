@@ -237,11 +237,13 @@ export interface DebridAdapter {
   magnetList?(apiKey: string): Promise<import('../src/debrid/alldebrid').AllDebridMagnetRow[]>;
   /** Arquivos de UM magnet por id; ausente = catálogo não audita arquivos aqui. */
   magnetFiles?(apiKey: string, serviceId: string | number): Promise<import('../src/debrid/file-selector.js').DebridFile[]>;
-  /** Remove magnet(s) por id com backoff; ausente = sem delete dedicado. */
+  /** Remove magnet(s) por id com backoff; ausente = sem delete dedicado.
+   *  `removedIds` (opcional, AllDebrid) lista os ids que SAÍRAM de verdade —
+   *  é o que o anti-reenchimento (8.14) usa para marcar sem marcar falha. */
   deleteMagnets?(
     apiKey: string,
     ids: Array<string | number>,
-  ): Promise<{ ok: number; falhas: Array<{ message?: string }> }>;
+  ): Promise<{ ok: number; falhas: Array<{ message?: string }>; removedIds?: Array<string | number> }>;
   /**
    * Snapshot `knownBefore` AGUARDADO para limpezas de fundo (30s de teto).
    * `null` = inventário não chegou: fail-safe fecha, nada pode ser apagado.
