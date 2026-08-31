@@ -75,6 +75,26 @@
     <div id="debridCards" class="cards"><div class="empty">Sem dados de debrid.</div></div>
   </section>
 
+  <!-- Testar conta de debrid (Fase 1, somente frontend): consulta PONTUAL de
+       uma chave. O POST carrega { action, service, key } em debrid-account-test;
+       a chave viaja no corpo, nunca na URL, e o input é limpo em todo desfecho.
+       Nada aqui salva a chave ou altera a conta do operador / .env. -->
+  <section aria-labelledby="debridTestTitle">
+    <div class="section-head"><div><h2 id="debridTestTitle">Testar conta de debrid</h2><p>Consulta pontual de uma chave em um dos serviços conhecidos, sem configurar nada nesta instância.</p></div></div>
+    <p id="debridTestWarning" class="guidance">Este teste é pontual: a chave digitada <b>não é salva</b> em lugar nenhum e <b>não altera</b> a conta do operador, o <b>.env</b> ou a instalação atual — vale apenas para a resposta desta consulta.</p>
+    <div class="test-tools debrid-test-tools">
+      <label for="debridTestService">Serviço
+        <select id="debridTestService"></select>
+      </label>
+      <label for="debridTestKey">Chave de API do serviço
+        <input id="debridTestKey" type="password" autocomplete="off" spellcheck="false" placeholder="cole a chave para testar" aria-describedby="debridTestWarning" />
+      </label>
+      <button id="debridTestButton" type="button">Testar chave</button>
+    </div>
+    <p id="debridTestFeedback" class="feedback" role="status" aria-live="polite"></p>
+    <div id="debridTestOutput" class="test-output"></div>
+  </section>
+
   <section aria-labelledby="sourcesTitle">
     <div class="section-head"><div><h2 id="sourcesTitle">Indexadores e resolvers BR</h2><p>Saúde medida, breaker e capacidade de resolução dos indexadores brasileiros.</p></div></div>
     <div class="subsection"><h3>Indexadores</h3><div id="indexerCards" class="cards"><div class="empty">Sem dados de indexadores.</div></div></div>
@@ -568,10 +588,11 @@
   </div>
 </main>
 
-<!-- JS extraido do inline (Fase 3, PLANO_MELHORIAS 5.9). A ordem importa: core, panels, status e so entao o script inline; escopo global compartilhado (sem IIFE). Caminho ABSOLUTO. -->
+<!-- JS extraido do inline (Fase 3, PLANO_MELHORIAS 5.9). A ordem importa: core, panels, status, teste de conta de debrid e so entao o script inline; escopo global compartilhado (sem IIFE). Caminho ABSOLUTO. -->
 <script src="/dashboard-core.js"></script>
 <script src="/dashboard-panels.js"></script>
 <script src="/dashboard-status.js"></script>
+<script src="/dashboard-debrid-test.js"></script>
 <script>
   "use strict";
 
@@ -1518,6 +1539,9 @@
     $("refreshRate").addEventListener("change", scheduleRefresh);
     $("token").addEventListener("keydown", function (event) { if (event.key === "Enter") saveToken(); });
     $("testIndexerButton").addEventListener("click", function () { runIndexerTest($("testIndexerId").value, $("testIndexerButton")); });
+    fillDebridTestServices();
+    $("debridTestButton").addEventListener("click", function () { runDebridAccountTest($("debridTestButton")); });
+    $("debridTestKey").addEventListener("keydown", function (event) { if (event.key === "Enter") runDebridAccountTest($("debridTestButton")); });
     $("cacheNamespace").addEventListener("change", updateCacheScopeAvailability);
     for (i = 0; i < actions.length; i += 1) actions[i].addEventListener("click", function () { runAction(this); });
     document.addEventListener("visibilitychange", function () {

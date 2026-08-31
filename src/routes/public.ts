@@ -14,6 +14,9 @@ const PAGE_ASSETS = [
   'dashboard-core.js',
   'dashboard-panels.js',
   'dashboard-status.js',
+  // Teste pontual de conta de debrid (Fase 1): módulo próprio extraído de
+  // dashboard-panels.js ao se aproximar do teto de 400 linhas da catraca.
+  'dashboard-debrid-test.js',
 ];
 
 function makePublicHandlers(services: AppServices) {

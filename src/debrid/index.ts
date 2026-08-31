@@ -32,6 +32,7 @@ export default {
   noteUnavailable: cacheCheck.noteUnavailable,
   accountStatus: accountStatus.accountStatus,
   dashboardAccounts: accountStatus.dashboardAccounts,
+  testAccount: accountStatus.testAccount,
   resolveLink: actions.resolveLink,
   enqueue: actions.enqueue,
   inventory: inventory.inventory,

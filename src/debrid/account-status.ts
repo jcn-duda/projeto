@@ -1,5 +1,5 @@
 import { opts } from '../runtime.js';
-import type { DebridAdapter } from '../../types/domain.js';
+import type { AccountStatus, DebridAdapter } from '../../types/domain.js';
 import config from '../config.js';
 import * as log from '../utils/logger.js';
 import { accountScope } from '../utils/request-key.js';
@@ -19,6 +19,29 @@ const ACCOUNT_WARN_TOTAL = config.debrid.accountWarnTotal;
 const ACCOUNT_WARN_LIMIT_USED = config.debrid.accountWarnLimitUsed;
 
 /**
+ * Limiares de aviso da ocupação, calculados SEM efeito colateral: o caminho do
+ * verificador loga o aviso, o teste de conta (`testAccount`) só o reporta — a
+ * chave testada pode nem ser a de ninguém ainda, e não é ela que deve virar
+ * log do processo.
+ */
+function accountWarnFlags(status: AccountStatus) {
+  // O fair-use sai numa variável PRÓPRIA em vez de um booleano `byFairUse`
+  // consultando `status.limitUsed` depois: `Number.isFinite` não estreita o
+  // tipo através de um intermediário, e o campo é opcional (só o Premiumize
+  // publica). Mesmo teste, mesmo resultado — agora verificável.
+  const fairUse = Number.isFinite(status.limitUsed) ? Number(status.limitUsed) : null;
+  const warn = fairUse !== null
+    ? ACCOUNT_WARN_LIMIT_USED > 0 && fairUse >= ACCOUNT_WARN_LIMIT_USED
+    : Number(status.magnets) >= ACCOUNT_WARN_TOTAL;
+  return {
+    fairUse,
+    warn,
+    warnAt: fairUse !== null ? ACCOUNT_WARN_LIMIT_USED : ACCOUNT_WARN_TOTAL,
+    warnAtUnit: fairUse !== null ? 'fair-use' : 'magnets',
+  };
+}
+
+/**
  * Saúde da conta do serviço corrente, para o endpoint de diagnóstico.
  *
  * Nunca lança: o verificador precisa responder justamente quando o serviço está
@@ -33,16 +56,7 @@ async function accountStatusFor(adapter: DebridAdapter | null, apiKey: string) {
 
   try {
     const status = await adapter.accountStatus(apiKey);
-    // O fair-use sai numa variável PRÓPRIA em vez de um booleano `byFairUse`
-    // consultando `status.limitUsed` depois: `Number.isFinite` não estreita o
-    // tipo através de um intermediário, e o campo é opcional (só o Premiumize
-    // publica). Mesmo teste, mesmo resultado — agora verificável.
-    const fairUse = Number.isFinite(status.limitUsed) ? Number(status.limitUsed) : null;
-    const warn = fairUse !== null
-      ? ACCOUNT_WARN_LIMIT_USED > 0 && fairUse >= ACCOUNT_WARN_LIMIT_USED
-      : Number(status.magnets) >= ACCOUNT_WARN_TOTAL;
-    const warnAt = fairUse !== null ? ACCOUNT_WARN_LIMIT_USED : ACCOUNT_WARN_TOTAL;
-    const warnAtUnit = fairUse !== null ? 'fair-use' : 'magnets';
+    const { fairUse, warn, warnAt, warnAtUnit } = accountWarnFlags(status);
     if (warn) {
       if (fairUse !== null) {
         log.warn(
@@ -172,6 +186,167 @@ function withAccountTimeout(task: Promise<any>) {
   ]);
 }
 
+// ---------------------------------------------------------------------------
+// Teste de conta sob demanda (action `debrid-account-test` do painel — Fase 1
+// do debrid configurável). É o único caminho que consulta a saúde de uma
+// chave que AINDA NÃO está salva em lugar nenhum: sem memo (o memo curto
+// acima serve só às contas já configuradas — credencial em teste não pode
+// poluí-lo nem herdar leitura velha dela mesma), sem persistência (davail/
+// magnetdb/ledger intocados) e sem ler opts()/runtime — adapter e chave chegam
+// explícitos da rota. O teste NÃO salva, NÃO aplica e NÃO troca config.
+// ---------------------------------------------------------------------------
+
+type AccountTestCapabilities = {
+  cacheCheck: boolean;
+  abortSafeCacheCheck: boolean;
+  accountStatus: boolean;
+  inventory: boolean;
+  autofetch: boolean;
+  torrentStatus: boolean;
+  catalogCleanup: boolean;
+};
+
+export type AccountTestOutcome =
+  | {
+      ok: true;
+      service: string;
+      label: string;
+      keySet: true;
+      last4: string;
+      fingerprint: string;
+      account: Record<string, unknown>;
+      capabilities: AccountTestCapabilities;
+    }
+  | {
+      ok: false;
+      service: string;
+      label: string;
+      keySet: true;
+      last4: string;
+      fingerprint: string;
+      reason: string;
+      fix: string | null;
+      error?: string;
+      capabilities: AccountTestCapabilities;
+    };
+
+// Campos do AccountStatus que podem ecoar ao painel. Allowlist FECHADA de
+// propósito: o status vem de resposta de terceiro, e campo novo que apareça
+// lá não vaza por padrão — entra aqui depois de revisado.
+const SAFE_ACCOUNT_FIELDS = [
+  'magnets', 'ready', 'active', 'error', 'limitUsed', 'premiumUntil', 'oldestAt',
+] as const;
+
+function safeAccount(status: AccountStatus): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const field of SAFE_ACCOUNT_FIELDS) {
+    const value = status[field];
+    if (value !== undefined && value !== null) out[field] = value;
+  }
+  return out;
+}
+
+// Capacidades derivadas SÓ do adaptador bruto do registry (mesma semântica do
+// SERVICES da /configure): o cacheCheck dinâmico do RD (ledger+oráculo) é
+// decisão do current() em runtime e não é recalculado aqui — o painel mostra o
+// que o adaptador DECLARA, não o que a config corrente habilita.
+function accountCapabilities(adapter: DebridAdapter): AccountTestCapabilities {
+  const base: AccountTestCapabilities = {
+    cacheCheck: adapter.cacheCheck === true,
+    // Campo opcional: ausente = consulta abortável (só a AllDebrid declara false).
+    abortSafeCacheCheck: adapter.abortSafeCacheCheck !== false,
+    accountStatus: typeof adapter.accountStatus === 'function',
+    inventory: typeof adapter.inventory === 'function',
+    // Mesmo critério do canAutoFetchBr: cacheCheck confiável OU fonte por inventário.
+    autofetch: Boolean(typeof adapter.enqueue === 'function' && (adapter.cacheCheck || adapter.autofetchSource)),
+    torrentStatus: typeof adapter.torrentStatus === 'function',
+    // Só quem lista magnets da conta entra no catálogo/limpador do painel.
+    catalogCleanup: typeof adapter.magnetList === 'function',
+  };
+  // RD declara cacheCheck:false cru, mas o capability `true` aqui NÃO mente:
+  // a checagem dinâmica é decisão do runtime (ledger+oráculo habilitados) e o
+  // painel sem esse ajuste mostraria "consulta de cache: não" para o serviço
+  // que mais investe nela. É o mesmo contrato do clone de `current()`.
+  if (adapter.id === 'realdebrid') base.cacheCheck = true;
+  return base;
+}
+
+// Identidade SEGURA da chave testada: nunca a chave, nunca o accountScope
+// inteiro. `last4` orienta o olho humano; 8 chars do sha256 bastam para
+// correlacionar dois testes da mesma chave sem viabilizar inversão.
+function keyIdentity(apiKey: string) {
+  return { keySet: true as const, last4: apiKey.slice(-4), fingerprint: accountScope(apiKey).slice(0, 8) };
+}
+
+// Mensagem de erro de terceiro pode ecoar a credencial (URL em falha de rede,
+// corpo de resposta). A máscara cobre a chave crua e a forma URL-encoded, que
+// é como ela viaja em query string. split/join em vez de regex: chave com
+// metacaractere não pode virar padrão.
+function scrubKey(text: string, apiKey: string): string {
+  let out = text;
+  for (const form of new Set([apiKey, encodeURIComponent(apiKey)])) {
+    if (form && form !== '***') out = out.split(form).join('***');
+  }
+  return out;
+}
+
+const TIMEOUT_FIX =
+  'o serviço não respondeu dentro do prazo do painel; tente de novo — persistindo, o serviço está instável ou a rede está lenta';
+
+/**
+ * Consulta a saúde da chave INFORMADA, sem memo e sem efeito colateral, e
+ * devolve um payload que NUNCA contém a chave nem o accountScope completo.
+ * Nunca lança: o resultado do teste é o próprio corpo (auth/quota/rate/falha/
+ * timeout/nao-suportado), no mesmo vocabulário do verificador de conta.
+ */
+async function testAccount(adapter: DebridAdapter, apiKey: string): Promise<AccountTestOutcome> {
+  const base = {
+    service: adapter.id,
+    label: adapter.label,
+    ...keyIdentity(apiKey),
+    capabilities: accountCapabilities(adapter),
+  };
+  if (typeof adapter.accountStatus !== 'function') {
+    return {
+      ...base,
+      ok: false,
+      reason: 'nao-suportado',
+      fix: `${adapter.label} não publica ocupação de conta na API; o addon não consegue validar a chave sem um play real`,
+    };
+  }
+  const task = adapter.accountStatus(apiKey);
+  // A corrida com o timeout pode desistir da consulta; rejeição tardia sem
+  // observador viraria unhandledRejection no processo.
+  task.catch(() => {});
+  try {
+    const outcome: any = await withAccountTimeout(task);
+    if (outcome && outcome.ok === false && outcome.reason === 'timeout') {
+      return { ...base, ok: false, reason: 'timeout', error: outcome.error, fix: TIMEOUT_FIX };
+    }
+    const status: AccountStatus = outcome;
+    // Sem `accountWarnFlags` de propósito: warn/warnAt são os LIMIARES do
+    // operador (.env) e esta conta pode ser de outra pessoa — ocupação crua
+    // no payload, sem semântica emprestada.
+    return { ...base, ok: true, account: safeAccount(status) };
+  } catch (err) {
+    const reason = failureReason(err);
+    const fix = reason === 'auth'
+      ? UNUSABLE.auth.fix(adapter)
+      : reason === 'quota'
+        ? UNUSABLE.quota.fix()
+        : reason === 'rate'
+          ? 'aguarde alguns minutos para o rate limit passar e teste novamente'
+          : null;
+    return {
+      ...base,
+      ok: false,
+      reason,
+      fix,
+      error: scrubKey(log.errorMessage(err), apiKey).slice(0, 300),
+    };
+  }
+}
+
 /**
  * Contas que a requisição realmente conhece. Não existe chave para os outros
  * adaptadores, então exibi-los como "offline" seria uma mentira operacional.
@@ -199,4 +374,4 @@ async function dashboardAccounts(currentStatus: any) {
   return accounts;
 }
 
-export { accountStatusFor, accountStatus, dashboardAccounts, resetAccountStatusMemo };
+export { accountStatusFor, accountStatus, dashboardAccounts, testAccount, resetAccountStatusMemo };
