@@ -310,6 +310,25 @@ test('relevância: pack de franquia de série já passa pelo caminho normal', ()
   assert.equal(filterInventoryRelevant([item], ctx).length, 1);
 });
 
+test('relevância: pack real "Dual Áudio ... By-LuaHarper" passa no inventário', () => {
+  // Fixture do caso REAL de produção (2026-08-31): o título do pack tem o
+  // watermark "By-LuaHarper" e só declara "Dual Áudio" (sem "Dublado"). A
+  // precisão calculada é 4/6 = 0.667 contra o piso 0.65 de filme — dois
+  // tokens de ruído a mais no título reprovariam o pack inteiro por título.
+  // Travado aqui para a margem não se fechar silenciosamente.
+  const ctx = {
+    names: ['The Hangover', 'Se Beber, Não Case'],
+    year: 2009,
+    isSeries: false,
+  };
+  const item = {
+    title: 'Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio 1080p By-LuaHarper',
+    infoHash: H1,
+    seeders: 1,
+  };
+  assert.deepEqual(filterInventoryRelevant([item], ctx), [item]);
+});
+
 test('buildStreams preserva o pack de franquia da conta e o entrega via /resolve', async () => {
   const HASH_FILM = 'f'.repeat(40);
   const raw = [{
