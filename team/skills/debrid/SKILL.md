@@ -40,7 +40,7 @@ para ela não encher. Ordem em que as peças agem:
 | `adsub:v1` (posse durável) | não apaga nada — decide **de quem é** | ON (TTL 7d) |
 | `adrm:v1` (anti-reenchimento) | impede re-subir o que a limpeza apagou | ON (TTL 3d) |
 | `sweepDead` / `sweepUndubbed` | morto / pronto sem áudio PT | ON |
-| `alldebrid-reconcile.ts` | posse órfã que a limpeza NÃO alcançou (H2) | **ON** |
+| `alldebrid-reconcile.ts` | posse órfã que a limpeza NÃO alcançou (H2) | **OFF por padrão** |
 | `DEBRID_EVICT_PER_SEARCH` | mais antigos provadamente estrangeiros | **OFF** |
 
 Três coisas que só se aprende errando:

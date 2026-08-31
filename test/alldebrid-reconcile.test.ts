@@ -1,6 +1,6 @@
 // Fase 8 — Reconcile da posse (`adsub`) com a conta real.
 //
-// Contrato fixado aqui: knobs (default ON, clamp 0..50, intervalo, margem);
+// Contrato fixado aqui: knobs (default OFF, clamp 0..50, intervalo, margem);
 // escopo B-2 (só a conta do operador, BYO e gate fechado nunca); seleção em
 // CONJUNÇÃO (ready, não ativo, não preexistente, posse ativa, anti-re-add,
 // não-consultado, held/adprot); snapshot `null` pula a rodada FECHADA; mais
@@ -57,14 +57,14 @@ function limpa(KEY: string, hashes: string[]) {
 
 // --- 1. Knobs -----------------------------------------------------------------
 
-test('reconcile: default ON, intervalo 300s, teto 25 com clamp 0..50, margem 600s', () => {
+test('reconcile: default OFF, intervalo 300s, teto 25 com clamp 0..50, margem 600s', () => {
   delete process.env.DEBRID_RECONCILE;
   delete process.env.DEBRID_RECONCILE_MIN_INTERVAL_MS;
   delete process.env.DEBRID_RECONCILE_MAX_PER_ROUND;
   delete process.env.DEBRID_RECONCILE_AGE_MARGIN_MS;
   try {
     const fabrica = debrid();
-    assert.equal(fabrica.reconcile, true, 'default ON: o cenário (posse remanescente) é o normal do tráfego');
+    assert.equal(fabrica.reconcile, false, 'default OFF: remoção exige decisão explícita do operador');
     assert.equal(fabrica.reconcileMinIntervalMs, 300_000);
     assert.equal(fabrica.reconcileMaxPerRound, 25, 'teto default conservador');
     assert.equal(fabrica.reconcileAgeMarginMs, 600_000);

@@ -147,7 +147,7 @@ export const debrid = () => ({
   // recusado, hash omitido na resposta). Fire-and-forget, escopo B-2 (só
   // operador), anti-reentrada e intervalo mínimo por conta. false desliga
   // (rollback de uma linha).
-  reconcile: String(process.env.DEBRID_RECONCILE || 'true') === 'true',
+  reconcile: String(process.env.DEBRID_RECONCILE || 'false') === 'true',
   // Intervalo mínimo entre rodadas POR CONTA: o gatilho é a checagem (que pode
   // rodar várias vezes por minuto) e o /magnet/status em fundo não acompanha
   // esse ritmo. Rodadas mais próximas que isso são puladas.

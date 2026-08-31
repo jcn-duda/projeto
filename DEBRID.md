@@ -516,7 +516,7 @@ primeiros são os que apagam.
   (300000).
 - Anti-reenchimento: `DEBRID_REUPLOAD_BLOCK` (default `true`) e o TTL do
   marcador. Expurgo manual pelo `--unblock`.
-- Reconcile da posse órfã: `DEBRID_RECONCILE` (default **`true`**),
+- Reconcile da posse órfã: `DEBRID_RECONCILE` (default **`false`**; ligar explicitamente),
   `DEBRID_RECONCILE_MAX_PER_ROUND` (25, clamp 0..50 — `0` desliga),
   `DEBRID_RECONCILE_MIN_INTERVAL_MS` (300000),
   `DEBRID_RECONCILE_AGE_MARGIN_MS` (600000, margem anti-re-add).

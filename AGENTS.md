@@ -556,6 +556,8 @@ limpa. As sete regras de seleção valem **em conjunção**, e a que menos se ad
 é o anti-re-add: `uploadDate` **posterior** à etiqueta significa que o usuário
 readicionou o hash depois, e aí ele nunca sai; sem `uploadDate` também não sai.
 Ausência de dado nunca autoriza remoção, aqui como no resto.
+Kill-switch: `DEBRID_RECONCILE=false` (default) — por apagar pronto sem eco da
+busca, só liga após decisão explícita do operador.
 
 Lixo que a limpeza por busca nunca alcança (magnet morto que ninguém pesquisa)
 é a varredura periódica `sweepDead` (`DEBRID_SWEEP_DEAD`). Ao contrário do
