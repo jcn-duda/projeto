@@ -54,31 +54,28 @@ const submitted = new Map<string, Map<string, number>>();
 const adsubKey = (account: string, hash: string) => `${prefix('adsub')}${account}:${hash}`;
 
 /**
- * Etiqueta "nosso" COM a regra de proveniência do 8.15.
+ * Etiqueta "nosso" COM a regra de proveniência do 8.15 — para TODO chamador,
+ * sem exceção. O upload é idempotente e a resposta não diz se criou ou
+ * reaproveitou — etiquetar sem prova reintroduz a perda que a Fase 1 (B1)
+ * corrigiu, com polaridade invertida: o magnet legítimo do usuário que uma
+ * busca toca seria reclassificado como lixo nosso para sempre. Só etiqueta
+ * quando um snapshot da conta — o corrente, ou o anterior durante o refresh —
+ * prova que o hash NÃO estava lá: então o upload criou. Sem snapshot
+ * (inventário frio, conta grande no primeiro request) NÃO etiqueta: o
+ * fail-safe fecha no lado que protege, e o pior caso é o lixo frio ficar
+ * protegido até a próxima busca com inventário quente — nunca o contrário.
  *
- * O upload é idempotente e a resposta não diz se criou ou reaproveitou —
- * etiquetar sem prova reintroduz a perda que a Fase 1 (B1) corrigiu, com
- * polaridade invertida: o magnet legítimo do usuário que uma busca toca seria
- * reclassificado como lixo nosso para sempre. Só etiqueta quando um snapshot
- * da conta — o corrente, ou o anterior durante o refresh — prova que o hash
- * NÃO estava lá: então o upload criou. Sem snapshot (inventário frio, conta
- * grande no primeiro request) NÃO etiqueta: o fail-safe fecha no lado que
- * protege, e o pior caso é o lixo frio ficar protegido até a próxima busca
- * com inventário quente — nunca o contrário.
- *
- * `proven` dispensa a prova: para o ENQUEUE do autofetch (candidato escolhido
- * pelo addon, escrita iniciada por nós) não existe ambiguidade de reuso — a
- * etiqueta é incondicional, senão o download do chupim viraria preexistente
- * no snapshot seguinte e a limpeza nunca mais o alcançaria após o restart.
+ * O enqueue do autofetch usa esta MESMA regra (resíduo aceito: o download
+ * subido sem referência pode virar "preexistente" no snapshot seguinte — o
+ * held do autofetch e a janela do TTL limitam o dano; a polaridade errada
+ * aqui seria etiquetar acervo do usuário, e essa nunca mais volta).
  */
-export function rememberSubmitted(account: string, hash: string, { proven = false }: { proven?: boolean } = {}) {
+export function rememberSubmitted(account: string, hash: string) {
   const normalized = String(hash || '').toLowerCase();
   if (!normalized) return;
-  if (!proven) {
-    const entry = preexisting.get(account);
-    const referencia = entry?.hashes ?? entry?.previous ?? null;
-    if (!referencia || referencia.has(normalized)) return;
-  }
+  const entry = preexisting.get(account);
+  const referencia = entry?.hashes ?? entry?.previous ?? null;
+  if (!referencia || referencia.has(normalized)) return;
   let hashes = submitted.get(account);
   if (!hashes) {
     hashes = new Map();
@@ -99,6 +96,76 @@ export function rememberSubmitted(account: string, hash: string, { proven = fals
 function persistedSubmitted(account: string, hash: string): boolean {
   if (config.debrid.alldebridSubmittedTtlMs <= 0) return false;
   return cache.peek(adsubKey(account, hash)) != null;
+}
+
+/**
+ * Timestamp da posse ativa de um hash (o `at` do adsub), para o reconcile
+ * distinguir "nosso desde a etiqueta" de re-add do usuário. Memória e registro
+ * durável são consultados e o MAIS NOVO vence — o re-add do usuário acontece
+ * sempre DEPOIS da etiqueta original, e é exatamente contra ele que a margem
+ * anti-re-add compara. `null` = sem posse ativa (nunca fomos donos, ou a
+ * etiqueta já expirou/purgada). Leitura via `peek`: varredura de fundo não
+ * promove LRU nem conta hit/miss.
+ */
+export function submittedAt(account: string, hash: string): number | null {
+  const normalized = String(hash || '').toLowerCase();
+  if (!normalized) return null;
+  const memoria = submitted.get(account)?.get(normalized) ?? 0;
+  let duravel = 0;
+  if (config.debrid.alldebridSubmittedTtlMs > 0) {
+    const registro = cache.peek(adsubKey(account, normalized)) as { at?: number } | null;
+    if (registro && Number(registro.at) > 0) duravel = Number(registro.at);
+  }
+  if (memoria && duravel) return Math.max(memoria, duravel);
+  return memoria || duravel || null;
+}
+
+/**
+ * Purga da posse: o hash saiu da conta por limpeza NOSSA (dropReady/
+ * dropDownload/reconcile). Deixar o registro de pé faria o snapshot seguinte
+ * subtrair do acervo protegido um hash que nem está mais lá e — pior —
+ * esconderia um re-add legítimo (do usuário) da prova de criação. Falha de
+ * delete NÃO purga: o magnet continua na conta e continua sendo nosso.
+ */
+export function forgetSubmitted(account: string, hash: string): void {
+  const normalized = String(hash || '').toLowerCase();
+  if (!normalized) return;
+  submitted.get(account)?.delete(normalized);
+  if (config.debrid.alldebridSubmittedTtlMs > 0) cache.forget(adsubKey(account, normalized));
+}
+
+/**
+ * Espera EXISTIR referência de proveniência para a conta (snapshot corrente,
+ * ou o anterior durante o refresh), com teto. Para o enqueue do autofetch:
+ * ele é background e pode aguardar um instante a referência antes de decidir
+ * a etiqueta — sem isso o primeiro download de conta fria nunca seria
+ * etiquetado (o fail-safe do rememberSubmitted fecharia sobre ele) e viraria
+ * "preexistente" no snapshot seguinte, a catraca pelo caminho do chupim.
+ *
+ * Nunca lança e nunca espera além do teto: vencido, devolve false e quem
+ * chamou segue sem referência (o rememberSubmitted NÃO etiqueta — fail-safe).
+ * O teto é o `debridCheckFloor` (orçamento mínimo da checagem), não o prazo
+ * da resposta: esta espera mora em background, mas não vale estourar a janela
+ * que o próprio autofetch usa de corte.
+ */
+export async function waitProvenanceReference(account: string, timeoutMs?: number): Promise<boolean> {
+  const teto = Math.max(0, Math.min(timeoutMs ?? Number.POSITIVE_INFINITY, config.debridCheckFloor));
+  const inicio = Date.now();
+  for (;;) {
+    const entry = preexisting.get(account);
+    // Set VAZIO é referência válida (conta conhecida e vazia): o que importa
+    // é EXISTIR prova, não ela ser grande.
+    if (entry?.hashes ?? entry?.previous) return true;
+    const restante = teto - (Date.now() - inicio);
+    if (restante <= 0) return false;
+    if (entry?.promise) {
+      // O refresh em voo É a referência que queremos: espera-o pelo que resta
+      // do teto (raceWithDeadline nunca lança — o teto devolve null).
+      await raceWithDeadline(entry.promise, restante, () => null);
+      continue;
+    }
+    await new Promise((resolve) => setTimeout(resolve, Math.min(50, restante)));
+  }
 }
 
 /** Recomeço do estado volátil de posse — simula o restart nos testes. */

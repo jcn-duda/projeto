@@ -108,6 +108,12 @@ export const debrid = () => ({
   // "acervo do usuário" no snapshot seguinte. Sem isto, cada deploy relança a
   // catraca — a conta saiu de ~0 para 904 magnets em 8 dias com o autofetch
   // gateado. 0 desliga a persistência (rollback: volta ao Map de memória).
+  //
+  // Cota L1 do `adsub` (1000 entradas): a posse durável vale para as ~1000
+  // submissões mais recentes. O excedente expurgado pela cota REVERTE a
+  // superproteção (o hash volta a poder ser classificado como acervo no
+  // snapshot — resíduo), nunca perda de acervo: o lado que a purga atinge é
+  // sempre o nosso, jamais o do usuário.
   alldebridSubmittedTtlMs: Math.max(0, num(process.env.ALLDEBRID_SUBMITTED_TTL_MS, 7 * 24 * 3600 * 1000)),
   // Anti-reenchimento durável (`adrm:v1`, Fase 8 item 8.14): hash que a limpeza
   // INTENCIONAL (sweepUndubbed, catálogo/painel) apagou recebe o registro
@@ -134,6 +140,25 @@ export const debrid = () => ({
   // Piso de ocupação: só evicta acima disso. Conta folgada não apaga nada —
   // sem o piso, o addon corroeria o acervo em uso normal.
   harvestEvictFloor: Math.max(0, Math.trunc(num(process.env.HARVEST_EVICT_FLOOR, 600))),
+  // Reconcile da posse (`adsub`) com a conta real: ready + etiqueta ativa +
+  // não preexistente + prova de que o upload não é re-add do usuário sai da
+  // conta, com purga da posse e o marcador anti-reenchimento do 8.14. Fecha o
+  // canto que a limpeza por busca não alcança (lote estourado, delete
+  // recusado, hash omitido na resposta). Fire-and-forget, escopo B-2 (só
+  // operador), anti-reentrada e intervalo mínimo por conta. false desliga
+  // (rollback de uma linha).
+  reconcile: String(process.env.DEBRID_RECONCILE || 'true') === 'true',
+  // Intervalo mínimo entre rodadas POR CONTA: o gatilho é a checagem (que pode
+  // rodar várias vezes por minuto) e o /magnet/status em fundo não acompanha
+  // esse ritmo. Rodadas mais próximas que isso são puladas.
+  reconcileMinIntervalMs: Math.max(0, num(process.env.DEBRID_RECONCILE_MIN_INTERVAL_MS, 300_000)),
+  // Teto de remoções por rodada, na ordem dos mais antigos. Clamp 0..50;
+  // 0 desliga o reconcile mesmo com o knob acima ligado.
+  reconcileMaxPerRound: Math.min(50, Math.max(0, Math.trunc(num(process.env.DEBRID_RECONCILE_MAX_PER_ROUND, 25)))),
+  // Margem anti-re-add: magnet cujo upload é MAIS NOVO que a etiqueta de posse
+  // + esta margem é re-add do usuário e NUNCA sai. A margem cobre a defasagem
+  // de relógio entre a AllDebrid e este processo.
+  reconcileAgeMarginMs: Math.max(0, num(process.env.DEBRID_RECONCILE_AGE_MARGIN_MS, 600_000)),
   // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
   // "Expired", "File not available"). A limpeza por busca só alcança hashes
   // que estão na consulta do momento; um torrent que morreu e nunca mais é

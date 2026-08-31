@@ -8,6 +8,7 @@ import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { accountScope } from '../src/utils/request-key.js';
+import { mockAccountWith, settle, flushImmediate, type FileEntry } from './helpers/alldebrid-account-mock.js';
 
 /** Grava um registro adprot direto na chave real, com a idade que o teste quer. */
 const retain = (
@@ -41,12 +42,6 @@ const IDS = { [READY]: 111, [COLD]: 222, [HELD]: 333 };
  * Dublê da API v4.1. Só precisa de /magnet/upload (que é a própria checagem de
  * cache da AllDebrid), /magnet/status e /magnet/delete.
  */
-/** Arquivo do /magnet/status no formato da API (o que o pickFile lê). */
-interface FileEntry {
-  n: string;
-  e: { n: string; s: number; l: string }[];
-}
-
 function mockAllDebrid({ ready = [], statusOf = () => 'Ready', files = [] }: { ready?: string[]; statusOf?: (id: number) => string; files?: FileEntry[] } = {}) {
   const deleted: number[] = [];
   const uploaded: string[] = [];
@@ -93,12 +88,6 @@ function mockAllDebrid({ ready = [], statusOf = () => 'Ready', files = [] }: { r
     },
   };
 }
-
-/** A limpeza é disparada sem await (efeito colateral, não resposta). */
-const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
-
-/** Deixa o snapshot atrasado do inventário resolver antes da checagem seguinte. */
-const flushImmediate = () => new Promise((resolve) => setImmediate(resolve));
 
 // A espera entre polls do resolveLink usa timer unref() — ela não segura o
 // event loop. Com o fetch dublado (que resolve em microtask) não sobra nenhum
@@ -267,141 +256,6 @@ test('erro da API vira exceção em vez de "nada em cache"', async () => {
 // menos em dois casos: o download do autofetch (`held`) e o que o usuário já
 // tinha na conta — daí o inventário de referência.
 
-/**
- * Dublê com ESTADO REAL de conta: o /magnet/status lista o que existe naquele
- * instante — incluindo o que o /magnet/upload acabou de criar e excluindo o
- * que o /magnet/delete removeu. O upload é idempotente como na API de verdade:
- * reenviar um hash que já está na conta devolve o MESMO id, sem duplicar.
- *
- * Essa fidelidade existe por causa da corrida do inventário: no serviço real o
- * /magnet/status do snapshot é disparado junto com os uploads da MESMA
- * checagem e costuma chegar depois deles — o snapshot nasce já poluído com o
- * que a checagem criou. Um dublê de lista fixa nunca reproduz isso, e era
- * exatamente o caso que deixava o resíduo da primeira busca "protegido para
- * sempre" como se fosse do usuário.
- *
- * `snapshotAfterUploads: true` atrasa a resposta do inventário em um
- * macrotask: como o upload roda no mesmo tick, depois do disparo do snapshot,
- * ele registra primeiro — e o snapshot reflete o estado poluído.
- */
-function mockAccountWith(
-  preexisting: any,
-  readyHashes: any,
-  { snapshotAfterUploads = false, failDelete = false, failStatus = false, statusDelayMs = 0 } = {},
-) {
-  const deleted: number[] = [];
-  let failStatusActive = failStatus;
-  let statusDelay = statusDelayMs;
-  let statusCalls = 0;
-  const realFetch = globalThis.fetch;
-  const realTimeout = AbortSignal.timeout;
-  AbortSignal.timeout = () => new AbortController().signal;
-
-  // Estado da conta: id → magnet. Os preexistentes entram prontos (1000+i);
-  // os uploads ganham ids a partir de 2000.
-  const byId = new Map();
-  const byHash = new Map();
-  let nextId = 2000;
-  preexisting.forEach((hash: any, i: any) => {
-    const magnet = { hash, id: 1000 + i, status: 'Ready', ready: true };
-    byId.set(magnet.id, magnet);
-    byHash.set(hash, magnet);
-  });
-
-  globalThis.fetch = (async (input: any) => {
-    const url = new URL(String(input));
-    const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
-
-    if (url.pathname.endsWith('/magnet/status')) {
-      if (failStatusActive) {
-        return {
-          ok: false,
-          status: 500,
-          async json() { return { status: 'error', error: { message: 'Internal Server Error' } }; },
-        };
-      }
-      const id = url.searchParams.get('id');
-      if (id != null) {
-        const magnet = byId.get(Number(id));
-        return body({ magnets: magnet ? [magnet] : [] });
-      }
-      // Sem id é o inventário/ocupação: a lista do que existe NESTE instante.
-      statusCalls += 1;
-      if (statusDelay) await new Promise((resolve) => setTimeout(resolve, statusDelay));
-      if (snapshotAfterUploads) {
-        // A resposta só é montada no macrotask seguinte: o upload desta
-        // checagem (disparado depois do status) registra antes, e o snapshot
-        // já inclui os magnets que a checagem criou.
-        await new Promise((resolve) => setImmediate(resolve));
-      }
-      return body({ magnets: [...byId.values()] });
-    }
-    if (url.pathname.endsWith('/magnet/upload')) {
-      const hashes = url.searchParams.getAll('magnets[]');
-      return body({
-        magnets: hashes.map((hash) => {
-          let magnet = byHash.get(hash);
-          if (!magnet) {
-            magnet = { hash, id: nextId++, status: 'Ready', ready: true };
-            byId.set(magnet.id, magnet);
-            byHash.set(hash, magnet);
-          }
-          return { ...magnet, ready: readyHashes.includes(hash) };
-        }),
-      });
-    }
-    if (url.pathname.endsWith('/magnet/delete')) {
-      const id = Number(url.searchParams.get('id'));
-      deleted.push(id);
-      // A AllDebrid responde 200 com {status:"error"} quando recusa; é assim que
-      // uma conta no teto rejeita a limpeza sem devolver HTTP de erro.
-      if (failDelete) {
-        return {
-          ok: true,
-          async json() { return { status: 'error', error: { code: 'MAGNET_INVALID_ID', message: 'conta recusou' } }; },
-        };
-      }
-      const magnet = byId.get(id);
-      if (magnet) {
-        byId.delete(id);
-        byHash.delete(magnet.hash);
-      }
-      return body({ message: 'deleted' });
-    }
-    throw new Error(`URL inesperada: ${url.pathname}`);
-  }) as unknown as typeof globalThis.fetch;
-
-  return {
-    deleted,
-    set failStatus(val: boolean) {
-      failStatusActive = val;
-    },
-    get failStatus() {
-      return failStatusActive;
-    },
-    set statusDelayMs(val: number) {
-      statusDelay = val;
-    },
-    get statusCalls() {
-      return statusCalls;
-    },
-    addExternal(hash: string, ready = true) {
-      const id = nextId++;
-      const magnet = { hash, id, status: 'Ready', ready };
-      byId.set(id, magnet);
-      byHash.set(hash, magnet);
-      if (ready && !readyHashes.includes(hash)) {
-        readyHashes.push(hash);
-      }
-      return id;
-    },
-    restore() {
-      globalThis.fetch = realFetch;
-      AbortSignal.timeout = realTimeout;
-    },
-  };
-}
-
 test('a primeira checagem não apaga pronto: preserva o fail-safe inicial', async () => {
   // Mesmo com inventário carregado antes do upload, a primeira checagem não
   // apaga prontos: o segundo passe é que limpa o resíduo da própria busca.
@@ -554,11 +408,20 @@ test('magnet pré-existente continua protegido mesmo com o snapshot poluído', a
   }
 });
 
-test('hash do autofetch sobrevive à limpeza mesmo constando do snapshot poluído', async () => {
+test('hash do autofetch sobrevive à limpeza: held vence mesmo com o download etiquetado', async () => {
   // O held é a ponte do invariante 6: o hash foi enfileirado de propósito para
-  // baixar, então nem o dropUncached nem o dropReady podem tocá-lo — mesmo
-  // quando o snapshot atrasado o classifica (erradamente) como preexistente.
-  // A proteção tem que ser independente do inventário.
+  // baixar, então nem o dropUncached nem o dropReady podem tocá-lo. A proteção
+  // tem que ser independente do inventário.
+  //
+  // MONTAGEM (proveniência estrita no enqueue): a referência de proveniência
+  // precisa existir ANTES do upload do enqueue. O enqueue agora AGUARDA a
+  // referência (teto do debridCheckFloor) — com o snapshot atrasado do mock
+  // resolvendo DEPOIS do upload, o snapshot (poluído pelo próprio enqueue)
+  // não daria prova de criação, o hash não seria etiquetado e o teste perderia
+  // o alvo. Resolvendo o inventário ANTES, o snapshot nasce limpo (conta
+  // vazia), o enqueue etiqueta com prova, e o que protege o AUTO na checagem é
+  // o held — a intenção "sem held, o download do autofetch volta à limpeza"
+  // continua sendo exatamente o que o segundo ato prova.
   const KEY = 'chave-held-poluido';
   const ACCOUNT_HELD = accountScope(KEY);
   const AUTO = 'c1'.repeat(20);
@@ -566,18 +429,18 @@ test('hash do autofetch sobrevive à limpeza mesmo constando do snapshot poluíd
   const api = mockAccountWith([], [AUTO, OUTRO], { snapshotAfterUploads: true });
 
   try {
-    // O autofetch sobe AUTO durante o inventário em voo. Quando o status chega,
-    // ele vê AUTO na conta, mas o rastro deste processo precisa subtraí-lo.
-    const inventory = alldebrid.warmInventory(KEY);
-    await alldebrid.enqueue(KEY, AUTO);
-    await inventory;
+    // Referência ANTES do upload: o snapshot resolve com a conta vazia.
+    await alldebrid.warmInventory(KEY);
+    await settle();
+    await flushImmediate();
 
     held.hold(AUTO, 3600, ACCOUNT_HELD);
+    // Referência existe e não contém AUTO: o enqueue etiqueta com prova.
+    await alldebrid.enqueue(KEY, AUTO);
     await alldebrid.checkCached(KEY, [AUTO, OUTRO]);
     await settle();
 
-    // O OUTRO (criado pela própria checagem) sai; o AUTO fica — e não porque o
-    // snapshot o protege (ele está no snapshot poluído), e sim pelo held.
+    // O OUTRO (criado pela própria checagem) sai; o AUTO fica pelo held.
     assert.deepEqual(api.deleted, [2001], 'o não-protegido criado pela checagem sai');
     assert.equal(held.isHeld(AUTO, ACCOUNT_HELD), true, 'o hash continua protegido');
 

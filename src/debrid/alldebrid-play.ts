@@ -3,7 +3,7 @@ import { accountScope } from '../utils/request-key.js';
 import { pickFile, wait } from './common.js';
 import * as log from '../utils/logger.js';
 import { call, flattenFiles, DEAD, ACTIVE_STATES, id, type AllDebridMagnet } from './alldebrid-api.js';
-import { rememberSubmitted } from './alldebrid-inventory.js';
+import { rememberSubmitted, waitProvenanceReference } from './alldebrid-inventory.js';
 import { skipCleanup } from './alldebrid-cleanup.js';
 import { reuploadBlocked } from './alldebrid-reupload.js';
 import * as metrics from '../utils/metrics.js';
@@ -102,12 +102,24 @@ export async function enqueue(apiKey: string, infoHash: string) {
     log.info(`[alldebrid] enqueue de ${hash.slice(0, 8)}… recusado: hash bloqueado para re-upload`);
     return false;
   }
+  // Antes de subir o magnet, AGUARDA (com teto) existir referência de
+  // proveniência para a conta. O enqueue é background do autofetch — 1,5s
+  // (o teto do debridCheckFloor) não custa resposta nenhuma — e sem a
+  // referência o fail-safe do rememberSubmitted não etiquetaria o primeiro
+  // download de conta fria, que viraria "preexistente" no snapshot seguinte
+  // (a catraca do 8.15 pelo caminho do chupim). Nunca lança e nunca derruba
+  // o enqueue: estourou o teto, segue sem referência.
+  await waitProvenanceReference(account).catch(() => {});
   const data = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
-  // `proven: true`: o enqueue é escrita iniciada pelo addon (candidato
-  // escolhido pelo chupim) — não há reuso ambíguo a descartar, e sem a
-  // etiqueta incondicional o download viraria preexistente no snapshot
-  // seguinte após o restart (a catraca do 8.15 pelo caminho do autofetch).
-  if (data?.magnets?.length) rememberSubmitted(account, infoHash, { proven: true });
+  // MESMA proveniência estrita da checagem: snapshot contém o hash ⇒ magnet
+  // do usuário reusado, não etiqueta; ausente ⇒ etiqueta (o upload criou);
+  // sem referência NÃO etiqueta — fail-safe fecha no lado que protege.
+  // Resíduo aceito: o download do chupim subido sem referência (inventário
+  // frio que nem o teto resolveu) pode virar "preexistente" no snapshot
+  // seguinte e escapar da limpeza por posse — o held do autofetch cobre o
+  // download em curso e a polaridade errada aqui seria etiquetar acervo do
+  // usuário por engano, que é a perda que o contrato não permite.
+  if (data?.magnets?.length) rememberSubmitted(account, hash);
   return Boolean(data?.magnets?.length);
 }
 

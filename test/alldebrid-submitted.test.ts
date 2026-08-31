@@ -10,6 +10,7 @@
 // protege o acervo do usuário).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { accountScope } from '../src/utils/request-key.js';
@@ -18,7 +19,11 @@ import {
   rememberSubmitted,
   knownBefore,
   resetSubmittedForTests,
+  submittedAt,
+  forgetSubmitted,
+  waitProvenanceReference,
 } from '../src/debrid/alldebrid-inventory.js';
+import { enqueue } from '../src/debrid/alldebrid-play.js';
 
 const adsubKey = (account: string, hash: string) => `${prefix('adsub')}${account}:${hash}`;
 
@@ -192,6 +197,105 @@ test('8.15/B-1 e2e: magnet do usuário tocado por busca continua protegido após
   } finally {
     globalThis.fetch = realFetchLocal;
     restaurarFetch();
+    resetar();
+  }
+});
+
+// --- Purga da posse e proveniência estrita no enqueue -----------------------
+//
+// O enqueue do autofetch usa a MESMA regra estrita da checagem (o antigo
+// `proven: true` foi aposentado): snapshot contém o hash ⇒ não etiqueta;
+// ausente ⇒ etiqueta; sem referência ⇒ não etiqueta (fail-safe). A purga
+// (`forgetSubmitted`) é o fecho da limpeza: o que saiu de verdade da conta
+// deixa de ser nosso, senão um re-add legítimo do usuário ficaria sem prova
+// de criação no snapshot seguinte.
+
+function mockUpload() {
+  const realFetchLocal = globalThis.fetch;
+  globalThis.fetch = (async (input: any) => {
+    const url = new URL(String(input));
+    if (!url.pathname.endsWith('/magnet/upload')) {
+      throw new Error(`URL inesperada: ${url.pathname}`);
+    }
+    const hashes = url.searchParams.getAll('magnets[]');
+    return {
+      ok: true,
+      async json() {
+        return { status: 'success', data: { magnets: hashes.map((hash) => ({ hash, id: 700, ready: true })) } };
+      },
+    } as any;
+  }) as unknown as typeof globalThis.fetch;
+  return () => { globalThis.fetch = realFetchLocal; };
+}
+
+test('enqueue estrito: snapshot contém o hash do usuário ⇒ sem adsub; ausente ⇒ com adsub', async () => {
+  resetar();
+  const restaurar = mockUpload();
+  try {
+    // Magnet do usuário reusado pelo enqueue: presente no snapshot, o upload
+    // não criou nada — etiquetar seria a catraca com polaridade invertida.
+    preexisting.set(ACCOUNT, { hashes: new Set([DO_USUARIO]), loadedAt: Date.now() });
+    await enqueue(KEY, DO_USUARIO);
+    assert.equal(submittedAt(ACCOUNT, DO_USUARIO), null, 'hash do usuário NÃO etiquetado');
+
+    // Hash ausente do snapshot: o upload criou — etiqueta com prova.
+    await enqueue(KEY, NOSSO);
+    assert.notEqual(submittedAt(ACCOUNT, NOSSO), null, 'hash novo é etiquetado');
+    assert.notEqual(cache.get(adsubKey(ACCOUNT, NOSSO)), null, 'etiqueta persistida');
+  } finally {
+    restaurar();
+    resetar();
+  }
+});
+
+test('enqueue sem referência de proveniência não etiqueta (fail-safe), após esperar o teto', async () => {
+  resetar();
+  const restaurar = mockUpload();
+  const tetoReal = config.debridCheckFloor;
+  config.debridCheckFloor = 120; // encurta a espera do teste
+  try {
+    // Sem snapshot e sem refresh em voo: a espera esgota o teto e o fail-safe
+    // fecha no lado que protege — o pior caso é o download do chupim ficar
+    // sem etiqueta, nunca o acervo do usuário ser etiquetado por engano.
+    const inicio = Date.now();
+    await enqueue(KEY, NOSSO);
+    const gasto = Date.now() - inicio;
+    assert.ok(gasto >= 100, `o enqueue esperou a referência pelo teto (gastou ${gasto}ms)`);
+    assert.equal(submittedAt(ACCOUNT, NOSSO), null, 'sem referência NÃO etiqueta');
+  } finally {
+    config.debridCheckFloor = tetoReal;
+    restaurar();
+    resetar();
+  }
+});
+
+test('forgetSubmitted purga a posse em memória E no registro durável', () => {
+  resetar();
+  try {
+    preexisting.set(ACCOUNT, { hashes: new Set([DO_USUARIO]), loadedAt: Date.now() });
+    rememberSubmitted(ACCOUNT, NOSSO);
+    assert.notEqual(submittedAt(ACCOUNT, NOSSO), null, 'precondição: posse ativa');
+
+    forgetSubmitted(ACCOUNT, NOSSO);
+    assert.equal(submittedAt(ACCOUNT, NOSSO), null, 'posse em memória purgada');
+    assert.equal(cache.peek(adsubKey(ACCOUNT, NOSSO)), null, 'registro durável purgado');
+  } finally {
+    resetar();
+  }
+});
+
+test('waitProvenanceReference resolve com o snapshot corrente, com o previous do refresh, e nunca lança', async () => {
+  resetar();
+  try {
+    assert.equal(await waitProvenanceReference(ACCOUNT, 10), false, 'sem referência: esgota o teto');
+
+    preexisting.set(ACCOUNT, { hashes: new Set([DO_USUARIO]), loadedAt: Date.now() });
+    assert.equal(await waitProvenanceReference(ACCOUNT), true, 'snapshot corrente é referência');
+
+    // Durante o refresh (hashes null), o snapshot ANTERIOR também vale.
+    preexisting.set(ACCOUNT, { hashes: null, loadedAt: 0, previous: new Set([DO_USUARIO]) });
+    assert.equal(await waitProvenanceReference(ACCOUNT, 10), true, 'previous do refresh é referência');
+  } finally {
     resetar();
   }
 });

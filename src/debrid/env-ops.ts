@@ -27,7 +27,12 @@ function warmupEnv() {
   }
 
   if (typeof adapter.warmInventory !== 'function') return Promise.resolve(null);
-  if (!config.debrid.apiKey || !config.debrid.envOperatorAccount || !config.debrid.dropReady) return Promise.resolve(null);
+  // Mesmo OU da aquisição no checkCached (dropReady || dropUncached): o
+  // guard do dropDownload precisa do snapshot quente no primeiro request,
+  // senão ele roda suprimido até o TTL do warmup passar.
+  if (!config.debrid.apiKey || !config.debrid.envOperatorAccount || !(config.debrid.dropReady || config.debrid.dropUncached)) {
+    return Promise.resolve(null);
+  }
   return adapter.warmInventory(config.debrid.apiKey).catch((err: unknown) => {
     log.warn(`[${adapter.id}] não consegui aquecer o inventário:`, log.errorMessage(err));
     return null;

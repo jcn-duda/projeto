@@ -5,10 +5,11 @@ import * as held from './protected.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { call, id } from './alldebrid-api.js';
-import { preexisting, knownBefore, waitInventory, rememberSubmitted } from './alldebrid-inventory.js';
+import { preexisting, knownBefore, waitInventory, rememberSubmitted, forgetSubmitted } from './alldebrid-inventory.js';
 import { skipCleanup, deleteMagnets as dropMagnets } from './alldebrid-cleanup.js';
 import { filterReuploadBlocked } from './alldebrid-reupload.js';
 import { scheduleEvict } from './alldebrid-evict.js';
+import { scheduleReconcile } from './alldebrid-reconcile.js';
 
 /**
  * O /magnet/instant foi removido, mas o próprio /magnet/upload responde
@@ -32,15 +33,27 @@ import { scheduleEvict } from './alldebrid-evict.js';
 export async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
   const dropReady: Array<string | number> = [];
   const dropDownload: Array<string | number> = [];
+  // id → hash de cada lista de limpeza: o delete consome id, mas a purga da
+  // posse (`forgetSubmitted`) precisa do hash que o id representa.
+  const readyHashById = new Map<string, string>();
+  const downloadHashById = new Map<string, string>();
   // 8.16 — hashes que ESTA busca realmente consultou: o ECO do /magnet/upload
   // é o que prova o que trafegou (lote que estourou o prazo não ecoa). Alimenta
-  // o alvo da evicção e a exclusão do que a própria busca acabou de subir.
+  // o alvo da evicção, a exclusão do que a própria busca acabou de subir e o
+  // reconcile.
   const consultados = new Set<string>();
   const account = accountScope(apiKey);
   const hadInventory = preexisting.has(account);
   // `knownBefore` já dispara o refresh quando o snapshot vence e devolve null
   // enquanto ele não chega: referência vencida nunca autoriza apagar nada.
-  let preexistentes = config.debrid.dropReady ? knownBefore(apiKey, account) : null;
+  //
+  // O snapshot é adquirido quando QUALQUER limpeza está ativa, não só o
+  // dropReady: o dropDownload herdou o MESMO fail-safe (só remove com
+  // referência em mãos) — desligar o dropReady não pode desligar a autoridade
+  // do dropDownload, senão o guard novo suprimiria a limpeza inteira.
+  let preexistentes = config.debrid.dropReady || config.debrid.dropUncached
+    ? knownBefore(apiKey, account)
+    : null;
   const loading = preexisting.get(account);
   if (!hadInventory && loading?.hashes === null) {
     // Não há proveniência na resposta idempotente do upload. Antes de subir o
@@ -86,8 +99,18 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
         held.noteReady(id, account, hash);
         // Só entra na limpeza o que o inventário garante não ser do usuário e
         // não está protegido — volátil NEM durável (BR retido no acervo).
-        if (!skipReadyDrop && preexistentes && magnet.id && !preexistentes.has(hash) && !skipCleanup(account, hash)) {
-          dropReady.push(magnet.id);
+        if (config.debrid.dropReady && magnet.id && hash && !skipCleanup(account, hash)) {
+          if (preexistentes !== null && preexistentes.has(hash)) {
+            // Decisão, não supressão: é do usuário (prova do inventário).
+          } else if (skipReadyDrop || preexistentes === null) {
+            // Supressão por FALTA DE AUTORIDADE (primeira checagem do processo
+            // ou inventário ausente): a rodada não pôde decidir nada. Conta à
+            // parte para o diagnóstico não confundir com a proteção.
+            metrics.count('debrid.drop.suppressedReady');
+          } else {
+            dropReady.push(magnet.id);
+            readyHashById.set(String(magnet.id), hash);
+          }
         }
       // Hash em download automático não entra na limpeza: ele está "não pronto"
       // justamente porque pedimos que baixasse. Antes de decidir, porém, o
@@ -97,21 +120,35 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
       // agendada própria).
       } else {
         held.reconcile(id, account, hash);
-        if (magnet.id && !skipCleanup(account, hash)) dropDownload.push(magnet.id);
+        // MESMO fail-safe do dropReady: só sai da conta o que o snapshot prova
+        // não ser do usuário. `null` ⇒ nada sai — a ausência de referência
+        // nunca autoriza remoção, em nenhuma das duas listas. Sem hash no
+        // magnet, pula: sem ele não há nem prova de proveniência nem purga.
+        if (magnet.id && hash && !skipCleanup(account, hash) && preexistentes && !preexistentes.has(hash)) {
+          dropDownload.push(magnet.id);
+          downloadHashById.set(String(magnet.id), hash);
+        }
       }
     }
     return ready;
   }, { timeoutMs });
 
-  const scheduleDrop = (ids: Array<string | number>, kind: 'prontos' | 'downloads') => {
+  const scheduleDrop = (ids: Array<string | number>, kind: 'prontos' | 'downloads', hashById: Map<string, string>) => {
     if (!ids.length) return;
     // Sem travar a busca: limpeza é efeito colateral, não resposta.
     // O resultado É lido — antes o allSettled engolia a rejeição, o log contava
     // TENTATIVA como remoção, e a conta crescia enquanto o addon afirmava estar
     // limpando. Ver dropMagnets: as falhas eram 503 por rajada.
-    dropMagnets(apiKey, ids).then(({ ok, falhas }) => {
+    dropMagnets(apiKey, ids).then(({ ok, falhas, removedIds }) => {
       metrics.count('debrid.dropped', ok);
       if (kind === 'downloads') metrics.count('debrid.dropped.download', ok);
+      // Purga da posse: o que saiu DE VERDADE da conta (removedIds) deixa de
+      // ser "nosso". Falha de delete NÃO purga — o magnet continua lá e
+      // continua sendo nosso.
+      for (const rid of removedIds || []) {
+        const hash = hashById.get(String(rid));
+        if (hash) forgetSubmitted(account, hash);
+      }
       if (falhas.length) {
         metrics.count('debrid.drop_failed', falhas.length);
         const motivo = falhas[0]?.message || String(falhas[0]);
@@ -123,12 +160,18 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
       log.info(`[alldebrid] ${ok} magnet(s) ${kind} da checagem removido(s) da conta`);
     });
   };
-  if (config.debrid.dropReady) scheduleDrop(dropReady, 'prontos');
-  if (config.debrid.dropUncached) scheduleDrop(dropDownload, 'downloads');
+  if (config.debrid.dropReady) scheduleDrop(dropReady, 'prontos', readyHashById);
+  if (config.debrid.dropUncached) scheduleDrop(dropDownload, 'downloads', downloadHashById);
   // 8.16 — evicção por busca, irmã de dropReady/dropUncached: fire-and-forget
   // DEPOIS da checagem, zero await da seleção/rede no prazo da resposta. O
   // guard do knob mora aqui (custo zero quando OFF) e de novo dentro do módulo
   // (a função é pública); escopo B-2 e anti-reentrada são do módulo.
   if (config.debrid.evictPerSearch) scheduleEvict(apiKey, consultados);
+  // Reconcile da posse (adsub × conta real), irmão do evictor e também
+  // fire-and-forget DEPOIS dele: a checagem é o gatilho natural porque é ela
+  // que deposita e que limpa. Os guards (knob, escopo B-2, intervalo mínimo,
+  // anti-reentrada, dependência de drop ativo) moram todos no módulo — o
+  // chamador paga só uma chamada síncrona.
+  scheduleReconcile(apiKey, consultados);
   return result;
 }
