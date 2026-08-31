@@ -69,6 +69,11 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // Proteção durável dos BR no AllDebrid (`adprot:v1:<adapter>:<account>:<hash>`),
   // registro `{ acceptedAt, readyAt }`. Não leva apiKey — escopo é conta + adapter.
   adprot: 'v1',
+  // Posse durável dos uploads do próprio addon no AllDebrid
+  // (`adsub:v1:<account>:<hash>`, registro `{ at }`). Sobrevive ao restart:
+  // é o que impede o snapshot seguinte de reclassificar o upload do addon como
+  // acervo do usuário (a catraca que encheu a conta sem o autofetch).
+  adsub: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

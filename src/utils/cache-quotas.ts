@@ -11,13 +11,14 @@
  * instância nova de cache.ts reusando o irmão cacheado, com o store alheio).
  */
 
-// A soma das cotas de namespaces conhecidos é 33.050 (inclui rdc=14.000,
-// rdq=500, rdt=2.500 e adprot=2.000), deixando 2.950 entradas de folga sob o
-// teto global. O ledger RD
+// A soma das cotas de namespaces conhecidos é 34.050 (inclui rdc=14.000,
+// rdq=500, rdt=2.500, adprot=2.000 e adsub=1.000), deixando 1.950
+// entradas de folga sob o teto global. O ledger RD
 // é global por hash e precisa reter muito mais histórico que os caches por conta;
 // os demais baldes foram calibrados para abrir esse espaço sem deixar o despejo
 // global invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB
-// ≈ 79 MB no pior caso); rdc/davail/mag/rdt/adprot guardam só registros minúsculos.
+// ≈ 79 MB no pior caso); rdc/davail/mag/rdt/adprot/adsub guardam só
+// registros minúsculos.
 export const MAX_ENTRIES = 36000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
@@ -56,6 +57,12 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Proteção durável dos BRs AllDebrid (`adprot:v1`): registro minúsculo por
   // hash, TTL de 10 anos — é a garantia do acervo BR sobreviver ao restart.
   adprot: 2000,
+  // Posse durável dos uploads do próprio addon (`adsub:v1:<conta>:<hash>`,
+  // registro { at }, TTL de 7 dias): quebra a catraca do `preexistente` — sem
+  // isto, o restart reclassifica tudo que o addon subiu como acervo do
+  // usuário e a limpeza nunca mais o alcança (medido: 904 magnets em 8 dias
+  // sem o autofetch participar). Registro minúsculo, mesmo formato do adprot.
+  adsub: 1000,
   __default: 500,
 });
 

@@ -91,7 +91,11 @@ export async function resolveLink(apiKey: string, infoHash: string, { season, ep
  */
 export async function enqueue(apiKey: string, infoHash: string) {
   const data = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
-  if (data?.magnets?.length) rememberSubmitted(accountScope(apiKey), infoHash);
+  // `proven: true`: o enqueue é escrita iniciada pelo addon (candidato
+  // escolhido pelo chupim) — não há reuso ambíguo a descartar, e sem a
+  // etiqueta incondicional o download viraria preexistente no snapshot
+  // seguinte após o restart (a catraca do 8.15 pelo caminho do autofetch).
+  if (data?.magnets?.length) rememberSubmitted(accountScope(apiKey), infoHash, { proven: true });
   return Boolean(data?.magnets?.length);
 }
 

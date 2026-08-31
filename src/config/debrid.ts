@@ -103,6 +103,12 @@ export const debrid = () => ({
   // precisa vencer: o usuário pode adicionar algo no site do debrid depois
   // do boot, e uma referência congelada nunca pode autorizar o apagamento.
   preexistingTtlMs: Math.max(0, num(process.env.ALLDEBRID_PREEXISTING_TTL_MS, 300_000)),
+  // Posse durável dos uploads do próprio addon (`adsub:v1`, Fase 8 item 8.15):
+  // o que o addon subiu continua sendo dele após o restart, em vez de virar
+  // "acervo do usuário" no snapshot seguinte. Sem isto, cada deploy relança a
+  // catraca — a conta saiu de ~0 para 904 magnets em 8 dias com o autofetch
+  // gateado. 0 desliga a persistência (rollback: volta ao Map de memória).
+  alldebridSubmittedTtlMs: Math.max(0, num(process.env.ALLDEBRID_SUBMITTED_TTL_MS, 7 * 24 * 3600 * 1000)),
   // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
   // "Expired", "File not available"). A limpeza por busca só alcança hashes
   // que estão na consulta do momento; um torrent que morreu e nunca mais é
