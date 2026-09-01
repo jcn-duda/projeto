@@ -23,7 +23,7 @@ import { asyncRoute } from './async.js';
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 import { streamsCacheKey } from '../utils/request-key.js';
-import { serializeTrace } from '../utils/stream-trace.js';
+import { serializeTrace, sanitizeTraceLabel } from '../utils/stream-trace.js';
 import { recomputeOffline } from '../utils/trace-recompute.js';
 import { liveCapability, liveCheck } from '../debrid/live-check.js';
 
@@ -130,7 +130,10 @@ export function makeStreamTraceHandler(services: AppServices): express.RequestHa
         const streams = Array.isArray(value.streams) ? value.streams : [];
         const items = streams.slice(0, services.config.search.streamTraceLiveMaxHashes).map((s, i) => ({
           id: `d${i + 1}`,
-          name: String(s.name || '').split('\n')[0],
+          // Mesma defesa do trace/recompute: o name do stream pode carregar
+          // magnet/hash cru do cache; o hash em si vai cru ao BY_ID mas some
+          // da resposta (liveCheck só devolve id/name/verdict).
+          name: sanitizeTraceLabel(String(s.name || '').split('\n')[0]),
           hash: String(s.infoHash || ''),
         })).filter((i) => i.hash);
         const liveResult = await liveCheck(String(service || ''), apiKey, items, {

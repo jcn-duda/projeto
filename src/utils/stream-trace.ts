@@ -125,12 +125,18 @@ function finalizeTrace(t: StreamTraceState | null | undefined, finalCount: numbe
   t.stages['final'] = Math.max(0, Math.trunc(Number(finalCount) || 0));
 }
 
-/** Limpa o rótulo de tudo que o endpoint não pode expor: hash do magnet e
- * URI de magnet. O título do post pode carregar o dn= cru do indexer. */
-function sanitize(label: string): string {
-  return label
+/** Única porta de saída de rótulos do diagnóstico (trace E recompute):
+ * remove magnet/hash e aplica o mesmo teto de 60. A ordem importa: primeiro
+ * consome a URI inteira do magnet (inclusive dn=), depois qualquer 40-hex que
+ * tenha vindo fora dela. Centralizar evita a defesa existir só num dos dois
+ * caminhos irmãos. */
+function sanitizeTraceLabel(label: string): string {
+  const clean = String(label || '')
     .replace(/magnet:\?\S*/gi, '<magnet>')
     .replace(/[a-fA-F0-9]{40}/g, '<hash>');
+  return clean.length > STREAM_TRACE_LABEL_MAX
+    ? `${clean.slice(0, STREAM_TRACE_LABEL_MAX - 1)}…`
+    : clean;
 }
 
 /**
@@ -150,14 +156,10 @@ function serializeTrace(
     if (Number.isFinite(n)) stages[stage] = n;
   }
   const items = (t.items || []).slice(0, STREAM_TRACE_MAX_ITEMS).map((item, index) => {
-    const label = sanitize(String(item?.label || ''));
     return {
       ...item,
       id: item.id || `s${index + 1}`,
-      // O teto do rótulo vale já truncado; o -1 reserva o lugar do "…".
-      label: label.length > STREAM_TRACE_LABEL_MAX
-        ? `${label.slice(0, STREAM_TRACE_LABEL_MAX - 1)}…`
-        : label,
+      label: sanitizeTraceLabel(String(item?.label || '')),
       br: Boolean(item.br),
     };
   });
@@ -176,5 +178,6 @@ export {
   stageTrace,
   dropTrace,
   finalizeTrace,
+  sanitizeTraceLabel,
   serializeTrace,
 };

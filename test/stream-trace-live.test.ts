@@ -172,3 +172,43 @@ test('rota mode=live: sonda de capacidade + execução só no segmento torbox', 
     config.jackett.testToken = '';
   }
 });
+
+test('rota mode=live: name sanitizado/truncado com a MESMA defesa do trace', async () => {
+  config.jackett.testToken = 'tok-live';
+  const segment = encodeConfig({ p: ['jackett'], ds: 'torbox', dk: 'k' });
+  const key = streamsCacheKey('movie', 'tt444', { ...(runtime.decode(segment) || {}), resolveUncached: config.debrid.resolveUncached });
+  config.search.streamTraceLive = ['torbox'];
+  const savedTrace = config.search.streamTrace;
+  try {
+    await withMockFetch([
+      { match: 'torrents/checkcached', handler: async () => fakeResponse({ status: 'success', data: [] }) },
+    ], async () => {
+      const hash = 'a'.repeat(40);
+      cache.set(key, {
+        streams: [{
+          name: `Filme Sujo ${hash} magnet:?xt=urn:btih:${hash}&dn=F ${'X'.repeat(200)}`,
+          infoHash: hash,
+          url: `https://x/${hash}`,
+        }],
+        partial: false, debridKnown: true,
+        searchMeta: { names: ['Filme'], year: 2020 },
+      }, 900);
+      const res = await server.request('GET', `/${segment}/stream-trace.json?type=movie&id=tt444&mode=live`, {
+        headers: { 'X-Indexer-Test-Token': 'tok-live' },
+      });
+      assert.equal(res.status, 200);
+      const name = String(res.json.live?.results?.[0]?.name || '');
+      assert.ok(name.length <= 60, `name passou do teto: ${name.length}`);
+      const body = JSON.stringify(res.json);
+      assert.doesNotMatch(body, /magnet:/i, 'magnet não vaza no live');
+      assert.doesNotMatch(body, /[a-f0-9]{40}/i, 'hash não vaza no live');
+      assert.match(name, /<magnet>/);
+      assert.match(name, /<hash>/);
+    });
+  } finally {
+    config.search.streamTraceLive = [];
+    config.search.streamTrace = savedTrace;
+    config.jackett.testToken = '';
+    cache.clear();
+  }
+});

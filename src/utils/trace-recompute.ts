@@ -24,6 +24,7 @@ import jackett from '../providers/jackett.js';
 import * as magnetdb from './magnetdb.js';
 import * as autofetch from '../providers/autofetch.js';
 import { accountScope } from './request-key.js';
+import { sanitizeTraceLabel } from './stream-trace.js';
 import type { RawItem } from '../../types/domain.js';
 
 /** Resultado da tentativa de recompute. Itens carregam só `now` (estado atual
@@ -144,7 +145,7 @@ export function recomputeOffline(
 
   const itemsOut = items.slice(0, RECOMPUTE_MAX_ITEMS).map((item, i) => ({
     id: `r${i + 1}`,
-    label: String(item.title || '').split('\n')[0],
+    label: sanitizeTraceLabel(String(item.title || '').split('\n')[0]),
     br: Boolean((item as any)._br || (item as any).isBr),
     ...((item as any)._dubbed !== undefined ? { dubbed: Boolean((item as any)._dubbed) } : {}),
     ...((item as any)._quality ? { quality: String((item as any)._quality) } : {}),

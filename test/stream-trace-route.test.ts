@@ -14,6 +14,7 @@ import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
 import { streamsCacheKey } from '../src/utils/request-key.js';
+import jackett from '../src/providers/jackett.js';
 import { createTestServer, withMockFetch, createMockFetch, encodeConfig } from './e2e/e2e-harness.js';
 
 const HASH = 'd'.repeat(40);
@@ -276,6 +277,40 @@ test('/stream-trace.json: trace:null para entrada antiga sem o campo e com kill-
       assert.equal(res.status, 200);
       assert.equal(res.json.trace, null, 'sem trace gravado, o endpoint devolve null');
     } finally {
+      config.jackett.testToken = '';
+      cache.clear();
+    }
+  });
+});
+
+test('/stream-trace.json: recompute sanitiza/trunca label antes de responder', async () => {
+  await withMockFetch([], async () => {
+    const savedIndexers = config.jackett.indexers;
+    config.jackett.testToken = 'tok-trace';
+    config.jackett.indexers = ['torrentleech'];
+    try {
+      const hash = 'a'.repeat(40);
+      const sujo = `Filme 2020 ${hash} magnet:?xt=urn:btih:${hash}&dn=Filme [${hash}] ${'X'.repeat(200)}`;
+      const rawKey = jackett.rawKeysFor(['torrentleech'], 'Filme 2020', 'movie')[0];
+      cache.set(rawKey, [{ title: sujo, infoHash: 'f'.repeat(40), seeders: 4, indexer: 'x' }], 900);
+      cache.set(chaveGlobal('movie', 'tt333'), {
+        streams: [], partial: false, debridKnown: true,
+        searchMeta: { names: ['Filme'], year: 2020 },
+      }, 900);
+      const res = await server.request('GET', '/stream-trace.json?type=movie&id=tt333', {
+        headers: { 'X-Indexer-Test-Token': 'tok-trace' },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.origin, 'recompute');
+      const label = String(res.json.recompute?.items?.[0]?.label || '');
+      assert.ok(label.length <= 60, `label passou do teto: ${label.length}`);
+      const body = JSON.stringify(res.json);
+      assert.doesNotMatch(body, /magnet:/i);
+      assert.doesNotMatch(body, /[a-f0-9]{40}/i);
+      assert.match(label, /<hash>/);
+      assert.match(label, /<magnet>/);
+    } finally {
+      config.jackett.indexers = savedIndexers;
       config.jackett.testToken = '';
       cache.clear();
     }

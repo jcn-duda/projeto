@@ -66,6 +66,28 @@ test('matéria-prima do raw quente vira itens com now tocável', async () => {
   }
 });
 
+test('label do recompute usa a MESMA defesa do trace (magnet/hash + teto 60)', async () => {
+  const restore = IDX();
+  try {
+    await withMockFetch([], async () => {
+      const hash = 'a'.repeat(40);
+      const sujo = `Filme 2020 ${hash} magnet:?xt=urn:btih:${hash}&dn=Filme [${hash}] ${'X'.repeat(200)}`;
+      const key = jackett.rawKeysFor(config.default.jackett.indexers, 'Filme 2020', 'movie')[0];
+      cache.set(key, [{ title: sujo, infoHash: 'f'.repeat(40), seeders: 4, indexer: 'x' }], 900);
+      const out = RUN(() => recomputeOffline('tt123', { season: null, episode: null }, ['Filme'], 2020)) as ReturnType<typeof recomputeOffline>;
+      assert.equal(out.built, true);
+      const label = out.items[0].label;
+      assert.ok(label.length <= 60, `label passou do teto: ${label.length}`);
+      assert.doesNotMatch(label, /magnet:/i);
+      assert.doesNotMatch(label, /[a-f0-9]{40}/i);
+      assert.match(label, /<hash>/);
+      assert.match(label, /<magnet>/);
+    });
+  } finally {
+    restore();
+  }
+});
+
 test('estado atual reflete bad do magnetdb (quiet) — e é now, não causa', async () => {
   const restore = IDX();
   try {
