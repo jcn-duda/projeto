@@ -1,6 +1,8 @@
 import type { Stream, StreamCandidate } from '../../types/domain.js';
 import { UNKNOWN_QUALITY, qualityFromTitle } from './audio-quality.js';
 import { isSeasonPackRelease } from './episode-matching.js';
+import { dropTrace } from './stream-trace.js';
+import type { StreamTraceState } from './stream-trace.js';
 
 const QUALITY_KEYS = ['2160p', '1080p', '720p', '480p', 'SD', UNKNOWN_QUALITY];
 type QualityLimits = Partial<Record<string, number>>;
@@ -176,6 +178,8 @@ function limitByQualityAndIndexer(
   // apenas ordem de chegada dentro do mesmo teto -- que é o que era antes, e
   // fazia `brReservedSlots: 4` render 2 BR quando a cota de 1080p era 2.
   reservedBr: Set<StreamCandidate> = new Set(),
+  // P5 — ledger observacional das cotas finais (null => sem efeito).
+  trace?: StreamTraceState | null,
 ) {
   const qualityCounts = new Map();
   const indexerCounts = new Map();
@@ -189,14 +193,20 @@ function limitByQualityAndIndexer(
       : Math.max(0, Math.trunc(rawQualityLimit));
     const qualityCount = qualityCounts.get(quality) || 0;
     const reserved = reservedBr.has(stream);
-    if (!reserved && qualityCount >= qualityLimit) return false;
+    if (!reserved && qualityCount >= qualityLimit) {
+      dropTrace(trace, stream, 'quality-quota');
+      return false;
+    }
 
     const source = String(stream?._indexer || '').trim().toLowerCase();
     const sourceCount = source ? indexerCounts.get(source) || 0 : 0;
     const sourceLimit = source && Object.prototype.hasOwnProperty.call(indexerLimits, source)
       ? Math.max(0, Math.trunc(Number(indexerLimits[source]) || 0))
       : globalLimit;
-    if (source && !exempt.has(stream) && sourceLimit && sourceCount >= sourceLimit) return false;
+    if (source && !exempt.has(stream) && sourceLimit && sourceCount >= sourceLimit) {
+      dropTrace(trace, stream, 'indexer-limit');
+      return false;
+    }
 
     // A reservada não entra na conta do balde: as globais mantêm a cota inteira
     // delas e a lista cresce, no máximo, o tamanho da reserva. O teto real
@@ -240,6 +250,11 @@ interface LimitBrOptions {
    * qualquer contagem de `_br` voltaria zero. Não faz parte do objeto público.
    */
   onSelected?: (selected: Stream[]) => void;
+  /**
+   * P5 — ledger observacional do corte final: quality-quota, indexer-limit,
+   * max-results e o global trocado por vaga garantida BR. null => sem efeito.
+   */
+  trace?: StreamTraceState | null;
 }
 
 /** Reserva origem BR, aplica as cotas finais e remove todos os campos internos. */
@@ -256,6 +271,7 @@ function limitReservingBr(
     indexerLimits = {},
     season = null,
     onSelected,
+    trace,
   }: LimitBrOptions = {},
 ) {
   const pool = brOnly ? streams.filter((stream) => stream._br) : streams;
@@ -299,6 +315,7 @@ function limitReservingBr(
       reservedBr,
       indexerLimits,
       reservedBr,
+      trace,
     ),
   );
   // Volta à ordem original: sem `brFirst` o corte final depende dela.
@@ -352,6 +369,9 @@ function limitReservingBr(
       }
     }
   }
+  // P5 — globals trocados por vaga garantida BR: ficam com o motivo próprio no
+  // ledger (o diff final de max-results os exclui, para não registrar duas vez).
+  const trocadas = new Set<Stream>();
   const encaixaGarantida = (selected: Stream[]) => {
     const dentro = new Set(selected);
     for (const stream of garantidas) {
@@ -365,6 +385,10 @@ function limitReservingBr(
       const posGlobal = selected.map((s) => !s._br).lastIndexOf(true);
       if (posGlobal === -1) break;
       dentro.delete(selected[posGlobal]);
+      if (trace) {
+        trocadas.add(selected[posGlobal]);
+        dropTrace(trace, selected[posGlobal], 'br-guarantee-replaced');
+      }
       selected[posGlobal] = stream;
       dentro.add(stream);
     }
@@ -387,11 +411,27 @@ function limitReservingBr(
     for (const stream of reserved) {
       if (chosen.has(stream)) continue;
       const replace = [...chosen].reverse().find((item) => !item._br);
-      if (replace) chosen.delete(replace);
+      if (replace) {
+        chosen.delete(replace);
+        if (trace) {
+          trocadas.add(replace);
+          dropTrace(trace, replace, 'br-guarantee-replaced');
+        }
+      }
       if (chosen.size < maxResults) chosen.add(stream);
     }
     selected = eligible.filter((stream) => chosen.has(stream)).slice(0, maxResults);
     if (garantidas.length) encaixaGarantida(selected);
+  }
+
+  // P5 — o que estava elegível e não sobreviveu ao teto: max-results. Trocadas
+  // por garantia BR já têm o motivo mais específico e não são re-registradas.
+  if (trace) {
+    const finais = new Set(selected);
+    for (const stream of eligible) {
+      if (finais.has(stream) || trocadas.has(stream)) continue;
+      dropTrace(trace, stream, 'max-results');
+    }
   }
 
   // Observa os selecionados ANTES da limpeza: é aqui que o `_br` ainda existe e

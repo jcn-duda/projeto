@@ -21,6 +21,8 @@ import { opts, prefix, origin } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { applyDebrid } from './debrid-pipeline.js';
+import { stageTrace, dropTrace, finalizeTrace } from '../utils/stream-trace.js';
+import type { StreamTraceState } from '../utils/stream-trace.js';
 
 // Indexer id vindo da config do usuario (URL) precisa validar antes de
 // entrar em query, limite por id ou desempate -- id fora do padrao e
@@ -91,6 +93,12 @@ interface BuildStreamsOptions {
   /** Estado marginal do observador de primeira resposta, persistido entre os
    * passes do `finish` de UMA execução de `doSearch`. */
   firstObserver?: FirstObserverState;
+  /**
+   * P5 — ledger observacional do pipeline (stream-trace). Criado pelo `finish`
+   * (uma build = um ledger), consumido aqui como leitura/escrita observacional
+   * e gravado no cache já serializado. `undefined`/`null` => nenhum efeito.
+   */
+  trace?: StreamTraceState | null;
 }
 
 /** Estado do observador de primeira resposta, por execução de `doSearch`. */
@@ -243,8 +251,12 @@ export function promoteFirstObserverEligible(
 }
 
 export async function buildStreams(rawInput: RawItem[], {
-  meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, onDebridResult, observeFirstPass, observeLatePass, firstObserver,
+  meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, onDebridResult, observeFirstPass, observeLatePass, firstObserver, trace,
 }: BuildStreamsOptions = {}) {
+  // P5 — primeiro estágio do funil: o lote cru que ENTROU na build. O ledger é
+  // observacional: contar aqui não muda nada, e o que os cortes abaixo tirarem
+  // fica registrado com o motivo exato.
+  stageTrace(trace, 'raw', rawInput.length);
   // Entidade HTML some AQUI, onde todas as origens já se juntaram — Jackett,
   // resolvedores BR, índice e o inventário da conta do debrid. Decodificar só
   // na saída (toStremioStream) deixava a DECISÃO com a entidade crua: medido
@@ -286,10 +298,18 @@ export async function buildStreams(rawInput: RawItem[], {
     // Trek). Os nomes são os mesmos do matchContext que filtrou lá.
     const fromAccount = raw.filter((r) => r.fromAccount);
     const titleCtx = { names, year: catalogYear, isSeries: season != null };
+    const antesTitulo = raw;
     raw = fromAccount.length
       ? [...fromAccount, ...filterRelevantRaw(raw.filter((r) => !r.fromAccount), titleCtx)]
       : filterRelevantRaw(raw, titleCtx);
     if (before !== raw.length) log.info(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
+    // P5 — cada descarte pelo título leva o motivo real no ledger. O diff é
+    // por referência de objeto: itens do inventário e sobreviventes são os
+    // MESMOS objetos antes/depois.
+    if (trace && before !== raw.length) {
+      const vivos = new Set(raw);
+      for (const item of antesTitulo) if (!vivos.has(item)) dropTrace(trace, item, 'title-filter');
+    }
   }
 
   // Fase 2: toda busca alimenta o índice com o que sobreviveu ao filtro de
@@ -309,9 +329,16 @@ export async function buildStreams(rawInput: RawItem[], {
   // dentro de uma coleção mesmo com debrid; retenha o pack nesse caso também.
   if (season == null && !isDemo && (!debrid.current() || !catalogYear)) {
     const beforePack = raw.length;
+    const antesPack = raw;
     raw = raw.filter((r) => !isMultiWorkCollection(r.title || r.Title || ''));
     if (beforePack !== raw.length) {
       log.info(`[search] ${beforePack - raw.length} pack(s) multi-obra retido(s) sem escolha por arquivo`);
+      // P5 — "retido" no vocabulário do pipeline: o pack SAIU da lista porque
+      // ninguém saberia escolher o arquivo dentro dele.
+      if (trace) {
+        const vivos = new Set(raw);
+        for (const item of antesPack) if (!vivos.has(item)) dropTrace(trace, item, 'multiwork-retained');
+      }
     }
   }
 
@@ -341,6 +368,7 @@ export async function buildStreams(rawInput: RawItem[], {
   const seriesUniverse = names.flatMap((n) => normalizeTitle(n).split(' ')).filter(Boolean);
   if (season != null && episode != null && !isDemo) {
     const before = raw.length;
+    const antesEpisodio = raw;
     raw = raw.filter((r) => {
       const title = r.title || r.Title || '';
       if (!matchesEpisode(title, { season, episode })) return false;
@@ -349,6 +377,12 @@ export async function buildStreams(rawInput: RawItem[], {
     });
     if (before !== raw.length) {
       log.info(`[search] ${before - raw.length} resultado(s) de outro episódio descartado(s)`);
+      // P5 — outro episódio/temporada é o corte mais traiçoeiro de diagnosticar
+      // ("o S03E04 publicado como S04"); no ledger ele fica com o título.
+      if (trace) {
+        const vivos = new Set(raw);
+        for (const item of antesEpisodio) if (!vivos.has(item)) dropTrace(trace, item, 'episode-mismatch');
+      }
     }
   }
 
@@ -402,7 +436,16 @@ export async function buildStreams(rawInput: RawItem[], {
   // O que os arquivos provaram entra ANTES do mapeamento: o nome, o `_quality`
   // e o `_dubbed` nascem do item, e sao eles que o filtro de resolucao, as cotas
   // e o preferDubbed leem depois.
-  const mappedStreams = applyFileEvidence(raw).map(toStremioStream);
+  const evidencia = applyFileEvidence(raw);
+  const mappedStreams = evidencia.map((item) => {
+    const stream = toStremioStream(item);
+    // P5 — `toStremioStream` devolve NULL para item sem infoHash (link que
+    // nenhum resolvedor abriu). Registrado UMA vez aqui, com o título bruto:
+    // é o único ponto onde o item ainda tem nome — depois disto ele é null e
+    // o sortAndLimit o pula em silêncio (sem re-registrar, para não duplicar).
+    if (!stream) dropTrace(trace, item, 'no-hash');
+    return stream;
+  });
   // Histórico durável do banco de magnets: quem o debrid desta conta comprovou
   // como play instantâneo ganha desempate acima dos seeders no sort.
   const aliveAdapter = debrid.current();
@@ -456,7 +499,10 @@ export async function buildStreams(rawInput: RawItem[], {
     brFirst,
     indexerPriority: safeIndexerPriority,
     instant: instantSet ? (h: string) => instantSet.has(String(h).toLowerCase()) : undefined,
+    trace,
   });
+  // P5 — segundo estágio: o que sobrou da ordenação/dedupe/pool pré-debrid.
+  stageTrace(trace, 'afterSort', streams.length);
 
   // Contagem ANTES do debrid: `applyDebrid` já devolve a lista pós-cachedOnly,
   // então usar o retorno dele para decidir o aviso era medir depois do corte —
@@ -485,6 +531,9 @@ export async function buildStreams(rawInput: RawItem[], {
     // Só a passada reclamada e ainda não contada observa o `search.first.*`.
     observeFirstPass: Boolean(observeFirstPass && firstObserver && !firstObserver.firstCounted),
     firstObserver,
+    // P5 — os cortes do debrid (bad/dead/lie/idx-miss, cached-only, rd-miss)
+    // também entram no ledger; o ledger mora aqui fora, o steps só lê/escreve.
+    trace,
     onCacheResult: (result: { autofetchCount?: number; trustDropped?: number }) => {
       autofetchCount += result.autofetchCount || 0;
       trustDropped += result.trustDropped || 0;
@@ -508,6 +557,9 @@ export async function buildStreams(rawInput: RawItem[], {
     maxPerIndexer,
     indexerLimits: safeIndexerLimits,
     season,
+    // P5 — cotas finais (quality-quota/indexer-limit/max-results e as vagas
+    // BR trocadas) observadas pelo mesmo ledger.
+    trace,
     // I0 — finaliza as métricas first aqui, num ÚNICO bloco coerente: o
     // `onSelected` roda depois do debrid e do limite, então `Date.now() <=
     // deadlineAt` aqui é a prova de que a build da primeira resposta CONCLUIU
@@ -573,7 +625,13 @@ export async function buildStreams(rawInput: RawItem[], {
   // neste ponto.
   if (config.search.noticeStream && streams.length === 0) {
     const name = noticeText();
-    if (name) streams = [{ name, notice: true }];
+    if (name) {
+      streams = [{ name, notice: true }];
+      // P5 — o aviso é um item do ledger: ele explica a lista vazia com o
+      // MESMO texto que o cliente recebeu.
+      dropTrace(trace, { name }, 'notice');
+      stageTrace(trace, 'notice', 1);
+    }
   }
 
   // "A dublada não ficou em cima" é a queixa mais comum e tem três causas
@@ -588,6 +646,9 @@ export async function buildStreams(rawInput: RawItem[], {
       ` | brFirst=${brFirst} preferDubbed=${preferDubbed} | topo: ${head}`,
   );
 
+  // P5 — fecha o ledger com o tamanho ENTREGUE (o aviso entra na contagem) e
+  // o instante de término. Depois daqui o `finish` serializa e grava no cache.
+  finalizeTrace(trace, streams.length);
   return streams;
 }
 

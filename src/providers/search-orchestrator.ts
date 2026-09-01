@@ -38,6 +38,8 @@ import { SAFE_INDEXER_ID, buildStreams, createFirstObserver, firstObserverClaim,
 import type { FirstObserverState } from './stream-builder.js';
 import { nomeiaEpisodio } from './debrid-pipeline.js';
 import { hasPlayableStream, debridRefreshSatisfied } from './search-cache.js';
+import { createStreamTrace, serializeTrace } from '../utils/stream-trace.js';
+import type { StreamTraceState, SerializedStreamTrace } from '../utils/stream-trace.js';
 
 /**
  * Normaliza releases (tanto do índice quanto itens crus/debrid) e verifica se
@@ -509,12 +511,17 @@ export async function doSearch({
       let needsDebridRefresh = false;
       let autofetchCount = 0;
       let debridKnown: boolean | undefined = undefined;
+      // P5 — um ledger POR build. Criado só quando o kill-switch está ligado;
+      // desligado, `trace` null e toda a instrumentação é no-op. O estado
+      // observa os cortes SEM mudar nenhum deles.
+      const trace: StreamTraceState | null = config.search.streamTrace ? createStreamTrace() : null;
       const streams = await buildStreams(items, {
         meta, titles, imdbId, season, episode, isDemo, searchKey: cacheKey,
         deadlineAt: inputDeadline,   // presente SÓ no passo de resposta (orçamento do debrid e gate de prazo do first)
         observeFirstPass,             // só a passada reclamada
         observeLatePass,              // recache tardio com o first já contado
         firstObserver,                // estado persistido entre os passes do finish
+        trace,
         onDebridResult: (result: any) => {
           needsDebridRefresh = needsDebridRefresh || result.needsFullRefresh;
           autofetchCount += result.autofetchCount || 0;
@@ -522,9 +529,9 @@ export async function doSearch({
         },
       });
       const isDebridKnown = debridKnown !== undefined ? Boolean(debridKnown && !needsDebridRefresh) : !needsDebridRefresh;
-      return { streams, partial, needsDebridRefresh, autofetchCount, debridKnown: isDebridKnown };
+      return { streams, partial, needsDebridRefresh, autofetchCount, debridKnown: isDebridKnown, trace };
     },
-    ({ streams, partial, needsDebridRefresh, debridKnown }) => {
+    ({ streams, partial, needsDebridRefresh, debridKnown, trace }) => {
       // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco
       // tempo. Lote parcial idem: o passe tardio reescreve, mas se ele falhar o
       // TTL curto evita servir a lista sem as fontes BR por 15 minutos.
@@ -534,9 +541,11 @@ export async function doSearch({
       // confiável. Sem ele, `partial:false` era usado como prova de "já
       // processado" — e o passe tardio promove a entrada SEM refazer a
       // checagem, o que congelava a lista sem ⚡ pelo TTL inteiro.
+      // P5 — o trace vai serializado (payload) junto da lista: é ele que o
+      // /stream-trace.json lê offline. Kill-switch desligado => null.
       cache.set(
         cacheKey,
-        { streams, partial, debridKnown: isDebridKnown },
+        { streams, partial, debridKnown: isDebridKnown, trace: serializeTrace(trace) },
         complete ? config.cacheTtl : Math.min(config.cacheTtl, 60),
       );
       log.info(`[search] ${streams.length} stream(s)${partial ? ' (parcial)' : ''} para ${id}`);
@@ -559,10 +568,13 @@ export async function doSearch({
     if (!hit?.partial) return undefined;
     // Promover NÃO refaz a checagem de cache, então `debridKnown` é copiado
     // como está: promessa de completude da COLETA não é promessa de ⚡.
+    // P5 — `hit.trace` copiado OBRIGATORIAMENTE: a promoção substitui a entrada
+    // inteira, e sem o campo o ledger da primeira build seria apagado numa
+    // coleta que não trouxe nada novo — exatamente o caso que o endpoint lê.
     const debridKnown = hit.debridKnown === true;
     cache.set(
       cacheKey,
-      { streams: hit.streams, partial: false, debridKnown },
+      { streams: hit.streams, partial: false, debridKnown, trace: (hit as { trace?: SerializedStreamTrace | null }).trace ?? null },
       debridKnown ? config.cacheTtl : Math.min(config.cacheTtl, 60),
     );
     log.info(`[search] coleta encerrada sem novidade; ${hit.streams.length} stream(s) para ${id}`);

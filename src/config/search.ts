@@ -91,4 +91,11 @@ export const search = () => ({
   packMinSeeders: Math.max(0, Math.trunc(num(process.env.SEARCH_PACK_MIN_SEEDERS, 3))),
   // Sem uma fonte tocável, explica ao cliente por que a lista não ficou vazia.
   noticeStream: String(process.env.SEARCH_NOTICE_STREAM || 'true') === 'true',
+  // Ledger observacional do pipeline de busca (P5): cada corte fica registrado
+  // na entrada `streams` do cache e o /stream-trace.json lê o rastro offline.
+  // Zero efeito no comportamento — desligar aqui custa o diagnóstico E cega a
+  // LEITURA de traces históricos (serializeTrace devolve null também na rota;
+  // entradas antigas só voltam a ser explicáveis com o knob ligado de novo).
+  // Os valores "0" e "false" desligam (a gravação fica com trace:null).
+  streamTrace: !['0', 'false'].includes(String(process.env.STREAM_TRACE || 'true').trim().toLowerCase()),
 });

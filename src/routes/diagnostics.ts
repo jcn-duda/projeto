@@ -3,6 +3,8 @@ import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 import { dispatchDashboardAction } from './dashboard-actions.js';
 import * as brCoverage from '../utils/br-coverage.js';
+import { streamsCacheKey } from '../utils/request-key.js';
+import { serializeTrace } from '../utils/stream-trace.js';
 
 function releaseIndexStatus(services: AppServices) {
   const counters = services.metrics.snapshot().counters;
@@ -261,7 +263,58 @@ function makeDiagnosticHandlers(services: AppServices) {
     }
   });
 
-  return { metrics, dashboardStatus, dashboardAction, testIndexer, testResolver, debridStatus };
+  // P5 — leitura OFFLINE do ledger de busca: a chave é a MESMA do stream
+  // request (config do segmento + resolveUncached do operador, sem credencial)
+  // e a leitura é getWithStale — nunca peek — para enxergar exatamente o que a
+  // busca enxerga, inclusive a entrada expirada dentro da janela de graça.
+  // Zero rede: o payload veio da gravação do `finish` junto da lista. A
+  // resposta NUNCA inclui os streams nem a chave crua — só o rastro e o estado
+  // do cache. O trace é gravado já serializado; o serializeTrace da leitura é
+  // idempotente (trunca/sanitiza de novo) e devolve null para entrada antiga
+  // sem o campo ou com o kill-switch desligado.
+  const streamTrace = asyncRoute(async (req, res) => {
+    if (unavailable(services, req, res, 'diagnóstico desativado pelo operador', { ok: false })) return;
+    const admission = services.diagnosticGate.enter('global') as GateAdmission;
+    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
+    try {
+      const type = String(req.query.type || '');
+      const id = String(req.query.id || '');
+      if (type !== 'movie' && type !== 'series') {
+        return res.status(400).json({ ok: false, error: 'type deve ser movie ou series' });
+      }
+      if (!/^tt\d+(?::\d+){0,2}$/.test(id)) {
+        return res.status(400).json({ ok: false, error: 'id deve ser tt\\d+ opcionalmente com :s:e' });
+      }
+      // Mesma derivação de search-cache.ts:62-63. Fora do segmento, opts() são
+      // os defaults — que é exatamente como a busca sem config roda.
+      const cacheKey = streamsCacheKey(type, id, {
+        ...services.runtime.opts(),
+        resolveUncached: services.config.debrid.resolveUncached,
+      });
+      const hit = services.cache.getWithStale(cacheKey, services.config.streamStaleGrace);
+      if (!hit) {
+        return res.status(404).json({ ok: true, found: false });
+      }
+      const value = (hit.value ?? {}) as { partial?: boolean; debridKnown?: boolean; trace?: unknown };
+      return res.json({
+        ok: true,
+        found: true,
+        type,
+        id,
+        cache: {
+          remainingS: services.cache.peekRemaining(cacheKey) ?? 0,
+          partial: value.partial === true,
+          debridKnown: value.debridKnown === true,
+          stale: hit.stale === true,
+        },
+        trace: serializeTrace(value.trace as Parameters<typeof serializeTrace>[0]),
+      });
+    } finally {
+      admission.release();
+    }
+  });
+
+  return { metrics, dashboardStatus, dashboardAction, testIndexer, testResolver, debridStatus, streamTrace };
 }
 
 export { makeDiagnosticHandlers };

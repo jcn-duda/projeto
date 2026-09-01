@@ -13,6 +13,8 @@ import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { remainingCheckBudget } from '../utils/deadline.js';
 import type { FirstObserverState } from './stream-builder.js';
+import { dropTrace } from '../utils/stream-trace.js';
+import type { StreamTraceState } from '../utils/stream-trace.js';
 
 // I0 — observabilidade do funil da primeira resposta BR no corte do debrid.
 // O brFound agora é contado no buildStreams (funil pré-debrid); aqui ficam
@@ -72,12 +74,15 @@ export type BrokenPrune = {
 export function pruneKnownBroken(
   streams: Stream[],
   adapterId: string,
-  { apiKey, trustScope, season, episode, imdbId }: {
+  { apiKey, trustScope, season, episode, imdbId, trace }: {
     apiKey: string;
     trustScope: string;
     season?: number | null;
     episode?: number | null;
     imdbId?: string | null;
+    /** P5 — ledger observacional: cada descarte leva o motivo real (bad, dead,
+     * lie ou idx-miss) e o título, ANTES de gastar lote na checagem. */
+    trace?: StreamTraceState | null;
   },
 ): BrokenPrune {
   // Banco de magnets + blacklist do autofetch: o que já PROVOU estar quebrado
@@ -109,10 +114,12 @@ export function pruneKnownBroken(
         return true;
       }
       droppedBad += 1;
+      dropTrace(trace, s, 'bad');
       return false;
     }
     if (s._lied || magnetdb.isLie(adapterId, apiKey, s.infoHash)) {
       droppedLie += 1;
+      dropTrace(trace, s, 'lie');
       return false;
     }
     // Prova fina do índice: este hash já provou NÃO servir ESTE episódio
@@ -120,10 +127,12 @@ export function pruneKnownBroken(
     // episódio não têm o que conferir.
     if (season != null && episode != null && imdbId && releaseIndex.isMissing(imdbId, { season, episode }, s.infoHash)) {
       droppedMiss += 1;
+      dropTrace(trace, s, 'idx-miss');
       return false;
     }
     if (autofetch.isDead(adapterId, trustScope, s.infoHash)) {
       droppedDead += 1;
+      dropTrace(trace, s, 'dead');
       return false;
     }
     return true;

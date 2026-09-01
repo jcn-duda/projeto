@@ -4,6 +4,8 @@ import { UNKNOWN_QUALITY, audioFromTitle, sourceFromTitle, editionFromTitle, has
 import { isSeasonPackRelease, parseTitleSeasonEpisode } from './episode-matching.js';
 import { streamQuality, selectQualityCandidates } from './stream-quotas.js';
 import { streamDisplayName, passesQualityFilter } from './search-names.js';
+import { dropTrace } from './stream-trace.js';
+import type { StreamTraceState, TraceReason } from './stream-trace.js';
 
 interface PoolsOptions {
   season?: number | null;
@@ -36,6 +38,8 @@ interface SortOptions {
   brFirst?: boolean;
   indexerPriority?: string[];
   instant?: ((hash: string) => boolean) | null;
+  /** P5 — ledger observacional; os cortes desta função ficam registrados. */
+  trace?: StreamTraceState | null;
 }
 
 /**
@@ -67,7 +71,7 @@ function relabel(stream: any, { isBr, dubbedFrom }: { isBr?: boolean; dubbedFrom
 }
 
 /** Mesma release aparece em vários indexers; fica a de maior seeders. */
-function dedupeByHash(streams: any[], indexerPriority: string[] = []) {
+function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: StreamTraceState | null) {
   const best = new Map();
   const ranks = priorityMap(indexerPriority);
   for (const s of streams) {
@@ -92,6 +96,9 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = []) {
     else if (Boolean(s._dubbed) !== Boolean(prev._dubbed)) winner = s._dubbed ? s : prev;
     else winner = compareIndexerPriority(s, prev, ranks) < 0 ? s : prev;
     const loser = winner === s ? prev : s;
+    // P5 — o perdedor do merge some da lista em silêncio; no ledger fica o
+    // título dele e de quem venceu não precisa: o item é o mesmo hash.
+    dropTrace(trace, loser, 'dedupe');
     // O indexer BR priorizado pode omitir resolução/tamanho enquanto o global
     // traz metadados completos para o mesmo hash. A prioridade escolhe o rótulo
     // e a origem, mas não deve degradar cota, bingeGroup ou tamanho conhecido.
@@ -358,12 +365,14 @@ function filterKnownCache(
     brReservedSlots = 0,
     known = true,
     missHashes,
+    trace,
   }: {
     cachedOnly?: boolean;
     showUncachedBr?: boolean;
     brReservedSlots?: number;
     known?: boolean;
     missHashes?: Set<string>;
+    trace?: StreamTraceState | null;
   } = {},
 ) {
   const cached = hashSet(cachedHashes);
@@ -382,10 +391,18 @@ function filterKnownCache(
       const h = String(stream.infoHash || '').toLowerCase();
       if (cached.has(h) || visibleBr.has(String(stream.infoHash))) return true;
       if (known) {
+        // P5 — corte do cachedOnly: o hash não está em cache e a conta
+        // respondeu completa. É o corte mais comum de "sumiu o dublado".
+        dropTrace(trace, stream, 'cached-only');
         return false;
       }
       if (miss) {
-        return !miss.has(h);
+        // P5 — recusa ternária do RD: o ledger confirmou MISS (ou blocked)
+        // para o hash. É um corte por evidência, não por falta de resposta.
+        if (miss.has(h)) {
+          dropTrace(trace, stream, 'rd-miss');
+          return false;
+        }
       }
       return true;
     }),
@@ -410,6 +427,7 @@ function sortAndLimit(
     brFirst = true,
     indexerPriority = [],
     instant = null as null | ((hash: string) => boolean),
+    trace,
   }: SortOptions = {},
 ) {
   // Release que nomeia o episódio pedido vem antes do pack da temporada: o pack
@@ -421,13 +439,24 @@ function sortAndLimit(
   const maxSizeBytes = maxSizeGb > 0 ? maxSizeGb * 1024 ** 3 : 0;
   const indexerRanks = priorityMap(indexerPriority);
 
-  const candidates = dedupeByHash(streams, indexerPriority)
-    .filter((s) => (s._seeders || 0) >= minSeeders)
-    .filter((s) => passesQualityFilter(s, qualityFilter, qualityLimits))
-    .filter((s) => !excludeCam || sourceFromTitle(s.title) !== 'CAM')
-    // Tamanho ausente não é tratado como zero real: sem dado confiável, o
-    // stream continua visível em vez de ser descartado silenciosamente.
-    .filter((s) => !maxSizeBytes || !s._size || s._size <= maxSizeBytes);
+  // P5 — aplica UM predicado e registra quem caiu com o motivo exato. Com o
+  // trace desligado é um filter comum (o diff só roda quando há queda).
+  const filtrar = (entrada: any[], motivo: TraceReason, predicado: (s: any) => boolean) => {
+    const saida = entrada.filter(predicado);
+    if (trace && saida.length !== entrada.length) {
+      const vivos = new Set(saida);
+      for (const s of entrada) if (!vivos.has(s)) dropTrace(trace, s, motivo);
+    }
+    return saida;
+  };
+
+  let candidates = dedupeByHash(streams, indexerPriority, trace);
+  candidates = filtrar(candidates, 'min-seeders', (s) => (s._seeders || 0) >= minSeeders);
+  candidates = filtrar(candidates, 'quality-filter', (s) => passesQualityFilter(s, qualityFilter, qualityLimits));
+  candidates = filtrar(candidates, 'cam-excluded', (s) => !excludeCam || sourceFromTitle(s.title) !== 'CAM');
+  // Tamanho ausente não é tratado como zero real: sem dado confiável, o
+  // stream continua visível em vez de ser descartado silenciosamente.
+  candidates = filtrar(candidates, 'size-limit', (s) => !maxSizeBytes || !s._size || s._size <= maxSizeBytes);
 
   const exactFlag = new Map();
   if (season != null && episode != null) {
@@ -467,14 +496,21 @@ function sortAndLimit(
       return (b._seeders || 0) - (a._seeders || 0);
     });
 
-  return selectQualityCandidates(ordered, {
+  const selecionados = selectQualityCandidates(ordered, {
     maxResults,
     qualityLimits,
     brReservedSlots,
     brReservedPerQuality,
     candidateFactor,
     brFirst,
-  })
+  });
+  // P5 — o pool pré-debrid é maior que o que segue adiante (candidateFactor):
+  // quem caiu aqui não é ruim, é excedente da ampliação.
+  if (trace && selecionados.length !== ordered.length) {
+    const vivos = new Set(selecionados);
+    for (const s of ordered) if (!vivos.has(s)) dropTrace(trace, s, 'pool-cut');
+  }
+  return selecionados
     // `_quality` e `_br` precisam sobreviver ao debrid: as cotas e a reserva
     // são aplicadas só depois que cachedOnly remove os streams indisponíveis.
     // `_dubbed` também precisa chegar ao autofetch: sem ele uma fonte BR sem
