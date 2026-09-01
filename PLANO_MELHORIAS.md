@@ -818,9 +818,11 @@ tela já na busca seguinte).
 - Gates dos 4 commits: typecheck 0, build verde, 1594/1594 testes,
   `test:complete` 94+6, catraca verde, revisão independente APPROVE no 8.14
   (após corrigir o T1) e no 8.16.
-- **8.17 NO CÓDIGO** (`bdf00ea`): reconcile da posse órfã + fail-safe do
-  `dropDownload`. Fecha H1/H2 (abaixo). Default **ON**, teto 25/rodada,
-  intervalo mínimo 5min, só conta do operador. Ver a linha 8.17 na Trilha C.
+- **8.17 NO CÓDIGO** (`bdf00ea`, default invertido em `d6442b1`): reconcile da
+  posse órfã + fail-safe do `dropDownload`. Fecha H1/H2 (abaixo). Default
+  **OFF** (`DEBRID_RECONCILE`, ativação explícita — como o 8.16, remove magnet
+  pronto fora do eco da busca), teto 25/rodada, intervalo mínimo 5min, só conta
+  do operador. Ver a linha 8.17 na Trilha C.
 - **Painel** (`fba39e1`, `1c297ca`): `sem-debrid` do anônimo deixa de virar
   banner de problema numa instância pública segura, e conta do operador `ok`
   em `accounts` mostra online/warn em vez de "não medido". Testes de runtime
