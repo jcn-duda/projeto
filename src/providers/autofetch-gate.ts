@@ -20,7 +20,11 @@ import type { DebridAdapter } from '../../types/domain.js';
  * em memória abaixo — e o refresh roda em background. Memo frio ou vencido
  * é FAIL-OPEN: melhor um download a mais que bloquear sem evidência.
  */
-const accountGateMemo = new Map<string, { count: number; at: number; source: string }>();
+type GateMemo = { count: number; max: number; blocked: boolean; at: number; source: string };
+const accountGateMemo = new Map<string, GateMemo>();
+// Último bloqueio pelo piso do inventário: diagnóstico apenas, nunca decide a
+// chamada seguinte (o dinv pode cair abaixo do limiar entre duas buscas).
+const accountGateObserved = new Map<string, GateMemo>();
 // Trava anti-duplicação: memo vencido acordado por N buscas dispara UM refresh.
 const accountGateInFlight = new Set<string>();
 
@@ -29,23 +33,33 @@ function accountGateBlocked(adapter: DebridAdapter, apiKey: string): boolean {
   const pauseAt = live.autoFetchPauseAt;
   if (pauseAt <= 0) return false;
   if (!adapter || !apiKey) return false;
+  const key = `${adapter.id}:${accountScope(apiKey)}`;
 
-  // Bônus barato, antes do memo: o inventário memoizado da conta é leitura
+  // Bônus barato para o gate LEGADO: o inventário memoizado é leitura
   // local (cache.get, sem rede) e a contagem já é o tamanho do array. Mas o
   // dinv guarda só magnets PRONTOS, e a ocupação que derruba a conta é o
   // TOTAL: prontos ⊆ todos, então o peek é piso — só bloqueia, nunca libera.
-  // Abaixo do limiar a decisão segue para o memo/accountStatus.
-  const peek = debrid.inventoryPeek(adapter, apiKey);
-  if (Array.isArray(peek) && peek.length >= pauseAt) return true;
+  // Adapter com occupancy (TorBox) NÃO pode usar esse piso: 900 prontos não
+  // dizem quantos slots ativos estão ocupados — foi a causa H3 medida.
+  if (typeof adapter.occupancy !== 'function') {
+    const peek = debrid.inventoryPeek(adapter, apiKey);
+    if (Array.isArray(peek) && peek.length >= pauseAt) {
+      accountGateObserved.set(key, {
+        count: peek.length, max: pauseAt, blocked: true,
+        at: Date.now(), source: 'inventoryPeek',
+      });
+      return true;
+    }
+    accountGateObserved.delete(key);
+  }
 
   // Adaptador sem accountStatus (ou sem contagem total, como o Premiumize,
   // que só publica o fair-use) nunca bloqueia: sem medição não há evidência.
   if (typeof adapter.accountStatus !== 'function') return false;
 
-  const key = `${adapter.id}:${accountScope(apiKey)}`;
   const memo = accountGateMemo.get(key);
   if (memo && Date.now() - memo.at < live.autoFetchPauseRefreshMs) {
-    return memo.count >= pauseAt;
+    return memo.blocked;
   }
 
   // Memo vencido/ausente: FAIL-OPEN agora, refresh em background para a
@@ -54,11 +68,28 @@ function accountGateBlocked(adapter: DebridAdapter, apiKey: string): boolean {
     accountGateInFlight.add(key);
     Promise.resolve(adapter.accountStatus(apiKey))
       .then((status) => {
+        if (typeof adapter.occupancy === 'function') {
+          const measured = adapter.occupancy(status);
+          const count = Number(measured?.used);
+          const max = Number(measured?.max);
+          if (Number.isFinite(count) && Number.isFinite(max) && max > 0) {
+            accountGateObserved.delete(key);
+            accountGateMemo.set(key, {
+              count, max, blocked: count >= max,
+              at: Date.now(), source: 'accountStatus',
+            });
+          }
+          return;
+        }
         const count = Number(status?.magnets);
         // Sem contagem numérica (campo ausente) nada é gravado: o serviço
         // continua fail-open para sempre, igual ao adaptador sem suporte.
         if (Number.isFinite(count)) {
-          accountGateMemo.set(key, { count, at: Date.now(), source: 'accountStatus' });
+          accountGateObserved.delete(key);
+          accountGateMemo.set(key, {
+            count, max: pauseAt, blocked: count >= pauseAt,
+            at: Date.now(), source: 'accountStatus',
+          });
         }
       })
       .catch(() => {})
@@ -70,6 +101,7 @@ function accountGateBlocked(adapter: DebridAdapter, apiKey: string): boolean {
 /** Limpa o memo e a trava em voo do gate de ocupação (testes/diagnóstico). */
 function resetAccountGate() {
   accountGateMemo.clear();
+  accountGateObserved.clear();
   accountGateInFlight.clear();
 }
 
@@ -82,16 +114,18 @@ function resetAccountGate() {
 function accountGateSnapshot() {
   const live = autofetchLive.effective();
   const pauseAt = live.autoFetchPauseAt;
-  const accounts: Array<{ id: string; count: number; at: number; source: string; blocked: boolean }> = [];
-  for (const [key, memo] of accountGateMemo) {
+  const accounts: Array<{ id: string; count: number; max: number; at: number; source: string; blocked: boolean }> = [];
+  const visible = new Map([...accountGateMemo, ...accountGateObserved]);
+  for (const [key, memo] of visible) {
     accounts.push({
       // Mesmo padrão de budget.accounts: o digest inteiro nunca sai, só 12 hex
       // do hash da chave (adapter:account) — suficiente para correlacionar.
       id: crypto.createHash('sha256').update(key).digest('hex').slice(0, 12),
       count: memo.count,
+      max: memo.max,
       at: memo.at,
       source: memo.source || 'accountStatus',
-      blocked: pauseAt > 0 && memo.count >= pauseAt,
+      blocked: pauseAt > 0 && memo.blocked,
     });
   }
   return {

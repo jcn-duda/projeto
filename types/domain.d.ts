@@ -216,6 +216,11 @@ export interface DebridAdapter {
   ): Promise<string | null>;
   /** Ocupação da conta para o `/debrid-status.json`; ausente = não suportado. */
   accountStatus?(apiKey: string): Promise<AccountStatus>;
+  /**
+   * Interpreta a ocupação que REALMENTE barra escrita neste serviço. Ausente
+   * preserva o gate legado por `status.magnets >= autoFetchPauseAt`.
+   */
+  occupancy?(status: AccountStatus): { used: number; max: number } | null;
   /** Itens prontos na conta; ausente = no-op (serviço sem inventário legível). */
   inventory?(apiKey: string): Promise<InventoryItem[]>;
   /** Enfileira download; ausente = autofetch/viaDebrid não usa. */

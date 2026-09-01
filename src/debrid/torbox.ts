@@ -2,9 +2,13 @@ import config from '../config.js';
 import { magnetFor, json, pickFile, batched, wait, QuotaError, RateLimitError } from './common.js';
 import * as log from '../utils/logger.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
-import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+import type { AccountStatus, PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
 const API = 'https://api.torbox.app/v1/api';
+// O plano Pro documenta o maior teto (10 slots; Free/Essential/Standard têm
+// 1/3/5). Sem endpoint de plano neste caminho, usar o máximo evita falso
+// bloqueio — a recusa ACTIVE_LIMIT dos planos menores continua observável.
+export const ACTIVE_LIMIT = 10;
 
 function envelopeMessage(data: any) {
   const detail = data?.detail;
@@ -166,6 +170,12 @@ async function accountStatus(apiKey: string) {
   return { magnets: rows.length, ready, active };
 }
 
+/** TorBox é limitado por downloads ATIVOS, não pelo tamanho total do mylist. */
+function occupancy(status: AccountStatus) {
+  const active = Number(status?.active);
+  return Number.isFinite(active) ? { used: active, max: ACTIVE_LIMIT } : null;
+}
+
 /**
  * Status de torrents na conta TorBox para o ciclo de recheck / detecção de mortos.
  */
@@ -226,5 +236,5 @@ export const short = 'TB';
 export const cacheCheck = true;
 export const enqueueHourlyLimit = 50;
 export const keyUrl = 'https://torbox.app/settings';
-export { enqueue, inventory, accountStatus, checkCached, resolveLink, torrentStatus, removeTorrent };
+export { enqueue, inventory, accountStatus, occupancy, checkCached, resolveLink, torrentStatus, removeTorrent };
 
