@@ -26,10 +26,10 @@
 > pelo Jackett); `9d3e2a6` implementa o ⚡ de memória no degradado
 > (`DEBRID_ALIVE_AS_CACHE`, default desligado); `3d6f89d` adiciona o teste
 > seguro de conta de debrid no painel (Fase 1 — sem salvar, sem trocar
-> config). Medido no checkout em 2026-08-31, pós-`bdf00ea`: **121** arquivos
-> `.ts` em `src/` totalizando **23.176 linhas**, e **97** arquivos `*.test.ts`
-> (91 unit + 6 e2e), todos na lista explícita do `npm test`
-> (`test:complete` 97+6 verde, **1.617/1.617**). Para o porquê de cada decisão, `AGENTS.md`
+> config). Medido no checkout em 2026-09-01, pós-`9eb98f4`: **125** arquivos
+> `.ts` em `src/` totalizando **24.166 linhas**, e **106** arquivos `*.test.ts`
+> (100 unit + 6 e2e), todos na lista explícita do `npm test`
+> (`test:complete` 106+6 verde, **1.686/1.686**). Para o porquê de cada decisão, `AGENTS.md`
 > continua sendo a fonte de verdade — ele nunca descreve estado futuro como
 > presente.
 - **Process & Application Layer**:
@@ -66,7 +66,7 @@
 ---
 
 ## Code Layout
-- `src/**/*.ts`: 121 arquivos, 23.176 linhas (medido no checkout em 2026-08-31, pós-`bdf00ea`).
+- `src/**/*.ts`: 125 arquivos, 24.166 linhas (medido no checkout em 2026-09-01, pós-`9eb98f4`).
 - `src/addon.ts`: Process entry point & lifecycle management.
 - `src/app.ts`: Express application composition only; `src/routes/*.ts` holds registration and handlers.
 - `src/config.ts`: Centralized operator environment configuration.
@@ -77,7 +77,7 @@
 - `resolvers/*.js`: Shared CommonJS core of the five Brazilian resolvers; `resolvers/profiles/*.js`: per-site parsers and rules.
 - `src/public/*`: Panel pages (ES5, zero build) — HTML plus the CSS/JS extracted in §5.9.
 - `scripts/check-line-budget.ts` + `.line-budget.json`: 400-line ratchet over `.ts`/`.js`/`.css` (§5.8, scope extended to `.css` on 08-29); `npm run lint:lines`.
-- `test/*.test.ts`: Complete unit test suite (91 unit + 6 E2E = 97 files tracked in `package.json`; `test:complete` 97+6 e 1.617/1.617 verdes em 2026-08-31, pós-`bdf00ea`).
+- `test/*.test.ts`: Complete unit test suite (100 unit + 6 E2E = 106 files tracked in `package.json`; `test:complete` 106+6 e 1.686/1.686 verdes em 2026-09-01, pós-`9eb98f4`).
 - `test/e2e/*.test.ts`: Opaque-box E2E test suite (Tiers 1–4).
 - `test/*challenger*.ts`, `test/*stress*.ts`, `test/*adversarial*.ts`: Empirical bench test harnesses.
 

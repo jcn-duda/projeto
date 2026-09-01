@@ -1330,7 +1330,7 @@ linhas), os dois maiores arquivos do repo, não existem mais como monólito.
 ```
 npm run typecheck      # portão: ZERO
 npm run build          # dist/ atual (test roda dist)
-npm test               # 1.682 testes hoje (working tree P5, 2026-09-01), zero falha
+npm test               # 1.686 testes hoje (medido em 2026-09-01, pós-`9eb98f4`), zero falha
 npm run test:complete  # lista explícita fechada
 # fase 2+ (tocou runtime de rede/debrid):
 node dist/scripts/smoke.js          # pipeline ponta a ponta, rede de verdade
