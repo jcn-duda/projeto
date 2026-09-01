@@ -535,7 +535,7 @@ test('matriz de enqueue: dc=false enfileira exatamente um BR dublado; cached/kno
 test('contrato max4 seleciona candidatos distintos e limita slots por busca', () => {
   assert.equal(typeof pickBrDubbedCandidates, 'function');
   assert.equal(typeof autofetch.acquireSearchSlot, 'function');
-  assert.equal(config.debrid.autoFetchMax, 4);
+  assert.equal(config.debrid.autoFetchMax, 3);
 
   const one = stream(A, { _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 });
   const duplicate = { ...one, infoHash: A.toUpperCase() };
@@ -666,7 +666,7 @@ test('acquireSearch mantém compatibilidade com o teto antigo de uma vaga', () =
   assert.equal(autofetch.acquireSearch(searchKey), true, 'release devolve o slot');
   autofetch.releaseSearch(searchKey);
 });
-test('matriz integrada: 4 BR uncached com dc=false/known=true enfileiram os quatro melhores', async () => {
+test('matriz integrada: 4 BR uncached com dc=false/known=true enfileiram os três melhores', async () => {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   // O caso é sobre torrent puro, então a premissa precisa ser fixada: a suíte
@@ -710,9 +710,9 @@ test('matriz integrada: 4 BR uncached com dc=false/known=true enfileiram os quat
     ) as Stream[];
     await sleep(20);
 
-    // dc=false + known=true: os quatro candidatos distintos entram em background
-    // na ordem do pool (1080p com mais seeds, depois 1080p, 720p e 2160p).
-    assert.deepEqual(enqueued, [h2, h1, h3, h4], 'os quatro melhores candidatos enfileiram');
+    // dc=false + known=true: entram na ordem do pool (1080p, 720p, 2160p), cortados
+    // pelo teto autoFetchMax=3 — os três melhores, não os quatro.
+    assert.deepEqual(enqueued, [h2, h1, h3], 'os três melhores candidatos enfileiram');
     assert.equal(out.length, 4, 'dc=false mantém os 4 BR na lista');
     assert.ok(out.every((s) => s.infoHash), 'lista sai como torrent puro, sem selo ⚡');
   } finally {
@@ -918,7 +918,7 @@ test('autofetch de série enfileira o pack em vez do episódio avulso', async ()
     );
     await sleep(20);
     // O pack vem PRIMEIRO no pick (um download serve o binge inteiro); o
-    // episódio só entra depois porque ainda há vaga no teto autoFetchMax=4.
+    // episódio só entra depois porque ainda há vaga no teto autoFetchMax=3.
     assert.deepEqual(enqueued, [pack, ep], 'série: o pack é enfileirado antes do episódio');
   } finally {
     debrid.checkCached = originalCheck;
@@ -1038,7 +1038,7 @@ test('marker pré-existente pula apenas o hash marcado; um candidato diferente a
     held.release(y, account);
   }
 });
-test('passe parcial e tardio no MESMO searchKey compartilham teto de quatro enqueues', async () => {
+test('passe parcial e tardio no MESMO searchKey compartilham teto de três enqueues', async () => {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
@@ -1084,16 +1084,16 @@ test('passe parcial e tardio no MESMO searchKey compartilham teto de quatro enqu
     assert.equal(enqueued.length, 1, 'repetição do mesmo passe é barrada pelo marker');
 
     // Passe tardio traz cinco candidatos novos. O contador compartilhado deixa
-    // passar apenas mais três: parcial+tardio nunca excede quatro na busca.
+    // passar apenas mais dois: parcial+tardio nunca excede três na busca.
     await run(h2);
     await run(h3);
     await run(h4);
     await run(h5);
     await run(h6);
     await sleep(20);
-    assert.deepEqual(enqueued, [h1, h2, h3, h4], 'o teto compartilhado barra o quinto candidato');
+    assert.deepEqual(enqueued, [h1, h2, h3], 'o teto compartilhado barra o quarto candidato');
+    assert.equal(held.isHeld(h4, account), false, 'o quarto candidato é liberado do hold');
     assert.equal(held.isHeld(h5, account), false, 'o quinto candidato é liberado do hold');
-    assert.equal(held.isHeld(h6, account), false, 'o sexto candidato é liberado do hold');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
