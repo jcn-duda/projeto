@@ -21,16 +21,18 @@ export const searchSettings = () => ({
   qualityFilter: list(process.env.QUALITY_FILTER),
   minSeeders: num(process.env.MIN_SEEDERS, 1),
   maxResults: num(process.env.MAX_RESULTS, 40),
-  // 6 em todas: a página de configurar tem UM controle para as seis cotas, e
-  // 6 era o número que o balde "unknown" (as fontes BR, que não publicam
-  // resolução) já usava. Uniformizar por baixo encolheria BR sem motivo.
+  // 3 em todas (era 6): decisão do operador em 2026-09-01 por lista mais curta.
+  // A página tem UM controle para as seis cotas, então o número desce junto no
+  // balde "unknown" — o das fontes BR, que não publicam resolução no título.
+  // O que segura o BR aí é a reserva (BR_RESERVED_SLOTS), que atravessa a cota
+  // por qualidade e NÃO a consome; o corte alcança só o BR excedente à reserva.
   qualityLimits: {
-    '2160p': num(process.env.MAX_STREAMS_2160P, 6),
-    '1080p': num(process.env.MAX_STREAMS_1080P, 6),
-    '720p': num(process.env.MAX_STREAMS_720P, 6),
-    '480p': num(process.env.MAX_STREAMS_480P, 6),
-    SD: num(process.env.MAX_STREAMS_SD, 6),
-    unknown: num(process.env.MAX_STREAMS_UNKNOWN, 6),
+    '2160p': num(process.env.MAX_STREAMS_2160P, 3),
+    '1080p': num(process.env.MAX_STREAMS_1080P, 3),
+    '720p': num(process.env.MAX_STREAMS_720P, 3),
+    '480p': num(process.env.MAX_STREAMS_480P, 3),
+    SD: num(process.env.MAX_STREAMS_SD, 3),
+    unknown: num(process.env.MAX_STREAMS_UNKNOWN, 3),
   },
   // Teto de streams por indexador no resultado final (0 = sem limite). Impede
   // que uma fonte com muitos resultados ocupe quase todas as vagas. As vagas
