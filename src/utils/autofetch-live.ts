@@ -132,7 +132,7 @@ function clampValue(key: string, value: any): any {
   const n = Number(value);
   switch (key) {
     case 'autoFetchMax':
-      return Math.min(4, Math.max(1, Math.trunc(n)));
+      return Math.min(12, Math.max(1, Math.trunc(n)));
     case 'autoFetchTopSeedsMax':
       return Math.min(4, Math.max(1, Math.trunc(n)));
     case 'autoFetchQueueDepth':
@@ -324,10 +324,10 @@ export function schema(): AutofetchSchemaField[] {
       type: 'number',
       group: 'volume',
       min: 1,
-      max: 4,
+      max: 12,
       step: 1,
       envDefault: defaults.autoFetchMax,
-      description: 'Quantos torrents dublados o chupim baixa em background por busca (1 a 4).',
+      description: 'Quantos torrents dublados o chupim baixa em background por busca (1 a 12).',
     },
     {
       key: 'autoFetchTopSeedsMax',

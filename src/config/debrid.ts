@@ -196,11 +196,10 @@ export const debrid = () => ({
   // Quantos torrents BR dublados o autofetch baixa em background por busca
   // (uma vaga por candidato, compartilhada entre o passe parcial e o tardio).
   // Mais candidatos = mais chances de play pronto depois, ao custo de encher
-  // mais a conta. Clamp 1..4: 0 não desliga o recurso (quem desliga é o toggle
-  // DEBRID_AUTO_FETCH_BR); o teto superior 4 respeita o contrato de "até 4".
-  // Default 3 (operador, 2026-09-01) — baixo o suficiente para não entupir a
-  // conta, alto para pegar mais de uma fonte BR em obras com várias.
-  autoFetchMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 3)))),
+  // mais a conta. Clamp 1..12: 0 não desliga o recurso (quem desliga é o toggle
+  // DEBRID_AUTO_FETCH_BR). O teto 12 (2026-09-01) cobre o acervo BR de uma vez;
+  // o default 3 é o baseline conservador — o operador sobe ao vivo no painel.
+  autoFetchMax: Math.min(12, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 3)))),
   // Rede de segurança quando o título não tem dublagem NENHUMA (filme antigo,
   // cult, série sem áudio PT): sem isso a busca acaba sem baixar nada e, com
   // "somente já em cache" ligado, o usuário vê zero opção para sempre. O

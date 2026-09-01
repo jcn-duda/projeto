@@ -39,7 +39,7 @@ test('autofetchLive.effective() reflete defaults do config.debrid inicialmente',
 
 test('autofetchLive.set() valida e aplica clamps nos valores numéricos', () => {
   const result = autofetchLive.set({
-    autoFetchMax: 10, // clamp 1..4 -> 4
+    autoFetchMax: 20, // clamp 1..12 -> 12
     autoFetchTopSeedsMax: -5, // clamp 1..4 -> 1
     autoFetchQueueDepth: 50, // clamp 0..12 -> 12
     autoFetchMinSeeders: -2, // clamp >= 0 -> 0
@@ -49,7 +49,7 @@ test('autofetchLive.set() valida e aplica clamps nos valores numéricos', () => 
 
   assert.equal(result.ok, true);
   if (result.ok) {
-    assert.equal(result.effective.autoFetchMax, 4);
+    assert.equal(result.effective.autoFetchMax, 12);
     assert.equal(result.effective.autoFetchTopSeedsMax, 1);
     assert.equal(result.effective.autoFetchQueueDepth, 12);
     assert.equal(result.effective.autoFetchMinSeeders, 0);
