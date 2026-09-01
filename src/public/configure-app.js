@@ -19,7 +19,6 @@
     maxResults: $("maxResults"), outMax: $("outMax"),
     maxPerQuality: $("maxPerQuality"), outPerQuality: $("outPerQuality"),
     maxPerIndexer: $("maxPerIndexer"), outPerIndexer: $("outPerIndexer"),
-    debridBadge: $("debridBadge"),
     minSeeders: $("minSeeders"), outSeed: $("outSeed"),
     maxSizeGb: $("maxSizeGb"), outMaxSize: $("outMaxSize"),
     brOnly: $("brOnly"), dubbedOnly: $("dubbedOnly"),

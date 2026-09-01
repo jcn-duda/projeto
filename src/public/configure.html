@@ -22,12 +22,6 @@
   <header>
     <img class="logo" src="/logo.svg" alt="" />
     <h1 id="addonName"></h1>
-    <p class="tagline">Torrents self-hosted com prioridade para conteúdo brasileiro dublado.</p>
-    <div class="badges">
-      <span class="badge">Jackett</span>
-      <span class="badge" id="debridBadge">Debrid</span>
-      <span class="badge">Fontes BR: <b>BLUDV · Comando · NerdFilmes</b></span>
-    </div>
   </header>
 
   <section>
@@ -844,12 +838,10 @@
     el.outMaxSize.textContent = el.maxSizeGb.value === "0" ? "sem limite" : el.maxSizeGb.value + " GB";
     renderPriority();
 
+    // O cabeçalho já anunciou o debrid num badge; ele saiu junto com a tagline
+    // e as etiquetas de fonte. Quem é o serviço ativo continua visível no
+    // próprio seletor abaixo, que é onde a escolha se faz.
     var svc = serviceById(el.debridService.value);
-    // O cabeçalho anunciava "Premiumize" fixo desde quando era o único
-    // suportado. São cinco hoje, e a marca errada no topo faz o usuário do
-    // AllDebrid achar que instalou o addon errado.
-    el.debridBadge.textContent = svc ? (svc.short || svc.label) : "P2P";
-    el.debridBadge.title = svc ? svc.label : "Sem debrid — torrents P2P diretos";
     el.debridKeyField.hidden = !svc;
     // A dica só pode prometer cifra quando a instância tem RESOLVE_SECRET.
     var sealOn = Boolean(instanceDefaults && instanceDefaults.sealKeyEnabled);
