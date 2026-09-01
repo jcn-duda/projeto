@@ -228,6 +228,9 @@
         <div class="metric"><span class="key">Lotes recheck</span><span id="afMetricRechecks" class="value">0 (0 settle)</span></div>
         <div class="metric"><span class="key">Blacklist mortos</span><span id="afMetricDead" class="value">0</span></div>
         <div class="metric"><span class="key">Orçamento hora</span><span id="afMetricBudget" class="value">0 / 0</span></div>
+        <div class="metric"><span class="key">Última desistência</span><span id="afMetricGiveUp" class="value">—</span></div>
+        <div class="metric"><span class="key">Motivos (desde o boot)</span><span id="afMetricReasons" class="value">—</span></div>
+        <div class="metric"><span class="key">Gate de conta</span><span id="afMetricGate" class="value">—</span></div>
       </div>
     </section>
 
@@ -748,7 +751,54 @@
 
     var bEl = $("afMetricBudget");
     if (bEl && af.budget) {
-      bEl.textContent = (af.budget.used || 0) + " / " + (af.budget.limit || 0);
+      var accs = af.budget.accounts || [];
+      var extra = "";
+      for (var j = 0; j < accs.length; j += 1) {
+        extra += (j ? " · " : " ") + accs[j].id + " " + Number(accs[j].used || 0) + "/" + Number(accs[j].limit || 0);
+      }
+      bEl.textContent = (af.budget.used || 0) + " / " + (af.budget.limit || 0) + extra;
+    }
+
+    // Por que o Chupim desistiu: o último registro do trace e a contagem por
+    // motivo. Sem isso, um portão que fecha (marker, gate, budget) era um
+    // `return` mudo — invisível no painel.
+    var guEl = $("afMetricGiveUp");
+    if (guEl && af.lastSkips && af.lastSkips.length) {
+      var gu = af.lastSkips[0];
+      var guTxt = gu.reason;
+      if (gu.label) guTxt += " · " + gu.label;
+      if (gu.at) guTxt += " · " + formatDate(gu.at);
+      guEl.textContent = guTxt;
+    }
+
+    var rsEl = $("afMetricReasons");
+    if (rsEl) {
+      var parts = [];
+      var sk = af.skips || {};
+      var skKeys = ["account-gate", "budget", "dead", "marker", "already-cached", "in-flight", "search-slot-busy", "paused", "unknown-cache", "stop-has-br", "no-candidate", "no-candidates", "disabled"];
+      for (i = 0; i < skKeys.length; i += 1) {
+        var n = Number(sk[skKeys[i]] || 0);
+        if (n > 0) parts.push(skKeys[i] + " " + n);
+      }
+      rsEl.textContent = parts.length ? parts.join(" · ") : "—";
+    }
+
+    var gateEl = $("afMetricGate");
+    if (gateEl && af.accountGate) {
+      var gate = af.accountGate;
+      if (!gate.pauseAt || gate.pauseAt <= 0) {
+        gateEl.textContent = "desligado";
+        gateEl.style.color = "";
+      } else if (gate.blocked) {
+        gateEl.textContent = "BLOQUEADO (pauseAt " + gate.pauseAt + ")";
+        gateEl.style.color = "var(--red)";
+      } else if (gate.inFlight) {
+        gateEl.textContent = "medindo… (pauseAt " + gate.pauseAt + ")";
+        gateEl.style.color = "";
+      } else {
+        gateEl.textContent = "aberto (pauseAt " + gate.pauseAt + ")";
+        gateEl.style.color = "";
+      }
     }
 
     var pauseBtn = $("afPauseToggleBtn");

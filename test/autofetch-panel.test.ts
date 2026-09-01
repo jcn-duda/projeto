@@ -183,6 +183,12 @@ test('rotas escopadas /:userConfig/autofetch, status e action suportam Chupim', 
     assert.equal(resStatus.status, 200);
     assert.ok(resStatus.json.autofetch);
     assert.ok(resStatus.json.autofetch.config);
+    // Instrumentação da desistência: motivos por portão + últimos registros do
+    // trace + estado do gate de ocupação — tudo atrás do mesmo token.
+    assert.ok(resStatus.json.autofetch.skips, 'autofetch.skips presente');
+    assert.ok(Array.isArray(resStatus.json.autofetch.lastSkips), 'autofetch.lastSkips é array');
+    assert.ok(resStatus.json.autofetch.accountGate, 'autofetch.accountGate presente');
+    assert.equal(typeof resStatus.json.autofetch.accountGate.pauseAt, 'number');
 
     const resAction = await server.request('POST', `/${userConfig}/dashboard-action.json`, {
       headers: { 'X-Indexer-Test-Token': TOKEN },
@@ -191,6 +197,17 @@ test('rotas escopadas /:userConfig/autofetch, status e action suportam Chupim', 
     assert.equal(resAction.status, 200);
     assert.equal(resAction.json.ok, true);
     assert.equal(resAction.json.action, 'autofetch-config-get');
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+test('GET /dashboard-status.json sem token não expõe o bloco autofetch', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    const semToken = await server.request('GET', '/dashboard-status.json');
+    assert.equal(semToken.status, 401);
+    assert.ok(semToken.json.error);
   } finally {
     config.jackett.testToken = '';
   }

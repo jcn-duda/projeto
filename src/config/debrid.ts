@@ -268,6 +268,10 @@ export const debrid = () => ({
   // background (fail-open enquanto o refresh não volta — nunca rede no
   // caminho síncrono).
   autoFetchPauseRefreshMs: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_PAUSE_REFRESH_MS, 900_000)),
+  // Trace da desistência do Chupim: ring em memória com motivo + hash12 de cada
+  // portão que fechou. Barato por contrato — desligado, note() volta imediato e
+  // nenhum call site precisa checar o knob. Só memória, nunca grava no cache.
+  autoFetchTrace: String(process.env.AUTOFETCH_TRACE || 'true') === 'true',
   // Ledger durável GLOBAL do CDN Real-Debrid. Ao contrário do magnetdb,
   // disponibilidade do RD é do serviço, não da conta que a observou.
   rdLedger: {

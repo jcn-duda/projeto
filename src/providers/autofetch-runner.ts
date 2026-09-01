@@ -18,6 +18,9 @@ import { accountScope } from '../utils/request-key.js';
 import { capture, run, opts } from '../runtime.js';
 import type { RuntimeContext } from '../runtime.js';
 import * as autofetch from './autofetch.js';
+import { classifyEnqueue, ENQUEUE_ROLLBACK, noteSkip, skipCountsSnapshot, warnAccountGated } from './autofetch-gates.js';
+import type { SkipReason } from './autofetch-gates.js';
+import * as autofetchTrace from '../utils/autofetch-trace.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { rdGate } from '../debrid/rd-gate.js';
@@ -74,7 +77,10 @@ export function autoFetchCandidates(
 ) {
   const { autoFetchBr, debridApiKey } = opts();
   const adapter = debrid.current();
-  if (!canAutoFetchBr({ autoFetchBr }, adapter)) return [];
+  if (!canAutoFetchBr({ autoFetchBr }, adapter)) {
+    noteSkip('disabled', streams[0] || null, adapter?.id || '', '');
+    return [];
+  }
   const account = accountScope(debridApiKey);
 
   // Torrent morto na blacklist é ignorado antes de montar os pools
@@ -103,7 +109,10 @@ export function autoFetchCandidates(
     pool = 'seeds';
     if (candidates.length > 0) metrics.count('autofetch.top-seeded');
   }
-  if (candidates.length === 0) metrics.count('autofetch.no-candidate');
+  if (candidates.length === 0) {
+    metrics.count('autofetch.no-candidate');
+    noteSkip('no-candidate', liveStreams[0] || null, adapter?.id || '', pool);
+  }
 
   const immediateLimit = pool === 'seeds' ? live.autoFetchTopSeedsMax : live.autoFetchMax;
   const immediate = candidates.slice(0, immediateLimit);
@@ -147,6 +156,18 @@ export function releaseAllHolds(candidates: AutoFetchCandidate[]) {
   for (const { stream, account } of candidates) held.release(String(stream.infoHash || ''), account);
 }
 
+/**
+ * Libera o que a desistência adquiriu — a tabela diz o quê, na ordem dos
+ * returns de hoje (marker/in-flight não liberam nada, de propósito).
+ */
+function rollbackEnqueue(reason: SkipReason, r: { lockKey: string; searchKey: string | null | undefined; holdHash: string | null | undefined; account: string }) {
+  for (const action of ENQUEUE_ROLLBACK[reason] || []) {
+    if (action === 'lock') autofetch.release(r.lockKey);
+    else if (action === 'slot') { if (r.searchKey) autofetch.releaseSearchSlot(r.searchKey); }
+    else held.release(String(r.holdHash || ''), r.account);
+  }
+}
+
 /** Enfileira UM candidato de forma fire-and-forget, com marker, orçamento e vaga por busca. */
 export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, { cached, season, episode, imdbId, searchKey }: AutoFetchRequest) {
   const adapter = debrid.current() as DebridAdapter;
@@ -154,49 +175,26 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
   const h = String(stream.infoHash || '').toLowerCase();
   if (!h) return;
 
-  if (autofetchLive.isPaused()) {
-    held.release(stream.infoHash, account);
-    return;
-  }
-
-  if (autofetch.isDead(adapter.id, account, h)) {
-    held.release(stream.infoHash, account);
-    return;
-  }
-
-  if (cached.has(h)) {
-    held.release(stream.infoHash, account);
-    return;
-  }
-
   const live = autofetchLive.effective();
   const key = autofetch.markerKey(adapter.id, account, h);
-  if (cache.get(key)) {
-    return;
-  }
-  if (!autofetch.acquire(key)) return;
-
-  if (searchKey && !autofetch.acquireSearchSlot(searchKey, live.autoFetchMax)) {
-    autofetch.release(key);
-    held.release(stream.infoHash, account);
-    return;
-  }
-
-  // Gate de ocupação: conta cheia não recebe mais download. Fail-open por
-  // design (memo frio não bloqueia) e sem rede no caminho síncrono — o
-  // enqueue é efeito colateral fora da resposta, nunca o contrário.
-  if (autofetch.accountGateBlocked(adapter, opts().debridApiKey)) {
-    autofetch.release(key);
-    if (searchKey) autofetch.releaseSearchSlot(searchKey);
-    held.release(stream.infoHash, account);
-    warnAccountGated(adapter, account);
-    return;
-  }
-
-  if (!autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit)) {
-    autofetch.release(key);
-    if (searchKey) autofetch.releaseSearchSlot(searchKey);
-    held.release(stream.infoHash, account);
+  // Cadeia de portões em UM ponto: as checagens (com efeito: lock, vaga da
+  // busca, orçamento, refresh do gate) são injetadas na ordem exata dos
+  // `return` antigos; o rollback do motivo sai da tabela; e a desistência
+  // deixa rastro (contador + trace) em vez de um return mudo.
+  const reason = classifyEnqueue({
+    isPaused: () => autofetchLive.isPaused(),
+    isDead: () => autofetch.isDead(adapter.id, account, h),
+    isCached: () => cached.has(h),
+    markerActive: () => Boolean(cache.get(key)),
+    tryLock: () => autofetch.acquire(key),
+    trySlot: () => !searchKey || autofetch.acquireSearchSlot(searchKey, live.autoFetchMax),
+    accountBlocked: () => autofetch.accountGateBlocked(adapter, opts().debridApiKey),
+    tryBudget: () => autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit),
+  });
+  if (reason) {
+    noteSkip(reason, stream, adapter.id, pool);
+    rollbackEnqueue(reason, { lockKey: key, searchKey, holdHash: stream.infoHash, account });
+    if (reason === 'account-gate') warnAccountGated(adapter, account);
     return;
   }
 
@@ -243,27 +241,6 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
       log.warn('[autofetch] falhou:', err?.message || err);
     });
   return true;
-}
-
-/**
- * Warn do gate UMA vez por transição, não por candidato × busca: com a conta
- * cheia toda busca é gateada, e o log virava spam. A métrica continua
- * contando sempre; só o log silencia dentro da janela (reaproveita o refresh
- * do memo do gate, ~15 min).
- */
-const lastGatedWarnAt = new Map<string, number>();
-
-function warnAccountGated(adapter: DebridAdapter, account: string) {
-  metrics.count('autofetch.account-gated');
-  const key = `${adapter.id}:${account}`;
-  const last = lastGatedWarnAt.get(key) || 0;
-  if (Date.now() - last < autofetchLive.effective().autoFetchPauseRefreshMs) return;
-  lastGatedWarnAt.set(key, Date.now());
-  log.warn(
-    `[autofetch] ${adapter.label} com conta cheia — nenhum download enfileirado; ` +
-    'a varredura automática (DEBRID_SWEEP_UNDUBBED*) remove o excesso respeitando o acervo; ' +
-    'o painel /dashboard mostra a ocupação',
-  );
 }
 
 /**
@@ -652,9 +629,13 @@ function runRecheck(searchKey: string) {
 }
 
 export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, season, episode, imdbId, searchKey }: any) {
-  if (!candidates || candidates.length === 0) return 0;
+  if (!candidates || candidates.length === 0) {
+    noteSkip('no-candidates', null, debrid.current()?.id || '', '');
+    return 0;
+  }
 
   if (!known) {
+    noteSkip('unknown-cache', candidates[0]?.stream, debrid.current()?.id || '', candidates[0]?.pool);
     releaseAllHolds(candidates);
     return 0;
   }
@@ -662,6 +643,11 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
   const stop = candidates[0].pool === 'any' || candidates[0].pool === 'seeds'
     ? cached.size > 0 : hasCachedBrDubbed(streams, cached);
   if (stop) {
+    // `hasCachedBrDubbed` para o Chupim se QUALQUER item do pool brDubbed
+    // estiver cacheado — e o pool aceita BR sem tag de dublado. Um legendado
+    // mal classificado parava o Chupim antes de ele olhar o candidato, sem
+    // rastro; o trace deixa o motivo visível.
+    noteSkip('stop-has-br', candidates[0]?.stream, debrid.current()?.id || '', candidates[0]?.pool);
     releaseAllHolds(candidates);
     return 0;
   }
@@ -701,5 +687,10 @@ export function autofetchRunnerStatus() {
     seasonSearchKeys: seasonSearchKeys.size,
     paused: live.paused,
     pausedSince: live.pausedSince,
+    // Por que o Chupim desistiu: contagem por motivo desde o boot + os últimos
+    // registros do trace (hash anonimizado). Sem isso, um `return` mudo não
+    // tem como ser diagnosticado — foi o caso que motivou a instrumentação.
+    skips: skipCountsSnapshot(),
+    lastSkips: autofetchTrace.lastSkips(20),
   };
 }
