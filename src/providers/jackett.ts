@@ -414,6 +414,17 @@ async function queryIndexer(indexer: string, query: string, type: string, timeou
   const shapedSeen = [found.searchQuery];
   const cascade: { q: string; label: string }[] = [];
   if (isBr && options.variantQuery) cascade.push({ q: options.variantQuery, label: 'variante numérica' });
+  // Título pt-BR SEM o ano. Medido ao vivo em tt1465522: "Tucker e Dale Contra
+  // o Mal 2010" devolve 0 no comandotorrents e no torrentdosfilmesv2, e o mesmo
+  // título nu devolve 1 em cada um — o post BR é de 2012 (data do lançamento
+  // nacional) e o buscador WordPress trata o ano como token obrigatório. O ano
+  // fica na query primária porque ajuda a relevância quando o indexer casa; o
+  // degrau nu só abre quando ela não trouxe nada. Nos `bareTitleIndexers` o
+  // strip já aconteceu e o dedup de `shapedSeen` descarta o degrau repetido.
+  if (isBr) {
+    const bare = query.replace(/\s+(?:19|20)\d{2}\s*$/, ' ');
+    if (bare !== query) cascade.push({ q: bare, label: 'título sem ano' });
+  }
   if (isBr && options.fallbackQuery) cascade.push({ q: options.fallbackQuery, label: 'título original' });
   for (const step of cascade) {
     const shaped = shapeSearchQuery(indexer, step.q, isBr);

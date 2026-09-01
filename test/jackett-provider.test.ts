@@ -304,6 +304,7 @@ const TREK_CTX = {
 };
 const TREK_PT = 'Jornada nas Estrelas II: A Ira de Khan 1982';
 const TREK_VARIANT = 'Jornada nas Estrelas 2: A Ira de Khan 1982';
+const TREK_BARE = 'Jornada nas Estrelas II: A Ira de Khan';
 
 test('primary PT 200 com zero relevante dispara fallback original e entrega a fonte certa', async () => {
   const fetchImpl = makeFetch();
@@ -668,6 +669,7 @@ test('variante numérica vazia segue para o fallback original', async () => {
       const query = new URL(call.url).searchParams.get('Query');
       if (query === TREK_PT) return fakeResponse({ Results: [] });
       if (query === TREK_VARIANT) return fakeResponse({ Results: [] });
+      if (query === TREK_BARE) return fakeResponse({ Results: [] });
       return fakeResponse({ Results: [
         { Title: 'Star Trek II: The Wrath of Khan 1982 DUBLADO 1080p', Seeders: 4, MagnetUri: MAGNET },
       ] });
@@ -681,7 +683,34 @@ test('variante numérica vazia segue para o fallback original', async () => {
       fallbackQuery: 'Star Trek II: The Wrath of Khan 1982',
       matchContext: TREK_CTX,
     });
-    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_VARIANT, 'Star Trek II: The Wrath of Khan 1982']);
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_VARIANT, TREK_BARE, 'Star Trek II: The Wrath of Khan 1982']);
+    assert.equal(items.length, 1);
+  });
+});
+
+test('título pt-BR com ano zerado cai no degrau sem ano e acha o dublado', async () => {
+  // tt1465522 ao vivo: "Tucker e Dale Contra o Mal 2010" devolve 0 no
+  // comandotorrents e no torrentdosfilmesv2 (o post BR é de 2012), e o mesmo
+  // título sem o ano devolve 1 em cada um.
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      if (query === TREK_BARE) {
+        return fakeResponse({ Results: [
+          { Title: 'Jornada nas Estrelas II: A Ira de Khan 1982 DUBLADO 1080p', Seeders: 4, MagnetUri: MAGNET },
+        ] });
+      }
+      return fakeResponse({ Results: [] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['comandotorrents'], {
+      matchContext: TREK_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_BARE]);
     assert.equal(items.length, 1);
   });
 });
@@ -724,7 +753,8 @@ test('dedupe pós-shape: variante que moldagem reduz ao primário não abre cham
       variantQuery: TREK_PT,
       matchContext: TREK_CTX,
     });
-    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT]);
+    // A variante some no dedup; sobra o degrau do título sem ano.
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_BARE]);
     assert.deepEqual(items, []);
   });
 });
@@ -736,6 +766,7 @@ test('falha HTTP na variante opcional não derruba a primária nem impede fallba
       const query = new URL(call.url).searchParams.get('Query');
       if (query === TREK_PT) return fakeResponse({ Results: [] });
       if (query === TREK_VARIANT) return fakeResponse(null, { status: 503 });
+      if (query === TREK_BARE) return fakeResponse({ Results: [] });
       return fakeResponse({ Results: [
         { Title: 'Star Trek II: The Wrath of Khan 1982 DUBLADO 1080p', Seeders: 4, MagnetUri: MAGNET },
       ] });
@@ -749,7 +780,7 @@ test('falha HTTP na variante opcional não derruba a primária nem impede fallba
       fallbackQuery: 'Star Trek II: The Wrath of Khan 1982',
       matchContext: TREK_CTX,
     });
-    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_VARIANT, 'Star Trek II: The Wrath of Khan 1982']);
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_VARIANT, TREK_BARE, 'Star Trek II: The Wrath of Khan 1982']);
     assert.equal(items.length, 1);
   });
 });
