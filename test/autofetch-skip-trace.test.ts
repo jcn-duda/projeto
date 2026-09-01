@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
@@ -13,19 +13,16 @@ import * as held from '../src/debrid/protected.js';
 import debrid from '../src/debrid/index.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { enqueueAutofetch, autoFetchBrDubbed, autoFetchCandidates, autofetchRunnerStatus } from '../src/providers/autofetch-runner.js';
+import { applyDebrid } from '../src/providers/index.js';
 import { noteSkip, clearSkips } from '../src/providers/autofetch-gates.js';
 import * as autofetchTrace from '../src/utils/autofetch-trace.js';
 import type { DebridAdapter } from '../types/domain.js';
 
 // Instrumentação da desistência do Chupim: cada portão do enqueueAutofetch
 // conta `autofetch.skip.<motivo>` e registra no trace (hash anonimizado).
-// Os testes usam o adaptador premiumize real com o enqueue dublê, no contexto
-// ALS do runtime — o mesmo esqueleto da matriz de enqueue de autofetch.test.ts.
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-// Hash próprio por teste: marker/lock/slot são dedupe global do módulo e um
-// teste que passou pelo caminho positivo poluiria o seguinte se reutilizasse o
-// mesmo hash (foi bug real no desenvolvimento deste arquivo).
+// Hash próprio evita marker/lock de um teste poluir o seguinte.
 const H1 = 'a'.repeat(40);
 const H2 = 'b'.repeat(40);
 const H3 = 'c'.repeat(40);
@@ -138,7 +135,7 @@ test('skip already-cached: hash que já toca não enfileira e solta o hold', asy
   assert.equal(held.isHeld(H3, account), false, 'hold liberado');
 });
 
-test('skip marker: marcador de 6h barra retentativa SEM soltar o hold (proteção em voo)', async () => {
+test('skip marker: marcador de 6h barra retentativa e libera o hold recém-criado', async () => {
   held.hold(H4, 600, account);
   cache.set(autofetch.markerKey('premiumize', account, H4), 1, 600);
   try {
@@ -146,9 +143,9 @@ test('skip marker: marcador de 6h barra retentativa SEM soltar o hold (proteçã
     await runEnqueue(H4);
     assert.equal(d(), 1);
     assert.equal(lastReason(), 'marker');
-    // Contrato atual: o hold fica retido de propósito — o hash já está sendo
-    // baixado pelo enqueue anterior e a limpeza não pode pegá-lo no meio.
-    assert.equal(held.isHeld(H4, account), true, 'hold retido (proteção em voo)');
+    // H2: o hold novo sai; o enqueue anterior já é dono do download/marker.
+    // Retê-lo só estendia a proteção de um hash órfão do recheck/restart.
+    assert.equal(held.isHeld(H4, account), false, 'hold recém-criado liberado');
   } finally {
     cache.forget(autofetch.markerKey('premiumize', account, H4));
   }
@@ -336,4 +333,66 @@ test('payload do status não expõe hash cru, searchKey, magnet nem apiKey', asy
   const skips = autofetchRunnerStatus().skips;
   assert.equal(typeof skips, 'object');
   assert.ok(Array.isArray(autofetchRunnerStatus().lastSkips));
+});
+
+test('H2: settle expirado apaga o marcador junto do torrent (sem esperar o TTL)', async () => {
+  // Discrimina mantendo o marker (6h) vivo além do horizonte do settle.
+  const h = '3'.repeat(40);
+  const searchKey = 'busca-settle-expira';
+  const originalEnqueue = pmAdapter.enqueue;
+  const originalTorrentStatus = pmAdapter.torrentStatus;
+  const originalRemoveTorrent = pmAdapter.removeTorrent;
+  const originalCheck = debrid.checkCached;
+  const originalTtl = config.debrid.autoFetchTtl;
+  const originalRecheckMs = config.debrid.autoFetchRecheckMs;
+  const originalRecheckMax = config.debrid.autoFetchRecheckMax;
+  const originalSettleMs = config.debrid.autoFetchSettleMs;
+  const originalStall = config.debrid.autoFetchStallStreak;
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+  try {
+    config.debrid.autoFetchRecheckMs = 1000;
+    config.debrid.autoFetchRecheckMax = 1;
+    config.debrid.autoFetchSettleMs = 1000;
+    config.debrid.autoFetchStallStreak = 0;
+    pmAdapter.enqueue = async () => true;
+    pmAdapter.torrentStatus = async () => ({ [h]: { state: 'downloading', id: 99 } });
+    pmAdapter.removeTorrent = async () => true;
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+
+    mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    // O settle encolhe só depois do marker nascer com TTL 6h.
+    config.debrid.autoFetchTtl = 3600;
+    await runtime.run({ opts: userOpts(), encoded: 'cfg-settle' }, () =>
+      applyDebrid([brDub(h) as any], { searchKey } as any),
+    );
+    await flush();
+    const markerKey = autofetch.markerKey('premiumize', account, h);
+    assert.equal(cache.get(markerKey), 1, 'enqueue aceito grava o marcador');
+
+    config.debrid.autoFetchTtl = 2;
+    // 1º recheck (vira settle) + 1º settle com idade >= TTL*1000.
+    mock.timers.tick(1000);
+    await flush();
+    mock.timers.tick(1000);
+    await flush();
+
+    assert.equal(cache.get(markerKey), null, 'H2: marcador apagado no settle expirado');
+    assert.equal(held.isHeld(h, account), false, 'hold liberado no settle expirado');
+    assert.ok((metrics.snapshot().counters['autofetch.expired-unready'] || 0) >= 1);
+  } finally {
+    mock.timers.reset();
+    config.debrid.autoFetchTtl = originalTtl;
+    config.debrid.autoFetchRecheckMs = originalRecheckMs;
+    config.debrid.autoFetchRecheckMax = originalRecheckMax;
+    config.debrid.autoFetchSettleMs = originalSettleMs;
+    config.debrid.autoFetchStallStreak = originalStall;
+    debrid.checkCached = originalCheck;
+    pmAdapter.enqueue = originalEnqueue;
+    pmAdapter.torrentStatus = originalTorrentStatus;
+    pmAdapter.removeTorrent = originalRemoveTorrent;
+    cache.forget(autofetch.markerKey('premiumize', account, h));
+    held.release(h, account);
+    cache.forget(searchKey);
+  }
 });

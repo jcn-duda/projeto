@@ -7,14 +7,13 @@
 //    runner — o módulo é síncrono e sem rede, como o caminho de hoje.
 // 2. `noteSkip` — contador (`autofetch.skip.<motivo>`) + registro no trace.
 //
-// A tabela de rollback reproduz EXATAMENTE o que cada `return` liberava hoje:
-// - paused/dead/already-cached: só o hold;
-// - search-slot-busy: lock (tomado) + hold;
-// - account-gate/hourly-budget: lock + vaga da busca + hold;
-// - marker-active/in-flight: NADA — o hold recém-criado na seleção fica de
-//   propósito, estendendo a proteção da limpeza enquanto o download antigo do
-//   MESMO hash ainda é rastreado pelo lote de recheck (mudar isso é correção,
-//   não extração; o plano Fase 3 revisa com evidência).
+// A tabela de rollback reproduz EXATAMENTE o que cada `return` liberava hoje,
+// com UMA exceção decidida (H2, 2026-09-01): o portão `marker` passou a
+// liberar o hold recém-criado — produção mostrou o marcador bloqueando a
+// retentativa dentro da janela, e o hold extra só
+// estendia a proteção da limpeza para um hash órfão do recheck/restart.
+// `in-flight` segue retendo o hold de propósito: o MESMO hash está em voo
+// agora, e soltá-lo reabriria o hash à limpeza no meio do download.
 import type { Stream } from '../../types/domain.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
@@ -65,10 +64,16 @@ export const ENQUEUE_ROLLBACK: Record<SkipReason, RollbackAction[]> = {
   paused: ['hold'],
   dead: ['hold'],
   'already-cached': ['hold'],
-  // marker/lock retidos DE PROPÓSITO: o hash já está sendo baixado (marker) ou
-  // em voo (lock); soltar o hold aqui reabriria o hash à limpeza no meio do
-  // download. Ver cabeçalho do módulo.
-  marker: [],
+  // marker: o hold recém-criado pela seleção desta busca não serve para nada —
+  // o enqueue foi barrado pelo marcador do enqueue ANTERIOR, e retê-lo só
+  // estenderia a proteção da limpeza para um hash que o recheck (ou o restart)
+  // deixou órfão. O download antigo (se ainda vivo) segue protegido pelo hold
+  // do enqueue original até o recheck resolvê-lo. Correção H2 (2026-09-01):
+  // produção mostrou marker bloqueando retentativas sem lote vivo — o marcador
+  // morre com o torrent no settle expirado (autofetch-runner).
+  marker: ['hold'],
+  // in-flight: o lock está em voo — o MESMO hash está sendo enfileirado agora;
+  // soltar o hold aqui reabriria o hash à limpeza no meio do download.
   'in-flight': [],
   'search-slot-busy': ['lock', 'hold'],
   'account-gate': ['lock', 'slot', 'hold'],

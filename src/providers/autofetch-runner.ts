@@ -177,10 +177,8 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
 
   const live = autofetchLive.effective();
   const key = autofetch.markerKey(adapter.id, account, h);
-  // Cadeia de portões em UM ponto: as checagens (com efeito: lock, vaga da
-  // busca, orçamento, refresh do gate) são injetadas na ordem exata dos
-  // `return` antigos; o rollback do motivo sai da tabela; e a desistência
-  // deixa rastro (contador + trace) em vez de um return mudo.
+  // Portões em UM ponto: checagens injetadas na ordem exata, rollback pela
+  // tabela, e a desistência deixa rastro (contador + trace) em vez de um return mudo.
   const reason = classifyEnqueue({
     isPaused: () => autofetchLive.isPaused(),
     isDead: () => autofetch.isDead(adapter.id, account, h),
@@ -607,9 +605,12 @@ function runRecheck(searchKey: string) {
             if (sid != null) adapter.removeTorrent(opts().debridApiKey, sid).catch(() => {});
           }
         }
-        // Settle expirado: o download nunca tocou dentro do prazo — o BR não
-        // entrou no acervo, então sai também a proteção durável junto à remoção.
+        // Settle expirado: o download nunca tocou dentro do prazo — sai junto a
+        // proteção durável e o MARCADOR (H2): sem isso, um hash que nunca ficou
+        // pronto bloqueava retentativa por até 6h — e ficava órfão até o TTL
+        // se o processo reiniciasse no meio (medido: reason=marker em produção).
         for (const h of lot.hashes) {
+          cache.forget(autofetch.markerKey(adapter.id, account, h));
           held.unprotect(adapter.id, account, h);
           held.release(h, account);
         }
@@ -687,9 +688,7 @@ export function autofetchRunnerStatus() {
     seasonSearchKeys: seasonSearchKeys.size,
     paused: live.paused,
     pausedSince: live.pausedSince,
-    // Por que o Chupim desistiu: contagem por motivo desde o boot + os últimos
-    // registros do trace (hash anonimizado). Sem isso, um `return` mudo não
-    // tem como ser diagnosticado — foi o caso que motivou a instrumentação.
+    // Por que o Chupim desistiu: contagem por motivo + últimos registros do trace.
     skips: skipCountsSnapshot(),
     lastSkips: autofetchTrace.lastSkips(20),
   };
