@@ -1146,6 +1146,146 @@ TTL 0) e expurgo por hash (`--unblock`); o 8.16 é revert de `a264b7c` ou só
 
 ---
 
+## Fase 9 — P5 observabilidade/diagnóstico: `/stream-trace.json` (NO CÓDIGO — working tree sem commit — 2026-09-01)
+
+> **Aviso de nome:** "P5" é o rótulo da auditoria para o eixo de
+> **observabilidade/diagnóstico** — não é a Fase 5 deste plano (refactor
+> 5.1–5.9, encerrada). Os dois conviveram na mesma janela; quem ler "P5"
+> aqui lê "funil por item".
+
+**Objetivo:** responder **"por que aquele stream sumiu?"** por item, sem
+refazer a busca. Antes disto, o funil era uma caixa-preta: `searchFirst`
+conta fontes e os timers `search.first.*` medem tempo, mas nenhum instrumento
+explicava o **caminho de um item** — quem foi cortado, em que estágio, por
+qual regra. A Fase 8 nasceu de arqueologia de log e métrica agregada; o P5 é
+a resposta estrutural a essa dor.
+
+**Status real (2026-09-01):**
+
+| Fatia | Conteúdo | Estado |
+|---|---|---|
+| Fase 0+1 — captura + leitura offline | ledger observacional `src/utils/stream-trace.ts` (puro, 180 linhas) com 21 reason codes (`title-filter`, `dedupe`, `min-seeders`, `cached-only`, `quality-quota`, `br-guarantee-replaced`, `notice`…), instrumentação guardada em 6 arquivos do pipeline; o trace viaja **dentro** da entrada `streams:v8` e o passe tardio o copia obrigatoriamente; `GET /stream-trace.json` (e a variante com segmento de config) é **só leitura** — `getWithStale`, nunca `peek`, para enxergar o que a busca enxerga inclusive na janela de graça | ✅ **commitada em `ea15894`** |
+| P0 cirílico | guarda `CYRILLIC_RE` no DUB/DUBBED genérico (`src/utils/audio-quality.ts`: `genericDubProvesPt` no título + `hasPtAudioMark` no path); bump `streams`/`idx` v8→v9 em `cache-keys.ts`; corpus com o caso real medido | **working tree — sem commit** |
+| Fatia A — recompute offline | `src/utils/trace-recompute.ts` (162): entrada **sem** trace é explicada com matéria-prima local (idx `lookupQuiet` + raw `peekRawFor` + inventário `peekQuiet`) e peeks quiet; `searchMeta` (nomes+ano) passa a viajar na entrada para o recompute re-aplicar o filtro de título sem refazer Cinemeta/TMDB | **working tree — sem commit** |
+| Fatia B — live TB/PM | `src/debrid/live-check.ts` (117): checagem ao vivo **read-only** só onde a consulta é GET puro; rota extraída de `diagnostics.ts` (que estourou a catraca) para `src/routes/stream-trace.ts` (149) — dividir, não bless | **working tree — sem commit** |
+| Fatia C — painel ES5 | `src/public/dashboard-trace.js` (303): aba `Stream Trace` (`/dashboard#trace`) no dashboard, ES5 puro, top-level sem IIFE, `PAGE_ASSETS` atualizado; sem polling — só no clique | **working tree — sem commit** |
+
+Nada disso está no ar. **Não alegar DONE em produção** — push/deploy exigem
+autorização explícita, como sempre.
+
+### Contratos duros (não podem regredir)
+
+1. **AllDebrid é hard-block no live.** Consultar cache na AllDebrid **é
+   upload** — e o upload detona as limpezas da Fase 8. A recusa é por
+   construção (`NEVER_LIVE`), não por knob: mesmo que a allowlist cresça por
+   engano, `alldebrid` não entra. Motivo legível: `ad-hard-blocked`.
+2. **Real-Debrid live é recusado.** O oráculo escreve ledger/`rdt` e pode
+   enviar a chave do usuário a terceiro; a leitura crua que existe é só o
+   ledger — e o recompute **já a faz quiet**. Motivo: `rd-live-refused`.
+3. **Debrid-Link não participa** — `cacheCheck: false`, não há o que
+   consultar. Motivo: `no-cachecheck`.
+4. **Live só TorBox/Premiumize, pelo método CRU do adaptador via
+   `registry.BY_ID`** — GET de lote instantâneo. **Nunca** a camada
+   `debrid.checkCached()`: a orquestrada grava `davail`, `magnetdb`, métricas
+   `debrid.check.*` e notify — diagnóstico não pode escrever em lugar
+   nenhum. `live-check.ts` não importa `cache-check` nem `rd-ledger`
+   (defesa estrutural, não convenção).
+5. **`STREAM_TRACE_LIVE` default VAZIO = desligado.** CSV de serviços
+   permitidos; o operador opta explicitamente porque cada GET ao serviço é
+   quota da conta efetiva.
+6. **O kill-switch `STREAM_TRACE` desliga o live junto** — é o interruptor do
+   diagnóstico inteiro (captura, leitura, recompute E live). A revisão
+   independente pegou exatamente isso como bloqueante (B1: `mode=live`
+   executava rede sem consultar a sonda de capacidade); corrigido — com o
+   knob desligado ou o serviço recusado, a rota **responde sem tocar a
+   rede**.
+7. **Recompute é rotulado `now` e nunca causa histórica.** Um item que a
+   build cortou por `title-filter` e que hoje tem `bad` aparece como `bad` no
+   recompute — a foto de HOJE, não o motivo do sumiço. Matéria-prima é só o
+   que está quente no cache local via peeks quiet (`cache.peek` — não promove
+   LRU nem conta hit/miss); sem material devolve `no-material`/`no-names`,
+   **nunca inventa**, e nunca reescreve a entrada nem toca o debrid.
+8. **O payload nunca carrega hash, magnet, chave ou cacheKey cru.** O
+   serializado sanitiza o rótulo (`magnet:?…` → `<magnet>`, 40-hex → `<hash>`);
+   o live recebe hash interno e devolve só `id`/rótulo/veredito.
+9. **Gate no header `X-Indexer-Test-Token`, nunca `?token=`** — mesmo padrão
+   dos diagnósticos: sem `JACKETT_TEST_TOKEN` no `.env` a rota fica 503; com
+   token configurado, header errado/ausente é 401; rate limit via
+   `diagnosticGate`.
+10. **Caps: 300 itens por trace, rótulo truncado a 60 chars** (com `…`
+    reservando o último char); o recompute usa o mesmo teto de 300; o live
+    tem teto próprio (`STREAM_TRACE_LIVE_MAX_HASHES`, default 100, clamp
+    1..300) e timeout `STREAM_TRACE_LIVE_TIMEOUT_MS` (1500).
+11. **Sizing honesto no L1:** com o cap de 300 itens, o trace soma ~27 KB por
+    entrada — no teto do namespace `streams` (2000) são **~54 MB teóricos**,
+    contra **~13 MB observados** em produção local. `raw` (~79 MB) segue o
+    maior balde; a soma `raw + streams + idx` (~59 MB no pior caso) cabe no
+    container de 3g. Registrado no comentário de `cache-quotas.ts`.
+
+### P0 cirílico — o primeiro achado do trace
+
+A guarda HINDI da `streams:v7` (DUB genérico + nome de idioma estrangeiro não
+prova PT) tinha um buraco do mesmo formato: `[DUB]` em título **cirílico** é
+dublagem russa/ucraniana, não pt-BR. Medido **pelo `/stream-trace.json` ao
+vivo** (2026-09-01): 826 títulos únicos no índice, 50 com cirílico, **11
+classificados `looksPtBr=true` + `audio='Dublado'` via DUB genérico** — todos
+disputando vaga BR reservada anunciando pt-BR (ex.: `Во все тяжкие … [DUB]
+[Selena/Телеканал Че]`, canal russo).
+
+A direção do conserto é **só de ranking/promessa**: tira a vaga reservada e o
+`_dubbed`, e **não cria condenação de limpeza** — cirílico NÃO entra em
+`hasExplicitForeignAudio` nem no `foreignVerdict` (script não é prova positiva
+de idioma; título cirílico sem marca fica `unknown` e permanece coberto pelo
+invariante da Fase 8 "condenar só com prova durável"). PT explícito ao lado
+(`[DUB] … PT-BR`, `DUBLADO`) continua vencendo, fora do predicado. A faixa
+`а-яё` + as variantes ucranianas/bielorrussas (`і ї є ґ ў`) fecham por
+**script** em vez de caçar nome de idioma um por um.
+
+O bump `streams` v8→**v9** e `idx` v8→**v9** é obrigatório: o índice persiste
+`dubbed`/`isBr` por release com merge OR-aderente, e sem o bump as releases
+dos 11 títulos cirílicos já indexados como Dublado permaneceriam erradas até o
+TTL de semanas — mesma regra que a armadilha do classificador de qualidade já
+documenta.
+
+### Validação real (medida 2026-09-01, working tree)
+
+- **Gates:** `typecheck` 0; build verde; **1682/1682** testes;
+  `test:complete` **106+6** (os 3 arquivos novos — recompute, live, painel —
+  na lista explícita); catraca **baseline OK** (todos os módulos novos ≤ 400
+  no nascimento: 180/149/117/162/303).
+- **Ao vivo (local, serviço efetivo AllDebrid):** busca real →
+  `/stream-trace.json` respondeu `origin:cached` com o funil completo
+  **30→6→4** (raw→após ordenação→entregue) e os **26 cortes explicados por
+  item** com motivo e rótulo; `mode=live` recusado com `ad-hard-blocked`
+  honesto — sem tocar a rede; resposta **sem** hash/magnet/chave (zero
+  vazamento verificado no corpo).
+- **Prova de não-consumidor (fase 0+1, `ea15894`):** pipeline com o dublê da
+  API da AllDebrid, trace ligado × desligado sobre conjuntos isomórficos —
+  uploads/status/deletes **idênticos**: o ledger não é um consumidor novo da
+  conta.
+- Revisão independente sobre o working tree: bloqueante B1 (live sem gate)
+  corrigido; nada mais aberto conhecido no código.
+
+### O que falta (administrativo, não código)
+
+1. Commit do working tree (P0 + fatias A/B/C — um commit por grupo coeso,
+   mensagem convencional em português referenciando o P5).
+2. Push/deploy **só com autorização explícita** — o bump v9 esfria `streams`
+   e `idx` no boot (custo conhecido, uma rebuild de cache).
+3. Ligar `STREAM_TRACE_LIVE=torbox,premiumize` na VPS é decisão do operador,
+   não consequência do deploy.
+
+**Explicitamente fora:** live na AllDebrid ou no RD (contratos 1–2),
+recompute com rede, qualquer escrita no debrid a partir do diagnóstico,
+expor hash/chave no payload.
+
+**Rollback:** `git revert` de `ea15894` tira captura+leitura offline; o
+working tree sem commit é descartável. Em runtime, `STREAM_TRACE=false`
+desliga os quatro modos de uma vez (e documenta que desligar também cega a
+leitura de traces históricos).
+
+---
+
 ## Grafo de dependências
 
 ```
@@ -1156,11 +1296,16 @@ Fase 3 (T1–T7)     ✅ — GATE da fase 5 satisfeito
 Fase 4             ✅ 4.1–4.3
    │
    └─→ Fase 5 (refactors) ─→ Fase 6 (6.1–6.8; 6.3 janela; 6.7 medido)
-                                └─→ Fase 7 (operação) PLANEJADA
-                                      └─→ Fase 8 EM EXECUÇÃO (derivada do
-                                          diagnóstico do 7.2 aplicado)
-                                          8.2 na VPS; 8.4/8.15/8.14/8.16
-                                          em commits locais validados, sem push
+                                 └─→ Fase 7 (operação) PLANEJADA
+                                       └─→ Fase 8 EM EXECUÇÃO (derivada do
+                                           diagnóstico do 7.2 aplicado)
+                                           8.2 na VPS; 8.4/8.15/8.14/8.16
+                                           em commits locais validados, sem push
+
+Fase 9 (P5 observabilidade — eixo próprio, NÃO é a Fase 5) — nasce da dor de
+diagnóstico da Fase 8; a fase 0+1 commitada em `ea15894`, P0 cirílico +
+fatias A/B/C no working tree sem commit. O trace já retroalimentou o
+classificador (achado cirílico → streams/idx v9).
 ```
 
 - 5.1–5.7 são sequenciais entre si (mesmos arquivos), mas 5.2, 5.4 e 5.5 são
@@ -1185,7 +1330,7 @@ linhas), os dois maiores arquivos do repo, não existem mais como monólito.
 ```
 npm run typecheck      # portão: ZERO
 npm run build          # dist/ atual (test roda dist)
-npm test               # 1.193 testes hoje, zero falha
+npm test               # 1.682 testes hoje (working tree P5, 2026-09-01), zero falha
 npm run test:complete  # lista explícita fechada
 # fase 2+ (tocou runtime de rede/debrid):
 node dist/scripts/smoke.js          # pipeline ponta a ponta, rede de verdade

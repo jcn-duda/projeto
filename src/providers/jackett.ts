@@ -1,5 +1,5 @@
 import config from '../config.js';
-import type { MatchContext } from '../../types/domain.js';
+import type { MatchContext, RawItem } from '../../types/domain.js';
 import * as cache from '../utils/cache.js';
 import { isSafeDownloadUrl } from '../utils/net-safety.js';
 import {
@@ -664,4 +664,18 @@ function rawKeysFor(indexers: string[], query: string, type: string) {
   });
 }
 
-export default { search, test, shapeSearchQuery, breakerTripped, breakerSnapshot, rawKeysFor, name: 'jackett' };
+/**
+ * Leitura de DIAGNÓSTICO do cache bruto (P5 recompute): as MESMAS chaves que a
+ * busca grava (rawKeysFor), lidas com `cache.peek` — sem fetch, sem breaker,
+ * sem indexerStatus, sem promover LRU nem contar hit/miss. Devolve os itens
+ * crus que ainda estão quentes por indexer; quem chama monta o balde de
+ * matéria-prima local para explicar um sumiço SEM refazer a busca.
+ */
+function peekRawFor(indexers: string[], query: string, type: string): RawItem[] {
+  return rawKeysFor(indexers, query, type).flatMap((key) => {
+    const hit = cache.peek(key);
+    return Array.isArray(hit) ? (hit as RawItem[]) : [];
+  });
+}
+
+export default { search, test, shapeSearchQuery, breakerTripped, breakerSnapshot, rawKeysFor, peekRawFor, name: 'jackett' };

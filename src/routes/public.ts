@@ -17,6 +17,8 @@ const PAGE_ASSETS = [
   // Teste pontual de conta de debrid (Fase 1): módulo próprio extraído de
   // dashboard-panels.js ao se aproximar do teto de 400 linhas da catraca.
   'dashboard-debrid-test.js',
+  // Stream Trace (P5): aba de diagnóstico do funil no dashboard.
+  'dashboard-trace.js',
 ];
 
 function makePublicHandlers(services: AppServices) {

@@ -220,6 +220,25 @@ function isLie(adapterId: string, apiKey: string, hash: string) {
   return cache.get(lieKey(adapterId, apiKey, hash)) === 1;
 }
 
+// Variantes de LEITURA SEM EFEITO (P5 diagnóstico): `cache.peek` não promove o
+// LRU nem conta hit/miss — leitura de diagnóstico não pode aquecer o cache de
+// produção nem poluir a medição. Mesma semântica, outro instrumento: quem
+// consulta é um operador explicando o que SUMIU, não o pipeline decidindo.
+function peekAlive(adapterId: string, apiKey: string, hash: string) {
+  if (!config.magnetDb.enabled || !adapterId || !apiKey || !hash) return false;
+  return cache.peek(aliveKey(adapterId, apiKey, hash)) === 1;
+}
+
+function peekBad(adapterId: string, apiKey: string, hash: string) {
+  if (!config.magnetDb.enabled || !adapterId || !apiKey || !hash) return false;
+  return cache.peek(badKey(adapterId, apiKey, hash)) === 1;
+}
+
+function peekLie(adapterId: string, apiKey: string, hash: string) {
+  if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || !adapterId || !apiKey || !hash) return false;
+  return cache.peek(lieKey(adapterId, apiKey, hash)) === 1;
+}
+
 /**
  * Renovação ECONÔMICA para o atalho do davail: regrava só o hash cujo alive
  * está na segunda metade do TTL. O hit do L1 não é evidência nova — é a mesma
@@ -268,4 +287,4 @@ function status(): MagnetDbStatus {
   };
 }
 
-export { markAlive, isAlive, markBad, isBad, forgetBad, forgetBadKey, markLie, isLie, renewAlive, status };
+export { markAlive, isAlive, peekAlive, markBad, isBad, peekBad, forgetBad, forgetBadKey, markLie, isLie, peekLie, renewAlive, status };

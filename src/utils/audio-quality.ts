@@ -149,25 +149,52 @@ const FOREIGN_DUB_LANG_RE = new RegExp(
 );
 
 /**
+ * O SCRIPT cirílico desmente a promessa GENÉRICA de dublagem DUB/DUBBED
+ * exatamente como o nome de idioma acima desmente: `[DUB]` num título
+ * escrito em russo/ucraniano/bielorrusso é dublagem daquele idioma, não
+ * pt-BR. Medido pelo /stream-trace.json ao vivo (2026-09-01): 826 títulos
+ * únicos no índice, 50 com cirílico, 11 classificados looksPtBr=true +
+ * audio='Dublado' via DUB genérico — todos disputavam vaga reservada de BR
+ * anunciando dublagem pt-BR ('Во все тяжкие / Breaking Bad / … [BDRip 720p]
+ * [DUB] [Selena/Телеканал Че]'; Телеканал Че é canal russo). É a mesma classe
+ * do conserto HINDI (streams:v7): lá `DUB` genérico exigiu ausência de HINDI;
+ * aqui exige ausência de cirílico. Por SCRIPT em vez de nome de idioma: cobre
+ * qualquer idioma escrito em cirílico sem caçar token um por um — a faixa
+ * `а-я` + `ё` cobre o russo, e `і ї є ґ ў` cobre as variantes ucraniana e
+ * bielorrussa fora da faixa.
+ *
+ * Só derruba a prova GENÉRICA: marca PT explícita ao lado ('PT-BR',
+ * 'DUBLADO') continua vencendo pelas regras próprias dos chamadores — release
+ * BR pode citar canal/fonte em cirílico. E o cirílico NÃO entra em
+ * hasExplicitForeignAudio: script não é prova positiva de idioma (não
+ * condena; no foreignVerdict o título cirílico sem marca nenhuma fica
+ * 'unknown'), este conserto é só de ranking/promessa de dublagem.
+ */
+const CYRILLIC_RE = /[а-яёіїєґў]/i;
+
+/**
  * Guarda compartilhada da dublagem GENÉRICA (título e path usam o mesmo
  * intento). Marcador genérico de DUB/DUBBED NÃO prova áudio PT quando o
- * título nomeia um idioma estrangeiro. O PT explícito ao lado
- * (`HINDI… DUB PT-BR`) continua vencendo FORA deste predicado, nas regras
- * próprias de cada chamador.
+ * texto nomeia um idioma estrangeiro ou está escrito em cirílico. O PT
+ * explícito ao lado (`HINDI… DUB PT-BR`, `Во все тяжкие … [DUB] PT-BR`)
+ * continua vencendo FORA deste predicado, nas regras próprias de cada
+ * chamador.
  */
 function genericDubProvesPt(text: string): boolean {
   const t = String(text || '').toUpperCase();
-  return !FOREIGN_DUB_LANG_RE.test(t)
+  return !CYRILLIC_RE.test(t)
+    && !FOREIGN_DUB_LANG_RE.test(t)
     && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
 }
 
 // Lado marcador do mesmo intento, para o path: um marker de
 // AUDIO_AUDIT_PT_MARKERS é genérico quando normaliza para exatamente
-// 'dub'/'dubbed' — só ele sofre a guarda do HINDI. Marcador explícito
-// ('dublado', 'dual', 'pt br'…) não prova menos por causa de HINDI.
-// Limitação honesta: marcador genérico CUSTOMIZADO novo (ex.: 'dubs') é
-// tratado como explícito e escapa da guarda — o fechamento cobre as formas
-// genéricas conhecidas, não qualquer vocabulário futuro.
+// 'dub'/'dubbed' — só ele sofre a guarda do HINDI/cirílico. Marcador
+// explícito ('dublado', 'dual', 'pt br'…) não prova menos por causa de
+// HINDI nem de cirílico. Limitação honesta: marcador genérico CUSTOMIZADO
+// novo (ex.: 'dubs') é tratado como explícito e escapa da guarda — o
+// fechamento cobre as formas genéricas conhecidas, não qualquer vocabulário
+// futuro.
 const GENERIC_DUB_MARKER_RE = /^dub(?:bed)?$/;
 
 function explicitPtAudio(title = '') {
@@ -189,10 +216,12 @@ function explicitPtAudio(title = '') {
 function hasPtAudioMark(path = '') {
   const tokens = normalizeTitle(path).split(' ').filter(Boolean);
   const joined = ` ${tokens.join(' ')} `;
-  // Mesma regra do explicitPtAudio (FOREIGN_DUB_LANG_RE): marcador genérico de
-  // dublagem não prova PT quando o path nomeia idioma estrangeiro. Marcador
-  // explícito segue valendo — o idioma só desmente a promessa GENÉRICA.
-  const hasForeignLang = FOREIGN_DUB_LANG_RE.test(String(path).toUpperCase());
+  // Mesma regra do explicitPtAudio (FOREIGN_DUB_LANG_RE + CYRILLIC_RE):
+  // marcador genérico de dublagem não prova PT quando o path nomeia idioma
+  // estrangeiro ou está escrito em cirílico. Marcador explícito segue
+  // valendo — o idioma/script só desmente a promessa GENÉRICA.
+  const raw = String(path);
+  const hasForeignLang = FOREIGN_DUB_LANG_RE.test(raw.toUpperCase()) || CYRILLIC_RE.test(raw);
   return config.audioAudit.ptMarkers.some((marker: string) => {
     const normalized = normalizeTitle(marker);
     if (!normalized) return false;

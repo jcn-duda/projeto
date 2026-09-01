@@ -108,6 +108,14 @@ function isDead(adapterId: string, account: string, infoHash: string): boolean {
   return cache.get(deadKey(adapterId, account, infoHash)) === 1;
 }
 
+/** Leitura de diagnóstico (P5): mesma blacklist, `cache.peek` — sem promover
+ * o LRU nem contar hit/miss. Quem pergunta é o funil explicando um sumiço,
+ * não o pipeline decidindo uma vaga. */
+function isDeadQuiet(adapterId: string, account: string, infoHash: string): boolean {
+  if (!adapterId || !account || !infoHash) return false;
+  return cache.peek(deadKey(adapterId, account, infoHash)) === 1;
+}
+
 function blacklist(
   adapterId: string,
   account: string,
@@ -397,6 +405,7 @@ export {
   acquireSearchSlot,
   releaseSearchSlot,
   isDead,
+  isDeadQuiet,
   blacklist,
   readQueue,
   writeQueue,

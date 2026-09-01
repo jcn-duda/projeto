@@ -26,6 +26,7 @@
       <button id="tabGeral" class="tab-btn active" role="tab" aria-selected="true" aria-controls="viewGeral" type="button">Visão Geral</button>
       <button id="tabAutofetch" class="tab-btn" role="tab" aria-selected="false" aria-controls="viewAutofetch" type="button">Chupim / Autofetch</button>
       <button id="tabColhedor" class="tab-btn" role="tab" aria-selected="false" aria-controls="viewColhedor" type="button">Colhedor / Harvester</button>
+      <button id="tabTrace" class="tab-btn" role="tab" aria-selected="false" aria-controls="viewTrace" type="button">Stream Trace</button>
     </nav>
   </header>
 
@@ -586,6 +587,36 @@
       <p id="harvestFeedback" class="feedback" role="status" aria-live="polite"></p>
     </section>
   </div>
+
+  <div id="viewTrace" class="tab-view hidden" role="tabpanel" aria-labelledby="tabTrace">
+    <section>
+      <div class="section-head">
+        <div>
+          <h2 id="traceTitle">Stream Trace</h2>
+          <p>Leitura OFFLINE do ledger da última busca: por que cada release ficou de fora da lista. Não refaz a busca, não toca no Jackett nem no debrid.</p>
+        </div>
+      </div>
+      <div class="test-tools trace-tools">
+        <label for="traceType">Tipo
+          <select id="traceType" aria-label="Tipo de obra">
+            <option value="movie" selected="selected">filme</option>
+            <option value="series">série</option>
+          </select>
+        </label>
+        <label for="traceId">ID (tt… opcional :s:e)
+          <input id="traceId" type="text" autocomplete="off" spellcheck="false" placeholder="ex.: tt111:1:2" />
+        </label>
+        <button id="traceQueryBtn" type="button">Consultar</button>
+        <button id="traceLiveBtn" type="button" style="display: none;">Consultar ao vivo</button>
+      </div>
+      <p id="traceFeedback" class="feedback" role="status" aria-live="polite"></p>
+      <div id="traceCacheMetrics" class="metrics"></div>
+      <div id="traceStages" class="metrics"></div>
+      <div id="traceReasons"></div>
+      <div id="traceOutput"></div>
+      <p class="guidance">Privacidade: o trace vem do cache local — sem hash de magnet, sem chave de API, sem URL de config.</p>
+    </section>
+  </div>
 </main>
 
 <!-- JS extraido do inline (Fase 3, PLANO_MELHORIAS 5.9). A ordem importa: core, panels, status, teste de conta de debrid e so entao o script inline; escopo global compartilhado (sem IIFE). Caminho ABSOLUTO. -->
@@ -593,6 +624,7 @@
 <script src="/dashboard-panels.js"></script>
 <script src="/dashboard-status.js"></script>
 <script src="/dashboard-debrid-test.js"></script>
+<script src="/dashboard-trace.js"></script>
 <script>
   "use strict";
 
@@ -1555,6 +1587,9 @@
     $("tabGeral").addEventListener("click", function () { switchTab("geral"); });
     $("tabAutofetch").addEventListener("click", function () { switchTab("autofetch"); });
     $("tabColhedor").addEventListener("click", function () { switchTab("colhedor"); });
+    $("tabTrace").addEventListener("click", function () { switchTab("trace"); });
+    $("traceQueryBtn").addEventListener("click", function () { runTraceQuery($("traceQueryBtn")); });
+    $("traceLiveBtn").addEventListener("click", function () { runTraceLive($("traceLiveBtn")); });
     $("harvestPauseToggleBtn").addEventListener("click", function () { toggleHarvesterPause(); });
     $("harvestBannerResumeBtn").addEventListener("click", function () { toggleHarvesterPause(false); });
     $("harvestDrainBtn").addEventListener("click", drainHarvesterQueue);

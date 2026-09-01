@@ -543,9 +543,14 @@ export async function doSearch({
       // checagem, o que congelava a lista sem ⚡ pelo TTL inteiro.
       // P5 — o trace vai serializado (payload) junto da lista: é ele que o
       // /stream-trace.json lê offline. Kill-switch desligado => null.
+      // P5 recompute — `searchMeta` (nomes + ano) viaja junto: é o mínimo que
+      // o diagnóstico precisa para re-aplicar o filtro de TÍTULO na matéria-
+      // prima local (idx/raw/inventário) sem refazer Cinemeta/TMDB. Aditivo:
+      // entrada antiga sem o campo => recompute nota 'no-names' e o filtro de
+      // título não roda (comportamento do pipeline com nomes vazios).
       cache.set(
         cacheKey,
-        { streams, partial, debridKnown: isDebridKnown, trace: serializeTrace(trace) },
+        { streams, partial, debridKnown: isDebridKnown, trace: serializeTrace(trace), searchMeta },
         complete ? config.cacheTtl : Math.min(config.cacheTtl, 60),
       );
       log.info(`[search] ${streams.length} stream(s)${partial ? ' (parcial)' : ''} para ${id}`);
@@ -574,7 +579,7 @@ export async function doSearch({
     const debridKnown = hit.debridKnown === true;
     cache.set(
       cacheKey,
-      { streams: hit.streams, partial: false, debridKnown, trace: (hit as { trace?: SerializedStreamTrace | null }).trace ?? null },
+      { streams: hit.streams, partial: false, debridKnown, trace: (hit as { trace?: SerializedStreamTrace | null }).trace ?? null, searchMeta: (hit as { searchMeta?: unknown }).searchMeta ?? null },
       debridKnown ? config.cacheTtl : Math.min(config.cacheTtl, 60),
     );
     log.info(`[search] coleta encerrada sem novidade; ${hit.streams.length} stream(s) para ${id}`);

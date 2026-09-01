@@ -144,10 +144,12 @@
     var tabGeral = $("tabGeral");
     var tabAf = $("tabAutofetch");
     var tabColhedor = $("tabColhedor");
+    var tabTrace = $("tabTrace");
     var viewGeral = $("viewGeral");
     var viewAf = $("viewAutofetch");
     var viewColhedor = $("viewColhedor");
-    if (!tabGeral || !tabAf || !tabColhedor || !viewGeral || !viewAf || !viewColhedor) return;
+    var viewTrace = $("viewTrace");
+    if (!tabGeral || !tabAf || !tabColhedor || !tabTrace || !viewGeral || !viewAf || !viewColhedor || !viewTrace) return;
     if (name === "colhedor") {
       tabColhedor.className = "tab-btn active";
       tabColhedor.setAttribute("aria-selected", "true");
@@ -155,9 +157,12 @@
       tabGeral.setAttribute("aria-selected", "false");
       tabAf.className = "tab-btn";
       tabAf.setAttribute("aria-selected", "false");
+      tabTrace.className = "tab-btn";
+      tabTrace.setAttribute("aria-selected", "false");
       viewColhedor.className = "tab-view";
       viewGeral.className = "tab-view hidden";
       viewAf.className = "tab-view hidden";
+      viewTrace.className = "tab-view hidden";
       if (window.location.hash !== "#colhedor") window.location.hash = "#colhedor";
     } else if (name === "autofetch") {
       tabAf.className = "tab-btn active";
@@ -166,10 +171,27 @@
       tabGeral.setAttribute("aria-selected", "false");
       tabColhedor.className = "tab-btn";
       tabColhedor.setAttribute("aria-selected", "false");
+      tabTrace.className = "tab-btn";
+      tabTrace.setAttribute("aria-selected", "false");
       viewAf.className = "tab-view";
       viewGeral.className = "tab-view hidden";
       viewColhedor.className = "tab-view hidden";
+      viewTrace.className = "tab-view hidden";
       if (window.location.hash !== "#autofetch") window.location.hash = "#autofetch";
+    } else if (name === "trace") {
+      tabTrace.className = "tab-btn active";
+      tabTrace.setAttribute("aria-selected", "true");
+      tabGeral.className = "tab-btn";
+      tabGeral.setAttribute("aria-selected", "false");
+      tabAf.className = "tab-btn";
+      tabAf.setAttribute("aria-selected", "false");
+      tabColhedor.className = "tab-btn";
+      tabColhedor.setAttribute("aria-selected", "false");
+      viewTrace.className = "tab-view";
+      viewGeral.className = "tab-view hidden";
+      viewAf.className = "tab-view hidden";
+      viewColhedor.className = "tab-view hidden";
+      if (window.location.hash !== "#trace") window.location.hash = "#trace";
     } else {
       tabGeral.className = "tab-btn active";
       tabGeral.setAttribute("aria-selected", "true");
@@ -177,10 +199,13 @@
       tabAf.setAttribute("aria-selected", "false");
       tabColhedor.className = "tab-btn";
       tabColhedor.setAttribute("aria-selected", "false");
+      tabTrace.className = "tab-btn";
+      tabTrace.setAttribute("aria-selected", "false");
       viewGeral.className = "tab-view";
       viewAf.className = "tab-view hidden";
       viewColhedor.className = "tab-view hidden";
-      if (window.location.hash === "#autofetch" || window.location.hash === "#colhedor") window.location.hash = "#geral";
+      viewTrace.className = "tab-view hidden";
+      if (window.location.hash === "#autofetch" || window.location.hash === "#colhedor" || window.location.hash === "#trace") window.location.hash = "#geral";
     }
   }
 
@@ -188,5 +213,6 @@
     var hash = String(window.location.hash || "").replace(/^#/, "");
     if (hash === "colhedor") switchTab("colhedor");
     else if (hash === "autofetch") switchTab("autofetch");
+    else if (hash === "trace") switchTab("trace");
     else switchTab("geral");
   }

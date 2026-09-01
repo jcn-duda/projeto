@@ -15,10 +15,22 @@
 // corrigiriam só com o reboot. streams v8: fronteira no token `bthd`
 // (`www.HDBTHD.com` deixou de ser sinal PT/marca BR) — listas prontas carregam
 // `_br`/bolts pintados com o falso positivo e as vagas reservadas não se
-// corrigem só com o reboot. idx v2: as releases gravadas sem essa prova
-// morrem no boot e são regravadas já filtradas.
+// corrigem só com o reboot. streams v9: DUB/DUBBED GENÉRICO deixa de provar
+// áudio PT quando o título tem script cirílico (`[DUB]` russo/ucraniano) —
+// medido pelo /stream-trace.json ao vivo: 11 dos 50 títulos cirílicos do
+// índice (826 únicos) estavam classificados Dublado/BR via [DUB] e disputavam
+// vaga reservada anunciando pt-BR. As listas prontas carregam `_br`/`_dubbed`
+// pintados pelo classificador antigo e não se corrigem só com o reboot.
+// idx v2: as releases gravadas sem essa prova morrem no boot e são regravadas
+// já filtradas.
 const NAMESPACE_VERSIONS = Object.freeze({
-  streams: 'v8',
+  // v9: DUB/DUBBED genérico deixa de provar áudio PT com script cirílico no
+  // título (guarda CYRILLIC_RE, mesma classe do conserto DUB/HINDI da v7).
+  // O índice PERSISTE `dubbed`/`isBr` por release e o merge é OR-aderente —
+  // sem o bump, release cirílica já indexada como Dublado (medido: 11 de 50
+  // títulos cirílicos no índice ao vivo, achado do /stream-trace.json)
+  // permaneceria errada até o TTL de semanas.
+  streams: 'v9',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
@@ -68,7 +80,11 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // (`www.HDBTHD.com` deixou de ser marca BR). O índice PERSISTE `isBr` por
   // release e o merge é OR-aderente (uma vez BR, sempre BR) — sem o bump, o
   // HDBTHD já indexado permaneceria BR até o TTL de semanas.
-  idx: 'v8',
+  // v9: guarda cirílica no DUB/DUBBED genérico (mesma classe do HINDI da
+  // v7): release `[DUB]` em cirílico gravada como Dublado/BR — 11 dos 50
+  // títulos cirílicos medidos no índice ao vivo — não se corrige em obra já
+  // indexada sem o bump.
+  idx: 'v9',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

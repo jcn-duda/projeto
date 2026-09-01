@@ -244,6 +244,14 @@ function isMissing(imdbId: string, location: ObraLocation, hash: string) {
   return cache.get(missKey(imdbId, location, hash)) != null;
 }
 
+/** Leitura de diagnóstico (P5): mesma prova de falta por episódio, com
+ * `cache.peek` — sem promover LRU nem contar hit/miss. */
+function isMissingQuiet(imdbId: string, location: ObraLocation, hash: string) {
+  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !hash) return false;
+  if (location.season == null || location.episode == null) return false;
+  return cache.peek(missKey(imdbId, location, hash)) != null;
+}
+
 /**
  * O que os ARQUIVOS provaram sobre o torrent — áudio e resolução reais, lidos
  * quando o debrid entregou a listagem (play ou tail). É a única informação que
@@ -368,4 +376,4 @@ function snapshotAllWorks(): Map<string, IndexedRelease[]> {
   return result;
 }
 
-export { record, lookup, lookupQuiet, markLied, markMissing, isMissing, markFileEvidence, fileEvidence, status, snapshotWorks, snapshotAllWorks };
+export { record, lookup, lookupQuiet, markLied, markMissing, isMissing, isMissingQuiet, markFileEvidence, fileEvidence, status, snapshotWorks, snapshotAllWorks };

@@ -295,3 +295,55 @@ test('DUB/idioma: guarda do path acompanha a do título', () => {
     restore();
   }
 });
+
+// ---------------------------------------------------------------------------
+// DUB/cirílico: o SCRIPT cirílico desmente a promessa GENÉRICA do DUB/DUBBED,
+// como o nome de idioma desmente (HINDI acima). Medido pelo /stream-trace.json
+// ao vivo (2026-09-01): 11 dos 50 títulos cirílicos do índice (826 únicos)
+// estavam classificados Dublado/BR via [DUB] e disputavam vaga reservada
+// anunciando pt-BR. A direção é SÓ de ranking: tira vaga reservada e a
+// promessa `_dubbed`; NÃO cria condenação de limpeza (cirílico não entra em
+// hasExplicitForeignAudio).
+// ---------------------------------------------------------------------------
+
+test('DUB/cirílico: [DUB] genérico em título cirílico não é dublado pt-BR (caso medido pelo trace)', () => {
+  // 'Во все тяжкие / Breaking Bad / … [DUB] [Selena/Телеканал Че]' — Телеканал
+  // Че é canal russo; [DUB] aqui é dublagem russa, não pt-BR.
+  const russo = 'Во все тяжкие / Breaking Bad / … [BDRip 720p] [DUB] [Selena/Телеканал Че]';
+  assert.equal(audioFromTitle(russo), '', 'DUB genérico sob cirílico não vira Dublado');
+  assert.equal(looksPtBr(russo), false, 'não pode ocupar vaga reservada de BR');
+  assert.equal(hasExplicitForeignAudio(russo), false, 'cirílico NÃO condena (não é prova de idioma)');
+  assert.equal(foreignVerdict(russo), 'unknown', 'sem marca nenhuma: nunca apaga, fica para a auditoria');
+});
+
+test('DUB/cirílico: PT-BR explícito ao lado vence (release BR pode citar canal em cirílico)', () => {
+  // Mesma semântica do bloco HINDI: a guarda derruba a prova GENÉRICA, a
+  // marca PT explícita corre fora dela e vence.
+  assert.equal(audioFromTitle('Во все тяжкие / Breaking Bad / … [BDRip 720p] [DUB] [Selena/Телеканал Че] PT-BR'), 'Dublado');
+  assert.equal(looksPtBr('Во все тяжкие … [DUB] [Телеканал Че] DUBLADO'), true, 'DUBLADO explícito também vence');
+  assert.equal(foreignVerdict('Во все тяжкие … [DUB] [Телеканал Че] PT-BR'), 'absolve', 'com PT explícito, absolve');
+});
+
+test('DUB/cirílico: cirílico sozinho não autoriza condenação de limpeza (assimetria preservada)', () => {
+  // O cirílico não entrou em hasExplicitForeignAudio nem no foreignVerdict:
+  // este conserto é só de ranking/promessa de dublagem.
+  assert.equal(hasExplicitForeignAudio('Во все тяжкие 2008 BDRip 720p'), false);
+  assert.equal(foreignVerdict('Во все тяжкие 2008 BDRip 720p'), 'unknown');
+  // E o DUB genérico SEM cirílico continua valendo (nenhuma regressão do BR).
+  assert.equal(audioFromTitle('Coringa 2019 DUB 1080p'), 'Dublado');
+  assert.equal(looksPtBr('Homem-Aranha: Um Novo Dia (2026) [1080p DUBLADO 4.32 GB]'), true);
+});
+
+test('DUB/cirílico: guarda do path acompanha a do título', () => {
+  // hasPtAudioMark aplica o MESMO critério do HINDI ao script cirílico:
+  // marcador genérico custom no path não prova PT quando o arquivo está em
+  // cirílico; marcador explícito segue valendo.
+  const restore = patch(config.audioAudit, 'ptMarkers', ['dub', 'dublado']);
+  try {
+    assert.equal(hasPtAudioMark('Show.2024.Dub.Телеканал Че.1080p.mkv'), false, 'genérico sob script cirílico');
+    assert.equal(hasPtAudioMark('Show.2024.Dublado.Телеканал Че.1080p.mkv'), true, 'marcador explícito segue valendo');
+    assert.equal(hasPtAudioMark('Show.2024.Dub.1080p.mkv'), true, 'sem cirílico, o genérico prova PT como sempre');
+  } finally {
+    restore();
+  }
+});

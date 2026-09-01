@@ -82,7 +82,8 @@ test('/stream-trace.json: 503 sem token, 401 com token errado, 404 sem entrada, 
       });
       assert.equal(errado.status, 401);
 
-      // Chave desconhecida: 404 com found:false, NUNCA 500.
+      // Chave desconhecida: 404 com found:false, NUNCA 500. Com o knob de
+      // recompute LIGADO, o bloco recompute é `attempted:true/no-material`.
       cache.clear();
       const semEntrada = await server.request('GET', '/stream-trace.json?type=movie&id=tt111', {
         headers: { 'X-Indexer-Test-Token': 'tok-trace' },
@@ -90,6 +91,23 @@ test('/stream-trace.json: 503 sem token, 401 com token errado, 404 sem entrada, 
       assert.equal(semEntrada.status, 404);
       assert.equal(semEntrada.json.ok, true);
       assert.equal(semEntrada.json.found, false);
+      assert.equal(semEntrada.json.recompute?.attempted, true);
+      assert.equal(semEntrada.json.recompute?.note, 'no-material');
+
+      // N2 — com o recompute DESLIGADO, o 404 diz `attempted:false/disabled`
+      // (nunca finge que tentou).
+      const savedRecompute = config.search.streamTraceRecompute;
+      config.search.streamTraceRecompute = false;
+      try {
+        const semEntradaOff = await server.request('GET', '/stream-trace.json?type=movie&id=tt111', {
+          headers: { 'X-Indexer-Test-Token': 'tok-trace' },
+        });
+        assert.equal(semEntradaOff.status, 404);
+        assert.equal(semEntradaOff.json.recompute?.attempted, false);
+        assert.equal(semEntradaOff.json.recompute?.note, 'disabled');
+      } finally {
+        config.search.streamTraceRecompute = savedRecompute;
+      }
 
       // Com entrada: 200 e o trace inteiro, SEM streams nem chave crua.
       cache.set(chaveGlobal('movie', 'tt111'), entrada(false), 900);
@@ -113,7 +131,7 @@ test('/stream-trace.json: 503 sem token, 401 com token errado, 404 sem entrada, 
       const corpo = ok.text;
       assert.ok(!corpo.includes(HASH), 'não pode vazar hash de magnet');
       assert.ok(!corpo.includes('Filme Qualquer'), 'payload não inclui os streams');
-      assert.ok(!corpo.includes('streams:v8:'), 'payload não inclui a chave do cache');
+      assert.ok(!corpo.includes('streams:v9:'), 'payload não inclui a chave do cache');
       assert.ok(!corpo.includes('account:'), 'payload não inclui o escopo da chave');
     } finally {
       config.jackett.testToken = '';

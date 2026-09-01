@@ -13,18 +13,21 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.includes('alice-secret'), false);
   assert.equal(bob.includes('bob-secret'), false);
   assert.equal(alice, streamsCacheKey('movie', 'tt123', { ...base, debridApiKey: 'alice-secret' }));
-  assert.equal(alice.startsWith('streams:v8:'), true);
+  assert.equal(alice.startsWith('streams:v9:'), true);
 });
 
-test('bump de matching invalida streams e idx (v8): mudança de evitamento BR/DUB exige limpeza global', () => {
-  // A correção BR_MARK (.org genérico) e DUB/HINDI muda matching/ranking; o
-  // AGENTS.md manda invalidar streams+idx juntos. v8: fronteira no token
-  // `bthd` (`www.HDBTHD.com` deixou de ser marca BR) — o índice persiste
-  // `isBr` com merge OR-aderente e as listas prontas carregam `_br`/bolts
-  // pintados pelo classificador antigo. Fixa a versão corrente dos dois
-  // namespaces para o bump não passar despercebido num próximo deploy.
-  assert.equal(prefix('streams'), 'streams:v8:');
-  assert.equal(prefix('idx'), 'idx:v8:');
+test('bump de matching invalida streams e idx (v9): mudança de evitamento BR/DUB exige limpeza global', () => {
+  // A correção BR_MARK (.org genérico), DUB/HINDI e a fronteira `bthd` mudam
+  // matching/ranking; o AGENTS.md manda invalidar streams+idx juntos. v9: o
+  // DUB/DUBBED GENÉRICO deixa de provar áudio PT com script cirílico no
+  // título (medido pelo /stream-trace.json: 11 dos 50 títulos cirílicos do
+  // índice estavam classificados Dublado/BR via [DUB] e disputavam vaga
+  // reservada) — o índice persiste `dubbed`/`isBr` com merge OR-aderente e
+  // as listas prontas carregam `_br`/bolts pintados pelo classificador
+  // antigo. Fixa a versão corrente dos dois namespaces para o bump não
+  // passar despercebido num próximo deploy.
+  assert.equal(prefix('streams'), 'streams:v9:');
+  assert.equal(prefix('idx'), 'idx:v9:');
 });
 
 test('streamsCacheKey preserva a separação por conteúdo e por modo sem conta', () => {

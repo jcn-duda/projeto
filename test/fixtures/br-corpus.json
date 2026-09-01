@@ -139,6 +139,16 @@
       "t": "True.Detective.S02E01.1080p.WEBRip.x264.DD5.1-RARBG.mkv",
       "looksPtBr": false, "brOrigin": false, "audio": "", "foreign": false,
       "nota": "Cena EN por GRUPO (strongEnSceneMark condena no foreignVerdict), mas SEM idioma declarado: hasExplicitForeignAudio é false — são predicados diferentes de propósito."
+    },
+    {
+      "t": "Во все тяжкие / Breaking Bad / … [BDRip 720p] [DUB] [Selena/Телеканал Че]",
+      "looksPtBr": false, "brOrigin": false, "audio": "", "foreign": false,
+      "nota": "Falso positivo CIRÍLICO medido pelo /stream-trace.json ao vivo (2026-09-01): 11 dos 50 títulos cirílicos do índice (826 únicos) estavam classificados looksPtBr=true + audio='Dublado' via DUB genérico — todos disputavam vaga reservada BR anunciando pt-BR; Телеканал Че é canal russo. Título citado pelo trace (operador abreviou com '…'). A guarda CYRILLIC_RE derruba a prova GENÉRICA do [DUB]; o cirílico NÃO entra em hasExplicitForeignAudio (script não é prova de idioma → foreign=false, nunca condena). Reverter a guarda TEM que deixar este corpus vermelho."
+    },
+    {
+      "t": "Во все тяжкие / Breaking Bad / … [BDRip 720p] [DUB] [Selena/Телеканал Че] PT-BR",
+      "looksPtBr": true, "brOrigin": false, "audio": "Dublado", "foreign": false,
+      "nota": "PT explícito vence: 'PT-BR' explícito ao lado do cirílico continua provando áudio PT (a marca corre FORA da guarda, nas regras próprias de explicitPtAudio) — release BR pode citar canal/fonte em cirílico. Mesma semântica do teste 'DUB/HINDI: PT-BR explícito ao lado vence'."
     }
   ]
 }

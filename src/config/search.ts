@@ -98,4 +98,14 @@ export const search = () => ({
   // entradas antigas só voltam a ser explicáveis com o knob ligado de novo).
   // Os valores "0" e "false" desligam (a gravação fica com trace:null).
   streamTrace: !['0', 'false'].includes(String(process.env.STREAM_TRACE || 'true').trim().toLowerCase()),
+  // P5 recompute offline: entrada sem trace é explicada pela matéria-prima
+  // local (idx/raw/inventário) com peeks quiet — nunca rede, nunca reescreve.
+  // Desligar só faz o endpoint responder entrada-sem-trace sem recompute.
+  streamTraceRecompute: !['0', 'false'].includes(String(process.env.STREAM_TRACE_RECOMPUTE || 'true').trim().toLowerCase()),
+  // P5 live — CSV de serviços que PODEM responder à checagem ao vivo. Default
+  // VAZIO = desligado. O live-chck rejeita alldebrid/debridlink SEMPRE por
+  // construção (AllDebrid: checar É upload; Debrid-Link: sem cacheCheck).
+  streamTraceLive: String(process.env.STREAM_TRACE_LIVE || '').split(',').map((s) => s.trim()).filter(Boolean),
+  streamTraceLiveTimeoutMs: num(process.env.STREAM_TRACE_LIVE_TIMEOUT_MS, 1500),
+  streamTraceLiveMaxHashes: Math.max(1, Math.min(300, num(process.env.STREAM_TRACE_LIVE_MAX_HASHES, 100))),
 });
