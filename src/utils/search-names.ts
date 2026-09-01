@@ -243,7 +243,14 @@ function toStremioStream(item: RawItem): Stream | null {
     // A prova do arquivo troca a FONTE do rótulo, não a regra: "DUAL" segue
     // valendo só em origem BR, e fora dela ainda exige PT explícito — agora
     // lido no nome do arquivo, que é o que de fato existe dentro do torrent.
-    _dubbed: isBr
+    //
+    // Origem BR via `brOriginOnly` (inventário da conta, caso Zumbilândia)
+    // marca `_br` para a vaga reservada e NUNCA `_dubbed`: origem não prova
+    // áudio. O branch Dublado/Dual/Nacional fica para quem veio de looksPtBr
+    // ou do flag do provider; para a origem-só, `_dubbed` segue a prova
+    // explícita — que por construção é falsa (título que provasse PT já teria
+    // looksPtBr), salvo prova de arquivo futura via `provenName`.
+    _dubbed: isBr && !item.brOriginOnly
       ? audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional'
       : explicitPtAudio(item.provenName || title),
     // Origem BR vem marcada pelo provider OU pelo título (dublado em tracker

@@ -34,6 +34,12 @@ export interface RawItem {
   provenName?: string;
   /** Campos preservados pelo índice e pela conta como fonte de busca. */
   fromAccount?: boolean;
+  /**
+   * Origem BR marcada só por `brOriginMark` (inventário da conta, caso
+   * Zombieland): dá vaga reservada (`_br`) e NUNCA `_dubbed` — origem não
+   * prova áudio. Ver `providers/account.ts`.
+   */
+  brOriginOnly?: boolean;
   dubbed?: boolean;
   lied?: boolean;
   quality?: string;
