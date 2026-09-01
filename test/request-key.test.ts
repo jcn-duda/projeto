@@ -13,15 +13,18 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.includes('alice-secret'), false);
   assert.equal(bob.includes('bob-secret'), false);
   assert.equal(alice, streamsCacheKey('movie', 'tt123', { ...base, debridApiKey: 'alice-secret' }));
-  assert.equal(alice.startsWith('streams:v7:'), true);
+  assert.equal(alice.startsWith('streams:v8:'), true);
 });
 
-test('bump de matching invalida streams e idx (v7): mudança de evitamento BR/DUB exige limpeza global', () => {
+test('bump de matching invalida streams e idx (v8): mudança de evitamento BR/DUB exige limpeza global', () => {
   // A correção BR_MARK (.org genérico) e DUB/HINDI muda matching/ranking; o
-  // AGENTS.md manda invalidar streams+idx juntos. Fixa a versão corrente dos
-  // dois nomespações para o bump não passar despercebido num próximo deploy.
-  assert.equal(prefix('streams'), 'streams:v7:');
-  assert.equal(prefix('idx'), 'idx:v7:');
+  // AGENTS.md manda invalidar streams+idx juntos. v8: fronteira no token
+  // `bthd` (`www.HDBTHD.com` deixou de ser marca BR) — o índice persiste
+  // `isBr` com merge OR-aderente e as listas prontas carregam `_br`/bolts
+  // pintados pelo classificador antigo. Fixa a versão corrente dos dois
+  // namespaces para o bump não passar despercebido num próximo deploy.
+  assert.equal(prefix('streams'), 'streams:v8:');
+  assert.equal(prefix('idx'), 'idx:v8:');
 });
 
 test('streamsCacheKey preserva a separação por conteúdo e por modo sem conta', () => {

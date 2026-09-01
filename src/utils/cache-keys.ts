@@ -12,10 +12,13 @@
 // alternador genérico `www.…org -` que absolvia `www.UIndex.org -`) e a marca
 // DUB/DUBBED genérica passou a depender da ausência de HINDI — as listas
 // prontas carregam bolts/ranking gerados pelo matching antigo e não se
-// corrigiriam só com o reboot. idx v2: as releases gravadas sem essa prova
+// corrigiriam só com o reboot. streams v8: fronteira no token `bthd`
+// (`www.HDBTHD.com` deixou de ser sinal PT/marca BR) — listas prontas carregam
+// `_br`/bolts pintados com o falso positivo e as vagas reservadas não se
+// corrigem só com o reboot. idx v2: as releases gravadas sem essa prova
 // morrem no boot e são regravadas já filtradas.
 const NAMESPACE_VERSIONS = Object.freeze({
-  streams: 'v7',
+  streams: 'v8',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
@@ -61,7 +64,11 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // a correção DUB/HINDI (generic DUB só valida áudio PT sem HINDI ao lado).
   // Sem o bump, obra já indexada continuaria gravada como dublada quando o
   // release é dublagem indiana.
-  idx: 'v7',
+  // v8: `brOriginMark`/`BR_MARK` ganharam fronteira no token `bthd`
+  // (`www.HDBTHD.com` deixou de ser marca BR). O índice PERSISTE `isBr` por
+  // release e o merge é OR-aderente (uma vez BR, sempre BR) — sem o bump, o
+  // HDBTHD já indexado permaneceria BR até o TTL de semanas.
+  idx: 'v8',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

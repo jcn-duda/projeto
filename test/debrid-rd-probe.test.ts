@@ -178,7 +178,7 @@ test('hashFromResolveUrl extrai o infoHash da rota /resolve', () => {
 });
 
 test('promoteCachedBolts reescreve apenas o stream do hash informado', () => {
-  const key = 'streams:v7:movie:ttProbePromote';
+  const key = 'streams:v8:movie:ttProbePromote';
   cache.set(key, {
     streams: [
       { name: '[RD download] 1080p', url: `http://localhost:7000/resolve/${H1}?sig=1` },
@@ -200,7 +200,7 @@ test('promoteCachedBolts reescreve apenas o stream do hash informado', () => {
 });
 
 test('promoteCachedBolts sem match não conta cache.hit.streams nem reescreve', () => {
-  const key = 'streams:v7:movie:ttNoMatch';
+  const key = 'streams:v8:movie:ttNoMatch';
   cache.set(key, {
     streams: [{ name: '[RD download] 1080p', url: `http://localhost:7000/resolve/${H1}?sig=1` }],
     partial: false,
@@ -224,7 +224,7 @@ test('promoteCachedBolts sem match não conta cache.hit.streams nem reescreve', 
 });
 
 test('promoteCachedBolts preserva (não reseta) o TTL restante na promoção', async () => {
-  const key = 'streams:v7:movie:ttPreservaTtl';
+  const key = 'streams:v8:movie:ttPreservaTtl';
   // TTL curto de propósito: muito menor que o config.cacheTtl — se a promoção
   // resetasse para o default, o `after` estouraria e o teste pegaria.
   cache.set(key, {
@@ -253,8 +253,8 @@ test('promoteCachedBolts preserva (não reseta) o TTL restante na promoção', a
 });
 
 test('promoteCachedBoltsAcrossStreams itera todas as chaves de stream ativas', () => {
-  const k1 = 'streams:v7:movie:ttAcross1';
-  const k2 = 'streams:v7:movie:ttAcross2';
+  const k1 = 'streams:v8:movie:ttAcross1';
+  const k2 = 'streams:v8:movie:ttAcross2';
   cache.set(k1, {
     streams: [{ name: '[RD download] 1080p', url: `http://localhost:7000/resolve/${H3}?sig=1` }],
     partial: false,
