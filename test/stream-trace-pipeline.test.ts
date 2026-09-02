@@ -232,7 +232,7 @@ test('contrato: a promoção do passe tardio preserva o trace da primeira build'
 });
 
 test('contrato: promoteCachedBolts preserva o trace ao reescrever a entrada', async () => {
-  const key = 'streams:v9:promo-bolts';
+  const key = 'streams:v10:promo-bolts';
   const trace = {
     startedAt: 1,
     finishedAt: 2,

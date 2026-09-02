@@ -347,3 +347,43 @@ test('DUB/cirílico: guarda do path acompanha a do título', () => {
     restore();
   }
 });
+
+// ---------------------------------------------------------------------------
+// DUB/ENGLISH: "English Dubbed" é dublagem EM inglês, não pt-BR. Medido ao
+// vivo (2026-09-02, tt0245429): o Spirited Away "English.Dubbed.1080p"
+// ocupava o 2º lugar rotulado DUB BR. `ENG` de três letras é a exceção da
+// regra de 3+ letras da guarda: `\bENG\b` não casa dentro de nome de grupo
+// (-ENGiNE, x264-ENG0 não batem na fronteira) e "Eng Dub" é a grafia
+// dominante em anime. Assimetria preservada: ENGLISH NÃO entra em
+// hasExplicitForeignAudio — dublagem EN é legítima para quem quer EN, a
+// guarda é só de ranking/promessa.
+// ---------------------------------------------------------------------------
+
+test('DUB/ENGLISH: English Dubbed e Eng Dub não são dublado pt-BR (caso medido)', () => {
+  const spi = '[TorrentCounter.to].Spirited.Away.2001.English.Dubbed.1080p.BluRay.x264.[1.8GB].mp4';
+  for (const t of [spi, 'Spirited.Away.2001.English.Dubbed.1080p', 'Some.Anime.English.Dub.1080p', 'Some.Anime.ENG.DUBBED.720p', 'Movie.2024.Eng.Dub.1080p']) {
+    assert.notEqual(audioFromTitle(t), 'Dublado', `${t}: dublagem em inglês não é pt-BR`);
+    assert.equal(looksPtBr(t), false, `${t}: fora das vagas BR`);
+  }
+  assert.equal(hasExplicitForeignAudio('Spirited.Away.2001.English.Dubbed.1080p'), false, 'EN não condena sozinho');
+  assert.equal(foreignVerdict('Spirited.Away.2001.English.Dubbed.1080p.BluRay.x264'), 'unknown');
+});
+
+test('DUB/ENGLISH: PT explícito ao lado vence e o DUB genérico sem idioma segue valendo', () => {
+  assert.equal(audioFromTitle('Spirited Away 2001 English Dub DUBLADO 1080p'), 'Dublado', 'DUBLADO explícito vence o English');
+  assert.equal(foreignVerdict('Spirited.Away.2001.English.Dub.1080p.PT-BR'), 'absolve', 'com PT explícito, absolve');
+  // Antagonista travado (format-audio-quality): DUBBED nu, sem idioma citado,
+  // segue provando PT — a guarda só desmente quando o idioma aparece.
+  assert.equal(audioFromTitle('Coringa 2019 DUB 1080p'), 'Dublado');
+  assert.equal(audioFromTitle('Filme.2024.1080p.WEB-DL.DUBBED.mkv'), 'Dublado');
+});
+
+test('DUB/ENGLISH: grupo de cena EN + dublagem declarada dá unknown, nunca condena', () => {
+  // Sem a guarda, "English Dub" absolvia via looksPtBr; sem a blindagem do
+  // foreignVerdict sobraria strongEnSceneMark(YTS) e o veredito viraria
+  // condena — elegível para sweepUndubbed/evicção, APAGANDO da conta. Nome de
+  // grupo é indício de ORIGEM, não prova de idioma: contra uma dublagem
+  // declarada ele não basta para destruir.
+  assert.equal(foreignVerdict('Some.Anime.English.Dub.1080p.BluRay.x264-YTS'), 'unknown', 'dublagem declarada bloqueia o grupo');
+  assert.equal(foreignVerdict('Some.Movie.2024.1080p.x264-RARBG'), 'condena', 'grupo SEM dublagem declarada segue condenando');
+});

@@ -66,7 +66,7 @@ export function collectLocalMaterial(
     out.push(item);
   };
 
-  // 1) Índice de releases (idx:v9): o que a busca já provou existir.
+  // 1) Índice de releases (idx:v10): o que a busca já provou existir.
   const loc = { season: season ?? null, episode: episode ?? null };
   for (const rel of releaseIndex.lookupQuiet(imdbId, loc)) {
     push(

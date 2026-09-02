@@ -129,7 +129,7 @@ test('o recompute NÃO reescreve a entrada streams', () => {
     const key = jackett.rawKeysFor(config.default.jackett.indexers, 'Filme 2020', 'movie')[0];
     cache.set(key, [{ title: 'Filme', infoHash: 'f'.repeat(40), seeders: 1, indexer: 'x' }], 900);
     const entrada = { streams: [{ name: 'A' }], partial: false, debridKnown: true, searchMeta: { names: ['Filme'], year: 2020 } };
-    const cacheKey = 'streams:v9:diag:tt123:{}:account:none';
+    const cacheKey = 'streams:v10:diag:tt123:{}:account:none';
     cache.set(cacheKey, entrada, 900);
     RUN(() => recomputeOffline('tt123', { season: null, episode: null }, ['Filme'], 2020));
     const depois = cache.get(cacheKey) as unknown;

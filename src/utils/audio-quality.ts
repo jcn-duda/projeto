@@ -256,8 +256,12 @@ function foreignVerdict(filename = '', videoPaths: string[] = []): ForeignVerdic
   // mesmo sem marca de áudio — condenar aqui apaga acervo da conta.
   const temSinalPt = candidates.some((p) => looksPtBr(p) || hasPtSigns(p) || hasPtAudioMark(p) || brOriginMark(p));
   if (temSinalPt) return 'absolve';
+  // Dublagem declarada no título (DUB/DUBBED/DUBLADO…): o dono afirma que o
+  // áudio É dublado — o idioma pode ser qualquer um, mas não é prova de que
+  // NÃO é o PT, então o grupo de cena EN sozinho não basta para condenar.
+  const declaraDublagem = (p: string) => /\b(?:DUB|DUBBED|DUBLAD[OA]|DUBLAGEM)\b/i.test(p);
   const provaEstrangeira = candidates.some(
-    (p) => hasExplicitForeignAudio(p) || Boolean(strongEnSceneMark(p)),
+    (p) => hasExplicitForeignAudio(p) || (Boolean(strongEnSceneMark(p)) && !declaraDublagem(p)),
   );
   return provaEstrangeira ? 'condena' : 'unknown';
 }

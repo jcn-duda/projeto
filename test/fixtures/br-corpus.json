@@ -149,6 +149,11 @@
       "t": "Во все тяжкие / Breaking Bad / … [BDRip 720p] [DUB] [Selena/Телеканал Че] PT-BR",
       "looksPtBr": true, "brOrigin": false, "audio": "Dublado", "foreign": false,
       "nota": "PT explícito vence: 'PT-BR' explícito ao lado do cirílico continua provando áudio PT (a marca corre FORA da guarda, nas regras próprias de explicitPtAudio) — release BR pode citar canal/fonte em cirílico. Mesma semântica do teste 'DUB/HINDI: PT-BR explícito ao lado vence'."
+    },
+    {
+      "t": "[TorrentCounter.to].Spirited.Away.2001.English.Dubbed.1080p.BluRay.x264.[1.8GB].mp4",
+      "looksPtBr": false, "brOrigin": false, "audio": "", "foreign": false,
+      "nota": "Falso positivo ENGLISH medido ao vivo (2026-09-02, tt0245429, bateria de 21 títulos): dublagem EM inglês rotulada DUB BR, 2º lugar ocupando vaga reservada — quem clicava ouvia inglês. A guarda ENGLISH|ENG derruba a prova GENÉRICA do DUBBED (mesma classe do HINDI/cirílico); ENGLISH NÃO entra em hasExplicitForeignAudio (foreign=false, dublagem EN é legítima para quem quer EN — nunca condena). Reverter a guarda TEM que deixar este corpus vermelho."
     }
   ]
 }

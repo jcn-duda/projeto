@@ -13,21 +13,21 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.includes('alice-secret'), false);
   assert.equal(bob.includes('bob-secret'), false);
   assert.equal(alice, streamsCacheKey('movie', 'tt123', { ...base, debridApiKey: 'alice-secret' }));
-  assert.equal(alice.startsWith('streams:v9:'), true);
+  assert.equal(alice.startsWith('streams:v10:'), true);
 });
 
-test('bump de matching invalida streams e idx (v9): mudança de evitamento BR/DUB exige limpeza global', () => {
+test('bump de matching invalida streams e idx (v10): mudança de evitamento BR/DUB exige limpeza global', () => {
   // A correção BR_MARK (.org genérico), DUB/HINDI e a fronteira `bthd` mudam
-  // matching/ranking; o AGENTS.md manda invalidar streams+idx juntos. v9: o
-  // DUB/DUBBED GENÉRICO deixa de provar áudio PT com script cirílico no
-  // título (medido pelo /stream-trace.json: 11 dos 50 títulos cirílicos do
-  // índice estavam classificados Dublado/BR via [DUB] e disputavam vaga
-  // reservada) — o índice persiste `dubbed`/`isBr` com merge OR-aderente e
-  // as listas prontas carregam `_br`/bolts pintados pelo classificador
-  // antigo. Fixa a versão corrente dos dois namespaces para o bump não
-  // passar despercebido num próximo deploy.
-  assert.equal(prefix('streams'), 'streams:v9:');
-  assert.equal(prefix('idx'), 'idx:v9:');
+  // matching/ranking; o AGENTS.md manda invalidar streams+idx juntos. v10: o
+  // ENGLISH|ENG entra na guarda do DUB/DUBBED genérico (dublagem EM inglês
+  // rotulada pt-BR — medido no Spirited Away tt0245429); o _dubbed errado
+  // fica servido do cache e do índice sem o bump, e o índice persiste por
+  // até 30 dias. v9: DUB/DUBBED genérico deixou de provar áudio PT com
+  // script cirílico no título (medido pelo /stream-trace.json: 11 dos 50
+  // títulos cirílicos do índice ao vivo). Fixa a versão corrente dos dois
+  // namespaces para o bump não passar despercebido num próximo deploy.
+  assert.equal(prefix('streams'), 'streams:v10:');
+  assert.equal(prefix('idx'), 'idx:v10:');
 });
 
 test('streamsCacheKey preserva a separação por conteúdo e por modo sem conta', () => {

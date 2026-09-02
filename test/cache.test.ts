@@ -7,7 +7,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import * as metrics from '../src/utils/metrics.js';
-
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -496,8 +495,8 @@ const DLMAG_DOMINATED_LOAD_SCRIPT = [
   `for (let i = 0; i < ${DLMAG_QUOTA} + 10; i++) {`,
   "  insert.run('dlmag:url-' + i, JSON.stringify({ n: i }), now + 7 * 24 * 3600 * 1000 + i);",
   '}',
-  "insert.run('streams:v9:movie:tt123:{}:account:none', JSON.stringify({ streams: ['s1'] }), now + 900 * 1000);",
-  "insert.run('streams:v8:movie:tt-antigo:{}:account:none', JSON.stringify({ streams: ['antigo'] }), now + 900 * 1000 + 1);",
+  "insert.run('streams:v10:movie:tt123:{}:account:none', JSON.stringify({ streams: ['s1'] }), now + 900 * 1000);",
+  "insert.run('streams:v9:movie:tt-antigo:{}:account:none', JSON.stringify({ streams: ['antigo'] }), now + 900 * 1000 + 1);",
   "insert.run('meta:movie:tt123', JSON.stringify({ name: 'Filme' }), now + 86400 * 1000);",
   "insert.run('tmdb:tt123', JSON.stringify({ pt: 'Filme' }), now + 7 * 24 * 3600 * 1000);",
   "seed.exec('COMMIT');",
@@ -506,8 +505,8 @@ const DLMAG_DOMINATED_LOAD_SCRIPT = [
   `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
   `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
   '',
-  "assert.deepStrictEqual(cache.get('streams:v9:movie:tt123:{}:account:none'), { streams: ['s1'] }, 'streams sobrevive ao reload');",
-  "assert.strictEqual(cache.get('streams:v8:movie:tt-antigo:{}:account:none'), null, 'namespace v8 invalidado não ocupa cota');",
+  "assert.deepStrictEqual(cache.get('streams:v10:movie:tt123:{}:account:none'), { streams: ['s1'] }, 'streams sobrevive ao reload');",
+  "assert.strictEqual(cache.get('streams:v9:movie:tt-antigo:{}:account:none'), null, 'namespace v9 invalidado não ocupa cota');",
   "assert.deepStrictEqual(cache.get('meta:movie:tt123'), { name: 'Filme' }, 'meta sobrevive ao reload');",
   "assert.deepStrictEqual(cache.get('tmdb:tt123'), { pt: 'Filme' }, 'tmdb sobrevive ao reload');",
   `assert.strictEqual(cache.snapshot().namespaces.dlmag.entries, ${DLMAG_QUOTA}, 'dlmag respeita a própria cota');`,
@@ -734,7 +733,6 @@ test('prune com janela de graça: expirado servível fica; graça zero volta ao 
   }
 });
 
-
 // ===========================================================================
 // Descarte de versões obsoletas e prefixos aposentados no boot (loadFromDisk)
 // ===========================================================================
@@ -753,27 +751,29 @@ const STREAMS_VERSION_DISCARD_SCRIPT = [
   "insert.run('streams:v7:movie:tt-antigo:{}:account:none', JSON.stringify({ streams: ['antigo'] }), now + 900000);",
   "insert.run('streams:v8:movie:tt-meio:{}:account:none', JSON.stringify({ streams: ['meio'] }), now + 900000);",
   "insert.run('streams:v9:movie:tt-novo:{}:account:none', JSON.stringify({ streams: ['novo'] }), now + 900000);",
+  "insert.run('streams:v10:movie:tt-atual:{}:account:none', JSON.stringify({ streams: ['atual'] }), now + 900000);",
   'seed.close();',
   '',
   `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
   `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
   '',
-  // TTL futuro nas três: v7/v8 somem por serem versão morta, não por expirar.
-  "assert.deepStrictEqual(cache.get('streams:v9:movie:tt-novo:{}:account:none'), { streams: ['novo'] }, 'v9 sobe do disco');",
+  // TTL futuro nas quatro: v7/v8/v9 somem por serem versão morta, não por expirar.
+  "assert.deepStrictEqual(cache.get('streams:v10:movie:tt-atual:{}:account:none'), { streams: ['atual'] }, 'v10 sobe do disco');",
+  "assert.strictEqual(cache.get('streams:v9:movie:tt-novo:{}:account:none'), null, 'v9 nao entra no L1');",
   "assert.strictEqual(cache.get('streams:v8:movie:tt-meio:{}:account:none'), null, 'v8 nao entra no L1');",
   "assert.strictEqual(cache.get('streams:v7:movie:tt-antigo:{}:account:none'), null, 'v7 nao entra no L1');",
   '',
   // Reabre o banco: o DELETE tem que ter corrido no SQLite, não só no Map.
   'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "const staleRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v7:%' OR key LIKE 'streams:v8:%'\").all();",
-  "assert.strictEqual(staleRows.length, 0, 'linhas streams:v7/v8 apagadas do disco');",
-  "const liveRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v9:%'\").all();",
-  "assert.strictEqual(liveRows.length, 1, 'linha streams:v9 preservada no disco');",
+  "const staleRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v7:%' OR key LIKE 'streams:v8:%' OR key LIKE 'streams:v9:%'\").all();",
+  "assert.strictEqual(staleRows.length, 0, 'linhas streams:v7/v8/v9 apagadas do disco');",
+  "const liveRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v10:%'\").all();",
+  "assert.strictEqual(liveRows.length, 1, 'linha streams:v10 preservada no disco');",
   'dbVerify.close();',
 ].join('\n');
 
 test(
-  'descarte de versão obsoleta no disco — streams: v7/v8 somem, v9 sobe no boot',
+  'descarte de versão obsoleta no disco — streams: v7/v8/v9 somem, v10 sobe no boot',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(STREAMS_VERSION_DISCARD_SCRIPT),
 );

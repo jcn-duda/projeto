@@ -34,7 +34,12 @@ import { normalizeTitle } from './title-normalization.js';
  * explicitPtAudio, que correm fora deste predicado.
  *
  * Só formas inequívocas entram: `POLISH` sim, `POL` não — token de três letras
- * casa dentro de nome de grupo e condenaria release BR por acidente.
+ * casa dentro de nome de grupo e condenaria release BR por acidente. `ENG` de
+ * três letras é a EXCEÇÃO medida (2026-09-02): `English Dubbed` em anime sai
+ * como a dublagem EN dominante e ocupava vaga reservada BR (Spirited Away no
+ * tt0245429); `\bENG\b` não casa dentro de nome de grupo (`-ENGiNE`,
+ * `x264-ENG0` não batem na fronteira) e `Eng Dub` é a grafia que o padrão de
+ * anime usa.
  */
 const FOREIGN_DUB_LANG_RE = new RegExp(
   '\\b(HINDI|TAMIL|TELUGU|MALAYALAM|KANNADA|BENGALI|PUNJABI|MARATHI'
@@ -42,7 +47,7 @@ const FOREIGN_DUB_LANG_RE = new RegExp(
   + '|GREEK|HEBREW|ARABIC|PERSIAN|TURKISH|THAI|VIETNAMESE'
   + '|KOREAN|JAPANESE|CHINESE|MANDARIN|CANTONESE'
   + '|GERMAN|FRENCH|TRUEFRENCH|ITALIAN|ITA|SPANISH|ESPANOL|CASTELLANO|LATINO'
-  + '|DUTCH|SWEDISH|NORWEGIAN|DANISH|FINNISH)\\b',
+  + '|DUTCH|SWEDISH|NORWEGIAN|DANISH|FINNISH|ENGLISH|ENG)\\b',
 );
 
 /**

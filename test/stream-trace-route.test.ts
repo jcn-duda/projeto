@@ -132,7 +132,7 @@ test('/stream-trace.json: 503 sem token, 401 com token errado, 404 sem entrada, 
       const corpo = ok.text;
       assert.ok(!corpo.includes(HASH), 'não pode vazar hash de magnet');
       assert.ok(!corpo.includes('Filme Qualquer'), 'payload não inclui os streams');
-      assert.ok(!corpo.includes('streams:v9:'), 'payload não inclui a chave do cache');
+      assert.ok(!corpo.includes('streams:v10:'), 'payload não inclui a chave do cache');
       assert.ok(!corpo.includes('account:'), 'payload não inclui o escopo da chave');
     } finally {
       config.jackett.testToken = '';

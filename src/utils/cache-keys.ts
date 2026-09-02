@@ -30,7 +30,11 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // sem o bump, release cirílica já indexada como Dublado (medido: 11 de 50
   // títulos cirílicos no índice ao vivo, achado do /stream-trace.json)
   // permaneceria errada até o TTL de semanas.
-  streams: 'v9',
+  // v10: ENGLISH|ENG entra na guarda do DUB/DUBBED genérico (Spirited Away
+  // "English Dubbed" media rotulado DUB BR); o índice PERSISTE `dubbed` por
+  // release e o merge é OR-aderente — sem o bump, o rótulo errado sobrevive
+  // até o TTL de 30 dias do índice.
+  streams: 'v10',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
@@ -84,7 +88,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // v7): release `[DUB]` em cirílico gravada como Dublado/BR — 11 dos 50
   // títulos cirílicos medidos no índice ao vivo — não se corrige em obra já
   // indexada sem o bump.
-  idx: 'v9',
+  // v10: ENGLISH|ENG na mesma guarda — release "English Dubbed" não pode
+  // ficar gravada como `dubbed` no índice por até 30 dias.
+  idx: 'v10',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',
