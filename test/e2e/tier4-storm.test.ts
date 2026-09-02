@@ -219,112 +219,130 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
   // SCENARIO 1: Brazilian Movie Search with Cached Dubbed Release & Debrid Playback
   // ---------------------------------------------------------------------------
 
-  test('Scenario 1: Brazilian Movie Search with Cached Dubbed Release & Debrid Playback (Auto da Compadecida on Premiumize)', async () => {
-    const imdbId = 'tt0271383';
-    const brHash = makeHash('auto_da_compadecida_br', 1);
-    const globalHash = makeHash('dogs_will_global', 2);
-    const userApiKey = 'pm-user-token-scenario-1';
+  test('Scenario 5: High-Concurrency Multi-User Request Storm with Divergent Runtime Configs & Isolated Caches', async () => {
+    const origSecret = config.debrid.resolveSecret;
+    const operatorSecret = 'oper-master-secret-12345';
+    config.debrid.resolveSecret = operatorSecret;
 
-    const userConfig = {
-      ds: 'premiumize',
-      dk: userApiKey,
-      p: ['jackett'],
-      d: 1, // dubbedOnly
-      bf: 1, // brFirst
-      b: 4, // brReservedSlots
-      dc: 1, // debridCachedOnly
-    };
+    // Generate 10 distinct user configurations
+    const users = [
+      { id: 1, conf: { ds: 'realdebrid', dk: 'key-user-1', p: ['jackett'], q4: 2, q1: 0, q7: 0, q5: 0, qs: 0, qn: 0, o: 1 } }, // 4K BR only
+      { id: 2, conf: { ds: 'premiumize', dk: 'key-user-2', p: ['jackett'], q4: 0, q1: 2, q7: 0, q5: 0, qs: 0, qn: 0, d: 0 } }, // 1080p any audio
+      { id: 3, conf: { ds: 'alldebrid', dk: 'key-user-3', p: ['jackett'], qs: 2, jl: 'bludv:1' } }, // SD, max 1 bludv
+      { id: 4, conf: { ds: 'torbox', dk: 'key-user-4', p: ['jackett'], bu: 1, b: 4 } }, // Show uncached BR
+      { id: 5, conf: { ds: '', dk: '', p: ['jackett'] } }, // P2P unconfigured
+      { id: 6, conf: { ds: 'premiumize', dk: secretBox.seal('key-user-6'), p: ['jackett'], q1: 1 } }, // Sealed key
+      { id: 7, conf: { ds: 'realdebrid', dk: 'key-user-7', p: ['jackett'], z: 3, c: 1 } }, // Max 3GB, no CAM
+      { id: 8, conf: { ds: 'debridlink', dk: 'key-user-8', p: ['jackett'], bf: 0 } }, // brFirst=false
+      { id: 9, conf: { ds: 'realdebrid', dk: 'key-user-1', p: ['jackett'], q4: 2, q1: 0, q7: 0, q5: 0, qs: 0, qn: 0, o: 1 } }, // Coalesced with User 1
+      { id: 10, conf: { p: ['prowlarr'] } }, // Prowlarr provider
+    ];
 
-    const configSegment = runtime.encode(userConfig);
-
-    // Mock Fetch for Cinemeta, TMDB, and Premiumize
+    // Mock Fetch for Cinemeta & TMDB responding to storm IMDb IDs
     interceptFetch(async (url: any) => {
       const u = String(url);
+      const match = u.match(/tt\d+/);
+      const id = match ? match[0] : 'tt1000001';
       if (u.includes('cinemeta.strem.io')) {
         return {
           ok: true,
-          json: async () => ({ meta: { name: 'O Auto da Compadecida', year: '2000' } }),
+          json: async () => ({ meta: { name: `Movie ${id}`, year: '2024' } }),
         };
       }
       if (u.includes('themoviedb.org')) {
         return {
           ok: true,
           json: async () => ({
-            movie_results: [{ title: 'O Auto da Compadecida', original_title: 'O Auto da Compadecida', release_date: '2000-09-15' }],
-            tv_results: [],
+            movie_results: [{ title: `Movie ${id}`, original_title: `Movie ${id}`, release_date: '2024-01-01' }],
           }),
         };
       }
-      if (u.includes('premiumize.me')) {
+      if (u.includes('premiumize.me') || u.includes('torbox.app') || u.includes('alldebrid.com')) {
         return {
           ok: true,
-          json: async () => ({ status: 'success', response: [true, false] }),
+          json: async () => ({ status: 'success', response: [true, true, true] }),
         };
       }
       return { ok: false, status: 404 };
     });
 
-    // Mock Jackett Search
+    // Mock Jackett & Prowlarr Search returning matched streams for the queried movie
     const originalJackettSearch = jackett.search;
-    jackett.search = async () => [
-      makeRawStream('O Auto da Compadecida (2000) 1080p Nacional BluRay', { infoHash: brHash, isBr: true, seeders: 1 }),
-      makeRawStream('A Dog\'s Will (2000) 720p English Subtitles', { infoHash: globalHash, isBr: false, seeders: 45 }),
-    ];
+    const originalProwlarrSearch = prowlarr.search;
 
-    // Mock Premiumize Adapter
+    jackett.search = async (query) => {
+      const parts = query.split(' ');
+      const titlePrefix = parts[0] + ' ' + (parts[1] || 'Movie');
+      return [
+        makeRawStream(`${titlePrefix} 2024 2160p DUBLADO Nacional`, { isBr: true, _dubbed: true, tracker: 'bludv', sizeBytes: 8 * 1024 ** 3 }),
+        makeRawStream(`${titlePrefix} 2024 1080p BluRay Dual`, { isBr: true, _dubbed: true, tracker: 'nerdfilmes', sizeBytes: 2.5 * 1024 ** 3 }),
+        makeRawStream(`${titlePrefix} 2024 1080p English Only`, { isBr: false, _dubbed: false, tracker: '1337x', sizeBytes: 2.0 * 1024 ** 3 }),
+        makeRawStream(`${titlePrefix} 2024 720p HD CAM`, { isBr: false, tracker: '1337x', sizeBytes: 1.0 * 1024 ** 3 }),
+        makeRawStream(`${titlePrefix} 2024 SD 480p DUBLADO`, { isBr: true, _dubbed: true, tracker: 'bludv', sizeBytes: 800 * 1024 ** 2 }),
+      ];
+    };
+    prowlarr.search = jackett.search as any;
+
+    // Mock Debrid Adapters
     const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
-    const originalCheckCached = pmAdapter.checkCached;
-    const originalResolveLink = pmAdapter.resolveLink;
+    const tbAdapter = debrid.BY_ID.get('torbox') as DebridAdapter;
+    const adAdapter = debrid.BY_ID.get('alldebrid') as DebridAdapter;
 
-    pmAdapter.checkCached = async (apiKey, hashes) => {
-      assert.equal(apiKey, userApiKey);
-      return { cached: new Set([brHash]), known: true };
-    };
+    const origPmCheck = pmAdapter.checkCached;
+    const origTbCheck = tbAdapter.checkCached;
+    const origAdCheck = adAdapter.checkCached;
 
-    pmAdapter.resolveLink = async (apiKey, hash) => {
-      assert.equal(apiKey, userApiKey);
-      assert.equal(hash, brHash);
-      return 'https://cdn.premiumize.me/stream/auto_compadecida_1080p_nacional.mp4';
-    };
+    pmAdapter.checkCached = async (key, hashes) => ({ cached: new Set(hashes), known: true });
+    tbAdapter.checkCached = async (key, hashes) => ({ cached: new Set([hashes[0]]), known: true });
+    adAdapter.checkCached = async (key, hashes) => ({ cached: new Set(hashes), known: true });
 
     try {
-      // Step 1: Fetch user manifest
-      const manifestRes = await fetch(`${baseUrl}/${configSegment}/manifest.json`);
-      assert.equal(manifestRes.status, 200);
-      const manifestData = await manifestRes.json();
-      assert.equal(manifestData.id, config.addonId);
-      assert.equal(manifestData.behaviorHints.configurable, true);
+      // Fire 10 simultaneous requests across diverse IMDb IDs and configurations
+      const stormTasks = users.map(async (u) => {
+        const seg = runtime.encode(u.conf);
+        const imdb = `tt${String(1000000 + u.id).padStart(7, '0')}`;
+        const res = await fetch(`${baseUrl}/${seg}/stream/movie/${imdb}.json`);
+        assert.equal(res.status, 200, `User ${u.id} received 200 OK`);
+        const json = await res.json();
+        return { user: u, status: res.status, data: json };
+      });
 
-      // Step 2: Search for movie streams
-      const streamRes = await fetch(`${baseUrl}/${configSegment}/stream/movie/${imdbId}.json`);
-      assert.equal(streamRes.status, 200);
-      assert.match(streamRes.headers.get('cache-control') || '', /max-age=900/);
+      const results = await Promise.all(stormTasks);
+      assert.equal(results.length, 10, 'All 10 concurrent requests completed successfully');
 
-      const streamData = await streamRes.json();
-      assert.ok(Array.isArray(streamData.streams));
-      assert.equal(streamData.streams.length, 1, 'Only the cached BR Dubbed stream survived cachedOnly filter');
+      // Verify User 1 (4K BR only via Real-Debrid)
+      const u1 = results.find((r) => r.user.id === 1)!;
+      assert.ok(u1.data.streams.length > 0);
+      assert.ok(u1.data.streams.every((s: any) => s.name.includes('2160p') || s.name.includes('4K')), 'User 1 strictly limited to 2160p/4K');
+      assert.ok(u1.data.streams.every((s: any) => s.name.includes('[RD download]')), 'User 1 streams marked [RD download]');
 
-      const stream = streamData.streams[0];
-      assert.match(stream.name, /\[PM⚡\]/, 'Branded with instant play mark [PM⚡]');
-      assert.match(stream.name, /1080p/, 'Display resolution extracted correctly');
-      assert.ok(stream.url.startsWith(`${baseUrl}/${configSegment}/resolve/${brHash}`), 'Resolve URL contains proper prefix');
-      assert.equal(stream.infoHash, undefined, 'infoHash stripped for debrid routing');
+      // Verify User 2 (1080p only via Premiumize)
+      const u2 = results.find((r) => r.user.id === 2)!;
+      assert.ok(u2.data.streams.length > 0);
+      assert.ok(u2.data.streams.every((s: any) => s.name.includes('1080p')), 'User 2 strictly limited to 1080p');
+      assert.ok(u2.data.streams.every((s: any) => s.name.includes('[PM⚡]')), 'User 2 streams marked [PM⚡]');
 
-      // Step 3: Client clicks play (calls /resolve endpoint with signature)
-      const playUrl = new URL(stream.url);
-      const resolveRes = await fetch(playUrl.href, { redirect: 'manual' });
-      assert.equal(resolveRes.status, 302, 'Redirects to direct CDN playback URL');
-      assert.equal(resolveRes.headers.get('location'), 'https://cdn.premiumize.me/stream/auto_compadecida_1080p_nacional.mp4');
+      // Verify User 5 (P2P unconfigured)
+      const u5 = results.find((r) => r.user.id === 5)!;
+      assert.ok(u5.data.streams.length > 0);
+      assert.ok(u5.data.streams.every((s: any) => s.infoHash != null), 'User 5 receives pure P2P streams with infoHash');
+      assert.ok(u5.data.streams.every((s: any) => s.url == null), 'User 5 streams contain no resolve URLs');
 
-      // Step 4: Verify HMAC anti-tampering protection
-      const tamperedUrl = new URL(playUrl.href);
-      tamperedUrl.searchParams.set('sig', 'deadbeef'.repeat(8));
-      const badSigRes = await fetch(tamperedUrl.href, { redirect: 'manual' });
-      assert.equal(badSigRes.status, 403, 'Tampered HMAC signature rejected with 403 Forbidden');
+      // Verify User 6 (Sealed Key with Premiumize)
+      const u6 = results.find((r) => r.user.id === 6)!;
+      assert.ok(u6.data.streams.length > 0);
+      assert.ok(u6.data.streams[0].url.includes('/resolve/'), 'User 6 sealed key correctly signed in resolve URL');
+
+      // Verify User 9 received identical result to User 1 (Coalescing)
+      const u9 = results.find((r) => r.user.id === 9)!;
+      assert.equal(u9.data.streams.length, u1.data.streams.length);
     } finally {
+      config.debrid.resolveSecret = origSecret;
       jackett.search = originalJackettSearch;
-      pmAdapter.checkCached = originalCheckCached;
-      pmAdapter.resolveLink = originalResolveLink;
+      prowlarr.search = originalProwlarrSearch;
+      pmAdapter.checkCached = origPmCheck;
+      tbAdapter.checkCached = origTbCheck;
+      adAdapter.checkCached = origAdCheck;
       cache.clear();
     }
   });

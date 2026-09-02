@@ -219,112 +219,166 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
   // SCENARIO 1: Brazilian Movie Search with Cached Dubbed Release & Debrid Playback
   // ---------------------------------------------------------------------------
 
-  test('Scenario 1: Brazilian Movie Search with Cached Dubbed Release & Debrid Playback (Auto da Compadecida on Premiumize)', async () => {
-    const imdbId = 'tt0271383';
-    const brHash = makeHash('auto_da_compadecida_br', 1);
-    const globalHash = makeHash('dogs_will_global', 2);
-    const userApiKey = 'pm-user-token-scenario-1';
+  // ---------------------------------------------------------------------------
+  // SCENARIO 2: Ongoing TV Series with Season Pack Fallback & Late-Pass Cache Refresh
+  // ---------------------------------------------------------------------------
+
+  test('Scenario 2: Ongoing TV Series with Season Pack Fallback on Slow BR Scrapers & Late-Pass Cache Refresh (Fallout S01)', async () => {
+    const seriesId = 'tt12637874:1:1'; // Fallout S01E01
+    const fastGlobalHash = makeHash('fallout_global_s01e01', 1);
+    const slowBrPackHash = makeHash('fallout_br_s01_pack', 2);
+    const userApiKey = 'rd-user-token-scenario-2';
 
     const userConfig = {
-      ds: 'premiumize',
+      ds: 'realdebrid',
       dk: userApiKey,
       p: ['jackett'],
-      d: 1, // dubbedOnly
-      bf: 1, // brFirst
-      b: 4, // brReservedSlots
-      dc: 1, // debridCachedOnly
+      ji: ['1337x', 'bludv-cardigann'],
+      bf: 1,
+      b: 2,
     };
 
     const configSegment = runtime.encode(userConfig);
 
-    // Mock Fetch for Cinemeta, TMDB, and Premiumize
+    // Encolhe o orçamento de coleta para o cenário caber no teste. Com o default
+    // (REPLY_DEADLINE 9200 − DEBRID_RESERVE 4500 = 4700ms) a fonte BR de 140ms
+    // entrava na janela e a primeira resposta já saía COMPLETA — o passe tardio
+    // nunca disparava e o cenário passava de qualquer jeito, mesmo com a escrita
+    // do cache removida. Aqui a janela vira 1200ms e a BR fica fora dela: a
+    // primeira resposta sai parcial e só o passe tardio pode completar o cache.
+    config.replyDeadline = 1500;
+    config.debridReserve = 300;
+
+    // Mock Fetch for Cinemeta & TMDB
     interceptFetch(async (url: any) => {
       const u = String(url);
       if (u.includes('cinemeta.strem.io')) {
         return {
           ok: true,
-          json: async () => ({ meta: { name: 'O Auto da Compadecida', year: '2000' } }),
+          json: async () => ({ meta: { name: 'Fallout', year: '2024–' } }),
         };
       }
       if (u.includes('themoviedb.org')) {
         return {
           ok: true,
           json: async () => ({
-            movie_results: [{ title: 'O Auto da Compadecida', original_title: 'O Auto da Compadecida', release_date: '2000-09-15' }],
-            tv_results: [],
+            tv_results: [{ name: 'Fallout', original_name: 'Fallout', first_air_date: '2024-04-10' }],
           }),
-        };
-      }
-      if (u.includes('premiumize.me')) {
-        return {
-          ok: true,
-          json: async () => ({ status: 'success', response: [true, false] }),
         };
       }
       return { ok: false, status: 404 };
     });
 
-    // Mock Jackett Search
+    // Mock Jackett Search with fast global result and delayed BR result
     const originalJackettSearch = jackett.search;
-    jackett.search = async () => [
-      makeRawStream('O Auto da Compadecida (2000) 1080p Nacional BluRay', { infoHash: brHash, isBr: true, seeders: 1 }),
-      makeRawStream('A Dog\'s Will (2000) 720p English Subtitles', { infoHash: globalHash, isBr: false, seeders: 45 }),
-    ];
-
-    // Mock Premiumize Adapter
-    const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
-    const originalCheckCached = pmAdapter.checkCached;
-    const originalResolveLink = pmAdapter.resolveLink;
-
-    pmAdapter.checkCached = async (apiKey, hashes) => {
-      assert.equal(apiKey, userApiKey);
-      return { cached: new Set([brHash]), known: true };
+    let globalSearchCalls = 0;
+    let brSearchCalls = 0;
+    jackett.search = async (query, type, indexers) => {
+      const isBrIndexer = indexers && indexers.includes('bludv-cardigann');
+      if (isBrIndexer) {
+        brSearchCalls += 1;
+        // Slow BR Season Pack scraper: o atraso (1400ms) precisa ser MAIOR que o
+        // orçamento de coleta (1200ms), senão o resultado BR entraria na primeira
+        // resposta e o passe tardio nunca aconteceria.
+        await sleep(1400);
+        return [
+          makeRawStream('Fallout 1ª Temporada Completa (2024) [DUBLADO] 1080p', {
+            infoHash: slowBrPackHash,
+            isBr: true,
+            seeders: 1,
+            tracker: 'bludv-cardigann',
+          }),
+        ];
+      }
+      // Fast Global indexer
+      globalSearchCalls += 1;
+      return [
+        makeRawStream('Fallout.S01E01.1080p.WEBRip.x264', {
+          infoHash: fastGlobalHash,
+          isBr: false,
+          seeders: 120,
+          tracker: '1337x',
+        }),
+      ];
     };
 
-    pmAdapter.resolveLink = async (apiKey, hash) => {
+    // Mock Real-Debrid Adapter
+    const rdAdapter = debrid.BY_ID.get('realdebrid') as DebridAdapter;
+    const originalResolveLink = rdAdapter.resolveLink;
+    rdAdapter.resolveLink = async (apiKey, hash, episode) => {
       assert.equal(apiKey, userApiKey);
-      assert.equal(hash, brHash);
-      return 'https://cdn.premiumize.me/stream/auto_compadecida_1080p_nacional.mp4';
+      assert.equal(hash, slowBrPackHash);
+      assert.equal(episode?.season, 1);
+      assert.equal(episode?.episode, 1);
+      return 'https://cdn.real-debrid.com/stream/fallout_s01e01_dublado.mkv';
     };
 
     try {
-      // Step 1: Fetch user manifest
-      const manifestRes = await fetch(`${baseUrl}/${configSegment}/manifest.json`);
-      assert.equal(manifestRes.status, 200);
-      const manifestData = await manifestRes.json();
-      assert.equal(manifestData.id, config.addonId);
-      assert.equal(manifestData.behaviorHints.configurable, true);
+      // Step 1: A primeira resposta é PARCIAL — só o stream global rápido coube
+      // no orçamento; a fonte BR ainda está raspando fora da janela.
+      const res1 = await fetch(`${baseUrl}/${configSegment}/stream/series/${seriesId}.json`);
+      assert.equal(res1.status, 200);
+      const data1 = await res1.json();
+      assert.equal(data1.streams.length, 1, 'First response is partial: only the fast global stream arrived');
+      assert.equal(data1.cacheMaxAge, 0, 'Partial response must not be cached by the client');
+      assert.ok(data1.streams[0].url.includes(fastGlobalHash), 'Partial response carries the fast global stream');
 
-      // Step 2: Search for movie streams
-      const streamRes = await fetch(`${baseUrl}/${configSegment}/stream/movie/${imdbId}.json`);
-      assert.equal(streamRes.status, 200);
-      assert.match(streamRes.headers.get('cache-control') || '', /max-age=900/);
+      // O passo de resposta já gravou o lote parcial no cache (TTL curto). Como
+      // a primeira resposta provou-se parcial (1 stream), qualquer entrada
+      // completa de 2 streams que aparecer a seguir SÓ pode ter vindo do passe
+      // tardio — é exatamente a escrita que a mutação MUT-10 remove.
+      const cacheKey = streamsCacheKey('series', seriesId, {
+        ...runtime.decode(configSegment),
+        resolveUncached: config.debrid.resolveUncached,
+      });
+      const responseHit = cache.get(cacheKey);
+      assert.ok(responseHit, 'Response pass cached the partial result');
+      assert.ok(responseHit.streams.length >= 1, 'Cached partial entry is non-empty');
 
-      const streamData = await streamRes.json();
-      assert.ok(Array.isArray(streamData.streams));
-      assert.equal(streamData.streams.length, 1, 'Only the cached BR Dubbed stream survived cachedOnly filter');
+      // Step 2: espera o passe tardio reescrever o cache como completo. Poll
+      // determinístico no cache em memória: a condição de parada é a transição
+      // partial → completo com as 2 fontes, que só a escrita tardia produz.
+      const lateDeadline = Date.now() + 5000;
+      let lateHit: any = null;
+      while (Date.now() < lateDeadline) {
+        lateHit = cache.get(cacheKey);
+        if (lateHit && lateHit.partial === false && lateHit.streams.length === 2) break;
+        await sleep(25);
+      }
+      assert.ok(lateHit && lateHit.partial === false, 'Late pass rewrote the cache entry as complete');
+      assert.equal(lateHit.streams.length, 2, 'Late-pass cache holds both global and BR pack streams');
+      assert.ok(
+        lateHit.streams.some((s: any) => (s.url || '').includes(slowBrPackHash)),
+        'Late-pass cache contains the slow BR season pack',
+      );
 
-      const stream = streamData.streams[0];
-      assert.match(stream.name, /\[PM⚡\]/, 'Branded with instant play mark [PM⚡]');
-      assert.match(stream.name, /1080p/, 'Display resolution extracted correctly');
-      assert.ok(stream.url.startsWith(`${baseUrl}/${configSegment}/resolve/${brHash}`), 'Resolve URL contains proper prefix');
-      assert.equal(stream.infoHash, undefined, 'infoHash stripped for debrid routing');
+      // Step 3: a segunda chamada é servida DO CACHE — nenhum indexer é
+      // consultado de novo. Sem a escrita tardia o cache estaria vazio e a
+      // busca inteira seria refeita, dobrando as chamadas abaixo.
+      const res2 = await fetch(`${baseUrl}/${configSegment}/stream/series/${seriesId}.json`);
+      assert.equal(res2.status, 200);
+      const data2 = await res2.json();
+      assert.equal(globalSearchCalls, 1, 'Global indexer queried exactly once — second request served from cache');
+      assert.equal(brSearchCalls, 1, 'BR indexer queried exactly once — second request served from cache');
 
-      // Step 3: Client clicks play (calls /resolve endpoint with signature)
-      const playUrl = new URL(stream.url);
+      assert.ok(data2.streams.length >= 2, 'Cache now contains both global stream and late BR pack stream');
+      const topStream = data2.streams[0];
+      assert.ok(topStream.title.includes('Fallout 1ª Temporada Completa'), 'BR Dubbed Season 1 pack ranked at top due to brFirst');
+      assert.match(topStream.name, /\[RD download\]/, 'Real-Debrid download stream format');
+
+      // Step 4: Play Episode 1 from the Season Pack
+      const playUrl = new URL(topStream.url);
+      assert.equal(playUrl.searchParams.get('s'), '1');
+      assert.equal(playUrl.searchParams.get('e'), '1');
+
       const resolveRes = await fetch(playUrl.href, { redirect: 'manual' });
-      assert.equal(resolveRes.status, 302, 'Redirects to direct CDN playback URL');
-      assert.equal(resolveRes.headers.get('location'), 'https://cdn.premiumize.me/stream/auto_compadecida_1080p_nacional.mp4');
-
-      // Step 4: Verify HMAC anti-tampering protection
-      const tamperedUrl = new URL(playUrl.href);
-      tamperedUrl.searchParams.set('sig', 'deadbeef'.repeat(8));
-      const badSigRes = await fetch(tamperedUrl.href, { redirect: 'manual' });
-      assert.equal(badSigRes.status, 403, 'Tampered HMAC signature rejected with 403 Forbidden');
+      assert.equal(resolveRes.status, 302);
+      assert.equal(resolveRes.headers.get('location'), 'https://cdn.real-debrid.com/stream/fallout_s01e01_dublado.mkv');
     } finally {
+      config.replyDeadline = originalConfig.replyDeadline;
+      config.debridReserve = originalConfig.debridReserve;
       jackett.search = originalJackettSearch;
-      pmAdapter.checkCached = originalCheckCached;
-      pmAdapter.resolveLink = originalResolveLink;
+      rdAdapter.resolveLink = originalResolveLink;
       cache.clear();
     }
   });

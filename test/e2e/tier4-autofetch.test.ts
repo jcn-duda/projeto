@@ -219,46 +219,48 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
   // SCENARIO 1: Brazilian Movie Search with Cached Dubbed Release & Debrid Playback
   // ---------------------------------------------------------------------------
 
-  test('Scenario 1: Brazilian Movie Search with Cached Dubbed Release & Debrid Playback (Auto da Compadecida on Premiumize)', async () => {
-    const imdbId = 'tt0271383';
-    const brHash = makeHash('auto_da_compadecida_br', 1);
-    const globalHash = makeHash('dogs_will_global', 2);
-    const userApiKey = 'pm-user-token-scenario-1';
+  // ---------------------------------------------------------------------------
+  // SCENARIO 3: Uncached BR Dubbed Release with Autofetch & AllDebrid Protection
+  // ---------------------------------------------------------------------------
+
+  test('Scenario 3: Uncached BR Dubbed Release triggering Autofetch with AllDebrid Ghost-Download Protection', async () => {
+    const imdbId = 'tt15398776'; // Oppenheimer
+    const uncachedBrHash = makeHash('oppenheimer_br_uncached', 1);
+    const uncachedGlobalHash = makeHash('oppenheimer_global_uncached', 2);
+    const userApiKey = 'ad-user-token-scenario-3';
+    const account = accountScope(userApiKey);
 
     const userConfig = {
-      ds: 'premiumize',
+      ds: 'alldebrid',
       dk: userApiKey,
       p: ['jackett'],
-      d: 1, // dubbedOnly
-      bf: 1, // brFirst
-      b: 4, // brReservedSlots
+      // Chaves CURTAS do schema (`ab`/`dc`): `runtime.normalize` ignora chaves
+      // desconhecidas, então `autoFetchBr: true`/`debridCachedOnly: true` eram
+      // descartadas em silêncio e o efetivo vinha do .env do operador — com
+      // DEBRID_CACHED_ONLY=false o autofetch nem ligava e o hold nunca protegia
+      // o candidato BR da limpeza simulada no checkCached.
+      ab: 1, // autoFetchBr
       dc: 1, // debridCachedOnly
+      b: 2,
     };
 
     const configSegment = runtime.encode(userConfig);
 
-    // Mock Fetch for Cinemeta, TMDB, and Premiumize
+    // Mock Fetch for Cinemeta & TMDB
     interceptFetch(async (url: any) => {
       const u = String(url);
       if (u.includes('cinemeta.strem.io')) {
         return {
           ok: true,
-          json: async () => ({ meta: { name: 'O Auto da Compadecida', year: '2000' } }),
+          json: async () => ({ meta: { name: 'Oppenheimer', year: '2023' } }),
         };
       }
       if (u.includes('themoviedb.org')) {
         return {
           ok: true,
           json: async () => ({
-            movie_results: [{ title: 'O Auto da Compadecida', original_title: 'O Auto da Compadecida', release_date: '2000-09-15' }],
-            tv_results: [],
+            movie_results: [{ title: 'Oppenheimer', original_title: 'Oppenheimer', release_date: '2023-07-21' }],
           }),
-        };
-      }
-      if (u.includes('premiumize.me')) {
-        return {
-          ok: true,
-          json: async () => ({ status: 'success', response: [true, false] }),
         };
       }
       return { ok: false, status: 404 };
@@ -267,65 +269,116 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     // Mock Jackett Search
     const originalJackettSearch = jackett.search;
     jackett.search = async () => [
-      makeRawStream('O Auto da Compadecida (2000) 1080p Nacional BluRay', { infoHash: brHash, isBr: true, seeders: 1 }),
-      makeRawStream('A Dog\'s Will (2000) 720p English Subtitles', { infoHash: globalHash, isBr: false, seeders: 45 }),
+      makeRawStream('Oppenheimer 2023 1080p DUAL Dublado Nacional', { infoHash: uncachedBrHash, isBr: true, seeders: 1, _dubbed: true }),
+      makeRawStream('Oppenheimer 2023 1080p BluRay English', { infoHash: uncachedGlobalHash, isBr: false, seeders: 100, _dubbed: false }),
     ];
 
-    // Mock Premiumize Adapter
-    const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
-    const originalCheckCached = pmAdapter.checkCached;
-    const originalResolveLink = pmAdapter.resolveLink;
+    // Mock AllDebrid Adapter
+    const adAdapter = debrid.BY_ID.get('alldebrid') as DebridAdapter;
+    const originalCheckCached = adAdapter.checkCached;
+    const originalEnqueue = adAdapter.enqueue;
+    const originalAbortSafe = adAdapter.abortSafeCacheCheck;
 
-    pmAdapter.checkCached = async (apiKey, hashes) => {
-      assert.equal(apiKey, userApiKey);
-      return { cached: new Set([brHash]), known: true };
+    // Enable abortSafeCacheCheck for synchronous testing inside applyDebrid
+    adAdapter.abortSafeCacheCheck = true;
+
+    const deletedMagnetHashes: string[] = [];
+    const enqueuedHashes: string[] = [];
+
+    adAdapter.checkCached = async (apiKey, hashes) => {
+      // Simulate dropUncached inside AllDebrid checkCached
+      for (const hash of hashes) {
+        if (!held.isHeld(hash, account)) {
+          deletedMagnetHashes.push(hash);
+        }
+      }
+      return { cached: new Set(), known: true };
     };
 
-    pmAdapter.resolveLink = async (apiKey, hash) => {
-      assert.equal(apiKey, userApiKey);
-      assert.equal(hash, brHash);
-      return 'https://cdn.premiumize.me/stream/auto_compadecida_1080p_nacional.mp4';
+    adAdapter.enqueue = async (apiKey, hash) => {
+      enqueuedHashes.push(hash);
+      return true;
     };
 
     try {
-      // Step 1: Fetch user manifest
-      const manifestRes = await fetch(`${baseUrl}/${configSegment}/manifest.json`);
-      assert.equal(manifestRes.status, 200);
-      const manifestData = await manifestRes.json();
-      assert.equal(manifestData.id, config.addonId);
-      assert.equal(manifestData.behaviorHints.configurable, true);
+      // Step 1: User queries movie stream
+      const res = await fetch(`${baseUrl}/${configSegment}/stream/movie/${imdbId}.json`);
+      assert.equal(res.status, 200);
 
-      // Step 2: Search for movie streams
-      const streamRes = await fetch(`${baseUrl}/${configSegment}/stream/movie/${imdbId}.json`);
-      assert.equal(streamRes.status, 200);
-      assert.match(streamRes.headers.get('cache-control') || '', /max-age=900/);
+      // Allow background autofetch to settle
+      await sleep(50);
 
-      const streamData = await streamRes.json();
-      assert.ok(Array.isArray(streamData.streams));
-      assert.equal(streamData.streams.length, 1, 'Only the cached BR Dubbed stream survived cachedOnly filter');
+      // Step 2: Ghost-Download Protection & Autofetch assertions
+      assert.ok(deletedMagnetHashes.includes(uncachedGlobalHash), 'Unprotected global torrent deleted from AllDebrid account');
+      assert.ok(!deletedMagnetHashes.includes(uncachedBrHash), 'Held BR dubbed candidate protected from deletion');
+      assert.equal(enqueuedHashes.length, 1, 'Exactly 1 autofetch enqueue call dispatched');
+      assert.equal(enqueuedHashes[0], uncachedBrHash, 'Autofetch correctly enqueued the BR dubbed candidate');
 
-      const stream = streamData.streams[0];
-      assert.match(stream.name, /\[PM⚡\]/, 'Branded with instant play mark [PM⚡]');
-      assert.match(stream.name, /1080p/, 'Display resolution extracted correctly');
-      assert.ok(stream.url.startsWith(`${baseUrl}/${configSegment}/resolve/${brHash}`), 'Resolve URL contains proper prefix');
-      assert.equal(stream.infoHash, undefined, 'infoHash stripped for debrid routing');
-
-      // Step 3: Client clicks play (calls /resolve endpoint with signature)
-      const playUrl = new URL(stream.url);
-      const resolveRes = await fetch(playUrl.href, { redirect: 'manual' });
-      assert.equal(resolveRes.status, 302, 'Redirects to direct CDN playback URL');
-      assert.equal(resolveRes.headers.get('location'), 'https://cdn.premiumize.me/stream/auto_compadecida_1080p_nacional.mp4');
-
-      // Step 4: Verify HMAC anti-tampering protection
-      const tamperedUrl = new URL(playUrl.href);
-      tamperedUrl.searchParams.set('sig', 'deadbeef'.repeat(8));
-      const badSigRes = await fetch(tamperedUrl.href, { redirect: 'manual' });
-      assert.equal(badSigRes.status, 403, 'Tampered HMAC signature rejected with 403 Forbidden');
+      // Step 3: Second request suppresses duplicate autofetch
+      await fetch(`${baseUrl}/${configSegment}/stream/movie/${imdbId}.json`);
+      await sleep(30);
+      assert.equal(enqueuedHashes.length, 1, 'Duplicate autofetch prevented by cache marker');
     } finally {
+      held.release(uncachedBrHash, account);
       jackett.search = originalJackettSearch;
-      pmAdapter.checkCached = originalCheckCached;
-      pmAdapter.resolveLink = originalResolveLink;
+      adAdapter.checkCached = originalCheckCached;
+      adAdapter.enqueue = originalEnqueue;
+      adAdapter.abortSafeCacheCheck = originalAbortSafe;
       cache.clear();
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 4: Extreme Network Degradation & Provider Outage
+  // ---------------------------------------------------------------------------
+
+  test('Scenario 4: Extreme Network Degradation & Provider Outage (Graceful fallback without 500 error)', async () => {
+    const imdbId = 'tt9999999';
+    const userConfig = {
+      ds: 'premiumize',
+      dk: 'pm-key-degraded',
+      p: ['jackett', 'prowlarr'],
+    };
+
+    const configSegment = runtime.encode(userConfig);
+
+    // Mock total infrastructure failure across external dependencies
+    interceptFetch(async () => {
+      throw new Error('ECONNREFUSED 127.0.0.1:80 (Network outage)');
+    });
+
+    const originalJackettSearch = jackett.search;
+    const originalProwlarrSearch = prowlarr.search;
+    const originalBludvSearch = bludv.search;
+
+    jackett.search = async () => {
+      throw new Error('AbortError: The operation was aborted (Jackett timeout)');
+    };
+    prowlarr.search = async () => {
+      throw new Error('Invalid XML payload from Prowlarr');
+    };
+    bludv.search = async () => {
+      throw new Error('DNS lookup failed for bludvfilmes.xyz');
+    };
+
+    try {
+      // Execute stream request against crashing providers
+      const res = await fetch(`${baseUrl}/${configSegment}/stream/movie/${imdbId}.json`);
+
+      // System must never return HTTP 500 or crash Express
+      assert.equal(res.status, 200, 'Server gracefully returns 200 OK despite backend failures');
+      const data = await res.json();
+      assert.deepEqual(data.streams, [], 'Empty stream list safely returned');
+      assert.equal(data.cacheMaxAge, 0, 'Empty failure result cached with max-age=0 for rapid retry');
+    } finally {
+      jackett.search = originalJackettSearch;
+      prowlarr.search = originalProwlarrSearch;
+      bludv.search = originalBludvSearch;
+      cache.clear();
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 5: High-Concurrency Multi-User Request Storm with Isolated Caches
+  // ---------------------------------------------------------------------------
 });
