@@ -12,20 +12,9 @@ import { rdGate } from '../src/debrid/rd-gate.js';
 import * as activity from '../src/providers/activity.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
 
-const H1 = '1'.repeat(40);
-const H2 = '2'.repeat(40);
-const H3 = '3'.repeat(40);
-const H4 = '4'.repeat(40);
-const H5 = '5'.repeat(40);
+const [H1, H2, H3, H4, H5] = ['1', '2', '3', '4', '5'].map(c => c.repeat(40));
 
-const savedConfig = {
-  service: config.debrid.service,
-  apiKey: config.debrid.apiKey,
-  allowEnvKey: config.debrid.allowEnvKey,
-  rdWarm: { ...config.debrid.rdWarm },
-  rdLedger: { ...config.debrid.rdLedger },
-  rdGate: { ...config.debrid.rdGate },
-};
+const savedConfig = { service: config.debrid.service, apiKey: config.debrid.apiKey, allowEnvKey: config.debrid.allowEnvKey, rdWarm: { ...config.debrid.rdWarm }, rdLedger: { ...config.debrid.rdLedger }, rdGate: { ...config.debrid.rdGate } };
 
 function restoreConfig() {
   config.debrid.service = savedConfig.service;

@@ -1,6 +1,3 @@
-// Baseline de cobertura BR ⚡ (Fase 3.1): a coorte popular (gravada via nextSeeds
-// com fetch dublê) é o denominador; a varredura do índice classifica cada obra.
-// Sem rede (fetch dublê contando chamadas = 0) e sem tocar no debrid.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -27,21 +24,7 @@ function brItem(hash: string, title: string) {
 }
 
 /** Config completa (operador + seed + ledger) para restaurar no `finally`. */
-type SavedCfg = {
-  allowEnvKey: boolean;
-  service: string;
-  apiKey: string;
-  ledger: boolean;
-  seedApiKey: string;
-  seedEnabled: boolean;
-  seedMax: number;
-  seedMin: number;
-  seedIntervalH: number;
-  topPerType: number;
-  f3Enabled: boolean;
-  brEnabled: boolean;
-  sampleMs: number;
-};
+type SavedCfg = Record<string, any>;
 
 function saveConfig(): SavedCfg {
   return {

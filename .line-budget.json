@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-09-02",
-  "excedente": 7228,
+  "excedente": 7218,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
@@ -15,7 +15,6 @@
     "src/utils/stream-ranking.ts": 535,
     "test/adversarial-m1-parser-harness.ts": 582,
     "test/bludv-resolver.test.ts": 449,
-    "test/br-coverage.test.ts": 407,
     "test/br-resolvers.test.ts": 567,
     "test/challenger-m1-adversarial.test.ts": 676,
     "test/comandotorrents-parser.test.ts": 485,
@@ -32,7 +31,6 @@
     "test/m1-stress-challenge.ts": 644,
     "test/magnet-db.test.ts": 473,
     "test/observability.test.ts": 612,
-    "test/rd-warmer.test.ts": 403,
     "test/search-plan.test.ts": 440,
     "test/stress-m1-challenger.ts": 407
   }
