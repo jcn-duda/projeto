@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-09-02",
-  "excedente": 13760,
+  "excedente": 13716,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
@@ -9,7 +9,6 @@
     "src/providers/autofetch-runner.ts": 695,
     "src/providers/stream-builder.ts": 689,
     "src/public/configure.css": 502,
-    "src/utils/audio-quality.ts": 444,
     "src/utils/autofetch-live.ts": 495,
     "src/utils/catalog.ts": 1076,
     "src/utils/stream-quotas.ts": 453,
