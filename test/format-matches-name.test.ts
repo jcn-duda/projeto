@@ -7,6 +7,7 @@ import assert from 'node:assert';
 import {
   normalizeTitle,
   matchesName,
+  endsWithSequenceMarker,
   filterRelevantRaw as relevantRaw,
 } from '../src/utils/format.js';
 
@@ -119,5 +120,15 @@ test('matchesName: fallback mantém nome curto que É um artigo', () => {
     { names: ['Shōgun'], year: '2024–', isSeries: true, season: 1, episode: 1 },
   );
   assert.equal(shogun.length, 1, 'Shogun não pode sumir');
+});
+
+test('endsWithSequenceMarker: mesmo corte do franchiseRoot, só no fim', () => {
+  assert.equal(endsWithSequenceMarker('Se Beber, Não Case! Parte II'), true);
+  assert.equal(endsWithSequenceMarker('O Senhor dos Anéis: O Retorno do Rei'), false);
+  // O helper só olha o fim — "Apollo 13" termina em número e responde true
+  // de propósito: quem protege "Distrito 9"/"Apollo 13" (número É o nome da
+  // obra) é a trava de 2+ palavras do franchiseRoot, e o gate do degrau no
+  // search-plan exige `franchise !== bare`. Não "consertar" o helper.
+  assert.equal(endsWithSequenceMarker('Apollo 13'), true);
 });
 

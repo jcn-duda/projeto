@@ -100,6 +100,18 @@ function franchiseRoot(title: string) {
   return head;
 }
 
+/**
+ * O título termina em marcador de sequência ("Parte II", "2", "III")? É o
+ * MESMO corte que o `franchiseRoot` aplica no fim — exposto como pergunta
+ * para o gate do degrau de franquia não espelhar o regex. Só olha o fim: quem
+ * protege "Distrito 9" (número é o nome da obra) é a trava de 2+ palavras do
+ * `franchiseRoot`, e quem exige que o marcador tenha sido realmente cortado é
+ * o `franchise !== bare` do plano de busca.
+ */
+function endsWithSequenceMarker(title: string) {
+  return SEQUENCE_TAIL.test(String(title || '').trim());
+}
+
 /** Raízes de franquia normalizadas de todos os nomes conhecidos da obra. */
 function franchiseRoots(names: string[] = []): string[] {
   const roots = new Set<string>();
@@ -126,5 +138,6 @@ export {
   isMultiWorkCollection,
   franchiseRoot,
   franchiseRoots,
+  endsWithSequenceMarker,
   containsTokenRun,
 };

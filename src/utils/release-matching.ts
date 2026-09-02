@@ -29,6 +29,7 @@ import {
   isMultiWorkCollection,
   franchiseRoot,
   franchiseRoots,
+  endsWithSequenceMarker,
   containsTokenRun,
 } from './release-name-matching.js';
 import {
@@ -55,6 +56,7 @@ export {
   isMultiWorkCollection,
   franchiseRoot,
   franchiseRoots,
+  endsWithSequenceMarker,
   containsTokenRun,
   filterInventoryRelevant,
   filterRelevantRaw,

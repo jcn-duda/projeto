@@ -4,7 +4,7 @@
  * TPB) fora do balde até depois dos ~6,5s. Globais de teto curto continuam
  * agrupados — cabem no prazo. `ptBrIndexers` só decide a query em pt-BR.
  */
-import { numeralSearchVariant, franchiseRoot } from '../utils/format.js';
+import { numeralSearchVariant, franchiseRoot, endsWithSequenceMarker } from '../utils/format.js';
 
 interface SearchPlanTask {
   query: string;
@@ -16,11 +16,6 @@ interface SearchPlanTask {
   /** Raiz da franquia, degrau após o título sem ano (só BR com sequência). */
   franchise?: string;
 }
-
-// Espelha o SEQUENCE_TAIL do franchiseRoot (release-name-matching.ts): o gate
-// do degrau de franquia precisa distinguir o corte por sequência do corte por
-// subtítulo — "Parte II" no fim dispara; ": O Devoto" no meio não.
-const SEQUENCE_TAIL = /\s+(?:parte\s+)?(?:[ivx]{1,4}|\d{1,2})$/i;
 
 function planJackettQueries(
   query: string,
@@ -60,7 +55,7 @@ function planJackettQueries(
         // (": O Devoto") e filme sem sequência nenhuma ficam sem degrau.
         const bare = task.query.replace(/\s+(?:19|20)\d{2}\s*$/, '').trim();
         const franchise = franchiseRoot(bare);
-        if (franchise && franchise !== bare && SEQUENCE_TAIL.test(bare)) task.franchise = franchise;
+        if (franchise && franchise !== bare && endsWithSequenceMarker(bare)) task.franchise = franchise;
       }
       isolated.push(task);
     } else {

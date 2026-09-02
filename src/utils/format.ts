@@ -25,6 +25,7 @@ export {
   isMultiWorkCollection,
   franchiseRoot,
   franchiseRoots,
+  endsWithSequenceMarker,
   containsTokenRun,
   filterInventoryRelevant,
   filterRelevantRaw,
