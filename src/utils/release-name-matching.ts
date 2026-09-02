@@ -40,7 +40,12 @@ function matchesName(title: string, name: string, tokens: string[] | null = null
   const long = all.filter((w) => w.length > 2 && !LEADING_ARTICLES.has(w));
   const base = long.length >= 2 ? long : all;
   const wanted = [...new Set(base)];
-  if (wanted.length === 0) return true;
+  // `wanted` vazio só resta de nome sem token aproveitável (vazio ou só
+  // ruído). Retornar true seria passe livre: quem chama em lote via
+  // names.some() aprovaria QUALQUER título contra esse nome. Lista vazia é
+  // preferível — não há evidência do que casar, então negar é mais seguro
+  // que aceitar às cegas.
+  if (wanted.length === 0) return false;
   // Token inteiro, não pedaço de palavra. `tokens` opcionais: quem chama em
   // lote (filterRelevantRaw) já normalizou o título e não paga de novo.
   const got = new Set(tokens || titleTokens(title));

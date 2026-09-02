@@ -305,6 +305,26 @@ test('variações do parâmetro allNames (vazio, null, duplicatas, caracteres es
   assert.equal(matchesBrTitle('Coringa (2019) [1080p DUBLADO]', 'Coringa', 2019, { allNames: ['!@#$%', 'Coringa'] }), true);
 });
 
+test('alias não-latino (CJK) em allNames não afrouxa nem quebra o casamento', () => {
+  const nomes = ['Suzume', 'すずめの戸締まり'];
+  // O alias degenerado normaliza para zero tokens: não polui o universo de
+  // precisão e a release latina da obra continua passando.
+  assert.equal(
+    matchesBrTitle('Suzume (2022) BluRay [1080p DUBLADO]', 'Suzume', 2022, { allNames: nomes }),
+    true,
+  );
+  // Release de outra obra continua morrendo mesmo com o alias na lista.
+  assert.equal(
+    matchesBrTitle('Um Mundo Estranho (2022) [1080p DUBLADO]', 'Suzume', 2022, { allNames: nomes }),
+    false,
+  );
+  // O nome CJK como procurado nega na primeira guarda (matchesName): ele não
+  // pode servir de passe livre para nada, mesmo com a lista completa ao lado.
+  assert.equal(
+    matchesBrTitle('Suzume (2022) BluRay [1080p DUBLADO]', 'すずめの戸締まり', 2022, { allNames: nomes }),
+    false,
+  );
+});
 
 // Zombieland real (2009): os sites BR carimbam marcas de watermark no post
 // ("BDRip derew", "(www ThePiratefilmes Com)"). Antes de WATERMARK_NOISE, a

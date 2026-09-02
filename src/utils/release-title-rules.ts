@@ -44,6 +44,9 @@ function matchesTitleStructure(
   // trouxe o título normalizado.
   const own = tokens || titleTokens(title);
   const wanted = titleTokens(name);
+  // Mesma regra do matchesName: sem token procurado não há o que casar —
+  // passar adiante deixaria a release sobreviver na dúvida.
+  if (wanted.length === 0) return false;
   const want = firstSignificantToken(wanted);
   if (want && firstSignificantToken(own) !== want) return false;
 

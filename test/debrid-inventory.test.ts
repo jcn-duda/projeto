@@ -260,6 +260,14 @@ test('relevância: pack de OUTRA franquia não é aceito nem do inventário', ()
   assert.deepEqual(filterInventoryRelevant(items, TREK), []);
 });
 
+test('relevância: nome não-latino (CJK) no inventário não aprova nada (fail-closed)', () => {
+  const item = { title: 'Suzume (2022) 1080p DUBLADO', infoHash: H1, seeders: 1 };
+  // Alias CJK não gera token: nega o caminho estrito e a raiz de franquia fica
+  // vazia — nada do inventário passa (vazamento da conta inteira na obra só-CJK).
+  assert.deepEqual(filterInventoryRelevant([item], { names: ['すずめの戸締まり'], year: 2022, isSeries: false }), []);
+  // Contraprova: com o nome latino real na lista, o mesmo item volta a entrar.
+  assert.deepEqual(filterInventoryRelevant([item], { names: ['Suzume', 'すずめの戸締まり'], year: 2022, isSeries: false }), [item]);
+});
 
 test('relevância: Lost Girl S01-S05 continua passando pelo caminho normal', () => {
   const ctx = { names: ['Lost Girl'], year: 2010, isSeries: true, season: 1, episode: 2 };

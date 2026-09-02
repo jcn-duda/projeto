@@ -10,6 +10,26 @@ import { filterRelevantRaw as relevantRaw } from '../src/utils/format.js';
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
 
+test('filterRelevantRaw: alias degenerado (CJK) nos nomes não aprova lote alheio', () => {
+  const nomes = ['Suzume', 'すずめの戸締まり']; // o segundo não gera token nenhum
+  const certa = { title: 'Suzume 2022 1080p WEB-DL x264', magnet: `magnet:?xt=urn:btih:${HASH}&dn=Suzume` };
+  const alienas = [
+    { title: 'Avatar 2 O Caminho da Água 2022 1080p BluRay', magnet: `magnet:?xt=urn:btih:${OTHER}&dn=Avatar` },
+    { title: 'すずめの戸締まり 2022 1080p', magnet: `magnet:?xt=urn:btih:c${'d'.repeat(39)}&dn=Suzume2022` },
+  ];
+  const ctx = { names: nomes, year: 2022, isSeries: false };
+  // Lote sem a release certa: nada pode sobrar (nem o item só-CJK).
+  assert.deepEqual(relevantRaw(alienas, ctx), []);
+  // Com a release certa no lote, só ela sobrevive.
+  assert.deepEqual(relevantRaw([...alienas, certa], ctx), [certa]);
+  // Contrato preservado: nomes [] continua fail-open (quem chama não tem o que
+  // filtrar e não filtra nada) — diferente do nome degenerado, que existe na
+  // lista e não pode servir de passe livre.
+  assert.deepEqual(
+    relevantRaw([...alienas, certa], { names: [], year: 2022, isSeries: false }),
+    [...alienas, certa],
+  );
+});
 
 
 // Caminho GLOBAL de filme: `matchesName` aprova QUALQUER sequência da franquia

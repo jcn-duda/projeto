@@ -23,8 +23,22 @@ test('matchesName aceita variações mas rejeita título fora', () => {
   // Release BR vem só com o título em português.
   assert.equal(matchesName('Coringa Dublado 1080p', 'Coringa'), true);
   assert.equal(matchesName('Vingadores Guerra Infinita', 'Coringa'), false);
+  // Nome sem palavra aproveitável não pode dar passe livre: um alias
+  // degenerado ('??', CJK) aprovava QUALQUER release via names.some no
+  // filterRelevantRaw. Fail-closed — sem evidência do que casar, nada casa.
+  assert.equal(matchesName('qualquer coisa', '??'), false);
 });
 
+test('matchesName: nome não-latino (CJK) nega e o nome latino real continua casando', () => {
+  // O normalizador só preserva a-z0-9: "すずめの戸締まり" vira zero tokens e o
+  // `wanted` do nome fica vazio. Antes o retorno era true (passe livre); hoje
+  // nega — o alias degenerado não pode aprovar lote alheio em names.some.
+  assert.equal(matchesName('Suzume 2022 1080p WEB-DL x264', 'すずめの戸締まり'), false);
+  assert.equal(matchesName('Attack on Titan S01E01 1080p', '進撃の巨人'), false);
+  // Contraprova latina: o mesmo mecanismo continua aceitando o nome real.
+  assert.equal(matchesName('Suzume 2022 1080p WEB-DL x264', 'Suzume'), true);
+  assert.equal(matchesName('Attack on Titan S01E01 1080p', 'Attack on Titan'), true);
+});
 
 test('matchesName não aceita pedaço de palavra nem título curto esvaziado', () => {
   // "Disclosure Day" tem título pt-BR "Dia D". Cortando palavra de até 2 letras
