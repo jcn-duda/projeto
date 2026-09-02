@@ -7,7 +7,6 @@ import assert from 'node:assert';
 // (PC)" e "Cesium Fallout", que tomavam as vagas reservadas da fonte real.
 // Tudo aqui é puro — sem rede, sem servidor.
 import { matchesBrTitle } from '../src/utils/format.js';
-import { audioBucket, hasPtSigns } from '../src/utils/audio-quality.js';
 
 test('aceita o post BR real (prefixo + ano batendo)', () => {
   assert.equal(matchesBrTitle('Fallout 1ª Temporada (2024) WEB-DL [1080p DUBLADO]', 'Fallout', 2024), true);
@@ -352,34 +351,33 @@ test('a franquia seguinte (Atire Duas Vezes) continua rejeitada', () => {
 // Classificador de baldes compartilhado (audio-quality): a limpeza da conta
 // (scripts/clean-undubbed.ts) e a busca decidem com a MESMA lógica — esses
 // testes travam os quatro baldes para as duas listas não divergirem.
-test('audioBucket: dublado explícito cai no balde dub', () => {
-  assert.equal(audioBucket('Coringa (2019) BluRay [1080p DUBLADO]'), 'dub');
-  assert.equal(audioBucket('Show 1ª Temporada (2022) WEB-DL Dublado'), 'dub');
+// ---------------------------------------------------------------------------
+// A SIGLA pt-BR no título não pode derrubar a precisão. Medido ao vivo
+// (2026-09-02, tt0245429, via /stream-trace.json): as releases DUBLADAS saíam
+// no `title-filter` e sobrava a irmã "Dual Audio" em inglês — `pt` e `br`
+// contavam como conteúdo estranho e a precisão caía a 0,40. A marca que PROVA
+// o áudio português era exatamente o que rejeitava a release.
+// ---------------------------------------------------------------------------
+
+test('sigla pt-BR no título não conta como conteúdo estranho na precisão', () => {
+  const nomes = ['Spirited Away', 'A Viagem de Chihiro'];
+  const opts = { isSeries: false, allNames: nomes };
+  // Os três casos reais que o trace mostrou sendo cortados.
+  assert.equal(matchesBrTitle('A Viagem de Chihiro (2001) DVDRip MP4 Dublado pt-BR', 'A Viagem de Chihiro', 2001, opts), true);
+  assert.equal(matchesBrTitle('A Viagem de Chihiro (2001) 720p Dual Audio pt-BR jp / Brazilian', 'A Viagem de Chihiro', 2001, opts), true);
+  assert.equal(matchesBrTitle('A viagem de chihiro dublado pt-pt', 'A Viagem de Chihiro', 2001, opts), true);
+  // Grafia sem separador (um token só) e a sigla solta no meio do release.
+  assert.equal(matchesBrTitle('Harry Potter e a Camara Secreta 720p Legendado pt BR', 'Harry Potter e a Câmara Secreta', 2002,
+    { isSeries: false, allNames: ['Harry Potter and the Chamber of Secrets', 'Harry Potter e a Câmara Secreta'] }), true);
+  // Contraprova: o mesmo título SEM a sigla já passava — é o que isola a causa.
+  assert.equal(matchesBrTitle('A Viagem de Chihiro (2001) DVDRip Dublado', 'A Viagem de Chihiro', 2001, opts), true);
 });
 
-test('audioBucket: Dual sem PT ao lado é ambíguo (dual)', () => {
-  assert.equal(audioBucket('Some.Movie.2024.DUAL.1080p.WEB.x264'), 'dual');
-  // Dual + PT explícito sobe para dub (looksPtBr).
-  assert.equal(audioBucket('Some.Movie.2024.Dual.Audio.PT-BR.1080p'), 'dub');
-});
-
-test('audioBucket: sem marca de áudio, mas com sinal de PT (pt)', () => {
-  // Vocabulário de post BR sem marca de áudio: "Temporada"/"Completa".
-  assert.equal(audioBucket('Show Temporada Completa'), 'pt');
-  // Acentos quase exclusivos do pt-BR também contam.
-  assert.equal(audioBucket('A Vingança do Coração'), 'pt');
-  assert.equal(hasPtSigns('Temporada Completa'), true);
-  assert.equal(hasPtSigns('Some.Movie.2024.1080p.WEB.x264'), false);
-});
-
-test('audioBucket: release estrangeira sem marca nem sinal de PT (lixo)', () => {
-  assert.equal(audioBucket('Some.Movie.2024.1080p.WEB.x264'), 'lixo');
-});
-
-test('audioBucket: título PT TODO EM CAIXA ALTA não perde os acentos (não cai no lixo)', () => {
-  // Ã/Ç maiúsculos: sem o flag i o sinal sumia, o balde virava 'lixo' e a
-  // varredura destrutiva sweepUndubbed apagava o magnet.
-  assert.equal(hasPtSigns('OPERAÇÃO INVASÃO 2019'), true);
-  assert.notEqual(audioBucket('OPERAÇÃO INVASÃO 2019'), 'lixo');
-  assert.equal(audioBucket('OPERAÇÃO INVASÃO 2019'), 'pt');
+test('a sigla vira ruído sem afrouxar o filtro: outra obra da franquia segue fora', () => {
+  // `pt`/`br` deixarem de contar não pode transformar o filtro num passe livre:
+  // quem barra a obra errada é o ANO (e o marcador de sequência), que continua
+  // valendo. Toy Story 1 dublado pt-BR não entra na página do Toy Story 4.
+  const opts = { isSeries: false, allNames: ['Toy Story 4', 'Toy Story 4'] };
+  assert.equal(matchesBrTitle('Toy Story (1995) 720p Dublado pt-BR Brazilian Pt', 'Toy Story 4', 2019, opts), false);
+  assert.equal(matchesBrTitle('Toy Story 4 (2019) 720p Dublado pt-BR', 'Toy Story 4', 2019, opts), true);
 });

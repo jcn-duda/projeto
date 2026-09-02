@@ -33,7 +33,20 @@ const TECH_NOISE = ('web dl webdl bluray blu ray webrip bdrip brrip hdtv hdrip r
 // Ligação: não diz nada sobre a obra e também não marca fim do título.
 const LINK_WORDS = 'de do da das dos e a o os as um uma em no na para por com sobre ate'.split(' ');
 
-const LANG_NOISE = 'portugues portuguesa portugueses brasil brasileiro brasileira'.split(' ');
+// A SIGLA do idioma faltava ao lado do nome por extenso, e a falta cortava
+// justamente a release que mais interessa: "pt-BR" normaliza para os tokens
+// `pt` e `br`, nenhum dos dois era ruído, e os dois contavam como conteúdo
+// ESTRANHO na precisão do `matchesBrTitle`. Medido ao vivo (tt0245429): "A
+// Viagem de Chihiro (2001) DVDRip MP4 Dublado pt-BR" caía a 0,40 e morria no
+// title-filter, enquanto a irmã "Dual Audio" em inglês sobrevivia — a marca
+// que PROVA o áudio português era o que derrubava a release. O mesmo título
+// sem o "pt-BR" já passava, o que isola a causa nos dois tokens.
+//
+// `ptbr` entra na mesma linha porque a grafia sem separador normaliza para um
+// token só. Nenhum deles pode virar primeiro token significativo por outro
+// caminho: `firstSignificantToken` já descarta palavra de até 2 letras.
+const LANG_NOISE = ('portugues portuguesa portugueses brasil brasileiro brasileira '
+  + 'pt br ptbr').split(' ');
 
 // Marca de copyright: press do encoder ou dominio do tracker no titulo,
 // como "derew" ou "www.algo.com". Nao e conteudo e nao deve contar na
