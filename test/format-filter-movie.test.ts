@@ -1,8 +1,8 @@
 // Rodada 2: checagem ligada; format.js é lógica pura, sem rede.
 // Extraído de test/format.test.ts na divisão temática (teto 400 linhas):
-// filtro relevante cru no caminho de FILME — alias degenerado (CJK),
-// sequências da franquia, corpus real BR/TPB do Scary Movie, numeral e
-// grafias de versão estendida.
+// filtro relevante cru no caminho de FILME — alias não-latino (CJK) casando
+// a própria release, sequências da franquia, corpus real BR/TPB do Scary
+// Movie, numeral e grafias de versão estendida.
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { filterRelevantRaw as relevantRaw } from '../src/utils/format.js';
@@ -10,18 +10,19 @@ import { filterRelevantRaw as relevantRaw } from '../src/utils/format.js';
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
 
-test('filterRelevantRaw: alias degenerado (CJK) nos nomes não aprova lote alheio', () => {
-  const nomes = ['Suzume', 'すずめの戸締まり']; // o segundo não gera token nenhum
+test('filterRelevantRaw: alias CJK agora casa a release japonesa da própria obra', () => {
+  const nomes = ['Suzume', 'すずめの戸締まり'];
   const certa = { title: 'Suzume 2022 1080p WEB-DL x264', magnet: `magnet:?xt=urn:btih:${HASH}&dn=Suzume` };
+  const certaJp = { title: 'すずめの戸締まり 2022 1080p', magnet: `magnet:?xt=urn:btih:c${'d'.repeat(39)}&dn=Suzume2022` };
   const alienas = [
     { title: 'Avatar 2 O Caminho da Água 2022 1080p BluRay', magnet: `magnet:?xt=urn:btih:${OTHER}&dn=Avatar` },
-    { title: 'すずめの戸締まり 2022 1080p', magnet: `magnet:?xt=urn:btih:c${'d'.repeat(39)}&dn=Suzume2022` },
   ];
   const ctx = { names: nomes, year: 2022, isSeries: false };
-  // Lote sem a release certa: nada pode sobrar (nem o item só-CJK).
+  // Lote só com obra alheia: nada sobra.
   assert.deepEqual(relevantRaw(alienas, ctx), []);
-  // Com a release certa no lote, só ela sobrevive.
-  assert.deepEqual(relevantRaw([...alienas, certa], ctx), [certa]);
+  // Com a release certa (latina) e a irmã japonesa no lote, as duas sobrevivem
+  // — o título japonês agora gera token e casa com o alias CJK do catálogo.
+  assert.deepEqual(relevantRaw([...alienas, certa, certaJp], ctx), [certa, certaJp]);
   // Contrato preservado: nomes [] continua fail-open (quem chama não tem o que
   // filtrar e não filtra nada) — diferente do nome degenerado, que existe na
   // lista e não pode servir de passe livre.

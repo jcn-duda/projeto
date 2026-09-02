@@ -1,6 +1,7 @@
 // Rodada 2: checagem ligada; format.js é lógica pura, sem rede.
 // Extraído de test/format.test.ts na divisão temática (teto 400 linhas):
-// normalizeTitle e os portões de matchesName — nome degenerado (CJK),
+// normalizeTitle (Unicode-aware desde a correção de escrita não-latina) e os
+// portões de matchesName — nome degenerado ('??'), escrita não-latina,
 // pedaço de palavra, artigo inglês, token repetido e fallback de nome curto.
 import { test } from 'node:test';
 import assert from 'node:assert';
@@ -30,12 +31,16 @@ test('matchesName aceita variações mas rejeita título fora', () => {
   assert.equal(matchesName('qualquer coisa', '??'), false);
 });
 
-test('matchesName: nome não-latino (CJK) nega e o nome latino real continua casando', () => {
-  // O normalizador só preserva a-z0-9: "すずめの戸締まり" vira zero tokens e o
-  // `wanted` do nome fica vazio. Antes o retorno era true (passe livre); hoje
-  // nega — o alias degenerado não pode aprovar lote alheio em names.some.
+test('matchesName: nome não-latino casa release não-latina e segue negando latino', () => {
+  // O normalizador agora preserva \p{L}\p{N}\p{M}: "すずめの戸締まり" gera UM
+  // token e "Убойные каникулы" idem. Contra título latino seguem negando pelo
+  // caminho NORMAL (token japonês/cirílico não está nos tokens latinos) — não
+  // mais pelo fail-closed do nome vazio; contra a própria release, casam.
   assert.equal(matchesName('Suzume 2022 1080p WEB-DL x264', 'すずめの戸締まり'), false);
   assert.equal(matchesName('Attack on Titan S01E01 1080p', '進撃の巨人'), false);
+  assert.equal(matchesName('すずめの戸締まり 2022 1080p', 'すずめの戸締まり'), true);
+  // Caso real do Rutor visto em tt1465522: "Убойные каникулы / Tucker and Dale…".
+  assert.equal(matchesName('Убойные каникулы 2010 BDRip', 'Убойные каникулы'), true);
   // Contraprova latina: o mesmo mecanismo continua aceitando o nome real.
   assert.equal(matchesName('Suzume 2022 1080p WEB-DL x264', 'Suzume'), true);
   assert.equal(matchesName('Attack on Titan S01E01 1080p', 'Attack on Titan'), true);
