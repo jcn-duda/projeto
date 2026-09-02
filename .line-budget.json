@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-09-02",
-  "excedente": 5769,
+  "excedente": 5176,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
@@ -17,7 +17,6 @@
     "test/challenger-m1-adversarial.test.ts": 676,
     "test/e2e/tier1-feature-coverage.test.ts": 1274,
     "test/e2e/tier2-boundary-corner.test.ts": 1202,
-    "test/e2e/tier3-cross-feature.test.ts": 993,
     "test/m1-protector-adversarial-stress.ts": 728,
     "test/m1-stress-challenge.ts": 644
   }
