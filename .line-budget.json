@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-09-02",
-  "excedente": 7468,
+  "excedente": 7228,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
@@ -19,7 +19,6 @@
     "test/br-resolvers.test.ts": 567,
     "test/challenger-m1-adversarial.test.ts": 676,
     "test/comandotorrents-parser.test.ts": 485,
-    "test/dashboard.test.ts": 640,
     "test/debrid-batch.test.ts": 462,
     "test/debrid-pick-work.test.ts": 501,
     "test/debrid-rd-oracle.test.ts": 612,
