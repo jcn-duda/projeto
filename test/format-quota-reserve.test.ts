@@ -251,3 +251,46 @@ test('o mesmo pack nunca ocupa duas vagas de faixa', () => {
   assert.equal(ids.filter((id: string) => id === 'br-pack-1080').length, 1);
 });
 
+// --- tt1411697 medido: a irmã "Dual Áudio" 1080p e a "Dublado" 720p --------
+//
+// Pack real da conta: "Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay
+// Dual Áudio 1080p By-LuaHarper" (a irmã 1080p, que escreve "Dual Áudio" em
+// vez de "Dublado") e o pack 720p que escreve "Dublado". O sintoma histórico
+// era a 1080p sumir do corte quando o _br dela se perdia, enquanto a 720p
+// sobrevivia — o looksPtBr aceitando "Dual" + sinais PT consertou o
+// classificador; esta guarda trava a SOBREVIVÊNCIA no corte final, com
+// globais de swarm alto no MESMO balde 1080p (o que expulsava a irmã).
+
+test('tt1411697: irmã 1080p "Dual Áudio" e irmã 720p "Dublado" sobrevivem ao corte', () => {
+  const streams = [
+    {
+      id: 'pack-1080-dual',
+      _quality: '1080p',
+      _br: true,
+      _dubbed: true,
+      title: 'Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio 1080p By-LuaHarper',
+    },
+    {
+      id: 'pack-720-dub',
+      _quality: '720p',
+      _br: true,
+      _dubbed: true,
+      title: 'Trilogia Se Beber Não Case (2009 - 2011 - 2013) Bluray 720p Dublado',
+    },
+    // globais de swarm alto no MESMO balde da irmã: é o que a expulsa quando
+    // o _br se perde (produção mediu 720 presente / 1080 ausente).
+    { id: 'global-1080-a', _quality: '1080p', _br: false, _seeders: 150 },
+    { id: 'global-1080-b', _quality: '1080p', _br: false, _seeders: 120 },
+    { id: 'global-720', _quality: '720p', _br: false, _seeders: 140 },
+  ];
+  const out = limitReservingBr(quotaStreams(streams), {
+    brReservedSlots: 2,
+    brReservedPerQuality: 1,
+    maxResults: 4,
+    brFirst: true,
+  });
+  const ids = out.map((s: any) => (s as any).id);
+  assert.ok(ids.includes('pack-1080-dual'), 'irmã 1080p "Dual Áudio" não pode sumir');
+  assert.ok(ids.includes('pack-720-dub'), 'irmã 720p "Dublado" segue entrando');
+});
+
