@@ -305,6 +305,7 @@ test('variações do parâmetro allNames (vazio, null, duplicatas, caracteres es
   assert.equal(matchesBrTitle('Coringa (2019) [1080p DUBLADO]', 'Coringa', 2019, { allNames: ['!@#$%', 'Coringa'] }), true);
 });
 
+
 // Zombieland real (2009): os sites BR carimbam marcas de watermark no post
 // ("BDRip derew", "(www ThePiratefilmes Com)"). Antes de WATERMARK_NOISE, a
 // marca d'água contava na precisão e derrubava a vaga BR reservada. A franquia

@@ -14,19 +14,13 @@ import type { InventoryItem, RawItem, Stream } from '../types/domain.js';
 
 process.env.CACHE_PERSIST = 'false';
 
-/**
- * A conta do debrid como fonte de streams: o que o usuário JÁ tem pronto (e
- * pago) entra na busca com ⚡ sem depender de indexer nenhum.
- *
- * Contrato testado aqui:
- * - o adaptador filtra não-prontos e entradas sem título (filename === hash);
- * - o registry memoiza por serviço+conta, sem vazar entre accountScopes;
- * - falha não fica cacheada; o teto de itens é respeitado;
- * - item do inventário é do usuário: o dropReady não o apaga da conta;
- * - a relevância do inventário aceita pack de franquia da MESMA obra (caso
- *   real: FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS para Star Trek TMP) e
- *   continua rejeitando o que o caminho estrito dos indexers rejeita.
- */
+// A conta do debrid como fonte de streams: o que o usuário JÁ tem pronto entra na
+// busca com ⚡, sem depender de indexer. Contratos: o adaptador filtra não-prontos
+// e filename===hash; o registry memoiza por serviço+conta sem vazar entre scopes;
+// falha não fica cacheada; o teto de itens é respeitado; item de inventário é
+// preexistente (dropReady não o apaga); a relevância aceita pack de franquia da
+// MESMA obra (caso real: FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS p/ Star Trek
+// TMP) e rejeita o que o caminho estrito dos indexers rejeita.
 
 const KEY_A = 'chave-conta-a';
 const KEY_B = 'chave-conta-b';
@@ -55,25 +49,13 @@ interface TorBoxRow {
   download_present?: boolean;
 }
 
-/** Dublê da API da AllDebrid para o inventário (v4.1 responde {status, data}). */
-function mockAllDebridStatus({ magnetsOf = () => [], failOf = () => false }: { magnetsOf?: () => AllDebridMagnet[]; failOf?: () => boolean } = {}) {
-  const calls: (string | null)[] = [];
+// Dublê base: troca fetch/AbortSignal.timeout e restaura no fim.
+function mockFetch(handler: (url: URL) => unknown) {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
-
-  globalThis.fetch = (async (input: any) => {
-    const url = new URL(String(input));
-    if (url.pathname.endsWith('/magnet/status')) {
-      calls.push(url.searchParams.get('id') || null);
-      if (failOf()) throw new Error('serviço fora do ar');
-      return { ok: true, async json() { return { status: 'success', data: { magnets: magnetsOf() } }; } };
-    }
-    throw new Error(`URL inesperada no teste: ${url.pathname}`);
-  }) as unknown as typeof globalThis.fetch;
-
+  globalThis.fetch = (async (input: any) => handler(new URL(String(input)))) as unknown as typeof globalThis.fetch;
   return {
-    calls,
     restore() {
       globalThis.fetch = realFetch;
       AbortSignal.timeout = realTimeout;
@@ -81,26 +63,25 @@ function mockAllDebridStatus({ magnetsOf = () => [], failOf = () => false }: { m
   };
 }
 
+/** Dublê da API da AllDebrid para o inventário (v4.1 responde {status, data}). */
+function mockAllDebridStatus({ magnetsOf = () => [], failOf = () => false }: { magnetsOf?: () => AllDebridMagnet[]; failOf?: () => boolean } = {}) {
+  const calls: (string | null)[] = [];
+  const api = mockFetch((url: URL) => {
+    if (!url.pathname.endsWith('/magnet/status')) throw new Error(`URL inesperada no teste: ${url.pathname}`);
+    calls.push(url.searchParams.get('id') || null);
+    if (failOf()) throw new Error('serviço fora do ar');
+    return { ok: true, async json() { return { status: 'success', data: { magnets: magnetsOf() } }; } };
+  });
+  return { calls, restore: api.restore };
+}
+
 /** Dublê da API do TorBox: /torrents/mylist sem id devolve a conta inteira. */
 function mockTorBoxList({ rows = [] }: { rows?: TorBoxRow[] } = {}) {
-  const realFetch = globalThis.fetch;
-  const realTimeout = AbortSignal.timeout;
-  AbortSignal.timeout = () => new AbortController().signal;
-
-  globalThis.fetch = (async (input: any) => {
-    const url = new URL(String(input));
-    if (url.pathname.endsWith('/torrents/mylist')) {
-      return { ok: true, async json() { return { data: rows }; } };
-    }
-    throw new Error(`URL inesperada no teste: ${url.pathname}`);
-  }) as unknown as typeof globalThis.fetch;
-
-  return {
-    restore() {
-      globalThis.fetch = realFetch;
-      AbortSignal.timeout = realTimeout;
-    },
-  };
+  const api = mockFetch((url: URL) => {
+    if (!url.pathname.endsWith('/torrents/mylist')) throw new Error(`URL inesperada no teste: ${url.pathname}`);
+    return { ok: true, async json() { return { data: rows }; } };
+  });
+  return { restore: api.restore };
 }
 
 // O json() do common usa AbortSignal.timeout; com o fetch dublado não sobra
@@ -111,8 +92,7 @@ before(() => {
 });
 after(() => clearInterval(keepAlive));
 
-/** Roda debrid.inventory() como a busca faria: dentro da config do usuário. */
-// runtime.run devolve unknown; o helper fixa o tipo do retorno sem mudar o teste.
+// Roda dentro da config do usuário; runtime.run devolve unknown, o helper fixa o tipo.
 const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
 
 const inventoryOf = (apiKey: string, service = 'alldebrid'): Promise<InventoryItem[]> =>
@@ -126,8 +106,7 @@ test('adaptador AllDebrid: só item pronto e com filename de verdade', async () 
     magnetsOf: () => [
       { id: 1, hash: H1, status: 'Ready', filename: 'Star Trek Collection 1979-2016', ready: true, size: 22_450_000_000 },
       { id: 2, hash: H2, status: 'Downloading', filename: 'Ainda baixando.mkv', ready: false },
-      // Magnet sem metadado resolvido: o filename É o hash (5 no inventário real).
-      { id: 3, hash: H3, status: 'Ready', filename: H3.toUpperCase(), ready: true },
+      { id: 3, hash: H3, status: 'Ready', filename: H3.toUpperCase(), ready: true }, // filename===hash: metadado não resolvido
       { id: 4, status: 'Ready', filename: 'Sem hash.mkv', ready: true },
     ],
   });
@@ -188,8 +167,7 @@ test('falha do inventário não fica cacheada: a próxima busca tenta de novo', 
   });
   try {
     await assert.rejects(inventoryOf(KEY_B), /serviço fora do ar/);
-    // Sem memo da falha: o serviço voltou, a segunda chamada refaz a leitura.
-    fail = false;
+    fail = false; // Sem memo da falha: serviço voltou, segunda chamada refaz a leitura.
     const items = await inventoryOf(KEY_B);
     assert.equal(items.length, 1);
     assert.equal(api.calls.length, 2);
@@ -224,15 +202,9 @@ test('item do inventário é preexistente: o dropReady não o apaga da conta', a
   const DA_CHECAGEM = H2;
   const IDS = { [DO_USUARIO]: 1000, [DA_CHECAGEM]: 2000 };
   const deleted: number[] = [];
-  const realFetch = globalThis.fetch;
-  const realTimeout = AbortSignal.timeout;
-  AbortSignal.timeout = () => new AbortController().signal;
-
-  globalThis.fetch = (async (input: any) => {
-    const url = new URL(String(input));
+  const api = mockFetch((url: URL) => {
     const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
     if (url.pathname.endsWith('/magnet/status')) {
-      // O inventário da conta: só o que já era do usuário.
       return body({ magnets: [{ id: IDS[DO_USUARIO], hash: DO_USUARIO, status: 'Ready', filename: 'Acervo do usuário' }] });
     }
     if (url.pathname.endsWith('/magnet/upload')) {
@@ -244,7 +216,7 @@ test('item do inventário é preexistente: o dropReady não o apaga da conta', a
       return body({ message: 'deleted' });
     }
     throw new Error(`URL inesperada no teste: ${url.pathname}`);
-  }) as unknown as typeof globalThis.fetch;
+  });
 
   try {
     // Primeira checagem carrega o inventário (fail-safe: não remove prontos);
@@ -256,14 +228,13 @@ test('item do inventário é preexistente: o dropReady não o apaga da conta', a
 
     assert.deepEqual(deleted, [IDS[DA_CHECAGEM]], 'só o que a checagem subiu é removido; o acervo fica');
   } finally {
-    globalThis.fetch = realFetch;
-    AbortSignal.timeout = realTimeout;
+    api.restore();
     cache.clear();
   }
 });
 
-// Contexto real de tt0079945 (Star Trek: The Motion Picture): nomes do
-// catálogo, com o título pt localizado que gera a raiz da franquia.
+// Contexto real de tt0079945 (Star Trek: The Motion Picture): nomes do catálogo,
+// com o título pt localizado que gera a raiz da franquia.
 const TREK = {
   names: ['Star Trek: The Motion Picture', 'Jornada nas Estrelas: O Filme'],
   year: 1979,
@@ -273,11 +244,11 @@ const FILMOGRAFIA = 'FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR';
 
 test('relevância: pack de franquia é aceito do inventário e rejeitado de indexer', () => {
   const item = { title: FILMOGRAFIA, infoHash: H1, seeders: 1 };
-  // Caminho dos indexers: a regra de prefixo ("filmografia" ≠ "star"/"jornada")
-  // rejeita — e é por isso que o título nunca apareceu vindo de tracker.
+  // Indexers: a regra de prefixo ("filmografia" ≠ "star"/"jornada") rejeita — é
+  // por isso que o título nunca apareceu vindo de tracker. Inventário: estar na
+  // conta é sinal forte; a raiz da franquia ("jornada nas estrelas"/"star trek")
+  // casa com o título do pack.
   assert.deepEqual(relevantRaw([item], TREK), []);
-  // Caminho do inventário: estar na conta é sinal forte; a raiz da franquia
-  // ("jornada nas estrelas" / "star trek") casa com o título do pack.
   assert.deepEqual(filterInventoryRelevant([item], TREK), [item]);
 });
 
@@ -288,6 +259,7 @@ test('relevância: pack de OUTRA franquia não é aceito nem do inventário', ()
   ];
   assert.deepEqual(filterInventoryRelevant(items, TREK), []);
 });
+
 
 test('relevância: Lost Girl S01-S05 continua passando pelo caminho normal', () => {
   const ctx = { names: ['Lost Girl'], year: 2010, isSeries: true, season: 1, episode: 2 };
@@ -301,9 +273,8 @@ test('relevância: Lost Girl S01-S05 continua passando pelo caminho normal', () 
 
 test('relevância: pack de franquia de série já passa pelo caminho normal', () => {
   // O caminho estrito de série não tem regra de prefixo (a identidade é pelo
-  // marcador de episódio): a coleção da própria obra entra direto, sem
-  // precisar da exceção — que fica só no filme, onde a regra de prefixo do
-  // matchesTitleStructure é quem mata o "FILMOGRAFIA COMPLETA ...".
+  // marcador de episódio): a coleção da própria obra entra direto; a exceção fica
+  // só no filme, onde a regra de prefixo do matchesTitleStructure mata o pack.
   const ctx = { names: ['Lost Girl'], year: 2010, isSeries: true, season: 1, episode: 2 };
   const item = { title: 'FILMOGRAFIA COMPLETA LOST GIRL', infoHash: H1, seeders: 1 };
   assert.equal(relevantRaw([item], ctx).length, 1);
@@ -311,16 +282,11 @@ test('relevância: pack de franquia de série já passa pelo caminho normal', ()
 });
 
 test('relevância: pack real "Dual Áudio ... By-LuaHarper" passa no inventário', () => {
-  // Fixture do caso REAL de produção (2026-08-31): o título do pack tem o
-  // watermark "By-LuaHarper" e só declara "Dual Áudio" (sem "Dublado"). A
-  // precisão calculada é 4/6 = 0.667 contra o piso 0.65 de filme — dois
-  // tokens de ruído a mais no título reprovariam o pack inteiro por título.
-  // Travado aqui para a margem não se fechar silenciosamente.
-  const ctx = {
-    names: ['The Hangover', 'Se Beber, Não Case'],
-    year: 2009,
-    isSeries: false,
-  };
+  // Fixture do caso REAL de produção (2026-08-31): o pack declara só "Dual Áudio"
+  // (sem "Dublado") e traz o watermark "By-LuaHarper". Precisão 4/6 = 0.667 contra
+  // o piso 0.65 de filme — dois tokens de ruído a mais reprovariam o pack inteiro
+  // por título. Travado aqui para a margem não se fechar silenciosamente.
+  const ctx = { names: ['The Hangover', 'Se Beber, Não Case'], year: 2009, isSeries: false };
   const item = {
     title: 'Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio 1080p By-LuaHarper',
     infoHash: H1,
@@ -332,13 +298,8 @@ test('relevância: pack real "Dual Áudio ... By-LuaHarper" passa no inventário
 test('buildStreams preserva o pack de franquia da conta e o entrega via /resolve', async () => {
   const HASH_FILM = 'f'.repeat(40);
   const raw = [{
-    title: FILMOGRAFIA,
-    infoHash: HASH_FILM,
-    seeders: 1,
-    size: 22_450_000_000,
-    indexer: 'debrid',
-    isBr: false,
-    fromAccount: true,
+    title: FILMOGRAFIA, infoHash: HASH_FILM, seeders: 1, size: 22_450_000_000,
+    indexer: 'debrid', isBr: false, fromAccount: true,
   }];
   const originalCheck = debrid.checkCached;
   debrid.checkCached = async () => ({ cached: new Set([HASH_FILM]), known: true });
@@ -375,10 +336,8 @@ test('account.search avalia itens pt-BR com matchesBrTitle (invariante 5)', asyn
   cache.clear();
   const api = mockAllDebridStatus({
     magnetsOf: () => [
-      // Obra correta dublada
-      { id: 1, hash: H1, status: 'Ready', filename: 'Coringa (2019) 1080p Dublado', ready: true },
-      // Sequência / lixo dublado que o matchesBrTitle corta por ano/prefixo
-      { id: 2, hash: H2, status: 'Ready', filename: 'Coringa: Delírio a Dois (2024) 1080p Dublado', ready: true },
+      { id: 1, hash: H1, status: 'Ready', filename: 'Coringa (2019) 1080p Dublado', ready: true }, // obra correta dublada
+      { id: 2, hash: H2, status: 'Ready', filename: 'Coringa: Delírio a Dois (2024) 1080p Dublado', ready: true }, // sequência cortada por ano/prefixo
     ],
   });
   try {

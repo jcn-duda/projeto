@@ -66,9 +66,13 @@ console.log('\n--- 3. Mutation & Perturbation Testing Matrix ---');
 const mutations = [
   {
     // PLANO_MELHORIAS 5.3: matchesBrTitle saiu de utils/format.js para
-    // utils/release-matching.js no split de format.ts.
-    name: 'MUT-01: Invert matchesBrTitle (release-matching.js)',
-    file: 'dist/src/utils/release-matching.js',
+    // utils/release-matching.js no split de format.ts. Depois o próprio
+    // release-matching.ts virou fachada (split de limite de linhas): o portão
+    // composto vive agora em release-title-rules.js, e é lá que a linha
+    // canônica existe. O alvo segue o arquivo que herda a lógica — atualização
+    // de alvo, não enfraquecimento.
+    name: 'MUT-01: Invert matchesBrTitle (release-title-rules.js)',
+    file: 'dist/src/utils/release-title-rules.js',
     target: 'return matchesTitleStructure(title, name, year, { isSeries, tokens: own });',
     replacement: 'return false; // MUTATED',
     testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
@@ -144,7 +148,11 @@ const mutations = [
   {
     // PLANO_MELHORIAS 5.1: doSearch (e o cache.set do finish) saiu de
     // providers/index.js para providers/search-orchestrator.js no split de
-    // providers. O alvo segue este arquivo se ele mudar de novo.
+    // providers. O alvo segue este arquivo se ele mudar de novo. A feature de
+    // stream-trace acrescentou `trace: serializeTrace(trace), searchMeta` ao
+    // objeto do finish — o alvo antigo (sem o sufixo) deixou de existir como
+    // substring e o harness falhou silencioso (fora do CI). O prefixo até a
+    // vírgula é o trecho estável que decide o `partial` da escrita.
     name: 'MUT-10: Break Tier 4 Scenario 2 Late-Pass Refreshed Cache Delivery (providers/search-orchestrator.js)',
     file: 'dist/src/providers/search-orchestrator.js',
     // O alvo é só o objeto de uma linha: existe como linha física no fonte
@@ -153,8 +161,8 @@ const mutations = [
     // quebraria no dia em que a formatação do emit mudasse. O mutante força
     // partial:true em toda escrita do finish, então a entrada nunca transita
     // para completa — mesma via de captura do mutante original (cenário 2).
-    target: '{ streams, partial, debridKnown: isDebridKnown }',
-    replacement: '{ streams, partial: true /* MUTATED */, debridKnown: isDebridKnown }',
+    target: '{ streams, partial, debridKnown: isDebridKnown,',
+    replacement: '{ streams, partial: true /* MUTATED */, debridKnown: isDebridKnown,',
     testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
   }
 ];
