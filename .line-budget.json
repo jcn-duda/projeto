@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-09-02",
-  "excedente": 8974,
+  "excedente": 8213,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
@@ -17,7 +17,6 @@
     "test/app-routes.test.ts": 651,
     "test/bludv-resolver.test.ts": 449,
     "test/br-coverage.test.ts": 407,
-    "test/br-parsers.test.ts": 776,
     "test/br-resolvers.test.ts": 567,
     "test/catalog.test.ts": 649,
     "test/challenger-m1-adversarial.test.ts": 676,
@@ -27,7 +26,6 @@
     "test/debrid-batch.test.ts": 462,
     "test/debrid-pick-work.test.ts": 501,
     "test/debrid-rd-oracle.test.ts": 612,
-    "test/debrid-status.test.ts": 785,
     "test/e2e/e2e-harness.ts": 406,
     "test/e2e/tier1-feature-coverage.test.ts": 1274,
     "test/e2e/tier2-boundary-corner.test.ts": 1202,
