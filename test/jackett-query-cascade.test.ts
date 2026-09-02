@@ -278,3 +278,74 @@ test('falha HTTP na variante opcional não derruba a primária nem impede fallba
     assert.equal(items.length, 1);
   });
 });
+
+
+// tt1411697: o WordPress BR devolve lixo para "Se Beber, Nao Case! Parte II
+// 2011" e para a variante "Parte 2"; so a RAIZ "Se Beber, Nao Case!" acha o
+// post da Trilogia (a colecao que contem o dublado da continuacao). A cascata
+// percorre primary -> variante -> sem ano -> raiz da franquia e PARA na raiz —
+// o fallback original EN nao e chamado. O matchContext REAL e o que mantem a
+// cascata viva: cada degrau anterior devolve posts "parecidos" que so o filtro
+// por titulo descarta (sem ele, a primaria ja teria suprimido a cadeia).
+const HANGOVER_CTX = {
+  names: ['Se Beber, Não Case! Parte II', 'The Hangover Part II'],
+  year: 2011,
+  isSeries: false,
+  season: null,
+  episode: null,
+};
+const HANGOVER_PT = 'Se Beber, Não Case! Parte II 2011';
+const HANGOVER_VARIANT = 'Se Beber, Não Case! Parte 2 2011';
+const HANGOVER_ROOT = 'Se Beber, Não Case!';
+
+test('tt1411697: cascata primary -> variante -> sem ano -> raiz da franquia para no post da Trilogia', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      // Lixo "parecido" de WordPress: sem o matchContext real, qualquer um
+      // deles passaria por resultado e suprimiria a cascata na primaria.
+      if (query === 'Se Beber, Nao Case! Parte II 2011') {
+        return fakeResponse({ Results: [
+          { Title: 'Missao: Impossivel - Efeito Fallout (2018) DUBLADO 1080p', Seeders: 3, MagnetUri: MAGNET },
+        ] });
+      }
+      if (query === 'Se Beber, Nao Case! Parte 2 2011') {
+        return fakeResponse({ Results: [
+          { Title: 'Fallout 4 (PC) 2015 DUBLADO', Seeders: 2, MagnetUri: MAGNET },
+        ] });
+      }
+      if (query === 'Se Beber, Nao Case! Parte II') {
+        return fakeResponse({ Results: [
+          { Title: 'Cesium Fallout 1080p DUBLADO', Seeders: 1, MagnetUri: MAGNET },
+        ] });
+      }
+      if (query === 'Se Beber, Nao Case!') {
+        return fakeResponse({ Results: [
+          { Title: 'Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio 1080p By-LuaHarper', Seeders: 4, MagnetUri: MAGNET },
+        ] });
+      }
+      return fakeResponse({ Results: [] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(HANGOVER_PT, 'movie', ['bludv-cardigann'], {
+      variantQuery: HANGOVER_VARIANT,
+      franchiseQuery: HANGOVER_ROOT,
+      fallbackQuery: 'The Hangover Part II 2011',
+      matchContext: HANGOVER_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [
+      'Se Beber, Nao Case! Parte II 2011',
+      'Se Beber, Nao Case! Parte 2 2011',
+      'Se Beber, Nao Case! Parte II',
+      'Se Beber, Nao Case!',
+    ]);
+    // A raiz encontrou a Trilogia; o fallback original EN nunca foi chamado
+    // (so as 4 chamadas acima). A cadeia parou por relevancia, nao por vazio.
+    assert.equal(items.length, 1);
+    assert.equal(items[0].title, 'Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio 1080p By-LuaHarper');
+  });
+});

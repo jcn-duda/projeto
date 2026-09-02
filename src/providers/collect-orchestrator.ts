@@ -114,6 +114,7 @@ export async function collectRaw(
         addTask(() => jackett.search(planned.query, type, planned.indexers, {
           fallbackQuery: planned.fallback,
           variantQuery: planned.variant,
+          franchiseQuery: planned.franchise,
           matchContext,
           // A mesma busca principal atualiza o status deste indexer. Falha da
           // variante pt-BR não pode sobrescrever aquele resultado como offline.

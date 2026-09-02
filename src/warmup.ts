@@ -48,6 +48,7 @@ async function warmTitle({ imdbId, type }: WarmupTitle, deadlineAt: number) {
       await jackett.search(task.query, type, [indexer], {
         variantQuery: task.variant,
         fallbackQuery: task.fallback,
+        franchiseQuery: task.franchise,
         recordStatus: false,
         skipResolve: true,
       });

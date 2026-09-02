@@ -15,6 +15,8 @@ export interface JackettSearchOptions {
   variantQuery?: string;
   /** Título original como fallback (plano BR+ptQuery). */
   fallbackQuery?: string;
+  /** Raiz da franquia sem marcador de sequência (plano BR: "Parte II" → raiz). */
+  franchiseQuery?: string;
   matchContext?: MatchContext | null;
   /** Varredura tardia: falha não conta no circuito nem pinta o card. */
   recordStatus?: boolean;
@@ -106,6 +108,13 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     const bare = query.replace(/\s+(?:19|20)\d{2}\s*$/, ' ');
     if (bare !== query) cascade.push({ q: bare, label: 'título sem ano' });
   }
+  // Raiz da franquia: "Se Beber, Não Case! Parte II" não acha o post da
+  // Trilogia no WordPress BR, mas a raiz "Se Beber, Não Case!" acha. Degrau
+  // SEQUENCIAL no MESMO deadline — depois do título sem ano (o ano impediria
+  // o marcador de sequência de casar) e antes do fallback original. O
+  // `shapedSeen` já descarta a duplicata quando a raiz coincide com um degrau
+  // anterior já moldado.
+  if (isBr && options.franchiseQuery) cascade.push({ q: options.franchiseQuery, label: 'raiz da franquia' });
   if (isBr && options.fallbackQuery) cascade.push({ q: options.fallbackQuery, label: 'título original' });
   for (const step of cascade) {
     const shaped = shapeSearchQuery(indexer, step.q, isBr);
