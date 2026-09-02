@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-09-02",
-  "excedente": 9611,
+  "excedente": 8974,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
@@ -19,7 +19,6 @@
     "test/br-coverage.test.ts": 407,
     "test/br-parsers.test.ts": 776,
     "test/br-resolvers.test.ts": 567,
-    "test/cache.test.ts": 1037,
     "test/catalog.test.ts": 649,
     "test/challenger-m1-adversarial.test.ts": 676,
     "test/comandotorrents-parser.test.ts": 485,
