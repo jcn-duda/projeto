@@ -1,7 +1,7 @@
 {
   "limite": 400,
   "gerado": "2026-09-02",
-  "excedente": 6168,
+  "excedente": 6155,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
@@ -15,13 +15,11 @@
     "src/utils/stream-ranking.ts": 535,
     "test/adversarial-m1-parser-harness.ts": 582,
     "test/challenger-m1-adversarial.test.ts": 676,
-    "test/e2e/e2e-harness.ts": 406,
     "test/e2e/tier1-feature-coverage.test.ts": 1274,
     "test/e2e/tier2-boundary-corner.test.ts": 1202,
     "test/e2e/tier3-cross-feature.test.ts": 993,
     "test/e2e/tier4-application-scenarios.test.ts": 786,
     "test/m1-protector-adversarial-stress.ts": 728,
-    "test/m1-stress-challenge.ts": 644,
-    "test/stress-m1-challenger.ts": 407
+    "test/m1-stress-challenge.ts": 644
   }
 }
