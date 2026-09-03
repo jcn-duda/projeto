@@ -114,11 +114,24 @@ async function search(query: string, type: string, indexersOverride: string[] | 
       // cortou o que não casa, então a régua aqui é mais branda para eles — a
       // métrica é diagnóstico de autorização de fase, não comparação exata
       // entre indexers.
+      //
+      // Consulta de FUNDO (colhedor alimentando o índice, enriquecimento e
+      // varredura de cauda) não vai no mesmo balde: zero-sobrevivente ali é
+      // sonda negativa da descoberta — o colhedor não sabe de antemão qual
+      // indexer tem a obra. Sem a separação, o aquecimento de fundo pinta o
+      // balde "a resposta queimou o que o índice deveria ter servido" antes de
+      // qualquer usuário aparecer (medido: 137 wastes com ZERO buscas de
+      // usuário no processo).
       if (options.matchContext?.names?.length && !r.value.fromCache && r.value.ms > 0) {
         const survived = filterRelevantRaw(r.value.items, options.matchContext);
         if (survived.length === 0) {
-          metrics.count('search.jackett.wastedQueries');
-          metrics.count('search.jackett.wastedMs', r.value.ms);
+          if (options.background) {
+            metrics.count('search.jackett.wastedQueries.background');
+            metrics.count('search.jackett.wastedMs.background', r.value.ms);
+          } else {
+            metrics.count('search.jackett.wastedQueries');
+            metrics.count('search.jackett.wastedMs', r.value.ms);
+          }
         }
       }
     } else {

@@ -18,6 +18,12 @@ function releaseIndexStatus(services: AppServices) {
     wouldMiss: counters['search.idx.wouldMiss'] || 0,
     wastedQueries: counters['search.jackett.wastedQueries'] || 0,
     wastedMs: counters['search.jackett.wastedMs'] || 0,
+    // Fundo (colhedor, enriquecimento/varredura de cauda): sonda negativa da
+    // descoberta, não custo do caminho de resposta. Os dois baldes não somam
+    // "desperdício do usuário" — ler juntos era pintar o aquecimento do índice
+    // como tempo que a resposta queimou.
+    wastedQueriesBackground: counters['search.jackett.wastedQueries.background'] || 0,
+    wastedMsBackground: counters['search.jackett.wastedMs.background'] || 0,
     accountSufficient: counters['search.account.sufficient'] || 0,
     fastPaths: counters['search.fastPath'] || 0,
   };

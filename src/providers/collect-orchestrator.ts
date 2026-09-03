@@ -119,6 +119,10 @@ export async function collectRaw(
           // A mesma busca principal atualiza o status deste indexer. Falha da
           // variante pt-BR não pode sobrescrever aquele resultado como offline.
           recordStatus: inlineSweep ? false : undefined,
+          // Coleta com prazo é caminho de resposta; sem prazo é cauda
+          // (enriquecimento do índice, pack tardio) — desperdício vai para o
+          // balde de fundo, não para o da resposta.
+          background: deadlineAt == null,
         }), priority);
       }
     }

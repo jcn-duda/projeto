@@ -133,6 +133,9 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
         const items = await jackett.search(sweepQuery, entry.type, fatia, {
           matchContext,
           recordStatus: false,
+          // Descoberta do índice: zero-sobrevivente aqui é sonda negativa,
+          // não desperdício do caminho de resposta (ver jackett.search).
+          background: true,
         });
         for (const target of fatia) {
           lastQueryAt.set(target, Date.now());
@@ -167,6 +170,9 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
         matchContext,
         recordStatus: false,
         fallbackQuery: ptQuery || undefined,
+        // Descoberta do índice: zero-sobrevivente aqui é sonda negativa,
+        // não desperdício do caminho de resposta (ver jackett.search).
+        background: true,
       });
       lastQueryAt.set(indexer, Date.now());
       succeeded += 1;

@@ -20,6 +20,10 @@ export interface JackettSearchOptions {
   matchContext?: MatchContext | null;
   /** Varredura tardia: falha não conta no circuito nem pinta o card. */
   recordStatus?: boolean;
+  /** Consulta FORA do caminho da resposta (colhedor, enriquecimento/varredura
+   * de cauda): zero-sobrevivente ali é sonda negativa da descoberta e vai para
+   * contador de fundo próprio, não para o desperdício do caminho crítico. */
+  background?: boolean;
   /** Varredura tardia: consulta mesmo indexer com circuito aberto. */
   ignoreBreaker?: boolean;
   /** Warmup popula raw sem pagar resolução de protetor de link. */

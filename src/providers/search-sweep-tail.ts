@@ -53,6 +53,9 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
             matchContext,
             recordStatus: false,
             ignoreBreaker: true,
+            // Fora do caminho da resposta: o desperdício medido é trabalho de
+            // fundo da caça pt-BR, não custo do orçamento crítico.
+            background: true,
           });
           metrics.count('search.pt-sweep.found', found.length);
           if (!found.length) return;
