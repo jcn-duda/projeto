@@ -39,15 +39,34 @@ describe('Feature 1: Dynamic Domain Validation', () => {
   });
 
   test('nerdfilmes: isDetailHost aceita mirrors históricos e rejeita protetores ou domínios de terceiros', () => {
+    assert.doesNotThrow(() => nerd.assertAllowedUrl('https://www.filmesviatorrents.net/?s=teste'));
+    assert.doesNotThrow(() => nerd.assertAllowedUrl('https://filmesviatorrents.net/?s=teste'));
+    assert.equal(nerd.isDetailHost('filmesviatorrents.net'), true);
+    assert.equal(nerd.isDetailHost('www.filmesviatorrents.net'), true);
+    assert.equal(nerd.isDetailHost('WWW.FILMESVIATORRENTS.NET'), true);
+    assert.equal(nerd.isDetailHost('nerdviatorrents.net'), true);
+    assert.equal(nerd.isDetailHost('www.nerdviatorrents.net'), true);
     assert.equal(nerd.isDetailHost('xnerdfilmes.net'), true);
     assert.equal(nerd.isDetailHost('www.xnerdfilmes.net'), true);
     assert.equal(nerd.isDetailHost('nerdfilmestorrent.com'), true);
     assert.equal(nerd.isDetailHost('nerdfilmestorrent.org'), true);
     assert.equal(nerd.isDetailHost('videosad.net'), false);
     assert.equal(nerd.isDetailHost('google.com'), false);
+    assert.equal(nerd.isDetailHost('fakefilmesviatorrents.net'), false);
+    assert.equal(nerd.isDetailHost('filmesviatorrents.net.evil.com'), false);
+    assert.throws(() => nerd.assertAllowedUrl('ftp://www.filmesviatorrents.net/file'), /unsupported_protocol/);
+    assert.throws(() => nerd.assertAllowedUrl('javascript:alert(1)'), /unsupported_protocol/);
     assert.throws(
       () => nerd.assertAllowedUrl('https://dominio-novo.example/post'),
       /blocked_host:dominio-novo\.example/,
+    );
+    assert.throws(
+      () => nerd.assertAllowedUrl('https://fakefilmesviatorrents.net/post'),
+      /blocked_host:fakefilmesviatorrents\.net/,
+    );
+    assert.throws(
+      () => nerd.assertAllowedUrl('https://filmesviatorrents.net.evil.com/post'),
+      /blocked_host:filmesviatorrents\.net\.evil\.com/,
     );
   });
 
@@ -71,6 +90,8 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
     comando.inFlight.clear();
     tdf.postCache.clear();
     tdf.inFlight.clear();
+    nerd.cache.clear();
+    nerd.inFlight.clear();
   });
 
   afterEach(() => {
@@ -194,6 +215,27 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
     ]);
     assert.equal(tdfFetchCount, 1);
     assert.equal(tdf.inFlight.size, 0);
+
+    let nerdFetchCount = 0;
+    globalThis.fetch = (async () => {
+      nerdFetchCount += 1;
+      await new Promise((r) => setTimeout(r, 15));
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '<div><a href="https://systemads1.com/go/nerd">Download</a></div>',
+      };
+    }) as unknown as typeof globalThis.fetch;
+
+    const nerdUrl = 'https://www.filmesviatorrents.net/filme-nerd/';
+    const [n1, n2] = await Promise.all([
+      nerd.getPostLinks(nerdUrl),
+      nerd.getPostLinks(nerdUrl),
+    ]);
+    assert.equal(nerdFetchCount, 1, 'chamadas concorrentes ao nerdfilmes no novo domínio devem coalescer');
+    assert.equal(nerd.inFlight.size, 0);
+    assert.equal(n1.links[0].url, 'https://systemads1.com/go/nerd');
+    assert.equal(n2.links[0].url, 'https://systemads1.com/go/nerd');
   });
 });
 

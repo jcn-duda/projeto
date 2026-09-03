@@ -238,3 +238,29 @@ In `src/providers/harvester.ts`, when a capped work exceeds `tries > 3` and is d
   4. BluDV queries with fallback query when `ptQuery` is null.
   5. Partial sweep queries exactly available slice and emits `harvest.sweep.partial`.
   6. Works dropped after 4 capped attempts emit `harvest.capped.dropped`.
+
+## Follow-up — 2026-09-03T23:08:24Z
+
+This is a single self-contained fix; keep it small and focused.
+Restore the NerdFilmes resolver functionality by updating its configuration and domain allowlist to support the newly migrated domain `filmesviatorrents.net`.
+
+Working directory: `e:/stremio adom`
+Integrity mode: development
+
+## Requirements
+
+### R1. Allowlist and Default URL Update
+- Update `resolvers/profiles/nerdfilmes.js` to include `'filmesviatorrents.net'` in `FALLBACK_SITE_SUFFIXES`.
+- Update the default site URL to `https://www.filmesviatorrents.net` in `resolvers/profiles/nerdfilmes.js` and `src/config/resolvers.ts`.
+
+### R2. Test Suite and Regression Verification
+- Update tests in `test/br-resolvers.test.ts` to assert that `isDetailHost` accepts `filmesviatorrents.net` and `www.filmesviatorrents.net`.
+- Ensure `npm run build` succeeds and test suite (`npm test`, `npm run test:nerdfilmes`) passes cleanly.
+
+## Acceptance Criteria
+
+### Verification
+- [ ] `node -e "require('./resolvers/profiles/nerdfilmes').assertAllowedUrl('https://www.filmesviatorrents.net/?s=teste')"` completes without throwing `blocked_host`.
+- [ ] Running a search through `nerdfilmes` resolver returns HTTP 200 and parses releases from `filmesviatorrents.net`.
+- [ ] `npm run test:nerdfilmes` passes.
+- [ ] `npm test` passes without failures.

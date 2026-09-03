@@ -46,10 +46,10 @@ const normalizeQuery = createNormalizeQuery({ boundary: false });
 
 const FALLBACK_SITE_SUFFIXES = [
   'xnerdfilmes.net', 'nerdfilmestorrent.com', 'nerdfilmestorrent.org',
-  'nerdfilmestorrent.net', 'nerdviatorrents.net',
+  'nerdfilmestorrent.net', 'nerdviatorrents.net', 'filmesviatorrents.net',
 ];
 
-// xnerdfilmes.net migrou para nerdviatorrents.net (301 permanente). Sem
+// nerdviatorrents.net migrou para filmesviatorrents.net (301 permanente). Sem
 // NERDFILMES_URL/SITE_URL no ambiente (o modo embutido não injeta nada), o
 // default abaixo é o que o resolver tenta primeiro — deixá-lo no domínio velho
 // faz o redirect cair na allowlist e a fonte morrer em silêncio.
@@ -72,7 +72,7 @@ const bootstrap = createProfile({
   name: 'nerdfilmes',
   port: PORT,
   selfUrlEnv: 'http://nerdfilmes-resolver:8702',
-  siteUrl: 'https://www.nerdviatorrents.net',
+  siteUrl: 'https://www.filmesviatorrents.net',
   siteUrlEnv: 'NERDFILMES_URL',
   urlsCsv: process.env.NERDFILMES_URLS,
   fallbackSuffixes: FALLBACK_SITE_SUFFIXES,
