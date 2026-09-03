@@ -1,7 +1,7 @@
 {
   "limite": 400,
-  "gerado": "2026-09-02",
-  "excedente": 3500,
+  "gerado": "2026-09-03",
+  "excedente": 2824,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
@@ -10,7 +10,6 @@
     "src/providers/stream-builder.ts": 689,
     "src/public/configure.css": 502,
     "src/utils/autofetch-live.ts": 495,
-    "src/utils/catalog.ts": 1076,
     "src/utils/stream-quotas.ts": 453,
     "src/utils/stream-ranking.ts": 535,
     "test/adversarial-m1-parser-harness.ts": 582,
