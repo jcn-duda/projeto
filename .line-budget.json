@@ -1,10 +1,8 @@
 {
   "limite": 400,
   "gerado": "2026-09-03",
-  "excedente": 825,
+  "excedente": 353,
   "arquivos": {
-    "resolvers/profiles/bludv.js": 722,
-    "resolvers/profiles/nerdfilmes.js": 550,
     "resolvers/profiles/vacatorrent.js": 753
   }
 }
