@@ -152,6 +152,11 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     // o próprio jackett.search economizaria a consulta, mas a contabilidade
     // (attempted) não.
     const ativos = fatia.filter((target) => !jackett.breakerTripped(target));
+    // partial = teto cortou a lista de alvos; breaker = circuito omitiu alvo
+    // da fatia. Antes misturavam `ativos < sweepTargets` e só contavam no
+    // ramo com consulta — breaker total ou fatia vazia sumiam das métricas.
+    if (fatia.length < sweepTargets.length) metrics.count('harvest.sweep.partial');
+    if (ativos.length < fatia.length) metrics.count('harvest.sweep.breaker');
     if (!ativos.length) {
       log.debug(
         fatia.length > 0
@@ -164,9 +169,6 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
       }
       attempted += ativos.length;
       metrics.count('harvest.sweep');
-      if (ativos.length < sweepTargets.length) {
-        metrics.count('harvest.sweep.partial');
-      }
       try {
         const items = await jackett.search(sweepQuery, entry.type, ativos, {
           matchContext,
@@ -285,18 +287,23 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
       rdWarmer.enqueue([item.hash], item.score);
     }
   }
-  harvested += 1;
-  lastRunAt = Date.now();
-  if (config.harvest.dashboardLastWorks > 0) {
-    recentWorks.unshift({
-      at: lastRunAt,
-      imdbId: entry.imdbId,
-      type: entry.type,
-      season: entry.season ?? null,
-      episode: entry.episode ?? null,
-      recorded: added,
-    });
-    recentWorks.length = Math.min(recentWorks.length, config.harvest.dashboardLastWorks);
+  // Obra preemptada volta à fila: contar harvested / lastRunAt / recentWorks
+  // aqui dobraria a eficácia (meia-colheita + conclusão) e listaria meia
+  // obra no painel. O tempo gasto (harvest.ms) continua real em ambos.
+  if (!preempted) {
+    harvested += 1;
+    lastRunAt = Date.now();
+    if (config.harvest.dashboardLastWorks > 0) {
+      recentWorks.unshift({
+        at: lastRunAt,
+        imdbId: entry.imdbId,
+        type: entry.type,
+        season: entry.season ?? null,
+        episode: entry.episode ?? null,
+        recorded: added,
+      });
+      recentWorks.length = Math.min(recentWorks.length, config.harvest.dashboardLastWorks);
+    }
   }
   metrics.observe('harvest.ms', Date.now() - startedAt);
   return { ok: added > 0 || succeeded > 0, capped, preempted, added };

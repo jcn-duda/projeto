@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
-import { record, lookup, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, markLied } from '../src/utils/release-index.js';
+import { record, lookup, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, clearPartial, markLied } from '../src/utils/release-index.js';
 
 const release = (hash: string, extra: any = {}) => ({
   title: `Filme Teste 1080p DUAL ${hash.slice(0, 4)}`,
@@ -329,4 +329,22 @@ test('Etapa 5: desligado e obra inválida são false; lote vazio não grava', as
   } finally {
     config.releaseIndex.enabled = original;
   }
+});
+
+test('clearPartial limpa partial em todas as chaves da obra sem apagar releases', () => {
+  // Série semeada grava partial na raiz; episódio enxerga pelo degrau final do
+  // isPartial — clearPartial precisa limpar a obra inteira (não só a location).
+  record('tt9000310', {}, [serieRel('e1'.repeat(20), 'Serie Semeada 1ª Temporada DUBLADO', { isBr: true })], { partial: true });
+  record('tt9000310', { season: 1, episode: 1 }, [serieRel('e2'.repeat(20), 'Serie Semeada S01E01 DUBLADO')], { partial: true });
+  assert.equal(isPartial('tt9000310', { season: 1, episode: 1 }), true, 'raiz+episódio parciais bloqueiam');
+
+  const cleared = clearPartial('tt9000310', { season: 1, episode: 1 });
+  assert.ok(cleared >= 2, `limpou ao menos raiz e episódio (cleared=${cleared})`);
+  assert.equal(isPartial('tt9000310', { season: 1, episode: 1 }), false, 'fast-path liberado após clearPartial');
+  assert.equal(lookup('tt9000310', { season: 1, episode: 1 }).length >= 1, true, 'releases preservadas');
+
+  // Prefixo estrito: tt9000310 não pode limpar tt90003101.
+  record('tt90003101', {}, [release('e3'.repeat(20), { title: 'Outra Obra 1080p DUBLADO' })], { partial: true });
+  clearPartial('tt9000310');
+  assert.equal(isPartial('tt90003101'), true, 'obra com id prefixo-irmão permanece parcial');
 });

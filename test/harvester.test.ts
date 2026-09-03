@@ -315,6 +315,7 @@ test('HARVEST_ENABLED=false desliga o enqueue', () => {
 test('Etapa 2: tráfego no MEIO da obra preempta — devolve à frente, preserva enqueuedAt e não conta tentativa', async () => {
   // Usuário chega no MEIO da colheita: a obra volta à FRENTE com o enqueuedAt
   // original e SEM custo de tentativa — tráfego não é falha; só o capped dropa.
+  // Após >3 preempções a obra vai para a cauda (deferred), sem dropar.
   const saved = {
     maxPerHour: config.harvest.maxPerHour, idleWindowMs: config.harvest.idleWindowMs, indexerDelayMs: config.harvest.indexerDelayMs,
     indexers: config.jackett.indexers, apiKey: config.jackett.apiKey, tmdbApiKey: config.tmdb.apiKey,
@@ -352,31 +353,39 @@ test('Etapa 2: tráfego no MEIO da obra preempta — devolve à frente, preserva
     cache.clearNamespace('harvest');
 
     cache.set('meta:movie:tt9500131', { name: 'Preempted Movie', year: '2024', type: 'movie' }, 3600);
+    cache.set('meta:movie:tt9500132', { name: 'Other Movie', year: '2024', type: 'movie' }, 3600);
     harvester.enqueue({ imdbId: 'tt9500131', type: 'movie', reason: `preempt-${Date.now()}` } as any);
+    harvester.enqueue({ imdbId: 'tt9500132', type: 'movie', reason: `other-${Date.now()}` } as any);
 
     const key = `${prefix('harvest')}q`;
     const antes = (cache.get(key) || []) as any[];
     const obraAntes = antes.find((e) => e.imdbId === 'tt9500131');
     assert.ok(obraAntes, 'obra enfileirada antes do tick');
     const enqueuedAtAntes = obraAntes.enqueuedAt;
+    assert.equal((harvester.status() as any).queueDepth, 2, 'duas obras na fila');
 
-    // 4 ticks preemptados seguidos: se a preempção contasse tentativa (como o
-    // capped), a obra seria dropada no 4º encontro (harvest.capped.dropped).
-    for (let i = 0; i < 4; i += 1) {
+    // 3 ticks: obra A volta à frente (tries <= 3). A outra permanece atrás.
+    for (let i = 0; i < 3; i += 1) {
       await harvester.tick();
-      assert.equal((harvester.status() as any).queueDepth, 1, `tick ${i + 1}: obra preemptada volta à fila`);
+      assert.equal((harvester.status() as any).queueDepth, 2, `tick ${i + 1}: duas obras na fila`);
+      const q = (cache.get(key) || []) as any[];
+      assert.equal(q[0]?.imdbId, 'tt9500131', `tick ${i + 1}: preemptada volta à frente`);
       await new Promise((r) => setTimeout(r, 120));
     }
 
+    // 4ª preempção: A vai para a cauda; B sobe. Sem drop.
+    await harvester.tick();
+    const depois = (cache.get(key) || []) as any[];
+    assert.equal(depois.length, 2, 'obra NÃO é dropada após >3 preempções');
+    assert.equal(depois[0]?.imdbId, 'tt9500132', '4ª preempção manda A à cauda; B sobe');
+    assert.equal(depois[1]?.imdbId, 'tt9500131', 'A ficou na cauda com resumed');
+    assert.equal(depois[1]?.resumed, true, 'entrada retomada carrega resumed');
+    assert.equal(depois[1]?.enqueuedAt, enqueuedAtAntes, 'enqueuedAt preservado na retomada');
+
     const snap = metrics.snapshot().counters;
     assert.ok((snap['harvest.preempted'] || 0) >= 4, 'cada preempção contou harvest.preempted');
-    assert.equal(snap['harvest.capped.dropped'] || 0, 0, 'preempção não é capped: nada dropado no 4º encontro');
-    const depois = (cache.get(key) || []) as any[];
-    const obraDepois = depois.find((e) => e.imdbId === 'tt9500131');
-    assert.ok(obraDepois, 'obra continua na fila após 4 preempções (attemptsByObra não incrementou)');
-    assert.equal(obraDepois.enqueuedAt, enqueuedAtAntes, 'enqueuedAt preservado na retomada');
-    assert.equal(obraDepois.resumed, true, 'entrada retomada carrega o sinal resumed para o painel');
-    assert.equal((harvester.status() as any).queueDepth, 1, 'fila intacta após 4 preempções');
+    assert.equal(snap['harvest.preempted.deferred'] || 0, 1, '4ª preempção contou harvest.preempted.deferred');
+    assert.equal(snap['harvest.capped.dropped'] || 0, 0, 'preempção não é capped: nada dropado');
     assert.ok(indexerHits >= 4, 'o stub disparou em toda consulta (raw desligado)');
   } finally {
     stub.restore();

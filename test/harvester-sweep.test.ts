@@ -151,9 +151,54 @@ test('varredura pt-BR parcial: consulta apenas a fatia permitida e conta harvest
     const snap = metrics.snapshot().counters;
     assert.equal(snap['harvest.sweep'], 1, 'varredura executou');
     assert.equal(snap['harvest.sweep.partial'], 1, 'varredura parcial foi contabilizada');
+    assert.equal(snap['harvest.sweep.breaker'] || 0, 0, 'teto não mistura com breaker');
   } finally {
     stub.restore();
     harvesterLive.reset();
+    restoreConfig(saved);
+  }
+});
+
+test('breaker aberto na fatia conta harvest.sweep.breaker e NÃO partial quando teto comporta todos', async () => {
+  const saved = saveConfig();
+  const stub = stubFetch((url: string) => {
+    if (url.includes('api.themoviedb.org')) return tmdbOk();
+    if (url.includes('/api/v2.0/indexers/')) {
+      return { ok: true, status: 200, json: async () => ({ Results: [] }) };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+  try {
+    harvesterLive.reset();
+    metrics.reset();
+    harvestWorker.resetSweepCursor();
+    // Abre o circuito só em um alvo da fatia.
+    for (let i = 0; i < config.jackett.breakerFailures; i += 1) {
+      indexerStatus.record('glob-brk', { ok: false, results: 0, ms: 100, budgetMs: 4000 });
+    }
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['glob-ok', 'glob-brk', 'glob-ok2'];
+    config.jackett.ptBrIndexers = [];
+    config.jackett.apiKey = 'fake-key';
+    config.tmdb.apiKey = 'fake-key';
+
+    // Teto comporta os 3 alvos da varredura → fatia completa (sem partial).
+    const before = (harvester.status() as any).queriesThisHour;
+    harvesterLive.set({ harvestMaxPerHour: before + 50 });
+
+    cache.set('meta:movie:tt9500056', { name: 'Star Wars: Episode II', year: '2002', type: 'movie' }, 3600);
+    await harvestWorker.harvestOne({ imdbId: 'tt9500056', type: 'movie', reason: `sweep-breaker-${Date.now()}` } as any);
+
+    const snap = metrics.snapshot().counters;
+    assert.equal(snap['harvest.sweep.breaker'], 1, 'circuito aberto omite alvo da fatia');
+    assert.equal(snap['harvest.sweep.partial'] || 0, 0, 'teto comportou todos: não é partial');
+    assert.equal(snap['harvest.sweep'], 1, 'varredura ainda roda nos ativos');
+  } finally {
+    stub.restore();
+    indexerStatus.clear();
+    harvesterLive.reset();
+    harvestWorker.resetSweepCursor();
     restoreConfig(saved);
   }
 });

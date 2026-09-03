@@ -27,6 +27,7 @@ import { enqueue, clearQueue, prioritizeQueue, obraIdentity } from './harvest-qu
 import * as harvestQueue from './harvest-queue.js';
 import type { HarvestEntry } from './harvest-queue.js';
 import * as harvestWorker from './harvest-worker.js';
+import * as releaseIndex from '../utils/release-index.js';
 
 let started = false;
 let inFlight = false;
@@ -44,6 +45,10 @@ let paused = false;
 // Contador de tentativas por obra: uma obra cara (teto estourando sempre ou
 // rede morta) não pode segurar a fila para sempre.
 const attemptsByObra = new Map<string, number>();
+// Preempções por obra — Map SEPARADO do attemptsByObra: tráfego não é falha
+// (não dropa), mas após N preempções a obra vai para a cauda em vez de
+// monopolizar a frente da fila.
+const preemptsByObra = new Map<string, number>();
 
 async function checkQuotaWarning() {
   if (!config.notify.enabled || !config.notify.webhookUrl) return;
@@ -119,15 +124,24 @@ async function tick() {
     const identity = obraIdentity(entry);
     const { added, capped, preempted } = await harvestWorker.harvestOne(entry);
     if (preempted) {
-      // Obra interrompida por tráfego volta à frente, SEM custo de tentativas
-      // e SEM contar na eficácia: o usuário chegou — não é falha da obra, e a
-      // meia-colheita não pode entrar duas vezes em done/empty. `resumed` marca
-      // só para o painel; o spread preserva o enqueuedAt original, que é quem
-      // decide a precedência dentro do rank no prioritizeQueue.
-      harvestQueue.head({ ...entry, resumed: true });
-      harvestQueue.persist();
+      // Obra interrompida por tráfego: SEM custo em attemptsByObra (não é
+      // falha). Até 3 preempções volta à frente; a 4ª vai para a cauda
+      // (`harvest.preempted.deferred`) para não monopolizar a fila — sem
+      // dropar. `resumed` só para o painel; enqueuedAt original preservado.
+      const tries = (preemptsByObra.get(identity) || 0) + 1;
+      preemptsByObra.set(identity, tries);
       metrics.count('harvest.preempted');
+      if (tries <= 3) {
+        harvestQueue.head({ ...entry, resumed: true });
+      } else {
+        harvestQueue.tail({ ...entry, resumed: true });
+        metrics.count('harvest.preempted.deferred');
+        preemptsByObra.delete(identity);
+      }
+      harvestQueue.persist();
     } else {
+      // Conclusão sem preempção: zera o ciclo de preempções desta obra.
+      preemptsByObra.delete(identity);
       // Contrato da Etapa 1 preservado: obra que CONCLUIU (ou foi cortada pelo
       // teto) conta eficácia. A preemptada nunca chega aqui — voltou à fila e
       // será recolhida como conclusão legítima depois.
@@ -145,7 +159,10 @@ async function tick() {
           harvestQueue.head(entry);
           harvestQueue.persist();
         } else {
+          // Drop da fila: limpa partial grudado (ex.: raiz semeada) antes de
+          // apagar attempts — senão o flag bloqueia fast-path por ~30d.
           metrics.count('harvest.capped.dropped');
+          releaseIndex.clearPartial(entry.imdbId, { season: entry.season, episode: entry.episode });
           attemptsByObra.delete(identity);
         }
       } else {

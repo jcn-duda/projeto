@@ -215,6 +215,33 @@ function isPartial(imdbId: string, { season, episode }: ObraLocation = {}): bool
 }
 
 /**
+ * Limpa o flag `partial` em TODAS as chaves idx da obra, mantendo as releases.
+ * Motivo: série semeada (season null) grava partial na raiz; busca de episódio
+ * nunca reescreve a raiz; capped.dropped tira da fila e o flag ficava até o
+ * TTL (~30d) bloqueando o fast-path da série inteira. `location` é opcional —
+ * a limpeza é por obra inteira mesmo. Prefixo estrito (`key === base` ou
+ * `base:`) evita colidir tt123 com tt1234 no `keysMatching`.
+ */
+function clearPartial(imdbId: string, _location: ObraLocation = {}): number {
+  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt')) return 0;
+  const base = obraKey(imdbId);
+  let cleared = 0;
+  for (const key of cache.keysMatching(base)) {
+    if (key !== base && !key.startsWith(`${base}:`)) continue;
+    const entry = cache.peek(key) as IndexEntry | null;
+    if (!entry?.partial) continue;
+    // Preserva o TTL restante; sem peekRemaining, regrava com o TTL do índice
+    // (mesma disciplina do markLied/record).
+    const ttl = cache.peekRemaining(key) ?? config.releaseIndex.ttl;
+    if (!ttl || ttl <= 0) continue;
+    const { partial: _drop, ...rest } = entry;
+    cache.set(key, { ...rest } satisfies IndexEntry, ttl);
+    cleared += 1;
+  }
+  return cleared;
+}
+
+/**
  * A evidência de mentira chega do play/tail com hash e obra conhecidos. Campo
  * opcional preserva entradas antigas e evita invalidar o índice inteiro.
  */
@@ -365,4 +392,4 @@ function snapshotAllWorks(): Map<string, IndexedRelease[]> {
   return result;
 }
 
-export { record, lookup, lookupQuiet, isPartial, markLied, markMissing, isMissing, isMissingQuiet, markFileEvidence, fileEvidence, status, snapshotWorks, snapshotAllWorks };
+export { record, lookup, lookupQuiet, isPartial, clearPartial, markLied, markMissing, isMissing, isMissingQuiet, markFileEvidence, fileEvidence, status, snapshotWorks, snapshotAllWorks };
