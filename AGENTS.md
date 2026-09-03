@@ -750,11 +750,15 @@ próxima vez. Travas e arquitetura atuais (invariante 6):
   (Real-Debrid e Debrid-Link) habilita via `autofetchSource: true` com dedupe
   por `inventoryPeek()` síncrono da conta (`cache.get(dinvKey)` sem rede na
   resposta);
-- até `DEBRID_AUTO_FETCH_MAX` (1..4) torrents imediatos por busca, com os
+- até `DEBRID_AUTO_FETCH_MAX` (1..12) torrents imediatos por busca, com os
   excedentes indo para a **fila persistente** (`readQueue`/`writeQueue`, chave
   `autofetch:v3:q:sha256(searchKey)`);
-- pool BR vazio cai em dublada global (`DEBRID_AUTO_FETCH_ANY`) e, em série,
-  no pack de mais seeders (`DEBRID_AUTO_FETCH_TOP_SEEDS`);
+- pools em cascata `br > any > seeds`: BR dublado primeiro; se vazio, dublada
+  global (`DEBRID_AUTO_FETCH_ANY` / `autoFetchAnyDubbed`); se ainda vazio (ou
+  `any` desligado), o pool de melhores seeders (`DEBRID_AUTO_FETCH_TOP_SEEDS` /
+  `autoFetchTopSeeds`) continua — **desligar `autoFetchAnyDubbed` não corta
+  seeds**, desde que `autoFetchTopSeeds=true` (teto próprio `autoFetchTopSeedsMax`
+  1..4);
 - hold **por candidato imediato, antes** da checagem; marker só depois do aceite;
 - recheck em fundo (`DEBRID_AUTO_FETCH_RECHECK_MS`) com detecção de **torrent
   morto** (`adapter.torrentStatus`): duas observações consecutivas de estado terminal
@@ -812,7 +816,7 @@ persistidas no SQLite sob `cfg:v1:autofetch` com cópia em memória, sem restart
 Integrado na aba `[Chupim / Autofetch]` do `/dashboard#autofetch` (as rotas
 `/autofetch` e `/:userConfig/autofetch` redirecionam 302 para lá).
 - `effective()` junta defaults do `.env` com overrides gravados;
-- `set(patch)` valida cada campo com os mesmos clamps do `config.ts` (`autoFetchMax` 1..4, `queueDepth` 0..12, etc.) e rejeita chaves desconhecidas (400);
+- `set(patch)` valida cada campo com os mesmos clamps do `config.ts` (`autoFetchMax` 1..12, `queueDepth` 0..12, etc.) e rejeita chaves desconhecidas (400);
 - `reset()` restaura os padrões do `.env`;
 - `setPaused(bool)` / `isPaused()` permite pausar novos downloads de emergência mantendo a infra viva;
 - `drainQueues()` esvazia todas as filas pendentes.
@@ -1227,7 +1231,7 @@ checagem de cache e só é liberado se o download não acontecer. Inverter essa
 ordem deixa a limpeza matar o download no meio da mesma busca — na AllDebrid a
 própria checagem apaga da conta o que não está pronto.
 
-Já não é "um torrent por busca": o teto é `DEBRID_AUTO_FETCH_MAX` (1..4), com
+Já não é "um torrent por busca": o teto é `DEBRID_AUTO_FETCH_MAX` (1..12), com
 uma vaga por candidato compartilhada entre os passes (`acquireSearchSlot`).
 `cachedOnly` deixou de ser trava — mesmo no modo misto, sem dublada em cache o
 play da próxima vez depende do download. O resto das travas (known, toggle,

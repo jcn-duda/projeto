@@ -760,9 +760,14 @@ Trilha A (produção, 0 código)
 
 | # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
 |---|---|---|---|---|---|---|---|
-| 7.9 | Resíduo 2.4: orçamento cheio em `autofetch-runner.ts` escreve `[...remaining, next]` e rebaixa o melhor; `budgetBlockedUntil` já pausa | C1 | S | dado (fila) | A verde; não urgente | PLANEJADO | `[next, ...remaining]` + teste do `drainNext`. Um commit |
+| 7.9 | Resíduo 2.4: orçamento cheio em `autofetch-runner.ts` escrevia `[...remaining, next]` e rebaixava o melhor; `budgetBlockedUntil` já pausa | C1 | S | dado (fila) | A verde; não urgente | DONE | `drainNext` devolve `[next, ...remaining]` (cabeça volta à frente); teste do `drainNext` cobrindo orçamento cheio |
 | 7.10 | `checkJs` nos `resolvers/` (6.7): 354 erros, 306 `noImplicitAny` | C2 | L | build (`noEmitOnError`) | — | **FORA dos 30 dias** | anotar JS é tarefa própria, não ajuste de `tsconfig` |
 | 7.11 | `SearchPhase` explícito (A3). Fase já é `latest-writer` | C3 | M | passe tardio | bug concreto de corrida | **NÃO FAZER** sem bug | — |
+| 7.12 | Pool seeds com `anyDubbed=false`: cascata `br > any > seeds` — desligar any não corta seeds | C1 | S | dado (fila) | — | DONE | `autoFetchAnyDubbed=false` + `autoFetchTopSeeds=true` ainda enfileira seeds; testes de cascata |
+| 7.13 | `torrentStatus` falha não zera streak de dead/stall | C1 | S | dado (conta) | — | DONE | falha/`unknown` de status preserva streak; só evidência medida (ready/dead/stalled/movimento) altera |
+| 7.14 | Vaga por busca usa cota do pool (`autoFetchMax` / `autoFetchTopSeedsMax`) | C1 | S | dado (fila) | — | DONE | `acquireSearchSlot` respeita teto do pool ativo; seeds com teto próprio 1..4 |
+| 7.15 | `reindexQueues` no boot reconstrói índice de filas persistentes | C1 | S | dado (fila) | — | DONE | boot chama `reindexQueues`; `snapshot()`/`drainQueues()` do painel voltam a ver filas no SQLite (o `drainNext` já lia a chave direto) |
+| 7.16 | Docs/UI `autoFetchMax` 1..12 (`dashboard.html`, `AGENTS.md`) | C1 | S | nulo (docs) | 7.14 | DONE | campo `af_autoFetchMax` max=12; `af_autoFetchTopSeedsMax` permanece 1..4; docs alinhadas |
 
 ### Explicitamente fora (não fazer nesta fase)
 
