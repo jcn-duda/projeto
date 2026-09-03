@@ -207,3 +207,44 @@ test('filtro de release aceita grafias de versão estendida e extendida', () => 
   assert.equal(items.length, 3);
 });
 
+
+// Sequência batizada por PALAVRA, medida ao vivo em tt0468569: a lista do
+// Cavaleiro das Trevas (2008) trazia "…Ressurge 720p Dublado", que é o filme
+// de 2012. Cobre todos os tokens da busca, não tem número de sequência e o
+// título da release não traz ano — os três portões antigos passavam, e a
+// precisão dava 0,75 (acima do piso de 0,65 de filme).
+test('filterRelevantRaw: sequência batizada por palavra não entra na lista da obra base', () => {
+  const nomes = ['Batman: O Cavaleiro das Trevas', 'The Dark Knight'];
+  const ctx = { names: nomes, year: 2008, isSeries: false };
+  const certa = {
+    title: 'Batman O Cavaleiro Das Trevas (2008) 720p Dublado Pt Br',
+    magnet: `magnet:?xt=urn:btih:${HASH}&dn=Batman.O.Cavaleiro.Das.Trevas.2008`,
+    isBr: true,
+  };
+  const sequelaBr = {
+    title: 'Batman: O Cavaleiro Das Trevas Ressurge 720p HD Dublado / Dual Audio',
+    magnet: `magnet:?xt=urn:btih:${OTHER}&dn=Cavaleiro.Das.Trevas.Ressurge`,
+    isBr: true,
+  };
+  // Mesmo buraco no caminho GLOBAL, que não tem portão de precisão nenhum:
+  // matchesEpisodeWorkIdentity se abstém sem SxxEyy e sobra só o matchesName.
+  const sequelaGlobal = {
+    title: 'The Dark Knight Rises 1080p BluRay x264',
+    magnet: `magnet:?xt=urn:btih:${'c'.repeat(40)}&dn=The.Dark.Knight.Rises`,
+  };
+  assert.deepEqual(relevantRaw([sequelaBr, certa, sequelaGlobal], ctx), [certa]);
+
+  // Simetria: o marcador só condena quando está no candidato e NÃO na busca.
+  // Procurando a própria sequência, ela é quem sobrevive.
+  const ctxSequela = { names: ['Batman: O Cavaleiro das Trevas Ressurge', 'The Dark Knight Rises'], year: 2012, isSeries: false };
+  assert.deepEqual(relevantRaw([sequelaBr, certa, sequelaGlobal], ctxSequela), [sequelaBr, sequelaGlobal]);
+
+  // Palavra da lista que é o nome da obra inteira continua passando: "A Origem"
+  // e "Batman Begins" trazem o marcador dos dois lados.
+  const origem = { title: 'A Origem (2010) 1080p BluRay Dublado', magnet: `magnet:?xt=urn:btih:${HASH}&dn=A.Origem.2010`, isBr: true };
+  assert.deepEqual(relevantRaw([origem], { names: ['A Origem'], year: 2010, isSeries: false }), [origem]);
+  const begins = { title: 'Batman Begins 2005 1080p BluRay x264', magnet: `magnet:?xt=urn:btih:${HASH}&dn=Batman.Begins.2005` };
+  assert.deepEqual(relevantRaw([begins], { names: ['Batman Begins'], year: 2005, isSeries: false }), [begins]);
+  // …e o mesmo "Begins" contra a busca "Batman" continua sendo outra obra.
+  assert.deepEqual(relevantRaw([begins], { names: ['Batman'], year: 1989, isSeries: false }), []);
+});

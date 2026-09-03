@@ -6,6 +6,7 @@ import {
   STOP_AT,
   STRONG_PACK_WORDS,
   NUMERAL_CANON,
+  SEQUENCE_WORDS,
   titleTokens,
 } from './matching-vocabulary.js';
 
@@ -28,13 +29,24 @@ import {
  *   viraria sequência 5, matando a release legítima;
  * - o 1 não conta: ele aparece em canal de áudio e em "Parte 1" da obra base,
  *   onde a busca não o traz — barraria o que deveria passar.
+ *
+ * Sequência também vem batizada, sem número nenhum ("… Ressurge", "… Rises"):
+ * as palavras de SEQUENCE_WORDS entram no mesmo conjunto, como string. Quem
+ * compara os marcadores (`matchesTitleStructure`) só pergunta se o conjunto do
+ * candidato cabe no da busca, então número e palavra convivem sem caso
+ * especial — e a palavra que já está no nome procurado ("A Origem") aparece
+ * dos dois lados e continua passando.
  */
 function extractSequenceMarkers(text: string) {
-  const markers = new Set();
+  const markers = new Set<number | string>();
   for (const raw of titleTokens(text)) {
     if (!raw) continue;
     if (/^(?:19|20)\d{2}$/.test(raw)) break;
     if (STOP_AT.has(raw)) break;
+    if (SEQUENCE_WORDS.has(raw)) {
+      markers.add(raw);
+      continue;
+    }
     const n = /^\d+$/.test(raw) ? Number(raw) : NUMERAL_CANON[raw];
     if (n >= 2 && n <= 19) markers.add(n);
   }

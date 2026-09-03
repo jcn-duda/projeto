@@ -70,6 +70,31 @@ const LEADING_ARTICLES = new Set(
 
 const STOP_AT = new Set([...TECH_NOISE, ...PACK_WORDS]);
 
+// Sequência marcada por PALAVRA, não por número. `NUMERAL_CANON` cobre
+// "Rocky II" e "Duna Parte Dois", mas a continuação brasileira costuma vir
+// batizada: medido ao vivo em tt0468569, "Batman: O Cavaleiro Das Trevas
+// RESSURGE 720p Dublado" (que é tt1345836, de 2012) entrava na lista do filme
+// de 2008 — cobre todos os tokens da busca, não tem número de sequência, e o
+// título da release não traz ano para `yearContradicts` condenar. A precisão
+// também não salva: um token estranho num título de quatro significativos dá
+// 0,75, acima do piso de 0,65.
+//
+// A regra é a MESMA dos números em `extractSequenceMarkers`: o marcador só
+// condena quando está no candidato e NÃO está na busca. Por isso um filme cujo
+// nome já contém a palavra continua passando — "A Origem" procurado traz
+// `origem` dos dois lados, e "Batman Begins" procurado traz `begins`.
+//
+// Lista fechada e curta de propósito: só palavras que, sozinhas, anunciam
+// continuação. Nada de "legado", "capitulo" ou "parte" — aparecem em título
+// base legítimo com frequência demais, e "parte" já é redundante porque o
+// número que a acompanha cai no caminho do NUMERAL_CANON.
+const SEQUENCE_WORDS = new Set(
+  ('ressurge ressurgimento renasce renascimento recomeco retorno revanche despertar '
+    + 'ascensao origens continuacao '
+    + 'rises returns reborn rebirth awakens awakening resurrection resurgence revenge '
+    + 'begins origins uprising reloaded revolutions').split(' '),
+);
+
 // Numeral por extenso/romano → dígito, para "Duna Parte Dois" e "Rocky II"
 // casarem com "Duna Parte 2". "i" e "x" ficam de fora de propósito: sozinhos
 // são artigo em inglês ("I Am Legend") e marca de resolução/multiplicação,
@@ -125,6 +150,7 @@ export {
   LEADING_ARTICLES,
   STOP_AT,
   NUMERAL_CANON,
+  SEQUENCE_WORDS,
   EPISODE_TOKEN,
   YEAR_RANGE,
   STRONG_PACK_WORDS,
