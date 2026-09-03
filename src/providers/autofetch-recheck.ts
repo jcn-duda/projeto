@@ -142,6 +142,13 @@ export function drainNext(searchKey: string, lot: any) {
   if (adapter.id === 'realdebrid' && rdGate.isCoolingDown(account)) return;
   if (autofetch.accountGateBlocked(adapter, opts().debridApiKey)) return;
 
+  // Teto de recusas: sem takeNext (sem requeue). A poda de obsoletos do
+  // takeNext deixa de rodar enquanto o dreno está travado — roda na próxima passagem.
+  if ((lot.refusals || 0) >= config.debrid.autoFetchDrainMaxRefusals) {
+    log.warn(`[autofetch] drenagem interrompida após ${lot.refusals} recusas consecutivas`);
+    return;
+  }
+
   const { next, remaining } = autofetch.takeNext(queue, (cand) => {
     const h = String(cand.infoHash).toLowerCase();
     return (
@@ -155,19 +162,25 @@ export function drainNext(searchKey: string, lot: any) {
   autofetch.writeQueue(searchKey, remaining, config.debrid.autoFetchQueueTtl, adapter.id, account);
   if (!next) return;
 
-  if ((lot.refusals || 0) >= config.debrid.autoFetchDrainMaxRefusals) {
-    log.warn(`[autofetch] drenagem interrompida após ${lot.refusals} recusas consecutivas`);
-    return;
-  }
+  const requeue = () => autofetch.writeQueue(
+    searchKey,
+    [next, ...remaining],
+    config.debrid.autoFetchQueueTtl,
+    adapter.id,
+    account,
+  );
 
   const h = String(next.infoHash).toLowerCase();
   const mKey = autofetch.markerKey(adapter.id, account, h);
-  if (!autofetch.acquire(mKey)) return;
+  if (!autofetch.acquire(mKey)) {
+    requeue();
+    return;
+  }
 
   if (!autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit)) {
     autofetch.release(mKey);
     autofetch.blockBudget(adapter.id, account, config.debrid.autoFetchDrainBackoffMs);
-    autofetch.writeQueue(searchKey, [...remaining, next], config.debrid.autoFetchQueueTtl, adapter.id, account);
+    requeue();
     return;
   }
 
