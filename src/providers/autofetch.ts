@@ -32,8 +32,10 @@ function deadKey(adapterId: string, account: string, infoHash: string) {
   return `${prefix('autofetch')}dead:${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
 }
 
+const QUEUE_PREFIX = `${prefix('autofetch')}q:`;
+
 function queueKey(searchKey: string) {
-  return `${prefix('autofetch')}q:${sha256(searchKey)}`;
+  return `${QUEUE_PREFIX}${sha256(searchKey)}`;
 }
 
 function prefetchKey(account: string, id: string, s: number | string, e: number | string) {
@@ -206,6 +208,20 @@ function drainQueues(): { queues: number; items: number } {
   return { queues, items };
 }
 
+// drainNext nunca esteve cego (lê cache.get direto); cego era snapshot() do painel e drainQueues().
+function reindexQueues() {
+  let n = 0;
+  for (const key of cache.keysMatching(QUEUE_PREFIX)) {
+    if (knownQueues.has(key)) continue;
+    const value = cache.get(key);
+    if (!Array.isArray(value) || value.length === 0) continue;
+    knownQueues.set(key, value.length);
+    n += 1;
+  }
+  metrics.count('autofetch.queue.reindexed', n);
+  return n;
+}
+
 function takeNext(
   queue: QueueCandidate[],
   skipFn?: (item: QueueCandidate) => boolean,
@@ -373,6 +389,10 @@ export {
   resetAccountGate,
   accountGateSnapshot,
   snapshot,
+  reindexQueues,
 };
+
+reindexQueues();
+
 export type { QueueCandidate };
 

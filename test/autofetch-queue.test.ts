@@ -18,6 +18,31 @@ import {
   H1, H2, H3, H4, sleep, mkAdapter, premiumizeRunCtx, dinvKeyFor,
 } from './helpers/autofetch-fixtures.js';
 
+test('reindexQueues reconstrói knownQueues a partir do cache (bypass writeQueue)', () => {
+  const searchKey = 'streams:v7:movie:ttReindexBoot';
+  const key = autofetch.queueKey(searchKey);
+  autofetch.dropQueue(key);
+
+  const cand: autofetch.QueueCandidate[] = [
+    { infoHash: H1, title: 'Reindex candidate' },
+  ];
+  // Sem writeQueue: knownQueues só vê a fila após reindex.
+  cache.set(key, cand, 3600);
+  const before = autofetch.snapshot().queues.count;
+  const added = autofetch.reindexQueues();
+  // Outras filas órfãs (sujeira paralela) também entram — basta subir o count.
+  assert.ok(added >= 1, 'reindex descobriu ao menos a fila plantada');
+  const after = autofetch.snapshot().queues.count;
+  assert.equal(after, before + added, 'snapshot.count sobe pelo retorno do reindex');
+  assert.equal(autofetch.readQueue(searchKey).length, 1, 'fila plantada legível após reindex');
+  autofetch.dropQueue(key);
+  assert.equal(
+    autofetch.snapshot().queues.count,
+    after - 1,
+    'dropQueue remove a fila reindexada do knownQueues',
+  );
+});
+
 test('fila persistente: writeQueue, readQueue, dropQueue e takeNext', () => {
   const searchKey = 'streams:v5:series:tt0903747:1:1';
   autofetch.dropQueue(searchKey);
