@@ -61,14 +61,16 @@ test('harvesterLive: persistência e restauração com reset', () => {
   harvesterLive.reset();
   const init = harvesterLive.effective();
 
-  harvesterLive.set({ harvestMaxPerHour: 250, seedEnabled: false });
+  harvesterLive.set({ harvestMaxPerHour: 250, seedEnabled: false, harvestIntervalMs: 5_000 });
   const updated = harvesterLive.effective();
   assert.equal(updated.harvestMaxPerHour, 250);
   assert.equal(updated.seedEnabled, false);
+  assert.equal(updated.harvestIntervalMs, 5_000, 'override de harvestIntervalMs é refletido no effective()');
 
   const resetResult = harvesterLive.reset();
   assert.equal(resetResult.harvestMaxPerHour, init.harvestMaxPerHour);
   assert.equal(resetResult.seedEnabled, init.seedEnabled);
+  assert.equal(resetResult.harvestIntervalMs, init.harvestIntervalMs);
 });
 
 test('harvesterLive: alternância de pausa e snapshot', () => {

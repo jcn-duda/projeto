@@ -30,6 +30,13 @@ import * as harvestWorker from './harvest-worker.js';
 
 let started = false;
 let inFlight = false;
+// Timer rearmável (Etapa 4): o intervalo do ciclo mora na config ao vivo
+// (harvesterLive) e o painel pode mudá-lo sem restart — por isso o setInterval
+// do start() não pode ficar preso ao valor estático do .env. `armedIntervalMs`
+// guarda o valor com que o timer corrente foi armado; quando o tick observa um
+// valor VIVO diferente, clear+set com o novo.
+let armedInterval: NodeJS.Timeout | null = null;
+let armedIntervalMs = 0;
 // Pausa é operacional e deliberadamente não persiste: após restart o operador
 // volta ao comportamento configurado no .env, sem uma ação temporária virar
 // desligamento esquecido.
@@ -65,12 +72,30 @@ async function checkQuotaWarning() {
 }
 
 /**
+ * Rearma o timer do ciclo quando o intervalo VIVO diverge do armado. Só age
+ * com `started === true`: em teste e no `drain()` o tick roda direto, sem
+ * start(), e aí um setInterval só vazaria timer real para o processo.
+ */
+function rearmTimer(intervalMs: number) {
+  if (!started) return;
+  if (intervalMs === armedIntervalMs) return;
+  if (armedInterval) clearInterval(armedInterval);
+  armedInterval = setInterval(() => { tick().catch(() => {}); }, intervalMs);
+  armedInterval.unref();
+  armedIntervalMs = intervalMs;
+}
+
+/**
  * Um passo do ciclo: consome UMA obra da fila. Em produção só o setInterval
  * do start() chama; exportado para o teste cobrir a contabilidade do teto
  * horário sem subir o timer.
  */
 async function tick() {
   const live = harvesterLive.effective();
+  // Etapa 4: o intervalo pode ter mudado no painel — rearma ANTES de qualquer
+  // retorno precoce, senão uma fila vazia ou um freio de tráfego adiaria a
+  // mudança para sempre.
+  rearmTimer(live.harvestIntervalMs);
   if (!live.harvestEnabled || paused || harvesterLive.isPaused() || inFlight || activity.recentUserTraffic(live.harvestIdleWindowMs)) return;
   try { cache.maintain(); } catch {}
   checkQuotaWarning().catch(() => {});
@@ -179,8 +204,14 @@ function start() {
   harvestQueue.load();
   const recovered = harvestQueue.depth();
   if (recovered) log.info(`[harvest] fila recuperada do disco: ${recovered} obra(s)`);
-  const timer = setInterval(() => { tick().catch(() => {}); }, config.harvest.intervalMs);
-  timer.unref();
+  // Etapa 4: arma com o valor VIVO — o painel pode ter salvo um intervalo
+  // diferente do `config.harvest.intervalMs` estático do .env.
+  rearmTimer(harvesterLive.effective().harvestIntervalMs);
+}
+
+/** Leitura interna para teste: ms com que o timer corrente foi armado. */
+export function _armedIntervalMsForTest(): number {
+  return armedIntervalMs;
 }
 
 /** Para o painel: estado do colhedor sem expor nada sensível. */
