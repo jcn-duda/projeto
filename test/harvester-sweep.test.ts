@@ -13,16 +13,46 @@ import { ptSweepQueryFor } from '../src/providers/search-plan.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as harvestWorker from '../src/providers/harvest-worker.js';
+import * as indexerStatus from '../src/providers/indexer-status.js';
 
-test('consulta com falha no Jackett conta no teto horário', async () => {
-  const saved = {
+function saveConfig() {
+  return {
     maxPerHour: config.harvest.maxPerHour,
     idleWindowMs: config.harvest.idleWindowMs,
     indexerDelayMs: config.harvest.indexerDelayMs,
     indexers: config.jackett.indexers,
+    ptBrIndexers: config.jackett.ptBrIndexers,
     apiKey: config.jackett.apiKey,
     tmdbApiKey: config.tmdb.apiKey,
   };
+}
+
+function restoreConfig(saved: ReturnType<typeof saveConfig>) {
+  config.harvest.maxPerHour = saved.maxPerHour;
+  config.harvest.idleWindowMs = saved.idleWindowMs;
+  config.harvest.indexerDelayMs = saved.indexerDelayMs;
+  config.jackett.indexers = saved.indexers;
+  config.jackett.ptBrIndexers = saved.ptBrIndexers;
+  config.jackett.apiKey = saved.apiKey;
+  config.tmdb.apiKey = saved.tmdbApiKey;
+}
+
+const tmdbOk = () => ({
+  ok: true,
+  status: 200,
+  json: async () => ({
+    movie_results: [
+      {
+        title: 'Star Wars: O Ataque dos Clones',
+        original_title: 'Star Wars: Episode II - Attack of the Clones',
+        release_date: '2002-05-16',
+      },
+    ],
+  }),
+});
+
+test('consulta com falha no Jackett conta no teto horário', async () => {
+  const saved = saveConfig();
   const stub = stubFetch((url: string) => {
     if (url.includes('/api/v2.0/indexers/')) {
       return { ok: false, status: 500, json: async () => ({}) };
@@ -45,41 +75,14 @@ test('consulta com falha no Jackett conta no teto horário', async () => {
     assert.equal(after - before, 2, '2 consultas falhas foram debitadas do teto horário');
   } finally {
     stub.restore();
-    config.harvest.maxPerHour = saved.maxPerHour;
-    config.harvest.idleWindowMs = saved.idleWindowMs;
-    config.harvest.indexerDelayMs = saved.indexerDelayMs;
-    config.jackett.indexers = saved.indexers;
-    config.jackett.apiKey = saved.apiKey;
-    config.tmdb.apiKey = saved.tmdbApiKey;
+    restoreConfig(saved);
   }
 });
 
 test('varredura pt NÃO roda quando estouraria o teto horário', async () => {
-  const saved = {
-    maxPerHour: config.harvest.maxPerHour,
-    idleWindowMs: config.harvest.idleWindowMs,
-    indexerDelayMs: config.harvest.indexerDelayMs,
-    indexers: config.jackett.indexers,
-    ptBrIndexers: config.jackett.ptBrIndexers,
-    apiKey: config.jackett.apiKey,
-    tmdbApiKey: config.tmdb.apiKey,
-  };
+  const saved = saveConfig();
   const stub = stubFetch((url: string) => {
-    if (url.includes('api.themoviedb.org')) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          movie_results: [
-            {
-              title: 'Star Wars: O Ataque dos Clones',
-              original_title: 'Star Wars: Episode II - Attack of the Clones',
-              release_date: '2002-05-16',
-            },
-          ],
-        }),
-      };
-    }
+    if (url.includes('api.themoviedb.org')) return tmdbOk();
     if (url.includes('/api/v2.0/indexers/')) {
       return { ok: true, status: 200, json: async () => ({ Results: [] }) };
     }
@@ -114,42 +117,14 @@ test('varredura pt NÃO roda quando estouraria o teto horário', async () => {
     assert.equal(sweepUrls.length, 0, 'varredura foi suprimida pelo teto');
   } finally {
     stub.restore();
-    config.harvest.maxPerHour = saved.maxPerHour;
-    config.harvest.idleWindowMs = saved.idleWindowMs;
-    config.harvest.indexerDelayMs = saved.indexerDelayMs;
-    config.jackett.indexers = saved.indexers;
-    config.jackett.ptBrIndexers = saved.ptBrIndexers;
-    config.jackett.apiKey = saved.apiKey;
-    config.tmdb.apiKey = saved.tmdbApiKey;
+    restoreConfig(saved);
   }
 });
 
 test('varredura pt-BR parcial: consulta apenas a fatia permitida e conta harvest.sweep.partial', async () => {
-  const saved = {
-    maxPerHour: config.harvest.maxPerHour,
-    idleWindowMs: config.harvest.idleWindowMs,
-    indexerDelayMs: config.harvest.indexerDelayMs,
-    indexers: config.jackett.indexers,
-    ptBrIndexers: config.jackett.ptBrIndexers,
-    apiKey: config.jackett.apiKey,
-    tmdbApiKey: config.tmdb.apiKey,
-  };
+  const saved = saveConfig();
   const stub = stubFetch((url: string) => {
-    if (url.includes('api.themoviedb.org')) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          movie_results: [
-            {
-              title: 'Star Wars: O Ataque dos Clones',
-              original_title: 'Star Wars: Episode II - Attack of the Clones',
-              release_date: '2002-05-16',
-            },
-          ],
-        }),
-      };
-    }
+    if (url.includes('api.themoviedb.org')) return tmdbOk();
     if (url.includes('/api/v2.0/indexers/')) {
       return { ok: true, status: 200, json: async () => ({ Results: [] }) };
     }
@@ -179,43 +154,15 @@ test('varredura pt-BR parcial: consulta apenas a fatia permitida e conta harvest
   } finally {
     stub.restore();
     harvesterLive.reset();
-    config.harvest.maxPerHour = saved.maxPerHour;
-    config.harvest.idleWindowMs = saved.idleWindowMs;
-    config.harvest.indexerDelayMs = saved.indexerDelayMs;
-    config.jackett.indexers = saved.indexers;
-    config.jackett.ptBrIndexers = saved.ptBrIndexers;
-    config.jackett.apiKey = saved.apiKey;
-    config.tmdb.apiKey = saved.tmdbApiKey;
+    restoreConfig(saved);
   }
 });
 
 test('colhedor respeita intervalo indexerDelayMs entre consultas ao mesmo indexer', async () => {
-  const saved = {
-    maxPerHour: config.harvest.maxPerHour,
-    idleWindowMs: config.harvest.idleWindowMs,
-    indexerDelayMs: config.harvest.indexerDelayMs,
-    indexers: config.jackett.indexers,
-    ptBrIndexers: config.jackett.ptBrIndexers,
-    apiKey: config.jackett.apiKey,
-    tmdbApiKey: config.tmdb.apiKey,
-  };
+  const saved = saveConfig();
   const timestamps: number[] = [];
   const stub = stubFetch((url: string) => {
-    if (url.includes('api.themoviedb.org')) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          movie_results: [
-            {
-              title: 'Star Wars: O Ataque dos Clones',
-              original_title: 'Star Wars: Episode II - Attack of the Clones',
-              release_date: '2002-05-16',
-            },
-          ],
-        }),
-      };
-    }
+    if (url.includes('api.themoviedb.org')) return tmdbOk();
     if (url.includes('/api/v2.0/indexers/glob-delay-idx/')) {
       timestamps.push(Date.now());
       return { ok: true, status: 200, json: async () => ({ Results: [] }) };
@@ -240,13 +187,7 @@ test('colhedor respeita intervalo indexerDelayMs entre consultas ao mesmo indexe
     assert.ok(delta >= 50, `esperou pelo menos indexerDelayMs entre as consultas (${delta}ms >= 50ms)`);
   } finally {
     stub.restore();
-    config.harvest.maxPerHour = saved.maxPerHour;
-    config.harvest.idleWindowMs = saved.idleWindowMs;
-    config.harvest.indexerDelayMs = saved.indexerDelayMs;
-    config.jackett.indexers = saved.indexers;
-    config.jackett.ptBrIndexers = saved.ptBrIndexers;
-    config.jackett.apiKey = saved.apiKey;
-    config.tmdb.apiKey = saved.tmdbApiKey;
+    restoreConfig(saved);
   }
 });
 
@@ -256,4 +197,109 @@ test('atividade recente trava o colhedor (janela deslizante)', () => {
   activity.noteUserRequest();
   assert.equal(activity.recentUserTraffic(10_000), true, 'tráfego dentro da janela trava');
   assert.equal(activity.hasUserTraffic(), true, 'marca de boot continua valendo para o warmup');
+});
+
+test('sliceSweepFatia rotaciona o ponto de partida da fatia parcial', () => {
+  const targets = ['a', 'b', 'c'];
+  // Cursor 0 e teto cortando em 2: começa do cabeça.
+  assert.deepEqual(harvestWorker.sliceSweepFatia(targets, 2, 0), { fatia: ['a', 'b'], next: 2 });
+  // Segunda chamada a partir do cursor avançado: envolve no fim do vetor.
+  assert.deepEqual(harvestWorker.sliceSweepFatia(targets, 2, 2), { fatia: ['c', 'a'], next: 1 });
+  // Teto que comporta tudo: fatia completa e cursor zera (comportamento antigo).
+  assert.deepEqual(harvestWorker.sliceSweepFatia(targets, 3, 1), { fatia: ['a', 'b', 'c'], next: 0 });
+  assert.deepEqual(harvestWorker.sliceSweepFatia(targets, 9, 2), { fatia: ['a', 'b', 'c'], next: 0 });
+  // Sem alvo ou sem saldo: nada a consultar e cursor preservado.
+  assert.deepEqual(harvestWorker.sliceSweepFatia([], 2, 4), { fatia: [], next: 4 });
+  assert.deepEqual(harvestWorker.sliceSweepFatia(targets, 0, 1), { fatia: [], next: 1 });
+});
+
+test('breaker aberto não debita cota nem consulta indexer tripped', async () => {
+  const saved = saveConfig();
+  const stub = stubFetch((url: string) => {
+    if (url.includes('api.themoviedb.org')) return tmdbOk();
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+  try {
+    // 3 falhas seguidas abrem o circuito (default breakerFailures=3). record()
+    // recebe o field name `ok` (não `sourceOk`), como no jackett-breaker.test.ts.
+    for (let i = 0; i < config.jackett.breakerFailures; i += 1) {
+      indexerStatus.record('idx-x', { ok: false, results: 0, ms: 100, budgetMs: 4000 });
+    }
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['idx-x'];
+    config.jackett.apiKey = 'fake-key';
+    config.tmdb.apiKey = 'fake-key';
+
+    cache.set('meta:movie:tt9500058', { name: 'Star Wars: Episode II', year: '2002', type: 'movie' }, 3600);
+    const before = (harvester.status() as any).queriesThisHour;
+    await harvestWorker.harvestOne({ imdbId: 'tt9500058', type: 'movie', reason: `breaker-${Date.now()}` } as any);
+    const after = (harvester.status() as any).queriesThisHour;
+
+    assert.equal(after - before, 0, 'breaker aberto não debita cota');
+    const jacketUrls = stub.calls.map((c) => c.url).filter((u) => u.includes('/api/v2.0/indexers/'));
+    assert.equal(jacketUrls.length, 0, 'indexer tripped não é consultado (nem no loop nem na varredura)');
+  } finally {
+    stub.restore();
+    indexerStatus.clear();
+    restoreConfig(saved);
+  }
+});
+
+test('varredura parcial rotaciona o alvo consultado entre obras (round-robin)', async () => {
+  const saved = saveConfig();
+  const stub = stubFetch((url: string) => {
+    if (url.includes('api.themoviedb.org')) return tmdbOk();
+    if (url.includes('/api/v2.0/indexers/')) return { ok: true, status: 200, json: async () => ({ Results: [] }) };
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+  try {
+    harvesterLive.reset();
+    harvestWorker.resetSweepCursor();
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['glob-a', 'glob-b', 'glob-c'];
+    config.jackett.ptBrIndexers = [];
+    config.jackett.apiKey = 'fake-key';
+    config.tmdb.apiKey = 'fake-key';
+
+    cache.set('meta:movie:tt9500059', { name: 'Star Wars: Episode II', year: '2002', type: 'movie' }, 3600);
+    cache.set('meta:movie:tt9500060', { name: 'Star Wars: Episode II', year: '2002', type: 'movie' }, 3600);
+    const expectedSweep = ptSweepQueryFor({
+      titles: { pt: 'Star Wars: O Ataque dos Clones', original: 'Star Wars: Episode II - Attack of the Clones' },
+    });
+    const qOf = (u: string) => {
+      try {
+        return new URL(u).searchParams.get('Query') || '';
+      } catch {
+        return '';
+      }
+    };
+    const sweepUrls = (from: number) =>
+      stub.calls
+        .slice(from)
+        .map((c) => c.url)
+        .filter((u) => u.includes('/api/v2.0/indexers/') && qOf(u) === expectedSweep);
+
+    // Obra 1: teto corta a varredura em 1 alvo a partir do cursor 0 → glob-a.
+    let before = (harvester.status() as any).queriesThisHour;
+    harvesterLive.set({ harvestMaxPerHour: before + 1 });
+    let mark = stub.calls.length;
+    await harvestWorker.harvestOne({ imdbId: 'tt9500059', type: 'movie', reason: `rr-1-${Date.now()}` } as any);
+    let u1 = sweepUrls(mark);
+    assert.ok(u1.some((u) => u.includes('/indexers/glob-a/')), `obra 1 varre glob-a; recebido: ${JSON.stringify(u1)}`);
+
+    // Obra 2: teto corta em 1 alvo a partir do cursor avançado → glob-b.
+    before = (harvester.status() as any).queriesThisHour;
+    harvesterLive.set({ harvestMaxPerHour: before + 1 });
+    mark = stub.calls.length;
+    await harvestWorker.harvestOne({ imdbId: 'tt9500060', type: 'movie', reason: `rr-2-${Date.now()}` } as any);
+    let u2 = sweepUrls(mark);
+    assert.ok(u2.some((u) => u.includes('/indexers/glob-b/')), `obra 2 varre glob-b; recebido: ${JSON.stringify(u2)}`);
+  } finally {
+    stub.restore();
+    harvesterLive.reset();
+    harvestWorker.resetSweepCursor();
+    restoreConfig(saved);
+  }
 });
