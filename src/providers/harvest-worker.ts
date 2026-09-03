@@ -256,7 +256,13 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   noteQueries(attempted);
 
   const relevant = filterRelevantRaw(collected, matchContext as any);
-  const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);
+  // Registro PARCIAL quando a colheita saiu pela metade (teto horário ou
+  // preempção por tráfego): a obra volta à fila e o fast-path da busca fica
+  // bloqueado até uma gravação completa regravar (last-write-wins limpa o
+  // flag). Falha de rede e varredura pt parcial NÃO marcam — o laço seguiu.
+  const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant, {
+    partial: capped || preempted,
+  });
   if (config.debrid.rdWarm.enabled && rdWarmer.rdInPlay() && relevant.length) {
     const scoresByHash = new Map<string, number>();
     for (const r of relevant) {

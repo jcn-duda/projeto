@@ -70,7 +70,7 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
     if (indexed.length === 0) {
       metrics.count('search.idx.miss');
       harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'miss' });
-    } else if (idxPoolCovered(indexed, { season, episode })) {
+    } else if (!releaseIndex.isPartial(imdbId, { season, episode }) && idxPoolCovered(indexed, { season, episode })) {
       metrics.count('search.idx.hit');
       metrics.count('search.idx.served', indexed.length);
       servedFromIndex = true;
@@ -107,8 +107,11 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
       raw.partial = true;
       log.info(`[search] índice + ${raw.items.length - indexed.length - accountItems.length} resultado(s) BR ao vivo para ${id}`);
     } else {
-      // Existe, mas não cobre o pool (ex.: só legendado): NUNCA impede a busca
-      // BR dublada de rodar. O colhedor completa o que falta.
+      // Existe, mas não cobre o pool (ex.: só legendado) ou é registro
+      // PARCIAL (colheita interrompida): NUNCA impede a busca BR dublada de
+      // rodar — o caminho completo segue e o colhedor termina o trabalho.
+      // Partial só bloqueia o fast-path; ele nunca libera sozinho.
+      if (releaseIndex.isPartial(imdbId, { season, episode })) metrics.count('search.idx.partial');
       metrics.count('search.idx.gap');
       harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'gap' });
     }

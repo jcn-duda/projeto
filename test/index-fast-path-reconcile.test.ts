@@ -331,3 +331,68 @@ test('idxPoolCovered: filme e temporada inteira seguem cobertos por pack', () =>
   );
 });
 
+// --- Etapa 5: registro parcial bloqueia o fast-path ---------------------------
+//
+// Colheita interrompida (teto/preempção) grava `partial`: o índice existe, mas
+// a obra pode estar pela metade — servir dela esconderia releases que a busca
+// ao vivo ainda pode achar. O flag só bloqueia; a gravação completa seguinte
+// (busca ao vivo ou recolheita) destrava por last-write-wins.
+
+const idxItem = (h: string, i: number) => ({
+  title: i === 0 ? 'Test Title 2024 1080p DUBLADO' : 'Test Title 2024 720p DUAL',
+  infoHash: h,
+  seeders: 15,
+  indexer: 'recordado',
+  isBr: true,
+});
+
+test('Etapa 5: índice PARCIAL não serve fast-path — Jackett é consultado e releases não se perdem', async () => {
+  const imdb = 'tt9000120';
+  const idxHashes = ['51'.repeat(20), '61'.repeat(20)];
+  const liveHash = '71'.repeat(20);
+  let liveCalls = 0;
+  const originalSearch = jackett.search;
+  jackett.search = async () => {
+    liveCalls += 1;
+    return [{ title: 'Test Title 2024 1080p DUBLADO', infoHash: liveHash, seeders: 15, indexer: 'thepiratebay' }];
+  };
+  try {
+    await withMockFetch([], async () => {
+      releaseIndex.record(imdb, {}, idxHashes.map(idxItem), { partial: true });
+      assert.equal(releaseIndex.isPartial(imdb, {}), true, 'prime parcial marcado');
+
+      const res = await server.request('GET', `/${userCfg('idx-parcial-1')}/stream/movie/${imdb}.json`);
+      assert.equal(res.status, 200);
+      assert.ok(liveCalls > 0, 'fast-path bloqueado: o Jackett foi consultado');
+      assert.ok(JSON.stringify(res.json.streams || []).toLowerCase().includes(liveHash), 'a release ao vivo entrou na resposta');
+      // A busca ao vivo regrava COMPLETO (pipeline): releases do índice parcial
+      // permanecem e o flag some — destrava para a próxima.
+      const depois = releaseIndex.lookup(imdb).map((r) => r.hash);
+      for (const h of idxHashes) assert.ok(depois.includes(h), 'releases do índice parcial permanecem');
+      assert.equal(releaseIndex.isPartial(imdb, {}), false, 'gravação completa da busca ao vivo limpou o flag');
+    });
+  } finally {
+    jackett.search = originalSearch;
+  }
+});
+
+test('Etapa 5: gravação completa destrava — Jackett FORA DO AR é servido pelo índice', async () => {
+  const idxHashes = ['2a'.repeat(20), '2b'.repeat(20)];
+  await withMockFetch([
+    // Jackett derrubado DE PROPÓSITO: se o fast-path destravado não responder,
+    // a busca cai na rede e este route estoura.
+    { match: '/api/v2.0/indexers/', handler: () => { throw new Error('jackett fora do ar'); } },
+  ], async () => {
+    releaseIndex.record('tt9000121', {}, idxHashes.map(idxItem));
+    assert.equal(releaseIndex.isPartial('tt9000121', {}), false, 'gravação completa não marca');
+
+    const started = Date.now();
+    const res = await server.request('GET', `/${userCfg('idx-parcial-2')}/stream/movie/tt9000121.json`);
+    const elapsed = Date.now() - started;
+    assert.equal(res.status, 200);
+    const dump = JSON.stringify(res.json.streams || []).toLowerCase();
+    for (const hash of idxHashes) assert.ok(dump.includes(hash), 'o stream do índice foi entregue após destravar');
+    assert.ok(elapsed < 3000, `sem esperar indexer morto (${elapsed}ms)`);
+  });
+});
+

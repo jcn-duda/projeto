@@ -22,16 +22,11 @@ import * as metrics from '../src/utils/metrics.js';
 import * as harvestWorker from '../src/providers/harvest-worker.js';
 
 test('teto horário conta as consultas e trava o ciclo seguinte', async () => {
-  // Precisa ser o PRIMEIRO do arquivo: o tick consome a fila do módulo, que
-  // começa vazia. Sem rede — JACKETT_API_KEY vazia faz cada jackett.search
-  // devolver [] na hora e o meta entra pelo cache. O que se cobra é a
-  // CONTABILIDADE do teto, não a consulta em si.
+  // PRIMEIRO do arquivo: o tick consome uma fila que começa vazia. Sem rede —
+  // apiKey vazia faz cada busca devolver [] e o meta entra pelo cache.
   const saved = {
-    maxPerHour: config.harvest.maxPerHour,
-    idleWindowMs: config.harvest.idleWindowMs,
-    indexerDelayMs: config.harvest.indexerDelayMs,
-    indexers: config.jackett.indexers,
-    apiKey: config.jackett.apiKey,
+    maxPerHour: config.harvest.maxPerHour, idleWindowMs: config.harvest.idleWindowMs, indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers, apiKey: config.jackett.apiKey,
   };
   try {
     config.harvest.maxPerHour = 2;
@@ -63,10 +58,52 @@ test('teto horário conta as consultas e trava o ciclo seguinte', async () => {
     assert.equal(st.queriesThisHour, 2, 'nenhuma consulta nova além do teto');
   } finally {
     config.harvest.maxPerHour = saved.maxPerHour;
-    config.harvest.idleWindowMs = saved.idleWindowMs;
-    config.harvest.indexerDelayMs = saved.indexerDelayMs;
-    config.jackett.indexers = saved.indexers;
-    config.jackett.apiKey = saved.apiKey;
+    config.harvest.idleWindowMs = saved.idleWindowMs; config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers; config.jackett.apiKey = saved.apiKey;
+  }
+});
+
+test('Etapa 5: colheita cortada pelo teto grava índice PARCIAL; recolheita completa limpa', async () => {
+  // O registro incompleto não pode servir o fast-path da busca: a obra volta à
+  // frente da fila e a recolheita (completa) regrava sem o flag (last-write-wins).
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour, idleWindowMs: config.harvest.idleWindowMs, indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers, apiKey: config.jackett.apiKey, ptSweepGlobal: config.jackett.ptSweepGlobal,
+    rdWarmEnabled: config.debrid.rdWarm.enabled,
+  };
+  const stub = stubFetch((url: string) => url.includes('/api/v2.0/indexers/')
+    ? { ok: true, status: 200, json: async () => ({ Results: [{ Title: 'Cap Movie (2024) 1080p', MagnetUri: `magnet:?xt=urn:btih:${'ca'.repeat(20)}&dn=Cap.Movie`, Seeders: 10, Tracker: 'cap' }] }) }
+    : { ok: false, status: 404, json: async () => ({}) });
+  try {
+    harvesterLive.reset();
+    harvester.clearQueue();
+    // Teto de UMA consulta EFETIVA neste ciclo (o bucket horário pode ter
+    // consultas residuais de testes anteriores — o guard do tick usa o
+    // acumulado): a obra sai pela metade no segundo indexer.
+    config.harvest.maxPerHour = harvestWorker.queriesThisHour() + 1;
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['cap-a', 'cap-b'];
+    config.jackett.apiKey = 'chave-de-teste';
+    config.jackett.ptSweepGlobal = false; // varredura não rouba a única consulta
+    config.debrid.rdWarm.enabled = false;
+    cache.set('meta:movie:tt9500140', { name: 'Cap Movie', year: '2024', type: 'movie' }, 3600);
+
+    harvester.enqueue({ imdbId: 'tt9500140', type: 'movie', reason: `partial-cap-${Date.now()}` } as any);
+    await harvester.tick();
+    assert.equal(releaseIndex.isPartial('tt9500140', {}), true, 'obra cortada pelo teto grava índice parcial');
+
+    // Entrada capped volta à FRENTE da fila (harvester.ts); recolheita com teto
+    // folgado termina a obra e limpa o flag.
+    config.harvest.maxPerHour = 1000;
+    await harvester.tick();
+    assert.equal(releaseIndex.isPartial('tt9500140', {}), false, 'recolheita completa destrava o registro');
+  } finally {
+    stub.restore();
+    config.harvest.maxPerHour = saved.maxPerHour; config.harvest.idleWindowMs = saved.idleWindowMs; config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers; config.jackett.apiKey = saved.apiKey;
+    config.jackett.ptSweepGlobal = saved.ptSweepGlobal; config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
+    harvesterLive.reset(); harvester.clearQueue();
   }
 });
 
@@ -76,13 +113,8 @@ test('colhedor roda a varredura pt-BR nos globais, como a busca ao vivo', async 
   // índice cego para essas releases. Aqui a varredura é cobrada com a MESMA
   // raiz (franchiseRoot) do caminho ao vivo — e provada fora do indexer BR.
   const saved = {
-    maxPerHour: config.harvest.maxPerHour,
-    idleWindowMs: config.harvest.idleWindowMs,
-    indexerDelayMs: config.harvest.indexerDelayMs,
-    indexers: config.jackett.indexers,
-    apiKey: config.jackett.apiKey,
-    ptBrIndexers: config.jackett.ptBrIndexers,
-    tmdbApiKey: config.tmdb.apiKey,
+    maxPerHour: config.harvest.maxPerHour, idleWindowMs: config.harvest.idleWindowMs, indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers, apiKey: config.jackett.apiKey, ptBrIndexers: config.jackett.ptBrIndexers, tmdbApiKey: config.tmdb.apiKey,
   };
   const stub = stubFetch((url: string) => {
     if (url.includes('api.themoviedb.org')) {
@@ -101,8 +133,7 @@ test('colhedor roda a varredura pt-BR nos globais, como a busca ao vivo', async 
       };
     }
     if (url.includes('/api/v2.0/indexers/')) return { ok: true, status: 200, json: async () => ({ Results: [] }) };
-    // Cinemeta (e qualquer outra rede): erro rápido — obra de drenagem
-    // desiste antes de consultar indexer nenhum.
+    // Cinemeta e qualquer outra rede: erro rápido — obra de drenagem desiste.
     return { ok: false, status: 404, json: async () => ({}) };
   });
   try {
@@ -155,29 +186,18 @@ test('colhedor roda a varredura pt-BR nos globais, como a busca ao vivo', async 
     assert.equal((harvester.status() as any).queriesThisHour >= 1, true, 'consultas anotadas no teto');
   } finally {
     stub.restore();
-    config.harvest.maxPerHour = saved.maxPerHour;
-    config.harvest.idleWindowMs = saved.idleWindowMs;
-    config.harvest.indexerDelayMs = saved.indexerDelayMs;
-    config.jackett.indexers = saved.indexers;
-    config.jackett.apiKey = saved.apiKey;
-    config.jackett.ptBrIndexers = saved.ptBrIndexers;
-    config.tmdb.apiKey = saved.tmdbApiKey;
+    config.harvest.maxPerHour = saved.maxPerHour; config.harvest.idleWindowMs = saved.idleWindowMs; config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers; config.jackett.apiKey = saved.apiKey;
+    config.jackett.ptBrIndexers = saved.ptBrIndexers; config.tmdb.apiKey = saved.tmdbApiKey;
   }
 });
 
 test('Etapa 1: eficácia — done só quando algo entra no índice; empty no resto', async () => {
-  // A distinção da métrica não pode mais ser "consultou com sucesso" (ok):
-  // obra que consultou tudo mas não achou release relevante é `harvest.empty`,
-  // e só quem realmente alimentou o índice conta em `harvest.done`. Delta
-  // sobre snapshot após reset, sem depender de estado residual. Sem rede —
-  // fetch dublê; meta entra pelo cache.
+  // Eficácia: consultou tudo sem release relevante = harvest.empty; só quem
+  // alimentou o índice conta em harvest.done. Delta pós-reset; meta do cache.
   const saved = {
-    maxPerHour: config.harvest.maxPerHour,
-    idleWindowMs: config.harvest.idleWindowMs,
-    indexerDelayMs: config.harvest.indexerDelayMs,
-    indexers: config.jackett.indexers,
-    apiKey: config.jackett.apiKey,
-    rdWarmEnabled: config.debrid.rdWarm.enabled,
+    maxPerHour: config.harvest.maxPerHour, idleWindowMs: config.harvest.idleWindowMs, indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers, apiKey: config.jackett.apiKey, rdWarmEnabled: config.debrid.rdWarm.enabled,
   };
   const stub = stubFetch((url: string) => {
     if (url.includes('/api/v2.0/indexers/')) {
@@ -229,14 +249,9 @@ test('Etapa 1: eficácia — done só quando algo entra no índice; empty no res
     assert.ok((counters['harvest.done'] || 0) >= 1, 'obra com release relevante conta harvest.done');
   } finally {
     stub.restore();
-    config.harvest.maxPerHour = saved.maxPerHour;
-    config.harvest.idleWindowMs = saved.idleWindowMs;
-    config.harvest.indexerDelayMs = saved.indexerDelayMs;
-    config.jackett.indexers = saved.indexers;
-    config.jackett.apiKey = saved.apiKey;
-    config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
-    harvesterLive.reset();
-    harvester.clearQueue();
+    config.harvest.maxPerHour = saved.maxPerHour; config.harvest.idleWindowMs = saved.idleWindowMs; config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers; config.jackett.apiKey = saved.apiKey; config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
+    harvesterLive.reset(); harvester.clearQueue();
   }
 });
 
@@ -298,22 +313,12 @@ test('HARVEST_ENABLED=false desliga o enqueue', () => {
 });
 
 test('Etapa 2: tráfego no MEIO da obra preempta — devolve à frente, preserva enqueuedAt e não conta tentativa', async () => {
-  // O usuário chega enquanto a obra é colhida: o freio de atividade pega o
-  // laço pela metade, mas a obra NÃO pode ser tratada como concluída nem como
-  // falha — ela sai da fila (takeHead), então tem que VOLTAR para a frente,
-  // com o enqueuedAt original (é ele que decide a precedência no
-  // prioritizeQueue) e SEM incrementar o contador de tentativas (tráfego não
-  // é defeito da obra; ao contrário do capped, ela nunca é dropada no 4º
-  // encontro).
+  // Usuário chega no MEIO da colheita: a obra volta à FRENTE com o enqueuedAt
+  // original e SEM custo de tentativa — tráfego não é falha; só o capped dropa.
   const saved = {
-    maxPerHour: config.harvest.maxPerHour,
-    idleWindowMs: config.harvest.idleWindowMs,
-    indexerDelayMs: config.harvest.indexerDelayMs,
-    indexers: config.jackett.indexers,
-    apiKey: config.jackett.apiKey,
-    tmdbApiKey: config.tmdb.apiKey,
-    rawMaxItems: config.rawCache.maxItems,
-    rdWarmEnabled: config.debrid.rdWarm.enabled,
+    maxPerHour: config.harvest.maxPerHour, idleWindowMs: config.harvest.idleWindowMs, indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers, apiKey: config.jackett.apiKey, tmdbApiKey: config.tmdb.apiKey,
+    rawMaxItems: config.rawCache.maxItems, rdWarmEnabled: config.debrid.rdWarm.enabled,
   };
   let indexerHits = 0;
   const stub = stubFetch((url: string) => {
@@ -375,15 +380,9 @@ test('Etapa 2: tráfego no MEIO da obra preempta — devolve à frente, preserva
     assert.ok(indexerHits >= 4, 'o stub disparou em toda consulta (raw desligado)');
   } finally {
     stub.restore();
-    config.harvest.maxPerHour = saved.maxPerHour;
-    config.harvest.idleWindowMs = saved.idleWindowMs;
-    config.harvest.indexerDelayMs = saved.indexerDelayMs;
-    config.jackett.indexers = saved.indexers;
-    config.jackett.apiKey = saved.apiKey;
-    config.tmdb.apiKey = saved.tmdbApiKey;
-    config.rawCache.maxItems = saved.rawMaxItems;
-    config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
-    harvesterLive.reset();
-    harvester.clearQueue();
+    config.harvest.maxPerHour = saved.maxPerHour; config.harvest.idleWindowMs = saved.idleWindowMs; config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers; config.jackett.apiKey = saved.apiKey; config.tmdb.apiKey = saved.tmdbApiKey;
+    config.rawCache.maxItems = saved.rawMaxItems; config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
+    harvesterLive.reset(); harvester.clearQueue();
   }
 });
