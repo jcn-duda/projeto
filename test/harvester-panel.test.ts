@@ -5,6 +5,7 @@ import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
 import harvester from '../src/providers/harvester.js';
+import * as metrics from '../src/utils/metrics.js';
 import { createTestServer } from './e2e/e2e-harness.js';
 
 const TOKEN = 'tok-harvester-test';
@@ -189,6 +190,34 @@ test('rotas escopadas /:userConfig/harvester, status e action suportam Colhedor'
 });
 
 
+
+test('dashboard-status: harvest.done/harvest.empty viajam nos counters para o painel ES5', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    // O bloco metrics.counters do /dashboard-status.json já embarca as métricas
+    // (diagnostics.ts); o painel inline ES5 só precisa ler as chaves de lá —
+    // aqui se prova que elas chegam no payload e que o html referencia as duas.
+    const before = metrics.snapshot().counters;
+    metrics.count('harvest.done', 3);
+    metrics.count('harvest.empty', 1);
+    const res = await server.request('GET', '/dashboard-status.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+    });
+    assert.equal(res.status, 200);
+    const counters = (res.json.metrics && res.json.metrics.counters) || {};
+    assert.equal((counters['harvest.done'] || 0) - (before['harvest.done'] || 0), 3, 'harvest.done visível no payload');
+    assert.equal((counters['harvest.empty'] || 0) - (before['harvest.empty'] || 0), 1, 'harvest.empty visível no payload');
+
+    // Renderização: os cards existem e o bloco inline referencia as chaves (ES5).
+    const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+    assert.match(html, /id="harvestMetricDone"/);
+    assert.match(html, /id="harvestMetricEmpty"/);
+    assert.match(html, /ctr\["harvest\.done"\]/);
+    assert.match(html, /ctr\["harvest\.empty"\]/);
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
 
 test('dashboard.html: os controles novos do colhedor têm ID, entram em harvestKeys e o JS segue ES5', () => {
   const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');

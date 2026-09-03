@@ -165,6 +165,81 @@ test('colhedor roda a varredura pt-BR nos globais, como a busca ao vivo', async 
   }
 });
 
+test('Etapa 1: eficácia — done só quando algo entra no índice; empty no resto', async () => {
+  // A distinção da métrica não pode mais ser "consultou com sucesso" (ok):
+  // obra que consultou tudo mas não achou release relevante é `harvest.empty`,
+  // e só quem realmente alimentou o índice conta em `harvest.done`. Delta
+  // sobre snapshot após reset, sem depender de estado residual. Sem rede —
+  // fetch dublê; meta entra pelo cache.
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+    rdWarmEnabled: config.debrid.rdWarm.enabled,
+  };
+  const stub = stubFetch((url: string) => {
+    if (url.includes('/api/v2.0/indexers/')) {
+      const query = String(new URL(url).searchParams.get('Query') || '').toLowerCase();
+      if (query.includes('empty')) {
+        return { ok: true, status: 200, json: async () => ({ Results: [] }) };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          Results: [
+            {
+              Title: 'Done Movie (2024) 1080p',
+              MagnetUri: `magnet:?xt=urn:btih:${'e'.repeat(40)}&dn=Done.Movie`,
+              Seeders: 10,
+              Tracker: 'thepiratebay',
+            },
+          ],
+        }),
+      };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+  try {
+    config.harvest.maxPerHour = 1000;
+    config.harvest.idleWindowMs = 0;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['efic-idx'];
+    config.jackett.apiKey = 'chave-de-teste';
+    config.debrid.rdWarm.enabled = false;
+    harvesterLive.reset();
+    harvester.setPaused(false);
+    harvester.clearQueue();
+
+    cache.set('meta:movie:tt9500121', { name: 'Empty Movie', year: '2024', type: 'movie' }, 3600);
+    cache.set('meta:movie:tt9500122', { name: 'Done Movie', year: '2024', type: 'movie' }, 3600);
+
+    metrics.reset();
+    harvester.enqueue({ imdbId: 'tt9500121', type: 'movie', reason: `efic-empty-${Date.now()}` } as any);
+    await harvester.tick();
+    let counters = metrics.snapshot().counters;
+    assert.ok((counters['harvest.empty'] || 0) >= 1, 'consulta OK sem release relevante conta harvest.empty');
+    assert.equal(counters['harvest.done'] || 0, 0, 'sem entrada no índice, harvest.done fica em 0');
+
+    harvester.enqueue({ imdbId: 'tt9500122', type: 'movie', reason: `efic-done-${Date.now()}` } as any);
+    await harvester.tick();
+    counters = metrics.snapshot().counters;
+    assert.ok((counters['harvest.done'] || 0) >= 1, 'obra com release relevante conta harvest.done');
+  } finally {
+    stub.restore();
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+    config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
+    harvesterLive.reset();
+    harvester.clearQueue();
+  }
+});
+
 test('enqueue deduplica por obra+temporada+episódio', () => {
   harvester.enqueue({ imdbId: 'tt9500001', type: 'movie', reason: 'miss' } as any);
   harvester.enqueue({ imdbId: 'tt9500001', type: 'movie', reason: 'miss' } as any);
@@ -185,6 +260,15 @@ test('teto da fila descarta a mais antiga', () => {
   const originalMax = config.harvest.queueMax;
   try {
     config.harvest.queueMax = 2;
+    // Etapa 1: o descarte por estouro tem que deixar rastro medido. O default
+    // de HARVEST_BR_FIRST é true no .env, então o caminho deste teste é o
+    // FIFO (shift) — o priorizado (pop) tem assert próprio no
+    // harvester-priority.test.ts. clearQueue() no início para não depender de
+    // estado residual; harvestBrFirst false força o shift.
+    harvester.clearQueue();
+    harvesterLive.reset();
+    harvesterLive.set({ harvestBrFirst: false });
+    const beforeDrop = metrics.snapshot().counters['harvest.queue.dropped'] || 0;
     // Razões distintas contornam o dedupe de 12h.
     harvester.enqueue({ imdbId: 'tt9500003', type: 'movie', reason: `miss-${Date.now()}-a` } as any);
     harvester.enqueue({ imdbId: 'tt9500004', type: 'movie', reason: `miss-${Date.now()}-b` } as any);
@@ -192,8 +276,12 @@ test('teto da fila descarta a mais antiga', () => {
     const stored = cache.get(`${prefix('harvest')}q`) as any[];
     assert.equal(stored.length, 2, 'nunca passa do teto');
     assert.ok(!stored.some((e) => e.imdbId === 'tt9500003'), 'a mais antiga sai');
+    const afterDrop = metrics.snapshot().counters['harvest.queue.dropped'] || 0;
+    assert.equal(afterDrop - beforeDrop, 1, 'o shift do estouro conta harvest.queue.dropped por item');
   } finally {
     config.harvest.queueMax = originalMax;
+    harvesterLive.reset();
+    harvester.clearQueue();
   }
 });
 

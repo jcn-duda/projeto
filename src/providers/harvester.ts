@@ -92,8 +92,8 @@ async function tick() {
     if (!entry) return;
     harvestQueue.persist();
     const identity = obraIdentity(entry);
-    const { ok, capped } = await harvestWorker.harvestOne(entry);
-    metrics.count(ok ? 'harvest.done' : 'harvest.empty');
+    const { added, capped } = await harvestWorker.harvestOne(entry);
+    metrics.count(added > 0 ? 'harvest.done' : 'harvest.empty');
     if (capped) {
       // Obra cortada no meio pelo teto volta para a FRENTE da fila: terminar o
       // que já começou vale mais que abrir obra nova, porque um registro

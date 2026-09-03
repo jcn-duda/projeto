@@ -88,7 +88,13 @@ export function persist() {
     return;
   }
   const live = harvesterLive.effective();
-  cache.set(QUEUE_KEY, queue.slice(0, live.harvestQueueMax), live.harvestEntryTtl);
+  // Terceiro caminho de descarte (Etapa 1): obra capped/preemptada volta por
+  // head() além do teto e o slice corta a cauda sem passar pelo enqueue — sem
+  // este contador o descarte sumiria do diagnóstico.
+  const kept = queue.slice(0, live.harvestQueueMax);
+  const dropped = queue.length - kept.length;
+  if (dropped > 0) metrics.count('harvest.queue.dropped', dropped);
+  cache.set(QUEUE_KEY, kept, live.harvestEntryTtl);
 }
 
 /** Marca dedupe por obra com TTL — re-enfileirar a cada busca enchia a fila. */
@@ -119,12 +125,18 @@ export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>) {
     // de menor prioridade (empate: a mais nova) — até abrir espaço, depois
     // adiciona a nova; a ordem efetiva volta a valer no próximo passo/status.
     queue = prioritizeQueue(queue);
-    while (queue.length >= live.harvestQueueMax) queue.pop();
+    while (queue.length >= live.harvestQueueMax) {
+      queue.pop();
+      metrics.count('harvest.queue.dropped');
+    }
     queue.push(full);
   } else {
     // Sem priorização mantém a semântica antiga: obra nova empurra a mais
     // velha. A fila é oportunidade de colheita, não backlog sagrado.
-    while (queue.length >= live.harvestQueueMax) queue.shift();
+    while (queue.length >= live.harvestQueueMax) {
+      queue.shift();
+      metrics.count('harvest.queue.dropped');
+    }
     queue.push(full);
   }
   persist();

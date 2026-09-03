@@ -288,11 +288,15 @@ test('3.2: capacidade com prioridade ativa NÃO remove a cabeça prioritária', 
     releaseIndex.record('tt3000060', { season: 1, episode: 1 }, [
       { infoHash: cap, title: 'Serie (2020) S01E01 1080p DUBLADO', isBr: true, indexer: 'x', seeders: 1 },
     ]);
+    // Etapa 1: o estouro priorizado (pop da cauda) precisa deixar rastro medido.
+    const beforeDrop = metrics.snapshot().counters['harvest.queue.dropped'] || 0;
     // Cabeça prioritária + dez entradas comuns estouram o teto mínimo (10).
     harvester.enqueue({ imdbId: 'tt3000060', type: 'series', season: 1, episode: 1, reason: 'next-episode' });
     for (let i = 61; i <= 70; i += 1) {
       harvester.enqueue({ imdbId: `tt30000${i}`, type: 'movie', reason: 'popular' });
     }
+    const afterDrop = metrics.snapshot().counters['harvest.queue.dropped'] || 0;
+    assert.equal(afterDrop - beforeDrop, 1, 'o pop da cauda priorizada conta harvest.queue.dropped por item');
 
     const st: any = harvester.status();
     assert.equal(st.queueDepth, 10, 'nunca passa do teto mesmo com evidência');

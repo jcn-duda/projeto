@@ -444,6 +444,8 @@
         <div class="metric"><span class="key">Obras na fila</span><span id="harvestMetricQueue" class="value">0 / max 0</span></div>
         <div class="metric"><span class="key">Consultas nesta hora</span><span id="harvestMetricQueries" class="value">0 / 0</span></div>
         <div class="metric"><span class="key">Obras colhidas</span><span id="harvestMetricHarvested" class="value">0</span></div>
+        <div class="metric"><span class="key">Colheitas com release</span><span id="harvestMetricDone" class="value">0</span></div>
+        <div class="metric"><span class="key">Colheitas vazias</span><span id="harvestMetricEmpty" class="value">0</span></div>
         <div class="metric"><span class="key">Última execução</span><span id="harvestMetricLastRun" class="value">—</span></div>
       </div>
     </section>
@@ -985,7 +987,7 @@
     el.className = "feedback" + (kind ? " " + kind : "");
   }
 
-  function renderHarvesterPanel(harvest) {
+  function renderHarvesterPanel(harvest, counters) {
     if (!harvest) return;
     var cfg = harvest.config || {};
     var eff = cfg.effective || {};
@@ -1019,6 +1021,18 @@
     var hEl = $("harvestMetricHarvested");
     if (hEl) {
       hEl.textContent = valueText(harvest.harvested);
+    }
+
+    // Eficácia da colheita (Etapa 1): os contadores já viajam no
+    // metrics.counters do dashboard-status; aqui só viram texto, ES5.
+    var ctr = isObject(counters) ? counters : {};
+    var dEl = $("harvestMetricDone");
+    if (dEl) {
+      dEl.textContent = valueText(ctr["harvest.done"]);
+    }
+    var eEl = $("harvestMetricEmpty");
+    if (eEl) {
+      eEl.textContent = valueText(ctr["harvest.empty"]);
     }
 
     var rEl = $("harvestMetricLastRun");

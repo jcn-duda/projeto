@@ -65,12 +65,12 @@ async function awaitIndexerGap(indexer: string) {
   }
 }
 
-export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean }> {
+export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean; added: number }> {
   const startedAt = Date.now();
   const live = harvesterLive.effective();
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
   const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
-  if (!searchMeta?.name) return { ok: false, capped: false };
+  if (!searchMeta?.name) return { ok: false, capped: false, added: 0 };
   const matchContext = {
     names: searchMeta.names,
     year: searchMeta.year,
@@ -238,7 +238,7 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     recentWorks.length = Math.min(recentWorks.length, config.harvest.dashboardLastWorks);
   }
   metrics.observe('harvest.ms', Date.now() - startedAt);
-  return { ok: added > 0 || succeeded > 0, capped };
+  return { ok: added > 0 || succeeded > 0, capped, added };
 }
 
 /** Contadores do trabalho executado, para o status do painel. */

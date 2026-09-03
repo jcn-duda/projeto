@@ -149,7 +149,7 @@
     renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
     renderHarvest(first(root, ["harvest", "harvester"], {}));
     renderAutofetchPanel(first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}));
-    renderHarvesterPanel(first(root, ["harvest", "harvester"], {}));
+    renderHarvesterPanel(first(root, ["harvest", "harvester"], {}), first(root.metrics || {}, ["counters"], {}));
     drawSparkline("cacheSparkline", pushSeries("cache-hit-rate", first(root.cache || {}, ["hitRate"], 0)), "#39d98a");
     drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(root.harvest || {}, ["queriesThisHour"], 0)), "#faa31a");
     var issues = collectStatusIssues(root);
