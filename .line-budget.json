@@ -1,14 +1,13 @@
 {
   "limite": 400,
   "gerado": "2026-09-03",
-  "excedente": 1646,
+  "excedente": 1544,
   "arquivos": {
     "resolvers/profiles/bludv.js": 722,
     "resolvers/profiles/nerdfilmes.js": 550,
     "resolvers/profiles/vacatorrent.js": 753,
     "src/providers/autofetch-runner.ts": 695,
     "src/providers/stream-builder.ts": 689,
-    "src/public/configure.css": 502,
     "src/utils/stream-ranking.ts": 535
   }
 }

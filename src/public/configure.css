@@ -1,3 +1,6 @@
+/* Estilos base da pagina /configure */
+@import "/configure-components.css";
+
 /* Estilos da pagina /configure - extraidos do <style> inline (Fase 3, PLANO_MELHORIAS 5.9). Servido cru, sem build; o caminho e absoluto porque a pagina responde em /configure e em /:userConfig/configure. */
   /* Tokens espelhando o design system do Power Movie (lib/core/theme):
      primary #FAA31A, accent #FFA329, background #0D0D0D, surface #1A1A1A,
@@ -187,9 +190,7 @@
     border-color: transparent;
     text-align: left;
   }
-  .indexer-card .indexer-toggle[aria-pressed="true"] {
-    border-color: var(--accent);
-  }
+ {  }
   .indexer-status {
     grid-column: 1;
     grid-row: 2;
@@ -239,9 +240,7 @@
     color: var(--muted);
     font-size: 11.5px;
   }
-  .indexer-limit-label {
-    flex: 0 0 auto;
-  }
+ {  }
   .indexer-limit {
     width: 124px;
     min-width: 0;
@@ -284,219 +283,3 @@
   .priority-summary strong { color: var(--text); }
   .priority-summary .priority-order { color: var(--accent); }
 
-  /* ---------- toggles ---------- */
-  .row {
-    display: flex; align-items: center; gap: 16px;
-    padding: 14px 0;
-    border-top: 1px solid var(--border);
-  }
-  .row:first-child { border-top: 0; padding-top: 0; }
-  .row-text { flex: 1; min-width: 0; }
-  .row-text strong { display: block; font-size: 14px; font-weight: 600; }
-  .row-text span { color: var(--muted); font-size: 13px; }
-
-  .switch {
-    flex-shrink: 0;
-    width: 46px; height: 27px;
-    padding: 0;
-    border: 1px solid var(--border-strong);
-    border-radius: 999px;
-    background: rgba(255,255,255,.06);
-    cursor: pointer;
-    transition: background .18s, border-color .18s;
-  }
-  .switch::after {
-    content: "";
-    display: block;
-    width: 19px; height: 19px;
-    margin-left: 3px;
-    border-radius: 50%;
-    background: var(--muted);
-    transition: transform .18s, background .18s;
-  }
-  .switch[aria-pressed="true"] {
-    background: var(--accent);
-    border-color: var(--accent);
-  }
-  .switch[aria-pressed="true"]::after { transform: translateX(19px); background: #fff; }
-  .switch[aria-checked="true"] {
-    background: var(--accent);
-    border-color: var(--accent);
-  }
-  .switch[aria-checked="true"]::after { transform: translateX(19px); background: #fff; }
-
-  /* ---------- sliders / inputs ---------- */
-  .field { padding: 14px 0; border-top: 1px solid var(--border); }
-  .field:first-child { border-top: 0; padding-top: 0; }
-
-  .field-label {
-    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
-    margin-bottom: 10px;
-  }
-  .field-label strong { font-size: 14px; font-weight: 600; }
-  .field-label output {
-    padding: 2px 9px;
-    border-radius: 7px;
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-size: 13px; font-weight: 650;
-    font-variant-numeric: tabular-nums;
-  }
-  .field-hint { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
-
-  .field-link {
-    color: var(--accent);
-    font-size: 12.5px; font-weight: 550;
-    text-decoration: none;
-  }
-  .field-link:hover { text-decoration: underline; }
-
-  .notice {
-    margin: 14px 0 0;
-    padding: 11px 13px;
-    border: 1px solid rgba(230, 175, 90, .3);
-    border-left-width: 3px;
-    border-radius: 9px;
-    background: rgba(230, 175, 90, .07);
-    color: #dcc39a;
-    font-size: 12.5px;
-    line-height: 1.5;
-  }
-  .notice strong, .notice em { color: #f0e2c8; font-style: normal; font-weight: 600; }
-
-  input[type="range"] {
-    -webkit-appearance: none; appearance: none;
-    width: 100%; height: 5px;
-    border-radius: 999px;
-    background: rgba(255,255,255,.11);
-    outline: none;
-  }
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none;
-    width: 17px; height: 17px;
-    border: 0; border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 0 4px rgba(250,163,26,.22);
-    cursor: pointer;
-  }
-  input[type="range"]::-moz-range-thumb {
-    width: 17px; height: 17px;
-    border: 0; border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 0 4px rgba(250,163,26,.22);
-    cursor: pointer;
-  }
-
-  input[type="text"], input[type="password"], select {
-    width: 100%;
-    padding: 11px 13px;
-    border: 1px solid var(--border-strong);
-    border-radius: 10px;
-    background: rgba(0,0,0,.28);
-    color: var(--text);
-    font: inherit; font-size: 14px;
-  }
-  input:focus, select:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-  }
-  input::placeholder { color: var(--disabled); }
-
-  select {
-    appearance: none;
-    /* A lista suspensa é desenhada pelo sistema, não pelo CSS da página: sem
-       color-scheme ela abre branca no meio do tema escuro. */
-    color-scheme: dark;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23b3b3b3' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 13px center;
-    padding-right: 36px;
-  }
-  select option {
-    background: var(--surface-2);
-    color: var(--text);
-  }
-  select:hover { border-color: var(--accent); }
-
-  /* ---------- barra de instalação ---------- */
-  .install {
-    position: sticky; bottom: 16px;
-    margin-top: 26px;
-    padding: 20px;
-    border: 1px solid rgba(250,163,26,.38);
-    border-radius: var(--radius);
-    background: linear-gradient(160deg, rgba(250,163,26,.12), rgba(26,26,26,.96));
-    backdrop-filter: blur(14px);
-    box-shadow: 0 20px 50px -18px rgba(0,0,0,.85);
-  }
-
-  .url {
-    display: block;
-    margin-bottom: 14px;
-    padding: 11px 13px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: rgba(0,0,0,.42);
-    color: var(--muted);
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 12px;
-    word-break: break-all;
-    max-height: 62px;
-    overflow-y: auto;
-  }
-
-  .actions { display: flex; gap: 10px; }
-
-  .btn {
-    flex: 1;
-    padding: 13px 18px;
-    border: 1px solid transparent;
-    border-radius: 11px;
-    font: inherit; font-size: 14.5px; font-weight: 650;
-    text-align: center; text-decoration: none;
-    cursor: pointer;
-    transition: filter .15s, transform .1s, background .15s;
-  }
-  .btn:active { transform: scale(.985); }
-
-  .btn-primary {
-    background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    color: #fff;
-    box-shadow: 0 8px 26px -8px rgba(250,163,26,.55);
-  }
-  .btn-primary:hover { filter: brightness(1.1); }
-
-  .btn-ghost {
-    flex: 0 0 auto;
-    min-width: 116px;
-    border-color: var(--border-strong);
-    background: var(--surface-2);
-    color: var(--text);
-  }
-  .btn-ghost:hover { border-color: var(--accent); }
-  .btn-ghost.ok { border-color: var(--accent); color: var(--accent); }
-  .btn[disabled] { opacity: .55; cursor: progress; }
-
-  footer {
-    margin-top: 34px;
-    color: var(--muted);
-    font-size: 12.5px;
-    text-align: center;
-  }
-  footer code {
-    padding: 2px 6px;
-    border-radius: 5px;
-    background: var(--surface-2);
-    font-size: 11.5px;
-  }
-
-  @media (max-width: 560px) {
-    header { padding-top: 48px; }
-    section { padding: 20px 17px; }
-    .actions { flex-direction: column; }
-    .btn-ghost { min-width: 0; }
-    .preset-grid { grid-template-columns: 1fr; }
-    .indexer-limit-control { margin-right: 4px; }
-    .indexer-limit { flex: 1 1 auto; width: auto; }
-  }

@@ -9,6 +9,7 @@ import type express from 'express';
 // nome arbitrário vindo da URL abriria leitura fora de public/ (traversal).
 const PAGE_ASSETS = [
   'configure.css',
+  'configure-components.css',
   'configure-app.js',
   'dashboard.css',
   'dashboard-core.js',
