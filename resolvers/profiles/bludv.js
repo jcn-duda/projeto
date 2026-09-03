@@ -25,7 +25,10 @@ const {
 const { createProfile } = require('../site-profile');
 const { tryLinksInOrder, magnetButtonCacheKey } = require('../release-format');
 const {
-  MAX_CARD_WINDOW, AUDIO_RANK, JS_URL_VAR_RE, ALL_PROTECTOR_SUFFIXES,
+  // Sem ALL_PROTECTOR_SUFFIXES daqui de propósito: a lista estática do
+  // parsers lê a env EXTRA_PROTECTORS (que ninguém documenta nem define). A
+  // que vale é a do bootstrap, com EXTRA_ALLOWED_PROTECTORS — ver linha 79.
+  MAX_CARD_WINDOW, AUDIO_RANK, JS_URL_VAR_RE,
   brAudioHooks, audioFromSegment, audioFromAnchor,
   qualityRules, normalizeQuality, sourceRules, normalizeSource,
   episodeRules, extractEpisode, episodeStep,
@@ -76,6 +79,7 @@ const bootstrap = createProfile({
 
 const {
   reply, siteSelector, CANDIDATE_HOSTS, createSiteSelector,
+  ALL_PROTECTOR_SUFFIXES: DYNAMIC_PROTECTOR_SUFFIXES,
   ALLOWED_SUFFIXES, unwrapResolverUrl,
   assertAllowedUrl, isDetailHost, isProtectorHost,
   isNetworkError, stripTags,
@@ -107,7 +111,10 @@ siteSelector.onDomainChange(() => {
   flareSessions.clear();
 });
 
-const nextProtectedUrl = createNextProtectedUrl({ isProtectorHost });
+const nextProtectedUrl = createNextProtectedUrl({
+  isProtectorHost,
+  protectorSuffixes: DYNAMIC_PROTECTOR_SUFFIXES,
+});
 
 async function fetchText(url, referer) {
   const res = await fetch(url, {

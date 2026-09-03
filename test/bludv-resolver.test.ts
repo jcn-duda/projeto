@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
  * (hit, TTL, FIFO, coalescing) e o fallback do resolvePost — tudo com
  * globalThis.fetch mockado, sem rede.
  */
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import bludv from '../bludv-resolver/server.js';
 
 const HASH = '0123456789abcdef0123456789abcdef01234567';
@@ -342,6 +344,34 @@ describe('BluDV Resolver: caches de magnet e de busca', () => {
       () => bludv.fetchText('https://bludvfilmes.xyz/?s=exterminio'),
       /flare_site_error_page/,
       'página de erro do Chromium é tratada como falha, não como 0 releases',
+    );
+  });
+});
+
+describe('BluDV Resolver: lista de protetores', () => {
+  // `discoverNextUrl` monta a regex de busca a partir de `protectorSuffixes`.
+  // O perfil passava a lista ESTÁTICA do bludv-parsers, que lê a env
+  // `EXTRA_PROTECTORS` — inexistente na documentação e no .env.example. O
+  // operador configura `EXTRA_ALLOWED_PROTECTORS`, que só entra na lista do
+  // bootstrap: `isProtectorHost` aceitava o host, mas a regex nunca o casava,
+  // então o salto morria em silêncio. As envs são lidas no require, então a
+  // prova precisa de um processo filho.
+  test('nextProtectedUrl enxerga protetor vindo de EXTRA_ALLOWED_PROTECTORS', () => {
+    const serverPath = fileURLToPath(new URL('../bludv-resolver/server.js', import.meta.url));
+    const script = [
+      `const bludv = require(${JSON.stringify(serverPath)});`,
+      "const html = '<p><a href=\"https://protetor-do-operador.test/go/7\">1080p</a></p>';",
+      "process.stdout.write(String(bludv.nextProtectedUrl(html, 'https://bludvfilmes.xyz/post/')));",
+    ].join('\n');
+
+    const achado = execFileSync(process.execPath, ['-e', script], {
+      env: { ...process.env, EXTRA_ALLOWED_PROTECTORS: 'protetor-do-operador.test' },
+      encoding: 'utf8',
+    });
+    assert.equal(
+      achado,
+      'https://protetor-do-operador.test/go/7',
+      'a lista dinâmica do bootstrap é a que alimenta a regex de descoberta',
     );
   });
 });
