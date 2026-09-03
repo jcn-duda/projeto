@@ -132,6 +132,7 @@ test('fallback global respeita os gates: stream tocável, BR presente e toggle o
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalAny = config.debrid.autoFetchAnyDubbed;
+  const originalTopSeeds = config.debrid.autoFetchTopSeeds;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-any-gates');
@@ -160,14 +161,17 @@ test('fallback global respeita os gates: stream tocável, BR presente e toggle o
     await sleep(20);
     assert.deepEqual(enqueued, [br], 'com fonte BR na busca, o candidato é o BR');
 
+    // Isola o gate do ANY: sem topSeeds a cascata para em no-candidate.
     config.debrid.autoFetchAnyDubbed = false;
+    config.debrid.autoFetchTopSeeds = false;
     await run([globalDub], 'busca-any-off');
     await sleep(20);
-    assert.deepEqual(enqueued, [br], 'DEBRID_AUTO_FETCH_ANY=false não enfileira global');
+    assert.deepEqual(enqueued, [br], 'DEBRID_AUTO_FETCH_ANY=false não enfileira pelo pool any');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchAnyDubbed = originalAny;
+    config.debrid.autoFetchTopSeeds = originalTopSeeds;
     pmAdapter.enqueue = originalEnqueue;
     for (const key of ['busca-any-tocavel', 'busca-any-com-br', 'busca-any-off']) {
       autofetch.releaseSearch(key);

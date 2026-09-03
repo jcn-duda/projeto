@@ -80,16 +80,22 @@ export function autoFetchCandidates(
   const queueDepth = live.autoFetchQueue ? live.autoFetchQueueDepth : 0;
   const totalMax = live.autoFetchMax + queueDepth;
 
+  // Cascata br → any → seeds: recusar o nível `any` não pode abortar a
+  // busca inteira — o corte antigo (`return []`) matava o terceiro nível
+  // justamente quando o operador pediu só a rede de segurança de swarm.
   let candidates = pickBrDubbedCandidates(liveStreams, new Set(), totalMax, { season }).filter(isAutoFetchStream);
   let pool = 'br';
   const dubbedGlobal = candidates.length === 0
     ? pickAnyDubbedCandidates(liveStreams, new Set(), totalMax, { season }).filter(isAutoFetchStream)
     : [];
   if (dubbedGlobal.length > 0) {
-    if (!live.autoFetchAnyDubbed) return [];
-    candidates = dubbedGlobal;
-    pool = 'any';
-    metrics.count('autofetch.any-dubbed');
+    if (live.autoFetchAnyDubbed) {
+      candidates = dubbedGlobal;
+      pool = 'any';
+      metrics.count('autofetch.any-dubbed');
+    } else {
+      metrics.count('autofetch.any-dubbed-skipped');
+    }
   }
   if (candidates.length === 0 && live.autoFetchTopSeeds) {
     candidates = pickTopSeededCandidates(liveStreams, new Set(), live.autoFetchTopSeedsMax + queueDepth, {

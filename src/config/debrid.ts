@@ -200,11 +200,12 @@ export const debrid = () => ({
   // DEBRID_AUTO_FETCH_BR). O teto 12 (2026-09-01) cobre o acervo BR de uma vez;
   // o default 3 é o baseline conservador — o operador sobe ao vivo no painel.
   autoFetchMax: Math.min(12, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 3)))),
-  // Rede de segurança quando o título não tem dublagem NENHUMA (filme antigo,
-  // cult, série sem áudio PT): sem isso a busca acaba sem baixar nada e, com
-  // "somente já em cache" ligado, o usuário vê zero opção para sempre. O
-  // limite é separado do autofetch dublado para não encher a conta com até
-  // quatro torrents apenas porque o título não tem áudio PT.
+  // Rede de segurança do terceiro nível: vale quando não há BR dublado E
+  // (não há dublagem global OU o operador recusou DEBRID_AUTO_FETCH_ANY).
+  // Sem isso a busca acaba sem baixar nada e, com "somente já em cache"
+  // ligado, o usuário vê zero opção para sempre. O limite é separado do
+  // autofetch dublado para não encher a conta com até quatro torrents só
+  // porque o título não tem áudio PT (ou o operador não quis baixar o global).
   autoFetchTopSeeds: String(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS || 'true') === 'true',
   autoFetchTopSeedsMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS_MAX, 2)))),
   // Um torrent com poucos pares costuma morrer na fila do debrid; abaixo de

@@ -124,3 +124,71 @@ test('terceiro nível não dispara quando já existe qualquer fonte tocável', a
     }
   }
 });
+
+// ANY off não pode abortar a cascata: com dublada global presente e o
+// operador recusando DEBRID_AUTO_FETCH_ANY, o terceiro nível (swarm) ainda
+// precisa disparar — o return [] antigo engolia o seeds justamente aí.
+test('ANY off + topSeeds: enfileira o maior swarm, não a dublada global', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalAny = config.debrid.autoFetchAnyDubbed;
+  const originalTopSeeds = config.debrid.autoFetchTopSeeds;
+  const originalTopMax = config.debrid.autoFetchTopSeedsMax;
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-any-off-seeds');
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
+  const hDub = 'c'.repeat(40);
+  const hSwarm = 'd'.repeat(40);
+  const enqueued: string[] = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-any-off-seeds',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-any-off-seeds';
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    config.debrid.autoFetchAnyDubbed = false;
+    config.debrid.autoFetchTopSeeds = true;
+    // Um só: prova que o escolhido é o swarm, não a dublada do pool any.
+    config.debrid.autoFetchTopSeedsMax = 1;
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+
+    await runtime.run({ opts: userOpts, encoded: 'cfg-any-off-seeds' }, () =>
+      applyDebrid(
+        [
+          // Dual sem sinal PT no título: entra no pool any via _dubbed, mas
+          // no seeds não ganha preferência PT — o swarm maior vence.
+          {
+            infoHash: hDub, name: 'Cult Film 2010 Dual', title: 'Cult Film 2010 Dual',
+            _br: false, _dubbed: true, _seeders: 20,
+          },
+          {
+            infoHash: hSwarm, name: 'Cult Film 2010 BluRay', title: 'Cult Film 2010 BluRay',
+            _br: false, _dubbed: false, _seeders: 80,
+          },
+        ],
+        { searchKey } as any,
+      ),
+    );
+    await sleep(20);
+    assert.deepEqual(enqueued, [hSwarm], 'com ANY off o candidato é o maior swarm, não a dublada');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.autoFetchAnyDubbed = originalAny;
+    config.debrid.autoFetchTopSeeds = originalTopSeeds;
+    config.debrid.autoFetchTopSeedsMax = originalTopMax;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    for (const h of [hDub, hSwarm]) {
+      cache.forget(autofetch.markerKey('premiumize', account, h));
+      held.release(h, account);
+    }
+  }
+});
