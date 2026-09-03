@@ -252,9 +252,11 @@ export function runRecheck(searchKey: string) {
     }
 
     let statuses: Record<string, TorrentStatusEntry> = {};
+    let statusOk = false;
     if (typeof adapter.torrentStatus === 'function') {
       try {
         statuses = await adapter.torrentStatus(opts().debridApiKey, [...lot.hashes]);
+        statusOk = true;
       } catch (err: unknown) {
         log.warn(`[autofetch] falha ao consultar torrentStatus em ${adapter.id}:`, log.errorMessage(err));
       }
@@ -310,9 +312,12 @@ export function runRecheck(searchKey: string) {
           log.info(`[autofetch] torrent ${hash} detectado como ${isDead ? 'morto' : 'parado'} (${streak} rechecks consecutivos); removendo e drenando fila`);
           drainNext(searchKey, lot);
         }
-      } else {
+      } else if (statusOk && statusInfo) {
         lot.deadStreak.set(hash, 0);
         lot.stallStreak.set(hash, 0);
+      } else {
+        // Sem resposta não há prova de vida nem morte — rodada neutra.
+        metrics.count('autofetch.status-unknown');
       }
     }
 
