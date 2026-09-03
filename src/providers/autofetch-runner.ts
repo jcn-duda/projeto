@@ -181,7 +181,10 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
     isCached: () => cached.has(h),
     markerActive: () => Boolean(cache.get(key)),
     tryLock: () => autofetch.acquire(key),
-    trySlot: () => !searchKey || autofetch.acquireSearchSlot(searchKey, live.autoFetchMax),
+    // Vaga compartilhada entre passe parcial e tardio pelo mesmo searchKey;
+    // se pools diferentes, o teto efetivo é o do pool que pediu por último.
+    trySlot: () => !searchKey || autofetch.acquireSearchSlot(
+      searchKey, pool === 'seeds' ? live.autoFetchTopSeedsMax : live.autoFetchMax),
     accountBlocked: () => autofetch.accountGateBlocked(adapter, opts().debridApiKey),
     tryBudget: () => autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit),
   });

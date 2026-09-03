@@ -192,3 +192,61 @@ test('ANY off + topSeeds: enfileira o maior swarm, não a dublada global', async
     }
   }
 });
+
+// A vaga do enqueue usa o teto do pool: seeds respeita autoFetchTopSeedsMax,
+// não o autoFetchMax do BR/any — senão Max=1 engolia o segundo swarm saudável.
+test('pool seeds: vaga usa autoFetchTopSeedsMax, não autoFetchMax', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalMax = config.debrid.autoFetchMax;
+  const originalTopSeeds = config.debrid.autoFetchTopSeeds;
+  const originalTopMax = config.debrid.autoFetchTopSeedsMax;
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-seeds-slot');
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
+  const h1 = 'e'.repeat(40);
+  const h2 = 'f'.repeat(40);
+  const enqueued: string[] = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-seeds-slot',
+    debridCachedOnly: true,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-seeds-slot';
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    config.debrid.autoFetchMax = 1;
+    config.debrid.autoFetchTopSeeds = true;
+    config.debrid.autoFetchTopSeedsMax = 2;
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+
+    await runtime.run({ opts: userOpts, encoded: 'cfg-seeds-slot' }, () =>
+      applyDebrid(
+        [
+          { infoHash: h1, name: 'Obscure 1999 1080p', title: 'Obscure 1999 1080p', _seeders: 40 },
+          { infoHash: h2, name: 'Obscure 1999 720p', title: 'Obscure 1999 720p', _seeders: 55 },
+        ],
+        { searchKey } as any,
+      ),
+    );
+    await sleep(20);
+    assert.deepEqual(enqueued, [h2, h1], 'TopSeedsMax=2 enfileira os dois swarms mesmo com Max=1');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.autoFetchMax = originalMax;
+    config.debrid.autoFetchTopSeeds = originalTopSeeds;
+    config.debrid.autoFetchTopSeedsMax = originalTopMax;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    for (const h of [h1, h2]) {
+      cache.forget(autofetch.markerKey('premiumize', account, h));
+      held.release(h, account);
+    }
+  }
+});
