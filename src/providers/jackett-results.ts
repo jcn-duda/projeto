@@ -61,3 +61,37 @@ export function mapResults(
     };
   });
 }
+
+/**
+ * Falha da FONTE dentro de uma resposta HTTP 200. O Jackett não propaga o erro
+ * do indexer no código HTTP: quando o site (ou o resolver embutido) está fora,
+ * ele devolve 200 com `Results: []` e a falha descrita em
+ * `Indexers[].Status`/`Error`.
+ *
+ * Medido ao vivo no nerdfilmes: o site migrou para um domínio sem DNS, o
+ * resolver da 8702 passou a devolver 502 e toda busca voltava
+ * `Status: 1, Error: "…BadGateway - The tracker seems to be down"` — com HTTP
+ * 200 por fora. Quem só olhava o transporte gravava `ok: true`, então o card
+ * ficava verde, o failStreak nunca subia, o circuit breaker nunca abria e o
+ * alerta `indexer_down` (que existe justamente para fonte BR caída) nunca
+ * disparava. A fonte ficou fora sem um único sinal, queimando orçamento de
+ * busca em toda consulta.
+ *
+ * `Status: 2` é o OK do Jackett; qualquer outro valor, ou um `Error` não nulo,
+ * é falha da fonte. Resposta sem o envelope `Indexers` (array cru, dublê de
+ * teste) não afirma nada e devolve null — ausência de prova não é prova de
+ * falha, e transformá-la em falha pintaria de vermelho todo indexer sadio.
+ */
+export function indexerFailure(data: any): string | null {
+  const envelope = Array.isArray(data?.Indexers) ? data.Indexers : null;
+  if (!envelope?.length) return null;
+  for (const entry of envelope) {
+    const erro = entry?.Error;
+    const status = entry?.Status;
+    // Só a primeira linha: o Error do Jackett carrega o stack trace .NET
+    // inteiro, e ele não cabe num card nem num log de uma linha.
+    if (erro) return String(erro).split(/\r?\n/)[0].slice(0, 200);
+    if (status != null && Number(status) !== 2) return `Status ${status}`;
+  }
+  return null;
+}

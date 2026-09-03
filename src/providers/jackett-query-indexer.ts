@@ -4,7 +4,7 @@ import * as cache from '../utils/cache.js';
 import { filterRelevantRaw } from '../utils/format.js';
 import * as log from '../utils/logger.js';
 import { prefix } from '../utils/cache-keys.js';
-import { mapResults, CATEGORY_UNFILTERED_INDEXERS } from './jackett-results.js';
+import { mapResults, indexerFailure, CATEGORY_UNFILTERED_INDEXERS } from './jackett-results.js';
 import { shapeSearchQuery, budgetFor } from './jackett-query.js';
 import { remaining, MIN_RESOLVE_BUDGET, resolveCardigannDownloads } from './jackett-resolve.js';
 
@@ -53,6 +53,14 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     ? 0
     : isBr ? config.rawCache.ttlBr : config.rawCache.ttl;
   let liveFetches = 0;
+  // Falha da FONTE na última consulta ao vivo (HTTP 200 com o indexer morto
+  // por dentro — ver indexerFailure). Só o caminho ao vivo escreve aqui: o hit
+  // de cache não mediu nada e não pode afirmar saúde nem doença.
+  // Portador em vez de `let`: a atribuicao mora dentro do closure de
+  // fetchQuery, e o fluxo do tsc estreitaria uma variavel solta para `null`
+  // no ponto de leitura — fazendo `sourceOk` virar o literal `true` e as
+  // comparacoes em jackett.ts virarem erro de sobreposicao vazia.
+  const source: { error: string | null } = { error: null };
   const fetchQuery = async (candidateQuery: string) => {
     const searchQuery = shapeSearchQuery(indexer, candidateQuery, isBr);
     // A shaped query já remove SxxEyy nos indexers BR, então episódios da
@@ -80,13 +88,18 @@ export async function queryIndexer(indexer: string, query: string, type: string,
       signal: AbortSignal.timeout(Math.max(1, budget)),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const items = mapResults(await res.json(), {
+    const payload = await res.json();
+    source.error = indexerFailure(payload);
+    const items = mapResults(payload, {
       isBr,
       indexer,
       categoryBucket: filterLocally ? categoryBucket : 0,
     });
     liveFetches += 1;
-    if (rawTtl > 0 && items.length <= config.rawCache.maxItems) {
+    // Vazio POR FALHA não vira entrada de cache: guardá-lo faria o indexer
+    // continuar mudo pelo TTL inteiro depois de a fonte voltar, e o degrau
+    // seguinte da cascata leria o vazio como resposta legítima.
+    if (rawTtl > 0 && !source.error && items.length <= config.rawCache.maxItems) {
       // 200 com zero itens usa o TTL curto: pode ser rate-limit disfarçado.
       cache.set(rawKey, { items }, items.length === 0 ? config.rawCache.emptyTtl : rawTtl);
     }
@@ -147,5 +160,17 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     : await resolveCardigannDownloads(indexer, found.items, query, deadline, options.matchContext);
   // fromCache diz se NENHUMA consulta Torznab saiu desta chamada: quem veio
   // do cache não mediu nada, e o status do indexer não pode ser inventado.
-  return { indexer, items, ms: Date.now() - started, fromCache: liveFetches === 0 };
+  // `sourceOk` separa "o servidor respondeu" de "a fonte está viva". Item
+  // encontrado prova vida por si só — uma variante instável no fim da cascata
+  // não pode condenar o indexer que já entregou. Sem item algum, a falha da
+  // última consulta ao vivo é o que vale.
+  const sourceOk = items.length > 0 || !source.error;
+  return {
+    indexer,
+    items,
+    ms: Date.now() - started,
+    fromCache: liveFetches === 0,
+    sourceOk,
+    sourceError: sourceOk ? null : source.error,
+  };
 }

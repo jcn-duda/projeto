@@ -95,18 +95,25 @@ async function search(query: string, type: string, indexersOverride: string[] | 
       out.push(...r.value.items);
       if (recordStatus && !r.value.fromCache) {
         indexerStatus.record(r.value.indexer, {
-          // HTTP válido significa online. Zero resultado para um título não é
-          // falha do servidor e não deve pintar o card de vermelho.
-          ok: true,
+          // HTTP válido NÃO significa online: o Jackett devolve 200 com o
+          // indexer morto por dentro (`Indexers[].Status`/`Error`), e é
+          // `sourceOk` que separa transporte de fonte. Zero resultado para um
+          // título continua sendo online — só a falha declarada pinta de
+          // vermelho.
+          ok: r.value.sourceOk !== false,
           results: r.value.items.length,
           ms: r.value.ms,
           budgetMs: budgetFor(r.value.indexer),
         });
+        if (r.value.sourceOk === false) {
+          log.warn(`[jackett] ${r.value.indexer}: fonte fora (HTTP 200):`, r.value.sourceError);
+        }
       }
       // Hit do cache bruto não registrou status nem entra na lista de lentos:
       // gravar ok:true com ms~0 deixaria um indexer caído verde no card pelo
       // TTL inteiro, e é justamente o card usado para diagnosticar os ✗.
-      if (!r.value.fromCache && r.value.ms > 2000) slow.push(`${r.value.indexer} ${(r.value.ms / 1000).toFixed(1)}s`);
+      if (r.value.sourceOk === false) slow.push(`${r.value.indexer} ✗ fonte`);
+      else if (!r.value.fromCache && r.value.ms > 2000) slow.push(`${r.value.indexer} ${(r.value.ms / 1000).toFixed(1)}s`);
       // Fase 0 do índice: tempo gasto em indexer que não contribuiu com NENHUM
       // item que sobreviveu ao filtro. Só medição real entra (fromCache é
       // ~0ms e não mediu nada; rejeição não carrega ms confiável).
