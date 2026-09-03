@@ -92,26 +92,40 @@ async function tick() {
     if (!entry) return;
     harvestQueue.persist();
     const identity = obraIdentity(entry);
-    const { added, capped } = await harvestWorker.harvestOne(entry);
-    metrics.count(added > 0 ? 'harvest.done' : 'harvest.empty');
-    if (capped) {
-      // Obra cortada no meio pelo teto volta para a FRENTE da fila: terminar o
-      // que já começou vale mais que abrir obra nova, porque um registro
-      // parcial no índice já conta como cobertura para o idxPoolCovered — a
-      // busca passaria a ser servida de uma lista incompleta. O contador de
-      // tentativas evita que uma obra cara segure a fila para sempre.
-      const tries = (attemptsByObra.get(identity) || 0) + 1;
-      attemptsByObra.set(identity, tries);
-      if (tries <= 3) {
-        metrics.count('harvest.capped');
-        harvestQueue.head(entry);
-        harvestQueue.persist();
+    const { added, capped, preempted } = await harvestWorker.harvestOne(entry);
+    if (preempted) {
+      // Obra interrompida por tráfego volta à frente, SEM custo de tentativas
+      // e SEM contar na eficácia: o usuário chegou — não é falha da obra, e a
+      // meia-colheita não pode entrar duas vezes em done/empty. `resumed` marca
+      // só para o painel; o spread preserva o enqueuedAt original, que é quem
+      // decide a precedência dentro do rank no prioritizeQueue.
+      harvestQueue.head({ ...entry, resumed: true });
+      harvestQueue.persist();
+      metrics.count('harvest.preempted');
+    } else {
+      // Contrato da Etapa 1 preservado: obra que CONCLUIU (ou foi cortada pelo
+      // teto) conta eficácia. A preemptada nunca chega aqui — voltou à fila e
+      // será recolhida como conclusão legítima depois.
+      metrics.count(added > 0 ? 'harvest.done' : 'harvest.empty');
+      if (capped) {
+        // Obra cortada no meio pelo teto volta para a FRENTE da fila: terminar
+        // o que já começou vale mais que abrir obra nova, porque um registro
+        // parcial no índice já conta como cobertura para o idxPoolCovered — a
+        // busca passaria a ser servida de uma lista incompleta. O contador de
+        // tentativas evita que uma obra cara segure a fila para sempre.
+        const tries = (attemptsByObra.get(identity) || 0) + 1;
+        attemptsByObra.set(identity, tries);
+        if (tries <= 3) {
+          metrics.count('harvest.capped');
+          harvestQueue.head(entry);
+          harvestQueue.persist();
+        } else {
+          metrics.count('harvest.capped.dropped');
+          attemptsByObra.delete(identity);
+        }
       } else {
-        metrics.count('harvest.capped.dropped');
         attemptsByObra.delete(identity);
       }
-    } else {
-      attemptsByObra.delete(identity);
     }
   } catch (err: unknown) {
     metrics.count('harvest.failed');

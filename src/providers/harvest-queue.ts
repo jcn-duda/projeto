@@ -19,6 +19,10 @@ export type HarvestEntry = {
   episode?: number | null;
   reason: string;
   enqueuedAt: number;
+  // Sinal de painel (Etapa 2): entrada devolvida à FRENTE da fila por
+  // preempção de tráfego. Não entra na ordenação — é o head() com o
+  // enqueuedAt original que a coloca à frente do próprio rank.
+  resumed?: boolean;
 };
 
 // A fila inteira vive numa chave só (ver cabeçalho). Persistência best-effort
@@ -172,6 +176,12 @@ export function takeHead(): HarvestEntry | undefined {
 
 /** Volta a obra para a FRENTE da fila (cortada pelo teto: terminar primeiro). */
 export function head(entry: HarvestEntry): void {
+  // Corrida de duplicata (Etapa 2): obra fora da fila (em voo no harvestOne)
+  // pode ter sido re-enfileirada por enqueue() da mesma identidade — busca ou
+  // semente não sabem que ela está sendo colhida. Devolvê-la de novo aqui
+  // duplicaria a entrada; mesma obra já presente vira no-op. Beneficia também
+  // o caminho capped, que tinha a mesma janela.
+  if (queue.some((q) => obraIdentity(q) === obraIdentity(entry))) return;
   queue.unshift(entry);
 }
 

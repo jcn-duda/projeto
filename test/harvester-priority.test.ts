@@ -308,3 +308,37 @@ test('3.2: capacidade com prioridade ativa NÃO remove a cabeça prioritária', 
     harvester.clearQueue();
   }
 });
+
+test('Etapa 2: obra retomada (resumed) é a primeira do próprio rank e NÃO ultrapassa next-episode', () => {
+  // A preempção devolve a obra à frente da fila via head(), mas a ORDENAÇÃO
+  // efetiva é decidida pelo prioritizeQueue: o `resumed` é só sinal de painel —
+  // quem põe a obra retomada na frente do próprio rank é o enqueuedAt ORIGINAL
+  // preservado no head(). Prova-se aqui que (a) a obra com enqueuedAt antigo
+  // (retomada) sobe acima das do mesmo rank com enqueuedAt novo e (b) ela não
+  // fura o rank 3 (next-episode), que continua primeiro.
+  harvesterLive.reset();
+  harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 0 });
+  const now = Date.now();
+  // Sem evidência BR (rank 0), retomada: enqueuedAt antigo preservado do head().
+  const retomada = { imdbId: 'tt3200001', type: 'movie', reason: 'miss', season: null, episode: null, enqueuedAt: now - 5000, resumed: true };
+  // Sem evidência BR (rank 0), encaminhada depois: enqueuedAt novo.
+  const nova = { imdbId: 'tt3200002', type: 'movie', reason: 'miss', season: null, episode: null, enqueuedAt: now - 100 };
+  // Rank 3 (next-episode): deve continuar na frente da retomada.
+  const proximo = { imdbId: 'tt3200003', type: 'series', reason: 'next-episode', season: 1, episode: 2, enqueuedAt: now - 1 };
+  const out = (harvester as any).prioritizeQueue([nova, retomada, proximo]);
+  assert.deepEqual(
+    out.map((e: any) => e.imdbId),
+    ['tt3200003', 'tt3200001', 'tt3200002'],
+    'next-episode (rank 3) primeiro; retomada do rank 0 na frente da nova (enqueuedAt preservado)',
+  );
+  assert.equal(out[1].resumed, true, 'a retomada carrega o sinal resumed');
+  // O resumed NÃO é critério de ordenação: a mesma entrada sem a flag ordena
+  // igual (o enqueuedAt decide dentro do rank).
+  const semFlag = (harvester as any).prioritizeQueue([nova, { ...retomada, resumed: false }, proximo]);
+  assert.deepEqual(
+    semFlag.map((e: any) => e.imdbId),
+    ['tt3200003', 'tt3200001', 'tt3200002'],
+    'resumed não altera a ordenação — só o enqueuedAt decide dentro do rank',
+  );
+  harvesterLive.reset();
+});

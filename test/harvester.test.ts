@@ -296,3 +296,94 @@ test('HARVEST_ENABLED=false desliga o enqueue', () => {
     config.harvest.enabled = original;
   }
 });
+
+test('Etapa 2: tráfego no MEIO da obra preempta — devolve à frente, preserva enqueuedAt e não conta tentativa', async () => {
+  // O usuário chega enquanto a obra é colhida: o freio de atividade pega o
+  // laço pela metade, mas a obra NÃO pode ser tratada como concluída nem como
+  // falha — ela sai da fila (takeHead), então tem que VOLTAR para a frente,
+  // com o enqueuedAt original (é ele que decide a precedência no
+  // prioritizeQueue) e SEM incrementar o contador de tentativas (tráfego não
+  // é defeito da obra; ao contrário do capped, ela nunca é dropada no 4º
+  // encontro).
+  const saved = {
+    maxPerHour: config.harvest.maxPerHour,
+    idleWindowMs: config.harvest.idleWindowMs,
+    indexerDelayMs: config.harvest.indexerDelayMs,
+    indexers: config.jackett.indexers,
+    apiKey: config.jackett.apiKey,
+    tmdbApiKey: config.tmdb.apiKey,
+    rawMaxItems: config.rawCache.maxItems,
+    rdWarmEnabled: config.debrid.rdWarm.enabled,
+  };
+  let indexerHits = 0;
+  const stub = stubFetch((url: string) => {
+    if (url.includes('/api/v2.0/indexers/')) {
+      indexerHits += 1;
+      // Tráfego do usuário chega na PRIMEIRA consulta da obra: o guard do
+      // tick já rodou (sem tráfego), então o freio pega o laço no indexer
+      // seguinte — a preempção acontece no MEIO do harvestOne.
+      activity.noteUserRequest();
+      return { ok: true, status: 200, json: async () => ({ Results: [] }) };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+  try {
+    harvesterLive.reset();
+    metrics.reset();
+    config.harvest.maxPerHour = 1000;
+    // Janela curta (100ms) e espera entre ticks: `recentUserTraffic` precisa
+    // expirar para o guard do tick seguinte liberar a obra de novo.
+    config.harvest.idleWindowMs = 100;
+    config.harvest.indexerDelayMs = 0;
+    config.jackett.indexers = ['pre-a', 'pre-b', 'pre-c'];
+    config.jackett.apiKey = 'chave-de-teste';
+    config.tmdb.apiKey = '';
+    // Cache bruto desligado: a MESMA query não pode virar hit no tick seguinte
+    // e calar o stub — o tráfego tem que ser notado em TODA consulta.
+    config.rawCache.maxItems = 0;
+    config.debrid.rdWarm.enabled = false;
+    harvester.setPaused(false);
+    harvester.clearQueue();
+    cache.clearNamespace('harvest');
+
+    cache.set('meta:movie:tt9500131', { name: 'Preempted Movie', year: '2024', type: 'movie' }, 3600);
+    harvester.enqueue({ imdbId: 'tt9500131', type: 'movie', reason: `preempt-${Date.now()}` } as any);
+
+    const key = `${prefix('harvest')}q`;
+    const antes = (cache.get(key) || []) as any[];
+    const obraAntes = antes.find((e) => e.imdbId === 'tt9500131');
+    assert.ok(obraAntes, 'obra enfileirada antes do tick');
+    const enqueuedAtAntes = obraAntes.enqueuedAt;
+
+    // 4 ticks preemptados seguidos: se a preempção contasse tentativa (como o
+    // capped), a obra seria dropada no 4º encontro (harvest.capped.dropped).
+    for (let i = 0; i < 4; i += 1) {
+      await harvester.tick();
+      assert.equal((harvester.status() as any).queueDepth, 1, `tick ${i + 1}: obra preemptada volta à fila`);
+      await new Promise((r) => setTimeout(r, 120));
+    }
+
+    const snap = metrics.snapshot().counters;
+    assert.ok((snap['harvest.preempted'] || 0) >= 4, 'cada preempção contou harvest.preempted');
+    assert.equal(snap['harvest.capped.dropped'] || 0, 0, 'preempção não é capped: nada dropado no 4º encontro');
+    const depois = (cache.get(key) || []) as any[];
+    const obraDepois = depois.find((e) => e.imdbId === 'tt9500131');
+    assert.ok(obraDepois, 'obra continua na fila após 4 preempções (attemptsByObra não incrementou)');
+    assert.equal(obraDepois.enqueuedAt, enqueuedAtAntes, 'enqueuedAt preservado na retomada');
+    assert.equal(obraDepois.resumed, true, 'entrada retomada carrega o sinal resumed para o painel');
+    assert.equal((harvester.status() as any).queueDepth, 1, 'fila intacta após 4 preempções');
+    assert.ok(indexerHits >= 4, 'o stub disparou em toda consulta (raw desligado)');
+  } finally {
+    stub.restore();
+    config.harvest.maxPerHour = saved.maxPerHour;
+    config.harvest.idleWindowMs = saved.idleWindowMs;
+    config.harvest.indexerDelayMs = saved.indexerDelayMs;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+    config.tmdb.apiKey = saved.tmdbApiKey;
+    config.rawCache.maxItems = saved.rawMaxItems;
+    config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
+    harvesterLive.reset();
+    harvester.clearQueue();
+  }
+});

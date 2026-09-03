@@ -65,12 +65,12 @@ async function awaitIndexerGap(indexer: string) {
   }
 }
 
-export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean; added: number }> {
+export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean; preempted: boolean; added: number }> {
   const startedAt = Date.now();
   const live = harvesterLive.effective();
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
   const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
-  if (!searchMeta?.name) return { ok: false, capped: false, added: 0 };
+  if (!searchMeta?.name) return { ok: false, capped: false, preempted: false, added: 0 };
   const matchContext = {
     names: searchMeta.names,
     year: searchMeta.year,
@@ -89,6 +89,7 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   const indexers = [...new Set(config.jackett.indexers)];
   let attempted = 0;
   let capped = false;
+  let preempted = false;
   let succeeded = 0;
   const collected: any[] = [];
 
@@ -154,7 +155,13 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   for (const indexer of indexers) {
     // Freio de atividade no MEIO da obra também: tráfego chegou, solta o
     // Jackett na hora (o que já foi coletado entra no índice mesmo assim).
-    if (activity.recentUserTraffic(live.harvestIdleWindowMs)) break;
+    // O sinal é preempção, não teto: o ciclo devolve a obra à frente da fila
+    // sem contar tentativa (tráfego não é falha dela) nem eficácia de
+    // meia-obra.
+    if (activity.recentUserTraffic(live.harvestIdleWindowMs)) {
+      preempted = true;
+      break;
+    }
     if (queriesThisHour() + attempted >= live.harvestMaxPerHour) {
       // A obra sai DAQUI pela metade: quem a desenfileirou precisa saber, senão
       // ela é dada por colhida com meia dúzia de indexers e nunca mais volta.
@@ -238,7 +245,7 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     recentWorks.length = Math.min(recentWorks.length, config.harvest.dashboardLastWorks);
   }
   metrics.observe('harvest.ms', Date.now() - startedAt);
-  return { ok: added > 0 || succeeded > 0, capped, added };
+  return { ok: added > 0 || succeeded > 0, capped, preempted, added };
 }
 
 /** Contadores do trabalho executado, para o status do painel. */
