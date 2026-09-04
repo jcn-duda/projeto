@@ -127,7 +127,15 @@ function explicitPtAudio(title = '') {
   const isGenericDub = genericDubProvesPt(t);
 
   return (
-    /\b(DUBLAD[OA]|DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR|DUBLADO[- ]?PT[-.]?BR)\b/.test(t) ||
+    // `DUBLAD[OA]S?` sai do `\b` e passa a exigir só que não haja LETRA colada.
+    // Com `\b` o marcador morria quando o release grudava a resolução no fim:
+    // "Tucker e Dale contra o mal Dublado720p mp4" é real e está no índice de
+    // produção — entrou como isBr=false/dubbed=false, um falso negativo mudo
+    // numa fonte dublada. Dígito colado não desfaz a afirmação do dono; letra
+    // colada desfaz (evita casar dentro de outra palavra). O `S?` alinha com o
+    // PT_VOCAB do br-origin, que já aceitava o plural.
+    /(?<![A-Z])DUBLAD[OA]S?(?![A-Z])/.test(t) ||
+    /\b(DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR)\b/.test(t) ||
     isGenericDub ||
     (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub)
   );

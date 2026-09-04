@@ -99,6 +99,14 @@ test('marca dublado só quando a origem global anuncia áudio PT explícito', ()
   assert.equal(explicitPtAudio('Movie DUAL'), false);
   assert.equal(explicitPtAudio('Movie DUBLADO'), true);
   assert.equal(explicitPtAudio('Movie LEG PT-BR'), false);
+  // Resolução colada no marcador: o `\b` do fim matava a afirmação do dono. O
+  // primeiro título é real (índice de produção, tt1465522) e entrava como não
+  // dublado. Letra colada continua NÃO casando — o marcador tem que ser a
+  // palavra, não um pedaço dela.
+  assert.equal(explicitPtAudio('Tucker e Dale contra o mal Dublado720p mp4'), true);
+  assert.equal(explicitPtAudio('Filme.DUBLADO1080p.mkv'), true);
+  assert.equal(explicitPtAudio('Serie 2024 DUBLADOS'), true);
+  assert.equal(explicitPtAudio('Movie DUBLADOR de vozes'), false);
   assert.equal(globalDual._dubbed, false);
   // Dual YTS sem PT: classifica Dual por dentro, mas o chip some da lista.
   assert.doesNotMatch(globalDual.name, /DUAL/);
