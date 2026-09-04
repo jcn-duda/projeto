@@ -99,33 +99,54 @@ function createNextProtectedUrl(options = {}) {
   const suffixes = options.protectorSuffixes || ALL_PROTECTOR_SUFFIXES;
   const extractRefresh = options.extractMetaRefresh || extractMetaRefresh;
 
+  const isDifferentUrl = (destHref, base) => {
+    if (!destHref) return false;
+    if (!base) return true;
+    const clean = (url) => String(url).replace(/#.*$/, '').replace(/\/+$/, '');
+    return clean(destHref) !== clean(base);
+  };
+
   return function nextProtectedUrl(html, baseUrl) {
     if (!html) return null;
     const str = String(html);
 
-    // 1. const next = "<url>".
-    const nextMatch = str.match(/const\s+next\s*=\s*["'](https?:[^"']+)["']/i);
-    if (nextMatch) {
+    // 1. const next = "<url>" / let / var / window.next = ...
+    const nextRe = /(?:(?:const|let|var)\s+|(?:window\.)?)\bnext\s*=\s*["'`\`]([^"'`\`]+)["'`\`]/gi;
+    let nextMatch;
+    while ((nextMatch = nextRe.exec(str)) !== null) {
       try {
         const jsonUnescaped = String(nextMatch[1]).replace(/\\\//g, '/').replace(/\\"/g, '"');
         const u = new URL(decode(jsonUnescaped), baseUrl);
         if (/(?:^|\.)youtube(?:-nocookie)?\.com$/i.test(u.hostname)) {
           const q = u.searchParams.get('q');
           if (q && q.trim()) {
-            try { return decodeURIComponent(decode(q.trim())); } catch {}
+            try {
+              let target = decode(q.trim());
+              if (/^https?%3A%2F%2F/i.test(target)) {
+                try { target = decodeURIComponent(target); } catch {}
+              }
+              const dest = new URL(target, baseUrl);
+              if ((isProtector(dest.hostname) || isAssertOnly(dest.hostname)) && isDifferentUrl(dest.href, baseUrl)) {
+                return dest.href;
+              }
+            } catch {}
           }
+        } else if ((isProtector(u.hostname) || isAssertOnly(u.hostname)) && isDifferentUrl(u.href, baseUrl)) {
+          return u.href;
         }
-        if (isProtector(u.hostname) && u.href !== baseUrl) return u.href;
       } catch {}
     }
 
     // 2. URL_ETAPA2 (gate-2 da vacadb.org).
-    const etapa2 = str.match(/URL_ETAPA2\s*=\s*["']([^"']+)["']/i);
-    if (etapa2) {
+    const etapa2Re = /URL_ETAPA2\s*=\s*["'`\`]([^"'`\`]+)["'`\`]/gi;
+    let etapa2Match;
+    while ((etapa2Match = etapa2Re.exec(str)) !== null) {
       try {
-        const jsonUnescaped = String(etapa2[1]).replace(/\\\//g, '/');
+        const jsonUnescaped = String(etapa2Match[1]).replace(/\\\//g, '/').replace(/\\"/g, '"');
         const u = new URL(decode(jsonUnescaped), baseUrl);
-        if ((isProtector(u.hostname) || isAssertOnly(u.hostname)) && u.href !== baseUrl) return u.href;
+        if ((isProtector(u.hostname) || isAssertOnly(u.hostname)) && isDifferentUrl(u.href, baseUrl)) {
+          return u.href;
+        }
       } catch {}
     }
 
@@ -134,17 +155,21 @@ function createNextProtectedUrl(options = {}) {
     if (refreshValue) {
       try {
         const u = new URL(decode(refreshValue), baseUrl);
-        if (isProtector(u.hostname) && u.href !== baseUrl) return u.href;
+        if ((isProtector(u.hostname) || isAssertOnly(u.hostname)) && isDifferentUrl(u.href, baseUrl)) {
+          return u.href;
+        }
       } catch {}
     }
 
     // 4. Bloco genérico.
-    return discoverNextUrl(str, baseUrl, {
+    const discovered = discoverNextUrl(str, baseUrl, {
       isProtectorHost: isProtector,
       decodeEntities: decode,
       protectorSuffixes: suffixes,
       jsVarPattern: JS_URL_VAR_RE,
     });
+    if (discovered && isDifferentUrl(discovered, baseUrl)) return discovered;
+    return null;
   };
 }
 

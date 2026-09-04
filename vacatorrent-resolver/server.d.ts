@@ -35,6 +35,8 @@ interface VacaProfile {
   assertAllowedUrl(url: string): URL;
   isDetailHost(url: string): boolean;
   isProtectorHost(url: string): boolean;
+  isAssertOnlyHost(url: string): boolean;
+  extractMagnet(html: string): string | null;
   normalizeQuery(query: string): string;
   nextProtectedUrl(html: string, baseUrl?: string): string | null;
 }

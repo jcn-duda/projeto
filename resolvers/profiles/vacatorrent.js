@@ -41,7 +41,7 @@ const {
   episodeStep,
   extractMagnet,
   createNextProtectedUrl,
-  nextProtectedUrl,
+  nextProtectedUrl: defaultNextProtectedUrl,
   parseSearchJson,
   filterSearchPosts,
   createParseDownloadLinks,
@@ -90,6 +90,11 @@ const {
   isNetworkError, stripTags,
 } = bootstrap;
 const SELF_URL = bootstrap.selfUrl;
+
+const nextProtectedUrl = createNextProtectedUrl({
+  isProtectorHost,
+  isAssertOnlyHost,
+});
 
 // --- Cache (núcleo resolvers/cache.js) ---
 const inFlight = new Map();
@@ -299,6 +304,7 @@ module.exports = {
   extractMetaRefresh: (html) => extractMetaRefresh(html, decodeEntities),
   isDetailHost,
   isProtectorHost,
+  isAssertOnlyHost,
   normalizeQuery,
   requestedSeasonFromQuery,
   normalizeSeasonValue,
