@@ -17,7 +17,9 @@ import { applyDebrid, buildStreams } from '../src/providers/index.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { sortAndLimit } from '../src/utils/format.js';
-import { pickFile, NoVideoError } from '../src/debrid/common.js';
+import { pickFile, NoVideoError, DubLieError } from '../src/debrid/common.js';
+import * as held from '../src/debrid/protected.js';
+import { queueDubAudit, runDubAudit } from '../src/providers/dub-audit.js';
 
 const runWith = (patch: { opts: any; encoded: string }, fn: () => any) => runtime.run(patch, fn);
 
@@ -83,6 +85,18 @@ test('bad vence sobre alive: markBad apaga o histórico vivo do mesmo hash', () 
   assert.equal(magnetdb.isAlive('premiumize', conta, hash), false, 'alive não sobrevive ao bad no mesmo hash');
 });
 
+test('markAlive recusa hash bad: não ressuscita o alive', () => {
+  // Sem o filtro, a checagem seguinte regravava alive e desfazia o forget do markBad.
+  const hash = '3'.repeat(40);
+  const conta = 'conta-alive-refused-bad';
+  magnetdb.markBad('premiumize', conta, hash);
+  metrics.reset();
+  magnetdb.markAlive('premiumize', conta, [hash]);
+  assert.equal(magnetdb.isAlive('premiumize', conta, hash), false, 'markAlive não ressuscita hash bad');
+  assert.equal((metrics.snapshot() as any).counters['magnetdb.alive.refused-bad'], 1);
+  metrics.reset();
+});
+
 test('lie é evidência própria, escopada por conta, sem virar bad', () => {
   const hash = '9'.repeat(40);
   magnetdb.markLie('premiumize', 'conta-lie', hash);
@@ -105,7 +119,44 @@ test('status observa por adaptador e TTL sem expor o escopo da conta', () => {
   assert.ok(snapshot.byAdapter.premiumize.sizeAlive >= 1);
   assert.ok(snapshot.byAdapter.torbox.sizeBad >= 1);
   assert.ok(snapshot.byAdapter.torbox.ttlRemainingSeconds.lie !== null);
+  assert.equal(typeof snapshot.l1Entries, 'number');
+  assert.equal(typeof snapshot.l1Max, 'number');
+  assert.equal(typeof snapshot.evictedQuota, 'number');
+  assert.ok(snapshot.l1Max >= snapshot.l1Entries);
   assert.equal(JSON.stringify(snapshot).includes(secretAccount), false, 'o diagnóstico não vaza chave nem digest de conta');
+});
+
+test('status: ocupação L1 do mag ≠ tamanho da amostra (órfã sem track)', () => {
+  // Chave mag plantada direto no cache não passa por mark*/track — L1 sobe,
+  // amostra não. Prova que o painel não pode fundir os dois campos.
+  const before = magnetdb.status();
+  const sampleBefore = before.sizeAlive + before.sizeBad + before.sizeLie;
+  const l1Before = before.l1Entries;
+  const orphanKey = `${prefix('mag')}alive:orphan-l1:${'d'.repeat(16)}:${'f'.repeat(40)}`;
+  cache.set(orphanKey, 1, 3600);
+  try {
+    const after = magnetdb.status();
+    assert.equal(after.l1Entries, l1Before + 1, 'L1 conta a órfã');
+    assert.equal(
+      after.sizeAlive + after.sizeBad + after.sizeLie,
+      sampleBefore,
+      'amostra tracked não muda com chave órfã',
+    );
+    assert.ok(after.l1Entries !== after.sizeAlive + after.sizeBad + after.sizeLie, 'L1 e amostra são campos distintos');
+  } finally {
+    cache.forget(orphanKey);
+  }
+});
+
+test('status: sync do tracked dropta chave evictada/forgotten', () => {
+  const conta = 'conta-sync-tracked-mag';
+  const hash = 'e'.repeat(40);
+  const key = `${prefix('mag')}alive:premiumize:${accountScope(conta)}:${hash}`;
+  const sampleBefore = magnetdb.status().sizeAlive;
+  magnetdb.markAlive('premiumize', conta, [hash]);
+  assert.equal(magnetdb.status().sizeAlive, sampleBefore + 1);
+  cache.forget(key);
+  assert.equal(magnetdb.status().sizeAlive, sampleBefore, 'peek null no status remove a fantasma do Map');
 });
 
 test('pickFile: listagem vazia é null (transferência fria), não prova de magnet quebrado', () => {
@@ -239,5 +290,71 @@ test('applyDebrid sem histórico não descarta nada (controle)', async () => {
     assert.equal(out.length, 2, 'sem evidência, nada sai da lista');
   } finally {
     debrid.BY_ID.set('premiumize', original as any);
+  }
+});
+
+test('applyDebrid sem adapter: stream _lied some da lista (pre-debrid)', async () => {
+  // P2P puro (sem serviço/chave) early-returna antes do pruneKnownBroken; o
+  // corte de _lied tem que acontecer ANTES, senão o mentiroso chega ao cliente.
+  const good = 'a'.repeat(40);
+  const lied = 'b'.repeat(40);
+  metrics.reset();
+  try {
+    const out = await runWith(
+      { opts: { ...runtime.defaults(), debridService: '', debridApiKey: '' }, encoded: '' },
+      () => applyDebrid([
+        stream(good),
+        { ...stream(lied), _lied: true },
+      ] as any, {
+        season: null,
+        episode: null,
+        imdbId: 'tt0000001',
+        searchKey: 'magnet-db-pre-lie',
+        deadlineAt: Date.now() + 8000,
+        onCacheResult: null,
+        workHint: null,
+      } as any),
+    );
+    assert.equal(out.length, 1, 'só o stream sem _lied sobrevive');
+    assert.equal(out[0].infoHash, good);
+    assert.equal((metrics.snapshot() as any).counters['search.lie.pre-debrid'], 1);
+    assert.equal((metrics.snapshot() as any).counters['magnetdb.dropped.lie'], undefined,
+      'sem adapter não passa pelo pruneKnownBroken — métrica distinta');
+  } finally {
+    metrics.reset();
+  }
+});
+
+test('runDubAudit: mentira do tail destrava adprot (paridade com /resolve)', async () => {
+  const originalResolve = debrid.resolveLink;
+  const originalProtect = config.debrid.autoFetchProtectBr;
+  const apiKey = 'chave-mag-audit-lie';
+  const account = accountScope(apiKey);
+  const h = 'f1'.repeat(20);
+  cache.clearNamespace('adprot');
+  metrics.reset();
+  try {
+    config.debrid.autoFetchProtectBr = true;
+    held.protectBr('alldebrid', account, h);
+    assert.equal(held.isDurablyProtected('alldebrid', account, h), true, 'precondição: retido');
+    debrid.resolveLink = async () => {
+      throw new DubLieError({ videoCount: 1, matchedGroup: 'WEB', sample: 'Movie.2024.1080p.WEB.mkv' });
+    };
+    await runWith(
+      { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: apiKey }, encoded: 'cfg-mag-audit' },
+      async () => {
+        queueDubAudit('alldebrid', apiKey, [{ hash: h, season: null, episode: null, imdbId: null, dubbed: true }]);
+        const r = await runDubAudit();
+        assert.equal(r.lies, 1, 'tail provou a mentira');
+      },
+    );
+    assert.equal(held.isDurablyProtected('alldebrid', account, h), false, 'audit destrava retenção');
+    assert.equal(magnetdb.isLie('alldebrid', apiKey, h), true, 'lie gravado na conta');
+  } finally {
+    debrid.resolveLink = originalResolve;
+    config.debrid.autoFetchProtectBr = originalProtect;
+    held.unprotect('alldebrid', account, h);
+    cache.clearNamespace('adprot');
+    metrics.reset();
   }
 });

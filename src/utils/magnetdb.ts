@@ -49,11 +49,21 @@ export type MagnetDbStatus = {
   aliveTtlSeconds: number;
   badTtlSeconds: number;
   lieTtlSeconds: number;
+  // Amostra do processo (Map tracked): só o que este processo observou.
+  // Reinício zera; NÃO é a ocupação real do namespace mag no L1.
   sizeAlive: number;
   sizeBad: number;
   sizeLie: number;
   ttlRemainingSeconds: TtlRemaining;
   byAdapter: Record<string, MagnetDbAdapterStatus>;
+  // Ocupação real do namespace `mag` no L1 — vem de cache.snapshot().namespaces,
+  // o mesmo padrão do releaseIndex.status(). Inclui chaves plantadas antes do
+  // processo atual (L2→L1) e órfãs sem track; por isso pode diferir da amostra.
+  // Sem scan L2: o contador já é mantido pelo cache a cada set/forget.
+  l1Entries: number;
+  l1Max: number;
+  // Evicções por cota do balde mag (métrica cache.evicted.quota.mag).
+  evictedQuota: number;
   counters: {
     aliveSet: number;
     badSet: number;
@@ -83,7 +93,9 @@ function trackedStatus() {
   const ttlTotals = { alive: 0, bad: 0, lie: 0 };
   const byAdapter: Record<string, { sizes: MagnetSizes; ttlTotals: Record<MagnetSide, number> }> = Object.create(null);
   for (const [key, item] of tracked) {
-    if (item.expiresAt <= now) {
+    // Evicção/forget do cache não notifica o Map — sem o peek a amostra
+    // SUPERCONTA depois que a cota mag gira.
+    if (item.expiresAt <= now || cache.peek(key) == null) {
       tracked.delete(key);
       continue;
     }
@@ -134,9 +146,16 @@ function lieKey(adapterId: string, apiKey: string, hash: string) {
 function markAlive(adapterId: string, apiKey: string, hashes: string[]) {
   const ttl = config.magnetDb.aliveTtl;
   if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey) return;
-  const writes = [...new Set(hashes.map((h) => String(h || '').toLowerCase()))]
-    .filter(Boolean)
-    .map((hash) => ({ key: aliveKey(adapterId, apiKey, hash), value: 1, ttlSeconds: ttl }));
+  // Sem isto o cache.forget(alive) do markBad é desfeito por cache-check na checagem seguinte.
+  const unique = [...new Set(hashes.map((h) => String(h || '').toLowerCase()))].filter(Boolean);
+  const allowed = unique.filter((hash) => !isBad(adapterId, apiKey, hash));
+  const refused = unique.length - allowed.length;
+  if (refused > 0) metrics.count('magnetdb.alive.refused-bad', refused);
+  const writes = allowed.map((hash) => ({
+    key: aliveKey(adapterId, apiKey, hash),
+    value: 1,
+    ttlSeconds: ttl,
+  }));
   if (writes.length === 0) return;
   cache.setMany(writes);
   for (const write of writes) track(write.key, adapterId, 'alive', ttl);
@@ -259,11 +278,21 @@ function renewAlive(adapterId: string, apiKey: string, hashes: string[]) {
   markAlive(adapterId, apiKey, stale);
 }
 
-/** Estado de diagnóstico; tamanhos são da amostra observada neste processo. */
+/**
+ * Estado de diagnóstico do painel.
+ * - sizeAlive/Bad/Lie + byAdapter: amostra do processo (Map tracked), após
+ *   sync com peek (dropa evicted/forgotten).
+ * - l1Entries/l1Max: ocupação real do namespace mag no L1 (snapshot do cache).
+ * - evictedQuota: quantas vezes a cota mag girou (métrica, não scan).
+ */
 function status(): MagnetDbStatus {
   const trackedState = trackedStatus();
   const sizes = trackedState.sizes;
   const counters = metrics.snapshot().counters;
+  // Mesmo padrão do releaseIndex.status() / autofetch: lê o contador que o
+  // cache já mantém — zero scan de prefixo, zero passagem no L2.
+  const ns = cache.snapshot().namespaces as Record<string, { entries?: number; maxEntries?: number }>;
+  const magNs = ns?.mag;
   return {
     enabled: config.magnetDb.enabled,
     aliveTtlSeconds: config.magnetDb.aliveTtl,
@@ -274,6 +303,9 @@ function status(): MagnetDbStatus {
     sizeLie: sizes.lie,
     ttlRemainingSeconds: trackedState.ttlRemainingSeconds,
     byAdapter: trackedState.byAdapter,
+    l1Entries: magNs?.entries || 0,
+    l1Max: magNs?.maxEntries || cache.QUOTAS?.mag || 2000,
+    evictedQuota: counters['cache.evicted.quota.mag'] || 0,
     counters: {
       aliveSet: counters['magnetdb.alive.set'] || 0,
       badSet: counters['magnetdb.bad.set'] || 0,
