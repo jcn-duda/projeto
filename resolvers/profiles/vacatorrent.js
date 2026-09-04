@@ -40,8 +40,10 @@ const {
   extractEpisode,
   episodeStep,
   extractMagnet,
+  // Sem o `nextProtectedUrl` pronto do parsers: ele nasce com os
+  // classificadores DEFAULT do módulo, e o que vale aqui são os do bootstrap
+  // (isProtectorHost/isAssertOnlyHost do perfil) — ver a construção abaixo.
   createNextProtectedUrl,
-  nextProtectedUrl: defaultNextProtectedUrl,
   parseSearchJson,
   filterSearchPosts,
   createParseDownloadLinks,

@@ -111,7 +111,12 @@ function createNextProtectedUrl(options = {}) {
     const str = String(html);
 
     // 1. const next = "<url>" / let / var / window.next = ...
-    const nextRe = /(?:(?:const|let|var)\s+|(?:window\.)?)\bnext\s*=\s*["'`\`]([^"'`\`]+)["'`\`]/gi;
+    // Atribuição JS (`const/let/var`, `window.next` ou direta), não atributo
+    // HTML: o lookbehind barra `data-next="…"`/`x-next="…"` e `meunext=`. Sem
+    // ele um atributo isca apontando para host permitido VENCE o `next` real,
+    // porque o laço devolve o primeiro destino válido que encontrar — e é este
+    // ramo (o único além do assert) que aceita host assert-only.
+    const nextRe = /(?:(?:const|let|var)\s+|window\.)?(?<![-\w])next\s*=\s*["'`]([^"'`]+)["'`]/gi;
     let nextMatch;
     while ((nextMatch = nextRe.exec(str)) !== null) {
       try {

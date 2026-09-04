@@ -136,6 +136,29 @@ describe('VacaTorrent Parser: nextProtectedUrl (protetor systemtech)', () => {
     );
   });
 
+  test('nextProtectedUrl: atributo HTML não é atribuição — isca em data-next não vence o next real', () => {
+    // O laço devolve o PRIMEIRO destino válido. Uma isca em atributo, colocada
+    // antes do script, sequestraria o salto se `next` casasse dentro dela — e
+    // este é o ramo que aceita host assert-only.
+    const isca = '<a data-next="https://t.co/ISCA0000000">baixar</a>';
+    const real = 'const next = "https://t.co/SFsPRm91bg";';
+    assert.equal(
+      vaca.nextProtectedUrl(`${isca}\n${real}`, 'https://systemtech.space/enc/processar.php'),
+      'https://t.co/SFsPRm91bg',
+      'o next do script vence a isca do atributo',
+    );
+    assert.equal(
+      vaca.nextProtectedUrl(isca, 'https://systemtech.space/enc/processar.php'),
+      null,
+      'sozinha, a isca em atributo não vira salto',
+    );
+    assert.equal(
+      vaca.nextProtectedUrl('meunext = "https://t.co/ISCA0000000";', 'https://systemtech.space/enc/processar.php'),
+      null,
+      'sufixo colado (meunext) não é o next',
+    );
+  });
+
   test('nextProtectedUrl: preserva parâmetros com caractere de percentagem no redirect do youtube', () => {
     const html = 'const next = "https:\\/\\/www.youtube.com\\/redirect?q=https%3A%2F%2Ft.co%2Fsearch%3Fq%3D100%25";';
     const next = vaca.nextProtectedUrl(html, 'https://systemtech.space/enc/processar.php');
