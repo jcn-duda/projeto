@@ -209,12 +209,14 @@ export async function buildStreams(rawInput: RawItem[], {
   // notice: o brHidden alimenta o texto do aviso e o sufixo do log.
   const brIn = beforeCut.filter((s) => s._br);
   const dubIn = brIn.filter((s) => s._dubbed);
-  // Preferir o que o debrid mediu; cair na diferença local se o observador
-  // não veio (teste) ou ainda não rodou countFirstBr.
-  const brHidden = Math.max(
-    firstObserver?.pendingBrHidden || 0,
-    Math.max(0, brEnteredDebrid - brIn.length),
-  );
+  // pendingBrHidden já é o delta pós-trust (countFirstBr depois do prune):
+  // bad/dead/lie não entram. Math.max com (brEnteredDebrid − brIn) misturava
+  // trust drop com cachedOnly e o notice "reabra" mentia — reabrir não tira
+  // hash da blacklist. Com observador (produção), só a medida precisa; sem
+  // ele (teste avulso), cai no delta bruto.
+  const brHidden = firstObserver
+    ? firstObserver.pendingBrHidden || 0
+    : Math.max(0, brEnteredDebrid - brIn.length);
   const head = streams.slice(0, 3).map((s) => (s.name || '').split('\n')[1] || '?').join(' / ');
   log.info(
     `[search] entrada do corte: ${beforeCut.length} stream(s), ${brIn.length} BR (${dubIn.length} dublada(s))` +
