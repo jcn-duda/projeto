@@ -13,6 +13,9 @@ import {
   brDubbedPool,
   anyDubbedPool,
   topSeededPool,
+} from './autofetch-pools.js';
+import type { PoolsOptions, AutofetchTargetQuality } from './autofetch-pools.js';
+import {
   hashSet,
   pickFromPool,
   pickBrDubbedCandidates,
@@ -25,8 +28,8 @@ import {
   canAutoFetchBr,
   uncachedBrHashes,
   filterKnownCache,
-} from './stream-pools.js';
-import type { PoolsOptions, AutofetchOptions, AutofetchTargetQuality } from './stream-pools.js';
+} from './autofetch-picks.js';
+import type { AutofetchOptions } from './autofetch-picks.js';
 
 interface SortOptions {
   minSeeders?: number;
