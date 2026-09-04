@@ -82,18 +82,37 @@ test('audioFromTitle detecta dublado/dual/legendado e entra na linha', () => {
 
 test('marca dublado só quando a origem global anuncia áudio PT explícito', () => {
   const globalDual = stremioStream({ title: 'Movie 2024 1080p DUAL', infoHash: HASH });
+  // Caso real do incidente: Dual Audio YTS sem PT — chip DUAL enganava.
+  const ytsDual = stremioStream({
+    title: 'Zombieland.Double.Tap.2019.1080p.BluRay.x264-YTS.MX Dual Audio',
+    infoHash: 'e'.repeat(40),
+  });
   const globalPt = stremioStream({ title: 'Movie 2024 1080p DUAL PT-BR', infoHash: OTHER });
   const globalDub = stremioStream({ title: 'Movie 2024 1080p Dublado', infoHash: 'c'.repeat(40) });
   const brDual = stremioStream({ title: 'Filme 2024 1080p DUAL', infoHash: 'd'.repeat(40), isBr: true });
+  const brDub = stremioStream({
+    title: 'Zumbilândia: Atire Duas Vezes (2020) 1080p DUBLADO',
+    infoHash: 'f'.repeat(40),
+    isBr: true,
+  });
 
   assert.equal(explicitPtAudio('Movie DUAL'), false);
   assert.equal(explicitPtAudio('Movie DUBLADO'), true);
   assert.equal(explicitPtAudio('Movie LEG PT-BR'), false);
   assert.equal(globalDual._dubbed, false);
-  assert.match(globalDual.name, /DUAL/);
+  // Dual YTS sem PT: classifica Dual por dentro, mas o chip some da lista.
+  assert.doesNotMatch(globalDual.name, /DUAL/);
+  assert.equal(ytsDual._dubbed, false);
+  assert.doesNotMatch(ytsDual.name, /DUAL|BR/);
   assert.equal(globalPt._dubbed, true);
+  assert.match(globalPt.name, /DUAL/);
   assert.equal(globalDub._dubbed, true);
   assert.equal(brDual._dubbed, true);
+  assert.match(brDual.name, /DUAL/);
+  assert.match(brDual.name, /BR/);
+  assert.equal(brDub._dubbed, true);
+  assert.match(brDub.name, /DUB/);
+  assert.match(brDub.name, /BR/);
 });
 
 // --- Causa A: blob de tags do hdrtorrent ---------------------------------

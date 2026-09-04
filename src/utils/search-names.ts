@@ -95,11 +95,17 @@ function streamDisplayName({
   // A ordem é a da decisão: primeiro a resolução, depois QUAL corte do filme é,
   // depois de onde veio. Sem corte e fonte, quatro releases 4K do mesmo filme
   // saíam com a linha idêntica e a escolha virava sorteio pelo seed.
+  //
+  // Chip DUAL só com prova PT (isBr ou looksPtBr no título). Dual Audio YTS
+  // sem PT continua classificado Dual por dentro, mas o rótulo na lista não
+  // pode parecer dublado BR — invariante 8.12 (_br/_dubbed) não muda aqui.
+  const dualHasPtProof = isBr || looksPtBr(title);
+  const audioChip = audio === 'Dual' && !dualHasPtProof ? '' : compactAudio(audio);
   const details = [
     quality === UNKNOWN_QUALITY ? null : quality === '2160p' ? '4K' : quality,
     edition || null,
     source || null,
-    compactAudio(audio),
+    audioChip || null,
     isBr ? 'BR' : null,
   ].filter(Boolean).join(' ');
   const stats = [

@@ -64,8 +64,10 @@ test('dedupeByHash mantém origem e áudio do post vencedor', () => {
   const [globalWinner] = dedupeByHash([globalPopular, brSparse]);
   assert.equal(globalWinner._br, false);
   assert.equal(globalWinner._dubbed, false);
-  assert.equal(globalWinner.name, '1080p BluRay DUAL · The Pirate Bay · 👤 300');
-  assert.doesNotMatch(globalWinner.name, /BR|DUB/);
+  // Dual global sem PT: sem chip DUAL (rótulo honesto); áudio Dual interno
+  // continua sem `_br`/`_dubbed` (invariante 8.12).
+  assert.equal(globalWinner.name, '1080p BluRay · The Pirate Bay · 👤 300');
+  assert.doesNotMatch(globalWinner.name, /BR|DUB|DUAL/);
   assert.equal(dedupeByHash([null]).length, 0);
 });
 

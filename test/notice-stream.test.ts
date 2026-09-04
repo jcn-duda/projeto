@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildStreams, applyNoticeOrigin, findStreams } from '../src/providers/index.js';
+import { buildStreams, applyNoticeOrigin, findStreams, createFirstObserver } from '../src/providers/index.js';
 import { hasExplicitForeignAudio } from '../src/utils/format.js';
 import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
@@ -73,8 +73,11 @@ async function build(raw: RawItem[], { season = 1, episode = 1, cached = [], cac
   }
 }
 
+// 1080p no título: com QUALITY_FILTER=2160p,1080p,720p no .env do operador,
+// "sem resolução" some no sortAndLimit e o aviso virava "procurando a temporada"
+// — falso negativo que depende do ambiente, não do contrato do notice.
 const episodio = (extra = {}) => ({
-  title: 'Lost Girl S01E01 HDTV XviD',
+  title: 'Lost Girl S01E01 1080p HDTV XviD',
   infoHash: A,
   seeders: 1,
   indexer: 'thepiratebay',
@@ -191,6 +194,160 @@ test('com fonte tocável não há aviso nenhum', async () => {
   const streams = await build([episodio()], { cached: [A] });
   assert.equal(streams.length, 1);
   assert.doesNotMatch(streams[0].name as string, /procurando a temporada|fora do cache/);
+});
+
+// Anti Dual sem BR: BR real sumiu no cachedOnly e sobrou Dual/gringo — o aviso
+// aponta reabertura (não empurra `bu`). Com bu=true o BR volta P2P.
+const BR_H = 'b'.repeat(40);
+const GLOBAL_H = 'c'.repeat(40);
+
+test('cachedOnly+bu=false: BR oculto anexa aviso de reabertura; Dual/gringo permanece', async () => {
+  const originalResolve = config.debrid.resolveUncached;
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  config.debrid.resolveUncached = false;
+  config.debrid.publicUrl = 'https://addon.teste';
+  debrid.checkCached = async () => ({ cached: new Set([GLOBAL_H]), known: true });
+  const logs: string[] = [];
+  const realLog = console.log;
+  console.log = (...args) => logs.push(args.join(' '));
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-fake',
+    debridCachedOnly: true,
+    showUncachedBr: false,
+    autoFetchBr: false,
+  };
+  try {
+    const streams = await runtime.run({ opts: userOpts, encoded: 'segcfg' }, async () => {
+      const built = await buildStreams(
+        [
+          { title: 'Filme BR 1080p Dublado', infoHash: BR_H, seeders: 1, indexer: 'comandotorrents', isBr: true },
+          { title: 'Movie 2019 1080p Dual Audio', infoHash: GLOBAL_H, seeders: 50, indexer: 'yts' },
+        ] as any,
+        {
+          meta: null,
+          titles: null,
+          season: null,
+          episode: null,
+          isDemo: false,
+          searchKey: `aviso-brh-${Math.random()}`,
+          observeFirstPass: true,
+          firstObserver,
+          deadlineAt: Date.now() + 5000,
+        } as any,
+      );
+      return applyNoticeOrigin(built);
+    });
+    const notice = streams.find((s) => s.externalUrl);
+    const playable = streams.filter((s) => s.url || s.infoHash);
+    assert.ok(notice, 'aviso anexado quando BR sumiu e sobrou gringo');
+    assert.match(notice!.name as string, /fora do cache.*reabra/i);
+    assert.doesNotMatch(notice!.name as string, /Mostrar BR ainda fora do cache/);
+    assert.equal(playable.length, 1, 'só o global cacheado permanece tocável');
+    assert.doesNotMatch(String(playable[0].name || ''), /DUAL/, 'Dual global sem PT sem chip DUAL');
+    assert.ok(
+      logs.some((line) => /brHidden=\d+ ocultos pelo cachedOnly/.test(line)),
+      'log da entrada do corte cita brHidden',
+    );
+  } finally {
+    console.log = realLog;
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.resolveUncached = originalResolve;
+  }
+});
+
+test('cachedOnly+bu=true: BR uncached volta como P2P e sem aviso de reabertura por cachedOnly', async () => {
+  const originalResolve = config.debrid.resolveUncached;
+  config.debrid.resolveUncached = false;
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  config.debrid.publicUrl = 'https://addon.teste';
+  debrid.checkCached = async () => ({ cached: new Set([GLOBAL_H]), known: true });
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-fake',
+    debridCachedOnly: true,
+    showUncachedBr: true,
+    autoFetchBr: false,
+  };
+  try {
+    const streams = await runtime.run({ opts: userOpts, encoded: 'segcfg' }, async () => {
+      const built = await buildStreams(
+        [
+          { title: 'Filme BR 1080p Dublado', infoHash: BR_H, seeders: 1, indexer: 'comandotorrents', isBr: true },
+          { title: 'Movie 2019 1080p Dual Audio', infoHash: GLOBAL_H, seeders: 50, indexer: 'yts' },
+        ] as any,
+        {
+          meta: null,
+          titles: null,
+          season: null,
+          episode: null,
+          isDemo: false,
+          searchKey: `aviso-bu-${Math.random()}`,
+        } as any,
+      );
+      return applyNoticeOrigin(built);
+    });
+    const br = streams.find((s) => s.infoHash === BR_H);
+    assert.ok(br, 'BR uncached preservado como P2P com bu=true');
+    assert.equal(br!.url, undefined);
+    assert.equal(
+      streams.some((s) => /fora do cache.*reabra|Mostrar BR ainda fora do cache/i.test(String(s.name || ''))),
+      false,
+      'sem aviso de BR oculto quando o BR já está visível',
+    );
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.resolveUncached = originalResolve;
+  }
+});
+
+test('filtro de título loga (M BR) — M=0 não culpa o matching pelo zero BR', async () => {
+  const logs: string[] = [];
+  const realLog = console.log;
+  console.log = (...args) => logs.push(args.join(' '));
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  config.debrid.publicUrl = 'https://addon.teste';
+  debrid.checkCached = async () => ({ cached: new Set([BR_H]), known: true });
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-fake',
+    debridCachedOnly: true,
+    autoFetchBr: false,
+  };
+  try {
+    await runtime.run({ opts: userOpts, encoded: 'segcfg' }, () =>
+      buildStreams(
+        [
+          { title: 'Lost Girl S01E01 1080p Dublado', infoHash: BR_H, seeders: 1, indexer: 'comando', isBr: true },
+          { title: 'Completely Unrelated Movie 1999', infoHash: GLOBAL_H, seeders: 10, indexer: 'yts' },
+        ] as any,
+        {
+          meta: { name: 'Lost Girl', year: '2010' },
+          titles: { original: 'Lost Girl', pt: 'Lost Girl', year: '2010' },
+          season: 1,
+          episode: 1,
+          isDemo: false,
+          searchKey: `aviso-mbr-${Math.random()}`,
+        } as any,
+      ),
+    );
+    assert.ok(
+      logs.some((line) => /\(\d+ BR\)/.test(line) && /fora do título/.test(line)),
+      'log de título cita (M BR)',
+    );
+  } finally {
+    console.log = realLog;
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+  }
 });
 
 // Gatilho da busca tardia de pack: a saúde do episódio é seeders E idioma.

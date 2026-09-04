@@ -103,13 +103,17 @@ export async function buildStreams(rawInput: RawItem[], {
   // no caso que motivou o aviso (nada em cache) ele volta VAZIO e a condição
   // nunca ligava.
   const candidatesBeforeDebrid = streams.length;
+  // Contagem local: o notice de BR oculto pelo cachedOnly não pode depender
+  // só do firstObserver (teste sem observador / passe sem claim). O estado
+  // do observador continua sendo a fonte das métricas first.
+  const brEnteredDebrid = streams.filter((s) => (s as any)._br).length;
   // I0 — funil da primeira resposta, contado AQUI (no buildStreams, não no
   // debrid): é o BR que ENTRARIA no debrid, independente de haver adapter. Por
   // ser estagiado no estado e finalizado no `onSelected` junto de brVisible,
   // P2P/sem adapter fica coerente — ou todas as métricas first contam (build
   // concluída dentro do prazo) ou nenhuma.
   if (observeFirstPass && firstObserver && !firstObserver.firstCounted) {
-    firstObserver.pendingBrFound = streams.filter((s) => (s as any)._br).length;
+    firstObserver.pendingBrFound = brEnteredDebrid;
   }
   // Cortados pelo filtro pré-checagem (histórico ruim), reportados pelo
   // applyDebrid só quando eles esvaziam a lista — é a única vez em que o texto
@@ -198,12 +202,41 @@ export async function buildStreams(rawInput: RawItem[], {
     },
   });
 
+  // "A dublada não ficou em cima" é a queixa mais comum e tem três causas
+  // distintas (não veio da fonte / veio mas foi cortada / veio e ficou abaixo).
+  // Sem este log as três são indistinguíveis a partir da lista final, porque o
+  // corte apaga os campos internos que responderiam a pergunta. Conta ANTES do
+  // notice: o brHidden alimenta o texto do aviso e o sufixo do log.
+  const brIn = beforeCut.filter((s) => s._br);
+  const dubIn = brIn.filter((s) => s._dubbed);
+  // Preferir o que o debrid mediu; cair na diferença local se o observador
+  // não veio (teste) ou ainda não rodou countFirstBr.
+  const brHidden = Math.max(
+    firstObserver?.pendingBrHidden || 0,
+    Math.max(0, brEnteredDebrid - brIn.length),
+  );
+  const head = streams.slice(0, 3).map((s) => (s.name || '').split('\n')[1] || '?').join(' / ');
+  log.info(
+    `[search] entrada do corte: ${beforeCut.length} stream(s), ${brIn.length} BR (${dubIn.length} dublada(s))` +
+      ` | brFirst=${pool.brFirst} preferDubbed=${pool.preferDubbed} | topo: ${head}` +
+      (brHidden > 0 ? ` | brHidden=${brHidden} ocultos pelo cachedOnly` : ''),
+  );
+
   // Tres estados, nesta ordem de precisao: ja mandamos baixar / achamos mas o
   // cachedOnly cortou / nao achamos nada ainda. O terceiro so vale para SERIE,
   // que e onde a busca tardia de pack roda de verdade — prometer "reabra em
   // instantes" num filme sem resultado seria mentira.
+  //
+  // Quarto caso: BR existiu e o cachedOnly escondeu TODOS — lista vazia ou só
+  // Dual/gringo. Sem notice o sintoma parece "não tem dublado". O texto NÃO
+  // empurra ligar `bu` (mostrar frio é opt-in): aponta reabertura / autofetch.
+  // Só o TEXTO nasce aqui; o link sai no `applyNoticeOrigin`.
+  const brHiddenByCachedOnly = brHidden > 0 && brIn.length === 0;
   const noticeText = () => {
     if (autofetchCount > 0) return '⏳ Baixando no debrid — reabra em alguns minutos';
+    if (brHiddenByCachedOnly) {
+      return 'Fontes BR dubladas existem, mas ainda fora do cache — reabra em alguns minutos';
+    }
     if (candidatesBeforeDebrid > 0 && trustDropped >= candidatesBeforeDebrid) {
       return `Nenhuma fonte pronta — ${trustDropped} resultado(s) descartado(s) por histórico ruim nesta conta do debrid`;
     }
@@ -213,32 +246,18 @@ export async function buildStreams(rawInput: RawItem[], {
     if (season != null) return 'Nada pronto ainda — procurando a temporada; reabra em instantes';
     return null;
   };
-  // Só o TEXTO nasce aqui: ele depende da busca (autofetch, cortados pelo
-  // cachedOnly, temporada) e viaja para o cache junto com a lista. O link sai no
-  // `applyNoticeOrigin`, na resposta — ver lá por que ele não pode ser montado
-  // neste ponto.
-  if (config.search.noticeStream && streams.length === 0) {
+  if (config.search.noticeStream) {
     const name = noticeText();
-    if (name) {
-      streams = [{ name, notice: true }];
-      // P5 — o aviso é um item do ledger: ele explica a lista vazia com o
-      // MESMO texto que o cliente recebeu.
+    if (name && (streams.length === 0 || brHiddenByCachedOnly)) {
+      // Lista vazia: o aviso É a lista. Lista com Dual/gringo e BR sumido no
+      // cachedOnly: ANEXA o aviso — substituir apagaria o que ainda toca.
+      streams = streams.length === 0
+        ? [{ name, notice: true }]
+        : [...streams, { name, notice: true }];
       dropTrace(trace, { name }, 'notice');
-      stageTrace(trace, 'notice', 1);
+      stageTrace(trace, 'notice', streams.filter((s) => s?.notice).length);
     }
   }
-
-  // "A dublada não ficou em cima" é a queixa mais comum e tem três causas
-  // distintas (não veio da fonte / veio mas foi cortada / veio e ficou abaixo).
-  // Sem este log as três são indistinguíveis a partir da lista final, porque o
-  // corte apaga os campos internos que responderiam a pergunta.
-  const brIn = beforeCut.filter((s) => s._br);
-  const dubIn = brIn.filter((s) => s._dubbed);
-  const head = streams.slice(0, 3).map((s) => (s.name || '').split('\n')[1] || '?').join(' / ');
-  log.info(
-    `[search] entrada do corte: ${beforeCut.length} stream(s), ${brIn.length} BR (${dubIn.length} dublada(s))` +
-      ` | brFirst=${pool.brFirst} preferDubbed=${pool.preferDubbed} | topo: ${head}`,
-  );
 
   // P5 — fecha o ledger com o tamanho ENTREGUE (o aviso entra na contagem) e
   // o instante de término. Depois daqui o `finish` serializa e grava no cache.

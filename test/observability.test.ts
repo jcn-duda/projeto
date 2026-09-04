@@ -274,7 +274,7 @@ test('applyDebrid estagia brCached/brHidden (hash de cache em caixa mista) e avi
   }
 });
 
-test('observability: deadlineAt presente SEM observeFirstPass (refresh SWR) NÃO estagia nem conta', async () => {
+test('observability: deadlineAt presente SEM observeFirstPass (refresh SWR) estagia brHidden mas NÃO conta search.first.*', async () => {
   metrics.reset();
   const fake = {
     id: 'fakeobs2',
@@ -292,8 +292,8 @@ test('observability: deadlineAt presente SEM observeFirstPass (refresh SWR) NÃO
     const state = createFirstObserver(true);
     await runtime.run({ opts: userOpts, encoded: '' }, async () => {
       // SWR/background passam `deadlineAt` (o refresh usa o orçamento completo)
-      // mas NÃO são observáveis: o gate é o `observeFirstPass` da passada
-      // reclamada, não o prazo.
+      // mas NÃO são observáveis para search.first.*: o gate é o
+      // `observeFirstPass` da passada reclamada, não o prazo.
       await applyDebrid([{ infoHash: UNKNOWN_H, title: 'Filme BR', _br: true }] as any, {
         deadlineAt: Date.now() + 5000,
         observeFirstPass: false,
@@ -301,10 +301,12 @@ test('observability: deadlineAt presente SEM observeFirstPass (refresh SWR) NÃO
       } as any);
     });
     // A pergunta que o search.first.* responde é a da PRIMEIRA resposta — não
-    // pode ser inflada por refresh/recache que só regravam o cache.
+    // pode ser inflada por refresh/recache. pendingBrHidden, porém, alimenta
+    // log/notice em todo passe.
     assert.equal(metrics.snapshot().counters['search.first.brFound'], undefined, 'refresh SWR não conta search.first.brFound');
     assert.equal(metrics.snapshot().counters['search.first.responses'], undefined, 'refresh SWR não conta o denominador');
-    assert.equal(state.pendingBrHidden, 0, 'sem observeFirstPass nada é estagiado no estado');
+    assert.equal(state.pendingBrHidden, 1, 'BR oculto estagia pendingBrHidden mesmo fora do first');
+    assert.equal(state.pendingBrCached, 0, 'brCached first só com observeFirstPass');
   } finally {
     debrid.BY_ID.delete(fake.id);
     config.debrid.resolveSecret = originalSecret;

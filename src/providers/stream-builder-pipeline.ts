@@ -5,6 +5,7 @@ import {
   resolveSearchNames,
   filterRelevantRaw,
   isMultiWorkCollection,
+  looksPtBr,
   matchesEpisode,
   matchesGlobalSeriesNoMarker,
   normalizeTitle,
@@ -142,13 +143,24 @@ export function prepareCandidateStreams(
     raw = fromAccount.length
       ? [...fromAccount, ...filterRelevantRaw(raw.filter((r) => !r.fromAccount), titleCtx)]
       : filterRelevantRaw(raw, titleCtx);
-    if (before !== raw.length) log.info(`[search] ${before - raw.length} resultado(s) fora do título descartado(s)`);
-    // P5 — cada descarte pelo título leva o motivo real no ledger. O diff é
-    // por referência de objeto: itens do inventário e sobreviventes são os
-    // MESMOS objetos antes/depois.
-    if (trace && before !== raw.length) {
+    // "(M BR)" deixa explícito se o descarte do título tocou BR — M=0 aponta
+    // o culpado para outro elo (ex.: cachedOnly), não para matchesBrTitle.
+    if (before !== raw.length) {
       const vivos = new Set(raw);
-      for (const item of antesTitulo) if (!vivos.has(item)) dropTrace(trace, item, 'title-filter');
+      const droppedBr = antesTitulo.filter((item) => {
+        if (vivos.has(item)) return false;
+        const title = String(item.title || item.Title || '');
+        return Boolean(item.isBr) || looksPtBr(title);
+      }).length;
+      log.info(
+        `[search] ${before - raw.length} resultado(s) fora do título descartado(s) (${droppedBr} BR)`,
+      );
+      // P5 — cada descarte pelo título leva o motivo real no ledger. O diff é
+      // por referência de objeto: itens do inventário e sobreviventes são os
+      // MESMOS objetos antes/depois.
+      if (trace) {
+        for (const item of antesTitulo) if (!vivos.has(item)) dropTrace(trace, item, 'title-filter');
+      }
     }
   }
 

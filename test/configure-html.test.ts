@@ -61,6 +61,13 @@ test('preset BR recomendado carrega as escolhas comportamentais novas', () => {
   assert.equal(presets.powerBr.showUncachedBr, true, 'Power Movie mostra BR fora do cache');
 });
 
+test('copy do switch bu aponta Dual/gringo e a chave bu quando cachedOnly esconde BR', () => {
+  // Texto do plano Anti Dual sem BR: sem o switch a lista parece "só Dual".
+  assert.match(html, /id="showUncachedBr"/);
+  assert.match(html, /sobram Dual\/gringo/);
+  assert.match(html, /<code>bu<\/code>/);
+});
+
 test('render codifica collect() completo e não usa compactConfig', () => {
   const render = sliceFunction('render');
   assert.match(render, /encodeConfig\(collect\(\)\)/, 'render precisa codificar o collect() inteiro');

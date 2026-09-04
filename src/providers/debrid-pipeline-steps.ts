@@ -41,9 +41,13 @@ export function countFirstBr(
   const brCached = streams.filter((s) => isBr(s) && s.infoHash && cachedLc.has(String(s.infoHash).toLowerCase())).length;
   const brSurvived = after.filter(isBr).length;
   const hidden = brEntered - brSurvived;
+  // pendingBrHidden alimenta o log da entrada do corte e o notice de UI em
+  // TODO passe — não só o first. Sempre sobrescreve (inclusive com 0) para
+  // um passe que deixou de ocultar BR não herdar o N do passe anterior.
+  // As métricas search.first.* continuam gateadas pelo observeFirstPass.
+  if (firstObserver) firstObserver.pendingBrHidden = hidden;
   if (observeFirstPass && firstObserver && !firstObserver.firstCounted) {
     firstObserver.pendingBrCached = brCached;
-    if (hidden > 0) firstObserver.pendingBrHidden = hidden;
   }
   // I1 — transparência do corte cachedOnly. "Sumiu o dublado" é a queixa mais
   // comum e sem esta mensagem é indistinguível de "não existe dublado no
