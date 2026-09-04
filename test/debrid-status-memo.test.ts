@@ -194,6 +194,44 @@ test('memo: falha auth preserva reason/fix e não congela além do TTL', async (
   }
 });
 
+test('dashboardAccounts: timeout sem service ainda entra no espelho com service/label/fix', async () => {
+  resetAccountStatusMemo();
+  const saved = {
+    service: config.debrid.service,
+    apiKey: config.debrid.apiKey,
+    allowEnvKey: config.debrid.allowEnvKey,
+    ttl: config.debrid.dashboardAccountTtlMs,
+  };
+  config.debrid.service = 'alldebrid';
+  config.debrid.apiKey = 'chave-op';
+  config.debrid.allowEnvKey = true;
+  config.debrid.dashboardAccountTtlMs = 60_000;
+  try {
+    const accounts = await runtime.run(
+      {
+        opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'chave-ativa' },
+        encoded: 'cfg',
+      },
+      () => debrid.dashboardAccounts({
+        ok: false,
+        reason: 'timeout',
+        error: 'timeout consultando o debrid',
+      }),
+    ) as Record<string, any>;
+    assert.ok(accounts.alldebrid, 'timeout sem service não some do espelho');
+    assert.equal(accounts.alldebrid.service, 'alldebrid');
+    assert.equal(accounts.alldebrid.label, 'AllDebrid');
+    assert.equal(accounts.alldebrid.reason, 'timeout');
+    assert.ok(accounts.alldebrid.fix);
+  } finally {
+    config.debrid.service = saved.service;
+    config.debrid.apiKey = saved.apiKey;
+    config.debrid.allowEnvKey = saved.allowEnvKey;
+    config.debrid.dashboardAccountTtlMs = saved.ttl;
+    resetAccountStatusMemo();
+  }
+});
+
 test('dashboardAccounts reutiliza o memo para a conta do operador', async () => {
   resetAccountStatusMemo();
   const saved = {

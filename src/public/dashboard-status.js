@@ -1,11 +1,7 @@
-/* Adom Power-Movie - pagina /dashboard: consulta, polling e acoes (Fase 3, PLANO_MELHORIAS 5.9).
- * renderStatus, token, refresh automatico, acoes com confirmacao, teste de
- * indexador e de resolver BR, disponibilidade de controles, extraidos do
- * script inline do dashboard.html. Escopo global compartilhado (sem IIFE);
- * carregado depois de
- * core/panels e ANTES do script inline. Nada roda no load - as chamadas que
- * cruzam para o inline (renderMagnetDb, paineis, catalogo) acontecem em tempo
- * de evento. ES5 puro: WebView de Fire TV e smart TV. Sem build, sem bundler. */
+/* Adom Power-Movie — /dashboard: status, polling e ações (Fase 3 §5.9 + Fase 1).
+ * renderStatus, token, refresh, ações com confirmação, testes de indexer/
+ * resolver. Chama pintores em panels + autofetch/harvest. Escopo global.
+ * ES5 puro (Fire TV / smart TV). */
 "use strict";
 
   // --- Saúde consolidada do pill e do banner ---------------------------
@@ -103,11 +99,36 @@
       issues.push({ state: "warn", text: "Catálogo da conta indisponível: " + reasonText(catalog.reason) + (catalog.hint ? " · Como corrigir: " + valueText(catalog.hint) : "") });
     }
     if (services.addon === false) issues.push({ state: "error", text: "O processo do addon reportou-se fora do ar (general.services.addon = false)." });
-    if (services.jackett === false) issues.push({ state: "warn", text: "Jackett sem catálogo de indexadores; as buscas ficam sem fontes." });
-    if (services.debrid === false && !viuDebrid) issues.push({ state: "warn", text: "Debrid reportado indisponível no geral, sem motivo detalhado; verifique chave e conta." });
-    if (asList(root.indexers, "indexers").some(function (entry) { return entry.breaker && entry.breaker.tripped; })) {
-      issues.push({ state: "warn", text: "Circuito aberto (breaker) em ao menos um indexador." });
+    // Tri-estado Fase 2: false = medido sem catálogo; "naomedido" = sem prova de
+    // rede (fallback do .env). Os dois são warn, textos distintos — nunca pintar
+    // verde um Jackett que só ainda não foi medido.
+    if (services.jackett === false) {
+      issues.push({ state: "warn", text: "Jackett sem catálogo de indexadores; as buscas ficam sem fontes." });
+    } else if (services.jackett === "naomedido") {
+      issues.push({ state: "warn", text: "Jackett não medido: catálogo ainda sem prova de rede." });
     }
+    if (services.debrid === false && !viuDebrid) issues.push({ state: "warn", text: "Debrid reportado indisponível no geral, sem motivo detalhado; verifique chave e conta." });
+    // Breaker: preferir state. Ausência/naomedido NÃO é fechado saudável — só
+    // "aberto" (ou tripped legado sem state) acende o aviso de circuito aberto.
+    (function () {
+      var list = asList(root.indexers, "indexers");
+      var aberto = false;
+      var naomedido = false;
+      var i;
+      var b;
+      for (i = 0; i < list.length; i += 1) {
+        b = list[i] && list[i].breaker;
+        if (!b) continue;
+        if (typeof b.state === "string") {
+          if (b.state === "aberto") aberto = true;
+          else if (b.state === "naomedido") naomedido = true;
+        } else if (b.tripped) {
+          aberto = true;
+        }
+      }
+      if (aberto) issues.push({ state: "warn", text: "Circuito aberto (breaker) em ao menos um indexador." });
+      else if (naomedido) issues.push({ state: "warn", text: "Breaker de ao menos um indexador ainda não medido." });
+    }());
     return issues;
   }
 
@@ -148,7 +169,7 @@
     }
     renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
     renderHarvest(first(root, ["harvest", "harvester"], {}));
-    renderAutofetchPanel(first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}));
+    renderAutofetchPanel(first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}), first(root.general || {}, ["uptimeS"], null));
     renderHarvesterPanel(first(root, ["harvest", "harvester"], {}), first(root.metrics || {}, ["counters"], {}));
     drawSparkline("cacheSparkline", pushSeries("cache-hit-rate", first(root.cache || {}, ["hitRate"], 0)), "#39d98a");
     drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(root.harvest || {}, ["queriesThisHour"], 0)), "#faa31a");

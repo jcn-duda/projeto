@@ -213,3 +213,17 @@ test('GET /dashboard-status.json sem token não expõe o bloco autofetch', async
   }
 });
 
+test('autofetch.snapshot: _origem marca queues e deadBlacklist duravel', () => {
+  const snap = autofetch.snapshot();
+  assert.ok(snap._origem, '_origem presente');
+  assert.equal(snap._origem.queues, 'duravel');
+  assert.equal(snap._origem.deadBlacklistCount, 'duravel');
+  assert.equal(snap._origem.budget, 'amostra');
+  assert.equal(snap._origem.accountGate, 'amostra');
+  // Campos existentes intactos (contrato aditivo).
+  assert.equal(typeof snap.deadBlacklistCount, 'number');
+  assert.ok(snap.queues && typeof snap.queues.count === 'number');
+  assert.ok(snap.budget && typeof snap.budget.used === 'number');
+  assert.ok(snap.accountGate && typeof snap.accountGate.pauseAt === 'number');
+});
+

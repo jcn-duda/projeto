@@ -174,3 +174,43 @@ test('search com ignoreBreaker:true e recordStatus:false não atualiza o card', 
     indexerStatus.clear();
   }
 });
+
+test('não medido → breaker.state naomedido (sem status / enabled:false)', () => {
+  indexerStatus.clear();
+  const saved = config.jackett.breakerEnabled;
+  try {
+    config.jackett.breakerEnabled = true;
+    const semStatus = jackett.breakerSnapshot('indexer-nunca-visto');
+    assert.equal(semStatus.state, 'naomedido');
+    assert.equal(semStatus.tripped, false);
+
+    config.jackett.breakerEnabled = false;
+    indexerStatus.record('thepiratebay', { ok: true, results: 1, ms: 50, budgetMs: 4000 });
+    const desligado = jackett.breakerSnapshot('thepiratebay');
+    assert.equal(desligado.state, 'naomedido', 'enabled:false não reporta fechado');
+    assert.equal(desligado.tripped, false);
+  } finally {
+    config.jackett.breakerEnabled = saved;
+    indexerStatus.clear();
+  }
+});
+
+test('breaker.state aberto/fechado com status válido', () => {
+  indexerStatus.clear();
+  const saved = config.jackett.breakerEnabled;
+  try {
+    config.jackett.breakerEnabled = true;
+    indexerStatus.record('thepiratebay', { ok: true, results: 2, ms: 80, budgetMs: 4000 });
+    assert.equal(jackett.breakerSnapshot('thepiratebay').state, 'fechado');
+
+    for (let i = 0; i < config.jackett.breakerFailures; i += 1) {
+      indexerStatus.record('thepiratebay', { ok: false, results: 0, ms: 100, budgetMs: 4000 });
+    }
+    const aberto = jackett.breakerSnapshot('thepiratebay');
+    assert.equal(aberto.state, 'aberto');
+    assert.equal(aberto.tripped, true);
+  } finally {
+    config.jackett.breakerEnabled = saved;
+    indexerStatus.clear();
+  }
+});

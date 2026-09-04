@@ -30,13 +30,31 @@ function releaseIndexStatus(services: AppServices) {
 }
 
 function accountTimeout(services: AppServices) {
+  // Espelha testAccount: sem service/label o gate de dashboardAccounts descarta
+  // o timeout e o painel zera a conta ativa como se não houvesse consulta.
+  const adapter = services.debrid.current?.() || null;
   return new Promise((resolve) => {
     const timer = setTimeout(
-      () => resolve({ ok: false, reason: 'timeout', error: 'timeout consultando o debrid' }),
+      () => resolve({
+        ok: false,
+        reason: 'timeout',
+        error: 'timeout consultando o debrid',
+        ...(adapter ? {
+          service: adapter.id,
+          label: adapter.label,
+          fix: 'o serviço não respondeu dentro do prazo do painel; tente de novo — persistindo, o serviço está instável ou a rede está lenta',
+        } : {}),
+      }),
       services.config.debrid.dashboardAccountTimeoutMs,
     );
     timer.unref?.();
   });
+}
+
+/** Tri-estado Jackett: só `source:'live'` conta como medição (API respondeu). */
+function jackettServiceFlag(indexers: { length: number; source?: string }): boolean | 'naomedido' {
+  if (indexers?.source !== 'live') return 'naomedido';
+  return indexers.length > 0;
 }
 
 function makeDiagnosticHandlers(services: AppServices) {
@@ -128,7 +146,7 @@ function makeDiagnosticHandlers(services: AppServices) {
           memory: { rss: memory.rss, heapUsed: memory.heapUsed, heapTotal: memory.heapTotal },
           services: {
             addon: true,
-            jackett: indexers.length > 0,
+            jackett: jackettServiceFlag(indexers),
             debrid: Boolean(account?.ok),
             resolvers: resolvers.filter((item) => item.embedded).length,
           },
@@ -159,7 +177,8 @@ function makeDiagnosticHandlers(services: AppServices) {
         indexers: indexers.map((indexer: any) => ({
           ...indexer,
           breaker: services.jackett.breakerSnapshot(indexer.id),
-          flagSlow: indexer.status?.state === 'slow',
+          // Sem status = nunca medido (null), não "não-slow" (false).
+          flagSlow: indexer.status == null ? null : indexer.status.state === 'slow',
         })),
         resolvers,
       });

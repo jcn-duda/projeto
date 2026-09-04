@@ -44,6 +44,9 @@ export type MagnetDbAdapterStatus = {
   ttlRemainingSeconds: TtlRemaining;
 };
 
+/** Procedência do campo no painel: L1/L2/config vs Map tracked deste processo. */
+export type MagnetDbOrigem = 'duravel' | 'amostra' | 'naomedido';
+
 export type MagnetDbStatus = {
   enabled: boolean;
   aliveTtlSeconds: number;
@@ -73,6 +76,21 @@ export type MagnetDbStatus = {
     droppedDead: number;
     droppedLie: number;
     badClearedBlocked: number;
+  };
+  // Aditivo: o painel não confunde amostra do processo com ocupação L1/L2.
+  _origem: {
+    enabled: MagnetDbOrigem;
+    aliveTtlSeconds: MagnetDbOrigem;
+    badTtlSeconds: MagnetDbOrigem;
+    lieTtlSeconds: MagnetDbOrigem;
+    sizeAlive: MagnetDbOrigem;
+    sizeBad: MagnetDbOrigem;
+    sizeLie: MagnetDbOrigem;
+    ttlRemainingSeconds: MagnetDbOrigem;
+    byAdapter: MagnetDbOrigem;
+    l1Entries: MagnetDbOrigem;
+    l1Max: MagnetDbOrigem;
+    evictedQuota: MagnetDbOrigem;
   };
 };
 
@@ -284,6 +302,7 @@ function renewAlive(adapterId: string, apiKey: string, hashes: string[]) {
  *   sync com peek (dropa evicted/forgotten).
  * - l1Entries/l1Max: ocupação real do namespace mag no L1 (snapshot do cache).
  * - evictedQuota: quantas vezes a cota mag girou (métrica, não scan).
+ * - `_origem` aditivo: amostra ≠ L1/L2 (Mecanismo A do painel).
  */
 function status(): MagnetDbStatus {
   const trackedState = trackedStatus();
@@ -317,6 +336,20 @@ function status(): MagnetDbStatus {
       droppedDead: counters['magnetdb.dropped.dead'] || 0,
       droppedLie: counters['magnetdb.dropped.lie'] || 0,
       badClearedBlocked: counters['magnetdb.bad.clearedBlocked'] || 0,
+    },
+    _origem: {
+      enabled: 'duravel',
+      aliveTtlSeconds: 'duravel',
+      badTtlSeconds: 'duravel',
+      lieTtlSeconds: 'duravel',
+      sizeAlive: 'amostra',
+      sizeBad: 'amostra',
+      sizeLie: 'amostra',
+      ttlRemainingSeconds: 'amostra',
+      byAdapter: 'amostra',
+      l1Entries: 'duravel',
+      l1Max: 'duravel',
+      evictedQuota: 'duravel',
     },
   };
 }

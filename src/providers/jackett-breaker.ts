@@ -15,6 +15,18 @@ export function breakerTripped(indexer: string, now = Date.now()) {
   return Number.isFinite(failedAt) && now - failedAt < config.jackett.breakerCooldown;
 }
 
+type BreakerState = 'aberto' | 'fechado' | 'naomedido';
+
+function breakerState(indexer: string, now = Date.now()): BreakerState {
+  // enabled:false não é "fechado" — o circuito não está em operação; reportar
+  // fechado mentiria saúde medida. Sem status / TTL vencido = nunca mediu.
+  if (!config.jackett.breakerEnabled) return 'naomedido';
+  const status = indexerStatus.get(indexer, now);
+  if (!status) return 'naomedido';
+  if (breakerTripped(indexer, now)) return 'aberto';
+  return 'fechado';
+}
+
 /** Estado serializável do breaker para o painel, sem disparar nova medição. */
 export function breakerSnapshot(indexer: string, now = Date.now()) {
   const status = indexerStatus.get(indexer, now);
@@ -31,6 +43,8 @@ export function breakerSnapshot(indexer: string, now = Date.now()) {
   return {
     enabled: config.jackett.breakerEnabled,
     tripped: breakerTripped(indexer, now),
+    // Tri-estado do painel (compat: `tripped` boolean permanece).
+    state: breakerState(indexer, now),
     failStreak: status?.failStreak || 0,
     failuresRequired: config.jackett.breakerFailures,
     cooldownMs: config.jackett.breakerCooldown,

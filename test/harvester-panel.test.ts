@@ -162,6 +162,20 @@ test('POST /dashboard-action.json harvest-config-reset exige confirm e restaura 
   }
 });
 
+test('harvester.status: _origem marca queriesThisHour e queueDepth duravel', () => {
+  const st = harvester.status() as any;
+  assert.ok(st._origem, '_origem presente');
+  assert.equal(st._origem.queriesThisHour, 'duravel');
+  assert.equal(st._origem.queueDepth, 'duravel');
+  assert.equal(st._origem.enabled, 'amostra');
+  assert.equal(st._origem.lastRunAt, 'amostra');
+  assert.equal(st._origem.paused, 'amostra');
+  // Campos existentes intactos (contrato aditivo).
+  assert.equal(typeof st.queriesThisHour, 'number');
+  assert.equal(typeof st.queueDepth, 'number');
+  assert.equal(typeof st.enabled, 'boolean');
+});
+
 test('rotas escopadas /:userConfig/harvester, status e action suportam Colhedor', async () => {
   const userConfig = 'eyJwIjoiamFja2V0dCJ9';
   config.jackett.testToken = TOKEN;
@@ -195,8 +209,8 @@ test('dashboard-status: harvest.done/harvest.empty viajam nos counters para o pa
   config.jackett.testToken = TOKEN;
   try {
     // O bloco metrics.counters do /dashboard-status.json já embarca as métricas
-    // (diagnostics.ts); o painel inline ES5 só precisa ler as chaves de lá.
-    // aqui se prova que elas chegam no payload e que o html referencia as duas.
+    // (diagnostics.ts); o painel ES5 (dashboard-harvest.js) só precisa ler as chaves.
+    // aqui se prova que elas chegam no payload e que o módulo referencia as duas.
     const before = metrics.snapshot().counters;
     metrics.count('harvest.done', 3);
     metrics.count('harvest.empty', 1);
@@ -208,12 +222,13 @@ test('dashboard-status: harvest.done/harvest.empty viajam nos counters para o pa
     assert.equal((counters['harvest.done'] || 0) - (before['harvest.done'] || 0), 3, 'harvest.done visível no payload');
     assert.equal((counters['harvest.empty'] || 0) - (before['harvest.empty'] || 0), 1, 'harvest.empty visível no payload');
 
-    // Renderização: os cards existem e o bloco inline referencia as chaves (ES5).
+    // Renderização: os cards existem no HTML; as chaves estão no módulo harvest.
     const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+    const harvestJs = readFileSync(new URL('../src/public/dashboard-harvest.js', import.meta.url), 'utf8');
     assert.match(html, /id="harvestMetricDone"/);
     assert.match(html, /id="harvestMetricEmpty"/);
-    assert.match(html, /ctr\["harvest\.done"\]/);
-    assert.match(html, /ctr\["harvest\.empty"\]/);
+    assert.match(harvestJs, /ctr\["harvest\.done"\]/);
+    assert.match(harvestJs, /ctr\["harvest\.empty"\]/);
   } finally {
     config.jackett.testToken = '';
   }
@@ -221,6 +236,7 @@ test('dashboard-status: harvest.done/harvest.empty viajam nos counters para o pa
 
 test('dashboard.html: os controles novos do colhedor têm ID, entram em harvestKeys e o JS segue ES5', () => {
   const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+  const harvestJs = readFileSync(new URL('../src/public/dashboard-harvest.js', import.meta.url), 'utf8');
   // IDs dos dois controles novos introduzidos na Fase 3.2.
   assert.match(html, /id="harvest_harvestBrFirst"/);
   assert.match(html, /id="harvest_harvestBrMaxWaitMs"/);
@@ -228,24 +244,25 @@ test('dashboard.html: os controles novos do colhedor têm ID, entram em harvestK
   assert.match(html, /id="env_harvest_harvestBrMaxWaitMs"/);
 
   // A lista de chaves que o painel serializa precisa cobrir os dois campos.
-  const harvestKeysMatch = html.match(/var harvestKeys\s*=\s*\[([^\]]*)\]/);
-  assert.ok(harvestKeysMatch, 'harvestKeys declarado no dashboard');
+  const harvestKeysMatch = harvestJs.match(/var harvestKeys\s*=\s*\[([^\]]*)\]/);
+  assert.ok(harvestKeysMatch, 'harvestKeys declarado no dashboard-harvest.js');
   const keys = harvestKeysMatch![1].split(',').map((s) => s.replace(/["'\s]/g, '')).filter(Boolean);
   assert.ok(keys.includes('harvestBrFirst'), 'harvestBrFirst entra em harvestKeys');
   assert.ok(keys.includes('harvestBrMaxWaitMs'), 'harvestBrMaxWaitMs entra em harvestKeys');
 
   // Só o toggle (booleano) pertence a booleanHarvestKeys; o prazo é numérico.
-  const boolMatch = html.match(/var booleanHarvestKeys\s*=\s*\[([^\]]*)\]/);
-  assert.ok(boolMatch, 'booleanHarvestKeys declarado no dashboard');
+  const boolMatch = harvestJs.match(/var booleanHarvestKeys\s*=\s*\[([^\]]*)\]/);
+  assert.ok(boolMatch, 'booleanHarvestKeys declarado no dashboard-harvest.js');
   const bools = boolMatch![1].split(',').map((s) => s.replace(/["'\s]/g, '')).filter(Boolean);
   assert.ok(bools.includes('harvestBrFirst'), 'harvestBrFirst é booleano');
   assert.ok(!bools.includes('harvestBrMaxWaitMs'), 'harvestBrMaxWaitMs é numérico e fora de booleanHarvestKeys');
 
+  assert.doesNotMatch(harvestJs, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard-harvest.js continua ES5 (WebView de Smart TV)');
   assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard.html continua ES5 (WebView de Smart TV)');
 });
 
 test('dashboard.html: o preset de referência aplica os campos novos (ES5 literais)', () => {
-  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
-  assert.match(html, /\$\("harvest_harvestBrFirst"\)\.checked = true/);
-  assert.match(html, /\$\("harvest_harvestBrMaxWaitMs"\)\.value = 21600000/);
+  const harvestJs = readFileSync(new URL('../src/public/dashboard-harvest.js', import.meta.url), 'utf8');
+  assert.match(harvestJs, /\$\("harvest_harvestBrFirst"\)\.checked = true/);
+  assert.match(harvestJs, /\$\("harvest_harvestBrMaxWaitMs"\)\.value = 21600000/);
 });

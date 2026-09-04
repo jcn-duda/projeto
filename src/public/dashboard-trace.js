@@ -2,8 +2,7 @@
 
 // Stream Trace — aba de diagnóstico do funil de busca (P5). ES5 puro: roda no
 // WebView de Fire TV e smart TV, sem build. Nada executa no load (só
-// declarações); o bind dos controles fica no inline `bind()` do dashboard.html
-// (mesma divisão do dashboard-debrid-test.js).
+// declarações); o bind dos controles fica em dashboard-boot.js.
 //
 // Contratos:
 // - Consulta offline: GET /stream-trace.json (basePrefix + token no header) —

@@ -1,11 +1,72 @@
-/* Adom Power-Movie - pagina /dashboard: paineis da aba Geral e navegacao de abas
- * (Fase 3, PLANO_MELHORIAS 5.9). renderDebrid/renderSources/renderCache/
- * renderReleaseIndex/renderHarvest e switchTab/handleHash, extraidos do script
- * inline do dashboard.html. Escopo global compartilhado (sem IIFE); carregado
- * DEPOIS de dashboard-core.js e ANTES do script inline. Nada roda no load -
- * as chamadas que cruzam para o inline (renderMagnetDb, paineis) acontecem
- * em tempo de evento. ES5 puro: WebView de Fire TV e smart TV. Sem build. */
+/* Adom Power-Movie — /dashboard: painéis da Geral + abas (Fase 3 §5.9 + Fase 1).
+ * renderGeneral, renderMagnetDb, renderDebrid/Sources/Cache/ReleaseIndex/Harvest,
+ * switchTab/handleHash. Escopo global (sem IIFE). Depois de core, antes do boot.
+ * ES5 puro (Fire TV / smart TV). */
 "use strict";
+
+  function renderGeneral(data) {
+    var source = first(data, ["general", "overview", "system"], data);
+    var metrics = $("generalMetrics");
+    var excluded = { general: true, overview: true, system: true, debrid: true, autofetch: true, indexers: true, indexerStatus: true, resolvers: true, brResolvers: true, cache: true, search: true };
+    metrics.textContent = "";
+    renderMetrics(metrics, source, excluded);
+    // O total de deadline sozinho sugere que o indexer atrasou a resposta. As
+    // causas e a latência de metadata deixam claro quando o orçamento já chegou
+    // corroído antes de abrir qualquer provider.
+    renderMetrics(metrics, isObject(source.search) ? source.search : {}, {});
+  }
+
+  function formatTtlSeconds(value) {
+    var seconds = Number(value);
+    if (!isFinite(seconds) || seconds < 0) return "—";
+    if (seconds < 60) return Math.round(seconds) + " s";
+    if (seconds < 3600) return Math.floor(seconds / 60) + " min";
+    return Math.floor(seconds / 3600) + " h";
+  }
+
+  function renderMagnetDb(data, counters) {
+    var source = isObject(data) ? data : {};
+    var metrics = $("cacheMetrics");
+    var dbCounters = isObject(source.counters) ? source.counters : {};
+    var allCounters = isObject(counters) ? counters : {};
+    var ttl = isObject(source.ttlRemainingSeconds) ? source.ttlRemainingSeconds : {};
+    var adapters = isObject(source.byAdapter) ? source.byAdapter : {};
+    var hashes = Number(allCounters["debrid.check.hashes"] || 0);
+    var cached = Number(allCounters["debrid.check.cached"] || 0);
+    var sampleTotal;
+    var adapterIds;
+    var i;
+    if (!source.enabled && !own(source, "enabled")) return;
+    metric(metrics, "magnet DB", source.enabled ? "ativo" : "desligado");
+    // L1 = ocupação real do namespace mag; amostra = Map tracked deste processo.
+    // Reinício zera a amostra sem apagar o L1 — os dois NÃO são o mesmo número.
+    metric(metrics, "L1 mag (ocupação)", valueText(source.l1Entries) + " / " + valueText(source.l1Max));
+    sampleTotal = Number(source.sizeAlive || 0) + Number(source.sizeBad || 0) + Number(source.sizeLie || 0);
+    metric(metrics, "amostra processo (≠ L1)", sampleTotal);
+    metric(metrics, "amostra alive (tocável)", source.sizeAlive);
+    // bad = play sem vídeo (magnetdb); dead = terminal no recheck (autofetch) — fronteiras distintas.
+    metric(metrics, "amostra bad (play sem vídeo)", source.sizeBad);
+    metric(metrics, "amostra lie (áudio mentiu)", source.sizeLie);
+    metric(metrics, "evicções cota mag", source.evictedQuota);
+    metric(metrics, "TTL alive", formatTtlSeconds(source.aliveTtlSeconds));
+    metric(metrics, "TTL bad", formatTtlSeconds(source.badTtlSeconds));
+    metric(metrics, "TTL lie", formatTtlSeconds(source.lieTtlSeconds));
+    metric(metrics, "TTL alive restante (amostra)", formatTtlSeconds(ttl.alive));
+    metric(metrics, "TTL bad restante (amostra)", formatTtlSeconds(ttl.bad));
+    metric(metrics, "TTL lie restante (amostra)", formatTtlSeconds(ttl.lie));
+    metric(metrics, "descartados bad (magnetdb)", dbCounters.droppedBad);
+    metric(metrics, "descartados dead (autofetch ≠ bad)", dbCounters.droppedDead);
+    metric(metrics, "descartados lie (magnetdb)", dbCounters.droppedLie);
+    metric(metrics, "taxa ⚡", hashes ? Math.round((cached / hashes) * 100) + "% (" + cached + "/" + hashes + ")" : "—");
+    adapterIds = Object.keys(adapters).sort();
+    for (i = 0; i < adapterIds.length; i += 1) {
+      var adapter = isObject(adapters[adapterIds[i]]) ? adapters[adapterIds[i]] : {};
+      var adapterTtl = isObject(adapter.ttlRemainingSeconds) ? adapter.ttlRemainingSeconds : {};
+      metric(metrics, "amostra " + adapterIds[i],
+        "alive " + valueText(adapter.sizeAlive) + ", bad " + valueText(adapter.sizeBad) + ", lie " + valueText(adapter.sizeLie) +
+        " · TTL ≈ " + formatTtlSeconds(adapterTtl.alive) + "/" + formatTtlSeconds(adapterTtl.bad) + "/" + formatTtlSeconds(adapterTtl.lie));
+    }
+  }
 
   function serviceId(item) {
     var id = String(first(item, ["id", "service", "key", "name"], "")).toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -73,6 +134,20 @@
     for (i = 0; i < list.length; i += 1) card(container, list[i], options || {});
   }
 
+  // Rótulo do breaker no card: state tri-estado (aberto/fechado/naomedido);
+  // sem state, mantém o binário legado tripped→aberto/fechado. Nunca inferir
+  // "fechado" de ausência — naomedido vira "não medido" (stateLabel unknown).
+  function breakerStateLabel(breaker) {
+    var b = isObject(breaker) ? breaker : {};
+    if (typeof b.state === "string") {
+      if (b.state === "aberto") return "aberto";
+      if (b.state === "fechado") return "fechado";
+      if (b.state === "naomedido" || b.state === "unknown") return stateLabel("unknown");
+      return stateLabel(b.state);
+    }
+    return b.tripped ? "aberto" : "fechado";
+  }
+
   function renderSources(data) {
     var source = isObject(data) ? data : {};
     var indexers = first(source, ["indexers", "indexerStatus", "jackett"], []);
@@ -85,7 +160,7 @@
       out.latencyMs = status.ms;
       out.checkedAt = status.checkedAt;
       out.failStreak = status.failStreak;
-      out.breaker = breaker.tripped ? "aberto" : "fechado";
+      out.breaker = breakerStateLabel(breaker);
       out.cooldownRemainingMs = breaker.cooldownRemainingMs;
       return out;
     });

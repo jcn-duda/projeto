@@ -14,6 +14,7 @@ import * as cache from '../src/utils/cache.js';
 import { streamsCacheKey } from '../src/utils/request-key.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
 import { createTestServer, decodeConfig, encodeConfig, fakeResponse, withMockFetch } from './e2e/e2e-harness.js';
+import { resetCatalogCache } from '../src/providers/jackett-catalog.js';
 
 // Adaptador fake gravado no registry real: o clear-cache é puro estado em
 // memória, mas o sweep-dead só devuelve ok:true de verdade se o serviço
@@ -135,6 +136,7 @@ test('dashboard: ?token= nunca autentica (GET e POST)', async () => {
 
 test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem segredos', async () => {
   config.jackett.testToken = TOKEN;
+  resetCatalogCache();
   const savedRuntimeConfig = {
     cachePersist: config.cache.persist,
     resolversEmbedded: config.resolvers.embedded,
@@ -192,6 +194,14 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
        assert.equal(typeof body.f3.baselineAt, 'number');
        assert.ok(body.f3.latest === null || typeof body.f3.latest === 'object');
       assert.ok(Array.isArray(body.indexers), 'catálogo de indexers entra como lista');
+      // Mock do harness responde Torznab vazio (live) → medido morto = false.
+      // Fallback→naomedido fica no teste de jackett-catalog (rede falha).
+      assert.equal(body.general.services.jackett, false);
+      assert.ok(body.indexers.every((idx: any) => idx.flagSlow === null || typeof idx.flagSlow === 'boolean'));
+      assert.ok(
+        body.indexers.length === 0 ||
+          body.indexers.every((idx: any) => ['aberto', 'fechado', 'naomedido'].includes(idx.breaker?.state)),
+      );
       assert.ok(Array.isArray(body.resolvers), 'resolvers BR saem como lista');
       assert.ok(body.resolvers.every((resolver: any) => resolver.embedded === false));
       assert.deepEqual(body.resolvers.map((resolver: any) => resolver.port), [8737, 8738, 8739, 8740, 8741]);
@@ -216,20 +226,56 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
   }
 });
 
+test('GET /dashboard-status.json: catálogo fallback → services.jackett naomedido', async () => {
+  config.jackett.testToken = TOKEN;
+  resetCatalogCache();
+  try {
+    await withMockFetch([{
+      match: () => true,
+      handler: async () => { throw new Error('ECONNREFUSED'); },
+    }], async () => {
+      const res = await server.request('GET', '/dashboard-status.json', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.general.services.jackett, 'naomedido');
+      assert.ok(res.json.indexers.length > 0, 'fallback ainda lista IDs do .env');
+    });
+  } finally {
+    config.jackett.testToken = '';
+    resetCatalogCache();
+  }
+});
+
 test('dashboard permanece ES5 e renderiza a observabilidade do Magnet DB', () => {
   const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
-  assert.match(html, /function renderMagnetDb\(data, counters\)/);
-  assert.match(html, /debrid\.check\.cached/);
-  assert.match(html, /source\.byAdapter/);
-  assert.match(html, /source\.search/);
-  assert.match(html, /L1 mag \(ocupação\)/);
-  assert.match(html, /amostra processo \(≠ L1\)/);
-  assert.match(html, /amostra bad \(play sem vídeo\)/);
-  assert.match(html, /descartados dead \(autofetch ≠ bad\)/);
-  assert.match(html, /source\.l1Entries/);
-  assert.match(html, /source\.evictedQuota/);
+  const panels = readFileSync(new URL('../src/public/dashboard-panels.js', import.meta.url), 'utf8');
+  // Wiring no HTML: container da métrica + módulo panels na ordem certa.
+  assert.match(html, /id="cacheMetrics"/);
+  assert.match(html, /src="\/dashboard-panels\.js"/);
+  assert.match(html, /src="\/dashboard-boot\.js"/);
+  assert.doesNotMatch(html, /<script>\s*"use strict"/);
+  assert.doesNotMatch(html, /function renderMagnetDb\(/);
+  assert.doesNotMatch(html, /function renderGeneral\(/);
+  assert.doesNotMatch(html, /function bind\(/);
+  // Observabilidade Magnet DB mora em panels (Fase 1 painel).
+  assert.match(panels, /function renderMagnetDb\(data, counters\)/);
+  assert.match(panels, /function renderGeneral\(/);
+  assert.match(panels, /debrid\.check\.cached/);
+  assert.match(panels, /source\.byAdapter/);
+  assert.match(panels, /source\.search/);
+  assert.match(panels, /L1 mag \(ocupação\)/);
+  assert.match(panels, /amostra processo \(≠ L1\)/);
+  assert.match(panels, /amostra bad \(play sem vídeo\)/);
+  assert.match(panels, /descartados dead \(autofetch ≠ bad\)/);
+  assert.match(panels, /source\.l1Entries/);
+  assert.match(panels, /source\.evictedQuota/);
+  assert.doesNotMatch(panels, /\b(?:const|let)\b|=>|\?\.|\?\?/);
   assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/);
 });
+
+// Runtime Fake DOM de renderMagnetDb/renderAutofetchPanel: ver
+// test/dashboard-panels-extract.test.ts (teto de linhas).
 
 // displayValue vive no dashboard-core.js extraído (Fase 3) e nada roda no load
 // lá — só declarações — então o teste EXECUTA o módulo em vez de regexar o
@@ -257,31 +303,37 @@ test('displayValue do dashboard-core: data é sufixo -at e uptimeS vem em segund
 
 test('dashboard renderiza o painel do Chupim e navegação por abas em ES5', () => {
   const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+  const afJs = readFileSync(new URL('../src/public/dashboard-autofetch.js', import.meta.url), 'utf8');
   assert.match(html, /id="tabGeral"/);
   assert.match(html, /id="tabAutofetch"/);
   assert.match(html, /id="viewGeral"/);
   assert.match(html, /id="viewAutofetch"/);
-  assert.match(html, /function renderAutofetchPanel/);
-  assert.match(html, /function saveAutofetchConfig/);
-  assert.match(html, /function resetAutofetchConfig/);
-  assert.match(html, /function toggleAutofetchPause/);
-  assert.match(html, /function drainAutofetchQueues/);
-  assert.match(html, /function applyAutofetchPreset/);
+  assert.match(html, /src="\/dashboard-autofetch\.js"/);
+  assert.match(afJs, /function renderAutofetchPanel/);
+  assert.match(afJs, /function saveAutofetchConfig/);
+  assert.match(afJs, /function resetAutofetchConfig/);
+  assert.match(afJs, /function toggleAutofetchPause/);
+  assert.match(afJs, /function drainAutofetchQueues/);
+  assert.match(afJs, /function applyAutofetchPreset/);
+  assert.doesNotMatch(afJs, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard-autofetch.js continua ES5');
 });
 
 test('dashboard renderiza o painel do Colhedor / Harvester em ES5', () => {
   const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+  const harvestJs = readFileSync(new URL('../src/public/dashboard-harvest.js', import.meta.url), 'utf8');
   assert.match(html, /id="tabColhedor"/);
   assert.match(html, /id="viewColhedor"/);
   assert.match(html, /id="harvestPauseBanner"/);
   assert.match(html, /id="harvestLiveMetrics"/);
-  assert.match(html, /function renderHarvesterPanel/);
-  assert.match(html, /function saveHarvesterConfig/);
-  assert.match(html, /function resetHarvesterConfig/);
-  assert.match(html, /function toggleHarvesterPause/);
-  assert.match(html, /function drainHarvesterQueue/);
-  assert.match(html, /function clearHarvesterQueue/);
-  assert.match(html, /function applyHarvesterPreset/);
+  assert.match(html, /src="\/dashboard-harvest\.js"/);
+  assert.match(harvestJs, /function renderHarvesterPanel/);
+  assert.match(harvestJs, /function saveHarvesterConfig/);
+  assert.match(harvestJs, /function resetHarvesterConfig/);
+  assert.match(harvestJs, /function toggleHarvesterPause/);
+  assert.match(harvestJs, /function drainHarvesterQueue/);
+  assert.match(harvestJs, /function clearHarvesterQueue/);
+  assert.match(harvestJs, /function applyHarvesterPreset/);
+  assert.doesNotMatch(harvestJs, /\b(?:const|let)\b|=>|\?\.|\?\?/);
   assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/);
 });
 

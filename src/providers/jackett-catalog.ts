@@ -9,9 +9,15 @@ interface CatalogItem {
   isBr: boolean;
 }
 
+/** Procedência do catálogo: live = API Jackett respondeu; fallback = .env sem prova de rede. */
+type CatalogSource = 'live' | 'fallback';
+
+type CatalogList = ReturnType<typeof indexerStatus.decorate> & { source: CatalogSource };
+
 let cached: CatalogItem[] | null = null;
+let cachedSource: CatalogSource = 'fallback';
 let cachedAt = 0;
-let inFlight: Promise<CatalogItem[]> | null = null;
+let inFlight: Promise<{ items: CatalogItem[]; source: CatalogSource }> | null = null;
 
 function attrs(text: string) {
   const out: Record<string, string> = {};
@@ -89,14 +95,22 @@ function fallback() {
   }));
 }
 
-async function load() {
+function attachSource(items: ReturnType<typeof indexerStatus.decorate>, source: CatalogSource): CatalogList {
+  // Array continua Array: `.length`/`.map`/`.some` dos consumidores intactos;
+  // `source` é aditivo para o painel (tri-estado do services.jackett).
+  return Object.assign(items, { source });
+}
+
+async function load(): Promise<CatalogList> {
   if (cached && Date.now() - cachedAt < config.jackett.catalogTtl * 1000) {
-    return indexerStatus.decorate(cached);
+    return attachSource(indexerStatus.decorate(cached), cachedSource);
   }
-  if (inFlight) return inFlight.then(indexerStatus.decorate);
-  const promise = (async () => {
+  if (inFlight) {
+    return inFlight.then(({ items, source }) => attachSource(indexerStatus.decorate(items), source));
+  }
+  const promise = (async (): Promise<{ items: CatalogItem[]; source: CatalogSource }> => {
     try {
-      if (!config.jackett.apiKey) return fallback();
+      if (!config.jackett.apiKey) return { items: fallback(), source: 'fallback' };
       const endpoint = new URL(`${config.jackett.url}/api/v2.0/indexers/all/results/torznab/api`);
       endpoint.searchParams.set('apikey', config.jackett.apiKey);
       endpoint.searchParams.set('t', 'indexers');
@@ -106,19 +120,30 @@ async function load() {
         signal: AbortSignal.timeout(config.jackett.indexerTimeout),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const parsed = parseXml(await res.text());
-      return parsed.length ? parsed : fallback();
+      // API respondeu: medição real mesmo se o XML veio vazio. Antes caía no
+      // fallback do .env e o painel pintava Jackett "vivo" sem prova de rede.
+      return { items: parseXml(await res.text()), source: 'live' };
     } catch (err) {
-      log.warn('[jackett] catálogo indisponível:', err.message);
-      return fallback();
+      log.warn('[jackett] catálogo indisponível:', (err as Error)?.message || err);
+      return { items: fallback(), source: 'fallback' };
     }
-  })().then((items) => {
-    cached = items;
+  })().then((result) => {
+    cached = result.items;
+    cachedSource = result.source;
     cachedAt = Date.now();
-    return items;
+    return result;
   }).finally(() => { inFlight = null; });
   inFlight = promise;
-  return promise.then(indexerStatus.decorate);
+  return promise.then(({ items, source }) => attachSource(indexerStatus.decorate(items), source));
 }
 
-export { load, parseXml, fallback };
+/** Testes: esvazia memo do catálogo (cada teste decide live vs fallback). */
+function resetCatalogCache() {
+  cached = null;
+  cachedSource = 'fallback';
+  cachedAt = 0;
+  inFlight = null;
+}
+
+export { load, parseXml, fallback, resetCatalogCache };
+export type { CatalogSource, CatalogList };

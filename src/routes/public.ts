@@ -20,6 +20,11 @@ const PAGE_ASSETS = [
   'dashboard-debrid-test.js',
   // Stream Trace (P5): aba de diagnóstico do funil no dashboard.
   'dashboard-trace.js',
+  // Fase 1 painel: Chupim / Colhedor / Conta-Catálogo / boot (zero inline).
+  'dashboard-autofetch.js',
+  'dashboard-harvest.js',
+  'dashboard-catalog.js',
+  'dashboard-boot.js',
 ];
 
 function makePublicHandlers(services: AppServices) {

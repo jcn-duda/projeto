@@ -14,6 +14,7 @@ import { stubFetch } from './helpers/stub.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as releaseIndex from '../src/utils/release-index.js';
+
 test('M6: obra cortada 4 vezes emite a métrica harvest.capped.dropped', async () => {
   const saved = {
     maxPerHour: config.harvest.maxPerHour,

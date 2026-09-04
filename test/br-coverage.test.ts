@@ -134,6 +134,10 @@ test('3.1: sem coorte, sample devolve null e a baseline fica em 0', () => {
     assert.equal(st.baselineAt, 0);
     assert.equal(st.latest, null);
     assert.equal(st.samples, 0);
+    assert.equal(st.popularCoverage, null, 'sem coorte não inventa 0%');
+    assert.equal(st._origem?.popularCoverage, 'naomedido');
+    assert.equal(st._origem?.brWarmRate, 'naomedido');
+    assert.equal(st._origem?.discoveryRate, 'naomedido');
     const g = metrics.snapshot().gauges;
     assert.equal(g['f3.br.popular.target'], undefined, 'nenhum gauge sem coorte');
   } finally {

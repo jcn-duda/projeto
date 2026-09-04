@@ -33,6 +33,7 @@ function deadKey(adapterId: string, account: string, infoHash: string) {
 }
 
 const QUEUE_PREFIX = `${prefix('autofetch')}q:`;
+const DEAD_PREFIX = `${prefix('autofetch')}dead:`;
 
 function queueKey(searchKey: string) {
   return `${QUEUE_PREFIX}${sha256(searchKey)}`;
@@ -208,7 +209,11 @@ function drainQueues(): { queues: number; items: number } {
   return { queues, items };
 }
 
-// drainNext nunca esteve cego (lê cache.get direto); cego era snapshot() do painel e drainQueues().
+// drainNext nunca esteve cego (lê cache.get direto); cego era snapshot() do
+// painel e drainQueues(). reindexQueues/reindexDead no boot varrem o L1
+// (`autofetch:v3:q:` / `autofetch:v3:dead:`) e reconstroem knownQueues /
+// knownDead — por isso o painel marca queues e deadBlacklistCount como
+// "duravel": o índice de processo espelha o que sobreviveu no cache.
 function reindexQueues() {
   let n = 0;
   for (const key of cache.keysMatching(QUEUE_PREFIX)) {
@@ -219,6 +224,18 @@ function reindexQueues() {
     n += 1;
   }
   metrics.count('autofetch.queue.reindexed', n);
+  return n;
+}
+
+function reindexDead() {
+  let n = 0;
+  for (const key of cache.keysMatching(DEAD_PREFIX)) {
+    if (knownDead.has(key)) continue;
+    if (cache.get(key) !== 1) continue;
+    knownDead.add(key);
+    n += 1;
+  }
+  metrics.count('autofetch.dead.reindexed', n);
   return n;
 }
 
@@ -358,41 +375,21 @@ function snapshot() {
     queues: { count: knownQueues.size, items: queueItems },
     accountGate: accountGateSnapshot(),
     config: autofetchLive.snapshot(),
+    // queues/dead=durável (reindex no boot espelha L1); resto=amostra deste processo.
+    _origem: { queues: 'duravel', deadBlacklistCount: 'duravel', budget: 'amostra', accountGate: 'amostra' },
   };
 }
 
 export {
-  LOCK_TTL_MS,
-  markerKey,
-  deadKey,
-  queueKey,
-  prefetchKey,
-  acquire,
-  release,
-  acquireSearch,
-  releaseSearch,
-  acquireSearchSlot,
-  releaseSearchSlot,
-  isDead,
-  isDeadQuiet,
-  blacklist,
-  readQueue,
-  writeQueue,
-  dropQueue,
-  drainQueues,
-  takeNext,
-  checkAndRecordBudget,
-  blockBudget,
-  budgetBlockedUntil,
-  resetBudget,
-  accountGateBlocked,
-  resetAccountGate,
-  accountGateSnapshot,
-  snapshot,
-  reindexQueues,
+  LOCK_TTL_MS, markerKey, deadKey, queueKey, prefetchKey,
+  acquire, release, acquireSearch, releaseSearch, acquireSearchSlot, releaseSearchSlot,
+  isDead, isDeadQuiet, blacklist, readQueue, writeQueue, dropQueue, drainQueues, takeNext,
+  checkAndRecordBudget, blockBudget, budgetBlockedUntil, resetBudget,
+  accountGateBlocked, resetAccountGate, accountGateSnapshot, snapshot, reindexQueues, reindexDead,
 };
 
 reindexQueues();
+reindexDead();
 
 export type { QueueCandidate };
 

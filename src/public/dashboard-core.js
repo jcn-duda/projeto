@@ -1,11 +1,7 @@
-/* Adom Power-Movie - pagina /dashboard: nucleo compartilhado (Fase 3, PLANO_MELHORIAS 5.9).
- * Estado comum, helpers de formato/DOM, HTTP autenticado e armazenamento local,
- * extraidos do script inline do dashboard.html. Escopo global compartilhado
- * (por isso sem IIFE) e carregado ANTES de panels/status e do script inline -
- * nada roda no load, so declaracoes; as chamadas acontecem em tempo de evento.
- * O que os testes regexam (renderMagnetDb, paineis do Chupim/Colhedor, secao
- * Conta / Catalogo) continua INLINE no HTML. ES5 puro: WebView de Fire TV e
- * smart TV. Sem build, sem bundler. */
+/* Adom Power-Movie — /dashboard: núcleo compartilhado (Fase 3 §5.9 + Fase 1).
+ * Estado, helpers, HTTP autenticado. Escopo global (sem IIFE). Nada roda no
+ * load. Magnet DB / Geral → panels; Chupim / Colhedor / Catálogo → módulos
+ * próprios; wiring → dashboard-boot.js. ES5 puro (Fire TV / smart TV). */
 "use strict";
 
   var TOKEN_KEY = "adom.dashboard.test-token";

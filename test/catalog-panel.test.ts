@@ -27,6 +27,10 @@ function dashboardHtml() {
   return readFileSync(new URL('../../src/public/dashboard.html', import.meta.url), 'utf8');
 }
 
+function dashboardCatalogJs() {
+  return readFileSync(new URL('../../src/public/dashboard-catalog.js', import.meta.url), 'utf8');
+}
+
 test('dashboard-actions: as 10 ações do catálogo estão na allowlist do despacho', () => {
   for (const action of ACTIONS) {
     assert.ok(DASHBOARD_ACTIONS.has(action), `${action} deve estar na allowlist`);
@@ -45,6 +49,7 @@ test('dashboard-actions: exatamente dedup-apply, cleanup-apply e manual-delete e
 
 test('dashboard.html: seção Conta / Catálogo com os IDs exigidos e botões das ações', () => {
   const html = dashboardHtml();
+  const js = dashboardCatalogJs();
   assert.match(html, /id="catalog_report"/);
   assert.match(html, /id="catalog_dedup_preview"/);
   assert.match(html, /id="catalog_targets"/);
@@ -52,15 +57,15 @@ test('dashboard.html: seção Conta / Catálogo com os IDs exigidos e botões da
   assert.match(html, /id="catalogScanBtn"/);
   assert.match(html, /id="catalogDedupApplyBtn"/);
   // O JS recorre a catalogAction com as ações esperadas.
-  assert.match(html, /catalogAction\(\s*"catalog-scan"/);
-  assert.match(html, /catalogAction\(\s*"dedup-apply"/);
+  assert.match(js, /catalogAction\(\s*"catalog-scan"/);
+  assert.match(js, /catalogAction\(\s*"dedup-apply"/);
 });
 
 test('dashboard.html: aplicar de dedup exige confirmação nativa antes de postar', () => {
-  const html = dashboardHtml();
-  const idx = html.indexOf('function runCatalogDedupApply');
+  const js = dashboardCatalogJs();
+  const idx = js.indexOf('function runCatalogDedupApply');
   assert.ok(idx !== -1, 'handler do dedup-apply presente');
-  const body = html.slice(idx, idx + 260);
+  const body = js.slice(idx, idx + 260);
   assert.match(body, /window\.confirm/);
   const confirmIdx = body.indexOf('window.confirm');
   const actionIdx = body.indexOf('catalogAction("dedup-apply"');
@@ -69,19 +74,22 @@ test('dashboard.html: aplicar de dedup exige confirmação nativa antes de posta
 
 test('dashboard.html: o JS da nova seção continua ES5 (WebView de Smart TV)', () => {
   const html = dashboardHtml();
+  const js = dashboardCatalogJs();
   assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard.html continua ES5');
+  assert.doesNotMatch(js, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard-catalog.js continua ES5');
 });
 
 test('dashboard.html: checkbox catalog_include_known presente e enviado como includeKnown no corpo', () => {
   const html = dashboardHtml();
+  const js = dashboardCatalogJs();
   assert.match(html, /id="catalog_include_known"/);
-  assert.match(html, /includeKnown: catalogIncludeKnown\(\)/, 'o corpo da ação carrega includeKnown lido do checkbox');
-  assert.match(html, /function catalogIncludeKnown/, 'há uma função que lê o estado do checkbox');
+  assert.match(js, /includeKnown: catalogIncludeKnown\(\)/, 'o corpo da ação carrega includeKnown lido do checkbox');
+  assert.match(js, /function catalogIncludeKnown/, 'há uma função que lê o estado do checkbox');
 });
 
 test('dashboard.html: alvo com t.known é marcado (preexistente) na lista da limpeza', () => {
-  const html = dashboardHtml();
-  assert.match(html, /preexistente/);
+  const js = dashboardCatalogJs();
+  assert.match(js, /preexistente/);
 });
 
 // Limpador BR com prova: o default de idade mínima foi fixado em 48h. Motivo
@@ -118,8 +126,8 @@ test('CATALOG_CLEANUP_MIN_AGE_MS explícito vence o default de 48h', async () =>
 // rodado e gravado evidência no servidor. Medido no dashboard ao vivo:
 // "Cannot read properties of undefined (reading 'hit')".
 test('dashboard.html: ações que mutam usam renderCatalogOutcome, não renderCatalogReport', () => {
-  const html = dashboardHtml();
-  const linhas = html.split('\n');
+  const js = dashboardCatalogJs();
+  const linhas = js.split('\n');
   for (const action of ['audit-backfill', 'dedup-apply', 'cleanup-apply']) {
     const alvo = `catalogAction("${action}"`;
     const linha = linhas.find((l) => l.includes(alvo));
@@ -135,18 +143,18 @@ test('dashboard.html: ações que mutam usam renderCatalogOutcome, não renderCa
 // agregados (`byCached` e `byBucket`) precisam de default próprio, do mesmo
 // jeito que `report.works` e `report.totals` já são acessados com guarda.
 test('dashboard.html: byCached e byBucket têm default antes do acesso indexado', () => {
-  const html = dashboardHtml();
-  assert.match(html, /var cached = report\.byCached \|\| \{\};/);
-  assert.match(html, /var buckets = report\.byBucket \|\| \{\};/);
-  assert.doesNotMatch(html, /report\.byCached\[/);
-  assert.doesNotMatch(html, /report\.byBucket\[/);
+  const js = dashboardCatalogJs();
+  assert.match(js, /var cached = report\.byCached \|\| \{\};/);
+  assert.match(js, /var buckets = report\.byBucket \|\| \{\};/);
+  assert.doesNotMatch(js, /report\.byCached\[/);
+  assert.doesNotMatch(js, /report\.byBucket\[/);
 });
 
 // Erro de RENDER não pode ser reportado como falha da AÇÃO: o servidor já
 // executou (a auditoria escreve evidência antes de a tela desenhar).
 test('dashboard.html: callback do catalogAction roda isolado em try/catch', () => {
-  const html = dashboardHtml();
-  assert.match(html, /callback\(data\);\s*\}\s*catch \(renderError\)/);
+  const js = dashboardCatalogJs();
+  assert.match(js, /callback\(data\);\s*\}\s*catch \(renderError\)/);
 });
 
 // Indisponibilidade (`ok:false` com 200 — ex.: conta do operador desligada no
@@ -155,19 +163,19 @@ test('dashboard.html: callback do catalogAction roda isolado em try/catch', () =
 // do feedback de sucesso dentro do .then, e o hint do backend (o conserto)
 // tem de chegar ao painel via bucketError.
 test('dashboard.html: indisponibilidade da ação vira feedback de erro com hint, antes do sucesso', () => {
-  const html = dashboardHtml();
-  const idx = html.indexOf('function catalogAction');
+  const js = dashboardCatalogJs();
+  const idx = js.indexOf('function catalogAction');
   assert.ok(idx !== -1, 'catalogAction presente');
-  const corpo = html.slice(idx, idx + 1400);
+  const corpo = js.slice(idx, idx + 1400);
   const erroIdx = corpo.indexOf('!data.ok');
   assert.ok(erroIdx !== -1, 'ramo de indisponibilidade presente no .then');
   const sucessoIdx = corpo.indexOf('concluída.');
   assert.ok(sucessoIdx !== -1 && erroIdx < sucessoIdx, 'erro avaliado antes do feedback de sucesso');
   assert.match(corpo, /setCatalogFeedback\("Ação " \+ action \+ " indisponível: " \+ bucketError\(data\), "error"\)/);
   // bucketError anexa o hint (com escaping de valueText, sem innerHTML).
-  const bucketIdx = html.indexOf('function bucketError');
+  const bucketIdx = js.indexOf('function bucketError');
   assert.ok(bucketIdx !== -1);
-  const bucket = html.slice(bucketIdx, bucketIdx + 400);
+  const bucket = js.slice(bucketIdx, bucketIdx + 400);
   assert.match(bucket, /data\.hint/);
   assert.match(bucket, /valueText\(data\.hint\)/);
 });
@@ -178,13 +186,14 @@ test('dashboard.html: indisponibilidade da ação vira feedback de erro com hint
 // junto da contagem, porque "12 selecionados" não diz se são 2 GB ou 2 TB.
 test('dashboard.html: selecionar todos pula os desabilitados e resume com tamanho', () => {
   const html = dashboardHtml();
+  const js = dashboardCatalogJs();
   assert.match(html, /id="catalogSelectAllBtn"/);
   assert.match(html, /id="catalog_selection"/);
-  const idx = html.indexOf('function toggleCatalogSelectAll');
+  const idx = js.indexOf('function toggleCatalogSelectAll');
   assert.ok(idx !== -1, 'handler do selecionar-todos presente');
-  const corpo = html.slice(idx, idx + 900);
+  const corpo = js.slice(idx, idx + 900);
   assert.match(corpo, /if \(!nodes\[i\]\.disabled\) nodes\[i\]\.checked = ligar;/, 'só marca o que não está desabilitado');
-  assert.match(html, /box\.setAttribute\("data-size"/, 'o checkbox carrega o tamanho para o resumo somar');
-  const resumo = html.slice(html.indexOf('function refreshCatalogSelection'), html.indexOf('function toggleCatalogSelectAll'));
+  assert.match(js, /box\.setAttribute\("data-size"/, 'o checkbox carrega o tamanho para o resumo somar');
+  const resumo = js.slice(js.indexOf('function refreshCatalogSelection'), js.indexOf('function toggleCatalogSelectAll'));
   assert.match(resumo, /formatBytes\(bytes\)/, 'o resumo mostra bytes, não só contagem');
 });

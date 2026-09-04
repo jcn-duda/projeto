@@ -133,6 +133,11 @@ function accountGateSnapshot() {
     blocked: pauseAt > 0 && accounts.some((account) => account.blocked),
     accounts,
     inFlight: accountGateInFlight.size,
+    // Memo frio (zero contas) ≠ "gate liberou": naomedido evita pintar saúde.
+    // Com memo, ainda é amostra deste processo (sem rede no caminho síncrono).
+    _origem: {
+      accounts: visible.size === 0 ? 'naomedido' : 'amostra',
+    },
   };
 }
 

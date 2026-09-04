@@ -23,6 +23,25 @@ const INFINITE_TTL = 315_360_000; // 10 anos em segundos
 
 let inMemoryOverrides: Partial<HarvesterLiveConfig> = {};
 let isInitialized = false;
+// Listener opcional (o colhedor registra em start): live NÃO importa harvester
+// — evita ciclo. Dispara após set/reset/setPaused bem-sucedidos para o timer
+// acompanhar harvestEnabled / intervalo sem restart do processo.
+type ConfigChangeListener = () => void;
+let configChangeListener: ConfigChangeListener | null = null;
+
+/** Registra (ou limpa com null) o callback de mudança de config ao vivo. */
+export function onConfigChange(listener: ConfigChangeListener | null): void {
+  configChangeListener = listener;
+}
+
+function notifyConfigChange(): void {
+  if (!configChangeListener) return;
+  try {
+    configChangeListener();
+  } catch (err: unknown) {
+    log.warn('[harvest-live] onConfigChange falhou:', log.errorMessage(err));
+  }
+}
 
 function initIfNeeded(): void {
   if (isInitialized) return;
@@ -62,6 +81,7 @@ export function setPaused(paused: boolean): boolean {
   inMemoryOverrides.paused = next;
   inMemoryOverrides.pausedSince = next ? (inMemoryOverrides.pausedSince || Date.now()) : null;
   persist();
+  notifyConfigChange();
   return next;
 }
 
@@ -92,6 +112,7 @@ export function set(patch: Record<string, unknown>): {
   }
 
   persist();
+  notifyConfigChange();
   return { ok: true, effective: effective(), overriddenKeys: Object.keys(inMemoryOverrides) };
 }
 
@@ -104,7 +125,9 @@ export function reset(): HarvesterEffectiveConfig {
   } catch (err: unknown) {
     log.warn('[harvest-live] falha ao limpar overrides do cache:', log.errorMessage(err));
   }
-  return effective();
+  const eff = effective();
+  notifyConfigChange();
+  return eff;
 }
 
 function persist(): void {
@@ -149,6 +172,7 @@ export default {
   setPaused,
   set,
   reset,
+  onConfigChange,
   schema,
   snapshot,
 };

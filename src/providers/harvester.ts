@@ -90,6 +90,45 @@ function rearmTimer(intervalMs: number) {
   armedIntervalMs = intervalMs;
 }
 
+function liveWantsTimer(): boolean {
+  const live = harvesterLive.effective();
+  return live.harvestEnabled && config.releaseIndex.enabled;
+}
+
+function disarmTimer() {
+  if (!armedInterval) {
+    armedIntervalMs = 0;
+    return;
+  }
+  clearInterval(armedInterval);
+  armedInterval = null;
+  armedIntervalMs = 0;
+}
+
+/**
+ * Alinha o setInterval ao critério vivo (mesmo de tick/status). Chamado no
+ * boot via start() e depois por harvesterLive.onConfigChange — painel que liga
+ * harvestEnabled com o .env off arma o timer sem restart; desligar desarma.
+ */
+function syncFromLive() {
+  if (!started) return;
+  if (!liveWantsTimer()) {
+    if (armedInterval) {
+      disarmTimer();
+      log.info('[harvest] desativado (colhedor ou índice off)');
+    } else {
+      armedIntervalMs = 0;
+    }
+    return;
+  }
+  if (!armedInterval) {
+    harvestQueue.load();
+    const recovered = harvestQueue.depth();
+    if (recovered) log.info(`[harvest] fila recuperada do disco: ${recovered} obra(s)`);
+  }
+  rearmTimer(harvesterLive.effective().harvestIntervalMs);
+}
+
 /**
  * Um passo do ciclo: consome UMA obra da fila. Em produção só o setInterval
  * do start() chama; exportado para o teste cobrir a contabilidade do teto
@@ -214,7 +253,10 @@ async function drain(maxWorks?: number) {
 function start() {
   if (started) return;
   started = true;
-  if (!config.harvest.enabled || !config.releaseIndex.enabled) {
+  // live → harvester (callback); harvester já importa live — sem ciclo.
+  harvesterLive.onConfigChange(syncFromLive);
+  // Mesmo critério de tick/status: overlay vivo × índice, não o .env estático.
+  if (!liveWantsTimer()) {
     log.info('[harvest] desativado (colhedor ou índice off)');
     return;
   }
@@ -231,14 +273,36 @@ export function _armedIntervalMsForTest(): number {
   return armedIntervalMs;
 }
 
+/** Timer armado? (Fase 3 — sync vivo). */
+export function _timerArmedForTest(): boolean {
+  return armedInterval != null;
+}
+
+/**
+ * Reseta o estado do timer para testes (start sticky no módulo). Não usa em
+ * produção — o processo sobe start() uma vez.
+ */
+export function _resetForTest(): void {
+  started = false;
+  inFlight = false;
+  paused = false;
+  disarmTimer();
+  harvesterLive.onConfigChange(null);
+}
+
 /** Para o painel: estado do colhedor sem expor nada sensível. */
 function status() {
   const live = harvesterLive.effective();
   const isPause = paused || harvesterLive.isPaused();
   const workerStats = harvestWorker.stats();
   return {
+    // enabled = overlay vivo × índice; start()/syncFromLive usam o MESMO
+    // critério (Fase 3 — timer acompanha o painel sem restart).
     enabled: live.harvestEnabled && config.releaseIndex.enabled,
     paused: isPause,
+    // Espelho em memória da chave durável harvest:v1:q (load no start / persist
+    // no enqueue). Sem load, depth pode mentir 0 — ainda assim a fonte é a fila
+    // persistente, não o teto horário nem o override vivo.
     queueDepth: harvestQueue.depth(),
     queueMax: live.harvestQueueMax,
     harvested: workerStats.harvested,
@@ -249,6 +313,14 @@ function status() {
     queuePreview: harvestQueue.preview(config.harvest.queuePreview),
     lastWorks: workerStats.recentWorks.map((entry) => ({ ...entry, at: new Date(entry.at).toISOString() })),
     config: harvesterLive.snapshot(),
+    // Procedência do painel (Fase 2): aditivo; campos existentes intactos.
+    _origem: {
+      queriesThisHour: 'duravel',
+      queueDepth: 'duravel',
+      enabled: 'amostra',
+      lastRunAt: 'amostra',
+      paused: 'amostra',
+    },
   };
 }
 

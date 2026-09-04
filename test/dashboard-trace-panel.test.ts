@@ -71,7 +71,16 @@ test('HTML: aba, view, inputs e script depois do debrid-test; ES5 no documento',
   const panels = html.indexOf('dashboard-panels.js');
   const debridTest = html.indexOf('dashboard-debrid-test.js');
   const trace = html.indexOf('dashboard-trace.js');
-  assert.ok(core < panels && panels < debridTest && debridTest < trace, 'ordem de scripts é contrato');
+  const autofetch = html.indexOf('dashboard-autofetch.js');
+  const harvest = html.indexOf('dashboard-harvest.js');
+  const catalog = html.indexOf('dashboard-catalog.js');
+  const boot = html.indexOf('dashboard-boot.js');
+  assert.ok(
+    core < panels && panels < debridTest && debridTest < trace &&
+      trace < autofetch && autofetch < harvest && harvest < catalog && catalog < boot,
+    'ordem de scripts é contrato (boot por último)',
+  );
+  assert.doesNotMatch(html, /<script>\s*"use strict"/, 'HTML sem JS inline');
   assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'HTML inteiro segue ES5');
 });
 

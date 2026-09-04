@@ -25,9 +25,17 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import rdWarmer from './rd-warmer.js';
 import * as harvesterLive from '../utils/harvester-live.js';
+import * as cache from '../utils/cache.js';
+import { prefix } from '../utils/cache-keys.js';
 import type { HarvestEntry } from './harvest-queue.js';
 
 type RecentWork = Pick<HarvestEntry, 'imdbId' | 'type' | 'season' | 'episode'> & { at: number; recorded: number };
+
+// Balde da hora civil UTC no L1/L2: sem isto, restart/deploy zera o Map e o
+// colhedor pode estourar HARVEST_MAX_HOUR de novo na mesma hora (risco de ban).
+const HOUR_KEY = `${prefix('harvest')}hour`;
+
+type HourBucket = { hour: number; count: number };
 
 // Pausa é operacional e deliberadamente não persiste: após restart o operador
 // volta ao comportamento configurado no .env, sem uma ação temporária virar
@@ -39,17 +47,50 @@ const recentWorks: RecentWork[] = [];
 const hourBuckets = new Map<number, number>();
 const lastQueryAt = new Map<string, number>();
 
+/** Segundos até o fim do balde + folga curta; mínimo 60 para o L2 não sumir na virada. */
+function hourBucketTtlSeconds(hour: number): number {
+  const endMs = (hour + 1) * 3_600_000;
+  const secondsLeft = Math.ceil((endMs - Date.now()) / 1000) + 60;
+  return Math.max(60, secondsLeft);
+}
+
+function hydrateCurrentHour(hour: number) {
+  if (hourBuckets.has(hour)) return;
+  const stored = cache.get(HOUR_KEY) as HourBucket | undefined;
+  if (
+    stored &&
+    stored.hour === hour &&
+    typeof stored.count === 'number' &&
+    Number.isFinite(stored.count) &&
+    stored.count > 0
+  ) {
+    hourBuckets.set(hour, stored.count);
+  }
+}
+
 export function queriesThisHour() {
   const hour = Math.floor(Date.now() / 3_600_000);
   for (const bucket of [...hourBuckets.keys()]) {
     if (bucket < hour) hourBuckets.delete(bucket);
   }
+  hydrateCurrentHour(hour);
   return hourBuckets.get(hour) || 0;
 }
 
-function noteQueries(count: number) {
+/** Anota consultas no balde da hora e persiste no cache (só este contador é durável). */
+export function noteQueries(count: number) {
   const hour = Math.floor(Date.now() / 3_600_000);
-  hourBuckets.set(hour, (hourBuckets.get(hour) || 0) + count);
+  // Incremento parte do balde hidratado — senão um noteQueries sem leitura
+  // prévia sobrescreveria o L2 com só o delta desta obra.
+  hydrateCurrentHour(hour);
+  const next = (hourBuckets.get(hour) || 0) + count;
+  hourBuckets.set(hour, next);
+  cache.set(HOUR_KEY, { hour, count: next } satisfies HourBucket, hourBucketTtlSeconds(hour));
+}
+
+/** Zera só o Map — testes simulam processo novo; o L1/L2 permanece. */
+export function clearHourBuckets() {
+  hourBuckets.clear();
 }
 
 async function awaitIndexerGap(indexer: string) {

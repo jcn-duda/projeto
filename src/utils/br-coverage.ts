@@ -71,6 +71,12 @@ type BrCoverageStatus = {
   brWarmRate: number | null;
   discoveryRate: number | null;
   counters: { sample: number };
+  /** Procedência: sem coorte/latest as razões são null — não inventar 0%. */
+  _origem?: {
+    popularCoverage: 'naomedido';
+    brWarmRate: 'naomedido';
+    discoveryRate: 'naomedido';
+  };
 };
 
 /** Conta do operador (quem olha o dashboard) — sem credencial vazada. */
@@ -260,7 +266,7 @@ export function sample(): BrCoverageSample | null {
 export function status(): BrCoverageStatus {
   const counters = metrics.snapshot().counters;
   const latestSample = latest;
-  return {
+  const out: BrCoverageStatus = {
     enabled: config.f3.enabled && config.f3.br.enabled,
     baselineAt,
     samples,
@@ -270,6 +276,16 @@ export function status(): BrCoverageStatus {
     discoveryRate: latestSample && latestSample.targetWorks > 0 ? latestSample.worksWithBr / latestSample.targetWorks : null,
     counters: { sample: counters['f3.br.sample'] || 0 },
   };
+  // Sem sample/coorte as razões ficam null; _origem marca "não medido" para o
+  // painel não pintar 0% como cobertura real (Mecanismo B Fase 2).
+  if (!latestSample) {
+    out._origem = {
+      popularCoverage: 'naomedido',
+      brWarmRate: 'naomedido',
+      discoveryRate: 'naomedido',
+    };
+  }
+  return out;
 }
 
 /** Timer de fundo (unref). Varre já no boot e de `sampleMs` em `sampleMs`. */

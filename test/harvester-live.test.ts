@@ -90,3 +90,26 @@ test('harvesterLive: alternância de pausa e snapshot', () => {
 
   harvesterLive.reset();
 });
+
+test('harvesterLive: onConfigChange dispara em set/reset/setPaused (não em set inválido)', () => {
+  harvesterLive.reset();
+  harvesterLive.onConfigChange(null);
+  let hits = 0;
+  harvesterLive.onConfigChange(() => { hits += 1; });
+
+  const bad = harvesterLive.set({ harvestEnabled: 'talvez' } as any);
+  assert.equal(bad.ok, false);
+  assert.equal(hits, 0, 'set inválido não notifica');
+
+  assert.equal(harvesterLive.set({ harvestMaxPerHour: 200 }).ok, true);
+  assert.equal(hits, 1);
+
+  harvesterLive.setPaused(true);
+  assert.equal(hits, 2);
+
+  harvesterLive.reset();
+  assert.equal(hits, 3);
+
+  harvesterLive.onConfigChange(null);
+  harvesterLive.reset();
+});
