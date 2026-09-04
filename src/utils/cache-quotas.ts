@@ -11,9 +11,9 @@
  * instância nova de cache.ts reusando o irmão cacheado, com o store alheio).
  */
 
-// A soma das cotas de namespaces conhecidos é 34.550 (inclui rdc=14.000,
-// rdq=500, rdt=2.500, adprot=2.000, adsub=1.000 e adrm=500), deixando 1.450
-// entradas de folga sob o teto global. O ledger RD
+// A soma das cotas de namespaces conhecidos é 82.550 (inclui mag=50.000,
+// rdc=14.000, rdq=500, rdt=2.500, adprot=2.000, adsub=1.000 e adrm=500),
+// deixando 1.450 entradas de folga sob o teto global. O ledger RD
 // é global por hash e precisa reter muito mais histórico que os caches por conta;
 // os demais baldes foram calibrados para abrir esse espaço sem deixar o despejo
 // global invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB
@@ -22,7 +22,10 @@
 // soma ~54 MB — hoje observado ~13 MB em produção local. Soma raw + streams +
 // idx (~59 MB) segue segura no container de 3g; rdc/davail/mag/rdt/adprot/
 // adsub/adrm guardam só registros minúsculos.
-export const MAX_ENTRIES = 36000;
+//
+// O teto global acompanha a soma: teto IGUAL OU ABAIXO dela reintroduz o
+// despejo global antes da repartição por namespace, que foi bug real.
+export const MAX_ENTRIES = 84000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -37,9 +40,15 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Disponibilidade por hash é só 0/1; a cota alta evita reconsultar a mesma
   // conta em buscas diferentes sem ocupar a memória dos resultados brutos.
   davail: 1000,
-  // Banco de magnets: histórico durável por hash (vivo/ruim), entrada
-  // minúscula como o davail — a cota alta cobre contas com catálogo grande.
-  mag: 2000,
+  // Banco de magnets: histórico durável por hash (vivo/ruim/mentiroso), entrada
+  // minúscula como o davail (valor `1`, chave ~70 B) — ~400 B por entrada com o
+  // overhead do Map, então 50.000 custa ~19 MB, folgado no container de 3g.
+  // Era 2.000 e o banco ficava ~62x menor que o histórico que ele PODE guardar:
+  // a conta do debrid trava em ~800 magnets vivos (autoFetchPauseAt), mas o
+  // banco é histórico de tudo que já passou, inclusive do que a limpeza apagou.
+  // Não confunda com permanência: o teto é capacidade, quem expira é o TTL
+  // (alive/lie 7 dias, bad 24 h) — subir TTL é outro eixo, e é veto do plano.
+  mag: 50000,
   // Ledger global do Real-Debrid: cache de serviço, sem credencial na chave.
   // A cota alta evita perder a evidência rara das sondas entre instalações.
   // Era 20 mil, mas agora o namespace é só de hashes (o cache por título do

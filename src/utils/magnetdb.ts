@@ -304,7 +304,9 @@ function status(): MagnetDbStatus {
     ttlRemainingSeconds: trackedState.ttlRemainingSeconds,
     byAdapter: trackedState.byAdapter,
     l1Entries: magNs?.entries || 0,
-    l1Max: magNs?.maxEntries || cache.QUOTAS?.mag || 2000,
+    // Sem snapshot/QUOTAS, inventar um número no painel é pior que zero —
+    // o literal antigo (2000) era a cota pré-50k e mentiria a ocupação.
+    l1Max: magNs?.maxEntries || cache.QUOTAS?.mag || 0,
     evictedQuota: counters['cache.evicted.quota.mag'] || 0,
     counters: {
       aliveSet: counters['magnetdb.alive.set'] || 0,

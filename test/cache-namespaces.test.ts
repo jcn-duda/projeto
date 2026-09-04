@@ -50,13 +50,13 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva folga sob o
     assert.equal(cache.QUOTAS.raw, 800);
     assert.equal(cache.QUOTAS.streams, 2000);
     assert.equal(cache.QUOTAS.davail, 1000);
-    assert.equal(cache.QUOTAS.mag, 2000);
+    assert.equal(cache.QUOTAS.mag, 50000);
     assert.equal(cache.QUOTAS.rdc, 14000);
     assert.equal(cache.QUOTAS.rdq, 500);
     assert.equal(cache.QUOTAS.rdt, 2500);
     assert.equal(cache.QUOTAS.adprot, 2000);
     assert.equal(cache.QUOTAS.idx, 2000);
-    assert.equal(cache.MAX_ENTRIES, 36000);
+    assert.equal(cache.MAX_ENTRIES, 84000);
     const sumQuotas = Object.entries(cache.QUOTAS).reduce((sum, [ns, quota]) => ns === '__default' ? sum : sum + (quota as number), 0);
     assert.ok(sumQuotas < cache.MAX_ENTRIES, `soma das cotas (${sumQuotas}) < teto (${cache.MAX_ENTRIES})`);
   } finally {

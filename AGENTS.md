@@ -918,11 +918,19 @@ por `queryIndexer` e **não** usa o cache bruto — fora de escopo de propósito
 TTL de resultado vazio é curto (`RAW_CACHE_EMPTY_TTL`): 200 com zero itens
 pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
 
-Cotas do L1 (`cache.ts`): `streams` 2000, `raw` 800, `dlmag` 4000, `idx` 4000,
-teto global 36000. `raw` é o namespace gordo (~100 KB no pior caso); não suba a
-cota sem refazer a conta de memória do container de 3g. A SOMA das cotas é
-30.500 — teto global **igual ou abaixo** da soma reintroduz o despejo global
+Cotas do L1 (`cache-quotas.ts`): `streams` 2000, `raw` 800, `dlmag` 4000,
+`idx` 2000, `rdc` 14000, `mag` 50000, teto global 84000. `raw` é o namespace
+gordo (~100 KB no pior caso); não suba a cota sem refazer a conta de memória do
+container de 3g. O `mag` é o oposto — entrada minúscula (`1` + chave de ~70 B,
+~400 B com o overhead do Map), então 50.000 custa ~19 MB. A SOMA das cotas é
+82.550 — teto global **igual ou abaixo** da soma reintroduz o despejo global
 antes da repartição por namespace (foi bug real).
+
+Cota é capacidade, não permanência: quem tira registro do `mag` no dia a dia é
+o TTL (`MAGNET_ALIVE_TTL`/`MAGNET_LIE_TTL` 7 dias, `MAGNET_BAD_TTL` 24 h).
+Despejo por cota apaga do L1 **e do L2** (`forgetMany` roda `DELETE`), e o
+`loadFromDisk` descarta o que passa da cota no boot — não existe reservatório
+maior no SQLite esperando.
 
 Fase 3 (cache de disponibilidade por hash) **está** no código, em
 `src/debrid/index.ts`: o namespace `davail` guarda `1`/`0` por
