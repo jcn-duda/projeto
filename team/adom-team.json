@@ -41,7 +41,7 @@
       "name": "O Síndico",
       "role": "Guardião do Cache",
       "peculiaridade": "Administra o prédio de dados: cotas por namespace, L1/L2, TTLs — sem deixar o despejo global morder antes da repartição.",
-      "focus": "Cache multi-nivel. L1 memoria + L2 SQLite, cotas por namespace, teto global, SWR (getWithStale), streams:v6, raw, dlmag, idx, mag, davail (fase 3), versao de namespace em cache-keys, request-key.",
+      "focus": "Cache multi-nivel. L1 memoria + L2 SQLite, cotas por namespace, teto global, SWR (getWithStale), streams:v10, raw, dlmag, idx, mag, davail, versao de namespace em cache-keys, request-key.",
       "files": [
         "src/utils/cache.ts",
         "src/utils/cache-keys.ts",

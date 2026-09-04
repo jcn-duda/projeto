@@ -36,7 +36,7 @@ Zela pelo container único: 4 processos, loopback, healthcheck triplo,
 4. Os 4 `*-resolver` são embutidos no processo do addon
    (`BR_RESOLVERS_EMBEDDED=false` volta ao modo separado, não é produção).
 5. Caminho relativo muda com `dist/`: resolvers copiados para `/app/dist`, não
-   `/app`; `DB_PATH` sobe 3 níveis para achar `data/cache.db`.
+   `/app`; `CACHE_DB_PATH` sobe 3 níveis para achar `data/cache.db`.
 6. Healthcheck triplo (7000 + Jackett 9117 + FlareSolverr 8191).
 
 ## Contrato de saída (auditoria)

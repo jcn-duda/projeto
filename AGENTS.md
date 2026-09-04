@@ -759,6 +759,16 @@ próxima vez. Travas e arquitetura atuais (invariante 6):
   `autoFetchTopSeeds`) continua — **desligar `autoFetchAnyDubbed` não corta
   seeds**, desde que `autoFetchTopSeeds=true` (teto próprio `autoFetchTopSeedsMax`
   1..4);
+- no pool `br` a cobertura é **por qualidade-alvo**, não global: 1 candidato para
+  cada faixa de `AUTOFETCH_TARGET_QUALITIES` (`1080p`, `720p`, `2160p`), e só as
+  três cobertas param o Chupim. Antes, QUALQUER BR dublado em cache parava tudo —
+  um 720 Dual ⚡ bloqueava o upgrade para 1080/4K. Unknown/SD não abrem nem fecham
+  vaga; pool sem nenhuma faixa-alvo cai no pick clássico, senão fonte BR sem
+  resolução no título deixaria de ser esquentada. Consequência de dimensionamento:
+  são no máximo 3 candidatos, então com `autoFetchMax=3` (default) `immediate`
+  consome todos e a **fila persistente do pool BR nasce vazia** — o `drainNext`
+  não tem o que drenar quando um torrent morre. Com `autoFetchMax` menor (preset
+  Conservador) a fila volta a receber os excedentes;
 - hold **por candidato imediato, antes** da checagem; marker só depois do aceite;
 - recheck em fundo (`DEBRID_AUTO_FETCH_RECHECK_MS`) com detecção de **torrent
   morto** (`adapter.torrentStatus`): duas observações consecutivas de estado terminal
