@@ -206,8 +206,8 @@ test('passe tardio não duplica o candidato do parcial enquanto o enqueue ainda 
   const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
   const h1 = '1'.repeat(40);
   const h2 = '2'.repeat(40);
-  const brDub = (hash: any) => ({
-    infoHash: hash, name: 'Coringa Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+  const brDub = (hash: any, q = '1080p') => ({
+    infoHash: hash, name: `Coringa Dublado ${q}`, _br: true, _dubbed: true, _quality: q, _seeders: 1,
   });
   const userOpts = {
     ...runtime.defaults(),
@@ -234,15 +234,13 @@ test('passe tardio não duplica o candidato do parcial enquanto o enqueue ainda 
     config.debrid.publicUrl = 'http://addon.test';
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
 
-    // Passe parcial: enfileira h1 e o enqueue fica em voo (marker ainda não
-    // foi gravado — ele só existe após o aceite).
+    // Passe parcial: enfileira h1 (1080) e o enqueue fica em voo.
     await run([brDub(h1)]);
     await sleep(10);
 
-    // Passe tardio chega com o MESMO h1 e um candidato novo. O marker ainda não
-    // existe, então é a trava em memória que segura o dedupe: h1 não pode ser
-    // enfileirado de novo enquanto o primeiro upload não resolve.
-    await run([brDub(h1), brDub(h2)]);
+    // Passe tardio: mesmo h1 + h2 em OUTRA faixa (720). Com 1× por qualidade,
+    // o 720 é candidato novo; h1 não duplica graças à trava em memória.
+    await run([brDub(h1), brDub(h2, '720p')]);
     await sleep(20);
     assert.deepEqual(enqueued, [h1, h2], 'h1 não é duplicado pelo passe tardio');
 

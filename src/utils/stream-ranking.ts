@@ -8,12 +8,16 @@ import { dropTrace } from './stream-trace.js';
 import type { StreamTraceState, TraceReason } from './stream-trace.js';
 import {
   DUBBED_QUALITY_WEIGHT,
+  AUTOFETCH_TARGET_QUALITIES,
+  isAutofetchTargetQuality,
   brDubbedPool,
   anyDubbedPool,
   topSeededPool,
   hashSet,
   pickFromPool,
   pickBrDubbedCandidates,
+  pickBrDubbedByTargetQualities,
+  cachedBrDubbedTargetQualities,
   pickBrDubbedCandidate,
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
@@ -22,7 +26,7 @@ import {
   uncachedBrHashes,
   filterKnownCache,
 } from './stream-pools.js';
-import type { PoolsOptions, AutofetchOptions } from './stream-pools.js';
+import type { PoolsOptions, AutofetchOptions, AutofetchTargetQuality } from './stream-pools.js';
 
 interface SortOptions {
   minSeeders?: number;
@@ -245,12 +249,16 @@ function sortAndLimit(
 
 export {
   DUBBED_QUALITY_WEIGHT,
+  AUTOFETCH_TARGET_QUALITIES,
+  isAutofetchTargetQuality,
   brDubbedPool,
   anyDubbedPool,
   topSeededPool,
   hashSet,
   pickFromPool,
   pickBrDubbedCandidates,
+  pickBrDubbedByTargetQualities,
+  cachedBrDubbedTargetQualities,
   pickBrDubbedCandidate,
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
@@ -263,4 +271,4 @@ export {
   sortAndLimit,
 };
 
-export type { SortOptions, PoolsOptions, AutofetchOptions };
+export type { SortOptions, PoolsOptions, AutofetchOptions, AutofetchTargetQuality };

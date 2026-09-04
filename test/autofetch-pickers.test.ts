@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import { pickBrDubbedCandidate, pickBrDubbedCandidates, pickAnyDubbedCandidates, uncachedBrHashes, dedupeByHash, pickTopSeededCandidates } from '../src/utils/format.js';
+import { pickBrDubbedCandidate, pickBrDubbedCandidates, pickBrDubbedByTargetQualities, pickAnyDubbedCandidates, uncachedBrHashes, dedupeByHash, pickTopSeededCandidates } from '../src/utils/format.js';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
@@ -98,6 +98,40 @@ test('contrato max4 seleciona candidatos distintos e limita slots por busca', ()
   for (let i = 0; i < 4; i += 1) assert.equal(autofetch.acquireSearchSlot(key, 4), true);
   assert.equal(autofetch.acquireSearchSlot(key, 4), false);
   autofetch.releaseSearch(key);
+});
+
+test('pickBrDubbedByTargetQualities: 1 por faixa 1080/720/4K; unknown fora; 720 cacheado libera upgrade', () => {
+  const D = 'd'.repeat(40);
+  const E = 'e'.repeat(40);
+  const a1080 = stream(A, { _br: true, _dubbed: true, _quality: '1080p', _seeders: 5 });
+  const a1080b = stream(B, { _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 });
+  const c720 = stream(C, { _br: true, _dubbed: true, _quality: '720p', _seeders: 50 });
+  const d4k = stream(D, { _br: true, _dubbed: true, _quality: '2160p', _seeders: 9 });
+  const eUnk = stream(E, { _br: true, _dubbed: true, _quality: 'sem resolução', _seeders: 99 });
+
+  assert.deepEqual(
+    pickBrDubbedByTargetQualities([eUnk, d4k, c720, a1080b, a1080], new Set(), 6)
+      .map((s) => String(s.infoHash).toLowerCase()),
+    [A, C, D],
+    '1×1080 + 1×720 + 1×4K; unknown e 2º 1080 fora',
+  );
+
+  assert.deepEqual(
+    pickBrDubbedByTargetQualities([a1080, c720, d4k], new Set([C]), 6)
+      .map((s) => String(s.infoHash).toLowerCase()),
+    [A, D],
+    '720 cacheado → só missing 1080 e 4K',
+  );
+
+  // Sem alvo no pool: fallback clássico (unknown/SD).
+  const onlyUnk = [
+    stream(A, { _br: true, _dubbed: true, _quality: 'sem resolução', _seeders: 2 }),
+    stream(B, { _br: true, _dubbed: true, _quality: '480p', _seeders: 1 }),
+  ];
+  assert.deepEqual(
+    pickBrDubbedByTargetQualities(onlyUnk, new Set(), 2).map((s) => String(s.infoHash).toLowerCase()),
+    [A, B],
+  );
 });
 
 test('pickBrDubbedCandidate ordena por dublado→qualidade→seeders, independente da ordem da lista', () => {

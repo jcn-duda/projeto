@@ -270,10 +270,12 @@ test('autoFetchBrDubbed deixa rastro nas desistências de lista', async () => {
   assert.equal(d(), 1, 'unknown-cache');
   assert.equal(lastReason(), 'unknown-cache');
 
-  // stop-has-br: outro BR do pool já cacheado — o Chupim para antes do candidato.
   d = delta('stop-has-br');
-  await run(() => autoFetchBrDubbed([brDub(H1) as any, brDub(H2) as any], [cand(H1)], { cached: new Set([H2]), known: true, searchKey: 'k2' }));
-  assert.equal(d(), 1, 'stop-has-br');
+  await run(() => autoFetchBrDubbed(
+    [brDub(H1) as any, brDub(H2) as any], [cand(H1)],
+    { cached: new Set([H2]), known: true, searchKey: 'k2' },
+  ));
+  assert.equal(d(), 1, 'stop-has-br same-quality');
   assert.equal(lastReason(), 'stop-has-br');
 
   d = delta('no-candidates');

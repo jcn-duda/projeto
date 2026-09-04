@@ -210,14 +210,16 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     }
   });
 
-  test('4C: Autofetch is skipped when a cached BR Dubbed stream is already available', async () => {
+  test('4C: Autofetch is skipped when the same target quality is already cached', async () => {
     const cachedBrHash = makeHash('br_cached_avail', 1);
     const uncachedBrHash = makeHash('br_uncached_worse', 2);
     const userApiKey = 'test-pm-key';
 
+    // Mesma faixa (1080): cobertura por qualidade para o Chupim. Upgrade
+    // 720/4K com 1080⚡ é coberto em autofetch-enqueue (matriz upgrade).
     const streams = [
       makeRawStream('Movie.2024.1080p.DUBLADO.Cached', { infoHash: cachedBrHash, isBr: true, _dubbed: true }),
-      makeRawStream('Movie.2024.720p.DUBLADO.Uncached', { infoHash: uncachedBrHash, isBr: true, _dubbed: true }),
+      makeRawStream('Movie.2024.1080p.DUBLADO.Uncached', { infoHash: uncachedBrHash, isBr: true, _dubbed: true }),
     ].map(format.toStremioStream);
 
     const userOpts = {
@@ -248,7 +250,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       });
 
       await sleep(20);
-      assert.equal(enqueueCalls, 0, 'No enqueue triggered when cached BR dubbed stream exists');
+      assert.equal(enqueueCalls, 0, 'No enqueue when the same target quality is already cached');
     } finally {
       pmAdapter.checkCached = originalCheck;
       pmAdapter.enqueue = originalEnqueue;

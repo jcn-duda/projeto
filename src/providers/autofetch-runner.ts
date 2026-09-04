@@ -3,12 +3,15 @@ import config from '../config.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import type { DebridAdapter, Stream } from '../../types/domain.js';
 import {
-  pickBrDubbedCandidates,
+  pickBrDubbedByTargetQualities,
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
   hasCachedBrDubbed,
+  cachedBrDubbedTargetQualities,
+  isAutofetchTargetQuality,
   canAutoFetchBr,
   isSeasonPackFillEligible,
+  streamQuality,
 } from '../utils/format.js';
 import * as cache from '../utils/cache.js';
 import debrid from '../debrid/index.js';
@@ -80,10 +83,11 @@ export function autoFetchCandidates(
   const queueDepth = live.autoFetchQueue ? live.autoFetchQueueDepth : 0;
   const totalMax = live.autoFetchMax + queueDepth;
 
-  // Cascata br → any → seeds: recusar o nível `any` não pode abortar a
-  // busca inteira — o corte antigo (`return []`) matava o terceiro nível
-  // justamente quando o operador pediu só a rede de segurança de swarm.
-  let candidates = pickBrDubbedCandidates(liveStreams, new Set(), totalMax, { season }).filter(isAutoFetchStream);
+  // Cascata br → any → seeds: no pool BR pega 1 por qualidade-alvo
+  // (720/1080/4K); recusar o nível `any` não pode abortar a busca inteira —
+  // o corte antigo (`return []`) matava o terceiro nível justamente quando
+  // o operador pediu só a rede de segurança de swarm.
+  let candidates = pickBrDubbedByTargetQualities(liveStreams, new Set(), totalMax, { season }).filter(isAutoFetchStream);
   let pool = 'br';
   const dubbedGlobal = candidates.length === 0
     ? pickAnyDubbedCandidates(liveStreams, new Set(), totalMax, { season }).filter(isAutoFetchStream)
@@ -255,16 +259,36 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
     return 0;
   }
 
-  const stop = candidates[0].pool === 'any' || candidates[0].pool === 'seeds'
-    ? cached.size > 0 : hasCachedBrDubbed(streams, cached);
-  if (stop) {
-    // `hasCachedBrDubbed` para o Chupim se QUALQUER item do pool brDubbed
-    // estiver cacheado — e o pool aceita BR sem tag de dublado. Um legendado
-    // mal classificado parava o Chupim antes de ele olhar o candidato, sem
-    // rastro; o trace deixa o motivo visível.
-    noteSkip('stop-has-br', candidates[0]?.stream, debrid.current()?.id || '', candidates[0]?.pool);
-    releaseAllHolds(candidates);
-    return 0;
+  const poolName = candidates[0].pool;
+  if (poolName === 'any' || poolName === 'seeds') {
+    if (cached.size > 0) {
+      noteSkip('stop-has-br', candidates[0]?.stream, debrid.current()?.id || '', poolName);
+      releaseAllHolds(candidates);
+      return 0;
+    }
+  } else {
+    // Pool br: cobertura POR qualidade-alvo. 720 Dual ⚡ não mata o 1080/4K.
+    // Unknown/SD: se já há QUALQUER BR dublado em cache, para (fallback).
+    const covered = cachedBrDubbedTargetQualities(streams, cached, { season });
+    const remaining: typeof candidates = [];
+    for (const selected of candidates) {
+      const q = streamQuality(selected.stream);
+      const drop = isAutofetchTargetQuality(q)
+        ? covered.has(q)
+        : hasCachedBrDubbed(streams, cached);
+      if (drop) {
+        // Hold foi adquirido ANTES do checkCached — liberar um a um os que
+        // a cobertura já resolveu, senão o hash fica imune ao dropUncached.
+        held.release(String(selected.stream.infoHash || ''), selected.account);
+        continue;
+      }
+      remaining.push(selected);
+    }
+    if (remaining.length === 0) {
+      noteSkip('stop-has-br', candidates[0]?.stream, debrid.current()?.id || '', poolName);
+      return 0;
+    }
+    candidates = remaining;
   }
 
   let enqueued = 0;
