@@ -303,6 +303,18 @@ test('relevância: pack real "Dual Áudio ... By-LuaHarper" passa no inventário
   assert.deepEqual(filterInventoryRelevant([item], ctx), [item]);
 });
 
+// A conta é escolha do usuário, mas a identidade da obra continua valendo:
+// o filme 1 na conta NÃO pode servir à página do filme 2 só porque cobre o
+// nome e casa no ano ±2 (caso real: "A Morte Te Dá Parabéns! (2017)" no
+// tt8155288 via TorBox/BLUDV).
+test('relevância: obra-base na conta não serve à busca da sequência', () => {
+  const ctx = { names: ['Happy Death Day 2U', 'A Morte Te Dá Parabéns 2'], year: 2019, isSeries: false };
+  const base = { title: 'A Morte te dá Parabéns! 2018 (1080p) DUBLADO WWW.BLUDV.COM', infoHash: H1, seeders: 1 };
+  const propria = { title: 'A Morte Te Dá Parabéns 2 (2019) 1080p DUBLADO', infoHash: H2, seeders: 1 };
+  assert.deepEqual(filterInventoryRelevant([base], ctx), []);
+  assert.deepEqual(filterInventoryRelevant([propria], ctx), [propria]);
+});
+
 test('buildStreams preserva o pack de franquia da conta e o entrega via /resolve', async () => {
   const HASH_FILM = 'f'.repeat(40);
   const raw = [{

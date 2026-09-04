@@ -7,7 +7,7 @@ import {
   titlePrecision,
   yearContradicts,
 } from './matching-tokens.js';
-import { matchesName } from './release-name-matching.js';
+import { matchesName, isMultiWorkCollection } from './release-name-matching.js';
 
 // Os portões de título: o que decide se uma release É a obra procurada. Três
 // níveis de estricção, cada um calibrado contra casos reais medidos neste repo
@@ -54,7 +54,28 @@ function matchesTitleStructure(
   // ela serve. Em filme, sequência não pedida é outra obra.
   if (!isSeries) {
     const wantedMarkers = extractSequenceMarkers(name);
-    if (![...extractSequenceMarkers(title)].every((n) => wantedMarkers.has(n))) return false;
+    const ownMarkers = extractSequenceMarkers(title);
+    // Sequência não pedida é outra obra: "Scary Movie 2" na busca de "Scary
+    // Movie" (o candidato declara um marcador que a busca não pediu).
+    if (![...ownMarkers].every((n) => wantedMarkers.has(n))) return false;
+    // Guarda reversa: a busca PEDE uma sequência ("A Morte Te Dá Parabéns 2")
+    // e o candidato não declara marcador nenhum ("A Morte te dá Parabéns!
+    // (2017) 5.1 Dublado" — o filme 1). Sem marcador, só o ANO EXATO do
+    // catálogo prova ser a continuação publicada sem o número; ano diferente
+    // dentro do ±2 é a obra-base da franquia (2017 vs 2019). Pack de coleção
+    // fica fora: a cobertura multi-obra é a exceção que resgata o pack no
+    // inventário, e o ano em faixa (2017-2019) não é um ano único.
+    //
+    // Desvio deliberado do "sem ano no catálogo nada é cortado" do
+    // yearContradicts: aqui a busca PEDE sequência e o candidato não a
+    // declara — sem ano o candidato não provou ser a continuação, e a dúvida
+    // recai a favor de NÃO entregar uma obra-base no lugar da sequência
+    // pedida (fail-closed). Exposição baixa: só dispara nessa combinação.
+    if (wantedMarkers.size && ownMarkers.size === 0 && !isMultiWorkCollection(title)) {
+      const catalogYear = Number(String(year ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+      const candYears = own.filter((t: string) => /^(?:19|20)\d{2}$/.test(t)).map(Number);
+      if (catalogYear === 0 || candYears.length !== 1 || candYears[0] !== catalogYear) return false;
+    }
   }
 
   return !yearContradicts(own, year, isSeries);

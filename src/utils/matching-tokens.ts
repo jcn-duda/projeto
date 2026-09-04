@@ -41,14 +41,24 @@ function extractSequenceMarkers(text: string) {
   const markers = new Set<number | string>();
   for (const raw of titleTokens(text)) {
     if (!raw) continue;
+    // A varredura para no ano/ruído de release: o que vem depois
+    // ("5.1 Dublado", "2017") não é parte do nome da obra.
     if (/^(?:19|20)\d{2}$/.test(raw)) break;
     if (STOP_AT.has(raw)) break;
-    if (SEQUENCE_WORDS.has(raw)) {
-      markers.add(raw);
-      continue;
+    let marker: number | string | null = null;
+    // Sequência batizada por palavra ("Ressurge", "Rises") — ver
+    // SEQUENCE_WORDS em matching-vocabulary.ts.
+    if (SEQUENCE_WORDS.has(raw)) marker = raw;
+    else {
+      // Sufixo "Nu" de sequência: "Happy Death Day 2U" é a continuação (o
+      // "U" é o "you" da cola do título), e sem reconhecer o marcador a
+      // dupla direção da matchesTitleStructure nunca engaja no caminho EN.
+      // Limpo em 2..19 para não ler leetspeak agressivo.
+      const u = /^([2-9]|1[0-9])u$/i.exec(raw);
+      const n = u ? Number(u[1]) : /^\d+$/.test(raw) ? Number(raw) : NUMERAL_CANON[raw];
+      if (n >= 2 && n <= 19) marker = n;
     }
-    const n = /^\d+$/.test(raw) ? Number(raw) : NUMERAL_CANON[raw];
-    if (n >= 2 && n <= 19) markers.add(n);
+    if (marker !== null) markers.add(marker);
   }
   return markers;
 }

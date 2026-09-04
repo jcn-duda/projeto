@@ -207,6 +207,71 @@ test('filtro de release aceita grafias de versão estendida e extendida', () => 
   assert.equal(items.length, 3);
 });
 
+// A busca PEDE sequência e o candidato não a declara: é a obra-base da
+// franquia. (Caso real tt8155288 em três caminhos — ver o corpo do teste.)
+test('filterRelevantRaw: obra-base de fora quando a busca pede sequência', () => {
+  // Caso real tt8155288: "A Morte Te Dá Parabéns 2" (2019) não pode trazer a
+  // release do filme 1 "A Morte te dá Parabéns! (2017) Dublado" — ela cobre
+  // todos os tokens da busca, casa no ±2 de ano e não declara sequência. A
+  // busca com marcador exige marcador no candidato; sem marcador, só o ano
+  // EXATO do catálogo prova ser a continuação publicada sem o número.
+  const ctx = { names: ['Happy Death Day 2U', 'A Morte Te Dá Parabéns 2'], year: 2019, isSeries: false };
+  const baseBr = {
+    title: 'A Morte te dá Parabéns! (2017) 5.1 Dublado 1080p',
+    magnet: `magnet:?xt=urn:btih:${HASH}&dn=A.Morte.te.da.Parabens.2017`,
+    isBr: true,
+  };
+  const baseGlobal = {
+    title: 'Happy Death Day 2017 1080p BluRay x264',
+    magnet: `magnet:?xt=urn:btih:${OTHER}&dn=Happy.Death.Day.2017`,
+  };
+  assert.deepEqual(relevantRaw([baseBr, baseGlobal], ctx), []);
+  // Contraste: a MESMA base continua entrando na busca da obra-base (sem
+  // marcador), onde a regra de sequência não dispara.
+  const ctxBase = { names: ['Happy Death Day', 'A Morte Te Dá Parabéns'], year: 2017, isSeries: false };
+  assert.deepEqual(relevantRaw([baseBr, baseGlobal], ctxBase), [baseBr, baseGlobal]);
+});
+
+test('filterRelevantRaw: sequência sem número com ano do catálogo continua passando', () => {
+  // Uma continuação publicada sem o marcador ("A Morte Te Dá Parabéns (2019)")
+  // é a própria obra — o escape de ano exato é o que impede falso negativo.
+  const ctx = { names: ['A Morte Te Dá Parabéns 2'], year: 2019, isSeries: false };
+  const item = {
+    title: 'A Morte Te Dá Parabéns (2019) BluRay Dublado 1080p',
+    magnet: `magnet:?xt=urn:btih:${HASH}&dn=A.Morte.Te.Da.Parabens.2019`,
+    isBr: true,
+  };
+  assert.deepEqual(relevantRaw([item], ctx), [item]);
+});
+
+test('filterRelevantRaw: pack de franquia com faixa de anos não cai na guarda de sequência', () => {
+  // "Coleção A Morte Te Dá Parabéns (2017-2019)" é multi-obra: contém a
+  // continuação pedida e o ano em faixa não é um ano único — a guarda de
+  // sequência abstém (isMultiWorkCollection), o matcher normal decide.
+  const ctx = { names: ['A Morte Te Dá Parabéns 2'], year: 2019, isSeries: false };
+  const pack = {
+    title: 'Coleção A Morte Te Dá Parabéns (2017-2019) Dublado',
+    magnet: `magnet:?xt=urn:btih:${HASH}&dn=Colecao.A.Morte.Te.Da.Parabens`,
+    isBr: true,
+  };
+  assert.deepEqual(relevantRaw([pack], ctx), [pack]);
+});
+
+test('filterRelevantRaw: alias EN "2U" também pede sequência e corta a obra-base', () => {
+  // Regressão da família real: "Happy Death Day 2U" precisa gerar o marcador
+  // {2} — sem isso, a release "Happy Death Day (2017)" passaria pelo alias EN
+  // na busca do filme 2. O "2U" é a cola "2 you" da continuação.
+  const ctx = { names: ['Happy Death Day 2U'], year: 2019, isSeries: false };
+  const base = {
+    title: 'Happy Death Day 2017 1080p BluRay x264',
+    magnet: `magnet:?xt=urn:btih:${HASH}&dn=Happy.Death.Day.2017`,
+  };
+  const propria = {
+    title: 'Happy Death Day 2U 2019 1080p WEB-DL x264',
+    magnet: `magnet:?xt=urn:btih:${OTHER}&dn=Happy.Death.Day.2U.2019`,
+  };
+  assert.deepEqual(relevantRaw([base, propria], ctx), [propria]);
+});
 
 // Sequência batizada por PALAVRA, medida ao vivo em tt0468569: a lista do
 // Cavaleiro das Trevas (2008) trazia "…Ressurge 720p Dublado", que é o filme
