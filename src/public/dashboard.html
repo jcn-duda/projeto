@@ -668,29 +668,37 @@
     var adapters = isObject(source.byAdapter) ? source.byAdapter : {};
     var hashes = Number(allCounters["debrid.check.hashes"] || 0);
     var cached = Number(allCounters["debrid.check.cached"] || 0);
+    var sampleTotal;
     var adapterIds;
     var i;
     if (!source.enabled && !own(source, "enabled")) return;
     metric(metrics, "magnet DB", source.enabled ? "ativo" : "desligado");
-    metric(metrics, "magnets vivos (≈)", source.sizeAlive);
-    metric(metrics, "magnets ruins (≈)", source.sizeBad);
-    metric(metrics, "magnets mentira (≈)", source.sizeLie);
-    metric(metrics, "TTL vivo", formatTtlSeconds(source.aliveTtlSeconds));
-    metric(metrics, "TTL ruim", formatTtlSeconds(source.badTtlSeconds));
-    metric(metrics, "TTL mentira", formatTtlSeconds(source.lieTtlSeconds));
-    metric(metrics, "TTL vivo restante (≈)", formatTtlSeconds(ttl.alive));
-    metric(metrics, "TTL ruim restante (≈)", formatTtlSeconds(ttl.bad));
-    metric(metrics, "TTL mentira restante (≈)", formatTtlSeconds(ttl.lie));
-    metric(metrics, "descartados ruins", dbCounters.droppedBad);
-    metric(metrics, "descartados mortos", dbCounters.droppedDead);
-    metric(metrics, "descartados mentira", dbCounters.droppedLie);
+    // L1 = ocupação real do namespace mag; amostra = Map tracked deste processo.
+    // Reinício zera a amostra sem apagar o L1 — os dois NÃO são o mesmo número.
+    metric(metrics, "L1 mag (ocupação)", valueText(source.l1Entries) + " / " + valueText(source.l1Max));
+    sampleTotal = Number(source.sizeAlive || 0) + Number(source.sizeBad || 0) + Number(source.sizeLie || 0);
+    metric(metrics, "amostra processo (≠ L1)", sampleTotal);
+    metric(metrics, "amostra alive (tocável)", source.sizeAlive);
+    // bad = play sem vídeo (magnetdb); dead = terminal no recheck (autofetch) — fronteiras distintas.
+    metric(metrics, "amostra bad (play sem vídeo)", source.sizeBad);
+    metric(metrics, "amostra lie (áudio mentiu)", source.sizeLie);
+    metric(metrics, "evicções cota mag", source.evictedQuota);
+    metric(metrics, "TTL alive", formatTtlSeconds(source.aliveTtlSeconds));
+    metric(metrics, "TTL bad", formatTtlSeconds(source.badTtlSeconds));
+    metric(metrics, "TTL lie", formatTtlSeconds(source.lieTtlSeconds));
+    metric(metrics, "TTL alive restante (amostra)", formatTtlSeconds(ttl.alive));
+    metric(metrics, "TTL bad restante (amostra)", formatTtlSeconds(ttl.bad));
+    metric(metrics, "TTL lie restante (amostra)", formatTtlSeconds(ttl.lie));
+    metric(metrics, "descartados bad (magnetdb)", dbCounters.droppedBad);
+    metric(metrics, "descartados dead (autofetch ≠ bad)", dbCounters.droppedDead);
+    metric(metrics, "descartados lie (magnetdb)", dbCounters.droppedLie);
     metric(metrics, "taxa ⚡", hashes ? Math.round((cached / hashes) * 100) + "% (" + cached + "/" + hashes + ")" : "—");
     adapterIds = Object.keys(adapters).sort();
     for (i = 0; i < adapterIds.length; i += 1) {
       var adapter = isObject(adapters[adapterIds[i]]) ? adapters[adapterIds[i]] : {};
       var adapterTtl = isObject(adapter.ttlRemainingSeconds) ? adapter.ttlRemainingSeconds : {};
-      metric(metrics, "magnet DB " + adapterIds[i],
-        "vivos " + valueText(adapter.sizeAlive) + ", ruins " + valueText(adapter.sizeBad) + ", mentira " + valueText(adapter.sizeLie) +
+      metric(metrics, "amostra " + adapterIds[i],
+        "alive " + valueText(adapter.sizeAlive) + ", bad " + valueText(adapter.sizeBad) + ", lie " + valueText(adapter.sizeLie) +
         " · TTL ≈ " + formatTtlSeconds(adapterTtl.alive) + "/" + formatTtlSeconds(adapterTtl.bad) + "/" + formatTtlSeconds(adapterTtl.lie));
     }
   }

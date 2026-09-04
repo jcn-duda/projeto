@@ -175,6 +175,16 @@ test('GET /dashboard-status.json: 200 com token certo e formato consolidado sem 
        assert.equal(typeof body.magnetdb.enabled, 'boolean');
        assert.equal(typeof body.magnetdb.byAdapter, 'object');
        assert.equal(typeof body.magnetdb.ttlRemainingSeconds, 'object');
+       assert.equal(typeof body.magnetdb.l1Entries, 'number');
+       assert.equal(typeof body.magnetdb.l1Max, 'number');
+       assert.equal(typeof body.magnetdb.evictedQuota, 'number');
+       // Painel MagnetDB: L1 (ocupação real) ≠ amostra do processo.
+       assert.equal(typeof body.magnetdb.l1Entries, 'number');
+       assert.equal(typeof body.magnetdb.l1Max, 'number');
+       assert.equal(typeof body.magnetdb.evictedQuota, 'number');
+       assert.equal(typeof body.magnetdb.sizeAlive, 'number');
+       assert.equal(typeof body.magnetdb.sizeBad, 'number');
+       assert.equal(typeof body.magnetdb.sizeLie, 'number');
        assert.ok(Array.isArray(body.harvest.queuePreview));
        assert.ok(Array.isArray(body.harvest.lastWorks));
        assert.equal(typeof body.f3, 'object');
@@ -212,6 +222,12 @@ test('dashboard permanece ES5 e renderiza a observabilidade do Magnet DB', () =>
   assert.match(html, /debrid\.check\.cached/);
   assert.match(html, /source\.byAdapter/);
   assert.match(html, /source\.search/);
+  assert.match(html, /L1 mag \(ocupação\)/);
+  assert.match(html, /amostra processo \(≠ L1\)/);
+  assert.match(html, /amostra bad \(play sem vídeo\)/);
+  assert.match(html, /descartados dead \(autofetch ≠ bad\)/);
+  assert.match(html, /source\.l1Entries/);
+  assert.match(html, /source\.evictedQuota/);
   assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/);
 });
 
