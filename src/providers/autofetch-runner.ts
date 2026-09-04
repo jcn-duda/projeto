@@ -207,7 +207,7 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
     .then((ok) => {
       autofetch.release(key);
       if (ok) {
-        cache.set(key, 1, live.autoFetchTtl);
+        cache.set(key, autofetch.markerValue(ok), live.autoFetchTtl);
         metrics.count('autofetch.enqueued');
         // Proteção durável SÓ no pool BR do AllDebrid com flags reais (não
         // `_lied`): é o acervo que o usuário quer retido. `any`/`seeds` não

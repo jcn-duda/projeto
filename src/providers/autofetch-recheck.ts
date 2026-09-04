@@ -189,7 +189,7 @@ export function drainNext(searchKey: string, lot: any) {
     .then((ok) => {
       autofetch.release(mKey);
       if (ok) {
-        cache.set(mKey, 1, live.autoFetchTtl);
+        cache.set(mKey, autofetch.markerValue(ok), live.autoFetchTtl);
         metrics.count('autofetch.queued');
         metrics.count('autofetch.enqueued');
         if (adapter.id === 'alldebrid' && next.pool === 'br' && Boolean(next.br) && Boolean(next.dubbed)) {
@@ -255,7 +255,15 @@ export function runRecheck(searchKey: string) {
     let statusOk = false;
     if (typeof adapter.torrentStatus === 'function') {
       try {
-        statuses = await adapter.torrentStatus(opts().debridApiKey, [...lot.hashes]);
+        // Ponte hash -> id da transferência, do marker que o enqueue gravou.
+        // Serviço que não publica o hash na listagem depende dela para ser
+        // observável; quem publica ignora o mapa e nada muda.
+        const ids: Record<string, string> = {};
+        for (const h of lot.hashes) {
+          const id = autofetch.markerTransferId(adapter.id, account, h);
+          if (id) ids[h] = id;
+        }
+        statuses = await adapter.torrentStatus(opts().debridApiKey, [...lot.hashes], ids);
         statusOk = true;
       } catch (err: unknown) {
         log.warn(`[autofetch] falha ao consultar torrentStatus em ${adapter.id}:`, log.errorMessage(err));
@@ -305,11 +313,22 @@ export function runRecheck(searchKey: string) {
           autofetch.blacklist(adapter.id, account, hash);
           held.unprotect(adapter.id, account, hash);
           held.release(hash, account);
-          if (typeof adapter.removeTorrent === 'function' && statusInfo.id != null) {
+          // A ponte pelo id expõe de uma vez transferências que a remoção
+          // automática NUNCA alcançou (58 de 60 na conta medida). Ligar visão e
+          // destruição no mesmo deploy faria a primeira rodada apagar um acervo
+          // inteiro sem ninguém ter olhado — então a remoção por via `id` nasce
+          // DESLIGADA e o que ela faria vira contador. O resto (blacklist,
+          // soltar holds, drenar fila) é local e roda igual: impede a fila de
+          // crescer sem apagar nada da conta.
+          const podeRemover = statusInfo.via !== 'id' || config.debrid.removeById;
+          if (!podeRemover) {
+            metrics.count(isDead ? 'autofetch.dead.suppressed' : 'autofetch.stalled.suppressed');
+          } else if (typeof adapter.removeTorrent === 'function' && statusInfo.id != null) {
             adapter.removeTorrent(opts().debridApiKey, statusInfo.id).catch(() => {});
           }
           cleanLotHash(lot, hash);
-          log.info(`[autofetch] torrent ${hash} detectado como ${isDead ? 'morto' : 'parado'} (${streak} rechecks consecutivos); removendo e drenando fila`);
+          const destino = podeRemover ? 'removendo e drenando fila' : 'drenando fila (remoção por id desligada)';
+          log.info(`[autofetch] torrent ${hash} detectado como ${isDead ? 'morto' : 'parado'} (${streak} rechecks consecutivos); ${destino}`);
           drainNext(searchKey, lot);
         }
       } else if (statusOk && statusInfo) {

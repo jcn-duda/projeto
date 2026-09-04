@@ -89,11 +89,18 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
 /**
  * Cria a transferência e sai. O directdl do resolveLink também baixaria, mas
  * ele espera o arquivo ficar pronto — aqui só queremos disparar.
+ *
+ * Devolve o ID da transferência, não um booleano: é a ÚNICA âncora que sobra
+ * para reencontrá-la no `/transfer/list`. Medido na conta do operador: de 60
+ * transferências, 58 não expunham hash nenhum (o `src` da listagem volta como
+ * `/api/job/src?id=…`, e não existe campo `hash`), então o recheck só
+ * alcançava as 2 cujo nome por acaso era o hash cru. Jogar o id fora aqui era
+ * o que cegava o ciclo. String vazia/ausente continua sendo recusa.
  */
 async function enqueue(apiKey: string, infoHash: string) {
   const body = new URLSearchParams({ src: magnetFor(infoHash) });
   const data = await call(apiKey, '/transfer/create', { method: 'POST', body });
-  return Boolean(data?.id);
+  return data?.id == null || data.id === '' ? false : String(data.id);
 }
 
 /**
@@ -146,12 +153,25 @@ const STALLED_TRANSFER = /0 bytes of 0 bytes|from 0 peer/i;
  * `stalled:true` para que o recheck a conte com o próprio limite, em vez de
  * derrubá-la pela mesma via que um dead de 2 rechecks.
  */
-async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
+async function torrentStatus(
+  apiKey: string,
+  _infoHashes?: string[],
+  ids?: Record<string, string | number>,
+) {
   const data = await call(apiKey, '/transfer/list');
   const transfers = Array.isArray(data?.transfers) ? data.transfers : [];
+  // id da transferência -> hash, invertido do que o enqueue registrou. É o
+  // que devolve visibilidade sobre a conta: a listagem do Premiumize não
+  // publica hash, então sem esta ponte 58 de 60 transferências ficavam
+  // invisíveis ao recheck (medido na conta do operador).
+  const byId = new Map<string, string>();
+  for (const [hash, id] of Object.entries(ids || {})) {
+    if (id != null && id !== '') byId.set(String(id), String(hash).toLowerCase());
+  }
   const out: Record<string, TorrentStatusEntry> = {};
   for (const t of transfers) {
-    const hash = transferHash(t);
+    const fromHash = transferHash(t);
+    const hash = fromHash || byId.get(String(t?.id ?? '')) || null;
     if (!hash) {
       // Não dá pra mapeá-la ao lote do recheck: não serve para saber se ficou
       // pronto nem para limpar. Contá-la torna visível que a conta arrasta
@@ -159,6 +179,7 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
       metrics.count('debrid.pm.status.unmatched');
       continue;
     }
+    if (!fromHash) metrics.count('debrid.pm.status.byId');
     const status = String(t?.status || '').toLowerCase();
     let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'unknown';
     let stalled = false;
@@ -177,7 +198,7 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
     } else if (status === 'error') {
       state = 'dead';
     }
-    out[hash] = { state, stalled, id: t?.id };
+    out[hash] = { state, stalled, id: t?.id, via: fromHash ? 'hash' : 'id' };
   }
   return out;
 }

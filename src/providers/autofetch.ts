@@ -5,6 +5,7 @@ import config from '../config.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
+import { markerKey, markerValue, markerTransferId } from './autofetch-marker.js';
 import { accountGateBlocked, resetAccountGate, accountGateSnapshot } from './autofetch-gate.js';
 
 const pending = new Map();
@@ -22,10 +23,6 @@ const knownDead = new Set<string>();
 
 function sha256(str: string) {
   return crypto.createHash('sha256').update(String(str || '')).digest('hex');
-}
-
-function markerKey(adapterId: string, account: string, infoHash: string) {
-  return `${prefix('autofetch')}m:${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
 }
 
 function deadKey(adapterId: string, account: string, infoHash: string) {
@@ -381,7 +378,7 @@ function snapshot() {
 }
 
 export {
-  LOCK_TTL_MS, markerKey, deadKey, queueKey, prefetchKey,
+  LOCK_TTL_MS, markerKey, markerValue, markerTransferId, deadKey, queueKey, prefetchKey,
   acquire, release, acquireSearch, releaseSearch, acquireSearchSlot, releaseSearchSlot,
   isDead, isDeadQuiet, blacklist, readQueue, writeQueue, dropQueue, drainQueues, takeNext,
   checkAndRecordBudget, blockBudget, budgetBlockedUntil, resetBudget,
