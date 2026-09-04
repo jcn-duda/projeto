@@ -135,8 +135,8 @@
       "id": "indice",
       "name": "O Arquivista",
       "role": "Orquestrador do Índice",
-      "peculiaridade": "Cataloga o acervo (idx:v5) e comanda o colhedor — responde do próprio índice sem virar crawler.",
-      "focus": "Indice de releases (idx:v4) e colhedor. idxPoolCovered, ACCOUNT_FAST_PATH (minReleases/stopWhen), harvester (fila persistente, freio de atividade em janela deslizante, teto horario, varredura pt-BR via colhedor), index-only alimentando o indice, seed do IMDb.",
+      "peculiaridade": "Cataloga o acervo (idx:v10) e comanda o colhedor — responde do próprio índice sem virar crawler.",
+      "focus": "Indice de releases (idx:v10) e colhedor. idxPoolCovered, ACCOUNT_FAST_PATH (minReleases/stopWhen), harvester (fila persistente, freio de atividade em janela deslizante, teto horario, varredura pt-BR via colhedor), index-only alimentando o indice, seed do IMDb.",
       "files": [
         "src/utils/release-index.ts",
         "src/providers/harvester.ts",
