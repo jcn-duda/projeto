@@ -10,9 +10,20 @@ const API = 'https://api.themoviedb.org/3';
 // pagava a chamada ao TMDB.
 const inFlight = new Map();
 
-function setMiss(key: string) {
-  // 0 desliga o cache negativo (operador pode querer sempre perguntar de novo).
-  if (config.tmdb.missTtl > 0) cache.set(key, { miss: true }, config.tmdb.missTtl);
+function setMiss(key: string, ttlSeconds?: number) {
+  // 0 desliga o cache negativo (operador pode querer sempre perguntar de novo);
+  // o TTL padrão é o do miss autoritativo, o transitório passa o próprio.
+  const ttl = ttlSeconds ?? config.tmdb.missTtl;
+  if (ttl > 0) cache.set(key, { miss: true }, ttl);
+}
+
+// Falha TRANSITÓRIA não é "título desconhecido": status 429/5xx, timeout de
+// rede e `fetch failed` voltam sozinhos em segundos, enquanto um miss
+// autoritativo (200 sem resultado, 404) é decisão estável da API. Confundi-los
+// congelou o título pt-BR por TMDB_MISS_TTL inteiro após UM blip — a janela em
+// que os indexadores BR eram consultados em inglês e devolviam 0.
+function isTransientFailure(status: number) {
+  return !status || status === 429 || status >= 500;
 }
 
 /**
@@ -51,7 +62,13 @@ async function getTitles(imdbId: string) {
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(config.tmdb.timeout),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        // Carrega o status no erro para o catch distinguir 404 (autoritativo)
+        // de 429/5xx (transitório) — o Coringa da busca BR depende disso.
+        const err = new Error(`HTTP ${res.status}`) as Error & { status?: number };
+        err.status = res.status;
+        throw err;
+      }
 
       const data = await res.json();
       const item = (data.movie_results || [])[0] || (data.tv_results || [])[0];
@@ -70,7 +87,12 @@ async function getTitles(imdbId: string) {
       return titles;
     } catch (err) {
       log.warn('[tmdb]', err.message);
-      setMiss(key);
+      // 404 e 200-sem-resultado são "não conhece" — condenam pelo missTtl
+      // cheio. Rede, timeout, 429 e 5xx são transitórios: o id volta a ser
+      // perguntado em TMDB_TRANSIENT_MISS_TTL, para um blip não derrubar a
+      // cobertura pt-BR (que depende deste nome para os indexadores BR).
+      const status = Number(err.status);
+      setMiss(key, isTransientFailure(status) ? config.tmdb.transientMissTtl : undefined);
       return null;
     } finally {
       inFlight.delete(key);

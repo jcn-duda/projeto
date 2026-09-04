@@ -29,6 +29,12 @@ export const tmdb = () => ({
   // desconhecido bate na API a cada busca; TTL curto porque falha pode ser
   // transitória. 0 desliga o cache de miss.
   missTtl: num(process.env.TMDB_MISS_TTL, 300),
+  // TTL do cache NEGATIVO para FALHA TRANSITÓRIA (rede/timeout/429/5xx),
+  // separado do miss autoritativo: um `fetch failed` isolado não pode congelar
+  // o título pt-BR por TMDB_MISS_TTL inteiro — nessa janela os indexadores BR
+  // são consultados em inglês e devolvem 0. 0 desliga o transitório (a busca
+  // seguinte consulta novamente a API).
+  transientMissTtl: num(process.env.TMDB_TRANSIENT_MISS_TTL, 30),
 });
 
 export const cinemeta = () => ({
@@ -39,6 +45,10 @@ export const cinemeta = () => ({
   // Cache negativo, mesmo racional do TMDB: id inexistente não pode custar
   // 2,5s de rede em toda busca. 0 desliga.
   missTtl: num(process.env.CINEMETA_MISS_TTL, 300),
+  // Cache negativo TRANSITÓRIO — mesma regra do TMDB_TRANSIENT_MISS_TTL: falha
+  // de rede/429/5xx não é "id desconhecido" e não pode congelar a meta (e, com
+  // ela, o ano) por minutos.
+  transientMissTtl: num(process.env.CINEMETA_TRANSIENT_MISS_TTL, 30),
 });
 
 export const bludv = () => ({
