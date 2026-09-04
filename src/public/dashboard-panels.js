@@ -4,16 +4,42 @@
  * ES5 puro (Fire TV / smart TV). */
 "use strict";
 
+  // Fail-open: sem _origem[field] cai no metric() antigo (status ainda sem 3º arg).
+  function metricMaybeOrigem(container, key, value, map, field, uptimeS) {
+    var kind = origemOf(map, field);
+    if (kind) metricOrigem(container, key, value, kind, uptimeS);
+    else metric(container, key, value);
+  }
+
   function renderGeneral(data) {
     var source = first(data, ["general", "overview", "system"], data);
     var metrics = $("generalMetrics");
-    var excluded = { general: true, overview: true, system: true, debrid: true, autofetch: true, indexers: true, indexerStatus: true, resolvers: true, brResolvers: true, cache: true, search: true };
+    var excluded = { general: true, overview: true, system: true, debrid: true, autofetch: true, indexers: true, indexerStatus: true, resolvers: true, brResolvers: true, cache: true, search: true, _origem: true };
+    var uptimeS = isObject(source) ? source.uptimeS : undefined;
+    var keys;
+    var i;
+    var key;
+    var kind;
     metrics.textContent = "";
-    renderMetrics(metrics, source, excluded);
+    // services.jackett: o banner da Geral já cobre — não redesenhar aqui.
+    if (isObject(source) && isObject(source._origem) && uptimeS != null && uptimeS !== "") {
+      keys = Object.keys(source);
+      for (i = 0; i < keys.length; i += 1) {
+        key = keys[i];
+        if (excluded[key]) continue;
+        if (source[key] === null || typeof source[key] === "object") continue;
+        kind = origemOf(source, key);
+        if (kind) metricOrigem(metrics, key, displayValue(key, source[key]), kind, uptimeS);
+        else metric(metrics, key, source[key]);
+      }
+      if (!metrics.children.length) empty(metrics, "Nenhuma métrica disponível.");
+    } else {
+      renderMetrics(metrics, source, excluded);
+    }
     // O total de deadline sozinho sugere que o indexer atrasou a resposta. As
     // causas e a latência de metadata deixam claro quando o orçamento já chegou
     // corroído antes de abrir qualquer provider.
-    renderMetrics(metrics, isObject(source.search) ? source.search : {}, {});
+    renderMetrics(metrics, isObject(source.search) ? source.search : {}, { _origem: true });
   }
 
   function formatTtlSeconds(value) {
@@ -24,7 +50,7 @@
     return Math.floor(seconds / 3600) + " h";
   }
 
-  function renderMagnetDb(data, counters) {
+  function renderMagnetDb(data, counters, uptimeS) {
     var source = isObject(data) ? data : {};
     var metrics = $("cacheMetrics");
     var dbCounters = isObject(source.counters) ? source.counters : {};
@@ -36,24 +62,23 @@
     var sampleTotal;
     var adapterIds;
     var i;
+    // Amostra (Map tracked) ≠ L1 mag: restart zera amostra e o L1 permanece.
     if (!source.enabled && !own(source, "enabled")) return;
-    metric(metrics, "magnet DB", source.enabled ? "ativo" : "desligado");
-    // L1 = ocupação real do namespace mag; amostra = Map tracked deste processo.
-    // Reinício zera a amostra sem apagar o L1 — os dois NÃO são o mesmo número.
-    metric(metrics, "L1 mag (ocupação)", valueText(source.l1Entries) + " / " + valueText(source.l1Max));
+    metricMaybeOrigem(metrics, "magnet DB", source.enabled ? "ativo" : "desligado", source, "enabled", uptimeS);
+    metricMaybeOrigem(metrics, "L1 mag (ocupação)", valueText(source.l1Entries) + " / " + valueText(source.l1Max), source, "l1Entries", uptimeS);
     sampleTotal = Number(source.sizeAlive || 0) + Number(source.sizeBad || 0) + Number(source.sizeLie || 0);
-    metric(metrics, "amostra processo (≠ L1)", sampleTotal);
-    metric(metrics, "amostra alive (tocável)", source.sizeAlive);
+    metricMaybeOrigem(metrics, "amostra processo (≠ L1)", sampleTotal, source, "sizeAlive", uptimeS);
+    metricMaybeOrigem(metrics, "amostra alive (tocável)", source.sizeAlive, source, "sizeAlive", uptimeS);
     // bad = play sem vídeo (magnetdb); dead = terminal no recheck (autofetch) — fronteiras distintas.
-    metric(metrics, "amostra bad (play sem vídeo)", source.sizeBad);
-    metric(metrics, "amostra lie (áudio mentiu)", source.sizeLie);
-    metric(metrics, "evicções cota mag", source.evictedQuota);
-    metric(metrics, "TTL alive", formatTtlSeconds(source.aliveTtlSeconds));
-    metric(metrics, "TTL bad", formatTtlSeconds(source.badTtlSeconds));
-    metric(metrics, "TTL lie", formatTtlSeconds(source.lieTtlSeconds));
-    metric(metrics, "TTL alive restante (amostra)", formatTtlSeconds(ttl.alive));
-    metric(metrics, "TTL bad restante (amostra)", formatTtlSeconds(ttl.bad));
-    metric(metrics, "TTL lie restante (amostra)", formatTtlSeconds(ttl.lie));
+    metricMaybeOrigem(metrics, "amostra bad (play sem vídeo)", source.sizeBad, source, "sizeBad", uptimeS);
+    metricMaybeOrigem(metrics, "amostra lie (áudio mentiu)", source.sizeLie, source, "sizeLie", uptimeS);
+    metricMaybeOrigem(metrics, "evicções cota mag", source.evictedQuota, source, "evictedQuota", uptimeS);
+    metricMaybeOrigem(metrics, "TTL alive", formatTtlSeconds(source.aliveTtlSeconds), source, "aliveTtlSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL bad", formatTtlSeconds(source.badTtlSeconds), source, "badTtlSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL lie", formatTtlSeconds(source.lieTtlSeconds), source, "lieTtlSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL alive restante (amostra)", formatTtlSeconds(ttl.alive), source, "ttlRemainingSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL bad restante (amostra)", formatTtlSeconds(ttl.bad), source, "ttlRemainingSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL lie restante (amostra)", formatTtlSeconds(ttl.lie), source, "ttlRemainingSeconds", uptimeS);
     metric(metrics, "descartados bad (magnetdb)", dbCounters.droppedBad);
     metric(metrics, "descartados dead (autofetch ≠ bad)", dbCounters.droppedDead);
     metric(metrics, "descartados lie (magnetdb)", dbCounters.droppedLie);
@@ -62,9 +87,10 @@
     for (i = 0; i < adapterIds.length; i += 1) {
       var adapter = isObject(adapters[adapterIds[i]]) ? adapters[adapterIds[i]] : {};
       var adapterTtl = isObject(adapter.ttlRemainingSeconds) ? adapter.ttlRemainingSeconds : {};
-      metric(metrics, "amostra " + adapterIds[i],
+      metricMaybeOrigem(metrics, "amostra " + adapterIds[i],
         "alive " + valueText(adapter.sizeAlive) + ", bad " + valueText(adapter.sizeBad) + ", lie " + valueText(adapter.sizeLie) +
-        " · TTL ≈ " + formatTtlSeconds(adapterTtl.alive) + "/" + formatTtlSeconds(adapterTtl.bad) + "/" + formatTtlSeconds(adapterTtl.lie));
+        " · TTL ≈ " + formatTtlSeconds(adapterTtl.alive) + "/" + formatTtlSeconds(adapterTtl.bad) + "/" + formatTtlSeconds(adapterTtl.lie),
+        source, "byAdapter", uptimeS);
     }
   }
 
@@ -198,16 +224,38 @@
     renderMetrics(metrics, idx, {});
   }
 
-  function renderHarvest(data) {
+  function renderHarvest(data, uptimeS) {
     var harvest = isObject(data) ? data : {};
     var metrics = $("harvestMetrics");
+    var restExcluded;
     metrics.textContent = "";
     if (!first(harvest, ["enabled"], false)) {
       empty(metrics, "Colhedor desativado (HARVEST_ENABLED=false).");
       empty($("harvestCards"), "Colhedor desativado.");
       return;
     }
-    renderMetrics(metrics, harvest, {});
+    // _origem: fila/orçamento = durável; enabled/paused/lastRun = amostra do processo.
+    if (isObject(harvest._origem)) {
+      metricOrigem(metrics, "queriesThisHour", harvest.queriesThisHour, origemOf(harvest, "queriesThisHour"), uptimeS);
+      metricOrigem(metrics, "queueDepth", harvest.queueDepth, origemOf(harvest, "queueDepth"), uptimeS);
+      metricOrigem(metrics, "enabled", harvest.enabled, origemOf(harvest, "enabled"), uptimeS);
+      metricOrigem(metrics, "paused", harvest.paused, origemOf(harvest, "paused"), uptimeS);
+      metricOrigem(metrics, "lastRunAt", harvest.lastRunAt != null ? formatDate(harvest.lastRunAt) : harvest.lastRunAt, origemOf(harvest, "lastRunAt"), uptimeS);
+      restExcluded = {
+        _origem: true,
+        queriesThisHour: true,
+        queueDepth: true,
+        enabled: true,
+        paused: true,
+        lastRunAt: true,
+        queuePreview: true,
+        lastWorks: true,
+        config: true
+      };
+      renderMetrics(metrics, harvest, restExcluded);
+    } else {
+      renderMetrics(metrics, harvest, {});
+    }
     var queue = asList(first(harvest, ["queuePreview"], []), "queuePreview");
     var last = asList(first(harvest, ["lastWorks"], []), "lastWorks");
     queue = queue.map(function (item) { item = copyObject(item); item.label = "Na fila · " + valueText(item.imdbId); return item; });

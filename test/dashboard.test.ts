@@ -259,7 +259,7 @@ test('dashboard permanece ES5 e renderiza a observabilidade do Magnet DB', () =>
   assert.doesNotMatch(html, /function renderGeneral\(/);
   assert.doesNotMatch(html, /function bind\(/);
   // Observabilidade Magnet DB mora em panels (Fase 1 painel).
-  assert.match(panels, /function renderMagnetDb\(data, counters\)/);
+  assert.match(panels, /function renderMagnetDb\(data, counters, uptimeS\)/);
   assert.match(panels, /function renderGeneral\(/);
   assert.match(panels, /debrid\.check\.cached/);
   assert.match(panels, /source\.byAdapter/);

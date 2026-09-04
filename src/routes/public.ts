@@ -23,6 +23,7 @@ const PAGE_ASSETS = [
   // Fase 1 painel: Chupim / Colhedor / Conta-Catálogo / boot (zero inline).
   'dashboard-autofetch.js',
   'dashboard-harvest.js',
+  'dashboard-f3.js',
   'dashboard-catalog.js',
   'dashboard-boot.js',
 ];

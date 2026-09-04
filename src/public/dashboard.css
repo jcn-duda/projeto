@@ -94,6 +94,8 @@
   .metric .key { display: block; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .metric .value { display: block; overflow: hidden; margin-top: 3px; font-size: 18px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
   .metric .value.small { font-size: 13px; }
+  /* Procedência amostra + uptime baixo (helpers do core): não confundir com L1/L2. */
+  .metric .value.amostra-cedo { opacity: .72; font-style: italic; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 10px; }
   .card { min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255, 255, 255, .025); }
   details.card > summary { cursor: pointer; list-style: none; }

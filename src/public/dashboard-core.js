@@ -56,6 +56,66 @@
     return String(value);
   }
 
+  // Fase 4 — procedência do painel (_origem). Limiar alinhado ao Chupim:
+  // uptime baixo + amostra pode subcontar L2 após restart.
+  var AMOSTRA_CEDO_S = 300;
+
+  function isAmostraCedo(uptimeS) {
+    var n = Number(uptimeS);
+    return isFinite(n) && n >= 0 && n < AMOSTRA_CEDO_S;
+  }
+
+  function origemOf(map, key) {
+    var o;
+    if (!isObject(map) || !key) return null;
+    o = map._origem;
+    if (!isObject(o)) return null;
+    if (o[key] === "duravel" || o[key] === "amostra" || o[key] === "naomedido") return o[key];
+    return null;
+  }
+
+  function origemTitle(kind, uptimeS) {
+    if (kind === "duravel") return "Persistente (L1/L2 ou fila durável)";
+    if (kind === "amostra") {
+      return isAmostraCedo(uptimeS)
+        ? "Amostra deste processo (uptime baixo; pode subcontar o L2)"
+        : "Amostra deste processo (≠ L1/L2)";
+    }
+    if (kind === "naomedido") return "Ainda não medido neste processo";
+    return "";
+  }
+
+  function origemValue(value, kind) {
+    // Fail-open: sem _origem o número antigo continua; só naomedido vira "—".
+    if (kind === "naomedido") return "—";
+    return valueText(value);
+  }
+
+  function applyOrigem(el, value, kind, uptimeS) {
+    var title;
+    if (!el) return;
+    el.textContent = origemValue(value, kind);
+    title = origemTitle(kind, uptimeS);
+    if (title) el.title = title;
+    else el.removeAttribute("title");
+    if (kind === "amostra" && isAmostraCedo(uptimeS)) {
+      el.className = String(el.className || "").replace(/\bamostra-cedo\b/g, "").replace(/\s+/g, " ").trim() + " amostra-cedo";
+    }
+  }
+
+  function metricOrigem(container, key, value, kind, uptimeS) {
+    var item = element("div", "metric");
+    var label = element("span", "key", prettyKey(key));
+    var text = origemValue(value, kind);
+    var content = element("span", "value" + (String(text).length > 20 ? " small" : ""), text);
+    var title = origemTitle(kind, uptimeS);
+    if (title) content.title = title;
+    if (kind === "amostra" && isAmostraCedo(uptimeS)) content.className += " amostra-cedo";
+    item.appendChild(label);
+    item.appendChild(content);
+    container.appendChild(item);
+  }
+
   function titleText(value) {
     return String(value || "sem nome").replace(/[-_]+/g, " ");
   }

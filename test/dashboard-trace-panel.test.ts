@@ -73,11 +73,13 @@ test('HTML: aba, view, inputs e script depois do debrid-test; ES5 no documento',
   const trace = html.indexOf('dashboard-trace.js');
   const autofetch = html.indexOf('dashboard-autofetch.js');
   const harvest = html.indexOf('dashboard-harvest.js');
+  const f3 = html.indexOf('dashboard-f3.js');
   const catalog = html.indexOf('dashboard-catalog.js');
   const boot = html.indexOf('dashboard-boot.js');
   assert.ok(
     core < panels && panels < debridTest && debridTest < trace &&
-      trace < autofetch && autofetch < harvest && harvest < catalog && catalog < boot,
+      trace < autofetch && autofetch < harvest && harvest < f3 &&
+      f3 < catalog && catalog < boot,
     'ordem de scripts é contrato (boot por último)',
   );
   assert.doesNotMatch(html, /<script>\s*"use strict"/, 'HTML sem JS inline');

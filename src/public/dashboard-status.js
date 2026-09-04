@@ -4,12 +4,8 @@
  * ES5 puro (Fire TV / smart TV). */
 "use strict";
 
-  // --- Saúde consolidada do pill e do banner ---------------------------
-  // O pill só acendia offline com auth/quota e warn com Jackett caído; um
-  // ok:false de timeout, catálogo indisponível ou serviço debrid morto ficava
-  // escondido num <details> fechado — o formato do incidente de 2026-08-30.
-  // A evidência JÁ viaja na resposta do dashboard-status; aqui ela vira estado
-  // visível no pill do cabeçalho e num banner persistente.
+  // Pill/banner: evidência da resposta (auth/quota/timeout/catálogo) vira
+  // estado visível — não esconder ok:false num details (incidente 2026-08-30).
   var STATE_RANK = { unknown: 0, online: 1, warn: 2, error: 3 };
 
   function worstState(a, b) {
@@ -155,7 +151,9 @@
   function renderStatus(data) {
     var root = isObject(data) ? data : {};
     var status = first(root, ["status", "state", "health"], "online");
-    var generated = first(root, ["generatedAt", "checkedAt", "timestamp", "at"], null);
+    var uptimeS = first(root.general || {}, ["uptimeS"], null);
+    var counters = first(root.metrics || {}, ["counters"], {});
+    var harvest = first(root, ["harvest", "harvester"], {});
     renderGeneral(root);
     renderDebrid(
       first(root, ["debrid", "debridStatus"], {}),
@@ -163,21 +161,20 @@
     );
     renderSources(root);
     renderCache(first(root, ["cache", "cacheStatus"], {}));
-    renderMagnetDb(first(root, ["magnetdb", "magnetDb"], {}), first(root.metrics || {}, ["counters"], {}));
-    if (first(root.metrics || {}, ["counters"], {})["debrid.check.unknown"] || first(root.cache || {}, ["swrServed"], 0)) {
+    renderMagnetDb(first(root, ["magnetdb", "magnetDb"], {}), counters, uptimeS);
+    if (counters["debrid.check.unknown"] || first(root.cache || {}, ["swrServed"], 0)) {
       $("cacheMetrics").appendChild(element("p", "guidance", "Há respostas revalidadas ou sem confirmação de cache. Verifique primeiro a conta de debrid (teto/chave) e depois o prazo da busca."));
     }
     renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
-    renderHarvest(first(root, ["harvest", "harvester"], {}));
-    renderAutofetchPanel(first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}), first(root.general || {}, ["uptimeS"], null));
-    renderHarvesterPanel(first(root, ["harvest", "harvester"], {}), first(root.metrics || {}, ["counters"], {}));
+    renderHarvest(harvest, uptimeS);
+    if (typeof renderF3Panel === "function") renderF3Panel(root.f3, uptimeS);
+    renderAutofetchPanel(first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}), uptimeS);
+    renderHarvesterPanel(harvest, counters, uptimeS);
     drawSparkline("cacheSparkline", pushSeries("cache-hit-rate", first(root.cache || {}, ["hitRate"], 0)), "#39d98a");
-    drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(root.harvest || {}, ["queriesThisHour"], 0)), "#faa31a");
+    drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(harvest, ["queriesThisHour"], 0)), "#faa31a");
     var issues = collectStatusIssues(root);
     if (own(root, "status") || own(root, "state") || own(root, "health")) {
-      // Status explícito do servidor é combinado com a evidência local: um
-      // "online" declarado não pode abafar ok:false que viajou na MESMA
-      // resposta (era o buraco que escondia timeout/catálogo/serviço morto).
+      // "online" declarado não abafa ok:false da mesma resposta.
       status = worstState(stateName(status), worstIssueState(issues));
     } else {
       status = worstIssueState(issues);

@@ -23,16 +23,28 @@ function setAfFeedback(text, kind) {
   el.className = "feedback" + (kind ? " " + kind : "");
 }
 
+// applyOrigem + fail-open: sem kind o número antigo fica; evita removeAttribute
+// no Fake DOM dos testes (só o browser real tem o método).
+function paintAfOrigem(el, value, kind, uptimeS) {
+  if (!el) return;
+  if (kind) {
+    applyOrigem(el, value, kind, uptimeS);
+    return;
+  }
+  el.textContent = origemValue(value, null);
+  el.title = "";
+}
+
 function renderAutofetchPanel(af, uptimeS) {
   if (!af) return;
   var cfg = af.config || {};
   var eff = cfg.effective || {};
   var env = cfg.envDefaults || {};
   var overridden = cfg.overriddenKeys || [];
-  var origem = af._origem && typeof af._origem === "object" ? af._origem : null;
   var i, k, input, envSpan, badge;
-  // Uptime baixo + _origem.amostra: marca leve no title (sem redesenhar UI).
-  var amostraCedo = origem && Number(uptimeS) >= 0 && Number(uptimeS) < 300;
+  var qEl, rEl, dEl, bEl, guEl, rsEl, gateEl;
+  var gate, gateTxt, gateKind, gateColor, accountsKind;
+  var accs, extra, j, gu, guTxt, parts, sk, skKeys, n;
 
   isAfPaused = Boolean(cfg.paused);
 
@@ -47,86 +59,91 @@ function renderAutofetchPanel(af, uptimeS) {
     }
   }
 
-  var qEl = $("afMetricQueues");
+  // Filas: durável no snapshot. Sem _origem = fail-open (número antigo).
+  qEl = $("afMetricQueues");
   if (qEl && af.queues) {
-    qEl.textContent = (af.queues.count || 0) + " fila(s) / " + (af.queues.items || 0) + " item(ns)";
+    paintAfOrigem(
+      qEl,
+      (af.queues.count || 0) + " fila(s) / " + (af.queues.items || 0) + " item(ns)",
+      origemOf(af, "queues"),
+      uptimeS
+    );
   }
 
-  var rEl = $("afMetricRechecks");
+  rEl = $("afMetricRechecks");
   if (rEl) {
     rEl.textContent = (af.recheckLots || 0) + " (" + (af.settleLots || 0) + " settle)";
   }
 
-  // deadBlacklistCount: sem _origem = fail-open (número antigo). naomedido → "—"
-  // (0 pós-boot mentiria vazio); amostra → número + title.
-  var dEl = $("afMetricDead");
+  // Blacklist de mortos: durável (reindex no boot). naomedido → "—".
+  dEl = $("afMetricDead");
   if (dEl) {
-    var deadOrigem = origem ? origem.deadBlacklistCount : null;
-    if (deadOrigem === "naomedido") {
-      dEl.textContent = "—";
-      dEl.title = "Blacklist de mortos ainda não medida neste processo";
-    } else {
-      dEl.textContent = String(af.deadBlacklistCount || 0);
-      if (deadOrigem === "amostra") {
-        dEl.title = amostraCedo
-          ? "Amostra deste processo (uptime baixo; pode subcontar o L2)"
-          : "Amostra deste processo (≠ reindex L2)";
-      } else {
-        dEl.title = "";
-      }
-    }
+    paintAfOrigem(dEl, af.deadBlacklistCount || 0, origemOf(af, "deadBlacklistCount"), uptimeS);
   }
 
-  var bEl = $("afMetricBudget");
+  // Orçamento hora: amostra deste processo.
+  bEl = $("afMetricBudget");
   if (bEl && af.budget) {
-    var accs = af.budget.accounts || [];
-    var extra = "";
-    for (var j = 0; j < accs.length; j += 1) {
+    accs = af.budget.accounts || [];
+    extra = "";
+    for (j = 0; j < accs.length; j += 1) {
       extra += (j ? " · " : " ") + accs[j].id + " " + Number(accs[j].used || 0) + "/" + Number(accs[j].limit || 0);
     }
-    bEl.textContent = (af.budget.used || 0) + " / " + (af.budget.limit || 0) + extra;
+    paintAfOrigem(
+      bEl,
+      (af.budget.used || 0) + " / " + (af.budget.limit || 0) + extra,
+      origemOf(af, "budget"),
+      uptimeS
+    );
   }
 
   // Por que o Chupim desistiu: o último registro do trace e a contagem por
   // motivo. Sem isso, um portão que fecha (marker, gate, budget) era um
   // `return` mudo — invisível no painel.
-  var guEl = $("afMetricGiveUp");
+  guEl = $("afMetricGiveUp");
   if (guEl && af.lastSkips && af.lastSkips.length) {
-    var gu = af.lastSkips[0];
-    var guTxt = gu.reason;
+    gu = af.lastSkips[0];
+    guTxt = gu.reason;
     if (gu.label) guTxt += " · " + gu.label;
     if (gu.at) guTxt += " · " + formatDate(gu.at);
     guEl.textContent = guTxt;
   }
 
-  var rsEl = $("afMetricReasons");
+  rsEl = $("afMetricReasons");
   if (rsEl) {
-    var parts = [];
-    var sk = af.skips || {};
-    var skKeys = ["account-gate", "budget", "dead", "marker", "already-cached", "in-flight", "search-slot-busy", "paused", "unknown-cache", "stop-has-br", "no-candidate", "no-candidates", "disabled"];
+    parts = [];
+    sk = af.skips || {};
+    skKeys = ["account-gate", "budget", "dead", "marker", "already-cached", "in-flight", "search-slot-busy", "paused", "unknown-cache", "stop-has-br", "no-candidate", "no-candidates", "disabled"];
     for (i = 0; i < skKeys.length; i += 1) {
-      var n = Number(sk[skKeys[i]] || 0);
+      n = Number(sk[skKeys[i]] || 0);
       if (n > 0) parts.push(skKeys[i] + " " + n);
     }
     rsEl.textContent = parts.length ? parts.join(" · ") : "—";
   }
 
-  var gateEl = $("afMetricGate");
+  // Gate de conta: amostra no snapshot; memo frio (_origem.accounts=naomedido)
+  // não pinta "aberto" como saúde — vira "—".
+  gateEl = $("afMetricGate");
   if (gateEl && af.accountGate) {
-    var gate = af.accountGate;
+    gate = af.accountGate;
+    gateKind = origemOf(af, "accountGate");
+    accountsKind = origemOf(gate, "accounts");
+    gateColor = "";
     if (!gate.pauseAt || gate.pauseAt <= 0) {
-      gateEl.textContent = "desligado";
-      gateEl.style.color = "";
+      gateTxt = "desligado";
     } else if (gate.blocked) {
-      gateEl.textContent = "BLOQUEADO (pauseAt " + gate.pauseAt + ")";
-      gateEl.style.color = "var(--red)";
+      gateTxt = "BLOQUEADO (pauseAt " + gate.pauseAt + ")";
+      gateColor = "var(--red)";
     } else if (gate.inFlight) {
-      gateEl.textContent = "medindo… (pauseAt " + gate.pauseAt + ")";
-      gateEl.style.color = "";
+      gateTxt = "medindo… (pauseAt " + gate.pauseAt + ")";
+    } else if (accountsKind === "naomedido") {
+      gateTxt = "";
+      gateKind = "naomedido";
     } else {
-      gateEl.textContent = "aberto (pauseAt " + gate.pauseAt + ")";
-      gateEl.style.color = "";
+      gateTxt = "aberto (pauseAt " + gate.pauseAt + ")";
     }
+    paintAfOrigem(gateEl, gateTxt, gateKind, uptimeS);
+    gateEl.style.color = gateColor;
   }
 
   var pauseBtn = $("afPauseToggleBtn");

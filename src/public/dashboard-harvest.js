@@ -19,57 +19,49 @@ function setHarvestFeedback(text, kind) {
   el.className = "feedback" + (kind ? " " + kind : "");
 }
 
-function renderHarvesterPanel(harvest, counters) {
+function renderHarvesterPanel(harvest, counters, uptimeS) {
   if (!harvest) return;
   var cfg = harvest.config || {};
   var eff = cfg.effective || {};
   var env = cfg.envDefaults || {};
   var overridden = cfg.overriddenKeys || [];
+  var ctr = isObject(counters) ? counters : {};
   var i, k, input, envSpan, badge;
 
   isHarvestPaused = Boolean(cfg.paused || harvest.paused);
 
+  // _origem: queueDepth/queriesThisHour = duravel; enabled/paused/lastRunAt =
+  // amostra. Sem _origem → fail-open (número antigo, sem title).
   var stEl = $("harvestMetricState");
   if (stEl) {
-    if (isHarvestPaused) {
-      stEl.textContent = "PAUSADO";
-      stEl.style.color = "var(--red)";
-    } else {
-      stEl.textContent = "ATIVO";
-      stEl.style.color = "var(--green)";
-    }
+    stEl.style.color = isHarvestPaused ? "var(--red)" : "var(--green)";
+    applyOrigem(stEl, isHarvestPaused ? "PAUSADO" : "ATIVO", origemOf(harvest, "paused"), uptimeS);
   }
 
   var qEl = $("harvestMetricQueue");
   if (qEl) {
-    qEl.textContent = valueText(harvest.queueDepth) + " obra(s) / max " + valueText(harvest.queueMax);
+    applyOrigem(qEl, valueText(harvest.queueDepth) + " obra(s) / max " + valueText(harvest.queueMax),
+      origemOf(harvest, "queueDepth"), uptimeS);
   }
 
   var cEl = $("harvestMetricQueries");
   if (cEl) {
-    cEl.textContent = valueText(harvest.queriesThisHour) + " / " + valueText(harvest.maxPerHour);
+    applyOrigem(cEl, valueText(harvest.queriesThisHour) + " / " + valueText(harvest.maxPerHour),
+      origemOf(harvest, "queriesThisHour"), uptimeS);
   }
 
   var hEl = $("harvestMetricHarvested");
-  if (hEl) {
-    hEl.textContent = valueText(harvest.harvested);
-  }
+  if (hEl) applyOrigem(hEl, harvest.harvested, origemOf(harvest, "harvested"), uptimeS);
 
-  // Eficácia da colheita (Etapa 1): os contadores já viajam no
-  // metrics.counters do dashboard-status; aqui só viram texto, ES5.
-  var ctr = isObject(counters) ? counters : {};
   var dEl = $("harvestMetricDone");
-  if (dEl) {
-    dEl.textContent = valueText(ctr["harvest.done"]);
-  }
+  if (dEl) applyOrigem(dEl, ctr["harvest.done"], origemOf(ctr, "harvest.done"), uptimeS);
   var eEl = $("harvestMetricEmpty");
-  if (eEl) {
-    eEl.textContent = valueText(ctr["harvest.empty"]);
-  }
+  if (eEl) applyOrigem(eEl, ctr["harvest.empty"], origemOf(ctr, "harvest.empty"), uptimeS);
 
   var rEl = $("harvestMetricLastRun");
   if (rEl) {
-    rEl.textContent = harvest.lastRunAt ? formatDate(harvest.lastRunAt) : "—";
+    applyOrigem(rEl, harvest.lastRunAt ? formatDate(harvest.lastRunAt) : "—",
+      origemOf(harvest, "lastRunAt"), uptimeS);
   }
 
   var pauseBtn = $("harvestPauseToggleBtn");
