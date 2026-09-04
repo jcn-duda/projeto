@@ -173,16 +173,16 @@ function limitReservingBr(
   // sem o mesmo cuidado no corte final, a reserva não valia nada.
   const reserved = brFirst ? Infinity : Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
   const priority = pool
-    .filter((stream) => stream._br)
+    .filter((stream) => stream._br && !stream._lied)
     .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0))
     .slice(0, reserved);
   const prioritized = new Set(priority);
   // A reserva é o TAMANHO DE brReservedSlots, não todo o pool BR: com brFirst
-  // (default) `priority` é o BR inteiro, e isentá-lo por completo deixaria o
-  // indexador BR sem teto nenhum — o oposto do que a cota faz. Mesmo critério
-  // da reserva mais abaixo (`brStreams.slice`): `_br` puro. O pool dublado exige
-  // infoHash, que um stream já resolvido no debrid não tem — usá-lo aqui
-  // esvaziaria a isenção justamente na lista com play instantâneo.
+  // (default) `priority` é o BR inteiro (sem `_lied`), e isentá-lo por completo
+  // deixaria o indexador BR sem teto nenhum — o oposto do que a cota faz. Mesmo
+  // critério da reserva mais abaixo (`brStreams.slice`): `_br && !_lied`. O pool
+  // dublado exige infoHash, que um stream já resolvido no debrid não tem —
+  // usá-lo aqui esvaziaria a isenção justamente na lista com play instantâneo.
   //
   // As MESMAS N streams atravessam os DOIS tetos: o por indexador e o por
   // qualidade. Enquanto só o primeiro existia, a página prometia "vagas
@@ -192,7 +192,7 @@ function limitReservingBr(
   const brSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
   const reservedBr = new Set(
     pool
-      .filter((stream) => stream._br)
+      .filter((stream) => stream._br && !stream._lied)
       .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0))
       .slice(0, brSlots),
   );
@@ -210,7 +210,7 @@ function limitReservingBr(
   // Volta à ordem original: sem `brFirst` o corte final depende dela.
   const eligible = pool.filter((stream) => kept.has(stream));
   const brStreams = eligible
-    .filter((stream) => stream._br)
+    .filter((stream) => stream._br && !stream._lied)
     .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0));
 
   // Reserva por faixa: até `brReservedPerQuality` BR por balde de qualidade,

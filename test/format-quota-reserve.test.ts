@@ -29,6 +29,28 @@ test('cota por indexador não consome as vagas reservadas BR', () => {
   assert.deepEqual(out.map((s: any) => (s as any).id), ['br-1', 'br-2', 'yts-1']);
 });
 
+test('reserva BR não conta _lied: mentiroso não come vaga dos honestos', () => {
+  // Globais na frente lotam maxResults; sem excluir _lied, o mentiroso toma
+  // uma das 2 vagas e um honesto some. Com o filtro, os dois honestos entram.
+  const streams = [
+    { id: 'global-a', _quality: '1080p', _br: false, _seeders: 100 },
+    { id: 'global-b', _quality: '1080p', _br: false, _seeders: 90 },
+    { id: 'global-c', _quality: '1080p', _br: false, _seeders: 80 },
+    { id: 'br-lied', _quality: '1080p', _br: true, _dubbed: true, _lied: true },
+    { id: 'br-honest-1', _quality: '1080p', _br: true, _dubbed: true },
+    { id: 'br-honest-2', _quality: '1080p', _br: true, _dubbed: true },
+  ];
+  const out = limitReservingBr(quotaStreams(streams), {
+    brReservedSlots: 2,
+    brFirst: false,
+    maxResults: 3,
+  });
+  const ids = out.map((s: any) => (s as any).id);
+  assert.ok(ids.includes('br-honest-1'), 'honesto 1 precisa da vaga reservada');
+  assert.ok(ids.includes('br-honest-2'), 'honesto 2 precisa da vaga reservada');
+  assert.equal(ids.includes('br-lied'), false, 'mentiroso não come vaga BR');
+});
+
 test('cota por indexador limita o BR que passa da reserva', () => {
   const streams = [
     { id: 'br-1', _quality: '1080p', _br: true, _dubbed: true, _indexer: 'bludv' },

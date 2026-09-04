@@ -88,6 +88,25 @@ test('selectQualityCandidates preserva BR dentro de qualidade limitada', () => {
   assert.deepEqual(out.map((s: any) => (s as any).id), ['global-a', 'br-a']);
 });
 
+test('selectQualityCandidates: _lied não come vaga BR no pool pré-debrid', () => {
+  const streams = [
+    { id: 'br-lied', _quality: '1080p', _br: true, _dubbed: true, _lied: true },
+    { id: 'br-honest-1', _quality: '1080p', _br: true, _dubbed: true },
+    { id: 'br-honest-2', _quality: '1080p', _br: true, _dubbed: true },
+    { id: 'global-a', _quality: '1080p', _br: false },
+  ];
+  const out = selectQualityCandidates(streams, {
+    maxResults: 2,
+    qualityLimits: { '1080p': 2 },
+    brReservedSlots: 2,
+    brFirst: false,
+  });
+  const ids = out.map((s: any) => (s as any).id);
+  assert.ok(ids.includes('br-honest-1'));
+  assert.ok(ids.includes('br-honest-2'));
+  assert.equal(ids.includes('br-lied'), false);
+});
+
 test('selectQualityCandidates preserva BR em qualidade ilimitada', () => {
   const streams = [
     ...Array.from({ length: 200 }, (_, i) => ({ id: `global-${i}`, _quality: '1080p', _br: false })),

@@ -65,6 +65,16 @@ export async function applyDebrid(input: Array<Stream | null>, {
   season, episode, imdbId, searchKey, deadlineAt, observeFirstPass = false, firstObserver, onCacheResult, workHint, trace,
 }: ApplyDebridOptions = {}) {
   let streams: Stream[] = input.filter((stream): stream is Stream => stream !== null);
+  // Mentira de áudio (DubLieError / auditoria) já marcada no stream: corta ANTES
+  // do early-return sem adapter. Sem isso, P2P puro entregava o mentiroso; com
+  // adapter o pruneKnownBroken também corta, mas conta em magnetdb.dropped.lie
+  // (histórico por conta). Aqui a métrica é só o campo _lied — mesma poda,
+  // contador distinto, sem dobrar o do banco.
+  const preLie = streams.filter((s) => s._lied === true).length;
+  if (preLie > 0) {
+    streams = streams.filter((s) => s._lied !== true);
+    metrics.count('search.lie.pre-debrid', preLie);
+  }
   const adapter = debrid.current();
   if (!adapter || streams.length === 0) return streams;
 

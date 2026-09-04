@@ -62,7 +62,7 @@ function selectQualityCandidates(
     const faixaCounts = new Map<string, number>();
     for (const stream of streams) {
       if (selected.size >= poolSize || selected.size >= brTarget) break;
-      if (!stream._br || selected.has(stream)) continue;
+      if (!stream._br || stream._lied || selected.has(stream)) continue;
       const quality = streamQuality(stream);
       const usados = faixaCounts.get(quality) || 0;
       if (usados >= perFaixa) continue;
@@ -76,7 +76,7 @@ function selectQualityCandidates(
 
   for (const stream of streams) {
     if (selected.size >= poolSize || selected.size >= brTarget) break;
-    if (!stream._br || selected.has(stream)) continue;
+    if (!stream._br || stream._lied || selected.has(stream)) continue;
     const quality = streamQuality(stream);
     if (customSet.has(quality) &&
       (counts.get(quality) as number) >= (targets.get(quality) as number)) continue;
