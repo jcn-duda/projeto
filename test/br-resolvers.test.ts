@@ -306,3 +306,38 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
     assert.equal(brResolvers.activeSite('inexistente'), null);
   });
 });
+
+describe('Protetores: lista base compartilhada', () => {
+  // Host de protetor fora da lista não vira botão: o post é lido, os links
+  // existem e a fonte devolve 0 releases em silêncio. Foi o que aconteceu com
+  // o nerdfilmes em 2026-09-03, quando o site trocou systemads1.com por
+  // temreceita.com — comandotorrents/tdf/bludv seguiram entregando e só essa
+  // fonte zerou, o que faz o sintoma parecer parser quebrado.
+  const perfis: Array<[string, any]> = [
+    ['bludv', bludv], ['comandotorrents', comando], ['nerdfilmes', nerd],
+    ['torrentdosfilmes', tdf], ['vacatorrent', vaca],
+  ];
+
+  test('temreceita.com é protetor reconhecido em todos os perfis', () => {
+    for (const [nome, perfil] of perfis) {
+      assert.equal(perfil.isProtectorHost('temreceita.com'), true, `${nome}: apex`);
+      assert.equal(perfil.isProtectorHost('www.temreceita.com'), true, `${nome}: subdomínio`);
+      assert.doesNotThrow(
+        () => perfil.assertAllowedUrl('https://www.temreceita.com/link.php?id=abc'),
+        `${nome}: URL do protetor passa na allowlist`,
+      );
+    }
+  });
+
+  test('confusão de sufixo não passa por protetor', () => {
+    for (const [nome, perfil] of perfis) {
+      assert.equal(perfil.isProtectorHost('faketemreceita.com'), false, `${nome}: prefixo colado`);
+      assert.equal(perfil.isProtectorHost('temreceita.com.evil.org'), false, `${nome}: sufixo estendido`);
+      assert.throws(
+        () => perfil.assertAllowedUrl('https://temreceita.com.evil.org/link.php'),
+        /blocked_host/,
+        `${nome}: sufixo estendido é bloqueado`,
+      );
+    }
+  });
+});
