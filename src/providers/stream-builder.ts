@@ -107,6 +107,12 @@ export async function buildStreams(rawInput: RawItem[], {
   // só do firstObserver (teste sem observador / passe sem claim). O estado
   // do observador continua sendo a fonte das métricas first.
   const brEnteredDebrid = streams.filter((s) => (s as any)._br).length;
+  // Dubladas que ENTRARAM no corte. O aviso PROMETE dublada, então contar só
+  // `_br` errava dos dois lados: BR legendado sobrevivente calava o aviso, e
+  // BR legendado oculto o disparava mentindo. Medido em produção (tt6751668):
+  // 5 dubladas no índice, nenhuma em cache, 2 legendadas servidas — o autofetch
+  // já baixava a dublada e o usuário não via sinal nenhum disso.
+  const dubEnteredDebrid = streams.filter((s) => (s as any)._br && (s as any)._dubbed).length;
   // I0 — funil da primeira resposta, contado AQUI (no buildStreams, não no
   // debrid): é o BR que ENTRARIA no debrid, independente de haver adapter. Por
   // ser estagiado no estado e finalizado no `onSelected` junto de brVisible,
@@ -229,14 +235,20 @@ export async function buildStreams(rawInput: RawItem[], {
   // que e onde a busca tardia de pack roda de verdade — prometer "reabra em
   // instantes" num filme sem resultado seria mentira.
   //
-  // Quarto caso: BR existiu e o cachedOnly escondeu TODOS — lista vazia ou só
-  // Dual/gringo. Sem notice o sintoma parece "não tem dublado". O texto NÃO
+  // Quarto caso: a DUBLADA existiu e o cachedOnly escondeu TODAS — lista vazia,
+  // só Dual/gringo, ou só BR legendado. Sem notice o sintoma parece "não tem
+  // dublado", inclusive quando o autofetch já está baixando. O texto NÃO
   // empurra ligar `bu` (mostrar frio é opt-in): aponta reabertura / autofetch.
   // Só o TEXTO nasce aqui; o link sai no `applyNoticeOrigin`.
-  const brHiddenByCachedOnly = brHidden > 0 && brIn.length === 0;
+  // `brHidden` é BR de QUALQUER áudio e vem post-trust (preciso); o delta de
+  // dubladas é bruto. O `min` casa os dois: limita o bruto pelo teto preciso,
+  // então se nada sumiu no cachedOnly (só trust/blacklist) o aviso não nasce —
+  // reabrir não tira hash da blacklist, e a promessa continua honesta.
+  const dubHidden = Math.min(brHidden, Math.max(0, dubEnteredDebrid - dubIn.length));
+  const dubHiddenByCachedOnly = dubHidden > 0 && dubIn.length === 0;
   const noticeText = () => {
     if (autofetchCount > 0) return '⏳ Baixando no debrid — reabra em alguns minutos';
-    if (brHiddenByCachedOnly) {
+    if (dubHiddenByCachedOnly) {
       return 'Fontes BR dubladas existem, mas ainda fora do cache — reabra em alguns minutos';
     }
     if (candidatesBeforeDebrid > 0 && trustDropped >= candidatesBeforeDebrid) {
@@ -250,7 +262,7 @@ export async function buildStreams(rawInput: RawItem[], {
   };
   if (config.search.noticeStream) {
     const name = noticeText();
-    if (name && (streams.length === 0 || brHiddenByCachedOnly)) {
+    if (name && (streams.length === 0 || dubHiddenByCachedOnly)) {
       // Lista vazia: o aviso É a lista. Lista com Dual/gringo e BR sumido no
       // cachedOnly: ANEXA o aviso — substituir apagaria o que ainda toca.
       streams = streams.length === 0

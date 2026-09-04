@@ -227,3 +227,111 @@ test('BR dropado por bad + Dual cacheado: sem notice de reabertura (pendingBrHid
     config.debrid.resolveUncached = originalResolve;
   }
 });
+
+// Medido em produção (tt6751668, Parasita): 5 dubladas no índice, NENHUMA em
+// cache, 2 BR LEGENDADAS servidas — e o autofetch já baixava a dublada. A
+// guarda contava `_br` em vez de `_dubbed`, então o legendado sobrevivente
+// calava o aviso e o sintoma virava "não tem dublado".
+const LEG_H = 'd'.repeat(40);
+
+test('BR legendado cacheado não cala o aviso quando TODA dublada sumiu no cachedOnly', async () => {
+  const originalResolve = config.debrid.resolveUncached;
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  config.debrid.resolveUncached = false;
+  config.debrid.publicUrl = 'https://addon.teste';
+  debrid.checkCached = async () => ({ cached: new Set([LEG_H]), known: true });
+  const firstObserver = createFirstObserver(true);
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-fake',
+    debridCachedOnly: true,
+    showUncachedBr: false,
+    autoFetchBr: false,
+  };
+  try {
+    const streams = await runtime.run({ opts: userOpts, encoded: 'segcfg' }, async () => {
+      const built = await buildStreams(
+        [
+          { title: 'Parasita 2020 1080p BluRay DUBLADO', infoHash: BR_H, seeders: 1, indexer: 'comandotorrents', isBr: true },
+          { title: 'Parasita 2020 1080p BluRay LEGENDADO', infoHash: LEG_H, seeders: 1, indexer: 'torrentdosfilmesv2', isBr: true },
+        ] as any,
+        {
+          meta: null,
+          titles: null,
+          season: null,
+          episode: null,
+          isDemo: false,
+          searchKey: `aviso-leg-${Math.random()}`,
+          observeFirstPass: true,
+          firstObserver,
+          deadlineAt: Date.now() + 5000,
+        } as any,
+      );
+      return applyNoticeOrigin(built);
+    });
+    const playable = streams.filter((s) => s.url || s.infoHash);
+    assert.equal(playable.length, 1, 'o BR legendado cacheado continua tocável');
+    assert.ok(
+      streams.some((s) => /fora do cache.*reabra/i.test(String(s.name || ''))),
+      'aviso anexado: a dublada existe e sumiu no cachedOnly',
+    );
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.resolveUncached = originalResolve;
+  }
+});
+
+// O outro lado do mesmo erro: contar `_br` fazia o aviso PROMETER dublada
+// quando só havia legendada oculta. O texto diz "dubladas"; sem nenhuma no
+// funil ele não pode nascer.
+test('só BR legendado oculto: não promete dublada que nunca existiu', async () => {
+  const originalResolve = config.debrid.resolveUncached;
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  config.debrid.resolveUncached = false;
+  config.debrid.publicUrl = 'https://addon.teste';
+  debrid.checkCached = async () => ({ cached: new Set([GLOBAL_H]), known: true });
+  const firstObserver = createFirstObserver(true);
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-fake',
+    debridCachedOnly: true,
+    showUncachedBr: false,
+    autoFetchBr: false,
+  };
+  try {
+    const streams = await runtime.run({ opts: userOpts, encoded: 'segcfg' }, async () => {
+      const built = await buildStreams(
+        [
+          { title: 'Parasita 2020 1080p BluRay LEGENDADO', infoHash: LEG_H, seeders: 1, indexer: 'torrentdosfilmesv2', isBr: true },
+          { title: 'Parasite 2019 1080p BluRay x264', infoHash: GLOBAL_H, seeders: 50, indexer: 'yts' },
+        ] as any,
+        {
+          meta: null,
+          titles: null,
+          season: null,
+          episode: null,
+          isDemo: false,
+          searchKey: `aviso-soleg-${Math.random()}`,
+          observeFirstPass: true,
+          firstObserver,
+          deadlineAt: Date.now() + 5000,
+        } as any,
+      );
+      return applyNoticeOrigin(built);
+    });
+    assert.equal(
+      streams.some((s) => /Fontes BR dubladas existem/i.test(String(s.name || ''))),
+      false,
+      'nenhuma dublada no funil: o aviso de dublada não pode nascer',
+    );
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.resolveUncached = originalResolve;
+  }
+});
