@@ -147,6 +147,9 @@ export function autoFetchCandidates(
       adapter!.id,
       account,
     );
+    if (pool === 'br' && queued.length > 0) {
+      metrics.count('autofetch.queue.surplus', queued.length);
+    }
   }
 
   return immediate.map((stream) => ({ stream, account, pool }));

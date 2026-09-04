@@ -293,8 +293,11 @@ export function runRecheck(searchKey: string) {
           }
           log.info(`[autofetch] download ficou pronto; próxima pergunta de ${searchKey} reconstrói com ⚡`);
         }
-        autofetch.dropQueue(searchKey);
         cleanLotHash(lot, hash);
+        // Só descarta a fila quando o lote inteiro assentou. Um 720p ready
+        // não pode apagar o backup do 1080p ainda stallado — era exatamente
+        // o que esvaziava a reposição inteligente no meio do caminho.
+        if (lot.hashes.size === 0) autofetch.dropQueue(searchKey);
         held.noteReady(adapter.id, account, hash);
         held.release(hash, account);
         continue;

@@ -109,8 +109,9 @@ test('pickBrDubbedByTargetQualities: 1 por faixa 1080/720/4K; unknown fora; 720 
   const d4k = stream(D, { _br: true, _dubbed: true, _quality: '2160p', _seeders: 9 });
   const eUnk = stream(E, { _br: true, _dubbed: true, _quality: 'sem resolução', _seeders: 99 });
 
+  // limit=3 (≤ nº de faixas): só primários — 2º 1080 e unknown fora.
   assert.deepEqual(
-    pickBrDubbedByTargetQualities([eUnk, d4k, c720, a1080b, a1080], new Set(), 6)
+    pickBrDubbedByTargetQualities([eUnk, d4k, c720, a1080b, a1080], new Set(), 3)
       .map((s) => String(s.infoHash).toLowerCase()),
     [A, C, D],
     '1×1080 + 1×720 + 1×4K; unknown e 2º 1080 fora',
@@ -131,6 +132,40 @@ test('pickBrDubbedByTargetQualities: 1 por faixa 1080/720/4K; unknown fora; 720 
   assert.deepEqual(
     pickBrDubbedByTargetQualities(onlyUnk, new Set(), 2).map((s) => String(s.infoHash).toLowerCase()),
     [A, B],
+  );
+});
+
+test('pickBrDubbedByTargetQualities: limit>3 enche surplus (primários antes, até K/faixa)', () => {
+  const D = 'd'.repeat(40);
+  const E = 'e'.repeat(40);
+  const F = 'f'.repeat(40);
+  const a1080 = stream(A, { _br: true, _dubbed: true, _quality: '1080p', _seeders: 5 });
+  const a1080b = stream(B, { _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 });
+  const c720 = stream(C, { _br: true, _dubbed: true, _quality: '720p', _seeders: 50 });
+  const c720b = stream(D, { _br: true, _dubbed: true, _quality: '720p', _seeders: 10 });
+  const d4k = stream(E, { _br: true, _dubbed: true, _quality: '2160p', _seeders: 9 });
+  const d4kb = stream(F, { _br: true, _dubbed: true, _quality: '2160p', _seeders: 2 });
+
+  // limit=9 → K=3/faixa; com 2 por faixa devolve 6: 3 primários + 3 alternates.
+  assert.deepEqual(
+    pickBrDubbedByTargetQualities(
+      [d4kb, a1080b, c720b, d4k, c720, a1080],
+      new Set(),
+      9,
+    ).map((s) => String(s.infoHash).toLowerCase()),
+    [A, C, E, B, D, F],
+    'primários 1080/720/4K depois alternates na mesma ordem de qualidade',
+  );
+
+  // slice(0,3) dos surplus continua cobrindo as 3 faixas.
+  const picked = pickBrDubbedByTargetQualities(
+    [a1080b, c720b, d4kb, a1080, c720, d4k],
+    new Set(),
+    9,
+  );
+  assert.deepEqual(
+    picked.slice(0, 3).map((s) => String(s.infoHash).toLowerCase()),
+    [A, C, E],
   );
 });
 

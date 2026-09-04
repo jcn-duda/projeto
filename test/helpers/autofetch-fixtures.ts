@@ -39,8 +39,21 @@ export function mkAdapter(
 }
 
 /** Candidato BR dublado padrão dos testes de stall/recheck. */
-export function brDubCandidate(infoHash: string, name = 'Coringa Dublado') {
-  return { infoHash, name, _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 };
+export function brDubCandidate(
+  infoHash: string,
+  nameOrOpts: string | { name?: string; _quality?: string; _seeders?: number } = 'Coringa Dublado',
+) {
+  if (typeof nameOrOpts === 'string') {
+    return { infoHash, name: nameOrOpts, _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 };
+  }
+  return {
+    infoHash,
+    name: nameOrOpts.name || 'Coringa Dublado',
+    _br: true,
+    _dubbed: true,
+    _quality: nameOrOpts._quality || '1080p',
+    _seeders: nameOrOpts._seeders ?? 1,
+  };
 }
 
 /** Opções de instalação com autofetch BR + cachedOnly no Premiumize. */

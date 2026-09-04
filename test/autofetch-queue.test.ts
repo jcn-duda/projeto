@@ -71,6 +71,7 @@ test('fila persistente: writeQueue, readQueue, dropQueue e takeNext', () => {
 test('blacklist de torrents mortos: isDead e blacklist com TTL', () => {
   const adapterId = 'alldebrid';
   const account = 'acc_test_dead';
+  cache.forget(autofetch.deadKey(adapterId, account, H1));
   assert.equal(autofetch.isDead(adapterId, account, H1), false);
 
   autofetch.blacklist(adapterId, account, H1, 86400);

@@ -232,7 +232,14 @@ function cachedBrDubbedTargetQualities(streams: Stream[] = [], cachedHashes: Set
 }
 
 /**
- * 1 hash uncached por qualidade-alvo (1080 → 720 → 4K na ordem do pool).
+ * Uncached por qualidade-alvo (1080 → 720 → 4K na ordem do pool).
+ *
+ * Com `limit` ≤ nº de faixas: 1 hash por faixa (primários).
+ * Com `limit` maior (autoFetchMax + queueDepth): até K por faixa
+ * (`ceil(limit / 3)`), primários primeiro e depois alternates — assim
+ * `slice(0, autoFetchMax)` cobre as 3 faixas e o resto vira fila de
+ * reposição no stall/dead. Sem isso a fila BR nascia vazia com Max=3.
+ *
  * Se o pool BR não tem nenhum alvo (só unknown/SD), cai no pick clássico —
  * senão o Chupim pararia de esquentar fontes BR sem resolução no título.
  */
@@ -248,22 +255,48 @@ function pickBrDubbedByTargetQualities(
   const hasTarget = pool.some((s) => isAutofetchTargetQuality(streamQuality(s)));
   if (!hasTarget) return pickFromPool(pool, cachedHashes, max);
 
+  const targetCount = AUTOFETCH_TARGET_QUALITIES.length;
+  const perQuality = max <= targetCount
+    ? 1
+    : Math.max(1, Math.ceil(max / targetCount));
+
   const cached = hashSet(cachedHashes);
-  const seenQ = new Set<string>();
   const seenHash = new Set<string>();
-  const out: Stream[] = [];
+  const countQ = new Map<string, number>();
+  const primaries: Stream[] = [];
+  const alternates: Stream[] = [];
+
+  // Passo A: 1º uncached por faixa — primários sempre antes dos backups.
   for (const stream of pool) {
     if (!stream?.infoHash) continue;
     const key = String(stream.infoHash).toLowerCase();
     if (seenHash.has(key) || cached.has(key)) continue;
     const q = streamQuality(stream);
-    if (!isAutofetchTargetQuality(q) || seenQ.has(q)) continue;
-    seenQ.add(q);
+    if (!isAutofetchTargetQuality(q) || countQ.has(q)) continue;
+    countQ.set(q, 1);
     seenHash.add(key);
-    out.push(stream);
-    if (out.length >= max) break;
+    primaries.push(stream);
+    if (primaries.length >= max) return primaries.slice(0, max);
   }
-  return out;
+
+  if (perQuality <= 1 || primaries.length >= max) return primaries.slice(0, max);
+
+  // Passo B: alternates até K por faixa / até encher o limit.
+  for (const stream of pool) {
+    if (primaries.length + alternates.length >= max) break;
+    if (!stream?.infoHash) continue;
+    const key = String(stream.infoHash).toLowerCase();
+    if (seenHash.has(key) || cached.has(key)) continue;
+    const q = streamQuality(stream);
+    if (!isAutofetchTargetQuality(q)) continue;
+    const n = countQ.get(q) || 0;
+    if (n === 0 || n >= perQuality) continue;
+    countQ.set(q, n + 1);
+    seenHash.add(key);
+    alternates.push(stream);
+  }
+
+  return [...primaries, ...alternates].slice(0, max);
 }
 
 /** Compatibilidade: o melhor candidato BR dublado, sem olhar cache. */
