@@ -1348,7 +1348,7 @@ npm run test:stress && npm run test:adversarial && npm run test:adversarial-m1 \
 
 **Não pode regredir:** invariante 1 (orçamento), vagas BR no corte final,
 `_campos` internos fora da resposta, SWR só serve lista completa+tocável,
-soma de cotas < teto global (30.500 < 36.000), métricas `magnetdb.dropped.*`
+soma de cotas < teto global (82.550 < 84.000), métricas `magnetdb.dropped.*`
 separadas.
 
 ## Riscos do próprio plano

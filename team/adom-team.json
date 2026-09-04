@@ -50,7 +50,7 @@
         "src/providers/search-cache.ts",
         "test/cache.test.ts"
       ],
-      "guards": "A SOMA das cotas deve ser < teto global (36000), senao volta o despejo global antes da reparticao. SWR so serve o que o finish promoveria (partial:false + debridKnown + tocael). Item de aviso (notice) nao conta como tocael."
+      "guards": "A SOMA das cotas deve ser < teto global (84000), senao volta o despejo global antes da reparticao. SWR so serve o que o finish promoveria (partial:false + debridKnown + tocael). Item de aviso (notice) nao conta como tocael."
     },
     {
       "id": "debrid",
