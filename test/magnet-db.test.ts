@@ -20,6 +20,7 @@ import { sortAndLimit } from '../src/utils/format.js';
 import { pickFile, NoVideoError, DubLieError } from '../src/debrid/common.js';
 import * as held from '../src/debrid/protected.js';
 import { queueDubAudit, runDubAudit } from '../src/providers/dub-audit.js';
+import { createStreamTrace } from '../src/utils/stream-trace.js';
 
 const runWith = (patch: { opts: any; encoded: string }, fn: () => any) => runtime.run(patch, fn);
 
@@ -296,8 +297,10 @@ test('applyDebrid sem histórico não descarta nada (controle)', async () => {
 test('applyDebrid sem adapter: stream _lied some da lista (pre-debrid)', async () => {
   // P2P puro (sem serviço/chave) early-returna antes do pruneKnownBroken; o
   // corte de _lied tem que acontecer ANTES, senão o mentiroso chega ao cliente.
+  // O dropTrace com motivo 'lie' é o que o P5 usa para saber QUAL sumiu.
   const good = 'a'.repeat(40);
   const lied = 'b'.repeat(40);
+  const trace = createStreamTrace();
   metrics.reset();
   try {
     const out = await runWith(
@@ -313,6 +316,7 @@ test('applyDebrid sem adapter: stream _lied some da lista (pre-debrid)', async (
         deadlineAt: Date.now() + 8000,
         onCacheResult: null,
         workHint: null,
+        trace,
       } as any),
     );
     assert.equal(out.length, 1, 'só o stream sem _lied sobrevive');
@@ -320,6 +324,9 @@ test('applyDebrid sem adapter: stream _lied some da lista (pre-debrid)', async (
     assert.equal((metrics.snapshot() as any).counters['search.lie.pre-debrid'], 1);
     assert.equal((metrics.snapshot() as any).counters['magnetdb.dropped.lie'], undefined,
       'sem adapter não passa pelo pruneKnownBroken — métrica distinta');
+    assert.equal(trace.items.length, 1, 'um drop no P5');
+    assert.equal(trace.items[0].reason, 'lie', 'pre-debrid registra o mesmo motivo do pruneKnownBroken');
+    assert.match(String(trace.items[0].label), new RegExp(lied.slice(0, 8)));
   } finally {
     metrics.reset();
   }

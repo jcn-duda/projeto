@@ -22,7 +22,7 @@ import rdWarmer from './rd-warmer.js';
 import { queueDubAudit, collectAuditCandidates } from './dub-audit.js';
 import { countFirstBr, pruneKnownBroken, probeRdOracle, enrichInstantWithoutCacheCheck } from './debrid-pipeline-steps.js';
 import type { FirstObserverState } from './stream-builder.js';
-import type { StreamTraceState } from '../utils/stream-trace.js';
+import { dropTrace, type StreamTraceState } from '../utils/stream-trace.js';
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -67,13 +67,14 @@ export async function applyDebrid(input: Array<Stream | null>, {
   let streams: Stream[] = input.filter((stream): stream is Stream => stream !== null);
   // Mentira de áudio (DubLieError / auditoria) já marcada no stream: corta ANTES
   // do early-return sem adapter. Sem isso, P2P puro entregava o mentiroso; com
-  // adapter o pruneKnownBroken também corta, mas conta em magnetdb.dropped.lie
-  // (histórico por conta). Aqui a métrica é só o campo _lied — mesma poda,
-  // contador distinto, sem dobrar o do banco.
-  const preLie = streams.filter((s) => s._lied === true).length;
-  if (preLie > 0) {
+  // adapter o pruneKnownBroken também corta via isLie, mas o campo _lied sairia
+  // daqui SEM dropTrace — o P5 perderia o motivo 'lie'. Contador próprio
+  // (search.lie.pre-debrid) para não dobrar magnetdb.dropped.lie.
+  const preLieStreams = streams.filter((s) => s._lied === true);
+  if (preLieStreams.length > 0) {
+    for (const s of preLieStreams) dropTrace(trace, s, 'lie');
     streams = streams.filter((s) => s._lied !== true);
-    metrics.count('search.lie.pre-debrid', preLie);
+    metrics.count('search.lie.pre-debrid', preLieStreams.length);
   }
   const adapter = debrid.current();
   if (!adapter || streams.length === 0) return streams;
