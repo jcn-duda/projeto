@@ -19,9 +19,9 @@
 // global invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB
 // ≈ 79 MB no pior caso) e o streams cresceu com o /stream-trace.json (cap de
 // 300 itens ≈ 27 KB por entrada): no teto teórico do namespace (2000 entradas)
-// soma ~54 MB — hoje observado ~13 MB em produção local. Soma raw + streams +
-// idx (~59 MB) segue segura no container de 3g; rdc/davail/mag/rdt/adprot/
-// adsub/adrm guardam só registros minúsculos.
+// soma ~54 MB — hoje observado ~13 MB em produção local. O idx (2.000 ×
+// ~14,7 KB ≈ 29 MB) fecha a conta dos gordos; rdc/davail/mag/rdt/adprot/
+// adsub/adrm guardam só registros minúsculos — mag 50k ≈ 19 MB.
 //
 // O teto global acompanha a soma: teto IGUAL OU ABAIXO dela reintroduz o
 // despejo global antes da repartição por namespace, que foi bug real.
@@ -62,8 +62,10 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // obra consultada, TTL ~6h — cota média para conviver com o ledger.
   rdt: 2500,
   // Índice de releases por obra (~14,7 KB por chave medido no pior caso, com teto
-  // de 60 releases): 4.000 chaves ≈ 59 MB. É o que faz o addon responder do
+  // de 60 releases): 2.000 chaves ≈ 29 MB. É o que faz o addon responder do
   // próprio índice sem esperar Jackett. Folga tranquila no limite de 3 GB.
+  // (PLANO_SERVIDOR prometeu 4000; o código entregou 2000 — não inventar 4000
+  // no comentário nem no fallback do painel.)
   idx: 2000,
   autofetch: 1000,
   'indexer-status': 200,

@@ -312,7 +312,9 @@ function status() {
     enabled: enabled(),
     ttlS: config.releaseIndex.ttl,
     entries: ns?.idx?.entries || 0,
-    maxEntries: ns?.idx?.maxEntries || 4000,
+    // Sem snapshot, inventar 4000 (promessa do PLANO_SERVIDOR, nunca entregue)
+    // mentiria a ocupação no painel — zero é mais honesto que um teto fantasma.
+    maxEntries: ns?.idx?.maxEntries || cache.QUOTAS?.idx || 0,
   };
 }
 
