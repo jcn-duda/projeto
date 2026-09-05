@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0d0d0d" />
 <title>Dashboard — Adom Power-Movie</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,6 +13,7 @@
 <link rel="stylesheet" href="/dashboard.css" />
 </head>
 <body>
+<noscript><p style="max-width: 1180px; margin: 24px auto; padding: 14px 16px; border: 1px solid #ff6b5f; border-radius: 10px; color: #ffd8d4;">Este painel é operacional e precisa de JavaScript habilitado no navegador.</p></noscript>
 <main class="wrap">
   <header>
     <div class="topline">
@@ -212,7 +214,7 @@
   <div id="viewAutofetch" class="tab-view hidden" role="tabpanel" aria-labelledby="tabAutofetch">
     <div id="afPauseBanner" class="pause-banner" role="alert">
       <span id="afPauseBannerText">Chupim PAUSADO. Nenhum download será enviado ao debrid.</span>
-      <button id="afBannerResumeBtn" class="primary" type="button" style="padding: 4px 12px; font-size: 12px;">Retomar agora</button>
+      <button id="afBannerResumeBtn" class="primary btn-sm" type="button">Retomar agora</button>
     </div>
 
     <section aria-labelledby="afLiveTitle">
@@ -282,7 +284,7 @@
           </div>
         </div>
       </div>
-      <div class="subsection" style="margin-top: 20px;">
+      <div class="subsection">
         <h3>Volume e Filas</h3>
         <div class="form-grid">
           <div class="form-item">
@@ -417,7 +419,7 @@
         <button id="afPresetAgressivo" class="preset-btn" type="button">Preset Agressivo</button>
         <button id="afPresetSwarm" class="preset-btn" type="button">Preset Foco em Swarm</button>
       </div>
-      <div class="toolbar" style="margin-top: 18px; display: flex; gap: 12px; align-items: center;">
+      <div class="toolbar actions-row">
         <button id="afSaveBtn" class="primary" type="button">Salvar Alterações</button>
         <button id="afResetBtn" class="danger" type="button">Restaurar Padrões (.env)</button>
       </div>
@@ -428,7 +430,7 @@
   <div id="viewColhedor" class="tab-view hidden" role="tabpanel" aria-labelledby="tabColhedor">
     <div id="harvestPauseBanner" class="pause-banner" role="alert">
       <span id="harvestPauseBannerText">Colhedor PAUSADO. Nenhuma obra em segundo plano será colhida.</span>
-      <button id="harvestBannerResumeBtn" class="primary" type="button" style="padding: 4px 12px; font-size: 12px;">Retomar agora</button>
+      <button id="harvestBannerResumeBtn" class="primary btn-sm" type="button">Retomar agora</button>
     </div>
 
     <section aria-labelledby="harvestLiveTitle">
@@ -452,6 +454,40 @@
         <div class="metric"><span class="key">Colheitas vazias</span><span id="harvestMetricEmpty" class="value">0</span></div>
         <div class="metric"><span class="key">Última execução</span><span id="harvestMetricLastRun" class="value">—</span></div>
       </div>
+    </section>
+
+    <section aria-labelledby="harvestDebridTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="harvestDebridTitle">Conta de debrid do Colhedor</h2>
+          <p>Credencial usada apenas pelas operações em fundo (quota-warn da conta e aquecimento do cache RD). O override salvo aqui vence o .env; a chave é gravada cifrada e nunca volta à tela.</p>
+        </div>
+      </div>
+      <div id="harvestDebridSealWarn" class="pause-banner" role="alert">
+        <span id="harvestDebridSealWarnText">A conta do Colhedor está gravada, mas a chave não abre (RESOLVE_SECRET foi alterado). Restaure o .env ou salve a chave novamente.</span>
+      </div>
+      <div id="harvestDebridStatus" class="catalog-summary"><span>Origem <b>—</b></span></div>
+      <div class="form-grid">
+        <div class="form-item">
+          <label for="harvestDebridService">Serviço</label>
+          <p class="field-desc">AllDebrid serve o quota-warn, mas não aquece o cache do Real-Debrid.</p>
+          <select id="harvestDebridService"></select>
+          <div id="harvestDebridCaps" class="catalog-pills"></div>
+        </div>
+        <div class="form-item">
+          <label for="harvestDebridKey">Chave de API</label>
+          <p class="field-desc">Cole apenas para testar ou salvar: o campo é limpo ao fim de cada ação e a chave nunca é exibida nem pré-preenchida.</p>
+          <input id="harvestDebridKey" type="password" autocomplete="off" spellcheck="false" placeholder="cole a chave aqui" />
+          <span class="field-env">Sem RESOLVE_SECRET no .env o salvamento é recusado (a chave nunca é gravada em claro).</span>
+        </div>
+      </div>
+      <div class="toolbar actions-row">
+        <button id="harvestDebridTestBtn" type="button">Testar chave</button>
+        <button id="harvestDebridSaveBtn" class="primary" type="button">Salvar conta</button>
+        <button id="harvestDebridResetBtn" class="danger" type="button">Restaurar .env</button>
+      </div>
+      <p id="harvestDebridFeedback" class="feedback" role="status" aria-live="polite"></p>
+      <div id="harvestDebridOutput" class="test-output" role="status" aria-live="polite"></div>
     </section>
 
     <section aria-labelledby="harvestTrafficTitle">
@@ -589,7 +625,7 @@
         <button id="harvestPresetAcelerado" class="preset-btn" type="button">Preset Acelerado (Madrugada)</button>
         <button id="harvestPresetSilencioso" class="preset-btn" type="button">Preset Silencioso / Econômico</button>
       </div>
-      <div class="toolbar" style="margin-top: 18px; display: flex; gap: 12px; align-items: center;">
+      <div class="toolbar actions-row">
         <button id="harvestSaveBtn" class="primary" type="button">Salvar Alterações</button>
         <button id="harvestResetBtn" class="danger" type="button">Restaurar Padrões (.env)</button>
       </div>
@@ -636,6 +672,7 @@
 <script src="/dashboard-trace.js"></script>
 <script src="/dashboard-autofetch.js"></script>
 <script src="/dashboard-harvest.js"></script>
+<script src="/dashboard-harvest-debrid.js"></script>
 <script src="/dashboard-f3.js"></script>
 <script src="/dashboard-catalog.js"></script>
 <script src="/dashboard-boot.js"></script>

@@ -102,6 +102,9 @@ function renderHarvesterPanel(harvest, counters, uptimeS) {
       badge.style.display = overridden.indexOf(k) !== -1 ? "inline-block" : "none";
     }
   }
+  // Conta de debrid de fundo (quota-warn / warm RD): identidade mascarada do
+  // snapshot — a chave crua nunca chega ao painel.
+  renderHarvestDebridAccount(harvest.debridAccount, harvest.debridResolved);
 }
 
 function saveHarvesterConfig() {

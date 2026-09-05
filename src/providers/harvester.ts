@@ -19,7 +19,7 @@ import { prefix } from '../utils/cache-keys.js';
 import * as activity from './activity.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
-import debrid from '../debrid/index.js';
+import * as harvesterDebrid from '../utils/harvester-debrid-live.js';
 import { notify } from '../utils/notify.js';
 import { nextSeeds } from './imdb-seed.js';
 import * as harvesterLive from '../utils/harvester-live.js';
@@ -52,14 +52,16 @@ const preemptsByObra = new Map<string, number>();
 
 async function checkQuotaWarning() {
   if (!config.notify.enabled || !config.notify.webhookUrl) return;
-  const adapter = config.debrid.service ? debrid.BY_ID.get(config.debrid.service) : null;
-  if (!adapter || typeof adapter.accountStatus !== 'function') return;
-  if (!config.debrid.apiKey || !config.debrid.envOperatorAccount) return;
+  // Conta de fundo do colhedor (painel > .env): o gate de operador mora no
+  // resolveQuota; sem conta ou sem adaptador com accountStatus, nada roda.
+  const quota = harvesterDebrid.resolveQuota();
+  if (!quota) return;
+  const adapter = quota.adapter;
   const quotaWarnKey = `${prefix('harvest')}quotaWarn`;
   const cooldownMs = config.harvest.quotaWarnCooldownMs;
   if (cooldownMs > 0 && cache.get(quotaWarnKey)) return;
   try {
-    const status = await adapter.accountStatus(config.debrid.apiKey);
+    const status = await adapter.accountStatus(quota.apiKey);
     if (cooldownMs > 0) {
       cache.set(quotaWarnKey, 1, Math.ceil(cooldownMs / 1000));
     }

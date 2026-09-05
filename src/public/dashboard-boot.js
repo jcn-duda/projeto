@@ -19,6 +19,13 @@ function bind() {
   fillDebridTestServices();
   $("debridTestButton").addEventListener("click", function () { runDebridAccountTest($("debridTestButton")); });
   $("debridTestKey").addEventListener("keydown", function (event) { if (event.key === "Enter") runDebridAccountTest($("debridTestButton")); });
+  fillHarvestDebridServices();
+  updateHarvestDebridCaps();
+  $("harvestDebridService").addEventListener("change", updateHarvestDebridCaps);
+  $("harvestDebridTestBtn").addEventListener("click", function () { testHarvestDebridKey($("harvestDebridTestBtn")); });
+  $("harvestDebridSaveBtn").addEventListener("click", function () { saveHarvestDebrid($("harvestDebridSaveBtn")); });
+  $("harvestDebridResetBtn").addEventListener("click", function () { resetHarvestDebrid($("harvestDebridResetBtn")); });
+  $("harvestDebridKey").addEventListener("keydown", function (event) { if (event.key === "Enter") saveHarvestDebrid($("harvestDebridSaveBtn")); });
   $("cacheNamespace").addEventListener("change", updateCacheScopeAvailability);
   for (i = 0; i < actions.length; i += 1) actions[i].addEventListener("click", function () { runAction(this); });
   document.addEventListener("visibilitychange", function () {

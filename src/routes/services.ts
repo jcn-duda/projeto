@@ -12,6 +12,7 @@ import * as log from '../utils/logger.js';
 import * as autofetch from '../providers/autofetch.js';
 import * as autofetchRunner from '../providers/autofetch-runner.js';
 import * as autofetchLive from '../utils/autofetch-live.js';
+import * as harvesterDebrid from '../utils/harvester-debrid-live.js';
 import * as releaseIndex from '../utils/release-index.js';
 import harvester from '../providers/harvester.js';
 import * as harvesterLive from '../utils/harvester-live.js';
@@ -47,6 +48,7 @@ function buildServices(): AppServices {
     releaseIndex,
     harvester,
     harvesterLive,
+    harvesterDebrid,
     magnetdb,
     brResolvers,
     providers,

@@ -170,7 +170,13 @@ function makeDiagnosticHandlers(services: AppServices) {
         debrid: { active: services.debrid.current()?.id || null, account, accounts, services: services.debrid.SERVICES },
         autofetch: { ...services.autofetch.snapshot(), ...services.providers.autofetchStatus() },
         releaseIndex: releaseIndexStatus(services),
-        harvest: services.harvester.status(),
+        harvest: {
+          ...services.harvester.status(),
+          // Conta de fundo do colhedor: identidade segura (nunca a chave crua)
+          // + qual serviço o quota-warn resolveria agora.
+          debridAccount: services.harvesterDebrid.snapshot(),
+          debridResolved: services.harvesterDebrid.resolveQuota()?.adapter?.id ?? null,
+        },
         f3: brCoverage.status(),
         magnetdb: services.magnetdb.status(),
         catalog: services.debrid.catalogStatusEnv(),

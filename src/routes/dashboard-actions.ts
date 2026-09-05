@@ -1,17 +1,13 @@
 // Despacho por AÇÃO do /dashboard-action.json (PLANO_MELHORIAS §5.8, item 8).
-// Extraído de diagnostics.ts: a cadeia de `if` por ação era o bloco que mais
-// crescia no arquivo — cada ação nova do painel entrava ali. O mapa
-// ação→handler cresce melhor: cada entrada é independente e adicionável sem
-// tocar o despacho, e a allowlist de ações vira o próprio conjunto de chaves.
-// Nenhuma mudança de comportamento: o guard de token (`unavailable`) continua
-// NA FRENTE, no handler de diagnostics.ts; allowlist e `confirm` das
-// destrutivas são checados ANTES do admission (400 sem gastar vaga no gate);
-// toda execução acontece dentro do try/finally que libera a vaga.
+// Extraído de diagnostics.ts: mapa ação→handler — cada ação nova entra sem
+// tocar o despacho. O guard de token fica NA FRENTE em diagnostics.ts; a
+// allowlist e o `confirm` das destrutivas rodam antes do admission do gate.
 
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 import { errorMessage } from '../utils/logger.js';
 import { streamsCacheScope } from '../utils/request-key.js';
+import { harvestDebridGet, harvestDebridSet } from './dashboard-actions-harvest-debrid.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -39,10 +35,8 @@ const DESTRUCTIVE_ACTIONS = new Set([
   'manual-delete',
 ]);
 
-// Teto da chave no corpo do teste de conta: credencial legítima tem dezenas de
-// caracteres; 512 cobre folgado e impede que o corpo vire canal de payload
-// gigante contra a API do serviço. É validação de ENTRADA, não config — por
-// isso não mora em src/config.ts.
+// Teto da chave no corpo do teste de conta: credencial tem dezenas de
+// caracteres; 512 cobre folgado e impede payload gigante contra a API.
 const MAX_TEST_KEY_LENGTH = 512;
 
 // `max` do corpo: número finito positivo vira inteiro; qualquer outra coisa
@@ -144,6 +138,11 @@ const ACTIONS: Record<string, ActionHandler> = {
     services.log.info('[dashboard] config do colhedor restaurada aos padrões do .env');
     return res.json({ ok: true, action, effective });
   },
+
+  // Conta de fundo do colhedor: ações em dashboard-actions-harvest-debrid.js
+  // (o teste da chave reutiliza o `debrid-account-test` do despacho).
+  'harvester-debrid-get': harvestDebridGet,
+  'harvester-debrid-set': harvestDebridSet,
 
   'warm-pause': ({ services, res, action }) => {
     services.rdWarmer.setPaused(true);
