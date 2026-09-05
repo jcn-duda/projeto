@@ -75,47 +75,43 @@ dos achados críticos). Autocontido: pode ser executado por um agente sem acesso
 
 ---
 
-## Estado atual (2026-08-22, pós-auditoria de revisão)
+## Estado atual (2026-09-04)
 
-**Fases 1, 2 e 3 estão commitadas e verdes.** A decisão de "commitar ou
-descartar a árvore de trabalho" que este documento descrevia foi resolvida —
-o trabalho ficou, em cinco commits:
+**Fases 0–6 e M0–M6 estão no código.** Base da revisão local: `esm` @
+`94c8f7b`. Inventário atual pelo `npm run test:complete`, sem duplicar contagens
+manuais de arquivos. Estado de produção exige conferir a instância implantada.
 
-| Commit | Cobre |
+**Revisão Docker/CI (2026-09-04, alterações locais):** runtime instala com
+`npm ci --omit=dev` e lockfile; filtros de push/PR incluem `resolvers/**`,
+`*-resolver/**` e `.dockerignore`; audit de produção agora bloqueia o CI.
+O gate revelou `qs` vulnerável: override `^6.16.0` mantém Express 4 e corrige
+as transitivas do Express/body-parser. Skills e agentes de deploy/segurança
+acompanham esses contratos.
+
+**Validado localmente nesta revisão:** Node 22.19.0, build + typecheck verdes,
+1.858 testes passando (zero falhas), `test:complete` com 191 arquivos + 6
+harnesses inventariados, `lint:lines -- --check` verde e audit de produção
+sem vulnerabilidades. Imagem `adom-ci-review:20260904` construída; dependências
+do runtime inspecionadas sem iniciar a stack. Skills de deploy/segurança e
+YAML dos workflows validados. **Não validado nesta revisão:** execução dos
+harnesses adversariais, saúde da stack, GitHub Actions remoto e deploy na VPS.
+A auditoria completa ainda reporta 4 vulnerabilidades em dependências de
+desenvolvimento (3 baixas, 1 alta); não entram no runtime com `--omit=dev`.
+
+**O que continua aberto de verdade:**
+
+| Item | Estado |
 |---|---|
-| `bda6a7c` | B1, B2 — snapshot com TTL, lotes de drop separados |
-| `780809b` | S1 (completo), S2, S3, S4, 2.9, 2.10 |
-| `e69450c` | B3, B4, T6 |
-| `c9a7888` | T1, T2, T3, T7 |
-| `54239f3` | `PROJECT.md` + este plano |
+| **6.3 / 7.5** janela `davail` | Baseline de 7 dias **venceu** (2026-08-31 22:58). TTLs 900s/120s **não** foram mexidos — falta coleta autenticada na instância de produção + decisão explícita |
+| **6.7 / 7.10** `checkJs` nos resolvers | Medido (354 erros); **fora** dos 30 dias |
+| **Fase 7** trilha A (VPS) | 7.1–7.4 ainda operacionais (`DEPLOY.md`/cron, saúde, `basic_auth`, fonte BR). 7.8 (Tier 5) ✅ |
+| **Fase 7** trilha C | 7.9 + 7.12–7.16 ✅ no código; 7.11 SearchPhase **não fazer** |
+| **Fase 8** | Código das peças duráveis ✅ (`adsub`/`adrm`/blindagem/evict/reconcile). Evicção e reconcile **default OFF**. Aceite de ocupação em produção depende de ativação + medição |
+| **Fase 9 / P5** | **Commitada** (`ea15894` → `cb934c9` → `9eb98f4`); `streams`/`idx` em **v10**. Não alegar DONE em produção sem deploy autorizado |
 
-Baseline verificado: `typecheck` 0, build ok, **1.117/1.117 testes**,
-`test:complete` ok com os 6 harnesses validados.
-
-**Uma correção entrou depois, na revisão** (fase 1, ver 1.6 abaixo): o refresh
-do snapshot por TTL era **aguardado** dentro do `checkCached`, o que colocava
-um `/magnet/status` de até 6s dentro de uma reserva de debrid de 4500ms — uma
-vez a cada TTL, e em toda busca enquanto o endpoint estivesse fora do ar. O
-refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado,
-com teto pelo `DEBRID_CHECK_FLOOR_MS`.
-
-**O que continua aberto (2026-08-24):** fases 0–6 estão no código (0.6 ✅ —
-o grafo antigo que dizia “exceto README” estava atrasado). Aberto de verdade:
-janela de 7 dias do **6.3** (TTL do `davail` ainda não se mexe), resíduo
-menor do **2.4** (rotação da fila com backoff já pausando), **6.7** (`checkJs`
-medido, não feito) e a **Fase 7** (operação / produção — só especificada, sem
-execução neste commit). A auditoria forense do Tier 5 (M4) não é gate.
-
-A meta de `any` está em **143** (`e25ef29`), medida com o contador de AST
-corrigido de §5.7 — o anterior varria 66 dos 72 arquivos e por isso reportava
-149 onde o número real era 156. As alegações de 147 e 149 foram substituídas.
-
-Duas conclusões desta rodada foram declaradas antes de estarem completas e
-ficaram registradas com a correção no lugar: **5.4** (três funções ainda eram
-duplicação real nos profiles, migradas em `48b6773`) e **5.7** (a meta só foi
-batida em `e25ef29`). Ambas seguem o mesmo padrão — o critério de conclusão era
-descritivo ("os arquivos existem") em vez de uma métrica verificável. Ver
-"Riscos do próprio plano".
+A meta histórica de `any` (<150) fechou em **143** (`e25ef29`). Catraca 5.8 e
+painel 5.9 estão no ar. Banco de magnets: cota L1 `mag=50000`, teto global
+`84000`.
 
 ---
 
@@ -707,7 +703,7 @@ delegar trabalho que depende do estado corrente.
 |---|---|---|
 | 6.1 ✅ | `stremio-addon-sdk` saiu do runtime: router Express próprio preserva manifest/stream, CORS, `Cache-Control` e mounts raiz/config; SDK ficou em devDeps como referência dos 3 e2e | concluída após 5.5 |
 | 6.2 ✅ | Dashboard: `clear-cache` seletivo por namespace ou pela instalação corrente; sem `scope` preserva limpeza global | concluída após 5.5 |
-| 6.3 ✅ | `davail`: amostra local de 2026-08-24 (uptime 1.822s) teve 112/360 = **31,1%** de hashes repetidos e 186 servidos do L1; acima do gate histórico de 30%, mantém TTLs 900s/120s. **Baseline 0 (22:58 do mesmo dia, janela de 7 dias aberta):** contadores acumulados do container: `davail.servedHashes`=878 vs `debrid.check.hashes`=736 → **54,4%** das checagens de hash atendidas localmente; `debrid.check.cached`=507/736; gate antigo `repeated/hashes` em 154/736 = 20,9%. A métrica de decisão da janela é `servedHashes/(servedHashes+hashes)` — o ratio `repeated/hashes` mede redescobrimento, não valor do cache, e infla com corrida perdida/timeout sem reuse real. Coleta diária autenticada por 7 dias antes de tocar TTL | análise, sem código; decisão de TTL pendente da janela |
+| 6.3 ✅ | `davail`: amostra local de 2026-08-24 (uptime 1.822s) teve 112/360 = **31,1%** de hashes repetidos e 186 servidos do L1; acima do gate histórico de 30%, mantém TTLs 900s/120s. **Baseline 0 (22:58 do mesmo dia):** `davail.servedHashes`=878 vs `debrid.check.hashes`=736 → **54,4%** local; gate antigo `repeated/hashes` em 20,9%. Métrica de decisão: `servedHashes/(servedHashes+hashes)`. **Janela de 7 dias venceu em 2026-08-31 22:58 sem decisão de TTL registrada** — TTLs seguem 900s/120s; reabrir coleta autenticada via 7.5 antes de tocar config | análise; decisão de TTL **pendente** (não expirada como "manter", só como "ainda não decidida") |
 | 6.4 ✅ | Decode de config (máximo 8 KB, regex + base64 + JSON) é CPU limitado; risco aceito sem rate limit enquanto não houver abuso observado. `/seal-config` já tem gate próprio | decisão teórica, sem código |
 | 6.5 ✅ | Healthcheck passou a quádruplo: addon, Jackett, FlareSolverr e API admin loopback do Caddy (`:2019/config/`) | operacional |
 | 6.5b ✅ | A sonda do Caddy precisa de `Origin` explícito (`http://127.0.0.1:2019`): a API admin faz origin check e o `fetch` do Node não manda o header, então ela respondia **403** e reprovava o container com os quatro processos vivos. Não apareceu na hora porque o container em pé era anterior à quarta sonda; só quebraria no rebuild seguinte | `23c64c2` |
@@ -751,7 +747,7 @@ Trilha A (produção, 0 código)
 
 | # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
 |---|---|---|---|---|---|---|---|
-| 7.5 | Janela `davail` (continuação do 6.3). Baseline 0: 878 servidos vs 736 de rede (~54% local). Decisão: `servedHashes / (servedHashes + hashes)` — **não** `repeated/hashes` | B1 | S (coleta) | prazo se TTL errado | 7.1 (métrica da instância no ar) | PLANEJADO | 7 dias de coleta autenticada **antes** de mudar `DEBRID_AVAIL_POS_TTL` / `NEG_TTL`. Código só depois da janela |
+| 7.5 | Janela `davail` (continuação do 6.3). Baseline 0: 878 servidos vs 736 de rede (~54% local). Decisão: `servedHashes / (servedHashes + hashes)` — **não** `repeated/hashes` | B1 | S (coleta) | prazo se TTL errado | 7.1 (métrica da instância no ar) | **JANELA VENCIDA (2026-08-31) — decisão pendente** | Reabrir coleta autenticada na VPS; só então mudar `DEBRID_AVAIL_POS_TTL` / `NEG_TTL`. Código só depois da decisão |
 | 7.6 | Jackett desperdiçado (`search.jackett.wastedQueries` / `wastedMs` em `src/providers/jackett.ts`) | B2 | S | prazo | 7.1 | PLANEJADO | 7 dias de série; só então cortar indexer. Sem feeling |
 | 7.7 | Premiumize órfãos (`debrid.pm.status.unmatched` alto na amostra) | B3 | S | dado se reescrever `transferHash` no escuro | 7.1 | PLANEJADO | confirmar transferência sem hash casável (já em `AGENTS.md`) vs regressão. Sem evidência nova, não reescrever `transferHash` |
 | 7.8 | M4 / Tier 5 forense (HMAC adulterado, config maliciosa — `TEST_INFRA.md` item 14) | B4 | M | nulo se só auditoria | M3 feito; **não** é gate de deploy | DONE (2026-08-31) | executada fora de gate, por desenho: gates verdes (`typecheck` 0, `build`, `test:complete` 90+6, `lint:lines` baseline OK), camada de segurança **209/209** (HMAC adulterado/ausente → 403, `secret-box` fail-closed, config malformada → 404, `?token=` → 401, 429), regressão **1.563/1.563**, `test:adversarial` APPROVE com mutações **10/10** (MUT-03 HMAC, MUT-07 secretBox; 20 seq + 6 par; `dist/` restaurado), stress 19+135, adversarial-m1 69/69, protector 42/42, challenger 11/11. Sem correção. Não misturar com 7.1 |
@@ -1153,7 +1149,7 @@ TTL 0) e expurgo por hash (`--unblock`); o 8.16 é revert de `a264b7c` ou só
 
 ---
 
-## Fase 9 — P5 observabilidade/diagnóstico: `/stream-trace.json` (NO CÓDIGO — working tree sem commit — 2026-09-01)
+## Fase 9 — P5 observabilidade/diagnóstico: `/stream-trace.json` ✅ NO CÓDIGO (2026-09-01)
 
 > **Aviso de nome:** "P5" é o rótulo da auditoria para o eixo de
 > **observabilidade/diagnóstico** — não é a Fase 5 deste plano (refactor
@@ -1167,18 +1163,20 @@ explicava o **caminho de um item** — quem foi cortado, em que estágio, por
 qual regra. A Fase 8 nasceu de arqueologia de log e métrica agregada; o P5 é
 a resposta estrutural a essa dor.
 
-**Status real (2026-09-01):**
+**Status real (2026-09-04):**
 
 | Fatia | Conteúdo | Estado |
 |---|---|---|
-| Fase 0+1 — captura + leitura offline | ledger observacional `src/utils/stream-trace.ts` (puro, 180 linhas) com 21 reason codes (`title-filter`, `dedupe`, `min-seeders`, `cached-only`, `quality-quota`, `br-guarantee-replaced`, `notice`…), instrumentação guardada em 6 arquivos do pipeline; o trace viaja **dentro** da entrada `streams:v8` e o passe tardio o copia obrigatoriamente; `GET /stream-trace.json` (e a variante com segmento de config) é **só leitura** — `getWithStale`, nunca `peek`, para enxergar o que a busca enxerga inclusive na janela de graça | ✅ **commitada em `ea15894`** |
-| P0 cirílico | guarda `CYRILLIC_RE` no DUB/DUBBED genérico (`src/utils/audio-quality.ts`: `genericDubProvesPt` no título + `hasPtAudioMark` no path); bump `streams`/`idx` v8→v9 em `cache-keys.ts`; corpus com o caso real medido | **working tree — sem commit** |
-| Fatia A — recompute offline | `src/utils/trace-recompute.ts` (162): entrada **sem** trace é explicada com matéria-prima local (idx `lookupQuiet` + raw `peekRawFor` + inventário `peekQuiet`) e peeks quiet; `searchMeta` (nomes+ano) passa a viajar na entrada para o recompute re-aplicar o filtro de título sem refazer Cinemeta/TMDB | **working tree — sem commit** |
-| Fatia B — live TB/PM | `src/debrid/live-check.ts` (117): checagem ao vivo **read-only** só onde a consulta é GET puro; rota extraída de `diagnostics.ts` (que estourou a catraca) para `src/routes/stream-trace.ts` (149) — dividir, não bless | **working tree — sem commit** |
-| Fatia C — painel ES5 | `src/public/dashboard-trace.js` (303): aba `Stream Trace` (`/dashboard#trace`) no dashboard, ES5 puro, top-level sem IIFE, `PAGE_ASSETS` atualizado; sem polling — só no clique | **working tree — sem commit** |
+| Fase 0+1 — captura + leitura offline | ledger `src/utils/stream-trace.ts`; `GET /stream-trace.json` só leitura | ✅ `ea15894` |
+| P0 cirílico | guarda `CYRILLIC_RE` no DUB genérico; bump streams/idx v8→v9 | ✅ `cb934c9` |
+| Fatia A — recompute offline | `src/utils/trace-recompute.ts` | ✅ `cb934c9` |
+| Fatia B — live TB/PM | `src/debrid/live-check.ts` + `src/routes/stream-trace.ts` | ✅ `cb934c9` |
+| Fatia C — painel ES5 | `src/public/dashboard-trace.js` (`/dashboard#trace`) | ✅ `cb934c9` |
+| Defesa de rótulos | sanitize+truncate no recompute e no live | ✅ `9eb98f4` |
+| Bump v10 | `ENGLISH\|ENG` na mesma guarda do DUB genérico | ✅ `ea4c8d5` (e comentário em `cache-keys.ts`) |
 
-Nada disso está no ar. **Não alegar DONE em produção** — push/deploy exigem
-autorização explícita, como sempre.
+Código commitado em `esm`. **Não alegar DONE em produção** — push/deploy
+exigem autorização explícita. Namespaces atuais: `streams:v10` / `idx:v10`.
 
 ### Contratos duros (não podem regredir)
 
@@ -1273,23 +1271,20 @@ documenta.
 - Revisão independente sobre o working tree: bloqueante B1 (live sem gate)
   corrigido; nada mais aberto conhecido no código.
 
-### O que falta (administrativo, não código)
+### O que falta (administrativo / produção)
 
-1. Commit do working tree (P0 + fatias A/B/C — um commit por grupo coeso,
-   mensagem convencional em português referenciando o P5).
-2. Push/deploy **só com autorização explícita** — o bump v9 esfria `streams`
-   e `idx` no boot (custo conhecido, uma rebuild de cache).
-3. Ligar `STREAM_TRACE_LIVE=torbox,premiumize` na VPS é decisão do operador,
+1. Push/deploy **só com autorização explícita** — bumps de `streams`/`idx`
+   esfriam lista e índice no boot (custo conhecido).
+2. Ligar `STREAM_TRACE_LIVE=torbox,premiumize` na VPS é decisão do operador,
    não consequência do deploy.
 
 **Explicitamente fora:** live na AllDebrid ou no RD (contratos 1–2),
 recompute com rede, qualquer escrita no debrid a partir do diagnóstico,
 expor hash/chave no payload.
 
-**Rollback:** `git revert` de `ea15894` tira captura+leitura offline; o
-working tree sem commit é descartável. Em runtime, `STREAM_TRACE=false`
-desliga os quatro modos de uma vez (e documenta que desligar também cega a
-leitura de traces históricos).
+**Rollback:** `git revert` da cadeia `ea15894`…`9eb98f4` (e bumps posteriores
+de namespace). Em runtime, `STREAM_TRACE=false` desliga os quatro modos de uma
+vez.
 
 ---
 
@@ -1298,21 +1293,17 @@ leitura de traces históricos).
 ```
 Fase 0 (docs)      ✅ (0.6 README: nada a fazer — envs no .env.example)
 Fase 1 (B1,B2)     ✅ + 1.6/1.7 (refresh em fundo, achado da revisão)
-Fase 2 (S*,B3,B4)  ✅ — resíduo menor no 2.4 (rotação + backoff; 7.9)
+Fase 2 (S*,B3,B4)  ✅ — resíduo 2.4 fechado em 7.9
 Fase 3 (T1–T7)     ✅ — GATE da fase 5 satisfeito
 Fase 4             ✅ 4.1–4.3
    │
-   └─→ Fase 5 (refactors) ─→ Fase 6 (6.1–6.8; 6.3 janela; 6.7 medido)
-                                 └─→ Fase 7 (operação) PLANEJADA
-                                       └─→ Fase 8 EM EXECUÇÃO (derivada do
-                                           diagnóstico do 7.2 aplicado)
-                                           8.2 na VPS; 8.4/8.15/8.14/8.16
-                                           em commits locais validados, sem push
+   └─→ Fase 5 (refactors) ─→ Fase 6 (6.1–6.8; 6.3 janela vencida sem decisão TTL; 6.7 medido)
+                                 └─→ Fase 7 (operação) — trilha C ✅; A/B parciais na VPS
+                                       └─→ Fase 8 no código (default OFF nos knobs destrutivos)
+                                           8.2 na VPS; peças duráveis commitadas
 
-Fase 9 (P5 observabilidade — eixo próprio, NÃO é a Fase 5) — nasce da dor de
-diagnóstico da Fase 8; a fase 0+1 commitada em `ea15894`, P0 cirílico +
-fatias A/B/C no working tree sem commit. O trace já retroalimentou o
-classificador (achado cirílico → streams/idx v9).
+Fase 9 (P5 observabilidade) ✅ no código (`ea15894`…`9eb98f4` + bumps v9/v10).
+Deploy em produção continua autorização explícita.
 ```
 
 - 5.1–5.7 são sequenciais entre si (mesmos arquivos), mas 5.2, 5.4 e 5.5 são
@@ -1337,8 +1328,8 @@ linhas), os dois maiores arquivos do repo, não existem mais como monólito.
 ```
 npm run typecheck      # portão: ZERO
 npm run build          # dist/ atual (test roda dist)
-npm test               # 1.686 testes hoje (medido em 2026-09-01, pós-`9eb98f4`), zero falha
-npm run test:complete  # lista explícita fechada
+npm test               # lista explícita em package.json; zero falha
+npm run test:complete  # lista explícita fechada + 6 harnesses
 # fase 2+ (tocou runtime de rede/debrid):
 node dist/scripts/smoke.js          # pipeline ponta a ponta, rede de verdade
 # fase 5 (todas as subfases):

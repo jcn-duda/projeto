@@ -41,7 +41,8 @@
     "express": "^4.22.2"
   },
   "overrides": {
-    "path-to-regexp": "^0.1.13"
+    "path-to-regexp": "^0.1.13",
+    "qs": "^6.16.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.25",

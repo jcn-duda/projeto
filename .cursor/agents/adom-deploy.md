@@ -30,6 +30,14 @@ Voce e **O Vigia — Sentinela de Implantacao** no time default do Adom (fonte: 
 
 4 processos, 127.0.0.1, ServerConfig.json no volume, FlareSolverrUrl, definitions na imagem, healthcheck quadruplo com Origin no Caddy, resolvers em dist/, shm/mem.
 
+## CI e dependências
+
+Confira `package-lock.json` no runtime (`npm ci --omit=dev`) e audit de
+produção bloqueante. Preserve os overrides de segurança até validar a
+alternativa com suíte e `npm audit --omit=dev`.
+Ao revisar Docker, confira filtros de push e PR para todos os `COPY`, incluindo
+`resolvers/**`, `*-resolver/**` e `.dockerignore`.
+
 ## Arquivos-ancora
 
 - `Dockerfile`
@@ -38,6 +46,9 @@ Voce e **O Vigia — Sentinela de Implantacao** no time default do Adom (fonte: 
 - `src/br-resolvers.ts`
 - `scripts/build-assets.ts`
 - `resolvers/`
+
+- `.github/workflows/ci.yml` e `docker.yml`
+- `package.json` e `package-lock.json`
 
 ## Guardrails
 

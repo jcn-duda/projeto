@@ -75,7 +75,7 @@
       "name": "Chupim",
       "role": "Donzelo do Autofetch",
       "peculiaridade": "Autofetch e dropUncached sao forcas opostas; hold antes da checagem; fila persistente + backoff + stall/dead + season fill.",
-      "focus": "Autofetch: selecao de candidatos, hold antes da checagem, marker, vaga por busca (autoFetchMax 1..4), fila persistente, drainNext, recheck/settle, stall/dead streak, season fill, prefetch E+1, backoff.",
+      "focus": "Autofetch: selecao de candidatos, hold antes da checagem, marker, vaga por busca (autoFetchMax 1..12), cobertura por qualidade-alvo (720/1080/4K), fila persistente + surplus, drainNext, recheck/settle, stall/dead streak, season fill, prefetch E+1, backoff.",
       "files": [
         "src/providers/autofetch.ts",
         "src/providers/autofetch-runner.ts",
@@ -183,10 +183,15 @@
       "id": "deploy",
       "name": "O Vigia",
       "role": "Sentinela de Implantação",
-      "peculiaridade": "Zela pelo container unico: 4 processos, loopback, healthcheck triplo, ServerConfig.json no volume.",
-      "focus": "Container unico: 4 processos (caddy/jackett/flaresolverr/addon) via wait -n + pipefail, tudo por 127.0.0.1, ServerConfig.json no volume, FlareSolverrUrl, definitions da imagem (nunca montar volume), healthcheck triplo, shm_size/mem_limit, resolvers embutidos no processo do addon, dist/ copiado para /app/dist.",
+      "peculiaridade": "Zela pelo container unico: 4 processos, loopback, healthcheck quadruplo, ServerConfig.json no volume.",
+      "focus": "Container unico: 4 processos (caddy/jackett/flaresolverr/addon) via wait -n + pipefail, tudo por 127.0.0.1, ServerConfig.json no volume, FlareSolverrUrl, definitions da imagem (nunca montar volume), healthcheck quadruplo (7000+9117+8191+Caddy :2019 com Origin), shm_size/mem_limit, resolvers embutidos no processo do addon, dist/ copiado para /app/dist.",
       "files": [
         "Dockerfile",
+        ".github/workflows/docker.yml",
+        ".github/workflows/ci.yml",
+        ".dockerignore",
+        "package.json",
+        "package-lock.json",
         "docker-compose.yml",
         "scripts/entrypoint.sh",
         "src/br-resolvers.ts",
@@ -194,7 +199,7 @@
         "resolvers/",
         "docker-data/jackett/ServerConfig.json"
       ],
-      "guards": "Caminho relativo muda de profundidade com dist/ (DB_PATH sobe 3 niveis; resolvers copiados para /app/dist, nao /app). Trocar imagem nao corrige ServerConfig.json (vive no volume)."
+      "guards": "Caminho relativo muda de profundidade com dist/ (DB_PATH sobe 3 niveis; resolvers copiados para /app/dist, nao /app). Trocar imagem nao corrige ServerConfig.json (vive no volume). Runtime usa npm ci --omit=dev com lockfile; audit de producao bloqueante; filtros Docker de push/PR cobrem todos os COPY, resolvers/**, *-resolver/** e .dockerignore."
     }
   ]
 }

@@ -4,34 +4,29 @@
 
 ## Architecture
 
-> **Estado (2026-08-31):** o M3 fechou, então as seções abaixo descrevem o
-> layout que **já existe** em `src/` — não mais um alvo. A ressalva histórica
-> ("isto é o alvo, não o presente") valia enquanto 22/A5 e 25/A6 estavam
-> abertos. Confira a tabela de **Milestones** para o status de cada item;
-> aberto: só a janela de baseline do 6.3 dentro do M5 (aberta em
-> 2026-08-24 22:58; os 7 dias vencem 2026-08-31 22:58 — a decisão de TTL só é
-> legítima depois disso). O M6 (catraca de linhas 5.8 + extração dos HTML do
-> painel 5.9) fechou em 08-29, e o M4 fechou em 08-31 com a auditoria forense
-> do Tier 5 executada (registro na tabela de Milestones e no 7.8 do
-> `PLANO_MELHORIAS.md`).
+> **Estado (2026-09-04):** M0–M6 e a metade regressão do M4 estão **DONE**.
+> Base da revisão local: `esm` @ `94c8f7b`; alterações Docker/CI nesta árvore.
+> Inventário de testes: executar `npm run test:complete`; regressão: `npm test`.
+> Entrega: runtime com lockfile (`npm ci --omit=dev`), filtros Docker cobrindo
+> núcleo/shims de resolvers e audit de produção bloqueante. Isso não comprova
+> deploy na VPS; evidência de validação desta revisão em `PLANO_MELHORIAS.md`.
+> Namespaces `streams`/`idx` em **v10** (`cache-keys.ts`); cota `mag=50000`,
+> teto global `84000`. Pós-M6 entregue e no código: Fase 8 (posse `adsub`,
+> anti-reupload `adrm`, evicção/reconcile default OFF, blindagem BR), Fase 9/P5
+> (`/stream-trace.json` + recompute + live TB/PM + painel — commitada desde
+> `cb934c9`/`9eb98f4`), Chupim (cobertura por qualidade 720/1080/4K, fila
+> surplus, `autoFetchMax` 1..12), colhedor observável, painel de incerteza.
+> **Aberto operacional:** Fase 7 trilha A/B na VPS (7.1 branch do cron, 7.5
+> janela `davail` — baseline de 7 dias **venceu** em 2026-08-31 sem decisão de
+> TTL registrada; TTLs 900s/120s seguem); knobs destrutivos 8.16/8.17 só com
+> ativação explícita. Para o porquê de cada decisão, `AGENTS.md` é a fonte de
+> verdade — ele nunca descreve estado futuro como presente.
 >
-> **Pós-M6 (2026-08-30)** — seis commits estendem o que já existe, sem
-> milestone novo: `1062ef8` corrige o colhedor (tarefas M1–M6 do **plano do
-> colhedor**, `docs/superpowers/plans/2026-08-30-colhedor-correcoes-cobertura-br.md`
-> — rótulos do plano, **não** os milestones M1–M6 desta tabela); `a33f96a`
-> desacopla o gate das features de operador (`DEBRID_OPERATOR_ENV_ACCOUNT`)
-> da herança de chave; `f468fb0` põe banner de incidente com `reason`/`fix`
-> no painel e memo de 60s na consulta de saúde da conta; `9b9d72d` adiciona
-> `GET /test-resolver.json` (probe direto dos resolvedores BR, sem passar
-> pelo Jackett); `9d3e2a6` implementa o ⚡ de memória no degradado
-> (`DEBRID_ALIVE_AS_CACHE`, default desligado); `3d6f89d` adiciona o teste
-> seguro de conta de debrid no painel (Fase 1 — sem salvar, sem trocar
-> config). Medido no checkout em 2026-09-01, pós-`9eb98f4`: **125** arquivos
-> `.ts` em `src/` totalizando **24.166 linhas**, e **106** arquivos `*.test.ts`
-> (100 unit + 6 e2e), todos na lista explícita do `npm test`
-> (`test:complete` 106+6 verde, **1.686/1.686**). Para o porquê de cada decisão, `AGENTS.md`
-> continua sendo a fonte de verdade — ele nunca descreve estado futuro como
-> presente.
+> **Histórico (2026-08-31):** o M3 fechou, então as seções abaixo descrevem o
+> layout que **já existe** em `src/` — não mais um alvo. M6 fechou em 08-29; M4
+> forense em 08-31. Snapshot anterior (2026-09-01, pós-`9eb98f4`): 125 `.ts` /
+> 24.166 linhas / 106 `*.test.ts` / 1.686 testes — supersedido pelas contagens
+> do topo.
 - **Process & Application Layer**:
   - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
   - `src/app.ts`: Express application factory (`createApp()`); route *registration* lives in `src/routes/register.ts` since §5.5 (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/dashboard`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`, plus the `PAGE_ASSETS` allowlist of panel CSS/JS added by §5.9).
@@ -66,18 +61,18 @@
 ---
 
 ## Code Layout
-- `src/**/*.ts`: 125 arquivos, 24.166 linhas (medido no checkout em 2026-09-01, pós-`9eb98f4`).
+- `src/**/*.ts`: código TypeScript; inventário atual via `rg --files src -g "*.ts"`.
 - `src/addon.ts`: Process entry point & lifecycle management.
 - `src/app.ts`: Express application composition only; `src/routes/*.ts` holds registration and handlers.
 - `src/config.ts`: Centralized operator environment configuration.
 - `src/runtime.ts`: User configuration overlay (`opts()`, `AsyncLocalStorage`).
 - `src/providers/*.ts`: Provider search orchestration, autofetch runner, debrid pipeline, stream builder.
-- `src/debrid/*.ts`: Debrid adapters, file selector, common helpers.
-- `src/utils/*.ts`: Format submodules, cache, net-safety, magnetdb, release-index.
+- `src/debrid/*.ts`: Debrid adapters, file selector, common helpers, live-check (P5).
+- `src/utils/*.ts`: Format submodules, cache, net-safety, magnetdb, release-index, stream-trace/trace-recompute.
 - `resolvers/*.js`: Shared CommonJS core of the five Brazilian resolvers; `resolvers/profiles/*.js`: per-site parsers and rules.
-- `src/public/*`: Panel pages (ES5, zero build) — HTML plus the CSS/JS extracted in §5.9.
+- `src/public/*`: Panel pages (ES5, zero build) — HTML plus the CSS/JS extracted in §5.9 (+ `dashboard-trace.js` and per-tab modules).
 - `scripts/check-line-budget.ts` + `.line-budget.json`: 400-line ratchet over `.ts`/`.js`/`.css` (§5.8, scope extended to `.css` on 08-29); `npm run lint:lines`.
-- `test/*.test.ts`: Complete unit test suite (100 unit + 6 E2E = 106 files tracked in `package.json`; `test:complete` 106+6 e 1.686/1.686 verdes em 2026-09-01, pós-`9eb98f4`).
+- `test/**/*.test.ts`: testes unitários e e2e; `npm run test:complete` confere a lista do `package.json` e os harnesses.
 - `test/e2e/*.test.ts`: Opaque-box E2E test suite (Tiers 1–4).
 - `test/*challenger*.ts`, `test/*stress*.ts`, `test/*adversarial*.ts`: Empirical bench test harnesses.
 
@@ -95,7 +90,7 @@
 | 7 | S5 Node 22 Type Pinning | Pin `@types/node` to `^22.0.0` aligned with `node:22-alpine` runtime | M1 | PLANO_MELHORIAS §2 |
 | 8 | B4 Autofetch Drain Backoff | Queue cycling on hourly budget exhaustion + backoff via `DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS` | M1 | PLANO_MELHORIAS §2 |
 | 9 | Corrupted L2 SQLite Recovery | Auto-rename corrupted database to `cache.db.corrupt` and recreate clean DB on boot | M1 | PLANO_MELHORIAS §2.9 |
-| 10 | Production CI Audit Step | Add `npm audit --omit=dev` non-blocking step to CI workflow | M1 | PLANO_MELHORIAS §2.10 |
+| 10 | Production CI Audit Step | Run `npm audit --omit=dev` as a blocking CI job (updated 2026-09-04) | M1 | PLANO_MELHORIAS §2.10 |
 | 11 | T1 Magnet Year Contradiction Tests | Test matrix for `magnetYearContradicts` in `test/format-magnet.test.ts` | M2 | PLANO_MELHORIAS §3.1 |
 | 12 | T2 Episode Work Identity Tests | Test matrix for `matchesEpisodeWorkIdentity` in `test/format-work-identity.test.ts` | M2 | PLANO_MELHORIAS §3.2 |
 | 13 | T3 Debrid-Link Test Suite | Dedicated `test/debridlink.test.ts` covering success flows and mocks | M2 | PLANO_MELHORIAS §3.6 |
@@ -123,7 +118,7 @@
 | M2 | Core Guardrails, Regression Safety & Budget Verification | Features 11–18 (T1–T7, B3 E2E test verification, harness mutation safety) | M1 | DONE — T1–T7 in PLANO_MELHORIAS phase 3 (`c9a7888`, `e69450c`), B3 closed by phase 4 (4.1–4.3) |
 | M3 | Modular Architectural Refactoring | Features 19–25 (A1–A6: file-selector, format split, providers split, config centralization, resolvers core, any reduction) | M2 | DONE (2026-08-24) — 20/A2 and 21/A1 on 08-23; 19/A1b, 23/A4, 24/A1c, 22/A5 and 25/A6 on 08-24. A3 (explicit `SearchPhase`) was never in scope: phase control stays implicit via latest-writer |
 | M4 | Final Validation, Adversarial Hardening (Tier 5) & E2E Testing | Feature 26: Full regression validation (`npm test`, `npm run test:complete`, `npm run smoke`), all 6 bench harnesses, forensic audit | M3 | DONE (2026-08-31) — regression half re-validated on 08-24 after Fase 6 (build, 1.200 tests, `test:complete` 66+6, the 6 harnesses, mutation score 10/10 — 20 sequential + 6 parallel, APPROVE) and again on **08-29** after M6: build, **1.509 tests**, `test:complete` **87+6**, `lint:lines` baseline OK, `npm run smoke` green against the rebuilt container. The missing **Tier 5 forensic audit ran on 2026-08-31** (`esm` @ `3d6f89d`, Node 22), outside every gate by design (PLANO_MELHORIAS 7.8): gates green (`typecheck` 0 erros, `build`, `test:complete` 90+6, `lint:lines` baseline OK — 260 files, 49 no débito registrado), security layer **209/209** (HMAC adulterado/ausente → 403, `secret-box` fail-closed, config malformada → 404, `?token=` → 401, `confirmation_required`, 429), full regression **1.563/1.563, 0 falhas** (68 suítes, 90 arquivos, 14,9s), and the bench harnesses — `test:adversarial` **APPROVE, mutations 10/10 CAUGHT** (MUT-03 HMAC, MUT-07 secretBox; 20 sequential + 6 parallel; `dist/` restaurado íntegro), `test:stress` 19+135, `test:adversarial-m1` 69/69, `test:protector-m1` 42/42, `test:challenger-m2` 11/11. Nada a corrigir |
-| M5 | Fase 6 — Longo prazo / opcionais | 6.1 SDK-out (router Express próprio), 6.2 clear-cache seletivo, 6.3 análise `davail`, 6.4 risco aceito do decode, 6.5/6.5b healthcheck quádruplo do Caddy, 6.6 janela do smoke, 6.7 checkJs medido, 6.8 export duplicado | M4 (6.1/6.2 dependiam do 5.5) | DONE (2026-08-24), exceto 6.3 com janela aberta: baseline 0 registrada (878 servidos vs 736 de rede = 54,4% de bypass local; gate antigo `repeated/hashes` em 20,9%), decisão de TTL (`DEBRID_AVAIL_POS_TTL`/`DEBRID_AVAIL_NEG_TTL`) após amostra de 7 dias — janela ainda em curso no sync de 2026-08-31: baseline aberta 2026-08-24 22:58, vence 2026-08-31 22:58; decidir antes disso é decidir sem dado. 6.7 documentada como "medido, não feito" (354 erros, 306 de `noImplicitAny` — tarefa própria, não ajuste de config) |
+| M5 | Fase 6 — Longo prazo / opcionais | 6.1 SDK-out (router Express próprio), 6.2 clear-cache seletivo, 6.3 análise `davail`, 6.4 risco aceito do decode, 6.5/6.5b healthcheck quádruplo do Caddy, 6.6 janela do smoke, 6.7 checkJs medido, 6.8 export duplicado | M4 (6.1/6.2 dependiam do 5.5) | DONE (2026-08-24) no código; **6.3:** janela de 7 dias (baseline 2026-08-24 22:58 → venceu 2026-08-31 22:58) **fechou sem decisão de TTL** — `DEBRID_AVAIL_POS_TTL`/`NEG_TTL` permanecem 900s/120s até coleta autenticada + decisão explícita (segue como 7.5). 6.7 documentada como "medido, não feito" (354 erros, 306 de `noImplicitAny`) |
 | M6 | Catraca de linhas & extração dos HTML do painel | §5.8 (teto de 400 linhas com baseline em `.line-budget.json`, núcleos compartilhados dos 5 perfis de resolver) e §5.9 (CSS/JS dos painéis em arquivos próprios) | M5 | DONE (2026-08-29) — `configure.html` 1.771→1.056 e `dashboard.html` 2.429→1.556, com 6 assets servidos por allowlist fechada; o JS ancorado pelos testes ficou inline por contrato. O scanner da catraca passou a varrer `.css` e o `configure.css` (505) entrou no baseline como débito registrado. Guarda-corpo: os testes de painel passaram **sem alteração**. A validação ao vivo achou 2 defeitos **pré-existentes** que a extração tornou visíveis (`displayValue` tratava "at" como substring — `hitRate` virava 31/12/1969 — e `uptimeS` em segundos ia para um formatador de milissegundos), corrigidos com teste de regressão que **executa** o módulo extraído |
 
 ---
