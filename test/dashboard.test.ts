@@ -268,8 +268,17 @@ test('dashboard permanece ES5 e renderiza a observabilidade do Magnet DB', () =>
   assert.match(panels, /amostra processo \(≠ L1\)/);
   assert.match(panels, /amostra bad \(play sem vídeo\)/);
   assert.match(panels, /descartados dead \(autofetch ≠ bad\)/);
-  assert.match(panels, /source\.l1Entries/);
-  assert.match(panels, /source\.evictedQuota/);
+   assert.match(panels, /source\.l1Entries/);
+   assert.match(panels, /source\.evictedQuota/);
+   // Grupos explicativos do Banco de Magnets: banco persistente (L1/L2, com
+   // órfãos possíveis) ≠ amostra desde o restart ≠ contadores do processo.
+   assert.match(panels, /Registros persistentes no banco/);
+   assert.match(panels, /Amostra desde o restart/);
+   assert.match(panels, /Gravações e descartes desde o restart/);
+   assert.match(panels, /gravações alive \(inclui renovações\)/);
+   assert.match(panels, /restart zera a amostra \(memória deste processo\), não os registros persistentes/);
+   assert.match(panels, /expirados ou órfãos/);
+   assert.match(panels, /dbCounters\.aliveSet/);
   assert.doesNotMatch(panels, /\b(?:const|let)\b|=>|\?\.|\?\?/);
   assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/);
 });

@@ -50,6 +50,13 @@
     return Math.floor(seconds / 3600) + " h";
   }
 
+  // Título de grupo dentro do grid de métricas: separa procedência (persistente
+  // × amostra) sem criar seção nova no HTML — o painel do Banco de Magnets
+  // compartilha #cacheMetrics com os números do cache (renderCache limpa antes).
+  function metricGroupTitle(container, text) {
+    container.appendChild(element("p", "metric-group", text));
+  }
+
   function renderMagnetDb(data, counters, uptimeS) {
     var source = isObject(data) ? data : {};
     var metrics = $("cacheMetrics");
@@ -65,24 +72,27 @@
     // Amostra (Map tracked) ≠ L1 mag: restart zera amostra e o L1 permanece.
     if (!source.enabled && !own(source, "enabled")) return;
     metricMaybeOrigem(metrics, "magnet DB", source.enabled ? "ativo" : "desligado", source, "enabled", uptimeS);
+    // Grupo A — ocupação REAL do namespace mag (L1/L2): sobrevive ao restart e
+    // inclui o que este processo nunca observou. Nunca fundir com a amostra.
+    metricGroupTitle(metrics, "Registros persistentes no banco (sobrevivem ao restart)");
     metricMaybeOrigem(metrics, "L1 mag (ocupação)", valueText(source.l1Entries) + " / " + valueText(source.l1Max), source, "l1Entries", uptimeS);
+    metricMaybeOrigem(metrics, "evicções cota mag", source.evictedQuota, source, "evictedQuota", uptimeS);
+    metrics.appendChild(element("p", "guidance",
+      "Ocupação real do namespace mag no cache (L1/L2), incluindo registros gravados antes deste processo; pode conter expirados ou órfãos ainda não removidos. A chave é por serviço + conta + estado: o mesmo hash pode figurar mais de uma vez. Não é contagem de magnets válidos hoje."));
+    // Grupo B — amostra do processo (Map tracked): só o que ESTE processo viu.
+    metricGroupTitle(metrics, "Amostra desde o restart (só o que este processo observou)");
     sampleTotal = Number(source.sizeAlive || 0) + Number(source.sizeBad || 0) + Number(source.sizeLie || 0);
     metricMaybeOrigem(metrics, "amostra processo (≠ L1)", sampleTotal, source, "sizeAlive", uptimeS);
     metricMaybeOrigem(metrics, "amostra alive (tocável)", source.sizeAlive, source, "sizeAlive", uptimeS);
     // bad = play sem vídeo (magnetdb); dead = terminal no recheck (autofetch) — fronteiras distintas.
     metricMaybeOrigem(metrics, "amostra bad (play sem vídeo)", source.sizeBad, source, "sizeBad", uptimeS);
     metricMaybeOrigem(metrics, "amostra lie (áudio mentiu)", source.sizeLie, source, "sizeLie", uptimeS);
-    metricMaybeOrigem(metrics, "evicções cota mag", source.evictedQuota, source, "evictedQuota", uptimeS);
-    metricMaybeOrigem(metrics, "TTL alive", formatTtlSeconds(source.aliveTtlSeconds), source, "aliveTtlSeconds", uptimeS);
-    metricMaybeOrigem(metrics, "TTL bad", formatTtlSeconds(source.badTtlSeconds), source, "badTtlSeconds", uptimeS);
-    metricMaybeOrigem(metrics, "TTL lie", formatTtlSeconds(source.lieTtlSeconds), source, "lieTtlSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL alive configurado", formatTtlSeconds(source.aliveTtlSeconds), source, "aliveTtlSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL bad configurado", formatTtlSeconds(source.badTtlSeconds), source, "badTtlSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL lie configurado", formatTtlSeconds(source.lieTtlSeconds), source, "lieTtlSeconds", uptimeS);
     metricMaybeOrigem(metrics, "TTL alive restante (amostra)", formatTtlSeconds(ttl.alive), source, "ttlRemainingSeconds", uptimeS);
     metricMaybeOrigem(metrics, "TTL bad restante (amostra)", formatTtlSeconds(ttl.bad), source, "ttlRemainingSeconds", uptimeS);
     metricMaybeOrigem(metrics, "TTL lie restante (amostra)", formatTtlSeconds(ttl.lie), source, "ttlRemainingSeconds", uptimeS);
-    metric(metrics, "descartados bad (magnetdb)", dbCounters.droppedBad);
-    metric(metrics, "descartados dead (autofetch ≠ bad)", dbCounters.droppedDead);
-    metric(metrics, "descartados lie (magnetdb)", dbCounters.droppedLie);
-    metric(metrics, "taxa ⚡", hashes ? Math.round((cached / hashes) * 100) + "% (" + cached + "/" + hashes + ")" : "—");
     adapterIds = Object.keys(adapters).sort();
     for (i = 0; i < adapterIds.length; i += 1) {
       var adapter = isObject(adapters[adapterIds[i]]) ? adapters[adapterIds[i]] : {};
@@ -92,6 +102,21 @@
         " · TTL ≈ " + formatTtlSeconds(adapterTtl.alive) + "/" + formatTtlSeconds(adapterTtl.bad) + "/" + formatTtlSeconds(adapterTtl.lie),
         source, "byAdapter", uptimeS);
     }
+    metrics.appendChild(element("p", "guidance",
+      "O restart zera a amostra (memória deste processo), não os registros persistentes (L1/L2 no SQLite) — por isso a ocupação do L1 pode ser muito maior que alive+bad+lie logo após subir."));
+    // Grupo C — contadores do processo (metrics): gravações, reparo e descartes
+    // na listagem. Zeram no restart, como a amostra.
+    metricGroupTitle(metrics, "Gravações e descartes desde o restart (contadores do processo)");
+    // aliveSet conta toda markAlive, inclusive a renovação econômica do davail.
+    metric(metrics, "gravações alive (inclui renovações)", dbCounters.aliveSet);
+    metric(metrics, "gravações bad", dbCounters.badSet);
+    metric(metrics, "gravações lie", dbCounters.lieSet);
+    metric(metrics, "bad limpos (reparo blocked)", dbCounters.badClearedBlocked);
+    metric(metrics, "descartados bad (magnetdb)", dbCounters.droppedBad);
+    metric(metrics, "descartados dead (autofetch ≠ bad)", dbCounters.droppedDead);
+    metric(metrics, "descartados lie (magnetdb)", dbCounters.droppedLie);
+    metricGroupTitle(metrics, "Checagem de cache do debrid (medida neste processo)");
+    metric(metrics, "taxa ⚡ (cache medido)", hashes ? Math.round((cached / hashes) * 100) + "% (" + cached + "/" + hashes + ")" : "—");
   }
 
   function serviceId(item) {

@@ -156,6 +156,10 @@ button.danger:hover { border-color: var(--red); background: var(--red-soft); }
 /* Procedencia amostra + uptime baixo (helpers do core): nao confundir com L1/L2. */
 .metric .value.amostra-cedo { opacity: .72; font-style: italic; }
 .metrics > .empty, .cards > .empty { grid-column: 1 / -1; }
+/* Título de grupo (Banco de Magnets: persistente × amostra × contadores) e as
+   notas de orientação ocupam o grid todo, em vez de virarem ladrilho estreito. */
+.metrics > .metric-group { grid-column: 1 / -1; margin: 12px 0 -2px; color: var(--muted-2); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.metrics > .guidance { grid-column: 1 / -1; }
 
 /* ------- Cards (debrid, indexadores, resolvers, namespaces) ------- */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }

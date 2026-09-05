@@ -113,6 +113,54 @@ test('renderMagnetDb: L1 mag, amostra e bad≠dead no Fake DOM', () => {
   assert.match(text, /40%/);
 });
 
+// Caso real do feedback (VPS): l1Entries=405 contra amostra 73/0/1 — a UI tem
+// que separar banco persistente de amostra do processo, sem afirmar que tudo
+// no L1 é válido (órfãos/expirados existem; teste magnet-db "órfã sem track").
+test('renderMagnetDb: distingue registros persistentes (L1) da amostra desde o restart', () => {
+  const { els, renderMagnetDb } = loadPanelsApi();
+  renderMagnetDb(
+    {
+      enabled: true,
+      l1Entries: 405,
+      l1Max: 50000,
+      sizeAlive: 73,
+      sizeBad: 0,
+      sizeLie: 1,
+      evictedQuota: 2,
+      aliveTtlSeconds: 604800,
+      badTtlSeconds: 86400,
+      lieTtlSeconds: 604800,
+      ttlRemainingSeconds: { alive: 432000, bad: null, lie: 100000 },
+      counters: {
+        aliveSet: 180,
+        badSet: 4,
+        lieSet: 1,
+        droppedBad: 3,
+        droppedDead: 5,
+        droppedLie: 1,
+        badClearedBlocked: 2,
+      },
+      byAdapter: { alldebrid: { sizeAlive: 73, sizeBad: 0, sizeLie: 1 } },
+    },
+    { 'debrid.check.hashes': 200, 'debrid.check.cached': 50 },
+  );
+  const text = flat(els.cacheMetrics);
+  // Grupos com procedência explícita, na ordem: persistentes × amostra × contadores.
+  assert.match(text, /Registros persistentes no banco/i);
+  assert.match(text, /405\s*\/\s*50000/, 'ocupação real do namespace mag no L1');
+  assert.match(text, /Amostra desde o restart/i);
+  assert.match(text, /amostra processo \(≠ L1\)/);
+  // Textos curtos: restart zera a amostra, não o banco; mesmo hash pode ter
+  // conta/estado; L1 pode conter órfãos — não é contagem de válidos.
+  assert.match(text, /restart zera a amostra \(memória deste processo\), não os registros persistentes/i);
+  assert.match(text, /o mesmo hash pode figurar mais de uma vez/i);
+  assert.match(text, /expirados ou órfãos/i);
+  // Contadores de gravação/renovação e descartes, além da taxa de cache medida.
+  assert.match(text, /gravações alive \(inclui renovações\)/i);
+  assert.match(text, /descartados dead/i);
+  assert.match(text, /25% \(50\/200\)/);
+});
+
 test('renderAutofetchPanel: config.paused pinta afMetricState = PAUSADO', () => {
   const { els, renderAutofetchPanel } = loadAutofetchApi();
   renderAutofetchPanel({ config: { paused: true, effective: {}, envDefaults: {}, overriddenKeys: [] } });
