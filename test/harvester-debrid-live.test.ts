@@ -169,9 +169,14 @@ test('harvesterDebrid: resolveQuota respeita o gate de operador (env sem gate = 
   config.debrid.allowEnvKey = false;
   config.debrid.operatorEnvAccount = false;
   assert.equal(harvesterDebrid.resolveQuota(), null, 'chave do .env sem gate de operador não é usada');
+  const closed = harvesterDebrid.snapshot();
+  assert.equal(closed.source, 'none', 'status não anuncia conta env com gate fechado');
+  assert.equal(closed.keySet, false, 'identidade da chave fica oculta com gate fechado');
+  assert.equal(closed.envService, 'alldebrid', 'serviço permanece como pista de configuração');
 
   config.debrid.operatorEnvAccount = true;
   assert.equal(harvesterDebrid.resolveQuota()?.apiKey, ENV_KEY, 'operatorEnvAccount abre o env');
+  assert.equal(harvesterDebrid.snapshot().source, 'env', 'status acompanha o gate aberto');
 });
 
 test('harvesterDebrid: resolveWarm — env RD + gate liga; painel RD vence; painel AllDebrid DESLIGA mesmo com env RD', () => {

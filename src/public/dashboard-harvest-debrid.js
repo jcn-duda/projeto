@@ -30,8 +30,9 @@ function harvestDebridCapabilityChip(ok, label) { return element("span", "catalo
 function updateHarvestDebridCaps() {
   var box = $("harvestDebridCaps");
   if (!box) return;
-  var caps = HD_CAPS_BY_SERVICE[String($("harvestDebridService").value || "")] || {};
+  var caps = HD_CAPS_BY_SERVICE[String($("harvestDebridService").value || "")] || null;
   box.textContent = "";
+  if (!caps) { box.appendChild(element("span", "catalog-tag none", "capacidades: aguardando status")); return; }
   box.appendChild(harvestDebridCapabilityChip(caps.quotaWarn === true, "quota-warn"));
   box.appendChild(harvestDebridCapabilityChip(caps.brWarm === true, "aquecimento RD"));
 }

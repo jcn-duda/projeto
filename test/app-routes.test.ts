@@ -110,9 +110,17 @@ test('páginas referenciam assets com ?v=<hash> e a rota ignora a query', async 
   assert.equal(dashboard.status, 200);
   assert.match(dashboard.text, /src="\/dashboard-core\.js\?v=[0-9a-f]{10}"[^"]/);
   assert.doesNotMatch(dashboard.text, /\?v=[0-9a-f]{10}""/);
-  // A allowlist casa pelo path: o `?v=` não precisa constar dela.
-  const asset = await server.request('GET', '/configure.css?v=0000000000');
-  assert.equal(asset.status, 200);
+  // Paridade HTML ↔ allowlist fechada: TODO asset local referenciado pelas
+  // páginas precisa ter rota. Isso pega módulo novo copiado para dist/ mas
+  // esquecido em PAGE_ASSETS (404 que derrubaria o boot inteiro).
+  const assetUrls = [configure.text, dashboard.text]
+    .flatMap((html) => [...html.matchAll(/(?:src|href)="(\/(?:configure|dashboard)[-\w]*\.(?:css|js)\?v=[0-9a-f]{10})"/g)])
+    .map((match) => match[1]);
+  assert.ok(assetUrls.some((url) => url.startsWith('/dashboard-harvest-debrid.js?v=')));
+  for (const url of assetUrls) {
+    const asset = await server.request('GET', url);
+    assert.equal(asset.status, 200, `asset referenciado sem rota: ${url}`);
+  }
 });
 
 test('segmento de 1 segmento que não é config vira 404, não manifest', async () => {

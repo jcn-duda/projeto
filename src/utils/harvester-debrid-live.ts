@@ -228,7 +228,9 @@ export function snapshot(): HarvesterDebridSnapshot {
   }
   const envKey = config.debrid.apiKey;
   const envService = config.debrid.service;
-  if (envKey && envService) {
+  // `source` descreve a conta que as features de fundo PODEM usar, não só a
+  // presença de bytes no `.env`: gate fechado significa nenhuma conta ativa.
+  if (envKey && envService && operatorGateOpen()) {
     const id = identityOf(envKey);
     return {
       service: envService,
@@ -253,7 +255,9 @@ export function snapshot(): HarvesterDebridSnapshot {
     capabilities: { quotaWarn: false, brWarm: false },
     capabilitiesByService: capsByService,
     source: 'none',
-    envService: '',
+    // Mantém o serviço configurado como pista operacional, sem afirmar que a
+    // conta está ativa nem expor identidade da chave com o gate fechado.
+    envService,
     sealed: false,
     updatedAt: null,
   };

@@ -340,7 +340,8 @@ test('dashboard-harvest.js: capacidades vêm do backend (capabilitiesByService),
   assert.match(js, /HD_CAPS_BY_SERVICE/, 'mapa derivado do backend presente');
   assert.match(js, /a\.capabilitiesByService/, 'render lê capabilitiesByService do snapshot');
   // A prévia usa o mapa derivado; serviço sem registro cai no seguro "não".
-  assert.match(js, /HD_CAPS_BY_SERVICE\[String\(\$\("harvestDebridService"\)\.value \|\| ""\)\] \|\| \{\}/);
+  assert.match(js, /HD_CAPS_BY_SERVICE\[String\(\$\("harvestDebridService"\)\.value \|\| ""\)\] \|\| null/);
+  assert.match(js, /capacidades: aguardando status/, 'primeiro paint não afirma capacidade antes do snapshot');
 });
 
 test('dashboard-harvest.js: aviso de selo órfão (RESOLVE_SECRET alterado) quando sealBroken', () => {
