@@ -8,6 +8,7 @@ import { accountScope } from '../utils/request-key.js';
 import { run, opts } from '../runtime.js';
 import type { RuntimeContext } from '../runtime.js';
 import * as autofetch from './autofetch.js';
+import * as suppressed from './autofetch-suppressed.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { rdGate } from '../debrid/rd-gate.js';
@@ -251,6 +252,10 @@ export function runRecheck(searchKey: string) {
       }
     }
 
+    // Atraso represado: com o knob ligado, apaga o que o gate barrou enquanto
+    // ele estava desligado. No-op barato quando desligado (o default).
+    await suppressed.drainSuppressed(adapter, opts().debridApiKey, account);
+
     let statuses: Record<string, TorrentStatusEntry> = {};
     let statusOk = false;
     if (typeof adapter.torrentStatus === 'function') {
@@ -320,12 +325,18 @@ export function runRecheck(searchKey: string) {
           // automática NUNCA alcançou (58 de 60 na conta medida). Ligar visão e
           // destruição no mesmo deploy faria a primeira rodada apagar um acervo
           // inteiro sem ninguém ter olhado — então a remoção por via `id` nasce
-          // DESLIGADA e o que ela faria vira contador. O resto (blacklist,
-          // soltar holds, drenar fila) é local e roda igual: impede a fila de
-          // crescer sem apagar nada da conta.
+          // DESLIGADA.
+          //
+          // O que suprimir NÃO faz: conter o tamanho da conta. A blacklist só
+          // impede que ESTE hash volte, e o `drainNext` logo abaixo submete o
+          // próximo candidato — o saldo de transferências fica igual ou +1. O
+          // registro em `noteSuppressed` existe para que ligar o knob depois
+          // alcance o que ficou para trás; sem ele o hash sai do lote aqui e
+          // nunca mais é revisitado.
           const podeRemover = statusInfo.via !== 'id' || config.debrid.removeById;
           if (!podeRemover) {
             metrics.count(isDead ? 'autofetch.dead.suppressed' : 'autofetch.stalled.suppressed');
+            suppressed.noteSuppressed(adapter.id, account, hash, statusInfo.id);
           } else if (typeof adapter.removeTorrent === 'function' && statusInfo.id != null) {
             adapter.removeTorrent(opts().debridApiKey, statusInfo.id).catch(() => {});
           }

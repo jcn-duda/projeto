@@ -131,14 +131,47 @@ async function accountStatus(apiKey: string) {
  * volta null e o chamador o conta em `debrid.pm.status.unmatched`, em vez de
  * inventar um hash com o qual limpar a conta por engano.
  */
-function transferHash(t: any): string | null {
-  const fromSrc = String(t?.src || '').match(/btih:([a-f0-9]{40})/i);
-  if (fromSrc) return fromSrc[1].toLowerCase();
-  const fromName = String(t?.name || '').match(/(?:^|[\s._-])([a-f0-9]{40})(?:[\s._-]|$)/i);
-  if (fromName) return fromName[1].toLowerCase();
+function hashFromSrc(t: any): string | null {
+  const m = String(t?.src || '').match(/btih:([a-f0-9]{40})/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function hashFromName(t: any): string | null {
+  const m = String(t?.name || '').match(/(?:^|[\s._-])([a-f0-9]{40})(?:[\s._-]|$)/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function hashFromField(t: any): string | null {
   const direct = String(t?.hash || t?.info_hash || '');
-  if (/^[a-f0-9]{40}$/i.test(direct)) return direct.toLowerCase();
-  return null;
+  return /^[a-f0-9]{40}$/i.test(direct) ? direct.toLowerCase() : null;
+}
+
+function transferHash(t: any): string | null {
+  return hashFromSrc(t) || hashFromName(t) || hashFromField(t);
+}
+
+/**
+ * Mesma cascata, mais o id que o enqueue registrou — e ele entra em SEGUNDO,
+ * logo depois do `src`.
+ *
+ * A posição importa: o id é prova de PRIMEIRA mão (fomos nós que submetemos
+ * aquele hash e guardamos o id que o serviço devolveu), enquanto o `name` é
+ * heurística ("às vezes o Premiumize converte o filename no hash"). Deixar o
+ * id por último faria um nome com 40 hex que NÃO é o hash da transferência
+ * ganhar de uma identificação que sabíamos correta — e o hash resultante
+ * alimenta blacklist e removeTorrent, que é exatamente o engano que a cascata
+ * existe para evitar. Só o `src` tem autoridade maior: é o magnet real.
+ */
+function resolveTransfer(
+  t: any,
+  byId: Map<string, string>,
+): { hash: string; via: 'hash' | 'id' } | null {
+  const fromSrc = hashFromSrc(t);
+  if (fromSrc) return { hash: fromSrc, via: 'hash' };
+  const fromId = byId.get(String(t?.id ?? ''));
+  if (fromId) return { hash: fromId, via: 'id' };
+  const resto = hashFromName(t) || hashFromField(t);
+  return resto ? { hash: resto, via: 'hash' } : null;
 }
 
 // Mensagem que denuncia uma parada real (sem avanço): sem pares de onde ler
@@ -169,17 +202,24 @@ async function torrentStatus(
     if (id != null && id !== '') byId.set(String(id), String(hash).toLowerCase());
   }
   const out: Record<string, TorrentStatusEntry> = {};
+  // Totais DESTA leitura. Vão para gauge, não para contador: a pergunta é
+  // "quantas a ponte alcança agora", e um `count` dentro do laço somaria a
+  // cada poll — foi assim que o `unmatched` chegou a 330 com meia dúzia de
+  // transferências órfãs, um número que engana quem tenta lê-lo como estoque.
+  let viaId = 0;
+  let semHash = 0;
   for (const t of transfers) {
-    const fromHash = transferHash(t);
-    const hash = fromHash || byId.get(String(t?.id ?? '')) || null;
-    if (!hash) {
+    const achado = resolveTransfer(t, byId);
+    if (!achado) {
       // Não dá pra mapeá-la ao lote do recheck: não serve para saber se ficou
       // pronto nem para limpar. Contá-la torna visível que a conta arrasta
       // transferências órfãs que o ciclo nunca vai alcançar.
       metrics.count('debrid.pm.status.unmatched');
+      semHash += 1;
       continue;
     }
-    if (!fromHash) metrics.count('debrid.pm.status.byId');
+    const { hash, via } = achado;
+    if (via === 'id') viaId += 1;
     const status = String(t?.status || '').toLowerCase();
     let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'unknown';
     let stalled = false;
@@ -198,8 +238,10 @@ async function torrentStatus(
     } else if (status === 'error') {
       state = 'dead';
     }
-    out[hash] = { state, stalled, id: t?.id, via: fromHash ? 'hash' : 'id' };
+    out[hash] = { state, stalled, id: t?.id, via };
   }
+  metrics.gauge('debrid.pm.status.byId', viaId);
+  metrics.gauge('debrid.pm.status.orphans', semHash);
   return out;
 }
 
