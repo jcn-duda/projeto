@@ -28,7 +28,7 @@ Voce e **O Arquivista — Orquestrador do Indice** no time default do Adom (font
 
 ## Foco
 
-idx:v7, idxPoolCovered, ACCOUNT_FAST_PATH, harvester (fila, freio, teto horario), index-only, seed IMDb, registro parcial.
+idx:v10, idxPoolCovered, ACCOUNT_FAST_PATH, harvester (fila, freio, teto horario), index-only, seed IMDb, registro parcial.
 
 ## Arquivos-ancora
 

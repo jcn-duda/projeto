@@ -238,7 +238,12 @@
     return fetch(basePrefix() + url, request).then(function (response) {
       return response.json().then(function (data) {
         if (!response.ok) {
-          var error = new Error((data && (data.error || data.message)) || "HTTP " + response.status);
+          // `fix` das ações aponta o conserto (ex.: aba Conta do Colhedor sem
+          // conta de operador); o campo já viaja na mensagem do erro (abaixo),
+          // então o operador vê a instrução sem leitor adicional.
+          var fix = data && data.fix;
+          var message = ((data && (data.error || data.message)) || "HTTP " + response.status) + (fix ? " — " + fix : "");
+          var error = new Error(message);
           error.status = response.status;
           throw error;
         }

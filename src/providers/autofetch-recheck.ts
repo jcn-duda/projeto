@@ -333,6 +333,12 @@ export function runRecheck(searchKey: string) {
           // registro em `noteSuppressed` existe para que ligar o knob depois
           // alcance o que ficou para trás; sem ele o hash sai do lote aqui e
           // nunca mais é revisitado.
+          //
+          // `via` descreve o CANAL de identificação, não a confiança: o `id`
+          // vem do nosso próprio marker de enqueue e é prova de primeira mão.
+          // O gate abaixo é um freio de ROLLOUT, não um juízo sobre o id — a
+          // fila represada existe para o atraso ser cobrado depois sem ligar o
+          // knob (leitura: countSuppressed/countAllSuppressed; dreno: drainSuppressed).
           const podeRemover = statusInfo.via !== 'id' || config.debrid.removeById;
           if (!podeRemover) {
             metrics.count(isDead ? 'autofetch.dead.suppressed' : 'autofetch.stalled.suppressed');
@@ -367,6 +373,9 @@ export function runRecheck(searchKey: string) {
       armRecheck(searchKey, lot);
     } else if (lot.isSettle && (Date.now() - (lot.createdAt || 0)) >= liveAfter.autoFetchTtl * 1000) {
       metrics.count('autofetch.expired-unready', lot.hashes.size);
+      // Exceção deliberada do gate (cabeçalho de autofetch-suppressed.ts):
+      // remove por id DIRETO, sem podeRemover/noteSuppressed — é o que expira
+      // no settle (download que o PRÓPRIO addon subiu), não acervo represado.
       if (typeof adapter.removeTorrent === 'function') {
         for (const h of lot.hashes) {
           const sid = statuses[h]?.id;

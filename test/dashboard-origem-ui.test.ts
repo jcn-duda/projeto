@@ -213,3 +213,41 @@ test('autofetch dead path usa applyOrigem ou origemOf (não naomedido isolado)',
     'aguardando dead path usar applyOrigem/origemOf (não lógica naomedido hardcode isolada)',
   );
 });
+
+// --- 6. Fila de remoções represadas (Chupim) ---------------------------------
+
+// Mesma janela flexível do dead path: a pintura da fila represada nasce com
+// origem (`_origem.suppressed = 'duravel'` no snapshot) — a fila que aguarda
+// decisão do operador não pode parecer amostra de processo.
+test('autofetch suppressed path usa origemOf (durável do snapshot)', () => {
+  const af = readFileSync(AUTOFETCH_URL, 'utf8');
+  const supIdx = af.search(/afMetricSuppressed/);
+  assert.ok(supIdx >= 0, 'afMetricSuppressed ausente no dashboard-autofetch.js');
+  const win = af.slice(Math.max(0, supIdx - 200), supIdx + 500);
+  assert.match(win, /\bpaintAfOrigem\s*\(/);
+  assert.match(win, /origemOf\(af,\s*"suppressed"\)/);
+});
+
+// O dreno é destrutivo e age só na conta do operador: o botão é um
+// .action-button (boot liga, runAction confirma), nasce disabled e o gating
+// libera com profundidade > 0 — padrão do harvesterDrainButton. O feedback
+// mostra o saldo (removidas / elegíveis / restantes), não só "concluído".
+test('dreno de represadas: destrutivo confirmado, gated por profundidade e com saldo', () => {
+  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+  const status = readFileSync(STATUS_URL, 'utf8');
+
+  assert.match(
+    html,
+    /id="afSuppressedDrainBtn"[^>]*action-button[^>]*data-action="autofetch-suppressed-drain"/,
+    'botão precisa do pipeline destrutivo (.action-button + data-action)',
+  );
+  assert.match(html, /Drenar represadas \(conta do operador\)/);
+  // Confirm destrutivo: rótulo no mapa do runAction e gating por profundidade.
+  assert.match(status, /"autofetch-suppressed-drain":/);
+  assert.match(status, /\$\("afSuppressedDrainBtn"\)\.disabled = !af\.suppressed/);
+  // Saldo da fila no feedback — os três números, na ordem do desfecho.
+  assert.match(status, /removidas/);
+  assert.match(status, /elegiveis/);
+  assert.match(status, /restantes/);
+  assert.doesNotMatch(status, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard-status.js continua ES5');
+});

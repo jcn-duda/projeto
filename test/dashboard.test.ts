@@ -324,6 +324,10 @@ test('dashboard renderiza o painel do Chupim e navegação por abas em ES5', () 
   assert.match(afJs, /function toggleAutofetchPause/);
   assert.match(afJs, /function drainAutofetchQueues/);
   assert.match(afJs, /function applyAutofetchPreset/);
+  // Fila de remoções represadas: span no HTML, pintura com origem no módulo.
+  assert.match(html, /id="afMetricSuppressed"/);
+  assert.match(html, /Remoções represadas \(aguardando decisão\)/);
+  assert.match(afJs, /origemOf\(af, "suppressed"\)/);
   assert.doesNotMatch(afJs, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard-autofetch.js continua ES5');
 });
 

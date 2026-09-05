@@ -67,7 +67,15 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // (PLANO_SERVIDOR prometeu 4000; o código entregou 2000 — não inventar 4000
   // no comentário nem no fallback do painel.)
   idx: 2000,
-  autofetch: 1000,
+  // Fila do autofetch: markers vivos, dead/queues/prefetch e — desde a Etapa da
+// fila represada — os registros `sup:` com TTL próprio de 30 dias. Os represados
+// são lidos via `peek` (não promovem LRU) e ficam como os itens mais frios do
+// namespace: com cota 1000, a evicção apagaria justamente o acervo que a fila
+// existe para tornar retroativo. Registro `sup:` é minúsculo (chave ~70 B,
+// valor {id,at,fails,nextAt} ~120 B), por isso dobrar para 2000 custa ~0,8 MB.
+// O teto global (84000) precisa continuar ACIMA da soma das cotas (bug real de
+// despejo global) — 2000 é o maior múltiplo que cabe nessa conta.
+autofetch: 2000,
   'indexer-status': 200,
   cfg: 50,
   // Proteção durável dos BRs AllDebrid (`adprot:v1`): registro minúsculo por

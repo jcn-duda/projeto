@@ -245,9 +245,14 @@
   function updateActionAvailability(root) {
     var harvest = first(root, ["harvest", "harvester"], {});
     var debrid = first(root, ["debrid", "debridStatus"], {});
+    var af = first(root, ["autofetch", "autoFetch", "autofetchStatus"], {});
     $("harvesterPauseButton").textContent = harvest.paused ? "Retomar colhedor" : "Pausar colhedor";
     $("harvesterPauseButton").setAttribute("data-paused", harvest.paused ? "false" : "true");
     $("harvesterDrainButton").disabled = !harvest.queueDepth;
+    // Represadas: destrutivo só se oferece com profundidade > 0; sem a chave no
+    // snapshot (backend ainda sem o campo) `!undefined` mantém desabilitado —
+    // fail-closed, ação destrutiva não nasce clicável.
+    $("afSuppressedDrainBtn").disabled = !af.suppressed;
     $("testAllIndexersButton").disabled = !asList(root.indexers, "indexers").length;
     $("refreshInventoryButton").disabled = !debrid.active;
     updateCacheScopes(root);
@@ -289,10 +294,23 @@
       "clear-cache": "a limpeza do cache",
       "harvester-pause": "a alteração do estado do colhedor",
       "harvester-drain": "a drenagem imediata da fila",
+      "autofetch-suppressed-drain": "a drenagem das remoções represadas",
       "test-all-indexers": "o teste sequencial de todos os indexadores",
       "refresh-inventory": "a reavaliação do inventário"
     };
     return labels[action] || "esta ação";
+  }
+
+  // Feedback com o SALDO da drenagem (removidas / elegíveis / restantes — os
+  // três da conta do operador; o número do painel é agregado e a diferença tem
+  // de ficar visível). Demais ações mantêm o contrato antigo (message/result).
+  function actionFeedback(action, data) {
+    if (action === "autofetch-suppressed-drain" && isObject(data)) {
+      return "Remoções represadas: " + Number(first(data, ["removidas"], 0)) + " removida(s) · " +
+        Number(first(data, ["elegiveis"], 0)) + " elegível(is) na conta do operador · " +
+        Number(first(data, ["restantes"], 0)) + " restante(s) na conta do operador.";
+    }
+    return valueText(first(data, ["message", "result"], "Ação concluída."));
   }
 
   function runAction(button) {
@@ -316,7 +334,7 @@
       body: JSON.stringify(payload)
     })
       .then(function (data) {
-        setFeedback(valueText(first(data, ["message", "result"], "Ação concluída.")), "ok");
+        setFeedback(actionFeedback(action, data), "ok");
         loadStatus();
       })
       .catch(function (error) { setFeedback("Ação não concluída: " + valueText(error && error.message ? error.message : error), "error"); })

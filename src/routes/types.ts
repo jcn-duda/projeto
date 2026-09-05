@@ -11,6 +11,7 @@ import type * as log from '../utils/logger.js';
 import type * as autofetch from '../providers/autofetch.js';
 import type * as autofetchRunner from '../providers/autofetch-runner.js';
 import type * as autofetchLive from '../utils/autofetch-live.js';
+import type * as autofetchSuppressed from '../providers/autofetch-suppressed.js';
 import type * as releaseIndex from '../utils/release-index.js';
 import type harvester from '../providers/harvester.js';
 import type * as harvesterLive from '../utils/harvester-live.js';
@@ -46,6 +47,7 @@ export interface AppServices {
   autofetch: typeof autofetch;
   autofetchRunner: typeof autofetchRunner;
   autofetchLive: typeof autofetchLive;
+  autofetchSuppressed: typeof autofetchSuppressed;
   releaseIndex: typeof releaseIndex;
   harvester: typeof harvester;
   harvesterLive: typeof harvesterLive;

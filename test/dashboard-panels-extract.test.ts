@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 type FakeNode = {
   className: string;
   textContent: string;
+  title: string;
   style: Record<string, string>;
   children: FakeNode[];
   checked: boolean;
@@ -20,6 +21,7 @@ function fakeNode(): FakeNode {
   const node: FakeNode = {
     className: '',
     textContent: '',
+    title: '',
     style: {},
     children: [],
     checked: false,
@@ -56,7 +58,7 @@ function loadPanelsApi(): { els: Record<string, FakeNode>; renderMagnetDb: (data
   return { els, renderMagnetDb: factory(document, window).renderMagnetDb };
 }
 
-function loadAutofetchApi(): { els: Record<string, FakeNode>; renderAutofetchPanel: (af: unknown) => void } {
+function loadAutofetchApi(): { els: Record<string, FakeNode>; renderAutofetchPanel: (af: unknown, uptimeS?: number) => void } {
   const core = readFileSync(new URL('../src/public/dashboard-core.js', import.meta.url), 'utf8');
   const afJs = readFileSync(new URL('../src/public/dashboard-autofetch.js', import.meta.url), 'utf8');
   const els: Record<string, FakeNode> = {};
@@ -76,7 +78,7 @@ function loadAutofetchApi(): { els: Record<string, FakeNode>; renderAutofetchPan
     'document',
     'window',
     core + '\n' + afJs + '\nreturn { renderAutofetchPanel: renderAutofetchPanel };',
-  ) as (doc: unknown, win: unknown) => { renderAutofetchPanel: (af: unknown) => void };
+  ) as (doc: unknown, win: unknown) => { renderAutofetchPanel: (af: unknown, uptimeS?: number) => void };
   return { els, renderAutofetchPanel: factory(document, window).renderAutofetchPanel };
 }
 
@@ -165,4 +167,37 @@ test('renderAutofetchPanel: config.paused pinta afMetricState = PAUSADO', () => 
   const { els, renderAutofetchPanel } = loadAutofetchApi();
   renderAutofetchPanel({ config: { paused: true, effective: {}, envDefaults: {}, overriddenKeys: [] } });
   assert.equal(els.afMetricState.textContent, 'PAUSADO');
+});
+
+// Fila de remoções represadas (gate removeById): pinta pelo mesmo caminho de
+// origem do dead — número do snapshot + procedência durável no title.
+test('renderAutofetchPanel: suppressed pinta afMetricSuppressed com origem durável', () => {
+  const { els, renderAutofetchPanel } = loadAutofetchApi();
+  renderAutofetchPanel({
+    config: { effective: {}, envDefaults: {}, overriddenKeys: [] },
+    suppressed: 7,
+    _origem: { suppressed: 'duravel' },
+  }, 4000);
+  assert.equal(els.afMetricSuppressed.textContent, '7');
+  assert.match(els.afMetricSuppressed.title, /Persistente|durável/i);
+});
+
+// Fail-open do paintAfOrigem: sem _origem (backend ainda sem a chave) o número
+// fica e o title esvazia — mesma tolerância que o dead tem com rota velha.
+test('renderAutofetchPanel: suppressed sem _origem mantém o número (fail-open)', () => {
+  const { els, renderAutofetchPanel } = loadAutofetchApi();
+  renderAutofetchPanel({
+    config: { effective: {}, envDefaults: {}, overriddenKeys: [] },
+    suppressed: 3,
+  }, 4000);
+  assert.equal(els.afMetricSuppressed.textContent, '3');
+  assert.equal(els.afMetricSuppressed.title, '');
+});
+
+// Sem a chave inteira (rota velha), `af.suppressed || 0` pinta 0 — e o gating
+// do botão (status.js) fica no fail-closed: não há como drenar o invisível.
+test('renderAutofetchPanel: suppressed ausente pinta 0', () => {
+  const { els, renderAutofetchPanel } = loadAutofetchApi();
+  renderAutofetchPanel({ config: { effective: {}, envDefaults: {}, overriddenKeys: [] } }, 4000);
+  assert.equal(els.afMetricSuppressed.textContent, '0');
 });

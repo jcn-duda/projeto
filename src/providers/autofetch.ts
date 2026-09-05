@@ -7,6 +7,7 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import { markerKey, markerValue, markerTransferId } from './autofetch-marker.js';
 import { accountGateBlocked, resetAccountGate, accountGateSnapshot } from './autofetch-gate.js';
+import { countAllSuppressed } from './autofetch-suppressed.js';
 
 const pending = new Map();
 const searchSlots = new Map();
@@ -364,16 +365,23 @@ function snapshot() {
   let occupiedSlots = 0;
   for (const entry of searchSlots.values()) occupiedSlots += Number(entry?.used || 0);
 
+  // Fila de remoções represadas (autofetch-suppressed): o snapshot é síncrono
+  // e sem contexto de conta, então o número é o AGREGADO de todas as contas —
+  // o drain do painel age só na conta do operador, e a diferença aparece lá.
+  const suppressed = countAllSuppressed();
+
   return {
     pendingLocks: pending.size,
     searchSlots: { searches: searchSlots.size, occupied: occupiedSlots },
     budget: { used, limit, accounts: budgets },
     deadBlacklistCount: knownDead.size,
     queues: { count: knownQueues.size, items: queueItems },
+    suppressed,
     accountGate: accountGateSnapshot(),
     config: autofetchLive.snapshot(),
-    // queues/dead=durável (reindex no boot espelha L1); resto=amostra deste processo.
-    _origem: { queues: 'duravel', deadBlacklistCount: 'duravel', budget: 'amostra', accountGate: 'amostra' },
+    // queues/dead/suppressed=durável (varredura do L1, não Map de processo);
+    // resto=amostra deste processo.
+    _origem: { queues: 'duravel', deadBlacklistCount: 'duravel', budget: 'amostra', accountGate: 'amostra', suppressed: 'duravel' },
   };
 }
 

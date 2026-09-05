@@ -16,6 +16,10 @@
 > (`/stream-trace.json` + recompute + live TB/PM + painel — commitada desde
 > `cb934c9`/`9eb98f4`), Chupim (cobertura por qualidade 720/1080/4K, fila
 > surplus, `autoFetchMax` 1..12), colhedor observável, painel de incerteza.
+> Fila de remoções represadas do Chupim com TTL próprio
+> (`DEBRID_SUPPRESSED_TTL`, 30 dias) e drain com teto/backoff por passagem
+> (`DEBRID_SUPPRESSED_DRAIN_MAX`, dado em 5 falhas) — a retroatividade do
+> `DEBRID_REMOVE_BY_ID` deixa de depender das 24h do `DEAD_TTL`.
 > **Aberto operacional:** Fase 7 trilha A/B na VPS (7.1 branch do cron, 7.5
 > janela `davail` — baseline de 7 dias **venceu** em 2026-08-31 sem decisão de
 > TTL registrada; TTLs 900s/120s seguem); knobs destrutivos 8.16/8.17 só com

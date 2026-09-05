@@ -226,6 +226,12 @@
         <div class="section-actions">
           <button id="afPauseToggleBtn" class="primary" type="button">Pausar Chupim</button>
           <button id="afDrainBtn" class="danger" type="button">Drenar Filas Agora</button>
+          <!-- Represadas (gate removeById): class action-button herda o confirm
+               destrutivo do runAction (boot liga .action-button); nasce disabled
+               (fail-closed) e o updateActionAvailability libera com profundidade
+               > 0. O número do painel é agregado de todas as contas e o dreno
+               age só na conta do operador — daí o rótulo. -->
+          <button id="afSuppressedDrainBtn" class="action-button danger" type="button" data-action="autofetch-suppressed-drain" disabled>Drenar represadas (conta do operador)</button>
         </div>
       </div>
       <div id="afLiveMetrics" class="metrics">
@@ -233,6 +239,7 @@
         <div class="metric"><span class="key">Filas ativas</span><span id="afMetricQueues" class="value">0 fila(s) / 0 item(ns)</span></div>
         <div class="metric"><span class="key">Lotes recheck</span><span id="afMetricRechecks" class="value">0 (0 settle)</span></div>
         <div class="metric"><span class="key">Blacklist mortos</span><span id="afMetricDead" class="value">0</span></div>
+        <div class="metric"><span class="key">Remoções represadas (aguardando decisão)</span><span id="afMetricSuppressed" class="value">0</span></div>
         <div class="metric"><span class="key">Orçamento hora</span><span id="afMetricBudget" class="value">0 / 0</span></div>
         <div class="metric"><span class="key">Última desistência</span><span id="afMetricGiveUp" class="value">—</span></div>
         <div class="metric"><span class="key">Motivos (desde o boot)</span><span id="afMetricReasons" class="value">—</span></div>

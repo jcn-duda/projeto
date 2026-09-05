@@ -231,16 +231,16 @@ export const debrid = () => ({
   // o recheck trata como morto (blacklist, remoção e dreno da fila). 0
   // desliga a detecção: parado nunca mais derruba um download.
   autoFetchStallStreak: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_STALL_STREAK, 3))),
-  // Permite que a remoção automática (morto/parado) aja sobre transferência
-  // que só foi identificada pelo ID registrado no enqueue, e não por um hash
-  // publicado pelo serviço. Nasce DESLIGADO de propósito: a ponte por id
-  // acabou de tornar visível a maior parte da conta no Premiumize (58 de 60
-  // medidas), e uma conta que a remoção nunca alcançou não pode ser exposta a
-  // ela e à primeira rodada destrutiva no mesmo deploy. Desligado, o recheck
-  // ainda blacklista e drena a fila — só não apaga na conta, e conta o que
-  // teria apagado em `autofetch.{dead,stalled}.suppressed`. Ligue depois de
-  // ler esses contadores.
+  // Remoção automática (morto/parado) sobre transferência identificada só pelo
+  // id do enqueue. Nasce DESLIGADO — freio de rollout: a ponte por id
+  // visibilizou a maior parte da conta, e a primeira rodada destrutiva não
+  // pode chegar no mesmo deploy. Leia os contadores antes de ligar.
   removeById: String(process.env.DEBRID_REMOVE_BY_ID || 'false') === 'true',
+  // Fila de remoções represadas (autofetch-suppressed.ts): TTL do registro
+  // (30d = observação; id ruim é do backoff do drain) e teto por passagem.
+  // `suppressedTtl: 0` desliga a fila (sem retroatividade — a razão de ser).
+  suppressedTtl: num(process.env.DEBRID_SUPPRESSED_TTL, 2_592_000),
+  suppressedDrainMax: Math.max(1, Math.trunc(num(process.env.DEBRID_SUPPRESSED_DRAIN_MAX, 25))),
   // Pack de temporada pronto invalida os episódios já buscados daquela mesma
   // conta/temporada; a próxima lista usa o davail positivo sem esperar CACHE_TTL.
   autoFetchSeasonFill: String(process.env.DEBRID_AUTO_FETCH_SEASON_FILL || 'true') === 'true',

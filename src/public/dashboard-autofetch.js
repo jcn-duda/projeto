@@ -42,7 +42,7 @@ function renderAutofetchPanel(af, uptimeS) {
   var env = cfg.envDefaults || {};
   var overridden = cfg.overriddenKeys || [];
   var i, k, input, envSpan, badge;
-  var qEl, rEl, dEl, bEl, guEl, rsEl, gateEl;
+  var qEl, rEl, dEl, bEl, guEl, rsEl, gateEl, sEl;
   var gate, gateTxt, gateKind, gateColor, accountsKind;
   var accs, extra, j, gu, guTxt, parts, sk, skKeys, n;
 
@@ -79,6 +79,15 @@ function renderAutofetchPanel(af, uptimeS) {
   dEl = $("afMetricDead");
   if (dEl) {
     paintAfOrigem(dEl, af.deadBlacklistCount || 0, origemOf(af, "deadBlacklistCount"), uptimeS);
+  }
+
+  // Fila de remoções represadas (gate removeById): aguarda decisão do operador,
+  // que drena pelo botão próprio em vez de ligar o knob global. A origem vem do
+  // _origem do snapshot — varredura do cache, durável; sem _origem o fail-open
+  // mantém o número (mesma tolerância do dead com rota velha).
+  sEl = $("afMetricSuppressed");
+  if (sEl) {
+    paintAfOrigem(sEl, af.suppressed || 0, origemOf(af, "suppressed"), uptimeS);
   }
 
   // Orçamento hora: amostra deste processo.

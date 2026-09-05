@@ -321,7 +321,20 @@ test('falha ao remover mantém o represado para a próxima passagem', async () =
     config.debrid.removeById = true;
     suppressed.noteSuppressed('premiumize', account, h, 'transfer-ruim');
     assert.equal(await suppressed.drainSuppressed(pmAdapter, 'chave', account), 0);
-    assert.equal(suppressed.countSuppressed('premiumize', account), 1, 'o TTL e quem o aposenta, nao uma falha isolada');
+    assert.equal(
+      suppressed.countSuppressed('premiumize', account),
+      1,
+      'falha isolada nao desiste: quem aposenta id ruim e o backoff (5 falhas), nao o TTL',
+    );
+    // A falha agora agenda a proxima tentativa no proprio registro (backoff
+    // 5min..6h) e preserva o TTL restante — o TTL proprio de 30 dias cobre a
+    // janela de observacao do operador, nao a aposentadoria do id.
+    const rec = cache.peek(suppressed.suppressedKey('premiumize', account, h)) as {
+      fails?: number;
+      nextAt?: number;
+    };
+    assert.equal(rec.fails, 1, 'a falha é contada para o backoff');
+    assert.ok((rec.nextAt || 0) > Date.now(), 'a proxima tentativa é agendada');
   } finally {
     config.debrid.removeById = originalRemoveById;
     pmAdapter.removeTorrent = originalRemoveTorrent;
