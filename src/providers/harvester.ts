@@ -27,9 +27,17 @@ import { enqueue, clearQueue, prioritizeQueue, obraIdentity } from './harvest-qu
 import * as harvestQueue from './harvest-queue.js';
 import type { HarvestEntry } from './harvest-queue.js';
 import * as harvestWorker from './harvest-worker.js';
+import * as releaseIndex from '../utils/release-index.js';
 
 let started = false;
 let inFlight = false;
+// Timer rearmável (Etapa 4): o intervalo do ciclo mora na config ao vivo
+// (harvesterLive) e o painel pode mudá-lo sem restart — por isso o setInterval
+// do start() não pode ficar preso ao valor estático do .env. `armedIntervalMs`
+// guarda o valor com que o timer corrente foi armado; quando o tick observa um
+// valor VIVO diferente, clear+set com o novo.
+let armedInterval: NodeJS.Timeout | null = null;
+let armedIntervalMs = 0;
 // Pausa é operacional e deliberadamente não persiste: após restart o operador
 // volta ao comportamento configurado no .env, sem uma ação temporária virar
 // desligamento esquecido.
@@ -37,6 +45,10 @@ let paused = false;
 // Contador de tentativas por obra: uma obra cara (teto estourando sempre ou
 // rede morta) não pode segurar a fila para sempre.
 const attemptsByObra = new Map<string, number>();
+// Preempções por obra — Map SEPARADO do attemptsByObra: tráfego não é falha
+// (não dropa), mas após N preempções a obra vai para a cauda em vez de
+// monopolizar a frente da fila.
+const preemptsByObra = new Map<string, number>();
 
 async function checkQuotaWarning() {
   if (!config.notify.enabled || !config.notify.webhookUrl) return;
@@ -65,12 +77,69 @@ async function checkQuotaWarning() {
 }
 
 /**
+ * Rearma o timer do ciclo quando o intervalo VIVO diverge do armado. Só age
+ * com `started === true`: em teste e no `drain()` o tick roda direto, sem
+ * start(), e aí um setInterval só vazaria timer real para o processo.
+ */
+function rearmTimer(intervalMs: number) {
+  if (!started) return;
+  if (intervalMs === armedIntervalMs) return;
+  if (armedInterval) clearInterval(armedInterval);
+  armedInterval = setInterval(() => { tick().catch(() => {}); }, intervalMs);
+  armedInterval.unref();
+  armedIntervalMs = intervalMs;
+}
+
+function liveWantsTimer(): boolean {
+  const live = harvesterLive.effective();
+  return live.harvestEnabled && config.releaseIndex.enabled;
+}
+
+function disarmTimer() {
+  if (!armedInterval) {
+    armedIntervalMs = 0;
+    return;
+  }
+  clearInterval(armedInterval);
+  armedInterval = null;
+  armedIntervalMs = 0;
+}
+
+/**
+ * Alinha o setInterval ao critério vivo (mesmo de tick/status). Chamado no
+ * boot via start() e depois por harvesterLive.onConfigChange — painel que liga
+ * harvestEnabled com o .env off arma o timer sem restart; desligar desarma.
+ */
+function syncFromLive() {
+  if (!started) return;
+  if (!liveWantsTimer()) {
+    if (armedInterval) {
+      disarmTimer();
+      log.info('[harvest] desativado (colhedor ou índice off)');
+    } else {
+      armedIntervalMs = 0;
+    }
+    return;
+  }
+  if (!armedInterval) {
+    harvestQueue.load();
+    const recovered = harvestQueue.depth();
+    if (recovered) log.info(`[harvest] fila recuperada do disco: ${recovered} obra(s)`);
+  }
+  rearmTimer(harvesterLive.effective().harvestIntervalMs);
+}
+
+/**
  * Um passo do ciclo: consome UMA obra da fila. Em produção só o setInterval
  * do start() chama; exportado para o teste cobrir a contabilidade do teto
  * horário sem subir o timer.
  */
 async function tick() {
   const live = harvesterLive.effective();
+  // Etapa 4: o intervalo pode ter mudado no painel — rearma ANTES de qualquer
+  // retorno precoce, senão uma fila vazia ou um freio de tráfego adiaria a
+  // mudança para sempre.
+  rearmTimer(live.harvestIntervalMs);
   if (!live.harvestEnabled || paused || harvesterLive.isPaused() || inFlight || activity.recentUserTraffic(live.harvestIdleWindowMs)) return;
   try { cache.maintain(); } catch {}
   checkQuotaWarning().catch(() => {});
@@ -92,26 +161,52 @@ async function tick() {
     if (!entry) return;
     harvestQueue.persist();
     const identity = obraIdentity(entry);
-    const { ok, capped } = await harvestWorker.harvestOne(entry);
-    metrics.count(ok ? 'harvest.done' : 'harvest.empty');
-    if (capped) {
-      // Obra cortada no meio pelo teto volta para a FRENTE da fila: terminar o
-      // que já começou vale mais que abrir obra nova, porque um registro
-      // parcial no índice já conta como cobertura para o idxPoolCovered — a
-      // busca passaria a ser servida de uma lista incompleta. O contador de
-      // tentativas evita que uma obra cara segure a fila para sempre.
-      const tries = (attemptsByObra.get(identity) || 0) + 1;
-      attemptsByObra.set(identity, tries);
+    const { added, capped, preempted } = await harvestWorker.harvestOne(entry);
+    if (preempted) {
+      // Obra interrompida por tráfego: SEM custo em attemptsByObra (não é
+      // falha). Até 3 preempções volta à frente; a 4ª vai para a cauda
+      // (`harvest.preempted.deferred`) para não monopolizar a fila — sem
+      // dropar. `resumed` só para o painel; enqueuedAt original preservado.
+      const tries = (preemptsByObra.get(identity) || 0) + 1;
+      preemptsByObra.set(identity, tries);
+      metrics.count('harvest.preempted');
       if (tries <= 3) {
-        metrics.count('harvest.capped');
-        harvestQueue.head(entry);
-        harvestQueue.persist();
+        harvestQueue.head({ ...entry, resumed: true });
       } else {
-        metrics.count('harvest.capped.dropped');
+        harvestQueue.tail({ ...entry, resumed: true });
+        metrics.count('harvest.preempted.deferred');
+        preemptsByObra.delete(identity);
+      }
+      harvestQueue.persist();
+    } else {
+      // Conclusão sem preempção: zera o ciclo de preempções desta obra.
+      preemptsByObra.delete(identity);
+      // Contrato da Etapa 1 preservado: obra que CONCLUIU (ou foi cortada pelo
+      // teto) conta eficácia. A preemptada nunca chega aqui — voltou à fila e
+      // será recolhida como conclusão legítima depois.
+      metrics.count(added > 0 ? 'harvest.done' : 'harvest.empty');
+      if (capped) {
+        // Obra cortada no meio pelo teto volta para a FRENTE da fila: terminar
+        // o que já começou vale mais que abrir obra nova, porque um registro
+        // parcial no índice já conta como cobertura para o idxPoolCovered — a
+        // busca passaria a ser servida de uma lista incompleta. O contador de
+        // tentativas evita que uma obra cara segure a fila para sempre.
+        const tries = (attemptsByObra.get(identity) || 0) + 1;
+        attemptsByObra.set(identity, tries);
+        if (tries <= 3) {
+          metrics.count('harvest.capped');
+          harvestQueue.head(entry);
+          harvestQueue.persist();
+        } else {
+          // Drop da fila: limpa partial grudado (ex.: raiz semeada) antes de
+          // apagar attempts — senão o flag bloqueia fast-path por ~30d.
+          metrics.count('harvest.capped.dropped');
+          releaseIndex.clearPartial(entry.imdbId, { season: entry.season, episode: entry.episode });
+          attemptsByObra.delete(identity);
+        }
+      } else {
         attemptsByObra.delete(identity);
       }
-    } else {
-      attemptsByObra.delete(identity);
     }
   } catch (err: unknown) {
     metrics.count('harvest.failed');
@@ -158,15 +253,41 @@ async function drain(maxWorks?: number) {
 function start() {
   if (started) return;
   started = true;
-  if (!config.harvest.enabled || !config.releaseIndex.enabled) {
+  // live → harvester (callback); harvester já importa live — sem ciclo.
+  harvesterLive.onConfigChange(syncFromLive);
+  // Mesmo critério de tick/status: overlay vivo × índice, não o .env estático.
+  if (!liveWantsTimer()) {
     log.info('[harvest] desativado (colhedor ou índice off)');
     return;
   }
   harvestQueue.load();
   const recovered = harvestQueue.depth();
   if (recovered) log.info(`[harvest] fila recuperada do disco: ${recovered} obra(s)`);
-  const timer = setInterval(() => { tick().catch(() => {}); }, config.harvest.intervalMs);
-  timer.unref();
+  // Etapa 4: arma com o valor VIVO — o painel pode ter salvo um intervalo
+  // diferente do `config.harvest.intervalMs` estático do .env.
+  rearmTimer(harvesterLive.effective().harvestIntervalMs);
+}
+
+/** Leitura interna para teste: ms com que o timer corrente foi armado. */
+export function _armedIntervalMsForTest(): number {
+  return armedIntervalMs;
+}
+
+/** Timer armado? (Fase 3 — sync vivo). */
+export function _timerArmedForTest(): boolean {
+  return armedInterval != null;
+}
+
+/**
+ * Reseta o estado do timer para testes (start sticky no módulo). Não usa em
+ * produção — o processo sobe start() uma vez.
+ */
+export function _resetForTest(): void {
+  started = false;
+  inFlight = false;
+  paused = false;
+  disarmTimer();
+  harvesterLive.onConfigChange(null);
 }
 
 /** Para o painel: estado do colhedor sem expor nada sensível. */
@@ -175,8 +296,13 @@ function status() {
   const isPause = paused || harvesterLive.isPaused();
   const workerStats = harvestWorker.stats();
   return {
+    // enabled = overlay vivo × índice; start()/syncFromLive usam o MESMO
+    // critério (Fase 3 — timer acompanha o painel sem restart).
     enabled: live.harvestEnabled && config.releaseIndex.enabled,
     paused: isPause,
+    // Espelho em memória da chave durável harvest:v1:q (load no start / persist
+    // no enqueue). Sem load, depth pode mentir 0 — ainda assim a fonte é a fila
+    // persistente, não o teto horário nem o override vivo.
     queueDepth: harvestQueue.depth(),
     queueMax: live.harvestQueueMax,
     harvested: workerStats.harvested,
@@ -187,6 +313,14 @@ function status() {
     queuePreview: harvestQueue.preview(config.harvest.queuePreview),
     lastWorks: workerStats.recentWorks.map((entry) => ({ ...entry, at: new Date(entry.at).toISOString() })),
     config: harvesterLive.snapshot(),
+    // Procedência do painel (Fase 2): aditivo; campos existentes intactos.
+    _origem: {
+      queriesThisHour: 'duravel',
+      queueDepth: 'duravel',
+      enabled: 'amostra',
+      lastRunAt: 'amostra',
+      paused: 'amostra',
+    },
   };
 }
 

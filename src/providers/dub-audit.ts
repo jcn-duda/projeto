@@ -8,6 +8,8 @@ import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import * as cache from '../utils/cache.js';
 import { opts } from '../runtime.js';
+import { accountScope } from '../utils/request-key.js';
+import * as protectedApi from '../debrid/protected.js';
 import { isDubLieError, isEpisodePickError } from '../debrid/common.js';
 import type { ApplyDebridOptions } from './debrid-pipeline-core.js';
 
@@ -140,6 +142,11 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
         lies += 1;
         const adapter = debrid.current() as DebridAdapter | null;
         if (adapter) magnetdb.markLie(adapter.id, opts().debridApiKey, cand.hash);
+        if (adapter) {
+          // Release provou EN apesar da promessa de dublado: não é acervo BR
+          // confiável — destrava a proteção durável daquela conta/adapter.
+          protectedApi.unprotect(adapter.id, accountScope(opts().debridApiKey), cand.hash);
+        }
         if (cand.imdbId) releaseIndex.markLied(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash);
         if (cand.key) liedKeys.add(cand.key);
         for (const extra of cand.extraKeys || []) if (extra) liedKeys.add(extra);

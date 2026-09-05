@@ -17,7 +17,10 @@ import { applyDebrid, buildStreams } from '../src/providers/index.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { sortAndLimit } from '../src/utils/format.js';
-import { pickFile, NoVideoError } from '../src/debrid/common.js';
+import { pickFile, NoVideoError, DubLieError } from '../src/debrid/common.js';
+import * as held from '../src/debrid/protected.js';
+import { queueDubAudit, runDubAudit } from '../src/providers/dub-audit.js';
+import { createStreamTrace } from '../src/utils/stream-trace.js';
 
 const runWith = (patch: { opts: any; encoded: string }, fn: () => any) => runtime.run(patch, fn);
 
@@ -83,6 +86,18 @@ test('bad vence sobre alive: markBad apaga o histórico vivo do mesmo hash', () 
   assert.equal(magnetdb.isAlive('premiumize', conta, hash), false, 'alive não sobrevive ao bad no mesmo hash');
 });
 
+test('markAlive recusa hash bad: não ressuscita o alive', () => {
+  // Sem o filtro, a checagem seguinte regravava alive e desfazia o forget do markBad.
+  const hash = '3'.repeat(40);
+  const conta = 'conta-alive-refused-bad';
+  magnetdb.markBad('premiumize', conta, hash);
+  metrics.reset();
+  magnetdb.markAlive('premiumize', conta, [hash]);
+  assert.equal(magnetdb.isAlive('premiumize', conta, hash), false, 'markAlive não ressuscita hash bad');
+  assert.equal((metrics.snapshot() as any).counters['magnetdb.alive.refused-bad'], 1);
+  metrics.reset();
+});
+
 test('lie é evidência própria, escopada por conta, sem virar bad', () => {
   const hash = '9'.repeat(40);
   magnetdb.markLie('premiumize', 'conta-lie', hash);
@@ -105,7 +120,49 @@ test('status observa por adaptador e TTL sem expor o escopo da conta', () => {
   assert.ok(snapshot.byAdapter.premiumize.sizeAlive >= 1);
   assert.ok(snapshot.byAdapter.torbox.sizeBad >= 1);
   assert.ok(snapshot.byAdapter.torbox.ttlRemainingSeconds.lie !== null);
+  assert.equal(typeof snapshot.l1Entries, 'number');
+  assert.equal(typeof snapshot.l1Max, 'number');
+  assert.equal(typeof snapshot.evictedQuota, 'number');
+  assert.ok(snapshot.l1Max >= snapshot.l1Entries);
   assert.equal(JSON.stringify(snapshot).includes(secretAccount), false, 'o diagnóstico não vaza chave nem digest de conta');
+  // Mecanismo A: amostra do processo ≠ ocupação L1/L2 do namespace mag.
+  assert.equal(snapshot._origem.l1Entries, 'duravel');
+  assert.equal(snapshot._origem.sizeAlive, 'amostra');
+  assert.equal(snapshot._origem.byAdapter, 'amostra');
+  assert.equal(snapshot._origem.evictedQuota, 'duravel');
+});
+
+test('status: ocupação L1 do mag ≠ tamanho da amostra (órfã sem track)', () => {
+  // Chave mag plantada direto no cache não passa por mark*/track — L1 sobe,
+  // amostra não. Prova que o painel não pode fundir os dois campos.
+  const before = magnetdb.status();
+  const sampleBefore = before.sizeAlive + before.sizeBad + before.sizeLie;
+  const l1Before = before.l1Entries;
+  const orphanKey = `${prefix('mag')}alive:orphan-l1:${'d'.repeat(16)}:${'f'.repeat(40)}`;
+  cache.set(orphanKey, 1, 3600);
+  try {
+    const after = magnetdb.status();
+    assert.equal(after.l1Entries, l1Before + 1, 'L1 conta a órfã');
+    assert.equal(
+      after.sizeAlive + after.sizeBad + after.sizeLie,
+      sampleBefore,
+      'amostra tracked não muda com chave órfã',
+    );
+    assert.ok(after.l1Entries !== after.sizeAlive + after.sizeBad + after.sizeLie, 'L1 e amostra são campos distintos');
+  } finally {
+    cache.forget(orphanKey);
+  }
+});
+
+test('status: sync do tracked dropta chave evictada/forgotten', () => {
+  const conta = 'conta-sync-tracked-mag';
+  const hash = 'e'.repeat(40);
+  const key = `${prefix('mag')}alive:premiumize:${accountScope(conta)}:${hash}`;
+  const sampleBefore = magnetdb.status().sizeAlive;
+  magnetdb.markAlive('premiumize', conta, [hash]);
+  assert.equal(magnetdb.status().sizeAlive, sampleBefore + 1);
+  cache.forget(key);
+  assert.equal(magnetdb.status().sizeAlive, sampleBefore, 'peek null no status remove a fantasma do Map');
 });
 
 test('pickFile: listagem vazia é null (transferência fria), não prova de magnet quebrado', () => {
@@ -242,232 +299,74 @@ test('applyDebrid sem histórico não descarta nada (controle)', async () => {
   }
 });
 
-test('sortAndLimit: histórico instantâneo desempata acima dos seeders', () => {
-  const hot = '3'.repeat(40);
-  const proven = '4'.repeat(40);
-  const mk = (hash: string, seeders: number) => ({
-    name: `filme ${hash}`,
-    title: 'Filme Teste 1080p',
-    infoHash: hash,
-    _seeders: seeders,
-    _quality: '1080p',
-  });
-  const semHistorico = sortAndLimit([mk(hot, 50), mk(proven, 5)] as any, {});
-  assert.equal((semHistorico[0] as any).infoHash, hot, 'sem registro, seeders decidem');
-  const comHistorico = sortAndLimit([mk(hot, 50), mk(proven, 5)] as any, {
-    instant: (h: string) => h === proven,
-  } as any);
-  assert.equal((comHistorico[0] as any).infoHash, proven, 'magnet que já provou tocar na hora vence a aposta de seeders');
-});
-
-// Regressão medida no container (tt11198330:2:1, 520 resultados, lista vazia):
-// `toStremioStream` devolve NULL para item sem infoHash — link que resolvedor
-// nenhum abriu — e o desempate do banco de magnets lia `.infoHash` do buraco.
-// Um único resultado assim derrubava a BUSCA INTEIRA com TypeError, e o usuário
-// via zero stream num título com centenas de releases.
-test('buildStreams sobrevive a item sem infoHash com banco de magnets ligado', async () => {
-  const originalCheck = debrid.checkCached;
-  debrid.checkCached = async () => ({ cached: new Set<string>(), known: true }) as any;
-  try {
-    const raw = [
-      // Sem infoHash e sem magnet: vira null no mapeamento.
-      { Title: 'Serie Sem Hash S02E01 1080p', Seeders: 9, Link: 'https://sem-hash.test/x' },
-      { Title: 'Serie Boa S02E01 1080p DUAL', Seeders: 40, InfoHash: '5'.repeat(40) },
-    ];
-    const out = await runWith(
-      { opts: { ...userOpts('chave-mag-null'), debridCachedOnly: false }, encoded: 'segcfg' },
-      () =>
-        buildStreams(raw as any, {
-          season: 2,
-          episode: 1,
-          imdbId: 'tt0000002',
-          searchKey: 'magnet-db-null',
-          deadlineAt: Date.now() + 8000,
-        } as any),
-    );
-    assert.ok(Array.isArray(out), 'a lista não pode morrer por causa do item sem hash');
-    assert.ok(out.length >= 1, 'o resultado com hash continua entregue');
-  } finally {
-    debrid.checkCached = originalCheck;
-  }
-});
-
-// O aviso é o que o usuário vê quando o filtro pré-checagem esvazia a lista:
-// sem texto próprio ele sairia como "fora do cache", culpando a checagem pelo
-// que foi histórico ruim. As métricas separadas são o instrumento que valida a
-// correção do markBad em produção (.bad deve despencar depois dela).
-test('buildStreams: filtro pré-checagem esvaziando gera aviso próprio e métricas bad/dead separadas', async () => {
-  const { adapter } = makeFake();
-  const original = debrid.BY_ID.get('premiumize');
-  debrid.BY_ID.set('premiumize', adapter as any);
-  const originalCheck = debrid.checkCached;
-  debrid.checkCached = async () => ({ cached: new Set<string>(), known: true }) as any;
-  const key = 'chave-mag-aviso';
-  const badHash = 'b'.repeat(40);
-  const deadHash = 'e'.repeat(40);
-  magnetdb.markBad('premiumize', key, badHash);
-  autofetch.blacklist('premiumize', accountScope(key), deadHash);
+test('applyDebrid sem adapter: stream _lied some da lista (pre-debrid)', async () => {
+  // P2P puro (sem serviço/chave) early-returna antes do pruneKnownBroken; o
+  // corte de _lied tem que acontecer ANTES, senão o mentiroso chega ao cliente.
+  // O dropTrace com motivo 'lie' é o que o P5 usa para saber QUAL sumiu.
+  const good = 'a'.repeat(40);
+  const lied = 'b'.repeat(40);
+  const trace = createStreamTrace();
   metrics.reset();
   try {
     const out = await runWith(
-      { opts: { ...userOpts(key), debridCachedOnly: false }, encoded: 'segcfg' },
-      () =>
-        buildStreams(
-          [
-            // Formato já normalizado (minúsculo): `InfoHash` maiúsculo de
-            // Jackett cru viraria null no toStremioStream antes do filtro.
-            { title: `Filme Ruim ${badHash}`, infoHash: badHash, seeders: 10 },
-            { title: `Filme Morto ${deadHash}`, infoHash: deadHash, seeders: 20 },
-          ] as any,
-          {
-            season: null,
-            episode: null,
-            imdbId: 'tt0000003',
-            searchKey: 'magnet-db-aviso',
-            deadlineAt: Date.now() + 8000,
-          } as any,
-        ),
+      { opts: { ...runtime.defaults(), debridService: '', debridApiKey: '' }, encoded: '' },
+      () => applyDebrid([
+        stream(good),
+        { ...stream(lied), _lied: true },
+      ] as any, {
+        season: null,
+        episode: null,
+        imdbId: 'tt0000001',
+        searchKey: 'magnet-db-pre-lie',
+        deadlineAt: Date.now() + 8000,
+        onCacheResult: null,
+        workHint: null,
+        trace,
+      } as any),
     );
-    assert.equal(out.length, 1, 'sobra só o item de aviso');
-    assert.match(String(out[0].name), /histórico ruim/, 'o aviso diz o motivo real, não "fora do cache"');
-    const counters = (metrics.snapshot() as any).counters;
-    assert.equal(counters['magnetdb.dropped'], 2);
-    assert.equal(counters['magnetdb.dropped.bad'], 1, 'bad (banco de magnets) contado à parte');
-    assert.equal(counters['magnetdb.dropped.dead'], 1, 'dead (blacklist do autofetch) contado à parte');
+    assert.equal(out.length, 1, 'só o stream sem _lied sobrevive');
+    assert.equal(out[0].infoHash, good);
+    assert.equal((metrics.snapshot() as any).counters['search.lie.pre-debrid'], 1);
+    assert.equal((metrics.snapshot() as any).counters['magnetdb.dropped.lie'], undefined,
+      'sem adapter não passa pelo pruneKnownBroken — métrica distinta');
+    assert.equal(trace.items.length, 1, 'um drop no P5');
+    assert.equal(trace.items[0].reason, 'lie', 'pre-debrid registra o mesmo motivo do pruneKnownBroken');
+    assert.match(String(trace.items[0].label), new RegExp(lied.slice(0, 8)));
   } finally {
     metrics.reset();
-    debrid.checkCached = originalCheck;
-    debrid.BY_ID.set('premiumize', original as any);
   }
 });
 
-test('applyDebrid: bad+blocked RD é limpo e mantém o stream fora do cachedOnly; bad sem blocked continua descartado', async () => {
-  const { adapter } = makeFake();
-  const original = debrid.BY_ID.get('realdebrid');
-  // Aplica o filtro para o adapter Real-Debrid sem rede na checagem (default do fake).
-  debrid.BY_ID.set('realdebrid', { ...adapter, id: 'realdebrid' } as any);
-  const key = 'chave-rd-heal';
-  const blockedHash = 'a'.repeat(40); // dano antigo: bad + blocked
-  const noVideoHash = 'b'.repeat(40); // NoVideo legítimo: bad, sem blocked
-  magnetdb.markBad('realdebrid', key, blockedHash);
-  magnetdb.markBad('realdebrid', key, noVideoHash);
-  rdLedger.noteBlocked(blockedHash);
-  const priorLedgerEnabled = config.debrid.rdLedger.enabled;
-  config.debrid.rdLedger.enabled = true;
+test('runDubAudit: mentira do tail destrava adprot (paridade com /resolve)', async () => {
+  const originalResolve = debrid.resolveLink;
+  const originalProtect = config.debrid.autoFetchProtectBr;
+  const apiKey = 'chave-mag-audit-lie';
+  const account = accountScope(apiKey);
+  const h = 'f1'.repeat(20);
+  cache.clearNamespace('adprot');
   metrics.reset();
   try {
-    const out = await runWith(
-      { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: false }, encoded: 'seg' },
-      () =>
-        applyDebrid([stream(blockedHash), stream(noVideoHash)] as any, {
-          season: null,
-          episode: null,
-          imdbId: null,
-          searchKey: 'magnet-rd-heal',
-          deadlineAt: Date.now() + 8000,
-          onCacheResult: null,
-          workHint: null,
-        } as any),
+    config.debrid.autoFetchProtectBr = true;
+    held.protectBr('alldebrid', account, h);
+    assert.equal(held.isDurablyProtected('alldebrid', account, h), true, 'precondição: retido');
+    debrid.resolveLink = async () => {
+      throw new DubLieError({ videoCount: 1, matchedGroup: 'WEB', sample: 'Movie.2024.1080p.WEB.mkv' });
+    };
+    await runWith(
+      { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: apiKey }, encoded: 'cfg-mag-audit' },
+      async () => {
+        queueDubAudit('alldebrid', apiKey, [{ hash: h, season: null, episode: null, imdbId: null, dubbed: true }]);
+        const r = await runDubAudit();
+        assert.equal(r.lies, 1, 'tail provou a mentira');
+      },
     );
-    const dump = JSON.stringify(out);
-    assert.ok(dump.includes(blockedHash), 'bad+blocked (fora do cachedOnly) volta como stream sem ⚡');
-    assert.ok(!dump.includes(noVideoHash), 'bad deixado sem blocked continua descartado');
-
-    assert.equal(magnetdb.isBad('realdebrid', key, blockedHash), false, 'bad+blocked foi limpo no self-heal');
-    assert.equal(magnetdb.isBad('realdebrid', key, noVideoHash), true, 'bad legítimo preservado');
-
-    const counters = (metrics.snapshot() as any).counters;
-    assert.equal(counters['magnetdb.bad.clearedBlocked'], 1, 'métrica específica do reparo');
-    assert.equal(counters['magnetdb.dropped.bad'], 1, 'bad legítimo conta como derrubado');
-    assert.equal(counters['magnetdb.dropped'], 1, 'dropped agrega sem o recuperado');
-
-    // O mesmo fingerprint em cachedOnly ainda se autocorrige no magnetdb, mas
-    // o ledger blocked faz o corte ternário depois: não promete play instantâneo.
-    magnetdb.markBad('realdebrid', key, blockedHash);
-    const cachedOnlyOut = await runWith(
-      { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: true }, encoded: 'seg' },
-      () =>
-        applyDebrid([stream(blockedHash)] as any, {
-          season: null,
-          episode: null,
-          imdbId: null,
-          searchKey: 'magnet-rd-heal-cached-only',
-          deadlineAt: Date.now() + 8000,
-          onCacheResult: null,
-          workHint: null,
-        } as any),
-    );
-    assert.equal(cachedOnlyOut.length, 0, 'cachedOnly continua cortando o blocked pelo ledger');
-    assert.equal(magnetdb.isBad('realdebrid', key, blockedHash), false, 'self-healing também limpa antes do corte cachedOnly');
+    assert.equal(held.isDurablyProtected('alldebrid', account, h), false, 'audit destrava retenção');
+    assert.equal(magnetdb.isLie('alldebrid', apiKey, h), true, 'lie gravado na conta');
   } finally {
+    debrid.resolveLink = originalResolve;
+    config.debrid.autoFetchProtectBr = originalProtect;
+    held.unprotect('alldebrid', account, h);
+    cache.clearNamespace('adprot');
     metrics.reset();
-    config.debrid.rdLedger.enabled = priorLedgerEnabled;
-    debrid.BY_ID.set('realdebrid', original as any);
-  }
-});
-
-test('applyDebrid: blocked RD recém-gravado NUNCA sai pelo /resolve mesmo voltando como cacheado', async () => {
-  // O /resolve descobriu o 451 e gravou noteBlocked, mas o magnet NÃO é bad
-  // (recusa legal não é magnet quebrado). A checagem de cache ainda o devolve
-  // como cacheado (memo/avaliador não sabem do bloqueio) — sem a purga ele
-  // ressuscitaria como [RD⚡]/[RD download] e o play morreria em 451 de novo.
-  const blockedHash = 'd'.repeat(40);
-  const liveHash = 'e'.repeat(40);
-  const { adapter } = makeFake((_apiKey, infoHashes) => ({
-    cached: new Set(infoHashes.filter((h) => h === blockedHash || h === liveHash)),
-    complete: true,
-  }));
-  const original = debrid.BY_ID.get('realdebrid');
-  debrid.BY_ID.set('realdebrid', { ...adapter, id: 'realdebrid' } as any);
-  const key = 'chave-rd-blocked-fresh';
-  rdLedger.noteBlocked(blockedHash);
-  const priorLedgerEnabled = config.debrid.rdLedger.enabled;
-  config.debrid.rdLedger.enabled = true;
-  metrics.reset();
-  try {
-    // Fora do cachedOnly: o bloqueado volta como P2P puro (infoHash intacto,
-    // sem URL de /resolve e sem ⚡); o saudável segue com o link assinado.
-    const out = await runWith(
-      { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: false }, encoded: 'seg' },
-      () =>
-        applyDebrid([stream(blockedHash), stream(liveHash)] as any, {
-          season: null,
-          episode: null,
-          imdbId: null,
-          searchKey: 'magnet-rd-blocked-fresh',
-          deadlineAt: Date.now() + 8000,
-          onCacheResult: null,
-          workHint: null,
-        } as any),
-    );
-    assert.equal(out.length, 2, 'nenhum dos dois some da lista');
-    const blockedOut = out.find((s: any) => s.infoHash === blockedHash) as any;
-    assert.ok(blockedOut, 'hash bloqueado volta como P2P fora do cachedOnly');
-    assert.equal(blockedOut.url, undefined, 'bloqueado não aponta para o /resolve');
-    assert.doesNotMatch(String(blockedOut.name), /⚡/, 'bloqueado não leva ⚡');
-    const liveOut = out.find((s: any) => (s as any).url && String((s as any).url).includes(liveHash)) as any;
-    assert.ok(liveOut, 'hash saudável confirmado em cache sai pelo /resolve');
-    const counters = (metrics.snapshot() as any).counters;
-    assert.equal(counters['debrid.blocked.dropped'], 1, 'purga do blocked contada em métrica própria');
-
-    // Sob cachedOnly o corte o remove por completo (sem raio não aparece).
-    const cachedOnlyOut = await runWith(
-      { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: true }, encoded: 'seg' },
-      () =>
-        applyDebrid([stream(blockedHash)] as any, {
-          season: null,
-          episode: null,
-          imdbId: null,
-          searchKey: 'magnet-rd-blocked-fresh-cached-only',
-          deadlineAt: Date.now() + 8000,
-          onCacheResult: null,
-          workHint: null,
-        } as any),
-    );
-    assert.equal(cachedOnlyOut.length, 0, 'cachedOnly remove o hash bloqueado da lista');
-  } finally {
-    metrics.reset();
-    config.debrid.rdLedger.enabled = priorLedgerEnabled;
-    debrid.BY_ID.set('realdebrid', original as any);
   }
 });

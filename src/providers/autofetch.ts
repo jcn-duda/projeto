@@ -5,9 +5,8 @@ import config from '../config.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
-import debrid from '../debrid/index.js';
-import { accountScope } from '../utils/request-key.js';
-import type { DebridAdapter } from '../../types/domain.js';
+import { markerKey, markerValue, markerTransferId } from './autofetch-marker.js';
+import { accountGateBlocked, resetAccountGate, accountGateSnapshot } from './autofetch-gate.js';
 
 const pending = new Map();
 const searchSlots = new Map();
@@ -26,16 +25,15 @@ function sha256(str: string) {
   return crypto.createHash('sha256').update(String(str || '')).digest('hex');
 }
 
-function markerKey(adapterId: string, account: string, infoHash: string) {
-  return `${prefix('autofetch')}m:${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
-}
-
 function deadKey(adapterId: string, account: string, infoHash: string) {
   return `${prefix('autofetch')}dead:${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
 }
 
+const QUEUE_PREFIX = `${prefix('autofetch')}q:`;
+const DEAD_PREFIX = `${prefix('autofetch')}dead:`;
+
 function queueKey(searchKey: string) {
-  return `${prefix('autofetch')}q:${sha256(searchKey)}`;
+  return `${QUEUE_PREFIX}${sha256(searchKey)}`;
 }
 
 function prefetchKey(account: string, id: string, s: number | string, e: number | string) {
@@ -106,6 +104,14 @@ function releaseSearch(searchKey: string) {
 function isDead(adapterId: string, account: string, infoHash: string): boolean {
   if (!adapterId || !account || !infoHash) return false;
   return cache.get(deadKey(adapterId, account, infoHash)) === 1;
+}
+
+/** Leitura de diagnóstico (P5): mesma blacklist, `cache.peek` — sem promover
+ * o LRU nem contar hit/miss. Quem pergunta é o funil explicando um sumiço,
+ * não o pipeline decidindo uma vaga. */
+function isDeadQuiet(adapterId: string, account: string, infoHash: string): boolean {
+  if (!adapterId || !account || !infoHash) return false;
+  return cache.peek(deadKey(adapterId, account, infoHash)) === 1;
 }
 
 function blacklist(
@@ -200,6 +206,36 @@ function drainQueues(): { queues: number; items: number } {
   return { queues, items };
 }
 
+// drainNext nunca esteve cego (lê cache.get direto); cego era snapshot() do
+// painel e drainQueues(). reindexQueues/reindexDead no boot varrem o L1
+// (`autofetch:v3:q:` / `autofetch:v3:dead:`) e reconstroem knownQueues /
+// knownDead — por isso o painel marca queues e deadBlacklistCount como
+// "duravel": o índice de processo espelha o que sobreviveu no cache.
+function reindexQueues() {
+  let n = 0;
+  for (const key of cache.keysMatching(QUEUE_PREFIX)) {
+    if (knownQueues.has(key)) continue;
+    const value = cache.get(key);
+    if (!Array.isArray(value) || value.length === 0) continue;
+    knownQueues.set(key, value.length);
+    n += 1;
+  }
+  metrics.count('autofetch.queue.reindexed', n);
+  return n;
+}
+
+function reindexDead() {
+  let n = 0;
+  for (const key of cache.keysMatching(DEAD_PREFIX)) {
+    if (knownDead.has(key)) continue;
+    if (cache.get(key) !== 1) continue;
+    knownDead.add(key);
+    n += 1;
+  }
+  metrics.count('autofetch.dead.reindexed', n);
+  return n;
+}
+
 function takeNext(
   queue: QueueCandidate[],
   skipFn?: (item: QueueCandidate) => boolean,
@@ -289,57 +325,11 @@ function resetBudget(adapterId?: string, account?: string) {
  * leituras locais — o inventário memoizado (dinv, quando existe) ou o memo
  * em memória abaixo — e o refresh roda em background. Memo frio ou vencido
  * é FAIL-OPEN: melhor um download a mais que bloquear sem evidência.
+ *
+ * A implementação mora em autofetch-gate.ts (extraído para a catraca); aqui
+ * fica só o reexport, para `autofetch.accountGateBlocked` continuar o contrato
+ * que os testes e o runner já usam.
  */
-const accountGateMemo = new Map<string, { count: number; at: number }>();
-// Trava anti-duplicação: memo vencido acordado por N buscas dispara UM refresh.
-const accountGateInFlight = new Set<string>();
-
-function accountGateBlocked(adapter: DebridAdapter, apiKey: string): boolean {
-  const live = autofetchLive.effective();
-  const pauseAt = live.autoFetchPauseAt;
-  if (pauseAt <= 0) return false;
-  if (!adapter || !apiKey) return false;
-
-  // Bônus barato, antes do memo: o inventário memoizado da conta é leitura
-  // local (cache.get, sem rede) e a contagem já é o tamanho do array. Mas o
-  // dinv guarda só magnets PRONTOS, e a ocupação que derruba a conta é o
-  // TOTAL: prontos ⊆ todos, então o peek é piso — só bloqueia, nunca libera.
-  // Abaixo do limiar a decisão segue para o memo/accountStatus.
-  const peek = debrid.inventoryPeek(adapter, apiKey);
-  if (Array.isArray(peek) && peek.length >= pauseAt) return true;
-
-  // Adaptador sem accountStatus (ou sem contagem total, como o Premiumize,
-  // que só publica o fair-use) nunca bloqueia: sem medição não há evidência.
-  if (typeof adapter.accountStatus !== 'function') return false;
-
-  const key = `${adapter.id}:${accountScope(apiKey)}`;
-  const memo = accountGateMemo.get(key);
-  if (memo && Date.now() - memo.at < live.autoFetchPauseRefreshMs) {
-    return memo.count >= pauseAt;
-  }
-
-  // Memo vencido/ausente: FAIL-OPEN agora, refresh em background para a
-  // próxima chamada decidir com a contagem real.
-  if (!accountGateInFlight.has(key)) {
-    accountGateInFlight.add(key);
-    Promise.resolve(adapter.accountStatus(apiKey))
-      .then((status) => {
-        const count = Number(status?.magnets);
-        // Sem contagem numérica (campo ausente) nada é gravado: o serviço
-        // continua fail-open para sempre, igual ao adaptador sem suporte.
-        if (Number.isFinite(count)) accountGateMemo.set(key, { count, at: Date.now() });
-      })
-      .catch(() => {})
-      .finally(() => accountGateInFlight.delete(key));
-  }
-  return false;
-}
-
-/** Limpa o memo e a trava em voo do gate de ocupação (testes/diagnóstico). */
-function resetAccountGate() {
-  accountGateMemo.clear();
-  accountGateInFlight.clear();
-}
 
 /** Estado operacional sem expor searchKey, conta ou infoHash. */
 function snapshot() {
@@ -380,36 +370,23 @@ function snapshot() {
     budget: { used, limit, accounts: budgets },
     deadBlacklistCount: knownDead.size,
     queues: { count: knownQueues.size, items: queueItems },
+    accountGate: accountGateSnapshot(),
     config: autofetchLive.snapshot(),
+    // queues/dead=durável (reindex no boot espelha L1); resto=amostra deste processo.
+    _origem: { queues: 'duravel', deadBlacklistCount: 'duravel', budget: 'amostra', accountGate: 'amostra' },
   };
 }
 
 export {
-  LOCK_TTL_MS,
-  markerKey,
-  deadKey,
-  queueKey,
-  prefetchKey,
-  acquire,
-  release,
-  acquireSearch,
-  releaseSearch,
-  acquireSearchSlot,
-  releaseSearchSlot,
-  isDead,
-  blacklist,
-  readQueue,
-  writeQueue,
-  dropQueue,
-  drainQueues,
-  takeNext,
-  checkAndRecordBudget,
-  blockBudget,
-  budgetBlockedUntil,
-  resetBudget,
-  accountGateBlocked,
-  resetAccountGate,
-  snapshot,
+  LOCK_TTL_MS, markerKey, markerValue, markerTransferId, deadKey, queueKey, prefetchKey,
+  acquire, release, acquireSearch, releaseSearch, acquireSearchSlot, releaseSearchSlot,
+  isDead, isDeadQuiet, blacklist, readQueue, writeQueue, dropQueue, drainQueues, takeNext,
+  checkAndRecordBudget, blockBudget, budgetBlockedUntil, resetBudget,
+  accountGateBlocked, resetAccountGate, accountGateSnapshot, snapshot, reindexQueues, reindexDead,
 };
+
+reindexQueues();
+reindexDead();
+
 export type { QueueCandidate };
 

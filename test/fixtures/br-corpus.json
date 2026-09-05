@@ -1,0 +1,159 @@
+{
+  "_meta": {
+    "geradoEm": "2026-09-01",
+    "fonte": "Baseline t=0 da conta AllDebrid do operador (888 magnets, leitura via scripts/magnets.js) + casos medidos nas Fases 0/4/8 e nos consertos 00c5dfb, streams:v7 (UIndex), 8.4 e 70f59ec",
+    "contrato": "Veredicto = classificação CORRETA dos PRIMITIVOS (looksPtBr, brOriginMark, audioFromTitle, hasExplicitForeignAudio), dos quais audioBucket e a matriz do inventário da conta (isBr/brOriginOnly em src/providers/account.ts) derivam. NÃO é o veredicto de hoje: onde o código erra, o teste fica vermelho até o conserto. O teste reporta TODAS as divergências de uma vez (não aborta na primeira)."
+  },
+  "itens": [
+    {
+      "t": "www.UIndex.org    -    The Boys S05E01 2160p AMZN WEB-DL DDP",
+      "looksPtBr": false, "brOrigin": false, "audio": "", "foreign": false,
+      "nota": "Espelho de cena EN. O alternador generico 'www\\w+.org -' absolvia 122 linhas da conta; consertado no streams:v7 (nenhum token de site BR aqui)."
+    },
+    {
+      "t": "The Boys S05E01-02 WEB-DL 1080p x264 DUAL 5.1",
+      "looksPtBr": false, "brOrigin": false, "audio": "Dual", "foreign": false,
+      "nota": "Classe dos ~249 duals ambíguos da conta: DUAL sem sinal PT nunca ocupa vaga reservada (invariante 8.12)."
+    },
+    {
+      "t": "The.Boys.S05E01-02.1080p.WEB-DL.DUAL.5.1",
+      "looksPtBr": false, "brOrigin": false, "audio": "Dual", "foreign": false,
+      "nota": "Mesma release em formato de cena (pontos); separador não cria sinal PT."
+    },
+    {
+      "t": "Furious.S01E07.1080p.WEB-DL.DUAL.5.1",
+      "looksPtBr": false, "brOrigin": false, "audio": "Dual", "foreign": false,
+      "nota": "Série com DUAL sem sinal PT: ambígua na conta real (baseline t=0)."
+    },
+    {
+      "t": "Rick.and.Morty.The.Anime.S01E01.1080p.WEB-DL.DUAL.2.0",
+      "looksPtBr": false, "brOrigin": false, "audio": "Dual", "foreign": false,
+      "nota": "Anime com DUAL sem PT explícito: ambíguo, não condena nem promove."
+    },
+    {
+      "t": "Dois Homens e Meio.(2007).Dual.Áudio.720p.By.Luan.Harper.TPF",
+      "looksPtBr": false, "brOrigin": false, "audio": "Dual", "foreign": false,
+      "nota": "Ambíguo REAL da conta (baseline t=0): título em português sem diacrítico rastreado (â/ã/ç), 'e' não conta no PT_STOP_TWO e 'TPF' não é marca registrada. É o perfil dominante dos 249 — se um dia ganhar sinal novo, o veredicto muda COM medição e nota aqui."
+    },
+    {
+      "t": "S01.Rick.And.Morty.1080p.WEB-DL.Dublado.avi",
+      "looksPtBr": true, "brOrigin": true, "audio": "Dublado", "foreign": false,
+      "nota": "Dublado explícito: looksPtBr pelo marcador de áudio, brOrigin via PT_VOCAB (dublad[oa])."
+    },
+    {
+      "t": "Rick and Morty 2016 – 1ª Temporada Completa (1080p) WWW.BLUDV",
+      "looksPtBr": false, "brOrigin": true, "audio": "", "foreign": false,
+      "nota": "Caso Zombieland (70f59ec): marca BLUDV dá origem forte (reserva sem _dubbed); looksPtBr é false porque o gate de áudio não bate — 'Temporada' sozinho não prova áudio."
+    },
+    {
+      "t": "Rick and Morty 2016 – 1ª Temporada Completa (720p) WWW.BLUDV",
+      "looksPtBr": false, "brOrigin": true, "audio": "", "foreign": false,
+      "nota": "Irmã 720p da acima: mesma classificação, independe de faixa."
+    },
+    {
+      "t": "[Anime Time] Soul Eater Complete (Soul Eater+Soul Eater NOT!",
+      "looksPtBr": false, "brOrigin": false, "audio": "", "foreign": false,
+      "nota": "Pack EN de grupo estrangeiro; 'Complete' (EN) não casa com 'complet[oa]' do PT_VOCAB."
+    },
+    {
+      "t": "Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio 1080p By.Luan.Harper",
+      "looksPtBr": true, "brOrigin": true, "audio": "Dual", "foreign": false,
+      "nota": "O CASO 00c5dfb: 'Dual Áudio' (em vez de 'Dublado') fazia a release sumir na disputa de cota. Dual + sinal PT (ã de 'Não') = brasileira. Reverter o conserto TEM que deixar este corpus vermelho."
+    },
+    {
+      "t": "Trilogia Se Beber Não Case (2009 - 2011 - 2013) Bluray 720p Dublado - WWW.BLUDV.COM",
+      "looksPtBr": true, "brOrigin": true, "audio": "Dublado", "foreign": false,
+      "nota": "A irmã 720p que sempre apareceu: o que já funcionava não pode regredir."
+    },
+    {
+      "t": "Matrix (1999) BDRip 1080p Dual Audio - WWW.WOLVERDONFILMES.COM",
+      "looksPtBr": true, "brOrigin": true, "audio": "Dual", "foreign": false,
+      "nota": "Site BR nomeado no título (wolverdon): Dual + sinal PT via BR_MARK."
+    },
+    {
+      "t": "A Casa do Dragão S01E04 WEB-DL 1080p DUAL 5.1",
+      "looksPtBr": true, "brOrigin": true, "audio": "Dual", "foreign": false,
+      "nota": "Sem marca de site: o ã de 'Dragão' é o sinal PT em conjunção com DUAL (caso real medido na Fase 8)."
+    },
+    {
+      "t": "Zumbilândia 2009 [1080p] WWW.BLUDV.COM",
+      "looksPtBr": false, "brOrigin": true, "audio": "", "foreign": false,
+      "nota": "Caso Zombieland (70f59ec): â NÃO é sinal rastreado (compartilhado com FR/IT) e sem marca de áudio — looksPtBr false; a origem BLUDV é quem dá reserva no caminho da conta, sem prometer dublagem."
+    },
+    {
+      "t": "Zumbilândia (2009) Bluray 1080p Filmes M.H.G",
+      "looksPtBr": false, "brOrigin": true, "audio": "", "foreign": false,
+      "nota": "A palavra 'filmes' é marca de origem por si só (regra do operador no 8.4: nome BR só pode ser BR)."
+    },
+    {
+      "t": "Zumbilândia 2009 [1080p] LEGENDADA WWW.BLUDV.COM",
+      "looksPtBr": false, "brOrigin": true, "audio": "Legendado", "foreign": false,
+      "nota": "LEGENDADA de site BR é conteúdo BR legendado: origem protege da limpeza, mas NÃO dá reserva de dublado (matriz do account: audioFromTitle === 'Legendado' desclassifica)."
+    },
+    {
+      "t": "X-Men - O Filme 1080p - The Pirate Filmes",
+      "looksPtBr": false, "brOrigin": true, "audio": "", "foreign": false,
+      "nota": "Falso positivo do 8.4: post BR condenado por não citar 'dublado'. brOriginMark TEM que proteger (true)."
+    },
+    {
+      "t": "Troia - The Pirate Filmes",
+      "looksPtBr": false, "brOrigin": true, "audio": "", "foreign": false,
+      "nota": "Mesma família do 8.4: 'piratefilmes' está na BR_SITE_MARKS (fora do BR_MARK de propósito — a blindagem da limpeza não recalibra a busca)."
+    },
+    {
+      "t": "zumbilandia (www.thepiratefilmes.com)",
+      "looksPtBr": false, "brOrigin": true, "audio": "", "foreign": false,
+      "nota": "Terceiro falso positivo do 8.4: o host do site na URL do título basta para proteger."
+    },
+    {
+      "t": "www.HDBTHD.com - The.Wandering.Earth.2023.2160p.WEB-DL.H265",
+      "looksPtBr": false, "brOrigin": false, "audio": "", "foreign": false,
+      "nota": "P6: 'bthd' sem fronteira casava DENTRO de HDBTHD (tracker chinês) e carimbava sinal PT — o único falso positivo entre os 42 duals do 00c5dfb. Com fronteira, deixa de ser marca. A conta real mediu exatamente 1 item neste perfil (corpus = a medição do custo). PENDÊNCIA separada descoberta ao montar o corpus: o TLD '.com' casa a preposição 'com' no PT_STOP_TWO (e pinyin 'De' casa 'de') — 2 tokens falsos bastam para sinal PT. Aqui o TLD sozinho fica abaixo do limiar de 2; apertar PT_STOP_TWO exige medição própria na conta antes."
+    },
+    {
+      "t": "Thunderbolt.2024.1080p.BTHD",
+      "looksPtBr": false, "brOrigin": true, "audio": "", "foreign": false,
+      "nota": "Contra-caso do P6: a marca BTHD delimitada (host/grupo) CONTINUA sendo sinal de origem BR."
+    },
+    {
+      "t": "Coringa.2019.1080p.AMZN.WEB-DL.DUAL.5.1.x264.mkv",
+      "looksPtBr": false, "brOrigin": false, "audio": "Dual", "foreign": false,
+      "nota": "Fase 0: DUAL sozinho no path não é lie e não é estrangeiro provado — ambíguo, como deve ser."
+    },
+    {
+      "t": "Zombieland.Double.Tap.2019.2160p.WEB-DL.DDP5.1.Atmos.H265-DreamHD",
+      "looksPtBr": false, "brOrigin": false, "audio": "Dual", "foreign": false,
+      "nota": "COLISÃO documentada do token de áudio: a palavra 'Double' DO TÍTULO do filme casa o marcador DOUBLE/DUAL e o classificador devolve 'Dual'. Falso marcador conhecido — mas o resultado é o balde ambíguo 'dual' (sem sinal PT, looksPtBr false, sem reserva), que é o lado seguro do erro. Se um dia o token ganhar exceção por título, medir antes (afrouxar marcador de áudio anda na direção da limpeza)."
+    },
+    {
+      "t": "Serenity.2023.1080p.WEBRip.x264 [Dual Audio] [Hindi DD 5.1] [HDRip-1337x][TorrentCounter].mkv",
+      "looksPtBr": false, "brOrigin": false, "audio": "Dual", "foreign": true,
+      "nota": "HINDI: a evidência de idioma estrangeiro que entrou na hasExplicitForeignAudio por medição real; desclassifica reserva no caminho da conta."
+    },
+    {
+      "t": "Movie.2019.1080p.TrueFrench.BluRay.x264",
+      "looksPtBr": false, "brOrigin": false, "audio": "", "foreign": true,
+      "nota": "TRUEFRENCH é prova positiva de idioma estrangeiro (lista deliberadamente MINÚSCULA — condenar aciona sweepUndubbed)."
+    },
+    {
+      "t": "True.Detective.S02E01.1080p.WEBRip.x264.DD5.1-RARBG.mkv",
+      "looksPtBr": false, "brOrigin": false, "audio": "", "foreign": false,
+      "nota": "Cena EN por GRUPO (strongEnSceneMark condena no foreignVerdict), mas SEM idioma declarado: hasExplicitForeignAudio é false — são predicados diferentes de propósito."
+    },
+    {
+      "t": "Во все тяжкие / Breaking Bad / … [BDRip 720p] [DUB] [Selena/Телеканал Че]",
+      "looksPtBr": false, "brOrigin": false, "audio": "", "foreign": false,
+      "nota": "Falso positivo CIRÍLICO medido pelo /stream-trace.json ao vivo (2026-09-01): 11 dos 50 títulos cirílicos do índice (826 únicos) estavam classificados looksPtBr=true + audio='Dublado' via DUB genérico — todos disputavam vaga reservada BR anunciando pt-BR; Телеканал Че é canal russo. Título citado pelo trace (operador abreviou com '…'). A guarda CYRILLIC_RE derruba a prova GENÉRICA do [DUB]; o cirílico NÃO entra em hasExplicitForeignAudio (script não é prova de idioma → foreign=false, nunca condena). Reverter a guarda TEM que deixar este corpus vermelho."
+    },
+    {
+      "t": "Во все тяжкие / Breaking Bad / … [BDRip 720p] [DUB] [Selena/Телеканал Че] PT-BR",
+      "looksPtBr": true, "brOrigin": false, "audio": "Dublado", "foreign": false,
+      "nota": "PT explícito vence: 'PT-BR' explícito ao lado do cirílico continua provando áudio PT (a marca corre FORA da guarda, nas regras próprias de explicitPtAudio) — release BR pode citar canal/fonte em cirílico. Mesma semântica do teste 'DUB/HINDI: PT-BR explícito ao lado vence'."
+    },
+    {
+      "t": "[TorrentCounter.to].Spirited.Away.2001.English.Dubbed.1080p.BluRay.x264.[1.8GB].mp4",
+      "looksPtBr": false, "brOrigin": false, "audio": "", "foreign": false,
+      "nota": "Falso positivo ENGLISH medido ao vivo (2026-09-02, tt0245429, bateria de 21 títulos): dublagem EM inglês rotulada DUB BR, 2º lugar ocupando vaga reservada — quem clicava ouvia inglês. A guarda ENGLISH|ENG derruba a prova GENÉRICA do DUBBED (mesma classe do HINDI/cirílico); ENGLISH NÃO entra em hasExplicitForeignAudio (foreign=false, dublagem EN é legítima para quem quer EN — nunca condena). Reverter a guarda TEM que deixar este corpus vermelho."
+    }
+  ]
+}

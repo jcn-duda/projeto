@@ -15,6 +15,8 @@ rotas. Nunca expor credencial.
 
 ## Arquivos-âncora
 
+- `.github/workflows/ci.yml`
+- `package.json` e `package-lock.json`
 - `src/utils/net-safety.ts`
 - `src/utils/diagnostic-guard.ts`
 - `src/utils/secret-box.ts`
@@ -34,6 +36,10 @@ rotas. Nunca expor credencial.
 5. Ordem das rotas: sem config ANTES do overlay `/:userConfig`; segmento inválido
    -> 404.
 6. `dk` é `secret` no schema; selo AES-256-GCM.
+7. Audit de produção (`npm audit --omit=dev`) é bloqueante. Não usar
+   `continue-on-error` para ocultar falha, nem `npm audit fix --force`.
+   Os overrides de `path-to-regexp` e `qs` corrigem transitivas mantendo
+   Express 4; ao alterá-los, validar lockfile, suíte e audit de produção.
 
 ## Contrato de saída (auditoria)
 

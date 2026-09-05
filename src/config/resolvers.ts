@@ -29,10 +29,10 @@ export const resolvers = () => ({
   },
   bludvUrl: (process.env.BLUDV_URL || BLUDV_DEFAULT_URL).replace(/\/$/, ''),
   comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
-  // xnerdfilmes.net migrou para nerdviatorrents.net (301 permanente); o
+  // nerdviatorrents.net migrou para filmesviatorrents.net (301 permanente); o
   // domínio novo precisa estar também na allowlist do resolver, senão o
   // redirect vira blocked_host e a fonte morre em silêncio.
-  nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.nerdviatorrents.net').replace(/\/$/, ''),
+  nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.filmesviatorrents.net').replace(/\/$/, ''),
   torrentdosfilmesUrl: (process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, ''),
   // Vaca Torrent trocou de domínio: vacatorrentmov.com redireciona para
   // vaqueirofilmes.com (mesmo tema WP, marca "VACA TT"), e o domínio antigo

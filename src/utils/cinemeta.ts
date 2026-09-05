@@ -8,9 +8,17 @@ import * as log from './logger.js';
 // cada uma pagava a chamada ao Cinemeta.
 const inFlight = new Map();
 
-function setMiss(key: string) {
-  // 0 desliga o cache negativo (operador pode querer sempre perguntar de novo).
-  if (config.cinemeta.missTtl > 0) cache.set(key, { miss: true }, config.cinemeta.missTtl);
+function setMiss(key: string, ttlSeconds?: number) {
+  // 0 desliga o cache negativo (operador pode querer sempre perguntar de novo);
+  // o TTL padrão é o do miss autoritativo, o transitório passa o próprio.
+  const ttl = ttlSeconds ?? config.cinemeta.missTtl;
+  if (ttl > 0) cache.set(key, { miss: true }, ttl);
+}
+
+// Falha TRANSITÓRIA (429/5xx, timeout, `fetch failed`) não é "id desconhecido"
+// — mesma regra do TMDB: não pode congelar a meta (e o ano) por minutos.
+function isTransientFailure(status: number) {
+  return !status || status === 429 || status >= 500;
 }
 
 /**
@@ -43,8 +51,11 @@ async function getMeta(type: string, imdbId: string) {
         signal: AbortSignal.timeout(config.cinemeta.timeout),
       });
       if (!res.ok) {
-        setMiss(key);
-        return null;
+        // Carrega o status no erro: 404 é autoritativo (id desconhecido), 429/
+        // 5xx é transitório — o catch decide o TTL do miss negativo.
+        const err = new Error(`HTTP ${res.status}`) as Error & { status?: number };
+        err.status = res.status;
+        throw err;
       }
       const data = await res.json();
       const meta = data?.meta
@@ -59,7 +70,10 @@ async function getMeta(type: string, imdbId: string) {
       return meta;
     } catch (err) {
       log.warn('[cinemeta]', err.message);
-      setMiss(key);
+      // 404 (e o corpo sem `meta`) é "não conhece" — missTtl cheio. Rede,
+      // timeout, 429 e 5xx são transitórios — CINEMETA_TRANSIENT_MISS_TTL.
+      const status = Number(err.status);
+      setMiss(key, isTransientFailure(status) ? config.cinemeta.transientMissTtl : undefined);
       return null;
     } finally {
       inFlight.delete(key);

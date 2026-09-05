@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
-import { record, lookup, status, markMissing, isMissing, markFileEvidence, fileEvidence } from '../src/utils/release-index.js';
+import { record, lookup, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, clearPartial, markLied } from '../src/utils/release-index.js';
 
 const release = (hash: string, extra: any = {}) => ({
   title: `Filme Teste 1080p DUAL ${hash.slice(0, 4)}`,
@@ -269,4 +269,82 @@ test('prova pelo arquivo: áudio e resolução reais por hash', () => {
   assert.equal(fileEvidence(eng)!.e, 1, 'release de cena reconhecida é a prova negativa');
   // Por hash e sem escopo de conta: o conteúdo do torrent é o mesmo para todos.
   assert.equal(fileEvidence('0'.repeat(40)), null, 'hash sem prova continua sem veredito');
+});
+
+// --- Registro parcial (Etapa 5) ----------------------------------------------
+//
+// A colheita interrompida (teto horário ou preempção por tráfego) grava o que
+// já veio com a marca `partial`: o fast-path da busca não pode servir uma obra
+// que ainda está pela metade. Gravação completa seguinte limpa — last-write-wins.
+
+test('Etapa 5: record { partial: true } marca e isPartial espelha as três chaves do lookup', () => {
+  // Marca na chave da TEMPORADA (pack de temporada): a busca do episódio lê a
+  // temporada primeiro, então a vê.
+  record('tt9000300', { season: 2 }, [serieRel('a2'.repeat(20), 'Serie Teste 2ª Temporada (2024) DUBLADO', { isBr: true })], { partial: true });
+  assert.equal(isPartial('tt9000300', { season: 2, episode: 5 }), true, 'S2 alcança a busca de S2E5');
+  // Marca na RAÍZ (obra inteira): qualquer temporada/episódio a enxerga pelo
+  // último degrau do lookup.
+  record('tt9000300', {}, [release('a3'.repeat(20), { title: 'Filme Teste 1080p DUBLADO' })], { partial: true });
+  assert.equal(isPartial('tt9000300', { season: 7, episode: 2 }), true, 'a raiz alcança temporada distante (S7E2)');
+  assert.equal(isPartial('tt9000300'), true, 'a raiz marca a obra inteira');
+});
+
+test('Etapa 5: gravação completa limpa o flag e a marca de S2E5 não vaza para S2E7', () => {
+  const hash = 'b1'.repeat(20);
+  record('tt9000301', { season: 2, episode: 5 }, [serieRel(hash, 'Serie Teste S02E05 DUBLADO')], { partial: true });
+  assert.equal(isPartial('tt9000301', { season: 2, episode: 5 }), true, 'parcial marca o episódio');
+
+  // Gravação default (completa) reescreve a MESMA chave sem o flag.
+  record('tt9000301', { season: 2, episode: 5 }, [serieRel(hash, 'Serie Teste S02E05 DUBLADO')]);
+  assert.equal(isPartial('tt9000301', { season: 2, episode: 5 }), false, 'completa limpa o flag (last-write-wins)');
+
+  // Granularidade: o parcial de S2E7 bloqueia S2E7 mas deixa S2E5 limpo.
+  record('tt9000301', { season: 2, episode: 7 }, [serieRel('b2'.repeat(20), 'Serie Teste S02E07 DUBLADO')], { partial: true });
+  assert.equal(isPartial('tt9000301', { season: 2, episode: 7 }), true, 'S2E7 parcial bloqueia S2E7');
+  assert.equal(isPartial('tt9000301', { season: 2, episode: 5 }), false, 'S2E7 não vaza para S2E5');
+});
+
+test('Etapa 5: markLied preserva o flag parcial', () => {
+  const hash = 'c1'.repeat(20);
+  record('tt9000302', { season: 3, episode: 1 }, [serieRel(hash, 'Serie Teste S03E01 DUBLADO')], { partial: true });
+  markLied('tt9000302', { season: 3, episode: 1 }, hash);
+  assert.equal(isPartial('tt9000302', { season: 3, episode: 1 }), true, 'prova de mentira não apaga a marca parcial');
+});
+
+test('Etapa 5: markMissing não cria entrada parcial — isPartial segue false', () => {
+  const hash = 'd1'.repeat(20);
+  markMissing('tt9000303', { season: 2, episode: 8 }, hash);
+  assert.equal(isMissing('tt9000303', { season: 2, episode: 8 }, hash), true, 'a prova de miss existe na chave própria');
+  assert.equal(isPartial('tt9000303', { season: 2, episode: 8 }), false, 'miss não é entrada idx nem marca parcial');
+});
+
+test('Etapa 5: desligado e obra inválida são false; lote vazio não grava', async () => {
+  const original = config.releaseIndex.enabled;
+  try {
+    assert.equal(isPartial('9000304', { season: 1 }), false, 'sem tt não é obra válida');
+    record('tt9000304', { season: 2 }, [], { partial: true });
+    assert.equal(isPartial('tt9000304', { season: 2 }), false, 'lote vazio não grava nem marca');
+    config.releaseIndex.enabled = false;
+    assert.equal(isPartial('tt9000304', { season: 2 }), false, 'RELEASE_INDEX=false desliga a leitura');
+  } finally {
+    config.releaseIndex.enabled = original;
+  }
+});
+
+test('clearPartial limpa partial em todas as chaves da obra sem apagar releases', () => {
+  // Série semeada grava partial na raiz; episódio enxerga pelo degrau final do
+  // isPartial — clearPartial precisa limpar a obra inteira (não só a location).
+  record('tt9000310', {}, [serieRel('e1'.repeat(20), 'Serie Semeada 1ª Temporada DUBLADO', { isBr: true })], { partial: true });
+  record('tt9000310', { season: 1, episode: 1 }, [serieRel('e2'.repeat(20), 'Serie Semeada S01E01 DUBLADO')], { partial: true });
+  assert.equal(isPartial('tt9000310', { season: 1, episode: 1 }), true, 'raiz+episódio parciais bloqueiam');
+
+  const cleared = clearPartial('tt9000310', { season: 1, episode: 1 });
+  assert.ok(cleared >= 2, `limpou ao menos raiz e episódio (cleared=${cleared})`);
+  assert.equal(isPartial('tt9000310', { season: 1, episode: 1 }), false, 'fast-path liberado após clearPartial');
+  assert.equal(lookup('tt9000310', { season: 1, episode: 1 }).length >= 1, true, 'releases preservadas');
+
+  // Prefixo estrito: tt9000310 não pode limpar tt90003101.
+  record('tt90003101', {}, [release('e3'.repeat(20), { title: 'Outra Obra 1080p DUBLADO' })], { partial: true });
+  clearPartial('tt9000310');
+  assert.equal(isPartial('tt90003101'), true, 'obra com id prefixo-irmão permanece parcial');
 });

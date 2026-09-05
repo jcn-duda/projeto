@@ -91,3 +91,57 @@ test('getMeta usa config.cinemeta.timeout também na variante série', async () 
     cache.forget(key);
   }
 });
+
+test('falha transitória do Cinemeta expira rápido e a busca seguinte consulta novamente', async () => {
+  const originalMissTtl = config.cinemeta.missTtl;
+  const originalTransient = config.cinemeta.transientMissTtl;
+  const imdbId = `tt-transient-${process.pid}-${Date.now()}`;
+  const key = `meta:movie:${imdbId}`;
+  let fetches = 0;
+  const stub = stubFetch(() => {
+    fetches += 1;
+    throw new Error('fetch failed');
+  });
+
+  try {
+    config.cinemeta.missTtl = 300;
+    config.cinemeta.transientMissTtl = 1;
+    assert.equal(await getMeta('movie', imdbId), null);
+    assert.equal(fetches, 1);
+    await new Promise((resolve) => setTimeout(resolve, 1150));
+    assert.equal(await getMeta('movie', imdbId), null);
+    assert.equal(fetches, 2, 'miss transitório expirado consulta novamente a API');
+  } finally {
+    stub.restore();
+    cache.forget(key);
+    config.cinemeta.missTtl = originalMissTtl;
+    config.cinemeta.transientMissTtl = originalTransient;
+  }
+});
+
+test('404 do Cinemeta permanece no miss autoritativo após o TTL transitório', async () => {
+  const originalMissTtl = config.cinemeta.missTtl;
+  const originalTransient = config.cinemeta.transientMissTtl;
+  const imdbId = `tt-authoritative-${process.pid}-${Date.now()}`;
+  const key = `meta:movie:${imdbId}`;
+  let fetches = 0;
+  const stub = stubFetch(() => {
+    fetches += 1;
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+
+  try {
+    config.cinemeta.missTtl = 300;
+    config.cinemeta.transientMissTtl = 1;
+    assert.equal(await getMeta('movie', imdbId), null);
+    assert.equal(fetches, 1);
+    await new Promise((resolve) => setTimeout(resolve, 1150));
+    assert.equal(await getMeta('movie', imdbId), null);
+    assert.equal(fetches, 1, '404 continua cacheado pelo missTtl autoritativo');
+  } finally {
+    stub.restore();
+    cache.forget(key);
+    config.cinemeta.missTtl = originalMissTtl;
+    config.cinemeta.transientMissTtl = originalTransient;
+  }
+});

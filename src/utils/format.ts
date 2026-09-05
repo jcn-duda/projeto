@@ -25,6 +25,7 @@ export {
   isMultiWorkCollection,
   franchiseRoot,
   franchiseRoots,
+  endsWithSequenceMarker,
   containsTokenRun,
   filterInventoryRelevant,
   filterRelevantRaw,
@@ -48,6 +49,7 @@ export {
 
 export {
   QUALITY_KEYS,
+  streamQuality,
   selectQualityCandidates,
   limitByIndexer,
   limitByQuality,
@@ -72,6 +74,10 @@ export {
   sortAndLimit,
   pickBrDubbedCandidate,
   pickBrDubbedCandidates,
+  pickBrDubbedByTargetQualities,
+  cachedBrDubbedTargetQualities,
+  isAutofetchTargetQuality,
+  AUTOFETCH_TARGET_QUALITIES,
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
   topSeededPool,

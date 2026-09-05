@@ -1,412 +1,38 @@
 import config from '../config.js';
-import autofetchLive from '../utils/autofetch-live.js';
-import type { MatchContext } from '../../types/domain.js';
-import * as demo from './demo.js';
-import jackett from './jackett.js';
-import prowlarr from './prowlarr.js';
-import bludv from './bludv.js';
-import * as torrentio from './torrentio.js';
-import * as account from './account.js';
 import { getMeta } from '../utils/cinemeta.js';
 import {
   parseStremioId,
   buildSearchQuery,
   resolveSearchNames,
-  pickBrDubbedCandidates,
-  pickAnyDubbedCandidates,
-  pickTopSeededCandidates,
   hasExplicitForeignAudio,
   filterRelevantRaw,
   extractInfoHash,
-  qualityFromTitle,
-  audioFromTitle,
-  explicitPtAudio,
 } from '../utils/format.js';
 import * as cache from '../utils/cache.js';
-import debrid from '../debrid/index.js';
 import * as tmdb from '../utils/tmdb.js';
 import { createLatestWriter } from '../utils/latest-writer.js';
-import { planJackettQueries, ptSweepIndexers, ptSweepQueryFor, liveIndexers } from './search-plan.js';
-import { collectWithinWindow } from './collection-window.js';
-import { raceWithDeadline, remainingCheckBudget } from '../utils/deadline.js';
-import * as releaseIndex from '../utils/release-index.js';
+import { ptSweepQueryFor } from './search-plan.js';
 import * as harvester from './harvester.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { SAFE_INDEXER_ID, buildStreams, createFirstObserver, firstObserverClaim, stageFirstTiming } from './stream-builder.js';
+import { buildStreams, createFirstObserver, firstObserverClaim, stageFirstTiming } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
-import { nomeiaEpisodio } from './debrid-pipeline.js';
-import { hasPlayableStream, debridRefreshSatisfied } from './search-cache.js';
+import { debridRefreshSatisfied, hasPlayableStream } from './search-cache.js';
+import { createStreamTrace, serializeTrace } from '../utils/stream-trace.js';
+import type { StreamTraceState, SerializedStreamTrace } from '../utils/stream-trace.js';
+import { collectRaw } from './collect-orchestrator.js';
+import { attemptIndexFastPath, noteWouldHitIndex } from './search-index-path.js';
+import type { RawBatch } from './search-index-path.js';
+import { schedulePtSweepTail } from './search-sweep-tail.js';
+import { createTailQueue } from './tail-enqueue.js';
 
-/**
- * Normaliza releases (tanto do índice quanto itens crus/debrid) e verifica se
- * cobrem os requisitos de pool.
- *
- * Se requireDubbed for true:
- *   - BR dublado -> global dublado.
- * Se requireDubbed for false:
- *   - BR dublado -> global dublado -> melhor swarm saudável (pickTopSeededCandidates).
- */
-export function poolCovered(
-  items: any[],
-  { season, requireDubbed = false }: { season?: number | null; requireDubbed?: boolean } = {},
-) {
-  if (!Array.isArray(items) || items.length === 0) return false;
-  const pseudo = items.map((r) => {
-    const title = String(r.title || r.Title || r.name || '').trim();
-    const isBr = Boolean(r.isBr);
-    const dubbed = r.dubbed !== undefined
-      ? Boolean(r.dubbed)
-      : isBr
-        ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title)))
-        : explicitPtAudio(title);
-    const quality = r.quality || qualityFromTitle(title);
-    const seeders = Number(r.seeders ?? r.Seeders ?? r._seeders ?? 0) || 0;
-    const hash = String(r.hash || extractInfoHash(r.infoHash || r.magnet || '') || '').toLowerCase();
-
-    return {
-      title,
-      name: title,
-      infoHash: hash,
-      _seeders: seeders,
-      _quality: quality,
-      _br: isBr,
-      // O degrau "dublado global" do pool lê este flag: sem ele anyDubbedPool
-      // devolveria vazio SEMPRE e o degrau seria código morto.
-      _dubbed: dubbed,
-      season: r.season,
-      episode: r.episode,
-    };
-  });
-
-  if (pickBrDubbedCandidates(pseudo as any, new Set(), 1).length > 0) return true;
-  if (pickAnyDubbedCandidates(pseudo as any, new Set(), 1).length > 0) return true;
-  if (requireDubbed) return false;
-  return pickTopSeededCandidates(pseudo as any, new Set(), 1, {
-    minSeeders: autofetchLive.effective().autoFetchMinSeeders,
-  }).length > 0;
-}
-
-
-
-/**
- * "Índice cobre" NUNCA é contagem pura. Uma temporada indexada só com
- * legendado não pode impedir a busca BR dublada de rodar — então o critério é
- * a MESMA noção de pool que o autofetch já usa: BR dublado → global dublado →
- * melhor swarm saudável. Qualquer um desses pools com candidato serve.
- *
- * E, em busca de EPISÓDIO, pack de temporada não decide sozinho. O caso
- * medido: "True Detective 2ª Temporada [1080p DUBLADO 22.41 GB]" sustentava a
- * cobertura de S02E01, a busca era servida do índice, e o dublado DO EPISÓDIO
- * que a coleta ao vivo traria nunca aparecia — o pack promete a temporada, não
- * a faixa de áudio daquele episódio, e quem descobre a diferença é o usuário
- * no play. Mesmo princípio do `isSeasonPackFillEligible`: pack só vale como
- * promessa quando prova o que promete.
- *
- * O pack continua ENTRANDO na lista (ele é fonte tocável de verdade); ele só
- * não decide mais que o Jackett pode ficar de fora.
- */
-export function idxPoolCovered(
-  releases: any[],
-  { season = null, episode = null }: { season?: number | null; episode?: number | null } = {},
-) {
-  if (season != null && episode != null) {
-    const nomeados = releases.filter((r) => nomeiaEpisodio(r?.title, season, episode));
-    if (nomeados.length === 0) {
-      metrics.count('search.idx.packOnly');
-      return false;
-    }
-  }
-  return poolCovered(releases, { season, requireDubbed: false });
-}
-
-/** Release do índice → item cru no formato que o buildStreams já consome. */
-export function idxReleasesToRaw(releases: any[]) {
-  return releases.map((r) => ({
-    title: r.title,
-    infoHash: r.hash,
-    seeders: r.seeders,
-    size: r.size ?? undefined,
-    indexer: r.indexer,
-    tracker: r.indexer,
-    isBr: r.isBr,
-    dubbed: r.dubbed,
-    lied: Boolean(r.lied),
-  }));
-}
-
-export async function collectRaw(
-  query: string,
-  type: string,
-  imdbId: string,
-  ptQuery: string | null,
-  matchContext: MatchContext,
-  onLate: ((items: any[], grew: boolean, partial?: boolean) => any) | null,
-  sweepQuery: string | null = null,
-  deadlineAt: number | null = null,
-  taskScope: 'all' | 'priority' | 'nonpriority' = 'all',
-  /** Observador da primeira resposta (Fase 2). Passado apenas no caminho de
-   * resposta; tails (`deadlineAt` null) não estagiam. Sem ele, a coleta mede
-   * envelopes, mas não os registra em lugar nenhum. */
-  firstObserver?: FirstObserverState | null,
-) {
-  const { providers } = opts();
-  const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
-  // I0 — relógio comum de UMA invocação de coleta. Cada grupo (BR/global) mede
-  // o envelope do início até os SEUS tasks assentarem (limitado ao momento em
-  // que o `collectWithinWindow` devolve): mede quanto da JANELA DA RESPOSTA o
-  // grupo consumiu, não o trabalho que seguiu no tail. Invocações sequenciais
-  // (episódio + fallback de pack) SOMAM os envelopes. Grupos NÃO são somados
-  // entre si. Conta/índice são residuais no `total`, não global nem BR.
-  const collectStart = Date.now();
-  const grpBr = { present: false, pending: 0, maxSettle: 0 };
-  const grpGlobal = { present: false, pending: 0, maxSettle: 0 };
-  const tasks: { promise: Promise<any>; priority: boolean; source?: string }[] = [];
-  const addTask = (create: () => Promise<any>, priority = false, source?: string) => {
-    if (taskScope === 'priority' && !priority) return;
-    if (taskScope === 'nonpriority' && priority) return;
-    const promise = create();
-    tasks.push({ promise, priority, source });
-    // Classificação: priority → BR; source='account' → neutra (excluída); o
-    // resto → global. Só instrumentamos quando há prazo (passo de resposta).
-    if (deadlineAt != null) {
-      const g = priority ? grpBr : source !== 'account' ? grpGlobal : null;
-      if (g) {
-        g.present = true;
-        g.pending += 1;
-        const settle = () => { g.maxSettle = Math.max(g.maxSettle, Date.now()); g.pending -= 1; };
-        Promise.resolve(promise).then(settle, settle);
-      }
-    }
-  };
-  let sweepInline = false;
-
-  // Demo é um provider único, sem tarefas internas — trata-se como faixa global
-  // (o envelope é a própria busca demo com prazo).
-  if (mode === 'demo') {
-    const items = await demo.search({ type, imdbId });
-    if (deadlineAt != null) {
-      stageFirstTiming(firstObserver, 'global', Date.now() - collectStart);
-    }
-    return {
-      items, partial: false, completion: Promise.resolve(), sweepInline: false,
-    };
-  }
-
-  const wants = (name: string) => mode === 'both' || providers.includes(name);
-  const rawSelected: string[] = [...new Set((opts().jackettIndexers || []).filter((id: any) =>
-    SAFE_INDEXER_ID.test(String(id)),
-  ))].map(String);
-  // Index-only ficam fora do caminho da resposta (colhem em fundo para o
-  // índice). O filtro é ANTES do plano: se o operador mandou todos os
-  // selecionados embora, o resultado é NENHUMA consulta Jackett — cair no
-  // fallback `/all` reabriria a porta que o filtro acabou de fechar.
-  const selectedIndexers = liveIndexers(rawSelected, config.jackett.indexOnlyIndexers);
-  if (selectedIndexers.length < rawSelected.length) {
-    metrics.count('search.indexonly.excluded', rawSelected.length - selectedIndexers.length);
-  }
-
-  // demo sempre disponível como fallback de teste se quiser both+demo — aqui só jackett/prowlarr
-  if (wants('jackett')) {
-    if (rawSelected.length > 0 && selectedIndexers.length === 0) {
-      // Todos os selecionados são index-only: a resposta sai do índice +
-      // inventário; a obra entra na fila do colhedor pelo caminho de sempre.
-      metrics.count('search.indexonly.all');
-    } else if (selectedIndexers.length === 0) {
-      addTask(() => jackett.search(query, type));
-    } else {
-      const plan = planJackettQueries(
-        query,
-        ptQuery,
-        selectedIndexers,
-        config.jackett.ptBrIndexers,
-        config.jackett.slowIndexers,
-        sweepQuery,
-      );
-      for (const planned of plan) {
-        const priority = planned.indexers.some((indexer) =>
-          config.jackett.ptBrIndexers.includes(indexer),
-        );
-        const inlineSweep = Boolean(sweepQuery) && sweepQuery !== query && planned.query === sweepQuery;
-        if (inlineSweep) sweepInline = true;
-        addTask(() => jackett.search(planned.query, type, planned.indexers, {
-          fallbackQuery: planned.fallback,
-          variantQuery: planned.variant,
-          matchContext,
-          // A mesma busca principal atualiza o status deste indexer. Falha da
-          // variante pt-BR não pode sobrescrever aquele resultado como offline.
-          recordStatus: inlineSweep ? false : undefined,
-        }), priority);
-      }
-    }
-  }
-  if (wants('prowlarr')) {
-    addTask(() => prowlarr.search(query));
-  }
-  // Pool global Torrentio (Fase 1). Endpoint público, sem config/debrid; o
-  // `matchContext` já carrega season/episódio da obra. A fonte entra no mesmo
-  // balde dos indexers e respeita o orçamento da coleta.
-  if (wants('torrentio') && config.torrentio.enabled) {
-    addTask(() => torrentio.search({
-      type,
-      imdbId,
-      season: matchContext.season,
-      episode: matchContext.episode,
-    }));
-  }
-
-  // Se misconfigurou PROVIDER, tenta jackett
-  const validProvider = providers.some((name: string) =>
-    ['jackett', 'prowlarr', 'torrentio', 'demo', 'both'].includes(name));
-  if (tasks.length === 0 && providers.length > 0 && !validProvider) {
-    addTask(() => jackett.search(query, type));
-  }
-
-  // Fonte BR dublada, independente do PROVIDER: entra no mesmo allSettled,
-  // então se o site cair ou demorar, o resto da busca sai normalmente.
-  if (config.bludv.enabled) {
-    // Sites BR indexam por título pt-BR ("Coringa", não "Joker").
-    addTask(() => bludv.search(ptQuery || query), true);
-  }
-
-  // A conta do debrid como fonte: o que já está pronto lá entra com ⚡ sem
-  // indexer nenhum. Teto curto dentro da própria tarefa (ver account.js)
-  // para a primeira leitura não segurar a resposta.
-  const accountSource = config.debrid.inventorySource && Boolean(debrid.current());
-  if (accountSource) {
-    addTask(() => account.search(matchContext), false, 'account');
-  }
-
-  // Orçamento menor que o deadline da resposta: o resto do tempo é da checagem
-  // no debrid, que ainda precisa rodar em cima do que foi coletado.
-  //
-  // PLANO_MELHORIAS 4.3: o piso de 500ms é intencional, não sobra de fatia
-  // fixa. Quando metadados lentos (Cinemeta+TMDB) já corroeram a reserva, o
-  // valor calculado fica negativo — sem piso, a coleta abriria mão de tentar
-  // e a resposta sairia de bandeja para known:false/lista vazia. Isso NUNCA
-  // estoura o `replyDeadline`: o `raceWithDeadline` de `findStreams` corta
-  // `doSearch` no relógio absoluto (mesmo `deadlineAt`), independente do que
-  // este orçamento interno decide — o pior caso é a resposta chegar ATÉ 500ms
-  // mais perto do corte externo, nunca depois dele. Trocar por 0 no lugar do
-  // piso não evita esse corte (o relógio externo já protege), só troca uma
-  // tentativa de coleta real por known:false garantido — pior para o usuário.
-  const budget = deadlineAt == null
-    ? Math.max(1000, config.replyDeadline - config.debridReserve)
-    : Math.max(500, (remainingCheckBudget(deadlineAt) ?? 0) - config.debridReserve);
-  // A graça sai da reserva, mas nunca invade o piso configurado pro debrid. No
-  // caso
-  // medido de Disclosure Day, a primeira fonte BR chegava pouco depois dos 5s;
-  // sem esta janela a UI ficava para sempre com os 11 globais do passe parcial.
-  // Série também precisa dela (medido em A Casa do Dragão: os BR terminavam a
-  // 5,9-8,7s e o E01 dublado nunca entrava na primeira resposta), mas SÓ com
-  // itens no balde: balde vazio cai no fallback de pack, e consumir a graça
-  // nessa hora roubaria o tempo dele.
-  const priorityGrace = Math.min(
-    config.brPartialGrace,
-    Math.max(0, config.debridReserve - config.debridCheckFloor),
-  );
-  let watchLate = false;
-  let firstLateBatch = false;
-  let lateQueue = Promise.resolve();
-  // Fast-path da conta: inventário suficiente responde NA HORA e o resto da
-  // coleta segue em fundo. A resposta sai partial de propósito — é isso que
-  // faz o passe tardio promovê-la quando os indexers fecharem.
-  const fastPathOn = config.accountFastPath.enabled && accountSource;
-  // Quando o índice já cobre a obra, a primeira resposta ainda pode esperar
-  // somente os BR vivos: eles são a parte que o índice não sabe atualizar. Os
-  // globais ficam no enriquecimento, sem transformar um hit do índice em uma
-  // espera pelo caminho inteiro nem consultar index-only.
-  const collected = await collectWithinWindow(tasks, {
-    budgetMs: budget,
-    priorityGraceMs: priorityGrace,
-    graceRequiresItems: type !== 'movie',
-    stopWhen: fastPathOn
-      ? (batch: any[], _items: any[], meta: any) => {
-        if (meta?.source !== 'account' || !Array.isArray(batch)) return false;
-        if (batch.length < config.accountFastPath.minReleases) {
-          metrics.count('search.fastPath.skipped');
-          return false;
-        }
-        const userPreferDubbed = opts().preferDubbed;
-        if (userPreferDubbed) {
-          const covered = poolCovered(batch, { season: matchContext.season, requireDubbed: true });
-          if (!covered) {
-            metrics.count('search.fastPath.skipped');
-            return false;
-          }
-        }
-        metrics.count('search.account.sufficient');
-        metrics.count('search.fastPath');
-        metrics.count('search.fastPath.covered');
-        log.info(`[search] conta suficiente (${batch.length} release(s)); respondendo sem esperar a coleta`);
-        return true;
-      }
-      : undefined,
-    onError: (err) => log.warn('[search] provider falhou:', err?.message || err),
-    onBatch: (batch, allItems) => {
-      if (!watchLate || firstLateBatch || !batch.length || !onLate) return;
-      firstLateBatch = true;
-      const snapshot = [...allItems];
-      log.info(`[search] primeira fonte tardia chegou; recacheando ${snapshot.length} resultado(s)`);
-      // Atualiza cedo a lista que o cliente está repetindo, mas mantém partial:
-      // outros indexers ainda trabalham e a promoção definitiva vem abaixo.
-      lateQueue = Promise.resolve(onLate(snapshot, true, true)).catch((err) => {
-        log.warn('[search] passe tardio intermediário falhou:', err?.message || err);
-      });
-    },
-  });
-  if (collected.stoppedEarly) log.info(`[search] fast-path da conta: resposta antecipada com ${collected.items.length} resultado(s)`);
-  // I0 — estagia os envelopes de coleta desta invocação. O fim de UM grupo é o
-  // momento em que TODOS os tasks dele assentam; se algum ainda pendia quando o
-  // `collectWithinWindow` devolveu (orçamento, stopEarly, graça), o retorno do
-  // window é o fim (o cliente já recebeu a resposta). Envelope ≥ 0, acumulado
-  // para as invocações sequenciais se somarem. Só quando há prazo de resposta.
-  if (deadlineAt != null) {
-    const windowEnd = Date.now();
-    for (const [g, stage] of [[grpBr, 'br'], [grpGlobal, 'global']] as const) {
-      if (!g.present) continue;
-      const end = g.pending > 0 ? windowEnd : g.maxSettle;
-      stageFirstTiming(firstObserver, stage, Math.max(0, end - collectStart));
-    }
-  }
-  const bucket = collected.items;
-  const done = collected.done;
-  let completion = collected.completion;
-
-  if (!done) {
-    if (collected.prioritySeen && priorityGrace) {
-      log.info(`[search] primeira fonte BR incluída na janela extra de até ${priorityGrace}ms`);
-    }
-    log.warn(`[search] orçamento de ${budget}ms esgotado; seguindo com ${bucket.length} resultado(s) parcial(is)`);
-    // Os providers continuam trabalhando depois que a resposta sai. Quem paga
-    // esse atraso são justamente as fontes BR (raspam WordPress e ainda seguem
-    // protetor de link): descartar o que elas trouxeram atrasadas obrigava o
-    // usuário a fechar e reabrir a lista pra vê-las. Aqui o resultado completo
-    // reescreve o cache, então a próxima chamada do Stremio já vem cheia.
-    const soFar = bucket.length;
-    if (onLate) {
-      watchLate = true;
-      completion = collected.completion
-        .then(() => lateQueue)
-        .then(() => {
-          const grew = bucket.length > soFar;
-          if (grew) {
-            log.info(`[search] fontes lentas chegaram: ${soFar} → ${bucket.length} resultado(s); recacheando`);
-          }
-          // Mesmo sem nada novo o passe tardio precisa avisar: a lista servida
-          // saiu marcada como parcial (cacheMaxAge 0) e, sem esta chamada, ela
-          // ficava parcial até o TTL expirar — o cliente repergunta em loop e
-          // nunca recebe uma resposta que possa guardar.
-          return onLate(bucket, grew, false);
-        })
-        .catch((err) => log.warn('[search] passe tardio falhou:', err?.message || err));
-    }
-  }
-  // `partial` acompanha o lote até a resposta HTTP: quem recebe uma lista
-  // incompleta não pode cacheá-la por 15 minutos (ver o handler em addon.js).
-  return { items: bucket, partial: !done, completion, sweepInline };
-}
+// Fachada pós-split: `poolCovered`/`idxPoolCovered`/`idxReleasesToRaw` vivem em
+// `search-pool-coverage.ts`, `collectRaw` em `collect-orchestrator.ts`. As
+// reexports abaixo preservam os caminhos de import públicos (`index.ts`,
+// `test/torrentio-provider.test.ts`) e o degrau `franchiseQuery` da coleta.
+export { poolCovered, idxPoolCovered, idxReleasesToRaw } from './search-pool-coverage.js';
+export { collectRaw } from './collect-orchestrator.js';
 
 interface SearchProgress {
   metadataDone: boolean;
@@ -474,23 +100,7 @@ export async function doSearch({
     : null;
   // Refresh de debrid e varredura pt-BR compartilham uma fila tardia para não
   // executar applyDebrid/upload concorrentes na mesma chave.
-  let tail = Promise.resolve();
-  const enqueueTail = (task: () => any) => {
-    tail = tail.then(() => new Promise((resolve) => {
-      const handle = setImmediate(async () => {
-        try {
-          await task();
-        } catch (err) {
-          // A fila é genérica: um task sem try/catch próprio derrubaria o processo.
-          log.warn('[search] tarefa tardia falhou:', err?.message || err);
-        } finally {
-          resolve();
-        }
-      });
-      handle.unref();
-    }));
-    return tail;
-  };
+  const enqueueTail = createTailQueue();
 
   log.info(
     `[search] ${type} ${id} → "${query}"${ptQuery ? ` | pt-BR: "${ptQuery}"` : ''} via ${opts().providers.join('+')}`,
@@ -509,12 +119,17 @@ export async function doSearch({
       let needsDebridRefresh = false;
       let autofetchCount = 0;
       let debridKnown: boolean | undefined = undefined;
+      // P5 — um ledger POR build. Criado só quando o kill-switch está ligado;
+      // desligado, `trace` null e toda a instrumentação é no-op. O estado
+      // observa os cortes SEM mudar nenhum deles.
+      const trace: StreamTraceState | null = config.search.streamTrace ? createStreamTrace() : null;
       const streams = await buildStreams(items, {
         meta, titles, imdbId, season, episode, isDemo, searchKey: cacheKey,
         deadlineAt: inputDeadline,   // presente SÓ no passo de resposta (orçamento do debrid e gate de prazo do first)
         observeFirstPass,             // só a passada reclamada
         observeLatePass,              // recache tardio com o first já contado
         firstObserver,                // estado persistido entre os passes do finish
+        trace,
         onDebridResult: (result: any) => {
           needsDebridRefresh = needsDebridRefresh || result.needsFullRefresh;
           autofetchCount += result.autofetchCount || 0;
@@ -522,9 +137,9 @@ export async function doSearch({
         },
       });
       const isDebridKnown = debridKnown !== undefined ? Boolean(debridKnown && !needsDebridRefresh) : !needsDebridRefresh;
-      return { streams, partial, needsDebridRefresh, autofetchCount, debridKnown: isDebridKnown };
+      return { streams, partial, needsDebridRefresh, autofetchCount, debridKnown: isDebridKnown, trace };
     },
-    ({ streams, partial, needsDebridRefresh, debridKnown }) => {
+    ({ streams, partial, needsDebridRefresh, debridKnown, trace }) => {
       // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco
       // tempo. Lote parcial idem: o passe tardio reescreve, mas se ele falhar o
       // TTL curto evita servir a lista sem as fontes BR por 15 minutos.
@@ -534,9 +149,16 @@ export async function doSearch({
       // confiável. Sem ele, `partial:false` era usado como prova de "já
       // processado" — e o passe tardio promove a entrada SEM refazer a
       // checagem, o que congelava a lista sem ⚡ pelo TTL inteiro.
+      // P5 — o trace vai serializado (payload) junto da lista: é ele que o
+      // /stream-trace.json lê offline. Kill-switch desligado => null.
+      // P5 recompute — `searchMeta` (nomes + ano) viaja junto: é o mínimo que
+      // o diagnóstico precisa para re-aplicar o filtro de TÍTULO na matéria-
+      // prima local (idx/raw/inventário) sem refazer Cinemeta/TMDB. Aditivo:
+      // entrada antiga sem o campo => recompute nota 'no-names' e o filtro de
+      // título não roda (comportamento do pipeline com nomes vazios).
       cache.set(
         cacheKey,
-        { streams, partial, debridKnown: isDebridKnown },
+        { streams, partial, debridKnown: isDebridKnown, trace: serializeTrace(trace), searchMeta },
         complete ? config.cacheTtl : Math.min(config.cacheTtl, 60),
       );
       log.info(`[search] ${streams.length} stream(s)${partial ? ' (parcial)' : ''} para ${id}`);
@@ -559,10 +181,13 @@ export async function doSearch({
     if (!hit?.partial) return undefined;
     // Promover NÃO refaz a checagem de cache, então `debridKnown` é copiado
     // como está: promessa de completude da COLETA não é promessa de ⚡.
+    // P5 — `hit.trace` copiado OBRIGATORIAMENTE: a promoção substitui a entrada
+    // inteira, e sem o campo o ledger da primeira build seria apagado numa
+    // coleta que não trouxe nada novo — exatamente o caso que o endpoint lê.
     const debridKnown = hit.debridKnown === true;
     cache.set(
       cacheKey,
-      { streams: hit.streams, partial: false, debridKnown },
+      { streams: hit.streams, partial: false, debridKnown, trace: (hit as { trace?: SerializedStreamTrace | null }).trace ?? null, searchMeta: (hit as { searchMeta?: unknown }).searchMeta ?? null },
       debridKnown ? config.cacheTtl : Math.min(config.cacheTtl, 60),
     );
     log.info(`[search] coleta encerrada sem novidade; ${hit.streams.length} stream(s) para ${id}`);
@@ -578,83 +203,18 @@ export async function doSearch({
   };
   const episodePhase = finish.phase();
 
-  // Fase 0 do índice: simular a consulta por obra usando o raw:v1 que já
-  // existe — se alguma chave bruta da obra está quente ANTES de qualquer rede,
-  // um índice por obra teria acertado. É o número que autoriza (ou não) as
-  // fases seguintes; não muda comportamento nenhum.
-  if (config.releaseIndex.enabled && providerMode !== 'demo' && wantsJackettSweep) {
-    const simIndexers: string[] = [...new Set(
-      ((opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers) || [])
-        .filter((i: any) => SAFE_INDEXER_ID.test(String(i))),
-    )].map(String);
-    if (simIndexers.length > 0) {
-      const warm = jackett.rawKeysFor(simIndexers, query, type).some((k) => cache.peekRemaining(k) != null);
-      metrics.count(warm ? 'search.idx.wouldHit' : 'search.idx.wouldMiss');
-    }
-  }
-
-  // Fase 3: o índice é LIDO antes de qualquer indexer. Coberto pelo pool →
-  // responde já e o Jackett vira segundo (tail que enriquece e promove pelo
-  // mesmo SWR de sempre). Lacuna → o caminho atual roda inteiro, sem regressão.
-  let servedFromIndex = false;
-  let raw!: { items: any[]; partial: boolean; completion: Promise<void>; sweepInline: boolean };
-  if (!isDemo && config.releaseIndex.enabled) {
-    const indexed = releaseIndex.lookup(imdbId, { season, episode });
-    if (indexed.length === 0) {
-      metrics.count('search.idx.miss');
-      harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'miss' });
-    } else if (idxPoolCovered(indexed, { season, episode })) {
-      metrics.count('search.idx.hit');
-      metrics.count('search.idx.served', indexed.length);
-      servedFromIndex = true;
-      // dinv entra na resposta imediata junto (idx + conta): o que já está
-      // pronto na conta vira ⚡ sem indexer nenhum. Teto curto: a primeira
-      // leitura do inventário custa ~700ms e a resposta não pode esperá-la.
-      const accountItems = await raceWithDeadline(
-        account.search(matchContext),
-        config.accountFastPath.waitMs,
-        () => [] as any[],
-      );
-      // O índice responde mesmo sem Jackett, mas não pode esconder a primeira
-      // fonte BR saudável que ainda cabe na janela crítica. Consultamos apenas
-      // as tarefas BR isoladas; globais e index-only continuam no enriquecimento
-      // em fundo, como antes.
-      raw = await collectRaw(
-        query,
-        type,
-        imdbId,
-        ptQuery,
-        matchContext,
-        // O BR prioritário compartilha `raw.items` com o tail abaixo. Não pode
-        // ter writer próprio: se chegar atrasado, ele ainda não conhece os
-        // globais e promoveria uma coleta incompleta antes da reconciliação.
-        null,
-        sweepQuery,
-        deadlineAt,
-        'priority',
-        firstObserver,
-      );
-      raw.items.unshift(...idxReleasesToRaw(indexed), ...accountItems);
-      // Mesmo se as tarefas BR fecharem cedo, o lote global ainda será buscado
-      // abaixo. Mantém cache curto até o enriquecimento completar a lista.
-      raw.partial = true;
-      log.info(`[search] índice + ${raw.items.length - indexed.length - accountItems.length} resultado(s) BR ao vivo para ${id}`);
-    } else {
-      // Existe, mas não cobre o pool (ex.: só legendado): NUNCA impede a busca
-      // BR dublada de rodar. O colhedor completa o que falta.
-      metrics.count('search.idx.gap');
-      harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'gap' });
-    }
-  }
-  if (!servedFromIndex) {
-    raw = await collectRaw(query, type, imdbId, ptQuery, matchContext, (items: any[], grew: boolean, partial?: boolean) =>
-      late(items, grew, episodePhase, partial),
-      sweepQuery,
-      deadlineAt,
-      undefined,
-      firstObserver,
-    );
-  }
+  // Fase 0 do índice (observacional) e Fase 3 (leitura do índice antes de
+  // qualquer indexer). Extraídas para `search-index-path.ts`; o facade só decide
+  // se cai na coleta ao vivo quando o índice NÃO cobriu a obra.
+  noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep });
+  const { servedFromIndex, raw: indexedRaw } = await attemptIndexFastPath({
+    query, type, id, imdbId, season, episode, ptQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver,
+  });
+  let raw: RawBatch = indexedRaw ?? await collectRaw(
+    query, type, imdbId, ptQuery, matchContext,
+    (items: any[], grew: boolean, partial?: boolean) => late(items, grew, episodePhase, partial),
+    sweepQuery, deadlineAt, undefined, firstObserver,
+  );
 
   // Série sem candidato útil por episódio tenta o pack. Lote parcial não-vazio
   // ainda pode receber a fonte BR no passe tardio; só ampliamos o gatilho antigo
@@ -819,70 +379,9 @@ export async function doSearch({
     });
   }
 
-  // Varredura pt-BR nos indexers GLOBAIS: tracker global hospeda bastante
-  // dublado titulado em português ("Jornada Nas Estrelas … Dublado") que a
-  // query em inglês não encontra. Roda FORA do caminho da resposta (nunca
-  // disputa o orçamento), com `recordStatus:false` para a segunda consulta
-  // não poluir o card de status, e `ignoreBreaker:true` para consultar
-  // mesmo indexer recém-derrubado — o dublado raro mora justamente ali.
-  // Só adiciona hashes novos: título pt para hash já listado é assunto do
-  // merge, não da varredura.
-  const configuredIndexers = opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers;
-  const sweepSelectedIndexers: string[] = [...new Set((configuredIndexers || []).filter((idx: any) =>
-    SAFE_INDEXER_ID.test(String(idx)),
-  ))].map(String);
-  // A query já foi anexada ao plano crítico: título pt-BASE para filme e série,
-  // sem subtítulo, ano ou SxxEyy. Os globais publicam episódios como
-  // "T01 E004"; o matchContext faz o corte preciso depois da coleta.
-  if (config.jackett.ptSweepGlobal && wantsJackettSweep && sweepQuery && sweepSelectedIndexers.length > 0) {
-    const sweepTargets = ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers);
-    if (sweepTargets.length > 0) {
-      if (raw.partial || !raw.sweepInline) enqueueTail(async () => {
-        metrics.count('search.pt-sweep.run');
-        const sweepStarted = Date.now();
-        try {
-          // Se a coleta ainda estava aberta, espera o balde estabilizar para o
-          // inventário de hashes conhecidos não sair incompleto.
-          if (raw.partial && raw.completion) await raw.completion;
-          const found = await jackett.search(sweepQuery, type, sweepTargets, {
-            matchContext,
-            recordStatus: false,
-            ignoreBreaker: true,
-          });
-          metrics.count('search.pt-sweep.found', found.length);
-          if (!found.length) return;
-          const known = new Set(
-            raw.items.map((item) => extractInfoHash(item.infoHash || item.magnet)).filter(Boolean),
-          );
-          const fresh = found.filter((item: any) => {
-            const h = extractInfoHash(item.infoHash || item.magnet);
-            return h && !known.has(h);
-          });
-          if (!fresh.length) {
-            // Achou, mas tudo já era conhecido: a métrica distingue "não
-            // achou" de "achou e já tínhamos" — juntar os dois escondia o
-            // caso real de "varredura está caindo cedo demais".
-            metrics.count('search.pt-sweep.known');
-            log.info(`[search] varredura pt-BR: ${found.length} resultado(s), nenhum novo (query "${sweepQuery}")`);
-            return;
-          }
-          raw.items.push(...fresh);
-          metrics.count('search.pt-sweep.hit');
-          log.info(`[search] varredura pt-BR nos globais trouxe ${fresh.length} resultado(s) novo(s) (query "${sweepQuery}"); recacheando`);
-          await finish({ items: raw.items, partial: false }, responsePhase);
-        } catch (err) {
-          log.warn('[search] varredura pt-BR nos globais falhou:', err?.message || err);
-        } finally {
-          metrics.observe('search.pt-sweep', Date.now() - sweepStarted);
-        }
-      });
-    } else {
-      log.debug('[search] varredura pt-BR não executada: nenhum indexer global selecionado');
-    }
-  } else if (config.jackett.ptSweepGlobal && wantsJackettSweep && !sweepQuery) {
-    log.debug('[search] varredura pt-BR não executada: não há query localizada ativa');
-  } else if (config.jackett.ptSweepGlobal && wantsJackettSweep && sweepSelectedIndexers.length === 0) {
-    log.debug('[search] varredura pt-BR não executada: nenhum indexer selecionado');
-  }
+  // Varredura pt-BR nos globais (fila tardia). Extraída para
+  // `search-sweep-tail.ts`; recebe a fila serial compartilhada e o writer da
+  // execução corrente. O facade só entrega as dependências fechadas.
+  schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, type, matchContext, sweepQuery, wantsJackettSweep });
   return result;
 }

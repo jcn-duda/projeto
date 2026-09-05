@@ -12,20 +12,9 @@ import { rdGate } from '../src/debrid/rd-gate.js';
 import * as activity from '../src/providers/activity.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
 
-const H1 = '1'.repeat(40);
-const H2 = '2'.repeat(40);
-const H3 = '3'.repeat(40);
-const H4 = '4'.repeat(40);
-const H5 = '5'.repeat(40);
+const [H1, H2, H3, H4, H5] = ['1', '2', '3', '4', '5'].map(c => c.repeat(40));
 
-const savedConfig = {
-  service: config.debrid.service,
-  apiKey: config.debrid.apiKey,
-  allowEnvKey: config.debrid.allowEnvKey,
-  rdWarm: { ...config.debrid.rdWarm },
-  rdLedger: { ...config.debrid.rdLedger },
-  rdGate: { ...config.debrid.rdGate },
-};
+const savedConfig = { service: config.debrid.service, apiKey: config.debrid.apiKey, allowEnvKey: config.debrid.allowEnvKey, rdWarm: { ...config.debrid.rdWarm }, rdLedger: { ...config.debrid.rdLedger }, rdGate: { ...config.debrid.rdGate } };
 
 function restoreConfig() {
   config.debrid.service = savedConfig.service;
@@ -254,7 +243,7 @@ test('rd-warmer: DELETE de limpeza que falha não transforma ⚡ em miss', async
 });
 
 test('rd-warmer: confirmação de ⚡ promove entrada [RD download] para [RD⚡] no cache ativo', async () => {
-  const searchKey = 'streams:v7:movie:ttWarmPromote:cfg';
+  const searchKey = 'streams:v10:movie:ttWarmPromote:cfg';
   cache.set(searchKey, {
     streams: [
       {
@@ -377,7 +366,7 @@ test('rd-warmer: reparo idempotente limpa só o bad RD correlacionado com ledger
   magnetdb.markBad('realdebrid', config.debrid.apiKey, noVideoHash);
   magnetdb.markBad('torbox', 'outra-conta', otherHash);
   rdLedger.noteBlocked(blockedHash);
-  const staleStreamKey = 'streams:v7:movie:ttBlockedRepair';
+  const staleStreamKey = 'streams:v10:movie:ttBlockedRepair';
   cache.set(staleStreamKey, { streams: [] }, 600);
   metrics.reset();
 

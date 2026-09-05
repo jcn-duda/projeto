@@ -3,6 +3,7 @@ import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 import { dispatchDashboardAction } from './dashboard-actions.js';
 import * as brCoverage from '../utils/br-coverage.js';
+import { unavailable, makeStreamTraceHandler } from './stream-trace.js';
 
 function releaseIndexStatus(services: AppServices) {
   const counters = services.metrics.snapshot().counters;
@@ -17,31 +18,43 @@ function releaseIndexStatus(services: AppServices) {
     wouldMiss: counters['search.idx.wouldMiss'] || 0,
     wastedQueries: counters['search.jackett.wastedQueries'] || 0,
     wastedMs: counters['search.jackett.wastedMs'] || 0,
+    // Fundo (colhedor, enriquecimento/varredura de cauda): sonda negativa da
+    // descoberta, não custo do caminho de resposta. Os dois baldes não somam
+    // "desperdício do usuário" — ler juntos era pintar o aquecimento do índice
+    // como tempo que a resposta queimou.
+    wastedQueriesBackground: counters['search.jackett.wastedQueries.background'] || 0,
+    wastedMsBackground: counters['search.jackett.wastedMs.background'] || 0,
     accountSufficient: counters['search.account.sufficient'] || 0,
     fastPaths: counters['search.fastPath'] || 0,
   };
 }
 
-function unavailable(services: AppServices, req: express.Request, res: express.Response, message: string, shape: Record<string, unknown> = {}) {
-  if (!services.config.jackett.testToken) {
-    res.status(503).json({ ...shape, error: message });
-    return true;
-  }
-  if (!services.authorized(services.config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
-    res.status(401).json({ ...shape, error: 'token de diagnóstico inválido' });
-    return true;
-  }
-  return false;
-}
-
 function accountTimeout(services: AppServices) {
+  // Espelha testAccount: sem service/label o gate de dashboardAccounts descarta
+  // o timeout e o painel zera a conta ativa como se não houvesse consulta.
+  const adapter = services.debrid.current?.() || null;
   return new Promise((resolve) => {
     const timer = setTimeout(
-      () => resolve({ ok: false, reason: 'timeout', error: 'timeout consultando o debrid' }),
+      () => resolve({
+        ok: false,
+        reason: 'timeout',
+        error: 'timeout consultando o debrid',
+        ...(adapter ? {
+          service: adapter.id,
+          label: adapter.label,
+          fix: 'o serviço não respondeu dentro do prazo do painel; tente de novo — persistindo, o serviço está instável ou a rede está lenta',
+        } : {}),
+      }),
       services.config.debrid.dashboardAccountTimeoutMs,
     );
     timer.unref?.();
   });
+}
+
+/** Tri-estado Jackett: só `source:'live'` conta como medição (API respondeu). */
+function jackettServiceFlag(indexers: { length: number; source?: string }): boolean | 'naomedido' {
+  if (indexers?.source !== 'live') return 'naomedido';
+  return indexers.length > 0;
 }
 
 function makeDiagnosticHandlers(services: AppServices) {
@@ -133,7 +146,7 @@ function makeDiagnosticHandlers(services: AppServices) {
           memory: { rss: memory.rss, heapUsed: memory.heapUsed, heapTotal: memory.heapTotal },
           services: {
             addon: true,
-            jackett: indexers.length > 0,
+            jackett: jackettServiceFlag(indexers),
             debrid: Boolean(account?.ok),
             resolvers: resolvers.filter((item) => item.embedded).length,
           },
@@ -164,7 +177,8 @@ function makeDiagnosticHandlers(services: AppServices) {
         indexers: indexers.map((indexer: any) => ({
           ...indexer,
           breaker: services.jackett.breakerSnapshot(indexer.id),
-          flagSlow: indexer.status?.state === 'slow',
+          // Sem status = nunca medido (null), não "não-slow" (false).
+          flagSlow: indexer.status == null ? null : indexer.status.state === 'slow',
         })),
         resolvers,
       });
@@ -261,7 +275,14 @@ function makeDiagnosticHandlers(services: AppServices) {
     }
   });
 
-  return { metrics, dashboardStatus, dashboardAction, testIndexer, testResolver, debridStatus };
+  // P5 — /stream-trace.json (leitura offline + live read-only): handler
+  // extraído para src/routes/stream-trace.ts ao estourar a catraca (dividir,
+  // não bless). Contratos: recompute nunca reescreve/rede; live só TB/PM pelo
+  // método cru, gateado por sonda (knob + kill-switch + conta); payload sem
+  // streams/hash/chave.
+  const streamTrace = makeStreamTraceHandler(services);
+
+  return { metrics, dashboardStatus, dashboardAction, testIndexer, testResolver, debridStatus, streamTrace };
 }
 
 export { makeDiagnosticHandlers };

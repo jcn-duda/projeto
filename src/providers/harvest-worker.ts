@@ -25,9 +25,17 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import rdWarmer from './rd-warmer.js';
 import * as harvesterLive from '../utils/harvester-live.js';
+import * as cache from '../utils/cache.js';
+import { prefix } from '../utils/cache-keys.js';
 import type { HarvestEntry } from './harvest-queue.js';
 
 type RecentWork = Pick<HarvestEntry, 'imdbId' | 'type' | 'season' | 'episode'> & { at: number; recorded: number };
+
+// Balde da hora civil UTC no L1/L2: sem isto, restart/deploy zera o Map e o
+// colhedor pode estourar HARVEST_MAX_HOUR de novo na mesma hora (risco de ban).
+const HOUR_KEY = `${prefix('harvest')}hour`;
+
+type HourBucket = { hour: number; count: number };
 
 // Pausa é operacional e deliberadamente não persiste: após restart o operador
 // volta ao comportamento configurado no .env, sem uma ação temporária virar
@@ -39,17 +47,50 @@ const recentWorks: RecentWork[] = [];
 const hourBuckets = new Map<number, number>();
 const lastQueryAt = new Map<string, number>();
 
+/** Segundos até o fim do balde + folga curta; mínimo 60 para o L2 não sumir na virada. */
+function hourBucketTtlSeconds(hour: number): number {
+  const endMs = (hour + 1) * 3_600_000;
+  const secondsLeft = Math.ceil((endMs - Date.now()) / 1000) + 60;
+  return Math.max(60, secondsLeft);
+}
+
+function hydrateCurrentHour(hour: number) {
+  if (hourBuckets.has(hour)) return;
+  const stored = cache.get(HOUR_KEY) as HourBucket | undefined;
+  if (
+    stored &&
+    stored.hour === hour &&
+    typeof stored.count === 'number' &&
+    Number.isFinite(stored.count) &&
+    stored.count > 0
+  ) {
+    hourBuckets.set(hour, stored.count);
+  }
+}
+
 export function queriesThisHour() {
   const hour = Math.floor(Date.now() / 3_600_000);
   for (const bucket of [...hourBuckets.keys()]) {
     if (bucket < hour) hourBuckets.delete(bucket);
   }
+  hydrateCurrentHour(hour);
   return hourBuckets.get(hour) || 0;
 }
 
-function noteQueries(count: number) {
+/** Anota consultas no balde da hora e persiste no cache (só este contador é durável). */
+export function noteQueries(count: number) {
   const hour = Math.floor(Date.now() / 3_600_000);
-  hourBuckets.set(hour, (hourBuckets.get(hour) || 0) + count);
+  // Incremento parte do balde hidratado — senão um noteQueries sem leitura
+  // prévia sobrescreveria o L2 com só o delta desta obra.
+  hydrateCurrentHour(hour);
+  const next = (hourBuckets.get(hour) || 0) + count;
+  hourBuckets.set(hour, next);
+  cache.set(HOUR_KEY, { hour, count: next } satisfies HourBucket, hourBucketTtlSeconds(hour));
+}
+
+/** Zera só o Map — testes simulam processo novo; o L1/L2 permanece. */
+export function clearHourBuckets() {
+  hourBuckets.clear();
 }
 
 async function awaitIndexerGap(indexer: string) {
@@ -65,12 +106,37 @@ async function awaitIndexerGap(indexer: string) {
   }
 }
 
-export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean }> {
+/**
+ * Fatia circular da varredura pt-BR parcial. Quando o teto horário corta
+ * (restante < targets.length), o ponto de partida rotaciona com o cursor para
+ * o teto não congelar a varredura sempre nos MESMOS primeiros alvos — o
+ * dublado titulado em PT mora em qualquer um deles, e uma fatia sempre-limitada
+ * deixaria os de trás eternamente invisíveis. Quando o teto comporta tudo,
+ * devolve a lista inteira (comportamento antigo) e o cursor zera.
+ */
+export function sliceSweepFatia(targets: string[], restante: number, cursor: number): { fatia: string[]; next: number } {
+  const total = targets.length;
+  if (total === 0 || restante <= 0) return { fatia: [], next: cursor };
+  if (restante >= total) return { fatia: targets, next: 0 };
+  const start = cursor % total;
+  const fatia: string[] = [];
+  for (let i = 0; i < restante; i += 1) fatia.push(targets[(start + i) % total]);
+  return { fatia, next: (start + restante) % total };
+}
+
+let sweepCursor = 0;
+
+/** Zera o cursor do round-robin — os testes precisam de uma partida conhecida. */
+export function resetSweepCursor() {
+  sweepCursor = 0;
+}
+
+export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean; preempted: boolean; added: number }> {
   const startedAt = Date.now();
   const live = harvesterLive.effective();
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
   const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
-  if (!searchMeta?.name) return { ok: false, capped: false };
+  if (!searchMeta?.name) return { ok: false, capped: false, preempted: false, added: 0 };
   const matchContext = {
     names: searchMeta.names,
     year: searchMeta.year,
@@ -89,6 +155,7 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   const indexers = [...new Set(config.jackett.indexers)];
   let attempted = 0;
   let capped = false;
+  let preempted = false;
   let succeeded = 0;
   const collected: any[] = [];
 
@@ -115,32 +182,49 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   if (sweepQuery && sweepTargets.length > 0) {
     // A varredura agrupada dispara uma consulta HTTP por alvo: conta no teto
     // com a mesma moeda do loop acima, antes de decidir. A fatia parcial
-    // permite colher o que couber no orçamento em vez de tudo-ou-nada.
+    // permite colher o que couber no orçamento em vez de tudo-ou-nada, e o
+    // round-robin (sliceSweepFatia + sweepCursor) rotaciona o ponto de partida
+    // para o teto não congelar a varredura sempre nos MESMOS primeiros alvos.
     const restante = live.harvestMaxPerHour - queriesThisHour();
-    const fatia = restante > 0 ? sweepTargets.slice(0, restante) : [];
-    if (!fatia.length) {
-      log.debug('[harvest] teto horário atingido antes da varredura pt');
+    const { fatia, next } = sliceSweepFatia(sweepTargets, restante, sweepCursor);
+    sweepCursor = next;
+    // O breaker pertence ao caminho ao vivo; aqui ele é apenas consumido
+    // (recordStatus:false). Alvo com circuito aberto não sai nem debita cota —
+    // o próprio jackett.search economizaria a consulta, mas a contabilidade
+    // (attempted) não.
+    const ativos = fatia.filter((target) => !jackett.breakerTripped(target));
+    // partial = teto cortou a lista de alvos; breaker = circuito omitiu alvo
+    // da fatia. Antes misturavam `ativos < sweepTargets` e só contavam no
+    // ramo com consulta — breaker total ou fatia vazia sumiam das métricas.
+    if (fatia.length < sweepTargets.length) metrics.count('harvest.sweep.partial');
+    if (ativos.length < fatia.length) metrics.count('harvest.sweep.breaker');
+    if (!ativos.length) {
+      log.debug(
+        fatia.length > 0
+          ? `[harvest] varredura pt: ${fatia.length} alvo(s) com breaker aberto, nada a consultar`
+          : '[harvest] teto horário atingido antes da varredura pt',
+      );
     } else {
-      for (const target of fatia) {
+      for (const target of ativos) {
         await awaitIndexerGap(target);
       }
-      attempted += fatia.length;
+      attempted += ativos.length;
       metrics.count('harvest.sweep');
-      if (fatia.length < sweepTargets.length) {
-        metrics.count('harvest.sweep.partial');
-      }
       try {
-        const items = await jackett.search(sweepQuery, entry.type, fatia, {
+        const items = await jackett.search(sweepQuery, entry.type, ativos, {
           matchContext,
           recordStatus: false,
+          // Descoberta do índice: zero-sobrevivente aqui é sonda negativa,
+          // não desperdício do caminho de resposta (ver jackett.search).
+          background: true,
         });
-        for (const target of fatia) {
+        for (const target of ativos) {
           lastQueryAt.set(target, Date.now());
         }
-        succeeded += fatia.length;
+        succeeded += ativos.length;
         collected.push(...items.filter((i: any) => !i.fromAccount));
       } catch (err: unknown) {
-        for (const target of fatia) {
+        for (const target of ativos) {
           lastQueryAt.set(target, Date.now());
         }
         log.warn('[harvest] varredura pt falhou:', log.errorMessage(err));
@@ -151,7 +235,24 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   for (const indexer of indexers) {
     // Freio de atividade no MEIO da obra também: tráfego chegou, solta o
     // Jackett na hora (o que já foi coletado entra no índice mesmo assim).
-    if (activity.recentUserTraffic(live.harvestIdleWindowMs)) break;
+    // O sinal é preempção, não teto: o ciclo devolve a obra à frente da fila
+    // sem contar tentativa (tráfego não é falha dela) nem eficácia de
+    // meia-obra.
+    if (activity.recentUserTraffic(live.harvestIdleWindowMs)) {
+      preempted = true;
+      break;
+    }
+    // O breaker pertence ao caminho ao vivo; aqui ele é apenas consumido
+    // (recordStatus:false). Indexer com circuito aberto não deve pagar slot de
+    // cota nem contar como sucesso — o próprio jackett.search economizaria a
+    // consulta, mas a contabilidade (attempted/succeeded) não. O lastQueryAt
+    // segue marcado para o gap continuar coerente: na meia-abertura o indexer
+    // volta a respeitar o intervalo mínimo, como o search fazia ao devolver []
+    // pelo breaker.
+    if (jackett.breakerTripped(indexer)) {
+      lastQueryAt.set(indexer, Date.now());
+      continue;
+    }
     if (queriesThisHour() + attempted >= live.harvestMaxPerHour) {
       // A obra sai DAQUI pela metade: quem a desenfileirou precisa saber, senão
       // ela é dada por colhida com meia dúzia de indexers e nunca mais volta.
@@ -167,6 +268,9 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
         matchContext,
         recordStatus: false,
         fallbackQuery: ptQuery || undefined,
+        // Descoberta do índice: zero-sobrevivente aqui é sonda negativa,
+        // não desperdício do caminho de resposta (ver jackett.search).
+        background: true,
       });
       lastQueryAt.set(indexer, Date.now());
       succeeded += 1;
@@ -195,7 +299,13 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   noteQueries(attempted);
 
   const relevant = filterRelevantRaw(collected, matchContext as any);
-  const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant);
+  // Registro PARCIAL quando a colheita saiu pela metade (teto horário ou
+  // preempção por tráfego): a obra volta à fila e o fast-path da busca fica
+  // bloqueado até uma gravação completa regravar (last-write-wins limpa o
+  // flag). Falha de rede e varredura pt parcial NÃO marcam — o laço seguiu.
+  const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant, {
+    partial: capped || preempted,
+  });
   if (config.debrid.rdWarm.enabled && rdWarmer.rdInPlay() && relevant.length) {
     const scoresByHash = new Map<string, number>();
     for (const r of relevant) {
@@ -218,21 +328,26 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
       rdWarmer.enqueue([item.hash], item.score);
     }
   }
-  harvested += 1;
-  lastRunAt = Date.now();
-  if (config.harvest.dashboardLastWorks > 0) {
-    recentWorks.unshift({
-      at: lastRunAt,
-      imdbId: entry.imdbId,
-      type: entry.type,
-      season: entry.season ?? null,
-      episode: entry.episode ?? null,
-      recorded: added,
-    });
-    recentWorks.length = Math.min(recentWorks.length, config.harvest.dashboardLastWorks);
+  // Obra preemptada volta à fila: contar harvested / lastRunAt / recentWorks
+  // aqui dobraria a eficácia (meia-colheita + conclusão) e listaria meia
+  // obra no painel. O tempo gasto (harvest.ms) continua real em ambos.
+  if (!preempted) {
+    harvested += 1;
+    lastRunAt = Date.now();
+    if (config.harvest.dashboardLastWorks > 0) {
+      recentWorks.unshift({
+        at: lastRunAt,
+        imdbId: entry.imdbId,
+        type: entry.type,
+        season: entry.season ?? null,
+        episode: entry.episode ?? null,
+        recorded: added,
+      });
+      recentWorks.length = Math.min(recentWorks.length, config.harvest.dashboardLastWorks);
+    }
   }
   metrics.observe('harvest.ms', Date.now() - startedAt);
-  return { ok: added > 0 || succeeded > 0, capped };
+  return { ok: added > 0 || succeeded > 0, capped, preempted, added };
 }
 
 /** Contadores do trabalho executado, para o status do painel. */

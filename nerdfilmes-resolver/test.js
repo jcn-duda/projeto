@@ -6,6 +6,9 @@ const {
   parseSize,
   releaseTitle,
   pubDate,
+  assertAllowedUrl,
+  isDetailHost,
+  siteSelector,
 } = require('./server');
 
 const searchHtml = `
@@ -44,5 +47,11 @@ assert.equal(parseSize('2,6 GB'), Math.round(2.6 * 1024 ** 3));
 assert.equal(parsePostDate(postHtml), '2025-09-25T15:00:00.000Z');
 assert.match(releaseTitle('Coringa (2019)', links[0]), /1080p BluRay DUBLADO/);
 assert.equal(pubDate({ title: 'Coringa (2019)' }), 'Tue, 01 Jan 2019 00:00:00 GMT');
+assert.equal(siteSelector.url(), 'https://www.filmesviatorrents.net');
+assert.equal(isDetailHost('filmesviatorrents.net'), true);
+assert.equal(isDetailHost('www.filmesviatorrents.net'), true);
+assert.equal(isDetailHost('fakefilmesviatorrents.net'), false);
+assert.doesNotThrow(() => assertAllowedUrl('https://www.filmesviatorrents.net/?s=teste'));
+assert.throws(() => assertAllowedUrl('https://fakefilmesviatorrents.net/?s=teste'), /blocked_host/);
 
 console.log('nerdfilmes-resolver: testes OK');

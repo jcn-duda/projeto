@@ -196,14 +196,16 @@ export const debrid = () => ({
   // Quantos torrents BR dublados o autofetch baixa em background por busca
   // (uma vaga por candidato, compartilhada entre o passe parcial e o tardio).
   // Mais candidatos = mais chances de play pronto depois, ao custo de encher
-  // mais a conta. Clamp 1..4: 0 não desliga o recurso (quem desliga é o toggle
-  // DEBRID_AUTO_FETCH_BR); o teto superior 4 respeita o contrato de "até 4".
-  autoFetchMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 4)))),
-  // Rede de segurança quando o título não tem dublagem NENHUMA (filme antigo,
-  // cult, série sem áudio PT): sem isso a busca acaba sem baixar nada e, com
-  // "somente já em cache" ligado, o usuário vê zero opção para sempre. O
-  // limite é separado do autofetch dublado para não encher a conta com até
-  // quatro torrents apenas porque o título não tem áudio PT.
+  // mais a conta. Clamp 1..12: 0 não desliga o recurso (quem desliga é o toggle
+  // DEBRID_AUTO_FETCH_BR). O teto 12 (2026-09-01) cobre o acervo BR de uma vez;
+  // o default 3 é o baseline conservador — o operador sobe ao vivo no painel.
+  autoFetchMax: Math.min(12, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 3)))),
+  // Rede de segurança do terceiro nível: vale quando não há BR dublado E
+  // (não há dublagem global OU o operador recusou DEBRID_AUTO_FETCH_ANY).
+  // Sem isso a busca acaba sem baixar nada e, com "somente já em cache"
+  // ligado, o usuário vê zero opção para sempre. O limite é separado do
+  // autofetch dublado para não encher a conta com até quatro torrents só
+  // porque o título não tem áudio PT (ou o operador não quis baixar o global).
   autoFetchTopSeeds: String(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS || 'true') === 'true',
   autoFetchTopSeedsMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS_MAX, 2)))),
   // Um torrent com poucos pares costuma morrer na fila do debrid; abaixo de
@@ -229,6 +231,16 @@ export const debrid = () => ({
   // o recheck trata como morto (blacklist, remoção e dreno da fila). 0
   // desliga a detecção: parado nunca mais derruba um download.
   autoFetchStallStreak: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_STALL_STREAK, 3))),
+  // Permite que a remoção automática (morto/parado) aja sobre transferência
+  // que só foi identificada pelo ID registrado no enqueue, e não por um hash
+  // publicado pelo serviço. Nasce DESLIGADO de propósito: a ponte por id
+  // acabou de tornar visível a maior parte da conta no Premiumize (58 de 60
+  // medidas), e uma conta que a remoção nunca alcançou não pode ser exposta a
+  // ela e à primeira rodada destrutiva no mesmo deploy. Desligado, o recheck
+  // ainda blacklista e drena a fila — só não apaga na conta, e conta o que
+  // teria apagado em `autofetch.{dead,stalled}.suppressed`. Ligue depois de
+  // ler esses contadores.
+  removeById: String(process.env.DEBRID_REMOVE_BY_ID || 'false') === 'true',
   // Pack de temporada pronto invalida os episódios já buscados daquela mesma
   // conta/temporada; a próxima lista usa o davail positivo sem esperar CACHE_TTL.
   autoFetchSeasonFill: String(process.env.DEBRID_AUTO_FETCH_SEASON_FILL || 'true') === 'true',
@@ -268,6 +280,10 @@ export const debrid = () => ({
   // background (fail-open enquanto o refresh não volta — nunca rede no
   // caminho síncrono).
   autoFetchPauseRefreshMs: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_PAUSE_REFRESH_MS, 900_000)),
+  // Trace da desistência do Chupim: ring em memória com motivo + hash12 de cada
+  // portão que fechou. Barato por contrato — desligado, note() volta imediato e
+  // nenhum call site precisa checar o knob. Só memória, nunca grava no cache.
+  autoFetchTrace: String(process.env.AUTOFETCH_TRACE || 'true') === 'true',
   // Ledger durável GLOBAL do CDN Real-Debrid. Ao contrário do magnetdb,
   // disponibilidade do RD é do serviço, não da conta que a observou.
   rdLedger: {

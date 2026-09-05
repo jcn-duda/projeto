@@ -11,15 +11,21 @@
  * instância nova de cache.ts reusando o irmão cacheado, com o store alheio).
  */
 
-// A soma das cotas de namespaces conhecidos é 34.550 (inclui rdc=14.000,
-// rdq=500, rdt=2.500, adprot=2.000, adsub=1.000 e adrm=500), deixando 1.450
-// entradas de folga sob o teto global. O ledger RD
+// A soma das cotas de namespaces conhecidos é 82.550 (inclui mag=50.000,
+// rdc=14.000, rdq=500, rdt=2.500, adprot=2.000, adsub=1.000 e adrm=500),
+// deixando 1.450 entradas de folga sob o teto global. O ledger RD
 // é global por hash e precisa reter muito mais histórico que os caches por conta;
 // os demais baldes foram calibrados para abrir esse espaço sem deixar o despejo
 // global invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB
-// ≈ 79 MB no pior caso); rdc/davail/mag/rdt/adprot/adsub/adrm guardam só
-// registros minúsculos.
-export const MAX_ENTRIES = 36000;
+// ≈ 79 MB no pior caso) e o streams cresceu com o /stream-trace.json (cap de
+// 300 itens ≈ 27 KB por entrada): no teto teórico do namespace (2000 entradas)
+// soma ~54 MB — hoje observado ~13 MB em produção local. O idx (2.000 ×
+// ~14,7 KB ≈ 29 MB) fecha a conta dos gordos; rdc/davail/mag/rdt/adprot/
+// adsub/adrm guardam só registros minúsculos — mag 50k ≈ 19 MB.
+//
+// O teto global acompanha a soma: teto IGUAL OU ABAIXO dela reintroduz o
+// despejo global antes da repartição por namespace, que foi bug real.
+export const MAX_ENTRIES = 84000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -27,14 +33,22 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   meta: 500,
   // Resultado bruto da busca por indexer/scraper: cada entrada pode chegar a
   // ~100 KB (teto de itens no config), então a cota fica bem abaixo das de
-  // entrada minúscula — pior caso ~79 MB no L1.
+  // entrada minúscula — pior caso ~79 MB no L1, ainda o maior balde
+  // individual (o streams, segundo maior, soma ~54 MB no teto teórico com o
+  // trace do /stream-trace.json; ~13 MB observado).
   raw: 800,
   // Disponibilidade por hash é só 0/1; a cota alta evita reconsultar a mesma
   // conta em buscas diferentes sem ocupar a memória dos resultados brutos.
   davail: 1000,
-  // Banco de magnets: histórico durável por hash (vivo/ruim), entrada
-  // minúscula como o davail — a cota alta cobre contas com catálogo grande.
-  mag: 2000,
+  // Banco de magnets: histórico durável por hash (vivo/ruim/mentiroso), entrada
+  // minúscula como o davail (valor `1`, chave ~70 B) — ~400 B por entrada com o
+  // overhead do Map, então 50.000 custa ~19 MB, folgado no container de 3g.
+  // Era 2.000 e o banco ficava ~62x menor que o histórico que ele PODE guardar:
+  // a conta do debrid trava em ~800 magnets vivos (autoFetchPauseAt), mas o
+  // banco é histórico de tudo que já passou, inclusive do que a limpeza apagou.
+  // Não confunda com permanência: o teto é capacidade, quem expira é o TTL
+  // (alive/lie 7 dias, bad 24 h) — subir TTL é outro eixo, e é veto do plano.
+  mag: 50000,
   // Ledger global do Real-Debrid: cache de serviço, sem credencial na chave.
   // A cota alta evita perder a evidência rara das sondas entre instalações.
   // Era 20 mil, mas agora o namespace é só de hashes (o cache por título do
@@ -48,8 +62,10 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // obra consultada, TTL ~6h — cota média para conviver com o ledger.
   rdt: 2500,
   // Índice de releases por obra (~14,7 KB por chave medido no pior caso, com teto
-  // de 60 releases): 4.000 chaves ≈ 59 MB. É o que faz o addon responder do
+  // de 60 releases): 2.000 chaves ≈ 29 MB. É o que faz o addon responder do
   // próprio índice sem esperar Jackett. Folga tranquila no limite de 3 GB.
+  // (PLANO_SERVIDOR prometeu 4000; o código entregou 2000 — não inventar 4000
+  // no comentário nem no fallback do painel.)
   idx: 2000,
   autofetch: 1000,
   'indexer-status': 200,

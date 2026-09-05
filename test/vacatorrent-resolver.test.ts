@@ -88,6 +88,113 @@ describe('VacaTorrent Parser: nextProtectedUrl (protetor systemtech)', () => {
     const next = vaca.nextProtectedUrl(html, 'https://vacadb.org/torta-suja/');
     assert.equal(next, 'https://vacadb.org/enc2/receber.php?enc=abc123&pub=PUB_x');
   });
+
+  test('nextProtectedUrl: casa const next com destino t.co (salto aceito / assert-only no processar.php)', () => {
+    const html = 'const next = "https:\\/\\/t.co\\/SFsPRm91bg";';
+    const next = vaca.nextProtectedUrl(html, 'https://systemtech.space/enc/processar.php');
+    assert.equal(next, 'https://t.co/SFsPRm91bg');
+  });
+
+  test('nextProtectedUrl: rejeita youtube redirect quando destino aponta para host malicioso / não permitido', () => {
+    const html = 'const next = "https:\\/\\/www.youtube.com\\/redirect?q=https%3A%2F%2Fevil-domain.com%2Fvirus";';
+    const next = vaca.nextProtectedUrl(html, 'https://systemtech.space/enc/go.php');
+    assert.equal(next, null, 'não deve aceitar domínio fora de protector/assert-only via youtube');
+  });
+
+  test('nextProtectedUrl: resolve youtube redirect com caminho relativo sobre o protetor', () => {
+    const html = 'const next = "https:\\/\\/www.youtube.com\\/redirect?q=%2Fenc%2Frelay.php%3Fenc%3D123";';
+    const next = vaca.nextProtectedUrl(html, 'https://systemtech.space/enc/processar.php');
+    assert.equal(next, 'https://systemtech.space/enc/relay.php?enc=123');
+  });
+
+  test('nextProtectedUrl: aceita declarações var/let e aspas simples com host assert-only', () => {
+    assert.equal(
+      vaca.nextProtectedUrl("var next = 'https://t.co/SFsPRm91bg';", 'https://systemtech.space/enc/processar.php'),
+      'https://t.co/SFsPRm91bg',
+    );
+    assert.equal(
+      vaca.nextProtectedUrl('let next = "https:\\/\\/t.co\\/SFsPRm91bg";', 'https://systemtech.space/enc/processar.php'),
+      'https://t.co/SFsPRm91bg',
+    );
+  });
+
+  test('nextProtectedUrl: aceita template literals com crases (backticks), window.next e atribuição direta', () => {
+    assert.equal(
+      vaca.nextProtectedUrl('const next = `https://t.co/SFsPRm91bg`;', 'https://systemtech.space/enc/processar.php'),
+      'https://t.co/SFsPRm91bg',
+      'deve aceitar template literals com crase',
+    );
+    assert.equal(
+      vaca.nextProtectedUrl('window.next = "https://t.co/SFsPRm91bg";', 'https://systemtech.space/enc/processar.php'),
+      'https://t.co/SFsPRm91bg',
+      'deve aceitar window.next',
+    );
+    assert.equal(
+      vaca.nextProtectedUrl('next = "https://t.co/SFsPRm91bg";', 'https://systemtech.space/enc/processar.php'),
+      'https://t.co/SFsPRm91bg',
+      'deve aceitar atribuição direta a next',
+    );
+  });
+
+  test('nextProtectedUrl: atributo HTML não é atribuição — isca em data-next não vence o next real', () => {
+    // O laço devolve o PRIMEIRO destino válido. Uma isca em atributo, colocada
+    // antes do script, sequestraria o salto se `next` casasse dentro dela — e
+    // este é o ramo que aceita host assert-only.
+    const isca = '<a data-next="https://t.co/ISCA0000000">baixar</a>';
+    const real = 'const next = "https://t.co/SFsPRm91bg";';
+    assert.equal(
+      vaca.nextProtectedUrl(`${isca}\n${real}`, 'https://systemtech.space/enc/processar.php'),
+      'https://t.co/SFsPRm91bg',
+      'o next do script vence a isca do atributo',
+    );
+    assert.equal(
+      vaca.nextProtectedUrl(isca, 'https://systemtech.space/enc/processar.php'),
+      null,
+      'sozinha, a isca em atributo não vira salto',
+    );
+    assert.equal(
+      vaca.nextProtectedUrl('meunext = "https://t.co/ISCA0000000";', 'https://systemtech.space/enc/processar.php'),
+      null,
+      'sufixo colado (meunext) não é o next',
+    );
+  });
+
+  test('nextProtectedUrl: preserva parâmetros com caractere de percentagem no redirect do youtube', () => {
+    const html = 'const next = "https:\\/\\/www.youtube.com\\/redirect?q=https%3A%2F%2Ft.co%2Fsearch%3Fq%3D100%25";';
+    const next = vaca.nextProtectedUrl(html, 'https://systemtech.space/enc/processar.php');
+    assert.equal(next, 'https://t.co/search?q=100%');
+  });
+
+  test('nextProtectedUrl: resolve caminho relativo local de const next no protetor', () => {
+    const html = 'const next = "/enc/processar.php?id=xyz";';
+    const next = vaca.nextProtectedUrl(html, 'https://systemtech.space/enc/go.php');
+    assert.equal(next, 'https://systemtech.space/enc/processar.php?id=xyz');
+  });
+
+  test('nextProtectedUrl: previne auto-loop quando next aponta para o próprio baseUrl ou fragmento/hash', () => {
+    const baseUri = 'https://systemtech.space/enc/processar.php';
+    assert.equal(vaca.nextProtectedUrl(`const next = "${baseUri}";`, baseUri), null);
+    assert.equal(vaca.nextProtectedUrl(`const next = "${baseUri}#sec";`, baseUri), null);
+    assert.equal(vaca.nextProtectedUrl('const next = "#";', baseUri), null);
+  });
+
+  test('nextProtectedUrl: ignora atribuição sentinela inicial e captura atribuição válida subsequente', () => {
+    const html = '<script>let next = "#"; next = "https:\\/\\/t.co\\/SFsPRm91bg";</script>';
+    const next = vaca.nextProtectedUrl(html, 'https://systemtech.space/enc/processar.php');
+    assert.equal(next, 'https://t.co/SFsPRm91bg');
+  });
+
+  test('nextProtectedUrl: aceita crases (backticks) em URL_ETAPA2', () => {
+    const html = 'var URL_ETAPA2 = `https://vacadb.org/enc2/receber.php?enc=abc123&pub=PUB_x`;';
+    const next = vaca.nextProtectedUrl(html, 'https://vacadb.org/torta-suja/');
+    assert.equal(next, 'https://vacadb.org/enc2/receber.php?enc=abc123&pub=PUB_x');
+  });
+
+  test('nextProtectedUrl: aceita salto para host assert-only via meta refresh', () => {
+    const html = '<meta http-equiv="refresh" content="0;url=https://t.co/SFsPRm91bg">';
+    const next = vaca.nextProtectedUrl(html, 'https://systemtech.space/enc/processar.php');
+    assert.equal(next, 'https://t.co/SFsPRm91bg');
+  });
 });
 
 describe('VacaTorrent Parser: extractMagnet (data-link base64 do gate-2 vacadb)', () => {
@@ -97,8 +204,13 @@ describe('VacaTorrent Parser: extractMagnet (data-link base64 do gate-2 vacadb)'
     const magnet = 'magnet:?xt=urn:btih:c90ba3b1e4aff23edde22eb755ca4392c12bc91d&tr=udp%3A%2F%2Ftracker.openbittorrent.com%2Fannounce';
     const b64 = Buffer.from(magnet).toString('base64');
     const html = `<body data-link="${b64}">`;
-    // @ts-ignore — o VacaProfile do server.d.ts ainda não declara extractMagnet.
     assert.equal(vaca.extractMagnet(html), magnet, 'extrai o magnet decodificado do base64');
+  });
+
+  test('extractMagnet: devolve null com payload vazio, malformado ou sem magnet válido', () => {
+    assert.equal(vaca.extractMagnet(''), null);
+    assert.equal(vaca.extractMagnet('<body data-link="not-base64-not-magnet">'), null);
+    assert.equal(vaca.extractMagnet('<body data-link="aHR0cHM6Ly9leGFtcGxlLmNvbQ==">'), null);
   });
 });
 
@@ -123,6 +235,9 @@ describe('VacaTorrent Parser: allowlist (assertAllowedUrl)', () => {
     assert.equal(vaca.isProtectorHost('systemtech.space'), true);
     assert.equal(vaca.isProtectorHost('t.co'), false, 't.co é apenas salto aceito, não descoberta de protetor');
     assert.equal(vaca.isProtectorHost('vacadb.org'), false, 'vacadb.org é apenas salto aceito (assert-only), não descoberta de protetor');
+    assert.equal(vaca.isAssertOnlyHost('t.co'), true, 't.co é host de salto aceito');
+    assert.equal(vaca.isAssertOnlyHost('vacadb.org'), true, 'vacadb.org é host de salto aceito');
+    assert.equal(vaca.isAssertOnlyHost('systemtech.space'), false, 'systemtech.space é protetor completo, não assert-only');
   });
 });
 

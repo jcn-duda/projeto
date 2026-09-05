@@ -1,7 +1,6 @@
-import config from '../config.js';
-import { normalizeTitle } from './title-normalization.js';
 import { TECH_NOISE } from './release-matching.js';
 import { hasPtSigns, brOriginMark } from './br-origin.js';
+import { genericDubProvesPt, hasPtAudioMark, strongEnSceneMark, dubbedLieVerdict } from './audio-cleanup.js';
 
 // Resolução que o título não informa. Balde e cota próprios, separados do SD.
 const UNKNOWN_QUALITY = 'sem resolução';
@@ -119,57 +118,6 @@ function editionFromTitle(title = '') {
   return '';
 }
 
-/**
- * Idiomas que desmentem a promessa GENÉRICA de dublagem. `[Ukr Dub]`,
- * `HINDI.HQ.DUB` e `Rus Dubbed` dizem dublado PARA aquele idioma — nenhum
- * deles é pt-BR, e o `\bDUB\b` sozinho não sabe distinguir.
- *
- * HINDI foi o primeiro caso medido; a construção `<idioma> Dub` é a mesma para
- * todos, então a lista generaliza o predicado em vez de caçar um idioma por
- * vez. Medido em produção (2026-08-30, `tt22084616`): as TRÊS primeiras vagas
- * eram `Spider-Man: Brand New Day 2026 … [Ukr Dub]` rotuladas DUB BR, ocupando
- * as três vagas reservadas de BR — quem clicava no topo ouvia ucraniano.
- *
- * Presença em qualquer posição basta, como já valia para HINDI: exigir
- * adjacência ao DUB deixaria passar `Ukr HQ Dub`. O custo é um título que
- * LISTA faixas (`Multi DUB Eng/Rus/Por`) perder a prova genérica — mas marca
- * PT explícita ao lado continua absolvendo pelas OUTRAS alternativas de
- * explicitPtAudio, que correm fora deste predicado.
- *
- * Só formas inequívocas entram: `POLISH` sim, `POL` não — token de três letras
- * casa dentro de nome de grupo e condenaria release BR por acidente.
- */
-const FOREIGN_DUB_LANG_RE = new RegExp(
-  '\\b(HINDI|TAMIL|TELUGU|MALAYALAM|KANNADA|BENGALI|PUNJABI|MARATHI'
-  + '|UKR|UKRAINIAN|RUS|RUSSIAN|POLISH|CZECH|SLOVAK|HUNGARIAN|ROMANIAN|BULGARIAN'
-  + '|GREEK|HEBREW|ARABIC|PERSIAN|TURKISH|THAI|VIETNAMESE'
-  + '|KOREAN|JAPANESE|CHINESE|MANDARIN|CANTONESE'
-  + '|GERMAN|FRENCH|TRUEFRENCH|ITALIAN|ITA|SPANISH|ESPANOL|CASTELLANO|LATINO'
-  + '|DUTCH|SWEDISH|NORWEGIAN|DANISH|FINNISH)\\b',
-);
-
-/**
- * Guarda compartilhada da dublagem GENÉRICA (título e path usam o mesmo
- * intento). Marcador genérico de DUB/DUBBED NÃO prova áudio PT quando o
- * título nomeia um idioma estrangeiro. O PT explícito ao lado
- * (`HINDI… DUB PT-BR`) continua vencendo FORA deste predicado, nas regras
- * próprias de cada chamador.
- */
-function genericDubProvesPt(text: string): boolean {
-  const t = String(text || '').toUpperCase();
-  return !FOREIGN_DUB_LANG_RE.test(t)
-    && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
-}
-
-// Lado marcador do mesmo intento, para o path: um marker de
-// AUDIO_AUDIT_PT_MARKERS é genérico quando normaliza para exatamente
-// 'dub'/'dubbed' — só ele sofre a guarda do HINDI. Marcador explícito
-// ('dublado', 'dual', 'pt br'…) não prova menos por causa de HINDI.
-// Limitação honesta: marcador genérico CUSTOMIZADO novo (ex.: 'dubs') é
-// tratado como explícito e escapa da guarda — o fechamento cobre as formas
-// genéricas conhecidas, não qualquer vocabulário futuro.
-const GENERIC_DUB_MARKER_RE = /^dub(?:bed)?$/;
-
 function explicitPtAudio(title = '') {
   const t = title.toUpperCase();
   const isExplicitSub =
@@ -179,49 +127,18 @@ function explicitPtAudio(title = '') {
   const isGenericDub = genericDubProvesPt(t);
 
   return (
-    /\b(DUBLAD[OA]|DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR|DUBLADO[- ]?PT[-.]?BR)\b/.test(t) ||
+    // `DUBLAD[OA]S?` sai do `\b` e passa a exigir só que não haja LETRA colada.
+    // Com `\b` o marcador morria quando o release grudava a resolução no fim:
+    // "Tucker e Dale contra o mal Dublado720p mp4" é real e está no índice de
+    // produção — entrou como isBr=false/dubbed=false, um falso negativo mudo
+    // numa fonte dublada. Dígito colado não desfaz a afirmação do dono; letra
+    // colada desfaz (evita casar dentro de outra palavra). O `S?` alinha com o
+    // PT_VOCAB do br-origin, que já aceitava o plural.
+    /(?<![A-Z])DUBLAD[OA]S?(?![A-Z])/.test(t) ||
+    /\b(DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR)\b/.test(t) ||
     isGenericDub ||
     (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub)
   );
-}
-
-/** Marcador de áudio PT no path real do arquivo, não no título do post. */
-function hasPtAudioMark(path = '') {
-  const tokens = normalizeTitle(path).split(' ').filter(Boolean);
-  const joined = ` ${tokens.join(' ')} `;
-  // Mesma regra do explicitPtAudio (FOREIGN_DUB_LANG_RE): marcador genérico de
-  // dublagem não prova PT quando o path nomeia idioma estrangeiro. Marcador
-  // explícito segue valendo — o idioma só desmente a promessa GENÉRICA.
-  const hasForeignLang = FOREIGN_DUB_LANG_RE.test(String(path).toUpperCase());
-  return config.audioAudit.ptMarkers.some((marker: string) => {
-    const normalized = normalizeTitle(marker);
-    if (!normalized) return false;
-    if (hasForeignLang && GENERIC_DUB_MARKER_RE.test(normalized)) return false;
-    return joined.includes(` ${normalized} `);
-  });
-}
-
-/** Grupo/canal de cena EN forte. Nome sem marca continua ambíguo e passa. */
-function strongEnSceneMark(path = '') {
-  if (hasPtAudioMark(path)) return null;
-  const tokens = new Set(normalizeTitle(path).split(' ').filter(Boolean));
-  return config.audioAudit.enGroups.find((group: string) => tokens.has(normalizeTitle(group))) || null;
-}
-
-/**
- * Mentira só é provada quando TODOS os vídeos contradizem uma promessa PT com
- * sinal EN forte. Um único marcador PT preserva o item: falso negativo é pior.
- */
-function dubbedLieVerdict(videoPaths: string[] = [], promisedDubbed = false) {
-  const paths = videoPaths.map(String).filter(Boolean);
-  if (!config.audioAudit.enabled || !promisedDubbed || paths.length === 0) {
-    return { lie: false, videoCount: paths.length };
-  }
-  if (paths.some((path) => hasPtAudioMark(path))) return { lie: false, videoCount: paths.length };
-  const matchedGroup = paths.map(strongEnSceneMark).find(Boolean);
-  return matchedGroup
-    ? { lie: true, matchedGroup, videoCount: paths.length }
-    : { lie: false, videoCount: paths.length };
 }
 
 /**
@@ -347,8 +264,12 @@ function foreignVerdict(filename = '', videoPaths: string[] = []): ForeignVerdic
   // mesmo sem marca de áudio — condenar aqui apaga acervo da conta.
   const temSinalPt = candidates.some((p) => looksPtBr(p) || hasPtSigns(p) || hasPtAudioMark(p) || brOriginMark(p));
   if (temSinalPt) return 'absolve';
+  // Dublagem declarada no título (DUB/DUBBED/DUBLADO…): o dono afirma que o
+  // áudio É dublado — o idioma pode ser qualquer um, mas não é prova de que
+  // NÃO é o PT, então o grupo de cena EN sozinho não basta para condenar.
+  const declaraDublagem = (p: string) => /\b(?:DUB|DUBBED|DUBLAD[OA]|DUBLAGEM)\b/i.test(p);
   const provaEstrangeira = candidates.some(
-    (p) => hasExplicitForeignAudio(p) || Boolean(strongEnSceneMark(p)),
+    (p) => hasExplicitForeignAudio(p) || (Boolean(strongEnSceneMark(p)) && !declaraDublagem(p)),
   );
   return provaEstrangeira ? 'condena' : 'unknown';
 }

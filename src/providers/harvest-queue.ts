@@ -19,6 +19,10 @@ export type HarvestEntry = {
   episode?: number | null;
   reason: string;
   enqueuedAt: number;
+  // Sinal de painel (Etapa 2): entrada devolvida à FRENTE da fila por
+  // preempção de tráfego. Não entra na ordenação — é o head() com o
+  // enqueuedAt original que a coloca à frente do próprio rank.
+  resumed?: boolean;
 };
 
 // A fila inteira vive numa chave só (ver cabeçalho). Persistência best-effort
@@ -88,7 +92,13 @@ export function persist() {
     return;
   }
   const live = harvesterLive.effective();
-  cache.set(QUEUE_KEY, queue.slice(0, live.harvestQueueMax), live.harvestEntryTtl);
+  // Terceiro caminho de descarte (Etapa 1): obra capped/preemptada volta por
+  // head() além do teto e o slice corta a cauda sem passar pelo enqueue — sem
+  // este contador o descarte sumiria do diagnóstico.
+  const kept = queue.slice(0, live.harvestQueueMax);
+  const dropped = queue.length - kept.length;
+  if (dropped > 0) metrics.count('harvest.queue.dropped', dropped);
+  cache.set(QUEUE_KEY, kept, live.harvestEntryTtl);
 }
 
 /** Marca dedupe por obra com TTL — re-enfileirar a cada busca enchia a fila. */
@@ -119,12 +129,18 @@ export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>) {
     // de menor prioridade (empate: a mais nova) — até abrir espaço, depois
     // adiciona a nova; a ordem efetiva volta a valer no próximo passo/status.
     queue = prioritizeQueue(queue);
-    while (queue.length >= live.harvestQueueMax) queue.pop();
+    while (queue.length >= live.harvestQueueMax) {
+      queue.pop();
+      metrics.count('harvest.queue.dropped');
+    }
     queue.push(full);
   } else {
     // Sem priorização mantém a semântica antiga: obra nova empurra a mais
     // velha. A fila é oportunidade de colheita, não backlog sagrado.
-    while (queue.length >= live.harvestQueueMax) queue.shift();
+    while (queue.length >= live.harvestQueueMax) {
+      queue.shift();
+      metrics.count('harvest.queue.dropped');
+    }
     queue.push(full);
   }
   persist();
@@ -160,6 +176,12 @@ export function takeHead(): HarvestEntry | undefined {
 
 /** Volta a obra para a FRENTE da fila (cortada pelo teto: terminar primeiro). */
 export function head(entry: HarvestEntry): void {
+  // Corrida de duplicata (Etapa 2): obra fora da fila (em voo no harvestOne)
+  // pode ter sido re-enfileirada por enqueue() da mesma identidade — busca ou
+  // semente não sabem que ela está sendo colhida. Devolvê-la de novo aqui
+  // duplicaria a entrada; mesma obra já presente vira no-op. Beneficia também
+  // o caminho capped, que tinha a mesma janela.
+  if (queue.some((q) => obraIdentity(q) === obraIdentity(entry))) return;
   queue.unshift(entry);
 }
 

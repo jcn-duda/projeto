@@ -20,6 +20,9 @@ import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { prefix } from './cache-keys.js';
 import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, parseTitleSeasonEpisode } from './format.js';
+// Prova de episódio errado (miss por episódio) mora no irmão, extraído pela
+// catraca de linhas; o pai reexporta para quem consome `releaseIndex.*`.
+import { markMissing, isMissing, isMissingQuiet } from './release-index-miss.js';
 
 export type IndexedRelease = {
   hash: string;
@@ -35,7 +38,7 @@ export type IndexedRelease = {
   lied?: boolean;
 };
 
-type IndexEntry = { at: number; releases: IndexedRelease[] };
+type IndexEntry = { at: number; releases: IndexedRelease[]; partial?: boolean };
 
 type ObraLocation = { season?: number | null; episode?: number | null };
 
@@ -85,9 +88,12 @@ function destinoDe(imdbId: string, pedido: ObraLocation, title: string) {
   return obraKey(imdbId, { season });
 }
 
-function record(imdbId: string, location: ObraLocation, items: any[]) {
+function record(imdbId: string, location: ObraLocation, items: any[], opts: { partial?: boolean } = {}) {
   if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !Array.isArray(items) || items.length === 0) return 0;
   const now = Date.now();
+  // Marca de registro PARCIAL (colheita interrompida por teto/preempção): cada
+  // chave escrita recebe o flag. Gravação completa/default limpa (last-write-wins).
+  const partial = Boolean(opts.partial);
   const pedida = obraKey(imdbId, location);
   // Primeiro passe: agrupa por DESTINO. O merge com o registro anterior precisa
   // do estado da chave de destino, não da chave da busca.
@@ -140,7 +146,7 @@ function record(imdbId: string, location: ObraLocation, items: any[]) {
     const releases = [...existing.values()]
       .sort((a, b) => b.seenAt - a.seenAt)
       .slice(0, Math.max(1, config.releaseIndex.maxReleases));
-    cache.set(key, { at: now, releases } satisfies IndexEntry, config.releaseIndex.ttl);
+    cache.set(key, { at: now, partial, releases } satisfies IndexEntry, config.releaseIndex.ttl);
   }
   metrics.count('search.idx.recorded', added);
   if (added > 0) metrics.count('search.idx.grown');
@@ -189,6 +195,53 @@ function lookupQuiet(imdbId: string, { season, episode }: ObraLocation = {}): In
 }
 
 /**
+ * Registro PARCIAL: a colheita foi interrompida (teto horário ou preempção por
+ * tráfego) e o que está gravado não é a obra inteira. Espelha as três chaves
+ * do lookup — episódio, temporada e raiz — com `cache.peek`: qualquer uma
+ * marcada bloqueia o fast-path. Partial só BLOQUEIA, nunca libera; a gravação
+ * completa seguinte (busca ao vivo ou colheita concluída) limpa o flag.
+ */
+function isPartial(imdbId: string, { season, episode }: ObraLocation = {}): boolean {
+  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt')) return false;
+  const keys: string[] = [];
+  if (season != null && episode != null) keys.push(obraKey(imdbId, { season, episode }));
+  if (season != null) keys.push(obraKey(imdbId, { season }));
+  keys.push(obraKey(imdbId));
+  for (const key of keys) {
+    const entry = cache.peek(key) as IndexEntry | null;
+    if (entry?.partial) return true;
+  }
+  return false;
+}
+
+/**
+ * Limpa o flag `partial` em TODAS as chaves idx da obra, mantendo as releases.
+ * Motivo: série semeada (season null) grava partial na raiz; busca de episódio
+ * nunca reescreve a raiz; capped.dropped tira da fila e o flag ficava até o
+ * TTL (~30d) bloqueando o fast-path da série inteira. `location` é opcional —
+ * a limpeza é por obra inteira mesmo. Prefixo estrito (`key === base` ou
+ * `base:`) evita colidir tt123 com tt1234 no `keysMatching`.
+ */
+function clearPartial(imdbId: string, _location: ObraLocation = {}): number {
+  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt')) return 0;
+  const base = obraKey(imdbId);
+  let cleared = 0;
+  for (const key of cache.keysMatching(base)) {
+    if (key !== base && !key.startsWith(`${base}:`)) continue;
+    const entry = cache.peek(key) as IndexEntry | null;
+    if (!entry?.partial) continue;
+    // Preserva o TTL restante; sem peekRemaining, regrava com o TTL do índice
+    // (mesma disciplina do markLied/record).
+    const ttl = cache.peekRemaining(key) ?? config.releaseIndex.ttl;
+    if (!ttl || ttl <= 0) continue;
+    const { partial: _drop, ...rest } = entry;
+    cache.set(key, { ...rest } satisfies IndexEntry, ttl);
+    cleared += 1;
+  }
+  return cleared;
+}
+
+/**
  * A evidência de mentira chega do play/tail com hash e obra conhecidos. Campo
  * opcional preserva entradas antigas e evita invalidar o índice inteiro.
  */
@@ -213,35 +266,6 @@ function markLied(imdbId: string, location: ObraLocation, hash: string) {
   }
   if (changed) metrics.count('search.idx.lied', changed);
   return changed;
-}
-
-/**
- * Prova de episódio errado: "este hash NÃO serve ESTE episódio". Diferente do
- * markLied (o post mentiu sobre a obra inteira), aqui a evidência é fina —
- * marca SÓ a chave do episódio, nunca a da temporada nem a da obra: o mesmo
- * pack pode servir todos os outros episódios que promete.
- */
-function missKey(imdbId: string, { season, episode }: ObraLocation, hash: string) {
-  return `${prefix('idx')}miss:${imdbId}:S${season}E${episode}:${hash.toLowerCase()}`;
-}
-
-function markMissing(imdbId: string, location: ObraLocation, hash: string) {
-  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !hash) return 0;
-  // Sem temporada E episódio não há o que marcar: a prova é por episódio.
-  if (location.season == null || location.episode == null) return 0;
-  const key = missKey(imdbId, location, hash);
-  // Conta só a escrita NOVA, espelhando o markLied: re-marcar o que já está
-  // provado renova o TTL mas não é evidência nova.
-  const isNew = cache.get(key) == null;
-  cache.set(key, { at: Date.now() }, config.releaseIndex.ttl);
-  if (isNew) metrics.count('search.idx.miss');
-  return isNew ? 1 : 0;
-}
-
-function isMissing(imdbId: string, location: ObraLocation, hash: string) {
-  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !hash) return false;
-  if (location.season == null || location.episode == null) return false;
-  return cache.get(missKey(imdbId, location, hash)) != null;
 }
 
 /**
@@ -288,7 +312,9 @@ function status() {
     enabled: enabled(),
     ttlS: config.releaseIndex.ttl,
     entries: ns?.idx?.entries || 0,
-    maxEntries: ns?.idx?.maxEntries || 4000,
+    // Sem snapshot, inventar 4000 (promessa do PLANO_SERVIDOR, nunca entregue)
+    // mentiria a ocupação no painel — zero é mais honesto que um teto fantasma.
+    maxEntries: ns?.idx?.maxEntries || cache.QUOTAS?.idx || 0,
   };
 }
 
@@ -368,4 +394,4 @@ function snapshotAllWorks(): Map<string, IndexedRelease[]> {
   return result;
 }
 
-export { record, lookup, lookupQuiet, markLied, markMissing, isMissing, markFileEvidence, fileEvidence, status, snapshotWorks, snapshotAllWorks };
+export { record, lookup, lookupQuiet, isPartial, clearPartial, markLied, markMissing, isMissing, isMissingQuiet, markFileEvidence, fileEvidence, status, snapshotWorks, snapshotAllWorks };

@@ -94,6 +94,8 @@
   .metric .key { display: block; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .metric .value { display: block; overflow: hidden; margin-top: 3px; font-size: 18px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
   .metric .value.small { font-size: 13px; }
+  /* Procedência amostra + uptime baixo (helpers do core): não confundir com L1/L2. */
+  .metric .value.amostra-cedo { opacity: .72; font-style: italic; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 10px; }
   .card { min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255, 255, 255, .025); }
   details.card > summary { cursor: pointer; list-style: none; }
@@ -122,6 +124,8 @@
      duas colunas do .test-tools. Definida ANTES do @media de baixo para que a
      regra de 1 coluna continue vencendo em tela estreita (TV/celular). */
   .debrid-test-tools { grid-template-columns: minmax(150px, 220px) minmax(220px, 1fr) auto; }
+  /* Stream Trace (P5): tipo (select), ID (input) e dois botões na mesma linha. */
+  .trace-tools { grid-template-columns: minmax(120px, 180px) minmax(220px, 1fr) auto auto; }
   .action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 10px; }
   .action-card { padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255, 255, 255, .025); }
   .action-card h3 { margin: 0 0 5px; font-size: 16px; }

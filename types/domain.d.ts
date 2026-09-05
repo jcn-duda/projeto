@@ -68,6 +68,15 @@ export interface TorrentStatusEntry {
   state: 'ready' | 'downloading' | 'dead' | 'unknown';
   stalled?: boolean;
   id?: string | number;
+  /**
+   * COMO a transferência foi ligada ao hash. `hash`: o próprio serviço
+   * publicou o hash (src/nome/campo direto) — é a via histórica e a única
+   * que o ciclo destrutivo sempre enxergou. `id`: só casou pelo id que o
+   * enqueue registrou no marker. A distinção existe porque a via `id`
+   * expõe de uma vez transferências que a remoção automática NUNCA
+   * alcançou; o `removeById` decide se ela pode agir sobre elas.
+   */
+  via?: 'hash' | 'id';
 }
 
 /** Entrada persistida da busca; arrays legados são tratados no leitor. */
@@ -216,22 +225,42 @@ export interface DebridAdapter {
   ): Promise<string | null>;
   /** Ocupação da conta para o `/debrid-status.json`; ausente = não suportado. */
   accountStatus?(apiKey: string): Promise<AccountStatus>;
+  /**
+   * Interpreta a ocupação que REALMENTE barra escrita neste serviço. Ausente
+   * preserva o gate legado por `status.magnets >= autoFetchPauseAt`.
+   */
+  occupancy?(status: AccountStatus): { used: number; max: number } | null;
   /** Itens prontos na conta; ausente = no-op (serviço sem inventário legível). */
   inventory?(apiKey: string): Promise<InventoryItem[]>;
-  /** Enfileira download; ausente = autofetch/viaDebrid não usa. */
+  /**
+   * Enfileira download; ausente = autofetch/viaDebrid não usa.
+   *
+   * Retorno: `false` recusa. Aceite é qualquer valor verdadeiro — os
+   * chamadores testam truthiness, nunca `=== true`. Quem souber o id da
+   * transferência no serviço devolve a STRING do id: é a única âncora para
+   * reencontrá-la depois em serviço que não publica o hash de volta (o
+   * Premiumize é o caso; ver `transferHash` em premiumize.ts).
+   */
   enqueue?(
     apiKey: string,
     hash: string,
     episode?: unknown,
-  ): Promise<boolean>;
+  ): Promise<boolean | string>;
   warmInventory?(apiKey: string): Promise<unknown>;
   sweepDead?(apiKey: string): Promise<unknown>;
   /** Remove magnets antigos sem áudio PT da conta; ausente = não suportado. */
   sweepUndubbed?(apiKey: string): Promise<unknown>;
-  /** Mapa hash(minúsculo) -> { state: 'ready'|'downloading'|'dead'|'unknown', id?: any } */
+  /**
+   * Mapa hash(minúsculo) -> { state: 'ready'|'downloading'|'dead'|'unknown', id?: any }
+   *
+   * `ids` é hash -> id da transferência, como o enqueue o registrou. Serve a
+   * serviço que não devolve o hash na listagem: sem ele a maior parte da
+   * conta fica invisível ao recheck. Adapter que não precisa dele ignora.
+   */
   torrentStatus?(
     apiKey: string,
     infoHashes: string[],
+    ids?: Record<string, string | number>,
   ): Promise<Record<string, TorrentStatusEntry>>;
   /** Remove torrent pelo id no serviço; ausente = não suportado */
   removeTorrent?(apiKey: string, id: string | number): Promise<boolean>;

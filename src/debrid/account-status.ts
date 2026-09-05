@@ -173,12 +173,22 @@ async function accountStatus() {
   return memoizedAccountStatus(adapter, opts().debridApiKey);
 }
 
-function withAccountTimeout(task: Promise<any>) {
+function withAccountTimeout(task: Promise<any>, adapter: DebridAdapter | null = null) {
   return Promise.race([
     task,
     new Promise((resolve) => {
       const timer = setTimeout(
-        () => resolve({ ok: false, reason: 'timeout', error: 'timeout consultando o debrid' }),
+        () => resolve({
+          ok: false,
+          reason: 'timeout',
+          error: 'timeout consultando o debrid',
+          // Sem service o gate de dashboardAccounts descarta e o espelho some.
+          ...(adapter ? {
+            service: adapter.id,
+            label: adapter.label,
+            fix: TIMEOUT_FIX,
+          } : {}),
+        }),
         config.debrid.dashboardAccountTimeoutMs,
       );
       timer.unref?.();
@@ -319,7 +329,7 @@ async function testAccount(adapter: DebridAdapter, apiKey: string): Promise<Acco
   // observador viraria unhandledRejection no processo.
   task.catch(() => {});
   try {
-    const outcome: any = await withAccountTimeout(task);
+  const outcome: any = await withAccountTimeout(task, adapter);
     if (outcome && outcome.ok === false && outcome.reason === 'timeout') {
       return { ...base, ok: false, reason: 'timeout', error: outcome.error, fix: TIMEOUT_FIX };
     }
@@ -354,7 +364,12 @@ async function testAccount(adapter: DebridAdapter, apiKey: string): Promise<Acco
 async function dashboardAccounts(currentStatus: any) {
   const accounts: Record<string, any> = {};
   const active = current();
+  // Timeout enriquecido traz service; se ainda faltar, completa do adaptador
+  // ativo para o espelho não zerar (gate antigo descartava sem service).
   if (active && currentStatus?.service) accounts[active.id] = currentStatus;
+  else if (active && currentStatus?.reason === 'timeout') {
+    accounts[active.id] = { ...currentStatus, service: active.id, label: active.label, fix: TIMEOUT_FIX };
+  }
 
   const operator = config.debrid.service ? BY_ID.get(config.debrid.service) || null : null;
   if (
@@ -369,6 +384,7 @@ async function dashboardAccounts(currentStatus: any) {
     // o próximo poll.
     accounts[operator.id] = await withAccountTimeout(
       memoizedAccountStatus(operator, config.debrid.apiKey),
+      operator,
     );
   }
   return accounts;

@@ -1,123 +1,14 @@
 import type { Stream, StreamCandidate } from '../../types/domain.js';
-import { UNKNOWN_QUALITY, qualityFromTitle } from './audio-quality.js';
 import { isSeasonPackRelease } from './episode-matching.js';
+import { dropTrace } from './stream-trace.js';
+import type { StreamTraceState } from './stream-trace.js';
+import {
+  QUALITY_KEYS,
+  streamQuality,
+  selectQualityCandidates,
+} from './stream-quotas-candidate.js';
+import type { QualityLimits } from './stream-quotas-candidate.js';
 
-const QUALITY_KEYS = ['2160p', '1080p', '720p', '480p', 'SD', UNKNOWN_QUALITY];
-type QualityLimits = Partial<Record<string, number>>;
-
-function streamQuality(stream: StreamCandidate) {
-  return stream?._quality || qualityFromTitle(stream?.title || stream?.name || '');
-}
-
-/**
- * Separa espaço no pool pré-debrid para cada qualidade configurada. Sem isso,
- * centenas de 4K poderiam ocupar o pool inteiro e impedir que a cota pedida de
- * 1080p tivesse candidatos para sobreviver ao filtro de cache.
- */
-function selectQualityCandidates(
-  streams: StreamCandidate[],
-  {
-    maxResults = 40,
-    qualityLimits = {} as QualityLimits,
-    brReservedSlots = 0,
-    brReservedPerQuality = 0,
-    candidateFactor = 1,
-    brFirst = true,
-    indexerPriority = [],
-  } = {},
-) {
-  const poolSize = Math.max(0, Math.trunc(maxResults));
-  const custom = QUALITY_KEYS.filter((quality: string) => Number(qualityLimits[quality]) < 100);
-  const customSet = new Set(custom);
-  // Os mapas abaixo são populados para TODA qualidade de `custom` na criação,
-  // então `.get(quality)` nunca devolve undefined quando `quality` pertence a
-  // `custom`. O strictNullChecks não enxerga esse invariante; os casts
-  // documentam a garantia sem mudar runtime.
-  const buckets = new Map<string, StreamCandidate[]>(custom.map((quality) => [quality, []]));
-  for (const stream of streams) {
-    const bucket = buckets.get(streamQuality(stream));
-    if (bucket) bucket.push(stream);
-  }
-
-  const selected = new Set();
-  const positions = new Map<string, number>(custom.map((quality) => [quality, 0]));
-  const counts = new Map<string, number>(custom.map((quality) => [quality, 0]));
-  const factor = Math.max(1, Math.trunc(candidateFactor));
-  const targets = new Map<string, number>(
-    custom.map((quality) => [
-      quality,
-      Math.max(0, Math.trunc(Number(qualityLimits[quality]) || 0)) * factor,
-    ]),
-  );
-
-  // A reserva precisa existir também quando a qualidade está em 100. Se os BR
-  // forem considerados só no corte final, seeders globais podem preencher o
-  // pool ampliado antes deles chegarem ao debrid.
-  const brTarget = brFirst ? poolSize : brReservedSlots;
-
-  // Reserva por faixa: sem ela, BR de 1080p abundante consumia as vagas BR na
-  // ordem em que chegam e a faixa 4K/720p ficava sem BR no pool pré-debrid —
-  // o corte final nunca vê candidato que aqui foi cortado.
-  const perFaixa = Math.max(0, Math.trunc(Number(brReservedPerQuality) || 0));
-  if (perFaixa > 0) {
-    const faixaCounts = new Map<string, number>();
-    for (const stream of streams) {
-      if (selected.size >= poolSize || selected.size >= brTarget) break;
-      if (!stream._br || selected.has(stream)) continue;
-      const quality = streamQuality(stream);
-      const usados = faixaCounts.get(quality) || 0;
-      if (usados >= perFaixa) continue;
-      if (customSet.has(quality) &&
-        (counts.get(quality) as number) >= (targets.get(quality) as number)) continue;
-      faixaCounts.set(quality, usados + 1);
-      selected.add(stream);
-      if (customSet.has(quality)) counts.set(quality, (counts.get(quality) as number) + 1);
-    }
-  }
-
-  for (const stream of streams) {
-    if (selected.size >= poolSize || selected.size >= brTarget) break;
-    if (!stream._br || selected.has(stream)) continue;
-    const quality = streamQuality(stream);
-    if (customSet.has(quality) &&
-      (counts.get(quality) as number) >= (targets.get(quality) as number)) continue;
-    selected.add(stream);
-    if (customSet.has(quality)) counts.set(quality, (counts.get(quality) as number) + 1);
-  }
-
-  // Round-robin evita que a primeira qualidade consuma todo o pool quando a
-  // soma das cotas configuradas ultrapassa o máximo global.
-  let progressed = true;
-  while (selected.size < poolSize && progressed) {
-    progressed = false;
-    for (const quality of custom) {
-      const bucket = buckets.get(quality) as StreamCandidate[];
-      let position = positions.get(quality) as number;
-      while (position < bucket.length && selected.has(bucket[position])) position += 1;
-      positions.set(quality, position);
-      if ((counts.get(quality) as number) >= (targets.get(quality) as number) ||
-        position >= bucket.length) continue;
-      selected.add(bucket[position]);
-      positions.set(quality, position + 1);
-      counts.set(quality, (counts.get(quality) as number) + 1);
-      progressed = true;
-      if (selected.size >= poolSize) break;
-    }
-  }
-
-  // Qualidades em 100 são ilimitadas e preenchem o espaço restante sem tomar
-  // as vagas já separadas para as cotas explícitas.
-  for (const stream of streams) {
-    if (selected.size >= poolSize) break;
-    if (selected.has(stream)) continue;
-    if (customSet.has(streamQuality(stream))) continue;
-    selected.add(stream);
-  }
-
-  // A seleção reserva espaço, mas a ordem original de qualidade/seeders segue
-  // intacta para a listagem e para o debrid.
-  return streams.filter((stream) => selected.has(stream));
-}
 
 /**
  * Cota por indexador: teto de quantos streams cada fonte (YTS, BluDV, TheRARBG…)
@@ -176,6 +67,8 @@ function limitByQualityAndIndexer(
   // apenas ordem de chegada dentro do mesmo teto -- que é o que era antes, e
   // fazia `brReservedSlots: 4` render 2 BR quando a cota de 1080p era 2.
   reservedBr: Set<StreamCandidate> = new Set(),
+  // P5 — ledger observacional das cotas finais (null => sem efeito).
+  trace?: StreamTraceState | null,
 ) {
   const qualityCounts = new Map();
   const indexerCounts = new Map();
@@ -189,14 +82,20 @@ function limitByQualityAndIndexer(
       : Math.max(0, Math.trunc(rawQualityLimit));
     const qualityCount = qualityCounts.get(quality) || 0;
     const reserved = reservedBr.has(stream);
-    if (!reserved && qualityCount >= qualityLimit) return false;
+    if (!reserved && qualityCount >= qualityLimit) {
+      dropTrace(trace, stream, 'quality-quota');
+      return false;
+    }
 
     const source = String(stream?._indexer || '').trim().toLowerCase();
     const sourceCount = source ? indexerCounts.get(source) || 0 : 0;
     const sourceLimit = source && Object.prototype.hasOwnProperty.call(indexerLimits, source)
       ? Math.max(0, Math.trunc(Number(indexerLimits[source]) || 0))
       : globalLimit;
-    if (source && !exempt.has(stream) && sourceLimit && sourceCount >= sourceLimit) return false;
+    if (source && !exempt.has(stream) && sourceLimit && sourceCount >= sourceLimit) {
+      dropTrace(trace, stream, 'indexer-limit');
+      return false;
+    }
 
     // A reservada não entra na conta do balde: as globais mantêm a cota inteira
     // delas e a lista cresce, no máximo, o tamanho da reserva. O teto real
@@ -240,6 +139,11 @@ interface LimitBrOptions {
    * qualquer contagem de `_br` voltaria zero. Não faz parte do objeto público.
    */
   onSelected?: (selected: Stream[]) => void;
+  /**
+   * P5 — ledger observacional do corte final: quality-quota, indexer-limit,
+   * max-results e o global trocado por vaga garantida BR. null => sem efeito.
+   */
+  trace?: StreamTraceState | null;
 }
 
 /** Reserva origem BR, aplica as cotas finais e remove todos os campos internos. */
@@ -256,6 +160,7 @@ function limitReservingBr(
     indexerLimits = {},
     season = null,
     onSelected,
+    trace,
   }: LimitBrOptions = {},
 ) {
   const pool = brOnly ? streams.filter((stream) => stream._br) : streams;
@@ -268,16 +173,16 @@ function limitReservingBr(
   // sem o mesmo cuidado no corte final, a reserva não valia nada.
   const reserved = brFirst ? Infinity : Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
   const priority = pool
-    .filter((stream) => stream._br)
+    .filter((stream) => stream._br && !stream._lied)
     .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0))
     .slice(0, reserved);
   const prioritized = new Set(priority);
   // A reserva é o TAMANHO DE brReservedSlots, não todo o pool BR: com brFirst
-  // (default) `priority` é o BR inteiro, e isentá-lo por completo deixaria o
-  // indexador BR sem teto nenhum — o oposto do que a cota faz. Mesmo critério
-  // da reserva mais abaixo (`brStreams.slice`): `_br` puro. O pool dublado exige
-  // infoHash, que um stream já resolvido no debrid não tem — usá-lo aqui
-  // esvaziaria a isenção justamente na lista com play instantâneo.
+  // (default) `priority` é o BR inteiro (sem `_lied`), e isentá-lo por completo
+  // deixaria o indexador BR sem teto nenhum — o oposto do que a cota faz. Mesmo
+  // critério da reserva mais abaixo (`brStreams.slice`): `_br && !_lied`. O pool
+  // dublado exige infoHash, que um stream já resolvido no debrid não tem —
+  // usá-lo aqui esvaziaria a isenção justamente na lista com play instantâneo.
   //
   // As MESMAS N streams atravessam os DOIS tetos: o por indexador e o por
   // qualidade. Enquanto só o primeiro existia, a página prometia "vagas
@@ -287,7 +192,7 @@ function limitReservingBr(
   const brSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
   const reservedBr = new Set(
     pool
-      .filter((stream) => stream._br)
+      .filter((stream) => stream._br && !stream._lied)
       .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0))
       .slice(0, brSlots),
   );
@@ -299,12 +204,13 @@ function limitReservingBr(
       reservedBr,
       indexerLimits,
       reservedBr,
+      trace,
     ),
   );
   // Volta à ordem original: sem `brFirst` o corte final depende dela.
   const eligible = pool.filter((stream) => kept.has(stream));
   const brStreams = eligible
-    .filter((stream) => stream._br)
+    .filter((stream) => stream._br && !stream._lied)
     .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0));
 
   // Reserva por faixa: até `brReservedPerQuality` BR por balde de qualidade,
@@ -352,6 +258,9 @@ function limitReservingBr(
       }
     }
   }
+  // P5 — globals trocados por vaga garantida BR: ficam com o motivo próprio no
+  // ledger (o diff final de max-results os exclui, para não registrar duas vez).
+  const trocadas = new Set<Stream>();
   const encaixaGarantida = (selected: Stream[]) => {
     const dentro = new Set(selected);
     for (const stream of garantidas) {
@@ -365,6 +274,10 @@ function limitReservingBr(
       const posGlobal = selected.map((s) => !s._br).lastIndexOf(true);
       if (posGlobal === -1) break;
       dentro.delete(selected[posGlobal]);
+      if (trace) {
+        trocadas.add(selected[posGlobal]);
+        dropTrace(trace, selected[posGlobal], 'br-guarantee-replaced');
+      }
       selected[posGlobal] = stream;
       dentro.add(stream);
     }
@@ -387,11 +300,27 @@ function limitReservingBr(
     for (const stream of reserved) {
       if (chosen.has(stream)) continue;
       const replace = [...chosen].reverse().find((item) => !item._br);
-      if (replace) chosen.delete(replace);
+      if (replace) {
+        chosen.delete(replace);
+        if (trace) {
+          trocadas.add(replace);
+          dropTrace(trace, replace, 'br-guarantee-replaced');
+        }
+      }
       if (chosen.size < maxResults) chosen.add(stream);
     }
     selected = eligible.filter((stream) => chosen.has(stream)).slice(0, maxResults);
     if (garantidas.length) encaixaGarantida(selected);
+  }
+
+  // P5 — o que estava elegível e não sobreviveu ao teto: max-results. Trocadas
+  // por garantia BR já têm o motivo mais específico e não são re-registradas.
+  if (trace) {
+    const finais = new Set(selected);
+    for (const stream of eligible) {
+      if (finais.has(stream) || trocadas.has(stream)) continue;
+      dropTrace(trace, stream, 'max-results');
+    }
   }
 
   // Observa os selecionados ANTES da limpeza: é aqui que o `_br` ainda existe e
@@ -410,4 +339,9 @@ export {
   limitByQualityAndIndexer,
   limitByQuality,
   limitReservingBr,
+};
+
+export type {
+  QualityLimits,
+  LimitBrOptions,
 };

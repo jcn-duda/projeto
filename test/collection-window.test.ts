@@ -263,8 +263,9 @@ test('T5: orçamento dinâmico com metadados lentos respeita o piso e o deadline
 
 test('T5: collectWithinWindow executa com budget dinâmico e priorityGrace calculados', async () => {
   const cfg = { replyDeadline: 8000, debridReserve: 1500, debridCheckFloor: 500, brPartialGrace: 1000 };
-  const deadlineAt = Date.now() + cfg.replyDeadline;
-  const dynamicBudget = calculateCollectionBudget(deadlineAt, cfg, Date.now() + 4000); // 2500ms
+  const agora = Date.now();
+  const deadlineAt = agora + cfg.replyDeadline;
+  const dynamicBudget = calculateCollectionBudget(deadlineAt, cfg, agora + 4000); // 2500ms
   const dynamicGrace = calculatePriorityGrace(cfg); // 1000ms
 
   assert.equal(dynamicBudget, 2500);

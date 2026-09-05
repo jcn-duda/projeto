@@ -19,13 +19,16 @@ function withTmdbKey(fn: any) {
   return async () => {
     const originalKey = config.tmdb.apiKey;
     const originalMissTtl = config.tmdb.missTtl;
+    const originalTransient = config.tmdb.transientMissTtl;
     config.tmdb.apiKey = 'test-tmdb-key';
     config.tmdb.missTtl = 300;
+    config.tmdb.transientMissTtl = 300;
     try {
       await fn();
     } finally {
       config.tmdb.apiKey = originalKey;
       config.tmdb.missTtl = originalMissTtl;
+      config.tmdb.transientMissTtl = originalTransient;
     }
   };
 }
@@ -104,7 +107,7 @@ test('getTitles sem resultado cacheia o miss e não repete a busca', withTmdbKey
   }
 }));
 
-test('getTitles com HTTP de erro degrada para null e também cacheia o miss', withTmdbKey(async () => {
+test('getTitles com HTTP de erro degrada para null e cacheia miss transitório', withTmdbKey(async () => {
   const imdbId = `tt-http-${process.pid}-${Date.now()}`;
   const key = `tmdb:${imdbId}`;
   const stub = stubFetch(() => ({ ok: false, status: 429, json: async () => ({}) }));
@@ -127,12 +130,66 @@ test('getTitles com falha de rede degrada para null sem derrubar quem chama', wi
   });
   try {
     assert.equal(await getTitles(imdbId), null);
-    // Falha transitória também entra no cache negativo — sem isso o mesmo id
-    // morto seria reconsultado em todas as buscas até o erro passar.
+    // Miss transitório entra no cache negativo — sem isso o mesmo id morto
+    // seria reconsultado em todas as buscas até o erro passar.
     assert.deepEqual(cache.get(key), { miss: true });
   } finally {
     stub.restore();
     cache.forget(key);
+  }
+}));
+
+test('falha transitória expira no transientMissTtl e a busca seguinte consulta novamente', withTmdbKey(async () => {
+  // A regressão real do br: UM `[tmdb] fetch failed` isolado congelava o
+  // título pt-BR por missTtl (300s) inteiro — nessa janela os indexadores BR
+  // eram consultados em inglês e devolviam 0 post. O miss transitório
+  // expira rápido e a próxima busca consulta novamente a API.
+  const imdbId = `tt-transient-${process.pid}-${Date.now()}`;
+  const key = `tmdb:${imdbId}`;
+  let fetches = 0;
+  const stub = stubFetch(() => {
+    fetches += 1;
+    throw new Error('fetch failed');
+  });
+  config.tmdb.transientMissTtl = 1; // 1s é o mínimo prático do cache (segundos)
+  try {
+    assert.equal(await getTitles(imdbId), null);
+    assert.equal(fetches, 1);
+    // Dorme além do TTL transitório: o sentinela saiu, a rede volta a ser
+    // perguntada na próxima busca.
+    await new Promise((resolve) => setTimeout(resolve, 1150));
+    assert.equal(await getTitles(imdbId), null);
+    assert.equal(fetches, 2, 'miss transitório expirado consulta novamente a API');
+  } finally {
+    stub.restore();
+    cache.forget(key);
+    config.tmdb.transientMissTtl = 300;
+  }
+}));
+
+test('miss autoritativo (200 sem resultado) sobrevive ao TTL transitório', withTmdbKey(async () => {
+  // Contraste com o teste acima: "id não conhece" é decisão ESTÁVEL da API —
+  // 300s de missTtl, mesmo com o transientMissTtl apertado. É o que impede
+  // título desconhecido de pagar 5s de timeout a cada busca.
+  const imdbId = `tt-auth-${process.pid}-${Date.now()}`;
+  const key = `tmdb:${imdbId}`;
+  let fetches = 0;
+  const stub = stubFetch(() => {
+    fetches += 1;
+    return tmdbOk({ movie_results: [], tv_results: [] });
+  });
+  config.tmdb.transientMissTtl = 1;
+  config.tmdb.missTtl = 300;
+  try {
+    assert.equal(await getTitles(imdbId), null);
+    assert.equal(fetches, 1);
+    await new Promise((resolve) => setTimeout(resolve, 1150));
+    assert.equal(await getTitles(imdbId), null);
+    assert.equal(fetches, 1, 'miss autoritativo não consulta novamente dentro do missTtl');
+  } finally {
+    stub.restore();
+    cache.forget(key);
+    config.tmdb.transientMissTtl = 300;
   }
 }));
 

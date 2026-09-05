@@ -9,6 +9,7 @@ import type express from 'express';
 // nome arbitrário vindo da URL abriria leitura fora de public/ (traversal).
 const PAGE_ASSETS = [
   'configure.css',
+  'configure-components.css',
   'configure-app.js',
   'dashboard.css',
   'dashboard-core.js',
@@ -17,6 +18,14 @@ const PAGE_ASSETS = [
   // Teste pontual de conta de debrid (Fase 1): módulo próprio extraído de
   // dashboard-panels.js ao se aproximar do teto de 400 linhas da catraca.
   'dashboard-debrid-test.js',
+  // Stream Trace (P5): aba de diagnóstico do funil no dashboard.
+  'dashboard-trace.js',
+  // Fase 1 painel: Chupim / Colhedor / Conta-Catálogo / boot (zero inline).
+  'dashboard-autofetch.js',
+  'dashboard-harvest.js',
+  'dashboard-f3.js',
+  'dashboard-catalog.js',
+  'dashboard-boot.js',
 ];
 
 function makePublicHandlers(services: AppServices) {

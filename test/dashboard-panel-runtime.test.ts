@@ -48,8 +48,8 @@ function fakeNode(): FakeNode {
 function loadDashboardStatusApi(fetch?: (url: string, init?: any) => Promise<any>): { els: Record<string, FakeNode>; renderStatus: (data: any) => void; runResolverTest: (id: string, button?: FakeNode | null) => void; setToken: (token: string) => void } {
   const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
   const status = readFileSync(new URL('../../src/public/dashboard-status.js', import.meta.url), 'utf8');
-  // Renderizadores que vivem em dashboard-panels.js / no inline do HTML são
-  // irrelevantes aqui: stubs só para renderStatus não estourar.
+  // Renderizadores que vivem em dashboard-panels.js são irrelevantes aqui:
+  // stubs só para renderStatus não estourar.
   const stubs = [
     'function renderGeneral() {}',
     'function renderDebrid() {}',
@@ -96,7 +96,7 @@ function bannerLines(els: Record<string, FakeNode>): string {
 // renderDebrid para o teste do estado do card da conta (ok em accounts), e
 // `renderMetrics` fica mudo. As declarações de função dos stubs vêm DEPOIS do
 // código real no mesmo escopo, então sobrepõem as do core por hoisting.
-function loadDashboardPanelsApi(): { renderDebrid: (data: any, autofetch?: any) => void; captured: any[] } {
+function loadDashboardPanelsApi(): { renderDebrid: (data: any, autofetch?: any) => void; renderSources: (data: any) => void; captured: any[] } {
   const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
   const panels = readFileSync(new URL('../../src/public/dashboard-panels.js', import.meta.url), 'utf8');
   const captured: any[] = [];
@@ -118,10 +118,10 @@ function loadDashboardPanelsApi(): { renderDebrid: (data: any, autofetch?: any) 
     confirm: () => false,
     addEventListener: () => {},
   };
-  const factory = new Function('document', 'window', 'fetch', 'capturedCards', core + '\n' + panels + '\n' + stubs + '\nreturn { renderDebrid: renderDebrid };') as
-    (doc: unknown, win: unknown, fn: unknown, captured: any[]) => { renderDebrid: (data: any, autofetch?: any) => void };
+  const factory = new Function('document', 'window', 'fetch', 'capturedCards', core + '\n' + panels + '\n' + stubs + '\nreturn { renderDebrid: renderDebrid, renderSources: renderSources };') as
+    (doc: unknown, win: unknown, fn: unknown, captured: any[]) => { renderDebrid: (data: any, autofetch?: any) => void; renderSources: (data: any) => void };
   const result = factory(document, window, undefined, captured);
-  return { renderDebrid: result.renderDebrid, captured };
+  return { renderDebrid: result.renderDebrid, renderSources: result.renderSources, captured };
 }
 
 test('pill fica warn (não verde) e o banner mostra timeout da conta com o erro', () => {
@@ -352,4 +352,40 @@ test('runResolverTest: gate de id/token, falha vira erro e sucesso mostra releas
   assert.match(api.els.testOutput.className, /\bok\b/);
   assert.match(api.els.testOutput.textContent, /vacatorrent · OK · 7 release\(s\) · 800 ms · host vaqueirofilmes\.com/);
   assert.ok(calls.some((c) => c.url.indexOf('/dashboard-status.json') !== -1), 'loadStatus roda após medir (card sai de não medido)');
+});
+
+// ---------------------------------------------------------------------------
+// Fase 2 — tri-estado: front não pinta "saudável" o que ainda não foi medido.
+// panels/status reais no Fake DOM; só card() é dublê para capturar o rótulo.
+// ---------------------------------------------------------------------------
+
+test('services.jackett === "naomedido": banner alerta e pill não fica verde', () => {
+  const { els, renderStatus } = loadDashboardStatusApi();
+  renderStatus({
+    general: { ok: true, services: { addon: true, jackett: 'naomedido', debrid: true, resolvers: 5 } },
+    debrid: { active: 'alldebrid', account: { ok: true, service: 'alldebrid', label: 'AllDebrid' }, accounts: {} },
+    catalog: { ok: true },
+  });
+  assert.equal(els.connection.className, 'connection warn', 'Jackett não medido não pode pintar o pill verde');
+  assert.match(els.statusBanner.className, /\bvisible\b/);
+  assert.match(els.statusBanner.className, /\bwarn\b/);
+  const texto = bannerLines(els);
+  assert.match(texto, /Jackett não medido/);
+  assert.doesNotMatch(texto, /sem catálogo/, 'texto distinto de jackett===false');
+});
+
+test('breaker.state === "naomedido": card não diz "fechado"; legado tripped sem state permanece', () => {
+  const { renderSources, captured } = loadDashboardPanelsApi();
+  renderSources({
+    indexers: [
+      { id: 'hdrtorrent', breaker: { state: 'naomedido', tripped: false } },
+      { id: 'tpb', breaker: { tripped: true } },
+      { id: '1337x', breaker: { tripped: false } },
+    ],
+  });
+  const byId = (id: string) => captured.filter((item: any) => item && item.id === id).pop();
+  assert.equal(byId('hdrtorrent').breaker, 'não medido', 'naomedido não vira fechado saudável');
+  assert.notEqual(byId('hdrtorrent').breaker, 'fechado');
+  assert.equal(byId('tpb').breaker, 'aberto', 'compat: só tripped true → aberto');
+  assert.equal(byId('1337x').breaker, 'fechado', 'compat: só tripped false → fechado');
 });

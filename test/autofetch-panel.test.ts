@@ -183,6 +183,12 @@ test('rotas escopadas /:userConfig/autofetch, status e action suportam Chupim', 
     assert.equal(resStatus.status, 200);
     assert.ok(resStatus.json.autofetch);
     assert.ok(resStatus.json.autofetch.config);
+    // Instrumentação da desistência: motivos por portão + últimos registros do
+    // trace + estado do gate de ocupação — tudo atrás do mesmo token.
+    assert.ok(resStatus.json.autofetch.skips, 'autofetch.skips presente');
+    assert.ok(Array.isArray(resStatus.json.autofetch.lastSkips), 'autofetch.lastSkips é array');
+    assert.ok(resStatus.json.autofetch.accountGate, 'autofetch.accountGate presente');
+    assert.equal(typeof resStatus.json.autofetch.accountGate.pauseAt, 'number');
 
     const resAction = await server.request('POST', `/${userConfig}/dashboard-action.json`, {
       headers: { 'X-Indexer-Test-Token': TOKEN },
@@ -194,5 +200,30 @@ test('rotas escopadas /:userConfig/autofetch, status e action suportam Chupim', 
   } finally {
     config.jackett.testToken = '';
   }
+});
+
+test('GET /dashboard-status.json sem token não expõe o bloco autofetch', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    const semToken = await server.request('GET', '/dashboard-status.json');
+    assert.equal(semToken.status, 401);
+    assert.ok(semToken.json.error);
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+test('autofetch.snapshot: _origem marca queues e deadBlacklist duravel', () => {
+  const snap = autofetch.snapshot();
+  assert.ok(snap._origem, '_origem presente');
+  assert.equal(snap._origem.queues, 'duravel');
+  assert.equal(snap._origem.deadBlacklistCount, 'duravel');
+  assert.equal(snap._origem.budget, 'amostra');
+  assert.equal(snap._origem.accountGate, 'amostra');
+  // Campos existentes intactos (contrato aditivo).
+  assert.equal(typeof snap.deadBlacklistCount, 'number');
+  assert.ok(snap.queues && typeof snap.queues.count === 'number');
+  assert.ok(snap.budget && typeof snap.budget.used === 'number');
+  assert.ok(snap.accountGate && typeof snap.accountGate.pauseAt === 'number');
 });
 

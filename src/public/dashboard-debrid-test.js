@@ -8,7 +8,7 @@
  * resposta é a do testAccount no backend (account com magnets, capabilities
  * por adaptador); o render continua tolerante a campo ausente. Escopo global
  * compartilhado (sem IIFE); carregado DEPOIS de core/panels/status e ANTES
- * do script inline, que binda os controles. Nada roda no load. ES5 puro:
+ * de dashboard-boot.js, que binda os controles. Nada roda no load. ES5 puro:
  * WebView de Fire TV e smart TV. Sem build, sem bundler. */
 "use strict";
 

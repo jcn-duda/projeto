@@ -31,7 +31,7 @@ bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga o que não ba
 
 ## Guardrails
 
-1. **SOMA das cotas < teto global (36000).** Se a soma ficar >= teto, volta o
+1. **SOMA das cotas < teto global (84000).** Se a soma ficar >= teto, volta o
    despejo global antes da repartição por namespace (bug real).
 2. SWR só serve o que o `finish` promoveria a completa: `partial === false`,
    `debridKnown === true` e pelo menos um stream **tocável** (`url`/`infoHash`).

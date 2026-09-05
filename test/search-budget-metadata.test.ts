@@ -11,9 +11,13 @@ import { findStreams } from '../src/providers/index.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function waitForBackground(ms = 180) {
+async function waitForBackground(ms = 600) {
   // `findStreams` devolve no deadline, mas deixa a busca completar para aquecer
-  // o cache. Não restaure o fetch antes desse rabo terminar.
+  // o cache. Não restaure o fetch antes desse rabo terminar — e não deixe o
+  // rabo de um cenário escrever cache DEPOIS do `cache.clear()` do próximo,
+  // senão o cenário seguinte responde do cache e nunca estoura o prazo. A
+  // espera cobre a cascata inteira do indexer BR (primária + degraus), não só
+  // a primeira consulta.
   await sleep(ms);
 }
 
