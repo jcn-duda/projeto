@@ -7,12 +7,13 @@
 
 FROM caddy:2-alpine AS caddy
 
-# Pin deliberado: v0.24.2406-ls2 (build 2026-08-14). O auto-update fica
+# Pin deliberado: v0.24.2531-ls19 (build 2026-09-04). O auto-update fica
 # desligado em runtime (--NoUpdates no entrypoint), então subir de versão é
 # trocar este digest e rebuildar — nunca deixar o `latest` mudar o deploy
-# sozinho. Depois do rebuild confira no log que as quatro definitions BR ainda
-# carregam: "Loaded N Cardigann indexers" e os quatro ids na lista.
-FROM lscr.io/linuxserver/jackett@sha256:6d0c43b533f91f4e88fe4b4082a2b576772072db3d90a39e58d0cccccd585f8d AS jackett
+# sozinho. Depois do rebuild confira no log que as definitions BR ainda
+# carregam: "Loaded N Cardigann indexers" e os ids na lista
+# (bludv-cardigann, comandotorrents, nerdfilmes, torrentdosfilmesv2, vacatorrent).
+FROM lscr.io/linuxserver/jackett@sha256:ef4b5b9f09d0c014f48c8e6999abb782b53b4cea8b170ca049c96046950c8524 AS jackett
 
 # Atualize o digest deliberadamente; nunca deixe uma mudança em `latest` alterar
 # o deploy sem revisão, como já fazemos com o Jackett acima.
