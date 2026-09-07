@@ -318,8 +318,11 @@ Com `RESOLVE_SECRET` definido, a página manda o segmento para `POST /seal-confi
 e recebe o `dk` cifrado (`enc.v1.` + AES-256-GCM). Sem o segredo a chave viaja
 em texto puro no base64url. URL antiga (chave crua) continua abrindo. Trocar o
 `RESOLVE_SECRET` invalida os selos já emitidos — o usuário refaz o install em
-`/configure`. O selo protege a credencial, não o acesso (isso é o `basic_auth`
-do Caddyfile).
+`/configure`. O selo protege a credencial, não o acesso: `/configure` e
+`/defaults.json` são públicos no Caddy (qualquer um gera install URL nesta
+instância). A chave do `.env` continua sem herança anônima se
+`DEBRID_ALLOW_ENV_KEY=false`. O token de diagnóstico (`X-Indexer-Test-Token`)
+não autentica a página de configurar.
 
 `prefix()` devolve o segmento de config da requisição corrente. A rota
 `/resolve` depende dele: o link de play tem que voltar carregando a mesma

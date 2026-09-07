@@ -1,6 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Persistência desligada ANTES dos requires: o app real abre o módulo de
 // cache e o data/cache.db do repo não pode ser tocado pelos testes.
@@ -394,4 +397,16 @@ test('/resolve: MAGNET_DB=false desliga a gravação', async () => {
     config.magnetDb.enabled = originalEnabled;
     FAKE_ADAPTER.resolveLink = originalResolve;
   }
+});
+
+test('Caddyfile e entrypoint não fecham /configure com basic_auth', () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const near = path.join(here, '..');
+  const root = fs.existsSync(path.join(near, 'Caddyfile')) ? near : path.join(here, '..', '..');
+  const caddy = fs.readFileSync(path.join(root, 'Caddyfile'), 'utf8');
+  const entry = fs.readFileSync(path.join(root, 'scripts', 'entrypoint.sh'), 'utf8');
+  assert.doesNotMatch(caddy, /basic_auth/);
+  assert.doesNotMatch(caddy, /configure-auth/);
+  assert.doesNotMatch(entry, /CONFIGURE_PAGE_PASSWORD/);
+  assert.doesNotMatch(entry, /basic_auth/);
 });

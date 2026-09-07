@@ -12,15 +12,12 @@
 #   DNS:   A powermovie.net -> IP da VPS   (e o www também)
 # Sem o DNS resolvendo, o desafio ACME falha e a stack sobe sem HTTPS.
 {$ADDON_DOMAIN:localhost} {
-	# /configure e /defaults.json fechados por senha quando CONFIGURE_PAGE_PASSWORD
-	# está no .env: o entrypoint renderiza /etc/caddy/configure-auth.caddy no boot
-	# (hash bcrypt via `caddy hash-password`). Sem a env o snippet é vazio e as
-	# páginas seguem abertas — o caso da instalação em casa. O entrypoint cria o
-	# arquivo antes do Caddy subir, então o import nunca falha por ausência.
-	import /etc/caddy/configure-auth.caddy
-
 	# A URL de instalação carrega a chave do debrid no segmento de config.
 	# É por isso que a porta 7000 fica no loopback (BIND_ADDR no compose) e
 	# tudo entra por aqui: fora do TLS essa chave iria em texto puro.
+	#
+	# /configure e /defaults.json são públicos de propósito (qualquer um gera
+	# install URL nesta instância). O token de diagnóstico do painel NÃO passa
+	# por aqui — ele continua só no header das rotas JSON do addon.
 	reverse_proxy 127.0.0.1:7000
 }

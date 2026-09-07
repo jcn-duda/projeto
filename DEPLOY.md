@@ -67,8 +67,9 @@ montar o link. Dois efeitos que valem saber antes:
   instalado precisa gerar outro em `/configure`.
 
 O selo protege a credencial, não o acesso: quem tem o link continua usando o seu
-debrid **através desta instância**. Para fechar isso é o `basic_auth` do
-`Caddyfile`, dirigido pela `CONFIGURE_PAGE_PASSWORD` do `.env` — ver passo 6.
+debrid **através desta instância**. `/configure` e `/defaults.json` são públicos
+(passo 6). Instalações sem `dk` não herdam a chave do `.env` se
+`DEBRID_ALLOW_ENV_KEY=false`.
 
 ## 4. Subir
 
@@ -116,28 +117,19 @@ e cobra fonte BR em cada título. Busca fria estabiliza em 2–4 chamadas.
 curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" https://powermovie.net/metrics.json
 ```
 
-## 6. Fechar `/configure` (opcional)
+## 6. `/configure` é público
 
 `/configure` e `/defaults.json` são públicos. Eles **não** vazam a chave do
 debrid — o `/defaults.json` a zera, e há teste no smoke cobrindo isso — mas
-expõem sua lista de indexadores e deixam qualquer um gerar install URL na sua
-instância.
+expõem a lista de indexadores e deixam qualquer um gerar install URL nesta
+instância. A chave do `.env` **não** é herdada por instalação anônima se
+`DEBRID_ALLOW_ENV_KEY=false`.
 
-Para fechar por senha, ponha no `.env` da VPS e recrie o container:
+O diálogo HTTP (`basic_auth` do Caddy) foi retirado de propósito: uma env
+`CONFIGURE_PAGE_PASSWORD` no `.env` da VPS, se ainda existir, **não é lida**.
+Métricas, status e ações do painel continuam atrás de `X-Indexer-Test-Token`.
 
-```bash
-CONFIGURE_PAGE_PASSWORD='suasenha'
-docker compose up -d
-```
-
-No boot, o entrypoint gera o hash bcrypt (`caddy hash-password`) e alimenta o
-`basic_auth` do `Caddyfile`; usuário fixo `admin`. Sem a variável as páginas
-seguem abertas — é o que a instalação em casa quer. Se a senha contiver `$`,
-mantenha as aspas simples (o compose interpola `$` em valor sem aspas).
-
-Efeito colateral conhecido: com a página fechada, o `npm run smoke` falha nos
-checks de `/configure` e `/defaults.json` (401 em vez de 200) — rode o smoke
-antes de fechar, ou aceite esses dois ✗.
+O `npm run smoke` cobra 200 em `/configure` e `/defaults.json`.
 
 ## 7. Instalar no cliente
 

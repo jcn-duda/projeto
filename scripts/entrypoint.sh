@@ -34,29 +34,6 @@ run() {
   pids+=("$!")
 }
 
-# /configure (e /defaults.json) fechados por senha só quando CONFIGURE_PAGE_PASSWORD
-# está no .env. O hash bcrypt é gerado a cada boot (custo desprezível) para a
-# senha poder ficar em texto no .env — hash pronto conteria '$', que o compose
-# interpola em valor sem aspas. Se a geração falhar, o snippet fica vazio
-# (página aberta) e o erro vai pro log: erro de config aqui NUNCA pode derrubar
-# a stack de streaming. Sem a env — instalação em casa — o snippet é vazio e
-# nada muda.
-AUTH_SNIPPET=/etc/caddy/configure-auth.caddy
-if [ -n "${CONFIGURE_PAGE_PASSWORD:-}" ]; then
-  HASH=$(caddy hash-password --plaintext "$CONFIGURE_PAGE_PASSWORD" 2>/dev/null || true)
-  if [ -n "$HASH" ]; then
-    {
-      printf '@configureAuth path /configure* /defaults.json\n'
-      printf 'basic_auth @configureAuth {\n\tadmin %s\n}\n' "$HASH"
-    } > "$AUTH_SNIPPET"
-  else
-    echo "[entrypoint] CONFIGURE_PAGE_PASSWORD: falha ao gerar hash bcrypt; /configure segue ABERTO" >&2
-    : > "$AUTH_SNIPPET"
-  fi
-else
-  : > "$AUTH_SNIPPET"
-fi
-
 # A ordem é só pra legibilidade de log: o addon já tolera o Jackett demorar
 # (busca degrada e o passe tardio recacheia quando tudo chega).
 run '[caddy]' env XDG_CONFIG_HOME=/caddy/config XDG_DATA_HOME=/caddy/data \
