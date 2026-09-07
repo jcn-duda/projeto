@@ -12,20 +12,15 @@
 #   DNS:   A powermovie.net -> IP da VPS   (e o www também)
 # Sem o DNS resolvendo, o desafio ACME falha e a stack sobe sem HTTPS.
 {$ADDON_DOMAIN:localhost} {
+	# /configure e /defaults.json fechados por senha quando CONFIGURE_PAGE_PASSWORD
+	# está no .env: o entrypoint renderiza /etc/caddy/configure-auth.caddy no boot
+	# (hash bcrypt via `caddy hash-password`). Sem a env o snippet é vazio e as
+	# páginas seguem abertas — o caso da instalação em casa. O entrypoint cria o
+	# arquivo antes do Caddy subir, então o import nunca falha por ausência.
+	import /etc/caddy/configure-auth.caddy
+
 	# A URL de instalação carrega a chave do debrid no segmento de config.
 	# É por isso que a porta 7000 fica no loopback (BIND_ADDR no compose) e
 	# tudo entra por aqui: fora do TLS essa chave iria em texto puro.
 	reverse_proxy 127.0.0.1:7000
-
-	# /configure e /defaults.json são públicos — o código não tem autenticação
-	# nenhuma (CONFIGURE_PAGE_PASSWORD no .env não é lido por ninguém). Eles não
-	# expõem a chave do debrid, mas deixam qualquer um ver seus indexadores e
-	# gerar install URL na sua instância. Pra fechar, gere o hash com
-	#   docker exec stremio-adom caddy hash-password --plaintext 'suasenha'
-	# e descomente:
-	#
-	# @admin path /configure* /defaults.json
-	# basic_auth @admin {
-	# 	SEU_USUARIO <COLE_O_HASH_AQUI>
-	# }
 }

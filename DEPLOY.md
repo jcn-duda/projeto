@@ -68,12 +68,7 @@ montar o link. Dois efeitos que valem saber antes:
 
 O selo protege a credencial, não o acesso: quem tem o link continua usando o seu
 debrid **através desta instância**. Para fechar isso é o `basic_auth` do
-`Caddyfile`.
-
-Não procure por uma variável de senha: elas não existem mais. `ADMIN_DASHBOARD_PASSWORD`
-e `CONFIGURE_PAGE_PASSWORD` ficaram no `.env.example` sem que nenhum código as
-lesse, o que é pior que não ter nada — quem preenchia achava que tinha fechado a
-instância. Saíram. O `basic_auth` do `Caddyfile` é o único caminho. Ver passo 6.
+`Caddyfile`, dirigido pela `CONFIGURE_PAGE_PASSWORD` do `.env` — ver passo 6.
 
 ## 4. Subir
 
@@ -128,12 +123,21 @@ debrid — o `/defaults.json` a zera, e há teste no smoke cobrindo isso — mas
 expõem sua lista de indexadores e deixam qualquer um gerar install URL na sua
 instância.
 
+Para fechar por senha, ponha no `.env` da VPS e recrie o container:
+
 ```bash
-docker exec stremio-adom caddy hash-password --plaintext 'suasenha'
+CONFIGURE_PAGE_PASSWORD='suasenha'
+docker compose up -d
 ```
 
-Cole o hash no bloco `basic_auth` que já está comentado no `Caddyfile` e
-recarregue.
+No boot, o entrypoint gera o hash bcrypt (`caddy hash-password`) e alimenta o
+`basic_auth` do `Caddyfile`; usuário fixo `admin`. Sem a variável as páginas
+seguem abertas — é o que a instalação em casa quer. Se a senha contiver `$`,
+mantenha as aspas simples (o compose interpola `$` em valor sem aspas).
+
+Efeito colateral conhecido: com a página fechada, o `npm run smoke` falha nos
+checks de `/configure` e `/defaults.json` (401 em vez de 200) — rode o smoke
+antes de fechar, ou aceite esses dois ✗.
 
 ## 7. Instalar no cliente
 
@@ -156,10 +160,9 @@ provedor só aceita a porta 22 vindo do IP do operador, então CI batendo de
 fora (GitHub Actions) nunca chega — testado de 10 locais do mundo, todos
 bloqueados.
 
-> O cron do servidor que ainda observa `adon-power-movie` (a linha antiga,
-> pré-migração TS/ESM) precisa ser atualizado para `esm` — um sed/edição no
-> agendamento ou script — ou a `esm` precisa ser merged. Enquanto isso o
-> deploy automático continua olhando o branch antigo.
+> Verificado em 2026-09-06: o `~/adom-deploy.sh` da VPS já faz `git fetch origin
+> esm` + `checkout -f -B esm` — o deploy automático observa a branch certa
+> (HEAD da VPS == `origin/esm`).
 
 O script tem trava (`~/.adom-deploy.lock`) para o cron não sobrepor um build
 em andamento e registra tudo em `~/adom-deploy.log`. Para deploy na hora,
