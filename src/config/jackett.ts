@@ -11,6 +11,8 @@ export const jackett = () => ({
   // Vazio desliga o endpoint; nunca reutilizamos nem expomos a API key.
   testToken: process.env.JACKETT_TEST_TOKEN || '',
   // Consultados em paralelo, um timeout por indexer. Vazio = agregado /all.
+  // LimeTorrents (id Jackett: limetorrents) é global EN — some nesta lista,
+  // nunca em ptBr/slow/index-only: Cloudflare/Flare aborta tarde no Chromium.
   indexers: list(process.env.JACKETT_INDEXERS),
   indexerTimeout: num(process.env.JACKETT_INDEXER_TIMEOUT_MS, 4000),
   catalogTtl: num(process.env.JACKETT_CATALOG_TTL, 900),
@@ -62,7 +64,7 @@ export const jackett = () => ({
   brIndexerTimeout: num(process.env.JACKETT_BR_INDEXER_TIMEOUT_MS, 20000),
   // Lentos porém úteis: medidos em 8-9s, perdiam o prazo dos globais.
   //
-  // NÃO adicione aqui os que passam por FlareSolverr (1337x, kickasstorrents):
+  // NÃO adicione aqui os que passam por FlareSolverr (1337x, kickasstorrents, limetorrents):
   // não é questão de orçamento. O desafio Cloudflare é re-resolvido a CADA
   // busca e foi medido em 13s (1337x), 20s (kickass.ws) e 24s (kickass.to) só
   // pra abrir a primeira página — depois disso o Jackett ainda tem que raspar
