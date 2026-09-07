@@ -122,7 +122,7 @@ function renderAutofetchPanel(af, uptimeS) {
   if (rsEl) {
     parts = [];
     sk = af.skips || {};
-    skKeys = ["account-gate", "budget", "dead", "marker", "already-cached", "in-flight", "search-slot-busy", "paused", "unknown-cache", "stop-has-br", "no-candidate", "no-candidates", "disabled"];
+    skKeys = ["account-gate", "budget", "dead", "marker", "already-cached", "in-flight", "search-slot-busy", "paused", "unknown-cache", "stop-has-br", "stop-has-cached", "no-candidate", "no-candidates", "disabled"];
     for (i = 0; i < skKeys.length; i += 1) {
       n = Number(sk[skKeys[i]] || 0);
       if (n > 0) parts.push(skKeys[i] + " " + n);

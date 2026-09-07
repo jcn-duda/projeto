@@ -188,7 +188,7 @@ test('fallback global: sem BR dublado na busca, as melhores dubladas globais sã
   }
 });
 
-test('fallback global respeita os gates: stream tocável, BR presente e toggle off não baixam global', async () => {
+test('fallback global respeita os gates: dublado ⚡, BR presente e toggle off não baixam global', async () => {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalAny = config.debrid.autoFetchAnyDubbed;
@@ -215,8 +215,9 @@ test('fallback global respeita os gates: stream tocável, BR presente e toggle o
 
     await run([globalDub, globalLeg], 'busca-any-tocavel', [other]);
     await sleep(20);
-    assert.deepEqual(enqueued, [], 'stream tocável (mesmo legendado) barra o fallback global');
+    assert.deepEqual(enqueued, [g], 'legendado ⚡ não barra dublada global uncached');
 
+    enqueued.length = 0;
     await run([globalDub, brDubCandidate], 'busca-any-com-br');
     await sleep(20);
     assert.deepEqual(enqueued, [br], 'com fonte BR na busca, o candidato é o BR');

@@ -7,6 +7,7 @@ import {
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
   hasCachedBrDubbed,
+  hasCachedAnyDubbed,
   cachedBrDubbedTargetQualities,
   isAutofetchTargetQuality,
   canAutoFetchBr,
@@ -263,9 +264,24 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
   }
 
   const poolName = candidates[0].pool;
-  if (poolName === 'any' || poolName === 'seeds') {
-    if (cached.size > 0) {
+  if (poolName === 'any') {
+    // Dublado tocável (BR ou global) para o any. Gringo ⚡ (REMUX Kickass/TPB)
+    // não substitui a dublada — o cached.size antigo abortava o aquecimento.
+    if (hasCachedBrDubbed(streams, cached) || hasCachedAnyDubbed(streams, cached)) {
       noteSkip('stop-has-br', candidates[0]?.stream, debrid.current()?.id || '', poolName);
+      releaseAllHolds(candidates);
+      return 0;
+    }
+  } else if (poolName === 'seeds') {
+    // Terceiro nível: NADA toca. Um ⚡ qualquer já entrega play; baixar o
+    // REMUX gringo não aquece BR. O rótulo distingue dublado ⚡ de “já toca”.
+    if (hasCachedBrDubbed(streams, cached) || hasCachedAnyDubbed(streams, cached)) {
+      noteSkip('stop-has-br', candidates[0]?.stream, debrid.current()?.id || '', poolName);
+      releaseAllHolds(candidates);
+      return 0;
+    }
+    if (cached.size > 0) {
+      noteSkip('stop-has-cached', candidates[0]?.stream, debrid.current()?.id || '', poolName);
       releaseAllHolds(candidates);
       return 0;
     }

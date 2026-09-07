@@ -82,6 +82,7 @@ export {
   pickTopSeededCandidates,
   topSeededPool,
   hasCachedBrDubbed,
+  hasCachedAnyDubbed,
   canAutoFetchBr,
   uncachedBrHashes,
   filterKnownCache,

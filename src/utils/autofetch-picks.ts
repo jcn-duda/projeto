@@ -170,6 +170,12 @@ function hasCachedBrDubbed(streams: Stream[] = [], cachedHashes: Set<string> = n
   return brDubbedPool(streams).some((s) => cached.has(String(s.infoHash || '').toLowerCase()));
 }
 
+/** Dublado global (`_dubbed`) já tocável — o ⚡ gringo sem marca não conta. */
+function hasCachedAnyDubbed(streams: Stream[] = [], cachedHashes: Set<string> = new Set()) {
+  const cached = hashSet(cachedHashes);
+  return anyDubbedPool(streams).some((s) => cached.has(String(s.infoHash || '').toLowerCase()));
+}
+
 function canAutoFetchBr({ autoFetchBr }: AutofetchOptions = {}, adapter?: DebridAdapter | null) {
   // cachedOnly não é mais trava: o objetivo do autofetch é justamente esquentar
   // o cache quando não há BR dublada pronta, independente do modo. As travas
@@ -260,6 +266,7 @@ export {
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
   hasCachedBrDubbed,
+  hasCachedAnyDubbed,
   canAutoFetchBr,
   uncachedBrHashes,
   filterKnownCache,

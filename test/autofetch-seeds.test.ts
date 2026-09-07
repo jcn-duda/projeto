@@ -250,3 +250,59 @@ test('pool seeds: vaga usa autoFetchTopSeedsMax, não autoFetchMax', async () =>
     }
   }
 });
+
+// Event Horizon: REMUX gringo ⚡ + cachedOnly + bu=0 não cancela o pool BR.
+test('BR dublado uncached enfileira mesmo com remux gringo em cache e bu=0', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const account = accountScope('chave-eh-br');
+  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
+  const remux = '7'.repeat(40);
+  const brHash = '8'.repeat(40);
+  const enqueued: string[] = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-eh-br',
+    debridCachedOnly: true,
+    showUncachedBr: false,
+    autoFetchBr: true,
+  };
+  const searchKey = 'busca-eh-br';
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set([remux]), known: true });
+
+    await runtime.run({ opts: userOpts, encoded: 'cfg-eh-br' }, () =>
+      applyDebrid(
+        [
+          {
+            infoHash: remux, name: 'Event Horizon 1997 2160p REMUX [TB]',
+            title: 'Event Horizon 1997 2160p REMUX', _br: false, _dubbed: false, _seeders: 120,
+          },
+          {
+            infoHash: brHash, name: 'O Enigma do Horizonte Dublado 1080p',
+            title: 'O Enigma do Horizonte (1997) Dublado 1080p',
+            _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
+          },
+        ],
+        { searchKey } as any,
+      ),
+    );
+    await sleep(20);
+    assert.deepEqual(enqueued, [brHash], 'pool BR aquece o dublado; remux ⚡ não aborta');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.releaseSearch(searchKey);
+    for (const h of [remux, brHash]) {
+      cache.forget(autofetch.markerKey('premiumize', account, h));
+      held.release(h, account);
+    }
+  }
+});

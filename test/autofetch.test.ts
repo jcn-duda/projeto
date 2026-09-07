@@ -5,7 +5,7 @@ process.env.CACHE_PERSIST = 'false';
 
 // Escolha do que baixar + proteção do hash: as duas peças que decidem se algo é
 // escrito na conta do usuário. Testadas sem rede, com objetos de stream mínimos.
-import { pickBrDubbedCandidate, hasCachedBrDubbed, canAutoFetchBr, uncachedBrHashes, filterKnownCache, pickTopSeededCandidates } from '../src/utils/format.js';
+import { pickBrDubbedCandidate, hasCachedBrDubbed, hasCachedAnyDubbed, canAutoFetchBr, uncachedBrHashes, filterKnownCache, pickTopSeededCandidates } from '../src/utils/format.js';
 import { sortAndLimit, toStremioStream, limitReservingBr } from '../src/utils/format.js';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
@@ -105,6 +105,14 @@ test('hasCachedBrDubbed enxerga o dublado que já toca na hora', () => {
   // Global em cache não conta como dublado BR disponível.
   const global = stream(C, { name: 'Joker 1080p' });
   assert.equal(hasCachedBrDubbed([global, br1], new Set([C])), false);
+});
+
+test('hasCachedAnyDubbed exige marca de dublado — REMUX gringo não conta', () => {
+  const remux = stream(A, { name: 'Event Horizon 2160p REMUX', _br: false, _dubbed: false });
+  const dubbed = stream(B, { name: 'Event Horizon Dual 1080p', _br: false, _dubbed: true });
+  assert.equal(hasCachedAnyDubbed([remux, dubbed], new Set([A])), false);
+  assert.equal(hasCachedAnyDubbed([remux, dubbed], new Set([B])), true);
+  assert.equal(hasCachedBrDubbed([remux, dubbed], new Set([A])), false);
 });
 
 test('trava autofetch é concorrente e marcador novo não colide com legado', () => {
