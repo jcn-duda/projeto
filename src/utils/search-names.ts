@@ -13,6 +13,7 @@ import {
   looksPtBr,
   compactAudio,
   compactTracker,
+  stripQualityTagBlob,
 } from './audio-quality.js';
 import { streamQuality } from './stream-quotas.js';
 
@@ -178,6 +179,10 @@ function toStremioStream(item: RawItem): Stream | null {
   if (!infoHash) return null;
 
   const title = decodeEntities(item.title || item.Title || 'Torrent');
+  // O blob do HDRTorrent descreve TODAS as opções do post, não esta release.
+  // O classificador já o ignora, mas expô-lo em `title` faz clientes que
+  // derivam o selo por conta própria encontrarem 2160p num botão 1080p/720p.
+  const displayTitle = stripQualityTagBlob(title);
   // Origem BR pelo indexer E pelo título: tracker global também hospeda
   // dublado titulado em português, e é o título que denuncia. O flag muda o
   // chip BR, as vagas reservadas e a priorização de dublado.
@@ -224,7 +229,7 @@ function toStremioStream(item: RawItem): Stream | null {
     // A coluna esquerda precisa ficar curta. O título bruto nesta posição fazia
     // o Stremio quebrar uma palavra por linha em telas estreitas.
     name: streamDisplayName({
-      title,
+      title: displayTitle,
       quality,
       audio,
       source,
@@ -233,7 +238,7 @@ function toStremioStream(item: RawItem): Stream | null {
       isBr,
       seeders,
     }),
-    title: `${title}\n${bits.join(' ')}`,
+    title: `${displayTitle}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
     behaviorHints: {

@@ -107,7 +107,7 @@ desenvolvimento (3 baixas, 1 alta); não entram no runtime com `--omit=dev`.
 | **Fase 7** trilha A (VPS) | 7.1 ✅ verificado na VPS (script já faz fetch/checkout da `esm`; HEAD == `origin/esm`, 2026-09-06). 7.3 ↩️ **reaberto** — operador pediu tirar o `basic_auth` de `/configure`/`/defaults.json` (página pública de novo; token de diagnóstico intacto). Restam 7.2/7.4 operacionais. 7.8 (Tier 5) ✅ |
 | **Fase 7** trilha C | 7.9 + 7.12–7.16 ✅ no código; 7.11 SearchPhase **não fazer** |
 | **Fase 8** | Código das peças duráveis ✅ (`adsub`/`adrm`/blindagem/evict/reconcile). Evicção e reconcile **default OFF**. Aceite de ocupação em produção depende de ativação + medição |
-| **Fase 9 / P5** | **Commitada** (`ea15894` → `cb934c9` → `9eb98f4`); `streams`/`idx` em **v10**. Não alegar DONE em produção sem deploy autorizado |
+| **Fase 9 / P5** | **Commitada** (`ea15894` → `cb934c9` → `9eb98f4`); `streams` em **v11** / `idx` em **v10**. Não alegar DONE em produção sem deploy autorizado |
 
 A meta histórica de `any` (<150) fechou em **143** (`e25ef29`). Catraca 5.8 e
 painel 5.9 estão no ar. Banco de magnets: cota L1 `mag=50000`, teto global
@@ -1176,7 +1176,7 @@ a resposta estrutural a essa dor.
 | Bump v10 | `ENGLISH\|ENG` na mesma guarda do DUB genérico | ✅ `ea4c8d5` (e comentário em `cache-keys.ts`) |
 
 Código commitado em `esm`. **Não alegar DONE em produção** — push/deploy
-exigem autorização explícita. Namespaces atuais: `streams:v10` / `idx:v10`.
+exigem autorização explícita. Namespaces atuais: `streams:v11` / `idx:v10`.
 
 ### Contratos duros (não podem regredir)
 

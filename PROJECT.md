@@ -10,7 +10,7 @@
 > Entrega: runtime com lockfile (`npm ci --omit=dev`), filtros Docker cobrindo
 > núcleo/shims de resolvers e audit de produção bloqueante. Isso não comprova
 > deploy na VPS; evidência de validação desta revisão em `PLANO_MELHORIAS.md`.
-> Namespaces `streams`/`idx` em **v10** (`cache-keys.ts`); cota `mag=50000`,
+> Namespaces `streams` em **v11** / `idx` em **v10** (`cache-keys.ts`); cota `mag=50000`,
 > teto global `84000`. Pós-M6 entregue e no código: Fase 8 (posse `adsub`,
 > anti-reupload `adrm`, evicção/reconcile default OFF, blindagem BR), Fase 9/P5
 > (`/stream-trace.json` + recompute + live TB/PM + painel — commitada desde

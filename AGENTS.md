@@ -172,7 +172,7 @@ Um `stream` request do Stremio percorre exatamente este caminho:
 addon.ts  processo (listen, warmup)
    └─ app.ts  defineStreamHandler
         └─ providers/index.ts  findStreams
-             ├─ cache SWR (streams:v10)          ← só lista completa + debridKnown + tocável
+             ├─ cache SWR (streams:v11)          ← só lista completa + debridKnown + tocável
              ├─ coalescing inFlight
              └─ doSearch
                   ├─ cinemeta.getMeta  ─┐ paralelo
@@ -639,7 +639,7 @@ ausente significa "nunca medido neste processo", não medição falha.
 
 **Funil por item (`/stream-trace.json`, P5).** Responde "por que aquele stream
 sumiu?" sem refazer a busca: o ledger observacional viaja **dentro** da entrada
-`streams:v10`, a rota é só leitura (`getWithStale`), e o recompute offline
+`streams:v11`, a rota é só leitura (`getWithStale`), e o recompute offline
 explica entrada sem trace com peeks quiet (idx/raw/inventário). Live
 (`mode=live`) só TorBox/Premiumize via método cru do adaptador — AllDebrid é
 hard-block (`ad-hard-blocked`: consulta = upload e detona limpeza); RD é
@@ -923,18 +923,22 @@ operador).
 
 ## Cache multi-nível (fases 0–2 no código)
 
-A chave `streams:v10` isola config do usuário + digest da conta
+A chave `streams:v11` isola config do usuário + digest da conta
 (`request-key.ts`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
 — bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
-que não bate com a versão corrente). `streams`/`idx` estão em **v10** porque o
-classificador de áudio/origem persiste no índice (merge OR-aderente): v9 fechou
-DUB genérico + cirílico; v10 fechou `ENGLISH|ENG` no mesmo predicado. Duas
-instalações do mesmo título **não** compartilham a lista — ela carrega URLs de
-play assinadas. O trabalho caro (Jackett + scrapers) é compartilhado mais abaixo.
+que não bate com a versão corrente). `idx` está em **v10** porque o classificador
+de áudio/origem persiste no índice (merge OR-aderente): v9 fechou DUB genérico +
+cirílico; v10 fechou `ENGLISH|ENG` no mesmo predicado. `streams` subiu a **v11**
+por outro motivo: o `title` entregue ao cliente agora remove o blob de qualidades
+do HDRTorrent — as listas v10 ainda carregavam a cauda (`…, 2160p, 720p, …`) e
+clientes que reclassificam o título por conta própria exibiam 4K em botões
+1080p/720p. Duas instalações do mesmo título **não** compartilham a lista — ela
+carrega URLs de play assinadas. O trabalho caro (Jackett + scrapers) é
+compartilhado mais abaixo.
 
 | camada | chave | o que guarda | kill-switch |
 |---|---|---|---|
-| L1+L2 streams | `streams:v10:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
+| L1+L2 streams | `streams:v11:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
 | bruto por indexer | `raw:v1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
 | SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
 
@@ -1329,7 +1333,7 @@ fire-and-forget) continua.
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
 | `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`) e `prefix(ns)` |
-| `src/utils/request-key.ts` | `streams:v10` + digest da conta (nunca a chave crua) |
+| `src/utils/request-key.ts` | `streams:v11` + digest da conta (nunca a chave crua) |
 | `src/utils/secret-box.ts` | AES-256-GCM do `dk` no install URL |
 | `src/utils/sign.ts` | HMAC do `/resolve` (hash + ep + dica `w`) |
 | `src/utils/deadline.ts` | `raceWithDeadline`, `remainingCheckBudget` |
@@ -1624,7 +1628,7 @@ o orçamento com a resposta.
   vivo por um glitch.
 - **Mudou regra de matching? O rebuild do container NÃO invalida o cache.**
   `data/cache.db` é volume: sobrevive a `docker compose up -d --build`, e o
-  `streams:v10` (lista pronta) e o `idx:v10` (acervo de releases já aprovadas)
+  `streams:v11` (lista pronta) e o `idx:v10` (acervo de releases já aprovadas)
   continuam servindo o que o filtro **antigo** deixou passar. Custou uma
   validação falsa: a correção estava no container, o teste isolado passava, e
   a resposta HTTP continuava trazendo o item errado. Depois de mexer em

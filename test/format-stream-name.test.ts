@@ -46,6 +46,29 @@ test('toStremioStream normaliza e guarda campos internos', () => {
   assert.equal(toStremioStream({ title: 'sem magnet' }), null);
 });
 
+test('título entregue ao cliente não expõe o blob de qualidades do HDRTorrent', () => {
+  const releases = [
+    ['O Protetor Capítulo Final e Dual O PROTETOR - CAPÍTULO FINAL  Subbed 5.1  1080P 1080p, 2160p, 720p, HD, UHD, WEB-DL', '1080p'],
+    ['O Protetor Capítulo Final e Dual O PROTETOR - CAPÍTULO FINAL  Subbed 5.1  720P 1080p, 2160p, 720p, HD, UHD, WEB-DL', '720p'],
+  ];
+
+  for (const [title, quality] of releases) {
+    const stream = stremioStream({ title, infoHash: HASH, tracker: 'hdrtorrent', isBr: true, seeders: 1 });
+    assert.equal(stream._quality, quality, 'o classificador interno mantém a qualidade do botão');
+    assert.match(stream.name, new RegExp(`^${quality} `));
+    const displayedRelease = stream.title.split('\n')[0];
+    assert.match(displayedRelease, new RegExp(`\\b${quality}\\b`, 'i'), 'a qualidade real do botão permanece visível');
+    assert.doesNotMatch(displayedRelease, quality === '1080p' ? /\b2160p\b/i : /\b(?:1080p|2160p)\b/i,
+      'cliente não pode reclassificar pelo blob do post');
+  }
+
+  const original = config.streamNameStyle;
+  try {
+    config.streamNameStyle = 'full';
+    assert.doesNotMatch(stremioStream({ title: releases[1][0], infoHash: HASH }).name, /\b(?:1080p|2160p)\b/i);
+  } finally { config.streamNameStyle = original; }
+});
+
 test('toStremioStream preserva a marca de origem BR do provider', () => {
   const s = stremioStream({ title: 'Coringa Dublado', infoHash: HASH, isBr: true, seeders: 1 });
   assert.equal(s._br, true);

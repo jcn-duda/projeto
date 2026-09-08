@@ -34,7 +34,10 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // "English Dubbed" media rotulado DUB BR); o índice PERSISTE `dubbed` por
   // release e o merge é OR-aderente — sem o bump, o rótulo errado sobrevive
   // até o TTL de 30 dias do índice.
-  streams: 'v10',
+  // v11: o `title` entregue ao cliente deixa de carregar o blob de qualidades
+  // do HDRTorrent. Listas v10 mantinham a cauda e clientes que classificam o
+  // título por conta própria exibiam 4K em botões 1080p/720p.
+  streams: 'v11',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
