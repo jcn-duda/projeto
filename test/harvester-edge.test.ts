@@ -228,6 +228,7 @@ test('M2 edge case: rdWarmer com mais de 10 releases enfileira estritamente as t
     tmdbApiKey: config.tmdb.apiKey,
     rdWarmEnabled: config.debrid.rdWarm.enabled,
     debridService: config.debrid.service,
+    debridApiKey: config.debrid.apiKey,
   };
 
   // Cria 5 BR dublado (80), 5 dublado global (40) e 5 legendado (5) = 15 releases com hashes válidos
@@ -285,6 +286,10 @@ test('M2 edge case: rdWarmer com mais de 10 releases enfileira estritamente as t
     rdWarmer.reset();
     config.debrid.rdWarm.enabled = true;
     config.debrid.service = 'realdebrid';
+    // `rdInPlay()` exige chave RD resolvível (env/painel/sessão): sem ela o
+    // colhedor nem chama o warmer. A chave vinha do `.env` de quem rodava a
+    // suíte — no CI, que não tem `.env`, a fila voltava vazia.
+    config.debrid.apiKey = 'rd-fake-key-do-teste';
 
     config.harvest.maxPerHour = 100;
     config.harvest.idleWindowMs = 0;
@@ -320,6 +325,7 @@ test('M2 edge case: rdWarmer com mais de 10 releases enfileira estritamente as t
     config.tmdb.apiKey = saved.tmdbApiKey;
     config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
     config.debrid.service = saved.debridService;
+    config.debrid.apiKey = saved.debridApiKey;
     rdWarmer.reset();
     harvester.clearQueue();
   }

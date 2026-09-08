@@ -18,6 +18,7 @@ import * as autofetch from '../src/providers/autofetch.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { sortAndLimit } from '../src/utils/format.js';
 import { pickFile, NoVideoError } from '../src/debrid/common.js';
+import { noteAvailable } from '../src/debrid/cache-check.js';
 
 const runWith = (patch: { opts: any; encoded: string }, fn: () => any) => runtime.run(patch, fn);
 
@@ -240,8 +241,17 @@ test('applyDebrid: blocked RD recém-gravado NUNCA sai pelo /resolve mesmo volta
     // sem URL de /resolve e sem ⚡); o saudável segue com o link assinado.
     const out = await runWith(
       { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: false }, encoded: 'seg' },
-      () =>
-        applyDebrid([stream(blockedHash), stream(liveHash)] as any, {
+      () => {
+        // A purga só tem o que remover se ALGUM vetor de ressurreição tiver
+        // devolvido o bloqueado como cacheado — é exatamente isso que o teste
+        // quer provar. O vetor é semeado aqui, explícito: o memo `davail`
+        // positivo (o primeiro da lista do comentário acima), gravado pela via
+        // pública e sem rede. Antes o cenário dependia de um vetor acidental
+        // (o oráculo Torrentio ligado no `.env` de quem rodava a suíte), e no
+        // CI, sem `.env`, o hash nunca chegava a `cached` e a métrica ficava
+        // em zero — o teste passava por acidente de ambiente.
+        noteAvailable(blockedHash);
+        return applyDebrid([stream(blockedHash), stream(liveHash)] as any, {
           season: null,
           episode: null,
           imdbId: null,
@@ -249,7 +259,8 @@ test('applyDebrid: blocked RD recém-gravado NUNCA sai pelo /resolve mesmo volta
           deadlineAt: Date.now() + 8000,
           onCacheResult: null,
           workHint: null,
-        } as any),
+        } as any);
+      },
     );
     assert.equal(out.length, 2, 'nenhum dos dois some da lista');
     const blockedOut = out.find((s: any) => s.infoHash === blockedHash) as any;

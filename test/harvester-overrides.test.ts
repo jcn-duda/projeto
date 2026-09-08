@@ -62,6 +62,7 @@ test('M2: rdWarmer recebe releases ordenadas por score (80 > 40 > 5)', async () 
     tmdbApiKey: config.tmdb.apiKey,
     rdWarmEnabled: config.debrid.rdWarm.enabled,
     debridService: config.debrid.service,
+    debridApiKey: config.debrid.apiKey,
   };
 
   const hBrDub = '1'.repeat(40);
@@ -125,6 +126,10 @@ test('M2: rdWarmer recebe releases ordenadas por score (80 > 40 > 5)', async () 
     rdWarmer.reset();
     config.debrid.rdWarm.enabled = true;
     config.debrid.service = 'realdebrid';
+    // `rdInPlay()` exige chave RD resolvivel (env/painel/sessao): sem ela o
+    // colhedor nem chama o warmer. A chave vinha do `.env` de quem rodava a
+    // suite — no CI, que nao tem `.env`, a fila voltava vazia.
+    config.debrid.apiKey = 'rd-fake-key-do-teste';
 
     config.harvest.maxPerHour = 100;
     config.harvest.idleWindowMs = 0;
@@ -153,6 +158,7 @@ test('M2: rdWarmer recebe releases ordenadas por score (80 > 40 > 5)', async () 
     config.tmdb.apiKey = saved.tmdbApiKey;
     config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
     config.debrid.service = saved.debridService;
+    config.debrid.apiKey = saved.debridApiKey;
     rdWarmer.reset();
     harvester.clearQueue();
   }

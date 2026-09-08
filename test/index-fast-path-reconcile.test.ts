@@ -35,11 +35,13 @@ before(async () => {
   saved.service = config.debrid.service;
   saved.apiKey = config.debrid.apiKey;
   saved.resolveSecret = config.debrid.resolveSecret;
-  saved.jackettApiKey = config.jackett.apiKey;
+  saved.jackettApiKey = config.jackett.apiKey; saved.tmdbApiKey = config.tmdb.apiKey;
   saved.publicUrl = config.debrid.publicUrl;
   config.debrid.resolveSecret = '';
-  // Jackett "configurado" para as tarefas existirem; o fetch é dublê.
+  // Jackett e TMDB "configurados" (o fetch é dublê): sem chave TMDB o título
+  // pt-BR fica fora do matchContext e a Fase 3 só passava com `.env` — no CI, caía.
   config.jackett.apiKey = 'test-jackett-key';
+  config.tmdb.apiKey = 'test-tmdb-key';
   config.debrid.publicUrl = 'https://addon.teste';
   debrid.BY_ID.set(FAKE_ADAPTER.id, FAKE_ADAPTER);
   server = await createTestServer(createApp().app);
@@ -51,7 +53,7 @@ after(async () => {
   config.debrid.service = saved.service;
   config.debrid.apiKey = saved.apiKey;
   config.debrid.resolveSecret = saved.resolveSecret;
-  config.jackett.apiKey = saved.jackettApiKey;
+  config.jackett.apiKey = saved.jackettApiKey; config.tmdb.apiKey = saved.tmdbApiKey;
   config.debrid.publicUrl = saved.publicUrl;
 });
 

@@ -68,6 +68,7 @@ test('colhedor extrai hash de magnet URI e calcula score correto (80/40/5) para 
     tmdbApiKey: config.tmdb.apiKey,
     rdWarmEnabled: config.debrid.rdWarm.enabled,
     debridService: config.debrid.service,
+    debridApiKey: config.debrid.apiKey,
   };
 
   const hBrDub = 'a'.repeat(40);
@@ -136,6 +137,10 @@ test('colhedor extrai hash de magnet URI e calcula score correto (80/40/5) para 
     rdWarmer.reset();
     config.debrid.rdWarm.enabled = true;
     config.debrid.service = 'realdebrid';
+    // `rdInPlay()` exige chave RD resolvivel (env/painel/sessao): sem ela o
+    // colhedor nem chama o warmer. A chave vinha do `.env` de quem rodava a
+    // suite — no CI, que nao tem `.env`, a fila voltava vazia.
+    config.debrid.apiKey = 'rd-fake-key-do-teste';
 
     // Drena obras residuais deixadas por outros testes
     config.jackett.apiKey = '';
@@ -182,6 +187,7 @@ test('colhedor extrai hash de magnet URI e calcula score correto (80/40/5) para 
     config.tmdb.apiKey = saved.tmdbApiKey;
     config.debrid.rdWarm.enabled = saved.rdWarmEnabled;
     config.debrid.service = saved.debridService;
+    config.debrid.apiKey = saved.debridApiKey;
     rdWarmer.reset();
   }
 });
