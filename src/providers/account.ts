@@ -5,6 +5,9 @@ import { brOriginMark } from '../utils/br-origin.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
+import { dropTrace, setTraceStage } from '../utils/stream-trace.js';
+import type { StreamTraceState, TraceReason } from '../utils/stream-trace.js';
+import type { RelevanceRejectReason } from '../utils/release-filters.js';
 
 /**
  * Origem BR FORTE (`brOriginMark`) como elegibilidade a VAGA RESERVADA — só no
@@ -48,7 +51,14 @@ function origemBrSemProvaDeAudio(title: string, ptAudio: boolean): boolean {
  * não pode esperá-la — estourou, devolve [] e a próxima busca pega o
  * inventário do memo (aquecido no boot para a conta do operador).
  */
-async function search(matchContext: any) {
+const ACCOUNT_TRACE_REASON: Record<RelevanceRejectReason, TraceReason> = {
+  title: 'account-title',
+  'magnet-year': 'account-magnet-year',
+  episode: 'account-episode',
+  'series-work': 'account-series-work',
+};
+
+async function search(matchContext: any, trace?: StreamTraceState | null) {
   if (!matchContext?.names?.length) return [];
   try {
     const items = await raceWithDeadline(
@@ -74,8 +84,27 @@ async function search(matchContext: any) {
         brOriginOnly: origemBrSemProvaDeAudio(title, ptAudio),
       };
     });
-    const relevant = filterInventoryRelevant(raw, matchContext);
-    if (!relevant.length) return [];
+    metrics.count('search.account.read');
+    if (raw.length) metrics.count('search.account.readItems', raw.length);
+    else metrics.count('search.account.empty');
+    setTraceStage(trace, 'account.read', raw.length);
+    const relevant = filterInventoryRelevant(raw, matchContext, (item, reason) => {
+      dropTrace(trace, item, ACCOUNT_TRACE_REASON[reason]);
+    });
+    setTraceStage(trace, 'account.kept', relevant.length);
+    if (!relevant.length) {
+      // Zero-sobrevivente é um SINAL, não um silêncio. Caso medido (Event
+      // Horizon, tt0119081): duas dubladas que o Chupim tinha acabado de
+      // baixar estavam Ready na conta e a lista saiu só com release gringa —
+      // `search.account.items` só contava quando sobrava alguém, então a
+      // ausência do contador era indistinguível de "a conta nem foi lida".
+      // Com o par abaixo, `read` sem `kept` diz exatamente isto: o inventário
+      // chegou e o casamento por obra descartou tudo.
+      if (raw.length) {
+        metrics.count('search.account.allFiltered');
+      }
+      return [];
+    }
     metrics.count('search.account.items', relevant.length);
     log.info(`[account] ${relevant.length} item(ns) pronto(s) na conta do debrid entraram como fonte`);
     return relevant.map((item) => ({
@@ -99,6 +128,7 @@ async function search(matchContext: any) {
       fromAccount: true,
     }));
   } catch (err) {
+    metrics.count('search.account.error');
     log.warn('[account] inventário da conta falhou como fonte:', err?.message || err);
     return [];
   }

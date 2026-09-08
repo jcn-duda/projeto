@@ -13,6 +13,12 @@ import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { applyDebrid } from '../src/providers/index.js';
 import type { Stream, DebridAdapter } from '../types/domain.js';
+import * as releaseIndex from '../src/utils/release-index.js';
+import * as metrics from '../src/utils/metrics.js';
+import { createApp } from '../src/app.js';
+import jackett from '../src/providers/jackett.js';
+import { idxPoolCovered } from '../src/providers/search-pool-coverage.js';
+import { createTestServer, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const brDub = (h: string, q = '1080p', seeds = 1) => ({
@@ -104,6 +110,148 @@ test('matriz integrada: dc=false com mesma qualidade já em cache não enfileira
     autofetch.releaseSearch(searchKey);
     cache.forget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
+  }
+});
+
+test('autofetch aceito registra a release na obra e a busca repetida reconhece o cache', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const key = 'chave-ciclo-indice';
+  const account = accountScope(key);
+  const hash = 'e1'.repeat(20);
+  const imdbId = 'tt9000199';
+  const searchKey = 'busca-ciclo-indice';
+  const enqueued: string[] = [];
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  metrics.reset();
+
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    await runtime.run({ opts: baseOpts(key, false), encoded: 'cfg-ciclo' }, () =>
+      applyDebrid([brDub(hash)], { searchKey, imdbId } as any));
+    await sleep(20);
+
+    const indexed = releaseIndex.lookupQuiet(imdbId);
+    assert.equal(indexed.length, 1);
+    assert.equal(indexed[0].hash, hash);
+    assert.equal(indexed[0].source, 'autofetch');
+    assert.equal(indexed[0].isBr, true);
+    assert.equal(indexed[0].dubbed, true);
+
+    debrid.checkCached = async () => ({ cached: new Set([hash]), known: true });
+    await runtime.run({ opts: baseOpts(key, false), encoded: 'cfg-ciclo' }, () =>
+      applyDebrid([brDub(hash)], { searchKey: `${searchKey}-2`, imdbId } as any));
+    await sleep(20);
+    assert.deepEqual(enqueued, [hash], 'o hash pronto não volta para a conta');
+    assert.ok((metrics.snapshot().counters['autofetch.skip.already-cached'] || 0) >= 1);
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    pmAdapter.enqueue = originalEnqueue;
+    for (const sk of [searchKey, `${searchKey}-2`]) autofetch.releaseSearch(sk);
+    cache.forget(autofetch.markerKey('premiumize', account, hash));
+    held.release(hash, account);
+    cache.clearNamespace('idx');
+  }
+});
+
+test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobertura falsa', async () => {
+  const adapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = adapter.enqueue;
+  const originalCheck = debrid.checkCached;
+  const originalInventory = adapter.inventory;
+  const originalSearch = jackett.search;
+  const saved = {
+    jackettKey: config.jackett.apiKey,
+    tmdbKey: config.tmdb.apiKey,
+    publicUrl: config.debrid.publicUrl,
+    resolveSecret: config.debrid.resolveSecret,
+  };
+  const hash = 'e7'.repeat(20);
+  const imdbId = 'tt0119081';
+  const apiKey = 'f4-ciclo-chave';
+  const searchKey = 'f4-autofetch-index-cycle';
+  const account = accountScope(apiKey);
+  let ready = false;
+  let enqueueCount = 0;
+  let server: Awaited<ReturnType<typeof createTestServer>> | null = null;
+
+  try {
+    config.jackett.apiKey = 'f4-jackett-fake';
+    config.tmdb.apiKey = 'f4-tmdb-fake';
+    config.debrid.publicUrl = 'https://addon.teste';
+    config.debrid.resolveSecret = '';
+    adapter.enqueue = async () => {
+      enqueueCount += 1;
+      ready = true;
+      return true;
+    };
+    adapter.inventory = async () => [];
+    debrid.checkCached = async (hashes) => ({
+      cached: new Set(ready ? hashes.map((h) => String(h).toLowerCase()) : []),
+      known: true,
+    });
+    jackett.search = async () => [];
+    server = await createTestServer(createApp().app);
+
+    await withMockFetch([
+      { match: 'cinemeta.strem.io', handler: () => ({ meta: { name: 'Event Horizon', year: '1997', type: 'movie' } }) },
+      {
+        match: 'themoviedb.org',
+        handler: () => ({ movie_results: [{ title: 'O Enigma do Horizonte', original_title: 'Event Horizon', release_date: '1997-08-15' }] }),
+      },
+    ], async () => {
+      const userOpts = {
+        ...runtime.defaults(), providers: ['jackett'], debridService: 'premiumize',
+        debridApiKey: apiKey, debridCachedOnly: true, autoFetchBr: true,
+      };
+      const candidate = {
+        title: 'O Enigma do Horizonte 1997 1080p DUBLADO\n👤 1 ⚙️ hdrtorrent',
+        name: 'PowerMovie BR', infoHash: hash,
+        _br: true, _dubbed: true, _lied: false,
+        _quality: '1080p', _seeders: 1, _indexer: 'hdrtorrent',
+      } as Stream;
+
+      const first = await runtime.run({ opts: userOpts, encoded: 'f4-cycle' }, () =>
+        applyDebrid([candidate], { imdbId, searchKey } as any)) as Stream[];
+      assert.equal(first.length, 0, 'cachedOnly oculta a BR ainda fria na primeira abertura');
+      await new Promise((resolve) => setImmediate(resolve));
+
+      assert.equal(enqueueCount, 1);
+      const indexed = releaseIndex.lookupQuiet(imdbId);
+      assert.equal(indexed[0]?.hash, hash);
+      assert.equal(indexed[0]?.source, 'autofetch');
+      assert.equal(idxPoolCovered(indexed), false, 'o enqueue não dispensa a coleta');
+
+      const cfg = encodeConfig({
+        p: ['jackett'], ds: 'premiumize', dk: apiKey, c: true, ab: true,
+        q: ['2160p', '1080p', '720p', '480p'],
+      });
+      const second = await server!.request('GET', `/${cfg}/stream/movie/${imdbId}.json`);
+      assert.equal(second.status, 200);
+      assert.ok(JSON.stringify(second.json.streams || []).toLowerCase().includes(hash));
+      assert.equal(enqueueCount, 1, 'a release pronta não volta para a conta');
+      // O fast-path provisional enriquece no tail. Deixe-o assentar ainda sob
+      // os dublês; restaurar fetch/adapter antes faria rede real após o teste.
+      await sleep(100);
+    });
+  } finally {
+    if (server) await server.close();
+    adapter.enqueue = originalEnqueue;
+    adapter.inventory = originalInventory;
+    debrid.checkCached = originalCheck;
+    jackett.search = originalSearch;
+    config.jackett.apiKey = saved.jackettKey;
+    config.tmdb.apiKey = saved.tmdbKey;
+    config.debrid.publicUrl = saved.publicUrl;
+    config.debrid.resolveSecret = saved.resolveSecret;
+    autofetch.releaseSearch(searchKey);
+    cache.forget(autofetch.markerKey('premiumize', account, hash));
+    held.release(hash, account);
+    cache.clear();
   }
 });
 

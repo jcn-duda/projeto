@@ -26,6 +26,7 @@ import { streamsCacheKey } from '../utils/request-key.js';
 import { serializeTrace, sanitizeTraceLabel } from '../utils/stream-trace.js';
 import { recomputeOffline } from '../utils/trace-recompute.js';
 import { liveCapability, liveCheck } from '../debrid/live-check.js';
+import { prefix } from '../utils/cache-keys.js';
 
 /** Gate comum dos diagnósticos: sem JACKETT_TEST_TOKEN no .env a rota fica
  * desligada (503, mesmo com header correto); com token, header errado ou
@@ -59,11 +60,33 @@ export function makeStreamTraceHandler(services: AppServices): express.RequestHa
       }
       // Mesma derivação de search-cache.ts:62-63. Fora do segmento, opts() são
       // os defaults — que é exatamente como a busca sem config roda.
-      const cacheKey = streamsCacheKey(type, id, {
+      let cacheKey = streamsCacheKey(type, id, {
         ...services.runtime.opts(),
         resolveUncached: services.config.debrid.resolveUncached,
       });
-      const hit = services.cache.getWithStale(cacheKey, services.config.streamStaleGrace);
+      let hit = services.cache.getWithStale(cacheKey, services.config.streamStaleGrace);
+      // A rota sem segmento é a visão do OPERADOR. Se a busca foi feita por
+      // uma instalação com configuração/conta próprias, a chave exata default
+      // não existe; procura a build mais recente da mesma obra em qualquer
+      // escopo. A rota com segmento continua estrita àquela instalação.
+      if (!hit && !req.params.userConfig) {
+        const base = `${prefix('streams')}${type}:${id}:`;
+        let latestAt = -1;
+        // A busca cross-scope é deliberadamente L1-only (teto 2000): o SQLite
+        // não oferece varredura de prefixo. `peek` evita que o diagnóstico
+        // reordene todos os escopos no LRU ou infle cache.hit.
+        for (const candidateKey of services.cache.keysMatching(base)) {
+          const candidate = services.cache.peekWithStale(candidateKey, services.config.streamStaleGrace);
+          if (!candidate) continue;
+          const value = (candidate.value ?? {}) as { trace?: { finishedAt?: number | null; startedAt?: number } | null };
+          const at = Number(value.trace?.finishedAt ?? value.trace?.startedAt ?? 0);
+          if (at >= latestAt) {
+            latestAt = at;
+            cacheKey = candidateKey;
+            hit = candidate;
+          }
+        }
+      }
       if (!hit) {
         // Sem entrada NÃO há searchMeta (nomes/ano) nem lista para explicar: o
         // recompute não tem o que dizer. Knob desligado => nem tentou.

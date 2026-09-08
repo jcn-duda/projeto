@@ -23,25 +23,9 @@ import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, par
 // Prova de episódio errado (miss por episódio) mora no irmão, extraído pela
 // catraca de linhas; o pai reexporta para quem consome `releaseIndex.*`.
 import { markMissing, isMissing, isMissingQuiet } from './release-index-miss.js';
-
-export type IndexedRelease = {
-  hash: string;
-  title: string;
-  size: number | null;
-  indexer: string;
-  isBr: boolean;
-  dubbed: boolean;
-  quality: string;
-  seeders: number;
-  seenAt: number;
-  /** Prova por arquivo real: o post prometia PT, mas era release EN. */
-  lied?: boolean;
-};
-
-type IndexEntry = { at: number; releases: IndexedRelease[]; partial?: boolean };
-
-type ObraLocation = { season?: number | null; episode?: number | null };
-
+import type { IndexEntry, IndexedRelease, ObraLocation } from './release-index-types.js';
+export type { IndexedRelease } from './release-index-types.js';
+export { forgetAutofetchHash } from './release-index-maintenance.js';
 function enabled() {
   return config.releaseIndex.enabled && config.releaseIndex.ttl > 0;
 }
@@ -88,7 +72,12 @@ function destinoDe(imdbId: string, pedido: ObraLocation, title: string) {
   return obraKey(imdbId, { season });
 }
 
-function record(imdbId: string, location: ObraLocation, items: any[], opts: { partial?: boolean } = {}) {
+function record(
+  imdbId: string,
+  location: ObraLocation,
+  items: any[],
+  opts: { partial?: boolean; source?: 'autofetch' } = {},
+) {
   if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !Array.isArray(items) || items.length === 0) return 0;
   const now = Date.now();
   // Marca de registro PARCIAL (colheita interrompida por teto/preempção): cada
@@ -119,15 +108,28 @@ function record(imdbId: string, location: ObraLocation, items: any[], opts: { pa
     for (const rel of entry?.releases || []) existing.set(rel.hash, rel);
     for (const { item, hash, title } of lote) {
       const prior = existing.get(hash);
-      if (prior && prior.seenAt >= now) continue;
+      const itemSource = item.indexSource === 'autofetch' ? 'autofetch' : opts.source;
+      const promotesObserved = prior?.source === 'autofetch' && itemSource !== 'autofetch';
+      if (prior && prior.seenAt >= now && !promotesObserved) continue;
       if (!prior) added += 1;
       // Mesma regra do toStremioStream: DUAL sem PT explícito não vale como
       // dublado fora dos sites BR — o degrau "dublado global" do gate de
       // cobertura depende deste flag ser honesto.
       const isBr = Boolean(item.isBr) || Boolean(prior?.isBr);
-      const dubbed = isBr
+      const classifiedDubbed = isBr
         ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title)))
         : explicitPtAudio(title);
+      // No autofetch a classificação já atravessou toStremioStream e pode
+      // incluir prova de arquivo. Reclassificar só pelo título perderia essa
+      // evidência no exato momento em que fechamos o ciclo.
+      const dubbed = itemSource === 'autofetch' && item.dubbed !== undefined
+        ? Boolean(item.dubbed)
+        : classifiedDubbed;
+      // Uma observação pública anterior nunca é rebaixada para "só autofetch".
+      // Já o caminho normal promove a entrada marcada assim que volta a vê-la.
+      const source = itemSource === 'autofetch' && (!prior || prior.source === 'autofetch')
+        ? 'autofetch' as const
+        : undefined;
       existing.set(hash, {
         hash,
         title: title || prior?.title || '',
@@ -135,11 +137,12 @@ function record(imdbId: string, location: ObraLocation, items: any[], opts: { pa
         indexer: String(item.indexer || item.tracker || prior?.indexer || ''),
         isBr,
         dubbed: Boolean(dubbed) || Boolean(prior?.dubbed),
-        quality: qualityFromTitle(title),
+        quality: String(item.quality || qualityFromTitle(title)),
         seeders: Number(item.seeders ?? item.Seeders ?? 0) || 0,
         seenAt: now,
         // Campo aditivo: uma nova coleta não pode apagar prova de play/tail.
-        lied: Boolean(prior?.lied),
+        lied: Boolean(item.lied) || Boolean(prior?.lied),
+        source,
       });
     }
     if (existing.size === 0) continue;

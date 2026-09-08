@@ -184,6 +184,17 @@ function peek(key: string): unknown {
   return hit.value;
 }
 
+/** Versão quiet de getWithStale: não promove LRU, não conta hit/miss e não
+ * apaga a entrada vencida. Usada por diagnósticos que varrem vários escopos. */
+function peekWithStale(key: string, graceSeconds = 0): { value: any; stale: boolean } | null {
+  const hit = store.get(key);
+  if (!hit) return null;
+  const now = Date.now();
+  if (!hit.expiresAt || now <= hit.expiresAt) return { value: hit.value, stale: false };
+  if (graceSeconds > 0 && now <= hit.expiresAt + graceSeconds * 1000) return { value: hit.value, stale: true };
+  return null;
+}
+
 /**
  * Escrita em LOTE com UMA passada de evicção por namespace. O `set` unitário
  * já dava conta dos consumidores antigos; o davail escreve um registro por
@@ -282,5 +293,5 @@ pruneTimer.unref();
 
 export {
   MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany,
-  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, peek, peekRemaining, maintain, close,
+  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, peek, peekWithStale, peekRemaining, maintain, close,
 };

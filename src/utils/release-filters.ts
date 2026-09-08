@@ -26,6 +26,8 @@ interface MatchOptions {
   universeTokens?: string[] | null;
 }
 
+export type RelevanceRejectReason = 'title' | 'magnet-year' | 'episode' | 'series-work';
+
 /**
  * Classificação crua compartilhada pelo corte final e pelo gatilho de pack.
  * Usar uma função só impede o fallback de discordar do que buildStreams vai
@@ -35,6 +37,7 @@ interface MatchOptions {
 function filterRelevantRaw(
   items: RawItem[] = [],
   { names = [], year = null, isSeries = false, season = null, episode = null }: MatchOptions = {},
+  onRejected?: (item: RawItem, reason: RelevanceRejectReason) => void,
 ) {
   if (!names.length) return items;
   // Hot path: os tokens do título e o universo de allNames dependem só de
@@ -70,18 +73,29 @@ function filterRelevantRaw(
           (isSeries ? !yearContradicts(tokens, year, true) : matchesTitleStructure(title, name, year, { tokens })) &&
           matchesEpisodeWorkIdentity(title, names, tokens, universe),
     );
-    if (!titleMatches) return false;
+    if (!titleMatches) {
+      onRejected?.(item, 'title');
+      return false;
+    }
     // Filme: o dn= do magnet carrega o ano verdadeiro quando o título
     // mapeado não traz (e confirma quando traz). Séries ficam de fora — o
     // ano do post delas é o da temporada, com regra própria acima.
     if (!isSeries && season == null) {
       const catalogYear = Number(String(year ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
-      if (catalogYear && magnetYearContradicts(item, catalogYear)) return false;
+      if (catalogYear && magnetYearContradicts(item, catalogYear)) {
+        onRejected?.(item, 'magnet-year');
+        return false;
+      }
     }
     if (season == null || episode == null) return true;
-    if (!matchesEpisode(title, { season, episode })) return false;
+    if (!matchesEpisode(title, { season, episode })) {
+      onRejected?.(item, 'episode');
+      return false;
+    }
     if (item?.isBr) return true;
-    return matchesGlobalSeriesNoMarker(title, tokens, universe);
+    const matchesWork = matchesGlobalSeriesNoMarker(title, tokens, universe);
+    if (!matchesWork) onRejected?.(item, 'series-work');
+    return matchesWork;
   });
 }
 
@@ -149,19 +163,33 @@ function magnetYearContradicts(item: RawItem | null | undefined, catalogYear: nu
 function filterInventoryRelevant(
   items: RawItem[] = [],
   { names = [], season = null, ...matchContext }: MatchOptions = {},
+  onRejected?: (item: RawItem, reason: RelevanceRejectReason) => void,
 ) {
   if (!names.length) return [];
-  const direct = filterRelevantRaw(items, { names, season, ...matchContext });
-  if (season != null) return direct;
+  const reasons = new Map<RawItem, RelevanceRejectReason>();
+  const direct = filterRelevantRaw(items, { names, season, ...matchContext }, (item, reason) => {
+    reasons.set(item, reason);
+  });
+  if (season != null) {
+    if (onRejected) for (const item of items) if (!direct.includes(item)) onRejected(item, reasons.get(item) || 'title');
+    return direct;
+  }
   const directSet = new Set(direct);
   const leftovers = items.filter((item) => !directSet.has(item));
   if (!leftovers.length) return direct;
   const roots = franchiseRoots(names);
-  if (!roots.length) return direct;
+  if (!roots.length) {
+    if (onRejected) for (const item of leftovers) onRejected(item, reasons.get(item) || 'title');
+    return direct;
+  }
   const extra = leftovers.filter((item) => {
     const title = item?.title || item?.Title || '';
     return isMultiWorkCollection(title) && roots.some((root) => containsTokenRun(title, root));
   });
+  if (onRejected) {
+    const rescued = new Set(extra);
+    for (const item of leftovers) if (!rescued.has(item)) onRejected(item, reasons.get(item) || 'title');
+  }
   return extra.length ? [...direct, ...extra] : direct;
 }
 

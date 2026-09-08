@@ -16,6 +16,7 @@ import * as metrics from '../utils/metrics.js';
 import { SAFE_INDEXER_ID, stageFirstTiming } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { poolCovered } from './search-pool-coverage.js';
+import type { StreamTraceState } from '../utils/stream-trace.js';
 
 export async function collectRaw(
   query: string,
@@ -31,6 +32,7 @@ export async function collectRaw(
    * resposta; tails (`deadlineAt` null) não estagiam. Sem ele, a coleta mede
    * envelopes, mas não os registra em lugar nenhum. */
   firstObserver?: FirstObserverState | null,
+  trace?: StreamTraceState | null,
 ) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
@@ -161,7 +163,7 @@ export async function collectRaw(
   // para a primeira leitura não segurar a resposta.
   const accountSource = config.debrid.inventorySource && Boolean(debrid.current());
   if (accountSource) {
-    addTask(() => account.search(matchContext), false, 'account');
+    addTask(() => account.search(matchContext, trace), false, 'account');
   }
 
   // Orçamento menor que o deadline da resposta: o resto do tempo é da checagem

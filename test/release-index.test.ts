@@ -7,7 +7,10 @@ import assert from 'node:assert/strict';
 import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
-import { record, lookup, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, clearPartial, markLied } from '../src/utils/release-index.js';
+import { record, lookup, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, clearPartial, markLied, forgetAutofetchHash } from '../src/utils/release-index.js';
+import { idxPoolCovered, idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
+import { hasBrDubbed } from '../src/utils/br-gap.js';
+import { isBrRelease } from '../src/utils/br-coverage.js';
 
 const release = (hash: string, extra: any = {}) => ({
   title: `Filme Teste 1080p DUAL ${hash.slice(0, 4)}`,
@@ -71,6 +74,48 @@ test('flag dublado segue a mesma regra do toStremioStream', () => {
   const byHash = new Map(out.map((r) => [r.hash, r]));
   assert.equal(byHash.get('aa'.repeat(20))?.dubbed, true, 'PT explícito marca dublado');
   assert.equal(byHash.get('bb'.repeat(20))?.dubbed, false, 'sem marca não vale como dublado');
+});
+
+test('registro do autofetch fica visível sem fingir cobertura da obra', () => {
+  const id = 'tt9000011';
+  const hash = 'ac'.repeat(20);
+  record(id, {}, [{
+    ...release(hash),
+    title: 'O Enigma do Horizonte 1080p',
+    dubbed: true,
+    quality: '1080p',
+  }], { source: 'autofetch' });
+
+  const seeded = lookup(id);
+  assert.equal(seeded.length, 1);
+  assert.equal(seeded[0].source, 'autofetch');
+  assert.equal(seeded[0].dubbed, true, 'preserva a classificação usada pelo Chupim');
+  assert.equal(idxReleasesToRaw(seeded)[0].quality, '1080p', 'o eco preserva a faixa classificada');
+  assert.equal(idxPoolCovered(seeded), false, 'uma submissão não dispensa a coleta');
+  assert.equal(hasBrDubbed(seeded), false, 'não fecha o br-gap como evidência pública');
+  assert.equal(isBrRelease(seeded[0]), false, 'não infla a cobertura popular F3');
+
+  record(id, {}, [release(hash, { title: 'O Enigma do Horizonte 1080p DUBLADO' })]);
+  const observed = lookup(id);
+  assert.equal(observed[0].source, undefined, 'uma coleta real promove a entrada marcada');
+  assert.equal(idxPoolCovered(observed), true);
+  assert.equal(hasBrDubbed(observed), true);
+  assert.equal(isBrRelease(observed[0]), true);
+});
+
+test('prova terminal remove só o registro autofetch, nunca evidência pública', () => {
+  const id = 'tt9000012';
+  const autoHash = 'ad'.repeat(20);
+  const publicHash = 'ae'.repeat(20);
+  record(id, {}, [release(autoHash, { dubbed: true })], { source: 'autofetch' });
+  record(id, {}, [release(publicHash)]);
+  const ttlBefore = cache.peekRemaining(`${prefix('idx')}${id}`) || 0;
+
+  assert.equal(forgetAutofetchHash(id, autoHash), 1);
+  assert.equal(lookup(id).some((r) => r.hash === autoHash), false);
+  assert.equal(forgetAutofetchHash(id, publicHash), 0);
+  assert.equal(lookup(id).some((r) => r.hash === publicHash), true);
+  assert.ok((cache.peekRemaining(`${prefix('idx')}${id}`) || 0) >= ttlBefore - 1, 'a reescrita preserva o TTL em segundos');
 });
 
 test('RELEASE_INDEX=false desliga escrita e leitura', async () => {

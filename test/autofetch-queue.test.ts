@@ -14,6 +14,8 @@ import autofetchLive from '../src/utils/autofetch-live.js';
 import { canAutoFetchBr } from '../src/utils/format.js';
 import { accountScope } from '../src/utils/request-key.js';
 import type { DebridAdapter } from '../types/domain.js';
+import { recordAutofetchRelease } from '../src/providers/autofetch-index.js';
+import * as releaseIndex from '../src/utils/release-index.js';
 import {
   H1, H2, H3, H4, sleep, mkAdapter, premiumizeRunCtx, dinvKeyFor,
 } from './helpers/autofetch-fixtures.js';
@@ -48,7 +50,7 @@ test('fila persistente: writeQueue, readQueue, dropQueue e takeNext', () => {
   autofetch.dropQueue(searchKey);
 
   const candidates: autofetch.QueueCandidate[] = [
-    { infoHash: H1, title: 'Breaking Bad S01E01 1080p DUB', quality: '1080p' },
+    { infoHash: H1, title: 'Breaking Bad S01E01 1080p DUB', quality: '1080p', lied: true },
     { infoHash: H2, title: 'Breaking Bad S01E01 720p DUB', quality: '720p' },
     { infoHash: H1, title: 'Breaking Bad S01E01 Duplicate' },
   ];
@@ -57,6 +59,9 @@ test('fila persistente: writeQueue, readQueue, dropQueue e takeNext', () => {
   const read = autofetch.readQueue(searchKey);
   assert.equal(read.length, 2, 'deduplica hashes na gravacao da fila');
   assert.equal(read[0].infoHash, H1);
+  assert.equal(read[0].lied, true, 'a fila preserva a condenação de áudio até o dreno');
+  recordAutofetchRelease('tt9000046', { ...read[0], br: true, dubbed: true });
+  assert.equal(releaseIndex.lookupQuiet('tt9000046')[0]?.lied, true, 'o dreno não limpa a condenação');
   assert.equal(read[1].infoHash, H2);
 
   const { next, remaining } = autofetch.takeNext(read);

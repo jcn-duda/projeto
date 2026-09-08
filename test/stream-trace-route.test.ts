@@ -216,12 +216,14 @@ test('/:userConfig/stream-trace.json deriva a MESMA chave que a busca do install
       const key = chaveDoSegmento('movie', id, segment);
       cache.set(key, entrada(false), 900);
 
-      // A chave GLOBAL (sem segmento) é outra: sem o overlay, o endpoint não
-      // pode encontrar a mesma entrada.
+      // A rota GLOBAL é a visão do operador: sem conhecer o segmento selado,
+      // encontra a build mais recente da obra em qualquer escopo.
       const pelaGlobal = await server.request('GET', '/stream-trace.json?type=movie&id=' + id, {
         headers: { 'X-Indexer-Test-Token': 'tok-trace' },
       });
-      assert.equal(pelaGlobal.status, 404, 'a chave global é outra entrada');
+      assert.equal(pelaGlobal.status, 200);
+      assert.equal(pelaGlobal.json.found, true);
+      assert.equal(pelaGlobal.json.trace.items.length, 3);
 
       const res = await server.request('GET', `/${segment}/stream-trace.json?type=movie&id=${id}`, {
         headers: { 'X-Indexer-Test-Token': 'tok-trace' },
@@ -235,6 +237,30 @@ test('/:userConfig/stream-trace.json deriva a MESMA chave que a busca do install
       cache.clear();
     }
   });
+});
+
+test('/stream-trace.json sem segmento escolhe o escopo mais recente da obra', async () => {
+  config.jackett.testToken = 'tok-trace';
+  try {
+    const id = 'tt334';
+    const antigo = entrada(false);
+    antigo.trace.finishedAt = Date.now() - 10_000;
+    antigo.trace.stages.final = 1;
+    const novo = entrada(false);
+    novo.trace.finishedAt = Date.now();
+    novo.trace.stages.final = 7;
+    cache.set(chaveDoSegmento('movie', id, encodeConfig({ m: 3 })), antigo, 900);
+    cache.set(chaveDoSegmento('movie', id, encodeConfig({ m: 7 })), novo, 900);
+
+    const res = await server.request('GET', `/stream-trace.json?type=movie&id=${id}`, {
+      headers: { 'X-Indexer-Test-Token': 'tok-trace' },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.json.trace.stages.final, 7);
+  } finally {
+    config.jackett.testToken = '';
+    cache.clear();
+  }
 });
 
 test('/stream-trace.json não faz chamada de rede nenhuma', async () => {

@@ -6,7 +6,9 @@ import {
   STREAM_TRACE_MAX_ITEMS,
   STREAM_TRACE_LABEL_MAX,
   createStreamTrace,
+  cloneStreamTrace,
   stageTrace,
+  setTraceStage,
   dropTrace,
   finalizeTrace,
   serializeTrace,
@@ -43,6 +45,20 @@ test('stageTrace acumula por estágio e ignora lixo (null, negativo, NaN)', () =
   stageTrace(t, '', 10);
   stageTrace(null, 'raw', 10);
   assert.deepEqual(t.stages, antes, 'estágio sem queda não conta');
+});
+
+test('setTraceStage preserva zero e clone separa builds parcial e tardia', () => {
+  const coleta = createStreamTrace();
+  setTraceStage(coleta, 'account.read', 2);
+  setTraceStage(coleta, 'account.kept', 0);
+  dropTrace(coleta, { title: 'Outra obra' }, 'account-title');
+
+  const build = cloneStreamTrace(coleta);
+  assert.ok(build);
+  assert.deepEqual(build.stages, { 'account.read': 2, 'account.kept': 0 });
+  stageTrace(build, 'raw', 1);
+  assert.equal(coleta.stages.raw, undefined, 'a build não contamina o ledger da coleta');
+  assert.equal(build.items[0].reason, 'account-title');
 });
 
 test('dropTrace registra item com id sequencial, motivo e metadados', () => {

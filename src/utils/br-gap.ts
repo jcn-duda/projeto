@@ -23,7 +23,8 @@ import type { IndexedRelease } from './release-index.js';
  * o sampler F3: tê-la num só lugar evita que os três divergem.
  */
 export function hasBrDubbed(releases: readonly IndexedRelease[] | undefined | null): boolean {
-  return (releases || []).some((r) => Boolean(r?.isBr) && Boolean(r?.dubbed) && !Boolean(r?.lied));
+  return (releases || []).some((r) =>
+    r?.source !== 'autofetch' && Boolean(r?.isBr) && Boolean(r?.dubbed) && !Boolean(r?.lied));
 }
 
 /**

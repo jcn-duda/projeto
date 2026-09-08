@@ -11,6 +11,7 @@ import { filterRelevantRaw as relevantRaw, filterInventoryRelevant } from '../sr
 import { buildStreams } from '../src/providers/index.js';
 import * as account from '../src/providers/account.js';
 import type { InventoryItem, RawItem, Stream } from '../types/domain.js';
+import { createStreamTrace } from '../src/utils/stream-trace.js';
 
 process.env.CACHE_PERSIST = 'false';
 
@@ -362,16 +363,22 @@ test('account.search avalia itens pt-BR com matchesBrTitle (invariante 5)', asyn
   });
   try {
     const ctx = { names: ['Joker', 'Coringa'], year: 2019, isSeries: false };
+    const trace = createStreamTrace();
     const items = await runWith<RawItem[]>(
       {
         opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: KEY_A },
         encoded: 'seginv2',
       },
-      () => account.search(ctx),
+      () => account.search(ctx, trace),
     );
     assert.equal(items.length, 1);
     assert.equal(items[0].infoHash as string, H1);
     assert.equal(items[0].isBr, true);
+    assert.equal(trace.stages['account.read'], 2);
+    assert.equal(trace.stages['account.kept'], 1);
+    assert.equal(trace.items.length, 1);
+    assert.equal(trace.items[0].reason, 'account-title');
+    assert.match(trace.items[0].label, /Delírio a Dois/);
   } finally {
     api.restore();
     cache.clear();

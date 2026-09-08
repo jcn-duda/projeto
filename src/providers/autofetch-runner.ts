@@ -34,6 +34,7 @@ import {
   type SeasonHint,
   type RecheckLot,
 } from './autofetch-recheck.js';
+import { recordAutofetchRelease } from './autofetch-index.js';
 
 type AutoFetchStream = Stream & { infoHash: string };
 type AutoFetchCandidate = { stream: AutoFetchStream; account: string; pool: string };
@@ -157,6 +158,7 @@ export function autoFetchCandidates(
         seeders: s._seeders,
         br: s._br,
         dubbed: s._dubbed,
+        lied: s._lied,
         pool,
         imdbId,
         season,
@@ -234,6 +236,13 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
       if (ok) {
         cache.set(key, autofetch.markerValue(ok), live.autoFetchTtl);
         metrics.count('autofetch.enqueued');
+        recordAutofetchRelease(imdbId, {
+          ...stream,
+          season,
+          episode,
+          imdbId,
+          pool,
+        });
         // Proteção durável SÓ no pool BR do AllDebrid com flags reais (não
         // `_lied`): é o acervo que o usuário quer retido. `any`/`seeds` não
         // passam — dublagem global ou melhor swarm não viram acervo a reter.
@@ -317,6 +326,8 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
         ? covered.has(q)
         : hasCachedBrDubbed(streams, cached);
       if (drop) {
+        const hash = String(selected.stream.infoHash || '').toLowerCase();
+        if (cached.has(hash)) noteSkip('already-cached', selected.stream, debrid.current()?.id || '', poolName);
         // Hold foi adquirido ANTES do checkCached — liberar um a um os que
         // a cobertura já resolveu, senão o hash fica imune ao dropUncached.
         held.release(String(selected.stream.infoHash || ''), selected.account);

@@ -51,6 +51,9 @@ jobs:
         run: npm run test:complete
 
       - name: Testes
+        env:
+          # O verde não pode depender da ausência acidental de `.env` no runner.
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
         run: npm test
 
       # Typecheck (tsc --noEmit) não depende da versão de runtime, então roda

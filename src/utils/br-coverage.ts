@@ -130,7 +130,7 @@ export function releaseStatus(release: { hash: string }, ctx: OperatorCtx): Rele
 
 /** Candidata BR dublada e não-lied (o post mente não é candidata). */
 export function isBrRelease(rel: IndexedRelease): boolean {
-  return Boolean(rel && rel.isBr && rel.dubbed && !rel.lied);
+  return Boolean(rel && rel.source !== 'autofetch' && rel.isBr && rel.dubbed && !rel.lied);
 }
 
 function emptyType(): TypeCounts {

@@ -14,7 +14,8 @@ import * as metrics from '../utils/metrics.js';
 import { rdGate } from '../debrid/rd-gate.js';
 import { isRateLimitError } from '../debrid/common.js';
 import * as rdLedger from '../debrid/rd-ledger.js';
-
+import { recordAutofetchRelease } from './autofetch-index.js';
+import * as releaseIndex from '../utils/release-index.js';
 export type SeasonHint = { imdbId?: string | null; season?: number | null; isPack?: boolean };
 export type RecheckLot = {
   hashes: Set<string>;
@@ -29,13 +30,8 @@ export type RecheckLot = {
   isSettle: boolean;
   refusals: number;
 };
-
-/**
- * Lotes de recheck pós-enfileiramento, por busca: hashes aceitos pelo debrid
- * aguardando ficar tocáveis, detecção de mortos e drenagem da fila.
- */
+/** Lotes aceitos aguardando ficar tocáveis, morrer ou drenar a fila. */
 export const recheckLots = new Map<string, RecheckLot>();
-
 // Índice efêmero: só há consumidor enquanto o recheck vive no processo.
 export const seasonSearchKeys = new Map<string, Set<string>>();
 
@@ -193,6 +189,7 @@ export function drainNext(searchKey: string, lot: any) {
         cache.set(mKey, autofetch.markerValue(ok), live.autoFetchTtl);
         metrics.count('autofetch.queued');
         metrics.count('autofetch.enqueued');
+        recordAutofetchRelease(next.imdbId, next);
         if (adapter.id === 'alldebrid' && next.pool === 'br' && Boolean(next.br) && Boolean(next.dubbed)) {
           held.protectBr(adapter.id, account, h);
         }
@@ -319,6 +316,7 @@ export function runRecheck(searchKey: string) {
         if (streak >= threshold) {
           metrics.count(isDead ? 'autofetch.dead' : 'autofetch.stalled');
           autofetch.blacklist(adapter.id, account, hash);
+          releaseIndex.forgetAutofetchHash(lot.seasonHints.get(hash)?.imdbId, hash);
           held.unprotect(adapter.id, account, hash);
           held.release(hash, account);
           // A ponte pelo id expõe de uma vez transferências que a remoção
@@ -383,6 +381,7 @@ export function runRecheck(searchKey: string) {
         }
       }
       for (const h of lot.hashes) {
+        releaseIndex.forgetAutofetchHash(lot.seasonHints.get(h)?.imdbId, h);
         cache.forget(autofetch.markerKey(adapter.id, account, h));
         held.unprotect(adapter.id, account, h);
         held.release(h, account);

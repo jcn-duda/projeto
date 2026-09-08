@@ -15,6 +15,10 @@ import config from '../config.js';
 
 /** Motivo pelo qual um item não está na lista final (ou é o aviso). */
 export type TraceReason =
+  | 'account-title'
+  | 'account-magnet-year'
+  | 'account-episode'
+  | 'account-series-work'
   | 'title-filter'
   | 'multiwork-retained'
   | 'episode-mismatch'
@@ -83,10 +87,31 @@ function createStreamTrace(): StreamTraceState {
   return { stages: {}, items: [], startedAt: Date.now(), finishedAt: null };
 }
 
+/** Copia a parte de coleta para uma build independente. A busca pode ter uma
+ * resposta parcial e outra tardia; compartilhar o mesmo objeto faria os
+ * cortes da primeira build contaminarem o ledger da segunda. */
+function cloneStreamTrace(source: StreamTraceState | null | undefined): StreamTraceState | null {
+  if (!source) return null;
+  return {
+    stages: { ...source.stages },
+    items: source.items.map((item) => ({ ...item })),
+    startedAt: source.startedAt,
+    finishedAt: null,
+  };
+}
+
 /** Conta itens num estágio do funil (raw, afterSort, final, notice...). */
 function stageTrace(t: StreamTraceState | null | undefined, stage: string, count: number): void {
   if (!t || !stage || !Number.isFinite(count) || count <= 0) return;
   t.stages[stage] = (t.stages[stage] || 0) + Math.trunc(count);
+}
+
+/** Fixa um estágio mesmo quando o valor é zero. Em fontes externas, ausência
+ * e zero têm significados diferentes: `account.read=20/account.kept=0` prova
+ * que o inventário chegou e foi integralmente descartado. */
+function setTraceStage(t: StreamTraceState | null | undefined, stage: string, count: number): void {
+  if (!t || !stage || !Number.isFinite(count) || count < 0) return;
+  t.stages[stage] = Math.trunc(count);
 }
 
 /** Rótulo legível a partir de qualquer forma de item (raw tem title, stream
@@ -175,7 +200,9 @@ export {
   STREAM_TRACE_MAX_ITEMS,
   STREAM_TRACE_LABEL_MAX,
   createStreamTrace,
+  cloneStreamTrace,
   stageTrace,
+  setTraceStage,
   dropTrace,
   finalizeTrace,
   sanitizeTraceLabel,

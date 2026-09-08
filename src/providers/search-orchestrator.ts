@@ -19,7 +19,7 @@ import * as metrics from '../utils/metrics.js';
 import { buildStreams, createFirstObserver, firstObserverClaim, stageFirstTiming } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { debridRefreshSatisfied, hasPlayableStream } from './search-cache.js';
-import { createStreamTrace, serializeTrace } from '../utils/stream-trace.js';
+import { cloneStreamTrace, createStreamTrace, serializeTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState, SerializedStreamTrace } from '../utils/stream-trace.js';
 import { collectRaw } from './collect-orchestrator.js';
 import { attemptIndexFastPath, noteWouldHitIndex } from './search-index-path.js';
@@ -101,6 +101,10 @@ export async function doSearch({
   // Refresh de debrid e varredura pt-BR compartilham uma fila tardia para não
   // executar applyDebrid/upload concorrentes na mesma chave.
   const enqueueTail = createTailQueue();
+  // O inventário roda durante a coleta, antes de buildStreams. Seu ledger é
+  // compartilhado só como matéria-prima; cada build recebe um clone para a
+  // passada parcial não contaminar a tardia.
+  const collectionTrace: StreamTraceState | null = config.search.streamTrace ? createStreamTrace() : null;
 
   log.info(
     `[search] ${type} ${id} → "${query}"${ptQuery ? ` | pt-BR: "${ptQuery}"` : ''} via ${opts().providers.join('+')}`,
@@ -122,7 +126,7 @@ export async function doSearch({
       // P5 — um ledger POR build. Criado só quando o kill-switch está ligado;
       // desligado, `trace` null e toda a instrumentação é no-op. O estado
       // observa os cortes SEM mudar nenhum deles.
-      const trace: StreamTraceState | null = config.search.streamTrace ? createStreamTrace() : null;
+      const trace: StreamTraceState | null = cloneStreamTrace(collectionTrace);
       const streams = await buildStreams(items, {
         meta, titles, imdbId, season, episode, isDemo, searchKey: cacheKey,
         deadlineAt: inputDeadline,   // presente SÓ no passo de resposta (orçamento do debrid e gate de prazo do first)
@@ -208,12 +212,12 @@ export async function doSearch({
   // se cai na coleta ao vivo quando o índice NÃO cobriu a obra.
   noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep });
   const { servedFromIndex, raw: indexedRaw } = await attemptIndexFastPath({
-    query, type, id, imdbId, season, episode, ptQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver,
+    query, type, id, imdbId, season, episode, ptQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver, trace: collectionTrace,
   });
   let raw: RawBatch = indexedRaw ?? await collectRaw(
     query, type, imdbId, ptQuery, matchContext,
     (items: any[], grew: boolean, partial?: boolean) => late(items, grew, episodePhase, partial),
-    sweepQuery, deadlineAt, undefined, firstObserver,
+    sweepQuery, deadlineAt, undefined, firstObserver, collectionTrace,
   );
 
   // Série sem candidato útil por episódio tenta o pack. Lote parcial não-vazio
@@ -263,6 +267,7 @@ export async function doSearch({
       deadlineAt,
       undefined,
       firstObserver,
+      collectionTrace,
     );
   }
 
@@ -279,7 +284,7 @@ export async function doSearch({
       try {
         // As tarefas BR já rodaram na janela crítica acima. Não as repetimos no
         // tail; só o restante enriquece o índice.
-        const live = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery, null, 'nonpriority');
+        const live = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery, null, 'nonpriority', undefined, collectionTrace);
         if (live.partial && live.completion) await live.completion;
         // A janela crítica pode ter devolvido antes do BR terminar. Espera-o
         // aqui, no único writer do caminho do índice, para mesclar o lote no
@@ -328,7 +333,7 @@ export async function doSearch({
         if (!episodeIsWeak(raw.items)) return;
         metrics.count('search.pack-tail.run');
         log.info(`[search] sem candidato saudável; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`);
-        const pack = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, null, sweepQuery);
+        const pack = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, null, sweepQuery, null, 'all', undefined, collectionTrace);
         if (pack.partial && pack.completion) await pack.completion;
         const known = new Set(raw.items.map((item) => extractInfoHash(item.infoHash || item.magnet)).filter(Boolean));
         const fresh = pack.items.filter((item) => {

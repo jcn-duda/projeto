@@ -13,6 +13,9 @@
  * `process.env.CACHE_PERSIST = 'false'` e mesmo assim abriam o SQLite de
  * verdade, tocando `data/cache.db` e compartilhando estado entre si.
  */
+// Precisa vir antes do primeiro import de produção: `dotenv/config` resolve o
+// path no load. Assim `npm test` é hermético também fora do CI.
+process.env.DOTENV_CONFIG_PATH = 'test/fixtures/env-empty';
 process.env.CACHE_PERSIST = 'false';
 
 // O config le a .env do operador, entao um DEBRID_CACHED_ONLY=true na maquina

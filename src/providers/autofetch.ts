@@ -136,6 +136,7 @@ interface QueueCandidate {
   seeders?: number;
   br?: boolean;
   dubbed?: boolean;
+  lied?: boolean;
   pool?: string;
   imdbId?: string;
   isPack?: boolean;
@@ -397,4 +398,3 @@ reindexQueues();
 reindexDead();
 
 export type { QueueCandidate };
-

@@ -81,14 +81,19 @@ export function idxPoolCovered(
   releases: any[],
   { season = null, episode = null }: { season?: number | null; episode?: number | null } = {},
 ) {
+  // O registro do Chupim fecha a memória da busca, não a cobertura da obra:
+  // o enqueue prova que escolhemos uma release, mas ainda não que o índice tem
+  // material suficiente para mandar Jackett/colhedor para o tail.
+  const coverageReleases = releases.filter((r) => r?.source !== 'autofetch');
+  if (coverageReleases.length === 0) return false;
   if (season != null && episode != null) {
-    const nomeados = releases.filter((r) => nomeiaEpisodio(r?.title, season, episode));
+    const nomeados = coverageReleases.filter((r) => nomeiaEpisodio(r?.title, season, episode));
     if (nomeados.length === 0) {
       metrics.count('search.idx.packOnly');
       return false;
     }
   }
-  return poolCovered(releases, { season, requireDubbed: false });
+  return poolCovered(coverageReleases, { season, requireDubbed: false });
 }
 
 /** Release do índice → item cru no formato que o buildStreams já consome. */
@@ -103,5 +108,7 @@ export function idxReleasesToRaw(releases: any[]) {
     isBr: r.isBr,
     dubbed: r.dubbed,
     lied: Boolean(r.lied),
+    quality: r.quality,
+    indexSource: r.source,
   }));
 }
