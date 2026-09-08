@@ -13,6 +13,7 @@ import {
   pickTopSeededCandidates,
 } from '../src/utils/format.js';
 import type { RawItem, Stream } from '../types/domain.js';
+import * as metrics from '../src/utils/metrics.js';
 
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
@@ -317,5 +318,59 @@ test('sortAndLimit em lote grande respeita o corte de maxResults', () => {
     const atual = seedersByHash.get(out[i].infoHash);
     assert.ok(anterior >= atual, `ordem quebrada na posição ${i}`);
   }
+});
+
+test('último recurso: QUALITY_FILTER reabre SD quando HD permitido está fraco', () => {
+  // The Locals (tt0387357): q=2160p,1080p,720p deixa só MagnetDownload 👤1;
+  // Kickass DVDRip 👤7 é SD e morria antes do Chupim. Relaxa só se nenhum
+  // permitido alcança o piso saudável (≥3); título com HD forte não muda.
+  const weakHd = stremioStream({
+    title: 'The Locals 2003 720p WEB-DL',
+    infoHash: HASH,
+    seeders: 1,
+  });
+  const healthySd = stremioStream({
+    title: 'The Locals 2003 DVDRip XviD',
+    infoHash: OTHER,
+    seeders: 7,
+  });
+  const filter = ['2160p', '1080p', '720p'] as never[];
+  const before = metrics.snapshot().counters['search.qualityFilter.relaxed'] || 0;
+  const sparse = sortAndLimit([weakHd, healthySd], {
+    minSeeders: 1,
+    maxResults: 10,
+    qualityFilter: filter,
+  });
+  assert.equal(sparse.length, 2, 'SD saudável entra quando HD filtrado é fraco');
+  assert.deepEqual(
+    new Set(sparse.map((s) => s.infoHash)),
+    new Set([HASH, OTHER]),
+  );
+  assert.equal(sparse[0].infoHash, HASH, 'HD continua acima de SD na ordenação');
+  assert.equal(
+    (metrics.snapshot().counters['search.qualityFilter.relaxed'] || 0) - before,
+    1,
+  );
+
+  const strongHd = stremioStream({
+    title: 'Popular Title 1080p WEB-DL',
+    infoHash: 'c'.repeat(40),
+    seeders: 40,
+  });
+  const before2 = metrics.snapshot().counters['search.qualityFilter.relaxed'] || 0;
+  const healthy = sortAndLimit([strongHd, healthySd], {
+    minSeeders: 1,
+    maxResults: 10,
+    qualityFilter: filter,
+  });
+  assert.deepEqual(
+    healthy.map((s) => s.infoHash),
+    [strongHd.infoHash],
+    'com HD ≥ piso saudável o filtro de qualidade não afrouxa',
+  );
+  assert.equal(
+    (metrics.snapshot().counters['search.qualityFilter.relaxed'] || 0) - before2,
+    0,
+  );
 });
 

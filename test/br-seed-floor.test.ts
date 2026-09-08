@@ -206,6 +206,66 @@ test('enqueue mantém o piso: sobrevivente do waiver não vira download; quem pa
   held.release(viavel, account);
 });
 
+test('último recurso: seeds abaixo do piso ainda aquecem quando BR/any vazios', async () => {
+  // Caso The Locals (tt0387357): Jackett acha torrents com 👤 1, piso efetivo
+  // do Chupim é 3 → pool seeds vazio → no-candidate → cachedOnly deixa a UI
+  // vazia para sempre. O relaxo para 1 só dispara quando o piso normal falhou.
+  const API_KEY = 'chave-seeds-relaxed';
+  const account = accountScope(API_KEY);
+  const run = (fn: () => unknown) => runtime.run(
+    {
+      opts: {
+        ...runtime.defaults(),
+        debridService: 'premiumize',
+        debridApiKey: API_KEY,
+        autoFetchBr: true,
+      },
+      encoded: 'cfg',
+    },
+    fn,
+  );
+  autofetchLive.set({ autoFetchTopSeeds: true, autoFetchMinSeeders: 3 });
+  try {
+    const obscure = {
+      infoHash: '9'.repeat(40),
+      name: 'The Locals 2003 720p WEB-DL 👤 1',
+      title: 'The Locals 2003 720p WEB-DL',
+      _quality: '720p',
+      _seeders: 1,
+    };
+    const dRelaxed = deltaOf('autofetch.top-seeded-relaxed');
+    const dNoCand = deltaOf('autofetch.no-candidate');
+    const out = (await run(() => autoFetchCandidates([obscure as any], {}))) as Array<
+      { stream: { infoHash?: string }; pool: string }
+    >;
+    assert.equal(out.length, 1, 'com 1 seeder e piso 3, o último recurso ainda enfileira');
+    assert.equal(out[0].pool, 'seeds');
+    assert.equal(String(out[0].stream.infoHash).toLowerCase(), '9'.repeat(40));
+    assert.equal(dRelaxed(), 1, 'métrica do relaxo fica visível');
+    assert.equal(dNoCand(), 0, 'não conta no-candidate quando o relaxo salvou');
+    held.release('9'.repeat(40), account);
+
+    // Controle: título saudável (≥ piso) NÃO passa pelo relaxo — o piso normal basta.
+    const healthy = {
+      infoHash: 'a'.repeat(40),
+      name: 'Popular Title 1080p WEB-DL 👤 12',
+      title: 'Popular Title 1080p WEB-DL',
+      _quality: '1080p',
+      _seeders: 12,
+    };
+    const dRelaxed2 = deltaOf('autofetch.top-seeded-relaxed');
+    const ok = (await run(() => autoFetchCandidates([healthy as any], {}))) as Array<
+      { stream: { infoHash?: string }; pool: string }
+    >;
+    assert.equal(ok.length, 1);
+    assert.equal(ok[0].pool, 'seeds');
+    assert.equal(dRelaxed2(), 0, 'saudável com seeders ≥ piso não incrementa o relaxo');
+    held.release('a'.repeat(40), account);
+  } finally {
+    autofetchLive.reset();
+  }
+});
+
 test('enqueue corta o waiver TAMBÉM no pool seeds (autoFetchMinSeeders=0)', async () => {
   const API_KEY = 'chave-piso-seeds-2';
   const account = accountScope(API_KEY);

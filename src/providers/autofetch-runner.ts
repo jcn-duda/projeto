@@ -125,10 +125,22 @@ export function autoFetchCandidates(
     }
   }
   if (candidates.length === 0 && live.autoFetchTopSeeds) {
-    candidates = pickTopSeededCandidates(liveStreams, new Set(), live.autoFetchTopSeedsMax + queueDepth, {
-      season, minSeeders: live.autoFetchMinSeeders,
-      ptFirst: live.autoFetchSeedsPtFirst,
+    const seedsLimit = live.autoFetchTopSeedsMax + queueDepth;
+    const seedsOpts = { season, ptFirst: live.autoFetchSeedsPtFirst };
+    candidates = pickTopSeededCandidates(liveStreams, new Set(), seedsLimit, {
+      ...seedsOpts, minSeeders: live.autoFetchMinSeeders,
     }).filter(isAutoFetchStream).filter(isViableForEnqueue);
+    // Último recurso: título obscuro onde o piso (default 3) esvazia o pool e
+    // não há BR/any. Sem candidato o Chupim não aquece nada e cachedOnly deixa
+    // a UI vazia para sempre. Relaxa para 1 — ainda exige alguém semeando; o
+    // autoFetchBrDubbed do pool seeds continua abortando se já houver ⚡.
+    // Títulos saudáveis nunca chegam aqui: o piso normal já encheu o pool.
+    if (candidates.length === 0 && live.autoFetchMinSeeders > 1) {
+      candidates = pickTopSeededCandidates(liveStreams, new Set(), seedsLimit, {
+        ...seedsOpts, minSeeders: 1,
+      }).filter(isAutoFetchStream).filter(isViableForEnqueue);
+      if (candidates.length > 0) metrics.count('autofetch.top-seeded-relaxed');
+    }
     pool = 'seeds';
     if (candidates.length > 0) metrics.count('autofetch.top-seeded');
   }

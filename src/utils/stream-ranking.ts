@@ -2,11 +2,14 @@ import { priorityMap, compareIndexerPriority } from './indexer-priority.js';
 import type { Stream } from '../../types/domain.js';
 import { UNKNOWN_QUALITY, audioFromTitle, sourceFromTitle, editionFromTitle, hasExplicitForeignAudio } from './audio-quality.js';
 import { parseTitleSeasonEpisode } from './episode-matching.js';
-import { selectQualityCandidates } from './stream-quotas.js';
+import { selectQualityCandidates, streamQuality } from './stream-quotas.js';
 import { streamDisplayName, passesQualityFilter } from './search-names.js';
 import { dropTrace } from './stream-trace.js';
 import type { StreamTraceState, TraceReason } from './stream-trace.js';
 import * as metrics from './metrics.js';
+
+/** Piso "saudável" espelhando pack/Chupim: abaixo disso HD filtradão é fraco. */
+const QUALITY_RELAX_HEALTHY_SEEDERS = 3;
 import {
   DUBBED_QUALITY_WEIGHT,
   AUTOFETCH_TARGET_QUALITIES,
@@ -208,7 +211,34 @@ function sortAndLimit(
     metrics.count('search.brDubbed.seedFloorWaived');
     return true;
   });
-  candidates = filtrar(candidates, 'quality-filter', (s) => passesQualityFilter(s, qualityFilter, qualityLimits));
+  // Whitelist de qualidade: título obscuro (The Locals / tt0387357) só resta
+  // HD fraco (👤 1) enquanto DVDRip com swarm maior é SD e morre antes do
+  // Chupim. Se o conjunto permitido está vazio OU sem ninguém no piso
+  // saudável (≥ max(minSeeders, 3)), reabre SD/480p/sem resolução — último
+  // recurso. Título com 720/1080/2160 saudável não passa por aqui.
+  const qualityOk = (s: any) => passesQualityFilter(s, qualityFilter, qualityLimits);
+  let qualityKeep: Set<any> | null = null;
+  if (qualityFilter.length > 0) {
+    const allowed = candidates.filter(qualityOk);
+    const healthyFloor = Math.max(Number(minSeeders) || 0, QUALITY_RELAX_HEALTHY_SEEDERS);
+    const strong = allowed.some((s) => (s._seeders || 0) >= healthyFloor);
+    if (!strong) {
+      const fallback = candidates.filter((s) => {
+        if (qualityOk(s)) return false;
+        const q = streamQuality(s);
+        return q === 'SD' || q === '480p' || q === UNKNOWN_QUALITY;
+      });
+      if (fallback.length > 0) {
+        qualityKeep = new Set([...allowed, ...fallback]);
+        metrics.count('search.qualityFilter.relaxed');
+      }
+    }
+  }
+  candidates = filtrar(
+    candidates,
+    'quality-filter',
+    (s) => (qualityKeep ? qualityKeep.has(s) : qualityOk(s)),
+  );
   candidates = filtrar(candidates, 'cam-excluded', (s) => !excludeCam || sourceFromTitle(s.title) !== 'CAM');
   // Tamanho ausente não é tratado como zero real: sem dado confiável, o
   // stream continua visível em vez de ser descartado silenciosamente.
