@@ -216,12 +216,19 @@ function sortAndLimit(
   // 1 fixo), então qualquer piso de saúde afrouxaria o filtro do usuário em
   // busca BR normal. O último recurso também escapa das cotas de
   // `qualityLimits` — é o preço de não devolver lista vazia.
+  const notCam = (s: any) => !excludeCam || sourceFromTitle(s.title) !== 'CAM';
+  // Tamanho ausente não é tratado como zero real: sem dado confiável, o
+  // stream continua visível em vez de ser descartado silenciosamente.
+  const fitsSize = (s: any) => !maxSizeBytes || !s._size || s._size <= maxSizeBytes;
   const qualityOk = (s: any) => passesQualityFilter(s, qualityFilter, qualityLimits);
   let qualityKeep: Set<any> | null = null;
   if (qualityFilter.length > 0 && !candidates.some(qualityOk)) {
+    // O fallback já respeita CAM e tamanho: reabrir um SD que morreria no
+    // filtro seguinte não salva a lista, só faria a métrica mentir sobre
+    // quantas buscas o último recurso realmente resgatou.
     const fallback = candidates.filter((s) => {
       const q = streamQuality(s);
-      return q === 'SD' || q === '480p' || q === UNKNOWN_QUALITY;
+      return (q === 'SD' || q === '480p' || q === UNKNOWN_QUALITY) && notCam(s) && fitsSize(s);
     });
     if (fallback.length > 0) {
       qualityKeep = new Set(fallback);
@@ -233,10 +240,8 @@ function sortAndLimit(
     'quality-filter',
     (s) => (qualityKeep ? qualityKeep.has(s) : qualityOk(s)),
   );
-  candidates = filtrar(candidates, 'cam-excluded', (s) => !excludeCam || sourceFromTitle(s.title) !== 'CAM');
-  // Tamanho ausente não é tratado como zero real: sem dado confiável, o
-  // stream continua visível em vez de ser descartado silenciosamente.
-  candidates = filtrar(candidates, 'size-limit', (s) => !maxSizeBytes || !s._size || s._size <= maxSizeBytes);
+  candidates = filtrar(candidates, 'cam-excluded', notCam);
+  candidates = filtrar(candidates, 'size-limit', fitsSize);
 
   const exactFlag = new Map();
   if (season != null && episode != null) {

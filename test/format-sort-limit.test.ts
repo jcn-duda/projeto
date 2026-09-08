@@ -385,3 +385,38 @@ test('último recurso: QUALITY_FILTER reabre SD só quando o permitido some', ()
   assert.equal(relaxed() - before3, 0);
 });
 
+test('último recurso não conta quando o SD reaberto morre no CAM/tamanho', () => {
+  const relaxed = () => metrics.snapshot().counters['search.qualityFilter.relaxed'] || 0;
+  const filter = ['2160p', '1080p', '720p'] as never[];
+  const camSd = stremioStream({
+    title: 'The Locals 2003 CAM XviD',
+    infoHash: HASH,
+    seeders: 7,
+  });
+  const before = relaxed();
+  const soCam = sortAndLimit([camSd], {
+    minSeeders: 1,
+    maxResults: 10,
+    qualityFilter: filter,
+    excludeCam: true,
+  });
+  assert.equal(soCam.length, 0, 'CAM não é resgatado pelo último recurso');
+  assert.equal(relaxed() - before, 0, 'métrica não conta resgate que não aconteceu');
+
+  const hugeSd = stremioStream({
+    title: 'The Locals 2003 DVDRip XviD',
+    infoHash: OTHER,
+    seeders: 7,
+    size: 80 * 1024 ** 3,
+  });
+  const before2 = relaxed();
+  const soHuge = sortAndLimit([hugeSd], {
+    minSeeders: 1,
+    maxResults: 10,
+    qualityFilter: filter,
+    maxSizeGb: 5,
+  });
+  assert.equal(soHuge.length, 0, 'SD acima do teto de tamanho não é resgatado');
+  assert.equal(relaxed() - before2, 0);
+});
+
