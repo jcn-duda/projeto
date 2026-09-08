@@ -326,8 +326,10 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
         ? covered.has(q)
         : hasCachedBrDubbed(streams, cached);
       if (drop) {
-        const hash = String(selected.stream.infoHash || '').toLowerCase();
-        if (cached.has(hash)) noteSkip('already-cached', selected.stream, debrid.current()?.id || '', poolName);
+        // A cobertura pode vir de OUTRO hash da mesma obra/faixa que o índice
+        // recolocou no lote. O skip é por cache já tocável, não por igualdade
+        // de hash — é assim que buscas repetidas deixam de baixar duplicatas.
+        noteSkip('already-cached', selected.stream, debrid.current()?.id || '', poolName);
         // Hold foi adquirido ANTES do checkCached — liberar um a um os que
         // a cobertura já resolveu, senão o hash fica imune ao dropUncached.
         held.release(String(selected.stream.infoHash || ''), selected.account);

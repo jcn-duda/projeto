@@ -171,6 +171,7 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
     resolveSecret: config.debrid.resolveSecret,
   };
   const hash = 'e7'.repeat(20);
+  const alternateHash = 'e8'.repeat(20);
   const imdbId = 'tt0119081';
   const apiKey = 'f4-ciclo-chave';
   const searchKey = 'f4-autofetch-index-cycle';
@@ -178,7 +179,6 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
   let ready = false;
   let enqueueCount = 0;
   let server: Awaited<ReturnType<typeof createTestServer>> | null = null;
-
   try {
     config.jackett.apiKey = 'f4-jackett-fake';
     config.tmdb.apiKey = 'f4-tmdb-fake';
@@ -190,11 +190,18 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
       return true;
     };
     adapter.inventory = async () => [];
-    debrid.checkCached = async (hashes) => ({
-      cached: new Set(ready ? hashes.map((h) => String(h).toLowerCase()) : []),
+    debrid.checkCached = async () => ({
+      cached: new Set(ready ? [hash] : []),
       known: true,
     });
-    jackett.search = async () => [];
+    jackett.search = async () => [{
+      title: 'O Enigma do Horizonte 1997 1080p DUBLADO alternativa',
+      infoHash: alternateHash,
+      indexer: 'hdrtorrent',
+      isBr: true,
+      dubbed: true,
+      seeders: 99,
+    }];
     server = await createTestServer(createApp().app);
 
     await withMockFetch([
@@ -219,7 +226,6 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
         applyDebrid([candidate], { imdbId, searchKey } as any)) as Stream[];
       assert.equal(first.length, 0, 'cachedOnly oculta a BR ainda fria na primeira abertura');
       await new Promise((resolve) => setImmediate(resolve));
-
       assert.equal(enqueueCount, 1);
       const indexed = releaseIndex.lookupQuiet(imdbId);
       assert.equal(indexed[0]?.hash, hash);
@@ -233,7 +239,8 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
       const second = await server!.request('GET', `/${cfg}/stream/movie/${imdbId}.json`);
       assert.equal(second.status, 200);
       assert.ok(JSON.stringify(second.json.streams || []).toLowerCase().includes(hash));
-      assert.equal(enqueueCount, 1, 'a release pronta não volta para a conta');
+      assert.equal(enqueueCount, 1, 'outro hash da mesma obra/faixa não volta para a conta');
+      assert.ok((metrics.snapshot().counters['autofetch.skip.already-cached'] || 0) >= 1);
       // O fast-path provisional enriquece no tail. Deixe-o assentar ainda sob
       // os dublês; restaurar fetch/adapter antes faria rede real após o teste.
       await sleep(100);

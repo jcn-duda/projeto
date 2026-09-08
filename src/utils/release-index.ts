@@ -137,7 +137,8 @@ function record(
         indexer: String(item.indexer || item.tracker || prior?.indexer || ''),
         isBr,
         dubbed: Boolean(dubbed) || Boolean(prior?.dubbed),
-        quality: String(item.quality || qualityFromTitle(title)),
+        // Só o autofetch confia na classificação do item; provider público mantém a regra pelo título.
+        quality: String(itemSource === 'autofetch' && item.quality ? item.quality : qualityFromTitle(title)),
         seeders: Number(item.seeders ?? item.Seeders ?? 0) || 0,
         seenAt: now,
         // Campo aditivo: uma nova coleta não pode apagar prova de play/tail.
@@ -155,7 +156,6 @@ function record(
   if (added > 0) metrics.count('search.idx.grown');
   return added;
 }
-
 /**
  * Consulta por obra: episódio primeiro, temporada como fallback (pack cobre os
  * episódios dela — a desqualificação fina por episódio continua sendo papel do
