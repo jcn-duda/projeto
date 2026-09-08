@@ -21,6 +21,7 @@ import {
 } from '../utils/format.js';
 import { ptSweepIndexers, ptSweepQueryFor } from './search-plan.js';
 import * as releaseIndex from '../utils/release-index.js';
+import { hasBrDubbed, invalidateStreamsForObra } from '../utils/br-gap.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import rdWarmer from './rd-warmer.js';
@@ -303,9 +304,22 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // preempção por tráfego): a obra volta à fila e o fast-path da busca fica
   // bloqueado até uma gravação completa regravar (last-write-wins limpa o
   // flag). Falha de rede e varredura pt parcial NÃO marcam — o laço seguiu.
-  const added = releaseIndex.record(entry.imdbId, { season: entry.season, episode: entry.episode }, relevant, {
+  const location = { season: entry.season, episode: entry.episode };
+  // Transição do índice: antes SEM BR dublado comprovado, agora CON ele. A
+  // lista `streams:vN` que a busca guardou quando o índice ainda não cobria
+  // BR não pode seguir sendo servida na próxima abertura — invalida as claves
+  // de streams da obra para que a próxima request reconstrua a partir do
+  // índice agora completo (é isto o que resolve a lacuna br-gap criada na
+  // busca).
+  const beforeHasBr = hasBrDubbed(releaseIndex.lookupQuiet(entry.imdbId, location));
+  const added = releaseIndex.record(entry.imdbId, location, relevant, {
     partial: capped || preempted,
   });
+  if (!beforeHasBr && hasBrDubbed(releaseIndex.lookupQuiet(entry.imdbId, location))) {
+    const cleared = invalidateStreamsForObra(entry.imdbId);
+    metrics.count('harvest.transition.br');
+    if (cleared > 0) metrics.count('harvest.transition.br.invalidated', cleared);
+  }
   if (config.debrid.rdWarm.enabled && rdWarmer.rdInPlay() && relevant.length) {
     const scoresByHash = new Map<string, number>();
     for (const r of relevant) {

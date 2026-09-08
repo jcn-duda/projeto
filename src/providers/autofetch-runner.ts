@@ -81,6 +81,23 @@ export function autoFetchCandidates(
   const liveStreams = streams.filter((s) => !s.infoHash || !autofetch.isDead(adapter!.id, account, s.infoHash));
   const live = autofetchLive.effective();
 
+  // Espelho do waiver do piso em sortAndLimit: o waiver existe para o item
+  // alcançar a CHECAGEM do debrid (cache não precisa de swarm) e a reserva BR —
+  // não para o Chupim BAIXAR o que ninguém semeia. Torrent abaixo do piso é
+  // download que não termina e, no pool br da AllDebrid, viraria acervo
+  // protegido (protectBr) eterno sem nunca tocar. O waiver viaja marcado
+  // (`_seedFloorWaived`, setado no próprio corte do piso), então o corte aqui é
+  // exato: sobrevivente do waiver não vira candidato; quem PASSOU pelo piso na
+  // listagem segue elegível como sempre. Vale para os TRÊS pools — inclusive o
+  // de swarm: com `autoFetchMinSeeders=0` o piso próprio do seeds não filtra e
+  // só este corte impede que o waiver seja baixado.
+  const isSeedFloorWaived = (s: AutoFetchStream) => Boolean(s._seedFloorWaived);
+  const isViableForEnqueue = (s: AutoFetchStream) => {
+    if (!isSeedFloorWaived(s)) return true;
+    metrics.count('autofetch.seed-floor-skipped');
+    return false;
+  };
+
   const queueDepth = live.autoFetchQueue ? live.autoFetchQueueDepth : 0;
   const totalMax = live.autoFetchMax + queueDepth;
 
@@ -88,10 +105,14 @@ export function autoFetchCandidates(
   // (720/1080/4K); recusar o nível `any` não pode abortar a busca inteira —
   // o corte antigo (`return []`) matava o terceiro nível justamente quando
   // o operador pediu só a rede de segurança de swarm.
-  let candidates = pickBrDubbedByTargetQualities(liveStreams, new Set(), totalMax, { season }).filter(isAutoFetchStream);
+  let candidates = pickBrDubbedByTargetQualities(liveStreams, new Set(), totalMax, { season })
+    .filter(isAutoFetchStream)
+    .filter(isViableForEnqueue);
   let pool = 'br';
   const dubbedGlobal = candidates.length === 0
-    ? pickAnyDubbedCandidates(liveStreams, new Set(), totalMax, { season }).filter(isAutoFetchStream)
+    ? pickAnyDubbedCandidates(liveStreams, new Set(), totalMax, { season })
+        .filter(isAutoFetchStream)
+        .filter(isViableForEnqueue)
     : [];
   if (dubbedGlobal.length > 0) {
     if (live.autoFetchAnyDubbed) {
@@ -106,7 +127,7 @@ export function autoFetchCandidates(
     candidates = pickTopSeededCandidates(liveStreams, new Set(), live.autoFetchTopSeedsMax + queueDepth, {
       season, minSeeders: live.autoFetchMinSeeders,
       ptFirst: live.autoFetchSeedsPtFirst,
-    }).filter(isAutoFetchStream);
+    }).filter(isAutoFetchStream).filter(isViableForEnqueue);
     pool = 'seeds';
     if (candidates.length > 0) metrics.count('autofetch.top-seeded');
   }

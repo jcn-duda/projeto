@@ -74,9 +74,16 @@ function makeFetch(): JackettFetch {
 
 async function withJackett(fetchImpl: any, fn: any) {
   const realFetch = globalThis.fetch;
-  const saved = { url: config.jackett.url, apiKey: config.jackett.apiKey };
+  const saved = {
+    url: config.jackett.url,
+    apiKey: config.jackett.apiKey,
+    resolveDownloadIndexers: config.jackett.resolveDownloadIndexers,
+  };
   config.jackett.url = 'http://jackett.test';
   config.jackett.apiKey = 'test-key';
+  // Estes testes isolam o contrato de categoria; resolução e dedupe por hash
+  // pertencem à suíte do provider e mascarariam itens com categorias distintas.
+  config.jackett.resolveDownloadIndexers = [];
   globalThis.fetch = fetchImpl as unknown as typeof globalThis.fetch;
   cache.clear();
   try {
@@ -86,6 +93,7 @@ async function withJackett(fetchImpl: any, fn: any) {
     globalThis.fetch = realFetch;
     config.jackett.url = saved.url;
     config.jackett.apiKey = saved.apiKey;
+    config.jackett.resolveDownloadIndexers = saved.resolveDownloadIndexers;
   }
 }
 
@@ -104,6 +112,10 @@ const SERIES_CTX = {
   season: 1,
   episode: 1,
 };
+
+// MagnetDownload: query sem Category[] (a definition stock devolve 0 com ele) E sem
+// filtro local. O Category da resposta é só Other/8000, então um balde local
+// descartaria TODO o acervo — a relevância/título decide.
 
 function categoryParams(fetchImpl: JackettFetch) {
   return fetchImpl.calls
@@ -165,5 +177,75 @@ test('série no thepiratebay filtra pelo balde 5000', async () => {
     });
     assert.deepEqual(categoryParams(fetchImpl), [[]]);
     assert.deepEqual(items.map((i: any) => i.title), ['Joker S01E01 1080p WEB-DL']);
+  });
+});
+
+test('magnetdownload consulta SEM Category[] E sem filtro local (filme)', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = () => fakeResponse({ Results: [
+    // Só Other/8000 na response: é o que a definition stock declara. Um filtro
+    // local por balde 2000 descartaria estas releases — aqui passam todas, e a
+    // relevância/título decide o que sobrevive no pós-processamento.
+    { Title: 'Beyond Re-Animator 2003 1080p WEBRip', Seeders: 9, MagnetUri: MAGNET, Category: [8000] },
+    { Title: 'Beyond Re-Animator 2003 720p HDRip', Seeders: 5, MagnetUri: MAGNET, Category: [8000] },
+    // Item sem Category: também passa (metadado ausente nunca custa release).
+    { Title: 'Beyond Re-Animator 2003 DVDRip', Seeders: 1, MagnetUri: MAGNET },
+  ] });
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search('Beyond Re-Animator', 'movie', ['magnetdownload'], {
+      matchContext: BEYOND_CTX,
+    });
+    assert.deepEqual(categoryParams(fetchImpl), [[]]);
+    assert.deepEqual(items.map((i: any) => i.title).sort(), [
+      'Beyond Re-Animator 2003 1080p WEBRip',
+      'Beyond Re-Animator 2003 720p HDRip',
+      'Beyond Re-Animator 2003 DVDRip',
+    ]);
+  });
+});
+
+test('magnetdownload consulta SEM Category[] E sem filtro local (série)', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = () => fakeResponse({ Results: [
+    // A MESMA resposta do teste de série do TPB: 5040 (episódio) + 2040
+    // (filme). O TPB filtra localmente e fica só com o 5040; o MagnetDownload não
+    // tem filtro local, então AMBOS sobrevivem ao mapResults — a relevância/
+    // título é o que decide fora da categoria.
+    { Title: 'Joker S01E01 1080p WEB-DL', Seeders: 9, MagnetUri: MAGNET, Category: [5040] },
+    { Title: 'Joker 2019 1080p BluRay', Seeders: 9, MagnetUri: MAGNET, Category: [2040] },
+  ] });
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search('Joker S01E01', 'series', ['magnetdownload'], {
+      matchContext: SERIES_CTX,
+    });
+    assert.deepEqual(categoryParams(fetchImpl), [[]]);
+    assert.deepEqual(items.map((i: any) => i.title).sort(), [
+      'Joker 2019 1080p BluRay',
+      'Joker S01E01 1080p WEB-DL',
+    ]);
+  });
+});
+
+test('magnetdownload não filtra por balde: item de outro tipo sobrevive no mapResults', async () => {
+  // Controle negativo da isenção: aqui ninguém aplica filtro local, ao contrário
+  // do thepiratebay no primeiro teste. Os três Category diferentes entram.
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = () => fakeResponse({ Results: [
+    { Title: 'Beyond Re-Animator 2003 A', Seeders: 9, MagnetUri: MAGNET, Category: [2040] },
+    { Title: 'Beyond Re-Animator 2003 B', Seeders: 5, MagnetUri: MAGNET, Category: [5040] },
+    { Title: 'Beyond Re-Animator 2003 C', Seeders: 3, MagnetUri: MAGNET, Category: [8000] },
+  ] });
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search('Beyond Re-Animator', 'movie', ['magnetdownload']);
+    // Sem matchContext (nome) o queryIndexer não aplica relevância; o que prova
+    // a isenção é que os três buckets não sofreram filtro local.
+    assert.deepEqual(items.map((i: any) => i.title).sort(), [
+      'Beyond Re-Animator 2003 A',
+      'Beyond Re-Animator 2003 B',
+      'Beyond Re-Animator 2003 C',
+    ]);
   });
 });

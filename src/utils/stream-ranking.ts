@@ -1,11 +1,12 @@
 import { priorityMap, compareIndexerPriority } from './indexer-priority.js';
 import type { Stream } from '../../types/domain.js';
-import { UNKNOWN_QUALITY, audioFromTitle, sourceFromTitle, editionFromTitle } from './audio-quality.js';
+import { UNKNOWN_QUALITY, audioFromTitle, sourceFromTitle, editionFromTitle, hasExplicitForeignAudio } from './audio-quality.js';
 import { parseTitleSeasonEpisode } from './episode-matching.js';
 import { selectQualityCandidates } from './stream-quotas.js';
 import { streamDisplayName, passesQualityFilter } from './search-names.js';
 import { dropTrace } from './stream-trace.js';
 import type { StreamTraceState, TraceReason } from './stream-trace.js';
+import * as metrics from './metrics.js';
 import {
   DUBBED_QUALITY_WEIGHT,
   AUTOFETCH_TARGET_QUALITIES,
@@ -182,7 +183,31 @@ function sortAndLimit(
   };
 
   let candidates = dedupeByHash(streams, indexerPriority, trace);
-  candidates = filtrar(candidates, 'min-seeders', (s) => (s._seeders || 0) >= minSeeders);
+  // Piso de seeders: release COMPROVADAMENTE BR dublada (_br + _dubbed) sobrevive
+  // ao piso quando não há `_lied` (auditoria de áudio) nem idioma estrangeiro
+  // explícito no título. O piso existe para não oferecer torrent morto em P2P;
+  // mas no debrid a release em CACHE toca sem swarm nenhum — e se o item morresse
+  // aqui, a checagem nunca mediria o hash e a reserva BR nunca o veria. Medido
+  // em produção: Event Horizon (tt0119081)
+  // "Event.Horizon.1997.1080p.BDRip.DUBLADO.PT.BR" com 0 seeders no tracker
+  // global, cacheada no TorBox, eliminada antes do cachedOnly. O waiver NÃO
+  // afrouxa para Dual ambíguo (`_dubbed` já exige prova PT — invariante 8.12),
+  // para o global comum (sem `_br`), nem para o condenado pela auditoria. Ele
+  // não promove na ordenação: o item entra com o `_seeders` real e perde o
+  // desempate como sempre. BAIXAR continua exigindo o piso — espelho do corte
+  // em autofetch-runner (isSeedFloorWaived), porque cache dispensa swarm e
+  // download não.
+  const isProvenBrDubbed = (s: any) =>
+    Boolean(s?._br) && Boolean(s?._dubbed) && !s?._lied &&
+    !hasExplicitForeignAudio(String(s?.title || s?.name || ''));
+  const waived = new Set<any>();
+  candidates = filtrar(candidates, 'min-seeders', (s) => {
+    if ((s._seeders || 0) >= minSeeders) return true;
+    if (!isProvenBrDubbed(s)) return false;
+    waived.add(s);
+    metrics.count('search.brDubbed.seedFloorWaived');
+    return true;
+  });
   candidates = filtrar(candidates, 'quality-filter', (s) => passesQualityFilter(s, qualityFilter, qualityLimits));
   candidates = filtrar(candidates, 'cam-excluded', (s) => !excludeCam || sourceFromTitle(s.title) !== 'CAM');
   // Tamanho ausente não é tratado como zero real: sem dado confiável, o
@@ -248,7 +273,13 @@ function sortAndLimit(
     // marca de áudio venceria mesmo quando existe uma explicitamente dublada.
     // `_indexer` idem, para a cota por indexador do corte final; quem apaga
     // todos os campos internos é `limitReservingBr`.
-    .map(({ _seeders, _size, ...rest }: any) => rest);
+    .map((s: any) => {
+      const { _seeders, _size, ...rest } = s;
+      // O waiver viaja MARCADO (`_seedFloorWaived`) para o enqueue do autofetch
+      // não baixar o que o piso dispensou: cache não precisa de swarm, download
+      // sim. A marca é interna e morre no limitReservingBr, junto das outras.
+      return waived.has(s) ? { ...rest, _seedFloorWaived: true } : rest;
+    });
 }
 
 export {

@@ -128,6 +128,12 @@ export interface StreamBase {
   _multiWork?: boolean;
   /** Evidência medida de post dublado com arquivos EN; nunca vai ao cliente. */
   _lied?: boolean;
+  /**
+   * Sobreviveu ao piso de seeders pelo waiver BR dublado (sortAndLimit). Marca
+   * interna para o enqueue do autofetch NÃO baixar o que o piso dispensou —
+   * cache não precisa de swarm, download sim. Morre no limitReservingBr.
+   */
+  _seedFloorWaived?: boolean;
   /** Marca interna do item de aviso — some antes do Stremio receber. */
   notice?: true;
 }

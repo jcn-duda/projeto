@@ -4,7 +4,7 @@ import * as cache from '../utils/cache.js';
 import { filterRelevantRaw } from '../utils/format.js';
 import * as log from '../utils/logger.js';
 import { prefix } from '../utils/cache-keys.js';
-import { mapResults, indexerFailure, CATEGORY_UNFILTERED_INDEXERS } from './jackett-results.js';
+import { mapResults, indexerFailure, CATEGORY_UNFILTERED_INDEXERS, UNRELIABLE_CATEGORY_INDEXERS } from './jackett-results.js';
 import { shapeSearchQuery, budgetFor } from './jackett-query.js';
 import { remaining, MIN_RESOLVE_BUDGET, resolveCardigannDownloads } from './jackett-resolve.js';
 
@@ -76,9 +76,17 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     endpoint.searchParams.set('Query', searchQuery);
     // 2000 = Movies, 5000 = TV nos indexers Torznab
     const categoryBucket = type === 'movie' ? 2000 : type === 'series' ? 5000 : 0;
-    // Quem não aguenta categoria na URL filtra depois, sobre a resposta.
-    const filterLocally = CATEGORY_UNFILTERED_INDEXERS.has(indexer);
-    if (categoryBucket && !filterLocally) {
+    // Indexers que devolvem 0 com `Category[]` na URL saem sem categoria.
+    const noCategoryInUrl = CATEGORY_UNFILTERED_INDEXERS.has(indexer);
+    // MagnetDownload nem tolera `Category[]` nem distingue o tipo no `Category` da
+    // resposta (só Other/8000): além de sair sem categoria, pula o filtro
+    // local por balde — senão o `mapResults` descartaria TODO o acervo. Um
+    // indexer que não aguanta a URL mas devolve `Category` útil (TPB) segue
+    // filtrando localmente pelo balde.
+    const unreliableCategory = UNRELIABLE_CATEGORY_INDEXERS.has(indexer);
+    const filterLocally = noCategoryInUrl && !unreliableCategory;
+    const sendCategoryInUrl = !(noCategoryInUrl || unreliableCategory);
+    if (sendCategoryInUrl && categoryBucket) {
       endpoint.searchParams.append('Category[]', String(categoryBucket));
     }
     const budget = remaining(deadline);

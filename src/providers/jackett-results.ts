@@ -16,6 +16,20 @@ import { decodeEntities, looksPtBr } from '../utils/format.js';
 export const CATEGORY_UNFILTERED_INDEXERS = new Set(['thepiratebay']);
 
 /**
+ * Indexers que, além de devolver ZERO quando a query leva `Category[]`, têm o
+ * `Category` da resposta inútil para filtrar o tipo.
+ *
+ * A definition stock do MagnetDownload só declara `Other/8000`, então um filtro
+ * local por balde (2000 ff./5000 ff.) descartaria TODO o acervo — mesmo que a
+ * query saia sem categoria, o `mapResults` faria o mesmo estrago que o
+ * parámetro na URL. Aqui URL e local saem desligados de propósito: a
+ * relevância/título (`filterRelevantRaw`, `matchesBrTitle`) controla sozinha.
+ * Isolado do TPB porque ele consegue filtrar local pelo `Category` da
+ * resposta — neste indexer o campo nem distingue filme de série.
+ */
+export const UNRELIABLE_CATEGORY_INDEXERS = new Set(['magnetdownload']);
+
+/**
  * Balde Torznab do tipo: 2000–2999 = filme, 5000–5999 = TV. O `Category` do
  * Jackett traz o id fino (2040 = Movies/HD) junto de ids de tracker fora da
  * faixa Torznab (100207), então o teste é por faixa. Resultado sem categoria

@@ -13,6 +13,7 @@ import { SAFE_INDEXER_ID } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { collectRaw } from './collect-orchestrator.js';
 import { idxPoolCovered, idxReleasesToRaw } from './search-pool-coverage.js';
+import { shouldBrGap, hasBrDubbed } from '../utils/br-gap.js';
 
 export interface IndexAttemptInput {
   query: string;
@@ -74,6 +75,20 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
       metrics.count('search.idx.hit');
       metrics.count('search.idx.served', indexed.length);
       servedFromIndex = true;
+      // BR-gap: o pool está coberto mas o índice NÃO traz BR dublado comprovado
+      // (isBr && dubbed && !lied). Os index-only nunca entram pela busca viva
+      // nem pelo enriquecimento do tail — `idxPoolCovered` já deu true —, então
+      // o dublado BR dessa obra fica inalcançável salvo que o COLHEDOR o busque
+      // em background. O dedupe TTL do enqueue (obra+razão) evita re-enfileirar
+      // a cada busca; por isso a métrica conta a TENTATIVA (`attempt`), não um
+      // enqueue efetivo: `harvester.enqueue` é fogo-e-esquece e devolve void.
+      // Control: com BR presente não há lacuna e conta o caso servido.
+      if (shouldBrGap(indexed, config.jackett.indexOnlyIndexers.length > 0)) {
+        metrics.count('search.idx.brGap.attempt');
+        harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'br-gap' });
+      } else if (hasBrDubbed(indexed)) {
+        metrics.count('search.idx.brGap.served');
+      }
       // dinv entra na resposta imediata junto (idx + conta): o que já está
       // pronto na conta vira ⚡ sem indexer nenhum. Teto curto: a primeira
       // leitura do inventário custa ~700ms e a resposta não pode esperá-la.

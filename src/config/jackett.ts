@@ -21,12 +21,12 @@ export const jackett = () => ({
   statusTtl: num(process.env.JACKETT_STATUS_TTL, 900),
   // Cardigann pode entregar o magnet apenas no endpoint Link. Resolvemos
   // sob demanda somente nos indexadores locais explicitamente permitidos.
-  // Os cinco entregam Link em vez de magnet: fora desta lista, o resultado
-  // é descartado por falta de infoHash. Com só dois aqui, bludv e
-  // torrentdosfilmes perdiam ~2/3 do que achavam.
+  // Os seis entregam Link em vez de magnet: fora desta lista, o resultado
+  // é descartado por falta de infoHash. O MagnetDownload usa um `/dl` lazy
+  // mesmo na definição stock; sem este opt-in todo o acervo chega intocável.
   resolveDownloadIndexers: list(
     process.env.JACKETT_RESOLVE_DOWNLOAD_INDEXERS ||
-      'comandotorrents,nerdfilmes,bludv-cardigann,torrentdosfilmesv2,vacatorrent',
+      'comandotorrents,nerdfilmes,bludv-cardigann,torrentdosfilmesv2,vacatorrent,magnetdownload',
   ),
   resolveConcurrency: num(process.env.JACKETT_RESOLVE_CONCURRENCY, 10),
   maxDownloadResolves: num(process.env.JACKETT_MAX_DOWNLOAD_RESOLVES, 20),
@@ -71,7 +71,7 @@ export const jackett = () => ({
   // os resultados. Com 20s eles abortavam igual, só 16s mais tarde, gastando
   // Chromium à toa. Fora da lista de indexers é o lugar deles.
   slowIndexers: list(
-    process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent,apachetorrent,hdrtorrent',
+    process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent,apachetorrent,hdrtorrent,magnetdownload',
   ),
   // Fora do caminho da resposta, DENTRO do sistema: estes indexers não
   // recebem busca ao vivo de nenhum usuário (latência medida de 8–31s contra

@@ -11,6 +11,7 @@ import { prefix } from '../utils/cache-keys.js';
 import * as metrics from '../utils/metrics.js';
 import * as releaseIndex from '../utils/release-index.js';
 import * as harvesterLive from '../utils/harvester-live.js';
+import { hasBrDubbed } from '../utils/br-gap.js';
 
 export type HarvestEntry = {
   imdbId: string;
@@ -42,9 +43,9 @@ export function obraIdentity(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'ep
  */
 function brEvidenceRank(entry: HarvestEntry): number {
   if (entry.reason === 'next-episode') return 3;
-  // Evidência por OBRA (pack cobre a temporada), nunca release lied: o post
+  // Evidência por OBRA (pack cobre a temporada), mesma regra BR-gap/F3: o post
   // que prometia PT mas era EN não prova BR tocável — só enganaria a fila.
-  if (releaseIndex.lookupQuiet(entry.imdbId, { season: entry.season, episode: entry.episode }).some((r) => r.isBr && r.dubbed && !r.lied)) return 2;
+  if (hasBrDubbed(releaseIndex.lookupQuiet(entry.imdbId, { season: entry.season, episode: entry.episode }))) return 2;
   return 0;
 }
 
