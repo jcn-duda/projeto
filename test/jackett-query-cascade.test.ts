@@ -212,10 +212,18 @@ test('título pt-BR com ano zerado cai no degrau sem ano e acha o dublado', asyn
 test('prazo esgotado impede a variante numérica (sem chamada extra)', async () => {
   const fetchImpl = makeFetch();
   const savedTimeout = config.jackett.brIndexerTimeout;
-  config.jackett.brIndexerTimeout = 1; // orçamento exaurido ainda na primária
-  fetchImpl.handler = (call) => {
-    if (call.url.includes('/results')) return fakeResponse({ Results: [] });
-    return fakeResponse(null, { status: 404 });
+  // A primária PRECISA sair; quem não pode sair é o degrau seguinte. Um
+  // orçamento de 1ms fazia disso uma corrida: sob carga o prazo queimava entre
+  // `started` e o check da própria primária, ela lançava `timeout` e o teste
+  // via ZERO chamada. Aqui o orçamento é folgado na entrada (500ms, margem
+  // enorme para o agendamento) e é a RESPOSTA da primária que o consome —
+  // determinístico dos dois lados, sem depender da carga da máquina.
+  config.jackett.brIndexerTimeout = 500;
+  fetchImpl.handler = async (call) => {
+    if (!call.url.includes('/results')) return fakeResponse(null, { status: 404 });
+    // Volta com o prazo já vencido: a cascata exige `remaining > MIN_RESOLVE_BUDGET`.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return fakeResponse({ Results: [] });
   };
   try {
     await withJackett(fetchImpl, async () => {
