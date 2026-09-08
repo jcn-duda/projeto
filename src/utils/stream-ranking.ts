@@ -7,9 +7,6 @@ import { streamDisplayName, passesQualityFilter } from './search-names.js';
 import { dropTrace } from './stream-trace.js';
 import type { StreamTraceState, TraceReason } from './stream-trace.js';
 import * as metrics from './metrics.js';
-
-/** Piso "saudável" espelhando pack/Chupim: abaixo disso HD filtradão é fraco. */
-const QUALITY_RELAX_HEALTHY_SEEDERS = 3;
 import {
   DUBBED_QUALITY_WEIGHT,
   AUTOFETCH_TARGET_QUALITIES,
@@ -211,27 +208,24 @@ function sortAndLimit(
     metrics.count('search.brDubbed.seedFloorWaived');
     return true;
   });
-  // Whitelist de qualidade: título obscuro (The Locals / tt0387357) só resta
-  // HD fraco (👤 1) enquanto DVDRip com swarm maior é SD e morre antes do
-  // Chupim. Se o conjunto permitido está vazio OU sem ninguém no piso
-  // saudável (≥ max(minSeeders, 3)), reabre SD/480p/sem resolução — último
-  // recurso. Título com 720/1080/2160 saudável não passa por aqui.
+  // Whitelist de qualidade: título obscuro (The Locals / tt0387357) onde o HD
+  // permitido já morreu no piso de seeders e sobrou só DVDRip/sem resolução —
+  // com cachedOnly a UI ficaria vazia para sempre. Se o conjunto permitido
+  // está VAZIO, reabre SD/480p/sem resolução como último recurso. O gatilho é
+  // "vazio", não "fraco": `_seeders` é sintético em agregador BR (bludv grava
+  // 1 fixo), então qualquer piso de saúde afrouxaria o filtro do usuário em
+  // busca BR normal. O último recurso também escapa das cotas de
+  // `qualityLimits` — é o preço de não devolver lista vazia.
   const qualityOk = (s: any) => passesQualityFilter(s, qualityFilter, qualityLimits);
   let qualityKeep: Set<any> | null = null;
-  if (qualityFilter.length > 0) {
-    const allowed = candidates.filter(qualityOk);
-    const healthyFloor = Math.max(Number(minSeeders) || 0, QUALITY_RELAX_HEALTHY_SEEDERS);
-    const strong = allowed.some((s) => (s._seeders || 0) >= healthyFloor);
-    if (!strong) {
-      const fallback = candidates.filter((s) => {
-        if (qualityOk(s)) return false;
-        const q = streamQuality(s);
-        return q === 'SD' || q === '480p' || q === UNKNOWN_QUALITY;
-      });
-      if (fallback.length > 0) {
-        qualityKeep = new Set([...allowed, ...fallback]);
-        metrics.count('search.qualityFilter.relaxed');
-      }
+  if (qualityFilter.length > 0 && !candidates.some(qualityOk)) {
+    const fallback = candidates.filter((s) => {
+      const q = streamQuality(s);
+      return q === 'SD' || q === '480p' || q === UNKNOWN_QUALITY;
+    });
+    if (fallback.length > 0) {
+      qualityKeep = new Set(fallback);
+      metrics.count('search.qualityFilter.relaxed');
     }
   }
   candidates = filtrar(

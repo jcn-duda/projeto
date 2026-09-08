@@ -320,10 +320,11 @@ test('sortAndLimit em lote grande respeita o corte de maxResults', () => {
   }
 });
 
-test('último recurso: QUALITY_FILTER reabre SD quando HD permitido está fraco', () => {
-  // The Locals (tt0387357): q=2160p,1080p,720p deixa só MagnetDownload 👤1;
-  // Kickass DVDRip 👤7 é SD e morria antes do Chupim. Relaxa só se nenhum
-  // permitido alcança o piso saudável (≥3); título com HD forte não muda.
+test('último recurso: QUALITY_FILTER reabre SD só quando o permitido some', () => {
+  // The Locals (tt0387357): q=2160p,1080p,720p deixa só MagnetDownload 👤1,
+  // que o piso de seeders já mata; sobra Kickass DVDRip 👤7, SD, que morria
+  // antes do Chupim e deixava a UI vazia com cachedOnly.
+  const relaxed = () => metrics.snapshot().counters['search.qualityFilter.relaxed'] || 0;
   const weakHd = stremioStream({
     title: 'The Locals 2003 720p WEB-DL',
     infoHash: HASH,
@@ -335,29 +336,26 @@ test('último recurso: QUALITY_FILTER reabre SD quando HD permitido está fraco'
     seeders: 7,
   });
   const filter = ['2160p', '1080p', '720p'] as never[];
-  const before = metrics.snapshot().counters['search.qualityFilter.relaxed'] || 0;
+  const before = relaxed();
   const sparse = sortAndLimit([weakHd, healthySd], {
-    minSeeders: 1,
+    minSeeders: 3,
     maxResults: 10,
     qualityFilter: filter,
   });
-  assert.equal(sparse.length, 2, 'SD saudável entra quando HD filtrado é fraco');
   assert.deepEqual(
-    new Set(sparse.map((s) => s.infoHash)),
-    new Set([HASH, OTHER]),
+    sparse.map((s) => s.infoHash),
+    [OTHER],
+    'sem nenhum permitido de pé, o SD entra em vez da lista vazia',
   );
-  assert.equal(sparse[0].infoHash, HASH, 'HD continua acima de SD na ordenação');
-  assert.equal(
-    (metrics.snapshot().counters['search.qualityFilter.relaxed'] || 0) - before,
-    1,
-  );
+  assert.equal(relaxed() - before, 1);
 
+  // Controle 1: HD forte permitido — o filtro do usuário vale integralmente.
   const strongHd = stremioStream({
     title: 'Popular Title 1080p WEB-DL',
     infoHash: 'c'.repeat(40),
     seeders: 40,
   });
-  const before2 = metrics.snapshot().counters['search.qualityFilter.relaxed'] || 0;
+  const before2 = relaxed();
   const healthy = sortAndLimit([strongHd, healthySd], {
     minSeeders: 1,
     maxResults: 10,
@@ -366,11 +364,24 @@ test('último recurso: QUALITY_FILTER reabre SD quando HD permitido está fraco'
   assert.deepEqual(
     healthy.map((s) => s.infoHash),
     [strongHd.infoHash],
-    'com HD ≥ piso saudável o filtro de qualidade não afrouxa',
+    'com HD permitido o filtro de qualidade não afrouxa',
   );
-  assert.equal(
-    (metrics.snapshot().counters['search.qualityFilter.relaxed'] || 0) - before2,
-    0,
+  assert.equal(relaxed() - before2, 0);
+
+  // Controle 2: o gatilho é "permitido vazio", não "permitido fraco".
+  // Agregador BR grava `seeders: 1` sintético (bludv) — um piso de saúde
+  // afrouxaria o filtro do usuário em toda busca BR normal.
+  const before3 = relaxed();
+  const syntheticSeeds = sortAndLimit([weakHd, healthySd], {
+    minSeeders: 1,
+    maxResults: 10,
+    qualityFilter: filter,
+  });
+  assert.deepEqual(
+    syntheticSeeds.map((s) => s.infoHash),
+    [HASH],
+    'HD permitido com 👤1 sintético segura o filtro; o SD continua fora',
   );
+  assert.equal(relaxed() - before3, 0);
 });
 
