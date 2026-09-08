@@ -8,6 +8,7 @@ import {
   AuthError, QuotaError, RateLimitError,
 } from './common.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
+import { markerIdIndex } from '../providers/autofetch-marker.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
 const API = 'https://www.premiumize.me/api';
@@ -290,6 +291,7 @@ async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMin
   const transfers = Array.isArray(data?.transfers) ? data.transfers : [];
   const idade = Math.max(0, Number(minAgeMs) || 0);
   const agora = Date.now();
+  const byId = markerIdIndex(id, account);
 
   const alvo: any[] = [];
   const vistosAgora = new Set<string>();
@@ -309,9 +311,14 @@ async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMin
     if (moving || !STALLED_TRANSFER.test(String(t?.message || ''))) continue;
 
     // Parada, mas só removível quando dá para provar que não é do autofetch
-    // em curso. Sem hash não há como consultar o `held` — e é justamente a
-    // transferência sem metadata resolvida que carrega o hash no `name`.
-    const hash = transferHash(t);
+    // em curso. A cascata de campos falha justamente no caso mais comum da
+    // fila: post de agregador entra com nome humano ("[WWW.BLUDV.TV] ...
+    // [DUBLADO]"), sem hash em `src`, `name` ou `hash` — e ficava fora da
+    // varredura para sempre, ocupando vaga. O mapa dos markers (mesma ponte
+    // id -> hash que o recheck usa, aqui reconstruída do cache porque o lote
+    // não sobrevive ao restart) devolve a identificação e com ela o `held`.
+    const achado = resolveTransfer(t, byId);
+    const hash = achado?.hash || null;
     if (!hash || held.isHeld(hash, account)) continue;
 
     vistosAgora.add(hash);

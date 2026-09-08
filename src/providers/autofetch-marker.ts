@@ -30,4 +30,32 @@ function markerTransferId(adapterId: string, account: string, infoHash: string):
   return value.id == null || value.id === '' ? null : String(value.id);
 }
 
-export { markerKey, markerValue, markerTransferId };
+/**
+ * Mapa reverso id da transferência -> infoHash, para o adapter que precisa
+ * reencontrar o hash SEM ter o lote do recheck em mãos.
+ *
+ * O recheck monta essa ponte a partir das hashes do lote (que vivem em
+ * memória e somem no restart). A varredura de mortas existe justamente para
+ * o que o restart deixou para trás: lá não há lote nenhum, e transferência de
+ * nome humano ("[WWW.BLUDV.TV] ... [DUBLADO]") não carrega hash em campo
+ * nenhum da listagem. Reconstruir o mapa dos markers devolve a identificação
+ * — e com ela a checagem do `held` e a memória de parada por hash.
+ *
+ * Só enxerga marker presente no L1 (hidratado do disco no boot): o que a cota
+ * de hidratação deixou fora continua invisível, como já era antes.
+ */
+function markerIdIndex(adapterId: string, account: string): Map<string, string> {
+  const pre = `${prefix('autofetch')}m:${adapterId}:${account}:`;
+  const out = new Map<string, string>();
+  for (const key of cache.keysMatching(pre)) {
+    const infoHash = key.slice(pre.length);
+    if (!/^[a-f0-9]{40}$/.test(infoHash)) continue;
+    const value = cache.peek(key) as { id?: unknown } | null;
+    if (!value || typeof value !== 'object') continue;
+    if (value.id == null || value.id === '') continue;
+    out.set(String(value.id), infoHash);
+  }
+  return out;
+}
+
+export { markerKey, markerValue, markerTransferId, markerIdIndex };
