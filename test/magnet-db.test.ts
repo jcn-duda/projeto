@@ -125,10 +125,10 @@ test('status observa por adaptador e TTL sem expor o escopo da conta', () => {
   assert.equal(typeof snapshot.evictedQuota, 'number');
   assert.ok(snapshot.l1Max >= snapshot.l1Entries);
   assert.equal(JSON.stringify(snapshot).includes(secretAccount), false, 'o diagnóstico não vaza chave nem digest de conta');
-  // Mecanismo A: amostra do processo ≠ ocupação L1/L2 do namespace mag.
+  // Mecanismo A: contadores duráveis consolidados.
   assert.equal(snapshot._origem.l1Entries, 'duravel');
-  assert.equal(snapshot._origem.sizeAlive, 'amostra');
-  assert.equal(snapshot._origem.byAdapter, 'amostra');
+  assert.equal(snapshot._origem.sizeAlive, 'duravel');
+  assert.equal(snapshot._origem.byAdapter, 'duravel');
   assert.equal(snapshot._origem.evictedQuota, 'duravel');
 });
 

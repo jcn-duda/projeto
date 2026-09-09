@@ -11,7 +11,7 @@
  * instância nova de cache.ts reusando o irmão cacheado, com o store alheio).
  */
 
-// A soma das cotas de namespaces conhecidos é 82.550 (inclui mag=50.000,
+// A soma das cotas de namespaces conhecidos é 82.551 (inclui mag=50.000,
 // rdc=14.000, rdq=500, rdt=2.500, adprot=2.000, adsub=1.000 e adrm=500),
 // deixando 1.450 entradas de folga sob o teto global. O ledger RD
 // é global por hash e precisa reter muito mais histórico que os caches por conta;
@@ -49,6 +49,8 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Não confunda com permanência: o teto é capacidade, quem expira é o TTL
   // (alive/lie 7 dias, bad 24 h) — subir TTL é outro eixo, e é veto do plano.
   mag: 50000,
+  // Um único agregado persistente com os contadores O(1) do MagnetDB.
+  mag_meta: 1,
   // Ledger global do Real-Debrid: cache de serviço, sem credencial na chave.
   // A cota alta evita perder a evidência rara das sondas entre instalações.
   // Era 20 mil, mas agora o namespace é só de hashes (o cache por título do

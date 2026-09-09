@@ -40,6 +40,7 @@ interface SortOptions {
   season?: number | null;
   episode?: number | null;
   preferDubbed?: boolean;
+  dubbedOnly?: boolean;
   excludeCam?: boolean;
   maxSizeGb?: number;
   qualityLimits?: Partial<Record<string, number>>;
@@ -84,28 +85,32 @@ function relabel(stream: any, { isBr, dubbedFrom }: { isBr?: boolean; dubbedFrom
 /** Mesma release aparece em vários indexers; fica a de maior seeders. */
 function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: StreamTraceState | null) {
   const best = new Map();
+  const hasCleanWinner = new Map<string, boolean>();
   const ranks = priorityMap(indexerPriority);
   for (const s of streams) {
     if (!s) continue;
     const prev = best.get(s.infoHash);
     if (!prev) {
       best.set(s.infoHash, s);
+      hasCleanWinner.set(s.infoHash, !s._lied);
       continue;
     }
     // Agregadores BR espelham magnets públicos: mesma hash não prova que o
     // arquivo global tenha áudio PT. Origem e áudio ficam com o post vencedor.
+    const sClean = !s._lied;
+    const prevClean = Boolean(hasCleanWinner.get(s.infoHash));
     const seedDiff = (s._seeders || 0) - (prev._seeders || 0);
-    // Hash idêntico é a mesma release. Seeders continuam sendo a evidência
-    // principal; no empate, a listagem com áudio PT declarado vence — é a
-    // única informação que o espelho em inglês não carrega, e a varredura
-    // pt-BR devolve justamente esse título para o MESMO hash. Sem o critério,
-    // o merge ficava com a chegada mais antiga e o _br sumia junto.
-    // Persistindo o empate, a preferência do usuário torna o merge estável.
+    // Hash idêntico é a mesma release. Release sem mentira deve ser preferida
+    // como winner para preservar título e metadados íntegros contra clones mentirosos.
+    // Seeders continuam sendo a evidência principal entre releases com mesma idoneidade;
+    // no empate, a listagem com áudio PT declarado vence.
     let winner;
-    if (seedDiff > 0) winner = s;
+    if (sClean !== prevClean) winner = sClean ? s : prev;
+    else if (seedDiff > 0) winner = s;
     else if (seedDiff < 0) winner = prev;
     else if (Boolean(s._dubbed) !== Boolean(prev._dubbed)) winner = s._dubbed ? s : prev;
     else winner = compareIndexerPriority(s, prev, ranks) < 0 ? s : prev;
+    hasCleanWinner.set(s.infoHash, sClean || prevClean);
     const loser = winner === s ? prev : s;
     // P5 — o perdedor do merge some da lista em silêncio; no ledger fica o
     // título dele e de quem venceu não precisa: o item é o mesmo hash.
@@ -116,19 +121,21 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
     const richerQuality = winner._quality === UNKNOWN_QUALITY && loser._quality !== UNKNOWN_QUALITY
       ? loser
       : winner;
+    const isLied = Boolean(winner._lied || loser._lied);
     const merged = {
       ...winner,
       _quality: richerQuality._quality,
+      _seeders: Math.max(Number(winner._seeders) || 0, Number(loser._seeders) || 0),
       _size: winner._size || loser._size || 0,
       behaviorHints: richerQuality.behaviorHints || winner.behaviorHints,
       _br: winner._br,
-      _dubbed: winner._dubbed,
+      _dubbed: isLied ? false : Boolean(winner._dubbed),
       _tracker: winner._tracker,
       // Hash idêntico tem o mesmo conteúdo: se QUALQUER listagem marcou como
       // pack, a marca precisa sobreviver ao merge — senão o perdedor BR com
       // título de coleção perderia o estrito para o vencedor EN sem marca.
       _multiWork: Boolean(winner._multiWork || loser._multiWork),
-      _lied: Boolean(winner._lied || loser._lied),
+      _lied: isLied,
     };
     if (merged._quality !== winner._quality) {
       merged.name = relabel(merged, {
@@ -150,6 +157,7 @@ function sortAndLimit(
     season = null,
     episode = null,
     preferDubbed = false,
+    dubbedOnly = false,
     excludeCam = false,
     maxSizeGb = 0,
     qualityLimits = {},
@@ -183,6 +191,9 @@ function sortAndLimit(
   };
 
   let candidates = dedupeByHash(streams, indexerPriority, trace);
+  if (dubbedOnly) {
+    candidates = filtrar(candidates, 'lie', (s) => !s._lied);
+  }
   // Piso de seeders: release COMPROVADAMENTE BR dublada (_br + _dubbed) sobrevive
   // ao piso quando não há `_lied` (auditoria de áudio) nem idioma estrangeiro
   // explícito no título. O piso existe para não oferecer torrent morto em P2P;
@@ -259,6 +270,10 @@ function sortAndLimit(
       const qOrder: Record<string, number> = { '2160p': 5, '1080p': 4, '720p': 3, [UNKNOWN_QUALITY]: 2, '480p': 1, SD: 0 };
       const qd = (qOrder[b._quality] || 0) - (qOrder[a._quality] || 0);
       if (qd !== 0) return qd;
+      // Release comprovadamente mentirosa de áudio fica abaixo de opções limpas
+      // da mesma qualidade, antes de preferDubbed, prioridade de indexador e instant.
+      const ld = (a._lied ? 1 : 0) - (b._lied ? 1 : 0);
+      if (ld !== 0) return ld;
       if (preferDubbed) {
         const ad = dubbed(b) - dubbed(a);
         if (ad !== 0) return ad;
@@ -274,10 +289,6 @@ function sortAndLimit(
         const hd = (instant(b.infoHash) ? 1 : 0) - (instant(a.infoHash) ? 1 : 0);
         if (hd !== 0) return hd;
       }
-      // A prova não muda qualidade/dublado/prioridade; só impede que seeders
-      // deixem uma release mentirosa acima de uma alternativa desconhecida.
-      const ld = (a._lied ? 1 : 0) - (b._lied ? 1 : 0);
-      if (ld !== 0) return ld;
       return (b._seeders || 0) - (a._seeders || 0);
     });
 

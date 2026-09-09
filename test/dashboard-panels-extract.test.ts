@@ -86,7 +86,7 @@ function flat(node: FakeNode): string {
   return [node.textContent].concat(node.children.map(flat)).join(' ');
 }
 
-test('renderMagnetDb: L1 mag, amostra e bad≠dead no Fake DOM', () => {
+test('renderMagnetDb: L1 mag, agregados duráveis e bad≠dead no Fake DOM', () => {
   const { els, renderMagnetDb } = loadPanelsApi();
   renderMagnetDb(
     {
@@ -108,17 +108,17 @@ test('renderMagnetDb: L1 mag, amostra e bad≠dead no Fake DOM', () => {
   const text = flat(els.cacheMetrics);
   assert.match(text, /L1 mag/i);
   assert.match(text, /1200\s*\/\s*50000/);
-  assert.match(text, /amostra processo/i);
+  assert.match(text, /registros classificados/i);
   assert.match(text, /play sem vídeo/i);
   assert.match(text, /descartados dead/i);
   assert.match(text, /autofetch ≠ bad/);
   assert.match(text, /40%/);
 });
 
-// Caso real do feedback (VPS): l1Entries=405 contra amostra 73/0/1 — a UI tem
-// que separar banco persistente de amostra do processo, sem afirmar que tudo
-// no L1 é válido (órfãos/expirados existem; teste magnet-db "órfã sem track").
-test('renderMagnetDb: distingue registros persistentes (L1) da amostra desde o restart', () => {
+// Caso real do feedback (VPS): l1Entries=405 contra agregados 73/0/1 — a UI
+// separa a ocupação bruta do L1 dos estados restaurados pelo mag_meta, sem
+// afirmar que tudo no L1 é válido (órfãos/expirados podem existir).
+test('renderMagnetDb: distingue ocupação L1 dos agregados persistentes', () => {
   const { els, renderMagnetDb } = loadPanelsApi();
   renderMagnetDb(
     {
@@ -147,14 +147,14 @@ test('renderMagnetDb: distingue registros persistentes (L1) da amostra desde o r
     { 'debrid.check.hashes': 200, 'debrid.check.cached': 50 },
   );
   const text = flat(els.cacheMetrics);
-  // Grupos com procedência explícita, na ordem: persistentes × amostra × contadores.
+  // Grupos com procedência explícita, na ordem: L1 × agregados × contadores.
   assert.match(text, /Registros persistentes no banco/i);
   assert.match(text, /405\s*\/\s*50000/, 'ocupação real do namespace mag no L1');
-  assert.match(text, /Amostra desde o restart/i);
-  assert.match(text, /amostra processo \(≠ L1\)/);
-  // Textos curtos: restart zera a amostra, não o banco; mesmo hash pode ter
+  assert.match(text, /Agregados persistentes por estado e serviço/i);
+  assert.match(text, /registros classificados \(≠ L1\)/);
+  // Textos curtos: agregados sobrevivem ao restart; mesmo hash pode ter
   // conta/estado; L1 pode conter órfãos — não é contagem de válidos.
-  assert.match(text, /restart zera a amostra \(memória deste processo\), não os registros persistentes/i);
+  assert.match(text, /agregados sobrevivem ao restart pelo mag_meta/i);
   assert.match(text, /o mesmo hash pode figurar mais de uma vez/i);
   assert.match(text, /expirados ou órfãos/i);
   // Contadores de gravação/renovação e descartes, além da taxa de cache medida.

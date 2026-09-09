@@ -11,6 +11,9 @@ import warmup from './warmup.js';
 import harvester from './providers/harvester.js';
 import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
+import * as magnetdb from './utils/magnetdb.js';
+
+const services = { magnetdb };
 
 // O Express app + manifest + rotas vivem em ./app (sem listen), para os testes
 // poderem exercitar o roteamento real sem subir servidor.
@@ -82,6 +85,7 @@ function shutdown(signal: string) {
   force.unref();
   server.close(() => {
     brResolvers.close();
+    services.magnetdb.savePersistentCounts?.();
     cache.close();
     log.info('[shutdown] addon encerrado');
     process.exit(0);

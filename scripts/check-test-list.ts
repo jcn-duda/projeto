@@ -53,6 +53,7 @@ const HARNESS_FILES = [
   'test/adversarial-m1-parser-harness.ts',
   'test/m1-protector-adversarial-stress.ts',
   'test/challenger-m2-parser-deep-stress.ts',
+  'scripts/empirical-ranking-challenger.ts',
 ];
 
 const allScripts = Object.values(_require(path.join(root, 'package.json')).scripts as Record<string, string>).join(' ');

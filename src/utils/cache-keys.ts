@@ -43,6 +43,8 @@ const NAMESPACE_VERSIONS = Object.freeze({
   dinv: 'v1',
   davail: 'v1',
   mag: 'v1',
+  // Metadados agregados do banco de magnets (contagens por adapter persistidas O(1))
+  mag_meta: 'v1',
   // Ledger durável do CDN do Real-Debrid (veredictos por hash). Não leva escopo
   // de conta: cache do RD é propriedade do serviço, não da credencial que o
   // mediu. v1 nasceu MISTURADO — a mesma chave `rdc:v1:<hash>` convivia com o
@@ -123,4 +125,6 @@ const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:']);
 
 const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSIONS[ns]}:`;
 
-export { NAMESPACE_VERSIONS, LEGACY_PREFIXES, prefix };
+const magMetaCountsKey = () => `${prefix('mag_meta')}counts`;
+
+export { NAMESPACE_VERSIONS, LEGACY_PREFIXES, prefix, magMetaCountsKey };

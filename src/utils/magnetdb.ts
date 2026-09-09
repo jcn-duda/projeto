@@ -19,32 +19,26 @@ import config from '../config.js';
 import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { accountScope } from './request-key.js';
-import { prefix } from './cache-keys.js';
+import { prefix, magMetaCountsKey } from './cache-keys.js';
 
-// O cache não oferece scan por prefixo (e fazê-lo só para o painel seria caro).
-// Mantemos a parte observada neste processo para indicar o tamanho aproximado
-// de cada lado; reinício zera a amostra, sem afetar nenhuma decisão de busca.
 type MagnetSide = 'alive' | 'bad' | 'lie';
 
-type TrackedMagnet = {
-  adapterId: string;
-  side: MagnetSide;
-  expiresAt: number;
+export type AdapterTotals = {
+  alive: number; bad: number; lie: number;
+  // Aproximação operacional: renovações e remoções subtraem o TTL nominal,
+  // não o restante exato de cada chave. As contagens são exatas; esta soma
+  // serve apenas para mostrar uma média conservadora no painel sem scan O(n).
+  ttlRemainingSums: { alive: number; bad: number; lie: number };
 };
 
 type MagnetSizes = { alive: number; bad: number; lie: number };
 type TtlRemaining = { alive: number | null; bad: number | null; lie: number | null };
 
 export type MagnetDbAdapterStatus = {
-  sizeAlive: number;
-  sizeBad: number;
-  sizeLie: number;
-  // Média da amostra observada; não representa entradas persistidas antes do
-  // processo atual e nunca expõe o escopo (digest) da conta.
-  ttlRemainingSeconds: TtlRemaining;
+  sizeAlive: number; sizeBad: number; sizeLie: number; ttlRemainingSeconds: TtlRemaining;
 };
 
-/** Procedência do campo no painel: L1/L2/config vs Map tracked deste processo. */
+/** Procedência do campo no painel: L1/L2/config vs contadores do processo. */
 export type MagnetDbOrigem = 'duravel' | 'amostra' | 'naomedido';
 
 export type MagnetDbStatus = {
@@ -52,109 +46,114 @@ export type MagnetDbStatus = {
   aliveTtlSeconds: number;
   badTtlSeconds: number;
   lieTtlSeconds: number;
-  // Amostra do processo (Map tracked): só o que este processo observou.
-  // Reinício zera; NÃO é a ocupação real do namespace mag no L1.
   sizeAlive: number;
   sizeBad: number;
   sizeLie: number;
   ttlRemainingSeconds: TtlRemaining;
   byAdapter: Record<string, MagnetDbAdapterStatus>;
-  // Ocupação real do namespace `mag` no L1 — vem de cache.snapshot().namespaces,
-  // o mesmo padrão do releaseIndex.status(). Inclui chaves plantadas antes do
-  // processo atual (L2→L1) e órfãs sem track; por isso pode diferir da amostra.
-  // Sem scan L2: o contador já é mantido pelo cache a cada set/forget.
   l1Entries: number;
   l1Max: number;
-  // Evicções por cota do balde mag (métrica cache.evicted.quota.mag).
   evictedQuota: number;
   counters: {
-    aliveSet: number;
-    badSet: number;
-    lieSet: number;
-    dropped: number;
-    droppedBad: number;
-    droppedDead: number;
-    droppedLie: number;
-    badClearedBlocked: number;
+    aliveSet: number; badSet: number; lieSet: number; dropped: number;
+    droppedBad: number; droppedDead: number; droppedLie: number; badClearedBlocked: number;
   };
-  // Aditivo: o painel não confunde amostra do processo com ocupação L1/L2.
-  _origem: {
-    enabled: MagnetDbOrigem;
-    aliveTtlSeconds: MagnetDbOrigem;
-    badTtlSeconds: MagnetDbOrigem;
-    lieTtlSeconds: MagnetDbOrigem;
-    sizeAlive: MagnetDbOrigem;
-    sizeBad: MagnetDbOrigem;
-    sizeLie: MagnetDbOrigem;
-    ttlRemainingSeconds: MagnetDbOrigem;
-    byAdapter: MagnetDbOrigem;
-    l1Entries: MagnetDbOrigem;
-    l1Max: MagnetDbOrigem;
-    evictedQuota: MagnetDbOrigem;
-  };
+  _origem: Record<string, MagnetDbOrigem>;
 };
 
-const tracked = new Map<string, TrackedMagnet>();
+type PersistentCountsPayload = { version: 1; updatedAt: number; adapters: Record<string, AdapterTotals> };
 
-function track(key: string, adapterId: string, side: MagnetSide, ttlSeconds: number) {
-  if (ttlSeconds <= 0) return;
-  tracked.set(key, { adapterId, side, expiresAt: Date.now() + ttlSeconds * 1000 });
+const adapterCounts = new Map<string, AdapterTotals>();
+
+function emptyAdapterTotals(): AdapterTotals {
+  return { alive: 0, bad: 0, lie: 0, ttlRemainingSums: { alive: 0, bad: 0, lie: 0 } };
 }
 
-function emptySizes(): MagnetSizes {
-  return { alive: 0, bad: 0, lie: 0 };
+function getOrCreateAdapter(adapterId: string): AdapterTotals {
+  let totals = adapterCounts.get(adapterId);
+  if (!totals) {
+    totals = emptyAdapterTotals();
+    adapterCounts.set(adapterId, totals);
+  }
+  return totals;
 }
 
-function trackedStatus() {
+let persistTimer: ReturnType<typeof setImmediate> | null = null;
+
+function savePersistentCounts() {
+  if (persistTimer) { clearImmediate(persistTimer); persistTimer = null; }
+  if (!config.magnetDb.enabled) return;
+  const adapters: Record<string, AdapterTotals> = Object.create(null);
+  for (const [id, totals] of adapterCounts) {
+    if (totals.alive > 0 || totals.bad > 0 || totals.lie > 0) {
+      adapters[id] = { alive: totals.alive, bad: totals.bad, lie: totals.lie, ttlRemainingSums: { ...totals.ttlRemainingSums } };
+    }
+  }
+  const payload: PersistentCountsPayload = { version: 1, updatedAt: Date.now(), adapters };
+  cache.set(magMetaCountsKey(), payload, Math.max(config.magnetDb.aliveTtl, 7 * 86400));
+}
+
+function schedulePersistentSave() {
+  if (persistTimer) return;
+  persistTimer = setImmediate(() => { persistTimer = null; savePersistentCounts(); });
+  persistTimer.unref?.();
+}
+
+function loadPersistentCounts() {
+  const ns = cache.snapshot().namespaces as Record<string, { entries?: number }>;
+  if ((ns?.mag?.entries || 0) === 0) { adapterCounts.clear(); return; }
+  const raw = cache.peek(magMetaCountsKey()) as PersistentCountsPayload | null;
+  if (!raw || typeof raw !== 'object' || !raw.adapters) return;
+  adapterCounts.clear();
   const now = Date.now();
-  const sizes = emptySizes();
-  const ttlTotals = { alive: 0, bad: 0, lie: 0 };
-  const byAdapter: Record<string, { sizes: MagnetSizes; ttlTotals: Record<MagnetSide, number> }> = Object.create(null);
-  for (const [key, item] of tracked) {
-    // Evicção/forget do cache não notifica o Map — sem o peek a amostra
-    // SUPERCONTA depois que a cota mag gira.
-    if (item.expiresAt <= now || cache.peek(key) == null) {
-      tracked.delete(key);
-      continue;
+  const elapsedSec = Math.max(0, Math.floor((now - (raw.updatedAt || now)) / 1000));
+  for (const [id, totals] of Object.entries(raw.adapters)) {
+    if (!totals) continue;
+    const alive = Math.max(0, Number(totals.alive) || 0);
+    const bad = Math.max(0, Number(totals.bad) || 0);
+    const lie = Math.max(0, Number(totals.lie) || 0);
+    const rawTtl = totals.ttlRemainingSums || { alive: 0, bad: 0, lie: 0 };
+    if (alive > 0 || bad > 0 || lie > 0) {
+      adapterCounts.set(id, {
+        alive, bad, lie,
+        ttlRemainingSums: {
+          alive: Math.max(0, (Number(rawTtl.alive) || 0) - elapsedSec * alive),
+          bad: Math.max(0, (Number(rawTtl.bad) || 0) - elapsedSec * bad),
+          lie: Math.max(0, (Number(rawTtl.lie) || 0) - elapsedSec * lie),
+        },
+      });
     }
-    const remaining = Math.max(0, item.expiresAt - now);
-    sizes[item.side] += 1;
-    ttlTotals[item.side] += remaining;
-    if (!byAdapter[item.adapterId]) {
-      byAdapter[item.adapterId] = { sizes: emptySizes(), ttlTotals: { alive: 0, bad: 0, lie: 0 } };
-    }
-    byAdapter[item.adapterId].sizes[item.side] += 1;
-    byAdapter[item.adapterId].ttlTotals[item.side] += remaining;
   }
-  const ttlRemaining = (counts: MagnetSizes, totals: Record<MagnetSide, number>): TtlRemaining => ({
-    alive: counts.alive ? Math.ceil(totals.alive / counts.alive / 1000) : null,
-    bad: counts.bad ? Math.ceil(totals.bad / counts.bad / 1000) : null,
-    lie: counts.lie ? Math.ceil(totals.lie / counts.lie / 1000) : null,
-  });
-  const adapters: Record<string, MagnetDbAdapterStatus> = Object.create(null);
-  for (const adapterId of Object.keys(byAdapter)) {
-    const item = byAdapter[adapterId];
-    adapters[adapterId] = {
-      sizeAlive: item.sizes.alive,
-      sizeBad: item.sizes.bad,
-      sizeLie: item.sizes.lie,
-      ttlRemainingSeconds: ttlRemaining(item.sizes, item.ttlTotals),
-    };
+}
+
+loadPersistentCounts();
+
+cache.onForget((key: string) => {
+  if (!key.startsWith(prefix('mag'))) return;
+  const parts = key.split(':');
+  const side = parts[2] as MagnetSide;
+  const adapterId = parts[3];
+  if (!side || !adapterId) return;
+  const totals = adapterCounts.get(adapterId);
+  if (!totals) return;
+  if (side === 'alive') {
+    totals.alive = Math.max(0, totals.alive - 1);
+    totals.ttlRemainingSums.alive = Math.max(0, totals.ttlRemainingSums.alive - config.magnetDb.aliveTtl);
+  } else if (side === 'bad') {
+    totals.bad = Math.max(0, totals.bad - 1);
+    totals.ttlRemainingSums.bad = Math.max(0, totals.ttlRemainingSums.bad - config.magnetDb.badTtl);
+  } else if (side === 'lie') {
+    totals.lie = Math.max(0, totals.lie - 1);
+    totals.ttlRemainingSums.lie = Math.max(0, totals.ttlRemainingSums.lie - config.magnetDb.lieTtl);
   }
-  return { sizes, ttlRemainingSeconds: ttlRemaining(sizes, ttlTotals), byAdapter: adapters };
-}
+  schedulePersistentSave();
+});
 
-function aliveKey(adapterId: string, apiKey: string, hash: string) {
-  return `${prefix('mag')}alive:${adapterId}:${accountScope(apiKey)}:${String(hash || '').toLowerCase()}`;
-}
-
-function badKey(adapterId: string, apiKey: string, hash: string) {
-  return `${prefix('mag')}bad:${adapterId}:${accountScope(apiKey)}:${String(hash || '').toLowerCase()}`;
-}
-
-function lieKey(adapterId: string, apiKey: string, hash: string) {
-  return `${prefix('mag')}lie:${adapterId}:${accountScope(apiKey)}:${String(hash || '').toLowerCase()}`;
-}
+const magKey = (side: MagnetSide, adapterId: string, apiKey: string, hash: string) =>
+  `${prefix('mag')}${side}:${adapterId}:${accountScope(apiKey)}:${String(hash || '').toLowerCase()}`;
+const aliveKey = (adapterId: string, apiKey: string, hash: string) => magKey('alive', adapterId, apiKey, hash);
+const badKey = (adapterId: string, apiKey: string, hash: string) => magKey('bad', adapterId, apiKey, hash);
+const lieKey = (adapterId: string, apiKey: string, hash: string) => magKey('lie', adapterId, apiKey, hash);
 
 /**
  * Grava em lote que os hashes tocariam na hora nesta conta. Chamado quando a
@@ -175,14 +174,27 @@ function markAlive(adapterId: string, apiKey: string, hashes: string[]) {
     ttlSeconds: ttl,
   }));
   if (writes.length === 0) return;
+
+  let newAliveCount = 0;
+  for (const write of writes) {
+    if (cache.peek(write.key) == null) {
+      newAliveCount++;
+    }
+  }
+
   cache.setMany(writes);
-  for (const write of writes) track(write.key, adapterId, 'alive', ttl);
+
+  if (newAliveCount > 0) {
+    const totals = getOrCreateAdapter(adapterId);
+    totals.alive += newAliveCount;
+    totals.ttlRemainingSums.alive += newAliveCount * ttl;
+    schedulePersistentSave();
+  }
   metrics.count('magnetdb.alive.set', writes.length);
 }
 
 function isAlive(adapterId: string, apiKey: string, hash: string) {
-  if (!config.magnetDb.enabled || !adapterId || !apiKey || !hash) return false;
-  return cache.get(aliveKey(adapterId, apiKey, hash)) === 1;
+  return config.magnetDb.enabled && adapterId && apiKey && hash ? cache.get(aliveKey(adapterId, apiKey, hash)) === 1 : false;
 }
 
 /**
@@ -200,20 +212,26 @@ function markBad(adapterId: string, apiKey: string, hash: string) {
   const ttl = config.magnetDb.badTtl;
   if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
   const key = badKey(adapterId, apiKey, hash);
+  const alive = aliveKey(adapterId, apiKey, String(hash || '').toLowerCase());
+  const badExisted = cache.peek(key) != null;
+
   cache.set(key, 1, ttl);
   // O alive não pode sobreviver ao bad no mesmo hash: sem o forget ele
   // continuaria desempatando o sort por até 7 dias num magnet que provou
   // estar quebrado.
-  const alive = aliveKey(adapterId, apiKey, String(hash || '').toLowerCase());
   cache.forget(alive);
-  tracked.delete(alive);
-  track(key, adapterId, 'bad', ttl);
+
+  if (!badExisted) {
+    const totals = getOrCreateAdapter(adapterId);
+    totals.bad += 1;
+    totals.ttlRemainingSums.bad += ttl;
+    schedulePersistentSave();
+  }
   metrics.count('magnetdb.bad.set');
 }
 
 function isBad(adapterId: string, apiKey: string, hash: string) {
-  if (!config.magnetDb.enabled || !adapterId || !apiKey || !hash) return false;
-  return cache.get(badKey(adapterId, apiKey, hash)) === 1;
+  return config.magnetDb.enabled && adapterId && apiKey && hash ? cache.get(badKey(adapterId, apiKey, hash)) === 1 : false;
 }
 
 /**
@@ -238,7 +256,6 @@ function forgetBad(adapterId: string, apiKey: string, hash: string): boolean {
 function forgetBadKey(key: string): boolean {
   const existed = cache.peek(key) != null;
   cache.forget(key);
-  tracked.delete(key);
   return existed;
 }
 
@@ -247,14 +264,22 @@ function markLie(adapterId: string, apiKey: string, hash: string) {
   const ttl = config.magnetDb.lieTtl;
   if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
   const key = lieKey(adapterId, apiKey, hash);
+  const lieExisted = cache.peek(key) != null;
+
   cache.set(key, 1, ttl);
-  track(key, adapterId, 'lie', ttl);
+
+  if (!lieExisted) {
+    const totals = getOrCreateAdapter(adapterId);
+    totals.lie += 1;
+    totals.ttlRemainingSums.lie += ttl;
+    schedulePersistentSave();
+  }
+
   metrics.count('magnetdb.lie.set');
 }
 
 function isLie(adapterId: string, apiKey: string, hash: string) {
-  if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || !adapterId || !apiKey || !hash) return false;
-  return cache.get(lieKey(adapterId, apiKey, hash)) === 1;
+  return config.magnetDb.enabled && config.magnetDb.lieEnabled && adapterId && apiKey && hash ? cache.get(lieKey(adapterId, apiKey, hash)) === 1 : false;
 }
 
 // Variantes de LEITURA SEM EFEITO (P5 diagnóstico): `cache.peek` não promove o
@@ -262,18 +287,13 @@ function isLie(adapterId: string, apiKey: string, hash: string) {
 // produção nem poluir a medição. Mesma semântica, outro instrumento: quem
 // consulta é um operador explicando o que SUMIU, não o pipeline decidindo.
 function peekAlive(adapterId: string, apiKey: string, hash: string) {
-  if (!config.magnetDb.enabled || !adapterId || !apiKey || !hash) return false;
-  return cache.peek(aliveKey(adapterId, apiKey, hash)) === 1;
+  return config.magnetDb.enabled && adapterId && apiKey && hash ? cache.peek(aliveKey(adapterId, apiKey, hash)) === 1 : false;
 }
-
 function peekBad(adapterId: string, apiKey: string, hash: string) {
-  if (!config.magnetDb.enabled || !adapterId || !apiKey || !hash) return false;
-  return cache.peek(badKey(adapterId, apiKey, hash)) === 1;
+  return config.magnetDb.enabled && adapterId && apiKey && hash ? cache.peek(badKey(adapterId, apiKey, hash)) === 1 : false;
 }
-
 function peekLie(adapterId: string, apiKey: string, hash: string) {
-  if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || !adapterId || !apiKey || !hash) return false;
-  return cache.peek(lieKey(adapterId, apiKey, hash)) === 1;
+  return config.magnetDb.enabled && config.magnetDb.lieEnabled && adapterId && apiKey && hash ? cache.peek(lieKey(adapterId, apiKey, hash)) === 1 : false;
 }
 
 /**
@@ -298,60 +318,83 @@ function renewAlive(adapterId: string, apiKey: string, hashes: string[]) {
 
 /**
  * Estado de diagnóstico do painel.
- * - sizeAlive/Bad/Lie + byAdapter: amostra do processo (Map tracked), após
- *   sync com peek (dropa evicted/forgotten).
+ * - sizeAlive/Bad/Lie + byAdapter: contagens duráveis agregadas por adapter.
  * - l1Entries/l1Max: ocupação real do namespace mag no L1 (snapshot do cache).
  * - evictedQuota: quantas vezes a cota mag girou (métrica, não scan).
- * - `_origem` aditivo: amostra ≠ L1/L2 (Mecanismo A do painel).
+ * - `_origem` durável: contagens refletem estado durável.
  */
 function status(): MagnetDbStatus {
-  const trackedState = trackedStatus();
-  const sizes = trackedState.sizes;
-  const counters = metrics.snapshot().counters;
-  // Mesmo padrão do releaseIndex.status() / autofetch: lê o contador que o
-  // cache já mantém — zero scan de prefixo, zero passagem no L2.
   const ns = cache.snapshot().namespaces as Record<string, { entries?: number; maxEntries?: number }>;
   const magNs = ns?.mag;
+  const l1Entries = magNs?.entries || 0;
+
+  if (l1Entries === 0) {
+    adapterCounts.clear();
+  } else if (adapterCounts.size === 0) {
+    loadPersistentCounts();
+  }
+
+  let sizeAlive = 0;
+  let sizeBad = 0;
+  let sizeLie = 0;
+  const totalTtlSums = { alive: 0, bad: 0, lie: 0 };
+  const byAdapter: Record<string, MagnetDbAdapterStatus> = Object.create(null);
+
+  for (const [adapterId, totals] of adapterCounts) {
+    sizeAlive += totals.alive;
+    sizeBad += totals.bad;
+    sizeLie += totals.lie;
+    totalTtlSums.alive += totals.ttlRemainingSums.alive;
+    totalTtlSums.bad += totals.ttlRemainingSums.bad;
+    totalTtlSums.lie += totals.ttlRemainingSums.lie;
+
+    byAdapter[adapterId] = {
+      sizeAlive: totals.alive, sizeBad: totals.bad, sizeLie: totals.lie,
+      ttlRemainingSeconds: {
+        alive: totals.alive ? Math.ceil(totals.ttlRemainingSums.alive / totals.alive) : null,
+        bad: totals.bad ? Math.ceil(totals.ttlRemainingSums.bad / totals.bad) : null,
+        lie: totals.lie ? Math.ceil(totals.ttlRemainingSums.lie / totals.lie) : null,
+      },
+    };
+  }
+
+  const ttlRemainingSeconds: TtlRemaining = {
+    alive: sizeAlive ? Math.ceil(totalTtlSums.alive / sizeAlive) : null,
+    bad: sizeBad ? Math.ceil(totalTtlSums.bad / sizeBad) : null,
+    lie: sizeLie ? Math.ceil(totalTtlSums.lie / sizeLie) : null,
+  };
+
+  const counters = metrics.snapshot().counters;
+
   return {
     enabled: config.magnetDb.enabled,
     aliveTtlSeconds: config.magnetDb.aliveTtl,
     badTtlSeconds: config.magnetDb.badTtl,
     lieTtlSeconds: config.magnetDb.lieTtl,
-    sizeAlive: sizes.alive,
-    sizeBad: sizes.bad,
-    sizeLie: sizes.lie,
-    ttlRemainingSeconds: trackedState.ttlRemainingSeconds,
-    byAdapter: trackedState.byAdapter,
-    l1Entries: magNs?.entries || 0,
-    // Sem snapshot/QUOTAS, inventar um número no painel é pior que zero —
-    // o literal antigo (2000) era a cota pré-50k e mentiria a ocupação.
+    sizeAlive,
+    sizeBad,
+    sizeLie,
+    ttlRemainingSeconds,
+    byAdapter,
+    l1Entries,
     l1Max: magNs?.maxEntries || cache.QUOTAS?.mag || 0,
     evictedQuota: counters['cache.evicted.quota.mag'] || 0,
     counters: {
-      aliveSet: counters['magnetdb.alive.set'] || 0,
-      badSet: counters['magnetdb.bad.set'] || 0,
-      lieSet: counters['magnetdb.lie.set'] || 0,
-      dropped: counters['magnetdb.dropped'] || 0,
-      droppedBad: counters['magnetdb.dropped.bad'] || 0,
-      droppedDead: counters['magnetdb.dropped.dead'] || 0,
-      droppedLie: counters['magnetdb.dropped.lie'] || 0,
-      badClearedBlocked: counters['magnetdb.bad.clearedBlocked'] || 0,
+      aliveSet: counters['magnetdb.alive.set'] || 0, badSet: counters['magnetdb.bad.set'] || 0,
+      lieSet: counters['magnetdb.lie.set'] || 0, dropped: counters['magnetdb.dropped'] || 0,
+      droppedBad: counters['magnetdb.dropped.bad'] || 0, droppedDead: counters['magnetdb.dropped.dead'] || 0,
+      droppedLie: counters['magnetdb.dropped.lie'] || 0, badClearedBlocked: counters['magnetdb.bad.clearedBlocked'] || 0,
     },
     _origem: {
-      enabled: 'duravel',
-      aliveTtlSeconds: 'duravel',
-      badTtlSeconds: 'duravel',
-      lieTtlSeconds: 'duravel',
-      sizeAlive: 'amostra',
-      sizeBad: 'amostra',
-      sizeLie: 'amostra',
-      ttlRemainingSeconds: 'amostra',
-      byAdapter: 'amostra',
-      l1Entries: 'duravel',
-      l1Max: 'duravel',
-      evictedQuota: 'duravel',
+      enabled: 'duravel', aliveTtlSeconds: 'duravel', badTtlSeconds: 'duravel', lieTtlSeconds: 'duravel',
+      sizeAlive: 'duravel', sizeBad: 'duravel', sizeLie: 'duravel', ttlRemainingSeconds: 'duravel',
+      byAdapter: 'duravel', l1Entries: 'duravel', l1Max: 'duravel', evictedQuota: 'duravel',
     },
   };
 }
 
-export { markAlive, isAlive, peekAlive, markBad, isBad, peekBad, forgetBad, forgetBadKey, markLie, isLie, peekLie, renewAlive, status };
+export {
+  markAlive, isAlive, peekAlive, markBad, isBad, peekBad,
+  forgetBad, forgetBadKey, markLie, isLie, peekLie,
+  renewAlive, status, savePersistentCounts, loadPersistentCounts,
+};

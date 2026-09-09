@@ -245,6 +245,7 @@ export function prepareCandidateStreams(
     maxResults,
     qualities,
     preferDubbed,
+    dubbedOnly,
     excludeCam,
     maxSizeGb,
     max2160p,
@@ -324,16 +325,20 @@ export function prepareCandidateStreams(
   const instantSet = aliveAdapter && aliveApiKey
     ? new Set(mappedStreams.flatMap((s) => s?.infoHash ? [s.infoHash] : [])
         .filter((h: string) =>
-          magnetdb.isAlive(aliveAdapter.id, aliveApiKey, h) ||
-          inventoryReady.has(String(h).toLowerCase()) ||
-          debrid.knownInstant(h)))
+          (magnetdb.isAlive(aliveAdapter.id, aliveApiKey, h) ||
+           inventoryReady.has(String(h).toLowerCase()) ||
+           debrid.knownInstant(h)) &&
+          !magnetdb.isLie(aliveAdapter.id, aliveApiKey, h) &&
+          !liedHashes.has(String(h).toLowerCase())))
     : null;
   const liedSet = aliveAdapter && aliveApiKey
     ? new Set(mappedStreams.flatMap((s) => s?.infoHash ? [s.infoHash] : [])
         .filter((h: string) => liedHashes.has(String(h).toLowerCase()) || magnetdb.isLie(aliveAdapter.id, aliveApiKey, h)))
     : liedHashes;
   const markedStreams = mappedStreams.map((stream) =>
-    stream && liedSet.has(String(stream.infoHash || '').toLowerCase()) ? { ...stream, _lied: true } : stream,
+    stream && liedSet.has(String(stream.infoHash || '').toLowerCase())
+      ? { ...stream, _lied: true, _dubbed: false }
+      : stream,
   );
   const streams: Stream[] = sortAndLimit(markedStreams, {
     minSeeders,
@@ -342,6 +347,7 @@ export function prepareCandidateStreams(
     season,
     episode,
     preferDubbed,
+    dubbedOnly,
     excludeCam,
     maxSizeGb,
     qualityLimits,

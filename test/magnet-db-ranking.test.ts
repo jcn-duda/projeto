@@ -16,7 +16,8 @@ import debrid from '../src/debrid/index.js';
 import { applyDebrid, buildStreams } from '../src/providers/index.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import { accountScope } from '../src/utils/request-key.js';
-import { sortAndLimit } from '../src/utils/format.js';
+import { dedupeByHash, sortAndLimit } from '../src/utils/format.js';
+import { prepareCandidateStreams } from '../src/providers/stream-builder-pipeline.js';
 import { pickFile, NoVideoError } from '../src/debrid/common.js';
 import { noteAvailable } from '../src/debrid/cache-check.js';
 
@@ -88,14 +89,7 @@ test('buildStreams sobrevive a item sem infoHash com banco de magnets ligado', a
     ];
     const out = await runWith(
       { opts: { ...userOpts('chave-mag-null'), debridCachedOnly: false }, encoded: 'segcfg' },
-      () =>
-        buildStreams(raw as any, {
-          season: 2,
-          episode: 1,
-          imdbId: 'tt0000002',
-          searchKey: 'magnet-db-null',
-          deadlineAt: Date.now() + 8000,
-        } as any),
+      () => buildStreams(raw as any, { season: 2, episode: 1, imdbId: 'tt0000002', searchKey: 'magnet-db-null', deadlineAt: Date.now() + 8000 } as any),
     );
     assert.ok(Array.isArray(out), 'a lista não pode morrer por causa do item sem hash');
     assert.ok(out.length >= 1, 'o resultado com hash continua entregue');
@@ -123,22 +117,14 @@ test('buildStreams: filtro pré-checagem esvaziando gera aviso próprio e métri
   try {
     const out = await runWith(
       { opts: { ...userOpts(key), debridCachedOnly: false }, encoded: 'segcfg' },
-      () =>
-        buildStreams(
-          [
-            // Formato já normalizado (minúsculo): `InfoHash` maiúsculo de
-            // Jackett cru viraria null no toStremioStream antes do filtro.
-            { title: `Filme Ruim ${badHash}`, infoHash: badHash, seeders: 10 },
-            { title: `Filme Morto ${deadHash}`, infoHash: deadHash, seeders: 20 },
-          ] as any,
-          {
-            season: null,
-            episode: null,
-            imdbId: 'tt0000003',
-            searchKey: 'magnet-db-aviso',
-            deadlineAt: Date.now() + 8000,
-          } as any,
-        ),
+      () => buildStreams(
+        [
+          // Formato já normalizado (minúsculo): `InfoHash` maiúsculo de Jackett cru viraria null antes do filtro.
+          { title: `Filme Ruim ${badHash}`, infoHash: badHash, seeders: 10 },
+          { title: `Filme Morto ${deadHash}`, infoHash: deadHash, seeders: 20 },
+        ] as any,
+        { season: null, episode: null, imdbId: 'tt0000003', searchKey: 'magnet-db-aviso', deadlineAt: Date.now() + 8000 } as any,
+      ),
     );
     assert.equal(out.length, 1, 'sobra só o item de aviso');
     assert.match(String(out[0].name), /histórico ruim/, 'o aviso diz o motivo real, não "fora do cache"');
@@ -170,16 +156,7 @@ test('applyDebrid: bad+blocked RD é limpo e mantém o stream fora do cachedOnly
   try {
     const out = await runWith(
       { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: false }, encoded: 'seg' },
-      () =>
-        applyDebrid([stream(blockedHash), stream(noVideoHash)] as any, {
-          season: null,
-          episode: null,
-          imdbId: null,
-          searchKey: 'magnet-rd-heal',
-          deadlineAt: Date.now() + 8000,
-          onCacheResult: null,
-          workHint: null,
-        } as any),
+      () => applyDebrid([stream(blockedHash), stream(noVideoHash)] as any, { season: null, episode: null, imdbId: null, searchKey: 'magnet-rd-heal', deadlineAt: Date.now() + 8000, onCacheResult: null, workHint: null } as any),
     );
     const dump = JSON.stringify(out);
     assert.ok(dump.includes(blockedHash), 'bad+blocked (fora do cachedOnly) volta como stream sem ⚡');
@@ -198,16 +175,7 @@ test('applyDebrid: bad+blocked RD é limpo e mantém o stream fora do cachedOnly
     magnetdb.markBad('realdebrid', key, blockedHash);
     const cachedOnlyOut = await runWith(
       { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: true }, encoded: 'seg' },
-      () =>
-        applyDebrid([stream(blockedHash)] as any, {
-          season: null,
-          episode: null,
-          imdbId: null,
-          searchKey: 'magnet-rd-heal-cached-only',
-          deadlineAt: Date.now() + 8000,
-          onCacheResult: null,
-          workHint: null,
-        } as any),
+      () => applyDebrid([stream(blockedHash)] as any, { season: null, episode: null, imdbId: null, searchKey: 'magnet-rd-heal-cached-only', deadlineAt: Date.now() + 8000, onCacheResult: null, workHint: null } as any),
     );
     assert.equal(cachedOnlyOut.length, 0, 'cachedOnly continua cortando o blocked pelo ledger');
     assert.equal(magnetdb.isBad('realdebrid', key, blockedHash), false, 'self-healing também limpa antes do corte cachedOnly');
@@ -251,15 +219,7 @@ test('applyDebrid: blocked RD recém-gravado NUNCA sai pelo /resolve mesmo volta
         // CI, sem `.env`, o hash nunca chegava a `cached` e a métrica ficava
         // em zero — o teste passava por acidente de ambiente.
         noteAvailable(blockedHash);
-        return applyDebrid([stream(blockedHash), stream(liveHash)] as any, {
-          season: null,
-          episode: null,
-          imdbId: null,
-          searchKey: 'magnet-rd-blocked-fresh',
-          deadlineAt: Date.now() + 8000,
-          onCacheResult: null,
-          workHint: null,
-        } as any);
+        return applyDebrid([stream(blockedHash), stream(liveHash)] as any, { season: null, episode: null, imdbId: null, searchKey: 'magnet-rd-blocked-fresh', deadlineAt: Date.now() + 8000, onCacheResult: null, workHint: null } as any);
       },
     );
     assert.equal(out.length, 2, 'nenhum dos dois some da lista');
@@ -275,16 +235,7 @@ test('applyDebrid: blocked RD recém-gravado NUNCA sai pelo /resolve mesmo volta
     // Sob cachedOnly o corte o remove por completo (sem raio não aparece).
     const cachedOnlyOut = await runWith(
       { opts: { ...userOpts(key), debridService: 'realdebrid', debridCachedOnly: true }, encoded: 'seg' },
-      () =>
-        applyDebrid([stream(blockedHash)] as any, {
-          season: null,
-          episode: null,
-          imdbId: null,
-          searchKey: 'magnet-rd-blocked-fresh-cached-only',
-          deadlineAt: Date.now() + 8000,
-          onCacheResult: null,
-          workHint: null,
-        } as any),
+      () => applyDebrid([stream(blockedHash)] as any, { season: null, episode: null, imdbId: null, searchKey: 'magnet-rd-blocked-fresh-cached-only', deadlineAt: Date.now() + 8000, onCacheResult: null, workHint: null } as any),
     );
     assert.equal(cachedOnlyOut.length, 0, 'cachedOnly remove o hash bloqueado da lista');
   } finally {
@@ -294,3 +245,139 @@ test('applyDebrid: blocked RD recém-gravado NUNCA sai pelo /resolve mesmo volta
   }
 });
 
+test('prepareCandidateStreams: stream _lied tem _dubbed false e perde preferDubbed boost', () => {
+  const liedHash = '1'.repeat(40);
+  const cleanHash = '2'.repeat(40);
+  const raw = [
+    { title: 'Filme Dublado DUAL 1080p', infoHash: liedHash, lied: true, seeders: 100 },
+    { title: 'Filme Legendado 1080p', infoHash: cleanHash, seeders: 10 },
+  ];
+  const res = runWith({ opts: { ...userOpts('k1'), dubbedOnly: false }, encoded: 'seg' }, () =>
+    prepareCandidateStreams(raw as any, {})
+  );
+  const sLied = res.streams.find((s: any) => s.infoHash === liedHash) as any;
+  const sClean = res.streams.find((s: any) => s.infoHash === cleanHash) as any;
+  assert.ok(sLied && sClean);
+  assert.equal(sLied._lied, true);
+  assert.equal(sLied._dubbed, false, 'promessa de dublado anulada para release com mentira');
+  assert.equal(res.streams[0].infoHash, cleanHash, 'release limpa fica à frente da lied mesmo com menos seeders');
+});
+
+test('sortAndLimit: release limpa precede release lied de mesma qualidade e seeders', () => {
+  const hClean = '3'.repeat(40);
+  const hLied = '4'.repeat(40);
+  const streams = [
+    { infoHash: hLied, name: 'Filme Lied', title: 'Filme 1080p', _quality: '1080p', _seeders: 50, _lied: true },
+    { infoHash: hClean, name: 'Filme Clean', title: 'Filme 1080p', _quality: '1080p', _seeders: 50, _lied: false },
+  ];
+  const out = sortAndLimit(streams as any, { preferDubbed: true });
+  assert.equal((out[0] as any).infoHash, hClean, 'stream limpo vence lied com mesma qualidade e seeders');
+});
+
+test('dedupeByHash: favorece release honesta sobre clone lied e limpa _dubbed', () => {
+  const hash = '5'.repeat(40);
+  const cloneLied = { infoHash: hash, name: 'Lied Clone DUAL\n👤 80', title: 'Filme DUAL 1080p', _seeders: 80, _lied: true, _dubbed: true, _quality: '1080p' };
+  const cloneClean = { infoHash: hash, name: 'Clean EN\n👤 20', title: 'Filme EN 1080p', _seeders: 20, _lied: false, _dubbed: false, _quality: '1080p' };
+  const out1 = dedupeByHash([cloneLied, cloneClean]);
+  assert.equal(out1.length, 1);
+  assert.equal(out1[0]._lied, true, 'marca de mentira preservada');
+  assert.equal(out1[0]._dubbed, false, 'dublado anulado na fusão com lied');
+  assert.match(String(out1[0].name), /Clean EN/, 'clone limpo escolhido como winner');
+
+  const out2 = dedupeByHash([cloneClean, cloneLied]);
+  assert.equal(out2.length, 1);
+  assert.equal(out2[0]._lied, true);
+  assert.equal(out2[0]._dubbed, false);
+  assert.match(String(out2[0].name), /Clean EN/);
+});
+
+test('prepareCandidateStreams: hashes em magnetdb.isLie são excluídos do instantSet', () => {
+  const apiKey = 'test-key-lie-instant';
+  const liedAliveHash = '6'.repeat(40);
+  const cleanHash = '7'.repeat(40);
+  const { adapter } = makeFake();
+  const origAdapter = debrid.BY_ID.get('premiumize');
+  debrid.BY_ID.set('premiumize', adapter as any);
+  magnetdb.markAlive('premiumize', apiKey, [liedAliveHash]);
+  magnetdb.markLie('premiumize', apiKey, liedAliveHash);
+  try {
+    const raw = [
+      { title: 'Filme 1 1080p', infoHash: liedAliveHash, seeders: 5 },
+      { title: 'Filme 2 1080p', infoHash: cleanHash, seeders: 10 },
+    ];
+    const res = runWith({ opts: { ...userOpts(apiKey), dubbedOnly: false }, encoded: 'seg' }, () =>
+      prepareCandidateStreams(raw as any, {})
+    );
+    assert.equal(res.streams[0].infoHash, cleanHash, 'lied não recebe instant boost e fica atrás de clean');
+    assert.equal((res.streams.find((s: any) => s.infoHash === liedAliveHash) as any)._lied, true);
+  } finally {
+    debrid.BY_ID.set('premiumize', origAdapter as any);
+  }
+});
+
+test('sortAndLimit: dubbedOnly descarta streams _lied antecipadamente', () => {
+  const hClean = '8'.repeat(40);
+  const hLied = '9'.repeat(40);
+  const streams = [
+    { infoHash: hLied, name: 'Filme Lied', title: 'Filme 1080p', _quality: '1080p', _seeders: 100, _lied: true },
+    { infoHash: hClean, name: 'Filme Clean', title: 'Filme 1080p', _quality: '1080p', _seeders: 50, _lied: false },
+  ];
+  const out = sortAndLimit(streams as any, { dubbedOnly: true });
+  assert.equal(out.length, 1);
+  assert.equal((out[0] as any).infoHash, hClean, 'stream _lied foi expurgado pelo dubbedOnly');
+});
+
+test('sortAndLimit: preferDubbed demove stream _lied com 5000 seeders atras de stream EN com 1 seeder', () => {
+  const hCleanEn = 'e'.repeat(40);
+  const hLied = 'f'.repeat(40);
+  const streams = [
+    { infoHash: hLied, name: 'Filme Lied DUAL\n👤 5000', title: 'Filme 1080p DUAL', _quality: '1080p', _seeders: 5000, _lied: true, _dubbed: true },
+    { infoHash: hCleanEn, name: 'Filme Clean EN\n👤 1', title: 'Filme 1080p EN', _quality: '1080p', _seeders: 1, _lied: false, _dubbed: false },
+  ];
+  const out = sortAndLimit(streams as any, { preferDubbed: true });
+  assert.equal((out[0] as any).infoHash, hCleanEn, 'stream EN com 1 seeder supera stream lied com 5000 seeders');
+  assert.equal((out[1] as any).infoHash, hLied);
+});
+
+test('dedupeByHash: permutações de 3 clones preservam título honesto e 500 seeders do enxame', () => {
+  const hash = 'a'.repeat(40);
+  const clean = { infoHash: hash, name: 'Honest YTS EN\n👤 50', title: 'Honest YTS EN', _seeders: 50, _lied: false, _dubbed: false, _quality: '1080p' };
+  const fake1 = { infoHash: hash, name: 'Fake BluDV DUAL\n👤 500', title: 'Fake BluDV DUAL', _seeders: 500, _lied: true, _dubbed: true, _quality: '1080p' };
+  const fake2 = { infoHash: hash, name: 'Fake Comando DUAL\n👤 200', title: 'Fake Comando DUAL', _seeders: 200, _lied: true, _dubbed: true, _quality: '1080p' };
+  const perms = [
+    [clean, fake1, fake2], [clean, fake2, fake1],
+    [fake1, clean, fake2], [fake2, clean, fake1],
+    [fake1, fake2, clean], [fake2, fake1, clean],
+  ];
+  for (const p of perms) {
+    const out = dedupeByHash(p);
+    assert.equal(out.length, 1);
+    assert.match(String(out[0].name), /Honest YTS EN/, 'título limpo preservado em todas as permutações');
+    assert.equal(out[0]._seeders, 500, 'max seeders do enxame preservado');
+    assert.equal(out[0]._lied, true);
+    assert.equal(out[0]._dubbed, false);
+  }
+});
+
+test('prepareCandidateStreams: release com lied: true em raw é excluída do instantSet mesmo marcada alive', () => {
+  const apiKey = 'test-raw-lie-instant';
+  const liedAliveHash = 'c'.repeat(40);
+  const cleanHash = 'd'.repeat(40);
+  const { adapter } = makeFake();
+  const origAdapter = debrid.BY_ID.get('premiumize');
+  debrid.BY_ID.set('premiumize', adapter as any);
+  magnetdb.markAlive('premiumize', apiKey, [liedAliveHash]);
+  try {
+    const raw = [
+      { title: 'Filme Fake 1080p', infoHash: liedAliveHash, lied: true, seeders: 1 },
+      { title: 'Filme Clean 1080p', infoHash: cleanHash, lied: false, seeders: 100 },
+    ];
+    const res = runWith({ opts: { ...userOpts(apiKey), dubbedOnly: false }, encoded: 'seg' }, () =>
+      prepareCandidateStreams(raw as any, {})
+    );
+    assert.equal(res.streams[0].infoHash, cleanHash, 'clean vence por seeders pois lied não entra no instantSet');
+    assert.equal(res.streams[1].infoHash, liedAliveHash);
+  } finally {
+    debrid.BY_ID.set('premiumize', origAdapter as any);
+  }
+});
