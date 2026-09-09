@@ -91,9 +91,14 @@
     metricMaybeOrigem(metrics, "TTL alive configurado", formatTtlSeconds(source.aliveTtlSeconds), source, "aliveTtlSeconds", uptimeS);
     metricMaybeOrigem(metrics, "TTL bad configurado", formatTtlSeconds(source.badTtlSeconds), source, "badTtlSeconds", uptimeS);
     metricMaybeOrigem(metrics, "TTL lie configurado", formatTtlSeconds(source.lieTtlSeconds), source, "lieTtlSeconds", uptimeS);
-    metricMaybeOrigem(metrics, "TTL alive restante (média)", formatTtlSeconds(ttl.alive), source, "ttlRemainingSeconds", uptimeS);
-    metricMaybeOrigem(metrics, "TTL bad restante (média)", formatTtlSeconds(ttl.bad), source, "ttlRemainingSeconds", uptimeS);
-    metricMaybeOrigem(metrics, "TTL lie restante (média)", formatTtlSeconds(ttl.lie), source, "ttlRemainingSeconds", uptimeS);
+    // Base da soma de TTL restante: `l1-rebuild` = restante real de cada chave,
+    // preciso só no instante do rebuild; `aggregate-estimate` = estimativa
+    // incremental/restaurada (default e estado normal após qualquer mutação).
+    var ttlBasis = source.ttlRemainingBasis === "l1-rebuild" ? "l1-rebuild" : "aggregate-estimate";
+    var ttlSuffix = ttlBasis === "l1-rebuild" ? " · base: recontada do L1" : "";
+    metricMaybeOrigem(metrics, "TTL alive restante (média)", formatTtlSeconds(ttl.alive) + ttlSuffix, source, "ttlRemainingSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL bad restante (média)", formatTtlSeconds(ttl.bad) + ttlSuffix, source, "ttlRemainingSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL lie restante (média)", formatTtlSeconds(ttl.lie) + ttlSuffix, source, "ttlRemainingSeconds", uptimeS);
     adapterIds = Object.keys(adapters).sort();
     for (i = 0; i < adapterIds.length; i += 1) {
       var adapter = isObject(adapters[adapterIds[i]]) ? adapters[adapterIds[i]] : {};
@@ -104,7 +109,10 @@
         source, "byAdapter", uptimeS);
     }
     metrics.appendChild(element("p", "guidance",
-      "Os agregados sobrevivem ao restart pelo mag_meta. A ocupação do L1 ainda pode diferir de alive+bad+lie por incluir registros expirados ou órfãos ainda não removidos."));
+      "Os agregados sobrevivem ao restart pelo mag_meta. A média de TTL restante é " + (ttlBasis === "l1-rebuild"
+        ? "recontada do L1 (restante real de cada chave) e vale só até a próxima gravação/esquecimento"
+        : "estimativa incremental ou restaurada (escrita e remoção somam/subtraem o TTL nominal, não o restante exato)") + ". " +
+      "A ocupação do L1 ainda pode diferir de alive+bad+lie por incluir registros expirados ou órfãos ainda não removidos."));
     // Grupo C — contadores do processo (metrics): gravações, reparo e descartes
     // na listagem. Estes, sim, zeram no restart.
     metricGroupTitle(metrics, "Gravações e descartes desde o restart (contadores do processo)");

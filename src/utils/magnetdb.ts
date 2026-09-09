@@ -19,10 +19,17 @@ import config from '../config.js';
 import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { accountScope } from './request-key.js';
-import { prefix, magMetaCountsKey } from './cache-keys.js';
-import { emptyAdapterTotals, rebuildFromL1, type AdapterTotals, type MagSide } from './magnetdb-counts.js';
+import { prefix } from './cache-keys.js';
+import type { AdapterTotals, MagSide } from './magnetdb-counts.js';
+import {
+  adapterCounts, getOrCreateAdapter, ensureCountsLoaded,
+  savePersistentCounts, loadPersistentCounts, schedulePersistentSave, markMutation,
+  ttlRemainingBasis, type TtlRemainingBasis,
+} from './magnetdb-persist.js';
 
 export type { AdapterTotals };
+export { savePersistentCounts, loadPersistentCounts, ttlRemainingBasis };
+export type { TtlRemainingBasis };
 
 type MagnetSizes = { alive: number; bad: number; lie: number };
 type TtlRemaining = { alive: number | null; bad: number | null; lie: number | null };
@@ -47,6 +54,12 @@ export type MagnetDbStatus = {
   l1Entries: number;
   l1Max: number;
   evictedQuota: number;
+  /**
+   * Procedência da soma de TTL restante: `l1-rebuild` = restante real de cada
+   * chave, preciso só no instante do rebuild; `aggregate-estimate` = estimativa
+   * incremental/restaurada (escrita/esquecimento somam/subtraem TTL nominal).
+   */
+  ttlRemainingBasis: TtlRemainingBasis;
   counters: {
     aliveSet: number; badSet: number; lieSet: number; dropped: number;
     droppedBad: number; droppedDead: number; droppedLie: number; badClearedBlocked: number;
@@ -54,96 +67,9 @@ export type MagnetDbStatus = {
   _origem: Record<string, MagnetDbOrigem>;
 };
 
-type PersistentCountsPayload = { version: 1; updatedAt: number; adapters: Record<string, AdapterTotals> };
-
-const adapterCounts = new Map<string, AdapterTotals>();
-
-function getOrCreateAdapter(adapterId: string): AdapterTotals {
-  let totals = adapterCounts.get(adapterId);
-  if (!totals) {
-    totals = emptyAdapterTotals();
-    adapterCounts.set(adapterId, totals);
-  }
-  return totals;
-}
-
-let persistTimer: ReturnType<typeof setImmediate> | null = null;
-
-function savePersistentCounts() {
-  if (persistTimer) { clearImmediate(persistTimer); persistTimer = null; }
-  if (!config.magnetDb.enabled) return;
-  const adapters: Record<string, AdapterTotals> = Object.create(null);
-  for (const [id, totals] of adapterCounts) {
-    if (totals.alive > 0 || totals.bad > 0 || totals.lie > 0) {
-      adapters[id] = { alive: totals.alive, bad: totals.bad, lie: totals.lie, ttlRemainingSums: { ...totals.ttlRemainingSums } };
-    }
-  }
-  const payload: PersistentCountsPayload = { version: 1, updatedAt: Date.now(), adapters };
-  cache.set(magMetaCountsKey(), payload, Math.max(config.magnetDb.aliveTtl, 7 * 86400));
-}
-
-function schedulePersistentSave() {
-  if (persistTimer) return;
-  persistTimer = setImmediate(() => { persistTimer = null; savePersistentCounts(); });
-  persistTimer.unref?.();
-}
-
-function loadPersistentCounts() {
-  const ns = cache.snapshot().namespaces as Record<string, { entries?: number }>;
-  if ((ns?.mag?.entries || 0) === 0) { adapterCounts.clear(); return; }
-  const raw = cache.peek(magMetaCountsKey()) as PersistentCountsPayload | null;
-  adapterCounts.clear();
-  if (!raw || typeof raw !== 'object' || !raw.adapters) {
-    // Agregado ausente/ilegível com o L1 cheio: reconta do próprio L1 e
-    // regrava. Devolver zero aqui seria mentira rotulada de `duravel`.
-    for (const [id, totals] of rebuildFromL1()) adapterCounts.set(id, totals);
-    if (adapterCounts.size > 0) schedulePersistentSave();
-    return;
-  }
-  const now = Date.now();
-  const elapsedSec = Math.max(0, Math.floor((now - (raw.updatedAt || now)) / 1000));
-  for (const [id, totals] of Object.entries(raw.adapters)) {
-    if (!totals) continue;
-    const alive = Math.max(0, Number(totals.alive) || 0);
-    const bad = Math.max(0, Number(totals.bad) || 0);
-    const lie = Math.max(0, Number(totals.lie) || 0);
-    const rawTtl = totals.ttlRemainingSums || { alive: 0, bad: 0, lie: 0 };
-    if (alive > 0 || bad > 0 || lie > 0) {
-      adapterCounts.set(id, {
-        alive, bad, lie,
-        ttlRemainingSums: {
-          alive: Math.max(0, (Number(rawTtl.alive) || 0) - elapsedSec * alive),
-          bad: Math.max(0, (Number(rawTtl.bad) || 0) - elapsedSec * bad),
-          lie: Math.max(0, (Number(rawTtl.lie) || 0) - elapsedSec * lie),
-        },
-      });
-    }
-  }
-}
-
-loadPersistentCounts();
-
-cache.onForget((key: string) => {
-  if (!key.startsWith(prefix('mag'))) return;
-  const parts = key.split(':');
-  const side = parts[2] as MagSide;
-  const adapterId = parts[3];
-  if (!side || !adapterId) return;
-  const totals = adapterCounts.get(adapterId);
-  if (!totals) return;
-  if (side === 'alive') {
-    totals.alive = Math.max(0, totals.alive - 1);
-    totals.ttlRemainingSums.alive = Math.max(0, totals.ttlRemainingSums.alive - config.magnetDb.aliveTtl);
-  } else if (side === 'bad') {
-    totals.bad = Math.max(0, totals.bad - 1);
-    totals.ttlRemainingSums.bad = Math.max(0, totals.ttlRemainingSums.bad - config.magnetDb.badTtl);
-  } else if (side === 'lie') {
-    totals.lie = Math.max(0, totals.lie - 1);
-    totals.ttlRemainingSums.lie = Math.max(0, totals.ttlRemainingSums.lie - config.magnetDb.lieTtl);
-  }
-  schedulePersistentSave();
-});
-
+// Contadores, persistência (mag_meta:v1) e o hook cache.onForget moram em
+// magnetdb-persist.ts — este arquivo estava no teto de 400 linhas. A API
+// pública continua aqui (reexportação acima de save/load para addon/testes).
 const magKey = (side: MagSide, adapterId: string, apiKey: string, hash: string) =>
   `${prefix('mag')}${side}:${adapterId}:${accountScope(apiKey)}:${String(hash || '').toLowerCase()}`;
 const aliveKey = (adapterId: string, apiKey: string, hash: string) => magKey('alive', adapterId, apiKey, hash);
@@ -179,6 +105,10 @@ function markAlive(adapterId: string, apiKey: string, hashes: string[]) {
 
   cache.setMany(writes);
 
+  // Qualquer escrita degrada a base para estimativa — inclusive a renovação
+  // econômica do renewAlive (newAliveCount === 0): a soma não sabe o restante
+  // anterior da chave renovada, então `l1-rebuild` não sobrevive nem a ela.
+  markMutation();
   if (newAliveCount > 0) {
     const totals = getOrCreateAdapter(adapterId);
     totals.alive += newAliveCount;
@@ -220,6 +150,7 @@ function markBad(adapterId: string, apiKey: string, hash: string) {
     const totals = getOrCreateAdapter(adapterId);
     totals.bad += 1;
     totals.ttlRemainingSums.bad += ttl;
+    markMutation();
     schedulePersistentSave();
   }
   metrics.count('magnetdb.bad.set');
@@ -271,6 +202,7 @@ function markLie(adapterId: string, apiKey: string, hash: string) {
     const totals = getOrCreateAdapter(adapterId);
     totals.lie += 1;
     totals.ttlRemainingSums.lie += ttl;
+    markMutation();
     schedulePersistentSave();
   }
 
@@ -327,11 +259,7 @@ function status(): MagnetDbStatus {
   const magNs = ns?.mag;
   const l1Entries = magNs?.entries || 0;
 
-  if (l1Entries === 0) {
-    adapterCounts.clear();
-  } else if (adapterCounts.size === 0) {
-    loadPersistentCounts();
-  }
+  ensureCountsLoaded(l1Entries);
 
   let sizeAlive = 0;
   let sizeBad = 0;
@@ -378,6 +306,7 @@ function status(): MagnetDbStatus {
     l1Entries,
     l1Max: magNs?.maxEntries || cache.QUOTAS?.mag || 0,
     evictedQuota: counters['cache.evicted.quota.mag'] || 0,
+    ttlRemainingBasis: ttlRemainingBasis(),
     counters: {
       aliveSet: counters['magnetdb.alive.set'] || 0, badSet: counters['magnetdb.bad.set'] || 0,
       lieSet: counters['magnetdb.lie.set'] || 0, dropped: counters['magnetdb.dropped'] || 0,
@@ -387,6 +316,7 @@ function status(): MagnetDbStatus {
     _origem: {
       enabled: 'duravel', aliveTtlSeconds: 'duravel', badTtlSeconds: 'duravel', lieTtlSeconds: 'duravel',
       sizeAlive: 'duravel', sizeBad: 'duravel', sizeLie: 'duravel', ttlRemainingSeconds: 'duravel',
+      ttlRemainingBasis: 'duravel',
       byAdapter: 'duravel', l1Entries: 'duravel', l1Max: 'duravel', evictedQuota: 'duravel',
     },
   };
@@ -395,5 +325,5 @@ function status(): MagnetDbStatus {
 export {
   markAlive, isAlive, peekAlive, markBad, isBad, peekBad,
   forgetBad, forgetBadKey, markLie, isLie, peekLie,
-  renewAlive, status, savePersistentCounts, loadPersistentCounts,
+  renewAlive, status,
 };

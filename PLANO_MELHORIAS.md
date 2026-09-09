@@ -120,7 +120,13 @@ no `instantSet` (Fase 2) e as ações autenticadas `magnet-inspect`/
 `magnet-summary`/`magnet-clear-bad` no painel (Fase 3, `magnet-clear-bad`
 destrutiva com `confirm` e teto de 100). `test:complete` agora inventaria **7**
 harnesses (entrou `scripts/empirical-ranking-challenger.ts`, exposto como
-`npm run test:ranking-challenger`). Ver a seção **MagnetDB** abaixo.
+`npm run test:ranking-challenger`). A releitura que a doc `fd4663d` motivou
+achou dois defeitos de **relato** — zero rotulado `duravel` no primeiro boot com
+`cache.db` herdado, e `cleared: 0` fantasma no `magnet-clear-bad` — fechados em
+`008eecd`. No working tree (ainda sem commit): a persistência saiu para
+`magnetdb-persist.ts` (`magnetdb.ts`: 400 → 329 linhas) e o status passou a
+declarar a base da média de TTL restante (`ttlRemainingBasis`, painel mostra o
+qualificador). Ver a seção **MagnetDB** abaixo.
 
 ---
 
@@ -1320,9 +1326,12 @@ fecham esses três pontos.
 | 2 — rebaixamento de `lie` | `markLie`/`isLie`/`peekLie`; `instantSet` exclui lied; `dedupeByHash` prefere listagem limpa ao clone mentiroso; `sortAndLimit` rebaixa `_lied` abaixo da mesma qualidade e filtra em `dubbedOnly`; destrava `adprot` + `markLied` no índice | ✅ `fe4cd8c` |
 | 2b — challenger de ranking | `scripts/empirical-ranking-challenger.ts` (exposto como `npm run test:ranking-challenger`) | ✅ `fe4cd8c` |
 | 3 — ações do painel | `src/utils/magnetdb-inspect.ts` (L1 só) + `src/routes/dashboard-actions-magnet.ts`: `magnet-inspect`/`magnet-summary` (leitura) e `magnet-clear-bad` (destrutiva, `confirm`, teto 100) | ✅ `0b5c538` |
+| 1b — correção de relato | `loadPersistentCounts` reconta do L1 quando o agregado não abre (`rebuildFromL1`, O(namespace `mag`): 29,6 ms medidos em 50 mil chaves — cota cheia — uma vez no boot; **remedir se a cota crescer**); `forgetBadKey` decide presença por `cache.has`, fim do `cleared: 0` fantasma; parse único em `magnetdb-counts.ts` (mão única, sem ciclo) | ✅ `008eecd` |
+| 1c — extração + base do TTL | `magnetdb-persist.ts` (contadores, `mag_meta`, `onForget`, `ttlRemainingBasis`) extraído do `magnetdb.ts` (400 → 329 linhas, folga na catraca); painel qualifica a média (`l1-rebuild` × `aggregate-estimate`) em vez de chamá-la de exata após mutação; `test/magnetdb-persist-basis.test.ts` | ⏳ working tree (sem commit) |
 
-Código F1–3 commitado em `esm` (`fe4cd8c` + `0b5c538`). **Não alegar DONE em
-produção** — deploy exige autorização explícita.
+Código F1–3 commitado em `esm` (`fe4cd8c` + `0b5c538` + `008eecd`). **Não alegar
+DONE em produção** — deploy exige autorização explícita. A extração 1c
+(persistência + `ttlRemainingBasis`) está no working tree, ainda sem commit.
 
 ### Contratos duros (não podem regredir)
 
@@ -1332,9 +1341,20 @@ produção** — deploy exige autorização explícita.
    vive numa única chave `mag_meta:v1:counts` (cota 1); o `ttlRemainingSums` é
    aproximação operacional (subtrai o TTL nominal, não o restante exato), então
    **contagens são exatas, a média é conservadora**. `cache.has` (presença
-   física, incluindo expirado aguardando prune) é o que impede o
-   `markAlive`/`markBad`/`markLie` de contar duas vezes a mesma chave na janela
-   entre vencimento e poda.
+   física, incluindo expirado aguardando prune) é o critério único de "existia"
+   — impede o `markAlive`/`markBad`/`markLie` de contar duas vezes a mesma
+   chave na janela entre vencimento e poda, e é o que o `forgetBadKey` usa desde
+   `008eecd` (decidir por `peek` devolvia `cleared: 0` fantasma no
+   `magnet-clear-bad`). Quando o agregado não abre com o L1 cheio (primeiro boot
+   com `cache.db` herdado — o caso normal do rebuild do container), a
+   reconstrução é `rebuildFromL1`: O(namespace `mag`), uma vez no boot e no
+   autocura do `status()`, nunca no caminho de busca; medido em 50 mil chaves
+   (cota cheia), 29,6 ms — aceitável na cota atual, **remedir se `mag`
+   crescer**. A soma declara a própria base (`ttlRemainingBasis`): `l1-rebuild`
+   é o restante real de cada chave e vale só até a **primeira mutação** —
+   inclusive o `renewAlive` sem chave nova degrada para `aggregate-estimate` — e
+   o painel mostra o qualificador em vez de chamar de exata uma média que
+   envelheceu.
 2. **`lie` rebaixa, não apaga.** Não é `bad`: há vídeo, só que o play provou EN
    onde o post prometia PT. O hash sai do `instantSet`, perde `_dubbed` no merge
    (a listagem limpa vence o clone mentiroso do MESMO hash) e desaba abaixo de
@@ -1357,11 +1377,33 @@ produção** — deploy exige autorização explícita.
 
 - **Gates:** `typecheck` 0; build verde; suíte completa passando;
   `test:complete` agora com **7 harnesses** (entrou o challenger de ranking);
-  catraca `lint:lines` OK (os módulos novos nascem sob 400 linhas:
-  `magnetdb-inspect.ts` 131, `dashboard-actions-magnet.ts` 130).
-- **Validação adversarial:** `9a8c6dd` realinhou os alvos do harness após os
-  splits anteriores; as **10/10 mutações** voltaram a ser capturadas, além das
-  20 repetições sequenciais e 6 workers paralelos.
+  catraca `lint:lines` OK. Tamanhos conforme medido: nasceram `magnetdb-inspect.ts`
+  131 e `dashboard-actions-magnet.ts` 130; em `008eecd` o parse foi para
+  `magnetdb-counts.ts` (73) e o inspect caiu a 116 — `magnetdb.ts` ficou em 400,
+  exato no teto; a extração pendente (`magnetdb-persist.ts`, 157) devolve o
+  `magnetdb.ts` a 329 e abre folga na catraca.
+- **Validação adversarial — por que `9a8c6dd` foi necessário:** após os splits
+  5.1/5.3/5.5, **8 das 10 mutações** do `empirical-e2e-challenger` estavam
+  vacuamente verdes — o `testFile` de cada uma apontava para suíte que não
+  exercitava mais o símbolo mutado (o alvo havia mudado de arquivo em `dist/`),
+  então a suíte passava com a injeção dentro e o harness não provava nada.
+  `9a8c6dd` realinhou 7 `testFile` para as suítes que alcançam o símbolo movido
+  (tier1-title-cache, tier2-invariants-security, tier2-providers-debrid,
+  tier3-pipeline) e a oitava exigiu teste novo: o **Step 5** do
+  tier4-application-scenarios reabre a MESMA chave dentro do TTL e exige
+  `max-age=900` do cache completo — o contrato que a MUT-10 (finish gravando
+  `partial:true`) ataca. As **10/10 mutações** voltaram a ser capturadas, além
+  das 20 repetições sequenciais e 6 workers paralelos. Lição permanente em
+  AGENTS.md: split exige realinhar o `testFile` e rodar o challenger.
+- **Sequência da documentação (lição de workflow):** a doc `fd4663d` registrou
+  as fases **antes** da releitura do código resultante; foi a releitura que expôs
+  os dois defeitos de **relato** — o painel mostrando zero com rótulo `duravel`
+  no primeiro boot com `cache.db` herdado (nenhuma busca afetada: os contadores
+  nunca alimentaram decisão) e o `magnet-clear-bad` devolvendo `cleared: 0`
+  fantasma ao apagar bad expirado não podado. `008eecd` fechou os dois, e a doc
+  ficou verdadeira a posteriori. Sequência ideal: **releitura/correção primeiro,
+  documentação depois** — doc escrita antes congela a promessa, não o
+  comportamento.
 - **Testes novos:** `magnet-db-persistence.test.ts` (persistência/restart,
   transição bad↔alive, `forgetBad` durável, prune sem vazamento, regravar
   expirado não infla), `magnet-db-empirical-challenge.test.ts` (transições
@@ -1369,12 +1411,22 @@ produção** — deploy exige autorização explícita.
   underflow no `forgetMany`), `dashboard-actions-magnet.test.ts` (enumeração sem
   vazamento, filtros+teto, 400 em filtro inválido, summary sem hash, `confirm`
   central, idempotência do clear-bad) e o harness `empirical-ranking-challenger`
-  (demotion de `lie` vs `preferDubbed` em todas as qualidades).
+  (demotion de `lie` vs `preferDubbed` em todas as qualidades). `008eecd`
+  reforçou os dois primeiros com os testes dos bugs de relato — verificados
+  contra o código ANTIGO (falham lá, passam aqui); o da reconstrução usa hash
+  40-hex real porque hash de brinquedo morre no parse e o teste passaria sem
+  provar nada. O working tree adiciona `magnetdb-persist-basis.test.ts`
+  (reexportação pela fachada, degradação `l1-rebuild`→`aggregate-estimate` —
+  inclusive renovação sem chave nova —, payload estranho caindo no rebuild,
+  reset com L1 vazio e o qualificador no painel sob ES5).
 
 ### O que falta (administrativo / produção)
 
 1. Deploy só com autorização — o painel passa a oferecer `magnet-clear-bad`
    (destrutiva) atrás do token de diagnóstico.
+2. Commitar a extração do working tree (1c): `magnetdb-persist.ts`,
+   `ttlRemainingBasis`, qualificador no painel e o teste novo. Não muda decisão
+   de busca/ranking — é folga na catraca + honestidade no relato.
 
 **Explicitamente fora:** scan SQLite para contagem, `lie` vindo de checagem de
 cache, expor credencial/digest em qualquer resposta do painel, apagar `alive` ou
@@ -1383,7 +1435,8 @@ cache, expor credencial/digest em qualquer resposta do painel, apagar `alive` ou
 **Rollback:** `MAGNET_DB=false` desliga o banco inteiro; `MAGNET_LIE=false` ou
 `MAGNET_LIE_TTL=0` fecha só o lado `lie` sem tocar em alive/bad; os contadores
 duráveis somem com o `mag_meta` (não há migração — `loadPersistentCounts` é
-tolerante a ausência).
+tolerante a ausência e, com o L1 cheio, reconta do próprio L1 via
+`rebuildFromL1`).
 
 ---
 
@@ -1405,8 +1458,10 @@ Fase 9 (P5 observabilidade) ✅ no código (`ea15894`…`9eb98f4` + bumps v9/v10
 Deploy em produção continua autorização explícita.
 
 MagnetDB F1–3 (contadores duráveis, ranking de lie, ações do painel) ✅ no código
-(`fe4cd8c` + `0b5c538`). Independente das fases numeradas deste plano; não
-alegar DONE em produção sem deploy.
+(`fe4cd8c` + `0b5c538` + `008eecd`, que fechou os dois bugs de relato). A
+extração `magnetdb-persist.ts` + `ttlRemainingBasis` está no working tree (sem
+commit). Independente das fases numeradas deste plano; não alegar DONE em
+produção sem deploy.
 ```
 
 - 5.1–5.7 são sequenciais entre si (mesmos arquivos), mas 5.2, 5.4 e 5.5 são

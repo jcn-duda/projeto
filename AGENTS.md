@@ -357,7 +357,10 @@ declarar `true` sem endpoint funcional é o pior dos mundos.
 
 **Banco de magnets (`src/utils/magnetdb.ts`).** Histórico durável POR HASH,
 escopado por serviço+conta (`mag:v1:<lado>:<adapterId>:<sha256(apiKey)>:<hash>`) —
-nunca vaza credencial, não cruza contas. Alimenta três decisões da listagem: o
+nunca vaza credencial, não cruza contas. `magnetdb.ts` é a fachada; a família
+tem `magnetdb-persist.ts` (contadores, agregado `mag_meta`, hook `onForget`,
+`ttlRemainingBasis`), `magnetdb-counts.ts` (parse da chave + `rebuildFromL1`) e
+`magnetdb-inspect.ts` (ações do painel). Alimenta três decisões da listagem: o
 filtro pré-checagem do `applyDebrid` (descarta o que provou estar quebrado,
 antes de gastar lote — ou upload, na AllDebrid), o desempate `instant` do
 `sortAndLimit` (quem provou tocar na hora sobe acima dos seeders, DEPOIS de
@@ -469,7 +472,8 @@ regrediu a não-pronto. Kill-switch: `DEBRID_AUTO_FETCH_PROTECT_BR=false`
 
 **Panorama no painel** (`/dashboard-status.json` → `magnetdb`): além dos
 totais, o status agrega **por adapter** (`byAdapter`) os tamanhos de
-alive/bad/lie e o TTL médio restante de cada lado, e mostra a **taxa ⚡**
+alive/bad/lie e o TTL médio restante de cada lado (com o qualificador de base
+`ttlRemainingBasis`, ver abaixo), e mostra a **taxa ⚡**
 (`debrid.check.cached` / `debrid.check.hashes`). Ambos contam exclusivamente
 hashes enviados à rede: o numerador são positivos de resposta completa, e o
 denominador são consultas reais. Hit local de `davail` fica separado em
@@ -477,18 +481,35 @@ denominador são consultas reais. Hit local de `davail` fica separado em
 
 **Contadores duráveis O(1) (`mag_meta:v1`).** As contagens por adapter/side que
 o painel mostra não vêm de scan no SQLite nem de um `Map` que morre no restart:
-são incrementadas na escrita, decrementadas pelo hook `cache.onForget` do
-magnetdb (TTL e despejo por cota passam por ele) e persistidas num único
-agregado (`mag_meta:v1:counts`, cota 1) com `setImmediate` debounced + `unref`,
-salvo também no shutdown do processo (`src/addon.ts`). No boot o
-`loadPersistentCounts` restaura o estado e decai o TTL restante pelo tempo
-decorrido (`updatedAt`). `status()` marca esses campos com `_origem: duravel`;
-só os contadores de *eventos* (`magnetdb.*.set`, `dropped`) continuam zerando no
-restart. O `ttlRemainingSums` é aproximação operacional (renovação/remoção
-subtraem o TTL nominal, não o restante exato de cada chave) — as contagens são
-exatas, a média é conservadora. O `cache.has` (presença física, incluindo
-expirado aguardando prune) é o que impede `markAlive`/`markBad`/`markLie` de
-contar duas vezes a mesma chave na janela entre vencimento e poda.
+são incrementadas na escrita, decrementadas pelo hook `cache.onForget` (TTL e
+despejo por cota passam por ele) e persistidas num único agregado
+(`mag_meta:v1:counts`, cota 1) com `setImmediate` debounced + `unref`, salvo
+também no shutdown do processo (`src/addon.ts`). A contagem no dia a dia é
+O(1); a família `magnetdb-persist.ts`/`magnetdb-counts.ts` existe porque o
+`magnetdb.ts` encostou no teto de 400 linhas — a extração o devolveu a 329. No
+boot o `loadPersistentCounts` restaura o estado e decai o TTL restante pelo
+tempo decorrido (`updatedAt`); com o agregado ausente ou ilegível (versão
+estranha conta como ilegível) e o L1 cheio, ele **reconta do próprio L1**
+(`rebuildFromL1`) e regrava o agregado — devolver zero ali seria mentira
+rotulada de `duravel`, e o primeiro boot com `cache.db` herdado é o caso normal
+do rebuild do container. O rebuild é O(namespace `mag`): medido em 50 mil
+chaves (cota cheia do namespace), 29,6 ms, uma vez no boot (e no autocura do
+`status()`), nunca no caminho de busca; `status()` segue O(adapters).
+Aceitável na cota atual — **remedir se a cota `mag` crescer**. `status()` marca
+esses campos com `_origem: duravel`; só os contadores de *eventos*
+(`magnetdb.*.set`, `dropped`) continuam zerando no restart. A soma de TTL
+restante declara a própria base (`ttlRemainingBasis`): `l1-rebuild` = restante
+real de cada chave (`peekRemaining`), preciso só no instante do rebuild;
+`aggregate-estimate` = estimativa incremental/restaurada (escrita soma o TTL
+nominal, esquecimento/restauração subtraem o nominal ou o tempo decorrido).
+**Toda mutação degrada o rebuild para estimativa** — inclusive o `renewAlive`
+sem chave nova — e o painel mostra o qualificador em vez de chamar de exata uma
+média que envelheceu. As contagens são exatas, a média é conservadora. O
+`cache.has` (presença física, incluindo expirado aguardando prune) é o critério
+único de "existia": impede `markAlive`/`markBad`/`markLie` de contar duas vezes
+a mesma chave na janela entre vencimento e poda, e é o que o `forgetBadKey` usa
+desde `008eecd` — decidir por `peek` apagava bad expirado não podado e o
+`magnet-clear-bad` devolvia `cleared: 0` fantasma.
 
 **Ações do banco no painel** (`POST /dashboard-action.json`, atrás do mesmo
 token): `magnet-inspect` e `magnet-summary` são leitura; `magnet-clear-bad` é
@@ -498,12 +519,16 @@ por prefixo (`keysMatching` + `peek`/`peekRemaining` — nenhuma query síncrona
 SQLite, sem promover LRU nem inflar `cache.hit`), com teto de **100 itens** por
 resposta/passagem (default 50) e filtros `adapterId`/`side`/`hash` validados
 (valor inválido é 400, não ignorado em silêncio). O `clear-bad` é idempotente:
-repetir devolve `cleared: 0`. A lógica mora em `src/utils/magnetdb-inspect.ts`
-(separado do `magnetdb.ts`, que está no teto de 400 linhas) e os handlers em
+repetir devolve `cleared: 0` — e a decisão de "existia" usa `cache.has`, não
+`peek` (`008eecd`: bad expirado ainda não podado É apagado e tem que contar no
+`cleared`, senão a ação reportava zero fantasma). A lógica mora em
+`src/utils/magnetdb-inspect.ts` e os handlers em
 `src/routes/dashboard-actions-magnet.ts`. Segurança de payload: o parse das
-chaves `mag` **descarta o digest da conta** (`accountScope`) na origem — nenhuma
-resposta expõe apiKey, scope nem a chave completa; o hash devolvido é o de
-conteúdo (40-hex).
+chaves `mag` é **um só**, em `src/utils/magnetdb-counts.ts` (`008eecd` removeu
+a segunda cópia que o inspect mantinha — divergiria em silêncio na próxima
+versão do namespace), e **descarta o digest da conta** (`accountScope`) na
+origem — nenhuma resposta expõe apiKey, scope nem a chave completa; o hash
+devolvido é o de conteúdo (40-hex).
 
 AllDebrid **mede** ⚡, mas a consulta é um upload e **não é abortável**
 (`abortSafeCacheCheck: false`). A corrida da resposta não cancela o trabalho:
@@ -1409,8 +1434,10 @@ fire-and-forget) continua.
 | `src/utils/logger.ts` | Níveis via `ADDON_LOG_LEVEL` (não `LOG_LEVEL` — essa é do FlareSolverr) |
 | `src/utils/metrics.ts` | Contadores/histogramas do `/metrics.json` |
 | `src/utils/diagnostic-guard.ts` | Token + rate limit das rotas operacionais |
-| `src/utils/magnetdb.ts` | Banco de magnets por hash/adapter (alive/bad/lie); contadores duráveis O(1) em `mag_meta:v1` (restaurados no boot, decrementados por `cache.onForget`); panorama no dashboard: tamanhos por adapter, TTLs (e restante) e taxa ⚡ (`debrid.check.cached`/`hashes`) |
-| `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse descarta o digest da conta. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
+| `src/utils/magnetdb.ts` | Fachada do banco de magnets por hash/adapter (alive/bad/lie): marcações, `is*`/`peek*`, `forgetBad`, `renewAlive`, `status()` (panorama do dashboard: tamanhos por adapter, TTLs com `ttlRemainingBasis` e taxa ⚡ — `debrid.check.cached`/`hashes`). Reexporta a persistência; nenhuma rota importa os módulos internos direto |
+| `src/utils/magnetdb-persist.ts` | Contadores duráveis O(1), agregado `mag_meta:v1`, hook `cache.onForget` e `ttlRemainingBasis` (`l1-rebuild` × `aggregate-estimate`). Extraído do `magnetdb.ts`, que encostou no teto de 400 linhas (ficou em 329) |
+| `src/utils/magnetdb-counts.ts` | Parse da chave `mag` (descarta o digest da conta na origem), `emptyAdapterTotals` e `rebuildFromL1` — O(namespace `mag`), roda uma vez no boot quando o agregado não abre, nunca no caminho de busca. Dependência de mão única (cache + cache-keys), sem ciclo com o `magnetdb` |
+| `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse compartilhado de `magnetdb-counts.ts`. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
 | `resolvers/` | Núcleo comum dos resolvers (CommonJS puro). Processo: `runtime.js`, `site-selector.js` (failover de host), `cache.js`, `http-server.js`, `flare.js`. Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os cinco), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` |
 | `*-resolver/` | Shims de compatibilidade: `<nome>/server.js` faz `require('../resolvers/profiles/<nome>')` — a lógica está no núcleo em `resolvers/` |
@@ -1872,6 +1899,20 @@ o orçamento com a resposta.
   uma mutação, ela tem que entrar na mesma lista de snapshot — mutação fora
   dela deixa o `dist/` corrompido quando o harness é interrompido, e o sintoma
   seguinte é um teste "falhando" que não tem nada a ver com o seu commit.
+- **Split de módulo exige realinhar o `testFile` do mutante.** Quando o símbolo
+  muda de arquivo em `dist/`, o `testFile` que apontava para a suíte antiga
+  pode continuar passando **com a mutação injetada** — verde por vacuidade, não
+  por captura. Foi o estado do challenger após os splits 5.1/5.3/5.5: **8 das
+  10 mutações** estavam vacuamente verdes porque os alvos haviam saído dos
+  arquivos que aqueles e2e exercitavam. `9a8c6dd` realinhou 7 `testFile` para
+  as suítes que de fato alcançam o símbolo movido (tier1-title-cache,
+  tier2-invariants-security, tier2-providers-debrid, tier3-pipeline) e a
+  oitava exigiu teste novo: o **Step 5** do tier4-application-scenarios reabre
+  a MESMA chave dentro do TTL e exige `max-age=900` do cache completo — o
+  contrato que a MUT-10 (finish gravando `partial:true`) ataca e nenhuma
+  asserção anterior verificava. Cobertura voltou a 10/10. Ao mover um símbolo
+  entre arquivos de `dist/`, rode o challenger e confirme que o `testFile`
+  ainda o alcança — o harness verde à toa é pior que o vermelho.
 - **`assert.deepEqual` do `node:assert/strict` estreita o tipo.** A assinatura
   é `asserts actual is T`: depois de `assert.deepEqual(lista, [])`, o TS trata
   `lista` como `never[]` e qualquer uso posterior (`.includes(n)`) vira erro de
