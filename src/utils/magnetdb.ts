@@ -20,16 +20,9 @@ import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { accountScope } from './request-key.js';
 import { prefix, magMetaCountsKey } from './cache-keys.js';
+import { emptyAdapterTotals, rebuildFromL1, type AdapterTotals, type MagSide } from './magnetdb-counts.js';
 
-type MagnetSide = 'alive' | 'bad' | 'lie';
-
-export type AdapterTotals = {
-  alive: number; bad: number; lie: number;
-  // Aproximação operacional: renovações e remoções subtraem o TTL nominal,
-  // não o restante exato de cada chave. As contagens são exatas; esta soma
-  // serve apenas para mostrar uma média conservadora no painel sem scan O(n).
-  ttlRemainingSums: { alive: number; bad: number; lie: number };
-};
+export type { AdapterTotals };
 
 type MagnetSizes = { alive: number; bad: number; lie: number };
 type TtlRemaining = { alive: number | null; bad: number | null; lie: number | null };
@@ -65,10 +58,6 @@ type PersistentCountsPayload = { version: 1; updatedAt: number; adapters: Record
 
 const adapterCounts = new Map<string, AdapterTotals>();
 
-function emptyAdapterTotals(): AdapterTotals {
-  return { alive: 0, bad: 0, lie: 0, ttlRemainingSums: { alive: 0, bad: 0, lie: 0 } };
-}
-
 function getOrCreateAdapter(adapterId: string): AdapterTotals {
   let totals = adapterCounts.get(adapterId);
   if (!totals) {
@@ -103,8 +92,14 @@ function loadPersistentCounts() {
   const ns = cache.snapshot().namespaces as Record<string, { entries?: number }>;
   if ((ns?.mag?.entries || 0) === 0) { adapterCounts.clear(); return; }
   const raw = cache.peek(magMetaCountsKey()) as PersistentCountsPayload | null;
-  if (!raw || typeof raw !== 'object' || !raw.adapters) return;
   adapterCounts.clear();
+  if (!raw || typeof raw !== 'object' || !raw.adapters) {
+    // Agregado ausente/ilegível com o L1 cheio: reconta do próprio L1 e
+    // regrava. Devolver zero aqui seria mentira rotulada de `duravel`.
+    for (const [id, totals] of rebuildFromL1()) adapterCounts.set(id, totals);
+    if (adapterCounts.size > 0) schedulePersistentSave();
+    return;
+  }
   const now = Date.now();
   const elapsedSec = Math.max(0, Math.floor((now - (raw.updatedAt || now)) / 1000));
   for (const [id, totals] of Object.entries(raw.adapters)) {
@@ -131,7 +126,7 @@ loadPersistentCounts();
 cache.onForget((key: string) => {
   if (!key.startsWith(prefix('mag'))) return;
   const parts = key.split(':');
-  const side = parts[2] as MagnetSide;
+  const side = parts[2] as MagSide;
   const adapterId = parts[3];
   if (!side || !adapterId) return;
   const totals = adapterCounts.get(adapterId);
@@ -149,7 +144,7 @@ cache.onForget((key: string) => {
   schedulePersistentSave();
 });
 
-const magKey = (side: MagnetSide, adapterId: string, apiKey: string, hash: string) =>
+const magKey = (side: MagSide, adapterId: string, apiKey: string, hash: string) =>
   `${prefix('mag')}${side}:${adapterId}:${accountScope(apiKey)}:${String(hash || '').toLowerCase()}`;
 const aliveKey = (adapterId: string, apiKey: string, hash: string) => magKey('alive', adapterId, apiKey, hash);
 const badKey = (adapterId: string, apiKey: string, hash: string) => magKey('bad', adapterId, apiKey, hash);
@@ -254,7 +249,11 @@ function forgetBad(adapterId: string, apiKey: string, hash: string): boolean {
  * porque a chave já não existe. `alive`/`lie` do mesmo hash não são tocados.
  */
 function forgetBadKey(key: string): boolean {
-  const existed = cache.peek(key) != null;
+  // `has` e não `peek`: entrada vencida que ainda espera a poda está no store
+  // e É apagada aqui — com peek ela sairia do cache reportando `cleared: 0`,
+  // e o operador leria "nada a limpar" logo depois de limpar. Mesmo critério
+  // de presença física que markAlive/markBad/markLie usam para contar.
+  const existed = cache.has(key);
   cache.forget(key);
   return existed;
 }

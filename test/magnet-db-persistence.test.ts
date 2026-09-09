@@ -335,3 +335,53 @@ test(
     runMultiStageTest([script]);
   },
 );
+
+test(
+  'agregado ausente no boot: contadores reconstruídos do L1 em vez de zerar sob rótulo durável',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => {
+    const stage1 = [
+      "delete process.env.CACHE_PERSIST;",
+      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
+      "// Hash de 40-hex de verdade: o parse do L1 descarta chave malformada,",
+      "// entao hash de brinquedo nao seria recontado (e o teste mentiria).",
+      "const H = (c) => c.repeat(40);",
+      "magnetdb.markAlive('premiumize', 'acc1', [H('a'), H('b'), H('c')]);",
+      "magnetdb.markBad('realdebrid', 'acc2', H('d'));",
+      "magnetdb.savePersistentCounts();",
+      "cache.close();",
+    ].join('\n');
+
+    // O caso real: cache.db herdado sobrevive ao rebuild do container, mas a
+    // chave do agregado não veio junto (versão antiga, evicção, payload novo).
+    const stage2 = [
+      "delete process.env.CACHE_PERSIST;",
+      "const assert = require('node:assert');",
+      "const { DatabaseSync } = require('node:sqlite');",
+      `const { magMetaCountsKey } = require(${JSON.stringify(CACHE_KEYS_MODULE)});`,
+      "const pre = new DatabaseSync(process.env.CACHE_DB_PATH);",
+      "pre.prepare('DELETE FROM cache WHERE key = ?').run(magMetaCountsKey());",
+      "pre.close();",
+      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
+      "const st = magnetdb.status();",
+      "assert.ok(st.l1Entries >= 4, 'L1 herdou as entradas mag do cache.db');",
+      "assert.strictEqual(st.sizeAlive, 3, 'alive reconstruído do L1, não zerado');",
+      "assert.strictEqual(st.sizeBad, 1, 'bad reconstruído do L1, não zerado');",
+      "assert.strictEqual(st.byAdapter.premiumize?.sizeAlive, 3);",
+      "assert.strictEqual(st.byAdapter.realdebrid?.sizeBad, 1);",
+      "assert.strictEqual(st._origem.sizeAlive, 'duravel', 'rótulo só é honesto porque houve recontagem');",
+      "assert.ok((st.ttlRemainingSeconds.alive || 0) > 0, 'TTL restante veio do L1, não de soma nominal');",
+      "magnetdb.savePersistentCounts();",
+      "cache.close();",
+      "const post = new DatabaseSync(process.env.CACHE_DB_PATH);",
+      "const row = post.prepare('SELECT value FROM cache WHERE key = ?').get(magMetaCountsKey());",
+      "assert.ok(row, 'agregado regravado após a reconstrução');",
+      "assert.strictEqual(JSON.parse(row.value).adapters.premiumize.alive, 3);",
+      "post.close();",
+    ].join('\n');
+
+    runMultiStageTest([stage1, stage2]);
+  },
+);

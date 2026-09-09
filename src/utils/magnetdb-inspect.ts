@@ -14,9 +14,10 @@
 import * as cache from './cache.js';
 import * as magnetdb from './magnetdb.js';
 import { prefix } from './cache-keys.js';
+import { MAG_SIDES, parseMagKey, type MagSide, type ParsedMagKey } from './magnetdb-counts.js';
 
-export const MAG_SIDES = ['alive', 'bad', 'lie'] as const;
-export type MagSide = (typeof MAG_SIDES)[number];
+export { MAG_SIDES };
+export type { MagSide };
 
 export type MagFilters = { adapterId?: string; side?: MagSide; hash?: string };
 
@@ -39,25 +40,9 @@ export type MagSummary = {
   byAdapter: Record<string, { alive: number; bad: number; lie: number }>;
 };
 
-const HASH_RE = /^[a-f0-9]{40}$/;
-
-type ParsedMagKey = { adapterId: string; side: MagSide; hash: string };
-
-/**
- * `mag:v1:<side>:<adapterId>:<scope>:<hash>` — o scope (digest SHA-256 da
- * apiKey) é o token descartado. Formato inválido devolve null (chave legada
- * ou estranha no namespace não derruba a varredura).
- */
-function parseMagKey(key: string, base: string): ParsedMagKey | null {
-  const parts = key.slice(base.length).split(':');
-  if (parts.length !== 4) return null;
-  const [side, adapterId, , hash] = parts;
-  const typed = side as MagSide;
-  if (!(MAG_SIDES as readonly string[]).includes(typed)) return null;
-  if (!adapterId || !HASH_RE.test(hash)) return null;
-  return { adapterId, side: typed, hash };
-}
-
+// O parse da chave (e o descarte do digest da conta) mora em magnetdb-counts:
+// a reconstrução das contagens precisa do mesmo formato, e duas cópias
+// divergiriam em silêncio na próxima versão do namespace.
 function matches(filters: MagFilters, entry: ParsedMagKey): boolean {
   if (filters.adapterId && entry.adapterId !== filters.adapterId) return false;
   if (filters.side && entry.side !== filters.side) return false;

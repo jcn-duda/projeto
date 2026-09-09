@@ -370,3 +370,29 @@ test('runDubAudit: mentira do tail destrava adprot (paridade com /resolve)', asy
     metrics.reset();
   }
 });
+
+// Regressão: `bad` vencido que ainda espera a poda continua no store. O
+// forgetBadKey APAGA essa entrada, então precisa reportar que existia — com
+// `peek` ele devolvia false e o magnet-clear-bad dizia "cleared: 0" logo
+// depois de limpar de verdade.
+test('forgetBadKey reporta remoção de bad vencido ainda não podado', async () => {
+  const apiKey = 'chave-forget-vencido';
+  const h = 'b'.repeat(40);
+  const originalTtl = config.magnetDb.badTtl;
+  try {
+    config.magnetDb.badTtl = 1;
+    magnetdb.markBad('premiumize', apiKey, h);
+    // Filtra pelo hash: outros testes deste arquivo já deixaram `bad` de
+    // premiumize com o TTL cheio, e o primeiro da varredura seria um deles.
+    const key = [...cache.keysMatching(`${prefix('mag')}bad:premiumize:`)].find((k) => k.endsWith(h));
+    assert.ok(key, 'precondição: a chave bad foi gravada');
+    await new Promise((r) => setTimeout(r, 1100));
+    assert.equal(cache.peek(key), null, 'precondição: vencida para quem lê valor');
+    assert.equal(cache.has(key), true, 'precondição: ainda fisicamente no store');
+    assert.equal(magnetdb.forgetBadKey(key), true, 'a remoção é reportada ao operador');
+    assert.equal(cache.has(key), false, 'chave saiu do store');
+    assert.equal(magnetdb.forgetBadKey(key), false, 'segunda passada é idempotente');
+  } finally {
+    config.magnetDb.badTtl = originalTtl;
+  }
+});
