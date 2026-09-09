@@ -830,6 +830,19 @@ nome) cai nos campos seguintes; quem não casa com nenhum dos três volta `null`
 e é contado como órfã (`debrid.pm.status.unmatched`), em vez de o recheck
 inventar um hash com o qual limpar a conta por engano.
 
+A cascata sozinha **não basta**, e é aqui que ela falha: post de agregador
+entra na conta com nome humano (`[WWW.BLUDV.TV] ... [DUBLADO]`) — sem `btih`,
+sem 40 hex, sem campo `hash`. Por isso existe a ponte `id -> hash`: o recheck
+a monta a partir do lote (`markerTransferId`) e a varredura a reconstrói dos
+markers persistidos (`markerIdIndex`), porque o lote é de memória e o restart
+é justamente o cenário para o qual a varredura existe. Sem ela o `sweepDead`
+não conseguia sequer consultar o `held` e deixava essas transferências
+ocupando vaga para sempre — com `DEBRID_CACHED_ONLY=true` isso é a UI vazia,
+medido em produção em 2026-09-08. **Continua em aberto:** transferência
+travada no meio (`progress != 0`) escapa da varredura, e a varredura periódica
+não alcança conta de serviço diferente do `.env` (ver a seção da conta do
+operador).
+
 **Season Pack Fill só promete o que o recheck pode conferir.** Quando um pack
 de temporada enfileirado por autofetch fica pronto, o addon invalida as buscas
 da mesma temporada/conta e semeia a disponibilidade (`noteAvailable`) para o ⚡
@@ -1209,6 +1222,16 @@ centenas de seeders. Por isso:
   teto, não o amplia.
 
 Inverter essa ordem faz as fontes BR sumirem silenciosamente.
+
+E o corolário que já custou uma correção: **`_seeders` de fonte BR é
+placeholder, não medição** — não o use como sinal de saúde. Um "piso saudável"
+(do tipo "só relaxa a regra se ninguém tiver ≥ 3 seeders") nunca é alcançado
+numa busca dominada por agregador BR, e a regra acaba relaxada em toda busca
+normal em vez de no caso raro. Quando precisar de um gatilho de último recurso
+no ranking, use **conjunto vazio**, não conjunto fraco: é o que
+`sortAndLimit` faz para reabrir SD/480p/sem-resolução quando o filtro de
+qualidade do usuário não deixa nenhum candidato de pé
+(`search.qualityFilter.relaxed`, teste em `test/format-quality-last-resort.test.ts`).
 
 **4. Sites BR indexam por título em português.**
 "Coringa", não "Joker". `tmdb.getTitles` resolve isso e a busca dispara **duas
@@ -1774,6 +1797,12 @@ o orçamento com a resposta.
   painel funciona, anônimo fica em P2P. Não re-acople os dois flags: o motivo
   do catálogo quando a chave existe mas o gate está fechado é
   `chave-operador-desativada` (com `hint`), distinto de `sem-conta-operador`.
+  **E as varreduras automáticas são do serviço do `.env`, não do que a
+  instalação usa:** `sweepDeadEnv` resolve o adapter por
+  `config.debrid.service`, então quem instala com outro `ds` na URL e chave
+  própria só é varrido pelo botão do painel (`sweepDeadCurrent`). Medido em
+  produção 2026-09-08 — `.env` em `alldebrid`, instalação em premiumize, fila
+  de paradas crescendo sem timer nenhum alcançá-la.
 - **`src/public/` não passa por build.** É HTML/CSS/JS servido cru, e o JS é ES5
   por escolha (roda no WebView de Fire TV e smart TV). Não introduza sintaxe
   moderna nem bundler ali.
