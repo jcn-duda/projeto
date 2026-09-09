@@ -113,3 +113,45 @@ test('ensureCountsLoaded com L1 vazio reseta a base para aggregate-estimate', ()
   assert.equal(st.ttlRemainingBasis, 'aggregate-estimate');
   assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate');
 });
+
+// Regressão medida no cache.db local: o agregado dizia 77 alive com 190 chaves
+// vivas no namespace e o adapter alldebrid sumia inteiro do painel — legível,
+// portanto aceito como verdade, somado às mutações e regravado a cada boot. O
+// rebuild-por-ilegível não cobria isso: só ilegibilidade caía na recontagem.
+test('agregado legível mas divergente do L1 cai no rebuild em vez de virar verdade', () => {
+  const magKeys = cache.keysMatching('mag:v1:');
+  for (const k of magKeys) cache.forget(k);
+  persist.adapterCounts.clear();
+  magnetdb.markAlive('premiumize', 'conta-deriva', [H('1'), H('2')]);
+  magnetdb.markBad('alldebrid', 'conta-deriva', H('3'));
+  const l1 = magnetdb.status().l1Entries;
+  assert.equal(l1, 3, 'três registros físicos no namespace mag');
+
+  // Agregado que ABRE e mente: subconta o premiumize e omite o alldebrid.
+  cache.set(magMetaCountsKey(), {
+    version: 1,
+    updatedAt: Date.now(),
+    adapters: { premiumize: { alive: 1, bad: 0, lie: 0, ttlRemainingSums: { alive: 10, bad: 0, lie: 0 } } },
+  }, 7 * 86400);
+  persist.adapterCounts.clear();
+  persist.loadPersistentCounts();
+
+  assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild', 'divergência força a recontagem');
+  const st = magnetdb.status();
+  assert.equal(st.sizeAlive + st.sizeBad + st.sizeLie, l1, 'soma volta a bater com o namespace');
+  assert.equal(st.sizeAlive, 2);
+  assert.equal(st.sizeBad, 1);
+  assert.ok(st.byAdapter.alldebrid, 'adapter omitido pelo agregado reaparece');
+});
+
+test('agregado que confere com o L1 continua sendo restaurado, sem rebuild à toa', () => {
+  const magKeys = cache.keysMatching('mag:v1:');
+  for (const k of magKeys) cache.forget(k);
+  persist.adapterCounts.clear();
+  magnetdb.markAlive('premiumize', 'conta-confere', [H('4'), H('5')]);
+  persist.savePersistentCounts();
+  persist.adapterCounts.clear();
+  persist.loadPersistentCounts();
+  assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate', 'sem divergência não paga O(n)');
+  assert.equal(magnetdb.status().sizeAlive, 2);
+});

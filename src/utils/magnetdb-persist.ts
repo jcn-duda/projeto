@@ -70,24 +70,9 @@ export function schedulePersistentSave() {
   persistTimer.unref?.();
 }
 
-export function loadPersistentCounts() {
-  const ns = cache.snapshot().namespaces as Record<string, { entries?: number }>;
-  if ((ns?.mag?.entries || 0) === 0) { adapterCounts.clear(); return; }
-  const raw = cache.peek(magMetaCountsKey()) as PersistentCountsPayload | null;
-  adapterCounts.clear();
-  // Versão/estrutura estranha conta como agregado ausente: com o L1 cheio o
-  // dado verdadeiro está nas chaves, não num payload que este processo não
-  // sabe ler — cair no rebuild é mais honesto que restaurar lixo.
-  if (!raw || typeof raw !== 'object' || raw.version !== 1 || !raw.adapters || typeof raw.adapters !== 'object' || Array.isArray(raw.adapters)) {
-    // Agregado ausente/ilegível com o L1 cheio: reconta do próprio L1 e
-    // regrava. Devolver zero aqui seria mentira rotulada de `duravel`. A soma
-    // nasce precisa (restante real) e vira estimativa na primeira mutação.
-    for (const [id, totals] of rebuildFromL1()) adapterCounts.set(id, totals);
-    ttlBasis = 'l1-rebuild';
-    if (adapterCounts.size > 0) schedulePersistentSave();
-    return;
-  }
-  ttlBasis = 'aggregate-estimate';
+/** Envelhece o agregado lido para um mapa de contadores, sem tocar o estado. */
+function restoreFromAggregate(raw: PersistentCountsPayload): Map<string, AdapterTotals> {
+  const out = new Map<string, AdapterTotals>();
   const now = Date.now();
   const elapsedSec = Math.max(0, Math.floor((now - (raw.updatedAt || now)) / 1000));
   for (const [id, totals] of Object.entries(raw.adapters)) {
@@ -97,7 +82,7 @@ export function loadPersistentCounts() {
     const lie = Math.max(0, Number(totals.lie) || 0);
     const rawTtl = totals.ttlRemainingSums || { alive: 0, bad: 0, lie: 0 };
     if (alive > 0 || bad > 0 || lie > 0) {
-      adapterCounts.set(id, {
+      out.set(id, {
         alive, bad, lie,
         ttlRemainingSums: {
           alive: Math.max(0, (Number(rawTtl.alive) || 0) - elapsedSec * alive),
@@ -107,6 +92,56 @@ export function loadPersistentCounts() {
       });
     }
   }
+  return out;
+}
+
+const sumSides = (counts: Map<string, AdapterTotals>): number => {
+  let total = 0;
+  for (const t of counts.values()) total += t.alive + t.bad + t.lie;
+  return total;
+};
+
+function adoptRebuild() {
+  for (const [id, totals] of rebuildFromL1()) adapterCounts.set(id, totals);
+  ttlBasis = 'l1-rebuild';
+  if (adapterCounts.size > 0) schedulePersistentSave();
+}
+
+export function loadPersistentCounts() {
+  const ns = cache.snapshot().namespaces as Record<string, { entries?: number }>;
+  const l1Entries = ns?.mag?.entries || 0;
+  if (l1Entries === 0) { adapterCounts.clear(); return; }
+  const raw = cache.peek(magMetaCountsKey()) as PersistentCountsPayload | null;
+  adapterCounts.clear();
+  // Versão/estrutura estranha conta como agregado ausente: com o L1 cheio o
+  // dado verdadeiro está nas chaves, não num payload que este processo não
+  // sabe ler — cair no rebuild é mais honesto que restaurar lixo.
+  if (!raw || typeof raw !== 'object' || raw.version !== 1 || !raw.adapters || typeof raw.adapters !== 'object' || Array.isArray(raw.adapters)) {
+    // Agregado ausente/ilegível com o L1 cheio: reconta do próprio L1 e
+    // regrava. Devolver zero aqui seria mentira rotulada de `duravel`. A soma
+    // nasce precisa (restante real) e vira estimativa na primeira mutação.
+    adoptRebuild();
+    return;
+  }
+  // Agregado LEGÍVEL mas divergente do L1 é o caso que o rebuild-por-ilegível
+  // não cobria: uma deriva antiga entra como verdade, é somada às mutações e
+  // regravada, então sobrevive a todo rebuild do container e nunca se cura.
+  // Medido em produção local: agregado dizia 77 alive com 190 chaves vivas no
+  // namespace, e o adapter alldebrid sumia inteiro do painel — tudo rotulado
+  // `duravel`, contradizendo o `l1Entries` mostrado ao lado na mesma tela.
+  //
+  // A comparação é exata de propósito: `entries` é a contagem física do
+  // namespace mag e a soma dos lados conta a mesma coisa, então tolerância
+  // aqui só serviria para deixar passar deriva pequena. O preço do desacordo é
+  // uma passada O(namespace mag) por boot (29,6 ms medidos em 50 mil chaves,
+  // a cota cheia), nunca no caminho de busca.
+  const restored = restoreFromAggregate(raw);
+  if (sumSides(restored) !== l1Entries) {
+    adoptRebuild();
+    return;
+  }
+  ttlBasis = 'aggregate-estimate';
+  for (const [id, totals] of restored) adapterCounts.set(id, totals);
 }
 
 /**
