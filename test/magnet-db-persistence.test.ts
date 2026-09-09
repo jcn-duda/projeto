@@ -6,8 +6,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 
 const _require = createRequire(import.meta.url);
+
+/**
+ * Rotulo legivel -> infoHash de 40 hex de verdade. O magnetdb so grava hash no
+ * formato que `parseMagKey` aceita de volta; hash de brinquedo criaria chave
+ * fisica que a recontagem nao conta, e o teste passaria sem provar nada.
+ */
+const MH = (label: string) => createHash('sha1').update(label).digest('hex');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let hasNodeSqlite = true;
@@ -62,12 +70,12 @@ test(
       `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
       `const { magMetaCountsKey } = require(${JSON.stringify(CACHE_KEYS_MODULE)});`,
       "",
-      "magnetdb.markAlive('premiumize', 'acc1', ['hash1', 'hash2']);",
-      "magnetdb.markBad('torbox', 'acc2', 'hash3');",
-      "magnetdb.markLie('alldebrid', 'acc3', 'hash4');",
+      "magnetdb.markAlive('premiumize', 'acc1', ['" + MH('hash1') + "', '" + MH('hash2') + "']);",
+      "magnetdb.markBad('torbox', 'acc2', '" + MH('hash3') + "');",
+      "magnetdb.markLie('alldebrid', 'acc3', '" + MH('hash4') + "');",
       "// Idempotência: reinserção e renew não podem duplicar contadores",
-      "magnetdb.markAlive('premiumize', 'acc1', ['hash1']);",
-      "magnetdb.renewAlive('premiumize', 'acc1', ['hash2']);",
+      "magnetdb.markAlive('premiumize', 'acc1', ['" + MH('hash1') + "']);",
+      "magnetdb.renewAlive('premiumize', 'acc1', ['" + MH('hash2') + "']);",
       "magnetdb.savePersistentCounts();",
       "cache.close();",
       "",
@@ -93,9 +101,9 @@ test(
       "delete process.env.CACHE_PERSIST;",
       `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
       `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
-      "magnetdb.markAlive('premiumize', 'acc1', ['h1', 'h2', 'h3']);",
-      "magnetdb.markBad('realdebrid', 'acc2', 'h4');",
-      "magnetdb.markLie('premiumize', 'acc1', 'h5');",
+      "magnetdb.markAlive('premiumize', 'acc1', ['" + MH('h1') + "', '" + MH('h2') + "', '" + MH('h3') + "']);",
+      "magnetdb.markBad('realdebrid', 'acc2', '" + MH('h4') + "');",
+      "magnetdb.markLie('premiumize', 'acc1', '" + MH('h5') + "');",
       "magnetdb.savePersistentCounts();",
       "cache.close();",
     ].join('\n');
@@ -143,11 +151,11 @@ test(
       "const assert = require('node:assert');",
       `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
       `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
-      "magnetdb.markAlive('premiumize', 'acc1', ['hash-swap']);",
+      "magnetdb.markAlive('premiumize', 'acc1', ['" + MH('hash-swap') + "']);",
       "let st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 1);",
       "assert.strictEqual(st.sizeBad, 0);",
-      "magnetdb.markBad('premiumize', 'acc1', 'hash-swap');",
+      "magnetdb.markBad('premiumize', 'acc1', '" + MH('hash-swap') + "');",
       "st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 0, 'alive decrementado');",
       "assert.strictEqual(st.sizeBad, 1, 'bad incrementado');",
@@ -181,11 +189,11 @@ test(
       "const assert = require('node:assert');",
       `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
       `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
-      "magnetdb.markBad('torbox', 'acc1', 'bad-1');",
-      "magnetdb.markBad('torbox', 'acc1', 'bad-2');",
+      "magnetdb.markBad('torbox', 'acc1', '" + MH('bad-1') + "');",
+      "magnetdb.markBad('torbox', 'acc1', '" + MH('bad-2') + "');",
       "let st = magnetdb.status();",
       "assert.strictEqual(st.sizeBad, 2);",
-      "magnetdb.forgetBad('torbox', 'acc1', 'bad-1');",
+      "magnetdb.forgetBad('torbox', 'acc1', '" + MH('bad-1') + "');",
       "st = magnetdb.status();",
       "assert.strictEqual(st.sizeBad, 1, 'bad decrementado no esquecimento');",
       "magnetdb.savePersistentCounts();",
@@ -240,9 +248,9 @@ test(
       `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
       `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
       "",
-      "magnetdb.markAlive('premiumize', 'acc1', ['alive1', 'alive2']);",
-      "magnetdb.markBad('premiumize', 'acc1', 'bad1');",
-      "magnetdb.markLie('premiumize', 'acc1', 'lie1');",
+      "magnetdb.markAlive('premiumize', 'acc1', ['" + MH('alive1') + "', '" + MH('alive2') + "']);",
+      "magnetdb.markBad('premiumize', 'acc1', '" + MH('bad1') + "');",
+      "magnetdb.markLie('premiumize', 'acc1', '" + MH('lie1') + "');",
       "",
       "let st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 2, 'alive inicial correto');",
@@ -312,15 +320,15 @@ test(
       `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
       `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
       "const now = Date.now;",
-      "magnetdb.markAlive('premiumize', 'acc-expired', ['alive-expired']);",
-      "magnetdb.markBad('premiumize', 'acc-expired', 'bad-expired');",
-      "magnetdb.markLie('premiumize', 'acc-expired', 'lie-expired');",
+      "magnetdb.markAlive('premiumize', 'acc-expired', ['" + MH('alive-expired') + "']);",
+      "magnetdb.markBad('premiumize', 'acc-expired', '" + MH('bad-expired') + "');",
+      "magnetdb.markLie('premiumize', 'acc-expired', '" + MH('lie-expired') + "');",
       "const before = magnetdb.status();",
       "Date.now = () => now() + 8 * 86400 * 1000;",
       "try {",
-      "  magnetdb.markAlive('premiumize', 'acc-expired', ['alive-expired']);",
-      "  magnetdb.markBad('premiumize', 'acc-expired', 'bad-expired');",
-      "  magnetdb.markLie('premiumize', 'acc-expired', 'lie-expired');",
+      "  magnetdb.markAlive('premiumize', 'acc-expired', ['" + MH('alive-expired') + "']);",
+      "  magnetdb.markBad('premiumize', 'acc-expired', '" + MH('bad-expired') + "');",
+      "  magnetdb.markLie('premiumize', 'acc-expired', '" + MH('lie-expired') + "');",
       "} finally { Date.now = now; }",
       "const after = magnetdb.status();",
       "assert.strictEqual(after.sizeAlive, before.sizeAlive);",

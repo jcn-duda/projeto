@@ -155,3 +155,72 @@ test('agregado que confere com o L1 continua sendo restaurado, sem rebuild à to
   assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate', 'sem divergência não paga O(n)');
   assert.equal(magnetdb.status().sizeAlive, 2);
 });
+
+// ALCANCE DA SENTINELA, escrito como teste para não virar promessa vaga: ela
+// compara TOTAIS, então distribuição torta com soma certa passa. Detectar isso
+// exigiria varrer o L1 todo boot ou persistir fingerprint por lado/adapter —
+// custo permanente sem evidência de que a deriva aconteça. Este teste existe
+// para o dia em que alguém achar que a checagem cobre mais do que cobre.
+test('sentinela é de divergência TOTAL: distribuição errada com soma igual passa', () => {
+  for (const k of cache.keysMatching('mag:v1:')) cache.forget(k);
+  persist.adapterCounts.clear();
+  magnetdb.markAlive('premiumize', 'conta-torta', [H('6'), H('7')]);
+  assert.equal(magnetdb.status().l1Entries, 2);
+
+  // Soma bate (2 = 2), lados trocados: 1 alive + 1 bad onde o L1 tem 2 alive.
+  cache.set(magMetaCountsKey(), {
+    version: 1,
+    updatedAt: Date.now(),
+    adapters: { premiumize: { alive: 1, bad: 1, lie: 0, ttlRemainingSums: { alive: 10, bad: 10, lie: 0 } } },
+  }, 7 * 86400);
+  persist.adapterCounts.clear();
+  persist.loadPersistentCounts();
+
+  assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate', 'total confere: não paga O(n)');
+  const st = magnetdb.status();
+  assert.equal(st.sizeAlive, 1, 'distribuição torta sobrevive — limite conhecido e aceito');
+  assert.equal(st.sizeBad, 1);
+  assert.equal(st.sizeAlive + st.sizeBad + st.sizeLie, st.l1Entries, 'o total, esse, continua honesto');
+});
+
+// Escrita e parse têm de aceitar o mesmo conjunto: hash fora do formato não
+// pode virar chave física, senão o rebuild não a conta, a sentinela acusa
+// desacordo eterno e todo boot paga a recontagem sem convergir.
+test('hash fora do formato não vira chave física nem contador', () => {
+  for (const k of cache.keysMatching('mag:v1:')) cache.forget(k);
+  persist.adapterCounts.clear();
+  magnetdb.markAlive('premiumize', 'conta-hash', ['nao-e-hash', 'ABC', H('8')]);
+  magnetdb.markBad('premiumize', 'conta-hash', 'tambem-nao');
+  magnetdb.markLie('premiumize', 'conta-hash', 'nem-esse');
+
+  const st = magnetdb.status();
+  assert.equal(st.l1Entries, 1, 'só o hash de 40-hex virou chave');
+  assert.equal(st.sizeAlive, 1);
+  assert.equal(st.sizeBad, 0);
+  assert.equal(st.sizeLie, 0);
+  // E o que foi gravado sobrevive ao ciclo completo de recontagem.
+  cache.forget(magMetaCountsKey());
+  persist.adapterCounts.clear();
+  persist.loadPersistentCounts();
+  assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild');
+  assert.equal(magnetdb.status().sizeAlive, 1, 'rebuild conta a mesma chave que a escrita criou');
+});
+
+// O hook de esquecimento usa o MESMO parse da recontagem: chave que o parse
+// recusa não pode decrementar contador de adapter nenhum.
+test('esquecer chave mag não parseável não mexe em contador de adapter', () => {
+  for (const k of cache.keysMatching('mag:v1:')) cache.forget(k);
+  persist.adapterCounts.clear();
+  magnetdb.markAlive('premiumize', 'conta-forget', [H('9')]);
+  assert.equal(magnetdb.status().sizeAlive, 1);
+
+  // Chave no namespace mag que parseMagKey recusa (hash curto), gravada por
+  // fora do markAlive — é o que uma versão futura do namespace pareceria.
+  const intrusa = `mag:v1:alive:premiumize:${'0'.repeat(64)}:abc`;
+  cache.set(intrusa, 1, 600);
+  cache.forget(intrusa);
+
+  assert.equal(magnetdb.status().sizeAlive, 1, 'contador do premiumize intacto');
+  const totals = persist.adapterCounts.get('premiumize');
+  assert.equal(totals?.alive, 1, 'nenhum decremento pela chave estranha');
+});

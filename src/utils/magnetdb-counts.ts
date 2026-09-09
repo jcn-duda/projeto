@@ -27,6 +27,15 @@ export type ParsedMagKey = { adapterId: string; side: MagSide; hash: string };
 const HASH_RE = /^[a-f0-9]{40}$/;
 
 /**
+ * Formato de hash que a chave mag suporta, em UM lugar só: quem grava, quem
+ * faz o parse e quem decrementa precisam concordar ou os contadores derivam.
+ * Gravar um hash que o parse recusa cria chave física que o rebuild não conta
+ * — a sentinela de divergência veria desacordo permanente e pagaria a
+ * recontagem em todo boot, sem nunca convergir.
+ */
+export const isSupportedHash = (hash: string): boolean => HASH_RE.test(String(hash || '').toLowerCase());
+
+/**
  * `mag:v1:<side>:<adapterId>:<scope>:<hash>` — o scope (digest SHA-256 da
  * apiKey) é o token descartado. Formato inválido devolve null (chave legada
  * ou estranha no namespace não derruba a varredura).

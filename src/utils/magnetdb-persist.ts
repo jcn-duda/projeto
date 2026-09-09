@@ -13,7 +13,7 @@
 import config from '../config.js';
 import * as cache from './cache.js';
 import { prefix, magMetaCountsKey } from './cache-keys.js';
-import { emptyAdapterTotals, rebuildFromL1, type AdapterTotals, type MagSide } from './magnetdb-counts.js';
+import { emptyAdapterTotals, parseMagKey, rebuildFromL1, type AdapterTotals } from './magnetdb-counts.js';
 
 export type PersistentCountsPayload = { version: 1; updatedAt: number; adapters: Record<string, AdapterTotals> };
 
@@ -101,6 +101,24 @@ const sumSides = (counts: Map<string, AdapterTotals>): number => {
   return total;
 };
 
+/**
+ * SENTINELA DE DIVERGÊNCIA TOTAL — não é reconciliação integral. Compara só o
+ * TOTAL restaurado com o total físico do namespace, que é o número que o
+ * chamador já tem em mãos: custo zero.
+ *
+ * O que pega: o agregado que perdeu (ou inventou) registros, incluindo adapter
+ * inteiro sumido — a deriva medida no cache.db local (77 para 190 chaves).
+ *
+ * O que NÃO pega, de propósito: distribuição errada com total certo (ex.: 100
+ * alive + 90 bad onde o L1 tem 190 alive). Detectar isso exigiria varrer o L1
+ * a todo boot ou persistir um fingerprint por lado/adapter — custo permanente
+ * sem evidência de que essa deriva aconteça. A sentinela fica barata e o
+ * alcance fica escrito; se um dia aparecer distribuição torta em produção, o
+ * fingerprint é a próxima parada, não o scan obrigatório.
+ */
+const totalDiverges = (restored: Map<string, AdapterTotals>, l1Entries: number): boolean =>
+  sumSides(restored) !== l1Entries;
+
 function adoptRebuild() {
   for (const [id, totals] of rebuildFromL1()) adapterCounts.set(id, totals);
   ttlBasis = 'l1-rebuild';
@@ -134,9 +152,10 @@ export function loadPersistentCounts() {
   // namespace mag e a soma dos lados conta a mesma coisa, então tolerância
   // aqui só serviria para deixar passar deriva pequena. O preço do desacordo é
   // uma passada O(namespace mag) por boot (29,6 ms medidos em 50 mil chaves,
-  // a cota cheia), nunca no caminho de busca.
+  // a cota cheia), nunca no caminho de busca. O alcance da sentinela — e o que
+  // ela deliberadamente não vê — está em `totalDiverges`.
   const restored = restoreFromAggregate(raw);
-  if (sumSides(restored) !== l1Entries) {
+  if (totalDiverges(restored, l1Entries)) {
     adoptRebuild();
     return;
   }
@@ -167,10 +186,15 @@ export function ensureCountsLoaded(l1Entries: number) {
 // esquecimento, a soma já não reflete o restante real medido no rebuild.
 cache.onForget((key: string) => {
   if (!key.startsWith(prefix('mag'))) return;
-  const parts = key.split(':');
-  const side = parts[2] as MagSide;
-  const adapterId = parts[3];
-  if (!side || !adapterId) return;
+  // `parseMagKey` e não split cru: quem CONTA (rebuildFromL1) e quem DECREMENTA
+  // têm de aceitar exatamente as mesmas chaves. Com o split, uma chave que o
+  // parse recusa — side estranho, hash fora do formato, namespace de versão
+  // futura — não entrava na recontagem mas saía decrementando o contador de um
+  // adapter real: deriva silenciosa, na direção de subcontar. É a assimetria
+  // que sobrou depois de fechar a leitura do agregado.
+  const parsed = parseMagKey(key);
+  if (!parsed) return;
+  const { side, adapterId } = parsed;
   const totals = adapterCounts.get(adapterId);
   if (!totals) return;
   if (side === 'alive') {

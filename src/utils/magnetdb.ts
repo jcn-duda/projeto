@@ -20,7 +20,7 @@ import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { accountScope } from './request-key.js';
 import { prefix } from './cache-keys.js';
-import type { AdapterTotals, MagSide } from './magnetdb-counts.js';
+import { isSupportedHash, type AdapterTotals, type MagSide } from './magnetdb-counts.js';
 import {
   adapterCounts, getOrCreateAdapter, ensureCountsLoaded,
   savePersistentCounts, loadPersistentCounts, schedulePersistentSave, markMutation,
@@ -85,7 +85,13 @@ function markAlive(adapterId: string, apiKey: string, hashes: string[]) {
   const ttl = config.magnetDb.aliveTtl;
   if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey) return;
   // Sem isto o cache.forget(alive) do markBad é desfeito por cache-check na checagem seguinte.
-  const unique = [...new Set(hashes.map((h) => String(h || '').toLowerCase()))].filter(Boolean);
+  const candidates = [...new Set(hashes.map((h) => String(h || '').toLowerCase()))].filter(Boolean);
+  // Só grava hash que o parse da chave aceita de volta: gravar o que
+  // parseMagKey recusa cria chave física que o rebuild não conta, e aí a
+  // sentinela de divergência acusa desacordo em todo boot sem nunca convergir.
+  const unique = candidates.filter(isSupportedHash);
+  const malformed = candidates.length - unique.length;
+  if (malformed > 0) metrics.count('magnetdb.hash.refused', malformed);
   const allowed = unique.filter((hash) => !isBad(adapterId, apiKey, hash));
   const refused = unique.length - allowed.length;
   if (refused > 0) metrics.count('magnetdb.alive.refused-bad', refused);
@@ -136,6 +142,7 @@ function isAlive(adapterId: string, apiKey: string, hash: string) {
 function markBad(adapterId: string, apiKey: string, hash: string) {
   const ttl = config.magnetDb.badTtl;
   if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
+  if (!isSupportedHash(hash)) { metrics.count('magnetdb.hash.refused'); return; }
   const key = badKey(adapterId, apiKey, hash);
   const alive = aliveKey(adapterId, apiKey, String(hash || '').toLowerCase());
   const badExisted = cache.has(key);
@@ -193,6 +200,7 @@ function forgetBadKey(key: string): boolean {
 function markLie(adapterId: string, apiKey: string, hash: string) {
   const ttl = config.magnetDb.lieTtl;
   if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
+  if (!isSupportedHash(hash)) { metrics.count('magnetdb.hash.refused'); return; }
   const key = lieKey(adapterId, apiKey, hash);
   const lieExisted = cache.has(key);
 
