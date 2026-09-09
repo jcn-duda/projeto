@@ -139,3 +139,40 @@ trabalhar às cegas; F3 sem F2 não tem como funcionar.
 
 Três becos sem saída que custaram tempo hoje e que ficam registrados aqui
 justamente para ninguém os repetir.
+
+---
+
+## 7. Segunda medição: 2026-09-08, noite (Premiumize)
+
+O mesmo `tt0119081`, agora na instalação premiumize + `cachedOnly` do operador,
+em produção. O ciclo do lado da BUSCA está fechado — e a falha se mudou de
+lugar.
+
+| fato | onde foi medido |
+|---|---|
+| a lista traz 9 gringas mais a linha `Fontes BR dubladas existem, mas ainda fora do cache` | `/stream` de produção via loopback |
+| a conta Premiumize acumula dezenas de transferências `[WWW.BLUDV.TV] ... [DUBLADO]` paradas em `0.00 KB/s from 0 peer, 0 Bytes of 0 Bytes` | painel do Premiumize, captura do usuário |
+| `The Locals` (`tt0387357`), que voltava lista VAZIA, agora responde `⏳ Baixando no debrid` e o Chupim enfileira dois candidatos SD/DVD5 | log do container, `search.qualityFilter.relaxed = 2` |
+
+Três coisas distintas, na ordem em que mordem:
+
+1. **O último recurso funciona.** Título obscuro onde o filtro de qualidade e o
+   piso de seeders fechavam juntos volta a produzir candidato — quality filter
+   reabre SD/480p/sem-resolução quando o conjunto permitido fica vazio
+   (`search.qualityFilter.relaxed`), e o pool seeds relaxa para 1 seeder
+   (`autofetch.top-seeded-relaxed`). O gatilho do primeiro é *vazio*, nunca
+   *fraco*: `_seeders` é sintético em agregador BR (o BluDV grava `1` fixo), e
+   qualquer piso de saúde afrouxaria o filtro do usuário em busca BR normal.
+2. **A varredura não enxergava a fila.** Transferência de nome humano não
+   casa com a cascata de hash do Premiumize, e o `sweepDead` a ignorava para
+   sempre. Corrigido com a ponte `id -> hash` dos markers — ver `DEBRID.md`,
+   seção Premiumize.
+3. **E ninguém chama a varredura para essa conta.** `sweepDeadEnv` resolve o
+   adapter por `config.debrid.service` (`alldebrid` no `.env` da VPS); a
+   instalação usa premiumize com chave própria. Nenhuma rotina periódica
+   alcança essa conta — só o botão do painel. **Em aberto**, junto com a
+   transferência travada no meio (`progress != 0` a isenta da varredura).
+
+A lição de método é a mesma da seção 3: a linha de aviso da lista já dizia qual
+dos dois mundos falhou (`⏳ Baixando` = enfileirou; `fora do cache` = achou e
+não ficou pronto). Ler essa linha primeiro teria poupado a metade da caçada.
