@@ -188,6 +188,13 @@ function peek(key: string): unknown {
   return hit.value;
 }
 
+/** Presença física no L1, inclusive quando a entrada venceu mas ainda aguarda
+ * o prune. Escritores usam isto para substituir sem contar a mesma chave duas
+ * vezes na janela entre o vencimento e a poda periódica. */
+function has(key: string): boolean {
+  return store.has(key);
+}
+
 /** Versão quiet de getWithStale: não promove LRU, não conta hit/miss e não
  * apaga a entrada vencida. Usada por diagnósticos que varrem vários escopos. */
 function peekWithStale(key: string, graceSeconds = 0): { value: any; stale: boolean } | null {
@@ -316,5 +323,5 @@ pruneTimer.unref();
 
 export {
   MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, onForget,
-  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, peek, peekWithStale, peekRemaining, maintain, close,
+  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, has, peek, peekWithStale, peekRemaining, maintain, close,
 };

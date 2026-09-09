@@ -12,6 +12,7 @@ import {
   autofetchPause, autofetchDrain, autofetchConfigGet, autofetchConfigSet, autofetchConfigReset,
 } from './dashboard-actions-autofetch.js';
 import { autofetchSuppressedGet, autofetchSuppressedDrain } from './dashboard-actions-autofetch-suppressed.js';
+import { magnetInspect, magnetClearBad, magnetSummary } from './dashboard-actions-magnet.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -38,6 +39,7 @@ const DESTRUCTIVE_ACTIONS = new Set([
   'dedup-apply',
   'cleanup-apply',
   'manual-delete',
+  'magnet-clear-bad',
 ]);
 
 // Teto da chave no corpo do teste de conta: credencial tem dezenas de
@@ -252,6 +254,12 @@ const ACTIONS: Record<string, ActionHandler> = {
   // acima) e drena SEM ligar o knob global — a porta supervisionada.
   'autofetch-suppressed-get': autofetchSuppressedGet,
   'autofetch-suppressed-drain': autofetchSuppressedDrain,
+
+  // Banco de magnets: handlers em dashboard-actions-magnet.js. Inspect e
+  // summary são leitura; clear-bad é destrutivo (confirm acima) e idempotente.
+  'magnet-inspect': magnetInspect,
+  'magnet-clear-bad': magnetClearBad,
+  'magnet-summary': magnetSummary,
 
   'catalog-scan': async ({ services, res, action }) => {
     const result = await services.debrid.catalogScanEnv();

@@ -265,18 +265,20 @@ test('dashboard permanece ES5 e renderiza a observabilidade do Magnet DB', () =>
   assert.match(panels, /source\.byAdapter/);
   assert.match(panels, /source\.search/);
   assert.match(panels, /L1 mag \(ocupação\)/);
-  assert.match(panels, /amostra processo \(≠ L1\)/);
-  assert.match(panels, /amostra bad \(play sem vídeo\)/);
+  // fe4cd8c (MagnetDB durável): os agregados do painel deixaram de ser
+  // "amostra" e passaram a ser persistentes por estado/adapter.
+  assert.match(panels, /registros classificados \(≠ L1\)/);
+  assert.match(panels, /bad \(play sem vídeo\)/);
   assert.match(panels, /descartados dead \(autofetch ≠ bad\)/);
    assert.match(panels, /source\.l1Entries/);
    assert.match(panels, /source\.evictedQuota/);
    // Grupos explicativos do Banco de Magnets: banco persistente (L1/L2, com
-   // órfãos possíveis) ≠ amostra desde o restart ≠ contadores do processo.
+   // órfãos possíveis) ≠ agregados duráveis por adapter ≠ contadores do processo.
    assert.match(panels, /Registros persistentes no banco/);
-   assert.match(panels, /Amostra desde o restart/);
+   assert.match(panels, /Agregados persistentes por estado e serviço/);
    assert.match(panels, /Gravações e descartes desde o restart/);
    assert.match(panels, /gravações alive \(inclui renovações\)/);
-   assert.match(panels, /restart zera a amostra \(memória deste processo\), não os registros persistentes/);
+   assert.match(panels, /Os agregados sobrevivem ao restart pelo mag_meta/);
    assert.match(panels, /expirados ou órfãos/);
    assert.match(panels, /dbCounters\.aliveSet/);
   assert.doesNotMatch(panels, /\b(?:const|let)\b|=>|\?\.|\?\?/);

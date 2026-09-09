@@ -301,3 +301,37 @@ test(
     runMultiStageTest([stage1, stage2]);
   },
 );
+
+test(
+  'regravar entrada expirada antes do prune não infla os contadores duráveis',
+  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
+  () => {
+    const script = [
+      "delete process.env.CACHE_PERSIST;",
+      "const assert = require('node:assert');",
+      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
+      "const now = Date.now;",
+      "magnetdb.markAlive('premiumize', 'acc-expired', ['alive-expired']);",
+      "magnetdb.markBad('premiumize', 'acc-expired', 'bad-expired');",
+      "magnetdb.markLie('premiumize', 'acc-expired', 'lie-expired');",
+      "const before = magnetdb.status();",
+      "Date.now = () => now() + 8 * 86400 * 1000;",
+      "try {",
+      "  magnetdb.markAlive('premiumize', 'acc-expired', ['alive-expired']);",
+      "  magnetdb.markBad('premiumize', 'acc-expired', 'bad-expired');",
+      "  magnetdb.markLie('premiumize', 'acc-expired', 'lie-expired');",
+      "} finally { Date.now = now; }",
+      "const after = magnetdb.status();",
+      "assert.strictEqual(after.sizeAlive, before.sizeAlive);",
+      "assert.strictEqual(after.sizeBad, before.sizeBad);",
+      "assert.strictEqual(after.sizeLie, before.sizeLie);",
+      "assert.strictEqual(cache.keysMatching('mag:v1:alive:premiumize:').length, 1);",
+      "assert.strictEqual(cache.keysMatching('mag:v1:bad:premiumize:').length, 1);",
+      "assert.strictEqual(cache.keysMatching('mag:v1:lie:premiumize:').length, 1);",
+      "cache.close();",
+    ].join('\n');
+
+    runMultiStageTest([script]);
+  },
+);

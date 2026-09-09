@@ -177,7 +177,7 @@ function markAlive(adapterId: string, apiKey: string, hashes: string[]) {
 
   let newAliveCount = 0;
   for (const write of writes) {
-    if (cache.peek(write.key) == null) {
+    if (!cache.has(write.key)) {
       newAliveCount++;
     }
   }
@@ -213,7 +213,7 @@ function markBad(adapterId: string, apiKey: string, hash: string) {
   if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
   const key = badKey(adapterId, apiKey, hash);
   const alive = aliveKey(adapterId, apiKey, String(hash || '').toLowerCase());
-  const badExisted = cache.peek(key) != null;
+  const badExisted = cache.has(key);
 
   cache.set(key, 1, ttl);
   // O alive não pode sobreviver ao bad no mesmo hash: sem o forget ele
@@ -264,7 +264,7 @@ function markLie(adapterId: string, apiKey: string, hash: string) {
   const ttl = config.magnetDb.lieTtl;
   if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
   const key = lieKey(adapterId, apiKey, hash);
-  const lieExisted = cache.peek(key) != null;
+  const lieExisted = cache.has(key);
 
   cache.set(key, 1, ttl);
 
