@@ -110,8 +110,17 @@ desenvolvimento (3 baixas, 1 alta); não entram no runtime com `--omit=dev`.
 | **Fase 9 / P5** | **Commitada** (`ea15894` → `cb934c9` → `9eb98f4`); `streams` em **v11** / `idx` em **v10**. Não alegar DONE em produção sem deploy autorizado |
 
 A meta histórica de `any` (<150) fechou em **143** (`e25ef29`). Catraca 5.8 e
-painel 5.9 estão no ar. Banco de magnets: cota L1 `mag=50000`, teto global
-`84000`.
+painel 5.9 estão no ar. Banco de magnets: cota L1 `mag=50000` + agregado único
+`mag_meta=1` (contadores duráveis O(1)), teto global `84000`, soma das cotas
+`82.551`.
+
+**MagnetDB Fases 1–3 no código (2026-09-09):** contadores duráveis O(1) em
+`mag_meta:v1` (Fase 1), rebaixamento/filtragem de releases `_lied` no ranking e
+no `instantSet` (Fase 2) e as ações autenticadas `magnet-inspect`/
+`magnet-summary`/`magnet-clear-bad` no painel (Fase 3, `magnet-clear-bad`
+destrutiva com `confirm` e teto de 100). `test:complete` agora inventaria **7**
+harnesses (entrou `scripts/empirical-ranking-challenger.ts`, exposto como
+`npm run test:ranking-challenger`). Ver a seção **MagnetDB** abaixo.
 
 ---
 
@@ -1288,6 +1297,96 @@ vez.
 
 ---
 
+## MagnetDB — contadores duráveis, rebaixamento de lie e ações do painel (Fases 1–3) ✅ NO CÓDIGO (2026-09-09)
+
+> **Aviso de nome:** as "Fases 1–3" aqui são a numeração **interna do trabalho
+> MagnetDB** (contadores duráveis → ranking de `lie` → ações do painel). Não são
+> a Fase 1/2/3 deste plano (bugs AllDebrid / robustez / rede de testes), que já
+> fecharam antes.
+
+**Objetivo:** o banco de magnets (`mag:v1`) já guardava `alive`/`bad`/`lie` por
+hash, mas três coisas doíam: (a) as contagens do painel vinham de um `Map` que
+morria no restart — o operador via "banco vazio" logo após um deploy que não
+esvaziou nada; (b) a release que **mentiu o áudio** (`lie`) tocava, mas era
+tratada como qualquer outra no ranking; (c) não havia porta de auditoria/limpeza
+do banco pelo painel — só o `magnets.js` de linha de comando. As três fases
+fecham esses três pontos.
+
+**Status real (2026-09-09):**
+
+| Fase | Conteúdo | Estado |
+|---|---|---|
+| 1 — contadores duráveis O(1) | `mag_meta:v1:counts` (cota 1), `cache.onForget` decrementa, `loadPersistentCounts` restaura no boot decaindo TTL pelo tempo decorrido, `savePersistentCounts` no shutdown; `cache.has` evita dupla contagem | ✅ `fe4cd8c` |
+| 2 — rebaixamento de `lie` | `markLie`/`isLie`/`peekLie`; `instantSet` exclui lied; `dedupeByHash` prefere listagem limpa ao clone mentiroso; `sortAndLimit` rebaixa `_lied` abaixo da mesma qualidade e filtra em `dubbedOnly`; destrava `adprot` + `markLied` no índice | ✅ `fe4cd8c` |
+| 2b — challenger de ranking | `scripts/empirical-ranking-challenger.ts` (exposto como `npm run test:ranking-challenger`) | ✅ `fe4cd8c` |
+| 3 — ações do painel | `src/utils/magnetdb-inspect.ts` (L1 só) + `src/routes/dashboard-actions-magnet.ts`: `magnet-inspect`/`magnet-summary` (leitura) e `magnet-clear-bad` (destrutiva, `confirm`, teto 100) | ✅ `0b5c538` |
+
+Código F1–3 commitado em `esm` (`fe4cd8c` + `0b5c538`). **Não alegar DONE em
+produção** — deploy exige autorização explícita.
+
+### Contratos duros (não podem regredir)
+
+1. **Contagem nunca é scan.** As contagens por adapter/side são incrementadas na
+   escrita e decrementadas pelo hook `cache.onForget` (TTL e despejo por cota
+   passam por ele) — nenhum `SELECT` no SQLite no caminho do painel. O agregado
+   vive numa única chave `mag_meta:v1:counts` (cota 1); o `ttlRemainingSums` é
+   aproximação operacional (subtrai o TTL nominal, não o restante exato), então
+   **contagens são exatas, a média é conservadora**. `cache.has` (presença
+   física, incluindo expirado aguardando prune) é o que impede o
+   `markAlive`/`markBad`/`markLie` de contar duas vezes a mesma chave na janela
+   entre vencimento e poda.
+2. **`lie` rebaixa, não apaga.** Não é `bad`: há vídeo, só que o play provou EN
+   onde o post prometia PT. O hash sai do `instantSet`, perde `_dubbed` no merge
+   (a listagem limpa vence o clone mentiroso do MESMO hash) e desaba abaixo de
+   qualquer alternativa da MESMA qualidade — antes de `preferDubbed`, prioridade
+   e o desempate ⚡. Com `dubbedOnly` (chave `d`) some da lista. Origem é só o
+   `DubLieError`, nunca a checagem de cache. `MAGNET_LIE=false` fecha a
+   gravação/leitura sem tocar em alive/bad.
+3. **Ações do painel são L1-só e não vazam credencial.** `magnet-inspect`/
+   `magnet-summary`/`magnet-clear-bad` enumeram via `keysMatching` +
+   `peek`/`peekRemaining` (sem query síncrona, sem promover LRU nem inflar
+   `cache.hit`), teto de **100 itens** por resposta/passagem (default 50),
+   filtros `adapterId`/`side`/`hash` validados (inválido é 400, não ignorado). O
+   parse das chaves `mag` **descarta o digest da conta** (`accountScope`) na
+   origem — nenhuma resposta expõe apiKey, scope nem chave completa; o hash
+   devolvido é o de conteúdo (40-hex). `magnet-clear-bad` é destrutiva
+   (`DESTRUCTIVE_ACTIONS`, `{"confirm": true}`), apaga **só** `bad` (preserva
+   `alive`/`lie` do mesmo hash) e é idempotente (repetir devolve `cleared: 0`).
+
+### Validação (medida 2026-09-09)
+
+- **Gates:** `typecheck` 0; build verde; suíte completa passando;
+  `test:complete` agora com **7 harnesses** (entrou o challenger de ranking);
+  catraca `lint:lines` OK (os módulos novos nascem sob 400 linhas:
+  `magnetdb-inspect.ts` 131, `dashboard-actions-magnet.ts` 130).
+- **Validação adversarial:** `9a8c6dd` realinhou os alvos do harness após os
+  splits anteriores; as **10/10 mutações** voltaram a ser capturadas, além das
+  20 repetições sequenciais e 6 workers paralelos.
+- **Testes novos:** `magnet-db-persistence.test.ts` (persistência/restart,
+  transição bad↔alive, `forgetBad` durável, prune sem vazamento, regravar
+  expirado não infla), `magnet-db-empirical-challenge.test.ts` (transições
+  rápidas, isolamento entre 5 adaptadores, idempotência contra double-increment,
+  underflow no `forgetMany`), `dashboard-actions-magnet.test.ts` (enumeração sem
+  vazamento, filtros+teto, 400 em filtro inválido, summary sem hash, `confirm`
+  central, idempotência do clear-bad) e o harness `empirical-ranking-challenger`
+  (demotion de `lie` vs `preferDubbed` em todas as qualidades).
+
+### O que falta (administrativo / produção)
+
+1. Deploy só com autorização — o painel passa a oferecer `magnet-clear-bad`
+   (destrutiva) atrás do token de diagnóstico.
+
+**Explicitamente fora:** scan SQLite para contagem, `lie` vindo de checagem de
+cache, expor credencial/digest em qualquer resposta do painel, apagar `alive` ou
+`lie` pela ação de limpeza.
+
+**Rollback:** `MAGNET_DB=false` desliga o banco inteiro; `MAGNET_LIE=false` ou
+`MAGNET_LIE_TTL=0` fecha só o lado `lie` sem tocar em alive/bad; os contadores
+duráveis somem com o `mag_meta` (não há migração — `loadPersistentCounts` é
+tolerante a ausência).
+
+---
+
 ## Grafo de dependências
 
 ```
@@ -1304,6 +1403,10 @@ Fase 4             ✅ 4.1–4.3
 
 Fase 9 (P5 observabilidade) ✅ no código (`ea15894`…`9eb98f4` + bumps v9/v10).
 Deploy em produção continua autorização explícita.
+
+MagnetDB F1–3 (contadores duráveis, ranking de lie, ações do painel) ✅ no código
+(`fe4cd8c` + `0b5c538`). Independente das fases numeradas deste plano; não
+alegar DONE em produção sem deploy.
 ```
 
 - 5.1–5.7 são sequenciais entre si (mesmos arquivos), mas 5.2, 5.4 e 5.5 são
@@ -1329,17 +1432,19 @@ linhas), os dois maiores arquivos do repo, não existem mais como monólito.
 npm run typecheck      # portão: ZERO
 npm run build          # dist/ atual (test roda dist)
 npm test               # lista explícita em package.json; zero falha
-npm run test:complete  # lista explícita fechada + 6 harnesses
+npm run test:complete  # lista explícita fechada + 7 harnesses
 # fase 2+ (tocou runtime de rede/debrid):
 node dist/scripts/smoke.js          # pipeline ponta a ponta, rede de verdade
 # fase 5 (todas as subfases):
 npm run test:stress && npm run test:adversarial && npm run test:adversarial-m1 \
   && npm run test:protector-m1 && npm run test:challenger-m2
+# MagnetDB (ranking / rebaixamento de lie):
+npm run test:ranking-challenger
 ```
 
 **Não pode regredir:** invariante 1 (orçamento), vagas BR no corte final,
 `_campos` internos fora da resposta, SWR só serve lista completa+tocável,
-soma de cotas < teto global (82.550 < 84.000), métricas `magnetdb.dropped.*`
+soma de cotas < teto global (82.551 < 84.000), métricas `magnetdb.dropped.*`
 separadas.
 
 ## Riscos do próprio plano

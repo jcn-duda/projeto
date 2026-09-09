@@ -127,11 +127,11 @@ padrão a partir do Node 21. Arquivo `.test.ts` novo que não entra no
 `package.json` passa despercebido e o CI fica verde à toa — por isso existe o
 `test:complete`.
 
-**Cinco harnesses não passam pelo `npm test`** — `test:stress`,
-`test:adversarial`, `test:adversarial-m1`, `test:protector-m1` e
-`test:challenger-m2` rodam código de bancada que o CI nunca executa. Quebra
-neles só aparece no dia em que você precisar deles; rode antes de mexer em
-`test/` para ter linha de base.
+**Seis harnesses não passam pelo `npm test`** — `test:stress`,
+`test:adversarial`, `test:adversarial-m1`, `test:protector-m1`,
+`test:challenger-m2` e `test:ranking-challenger` rodam código de bancada que o
+CI nunca executa. Quebra neles só aparece no dia em que você precisar deles;
+rode antes de mexer em `test/` para ter linha de base.
 
 Quando "o ⚡ sumiu de todos os streams", comece por aqui — é diagnóstico, não
 adivinhação:
@@ -357,13 +357,14 @@ declarar `true` sem endpoint funcional é o pior dos mundos.
 
 **Banco de magnets (`src/utils/magnetdb.ts`).** Histórico durável POR HASH,
 escopado por serviço+conta (`mag:v1:<lado>:<adapterId>:<sha256(apiKey)>:<hash>`) —
-nunca vaza credencial, não cruza contas. Alimenta duas decisões da listagem: o
+nunca vaza credencial, não cruza contas. Alimenta três decisões da listagem: o
 filtro pré-checagem do `applyDebrid` (descarta o que provou estar quebrado,
-antes de gastar lote — ou upload, na AllDebrid) e o desempate `instant` do
+antes de gastar lote — ou upload, na AllDebrid), o desempate `instant` do
 `sortAndLimit` (quem provou tocar na hora sobe acima dos seeders, DEPOIS de
-episódio/qualidade/dublado/prioridade — histórico desempata, não reordena).
-Regra de ouro: só evidência MEDIDA entra, e falso negativo (descartar magnet
-bom) é pior que falso positivo.
+episódio/qualidade/dublado/prioridade — histórico desempata, não reordena) e o
+rebaixamento das releases que **mentiram o áudio** (`lie`, ver abaixo — toca,
+mas não é o que o post prometia). Regra de ouro: só evidência MEDIDA entra, e
+falso negativo (descartar magnet bom) é pior que falso positivo.
 
 - **`alive`** (TTL `MAGNET_ALIVE_TTL`, 7 dias): positivo confirmado na checagem
   de cache ou play que resolveu de verdade no `/resolve`. O atalho do davail
@@ -395,6 +396,18 @@ bom) é pior que falso positivo.
   stream permanece; em `cachedOnly` o corte remove pelo ledger; fora dele volta
   P2P/sem ⚡). Métrica própria: `magnetdb.bad.clearedBlocked` — **não** conta
   como `magnetdb.dropped.bad`.
+- **`lie`** (TTL `MAGNET_LIE_TTL`, 7 dias; `MAGNET_LIE=false` desliga): há vídeo,
+  mas o play provou release EN num post que prometia áudio PT — origem é o
+  `DubLieError` do `pickFile` (a auditoria de áudio), nunca a checagem de cache.
+  Não é `bad`: o torrent toca, só que entrega outra coisa. O `lie` **rebaixa sem
+  apagar**: o hash sai do `instantSet` (não ganha ⚡ por memória), o merge do
+  `dedupeByHash` prefere a listagem limpa ao clone mentiroso do MESMO hash e
+  zera o `_dubbed` do vencedor, e no `sortAndLimit` a release mentirosa desaba
+  abaixo de qualquer alternativa da MESMA qualidade — antes de `preferDubbed`,
+  prioridade de indexador e o desempate ⚡. Com `dubbedOnly` (a chave `d` do
+  usuário) ela some da lista, não só desce. A mesma escrita destrava a retenção
+  `adprot` do hash e marca `markLied` no índice de releases (`resolve.ts`) — o
+  post que mentiu uma vez não reconquista a vaga BR pela janela do `alive`.
 
 A fronteira **bad × dead**: mesmo TTL de 24h, mesmo ponto de filtro
 (`applyDebrid`, pré-checagem), origens diferentes — bad é play sem vídeo
@@ -405,7 +418,8 @@ separam para o diagnóstico não culpar o lado errado. Unificar só se um
 terceiro consumidor aparecer.
 
 Kill-switches no `.env`: `MAGNET_DB=false` desliga o banco inteiro;
-`MAGNET_ALIVE_TTL=0` e `MAGNET_BAD_TTL=0` desligam cada lado.
+`MAGNET_ALIVE_TTL=0`, `MAGNET_BAD_TTL=0` e `MAGNET_LIE_TTL=0` desligam cada lado;
+`MAGNET_LIE=false` fecha só a gravação/leitura do `lie` sem tocar em alive/bad.
 
 **Alive como cache no degradado (`DEBRID_ALIVE_AS_CACHE`, default `false`).**
 Evolução da sessão de limpeza de 2026-08-30, implementada em
@@ -460,6 +474,36 @@ alive/bad/lie e o TTL médio restante de cada lado, e mostra a **taxa ⚡**
 hashes enviados à rede: o numerador são positivos de resposta completa, e o
 denominador são consultas reais. Hit local de `davail` fica separado em
 `davail.servedHashes`; nunca entra na taxa, que assim não ultrapassa 100%.
+
+**Contadores duráveis O(1) (`mag_meta:v1`).** As contagens por adapter/side que
+o painel mostra não vêm de scan no SQLite nem de um `Map` que morre no restart:
+são incrementadas na escrita, decrementadas pelo hook `cache.onForget` do
+magnetdb (TTL e despejo por cota passam por ele) e persistidas num único
+agregado (`mag_meta:v1:counts`, cota 1) com `setImmediate` debounced + `unref`,
+salvo também no shutdown do processo (`src/addon.ts`). No boot o
+`loadPersistentCounts` restaura o estado e decai o TTL restante pelo tempo
+decorrido (`updatedAt`). `status()` marca esses campos com `_origem: duravel`;
+só os contadores de *eventos* (`magnetdb.*.set`, `dropped`) continuam zerando no
+restart. O `ttlRemainingSums` é aproximação operacional (renovação/remoção
+subtraem o TTL nominal, não o restante exato de cada chave) — as contagens são
+exatas, a média é conservadora. O `cache.has` (presença física, incluindo
+expirado aguardando prune) é o que impede `markAlive`/`markBad`/`markLie` de
+contar duas vezes a mesma chave na janela entre vencimento e poda.
+
+**Ações do banco no painel** (`POST /dashboard-action.json`, atrás do mesmo
+token): `magnet-inspect` e `magnet-summary` são leitura; `magnet-clear-bad` é
+destrutiva (entra em `DESTRUCTIVE_ACTIONS`, exige `{"confirm": true}`) e apaga
+só o lado `bad`, preservando `alive`/`lie` do mesmo hash. Todas varrem o **L1**
+por prefixo (`keysMatching` + `peek`/`peekRemaining` — nenhuma query síncrona no
+SQLite, sem promover LRU nem inflar `cache.hit`), com teto de **100 itens** por
+resposta/passagem (default 50) e filtros `adapterId`/`side`/`hash` validados
+(valor inválido é 400, não ignorado em silêncio). O `clear-bad` é idempotente:
+repetir devolve `cleared: 0`. A lógica mora em `src/utils/magnetdb-inspect.ts`
+(separado do `magnetdb.ts`, que está no teto de 400 linhas) e os handlers em
+`src/routes/dashboard-actions-magnet.ts`. Segurança de payload: o parse das
+chaves `mag` **descarta o digest da conta** (`accountScope`) na origem — nenhuma
+resposta expõe apiKey, scope nem a chave completa; o hash devolvido é o de
+conteúdo (40-hex).
 
 AllDebrid **mede** ⚡, mas a consulta é um upload e **não é abortável**
 (`abortSafeCacheCheck: false`). A corrida da resposta não cancela o trabalho:
@@ -968,11 +1012,12 @@ TTL de resultado vazio é curto (`RAW_CACHE_EMPTY_TTL`): 200 com zero itens
 pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
 
 Cotas do L1 (`cache-quotas.ts`): `streams` 2000, `raw` 800, `dlmag` 4000,
-`idx` 2000, `rdc` 14000, `mag` 50000, teto global 84000. `raw` é o namespace
+`idx` 2000, `rdc` 14000, `mag` 50000, `mag_meta` 1 (o agregado único dos
+contadores duráveis do banco de magnets), teto global 84000. `raw` é o namespace
 gordo (~100 KB no pior caso); não suba a cota sem refazer a conta de memória do
 container de 3g. O `mag` é o oposto — entrada minúscula (`1` + chave de ~70 B,
 ~400 B com o overhead do Map), então 50.000 custa ~19 MB. A SOMA das cotas é
-82.550 — teto global **igual ou abaixo** da soma reintroduz o despejo global
+82.551 — teto global **igual ou abaixo** da soma reintroduz o despejo global
 antes da repartição por namespace (foi bug real).
 
 Cota é capacidade, não permanência: quem tira registro do `mag` no dia a dia é
@@ -1364,7 +1409,8 @@ fire-and-forget) continua.
 | `src/utils/logger.ts` | Níveis via `ADDON_LOG_LEVEL` (não `LOG_LEVEL` — essa é do FlareSolverr) |
 | `src/utils/metrics.ts` | Contadores/histogramas do `/metrics.json` |
 | `src/utils/diagnostic-guard.ts` | Token + rate limit das rotas operacionais |
-| `src/utils/magnetdb.ts` | Banco de magnets por hash/adapter; panorama no dashboard: tamanhos por adapter, TTLs (e restante) e taxa ⚡ (`debrid.check.cached`/`hashes`) |
+| `src/utils/magnetdb.ts` | Banco de magnets por hash/adapter (alive/bad/lie); contadores duráveis O(1) em `mag_meta:v1` (restaurados no boot, decrementados por `cache.onForget`); panorama no dashboard: tamanhos por adapter, TTLs (e restante) e taxa ⚡ (`debrid.check.cached`/`hashes`) |
+| `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse descarta o digest da conta. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
 | `resolvers/` | Núcleo comum dos resolvers (CommonJS puro). Processo: `runtime.js`, `site-selector.js` (failover de host), `cache.js`, `http-server.js`, `flare.js`. Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os cinco), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` |
 | `*-resolver/` | Shims de compatibilidade: `<nome>/server.js` faz `require('../resolvers/profiles/<nome>')` — a lógica está no núcleo em `resolvers/` |
@@ -1812,7 +1858,7 @@ o orçamento com a resposta.
   Entrada antiga que era só um array ainda é lida (`findStreams`).
 - **Suíte de testes cobre o que é puro e o e2e com fetch dublê.** `npm test`
   é a lista explícita; `npm run test:complete` cobra que nada tenha ficado de
-  fora — e também que os 6 harnesses existam, compilem para `dist/` e estejam
+  fora — e também que os 7 harnesses existam, compilem para `dist/` e estejam
   referenciados em algum script do `package.json` (eles ficam fora do CI, e
   sem essa checagem apodreciam sem ninguém notar). `npm run test:nerdfilmes`
   cobre um resolver contra a rede. Ao mexer em matching, debrid, cache,
