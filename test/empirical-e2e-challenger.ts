@@ -75,7 +75,8 @@ const mutations = [
     file: 'dist/src/utils/release-title-rules.js',
     target: 'return matchesTitleStructure(title, name, year, { isSeries, tokens: own });',
     replacement: 'return false; // MUTATED',
-    testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
+    // Capturado pelo tier1-title-cache (5.1/5.3): o alvo é a única saída positiva de matchesBrTitle.
+    testFile: 'dist/test/e2e/tier1-title-cache.test.js'
   },
   {
     // PLANO_MELHORIAS 5.3: dedupeByHash saiu de utils/format.js para
@@ -84,28 +85,32 @@ const mutations = [
     file: 'dist/src/utils/stream-ranking.js',
     target: 'const seedDiff = (s._seeders || 0) - (prev._seeders || 0);',
     replacement: 'const seedDiff = (prev._seeders || 0) - (s._seeders || 0); // MUTATED',
-    testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
+    // Capturado pelo tier1-title-cache (5.5): o dedupe do mesmo hash exige o ganhador de 100 seeders.
+    testFile: 'dist/test/e2e/tier1-title-cache.test.js'
   },
   {
     name: 'MUT-03: Corrupt verifyResolve HMAC check (sign.js)',
     file: 'dist/src/utils/sign.js',
     target: 'return a.length === b.length && crypto.timingSafeEqual(a, b);',
     replacement: 'return false; // MUTATED',
-    testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
+    // Capturado pelo tier3-pipeline (7A): assina com signResolve e exige verifyResolve() === true.
+    testFile: 'dist/test/e2e/tier3-pipeline.test.js'
   },
   {
     name: 'MUT-04: Disable runtime URL 8192-byte limit (runtime.js)',
     file: 'dist/src/runtime.js',
     target: 'segment.length > MAX_CONFIG_SEGMENT || ',
     replacement: '', // MUTATED: derruba o teto de 8192
-    testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
+    // Capturado pelo tier2-invariants-security (F13-BND-01): segmento acima de 8192 com JSON válido tem que ser null.
+    testFile: 'dist/test/e2e/tier2-invariants-security.test.js'
   },
   {
     name: 'MUT-05: Break protected.js hold tracking (protected.js)',
     file: 'dist/src/debrid/protected.js',
     target: 'return true;',
     replacement: 'return false; // MUTATED',
-    testFile: 'dist/test/e2e/tier1-feature-coverage.test.js'
+    // Capturado pelo tier2-providers-debrid (F10-BND-05): isHeld() após hold exige true por conta.
+    testFile: 'dist/test/e2e/tier2-providers-debrid.test.js'
   },
   {
     // O entrypoint histórico agora é apenas um shim; a guarda executável mora
@@ -122,7 +127,8 @@ const mutations = [
     file: 'dist/src/utils/secret-box.js',
     target: 'decipher.setAuthTag(raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES));',
     replacement: '// decipher.setAuthTag(raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES)); // MUTATED',
-    testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
+    // Capturado pelo tier3-pipeline (7A): o selo válido precisa abrir de volta a chave original.
+    testFile: 'dist/test/e2e/tier3-pipeline.test.js'
   },
   {
     // PLANO_MELHORIAS 5.3: limitReservingBr saiu de utils/format.js para
@@ -131,7 +137,8 @@ const mutations = [
     file: 'dist/src/utils/stream-quotas.js',
     target: 'if (brFirst) {',
     replacement: 'if (!brFirst) { // MUTATED',
-    testFile: 'dist/test/e2e/tier3-cross-feature.test.js'
+    // Capturado pelo tier3-pipeline (8B): compara brFirst=false vs true no mesmo pool e exige o BR no índice 0.
+    testFile: 'dist/test/e2e/tier3-pipeline.test.js'
   },
   {
     // PLANO_MELHORIAS 5.1: applyDebrid (e markDebridName) saiu de

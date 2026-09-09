@@ -321,6 +321,18 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       tamperedUrl.searchParams.set('sig', 'deadbeef'.repeat(8));
       const badSigRes = await fetch(tamperedUrl.href, { redirect: 'manual' });
       assert.equal(badSigRes.status, 403, 'Tampered HMAC signature rejected with 403 Forbidden');
+
+      // Step 5: Reabertura da MESMA chave dentro do TTL - tem que sair do cache
+      // ja completo (partial:false), com TTL cheio de novo. E o contrato que a
+      // MUT-10 ataca: se o finish gravasse a entrada como partial:true, a
+      // reabertura do Stremio receberia cacheMaxAge 0 (revalidacao a cada toque)
+      // em vez de max-age=900.
+      const reOpenUrl = baseUrl + '/' + configSegment + '/stream/movie/' + imdbId + '.json';
+      const reOpenRes = await fetch(reOpenUrl);
+      assert.equal(reOpenRes.status, 200);
+      assert.match(reOpenRes.headers.get('cache-control') || '', /max-age=900/, 'Reabertura servida do cache completo mantem TTL cheio');
+      const reOpenData = await reOpenRes.json();
+      assert.equal(reOpenData.streams.length, 1, 'Reabertura entrega a mesma lista do cache');
     } finally {
       jackett.search = originalJackettSearch;
       pmAdapter.checkCached = originalCheckCached;
