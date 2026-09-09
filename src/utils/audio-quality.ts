@@ -76,7 +76,11 @@ function qualityFromTitle(title = '') {
   if (/\b720P\b/.test(t)) return '720p';
   if (/\b480P\b/.test(t)) return '480p';
   // 576p/540p são resoluções SD de verdade (PAL), não "não sei".
-  if (/\b(576P|540P|360P|240P|SDTV|DVD[- ]?(?:RIP|SCR)|VHS[- ]?RIP|TS|TC|CAM[- ]?RIP|CAM)\b/.test(t)) return 'SD';
+  // DVD5/DVD9/DVDR também: são formatos de DVD, cujo conteúdo é SD por
+  // definição (MPEG-2 480i/576i) — release "DVD5" explícita não pode ficar
+  // sem selo de qualidade. A resolução declarada (1080p/720p/…) continua
+  // ganhando porque vem ANTES nesta ordem.
+  if (/\b(576P|540P|360P|240P|SDTV|DVD5|DVD9|DVD[- ]?R|DVD[- ]?(?:RIP|SCR)|VHS[- ]?RIP|TS|TC|CAM[- ]?RIP|CAM)\b/.test(t)) return 'SD';
   return UNKNOWN_QUALITY;
 }
 

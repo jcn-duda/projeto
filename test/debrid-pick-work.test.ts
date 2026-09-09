@@ -248,3 +248,89 @@ test('pickFile com pack=true e obra identificável pelo ano escolhe certo', () =
   });
   assert.equal(file!.path, 'Jornada nas Estrelas II A Ira de Khan (1982) Dublado 1080p.mkv');
 });
+
+// Caso real The Locals (tt0387357, 2003): release listada como 2003 com um
+// único vídeo no Premiumize de OUTRO filme ("Zlodej.iz.glubinki.2007.P.
+// DVDRip_INTERFILM.avi"). O pickFile permissivo tocava o filme errado em
+// silêncio; a contradição de ano agora falha explícito com WorkPickError.
+test('pickFile rejeita ano contraditório no vídeo único (2007 vs obra 2003)', () => {
+  assert.throws(
+    () => pickFile([f('Zlodej.iz.glubinki.2007.P.DVDRip_INTERFILM.avi', 1.5 * 1024 ** 3)], {
+      work: { names: ['The Locals', 'Los Vecinos'], year: 2003 },
+    }),
+    (err) => isWorkPickError(err),
+  );
+});
+
+test('pickFile rejeita pack onde TODOS os vídeos declaram só anos incompatíveis', () => {
+  const pack = [
+    f('Zlodej.iz.glubinki.2007.P.DVDRip_INTERFILM.avi', 1 * 1024 ** 3),
+    f('Drugaya.Istoriya.2008.DVDRip.avi', 2 * 1024 ** 3),
+  ];
+  assert.throws(
+    () => pickFile(pack, { work: { names: ['The Locals'], year: 2003 } }),
+    (err) => isWorkPickError(err),
+  );
+});
+
+test('pickFile preserva o vídeo único quando o ano casa (tolerância ±2)', () => {
+  // Ano exato.
+  const exact = pickFile([f('The Locals (2003) DVDRip.mkv', 1 * 1024 ** 3)], { work: { names: ['The Locals'], year: 2003 } });
+  assert.equal(exact!.path, 'The Locals (2003) DVDRip.mkv');
+  // Dentro de ±2: lançamento de DVD/BR pode diferir alguns anos do de cinema.
+  const limite = pickFile([f('The.Locals.2005.P.DVDRip.avi', 1 * 1024 ** 3)], { work: { names: ['The Locals'], year: 2003 } });
+  assert.equal(limite!.path, 'The.Locals.2005.P.DVDRip.avi');
+});
+
+test('pickFile preserva vídeo único sem ano declarado (ambíguo não condena)', () => {
+  // Sem ano no nome não há contradição provável: o play toca como antes.
+  const file = pickFile([f('Zlodej.iz.glubinki.P.DVDRip_INTERFILM.avi', 1 * 1024 ** 3)], { work: { names: ['The Locals'], year: 2003 } });
+  assert.equal(file!.path, 'Zlodej.iz.glubinki.P.DVDRip_INTERFILM.avi');
+});
+
+test('pickFile preserva basename com mais de um ano (ambíguo não condena)', () => {
+  const file = pickFile([f('The.Locals.2003.Remaster.2007.DVDRip.avi', 1 * 1024 ** 3)], { work: { names: ['The Locals'], year: 2003 } });
+  assert.equal(file!.path, 'The.Locals.2003.Remaster.2007.DVDRip.avi');
+});
+
+test('pickFile não confunde dimensões de vídeo com ano', () => {
+  const files = [f('The.Locals.1920x1080.mkv', 1), f('The.Locals.2048x1080.mkv', 2)];
+  assert.equal(pickFile(files, { work: { names: ['The Locals'], year: 2003 } })!.path, 'The.Locals.2048x1080.mkv');
+});
+
+test('pickFile não confunde número do título com ano de lançamento', () => {
+  assert.equal(
+    pickFile([f('1917.DVDRip.mkv', 1)], { work: { names: ['1917'], year: 2019 } })!.path,
+    '1917.DVDRip.mkv',
+  );
+  assert.equal(
+    pickFile([f('Blade.Runner.2049.1080p.mkv', 1)], { work: { names: ['Blade Runner 2049'], year: 2017 } })!.path,
+    'Blade.Runner.2049.1080p.mkv',
+  );
+});
+
+test('pickFile preserva encodes múltiplos do mesmo filme (ano compatível)', () => {
+  const encodes = [
+    f('The Locals (2003) 720p.mkv', 4 * 1024 ** 3),
+    f('The Locals (2003) 1080p.mkv', 8 * 1024 ** 3),
+  ];
+  const file = pickFile(encodes, { work: { names: ['The Locals'], year: 2003 } });
+  assert.equal(file!.path, 'The Locals (2003) 1080p.mkv');
+});
+
+test('pickFile preserva a obra quando há mistura de anos (um compatível)', () => {
+  // Pack com o filme real (2003) ao lado de outro (2007): não é "só
+  // incompatíveis", e o desempate por nome escolhe o correto.
+  const pack = [
+    f('The Locals (2003) DVDRip.mkv', 1 * 1024 ** 3),
+    f('Zlodej.iz.glubinki.2007.P.DVDRip_INTERFILM.avi', 1 * 1024 ** 3),
+  ];
+  const file = pickFile(pack, { work: { names: ['The Locals'], year: 2003 } });
+  assert.equal(file!.path, 'The Locals (2003) DVDRip.mkv');
+});
+
+test('pickFile preserva URL antiga sem ano na dica', () => {
+  // Dica sem `y` (URLs cacheadas nos clientes): o guard não decide nada.
+  const file = pickFile([f('Zlodej.iz.glubinki.2007.P.DVDRip_INTERFILM.avi', 1 * 1024 ** 3)], { work: { names: ['The Locals'] } });
+  assert.equal(file!.path, 'Zlodej.iz.glubinki.2007.P.DVDRip_INTERFILM.avi');
+});

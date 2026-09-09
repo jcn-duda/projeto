@@ -56,6 +56,42 @@ function isSiteAd(path: string) {
 }
 
 const WORK_COVERAGE_MIN = 0.7;
+// Tolerância de ano catálogo ↔ arquivo: lançamento em DVD/BR/streaming pode
+// diferir 1-2 anos do de cinema. Fora desta janela o ano declarado é prova de
+// OUTRA obra, não uma diferença normal de lançamento.
+const WORK_YEAR_TOLERANCE = 2;
+
+// Ano que o NOME do arquivo declara. Só basename: um ano na pasta costuma ser
+// da coleção ("Trilogia (2009-2011)/…"), não da release individual.
+function declaredYears(filePath: string) {
+  // 1920x1080/2048x1080 são dimensões, não anos declarados.
+  const matches = String(baseName(filePath) || '').matchAll(/(?:^|[^0-9])((?:19|20)\d{2})(?![xX×]\d)(?=$|[^0-9])/g);
+  return [...matches].map((match) => Number(match[1]));
+}
+
+// Contradição de ano entre a dica de obra e TODOS os vídeos principais. Caso
+// real The Locals (tt0387357, 2003): release listada como 2003 com um único
+// vídeo no Premiumize de OUTRO filme ("Zlodej.iz.glubinki.2007.P.DVDRip_
+// INTERFILM.avi") — tocar outro filme em silêncio era o sintoma. Nunca condena na
+// dúvida: sem dica de ano (séries não levam ano) não decide nada; vídeo sem
+// ano declarado deixa o caso ambíguo (preserva encodes sem ano); basta UM
+// vídeo com ano compatível (±2) para não ser "só incompatíveis" — o pack pode
+// conter a obra ao lado de outros filmes. Não é blacklist: decide por play,
+// contra os arquivos reais, sem persistir nada.
+function workYearContradicts(pool: DebridFile[], year: number | null | undefined, names: string[] = []) {
+  const cleanYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  if (!cleanYear || pool.length === 0) return false;
+  const declared = pool.map((file) => declaredYears(file.path || ''));
+  // Zero anos é ausência de prova; dois ou mais no mesmo basename é ambíguo
+  // (faixa de coleção, comparação ou edição) e também não autoriza condenar.
+  if (declared.some((years) => years.length !== 1)) return false;
+  // Em "1917" e "Blade Runner 2049" o token parecido com ano pertence ao
+  // nome da obra; não pode contradizer o ano real de lançamento do catálogo.
+  const nameTokens = new Set(names.flatMap((name) => normalizeTitle(name).split(' ')));
+  if (declared.some(([declaredYear]) => nameTokens.has(String(declaredYear)))) return false;
+  return declared.every(([declaredYear]) => Math.abs(declaredYear - cleanYear) > WORK_YEAR_TOLERANCE);
+}
+
 function workCoverage(fileName: string, name: string) {
   const tokens = normalizeTitle(name).split(' ').filter(Boolean);
   const longTokens = tokens.filter((w) => w.length > 2);
@@ -72,8 +108,10 @@ function looksMultiWorkFiles(files: DebridFile[]) {
   if (mains.length <= 1) return false;
   const years = new Set<number>();
   for (const file of mains) {
-    const match = String(baseName(file.path || '') || '').match(/(?:^|[^0-9])((?:19|20)\d{2})(?:$|[^0-9])/);
-    if (match) years.add(Number(match[1]));
+    // Preserve o contrato anterior: múltiplos anos no mesmo basename são
+    // ambíguos e não transformam, sozinhos, um conjunto de encodes em pack.
+    const [year] = declaredYears(file.path || '');
+    if (year != null) years.add(year);
   }
   return years.size >= 2;
 }
@@ -149,6 +187,10 @@ function pickFile(files: DebridFile[], { season, episode, work }: PlayHint = {})
   if (work?.names?.length) {
     const mains = videos.filter((file) => !EXTRA.test(file.path || ''));
     const pool = mains.length > 0 ? mains : videos;
+    // Guarda contra release que promete uma obra e entrega outra: quando TODOS
+    // os vídeos principais declaram só anos incompatíveis com a dica, o play
+    // falha explícito (WorkPickError → 404) em vez de tocar o filme errado.
+    if (workYearContradicts(pool, work.year, work.names)) throw new WorkPickError();
     if (pool.length === 1) return pool[0];
     if (!work.pack && !looksMultiWorkFiles(pool)) return pool.reduce((a, b) => (Number(b.size || 0) > Number(a.size || 0) ? b : a));
     const picked = pickWorkFile(pool, work);

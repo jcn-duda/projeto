@@ -282,6 +282,17 @@ test('sem resolução no título não é SD e tem balde próprio', () => {
   assert.ok(QUALITY_KEYS.includes(UNKNOWN_QUALITY));
 });
 
+test('DVD5/DVD9/DVDR são marca explícita de SD (formato DVD)', () => {
+  // Formato de DVD é SD por definição (MPEG-2 480i/576i), não "sem resolução".
+  assert.equal(qualityFromTitle('The Locals 2003 DVD5'), 'SD');
+  assert.equal(qualityFromTitle('The Locals 2003 DVD9'), 'SD');
+  assert.equal(qualityFromTitle('The Locals 2003 DVDR'), 'SD');
+  assert.equal(qualityFromTitle('The Locals 2003 DVD-R'), 'SD');
+  // Resolução declarada continua ganhando: a marca de DVD não pesa sobre HD.
+  assert.equal(qualityFromTitle('The Locals 2003 DVD5 1080p'), '1080p');
+  assert.equal(qualityFromTitle('The Locals 2003 2160p 4K DVD9'), '2160p');
+});
+
 test('zerar a cota de SD não esconde mais as fontes BR', () => {
   const br = stremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3]', infoHash: HASH, seeders: 1, isBr: true });
   const sd = stremioStream({ title: 'Devoradores de Estrelas 2026 DVDRip', infoHash: OTHER, seeders: 9 });
