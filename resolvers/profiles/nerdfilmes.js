@@ -47,12 +47,25 @@ const normalizeQuery = createNormalizeQuery({ boundary: false });
 const FALLBACK_SITE_SUFFIXES = [
   'xnerdfilmes.net', 'nerdfilmestorrent.com', 'nerdfilmestorrent.org',
   'nerdfilmestorrent.net', 'nerdviatorrents.net', 'filmesviatorrents.net',
+  'filmesviatorrenthd.org',
 ];
 
 // nerdviatorrents.net migrou para filmesviatorrents.net (301 permanente). Sem
 // NERDFILMES_URL/SITE_URL no ambiente (o modo embutido não injeta nada), o
 // default abaixo é o que o resolver tenta primeiro — deixá-lo no domínio velho
 // faz o redirect cair na allowlist e a fonte morrer em silêncio.
+//
+// E foi exatamente o que aconteceu de novo: filmesviatorrents.net passou a
+// redirecionar 301 para filmesviatorrenthd.org (domínio DIFERENTE — `torrents`
+// virou `torrenthd` e .net virou .org, não é variação de www). Medido em
+// produção: o guard recusava o destino com `blocked_host:...filmesviatorrenthd
+// .org`, o resolver devolvia 502, o Cardigann traduzia para BadGateway e o
+// painel mostrava o indexer offline com ms medido — respondendo rápido, porque
+// quem respondia era o próprio guard, antes de qualquer rede.
+//
+// O failover de domínio não cobre este caso: ele dispara por ERRO DE REDE, e
+// aqui a recusa é nossa, antes do fetch. Por isso o domínio novo precisa entrar
+// na lista acima (que é allowlist E lista de candidatos) e virar o default.
 //
 // --- Bootstrap comum (site-profile) ---
 // Toda a montagem repetida nos cinco perfis (leitura de env no require, seletor
@@ -72,7 +85,7 @@ const bootstrap = createProfile({
   name: 'nerdfilmes',
   port: PORT,
   selfUrlEnv: 'http://nerdfilmes-resolver:8702',
-  siteUrl: 'https://www.filmesviatorrents.net',
+  siteUrl: 'https://www.filmesviatorrenthd.org',
   siteUrlEnv: 'NERDFILMES_URL',
   urlsCsv: process.env.NERDFILMES_URLS,
   fallbackSuffixes: FALLBACK_SITE_SUFFIXES,
