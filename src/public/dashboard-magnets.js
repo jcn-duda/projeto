@@ -51,7 +51,7 @@ function runMagnetSummary(button) {
   }
   if (button) button.disabled = true;
   setMagnetFeedback("Consultando resumo consolidado do MagnetDB…", "");
-  requestJson("/dashboard-actions", {
+  requestJson("/dashboard-action.json", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "magnet-summary" })
@@ -129,7 +129,7 @@ function runMagnetInspect(button) {
   if (adapter) payload.adapterId = adapter;
   if (button) button.disabled = true;
   setMagnetFeedback("Inspecionando chaves do MagnetDB em memória (L1)…", "");
-  requestJson("/dashboard-actions", {
+  requestJson("/dashboard-action.json", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -172,7 +172,7 @@ function runMagnetClearBad(button) {
   if (adapter) payload.adapterId = adapter;
   if (button) button.disabled = true;
   setMagnetFeedback("Executando limpeza de chaves 'bad' no MagnetDB…", "warn");
-  requestJson("/dashboard-actions", {
+  requestJson("/dashboard-action.json", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)

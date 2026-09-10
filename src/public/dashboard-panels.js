@@ -246,8 +246,10 @@
       metricGroupTitle(metrics, "Persistência L2 (SQLite)");
       metric(metrics, "L2 banco (tamanho)", formatBytes(source.l2.fileSizeBytes || 0));
       metric(metrics, "L2 WAL (tamanho)", formatBytes(source.l2.walSizeBytes || 0));
-      metric(metrics, "L2 freelist (páginas)", source.l2.freelistPages != null ? source.l2.freelistPages : (source.l2.freelistCount || 0));
-      metric(metrics, "L2 fila pendente", source.l2.pendingWrites != null ? source.l2.pendingWrites : (source.l2.pendingFlush || 0));
+      metric(metrics, "L2 freelist (páginas)", source.l2.freelistCount || 0);
+      // A fila pendente é do processo e zera no restart — o rótulo separa ela
+      // dos três acima, que são medidos do disco na hora.
+      metricMaybeOrigem(metrics, "L2 fila pendente", source.l2.pendingWrites || 0, source.l2, "pendingWrites", undefined);
     }
     renderCollection(cards, namespaces, "namespaces", {});
   }

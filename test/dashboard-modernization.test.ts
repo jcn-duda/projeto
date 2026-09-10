@@ -29,26 +29,31 @@ after(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// R3: Aliases POST /dashboard-actions e POST /:userConfig/dashboard-actions
+// R3: ROTA ÚNICA de ações. O painel de magnets nasceu chamando
+// /dashboard-actions (plural), o que exigia registrar um alias permanente do
+// mesmo handler nas duas variantes. Uma string no cliente é mais barata que
+// superfície pública duplicada, que sai de sincronia na próxima mudança de
+// auth/limite/prefixo. Os testes abaixo cobrem a rota canônica E fixam a
+// ausência do alias, para ele não voltar em silêncio.
 // ---------------------------------------------------------------------------
 
-test('POST /dashboard-actions: 503 sem token configurado', async () => {
-  const res = await server.request('POST', '/dashboard-actions', {
+test('POST /dashboard-action.json: 503 sem token configurado', async () => {
+  const res = await server.request('POST', '/dashboard-action.json', {
     body: { action: 'clear-cache' },
   });
   assert.equal(res.status, 503);
   assert.equal(res.json.ok, false);
 });
 
-test('POST /dashboard-actions: 401 sem token ou token errado', async () => {
+test('POST /dashboard-action.json: 401 sem token ou token errado', async () => {
   config.jackett.testToken = TOKEN;
   try {
-    const semToken = await server.request('POST', '/dashboard-actions', {
+    const semToken = await server.request('POST', '/dashboard-action.json', {
       body: { action: 'clear-cache' },
     });
     assert.equal(semToken.status, 401);
 
-    const tokenErrado = await server.request('POST', '/dashboard-actions', {
+    const tokenErrado = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': 'tok-invalido' },
       body: { action: 'clear-cache' },
     });
@@ -58,13 +63,13 @@ test('POST /dashboard-actions: 401 sem token ou token errado', async () => {
   }
 });
 
-test('POST /dashboard-actions: alias funcional idêntico a /dashboard-action.json', async () => {
+test('POST /dashboard-action.json: ação executa ponta a ponta', async () => {
   config.jackett.testToken = TOKEN;
   try {
     cache.set('raw:modern-test', { a: 1 }, 60);
     assert.ok(cache.size() > 0);
 
-    const res = await server.request('POST', '/dashboard-actions', {
+    const res = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
       body: { action: 'clear-cache', confirm: true },
     });
@@ -77,17 +82,36 @@ test('POST /dashboard-actions: alias funcional idêntico a /dashboard-action.jso
   }
 });
 
-test('POST /:userConfig/dashboard-actions: responde com alias contextualizado', async () => {
+test('POST /:userConfig/dashboard-action.json: responde contextualizado', async () => {
   config.jackett.testToken = TOKEN;
   try {
     const userCfg = encodeConfig({ maxResults: 15 });
-    const res = await server.request('POST', `/${userCfg}/dashboard-actions`, {
+    const res = await server.request('POST', `/${userCfg}/dashboard-action.json`, {
       headers: { 'X-Indexer-Test-Token': TOKEN },
       body: { action: 'clear-cache', confirm: true },
     });
     assert.equal(res.status, 200);
     assert.equal(res.json.ok, true);
     assert.equal(res.json.action, 'clear-cache');
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+test('POST /dashboard-actions: alias plural não existe (rota única)', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    const res = await server.request('POST', '/dashboard-actions', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'clear-cache', confirm: true },
+    });
+    assert.equal(res.status, 404, 'só /dashboard-action.json responde ações');
+    const userCfg = encodeConfig({ maxResults: 15 });
+    const ctx = await server.request('POST', `/${userCfg}/dashboard-actions`, {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'clear-cache', confirm: true },
+    });
+    assert.notEqual(ctx.status, 200, 'variante com userConfig também sem alias');
   } finally {
     config.jackett.testToken = '';
   }
@@ -102,13 +126,17 @@ test('cache.l2Stats(): exporta métricas non-blocking do SQLite L2', () => {
   assert.ok(typeof stats === 'object' && stats !== null);
   assert.ok('fileSizeBytes' in stats);
   assert.ok('walSizeBytes' in stats);
-  assert.ok('freelistPages' in stats);
   assert.ok('freelistCount' in stats);
   assert.ok('pendingWrites' in stats);
-  assert.ok('pendingFlush' in stats);
+  // Um nome por número: apelido do mesmo valor vira dois campos para editar.
+  assert.ok(!('freelistPages' in stats), 'sem apelido de freelistCount');
+  assert.ok(!('pendingFlush' in stats), 'sem apelido de pendingWrites');
+  // Procedências diferentes, rótulos diferentes: disco agora vs estado do processo.
+  assert.equal((stats as any)._origem.fileSizeBytes, 'duravel');
+  assert.equal((stats as any)._origem.pendingWrites, 'amostra');
   assert.equal(typeof stats.fileSizeBytes, 'number');
   assert.equal(typeof stats.walSizeBytes, 'number');
-  assert.equal(typeof stats.freelistPages, 'number');
+  assert.equal(typeof stats.freelistCount, 'number');
 });
 
 test('GET /dashboard-status.json: inclui objeto cache.l2 com métricas do L2', async () => {
