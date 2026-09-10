@@ -7,7 +7,7 @@ import * as metrics from '../utils/metrics.js';
 import { call, id } from './alldebrid-api.js';
 import { preexisting, knownBefore, waitInventory, rememberSubmitted, forgetSubmitted } from './alldebrid-inventory.js';
 import { skipCleanup, deleteMagnets as dropMagnets } from './alldebrid-cleanup.js';
-import { filterReuploadBlocked } from './alldebrid-reupload.js';
+import { filterReuploadBlocked, unblockIfInventoryReady } from './alldebrid-reupload.js';
 import { scheduleEvict } from './alldebrid-evict.js';
 import { scheduleReconcile } from './alldebrid-reconcile.js';
 
@@ -75,7 +75,16 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
   // de cache — vazio conhecido é intencional, o hash foi apagado de propósito —
   // e nunca chega à resposta do upload, portanto não entra em dropReady/
   // dropDownload. Leitura é peek síncrono: zero rede adicional no prazo.
+  //
+  // EXCEÇÃO decisiva: bloqueado que o memo dinv prova estar PRONTO na conta
+  // NÃO vai ao upload, mas é destravado (adrm expurgado) e entra direto no Set
+  // de cache/ready — o ⚡ é real e a razão da marca acabou. Bloqueado AUSENTE
+  // do inventário continua fora de upload e de cache.
   const { send, blocked } = filterReuploadBlocked(account, infoHashes);
+  const desbloqueados: string[] = [];
+  for (const hash of blocked) {
+    if (unblockIfInventoryReady(apiKey, account, hash)) desbloqueados.push(hash);
+  }
   if (blocked.length) {
     log.info(`[alldebrid] ${blocked.length} hash(es) bloqueado(s) para re-upload ficam fora da checagem`);
   }
@@ -162,6 +171,9 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
   };
   if (config.debrid.dropReady) scheduleDrop(dropReady, 'prontos', readyHashById);
   if (config.debrid.dropUncached) scheduleDrop(dropDownload, 'downloads', downloadHashById);
+  // Destravados pelo inventário entram no Set de cache SEM upload: o pronto é
+  // prova da própria conta, e o eco do upload os teria omitido de propósito.
+  for (const hash of desbloqueados) result.cached.add(hash);
   // 8.16 — evicção por busca, irmã de dropReady/dropUncached: fire-and-forget
   // DEPOIS da checagem, zero await da seleção/rede no prazo da resposta. O
   // guard do knob mora aqui (custo zero quando OFF) e de novo dentro do módulo

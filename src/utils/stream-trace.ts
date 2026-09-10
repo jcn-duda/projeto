@@ -74,6 +74,12 @@ export interface SerializedStreamTrace {
 // crus, e o payload é gravado junto da entrada de cache de 900s — sem teto,
 // o diagnóstico viraria pressão nova na cota do namespace `streams`.
 const STREAM_TRACE_MAX_ITEMS = 300;
+// Os cortes `account-*` (filtro de relevância do inventário da conta) têm teto
+// PRÓPRIO dentro do teto geral: uma conta populosa pode gerar centenas desses
+// cortes numa busca só e consumiria o ledger inteiro, tirando o espaço do
+// detalhe dos demais motivos (busca, qualidade, dedupe, debrid). Os ESTÁGIOS
+// continuam exatos — o teto amosta só o detalhe por item, como o geral.
+const STREAM_TRACE_MAX_ACCOUNT_ITEMS = 60;
 // Rótulo é título de release; 60 caracteres bastam para identificar o post
 // sem carregar a linha inteira (nem o que vier colado nela).
 const STREAM_TRACE_LABEL_MAX = 60;
@@ -122,12 +128,26 @@ function labelOf(item: unknown): string {
   return String(it?.title || it?.Title || it?.name || '').split('\n')[0];
 }
 
+/** Itens account-* já no ledger: a contagem deriva dos itens (o clone entre
+ * builds a carrega de graça) e é barata — o array já nasce sob teto de 300. */
+function accountItemsCount(t: StreamTraceState): number {
+  let total = 0;
+  for (const item of t.items) {
+    if (String(item.reason).startsWith('account-')) total += 1;
+  }
+  return total;
+}
+
 /**
  * Registra UM item cortado com o motivo. Chamado nos pontos de corte já
  * existentes do pipeline; sem trace, é um no-op (uma checagem de null).
  */
 function dropTrace(t: StreamTraceState | null | undefined, item: unknown, reason: TraceReason): void {
   if (!t || t.items.length >= STREAM_TRACE_MAX_ITEMS) return;
+  // Teto de detalhe dos account-*: a partir daqui os cortes do inventário da
+  // conta deixam de ser amostrados (os estágios seguem contando) para o
+  // detalhe dos outros motivos sobreviver dentro do payload.
+  if (String(reason).startsWith('account-') && accountItemsCount(t) >= STREAM_TRACE_MAX_ACCOUNT_ITEMS) return;
   const raw = (item ?? {}) as Record<string, unknown>;
   // Campos internos (_br/_dubbed/_quality) e brutos (isBr) convivem: o ledger
   // roda tanto sobre itens crus (pré-toStremioStream) quanto sobre streams.
@@ -198,6 +218,7 @@ function serializeTrace(
 
 export {
   STREAM_TRACE_MAX_ITEMS,
+  STREAM_TRACE_MAX_ACCOUNT_ITEMS,
   STREAM_TRACE_LABEL_MAX,
   createStreamTrace,
   cloneStreamTrace,

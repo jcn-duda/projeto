@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 
 import {
   STREAM_TRACE_MAX_ITEMS,
+  STREAM_TRACE_MAX_ACCOUNT_ITEMS,
   STREAM_TRACE_LABEL_MAX,
   createStreamTrace,
   cloneStreamTrace,
@@ -107,6 +108,38 @@ test('teto de itens: 301º corte não entra no ledger', () => {
   // exata, só o DETALHE por item é amostrado.
   stageTrace(t, 'final', 1);
   assert.equal(t.stages.final, 1);
+});
+
+test('teto próprio de account-*: 60 detalhes, demais motivos preservados, estágios exatos', () => {
+  const t = createStreamTrace();
+  const motivosAccount = ['account-title', 'account-episode', 'account-magnet-year'] as const;
+  // Muitos mais cortes account-* do que o teto próprio — e todos contam no
+  // estágio, porque o teto amosta só o DETALHE.
+  for (let i = 0; i < STREAM_TRACE_MAX_ACCOUNT_ITEMS + 40; i++) {
+    dropTrace(t, { title: `Do inventário ${i}` }, motivosAccount[i % motivosAccount.length]);
+    stageTrace(t, 'account-dropped', 1);
+  }
+  assert.equal(t.stages['account-dropped'], STREAM_TRACE_MAX_ACCOUNT_ITEMS + 40, 'estágio conta além do teto de detalhe');
+  assert.equal(
+    t.items.filter((i) => i.reason.startsWith('account-')).length,
+    STREAM_TRACE_MAX_ACCOUNT_ITEMS,
+    'detalhe account-* para no teto próprio',
+  );
+  // Depois do teto account-*, os DEMAIS motivos continuam com espaço.
+  const antes = t.items.length;
+  dropTrace(t, { name: 'Gringo fora do inventário' }, 'title-filter');
+  dropTrace(t, { name: 'Duplicado' }, 'dedupe');
+  assert.equal(t.items.length, antes + 2, 'teto de account-* não bloqueia outros motivos');
+  assert.equal(t.items[antes].reason, 'title-filter');
+  // O clone carrega a contagem: a build tardia herda o mesmo teto.
+  const build = cloneStreamTrace(t);
+  assert.ok(build);
+  dropTrace(build, { title: 'Inventário da tardia' }, 'account-series-work');
+  assert.equal(
+    build.items.filter((i) => i.reason.startsWith('account-')).length,
+    STREAM_TRACE_MAX_ACCOUNT_ITEMS,
+    'clone não reseta a cota account-*',
+  );
 });
 
 test('finalizeTrace fixa o tamanho entregue e o instante de término', () => {
