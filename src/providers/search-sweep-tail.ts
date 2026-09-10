@@ -62,10 +62,28 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
           const known = new Set(
             raw.items.map((item) => extractInfoHash(item.infoHash || item.magnet)).filter(Boolean),
           );
+          // TRÊS desfechos, não dois. Item de indexer fora de
+          // `resolveDownloadIndexers` chega com `infoHash: null` e `magnet`
+          // igual à URL da PÁGINA — `extractInfoHash` não tira hash de http,
+          // então ele saía silenciosamente pelo mesmo balde de "já conhecido".
+          // Medido no tt0415167: os dois dublados de 288 e 580 seeds vinham
+          // assim, e o log dizia "nenhum novo" — indistinguível de "não achei
+          // nada", que é justamente o diagnóstico oposto do que fazer.
+          const semHash: any[] = [];
           const fresh = found.filter((item: any) => {
             const h = extractInfoHash(item.infoHash || item.magnet);
-            return h && !known.has(h);
+            if (!h) { semHash.push(item); return false; }
+            return !known.has(h);
           });
+          if (semHash.length) {
+            const porIndexer = [...new Set(semHash.map((i) => i.indexer).filter(Boolean))].join(', ');
+            metrics.count('search.pt-sweep.sem-hash', semHash.length);
+            log.warn(
+              `[search] varredura pt-BR: ${semHash.length} resultado(s) sem infoHash resolvível` +
+                (porIndexer ? ` (indexer: ${porIndexer})` : '') +
+                ' — confira JACKETT_RESOLVE_DOWNLOAD_INDEXERS',
+            );
+          }
           if (!fresh.length) {
             // Achou, mas tudo já era conhecido: a métrica distingue "não
             // achou" de "achou e já tínhamos" — juntar os dois escondia o
