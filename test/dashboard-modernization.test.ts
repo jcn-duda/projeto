@@ -334,3 +334,25 @@ test('dashboard.css: estilos de abas móveis e sparkline SVG', () => {
   assert.match(css, /\.connection\.syncing/);
   assert.match(css, /\.last-updated\.stale/);
 });
+
+// O painel do Colhedor rotula os DOIS lados da procedência (duravel e amostra).
+// O bloco L2 nasceu rotulando só a fila pendente, deixando os três medidos do
+// disco sem procedência declarada — o leitor não distingue convenção de
+// esquecimento. Os quatro passam pelo mesmo helper.
+test('painel: os quatro campos do L2 declaram procedência, não só a fila', () => {
+  const js = readFileSync(new URL('../src/public/dashboard-panels.js', import.meta.url), 'utf8');
+  const bloco = js.slice(js.indexOf('Persistência L2 (SQLite)'));
+  const trecho = bloco.slice(0, bloco.indexOf('renderCollection'));
+  // Checagem literal, sem regex: o que importa é que a linha do campo chame o
+  // helper com rótulo, e comparar substring evita escapar parêntese à toa.
+  for (const campo of ['fileSizeBytes', 'walSizeBytes', 'freelistCount', 'pendingWrites']) {
+    const linha = trecho
+      .split('\n')
+      .find((l) => l.includes('"' + campo + '"') && l.includes('metricMaybeOrigem'));
+    assert.ok(linha, `${campo} deve passar por metricMaybeOrigem`);
+  }
+  const escapou = trecho
+    .split('\n')
+    .filter((l) => l.includes('metric(metrics, "L2 '));
+  assert.equal(escapou.length, 0, 'nenhum campo L2 renderiza sem rótulo de procedência');
+});

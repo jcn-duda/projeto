@@ -244,11 +244,17 @@
     renderMetrics(metrics, source, { namespaces: true, byNamespace: true, stats: true, l2: true });
     if (isObject(source.l2)) {
       metricGroupTitle(metrics, "Persistência L2 (SQLite)");
-      metric(metrics, "L2 banco (tamanho)", formatBytes(source.l2.fileSizeBytes || 0));
-      metric(metrics, "L2 WAL (tamanho)", formatBytes(source.l2.walSizeBytes || 0));
-      metric(metrics, "L2 freelist (páginas)", source.l2.freelistCount || 0);
-      // A fila pendente é do processo e zera no restart — o rótulo separa ela
-      // dos três acima, que são medidos do disco na hora.
+      // Os quatro campos passam pelo mesmo rótulo, como no Colhedor: `duravel`
+      // nos três medidos do disco, `amostra` na fila pendente, que é deste
+      // processo e zera no restart. Rotular só o divergente deixaria os outros
+      // três sem procedência declarada — o leitor não sabe se é convenção ou
+      // esquecimento.
+      // `uptimeS` fica undefined: renderCache recebe a seção `cache`, que não
+      // carrega o uptime — ele só liga o realce de "amostra cedo demais", e o
+      // rótulo de procedência não depende dele.
+      metricMaybeOrigem(metrics, "L2 banco (tamanho)", formatBytes(source.l2.fileSizeBytes || 0), source.l2, "fileSizeBytes", undefined);
+      metricMaybeOrigem(metrics, "L2 WAL (tamanho)", formatBytes(source.l2.walSizeBytes || 0), source.l2, "walSizeBytes", undefined);
+      metricMaybeOrigem(metrics, "L2 freelist (páginas)", source.l2.freelistCount || 0, source.l2, "freelistCount", undefined);
       metricMaybeOrigem(metrics, "L2 fila pendente", source.l2.pendingWrites || 0, source.l2, "pendingWrites", undefined);
     }
     renderCollection(cards, namespaces, "namespaces", {});
