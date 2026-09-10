@@ -76,20 +76,33 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
             return !known.has(h);
           });
           if (semHash.length) {
-            const porIndexer = [...new Set(semHash.map((i) => i.indexer).filter(Boolean))].join(', ');
+            // Estar FORA da lista de resolução é só uma das causas: indexer
+            // dentro dela também devolve item sem magnet quando estoura
+            // `maxDownloadResolves`, o orçamento ou o protetor de link. Mandar
+            // conferir o .env nesse caso aponta para a coisa que já está certa.
+            const indexers = [...new Set(semHash.map((i) => String(i.indexer || '')).filter(Boolean))];
+            const foraDaLista = indexers.filter((idx) => !config.jackett.resolveDownloadIndexers.includes(idx));
+            const naLista = indexers.filter((idx) => config.jackett.resolveDownloadIndexers.includes(idx));
             metrics.count('search.pt-sweep.sem-hash', semHash.length);
+            const dicas = [
+              foraDaLista.length ? `fora de JACKETT_RESOLVE_DOWNLOAD_INDEXERS: ${foraDaLista.join(', ')}` : '',
+              naLista.length ? `resolução falhou/estourou limite ou orçamento: ${naLista.join(', ')}` : '',
+            ].filter(Boolean);
             log.warn(
               `[search] varredura pt-BR: ${semHash.length} resultado(s) sem infoHash resolvível` +
-                (porIndexer ? ` (indexer: ${porIndexer})` : '') +
-                ' — confira JACKETT_RESOLVE_DOWNLOAD_INDEXERS',
+                (dicas.length ? ` (${dicas.join('; ')})` : ''),
             );
           }
           if (!fresh.length) {
-            // Achou, mas tudo já era conhecido: a métrica distingue "não
-            // achou" de "achou e já tínhamos" — juntar os dois escondia o
-            // caso real de "varredura está caindo cedo demais".
-            metrics.count('search.pt-sweep.known');
-            log.info(`[search] varredura pt-BR: ${found.length} resultado(s), nenhum novo (query "${sweepQuery}")`);
+            // Achou, mas nada entra. `known` fica só para "achou e já
+            // tínhamos": tudo sem hash é o balde `sem-hash`, contado acima —
+            // somar os dois de novo esconderia a causa na métrica.
+            const comHash = found.length - semHash.length;
+            if (comHash > 0) metrics.count('search.pt-sweep.known');
+            log.info(
+              `[search] varredura pt-BR: ${found.length} resultado(s), nenhum novo ` +
+                `(${comHash} já conhecido(s), ${semHash.length} sem hash; query "${sweepQuery}")`,
+            );
             return;
           }
           raw.items.push(...fresh);

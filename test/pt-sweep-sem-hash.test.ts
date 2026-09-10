@@ -67,8 +67,25 @@ test('achou releases sem infoHash resolvível: conta em sem-hash, não em known'
   ]);
 
   assert.equal(contador('search.pt-sweep.sem-hash') - antesSemHash, 2, 'os dois entram como sem-hash');
-  assert.equal(contador('search.pt-sweep.known') - antesKnown, 1, 'e o desfecho segue sendo "nenhum novo"');
+  assert.equal(contador('search.pt-sweep.known') - antesKnown, 0, 'tudo sem hash não é "já conhecido"');
   assert.equal(raw.items.length, 0, 'nada sem hash entra na lista');
+});
+
+test('misto sem-hash + já conhecido: cada um no seu balde', async () => {
+  const antesSemHash = contador('search.pt-sweep.sem-hash');
+  const antesKnown = contador('search.pt-sweep.known');
+
+  const raw = await rodarVarredura(
+    [
+      { title: 'Mortuária 720p DUBLADO', infoHash: HASH, indexer: 'limetorrents' },
+      { title: 'Mortuária.2005.1080p.DUAL', magnet: 'https://www.magnetdownload.com/info/8065599', infoHash: null, indexer: 'magnetdownload' },
+    ],
+    [{ title: 'Mortuary 2005 720p', infoHash: HASH, indexer: 'limetorrents' }],
+  );
+
+  assert.equal(contador('search.pt-sweep.sem-hash') - antesSemHash, 1);
+  assert.equal(contador('search.pt-sweep.known') - antesKnown, 1);
+  assert.equal(raw.items.length, 1, 'a lista não muda');
 });
 
 test('achou releases já conhecidos: continua em known, sem contar sem-hash', async () => {
