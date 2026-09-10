@@ -85,8 +85,9 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
   for (const hash of blocked) {
     if (unblockIfInventoryReady(apiKey, account, hash)) desbloqueados.push(hash);
   }
-  if (blocked.length) {
-    log.info(`[alldebrid] ${blocked.length} hash(es) bloqueado(s) para re-upload ficam fora da checagem`);
+  const aindaBloqueados = blocked.length - desbloqueados.length;
+  if (aindaBloqueados) {
+    log.info(`[alldebrid] ${aindaBloqueados} hash(es) bloqueado(s) para re-upload ficam fora da checagem`);
   }
 
   const result = await batched(send, config.debrid.batchSize, async (batch: string[], ctx?: { timeoutMs?: number }) => {

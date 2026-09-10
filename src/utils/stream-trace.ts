@@ -58,6 +58,7 @@ export interface TraceItem {
 export interface StreamTraceState {
   stages: Record<string, number>;
   items: TraceItem[];
+  accountItems: number;
   startedAt: number;
   finishedAt: number | null;
 }
@@ -90,7 +91,7 @@ function traceEnabled(): boolean {
 }
 
 function createStreamTrace(): StreamTraceState {
-  return { stages: {}, items: [], startedAt: Date.now(), finishedAt: null };
+  return { stages: {}, items: [], accountItems: 0, startedAt: Date.now(), finishedAt: null };
 }
 
 /** Copia a parte de coleta para uma build independente. A busca pode ter uma
@@ -101,6 +102,7 @@ function cloneStreamTrace(source: StreamTraceState | null | undefined): StreamTr
   return {
     stages: { ...source.stages },
     items: source.items.map((item) => ({ ...item })),
+    accountItems: source.accountItems,
     startedAt: source.startedAt,
     finishedAt: null,
   };
@@ -128,16 +130,6 @@ function labelOf(item: unknown): string {
   return String(it?.title || it?.Title || it?.name || '').split('\n')[0];
 }
 
-/** Itens account-* já no ledger: a contagem deriva dos itens (o clone entre
- * builds a carrega de graça) e é barata — o array já nasce sob teto de 300. */
-function accountItemsCount(t: StreamTraceState): number {
-  let total = 0;
-  for (const item of t.items) {
-    if (String(item.reason).startsWith('account-')) total += 1;
-  }
-  return total;
-}
-
 /**
  * Registra UM item cortado com o motivo. Chamado nos pontos de corte já
  * existentes do pipeline; sem trace, é um no-op (uma checagem de null).
@@ -147,7 +139,8 @@ function dropTrace(t: StreamTraceState | null | undefined, item: unknown, reason
   // Teto de detalhe dos account-*: a partir daqui os cortes do inventário da
   // conta deixam de ser amostrados (os estágios seguem contando) para o
   // detalhe dos outros motivos sobreviver dentro do payload.
-  if (String(reason).startsWith('account-') && accountItemsCount(t) >= STREAM_TRACE_MAX_ACCOUNT_ITEMS) return;
+  const isAccount = String(reason).startsWith('account-');
+  if (isAccount && t.accountItems >= STREAM_TRACE_MAX_ACCOUNT_ITEMS) return;
   const raw = (item ?? {}) as Record<string, unknown>;
   // Campos internos (_br/_dubbed/_quality) e brutos (isBr) convivem: o ledger
   // roda tanto sobre itens crus (pré-toStremioStream) quanto sobre streams.
@@ -159,6 +152,7 @@ function dropTrace(t: StreamTraceState | null | undefined, item: unknown, reason
     ...(raw._dubbed !== undefined ? { dubbed: Boolean(raw._dubbed) } : {}),
     ...(raw._quality ? { quality: String(raw._quality) } : {}),
   });
+  if (isAccount) t.accountItems += 1;
 }
 
 /** Fecha o trace: fixa o tamanho final da lista e o instante de término. */
