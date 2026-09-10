@@ -108,6 +108,15 @@
         <label for="testIndexerId">ID do indexador
           <input id="testIndexerId" type="text" autocomplete="off" spellcheck="false" placeholder="ex.: bludv-cardigann" />
         </label>
+        <label for="testIndexerQuery">Busca (q)
+          <input id="testIndexerQuery" type="text" autocomplete="off" spellcheck="false" placeholder="termo opcional" maxlength="80" />
+        </label>
+        <label for="testIndexerType">Tipo
+          <select id="testIndexerType">
+            <option value="movie">filme</option>
+            <option value="series">série</option>
+          </select>
+        </label>
         <button id="testIndexerButton" type="button">Testar indexador</button>
       </div>
       <div id="testOutput" class="test-output" role="status" aria-live="polite"></div>
@@ -116,9 +125,47 @@
 
   <section aria-labelledby="cacheTitle">
     <div class="section-head"><div><h2 id="cacheTitle">Cache</h2><p>Uso da memória, persistência e namespaces reportados pelo servidor.</p></div></div>
-    <canvas id="cacheSparkline" class="sparkline" width="500" height="34" aria-hidden="true"></canvas>
+    <svg id="cacheSparkline" class="sparkline sparkline-svg" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline class="sparkline-line sparkline-cache" points="" /></svg>
     <div id="cacheMetrics" class="metrics"></div>
     <div id="cacheCards" class="cards"><div class="empty">Sem dados de cache.</div></div>
+  </section>
+
+  <section aria-labelledby="magnetTitle">
+    <div class="section-head">
+      <div>
+        <h2 id="magnetTitle">Gerenciamento do MagnetDB</h2>
+        <p>Inspeção de chaves em memória (L1), contagens agregadas e descarte de chaves inválidas (bad).</p>
+      </div>
+    </div>
+    <div class="test-tools magnet-tools">
+      <label for="magnetInspectHash">Hash SHA-1 (opcional)
+        <input id="magnetInspectHash" type="text" autocomplete="off" spellcheck="false" placeholder="40 caracteres hex" maxlength="40" />
+      </label>
+      <label for="magnetInspectSide">Estado (side)
+        <select id="magnetInspectSide">
+          <option value="">todos</option>
+          <option value="alive">alive (tocável)</option>
+          <option value="bad">bad (sem vídeo)</option>
+          <option value="lie">lie (áudio mentiu)</option>
+        </select>
+      </label>
+      <label for="magnetInspectAdapter">Serviço
+        <select id="magnetInspectAdapter">
+          <option value="">todos</option>
+          <option value="realdebrid">realdebrid</option>
+          <option value="alldebrid">alldebrid</option>
+          <option value="premiumize">premiumize</option>
+          <option value="torbox">torbox</option>
+          <option value="debridlink">debridlink</option>
+        </select>
+      </label>
+      <button id="magnetSummaryBtn" type="button">Resumo consolidado</button>
+      <button id="magnetInspectBtn" type="button">Inspecionar chaves</button>
+      <button id="magnetClearBadBtn" class="danger" type="button">Limpar Bads</button>
+    </div>
+    <p id="magnetFeedback" class="feedback" role="status" aria-live="polite"></p>
+    <div id="magnetMetrics" class="metrics"></div>
+    <div id="magnetOutput" class="test-output" style="display: none;"></div>
   </section>
 
   <section aria-labelledby="idxTitle">
@@ -126,7 +173,7 @@
     <div id="idxMetrics" class="metrics"></div>
     <div id="harvestMetrics" class="metrics"></div>
     <div id="harvestCards" class="cards"><div class="empty">Sem dados da fila.</div></div>
-    <canvas id="harvestSparkline" class="sparkline" width="500" height="34" aria-hidden="true"></canvas>
+    <svg id="harvestSparkline" class="sparkline sparkline-svg" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline class="sparkline-line sparkline-harvest" points="" /></svg>
     <div class="subsection">
       <h3>Cobertura BR (F3)</h3>
       <div id="f3Metrics" class="metrics"><div class="empty">Aguardando amostra.</div></div>
@@ -682,6 +729,7 @@
 <script src="/dashboard-harvest-debrid.js"></script>
 <script src="/dashboard-f3.js"></script>
 <script src="/dashboard-catalog.js"></script>
+<script src="/dashboard-magnets.js"></script>
 <script src="/dashboard-boot.js"></script>
 </body>
 </html>

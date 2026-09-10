@@ -334,8 +334,46 @@ export function createPersistence() {
     }
   }
 
+  /** Estatísticas O(1) de disco do L2 SQLite (sem scans, não-bloqueante). */
+  function l2Stats() {
+    let fileSizeBytes = 0;
+    let walSizeBytes = 0;
+    let freelistCount = 0;
+    if (config.cache.persist) {
+      try {
+        if (fs.existsSync(DB_PATH)) fileSizeBytes = fs.statSync(DB_PATH).size;
+      } catch {
+        fileSizeBytes = 0;
+      }
+      try {
+        const walPath = `${DB_PATH}-wal`;
+        if (fs.existsSync(walPath)) walSizeBytes = fs.statSync(walPath).size;
+      } catch {
+        walSizeBytes = 0;
+      }
+      if (db) {
+        try {
+          const row = db.prepare('PRAGMA freelist_count').get() as any;
+          freelistCount = Number(row?.freelist_count ?? row?.[0] ?? 0) || 0;
+        } catch {
+          freelistCount = 0;
+        }
+      }
+    }
+    return {
+      enabled: Boolean(config.cache.persist && db),
+      fileSizeBytes,
+      walSizeBytes,
+      freelistPages: freelistCount,
+      freelistCount,
+      pendingWrites: pending.size,
+      pendingFlush: pending.size,
+    };
+  }
+
   return {
     open, loadFromDisk, persist, pending, forget, forgetMany,
-    clearDisk, maintain, close, maxGraceMs,
+    clearDisk, maintain, close, maxGraceMs, l2Stats,
   };
 }
+

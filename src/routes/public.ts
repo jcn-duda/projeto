@@ -26,6 +26,7 @@ const PAGE_ASSETS = [
   'dashboard-harvest-debrid.js',
   'dashboard-f3.js',
   'dashboard-catalog.js',
+  'dashboard-magnets.js',
   'dashboard-boot.js',
 ];
 
@@ -101,4 +102,4 @@ function makePublicHandlers(services: AppServices) {
   return { sendConfigure, sendDashboard, sendPageAsset, pageAssets: PAGE_ASSETS, defaults, seal };
 }
 
-export { makePublicHandlers };
+export { makePublicHandlers, PAGE_ASSETS };

@@ -71,6 +71,7 @@ function bind() {
   $("catalogDedupApplyBtn").addEventListener("click", runCatalogDedupApply);
   $("catalogCleanupPreviewBtn").addEventListener("click", runCatalogCleanupPreview);
   $("catalogCleanupApplyBtn").addEventListener("click", runCatalogCleanupApply);
+  if (typeof bindMagnetPanel === "function") bindMagnetPanel();
   window.addEventListener("hashchange", handleHash);
   handleHash();
 

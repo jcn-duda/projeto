@@ -162,6 +162,7 @@ function makeDiagnosticHandlers(services: AppServices) {
         cache: {
           ...services.cache.snapshot(),
           persistent: services.config.cache.persist,
+          l2: services.cache.l2Stats(),
           hits,
           misses,
           hitRate: hits + misses > 0 ? hits / (hits + misses) : null,

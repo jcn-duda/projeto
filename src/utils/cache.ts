@@ -321,7 +321,11 @@ persistence.loadFromDisk(l1Hooks);
 pruneTimer = setInterval(prune, 10 * 60 * 1000);
 pruneTimer.unref();
 
+function l2Stats() {
+  return persistence.l2Stats();
+}
+
 export {
   MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, onForget,
-  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, has, peek, peekWithStale, peekRemaining, maintain, close,
+  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, has, peek, peekWithStale, peekRemaining, maintain, close, l2Stats,
 };

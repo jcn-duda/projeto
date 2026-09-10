@@ -37,6 +37,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/metrics.json', diagnosticHandlers.metrics);
   app.get('/dashboard-status.json', diagnosticHandlers.dashboardStatus);
   app.post('/dashboard-action.json', express.json({ limit: '4kb' }), diagnosticHandlers.dashboardAction);
+  app.post('/dashboard-actions', express.json({ limit: '4kb' }), diagnosticHandlers.dashboardAction);
   app.get('/test-indexer.json', diagnosticHandlers.testIndexer);
   app.get('/test-resolver.json', diagnosticHandlers.testResolver);
   app.get('/debrid-status.json', diagnosticHandlers.debridStatus);
@@ -59,6 +60,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/:userConfig/harvester', (req, res) => res.redirect(302, `/${req.params.userConfig}/dashboard#colhedor`));
   app.get('/:userConfig/dashboard-status.json', diagnosticHandlers.dashboardStatus);
   app.post('/:userConfig/dashboard-action.json', express.json({ limit: '4kb' }), diagnosticHandlers.dashboardAction);
+  app.post('/:userConfig/dashboard-actions', express.json({ limit: '4kb' }), diagnosticHandlers.dashboardAction);
   app.get('/:userConfig/test-indexer.json', diagnosticHandlers.testIndexer);
   app.get('/:userConfig/test-resolver.json', diagnosticHandlers.testResolver);
   app.get('/:userConfig/metrics.json', diagnosticHandlers.metrics);

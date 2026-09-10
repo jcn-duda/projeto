@@ -241,7 +241,14 @@
     var cards = $("cacheCards");
     var namespaces = first(source, ["namespaces", "byNamespace", "stats"], []);
     metrics.textContent = "";
-    renderMetrics(metrics, source, { namespaces: true, byNamespace: true, stats: true });
+    renderMetrics(metrics, source, { namespaces: true, byNamespace: true, stats: true, l2: true });
+    if (isObject(source.l2)) {
+      metricGroupTitle(metrics, "Persistência L2 (SQLite)");
+      metric(metrics, "L2 banco (tamanho)", formatBytes(source.l2.fileSizeBytes || 0));
+      metric(metrics, "L2 WAL (tamanho)", formatBytes(source.l2.walSizeBytes || 0));
+      metric(metrics, "L2 freelist (páginas)", source.l2.freelistPages != null ? source.l2.freelistPages : (source.l2.freelistCount || 0));
+      metric(metrics, "L2 fila pendente", source.l2.pendingWrites != null ? source.l2.pendingWrites : (source.l2.pendingFlush || 0));
+    }
     renderCollection(cards, namespaces, "namespaces", {});
   }
 

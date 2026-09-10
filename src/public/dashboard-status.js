@@ -28,16 +28,12 @@
 
   function reasonText(reason) {
     var labels = {
-      "auth": "chave de API recusada pelo serviço",
-      "quota": "conta no teto de magnets",
-      "rate": "rate limit do serviço",
-      "timeout": "tempo esgotado consultando o serviço",
-      "sem-debrid": "nenhum serviço de debrid configurado",
-      "sem-conta-operador": "conta do operador sem chave no .env",
+      "auth": "chave de API recusada pelo serviço", "quota": "conta no teto de magnets",
+      "rate": "rate limit do serviço", "timeout": "tempo esgotado consultando o serviço",
+      "sem-debrid": "nenhum serviço de debrid configurado", "sem-conta-operador": "conta do operador sem chave no .env",
       "chave-operador-desativada": "uso da conta do operador desligado no .env",
       "sem-adapter-catalogo": "serviço de debrid não suporta o catálogo",
-      "inventario-frio": "inventário da conta ainda não carregado",
-      "erro": "falha ao consultar o serviço"
+      "inventario-frio": "inventário da conta ainda não carregado", "erro": "falha ao consultar o serviço"
     };
     return labels[reason] || "motivo não classificado: " + valueText(reason);
   }
@@ -63,67 +59,67 @@
     var i;
     var item;
     var viuDebrid = false;
-    if (isObject(account) && account.ok === false) {
-      // "sem-debrid" é estado de CONFIGURAÇÃO, não problema operacional: numa
-      // instância pública segura (DEBRID_ALLOW_ENV_KEY=false +
-      // DEBRID_OPERATOR_ENV_ACCOUNT=true) o anônimo não herda debrid de
-      // propósito — o backend é honesto (active=null, account=sem-debrid) e a
-      // conta real do operador viaja em debrid.accounts, onde os erros dela
-      // continuam subindo pelo laço abaixo. viuDebrid segue true porque o
-      // backend calcula services.debrid = Boolean(account.ok): a evidência
-      // detalhada já existe e, sem isso, o aviso genérico "indisponível no
-      // geral, sem motivo detalhado" dispararia por cima.
-      viuDebrid = true;
-      if (account.reason !== "sem-debrid") {
-        issues.push(accountIssue((account.label || account.service || "Debrid") + " (conta ativa)", account));
+    if (isObject(account)) {
+      if (account.ok === false) {
+        viuDebrid = true;
+        if (account.reason !== "sem-debrid") {
+          issues.push(accountIssue((account.label || account.service || "Debrid") + " (conta ativa)", account));
+        }
+      } else if (account.warn) {
+        viuDebrid = true;
+        issues.push({ state: "warn", text: (account.label || account.service || "Debrid") + " (conta ativa): aviso operacional" + (account.reason ? " — " + reasonText(account.reason) : "") });
       }
     }
     keys = Object.keys(isObject(accounts) ? accounts : {});
     for (i = 0; i < keys.length; i += 1) {
       item = accounts[keys[i]];
-      if (isObject(item) && item.ok === false) {
-        // O backend ESPELHA a conta ativa em accounts[activeId] (mesma conta na
-        // resposta nos dois lugares): sem este pulo, a falha da conta ativa
-        // entrava DUAS vezes no banner e o pill anunciava "2 problema(s)" para
-        // um único problema real.
+      if (isObject(item)) {
         if (account.service && item.service === account.service) continue;
-        viuDebrid = true;
-        issues.push(accountIssue(item.label || item.service || keys[i], item));
+        if (item.ok === false) {
+          viuDebrid = true;
+          issues.push(accountIssue(item.label || item.service || keys[i], item));
+        } else if (item.warn) {
+          viuDebrid = true;
+          issues.push({ state: "warn", text: (item.label || item.service || keys[i]) + ": aviso operacional" + (item.reason ? " — " + reasonText(item.reason) : "") });
+        }
       }
     }
     if (isObject(catalog) && catalog.ok === false) {
       issues.push({ state: "warn", text: "Catálogo da conta indisponível: " + reasonText(catalog.reason) + (catalog.hint ? " · Como corrigir: " + valueText(catalog.hint) : "") });
     }
     if (services.addon === false) issues.push({ state: "error", text: "O processo do addon reportou-se fora do ar (general.services.addon = false)." });
-    // Tri-estado Fase 2: false = medido sem catálogo; "naomedido" = sem prova de
-    // rede (fallback do .env). Os dois são warn, textos distintos — nunca pintar
-    // verde um Jackett que só ainda não foi medido.
     if (services.jackett === false) {
       issues.push({ state: "warn", text: "Jackett sem catálogo de indexadores; as buscas ficam sem fontes." });
     } else if (services.jackett === "naomedido") {
       issues.push({ state: "warn", text: "Jackett não medido: catálogo ainda sem prova de rede." });
     }
     if (services.debrid === false && !viuDebrid) issues.push({ state: "warn", text: "Debrid reportado indisponível no geral, sem motivo detalhado; verifique chave e conta." });
-    // Breaker: preferir state. Ausência/naomedido NÃO é fechado saudável — só
-    // "aberto" (ou tripped legado sem state) acende o aviso de circuito aberto.
     (function () {
       var list = asList(root.indexers, "indexers");
       var aberto = false;
-      var naomedido = false;
       var i;
       var b;
+      var st;
       for (i = 0; i < list.length; i += 1) {
         b = list[i] && list[i].breaker;
-        if (!b) continue;
-        if (typeof b.state === "string") {
-          if (b.state === "aberto") aberto = true;
-          else if (b.state === "naomedido") naomedido = true;
-        } else if (b.tripped) {
-          aberto = true;
+        st = list[i] && list[i].status;
+        if ((st && st.state === "offline") || list[i].online === false) {
+          issues.push({ state: "warn", text: "Indexador offline: " + (list[i].label || list[i].name || list[i].id || "desconhecido") + (st && st.error ? " (" + st.error + ")" : "") });
         }
+        if (b && (b.state === "aberto" || (!b.state && b.tripped))) aberto = true;
       }
       if (aberto) issues.push({ state: "warn", text: "Circuito aberto (breaker) em ao menos um indexador." });
-      else if (naomedido) issues.push({ state: "warn", text: "Breaker de ao menos um indexador ainda não medido." });
+    }());
+    (function () {
+      var resolvers = asList(root.resolvers, "resolvers");
+      var i;
+      var r;
+      for (i = 0; i < resolvers.length; i += 1) {
+        r = resolvers[i];
+        if (r && (r.ok === false || r.broken || r.status === "error" || r.online === false || (r.checkedAt && r.results === 0 && r.error))) {
+          issues.push({ state: "warn", text: "Resolver BR com erro: " + (r.name || r.label || r.id || "resolver") + (r.error ? " (" + r.error + ")" : "") });
+        }
+      }
     }());
     return issues;
   }
@@ -155,10 +151,7 @@
     var counters = first(root.metrics || {}, ["counters"], {});
     var harvest = first(root, ["harvest", "harvester"], {});
     renderGeneral(root);
-    renderDebrid(
-      first(root, ["debrid", "debridStatus"], {}),
-      first(root, ["autofetch", "autoFetch", "autofetchStatus"], {})
-    );
+    renderDebrid(first(root, ["debrid", "debridStatus"], {}), first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}));
     renderSources(root);
     renderCache(first(root, ["cache", "cacheStatus"], {}));
     renderMagnetDb(first(root, ["magnetdb", "magnetDb"], {}), counters, uptimeS);
@@ -204,15 +197,20 @@
     }
     requestInFlight = true;
     $("refreshButton").className = "is-loading";
+    setConnection("syncing", "consultando…");
     setFeedback("Consultando o estado…", "");
     requestJson("/dashboard-status.json", { method: "GET", cache: "no-store" })
       .then(function (data) {
+        var updated = $("lastUpdated");
+        if (updated) updated.className = "last-updated";
         renderStatus(data);
         consecutiveFailures = 0;
         setFeedback("Estado atualizado.", "ok");
       })
       .catch(function (error) {
         var status = Number(error && error.status);
+        var updated = $("lastUpdated");
+        if (updated) updated.className = "last-updated stale";
         consecutiveFailures += 1;
         setConnection("error", "falha na consulta");
         if (status === 503) setFeedback("Diagnóstico desligado: defina JACKETT_TEST_TOKEN no .env do operador.", "warn");
@@ -249,9 +247,6 @@
     $("harvesterPauseButton").textContent = harvest.paused ? "Retomar colhedor" : "Pausar colhedor";
     $("harvesterPauseButton").setAttribute("data-paused", harvest.paused ? "false" : "true");
     $("harvesterDrainButton").disabled = !harvest.queueDepth;
-    // Represadas: destrutivo só se oferece com profundidade > 0; sem a chave no
-    // snapshot (backend ainda sem o campo) `!undefined` mantém desabilitado —
-    // fail-closed, ação destrutiva não nasce clicável.
     $("afSuppressedDrainBtn").disabled = !af.suppressed;
     $("testAllIndexersButton").disabled = !asList(root.indexers, "indexers").length;
     $("refreshInventoryButton").disabled = !debrid.active;
@@ -290,13 +285,10 @@
 
   function actionLabel(action) {
     var labels = {
-      "sweep-dead": "a varredura de magnets mortos",
-      "clear-cache": "a limpeza do cache",
-      "harvester-pause": "a alteração do estado do colhedor",
-      "harvester-drain": "a drenagem imediata da fila",
+      "sweep-dead": "a varredura de magnets mortos", "clear-cache": "a limpeza do cache",
+      "harvester-pause": "a alteração do estado do colhedor", "harvester-drain": "a drenagem imediata da fila",
       "autofetch-suppressed-drain": "a drenagem das remoções represadas",
-      "test-all-indexers": "o teste sequencial de todos os indexadores",
-      "refresh-inventory": "a reavaliação do inventário"
+      "test-all-indexers": "o teste sequencial de todos os indexadores", "refresh-inventory": "a reavaliação do inventário"
     };
     return labels[action] || "esta ação";
   }
@@ -318,11 +310,7 @@
     if (!window.confirm("Confirmar " + actionLabel(action) + "?")) return;
     button.disabled = true;
     setFeedback("Executando " + action + "…", "warn");
-    var payload = {
-      action: action,
-      paused: button.getAttribute("data-paused") === "true",
-      confirm: true
-    };
+    var payload = { action: action, paused: button.getAttribute("data-paused") === "true", confirm: true };
     if (action === "clear-cache") {
       var namespace = $("cacheNamespace").value;
       if (namespace) payload.scope = { namespace: namespace };
@@ -349,12 +337,19 @@
   function runIndexerTest(id, button) {
     var output = $("testOutput");
     var safeId = String(id || "").replace(/^\s+|\s+$/g, "");
+    var qInput = $("testIndexerQuery");
+    var q = qInput ? String(qInput.value || "").replace(/^\s+|\s+$/g, "") : "";
+    var typeInput = $("testIndexerType");
+    var type = typeInput ? String(typeInput.value || "movie").replace(/^\s+|\s+$/g, "") : "movie";
     if (!safeId) { output.className = "test-output error"; output.textContent = "Informe o ID do indexador."; return; }
     if (!currentToken) { output.className = "test-output error"; output.textContent = "Informe o token antes de testar um indexador."; $("token").focus(); return; }
     if (button) button.disabled = true;
     output.className = "test-output";
     output.textContent = "Testando " + safeId + "…";
-    requestJson("/test-indexer.json?id=" + encodeURIComponent(safeId), { method: "GET" })
+    var url = "/test-indexer.json?id=" + encodeURIComponent(safeId);
+    if (q) url += "&q=" + encodeURIComponent(q);
+    if (type) url += "&type=" + encodeURIComponent(type);
+    requestJson(url, { method: "GET" })
       .then(function (data) {
         output.className = "test-output " + (data && data.ok ? (data.overBudget ? "warn" : "ok") : "error");
         output.textContent = safeId + " · " + testResultText(data);
@@ -383,12 +378,16 @@
   function runResolverTest(id, button) {
     var output = $("testOutput");
     var safeId = String(id || "").replace(/^\s+|\s+$/g, "");
+    var qInput = $("testIndexerQuery");
+    var q = qInput ? String(qInput.value || "").replace(/^\s+|\s+$/g, "") : "";
     if (!safeId) { output.className = "test-output error"; output.textContent = "Informe o ID do resolver."; return; }
     if (!currentToken) { output.className = "test-output error"; output.textContent = "Informe o token antes de testar um resolver."; $("token").focus(); return; }
     if (button) button.disabled = true;
     output.className = "test-output";
     output.textContent = "Testando " + safeId + "…";
-    requestJson("/test-resolver.json?id=" + encodeURIComponent(safeId), { method: "GET" })
+    var url = "/test-resolver.json?id=" + encodeURIComponent(safeId);
+    if (q) url += "&q=" + encodeURIComponent(q);
+    requestJson(url, { method: "GET" })
       .then(function (data) {
         output.className = "test-output " + (data && data.ok ? "ok" : "error");
         output.textContent = safeId + " · " + resolverTestResultText(data);
