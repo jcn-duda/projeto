@@ -91,15 +91,15 @@ test('shapeSearchQuery nunca devolve string vazia', () => {
 });
 
 test('shapeSearchQuery tira o ano do fim só nos bare-title', () => {
-  assert.equal(shapeSearchQuery('redetorrent', 'Coringa 2019', true), 'Coringa');
+  assert.equal(shapeSearchQuery('redetorrent-cardigann', 'Coringa 2019', true), 'Coringa');
   assert.equal(shapeSearchQuery('hdrtorrent', 'Coringa 2019', true), 'Coringa');
   assert.equal(shapeSearchQuery('apachetorrent', 'Coringa 2019', true), 'Coringa');
   // Nos resolvers locais o ano ajuda a relevância e FICA.
   assert.equal(shapeSearchQuery('bludv-cardigann', 'Coringa 2019', true), 'Coringa 2019');
   // Título que É um ano não pode sumir da própria query.
-  assert.equal(shapeSearchQuery('redetorrent', '1917 2019', true), '1917');
+  assert.equal(shapeSearchQuery('redetorrent-cardigann', '1917 2019', true), '1917');
   assert.equal(shapeSearchQuery('hdrtorrent', '1917 2019', true), '1917');
-  assert.equal(shapeSearchQuery('redetorrent', '2012', true), '2012');
+  assert.equal(shapeSearchQuery('redetorrent-cardigann', '2012', true), '2012');
   assert.equal(shapeSearchQuery('hdrtorrent', '2012', true), '2012');
 });
 

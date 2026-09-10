@@ -26,6 +26,7 @@ export const resolvers = () => ({
     nerdfilmes: 8702,
     torrentdosfilmes: 8703,
     vacatorrent: 8704,
+    redetorrent: 8705,
   },
   bludvUrl: (process.env.BLUDV_URL || BLUDV_DEFAULT_URL).replace(/\/$/, ''),
   comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
@@ -39,5 +40,8 @@ export const resolvers = () => ({
   // ainda responde "Acesso Bloqueado" a crawler. Os dois ficam na allowlist
   // do profile para o redirect não virar blocked_host.
   vacatorrentUrl: (process.env.VACATORRENT_URL || 'https://vaqueirofilmes.com').replace(/\/$/, ''),
+  // Rede Torrent: atrás de desafio Cloudflare (o resolver resolve via
+  // FlareSolverr), com magnets diretos no HTML do post.
+  redetorrentUrl: (process.env.REDETORRENT_URL || 'https://www.redetorrent.xyz').replace(/\/$/, ''),
   extraProtectors: list(process.env.EXTRA_ALLOWED_PROTECTORS),
 });

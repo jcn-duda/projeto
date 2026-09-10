@@ -223,9 +223,9 @@ describe('Feature 2: In-Memory Caching & Dedupe in BLUDV Resolver', () => {
 // FEATURE 3: Standardized siteEnv Configuration
 // ════════════════════════════════════════════════════════════════════════════════
 describe('Feature 3: Standardized siteEnv Configuration', () => {
-  it('3.1: brResolvers.RESOLVERS declara todos os 5 microserviços com portas e siteEnv corretos', () => {
+  it('3.1: brResolvers.RESOLVERS declara todos os 6 microserviços com portas e siteEnv corretos', () => {
     const names = brResolvers.RESOLVERS.map((r) => r.name);
-    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent']);
+    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent']);
 
     const bludv = brResolvers.RESOLVERS.find((r) => r.name === 'bludv') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(bludv.port, 8700);
@@ -242,6 +242,10 @@ describe('Feature 3: Standardized siteEnv Configuration', () => {
     const tdf = brResolvers.RESOLVERS.find((r) => r.name === 'torrentdosfilmes') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(tdf.port, 8703);
     assert.equal(tdf.siteEnv, 'TORRENTDOSFILMES_URL');
+
+    const rede = brResolvers.RESOLVERS.find((r) => r.name === 'redetorrent') as (typeof brResolvers.RESOLVERS)[number];
+    assert.equal(rede.port, 8705);
+    assert.equal(rede.siteEnv, 'REDETORRENT_URL');
   });
 
   it('3.2: controles da configuração desligam o carregador sem alterar o ambiente pai', () => {

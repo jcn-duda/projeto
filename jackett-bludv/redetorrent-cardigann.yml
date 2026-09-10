@@ -1,0 +1,94 @@
+---
+id: redetorrent-cardigann
+name: Rede Torrent
+description: "Rede Torrent — filmes e séries dublados/legendados em português (magnet direto no post)"
+language: pt-BR
+type: public
+encoding: UTF-8
+requestDelay: 1
+links:
+  - https://www.redetorrent.xyz/
+
+caps:
+  categorymappings:
+    # A busca do site mistura filmes e séries na mesma listagem; exponha para
+    # ambas as categorias para que movie-search e tv-search não sejam filtrados.
+    - {id: media, cat: Movies, desc: Movies and TV}
+    - {id: media, cat: TV, desc: Movies and TV}
+  modes:
+    search: [q]
+    tv-search: [q, season, ep]
+    movie-search: [q]
+  allowrawsearch: true
+
+settings: []
+
+# A busca roda no redetorrent-resolver (mesma rede Docker), que devolve uma
+# página HTML sintética: cada linha é uma release do post com o MAGNET DIRETO
+# no href (o site publica os magnets no próprio HTML; não há protetor de link,
+# e por isso esta definição NÃO tem seção download.before — o campo download
+# já é o magnet da linha).
+search:
+  # Mesma higiene das outras definições BR: ":" sai antes de virar parâmetro
+  # de URL (o resolver também normaliza — defesa dupla, como no título).
+  keywordsfilters:
+    - name: re_replace
+      args: ["[:]+", " "]
+    - name: re_replace
+      args: ["\\s+", " "]
+    - name: trim
+  paths:
+    - path: "http://127.0.0.1:8705/search?q={{ .Query.Keywords }}"
+
+  rows:
+    selector: "div.posts > div.release"
+
+  fields:
+    title:
+      selector: "div.title > a"
+      filters:
+        # Garantia dupla: o resolver já limpa o título; se sobrar rótulo
+        # "Torrent", remove aqui para não atrapalhar quem casa o título.
+        - name: re_replace
+          args: ["(?i)\\s*Torrent\\s*(?:[–-]|&#8211;)\\s*", " "]
+        - name: re_replace
+          args: ["(?i)\\s+Torrent\\b", ""]
+    details:
+      # O resolver publica o post.url num elemento próprio (div.post > a);
+      # o details lê o HREF dele — colar texto de description aqui fazia o
+      # Jackett carregar uma URL quebrada (título, não link).
+      selector: "div.post > a"
+      attribute: href
+      optional: true
+    download:
+      # Magnet direto da release (sem redirecionamento).
+      selector: "div.title > a"
+      attribute: href
+    category:
+      text: media
+    size:
+      selector: "div.size"
+      optional: true
+      filters:
+        # KB entra por causa do sentinela "1 KB" do resolver (tamanho
+        # desconhecido): sem casar aqui, o Jackett descarta a release inteira.
+        - name: regexp
+          args: "([\\d.,]+\\s*(?:GB|MB|TB|KB))"
+        - name: re_replace
+          args: [",", "."]
+    description:
+      selector: "div.description"
+      optional: true
+    seeders:
+      # O site não publica seeds. Um valor neutro permite que clientes com
+      # MIN_SEEDERS=1 não descartem a release antes de consultar o swarm.
+      text: 1
+    date:
+      # O site não publica data por release; "now" evita data vazia/1970.
+      text: now
+    leechers:
+      text: 0
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1

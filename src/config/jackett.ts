@@ -35,18 +35,20 @@ export const jackett = () => ({
   // o operador explicitamente usa um resolvedor privado nesse caminho.
   allowPrivateDownloadIps: String(process.env.JACKETT_ALLOW_PRIVATE_DOWNLOAD_IPS || 'false') === 'true',
   ptBrIndexers: list(
-    // redetorrent é definição stock do Jackett (sem resolver local): entrega
-    // magnet/infoHash direto, mas a query precisa ir sem SxxEyy — o strip
+    // redetorrent-cardigann é o card local do Rede Torrent (resolver embutido
+    // na 8705; o antigo redetorrent stock do Jackett foi aposentado): recebe a
+    // query em pt-BR e entrega magnet direto, mas sem SxxEyy — o strip
     // acontece em queryIndexer para todos os desta lista.
     process.env.JACKETT_PT_BR_INDEXERS ||
-      'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,vacatorrent,redetorrent,apachetorrent,hdrtorrent',
+      'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,vacatorrent,redetorrent-cardigann,apachetorrent,hdrtorrent',
   ),
   // Buscadores WordPress stock que zeram com QUALQUER token extra: além do
-  // SxxEyy, o ano do filme também sai ("Coringa 2019" → 0 no redetorrent,
-  // "Coringa" → 34). Os resolvers locais ficam FORA desta lista: lá o ano
-  // ajuda a relevância e o strip de SxxEyy já acontece no servidor deles.
+  // SxxEyy, o ano do filme também sai ("Coringa 2019" → 0 no apachetorrent).
+  // O buscador WP do redetorrent-cardigann é igual — e o resolver local
+  // também normaliza do lado dele (defesa dupla). Os outros resolvers locais
+  // ficam FORA desta lista: lá o ano ajuda a relevância.
   bareTitleIndexers: list(
-    process.env.JACKETT_BARE_TITLE_INDEXERS || 'redetorrent,apachetorrent,hdrtorrent',
+    process.env.JACKETT_BARE_TITLE_INDEXERS || 'redetorrent-cardigann,apachetorrent,hdrtorrent',
   ),
   // Varredura TARDIA com o título pt-BR nos indexers globais: roda depois da
   // resposta (fora do orçamento de coleta, que já estoura no caminho
@@ -71,7 +73,7 @@ export const jackett = () => ({
   // os resultados. Com 20s eles abortavam igual, só 16s mais tarde, gastando
   // Chromium à toa. Fora da lista de indexers é o lugar deles.
   slowIndexers: list(
-    process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent,apachetorrent,hdrtorrent,magnetdownload',
+    process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent-cardigann,apachetorrent,hdrtorrent,magnetdownload',
   ),
   // Fora do caminho da resposta, DENTRO do sistema: estes indexers não
   // recebem busca ao vivo de nenhum usuário (latência medida de 8–31s contra
@@ -82,7 +84,7 @@ export const jackett = () => ({
   // JACKETT_SLOW_INDEXERS de propósito: lá o problema é o agrupamento do
   // plano; aqui é PRESENÇA na resposta.
   indexOnlyIndexers: list(
-    process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent,apachetorrent,hdrtorrent',
+    process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent,hdrtorrent',
   ),
   // Circuit breaker: indexer offline em N amostras seguidas deixa de
   // receber orçamento de busca (20s nos BR) até a falha esfriar — busca
