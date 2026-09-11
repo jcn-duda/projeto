@@ -1155,12 +1155,20 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   tudo-ou-nada (conta `harvest.sweep.partial`); e obra descartada após 3
   retentativas conta `harvest.capped.dropped` em vez de sumir sem rastro.
 - **Index-only** (`JACKETT_INDEX_ONLY_INDEXERS`, default: `redetorrent`,
-  `apachetorrent`, `hdrtorrent`): ficam FORA do caminho da resposta e DENTRO
-  do sistema via colhedor. Latência medida de 8–31s contra orçamento total de
-  20s os derrubava no breaker a cada busca, e o retry PT→título original
-  consumia o MESMO orçamento. O filtro roda antes do plano de busca; se todos
-  os selecionados forem index-only, NÃO há fallback `/all` — a obra entra na
-  fila do colhedor pelo caminho de sempre (miss/gap). Separado de
+  `apachetorrent`, `hdrtorrent`, `1337x`): ficam FORA do caminho da resposta e
+  DENTRO do sistema via colhedor. Latência medida de 8–31s contra orçamento
+  total de 20s os derrubava no breaker a cada busca, e o retry PT→título
+  original consumia o MESMO orçamento. O 1337x entrou por medição própria:
+  busca fria de 12,2–19s (Cloudflare re-resolvido) e redirect `/dl/` de
+  1,8–6,5s contra orçamento de 4s. O filtro roda antes do plano de busca —
+  vale MESMO quando o usuário seleciona o indexer na config; se todos os
+  selecionados forem index-only, NÃO há fallback `/all` — a obra entra na
+  fila do colhedor pelo caminho de sempre (miss/gap). Index-only também ficam
+  FORA das varreduras pt-BR (tardia da busca e do colhedor): eles já são
+  consultados individualmente pela fila, com orçamento TOTAL dedicado
+  (`JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS`, default 35000, aplicado SÓ no
+  colhedor/fundo — nunca na busca viva nem em indexer comum); a resolução do
+  magnet permanece em `JACKETT_RESOLVE_DOWNLOAD_INDEXERS`. Separado de
   `JACKETT_SLOW_INDEXERS`: lá o problema é o agrupamento do plano; aqui é
   PRESENÇA na resposta. Não "devolva" esses indexers à busca ao vivo sem
   medir de novo — o breaker aberto era o sintoma, não a causa.
@@ -1836,9 +1844,12 @@ o orçamento com a resposta.
   dentro do arquivo e o `pickFile` extrai o episódio. O pack nunca desloca
   dublado próprio nem ocupa duas vagas.
 - **Não adicione indexers com FlareSolverr a `JACKETT_SLOW_INDEXERS`**
-  (1337x, kickasstorrents…). O desafio Cloudflare é re-resolvido a cada busca
-  (13–24s medidos só pra abrir a primeira página); eles abortariam igual, só
-  mais tarde e gastando Chromium. Fora da lista de indexers é o lugar deles.
+  (kickasstorrents, limetorrents…). O desafio Cloudflare é re-resolvido a cada
+  busca (20–24s medidos só pra abrir a primeira página); eles abortariam
+  igual, só mais tarde e gastando Chromium. Fora da lista de indexers é o
+  lugar deles. O 1337x também usa FlareSolverr, mas o isolamento dele é mais
+  forte: index-only (nenhuma consulta ao vivo, só colhedor com orçamento
+  dedicado) — não o traga de volta nem para slow nem para a resposta.
 - **Buscador WordPress engasga com `:`** — `bludv.search` remove antes de
   consultar. Sintomas: título com subtítulo volta vazio.
 - **Buscador WordPress BR devolve 0 para QUALQUER query acentuada.** Medido

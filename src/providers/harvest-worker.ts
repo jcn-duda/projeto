@@ -176,9 +176,14 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // ignoreBreaker) — colheita de fundo não precisa acordar indexer
   // recém-derrubado, o dublado raro espera o cooldown.
   const sweepQuery = config.jackett.ptSweepGlobal ? ptSweepQueryFor({ titles }) : null;
+  // Index-only ficam fora da varredura de propósito: eles são consultados
+  // INDIVIDUALMENTE no laço abaixo (com orçamento dedicado de
+  // JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS) — pela varredura agrupada eles
+  // pagariam o budgetFor comum e voltariam a estourar o breaker que o
+  // isolamento deles existe para evitar. Os BR index-only seguem no laço.
   const sweepTargets =
     sweepQuery && !activity.recentUserTraffic(live.harvestIdleWindowMs)
-      ? ptSweepIndexers(indexers, config.jackett.ptBrIndexers)
+      ? ptSweepIndexers(indexers, config.jackett.ptBrIndexers, config.jackett.indexOnlyIndexers)
       : [];
   if (sweepQuery && sweepTargets.length > 0) {
     // A varredura agrupada dispara uma consulta HTTP por alvo: conta no teto
@@ -264,6 +269,11 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     // Intervalo mínimo entre consultas ao MESMO indexer: educação básica.
     await awaitIndexerGap(indexer);
     attempted += 1;
+    // Index-only recebem orçamento TOTAL dedicado (busca + resolução /dl):
+    // latência medida de 12–19s contra o budgetFor comum derrubava-os antes
+    // de qualquer resultado. Indexer comum NUNCA o recebe — o colhedor não é
+    // porta de fuga para esticar o prazo de ninguém além dos isolados.
+    const indexOnly = config.jackett.indexOnlyIndexers.includes(indexer);
     try {
       const items = await jackett.search(query, entry.type, [indexer], {
         matchContext,
@@ -272,6 +282,7 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
         // Descoberta do índice: zero-sobrevivente aqui é sonda negativa,
         // não desperdício do caminho de resposta (ver jackett.search).
         background: true,
+        ...(indexOnly ? { timeoutMs: config.jackett.indexOnlyHarvestTimeout } : {}),
       });
       lastQueryAt.set(indexer, Date.now());
       succeeded += 1;

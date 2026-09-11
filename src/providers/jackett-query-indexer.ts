@@ -28,6 +28,10 @@ export interface JackettSearchOptions {
   ignoreBreaker?: boolean;
   /** Warmup popula raw sem pagar resolução de protetor de link. */
   skipResolve?: boolean;
+  /** Orçamento TOTAL dedicado (busca + resolução /dl). Usado SÓ pelo
+   * colhedor para index-only, que têm latência fora de qualquer orçamento de
+   * resposta; quem não passa cai no budgetFor de sempre. */
+  timeoutMs?: number;
 }
 
 export async function queryIndexer(indexer: string, query: string, type: string, timeoutOverride: number | null = null, options: JackettSearchOptions = {}) {
@@ -38,8 +42,10 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   // o resolve roda fora do AbortSignal da busca e somava o próprio timeout por
   // cima, estourando o REPLY_DEADLINE e zerando o resultado. Indexers BR raspam
   // WordPress e ainda seguem protetor de link, então têm prazo maior.
-  // O override existe só pro diagnóstico, que não responde a ninguém esperando.
-  const timeout = timeoutOverride || budgetFor(indexer);
+  // O override posicional existe só pro diagnóstico; `options.timeoutMs` é o
+  // orçamento dedicado do colhedor para index-only — nunca do caminho vivo,
+  // que continua no budgetFor (indexerTimeout/brIndexerTimeout).
+  const timeout = timeoutOverride || options.timeoutMs || budgetFor(indexer);
 
   const started = Date.now();
   const deadline = started + timeout;

@@ -39,8 +39,13 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
   // A query já foi anexada ao plano crítico: título pt-BASE para filme e série,
   // sem subtítulo, ano ou SxxEyy. Os globais publicam episódios como
   // "T01 E004"; o matchContext faz o corte preciso depois da coleta.
+  //
+  // Index-only ficam fora da varredura de cauda: a busca viva já os tirou do
+  // plano e o colhedor os consulta individualmente com orçamento dedicado —
+  // o 1337x aqui recolocava na cauda a latência (12–19s frio + redirect /dl
+  // de 1,8–6,5s) que o index-only existe para isolar.
   if (config.jackett.ptSweepGlobal && wantsJackettSweep && sweepQuery && sweepSelectedIndexers.length > 0) {
-    const sweepTargets = ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers);
+    const sweepTargets = ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers, config.jackett.indexOnlyIndexers);
     if (sweepTargets.length > 0) {
       if (raw.partial || !raw.sweepInline) enqueueTail(async () => {
         metrics.count('search.pt-sweep.run');
@@ -116,7 +121,7 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
         }
       });
     } else {
-      log.debug('[search] varredura pt-BR não executada: nenhum indexer global selecionado');
+      log.debug('[search] varredura pt-BR não executada: nenhum indexer global elegível (só BR/index-only)');
     }
   } else if (config.jackett.ptSweepGlobal && wantsJackettSweep && !sweepQuery) {
     log.debug('[search] varredura pt-BR não executada: não há query localizada ativa');

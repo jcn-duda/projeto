@@ -28,9 +28,12 @@ export const jackett = () => ({
   // `/dl` lazy mesmo na definição stock; sem este opt-in todo o acervo chega
   // intocável. limetorrents e 1337x entraram medidos no caso real "The
   // Rejuvenator" (1988): ambos entregam `/dl/<indexer>/...` sem infoHash e o
-  // endpoint Jackett responde 302 DIRETO para o magnet — um salto barato,
-  // sem protetor de link nem Chromium. Operador que define a env explícita
-  // substitui o default inteiro (a escolha explícita vence).
+  // endpoint Jackett responde 302 para o magnet, sem protetor de link nem
+  // Chromium. Para o limetorrents o salto é barato; para o 1337x o redirect
+  // /dl medido custa 1,8–6,5s — caro para a resposta ao vivo (é por isso que
+  // ele é index-only), mas aceitável no play e no colhedor, onde não há
+  // orçamento de resposta. Operador que define a env explícita substitui o
+  // default inteiro (a escolha explícita vence).
   resolveDownloadIndexers: list(
     process.env.JACKETT_RESOLVE_DOWNLOAD_INDEXERS ||
       'comandotorrents,nerdfilmes,bludv-cardigann,torrentdosfilmesv2,vacatorrent,magnetdownload,' +
@@ -74,12 +77,15 @@ export const jackett = () => ({
   brIndexerTimeout: num(process.env.JACKETT_BR_INDEXER_TIMEOUT_MS, 20000),
   // Lentos porém úteis: medidos em 8-9s, perdiam o prazo dos globais.
   //
-  // NÃO adicione aqui os que passam por FlareSolverr (1337x, kickasstorrents, limetorrents):
-  // não é questão de orçamento. O desafio Cloudflare é re-resolvido a CADA
-  // busca e foi medido em 13s (1337x), 20s (kickass.ws) e 24s (kickass.to) só
-  // pra abrir a primeira página — depois disso o Jackett ainda tem que raspar
-  // os resultados. Com 20s eles abortavam igual, só 16s mais tarde, gastando
-  // Chromium à toa. Fora da lista de indexers é o lugar deles.
+  // NÃO adicione aqui os que passam por FlareSolverr (kickasstorrents,
+  // limetorrents): não é questão de orçamento. O desafio Cloudflare é
+  // re-resolvido a CADA busca e foi medido em 20s (kickass.ws) e 24s
+  // (kickass.to) só pra abrir a primeira página — depois disso o Jackett
+  // ainda tem que raspar os resultados. Com 20s eles abortavam igual, só mais
+  // tarde, gastando Chromium à toa. Fora da lista de indexers é o lugar deles.
+  // O 1337x também usa FlareSolverr e era o exemplo clássico aqui; hoje ele
+  // vive no JACKETT_INDEX_ONLY_INDEXERS (isolamento mais forte: NENHUMA
+  // consulta ao vivo, só colhedor) — não o traga de volta para slow.
   slowIndexers: list(
     process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent-cardigann,apachetorrent,hdrtorrent,magnetdownload',
   ),
@@ -91,8 +97,26 @@ export const jackett = () => ({
   // e a busca ao vivo serve do índice quando ele cobre a obra. Separado de
   // JACKETT_SLOW_INDEXERS de propósito: lá o problema é o agrupamento do
   // plano; aqui é PRESENÇA na resposta.
+  //
+  // O 1337x entrou medido: busca fria de 12,2–19s (com re-resolução do
+  // desafio Cloudflare) e redirect `/dl/` de 1,8–6,5s contra orçamento de
+  // 4s — nem background:true nem index-only resolvem isoladamente quando ele
+  // entra na varredura pt-BR tardia; por isso ele também fica fora dela. A
+  // resolução do magnet permanece (JACKETT_RESOLVE_DOWNLOAD_INDEXERS) e o
+  // colhedor o consulta individualmente com orçamento dedicado
+  // (JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS).
   indexOnlyIndexers: list(
-    process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent,hdrtorrent',
+    process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent,hdrtorrent,1337x',
+  ),
+  // Orçamento TOTAL (busca + resolução `/dl`) de UMA consulta do colhedor a
+  // um indexer index-only. Aplicado SÓ no colhedor/fundo: a busca ao vivo
+  // nunca consulta index-only (o filtro liveIndexers roda antes do plano) e
+  // indexer comum continua com budgetFor (indexerTimeout/brIndexerTimeout).
+  // O 1337x medido precisa de 12–19s frio; 35s dá folga sem pendurar a fila
+  // do colhedor (trabalho de fundo, sem usuário esperando).
+  indexOnlyHarvestTimeout: Math.min(
+    120_000,
+    Math.max(5_000, Math.trunc(num(process.env.JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS, 35_000))),
   ),
   // Circuit breaker: indexer offline em N amostras seguidas deixa de
   // receber orçamento de busca (20s nos BR) até a falha esfriar — busca

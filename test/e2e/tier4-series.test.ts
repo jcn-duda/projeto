@@ -233,7 +233,10 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       ds: 'realdebrid',
       dk: userApiKey,
       p: ['jackett'],
-      ji: ['1337x', 'bludv-cardigann'],
+      // O 1337x NÃO serve mais: ele é index-only (fora da resposta mesmo
+      // selecionado; ver test/index-only-1337x.test.ts). O global rápido do
+      // cenário é o thepiratebay.
+      ji: ['thepiratebay', 'bludv-cardigann'],
       bf: 1,
       b: 2,
     };
@@ -297,7 +300,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
           infoHash: fastGlobalHash,
           isBr: false,
           seeders: 120,
-          tracker: '1337x',
+          tracker: 'thepiratebay',
         }),
       ];
     };
