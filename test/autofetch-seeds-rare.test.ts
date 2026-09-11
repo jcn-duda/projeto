@@ -168,6 +168,36 @@ test('seeds: poucos candidatos com enxame saudável não é título raro', async
   }
 });
 
+test('seeds: raro × fila — runner dispara RARE_MAX imediatos e enfileira exatamente queueDepth', async () => {
+  // Strict vazio (todos 1-2 seeders), 6 viáveis <= limiar 6: raro → imediato
+  // RARE_MAX=4. Os 2 excedentes vão para a fila PERSISTENTE pelo runner
+  // (writeQueue/readQueue), não apenas no array do pick.
+  autofetchLive.set({ ...LIVE_KNOBS, autoFetchQueue: true, autoFetchQueueDepth: 2 });
+  withRare(4, 6);
+  const harness = seedsHarness('seeds-rare-queue');
+  const hs = ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'].map((p) => p.repeat(20));
+  try {
+    const dRare = deltaOf('autofetch.seeds.rare');
+    await runSearch(harness, hs.map((h, i) => (
+      { infoHash: h, name: `Rare Queue 1988 VHSRip ${i}`, title: `Rare Queue 1988 VHSRip ${i}`, _seeders: i < 3 ? 2 : 1 })));
+    assert.equal(dRare(), 1, 'regime raro dispara');
+    assert.equal(harness.enqueued.length, 4, 'quatro imediatos conforme RARE_MAX');
+    assert.deepEqual(harness.enqueued.slice(0, 3), [hs[0], hs[1], hs[2]], 'maiores swarms primeiro');
+    const queue = autofetch.readQueue(harness.searchKey);
+    assert.equal(queue.length, 2, 'exatamente queueDepth=2 excedentes na fila persistente');
+    const all = [...harness.enqueued, ...queue.map((q: any) => String(q.infoHash).toLowerCase())];
+    assert.equal(new Set(all).size, 6, 'sem hash duplicado entre imediatos e fila');
+    assert.equal(new Set(all).size, all.length, 'fila cobre todos os 6 sem repetição');
+    assert.ok(queue.every((q: any) => q.pool === 'seeds'), 'fila marca o pool seeds');
+  } finally {
+    harness.cleanup();
+    autofetchLive.reset();
+    rareRestore();
+    autofetch.dropQueue(harness.searchKey);
+    releaseAll(harness, hs);
+  }
+});
+
 test('seeds: THRESHOLD=0 desliga o regime raro', async () => {
   autofetchLive.set({ ...LIVE_KNOBS });
   withRare(4, 0);

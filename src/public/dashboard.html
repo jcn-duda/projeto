@@ -353,6 +353,24 @@
             <input id="af_autoFetchTopSeedsMax" type="number" min="1" max="4" step="1" />
             <span class="field-env">Padrão .env: <span id="env_autoFetchTopSeedsMax">—</span></span>
           </div>
+          <div class="form-item">
+            <label for="af_autoFetchRareMax">Título raro: teto imediato <span id="badge_autoFetchRareMax" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+            <p class="field-desc">Com poucas alternativas fracas, o limite imediato do swarm sobe para este teto (1..6).</p>
+            <input id="af_autoFetchRareMax" type="number" min="1" max="6" step="1" />
+            <span class="field-env">Padrão .env: <span id="env_autoFetchRareMax">—</span></span>
+          </div>
+          <div class="form-item">
+            <label for="af_autoFetchRareThreshold">Título raro: limiar de candidatos <span id="badge_autoFetchRareThreshold" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+            <p class="field-desc">Até este número de candidatos viáveis com swarm o título é raro. 0 desliga.</p>
+            <input id="af_autoFetchRareThreshold" type="number" min="0" max="20" step="1" />
+            <span class="field-env">Padrão .env: <span id="env_autoFetchRareThreshold">—</span></span>
+          </div>
+          <div class="form-item">
+            <label for="af_autoFetchRareMaxSeeders">Título raro: seeders do melhor <span id="badge_autoFetchRareMaxSeeders" class="field-badge-override" style="display:none;">MODIFICADO</span></label>
+            <p class="field-desc">Só é raro se o melhor candidato ficar abaixo deste teto (≥ 1).</p>
+            <input id="af_autoFetchRareMaxSeeders" type="number" min="1" step="1" />
+            <span class="field-env">Padrão .env: <span id="env_autoFetchRareMaxSeeders">—</span></span>
+          </div>
           <div class="form-item checkbox-item">
             <input id="af_autoFetchQueue" type="checkbox" />
             <div>

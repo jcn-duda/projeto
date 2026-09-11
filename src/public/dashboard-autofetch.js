@@ -5,7 +5,8 @@
 
 var afKeys = [
   "autoFetchBr", "autoFetchAnyDubbed", "autoFetchTopSeeds", "autoFetchSeedsPtFirst",
-  "autoFetchMinSeeders", "autoFetchMax", "autoFetchTopSeedsMax", "autoFetchEnqueueMaxHour",
+  "autoFetchMinSeeders", "autoFetchMax", "autoFetchTopSeedsMax", "autoFetchRareMax",
+  "autoFetchRareThreshold", "autoFetchRareMaxSeeders", "autoFetchEnqueueMaxHour",
   "autoFetchQueue", "autoFetchQueueDepth", "autoFetchPauseAt", "autoFetchPauseRefreshMs",
   "autoFetchTtl", "autoFetchRecheckMs", "autoFetchRecheckMax", "autoFetchStallStreak",
   "autoFetchSettleMs", "autoFetchDeadTtl", "autoFetchSeasonFill"

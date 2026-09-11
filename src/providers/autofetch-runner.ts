@@ -138,7 +138,7 @@ export function autoFetchCandidates(
       season,
       queueDepth,
       viable: isViableForEnqueue,
-      rare: { max: config.debrid.autoFetchRareMax, threshold: config.debrid.autoFetchRareThreshold, maxSeeders: config.debrid.autoFetchRareMaxSeeders },
+      rare: { max: live.autoFetchRareMax, threshold: live.autoFetchRareThreshold, maxSeeders: live.autoFetchRareMaxSeeders },
     });
     candidates = seeds.candidates;
     seedsImmediateLimit = seeds.immediateLimit;

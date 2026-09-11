@@ -1,6 +1,6 @@
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
-import { pickTopSeededCandidates } from '../utils/format.js';
+import { topSeededPool } from '../utils/format.js';
 import type { Stream } from '../../types/domain.js';
 
 // Seleção do pool "seeds" do Chupim (melhor swarm), extraída do runner para
@@ -19,8 +19,8 @@ import type { Stream } from '../../types/domain.js';
 //   preenchiam 1 das 2 vagas e o VHSRip de 1 seeder ficava de fora porque o
 //   relaxamento antigo só rodava com o pool VAZIO.
 //
-// Título RARO (poucos candidatos com swarm, até `rare.threshold`): o limite
-// imediato sobe de autoFetchTopSeedsMax para `rare.max`. Com 4-5 alternativas
+// Título RARO (poucos candidatos com swarm VIÁVEIS, até `rare.threshold`): o
+// limite imediato sobe de autoFetchTopSeedsMax para `rare.max`. Com 4-5 alternativas
 // de 1-5 seeders, disparar só 2 aposta a obra inteira em dois torrents fracos
 // — se os dois empacarem, a lista fica vazia de novo. Em título comum o
 // universo passa do limiar e nada muda: a regra não enche a conta à toa.
@@ -67,16 +67,44 @@ export function pickSeedsPool(
     return v;
   };
 
+  // Seletor limitado do pool: coleta até `limit` candidatos VIÁVEIS, na ordem
+  // do pool, com dedupe por hash. TODO corte aqui é pós-viabilidade — cortar
+  // antes de `viableOnce` (o bug do universo raro) esconde viáveis abaixo de
+  // inviáveis no topo, tanto na classificação quanto nos próprios picks.
+  const pickViable = (limit: number, minSeeders: number): SeedsStream[] => {
+    const max = Math.max(0, Math.trunc(limit));
+    const out: SeedsStream[] = [];
+    if (max === 0) return out;
+    const seen = new Set<string>();
+    for (const s of topSeededPool(liveStreams, { ...seedsOpts, minSeeders })) {
+      if (out.length >= max) break;
+      if (!isSeedsStream(s)) continue;
+      const key = String(s.infoHash).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!viableOnce(s)) continue;
+      out.push(s);
+    }
+    return out;
+  };
+
   // Universo com swarm (minSeeders=1, nunca 0): se couber no limiar, o título
-  // é raro e o limite imediato sobe. Pede limiar+1 só para saber se passou.
+  // é raro e o limite imediato sobe. VIABILIDADE decide o limiar: cortar
+  // `threshold+1` ANTES de `viableOnce` escondia viáveis abaixo de inviáveis
+  // no topo e subcontava o universo — título comum virava raro. Varre o pool
+  // ordenado (array em memória, sem rede) até juntar threshold+1 VIÁVEIS;
+  // passou disso, não é raro e o resto nem precisa ser avaliado. O memo do
+  // `viableOnce` mantém a contagem de `autofetch.seed-floor-skipped` única.
   let immediateLimit = live.autoFetchTopSeedsMax;
   if (rare.threshold > 0 && rare.max > immediateLimit) {
-    const universo = pickTopSeededCandidates(liveStreams, new Set(), rare.threshold + 1, {
-      ...seedsOpts, minSeeders: 1,
-    }).filter(isSeedsStream).filter(viableOnce);
+    const universo = pickViable(rare.threshold + 1, 1);
     // Raro = poucos E fracos: o melhor abaixo de maxSeeders. Poucos com enxame
     // saudável terminam sozinhos — baixar o de 1 seeder junto é lixo na conta.
-    const melhor = universo.reduce((m, s) => Math.max(m, Number((s as any)._seeders) || 0), 0);
+    // seedersOf é a MESMA regra do topSeededPool (`_seeders` com fallback no
+    // "👤 N" do nome): sem isso um stream sem _seeders e com enxame saudável
+    // no nome contava como 0 e ativava raro à toa.
+    const seedersOf = (s: any) => Number(s?._seeders ?? (String(s?.name || '').match(/👤\s*(\d+)/)?.[1] || 0));
+    const melhor = universo.reduce((m, s) => Math.max(m, seedersOf(s)), 0);
     if (universo.length > 0 && universo.length <= rare.threshold && melhor < rare.maxSeeders) {
       immediateLimit = rare.max;
       metrics.count('autofetch.seeds.rare');
@@ -85,9 +113,7 @@ export function pickSeedsPool(
   }
 
   const seedsLimit = immediateLimit + queueDepth;
-  let candidates = pickTopSeededCandidates(liveStreams, new Set(), seedsLimit, {
-    ...seedsOpts, minSeeders: live.autoFetchMinSeeders,
-  }).filter(isSeedsStream).filter(viableOnce);
+  let candidates = pickViable(seedsLimit, live.autoFetchMinSeeders);
   if (live.autoFetchMinSeeders > 1) {
     const strictEmpty = candidates.length === 0;
     // Capacidade do complemento: TOTAL no fallback do strict vazio; no strict
@@ -97,9 +123,7 @@ export function pickSeedsPool(
       : immediateLimit - candidates.length;
     if (capacity > 0) {
       const chosen = new Set(candidates.map((s) => String(s.infoHash || '').toLowerCase()));
-      const relaxed = pickTopSeededCandidates(liveStreams, new Set(), seedsLimit, {
-        ...seedsOpts, minSeeders: 1,
-      }).filter(isSeedsStream).filter(viableOnce)
+      const relaxed = pickViable(seedsLimit, 1)
         .filter((s) => !chosen.has(String(s.infoHash || '').toLowerCase()))
         .slice(0, capacity);
       if (relaxed.length > 0) {

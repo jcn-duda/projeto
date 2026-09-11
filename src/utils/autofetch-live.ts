@@ -11,6 +11,9 @@ export interface AutofetchLiveConfig {
   autoFetchMinSeeders: number;
   autoFetchMax: number;
   autoFetchTopSeedsMax: number;
+  autoFetchRareMax: number;
+  autoFetchRareThreshold: number;
+  autoFetchRareMaxSeeders: number;
   autoFetchEnqueueMaxHour: number;
   autoFetchQueue: boolean;
   autoFetchQueueDepth: number;
@@ -51,6 +54,9 @@ const NUMBER_KEYS = new Set<string>([
   'autoFetchMinSeeders',
   'autoFetchMax',
   'autoFetchTopSeedsMax',
+  'autoFetchRareMax',
+  'autoFetchRareThreshold',
+  'autoFetchRareMaxSeeders',
   'autoFetchEnqueueMaxHour',
   'autoFetchQueueDepth',
   'autoFetchPauseAt',
@@ -100,6 +106,14 @@ function clampValue(key: string, value: any): any {
       return Math.min(12, Math.max(1, Math.trunc(n)));
     case 'autoFetchTopSeedsMax':
       return Math.min(4, Math.max(1, Math.trunc(n)));
+    // Mesmos clamps de config.ts (debrid-autofetch-seeds.ts): o override ao
+    // vivo não pode mais que o .env.
+    case 'autoFetchRareMax':
+      return Math.min(6, Math.max(1, Math.trunc(n)));
+    case 'autoFetchRareThreshold':
+      return Math.min(20, Math.max(0, Math.trunc(n)));
+    case 'autoFetchRareMaxSeeders':
+      return Math.max(1, Math.trunc(n));
     case 'autoFetchQueueDepth':
       return Math.min(12, Math.max(0, Math.trunc(n)));
     case 'autoFetchMinSeeders':
