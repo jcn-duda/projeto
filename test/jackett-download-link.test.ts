@@ -113,6 +113,94 @@ test('link /dl/ do próprio Jackett resolve magnet (caminho feliz da exceção)'
   });
 });
 
+// Caso real The Rejuvenator (1988): limetorrents e 1337x entregam o Link como
+// `/dl/<indexer>/...` do próprio Jackett, SEM infoHash, e o endpoint responde
+// 302 direto para o magnet (medido localmente). Estes dois globais entram no
+// DEFAULT de JACKETT_RESOLVE_DOWNLOAD_INDEXERS — um salto barato, sem
+// protetor de link. Operador que define a env substitui o default inteiro.
+test('limetorrents e 1337x resolvem /dl → magnet no default (The Rejuvenator 1988)', async () => {
+  const fetchImpl = makeFetch();
+  const dlLimetorrents = 'http://jackett.test/dl/limetorrents/?jackett_apikey=test-key&path=The.Rejuvenator.1988.torrent';
+  const dl1337x = 'http://jackett.test/dl/1337x/?jackett_apikey=test-key&path=The.Rejuvenator.1988.torrent';
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'The Rejuvenator (1988 Rejuvenatrix) DVDrip', Seeders: 4, Link: dlLimetorrents },
+        { Title: 'The Rejuvenator (1988 Rejuvenatrix) DVDRip', Seeders: 3, Link: dl1337x },
+      ] });
+    }
+    return fakeResponse(null, { location: MAGNET });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    // Os dois IDs JÁ fazem parte do default do config (suíte hermética: sem
+    // .env do operador). Se um dia sair do default, este teste acusa.
+    assert.equal(config.jackett.resolveDownloadIndexers.includes('limetorrents'), true);
+    assert.equal(config.jackett.resolveDownloadIndexers.includes('1337x'), true);
+    const items = await jackett.search('The Rejuvenator 1988', 'movie', ['limetorrents', '1337x'], {
+      matchContext: { names: ['The Rejuvenator'], year: 1988, isSeries: false, season: null, episode: null },
+    });
+    // O dublê devolve os 2 resultados para CADA indexer: 4 itens, todos
+    // resolvidos para o MESMO magnet (302 dos dois endpoints).
+    assert.equal(items.length, 4);
+    assert.deepEqual([...new Set(items.map((i: any) => i.magnet))], [MAGNET]);
+    assert.equal(fetchImpl.protectorCalls().includes(dlLimetorrents), true);
+    assert.equal(fetchImpl.protectorCalls().includes(dl1337x), true);
+  });
+});
+
+test('indexer global FORA da lista não paga resolução (opt-in por indexer)', async () => {
+  const fetchImpl = makeFetch();
+  const dlLink = 'http://jackett.test/dl/therarbg/?jackett_apikey=test-key&path=Release.torrent';
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'The Rejuvenator (1988 Rejuvenatrix) DVDrip', Seeders: 4, Link: dlLink },
+      ] });
+    }
+    return fakeResponse(null, { location: MAGNET });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    assert.equal(config.jackett.resolveDownloadIndexers.includes('therarbg'), false);
+    const items = await jackett.search('The Rejuvenator 1988', 'movie', ['therarbg'], {
+      matchContext: { names: ['The Rejuvenator'], year: 1988, isSeries: false, season: null, episode: null },
+    });
+    // Sem resolução: item sem infoHash sobrevive ao provider, mas o download
+    // NUNCA foi buscado — o corte por falta de hash acontece depois.
+    assert.equal(items.length, 1);
+    assert.equal(items[0].magnet, undefined);
+    assert.equal(fetchImpl.protectorCalls().includes(dlLink), false);
+  });
+});
+
+test('lista efetiva vazia desliga a resolução', async () => {
+  const fetchImpl = makeFetch();
+  const dlLink = 'http://jackett.test/dl/limetorrents/?jackett_apikey=test-key&path=The.Rejuvenator.1988.torrent';
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'The Rejuvenator (1988 Rejuvenatrix) DVDrip', Seeders: 4, Link: dlLink },
+      ] });
+    }
+    return fakeResponse(null, { location: MAGNET });
+  };
+  const saved = config.jackett.resolveDownloadIndexers;
+  config.jackett.resolveDownloadIndexers = [];
+  try {
+    await withJackett(fetchImpl, async () => {
+      const items = await jackett.search('The Rejuvenator 1988', 'movie', ['limetorrents'], {
+        matchContext: { names: ['The Rejuvenator'], year: 1988, isSeries: false, season: null, episode: null },
+      });
+      assert.equal(items.length, 1);
+      assert.equal(items[0].magnet, undefined);
+      assert.equal(fetchImpl.protectorCalls().includes(dlLink), false);
+    });
+  } finally {
+    config.jackett.resolveDownloadIndexers = saved;
+  }
+});
+
 test('link same-origin FORA de /dl/ é bloqueado (admin local não é download)', async () => {
   const fetchImpl = makeFetch();
   // Base do Jackett em loopback, como no container único: same-origin com o

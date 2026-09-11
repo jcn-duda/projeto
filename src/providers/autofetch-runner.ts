@@ -22,6 +22,7 @@ import { capture, opts } from '../runtime.js';
 import * as autofetch from './autofetch.js';
 import { classifyEnqueue, ENQUEUE_ROLLBACK, noteSkip, skipCountsSnapshot, warnAccountGated } from './autofetch-gates.js';
 import type { SkipReason } from './autofetch-gates.js';
+import { pickSeedsPool } from './autofetch-seeds-pool.js';
 import * as autofetchTrace from '../utils/autofetch-trace.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -125,22 +126,15 @@ export function autoFetchCandidates(
     }
   }
   if (candidates.length === 0 && live.autoFetchTopSeeds) {
-    const seedsLimit = live.autoFetchTopSeedsMax + queueDepth;
-    const seedsOpts = { season, ptFirst: live.autoFetchSeedsPtFirst };
-    candidates = pickTopSeededCandidates(liveStreams, new Set(), seedsLimit, {
-      ...seedsOpts, minSeeders: live.autoFetchMinSeeders,
-    }).filter(isAutoFetchStream).filter(isViableForEnqueue);
-    // Último recurso: título obscuro onde o piso (default 3) esvazia o pool e
-    // não há BR/any. Sem candidato o Chupim não aquece nada e cachedOnly deixa
-    // a UI vazia para sempre. Relaxa para 1 — ainda exige alguém semeando; o
-    // autoFetchBrDubbed do pool seeds continua abortando se já houver ⚡.
-    // Títulos saudáveis nunca chegam aqui: o piso normal já encheu o pool.
-    if (candidates.length === 0 && live.autoFetchMinSeeders > 1) {
-      candidates = pickTopSeededCandidates(liveStreams, new Set(), seedsLimit, {
-        ...seedsOpts, minSeeders: 1,
-      }).filter(isAutoFetchStream).filter(isViableForEnqueue);
-      if (candidates.length > 0) metrics.count('autofetch.top-seeded-relaxed');
-    }
+    // Seleção do pool seeds (estrito + complemento relaxado) vive em
+    // autofetch-seeds-pool.ts. `queueDepth` é o EFETIVO (0 com a fila
+    // desligada): a capacidade do fallback relaxado não pode existir fora do
+    // gate da fila.
+    candidates = pickSeedsPool(liveStreams, live, {
+      season,
+      queueDepth,
+      viable: isViableForEnqueue,
+    });
     pool = 'seeds';
     if (candidates.length > 0) metrics.count('autofetch.top-seeded');
   }

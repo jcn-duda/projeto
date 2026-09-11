@@ -20,13 +20,21 @@ export const jackett = () => ({
   // vem de busca/teste já executado; abrir a página nunca sonda os sites.
   statusTtl: num(process.env.JACKETT_STATUS_TTL, 900),
   // Cardigann pode entregar o magnet apenas no endpoint Link. Resolvemos
-  // sob demanda somente nos indexadores locais explicitamente permitidos.
-  // Os seis entregam Link em vez de magnet: fora desta lista, o resultado
-  // é descartado por falta de infoHash. O MagnetDownload usa um `/dl` lazy
-  // mesmo na definição stock; sem este opt-in todo o acervo chega intocável.
+  // sob demanda somente nos indexadores localmente permitidos — opt-in por
+  // indexer, nunca um "resolva todos os globais": cada entrada custa um
+  // salto HTTP dentro do orçamento do indexer na resposta. Os cinco BR e o
+  // MagnetDownload entregam Link em vez de magnet: fora desta lista, o
+  // resultado é descartado por falta de infoHash. O MagnetDownload usa um
+  // `/dl` lazy mesmo na definição stock; sem este opt-in todo o acervo chega
+  // intocável. limetorrents e 1337x entraram medidos no caso real "The
+  // Rejuvenator" (1988): ambos entregam `/dl/<indexer>/...` sem infoHash e o
+  // endpoint Jackett responde 302 DIRETO para o magnet — um salto barato,
+  // sem protetor de link nem Chromium. Operador que define a env explícita
+  // substitui o default inteiro (a escolha explícita vence).
   resolveDownloadIndexers: list(
     process.env.JACKETT_RESOLVE_DOWNLOAD_INDEXERS ||
-      'comandotorrents,nerdfilmes,bludv-cardigann,torrentdosfilmesv2,vacatorrent,magnetdownload',
+      'comandotorrents,nerdfilmes,bludv-cardigann,torrentdosfilmesv2,vacatorrent,magnetdownload,' +
+      'limetorrents,1337x',
   ),
   resolveConcurrency: num(process.env.JACKETT_RESOLVE_CONCURRENCY, 10),
   maxDownloadResolves: num(process.env.JACKETT_MAX_DOWNLOAD_RESOLVES, 20),
