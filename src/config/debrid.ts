@@ -1,4 +1,5 @@
 import { list, num } from './helpers.js';
+import { autofetchSeeds } from './debrid-autofetch-seeds.js';
 
 // Fábrica (não objeto pronto): módulo ESM é cacheado, e cada re-avaliação do
 // compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
@@ -200,22 +201,9 @@ export const debrid = () => ({
   // DEBRID_AUTO_FETCH_BR). O teto 12 (2026-09-01) cobre o acervo BR de uma vez;
   // o default 3 é o baseline conservador — o operador sobe ao vivo no painel.
   autoFetchMax: Math.min(12, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 3)))),
-  // Rede de segurança do terceiro nível: vale quando não há BR dublado E
-  // (não há dublagem global OU o operador recusou DEBRID_AUTO_FETCH_ANY).
-  // Sem isso a busca acaba sem baixar nada e, com "somente já em cache"
-  // ligado, o usuário vê zero opção para sempre. O limite é separado do
-  // autofetch dublado para não encher a conta com até quatro torrents só
-  // porque o título não tem áudio PT (ou o operador não quis baixar o global).
-  autoFetchTopSeeds: String(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS || 'true') === 'true',
-  autoFetchTopSeedsMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS_MAX, 2)))),
-  // Um torrent com poucos pares costuma morrer na fila do debrid; abaixo de
-  // três seeders o download não é uma alternativa saudável ao episódio vazio.
-  autoFetchMinSeeders: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MIN_SEEDERS, 3))),
-  // Preferência PT no pool de swarm: candidato com sinal de português
-  // (dublado/nacional ou título que denuncia pt-BR) vence a contagem bruta
-  // de seeders. É preferência, não filtro: sem nenhum candidato PT a ordem
-  // por seeders continua valendo. false restaura a ordenação antiga.
-  autoFetchSeedsPtFirst: String(process.env.DEBRID_AUTO_FETCH_SEEDS_PT_FIRST || 'true') === 'true',
+  // Terceiro nível (pool seeds: top seeds, piso, título raro, preferência PT):
+  // src/config/debrid-autofetch-seeds.ts, espalhado aqui com as mesmas chaves.
+  ...autofetchSeeds(),
   // Recheck pós-enfileiramento: depois de aceitar um torrent, o addon volta a
   // perguntar ao debrid se ele já toca (sem o teto do deadline — é um passe
   // de fundo). Quando fica pronto, o cache da busca é esquecido para a

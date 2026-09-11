@@ -38,7 +38,10 @@ import {
 import { recordAutofetchRelease } from './autofetch-index.js';
 
 type AutoFetchStream = Stream & { infoHash: string };
-type AutoFetchCandidate = { stream: AutoFetchStream; account: string; pool: string };
+// `slotLimit`: teto da vaga por busca que o candidato leva do pool que o
+// escolheu (título raro no seeds sobe o limite imediato — a vaga precisa
+// acompanhar, senão o 3º disparo morreria em `slot`). Ausente = teto do pool.
+type AutoFetchCandidate = { stream: AutoFetchStream; account: string; pool: string; slotLimit?: number };
 type AutoFetchRequest = {
   cached: Set<string>;
   season?: number | null;
@@ -125,16 +128,20 @@ export function autoFetchCandidates(
       metrics.count('autofetch.any-dubbed-skipped');
     }
   }
+  let seedsImmediateLimit = live.autoFetchTopSeedsMax;
   if (candidates.length === 0 && live.autoFetchTopSeeds) {
-    // Seleção do pool seeds (estrito + complemento relaxado) vive em
-    // autofetch-seeds-pool.ts. `queueDepth` é o EFETIVO (0 com a fila
+    // Seleção do pool seeds (estrito + complemento relaxado + título raro) vive
+    // em autofetch-seeds-pool.ts. `queueDepth` é o EFETIVO (0 com a fila
     // desligada): a capacidade do fallback relaxado não pode existir fora do
-    // gate da fila.
-    candidates = pickSeedsPool(liveStreams, live, {
+    // gate da fila. O limite imediato volta de lá: título raro dispara mais.
+    const seeds = pickSeedsPool(liveStreams, live, {
       season,
       queueDepth,
       viable: isViableForEnqueue,
+      rare: { max: config.debrid.autoFetchRareMax, threshold: config.debrid.autoFetchRareThreshold, maxSeeders: config.debrid.autoFetchRareMaxSeeders },
     });
+    candidates = seeds.candidates;
+    seedsImmediateLimit = seeds.immediateLimit;
     pool = 'seeds';
     if (candidates.length > 0) metrics.count('autofetch.top-seeded');
   }
@@ -143,7 +150,7 @@ export function autoFetchCandidates(
     noteSkip('no-candidate', liveStreams[0] || null, adapter?.id || '', pool);
   }
 
-  const immediateLimit = pool === 'seeds' ? live.autoFetchTopSeedsMax : live.autoFetchMax;
+  const immediateLimit = pool === 'seeds' ? seedsImmediateLimit : live.autoFetchMax;
   const immediate = candidates.slice(0, immediateLimit);
   const queued = candidates.slice(immediateLimit);
 
@@ -182,7 +189,7 @@ export function autoFetchCandidates(
     }
   }
 
-  return immediate.map((stream) => ({ stream, account, pool }));
+  return immediate.map((stream) => ({ stream, account, pool, ...(pool === 'seeds' ? { slotLimit: seedsImmediateLimit } : {}) }));
 }
 
 export function releaseAllHolds(candidates: AutoFetchCandidate[]) {
@@ -202,7 +209,7 @@ function rollbackEnqueue(reason: SkipReason, r: { lockKey: string; searchKey: st
 }
 
 /** Enfileira UM candidato de forma fire-and-forget, com marker, orçamento e vaga por busca. */
-export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, { cached, season, episode, imdbId, searchKey }: AutoFetchRequest) {
+export function enqueueAutofetch({ stream, account, pool, slotLimit }: AutoFetchCandidate, { cached, season, episode, imdbId, searchKey }: AutoFetchRequest) {
   const adapter = debrid.current() as DebridAdapter;
   const requestCtx = capture();
   const h = String(stream.infoHash || '').toLowerCase();
@@ -221,7 +228,7 @@ export function enqueueAutofetch({ stream, account, pool }: AutoFetchCandidate, 
     // Vaga compartilhada entre passe parcial e tardio pelo mesmo searchKey;
     // se pools diferentes, o teto efetivo é o do pool que pediu por último.
     trySlot: () => !searchKey || autofetch.acquireSearchSlot(
-      searchKey, pool === 'seeds' ? live.autoFetchTopSeedsMax : live.autoFetchMax),
+      searchKey, slotLimit ?? (pool === 'seeds' ? live.autoFetchTopSeedsMax : live.autoFetchMax)),
     accountBlocked: () => autofetch.accountGateBlocked(adapter, opts().debridApiKey),
     tryBudget: () => autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit),
   });

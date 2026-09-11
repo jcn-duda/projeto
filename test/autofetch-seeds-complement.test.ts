@@ -66,6 +66,11 @@ const releaseAll = (harness: ReturnType<typeof seedsHarness>, hashes: string[]) 
   }
 };
 
+// Os testes do complemento usam 1-3 candidatos — todos seriam "título raro".
+// O regime raro fica DESLIGADO neste arquivo (cada arquivo roda em processo
+// próprio); ele tem testes dedicados em autofetch-seeds-rare.test.ts.
+config.debrid.autoFetchRareThreshold = 0;
+
 test('seeds: pool estrito cheio nao complementa com relaxado', async () => {
   autofetchLive.set({ ...LIVE_KNOBS });
   const harness = seedsHarness('seeds-strict-full');
