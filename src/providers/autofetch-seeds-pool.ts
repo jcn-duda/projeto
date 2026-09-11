@@ -1,5 +1,7 @@
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
+import * as held from '../debrid/protected.js';
+import * as autofetch from './autofetch.js';
 import { topSeededPool } from '../utils/format.js';
 import type { Stream } from '../../types/domain.js';
 
@@ -51,7 +53,7 @@ export function pickSeedsPool(
     viable: (s: Stream) => boolean;
     rare?: { max: number; threshold: number; maxSeeders: number };
   },
-): { candidates: SeedsStream[]; immediateLimit: number } {
+): { candidates: SeedsStream[]; immediateLimit: number; rareUsed: boolean } {
   const seedsOpts = { season, ptFirst: live.autoFetchSeedsPtFirst };
   // `viable` conta `autofetch.seed-floor-skipped` — e os picks seguintes
   // repassam o MESMO universo. Memoize a decisão por stream: cada um é
@@ -96,6 +98,7 @@ export function pickSeedsPool(
   // passou disso, não é raro e o resto nem precisa ser avaliado. O memo do
   // `viableOnce` mantém a contagem de `autofetch.seed-floor-skipped` única.
   let immediateLimit = live.autoFetchTopSeedsMax;
+  let rareUsed = false;
   if (rare.threshold > 0 && rare.max > immediateLimit) {
     const universo = pickViable(rare.threshold + 1, 1);
     // Raro = poucos E fracos: o melhor abaixo de maxSeeders. Poucos com enxame
@@ -107,6 +110,7 @@ export function pickSeedsPool(
     const melhor = universo.reduce((m, s) => Math.max(m, seedersOf(s)), 0);
     if (universo.length > 0 && universo.length <= rare.threshold && melhor < rare.maxSeeders) {
       immediateLimit = rare.max;
+      rareUsed = true;
       metrics.count('autofetch.seeds.rare');
       log.info(`[autofetch] seeds: título raro (${universo.length} candidato(s), melhor com ${melhor} seeder(s)) — até ${immediateLimit} download(s) imediato(s)`);
     }
@@ -134,5 +138,69 @@ export function pickSeedsPool(
       }
     }
   }
-  return { candidates, immediateLimit };
+  return { candidates, immediateLimit, rareUsed };
+}
+
+// Caso real Mortuary (tt0087746): o pool seeds classificava o título como raro
+// (3 alternativas de 1-3 seeders), mas UM global não-dublado em cache fazia o
+// `stop-has-cached` abortar tudo — a lista ficava só com o ⚡ de 1080p e o
+// usuário confirmou "não achou". A exceção abaixo permite aquecer as
+// alternativas frias quando o regime raro é REAL, sem tocar nos outros portões:
+//
+// - dublado em cache (BR ou global) segue abortando com `stop-has-br`;
+// - fora do regime raro, qualquer cache segue abortando com `stop-has-cached`;
+// - a exceção vale SÓ quando a evidência de cache é utilizável, ou seja, com
+//   `cacheCheck` EFETIVO. RD/DL têm `cacheCheck: false` no registry, mas o RD
+//   pode chegar a `true` dinamicamente quando o ledger+oráculo tornam a
+//   evidência confiável — o gate recebe o valor EFETIVO (`adapterCacheCheck`),
+//   não exclui adapter por id: sem checagem real não se sabe o que já toca;
+// - `rareThreshold === 0` desliga (o regime raro nem dispara, mas o portão
+//   reconfere o knob vivo: o pick e o disparo podem ler instantes diferentes);
+// - hash JÁ cacheado nunca enfileira, nunca consome vaga (o hold dele é
+//   liberado) e é purgado da fila persistente antes de qualquer dreno.
+
+type StopGateCandidate = { stream: { infoHash?: string }; account: string };
+
+export type SeedsStopGate = {
+  stop: 'stop-has-br' | 'stop-has-cached' | null;
+  candidates: StopGateCandidate[];
+  rareOverCached: boolean;
+};
+
+export function applySeedsStopGate<T extends StopGateCandidate>(
+  candidates: T[],
+  opts: {
+    rare: boolean;
+    rareThreshold: number;
+    adapterCacheCheck: boolean;
+    cached: Set<string>;
+    hasCachedDubbed: boolean;
+    queue: { searchKey: string; ttl: number; adapterId: string; account: string } | null;
+  },
+): SeedsStopGate {
+  if (opts.hasCachedDubbed) return { stop: 'stop-has-br', candidates, rareOverCached: false };
+  if (opts.cached.size === 0) return { stop: null, candidates, rareOverCached: false };
+  if (!(opts.rare && opts.rareThreshold > 0 && opts.adapterCacheCheck)) {
+    return { stop: 'stop-has-cached', candidates, rareOverCached: false };
+  }
+  metrics.count('autofetch.seeds.rareOverCached');
+  log.info('[autofetch] seeds: título raro mantém o aquecimento apesar de cache global não-dublado');
+  // A fila foi escrita na seleção, ANTES da checagem saber o que está em
+  // cache — purga aqui, antes de qualquer dreno (recheck é timer de segundos).
+  // Roda em TODA entrada no regime raro: `candidates` é só a fatia imediata,
+  // então um hash cacheado que ficou exclusivamente na fila persistiria se a
+  // purga dependesse de haver imediato cacheado.
+  if (opts.queue) {
+    const fila = (autofetch.readQueue(opts.queue.searchKey) || [])
+      .filter((item: any) => !opts.cached.has(String(item?.infoHash || '').toLowerCase()));
+    autofetch.writeQueue(opts.queue.searchKey, fila, opts.queue.ttl, opts.queue.adapterId, opts.queue.account);
+  }
+  const vivos = candidates.filter((c) => !opts.cached.has(String(c.stream?.infoHash || '').toLowerCase()));
+  if (vivos.length === candidates.length) return { stop: null, candidates, rareOverCached: true };
+  const vivosSet = new Set(vivos);
+  for (const c of candidates) {
+    if (vivosSet.has(c)) continue;
+    held.release(String(c.stream?.infoHash || ''), c.account);
+  }
+  return { stop: null, candidates: vivos, rareOverCached: true };
 }

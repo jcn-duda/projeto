@@ -20,9 +20,8 @@ import * as held from '../debrid/protected.js';
 import { accountScope } from '../utils/request-key.js';
 import { capture, opts } from '../runtime.js';
 import * as autofetch from './autofetch.js';
-import { classifyEnqueue, ENQUEUE_ROLLBACK, noteSkip, skipCountsSnapshot, warnAccountGated } from './autofetch-gates.js';
-import type { SkipReason } from './autofetch-gates.js';
-import { pickSeedsPool } from './autofetch-seeds-pool.js';
+import { classifyEnqueue, rollbackEnqueue, noteSkip, skipCountsSnapshot, warnAccountGated } from './autofetch-gates.js';
+import { pickSeedsPool, applySeedsStopGate } from './autofetch-seeds-pool.js';
 import * as autofetchTrace from '../utils/autofetch-trace.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -41,7 +40,7 @@ type AutoFetchStream = Stream & { infoHash: string };
 // `slotLimit`: teto da vaga por busca que o candidato leva do pool que o
 // escolheu (título raro no seeds sobe o limite imediato — a vaga precisa
 // acompanhar, senão o 3º disparo morreria em `slot`). Ausente = teto do pool.
-type AutoFetchCandidate = { stream: AutoFetchStream; account: string; pool: string; slotLimit?: number };
+type AutoFetchCandidate = { stream: AutoFetchStream; account: string; pool: string; slotLimit?: number; rare?: boolean };
 type AutoFetchRequest = {
   cached: Set<string>;
   season?: number | null;
@@ -128,12 +127,10 @@ export function autoFetchCandidates(
       metrics.count('autofetch.any-dubbed-skipped');
     }
   }
-  let seedsImmediateLimit = live.autoFetchTopSeedsMax;
+  let seedsImmediateLimit = live.autoFetchTopSeedsMax, seedsRare = false;
   if (candidates.length === 0 && live.autoFetchTopSeeds) {
     // Seleção do pool seeds (estrito + complemento relaxado + título raro) vive
-    // em autofetch-seeds-pool.ts. `queueDepth` é o EFETIVO (0 com a fila
-    // desligada): a capacidade do fallback relaxado não pode existir fora do
-    // gate da fila. O limite imediato volta de lá: título raro dispara mais.
+    // em autofetch-seeds-pool.ts; o limite imediato e a marca de raro voltam de lá.
     const seeds = pickSeedsPool(liveStreams, live, {
       season,
       queueDepth,
@@ -142,6 +139,7 @@ export function autoFetchCandidates(
     });
     candidates = seeds.candidates;
     seedsImmediateLimit = seeds.immediateLimit;
+    seedsRare = seeds.rareUsed;
     pool = 'seeds';
     if (candidates.length > 0) metrics.count('autofetch.top-seeded');
   }
@@ -189,23 +187,11 @@ export function autoFetchCandidates(
     }
   }
 
-  return immediate.map((stream) => ({ stream, account, pool, ...(pool === 'seeds' ? { slotLimit: seedsImmediateLimit } : {}) }));
+  return immediate.map((stream) => ({ stream, account, pool, ...(pool === 'seeds' ? { slotLimit: seedsImmediateLimit, rare: seedsRare } : {}) }));
 }
 
 export function releaseAllHolds(candidates: AutoFetchCandidate[]) {
   for (const { stream, account } of candidates) held.release(String(stream.infoHash || ''), account);
-}
-
-/**
- * Libera o que a desistência adquiriu — a tabela diz o quê, na ordem dos
- * returns de hoje (marker/in-flight não liberam nada, de propósito).
- */
-function rollbackEnqueue(reason: SkipReason, r: { lockKey: string; searchKey: string | null | undefined; holdHash: string | null | undefined; account: string }) {
-  for (const action of ENQUEUE_ROLLBACK[reason] || []) {
-    if (action === 'lock') autofetch.release(r.lockKey);
-    else if (action === 'slot') { if (r.searchKey) autofetch.releaseSearchSlot(r.searchKey); }
-    else held.release(String(r.holdHash || ''), r.account);
-  }
 }
 
 /** Enfileira UM candidato de forma fire-and-forget, com marker, orçamento e vaga por busca. */
@@ -295,6 +281,7 @@ export { registerSeasonSearchKey, scheduleRecheck, drainNext, type SeasonHint, t
 
 
 export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, season, episode, imdbId, searchKey }: any) {
+  const adapter = debrid.current() as DebridAdapter;
   if (!candidates || candidates.length === 0) {
     noteSkip('no-candidates', null, debrid.current()?.id || '', '');
     return 0;
@@ -316,18 +303,26 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
       return 0;
     }
   } else if (poolName === 'seeds') {
-    // Terceiro nível: NADA toca. Um ⚡ qualquer já entrega play; baixar o
-    // REMUX gringo não aquece BR. O rótulo distingue dublado ⚡ de “já toca”.
-    if (hasCachedBrDubbed(streams, cached) || hasCachedAnyDubbed(streams, cached)) {
-      noteSkip('stop-has-br', candidates[0]?.stream, debrid.current()?.id || '', poolName);
+    // Terceiro nível: decisão de parada (stop-has-br / stop-has-cached /
+    // exceção do título raro sobre cache não-dublado) vive em applySeedsStopGate.
+    const live = autofetchLive.effective();
+    const gate = applySeedsStopGate(candidates, {
+      rare: Boolean(candidates[0]?.rare),
+      rareThreshold: live.autoFetchRareThreshold,
+      adapterCacheCheck: adapter.cacheCheck === true,
+      cached,
+      hasCachedDubbed: hasCachedBrDubbed(streams, cached) || hasCachedAnyDubbed(streams, cached),
+      queue: live.autoFetchQueue && searchKey
+        ? { searchKey, ttl: config.debrid.autoFetchQueueTtl, adapterId: adapter.id,
+            account: candidates[0]?.account || accountScope(opts().debridApiKey) }
+        : null,
+    });
+    if (gate.stop) {
+      noteSkip(gate.stop, candidates[0]?.stream, adapter.id, poolName);
       releaseAllHolds(candidates);
       return 0;
     }
-    if (cached.size > 0) {
-      noteSkip('stop-has-cached', candidates[0]?.stream, debrid.current()?.id || '', poolName);
-      releaseAllHolds(candidates);
-      return 0;
-    }
+    candidates = gate.candidates;
   } else {
     // Pool br: cobertura POR qualidade-alvo. 720 Dual ⚡ não mata o 1080/4K.
     // Unknown/SD: se já há QUALQUER BR dublado em cache, para (fallback).

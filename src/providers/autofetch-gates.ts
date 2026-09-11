@@ -19,6 +19,8 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import * as autofetchTrace from '../utils/autofetch-trace.js';
+import * as autofetch from './autofetch.js';
+import * as held from '../debrid/protected.js';
 import type { DebridAdapter } from '../../types/domain.js';
 
 /** Motivo pelo qual um candidato não foi enfileirado nesta busca. */
@@ -81,6 +83,19 @@ export const ENQUEUE_ROLLBACK: Record<SkipReason, RollbackAction[]> = {
 };
 
 const skipCounts = new Map<string, number>();
+
+/**
+ * Libera o que a desistência adquiriu — a tabela diz o quê, na ordem dos
+ * returns de hoje (marker/in-flight não liberam nada, de propósito).
+ * Movida do runner para ficar ao lado da tabela que a define.
+ */
+export function rollbackEnqueue(reason: SkipReason, r: { lockKey: string; searchKey: string | null | undefined; holdHash: string | null | undefined; account: string }) {
+  for (const action of ENQUEUE_ROLLBACK[reason] || []) {
+    if (action === 'lock') autofetch.release(r.lockKey);
+    else if (action === 'slot') { if (r.searchKey) autofetch.releaseSearchSlot(r.searchKey); }
+    else held.release(String(r.holdHash || ''), r.account);
+  }
+}
 
 function skipCountsSnapshot(): Record<string, number> {
   return Object.fromEntries([...skipCounts.entries()].sort(([a], [b]) => a.localeCompare(b)));
