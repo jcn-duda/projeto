@@ -113,8 +113,7 @@ function record(
       if (prior && prior.seenAt >= now && !promotesObserved) continue;
       if (!prior) added += 1;
       // Mesma regra do toStremioStream: DUAL sem PT explícito não vale como
-      // dublado fora dos sites BR — o degrau "dublado global" do gate de
-      // cobertura depende deste flag ser honesto.
+      // dublado fora dos sites BR — o degrau "dublado global" depende deste flag.
       const isBr = Boolean(item.isBr) || Boolean(prior?.isBr);
       const classifiedDubbed = isBr
         ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title)))
@@ -139,7 +138,8 @@ function record(
         dubbed: Boolean(dubbed) || Boolean(prior?.dubbed),
         // Só o autofetch confia na classificação do item; provider público mantém a regra pelo título.
         quality: String(itemSource === 'autofetch' && item.quality ? item.quality : qualityFromTitle(title)),
-        seeders: Number(item.seeders ?? item.Seeders ?? 0) || 0,
+        // Fusão por hash: teto de seeders observado é prova de swarm — snapshot pior não rebaixa (Mortuary).
+        seeders: Math.max(Number(item.seeders ?? item.Seeders ?? 0) || 0, Number(prior?.seeders) || 0),
         seenAt: now,
         // Campo aditivo: uma nova coleta não pode apagar prova de play/tail.
         lied: Boolean(item.lied) || Boolean(prior?.lied),

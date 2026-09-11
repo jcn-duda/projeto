@@ -6,7 +6,6 @@ import {
   resolveSearchNames,
   hasExplicitForeignAudio,
   filterRelevantRaw,
-  extractInfoHash,
 } from '../utils/format.js';
 import * as cache from '../utils/cache.js';
 import * as tmdb from '../utils/tmdb.js';
@@ -23,6 +22,7 @@ import { cloneStreamTrace, createStreamTrace, serializeTrace } from '../utils/st
 import type { StreamTraceState, SerializedStreamTrace } from '../utils/stream-trace.js';
 import { collectRaw } from './collect-orchestrator.js';
 import { attemptIndexFastPath, noteWouldHitIndex } from './search-index-path.js';
+import { fuseIndexEnrichment } from './index-evidence.js';
 import type { RawBatch } from './search-index-path.js';
 import { schedulePtSweepTail } from './search-sweep-tail.js';
 import { createTailQueue } from './tail-enqueue.js';
@@ -290,17 +290,15 @@ export async function doSearch({
         // aqui, no único writer do caminho do índice, para mesclar o lote no
         // `raw` compartilhado antes de promover a coleta completa.
         if (raw.partial && raw.completion) await raw.completion;
-        const known = new Set(
-          raw.items.map((item) => String(extractInfoHash(item.infoHash || item.magnet) || '').toLowerCase()).filter(Boolean),
-        );
-        const fresh = live.items.filter((item: any) => {
-          const h = String(extractInfoHash(item.infoHash || item.magnet) || '').toLowerCase();
-          return h && !known.has(h);
-        });
+        // Fusão de evidência por hash (caso Mortuary): a cópia ao vivo mais
+        // saudável resgata o snapshot velho em vez de ser descartada. A lógica
+        // e as travas de origem/áudio vivem em `index-evidence.ts`.
+        const { fresh, fused } = fuseIndexEnrichment(raw.items, live.items);
         if (fresh.length) {
           log.info(`[search] enriquecimento do índice trouxe ${fresh.length} resultado(s) novo(s); recacheando`);
           raw.items.push(...fresh);
         }
+        if (fused) metrics.count('search.idx.evidenceFused', fused);
         await finish({ items: raw.items, partial: false }, responsePhase);
       } catch (err) {
         log.warn('[search] enriquecimento do índice falhou:', err?.message || err);
@@ -335,15 +333,17 @@ export async function doSearch({
         log.info(`[search] sem candidato saudável; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`);
         const pack = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, null, sweepQuery, null, 'all', undefined, collectionTrace);
         if (pack.partial && pack.completion) await pack.completion;
-        const known = new Set(raw.items.map((item) => extractInfoHash(item.infoHash || item.magnet)).filter(Boolean));
-        const fresh = pack.items.filter((item) => {
-          const hash = extractInfoHash(item.infoHash || item.magnet);
-          return hash && !known.has(hash);
-        });
-        if (!fresh.length) return;
-        raw.items.push(...fresh);
-        metrics.count('search.pack-tail.hit');
-        log.info(`[search] pack tardio trouxe ${fresh.length} resultado(s) novo(s); recacheando`);
+        // Mesma fusão por hash do enriquecimento do índice: a regra é geral —
+        // hash conhecido com swarm melhor atualiza a evidência em vez de ser
+        // descartado (só o seeders sobe; origem/áudio do vencedor ficam).
+        const { fresh, fused } = fuseIndexEnrichment(raw.items, pack.items);
+        if (!fresh.length && !fused) return;
+        if (fresh.length) {
+          raw.items.push(...fresh);
+          metrics.count('search.pack-tail.hit');
+        }
+        if (fused) metrics.count('search.idx.evidenceFused', fused);
+        log.info(`[search] pack tardio: ${fresh.length} novo(s), ${fused} evidência fundida; recacheando`);
         await finish({ items: raw.items, partial: false }, responsePhase);
       } finally {
         metrics.observe('search.pack-tail', Date.now() - started);
