@@ -1,17 +1,18 @@
 // Despacho por AÇÃO do /dashboard-action.json (PLANO_MELHORIAS §5.8, item 8).
-// Extraído de diagnostics.ts: a cadeia de `if` por ação era o bloco que mais
-// crescia no arquivo — cada ação nova do painel entrava ali. O mapa
-// ação→handler cresce melhor: cada entrada é independente e adicionável sem
-// tocar o despacho, e a allowlist de ações vira o próprio conjunto de chaves.
-// Nenhuma mudança de comportamento: o guard de token (`unavailable`) continua
-// NA FRENTE, no handler de diagnostics.ts; allowlist e `confirm` das
-// destrutivas são checados ANTES do admission (400 sem gastar vaga no gate);
-// toda execução acontece dentro do try/finally que libera a vaga.
+// Extraído de diagnostics.ts: mapa ação→handler — cada ação nova entra sem
+// tocar o despacho. O guard de token fica NA FRENTE em diagnostics.ts; a
+// allowlist e o `confirm` das destrutivas rodam antes do admission do gate.
 
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 import { errorMessage } from '../utils/logger.js';
 import { streamsCacheScope } from '../utils/request-key.js';
+import { harvestDebridGet, harvestDebridSet } from './dashboard-actions-harvest-debrid.js';
+import {
+  autofetchPause, autofetchDrain, autofetchConfigGet, autofetchConfigSet, autofetchConfigReset,
+} from './dashboard-actions-autofetch.js';
+import { autofetchSuppressedGet, autofetchSuppressedDrain } from './dashboard-actions-autofetch-suppressed.js';
+import { magnetInspect, magnetClearBad, magnetSummary } from './dashboard-actions-magnet.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -32,26 +33,25 @@ const DESTRUCTIVE_ACTIONS = new Set([
   'sweep-dead',
   'autofetch-drain',
   'autofetch-config-reset',
+  'autofetch-suppressed-drain',
   'harvest-config-reset',
   'harvester-clear-queue',
   'dedup-apply',
   'cleanup-apply',
   'manual-delete',
+  'magnet-clear-bad',
 ]);
 
-// Teto da chave no corpo do teste de conta: credencial legítima tem dezenas de
-// caracteres; 512 cobre folgado e impede que o corpo vire canal de payload
-// gigante contra a API do serviço. É validação de ENTRADA, não config — por
-// isso não mora em src/config.ts.
+// Teto da chave no corpo do teste de conta: credencial tem dezenas de
+// caracteres; 512 cobre folgado e impede payload gigante contra a API.
 const MAX_TEST_KEY_LENGTH = 512;
 
 // `max` do corpo: número finito positivo vira inteiro; qualquer outra coisa
 // vira undefined (sem teto). Mesma normalização que as ações já aplicavam —
-// extraída porque seis ações repetiam o ternário idêntico.
-function maxFromBody(req: express.Request): number | undefined {
-  const raw = req.body?.max;
-  return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : undefined;
-}
+// extraída porque seis ações repetiam o ternário idêntico. Mora no módulo
+// folha compartilhado com os arquivos de ações extraídos para não haver cópia
+// paralela que possa divergir (ciclo com o despacho é evitado assim).
+import { maxFromBody } from './dashboard-actions-shared.js';
 
 const ACTIONS: Record<string, ActionHandler> = {
   'clear-cache': ({ services, req, res, action }) => {
@@ -145,6 +145,11 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json({ ok: true, action, effective });
   },
 
+  // Conta de fundo do colhedor: ações em dashboard-actions-harvest-debrid.js
+  // (o teste da chave reutiliza o `debrid-account-test` do despacho).
+  'harvester-debrid-get': harvestDebridGet,
+  'harvester-debrid-set': harvestDebridSet,
+
   'warm-pause': ({ services, res, action }) => {
     services.rdWarmer.setPaused(true);
     services.metrics.count('dashboard.rd.warm.pause');
@@ -236,41 +241,25 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json({ ok: true, action, results, total: results.length, okCount, downCount: results.length - okCount });
   },
 
-  'autofetch-pause': ({ services, req, res, action }) => {
-    const paused = services.autofetchLive.setPaused(Boolean(req.body?.paused));
-    services.metrics.count(paused ? 'dashboard.autofetch.pause' : 'dashboard.autofetch.resume');
-    services.log.info(`[dashboard] chupim ${paused ? 'pausado' : 'retomado'}`);
-    return res.json({ ok: true, action, paused });
-  },
+  // Ações do Chupim: handlers em dashboard-actions-autofetch.js (extração de
+  // arquivo, comportamento intacto — inclusive o confirm das destrutivas).
+  'autofetch-pause': autofetchPause,
+  'autofetch-drain': autofetchDrain,
+  'autofetch-config-get': autofetchConfigGet,
+  'autofetch-config-set': autofetchConfigSet,
+  'autofetch-config-reset': autofetchConfigReset,
 
-  'autofetch-drain': ({ services, res, action }) => {
-    const result = services.autofetch.drainQueues();
-    services.metrics.count('dashboard.autofetch.drain');
-    services.log.info(`[dashboard] filas do chupim drenadas: ${result.queues} fila(s), ${result.items} item(ns)`);
-    return res.json({ ok: true, action, ...result });
-  },
+  // Fila de remoções represadas: handlers em
+  // dashboard-actions-autofetch-suppressed.js. O drain é destrutivo (confirm
+  // acima) e drena SEM ligar o knob global — a porta supervisionada.
+  'autofetch-suppressed-get': autofetchSuppressedGet,
+  'autofetch-suppressed-drain': autofetchSuppressedDrain,
 
-  'autofetch-config-get': ({ services, res, action }) => {
-    return res.json({ ok: true, action, config: services.autofetchLive.snapshot() });
-  },
-
-  'autofetch-config-set': ({ services, req, res, action }) => {
-    const patch = req.body?.patch;
-    const outcome = services.autofetchLive.set(patch);
-    if (!outcome.ok) {
-      return res.status(400).json({ ok: false, error: 'validation_error', errors: outcome.errors });
-    }
-    services.metrics.count('dashboard.autofetch.config.set');
-    services.log.info(`[dashboard] config do chupim atualizada: ${outcome.overriddenKeys.join(', ')}`);
-    return res.json({ action, ...outcome });
-  },
-
-  'autofetch-config-reset': ({ services, res, action }) => {
-    const effective = services.autofetchLive.reset();
-    services.metrics.count('dashboard.autofetch.config.reset');
-    services.log.info('[dashboard] config do chupim restaurada aos padrões do .env');
-    return res.json({ ok: true, action, effective });
-  },
+  // Banco de magnets: handlers em dashboard-actions-magnet.js. Inspect e
+  // summary são leitura; clear-bad é destrutivo (confirm acima) e idempotente.
+  'magnet-inspect': magnetInspect,
+  'magnet-clear-bad': magnetClearBad,
+  'magnet-summary': magnetSummary,
 
   'catalog-scan': async ({ services, res, action }) => {
     const result = await services.debrid.catalogScanEnv();

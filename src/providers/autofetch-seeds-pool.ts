@@ -1,0 +1,206 @@
+import * as metrics from '../utils/metrics.js';
+import * as log from '../utils/logger.js';
+import * as held from '../debrid/protected.js';
+import * as autofetch from './autofetch.js';
+import { topSeededPool } from '../utils/format.js';
+import type { Stream } from '../../types/domain.js';
+
+// Seleção do pool "seeds" do Chupim (melhor swarm), extraída do runner para
+// respeitar o teto de linhas. Dois regimes de relaxamento para minSeeders=1
+// (nunca abaixo de 1; o default do piso do operador fica intacto):
+//
+// - strict VAZIO: fallback do comportamento antigo — o relaxado preenche a
+//   capacidade TOTAL (`seedsLimit` = limite imediato + queueDepth), com
+//   excedentes indo para a fila persistente (título obscuro: sem isso o
+//   cachedOnly deixa a UI vazia para sempre);
+// - strict PARCIAL: completa SOMENTE as vagas imediatas que faltam até o
+//   limite imediato. Encher a fila inteira de candidatos fracos num caso
+//   comum (strict parcial é o comum) enfileiraria até 6 downloads de 1 seeder
+//   sem necessidade — a fila relaxada só existe no fallback do strict vazio.
+//   Medido ao vivo (The Rejuvenator, 1988): Lime/1337x com 4 seeders
+//   preenchiam 1 das 2 vagas e o VHSRip de 1 seeder ficava de fora porque o
+//   relaxamento antigo só rodava com o pool VAZIO.
+//
+// Título RARO (poucos candidatos com swarm VIÁVEIS, até `rare.threshold`): o
+// limite imediato sobe de autoFetchTopSeedsMax para `rare.max`. Com 4-5 alternativas
+// de 1-5 seeders, disparar só 2 aposta a obra inteira em dois torrents fracos
+// — se os dois empacarem, a lista fica vazia de novo. Em título comum o
+// universo passa do limiar e nada muda: a regra não enche a conta à toa.
+//
+// Dedupe por hash: o que o strict escolheu não reaparece como complemento.
+
+type SeedsStream = Stream & { infoHash: string };
+
+function isSeedsStream(stream: Stream): stream is SeedsStream {
+  return typeof stream.infoHash === 'string' && stream.infoHash.length > 0;
+}
+
+export function pickSeedsPool(
+  liveStreams: Stream[],
+  live: {
+    autoFetchMinSeeders: number;
+    autoFetchTopSeedsMax: number;
+    autoFetchSeedsPtFirst: boolean;
+  },
+  {
+    season = null,
+    queueDepth = 0,
+    viable,
+    rare = { max: 0, threshold: 0, maxSeeders: 0 },
+  }: {
+    season?: number | null;
+    queueDepth?: number;
+    viable: (s: Stream) => boolean;
+    rare?: { max: number; threshold: number; maxSeeders: number };
+  },
+): { candidates: SeedsStream[]; immediateLimit: number; rareUsed: boolean } {
+  const seedsOpts = { season, ptFirst: live.autoFetchSeedsPtFirst };
+  // `viable` conta `autofetch.seed-floor-skipped` — e os picks seguintes
+  // repassam o MESMO universo. Memoize a decisão por stream: cada um é
+  // avaliado (e contado) UMA vez aqui dentro; a contagem por pool (br/any/
+  // seeds) do runner não muda, porque este wrapper é local ao pool seeds.
+  const verdict = new Map<Stream, boolean>();
+  const viableOnce = (s: Stream) => {
+    let v = verdict.get(s);
+    if (v === undefined) {
+      v = viable(s);
+      verdict.set(s, v);
+    }
+    return v;
+  };
+
+  // Seletor limitado do pool: coleta até `limit` candidatos VIÁVEIS, na ordem
+  // do pool, com dedupe por hash. TODO corte aqui é pós-viabilidade — cortar
+  // antes de `viableOnce` (o bug do universo raro) esconde viáveis abaixo de
+  // inviáveis no topo, tanto na classificação quanto nos próprios picks.
+  const pickViable = (limit: number, minSeeders: number): SeedsStream[] => {
+    const max = Math.max(0, Math.trunc(limit));
+    const out: SeedsStream[] = [];
+    if (max === 0) return out;
+    const seen = new Set<string>();
+    for (const s of topSeededPool(liveStreams, { ...seedsOpts, minSeeders })) {
+      if (out.length >= max) break;
+      if (!isSeedsStream(s)) continue;
+      const key = String(s.infoHash).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!viableOnce(s)) continue;
+      out.push(s);
+    }
+    return out;
+  };
+
+  // Universo com swarm (minSeeders=1, nunca 0): se couber no limiar, o título
+  // é raro e o limite imediato sobe. VIABILIDADE decide o limiar: cortar
+  // `threshold+1` ANTES de `viableOnce` escondia viáveis abaixo de inviáveis
+  // no topo e subcontava o universo — título comum virava raro. Varre o pool
+  // ordenado (array em memória, sem rede) até juntar threshold+1 VIÁVEIS;
+  // passou disso, não é raro e o resto nem precisa ser avaliado. O memo do
+  // `viableOnce` mantém a contagem de `autofetch.seed-floor-skipped` única.
+  let immediateLimit = live.autoFetchTopSeedsMax;
+  let rareUsed = false;
+  if (rare.threshold > 0 && rare.max > immediateLimit) {
+    const universo = pickViable(rare.threshold + 1, 1);
+    // Raro = poucos E fracos: o melhor abaixo de maxSeeders. Poucos com enxame
+    // saudável terminam sozinhos — baixar o de 1 seeder junto é lixo na conta.
+    // seedersOf é a MESMA regra do topSeededPool (`_seeders` com fallback no
+    // "👤 N" do nome): sem isso um stream sem _seeders e com enxame saudável
+    // no nome contava como 0 e ativava raro à toa.
+    const seedersOf = (s: any) => Number(s?._seeders ?? (String(s?.name || '').match(/👤\s*(\d+)/)?.[1] || 0));
+    const melhor = universo.reduce((m, s) => Math.max(m, seedersOf(s)), 0);
+    if (universo.length > 0 && universo.length <= rare.threshold && melhor < rare.maxSeeders) {
+      immediateLimit = rare.max;
+      rareUsed = true;
+      metrics.count('autofetch.seeds.rare');
+      log.info(`[autofetch] seeds: título raro (${universo.length} candidato(s), melhor com ${melhor} seeder(s)) — até ${immediateLimit} download(s) imediato(s)`);
+    }
+  }
+
+  const seedsLimit = immediateLimit + queueDepth;
+  let candidates = pickViable(seedsLimit, live.autoFetchMinSeeders);
+  if (live.autoFetchMinSeeders > 1) {
+    const strictEmpty = candidates.length === 0;
+    // Capacidade do complemento: TOTAL no fallback do strict vazio; no strict
+    // parcial, só as vagas imediatas que faltam até o limite imediato.
+    const capacity = strictEmpty
+      ? seedsLimit
+      : immediateLimit - candidates.length;
+    if (capacity > 0) {
+      const chosen = new Set(candidates.map((s) => String(s.infoHash || '').toLowerCase()));
+      const relaxed = pickViable(seedsLimit, 1)
+        .filter((s) => !chosen.has(String(s.infoHash || '').toLowerCase()))
+        .slice(0, capacity);
+      if (relaxed.length > 0) {
+        candidates = [...candidates, ...relaxed];
+        metrics.count('autofetch.top-seeded-relaxed');
+        metrics.count('autofetch.top-seeded-relaxed.added', relaxed.length);
+        log.info(`[autofetch] seeds: pool estrito ${strictEmpty ? 'vazio' : 'parcial'} complementado com ${relaxed.length} candidato(s) minSeeders=1`);
+      }
+    }
+  }
+  return { candidates, immediateLimit, rareUsed };
+}
+
+// Caso real Mortuary (tt0087746): o pool seeds classificava o título como raro
+// (3 alternativas de 1-3 seeders), mas UM global não-dublado em cache fazia o
+// `stop-has-cached` abortar tudo — a lista ficava só com o ⚡ de 1080p e o
+// usuário confirmou "não achou". A exceção abaixo permite aquecer as
+// alternativas frias quando o regime raro é REAL, sem tocar nos outros portões:
+//
+// - dublado em cache (BR ou global) segue abortando com `stop-has-br`;
+// - fora do regime raro, qualquer cache segue abortando com `stop-has-cached`;
+// - a exceção vale SÓ quando a evidência de cache é utilizável, ou seja, com
+//   `cacheCheck` EFETIVO. RD/DL têm `cacheCheck: false` no registry, mas o RD
+//   pode chegar a `true` dinamicamente quando o ledger+oráculo tornam a
+//   evidência confiável — o gate recebe o valor EFETIVO (`adapterCacheCheck`),
+//   não exclui adapter por id: sem checagem real não se sabe o que já toca;
+// - `rareThreshold === 0` desliga (o regime raro nem dispara, mas o portão
+//   reconfere o knob vivo: o pick e o disparo podem ler instantes diferentes);
+// - hash JÁ cacheado nunca enfileira, nunca consome vaga (o hold dele é
+//   liberado) e é purgado da fila persistente antes de qualquer dreno.
+
+type StopGateCandidate = { stream: { infoHash?: string }; account: string };
+
+export type SeedsStopGate = {
+  stop: 'stop-has-br' | 'stop-has-cached' | null;
+  candidates: StopGateCandidate[];
+  rareOverCached: boolean;
+};
+
+export function applySeedsStopGate<T extends StopGateCandidate>(
+  candidates: T[],
+  opts: {
+    rare: boolean;
+    rareThreshold: number;
+    adapterCacheCheck: boolean;
+    cached: Set<string>;
+    hasCachedDubbed: boolean;
+    queue: { searchKey: string; ttl: number; adapterId: string; account: string } | null;
+  },
+): SeedsStopGate {
+  if (opts.hasCachedDubbed) return { stop: 'stop-has-br', candidates, rareOverCached: false };
+  if (opts.cached.size === 0) return { stop: null, candidates, rareOverCached: false };
+  if (!(opts.rare && opts.rareThreshold > 0 && opts.adapterCacheCheck)) {
+    return { stop: 'stop-has-cached', candidates, rareOverCached: false };
+  }
+  metrics.count('autofetch.seeds.rareOverCached');
+  log.info('[autofetch] seeds: título raro mantém o aquecimento apesar de cache global não-dublado');
+  // A fila foi escrita na seleção, ANTES da checagem saber o que está em
+  // cache — purga aqui, antes de qualquer dreno (recheck é timer de segundos).
+  // Roda em TODA entrada no regime raro: `candidates` é só a fatia imediata,
+  // então um hash cacheado que ficou exclusivamente na fila persistiria se a
+  // purga dependesse de haver imediato cacheado.
+  if (opts.queue) {
+    const fila = (autofetch.readQueue(opts.queue.searchKey) || [])
+      .filter((item: any) => !opts.cached.has(String(item?.infoHash || '').toLowerCase()));
+    autofetch.writeQueue(opts.queue.searchKey, fila, opts.queue.ttl, opts.queue.adapterId, opts.queue.account);
+  }
+  const vivos = candidates.filter((c) => !opts.cached.has(String(c.stream?.infoHash || '').toLowerCase()));
+  if (vivos.length === candidates.length) return { stop: null, candidates, rareOverCached: true };
+  const vivosSet = new Set(vivos);
+  for (const c of candidates) {
+    if (vivosSet.has(c)) continue;
+    held.release(String(c.stream?.infoHash || ''), c.account);
+  }
+  return { stop: null, candidates: vivos, rareOverCached: true };
+}

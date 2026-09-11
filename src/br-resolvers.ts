@@ -9,10 +9,10 @@ const _require = createRequire(import.meta.url);
  * Carrega os resolvedores BR dentro do processo do addon.
  *
  * Cada um era um container só pra subir um servidor HTTP de ~200 linhas. Eles
- * continuam ouvindo nas mesmas portas (8700-8704) — o Jackett segue chamando
+ * continuam ouvindo nas mesmas portas (8700-8705) — o Jackett segue chamando
  * por HTTP, só que agora o host é o próprio addon.
  *
- * O cuidado necessário: os cinco leem PORT, SELF_URL e SITE_URL do ambiente
+ * O cuidado necessário: os seis leem PORT, SELF_URL e SITE_URL do ambiente
  * com os MESMOS nomes, e leem no momento do require. Por isso cada um é
  * carregado com o ambiente ajustado para ele, restaurado logo depois — senão
  * todos herdariam a PORT=7000 do addon e brigariam pela mesma porta.
@@ -24,6 +24,7 @@ const RESOLVERS = [
   { name: 'nerdfilmes', path: '../nerdfilmes-resolver/server', port: config.resolvers.ports.nerdfilmes, siteEnv: 'NERDFILMES_URL', siteUrl: config.resolvers.nerdfilmesUrl },
   { name: 'torrentdosfilmes', path: '../torrentdosfilmes-resolver/server', port: config.resolvers.ports.torrentdosfilmes, siteEnv: 'TORRENTDOSFILMES_URL', siteUrl: config.resolvers.torrentdosfilmesUrl },
   { name: 'vacatorrent', path: '../vacatorrent-resolver/server', port: config.resolvers.ports.vacatorrent, siteEnv: 'VACATORRENT_URL', siteUrl: config.resolvers.vacatorrentUrl },
+  { name: 'redetorrent', path: '../redetorrent-resolver/server', port: config.resolvers.ports.redetorrent, siteEnv: 'REDETORRENT_URL', siteUrl: config.resolvers.redetorrentUrl },
 ];
 const servers: Server[] = [];
 // Módulo carregado de cada resolvedor, para ler o domínio ATIVO deles depois
@@ -69,7 +70,7 @@ function load(controls: ResolverControls = config.resolvers) {
 
     try {
       const mod = _require(resolver.path);
-      // Os cinco exportam `createServer` e só sobem sozinhos quando são o
+      // Os seis exportam `createServer` e só sobem sozinhos quando são o
       // processo principal — assim o parser deles pode ser exercitado em teste
       // sem abrir porta. O fallback continua aqui para o caso de um resolvedor
       // voltar a ouvir no require.

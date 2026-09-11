@@ -22,12 +22,6 @@
   <header>
     <img class="logo" src="/logo.svg" alt="" />
     <h1 id="addonName"></h1>
-    <p class="tagline">Torrents self-hosted com prioridade para conteúdo brasileiro dublado.</p>
-    <div class="badges">
-      <span class="badge">Jackett</span>
-      <span class="badge" id="debridBadge">Debrid</span>
-      <span class="badge">Fontes BR: <b>BLUDV · Comando · NerdFilmes</b></span>
-    </div>
   </header>
 
   <section>
@@ -177,7 +171,7 @@
         <strong>Vagas por qualidade</strong>
         <output id="outPerQuality">6</output>
       </div>
-      <input type="range" id="maxPerQuality" min="0" max="100" step="1" value="6" aria-label="Máximo de streams por qualidade" />
+      <input type="range" id="maxPerQuality" min="0" max="100" step="1" value="3" aria-label="Máximo de streams por qualidade" />
       <p class="field-hint">Vale para 4K, 1080p, 720p, 480p, SD e para o que não declara resolução — este último é quase sempre fonte BR, porque os sites brasileiros não publicam resolução no título. 0 esconde tudo; 100 é sem limite.</p>
     </div>
 
@@ -253,7 +247,7 @@
     <div class="row" id="uncachedBrRow" hidden>
       <div class="row-text">
         <strong>Mostrar BR ainda fora do cache</strong>
-        <span>Com <em>somente em cache</em>, fontes BR que ainda não estão prontas no debrid são ocultadas — às vezes sem nunca ter chegado na primeira resposta (fontes BR lentas terminam depois do prazo). Ligar este switch as mostra como P2P enquanto o serviço baixa o dublado; o play exige cliente com torrent. Sem isso, o ⚡ aparece na reabertura do item, quando o download termina. Fontes internacionais fora do cache continuam escondidas.</span>
+        <span>Com <em>somente em cache</em> e preferência por dublado/BR, fontes brasileiras ainda frias no debrid somem da primeira lista — sobram Dual/gringo e parece que não há dublado. Ligar este switch as mostra como P2P enquanto o serviço baixa; o play exige cliente com torrent. Sem o switch (<code>bu</code>), o ⚡ do BR só volta na reabertura, quando o download termina. Fontes internacionais fora do cache continuam escondidas.</span>
       </div>
       <button type="button" class="switch" id="showUncachedBr" role="switch" aria-checked="false" aria-pressed="false" aria-label="Mostrar BR ainda fora do cache"></button>
     </div>
@@ -353,21 +347,22 @@
   }
   var INDEXER_STATUS_POLL_MS = 10000;
   var indexerStatusPollInFlight = false;
-  // maxPerQuality: 6 era a cota de "sem resolução", o balde das fontes BR --
-  // elas não publicam resolução no título. Com um controle único no lugar de
-  // seis, descer para o 4 das outras qualidades cortaria vaga de BR em nome da
-  // uniformidade; subir as demais não corta nada e o máximo total (40) manda.
+  // maxPerQuality: 3 desde 2026-09-01 (era 6) -- decisão do operador por lista
+  // mais curta. O controle é único, então o número vale também para o balde
+  // "sem resolução", o das fontes BR. O BR não fica desprotegido: a reserva
+  // (brReservedSlots) atravessa a cota e não a consome, então o corte só
+  // alcança o BR que passaria ALÉM da reserva.
   var PRESET_BEHAVIORS = {
     recommended: {
       brFirst: true, preferDubbed: true, dubbedOnly: true, brOnly: false,
       excludeCam: true, brReservedSlots: 6, maxResults: 40,
-      maxPerQuality: 6, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
+      maxPerQuality: 3, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
       debridCachedOnly: true, showUncachedBr: false, autoFetchBr: true
     },
     powerBr: {
       brFirst: true, preferDubbed: true, dubbedOnly: true, brOnly: false,
       excludeCam: true, brReservedSlots: 6, maxResults: 40,
-      maxPerQuality: 6, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
+      maxPerQuality: 3, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
       debridCachedOnly: true, showUncachedBr: true, autoFetchBr: true
     }
   };
@@ -844,12 +839,10 @@
     el.outMaxSize.textContent = el.maxSizeGb.value === "0" ? "sem limite" : el.maxSizeGb.value + " GB";
     renderPriority();
 
+    // O cabeçalho já anunciou o debrid num badge; ele saiu junto com a tagline
+    // e as etiquetas de fonte. Quem é o serviço ativo continua visível no
+    // próprio seletor abaixo, que é onde a escolha se faz.
     var svc = serviceById(el.debridService.value);
-    // O cabeçalho anunciava "Premiumize" fixo desde quando era o único
-    // suportado. São cinco hoje, e a marca errada no topo faz o usuário do
-    // AllDebrid achar que instalou o addon errado.
-    el.debridBadge.textContent = svc ? (svc.short || svc.label) : "P2P";
-    el.debridBadge.title = svc ? svc.label : "Sem debrid — torrents P2P diretos";
     el.debridKeyField.hidden = !svc;
     // A dica só pode prometer cifra quando a instância tem RESOLVE_SECRET.
     var sealOn = Boolean(instanceDefaults && instanceDefaults.sealKeyEnabled);
@@ -1012,7 +1005,7 @@
     .then(function (r) { return r.json(); })
     .catch(function () { return {
       providers: ["jackett"], qualities: [], maxResults: 40, minSeeders: 1,
-       max2160p: 6, max1080p: 6, max720p: 6, max480p: 6, maxSd: 6, maxUnknown: 6, maxPerIndexer: 0,
+       max2160p: 3, max1080p: 3, max720p: 3, max480p: 3, maxSd: 3, maxUnknown: 3, maxPerIndexer: 0,
        brReservedSlots: 6, brOnly: false, dubbedOnly: true,
        preferDubbed: true, excludeCam: false, maxSizeGb: 0,
        brFirst: true, jackettIndexers: [], jackettIndexersSelected: [],

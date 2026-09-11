@@ -7,12 +7,14 @@
 
 FROM caddy:2-alpine AS caddy
 
-# Pin deliberado: v0.24.2406-ls2 (build 2026-08-14). O auto-update fica
+# Pin deliberado: v0.24.2531-ls19 (build 2026-09-04). O auto-update fica
 # desligado em runtime (--NoUpdates no entrypoint), então subir de versão é
 # trocar este digest e rebuildar — nunca deixar o `latest` mudar o deploy
-# sozinho. Depois do rebuild confira no log que as quatro definitions BR ainda
-# carregam: "Loaded N Cardigann indexers" e os quatro ids na lista.
-FROM lscr.io/linuxserver/jackett@sha256:6d0c43b533f91f4e88fe4b4082a2b576772072db3d90a39e58d0cccccd585f8d AS jackett
+# sozinho. Depois do rebuild confira no log que as definitions BR ainda
+# carregam: "Loaded N Cardigann indexers" e os ids na lista
+# (bludv-cardigann, comandotorrents, nerdfilmes, torrentdosfilmesv2, vacatorrent,
+# redetorrent-cardigann).
+FROM lscr.io/linuxserver/jackett@sha256:ef4b5b9f09d0c014f48c8e6999abb782b53b4cea8b170ca049c96046950c8524 AS jackett
 
 # Atualize o digest deliberadamente; nunca deixe uma mudança em `latest` alterar
 # o deploy sem revisão, como já fazemos com o Jackett acima.
@@ -33,6 +35,7 @@ COPY comandotorrents-resolver ./comandotorrents-resolver
 COPY nerdfilmes-resolver ./nerdfilmes-resolver
 COPY torrentdosfilmes-resolver ./torrentdosfilmes-resolver
 COPY vacatorrent-resolver ./vacatorrent-resolver
+COPY redetorrent-resolver ./redetorrent-resolver
 # `test/` fica de fora de propósito: está no .dockerignore e a imagem de runtime
 # não roda a suíte. O `include` do tsconfig cobre test/**, mas glob que não casa
 # nada é no-op para o tsc — o build sai com dist/src, dist/scripts e os assets.
@@ -68,6 +71,7 @@ COPY jackett-bludv/comandotorrents.yml /app/Jackett/Definitions/comandotorrents.
 COPY jackett-bludv/nerdfilmes.yml /app/Jackett/Definitions/nerdfilmes.yml
 COPY jackett-bludv/torrentdosfilmesv2.yml /app/Jackett/Definitions/torrentdosfilmesv2.yml
 COPY jackett-bludv/vacatorrent.yml /app/Jackett/Definitions/vacatorrent.yml
+COPY jackett-bludv/redetorrent-cardigann.yml /app/Jackett/Definitions/redetorrent-cardigann.yml
 
 # --- FlareSolverr: scripts são puro python; o chromedriver glibc da imagem
 # oficial NÃO roda em alpine. O código checa exatamente /app/chromedriver,
@@ -77,18 +81,19 @@ RUN cp /usr/bin/chromedriver /app/chromedriver \
  && python3 -m pip install --break-system-packages --no-cache-dir \
       -r /app/flaresolverr/requirements.txt
 
-# --- Addon compilado + resolvedores BR embutidos (8700-8704, chamados pelo Jackett).
+# --- Addon compilado + resolvedores BR embutidos (8700-8705, chamados pelo Jackett).
 # Os resolvedores vão para DENTRO de dist/: o br-resolvers os carrega por caminho
 # relativo ao próprio módulo ("../<nome>-resolver/server"), que a partir de
 # dist/src/ resolve em dist/. É o mesmo layout que o npm run build produz
 # localmente — fora do container isso passa despercebido porque o build já os
 # copia para dist/.
-COPY package.json ./
+COPY package.json package-lock.json ./
 # O FlareSolverr procura package.json no diretório PAI (/app/package.json),
 # que é o do addon — escrito no Windows com BOM. Python 3.14+ rejeita BOM
 # no json.loads.
 RUN python3 -c "p='/app/package.json';b=open(p,'rb').read();open(p,'wb').write(b[3:]if b[:3]==b'\xef\xbb\xbf'else b)"
-RUN npm install --omit=dev
+# Usa as mesmas versões verificadas no builder e no CI.
+RUN npm ci --omit=dev
 
 # Saída do tsc: dist/src/, dist/scripts/ e dist/src/public/ (assets). Sem
 # dist/test: a suíte não vai para a imagem (ver o builder).

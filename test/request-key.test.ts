@@ -13,15 +13,22 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.includes('alice-secret'), false);
   assert.equal(bob.includes('bob-secret'), false);
   assert.equal(alice, streamsCacheKey('movie', 'tt123', { ...base, debridApiKey: 'alice-secret' }));
-  assert.equal(alice.startsWith('streams:v7:'), true);
+  assert.equal(alice.startsWith('streams:v11:'), true);
 });
 
-test('bump de matching invalida streams e idx (v7): mudança de evitamento BR/DUB exige limpeza global', () => {
-  // A correção BR_MARK (.org genérico) e DUB/HINDI muda matching/ranking; o
-  // AGENTS.md manda invalidar streams+idx juntos. Fixa a versão corrente dos
-  // dois nomespações para o bump não passar despercebido num próximo deploy.
-  assert.equal(prefix('streams'), 'streams:v7:');
-  assert.equal(prefix('idx'), 'idx:v7:');
+test('versões correntes separam lista v11 do índice v10', () => {
+  // A correção BR_MARK (.org genérico), DUB/HINDI e a fronteira `bthd` mudam
+  // matching/ranking; o AGENTS.md manda invalidar streams+idx juntos. v10: o
+  // ENGLISH|ENG entra na guarda do DUB/DUBBED genérico (dublagem EM inglês
+  // rotulada pt-BR — medido no Spirited Away tt0245429); o _dubbed errado
+  // fica servido do cache e do índice sem o bump, e o índice persiste por
+  // até 30 dias. v9: DUB/DUBBED genérico deixou de provar áudio PT com
+  // script cirílico no título (medido pelo /stream-trace.json: 11 dos 50
+  // títulos cirílicos do índice ao vivo). Fixa a versão corrente dos dois
+  // índice continua na v10; a lista subiu à v11 para descartar o blob de
+  // qualidades exposto no `title` sem apagar conhecimento válido do índice.
+  assert.equal(prefix('streams'), 'streams:v11:');
+  assert.equal(prefix('idx'), 'idx:v10:');
 });
 
 test('streamsCacheKey preserva a separação por conteúdo e por modo sem conta', () => {

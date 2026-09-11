@@ -21,16 +21,18 @@ export const searchSettings = () => ({
   qualityFilter: list(process.env.QUALITY_FILTER),
   minSeeders: num(process.env.MIN_SEEDERS, 1),
   maxResults: num(process.env.MAX_RESULTS, 40),
-  // 6 em todas: a página de configurar tem UM controle para as seis cotas, e
-  // 6 era o número que o balde "unknown" (as fontes BR, que não publicam
-  // resolução) já usava. Uniformizar por baixo encolheria BR sem motivo.
+  // 3 em todas (era 6): decisão do operador em 2026-09-01 por lista mais curta.
+  // A página tem UM controle para as seis cotas, então o número desce junto no
+  // balde "unknown" — o das fontes BR, que não publicam resolução no título.
+  // O que segura o BR aí é a reserva (BR_RESERVED_SLOTS), que atravessa a cota
+  // por qualidade e NÃO a consome; o corte alcança só o BR excedente à reserva.
   qualityLimits: {
-    '2160p': num(process.env.MAX_STREAMS_2160P, 6),
-    '1080p': num(process.env.MAX_STREAMS_1080P, 6),
-    '720p': num(process.env.MAX_STREAMS_720P, 6),
-    '480p': num(process.env.MAX_STREAMS_480P, 6),
-    SD: num(process.env.MAX_STREAMS_SD, 6),
-    unknown: num(process.env.MAX_STREAMS_UNKNOWN, 6),
+    '2160p': num(process.env.MAX_STREAMS_2160P, 3),
+    '1080p': num(process.env.MAX_STREAMS_1080P, 3),
+    '720p': num(process.env.MAX_STREAMS_720P, 3),
+    '480p': num(process.env.MAX_STREAMS_480P, 3),
+    SD: num(process.env.MAX_STREAMS_SD, 3),
+    unknown: num(process.env.MAX_STREAMS_UNKNOWN, 3),
   },
   // Teto de streams por indexador no resultado final (0 = sem limite). Impede
   // que uma fonte com muitos resultados ocupe quase todas as vagas. As vagas
@@ -91,4 +93,21 @@ export const search = () => ({
   packMinSeeders: Math.max(0, Math.trunc(num(process.env.SEARCH_PACK_MIN_SEEDERS, 3))),
   // Sem uma fonte tocável, explica ao cliente por que a lista não ficou vazia.
   noticeStream: String(process.env.SEARCH_NOTICE_STREAM || 'true') === 'true',
+  // Ledger observacional do pipeline de busca (P5): cada corte fica registrado
+  // na entrada `streams` do cache e o /stream-trace.json lê o rastro offline.
+  // Zero efeito no comportamento — desligar aqui custa o diagnóstico E cega a
+  // LEITURA de traces históricos (serializeTrace devolve null também na rota;
+  // entradas antigas só voltam a ser explicáveis com o knob ligado de novo).
+  // Os valores "0" e "false" desligam (a gravação fica com trace:null).
+  streamTrace: !['0', 'false'].includes(String(process.env.STREAM_TRACE || 'true').trim().toLowerCase()),
+  // P5 recompute offline: entrada sem trace é explicada pela matéria-prima
+  // local (idx/raw/inventário) com peeks quiet — nunca rede, nunca reescreve.
+  // Desligar só faz o endpoint responder entrada-sem-trace sem recompute.
+  streamTraceRecompute: !['0', 'false'].includes(String(process.env.STREAM_TRACE_RECOMPUTE || 'true').trim().toLowerCase()),
+  // P5 live — CSV de serviços que PODEM responder à checagem ao vivo. Default
+  // VAZIO = desligado. O live-chck rejeita alldebrid/debridlink SEMPRE por
+  // construção (AllDebrid: checar É upload; Debrid-Link: sem cacheCheck).
+  streamTraceLive: String(process.env.STREAM_TRACE_LIVE || '').split(',').map((s) => s.trim()).filter(Boolean),
+  streamTraceLiveTimeoutMs: num(process.env.STREAM_TRACE_LIVE_TIMEOUT_MS, 1500),
+  streamTraceLiveMaxHashes: Math.max(1, Math.min(300, num(process.env.STREAM_TRACE_LIVE_MAX_HASHES, 100))),
 });

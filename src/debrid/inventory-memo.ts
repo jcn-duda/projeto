@@ -27,6 +27,14 @@ export function peek(adapterId: string, apiKey: string): InventoryItem[] | null 
   return Array.isArray(hit) ? hit : null;
 }
 
+/** Leitura de DIAGNÓSTICO (P5): `cache.peek` — não promove o LRU nem conta
+ * hit/miss. O funil do /stream-trace.json só quer ler a conta do operador,
+ * não aquecer o memo de produção. */
+export function peekQuiet(adapterId: string, apiKey: string): InventoryItem[] | null {
+  const hit = cache.peek(memoKey(adapterId, apiKey));
+  return Array.isArray(hit) ? hit : null;
+}
+
 /** Grava o carregamento completo (o registry chama após ler a conta). */
 export function store(adapterId: string, apiKey: string, items: InventoryItem[]) {
   cache.set(memoKey(adapterId, apiKey), items, config.debrid.inventoryTtl);

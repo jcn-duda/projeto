@@ -6,15 +6,12 @@ import { fileURLToPath } from 'node:url';
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Helper to fresh-require a resolver module with specific environment variables
 function loadResolverWithEnv(resolverName: string, envOverrides: Record<string, string | undefined | null> = {}) {
   const originalEnv = { ...process.env };
   const modulePath = path.resolve(__dirname, `../${resolverName}-resolver/server.js`);
 
-  // Delete cache
   delete _require.cache[_require.resolve(modulePath)];
 
-  // Apply env overrides
   for (const [k, v] of Object.entries(envOverrides)) {
     if (v === undefined || v === null) {
       delete process.env[k];
@@ -27,27 +24,19 @@ function loadResolverWithEnv(resolverName: string, envOverrides: Record<string, 
   try {
     mod = _require(modulePath);
   } finally {
-    // Restore process.env
     for (const k of Object.keys(process.env)) {
       if (!(k in originalEnv)) delete process.env[k];
     }
     for (const [k, v] of Object.entries(originalEnv)) {
       process.env[k] = v;
     }
-    // Delete cache again so subsequent default requires are clean
     delete _require.cache[_require.resolve(modulePath)];
   }
 
   return mod;
 }
 
-interface TestResult {
-  suite: string;
-  name: string;
-  status: 'PASS' | 'FAIL';
-  error?: string;
-  stack?: string;
-}
+interface TestResult { suite: string; name: string; status: "PASS" | "FAIL"; error?: string; stack?: string; }
 const results: TestResult[] = [];
 
 function runTest(suite: any, name: any, fn: any) {

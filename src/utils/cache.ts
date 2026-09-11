@@ -61,10 +61,14 @@ function prune() {
   // avaliado sobre store.size, e adiar a remoção tirava a condição de
   // parada do laço — ele repetia a mesma chave até o array estourar
   // (RangeError dentro de cache.set, derrubando a requisição).
-  for (const key of dropped) removeFromStore(key);
+  for (const key of dropped) {
+    for (const hook of forgetHooks) hook(key);
+    removeFromStore(key);
+  }
   // Se ainda estourou o teto, descarta as entradas mais antigas (Map preserva ordem de inserção).
   while (store.size > MAX_ENTRIES) {
     const oldest = store.keys().next().value;
+    for (const hook of forgetHooks) hook(oldest);
     removeFromStore(oldest);
     dropped.push(oldest);
     // Despejo por teto é o sinal de que MAX_ENTRIES ficou pequeno: subindo
@@ -184,6 +188,24 @@ function peek(key: string): unknown {
   return hit.value;
 }
 
+/** Presença física no L1, inclusive quando a entrada venceu mas ainda aguarda
+ * o prune. Escritores usam isto para substituir sem contar a mesma chave duas
+ * vezes na janela entre o vencimento e a poda periódica. */
+function has(key: string): boolean {
+  return store.has(key);
+}
+
+/** Versão quiet de getWithStale: não promove LRU, não conta hit/miss e não
+ * apaga a entrada vencida. Usada por diagnósticos que varrem vários escopos. */
+function peekWithStale(key: string, graceSeconds = 0): { value: any; stale: boolean } | null {
+  const hit = store.get(key);
+  if (!hit) return null;
+  const now = Date.now();
+  if (!hit.expiresAt || now <= hit.expiresAt) return { value: hit.value, stale: false };
+  if (graceSeconds > 0 && now <= hit.expiresAt + graceSeconds * 1000) return { value: hit.value, stale: true };
+  return null;
+}
+
 /**
  * Escrita em LOTE com UMA passada de evicção por namespace. O `set` unitário
  * já dava conta dos consumidores antigos; o davail escreve um registro por
@@ -214,12 +236,31 @@ function setMany(entries: { key: string; value: unknown; ttlSeconds: number }[])
   if (store.size > MAX_ENTRIES) prune();
 }
 
+type ForgetHook = (key: string) => void;
+const forgetHooks = new Set<ForgetHook>();
+
+function onForget(hook: ForgetHook) {
+  forgetHooks.add(hook);
+  return () => { forgetHooks.delete(hook); };
+}
+
 function forget(key: string) {
+  const existed = store.has(key);
   persistence.forget(key, removeFromStore);
+  if (existed) {
+    for (const hook of forgetHooks) hook(key);
+  }
 }
 
 function forgetMany(keys: string[]) {
+  const existingKeys: string[] = [];
+  for (const key of keys) {
+    if (store.has(key)) existingKeys.push(key);
+  }
   persistence.forgetMany(keys, removeFromStore);
+  for (const key of existingKeys) {
+    for (const hook of forgetHooks) hook(key);
+  }
 }
 
 function persist(key: string, value: unknown, expiresAt: number) {
@@ -280,7 +321,11 @@ persistence.loadFromDisk(l1Hooks);
 pruneTimer = setInterval(prune, 10 * 60 * 1000);
 pruneTimer.unref();
 
+function l2Stats() {
+  return persistence.l2Stats();
+}
+
 export {
-  MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany,
-  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, peek, peekRemaining, maintain, close,
+  MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, onForget,
+  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, has, peek, peekWithStale, peekRemaining, maintain, close, l2Stats,
 };

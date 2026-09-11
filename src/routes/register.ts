@@ -40,6 +40,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/test-indexer.json', diagnosticHandlers.testIndexer);
   app.get('/test-resolver.json', diagnosticHandlers.testResolver);
   app.get('/debrid-status.json', diagnosticHandlers.debridStatus);
+  app.get('/stream-trace.json', diagnosticHandlers.streamTrace);
   app.get('/resolve/:infoHash', resolveHandler);
 
   app.use((req, _res, next) => services.runtime.run({ origin: originOf(req) }, () => next()));
@@ -61,6 +62,9 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/:userConfig/test-indexer.json', diagnosticHandlers.testIndexer);
   app.get('/:userConfig/test-resolver.json', diagnosticHandlers.testResolver);
   app.get('/:userConfig/metrics.json', diagnosticHandlers.metrics);
+  // DEPOIS do middleware de decode: o opts() do handler é o da instalação, e
+  // é isso que faz a chave derivada bater com a da busca daquele install.
+  app.get('/:userConfig/stream-trace.json', diagnosticHandlers.streamTrace);
   app.get('/:userConfig/resolve/:infoHash', resolveHandler);
   app.use('/:userConfig', makeAddonRouter(addonInterface));
 }

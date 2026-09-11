@@ -83,6 +83,21 @@ duas coladas ao `torrentStatus`:
   `hash`/`info_hash`. Quem não casa com nenhum dos três volta `null` e é contado
   como órfã (`debrid.pm.status.unmatched`) — nunca inventa hash para limpar a
   conta por engano.
+- **A cascata falha justamente no caso mais comum da fila — e a varredura
+  dependia dela.** Post de agregador entra na conta com nome humano
+  (`[WWW.BLUDV.TV] ... [DUBLADO]`): sem `btih` no `src`, sem 40 hex no `name`,
+  sem campo `hash`. O `torrentStatus` já contornava isso com a ponte
+  `id -> hash` que o recheck monta a partir do lote; o `sweepDead` não a tinha
+  e deixava essas transferências ocupando vaga **para sempre**. Hoje ele
+  reconstrói a mesma ponte dos markers (`markerIdIndex`), que sobrevivem ao
+  restart — o lote do recheck não sobrevive, e o restart é exatamente o
+  cenário para o qual a varredura existe. Medido em produção 2026-09-08: com
+  `DEBRID_CACHED_ONLY=true` isso é a UI vazia, porque o Chupim enfileira o
+  dublado e ele nunca termina nem sai da frente.
+- **A varredura ainda escapa da parada no meio do caminho.** `progress != 0`
+  isenta a transferência, então a que travou em 2.6 GB de 4 GB com 0 pares
+  continua ocupando vaga. Tratar isso pede piso de tempo próprio — não é o
+  mesmo caso do "0 Bytes of 0 Bytes".
 - **Não existe estado nativo de parada.** O `stalled` é **heurístico** (`running`
   + progresso 0/ausente + mensagem atascada "0 Bytes of 0 Bytes"/"from 0 peer"),
   e o recheck o conta com o limiar próprio `DEBRID_AUTO_FETCH_STALL_STREAK` em
@@ -428,6 +443,13 @@ Dois gates que foram um só até 2026-08-30 (`a33f96a`), agora desacoplados:
   real.
 - Instância pública completa = `ALLOW_ENV_KEY=false` + `OPERATOR_ENV_ACCOUNT=true`:
   o painel funciona e o anônimo fica em P2P puro.
+- **As varreduras automáticas são do serviço do `.env`, não do que a
+  instalação usa.** `sweepDeadEnv` resolve o adapter por
+  `config.debrid.service`; quem instala com outro `ds` na URL e chave própria
+  tem a conta varrida **só** pelo botão do painel (`sweepDeadCurrent`), com
+  aquela install URL aberta. Medido em produção 2026-09-08: `.env` em
+  `alldebrid`, instalação em premiumize, e a fila de transferências paradas do
+  Premiumize crescendo sem que timer nenhum a alcançasse.
 
 O diagnóstico acompanhou o desacoplamento: com a chave no `.env` mas o gate
 de operador fechado, o catálogo responde `reason: chave-operador-desativada`

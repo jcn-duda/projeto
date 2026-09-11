@@ -44,17 +44,28 @@ test('preset BR recomendado carrega as escolhas comportamentais novas', () => {
   const presets = parseObjectLiteral(match[1]);
 
   const rec = presets.recommended;
-  // A página passou a ter UM controle de vagas por qualidade no lugar de seis.
-  // O 6 aqui era a cota de 'sem resolução' -- o balde das fontes BR, que não
-  // publicam resolução no título. O controle único herdou esse 6 em vez do 4 das
-  // demais qualidades: uniformizar por baixo cortaria vaga de BR em silêncio.
-  assert.equal(rec.maxPerQuality, 6, 'BR recomendado não pode encolher a cota das fontes sem resolução');
-  assert.equal(presets.powerBr.maxPerQuality, 6, 'Power Movie usa a mesma cota');
+  // A página tem UM controle de vagas por qualidade no lugar de seis, e ele
+  // vale também para o balde 'sem resolução' -- o das fontes BR, que não
+  // publicam resolução no título. Foi 6 justamente para não encolher esse
+  // balde; passou a 3 por decisão do operador em 2026-09-01 (lista mais curta),
+  // ciente de que o BR além da reserva perde vaga. O que continua invariante é
+  // o preset NÃO poder cair abaixo da reserva BR: com maxPerQuality < 6 o BR
+  // ainda entra pelas 6 vagas reservadas, que atravessam a cota sem consumi-la.
+  assert.equal(rec.maxPerQuality, 3, 'BR recomendado acompanha a cota da instância');
+  assert.equal(presets.powerBr.maxPerQuality, 3, 'Power Movie usa a mesma cota');
+  assert.ok(rec.brReservedSlots >= rec.maxPerQuality, 'a reserva BR não pode ficar menor que a cota por qualidade');
   assert.equal(rec.excludeCam, true, 'BR recomendado oculta CAM');
   assert.equal(rec.showUncachedBr, false, 'BR recomendado mantém fora-do-cache escondido');
   assert.equal(rec.autoFetchBr, true, 'BR recomendado liga o autofetch');
 
   assert.equal(presets.powerBr.showUncachedBr, true, 'Power Movie mostra BR fora do cache');
+});
+
+test('copy do switch bu aponta Dual/gringo e a chave bu quando cachedOnly esconde BR', () => {
+  // Texto do plano Anti Dual sem BR: sem o switch a lista parece "só Dual".
+  assert.match(html, /id="showUncachedBr"/);
+  assert.match(html, /sobram Dual\/gringo/);
+  assert.match(html, /<code>bu<\/code>/);
 });
 
 test('render codifica collect() completo e não usa compactConfig', () => {

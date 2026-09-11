@@ -4,7 +4,7 @@
  * TPB) fora do balde até depois dos ~6,5s. Globais de teto curto continuam
  * agrupados — cabem no prazo. `ptBrIndexers` só decide a query em pt-BR.
  */
-import { numeralSearchVariant, franchiseRoot } from '../utils/format.js';
+import { numeralSearchVariant, franchiseRoot, endsWithSequenceMarker } from '../utils/format.js';
 
 interface SearchPlanTask {
   query: string;
@@ -13,6 +13,8 @@ interface SearchPlanTask {
   variant?: string;
   /** Query original como fallback (só BR+ptQuery). */
   fallback?: string;
+  /** Raiz da franquia, degrau após o título sem ano (só BR com sequência). */
+  franchise?: string;
 }
 
 function planJackettQueries(
@@ -44,6 +46,16 @@ function planJackettQueries(
         const variant = numeralSearchVariant(task.query);
         if (variant) task.variant = variant;
         if (ptQuery && ptQuery !== query) task.fallback = query;
+        // Raiz da franquia como degrau SEQUENCIAL (nunca tarefa própria): o
+        // WordPress BR não acha o post da coleção com o marcador no fim —
+        // "Se Beber, Não Case! Parte II" devolve 0 onde "Se Beber, Não Case!"
+        // acha a Trilogia. O ano sai antes (o marcador ancora no fim e
+        // "Parte II 2011" nunca casaria) e o degrau só existe quando o corte
+        // do franchiseRoot veio de marcador de sequência no fim — subtítulo só
+        // (": O Devoto") e filme sem sequência nenhuma ficam sem degrau.
+        const bare = task.query.replace(/\s+(?:19|20)\d{2}\s*$/, '').trim();
+        const franchise = franchiseRoot(bare);
+        if (franchise && franchise !== bare && endsWithSequenceMarker(bare)) task.franchise = franchise;
       }
       isolated.push(task);
     } else {
@@ -66,10 +78,17 @@ function planJackettQueries(
  * strip/bare-title pensados para buscador WordPress, que não se aplicam aos
  * globais); tracker global é quem hospeda dublado titulado em português que a
  * query em inglês não acha.
+ *
+ * Index-only também saem (terceiro parâmetro): eles já são consultados
+ * INDIVIDUALMENTE pela fila do colhedor, com orçamento dedicado — varrê-los
+ * aqui (busca viva) ou na sweep pt do colhedor seria uma segunda porta pela
+ * qual a latência deles escapa. No colhedor o loop individual permanece
+ * integral, incluindo os BR index-only.
  */
-function ptSweepIndexers(selectedIndexers: string[], ptBrIndexers: string[]) {
+function ptSweepIndexers(selectedIndexers: string[], ptBrIndexers: string[], indexOnlyIndexers: string[] = []) {
   const brSet = new Set(ptBrIndexers);
-  return selectedIndexers.filter((indexer) => !brSet.has(indexer));
+  const fora = new Set(indexOnlyIndexers);
+  return selectedIndexers.filter((indexer) => !brSet.has(indexer) && !fora.has(indexer));
 }
 
 /**
@@ -79,6 +98,11 @@ function ptSweepIndexers(selectedIndexers: string[], ptBrIndexers: string[]) {
  * original. A busca ao vivo serve do índice (idxPoolCovered decide); quem
  * mantém as releases deles frescas é o colhedor, cujas falhas não contam no
  * breaker nem pintam card. Lista vazia = comportamento antigo.
+ *
+ * O 1337x é o caso global desta lista: busca fria de 12,2–19s (Cloudflare
+ * re-resolvido) e redirect `/dl/` de 1,8–6,5s contra orçamento de 4s. Estar
+ * aqui vale MESMO quando o usuário o seleciona na config — a exclusão roda
+ * antes do plano, e todos-index-only não reabrem o fallback `/all`.
  */
 function liveIndexers(selectedIndexers: string[], indexOnlyIndexers: string[] = []) {
   const fora = new Set(indexOnlyIndexers);

@@ -169,7 +169,7 @@ async function runReconcile(apiKey: string, account: string, atuais: Set<string>
   for (const rid of removedIds || []) {
     const m = porId.get(String(rid));
     if (!m) continue;
-    if (markReuploadBlocked(account, m.hash, m.filename)) marcados += 1;
+    if (markReuploadBlocked(account, m.hash, m.filename, apiKey)) marcados += 1;
     forgetSubmitted(account, m.hash);
     purgados += 1;
   }

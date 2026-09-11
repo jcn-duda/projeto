@@ -295,3 +295,95 @@ test('DUB/idioma: guarda do path acompanha a do título', () => {
     restore();
   }
 });
+
+// ---------------------------------------------------------------------------
+// DUB/cirílico: o SCRIPT cirílico desmente a promessa GENÉRICA do DUB/DUBBED,
+// como o nome de idioma desmente (HINDI acima). Medido pelo /stream-trace.json
+// ao vivo (2026-09-01): 11 dos 50 títulos cirílicos do índice (826 únicos)
+// estavam classificados Dublado/BR via [DUB] e disputavam vaga reservada
+// anunciando pt-BR. A direção é SÓ de ranking: tira vaga reservada e a
+// promessa `_dubbed`; NÃO cria condenação de limpeza (cirílico não entra em
+// hasExplicitForeignAudio).
+// ---------------------------------------------------------------------------
+
+test('DUB/cirílico: [DUB] genérico em título cirílico não é dublado pt-BR (caso medido pelo trace)', () => {
+  // 'Во все тяжкие / Breaking Bad / … [DUB] [Selena/Телеканал Че]' — Телеканал
+  // Че é canal russo; [DUB] aqui é dublagem russa, não pt-BR.
+  const russo = 'Во все тяжкие / Breaking Bad / … [BDRip 720p] [DUB] [Selena/Телеканал Че]';
+  assert.equal(audioFromTitle(russo), '', 'DUB genérico sob cirílico não vira Dublado');
+  assert.equal(looksPtBr(russo), false, 'não pode ocupar vaga reservada de BR');
+  assert.equal(hasExplicitForeignAudio(russo), false, 'cirílico NÃO condena (não é prova de idioma)');
+  assert.equal(foreignVerdict(russo), 'unknown', 'sem marca nenhuma: nunca apaga, fica para a auditoria');
+});
+
+test('DUB/cirílico: PT-BR explícito ao lado vence (release BR pode citar canal em cirílico)', () => {
+  // Mesma semântica do bloco HINDI: a guarda derruba a prova GENÉRICA, a
+  // marca PT explícita corre fora dela e vence.
+  assert.equal(audioFromTitle('Во все тяжкие / Breaking Bad / … [BDRip 720p] [DUB] [Selena/Телеканал Че] PT-BR'), 'Dublado');
+  assert.equal(looksPtBr('Во все тяжкие … [DUB] [Телеканал Че] DUBLADO'), true, 'DUBLADO explícito também vence');
+  assert.equal(foreignVerdict('Во все тяжкие … [DUB] [Телеканал Че] PT-BR'), 'absolve', 'com PT explícito, absolve');
+});
+
+test('DUB/cirílico: cirílico sozinho não autoriza condenação de limpeza (assimetria preservada)', () => {
+  // O cirílico não entrou em hasExplicitForeignAudio nem no foreignVerdict:
+  // este conserto é só de ranking/promessa de dublagem.
+  assert.equal(hasExplicitForeignAudio('Во все тяжкие 2008 BDRip 720p'), false);
+  assert.equal(foreignVerdict('Во все тяжкие 2008 BDRip 720p'), 'unknown');
+  // E o DUB genérico SEM cirílico continua valendo (nenhuma regressão do BR).
+  assert.equal(audioFromTitle('Coringa 2019 DUB 1080p'), 'Dublado');
+  assert.equal(looksPtBr('Homem-Aranha: Um Novo Dia (2026) [1080p DUBLADO 4.32 GB]'), true);
+});
+
+test('DUB/cirílico: guarda do path acompanha a do título', () => {
+  // hasPtAudioMark aplica o MESMO critério do HINDI ao script cirílico:
+  // marcador genérico custom no path não prova PT quando o arquivo está em
+  // cirílico; marcador explícito segue valendo.
+  const restore = patch(config.audioAudit, 'ptMarkers', ['dub', 'dublado']);
+  try {
+    assert.equal(hasPtAudioMark('Show.2024.Dub.Телеканал Че.1080p.mkv'), false, 'genérico sob script cirílico');
+    assert.equal(hasPtAudioMark('Show.2024.Dublado.Телеканал Че.1080p.mkv'), true, 'marcador explícito segue valendo');
+    assert.equal(hasPtAudioMark('Show.2024.Dub.1080p.mkv'), true, 'sem cirílico, o genérico prova PT como sempre');
+  } finally {
+    restore();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// DUB/ENGLISH: "English Dubbed" é dublagem EM inglês, não pt-BR. Medido ao
+// vivo (2026-09-02, tt0245429): o Spirited Away "English.Dubbed.1080p"
+// ocupava o 2º lugar rotulado DUB BR. `ENG` de três letras é a exceção da
+// regra de 3+ letras da guarda: `\bENG\b` não casa dentro de nome de grupo
+// (-ENGiNE, x264-ENG0 não batem na fronteira) e "Eng Dub" é a grafia
+// dominante em anime. Assimetria preservada: ENGLISH NÃO entra em
+// hasExplicitForeignAudio — dublagem EN é legítima para quem quer EN, a
+// guarda é só de ranking/promessa.
+// ---------------------------------------------------------------------------
+
+test('DUB/ENGLISH: English Dubbed e Eng Dub não são dublado pt-BR (caso medido)', () => {
+  const spi = '[TorrentCounter.to].Spirited.Away.2001.English.Dubbed.1080p.BluRay.x264.[1.8GB].mp4';
+  for (const t of [spi, 'Spirited.Away.2001.English.Dubbed.1080p', 'Some.Anime.English.Dub.1080p', 'Some.Anime.ENG.DUBBED.720p', 'Movie.2024.Eng.Dub.1080p']) {
+    assert.notEqual(audioFromTitle(t), 'Dublado', `${t}: dublagem em inglês não é pt-BR`);
+    assert.equal(looksPtBr(t), false, `${t}: fora das vagas BR`);
+  }
+  assert.equal(hasExplicitForeignAudio('Spirited.Away.2001.English.Dubbed.1080p'), false, 'EN não condena sozinho');
+  assert.equal(foreignVerdict('Spirited.Away.2001.English.Dubbed.1080p.BluRay.x264'), 'unknown');
+});
+
+test('DUB/ENGLISH: PT explícito ao lado vence e o DUB genérico sem idioma segue valendo', () => {
+  assert.equal(audioFromTitle('Spirited Away 2001 English Dub DUBLADO 1080p'), 'Dublado', 'DUBLADO explícito vence o English');
+  assert.equal(foreignVerdict('Spirited.Away.2001.English.Dub.1080p.PT-BR'), 'absolve', 'com PT explícito, absolve');
+  // Antagonista travado (format-audio-quality): DUBBED nu, sem idioma citado,
+  // segue provando PT — a guarda só desmente quando o idioma aparece.
+  assert.equal(audioFromTitle('Coringa 2019 DUB 1080p'), 'Dublado');
+  assert.equal(audioFromTitle('Filme.2024.1080p.WEB-DL.DUBBED.mkv'), 'Dublado');
+});
+
+test('DUB/ENGLISH: grupo de cena EN + dublagem declarada dá unknown, nunca condena', () => {
+  // Sem a guarda, "English Dub" absolvia via looksPtBr; sem a blindagem do
+  // foreignVerdict sobraria strongEnSceneMark(YTS) e o veredito viraria
+  // condena — elegível para sweepUndubbed/evicção, APAGANDO da conta. Nome de
+  // grupo é indício de ORIGEM, não prova de idioma: contra uma dublagem
+  // declarada ele não basta para destruir.
+  assert.equal(foreignVerdict('Some.Anime.English.Dub.1080p.BluRay.x264-YTS'), 'unknown', 'dublagem declarada bloqueia o grupo');
+  assert.equal(foreignVerdict('Some.Movie.2024.1080p.x264-RARBG'), 'condena', 'grupo SEM dublagem declarada segue condenando');
+});

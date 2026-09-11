@@ -13,6 +13,9 @@
  * `process.env.CACHE_PERSIST = 'false'` e mesmo assim abriam o SQLite de
  * verdade, tocando `data/cache.db` e compartilhando estado entre si.
  */
+// Precisa vir antes do primeiro import de produção: `dotenv/config` resolve o
+// path no load. Assim `npm test` é hermético também fora do CI.
+process.env.DOTENV_CONFIG_PATH = 'test/fixtures/env-empty';
 process.env.CACHE_PERSIST = 'false';
 
 // O config le a .env do operador, entao um DEBRID_CACHED_ONLY=true na maquina
@@ -54,3 +57,11 @@ process.env.MAX_STREAMS_720P = '6';
 process.env.MAX_STREAMS_480P = '6';
 process.env.MAX_STREAMS_SD = '6';
 process.env.MAX_STREAMS_UNKNOWN = '6';
+
+// O selo do install URL é exercitado pelos próprios testes (withSecret e
+// atribuição local em app-routes/tier2/tier3, sempre restaurada em finally).
+// O `.env` do operador pode ter RESOLVE_SECRET (caso do dev que ligou o selo
+// no painel do colhedor), e com ele ativo os e2e que assumem o selo DESLIGADO
+// quebram — o dk viaja em claro e o HMAC é sobre a chave crua. Mesmo motivo
+// dos pins acima: o verde da suíte não pode depender de quem roda.
+process.env.RESOLVE_SECRET = '';

@@ -110,6 +110,15 @@ test('nerdfilmes /resolve?i=0: magnet direto do post (import de magnetButtonCach
       /^magnet:\?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=ep01\.1080p$/,
       'corpo é o magnet direto do botão 0 normalizado',
     );
+
+    const urlMigrated = encodeURIComponent('https://www.filmesviatorrents.net/casa-1/');
+    const resMigrated = await get(`/resolve?url=${urlMigrated}&i=0`);
+    assert.equal(resMigrated.status, 200, 'resolve com botão no domínio filmesviatorrents.net responde 200');
+    assert.match(
+      resMigrated.body,
+      /^magnet:\?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=ep01\.1080p$/,
+      'corpo é o magnet direto do botão 0 normalizado',
+    );
   } finally {
     global.fetch = realFetch;
     await new Promise<void>((resolve) => server.close(() => resolve()));

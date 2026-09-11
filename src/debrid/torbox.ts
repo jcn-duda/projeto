@@ -2,9 +2,13 @@ import config from '../config.js';
 import { magnetFor, json, pickFile, batched, wait, QuotaError, RateLimitError } from './common.js';
 import * as log from '../utils/logger.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
-import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+import type { AccountStatus, PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
 const API = 'https://api.torbox.app/v1/api';
+// O plano Pro documenta o maior teto (10 slots; Free/Essential/Standard têm
+// 1/3/5). Sem endpoint de plano neste caminho, usar o máximo evita falso
+// bloqueio — a recusa ACTIVE_LIMIT dos planos menores continua observável.
+export const ACTIVE_LIMIT = 10;
 
 function envelopeMessage(data: any) {
   const detail = data?.detail;
@@ -150,9 +154,52 @@ async function inventory(apiKey: string) {
 }
 
 /**
+ * Classificação de UMA linha do `/torrents/mylist`. Mora aqui porque o
+ * `accountStatus` e o `torrentStatus` precisam da MESMA leitura: enquanto o
+ * primeiro somava "tudo que não terminou" como ativo, torrent morto contava
+ * como slot ocupado para sempre — e o gate de ocupação, que lê `active`,
+ * travava o Chupim em silêncio. Um vocabulário só, sem chance de divergir.
+ */
+function rowState(row: any): { state: 'ready' | 'downloading' | 'dead' | 'unknown'; stalled: boolean } {
+  if (
+    row?.download_state === 'error' ||
+    row?.download_state === 'failed' ||
+    row?.download_state === 'broken' ||
+    /error|failed|broken|dead/i.test(String(row?.download_state || ''))
+  ) {
+    return { state: 'dead', stalled: false };
+  }
+  if (row?.download_finished || row?.download_present) return { state: 'ready', stalled: false };
+  if (row?.download_state === 'stalled') {
+    // Estado nativo da API, não heurística: o TorBox marca explicitamente o
+    // torrent que não avança mas ainda não errou. Não é dead (a morte tem
+    // estado próprio) nem ready: o recheck o conta com o limiar de parada,
+    // não o colapsa como um dead de 2 rechecks. Ocupa slot: conta como ativo.
+    return { state: 'downloading', stalled: true };
+  }
+  if (
+    row?.download_state === 'downloading' ||
+    row?.download_state === 'queued' ||
+    row?.download_state === 'processing' ||
+    /downloading|queued|processing|uploading/i.test(String(row?.download_state || ''))
+  ) {
+    return { state: 'downloading', stalled: false };
+  }
+  return { state: 'unknown', stalled: false };
+}
+
+/**
  * Ocupação visível: quantos torrents a conta tem no mylist. TorBox não publica
  * um teto consultável de magnets (o que dói é ACTIVE_LIMIT / 60 createtorrent
  * por hora); o número ainda serve para ver a conta crescer antes do recusar.
+ *
+ * `active` exclui do balde APENAS o que já terminou e o que morreu. Antes,
+ * "tudo que não terminou" era ativo, e morto segurava vaga para sempre.
+ * O `unknown` (linha sem `download_state`) conta como ativo de propósito: aqui
+ * a pergunta é "ocupa slot?", e sem prova de morte a resposta honesta é sim —
+ * assimetria deliberada com o `torrentStatus`, onde `unknown` significa "não
+ * julgue" porque lá a decisão é apagar torrent. Morto/erro segue no `magnets`
+ * (o total é o total), só não segura vaga.
  */
 async function accountStatus(apiKey: string) {
   const list = await call(apiKey, '/torrents/mylist');
@@ -160,10 +207,17 @@ async function accountStatus(apiKey: string) {
   let ready = 0;
   let active = 0;
   for (const row of rows) {
-    if (row?.download_finished || row?.download_present) ready += 1;
-    else active += 1;
+    const { state } = rowState(row);
+    if (state === 'ready') ready += 1;
+    else if (state !== 'dead') active += 1;
   }
   return { magnets: rows.length, ready, active };
+}
+
+/** TorBox é limitado por downloads ATIVOS, não pelo tamanho total do mylist. */
+function occupancy(status: AccountStatus) {
+  const active = Number(status?.active);
+  return Number.isFinite(active) ? { used: active, max: ACTIVE_LIMIT } : null;
 }
 
 /**
@@ -176,32 +230,7 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   for (const row of rows) {
     const hash = String(row?.hash || '').toLowerCase();
     if (!hash) continue;
-    let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'unknown';
-    let stalled = false;
-    if (
-      row?.download_state === 'error' ||
-      row?.download_state === 'failed' ||
-      row?.download_state === 'broken' ||
-      /error|failed|broken|dead/i.test(String(row?.download_state || ''))
-    ) {
-      state = 'dead';
-    } else if (row?.download_finished || row?.download_present) {
-      state = 'ready';
-    } else if (row?.download_state === 'stalled') {
-      // Estado nativo da API, não heurística: o TorBox marca explicitamente o
-      // torrent que não avança mas ainda não errou. Não é dead (a morte tem
-      // estado próprio) nem ready: o recheck o conta com o limiar de parada,
-      // não o colapsa como um dead de 2 rechecks.
-      state = 'downloading';
-      stalled = true;
-    } else if (
-      row?.download_state === 'downloading' ||
-      row?.download_state === 'queued' ||
-      row?.download_state === 'processing' ||
-      /downloading|queued|processing|uploading/i.test(String(row?.download_state || ''))
-    ) {
-      state = 'downloading';
-    }
+    const { state, stalled } = rowState(row);
     out[hash] = { state, stalled, id: row?.id };
   }
   return out;
@@ -226,5 +255,5 @@ export const short = 'TB';
 export const cacheCheck = true;
 export const enqueueHourlyLimit = 50;
 export const keyUrl = 'https://torbox.app/settings';
-export { enqueue, inventory, accountStatus, checkCached, resolveLink, torrentStatus, removeTorrent };
+export { enqueue, inventory, accountStatus, occupancy, checkCached, resolveLink, torrentStatus, removeTorrent };
 

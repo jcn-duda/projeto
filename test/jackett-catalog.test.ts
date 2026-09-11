@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 
 import config from '../src/config.js';
-import { parseXml, fallback } from '../src/providers/jackett-catalog.js';
+import { parseXml, fallback, load, resetCatalogCache } from '../src/providers/jackett-catalog.js';
 
 test('parseXml lê catálogo Torznab sem expor campos extras', () => {
   const brId = config.jackett.ptBrIndexers[0] || 'comandotorrents';
@@ -50,4 +50,47 @@ test('parseXml preserva entidade inválida e não decodifica duas vezes', () => 
     </indexers>
   `);
   assert.equal(items[0].label, 'A &#x2FFFFD; &amp; B C');
+});
+
+test('não medido → source fallback (Jackett morto com .env cheio não conta como live)', async () => {
+  resetCatalogCache();
+  const saved = { apiKey: config.jackett.apiKey, url: config.jackett.url };
+  const realFetch = globalThis.fetch;
+  config.jackett.apiKey = 'chave-teste-catalog';
+  config.jackett.url = 'http://jackett.invalid';
+  // Rede falha → fallback do .env; IDs presentes NÃO são medição.
+  globalThis.fetch = (async () => { throw new Error('ECONNREFUSED'); }) as typeof fetch;
+  try {
+    const list = await load();
+    assert.equal(list.source, 'fallback', 'falha de rede = fallback, não live');
+    assert.ok(list.length > 0, 'fallback ainda traz IDs do .env');
+  } finally {
+    globalThis.fetch = realFetch;
+    config.jackett.apiKey = saved.apiKey;
+    config.jackett.url = saved.url;
+    resetCatalogCache();
+  }
+});
+
+test('API Jackett OK → source live (vazio = medido morto)', async () => {
+  resetCatalogCache();
+  const saved = { apiKey: config.jackett.apiKey, url: config.jackett.url };
+  const realFetch = globalThis.fetch;
+  config.jackett.apiKey = 'chave-teste-catalog';
+  config.jackett.url = 'http://jackett.test';
+  globalThis.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    text: async () => '<indexers></indexers>',
+  })) as unknown as typeof fetch;
+  try {
+    const list = await load();
+    assert.equal(list.source, 'live');
+    assert.equal(list.length, 0, 'XML vazio é medição vazia, não fallback');
+  } finally {
+    globalThis.fetch = realFetch;
+    config.jackett.apiKey = saved.apiKey;
+    config.jackett.url = saved.url;
+    resetCatalogCache();
+  }
 });

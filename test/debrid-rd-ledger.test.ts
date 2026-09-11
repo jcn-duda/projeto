@@ -75,6 +75,31 @@ test('ledger: status reflete tracked e poda expirados em track', () => {
   const st1 = ledger.status();
   assert.equal(st1.hits, 2);
   assert.equal(st1.tracked, 2);
+  assert.equal(st1._origem.tracked, 'amostra');
+  assert.equal(st1._origem.hits, 'amostra');
+  assert.equal(typeof st1.l1Entries, 'number');
+  assert.equal(typeof st1.l1Max, 'number');
+  assert.ok(st1.l1Max >= st1.l1Entries);
+  assert.equal(st1._origem.l1Entries, 'duravel');
+  assert.equal(st1._origem.l1Max, 'duravel');
+});
+
+test('ledger: status sync do tracked dropta chave forgotten (não superconta)', () => {
+  ledger.noteHit([H1, H2]);
+  ledger.noteMiss(H3);
+  const before = ledger.status();
+  assert.equal(before.tracked, 3);
+  assert.equal(before.hits, 2);
+  assert.equal(before.misses, 1);
+  // Evicção/forget não notifica o Map — o status precisa sync via peek.
+  cache.forget(ledger.key(H1));
+  const after = ledger.status();
+  assert.equal(after.tracked, 2, 'peek null remove a fantasma do Map');
+  assert.equal(after.hits, 1);
+  assert.equal(after.misses, 1);
+  assert.equal(after._origem.l1Entries, 'duravel');
+  assert.equal(typeof after.l1Entries, 'number');
+  assert.equal(typeof after.l1Max, 'number');
 });
 
 test('knownInstant despacha para rdLedger quando RD + ledger ativos e false para outros adaptadores', () => {

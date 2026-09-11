@@ -13,6 +13,7 @@ import {
   looksPtBr,
   compactAudio,
   compactTracker,
+  stripQualityTagBlob,
 } from './audio-quality.js';
 import { streamQuality } from './stream-quotas.js';
 
@@ -95,11 +96,17 @@ function streamDisplayName({
   // A ordem é a da decisão: primeiro a resolução, depois QUAL corte do filme é,
   // depois de onde veio. Sem corte e fonte, quatro releases 4K do mesmo filme
   // saíam com a linha idêntica e a escolha virava sorteio pelo seed.
+  //
+  // Chip DUAL só com prova PT (isBr ou looksPtBr no título). Dual Audio YTS
+  // sem PT continua classificado Dual por dentro, mas o rótulo na lista não
+  // pode parecer dublado BR — invariante 8.12 (_br/_dubbed) não muda aqui.
+  const dualHasPtProof = isBr || looksPtBr(title);
+  const audioChip = audio === 'Dual' && !dualHasPtProof ? '' : compactAudio(audio);
   const details = [
     quality === UNKNOWN_QUALITY ? null : quality === '2160p' ? '4K' : quality,
     edition || null,
     source || null,
-    compactAudio(audio),
+    audioChip || null,
     isBr ? 'BR' : null,
   ].filter(Boolean).join(' ');
   const stats = [
@@ -172,6 +179,10 @@ function toStremioStream(item: RawItem): Stream | null {
   if (!infoHash) return null;
 
   const title = decodeEntities(item.title || item.Title || 'Torrent');
+  // O blob do HDRTorrent descreve TODAS as opções do post, não esta release.
+  // O classificador já o ignora, mas expô-lo em `title` faz clientes que
+  // derivam o selo por conta própria encontrarem 2160p num botão 1080p/720p.
+  const displayTitle = stripQualityTagBlob(title);
   // Origem BR pelo indexer E pelo título: tracker global também hospeda
   // dublado titulado em português, e é o título que denuncia. O flag muda o
   // chip BR, as vagas reservadas e a priorização de dublado.
@@ -218,7 +229,7 @@ function toStremioStream(item: RawItem): Stream | null {
     // A coluna esquerda precisa ficar curta. O título bruto nesta posição fazia
     // o Stremio quebrar uma palavra por linha em telas estreitas.
     name: streamDisplayName({
-      title,
+      title: displayTitle,
       quality,
       audio,
       source,
@@ -227,7 +238,7 @@ function toStremioStream(item: RawItem): Stream | null {
       isBr,
       seeders,
     }),
-    title: `${title}\n${bits.join(' ')}`,
+    title: `${displayTitle}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
     behaviorHints: {

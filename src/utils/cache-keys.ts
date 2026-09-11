@@ -12,15 +12,39 @@
 // alternador genérico `www.…org -` que absolvia `www.UIndex.org -`) e a marca
 // DUB/DUBBED genérica passou a depender da ausência de HINDI — as listas
 // prontas carregam bolts/ranking gerados pelo matching antigo e não se
-// corrigiriam só com o reboot. idx v2: as releases gravadas sem essa prova
-// morrem no boot e são regravadas já filtradas.
+// corrigiriam só com o reboot. streams v8: fronteira no token `bthd`
+// (`www.HDBTHD.com` deixou de ser sinal PT/marca BR) — listas prontas carregam
+// `_br`/bolts pintados com o falso positivo e as vagas reservadas não se
+// corrigem só com o reboot. streams v9: DUB/DUBBED GENÉRICO deixa de provar
+// áudio PT quando o título tem script cirílico (`[DUB]` russo/ucraniano) —
+// medido pelo /stream-trace.json ao vivo: 11 dos 50 títulos cirílicos do
+// índice (826 únicos) estavam classificados Dublado/BR via [DUB] e disputavam
+// vaga reservada anunciando pt-BR. As listas prontas carregam `_br`/`_dubbed`
+// pintados pelo classificador antigo e não se corrigem só com o reboot.
+// idx v2: as releases gravadas sem essa prova morrem no boot e são regravadas
+// já filtradas.
 const NAMESPACE_VERSIONS = Object.freeze({
-  streams: 'v7',
+  // v9: DUB/DUBBED genérico deixa de provar áudio PT com script cirílico no
+  // título (guarda CYRILLIC_RE, mesma classe do conserto DUB/HINDI da v7).
+  // O índice PERSISTE `dubbed`/`isBr` por release e o merge é OR-aderente —
+  // sem o bump, release cirílica já indexada como Dublado (medido: 11 de 50
+  // títulos cirílicos no índice ao vivo, achado do /stream-trace.json)
+  // permaneceria errada até o TTL de semanas.
+  // v10: ENGLISH|ENG entra na guarda do DUB/DUBBED genérico (Spirited Away
+  // "English Dubbed" media rotulado DUB BR); o índice PERSISTE `dubbed` por
+  // release e o merge é OR-aderente — sem o bump, o rótulo errado sobrevive
+  // até o TTL de 30 dias do índice.
+  // v11: o `title` entregue ao cliente deixa de carregar o blob de qualidades
+  // do HDRTorrent. Listas v10 mantinham a cauda e clientes que classificam o
+  // título por conta própria exibiam 4K em botões 1080p/720p.
+  streams: 'v11',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
   davail: 'v1',
   mag: 'v1',
+  // Metadados agregados do banco de magnets (contagens por adapter persistidas O(1))
+  mag_meta: 'v1',
   // Ledger durável do CDN do Real-Debrid (veredictos por hash). Não leva escopo
   // de conta: cache do RD é propriedade do serviço, não da credencial que o
   // mediu. v1 nasceu MISTURADO — a mesma chave `rdc:v1:<hash>` convivia com o
@@ -61,7 +85,17 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // a correção DUB/HINDI (generic DUB só valida áudio PT sem HINDI ao lado).
   // Sem o bump, obra já indexada continuaria gravada como dublada quando o
   // release é dublagem indiana.
-  idx: 'v7',
+  // v8: `brOriginMark`/`BR_MARK` ganharam fronteira no token `bthd`
+  // (`www.HDBTHD.com` deixou de ser marca BR). O índice PERSISTE `isBr` por
+  // release e o merge é OR-aderente (uma vez BR, sempre BR) — sem o bump, o
+  // HDBTHD já indexado permaneceria BR até o TTL de semanas.
+  // v9: guarda cirílica no DUB/DUBBED genérico (mesma classe do HINDI da
+  // v7): release `[DUB]` em cirílico gravada como Dublado/BR — 11 dos 50
+  // títulos cirílicos medidos no índice ao vivo — não se corrige em obra já
+  // indexada sem o bump.
+  // v10: ENGLISH|ENG na mesma guarda — release "English Dubbed" não pode
+  // ficar gravada como `dubbed` no índice por até 30 dias.
+  idx: 'v10',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',
@@ -91,4 +125,6 @@ const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:']);
 
 const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSIONS[ns]}:`;
 
-export { NAMESPACE_VERSIONS, LEGACY_PREFIXES, prefix };
+const magMetaCountsKey = () => `${prefix('mag_meta')}counts`;
+
+export { NAMESPACE_VERSIONS, LEGACY_PREFIXES, prefix, magMetaCountsKey };

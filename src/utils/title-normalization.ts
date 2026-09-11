@@ -81,11 +81,23 @@ function decodeEntities(text = '') {
 }
 
 function normalizeTitle(s = '') {
+  // \p{M} é obrigatório, não opcional: o .normalize('NFD') da linha anterior
+  // separa dakuten/vogais-marca (japonês, hindi, tailandês) como combining
+  // marks fora de ̀-ͯ; sem \p{M} elas viram espaço e "すずめの戸締まり" sairia
+  // "すす めの戸締まり". CJK/cirílico sem espaço vira UM token — casa só com
+  // release que escreve o título igual (restritivo, nunca permissivo); todo
+  // caso latino sai byte-idêntico ao filtro antigo.
+  //
+  // Além das combining marks, o segundo replace remove os compat chars do
+  // Latin-1 que o filtro antigo ([^a-z0-9]) também descartava: ordinais
+  // (ª º — "2ª Temporada" tem que virar "2"), superscritos numéricos
+  // (¹²³⁰⁴⁵⁶⁷⁸⁹), micro (µ) e fracções (¼½¾). Sem isso o ordinal viraria
+  // token e o parse de temporada perderia o número.
   return String(s)
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[\u0300-\u036f\u00aa\u00ba\u00b2\u00b3\u00b9\u00b5\u00bc\u00bd\u00be\u2070\u2074-\u2079]/g, '')
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ')
     .trim();
 }
 

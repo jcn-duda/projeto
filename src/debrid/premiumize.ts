@@ -8,6 +8,7 @@ import {
   AuthError, QuotaError, RateLimitError,
 } from './common.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
+import { markerIdIndex } from '../providers/autofetch-marker.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
 const API = 'https://www.premiumize.me/api';
@@ -89,11 +90,18 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
 /**
  * Cria a transferência e sai. O directdl do resolveLink também baixaria, mas
  * ele espera o arquivo ficar pronto — aqui só queremos disparar.
+ *
+ * Devolve o ID da transferência, não um booleano: é a ÚNICA âncora que sobra
+ * para reencontrá-la no `/transfer/list`. Medido na conta do operador: de 60
+ * transferências, 58 não expunham hash nenhum (o `src` da listagem volta como
+ * `/api/job/src?id=…`, e não existe campo `hash`), então o recheck só
+ * alcançava as 2 cujo nome por acaso era o hash cru. Jogar o id fora aqui era
+ * o que cegava o ciclo. String vazia/ausente continua sendo recusa.
  */
 async function enqueue(apiKey: string, infoHash: string) {
   const body = new URLSearchParams({ src: magnetFor(infoHash) });
   const data = await call(apiKey, '/transfer/create', { method: 'POST', body });
-  return Boolean(data?.id);
+  return data?.id == null || data.id === '' ? false : String(data.id);
 }
 
 /**
@@ -124,14 +132,47 @@ async function accountStatus(apiKey: string) {
  * volta null e o chamador o conta em `debrid.pm.status.unmatched`, em vez de
  * inventar um hash com o qual limpar a conta por engano.
  */
-function transferHash(t: any): string | null {
-  const fromSrc = String(t?.src || '').match(/btih:([a-f0-9]{40})/i);
-  if (fromSrc) return fromSrc[1].toLowerCase();
-  const fromName = String(t?.name || '').match(/(?:^|[\s._-])([a-f0-9]{40})(?:[\s._-]|$)/i);
-  if (fromName) return fromName[1].toLowerCase();
+function hashFromSrc(t: any): string | null {
+  const m = String(t?.src || '').match(/btih:([a-f0-9]{40})/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function hashFromName(t: any): string | null {
+  const m = String(t?.name || '').match(/(?:^|[\s._-])([a-f0-9]{40})(?:[\s._-]|$)/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function hashFromField(t: any): string | null {
   const direct = String(t?.hash || t?.info_hash || '');
-  if (/^[a-f0-9]{40}$/i.test(direct)) return direct.toLowerCase();
-  return null;
+  return /^[a-f0-9]{40}$/i.test(direct) ? direct.toLowerCase() : null;
+}
+
+function transferHash(t: any): string | null {
+  return hashFromSrc(t) || hashFromName(t) || hashFromField(t);
+}
+
+/**
+ * Mesma cascata, mais o id que o enqueue registrou — e ele entra em SEGUNDO,
+ * logo depois do `src`.
+ *
+ * A posição importa: o id é prova de PRIMEIRA mão (fomos nós que submetemos
+ * aquele hash e guardamos o id que o serviço devolveu), enquanto o `name` é
+ * heurística ("às vezes o Premiumize converte o filename no hash"). Deixar o
+ * id por último faria um nome com 40 hex que NÃO é o hash da transferência
+ * ganhar de uma identificação que sabíamos correta — e o hash resultante
+ * alimenta blacklist e removeTorrent, que é exatamente o engano que a cascata
+ * existe para evitar. Só o `src` tem autoridade maior: é o magnet real.
+ */
+function resolveTransfer(
+  t: any,
+  byId: Map<string, string>,
+): { hash: string; via: 'hash' | 'id' } | null {
+  const fromSrc = hashFromSrc(t);
+  if (fromSrc) return { hash: fromSrc, via: 'hash' };
+  const fromId = byId.get(String(t?.id ?? ''));
+  if (fromId) return { hash: fromId, via: 'id' };
+  const resto = hashFromName(t) || hashFromField(t);
+  return resto ? { hash: resto, via: 'hash' } : null;
 }
 
 // Mensagem que denuncia uma parada real (sem avanço): sem pares de onde ler
@@ -146,19 +187,40 @@ const STALLED_TRANSFER = /0 bytes of 0 bytes|from 0 peer/i;
  * `stalled:true` para que o recheck a conte com o próprio limite, em vez de
  * derrubá-la pela mesma via que um dead de 2 rechecks.
  */
-async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
+async function torrentStatus(
+  apiKey: string,
+  _infoHashes?: string[],
+  ids?: Record<string, string | number>,
+) {
   const data = await call(apiKey, '/transfer/list');
   const transfers = Array.isArray(data?.transfers) ? data.transfers : [];
+  // id da transferência -> hash, invertido do que o enqueue registrou. É o
+  // que devolve visibilidade sobre a conta: a listagem do Premiumize não
+  // publica hash, então sem esta ponte 58 de 60 transferências ficavam
+  // invisíveis ao recheck (medido na conta do operador).
+  const byId = new Map<string, string>();
+  for (const [hash, id] of Object.entries(ids || {})) {
+    if (id != null && id !== '') byId.set(String(id), String(hash).toLowerCase());
+  }
   const out: Record<string, TorrentStatusEntry> = {};
+  // Totais DESTA leitura. Vão para gauge, não para contador: a pergunta é
+  // "quantas a ponte alcança agora", e um `count` dentro do laço somaria a
+  // cada poll — foi assim que o `unmatched` chegou a 330 com meia dúzia de
+  // transferências órfãs, um número que engana quem tenta lê-lo como estoque.
+  let viaId = 0;
+  let semHash = 0;
   for (const t of transfers) {
-    const hash = transferHash(t);
-    if (!hash) {
+    const achado = resolveTransfer(t, byId);
+    if (!achado) {
       // Não dá pra mapeá-la ao lote do recheck: não serve para saber se ficou
       // pronto nem para limpar. Contá-la torna visível que a conta arrasta
       // transferências órfãs que o ciclo nunca vai alcançar.
       metrics.count('debrid.pm.status.unmatched');
+      semHash += 1;
       continue;
     }
+    const { hash, via } = achado;
+    if (via === 'id') viaId += 1;
     const status = String(t?.status || '').toLowerCase();
     let state: 'ready' | 'downloading' | 'dead' | 'unknown' = 'unknown';
     let stalled = false;
@@ -177,8 +239,10 @@ async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
     } else if (status === 'error') {
       state = 'dead';
     }
-    out[hash] = { state, stalled, id: t?.id };
+    out[hash] = { state, stalled, id: t?.id, via };
   }
+  metrics.gauge('debrid.pm.status.byId', viaId);
+  metrics.gauge('debrid.pm.status.orphans', semHash);
   return out;
 }
 
@@ -227,6 +291,7 @@ async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMin
   const transfers = Array.isArray(data?.transfers) ? data.transfers : [];
   const idade = Math.max(0, Number(minAgeMs) || 0);
   const agora = Date.now();
+  const byId = markerIdIndex(id, account);
 
   const alvo: any[] = [];
   const vistosAgora = new Set<string>();
@@ -246,9 +311,14 @@ async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMin
     if (moving || !STALLED_TRANSFER.test(String(t?.message || ''))) continue;
 
     // Parada, mas só removível quando dá para provar que não é do autofetch
-    // em curso. Sem hash não há como consultar o `held` — e é justamente a
-    // transferência sem metadata resolvida que carrega o hash no `name`.
-    const hash = transferHash(t);
+    // em curso. A cascata de campos falha justamente no caso mais comum da
+    // fila: post de agregador entra com nome humano ("[WWW.BLUDV.TV] ...
+    // [DUBLADO]"), sem hash em `src`, `name` ou `hash` — e ficava fora da
+    // varredura para sempre, ocupando vaga. O mapa dos markers (mesma ponte
+    // id -> hash que o recheck usa, aqui reconstruída do cache porque o lote
+    // não sobrevive ao restart) devolve a identificação e com ela o `held`.
+    const achado = resolveTransfer(t, byId);
+    const hash = achado?.hash || null;
     if (!hash || held.isHeld(hash, account)) continue;
 
     vistosAgora.add(hash);

@@ -6,6 +6,9 @@ const {
   parseSize,
   releaseTitle,
   pubDate,
+  assertAllowedUrl,
+  isDetailHost,
+  siteSelector,
 } = require('./server');
 
 const searchHtml = `
@@ -44,5 +47,17 @@ assert.equal(parseSize('2,6 GB'), Math.round(2.6 * 1024 ** 3));
 assert.equal(parsePostDate(postHtml), '2025-09-25T15:00:00.000Z');
 assert.match(releaseTitle('Coringa (2019)', links[0]), /1080p BluRay DUBLADO/);
 assert.equal(pubDate({ title: 'Coringa (2019)' }), 'Tue, 01 Jan 2019 00:00:00 GMT');
+// O default é o domínio ATUAL: apontá-lo para o velho faz o 301 cair no guard
+// e a fonte morrer em silêncio — foi o que derrubou o indexer em produção.
+assert.equal(siteSelector.url(), 'https://www.filmesviatorrenthd.org');
+assert.equal(isDetailHost('filmesviatorrenthd.org'), true);
+assert.equal(isDetailHost('www.filmesviatorrenthd.org'), true);
+assert.equal(isDetailHost('fakefilmesviatorrenthd.org'), false);
+assert.doesNotThrow(() => assertAllowedUrl('https://www.filmesviatorrenthd.org/?s=teste'));
+assert.throws(() => assertAllowedUrl('https://fakefilmesviatorrenthd.org/?s=teste'), /blocked_host/);
+// O domínio anterior continua aceito: ele ainda resolve por 301 e serve de
+// candidato de failover se o novo cair.
+assert.equal(isDetailHost('filmesviatorrents.net'), true);
+assert.doesNotThrow(() => assertAllowedUrl('https://www.filmesviatorrents.net/?s=teste'));
 
 console.log('nerdfilmes-resolver: testes OK');

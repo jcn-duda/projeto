@@ -271,7 +271,7 @@ export async function sweepUndubbed(
   let marcados = 0;
   for (const rid of removedIds || []) {
     const m = porId.get(String(rid));
-    if (m && markReuploadBlocked(account, String(m.hash || ''), m.filename)) marcados += 1;
+    if (m && markReuploadBlocked(account, String(m.hash || ''), m.filename, apiKey)) marcados += 1;
   }
   metrics.count('debrid.swept.undubbed', ok);
   if (falhas.length) {

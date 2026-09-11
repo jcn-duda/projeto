@@ -5,7 +5,7 @@ import * as log from '../utils/logger.js';
 import { call, flattenFiles, DEAD, ACTIVE_STATES, id, type AllDebridMagnet } from './alldebrid-api.js';
 import { rememberSubmitted, waitProvenanceReference } from './alldebrid-inventory.js';
 import { skipCleanup } from './alldebrid-cleanup.js';
-import { reuploadBlocked } from './alldebrid-reupload.js';
+import { reuploadBlocked, unblockIfInventoryReady } from './alldebrid-reupload.js';
 import * as metrics from '../utils/metrics.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
@@ -97,7 +97,13 @@ export async function enqueue(apiKey: string, infoHash: string) {
   // 8.14 — o chupim não re-sobe o que a limpeza intencional apagou: enfileirar
   // hash bloqueado reabriria a ferida que o marcador fecha. O play explícito
   // (resolveLink) NÃO é bloqueado de propósito — escolha do usuário vence.
+  //
+  // Exceção decisiva: bloqueado que o memo dinv prova PRONTO na conta não
+  // precisa de upload nenhum — o ⚡ já existe. A marca é expurgada e o enqueue
+  // devolve sucesso (o item está pronto no serviço), sem recusa e sem log de
+  // recusa; métrica/log únicos no helper. Ausente do inventário segue recusa.
   if (reuploadBlocked(account, hash)) {
+    if (unblockIfInventoryReady(apiKey, account, hash)) return true;
     metrics.count('debrid.reupload.blocked');
     log.info(`[alldebrid] enqueue de ${hash.slice(0, 8)}… recusado: hash bloqueado para re-upload`);
     return false;

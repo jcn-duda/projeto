@@ -22,7 +22,8 @@ import debrid from '../src/debrid/index.js';
 import { peekDavail, noteUnavailable } from '../src/debrid/cache-check.js';
 import { enrichInstantWithoutCacheCheck } from '../src/providers/debrid-pipeline-steps.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
-import { markReuploadBlocked, forgetReuploadBlock } from '../src/debrid/alldebrid-reupload.js';
+import { markReuploadBlocked, forgetReuploadBlock, unblockIfInventoryReady } from '../src/debrid/alldebrid-reupload.js';
+import * as inventoryMemo from '../src/debrid/inventory-memo.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
@@ -272,6 +273,34 @@ test('knob on + alive + hash marcado "não re-subir" (8.14): o atalho não pinta
   } finally {
     restore();
     forgetReuploadBlock(accountScope(KEY), HASH);
+  }
+});
+
+test('8.14+: bloqueado destravado pelo inventário (dinv pronto) volta a ser elegível ao atalho', () => {
+  // O veto do adrm existe porque o serviço NÃO tem o hash; prova do memo dinv
+  // de que ele voltou pronto expurga a marca e o atalho volta a valer.
+  const KEY = 'conta-alive-destravado';
+  const HASH = '8'.repeat(40);
+  // Pin do 8.14: o verde não pode depender do .env de quem roda.
+  const restore = withDebrid({ aliveAsCache: true, reuploadBlock: true, alldebridReuploadBlockTtlMs: 3 * 24 * 3600 * 1000 });
+  try {
+    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    assert.equal(markReuploadBlocked(accountScope(KEY), HASH, 'Old Foreign Movie 2019 TrueFrench 1080p'), true, 'precondição: hash marcado');
+    // Memo dinv quente com o hash pronto: destrava (peek síncrono, sem rede).
+    inventoryMemo.store('alldebrid', KEY, [{ title: 'De volta pronto na conta', infoHash: HASH, size: 4096 }]);
+    assert.equal(unblockIfInventoryReady(KEY, accountScope(KEY), HASH), true, 'reconhece o pronto no inventário');
+    const antes = counter('debrid.instant.fromAliveAsCache');
+    const adapter = makeAdapter('alldebrid', () => ({}));
+    const cached = new Set<string>();
+    const result = enrichInstantWithoutCacheCheck(adapter, [streamFor(HASH)], cached, false, KEY);
+    assert.equal(cached.has(HASH), true, 'sem marca, o atalho do alive vale de novo');
+    // cachedForAutofetch segue SEM o hash: chupim exige evidência medida.
+    assert.equal(result.cachedForAutofetch.has(HASH), false);
+    assert.equal(counter('debrid.instant.fromAliveAsCache'), antes + 1);
+  } finally {
+    cache.forget(inventoryMemo.memoKey('alldebrid', KEY));
+    forgetReuploadBlock(accountScope(KEY), HASH);
+    restore();
   }
 });
 

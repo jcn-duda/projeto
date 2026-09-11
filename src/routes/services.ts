@@ -12,6 +12,8 @@ import * as log from '../utils/logger.js';
 import * as autofetch from '../providers/autofetch.js';
 import * as autofetchRunner from '../providers/autofetch-runner.js';
 import * as autofetchLive from '../utils/autofetch-live.js';
+import * as autofetchSuppressed from '../providers/autofetch-suppressed.js';
+import * as harvesterDebrid from '../utils/harvester-debrid-live.js';
 import * as releaseIndex from '../utils/release-index.js';
 import harvester from '../providers/harvester.js';
 import * as harvesterLive from '../utils/harvester-live.js';
@@ -44,9 +46,11 @@ function buildServices(): AppServices {
     autofetch,
     autofetchRunner,
     autofetchLive,
+    autofetchSuppressed,
     releaseIndex,
     harvester,
     harvesterLive,
+    harvesterDebrid,
     magnetdb,
     brResolvers,
     providers,

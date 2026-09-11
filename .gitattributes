@@ -2,7 +2,10 @@
 # Sem isto, o checkout grava CRLF nos scripts, o shebang vira "#!/bin/bash\r" e
 # o container morre com "/app/entrypoint.sh: not found" — erro que não parece
 # ter nada a ver com fim de linha.
-* text=auto
+# Mantém LF também no checkout Windows. Isto sobrescreve o core.autocrlf=true
+# global sem exigir configuração por máquina e evita o aviso "LF will be
+# replaced by CRLF" ao adicionar arquivos. O índice já armazena texto em LF.
+* text=auto eol=lf
 *.sh text eol=lf
 Dockerfile text eol=lf
 docker-compose.yml text eol=lf

@@ -43,6 +43,7 @@ const resolversToCopy = [
   'nerdfilmes-resolver',
   'torrentdosfilmes-resolver',
   'vacatorrent-resolver',
+  'redetorrent-resolver',
 ];
 
 function copyAndVerify(relativeSrc: string, relativeDst?: string) {

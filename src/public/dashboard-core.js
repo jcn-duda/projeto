@@ -1,20 +1,14 @@
-/* Adom Power-Movie - pagina /dashboard: nucleo compartilhado (Fase 3, PLANO_MELHORIAS 5.9).
- * Estado comum, helpers de formato/DOM, HTTP autenticado e armazenamento local,
- * extraidos do script inline do dashboard.html. Escopo global compartilhado
- * (por isso sem IIFE) e carregado ANTES de panels/status e do script inline -
- * nada roda no load, so declaracoes; as chamadas acontecem em tempo de evento.
- * O que os testes regexam (renderMagnetDb, paineis do Chupim/Colhedor, secao
- * Conta / Catalogo) continua INLINE no HTML. ES5 puro: WebView de Fire TV e
- * smart TV. Sem build, sem bundler. */
+/* Adom Power-Movie — /dashboard: núcleo compartilhado (Fase 3 §5.9 + Fase 1).
+ * Estado, helpers, HTTP autenticado. Escopo global (sem IIFE). Nada roda no
+ * load. Magnet DB / Geral → panels; Chupim / Colhedor / Catálogo → módulos
+ * próprios; wiring → dashboard-boot.js. ES5 puro (Fire TV / smart TV). */
 "use strict";
 
   var TOKEN_KEY = "adom.dashboard.test-token";
   var RATE_KEY = "adom.dashboard.refresh-rate";
   var knownServices = [
-    { id: "premiumize", label: "Premiumize" },
-    { id: "alldebrid", label: "AllDebrid" },
-    { id: "torbox", label: "TorBox" },
-    { id: "realdebrid", label: "Real-Debrid" },
+    { id: "premiumize", label: "Premiumize" }, { id: "alldebrid", label: "AllDebrid" },
+    { id: "torbox", label: "TorBox" }, { id: "realdebrid", label: "Real-Debrid" },
     { id: "debridlink", label: "Debrid-Link" }
   ];
   var currentToken = "";
@@ -25,21 +19,13 @@
   var lastUpdatedTimer = null;
 
   function $(id) { return document.getElementById(id); }
-
-  function isObject(value) {
-    return value !== null && typeof value === "object" && !Array.isArray(value);
-  }
-
+  function isObject(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
   function copyObject(source) {
     var out = {};
     Object.keys(isObject(source) ? source : {}).forEach(function (key) { out[key] = source[key]; });
     return out;
   }
-
-  function own(object, key) {
-    return isObject(object) && Object.prototype.hasOwnProperty.call(object, key);
-  }
-
+  function own(object, key) { return isObject(object) && Object.prototype.hasOwnProperty.call(object, key); }
   function first(object, names, fallback) {
     var i;
     if (!object) return fallback;
@@ -52,12 +38,68 @@
   function valueText(value) {
     if (value === undefined || value === null || value === "") return "—";
     if (typeof value === "boolean") return value ? "sim" : "não";
-    if (typeof value === "number") {
-      if (!isFinite(value)) return "—";
-      return String(value);
-    }
+    if (typeof value === "number") return isFinite(value) ? String(value) : "—";
     if (typeof value === "object") return "ver detalhes";
     return String(value);
+  }
+
+  // Fase 4 — procedência do painel (_origem). Limiar alinhado ao Chupim:
+  // uptime baixo + amostra pode subcontar L2 após restart.
+  var AMOSTRA_CEDO_S = 300;
+
+  function isAmostraCedo(uptimeS) {
+    var n = Number(uptimeS);
+    return isFinite(n) && n >= 0 && n < AMOSTRA_CEDO_S;
+  }
+
+  function origemOf(map, key) {
+    var o;
+    if (!isObject(map) || !key) return null;
+    o = map._origem;
+    if (!isObject(o)) return null;
+    if (o[key] === "duravel" || o[key] === "amostra" || o[key] === "naomedido") return o[key];
+    return null;
+  }
+
+  function origemTitle(kind, uptimeS) {
+    if (kind === "duravel") return "Persistente (L1/L2 ou fila durável)";
+    if (kind === "amostra") {
+      return isAmostraCedo(uptimeS)
+        ? "Amostra deste processo (uptime baixo; pode subcontar o L2)"
+        : "Amostra deste processo (≠ L1/L2)";
+    }
+    if (kind === "naomedido") return "Ainda não medido neste processo";
+    return "";
+  }
+
+  function origemValue(value, kind) {
+    // Fail-open: sem _origem o número antigo continua; só naomedido vira "—".
+    if (kind === "naomedido") return "—";
+    return valueText(value);
+  }
+
+  function applyOrigem(el, value, kind, uptimeS) {
+    var title;
+    if (!el) return;
+    el.textContent = origemValue(value, kind);
+    title = origemTitle(kind, uptimeS);
+    if (title) el.title = title;
+    else el.removeAttribute("title");
+    if (kind === "amostra" && isAmostraCedo(uptimeS)) {
+      el.className = String(el.className || "").replace(/\bamostra-cedo\b/g, "").replace(/\s+/g, " ").trim() + " amostra-cedo";
+    }
+  }
+
+  function metricOrigem(container, key, value, kind, uptimeS) {
+    var item = element("div", "metric");
+    var text = origemValue(value, kind);
+    var content = element("span", "value" + (String(text).length > 20 ? " small" : ""), text);
+    var title = origemTitle(kind, uptimeS);
+    if (title) content.title = title;
+    if (kind === "amostra" && isAmostraCedo(uptimeS)) content.className += " amostra-cedo";
+    item.appendChild(element("span", "key", prettyKey(key)));
+    item.appendChild(content);
+    container.appendChild(item);
   }
 
   function titleText(value) {
@@ -118,10 +160,7 @@
 
   function stateLabel(value) {
     var state = stateName(value);
-    if (state === "online") return "online";
-    if (state === "warn") return "atenção";
-    if (state === "error") return "offline";
-    return "não medido";
+    return state === "online" ? "online" : state === "warn" ? "atenção" : state === "error" ? "offline" : "não medido";
   }
 
   function element(name, className, text) {
@@ -136,15 +175,7 @@
     container.appendChild(element("div", "empty", text));
   }
 
-  /**
-   * Esvazia SEM deixar placeholder. `empty()` insere a caixa "vazio" e quem
-   * renderiza logo em seguida ANEXA — o placeholder ficava visível colado no
-   * conteúdo real ("sem relatório" ao lado dos números). Quem vai desenhar
-   * algo usa `clear()`; `empty()` fica só para o caso realmente vazio.
-   */
-  function clear(container) {
-    container.textContent = "";
-  }
+  function clear(container) { container.textContent = ""; }
 
   function setFeedback(text, kind) {
     var node = $("feedback");
@@ -154,7 +185,11 @@
 
   function setConnection(state, text) {
     var node = $("connection");
-    node.className = "connection" + (state && state !== "unknown" ? " " + (state === "error" ? "error" : state === "warn" ? "warn" : "online") : "");
+    var cls = "connection";
+    if (state && state !== "unknown") {
+      cls += " " + (state === "error" ? "error" : state === "warn" ? "warn" : state === "syncing" ? "syncing" : "online");
+    }
+    node.className = cls;
     $("connectionText").textContent = text;
   }
 
@@ -178,16 +213,34 @@
 
   function requestJson(url, options) {
     var request = options || {};
+    var timeoutId = null;
+    var controller = null;
     request.headers = authHeaders(request.headers);
+    if (typeof AbortController !== "undefined") {
+      controller = new AbortController();
+      request.signal = controller.signal;
+      timeoutId = setTimeout(function () {
+        try { controller.abort(); } catch (e) {}
+      }, 10000);
+    }
     return fetch(basePrefix() + url, request).then(function (response) {
+      if (timeoutId) clearTimeout(timeoutId);
       return response.json().then(function (data) {
         if (!response.ok) {
-          var error = new Error((data && (data.error || data.message)) || "HTTP " + response.status);
+          // `fix` das ações aponta o conserto (ex.: aba Conta do Colhedor sem
+          // conta de operador); o campo já viaja na mensagem do erro (abaixo),
+          // então o operador vê a instrução sem leitor adicional.
+          var fix = data && data.fix;
+          var message = ((data && (data.error || data.message)) || "HTTP " + response.status) + (fix ? " — " + fix : "");
+          var error = new Error(message);
           error.status = response.status;
           throw error;
         }
         return data;
       });
+    }, function (err) {
+      if (timeoutId) clearTimeout(timeoutId);
+      throw err;
     });
   }
 
@@ -202,8 +255,7 @@
   function seriesKey(name) { return "adom.dashboard.series." + name; }
 
   function pushSeries(name, value) {
-    var values;
-    var parsed;
+    var values, parsed;
     if (!isFinite(Number(value))) return [];
     try { parsed = JSON.parse(readStored(seriesKey(name)) || "[]"); } catch (error) { parsed = []; }
     values = Array.isArray(parsed) ? parsed : [];
@@ -214,26 +266,37 @@
   }
 
   function drawSparkline(id, values, color) {
-    var canvas = $(id);
-    var context;
-    var max;
-    var min;
-    var i;
-    if (!canvas || !canvas.getContext || values.length < 2) return;
-    context = canvas.getContext("2d");
-    if (!context) return;
+    var el = $(id);
+    var max, min, i, poly, points = [];
+    if (!el || values.length < 2) return;
     max = Math.max.apply(Math, values);
     min = Math.min.apply(Math, values);
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.beginPath();
-    context.strokeStyle = color;
-    context.lineWidth = 2;
-    for (i = 0; i < values.length; i += 1) {
-      var x = (i / (values.length - 1)) * canvas.width;
-      var y = max === min ? canvas.height / 2 : canvas.height - ((values[i] - min) / (max - min)) * (canvas.height - 4) - 2;
-      if (i === 0) context.moveTo(x, y); else context.lineTo(x, y);
+    if (el.getContext) {
+      var context = el.getContext("2d");
+      if (context) {
+        context.clearRect(0, 0, el.width, el.height);
+        context.beginPath();
+        context.strokeStyle = color;
+        context.lineWidth = 2;
+        for (i = 0; i < values.length; i += 1) {
+          var x = (i / (values.length - 1)) * el.width;
+          var y = max === min ? el.height / 2 : el.height - ((values[i] - min) / (max - min)) * (el.height - 4) - 2;
+          if (i === 0) context.moveTo(x, y); else context.lineTo(x, y);
+        }
+        context.stroke();
+      }
     }
-    context.stroke();
+    poly = el.querySelector ? el.querySelector("polyline, path") : null;
+    if (poly) {
+      for (i = 0; i < values.length; i += 1) {
+        var sx = Math.round((i / (values.length - 1)) * 1000) / 10;
+        var sy = max === min ? 12 : Math.round((22 - ((values[i] - min) / (max - min)) * 20) * 10) / 10;
+        points.push(sx + "," + sy);
+      }
+      if (poly.tagName.toLowerCase() === "polyline") poly.setAttribute("points", points.join(" "));
+      else poly.setAttribute("d", "M " + points.join(" L "));
+      if (color) poly.style.stroke = color;
+    }
   }
 
   function removeStored(key) {
@@ -242,10 +305,8 @@
 
   function metric(container, key, value) {
     var item = element("div", "metric");
-    var label = element("span", "key", prettyKey(key));
-    var content = element("span", "value" + (String(valueText(value)).length > 20 ? " small" : ""), displayValue(key, value));
-    item.appendChild(label);
-    item.appendChild(content);
+    item.appendChild(element("span", "key", prettyKey(key)));
+    item.appendChild(element("span", "value" + (String(valueText(value)).length > 20 ? " small" : ""), displayValue(key, value)));
     container.appendChild(item);
   }
 
@@ -302,21 +363,18 @@
     var button;
     box.setAttribute("data-status", stateName(state));
     head.appendChild(element("h3", "", titleText(title)));
-    stateBox.appendChild(dot);
-    stateBox.appendChild(stateText);
-    head.appendChild(stateBox);
-    box.appendChild(head);
+    stateBox.appendChild(dot); stateBox.appendChild(stateText);
+    head.appendChild(stateBox); box.appendChild(head);
     if (first(item, ["description", "detail", "message", "error"], null)) box.appendChild(element("p", "card-subtitle", valueText(first(item, ["description", "detail", "message", "error"], ""))));
-    if (item.reason && item.fix) {
-      box.appendChild(element("p", "guidance" + (item.reason === "rate" ? "" : " error"), "Como corrigir: " + valueText(item.fix)));
-    }
+    if (item.reason && item.fix) box.appendChild(element("p", "guidance" + (item.reason === "rate" ? "" : " error"), "Como corrigir: " + valueText(item.fix)));
     keys = Object.keys(item);
     for (i = 0; i < keys.length; i += 1) {
       key = keys[i]; value = item[key];
       if (excluded[key] || value === null || typeof value === "object") continue;
-      rows.appendChild(element("div", "status-line"));
-      rows.lastChild.appendChild(element("span", "", prettyKey(key)));
-      rows.lastChild.appendChild(element("strong", "", displayValue(key, value)));
+      var line = element("div", "status-line");
+      line.appendChild(element("span", "", prettyKey(key)));
+      line.appendChild(element("strong", "", displayValue(key, value)));
+      rows.appendChild(line);
     }
     if (rows.children.length) box.appendChild(rows);
     if (options && options.testable) {

@@ -1,7 +1,9 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
+import { prefix } from '../src/utils/cache-keys.js';
 import * as autofetchLive from '../src/utils/autofetch-live.js';
 
 beforeEach(() => {
@@ -39,7 +41,7 @@ test('autofetchLive.effective() reflete defaults do config.debrid inicialmente',
 
 test('autofetchLive.set() valida e aplica clamps nos valores numéricos', () => {
   const result = autofetchLive.set({
-    autoFetchMax: 10, // clamp 1..4 -> 4
+    autoFetchMax: 20, // clamp 1..12 -> 12
     autoFetchTopSeedsMax: -5, // clamp 1..4 -> 1
     autoFetchQueueDepth: 50, // clamp 0..12 -> 12
     autoFetchMinSeeders: -2, // clamp >= 0 -> 0
@@ -49,7 +51,7 @@ test('autofetchLive.set() valida e aplica clamps nos valores numéricos', () => 
 
   assert.equal(result.ok, true);
   if (result.ok) {
-    assert.equal(result.effective.autoFetchMax, 4);
+    assert.equal(result.effective.autoFetchMax, 12);
     assert.equal(result.effective.autoFetchTopSeedsMax, 1);
     assert.equal(result.effective.autoFetchQueueDepth, 12);
     assert.equal(result.effective.autoFetchMinSeeders, 0);
@@ -132,5 +134,57 @@ test('autofetchLive.schema() fornece metadados consistentes de todos os campos e
     assert.ok(field.group);
     assert.ok(field.type === 'boolean' || field.type === 'number');
     assert.ok(field.description);
+  }
+});
+
+// --- Knobs do título raro no live config (mesmos clamps do .env) ---
+
+const RARE_KEYS = ['autoFetchRareMax', 'autoFetchRareThreshold', 'autoFetchRareMaxSeeders'] as const;
+
+test('autofetchLive: knobs do título raro refletem os defaults do config.debrid', () => {
+  const eff = autofetchLive.effective();
+  assert.equal(eff.autoFetchRareMax, config.debrid.autoFetchRareMax);
+  assert.equal(eff.autoFetchRareThreshold, config.debrid.autoFetchRareThreshold);
+  assert.equal(eff.autoFetchRareMaxSeeders, config.debrid.autoFetchRareMaxSeeders);
+  const snap = autofetchLive.snapshot();
+  assert.equal(snap.envDefaults.autoFetchRareMax, config.debrid.autoFetchRareMax);
+  const schemaKeys = snap.schema.map((f) => f.key);
+  for (const k of RARE_KEYS) assert.ok(schemaKeys.includes(k), `schema expõe ${k}`);
+});
+
+test('autofetchLive.set() aplica os clamps dos knobs do título raro', () => {
+  const result = autofetchLive.set({
+    autoFetchRareMax: 20, // clamp 1..6 -> 6
+    autoFetchRareThreshold: -1, // clamp 0..20 -> 0
+    autoFetchRareMaxSeeders: 0, // clamp >= 1 -> 1
+  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.effective.autoFetchRareMax, 6);
+    assert.equal(result.effective.autoFetchRareThreshold, 0);
+    assert.equal(result.effective.autoFetchRareMaxSeeders, 1);
+    for (const k of RARE_KEYS) assert.ok(result.overriddenKeys.includes(k));
+  }
+});
+
+test('autofetchLive: override dos knobs raros persiste no cfg e reset restaura o .env', () => {
+  autofetchLive.set({ autoFetchRareMax: 5 });
+  // Persistência: leitura direta da chave de config (mesmo caminho do boot).
+  const stored = cache.peek(`${prefix('cfg')}autofetch`) as any;
+  assert.equal(stored.autoFetchRareMax, 5, 'override persistido sob cfg:v1:autofetch');
+
+  const restored = autofetchLive.reset();
+  assert.equal(restored.autoFetchRareMax, config.debrid.autoFetchRareMax);
+  assert.equal(autofetchLive.snapshot().overriddenKeys.length, 0);
+});
+
+test('autofetchLive: painel expõe inputs e afKeys dos knobs do título raro', () => {
+  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
+  const afJs = readFileSync(new URL('../src/public/dashboard-autofetch.js', import.meta.url), 'utf8');
+  for (const k of RARE_KEYS) {
+    assert.ok(html.includes(`id="af_${k}"`), `dashboard.html tem input af_${k}`);
+    assert.ok(html.includes(`id="env_${k}"`), `dashboard.html tem env_${k}`);
+    assert.ok(html.includes(`id="badge_${k}"`), `dashboard.html tem badge_${k}`);
+    assert.ok(afJs.includes(`"${k}"`), `dashboard-autofetch.js lista ${k} em afKeys`);
   }
 });
