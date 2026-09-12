@@ -94,22 +94,33 @@
     }
   }
 
+  // KPI sem corte: o CSS nunca trunca chave nem valor (sem line-clamp); o
+  // texto integral no title segue como tooltip/hover para textos longos
+  // (Fase 1 do redesign).
   function metricOrigem(container, key, value, kind, uptimeS) {
     var item = element("div", "metric");
     var text = origemValue(value, kind);
     var content = element("span", "value" + (String(text).length > 20 ? " small" : ""), text);
     var title = origemTitle(kind, uptimeS);
     if (title) content.title = title;
+    else content.title = String(text);
     if (kind === "amostra" && isAmostraCedo(uptimeS)) content.className += " amostra-cedo";
-    item.appendChild(element("span", "key", prettyKey(key)));
+    var keyEl = element("span", "key", prettyKey(key));
+    keyEl.title = prettyKey(key);
+    item.appendChild(keyEl);
     item.appendChild(content);
     container.appendChild(item);
   }
 
   function metric(container, key, value) {
     var item = element("div", "metric");
-    item.appendChild(element("span", "key", prettyKey(key)));
-    item.appendChild(element("span", "value" + (String(valueText(value)).length > 20 ? " small" : ""), displayValue(key, value)));
+    var shown = displayValue(key, value);
+    var keyEl = element("span", "key", prettyKey(key));
+    var valueEl = element("span", "value" + (String(valueText(value)).length > 20 ? " small" : ""), shown);
+    keyEl.title = prettyKey(key);
+    valueEl.title = String(shown);
+    item.appendChild(keyEl);
+    item.appendChild(valueEl);
     container.appendChild(item);
   }
 

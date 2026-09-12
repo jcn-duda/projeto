@@ -4,7 +4,28 @@
  * autofetch/harvest/catalog. Escopo global compartilhado (sem IIFE). ES5. */
 "use strict";
 
+/* Foco acessível para WebView sem :focus-visible: Tab liga keyboard-nav
+ * (o anel de foco do dashboard.css volta); ponteiro desliga — clique de
+ * mouse não deixa contorno permanente. Navegador com :focus-visible
+ * resolve pela pseudo-classe e a classe é redundante e inofensiva. */
+function bindKeyboardFocus() {
+  var root = document.documentElement;
+  function enableKeyboardNav(event) {
+    if ((event.key !== undefined ? event.key : "") === "Tab" || event.keyCode === 9) {
+      if ((" " + root.className + " ").indexOf(" keyboard-nav ") === -1) root.className += " keyboard-nav";
+    }
+  }
+  function disableKeyboardNav() {
+    root.className = String(root.className).replace(/(^|\s)keyboard-nav(\s|$)/g, " ").replace(/\s+/g, " ").trim();
+  }
+  document.addEventListener("keydown", enableKeyboardNav);
+  document.addEventListener("pointerdown", disableKeyboardNav);
+  document.addEventListener("mousedown", disableKeyboardNav);
+  document.addEventListener("touchstart", disableKeyboardNav);
+}
+
 function bind() {
+  bindKeyboardFocus();
   var savedToken = readStored(TOKEN_KEY);
   var savedRate = readStored(RATE_KEY);
   var actions = document.querySelectorAll(".action-button");

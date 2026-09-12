@@ -11,6 +11,7 @@ const PAGE_ASSETS = [
   'configure.css',
   'configure-components.css',
   'configure-app.js',
+  'dashboard-tokens.css',
   'dashboard.css',
   'dashboard-core.js',
   // Fase 0 do redesign: helpers de desenho extraídos do core (metric/card/
