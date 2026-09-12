@@ -23,11 +23,16 @@ const up = path.join(__dirname, '..');
 const buildRoot = fs.existsSync(path.join(up, 'package.json')) ? up : null;
 const root = buildRoot || path.join(up, '..'); // raiz do package.json
 const testsRoot = buildRoot || up; // raiz onde test/ tem os .test.js
-const script = _require(path.join(root, 'package.json')).scripts.test;
-// As entradas do `npm test` apontam para dist/ (o build compila .ts → .js);
-// normaliza para o caminho relativo à raiz sem o prefixo do build.
+// A lista explícita mora na chave `testFiles` do package.json (o script
+// `npm test` não a carrega mais: no Windows o cmd.exe recusa a linha acima
+// de ~8191 caracteres; o runner dist/scripts/run-tests.js a lê daqui).
+const testFiles: unknown = _require(path.join(root, 'package.json')).testFiles;
+if (!Array.isArray(testFiles) || testFiles.length === 0) {
+  console.error('package.json sem "testFiles" (lista explícita de testes)');
+  process.exit(1);
+}
 const listed = new Set<string>(
-  (script.match(/(?:dist\/)?test\/[\w./-]+\.test\.js/g) || []).map((p: string) => p.replace(/^dist\//, '')),
+  (testFiles as string[]).map((p: string) => p.replace(/^dist\//, '')),
 );
 
 function findTests(dir: string): string[] {

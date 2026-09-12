@@ -1,8 +1,97 @@
 /* Adom Power-Movie — /dashboard: gerenciamento do MagnetDB (Fase 3 & R3).
- * Inspeção de chaves em memória (L1), contagens agregadas e descarte de bads.
- * Escopo global compartilhado (sem IIFE). ES5 puro para TVs e WebViews legadas.
+ * Painel de observabilidade do renderStatus (renderMagnetDb, Fase 0 redesign:
+ * extraído de dashboard-panels.js e pintando no container próprio
+ * #magnetMetrics em vez de dividir o #cacheMetrics), inspeção de chaves em
+ * memória (L1), contagens agregadas e descarte de bads. Escopo global
+ * compartilhado (sem IIFE). ES5 puro para TVs e WebViews legadas.
  * Manipulação segura de DOM apenas com textContent e createElement. */
 "use strict";
+
+  // TTL do mag em segundos → rótulo curto. "—" em ausente/negativo: o status
+  // usa null quando não há média a declarar.
+  function formatTtlSeconds(value) {
+    var seconds = Number(value);
+    if (!isFinite(seconds) || seconds < 0) return "—";
+    if (seconds < 60) return Math.round(seconds) + " s";
+    if (seconds < 3600) return Math.floor(seconds / 60) + " min";
+    return Math.floor(seconds / 3600) + " h";
+  }
+
+  // Painel de observabilidade do banco (chamado por renderStatus): pinta o
+  // container PRÓPRIO (#magnetMetrics), não o #cacheMetrics — a seção do
+  // banco tem bloco dedicado no HTML e não disputa o grid do cache.
+  function renderMagnetDb(data, counters, uptimeS) {
+    var source = isObject(data) ? data : {};
+    var metrics = $("magnetMetrics");
+    var dbCounters = isObject(source.counters) ? source.counters : {};
+    var allCounters = isObject(counters) ? counters : {};
+    var ttl = isObject(source.ttlRemainingSeconds) ? source.ttlRemainingSeconds : {};
+    var adapters = isObject(source.byAdapter) ? source.byAdapter : {};
+    var hashes = Number(allCounters["debrid.check.hashes"] || 0);
+    var cached = Number(allCounters["debrid.check.cached"] || 0);
+    var sampleTotal;
+    var adapterIds;
+    var i;
+    if (!metrics) return;
+    // Os agregados são restaurados do mag_meta; os contadores de eventos abaixo
+    // continuam sendo a única parte que zera no restart.
+    if (!source.enabled && !own(source, "enabled")) return;
+    metrics.textContent = "";
+    metricMaybeOrigem(metrics, "magnet DB", source.enabled ? "ativo" : "desligado", source, "enabled", uptimeS);
+    // Grupo A — ocupação REAL do namespace mag (L1/L2): sobrevive ao restart e
+    // inclui o que este processo nunca observou. Nunca fundir com a amostra.
+    metricGroupTitle(metrics, "Registros persistentes no banco (sobrevivem ao restart)");
+    metricMaybeOrigem(metrics, "L1 mag (ocupação)", valueText(source.l1Entries) + " / " + valueText(source.l1Max), source, "l1Entries", uptimeS);
+    metricMaybeOrigem(metrics, "evicções cota mag", source.evictedQuota, source, "evictedQuota", uptimeS);
+    metrics.appendChild(element("p", "guidance",
+      "Ocupação real do namespace mag no cache (L1/L2), incluindo registros gravados antes deste processo; pode conter expirados ou órfãos ainda não removidos. A chave é por serviço + conta + estado: o mesmo hash pode figurar mais de uma vez. Não é contagem de magnets válidos hoje."));
+    // Grupo B — agregados duráveis por estado e adapter.
+    metricGroupTitle(metrics, "Agregados persistentes por estado e serviço");
+    sampleTotal = Number(source.sizeAlive || 0) + Number(source.sizeBad || 0) + Number(source.sizeLie || 0);
+    metricMaybeOrigem(metrics, "registros classificados (≠ L1)", sampleTotal, source, "sizeAlive", uptimeS);
+    metricMaybeOrigem(metrics, "alive (tocável)", source.sizeAlive, source, "sizeAlive", uptimeS);
+    // bad = play sem vídeo (magnetdb); dead = terminal no recheck (autofetch) — fronteiras distintas.
+    metricMaybeOrigem(metrics, "bad (play sem vídeo)", source.sizeBad, source, "sizeBad", uptimeS);
+    metricMaybeOrigem(metrics, "lie (áudio mentiu)", source.sizeLie, source, "sizeLie", uptimeS);
+    metricMaybeOrigem(metrics, "TTL alive configurado", formatTtlSeconds(source.aliveTtlSeconds), source, "aliveTtlSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL bad configurado", formatTtlSeconds(source.badTtlSeconds), source, "badTtlSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL lie configurado", formatTtlSeconds(source.lieTtlSeconds), source, "lieTtlSeconds", uptimeS);
+    // Base da soma de TTL restante: `l1-rebuild` = restante real de cada chave,
+    // preciso só no instante do rebuild; `aggregate-estimate` = estimativa
+    // incremental/restaurada (default e estado normal após qualquer mutação).
+    var ttlBasis = source.ttlRemainingBasis === "l1-rebuild" ? "l1-rebuild" : "aggregate-estimate";
+    var ttlSuffix = ttlBasis === "l1-rebuild" ? " · base: recontada do L1" : "";
+    metricMaybeOrigem(metrics, "TTL alive restante (média)", formatTtlSeconds(ttl.alive) + ttlSuffix, source, "ttlRemainingSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL bad restante (média)", formatTtlSeconds(ttl.bad) + ttlSuffix, source, "ttlRemainingSeconds", uptimeS);
+    metricMaybeOrigem(metrics, "TTL lie restante (média)", formatTtlSeconds(ttl.lie) + ttlSuffix, source, "ttlRemainingSeconds", uptimeS);
+    adapterIds = Object.keys(adapters).sort();
+    for (i = 0; i < adapterIds.length; i += 1) {
+      var adapter = isObject(adapters[adapterIds[i]]) ? adapters[adapterIds[i]] : {};
+      var adapterTtl = isObject(adapter.ttlRemainingSeconds) ? adapter.ttlRemainingSeconds : {};
+      metricMaybeOrigem(metrics, "serviço " + adapterIds[i],
+        "alive " + valueText(adapter.sizeAlive) + ", bad " + valueText(adapter.sizeBad) + ", lie " + valueText(adapter.sizeLie) +
+        " · TTL ≈ " + formatTtlSeconds(adapterTtl.alive) + "/" + formatTtlSeconds(adapterTtl.bad) + "/" + formatTtlSeconds(adapterTtl.lie),
+        source, "byAdapter", uptimeS);
+    }
+    metrics.appendChild(element("p", "guidance",
+      "Os agregados sobrevivem ao restart pelo mag_meta. A média de TTL restante é " + (ttlBasis === "l1-rebuild"
+        ? "recontada do L1 (restante real de cada chave) e vale só até a próxima gravação/esquecimento"
+        : "estimativa incremental ou restaurada (escrita e remoção somam/subtraem o TTL nominal, não o restante exato)") + ". " +
+      "A ocupação do L1 ainda pode diferir de alive+bad+lie por incluir registros expirados ou órfãos ainda não removidos."));
+    // Grupo C — contadores do processo (metrics): gravações, reparo e descartes
+    // na listagem. Estes, sim, zeram no restart.
+    metricGroupTitle(metrics, "Gravações e descartes desde o restart (contadores do processo)");
+    // aliveSet conta toda markAlive, inclusive a renovação econômica do davail.
+    metric(metrics, "gravações alive (inclui renovações)", dbCounters.aliveSet);
+    metric(metrics, "gravações bad", dbCounters.badSet);
+    metric(metrics, "gravações lie", dbCounters.lieSet);
+    metric(metrics, "bad limpos (reparo blocked)", dbCounters.badClearedBlocked);
+    metric(metrics, "descartados bad (magnetdb)", dbCounters.droppedBad);
+    metric(metrics, "descartados dead (autofetch ≠ bad)", dbCounters.droppedDead);
+    metric(metrics, "descartados lie (magnetdb)", dbCounters.droppedLie);
+    metricGroupTitle(metrics, "Checagem de cache do debrid (medida neste processo)");
+    metric(metrics, "taxa ⚡ (cache medido)", hashes ? Math.round((cached / hashes) * 100) + "% (" + cached + "/" + hashes + ")" : "—");
+  }
 
 function setMagnetFeedback(text, kind) {
   var node = $("magnetFeedback");
@@ -11,8 +100,11 @@ function setMagnetFeedback(text, kind) {
   node.textContent = text || "";
 }
 
+// Resumo manual (magnet-summary) pinta o container PRÓPRIO #magnetSummaryMetrics:
+// dividir o #magnetMetrics com o renderMagnetDb fazia o poll seguinte apagar o
+// resumo que o operador acabara de pedir.
 function renderMagnetSummaryMetrics(data) {
-  var container = $("magnetMetrics");
+  var container = $("magnetSummaryMetrics");
   var totals;
   var byAdapter;
   var adapters;

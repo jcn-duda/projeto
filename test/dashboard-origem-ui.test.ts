@@ -7,6 +7,9 @@ import { readFileSync } from 'node:fs';
 // Não edita src/public — só fixa o contrato que helpers + consumo devem cumprir.
 
 const CORE_URL = new URL('../src/public/dashboard-core.js', import.meta.url);
+// Fase 0: a pintura de _origem no DOM (applyOrigem/metricOrigem) migrou do
+// core para dashboard-render.js; os helpers puros continuam no core.
+const RENDER_URL = new URL('../src/public/dashboard-render.js', import.meta.url);
 const STATUS_URL = new URL('../src/public/dashboard-status.js', import.meta.url);
 const HARVEST_URL = new URL('../src/public/dashboard-harvest.js', import.meta.url);
 const AUTOFETCH_URL = new URL('../src/public/dashboard-autofetch.js', import.meta.url);
@@ -50,6 +53,7 @@ function fakeNode(): FakeNode {
 
 function loadOrigemApi(): OrigemApi | null {
   const core = readFileSync(CORE_URL, 'utf8');
+  const render = readFileSync(RENDER_URL, 'utf8');
   if (!/\bfunction\s+origemOf\s*\(/.test(core) || !/\bfunction\s+origemValue\s*\(/.test(core)) {
     return null;
   }
@@ -74,7 +78,7 @@ function loadOrigemApi(): OrigemApi | null {
     'metricOrigem:typeof metricOrigem==="function"?metricOrigem:undefined,' +
     'AMOSTRA_CEDO_S:typeof AMOSTRA_CEDO_S!=="undefined"?AMOSTRA_CEDO_S:undefined' +
     '};';
-  const factory = new Function('document', 'window', core + '\n' + ret) as (
+  const factory = new Function('document', 'window', core + '\n' + render + '\n' + ret) as (
     doc: unknown,
     win: unknown,
   ) => OrigemApi;
@@ -83,7 +87,7 @@ function loadOrigemApi(): OrigemApi | null {
 
 function requireOrigemApi(): OrigemApi {
   const api = loadOrigemApi();
-  assert.ok(api, 'aguardando helpers origem* em dashboard-core.js');
+  assert.ok(api, 'aguardando helpers origem* em dashboard-core.js/dashboard-render.js');
   return api!;
 }
 
@@ -137,7 +141,7 @@ test('applyOrigem/metricOrigem: title no DOM fake (cedo vs maduro)', () => {
   const limiar = api.AMOSTRA_CEDO_S ?? 300;
   assert.ok(
     typeof api.applyOrigem === 'function' || typeof api.metricOrigem === 'function',
-    'aguardando applyOrigem ou metricOrigem em dashboard-core.js',
+    'aguardando applyOrigem ou metricOrigem em dashboard-render.js',
   );
 
   if (typeof api.applyOrigem === 'function') {
@@ -176,12 +180,17 @@ test('applyOrigem/metricOrigem: title no DOM fake (cedo vs maduro)', () => {
   }
 });
 
-// --- 3. Regex: core define origemOf + AMOSTRA_CEDO_S -------------------------
+// --- 3. Regex: core define origemOf + AMOSTRA_CEDO_S; render pinta no DOM ----
 
-test('dashboard-core.js define origemOf e AMOSTRA_CEDO_S', () => {
+test('dashboard-core.js define origemOf e AMOSTRA_CEDO_S (pintura no render)', () => {
   const core = readFileSync(CORE_URL, 'utf8');
+  const render = readFileSync(RENDER_URL, 'utf8');
   assert.match(core, /\b(?:function|var)\s+origemOf\b|\borigemOf\s*=/);
   assert.match(core, /\bAMOSTRA_CEDO_S\b\s*=\s*\d+/);
+  // Fase 0: applyOrigem/metricOrigem são DOM — pertencem ao render, não ao core.
+  assert.match(render, /function applyOrigem\(/);
+  assert.match(render, /function metricOrigem\(/);
+  assert.doesNotMatch(core, /function applyOrigem\(/);
 });
 
 // --- 4. Regex dual confirm --------------------------------------------------

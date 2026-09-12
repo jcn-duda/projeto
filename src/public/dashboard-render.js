@@ -1,0 +1,235 @@
+/* Adom Power-Movie — /dashboard: helpers de renderização (Fase 0 redesign).
+ * Extraído de dashboard-core.js ao se aproximar do teto de 400 linhas: aqui
+ * mora só o que DESENHA (formatação, criação de nós, metric/card/sparkline).
+ * Estado, token e HTTP continuam no core; os helpers pure de _origem também
+ * (origemOf/origemValue/origemTitle), porque módulos não-visuais os consomem.
+ * Escopo global compartilhado (sem IIFE). Depois de core, antes de panels/
+ * status. ES5 puro (Fire TV / smart TV). */
+"use strict";
+
+  function titleText(value) {
+    return String(value || "sem nome").replace(/[-_]+/g, " ");
+  }
+
+  function formatBytes(value) {
+    var number = Number(value);
+    var units = ["B", "KB", "MB", "GB", "TB"];
+    var unit = 0;
+    if (!isFinite(number) || number < 0) return valueText(value);
+    while (number >= 1024 && unit < units.length - 1) { number /= 1024; unit += 1; }
+    return number.toFixed(unit === 0 ? 0 : number < 10 ? 1 : 0) + " " + units[unit];
+  }
+
+  function formatDuration(value) {
+    var number = Number(value);
+    if (!isFinite(number)) return valueText(value);
+    if (number < 1000) return Math.round(number) + " ms";
+    number /= 1000;
+    if (number < 60) return number.toFixed(1) + " s";
+    return Math.floor(number / 60) + " min " + Math.round(number % 60) + " s";
+  }
+
+  function formatDate(value) {
+    var date;
+    if (!value) return "—";
+    date = new Date(value);
+    return isNaN(date.getTime()) ? valueText(value) : date.toLocaleString("pt-BR");
+  }
+
+  function prettyKey(key) {
+    return titleText(key).replace(/\b(ms|id|br|db|rss|l1|l2)\b/gi, function (part) { return part.toUpperCase(); });
+  }
+
+  function displayValue(key, value) {
+    var lower = String(key).toLowerCase();
+    if (lower.indexOf("bytes") !== -1 || lower.indexOf("memory") !== -1 || lower === "rss" || lower === "heapused") return formatBytes(value);
+    // metrics.ts produz uptimeS em SEGUNDOS ((now - startedAt)/1000);
+    // formatDuration espera milissegundos. Sem a conversão, um container de pé
+    // há 1 h (3612 s) renderizava "3.6 s" — erro de 1000x.
+    if (lower === "uptimes") return formatDuration(value * 1000);
+    if (lower.indexOf("uptime") !== -1 || lower.indexOf("duration") !== -1 || lower.indexOf("latency") !== -1 || /ms$/.test(lower)) return formatDuration(value);
+    // Data é a chave que TERMINA em "at" (generatedAt, lastRunAt...), não a que
+    // contém "at" em qualquer posição: com indexOf, hitRate, deadlineMetadata e
+    // brLate viravam 31/12/1969 no painel.
+    if (/at$/.test(lower) && (typeof value === "string" || typeof value === "number")) return formatDate(value);
+    return valueText(value);
+  }
+
+  function stateName(value) {
+    var text = String(value === undefined || value === null ? "unknown" : value).toLowerCase();
+    if (value === true || text === "ok" || text === "online" || text === "ready" || text === "healthy" || text === "up" || text === "available") return "online";
+    if (text.indexOf("slow") !== -1 || text.indexOf("degrad") !== -1 || text === "warn" || text === "warning" || text === "partial") return "warn";
+    if (value === false || text === "offline" || text === "error" || text === "dead" || text === "down" || text === "failed" || text === "unusable") return "error";
+    return "unknown";
+  }
+
+  function stateLabel(value) {
+    var state = stateName(value);
+    return state === "online" ? "online" : state === "warn" ? "atenção" : state === "error" ? "offline" : "não medido";
+  }
+
+  function element(name, className, text) {
+    var node = document.createElement(name);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function empty(container, text) {
+    container.textContent = "";
+    container.appendChild(element("div", "empty", text));
+  }
+
+  function clear(container) { container.textContent = ""; }
+
+  function applyOrigem(el, value, kind, uptimeS) {
+    var title;
+    if (!el) return;
+    el.textContent = origemValue(value, kind);
+    title = origemTitle(kind, uptimeS);
+    if (title) el.title = title;
+    else el.removeAttribute("title");
+    if (kind === "amostra" && isAmostraCedo(uptimeS)) {
+      el.className = String(el.className || "").replace(/\bamostra-cedo\b/g, "").replace(/\s+/g, " ").trim() + " amostra-cedo";
+    }
+  }
+
+  function metricOrigem(container, key, value, kind, uptimeS) {
+    var item = element("div", "metric");
+    var text = origemValue(value, kind);
+    var content = element("span", "value" + (String(text).length > 20 ? " small" : ""), text);
+    var title = origemTitle(kind, uptimeS);
+    if (title) content.title = title;
+    if (kind === "amostra" && isAmostraCedo(uptimeS)) content.className += " amostra-cedo";
+    item.appendChild(element("span", "key", prettyKey(key)));
+    item.appendChild(content);
+    container.appendChild(item);
+  }
+
+  function metric(container, key, value) {
+    var item = element("div", "metric");
+    item.appendChild(element("span", "key", prettyKey(key)));
+    item.appendChild(element("span", "value" + (String(valueText(value)).length > 20 ? " small" : ""), displayValue(key, value)));
+    container.appendChild(item);
+  }
+
+  function renderMetrics(container, object, excluded) {
+    var keys;
+    var i;
+    if (!isObject(object)) { empty(container, "Nenhuma métrica disponível."); return; }
+    keys = Object.keys(object);
+    for (i = 0; i < keys.length; i += 1) {
+      if (excluded && excluded[keys[i]]) continue;
+      if (object[keys[i]] === null || typeof object[keys[i]] === "object") continue;
+      metric(container, keys[i], object[keys[i]]);
+    }
+    if (!container.children.length) empty(container, "Nenhuma métrica disponível.");
+  }
+
+  function asList(value, preferredKey) {
+    var result = [];
+    var keys;
+    var i;
+    var item;
+    if (Array.isArray(value)) return value;
+    if (!isObject(value)) return result;
+    if (preferredKey && Array.isArray(value[preferredKey])) return value[preferredKey];
+    if (Array.isArray(value.items)) return value.items;
+    keys = Object.keys(value);
+    for (i = 0; i < keys.length; i += 1) {
+      item = value[keys[i]];
+      if (isObject(item)) {
+        if (!own(item, "id") && !own(item, "name") && !own(item, "label")) item.id = keys[i];
+        result.push(item);
+      } else {
+        result.push({ id: keys[i], value: item });
+      }
+    }
+    return result;
+  }
+
+  function card(container, item, options) {
+    var box = element("details", "card");
+    var head = element("summary", "card-head");
+    var title = first(item, ["label", "name", "title", "id"], options && options.fallback || "sem nome");
+    var state = first(item, ["state", "status", "health", "online", "ready"], "unknown");
+    if (isObject(state)) state = first(state, ["state", "status", "health"], "unknown");
+    var stateBox = element("span", "state status-" + stateName(state));
+    var dot = element("span", "dot");
+    var stateText = element("span", "", stateLabel(state));
+    var keys;
+    var excluded = { id: true, label: true, name: true, title: true, state: true, status: true, health: true, online: true, ready: true, error: true, message: true };
+    var rows = element("div", "status-list");
+    var i;
+    var key;
+    var value;
+    var button;
+    box.setAttribute("data-status", stateName(state));
+    head.appendChild(element("h3", "", titleText(title)));
+    stateBox.appendChild(dot); stateBox.appendChild(stateText);
+    head.appendChild(stateBox); box.appendChild(head);
+    if (first(item, ["description", "detail", "message", "error"], null)) box.appendChild(element("p", "card-subtitle", valueText(first(item, ["description", "detail", "message", "error"], ""))));
+    if (item.reason && item.fix) box.appendChild(element("p", "guidance" + (item.reason === "rate" ? "" : " error"), "Como corrigir: " + valueText(item.fix)));
+    keys = Object.keys(item);
+    for (i = 0; i < keys.length; i += 1) {
+      key = keys[i]; value = item[key];
+      if (excluded[key] || value === null || typeof value === "object") continue;
+      var line = element("div", "status-line");
+      line.appendChild(element("span", "", prettyKey(key)));
+      line.appendChild(element("strong", "", displayValue(key, value)));
+      rows.appendChild(line);
+    }
+    if (rows.children.length) box.appendChild(rows);
+    if (options && options.testable) {
+      // Resolver BR tem teste próprio (/test-resolver.json): botão e handler
+      // distintos, o card em si continua igual ao do indexador. Os handlers
+      // vivem em dashboard-probes.js (carregado antes do boot).
+      if (options.kind === "resolver") {
+        button = element("button", "mini-action", "Testar este resolver");
+        button.type = "button";
+        button.setAttribute("data-resolver-id", String(first(item, ["id", "key", "name"], "")));
+        button.addEventListener("click", function () { runResolverTest(button.getAttribute("data-resolver-id"), button); });
+      } else {
+        button = element("button", "mini-action", "Testar este indexador");
+        button.type = "button";
+        button.setAttribute("data-indexer-id", String(first(item, ["id", "key", "name"], "")));
+        button.addEventListener("click", function () { runIndexerTest(button.getAttribute("data-indexer-id"), button); });
+      }
+      box.appendChild(button);
+    }
+    container.appendChild(box);
+  }
+
+  function drawSparkline(id, values, color) {
+    var el = $(id);
+    var max, min, i, poly, points = [];
+    if (!el || values.length < 2) return;
+    max = Math.max.apply(Math, values);
+    min = Math.min.apply(Math, values);
+    if (el.getContext) {
+      var context = el.getContext("2d");
+      if (context) {
+        context.clearRect(0, 0, el.width, el.height);
+        context.beginPath();
+        context.strokeStyle = color;
+        context.lineWidth = 2;
+        for (i = 0; i < values.length; i += 1) {
+          var x = (i / (values.length - 1)) * el.width;
+          var y = max === min ? el.height / 2 : el.height - ((values[i] - min) / (max - min)) * (el.height - 4) - 2;
+          if (i === 0) context.moveTo(x, y); else context.lineTo(x, y);
+        }
+        context.stroke();
+      }
+    }
+    poly = el.querySelector ? el.querySelector("polyline, path") : null;
+    if (poly) {
+      for (i = 0; i < values.length; i += 1) {
+        var sx = Math.round((i / (values.length - 1)) * 1000) / 10;
+        var sy = max === min ? 12 : Math.round((22 - ((values[i] - min) / (max - min)) * 20) * 10) / 10;
+        points.push(sx + "," + sy);
+      }
+      if (poly.tagName.toLowerCase() === "polyline") poly.setAttribute("points", points.join(" "));
+      else poly.setAttribute("d", "M " + points.join(" L "));
+      if (color) poly.style.stroke = color;
+    }
+  }

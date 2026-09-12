@@ -46,8 +46,12 @@ function fakeNode(): FakeNode {
 }
 
 function loadDashboardStatusApi(fetch?: (url: string, init?: any) => Promise<any>): { els: Record<string, FakeNode>; renderStatus: (data: any) => void; runResolverTest: (id: string, button?: FakeNode | null) => void; setToken: (token: string) => void } {
+  // Fase 0: render (helpers de desenho) e probes (sondas) são módulos próprios;
+  // renderStatus usa element/etc do render e runResolverTest vive em probes.
   const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
+  const render = readFileSync(new URL('../../src/public/dashboard-render.js', import.meta.url), 'utf8');
   const status = readFileSync(new URL('../../src/public/dashboard-status.js', import.meta.url), 'utf8');
+  const probes = readFileSync(new URL('../../src/public/dashboard-probes.js', import.meta.url), 'utf8');
   // Renderizadores que vivem em dashboard-panels.js são irrelevantes aqui:
   // stubs só para renderStatus não estourar.
   const stubs = [
@@ -81,7 +85,7 @@ function loadDashboardStatusApi(fetch?: (url: string, init?: any) => Promise<any
   };
   // dashboard-core.js + dashboard-status.js compartilham escopo global (sem
   // IIFE); os parâmetros document/window/fetch sombreiam os globals ausentes.
-  const factory = new Function('document', 'window', 'fetch', core + '\n' + status + '\n' + stubs + '\nreturn { renderStatus: renderStatus, runResolverTest: runResolverTest, setToken: function (token) { currentToken = String(token || ""); } };') as
+  const factory = new Function('document', 'window', 'fetch', core + '\n' + render + '\n' + status + '\n' + probes + '\n' + stubs + '\nreturn { renderStatus: renderStatus, runResolverTest: runResolverTest, setToken: function (token) { currentToken = String(token || ""); } };') as
     (doc: unknown, win: unknown, fn: unknown) => { renderStatus: (data: any) => void; runResolverTest: (id: string, b?: FakeNode | null) => void; setToken: (t: string) => void };
   const result = factory(document, window, fetch);
   return { els, renderStatus: result.renderStatus, runResolverTest: result.runResolverTest, setToken: result.setToken };
@@ -98,6 +102,8 @@ function bannerLines(els: Record<string, FakeNode>): string {
 // código real no mesmo escopo, então sobrepõem as do core por hoisting.
 function loadDashboardPanelsApi(): { renderDebrid: (data: any, autofetch?: any) => void; renderSources: (data: any) => void; captured: any[] } {
   const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
+  // Fase 0: os helpers de desenho que panels consome vivem em dashboard-render.js.
+  const render = readFileSync(new URL('../../src/public/dashboard-render.js', import.meta.url), 'utf8');
   const panels = readFileSync(new URL('../../src/public/dashboard-panels.js', import.meta.url), 'utf8');
   const captured: any[] = [];
   const stubs = [
@@ -118,7 +124,7 @@ function loadDashboardPanelsApi(): { renderDebrid: (data: any, autofetch?: any) 
     confirm: () => false,
     addEventListener: () => {},
   };
-  const factory = new Function('document', 'window', 'fetch', 'capturedCards', core + '\n' + panels + '\n' + stubs + '\nreturn { renderDebrid: renderDebrid, renderSources: renderSources };') as
+  const factory = new Function('document', 'window', 'fetch', 'capturedCards', core + '\n' + render + '\n' + panels + '\n' + stubs + '\nreturn { renderDebrid: renderDebrid, renderSources: renderSources };') as
     (doc: unknown, win: unknown, fn: unknown, captured: any[]) => { renderDebrid: (data: any, autofetch?: any) => void; renderSources: (data: any) => void };
   const result = factory(document, window, undefined, captured);
   return { renderDebrid: result.renderDebrid, renderSources: result.renderSources, captured };
@@ -309,15 +315,16 @@ test('banner persistente existe no HTML e dashboard-status.js permanece ES5 sem 
 // (/test-resolver.json, backend em escopo separado); o frontend espelha o
 // gate/feedback de runIndexerTest e reconsulta o estado depois de medir.
 
-test('dashboard-core/panels: kind=resolver ganha botão Testar este resolver; indexador segue igual; ES5', () => {
-  const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8'); const panels = readFileSync(new URL('../../src/public/dashboard-panels.js', import.meta.url), 'utf8');
-  assert.match(core, /"Testar este resolver"/);
-  assert.match(core, /setAttribute\("data-resolver-id"/);
-  assert.match(core, /runResolverTest\(button\.getAttribute\("data-resolver-id"\), button\)/);
-  assert.match(core, /"Testar este indexador"/); // caminho do indexador permanece intacto
-  assert.match(core, /runIndexerTest\(button\.getAttribute\("data-indexer-id"\), button\)/);
+test('dashboard-render/panels: kind=resolver ganha botão Testar este resolver; indexador segue igual; ES5', () => {
+  // Fase 0: card() (que monta o botão de teste) migrou do core para render.
+  const render = readFileSync(new URL('../../src/public/dashboard-render.js', import.meta.url), 'utf8'); const panels = readFileSync(new URL('../../src/public/dashboard-panels.js', import.meta.url), 'utf8');
+  assert.match(render, /"Testar este resolver"/);
+  assert.match(render, /setAttribute\("data-resolver-id"/);
+  assert.match(render, /runResolverTest\(button\.getAttribute\("data-resolver-id"\), button\)/);
+  assert.match(render, /"Testar este indexador"/); // caminho do indexador permanece intacto
+  assert.match(render, /runIndexerTest\(button\.getAttribute\("data-indexer-id"\), button\)/);
   assert.match(panels, /renderCollection\(\$\("resolverCards"\), resolvers, "resolvers", \{ testable: true, kind: "resolver" \}\)/);
-  for (const js of [core, panels]) {
+  for (const js of [render, panels]) {
     assert.doesNotMatch(js, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'ES5 (WebView de TV)');
     assert.doesNotMatch(js, /innerHTML/, 'dados só por textContent/appendChild');
   }

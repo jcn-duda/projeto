@@ -53,7 +53,8 @@ test('restauração do agregado persistido (payload válido) é aggregate-estima
 });
 
 test('painel: qualificador da base junto das médias, mantendo ES5', () => {
-  const js = readFileSync(fileURLToPath(new URL('../src/public/dashboard-panels.js', import.meta.url)), 'utf8');
+  // Fase 0: renderMagnetDb migrou de dashboard-panels.js para dashboard-magnets.js.
+  const js = readFileSync(fileURLToPath(new URL('../src/public/dashboard-magnets.js', import.meta.url)), 'utf8');
   assert.ok(js.includes('ttlRemainingBasis'), 'painel lê ttlRemainingBasis do status');
   assert.ok(js.includes('l1-rebuild') && js.includes('aggregate-estimate'), 'base explícita no corpo');
   assert.ok(/var ttlBasis = source\.ttlRemainingBasis === "l1-rebuild"/.test(js), 'default seguro: só l1-rebuild declarado vira reconstruída');

@@ -191,11 +191,13 @@ test('GET /test-resolver.json aceita parâmetro q', async () => {
 
 function loadStatusSandbox() {
   const coreCode = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
+  // Fase 0: asList/métricas de desenho migram do core para dashboard-render.js.
+  const renderCode = readFileSync(new URL('../../src/public/dashboard-render.js', import.meta.url), 'utf8');
   const statusCode = readFileSync(new URL('../../src/public/dashboard-status.js', import.meta.url), 'utf8');
   const factory = new Function(
     'document',
     'window',
-    coreCode + '\n' + statusCode + '\n' +
+    coreCode + '\n' + renderCode + '\n' + statusCode + '\n' +
     'return { collectStatusIssues: collectStatusIssues };'
   ) as (doc: any, win: any) => { collectStatusIssues: (data: any) => any[] };
   const fakeDoc = {
@@ -280,6 +282,9 @@ test('Vetor 4: Conta de debrid com warn: true gera issue de alerta no banner', (
 test('Frontend JS em src/public/ e dashboard.html seguem ES5 estrito', () => {
   const files = [
     'src/public/dashboard-core.js',
+    'src/public/dashboard-render.js',
+    'src/public/dashboard-probes.js',
+    'src/public/dashboard-nav.js',
     'src/public/dashboard-status.js',
     'src/public/dashboard-panels.js',
     'src/public/dashboard-boot.js',
@@ -322,8 +327,11 @@ test('HTML: script ordering e elementos de modernização presentes', () => {
   assert.match(html, /id="magnetSummaryBtn"/);
 });
 
-test('PAGE_ASSETS em public.ts inclui dashboard-magnets.js', () => {
+test('PAGE_ASSETS em public.ts inclui dashboard-magnets.js e os módulos da Fase 0', () => {
   assert.ok(PAGE_ASSETS.includes('dashboard-magnets.js'), 'dashboard-magnets.js deve estar na allowlist');
+  for (const asset of ['dashboard-render.js', 'dashboard-probes.js', 'dashboard-nav.js']) {
+    assert.ok(PAGE_ASSETS.includes(asset), asset + ' deve estar na allowlist (Fase 0 do redesign)');
+  }
 });
 
 test('dashboard.css: estilos de abas móveis e sparkline SVG', () => {

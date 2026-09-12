@@ -13,6 +13,11 @@ const PAGE_ASSETS = [
   'configure-app.js',
   'dashboard.css',
   'dashboard-core.js',
+  // Fase 0 do redesign: helpers de desenho extraídos do core (metric/card/
+  // formatos/sparkline) e sondas pontuais extraídas do status (testes de
+  // indexer/resolver), cada um em módulo próprio.
+  'dashboard-render.js',
+  'dashboard-probes.js',
   'dashboard-panels.js',
   'dashboard-status.js',
   // Teste pontual de conta de debrid (Fase 1): módulo próprio extraído de
@@ -27,6 +32,9 @@ const PAGE_ASSETS = [
   'dashboard-f3.js',
   'dashboard-catalog.js',
   'dashboard-magnets.js',
+  // Fase 0 do redesign: navegação por abas (switchTab/handleHash por tabela),
+  // extraída de dashboard-panels.js.
+  'dashboard-nav.js',
   'dashboard-boot.js',
 ];
 

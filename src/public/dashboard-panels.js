@@ -1,6 +1,7 @@
-/* Adom Power-Movie — /dashboard: painéis da Geral + abas (Fase 3 §5.9 + Fase 1).
- * renderGeneral, renderMagnetDb, renderDebrid/Sources/Cache/ReleaseIndex/Harvest,
- * switchTab/handleHash. Escopo global (sem IIFE). Depois de core, antes do boot.
+/* Adom Power-Movie — /dashboard: painéis da Geral (Fase 3 §5.9 + Fase 1).
+ * renderGeneral, renderDebrid/Sources/Cache/ReleaseIndex/Harvest. O painel do
+ * MagnetDB vive em dashboard-magnets.js; as abas (switchTab/handleHash) em
+ * dashboard-nav.js. Escopo global (sem IIFE). Depois de render, antes do boot.
  * ES5 puro (Fire TV / smart TV). */
 "use strict";
 
@@ -42,91 +43,16 @@
     renderMetrics(metrics, isObject(source.search) ? source.search : {}, { _origem: true });
   }
 
-  function formatTtlSeconds(value) {
-    var seconds = Number(value);
-    if (!isFinite(seconds) || seconds < 0) return "—";
-    if (seconds < 60) return Math.round(seconds) + " s";
-    if (seconds < 3600) return Math.floor(seconds / 60) + " min";
-    return Math.floor(seconds / 3600) + " h";
-  }
-
   // Título de grupo dentro do grid de métricas: separa procedência (persistente
-  // × amostra) sem criar seção nova no HTML — o painel do Banco de Magnets
-  // compartilha #cacheMetrics com os números do cache (renderCache limpa antes).
+  // × amostra) sem criar seção nova no HTML. O painel do Banco de Magnets
+  // (dashboard-magnets.js) também o usa sobre o #magnetMetrics dele.
   function metricGroupTitle(container, text) {
     container.appendChild(element("p", "metric-group", text));
   }
 
-  function renderMagnetDb(data, counters, uptimeS) {
-    var source = isObject(data) ? data : {};
-    var metrics = $("cacheMetrics");
-    var dbCounters = isObject(source.counters) ? source.counters : {};
-    var allCounters = isObject(counters) ? counters : {};
-    var ttl = isObject(source.ttlRemainingSeconds) ? source.ttlRemainingSeconds : {};
-    var adapters = isObject(source.byAdapter) ? source.byAdapter : {};
-    var hashes = Number(allCounters["debrid.check.hashes"] || 0);
-    var cached = Number(allCounters["debrid.check.cached"] || 0);
-    var sampleTotal;
-    var adapterIds;
-    var i;
-    // Os agregados são restaurados do mag_meta; os contadores de eventos abaixo
-    // continuam sendo a única parte que zera no restart.
-    if (!source.enabled && !own(source, "enabled")) return;
-    metricMaybeOrigem(metrics, "magnet DB", source.enabled ? "ativo" : "desligado", source, "enabled", uptimeS);
-    // Grupo A — ocupação REAL do namespace mag (L1/L2): sobrevive ao restart e
-    // inclui o que este processo nunca observou. Nunca fundir com a amostra.
-    metricGroupTitle(metrics, "Registros persistentes no banco (sobrevivem ao restart)");
-    metricMaybeOrigem(metrics, "L1 mag (ocupação)", valueText(source.l1Entries) + " / " + valueText(source.l1Max), source, "l1Entries", uptimeS);
-    metricMaybeOrigem(metrics, "evicções cota mag", source.evictedQuota, source, "evictedQuota", uptimeS);
-    metrics.appendChild(element("p", "guidance",
-      "Ocupação real do namespace mag no cache (L1/L2), incluindo registros gravados antes deste processo; pode conter expirados ou órfãos ainda não removidos. A chave é por serviço + conta + estado: o mesmo hash pode figurar mais de uma vez. Não é contagem de magnets válidos hoje."));
-    // Grupo B — agregados duráveis por estado e adapter.
-    metricGroupTitle(metrics, "Agregados persistentes por estado e serviço");
-    sampleTotal = Number(source.sizeAlive || 0) + Number(source.sizeBad || 0) + Number(source.sizeLie || 0);
-    metricMaybeOrigem(metrics, "registros classificados (≠ L1)", sampleTotal, source, "sizeAlive", uptimeS);
-    metricMaybeOrigem(metrics, "alive (tocável)", source.sizeAlive, source, "sizeAlive", uptimeS);
-    // bad = play sem vídeo (magnetdb); dead = terminal no recheck (autofetch) — fronteiras distintas.
-    metricMaybeOrigem(metrics, "bad (play sem vídeo)", source.sizeBad, source, "sizeBad", uptimeS);
-    metricMaybeOrigem(metrics, "lie (áudio mentiu)", source.sizeLie, source, "sizeLie", uptimeS);
-    metricMaybeOrigem(metrics, "TTL alive configurado", formatTtlSeconds(source.aliveTtlSeconds), source, "aliveTtlSeconds", uptimeS);
-    metricMaybeOrigem(metrics, "TTL bad configurado", formatTtlSeconds(source.badTtlSeconds), source, "badTtlSeconds", uptimeS);
-    metricMaybeOrigem(metrics, "TTL lie configurado", formatTtlSeconds(source.lieTtlSeconds), source, "lieTtlSeconds", uptimeS);
-    // Base da soma de TTL restante: `l1-rebuild` = restante real de cada chave,
-    // preciso só no instante do rebuild; `aggregate-estimate` = estimativa
-    // incremental/restaurada (default e estado normal após qualquer mutação).
-    var ttlBasis = source.ttlRemainingBasis === "l1-rebuild" ? "l1-rebuild" : "aggregate-estimate";
-    var ttlSuffix = ttlBasis === "l1-rebuild" ? " · base: recontada do L1" : "";
-    metricMaybeOrigem(metrics, "TTL alive restante (média)", formatTtlSeconds(ttl.alive) + ttlSuffix, source, "ttlRemainingSeconds", uptimeS);
-    metricMaybeOrigem(metrics, "TTL bad restante (média)", formatTtlSeconds(ttl.bad) + ttlSuffix, source, "ttlRemainingSeconds", uptimeS);
-    metricMaybeOrigem(metrics, "TTL lie restante (média)", formatTtlSeconds(ttl.lie) + ttlSuffix, source, "ttlRemainingSeconds", uptimeS);
-    adapterIds = Object.keys(adapters).sort();
-    for (i = 0; i < adapterIds.length; i += 1) {
-      var adapter = isObject(adapters[adapterIds[i]]) ? adapters[adapterIds[i]] : {};
-      var adapterTtl = isObject(adapter.ttlRemainingSeconds) ? adapter.ttlRemainingSeconds : {};
-      metricMaybeOrigem(metrics, "serviço " + adapterIds[i],
-        "alive " + valueText(adapter.sizeAlive) + ", bad " + valueText(adapter.sizeBad) + ", lie " + valueText(adapter.sizeLie) +
-        " · TTL ≈ " + formatTtlSeconds(adapterTtl.alive) + "/" + formatTtlSeconds(adapterTtl.bad) + "/" + formatTtlSeconds(adapterTtl.lie),
-        source, "byAdapter", uptimeS);
-    }
-    metrics.appendChild(element("p", "guidance",
-      "Os agregados sobrevivem ao restart pelo mag_meta. A média de TTL restante é " + (ttlBasis === "l1-rebuild"
-        ? "recontada do L1 (restante real de cada chave) e vale só até a próxima gravação/esquecimento"
-        : "estimativa incremental ou restaurada (escrita e remoção somam/subtraem o TTL nominal, não o restante exato)") + ". " +
-      "A ocupação do L1 ainda pode diferir de alive+bad+lie por incluir registros expirados ou órfãos ainda não removidos."));
-    // Grupo C — contadores do processo (metrics): gravações, reparo e descartes
-    // na listagem. Estes, sim, zeram no restart.
-    metricGroupTitle(metrics, "Gravações e descartes desde o restart (contadores do processo)");
-    // aliveSet conta toda markAlive, inclusive a renovação econômica do davail.
-    metric(metrics, "gravações alive (inclui renovações)", dbCounters.aliveSet);
-    metric(metrics, "gravações bad", dbCounters.badSet);
-    metric(metrics, "gravações lie", dbCounters.lieSet);
-    metric(metrics, "bad limpos (reparo blocked)", dbCounters.badClearedBlocked);
-    metric(metrics, "descartados bad (magnetdb)", dbCounters.droppedBad);
-    metric(metrics, "descartados dead (autofetch ≠ bad)", dbCounters.droppedDead);
-    metric(metrics, "descartados lie (magnetdb)", dbCounters.droppedLie);
-    metricGroupTitle(metrics, "Checagem de cache do debrid (medida neste processo)");
-    metric(metrics, "taxa ⚡ (cache medido)", hashes ? Math.round((cached / hashes) * 100) + "% (" + cached + "/" + hashes + ")" : "—");
-  }
+  // O painel do MagnetDB (renderMagnetDb) e o formatTtlSeconds dele vivem em
+  // dashboard-magnets.js — o agregado passou a pintar no container próprio
+  // (#magnetMetrics) em vez de dividir o #cacheMetrics com o cache.
 
   function serviceId(item) {
     var id = String(first(item, ["id", "service", "key", "name"], "")).toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -312,79 +238,5 @@
     renderCollection($("harvestCards"), queue, "queuePreview", {});
   }
 
-  function switchTab(name) {
-    var tabGeral = $("tabGeral");
-    var tabAf = $("tabAutofetch");
-    var tabColhedor = $("tabColhedor");
-    var tabTrace = $("tabTrace");
-    var viewGeral = $("viewGeral");
-    var viewAf = $("viewAutofetch");
-    var viewColhedor = $("viewColhedor");
-    var viewTrace = $("viewTrace");
-    if (!tabGeral || !tabAf || !tabColhedor || !tabTrace || !viewGeral || !viewAf || !viewColhedor || !viewTrace) return;
-    if (name === "colhedor") {
-      tabColhedor.className = "tab-btn active";
-      tabColhedor.setAttribute("aria-selected", "true");
-      tabGeral.className = "tab-btn";
-      tabGeral.setAttribute("aria-selected", "false");
-      tabAf.className = "tab-btn";
-      tabAf.setAttribute("aria-selected", "false");
-      tabTrace.className = "tab-btn";
-      tabTrace.setAttribute("aria-selected", "false");
-      viewColhedor.className = "tab-view";
-      viewGeral.className = "tab-view hidden";
-      viewAf.className = "tab-view hidden";
-      viewTrace.className = "tab-view hidden";
-      if (window.location.hash !== "#colhedor") window.location.hash = "#colhedor";
-    } else if (name === "autofetch") {
-      tabAf.className = "tab-btn active";
-      tabAf.setAttribute("aria-selected", "true");
-      tabGeral.className = "tab-btn";
-      tabGeral.setAttribute("aria-selected", "false");
-      tabColhedor.className = "tab-btn";
-      tabColhedor.setAttribute("aria-selected", "false");
-      tabTrace.className = "tab-btn";
-      tabTrace.setAttribute("aria-selected", "false");
-      viewAf.className = "tab-view";
-      viewGeral.className = "tab-view hidden";
-      viewColhedor.className = "tab-view hidden";
-      viewTrace.className = "tab-view hidden";
-      if (window.location.hash !== "#autofetch") window.location.hash = "#autofetch";
-    } else if (name === "trace") {
-      tabTrace.className = "tab-btn active";
-      tabTrace.setAttribute("aria-selected", "true");
-      tabGeral.className = "tab-btn";
-      tabGeral.setAttribute("aria-selected", "false");
-      tabAf.className = "tab-btn";
-      tabAf.setAttribute("aria-selected", "false");
-      tabColhedor.className = "tab-btn";
-      tabColhedor.setAttribute("aria-selected", "false");
-      viewTrace.className = "tab-view";
-      viewGeral.className = "tab-view hidden";
-      viewAf.className = "tab-view hidden";
-      viewColhedor.className = "tab-view hidden";
-      if (window.location.hash !== "#trace") window.location.hash = "#trace";
-    } else {
-      tabGeral.className = "tab-btn active";
-      tabGeral.setAttribute("aria-selected", "true");
-      tabAf.className = "tab-btn";
-      tabAf.setAttribute("aria-selected", "false");
-      tabColhedor.className = "tab-btn";
-      tabColhedor.setAttribute("aria-selected", "false");
-      tabTrace.className = "tab-btn";
-      tabTrace.setAttribute("aria-selected", "false");
-      viewGeral.className = "tab-view";
-      viewAf.className = "tab-view hidden";
-      viewColhedor.className = "tab-view hidden";
-      viewTrace.className = "tab-view hidden";
-      if (window.location.hash === "#autofetch" || window.location.hash === "#colhedor" || window.location.hash === "#trace") window.location.hash = "#geral";
-    }
-  }
-
-  function handleHash() {
-    var hash = String(window.location.hash || "").replace(/^#/, "");
-    if (hash === "colhedor") switchTab("colhedor");
-    else if (hash === "autofetch") switchTab("autofetch");
-    else if (hash === "trace") switchTab("trace");
-    else switchTab("geral");
-  }
+  // Navegação por abas (switchTab/handleHash) vive em dashboard-nav.js —
+  // tabela única de abas em vez da escada de if/else por aba.

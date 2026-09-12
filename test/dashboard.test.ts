@@ -247,54 +247,20 @@ test('GET /dashboard-status.json: catálogo fallback → services.jackett naomed
   }
 });
 
-test('dashboard permanece ES5 e renderiza a observabilidade do Magnet DB', () => {
-  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
-  const panels = readFileSync(new URL('../src/public/dashboard-panels.js', import.meta.url), 'utf8');
-  // Wiring no HTML: container da métrica + módulo panels na ordem certa.
-  assert.match(html, /id="cacheMetrics"/);
-  assert.match(html, /src="\/dashboard-panels\.js"/);
-  assert.match(html, /src="\/dashboard-boot\.js"/);
-  assert.doesNotMatch(html, /<script>\s*"use strict"/);
-  assert.doesNotMatch(html, /function renderMagnetDb\(/);
-  assert.doesNotMatch(html, /function renderGeneral\(/);
-  assert.doesNotMatch(html, /function bind\(/);
-  // Observabilidade Magnet DB mora em panels (Fase 1 painel).
-  assert.match(panels, /function renderMagnetDb\(data, counters, uptimeS\)/);
-  assert.match(panels, /function renderGeneral\(/);
-  assert.match(panels, /debrid\.check\.cached/);
-  assert.match(panels, /source\.byAdapter/);
-  assert.match(panels, /source\.search/);
-  assert.match(panels, /L1 mag \(ocupação\)/);
-  // fe4cd8c (MagnetDB durável): os agregados do painel deixaram de ser
-  // "amostra" e passaram a ser persistentes por estado/adapter.
-  assert.match(panels, /registros classificados \(≠ L1\)/);
-  assert.match(panels, /bad \(play sem vídeo\)/);
-  assert.match(panels, /descartados dead \(autofetch ≠ bad\)/);
-   assert.match(panels, /source\.l1Entries/);
-   assert.match(panels, /source\.evictedQuota/);
-   // Grupos explicativos do Banco de Magnets: banco persistente (L1/L2, com
-   // órfãos possíveis) ≠ agregados duráveis por adapter ≠ contadores do processo.
-   assert.match(panels, /Registros persistentes no banco/);
-   assert.match(panels, /Agregados persistentes por estado e serviço/);
-   assert.match(panels, /Gravações e descartes desde o restart/);
-   assert.match(panels, /gravações alive \(inclui renovações\)/);
-   assert.match(panels, /Os agregados sobrevivem ao restart pelo mag_meta/);
-   assert.match(panels, /expirados ou órfãos/);
-   assert.match(panels, /dbCounters\.aliveSet/);
-  assert.doesNotMatch(panels, /\b(?:const|let)\b|=>|\?\.|\?\?/);
-  assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/);
-});
-
+// Observabilidade do MagnetDB (regex do painel, container #magnetMetrics) e
+// o contrato de quem-define-o-quê da Fase 0: ver test/dashboard-render-split.test.ts.
 // Runtime Fake DOM de renderMagnetDb/renderAutofetchPanel: ver
 // test/dashboard-panels-extract.test.ts (teto de linhas).
 
-// displayValue vive no dashboard-core.js extraído (Fase 3) e nada roda no load
-// lá — só declarações — então o teste EXECUTA o módulo em vez de regexar o
-// texto. Os dois casos abaixo são bugs pré-existentes que a extração tornou
-// visíveis, confirmados no DOM ao vivo pelo QA antes do conserto.
-test('displayValue do dashboard-core: data é sufixo -at e uptimeS vem em segundos', () => {
-  const code = readFileSync(new URL('../src/public/dashboard-core.js', import.meta.url), 'utf8');
-  const api = new Function(code + '\nreturn { displayValue: displayValue };')() as {
+// displayValue vive no dashboard-render.js extraído (Fase 0 redesign, antes no
+// core da Fase 3) e nada roda no load lá — só declarações — então o teste
+// EXECUTA o módulo em vez de regexar o texto. Os dois casos abaixo são bugs
+// pré-existentes que a extração tornou visíveis, confirmados no DOM ao vivo
+// pelo QA antes do conserto.
+test('displayValue do dashboard-render: data é sufixo -at e uptimeS vem em segundos', () => {
+  const core = readFileSync(new URL('../src/public/dashboard-core.js', import.meta.url), 'utf8');
+  const render = readFileSync(new URL('../src/public/dashboard-render.js', import.meta.url), 'utf8');
+  const api = new Function(core + '\n' + render + '\nreturn { displayValue: displayValue };')() as {
     displayValue: (key: string, value: unknown) => string;
   };
 

@@ -34,9 +34,18 @@ function fakeNode(): FakeNode {
   return node;
 }
 
-function loadPanelsApi(): { els: Record<string, FakeNode>; renderMagnetDb: (data: unknown, counters: unknown) => void } {
+function loadPanelsApi(): {
+  els: Record<string, FakeNode>;
+  renderMagnetDb: (data: unknown, counters: unknown) => void;
+  renderMagnetSummaryMetrics: (data: unknown) => void;
+} {
+  // Fase 0: helpers de desenho migraram do core para dashboard-render.js e o
+  // painel do MagnetDB migrou de panels para dashboard-magnets.js (container
+  // próprio #magnetMetrics).
   const core = readFileSync(new URL('../src/public/dashboard-core.js', import.meta.url), 'utf8');
+  const render = readFileSync(new URL('../src/public/dashboard-render.js', import.meta.url), 'utf8');
   const panels = readFileSync(new URL('../src/public/dashboard-panels.js', import.meta.url), 'utf8');
+  const magnets = readFileSync(new URL('../src/public/dashboard-magnets.js', import.meta.url), 'utf8');
   const els: Record<string, FakeNode> = {};
   const document = {
     createElement: () => fakeNode(),
@@ -53,13 +62,18 @@ function loadPanelsApi(): { els: Record<string, FakeNode>; renderMagnetDb: (data
   const factory = new Function(
     'document',
     'window',
-    core + '\n' + panels + '\nreturn { renderMagnetDb: renderMagnetDb };',
-  ) as (doc: unknown, win: unknown) => { renderMagnetDb: (data: unknown, counters: unknown) => void };
-  return { els, renderMagnetDb: factory(document, window).renderMagnetDb };
+    core + '\n' + render + '\n' + panels + '\n' + magnets +
+      '\nreturn { renderMagnetDb: renderMagnetDb, renderMagnetSummaryMetrics: renderMagnetSummaryMetrics };',
+  ) as (doc: unknown, win: unknown) => {
+    renderMagnetDb: (data: unknown, counters: unknown) => void;
+    renderMagnetSummaryMetrics: (data: unknown) => void;
+  };
+  return { els, renderMagnetDb: factory(document, window).renderMagnetDb, renderMagnetSummaryMetrics: factory(document, window).renderMagnetSummaryMetrics };
 }
 
 function loadAutofetchApi(): { els: Record<string, FakeNode>; renderAutofetchPanel: (af: unknown, uptimeS?: number) => void } {
   const core = readFileSync(new URL('../src/public/dashboard-core.js', import.meta.url), 'utf8');
+  const render = readFileSync(new URL('../src/public/dashboard-render.js', import.meta.url), 'utf8');
   const afJs = readFileSync(new URL('../src/public/dashboard-autofetch.js', import.meta.url), 'utf8');
   const els: Record<string, FakeNode> = {};
   const document = {
@@ -77,7 +91,7 @@ function loadAutofetchApi(): { els: Record<string, FakeNode>; renderAutofetchPan
   const factory = new Function(
     'document',
     'window',
-    core + '\n' + afJs + '\nreturn { renderAutofetchPanel: renderAutofetchPanel };',
+    core + '\n' + render + '\n' + afJs + '\nreturn { renderAutofetchPanel: renderAutofetchPanel };',
   ) as (doc: unknown, win: unknown) => { renderAutofetchPanel: (af: unknown, uptimeS?: number) => void };
   return { els, renderAutofetchPanel: factory(document, window).renderAutofetchPanel };
 }
@@ -105,7 +119,7 @@ test('renderMagnetDb: L1 mag, agregados duráveis e bad≠dead no Fake DOM', () 
     },
     { 'debrid.check.hashes': 100, 'debrid.check.cached': 40 },
   );
-  const text = flat(els.cacheMetrics);
+  const text = flat(els.magnetMetrics);
   assert.match(text, /L1 mag/i);
   assert.match(text, /1200\s*\/\s*50000/);
   assert.match(text, /registros classificados/i);
@@ -146,7 +160,7 @@ test('renderMagnetDb: distingue ocupação L1 dos agregados persistentes', () =>
     },
     { 'debrid.check.hashes': 200, 'debrid.check.cached': 50 },
   );
-  const text = flat(els.cacheMetrics);
+  const text = flat(els.magnetMetrics);
   // Grupos com procedência explícita, na ordem: L1 × agregados × contadores.
   assert.match(text, /Registros persistentes no banco/i);
   assert.match(text, /405\s*\/\s*50000/, 'ocupação real do namespace mag no L1');
@@ -161,6 +175,39 @@ test('renderMagnetDb: distingue ocupação L1 dos agregados persistentes', () =>
   assert.match(text, /gravações alive \(inclui renovações\)/i);
   assert.match(text, /descartados dead/i);
   assert.match(text, /25% \(50\/200\)/);
+});
+
+// Achado B1 (Fase 0): renderMagnetSummaryMetrics dividia o #magnetMetrics com
+// o renderMagnetDb — cada poll (renderStatus) apagava o resumo manual que o
+// operador acabara de pedir. Cada um agora pinta o próprio container.
+test('renderMagnetSummaryMetrics usa container próprio e sobrevive ao poll do renderMagnetDb', () => {
+  const { els, renderMagnetDb, renderMagnetSummaryMetrics } = loadPanelsApi();
+  renderMagnetSummaryMetrics({
+    ok: true,
+    entries: 74,
+    totals: { alive: 73, bad: 0, lie: 1 },
+    byAdapter: { alldebrid: { alive: 73, bad: 0, lie: 1 } },
+  });
+  const summaryText = flat(els.magnetSummaryMetrics);
+  assert.match(summaryText, /Totais consolidados do MagnetDB/i);
+  assert.match(summaryText, /74/);
+  assert.match(summaryText, /serviço alldebrid/i);
+  // O poll seguinte (renderMagnetDb) pinta o container dele sem tocar o resumo.
+  renderMagnetDb(
+    {
+      enabled: true,
+      l1Entries: 405,
+      l1Max: 50000,
+      sizeAlive: 73,
+      sizeBad: 0,
+      sizeLie: 1,
+      counters: {},
+      byAdapter: {},
+    },
+    {},
+  );
+  assert.match(flat(els.magnetSummaryMetrics), /Totais consolidados do MagnetDB/i, 'resumo manual não é apagado pelo poll');
+  assert.match(flat(els.magnetMetrics), /L1 mag/i, 'poll pinta o container próprio do renderMagnetDb');
 });
 
 test('renderAutofetchPanel: config.paused pinta afMetricState = PAUSADO', () => {

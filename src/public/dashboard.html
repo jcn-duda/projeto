@@ -165,6 +165,7 @@
     </div>
     <p id="magnetFeedback" class="feedback" role="status" aria-live="polite"></p>
     <div id="magnetMetrics" class="metrics"></div>
+    <div id="magnetSummaryMetrics" class="metrics"></div>
     <div id="magnetOutput" class="test-output" style="display: none;"></div>
   </section>
 
@@ -736,10 +737,14 @@
   </div>
 </main>
 
-<!-- JS do painel (Fase 1): zero inline. Ordem é contrato — boot por último. -->
+<!-- JS do painel (Fase 1 + Fase 0 redesign): zero inline. Ordem é contrato —
+     core → render (helpers de desenho) → panels/status → probes (sondas) →
+     módulos por aba → magnets/nav → boot por último. -->
 <script src="/dashboard-core.js"></script>
+<script src="/dashboard-render.js"></script>
 <script src="/dashboard-panels.js"></script>
 <script src="/dashboard-status.js"></script>
+<script src="/dashboard-probes.js"></script>
 <script src="/dashboard-debrid-test.js"></script>
 <script src="/dashboard-trace.js"></script>
 <script src="/dashboard-autofetch.js"></script>
@@ -748,6 +753,7 @@
 <script src="/dashboard-f3.js"></script>
 <script src="/dashboard-catalog.js"></script>
 <script src="/dashboard-magnets.js"></script>
+<script src="/dashboard-nav.js"></script>
 <script src="/dashboard-boot.js"></script>
 </body>
 </html>
