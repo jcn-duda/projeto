@@ -33,7 +33,7 @@
 > do topo.
 - **Process & Application Layer**:
   - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
-  - `src/app.ts`: Express application factory (`createApp()`); route *registration* lives in `src/routes/register.ts` since §5.5 (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/dashboard`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`, plus the `PAGE_ASSETS` allowlist of panel CSS/JS added by §5.9).
+  - `src/app.ts`: Express application factory (`createApp()`); route *registration* lives in `src/routes/register.ts` since §5.5 (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/dashboard`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`, plus the closed `PAGE_ASSETS` allowlist of panel HTML/CSS/images and the `CLIENT_ASSETS` allowlist of the `/configure` and `/dashboard` ESM client modules).
 - **Providers & Orchestration Layer**:
   - `src/providers/search-orchestrator.ts`: Query planning, Cinemeta/TMDB metadata, raw provider fan-out (`collectRaw`), Brazilian priority grace, pack fallbacks, enrichment tails. Phase control stays implicit via `latest-writer`'s `finish.phase()`/`finish.advance()` — no explicit `SearchPhase` state machine (A3 not implemented).
   - `src/providers/search-cache.ts`: Stale-While-Revalidate (SWR) cache handling, request coalescing (`inFlight`), background revalidation (`scheduleStaleRefresh`).
@@ -59,8 +59,9 @@
   - `src/utils/cache.ts`: SQLite L2 + in-memory L1 cache with corrupted database auto-recovery.
 - **Brazilian Resolvers Microservices**:
   - `bludv-resolver`, `comandotorrents-resolver`, `nerdfilmes-resolver`, `torrentdosfilmes-resolver`, `vacatorrent-resolver`: Microservices running on internal ports 8700–8704 with shared core engine (`resolvers/` runtime).
-- **Panel Layer** (`src/public/`):
-  - `configure.html` + `configure.css` + `configure-app.js`; `dashboard.html` + `dashboard.css` + `dashboard-core.js` + `dashboard-panels.js` + `dashboard-status.js` + `dashboard-debrid-test.js` (teste seguro de conta, extraído dos panels ao se aproximar do teto da catraca — `3d6f89d`). ES5, zero build, served as static files through the closed `PAGE_ASSETS` allowlist in `src/routes/public.ts`. The HTML is served from memory with `?v=<content hash>` injected into the asset references, so the assets ship with `maxAge: '30d'` and a deploy can never pair new HTML with a cached old module. The JS anchored by the tests (function bodies matched by regex: `collect`/`apply`/`fromUrl`, `KEYS`, `renderMagnetDb`, the Chupim/Colhedor panels) stays **inline in the HTML by contract** — only the unanchored code was extracted (§5.9).
+- **Panel Layer** (`src/public/` + `src/client/`):
+  - `/configure`: `configure.html` + `configure.css` + the native-ESM client at `src/client/configure/*.ts` (`tsconfig.client.json` browser emit into `dist/src/public/client/`; `tsconfig.client.test.json` NodeNext emit into `dist/src/client/` only for tests). One `<script type="module" src="/client/configure/entry.js">`; the server injects `?v=<content hash>` into the entry (`immutable`), serves children in the closed `CLIENT_ASSETS` allowlist with `no-cache` + ETag/304, and the tests import the real modules via `test/helpers/client.ts` (no `new Function`/function-body regex).
+  - `/dashboard`: `dashboard.html` + `dashboard.css`/`dashboard-tokens.css` + the native-ESM client at `src/client/dashboard/*.ts` (C3 cutover). One `<script type="module" src="/client/dashboard/entry.js">`; the entry registers the closed hook set and calls `bind()` (modules have no top-level effect), `DashState` is an exported object mutated by property, the server injects `?v=<content hash>` into the entry (`immutable`) and serves children in the closed `CLIENT_ASSETS` allowlist with `no-cache` + ETag/304, and the tests import the real modules via `test/helpers/dashboard.ts` (no `new Function`/function-body regex). `PAGE_ASSETS` now holds only HTML/CSS/images.
 
 ---
 
@@ -74,7 +75,7 @@
 - `src/debrid/*.ts`: Debrid adapters, file selector, common helpers, live-check (P5).
 - `src/utils/*.ts`: Format submodules, cache, net-safety, magnetdb, release-index, stream-trace/trace-recompute.
 - `resolvers/*.js`: Shared **ESM** core of the six Brazilian resolvers (`is-main.js` replaces `require.main`); `resolvers/profiles/*.js`: per-site parsers and rules. The `*-resolver/server.js` shims are ESM with a `default` lazy instance.
-- `src/public/*`: Panel pages (ES5, zero build) — HTML plus the CSS/JS extracted in §5.9 (+ `dashboard-trace.js` and per-tab modules).
+- `src/public/*`: Panel pages — `/configure` and `/dashboard` HTML/CSS/images (no build). Both client JS trees live under `src/client/<name>/*.ts` (native ESM, built by `tsconfig.client.json`; NodeNext test emit via `tsconfig.client.test.json`).
 - `scripts/check-line-budget.ts` + `.line-budget.json`: 400-line ratchet over `.ts`/`.js`/`.css` (§5.8, scope extended to `.css` on 08-29); `npm run lint:lines`.
 - `test/**/*.test.ts`: testes unitários e e2e; `npm run test:complete` confere a lista do `package.json` e os harnesses.
 - `test/e2e/*.test.ts`: Opaque-box E2E test suite (Tiers 1–4).

@@ -26,6 +26,12 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   for (const asset of publicHandlers.pageAssets) {
     app.get(`/${asset}`, publicHandlers.sendPageAsset(asset));
   }
+  // Cliente ESM de /configure: caminhos aninhados servidos pela MESMA
+  // allowlist fechada. O entry versionado é immutable; os filhos saem
+  // no-cache com ETag/304 (ver sendClientAsset em public.ts).
+  for (const asset of publicHandlers.clientAssets) {
+    app.get(`/${asset}`, publicHandlers.sendClientAsset(asset));
+  }
   app.get('/', (_req, res) => res.redirect(302, '/configure'));
   app.get('/configure', publicHandlers.sendConfigure);
   app.get('/dashboard', publicHandlers.sendDashboard);

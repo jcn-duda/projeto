@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 
 // Persistência desligada ANTES dos requires: o app real abre o módulo de
 // cache e o data/cache.db do repo não pode ser tocado pelos testes.
@@ -78,19 +79,20 @@ test('páginas referenciam assets com ?v=<hash> e a rota ignora a query', async 
   const configure = await server.request('GET', '/configure');
   assert.equal(configure.status, 200);
   assert.match(configure.text, /href="\/configure\.css\?v=[0-9a-f]{10}"[^"]/);
-  assert.match(configure.text, /src="\/configure-app\.js\?v=[0-9a-f]{10}"[^"]/);
+  assert.match(configure.text, /src="\/client\/configure\/entry\.js\?v=[0-9a-f]{10}"[^"]/);
   assert.doesNotMatch(configure.text, /\?v=[0-9a-f]{10}""/);
   const dashboard = await server.request('GET', '/dashboard');
   assert.equal(dashboard.status, 200);
-  assert.match(dashboard.text, /src="\/dashboard-core\.js\?v=[0-9a-f]{10}"[^"]/);
+  assert.match(dashboard.text, /src="\/client\/dashboard\/entry\.js\?v=[0-9a-f]{10}"[^"]/);
   assert.doesNotMatch(dashboard.text, /\?v=[0-9a-f]{10}""/);
   // Paridade HTML ↔ allowlist fechada: TODO asset local referenciado pelas
-  // páginas precisa ter rota. Isso pega módulo novo copiado para dist/ mas
-  // esquecido em PAGE_ASSETS (404 que derrubaria o boot inteiro).
+  // páginas precisa ter rota. Os filhos ESM (importados pelo entry) não levam
+  // ?v= no HTML; a cobertura deles é feita por allowlist no dashboard-esm.test.
   const assetUrls = [configure.text, dashboard.text]
-    .flatMap((html) => [...html.matchAll(/(?:src|href)="(\/(?:configure|dashboard)[-\w]*\.(?:css|js)\?v=[0-9a-f]{10})"/g)])
+    .flatMap((html) => [...html.matchAll(/(?:src|href)="(\/(?:(?:configure|dashboard)[-\w]*\.css|client\/(?:configure|dashboard)\/entry\.js)\?v=[0-9a-f]{10})"/g)])
     .map((match) => match[1]);
-  assert.ok(assetUrls.some((url) => url.startsWith('/dashboard-harvest-debrid.js?v=')));
+  assert.ok(assetUrls.some((url) => url.startsWith('/client/dashboard/entry.js?v=')));
+  assert.ok(assetUrls.some((url) => url.startsWith('/client/configure/entry.js?v=')));
   for (const url of assetUrls) {
     const asset = await server.request('GET', url);
     assert.equal(asset.status, 200, `asset referenciado sem rota: ${url}`);
@@ -106,22 +108,59 @@ test('contrato de cache: HTML no-store e asset imutável só com o fingerprint c
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('cache-control'), 'no-store', `${page} deve ser no-store`);
   }
-  // A rota casa pelo path e aceita `/dashboard-core.js` sem query: o mesmo
-  // caminho sem o hash aponta para conteúdo mutável, então `immutable` ali
-  // congelaria por um ano. Só o ?v= CORRENTE ganha o cache longo.
+  // A rota casa pelo path e aceita o entry sem query: o mesmo caminho sem o
+  // hash aponta para conteúdo mutável, então `immutable` ali congelaria por um
+  // ano. Só o ?v= CORRENTE ganha o cache longo.
   const dashboard = await server.request('GET', '/dashboard');
-  const versioned = dashboard.text.match(/(\/dashboard-core\.js\?v=[0-9a-f]{10})/);
-  assert.ok(versioned, 'o HTML deve versionar o asset com o fingerprint');
+  const versioned = dashboard.text.match(/(\/client\/dashboard\/entry\.js\?v=[0-9a-f]{10})/);
+  assert.ok(versioned, 'o HTML deve versionar o entry com o fingerprint');
   assert.ok(versioned[1]);
   const asset = await server.request('GET', versioned[1]);
   assert.equal(asset.status, 200);
   assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable');
-  const bare = await server.request('GET', '/dashboard-core.js');
+  const bare = await server.request('GET', '/client/dashboard/entry.js');
   assert.equal(bare.status, 200);
-  assert.doesNotMatch(String(bare.headers.get('cache-control')), /immutable/);
-  const wrong = await server.request('GET', '/dashboard-core.js?v=0000000000');
+  assert.equal(bare.headers.get('cache-control'), 'no-cache');
+  const wrong = await server.request('GET', '/client/dashboard/entry.js?v=0000000000');
   assert.equal(wrong.status, 200);
   assert.doesNotMatch(String(wrong.headers.get('cache-control')), /immutable/);
+
+  // Cliente ESM de /dashboard: os filhos (importados sem ?v=) saem no-cache com
+  // ETag de CONTEÚDO (hash do byte) e revalidam por 304 quando o módulo não mudou.
+  const dashChild = await server.request('GET', '/client/dashboard/status-root.js');
+  assert.equal(dashChild.status, 200);
+  assert.equal(dashChild.headers.get('cache-control'), 'no-cache');
+  const dashEtag = String(dashChild.headers.get('etag'));
+  const expectedEtag = '"' + createHash('sha256')
+    .update(fs.readFileSync(new URL('../src/public/client/dashboard/status-root.js', import.meta.url)))
+    .digest('hex').slice(0, 32) + '"';
+  assert.equal(dashEtag, expectedEtag, 'ETag do filho é o hash de conteúdo, não stat');
+  assert.match(dashEtag, /^"[0-9a-f]{32}"$/);
+  const otherChild = await server.request('GET', '/client/dashboard/core.js');
+  assert.notEqual(String(otherChild.headers.get('etag')), dashEtag, 'módulos diferentes → ETags diferentes');
+  const dashRevalidated = await server.request('GET', '/client/dashboard/status-root.js', { headers: { 'if-none-match': dashEtag } });
+  assert.equal(dashRevalidated.status, 304);
+
+  // Cliente ESM de /configure: o entry versionado é immutable; os filhos
+  // (importados sem ?v=) saem no-cache e revalidam por ETag → 304 quando o
+  // módulo não mudou. É o que pega deploy-skew sem congelar filho velho.
+  const configure = await server.request('GET', '/configure');
+  const entryUrl = configure.text.match(/(\/client\/configure\/entry\.js\?v=[0-9a-f]{10})/);
+  assert.ok(entryUrl, 'o configure.html debe versionar o entry com o fingerprint');
+  const entry = await server.request('GET', entryUrl![1]);
+  assert.equal(entry.status, 200);
+  assert.equal(entry.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  const bareEntry = await server.request('GET', '/client/configure/entry.js');
+  assert.equal(bareEntry.status, 200);
+  assert.doesNotMatch(String(bareEntry.headers.get('cache-control')), /immutable/);
+  assert.equal(bareEntry.headers.get('cache-control'), 'no-cache');
+  const child = await server.request('GET', '/client/configure/init.js');
+  assert.equal(child.status, 200);
+  assert.equal(child.headers.get('cache-control'), 'no-cache');
+  const etag = String(child.headers.get('etag'));
+  assert.match(etag, /^"[0-9a-f]{32}"$/, 'filho do configure com ETag de conteúdo');
+  const revalidated = await server.request('GET', '/client/configure/init.js', { headers: { 'if-none-match': etag } });
+  assert.equal(revalidated.status, 304);
 });
 
 test('segmento de 1 segmento que não é config vira 404, não manifest', async () => {

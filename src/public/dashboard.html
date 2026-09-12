@@ -41,7 +41,7 @@
   <!-- Banner persistente de saude: reflete o ok:false que ja viaja em
        /dashboard-status.json (conta de debrid, todas as contas, catalogo,
        general.services). Preenchido por renderStatusBanner() em
-       dashboard-status.js e some sozinho quando a resposta volta saudavel. -->
+       status-issues.ts e some sozinho quando a resposta volta saudavel. -->
   <div id="statusBanner" class="status-banner" role="alert">
     <div id="statusBannerText" class="status-banner-text"></div>
   </div>
@@ -49,7 +49,7 @@
   <!-- Estado vazio honesto (Fase 2.2): sem token NENHUMA requisição é feita,
        então o painel nomeia a causa e a saída, com o campo de token aqui
        dentro — em vez de um "Aguardando..." que nunca carrega. Preenchido por
-       dashboard-health.js (updateEmptyState/saveEmptyToken). -->
+       health.ts (updateEmptyState/saveEmptyToken). -->
   <div id="healthEmptyState" class="empty-state" hidden>
     <h2>Painel sem consulta</h2>
     <p>Nenhuma requisição foi feita: o diagnóstico exige o token de operador (<b>JACKETT_TEST_TOKEN</b> no .env da instância), enviado só no header <b>X-Indexer-Test-Token</b>. Informe o token para a primeira consulta.</p>
@@ -64,7 +64,7 @@
 
   <!-- Fase 2: faixa sticky de sinais vitais (seis sinais), faixa de atenção
        (mesmo collectStatusIssues do banner) e chips de âncora da aba ativa.
-       Preenchidos por dashboard-health.js / dashboard-nav.js a cada payload. -->
+       Preenchidos por health.ts / nav.ts a cada payload. -->
   <div class="health-wrap">
     <div id="healthStrip" class="health-strip" role="list" aria-label="Sinais vitais"></div>
     <div id="attentionStrip" class="attention-strip" role="alert"></div>
@@ -810,36 +810,11 @@
   </div>
 </main>
 
-<!-- JS do painel (Fase 1 + Fase 2 do saneamento + Fase 0 redesign): zero
-     inline. Ordem é contrato — hooks (registro DashHooks, primeiro: os módulos
-     seguintes se registram no load) → estado (DashState, dono do token/timers/
-     payload compartilhados, antes de todos os consumidores) → core → render
-     (helpers de desenho) → panels/status → probes (sondas) → módulos por aba →
-     magnets/nav → boot por último. -->
-<script src="/dashboard-hooks.js"></script>
-<script src="/dashboard-state.js"></script>
-<script src="/dashboard-core.js"></script>
-<script src="/dashboard-render.js"></script>
-<script src="/dashboard-panels.js"></script>
-<script src="/dashboard-status.js"></script>
-<script src="/dashboard-probes.js"></script>
-<script src="/dashboard-debrid-test.js"></script>
-<script src="/dashboard-trace.js"></script>
-<script src="/dashboard-autofetch.js"></script>
-<script src="/dashboard-harvest.js"></script>
-<script src="/dashboard-harvest-debrid.js"></script>
-<script src="/dashboard-f3.js"></script>
-<script src="/dashboard-catalog.js"></script>
-<script src="/dashboard-magnets.js"></script>
-<script src="/dashboard-nav.js"></script>
-<script src="/dashboard-health.js"></script>
-<script src="/dashboard-timers.js"></script>
-<!-- Fase 3.6/3.5/3.4 do redesign: processo/serviços/contadores, diagnóstico de
-     stall do Chupim e relatório de catálogo no poll. Ordem livre entre si; só
-     o boot precisa ficar por último. -->
-<script src="/dashboard-general.js"></script>
-<script src="/dashboard-af-stall.js"></script>
-<script src="/dashboard-catalog-panel.js"></script>
-<script src="/dashboard-boot.js"></script>
+<!-- JS do painel (C3): um ÚNICO entry ESM nativo, sem scripts clássicos. O
+     servidor injeta o ?v=<hash do conteúdo> no entry (immutable); os filhos
+     importados saem no-cache + ETag/304. O wiring (registro de hooks + bind) é
+     explícito no entry; os módulos não têm efeito de topo. Fontes em
+     src/client/dashboard/*.ts, emitidas por tsconfig.client.json. -->
+<script type="module" src="/client/dashboard/entry.js"></script>
 </body>
 </html>

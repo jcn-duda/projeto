@@ -354,9 +354,12 @@ stremio adom/
 │   │   ├── bludv.ts          # scraper direto do BLUDV
 │   │   └── account.ts        # inventário pronto da conta como fonte
 │   ├── debrid/               # adaptadores: premiumize, realdebrid, …
-│   ├── public/               # painéis ES5, sem build (§5.9)
-│   │   ├── configure.html    # + configure.css, configure-app.js
-│   │   └── dashboard.html    # + dashboard.css, dashboard-{core,panels,status}.js
+│   ├── client/               # clientes ESM nativos (TS, compilados)
+│   │   ├── configure/        # entry, state, dom, keys, limits, indexers, view, seal, init
+│   │   └── dashboard/        # entry + hooks/state/core/render + painéis e abas
+│   ├── public/               # HTML/CSS/imagens estáticos (sem build)
+│   │   ├── configure.html    # + configure.css; JS em src/client/configure
+│   │   └── dashboard.html    # + dashboard.css/dashboard-tokens.css; JS em src/client/dashboard
 │   └── utils/
 │       ├── cache.ts
 │       ├── cache-keys.ts     # versão dos namespaces (streams:v6, idx:v5, …)
@@ -401,10 +404,10 @@ stremio adom/
 |---------|--------|
 | `npm start` | sobe o addon local (de `dist/`) |
 | `npm run dev` | local com `--watch` |
-| `npm test` | suíte (node:test) sobre `dist/test/`: 87 arquivos, 1.509 testes, zero rede |
+| `npm test` | suíte (node:test) sobre a lista explícita em `dist/test/`, zero rede |
 | `npm run test:complete` | gate: cobra que todo `test/**/*.test.ts` esteja no `npm test` |
 | `npm run lint:lines` | catraca de 400 linhas sobre `.ts`/`.js`/`.css`, baseline em `.line-budget.json` (`-- --bless` regrava) |
-| `npm run typecheck` | `tsc --noEmit` — portão de tipos, precisa ficar em ZERO |
+| `npm run typecheck` | `tsc --noEmit` nos três programas (raiz + `tsconfig.client.json` browser + `tsconfig.client.test.json` Node) — portão de tipos, precisa ficar em ZERO |
 | `npm run smoke` | smoke test contra o addon rodando (rede de verdade) |
 | `npm run docker:up` | build + sobe o container único |
 | `npm run docker:down` | para tudo |

@@ -689,19 +689,46 @@ Resultado:
 
 | Arquivo | Antes | Depois | Extraído |
 |---|---|---|---|
-| `configure.html` | 1.771 | 1.056 | `configure.css` (505) + `configure-app.js` (221: el/estado, base64url, selo, wiring) |
-| `dashboard.html` | 2.429 | 1.556 | `dashboard.css` (201) + `dashboard-core.js` (324) + `dashboard-panels.js` (186) + `dashboard-status.js` (203) |
+| `configure.html` | 1.771 | 1.056 | `configure.css` (505) + `configure-app.js` (221: el/estado, base64url, selo, wiring); na revisão C1+C2 o JS virou `src/client/configure/*.ts` (ESM nativo) |
+| `dashboard.html` | 2.429 | ~1.556 | `dashboard.css`/`dashboard-tokens.css` (estáticos) + o cliente ESM `src/client/dashboard/*.ts` (emit browser em `dist/src/public/client/dashboard/`); no cutover C3 o JS clássico saiu de `src/public/` |
 
 **O contrato que a extração revelou:** os testes regexam CORPOS de função e
-âncoras de texto DENTRO do html (`collect`/`apply`/`render`/`fromUrl`,
-`renderMagnetDb`, os painéis do Chupim/Colhedor, a seção Conta/Catálogo inteira,
-bloco de limites, boot saved/else) — **essas partes continuam inline por
-contrato**, e só o não-ancorado sai. Scripts extraídos são top-level (a IIFE do
-inline foi desembrulhada para o escopo global compartilhado), ES5 puro, ordem
-core → panels → status → inline; caminhos absolutos (`/configure.css`) porque as
-páginas respondem em `/configure` e `/:userConfig/configure`. Servidor:
+âncoras de texto DENTRO do html (`renderMagnetDb`, os painéis do
+Chupim/Colhedor, a seção Conta/Catálogo inteira) — **essas partes do dashboard
+continuam inline por contrato**, e só o não-ancorado sai. Scripts extraídos são
+top-level, ES5 puro, ordem core → panels → status → inline; caminhos absolutos
+(`/configure.css`) porque as páginas respondem em `/configure` e
+`/:userConfig/configure`. Servidor:
 `PAGE_ASSETS` em `src/routes/public.ts` — allowlist FECHADA (nome arbitrário na
 URL abriria traversal), rotas no loop de `register.ts`.
+
+**Revisão C1+C2 (posterior, supersede o inline do configure):** o contrato
+inline valia para o `/configure` também, mas foi revogado de propósito. O JS do
+configure (inline + `configure-app.js`) saiu para `src/client/configure/*.ts`
+(ESM nativo, imports reais, ≤400 linhas por arquivo), com dois emits: browser
+em `dist/src/public/client/` (`tsconfig.client.json`) e Node para testes em
+`dist/src/client/` (`tsconfig.client.test.json`), sem AMD/loader/bundle. O HTML
+passou a carregar um único `<script type="module"
+src="/client/configure/entry.js">`; o servidor injeta o `?v=<fingerprint>` no
+entry (immutable) e serve os filhos por `CLIENT_ASSETS` com `no-cache` +
+ETag/304. Os testes do configure deixaram de regexar corpos de função e
+importam o emit de Node via `test/helpers/client.ts`; o que protege o browser é
+o `test/client-esm.test.ts` (ESM nativo no emitido).
+
+**Cutover C3 (posterior, supersede o dashboard clássico):** o mesmo tratamento
+foi aplicado ao `/dashboard`. Todo o `src/public/dashboard-*.js` migrou para
+`src/client/dashboard/*.ts` (ESM nativo, imports com `.js`, ≤400 linhas por
+arquivo), com os dois emits (browser em `dist/src/public/client/dashboard/`,
+Node para testes em `dist/src/client/dashboard/`). O `dashboard.html` passou a
+carregar um ÚNICO `<script type="module"
+src="/client/dashboard/entry.js">`; o entry registra o conjunto FECHADO de
+hooks e chama `bind()` (wiring explícito; módulos não têm efeito de topo), o
+`DashState` é objeto exportado mutado por propriedade, e o servidor injeta o
+`?v=<fingerprint>` no entry (immutable) e serve os filhos por `CLIENT_ASSETS`
+com `no-cache` + ETag/304. Os testes do dashboard deixaram de usar
+`new Function`, ordem de scripts e globals e importam o emit de Node via
+`test/helpers/dashboard.ts`; `test/dashboard-esm.test.ts` cobre import
+DOM-free, boot/wiring e grafo/allowlist/entry.
 
 **Lição registrada** (tentativa descartada): a primeira extração foi feita num
 worktree criado sobre base desatualizada do `origin/esm` — o dashboard de lá
@@ -1186,7 +1213,7 @@ a resposta estrutural a essa dor.
 | P0 cirílico | guarda `CYRILLIC_RE` no DUB genérico; bump streams/idx v8→v9 | ✅ `cb934c9` |
 | Fatia A — recompute offline | `src/utils/trace-recompute.ts` | ✅ `cb934c9` |
 | Fatia B — live TB/PM | `src/debrid/live-check.ts` + `src/routes/stream-trace.ts` | ✅ `cb934c9` |
-| Fatia C — painel ES5 | `src/public/dashboard-trace.js` (`/dashboard#trace`) | ✅ `cb934c9` |
+| Fatia C — painel | `src/client/dashboard/trace.ts` (aba `/dashboard#trace`; era `src/public/dashboard-trace.js` no C3) | ✅ `cb934c9` |
 | Defesa de rótulos | sanitize+truncate no recompute e no live | ✅ `9eb98f4` |
 | Bump v10 | `ENGLISH\|ENG` na mesma guarda do DUB genérico | ✅ `ea4c8d5` (e comentário em `cache-keys.ts`) |
 
@@ -1418,7 +1445,7 @@ DONE em produção** — deploy exige autorização explícita. A extração 1c
   provar nada. O working tree adiciona `magnetdb-persist-basis.test.ts`
   (reexportação pela fachada, degradação `l1-rebuild`→`aggregate-estimate` —
   inclusive renovação sem chave nova —, payload estranho caindo no rebuild,
-  reset com L1 vazio e o qualificador no painel sob ES5).
+  reset com L1 vazio e o qualificador no painel no módulo real `magnets.ts`).
 
 ### O que falta (administrativo / produção)
 

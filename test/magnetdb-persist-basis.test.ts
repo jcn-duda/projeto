@@ -1,11 +1,9 @@
 // Persistência do MagnetDB extraída (magnetdb-persist.ts) + base da soma de
 // TTL restante (`ttlRemainingBasis`). Cobre: reexportação pela fachada pública,
 // degradação l1-rebuild → aggregate-estimate na primeira mutação e o
-// qualificador no painel (dashboard-panels.js, ES5, regexado no corpo).
+// qualificador no painel (módulo ESM dashboard/magnets.ts).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as persist from '../src/utils/magnetdb-persist.js';
 import * as cache from '../src/utils/cache.js';
@@ -52,14 +50,27 @@ test('restauração do agregado persistido (payload válido) é aggregate-estima
   assert.ok(magnetdb.status().sizeAlive >= 1, 'contagem restaurada do payload');
 });
 
-test('painel: qualificador da base junto das médias, mantendo ES5', () => {
-  // Fase 0: renderMagnetDb migrou de dashboard-panels.js para dashboard-magnets.js.
-  const js = readFileSync(fileURLToPath(new URL('../src/public/dashboard-magnets.js', import.meta.url)), 'utf8');
-  assert.ok(js.includes('ttlRemainingBasis'), 'painel lê ttlRemainingBasis do status');
-  assert.ok(js.includes('l1-rebuild') && js.includes('aggregate-estimate'), 'base explícita no corpo');
-  assert.ok(/var ttlBasis = source\.ttlRemainingBasis === "l1-rebuild"/.test(js), 'default seguro: só l1-rebuild declarado vira reconstruída');
-  assert.ok(js.includes('estimativa incremental ou restaurada'), 'guidance explica a natureza da média');
-  assert.ok(!/\b(const |=>|`)/.test(js.split('renderMagnetDb')[1]?.split('function ')[0] || ''), 'corpo da renderização sem sintaxe pós-ES5');
+function flat(node: any): string {
+  if (!node) return '';
+  return [String(node.textContent || '')].concat((node.children || []).map(flat)).join(' ');
+}
+
+test('painel: qualificador da base junto das médias (módulo real)', async () => {
+  const { resetDashboardEnvironment } = await import('./helpers/dashboard.js');
+  const { dom, mods } = await resetDashboardEnvironment();
+  mods.magnets.renderMagnetDb({
+    enabled: true, l1Entries: 405, l1Max: 50000, sizeAlive: 73, sizeBad: 0, sizeLie: 1,
+    ttlRemainingBasis: 'l1-rebuild', ttlRemainingSeconds: { alive: 100, bad: null, lie: 50 }, byAdapter: {},
+  }, {}, 10);
+  const recalculada = flat(dom.byId['magnetMetrics']);
+  assert.match(recalculada, /recontada do L1/, 'l1-rebuild declarado no painel');
+  assert.match(recalculada, /restante real de cada chave/);
+  mods.magnets.renderMagnetDb(
+    { enabled: true, l1Entries: 1, l1Max: 1, sizeAlive: 1, sizeBad: 0, sizeLie: 0, ttlRemainingBasis: 'aggregate-estimate', byAdapter: {} },
+    {}, 10,
+  );
+  assert.match(flat(dom.byId['magnetMetrics']), /estimativa incremental ou restaurada/, 'default seguro: estimativa');
+  dom.cleanup();
 });
 
 test('renewAlive sobre chave existente degrada l1-rebuild para aggregate-estimate', () => {

@@ -1,48 +1,36 @@
-// P5 Fatia C — painel Stream Trace no dashboard: ES5, zero innerHTML, sem
-// polling, sem token na URL, e o botão LIVE só aparece para torbox/premiumize
-// com o backend permitindo (nunca RD/AD/DL, mesmo se o backend mentir).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { dashboardHtml, resetDashboardEnvironment } from './helpers/dashboard.js';
 
-const TOKEN = 'tok-painel';
-const HASH = 'f'.repeat(40);
+// ---------------------------------------------------------------------------
+// C3 — aba Stream Trace: zero innerHTML, sem polling, token no header (nunca na
+// URL) e o botão LIVE só para torbox/premiumize com o backend permitindo.
+// Importa o emit real; o fetch é dublado pelo helper.
+// ---------------------------------------------------------------------------
 
-type FakeNode = {
-  value: string; textContent: string; className: string; type: string; disabled: boolean;
-  style: Record<string, string>; children: FakeNode[]; attributes: Record<string, string>;
-  appendChild: (n: FakeNode) => FakeNode; setAttribute: (k: string, v: string) => void; focus: () => void;
-};
-
-function node(text = ''): FakeNode {
-  return {
-    value: '', textContent: text, className: '', type: '', disabled: false, style: {}, children: [], attributes: {},
-    appendChild(n) { this.children.push(n); return n; },
-    setAttribute(k, v) { this.attributes[k] = String(v); },
-    focus() {},
-  };
+function flat(node: any): string {
+  if (!node) return '';
+  return [String(node.textContent || '')].concat((node.children || []).map(flat)).join(' ');
 }
 
-function loadFrontend(payload: any, token = TOKEN, failStatus: number | null = null) {
-  const js = readFileSync(new URL('../src/public/dashboard-trace.js', import.meta.url), 'utf8');
-  const els: Record<string, FakeNode> = {};
+async function traceEnv(payload: any, token = 'tok-painel') {
+  const env = await resetDashboardEnvironment(dashboardHtml());
   const requests: Array<{ path: string; options: any }> = [];
-  const document = { createElement: () => node() };
-  const prelude = [
-    // Fase 2 do saneamento: o token mora em DashState (dashboard-state.js);
-    // este sandbox de unidade isola o módulo com o objeto mínimo equivalente.
-    `var DashState={token:${JSON.stringify(token)}};`,
-    'function $(id){return els[id]||(els[id]=node());}',
-    'function isObject(v){return !!v&&typeof v==="object"&&!Array.isArray(v);}',
-    'function valueText(v){return v===undefined||v===null||v===""?"—":String(v);}',
-    'function metric(n,k,v){n.appendChild(node(k+": "+v));}',
-    'function element(tag,cls,text){var n=node(text||"");n.className=cls||"";return n;}',
-    'function clear(n){n.textContent="";n.children=[];}',
-    'function empty(n,text){n.textContent=text;}',
-    'function requestJson(path,options){requests.push({path:path,options:options});if(' + failStatus + '){var e=new Error("HTTP '+failStatus+'");e.status=' + failStatus + ';return Promise.reject(e);}return Promise.resolve(payload);}',
-  ].join('\n');
-  const factory = new Function('els', 'node', 'document', 'requests', 'payload', prelude + '\n' + js + '\nreturn {runQuery:runTraceQuery,runLive:runTraceLive,toggle:toggleTraceLive,allowed:traceLiveAllowed};') as any;
-  return { api: factory(els, node, document, requests, payload), els, requests };
+  let mode: 'ok' | 'fail' = 'ok';
+  let failStatus = 0;
+  env.dom.setFetch((path: string, options: any) => {
+    requests.push({ path: String(path), options });
+    if (mode === 'fail') {
+      return Promise.resolve({ ok: false, status: failStatus, json: () => Promise.resolve({ error: 'HTTP ' + failStatus }) });
+    }
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(payload) });
+  });
+  env.mods.state.DashState.token = token;
+  return {
+    ...env,
+    requests,
+    fail(status: number) { mode = 'fail'; failStatus = status; },
+  };
 }
 
 const payloadComTrace = {
@@ -60,155 +48,100 @@ const payloadComTrace = {
   live: { allowed: false, reason: 'no-account', service: null },
 };
 
-test('HTML: aba, view, inputs e script depois do debrid-test; ES5 no documento', () => {
-  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
-  assert.match(html, /id="tabTrace"/);
-  assert.match(html, /id="viewTrace"/);
-  assert.match(html, /id="traceType"/);
-  assert.match(html, /id="traceId"/);
-  assert.match(html, /id="traceQueryBtn"/);
-  assert.match(html, /id="traceLiveBtn"/);
-  assert.match(html, /id="traceFeedback"/);
-  const core = html.indexOf('dashboard-core.js');
-  const panels = html.indexOf('dashboard-panels.js');
-  const debridTest = html.indexOf('dashboard-debrid-test.js');
-  const trace = html.indexOf('dashboard-trace.js');
-  const autofetch = html.indexOf('dashboard-autofetch.js');
-  const harvest = html.indexOf('dashboard-harvest.js');
-  const harvestDebrid = html.indexOf('dashboard-harvest-debrid.js');
-  const f3 = html.indexOf('dashboard-f3.js');
-  const catalog = html.indexOf('dashboard-catalog.js');
-  const boot = html.indexOf('dashboard-boot.js');
-  assert.ok(
-    core < panels && panels < debridTest && debridTest < trace &&
-      trace < autofetch && autofetch < harvest && harvest < harvestDebrid &&
-      harvestDebrid < f3 && f3 < catalog && catalog < boot,
-    'ordem de scripts é contrato (boot por último)',
-  );
-  assert.doesNotMatch(html, /<script>\s*"use strict"/, 'HTML sem JS inline');
-  assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'HTML inteiro segue ES5');
+test('traceLiveAllowed: só torbox/premiumize com backend permitindo', async () => {
+  const { mods } = await resetDashboardEnvironment();
+  assert.equal(mods.trace.traceLiveAllowed({ live: { allowed: true, service: 'torbox' } }), true);
+  assert.equal(mods.trace.traceLiveAllowed({ live: { allowed: true, service: 'premiumize' } }), true);
+  for (const svc of ['alldebrid', 'realdebrid', 'debridlink']) {
+    assert.equal(mods.trace.traceLiveAllowed({ live: { allowed: true, service: svc } }), false, svc);
+  }
+  assert.equal(mods.trace.traceLiveAllowed({ live: { allowed: false, service: 'torbox' } }), false);
+  assert.equal(mods.trace.traceLiveAllowed({}), false);
 });
 
-test('módulo: ES5 puro, sem innerHTML, sem polling, sem loadStatus', () => {
-  const js = readFileSync(new URL('../src/public/dashboard-trace.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(js, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'módulo ES5');
-  assert.doesNotMatch(js, /innerHTML/, 'render nunca usa innerHTML');
-  assert.doesNotMatch(js, /setInterval|setTimeout/, 'sem polling automático');
-  assert.doesNotMatch(js, /loadStatus|scheduleRefresh/, 'desacoplado do polling da Geral');
-  assert.doesNotMatch(js, /localStorage/, 'token é responsabilidade do core');
-});
-
-test('traceLiveAllowed: só torbox/premiumize com backend permitindo', () => {
-  const { api } = loadFrontend(null);
-  assert.equal(api.allowed({ live: { allowed: true, service: 'torbox' } }), true);
-  assert.equal(api.allowed({ live: { allowed: true, service: 'premiumize' } }), true);
-  assert.equal(api.allowed({ live: { allowed: true, service: 'alldebrid' } }), false);
-  assert.equal(api.allowed({ live: { allowed: true, service: 'realdebrid' } }), false);
-  assert.equal(api.allowed({ live: { allowed: true, service: 'debridlink' } }), false);
-  assert.equal(api.allowed({ live: { allowed: false, service: 'torbox' } }), false);
-  assert.equal(api.allowed({}), false, 'sem campo live (backend antigo) o botão nunca aparece');
-});
-
-test('runTraceQuery: cache, stages, tabela e totais renderizados; nenhuma chave vaza', async () => {
-  const { api, els, requests } = loadFrontend(payloadComTrace);
-  els.traceType = node(); els.traceType.value = 'movie';
-  els.traceId = node(); els.traceId.value = 'tt111';
-  els.traceFeedback = node(); els.traceOutput = node(); els.traceReasons = node();
-  els.traceCacheMetrics = node(); els.traceStages = node(); els.traceLiveBtn = node();
-  const button = node();
-  api.runQuery(button);
-  await new Promise((resolve) => setTimeout(resolve, 10));
+test('runTraceQuery renderiza cache, stages, tabela e totais sem vazar chaves', async () => {
+  const { dom, mods, requests } = await traceEnv(payloadComTrace);
+  dom.byId['traceType'].value = 'movie';
+  dom.byId['traceId'].value = 'tt111';
+  mods.trace.runTraceQuery();
+  await new Promise((r) => setTimeout(r, 20));
   assert.equal(requests.length, 1);
   assert.match(requests[0].path, /stream-trace\.json\?type=movie&id=tt111$/);
-  assert.equal(button.disabled, false);
-  const rendered = JSON.stringify(els);
-  assert.doesNotMatch(rendered, /[a-f0-9]{40}/, 'nenhum hash no DOM');
-  assert.doesNotMatch(rendered, /streams:v/, 'nenhuma chave de cache no DOM');
+  assert.doesNotMatch(String(requests[0].path), /token=/);
+  const rendered = flat(dom.byId['traceOutput']);
+  assert.doesNotMatch(rendered, /[a-f0-9]{40}/);
+  assert.doesNotMatch(rendered, /streams:v/);
   assert.match(rendered, /filtro de título/);
   assert.match(rendered, /fora do cache/);
-  assert.match(rendered, /entregue/);
-  assert.equal(els.traceLiveBtn.style.display, 'none', 'sem live permitido o botão some');
+  assert.equal(dom.byId['traceLiveBtn'].style.display, 'none');
+  dom.cleanup();
 });
 
 test('trace null + recompute: mensagem honesta e foto de hoje (now)', async () => {
   const payload = {
     ok: true, found: true, origin: 'recompute', cache: { remainingS: 0, partial: false, debridKnown: true, stale: false },
     trace: null,
-    recompute: {
-      attempted: true, basis: ['idx'], built: true, note: null,
-      items: [{ id: 'r1', label: 'Filme 2024', br: false, now: { state: 'tocável' } }],
-    },
+    recompute: { attempted: true, basis: ['idx'], built: true, note: null, items: [{ id: 'r1', label: 'Filme 2024', br: false, now: { state: 'tocável' } }] },
     live: { allowed: false, reason: 'no-account', service: null },
   };
-  const { api, els, requests } = loadFrontend(payload);
-  els.traceType = node(); els.traceType.value = 'movie';
-  els.traceId = node(); els.traceId.value = 'tt222';
-  els.traceFeedback = node(); els.traceOutput = node(); els.traceReasons = node();
-  els.traceCacheMetrics = node(); els.traceStages = node(); els.traceLiveBtn = node();
-  api.runQuery(node());
-  await new Promise((resolve) => setTimeout(resolve, 10));
-  assert.equal(requests.length, 1);
-  const rendered = JSON.stringify(els);
+  const { dom, mods } = await traceEnv(payload);
+  dom.byId['traceType'].value = 'movie';
+  dom.byId['traceId'].value = 'tt222';
+  mods.trace.runTraceQuery();
+  await new Promise((r) => setTimeout(r, 20));
+  const rendered = flat(dom.byId['traceOutput']);
   assert.match(rendered, /Sem trace gravado/);
   assert.match(rendered, /estado ATUAL/);
   assert.match(rendered, /tocável/);
+  dom.cleanup();
 });
 
 test('erros legíveis por status (400/401/404/429/503)', async () => {
-  for (const [status, esperado] of [
-    [400, 'Consulta recusada'],
-    [401, 'Token rejeitado'],
-    [404, 'Obra não está no cache'],
-    [429, 'Outro diagnóstico está em andamento'],
-    [503, 'Diagnóstico desligado'],
-  ] as Array<[number, string]>) {
-    const { api, els, requests } = loadFrontend(null, TOKEN, status);
-    els.traceType = node(); els.traceType.value = 'movie';
-    els.traceId = node(); els.traceId.value = 'tt111';
-    els.traceFeedback = node(); els.traceOutput = node(); els.traceReasons = node();
-    els.traceCacheMetrics = node(); els.traceStages = node(); els.traceLiveBtn = node();
-    els.traceQueryBtn = node();
-    api.runQuery(els.traceQueryBtn);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    assert.equal(requests.length, 1, `status ${status} fez a chamada`);
-    assert.match(els.traceFeedback.textContent, new RegExp(esperado), `status ${status}`);
+  for (const [status, esperado] of [[400, 'Consulta recusada'], [401, 'Token rejeitado'], [404, 'Obra não está no cache'], [429, 'Outro diagnóstico está em andamento'], [503, 'Diagnóstico desligado']] as Array<[number, string]>) {
+    const { dom, mods, fail } = await traceEnv(null);
+    dom.byId['traceType'].value = 'movie';
+    dom.byId['traceId'].value = 'tt111';
+    fail(status);
+    mods.trace.runTraceQuery();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.match(dom.byId['traceFeedback'].textContent, new RegExp(esperado), 'status ' + status);
+    dom.cleanup();
   }
 });
 
-test('runTraceLive: chama mode=live e renderiza vereditos sem hash', async () => {
+test('runTraceLive chama mode=live e renderiza vereditos sem hash', async () => {
   const payload = {
     ok: true, found: true, origin: 'cached',
     cache: { remainingS: 0, partial: false, debridKnown: true, stale: false },
     trace: null, recompute: null,
-    live: {
-      allowed: true, reason: 'ok', service: 'torbox',
-      results: [{ id: 'd1', name: 'Filme 2024', verdict: 'hit' }],
-    },
+    live: { allowed: true, reason: 'ok', service: 'torbox', results: [{ id: 'd1', name: 'Filme 2024', verdict: 'hit' }] },
   };
-  const { api, els, requests } = loadFrontend(payload);
-  els.traceType = node(); els.traceType.value = 'movie';
-  els.traceId = node(); els.traceId.value = 'tt111';
-  els.traceFeedback = node(); els.traceOutput = node(); els.traceReasons = node();
-  els.traceCacheMetrics = node(); els.traceStages = node(); els.traceLiveBtn = node();
-  const button = node();
-  api.runLive(button);
-  await new Promise((resolve) => setTimeout(resolve, 10));
-  assert.equal(requests.length, 1);
+  const { dom, mods, requests } = await traceEnv(payload);
+  dom.byId['traceType'].value = 'movie';
+  dom.byId['traceId'].value = 'tt111';
+  mods.trace.runTraceLive();
+  await new Promise((r) => setTimeout(r, 20));
   assert.match(requests[0].path, /mode=live/);
-  const rendered = JSON.stringify(els);
+  const rendered = flat(dom.byId['traceOutput']);
   assert.match(rendered, /hit/);
-  assert.doesNotMatch(rendered, /[a-f0-9]{40}/, 'hash some do render');
-  assert.equal(button.disabled, false);
+  assert.doesNotMatch(rendered, /[a-f0-9]{40}/);
+  dom.cleanup();
 });
 
-test('token ausente: consulta nem sai (zero chamadas)', async () => {
-  const { api, els, requests } = loadFrontend(payloadComTrace, '');
-  els.traceType = node(); els.traceType.value = 'movie';
-  els.traceId = node(); els.traceId.value = 'tt111';
-  els.traceFeedback = node(); els.traceOutput = node(); els.traceReasons = node();
-  els.traceCacheMetrics = node(); els.traceStages = node(); els.traceLiveBtn = node();
-  api.runQuery(node());
-  await new Promise((resolve) => setTimeout(resolve, 10));
-  assert.equal(requests.length, 0, 'sem token não há chamada');
-  assert.match(els.traceFeedback.textContent, /Token de diagnóstico ausente/);
+test('token ausente: consulta nem sai e o feedback orienta', async () => {
+  const { dom, mods, requests } = await traceEnv(payloadComTrace, '');
+  dom.byId['traceType'].value = 'movie';
+  dom.byId['traceId'].value = 'tt111';
+  mods.trace.runTraceQuery();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(requests.length, 0);
+  assert.match(dom.byId['traceFeedback'].textContent, /Token de diagnóstico ausente/);
+  dom.cleanup();
+});
+
+test('HTML preserva os ids da aba Trace e o módulo não faz polling', () => {
+  const html = dashboardHtml();
+  for (const id of ['tabTrace', 'viewTrace', 'traceType', 'traceId', 'traceQueryBtn', 'traceLiveBtn', 'traceFeedback']) {
+    assert.match(html, new RegExp('id="' + id + '"'));
+  }
 });

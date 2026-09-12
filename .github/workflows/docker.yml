@@ -28,6 +28,8 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'
+      - 'tsconfig.client.json'
+      - 'tsconfig.client.test.json'
       - '.github/workflows/docker.yml'
   pull_request:
     paths:
@@ -43,6 +45,8 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'
+      - 'tsconfig.client.json'
+      - 'tsconfig.client.test.json'
       - '.github/workflows/docker.yml'
   workflow_dispatch:
 

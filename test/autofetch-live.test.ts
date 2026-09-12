@@ -178,13 +178,14 @@ test('autofetchLive: override dos knobs raros persiste no cfg e reset restaura o
   assert.equal(autofetchLive.snapshot().overriddenKeys.length, 0);
 });
 
-test('autofetchLive: painel expõe inputs e afKeys dos knobs do título raro', () => {
+test('autofetchLive: painel expõe inputs e afKeys dos knobs do título raro', async () => {
   const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
-  const afJs = readFileSync(new URL('../src/public/dashboard-autofetch.js', import.meta.url), 'utf8');
+  const { loadDashboardModules } = await import('./helpers/dashboard.js');
+  const mods = await loadDashboardModules();
   for (const k of RARE_KEYS) {
     assert.ok(html.includes(`id="af_${k}"`), `dashboard.html tem input af_${k}`);
     assert.ok(html.includes(`id="env_${k}"`), `dashboard.html tem env_${k}`);
     assert.ok(html.includes(`id="badge_${k}"`), `dashboard.html tem badge_${k}`);
-    assert.ok(afJs.includes(`"${k}"`), `dashboard-autofetch.js lista ${k} em afKeys`);
+    assert.ok(mods.autofetch.AF_KEYS.includes(k), `autofetch.ts lista ${k} em AF_KEYS`);
   }
 });

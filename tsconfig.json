@@ -29,6 +29,11 @@
   "exclude": [
     "node_modules",
     "dist",
+    // O cliente tem os próprios tsconfigs (browser em
+    // tsconfig.client.json, Node para testes em tsconfig.client.test.json);
+    // fora daqui para não ser compilado como ESM de servidor nem puxado por
+    // import estático do `test/` (o helper usa import dinâmico).
+    "src/client",
     "spike-esm",
     "bludv-resolver",
     "comandotorrents-resolver",

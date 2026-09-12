@@ -109,7 +109,7 @@ Praticamente todo trabalho de código acontece no **Adom**.
 ## Comandos
 
 ```bash
-npm run build             # tsc -> dist/ + copia assets (src/public, fixtures, resolvers)
+npm run build             # tsc -> dist/ + emits do cliente + copia assets (src/public, fixtures, resolvers)
 npm start                 # sobe o addon de dist/ em http://127.0.0.1:7000/manifest.json
 npm run dev               # idem, com --watch
 npm test                  # node:test sobre dist/test/, lista explícita em package.json (sem rede)
@@ -258,9 +258,9 @@ com `runtime.capture()` **dentro** da request e restaure com `runtime.run()`
 — senão `opts()` lê o `.env` e regrava o cache com a config errada.
 
 Para expor uma opção nova: adicione em `SCHEMA` + `defaults()` (chave **curta**,
-ela ocupa espaço na URL), consuma via `opts()`, e adicione o controle em
-`src/public/configure.html` — o mapa `KEYS` do front **precisa bater** com o
-`SCHEMA` do back.
+ela ocupa espaço na URL), consuma via `opts()`, e adicione o controle no cliente
+de `/configure` (`src/client/configure/`) — o mapa `KEYS`
+(`src/client/configure/keys.ts`) **precisa bater** com o `SCHEMA` do back.
 
 Schema atual (chave curta → campo):
 
@@ -717,7 +717,7 @@ explica entrada sem trace com peeks quiet (idx/raw/inventário). Live
 hard-block (`ad-hard-blocked`: consulta = upload e detona limpeza); RD é
 recusado (`rd-live-refused`). Kill-switch `STREAM_TRACE=false` desliga captura,
 leitura, recompute **e** live. Aba no painel: `/dashboard#trace`
-(`dashboard-trace.js`). Detalhe operacional e contratos: Fase 9 do
+(`src/client/dashboard/trace.ts`). Detalhe operacional e contratos: Fase 9 do
 `PLANO_MELHORIAS.md`.
 
 Para adicionar um serviço: crie o adaptador, registre em `ADAPTERS` e pronto —
@@ -1395,15 +1395,15 @@ fire-and-forget) continua.
 | `src/routes/services.ts` | `buildServices()`: monta o `AppServices` (config, debrid, cache, metrics, jackett, …) que os handlers de rota recebem |
 | `src/routes/register.ts` | `registerRoutes()` — único ponto que monta as rotas (contrato de ordem: router do addon sem config, específicas, depois router com config) |
 | `src/routes/stream.ts` | `createStreamHandler`: o handler de `/stream` por cima do `findStreams` |
-| `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` / `stream-trace.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config` e os assets do painel pela allowlist **fechada** `PAGE_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/stream-trace.json`) |
+| `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` / `stream-trace.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config`, os assets do painel pela allowlist **fechada** `PAGE_ASSETS` (HTML/CSS/imagens) e os módulos ESM dos clientes de `/configure` e `/dashboard` pela allowlist `CLIENT_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). O entry do cliente, com o `?v=` corrente, é `immutable`; os filhos importados sem query saem `no-cache` e revalidam por ETag/304. A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/stream-trace.json`) |
 | `src/routes/addon-router.ts` | Router do protocolo Stremio que substituiu o `stremio-addon-sdk` no runtime (6.1): `createAddonInterface` + `makeAddonRouter` (manifest, `/stream`, CORS, `Cache-Control`). Lê o último segmento **cru** de `req.url`: `req.params` vem decodificado e quebraria a divisão dos extras |
 | `src/routes/origin.ts` / `async.ts` / `state.ts` / `types.ts` | `originOf`/`streamsNeedRevalidation`; `asyncRoute` (wrapper do Express 4); `prefetchInFlight`; `AppServices`/`HandlerFactory` |
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
 | `src/br-resolvers.ts` | Carrega os seis profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
-| `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, ES5, zero build). Desde §5.9: `configure.css` + `configure-app.js` ao lado; o `KEYS` e o `collect`/`apply`/`fromUrl` seguem **inline** porque os testes regexam o corpo deles no html |
-| `src/public/dashboard.html` | Painel de operação (mesmas regras). Desde §5.9: `dashboard.css` + `dashboard-core.js` (estado, formatação, HTTP autenticado) + `dashboard-panels.js` (abas e painéis da Geral) + `dashboard-status.js` (consulta, polling, ações) + `dashboard-debrid-test.js` (teste seguro de conta) + `dashboard-trace.js` (aba Stream Trace / P5) + módulos por aba (`dashboard-autofetch.js`, `dashboard-harvest.js`, `dashboard-f3.js`, `dashboard-catalog.js`, `dashboard-boot.js`). Os módulos são **top-level sem IIFE**, escopo global compartilhado; `renderMagnetDb` e âncoras regexadas pelos testes ficam **inline** por contrato |
+| `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
+| `src/public/dashboard.html` | Painel de operação: HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/dashboard/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu de `src/public/` para `src/client/dashboard/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `hooks.ts` (registro de hooks), `state.ts` (DashState mutado por propriedade), `core.ts`/`render.ts`, `panels*.ts`, `status-*.ts`, `magnets.ts`, `nav.ts`, `health.ts`, `trace.ts`, `autofetch*.ts`, `harvest*.ts`, `catalog*.ts`, `f3.ts`, `timers.ts`, `general.ts`, `af-stall.ts`, `debrid-test.ts` e o `entry.ts` que registra os hooks e chama `bind()`. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/dashboard/`; os testes importam o segundo emit NodeNext de `dist/src/client/dashboard/` via `test/helpers/dashboard.ts` (sem `new Function` para ESM) |
 | `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
 | `src/providers/search-cache.ts` | `findStreams`, coalescing (`inFlight`), SWR (`debridRefreshSatisfied`, `staleRefreshEligible`, `scheduleStaleRefresh`), `hasPlayableStream` |
 | `src/providers/search-orchestrator.ts` | `doSearch`, `collectRaw`, `poolCovered`, `idxPoolCovered`, `idxReleasesToRaw` |
@@ -1488,14 +1488,14 @@ sempre, sem escape; legado só reprova se CRESCER além do baseline — o escape
 `npm run lint:lines -- --bless`, que regrava o baseline daquele arquivo e o diff
 do JSON entra no commit, visível na revisão. Quando o arquivo diminui, o script
 regrava o baseline para baixo sozinho: a folga não acumula. A extração do JS/CSS
-inline dos HTML do painel (§5.9) já foi feita: os módulos resultantes
-(`configure-app.js`, `dashboard-*.js`) estão sob a catraca como qualquer `.js`;
-os `.html` seguem fora da varredura (o filtro lê `.ts`/`.js`/`.css` — os módulos
-extraídos e o CSS estão sob a catraca) — mas o
-JS ancorado pelos testes continua INLINE neles por contrato (os testes regexam
-corpos de função no html; mover seria quebra, ver §5.9). Sem o gatilho, arquivo
-novo nasce com mil linhas e ninguém percebe até a extração ficar cara:
-`vacatorrent.js` entrou com 1.025 linhas e nada reclamou.
+inline dos HTML do painel (§5.9) e o cutover C3 do dashboard já foram feitos: os
+clientes de `/configure` e `/dashboard` vivem em `src/client/<nome>/*.ts` (ESM
+nativo, imports com `.js`, fora de `src/public`), os `test/helpers/client.ts` e
+`test/helpers/dashboard*.ts` também são varridos, e o `dashboard.html` não tem
+mais JS inline (só um `<script type="module">`). Os `.html` seguem fora da
+varredura (o filtro lê `.ts`/`.js`/`.css` — os módulos e o CSS estão sob a
+catraca). Sem o gatilho, arquivo novo nasce com mil linhas e ninguém percebe até
+a extração ficar cara: `vacatorrent.js` entrou com 1.025 linhas e nada reclamou.
 
 **Tipe o que a função PRODUZ, não só o que ela recebe.** O valor está aí: por
 muito tempo as anotações eram todas de entrada e nada cobrava o retorno — foi
@@ -1893,9 +1893,12 @@ o orçamento com a resposta.
   própria só é varrido pelo botão do painel (`sweepDeadCurrent`). Medido em
   produção 2026-09-08 — `.env` em `alldebrid`, instalação em premiumize, fila
   de paradas crescendo sem timer nenhum alcançá-la.
-- **`src/public/` não passa por build.** É HTML/CSS/JS servido cru, e o JS é ES5
-  por escolha (roda no WebView de Fire TV e smart TV). Não introduza sintaxe
-  moderna nem bundler ali.
+- **`src/public/` não passa por build.** É HTML/CSS/imagens servido cru. O
+  dashboard e o `/configure` NÃO têm mais JS clássico ali: ambos são clientes
+  ESM nativo em `src/client/<nome>/*.ts`, emitidos por `tsconfig.client.json`
+  para `dist/src/public/client/`. Mexer neles é editar o `.ts`, nunca o `.js`
+  emitido; nenhum bundler, loader ou sintaxe clássica é esperado — o cutover C3
+  abandonou o suporte obrigatório a WebViews sem ESM.
 - **O cache persiste em SQLite** (`data/cache.db` via `node:sqlite`,
   experimental no Node 22). Se o runtime não tiver o módulo o addon segue só
   em memória sem derrubar nada; `CACHE_PERSIST=false` desliga de propósito.

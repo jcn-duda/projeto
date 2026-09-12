@@ -4,92 +4,113 @@ import { asyncRoute } from './async.js';
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 
-// CSS/JS extraídos dos HTML (Fase 3, PLANO_MELHORIAS §5.9). A lista é FECHADA
-// de propósito: publicPath() junta o nome ao diretório público, então aceitar
-// nome arbitrário vindo da URL abriria leitura fora de public/ (traversal).
+// CSS dos painéis (Fase 3, PLANO_MELHORIAS §5.9). A lista é FECHADA de propósito:
+// publicPath() junta o nome ao diretório público, então aceitar nome arbitrário
+// vindo da URL abriria leitura fora de public/ (traversal). O JS dos painéis saiu
+// de src/public: /configure e /dashboard agora são ESM nativo emitido por
+// tsconfig.client.json, servido pela CLIENT_ASSETS abaixo.
 const PAGE_ASSETS = [
   'configure.css',
   'configure-components.css',
-  'configure-app.js',
   'dashboard-tokens.css',
   'dashboard.css',
-  // Fase 1 do saneamento: registro de hooks (DashHooks) — o nome do hook
-  // substitui a referência cruzada por typeof entre módulos. Esta lista é só
-  // a ALLOWLIST do que pode ser servido (fechada contra traversal): a ORDEM
-  // de carregamento não é daqui, é contrato do dashboard.html, onde hooks é
-  // o primeiro script porque cada módulo do painel se registra no próprio
-  // load.
-  'dashboard-hooks.js',
-  // Fase 2 do saneamento: estado compartilhado (DashState) — dono único do
-  // token/timers/requestInFlight/lastStatusRoot; os módulos leem e escrevem
-  // propriedades dele em vez de `var` de topo espalhados.
-  'dashboard-state.js',
-  'dashboard-core.js',
-  // Fase 0 do redesign: helpers de desenho extraídos do core (metric/card/
-  // formatos/sparkline) e sondas pontuais extraídas do status (testes de
-  // indexer/resolver), cada um em módulo próprio.
-  'dashboard-render.js',
-  'dashboard-probes.js',
-  'dashboard-panels.js',
-  'dashboard-status.js',
-  // Teste pontual de conta de debrid (Fase 1): módulo próprio extraído de
-  // dashboard-panels.js ao se aproximar do teto de 400 linhas da catraca.
-  'dashboard-debrid-test.js',
-  // Stream Trace (P5): aba de diagnóstico do funil no dashboard.
-  'dashboard-trace.js',
-  // Fase 1 painel: Chupim / Colhedor / Conta-Catálogo / boot (zero inline).
-  'dashboard-autofetch.js',
-  'dashboard-harvest.js',
-  'dashboard-harvest-debrid.js',
-  'dashboard-f3.js',
-  'dashboard-catalog.js',
-  'dashboard-magnets.js',
-  // Fase 0 do redesign: navegação por abas (switchTab/handleHash por tabela),
-  // extraída de dashboard-panels.js.
-  'dashboard-nav.js',
-  // Fase 2 do redesign: faixa sticky de sinais vitais + faixa de atenção
-  // (reusa collectStatusIssues) + estado vazio honesto sem token.
-  'dashboard-health.js',
-  // Fase 3 do redesign: tabela de latências/percentis de metrics.timers.
-  'dashboard-timers.js',
-  // Fase 3 do redesign (3.4/3.5/3.6): relatório de catálogo no poll, diagnóstico
-  // de stall do Chupim e processo/serviços/contadores órfãos.
-  'dashboard-general.js',
-  'dashboard-af-stall.js',
-  'dashboard-catalog-panel.js',
-  'dashboard-boot.js',
+];
+
+// Entry e filhos dos clientes ESM (/configure e /dashboard; fontes em
+// src/client/<nome>, emitidos por tsconfig.client.json para
+// dist/src/public/client/). A lista é FECHADA: o caminho vem da URL e é juntado
+// ao diretório público — nome arbitrário abriria leitura fora de public/
+// (traversal). Os entries, com o ?v= corrente, vão immutable; os filhos saem
+// no-cache para o ETag/304 pegar o deploy-skew sem congelar módulo velho.
+const CLIENT_ENTRIES = new Set([
+  'client/configure/entry.js',
+  'client/dashboard/entry.js',
+]);
+const CLIENT_ASSETS = [
+  'client/configure/entry.js',
+  'client/configure/state.js',
+  'client/configure/dom.js',
+  'client/configure/keys.js',
+  'client/configure/limits.js',
+  'client/configure/indexers.js',
+  'client/configure/view.js',
+  'client/configure/seal.js',
+  'client/configure/init.js',
+  'client/dashboard/entry.js',
+  'client/dashboard/hooks.js',
+  'client/dashboard/state.js',
+  'client/dashboard/core.js',
+  'client/dashboard/render.js',
+  'client/dashboard/probes.js',
+  'client/dashboard/general.js',
+  'client/dashboard/af-stall.js',
+  'client/dashboard/f3.js',
+  'client/dashboard/timers.js',
+  'client/dashboard/catalog-panel.js',
+  'client/dashboard/catalog-render.js',
+  'client/dashboard/catalog-actions.js',
+  'client/dashboard/panels.js',
+  'client/dashboard/panels-l2.js',
+  'client/dashboard/panels-index.js',
+  'client/dashboard/status-issues.js',
+  'client/dashboard/status-actions.js',
+  'client/dashboard/status-root.js',
+  'client/dashboard/magnets.js',
+  'client/dashboard/autofetch.js',
+  'client/dashboard/autofetch-actions.js',
+  'client/dashboard/harvest.js',
+  'client/dashboard/harvest-actions.js',
+  'client/dashboard/harvest-debrid.js',
+  'client/dashboard/nav.js',
+  'client/dashboard/health.js',
+  'client/dashboard/debrid-test.js',
+  'client/dashboard/trace.js',
+  'client/dashboard/boot.js',
 ];
 
 function makePublicHandlers(services: AppServices) {
-  // Fingerprint do CONTEÚDO dos assets (e não da versão do package/manifest,
-  // que não muda a cada deploy): a URL só muda quando o arquivo muda. Restart
-  // sem rebuild mantém a URL e o cache do cliente continua válido — que é o
-  // correto; deploy que muda o asset muda a URL junto. Lido uma vez por app:
-  // o addon serve de dist/ e os arquivos não mudam no decorrer do processo.
+  // Fingerprint do CONTEÚDO dos assets (e não da versão do package/manifest, que
+  // não muda a cada deploy): a URL só muda quando o arquivo muda. Restart sem
+  // rebuild mantém a URL e o cache do cliente continua válido — que é o correto;
+  // deploy que muda o asset muda a URL junto. Lido uma vez por app: o addon serve
+  // de dist/ e os arquivos não mudam no decorrer do processo.
   const fingerprint = createHash('sha256');
-  for (const name of PAGE_ASSETS) {
+  for (const name of [...PAGE_ASSETS, ...CLIENT_ASSETS]) {
     fingerprint.update(fs.readFileSync(services.publicPath(name)));
   }
   const assetVersion = fingerprint.digest('hex').slice(0, 10);
 
+  // ETag de CONTEÚDO por módulo do cliente. O ETag padrão do sendFile é por stat
+  // (mtime/tamanho): um rebuild sem mudança de código rebaixaria o módulo de
+  // novo. O hash do byte só muda quando o conteúdo muda — é ele que sustenta o
+  // no-cache + 304 dos filhos.
+  const clientEtags = new Map<string, string>();
+  for (const name of CLIENT_ASSETS) {
+    const hash = createHash('sha256').update(fs.readFileSync(services.publicPath(name))).digest('hex').slice(0, 32);
+    clientEtags.set(name, '"' + hash + '"');
+  }
+
   // O HTML sai da memória, sempre fresco, referenciando os assets com
   // ?v=<hash>. É isso que elimina o skew de deploy: HTML novo só aponta para
-  // URLs que o cache do browser ainda não tem — impossível emparelhar HTML
-  // novo com módulo velho, num acoplamento que anda nos dois sentidos (o
-  // inline chama funções dos módulos; os módulos buscam IDs declarados no HTML).
+  // URLs que o cache do browser ainda não tem. As duas páginas agora apontam
+  // para um único entry ESM (`/client/<nome>/entry.js`), fora do padrão dos
+  // assets de topo.
   const sendVersionedHtml = (name: string) => {
     const html = fs
       .readFileSync(services.publicPath(name), 'utf8')
       // A aspa de fechamento faz parte do PADRÃO (e não só da substituição):
       // sem ela o match parava no `.css` sem consumir a aspa, a substituição
-      // acrescentava outra e o HTML saía `href="/dashboard.css?v=abc""` — o
-      // navegador recuperava, mas criava um atributo espúrio chamado `"` em
-      // cada uma das 4 tags. Casar a aspa também ancora o fim real do valor.
-      .replace(/((?:src|href)="\/(?:configure|dashboard)[-\w]*\.(?:css|js))"/g, `$1?v=${assetVersion}"`);
+      // acrescentava outra e o HTML saía `href="/dashboard.css?v=abc""`. Casar a
+      // aspa também ancora o fim real do valor.
+      .replace(/((?:src|href)="\/(?:configure|dashboard)[-\w]*\.(?:css|js))"/g, `$1?v=${assetVersion}"`)
+      // Os entries dos clientes são aninhados (`/client/<nome>/entry.js`), fora
+      // do padrão acima. Eles também carregam o fingerprint corrente — e os seus
+      // imports relativos (filhos) são resolvidos pelo browser a partir deles.
+      .replace(/(src="\/client\/(?:configure|dashboard)\/entry\.js)"/g, `$1?v=${assetVersion}"`);
     // O HTML é a raiz do acoplamento (inline ↔ módulos) e aponta para o
-    // fingerprint vigente: um HTML velho no cache do cliente chamaria URLs
-    // ?v= antigas e o boot ficaria preso numa versão que o deploy já não
-    // serve. `no-store` fecha as duas portas — memória e disco do browser.
+    // fingerprint vigente: um HTML velho no cache do cliente chamaria URLs ?v=
+    // antigas e o boot ficaria preso numa versão que o deploy já não serve.
+    // `no-store` fecha as duas portas — memória e disco do browser.
     return (_: express.Request, res: express.Response) => {
       res.set('Cache-Control', 'no-store');
       return res.type('html').send(html);
@@ -100,8 +121,8 @@ function makePublicHandlers(services: AppServices) {
 
   // Os HTML referenciam os assets por caminho absoluto porque a página responde
   // tanto em /configure quanto em /:userConfig/configure. A rota ignora a query
-  // — o Express casa pelo path — então `?v=` não precisa (e não deve) constar
-  // da allowlist. maxAge ALTO + `immutable` só é seguro quando a URL carrega o
+  // — o Express casa pelo path — então `?v=` não precisa (e não deve) constar da
+  // allowlist. maxAge ALTO + `immutable` só é seguro quando a URL carrega o
   // fingerprint CORRENTE: o cache então só devolve o byte-idêntico. Sem a query
   // (ou com valor arbitrário) o mesmo path aponta para conteúdo mutável e
   // `immutable` congelaria isso por um ano — esse acesso cai no maxAge curto.
@@ -110,6 +131,26 @@ function makePublicHandlers(services: AppServices) {
       return res.sendFile(services.publicPath(name), { maxAge: '365d', immutable: true });
     }
     return res.sendFile(services.publicPath(name), { maxAge: '30d' });
+  };
+
+  // Assets dos clientes ESM. O entry versionado é imutável (a URL muda com o
+  // conteúdo). Filhos e o entry sem o fingerprint corrente saem no-cache com
+  // ETag de CONTEÚDO + 304: o browser revalida em todo boot sem baixar de novo, e
+  // um rebuild sem mudança de código não força o download. Sem isso, um filho
+  // velho de 30 dias emparelharia com HTML novo no deploy.
+  const sendClientAsset = (name: string) => (req: express.Request, res: express.Response) => {
+    if (CLIENT_ENTRIES.has(name) && req.query.v === assetVersion) {
+      return res.sendFile(services.publicPath(name), { maxAge: '365d', immutable: true });
+    }
+    const etag = clientEtags.get(name);
+    res.set('Cache-Control', 'no-cache');
+    if (etag) {
+      res.set('ETag', etag);
+      if (req.headers['if-none-match'] === etag) return res.status(304).end();
+    }
+    // `etag:false`/`lastModified:false`: o send não sobrescreve o ETag de conteúdo
+    // com o baseado em stat (que muda a cada build).
+    return res.sendFile(services.publicPath(name), { cacheControl: false, etag: false, lastModified: false } as any);
   };
 
   const defaults = asyncRoute(async (_req, res) => {
@@ -142,7 +183,7 @@ function makePublicHandlers(services: AppServices) {
     }
   };
 
-  return { sendConfigure, sendDashboard, sendPageAsset, pageAssets: PAGE_ASSETS, defaults, seal };
+  return { sendConfigure, sendDashboard, sendPageAsset, pageAssets: PAGE_ASSETS, clientAssets: CLIENT_ASSETS, sendClientAsset, defaults, seal };
 }
 
-export { makePublicHandlers, PAGE_ASSETS };
+export { makePublicHandlers, PAGE_ASSETS, CLIENT_ASSETS };

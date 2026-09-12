@@ -26,6 +26,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.json ./
+# O cliente tem os próprios tsconfigs: o `npm run build` do builder emite o
+# browser (dist/src/public/client) e o Node para testes (dist/src/client).
+COPY tsconfig.client.json ./
+COPY tsconfig.client.test.json ./
 COPY src ./src
 COPY types ./types
 COPY scripts ./scripts

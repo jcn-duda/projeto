@@ -1,137 +1,36 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { bootstrapDashboard, dashboardHtml, resetDashboardEnvironment, registerDashboardHooks } from './helpers/dashboard.js';
 
 // ---------------------------------------------------------------------------
-// Runtime do painel (/dashboard) executado de verdade: pill + banner
-// persistente refletem o ok:false JÁ presente em /dashboard-status.json
-// (incidente de 2026-08-30: o pill ficava verde com timeout da conta, catálogo
-// indisponível ou serviço debrid morto, porque o cálculo só olhava auth/quota
-// e Jackett — o resto morria num <details> fechado). dashboard-status.js é
-// módulo de declarações (nada roda no load), então os testes EXECUTAM
-// renderStatus/renderDebrid com um DOM falso, sobre o escopo global
-// compartilhado core + status/panels. Extraído de catalog-panel.test.ts junto
-// da regressão de 2026-08-31 (falso "atenção" com sem-debrid) para os dois
-// arquivos caberem no teto de 400 linhas da catraca.
+// C3 — runtime do status/pill/banner e dos painéis, importando o emit real.
+// O pill/banner refletem o ok:false JÁ presente no /dashboard-status.json; a
+// degradação transitória não pode pintar verde. Sem `new Function`.
 // ---------------------------------------------------------------------------
 
-function dashboardHtml() {
-  return readFileSync(new URL('../../src/public/dashboard.html', import.meta.url), 'utf8');
+function bannerLines(dom: any): string {
+  return dom.byId['statusBannerText'].children.map((c: any) => c.textContent).join('\n');
 }
 
-interface FakeNode {
-  className: string;
-  textContent: string;
-  style: Record<string, string>;
-  children: FakeNode[];
-  appendChild(child: FakeNode): FakeNode;
-  setAttribute(key: string, value: string): void;
-  focus(): void;
+function flat(node: any): string {
+  if (!node) return '';
+  return [String(node.textContent || '')].concat((node.children || []).map(flat)).join(' ');
 }
 
-function fakeNode(): FakeNode {
-  const node: FakeNode = {
-    className: '',
-    textContent: '',
-    style: {},
-    children: [],
-    appendChild(child: FakeNode) {
-      node.children.push(child);
-      return child;
-    },
-    setAttribute() { /* não usado nestes testes */ },
-    focus() { /* gate de token chama focus no input */ },
-  };
-  return node;
+async function statusEnv() {
+  return bootstrapDashboard();
 }
 
-function loadDashboardStatusApi(fetch?: (url: string, init?: any) => Promise<any>): { els: Record<string, FakeNode>; renderStatus: (data: any) => void; runResolverTest: (id: string, button?: FakeNode | null) => void; setToken: (token: string) => void } {
-  // Fase 0: render (helpers de desenho) e probes (sondas) são módulos próprios.
-  // Fase 1: hooks primeiro (módulos se registram no load); Fase 2: estado
-  // (DashState) antes dos consumidores. Sem health/nav/timers/f3/catalog no
-  // sandbox, renderStatus só roda com os hooks obrigatórios stubados abaixo.
-  const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
-  const hooks = readFileSync(new URL('../../src/public/dashboard-hooks.js', import.meta.url), 'utf8');
-  const state = readFileSync(new URL('../../src/public/dashboard-state.js', import.meta.url), 'utf8');
-  const render = readFileSync(new URL('../../src/public/dashboard-render.js', import.meta.url), 'utf8');
-  const status = readFileSync(new URL('../../src/public/dashboard-status.js', import.meta.url), 'utf8');
-  const probes = readFileSync(new URL('../../src/public/dashboard-probes.js', import.meta.url), 'utf8');
-  // Renderizadores de dashboard-panels.js são irrelevantes aqui; as declarações
-  // de função vêm DEPOIS do código real e sobrepõem por hoisting.
-  const stubs = [
-    'function renderGeneral() {}', 'function renderDebrid() {}', 'function renderSources() {}',
-    'function renderCache() {}', 'function renderMagnetDb() {}', 'function renderReleaseIndex() {}',
-    'function renderHarvest() {}', 'function renderAutofetchPanel() {}', 'function renderHarvesterPanel() {}',
-    'function drawSparkline() {}', 'function pushSeries() { return []; }', 'function updateLastUpdated() {}',
-    'function updateActionAvailability() {}',
-    'DashHooks.register("dashDebugEnabled", function () { return false; });',
-    'DashHooks.register("renderHealthStrip", function () {}); DashHooks.register("renderAttentionStrip", function () {});',
-    'DashHooks.register("updateEmptyState", function () {}); DashHooks.register("activeTabName", function () { return "geral"; });',
-    'DashHooks.register("renderTimersPanel", function () {}); DashHooks.register("renderF3Panel", function () {}); DashHooks.register("renderCatalogPanel", function () {});',
-  ].join('\n');
-  const els: Record<string, FakeNode> = {};
-  const document = {
-    hidden: false,
-    createElement: () => fakeNode(),
-    createTextNode: (text: string) => ({ text }),
-    getElementById: (id: string) => (els[id] = els[id] || fakeNode()),
-    addEventListener: () => {},
-  };
-  const window = {
-    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
-    location: { pathname: '/dashboard' },
-    confirm: () => false,
-    addEventListener: () => {},
-  };
-  // dashboard-core.js + dashboard-status.js compartilham escopo global (sem
-  // IIFE); os parâmetros document/window/fetch sombreiam os globals ausentes.
-  const factory = new Function('document', 'window', 'fetch', hooks + '\n' + state + '\n' + core + '\n' + render + '\n' + status + '\n' + probes + '\n' + stubs + '\nreturn { renderStatus: renderStatus, runResolverTest: runResolverTest, setToken: function (token) { DashState.token = String(token || ""); } };') as
-    (doc: unknown, win: unknown, fn: unknown) => { renderStatus: (data: any) => void; runResolverTest: (id: string, b?: FakeNode | null) => void; setToken: (t: string) => void };
-  return { els, ...factory(document, window, fetch) };
+function cardByTitle(container: any, title: string): any {
+  for (const box of container.children || []) {
+    if (flat(box).includes(title)) return box;
+  }
+  return null;
 }
 
-function bannerLines(els: Record<string, FakeNode>): string {
-  return els.statusBannerText.children.map((child) => child.textContent).join('\n');
-}
-
-// Carrega core + panels (dashboard-panels.js) sobre o mesmo DOM falso, com os
-// pintores trocados por dublês: `card` captura os itens montados por
-// renderDebrid para o teste do estado do card da conta (ok em accounts), e
-// `renderMetrics` fica mudo. As declarações de função dos stubs vêm DEPOIS do
-// código real no mesmo escopo, então sobrepõem as do core por hoisting.
-function loadDashboardPanelsApi(): { renderDebrid: (data: any, autofetch?: any) => void; renderSources: (data: any) => void; captured: any[] } {
-  const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
-  // Fase 0: os helpers de desenho que panels consome vivem em dashboard-render.js.
-  const render = readFileSync(new URL('../../src/public/dashboard-render.js', import.meta.url), 'utf8');
-  const panels = readFileSync(new URL('../../src/public/dashboard-panels.js', import.meta.url), 'utf8');
-  const captured: any[] = [];
-  const stubs = [
-    'function renderMetrics() {}',
-    'function card(container, item, options) { capturedCards.push(item); }',
-  ].join('\n');
-  const els: Record<string, FakeNode> = {};
-  const document = {
-    hidden: false,
-    createElement: () => fakeNode(),
-    createTextNode: (text: string) => ({ text }),
-    getElementById: (id: string) => (els[id] = els[id] || fakeNode()),
-    addEventListener: () => {},
-  };
-  const window = {
-    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
-    location: { pathname: '/dashboard', hash: '' },
-    confirm: () => false,
-    addEventListener: () => {},
-  };
-  const factory = new Function('document', 'window', 'fetch', 'capturedCards', core + '\n' + render + '\n' + panels + '\n' + stubs + '\nreturn { renderDebrid: renderDebrid, renderSources: renderSources };') as
-    (doc: unknown, win: unknown, fn: unknown, captured: any[]) => { renderDebrid: (data: any, autofetch?: any) => void; renderSources: (data: any) => void };
-  const result = factory(document, window, undefined, captured);
-  return { renderDebrid: result.renderDebrid, renderSources: result.renderSources, captured };
-}
-
-test('pill fica warn (não verde) e o banner mostra timeout da conta com o erro', () => {
-  const { els, renderStatus } = loadDashboardStatusApi();
-  renderStatus({
+test('pill fica warn e o banner nomeia o timeout da conta com o erro', async () => {
+  const { dom, mods } = await statusEnv();
+  mods.statusRoot.renderStatus({
     general: { ok: true, services: { addon: true, jackett: true, debrid: false, resolvers: 5 } },
     debrid: {
       active: 'alldebrid',
@@ -139,74 +38,66 @@ test('pill fica warn (não verde) e o banner mostra timeout da conta com o erro'
       accounts: {},
     },
   });
-  assert.equal(els.connection.className, 'connection warn', 'timeout não pode deixar o pill verde');
-  assert.match(els.connectionText.textContent, /problema/);
-  assert.match(els.statusBanner.className, /\bvisible\b/, 'banner persistente aparece com ok:false');
-  assert.match(els.statusBanner.className, /\bwarn\b/);
-  const texto = bannerLines(els);
-  assert.match(texto, /AllDebrid/, 'a conta culpada é nomeada');
-  assert.match(texto, /timeout consultando o debrid/, 'o erro medido viaja no texto');
-  assert.match(texto, /tempo esgotado consultando o serviço/, 'reason traduzido em texto claro');
+  assert.equal(dom.byId['connection'].className, 'connection warn');
+  assert.match(dom.byId['connectionText'].textContent, /problema/);
+  assert.match(dom.byId['statusBanner'].className, /\bvisible\b/);
+  assert.match(dom.byId['statusBanner'].className, /\bwarn\b/);
+  const texto = bannerLines(dom);
+  assert.match(texto, /AllDebrid/);
+  assert.match(texto, /timeout consultando o debrid/);
+  assert.match(texto, /tempo esgotado consultando o serviço/);
+  dom.cleanup();
 });
 
-test('auth e quota sobem o pill a erro e o banner traz o fix de cada serviço', () => {
-  const { els, renderStatus } = loadDashboardStatusApi();
-  renderStatus({
+test('auth e quota sobem o pill a erro e o banner traz o fix de cada conta', async () => {
+  const { dom, mods } = await statusEnv();
+  mods.statusRoot.renderStatus({
     general: { ok: true, services: { addon: true, jackett: true, debrid: false, resolvers: 5 } },
     debrid: {
       active: 'alldebrid',
       account: { ok: false, service: 'alldebrid', label: 'AllDebrid', reason: 'auth', error: 'AUTH_BAD_APIKEY', fix: 'renove a chave em alldebrid.com/account/api' },
-      accounts: {
-        realdebrid: { ok: false, service: 'realdebrid', label: 'Real-Debrid', reason: 'quota', fix: 'apague magnets com node dist/scripts/magnets.js' },
-      },
+      accounts: { realdebrid: { ok: false, service: 'realdebrid', label: 'Real-Debrid', reason: 'quota', fix: 'apague magnets com node dist/scripts/magnets.js' } },
     },
   });
-  assert.equal(els.connection.className, 'connection error', 'auth/quota provam conta inutilizável');
-  assert.match(els.statusBanner.className, /\berror\b/);
-  const texto = bannerLines(els);
-  assert.match(texto, /renove a chave/, 'fix da conta ativa aparece no banner');
-  assert.match(texto, /node dist\/scripts\/magnets\.js/, 'fix da conta do operador (accounts[*]) aparece no banner');
+  assert.equal(dom.byId['connection'].className, 'connection error');
+  assert.match(dom.byId['statusBanner'].className, /\berror\b/);
+  const texto = bannerLines(dom);
+  assert.match(texto, /renove a chave/);
+  assert.match(texto, /node dist\/scripts\/magnets\.js/);
+  dom.cleanup();
 });
 
-test('catalog.ok:false com hint sobe no banner e o pill não fica verde', () => {
-  const { els, renderStatus } = loadDashboardStatusApi();
-  renderStatus({
+test('catalog.ok:false com hint sobe no banner e o pill não fica verde', async () => {
+  const { dom, mods } = await statusEnv();
+  mods.statusRoot.renderStatus({
     general: { ok: true, services: { addon: true, jackett: true, debrid: true, resolvers: 5 } },
     debrid: { active: 'alldebrid', account: { ok: true, service: 'alldebrid', label: 'AllDebrid' }, accounts: {} },
     catalog: { ok: false, reason: 'chave-operador-desativada', hint: 'ligue DEBRID_OPERATOR_ENV_ACCOUNT e recrie a stack' },
   });
-  assert.equal(els.connection.className, 'connection warn', 'catálogo indisponível é atenção, não verde');
-  const texto = bannerLines(els);
+  assert.equal(dom.byId['connection'].className, 'connection warn');
+  const texto = bannerLines(dom);
   assert.match(texto, /Catálogo da conta indisponível/);
-  assert.match(texto, /uso da conta do operador desligado no \.env/, 'reason traduzido');
-  assert.match(texto, /DEBRID_OPERATOR_ENV_ACCOUNT/, 'hint do backend viaja intacto');
+  assert.match(texto, /uso da conta do operador desligado no \.env/);
+  assert.match(texto, /DEBRID_OPERATOR_ENV_ACCOUNT/);
+  dom.cleanup();
 });
 
-test('resposta saudável esconde o banner e devolve o pill ao verde', () => {
-  const { els, renderStatus } = loadDashboardStatusApi();
-  renderStatus({
+test('resposta saudável esconde o banner e devolve o pill ao verde', async () => {
+  const { dom, mods } = await statusEnv();
+  mods.statusRoot.renderStatus({
     general: { ok: true, services: { addon: true, jackett: true, debrid: true, resolvers: 5 } },
     debrid: { active: 'alldebrid', account: { ok: true, service: 'alldebrid', label: 'AllDebrid' }, accounts: {} },
     catalog: { ok: true },
   });
-  assert.equal(els.connection.className, 'connection online');
-  assert.equal(els.statusBanner.className, 'status-banner', 'banner some sozinho quando a resposta é saudável');
-  assert.equal(els.statusBannerText.children.length, 0);
+  assert.equal(dom.byId['connection'].className, 'connection online');
+  assert.equal(dom.byId['statusBanner'].className, 'status-banner');
+  assert.equal(dom.byId['statusBannerText'].children.length, 0);
+  dom.cleanup();
 });
 
-// ---------------------------------------------------------------------------
-// Regressão do falso alerta em instância pública segura (captura da VPS,
-// 2026-08-31): com DEBRID_ALLOW_ENV_KEY=false + DEBRID_OPERATOR_ENV_ACCOUNT=true
-// a instalação anônima fica SEM debrid de propósito — o backend é honesto
-// (active=null, account=sem-debrid) e a conta real do operador viaja em
-// debrid.accounts com ok:true. O painel tratava estado de configuração como
-// problema operacional: "atenção · 1 problema(s)" e banner "Debrid (conta
-// ativa): nenhum serviço de debrid configurado" com a conta saudável.
-// ---------------------------------------------------------------------------
-
-test('account=sem-debrid com a conta do operador ok em accounts é neutro: pill online, banner escondido', () => {
-  const { els, renderStatus } = loadDashboardStatusApi();
-  renderStatus({
+test('account=sem-debrid com conta do operador saudável em accounts é neutro', async () => {
+  const { dom, mods } = await statusEnv();
+  mods.statusRoot.renderStatus({
     general: { ok: true, services: { addon: true, jackett: true, debrid: false, resolvers: 5 } },
     debrid: {
       active: null,
@@ -215,184 +106,234 @@ test('account=sem-debrid com a conta do operador ok em accounts é neutro: pill 
     },
     catalog: { ok: true },
   });
-  assert.equal(els.connection.className, 'connection online', 'conta do operador saudável não pode acender atenção');
-  assert.match(els.connectionText.textContent, /^online$/, 'pill sem "problema(s)"');
-  assert.equal(els.statusBanner.className, 'status-banner', 'banner some: sem-debrid é sem configuração, não problema');
-  assert.equal(els.statusBannerText.children.length, 0);
+  assert.equal(dom.byId['connection'].className, 'connection online');
+  assert.match(dom.byId['connectionText'].textContent, /^online$/);
+  assert.equal(dom.byId['statusBanner'].className, 'status-banner');
+  dom.cleanup();
 });
 
-test('sem-debrid sem nenhuma conta do operador também é neutro e o genérico de services.debrid=false não dispara', () => {
-  const { els, renderStatus } = loadDashboardStatusApi();
-  renderStatus({
-    general: { ok: true, services: { addon: true, jackett: true, debrid: false, resolvers: 0 } },
-    debrid: { active: null, account: { ok: false, reason: 'sem-debrid', service: null }, accounts: {} },
-    catalog: { ok: true },
-  });
-  assert.equal(els.connection.className, 'connection online', 'sem conta nenhuma é estado sem configuração, não problema');
-  assert.equal(els.statusBanner.className, 'status-banner');
-  assert.equal(els.statusBannerText.children.length, 0);
-});
-
-test('sem-debrid não esconde erro real: auth da conta do operador em accounts sobe o pill a erro', () => {
-  const { els, renderStatus } = loadDashboardStatusApi();
-  renderStatus({
+test('sem-debrid não esconde erro real: auth da conta do operador sobe a erro', async () => {
+  const { dom, mods } = await statusEnv();
+  mods.statusRoot.renderStatus({
     general: { ok: true, services: { addon: true, jackett: true, debrid: false, resolvers: 5 } },
     debrid: {
       active: null,
       account: { ok: false, reason: 'sem-debrid', service: null },
-      accounts: { alldebrid: { ok: false, service: 'alldebrid', label: 'AllDebrid', reason: 'auth', error: 'AUTH_BAD_APIKEY', fix: 'renove a chave em alldebrid.com/account/api' } },
+      accounts: { alldebrid: { ok: false, service: 'alldebrid', label: 'AllDebrid', reason: 'auth', error: 'AUTH_BAD_APIKEY', fix: 'renove a chave' } },
     },
     catalog: { ok: true },
   });
-  assert.equal(els.connection.className, 'connection error', 'auth prova conta inutilizável');
-  assert.match(els.statusBanner.className, /\bvisible\b/);
-  assert.match(els.statusBanner.className, /\berror\b/);
-  const texto = bannerLines(els);
-  assert.match(texto, /AllDebrid/, 'a conta culpada é nomeada');
-  assert.match(texto, /chave de API recusada/, 'reason traduzido');
-  assert.match(texto, /renove a chave/, 'fix da conta do operador viaja no banner');
-  assert.doesNotMatch(texto, /conta ativa/, 'a instalação anônima sem debrid não reaparece como problema');
+  assert.equal(dom.byId['connection'].className, 'connection error');
+  const texto = bannerLines(dom);
+  assert.match(texto, /AllDebrid/);
+  assert.match(texto, /chave de API recusada/);
+  assert.doesNotMatch(texto, /conta ativa/);
+  dom.cleanup();
 });
 
-test('sem-debrid com rate limit na conta do operador fica em atenção (nem online, nem erro)', () => {
-  const { els, renderStatus } = loadDashboardStatusApi();
-  renderStatus({
+test('sem-debrid com rate limit na conta do operador fica em atenção', async () => {
+  const { dom, mods } = await statusEnv();
+  mods.statusRoot.renderStatus({
     general: { ok: true, services: { addon: true, jackett: true, debrid: false, resolvers: 5 } },
-    debrid: {
-      active: null,
-      account: { ok: false, reason: 'sem-debrid', service: null },
-      accounts: { alldebrid: { ok: false, service: 'alldebrid', label: 'AllDebrid', reason: 'rate' } },
-    },
+    debrid: { active: null, account: { ok: false, reason: 'sem-debrid', service: null }, accounts: { alldebrid: { ok: false, service: 'alldebrid', label: 'AllDebrid', reason: 'rate' } } },
     catalog: { ok: true },
   });
-  assert.equal(els.connection.className, 'connection warn', 'rate é transitório: atenção, não derruba a vermelho');
-  assert.match(els.statusBanner.className, /\bwarn\b/);
-  assert.match(bannerLines(els), /rate limit do serviço/);
+  assert.equal(dom.byId['connection'].className, 'connection warn');
+  assert.match(bannerLines(dom), /rate limit do serviço/);
+  dom.cleanup();
 });
 
-// Mesma correção no card do serviço: conta ok em accounts (a do operador, no
-// shape exato da VPS) não pode ficar em "não medido" — mesmo critério do
-// espelho da conta ativa; warn:true (limiar do operador) degrada para atenção.
-// O item vindo de accounts entra pelo caminho service/label (sem campo id),
-// então a busca usa (id || service).
-test('renderDebrid: conta do operador ok em accounts é saudável no card, não "não medido"', () => {
-  const { renderDebrid, captured } = loadDashboardPanelsApi();
-  const porServico = (lista: any[]) => lista.filter((item: any) => item && (item.id || item.service) === 'alldebrid');
-  renderDebrid({
-    active: null,
-    account: { ok: false, reason: 'sem-debrid', service: null },
-    accounts: { alldebrid: { ok: true, service: 'alldebrid', label: 'AllDebrid', magnets: 846 } },
-  });
-  const alldebrid = porServico(captured).pop();
-  assert.ok(alldebrid, 'card AllDebrid renderizado');
-  assert.equal(alldebrid.status, 'online', 'ok:true em accounts é saudável (sem warn)');
-  assert.equal(alldebrid.magnets, 846, 'os detalhes da conta seguem no card');
-  renderDebrid({
-    active: null,
-    account: { ok: false, reason: 'sem-debrid', service: null },
-    accounts: { alldebrid: { ok: true, service: 'alldebrid', label: 'AllDebrid', magnets: 846, warn: true } },
-  });
-  const comWarn = porServico(captured).pop();
-  assert.equal(comWarn.status, 'warn', 'warn do limiar do operador degrada o card para atenção');
-});
-
-test('banner persistente existe no HTML e dashboard-status.js permanece ES5 sem innerHTML', () => {
-  const html = dashboardHtml();
-  assert.match(html, /id="statusBanner"/);
-  assert.match(html, /id="statusBannerText"/);
-  const statusJs = readFileSync(new URL('../../src/public/dashboard-status.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(statusJs, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard-status.js continua ES5');
-  // Sem innerHTML COM DADOS: o único uso é o option estático do seletor de
-  // namespace (string literal, nada da rede); o banner é preenchido por
-  // textContent/appendChild.
-  const uses = statusJs.match(/innerHTML\s*=[^;]+;/g) || [];
-  assert.equal(uses.length, 1, 'único innerHTML permitido é o option estático');
-  assert.doesNotMatch(uses[0], /\+/, 'sem concatenação de dados no innerHTML');
-});
-
-// Teste de resolver BR no painel: o card kind=resolver usa endpoint próprio
-// (/test-resolver.json, backend em escopo separado); o frontend espelha o
-// gate/feedback de runIndexerTest e reconsulta o estado depois de medir.
-
-test('dashboard-render/panels: kind=resolver ganha botão Testar este resolver; indexador segue igual; ES5', () => {
-  // Fase 0: card() (que monta o botão de teste) migrou do core para render.
-  // Fase 1: o clique dispara a sonda por hook — render não cita o símbolo das sondas.
-  const render = readFileSync(new URL('../../src/public/dashboard-render.js', import.meta.url), 'utf8'); const panels = readFileSync(new URL('../../src/public/dashboard-panels.js', import.meta.url), 'utf8');
-  assert.match(render, /"Testar este resolver"/);
-  assert.match(render, /setAttribute\("data-resolver-id"/);
-  assert.match(render, /DashHooks\.call\("runResolverTest", button\.getAttribute\("data-resolver-id"\), button\)/);
-  assert.match(render, /"Testar este indexador"/); // caminho do indexador permanece intacto
-  assert.match(render, /DashHooks\.call\("runIndexerTest", button\.getAttribute\("data-indexer-id"\), button\)/);
-  assert.match(panels, /renderCollection\(\$\("resolverCards"\), resolvers, "resolvers", \{ testable: true, kind: "resolver" \}\)/);
-  for (const js of [render, panels]) {
-    assert.doesNotMatch(js, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'ES5 (WebView de TV)');
-    assert.doesNotMatch(js, /innerHTML/, 'dados só por textContent/appendChild');
-  }
-});
-
-test('runResolverTest: gate de id/token, falha vira erro e sucesso mostra releases/latência/host e reconsulta', async () => {
-  const calls: Array<{ url: string; init: any }> = [];
-  let payload: any = { ok: false, error: 'resolver fora do ar' };
-  const api = loadDashboardStatusApi((url: string, init: any) => {
-    calls.push({ url: String(url), init });
-    const body = String(url).indexOf('/test-resolver.json') !== -1 ? payload : { general: { ok: true, services: {} } };
-    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
-  });
-  // `els` é preguiçoso: o elemento só existe depois do primeiro $("testOutput")
-  // dentro de runResolverTest — ler antes da chamada captura undefined.
-  api.runResolverTest('', null);
-  assert.match(api.els.testOutput.textContent, /Informe o ID do resolver/);
-  api.runResolverTest('bludv', null);
-  assert.match(api.els.testOutput.textContent, /Informe o token antes de testar um resolver/);
-  assert.equal(calls.length, 0, 'gate: nenhuma chamada sem id ou sem token');
-  api.setToken('segredo');
-  api.runResolverTest('vacatorrent', null);
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.match(calls[0].url, /\/test-resolver\.json\?id=vacatorrent$/, 'endpoint do resolver chamado com o id');
-  assert.equal(calls[0].init.method, 'GET');
-  assert.equal(calls[0].init.headers['X-Indexer-Test-Token'], 'segredo');
-  assert.match(api.els.testOutput.className, /\berror\b/);
-  assert.match(api.els.testOutput.textContent, /Falhou · resolver fora do ar/);
-  payload = { ok: true, results: 7, ms: 800, host: 'vaqueirofilmes.com' };
-  api.runResolverTest('vacatorrent', null);
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.match(api.els.testOutput.className, /\bok\b/);
-  assert.match(api.els.testOutput.textContent, /vacatorrent · OK · 7 release\(s\) · 800 ms · host vaqueirofilmes\.com/);
-  assert.ok(calls.some((c) => c.url.indexOf('/dashboard-status.json') !== -1), 'loadStatus roda após medir (card sai de não medido)');
-});
-
-// ---------------------------------------------------------------------------
-// Fase 2 — tri-estado: front não pinta "saudável" o que ainda não foi medido.
-// panels/status reais no Fake DOM; só card() é dublê para capturar o rótulo.
-// ---------------------------------------------------------------------------
-
-test('services.jackett === "naomedido": banner alerta e pill não fica verde', () => {
-  const { els, renderStatus } = loadDashboardStatusApi();
-  renderStatus({
+test('services.jackett === "naomedido" alerta e não pinta verde; false usa outro texto', async () => {
+  const { dom, mods } = await statusEnv();
+  mods.statusRoot.renderStatus({
     general: { ok: true, services: { addon: true, jackett: 'naomedido', debrid: true, resolvers: 5 } },
     debrid: { active: 'alldebrid', account: { ok: true, service: 'alldebrid', label: 'AllDebrid' }, accounts: {} },
     catalog: { ok: true },
   });
-  assert.equal(els.connection.className, 'connection warn', 'Jackett não medido não pode pintar o pill verde');
-  assert.match(els.statusBanner.className, /\bvisible\b/);
-  assert.match(els.statusBanner.className, /\bwarn\b/);
-  const texto = bannerLines(els);
+  assert.equal(dom.byId['connection'].className, 'connection warn');
+  const texto = bannerLines(dom);
   assert.match(texto, /Jackett não medido/);
-  assert.doesNotMatch(texto, /sem catálogo/, 'texto distinto de jackett===false');
+  assert.doesNotMatch(texto, /sem catálogo/);
+  dom.cleanup();
 });
 
-test('breaker.state === "naomedido": card não diz "fechado"; legado tripped sem state permanece', () => {
-  const { renderSources, captured } = loadDashboardPanelsApi();
-  renderSources({
+test('renderDebrid: conta do operador ok em accounts é saudável no card, warn degrada', async () => {
+  const { dom, mods } = await statusEnv();
+  mods.panels.renderDebrid({
+    active: null,
+    account: { ok: false, reason: 'sem-debrid', service: null },
+    accounts: { alldebrid: { ok: true, service: 'alldebrid', label: 'AllDebrid', magnets: 846 } },
+  });
+  const card = cardByTitle(dom.byId['debridCards'], 'AllDebrid');
+  assert.ok(card, 'card AllDebrid renderizado');
+  assert.equal(card.getAttribute('data-status'), 'online');
+  assert.match(flat(card), /846/);
+  mods.panels.renderDebrid({
+    active: null,
+    account: { ok: false, reason: 'sem-debrid', service: null },
+    accounts: { alldebrid: { ok: true, service: 'alldebrid', label: 'AllDebrid', magnets: 846, warn: true } },
+  });
+  const warn = cardByTitle(dom.byId['debridCards'], 'AllDebrid');
+  assert.equal(warn.getAttribute('data-status'), 'warn');
+  dom.cleanup();
+});
+
+test('breaker tri-estado: naomedido não vira fechado; legado tripped permanece', async () => {
+  const { dom, mods } = await statusEnv();
+  mods.panels.renderSources({
     indexers: [
       { id: 'hdrtorrent', breaker: { state: 'naomedido', tripped: false } },
       { id: 'tpb', breaker: { tripped: true } },
-      { id: '1337x', breaker: { tripped: false } },
+      { id: 'x1337', breaker: { tripped: false } },
     ],
   });
-  const byId = (id: string) => captured.filter((item: any) => item && item.id === id).pop();
-  assert.equal(byId('hdrtorrent').breaker, 'não medido', 'naomedido não vira fechado saudável');
-  assert.notEqual(byId('hdrtorrent').breaker, 'fechado');
-  assert.equal(byId('tpb').breaker, 'aberto', 'compat: só tripped true → aberto');
-  assert.equal(byId('1337x').breaker, 'fechado', 'compat: só tripped false → fechado');
+  const hdr = cardByTitle(dom.byId['indexerCards'], 'hdrtorrent');
+  const tpb = cardByTitle(dom.byId['indexerCards'], 'tpb');
+  const x1337 = cardByTitle(dom.byId['indexerCards'], 'x1337');
+  assert.match(flat(hdr), /não medido/);
+  assert.doesNotMatch(flat(hdr), /fechado/);
+  assert.match(flat(tpb), /aberto/);
+  assert.match(flat(x1337), /fechado/);
+  dom.cleanup();
+});
+
+test('runResolverTest: gate de id/token, erro e sucesso com releases/latência/host', async () => {
+  const { dom, mods } = await statusEnv();
+  const calls: Array<{ url: string; init: any }> = [];
+  let payload: any = { ok: false, error: 'resolver fora do ar' };
+  dom.setFetch((url: string, init: any) => {
+    calls.push({ url: String(url), init });
+    const body = String(url).includes('/test-resolver.json') ? payload : { general: { ok: true, services: {} } };
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+  });
+  mods.probes.runResolverTest('');
+  assert.match(dom.byId['testOutput'].textContent, /Informe o ID do resolver/);
+  mods.probes.runResolverTest('bludv');
+  assert.match(dom.byId['testOutput'].textContent, /Informe o token antes de testar um resolver/);
+  assert.equal(calls.length, 0);
+  mods.state.DashState.token = 'segredo';
+  mods.probes.runResolverTest('vacatorrent');
+  await new Promise((r) => setTimeout(r, 25));
+  assert.match(calls[0].url, /\/test-resolver\.json\?id=vacatorrent$/);
+  assert.equal(calls[0].init.method, 'GET');
+  assert.equal(calls[0].init.headers['X-Indexer-Test-Token'], 'segredo');
+  assert.match(dom.byId['testOutput'].className, /\berror\b/);
+  assert.match(dom.byId['testOutput'].textContent, /Falhou · resolver fora do ar/);
+  payload = { ok: true, results: 7, ms: 800, host: 'vaqueirofilmes.com' };
+  mods.probes.runResolverTest('vacatorrent');
+  await new Promise((r) => setTimeout(r, 25));
+  assert.match(dom.byId['testOutput'].className, /\bok\b/);
+  assert.match(dom.byId['testOutput'].textContent, /vacatorrent · OK · 7 release\(s\) · 800 ms · host vaqueirofilmes\.com/);
+  assert.ok(calls.some((c) => c.url.includes('/dashboard-status.json')), 'loadStatus roda após medir');
+  dom.cleanup();
+});
+
+test('HTML tem o banner e o card testável; status-actions tem um único innerHTML estático', () => {
+  const html = dashboardHtml();
+  assert.match(html, /id="statusBanner"/);
+  assert.match(html, /id="statusBannerText"/);
+});
+
+// ---------------------------------------------------------------------------
+// Dreno destrutivo das remoções represadas (autofetch-suppressed-drain):
+// updateActionAvailability HABILITA só com saldo, runAction confirma antes do
+// POST e o feedback carrega o saldo removidas/elegíveis/restantes.
+// ---------------------------------------------------------------------------
+
+async function drainEnv() {
+  const env = await resetDashboardEnvironment();
+  registerDashboardHooks(env.mods);
+  let loads = 0;
+  const requests: any[] = [];
+  env.mods.hooks.hooks.register('loadStatus', () => { loads += 1; });
+  env.dom.setFetch((url: string, init: any) => {
+    requests.push({ url: String(url), body: JSON.parse(init.body) });
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, removidas: 3, elegiveis: 5, restantes: 2 }) });
+  });
+  return { ...env, requests, loads: () => loads };
+}
+
+test('updateActionAvailability: botão do dreno represado só habilita com saldo', async () => {
+  const { dom, mods } = await drainEnv();
+  mods.statusActions.updateActionAvailability({ autofetch: { suppressed: 0 }, harvest: {}, debrid: {}, indexers: [] });
+  assert.equal(dom.byId['afSuppressedDrainBtn'].disabled, true, 'sem represadas, desabilitado');
+  mods.statusActions.updateActionAvailability({ autofetch: { suppressed: 4 }, harvest: {}, debrid: {}, indexers: [] });
+  assert.equal(dom.byId['afSuppressedDrainBtn'].disabled, false, 'com saldo, habilitado');
+  dom.cleanup();
+});
+
+test('runAction autofetch-suppressed-drain: confirm antes do POST e saldo no feedback', async () => {
+  const { dom, mods, requests, loads } = await drainEnv();
+  const button = dom.attach(dom.body, 'button', { 'data-action': 'autofetch-suppressed-drain', 'data-paused': 'false' });
+  let confirmText = '';
+  dom.window.confirm = (text: string) => { confirmText = text; return false; };
+  mods.statusActions.runAction(button);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(requests.length, 0, 'cancelar não posta');
+  assert.equal(loads(), 0, 'cancelar não recarrega');
+  assert.match(confirmText, /remoções represadas/i);
+
+  dom.window.confirm = () => true;
+  mods.statusActions.runAction(button);
+  await new Promise((r) => setTimeout(r, 15));
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/dashboard-action.json');
+  assert.deepEqual(requests[0].body, { action: 'autofetch-suppressed-drain', paused: false, confirm: true });
+  const feedback = dom.byId['feedback'].textContent;
+  assert.match(feedback, /Removidas 3|3 removida/);
+  assert.match(feedback, /5 elegível/);
+  assert.match(feedback, /2 restante/);
+  assert.equal(loads(), 1, 'sucesso recarrega o status pelo hook');
+  dom.cleanup();
+});
+
+// ---------------------------------------------------------------------------
+// loadStatus: falha de rede ≠ exceção de render/wiring. A resposta que chega e
+// quebra a tela não pode ser reportada como "instância inalcançável".
+// ---------------------------------------------------------------------------
+
+test('loadStatus: exceção de render vira "falha ao desenhar", não "instância inalcançável"', async () => {
+  const { dom, mods } = await bootstrapDashboard();
+  dom.setFetch((url: string) => {
+    const body = String(url).includes('/dashboard-status.json')
+      ? { general: { services: { addon: true }, uptimeS: 1 }, cache: {}, metrics: {} }
+      : {};
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+  });
+  mods.state.DashState.token = 'tok';
+  mods.hooks.hooks.register('renderHealthStrip', () => { throw new Error('wiring quebrado'); });
+  mods.statusRoot.loadStatus();
+  await new Promise((r) => setTimeout(r, 25));
+  const feedback = dom.byId['feedback'].textContent;
+  assert.match(feedback, /A resposta chegou/);
+  assert.match(feedback, /wiring quebrado/);
+  assert.doesNotMatch(feedback, /inalcançável/);
+  assert.equal(dom.byId['connection'].className, 'connection error');
+  assert.match(dom.byId['connectionText'].textContent, /falha ao desenhar/);
+  dom.cleanup();
+});
+
+test('loadStatus: falha de rede mantém "instância inalcançável"', async () => {
+  const { dom, mods } = await bootstrapDashboard();
+  dom.setFetch(() => Promise.reject(new Error('ECONNREFUSED')));
+  mods.state.DashState.token = 'tok';
+  mods.statusRoot.loadStatus();
+  await new Promise((r) => setTimeout(r, 25));
+  assert.match(dom.byId['feedback'].textContent, /Instância inalcançável/);
+  assert.doesNotMatch(dom.byId['feedback'].textContent, /A resposta chegou/);
+  dom.cleanup();
+});
+
+test('services.debrid=false sem motivo detalhado vira aviso explícito (não engolido)', async () => {
+  const { dom, mods } = await resetDashboardEnvironment();
+  mods.statusIssues.renderStatusBanner(mods.statusIssues.collectStatusIssues({
+    general: { services: { addon: true, jackett: true, debrid: false, resolvers: 5 } },
+    debrid: { active: null, account: { ok: false, reason: 'sem-debrid', service: null }, accounts: {} },
+    catalog: { ok: true },
+    indexers: [], resolvers: [],
+  }));
+  const texto = bannerLines(dom);
+  assert.match(texto, /Debrid reportado indisponível no geral/);
+  assert.match(texto, /verifique chave e conta/);
+  dom.cleanup();
 });
