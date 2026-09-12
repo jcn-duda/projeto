@@ -75,6 +75,11 @@ function loadAutofetchApi(): { els: Record<string, FakeNode>; renderAutofetchPan
   const core = readFileSync(new URL('../src/public/dashboard-core.js', import.meta.url), 'utf8');
   const render = readFileSync(new URL('../src/public/dashboard-render.js', import.meta.url), 'utf8');
   const afJs = readFileSync(new URL('../src/public/dashboard-autofetch.js', import.meta.url), 'utf8');
+  // Fase 1 do saneamento: o fim do renderAutofetchPanel pede o painel de stall
+  // por DashHooks.call — o registro precisa existir na composição. Fase 2
+  // (call estrito): hook obrigatório ausente lança, então sem o af-stall no
+  // sandbox o stub é registrado explicitamente aqui.
+  const hooks = readFileSync(new URL('../src/public/dashboard-hooks.js', import.meta.url), 'utf8');
   const els: Record<string, FakeNode> = {};
   const document = {
     getElementById: (id: string) => (els[id] = els[id] || fakeNode()),
@@ -91,7 +96,7 @@ function loadAutofetchApi(): { els: Record<string, FakeNode>; renderAutofetchPan
   const factory = new Function(
     'document',
     'window',
-    core + '\n' + render + '\n' + afJs + '\nreturn { renderAutofetchPanel: renderAutofetchPanel };',
+    hooks + '\n' + core + '\n' + render + '\n' + afJs + '\nDashHooks.register("renderAutofetchStall", function () {});\nreturn { renderAutofetchPanel: renderAutofetchPanel };',
   ) as (doc: unknown, win: unknown) => { renderAutofetchPanel: (af: unknown, uptimeS?: number) => void };
   return { els, renderAutofetchPanel: factory(document, window).renderAutofetchPanel };
 }

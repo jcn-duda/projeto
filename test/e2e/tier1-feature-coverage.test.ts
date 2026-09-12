@@ -24,7 +24,6 @@ import {
   verifyResolve,
 } from './e2e-harness.js';
 
-import config from '../../src/config.js';
 import * as runtime from '../../src/runtime.js';
 import * as format from '../../src/utils/format.js';
 import * as cache from '../../src/utils/cache.js';
@@ -248,18 +247,6 @@ describe('Feature 3: Standardized siteEnv Configuration', () => {
     assert.equal(rede.siteEnv, 'REDETORRENT_URL');
   });
 
-  it('3.2: controles da configuração desligam o carregador sem alterar o ambiente pai', () => {
-    const saved = { ...process.env };
-    process.env.BLUDV_URL = 'https://custom-bludv.xyz';
-
-    try {
-      brResolvers.load({ ...config.resolvers, embedded: false });
-      assert.equal(process.env.BLUDV_URL, 'https://custom-bludv.xyz');
-    } finally {
-      process.env = saved;
-    }
-  });
-
   it('3.3: Configuração de COMANDOTORRENTS_URL é respeitada pelo siteEnv', () => {
     const comandoConfig = brResolvers.RESOLVERS.find((r) => r.name === 'comandotorrents') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(comandoConfig.siteEnv, 'COMANDOTORRENTS_URL');
@@ -273,20 +260,6 @@ describe('Feature 3: Standardized siteEnv Configuration', () => {
     assert.notEqual(nerd.siteEnv, tdf.siteEnv);
   });
 
-  it('3.5: load() restaura variáveis de ambiente do processo pai com segurança', () => {
-    const savedPort = process.env.PORT;
-    const savedSelfUrl = process.env.SELF_URL;
-    process.env.PORT = '7000';
-    process.env.SELF_URL = 'http://127.0.0.1:7000';
-    try {
-      brResolvers.load({ ...config.resolvers, embedded: false });
-      assert.equal(process.env.PORT, '7000', 'PORT deve ser restaurada');
-      assert.equal(process.env.SELF_URL, 'http://127.0.0.1:7000', 'SELF_URL deve ser restaurada');
-    } finally {
-      if (savedPort) process.env.PORT = savedPort;
-      if (savedSelfUrl) process.env.SELF_URL = savedSelfUrl;
-    }
-  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════════

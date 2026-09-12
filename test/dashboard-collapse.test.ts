@@ -153,8 +153,10 @@ function buildSandbox(specs: Array<{ id: string; body?: boolean }>) {
     },
   };
   const window = { location: { pathname: '/dashboard', hash: '', search: '' }, addEventListener: () => {}, pageYOffset: 0 };
+  // Fase 1 do saneamento: hooks primeiro — nav.js se registra no DashHooks no
+  // próprio load.
   const factory = new Function('document', 'window',
-    PUBLIC('dashboard-core.js') + '\n' + NAV() + '\nreturn { setSectionExpanded: setSectionExpanded, syncSectionToggle: syncSectionToggle, initSectionToggles: initSectionToggles, bindSectionToggles: bindSectionToggles, scrollToSection: scrollToSection };') as
+    PUBLIC('dashboard-hooks.js') + '\n' + PUBLIC('dashboard-core.js') + '\n' + NAV() + '\nreturn { setSectionExpanded: setSectionExpanded, syncSectionToggle: syncSectionToggle, initSectionToggles: initSectionToggles, bindSectionToggles: bindSectionToggles, scrollToSection: scrollToSection };') as
     (doc: unknown, win: unknown) => any;
   return { api: factory(document, window), byId, sections, toggles };
 }

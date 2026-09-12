@@ -7,9 +7,8 @@ import assert from 'node:assert/strict';
  * (hit, TTL, FIFO, coalescing) e o fallback do resolvePost — tudo com
  * globalThis.fetch mockado, sem rede.
  */
-import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import bludv from '../bludv-resolver/server.js';
+import { createResolver as createBludvResolver } from '../resolvers/profiles/bludv.js';
 
 const HASH = '0123456789abcdef0123456789abcdef01234567';
 const toStr = (url: any) => (typeof url === 'string' ? url : url.href);
@@ -350,26 +349,16 @@ describe('BluDV Resolver: caches de magnet e de busca', () => {
 
 describe('BluDV Resolver: lista de protetores', () => {
   // `discoverNextUrl` monta a regex de busca a partir de `protectorSuffixes`.
-  // O perfil passava a lista ESTÁTICA do bludv-parsers, que lê a env
+  // O perfil passava a lista ESTÁTICA do bludv-parsers, que lia a env
   // `EXTRA_PROTECTORS` — inexistente na documentação e no .env.example. O
-  // operador configura `EXTRA_ALLOWED_PROTECTORS`, que só entra na lista do
-  // bootstrap: `isProtectorHost` aceitava o host, mas a regex nunca o casava,
-  // então o salto morria em silêncio. As envs são lidas no require, então a
-  // prova precisa de um processo filho.
+  // operador configura `EXTRA_ALLOWED_PROTECTORS`, que entra no bootstrap.
+  // A factory recebe a lista explícita: a prova é uma chamada direta, sem
+  // processo filho, sem env e sem depender da ordem de import.
   test('nextProtectedUrl enxerga protetor vindo de EXTRA_ALLOWED_PROTECTORS', () => {
-    const serverPath = fileURLToPath(new URL('../bludv-resolver/server.js', import.meta.url));
-    const script = [
-      `const bludv = require(${JSON.stringify(serverPath)});`,
-      "const html = '<p><a href=\"https://protetor-do-operador.test/go/7\">1080p</a></p>';",
-      "process.stdout.write(String(bludv.nextProtectedUrl(html, 'https://bludvfilmes.xyz/post/')));",
-    ].join('\n');
-
-    const achado = execFileSync(process.execPath, ['-e', script], {
-      env: { ...process.env, EXTRA_ALLOWED_PROTECTORS: 'protetor-do-operador.test' },
-      encoding: 'utf8',
-    });
+    const instance = createBludvResolver({ extraProtectors: ['protetor-do-operador.test'] });
+    const html = '<p><a href="https://protetor-do-operador.test/go/7">1080p</a></p>';
     assert.equal(
-      achado,
+      instance.nextProtectedUrl(html, 'https://bludvfilmes.xyz/post/'),
       'https://protetor-do-operador.test/go/7',
       'a lista dinâmica do bootstrap é a que alimenta a regex de descoberta',
     );

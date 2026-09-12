@@ -73,7 +73,8 @@ function buildSandbox(files: string[], extra: string, returns: string) {
     pageYOffset: 0,
     localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
   };
-  const code = files.map((name) => PUBLIC(name)).join('\n');
+  // Fase 1 do saneamento: hooks primeiro (os módulos se registram no load).
+  const code = ['dashboard-hooks.js'].concat(files).map((name) => PUBLIC(name)).join('\n');
   const factory = new Function('document', 'window', 'capturedCards', code + '\n' + extra + '\nreturn {' + returns + '};') as (
     doc: unknown,
     win: unknown,

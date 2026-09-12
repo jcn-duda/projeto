@@ -1,6 +1,10 @@
 /* Adom Power-Movie — seção Conta / Catálogo (Fase 1 painel).
  * Escopo global (sem IIFE). Depois de harvest; boot liga os botões.
- * ES5 puro (Fire TV / smart TV). */
+ * Fase 1 do saneamento: o refresh pós-ação sai por DashHooks.call("loadStatus")
+ * (registrado pelo dashboard-status.js) e o relatório do poll é consumido pelo
+ * hook renderCatalogReport (dashboard-catalog-panel.js) — nenhum dos módulos
+ * que consomem este arquivo cita o símbolo global dele de volta. ES5 puro
+ * (Fire TV / smart TV). */
 "use strict";
 
 // --- Conta / Catálogo ------------------------------------------------
@@ -319,7 +323,7 @@ function catalogAction(action, extra, callback) {
           setCatalogFeedback("Ação " + action + " concluída, mas a tela falhou: " + valueText(renderError && renderError.message ? renderError.message : renderError), "warn");
         }
       }
-      loadStatus();
+      DashHooks.call("loadStatus");
     })
     .catch(function (error) { setCatalogFeedback("Ação não concluída: " + valueText(error && error.message ? error.message : error), "error"); });
 }
@@ -379,3 +383,9 @@ function runCatalogCleanupApply() {
   if (!window.confirm("Confirmar a limpeza BR (apagar o estrangeiro provado do catálogo)?")) return;
   catalogAction("cleanup-apply", { max: catalogMax() }, renderCatalogOutcome);
 }
+
+// Fase 1 do saneamento — registro declarativo no DashHooks (única execução no
+// load deste módulo): o par catálogo/catalog-panel fecha pelos hooks — o painel
+// do poll (dashboard-catalog-panel.js) consome este render por DashHooks.call e
+// este módulo não cita símbolo global daquele de volta.
+DashHooks.register("renderCatalogReport", renderCatalogReport);

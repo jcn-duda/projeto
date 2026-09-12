@@ -30,6 +30,11 @@ function fakeNode(): FakeNode {
 function loadNavApi() {
   const core = readFileSync(new URL('../src/public/dashboard-core.js', import.meta.url), 'utf8');
   const nav = readFileSync(new URL('../src/public/dashboard-nav.js', import.meta.url), 'utf8');
+  // Fase 1 do saneamento: nav.js se registra no DashHooks no próprio load, e o
+  // switchTab pede o redesenho da aba ativa pelo hook rerenderActiveTab. Fase 2
+  // (call estrito): hook obrigatório ausente lança, então esta composição
+  // mínima (sem status.js) registra o stub do consumidor explicitamente.
+  const hooks = readFileSync(new URL('../src/public/dashboard-hooks.js', import.meta.url), 'utf8');
   const els: Record<string, FakeNode> = {};
   const document = {
     getElementById: (id: string) => (els[id] = els[id] || fakeNode()),
@@ -41,7 +46,7 @@ function loadNavApi() {
   const factory = new Function(
     'document',
     'window',
-    core + '\n' + nav + '\nreturn { switchTab: switchTab, handleHash: handleHash };',
+    hooks + '\n' + core + '\n' + nav + '\nDashHooks.register("rerenderActiveTab", function () {});\nreturn { switchTab: switchTab, handleHash: handleHash };',
   ) as (doc: unknown, win: unknown) => { switchTab: (name: string) => void; handleHash: () => void };
   const api = factory(document, window);
   return { api, els, location };
@@ -125,6 +130,8 @@ function loadNavWithChips() {
   const core = readFileSync(new URL('../src/public/dashboard-core.js', import.meta.url), 'utf8');
   const render = readFileSync(new URL('../src/public/dashboard-render.js', import.meta.url), 'utf8');
   const nav = readFileSync(new URL('../src/public/dashboard-nav.js', import.meta.url), 'utf8');
+  // Fase 1 do saneamento: hooks primeiro (nav se registra no load dele).
+  const hooks = readFileSync(new URL('../src/public/dashboard-hooks.js', import.meta.url), 'utf8');
   // Nós ricos (appendChild/attrs/offsetTop): o tipo estreito do FakeNode não
   // descreve os chips — any de propósito, confinado a este loader.
   const els: Record<string, any> = new Proxy({} as Record<string, any>, {
@@ -165,7 +172,7 @@ function loadNavWithChips() {
   const factory = new Function(
     'document',
     'window',
-    core + '\n' + render + '\n' + nav + '\nreturn { switchTab: switchTab, renderSectionNav: renderSectionNav, markActiveSection: markActiveSection };',
+    hooks + '\n' + core + '\n' + render + '\n' + nav + '\nDashHooks.register("rerenderActiveTab", function () {});\nreturn { switchTab: switchTab, renderSectionNav: renderSectionNav, markActiveSection: markActiveSection };',
   ) as (doc: unknown, win: unknown) => any;
   return { api: factory(document, window), els, location, window };
 }

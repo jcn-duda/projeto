@@ -98,3 +98,9 @@
       box.appendChild(element("p", "guidance", afSkipLine(last[i])));
     }
   }
+
+  // Fase 1 do saneamento — registro declarativo no DashHooks (única execução
+  // no load deste módulo): o renderAutofetchPanel (dashboard-autofetch.js)
+  // consome o painel por DashHooks.call, sem citar o símbolo global deste
+  // arquivo.
+  DashHooks.register("renderAutofetchStall", renderAutofetchStall);

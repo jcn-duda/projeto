@@ -53,10 +53,12 @@ function isCloudflareChallenge(response, body) {
 }
 
 /**
- * Fábrica da mecânica FlareSolverr de um perfil. Knobs de env com os MESMOS
- * defaults do bludv (lidos no require do perfil, como antes — a chamada do
- * perfil acontece no nível do módulo). `userAgent` é o fallback do fetch
- * direto quando não há sessão (o perfil injeta o USER_AGENT do runtime).
+ * Fábrica da mecânica FlareSolverr de um perfil. Os perfis que usam Flare
+ * (bludv e redetorrent) passam `solverUrl`/`timeoutMs`/`sessionTtlMs`
+ * explicitamente, vindos de env-config.js em tempo de chamada; os defaults de
+ * env daqui só valem para quem chamar a fábrica sem opções. `userAgent` é o
+ * fallback do fetch direto quando não há sessão (o perfil injeta o
+ * USER_AGENT do runtime).
  */
 function createFlareFetcher(options = {}) {
   const {

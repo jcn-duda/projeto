@@ -1,20 +1,22 @@
 /* Adom Power-Movie — /dashboard: status, polling e ações (Fase 3 §5.9 + Fase 2).
- * renderStatus, token, refresh, ações com confirmação. As sondas pontuais
+ * renderStatus, refresh, ações com confirmação. As sondas pontuais
  * (testes de indexer/resolver) vivem em dashboard-probes.js; a faixa de saúde
  * e o estado vazio em dashboard-health.js. Desde a Fase 2.5 o ciclo renderiza
- * só a faixa de saúde + a ABA ATIVA: o último payload fica em lastStatusRoot
- * e a troca de aba (dashboard-nav.js) desenha a aba recém-ativada a partir
- * dele. Escopo global. ES5 puro (Fire TV). */
+ * só a faixa de saúde + a ABA ATIVA: o último payload fica em
+ * DashState.lastStatusRoot (dashboard-state.js, Fase 2 do saneamento) e a
+ * troca de aba (dashboard-nav.js) desenha a aba recém-ativada a partir
+ * dele — via hook rerenderActiveTab (Fase 1 do saneamento), não por
+ * referência direta ao símbolo deste módulo. Escopo global. ES5 puro. */
 "use strict";
 
   // Pill/banner: evidência da resposta (auth/quota/timeout/catálogo) vira
   // estado visível — não esconder ok:false num details (incidente 2026-08-30).
   var STATE_RANK = { unknown: 0, online: 1, warn: 2, error: 3 };
 
-  // Último payload completo recebido do /dashboard-status.json. É a fonte do
-  // render tardio das abas ocultas (Fase 2.5): elas não desenham a cada poll,
-  // desenham UMA VEZ na troca, com o estado mais recente que existe.
-  var lastStatusRoot = null;
+  // DashState.lastStatusRoot (dashboard-state.js) guarda o último payload
+  // completo recebido do /dashboard-status.json. É a fonte do render tardio
+  // das abas ocultas (Fase 2.5): elas não desenham a cada poll, desenham UMA
+  // VEZ na troca, com o estado mais recente que existe.
 
   function worstState(a, b) {
     return (STATE_RANK[a] || 0) >= (STATE_RANK[b] || 0) ? a : b;
@@ -159,7 +161,7 @@
     var uptimeS = first(root.general || {}, ["uptimeS"], null);
     var harvest = first(root, ["harvest", "harvester"], {});
     renderGeneral(root);
-    if (typeof renderTimersPanel === "function") renderTimersPanel(root);
+    DashHooks.call("renderTimersPanel", root);
     renderDebrid(first(root, ["debrid", "debridStatus"], {}), first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}));
     renderSources(root);
     renderCache(first(root, ["cache", "cacheStatus"], {}), counters);
@@ -169,19 +171,20 @@
     }
     renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
     renderHarvest(harvest, uptimeS);
-    if (typeof renderF3Panel === "function") renderF3Panel(root.f3, uptimeS, first(root.metrics || {}, ["gauges"], {}));
+    DashHooks.call("renderF3Panel", root.f3, uptimeS, first(root.metrics || {}, ["gauges"], {}));
     // Fase 3.4 do redesign: o relatório de catálogo já vem em root.catalog a
     // cada poll — popula a seção sem disparar POST manual.
-    if (typeof renderCatalogPanel === "function") renderCatalogPanel(root);
+    DashHooks.call("renderCatalogPanel", root);
     drawSparkline("cacheSparkline", pushSeries("cache-hit-rate", first(root.cache || {}, ["hitRate"], 0)), "#39d98a");
     drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(harvest, ["queriesThisHour"], 0)), "#faa31a");
   }
 
   // Só a aba ativa renderiza (Fase 2.5); Trace não tem painel de polling
-  // (consulta sob demanda). typeof-guardado em activeTabName: sandboxes que
-  // não carregam dashboard-nav.js caem na Geral, como antes.
+  // (consulta sob demanda). A aba vem do hook activeTabName (dashboard-nav.js):
+  // hook obrigatório — na página inteira quem registra é a nav, sempre
+  // carregada; ausente é bug de composição e o call falha alto.
   function renderActivePanels(root) {
-    var tab = typeof activeTabName === "function" ? activeTabName() : "geral";
+    var tab = DashHooks.call("activeTabName") || "geral";
     var counters = first(root.metrics || {}, ["counters"], {});
     var uptimeS = first(root.general || {}, ["uptimeS"], null);
     if (tab === "autofetch") {
@@ -198,12 +201,14 @@
     var root = isObject(data) ? data : {};
     var status = first(root, ["status", "state", "health"], "online");
     // Medição de render (Fase 2.5): só existe com flag de debug — produção
-    // não recebe linha nenhuma de console.
-    var renderStartedAt = typeof dashDebugEnabled === "function" && dashDebugEnabled() ? Date.now() : 0;
+    // não recebe linha nenhuma de console. A flag vem por hook (dashboard-
+    // health.js), obrigatório na composição da página: ausente é bug de
+    // composição e o call falha alto (não há mais no-op silencioso).
+    var renderStartedAt = DashHooks.call("dashDebugEnabled") ? Date.now() : 0;
     var issues = collectStatusIssues(root);
-    lastStatusRoot = root;
-    if (typeof renderHealthStrip === "function") renderHealthStrip(root);
-    if (typeof renderAttentionStrip === "function") renderAttentionStrip(issues);
+    DashState.lastStatusRoot = root;
+    DashHooks.call("renderHealthStrip", root);
+    DashHooks.call("renderAttentionStrip", issues);
     renderActivePanels(root);
     if (own(root, "status") || own(root, "state") || own(root, "health")) {
       // "online" declarado não abafa ok:false da mesma resposta.
@@ -213,36 +218,36 @@
     }
     renderStatusBanner(issues);
     setConnection(stateName(status), stateLabel(status) + (issues.length ? " · " + issues.length + " problema(s)" : ""));
-    lastOkAt = Date.now();
+    DashState.lastOkAt = Date.now();
     updateLastUpdated();
     updateActionAvailability(root);
     // Com token válido o estado vazio honesto perdeu a razão de existir.
-    if (typeof updateEmptyState === "function") updateEmptyState();
-    if (renderStartedAt && typeof activeTabName === "function") {
-      console.info("[dashboard] render '" + activeTabName() + "': " + (Date.now() - renderStartedAt) + " ms (somente faixa de saúde + aba ativa)");
+    DashHooks.call("updateEmptyState");
+    if (renderStartedAt) {
+      console.info("[dashboard] render '" + (DashHooks.call("activeTabName") || "geral") + "': " + (Date.now() - renderStartedAt) + " ms (somente faixa de saúde + aba ativa)");
     }
   }
 
   function saveToken() {
     var input = $("token");
-    currentToken = String(input.value || "").replace(/\s+/g, "");
-    input.value = currentToken;
-    if ($("rememberToken").checked) writeStored(TOKEN_KEY, currentToken);
+    DashState.token = String(input.value || "").replace(/\s+/g, "");
+    input.value = DashState.token;
+    if ($("rememberToken").checked) writeStored(TOKEN_KEY, DashState.token);
     else removeStored(TOKEN_KEY);
     // Limpar o token recria o estado vazio honesto: sem token nenhuma
     // requisição é feita, então o bloco precisa voltar a aparecer.
-    if (typeof updateEmptyState === "function") updateEmptyState();
+    DashHooks.call("updateEmptyState");
     loadStatus();
   }
 
   function loadStatus() {
-    if (requestInFlight || document.hidden) return;
-    if (!currentToken) {
+    if (DashState.requestInFlight || document.hidden) return;
+    if (!DashState.token) {
       setConnection("warn", "token necessário");
       setFeedback("Informe o token de diagnóstico para consultar o estado.", "warn");
       return;
     }
-    requestInFlight = true;
+    DashState.requestInFlight = true;
     $("refreshButton").className = "is-loading";
     setConnection("syncing", "consultando…");
     setFeedback("Consultando o estado…", "");
@@ -251,39 +256,39 @@
         var updated = $("lastUpdated");
         if (updated) updated.className = "last-updated";
         renderStatus(data);
-        consecutiveFailures = 0;
+        DashState.consecutiveFailures = 0;
         setFeedback("Estado atualizado.", "ok");
       })
       .catch(function (error) {
         var status = Number(error && error.status);
         var updated = $("lastUpdated");
         if (updated) updated.className = "last-updated stale";
-        consecutiveFailures += 1;
+        DashState.consecutiveFailures += 1;
         setConnection("error", "falha na consulta");
         if (status === 503) setFeedback("Diagnóstico desligado: defina JACKETT_TEST_TOKEN no .env do operador.", "warn");
         else if (status === 401) setFeedback("Token rejeitado: cole novamente o token de diagnóstico correto.", "error");
         else if (status === 429) setFeedback("Outro diagnóstico está em andamento; a consulta será tentada novamente.", "warn");
         else setFeedback("Instância inalcançável: confira se o addon está no ar e se esta URL está acessível.", "error");
       })
-      .then(function () { requestInFlight = false; $("refreshButton").className = ""; scheduleRefresh(); });
+      .then(function () { DashState.requestInFlight = false; $("refreshButton").className = ""; scheduleRefresh(); });
   }
 
   function scheduleRefresh() {
     var value = $("refreshRate").value;
     var seconds;
-    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+    if (DashState.refreshTimer) { clearTimeout(DashState.refreshTimer); DashState.refreshTimer = null; }
     try { writeStored(RATE_KEY, value); } catch (error) { /* preferência é opcional */ }
     seconds = Number(value);
     if (isFinite(seconds) && seconds > 0 && !document.hidden) {
-      seconds = Math.min(300, seconds * Math.pow(2, consecutiveFailures));
-      refreshTimer = setTimeout(loadStatus, seconds * 1000);
+      seconds = Math.min(300, seconds * Math.pow(2, DashState.consecutiveFailures));
+      DashState.refreshTimer = setTimeout(loadStatus, seconds * 1000);
     }
   }
 
   function updateLastUpdated() {
     var seconds;
-    if (!lastOkAt) { $("lastUpdated").textContent = "sem medição"; return; }
-    seconds = Math.max(0, Math.floor((Date.now() - lastOkAt) / 1000));
+    if (!DashState.lastOkAt) { $("lastUpdated").textContent = "sem medição"; return; }
+    seconds = Math.max(0, Math.floor((Date.now() - DashState.lastOkAt) / 1000));
     $("lastUpdated").textContent = seconds < 2 ? "Atualizado agora" : "Atualizado há " + seconds + "s";
   }
 
@@ -379,3 +384,17 @@
   // Sondas pontuais (testResultText/runIndexerTest/resolverTestResultText/
   // runResolverTest) vivem em dashboard-probes.js — leitura isolada que não
   // pertence ao ciclo de status/polling deste módulo.
+
+  // Hook da troca de aba (Fase 1 do saneamento): fecha sobre
+  // DashState.lastStatusRoot — estado que desde a Fase 2 mora em
+  // dashboard-state.js, e que a nav não referencia por nome.
+  function rerenderActiveTab() {
+    if (DashState.lastStatusRoot) renderActivePanels(DashState.lastStatusRoot);
+  }
+
+  // Fase 1 do saneamento — registro declarativo no DashHooks (única execução
+  // no load deste módulo; é dado, não wiring de DOM). Consumidores de
+  // loadStatus (probes/health/autofetch/harvest/harvest-debrid/catalog/magnets)
+  // e a nav (rerenderActiveTab) não citam símbolo global deste arquivo.
+  DashHooks.register("loadStatus", loadStatus);
+  DashHooks.register("rerenderActiveTab", rerenderActiveTab);

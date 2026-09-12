@@ -1,9 +1,9 @@
 'use strict';
 
-// Regras de release dos cinco perfis de resolver (PLANO_MELHORIAS §5.8, item 9,
+// Regras de release dos seis perfis de resolver (PLANO_MELHORIAS §5.8, item 9,
 // passo 4). Classificadores de qualidade/fonte, hooks de áudio, padrões de
 // episódio/pack, a máquina de estados da âncora e o resolver de href de
-// protetor viviam copiados nos cinco perfis — cada cópia era um lugar a mais
+// protetor viviam copiados nos seis perfis — cada cópia era um lugar a mais
 // para divergirem sem ninguém perceber. Tudo aqui é factory ou função pura; as
 // diferenças vivas entre os sites entram como PARÂMETRO, nunca como "conserto":
 //   R-2 — sem estado de módulo. Regex com /g só circula via matchAll (que
@@ -191,7 +191,7 @@ function createEpisodeStep(cfg) {
 }
 
 /**
- * Máquina de estados da âncora, comum aos cinco perfis: percorre o post EM
+ * Máquina de estados da âncora, comum aos seis perfis: percorre o post EM
  * ORDEM DE DOCUMENTO mantendo o estado da seção corrente (áudio do cabeçalho
  * e episódio do segmento) e extrai cada botão. O perfil aporta regex de
  * âncora, resolução de href (magnet direto vs protetor), texto da âncora,

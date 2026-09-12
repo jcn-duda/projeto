@@ -101,7 +101,7 @@
 | 14 | T4 Season Fill & Stall Streak Tests | Tests for `cacheCheck:false` exclusion and `STALL_STREAK=0` in `test/autofetch.test.ts` | M2 | PLANO_MELHORIAS §3.4/3.5 |
 | 15 | T5 Brazilian Grace Budget Tests | Test mathematical clamping of `priorityGrace` formula in `test/collection-window.test.ts` | M2 | PLANO_MELHORIAS §3.3 |
 | 16 | T6 Adversarial Harness Mutation Safety | Interruption-safe in-memory snapshot and signal restore handlers in `test/empirical-e2e-challenger.ts` | M2 | PLANO_MELHORIAS §3.7 |
-| 17 | T7 Harness Tracking in Test Complete | Verify all 6 bench harnesses in `scripts/check-test-list.ts` and `package.json` | M2 | PLANO_MELHORIAS §3.8 |
+| 17 | T7 Harness Tracking in Test Complete | Verify all 10 bench harness files (6 scripts) in `scripts/check-test-list.ts` and `package.json` | M2 | PLANO_MELHORIAS §3.8 |
 | 18 | B3 Search Budget Verification | E2E test verifying dynamic budget reduction with slow Cinemeta + TMDB miss | M2 | PLANO_MELHORIAS §4.1 |
 | 19 | A1b File Selector Extraction | Extract `src/debrid/file-selector.ts` and re-export via `src/debrid/common.ts` | M3 | DONE (2026-08-24) — PLANO_MELHORIAS §5.2. `src/debrid/file-selector.ts`: `pickFile`/`pickWorkFile`/`workCoverage`/`baseName` + `WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError`; `src/debrid/common.ts` re-exporta (autores originais preservados) |
 | 20 | A2 Format Utility Modularization | Split `src/utils/format.ts` into 7 specialized submodules with barrel re-export | M3 | DONE (2026-08-23) — PLANO_MELHORIAS §5.3 |

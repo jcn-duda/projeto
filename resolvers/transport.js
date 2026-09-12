@@ -1,6 +1,6 @@
 'use strict';
 
-// Cadeia HTTP dos quatro perfis. Os parsers de HTML e as regras de magnet
+// Cadeia HTTP dos seis perfis. Os parsers de HTML e as regras de magnet
 // continuam nos profiles; aqui fica somente o transporte.
 //
 // O teste do scheme é case-insensitive e o resultado sai normalizado para

@@ -1,6 +1,8 @@
 /* Adom Power-Movie — aba Chupim / Autofetch (Fase 1 painel).
  * Escopo global (sem IIFE). Depois de core/panels/status; boot liga os botões.
- * ES5 puro (Fire TV / smart TV). */
+ * Fase 1 do saneamento: o painel de stall (dashboard-af-stall.js) é hook e o
+ * refresh pós-ação sai por DashHooks.call("loadStatus") — nenhum símbolo
+ * global de outro módulo é citado aqui. ES5 puro (Fire TV / smart TV). */
 "use strict";
 
 var afKeys = [
@@ -197,7 +199,8 @@ function renderAutofetchPanel(af, uptimeS) {
 
   // Fase 3.5 do redesign: o diagnóstico de stall (lotes/slots/locks/skips) vem
   // de um módulo próprio para este arquivo não encostar na catraca de 400.
-  if (typeof renderAutofetchStall === "function") renderAutofetchStall(af, uptimeS);
+  // Fase 1 do saneamento: por hook (dashboard-af-stall.js), não por typeof.
+  DashHooks.call("renderAutofetchStall", af, uptimeS);
 }
 
 function saveAutofetchConfig() {
@@ -225,7 +228,7 @@ function saveAutofetchConfig() {
     .then(function (data) {
       if (data && data.ok) {
         setAfFeedback("Configurações do Chupim salvas com sucesso!", "ok");
-        loadStatus();
+        DashHooks.call("loadStatus");
       } else {
         var errStr = data && data.errors ? data.errors.join(", ") : "erro desconhecido";
         setAfFeedback("Erro ao salvar: " + errStr, "error");
@@ -249,7 +252,7 @@ function resetAutofetchConfig() {
     .then(function (data) {
       if (data && data.ok) {
         setAfFeedback("Padrões do .env restaurados com sucesso!", "ok");
-        loadStatus();
+        DashHooks.call("loadStatus");
       } else {
         setAfFeedback("Erro ao restaurar padrões.", "error");
       }
@@ -274,7 +277,7 @@ function toggleAutofetchPause(forcedState) {
   })
     .then(function () {
       setAfFeedback(nextState ? "Chupim pausado com sucesso." : "Chupim retomado com sucesso.", "ok");
-      loadStatus();
+      DashHooks.call("loadStatus");
     })
     .catch(function (err) {
       setAfFeedback("Erro ao alterar pausa: " + valueText(err && err.message ? err.message : err), "error");
@@ -294,7 +297,7 @@ function drainAutofetchQueues() {
       var q = data && data.queues ? data.queues : 0;
       var it = data && data.items ? data.items : 0;
       setAfFeedback("Filas drenadas: " + q + " fila(s), " + it + " item(ns) removidos.", "ok");
-      loadStatus();
+      DashHooks.call("loadStatus");
     })
     .catch(function (err) {
       setAfFeedback("Erro ao drenar filas: " + valueText(err && err.message ? err.message : err), "error");

@@ -1,5 +1,7 @@
 /* Adom Power-Movie — /dashboard: núcleo compartilhado (Fase 3 §5.9 + Fase 1).
- * Estado, helpers puros e HTTP autenticado. Escopo global (sem IIFE). Nada
+ * Helpers puros e HTTP autenticado; o ESTADO mutável entre módulos (token,
+ * timers, requestInFlight, lastStatusRoot…) vive em dashboard-state.js
+ * (DashState, Fase 2 do saneamento). Escopo global (sem IIFE). Nada
  * roda no load. O que DESENHA (metric/card/formatos/sparkline) vive em
  * dashboard-render.js; sondas em dashboard-probes.js; abas em dashboard-nav.js;
  * painéis da Geral em dashboard-panels.js; Chupim / Colhedor / Catálogo /
@@ -14,12 +16,6 @@
     { id: "torbox", label: "TorBox" }, { id: "realdebrid", label: "Real-Debrid" },
     { id: "debridlink", label: "Debrid-Link" }
   ];
-  var currentToken = "";
-  var refreshTimer = null;
-  var requestInFlight = false;
-  var consecutiveFailures = 0;
-  var lastOkAt = 0;
-  var lastUpdatedTimer = null;
 
   function $(id) { return document.getElementById(id); }
   function isObject(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
@@ -103,7 +99,7 @@
     for (key in (extra || {})) {
       if (Object.prototype.hasOwnProperty.call(extra || {}, key)) headers[key] = extra[key];
     }
-    if (currentToken) headers["X-Indexer-Test-Token"] = currentToken;
+    if (DashState.token) headers["X-Indexer-Test-Token"] = DashState.token;
     return headers;
   }
 

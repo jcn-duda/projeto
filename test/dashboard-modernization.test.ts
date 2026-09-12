@@ -190,6 +190,9 @@ test('GET /test-resolver.json aceita parâmetro q', async () => {
 // ---------------------------------------------------------------------------
 
 function loadStatusSandbox() {
+  // Fase 1 do saneamento: hooks primeiro — o dashboard-status.js se registra
+  // no DashHooks no próprio load.
+  const hooksCode = readFileSync(new URL('../../src/public/dashboard-hooks.js', import.meta.url), 'utf8');
   const coreCode = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
   // Fase 0: asList/métricas de desenho migram do core para dashboard-render.js.
   const renderCode = readFileSync(new URL('../../src/public/dashboard-render.js', import.meta.url), 'utf8');
@@ -197,7 +200,7 @@ function loadStatusSandbox() {
   const factory = new Function(
     'document',
     'window',
-    coreCode + '\n' + renderCode + '\n' + statusCode + '\n' +
+    hooksCode + '\n' + coreCode + '\n' + renderCode + '\n' + statusCode + '\n' +
     'return { collectStatusIssues: collectStatusIssues };'
   ) as (doc: any, win: any) => { collectStatusIssues: (data: any) => any[] };
   const fakeDoc = {
@@ -281,6 +284,8 @@ test('Vetor 4: Conta de debrid com warn: true gera issue de alerta no banner', (
 
 test('Frontend JS em src/public/ e dashboard.html seguem ES5 estrito', () => {
   const files = [
+    'src/public/dashboard-hooks.js',
+    'src/public/dashboard-state.js',
     'src/public/dashboard-core.js',
     'src/public/dashboard-render.js',
     'src/public/dashboard-probes.js',

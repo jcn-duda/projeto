@@ -5,8 +5,11 @@
  * critério de problema. Também abriga o estado vazio honesto sem token: sem
  * token nenhuma requisição é feita, então nada aqui pode prometer
  * "carregando". Medição de render só com flag (dashdebug=1 na URL ou
- * localStorage) — produção não recebe console. Escopo global (sem IIFE).
- * Depois de status/nav, antes do boot. ES5 puro (Fire TV / smart TV). */
+ * localStorage) — produção não recebe console. Fase 1 do saneamento: o
+ * status consome este módulo pelos hooks registrados no fim do arquivo e o
+ * pedido de consulta sai por DashHooks.call("loadStatus") — nenhum dos dois
+ * lados cita o símbolo global do outro. Escopo global (sem IIFE). Depois de
+ * status/nav, antes do boot. ES5 puro (Fire TV / smart TV). */
 "use strict";
 
   var DASH_DEBUG_KEY = "adom.dashboard.debug";
@@ -202,24 +205,24 @@
   function updateEmptyState() {
     var box = $("healthEmptyState");
     if (!box) return;
-    box.hidden = Boolean(currentToken);
+    box.hidden = Boolean(DashState.token);
   }
 
   function saveEmptyToken() {
     var input = $("emptyToken");
     var field = $("token");
-    currentToken = String((input && input.value) || "").replace(/\s+/g, "");
-    if (input) input.value = currentToken;
+    DashState.token = String((input && input.value) || "").replace(/\s+/g, "");
+    if (input) input.value = DashState.token;
     // Sincroniza o campo do topo: o token salvo aqui é o mesmo que o operador
     // vê e edita depois — divergir deixaria os dois campos mostrando valores
     // diferentes.
-    if (field) field.value = currentToken;
+    if (field) field.value = DashState.token;
     // Mesma semântica do "Guardar neste dispositivo": só persiste com a opção
     // marcada; desmarcada remove qualquer token guardado.
-    if ($("rememberToken") && $("rememberToken").checked) writeStored(TOKEN_KEY, currentToken);
+    if ($("rememberToken") && $("rememberToken").checked) writeStored(TOKEN_KEY, DashState.token);
     else removeStored(TOKEN_KEY);
     updateEmptyState();
-    if (currentToken) loadStatus();
+    if (DashState.token) DashHooks.call("loadStatus");
   }
 
   function bindHealthPanel() {
@@ -229,3 +232,13 @@
     if (input) input.addEventListener("keydown", function (event) { if (event.key === "Enter") saveEmptyToken(); });
     updateEmptyState();
   }
+
+  // Fase 1 do saneamento — registro declarativo no DashHooks (única execução
+  // no load deste módulo; dado no registro, não wiring). O ciclo status↔health
+  // fecha pelos hooks: o status consome os quatro primeiros e este módulo pede
+  // a consulta pelo hook loadStatus (registrado pelo status), sem citar o
+  // símbolo global do outro arquivo em nenhum dos sentidos.
+  DashHooks.register("renderHealthStrip", renderHealthStrip);
+  DashHooks.register("renderAttentionStrip", renderAttentionStrip);
+  DashHooks.register("updateEmptyState", updateEmptyState);
+  DashHooks.register("dashDebugEnabled", dashDebugEnabled);

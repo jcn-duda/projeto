@@ -30,9 +30,9 @@ Praticamente todo trabalho de código acontece no **Adom**.
   compila `src/` e `test/` para `dist/`, e é `dist/` que roda — `npm start` é
   `node dist/src/addon.js`. A imagem de produção é `node:22-alpine` (é ela que
   tem `node:sqlite`).
-  - **`noEmitOnError: true`**: build com erro de tipo não gera `dist/`. Se o
-    `npm run build` falhar, o `dist/` continua sendo o da compilação anterior —
-    não confie num `dist/` de build vermelho.
+  - **`noEmitOnError: true`**: build com erro de tipo não gera `dist/`. O
+    `npm run build` limpa `dist/` antes do `tsc`, então uma compilação vermelha
+    deixa a saída ausente ou incompleta — nunca tente executar esse `dist/`.
   - **Tipo em JSDoc é ignorado em `.ts`.** `@param {T}` e `/** @type {T} */`
     viram comentário inerte; o que vale é a sintaxe TS. Sobrou JSDoc de tipo
     pelo código — ele **descreve**, não verifica.
@@ -68,14 +68,15 @@ Praticamente todo trabalho de código acontece no **Adom**.
   flaresolverr → addon) com `wait -n` + `pipefail`: qualquer um que morrer
   derruba o container e o `restart: unless-stopped` recria tudo. Logs saem
   prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`.
-- Os cinco `*-resolver` **não são containers**. `src/br-resolvers.ts` os
-  carrega no processo do addon, cada um na própria porta (8700–8704), porque
-  todos leem `PORT`/`SITE_URL` no `require`. `BR_RESOLVERS_EMBEDDED=false`
-  volta ao modo de processos separados (não é o caminho de produção). Desde o
-  núcleo comum (PLANO_MELHORIAS 5.4), cada `<nome>-resolver/server.js` é um
-  shim que faz `require('../resolvers/profiles/<nome>')` — a lógica vive no
-  `resolvers/` (CommonJS puro), e o `npm run build` copia o diretório inteiro
-  para `dist/` junto dos shims.
+- Os seis `*-resolver` **não são containers**. `src/br-resolvers.ts` carrega os
+  seis profiles no processo do addon, cada um na própria porta (8700–8705), via
+  factory com config explícita — sem ler `PORT`/`SITE_URL` no require e sem
+  mutar/restaurar o ambiente. `BR_RESOLVERS_EMBEDDED=false` volta ao modo de
+  processos separados (não é o caminho de produção). Cada
+  `<nome>-resolver/server.js` é um shim de compatibilidade/standalone (instância
+  lazy por `resolvers/shim-instance.js`, env lida no ponto de entrada); a lógica
+  vive no `resolvers/` (CommonJS puro), e o `npm run build` copia o diretório
+  inteiro para `dist/` junto dos shims.
 - O healthcheck do Dockerfile é **quádruplo** (`/manifest.json` na 7000 + API
   do Jackett na 9117 + FlareSolverr na 8191 + API admin do Caddy na 2019, num
   `node -e fetch` só). A API do Caddy fica em loopback e prova processo+config
@@ -127,11 +128,11 @@ padrão a partir do Node 21. Arquivo `.test.ts` novo que não entra no
 `package.json` passa despercebido e o CI fica verde à toa — por isso existe o
 `test:complete`.
 
-**Seis harnesses não passam pelo `npm test`** — `test:stress`,
+**Seis scripts de harness não passam pelo `npm test`** — `test:stress`,
 `test:adversarial`, `test:adversarial-m1`, `test:protector-m1`,
-`test:challenger-m2` e `test:ranking-challenger` rodam código de bancada que o
-CI nunca executa. Quebra neles só aparece no dia em que você precisar deles;
-rode antes de mexer em `test/` para ter linha de base.
+`test:challenger-m2` e `test:ranking-challenger` — e juntos executam **10
+arquivos** de bancada que o CI nunca roda. Quebra neles só aparece no dia em
+que você precisar deles; rode antes de mexer em `test/` para ter linha de base.
 
 Quando "o ⚡ sumiu de todos os streams", comece por aqui — é diagnóstico, não
 adivinhação:
@@ -1314,8 +1315,8 @@ qualidade do usuário não deixa nenhum candidato de pé
 **4. Sites BR indexam por título em português.**
 "Coringa", não "Joker". `tmdb.getTitles` resolve isso e a busca dispara **duas
 queries**: a em inglês para indexers globais e a em pt-BR para os listados em
-`JACKETT_PT_BR_INDEXERS` (default: os cinco cards locais + `redetorrent`,
-`apachetorrent`, `hdrtorrent`). Todo caminho de busca precisa carregar as duas
+`JACKETT_PT_BR_INDEXERS` (default: os seis cards locais, `apachetorrent`,
+`hdrtorrent`). Todo caminho de busca precisa carregar as duas
 — inclusive fallbacks de pack. O filtro `matchesName` também aceita qualquer
 um dos nomes, senão a release dublada seria descartada por não bater com o
 título em inglês.
@@ -1398,7 +1399,7 @@ fire-and-forget) continua.
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
-| `src/br-resolvers.ts` | Carrega os cinco `*-resolver` no processo do addon; `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
+| `src/br-resolvers.ts` | Carrega os seis profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
 | `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, ES5, zero build). Desde §5.9: `configure.css` + `configure-app.js` ao lado; o `KEYS` e o `collect`/`apply`/`fromUrl` seguem **inline** porque os testes regexam o corpo deles no html |
 | `src/public/dashboard.html` | Painel de operação (mesmas regras). Desde §5.9: `dashboard.css` + `dashboard-core.js` (estado, formatação, HTTP autenticado) + `dashboard-panels.js` (abas e painéis da Geral) + `dashboard-status.js` (consulta, polling, ações) + `dashboard-debrid-test.js` (teste seguro de conta) + `dashboard-trace.js` (aba Stream Trace / P5) + módulos por aba (`dashboard-autofetch.js`, `dashboard-harvest.js`, `dashboard-f3.js`, `dashboard-catalog.js`, `dashboard-boot.js`). Os módulos são **top-level sem IIFE**, escopo global compartilhado; `renderMagnetDb` e âncoras regexadas pelos testes ficam **inline** por contrato |
 | `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
@@ -1447,8 +1448,8 @@ fire-and-forget) continua.
 | `src/utils/magnetdb-counts.ts` | Parse da chave `mag` (descarta o digest da conta na origem), `emptyAdapterTotals` e `rebuildFromL1` — O(namespace `mag`), roda uma vez no boot quando o agregado não abre, nunca no caminho de busca. Dependência de mão única (cache + cache-keys), sem ciclo com o `magnetdb` |
 | `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse compartilhado de `magnetdb-counts.ts`. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
-| `resolvers/` | Núcleo comum dos resolvers (CommonJS puro). Processo: `runtime.js`, `site-selector.js` (failover de host), `cache.js`, `http-server.js`, `flare.js`. Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os cinco), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` |
-| `*-resolver/` | Shims de compatibilidade: `<nome>/server.js` faz `require('../resolvers/profiles/<nome>')` — a lógica está no núcleo em `resolvers/` |
+| `resolvers/` | Núcleo comum dos resolvers (CommonJS puro). Config explícita: `env-config.js` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.js` (instância lazy dos shims). Processo: `runtime.js`, `site-selector.js` (failover de host, knobs injetáveis), `cache.js`, `http-server.js`, `flare.js` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os seis), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
+| `*-resolver/` | Shims de compatibilidade/standalone: `<nome>/server.js` constrói uma instância lazy de `../resolvers/profiles/<nome>` (via `shim-instance.js`) e exporta o shape histórico; no modo processo-separado lê env explicitamente no ponto de entrada |
 | `types/domain.d.ts` | Tipos do domínio: `Stream` (união que exige ação), `ParsedSeasonEpisode`, `DebridAdapter`, `AccountStatus`, `MatchContext` |
 | `test/helpers/stub.ts` | Dublê de `fetch`, `patch()` de módulo e `testOpts()` — o cast mora aqui, não espalhado |
 | `test/e2e/e2e-harness.ts` | App real (`createApp`) + fetch dublê; zero rede externa |
@@ -1570,12 +1571,14 @@ o orçamento com a resposta.
 - **Caminho relativo mudou de profundidade com o `dist/`.** O código roda de
   `dist/src/...`, então `__dirname` e `require`/`import` relativos apontam para
   dentro de `dist/`. Dois casos já mordidos: o `DB_PATH` do cache precisa subir
-  **três** níveis para achar `data/cache.db`, e os cinco `*-resolver` são
-  carregados por `../<nome>-resolver/server` — no container eles têm que ser
-  copiados para **`/app/dist/`**, não `/app/`. **Localmente isso passa
-  despercebido** porque o `npm run build` já copia os resolvers para `dist/`; só
-  o `docker run` revela. Mesma armadilha vale para asset: o `tsc` não copia
-  `src/public/`, quem copia é o passo do `npm run build`.
+  **três** níveis para achar `data/cache.db`, e os seis profiles são carregados
+  por `../resolvers/profiles/<nome>` (os shims `*-resolver/`, para testes e modo
+  processo-separado, usam `../<nome>-resolver/server`) — no container o
+  `resolvers/` tem que chegar a **`/app/dist/resolvers/`**, o que o build-assets
+  faz. **Localmente isso passa despercebido** porque o `npm run build` já copia
+  os resolvers para `dist/`; só o `docker run` revela. Mesma armadilha vale para
+  asset: o `tsc` não copia `src/public/`, quem copia é o passo do
+  `npm run build`.
 - **"Temporada Completa" no singular é pack de UMA temporada, não da série.**
   `2ª Temporada Completa` cobre só a 2ª; `Todas as Temporadas`, `Série Completa`
   e `Temporadas Completas` (plural) é que cobrem tudo. Tratar o singular como
@@ -1811,9 +1814,9 @@ o orçamento com a resposta.
   301 → `vaqueirofilmes.com`; os dois ficam na allowlist do perfil para o
   redirect não virar `blocked_host`.
 - **O laço de saltos do protetor é UM só, em `resolvers/transport.js`.** Os
-  cinco perfis chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
+  seis perfis chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
   importa porque é ele que chama `assertAllowedUrl` a cada salto — o mutante
-  MUT-06 do harness adversarial cobre os cinco por esse caminho. Se algum
+  MUT-06 do harness adversarial cobre os seis por esse caminho. Se algum
   perfil voltar a escrever o próprio laço, ele sai da cobertura sem que teste
   nenhum reclame. O teste do scheme é case-insensitive e a saída sai
   normalizada em `magnet:` minúsculo: o NerdFilmes publica `MAGNET:` em parte
@@ -1896,8 +1899,9 @@ o orçamento com a resposta.
   Entrada antiga que era só um array ainda é lida (`findStreams`).
 - **Suíte de testes cobre o que é puro e o e2e com fetch dublê.** `npm test`
   é a lista explícita; `npm run test:complete` cobra que nada tenha ficado de
-  fora — e também que os 7 harnesses existam, compilem para `dist/` e estejam
-  referenciados em algum script do `package.json` (eles ficam fora do CI, e
+  fora — e também que os 10 arquivos de harness (nos 6 scripts de bancada)
+  existam, compilem para `dist/` e estejam referenciados em algum script do
+  `package.json` (eles ficam fora do CI, e
   sem essa checagem apodreciam sem ninguém notar). `npm run test:nerdfilmes`
   cobre um resolver contra a rede. Ao mexer em matching, debrid, cache,
   runtime, rotas ou o fluxo de busca, estenda `test/` (incluindo o tier e2e se
@@ -1930,7 +1934,7 @@ o orçamento com a resposta.
   compilação. Em asserção intermediária use `assert.equal(lista.length, 0)`.
 - **`BR_RESOLVERS_HOST` é o único jeito de alcançar os resolvers.** Os cards
   Cardigann chamam `http://{{ ... }}/...` montado com essa env; no container
-  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8704 **só dentro do
+  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8705 **só dentro do
   container** — nenhuma dessas portas é publicada no host.
 - **Jackett no alpine é self-contained** (binário com libcoreclr embutida):
   precisa de `icu-libs`/`zlib`/`libstdc++` e das envs `XDG_CONFIG_HOME=/config`

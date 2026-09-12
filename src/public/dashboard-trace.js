@@ -186,7 +186,7 @@ function runTraceQuery(button) {
     setTraceFeedback("ID inválido: use tt… opcional com :s:e (ex.: tt111:1:2).", "warn");
     return;
   }
-  if (!currentToken) {
+  if (!DashState.token) {
     setTraceFeedback("Token de diagnóstico ausente — cole-o acima.", "error");
     var token = $("token");
     if (token) token.focus();

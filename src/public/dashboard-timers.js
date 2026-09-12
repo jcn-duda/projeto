@@ -98,3 +98,8 @@
     box.appendChild(element("p", "metric-group", "Latência por indexador e busca"));
     box.appendChild(timerTable(rows));
   }
+
+  // Fase 1 do saneamento — registro declarativo no DashHooks (única execução
+  // no load deste módulo): o renderGeralPanels (dashboard-status.js) consome o
+  // painel por DashHooks.call, sem citar o símbolo global deste arquivo.
+  DashHooks.register("renderTimersPanel", renderTimersPanel);

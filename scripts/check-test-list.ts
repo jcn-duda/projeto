@@ -51,12 +51,21 @@ const missing = found.filter((file: string) => !listed.has(file));
 // Checa a existência da fonte, que é o que esta lista se propõe a cobrar.
 const stale = [...listed].filter((file) => !fs.existsSync(path.join(root, file.replace(/\.js$/, '.ts'))));
 
+// Os 6 scripts de bancada (`test:stress`, `test:adversarial`,
+// `test:adversarial-m1`, `test:protector-m1`, `test:challenger-m2` e
+// `test:ranking-challenger`) executam estes 10 arquivos. A lista é um manifesto
+// de propósito: se um script perder um arquivo, o harness sumir do disco ou
+// deixar de compilar, a checagem precisa acusar — derivar dos scripts não veria
+// a remoção.
 const HARNESS_FILES = [
   'test/m1-stress-challenge.ts',
+  'test/m1-stress-challenge-protectors.ts',
   'test/stress-m1-challenger.ts',
   'test/empirical-e2e-challenger.ts',
   'test/adversarial-m1-parser-harness.ts',
+  'test/adversarial-m1-parser-part2.ts',
   'test/m1-protector-adversarial-stress.ts',
+  'test/m1-protector-adversarial-part2.ts',
   'test/challenger-m2-parser-deep-stress.ts',
   'scripts/empirical-ranking-challenger.ts',
 ];

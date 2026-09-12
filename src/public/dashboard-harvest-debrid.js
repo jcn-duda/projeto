@@ -95,7 +95,7 @@ function renderHarvestDebridAccount(account, resolved) {
 }
 
 function harvestDebridGate() {
-  if (!currentToken) { setHarvestDebridFeedback("Informe o token de diagnóstico antes de usar a conta do Colhedor.", "error"); if ($("token")) $("token").focus(); return false; }
+  if (!DashState.token) { setHarvestDebridFeedback("Informe o token de diagnóstico antes de usar a conta do Colhedor.", "error"); if ($("token")) $("token").focus(); return false; }
   if (!$("harvestDebridService").value) { setHarvestDebridFeedback("Escolha o serviço da conta.", "warn"); return false; }
   return true;
 }
@@ -128,7 +128,7 @@ function harvestDebridSet(key, button) {
     if (!out.ok) { setHarvestDebridFeedback("Conta não salva — " + (HD_REASON_LABELS[data.reason] || valueText(data.reason)) + ". Como corrigir: " + valueText(data.fix), "error"); return; }
     renderHarvestDebridAccount(data.config, null);
     setHarvestDebridFeedback(key ? "Conta de fundo do Colhedor salva: a chave foi cifrada e não volta à tela." : "Conta restaurada do .env; override do painel removido.", "ok");
-    loadStatus();
+    DashHooks.call("loadStatus");
   }).catch(function (err) { clearHarvestDebridKey(); setHarvestDebridFeedback("Ação não concluída: " + valueText(err && err.message ? err.message : err), "error"); }).then(function () { if (button) button.disabled = false; });
 }
 

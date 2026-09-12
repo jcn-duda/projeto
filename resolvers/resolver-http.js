@@ -1,10 +1,10 @@
 'use strict';
 
 /**
- * Esqueleto de roteador HTTP comum aos cinco perfis (passo 5 do item 9,
+ * Esqueleto de roteador HTTP comum aos seis perfis (passo 5 do item 9,
  * PLANO_MELHORIAS §5.8).
  *
- * O `handleRequest` era copiado nos cinco perfis (~45-60 linhas cada): bloqueio
+ * O `handleRequest` era copiado nos seis perfis (~45-60 linhas cada): bloqueio
  * GET-only, /health, /search, /resolve com unwrap, /dl 302 e /api torznab.
  * Aqui ficam o DESPACHO por pathname e as ROTAS PADRÃO como fábricas pequenas.
  * Perfis com lógica própria no caminho (bludv: prefs audio=/quality= no
@@ -23,7 +23,7 @@
 /**
  * Despacho comum: monta o `handleRequest` do perfil a partir do mapa de rotas.
  * `routes` mapeia pathname -> handler(url, response). A construção do URL, o
- * bloqueio GET-only e o 404 de fallback são idênticos aos dos cinco perfis.
+ * bloqueio GET-only e o 404 de fallback são idênticos aos dos seis perfis.
  */
 function createResolverRouter({ reply, routes }) {
   return async function handleRequest(request, response) {

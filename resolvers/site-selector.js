@@ -9,7 +9,16 @@ function isNetworkError(err, extraExcluded = '') {
   return !new RegExp(`^(?:${excluded})`).test(message);
 }
 
-function createSiteSelector(tag, envUrlsCsv, primaryUrl, fallbackHosts) {
+/**
+ * @param {string} tag
+ * @param {string} envUrlsCsv
+ * @param {string} primaryUrl
+ * @param {string[]} fallbackHosts
+ * @param {object} [options]
+ * @param {number} [options.probeTtlMs]      Imunidade do vencedor após um probe.
+ * @param {number} [options.failsBeforeProbe] Falhas de rede consecutivas que disparam o probe.
+ */
+function createSiteSelector(tag, envUrlsCsv, primaryUrl, fallbackHosts, options = {}) {
   const fromCsv = String(envUrlsCsv || '').split(',').map((value) => value.trim().replace(/\/+$/, '')).filter(Boolean);
   const candidates = [];
   const seen = new Set();
@@ -19,8 +28,14 @@ function createSiteSelector(tag, envUrlsCsv, primaryUrl, fallbackHosts) {
     candidates.push(url);
   }
 
-  const ttlMs = Number(process.env.BR_DOMAIN_PROBE_TTL_MS || 30 * 60_000);
-  const failsBeforeProbe = Number(process.env.BR_DOMAIN_FAILS_BEFORE_PROBE || 2);
+  // Injetável; sem override, a env é lida AGORA (chamada), não no import —
+  // o teste de failover cria instâncias com env própria sem cache-busting.
+  const ttlMs = options.probeTtlMs !== undefined
+    ? Number(options.probeTtlMs)
+    : Number(process.env.BR_DOMAIN_PROBE_TTL_MS || 30 * 60_000);
+  const failsBeforeProbe = options.failsBeforeProbe !== undefined
+    ? Number(options.failsBeforeProbe)
+    : Number(process.env.BR_DOMAIN_FAILS_BEFORE_PROBE || 2);
   const probeTimeoutMs = 5_000;
   let current = candidates[0];
   let lastProbeAt = 0;

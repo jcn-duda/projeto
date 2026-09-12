@@ -71,3 +71,8 @@
     if (latest && latest.at) metric(box, "latest", formatDate(latest.at));
     else if (!latest) metric(box, "latest", "sem amostra");
   }
+
+  // Fase 1 do saneamento — registro declarativo no DashHooks (única execução
+  // no load deste módulo): o renderGeralPanels (dashboard-status.js) consome o
+  // painel por DashHooks.call, sem citar o símbolo global deste arquivo.
+  DashHooks.register("renderF3Panel", renderF3Panel);

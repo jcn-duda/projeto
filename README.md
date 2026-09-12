@@ -371,11 +371,13 @@ stremio adom/
 │   └── entrypoint.sh         # supervisor dos 4 processos no container único
 ├── docker-compose.yml        # serviço único (adom)
 ├── jackett-bludv/            # definitions Cardigann dos cards BR (yml)
-├── resolvers/                # núcleo comum dos 5 resolvers BR + profiles/
+├── resolvers/                # núcleo comum dos 6 resolvers BR + profiles/
 ├── bludv-resolver/           # shim → resolvers/profiles/bludv.js
 ├── comandotorrents-resolver/ # shim → resolvers/profiles/comandotorrents.js
 ├── nerdfilmes-resolver/      # shim → resolvers/profiles/nerdfilmes.js
 ├── torrentdosfilmes-resolver/ # shim → resolvers/profiles/torrentdosfilmes.js
+├── vacatorrent-resolver/     # shim → resolvers/profiles/vacatorrent.js
+├── redetorrent-resolver/     # shim → resolvers/profiles/redetorrent.js
 ├── Caddyfile
 ├── Dockerfile
 ├── .env.example
@@ -409,10 +411,10 @@ stremio adom/
 | `npm run docker:logs` | logs da stack (addon/jackett/flaresolverr/caddy) |
 
 `npm test` roda de `dist/test/` com lista explícita no `package.json` — build
-antes. Além da suíte, há os **harnesses de bancada** que ficam fora do CI
-(`test:stress`, `test:adversarial`, `test:adversarial-m1`, `test:protector-m1`
-e o novo `test:challenger-m2`): rodam código de bancada (estresse/mutação) que
-o portão nunca executa.
+antes. Além da suíte, há os **harnesses de bancada** que ficam fora do CI: seis
+scripts (`test:stress`, `test:adversarial`, `test:adversarial-m1`,
+`test:protector-m1`, `test:challenger-m2` e `test:ranking-challenger`) que
+executam 10 arquivos de estresse/mutação que o portão nunca roda.
 
 ---
 

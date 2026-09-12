@@ -810,9 +810,14 @@
   </div>
 </main>
 
-<!-- JS do painel (Fase 1 + Fase 0 redesign): zero inline. Ordem é contrato —
-     core → render (helpers de desenho) → panels/status → probes (sondas) →
-     módulos por aba → magnets/nav → boot por último. -->
+<!-- JS do painel (Fase 1 + Fase 2 do saneamento + Fase 0 redesign): zero
+     inline. Ordem é contrato — hooks (registro DashHooks, primeiro: os módulos
+     seguintes se registram no load) → estado (DashState, dono do token/timers/
+     payload compartilhados, antes de todos os consumidores) → core → render
+     (helpers de desenho) → panels/status → probes (sondas) → módulos por aba →
+     magnets/nav → boot por último. -->
+<script src="/dashboard-hooks.js"></script>
+<script src="/dashboard-state.js"></script>
 <script src="/dashboard-core.js"></script>
 <script src="/dashboard-render.js"></script>
 <script src="/dashboard-panels.js"></script>

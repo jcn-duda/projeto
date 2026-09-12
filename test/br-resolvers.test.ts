@@ -2,10 +2,6 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 
-// O config importa 'dotenv/config' (lê o .env do operador). Importar ANTES
-// dos profiles faz o dotenv rodar primeiro e o env do operador valer para
-// todos — senão os profiles veem o env vazio (default hardcoded) enquanto o
-// config vê o .env, e o domínio ativo diverge quando o .env tem *Url.
 import config from '../src/config.js';
 import bludv from '../bludv-resolver/server.js';
 import comando from '../comandotorrents-resolver/server.js';

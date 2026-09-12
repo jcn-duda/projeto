@@ -176,7 +176,7 @@
     var key = input ? String(input.value || "") : "";
     if (!service) { setDebridTestFeedback("Escolha o serviço da chave a testar.", "warn"); return; }
     if (!key) { setDebridTestFeedback("Cole a chave de API do serviço escolhido.", "warn"); return; }
-    if (!currentToken) { setDebridTestFeedback("Informe o token de diagnóstico antes de testar uma chave.", "error"); if ($("token")) $("token").focus(); return; }
+    if (!DashState.token) { setDebridTestFeedback("Informe o token de diagnóstico antes de testar uma chave.", "error"); if ($("token")) $("token").focus(); return; }
     if (button) button.disabled = true;
     setDebridTestFeedback("Testando chave no " + debridTestServiceLabel(service) + "…", "warn");
     requestJson("/dashboard-action.json", {

@@ -1,7 +1,8 @@
 /* Adom Power-Movie — /dashboard: helpers de renderização (Fase 0 redesign).
  * Extraído de dashboard-core.js ao se aproximar do teto de 400 linhas: aqui
  * mora só o que DESENHA (formatação, criação de nós, metric/card/sparkline).
- * Estado, token e HTTP continuam no core; os helpers pure de _origem também
+ * HTTP continua no core; o ESTADO mutável entre módulos vive em
+ * dashboard-state.js (DashState, Fase 2). Os helpers pure de _origem também
  * (origemOf/origemValue/origemTitle), porque módulos não-visuais os consomem.
  * Escopo global compartilhado (sem IIFE). Depois de core, antes de panels/
  * status. ES5 puro (Fire TV / smart TV). */
@@ -193,18 +194,20 @@
     if (rows.children.length) box.appendChild(rows);
     if (options && options.testable) {
       // Resolver BR tem teste próprio (/test-resolver.json): botão e handler
-      // distintos, o card em si continua igual ao do indexador. Os handlers
-      // vivem em dashboard-probes.js (carregado antes do boot).
+      // distintos, o card em si continua igual ao do indexador. Fase 1 do
+      // saneamento: os handlers são hooks obrigatórios (dashboard-probes.js) —
+      // render não cita o símbolo global das sondas e wiring incompleto falha
+      // explicitamente, em vez de deixar um botão inerte em silêncio.
       if (options.kind === "resolver") {
         button = element("button", "mini-action", "Testar este resolver");
         button.type = "button";
         button.setAttribute("data-resolver-id", String(first(item, ["id", "key", "name"], "")));
-        button.addEventListener("click", function () { runResolverTest(button.getAttribute("data-resolver-id"), button); });
+        button.addEventListener("click", function () { DashHooks.call("runResolverTest", button.getAttribute("data-resolver-id"), button); });
       } else {
         button = element("button", "mini-action", "Testar este indexador");
         button.type = "button";
         button.setAttribute("data-indexer-id", String(first(item, ["id", "key", "name"], "")));
-        button.addEventListener("click", function () { runIndexerTest(button.getAttribute("data-indexer-id"), button); });
+        button.addEventListener("click", function () { DashHooks.call("runIndexerTest", button.getAttribute("data-indexer-id"), button); });
       }
       box.appendChild(button);
     }

@@ -1,6 +1,6 @@
 'use strict';
 
-// Formatação de release dos cinco perfis de resolver (PLANO_MELHORIAS §5.8,
+// Formatação de release dos seis perfis de resolver (PLANO_MELHORIAS §5.8,
 // item 9, passo 4): limpeza do título do post, título da release, página HTML
 // sintética do cardigann, feed torznab, normalizeQuery e o laço de fallback do
 // resolve. Tudo factory ou função pura; as diferenças vivas entre os sites

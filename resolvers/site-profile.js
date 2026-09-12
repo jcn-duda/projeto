@@ -1,16 +1,16 @@
 'use strict';
 
-// Bootstrap comum dos cinco profiles de resolver (PLANO_MELHORIAS §5.8,
-// passo 1 da extração do núcleo). Os cinco perfis repetiam ~60-80 linhas
+// Bootstrap comum dos seis profiles de resolver (PLANO_MELHORIAS §5.8,
+// passo 1 da extração do núcleo). Os seis perfis repetiam ~60-80 linhas
 // idênticas de montagem — seletor de failover de domínio, conjuntos de
 // sufixos do protetor, trio de allowlist (assertAllowedUrl/isDetailHost/
 // isProtectorHost) e wrappers cosméticos — e cada cópia era um lugar a mais
 // para os perfis divergirem sem ninguém perceber. A factory devolve TUDO POR
 // CHAMADA:
 //
-// R-2 (sem estado de módulo): nada de singleton aqui. O harness de stress faz
-// fresh-require do shim do perfil; um estado mutável em módulo de núcleo
-// vazaria entre cenários. Toda a montagem vive no closure de cada
+// R-2 (sem estado de módulo): nada de singleton aqui. O harness de stress
+// constrói instâncias novas com config explícita; um estado mutável em módulo
+// de núcleo vazaria entre cenários. Toda a montagem vive no closure de cada
 // createProfile().
 //
 // R-1 (crítico, MUT-06): a checagem de host NUNCA é reimplementada neste
@@ -19,12 +19,12 @@
 // harness adversarial muta; reimplementar o if aqui tiraria a mutação do
 // caminho executado e o desafio passaria em falso.
 //
-// Env no require-time: createProfile roda no require do perfil, então ler
-// SELF_URL/SITE_URL aqui preserva o contrato do modo embutido
-// (src/br-resolvers.ts ajusta o ambiente ANTES do require e restaura depois).
-// Adiar a leitura para dentro de handler quebraria a injeção.
+// Sem env no require-time: createProfile recebe `selfUrl`, `siteUrl` e a lista
+// de protetores extras JÁ resolvidos pelo profile (que os obteve da factory
+// explícita ou de env-config.js, em tempo de chamada). Assim o topo do módulo
+// é import-safe e duas instâncias do mesmo perfil não compartilham estado.
 
-const { USER_AGENT, parseExtraProtectors } = require('./runtime');
+const { USER_AGENT } = require('./runtime');
 const {
   createSiteSelector: createSharedSiteSelector,
   isNetworkError: sharedIsNetworkError,
@@ -38,19 +38,19 @@ const {
   BASE_PROTECTOR_SUFFIXES,
   hasAllowedHost,
   assertAllowedUrl: sharedAssertAllowedUrl,
+  normalizeHostSuffixes,
 } = require('./protector');
 const { stripTags: stripTagsShared } = require('./text');
 
 /**
  * @param {object} options
  * @param {string} options.name               Nome curto do perfil ('bludv', ...) — tag do seletor e nome no log de boot.
- * @param {number} options.port               Porta do resolver standalone (8700-8704).
- * @param {string} options.selfUrlEnv         Fallback do SELF_URL quando a env falta (ex.: 'http://bludv-resolver:8700').
- * @param {string} options.siteUrl            Default do SITE_URL (o modo embutido injeta a env SITE_URL por cima).
- * @param {string} options.siteUrlEnv         Env específica do site (BLUDV_URL, VACATORRENT_URL, ...).
+ * @param {number} options.port               Porta do resolver standalone (8700-8705).
+ * @param {string} options.selfUrl            SELF_URL efetivo do perfil (override/env/default já resolvidos).
+ * @param {string} options.siteUrl            SITE_URL efetivo do perfil (override/SITE_URL/env do site/default).
  * @param {string|null} options.urlsCsv       Valor do csv <X>_URLS (candidatos extras do failover).
  * @param {string[]} options.fallbackSuffixes Mirrors históricos do site (candidatos ativos do seletor).
- * @param {string[]} [options.extraProtectorSuffixes] Sufixos de protetor próprios do site (ex.: 'systemtech.space').
+ * @param {string[]} [options.extraProtectorSuffixes] Protetores extras já resolvidos (site + EXTRA_ALLOWED_PROTECTORS).
  * @param {string[]} [options.assertOnlySuffixes]     Hosts só de salto do protetor: entram no assert, nunca na descoberta.
  * @param {boolean} [options.blockedHostDetail]       Inclui o host rejeitado na mensagem de blocked_host (nerdfilmes).
  * @param {string}  [options.networkErrorExtra]       Exclusões extras do isNetworkError (bludv: '|flare_').
@@ -64,9 +64,8 @@ function createProfile(options) {
   const {
     name,
     port,
-    selfUrlEnv,
+    selfUrl,
     siteUrl,
-    siteUrlEnv,
     urlsCsv,
     fallbackSuffixes,
     extraProtectorSuffixes = [],
@@ -80,10 +79,14 @@ function createProfile(options) {
     decodeEntities,
   } = options;
 
-  const selfUrl = (process.env.SELF_URL || selfUrlEnv).replace(/\/$/, '');
-  const resolvedSiteUrl = (process.env.SITE_URL || process.env[siteUrlEnv] || siteUrl).replace(/\/$/, '');
+  // Normaliza os sufixos recebidos (site + EXTRA_ALLOWED_PROTECTORS): o host
+  // comparado por hasAllowedHost é minúsculo, então caixa mista aqui viraria
+  // match silenciosamente perdido. Idempotente para quem já mandou canônico.
+  const fallbackHosts = normalizeHostSuffixes(fallbackSuffixes);
+  const extraProtectors = normalizeHostSuffixes(extraProtectorSuffixes);
+  const assertOnly = normalizeHostSuffixes(assertOnlySuffixes);
 
-  const siteSelector = createSharedSiteSelector(`[${name}]`, urlsCsv, resolvedSiteUrl, fallbackSuffixes);
+  const siteSelector = createSharedSiteSelector(`[${name}]`, urlsCsv, siteUrl, fallbackHosts);
   // Hosts de TODOS os candidatos são confiáveis desde o boot (vêm de env ou da
   // lista de mirrors históricos): allowlist e isDetailHost já aceitam o domínio
   // que o failover escolher, sem restart.
@@ -92,10 +95,8 @@ function createProfile(options) {
   const ALL_PROTECTOR_SUFFIXES = Array.from(
     new Set([
       ...BASE_PROTECTOR_SUFFIXES,
-      // O csv EXTRA_ALLOWED_PROTECTORS é lido UMA vez, no require — igual ao
-      // que cada perfil fazia inline antes da extração.
-      ...parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS),
-      ...extraProtectorSuffixes,
+      // Lista já resolvida pelo profile (protetores do site + EXTRA_ALLOWED_PROTECTORS).
+      ...extraProtectors,
     ]),
   );
 
@@ -103,7 +104,7 @@ function createProfile(options) {
     new Set([
       ...CANDIDATE_HOSTS,
       ...ALL_PROTECTOR_SUFFIXES,
-      ...assertOnlySuffixes,
+      ...assertOnly,
     ]),
   );
 
@@ -124,7 +125,7 @@ function createProfile(options) {
   // transporte e no salto explícito, mas nunca alvo de descoberta genérica.
   // Lista vazia devolve false sempre — mesma semântica de hasAllowedHost(h, []).
   function isAssertOnlyHost(hostname) {
-    return hasAllowedHost(hostname, assertOnlySuffixes);
+    return hasAllowedHost(hostname, assertOnly);
   }
 
   function isNetworkError(err) {
@@ -158,9 +159,12 @@ function createProfile(options) {
    */
   function fetchFollowingAllowed(opts) {
     return (value, referer) => followProtectedUrl(value, referer, {
+      ...opts,
+      // R-1: o assert canônico e o UA entram DEPOIS do spread. Nenhum opts de
+      // perfil pode substituir a checagem de allowlist — com o spread por
+      // último, um `assertAllowedUrl` passado no opts furava o MUT-06.
       assertAllowedUrl,
       userAgent: USER_AGENT,
-      ...opts,
     });
   }
 

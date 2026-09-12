@@ -237,27 +237,10 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       assert.deepEqual(siteEnvs, ['BLUDV_URL', 'COMANDOTORRENTS_URL', 'NERDFILMES_URL', 'TORRENTDOSFILMES_URL', 'VACATORRENT_URL', 'REDETORRENT_URL']);
     });
 
-    it('F03-BND-02: Environment isolation restores process.env without leakage', () => {
-      const originalPort = process.env.PORT;
-      const originalSiteUrl = process.env.SITE_URL;
-
-      const saved = { PORT: process.env.PORT, SITE_URL: process.env.SITE_URL };
-      process.env.PORT = '8702';
-      process.env.SITE_URL = 'https://custom-nerdfilmes.com';
-
-      for (const [key, value] of Object.entries(saved)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
-
-      assert.equal(process.env.PORT, originalPort);
-      assert.equal(process.env.SITE_URL, originalSiteUrl);
-    });
-
     it('F03-BND-03: Missing siteEnv variables fallback safely without errors', () => {
       for (const res of brResolvers.RESOLVERS) {
         assert.ok(res.siteEnv);
-        assert.ok(typeof res.path === 'string');
+        assert.ok(typeof res.profile === 'string');
         assert.ok(typeof res.port === 'number');
       }
     });

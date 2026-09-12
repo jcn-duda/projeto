@@ -82,11 +82,12 @@ RUN cp /usr/bin/chromedriver /app/chromedriver \
       -r /app/flaresolverr/requirements.txt
 
 # --- Addon compilado + resolvedores BR embutidos (8700-8705, chamados pelo Jackett).
-# Os resolvedores vão para DENTRO de dist/: o br-resolvers os carrega por caminho
-# relativo ao próprio módulo ("../<nome>-resolver/server"), que a partir de
-# dist/src/ resolve em dist/. É o mesmo layout que o npm run build produz
-# localmente — fora do container isso passa despercebido porque o build já os
-# copia para dist/.
+# O br-resolvers carrega os PROFILES por caminho relativo ao próprio módulo
+# ("../resolvers/profiles/<nome>"), que a partir de dist/src/ resolve em
+# dist/resolvers/. O build-assets é quem copia resolvers/ para dentro de dist/
+# (local e no builder), então o layout da imagem é o mesmo do `npm run build`.
+# Os shims dist/*-resolver/ existem para testes e modo processo-separado; o
+# caminho de produção não os usa.
 COPY package.json package-lock.json ./
 # O FlareSolverr procura package.json no diretório PAI (/app/package.json),
 # que é o do addon — escrito no Windows com BOM. Python 3.14+ rejeita BOM
@@ -98,8 +99,8 @@ RUN npm ci --omit=dev
 # Saída do tsc: dist/src/, dist/scripts/ e dist/src/public/ (assets). Sem
 # dist/test: a suíte não vai para a imagem (ver o builder).
 COPY --from=builder /app/dist ./dist
-# Mantém o núcleo também no stage final para inspeção operacional; os shims em
-# dist/ o carregam pelo layout copiado pelo build-assets.
+# Mantém o núcleo também em /app/resolvers para inspeção/uso operacional; o
+# carregador embutido resolve pelo dist/resolvers copiado acima.
 COPY --from=builder /app/resolvers ./resolvers
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh

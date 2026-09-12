@@ -21,6 +21,19 @@ function hasAllowedHost(hostname, suffixes) {
   return suffixes.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
 }
 
+/**
+ * Canonicaliza sufixos de host para a forma que `hasAllowedHost` compara:
+ * aceita string csv ou array, aplica trim/minúsculas e descarta vazios e
+ * repetições. O host comparado já é minúsculo, então um sufixo em caixa mista
+ * (EXTRA_ALLOWED_PROTECTORS="MeuProtetor.COM") nunca casaria sem isto.
+ */
+function normalizeHostSuffixes(value) {
+  const parts = Array.isArray(value) ? value : String(value || '').split(',');
+  return Array.from(new Set(
+    parts.map((part) => String(part).trim().toLowerCase()).filter(Boolean),
+  ));
+}
+
 function assertAllowedUrl(value, suffixes, blockedHostDetail = false) {
   const url = new URL(value);
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('unsupported_protocol');
@@ -30,4 +43,4 @@ function assertAllowedUrl(value, suffixes, blockedHostDetail = false) {
   return url;
 }
 
-module.exports = { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl };
+module.exports = { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl, normalizeHostSuffixes };

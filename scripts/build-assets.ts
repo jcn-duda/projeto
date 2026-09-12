@@ -6,10 +6,11 @@
  * - src/public -> dist/src/public (página /configure e dashboard)
  * - test/fixtures -> dist/test/fixtures (fixtures de teste)
  * - jackett-bludv -> dist/jackett-bludv (definições cardigann)
- * - resolvers/ -> dist/resolvers/ (núcleo CommonJS e profiles dos resolvers)
- * - *-resolver/ -> dist/*-resolver/ (os 4 micro-resolvers carregados pelo
- *   br-resolvers, mais o vacatorrent copiado como artefato de teste — NÃO é
- *   carregado no pool ao vivo)
+ * - resolvers/ -> dist/resolvers/ (núcleo CommonJS, env-config/shim-instance e
+ *   os profiles, que o br-resolvers carrega direto por `../resolvers/profiles`)
+ * - *-resolver/ -> dist/*-resolver/ (os 6 shims de compatibilidade e standalone;
+ *   o caminho de produção não os carrega, mas testes e o modo processo-separado
+ *   dependem deles)
  *
  * Falha em voz alta caso qualquer diretório essencial falhe ao ser copiado ou não exista.
  */

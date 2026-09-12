@@ -14,7 +14,6 @@ const {
   buttonId,
 } = require('../matching');
 const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost } = require('../protector');
-const { parseExtraProtectors } = require('../runtime');
 const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
 const {
   createQualityRules,
@@ -36,11 +35,11 @@ const {
 const FALLBACK_SITE_SUFFIXES = ['vaqueirofilmes.com', 'vacatorrentmov.com'];
 const ASSERT_ONLY_SUFFIXES = ['t.co', 'vacadb.org'];
 
-const extraProtectors = parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS);
+// Import-safe: a lista do site é estática. EXTRA_ALLOWED_PROTECTORS entra pelo
+// bootstrap do profile (injetado via isProtectorHost), não aqui.
 const ALL_PROTECTOR_SUFFIXES = Array.from(new Set([
   ...BASE_PROTECTOR_SUFFIXES,
   'systemtech.space',
-  ...extraProtectors,
 ]));
 
 const defaultIsProtectorHost = (h) => hasAllowedHost(h, ALL_PROTECTOR_SUFFIXES);

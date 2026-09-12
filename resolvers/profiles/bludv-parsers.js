@@ -8,7 +8,6 @@ const {
 } = require('../text');
 const { isGenericListPost, buttonId } = require('../matching');
 const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost } = require('../protector');
-const { parseExtraProtectors } = require('../runtime');
 const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
 const { capsXml: sharedCapsXml } = require('../torznab');
 const {
@@ -31,8 +30,11 @@ const MAX_CARD_WINDOW = 8000;
 const AUDIO_RANK = { dublado: 0, desconhecido: 1, legendado: 2 };
 const JS_URL_VAR_RE = /(?:DEST_URL|DOWNLOAD_URL|REDIRECT_URL|NEXT_URL|LINK_DOWNLOAD|URL_DOWNLOAD|DOWNLOAD|LINK_FINAL|TARGET_URL|DESTINO|target_url|dest|target|link|url)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i;
 
-const extraProtectors = parseExtraProtectors(process.env.EXTRA_PROTECTORS);
-const ALL_PROTECTOR_SUFFIXES = Array.from(new Set([...BASE_PROTECTOR_SUFFIXES, ...extraProtectors]));
+// Import-safe: a lista base é estática. A env EXTRA_PROTECTORS que existia aqui
+// não era documentada nem definida (o operador usa EXTRA_ALLOWED_PROTECTORS,
+// injetada no bootstrap pelo profile); os defaults desta factory só são usados
+// sem isProtectorHost explícito.
+const ALL_PROTECTOR_SUFFIXES = Array.from(new Set([...BASE_PROTECTOR_SUFFIXES]));
 
 // Classificadores de áudio, qualidade e fonte compartilhados do núcleo (release-rules.js)
 const brAudioHooks = createBrAudioHooks();

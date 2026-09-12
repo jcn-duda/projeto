@@ -1,6 +1,6 @@
 'use strict';
 
-// Map com teto de concorrência, compartilhado pelos quatro perfis. O post que
+// Map com teto de concorrência, compartilhado pelos seis perfis. O post que
 // falha vira `null` e sai do resultado em vez de derrubar o lote inteiro: um
 // post sem botão é rotina nos WordPress BR, e um `Promise.all` cru perdia os
 // outros N-1 por causa dele.

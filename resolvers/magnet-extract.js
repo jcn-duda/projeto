@@ -132,7 +132,7 @@ function createMagnetExtractor({ decodeEntities, encodedVariants = false, b64Dat
 }
 
 /**
- * Bloco genérico de DESCUBRA do nextProtectedUrl (passos comuns aos cinco
+ * Bloco genérico de DESCUBRA do nextProtectedUrl (passos comuns aos seis
  * perfis): variável JavaScript apontando para URL HTTP(S) de protetor permitido
  * + busca genérica no corpo HTML por domínios de protetor. Cada perfil mantém
  * sua função nextProtectedUrl com os casos específicos (meta-refresh, `const
@@ -142,11 +142,11 @@ function createMagnetExtractor({ decodeEntities, encodedVariants = false, b64Dat
  * variáveis diferem entre perfis e unificá-las mudaria comportamento (R-6);
  * passe a regex pré-compilada do módulo do perfil (R-7).
  *
- * A regex de sufixos é montada por chamada a partir de `protectorSuffixes`
- * (mesma construção de hoje nos perfis): o array vem da factory do perfil e
- * reflete EXTRA_ALLOWED_PROTECTORS carregado no require — o harness de stress
- * recarrega o módulo com env própria, então não há o que memoizar sem virar
- * estado de módulo (R-2).
+ * A regex de sufixos é montada por chamada a partir de `protectorSuffixes`:
+ * o array vem da factory do perfil (base + EXTRA_ALLOWED_PROTECTORS/override,
+ * resolvido em tempo de chamada) — o harness de stress constrói instâncias com
+ * config explícita, então não há o que memoizar sem virar estado de módulo
+ * (R-2).
  */
 function discoverNextUrl(str, baseUrl, { isProtectorHost, decodeEntities, protectorSuffixes, jsVarPattern = null }) {
   // 1. Variável JavaScript apontando para URL HTTP(S) de protetor permitido

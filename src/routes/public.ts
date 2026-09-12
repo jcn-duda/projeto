@@ -13,6 +13,17 @@ const PAGE_ASSETS = [
   'configure-app.js',
   'dashboard-tokens.css',
   'dashboard.css',
+  // Fase 1 do saneamento: registro de hooks (DashHooks) — o nome do hook
+  // substitui a referência cruzada por typeof entre módulos. Esta lista é só
+  // a ALLOWLIST do que pode ser servido (fechada contra traversal): a ORDEM
+  // de carregamento não é daqui, é contrato do dashboard.html, onde hooks é
+  // o primeiro script porque cada módulo do painel se registra no próprio
+  // load.
+  'dashboard-hooks.js',
+  // Fase 2 do saneamento: estado compartilhado (DashState) — dono único do
+  // token/timers/requestInFlight/lastStatusRoot; os módulos leem e escrevem
+  // propriedades dele em vez de `var` de topo espalhados.
+  'dashboard-state.js',
   'dashboard-core.js',
   // Fase 0 do redesign: helpers de desenho extraídos do core (metric/card/
   // formatos/sparkline) e sondas pontuais extraídas do status (testes de

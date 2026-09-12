@@ -30,7 +30,7 @@ function bind() {
   var savedRate = readStored(RATE_KEY);
   var actions = document.querySelectorAll(".action-button");
   var i;
-  if (savedToken) { currentToken = String(savedToken).replace(/\s+/g, ""); $("token").value = currentToken; }
+  if (savedToken) { DashState.token = String(savedToken).replace(/\s+/g, ""); $("token").value = DashState.token; }
   if (savedRate === "5" || savedRate === "10" || savedRate === "30" || savedRate === "off") $("refreshRate").value = savedRate;
   $("saveToken").addEventListener("click", saveToken);
   $("refreshButton").addEventListener("click", loadStatus);
@@ -51,7 +51,7 @@ function bind() {
   for (i = 0; i < actions.length; i += 1) actions[i].addEventListener("click", function () { runAction(this); });
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) {
-      if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+      if (DashState.refreshTimer) { clearTimeout(DashState.refreshTimer); DashState.refreshTimer = null; }
       return;
     }
     loadStatus();
@@ -107,7 +107,7 @@ function bind() {
   renderSectionNav(activeTabName());
   markActiveSection();
 
-  lastUpdatedTimer = setInterval(updateLastUpdated, 1000);
+  DashState.lastUpdatedTimer = setInterval(updateLastUpdated, 1000);
   scheduleRefresh();
   loadStatus();
 }

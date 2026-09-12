@@ -16,7 +16,6 @@ const {
   NARROW_EPISODE_RE,
 } = require('../release-rules');
 const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost } = require('../protector');
-const { parseExtraProtectors } = require('../runtime');
 
 const decodeEntities = decodeEntitiesBasic;
 
@@ -125,12 +124,12 @@ function parsePostDate(html) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+// Compat/factory-only: este singleton NÃO lê mais env (antes lia
+// EXTRA_ALLOWED_PROTECTORS a cada chamada). A lista dinâmica entra pela factory
+// createNerdDownloadLinks({ isProtectorHost }), que o profile injeta com o
+// bootstrap da instância. O default fica base-only para import ser puro.
 function isProtectorHost(hostname) {
-  const suffixes = Array.from(new Set([
-    ...BASE_PROTECTOR_SUFFIXES,
-    ...parseExtraProtectors(process.env.EXTRA_ALLOWED_PROTECTORS),
-  ]));
-  return hasAllowedHost(hostname, suffixes);
+  return hasAllowedHost(hostname, BASE_PROTECTOR_SUFFIXES);
 }
 
 /** Cada botão protegido representa uma qualidade/tamanho diferente. Máquina
@@ -174,6 +173,8 @@ function createNerdDownloadLinks(options = {}) {
   });
 }
 
+// Instância default base-only (sem env). Consumidores que precisam do conjunto
+// dinâmico (o profile nerdfilmes) chamam createNerdDownloadLinks({ isProtectorHost }).
 const parseDownloadLinks = createNerdDownloadLinks();
 
 function scoreLink(link) {

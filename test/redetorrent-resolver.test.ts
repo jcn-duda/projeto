@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Mesma ordem do br-resolvers.test.ts: config antes dos profiles para o
-// dotenv do operador valer antes do require dos CommonJS.
+// Ordem livre desde a Fase 3: os profiles são import-safe (não leem env no
+// topo) e o shim constrói a instância lazy, quando o dotenv já rodou.
 import config from '../src/config.js';
 import * as brResolvers from '../src/br-resolvers.js';
 // A superfície do profile é maior que o ResolverProfile do shim (rssXml,

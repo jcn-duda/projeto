@@ -76,3 +76,8 @@
     metric(box, "wastedQueries.background", Number(idx.wastedQueriesBackground || 0));
     metric(box, "wastedMs.background", formatDuration(Number(idx.wastedMsBackground || 0)));
   }
+
+  // Fase 1 do saneamento — registro declarativo no DashHooks (única execução
+  // no load deste módulo): o renderGeneral (dashboard-panels.js) chama o painel
+  // por DashHooks.call, sem citar o símbolo global deste arquivo.
+  DashHooks.register("renderGeneralDiagnostics", renderGeneralDiagnostics);

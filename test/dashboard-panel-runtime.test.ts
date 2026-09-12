@@ -46,28 +46,28 @@ function fakeNode(): FakeNode {
 }
 
 function loadDashboardStatusApi(fetch?: (url: string, init?: any) => Promise<any>): { els: Record<string, FakeNode>; renderStatus: (data: any) => void; runResolverTest: (id: string, button?: FakeNode | null) => void; setToken: (token: string) => void } {
-  // Fase 0: render (helpers de desenho) e probes (sondas) são módulos próprios;
-  // renderStatus usa element/etc do render e runResolverTest vive em probes.
+  // Fase 0: render (helpers de desenho) e probes (sondas) são módulos próprios.
+  // Fase 1: hooks primeiro (módulos se registram no load); Fase 2: estado
+  // (DashState) antes dos consumidores. Sem health/nav/timers/f3/catalog no
+  // sandbox, renderStatus só roda com os hooks obrigatórios stubados abaixo.
   const core = readFileSync(new URL('../../src/public/dashboard-core.js', import.meta.url), 'utf8');
+  const hooks = readFileSync(new URL('../../src/public/dashboard-hooks.js', import.meta.url), 'utf8');
+  const state = readFileSync(new URL('../../src/public/dashboard-state.js', import.meta.url), 'utf8');
   const render = readFileSync(new URL('../../src/public/dashboard-render.js', import.meta.url), 'utf8');
   const status = readFileSync(new URL('../../src/public/dashboard-status.js', import.meta.url), 'utf8');
   const probes = readFileSync(new URL('../../src/public/dashboard-probes.js', import.meta.url), 'utf8');
-  // Renderizadores que vivem em dashboard-panels.js são irrelevantes aqui:
-  // stubs só para renderStatus não estourar.
+  // Renderizadores de dashboard-panels.js são irrelevantes aqui; as declarações
+  // de função vêm DEPOIS do código real e sobrepõem por hoisting.
   const stubs = [
-    'function renderGeneral() {}',
-    'function renderDebrid() {}',
-    'function renderSources() {}',
-    'function renderCache() {}',
-    'function renderMagnetDb() {}',
-    'function renderReleaseIndex() {}',
-    'function renderHarvest() {}',
-    'function renderAutofetchPanel() {}',
-    'function renderHarvesterPanel() {}',
-    'function drawSparkline() {}',
-    'function pushSeries() { return []; }',
-    'function updateLastUpdated() {}',
+    'function renderGeneral() {}', 'function renderDebrid() {}', 'function renderSources() {}',
+    'function renderCache() {}', 'function renderMagnetDb() {}', 'function renderReleaseIndex() {}',
+    'function renderHarvest() {}', 'function renderAutofetchPanel() {}', 'function renderHarvesterPanel() {}',
+    'function drawSparkline() {}', 'function pushSeries() { return []; }', 'function updateLastUpdated() {}',
     'function updateActionAvailability() {}',
+    'DashHooks.register("dashDebugEnabled", function () { return false; });',
+    'DashHooks.register("renderHealthStrip", function () {}); DashHooks.register("renderAttentionStrip", function () {});',
+    'DashHooks.register("updateEmptyState", function () {}); DashHooks.register("activeTabName", function () { return "geral"; });',
+    'DashHooks.register("renderTimersPanel", function () {}); DashHooks.register("renderF3Panel", function () {}); DashHooks.register("renderCatalogPanel", function () {});',
   ].join('\n');
   const els: Record<string, FakeNode> = {};
   const document = {
@@ -85,10 +85,9 @@ function loadDashboardStatusApi(fetch?: (url: string, init?: any) => Promise<any
   };
   // dashboard-core.js + dashboard-status.js compartilham escopo global (sem
   // IIFE); os parâmetros document/window/fetch sombreiam os globals ausentes.
-  const factory = new Function('document', 'window', 'fetch', core + '\n' + render + '\n' + status + '\n' + probes + '\n' + stubs + '\nreturn { renderStatus: renderStatus, runResolverTest: runResolverTest, setToken: function (token) { currentToken = String(token || ""); } };') as
+  const factory = new Function('document', 'window', 'fetch', hooks + '\n' + state + '\n' + core + '\n' + render + '\n' + status + '\n' + probes + '\n' + stubs + '\nreturn { renderStatus: renderStatus, runResolverTest: runResolverTest, setToken: function (token) { DashState.token = String(token || ""); } };') as
     (doc: unknown, win: unknown, fn: unknown) => { renderStatus: (data: any) => void; runResolverTest: (id: string, b?: FakeNode | null) => void; setToken: (t: string) => void };
-  const result = factory(document, window, fetch);
-  return { els, renderStatus: result.renderStatus, runResolverTest: result.runResolverTest, setToken: result.setToken };
+  return { els, ...factory(document, window, fetch) };
 }
 
 function bannerLines(els: Record<string, FakeNode>): string {
@@ -317,12 +316,13 @@ test('banner persistente existe no HTML e dashboard-status.js permanece ES5 sem 
 
 test('dashboard-render/panels: kind=resolver ganha botão Testar este resolver; indexador segue igual; ES5', () => {
   // Fase 0: card() (que monta o botão de teste) migrou do core para render.
+  // Fase 1: o clique dispara a sonda por hook — render não cita o símbolo das sondas.
   const render = readFileSync(new URL('../../src/public/dashboard-render.js', import.meta.url), 'utf8'); const panels = readFileSync(new URL('../../src/public/dashboard-panels.js', import.meta.url), 'utf8');
   assert.match(render, /"Testar este resolver"/);
   assert.match(render, /setAttribute\("data-resolver-id"/);
-  assert.match(render, /runResolverTest\(button\.getAttribute\("data-resolver-id"\), button\)/);
+  assert.match(render, /DashHooks\.call\("runResolverTest", button\.getAttribute\("data-resolver-id"\), button\)/);
   assert.match(render, /"Testar este indexador"/); // caminho do indexador permanece intacto
-  assert.match(render, /runIndexerTest\(button\.getAttribute\("data-indexer-id"\), button\)/);
+  assert.match(render, /DashHooks\.call\("runIndexerTest", button\.getAttribute\("data-indexer-id"\), button\)/);
   assert.match(panels, /renderCollection\(\$\("resolverCards"\), resolvers, "resolvers", \{ testable: true, kind: "resolver" \}\)/);
   for (const js of [render, panels]) {
     assert.doesNotMatch(js, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'ES5 (WebView de TV)');

@@ -43,7 +43,9 @@
     renderMetrics(metrics, isObject(source.search) ? source.search : {}, { _origem: true });
     // Fase 3.6 do redesign: memória/serviços/contadores órfãos em painel
     // próprio; o módulo é separado para o panels não crescer (catraca de 400).
-    if (typeof renderGeneralDiagnostics === "function") renderGeneralDiagnostics(data);
+    // Fase 1 do saneamento: por hook (dashboard-general.js) — panels é folha
+    // de desenho e não cita o símbolo global do módulo que o estende.
+    DashHooks.call("renderGeneralDiagnostics", data);
   }
 
   // Título de grupo dentro do grid de métricas: separa procedência (persistente

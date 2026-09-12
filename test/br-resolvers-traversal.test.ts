@@ -2,10 +2,6 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 
-// O config importa 'dotenv/config' (lê o .env do operador). Importar ANTES
-// dos profiles faz o dotenv rodar primeiro e o env do operador valer para
-// todos — senão os profiles veem o env vazio (default hardcoded) enquanto o
-// config vê o .env, e o domínio ativo diverge quando o .env tem *Url.
 import config from '../src/config.js';
 import bludv from '../bludv-resolver/server.js';
 import comando from '../comandotorrents-resolver/server.js';
@@ -126,9 +122,9 @@ describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
     originalFetch = globalThis.fetch;
     savedTtl = process.env.BR_DOMAIN_PROBE_TTL_MS;
     savedFails = process.env.BR_DOMAIN_FAILS_BEFORE_PROBE;
-    // A factory lê a env NA CRIAÇÃO: instâncias de teste nascem com estes
-    // valores, enquanto o singleton (criado no require) segue com os do
-    // operador — o teste não vaza estado para o resto da suíte.
+    // createSiteSelector lê a env em TEMPO DE CHAMADA (e aceita injeção via
+    // options): os selectors criados aqui nascem com estes valores. Não há
+    // singleton no require desde a Fase 3 — o que este teste não cria, não lê.
     process.env.BR_DOMAIN_FAILS_BEFORE_PROBE = '2';
     process.env.BR_DOMAIN_PROBE_TTL_MS = String(30 * 60_000);
   });
@@ -242,20 +238,17 @@ describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
   });
 });
 
-describe('Encerramento: load() sobe os quatro e close() os derruba', () => {
-  // O shutdown do addon chama brResolvers.close(). Se ele não fechar de fato,
-  // o `server.close()` do Express drena e o processo fica preso nesses quatro
-  // sockets até o timeout de 5s do fallback — e no Docker, até o SIGKILL.
-  //
-  // O offset existe para não disputar as portas 8700-8703 com uma instância
-  // real de pé na mesma máquina (é o caso do ambiente de desenvolvimento).
-  const OFFSET = 1200;
-  const PORTAS = [8700, 8701, 8702, 8703].map((p) => p + OFFSET);
+describe('load() embutido: seis resolvers, isolamento de env e falha por porta', () => {
+  // Offset alto para não disputar 8700-8705 com uma instância real de pé na
+  // mesma máquina (é o caso do ambiente de desenvolvimento).
+  const OFFSET = 2400;
+  const PORTAS = [8700, 8701, 8702, 8703, 8704, 8705].map((porta) => porta + OFFSET);
+  const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   // node:http de propósito, e não fetch: os testes acima dublam globalThis.fetch
   // e um dublê vazando para cá responderia por servidor que nem está de pé.
-  const responde = (porta: any) =>
-    new Promise((resolve) => {
+  const responde = (porta: number) =>
+    new Promise<boolean>((resolve) => {
       const req = http.get(
         { host: '127.0.0.1', port: porta, path: '/health', timeout: 1500 },
         (res) => {
@@ -267,51 +260,110 @@ describe('Encerramento: load() sobe os quatro e close() os derruba', () => {
       req.on('error', () => resolve(false));
     });
 
-  test('as quatro portas respondem depois do load e param depois do close', async () => {
-    const parentEnv = {
-      PORT: process.env.PORT,
-      SELF_URL: process.env.SELF_URL,
-      SITE_URL: process.env.SITE_URL,
-      BLUDV_URL: process.env.BLUDV_URL,
+  /**
+   * Prova real do isolamento de env: com o ambiente global envenenado, o
+   * load embutido tem que subir as seis portas da CONFIG e o activeSite de
+   * cada resolver tem que seguir a config — nunca a env. Também confere que o
+   * carregador não muta/restaura o ambiente (o veneno continua lá depois).
+   */
+  async function comEnvEnvenenado(fn: () => Promise<void>) {
+    const veneno: Record<string, string> = {
+      PORT: '1',
+      SELF_URL: 'http://poison.invalid:1',
+      SITE_URL: 'https://poison.invalid',
+      BLUDV_URL: 'https://poison.invalid',
+      NERDFILMES_URL: 'https://poison.invalid',
+      EXTRA_ALLOWED_PROTECTORS: 'poison.invalid',
     };
+    const salvo: Record<string, string | undefined> = {};
+    for (const chave of Object.keys(veneno)) salvo[chave] = process.env[chave];
+    Object.assign(process.env, veneno);
     try {
-      brResolvers.load({
-        ...config.resolvers,
-        embedded: true,
-        host: '127.0.0.1',
-        portOffset: OFFSET,
+      await fn();
+    } finally {
+      for (const chave of Object.keys(veneno)) {
+        if (salvo[chave] === undefined) delete process.env[chave];
+        else process.env[chave] = salvo[chave] as string;
+      }
+    }
+  }
+
+  const hostSemWww = (url: string) => new URL(String(url)).hostname.replace(/^www\./, '');
+
+  test('abre as seis portas com env envenenado; activeSite segue a config', async () => {
+    assert.equal(brResolvers.RESOLVERS.length, 6, 'cardinalidade da matriz RESOLVERS');
+    try {
+      await comEnvEnvenenado(async () => {
+        assert.doesNotThrow(() =>
+          brResolvers.load({ ...config.resolvers, embedded: true, host: '127.0.0.1', portOffset: OFFSET }));
+        // O carregador não muta nem restaura o ambiente: o veneno permanece.
+        assert.equal(process.env.PORT, '1');
+        assert.equal(process.env.SITE_URL, 'https://poison.invalid');
+        assert.equal(process.env.EXTRA_ALLOWED_PROTECTORS, 'poison.invalid');
+
+        await settle(700);
+        assert.deepEqual(
+          await Promise.all(PORTAS.map(responde)),
+          [true, true, true, true, true, true],
+          'load() tem que abrir as seis portas da config',
+        );
+
+        for (const resolver of brResolvers.RESOLVERS) {
+          const active = brResolvers.activeSite(resolver.name);
+          assert.ok(active, `${resolver.name}: activeSite vazio`);
+          assert.notEqual(active, 'https://poison.invalid', `${resolver.name}: ativo veio da env envenenada`);
+          assert.equal(
+            hostSemWww(String(active)),
+            hostSemWww(resolver.siteUrl),
+            `${resolver.name}: activeSite deve seguir a config`,
+          );
+        }
       });
-      assert.deepEqual(
-        {
-          PORT: process.env.PORT,
-          SELF_URL: process.env.SELF_URL,
-          SITE_URL: process.env.SITE_URL,
-          BLUDV_URL: process.env.BLUDV_URL,
-        },
-        parentEnv,
-        'a ponte CommonJS deve restaurar o ambiente do addon logo após cada require',
-      );
-      await new Promise((r) => setTimeout(r, 500));
-      assert.deepEqual(
-        await Promise.all(PORTAS.map(responde)),
-        [true, true, true, true],
-        'load() tem que abrir os quatro',
-      );
-
-      brResolvers.close();
-      await new Promise((r) => setTimeout(r, 500));
-      assert.deepEqual(
-        await Promise.all(PORTAS.map(responde)),
-        [false, false, false, false],
-        'close() tem que fechar os quatro',
-      );
-
-      // O shutdown pode ser chamado duas vezes (SIGTERM seguido de SIGINT, ou o
-      // fallback correndo junto): a segunda não pode estourar.
-      assert.doesNotThrow(() => brResolvers.close());
     } finally {
       brResolvers.close();
+      await settle(400);
     }
+  });
+
+  test('porta ocupada (EADDRINUSE) não derruba os outros cinco', async () => {
+    const blocker = http.createServer(() => {});
+    await new Promise<void>((resolve) => blocker.listen(PORTAS[0], '127.0.0.1', resolve));
+    try {
+      // O erro de listen é ASSÍNCRONO: load() não pode estourar nem virar
+      // uncaughtException (o handler confina a falha ao resolver da porta).
+      assert.doesNotThrow(() =>
+        brResolvers.load({ ...config.resolvers, embedded: true, host: '127.0.0.1', portOffset: OFFSET }));
+      await settle(700);
+      const estados = await Promise.all(PORTAS.map(responde));
+      assert.equal(estados[0], false, 'a porta ocupada não pode responder pelo resolvedor');
+      assert.deepEqual(
+        estados.slice(1),
+        [true, true, true, true, true],
+        'os outros cinco resolvers têm que subir mesmo com uma porta ocupada',
+      );
+    } finally {
+      brResolvers.close();
+      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+      await settle(400);
+    }
+  });
+
+  test('close() derruba as seis e é idempotente', async () => {
+    brResolvers.load({ ...config.resolvers, embedded: true, host: '127.0.0.1', portOffset: OFFSET });
+    await settle(700);
+    assert.deepEqual(await Promise.all(PORTAS.map(responde)), [true, true, true, true, true, true]);
+
+    brResolvers.close();
+    await settle(400);
+    assert.deepEqual(
+      await Promise.all(PORTAS.map(responde)),
+      [false, false, false, false, false, false],
+      'close() tem que fechar as seis',
+    );
+
+    // O shutdown pode ser chamado duas vezes (SIGTERM seguido de SIGINT, ou o
+    // fallback correndo junto): a segunda não pode estourar.
+    assert.doesNotThrow(() => brResolvers.close());
   });
 });
 

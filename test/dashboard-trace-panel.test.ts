@@ -29,7 +29,9 @@ function loadFrontend(payload: any, token = TOKEN, failStatus: number | null = n
   const requests: Array<{ path: string; options: any }> = [];
   const document = { createElement: () => node() };
   const prelude = [
-    `var currentToken=${JSON.stringify(token)};`,
+    // Fase 2 do saneamento: o token mora em DashState (dashboard-state.js);
+    // este sandbox de unidade isola o módulo com o objeto mínimo equivalente.
+    `var DashState={token:${JSON.stringify(token)}};`,
     'function $(id){return els[id]||(els[id]=node());}',
     'function isObject(v){return !!v&&typeof v==="object"&&!Array.isArray(v);}',
     'function valueText(v){return v===undefined||v===null||v===""?"—":String(v);}',

@@ -1,6 +1,8 @@
 /* Adom Power-Movie — aba Colhedor / Harvester (Fase 1 painel).
  * Escopo global (sem IIFE). Depois de autofetch; boot liga os botões.
- * ES5 puro (Fire TV / smart TV). */
+ * Fase 1 do saneamento: o refresh pós-ação sai por DashHooks.call("loadStatus")
+ * (registrado pelo dashboard-status.js) — nenhum símbolo global de outro
+ * módulo é citado aqui. ES5 puro (Fire TV / smart TV). */
 "use strict";
 
 var harvestKeys = [
@@ -132,7 +134,7 @@ function saveHarvesterConfig() {
     .then(function (data) {
       if (data && data.ok) {
         setHarvestFeedback("Configurações do Colhedor salvas com sucesso!", "ok");
-        loadStatus();
+        DashHooks.call("loadStatus");
       } else {
         var errStr = data && data.errors ? data.errors.join(", ") : "erro desconhecido";
         setHarvestFeedback("Erro ao salvar: " + errStr, "error");
@@ -156,7 +158,7 @@ function resetHarvesterConfig() {
     .then(function (data) {
       if (data && data.ok) {
         setHarvestFeedback("Padrões do .env restaurados com sucesso!", "ok");
-        loadStatus();
+        DashHooks.call("loadStatus");
       } else {
         setHarvestFeedback("Erro ao restaurar padrões.", "error");
       }
@@ -181,7 +183,7 @@ function toggleHarvesterPause(forcedState) {
   })
     .then(function () {
       setHarvestFeedback(nextState ? "Colhedor pausado com sucesso." : "Colhedor retomado com sucesso.", "ok");
-      loadStatus();
+      DashHooks.call("loadStatus");
     })
     .catch(function (err) {
       setHarvestFeedback("Erro ao alterar pausa: " + valueText(err && err.message ? err.message : err), "error");
@@ -200,7 +202,7 @@ function drainHarvesterQueue() {
     .then(function (data) {
       var d = data && data.drained !== undefined ? data.drained : 0;
       setHarvestFeedback("Fila drenada: " + d + " obra(s) processada(s).", "ok");
-      loadStatus();
+      DashHooks.call("loadStatus");
     })
     .catch(function (err) {
       setHarvestFeedback("Erro ao drenar: " + valueText(err && err.message ? err.message : err), "error");
@@ -220,7 +222,7 @@ function clearHarvesterQueue() {
     .then(function (data) {
       var c = data && data.cleared !== undefined ? data.cleared : 0;
       setHarvestFeedback("Fila esvaziada: " + c + " obra(s) removida(s).", "ok");
-      loadStatus();
+      DashHooks.call("loadStatus");
     })
     .catch(function (err) {
       setHarvestFeedback("Erro ao limpar fila: " + valueText(err && err.message ? err.message : err), "error");

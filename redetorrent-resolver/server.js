@@ -1,15 +1,15 @@
-// Shim de compatibilidade: consumidores e o carregador embutido mantêm o caminho histórico.
-// O profile lê as envs no boot. Recarregá-lo quando este shim for recarregado
-// preserva o contrato histórico para processos que aplicam a configuração antes
-// de iniciar cada resolvedor, sem reabrir porta nem afrouxar a allowlist.
-const profilePath = require.resolve('../resolvers/profiles/redetorrent');
-delete require.cache[profilePath];
-const resolver = require(profilePath);
+// Shim de compatibilidade: preserva o caminho histórico de import
+// (`<nome>-resolver/server`) para testes e consumidores. O profile é import-safe
+// (não lê env no topo); a instância nasce lazy na primeira leitura e o modo
+// standalone constrói explicitamente no ponto de entrada.
+const { createLazyInstance } = require('../resolvers/shim-instance');
+const profile = require('../resolvers/profiles/redetorrent');
+
+const resolver = createLazyInstance(() => profile.createResolver());
 
 if (require.main === module) {
-  resolver.createServer().listen(Number(process.env.PORT || 8705), '0.0.0.0', () => {
-    console.log(`redetorrent-resolver :${process.env.PORT || 8705} — torznab em /api, fonte ${resolver.siteSelector.url()} (failover: ${resolver.siteSelector.hosts().join(', ')})`);
-  });
+  const instance = profile.createResolver();
+  instance.serveMain(instance.createServer);
 }
 
 module.exports = resolver;

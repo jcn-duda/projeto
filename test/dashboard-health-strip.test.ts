@@ -32,6 +32,8 @@ after(async () => {
 });
 
 const CORE = () => readFileSync(new URL('../src/public/dashboard-core.js', import.meta.url), 'utf8');
+const HOOKS = () => readFileSync(new URL('../src/public/dashboard-hooks.js', import.meta.url), 'utf8');
+const STATE = () => readFileSync(new URL('../src/public/dashboard-state.js', import.meta.url), 'utf8');
 const RENDER = () => readFileSync(new URL('../src/public/dashboard-render.js', import.meta.url), 'utf8');
 const STATUS = () => readFileSync(new URL('../src/public/dashboard-status.js', import.meta.url), 'utf8');
 const HEALTH = () => readFileSync(new URL('../src/public/dashboard-health.js', import.meta.url), 'utf8');
@@ -91,12 +93,16 @@ function buildSandbox(options: { nav?: boolean; stubs?: string[] } = {}) {
   const window = { location, addEventListener: () => {}, pageYOffset: 0, confirm: () => false };
   const localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
   (window as any).localStorage = localStorage;
-  const base = CORE() + '\n' + RENDER() + '\n' + STATUS() + '\n' + HEALTH() + '\n' +
+  // Fase 1 do saneamento: hooks primeiro — status/health/nav se registram no
+  // DashHooks no próprio load e o renderStatus consome a faixa/atenção/estado
+  // vazio pelos hooks. Fase 2: estado (DashState) carrega antes dos
+  // consumidores — os módulos leem/escrevem propriedades dele.
+  const base = HOOKS() + '\n' + STATE() + '\n' + CORE() + '\n' + RENDER() + '\n' + STATUS() + '\n' + HEALTH() + '\n' +
     (options.nav ? NAV() + '\n' : '') +
     (options.stubs || []).join('\n');
   const factory = new Function(
     'document', 'window',
-    base + '\nreturn { renderStatus: renderStatus, renderHealthStrip: renderHealthStrip, renderAttentionStrip: renderAttentionStrip, collectStatusIssues: collectStatusIssues, updateEmptyState: updateEmptyState, saveEmptyToken: saveEmptyToken, renderActivePanels: renderActivePanels, setToken: function (t) { currentToken = String(t || ""); }, activeTabName: typeof activeTabName === "function" ? activeTabName : null, switchTab: typeof switchTab === "function" ? switchTab : null, renderSectionNav: typeof renderSectionNav === "function" ? renderSectionNav : null };',
+    base + '\nreturn { renderStatus: renderStatus, renderHealthStrip: renderHealthStrip, renderAttentionStrip: renderAttentionStrip, collectStatusIssues: collectStatusIssues, updateEmptyState: updateEmptyState, saveEmptyToken: saveEmptyToken, renderActivePanels: renderActivePanels, setToken: function (t) { DashState.token = String(t || ""); }, activeTabName: typeof activeTabName === "function" ? activeTabName : null, switchTab: typeof switchTab === "function" ? switchTab : null, renderSectionNav: typeof renderSectionNav === "function" ? renderSectionNav : null, counts: typeof rendered !== "undefined" ? rendered : null };',
   ) as (doc: unknown, win: unknown) => any;
   return { api: factory(document, window), els, location, window };
 }
@@ -109,7 +115,11 @@ const PANEL_STUBS = [
   'function renderMagnetDb() {}',
   'function renderReleaseIndex() {}',
   'function renderHarvest() {}',
-  'function renderF3Panel() {}',
+  // Fase 2 (call estrito): painéis sem módulo no sandbox são hooks registrados
+  // como stub — o consumo do renderStatus é por DashHooks.call, nunca global.
+  'DashHooks.register("renderTimersPanel", function () {});',
+  'DashHooks.register("renderF3Panel", function () {});',
+  'DashHooks.register("renderCatalogPanel", function () {});',
   'function renderAutofetchPanel() { rendered.autofetch += 1; }',
   'function renderHarvesterPanel() { rendered.colhedor += 1; }',
   'function drawSparkline() {}',
@@ -336,21 +346,9 @@ test('CSS da faixa sticky, chips e compensação de scroll das seções', () => 
 // cobre o contrato inteiro: poll só desenha a aba ativa, e a troca desenha a
 // recém-ativada a partir do ÚLTIMO payload (lastStatusRoot), sem novo poll.
 test('contagem fina: poll só desenha a aba ativa; lastStatusRoot alimenta a troca', () => {
-  const els: Record<string, FakeNode> = {};
-  const document = {
-    hidden: false,
-    getElementById: (id: string) => (els[id] = els[id] || fakeNode()),
-    createElement: () => fakeNode(),
-    createTextNode: (text: string) => ({ text }),
-    addEventListener: () => {},
-  };
-  const window = { location: { pathname: '/dashboard', hash: '', search: '' }, addEventListener: () => {}, pageYOffset: 0 };
-  const factory = new Function(
-    'document', 'window',
-    CORE() + '\n' + RENDER() + '\n' + STATUS() + '\n' + HEALTH() + '\n' + NAV() + '\n' + PANEL_STUBS.join('\n') + '\n' +
-    'return { renderStatus: renderStatus, renderActivePanels: renderActivePanels, switchTab: switchTab, counts: rendered };',
-  ) as (doc: unknown, win: unknown) => any;
-  const api = factory(document, window);
+  // Mesma composição da faixa de saúde + nav + stubs contadores; buildSandbox
+  // já carrega hooks primeiro (Fase 1 do saneamento) e devolve counts.
+  const { api, els } = buildSandbox({ nav: true, stubs: PANEL_STUBS });
 
   // Os nós só nascem no getElementById; crie os das abas antes de setar
   // className direto no registro.

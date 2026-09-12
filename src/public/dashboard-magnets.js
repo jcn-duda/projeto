@@ -136,7 +136,7 @@ function renderMagnetSummaryMetrics(data) {
 }
 
 function runMagnetSummary(button) {
-  if (!currentToken) {
+  if (!DashState.token) {
     setMagnetFeedback("Informe o token de diagnóstico antes de consultar o MagnetDB.", "error");
     $("token").focus();
     return;
@@ -205,7 +205,7 @@ function runMagnetInspect(button) {
   var side = sideInput ? String(sideInput.value || "").trim() : "";
   var adapter = adapterInput ? String(adapterInput.value || "").trim() : "";
   var payload = { action: "magnet-inspect", max: 50 };
-  if (!currentToken) {
+  if (!DashState.token) {
     setMagnetFeedback("Informe o token antes de inspecionar o MagnetDB.", "error");
     $("token").focus();
     return;
@@ -249,7 +249,7 @@ function runMagnetClearBad(button) {
   if (hash) desc += " (hash: " + hash + ")";
   desc += "\nEsta ação é irreversível.";
   if (!window.confirm(desc)) return;
-  if (!currentToken) {
+  if (!DashState.token) {
     setMagnetFeedback("Informe o token antes de limpar chaves.", "error");
     $("token").focus();
     return;
@@ -274,7 +274,7 @@ function runMagnetClearBad(button) {
       var remaining = Number(data && data.remaining || 0);
       setMagnetFeedback("Limpeza concluída: " + cleared + " chave(s) removida(s), " + remaining + " restante(s).", "ok");
       runMagnetSummary();
-      loadStatus();
+      DashHooks.call("loadStatus");
     })
     .catch(function (error) {
       setMagnetFeedback("Falha ao limpar chaves: " + valueText(error && error.message ? error.message : error), "error");

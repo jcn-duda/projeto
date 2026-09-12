@@ -113,7 +113,7 @@ const TIMERS = {
 };
 
 test('3.1 timers: tabela com count/avg/p50/p95/max por indexer e search.*', () => {
-  const { api, els } = buildSandbox(['dashboard-core.js', 'dashboard-render.js', 'dashboard-timers.js'], 'renderTimersPanel: renderTimersPanel');
+  const { api, els } = buildSandbox(['dashboard-hooks.js', 'dashboard-core.js', 'dashboard-render.js', 'dashboard-timers.js'], 'renderTimersPanel: renderTimersPanel');
   api.renderTimersPanel({ metrics: { timers: TIMERS } });
   const box = els['timerMetrics'];
   const table = box.appended.filter((n) => n.className === 'timer-table')[0];
@@ -137,7 +137,7 @@ test('3.1 timers: tabela com count/avg/p50/p95/max por indexer e search.*', () =
 });
 
 test('3.1 timers: sem medições o container nomeia o estado vazio', () => {
-  const { api, els } = buildSandbox(['dashboard-core.js', 'dashboard-render.js', 'dashboard-timers.js'], 'renderTimersPanel: renderTimersPanel');
+  const { api, els } = buildSandbox(['dashboard-hooks.js', 'dashboard-core.js', 'dashboard-render.js', 'dashboard-timers.js'], 'renderTimersPanel: renderTimersPanel');
   assert.doesNotThrow(() => api.renderTimersPanel({}));
   api.renderTimersPanel({ metrics: { timers: {} } });
   const box = els['timerMetrics'];
@@ -196,7 +196,7 @@ const F3_GAUGES = {
 };
 
 test('3.2 f3: gauges f3.br.popular.* e latest completo', () => {
-  const { api, els } = buildSandbox(['dashboard-core.js', 'dashboard-render.js', 'dashboard-f3.js'], 'renderF3Panel: renderF3Panel');
+  const { api, els } = buildSandbox(['dashboard-hooks.js', 'dashboard-core.js', 'dashboard-render.js', 'dashboard-f3.js'], 'renderF3Panel: renderF3Panel');
   api.renderF3Panel(
     { enabled: true, baselineAt: 1699999000000, samples: 9, counters: { sample: 9 }, latest: F3_LATEST, popularCoverage: 0.5, discoveryRate: 0.4, brWarmRate: 0.5 },
     1200,
@@ -216,10 +216,10 @@ test('3.2 f3: gauges f3.br.popular.* e latest completo', () => {
 });
 
 test('3.2 f3: desligado e sem amostra nomeiam o estado, sem lançar', () => {
-  const { api, els } = buildSandbox(['dashboard-core.js', 'dashboard-render.js', 'dashboard-f3.js'], 'renderF3Panel: renderF3Panel');
+  const { api, els } = buildSandbox(['dashboard-hooks.js', 'dashboard-core.js', 'dashboard-render.js', 'dashboard-f3.js'], 'renderF3Panel: renderF3Panel');
   api.renderF3Panel({ enabled: false }, 10, {});
   assert.match(textOf(els['f3Metrics']), /F3 desligado/);
-  const vazio = buildSandbox(['dashboard-core.js', 'dashboard-render.js', 'dashboard-f3.js'], 'renderF3Panel: renderF3Panel');
+  const vazio = buildSandbox(['dashboard-hooks.js', 'dashboard-core.js', 'dashboard-render.js', 'dashboard-f3.js'], 'renderF3Panel: renderF3Panel');
   assert.doesNotThrow(() => vazio.api.renderF3Panel(null, 10, {}));
   assert.match(textOf(vazio.els['f3Metrics']), /sem amostra/);
 });

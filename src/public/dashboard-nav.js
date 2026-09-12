@@ -2,9 +2,11 @@
  * switchTab dirigido por TABELA (Fase 0) + nav de âncoras por aba (Fase 2.3):
  * chips fixos abaixo da faixa de saúde, um por seção da aba ativa, com
  * realce da seção visível no scroll. A troca de aba também dispara o render
- * da aba recém-ativada com o último payload (Fase 2.5) — por isso o hook é
- * typeof-guardado: nos sandboxes de teste só core+nav podem estar presentes.
- * Escopo global compartilhado (sem IIFE). Antes do boot. ES5 puro (Fire TV). */
+ * da aba recém-ativada com o último payload (Fase 2.5) — pelo hook
+ * rerenderActiveTab (Fase 1 do saneamento): a nav não referencia símbolo
+ * global do dashboard-status.js. O hook é obrigatório e falha explicitamente
+ * se o wiring estiver incompleto; sandboxes registram um stub. Escopo global
+ * compartilhado (sem IIFE). Antes do boot. ES5 puro (Fire TV). */
 "use strict";
 
   // Tabela única de abas: nome lógico, id do botão, id da view e hash da URL.
@@ -53,17 +55,18 @@
       }
       if (known.indexOf(window.location.hash) !== -1) window.location.hash = TAB_ITEMS[0].hash;
     }
-    // Fase 2.3: chips de âncora da aba recém-ativada.
-    if (typeof renderSectionNav === "function") renderSectionNav(active.name);
-    // Fase 2.5: a aba recém-ativada desenha o ÚLTIMO payload conhecido —
-    // sem isso ela ficaria vazia até o próximo poll (10 s). Na primeira carga
-    // ainda não há payload (lastStatusRoot nasce null no status) e o render
-    // que vale é o do polling. typeof-guardado: sandboxes podem carregar só
-    // core+nav, sem o módulo de status.
-    if (typeof renderActivePanels === "function" && typeof lastStatusRoot !== "undefined" && lastStatusRoot) {
-      renderActivePanels(lastStatusRoot);
-    }
-    if (typeof markActiveSection === "function") markActiveSection();
+    // Fase 2.3: chips de âncora da aba recém-ativada. renderSectionNav e
+    // markActiveSection são DESTE arquivo (hoisting): chamada direta, sem
+    // guarda — o guard de element() dentro de renderSectionNav cobre o
+    // sandbox core+nav sem o módulo de desenho.
+    renderSectionNav(active.name);
+    // Fase 2.5 + Fase 1 do saneamento: a aba recém-ativada desenha o ÚLTIMO
+    // payload conhecido — sem isso ela ficaria vazia até o próximo poll
+    // (10 s). O hook (registrado pelo status) fecha sobre
+    // DashState.lastStatusRoot: hook obrigatório — status sempre carrega na
+    // página; ausente é bug de composição e o call falha alto.
+    DashHooks.call("rerenderActiveTab");
+    markActiveSection();
   }
 
   function handleHash() {
@@ -267,3 +270,9 @@
     sectionNavBound = true;
     window.addEventListener("scroll", markActiveSection, false);
   }
+
+  // Fase 1 do saneamento — a consulta da aba ativa que o dashboard-status.js
+  // faz a cada payload sai POR AQUI: o sentido nav→status do ciclo é o hook
+  // rerenderActiveTab (registrado pelo status) e o sentido status→nav é este
+  // registro; nenhum dos dois lados cita o símbolo global do outro.
+  DashHooks.register("activeTabName", activeTabName);

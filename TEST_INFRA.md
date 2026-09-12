@@ -144,17 +144,20 @@ explicitamente no script, inclusive os tiers E2E:
 npm run test:complete
 ```
 
-Os **seis harnesses de bancada** ficam fora do CI e do `npm test`: rodam
-código de bancada (estresse/mutação) que o portão nunca executa. O
-`test:adversarial` (`empirical-e2e-challenger`) **altera arquivos de `dist/`
+Os **seis scripts de harness de bancada** ficam fora do CI e do `npm test` e
+executam **10 arquivos** de bancada (estresse/mutação) que o portão nunca roda;
+`npm run test:complete` cobra que os 10 existam, compilem para `dist/` e estejam
+referenciados em `package.json`. O `test:adversarial`
+(`empirical-e2e-challenger`) **altera arquivos de `dist/`
 temporariamente** — escreve mutações nos arquivos compilados e os restaura —,
 então exige `dist/` íntegro e working tree limpo (rode após o `npm run build`,
 sem edições em andamento):
 
 ```bash
-npm run test:stress          # m1-stress-challenge + stress-m1-challenger
+npm run test:stress          # m1-stress-challenge + m1-stress-challenge-protectors + stress-m1-challenger
 npm run test:adversarial     # empirical-e2e-challenger (muta dist/ e restaura)
-npm run test:adversarial-m1  # adversarial-m1-parser-harness
-npm run test:protector-m1    # m1-protector-adversarial-stress
-npm run test:challenger-m2   # challenger-m2-parser-deep-stress (em adição)
+npm run test:adversarial-m1  # adversarial-m1-parser-harness + adversarial-m1-parser-part2
+npm run test:protector-m1    # m1-protector-adversarial-stress + m1-protector-adversarial-part2
+npm run test:challenger-m2   # challenger-m2-parser-deep-stress
+npm run test:ranking-challenger  # empirical-ranking-challenger
 ```
