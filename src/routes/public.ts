@@ -36,6 +36,9 @@ const PAGE_ASSETS = [
   // Fase 0 do redesign: navegação por abas (switchTab/handleHash por tabela),
   // extraída de dashboard-panels.js.
   'dashboard-nav.js',
+  // Fase 2 do redesign: faixa sticky de sinais vitais + faixa de atenção
+  // (reusa collectStatusIssues) + estado vazio honesto sem token.
+  'dashboard-health.js',
   'dashboard-boot.js',
 ];
 

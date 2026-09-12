@@ -17,7 +17,7 @@ body {
   font: 15px/1.55 var(--font);
   -webkit-font-smoothing: antialiased;
 }
-.wrap { max-width: 1180px; margin: 0 auto; }
+.wrap { max-width: 1440px; margin: 0 auto; }
 
 /* ------- Cabecalho ------- */
 header { padding: 44px 0 26px; }
@@ -274,6 +274,49 @@ details.card[open] > summary:after { content: "−"; border-color: var(--border-
 .side-lie { color: var(--amber); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
+/* ------- Fase 2: faixa de saude sticky, atencao, chips de secao -------
+ * A faixa fica presa no topo (position: sticky): os seis sinais vitais e a
+ * faixa de atencao respondem "esta tudo bem?" sem rolar. Os chips de ancora
+ * viajam junto — o scroll-margin-top das secoes compensa a altura dos tres. */
+.health-wrap { position: sticky; top: 0; z-index: 40; margin: 0 0 6px; padding: 10px 0 8px; background: linear-gradient(180deg, var(--bg) 84%, transparent); }
+.health-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-2); }
+.health-cell { min-width: 0; display: grid; gap: 2px; }
+.health-cell .health-key { color: var(--muted-2); font-size: var(--font-floor); font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.health-cell .health-value { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.health-dot { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--unknown); vertical-align: 1px; }
+.health-cell.state-online .health-dot { background: var(--green); }
+.health-cell.state-warn .health-dot { background: var(--amber); }
+.health-cell.state-error .health-dot { background: var(--red); }
+.attention-strip { display: none; margin-top: 8px; padding: 9px 13px; border: 1px solid var(--amber); border-left-width: 4px; border-radius: var(--radius-sm); background: var(--amber-soft); font-size: 13px; }
+.attention-strip.visible { display: block; }
+.attention-strip.error { border-color: var(--red); background: var(--red-soft); }
+.attention-strip .attention-line { margin: 3px 0; }
+.attention-strip .attention-line.error { color: var(--red-ink); font-weight: 600; }
+.attention-strip .attention-line.warn { color: var(--muted); }
+.section-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.section-chip { padding: 5px 12px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); color: var(--muted); font-size: var(--font-floor); font-weight: 600; }
+.section-chip:hover { border-color: var(--accent); color: var(--accent); }
+.section-chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.empty-state { margin: 0 0 18px; padding: 22px; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-1); }
+.empty-state[hidden] { display: none; }
+.empty-state h2 { margin: 0 0 8px; font-size: 20px; }
+.empty-state p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+.empty-state-form { display: grid; grid-template-columns: minmax(200px, 1fr) auto; gap: 12px; align-items: end; max-width: 560px; }
+/* Fase 2.3: as secoes ancoram ABAIXO da faixa sticky (saude + atencao +
+ * chips) — sem isso o salto escondia o titulo da secao sob as barras. */
+section { scroll-margin-top: 168px; }
+
+/* Fase 2.4: em viewport largo a leitura vai a duas colunas (grade de 12) —
+ * hoje 1600 px desenha identico a 1280 px, com margem morta por lado. */
+@media (min-width: 1600px) {
+  #viewGeral { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 18px; align-items: start; }
+  #viewGeral > section { grid-column: span 6; margin: 0; }
+  #viewGeral > section#secCatalog { grid-column: 1 / -1; }
+  /* 6 cartoes de acao em 3+3: a grade auto-fit fechava 4+2 com duas celulas
+   * vazias na segunda linha. */
+  .action-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 /* ------- Responsivo ------- */
 @media (max-width: 860px) {
   .topline { flex-direction: column; }
@@ -285,6 +328,11 @@ details.card[open] > summary:after { content: "−"; border-color: var(--border-
   body { padding-right: 12px; padding-left: 12px; }
   header { padding-top: 28px; }
   section { padding: 17px; }
+  /* Faixa de saude em 3+3 no celular: seis celulas de uma so fileira
+   * virariam ladrilho ilegivel de ~55px. */
+  .health-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; }
+  .health-wrap { position: static; }
+  .empty-state-form { grid-template-columns: 1fr; }
   /* Abas viram trilho horizontal com snap: a aba para alinhada no inicio do
    * trilho, as bordas somem em fade (o corte seco parece bug) e o indicador
    * de ativa continua sendo o underline do ::after — so muda o conteiner. */

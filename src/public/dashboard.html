@@ -42,6 +42,31 @@
     <div id="statusBannerText" class="status-banner-text"></div>
   </div>
 
+  <!-- Estado vazio honesto (Fase 2.2): sem token NENHUMA requisição é feita,
+       então o painel nomeia a causa e a saída, com o campo de token aqui
+       dentro — em vez de um "Aguardando..." que nunca carrega. Preenchido por
+       dashboard-health.js (updateEmptyState/saveEmptyToken). -->
+  <div id="healthEmptyState" class="empty-state" hidden>
+    <h2>Painel sem consulta</h2>
+    <p>Nenhuma requisição foi feita: o diagnóstico exige o token de operador (<b>JACKETT_TEST_TOKEN</b> no .env da instância), enviado só no header <b>X-Indexer-Test-Token</b>. Informe o token para a primeira consulta.</p>
+    <div class="empty-state-form">
+      <label for="emptyToken">Token de diagnóstico
+        <input id="emptyToken" type="password" autocomplete="off" spellcheck="false" placeholder="X-Indexer-Test-Token" />
+      </label>
+      <button id="emptySaveToken" class="primary" type="button">Salvar e consultar</button>
+    </div>
+    <p class="token-help">O token é guardado neste dispositivo e nunca vai na URL. 503 = diagnóstico desligado no servidor; 401 = token rejeitado.</p>
+  </div>
+
+  <!-- Fase 2: faixa sticky de sinais vitais (seis sinais), faixa de atenção
+       (mesmo collectStatusIssues do banner) e chips de âncora da aba ativa.
+       Preenchidos por dashboard-health.js / dashboard-nav.js a cada payload. -->
+  <div class="health-wrap">
+    <div id="healthStrip" class="health-strip" role="list" aria-label="Sinais vitais"></div>
+    <div id="attentionStrip" class="attention-strip" role="alert"></div>
+    <nav id="sectionNav" class="section-nav" aria-label="Seções da aba ativa"></nav>
+  </div>
+
   <section aria-labelledby="accessTitle">
     <div class="section-head">
       <div><h2 id="accessTitle">Acesso operacional</h2><p>O token é usado somente no header <b>X-Indexer-Test-Token</b>.</p></div>
@@ -69,12 +94,12 @@
   </section>
 
   <div id="viewGeral" class="tab-view" role="tabpanel" aria-labelledby="tabGeral">
-  <section aria-labelledby="generalTitle">
+  <section id="secGeral" aria-labelledby="generalTitle">
     <div class="section-head"><div><h2 id="generalTitle">Geral</h2><p>Estado do processo e informações da instância.</p></div><span id="lastUpdated" class="last-updated">sem medição</span></div>
-    <div id="generalMetrics" class="metrics"><div class="empty">Aguardando /dashboard-status.json.</div></div>
+    <div id="generalMetrics" class="metrics"><div class="empty">Sem dados: nenhuma consulta concluída ainda.</div></div>
   </section>
 
-  <section aria-labelledby="debridTitle">
+  <section id="secDebrid" aria-labelledby="debridTitle">
     <div class="section-head"><div><h2 id="debridTitle">Debrid e autofetch</h2><p>Visão conjunta dos cinco serviços suportados e das filas de autofetch.</p></div></div>
     <div id="debridMetrics" class="metrics"></div>
     <div id="debridCards" class="cards"><div class="empty">Sem dados de debrid.</div></div>
@@ -84,7 +109,7 @@
        uma chave. O POST carrega { action, service, key } em debrid-account-test;
        a chave viaja no corpo, nunca na URL, e o input é limpo em todo desfecho.
        Nada aqui salva a chave ou altera a conta do operador / .env. -->
-  <section aria-labelledby="debridTestTitle">
+  <section id="secDebridTest" aria-labelledby="debridTestTitle">
     <div class="section-head"><div><h2 id="debridTestTitle">Testar conta de debrid</h2><p>Consulta pontual de uma chave em um dos serviços conhecidos, sem configurar nada nesta instância.</p></div></div>
     <p id="debridTestWarning" class="guidance">Este teste é pontual: a chave digitada <b>não é salva</b> em lugar nenhum e <b>não altera</b> a conta do operador, o <b>.env</b> ou a instalação atual — vale apenas para a resposta desta consulta.</p>
     <div class="test-tools debrid-test-tools">
@@ -100,7 +125,7 @@
     <div id="debridTestOutput" class="test-output"></div>
   </section>
 
-  <section aria-labelledby="sourcesTitle">
+  <section id="secSources" aria-labelledby="sourcesTitle">
     <div class="section-head"><div><h2 id="sourcesTitle">Indexadores e resolvers BR</h2><p>Saúde medida, breaker e capacidade de resolução dos indexadores brasileiros.</p></div></div>
     <div class="subsection"><h3>Indexadores</h3><div id="indexerCards" class="cards"><div class="empty">Sem dados de indexadores.</div></div></div>
     <div class="subsection"><h3>Resolvers BR</h3><div id="resolverCards" class="cards"><div class="empty">Sem dados de resolvers.</div></div></div>
@@ -125,14 +150,14 @@
     </div>
   </section>
 
-  <section aria-labelledby="cacheTitle">
+  <section id="secCache" aria-labelledby="cacheTitle">
     <div class="section-head"><div><h2 id="cacheTitle">Cache</h2><p>Uso da memória, persistência e namespaces reportados pelo servidor.</p></div></div>
     <svg id="cacheSparkline" class="sparkline sparkline-svg" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline class="sparkline-line sparkline-cache" points="" /></svg>
     <div id="cacheMetrics" class="metrics"></div>
     <div id="cacheCards" class="cards"><div class="empty">Sem dados de cache.</div></div>
   </section>
 
-  <section aria-labelledby="magnetTitle">
+  <section id="secMagnets" aria-labelledby="magnetTitle">
     <div class="section-head">
       <div>
         <h2 id="magnetTitle">Gerenciamento do MagnetDB</h2>
@@ -171,7 +196,7 @@
     <div id="magnetOutput" class="test-output" style="display: none;"></div>
   </section>
 
-  <section aria-labelledby="idxTitle">
+  <section id="secIdx" aria-labelledby="idxTitle">
     <div class="section-head"><div><h2 id="idxTitle">Índice de releases</h2><p>Memória por obra que responde sem Jackett, mais o colhedor que a alimenta em fundo.</p></div></div>
     <div id="idxMetrics" class="metrics"></div>
     <div id="harvestMetrics" class="metrics"></div>
@@ -179,11 +204,11 @@
     <svg id="harvestSparkline" class="sparkline sparkline-svg" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline class="sparkline-line sparkline-harvest" points="" /></svg>
     <div class="subsection">
       <h3>Cobertura BR (F3)</h3>
-      <div id="f3Metrics" class="metrics"><div class="empty">Aguardando amostra.</div></div>
+      <div id="f3Metrics" class="metrics"><div class="empty">Sem amostra: aguardando a primeira varredura do sampler.</div></div>
     </div>
   </section>
 
-  <section aria-labelledby="actionsTitle">
+  <section id="secActions" aria-labelledby="actionsTitle">
     <div class="section-head"><div><h2 id="actionsTitle">Ações</h2><p>Ações destrutivas pedem confirmação e enviam JSON no corpo do POST.</p></div></div>
     <div class="action-grid">
       <div class="action-card">
@@ -206,7 +231,7 @@
     </div>
   </section>
 
-  <section aria-labelledby="catalogTitle">
+  <section id="secCatalog" aria-labelledby="catalogTitle">
     <div class="section-head"><div><h2 id="catalogTitle">Conta / Catálogo</h2><p>Ocupação da conta do operador, classificação BR, duplicados e limpeza de estrangeiro provado. As ações de aplicar são destrutivas e pedem confirmação.</p></div></div>
     <div class="catalog-actions">
       <span class="catalog-group">
@@ -267,7 +292,7 @@
       <button id="afBannerResumeBtn" class="primary btn-sm" type="button">Retomar agora</button>
     </div>
 
-    <section aria-labelledby="afLiveTitle">
+    <section id="secAfLive" aria-labelledby="afLiveTitle">
       <div class="section-head">
         <div>
           <h2 id="afLiveTitle">Visão viva do Chupim</h2>
@@ -297,7 +322,7 @@
       </div>
     </section>
 
-    <section aria-labelledby="afSourcesVolTitle">
+    <section id="secAfSources" aria-labelledby="afSourcesVolTitle">
       <div class="section-head">
         <div>
           <h2 id="afSourcesVolTitle">Fontes e Volume</h2>
@@ -392,7 +417,7 @@
       </div>
     </section>
 
-    <section aria-labelledby="afProtectTitle">
+    <section id="secAfProtect" aria-labelledby="afProtectTitle">
       <div class="section-head">
         <div>
           <h2 id="afProtectTitle">Proteção e Gate de Conta</h2>
@@ -427,7 +452,7 @@
       </div>
     </section>
 
-    <section aria-labelledby="afLifecycleTitle">
+    <section id="secAfLifecycle" aria-labelledby="afLifecycleTitle">
       <div class="section-head">
         <div>
           <h2 id="afLifecycleTitle">Ciclo de Vida e Rechecks</h2>
@@ -482,7 +507,7 @@
       </div>
     </section>
 
-    <section aria-labelledby="afActionsTitle">
+    <section id="secAfActions" aria-labelledby="afActionsTitle">
       <div class="section-head">
         <div>
           <h2 id="afActionsTitle">Presets e Aplicação</h2>
@@ -508,7 +533,7 @@
       <button id="harvestBannerResumeBtn" class="primary btn-sm" type="button">Retomar agora</button>
     </div>
 
-    <section aria-labelledby="harvestLiveTitle">
+    <section id="secHarvestLive" aria-labelledby="harvestLiveTitle">
       <div class="section-head">
         <div>
           <h2 id="harvestLiveTitle">Visão viva do Colhedor</h2>
@@ -531,7 +556,7 @@
       </div>
     </section>
 
-    <section aria-labelledby="harvestDebridTitle">
+    <section id="secHarvestDebrid" aria-labelledby="harvestDebridTitle">
       <div class="section-head">
         <div>
           <h2 id="harvestDebridTitle">Conta de debrid do Colhedor</h2>
@@ -565,7 +590,7 @@
       <div id="harvestDebridOutput" class="test-output" role="status" aria-live="polite"></div>
     </section>
 
-    <section aria-labelledby="harvestTrafficTitle">
+    <section id="secHarvestTraffic" aria-labelledby="harvestTrafficTitle">
       <div class="section-head">
         <div>
           <h2 id="harvestTrafficTitle">Ritmo de Colheita e Tráfego</h2>
@@ -608,7 +633,7 @@
       </div>
     </section>
 
-    <section aria-labelledby="harvestQueueTitle">
+    <section id="secHarvestQueue" aria-labelledby="harvestQueueTitle">
       <div class="section-head">
         <div>
           <h2 id="harvestQueueTitle">Fila e Armazenamento</h2>
@@ -651,7 +676,7 @@
       </div>
     </section>
 
-    <section aria-labelledby="harvestSeedTitle">
+    <section id="secHarvestSeed" aria-labelledby="harvestSeedTitle">
       <div class="section-head">
         <div>
           <h2 id="harvestSeedTitle">Sementes Populares IMDb</h2>
@@ -688,7 +713,7 @@
       </div>
     </section>
 
-    <section aria-labelledby="harvestActionsTitle">
+    <section id="secHarvestActions" aria-labelledby="harvestActionsTitle">
       <div class="section-head">
         <div>
           <h2 id="harvestActionsTitle">Presets e Aplicação</h2>
@@ -709,7 +734,7 @@
   </div>
 
   <div id="viewTrace" class="tab-view hidden" role="tabpanel" aria-labelledby="tabTrace">
-    <section>
+    <section id="secTrace">
       <div class="section-head">
         <div>
           <h2 id="traceTitle">Stream Trace</h2>
@@ -756,6 +781,7 @@
 <script src="/dashboard-catalog.js"></script>
 <script src="/dashboard-magnets.js"></script>
 <script src="/dashboard-nav.js"></script>
+<script src="/dashboard-health.js"></script>
 <script src="/dashboard-boot.js"></script>
 </body>
 </html>

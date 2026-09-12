@@ -285,6 +285,7 @@ test('Frontend JS em src/public/ e dashboard.html seguem ES5 estrito', () => {
     'src/public/dashboard-render.js',
     'src/public/dashboard-probes.js',
     'src/public/dashboard-nav.js',
+    'src/public/dashboard-health.js',
     'src/public/dashboard-status.js',
     'src/public/dashboard-panels.js',
     'src/public/dashboard-boot.js',

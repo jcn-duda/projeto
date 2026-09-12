@@ -3,6 +3,9 @@ node_modules/
 dist/
 .env
 # Backups locais do .env: cópias com chaves reais não podem entrar no histórico.
+# `.env.*` cobre .bak, .pre-*, .local etc.; o exemplo versionável fica de fora.
+.env.*
+!.env.example
 .env.bak*
 *.log
 .DS_Store

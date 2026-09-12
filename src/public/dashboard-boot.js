@@ -93,8 +93,14 @@ function bind() {
   $("catalogCleanupPreviewBtn").addEventListener("click", runCatalogCleanupPreview);
   $("catalogCleanupApplyBtn").addEventListener("click", runCatalogCleanupApply);
   if (typeof bindMagnetPanel === "function") bindMagnetPanel();
+  // Fase 2: estado vazio honesto (campo de token próprio) e chips de âncora
+  // por aba, com realce da seção visível no scroll.
+  if (typeof bindHealthPanel === "function") bindHealthPanel();
+  if (typeof bindSectionNav === "function") bindSectionNav();
   window.addEventListener("hashchange", handleHash);
   handleHash();
+  renderSectionNav(activeTabName());
+  markActiveSection();
 
   lastUpdatedTimer = setInterval(updateLastUpdated, 1000);
   scheduleRefresh();

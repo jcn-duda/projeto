@@ -1,12 +1,20 @@
-/* Adom Power-Movie — /dashboard: status, polling e ações (Fase 3 §5.9 + Fase 1).
+/* Adom Power-Movie — /dashboard: status, polling e ações (Fase 3 §5.9 + Fase 2).
  * renderStatus, token, refresh, ações com confirmação. As sondas pontuais
- * (testes de indexer/resolver) vivem em dashboard-probes.js. Chama pintores em
- * render + panels + autofetch/harvest. Escopo global. ES5 puro (Fire TV). */
+ * (testes de indexer/resolver) vivem em dashboard-probes.js; a faixa de saúde
+ * e o estado vazio em dashboard-health.js. Desde a Fase 2.5 o ciclo renderiza
+ * só a faixa de saúde + a ABA ATIVA: o último payload fica em lastStatusRoot
+ * e a troca de aba (dashboard-nav.js) desenha a aba recém-ativada a partir
+ * dele. Escopo global. ES5 puro (Fire TV). */
 "use strict";
 
   // Pill/banner: evidência da resposta (auth/quota/timeout/catálogo) vira
   // estado visível — não esconder ok:false num details (incidente 2026-08-30).
   var STATE_RANK = { unknown: 0, online: 1, warn: 2, error: 3 };
+
+  // Último payload completo recebido do /dashboard-status.json. É a fonte do
+  // render tardio das abas ocultas (Fase 2.5): elas não desenham a cada poll,
+  // desenham UMA VEZ na troca, com o estado mais recente que existe.
+  var lastStatusRoot = null;
 
   function worstState(a, b) {
     return (STATE_RANK[a] || 0) >= (STATE_RANK[b] || 0) ? a : b;
@@ -144,11 +152,11 @@
     }
   }
 
-  function renderStatus(data) {
-    var root = isObject(data) ? data : {};
-    var status = first(root, ["status", "state", "health"], "online");
-    var uptimeS = first(root.general || {}, ["uptimeS"], null);
+  // Painéis da aba Geral (Fase 2.5): o bloco que antes era o corpo inteiro do
+  // renderStatus virou um ramo — só a aba visível desenha a cada poll.
+  function renderGeralPanels(root) {
     var counters = first(root.metrics || {}, ["counters"], {});
+    var uptimeS = first(root.general || {}, ["uptimeS"], null);
     var harvest = first(root, ["harvest", "harvester"], {});
     renderGeneral(root);
     renderDebrid(first(root, ["debrid", "debridStatus"], {}), first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}));
@@ -161,11 +169,38 @@
     renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
     renderHarvest(harvest, uptimeS);
     if (typeof renderF3Panel === "function") renderF3Panel(root.f3, uptimeS);
-    renderAutofetchPanel(first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}), uptimeS);
-    renderHarvesterPanel(harvest, counters, uptimeS);
     drawSparkline("cacheSparkline", pushSeries("cache-hit-rate", first(root.cache || {}, ["hitRate"], 0)), "#39d98a");
     drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(harvest, ["queriesThisHour"], 0)), "#faa31a");
+  }
+
+  // Só a aba ativa renderiza (Fase 2.5); Trace não tem painel de polling
+  // (consulta sob demanda). typeof-guardado em activeTabName: sandboxes que
+  // não carregam dashboard-nav.js caem na Geral, como antes.
+  function renderActivePanels(root) {
+    var tab = typeof activeTabName === "function" ? activeTabName() : "geral";
+    var counters = first(root.metrics || {}, ["counters"], {});
+    var uptimeS = first(root.general || {}, ["uptimeS"], null);
+    if (tab === "autofetch") {
+      renderAutofetchPanel(first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}), uptimeS);
+    } else if (tab === "colhedor") {
+      renderHarvesterPanel(first(root, ["harvest", "harvester"], {}), counters, uptimeS);
+    } else if (tab === "geral") {
+      // Trace não tem painel de polling: não re-renderiza a Geral por engano.
+      renderGeralPanels(root);
+    }
+  }
+
+  function renderStatus(data) {
+    var root = isObject(data) ? data : {};
+    var status = first(root, ["status", "state", "health"], "online");
+    // Medição de render (Fase 2.5): só existe com flag de debug — produção
+    // não recebe linha nenhuma de console.
+    var renderStartedAt = typeof dashDebugEnabled === "function" && dashDebugEnabled() ? Date.now() : 0;
     var issues = collectStatusIssues(root);
+    lastStatusRoot = root;
+    if (typeof renderHealthStrip === "function") renderHealthStrip(root);
+    if (typeof renderAttentionStrip === "function") renderAttentionStrip(issues);
+    renderActivePanels(root);
     if (own(root, "status") || own(root, "state") || own(root, "health")) {
       // "online" declarado não abafa ok:false da mesma resposta.
       status = worstState(stateName(status), worstIssueState(issues));
@@ -177,6 +212,11 @@
     lastOkAt = Date.now();
     updateLastUpdated();
     updateActionAvailability(root);
+    // Com token válido o estado vazio honesto perdeu a razão de existir.
+    if (typeof updateEmptyState === "function") updateEmptyState();
+    if (renderStartedAt && typeof activeTabName === "function") {
+      console.info("[dashboard] render '" + activeTabName() + "': " + (Date.now() - renderStartedAt) + " ms (somente faixa de saúde + aba ativa)");
+    }
   }
 
   function saveToken() {
@@ -185,6 +225,9 @@
     input.value = currentToken;
     if ($("rememberToken").checked) writeStored(TOKEN_KEY, currentToken);
     else removeStored(TOKEN_KEY);
+    // Limpar o token recria o estado vazio honesto: sem token nenhuma
+    // requisição é feita, então o bloco precisa voltar a aparecer.
+    if (typeof updateEmptyState === "function") updateEmptyState();
     loadStatus();
   }
 
