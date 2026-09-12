@@ -39,6 +39,8 @@ const PAGE_ASSETS = [
   // Fase 2 do redesign: faixa sticky de sinais vitais + faixa de atenção
   // (reusa collectStatusIssues) + estado vazio honesto sem token.
   'dashboard-health.js',
+  // Fase 3 do redesign: tabela de latências/percentis de metrics.timers.
+  'dashboard-timers.js',
   'dashboard-boot.js',
 ];
 

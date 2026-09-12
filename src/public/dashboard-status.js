@@ -159,16 +159,17 @@
     var uptimeS = first(root.general || {}, ["uptimeS"], null);
     var harvest = first(root, ["harvest", "harvester"], {});
     renderGeneral(root);
+    if (typeof renderTimersPanel === "function") renderTimersPanel(root);
     renderDebrid(first(root, ["debrid", "debridStatus"], {}), first(root, ["autofetch", "autoFetch", "autofetchStatus"], {}));
     renderSources(root);
-    renderCache(first(root, ["cache", "cacheStatus"], {}));
+    renderCache(first(root, ["cache", "cacheStatus"], {}), counters);
     renderMagnetDb(first(root, ["magnetdb", "magnetDb"], {}), counters, uptimeS);
     if (counters["debrid.check.unknown"] || first(root.cache || {}, ["swrServed"], 0)) {
       $("cacheMetrics").appendChild(element("p", "guidance", "Há respostas revalidadas ou sem confirmação de cache. Verifique primeiro a conta de debrid (teto/chave) e depois o prazo da busca."));
     }
     renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
     renderHarvest(harvest, uptimeS);
-    if (typeof renderF3Panel === "function") renderF3Panel(root.f3, uptimeS);
+    if (typeof renderF3Panel === "function") renderF3Panel(root.f3, uptimeS, first(root.metrics || {}, ["gauges"], {}));
     drawSparkline("cacheSparkline", pushSeries("cache-hit-rate", first(root.cache || {}, ["hitRate"], 0)), "#39d98a");
     drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(harvest, ["queriesThisHour"], 0)), "#faa31a");
   }

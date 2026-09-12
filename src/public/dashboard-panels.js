@@ -161,7 +161,42 @@
     renderCollection($("resolverCards"), resolvers, "resolvers", { testable: true, kind: "resolver" });
   }
 
-  function renderCache(data) {
+  // Fase 3.3 do redesign: cache por namespace. Os contadores cache.hit.<balde>
+  // e cache.miss.<balde> existem desde a Fase 0 do cache, mas a tela só mostrava
+  // o hit-rate global — o balde que está pagando rede de novo ficava invisível.
+  // `cache.expired` é global (o contador não carrega balde).
+  var CACHE_BUCKETS = ["raw", "streams", "meta", "tmdb", "idx", "mag", "dinv", "dlmag", "seed", "autofetch", "indexer-status"];
+
+  function cacheBucketRate(hits, misses) {
+    var total = hits + misses;
+    return total > 0 ? Math.round((hits / total) * 100) + "%" : "—";
+  }
+
+  function renderCacheNamespaces(metrics, counters) {
+    var source = isObject(counters) ? counters : {};
+    var any = 0;
+    var i;
+    var name;
+    var hits;
+    var misses;
+    var expired = Number(source["cache.expired"] || 0);
+    for (i = 0; i < CACHE_BUCKETS.length; i += 1) {
+      name = CACHE_BUCKETS[i];
+      if ((Number(source["cache.hit." + name] || 0) + Number(source["cache.miss." + name] || 0)) > 0) any += 1;
+    }
+    if (!any && !expired) return;
+    metricGroupTitle(metrics, "Cache por namespace");
+    for (i = 0; i < CACHE_BUCKETS.length; i += 1) {
+      name = CACHE_BUCKETS[i];
+      hits = Number(source["cache.hit." + name] || 0);
+      misses = Number(source["cache.miss." + name] || 0);
+      if (!hits && !misses) continue;
+      metric(metrics, name + " (hit/miss)", cacheBucketRate(hits, misses) + " · " + hits + "/" + misses);
+    }
+    metric(metrics, "expirados", expired);
+  }
+
+  function renderCache(data, counters) {
     var source = isObject(data) ? data : {};
     var metrics = $("cacheMetrics");
     var cards = $("cacheCards");
@@ -183,6 +218,7 @@
       metricMaybeOrigem(metrics, "L2 freelist (páginas)", source.l2.freelistCount || 0, source.l2, "freelistCount", undefined);
       metricMaybeOrigem(metrics, "L2 fila pendente", source.l2.pendingWrites || 0, source.l2, "pendingWrites", undefined);
     }
+    renderCacheNamespaces(metrics, counters);
     renderCollection(cards, namespaces, "namespaces", {});
   }
 

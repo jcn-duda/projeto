@@ -97,6 +97,12 @@
   <section id="secGeral" aria-labelledby="generalTitle">
     <div class="section-head"><div><h2 id="generalTitle">Geral</h2><p>Estado do processo e informações da instância.</p></div><span id="lastUpdated" class="last-updated">sem medição</span></div>
     <div id="generalMetrics" class="metrics"><div class="empty">Sem dados: nenhuma consulta concluída ainda.</div></div>
+    <!-- Fase 3.1 do redesign: latências e percentis de metrics.timers, que o
+         payload já entrega a cada poll e a tela descartava. -->
+    <div class="subsection">
+      <h3>Latências e percentis</h3>
+      <div id="timerMetrics" class="metrics"><div class="empty">Sem medições de latência ainda.</div></div>
+    </div>
   </section>
 
   <section id="secDebrid" aria-labelledby="debridTitle">
@@ -782,6 +788,7 @@
 <script src="/dashboard-magnets.js"></script>
 <script src="/dashboard-nav.js"></script>
 <script src="/dashboard-health.js"></script>
+<script src="/dashboard-timers.js"></script>
 <script src="/dashboard-boot.js"></script>
 </body>
 </html>
