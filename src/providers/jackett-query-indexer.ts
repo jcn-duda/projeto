@@ -14,13 +14,15 @@ export interface JackettSearchOptions {
   noRawCache?: boolean;
   /** Grafia arábica do numeral (plano BR: II -> 2). */
   variantQuery?: string;
-  /** Query EN (mainstream) como fallback do plano BR+ptQuery (primária pt). */
+  /** Fallback bilíngue do plano BR: EN (mainstream) no live, onde a primária
+   * é pt; pt no colhedor, onde a primária é mainstream. */
   fallbackQuery?: string;
   /** Raiz da franquia sem marcador de sequência (plano BR: "Parte II" → raiz). */
   franchiseQuery?: string;
   /** Título original da obra (TMDB) como degrau SEQUENCIAL de último recurso
    * ("Adım Farah" quando a primária é "My Name Is Farah"). Global recebe
-   * sempre; BR só quando não há fallback pt-BR útil (ver o gate abaixo). */
+   * sempre; BR só quando NÃO há já uma cascata bilíngue útil (ver o gate
+   * `bilingualFallbackUseful` abaixo). */
   originalQuery?: string;
   matchContext?: MatchContext | null;
   /** Varredura tardia: falha não conta no circuito nem pinta o card. */
@@ -136,9 +138,10 @@ export async function queryIndexer(indexer: string, query: string, type: string,
 
   let found = await fetchQuery(query);
   // Cadeia sequencial: primary -> variante numérica -> ... -> fallback
-  // EN (`fallbackQuery` do plano BR). Cada passo abre só quando o anterior não
-  // trouxe candidato útil, e compartilham o MESMO deadline absoluto — nada de
-  // duas tentativas no ar dentro do orçamento.
+  // bilíngue (`fallbackQuery`: EN no live, onde a primária é pt; pt no
+  // colhedor, onde a primária é mainstream). Cada passo abre só quando o
+  // anterior não trouxe candidato útil, e compartilham o MESMO deadline
+  // absoluto — nada de duas tentativas no ar dentro do orçamento.
   const shapedSeen = [found.searchQuery];
   const cascade: { q: string; label: string; isOriginal?: boolean }[] = [];
   if (isBr && options.variantQuery) cascade.push({ q: options.variantQuery, label: 'variante numérica' });
@@ -160,23 +163,25 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   // `shapedSeen` já descarta a duplicata quando a raiz coincide com um degrau
   // anterior já moldado.
   if (isBr && options.franchiseQuery) cascade.push({ q: options.franchiseQuery, label: 'raiz da franquia' });
-  if (isBr && options.fallbackQuery) cascade.push({ q: options.fallbackQuery, label: 'fallback EN do plano BR' });
+  if (isBr && options.fallbackQuery) cascade.push({ q: options.fallbackQuery, label: 'fallback do plano BR' });
   // Degrau do título ORIGINAL da obra (TMDB): fonte real do caso Farah — os
   // trackers globais publicam "Adım Farah" e a query mainstream "My Name Is
   // Farah" nunca o encontra. SEQUENCIAL e de último recurso, nunca fan-out
   // paralelo: só abre quando a primária não trouxe candidato relevante e ainda
-  // há orçamento no MESMO deadline. Nos BR ele só vale quando NÃO existe
-  // fallback pt-BR ÚTIL (o caminho localizado já cobre aquele degrau e a
-  // cascata pt-BR funcional não se alonga). "Útil" = fallback presente E
-  // diferente da primária pós-shape: quando a query já É o título pt (Cinemeta
-  // 404 cai no próprio pt), o fallback viraria no-op do dedupe e não pode
-  // suprimir o original. A relevância do degrau é julgada pelo MESMO
+  // há orçamento no MESMO deadline. Nos BR ele só vale quando a cascata NÃO é
+  // bilíngue útil (`bilingualFallbackUseful`): já existindo o par pt ↔ EN no
+  // plano — no live a primária é pt com fallback EN; no colhedor a primária é
+  // mainstream com fallback pt — o degrau do original acrescentaria um
+  // TERCEIRO idioma à mesma cascata e é suprimido. "Útil" = fallback presente
+  // E diferente da primária pós-shape: quando a query já É o título pt
+  // (Cinemeta 404 cai no próprio pt), o fallback viraria no-op do dedupe e não
+  // pode suprimir o original. A relevância do degrau é julgada pelo MESMO
   // matchContext — release do título original casa porque `names` já o inclui,
   // e ela NUNCA nasce `_br`/`_dubbed`: origem/áudio continuam sendo provados
   // pelo título e pelo flag do provider, não pela query que a encontrou.
-  const fallbackPtUtil = isBr && options.fallbackQuery
+  const bilingualFallbackUseful = isBr && options.fallbackQuery
     && shapeSearchQuery(indexer, options.fallbackQuery, isBr) !== shapeSearchQuery(indexer, query, isBr);
-  if (options.originalQuery && !fallbackPtUtil) {
+  if (options.originalQuery && !bilingualFallbackUseful) {
     cascade.push({ q: options.originalQuery, label: 'título original da obra', isOriginal: true });
   }
   for (const step of cascade) {
@@ -199,10 +204,13 @@ export async function queryIndexer(indexer: string, query: string, type: string,
         // título do pipeline —, nunca item bruto irrelevante que o degrau
         // tenha trazido e o filtro descartaria.
         if (step.isOriginal) {
+          // `workHit` conta sobrevivente RELEVANTE DA OBRA (o MESMO filtro de
+          // título do pipeline via `filterRelevantRaw`) — não prova resolução
+          // do episódio/pedido, só que o degrau trouxe candidato da obra.
           const sobreviventes = options.matchContext?.names?.length
             ? filterRelevantRaw(found.items, options.matchContext)
             : found.items;
-          if (sobreviventes.length > 0) metrics.count('jackett.original.hit');
+          if (sobreviventes.length > 0) metrics.count('jackett.original.workHit');
         }
       } catch (err) {
         // A primária já respondeu HTTP válido. Uma variante opcional instável
@@ -223,6 +231,11 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   // não pode condenar o indexer que já entregou. Sem item algum, a falha da
   // última consulta ao vivo é o que vale.
   const sourceOk = items.length > 0 || !source.error;
+  // `ms` inclui deliberadamente TODA a cascata sequencial (variante, bare,
+  // franquia, fallback bilíngue, título original) além do resolve — é o custo
+  // real do indexer nesta chamada. Consequência: um global que devolve vazio
+  // pode parecer mais lento que o usual porque rodou degraus extras, não
+  // necessariamente por regressão de rede; compare com `fromCache`/liveFetches.
   return {
     indexer,
     items,

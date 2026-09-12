@@ -293,8 +293,9 @@ function toStremioStream(item: RawItem): Stream | null {
  * - o filtro de título, preso a `meta?.name`, se desligava por inteiro e
  *   qualquer lixo que o indexador devolvesse ia direto pro usuário.
  *
- * `name` prefere o título ORIGINAL: é o que os indexadores globais publicam.
- * O pt-BR tem query própria (`ptQuery`) e entra em `names` de qualquer forma.
+ * `name` prefere o título do Cinemeta/meta (mainstream, normalmente em EN) e
+ * só cai para original/pt na falta dele; o título ORIGINAL tem degrau PRÓPRIO
+ * na cascata (`resolveOriginalStepName`), e o pt-BR tem a query `ptQuery`.
  *
  */
 function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): {

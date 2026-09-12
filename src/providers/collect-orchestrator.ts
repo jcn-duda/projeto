@@ -101,10 +101,11 @@ export async function collectRaw(
       // inventário; a obra entra na fila do colhedor pelo caminho de sempre.
       metrics.count('search.indexonly.all');
     } else if (selectedIndexers.length === 0) {
-      // Sem indexers selecionados o Jackett cai no agregado puro `/all`, que
-      // NÃO suporta cascata por desenho: `originalQuery`/`matchContext` só
-      // são consumidos quando `jackett.search` tem indexers efetivos (config
-      // do operador). O agregado puro não recebe segunda chamada nem fan-out.
+      // Sem seleção do usuário, `jackett.search(..., null, options)` usa
+      // `config.jackett.indexers` — no caso comum ainda vai por-indexer e
+      // consome `originalQuery`/`matchContext` normalmente. Só quando a config
+      // do operador está EFETIVAMENTE vazia é que cai no agregado puro `/all`,
+      // que não suporta a cascata (uma chamada só, sem segunda tentativa).
       addTask(() => jackett.search(query, type, null, { originalQuery: originalQuery || undefined, matchContext }));
     } else {
       const plan = planJackettQueries(
@@ -158,8 +159,9 @@ export async function collectRaw(
   const validProvider = providers.some((name: string) =>
     ['jackett', 'prowlarr', 'torrentio', 'demo', 'both'].includes(name));
   if (tasks.length === 0 && providers.length > 0 && !validProvider) {
-    // Mesmo `/all` agregado de cima: sem indexers efetivos não há cascata —
-    // as options só valem se `jackett.search` for rodar indexers da config.
+    // Mesma semântica do branch acima: com `config.jackett.indexers` povoada,
+    // as options (cascata) valem normalmente; o agregado puro `/all` — só
+    // atingido com a config vazia — é que não as consome.
     addTask(() => jackett.search(query, type, null, { originalQuery: originalQuery || undefined, matchContext }));
   }
 

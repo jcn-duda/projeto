@@ -301,7 +301,7 @@ test('degrau original morto por dentro (HTTP 200) não reclassifica a primária 
   });
 });
 
-test('jackett.original.step conta a tentativa e hit só sobrevivente RELEVANTE', async () => {
+test('jackett.original.step conta a tentativa e workHit só sobrevivente RELEVANTE da obra', async () => {
   const fetchImpl = makeFetch();
   fetchImpl.handler = (call) => {
     if (call.url.includes('/results')) {
@@ -326,8 +326,8 @@ test('jackett.original.step conta a tentativa e hit só sobrevivente RELEVANTE',
     const after = metrics.snapshot().counters;
     assert.equal((after['jackett.original.step'] || 0) - (before['jackett.original.step'] || 0), 1,
       'o degrau foi tentado uma vez');
-    assert.equal((after['jackett.original.hit'] || 0) - (before['jackett.original.hit'] || 0), 0,
-      'item bruto irrelevante não conta hit');
+    assert.equal((after['jackett.original.workHit'] || 0) - (before['jackett.original.workHit'] || 0), 0,
+      'item bruto irrelevante não conta workHit');
     indexerStatus.clear();
   });
 });
