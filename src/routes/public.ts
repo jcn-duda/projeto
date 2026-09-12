@@ -75,18 +75,31 @@ function makePublicHandlers(services: AppServices) {
       // navegador recuperava, mas criava um atributo espúrio chamado `"` em
       // cada uma das 4 tags. Casar a aspa também ancora o fim real do valor.
       .replace(/((?:src|href)="\/(?:configure|dashboard)[-\w]*\.(?:css|js))"/g, `$1?v=${assetVersion}"`);
-    return (_: express.Request, res: express.Response) => res.type('html').send(html);
+    // O HTML é a raiz do acoplamento (inline ↔ módulos) e aponta para o
+    // fingerprint vigente: um HTML velho no cache do cliente chamaria URLs
+    // ?v= antigas e o boot ficaria preso numa versão que o deploy já não
+    // serve. `no-store` fecha as duas portas — memória e disco do browser.
+    return (_: express.Request, res: express.Response) => {
+      res.set('Cache-Control', 'no-store');
+      return res.type('html').send(html);
+    };
   };
   const sendConfigure = sendVersionedHtml('configure.html');
   const sendDashboard = sendVersionedHtml('dashboard.html');
 
   // Os HTML referenciam os assets por caminho absoluto porque a página responde
-  // tanto em /configure quanto em /:userConfig/configure. maxAge ALTO é seguro
-  // porque a URL carrega o hash do conteúdo (?v= acima): o cache só devolve o
-  // byte-idêntico. A rota ignora a query — o Express casa pelo path, então
-  // `?v=` não precisa (e não deve) constar da allowlist.
-  const sendPageAsset = (name: string) => (_: express.Request, res: express.Response) =>
-    res.sendFile(services.publicPath(name), { maxAge: '30d' });
+  // tanto em /configure quanto em /:userConfig/configure. A rota ignora a query
+  // — o Express casa pelo path — então `?v=` não precisa (e não deve) constar
+  // da allowlist. maxAge ALTO + `immutable` só é seguro quando a URL carrega o
+  // fingerprint CORRENTE: o cache então só devolve o byte-idêntico. Sem a query
+  // (ou com valor arbitrário) o mesmo path aponta para conteúdo mutável e
+  // `immutable` congelaria isso por um ano — esse acesso cai no maxAge curto.
+  const sendPageAsset = (name: string) => (req: express.Request, res: express.Response) => {
+    if (req.query.v === assetVersion) {
+      return res.sendFile(services.publicPath(name), { maxAge: '365d', immutable: true });
+    }
+    return res.sendFile(services.publicPath(name), { maxAge: '30d' });
+  };
 
   const defaults = asyncRoute(async (_req, res) => {
     const { debridApiKey, ...safe } = services.runtime.defaults();

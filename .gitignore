@@ -23,5 +23,7 @@ prowlarr-config/
 .agents/
 # Configuração local de ferramenta de agente (mesmo critério de .kilo/.agents).
 .claude/
+# Artefatos locais de sessão do Superpowers (planos/rascunhos de agente).
+.superpowers/
 # Backups da VPS: tarballs nao pertencem ao historico.
 backups-vps/

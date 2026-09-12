@@ -97,6 +97,33 @@ test('páginas referenciam assets com ?v=<hash> e a rota ignora a query', async 
   }
 });
 
+test('contrato de cache: HTML no-store e asset imutável só com o fingerprint corrente', async () => {
+  // O HTML precisa ser sempre fresco: um HTML velho no cache do browser
+  // chamaria URLs ?v= antigas e prenderia o boot numa versão que o deploy já
+  // não emparelha. `no-store` fecha memória e disco.
+  for (const page of ['/configure', '/dashboard']) {
+    const res = await server.request('GET', page);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('cache-control'), 'no-store', `${page} deve ser no-store`);
+  }
+  // A rota casa pelo path e aceita `/dashboard-core.js` sem query: o mesmo
+  // caminho sem o hash aponta para conteúdo mutável, então `immutable` ali
+  // congelaria por um ano. Só o ?v= CORRENTE ganha o cache longo.
+  const dashboard = await server.request('GET', '/dashboard');
+  const versioned = dashboard.text.match(/(\/dashboard-core\.js\?v=[0-9a-f]{10})/);
+  assert.ok(versioned, 'o HTML deve versionar o asset com o fingerprint');
+  assert.ok(versioned[1]);
+  const asset = await server.request('GET', versioned[1]);
+  assert.equal(asset.status, 200);
+  assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  const bare = await server.request('GET', '/dashboard-core.js');
+  assert.equal(bare.status, 200);
+  assert.doesNotMatch(String(bare.headers.get('cache-control')), /immutable/);
+  const wrong = await server.request('GET', '/dashboard-core.js?v=0000000000');
+  assert.equal(wrong.status, 200);
+  assert.doesNotMatch(String(wrong.headers.get('cache-control')), /immutable/);
+});
+
 test('segmento de 1 segmento que não é config vira 404, não manifest', async () => {
   // Sem o 404 do decode, qualquer caminho de um segmento serviria o manifest
   // com a config do .env — inclusive erro de digitação no install URL.
