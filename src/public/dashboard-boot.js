@@ -97,6 +97,11 @@ function bind() {
   // por aba, com realce da seção visível no scroll.
   if (typeof bindHealthPanel === "function") bindHealthPanel();
   if (typeof bindSectionNav === "function") bindSectionNav();
+  // Fase 4: disclosure das 9 seções da Geral — sincroniza os toggles com o
+  // estado do HTML (secGeral aberto, resto [hidden]) e liga o clique. Os
+  // typeof-guardam valem pelos sandboxes que carregam só core+nav.
+  if (typeof initSectionToggles === "function") initSectionToggles();
+  if (typeof bindSectionToggles === "function") bindSectionToggles();
   window.addEventListener("hashchange", handleHash);
   handleHash();
   renderSectionNav(activeTabName());

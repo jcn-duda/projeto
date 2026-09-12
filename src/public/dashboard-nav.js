@@ -121,7 +121,92 @@
   function scrollToSection(chip) {
     var id = chip && chip.getAttribute ? chip.getAttribute("data-section") : null;
     var target = id ? $(id) : null;
-    if (target && typeof target.scrollIntoView === "function") target.scrollIntoView(true);
+    if (!target) return;
+    // Fase 4: o chip de seção RECOLHIDA expande antes de rolar — scroll para
+    // um corpo [hidden] pousaria num cabeçalho seguido de vazio. Seção sem
+    // toggle (outras abas, sandbox) falha aberta dentro do guard, sem lançar.
+    setSectionExpanded(id, true);
+    if (typeof target.scrollIntoView === "function") target.scrollIntoView(true);
+  }
+
+  // ---- Fase 4: progressive disclosure nas 9 seções da Geral ----
+  // Cada <section> da Visão Geral carrega um corpo .section-body e um botão
+  // .section-toggle no cabeçalho. O HTML NASCE com secGeral aberto e as
+  // outras 8 fechadas ([hidden]); aqui NÃO há estado próprio — o atributo
+  // hidden do corpo é a fonte única e o botão só o espelha (aria-expanded +
+  // rótulo). O conteúdo oculto segue sendo pintado a cada poll: nada no
+  // render consulta visibilidade, então recolhido não é congelado.
+  var TOGGLE_OPEN = "Recolher";
+  var TOGGLE_CLOSED = "Expandir";
+
+  function sectionBodyFor(section) {
+    return section && section.querySelector ? section.querySelector(".section-body") : null;
+  }
+
+  function sectionToggleFor(section) {
+    return section && section.querySelector ? section.querySelector(".section-toggle") : null;
+  }
+
+  // Expande/recolhe UMA seção por id. Idempotente e fail-open: devolve false
+  // sem lançar quando a seção não tem corpo/toggle (outras abas, sandbox) —
+  // o chip pode chamá-la em qualquer aba sem ramificar no chamador.
+  function setSectionExpanded(id, expanded) {
+    var section = $(id);
+    var body, toggle;
+    if (!section) return false;
+    body = sectionBodyFor(section);
+    toggle = sectionToggleFor(section);
+    if (!body || !toggle) return false;
+    if (expanded) body.removeAttribute("hidden");
+    else body.setAttribute("hidden", "hidden");
+    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+    toggle.textContent = expanded ? TOGGLE_OPEN : TOGGLE_CLOSED;
+    return true;
+  }
+
+  // Sincroniza o botão com o estado que veio do HTML (a fonte única é o
+  // [hidden] do corpo, nunca o rótulo atual): init pode rodar duas vezes.
+  function syncSectionToggle(section) {
+    var body = sectionBodyFor(section);
+    var toggle = sectionToggleFor(section);
+    if (!body || !toggle) return;
+    var collapsed = body.hasAttribute("hidden");
+    toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    toggle.textContent = collapsed ? TOGGLE_CLOSED : TOGGLE_OPEN;
+  }
+
+  function initSectionToggles() {
+    var sections = document.querySelectorAll ? document.querySelectorAll("#viewGeral section") : [];
+    var i;
+    for (i = 0; i < sections.length; i += 1) syncSectionToggle(sections[i]);
+  }
+
+  function sectionOfToggle(node) {
+    if (node && typeof node.closest === "function") return node.closest("section");
+    var el = node;
+    while (el && el.tagName !== "SECTION") el = el.parentNode;
+    return el || null;
+  }
+
+  function onSectionToggleClick(event) {
+    var btn = event.currentTarget || event.target;
+    var section = sectionOfToggle(btn);
+    var body = sectionBodyFor(section);
+    if (!section || !body) return;
+    // Recolhido = [hidden] presente: expandir é remover, e vice-versa.
+    setSectionExpanded(section.id, body.hasAttribute("hidden"));
+  }
+
+  var sectionTogglesBound = false;
+
+  function bindSectionToggles() {
+    if (sectionTogglesBound) return;
+    sectionTogglesBound = true;
+    var buttons = document.querySelectorAll ? document.querySelectorAll(".section-toggle") : [];
+    var i;
+    for (i = 0; i < buttons.length; i += 1) {
+      buttons[i].addEventListener("click", onSectionToggleClick);
+    }
   }
 
   // Reconstrói os chips a CADA troca de aba: a aba define as seções, e o

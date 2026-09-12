@@ -55,6 +55,16 @@ section { margin: 18px 0; padding: 24px; border: 1px solid var(--border); border
 .section-head h2 { margin: 0 0 5px; font-size: 20px; }
 .section-head p { margin: 0; color: var(--muted); font-size: 13px; }
 .section-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+/* ------- Fase 4 (redução de altura): disclosure nas 9 seções da Geral -------
+ * O corpo .section-body nasce [hidden] (menos o da secGeral): a aba abre só
+ * pelos cabeçalhos e o .section-toggle controla os dois estados. O atributo
+ * hidden é a fonte única — o conteúdo oculto segue sendo pintado a cada poll
+ * (nada no render consulta visibilidade), recolhido não é congelado. */
+.section-body { min-width: 0; }
+.section-body[hidden] { display: none; }
+.section-head-right { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.section-toggle { padding: 6px 12px; background: transparent; font-size: 12px; white-space: nowrap; }
+.section-toggle:hover { border-color: var(--accent); color: var(--accent); }
 .subsection { margin-top: 20px; }
 .subsection:first-child { margin-top: 0; }
 .subsection + .subsection { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--hairline); }
@@ -325,7 +335,7 @@ section { scroll-margin-top: 168px; }
   .topline { flex-direction: column; }
   .connection { align-self: flex-start; }
   .section-head { flex-direction: column; }
-  .section-actions { justify-content: flex-start; }
+  .section-actions, .section-head-right { justify-content: flex-start; }
 }
 @media (max-width: 650px) {
   body { padding-right: 12px; padding-left: 12px; }
@@ -351,7 +361,7 @@ section { scroll-margin-top: 168px; }
   .tab-btn { flex: 0 0 auto; white-space: nowrap; min-height: 44px; padding: 11px 18px; scroll-snap-align: start; }
   /* Alvo de toque: 44x44 e o piso de dedo (WCAG 2.5.5); no mobile todo
    * controle interativo chega nesse piso pela altura. */
-  button, select, input[type="password"], input[type="text"], input[type="number"] { min-height: 44px; }
+  button, select, input[type="password"], input[type="text"], input[type="number"], .section-toggle { min-height: 44px; }
   /* B1: o checkbox também é alvo de toque, agora MEDIDO 44x44 — cobre
    * #rememberToken, #cacheInstallation, #catalog_include_known, os
    * checkboxes dos formulários do Chupim/Colhedor e as linhas do catálogo.

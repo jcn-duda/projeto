@@ -93,6 +93,7 @@
     "test/dashboard-panels-extract.test.js",
     "test/dashboard-render-split.test.js",
     "test/dashboard-nav.test.js",
+    "test/dashboard-collapse.test.js",
     "test/dashboard-health-strip.test.js",
     "test/dashboard-timers.test.js",
     "test/dashboard-origem-ui.test.js",

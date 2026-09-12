@@ -6,6 +6,10 @@
 <meta name="color-scheme" content="dark" />
 <meta name="theme-color" content="#0d0d0d" />
 <title>Dashboard — Adom Power-Movie</title>
+<!-- Favicon reusa o /logo.png que já existe como rota (NENHUMA rota nova:
+     o arquivo é o mesmo ícone do manifest, e link rel=icon evita o pedido
+     solto de /favicon.ico que viraria 404 no log). -->
+<link rel="icon" type="image/png" href="/logo.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -95,7 +99,13 @@
 
   <div id="viewGeral" class="tab-view" role="tabpanel" aria-labelledby="tabGeral">
   <section id="secGeral" aria-labelledby="generalTitle">
-    <div class="section-head"><div><h2 id="generalTitle">Geral</h2><p>Estado do processo e informações da instância.</p></div><span id="lastUpdated" class="last-updated">sem medição</span></div>
+    <div class="section-head"><div><h2 id="generalTitle">Geral</h2><p>Estado do processo e informações da instância.</p></div>
+      <div class="section-head-right"><span id="lastUpdated" class="last-updated">sem medição</span>
+      <!-- Fase 4 (redução de altura): progressive disclosure nas 9 seções da
+           Geral — secGeral é a ÚNICA aberta por default; as outras 8 nascem
+           com o corpo [hidden] e o .section-toggle espelha o estado. -->
+      <button id="toggleGeral" class="section-toggle" type="button" aria-expanded="true" aria-controls="secGeralBody" aria-labelledby="toggleGeral generalTitle">Recolher</button></div></div>
+    <div id="secGeralBody" class="section-body">
     <div id="generalMetrics" class="metrics"><div class="empty">Sem dados: nenhuma consulta concluída ainda.</div></div>
     <!-- Fase 3.1 do redesign: latências e percentis de metrics.timers, que o
          payload já entrega a cada poll e a tela descartava. -->
@@ -109,12 +119,15 @@
       <h3>Processo e serviços</h3>
       <div id="generalDiagnostics" class="metrics"><div class="empty">Sem dados de processo.</div></div>
     </div>
+    </div>
   </section>
 
   <section id="secDebrid" aria-labelledby="debridTitle">
-    <div class="section-head"><div><h2 id="debridTitle">Debrid e autofetch</h2><p>Visão conjunta dos cinco serviços suportados e das filas de autofetch.</p></div></div>
+    <div class="section-head"><div><h2 id="debridTitle">Debrid e autofetch</h2><p>Visão conjunta dos cinco serviços suportados e das filas de autofetch.</p></div><button id="toggleDebrid" class="section-toggle" type="button" aria-expanded="false" aria-controls="secDebridBody" aria-labelledby="toggleDebrid debridTitle">Expandir</button></div>
+    <div id="secDebridBody" class="section-body" hidden>
     <div id="debridMetrics" class="metrics"></div>
     <div id="debridCards" class="cards"><div class="empty">Sem dados de debrid.</div></div>
+    </div>
   </section>
 
   <!-- Testar conta de debrid (Fase 1, somente frontend): consulta PONTUAL de
@@ -122,7 +135,8 @@
        a chave viaja no corpo, nunca na URL, e o input é limpo em todo desfecho.
        Nada aqui salva a chave ou altera a conta do operador / .env. -->
   <section id="secDebridTest" aria-labelledby="debridTestTitle">
-    <div class="section-head"><div><h2 id="debridTestTitle">Testar conta de debrid</h2><p>Consulta pontual de uma chave em um dos serviços conhecidos, sem configurar nada nesta instância.</p></div></div>
+    <div class="section-head"><div><h2 id="debridTestTitle">Testar conta de debrid</h2><p>Consulta pontual de uma chave em um dos serviços conhecidos, sem configurar nada nesta instância.</p></div><button id="toggleDebridTest" class="section-toggle" type="button" aria-expanded="false" aria-controls="secDebridTestBody" aria-labelledby="toggleDebridTest debridTestTitle">Expandir</button></div>
+    <div id="secDebridTestBody" class="section-body" hidden>
     <p id="debridTestWarning" class="guidance">Este teste é pontual: a chave digitada <b>não é salva</b> em lugar nenhum e <b>não altera</b> a conta do operador, o <b>.env</b> ou a instalação atual — vale apenas para a resposta desta consulta.</p>
     <div class="test-tools debrid-test-tools">
       <label for="debridTestService">Serviço
@@ -135,10 +149,12 @@
     </div>
     <p id="debridTestFeedback" class="feedback" role="status" aria-live="polite"></p>
     <div id="debridTestOutput" class="test-output"></div>
+    </div>
   </section>
 
   <section id="secSources" aria-labelledby="sourcesTitle">
-    <div class="section-head"><div><h2 id="sourcesTitle">Indexadores e resolvers BR</h2><p>Saúde medida, breaker e capacidade de resolução dos indexadores brasileiros.</p></div></div>
+    <div class="section-head"><div><h2 id="sourcesTitle">Indexadores e resolvers BR</h2><p>Saúde medida, breaker e capacidade de resolução dos indexadores brasileiros.</p></div><button id="toggleSources" class="section-toggle" type="button" aria-expanded="false" aria-controls="secSourcesBody" aria-labelledby="toggleSources sourcesTitle">Expandir</button></div>
+    <div id="secSourcesBody" class="section-body" hidden>
     <div class="subsection"><h3>Indexadores</h3><div id="indexerCards" class="cards"><div class="empty">Sem dados de indexadores.</div></div></div>
     <div class="subsection"><h3>Resolvers BR</h3><div id="resolverCards" class="cards"><div class="empty">Sem dados de resolvers.</div></div></div>
     <div class="subsection">
@@ -160,13 +176,16 @@
       </div>
       <div id="testOutput" class="test-output" role="status" aria-live="polite"></div>
     </div>
+    </div>
   </section>
 
   <section id="secCache" aria-labelledby="cacheTitle">
-    <div class="section-head"><div><h2 id="cacheTitle">Cache</h2><p>Uso da memória, persistência e namespaces reportados pelo servidor.</p></div></div>
+    <div class="section-head"><div><h2 id="cacheTitle">Cache</h2><p>Uso da memória, persistência e namespaces reportados pelo servidor.</p></div><button id="toggleCache" class="section-toggle" type="button" aria-expanded="false" aria-controls="secCacheBody" aria-labelledby="toggleCache cacheTitle">Expandir</button></div>
+    <div id="secCacheBody" class="section-body" hidden>
     <svg id="cacheSparkline" class="sparkline sparkline-svg" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline class="sparkline-line sparkline-cache" points="" /></svg>
     <div id="cacheMetrics" class="metrics"></div>
     <div id="cacheCards" class="cards"><div class="empty">Sem dados de cache.</div></div>
+    </div>
   </section>
 
   <section id="secMagnets" aria-labelledby="magnetTitle">
@@ -175,7 +194,9 @@
         <h2 id="magnetTitle">Gerenciamento do MagnetDB</h2>
         <p>Inspeção de chaves em memória (L1), contagens agregadas e descarte de chaves inválidas (bad).</p>
       </div>
+      <button id="toggleMagnets" class="section-toggle" type="button" aria-expanded="false" aria-controls="secMagnetsBody" aria-labelledby="toggleMagnets magnetTitle">Expandir</button>
     </div>
+    <div id="secMagnetsBody" class="section-body" hidden>
     <div class="test-tools magnet-tools">
       <label for="magnetInspectHash">Hash SHA-1 (opcional)
         <input id="magnetInspectHash" type="text" autocomplete="off" spellcheck="false" placeholder="40 caracteres hex" maxlength="40" />
@@ -206,10 +227,12 @@
     <div id="magnetMetrics" class="metrics"></div>
     <div id="magnetSummaryMetrics" class="metrics"></div>
     <div id="magnetOutput" class="test-output" style="display: none;"></div>
+    </div>
   </section>
 
   <section id="secIdx" aria-labelledby="idxTitle">
-    <div class="section-head"><div><h2 id="idxTitle">Índice de releases</h2><p>Memória por obra que responde sem Jackett, mais o colhedor que a alimenta em fundo.</p></div></div>
+    <div class="section-head"><div><h2 id="idxTitle">Índice de releases</h2><p>Memória por obra que responde sem Jackett, mais o colhedor que a alimenta em fundo.</p></div><button id="toggleIdx" class="section-toggle" type="button" aria-expanded="false" aria-controls="secIdxBody" aria-labelledby="toggleIdx idxTitle">Expandir</button></div>
+    <div id="secIdxBody" class="section-body" hidden>
     <div id="idxMetrics" class="metrics"></div>
     <div id="harvestMetrics" class="metrics"></div>
     <div id="harvestCards" class="cards"><div class="empty">Sem dados da fila.</div></div>
@@ -218,10 +241,12 @@
       <h3>Cobertura BR (F3)</h3>
       <div id="f3Metrics" class="metrics"><div class="empty">Sem amostra: aguardando a primeira varredura do sampler.</div></div>
     </div>
+    </div>
   </section>
 
   <section id="secActions" aria-labelledby="actionsTitle">
-    <div class="section-head"><div><h2 id="actionsTitle">Ações</h2><p>Ações destrutivas pedem confirmação e enviam JSON no corpo do POST.</p></div></div>
+    <div class="section-head"><div><h2 id="actionsTitle">Ações</h2><p>Ações destrutivas pedem confirmação e enviam JSON no corpo do POST.</p></div><button id="toggleActions" class="section-toggle" type="button" aria-expanded="false" aria-controls="secActionsBody" aria-labelledby="toggleActions actionsTitle">Expandir</button></div>
+    <div id="secActionsBody" class="section-body" hidden>
     <div class="action-grid">
       <div class="action-card">
         <h3>Varredura de mortos</h3>
@@ -241,10 +266,12 @@
       <div class="action-card"><h3>Testar todos os indexadores</h3><p>Executa o mesmo teste real, um indexador por vez.</p><button id="testAllIndexersButton" class="action-button" type="button" data-action="test-all-indexers">Testar todos</button></div>
       <div class="action-card"><h3>Reavaliar inventário</h3><p>Invalida somente o memo de inventário da conta acessível.</p><button id="refreshInventoryButton" class="action-button" type="button" data-action="refresh-inventory">Reavaliar inventário</button></div>
     </div>
+    </div>
   </section>
 
   <section id="secCatalog" aria-labelledby="catalogTitle">
-    <div class="section-head"><div><h2 id="catalogTitle">Conta / Catálogo</h2><p>Ocupação da conta do operador, classificação BR, duplicados e limpeza de estrangeiro provado. As ações de aplicar são destrutivas e pedem confirmação.</p></div></div>
+    <div class="section-head"><div><h2 id="catalogTitle">Conta / Catálogo</h2><p>Ocupação da conta do operador, classificação BR, duplicados e limpeza de estrangeiro provado. As ações de aplicar são destrutivas e pedem confirmação.</p></div><button id="toggleCatalog" class="section-toggle" type="button" aria-expanded="false" aria-controls="secCatalogBody" aria-labelledby="toggleCatalog catalogTitle">Expandir</button></div>
+    <div id="secCatalogBody" class="section-body" hidden>
     <div class="catalog-actions">
       <span class="catalog-group">
         <span class="catalog-group-label">Ler</span>
@@ -294,6 +321,7 @@
         <span id="catalog_selection" class="catalog-option">nada selecionado</span>
       </div>
       <div id="catalog_manual" class="catalog-list"><div class="empty">Clique em Listar.</div></div>
+    </div>
     </div>
   </section>
   </div>
