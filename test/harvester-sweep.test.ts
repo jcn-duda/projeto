@@ -227,7 +227,11 @@ test('colhedor respeita intervalo indexerDelayMs entre consultas ao mesmo indexe
     harvester.enqueue({ imdbId: 'tt9500052', type: 'movie', reason: `miss-${Date.now()}` } as any);
     await harvester.tick();
 
-    assert.equal(timestamps.length, 2, '2 consultas feitas ao mesmo indexer (loop principal + varredura)');
+    // 3 consultas: varredura pt + loop principal + degrau do título original
+    // (a primária voltou vazia e o TMDB trouxe original ≠ nome mainstream).
+    // O delay de 60ms vale ENTRE chamadas jackett.search; os degraus da
+    // cascata compartilham o deadline do próprio search.
+    assert.equal(timestamps.length, 3, '3 consultas (varredura + loop principal + degrau original)');
     const delta = timestamps[1] - timestamps[0];
     assert.ok(delta >= 50, `esperou pelo menos indexerDelayMs entre as consultas (${delta}ms >= 50ms)`);
   } finally {

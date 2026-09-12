@@ -3,6 +3,7 @@ import type { MatchContext } from '../../types/domain.js';
 import * as cache from '../utils/cache.js';
 import { filterRelevantRaw } from '../utils/format.js';
 import * as log from '../utils/logger.js';
+import * as metrics from '../utils/metrics.js';
 import { prefix } from '../utils/cache-keys.js';
 import { mapResults, indexerFailure, CATEGORY_UNFILTERED_INDEXERS, UNRELIABLE_CATEGORY_INDEXERS } from './jackett-results.js';
 import { shapeSearchQuery, budgetFor } from './jackett-query.js';
@@ -13,10 +14,14 @@ export interface JackettSearchOptions {
   noRawCache?: boolean;
   /** Grafia arábica do numeral (plano BR: II -> 2). */
   variantQuery?: string;
-  /** Título original como fallback (plano BR+ptQuery). */
+  /** Query EN (mainstream) como fallback do plano BR+ptQuery (primária pt). */
   fallbackQuery?: string;
   /** Raiz da franquia sem marcador de sequência (plano BR: "Parte II" → raiz). */
   franchiseQuery?: string;
+  /** Título original da obra (TMDB) como degrau SEQUENCIAL de último recurso
+   * ("Adım Farah" quando a primária é "My Name Is Farah"). Global recebe
+   * sempre; BR só quando não há fallback pt-BR útil (ver o gate abaixo). */
+  originalQuery?: string;
   matchContext?: MatchContext | null;
   /** Varredura tardia: falha não conta no circuito nem pinta o card. */
   recordStatus?: boolean;
@@ -67,7 +72,7 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   // no ponto de leitura — fazendo `sourceOk` virar o literal `true` e as
   // comparacoes em jackett.ts virarem erro de sobreposicao vazia.
   const source: { error: string | null } = { error: null };
-  const fetchQuery = async (candidateQuery: string) => {
+  const fetchQuery = async (candidateQuery: string, isCascadeStep = false) => {
     const searchQuery = shapeSearchQuery(indexer, candidateQuery, isBr);
     // A shaped query já remove SxxEyy nos indexers BR, então episódios da
     // mesma temporada compartilham a entrada por construção — é o que faz a
@@ -103,7 +108,16 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
-    source.error = indexerFailure(payload);
+    const envelopeError = indexerFailure(payload);
+    // Só a PRIMÁRIA define o veredicto de saúde (`source.error`): um degrau
+    // opcional que tropeça — exceção HTTP já tratada na cascata, ou HTTP 200
+    // com o indexer morto por dentro (indexerFailure) — não pode reclassificar
+    // nem abrir breaker para um indexer cuja primária respondeu. A decisão de
+    // NÃO cachear vazio por falha continua valendo para o PRÓPRIO degrau, com
+    // o erro dele.
+    if (!isCascadeStep) source.error = envelopeError;
+    // Recíproco: um degrau SAUDÁVEL não limpa o erro da primária — a saúde
+    // dela é a autoridade; o degrau só pode dar itens, nunca veredicto.
     const items = mapResults(payload, {
       isBr,
       indexer,
@@ -113,7 +127,7 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     // Vazio POR FALHA não vira entrada de cache: guardá-lo faria o indexer
     // continuar mudo pelo TTL inteiro depois de a fonte voltar, e o degrau
     // seguinte da cascata leria o vazio como resposta legítima.
-    if (rawTtl > 0 && !source.error && items.length <= config.rawCache.maxItems) {
+    if (rawTtl > 0 && !(isCascadeStep ? envelopeError : source.error) && items.length <= config.rawCache.maxItems) {
       // 200 com zero itens usa o TTL curto: pode ser rate-limit disfarçado.
       cache.set(rawKey, { items }, items.length === 0 ? config.rawCache.emptyTtl : rawTtl);
     }
@@ -121,12 +135,12 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   };
 
   let found = await fetchQuery(query);
-  // Cadeia sequencial: primary (pt-BR) -> variante numérica -> original. Cada
-  // passo abre só quando o anterior não trouxe candidato útil, e compartilham o
-  // MESMO deadline absoluto — nada de duas tentativas no ar dentro do orçamento.
-  // `variantQuery` vem do plano BR (II -> 2) e `fallbackQuery` é o título original.
+  // Cadeia sequencial: primary -> variante numérica -> ... -> fallback
+  // EN (`fallbackQuery` do plano BR). Cada passo abre só quando o anterior não
+  // trouxe candidato útil, e compartilham o MESMO deadline absoluto — nada de
+  // duas tentativas no ar dentro do orçamento.
   const shapedSeen = [found.searchQuery];
-  const cascade: { q: string; label: string }[] = [];
+  const cascade: { q: string; label: string; isOriginal?: boolean }[] = [];
   if (isBr && options.variantQuery) cascade.push({ q: options.variantQuery, label: 'variante numérica' });
   // Título pt-BR SEM o ano. Medido ao vivo em tt1465522: "Tucker e Dale Contra
   // o Mal 2010" devolve 0 no comandotorrents e no torrentdosfilmesv2, e o mesmo
@@ -146,7 +160,25 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   // `shapedSeen` já descarta a duplicata quando a raiz coincide com um degrau
   // anterior já moldado.
   if (isBr && options.franchiseQuery) cascade.push({ q: options.franchiseQuery, label: 'raiz da franquia' });
-  if (isBr && options.fallbackQuery) cascade.push({ q: options.fallbackQuery, label: 'título original' });
+  if (isBr && options.fallbackQuery) cascade.push({ q: options.fallbackQuery, label: 'fallback EN do plano BR' });
+  // Degrau do título ORIGINAL da obra (TMDB): fonte real do caso Farah — os
+  // trackers globais publicam "Adım Farah" e a query mainstream "My Name Is
+  // Farah" nunca o encontra. SEQUENCIAL e de último recurso, nunca fan-out
+  // paralelo: só abre quando a primária não trouxe candidato relevante e ainda
+  // há orçamento no MESMO deadline. Nos BR ele só vale quando NÃO existe
+  // fallback pt-BR ÚTIL (o caminho localizado já cobre aquele degrau e a
+  // cascata pt-BR funcional não se alonga). "Útil" = fallback presente E
+  // diferente da primária pós-shape: quando a query já É o título pt (Cinemeta
+  // 404 cai no próprio pt), o fallback viraria no-op do dedupe e não pode
+  // suprimir o original. A relevância do degrau é julgada pelo MESMO
+  // matchContext — release do título original casa porque `names` já o inclui,
+  // e ela NUNCA nasce `_br`/`_dubbed`: origem/áudio continuam sendo provados
+  // pelo título e pelo flag do provider, não pela query que a encontrou.
+  const fallbackPtUtil = isBr && options.fallbackQuery
+    && shapeSearchQuery(indexer, options.fallbackQuery, isBr) !== shapeSearchQuery(indexer, query, isBr);
+  if (options.originalQuery && !fallbackPtUtil) {
+    cascade.push({ q: options.originalQuery, label: 'título original da obra', isOriginal: true });
+  }
   for (const step of cascade) {
     const shaped = shapeSearchQuery(indexer, step.q, isBr);
     // Depois da moldagem duas grafias podem virar a mesma query (ex.: variante
@@ -156,10 +188,22 @@ export async function queryIndexer(indexer: string, query: string, type: string,
       ? filterRelevantRaw(found.items, options.matchContext)
       : found.items;
     if (relevant.length === 0 && remaining(deadline) > MIN_RESOLVE_BUDGET) {
-      log.info(`[jackett] ${indexer}: nenhum resultado relevante em PT; tentando ${step.label}`);
+      log.info(`[jackett] ${indexer}: nenhum resultado relevante; tentando ${step.label}`);
       shapedSeen.push(shaped);
       try {
-        found = await fetchQuery(step.q);
+        // `step` conta a TENTATIVA (o degrau pode ser servido do raw cache ou
+        // falhar na rede — o contador não distingue, é tentativa de degrau).
+        if (step.isOriginal) metrics.count('jackett.original.step');
+        found = await fetchQuery(step.q, true);
+        // `hit` conta só SOBREVIVENTE RELEVANTE do degrau — o MESMO filtro de
+        // título do pipeline —, nunca item bruto irrelevante que o degrau
+        // tenha trazido e o filtro descartaria.
+        if (step.isOriginal) {
+          const sobreviventes = options.matchContext?.names?.length
+            ? filterRelevantRaw(found.items, options.matchContext)
+            : found.items;
+          if (sobreviventes.length > 0) metrics.count('jackett.original.hit');
+        }
       } catch (err) {
         // A primária já respondeu HTTP válido. Uma variante opcional instável
         // não pode reclassificar o indexer inteiro como offline nem apagar a

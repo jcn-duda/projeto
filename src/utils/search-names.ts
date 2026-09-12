@@ -313,6 +313,19 @@ function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): 
   };
 }
 
+/**
+ * Nome do degrau opcional do título ORIGINAL (TMDB) na cascata de consulta:
+ * só existe quando ele difere do nome da query primária por normalização —
+ * ausente ou equivalente, o degrau é omitido (a query mainstream não troca).
+ * normalizeTitle NÃO dobra o ı turco (U+0131 não decompõe em NFD), o que
+ * mantém honesta a comparação no caso "Adım Farah"; o matching, que usa o
+ * mesmo normalizeTitle via matchContext.names, já o aceita sem mudanças.
+ */
+function resolveOriginalStepName(original: string | null | undefined, primaryName: string | null | undefined): string | null {
+  if (!original || !primaryName) return null;
+  return normalizeTitle(original) !== normalizeTitle(primaryName) ? original : null;
+}
+
 function parseStremioId(id: string) {
   // movie: tt1234567 | series: tt1234567:1:2
   const parts = String(id).split(':');
@@ -379,6 +392,7 @@ export {
   passesQualityFilter,
   toStremioStream,
   resolveSearchNames,
+  resolveOriginalStepName,
   parseStremioId,
   buildSearchQuery,
   numeralSearchVariant,

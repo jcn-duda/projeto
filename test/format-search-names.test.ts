@@ -7,9 +7,11 @@ import assert from 'node:assert';
 import {
   isMultiWorkCollection,
   franchiseRoot,
+  normalizeTitle,
   parseStremioId,
   buildSearchQuery,
   resolveSearchNames,
+  resolveOriginalStepName,
   numeralSearchVariant,
 } from '../src/utils/format.js';
 
@@ -112,3 +114,27 @@ test('numeralSearchVariant: dois numerais ambíguos não geram variante', () => 
   assert.equal(numeralSearchVariant('Título II IV'), null);
 });
 
+
+test('resolveOriginalStepName: degrau do título original existe só quando difere por normalização', () => {
+  // Caso Farah: o original turco difere do nome mainstream — o degrau existe.
+  assert.equal(resolveOriginalStepName('Adım Farah', 'My Name Is Farah'), 'Adım Farah');
+  // Equivalente ao nome da query primária: omitido (não troca a mainstream).
+  assert.equal(resolveOriginalStepName('Joker', 'Joker'), null);
+  // Ausente: omitido.
+  assert.equal(resolveOriginalStepName(null, 'Joker'), null);
+  assert.equal(resolveOriginalStepName('Adım Farah', null), null);
+  // Cinemeta 404: resolveSearchNames cai no próprio original — sem degrau
+  // redundante.
+  assert.equal(resolveOriginalStepName('Adım Farah', 'Adım Farah'), null);
+});
+
+test('normalizeTitle NÃO dobra o ı turco (U+0131): a comparação do degrau é honesta', () => {
+  // Documenta a verificação exigida: ı não decompõe em NFD nem casa com as
+  // combining marks removidas — "Adım" e "Adim" continuam distintos, e o
+  // matching que usa o mesmo normalizeTitle aceita a release "Adım Farah"
+  // porque o lado wanted (matchContext.names) também carrega o ı.
+  assert.equal(normalizeTitle('Adım'), 'adım');
+  assert.notEqual(normalizeTitle('Adım'), normalizeTitle('Adim'));
+  // Diacrítico latino comum continua dobrando (comportamento existente).
+  assert.equal(normalizeTitle('Extermínio'), 'exterminio');
+});

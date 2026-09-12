@@ -4,6 +4,7 @@ import {
   parseStremioId,
   buildSearchQuery,
   resolveSearchNames,
+  resolveOriginalStepName,
   hasExplicitForeignAudio,
   filterRelevantRaw,
 } from '../utils/format.js';
@@ -92,6 +93,9 @@ export async function doSearch({
     titles?.pt && titles.pt !== titles.original
       ? buildSearchQuery({ name: titles.pt, year: titles.year }, { season, episode })
       : null;
+  // Degrau opcional do título original, NOME CRU de propósito (sem ano nem SxxEyy —
+  // magnetdownload achou "Adım Farah" por consulta ampla; ano/episódio filtram no matchContext).
+  const originalQuery = resolveOriginalStepName(titles?.original, searchMeta.name);
   const providerMode = opts().providers.includes('both') ? 'both' : opts().providers[0] || config.provider;
   const wantsJackettSweep =
     providerMode !== 'demo' && (providerMode === 'both' || opts().providers.includes('jackett'));
@@ -212,12 +216,12 @@ export async function doSearch({
   // se cai na coleta ao vivo quando o índice NÃO cobriu a obra.
   noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep });
   const { servedFromIndex, raw: indexedRaw } = await attemptIndexFastPath({
-    query, type, id, imdbId, season, episode, ptQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver, trace: collectionTrace,
+    query, type, id, imdbId, season, episode, ptQuery, originalQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver, trace: collectionTrace,
   });
   let raw: RawBatch = indexedRaw ?? await collectRaw(
     query, type, imdbId, ptQuery, matchContext,
     (items: any[], grew: boolean, partial?: boolean) => late(items, grew, episodePhase, partial),
-    sweepQuery, deadlineAt, undefined, firstObserver, collectionTrace,
+    sweepQuery, deadlineAt, undefined, firstObserver, collectionTrace, originalQuery,
   );
 
   // Série sem candidato útil por episódio tenta o pack. Lote parcial não-vazio
@@ -258,6 +262,9 @@ export async function doSearch({
     // busca por episódio falhou, que as fontes BR (que só publicam pack de
     // temporada) teriam algo — e elas não indexam pelo nome em inglês.
     const ptPackQuery = ptQuery && titles?.pt ? `${titles.pt} S${s}` : null;
+    // Mesmo degrau do original no pack: trackers globais titulam o pack de
+    // temporada pelo nome original também.
+    const originalPackQuery = originalQuery ? `${originalQuery} S${s}` : null;
     log.info(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
@@ -268,6 +275,7 @@ export async function doSearch({
       undefined,
       firstObserver,
       collectionTrace,
+      originalPackQuery,
     );
   }
 
@@ -284,7 +292,7 @@ export async function doSearch({
       try {
         // As tarefas BR já rodaram na janela crítica acima. Não as repetimos no
         // tail; só o restante enriquece o índice.
-        const live = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery, null, 'nonpriority', undefined, collectionTrace);
+        const live = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery, null, 'nonpriority', undefined, collectionTrace, originalQuery);
         if (live.partial && live.completion) await live.completion;
         // A janela crítica pode ter devolvido antes do BR terminar. Espera-o
         // aqui, no único writer do caminho do índice, para mesclar o lote no
@@ -331,7 +339,7 @@ export async function doSearch({
         if (!episodeIsWeak(raw.items)) return;
         metrics.count('search.pack-tail.run');
         log.info(`[search] sem candidato saudável; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`);
-        const pack = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, null, sweepQuery, null, 'all', undefined, collectionTrace);
+        const pack = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, null, sweepQuery, null, 'all', undefined, collectionTrace, originalQuery ? `${originalQuery} S${s}` : null);
         if (pack.partial && pack.completion) await pack.completion;
         // Mesma fusão por hash do enriquecimento do índice: a regra é geral —
         // hash conhecido com swarm melhor atualiza a evidência em vez de ser

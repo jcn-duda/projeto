@@ -12,6 +12,7 @@ import { getMeta } from '../utils/cinemeta.js';
 import * as tmdb from '../utils/tmdb.js';
 import {
   resolveSearchNames,
+  resolveOriginalStepName,
   buildSearchQuery,
   filterRelevantRaw,
   extractInfoHash,
@@ -152,6 +153,10 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   const ptQuery = titles?.pt && titles.pt !== titles.original
     ? buildSearchQuery({ name: titles.pt, year: titles.year }, { season: entry.season ?? null, episode: entry.episode ?? null })
     : null;
+  // Degrau opcional do título original (caso Farah): o índice só converge
+  // quando o colhedor também o consulta. A regra de execução (global sempre;
+  // BR só sem fallback pt-BR) mora no queryIndexer.
+  const originalQuery = resolveOriginalStepName(titles?.original, searchMeta.name);
 
   const indexers = [...new Set(config.jackett.indexers)];
   let attempted = 0;
@@ -275,10 +280,18 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     // porta de fuga para esticar o prazo de ninguém além dos isolados.
     const indexOnly = config.jackett.indexOnlyIndexers.includes(indexer);
     try {
+      // Direção da cascata no colhedor (DELIBERADAMENTE invertida do vivo):
+      // aqui a primária é a query mainstream (EN) e o fallback do BR é o
+      // título pt — no vivo a primária BR é pt e o fallback é o EN. O gate do
+      // degrau original (queryIndexer: `isBr && fallbackQuery`) usa a presença
+      // do fallback pt, então "pt útil" tem que significar pt DIFERENTE da
+      // query: quando a query já É o título pt (Cinemeta 404 cai no próprio
+      // pt), o fallback some e o degrau original NÃO é suprimido.
       const items = await jackett.search(query, entry.type, [indexer], {
         matchContext,
         recordStatus: false,
-        fallbackQuery: ptQuery || undefined,
+        fallbackQuery: ptQuery && ptQuery !== query ? ptQuery : undefined,
+        originalQuery: originalQuery || undefined,
         // Descoberta do índice: zero-sobrevivente aqui é sonda negativa,
         // não desperdício do caminho de resposta (ver jackett.search).
         background: true,

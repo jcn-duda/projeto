@@ -64,6 +64,7 @@ export {
   passesQualityFilter,
   toStremioStream,
   resolveSearchNames,
+  resolveOriginalStepName,
   parseStremioId,
   buildSearchQuery,
   numeralSearchVariant,

@@ -33,6 +33,10 @@ export async function collectRaw(
    * envelopes, mas não os registra em lugar nenhum. */
   firstObserver?: FirstObserverState | null,
   trace?: StreamTraceState | null,
+  /** Título original (TMDB), degrau SEQUENCIAL opcional da cascata — nunca
+   * tarefa paralela. A regra de execução mora no queryIndexer (global sempre;
+   * BR só sem fallback pt-BR). */
+  originalQuery: string | null = null,
 ) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
@@ -97,7 +101,11 @@ export async function collectRaw(
       // inventário; a obra entra na fila do colhedor pelo caminho de sempre.
       metrics.count('search.indexonly.all');
     } else if (selectedIndexers.length === 0) {
-      addTask(() => jackett.search(query, type));
+      // Sem indexers selecionados o Jackett cai no agregado puro `/all`, que
+      // NÃO suporta cascata por desenho: `originalQuery`/`matchContext` só
+      // são consumidos quando `jackett.search` tem indexers efetivos (config
+      // do operador). O agregado puro não recebe segunda chamada nem fan-out.
+      addTask(() => jackett.search(query, type, null, { originalQuery: originalQuery || undefined, matchContext }));
     } else {
       const plan = planJackettQueries(
         query,
@@ -106,6 +114,7 @@ export async function collectRaw(
         config.jackett.ptBrIndexers,
         config.jackett.slowIndexers,
         sweepQuery,
+        originalQuery,
       );
       for (const planned of plan) {
         const priority = planned.indexers.some((indexer) =>
@@ -117,6 +126,7 @@ export async function collectRaw(
           fallbackQuery: planned.fallback,
           variantQuery: planned.variant,
           franchiseQuery: planned.franchise,
+          originalQuery: planned.original,
           matchContext,
           // A mesma busca principal atualiza o status deste indexer. Falha da
           // variante pt-BR não pode sobrescrever aquele resultado como offline.
@@ -148,7 +158,9 @@ export async function collectRaw(
   const validProvider = providers.some((name: string) =>
     ['jackett', 'prowlarr', 'torrentio', 'demo', 'both'].includes(name));
   if (tasks.length === 0 && providers.length > 0 && !validProvider) {
-    addTask(() => jackett.search(query, type));
+    // Mesmo `/all` agregado de cima: sem indexers efetivos não há cascata —
+    // as options só valem se `jackett.search` for rodar indexers da config.
+    addTask(() => jackett.search(query, type, null, { originalQuery: originalQuery || undefined, matchContext }));
   }
 
   // Fonte BR dublada, independente do PROVIDER: entra no mesmo allSettled,

@@ -24,6 +24,7 @@ export interface IndexAttemptInput {
   season: number | null;
   episode: number | null;
   ptQuery: string | null;
+  originalQuery?: string | null;
   matchContext: MatchContext;
   sweepQuery: string | null;
   deadlineAt: number;
@@ -65,7 +66,7 @@ export function noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep
  * `servedFromIndex:false`, `raw:null`).
  */
 export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ servedFromIndex: boolean; raw: RawBatch | null }> {
-  const { query, type, id, imdbId, season, episode, ptQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver, trace } = input;
+  const { query, type, id, imdbId, season, episode, ptQuery, originalQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver, trace } = input;
   let servedFromIndex = false;
   let raw: RawBatch | null = null;
   if (!isDemo && config.releaseIndex.enabled) {
@@ -128,6 +129,7 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
         'priority',
         firstObserver,
         trace,
+        originalQuery || null,
       );
       raw.items.unshift(...idxReleasesToRaw(indexed), ...accountItems);
       // Mesmo se as tarefas BR fecharem cedo, o lote global ainda será buscado

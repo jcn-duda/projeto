@@ -194,6 +194,36 @@ test('BR com título sem romano NÃO carrega variante (forma antiga preservada)'
   );
 });
 
+// Degrau opcional do título original (caso Farah): a task global agrupada e a
+// BR isolada carregam o campo; a regra de quem NÃO o executa (BR com fallback
+// pt-BR ativo) mora no queryIndexer. Sem originalQuery, o plano é idêntico ao
+// de antes (nenhum campo novo).
+test('originalQuery vira degrau na task global agrupada e na BR isolada', () => {
+  const plan = planJackettQueries(
+    'My Name Is Farah S01E01',
+    'Meu Nome é Farah S01E01',
+    ['therarbg', 'bludv-cardigann'],
+    ['bludv-cardigann'],
+    [],
+    null,
+    'Adım Farah',
+  );
+  const global = plan.find((t) => t.indexers.includes('therarbg')) as PlanTask;
+  const br = plan.find((t) => t.indexers.includes('bludv-cardigann')) as PlanTask;
+  assert.equal(global.original, 'Adım Farah');
+  assert.equal(br.original, 'Adım Farah');
+  assert.equal(br.fallback, 'My Name Is Farah S01E01');
+});
+
+test('sem originalQuery o plano não ganha campo; sweep task nunca o recebe', () => {
+  const sem = planJackettQueries('Joker 2019', 'Coringa 2019', ['therarbg'], []);
+  assert.deepEqual(sem, [{ query: 'Joker 2019', indexers: ['therarbg'] }]);
+  const com = planJackettQueries('Joker 2019', 'Coringa 2019', ['therarbg'], [], [], 'Coringa', 'Joker');
+  assert.equal(com.length, 2);
+  assert.equal(com[0].original, 'Joker');
+  assert.equal('original' in com[1], false, 'varredura pt-BR não consulta o título original');
+});
+
 // A varredura pt-BR tardia consulta os indexers GLOBAIS com o título
 // localizado. Os BR já recebem a query pt-BR na busca principal — repeti-los
 // na varredura seria consultar duas vezes o mesmo site pela mesma coisa.

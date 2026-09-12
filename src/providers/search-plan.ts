@@ -15,6 +15,9 @@ interface SearchPlanTask {
   fallback?: string;
   /** Raiz da franquia, degrau após o título sem ano (só BR com sequência). */
   franchise?: string;
+  /** Título original da obra (TMDB), degrau de último recurso. A regra de quem
+   * o executa (queryIndexer): global recebe sempre; BR só sem fallback pt-BR. */
+  original?: string;
 }
 
 function planJackettQueries(
@@ -24,6 +27,7 @@ function planJackettQueries(
   ptBrIndexers: string[],
   isolateIndexers: string[] = [],
   sweepQuery: string | null = null,
+  originalQuery: string | null = null,
 ): SearchPlanTask[] {
   const brSet = new Set(ptBrIndexers);
   const isolateSet = new Set([...ptBrIndexers, ...isolateIndexers]);
@@ -57,6 +61,10 @@ function planJackettQueries(
         const franchise = franchiseRoot(bare);
         if (franchise && franchise !== bare && endsWithSequenceMarker(bare)) task.franchise = franchise;
       }
+      // O original é degrau de último recurso em AMBOS os caminhos; a regra de
+      // quem NÃO o executa (BR com fallback pt-BR ativo) mora no queryIndexer,
+      // que conhece o contexto de cada indexer — aqui o campo segue completo.
+      if (originalQuery) task.original = originalQuery;
       isolated.push(task);
     } else {
       grouped.push(indexer);
@@ -65,7 +73,12 @@ function planJackettQueries(
 
   const plan: SearchPlanTask[] = [];
   if (grouped.length) {
-    plan.push({ query, indexers: grouped });
+    const main: SearchPlanTask = { query, indexers: grouped };
+    // Globais não têm caminho pt-BR próprio: o título original ("Adım Farah")
+    // é o que trackers como o magnetdownload publicam e a query em inglês
+    // ("My Name Is Farah") nunca encontra.
+    if (originalQuery) main.original = originalQuery;
+    plan.push(main);
     if (sweepQuery && sweepQuery !== query) plan.push({ query: sweepQuery, indexers: [...grouped] });
   }
   plan.push(...isolated);
