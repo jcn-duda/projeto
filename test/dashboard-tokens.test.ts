@@ -123,7 +123,7 @@ test('Contraste/foco: :focus-visible + fallback keyboard-nav para WebView antigo
   assert.match(BOOT, /addEventListener\("mousedown",\s*disableKeyboardNav\)/, 'fallback de ponteiro antigo');
 });
 
-test('1.4 Mobile (max-width: 650px): abas com snap/fade e alvos de 44px', () => {
+test('1.4 Mobile (max-width: 650px): abas com snap/fade e alvos de 44px (inclusive checkbox)', () => {
   const m = CSS.match(/@media \(max-width: 650px\)\s*\{[\s\S]*?\n\}\n@media/);
   assert.ok(m, 'bloco @media 650px presente e fechado antes do reduced-motion');
   const bloco = m ? m[0] : '';
@@ -132,6 +132,33 @@ test('1.4 Mobile (max-width: 650px): abas com snap/fade e alvos de 44px', () => 
   assert.match(bloco, /mask-image:\s*linear-gradient/, 'fade nas bordas do trilho');
   assert.match(bloco, /\.tab-btn\s*\{[^}]*min-height:\s*44px/, 'aba com alvo de 44px');
   assert.match(bloco, /button,[^{]*\{[^}]*min-height:\s*44px/, 'controles com alvo de 44px');
+  // B1: o checkbox entra no piso de toque MEDIDO 44x44 — cobre #rememberToken,
+  // #cacheInstallation, #catalog_include_known, os formulários do Chupim/
+  // Colhedor e as linhas do catálogo. Os seletores compostos precisam estar
+  // na lista: só o seletor simples perde para as regras de 18px de cima.
+  assert.match(bloco, /input\[type="checkbox"\][^{]*\{[^}]*width:\s*44px[^}]*height:\s*44px/, 'B1: todo checkbox 44x44 no mobile');
+  assert.match(bloco, /\.form-item input\[type="checkbox"\]/, 'B1: checkbox dos formulários coberto');
+  for (const id of ['rememberToken', 'cacheInstallation', 'catalog_include_known']) {
+    assert.match(HTML, new RegExp('id="' + id + '"\\s+type="checkbox"'), 'checkbox do B1 presente no HTML: ' + id);
+  }
+});
+
+test('Bloqueios da validação visual: card-head 44px, .hidden vence o grid largo e faixa sticky preservada', () => {
+  const m = CSS.match(/@media \(max-width: 650px\)\s*\{[\s\S]*?\n\}\n@media/);
+  const bloco = m ? m[0] : '';
+  // B2: o summary.card-head gerado pelo render (details.card) também é alvo
+  // de toque no mobile — o cabeçalho inteiro abre o <details>.
+  assert.match(bloco, /summary\.card-head\s*\{[^}]*min-height:\s*44px/, 'B2: summary.card-head com piso de 44px no mobile');
+  assert.match(RENDER, /element\("summary",\s*"card-head"\)/, 'B2: summary.card-head é markup gerado');
+  // B3: em >=1600 a regra #viewGeral (especificidade de ID) venceria
+  // .tab-view.hidden — o par #viewGeral.hidden mantém a aba oculta fechada.
+  const largo = CSS.slice(CSS.indexOf('@media (min-width: 1600px)'), CSS.indexOf('/* ------- Responsivo'));
+  assert.ok(largo.includes('grid-template-columns: repeat(12'), 'grade de 12 colunas no bloco largo');
+  assert.match(largo, /#viewGeral\.hidden\s*\{[^}]*display:\s*none/, 'B3: #viewGeral.hidden segue display:none no >=1600');
+  // Fase 2.1: .health-wrap continua position:sticky também no mobile — o
+  // override static do media 650px não pode voltar.
+  assert.match(CSS, /\.health-wrap\s*\{[^}]*position:\s*sticky/, 'Fase 2.1: sticky base preservada');
+  assert.doesNotMatch(bloco, /\.health-wrap[^{]*\{[^}]*position:\s*static/, 'Fase 2.1: sem override static no mobile');
 });
 
 test('Identidade preservada: contratos existentes do dashboard.css continuam', () => {
