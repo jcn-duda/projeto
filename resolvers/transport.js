@@ -1,5 +1,3 @@
-'use strict';
-
 // Cadeia HTTP dos seis perfis. Os parsers de HTML e as regras de magnet
 // continuam nos profiles; aqui fica somente o transporte.
 //
@@ -142,4 +140,4 @@ async function followProtectedUrl(value, referer, {
   throw new Error('too_many_redirects');
 }
 
-module.exports = { followProtectedUrl };
+export { followProtectedUrl };

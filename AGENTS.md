@@ -68,15 +68,17 @@ Praticamente todo trabalho de código acontece no **Adom**.
   flaresolverr → addon) com `wait -n` + `pipefail`: qualquer um que morrer
   derruba o container e o `restart: unless-stopped` recria tudo. Logs saem
   prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`.
-- Os seis `*-resolver` **não são containers**. `src/br-resolvers.ts` carrega os
-  seis profiles no processo do addon, cada um na própria porta (8700–8705), via
-  factory com config explícita — sem ler `PORT`/`SITE_URL` no require e sem
-  mutar/restaurar o ambiente. `BR_RESOLVERS_EMBEDDED=false` volta ao modo de
-  processos separados (não é o caminho de produção). Cada
-  `<nome>-resolver/server.js` é um shim de compatibilidade/standalone (instância
-  lazy por `resolvers/shim-instance.js`, env lida no ponto de entrada); a lógica
-  vive no `resolvers/` (CommonJS puro), e o `npm run build` copia o diretório
-  inteiro para `dist/` junto dos shims.
+- Os seis `*-resolver` **não são containers**. `src/br-resolvers.ts` importa
+  **estaticamente** os seis profiles no processo do addon, cada um na própria
+  porta (8700–8705), via factory com config explícita — sem ler
+  `PORT`/`SITE_URL` no import e sem mutar/restaurar o ambiente.
+  `BR_RESOLVERS_EMBEDDED=false` volta ao modo de processos separados (não é o
+  caminho de produção). Cada `<nome>-resolver/server.js` é um shim de
+  compatibilidade/standalone (instância lazy por `resolvers/shim-instance.js`,
+  env lida no ponto de entrada e `isMain(import.meta.url)` no lugar do
+  `require.main`); a lógica vive no `resolvers/` (**ESM puro**, sem
+  `resolvers/package.json`), e o `npm run build` copia o diretório inteiro para
+  `dist/` junto dos shims.
 - O healthcheck do Dockerfile é **quádruplo** (`/manifest.json` na 7000 + API
   do Jackett na 9117 + FlareSolverr na 8191 + API admin do Caddy na 2019, num
   `node -e fetch` só). A API do Caddy fica em loopback e prova processo+config
@@ -1448,8 +1450,8 @@ fire-and-forget) continua.
 | `src/utils/magnetdb-counts.ts` | Parse da chave `mag` (descarta o digest da conta na origem), `emptyAdapterTotals` e `rebuildFromL1` — O(namespace `mag`), roda uma vez no boot quando o agregado não abre, nunca no caminho de busca. Dependência de mão única (cache + cache-keys), sem ciclo com o `magnetdb` |
 | `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse compartilhado de `magnetdb-counts.ts`. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
-| `resolvers/` | Núcleo comum dos resolvers (CommonJS puro). Config explícita: `env-config.js` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.js` (instância lazy dos shims). Processo: `runtime.js`, `site-selector.js` (failover de host, knobs injetáveis), `cache.js`, `http-server.js`, `flare.js` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os seis), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
-| `*-resolver/` | Shims de compatibilidade/standalone: `<nome>/server.js` constrói uma instância lazy de `../resolvers/profiles/<nome>` (via `shim-instance.js`) e exporta o shape histórico; no modo processo-separado lê env explicitamente no ponto de entrada |
+| `resolvers/` | Núcleo comum dos resolvers (**ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.js` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.js` (instância lazy dos shims). `is-main.js` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.js`, `site-selector.js` (failover de host, knobs injetáveis), `cache.js`, `http-server.js`, `flare.js` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os seis), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
+| `*-resolver/` | Shims de compatibilidade/standalone (**ESM**, sem `package.json` de override): `<nome>/server.js` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.js`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)` |
 | `types/domain.d.ts` | Tipos do domínio: `Stream` (união que exige ação), `ParsedSeasonEpisode`, `DebridAdapter`, `AccountStatus`, `MatchContext` |
 | `test/helpers/stub.ts` | Dublê de `fetch`, `patch()` de módulo e `testOpts()` — o cast mora aqui, não espalhado |
 | `test/e2e/e2e-harness.ts` | App real (`createApp`) + fetch dublê; zero rede externa |
@@ -1571,9 +1573,10 @@ o orçamento com a resposta.
 - **Caminho relativo mudou de profundidade com o `dist/`.** O código roda de
   `dist/src/...`, então `__dirname` e `require`/`import` relativos apontam para
   dentro de `dist/`. Dois casos já mordidos: o `DB_PATH` do cache precisa subir
-  **três** níveis para achar `data/cache.db`, e os seis profiles são carregados
-  por `../resolvers/profiles/<nome>` (os shims `*-resolver/`, para testes e modo
-  processo-separado, usam `../<nome>-resolver/server`) — no container o
+  **três** níveis para achar `data/cache.db`, e os seis profiles são importados
+  estaticamente por `../resolvers/profiles/<nome>.js` (os shims `*-resolver/`,
+  para testes e modo processo-separado, importam `../resolvers/profiles/<nome>.js`
+  e usam `../<nome>-resolver/server.js`) — no container o
   `resolvers/` tem que chegar a **`/app/dist/resolvers/`**, o que o build-assets
   faz. **Localmente isso passa despercebido** porque o `npm run build` já copia
   os resolvers para `dist/`; só o `docker run` revela. Mesma armadilha vale para

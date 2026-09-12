@@ -2,14 +2,15 @@
 // (`<nome>-resolver/server`) para testes e consumidores. O profile é import-safe
 // (não lê env no topo); a instância nasce lazy na primeira leitura e o modo
 // standalone constrói explicitamente no ponto de entrada.
-const { createLazyInstance } = require('../resolvers/shim-instance');
-const profile = require('../resolvers/profiles/comandotorrents');
+import { createLazyInstance } from '../resolvers/shim-instance.js';
+import { createResolver } from '../resolvers/profiles/comandotorrents.js';
+import { isMain } from '../resolvers/is-main.js';
 
-const resolver = createLazyInstance(() => profile.createResolver());
+const resolver = createLazyInstance(() => createResolver());
 
-if (require.main === module) {
-  const instance = profile.createResolver();
+if (isMain(import.meta.url)) {
+  const instance = createResolver();
   instance.serveMain(instance.createServer);
 }
 
-module.exports = resolver;
+export default resolver;

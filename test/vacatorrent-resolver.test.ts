@@ -4,10 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// vacatorrent-resolver é CommonJS (module.exports = resolver) e consta no
-// exclude do tsconfig (como os 4 shims irmãos) — o `server.d.ts` local declara
-// as exportações. O @ts-ignore cobre só a fronteira de interop CommonJS/ESM.
-// @ts-ignore
+// vacatorrent-resolver é ESM (export default da instância lazy) e consta no
+// exclude do tsconfig (como os 5 shims irmãos) — o `server.d.ts` local declara
+// as exportações consumidas aqui.
 import vaca from '../vacatorrent-resolver/server.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

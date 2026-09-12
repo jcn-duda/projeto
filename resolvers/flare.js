@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * FlareSolverr (Cloudflare) — núcleo comum dos resolvers (passo 6 do item 9,
  * PLANO_MELHORIAS §5.8).
@@ -142,4 +140,4 @@ function createFlareFetcher(options = {}) {
   return { sessions, getFlareSession, buildFlareHeaders, fetchTextViaFlare };
 }
 
-module.exports = { createFlareSessions, createFlareFetcher, buildCookies, isCloudflareChallenge };
+export { createFlareSessions, createFlareFetcher, buildCookies, isCloudflareChallenge };

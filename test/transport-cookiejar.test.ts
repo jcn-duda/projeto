@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
  *
  * Registrado na lista explícita do `npm test` (package.json).
  */
-import transport from '../resolvers/transport.js';
+import * as transport from '../resolvers/transport.js';
 
 const HASH = '0123456789abcdef0123456789abcdef01234567';
 const MAGNET = `magnet:?xt=urn:btih:${HASH}&dn=Filme`;

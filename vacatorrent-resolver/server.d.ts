@@ -25,6 +25,7 @@ export interface VacaLink {
 
 interface VacaProfile {
   createServer(): Server;
+  serveMain(start: () => Server): void;
   siteSelector: SiteSelector;
   parseSearchJson(text: string): VacaWork[];
   parseDownloadLinks(html: string, baseUrl?: string, options?: { season?: number | null; realTitle?: string | null }): VacaLink[];
@@ -42,4 +43,4 @@ interface VacaProfile {
 }
 
 declare const resolver: VacaProfile;
-export = resolver;
+export default resolver;

@@ -1,9 +1,12 @@
-import { createRequire } from 'node:module';
 import type { Server } from 'node:http';
 import * as log from './utils/logger.js';
 import config from './config.js';
-
-const _require = createRequire(import.meta.url);
+import { createResolver as createBludvResolver } from '../resolvers/profiles/bludv.js';
+import { createResolver as createComandotorrentsResolver } from '../resolvers/profiles/comandotorrents.js';
+import { createResolver as createNerdfilmesResolver } from '../resolvers/profiles/nerdfilmes.js';
+import { createResolver as createTorrentdosfilmesResolver } from '../resolvers/profiles/torrentdosfilmes.js';
+import { createResolver as createVacatorrentResolver } from '../resolvers/profiles/vacatorrent.js';
+import { createResolver as createRedetorrentResolver } from '../resolvers/profiles/redetorrent.js';
 
 /**
  * Carrega os resolvedores BR dentro do processo do addon.
@@ -12,21 +15,44 @@ const _require = createRequire(import.meta.url);
  * continuam ouvindo nas mesmas portas (8700-8705) — o Jackett segue chamando
  * por HTTP, só que agora o host é o próprio addon.
  *
- * Cada profile é import-safe (não lê env no topo) e expõe uma factory que
- * recebe a configuração explícita. O addon constrói cada instância com a
- * própria porta/selfUrl/siteUrl e a lista de protetores extras dos controls,
- * sem mutar process.env nem invalidar require.cache — cada instance carrega os
- * próprios caches e seletores. Falha de listen (EADDRINUSE/EACCES) é confinada
- * ao resolver pelo handler de 'error'; um resolver caído não derruba os outros.
+ * Cada profile é importado ESTATICAMENTE (ESM nativo, sem createRequire) e
+ * expõe uma factory que recebe a configuração explícita. O addon constrói cada
+ * instância com a própria porta/selfUrl/siteUrl e a lista de protetores extras
+ * dos controls — cada instance carrega os próprios caches e seletores, sem
+ * estado global de módulo. Falha de listen (EADDRINUSE/EACCES) é confinada ao
+ * resolver pelo handler de 'error'; um resolver caído não derruba os outros.
  */
 
-const RESOLVERS = [
-  { name: 'bludv', profile: '../resolvers/profiles/bludv', port: config.resolvers.ports.bludv, siteEnv: 'BLUDV_URL', siteUrl: config.resolvers.bludvUrl },
-  { name: 'comandotorrents', profile: '../resolvers/profiles/comandotorrents', port: config.resolvers.ports.comandotorrents, siteEnv: 'COMANDOTORRENTS_URL', siteUrl: config.resolvers.comandotorrentsUrl },
-  { name: 'nerdfilmes', profile: '../resolvers/profiles/nerdfilmes', port: config.resolvers.ports.nerdfilmes, siteEnv: 'NERDFILMES_URL', siteUrl: config.resolvers.nerdfilmesUrl },
-  { name: 'torrentdosfilmes', profile: '../resolvers/profiles/torrentdosfilmes', port: config.resolvers.ports.torrentdosfilmes, siteEnv: 'TORRENTDOSFILMES_URL', siteUrl: config.resolvers.torrentdosfilmesUrl },
-  { name: 'vacatorrent', profile: '../resolvers/profiles/vacatorrent', port: config.resolvers.ports.vacatorrent, siteEnv: 'VACATORRENT_URL', siteUrl: config.resolvers.vacatorrentUrl },
-  { name: 'redetorrent', profile: '../resolvers/profiles/redetorrent', port: config.resolvers.ports.redetorrent, siteEnv: 'REDETORRENT_URL', siteUrl: config.resolvers.redetorrentUrl },
+/** Contrato mínimo que o carregador consome de cada profile. */
+type ResolverProfileModule = {
+  createResolver(overrides: {
+    port: number;
+    selfUrl: string;
+    siteUrl?: string;
+    extraProtectors: string[];
+  }): ResolverInstance;
+};
+
+/** Superfície da instância usada aqui: subir servidor e ler o domínio ativo. */
+type ResolverInstance = {
+  createServer?: () => Server;
+  siteSelector?: { url?: () => string };
+};
+
+type ResolverEntry = ResolverProfileModule & {
+  name: string;
+  port: number;
+  siteEnv: string;
+  siteUrl: string;
+};
+
+const RESOLVERS: ResolverEntry[] = [
+  { name: 'bludv', createResolver: createBludvResolver, port: config.resolvers.ports.bludv, siteEnv: 'BLUDV_URL', siteUrl: config.resolvers.bludvUrl },
+  { name: 'comandotorrents', createResolver: createComandotorrentsResolver, port: config.resolvers.ports.comandotorrents, siteEnv: 'COMANDOTORRENTS_URL', siteUrl: config.resolvers.comandotorrentsUrl },
+  { name: 'nerdfilmes', createResolver: createNerdfilmesResolver, port: config.resolvers.ports.nerdfilmes, siteEnv: 'NERDFILMES_URL', siteUrl: config.resolvers.nerdfilmesUrl },
+  { name: 'torrentdosfilmes', createResolver: createTorrentdosfilmesResolver, port: config.resolvers.ports.torrentdosfilmes, siteEnv: 'TORRENTDOSFILMES_URL', siteUrl: config.resolvers.torrentdosfilmesUrl },
+  { name: 'vacatorrent', createResolver: createVacatorrentResolver, port: config.resolvers.ports.vacatorrent, siteEnv: 'VACATORRENT_URL', siteUrl: config.resolvers.vacatorrentUrl },
+  { name: 'redetorrent', createResolver: createRedetorrentResolver, port: config.resolvers.ports.redetorrent, siteEnv: 'REDETORRENT_URL', siteUrl: config.resolvers.redetorrentUrl },
 ];
 const servers: Server[] = [];
 // Módulo carregado de cada resolvedor, para ler o domínio ATIVO deles depois
@@ -53,8 +79,7 @@ function load(controls: ResolverControls = config.resolvers) {
       // no default hardcoded do profile. Enquanto o default hardcoded vencia,
       // trocar o domínio derrubado em config.ts não tinha efeito nenhum no modo
       // embutido (que é o padrão): a fonte seguia batendo no host morto.
-      const profile = _require(resolver.profile);
-      const instance = profile.createResolver({
+      const instance = resolver.createResolver({
         port,
         selfUrl: `http://${host}:${port}`,
         siteUrl: resolver.siteUrl || undefined,

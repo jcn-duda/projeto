@@ -1,4 +1,6 @@
-const assert = require('node:assert/strict');
+import assert from 'node:assert/strict';
+import resolver from './server.js';
+
 const {
   parsePosts,
   parseDownloadLinks,
@@ -9,7 +11,7 @@ const {
   assertAllowedUrl,
   isDetailHost,
   siteSelector,
-} = require('./server');
+} = resolver;
 
 const searchHtml = `
   <article class="featured col item">

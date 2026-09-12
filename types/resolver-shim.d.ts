@@ -45,6 +45,7 @@ export interface SiteSelector {
 
 export interface ResolverProfile {
   createServer(): Server;
+  serveMain(start: () => Server): void;
   siteSelector: SiteSelector;
   parsePosts(html: string | null | undefined): ResolverPost[];
   parseDownloadLinks(html: string | null | undefined, baseUrl?: string): ResolverLink[];

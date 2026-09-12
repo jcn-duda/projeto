@@ -1,21 +1,19 @@
-'use strict';
-
-const {
+import {
   decodeEntities,
   escapeHtml,
   attribute,
-  stripTags: stripTagsShared,
-  extractMetaRefresh: sharedExtractMetaRefresh,
-} = require('../text');
-const {
+  stripTags as stripTagsShared,
+  extractMetaRefresh as sharedExtractMetaRefresh,
+} from '../text.js';
+import {
   matchesResolverQuery,
   normalizeSeasonValue,
   matchesSeasonSeason,
   buttonId,
-} = require('../matching');
-const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost } = require('../protector');
-const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
-const {
+} from '../matching.js';
+import { BASE_PROTECTOR_SUFFIXES, hasAllowedHost } from '../protector.js';
+import { createMagnetExtractor, discoverNextUrl } from '../magnet-extract.js';
+import {
   createQualityRules,
   createSourceRules,
   VACA_SOURCE_MATCH_RE,
@@ -23,13 +21,13 @@ const {
   createEpisodeStep,
   createLinkCollector,
   createProtectorHrefResolver,
-} = require('../release-rules');
-const {
+} from '../release-rules.js';
+import {
   UNKNOWN_SIZE,
   createReleaseTitle,
   createSearchPageHtml,
   createNormalizeQuery,
-} = require('../release-format');
+} from '../release-format.js';
 
 // Hosts históricos e de salto do protetor VacaTorrent.
 const FALLBACK_SITE_SUFFIXES = ['vaqueirofilmes.com', 'vacatorrentmov.com'];
@@ -368,7 +366,7 @@ function scoreLink(link) {
   return audio + source + Number(link.quality || 0);
 }
 
-module.exports = {
+export {
   FALLBACK_SITE_SUFFIXES, ASSERT_ONLY_SUFFIXES, ALL_PROTECTOR_SUFFIXES, JS_URL_VAR_RE,
   defaultIsProtectorHost, defaultIsAssertOnlyHost, stripTags, extractMetaRefresh,
   normalizeQuery, requestedSeasonFromQuery, normalizeQuality, normalizeSource,

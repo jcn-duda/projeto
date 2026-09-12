@@ -1,5 +1,3 @@
-'use strict';
-
 // Rede Torrent (www.redetorrent.xyz) — parsers puros do perfil. O site é um
 // WordPress com tema próprio: a busca devolve cards em div.listagem e o post
 // publica os magnets DIRETOS no HTML cru, em tabelas tbl-mv-list (uma por
@@ -8,17 +6,17 @@
 // (base64 do magnet) — o parser aceita as duas formas e nunca costura
 // /resolve: o magnet é o próprio link da release.
 
-const { decodeEntities, escapeXml, stripTags: stripTagsShared } = require('../text');
-const {
+import { decodeEntities, escapeXml, stripTags as stripTagsShared } from '../text.js';
+import {
   matchesResolverQuery,
   normalizeSeasonValue,
-} = require('../matching');
-const { createQualityRules, createSourceRules } = require('../release-rules');
-const { createReleaseTitle, createNormalizeQuery } = require('../release-format');
+} from '../matching.js';
+import { createQualityRules, createSourceRules } from '../release-rules.js';
+import { createReleaseTitle, createNormalizeQuery } from '../release-format.js';
 // Validação do magnet reusa o helper canônico do bludv-parsers: só vale
 // magnet com xt=urn:btih: de hash válido (40 hex) em QUALQUER posição —
 // startsWith('magnet:') é fraco demais para HTML de terceiro.
-const { isValidMagnetUri } = require('./bludv-parsers');
+import { isValidMagnetUri } from './bludv-parsers.js';
 
 // Mirrors ativos do site: viram candidato do seletor E allowlist (o
 // site-profile aceita o host de qualquer candidato sem restart).
@@ -276,7 +274,7 @@ function rssXml(items, category) {
   return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel><title>Rede Torrent</title>${body}</channel></rss>`;
 }
 
-module.exports = {
+export {
   FALLBACK_SITE_SUFFIXES, PROTECTOR_SUFFIXES,
   normalizeQuery, requestedSeasonFromQuery, classifyAudio,
   matchesSeasonSeason, matchesResolverQuery, normalizeQuality, normalizeSource,

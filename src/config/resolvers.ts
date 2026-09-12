@@ -19,7 +19,7 @@ export const resolvers = () => ({
   // busca nenhuma, só registra ruído de rede local.
   probeTimeoutMs: Math.max(1000, Number(process.env.RESOLVERS_PROBE_TIMEOUT_MS) || 25000),
   // As portas também pertencem à infraestrutura do addon. Os profiles
-  // CommonJS recebem-nas em br-resolvers.ts via config explícita da factory.
+  // (ESM nativo) recebem-nas em br-resolvers.ts via config explícita da factory.
   ports: {
     bludv: 8700,
     comandotorrents: 8701,

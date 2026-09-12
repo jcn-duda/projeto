@@ -1,5 +1,3 @@
-'use strict';
-
 // Map com teto de concorrência, compartilhado pelos seis perfis. O post que
 // falha vira `null` e sai do resultado em vez de derrubar o lote inteiro: um
 // post sem botão é rotina nos WordPress BR, e um `Promise.all` cru perdia os
@@ -25,4 +23,4 @@ async function mapLimit(items, limit, fn, onError) {
   return output.filter(Boolean);
 }
 
-module.exports = { mapLimit };
+export { mapLimit };

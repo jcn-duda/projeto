@@ -1,5 +1,3 @@
-'use strict';
-
 // Os sites BR rotacionam o protetor sem avisar, e host de protetor fora desta
 // lista não vira botão: o post é lido, os links existem, e a fonte devolve 0
 // releases em silêncio — o mesmo sintoma de parser quebrado, causa diferente.
@@ -43,4 +41,4 @@ function assertAllowedUrl(value, suffixes, blockedHostDetail = false) {
   return url;
 }
 
-module.exports = { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl, normalizeHostSuffixes };
+export { BASE_PROTECTOR_SUFFIXES, hasAllowedHost, assertAllowedUrl, normalizeHostSuffixes };

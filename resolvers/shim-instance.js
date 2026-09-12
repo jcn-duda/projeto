@@ -1,12 +1,10 @@
-'use strict';
-
 // Instância lazy para os shims `<nome>-resolver/server.js`.
 //
 // O import do shim deixa de ler process.env (e de abrir porta): a instância só
 // nasce na PRIMEIRA leitura de uma propriedade. Com isso a ordem de import em
 // relação ao `src/config.js` (que carrega o dotenv) deixa de importar — quando
 // o consumidor acessa o resolver, o ambiente do operador já foi carregado.
-// O modo standalone constrói explicitamente no `require.main === module`.
+// O modo standalone constrói explicitamente após `isMain(import.meta.url)`.
 function createLazyInstance(build) {
   let instance = null;
   const resolve = () => {
@@ -24,4 +22,4 @@ function createLazyInstance(build) {
   });
 }
 
-module.exports = { createLazyInstance };
+export { createLazyInstance };

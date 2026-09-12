@@ -1,5 +1,3 @@
-'use strict';
-
 // Núcleo comum de extração de magnet e descoberta do próximo salto de protetor
 // (passo 3 do item 9 — PLANO_MELHORIAS §5.8). O código era copiado nos cinco
 // perfis em três variantes; a factory parametriza o que difere e o comportamento
@@ -178,4 +176,4 @@ function discoverNextUrl(str, baseUrl, { isProtectorHost, decodeEntities, protec
   return null;
 }
 
-module.exports = { createMagnetExtractor, discoverNextUrl };
+export { createMagnetExtractor, discoverNextUrl };

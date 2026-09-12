@@ -239,6 +239,7 @@
     "test/request-key.test.js",
     "test/resolver-button-id.test.js",
     "test/resolver-profile-isolation.test.js",
+    "test/resolvers-esm.test.js",
     "test/runtime.test.js",
     "test/search-plan.test.js",
     "test/search-plan-franchise.test.js",

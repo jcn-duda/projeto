@@ -1,5 +1,3 @@
-'use strict';
-
 // Rede Torrent (www.redetorrent.xyz) — perfil do resolver local. Sexto BR:
 // o site fica atrás de desafio Cloudflare (fetch direto 403), então o fetch
 // reusa a mecânica FlareSolverr do bludv; os magnets, porém, são DIRETOS no
@@ -8,27 +6,27 @@
 // torznab (/api). Rotas mínimas: /health e /search; /api segue o padrão
 // torznab dos irmãos e é o que os testes de card exercitam.
 
-const { USER_AGENT } = require('../runtime');
-const { createCache } = require('../cache');
-const { createFlareFetcher, isCloudflareChallenge } = require('../flare');
-const { createServer: createHttpServer, reply } = require('../http-server');
-const {
+import { USER_AGENT } from '../runtime.js';
+import { createCache } from '../cache.js';
+import { createFlareFetcher, isCloudflareChallenge } from '../flare.js';
+import { createServer as createHttpServer, reply } from '../http-server.js';
+import {
   createResolverRouter, createHealthRoute, createSearchRoute, createApiRoute,
-} = require('../resolver-http');
-const {
+} from '../resolver-http.js';
+import {
   normalizeFilterText, stripTrailingYears, computeWantedTokens,
   normalizeSeasonValue, isGenericListPost,
-} = require('../matching');
-const { createProfile } = require('../site-profile');
-const { buildProfileConfig } = require('../env-config');
-const {
+} from '../matching.js';
+import { createProfile } from '../site-profile.js';
+import { buildProfileConfig } from '../env-config.js';
+import {
   FALLBACK_SITE_SUFFIXES, PROTECTOR_SUFFIXES,
   normalizeQuery, requestedSeasonFromQuery, classifyAudio,
   matchesSeasonSeason, matchesResolverQuery, normalizeQuality, normalizeSource,
   parseSearchHtml, extractMagnetHref, parsePostLinks,
   cleanPostTitle, releaseTitle, scoreLink, createRedeSearchPageHtml, rssXml,
   stripTags, decodeEntities, escapeXml,
-} = require('./redetorrent-parsers');
+} from './redetorrent-parsers.js';
 
 const DEFAULTS = {
   port: 8705,
@@ -220,4 +218,4 @@ function createResolver(overrides = {}) {
   };
 }
 
-module.exports = { createResolver, DEFAULTS, META };
+export { createResolver, DEFAULTS, META };

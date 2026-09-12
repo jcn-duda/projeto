@@ -1,6 +1,4 @@
-'use strict';
-
-const { createHash } = require('node:crypto');
+import { createHash } from 'node:crypto';
 
 function normalizeFilterText(s = '') {
   return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -81,7 +79,7 @@ function pickButton(links, index, hash, count) {
   return links[index] ?? null;
 }
 
-module.exports = {
+export {
   normalizeFilterText,
   stripTrailingYears,
   computeWantedTokens,

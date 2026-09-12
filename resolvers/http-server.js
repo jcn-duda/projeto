@@ -1,6 +1,4 @@
-'use strict';
-
-const http = require('node:http');
+import http from 'node:http';
 
 function createServer(handler) {
   return http.createServer(handler);
@@ -11,4 +9,4 @@ function reply(response, status, body, type = 'text/plain; charset=utf-8') {
   response.end(body);
 }
 
-module.exports = { createServer, reply };
+export { createServer, reply };

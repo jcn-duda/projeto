@@ -1,5 +1,3 @@
-'use strict';
-
 // Formatação de release dos seis perfis de resolver (PLANO_MELHORIAS §5.8,
 // item 9, passo 4): limpeza do título do post, título da release, página HTML
 // sintética do cardigann, feed torznab, normalizeQuery e o laço de fallback do
@@ -15,8 +13,8 @@
 // Classificadores de qualidade/fonte, hooks de áudio, episódio/pack e a
 // máquina de estados da âncora vivem no release-rules.js (irmão, sem ciclo).
 
-const { buttonId } = require('./matching');
-const { decodeEntities, parseSize, escapeXml } = require('./text');
+import { buttonId } from './matching.js';
+import { decodeEntities, parseSize, escapeXml } from './text.js';
 
 // Tamanho desconhecido ("1 KB"): satisfaz o Jackett (que descarta release sem
 // tamanho) e o addon o esconde em vez de exibir um tamanho inventado.
@@ -220,7 +218,7 @@ function magnetButtonCacheKey(postUrl, index, hash) {
   return hash ? `magnet:${postUrl}:${index}:${hash}` : `magnet:${postUrl}:${index}`;
 }
 
-module.exports = {
+export {
   UNKNOWN_SIZE,
   cleanPostTitle,
   createReleaseTitle,

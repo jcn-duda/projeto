@@ -240,7 +240,9 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
     it('F03-BND-03: Missing siteEnv variables fallback safely without errors', () => {
       for (const res of brResolvers.RESOLVERS) {
         assert.ok(res.siteEnv);
-        assert.ok(typeof res.profile === 'string');
+        // A conversão ESM trocou o caminho string (`profile`) pela factory
+        // importada estaticamente; o contrato do entry agora é createResolver.
+        assert.ok(typeof res.createResolver === 'function');
         assert.ok(typeof res.port === 'number');
       }
     });

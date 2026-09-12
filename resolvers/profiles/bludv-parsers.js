@@ -1,30 +1,28 @@
-'use strict';
-
-const {
+import {
   decodeEntities,
   escapeHtml,
   extractMetaRefresh,
-  stripTags: stripTagsShared,
-} = require('../text');
-const { isGenericListPost, buttonId } = require('../matching');
-const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost } = require('../protector');
-const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
-const { capsXml: sharedCapsXml } = require('../torznab');
-const {
+  stripTags as stripTagsShared,
+} from '../text.js';
+import { isGenericListPost, buttonId } from '../matching.js';
+import { BASE_PROTECTOR_SUFFIXES, hasAllowedHost } from '../protector.js';
+import { createMagnetExtractor, discoverNextUrl } from '../magnet-extract.js';
+import { capsXml as sharedCapsXml } from '../torznab.js';
+import {
   createQualityRules,
   createSourceRules,
   createBrAudioHooks,
   createEpisodeRules,
   createEpisodeStep,
   createLinkCollector,
-} = require('../release-rules');
-const {
+} from '../release-rules.js';
+import {
   UNKNOWN_SIZE,
   cleanPostTitle,
   createReleaseTitle,
   createNormalizeQuery,
   createRssXml,
-} = require('../release-format');
+} from '../release-format.js';
 
 const MAX_CARD_WINDOW = 8000;
 const AUDIO_RANK = { dublado: 0, desconhecido: 1, legendado: 2 };
@@ -302,7 +300,7 @@ function createBludvRssXml(options = {}) {
   });
 }
 
-module.exports = {
+export {
   MAX_CARD_WINDOW,
   AUDIO_RANK,
   JS_URL_VAR_RE,

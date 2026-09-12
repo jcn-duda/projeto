@@ -1,5 +1,3 @@
-'use strict';
-
 // Bootstrap comum dos seis profiles de resolver (PLANO_MELHORIAS §5.8,
 // passo 1 da extração do núcleo). Os seis perfis repetiam ~60-80 linhas
 // idênticas de montagem — seletor de failover de domínio, conjuntos de
@@ -24,23 +22,23 @@
 // explícita ou de env-config.js, em tempo de chamada). Assim o topo do módulo
 // é import-safe e duas instâncias do mesmo perfil não compartilham estado.
 
-const { USER_AGENT } = require('./runtime');
-const {
-  createSiteSelector: createSharedSiteSelector,
-  isNetworkError: sharedIsNetworkError,
-} = require('./site-selector');
-const { mapLimit: sharedMapLimit } = require('./concurrency');
-const { reply: sharedReply } = require('./http-server');
-const { followProtectedUrl } = require('./transport');
-const { selectSearchPosts: selectSharedSearchPosts } = require('./search-posts');
-const { unwrapResolverUrl: unwrapSharedResolverUrl } = require('./nested-url');
-const {
+import { USER_AGENT } from './runtime.js';
+import {
+  createSiteSelector as createSharedSiteSelector,
+  isNetworkError as sharedIsNetworkError,
+} from './site-selector.js';
+import { mapLimit as sharedMapLimit } from './concurrency.js';
+import { reply as sharedReply } from './http-server.js';
+import { followProtectedUrl } from './transport.js';
+import { selectSearchPosts as selectSharedSearchPosts } from './search-posts.js';
+import { unwrapResolverUrl as unwrapSharedResolverUrl } from './nested-url.js';
+import {
   BASE_PROTECTOR_SUFFIXES,
   hasAllowedHost,
-  assertAllowedUrl: sharedAssertAllowedUrl,
+  assertAllowedUrl as sharedAssertAllowedUrl,
   normalizeHostSuffixes,
-} = require('./protector');
-const { stripTags: stripTagsShared } = require('./text');
+} from './protector.js';
+import { stripTags as stripTagsShared } from './text.js';
 
 /**
  * @param {object} options
@@ -173,10 +171,7 @@ function createProfile(options) {
     return unwrapSharedResolverUrl(value, selfUrl, seed, unwrapOptions);
   }
 
-  /**
-   * Boot do processo standalone. O `require.main === module` continua no
-   * perfil: aqui o módulo corrente seria este arquivo, não o chamador.
-   */
+  /** Boot do processo standalone, chamado pelo shim após `isMain(import.meta.url)`. */
   function serveMain(start) {
     start().listen(port, '0.0.0.0', () => {
       console.log(`${name}-resolver :${port} — torznab em ${bootRoute}, fonte ${siteSelector.url()} (failover: ${CANDIDATE_HOSTS.join(', ')})`);
@@ -207,4 +202,4 @@ function createProfile(options) {
   };
 }
 
-module.exports = { createProfile };
+export { createProfile };

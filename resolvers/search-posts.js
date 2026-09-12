@@ -1,6 +1,4 @@
-'use strict';
-
-const { matchesResolverQuery, matchesSeasonSeason } = require('./matching');
+import { matchesResolverQuery, matchesSeasonSeason } from './matching.js';
 
 // O parser continua pertencendo a cada profile: só a ordem do pré-filtro é
 // comum. Filtrar a temporada antes do limite evita perder a temporada pedida
@@ -11,4 +9,4 @@ function selectSearchPosts(parsePosts, sourceHtml, query, requestedSeason, maxPo
   return posts.slice(0, maxPosts);
 }
 
-module.exports = { selectSearchPosts };
+export { selectSearchPosts };

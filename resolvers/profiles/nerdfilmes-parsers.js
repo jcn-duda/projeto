@@ -1,12 +1,10 @@
-'use strict';
-
-const {
+import {
   decodeEntitiesBasic,
   stripTags,
-  attribute: attributeShared,
-} = require('../text');
-const { isGenericListPost } = require('../matching');
-const {
+  attribute as attributeShared,
+} from '../text.js';
+import { isGenericListPost } from '../matching.js';
+import {
   createEpisodeStep,
   createLinkCollector,
   lastAudioMarker,
@@ -14,8 +12,8 @@ const {
   NERD_LEGENDADO_RE,
   NARROW_PACK_RESET_RE,
   NARROW_EPISODE_RE,
-} = require('../release-rules');
-const { BASE_PROTECTOR_SUFFIXES, hasAllowedHost } = require('../protector');
+} from '../release-rules.js';
+import { BASE_PROTECTOR_SUFFIXES, hasAllowedHost } from '../protector.js';
 
 const decodeEntities = decodeEntitiesBasic;
 
@@ -182,7 +180,7 @@ function scoreLink(link) {
   return audio + Number(link.quality || 0);
 }
 
-module.exports = {
+export {
   attribute,
   normalizeSource,
   NERD_QUALITY_RE,

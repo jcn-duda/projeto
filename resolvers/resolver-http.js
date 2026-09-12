@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Esqueleto de roteador HTTP comum aos seis perfis (passo 5 do item 9,
  * PLANO_MELHORIAS §5.8).
@@ -153,7 +151,7 @@ function createApiRoute({ reply, capsXml, emptyXml, renderXml, search }) {
   };
 }
 
-module.exports = {
+export {
   createResolverRouter,
   createHealthRoute,
   createSearchRoute,

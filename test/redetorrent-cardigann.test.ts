@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 // e candidatos automáticos de failover. O grosso da suíte do perfil mora em
 // redetorrent-resolver.test.ts; este arquivo carrega os mesmos dublês.
 import redetorrentShim from '../redetorrent-resolver/server.js';
-import redetorrentParsers from '../resolvers/profiles/redetorrent-parsers.js';
+import * as redetorrentParsers from '../resolvers/profiles/redetorrent-parsers.js';
 const redetorrent: any = redetorrentShim;
 const parsers: any = redetorrentParsers;
 

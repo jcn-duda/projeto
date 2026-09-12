@@ -1,5 +1,3 @@
-'use strict';
-
 // Montagem da configuração explícita dos profiles a partir do ambiente do
 // processo. O topo dos profiles/hub/selector/parsers NÃO lê process.env: a
 // leitura acontece AQUI, por chamada, quando o ponto de entrada (shim
@@ -11,7 +9,7 @@
  // Só knobs de OPERADOR passam por aqui. O que é constante do perfil (lista de
  // mirrors, concurrency, formato de unwrap, modo de decodificação) mora no
  // DEFAULTS do próprio profile e nunca veio de env.
-const { normalizeHostSuffixes } = require('./protector');
+import { normalizeHostSuffixes } from './protector.js';
 
 function firstDefined(...values) {
   for (const value of values) {
@@ -79,4 +77,4 @@ function buildProfileConfig(meta, overrides = {}) {
   };
 }
 
-module.exports = { buildProfileConfig, envNumber, trimUrl, firstDefined };
+export { buildProfileConfig, envNumber, trimUrl, firstDefined };

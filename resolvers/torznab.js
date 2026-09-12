@@ -1,5 +1,3 @@
-'use strict';
-
 // Os três feeds usam as mesmas capacidades; só o nome exibido é do profile.
 function capsXml(title) {
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -18,4 +16,4 @@ function capsXml(title) {
 </caps>`;
 }
 
-module.exports = { capsXml };
+export { capsXml };

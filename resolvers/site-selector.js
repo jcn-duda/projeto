@@ -1,6 +1,4 @@
-'use strict';
-
-const { USER_AGENT, parseHost } = require('./runtime');
+import { USER_AGENT, parseHost } from './runtime.js';
 
 function isNetworkError(err, extraExcluded = '') {
   if (!err) return false;
@@ -96,4 +94,4 @@ function createSiteSelector(tag, envUrlsCsv, primaryUrl, fallbackHosts, options 
   };
 }
 
-module.exports = { createSiteSelector, isNetworkError };
+export { createSiteSelector, isNetworkError };

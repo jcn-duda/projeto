@@ -82,12 +82,13 @@ RUN cp /usr/bin/chromedriver /app/chromedriver \
       -r /app/flaresolverr/requirements.txt
 
 # --- Addon compilado + resolvedores BR embutidos (8700-8705, chamados pelo Jackett).
-# O br-resolvers carrega os PROFILES por caminho relativo ao próprio módulo
-# ("../resolvers/profiles/<nome>"), que a partir de dist/src/ resolve em
-# dist/resolvers/. O build-assets é quem copia resolvers/ para dentro de dist/
-# (local e no builder), então o layout da imagem é o mesmo do `npm run build`.
-# Os shims dist/*-resolver/ existem para testes e modo processo-separado; o
-# caminho de produção não os usa.
+# O br-resolvers importa estaticamente os PROFILES por caminho relativo ao
+# próprio módulo ("../resolvers/profiles/<nome>.js", ESM nativo), que a partir
+# de dist/src/ resolve em dist/resolvers/. O build-assets é quem copia
+# resolvers/ para dentro de dist/ (local e no builder), então o layout da
+# imagem é o mesmo do `npm run build`.
+# Os shims dist/*-resolver/ são ESM (export default lazy) e existem para testes
+# e modo processo-separado; o caminho de produção não os usa.
 COPY package.json package-lock.json ./
 # O FlareSolverr procura package.json no diretório PAI (/app/package.json),
 # que é o do addon — escrito no Windows com BOM. Python 3.14+ rejeita BOM

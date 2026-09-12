@@ -1,33 +1,33 @@
-const { USER_AGENT } = require('../runtime');
-const { createServer: createHttpServer } = require('../http-server');
-const { createCache } = require('../cache');
-const { capsXml: sharedCapsXml } = require('../torznab');
-const {
-  decodeEntitiesBasic, parseSize, escapeXml, extractMetaRefresh: sharedExtractMetaRefresh,
-} = require('../text');
-const {
+import { USER_AGENT } from '../runtime.js';
+import { createServer as createHttpServer } from '../http-server.js';
+import { createCache } from '../cache.js';
+import { capsXml as sharedCapsXml } from '../torznab.js';
+import {
+  decodeEntitiesBasic, parseSize, escapeXml, extractMetaRefresh as sharedExtractMetaRefresh,
+} from '../text.js';
+import {
   normalizeFilterText, stripTrailingYears, computeWantedTokens, matchesResolverQuery,
   normalizeSeasonValue, matchesSeasonSeason, isGenericListPost, buttonId, pickButton,
-} = require('../matching');
-const { createProfile } = require('../site-profile');
-const { buildProfileConfig } = require('../env-config');
+} from '../matching.js';
+import { createProfile } from '../site-profile.js';
+import { buildProfileConfig } from '../env-config.js';
 // Passo 5 do item 9: esqueleto de roteador HTTP comum — despacho por pathname
 // + rotas padrão (/health, /resolve, /dl). /api e /search ficam no perfil
 // (cache de busca próprio) e entram no mapa de rotas como handlers diretos.
-const {
+import {
   createResolverRouter, createHealthRoute, createResolveRoute, createDlRoute,
-} = require('../resolver-http');
+} from '../resolver-http.js';
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
-const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
-const {
+import { createMagnetExtractor, discoverNextUrl } from '../magnet-extract.js';
+import {
   createReleaseTitle, createSearchPageHtml, createRssXml, createNormalizeQuery,
   tryLinksInOrder, magnetButtonCacheKey,
-} = require('../release-format');
-const {
+} from '../release-format.js';
+import {
   parsePosts, createNerdDownloadLinks, parsePostDate, isValidDirectMagnet,
   cleanPostTitle, scoreLink, normalizeSource,
-} = require('./nerdfilmes-parsers');
+} from './nerdfilmes-parsers.js';
 
 const DEFAULTS = {
   port: 8702,
@@ -372,4 +372,4 @@ function createResolver(overrides = {}) {
   };
 }
 
-module.exports = { createResolver, DEFAULTS, META };
+export { createResolver, DEFAULTS, META };

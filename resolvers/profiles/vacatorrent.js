@@ -1,16 +1,14 @@
-'use strict';
-
 // Vaca Torrent (vaqueirofilmes.com) — perfil do resolver local.
-const { USER_AGENT } = require('../runtime');
-const { createCache } = require('../cache');
-const { createServer: createHttpServer } = require('../http-server');
-const {
+import { USER_AGENT } from '../runtime.js';
+import { createCache } from '../cache.js';
+import { createServer as createHttpServer } from '../http-server.js';
+import {
   decodeEntities,
   escapeHtml,
   parseSize,
   attribute,
-} = require('../text');
-const {
+} from '../text.js';
+import {
   normalizeFilterText,
   stripTrailingYears,
   computeWantedTokens,
@@ -20,14 +18,14 @@ const {
   isGenericListPost,
   buttonId,
   pickButton,
-} = require('../matching');
-const { createProfile } = require('../site-profile');
-const { buildProfileConfig } = require('../env-config');
-const {
+} from '../matching.js';
+import { createProfile } from '../site-profile.js';
+import { buildProfileConfig } from '../env-config.js';
+import {
   createResolverRouter, createHealthRoute, createSearchRoute, createResolveRoute,
-} = require('../resolver-http');
-const { tryLinksInOrder } = require('../release-format');
-const {
+} from '../resolver-http.js';
+import { tryLinksInOrder } from '../release-format.js';
+import {
   FALLBACK_SITE_SUFFIXES,
   ASSERT_ONLY_SUFFIXES,
   ALL_PROTECTOR_SUFFIXES,
@@ -41,7 +39,7 @@ const {
   extractEpisode,
   episodeStep,
   extractMagnet,
-  // Sem o `nextProtectedUrl` pronto do parsers: ele nasce com os
+  // Sem o `nextProtectedUrl` pronto do parsers as ele nasce com os
   // classificadores DEFAULT do módulo, e o que vale aqui são os do bootstrap
   // (isProtectorHost/isAssertOnlyHost do perfil) — ver a construção abaixo.
   createNextProtectedUrl,
@@ -58,7 +56,7 @@ const {
   releaseTitle,
   createVacaSearchPageHtml,
   scoreLink,
-} = require('./vacatorrent-parsers');
+} from './vacatorrent-parsers.js';
 
 const DEFAULTS = {
   port: 8704,
@@ -366,4 +364,4 @@ function createResolver(overrides = {}) {
   };
 }
 
-module.exports = { createResolver, DEFAULTS, META };
+export { createResolver, DEFAULTS, META };

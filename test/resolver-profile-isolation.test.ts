@@ -1,16 +1,19 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-// Fase 3 do saneamento: os profiles CommonJS deixam de ler process.env no topo
-// e passam a expor uma factory que recebe a configuração explícita. Este teste
-// fixa os dois contratos que sustentam a mudança:
+import { createResolver as createBludvResolver } from '../resolvers/profiles/bludv.js';
+import { createResolver as createNerdfilmesResolver } from '../resolvers/profiles/nerdfilmes.js';
+import { createProfile } from '../resolvers/site-profile.js';
+import * as nerdParsers from '../resolvers/profiles/nerdfilmes-parsers.js';
+
+// Fase 3 do saneamento: os profiles deixam de ler process.env no topo e passam
+// a expor uma factory que recebe a configuração explícita. Depois da conversão
+// para ESM, o teste também fixa que os profiles exportam a FACTORY, nunca uma
+// instância — o shim é quem materializa a instância lazy.
 //   1. importar um profile não lê nem muta o ambiente (import-safe);
 //   2. duas instâncias do MESMO profile não compartilham cache nem seletor.
-const _require = createRequire(import.meta.url);
-
 const PROFILE_NAMES = [
   'bludv', 'comandotorrents', 'nerdfilmes',
   'torrentdosfilmes', 'vacatorrent', 'redetorrent',
@@ -19,13 +22,11 @@ const PROFILES_DIR = fileURLToPath(new URL('../resolvers/profiles/', import.meta
 
 describe('Profiles de resolver: factory explícita e import-safe', () => {
   test('duas instâncias do mesmo profile têm configs e caches independentes', () => {
-    const bludvProfile = _require('../resolvers/profiles/bludv.js');
-
-    const a = bludvProfile.createResolver({
+    const a = createBludvResolver({
       siteUrl: 'https://a.example',
       extraProtectors: ['prot-a.example'],
     });
-    const b = bludvProfile.createResolver({
+    const b = createBludvResolver({
       siteUrl: 'https://b.example',
       extraProtectors: ['prot-b.example'],
     });
@@ -49,9 +50,8 @@ describe('Profiles de resolver: factory explícita e import-safe', () => {
   });
 
   test('nerdfilmes: parseDownloadLinks isolado por instância (override de protetores)', () => {
-    const nerdProfile = _require('../resolvers/profiles/nerdfilmes.js');
-    const a = nerdProfile.createResolver({ extraProtectors: ['prot-a.example'] });
-    const b = nerdProfile.createResolver({ extraProtectors: ['prot-b.example'] });
+    const a = createNerdfilmesResolver({ extraProtectors: ['prot-a.example'] });
+    const b = createNerdfilmesResolver({ extraProtectors: ['prot-b.example'] });
     const base = 'https://www.filmesviatorrenthd.org/post/';
     const htmlA = '<a href="https://prot-a.example/go/1">1080p BluRay DUBLADO</a>';
     const htmlB = '<a href="https://prot-b.example/go/2">1080p BluRay DUBLADO</a>';
@@ -65,8 +65,7 @@ describe('Profiles de resolver: factory explícita e import-safe', () => {
   });
 
   test('B1: extraProtectors em caixa mista é canonicalizado na factory', () => {
-    const bludvProfile = _require('../resolvers/profiles/bludv.js');
-    const instance = bludvProfile.createResolver({
+    const instance = createBludvResolver({
       extraProtectors: ['  Prot-Mixed.Example  ', 'OUTRO.example', 'prot-mixed.example'],
     });
 
@@ -85,7 +84,6 @@ describe('Profiles de resolver: factory explícita e import-safe', () => {
   });
 
   test('B3: opts não consegue sobrescrever o assertAllowedUrl canônico', async () => {
-    const { createProfile } = _require('../resolvers/site-profile.js');
     const bootstrap = createProfile({
       name: 'teste-b3',
       port: 1,
@@ -103,15 +101,14 @@ describe('Profiles de resolver: factory explícita e import-safe', () => {
   });
 
   test('B4: singleton do nerdfilmes-parsers não lê env; extras entram pela factory', () => {
-    const parsers = _require('../resolvers/profiles/nerdfilmes-parsers.js');
     const saved = process.env.EXTRA_ALLOWED_PROTECTORS;
     process.env.EXTRA_ALLOWED_PROTECTORS = 'Env-Only.Example';
     try {
-      assert.equal(parsers.isProtectorHost('env-only.example'), false, 'singleton não pode ler env');
+      assert.equal(nerdParsers.isProtectorHost('env-only.example'), false, 'singleton não pode ler env');
       const html = '<a href="https://env-only.example/go/1">1080p BluRay DUBLADO</a>';
-      assert.equal(parsers.parseDownloadLinks(html).length, 0, 'default base-only');
+      assert.equal(nerdParsers.parseDownloadLinks(html).length, 0, 'default base-only');
 
-      const injected = parsers.createNerdDownloadLinks({
+      const injected = nerdParsers.createNerdDownloadLinks({
         isProtectorHost: (hostname: string) => String(hostname).toLowerCase() === 'env-only.example',
       });
       assert.equal(injected(html, 'https://www.filmesviatorrenthd.org/post/').length, 1, 'factory injetada reconhece');
@@ -132,10 +129,12 @@ describe('Profiles de resolver: factory explícita e import-safe', () => {
       'TIMEOUT_MS', 'MAX_POSTS', 'POST_CACHE_MS', 'SEARCH_CACHE_MS',
       'MAGNET_CACHE_MS', 'MAX_RESOLVE_ATTEMPTS',
     ];
-    // Filho limpo: um Proxy troca a leitura de qualquer env do perfil por um
-    // erro — se o topo do módulo ainda lesse o ambiente, o require estourava.
+    // Filho limpo (ESM, `--input-type=module`): um Proxy troca a leitura de
+    // qualquer env do perfil por um erro — se o topo do módulo ainda lesse o
+    // ambiente, o import dinâmico estourava.
     const script = [
-      "const path = require('node:path');",
+      "import path from 'node:path';",
+      "import { pathToFileURL } from 'node:url';",
       `const keys = ${JSON.stringify(keys)};`,
       "const realEnv = process.env;",
       "const snapshot = {};",
@@ -147,7 +146,7 @@ describe('Profiles de resolver: factory explícita e import-safe', () => {
       `const names = ${JSON.stringify(PROFILE_NAMES)};`,
       `const dir = ${JSON.stringify(PROFILES_DIR)};`,
       "for (const name of names) {",
-      "  const mod = require(path.join(dir, name + '.js'));",
+      "  const mod = await import(pathToFileURL(path.join(dir, name + '.js')).href);",
       "  if (typeof mod.createResolver !== 'function') throw new Error(name + ': profile sem createResolver');",
       "  if ('siteSelector' in mod || 'createServer' in mod) throw new Error(name + ': profile exporta instância');",
       "}",
@@ -155,7 +154,7 @@ describe('Profiles de resolver: factory explícita e import-safe', () => {
       "process.stdout.write('ok');",
     ].join('\n');
 
-    const res = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8' });
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
     assert.equal(res.status, 0, res.stderr || res.stdout);
     assert.equal(res.stdout.trim(), 'ok');
   });

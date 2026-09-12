@@ -6,7 +6,7 @@
  * - src/public -> dist/src/public (página /configure e dashboard)
  * - test/fixtures -> dist/test/fixtures (fixtures de teste)
  * - jackett-bludv -> dist/jackett-bludv (definições cardigann)
- * - resolvers/ -> dist/resolvers/ (núcleo CommonJS, env-config/shim-instance e
+ * - resolvers/ -> dist/resolvers/ (núcleo ESM, env-config/shim-instance/is-main e
  *   os profiles, que o br-resolvers carrega direto por `../resolvers/profiles`)
  * - *-resolver/ -> dist/*-resolver/ (os 6 shims de compatibilidade e standalone;
  *   o caminho de produção não os carrega, mas testes e o modo processo-separado

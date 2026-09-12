@@ -1,5 +1,3 @@
-'use strict';
-
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36';
 
 function trimUrl(value) {
@@ -19,4 +17,4 @@ function parseExtraProtectors(envVal) {
   return String(envVal).split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
 }
 
-module.exports = { USER_AGENT, trimUrl, parseHost, parseExtraProtectors };
+export { USER_AGENT, trimUrl, parseHost, parseExtraProtectors };

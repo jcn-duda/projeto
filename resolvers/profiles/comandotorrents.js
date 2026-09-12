@@ -1,14 +1,14 @@
-const { USER_AGENT } = require('../runtime');
-const { createCache } = require('../cache');
-const { createServer: createHttpServer } = require('../http-server');
-const {
+import { USER_AGENT } from '../runtime.js';
+import { createCache } from '../cache.js';
+import { createServer as createHttpServer } from '../http-server.js';
+import {
   decodeEntities,
   escapeHtml,
   parseSize,
   attribute,
   extractMetaRefresh,
-} = require('../text');
-const {
+} from '../text.js';
+import {
   normalizeFilterText,
   stripTrailingYears,
   computeWantedTokens,
@@ -18,29 +18,29 @@ const {
   isGenericListPost,
   buttonId,
   pickButton,
-} = require('../matching');
-const { createProfile } = require('../site-profile');
-const { buildProfileConfig } = require('../env-config');
+} from '../matching.js';
+import { createProfile } from '../site-profile.js';
+import { buildProfileConfig } from '../env-config.js';
 // Passo 5 do item 9: esqueleto de roteador HTTP comum — despacho por pathname
 // + rotas padrão (/health, /search, /resolve). Handlers próprios do perfil
 // entram no mapa de rotas sem `if` na factory.
-const {
+import {
   createResolverRouter, createHealthRoute, createSearchRoute, createResolveRoute,
-} = require('../resolver-http');
+} from '../resolver-http.js';
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
-const { createMagnetExtractor, discoverNextUrl } = require('../magnet-extract');
+import { createMagnetExtractor, discoverNextUrl } from '../magnet-extract.js';
 // Passo 4 do item 9: classificadores, máquina de estados da âncora
 // (release-rules.js) e títulos/feeds/laço de fallback (release-format.js).
-const {
+import {
   createQualityRules, createSourceRules, createBrAudioHooks,
   createEpisodeRules, createEpisodeStep, createLinkCollector,
   createProtectorHrefResolver,
-} = require('../release-rules');
-const {
+} from '../release-rules.js';
+import {
   cleanPostTitle, createReleaseTitle, createSearchPageHtml, createNormalizeQuery,
   tryLinksInOrder, magnetButtonCacheKey,
-} = require('../release-format');
+} from '../release-format.js';
 
 const DEFAULTS = {
   port: 8701, selfUrl: 'http://comandotorrents-resolver:8701', siteUrl: 'https://comandotorrents.to',
@@ -393,4 +393,4 @@ function createResolver(overrides = {}) {
   };
 }
 
-module.exports = { createResolver, DEFAULTS, META };
+export { createResolver, DEFAULTS, META };

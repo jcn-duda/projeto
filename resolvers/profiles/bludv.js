@@ -1,17 +1,17 @@
-const { USER_AGENT } = require('../runtime');
-const { createCache } = require('../cache');
-const { createFlareFetcher, isCloudflareChallenge } = require('../flare');
-const { createServer: createHttpServer } = require('../http-server');
-const {
+import { USER_AGENT } from '../runtime.js';
+import { createCache } from '../cache.js';
+import { createFlareFetcher, isCloudflareChallenge } from '../flare.js';
+import { createServer as createHttpServer } from '../http-server.js';
+import {
   createResolverRouter, createHealthRoute, createSearchRoute,
   createDlRoute, createApiRoute,
-} = require('../resolver-http');
-const {
+} from '../resolver-http.js';
+import {
   decodeEntities,
   parseSize,
   extractMetaRefresh,
-} = require('../text');
-const {
+} from '../text.js';
+import {
   normalizeFilterText,
   stripTrailingYears,
   computeWantedTokens,
@@ -21,12 +21,12 @@ const {
   isGenericListPost,
   buttonId,
   pickButton,
-} = require('../matching');
-const { createProfile } = require('../site-profile');
-const { tryLinksInOrder, magnetButtonCacheKey } = require('../release-format');
-const { buildProfileConfig } = require('../env-config');
-const {
-  // Sem ALL_PROTECTOR_SUFFIXES daqui de propósito: a lista estática do
+} from '../matching.js';
+import { createProfile } from '../site-profile.js';
+import { tryLinksInOrder, magnetButtonCacheKey } from '../release-format.js';
+import { buildProfileConfig } from '../env-config.js';
+import {
+  // Sem ALL_PROTECTOR_SUFFIXES daqui de propósito as a lista estática do
   // parsers lê a env EXTRA_PROTECTORS (que ninguém documenta nem define). A
   // que vale é a do bootstrap, com EXTRA_ALLOWED_PROTECTORS — ver linha 79.
   MAX_CARD_WINDOW, AUDIO_RANK, JS_URL_VAR_RE,
@@ -34,12 +34,12 @@ const {
   qualityRules, normalizeQuality, sourceRules, normalizeSource,
   episodeRules, extractEpisode, episodeStep,
   isValidBtihHash, isValidMagnetUri, extractMagnet,
-  createNextProtectedUrl, nextProtectedUrl: defaultNextProtectedUrl,
+  createNextProtectedUrl, nextProtectedUrl as defaultNextProtectedUrl,
   createParseDownloadLinks, sortLinks, pickBestLink, scoreLink,
   cleanPostTitle, releaseTitle, parsePostDate, pubDate,
   normalizeQuery, createParsePosts, createSearchPageHtml,
   capsXml, createBludvRssXml,
-} = require('./bludv-parsers');
+} from './bludv-parsers.js';
 
 // Defaults ESTÁTICOS do perfil (sem env). O env do operador é lido por
 // buildProfileConfig em tempo de chamada; o que é constante do site mora aqui.
@@ -328,4 +328,4 @@ function createResolver(overrides = {}) {
   };
 }
 
-module.exports = { createResolver, DEFAULTS, META };
+export { createResolver, DEFAULTS, META };

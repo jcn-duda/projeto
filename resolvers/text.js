@@ -1,5 +1,3 @@
-'use strict';
-
 const NAMED_ENTITIES = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
   hellip: '…', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘',
@@ -78,7 +76,7 @@ function attribute(tag, name, { decode = (value) => value, allowWhitespace = fal
   return raw == null ? null : decode(raw);
 }
 
-module.exports = {
+export {
   decodeEntities,
   decodeEntitiesBasic,
   stripTags,

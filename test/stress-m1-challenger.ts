@@ -1,15 +1,34 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const _require = createRequire(import.meta.url);
+import { createResolver as createBludvResolver } from '../resolvers/profiles/bludv.js';
+import { createResolver as createComandotorrentsResolver } from '../resolvers/profiles/comandotorrents.js';
+import { createResolver as createNerdfilmesResolver } from '../resolvers/profiles/nerdfilmes.js';
+import { createResolver as createTorrentdosfilmesResolver } from '../resolvers/profiles/torrentdosfilmes.js';
+
+/** Contrato mínimo consumido pelos cenários deste harness. */
+type LoadedResolver = {
+  isDetailHost(host: string | null | undefined): boolean;
+  assertAllowedUrl(url: string): URL;
+  isProtectorHost(host: string): boolean;
+  nextProtectedUrl(html: string, baseUrl: string): string | null;
+  getPostLinks(url: string): Promise<{ links: Array<unknown> }>;
+  postCache?: { clear(): void; size: number };
+  inFlight?: { clear(): void; size: number };
+};
+
+const PROFILES: Record<string, (overrides?: Record<string, unknown>) => LoadedResolver> = {
+  bludv: createBludvResolver,
+  comandotorrents: createComandotorrentsResolver,
+  nerdfilmes: createNerdfilmesResolver,
+  torrentdosfilmes: createTorrentdosfilmesResolver,
+};
 
 // Cada cenário constrói uma instância NOVA do profile com configuração
-// explícita. Sem mutar process.env e sem delete require.cache: duas instâncias
-// do mesmo resolver não compartilham cache nem seletores, e o isolamento do
-// harness não depende mais de reload do módulo.
+// explícita. Sem mutar process.env e sem reload de módulo: duas instâncias do
+// mesmo resolver não compartilham cache nem seletores, e o isolamento do
+// harness não depende mais de cache-busting.
 function loadResolver(resolverName: string, overrides: Record<string, unknown> = {}) {
-  const profile = _require(`../resolvers/profiles/${resolverName}`);
-  return profile.createResolver(overrides);
+  return PROFILES[resolverName](overrides);
 }
 
 /** Mesmo parse do EXTRA_ALLOWED_PROTECTORS: trim, minúsculas, vazios fora. */
@@ -307,7 +326,7 @@ async function main() {
           assert.ok(res.links);
           assert.equal(res.links.length, 1);
         }
-        assert.equal(mod.inFlight.size, 0, 'inFlight deve estar vazio após conclusão');
+        assert.equal(mod.inFlight?.size, 0, 'inFlight deve estar vazio após conclusão');
       } finally {
         globalThis.fetch = originalFetch;
       }

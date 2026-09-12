@@ -11,7 +11,7 @@ import * as brResolvers from '../src/br-resolvers.js';
 // A superfície do profile é maior que o ResolverProfile do shim (rssXml,
 // releaseTitle com post, etc.); os testes exercitam a superfície real.
 import redetorrentShim from '../redetorrent-resolver/server.js';
-import redetorrentParsers from '../resolvers/profiles/redetorrent-parsers.js';
+import * as redetorrentParsers from '../resolvers/profiles/redetorrent-parsers.js';
 const redetorrent: any = redetorrentShim;
 const parsers: any = redetorrentParsers;
 

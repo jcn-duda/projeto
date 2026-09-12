@@ -1,5 +1,3 @@
-'use strict';
-
 // options.inFlight é OPCIONAL (retrocompatível): permite compartilhar UM único
 // mapa de coalescing entre várias instâncias de cache. Os perfis que expõem
 // post/search/magnetCache precisam de um único `inFlight` — é o shape que
@@ -23,4 +21,4 @@ function createCache(limit, options = {}) {
   return { values, inFlight, cached, clear: () => values.clear() };
 }
 
-module.exports = { createCache };
+export { createCache };

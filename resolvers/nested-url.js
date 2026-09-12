@@ -1,5 +1,3 @@
-'use strict';
-
 // Cardigann pode encapsular repetidamente a URL de /resolve no parâmetro url.
 // Os nomes externos permanecem do profile para não mudar seu contrato público.
 function unwrapResolverUrl(value, selfUrl, seed = {}, options = {}) {
@@ -26,4 +24,4 @@ function unwrapResolverUrl(value, selfUrl, seed = {}, options = {}) {
   return result;
 }
 
-module.exports = { unwrapResolverUrl };
+export { unwrapResolverUrl };

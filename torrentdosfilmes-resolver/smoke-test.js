@@ -3,8 +3,13 @@
 // Uso:
 //   node smoke-test.js
 //   docker compose exec -T torrentdosfilmes-resolver node /app/smoke-test.js
+//
+// O shim só sobe sozinho quando é o entrypoint (guard `isMain`), então aqui a
+// instância é construída explicitamente DEPOIS de fixar a porta: o import do
+// shim é import-safe e não lê env no topo.
 process.env.PORT = '8793';
-require('./server.js');
+const { default: resolver } = await import('./server.js');
+resolver.serveMain(resolver.createServer);
 
 (async () => {
   await new Promise((r) => setTimeout(r, 300));

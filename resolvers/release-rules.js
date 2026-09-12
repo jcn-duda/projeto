@@ -1,5 +1,3 @@
-'use strict';
-
 // Regras de release dos seis perfis de resolver (PLANO_MELHORIAS §5.8, item 9,
 // passo 4). Classificadores de qualidade/fonte, hooks de áudio, padrões de
 // episódio/pack, a máquina de estados da âncora e o resolver de href de
@@ -284,7 +282,7 @@ function createProtectorHrefResolver({ isProtectorHost, decodeEntities, attribut
   };
 }
 
-module.exports = {
+export {
   VACA_SOURCE_MATCH_RE,
   NARROW_PACK_RESET_RE,
   NARROW_EPISODE_RE,
