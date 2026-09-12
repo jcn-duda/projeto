@@ -170,6 +170,9 @@
     renderReleaseIndex(first(root, ["releaseIndex", "index", "idx"], {}));
     renderHarvest(harvest, uptimeS);
     if (typeof renderF3Panel === "function") renderF3Panel(root.f3, uptimeS, first(root.metrics || {}, ["gauges"], {}));
+    // Fase 3.4 do redesign: o relatório de catálogo já vem em root.catalog a
+    // cada poll — popula a seção sem disparar POST manual.
+    if (typeof renderCatalogPanel === "function") renderCatalogPanel(root);
     drawSparkline("cacheSparkline", pushSeries("cache-hit-rate", first(root.cache || {}, ["hitRate"], 0)), "#39d98a");
     drawSparkline("harvestSparkline", pushSeries("harvest-queries", first(harvest, ["queriesThisHour"], 0)), "#faa31a");
   }

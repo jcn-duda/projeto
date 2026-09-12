@@ -41,6 +41,11 @@ const PAGE_ASSETS = [
   'dashboard-health.js',
   // Fase 3 do redesign: tabela de latências/percentis de metrics.timers.
   'dashboard-timers.js',
+  // Fase 3 do redesign (3.4/3.5/3.6): relatório de catálogo no poll, diagnóstico
+  // de stall do Chupim e processo/serviços/contadores órfãos.
+  'dashboard-general.js',
+  'dashboard-af-stall.js',
+  'dashboard-catalog-panel.js',
   'dashboard-boot.js',
 ];
 

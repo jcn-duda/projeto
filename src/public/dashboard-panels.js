@@ -41,6 +41,9 @@
     // causas e a latência de metadata deixam claro quando o orçamento já chegou
     // corroído antes de abrir qualquer provider.
     renderMetrics(metrics, isObject(source.search) ? source.search : {}, { _origem: true });
+    // Fase 3.6 do redesign: memória/serviços/contadores órfãos em painel
+    // próprio; o módulo é separado para o panels não crescer (catraca de 400).
+    if (typeof renderGeneralDiagnostics === "function") renderGeneralDiagnostics(data);
   }
 
   // Título de grupo dentro do grid de métricas: separa procedência (persistente
@@ -134,10 +137,41 @@
     return b.tripped ? "aberto" : "fechado";
   }
 
+  // Fase 3.7 do redesign — resolver nunca medido é "nunca medido": o probe de
+  // /test-resolver.json vive SÓ na memória da instância, então o card precisa
+  // nomear a ausência de medição em vez de exibir "—" (que se confunde com
+  // medição que falhou) ou um número velho. Respeita _origem (quando o payload
+  // a traz para o campo) e o AMOSTRA_CEDO_S do core: processo recém-subido
+  // ainda pode medir, e o rótulo diz isso.
+  function resolverNeverMeasured(uptimeS) {
+    return isAmostraCedo(uptimeS)
+      ? "nunca medido (processo recém-iniciado)"
+      : "nunca medido neste processo";
+  }
+
+  function resolverCardItem(item, uptimeS) {
+    var out = copyObject(item);
+    var measured = own(item, "status") || (item.lastMs !== undefined && item.lastMs !== null);
+    // _origem explícito de "naomedido" vence o resto: é o servidor declarando
+    // que o campo não foi medido neste processo.
+    if (origemOf(item, "lastMs") === "naomedido") measured = false;
+    out.status = measured ? first(item, ["status"], "unknown") : "naomedido";
+    // O texto "nunca medido" vence qualquer resíduo do item quando o servidor
+    // (ou a ausência de status) declara que não houve medição.
+    out.lastMs = measured && item.lastMs !== undefined && item.lastMs !== null
+      ? item.lastMs
+      : (measured ? "—" : resolverNeverMeasured(uptimeS));
+    out.lastError = measured && item.lastError !== undefined && item.lastError !== null
+      ? item.lastError
+      : (measured ? "—" : resolverNeverMeasured(uptimeS));
+    return out;
+  }
+
   function renderSources(data) {
     var source = isObject(data) ? data : {};
     var indexers = first(source, ["indexers", "indexerStatus", "jackett"], []);
     var resolvers = first(source, ["resolvers", "brResolvers", "resolverStatus", "br"], []);
+    var uptimeS = first(isObject(source.general) ? source.general : {}, ["uptimeS"], null);
     indexers = asList(indexers, "indexers").map(function (item) {
       var out = copyObject(item);
       var status = isObject(item.status) ? item.status : {};
@@ -157,7 +191,9 @@
       $("indexerCards").appendChild(hint);
     }
     // Resolvers BR são testáveis (kind resolver): mesmo card, botão e endpoint
-    // de teste próprios, decididos dentro de card().
+    // de teste próprios, decididos dentro de card(). O mapa marca "nunca
+    // medido" para o que ainda não passou pelo /test-resolver.json.
+    resolvers = asList(resolvers, "resolvers").map(function (item) { return resolverCardItem(item, uptimeS); });
     renderCollection($("resolverCards"), resolvers, "resolvers", { testable: true, kind: "resolver" });
   }
 

@@ -194,6 +194,10 @@ function renderAutofetchPanel(af, uptimeS) {
       badge.style.display = overridden.indexOf(k) !== -1 ? "inline-block" : "none";
     }
   }
+
+  // Fase 3.5 do redesign: o diagnóstico de stall (lotes/slots/locks/skips) vem
+  // de um módulo próprio para este arquivo não encostar na catraca de 400.
+  if (typeof renderAutofetchStall === "function") renderAutofetchStall(af, uptimeS);
 }
 
 function saveAutofetchConfig() {

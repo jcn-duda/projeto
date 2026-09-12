@@ -277,6 +277,7 @@
     "test/debrid-rd-oracle-sources.test.js",
     "test/observability-first.test.js",
     "test/dashboard-tokens.test.js",
-    "test/dashboard-modernization.test.js"
+    "test/dashboard-modernization.test.js",
+    "test/dashboard-fase3b.test.js"
   ]
 }

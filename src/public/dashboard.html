@@ -103,6 +103,12 @@
       <h3>Latências e percentis</h3>
       <div id="timerMetrics" class="metrics"><div class="empty">Sem medições de latência ainda.</div></div>
     </div>
+    <!-- Fase 3.6 do redesign: memória do processo, estado dos serviços e os
+         contadores de diagnóstico que o payload já entrega a cada poll. -->
+    <div class="subsection">
+      <h3>Processo e serviços</h3>
+      <div id="generalDiagnostics" class="metrics"><div class="empty">Sem dados de processo.</div></div>
+    </div>
   </section>
 
   <section id="secDebrid" aria-labelledby="debridTitle">
@@ -325,6 +331,12 @@
         <div class="metric"><span class="key">Última desistência</span><span id="afMetricGiveUp" class="value">—</span></div>
         <div class="metric"><span class="key">Motivos (desde o boot)</span><span id="afMetricReasons" class="value">—</span></div>
         <div class="metric"><span class="key">Gate de conta</span><span id="afMetricGate" class="value">—</span></div>
+      </div>
+      <!-- Fase 3.5 do redesign: diagnóstico de stall (lotes de recheck, locks,
+           slots e buscas em voo) que já viaja no payload do Chupim. -->
+      <div class="subsection">
+        <h3>Diagnóstico de stall</h3>
+        <div id="afStallMetrics" class="metrics"><div class="empty">Sem dados de stall.</div></div>
       </div>
     </section>
 
@@ -789,6 +801,12 @@
 <script src="/dashboard-nav.js"></script>
 <script src="/dashboard-health.js"></script>
 <script src="/dashboard-timers.js"></script>
+<!-- Fase 3.6/3.5/3.4 do redesign: processo/serviços/contadores, diagnóstico de
+     stall do Chupim e relatório de catálogo no poll. Ordem livre entre si; só
+     o boot precisa ficar por último. -->
+<script src="/dashboard-general.js"></script>
+<script src="/dashboard-af-stall.js"></script>
+<script src="/dashboard-catalog-panel.js"></script>
 <script src="/dashboard-boot.js"></script>
 </body>
 </html>
