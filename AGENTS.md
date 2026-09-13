@@ -73,12 +73,13 @@ Praticamente todo trabalho de código acontece no **Adom**.
   porta (8700–8705), via factory com config explícita — sem ler
   `PORT`/`SITE_URL` no import e sem mutar/restaurar o ambiente.
   `BR_RESOLVERS_EMBEDDED=false` volta ao modo de processos separados (não é o
-  caminho de produção). Cada `<nome>-resolver/server.js` é um shim de
-  compatibilidade/standalone (instância lazy por `resolvers/shim-instance.js`,
+  caminho de produção). Cada `<nome>-resolver/server.ts` é um shim de
+  compatibilidade/standalone (instância lazy por `resolvers/shim-instance.ts`,
   env lida no ponto de entrada e `isMain(import.meta.url)` no lugar do
   `require.main`); a lógica vive no `resolvers/` (**ESM puro**, sem
-  `resolvers/package.json`), e o `npm run build` copia o diretório inteiro para
-  `dist/` junto dos shims.
+  `resolvers/package.json`), e o `tsc` compila/emite `resolvers/` e os seis
+  `*-resolver/` inteiros para `dist/` (o build-assets só copia assets
+  não-compiláveis — ver a armadilha do `dist/`).
 - O healthcheck do Dockerfile é **quádruplo** (`/manifest.json` na 7000 + API
   do Jackett na 9117 + FlareSolverr na 8191 + API admin do Caddy na 2019, num
   `node -e fetch` só). A API do Caddy fica em loopback e prova processo+config
@@ -109,12 +110,12 @@ Praticamente todo trabalho de código acontece no **Adom**.
 ## Comandos
 
 ```bash
-npm run build             # tsc -> dist/ + emits do cliente + copia assets (src/public, fixtures, resolvers)
+npm run build             # tsc -> dist/ (inclui resolvers/ e *-resolver/) + emits do cliente + copia assets (src/public, fixtures)
 npm start                 # sobe o addon de dist/ em http://127.0.0.1:7000/manifest.json
 npm run dev               # idem, com --watch
 npm test                  # node:test sobre dist/test/, lista explícita em package.json (sem rede)
 npm run test:complete     # cobra que todo test/**/*.test.ts esteja nessa lista
-npm run typecheck         # tsc --noEmit — precisa ficar em ZERO
+npm run typecheck         # tsc --noEmit nos três programas (raiz + cliente browser + cliente Node) — ZERO
 npm run smoke             # valida o pipeline de ponta a ponta (rede de verdade)
 npm run docker:up         # stack completa
 npm run docker:logs       # logs do addon
@@ -1450,15 +1451,15 @@ fire-and-forget) continua.
 | `src/utils/magnetdb-counts.ts` | Parse da chave `mag` (descarta o digest da conta na origem), `emptyAdapterTotals` e `rebuildFromL1` — O(namespace `mag`), roda uma vez no boot quando o agregado não abre, nunca no caminho de busca. Dependência de mão única (cache + cache-keys), sem ciclo com o `magnetdb` |
 | `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse compartilhado de `magnetdb-counts.ts`. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
-| `resolvers/` | Núcleo comum dos resolvers (**ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.js` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.js` (instância lazy dos shims). `is-main.js` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.js`, `site-selector.js` (failover de host, knobs injetáveis), `cache.js`, `http-server.js`, `flare.js` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os seis), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
-| `*-resolver/` | Shims de compatibilidade/standalone (**ESM**, sem `package.json` de override): `<nome>/server.js` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.js`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)` |
+| `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — o laço de saltos do protetor, um só para os seis), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
+| `*-resolver/` | Shims de compatibilidade/standalone (**TypeScript/ESM**, sem `package.json` de override): `<nome>/server.ts` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.ts`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)`. Os `server.d.ts` foram removidos — a implementação TS é o contrato; `nerdfilmes-resolver/test.ts` e `torrentdosfilmes-resolver/smoke-test.ts` também são compilados pelo tsc |
 | `types/domain.d.ts` | Tipos do domínio: `Stream` (união que exige ação), `ParsedSeasonEpisode`, `DebridAdapter`, `AccountStatus`, `MatchContext` |
 | `test/helpers/stub.ts` | Dublê de `fetch`, `patch()` de módulo e `testOpts()` — o cast mora aqui, não espalhado |
 | `test/e2e/e2e-harness.ts` | App real (`createApp`) + fetch dublê; zero rede externa |
 | `Dockerfile` / `scripts/entrypoint.sh` / `docker-compose.yml` | Imagem única, supervisor, loopback |
 | `scripts/magnets.ts` | Inventário/limpeza da conta |
 | `scripts/check-test-list.ts` | Cobra a lista explícita do `npm test` |
-| `scripts/build-assets.ts` | Copia para `dist/` os assets (`src/public`, `test/fixtures`, `jackett-bludv`), o `resolvers/` e os `*-resolver` |
+| `scripts/build-assets.ts` | Copia para `dist/` só assets não-compiláveis (`src/public`, `test/fixtures`, `jackett-bludv`); `resolvers/` e os seis `*-resolver/` são emitidos pelo próprio `tsc` e não são mais copiados |
 
 Pós split 5.3, `src/utils/format.ts` virou um barrel que reexporta os mesmos
 58 nomes de antes; a lógica mora nos 7 submódulos em `src/utils/` (sem ciclo,
@@ -1574,12 +1575,15 @@ o orçamento com a resposta.
   `dist/src/...`, então `__dirname` e `require`/`import` relativos apontam para
   dentro de `dist/`. Dois casos já mordidos: o `DB_PATH` do cache precisa subir
   **três** níveis para achar `data/cache.db`, e os seis profiles são importados
-  estaticamente por `../resolvers/profiles/<nome>.js` (os shims `*-resolver/`,
-  para testes e modo processo-separado, importam `../resolvers/profiles/<nome>.js`
-  e usam `../<nome>-resolver/server.js`) — no container o
-  `resolvers/` tem que chegar a **`/app/dist/resolvers/`**, o que o build-assets
-  faz. **Localmente isso passa despercebido** porque o `npm run build` já copia
-  os resolvers para `dist/`; só o `docker run` revela. Mesma armadilha vale para
+  estaticamente por `../resolvers/profiles/<nome>.js` (os shims
+  `*-resolver/server.ts` seguem existindo para os testes e o modo standalone, e
+  importam o mesmo profile mais `resolvers/shim-instance.ts`) — no container o
+  `resolvers/` e os `*-resolver/` têm que chegar a **`/app/dist/resolvers/`** e
+  **`/app/dist/*-resolver/`**, o que o `tsc` faz (o build-assets parou de copiar
+  `resolvers/` e `*-resolver/`; só assets não-compiláveis passam por ele).
+  **Localmente isso passa
+  despercebido** porque o `npm run build` já compila os resolvers para `dist/`;
+  só o `docker run` revela. Mesma armadilha vale para
   asset: o `tsc` não copia `src/public/`, quem copia é o passo do
   `npm run build`.
 - **"Temporada Completa" no singular é pack de UMA temporada, não da série.**
@@ -1770,10 +1774,11 @@ o orçamento com a resposta.
   em `blocked_host` — que o `isNetworkError` exclui de propósito (erro de
   aplicação prova que o host respondeu), então o failover nunca sondava e o
   sintoma era "0 resultados" para sempre. O domínio novo precisa entrar em
-  TRÊS lugares: a allowlist (`FALLBACK_SITE_SUFFIXES` no
-  `<nome>-resolver/server.js`), o default em `src/config.ts`
-  (`resolvers.<nome>Url`), que o carregador embutido injeta no `SITE_URL`
-  quando a env falta, e o `.env.example` — **a env VENCE o default**, então
+  TRÊS lugares: a allowlist (`FALLBACK_SITE_SUFFIXES` no profile
+  `resolvers/profiles/<nome>.ts`; no redetorrent, em `redetorrent-parsers.ts`),
+  o default em `src/config/resolvers.ts` (`resolvers.<nome>Url`), que o
+  carregador embutido passa como `siteUrl` explícito à factory do profile, e o
+  `.env.example` — **a env VENCE o default**, então
   deixar o exemplo no domínio velho faz a correção não chegar em quem copiou
   o arquivo (foi o que sobrou por corrigir na migração de 2026-09).
   Até 2026-08 esse default não era lido por ninguém e o

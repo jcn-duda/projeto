@@ -88,9 +88,13 @@ test('bludv: card de busca sem poster/título original devolve null, sem herdar 
 test('bludv: pickBestLink prefere dublado e, dentro dele, a maior qualidade', () => {
   const links = bludv.parseDownloadLinks(fixture('bludv-post.html'));
 
-  assert.equal(bludv.pickBestLink(links).url, 'https://systemads1.com/go/bbb222');
+  const best = bludv.pickBestLink(links);
+  assert.ok(best, 'pickBestLink deve devolver um link');
+  assert.equal(best.url, 'https://systemads1.com/go/bbb222');
   // Preferência explícita inverte o ranking de áudio.
-  assert.equal(bludv.pickBestLink(links, { audio: 'legendado' }).url, 'https://systemads.net/go/eee555');
+  const legacy = bludv.pickBestLink(links, { audio: 'legendado' });
+  assert.ok(legacy, 'pickBestLink com audio deve devolver um link');
+  assert.equal(legacy.url, 'https://systemads.net/go/eee555');
 });
 
 test('bludv: o feed usa o tamanho limpo do parser e o sentinela quando não há', () => {

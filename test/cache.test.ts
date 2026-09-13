@@ -5,9 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-import * as metrics from '../src/utils/metrics.js';
-const _require = createRequire(import.meta.url);
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Chaves sem prefixo pertencem ao namespace padrão. Estes testes exercitam o
@@ -21,25 +19,30 @@ const TTL_S = 3600;
 // em memória e o contrato 1 (persistência) não tem o que validar — skip claro.
 let hasNodeSqlite = true;
 try {
-  _require('node:sqlite');
+  await import('node:sqlite');
 } catch {
   hasNodeSqlite = false;
 }
 
-const CACHE_MODULE = _require.resolve('../src/utils/cache.js');
+// Caminho absoluto do módulo compilado, num único lugar. Os testes do processo
+// pai recarregam com query única para nascer limpos (o cache.ts é dono de todo o
+// estado mutável); os processos filhos importam SEM query para que o `./cache.js`
+// interno do magnetdb aponte para a MESMA instância.
+const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
+let cacheSeq = 0;
+const freshCache = (): Promise<any> => import(`${CACHE_URL}?fresh=${Date.now()}-${cacheSeq++}`);
 
 test(
   'cache.ts recovery: erro transiente (caminho do banco é um diretório) NÃO gera .corrupt e cai em memória',
   { skip: !hasNodeSqlite && 'node:sqlite unavailable' },
   () => {
     const script = `
-      const assert = require('node:assert');
-      const fs = require('node:fs');
+      import assert from 'node:assert';
+      import fs from 'node:fs';
       delete process.env.CACHE_PERSIST;
       const dbPath = process.env.CACHE_DB_PATH;
       fs.mkdirSync(dbPath); // abertura falha sem ser corrupção (CANTOPEN/EISDIR)
-      delete require.cache[${JSON.stringify(CACHE_MODULE)}];
-      const cache = require(${JSON.stringify(CACHE_MODULE)});
+      const cache = await import(${JSON.stringify(CACHE_URL)});
 
       // L1 memória segue de pé e o dado persistido NÃO é destruído.
       cache.set('test:transient', { ok: 1 }, 3600);
@@ -59,7 +62,8 @@ function runIsolatedCacheTest(scriptContent: any) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'adom-cache-test-'));
   const dbPath = path.join(tempDir, 'cache.db');
   try {
-    const res = spawnSync(process.execPath, ['-e', scriptContent], {
+    // `--input-type=module`: o corpo é ESM nativo (imports/TLA), nunca CJS.
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', scriptContent], {
       // O subprocesso PRECISA do SQLite: tira o CACHE_PERSIST herdado do runner
       // (o setup-env o define para a suíte inteira) em vez de deixar o teste de
       // persistência rodar só em memória e falhar com "no such table".
@@ -87,13 +91,13 @@ function runIsolatedCacheTest(scriptContent: any) {
 }
 
 // Contrato 1 roda num processo filho curto: o módulo abre a conexão SQLite no
-// require e não expõe close; com o filho morto, a conexão fecha e o tmpdir pode
+// import e não expõe close; com o filho morto, a conexão fecha e o tmpdir pode
 // ser apagado de verdade — no processo do runner a deleção esbarraria em EBUSY.
 // De quebra, o CACHE_DB_PATH/CACHE_PERSIST do runner nunca chegam ao módulo.
 const RELOAD_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST; // herança do runner não pode desligar o SQLite',
-  "const { DatabaseSync } = require('node:sqlite');",
+  "const { DatabaseSync } = await import('node:sqlite');",
   `const total = ${MAX_ENTRIES} + ${EXTRA};`,
   'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
   'seed.exec(',
@@ -109,8 +113,7 @@ const RELOAD_SCRIPT = [
   "seed.exec('COMMIT');",
   'seed.close();',
   '',
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   '// Overflow IMEDIATAMENTE após o reload, antes de qualquer leitura: get()',
   '// renova a recência e mascararia a ordem reconstruída pelo loadFromDisk.',
@@ -142,14 +145,13 @@ test(
   },
 );
 
-test('get() de entrada válida renova a recência: no estouro ela sobrevive e o LRU válido sai', () => {
+test('get() de entrada válida renova a recência: no estouro ela sobrevive e o LRU válido sai', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   const originalDbPath = process.env.CACHE_DB_PATH;
   try {
     // Sem SQLite: o contrato 2 é sobre a ordem do Map em memória.
     process.env.CACHE_PERSIST = 'false';
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
 
     for (let i = 0; i < MAX_ENTRIES; i++) cache.set(`k-${i}`, { n: i }, TTL_S);
 
@@ -178,13 +180,12 @@ test('get() de entrada válida renova a recência: no estouro ela sobrevive e o 
   }
 });
 
-test('setMany: lote com UMA evicção por namespace — as mais antigas saem, as do lote ficam', () => {
+test('setMany: lote com UMA evicção por namespace — as mais antigas saem, as do lote ficam', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   const originalDbPath = process.env.CACHE_DB_PATH;
   try {
     process.env.CACHE_PERSIST = 'false';
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
 
     // Enche a cota do namespace padrão com entradas individuais.
     const quota = cache.QUOTAS.__default;
@@ -221,9 +222,9 @@ test('setMany: lote com UMA evicção por namespace — as mais antigas saem, as
 });
 
 const RESILIENT_LOAD_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
+  "const { DatabaseSync } = await import('node:sqlite');",
   'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
   'seed.exec(',
   "  'CREATE TABLE IF NOT EXISTS cache (' +",
@@ -240,8 +241,7 @@ const RESILIENT_LOAD_SCRIPT = [
   "insert.run('expired-corrupt', 'INVALID_OLD', now - 50000);",
   'seed.close();',
   '',
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   "assert.deepStrictEqual(cache.get('val-1'), { title: 'Filme A' }, 'val-1 carregado com sucesso');",
   "assert.deepStrictEqual(cache.get('val-2'), { streams: ['s1'] }, 'val-2 carregado com sucesso');",
@@ -268,13 +268,11 @@ test(
 // A escrita no disco é diferida para o próximo tick (lote em transação única),
 // então o script espera um setImmediate antes de conferir o SQLite.
 const PERSISTENCE_SYNC_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  "const { DatabaseSync } = await import('node:sqlite');",
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
-  '(async () => {',
   "cache.set('k-a', { msg: 'hello' }, 3600);",
   "cache.set('k-b', { count: 99 }, 3600);",
   "cache.set('k-c', { active: true }, 3600);",
@@ -301,7 +299,6 @@ const PERSISTENCE_SYNC_SCRIPT = [
   "const rowsAfterClear = dbVerify.prepare('SELECT COUNT(*) as cnt FROM cache').get();",
   'assert.strictEqual(rowsAfterClear.cnt, 0, \'tabela SQLite limpa apos clear()\');',
   'dbVerify.close();',
-  '})().catch((err) => { console.error(err); process.exit(1); });',
 ].join('\n');
 
 test(
@@ -313,11 +310,10 @@ test(
 );
 
 const PRUNE_BATCH_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  "const { DatabaseSync } = await import('node:sqlite');",
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   `const total = ${MAX_ENTRIES} + 10;`,
   'for (let i = 0; i < total; i++) {',
   "  cache.set('item-' + i, { n: i }, 3600);",
@@ -335,27 +331,21 @@ const PRUNE_BATCH_SCRIPT = [
   'dbVerify.close();',
 ].join('\n');
 
-function wrapAsync(scriptLines: any) {
-  // Os scripts precisam esperar o tick do despejo; `node -e` é CommonJS, então
-  // o corpo roda dentro de uma IIFE assíncrona.
-  return ["const assert = require('node:assert');", '(async () => {', ...scriptLines.slice(1), '})().catch((err) => { console.error(err); process.exit(1); });'].join('\n');
-}
-
 test(
   'prune() e forgetMany(): remoção em lote via transação SQLite com statement pré-compilado',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
-    runIsolatedCacheTest(wrapAsync(PRUNE_BATCH_SCRIPT.split('\n')));
+    runIsolatedCacheTest(PRUNE_BATCH_SCRIPT);
   },
 );
 
 // Regressão do despejo em lote: forget ANTES do flush não pode ser desfeito
 // pelo lote (a chave sai da fila junto com a memória).
 const BATCH_FORGET_SCRIPT = [
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  "const { DatabaseSync } = await import('node:sqlite');",
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   "cache.set('lote-1', { n: 1 }, 3600);",
   "cache.set('lote-2', { n: 2 }, 3600);",
@@ -372,12 +362,12 @@ const BATCH_FORGET_SCRIPT = [
   "assert.deepStrictEqual(rows.map((r) => r.key), ['lote-1', 'lote-3']);",
   "assert.deepStrictEqual(JSON.parse(rows[1].value), { n: 30 }, 'última escrita da chave é a que fica');",
   'dbVerify.close();',
-];
+].join('\n');
 
 test(
   'despejo em lote: forget/reescrita no mesmo tick valem na gravação adiada',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
-    runIsolatedCacheTest(wrapAsync(BATCH_FORGET_SCRIPT));
+    runIsolatedCacheTest(BATCH_FORGET_SCRIPT);
   },
 );

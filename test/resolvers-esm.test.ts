@@ -41,7 +41,13 @@ function projectRoot(start: string): string {
 }
 
 const ROOT = projectRoot(path.dirname(fileURLToPath(import.meta.url)));
+// O teste roda de dist/test; o emit fica em dist/ e é de lá que os shims e o
+// is-main carregam em runtime (a fonte agora tem folhas .ts que o Node não
+// resolve por specifier .js). A varredura de pureza continua na FONTE, que é o
+// que se versiona.
+const DIST_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RESOLVERS_DIR = path.join(ROOT, 'resolvers');
+const DIST_RESOLVERS_DIR = path.join(DIST_ROOT, 'resolvers');
 const SHIM_DIRS = [
   'bludv-resolver',
   'comandotorrents-resolver',
@@ -55,7 +61,7 @@ function jsFilesUnder(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) return jsFilesUnder(full);
-    return entry.isFile() && entry.name.endsWith('.js') ? [full] : [];
+    return entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.ts')) ? [full] : [];
   });
 }
 
@@ -93,7 +99,7 @@ describe('Ilha dos resolvers é ESM puro (Node 20/22)', () => {
     // O caminho de carregamento no Node 20/22 é o import dinâmico nativo; se
     // algum módulo da ilha voltasse a ser CommonJS, `require(esm)`/interop
     // apareceria aqui como falha de resolução.
-    const urls = SHIM_DIRS.map((dir) => pathToFileURL(path.join(ROOT, dir, 'server.js')).href);
+    const urls = SHIM_DIRS.map((dir) => pathToFileURL(path.join(DIST_ROOT, dir, 'server.js')).href);
     const script = [
       ...urls.map((url, i) => `const m${i} = await import(${JSON.stringify(url)}); if (typeof m${i}.default?.createServer !== 'function') throw new Error('shim ${i} sem default instance');`),
       "process.stdout.write('ok');",
@@ -103,11 +109,14 @@ describe('Ilha dos resolvers é ESM puro (Node 20/22)', () => {
     assert.equal(res.stdout.trim(), 'ok');
   });
 
-  test('os seis shims declaram export default (não export =)', () => {
+  test('os seis shims declaram export default em TS (sem .d.ts redundante)', () => {
     for (const dir of SHIM_DIRS) {
-      const dts = fs.readFileSync(path.join(ROOT, dir, 'server.d.ts'), 'utf8');
-      assert.match(dts, /export default resolver;/, `${dir}/server.d.ts sem export default`);
-      assert.ok(!/export\s*=\s*resolver/.test(dts), `${dir}/server.d.ts ainda usa export =`);
+      const ts = fs.readFileSync(path.join(ROOT, dir, 'server.ts'), 'utf8');
+      assert.match(ts, /export default resolver;/, `${dir}/server.ts sem export default`);
+      assert.ok(!/export\s*=\s*resolver/.test(ts), `${dir}/server.ts ainda usa export =`);
+      // U4: a implementação TS é o contrato; o shim .d.ts e a fonte .js morreram.
+      assert.equal(fs.existsSync(path.join(ROOT, dir, 'server.d.ts')), false, `${dir}/server.d.ts deveria ter sido removido`);
+      assert.equal(fs.existsSync(path.join(ROOT, dir, 'server.js')), false, `${dir}/server.js fonte deveria ter sido removido`);
     }
   });
 });
@@ -158,9 +167,9 @@ describe('resolvers/is-main.js', () => {
   });
 
   test('normaliza caminho e file URL para o mesmo alvo', () => {
-    const target = path.join(RESOLVERS_DIR, 'is-main.js');
+    const target = path.join(DIST_RESOLVERS_DIR, 'is-main.js');
     assert.equal(isMain(pathToFileURL(target).href, target), true);
-    assert.equal(isMain(pathToFileURL(target).href, path.join(RESOLVERS_DIR, 'outro.js')), false);
+    assert.equal(isMain(pathToFileURL(target).href, path.join(DIST_RESOLVERS_DIR, 'outro.js')), false);
   });
 
   test('Windows: caixa do drive não distingue o entrypoint', { skip: process.platform !== 'win32' }, () => {
@@ -168,7 +177,7 @@ describe('resolvers/is-main.js', () => {
   });
 
   test('execução direta devolve true; importado/-e devolve false', () => {
-    const isMainUrl = pathToFileURL(path.join(RESOLVERS_DIR, 'is-main.js')).href;
+    const isMainUrl = pathToFileURL(path.join(DIST_RESOLVERS_DIR, 'is-main.js')).href;
     const script = `import { isMain } from ${JSON.stringify(isMainUrl)};\nprocess.stdout.write(String(isMain(import.meta.url)));\n`;
     const tmp = path.join(os.tmpdir(), `adom-is-main-${process.pid}-${Date.now()}.mjs`);
     fs.writeFileSync(tmp, script, 'utf8');

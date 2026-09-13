@@ -88,9 +88,9 @@ RUN cp /usr/bin/chromedriver /app/chromedriver \
 # --- Addon compilado + resolvedores BR embutidos (8700-8705, chamados pelo Jackett).
 # O br-resolvers importa estaticamente os PROFILES por caminho relativo ao
 # próprio módulo ("../resolvers/profiles/<nome>.js", ESM nativo), que a partir
-# de dist/src/ resolve em dist/resolvers/. O build-assets é quem copia
-# resolvers/ para dentro de dist/ (local e no builder), então o layout da
-# imagem é o mesmo do `npm run build`.
+# de dist/src/ resolve em dist/resolvers/. É o tsc que compila/emite resolvers/
+# para dentro de dist/ (include `resolvers/**` no tsconfig; o build-assets não
+# copia mais resolvers/), então o layout da imagem é o mesmo do `npm run build`.
 # Os shims dist/*-resolver/ são ESM (export default lazy) e existem para testes
 # e modo processo-separado; o caminho de produção não os usa.
 COPY package.json package-lock.json ./
@@ -102,11 +102,10 @@ RUN python3 -c "p='/app/package.json';b=open(p,'rb').read();open(p,'wb').write(b
 RUN npm ci --omit=dev
 
 # Saída do tsc: dist/src/, dist/scripts/ e dist/src/public/ (assets). Sem
-# dist/test: a suíte não vai para a imagem (ver o builder).
+# dist/test: a suíte não vai para a imagem (ver o builder). O núcleo dos
+# resolvedores vive SÓ em dist/resolvers (é o que o br-resolvers resolve a
+# partir de dist/src/); não há cópia crua em /app/resolvers.
 COPY --from=builder /app/dist ./dist
-# Mantém o núcleo também em /app/resolvers para inspeção/uso operacional; o
-# carregador embutido resolve pelo dist/resolvers copiado acima.
-COPY --from=builder /app/resolvers ./resolvers
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

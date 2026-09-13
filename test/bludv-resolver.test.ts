@@ -133,7 +133,7 @@ describe('BluDV Resolver: caches de magnet e de busca', () => {
     assert.equal(protectorHits, 1, 'cache responde sem refazer a cadeia');
 
     // TTL vencido re-resolve.
-    bludv.magnetCache.get(`magnet:${POST_URL}:0`).expiresAt = Date.now() - 1;
+    bludv.magnetCache.get(`magnet:${POST_URL}:0`)!.expiresAt = Date.now() - 1;
     await bludv.resolveButton(POST_URL, 0);
     assert.equal(protectorHits, 2, 'entrada vencida é re-resolvida');
     assert.equal(bludv.inFlight.size, 0);

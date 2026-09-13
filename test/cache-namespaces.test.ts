@@ -3,29 +3,31 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import * as metrics from '../src/utils/metrics.js';
-
-const _require = createRequire(import.meta.url);
 
 const DLMAG_QUOTA = 4000;
 const TTL_S = 3600;
 
 let hasNodeSqlite = true;
 try {
-  _require('node:sqlite');
+  await import('node:sqlite');
 } catch {
   hasNodeSqlite = false;
 }
 
-const CACHE_MODULE = _require.resolve('../src/utils/cache.js');
+// Caminho absoluto do módulo compilado. Cada teste recarrega com query única
+// para nascer limpo: o cache.ts é dono de todo o estado mutável, e o cache-db
+// vive numa closure criada a cada instância. Sem query para os filhos, quando
+// eles precisam compartilhar a instância com o magnetdb.
+const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
+let cacheSeq = 0;
+const freshCache = (): Promise<any> => import(`${CACHE_URL}?fresh=${Date.now()}-${cacheSeq++}`);
 
-test('estouro de dlmag despeja só o próprio namespace e preserva streams', () => {
+test('estouro de dlmag despeja só o próprio namespace e preserva streams', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
 
     cache.set('streams:v5:movie:tt-vizinho', { streams: ['preservado'] }, TTL_S);
     for (let i = 0; i < DLMAG_QUOTA; i++) cache.set(`dlmag:url-${i}`, { n: i }, TTL_S);
@@ -41,12 +43,11 @@ test('estouro de dlmag despeja só o próprio namespace e preserva streams', () 
   }
 });
 
-test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva folga sob o teto', () => {
+test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva folga sob o teto', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
     assert.equal(cache.QUOTAS.raw, 800);
     assert.equal(cache.QUOTAS.streams, 2000);
     assert.equal(cache.QUOTAS.davail, 1000);
@@ -62,16 +63,14 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva folga sob o
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
-    delete _require.cache[CACHE_MODULE];
   }
 });
 
-test('estouro de raw despeja só o próprio namespace e preserva streams', () => {
+test('estouro de raw despeja só o próprio namespace e preserva streams', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
     const RAW_QUOTA = cache.QUOTAS.raw;
 
     cache.set('streams:v5:movie:tt-vizinho', { streams: ['preservado'] }, TTL_S);
@@ -87,16 +86,14 @@ test('estouro de raw despeja só o próprio namespace e preserva streams', () =>
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
-    delete _require.cache[CACHE_MODULE];
   }
 });
 
-test('LRU de dlmag é escolhido dentro do namespace, não pela ordem global', () => {
+test('LRU de dlmag é escolhido dentro do namespace, não pela ordem global', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
 
     cache.set('meta:movie:tt-vizinho', { title: 'vizinho antigo' }, TTL_S);
     for (let i = 0; i < DLMAG_QUOTA; i++) cache.set(`dlmag:lru-${i}`, { n: i }, TTL_S);
@@ -112,12 +109,11 @@ test('LRU de dlmag é escolhido dentro do namespace, não pela ordem global', ()
   }
 });
 
-test('hit/miss por namespace: contadores globais ganham o sufixo do balde', () => {
+test('hit/miss por namespace: contadores globais ganham o sufixo do balde', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
     metrics.reset();
 
     cache.set('raw:v1:jackett:yts:movie:coringa', { itens: [] }, TTL_S);
@@ -135,7 +131,6 @@ test('hit/miss por namespace: contadores globais ganham o sufixo do balde', () =
     metrics.reset();
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
-    delete _require.cache[CACHE_MODULE];
   }
 });
 
@@ -145,7 +140,7 @@ test('modo sem persistência (CACHE_PERSIST="false"): operações puras em memó
   try {
     process.env.CACHE_PERSIST = 'false';
     delete process.env.CACHE_DB_PATH;
-    const cache = await import(`../src/utils/cache.js?test=mem-${Date.now()}`);
+    const cache = await freshCache();
 
     cache.set('mem-1', { a: 1 }, 3600);
     cache.set('mem-2', { b: 2 }, 3600);
@@ -174,7 +169,7 @@ test('modo sem persistência (CACHE_PERSIST="false"): operações puras em memó
 
 test('close() libera o SQLite sem derrubar o L1 e aceita chamada repetida', {
   skip: !hasNodeSqlite && 'node:sqlite indisponível — precisa de Node 22+',
-}, () => {
+}, async () => {
   const originalDbPath = process.env.CACHE_DB_PATH;
   const originalPersist = process.env.CACHE_PERSIST;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'adom-cache-close-'));
@@ -183,8 +178,7 @@ test('close() libera o SQLite sem derrubar o L1 e aceita chamada repetida', {
   try {
     delete process.env.CACHE_PERSIST;
     process.env.CACHE_DB_PATH = dbPath;
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
 
     cache.set('antes', { n: 1 }, TTL_S);
     cache.close();
@@ -200,17 +194,15 @@ test('close() libera o SQLite sem derrubar o L1 e aceita chamada repetida', {
     else process.env.CACHE_DB_PATH = originalDbPath;
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
-    delete _require.cache[CACHE_MODULE];
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
-test('teto global despeja e termina: prune não pode repetir a mesma chave', () => {
+test('teto global despeja e termina: prune não pode repetir a mesma chave', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
 
     const porNamespace = cache.QUOTAS.__default;
     const namespaces = Math.ceil(cache.MAX_ENTRIES / porNamespace) + 1;
@@ -229,7 +221,6 @@ test('teto global despeja e termina: prune não pode repetir a mesma chave', () 
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
-    delete _require.cache[CACHE_MODULE];
   }
 });
 
@@ -239,8 +230,7 @@ test('getWithStale: três estados — fresco, expirado na graça, fora da janela
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
 
     cache.set('swr:fresh', { n: 1 }, TTL_S);
     assert.deepEqual(cache.getWithStale('swr:fresh', 300), { value: { n: 1 }, stale: false });
@@ -263,6 +253,5 @@ test('getWithStale: três estados — fresco, expirado na graça, fora da janela
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
-    delete _require.cache[CACHE_MODULE];
   }
 });

@@ -95,6 +95,12 @@ describe('Profiles de resolver: factory explícita e import-safe', () => {
     });
     // Um opts malicioso/errado que libera tudo não pode furar a allowlist.
     const fetchFollowing = bootstrap.fetchFollowingAllowed({
+      decodeEntities: (value: string | null | undefined) => String(value ?? ''),
+      extractMagnet: () => null,
+      nextProtectedUrl: () => null,
+      extractMetaRefresh: () => null,
+      maxHops: 1,
+      timeoutMs: 1000,
       assertAllowedUrl: () => ({ href: 'https://evil.example/' }),
     });
     await assert.rejects(() => fetchFollowing('https://evil.example/'), /blocked_host/);

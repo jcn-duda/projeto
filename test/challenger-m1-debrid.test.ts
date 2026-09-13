@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
@@ -12,13 +12,12 @@ import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import { AuthError, QuotaError } from '../src/debrid/common.js';
 
-const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_MODULE = _require.resolve('../src/utils/cache.js');
+const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
 
 let hasNodeSqlite = true;
 try {
-  _require('node:sqlite');
+  await import('node:sqlite');
 } catch {
   hasNodeSqlite = false;
 }
@@ -28,11 +27,11 @@ try {
 // ============================================================================
 
 function runIsolatedScript(scriptContent: string) {
-  const { spawnSync } = _require('node:child_process');
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'adom-challenger-cache-'));
   const dbPath = path.join(tempDir, 'cache.db');
   try {
-    const res = spawnSync(process.execPath, ['-e', scriptContent], {
+    // `--input-type=module`: o corpo é ESM nativo (imports/TLA), nunca CJS.
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', scriptContent], {
       env: (({ CACHE_PERSIST, ...rest }) => ({ ...rest, CACHE_DB_PATH: dbPath }))(process.env),
       cwd: path.join(__dirname, '..'),
       encoding: 'utf8',
@@ -47,14 +46,13 @@ function runIsolatedScript(scriptContent: string) {
 
 test('cache.ts recovery: junk ASCII data triggers .corrupt rename and clean DB', { skip: !hasNodeSqlite && 'node:sqlite unavailable' }, () => {
   const script = `
-    const assert = require('node:assert');
-    const fs = require('node:fs');
+    import assert from 'node:assert';
+    import fs from 'node:fs';
     delete process.env.CACHE_PERSIST;
     const dbPath = process.env.CACHE_DB_PATH;
     const corruptPath = dbPath + '.corrupt';
     fs.writeFileSync(dbPath, 'ADVERSARIAL_JUNK_GARBAGE_BYTES_12345');
-    delete require.cache[${JSON.stringify(CACHE_MODULE)}];
-    const cache = require(${JSON.stringify(CACHE_MODULE)});
+    const cache = await import(${JSON.stringify(CACHE_URL)});
     assert.strictEqual(fs.existsSync(corruptPath), true, 'corrupt file created');
     assert.strictEqual(fs.readFileSync(corruptPath, 'utf8'), 'ADVERSARIAL_JUNK_GARBAGE_BYTES_12345');
     assert.strictEqual(fs.existsSync(dbPath), true, 'new DB file created');
@@ -67,14 +65,13 @@ test('cache.ts recovery: junk ASCII data triggers .corrupt rename and clean DB',
 
 test('cache.ts recovery: truncated SQLite header triggers .corrupt rename and clean DB', { skip: !hasNodeSqlite && 'node:sqlite unavailable' }, () => {
   const script = `
-    const assert = require('node:assert');
-    const fs = require('node:fs');
+    import assert from 'node:assert';
+    import fs from 'node:fs';
     delete process.env.CACHE_PERSIST;
     const dbPath = process.env.CACHE_DB_PATH;
     const corruptPath = dbPath + '.corrupt';
     fs.writeFileSync(dbPath, Buffer.from('SQLite f'));
-    delete require.cache[${JSON.stringify(CACHE_MODULE)}];
-    const cache = require(${JSON.stringify(CACHE_MODULE)});
+    const cache = await import(${JSON.stringify(CACHE_URL)});
     assert.strictEqual(fs.existsSync(corruptPath), true, 'corrupt file created');
     assert.strictEqual(fs.existsSync(dbPath), true, 'new DB file created');
     cache.set('test:truncated', { ok: 1 }, 3600);
@@ -86,15 +83,14 @@ test('cache.ts recovery: truncated SQLite header triggers .corrupt rename and cl
 
 test('cache.ts recovery: pre-existing .corrupt file is overwritten cleanly', { skip: !hasNodeSqlite && 'node:sqlite unavailable' }, () => {
   const script = `
-    const assert = require('node:assert');
-    const fs = require('node:fs');
+    import assert from 'node:assert';
+    import fs from 'node:fs';
     delete process.env.CACHE_PERSIST;
     const dbPath = process.env.CACHE_DB_PATH;
     const corruptPath = dbPath + '.corrupt';
     fs.writeFileSync(corruptPath, 'PREVIOUS_CORRUPTION');
     fs.writeFileSync(dbPath, 'NEW_CORRUPTION_DATA');
-    delete require.cache[${JSON.stringify(CACHE_MODULE)}];
-    const cache = require(${JSON.stringify(CACHE_MODULE)});
+    const cache = await import(${JSON.stringify(CACHE_URL)});
     assert.strictEqual(fs.existsSync(corruptPath), true);
     assert.strictEqual(fs.readFileSync(corruptPath, 'utf8'), 'NEW_CORRUPTION_DATA');
     assert.strictEqual(fs.existsSync(dbPath), true);
@@ -107,8 +103,8 @@ test('cache.ts recovery: pre-existing .corrupt file is overwritten cleanly', { s
 
 test('cache.ts recovery: orphaned -wal and -shm sidecar files removed during recovery', { skip: !hasNodeSqlite && 'node:sqlite unavailable' }, () => {
   const script = `
-    const assert = require('node:assert');
-    const fs = require('node:fs');
+    import assert from 'node:assert';
+    import fs from 'node:fs';
     delete process.env.CACHE_PERSIST;
     const dbPath = process.env.CACHE_DB_PATH;
     const walPath = dbPath + '-wal';
@@ -116,8 +112,7 @@ test('cache.ts recovery: orphaned -wal and -shm sidecar files removed during rec
     fs.writeFileSync(dbPath, 'CORRUPT_MAIN_DB');
     fs.writeFileSync(walPath, 'ORPHANED_WAL_DATA');
     fs.writeFileSync(shmPath, 'ORPHANED_SHM_DATA');
-    delete require.cache[${JSON.stringify(CACHE_MODULE)}];
-    const cache = require(${JSON.stringify(CACHE_MODULE)});
+    const cache = await import(${JSON.stringify(CACHE_URL)});
     assert.strictEqual(fs.existsSync(dbPath + '.corrupt'), true);
     cache.set('test:sidecars', { success: true }, 3600);
     assert.deepStrictEqual(cache.get('test:sidecars'), { success: true });

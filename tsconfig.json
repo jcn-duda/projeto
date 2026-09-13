@@ -24,7 +24,14 @@
     "src/**/*.ts",
     "test/**/*.ts",
     "scripts/**/*.ts",
-    "types/**/*.d.ts"
+    "types/**/*.d.ts",
+    // A ilha dos resolvers (núcleo + os seis *-resolver) é compilada pelo
+    // PRÓPRIO tsc: os .ts viram .js em dist/ e os *-resolver/ entram por glob
+    // explícito (server/test/smoke-test). Só fontes .ts — os globs de .js
+    // saíram (não há mais fonte JS na ilha) para não haver dupla fonte de emit.
+    // O build-assets só copia assets não-compiláveis e nunca sobrescreve emit.
+    "resolvers/**/*.ts",
+    "*-resolver/**/*.ts"
   ],
   "exclude": [
     "node_modules",
@@ -33,13 +40,6 @@
     // tsconfig.client.json, Node para testes em tsconfig.client.test.json);
     // fora daqui para não ser compilado como ESM de servidor nem puxado por
     // import estático do `test/` (o helper usa import dinâmico).
-    "src/client",
-    "spike-esm",
-    "bludv-resolver",
-    "comandotorrents-resolver",
-    "nerdfilmes-resolver",
-    "torrentdosfilmes-resolver",
-    "vacatorrent-resolver",
-    "redetorrent-resolver"
+    "src/client"
   ]
 }

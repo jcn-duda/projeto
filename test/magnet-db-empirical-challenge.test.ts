@@ -5,10 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-
-const _require = createRequire(import.meta.url);
 
 /**
  * Rotulo legivel -> infoHash de 40 hex de verdade. O magnetdb so grava hash no
@@ -20,15 +17,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let hasNodeSqlite = true;
 try {
-  _require('node:sqlite');
+  await import('node:sqlite');
 } catch {
   hasNodeSqlite = false;
 }
 
-const CACHE_MODULE = _require.resolve('../src/utils/cache.js');
-const MAGNETDB_MODULE = _require.resolve('../src/utils/magnetdb.js');
-const CACHE_KEYS_MODULE = _require.resolve('../src/utils/cache-keys.js');
-const REQUEST_KEY_MODULE = _require.resolve('../src/utils/request-key.js');
+// URLs absolutas dos módulos compilados. Os filhos importam cache/magnetdb SEM
+// query: assim o `./cache.js` interno do magnetdb resolve para a MESMA instância
+// que o teste importou, e os contadores do banco de magnets batem.
+const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
+const MAGNETDB_URL = new URL('../src/utils/magnetdb.js', import.meta.url).href;
+const CACHE_KEYS_URL = new URL('../src/utils/cache-keys.js', import.meta.url).href;
+const REQUEST_KEY_URL = new URL('../src/utils/request-key.js', import.meta.url).href;
 
 function runMultiStageTest(scripts: string[]) {
   const originalDbPath = process.env.CACHE_DB_PATH;
@@ -37,7 +37,8 @@ function runMultiStageTest(scripts: string[]) {
   const dbPath = path.join(tempDir, 'cache.db');
   try {
     for (const scriptContent of scripts) {
-      const res = spawnSync(process.execPath, ['-e', scriptContent], {
+      // `--input-type=module`: o corpo é ESM nativo (imports/TLA), nunca CJS.
+      const res = spawnSync(process.execPath, ['--input-type=module', '-e', scriptContent], {
         env: (({ CACHE_PERSIST, ...resto }) => ({ ...resto, CACHE_DB_PATH: dbPath }))(process.env),
         cwd: path.join(__dirname, '..'),
         encoding: 'utf8',
@@ -64,11 +65,12 @@ test(
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     const stage1 = [
+      "import assert from 'node:assert';",
+      "import { createHash } from 'node:crypto';",
       "delete process.env.CACHE_PERSIST;",
-      "const assert = require('node:assert');",
-      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
-      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
-      "const H = (s) => require('node:crypto').createHash('sha1').update(String(s)).digest('hex');",
+      `const cache = await import(${JSON.stringify(CACHE_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
+      "const H = (s) => createHash('sha1').update(String(s)).digest('hex');",
       "",
       "// 1. Transicao unica com verificacao detalhada de contadores e recusa",
       "magnetdb.markAlive('premiumize', 'acc1', ['" + MH('hash-rapid-1') + "']);",
@@ -139,10 +141,10 @@ test(
     ].join('\n');
 
     const stage2 = [
+      "import assert from 'node:assert';",
       "delete process.env.CACHE_PERSIST;",
-      "const assert = require('node:assert');",
-      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
-      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
+      `const cache = await import(${JSON.stringify(CACHE_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
       "const st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 4, '4 hashes vivos devem persistir apos o laco');",
       "assert.strictEqual(st.sizeBad, 0);",
@@ -160,11 +162,12 @@ test(
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     const stage1 = [
+      "import assert from 'node:assert';",
+      "import { createHash } from 'node:crypto';",
       "delete process.env.CACHE_PERSIST;",
-      "const assert = require('node:assert');",
-      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
-      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
-      "const H = (s) => require('node:crypto').createHash('sha1').update(String(s)).digest('hex');",
+      `const cache = await import(${JSON.stringify(CACHE_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
+      "const H = (s) => createHash('sha1').update(String(s)).digest('hex');",
       "",
       "const adapters = ['premiumize', 'torbox', 'alldebrid', 'realdebrid', 'debridlink'];",
       "const sharedHash = H('shared-target-hash-12345');",
@@ -225,10 +228,10 @@ test(
     ].join('\n');
 
     const stage2 = [
+      "import assert from 'node:assert';",
       "delete process.env.CACHE_PERSIST;",
-      "const assert = require('node:assert');",
-      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
-      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
+      `const cache = await import(${JSON.stringify(CACHE_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
       "const st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 27);",
       "assert.strictEqual(st.sizeBad, 2);",
@@ -248,10 +251,10 @@ test(
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     const stage1 = [
+      "import assert from 'node:assert';",
       "delete process.env.CACHE_PERSIST;",
-      "const assert = require('node:assert');",
-      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
-      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
+      `const cache = await import(${JSON.stringify(CACHE_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
       "",
       "// 1. Array com duplicatas e normalizacao case-insensitive",
       "magnetdb.markAlive('torbox', 'acc1', ['" + MH('a').toUpperCase() + "', '" + MH('a') + "', '" + MH('b').toUpperCase() + "', '" + MH('b') + "']);",
@@ -294,10 +297,10 @@ test(
     ].join('\n');
 
     const stage2 = [
+      "import assert from 'node:assert';",
       "delete process.env.CACHE_PERSIST;",
-      "const assert = require('node:assert');",
-      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
-      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
+      `const cache = await import(${JSON.stringify(CACHE_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
       "const st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 3);",
       "assert.strictEqual(st.sizeBad, 1);",
@@ -314,13 +317,14 @@ test(
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     const stage1 = [
+      "import assert from 'node:assert';",
+      "import { createHash } from 'node:crypto';",
       "delete process.env.CACHE_PERSIST;",
-      "const assert = require('node:assert');",
-      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
-      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
-      "const H = (s) => require('node:crypto').createHash('sha1').update(String(s)).digest('hex');",
-      `const { prefix } = require(${JSON.stringify(CACHE_KEYS_MODULE)});`,
-      `const { accountScope } = require(${JSON.stringify(REQUEST_KEY_MODULE)});`,
+      `const cache = await import(${JSON.stringify(CACHE_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
+      `const { prefix } = await import(${JSON.stringify(CACHE_KEYS_URL)});`,
+      `const { accountScope } = await import(${JSON.stringify(REQUEST_KEY_URL)});`,
+      "const H = (s) => createHash('sha1').update(String(s)).digest('hex');",
       "",
       "// Insere 4 alive, 2 bad, 1 lie para realdebrid",
       "const hashes = ['ev-1', 'ev-2', 'ev-3', 'ev-4'].map(H);",
@@ -375,10 +379,10 @@ test(
     ].join('\n');
 
     const stage2 = [
+      "import assert from 'node:assert';",
       "delete process.env.CACHE_PERSIST;",
-      "const assert = require('node:assert');",
-      `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
-      `const magnetdb = require(${JSON.stringify(MAGNETDB_MODULE)});`,
+      `const cache = await import(${JSON.stringify(CACHE_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
       "const st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 0, 'alive mantem 0 apos restart');",
       "assert.strictEqual(st.sizeBad, 1, 'bad mantem 1 apos restart');",

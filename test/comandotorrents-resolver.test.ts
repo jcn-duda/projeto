@@ -325,7 +325,7 @@ describe('ComandoTorrents Resolver: In-Memory Caching & Coalescing', () => {
         expiresAt: Date.now() + 600000,
       });
       if (comando.postCache.size > 100) {
-        comando.postCache.delete(comando.postCache.keys().next().value);
+        comando.postCache.delete(comando.postCache.keys().next().value!);
       }
     }
     assert.equal(comando.postCache.size, 100);

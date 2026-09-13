@@ -5,20 +5,26 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-const _require = createRequire(import.meta.url);
+
+import config from '../src/config.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // node:sqlite é experimental no Node 22+; em Node 18 o módulo de cache segue só
 // em memória e o contrato 1 (persistência) não tem o que validar — skip claro.
 let hasNodeSqlite = true;
 try {
-  _require('node:sqlite');
+  await import('node:sqlite');
 } catch {
   hasNodeSqlite = false;
 }
 
-const CACHE_MODULE = _require.resolve('../src/utils/cache.js');
+// Caminho absoluto do módulo compilado. Reloads do processo pai usam query
+// única (estado limpo); os filhos importam SEM query para compartilhar a
+// instância com o `./cache.js` interno do magnetdb.
+const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
+let cacheSeq = 0;
+const freshCache = (): Promise<any> => import(`${CACHE_URL}?fresh=${Date.now()}-${cacheSeq++}`);
 
 // Helper para executar scripts em processos isolados com banco temporário
 function runIsolatedCacheTest(scriptContent: any) {
@@ -28,7 +34,8 @@ function runIsolatedCacheTest(scriptContent: any) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'adom-cache-test-'));
   const dbPath = path.join(tempDir, 'cache.db');
   try {
-    const res = spawnSync(process.execPath, ['-e', scriptContent], {
+    // `--input-type=module`: o corpo é ESM nativo (imports/TLA), nunca CJS.
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', scriptContent], {
       // O subprocesso PRECISA do SQLite: tira o CACHE_PERSIST herdado do runner
       // (o setup-env o define para a suíte inteira) em vez de deixar o teste de
       // persistência rodar só em memória e falhar com "no such table".
@@ -60,12 +67,10 @@ test('prune com janela de graça: expirado servível fica; graça zero volta ao 
   // Sem esta janela o timer de 10 min apaga a entrada expirada antes de o
   // refresh de fundo poder servi-la — o SWR morreria na prática.
   const originalPersist = process.env.CACHE_PERSIST;
-  const config = _require('../src/config.js').default;
   const originalGrace = config.streamStaleGrace;
   try {
     process.env.CACHE_PERSIST = 'false';
-    delete _require.cache[CACHE_MODULE];
-    const cache = _require(CACHE_MODULE);
+    const cache = await freshCache();
 
     config.streamStaleGrace = 300;
     cache.set('swrprune:a', { n: 1 }, 0.05);
@@ -84,7 +89,6 @@ test('prune com janela de graça: expirado servível fica; graça zero volta ao 
     config.streamStaleGrace = originalGrace;
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
-    delete _require.cache[CACHE_MODULE];
   }
 });
 
@@ -96,9 +100,9 @@ test('prune com janela de graça: expirado servível fica; graça zero volta ao 
 // a versão corrente: sem o DELETE no SQLite, a linha morta voltaria a ser
 // carregada no próximo restart e ocuparia cota por todo o TTL.
 const STREAMS_VERSION_DISCARD_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
+  "const { DatabaseSync } = await import('node:sqlite');",
   'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
   "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
   "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
@@ -110,8 +114,7 @@ const STREAMS_VERSION_DISCARD_SCRIPT = [
   "insert.run('streams:v11:movie:tt-atual:{}:account:none', JSON.stringify({ streams: ['atual'] }), now + 900000);",
   'seed.close();',
   '',
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   // TTL futuro nas cinco: v7/v8/v9/v10 somem por serem versão morta, não por expirar.
   "assert.deepStrictEqual(cache.get('streams:v11:movie:tt-atual:{}:account:none'), { streams: ['atual'] }, 'v11 sobe do disco');",
@@ -139,9 +142,9 @@ test(
 // precisa sair do disco no boot, senão um marker antigo sobrevive ao restart e
 // segura vaga de autofetch sem nunca ser lido com a chave nova.
 const AUTOFETCH_VERSION_DISCARD_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
+  "const { DatabaseSync } = await import('node:sqlite');",
   'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
   "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
   "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
@@ -150,8 +153,7 @@ const AUTOFETCH_VERSION_DISCARD_SCRIPT = [
   "insert.run('autofetch:v3:m:alldebrid:acc:def456', JSON.stringify({ hash: 'def456' }), now + 900000);",
   'seed.close();',
   '',
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   "assert.deepStrictEqual(cache.get('autofetch:v3:m:alldebrid:acc:def456'), { hash: 'def456' }, 'autofetch v3 sobe do disco');",
   "assert.strictEqual(cache.get('autofetch:v2:alldebrid:acc:abc123'), null, 'autofetch v2 nao entra no L1');",
@@ -180,9 +182,9 @@ test(
 //   * preserva `rdc:v2`, `rdt:v1` e `rdq:v1` — os formatos novos não são lixo,
 //     e a fila/cache Torrentio vivos não podem ser derrubados pelo bump.
 const RD_VERSION_DISCARD_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
+  "const { DatabaseSync } = await import('node:sqlite');",
   'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
   "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
   "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
@@ -197,8 +199,7 @@ const RD_VERSION_DISCARD_SCRIPT = [
   "insert.run('rdq:v1:wq', JSON.stringify([{ hash: 'fffffff', score: 7, enqueuedAt: now }]), now + 900000);",
   'seed.close();',
   '',
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   // Só os formatos novos sobem no L1.
   "assert.deepStrictEqual(cache.get('rdc:v2:ddddddd'), { s: 'hit', n: 0, at: now }, 'rdc:v2 sobe do disco');",
@@ -230,9 +231,9 @@ test(
 // casa `LIKE 'raw:%'`), então a limpeza precisa do loop de LEGACY_PREFIXES —
 // sem ele o lixo órfão ficaria no banco até expirar, ocupando cota.
 const LEGACY_PREFIX_DISCARD_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
+  "const { DatabaseSync } = await import('node:sqlite');",
   'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
   "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
   "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
@@ -242,8 +243,7 @@ const LEGACY_PREFIX_DISCARD_SCRIPT = [
   "insert.run('raw:v1:jackett:yts:movie:tt-y', JSON.stringify({ items: ['novo'] }), now + 900000);",
   'seed.close();',
   '',
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   // O formato novo é o que o código lê; os legados são lixo a ser varrido.
   "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-y'), { items: ['novo'] }, 'raw:v1 sobe do disco');",
@@ -272,9 +272,9 @@ test(
 // 310 fora. O teste também reabre o banco: as excedentes têm que sair do disco
 // via forgetMany(skipped), senão o próximo restart repete o trabalho.
 const RAW_QUOTA_RENAME_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
+  "const { DatabaseSync } = await import('node:sqlite');",
   'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
   "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
   "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
@@ -286,8 +286,7 @@ const RAW_QUOTA_RENAME_SCRIPT = [
   "seed.exec('COMMIT');",
   'seed.close();',
   '',
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   // A seleção vem do TTL mais longo para o mais curto: as 10 de expires_at
   // menor (i=0..9) são as excedentes que saem da cota de 800.
@@ -314,9 +313,9 @@ test(
 // objeto aninhado com arrays, números fracionários, strings, null e boolean
 // prova que a serialização JSON não perde nada no caminho índice → valor.
 const PK_VALUE_INTEGRITY_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
+  "const { DatabaseSync } = await import('node:sqlite');",
   'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
   "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
   "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
@@ -326,8 +325,7 @@ const PK_VALUE_INTEGRITY_SCRIPT = [
   "insert.run('raw:v1:jackett:yts:movie:tt-simples', JSON.stringify({ lista: ['a', 'b', 'c'] }), now + 900001);",
   'seed.close();',
   '',
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-complexa'), complexo, 'objeto aninhado volta inteiro via PK');",
   "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-simples'), { lista: ['a', 'b', 'c'] }, 'objeto simples volta inteiro');",
@@ -340,10 +338,9 @@ test(
 );
 
 const MAINTAIN_SCRIPT = [
-  "const assert = require('node:assert');",
+  "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   "cache.set('idx:v2:test-maintain-1', { data: 'test1' }, 3600);",
   "cache.set('idx:v2:test-maintain-2', { data: 'test2' }, 3600);",
@@ -362,18 +359,17 @@ test(
 );
 
 const CORRUPT_RECOVERY_SCRIPT = [
-  "const assert = require('node:assert');",
-  "const fs = require('node:fs');",
-  "const path = require('node:path');",
+  "import assert from 'node:assert';",
+  "import fs from 'node:fs';",
+  "import path from 'node:path';",
   'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = require('node:sqlite');",
+  "const { DatabaseSync } = await import('node:sqlite');",
   'const dbPath = process.env.CACHE_DB_PATH;',
   "fs.writeFileSync(dbPath, 'LIXO_CORROMPIDO_NOT_A_SQLITE_DATABASE_!!!');",
   "const corruptPath = dbPath + '.corrupt';",
   "assert.strictEqual(fs.existsSync(corruptPath), false, 'corruptPath nao existe antes do boot');",
   '',
-  `delete require.cache[${JSON.stringify(CACHE_MODULE)}];`,
-  `const cache = require(${JSON.stringify(CACHE_MODULE)});`,
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
   "assert.strictEqual(fs.existsSync(corruptPath), true, 'arquivo corrompido renomeado para .corrupt');",
   "assert.strictEqual(fs.readFileSync(corruptPath, 'utf8'), 'LIXO_CORROMPIDO_NOT_A_SQLITE_DATABASE_!!!', 'conteudo original preservado no .corrupt');",
