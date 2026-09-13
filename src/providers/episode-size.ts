@@ -117,6 +117,11 @@ function annotateEpisodeSizes<T extends Stream | null>(
   return streams.map((stream) => {
     if (!stream || typeof stream.title !== 'string' || stream.title.includes(PACK_MARK)) return stream;
     if (!isPack(stream, season)) return stream;
+    // O Torrentio já responde por episódio: o 💾 dele é o tamanho do ARQUIVO
+    // escolhido, não do torrent. Quando o nome do arquivo não traz SxxEyy
+    // ("01 Adim Farah.avi"), o título parece pack e a média dividiria um
+    // episódio de 1.36 GB pelos episódios da temporada.
+    if ((stream as { _indexer?: string })._indexer === 'torrentio') { skip('per-file-size'); return stream; }
     const match = stream.title.match(SIZE_MARK);
     if (!match) { skip('no-size-mark'); return stream; }
     // `_size` não chega aqui: o sortAndLimit apaga `_seeders`/`_size` dos

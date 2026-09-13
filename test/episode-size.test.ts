@@ -66,6 +66,20 @@ test('média usa o total do título quando _size já foi apagado pelo sortAndLim
   assert.match(titleOf(out), /💾 5\.21 GB 📦 pack 41\.67 GB \(média\)/);
 });
 
+test('stream do Torrentio já traz o tamanho do arquivo e não vira média', () => {
+  // O nome do arquivo sem SxxEyy faz o título parecer pack; o 💾 do Torrentio
+  // é do episódio escolhido, e dividir de novo mostraria 58 MB num arquivo de 1.36 GB.
+  clearFileSizes();
+  const tio = {
+    name: '720p HDTV',
+    title: 'Adim Farah Season 1 720p HDTV\n01 Adim Farah.avi\n👤 1 💾 1.36 GB ⚙️ Rutracker',
+    infoHash: 'a7'.repeat(20),
+    _indexer: 'torrentio',
+  } as Stream & { _indexer: string };
+  const [out] = annotateEpisodeSizes([tio as Stream], { season: 1, episode: 1, meta: { episodes: { 1: 24 } } });
+  assert.equal(titleOf(out), tio.title);
+});
+
 test('streamTitleBytes lê o total do download, não o tamanho do episódio', () => {
   assert.equal(streamTitleBytes(PACK_TITLE), Math.round(41.67 * GB));
   assert.equal(streamTitleBytes('Goliath S03\n👤 10 💾 5.21 GB 📦 pack 41.67 GB (média) ⚙️ tpb'), Math.round(41.67 * GB));
