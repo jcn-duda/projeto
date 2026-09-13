@@ -231,6 +231,7 @@
     "test/notice-stream-cached-only.test.js",
     "test/search-pack-tail.test.js",
     "test/episode-size.test.js",
+    "test/title-normalization-fold.test.js",
     "test/nerdfilmes-prefilter.test.js",
     "test/stream-trace.test.js",
     "test/stream-trace-pipeline.test.js",

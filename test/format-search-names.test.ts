@@ -128,13 +128,14 @@ test('resolveOriginalStepName: degrau do título original existe só quando dife
   assert.equal(resolveOriginalStepName('Adım Farah', 'Adım Farah'), null);
 });
 
-test('normalizeTitle NÃO dobra o ı turco (U+0131): a comparação do degrau é honesta', () => {
-  // Documenta a verificação exigida: ı não decompõe em NFD nem casa com as
-  // combining marks removidas — "Adım" e "Adim" continuam distintos, e o
-  // matching que usa o mesmo normalizeTitle aceita a release "Adım Farah"
-  // porque o lado wanted (matchContext.names) também carrega o ı.
-  assert.equal(normalizeTitle('Adım'), 'adım');
-  assert.notEqual(normalizeTitle('Adım'), normalizeTitle('Adim'));
+test('normalizeTitle dobra o ı turco (U+0131): release "Adim Farah" casa com o original', () => {
+  // ı não decompõe em NFD; sem a dobra explícita "Adım" e "Adim" ficavam
+  // distintos e o filtro recusava as releases que escrevem o título em ASCII
+  // (medido em My Name Is Farah S01E01, 2026-09-13). O degrau continua
+  // existindo: o original segue diferente do nome mainstream.
+  assert.equal(normalizeTitle('Adım'), 'adim');
+  assert.equal(normalizeTitle('Adım'), normalizeTitle('Adim'));
+  assert.equal(resolveOriginalStepName('Adım Farah', 'My Name Is Farah'), 'Adım Farah');
   // Diacrítico latino comum continua dobrando (comportamento existente).
   assert.equal(normalizeTitle('Extermínio'), 'exterminio');
 });

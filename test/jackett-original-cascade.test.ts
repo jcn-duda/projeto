@@ -105,6 +105,33 @@ test('tt21874046: primária vazia abre o degrau do título original e o matching
   });
 });
 
+test('original com ı vazio tenta a grafia ASCII e a release "Adim Farah" passa', async () => {
+  // Medido em 2026-09-13: o magnetdownload devolve lotes diferentes para as
+  // duas grafias; o degrau ASCII só abre quando a turca não trouxe nada.
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      if (query === 'Adim Farah') {
+        return fakeResponse({ Results: [
+          { Title: 'Adim.Farah.S01E01.720p.HDTV.Subtitulado.Esp.SC.mp4', Seeders: 3, MagnetUri: MAGNET },
+        ] });
+      }
+      return fakeResponse({ Results: [] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(FARAH_QUERY, 'series', [FARAH_GLOBAL], {
+      originalQuery: FARAH_ORIGINAL,
+      matchContext: FARAH_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [FARAH_QUERY, FARAH_ORIGINAL, 'Adim Farah']);
+    assert.equal(items.length, 1, 'a release em ASCII sobrevive ao filtro de título');
+  });
+});
+
 test('primária relevante NÃO abre o degrau do título original (global)', async () => {
   const fetchImpl = makeFetch();
   fetchImpl.handler = (call) => {
@@ -138,7 +165,8 @@ test('original equivalente à primária pós-shape vira dedupe, não segunda cha
       originalQuery: FARAH_ORIGINAL,
       matchContext: { names: ['Adım Farah'], year: 2023, isSeries: false, season: null, episode: null },
     });
-    assert.deepEqual(fetchImpl.searchCalls(), [FARAH_ORIGINAL]);
+    // O original não repete a primária; só a grafia ASCII vira chamada nova.
+    assert.deepEqual(fetchImpl.searchCalls(), [FARAH_ORIGINAL, 'Adim Farah']);
     assert.deepEqual(items, []);
   });
 });
@@ -176,7 +204,7 @@ test('BR sem ptQuery útil usa o título original como último degrau', async ()
   fetchImpl.handler = (call) => {
     if (call.url.includes('/results')) {
       const query = new URL(call.url).searchParams.get('Query');
-      if (query === FARAH_ORIGINAL) {
+      if (query === 'Adim Farah') {
         return fakeResponse({ Results: [
           { Title: 'Adım Farah 1ª Temporada DUBLADO 1080p', Seeders: 3, MagnetUri: MAGNET },
         ] });
@@ -192,8 +220,9 @@ test('BR sem ptQuery útil usa o título original como último degrau', async ()
       matchContext: FARAH_CTX,
     });
     // A moldagem BR tira o SxxEyy da primária; o original entra como último
-    // degrau (stripDiacritics preserva o ı, que não é diacrítico combinável).
-    assert.deepEqual(fetchImpl.searchCalls(), ['My Name Is Farah', FARAH_ORIGINAL]);
+    // degrau já sem acento — o stripDiacritics dobra também o ı turco, e o
+    // buscador WordPress BR devolve 0 para query acentuada.
+    assert.deepEqual(fetchImpl.searchCalls(), ['My Name Is Farah', 'Adim Farah']);
     assert.equal(items.length, 1);
   });
 });
@@ -324,8 +353,8 @@ test('jackett.original.step conta a tentativa e workHit só sobrevivente RELEVAN
       matchContext: FARAH_CTX,
     });
     const after = metrics.snapshot().counters;
-    assert.equal((after['jackett.original.step'] || 0) - (before['jackett.original.step'] || 0), 1,
-      'o degrau foi tentado uma vez');
+    assert.equal((after['jackett.original.step'] || 0) - (before['jackett.original.step'] || 0), 2,
+      'original e grafia ASCII: uma tentativa cada');
     assert.equal((after['jackett.original.workHit'] || 0) - (before['jackett.original.workHit'] || 0), 0,
       'item bruto irrelevante não conta workHit');
     indexerStatus.clear();
@@ -341,7 +370,7 @@ test('BR: fallback pt idêntico à primária não suprime o degrau original', as
   fetchImpl.handler = (call) => {
     if (call.url.includes('/results')) {
       const query = new URL(call.url).searchParams.get('Query');
-      if (query === FARAH_ORIGINAL) {
+      if (query === 'Adim Farah') {
         return fakeResponse({ Results: [
           { Title: 'Adım Farah S01 1080p WEB-DL', Seeders: 4, MagnetUri: MAGNET },
         ] });
@@ -358,7 +387,8 @@ test('BR: fallback pt idêntico à primária não suprime o degrau original', as
     });
     // Fallback dedupado (nem vira chamada — a moldagem BR tira o diacrítico e
     // reduz fallback e primária ao mesmo texto); o degrau original roda.
-    assert.deepEqual(fetchImpl.searchCalls(), ['Meu Nome e Farah', FARAH_ORIGINAL]);
+    // O original sai sem acento pela moldagem BR, e a grafia ASCII dedupa nele.
+    assert.deepEqual(fetchImpl.searchCalls(), ['Meu Nome e Farah', 'Adim Farah']);
     assert.equal(items.length, 1);
   });
 });

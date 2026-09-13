@@ -80,6 +80,20 @@ function decodeEntities(text = '') {
     });
 }
 
+// Letras latinas que são letra própria no Unicode, não base + acento: o NFD não
+// as separa e o replace das combining marks não as alcança. Medido em My Name
+// Is Farah (2026-09-13): o original "Adım Farah" tem o ı turco sem ponto, as
+// releases escrevem "Adim Farah", e o filtro de título recusava todas elas.
+const LATIN_FOLD: Record<string, string> = {
+  ı: 'i', ł: 'l', Ł: 'L', đ: 'd', Đ: 'D', ø: 'o', Ø: 'O',
+  ß: 'ss', ẞ: 'SS', æ: 'ae', Æ: 'AE', œ: 'oe', Œ: 'OE',
+};
+const LATIN_FOLD_RE = /[ıłŁđĐøØßẞæÆœŒ]/g;
+
+function foldLatinLetters(s: string) {
+  return s.replace(LATIN_FOLD_RE, (letter) => LATIN_FOLD[letter] ?? letter);
+}
+
 function normalizeTitle(s = '') {
   // \p{M} é obrigatório, não opcional: o .normalize('NFD') da linha anterior
   // separa dakuten/vogais-marca (japonês, hindi, tailandês) como combining
@@ -93,8 +107,7 @@ function normalizeTitle(s = '') {
   // (ª º — "2ª Temporada" tem que virar "2"), superscritos numéricos
   // (¹²³⁰⁴⁵⁶⁷⁸⁹), micro (µ) e fracções (¼½¾). Sem isso o ordinal viraria
   // token e o parse de temporada perderia o número.
-  return String(s)
-    .toLowerCase()
+  return foldLatinLetters(String(s).toLowerCase())
     .normalize('NFD')
     .replace(/[\u0300-\u036f\u00aa\u00ba\u00b2\u00b3\u00b9\u00b5\u00bc\u00bd\u00be\u2070\u2074-\u2079]/g, '')
     .replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ')
@@ -110,7 +123,7 @@ function normalizeTitle(s = '') {
  * 5 indexers BR); os globais lidam bem com acento e não passam por aqui.
  */
 function stripDiacritics(s = '') {
-  return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return foldLatinLetters(String(s)).normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
 export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics };

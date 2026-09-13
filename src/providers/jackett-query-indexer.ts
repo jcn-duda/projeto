@@ -1,7 +1,7 @@
 import config from '../config.js';
 import type { MatchContext } from '../../types/domain.js';
 import * as cache from '../utils/cache.js';
-import { filterRelevantRaw } from '../utils/format.js';
+import { filterRelevantRaw, stripDiacritics } from '../utils/format.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { prefix } from '../utils/cache-keys.js';
@@ -183,6 +183,14 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     && shapeSearchQuery(indexer, options.fallbackQuery, isBr) !== shapeSearchQuery(indexer, query, isBr);
   if (options.originalQuery && !bilingualFallbackUseful) {
     cascade.push({ q: options.originalQuery, label: 'título original da obra', isOriginal: true });
+    // Mesma obra grafada em ASCII: o magnetdownload devolve lotes diferentes
+    // para "Adım Farah" (7) e "Adim Farah" (8). Só abre se a grafia original
+    // não trouxe nada relevante; nos BR o shape já tira o acento e o
+    // `shapedSeen` descarta a repetição.
+    const asciiOriginal = stripDiacritics(options.originalQuery);
+    if (asciiOriginal !== options.originalQuery) {
+      cascade.push({ q: asciiOriginal, label: 'título original sem acento', isOriginal: true });
+    }
   }
   for (const step of cascade) {
     const shaped = shapeSearchQuery(indexer, step.q, isBr);

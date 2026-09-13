@@ -318,9 +318,9 @@ function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): 
  * Nome do degrau opcional do título ORIGINAL (TMDB) na cascata de consulta:
  * só existe quando ele difere do nome da query primária por normalização —
  * ausente ou equivalente, o degrau é omitido (a query mainstream não troca).
- * normalizeTitle NÃO dobra o ı turco (U+0131 não decompõe em NFD), o que
- * mantém honesta a comparação no caso "Adım Farah"; o matching, que usa o
- * mesmo normalizeTitle via matchContext.names, já o aceita sem mudanças.
+ * normalizeTitle dobra o ı turco ("Adım" = "Adim"), então o original só
+ * gera degrau quando difere de fato do nome mainstream; o matching, que usa o
+ * mesmo normalizeTitle via matchContext.names, aceita as duas grafias.
  */
 function resolveOriginalStepName(original: string | null | undefined, primaryName: string | null | undefined): string | null {
   if (!original || !primaryName) return null;
