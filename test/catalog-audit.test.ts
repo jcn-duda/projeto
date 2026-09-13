@@ -2,7 +2,6 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import config from '../src/config.js';
 import * as catalog from '../src/utils/catalog.js';
@@ -221,9 +220,8 @@ test('markAuditedUnlessCondemned NÃO congela condenação por título com arqui
   assert.ok(!catalog.rowsNeedingAudit(ACCOUNT).some((n) => String(n.serviceId) === '2'), 'some da fila');
 });
 
-const _req = createRequire(import.meta.url);
 let DatabaseSync: any = null;
-try { DatabaseSync = _req('node:sqlite').DatabaseSync; } catch { /* node 20: sem node:sqlite, pula */ }
+try { ({ DatabaseSync } = await import('node:sqlite')); } catch { /* node 20: sem node:sqlite, pula */ }
 const migrationTest = DatabaseSync ? test : test.skip;
 
 migrationTest('migração: ADD COLUMN audited_at marca linhas pt_proof=arquivo e sobrevive; fila pula migrantes', () => {
@@ -358,4 +356,3 @@ test('planManualDeletion apaga BR e condenado por igual: a regra não filtra a e
   const plano = catalog.planManualDeletion(ACCOUNT, 'alldebrid', ['1']);
   assert.equal(plano.targets.length, 1, 'a escolha do operador vence a classificação');
 });
-

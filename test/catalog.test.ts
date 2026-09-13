@@ -12,7 +12,6 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import config from '../src/config.js';
 import * as catalog from '../src/utils/catalog.js';
 import * as held from '../src/debrid/protected.js';
