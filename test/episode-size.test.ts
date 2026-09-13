@@ -57,6 +57,15 @@ test('sem arquivos conhecidos usa a média da temporada e diz que é média', ()
   assert.match(titleOf(out), /💾 5\.21 GB 📦 pack 41\.67 GB \(média\)/);
 });
 
+test('média usa o total do título quando _size já foi apagado pelo sortAndLimit', () => {
+  // Caso ao vivo (My Name Is Earl S01E01, 2026-09-13): o candidato chega à
+  // anotação sem `_size`, e a média nunca aparecia.
+  clearFileSizes();
+  const { _size, ...semSize } = packStream() as Stream & { _size?: number };
+  const [out] = annotateEpisodeSizes([semSize as Stream], { season: 3, episode: 3, meta: { episodes: { 3: 8 } } });
+  assert.match(titleOf(out), /💾 5\.21 GB 📦 pack 41\.67 GB \(média\)/);
+});
+
 test('pack de várias temporadas divide pelos episódios de todas elas', () => {
   // My Name Is Earl (2026-09-13): "S01 S04" de 70.36 GB aparecia em S01E01;
   // dividir só pelos 24 da primeira temporada daria 2.93 GB por episódio.
@@ -73,6 +82,18 @@ test('pack de várias temporadas divide pelos episódios de todas elas', () => {
 
   const [semContagem] = annotateEpisodeSizes([multi], { season: 1, episode: 1, meta: { episodes: { 1: 24 } } });
   assert.equal(titleOf(semContagem), multi.title, 'sem a contagem de todas as temporadas cobertas, não estima');
+});
+
+test('stream-trace conta exato, média e o motivo de cada pack sem anotação', () => {
+  clearFileSizes();
+  recordFileSizes(PACK, [{ path: 'Goliath.S03/Goliath.S03E03.2160p.mkv', size: 4.9 * GB }]);
+  const semContagem = { ...packStream(), infoHash: 'f6'.repeat(20) } as Stream;
+  const trace = { stages: {} as Record<string, number>, items: [], accountItems: 0, startedAt: 0, finishedAt: null };
+  annotateEpisodeSizes([packStream(), semContagem, avulsoStream()], { season: 3, episode: 3, meta: { episodes: {} }, trace });
+  assert.equal(trace.stages['episodeSize.exact'], 1);
+  assert.equal(trace.stages['episodeSize.skip.no-episode-count'], 1, 'pack sem memo e sem contagem diz o motivo');
+  assert.equal(Object.keys(trace.stages).length, 2, 'episódio avulso não entra no funil');
+  clearFileSizes();
 });
 
 test('episódio avulso, pack sem dado nenhum e filme ficam como estão', () => {

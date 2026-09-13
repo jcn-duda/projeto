@@ -99,7 +99,7 @@ export async function buildStreams(rawInput: RawItem[], {
   let autofetchCount = 0;
   // Antes do debrid: é aqui que o stream ainda carrega o infoHash pelo qual o
   // memo de arquivos é lido; o título reescrito sobrevive à materialização.
-  let streams = annotateEpisodeSizes(pool.streams, { season, episode, meta });
+  let streams = annotateEpisodeSizes(pool.streams, { season, episode, meta, trace });
 
   // Contagem ANTES do debrid: `applyDebrid` já devolve a lista pós-cachedOnly,
   // então usar o retorno dele para decidir o aviso era medir depois do corte —
