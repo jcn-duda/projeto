@@ -218,9 +218,15 @@ descreve.
 
 Série sem resultado por episódio tem fallback de pack no caminho crítico
 (`"Nome S01"`, com a variante pt-BR junto) — as fontes BR só publicam
-temporada inteira. Série com resultado **fraco** (ninguém atinge
-`SEARCH_PACK_MIN_SEEDERS`, e áudio estrangeiro explícito não conta como
-saudável) dispara o **pack tardio**, que mescla em vez de substituir.
+temporada inteira. Fora isso, **toda** busca de série roda o **pack tardio**
+(`SEARCH_PACK_TAIL`), que mescla em vez de substituir — inclusive a servida
+pelo índice. Ele já foi condicionado a episódio "fraco" (ninguém com 3+
+seeders) e isso deixava de fora exatamente o caso comum: em Goliath S03E01
+havia release de 43 seeders, nenhuma em cache na AllDebrid, e os packs
+"Goliath S03" — mais semeados e mais prováveis de já estarem em cache — nunca
+eram consultados, porque tracker titula pack sem `SxxEyy`. O custo fica
+limitado pelo cache cru por indexer+query (`RAW_CACHE_TTL`): uma consulta por
+temporada por janela, reaproveitada pelos outros episódios.
 
 A varredura pt-BR (`JACKETT_PT_SWEEP_GLOBAL`) consulta os indexers **globais**
 com a raiz do título em português (`franchiseRoot`: sem subtítulo, sem ano,

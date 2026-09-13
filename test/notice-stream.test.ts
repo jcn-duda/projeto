@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildStreams, applyNoticeOrigin, findStreams } from '../src/providers/index.js';
-import { hasExplicitForeignAudio } from '../src/utils/format.js';
 import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
@@ -197,24 +196,6 @@ test('com fonte tocável não há aviso nenhum', async () => {
 });
 
 
-// Gatilho da busca tardia de pack: a saúde do episódio é seeders E idioma.
-// Medido em Lost Girl S01E01 — um "FRENCH HDTV" de 12 seeders passava do piso
-// sozinho e desligava o pack, deixando a lista em francês, holandês e 272p.
-test('release estrangeira não conta como candidato saudável', () => {
-  const saudavel = (title: any, seeders: any) =>
-    seeders >= config.search.packMinSeeders && !hasExplicitForeignAudio(title);
-
-  assert.equal(saudavel('Lost Girl S01E01 FRENCH HDTV XviD-Scaph', 12), false);
-  assert.equal(saudavel('Lost Girl S01E01 VOSTFR HDTV', 30), false);
-  // MULTI e DUAL carregam a faixa original: continuam valendo como saudáveis.
-  assert.equal(saudavel('Lost Girl S01E01 MULTI 1080p', 12), true);
-  assert.equal(saudavel('Lost Girl S01E01 DUAL 1080p', 12), true);
-  // Marca PT tem precedência sobre a lista de idiomas.
-  assert.equal(saudavel('Lost Girl S01E01 1080p Dublado FRENCH', 12), true);
-  // Sem marca de idioma, quem manda é o piso de seeders.
-  assert.equal(saudavel('Lost Girl S01E01 720p HDTV', 12), true);
-  assert.equal(saudavel('Lost Girl S01E01 720p HDTV', 1), false);
-});
 
 // --- Aviso de deadline: busca que estoura o prazo devolve o quarto texto ---
 

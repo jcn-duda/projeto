@@ -86,11 +86,10 @@ export const budgets = () => ({
 });
 
 export const search = () => ({
-  // A busca complementar de pack fica no passe tardio: duas varreduras de
-  // Jackett em série não cabem no deadline da resposta.
+  // Pack da temporada no passe tardio de TODA busca de série: tracker titula
+  // pack sem SxxEyy e a query do episódio nunca o acha. Fica no tail porque
+  // duas varreduras de Jackett em série não cabem no deadline da resposta.
   packTail: String(process.env.SEARCH_PACK_TAIL || 'true') === 'true',
-  // Episódio abaixo deste piso é fraco; o pack pode ter um swarm saudável.
-  packMinSeeders: Math.max(0, Math.trunc(num(process.env.SEARCH_PACK_MIN_SEEDERS, 3))),
   // Sem uma fonte tocável, explica ao cliente por que a lista não ficou vazia.
   noticeStream: String(process.env.SEARCH_NOTICE_STREAM || 'true') === 'true',
   // Ledger observacional do pipeline de busca (P5): cada corte fica registrado

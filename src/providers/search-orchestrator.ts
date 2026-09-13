@@ -5,7 +5,6 @@ import {
   buildSearchQuery,
   resolveSearchNames,
   resolveOriginalStepName,
-  hasExplicitForeignAudio,
   filterRelevantRaw,
 } from '../utils/format.js';
 import * as cache from '../utils/cache.js';
@@ -228,25 +227,6 @@ export async function doSearch({
   // ainda pode receber a fonte BR no passe tardio; só ampliamos o gatilho antigo
   // quando a coleta terminou e o filtro compartilhado provou que tudo era lixo.
   const relevant = filterRelevantRaw(raw.items, matchContext);
-  // Fraqueza do episodio: ninguem alcanca o piso de seeders. Avaliada sobre o
-  // lote informado; no gatilho TARDIO ela e recalculada depois da coleta
-  // fechar, porque um lote parcial ainda pode receber a release saudavel.
-  //
-  // Idioma estrangeiro explicito NAO conta como saudavel: medido em Lost Girl
-  // S01E01, um "FRENCH HDTV" de 12 seeders passava do piso sozinho e desligava
-  // a busca de pack, deixando o usuario com frances, holandes e 272p. A guarda
-  // poupa MULTI/DUAL (carregam a faixa original) e qualquer marca PT. Isso muda
-  // so o GATILHO: a release estrangeira continua saindo na lista, porque em
-  // titulo sem mais nada ela ainda e a unica opcao.
-  const isHealthy = (item: any) => {
-    const title = item.title || item.Title || '';
-    return Number(item.seeders ?? item.Seeders ?? 0) >= config.search.packMinSeeders &&
-      !hasExplicitForeignAudio(title);
-  };
-  const episodeIsWeak = (items: any[]) => {
-    const rel = items === raw.items ? relevant : filterRelevantRaw(items, matchContext);
-    return rel.length > 0 && !rel.some(isHealthy);
-  };
   const needsPack = raw.items.length === 0 || (!raw.partial && relevant.length === 0);
   let usedPackFallback = false;
   if (needsPack && season != null && !isDemo) {
@@ -322,23 +302,28 @@ export async function doSearch({
     harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode: episode + 1, reason: 'next-episode' });
   }
 
-  // O episódio fraco já ocupou o caminho crítico; o pack é uma segunda busca
-  // complementar no tail. Mesclar, em vez de substituir, preserva releases do
-  // episódio e permite ao autofetch escolher o swarm saudável do pack.
-  if (config.search.packTail && !usedPackFallback && !servedFromIndex && season != null && !isDemo) {
+  // Pack da temporada no tail de TODA busca de série. Tracker titula pack sem
+  // SxxEyy ("Goliath.S03.COMPLETE"), então a query do episódio nunca o acha.
+  // O gatilho antigo (episódio "fraco": ninguém com 3+ seeders) deixava de
+  // fora o caso comum — Goliath S03E01 tinha release de 43 seeders, 0/12 em
+  // cache na AllDebrid, e os packs mais semeados nunca eram consultados. Vale
+  // também para a busca servida pelo índice, que nasce das queries de
+  // episódio. O cache cru é por indexer+query (RAW_CACHE_TTL): uma consulta
+  // por temporada por janela, e os outros episódios reaproveitam o lote.
+  // Mesclar, em vez de substituir, preserva as releases do episódio.
+  if (config.search.packTail && !usedPackFallback && season != null && !isDemo) {
     const s = String(season).padStart(2, '0');
     const packQuery = `${searchMeta.name} S${s}`;
     const ptPackQuery = ptQuery && titles?.pt ? `${titles.pt} S${s}` : null;
     enqueueTail(async () => {
       const started = Date.now();
       try {
-        // Lote parcial nao decide nada: com Jackett frio a coleta estoura o
-        // orcamento e a release saudavel pode chegar depois da resposta. Quem
-        // julga e o balde ja estabilizado — mesmo padrao da varredura pt-BR.
+        // A fusão por hash compara contra o balde do episódio JÁ estabilizado:
+        // com Jackett frio a coleta passa do orçamento e o lote parcial da
+        // resposta ainda não tem tudo — mesmo padrão da varredura pt-BR.
         if (raw.partial && raw.completion) await raw.completion;
-        if (!episodeIsWeak(raw.items)) return;
         metrics.count('search.pack-tail.run');
-        log.info(`[search] sem candidato saudável; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`);
+        log.info(`[search] buscando pack da temporada "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`);
         const pack = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, null, sweepQuery, null, 'all', undefined, collectionTrace, originalQuery ? `${originalQuery} S${s}` : null);
         if (pack.partial && pack.completion) await pack.completion;
         // Mesma fusão por hash do enriquecimento do índice: a regra é geral —

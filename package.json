@@ -229,6 +229,7 @@
     "test/meta-cache.test.js",
     "test/notice-stream.test.js",
     "test/notice-stream-cached-only.test.js",
+    "test/search-pack-tail.test.js",
     "test/nerdfilmes-prefilter.test.js",
     "test/stream-trace.test.js",
     "test/stream-trace-pipeline.test.js",

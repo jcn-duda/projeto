@@ -278,8 +278,14 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     let brSearchCalls = 0;
     jackett.search = async (query, type, indexers) => {
       const isBrIndexer = indexers && indexers.includes('bludv-cardigann');
+      // Os contadores medem só a query do EPISÓDIO: toda busca de série roda o
+      // pack da temporada ("Fallout S01") no tail do primeiro pedido, e ele não
+      // é o que o Step 3 cobra. O que importa é que o segundo pedido não refaça
+      // a busca do episódio — sem a escrita tardia (MUT-10) ela seria refeita e
+      // estes contadores dobrariam do mesmo jeito.
+      const isEpisodeQuery = /S01E01/i.test(String(query));
       if (isBrIndexer) {
-        brSearchCalls += 1;
+        if (isEpisodeQuery) brSearchCalls += 1;
         // Slow BR Season Pack scraper: o atraso (1400ms) precisa ser MAIOR que o
         // orçamento de coleta (1200ms), senão o resultado BR entraria na primeira
         // resposta e o passe tardio nunca aconteceria.
@@ -294,7 +300,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
         ];
       }
       // Fast Global indexer
-      globalSearchCalls += 1;
+      if (isEpisodeQuery) globalSearchCalls += 1;
       return [
         makeRawStream('Fallout.S01E01.1080p.WEBRip.x264', {
           infoHash: fastGlobalHash,
