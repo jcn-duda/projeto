@@ -1,13 +1,10 @@
 // Fase 8 — Reconcile da posse (`adsub`) com a conta real.
 //
-// Contrato fixado aqui: knobs (default OFF, clamp 0..50, intervalo, margem);
-// escopo B-2 (só a conta do operador, BYO e gate fechado nunca); seleção em
-// CONJUNÇÃO (ready, não ativo, não preexistente, posse ativa, anti-re-add,
-// não-consultado, held/adprot); snapshot `null` pula a rodada FECHADA; mais
-// antigos primeiro com teto por rodada; purga do adsub + adrm nos removidos
-// (e nada disso quando o delete falha); intervalo mínimo; anti-reentrada;
-// `reuploadBlock` não é dependência de disparo; e o gancho fire-and-forget na
-// checagem (irmão do evictor).
+// Contrato: knobs (default OFF, clamp, intervalo, margem, piso de idade e piso
+// de ocupação); seleção em CONJUNÇÃO (ready, não ativo, não preexistente, posse
+// ativa, anti-re-add, idade mínima, não-consultado, held/adprot); snapshot `null`
+// e ocupação <= piso pulam a rodada FECHADA; mais antigos/teto; purga adsub+adrm;
+// intervalo; anti-reentrada; escopo B-2; gancho fire-and-forget na checagem.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
@@ -25,6 +22,10 @@ import {
 } from './helpers/alldebrid-mock.js';
 
 const adsubKey = (account: string, hash: string) => `${prefix('adsub')}${account}:${hash}`;
+
+// Timestamp único do arquivo: as janelas dos testes (600s × 24h) são largas
+// demais para a duração da suíte deslocar qualquer limiar.
+const AGORA_SEC = Math.floor(Date.now() / 1000);
 
 // Knobs do 8.14/8.15 pinados: o mark do anti-reenchimento e a persistência da
 // posse precisam estar vivos — o config lê o .env do operador e o verde da
@@ -55,41 +56,64 @@ function limpa(KEY: string, hashes: string[]) {
   }
 }
 
-// --- 1. Knobs -----------------------------------------------------------------
+type Api = ReturnType<typeof mockAd>;
+
+/** Magnet nosso + rodada disparada; `verifica` roda antes do cleanup em finally. */
+async function cenario(
+  KEY: string, uploadDate: number, patch: Record<string, unknown>,
+  verifica: (api: Api, account: string) => Promise<void> | void,
+) {
+  const HASH = 'a0'.repeat(20);
+  const account = accountScope(KEY);
+  const api = mockAd({ account: [mag(700, HASH, 'Cenario.2024.1080p', uploadDate)] });
+  possui(KEY, HASH);
+  const restore = withDebrid({ reconcile: true, reconcileMinIntervalMs: 0, apiKey: KEY, ...patch });
+  try {
+    scheduleReconcile(KEY);
+    await assenta();
+    await verifica(api, account);
+  } finally {
+    restore();
+    api.restore();
+    limpa(KEY, [HASH]);
+    metrics.reset();
+  }
+}
 
 test('reconcile: default OFF, intervalo 300s, teto 25 com clamp 0..50, margem 600s', () => {
-  delete process.env.DEBRID_RECONCILE;
-  delete process.env.DEBRID_RECONCILE_MIN_INTERVAL_MS;
-  delete process.env.DEBRID_RECONCILE_MAX_PER_ROUND;
-  delete process.env.DEBRID_RECONCILE_AGE_MARGIN_MS;
+  const ENVS = ['DEBRID_RECONCILE', 'DEBRID_RECONCILE_MIN_INTERVAL_MS', 'DEBRID_RECONCILE_MAX_PER_ROUND',
+    'DEBRID_RECONCILE_AGE_MARGIN_MS', 'DEBRID_RECONCILE_MIN_AGE_MS', 'DEBRID_RECONCILE_FLOOR'];
+  for (const k of ENVS) delete process.env[k];
   try {
-    const fabrica = debrid();
-    assert.equal(fabrica.reconcile, false, 'default OFF: remoção exige decisão explícita do operador');
-    assert.equal(fabrica.reconcileMinIntervalMs, 300_000);
-    assert.equal(fabrica.reconcileMaxPerRound, 25, 'teto default conservador');
-    assert.equal(fabrica.reconcileAgeMarginMs, 600_000);
+    const f = debrid();
+    assert.equal(f.reconcile, false, 'default OFF: remoção exige decisão explícita do operador');
+    assert.equal(f.reconcileMinIntervalMs, 300_000);
+    assert.equal(f.reconcileMaxPerRound, 25, 'teto default conservador');
+    assert.equal(f.reconcileAgeMarginMs, 600_000);
+    assert.equal(f.reconcileMinAgeMs, 86_400_000, 'piso de idade default 24h');
+    assert.equal(f.reconcileFloor, 0, 'piso de ocupação default desligado');
     process.env.DEBRID_RECONCILE_MAX_PER_ROUND = '999';
     assert.equal(debrid().reconcileMaxPerRound, 50, 'clamp superior 0..50');
     process.env.DEBRID_RECONCILE_MAX_PER_ROUND = '-1';
     assert.equal(debrid().reconcileMaxPerRound, 0, 'clamp inferior: 0 desliga');
     process.env.DEBRID_RECONCILE_MIN_INTERVAL_MS = '-5';
     assert.equal(debrid().reconcileMinIntervalMs, 0, 'intervalo nunca negativo');
+    process.env.DEBRID_RECONCILE_MIN_AGE_MS = '-1';
+    assert.equal(debrid().reconcileMinAgeMs, 0, 'piso de idade nunca negativo');
+    process.env.DEBRID_RECONCILE_FLOOR = '-5';
+    assert.equal(debrid().reconcileFloor, 0, 'piso de ocupação nunca negativo');
   } finally {
-    delete process.env.DEBRID_RECONCILE_MIN_INTERVAL_MS;
-    delete process.env.DEBRID_RECONCILE_MAX_PER_ROUND;
-    delete process.env.DEBRID_RECONCILE_AGE_MARGIN_MS;
+    for (const k of ENVS) delete process.env[k];
   }
 });
-
-// --- 2. Remoção, purga e adrm ---------------------------------------------------
 
 test('reconcile: ready com posse remanescente sai, é purgado do adsub e marcado no adrm', async () => {
   const KEY = 'chave-reconcile-basico';
   const ACCOUNT = accountScope(KEY);
-  metrics.reset();
   const NOSSO = 'a1'.repeat(20);
-  const agoraSec = Math.floor(Date.now() / 1000);
-  const api = mockAd({ account: [mag(601, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', agoraSec - 3600)] });
+  // Upload de 3 dias: acima do piso de idade default (24h) — resíduo de
+  // verdade, não conteúdo recém-esquentado (prova que o piso não trava o resto).
+  const api = mockAd({ account: [mag(601, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600)] });
   possui(KEY, NOSSO);
   const restore = withDebrid({ reconcile: true, reconcileMinIntervalMs: 0, apiKey: KEY });
   try {
@@ -108,21 +132,18 @@ test('reconcile: ready com posse remanescente sai, é purgado do adsub e marcado
   }
 });
 
-// --- 3. Anti-re-add (N3) ---------------------------------------------------------
-
 test('reconcile: upload POSTERIOR à etiqueta é re-add do usuário e NUNCA sai', async () => {
   const KEY = 'chave-reconcile-read';
   const ACCOUNT = accountScope(KEY);
-  metrics.reset();
   const VELHO_NOSSO = 'b1'.repeat(20);
   const READICIONADO = 'b2'.repeat(20);
-  const agoraSec = Math.floor(Date.now() / 1000);
   const api = mockAd({
     account: [
-      // Dentro da margem: upload quase contemporâneo à etiqueta (nosso).
-      mag(611, VELHO_NOSSO, 'Old.Upload.2023.TrueFrench.1080p', agoraSec - 3600),
+      // Dentro da margem: upload quase contemporâneo à etiqueta (nosso), já
+      // acima do piso de idade default.
+      mag(611, VELHO_NOSSO, 'Old.Upload.2023.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600),
       // Posterior à etiqueta + margem: o usuário re-adicionou por conta própria.
-      mag(612, READICIONADO, 'ReAdded.By.User.2024.TrueFrench.1080p', agoraSec + 60),
+      mag(612, READICIONADO, 'ReAdded.By.User.2024.TrueFrench.1080p', AGORA_SEC + 60),
     ],
   });
   possui(KEY, VELHO_NOSSO);
@@ -144,23 +165,19 @@ test('reconcile: upload POSTERIOR à etiqueta é re-add do usuário e NUNCA sai'
   }
 });
 
-// --- 4. Exclusões em conjunção ---------------------------------------------------
-
 test('reconcile: preexistente, ativo, held e adprot ficam mesmo com posse e idade elegíveis', async () => {
   const KEY = 'chave-reconcile-exclusoes';
   const ACCOUNT = accountScope(KEY);
-  metrics.reset();
   const PRE = 'c1'.repeat(20);
   const ATIVO = 'c2'.repeat(20);
   const HELD_H = 'c3'.repeat(20);
   const ADPROT_H = 'c4'.repeat(20);
-  const agoraSec = Math.floor(Date.now() / 1000);
   const api = mockAd({
     account: [
-      mag(621, PRE, 'Pre.User.2018.TrueFrench.1080p', agoraSec - 3600),
-      mag(622, ATIVO, 'Active.Movie.2024.TrueFrench.720p', agoraSec - 3600, 'Downloading'),
-      mag(623, HELD_H, 'Held.Movie.2024.TrueFrench.720p', agoraSec - 3600),
-      mag(624, ADPROT_H, 'Protected.BR.2024.Dublado.1080p', agoraSec - 3600),
+      mag(621, PRE, 'Pre.User.2018.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600),
+      mag(622, ATIVO, 'Active.Movie.2024.TrueFrench.720p', AGORA_SEC - 3 * 24 * 3600, 'Downloading'),
+      mag(623, HELD_H, 'Held.Movie.2024.TrueFrench.720p', AGORA_SEC - 3 * 24 * 3600),
+      mag(624, ADPROT_H, 'Protected.BR.2024.Dublado.1080p', AGORA_SEC - 3 * 24 * 3600),
     ],
   });
   inventario(ACCOUNT, [PRE]);
@@ -184,15 +201,11 @@ test('reconcile: preexistente, ativo, held e adprot ficam mesmo com posse e idad
   }
 });
 
-// --- 5. Fail-safe do inventário ---------------------------------------------------
-
 test('reconcile: inventário null pula a rodada FECHADA — nada sai sem prova de proveniência', async () => {
   const KEY = 'chave-reconcile-failsafe';
   const ACCOUNT = accountScope(KEY);
-  metrics.reset();
   const NOSSO = 'd1'.repeat(20);
-  const agoraSec = Math.floor(Date.now() / 1000);
-  const api = mockAd({ account: [mag(631, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', agoraSec - 3600)], failStatus: true });
+  const api = mockAd({ account: [mag(631, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600)], failStatus: true });
   possui(KEY, NOSSO);
   // Envelhece o snapshot: com a referência vencida, o knownBefore dispara o
   // refresh (que falha com 500) e o reconcile recebe `null` — o fail-safe
@@ -214,24 +227,19 @@ test('reconcile: inventário null pula a rodada FECHADA — nada sai sem prova d
   }
 });
 
-// --- 6. Escopo B-2 ----------------------------------------------------------------
-
 test('reconcile: BYO e gate de operador fechado nunca disparam rodada', async () => {
   const KEY = 'chave-reconcile-operador';
-  metrics.reset();
   const api = mockAd({ account: [mag(641, 'e1'.repeat(20), 'Stale.Upload.2024.TrueFrench.1080p', 1000)] });
   const byo = withDebrid({ reconcile: true, apiKey: KEY });
   try {
     scheduleReconcile('chave-de-outro-usuario');
     await assenta();
     assert.equal(api.statusCalls, 0, 'chave de usuário (BYO): nunca reconcile');
-
     const fechado = withDebrid({ reconcile: true, apiKey: KEY, allowEnvKey: false, operatorEnvAccount: false });
     scheduleReconcile(KEY);
     await assenta();
     assert.equal(api.statusCalls, 0, 'envOperatorAccount fechado: nunca reconcile');
     fechado();
-
     const off = withDebrid({ reconcile: false, apiKey: KEY });
     scheduleReconcile(KEY);
     await assenta();
@@ -244,17 +252,15 @@ test('reconcile: BYO e gate de operador fechado nunca disparam rodada', async ()
   }
 });
 
-// --- 7. Teto por rodada e ordem ---------------------------------------------------
-
 test('reconcile: mais antigos primeiro e teto DEBRID_RECONCILE_MAX_PER_ROUND', async () => {
   const KEY = 'chave-reconcile-teto';
-  metrics.reset();
-  const agoraSec = Math.floor(Date.now() / 1000);
   const api = mockAd({
     account: [
-      mag(651, '11'.repeat(20), 'Oldest.Upload.2022.TrueFrench.1080p', agoraSec - 7200),
-      mag(652, '22'.repeat(20), 'Middle.Upload.2023.TrueFrench.1080p', agoraSec - 3600),
-      mag(653, '33'.repeat(20), 'Newest.Upload.2024.TrueFrench.1080p', agoraSec - 60),
+      // Todos acima do piso de idade default: o que decide a ordem aqui é a
+      // idade relativa (e o teto), não o piso.
+      mag(651, '11'.repeat(20), 'Oldest.Upload.2022.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600 - 7200),
+      mag(652, '22'.repeat(20), 'Middle.Upload.2023.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600 - 3600),
+      mag(653, '33'.repeat(20), 'Newest.Upload.2024.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600 - 60),
     ],
   });
   for (const hash of ['11'.repeat(20), '22'.repeat(20), '33'.repeat(20)]) possui(KEY, hash);
@@ -273,14 +279,10 @@ test('reconcile: mais antigos primeiro e teto DEBRID_RECONCILE_MAX_PER_ROUND', a
   }
 });
 
-// --- 8. Intervalo mínimo e anti-reentrada ----------------------------------------
-
 test('reconcile: rodada dentro do intervalo mínimo é pulada (skippedInterval)', async () => {
   const KEY = 'chave-reconcile-intervalo';
-  metrics.reset();
   const NOSSO = 'f1'.repeat(20);
-  const agoraSec = Math.floor(Date.now() / 1000);
-  const api = mockAd({ account: [mag(661, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', agoraSec - 3600)] });
+  const api = mockAd({ account: [mag(661, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600)] });
   possui(KEY, NOSSO);
   // Intervalo alto: a segunda rodada chega antes do intervalo vencer.
   const restore = withDebrid({ reconcile: true, reconcileMinIntervalMs: 3_600_000, apiKey: KEY });
@@ -301,11 +303,9 @@ test('reconcile: rodada dentro do intervalo mínimo é pulada (skippedInterval)'
 
 test('reconcile: anti-reentrada — concorrente conta busy e não empilha rodada', async () => {
   const KEY = 'chave-reconcile-busy';
-  metrics.reset();
   const NOSSO = 'g1'.repeat(20);
-  const agoraSec = Math.floor(Date.now() / 1000);
   const statusGate = gate();
-  const api = mockAd({ account: [mag(671, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', agoraSec - 3600)], statusGate });
+  const api = mockAd({ account: [mag(671, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600)], statusGate });
   possui(KEY, NOSSO);
   const restore = withDebrid({ reconcile: true, reconcileMinIntervalMs: 0, apiKey: KEY });
   try {
@@ -328,15 +328,11 @@ test('reconcile: anti-reentrada — concorrente conta busy e não empilha rodada
   }
 });
 
-// --- 9. reuploadBlock não é dependência -------------------------------------------
-
 test('reconcile: com o marcador 8.14 desligado, ainda remove e purga — só não grava adrm', async () => {
   const KEY = 'chave-reconcile-sem-adrm';
   const ACCOUNT = accountScope(KEY);
-  metrics.reset();
   const NOSSO = 'h1'.repeat(20);
-  const agoraSec = Math.floor(Date.now() / 1000);
-  const api = mockAd({ account: [mag(681, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', agoraSec - 3600)] });
+  const api = mockAd({ account: [mag(681, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600)] });
   possui(KEY, NOSSO);
   const restore = withDebrid({ reconcile: true, reconcileMinIntervalMs: 0, apiKey: KEY, reuploadBlock: false });
   try {
@@ -354,16 +350,12 @@ test('reconcile: com o marcador 8.14 desligado, ainda remove e purga — só nã
   }
 });
 
-// --- 10. Gancho na checagem --------------------------------------------------------
-
 test('reconcile: checkCached dispara a rodada em fundo (fire-and-forget, irmão do evictor)', async () => {
   const KEY = 'chave-reconcile-gancho';
   const ACCOUNT = accountScope(KEY);
-  metrics.reset();
   const NOSSO = 'i1'.repeat(20);
   const OUTRO = 'i2'.repeat(20);
-  const agoraSec = Math.floor(Date.now() / 1000);
-  const api = mockAd({ account: [mag(691, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', agoraSec - 3600)] });
+  const api = mockAd({ account: [mag(691, NOSSO, 'Stale.Upload.2024.TrueFrench.1080p', AGORA_SEC - 3 * 24 * 3600)] });
   possui(KEY, NOSSO);
   const restore = withDebrid({ reconcile: true, reconcileMinIntervalMs: 0, apiKey: KEY, dropReady: true, dropUncached: true });
   try {
@@ -381,3 +373,28 @@ test('reconcile: checkCached dispara a rodada em fundo (fire-and-forget, irmão 
     metrics.reset();
   }
 });
+
+test('reconcile: posse recente (< minAge) fica e conta skippedAge', () =>
+  cenario('chave-reconcile-minage', AGORA_SEC - 600, { reconcileMinAgeMs: 24 * 3600 * 1000 }, async (api, account) => {
+    // 10 minutos: exatamente o pack que o autofetch acabou de esquentar.
+    await esperaMetrica('debrid.reconcile.skippedAge');
+    assert.deepEqual([...api.deleted], [], 'conteúdo recém-esquentado não é resíduo');
+    assert.equal(counter('debrid.reconcile.removed'), 0, 'nada é removido');
+    assert.notEqual(submittedAt(account, 'a0'.repeat(20)), null, 'a posse do pack recente permanece');
+  }));
+
+test('reconcile: reconcileMinAgeMs=0 restaura o comportamento anterior (remove recente)', () =>
+  cenario('chave-reconcile-minage-off', AGORA_SEC - 600, { reconcileMinAgeMs: 0 }, async (api) => {
+    await esperaMetrica('debrid.reconcile.removed');
+    assert.deepEqual([...api.deleted], [700], 'piso 0 desliga a trava de idade');
+    assert.equal(counter('debrid.reconcile.skippedAge'), 0, 'sem piso, ninguém é barrado pela idade');
+  }));
+
+test('reconcile: ocupação <= DEBRID_RECONCILE_FLOOR desiste a rodada (skippedFloor)', () =>
+  cenario('chave-reconcile-floor', AGORA_SEC - 3 * 24 * 3600, { reconcileFloor: 5 }, async (api) => {
+    // Conta com 1 magnet e piso 5 (o incidente estava a ~75% = sem pressão).
+    await esperaMetrica('debrid.reconcile.skippedFloor');
+    assert.deepEqual([...api.deleted], [], 'conta folgada não apaga nada');
+    assert.equal(counter('debrid.reconcile.removed'), 0, 'nenhuma remoção');
+    assert.equal(api.statusCalls, 1, 'a leitura de status aconteceu; só a seleção foi barrada');
+  }));

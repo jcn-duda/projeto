@@ -160,6 +160,11 @@ export const debrid = () => ({
   // + esta margem é re-add do usuário e NUNCA sai. A margem cobre a defasagem
   // de relógio entre a AllDebrid e este processo.
   reconcileAgeMarginMs: Math.max(0, num(process.env.DEBRID_RECONCILE_AGE_MARGIN_MS, 600_000)),
+  // Piso de idade: só elegível se já existe há pelo menos isto. O incidente que
+  // motivou: o reconcile apagou um pack recém-esquentado pelo autofetch. 0 desliga.
+  reconcileMinAgeMs: Math.max(0, num(process.env.DEBRID_RECONCILE_MIN_AGE_MS, 24 * 3600 * 1000)),
+  // Piso de ocupação (como HARVEST_EVICT_FLOOR): conta folgada não apaga nada. 0 desliga.
+  reconcileFloor: Math.max(0, Math.trunc(num(process.env.DEBRID_RECONCILE_FLOOR, 0))),
   // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
   // "Expired", "File not available"). A limpeza por busca só alcança hashes
   // que estão na consulta do momento; um torrent que morreu e nunca mais é
