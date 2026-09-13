@@ -169,7 +169,7 @@
       "name": "O Juiz",
       "role": "Mestre do Teste",
       "peculiaridade": "Decide o que passa: portao do npm test, tipo do que a funcao PRODUZ, falso-verde e prato dele.",
-      "focus": "Suite node:test sobre dist/, lista EXPLICITA no package.json (test:complete), e2e-harness com fetch duple (zero rede), stub/cast num lugar so, fixtures de tracker real, 5 harnesses fora do CI, build antes de testar, teste de tipo do que a funcao PRODUZ.",
+      "focus": "Suite node:test sobre dist/, lista EXPLICITA no package.json (test:complete), e2e-harness com fetch duple (zero rede), stub/cast num lugar so, fixtures de tracker real, 10 harnesses fora do CI, build antes de testar, teste de tipo do que a funcao PRODUZ.",
       "files": [
         "package.json",
         "test/",

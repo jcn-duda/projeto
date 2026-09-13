@@ -76,7 +76,7 @@ Praticamente todo trabalho de código acontece no **Adom**.
   caminho de produção). Cada `<nome>-resolver/server.ts` é um shim de
   compatibilidade/standalone (instância lazy por `resolvers/shim-instance.ts`,
   env lida no ponto de entrada e `isMain(import.meta.url)` no lugar do
-  `require.main`); a lógica vive no `resolvers/` (**ESM puro**, sem
+  `require.main`); a lógica vive no `resolvers/` (**TypeScript/ESM**, sem
   `resolvers/package.json`), e o `tsc` compila/emite `resolvers/` e os seis
   `*-resolver/` inteiros para `dist/` (o build-assets só copia assets
   não-compiláveis — ver a armadilha do `dist/`).
@@ -1581,7 +1581,8 @@ o orçamento com a resposta.
   `dist/src/...`, então `__dirname` e `require`/`import` relativos apontam para
   dentro de `dist/`. Dois casos já mordidos: o `DB_PATH` do cache precisa subir
   **três** níveis para achar `data/cache.db`, e os seis profiles são importados
-  estaticamente por `../resolvers/profiles/<nome>.js` (os shims
+  estaticamente de `resolvers/profiles/<nome>.ts` (import com a extensão do
+  emit, `../resolvers/profiles/<nome>.js`; os shims
   `*-resolver/server.ts` seguem existindo para os testes e o modo standalone, e
   importam o mesmo profile mais `resolvers/shim-instance.ts`) — no container o
   `resolvers/` e os `*-resolver/` têm que chegar a **`/app/dist/resolvers/`** e
@@ -1769,8 +1770,8 @@ o orçamento com a resposta.
   `sweep-dead` devolvem 400 `confirmation_required` sem ele. São globais: não
   há escopo por instalação hoje.
 - **Os sites BR trocam de domínio com frequência.** `BLUDV_URL`,
-  `COMANDOTORRENTS_URL`, `NERDFILMES_URL`, `TORRENTDOSFILMES_URL` são
-  configuráveis. Os resolvers ainda têm failover interno por saúde de **rede**
+  `COMANDOTORRENTS_URL`, `NERDFILMES_URL`, `TORRENTDOSFILMES_URL`,
+  `VACATORRENT_URL` e `REDETORRENT_URL` são configuráveis. Os resolvers ainda têm failover interno por saúde de **rede**
   (DNS/conexão/timeout — 0 resultados não troca de host). Parser quebrado
   geralmente é mudança de layout do WordPress, não bug de lógica.
 - **Redirect permanente para domínio fora da allowlist vira fonte morta
@@ -1781,7 +1782,8 @@ o orçamento com a resposta.
   aplicação prova que o host respondeu), então o failover nunca sondava e o
   sintoma era "0 resultados" para sempre. O domínio novo precisa entrar em
   TRÊS lugares: a allowlist (`FALLBACK_SITE_SUFFIXES` no profile
-  `resolvers/profiles/<nome>.ts`; no redetorrent, em `redetorrent-parsers.ts`),
+  `resolvers/profiles/<nome>.ts`; no redetorrent e no vacatorrent, em
+  `<nome>-parsers.ts`),
   o default em `src/config/resolvers.ts` (`resolvers.<nome>Url`), que o
   carregador embutido passa como `siteUrl` explícito à factory do profile, e o
   `.env.example` — **a env VENCE o default**, então
@@ -1827,7 +1829,7 @@ o orçamento com a resposta.
   protetor, nunca descoberta). O domínio histórico `vacatorrentmov.com` faz
   301 → `vaqueirofilmes.com`; os dois ficam na allowlist do perfil para o
   redirect não virar `blocked_host`.
-- **O laço de saltos do protetor é UM só, em `resolvers/transport.js`.** Os
+- **O laço de saltos do protetor é UM só, em `resolvers/transport.ts`.** Os
   seis perfis chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
   importa porque é ele que chama `assertAllowedUrl` a cada salto — o mutante
   MUT-06 do harness adversarial cobre os seis por esse caminho. Se algum
@@ -1867,6 +1869,18 @@ o orçamento com a resposta.
   lugar deles. O 1337x também usa FlareSolverr, mas o isolamento dele é mais
   forte: index-only (nenhuma consulta ao vivo, só colhedor com orçamento
   dedicado) — não o traga de volta nem para slow nem para a resposta.
+- **FlareSolverr atende uma requisição por vez — indexer morto atrasa todos.**
+  O Chromium do FlareSolverr é único e as requisições entram em fila. Um
+  indexer cujo desafio quebra (`tab crashed`) ocupa a fila ~10s por tentativa e
+  empurra 1337x, tokyotosho e os demais para trás; um teste do Jackett chega a
+  estourar os 100s do `HttpClient` só por estar na fila, sem defeito no indexer
+  testado. Medido em 2026-09-12: os 18 domínios do `kickasstorrents-ws`
+  (links + legacylinks do definition) estavam inúteis — 10 com `tab crashed`,
+  4 sem DNS, 4 estacionados — e ele saiu do `JACKETT_INDEXERS` local; o
+  `kickasstorrents-to` voltou trocando o sitelink para `kickass.torrentsbay.org`.
+  Crash de aba aqui não é memória (o 1337x resolve desafio no mesmo
+  FlareSolverr): teste os espelhos do definition antes de culpar a infra e
+  tire da lista o que não tem espelho vivo.
 - **Buscador WordPress engasga com `:`** — `bludv.search` remove antes de
   consultar. Sintomas: título com subtítulo volta vazio.
 - **Buscador WordPress BR devolve 0 para QUALQUER query acentuada.** Medido

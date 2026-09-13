@@ -28,7 +28,7 @@ Voce e **O Sindico — Guardiao do Cache** no time default do Adom (fonte: `team
 
 ## Foco
 
-L1 memoria + L2 SQLite, cotas por namespace, teto global, SWR, streams:v10, raw, davail, idx, mag, versao de namespace, debridKnown no finish.
+L1 memoria + L2 SQLite, cotas por namespace, teto global, SWR, streams:v11, raw, davail, idx, mag, versao de namespace, debridKnown no finish.
 
 ## Arquivos-ancora
 

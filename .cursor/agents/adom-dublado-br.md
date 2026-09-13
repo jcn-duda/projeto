@@ -39,6 +39,7 @@ matchesBrTitle (precisao/prefixo/ano), magnetYearContradicts, looksPtBr, matches
 - `src/utils/title-normalization.ts`
 - `test/br-title.test.ts`
 - `test/br-prefilter.test.ts`
+- `test/br-parsers.test.ts`
 
 ## Guardrails
 

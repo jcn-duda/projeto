@@ -41,14 +41,17 @@ Ao revisar Docker, confira filtros de push e PR para todos os `COPY`, incluindo
 ## Arquivos-ancora
 
 - `Dockerfile`
+- `.github/workflows/docker.yml`
+- `.github/workflows/ci.yml`
+- `.dockerignore`
+- `package.json`
+- `package-lock.json`
 - `docker-compose.yml`
 - `scripts/entrypoint.sh`
 - `src/br-resolvers.ts`
 - `scripts/build-assets.ts`
 - `resolvers/`
-
-- `.github/workflows/ci.yml` e `docker.yml`
-- `package.json` e `package-lock.json`
+- `docker-data/jackett/ServerConfig.json`
 
 ## Guardrails
 

@@ -36,7 +36,7 @@ idx:v10, idxPoolCovered, ACCOUNT_FAST_PATH, harvester (fila, freio, teto horario
 - `src/providers/harvester.ts`
 - `src/providers/imdb-seed.ts`
 - `src/providers/search-orchestrator.ts`
-- `src/utils/harvester-live.ts`
+- `src/providers/account.ts`
 
 ## Guardrails
 

@@ -375,12 +375,12 @@ stremio adom/
 ├── docker-compose.yml        # serviço único (adom)
 ├── jackett-bludv/            # definitions Cardigann dos cards BR (yml)
 ├── resolvers/                # núcleo comum dos 6 resolvers BR + profiles/
-├── bludv-resolver/           # shim → resolvers/profiles/bludv.js
-├── comandotorrents-resolver/ # shim → resolvers/profiles/comandotorrents.js
-├── nerdfilmes-resolver/      # shim → resolvers/profiles/nerdfilmes.js
-├── torrentdosfilmes-resolver/ # shim → resolvers/profiles/torrentdosfilmes.js
-├── vacatorrent-resolver/     # shim → resolvers/profiles/vacatorrent.js
-├── redetorrent-resolver/     # shim → resolvers/profiles/redetorrent.js
+├── bludv-resolver/           # shim → resolvers/profiles/bludv.ts
+├── comandotorrents-resolver/ # shim → resolvers/profiles/comandotorrents.ts
+├── nerdfilmes-resolver/      # shim → resolvers/profiles/nerdfilmes.ts
+├── torrentdosfilmes-resolver/ # shim → resolvers/profiles/torrentdosfilmes.ts
+├── vacatorrent-resolver/     # shim → resolvers/profiles/vacatorrent.ts
+├── redetorrent-resolver/     # shim → resolvers/profiles/redetorrent.ts
 ├── Caddyfile
 ├── Dockerfile
 ├── .env.example

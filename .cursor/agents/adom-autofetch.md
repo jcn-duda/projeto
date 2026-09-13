@@ -36,7 +36,7 @@ Selecao de candidatos, hold ANTES da checagem, marker, autoFetchMax, fila persis
 - `src/providers/autofetch-runner.ts`
 - `src/providers/debrid-pipeline.ts`
 - `src/debrid/protected.ts`
-- `src/utils/autofetch-live.ts`
+- `src/debrid/audio-audit.ts`
 
 ## Guardrails
 

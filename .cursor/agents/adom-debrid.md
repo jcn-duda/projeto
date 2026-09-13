@@ -34,10 +34,12 @@ Registry, cacheCheck honesto, known:false vs unusable, dropUncached/dropReady, i
 
 - `src/debrid/index.ts`
 - `src/debrid/common.ts`
-- `src/debrid/file-selector.ts`
 - `src/debrid/alldebrid.ts`
+- `src/debrid/premiumize.ts`
 - `src/debrid/realdebrid.ts`
-- `src/debrid/protected.ts`
+- `src/debrid/torbox.ts`
+- `src/debrid/debridlink.ts`
+- `src/debrid/file-selector.ts`
 
 ## Guardrails
 

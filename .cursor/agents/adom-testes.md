@@ -28,7 +28,7 @@ Voce e **O Juiz — Mestre do Teste** no time default do Adom (fonte: `team/adom
 
 ## Foco
 
-npm test sobre dist/, test:complete, e2e-harness, stub centralizado, 5 harnesses fora do CI, tipar o que a funcao PRODUZ, lint:lines.
+npm test sobre dist/, test:complete, e2e-harness, stub centralizado, 10 harnesses fora do CI (cobrados pelo test:complete), tipar o que a funcao PRODUZ, lint:lines.
 
 ## Arquivos-ancora
 

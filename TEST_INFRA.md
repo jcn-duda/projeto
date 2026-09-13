@@ -37,7 +37,7 @@ O arquivo `test/e2e/e2e-harness.ts` fornece a infraestrutura compartilhada para 
 ├────────────────────────────┼─────────────────────────────┤
 │   Config & Cryptography    │   Debrid & Resolver Mocks   │
 │  - encodeConfig()          │  - PM / RD / AD / TB / DL   │
-│  - decodeConfig()          │  - BR Resolvers (8700-8704) │
+│  - decodeConfig()          │  - BR Resolvers (8700-8705) │
 │  - signResolve()           │  - Fixtures & Generators    │
 └────────────────────────────┴─────────────────────────────┘
 ```
@@ -66,10 +66,10 @@ Mapeamento das 14 funcionalidades de `PROJECT.md` para a infraestrutura de teste
 
 | # | Funcionalidade | Módulos Impactados | Estratégia de Teste E2E |
 |---|---|---|---|
-| 1 | Dynamic Domain Validation | `*-resolver/server.js` | Testes com domínios dinâmicos, allowlists, fallback suffixes e rejeição de domínios estranhos |
-| 2 | In-Memory Caching & Dedupe in BLUDV Resolver | `bludv-resolver/server.js` | Testes de cache de posts HTML, deduplicação em voo (`inFlight`), TTL e limites de tamanho |
+| 1 | Dynamic Domain Validation | `*-resolver/server.ts` | Testes com domínios dinâmicos, allowlists, fallback suffixes e rejeição de domínios estranhos |
+| 2 | In-Memory Caching & Dedupe in BLUDV Resolver | `bludv-resolver/server.ts` | Testes de cache de posts HTML, deduplicação em voo (`inFlight`), TTL e limites de tamanho |
 | 3 | Standardized `siteEnv` Configuration | `src/br-resolvers.ts` | Verificação do carregamento das variáveis `BLUDV_URL`, `COMANDOTORRENTS_URL`, `NERDFILMES_URL`, etc. |
-| 4 | Enhanced Protector & JavaScript Extraction | `*-resolver/server.js` | Testes de extração de magnet direto, `DEST_URL`, `window.location` e saltos de redirecionamento |
+| 4 | Enhanced Protector & JavaScript Extraction | `*-resolver/server.ts` | Testes de extração de magnet direto, `DEST_URL`, `window.location` e saltos de redirecionamento |
 | 5 | Title Matching & Deduplication Verification | `src/utils/format.ts` | Validação de `matchesBrTitle`, tolerância de ano, preservação de `_br`/`_dubbed` no `dedupeByHash` |
 | 6 | Cache Statement Pre-Compilation | `src/utils/cache.ts` | Testes de persistência SQLite com statements pré-compilados, `forgetMany` e `prune` |
 | 7 | Resilient Deserialization in Cache Load | `src/utils/cache.ts` | Teste de recuperação tolerante a falhas no `loadFromDisk` com dados corrompidos |
@@ -122,6 +122,27 @@ A suíte completa é estruturada em 4 camadas progressivas de teste:
   - Fallback gracioso de cache SQLite para memória pura quando o banco está bloqueado ou indisponível.
 
 ---
+
+### Clientes ESM do painel (`/configure` e `/dashboard`)
+
+O JS das páginas é ESM nativo em `src/client/<nome>/*.ts` e sai em **dois
+emits**: o de browser (`tsconfig.client.json` → `dist/src/public/client/`) e o
+de Node só para testes (`tsconfig.client.test.json` → `dist/src/client/`). Os
+testes importam o emit de Node por import dinâmico — o `tsconfig.json` raiz
+exclui `src/client`, e um import estático puxaria o fonte para o programa do
+servidor:
+
+- `test/helpers/client.ts` — `/configure`, com DOM falso nascido dos IDs reais
+  do `configure.html`.
+- `test/helpers/dashboard.ts` + `test/helpers/dashboard-dom.ts` — `/dashboard`;
+  o `getElementById` é estrito (id fora do HTML devolve `null`) e os timers do
+  boot são limpos no cleanup.
+- `test/client-esm.test.ts` e `test/dashboard-esm.test.ts` amarram o grafo
+  emitido à allowlist `CLIENT_ASSETS` e provam que nenhum módulo além do entry
+  tem efeito de topo.
+
+Nada de `new Function(fonte)` nem regex de corpo de função: o teste exercita o
+módulo real.
 
 ## 5. Como Executar os Testes
 

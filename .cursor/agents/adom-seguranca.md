@@ -48,9 +48,6 @@ Ao revisar Docker, confira filtros de push e PR para todos os `COPY`, incluindo
 - `src/routes/resolve.ts`
 - `src/routes/diagnostics.ts`
 
-- `.github/workflows/ci.yml` e `docker.yml`
-- `package.json` e `package-lock.json`
-
 ## Guardrails
 
 Nunca expor credencial. Host forjado pode envenenar cache (origin na resposta). Destinos privados no resolve sao SSRF salvo escape explicito. ?token= nunca autentica.

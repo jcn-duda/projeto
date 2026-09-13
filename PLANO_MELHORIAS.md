@@ -401,6 +401,15 @@ o módulo, então o carregador embutido da `br-resolvers.ts` (caminho histórico
 stage final para inspeção operacional. Testes de parser por site continuam
 apontando para os profiles.
 
+> **Supersedido (2026-09-12).** `resolvers/` deixou de ser CommonJS: virou ESM
+> (`31ddac9`) e depois TypeScript integral (`aec0a9a`, tipos compartilhados em
+> `resolvers/types.ts`). Os profiles são import-safe com config explícita
+> (`resolvers/env-config.ts`, `3c20c39`), `src/br-resolvers.ts` importa os seis
+> profiles estaticamente e o próprio `tsc` emite a ilha para `dist/` — não há
+> mais cópia em `/app/resolvers`, nem `server.d.ts` nos shims, nem
+> `types/resolver-shim.d.ts`. O caminho pelos shims ficou só para testes e modo
+> standalone.
+
 Núcleos compartilhados relevantes em `resolvers/`, com um dono único e sem
 cópia nos profiles:
 
@@ -486,6 +495,10 @@ e os limiares de conta do debrid são a fonte dos consumidores TypeScript.
 `br-resolvers.ts` mantém apenas a ponte explícita de mutação/restauração de
 `process.env` para compatibilidade dos profiles CommonJS; seus valores vêm de
 `config` e ela não faz leitura de controle do ambiente.
+
+> **Supersedido (2026-09-12, `3c20c39`).** A ponte de mutação/restauração de
+> `process.env` saiu: `br-resolvers.ts` passa `port`/`selfUrl`/`siteUrl` como
+> argumento à factory de cada profile e não toca mais o ambiente.
 
 Critério de saída: `git grep -n 'process\.env' -- 'src/**/*.ts'` só pode
 encontrar `config.ts` e a ponte de compatibilidade documentada em
@@ -1511,15 +1524,16 @@ linhas), os dois maiores arquivos do repo, não existem mais como monólito.
 ## Validação global (por fase)
 
 ```
-npm run typecheck      # portão: ZERO
+npm run typecheck      # portão: ZERO nos três programas (raiz + cliente)
 npm run build          # dist/ atual (test roda dist)
 npm test               # lista explícita em package.json; zero falha
-npm run test:complete  # lista explícita fechada + 7 harnesses
+npm run test:complete  # lista explícita fechada + 10 harnesses
+npm run lint:lines -- --check  # teto de 400 linhas (baseline vazio)
 # fase 2+ (tocou runtime de rede/debrid):
 node dist/scripts/smoke.js          # pipeline ponta a ponta, rede de verdade
 # fase 5 (todas as subfases):
 npm run test:stress && npm run test:adversarial && npm run test:adversarial-m1 \
-  && npm run test:protector-m1 && npm run test:challenger-m2
+  && npm run test:protector-m1 && npm run test:challenger-m2 && npm run test:ranking-challenger
 # MagnetDB (ranking / rebaixamento de lie):
 npm run test:ranking-challenger
 ```

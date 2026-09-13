@@ -36,8 +36,10 @@ config.ts (.env) x runtime.ts (ALS/opts), SCHEMA <-> KEYS do front, selo AES, pr
 - `src/config.ts`
 - `src/utils/secret-box.ts`
 - `src/public/configure.html`
-- `src/public/configure-app.js`
+- `src/client/configure/keys.ts`
+- `src/client/configure/init.ts`
 - `src/routes/public.ts`
+- `src/routes/register.ts`
 
 ## Guardrails
 
