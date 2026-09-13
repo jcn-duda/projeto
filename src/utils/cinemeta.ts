@@ -21,6 +21,19 @@ function isTransientFailure(status: number) {
   return !status || status === 429 || status >= 500;
 }
 
+// Episódios por temporada, sem especiais (temporada 0): base da média de
+// tamanho do episódio num pack de temporada. Série sem `videos` fica `{}`.
+function episodesBySeason(videos: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!Array.isArray(videos)) return out;
+  for (const video of videos) {
+    const season = Number((video as { season?: unknown })?.season);
+    if (!Number.isInteger(season) || season <= 0) continue;
+    out[String(season)] = (out[String(season)] || 0) + 1;
+  }
+  return out;
+}
+
 /**
  * Resolve título/ano a partir do IMDb id via Cinemeta (API pública do ecossistema Stremio).
  *
@@ -36,7 +49,9 @@ async function getMeta(type: string, imdbId: string) {
       metrics.count('meta.cinemeta.miss.served');
       return null;
     }
-    return cached;
+    // Meta de série gravada antes da contagem de episódios existir volta ao
+    // Cinemeta uma vez: sem ela a estimativa de tamanho no pack não nasce.
+    if (!(type === 'series' && cached.episodes === undefined)) return cached;
   }
   const pending = inFlight.get(key);
   if (pending) return pending;
@@ -63,13 +78,20 @@ async function getMeta(type: string, imdbId: string) {
             name: data.meta.name || data.meta.title,
             year: data.meta.year || (data.meta.releaseInfo || '').slice(0, 4),
             type: data.meta.type || kind,
+            ...(kind === 'series' ? { episodes: episodesBySeason(data.meta.videos) } : {}),
           }
         : null;
       if (meta) cache.set(key, meta, 86400);
+      // Atualização de meta antiga sem resposta útil: fica a gravada, não um miss.
+      else if (cached && !cached.miss) return cached;
       else setMiss(key);
       return meta;
     } catch (err) {
       log.warn('[cinemeta]', err.message);
+      // Falhou só a atualização da meta de série antiga (contagem de episódios):
+      // a gravada continua valendo — trocá-la por um miss apagaria nome e ano
+      // da busca por uma informação que é só de exibição.
+      if (cached && !cached.miss) return cached;
       // 404 (e o corpo sem `meta`) é "não conhece" — missTtl cheio. Rede,
       // timeout, 429 e 5xx são transitórios — CINEMETA_TRANSIENT_MISS_TTL.
       const status = Number(err.status);

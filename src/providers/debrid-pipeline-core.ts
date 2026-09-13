@@ -23,6 +23,7 @@ import { queueDubAudit, collectAuditCandidates } from './dub-audit.js';
 import { countFirstBr, pruneKnownBroken, probeRdOracle, enrichInstantWithoutCacheCheck } from './debrid-pipeline-steps.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { dropTrace, type StreamTraceState } from '../utils/stream-trace.js';
+import { packHashesMissingFiles } from './episode-size.js';
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -141,9 +142,11 @@ export async function applyDebrid(input: Array<Stream | null>, {
   // A etapa do oráculo também consome o deadline: recalcula o teto antes de
   // chamar o adapter, para não transformar o último milissegundo em atraso HTTP.
   const adapterTimeoutMs = remainingCheckBudget(deadlineAt, Date.now(), config.debrid.checkFormatMargin);
+  // Packs sem lista de arquivos no memo: quem sabe listar lê na mesma checagem.
+  const fileHashes = packHashesMissingFiles(streams, season);
   const { cached, known, unusable } = await debrid.checkCached(
     hashes,
-    adapterTimeoutMs != null ? { timeoutMs: adapterTimeoutMs } : {},
+    { ...(adapterTimeoutMs != null ? { timeoutMs: adapterTimeoutMs } : {}), ...(fileHashes.length ? { fileHashes } : {}) },
   );
   const checkMs = Date.now() - checkStarted;
   const needsFullRefresh = adapter.cacheCheck && !known && !unusable;

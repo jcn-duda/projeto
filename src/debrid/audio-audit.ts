@@ -2,6 +2,7 @@ import { dubbedLieVerdict, audioFromTitle, strongEnSceneMark, qualityFromTitle }
 import { DubLieError, VIDEO_EXT, SAMPLE, isSiteAd, baseName } from './common.js';
 import * as releaseIndex from '../utils/release-index.js';
 import type { DebridFile } from './common.js';
+import { recordFileSizes } from './file-sizes.js';
 
 /** Vídeos que são conteúdo: sem sample e sem a propaganda do site. */
 function contentPaths(files: DebridFile[]) {
@@ -45,6 +46,9 @@ function assertDubbedFiles(files: DebridFile[], promisedDubbed = false) {
  */
 function recordFileEvidence(infoHash: string, files: DebridFile[]) {
   if (!infoHash) return;
+  // Ponto único por onde os cinco adapters passam a lista do torrent no play:
+  // os tamanhos alimentam o tamanho do episódio na listagem de qualquer debrid.
+  recordFileSizes(infoHash, files);
   const videos = contentPaths(files);
   if (videos.length === 0) return;
   const names = videos.map((f) => baseName(f.path));

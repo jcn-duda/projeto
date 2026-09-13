@@ -24,6 +24,7 @@ import {
   promoteFirstObserverEligible,
 } from './stream-builder-first-observer.js';
 import type { FirstObserverState } from './stream-builder-first-observer.js';
+import { annotateEpisodeSizes } from './episode-size.js';
 
 // Reexportações públicas com total compatibilidade
 export {
@@ -50,7 +51,7 @@ export type { FirstObserverState };
  * @returns {Promise<import('../../types/domain').Stream[]>}
  */
 export interface BuildStreamsOptions {
-  meta?: { name?: string | null; title?: string; year?: number | string | null } | null;
+  meta?: { name?: string | null; title?: string; year?: number | string | null; episodes?: Record<string, number> } | null;
   titles?: { original?: string | null; pt?: string | null; year?: number | string | null } | null;
   imdbId?: string | null;
   season?: number | null;
@@ -96,7 +97,9 @@ export async function buildStreams(rawInput: RawItem[], {
   });
 
   let autofetchCount = 0;
-  let streams = pool.streams;
+  // Antes do debrid: é aqui que o stream ainda carrega o infoHash pelo qual o
+  // memo de arquivos é lido; o título reescrito sobrevive à materialização.
+  let streams = annotateEpisodeSizes(pool.streams, { season, episode, meta });
 
   // Contagem ANTES do debrid: `applyDebrid` já devolve a lista pós-cachedOnly,
   // então usar o retorno dele para decidir o aviso era medir depois do corte —

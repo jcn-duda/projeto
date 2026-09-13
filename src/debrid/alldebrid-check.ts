@@ -4,7 +4,8 @@ import { batched } from './common.js';
 import * as held from './protected.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { call, id } from './alldebrid-api.js';
+import { call, id, magnetFiles } from './alldebrid-api.js';
+import { recordFileSizes } from './file-sizes.js';
 import { preexisting, knownBefore, waitInventory, rememberSubmitted, forgetSubmitted } from './alldebrid-inventory.js';
 import { skipCleanup, deleteMagnets as dropMagnets } from './alldebrid-cleanup.js';
 import { filterReuploadBlocked, unblockIfInventoryReady } from './alldebrid-reupload.js';
@@ -30,7 +31,25 @@ import { scheduleReconcile } from './alldebrid-reconcile.js';
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-export async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
+// Um /magnet/status por pack pronto, em grupos pequenos para não virar rajada
+// contra o limite de requisições da AllDebrid. Falha de um pack não derruba os
+// outros: sem a lista, a listagem cai na estimativa.
+async function readPackFiles(apiKey: string, items: Array<{ magnetId: string | number; hash: string }>) {
+  for (let i = 0; i < items.length; i += 3) {
+    await Promise.allSettled(items.slice(i, i + 3).map(async ({ magnetId, hash }) => {
+      recordFileSizes(hash, await magnetFiles(apiKey, magnetId));
+    }));
+  }
+  metrics.count('debrid.packFiles.read', items.length);
+}
+
+export async function checkCached(
+  apiKey: string,
+  infoHashes: string[],
+  { timeoutMs, fileHashes }: { timeoutMs?: number; fileHashes?: string[] } = {},
+) {
+  const wantFiles = new Set((fileHashes || []).map((hash) => String(hash).toLowerCase()));
+  const filesToRead: Array<{ magnetId: string | number; hash: string }> = [];
   const dropReady: Array<string | number> = [];
   const dropDownload: Array<string | number> = [];
   // id → hash de cada lista de limpeza: o delete consome id, mas a purga da
@@ -107,6 +126,9 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
         // Ready de hash com registro durável assenta a proteção (noteReady): o
         // ⚡ já existe no serviço. É renovação/confirmação — nunca destrava.
         held.noteReady(id, account, hash);
+        if (magnet.id && wantFiles.has(hash) && filesToRead.length < config.debrid.packFilesPerCheck) {
+          filesToRead.push({ magnetId: magnet.id, hash });
+        }
         // Só entra na limpeza o que o inventário garante não ser do usuário e
         // não está protegido — volátil NEM durável (BR retido no acervo).
         if (config.debrid.dropReady && magnet.id && hash && !skipCleanup(account, hash)) {
@@ -170,8 +192,15 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
       log.info(`[alldebrid] ${ok} magnet(s) ${kind} da checagem removido(s) da conta`);
     });
   };
-  if (config.debrid.dropReady) scheduleDrop(dropReady, 'prontos', readyHashById);
-  if (config.debrid.dropUncached) scheduleDrop(dropDownload, 'downloads', downloadHashById);
+  // A lista de arquivos precisa do `id` do magnet, que some quando a limpeza o
+  // remove da conta. Ler antes e só então limpar não segura a resposta: a
+  // limpeza já era fire-and-forget, ela só espera a leitura terminar.
+  const scheduleCleanup = () => {
+    if (config.debrid.dropReady) scheduleDrop(dropReady, 'prontos', readyHashById);
+    if (config.debrid.dropUncached) scheduleDrop(dropDownload, 'downloads', downloadHashById);
+  };
+  if (filesToRead.length > 0) void readPackFiles(apiKey, filesToRead).finally(scheduleCleanup);
+  else scheduleCleanup();
   // Destravados pelo inventário entram no Set de cache SEM upload: o pronto é
   // prova da própria conta, e o eco do upload os teria omitido de propósito.
   for (const hash of desbloqueados) result.cached.add(hash);

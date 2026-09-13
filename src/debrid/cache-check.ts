@@ -226,7 +226,7 @@ function nonAbortableCheck(adapter: DebridAdapter, apiKey: string, infoHashes: s
  */
 async function checkCached(
   infoHashes: string[],
-  { timeoutMs, forceFresh }: { timeoutMs?: number; forceFresh?: boolean } = {},
+  { timeoutMs, forceFresh, fileHashes }: { timeoutMs?: number; forceFresh?: boolean; fileHashes?: string[] } = {},
 ): Promise<CacheCheckResult> {
   const adapter = current();
   if (!adapter || infoHashes.length === 0) return { cached: new Set(), known: false };
@@ -291,7 +291,7 @@ async function checkCached(
   } else {
     trackCheckedHashes(toAsk);
     try {
-      result = normalizeCacheResult(adapter, await adapter.checkCached(apiKey, toAsk, { timeoutMs }));
+      result = normalizeCacheResult(adapter, await adapter.checkCached(apiKey, toAsk, fileHashes?.length ? { timeoutMs, fileHashes } : { timeoutMs }));
     } catch (err) {
       const reason = unusableReason(err);
       if (reason) result = unusable(adapter, reason, err);

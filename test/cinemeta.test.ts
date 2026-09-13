@@ -80,7 +80,7 @@ test('getMeta usa config.cinemeta.timeout também na variante série', async () 
 
     const meta = await getMeta('series', imdbId);
 
-    assert.deepEqual(meta, { name: 'Fallout', year: '2024', type: 'series' });
+    assert.deepEqual(meta, { name: 'Fallout', year: '2024', type: 'series', episodes: {} });
     assert.equal(stub.calls.length, 1);
     assert.equal(stub.calls[0].url, `https://v3-cinemeta.strem.io/meta/series/${imdbId}.json`);
     assert.equal(capturedTimeout, 321);

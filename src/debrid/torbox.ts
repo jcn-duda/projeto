@@ -3,6 +3,7 @@ import { magnetFor, json, pickFile, batched, wait, QuotaError, RateLimitError } 
 import * as log from '../utils/logger.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { AccountStatus, PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+import { recordFileSizes } from './file-sizes.js';
 
 const API = 'https://api.torbox.app/v1/api';
 // O plano Pro documenta o maior teto (10 slots; Free/Essential/Standard têm
@@ -53,12 +54,19 @@ async function call(apiKey: string, path: string, { method = 'GET', body, params
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
+async function checkCached(
+  apiKey: string,
+  infoHashes: string[],
+  { timeoutMs, fileHashes }: { timeoutMs?: number; fileHashes?: string[] } = {},
+) {
+  const wantFiles = new Set((fileHashes || []).map((hash) => String(hash).toLowerCase()));
   return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const url = new URL(`${API}/torrents/checkcached`);
     batch.forEach((hash) => url.searchParams.append('hash', hash));
     url.searchParams.set('format', 'list');
-    url.searchParams.set('list_files', 'false');
+    // Só pede a lista quando o lote tem pack sem arquivos no memo: a resposta
+    // com arquivos é bem maior, e episódio avulso não precisa dela.
+    url.searchParams.set('list_files', batch.some((hash) => wantFiles.has(String(hash).toLowerCase())) ? 'true' : 'false');
 
     const res = unwrapEnvelope(await json(url, {
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -66,10 +74,15 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
     }));
     // `data` vem como lista de objetos com hash, ou como mapa hash → info.
     const data = res?.data;
-    const hashes = Array.isArray(data)
-      ? data.map((item) => item?.hash).filter(Boolean)
-      : Object.keys(data || {});
-    return hashes.map((hash) => String(hash).toLowerCase());
+    const entries: any[] = Array.isArray(data)
+      ? data
+      : Object.entries(data || {}).map(([hash, info]) => ({ ...(info as object || {}), hash }));
+    for (const item of entries) {
+      const hash = String(item?.hash || '').toLowerCase();
+      if (!hash || !wantFiles.has(hash) || !Array.isArray(item?.files)) continue;
+      recordFileSizes(hash, item.files.map((f: any) => ({ path: f?.short_name || f?.name, size: f?.size })));
+    }
+    return entries.map((item) => String(item?.hash || '').toLowerCase()).filter(Boolean);
   }, { timeoutMs });
 }
 

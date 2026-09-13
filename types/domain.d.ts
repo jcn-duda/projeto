@@ -222,7 +222,9 @@ export interface DebridAdapter {
   checkCached(
     apiKey: string,
     hashes: string[],
-    opts?: { timeoutMs?: number },
+    // `fileHashes`: packs cujos arquivos o memo ainda não conhece. Adapter que
+    // sabe listar arquivos na checagem grava em `file-sizes.ts`; os outros ignoram.
+    opts?: { timeoutMs?: number; fileHashes?: string[] },
   ): Promise<Set<string> | { cached: Set<string>; complete?: boolean }>;
   resolveLink(
     apiKey: string,
