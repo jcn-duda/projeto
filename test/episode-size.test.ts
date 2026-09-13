@@ -57,6 +57,24 @@ test('sem arquivos conhecidos usa a média da temporada e diz que é média', ()
   assert.match(titleOf(out), /💾 5\.21 GB 📦 pack 41\.67 GB \(média\)/);
 });
 
+test('pack de várias temporadas divide pelos episódios de todas elas', () => {
+  // My Name Is Earl (2026-09-13): "S01 S04" de 70.36 GB aparecia em S01E01;
+  // dividir só pelos 24 da primeira temporada daria 2.93 GB por episódio.
+  clearFileSizes();
+  const episodes = { 1: 24, 2: 23, 3: 22, 4: 27 };
+  const multi = {
+    name: '[AD⚡] 1080p',
+    title: 'My Name Is Earl (2005) Season 1 4 S01 S04 (1080p Mixed x265) REPACK\n👤 80 💾 70.36 GB ⚙️ LimeTorrents',
+    infoHash: 'e5'.repeat(20),
+    _size: Math.round(70.36 * GB),
+  } as Stream;
+  const [out] = annotateEpisodeSizes([multi], { season: 1, episode: 1, meta: { episodes } });
+  assert.match(titleOf(out), /💾 750\.5\d MB 📦 pack 70\.36 GB \(média\)/);
+
+  const [semContagem] = annotateEpisodeSizes([multi], { season: 1, episode: 1, meta: { episodes: { 1: 24 } } });
+  assert.equal(titleOf(semContagem), multi.title, 'sem a contagem de todas as temporadas cobertas, não estima');
+});
+
 test('episódio avulso, pack sem dado nenhum e filme ficam como estão', () => {
   clearFileSizes();
   const [avulso, pack] = annotateEpisodeSizes([avulsoStream(), packStream()], { season: 3, episode: 3, meta: null });
