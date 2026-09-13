@@ -85,6 +85,29 @@ test('KPI sem corte: sem line-clamp/ellipsis e title no render (módulo real)', 
   dom.cleanup();
 });
 
+test('KPI alinhado: key/value em bloco próprio (nunca inline)', async () => {
+  // Contrato de alinhamento da aba Geral: render.ts cria key e value como
+  // <span> irmãos SEM espaço entre eles. Sem display: block o navegador os
+  // trata como uma única run inline e `overflow-wrap: anywhere` quebra no
+  // meio do texto colado ("rss412.7 MB"), deixando cartões da mesma fileira
+  // com o valor em alturas diferentes. O teste trava o contrato nas duas
+  // pontas: as tags que o render produz e a declaração que as empilha.
+  const regra = CSS.match(/\.metric \.key,\s*\.metric \.value\s*\{([^}]*)\}/);
+  assert.ok(regra, 'regra compartilhada de .metric .key/.value');
+  assert.match(regra![1], /display:\s*block/);
+  const { dom, mods } = await resetDashboardEnvironment();
+  const box = dom.element('metricBox');
+  mods.render.metric(box, 'rss', '412.7 MB');
+  const item = box.children[0];
+  const key = item.children[0];
+  const value = item.children[1];
+  assert.equal(key.tagName, 'span', 'key é span inline por padrão');
+  assert.equal(value.tagName, 'span', 'value é span inline por padrão');
+  assert.equal(key.className, 'key');
+  assert.equal(value.className, 'value');
+  dom.cleanup();
+});
+
 test('contraste/foco: :focus-visible e fallback keyboard-nav no boot ESM', () => {
   assert.match(CSS, /button:focus-visible[^{]*\{[^}]*outline:\s*2px solid var\(--accent\)/);
   assert.match(CSS, /html\.keyboard-nav button:focus[^{]*\{[^}]*outline:\s*2px solid var\(--accent\)/);

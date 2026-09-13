@@ -125,10 +125,15 @@ button.danger:hover { border-color: var(--red); background: var(--red-soft); }
  * KPI sem elipsis e SEM corte: chave e valor quebram em quantas linhas
  * precisarem (o antigo line-clamp de 2 linhas truncava com "…" justamente
  * o sufixo que diferencia contadores). O text-wrap: balance é progressão
- * pura: equilibra as linhas onde o WebView suporta e NUNCA corta texto. */
+ * pura: equilibra as linhas onde o WebView suporta e NUNCA corta texto.
+ * display: block não pode voltar a ser inline: render.ts cria key e value
+ * como <span> irmãos sem espaço entre eles e `overflow-wrap: anywhere`
+ * quebraria no meio da run colada ("rss412.7 MB"), deixando cartões da
+ * mesma fileira com o valor em alturas diferentes. Em bloco, chave e valor
+ * ocupam linhas próprias e todo ladrilho segue o mesmo contrato visual. */
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .metric { min-width: 0; padding: 13px 15px; border: 1px solid var(--border); border-radius: var(--radius); background: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, .012)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04); }
-.metric .key, .metric .value { overflow-wrap: anywhere; white-space: normal; text-wrap: balance; }
+.metric .key, .metric .value { display: block; overflow-wrap: anywhere; white-space: normal; text-wrap: balance; }
 .metric .key { margin-top: 0; color: var(--muted-2); font-size: 12px; font-weight: 700; letter-spacing: .07em; }
 .metric .value { margin-top: 4px; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .metric .value.small { font-size: 13px; line-height: 1.45; }
