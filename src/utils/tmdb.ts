@@ -5,6 +5,68 @@ import * as log from './logger.js';
 
 const API = 'https://api.themoviedb.org/3';
 
+interface EnglishTitleResult {
+  /** Título canônico inglês; `null` quando a API respondeu sem ele. */
+  title: string | null;
+  /** `true` = a API respondeu (ausência é autoritativa); `false` = falha/prazo. */
+  ok: boolean;
+}
+
+/**
+ * Título canônico inglês da obra por uma SEGUNDA consulta `/find` em en-US,
+ * dentro do MESMO prazo (`deadlineAt`) da consulta pt-BR. O `/find` em pt-BR
+ * devolve o título localizado e o ORIGINAL; quando o original não é inglês
+ * (Django Kill: "Se sei vivo spara", italiano), o nome que os trackers globais
+ * publicam só existe na variante en-US. Sem ele, um timeout do Cinemeta prendia
+ * a busca ao título estrangeiro e perdia os releases em inglês (recall medido
+ * 12 vs 43).
+ *
+ * Extrai SÓ o título canônico de `movie_results`/`tv_results` — o `title` do
+ * filme ou `name` da série já localizados em en-US, NUNCA `original_*` (que
+ * repetiria o idioma de origem) nem as `alternative_titles`, cujas grafias
+ * arbitrárias ("Kill", "Farah") abririam matching genérico.
+ *
+ * O retorno distingue ausência autoritativa (`ok:true`, `title:null`) de
+ * falha/timeout (`ok:false`): só a primeira pode ser cacheada pelo TTL longo —
+ * degradação precisa de releitura curta. Fail-open: falha nunca derruba a
+ * busca, que segue com pt/original.
+ */
+async function fetchEnglishTitle(imdbId: string, deadlineAt: number): Promise<EnglishTitleResult> {
+  const remaining = deadlineAt - Date.now();
+  if (!(remaining > 0)) return { title: null, ok: false };
+  try {
+    const url = new URL(`${API}/find/${imdbId}`);
+    url.searchParams.set('api_key', config.tmdb.apiKey);
+    url.searchParams.set('external_source', 'imdb_id');
+    url.searchParams.set('language', 'en-US');
+    const res = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(Math.max(1, remaining)),
+    });
+    if (!res.ok) return { title: null, ok: false };
+    const data = await res.json();
+    const movie = (data?.movie_results || [])[0];
+    const item = movie || (data?.tv_results || [])[0];
+    // `title` (filme) / `name` (série) é a grafia en-US — o canônico que os
+    // trackers globais publicam. `original_*` seria o idioma de origem (ex.:
+    // turco "Adım Farah"), justamente o que não queremos.
+    const localized = typeof item?.title === 'string' ? item.title
+      : typeof item?.name === 'string' ? item.name : '';
+    return { title: localized.trim() || null, ok: true };
+  } catch (err) {
+    log.warn('[tmdb]', err.message);
+    return { title: null, ok: false };
+  }
+}
+
+// TTL curto para degradação (falha/timeout na busca do título en-US): a
+// ausência do canônico inglês NÃO pode congelar pelo TMDB_CACHE_TTL inteiro (7
+// dias). O piso de 1s cobre o operador que zerou o TTL transitório — sem ele a
+// entrada nem seria gravada e a API voltaria a ser martelada a cada busca.
+function enRetryTtl(): number {
+  return Math.max(1, Math.min(config.tmdb.cacheTtl, config.tmdb.transientMissTtl));
+}
+
 // Requisições concorrentes para o mesmo id compartilham a mesma promise —
 // episódios da mesma série disparam várias buscas em paralelo e cada uma
 // pagava a chamada ao TMDB.
@@ -29,8 +91,10 @@ function isTransientFailure(status: number) {
 /**
  * Título pt-BR a partir do IMDb id. É o que destrava os sites BR: eles indexam
  * por "Coringa", não "Joker" — sem isso a busca volta vazia.
- * Retorna { pt, original } — o original serve de fallback quando os dois
- * idiomas coincidem ou quando o site usa o nome de release em inglês.
+ * Retorna { pt, original, en } — o original serve de fallback quando os idiomas
+ * coincidem ou quando o site usa o nome de release; o `en` é o título canônico
+ * inglês (segunda consulta `/find` en-US) que mantém o recall global quando o
+ * Cinemeta não responde.
  *
  * Id sem resultado entra em cache NEGATIVO: sem isso, título que o TMDB não
  * conhece pagava os 5s de timeout em toda busca. Miss expira sozinho, então
@@ -46,12 +110,21 @@ async function getTitles(imdbId: string) {
       metrics.count('meta.tmdb.miss.served');
       return null;
     }
-    return hit;
+    // Entrada anterior ao campo `en` — ou ainda carregando o `aliases` removido
+    // — é tratada como MISS: o título canônico inglês é justamente o que devolve
+    // a busca quando o Cinemeta cai, e o TTL de 7 dias deixaria o conserto
+    // parado em todo id já cacheado; o campo arbitrário não pode sobreviver no
+    // cache. Custa UMA releitura por id (não é bump de namespace: o formato
+    // gravado é o mesmo, aditivo). Se a releitura falhar, a entrada antiga é
+    // regravada por allowlist com TTL curto — pt/original sobrevivem e a API
+    // não é martelada (ver catch).
+    if (hit.en !== undefined && hit.aliases === undefined) return hit;
   }
   const pending = inFlight.get(key);
   if (pending) return pending;
 
   const promise = (async () => {
+    const deadlineAt = Date.now() + config.tmdb.timeout;
     const url = new URL(`${API}/find/${imdbId}`);
     url.searchParams.set('api_key', config.tmdb.apiKey);
     url.searchParams.set('external_source', 'imdb_id');
@@ -71,22 +144,49 @@ async function getTitles(imdbId: string) {
       }
 
       const data = await res.json();
-      const item = (data.movie_results || [])[0] || (data.tv_results || [])[0];
+      const movie = (data.movie_results || [])[0];
+      const item = movie || (data.tv_results || [])[0];
       if (!item) {
         setMiss(key);
         return null;
       }
 
+      const original = item.original_title || item.original_name || null;
+      const originalLanguage = item.original_language || null;
+      // Original não-inglês não carrega o nome que o tracker global publica:
+      // segunda consulta `/find` em en-US no MESMO prazo (não estende o
+      // orçamento). Não passamos o `id` do item: o `/find` responde a mesma
+      // obra pelo imdb id e não depende de tipo (movie/tv) nem de id numérico.
+      const enResult = originalLanguage && originalLanguage !== 'en'
+        ? await fetchEnglishTitle(imdbId, deadlineAt)
+        : null;
       const titles = {
         pt: item.title || item.name || null,
-        original: item.original_title || item.original_name || null,
+        original,
+        // Em obra de original inglês o próprio `original` já é o canônico EN.
+        en: originalLanguage === 'en' ? original : enResult?.title ?? null,
         year: (item.release_date || item.first_air_date || '').slice(0, 4) || null,
       };
-      // Título não muda; vale cachear bem mais que uma busca.
-      cache.set(key, titles, config.tmdb.cacheTtl);
+      // Título não muda e vale o TTL longo SÓ quando a consulta en-US respondeu
+      // de verdade. Falha/timeout na busca do canônico é degradação: TTL curto
+      // para a próxima busca tentar de novo em vez de congelar por 7 dias.
+      if (enResult && !enResult.ok) {
+        cache.set(key, titles, enRetryTtl());
+      } else {
+        cache.set(key, titles, config.tmdb.cacheTtl);
+      }
       return titles;
     } catch (err) {
       log.warn('[tmdb]', err.message);
+      // Releitura de entrada antiga que falhou: preserva pt/original e regrava
+      // com backoff curto. Reconstrói o objeto por allowlist para não persistir
+      // campo legado do cache (`aliases`); `en:null` evita a releitura imediata
+      // a cada busca.
+      if (hit && !hit.miss) {
+        const healed = { pt: hit.pt ?? null, original: hit.original ?? null, en: hit.en ?? null, year: hit.year ?? null };
+        cache.set(key, healed, enRetryTtl());
+        return healed;
+      }
       // 404 e 200-sem-resultado são "não conhece" — condenam pelo missTtl
       // cheio. Rede, timeout, 429 e 5xx são transitórios: o id volta a ser
       // perguntado em TMDB_TRANSIENT_MISS_TTL, para um blip não derrubar a

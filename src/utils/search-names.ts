@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { opts } from '../runtime.js';
 import type { RawItem, Stream, StreamCandidate } from '../../types/domain.js';
-import { extractInfoHash, decodeEntities, bytesToSize, normalizeTitle } from './title-normalization.js';
+import { extractInfoHash, decodeEntities, bytesToSize, normalizeTitle, dedupeNames } from './title-normalization.js';
 import { LEADING_ARTICLES, isMultiWorkCollection } from './release-matching.js';
 import {
   UNKNOWN_QUALITY,
@@ -32,7 +32,7 @@ interface StreamDisplayOptions {
 
 interface SearchNamesOptions {
   meta?: { name?: string | null; title?: string; year?: number | string | null } | null;
-  titles?: { original?: string | null; pt?: string | null; year?: number | string | null } | null;
+  titles?: { original?: string | null; pt?: string | null; en?: string | null; year?: number | string | null } | null;
   imdbId?: string | null;
 }
 
@@ -285,32 +285,32 @@ function toStremioStream(item: RawItem): Stream | null {
  * três pontos que precisam disso (query principal, pack de temporada e o corte
  * por título) tinham que concordar — e não concordavam.
  *
- * O Cinemeta é a fonte preferida, mas ele não conhece todo id: título obscuro,
- * regional ou lançamento recente demais volta 404. Quando isso acontecia:
+ * O Cinemeta é a fonte preferida, mas não conhece todo id e pode estourar o
+ * prazo: título obscuro volta 404 ou timeout. Quando isso acontecia:
  *
  * - a query virava a string crua "tt1234567", mesmo com o TMDB (outra API) já
  *   tendo respondido com o nome;
- * - o filtro de título, preso a `meta?.name`, se desligava por inteiro e
- *   qualquer lixo que o indexador devolvesse ia direto pro usuário.
+ * - o filtro de título, preso a `meta?.name`, se desligava por inteiro.
  *
- * `name` prefere o título do Cinemeta/meta (mainstream, normalmente em EN) e
- * só cai para original/pt na falta dele; o título ORIGINAL tem degrau PRÓPRIO
- * na cascata (`resolveOriginalStepName`), e o pt-BR tem a query `ptQuery`.
- *
+ * O fallback mantém TODOS os títulos úteis: `en` (título canônico inglês do
+ * TMDB, quando o original é estrangeiro) precede o original e o pt-BR como nome
+ * da query, mas os três seguem em `names`. O título ORIGINAL tem degrau próprio
+ * na cascata (`resolveOriginalStepName`) e o pt-BR tem a query `ptQuery`.
  */
 function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): {
   name: string;
   year: number | string | null;
   names: string[];
 } {
-  const fallback = titles?.original || titles?.pt;
+  const fallback = titles?.en || titles?.original || titles?.pt;
   return {
     name: meta?.name || fallback || imdbId || '',
     year: meta?.year || titles?.year || null,
-    // `.filter(Boolean)` remove null/undefined/'' do array de nome; o cast
-    // torna explícito o que o filtro já garante no runtime (só strings não
-    // vazias sobram) para o consumidor `matchContext.names: string[]`.
-    names: [meta?.name, titles?.pt, titles?.original].filter(Boolean) as string[],
+    // `dedupeNames` remove null/undefined/'' e colapsa repetições normalizadas
+    // (o original do Cinemeta e o canônico inglês coincidem em obra anglófona),
+    // mantendo só strings não vazias para `matchContext.names: string[]`.
+    // Grafias arbitrárias dos `alternative_titles` (ex.: "Kill") NÃO entram.
+    names: dedupeNames([meta?.name, titles?.en, titles?.pt, titles?.original]),
   };
 }
 

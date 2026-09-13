@@ -64,7 +64,7 @@ export function applyFileEvidence(items: RawItem[]) {
 
 export interface PrepareCandidatesOptions {
   meta?: { name?: string | null; title?: string; year?: number | string | null } | null;
-  titles?: { original?: string | null; pt?: string | null; year?: number | string | null } | null;
+  titles?: { original?: string | null; pt?: string | null; en?: string | null; year?: number | string | null } | null;
   imdbId?: string | null;
   season?: number | null;
   episode?: number | null;

@@ -126,4 +126,27 @@ function stripDiacritics(s = '') {
   return foldLatinLetters(String(s)).normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics };
+/**
+ * Deduplica nomes de obra por forma NORMALIZADA, preservando a ordem e a
+ * primeira grafia de cada um. O Cinemeta repete o `original` no `title` e o
+ * canônico inglês coincide com o original em obra anglófona: sem isto o filtro
+ * e a dica `w` carregavam duplicatas.
+ *
+ * Nome que normaliza para vazio (título só de pontuação/CJK degenerado) NÃO
+ * entra no dedupe: removê-lo poderia esvaziar `names` e desligar o filtro de
+ * título — o gate tem que decidir "sem nome", não a deduplicação.
+ */
+function dedupeNames(names: Array<string | null | undefined>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (typeof name !== 'string' || !name) continue;
+    const norm = normalizeTitle(name);
+    if (norm && seen.has(norm)) continue;
+    if (norm) seen.add(norm);
+    out.push(name);
+  }
+  return out;
+}
+
+export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics, dedupeNames };

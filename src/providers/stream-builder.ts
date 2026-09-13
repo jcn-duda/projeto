@@ -52,7 +52,7 @@ export type { FirstObserverState };
  */
 export interface BuildStreamsOptions {
   meta?: { name?: string | null; title?: string; year?: number | string | null; episodes?: Record<string, number> } | null;
-  titles?: { original?: string | null; pt?: string | null; year?: number | string | null } | null;
+  titles?: { original?: string | null; pt?: string | null; en?: string | null; year?: number | string | null } | null;
   imdbId?: string | null;
   season?: number | null;
   episode?: number | null;

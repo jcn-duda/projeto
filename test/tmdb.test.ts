@@ -43,14 +43,15 @@ test('getTitles resolve pt/original/year para filme e grava no cache', withTmdbK
   const stub = stubFetch(() =>
     tmdbOk({
       movie_results: [
-        { title: 'Coringa', original_title: 'Joker', release_date: '2019-10-04' },
+        { title: 'Coringa', original_title: 'Joker', original_language: 'en', release_date: '2019-10-04' },
       ],
       tv_results: [],
     }),
   );
   try {
     const titles = await getTitles(imdbId);
-    assert.deepEqual(titles, { pt: 'Coringa', original: 'Joker', year: '2019' });
+    // Original inglês: o próprio `original` já é o canônico EN — sem 2ª consulta.
+    assert.deepEqual(titles, { pt: 'Coringa', original: 'Joker', en: 'Joker', year: '2019' });
 
     // A query precisa viajar em pt-BR e com o imdb id certo, senão o título
     // português nunca vem.
@@ -77,13 +78,72 @@ test('getTitles usa tv_results (name/original_name/first_air_date) para série',
     tmdbOk({
       movie_results: [],
       tv_results: [
-        { name: 'Fallout', original_name: 'Fallout', first_air_date: '2024-04-10' },
+        { name: 'Fallout', original_name: 'Fallout', original_language: 'en', first_air_date: '2024-04-10' },
       ],
     }),
   );
   try {
     const titles = await getTitles(imdbId);
-    assert.deepEqual(titles, { pt: 'Fallout', original: 'Fallout', year: '2024' });
+    assert.deepEqual(titles, { pt: 'Fallout', original: 'Fallout', en: 'Fallout', year: '2024' });
+  } finally {
+    stub.restore();
+    cache.forget(key);
+  }
+}));
+
+test('getTitles busca o canônico inglês em /find en-US quando o original NÃO é inglês (Django Kill)', withTmdbKey(async () => {
+  // Caso tt0062082: o `/find` em pt-BR devolve pt "Django Vem Para Matar" e
+  // original italiano "Se sei vivo spara"; o nome que os trackers globais
+  // publicam ("Django Kill... If You Live, Shoot!") só existe na segunda
+  // consulta `/find` em en-US. Sem ele, um timeout do Cinemeta prendia a busca
+  // ao italiano e perdia ~25 releases (12 vs 43 medidos).
+  const imdbId = `tt-django-${process.pid}-${Date.now()}`;
+  const key = `tmdb:${imdbId}`;
+  const stub = stubFetch((url) => {
+    if (url.includes('language=en-US')) {
+      return tmdbOk({
+        movie_results: [
+          {
+            id: 12345,
+            title: 'Django Kill... If You Live, Shoot!',
+            original_title: 'Se sei vivo spara',
+            original_language: 'it',
+          },
+        ],
+        tv_results: [],
+      });
+    }
+    return tmdbOk({
+      movie_results: [
+        {
+          id: 12345,
+          title: 'Django Vem Para Matar',
+          original_title: 'Se sei vivo spara',
+          original_language: 'it',
+          release_date: '1967-01-01',
+        },
+      ],
+      tv_results: [],
+    });
+  });
+  try {
+    const titles = await getTitles(imdbId);
+    assert.deepEqual(titles, {
+      pt: 'Django Vem Para Matar',
+      original: 'Se sei vivo spara',
+      en: 'Django Kill... If You Live, Shoot!',
+      year: '1967',
+    });
+    const enCalls = stub.calls.filter((c) => c.url.includes('language=en-US'));
+    assert.equal(enCalls.length, 1, 'o canônico inglês é buscado uma vez e entra no cache');
+    assert.ok(enCalls[0].url.includes(`/find/${imdbId}`));
+    assert.ok(enCalls[0].url.includes('external_source=imdb_id'));
+
+    // A segunda chamada vem do cache positivo: não repete nem o find pt-BR nem
+    // o find en-US.
+    const again = await getTitles(imdbId);
+    assert.deepEqual(again, titles);
+    assert.equal(stub.calls.length, 2, 'find pt-BR + find en-US, uma vez só');
   } finally {
     stub.restore();
     cache.forget(key);

@@ -13,6 +13,7 @@ import {
   resolveSearchNames,
   resolveOriginalStepName,
   numeralSearchVariant,
+  filterRelevantRaw,
 } from '../src/utils/format.js';
 
 test('filmografia é palavra forte de pack; saga e "temporada completa" continuam fracas', () => {
@@ -57,7 +58,9 @@ test('resolveSearchNames cobre o Cinemeta que não conhece o id', () => {
     imdbId: 'tt1375666',
   });
   assert.equal(comMeta.name, 'Inception');
-  assert.deepEqual(comMeta.names, ['Inception', 'A Origem', 'Inception']);
+  // `names` deduplica por forma normalizada: o original do Cinemeta volta
+  // igual ao nome, então ele aparece uma vez só.
+  assert.deepEqual(comMeta.names, ['Inception', 'A Origem']);
 
   // Cinemeta 404 e TMDB responde: a query passava a ser a string crua
   // "tt1375666" e o filtro de título, preso a `meta?.name`, se desligava
@@ -75,6 +78,71 @@ test('resolveSearchNames cobre o Cinemeta que não conhece o id', () => {
   const semNada = resolveSearchNames({ meta: null, titles: null, imdbId: 'tt7286456' });
   assert.equal(semNada.name, 'tt7286456');
   assert.deepEqual(semNada.names, [], 'sem nome não há filtro possível — e o gate tem que ver isso');
+});
+
+test('resolveSearchNames: sem Cinemeta, o canônico inglês do TMDB gera consulta (Django Kill)', () => {
+  // Caso real tt0062082: com o Cinemeta fora, o TMDB traz pt "Django Vem Para
+  // Matar", original italiano "Se sei vivo spara" e o canônico inglês da
+  // segunda consulta `/find` en-US. Se o nome da query vira só o original, a
+  // busca global fica presa ao italiano e perde os releases em inglês (recall
+  // medido 12 vs 43). O inglês precisa gerar query e sobreviver no filtro,
+  // junto com pt e original.
+  const titles = {
+    pt: 'Django Vem Para Matar',
+    original: 'Se sei vivo spara',
+    en: 'Django Kill... If You Live, Shoot!',
+    year: '1967',
+  };
+  const semMeta = resolveSearchNames({ meta: null, titles, imdbId: 'tt0062082' });
+  assert.equal(semMeta.name, 'Django Kill... If You Live, Shoot!', 'o canônico inglês manda na query quando não há Cinemeta');
+  assert.equal(semMeta.year, '1967');
+  assert.deepEqual(semMeta.names, [
+    'Django Kill... If You Live, Shoot!',
+    'Django Vem Para Matar',
+    'Se sei vivo spara',
+  ]);
+  // O original continua com degrau próprio (o italiano é consultado também).
+  assert.equal(resolveOriginalStepName(titles.original, semMeta.name), 'Se sei vivo spara');
+});
+
+test('aliases genéricos "Kill"/"Farah" não entram em names nem abrem o matching', () => {
+  // As `alternative_titles` do TMDB trazem grafias arbitrárias ("Kill",
+  // "Farah") que casariam release de OUTRA obra e tomariam as vagas. Só o
+  // canônico inglês, o pt e o original entram em `names`.
+  const django = resolveSearchNames({
+    meta: null,
+    titles: { pt: 'Django Vem Para Matar', original: 'Se sei vivo spara', en: 'Django Kill... If You Live, Shoot!', year: '1967' },
+    imdbId: 'tt0062082',
+  });
+  const farah = resolveSearchNames({
+    meta: null,
+    titles: { pt: 'Meu Nome é Farah', original: 'Adım Farah', en: 'My Name Is Farah', year: '2023' },
+    imdbId: 'tt27190057',
+  });
+  assert.ok(!django.names.includes('Kill'), 'grafia genérica não entra em names');
+  assert.ok(!farah.names.includes('Farah'), 'grafia genérica não entra em names');
+
+  // E o filtro de título não aprova release que só casa o alias genérico:
+  // o que o post publica é o canônico, não o fragmento.
+  const djangoItems = [
+    { title: 'Kill (2024) 1080p' },
+    { title: 'Django Kill... If You Live, Shoot! (1967) 1080p' },
+  ];
+  const djangoKept = filterRelevantRaw(djangoItems, { names: django.names, year: 1967 });
+  assert.deepEqual(djangoKept.map((i) => i.title), ['Django Kill... If You Live, Shoot! (1967) 1080p']);
+
+  const farahItems = [
+    { title: 'Farah S01E01 1080p' },
+    { title: 'My Name Is Farah S01E01 1080p' },
+  ];
+  const farahKept = filterRelevantRaw(farahItems, {
+    names: farah.names,
+    year: 2023,
+    isSeries: true,
+    season: 1,
+    episode: 1,
+  });
+  assert.deepEqual(farahKept.map((i) => i.title), ['My Name Is Farah S01E01 1080p']);
 });
 
 test('numeralSearchVariant: tt0084726 romano gera a variante arábica preservando ano/pontuação', () => {
