@@ -133,6 +133,7 @@
     "test/debrid-operator-account.test.js",
     "test/deadline.test.js",
     "test/debrid-avail.test.js",
+    "test/debrid-file-refetch.test.js",
     "test/alldebrid-alive-cache.test.js",
     "test/alldebrid-evict.test.js",
     "test/alldebrid-delete-gate.test.js",

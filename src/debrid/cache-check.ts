@@ -170,7 +170,7 @@ function noteUnavailable(adapterId: string, apiKey: string, infoHash: string) {
   }
 }
 
-function nonAbortableCheck(adapter: DebridAdapter, apiKey: string, infoHashes: string[]) {
+function nonAbortableCheck(adapter: DebridAdapter, apiKey: string, infoHashes: string[], fileHashes?: string[]) {
   const key = nonAbortableKey(adapter, apiKey, infoHashes);
   let entry = nonAbortableChecks.get(key);
   if (entry) return entry.promise;
@@ -180,7 +180,11 @@ function nonAbortableCheck(adapter: DebridAdapter, apiKey: string, infoHashes: s
     // Sem timeout dinâmico: abortar depois do upload perderia os ids necessários
     // para apagar o que não estava em cache. O teto próprio do adaptador continua
     // valendo, mas a corrida da resposta não cancela este trabalho.
-    .then(() => adapter.checkCached(apiKey, infoHashes))
+    // `fileHashes` só vai quando existe: é por ele que a AllDebrid lê a lista de
+    // arquivos dos packs antes da limpeza apagar o id do magnet.
+    .then(() => (fileHashes?.length
+      ? adapter.checkCached(apiKey, infoHashes, { fileHashes })
+      : adapter.checkCached(apiKey, infoHashes)))
     .then((result) => normalizeCacheResult(adapter, result))
     .catch((err: unknown) => {
       // A AllDebrid é justamente o serviço que passa por aqui, então a
@@ -262,6 +266,18 @@ async function checkCached(
     }
     if (missing.length < unique.length) metrics.count('davail.servedHashes', unique.length - missing.length);
     toAsk = missing;
+    // Pack sem lista de arquivos servido pelo davail nunca voltava ao serviço, e
+    // só a checagem de verdade lê arquivos (AllDebrid /magnet/status, TorBox
+    // list_files). Star Trek (2009), 2026-09-13: três coleções prontas ficaram
+    // em movie-no-files com zero leituras. Esses voltam à pergunta, até o teto
+    // de leituras por checagem; o positivo do davail continua valendo.
+    const refetch = [...new Set((fileHashes || []).map((hash) => String(hash).toLowerCase()))]
+      .filter((hash) => fromCache.has(hash))
+      .slice(0, config.debrid.packFilesPerCheck);
+    if (refetch.length) {
+      toAsk = [...missing, ...refetch];
+      metrics.count('davail.fileRefetch', refetch.length);
+    }
     if (toAsk.length === 0) {
       // O atalho respondeu TUDO pela memória, mas a evidência é a mesma do
       // caminho com rede — positivo confirmado. Sem renovar aqui, quanto mais
@@ -283,7 +299,7 @@ async function checkCached(
     // Medição fica no ponto onde a checagem REAL acontece: degradação por
     // prazo ou ausência de serviço não é pergunta feita ao debrid.
     trackCheckedHashes(toAsk);
-    const task = nonAbortableCheck(adapter, apiKey, toAsk);
+    const task = nonAbortableCheck(adapter, apiKey, toAsk, fileHashes);
     result = timeoutMs == null ? await task : await raceWithDeadline(task, timeoutMs, () => {
       metrics.count('debrid.check.raceLost');
       return { cached: new Set(), known: false };
