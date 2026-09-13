@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
-import { annotateEpisodeSizes, packHashesMissingFiles } from '../src/providers/episode-size.js';
+import { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes } from '../src/providers/episode-size.js';
 import { recordFileSizes, peekFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
 import * as torbox from '../src/debrid/torbox.js';
 import { getMeta } from '../src/utils/cinemeta.js';
@@ -64,6 +64,12 @@ test('média usa o total do título quando _size já foi apagado pelo sortAndLim
   const { _size, ...semSize } = packStream() as Stream & { _size?: number };
   const [out] = annotateEpisodeSizes([semSize as Stream], { season: 3, episode: 3, meta: { episodes: { 3: 8 } } });
   assert.match(titleOf(out), /💾 5\.21 GB 📦 pack 41\.67 GB \(média\)/);
+});
+
+test('streamTitleBytes lê o total do download, não o tamanho do episódio', () => {
+  assert.equal(streamTitleBytes(PACK_TITLE), Math.round(41.67 * GB));
+  assert.equal(streamTitleBytes('Goliath S03\n👤 10 💾 5.21 GB 📦 pack 41.67 GB (média) ⚙️ tpb'), Math.round(41.67 * GB));
+  assert.equal(streamTitleBytes('Sem marcador'), 0);
 });
 
 test('pack de várias temporadas divide pelos episódios de todas elas', () => {

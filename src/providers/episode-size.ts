@@ -35,6 +35,19 @@ function parseSizeLabel(label: string): number {
   return power == null || !Number.isFinite(n) ? 0 : Math.round(n * 1024 ** power);
 }
 
+const PACK_TOTAL_MARK = /📦 pack (\d+(?:\.\d+)? (?:B|KB|MB|GB|TB))/u;
+
+/**
+ * Tamanho do DOWNLOAD que o título do stream anuncia, para quem recebe o
+ * stream depois do sortAndLimit (que apaga `_size`). Em pack anotado o 💾 já é
+ * o episódio; o total fica no "📦 pack".
+ */
+function streamTitleBytes(title: unknown): number {
+  const text = String(title || '');
+  const match = text.match(PACK_TOTAL_MARK) || text.match(SIZE_MARK);
+  return match ? parseSizeLabel(match[1]) : 0;
+}
+
 function isPack(stream: Stream | null | undefined, season: number): boolean {
   return Boolean(stream?.infoHash) && isSeasonPackRelease(stream as PackCandidate, season);
 }
@@ -127,4 +140,4 @@ function annotateEpisodeSizes<T extends Stream | null>(
   }) as T[];
 }
 
-export { annotateEpisodeSizes, packHashesMissingFiles };
+export { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes };

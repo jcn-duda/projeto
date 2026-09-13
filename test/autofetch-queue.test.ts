@@ -62,6 +62,15 @@ test('fila persistente: writeQueue, readQueue, dropQueue e takeNext', () => {
   assert.equal(read[0].lied, true, 'a fila preserva a condenação de áudio até o dreno');
   recordAutofetchRelease('tt9000046', { ...read[0], br: true, dubbed: true });
   assert.equal(releaseIndex.lookupQuiet('tt9000046')[0]?.lied, true, 'o dreno não limpa a condenação');
+  // O stream chega sem `_size` (o sortAndLimit o apaga): o índice grava o total
+  // do download pelo título — o "📦 pack", não o 💾 que já é do episódio.
+  recordAutofetchRelease('tt9000047', {
+    infoHash: H3,
+    title: 'Serie S01 1080p WEB-DL DUBLADO\n👤 9 💾 750.51 MB 📦 pack 70.36 GB (média) ⚙️ bludv',
+    br: true,
+    dubbed: true,
+  });
+  assert.equal(releaseIndex.lookupQuiet('tt9000047')[0]?.size, Math.round(70.36 * 1024 ** 3), 'tamanho do download no índice');
   assert.equal(read[1].infoHash, H2);
 
   const { next, remaining } = autofetch.takeNext(read);
