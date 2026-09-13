@@ -66,6 +66,39 @@ test('média usa o total do título quando _size já foi apagado pelo sortAndLim
   assert.match(titleOf(out), /💾 5\.21 GB 📦 pack 41\.67 GB \(média\)/);
 });
 
+test('filme em coleção mostra o tamanho exato do arquivo da obra', () => {
+  // Star Trek (2009), 2026-09-13: a conta tinha a filmografia inteira (22.45 GB)
+  // e a lista mostrava só o total da coleção.
+  clearFileSizes();
+  const hash = 'b8'.repeat(20);
+  const colecao = {
+    name: '[AD⚡] DUB BR',
+    title: 'FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR\n👤 1 💾 22.45 GB ⚙️ AllDebrid',
+    infoHash: hash,
+    _multiWork: true,
+  } as Stream & { _multiWork: boolean };
+  const work = { n: ['Star Trek', 'Jornada nas Estrelas'], y: 2009 };
+  assert.deepEqual(packHashesMissingFiles([colecao as Stream], null), [hash], 'a checagem pede os arquivos da coleção');
+
+  const [semArquivos] = annotateEpisodeSizes([colecao as Stream], { season: null, episode: null, work });
+  assert.equal(titleOf(semArquivos), colecao.title, 'sem lista de arquivos não há média para filme');
+
+  recordFileSizes(hash, [
+    { path: 'Star Trek/Star.Trek.2009.1080p.BluRay.DUAL.mkv', size: 2.1 * GB },
+    { path: 'Star Trek/Star.Trek.Into.Darkness.2013.1080p.BluRay.DUAL.mkv', size: 2.4 * GB },
+    { path: 'Star Trek/Star.Trek.Beyond.2016.1080p.BluRay.DUAL.mkv', size: 2.3 * GB },
+  ]);
+  const trace = { stages: {} as Record<string, number>, items: [], accountItems: 0, startedAt: 0, finishedAt: null };
+  const [out] = annotateEpisodeSizes([colecao as Stream], { season: null, episode: null, work, trace });
+  assert.match(titleOf(out), /💾 2\.10 GB 📦 pack 22\.45 GB ⚙️/);
+  assert.doesNotMatch(titleOf(out), /média/);
+  assert.equal(trace.stages['episodeSize.movie.exact'], 1);
+
+  const avulso = { ...colecao, _multiWork: false } as Stream;
+  assert.equal(titleOf(annotateEpisodeSizes([avulso], { season: null, episode: null, work })[0]), colecao.title, 'filme avulso fica como está');
+  clearFileSizes();
+});
+
 test('stream do Torrentio já traz o tamanho do arquivo e não vira média', () => {
   // O nome do arquivo sem SxxEyy faz o título parecer pack; o 💾 do Torrentio
   // é do episódio escolhido, e dividir de novo mostraria 58 MB num arquivo de 1.36 GB.

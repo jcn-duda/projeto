@@ -52,16 +52,55 @@ function isPack(stream: Stream | null | undefined, season: number): boolean {
   return Boolean(stream?.infoHash) && isSeasonPackRelease(stream as PackCandidate, season);
 }
 
+function isMultiWorkPack(stream: Stream | null | undefined): boolean {
+  return Boolean(stream?.infoHash) && Boolean((stream as { _multiWork?: boolean })._multiWork);
+}
+
+type WorkHintInput = { n: string[]; y: number | null } | null | undefined;
+
+// Filme dentro de coleção ("FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS", 22.45 GB
+// em Star Trek 2009, 2026-09-13). Só a medida exata vale: filmes de uma coleção
+// não têm tamanhos parecidos, então não existe média honesta. O arquivo é o que
+// o /resolve tocaria — pickFile com a dica da obra marcada como pack.
+function annotateMovieSizes<T extends Stream | null>(streams: T[], work: WorkHintInput, trace?: StreamTraceState | null): T[] {
+  if (!work?.n?.length) return streams;
+  const skip = (reason: string) => stageTrace(trace, `episodeSize.skip.movie-${reason}`, 1);
+  return streams.map((stream) => {
+    if (!stream || typeof stream.title !== 'string' || stream.title.includes(PACK_MARK)) return stream;
+    if (!isMultiWorkPack(stream)) return stream;
+    if ((stream as { _indexer?: string })._indexer === 'torrentio') { skip('per-file-size'); return stream; }
+    const match = stream.title.match(SIZE_MARK);
+    if (!match) { skip('no-size-mark'); return stream; }
+    const files = peekFileSizes(String(stream.infoHash));
+    if (!files) { skip('no-files'); return stream; }
+    let bytes = 0;
+    try {
+      bytes = Number(pickFile(files, { work: { names: work.n, year: work.y, pack: true } })?.size) || 0;
+    } catch {
+      // Coleção sem arquivo casando a obra: o play decide (e falha explícito).
+      bytes = 0;
+    }
+    if (!bytes) { skip('pick-failed'); return stream; }
+    const packBytes = Number((stream as { _size?: number })._size) || parseSizeLabel(match[1]);
+    if (packBytes > 0 && bytes >= packBytes) { skip('not-smaller'); return stream; }
+    const label = bytesToSize(bytes);
+    if (!label) { skip('no-label'); return stream; }
+    stageTrace(trace, 'episodeSize.movie.exact', 1);
+    return { ...stream, title: stream.title.replace(SIZE_MARK, `💾 ${label} ${PACK_MARK} ${match[1]}`) };
+  }) as T[];
+}
+
 /**
  * Hashes de pack da temporada que o memo ainda não conhece: é a lista que a
  * checagem de cache recebe para ler arquivos na mesma passada (só pack, para
  * não gastar chamada em episódio avulso, cujo total já é o do episódio).
  */
 function packHashesMissingFiles(streams: Array<Stream | null>, season: number | null | undefined): string[] {
-  if (season == null) return [];
   const out = new Set<string>();
   for (const stream of streams) {
-    if (!stream || !isPack(stream, season)) continue;
+    if (!stream) continue;
+    // Em filme, o "pack" é a coleção de várias obras marcada no título.
+    if (!(season == null ? isMultiWorkPack(stream) : isPack(stream, season))) continue;
     const hash = String(stream.infoHash).toLowerCase();
     if (!hasFileSizes(hash)) out.add(hash);
   }
@@ -106,10 +145,17 @@ function exactEpisodeBytes(infoHash: string, season: number, episode: number): n
 function annotateEpisodeSizes<T extends Stream | null>(
   streams: T[],
   {
-    season, episode, meta, trace,
-  }: { season?: number | null; episode?: number | null; meta?: EpisodeMeta; trace?: StreamTraceState | null } = {},
+    season, episode, meta, work, trace,
+  }: {
+    season?: number | null;
+    episode?: number | null;
+    meta?: EpisodeMeta;
+    work?: WorkHintInput;
+    trace?: StreamTraceState | null;
+  } = {},
 ): T[] {
-  if (season == null || episode == null) return streams;
+  if (season == null) return annotateMovieSizes(streams, work, trace);
+  if (episode == null) return streams;
   // Por que um pack ficou sem o tamanho do episódio, no funil do stream-trace:
   // "sem 💾", sem contagem de episódios, medida maior que o pack… Sem isso a
   // ausência da anotação na lista não diz qual regra a segurou.
