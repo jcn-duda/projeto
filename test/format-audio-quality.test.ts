@@ -36,6 +36,11 @@ test('qualityFromTitle casa os rótulos comuns', () => {
   assert.equal(qualityFromTitle('Movie 480p'), '480p');
   // Sem rótulo é 'não sei', não SD — ver o teste do balde próprio abaixo.
   assert.equal(qualityFromTitle('Movie sem rótulo'), UNKNOWN_QUALITY);
+  // Resolução colada na tag de fonte (Adım Farah S01, 2026-09-13).
+  assert.equal(qualityFromTitle('Adim Farah.s01.WEB-DLRip1080p'), '1080p');
+  assert.equal(qualityFromTitle('Serie.S01.HDTV720p'), '720p');
+  // Número colado em palavra comum não vira resolução.
+  assert.equal(qualityFromTitle('Movie Top1080p'), UNKNOWN_QUALITY);
 });
 
 test('sourceFromTitle alimenta o bingeGroup via toStremioStream', () => {

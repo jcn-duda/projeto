@@ -70,7 +70,12 @@ function stripQualityTagBlob(title = '') {
  * SD agora exige uma marca explícita de baixa qualidade.
  */
 function qualityFromTitle(title = '') {
-  const t = stripQualityTagBlob(title).toUpperCase();
+  // Resolução colada na tag de fonte ("WEB-DLRip1080p") não tem fronteira de
+  // palavra, e o \b1080P\b falhava. Medido em Adım Farah S01 (2026-09-13): o
+  // pack saía "sem resolução" e era cortado pelo filtro de qualidade.
+  const t = stripQualityTagBlob(title)
+    .toUpperCase()
+    .replace(/(RIP|DL|WEB|HDTV)(?=(?:2160|1080|720|480)P\b)/g, '$1 ');
   if (/\b(2160P|4K|UHD)\b/.test(t)) return '2160p';
   if (/\b1080P\b/.test(t)) return '1080p';
   if (/\b720P\b/.test(t)) return '720p';
