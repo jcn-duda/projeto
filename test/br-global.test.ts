@@ -226,6 +226,56 @@ test('dedupeByHash: três clones do mesmo hash dão resultado idêntico em qualq
   }
 });
 
+test('dedupeByHash: espelho global com DUAL + idioma estrangeiro amplo NÃO herda BR', () => {
+  // Guarda ampla (namesForeignDubLanguage): LATINO/LAT/ESP/Eng-Spa/cirílico
+  // negam a herança sem serem caminho destrutivo. Post BR limpo + espelho
+  // estrangeiro com mais seeders não pode ocupar vaga BR.
+  const post = toStremioStream({
+    title: 'A Rocha (1996) [1080p DUAL 2.80 GB]', infoHash: HASH_A, seeders: 1,
+    size: 2.8 * 1024 ** 3, tracker: 'BLUDV', indexer: 'bludv-cardigann', isBr: true,
+  })!;
+  const estranhos = [
+    'A.Rocha.1996.1080p.BluRay.DUAL.LATINO',
+    'A Rocha 1996 Dual Audio Latino Ingles',
+    'A.Rocha.1996.DUAL.ESP.ENG',
+    'A.Rocha.1996.1080p Dual Audio [Eng-Spa]',
+    'A.Rocha.1996.1080p-Dual-Lat',
+    'А.Роша.1996.1080p.BluRay.DUAL',
+  ];
+  for (const title of estranhos) {
+    const espelho = toStremioStream({
+      title, infoHash: HASH_A, seeders: 50,
+      size: 2.81 * 1024 ** 3, tracker: 'kickasstorrents.to', indexer: 'kickasstorrents-to', isBr: false,
+    })!;
+    for (const order of [[post, espelho], [espelho, post]]) {
+      const [merged] = dedupeByHash(order);
+      assert.equal(merged._br, false, `não herda BR: ${title}`);
+      assert.equal(merged._dubbed, false, `não herda dublado: ${title}`);
+    }
+  }
+});
+
+test('dedupeByHash: post BR com Dual Áudio PT-BR ENG ainda empresta ao espelho STARCKFILMES', () => {
+  // Isenção PT: ENG no perdedor é token estrangeiro na guarda ampla, mas
+  // explicitPtAudio (PT-BR) absolve — senão o post BR honesto deixaria de
+  // emprestar origem ao espelho global limpo.
+  const post = toStremioStream({
+    title: 'A Rocha (1996) Dual Áudio PT-BR ENG', infoHash: HASH_A, seeders: 1,
+    size: 2.8 * 1024 ** 3, tracker: 'BLUDV', indexer: 'bludv-cardigann', isBr: true,
+  })!;
+  const espelho = toStremioStream({
+    title: 'A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES', infoHash: HASH_A, seeders: 50,
+    size: 2.81 * 1024 ** 3, tracker: 'kickasstorrents.to', indexer: 'kickasstorrents-to', isBr: false,
+  })!;
+  assert.equal(post._dubbed, true, 'PT-BR no post marca dublado');
+  for (const order of [[post, espelho], [espelho, post]]) {
+    const [merged] = dedupeByHash(order);
+    assert.equal(merged._br, true, 'PT explícito absolve ENG no perdedor');
+    assert.equal(merged._dubbed, true);
+    assert.match(String(merged.title), /STARCKFILMES/);
+  }
+});
+
 test('isMultiWorkCollection: palavra forte dispensa faixa de anos', () => {
   assert.equal(isMultiWorkCollection('De Volta Para o Futuro Trilogia - [BluRay 720p Dublado]'), true);
   assert.equal(isMultiWorkCollection('Coleção Velozes e Furiosos bluray 1080p dublado'), true);

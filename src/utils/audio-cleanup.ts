@@ -5,13 +5,17 @@
  * - `FOREIGN_DUB_LANG_RE` / `CYRILLIC_RE` / `genericDubProvesPt` — só derrubam
  *   a prova GENÉRICA (`DUB`/`DUBBED`); marca PT explícita continua absolvendo
  *   pelas regras próprias dos chamadores, fora deste predicado;
+ * - `namesForeignDubLanguage` — guarda AMPLA usada onde a decisão SÓ nega a
+ *   vaga BR (herança no dedupe + classificação pt-title-dual). Pode ser
+ *   generosa porque não apaga da conta; `hasExplicitForeignAudio` permanece
+ *   a lista MÍNIMA dos caminhos destrutivos (sweep/limpeza);
  * - `hasPtAudioMark` / `strongEnSceneMark` / `dubbedLieVerdict` — a auditoria
  *   de dublagem sobre o path real dos arquivos.
  *
  * Deliberadamente NÃO mora aqui `hasExplicitForeignAudio` nem `foreignVerdict`
  * (ficam em audio-quality.ts): são os lados que CONDENAM e apagam da conta, e
- * a assimetria entre guarda (generosa: só deixa de absolver) e condenação
- * (mínima: destrói) é travada por test/audio-cleanup-classifiers.test.ts.
+ * a assimetria entre guarda (generosa: só deixa de absolver / negar BR) e
+ * condenação (mínima: destrói) é travada por test/audio-cleanup-classifiers.test.ts.
  */
 import config from '../config.js';
 import { normalizeTitle } from './title-normalization.js';
@@ -89,6 +93,22 @@ function genericDubProvesPt(text: string): boolean {
     && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
 }
 
+/**
+ * Idioma estrangeiro nomeado no título — guarda AMPLA. Reusa a mesma lista
+ * que desmente DUB genérico + cirílico, e acrescenta grafias curtas que a
+ * lista mínima de condenação ainda não mede (`LAT`, VFF/VF2/VFQ, VOSTFR,
+ * HDLIGHT). Só entra onde negar BR é barato: herança no dedupe e (depois)
+ * pt-title-dual. Quem apaga da conta continua em `hasExplicitForeignAudio`.
+ */
+function namesForeignDubLanguage(text: string): boolean {
+  const raw = String(text || '');
+  const t = raw.toUpperCase();
+  return FOREIGN_DUB_LANG_RE.test(t)
+    || CYRILLIC_RE.test(raw)
+    || /\bLAT\b/.test(t)
+    || /VFF|VF2|VFQ|VOSTFR|HDLIGHT/i.test(raw);
+}
+
 // Lado marcador do mesmo intento, para o path: um marker de
 // AUDIO_AUDIT_PT_MARKERS é genérico quando normaliza para exatamente
 // 'dub'/'dubbed' — só ele sofre a guarda do HINDI/cirílico. Marcador
@@ -140,4 +160,10 @@ function dubbedLieVerdict(videoPaths: string[] = [], promisedDubbed = false) {
     : { lie: false, videoCount: paths.length };
 }
 
-export { genericDubProvesPt, hasPtAudioMark, strongEnSceneMark, dubbedLieVerdict };
+export {
+  genericDubProvesPt,
+  namesForeignDubLanguage,
+  hasPtAudioMark,
+  strongEnSceneMark,
+  dubbedLieVerdict,
+};

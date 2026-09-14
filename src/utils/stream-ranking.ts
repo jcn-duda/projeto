@@ -1,6 +1,14 @@
 import { priorityMap, compareIndexerPriority } from './indexer-priority.js';
 import type { Stream } from '../../types/domain.js';
-import { UNKNOWN_QUALITY, audioFromTitle, sourceFromTitle, editionFromTitle, hasExplicitForeignAudio } from './audio-quality.js';
+import {
+  UNKNOWN_QUALITY,
+  audioFromTitle,
+  sourceFromTitle,
+  editionFromTitle,
+  hasExplicitForeignAudio,
+  explicitPtAudio,
+} from './audio-quality.js';
+import { namesForeignDubLanguage } from './audio-cleanup.js';
 import { parseTitleSeasonEpisode } from './episode-matching.js';
 import { selectQualityCandidates, streamQuality } from './stream-quotas.js';
 import { streamDisplayName, passesQualityFilter } from './search-names.js';
@@ -133,14 +141,16 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
     // áudio estrangeiro, e nenhum lado tem prova de mentira.
     const winnerTitle = String(winner.title || winner.name || '').split('\n')[0];
     const loserTitle = String(loser.title || loser.name || '').split('\n')[0];
+    // Guarda AMPLA (`namesForeignDubLanguage`): a decisão só NEGA a vaga BR,
+    // não apaga da conta — por isso pode fechar LAT/ESP/cirílico/VFF além da
+    // lista mínima de condenação. PT explícito absolve (`foreignDub`): post
+    // "Dual Áudio PT-BR ENG" continua emprestando BR ao espelho STARCKFILMES.
     // O perdedor precisa confirmar o que empresta: post BR sem dublado
-    // (_dubbed=false, ex. legendado) não autoriza a herança, e o título do
-    // perdedor que declara áudio estrangeiro (DUAL + Hindi/French/…) desmente
-    // a vaga BR — os gates espelham, no lado do post, a checagem já feita no
-    // título do vencedor.
+    // (_dubbed=false, ex. legendado) não autoriza a herança.
+    const foreignDub = (t: string) => !explicitPtAudio(t) && namesForeignDubLanguage(t);
     const inheritsBr = !isLied && !winner._br && Boolean(loser._br) && Boolean(loser._dubbed)
-      && audioFromTitle(winnerTitle) === 'Dual' && !hasExplicitForeignAudio(winnerTitle)
-      && !hasExplicitForeignAudio(loserTitle);
+      && audioFromTitle(winnerTitle) === 'Dual' && !foreignDub(winnerTitle)
+      && !foreignDub(loserTitle);
     const merged = {
       ...winner,
       _quality: richerQuality._quality,
@@ -148,7 +158,7 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
       _size: winner._size || loser._size || 0,
       behaviorHints: richerQuality.behaviorHints || winner.behaviorHints,
       _br: Boolean(winner._br || inheritsBr),
-      _dubbed: isLied ? false : Boolean(winner._dubbed || (inheritsBr && loser._dubbed)),
+      _dubbed: isLied ? false : Boolean(winner._dubbed || inheritsBr),
       _tracker: winner._tracker,
       // Hash idêntico tem o mesmo conteúdo: se QUALQUER listagem marcou como
       // pack, a marca precisa sobreviver ao merge — senão o perdedor BR com
