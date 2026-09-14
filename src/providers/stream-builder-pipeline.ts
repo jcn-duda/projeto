@@ -23,6 +23,7 @@ import * as metrics from '../utils/metrics.js';
 import { stageTrace, dropTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
+import { applyProbedQuality } from './probed-quality.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 // Indexer id vindo da config do usuario (URL) precisa validar antes de
@@ -57,7 +58,7 @@ export function applyFileEvidence(items: RawItem[]) {
       // Rótulo vazio com prova de release EN também é veredito: força o
       // stream a NÃO passar por dublado (o `_br` do indexer o empatava).
       ...(ev.a || ev.e ? { provenAudio: ev.a || '', provenName: ev.n || '' } : {}),
-      ...(ev.q ? { provenQuality: ev.q } : {}),
+      ...(ev.q && ev.q !== UNKNOWN_QUALITY ? { provenQuality: ev.q } : {}),
     };
   });
   if (corrigidos) metrics.count('search.file.corrected', corrigidos);
@@ -311,7 +312,7 @@ export function prepareCandidateStreams(
   // O que os arquivos provaram entra ANTES do mapeamento: o nome, o `_quality`
   // e o `_dubbed` nascem do item, e sao eles que o filtro de resolucao, as cotas
   // e o preferDubbed leem depois.
-  const evidencia = applyFileEvidence(raw);
+  const evidencia = applyProbedQuality(applyFileEvidence(raw), { season, episode, workHint });
   const mappedStreams = evidencia.map((item) => {
     const stream = toStremioStream(item);
     // P5 — `toStremioStream` devolve NULL para item sem infoHash (link que

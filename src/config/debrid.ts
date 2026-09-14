@@ -68,6 +68,10 @@ export const debrid = () => ({
   // Quantos packs prontos a checagem da AllDebrid lê arquivos por busca antes
   // de liberar a limpeza: um /magnet/status cada.
   packFilesPerCheck: num(process.env.DEBRID_PACK_FILES_PER_CHECK, 6),
+  // Resolução lida no cabeçalho do vídeo (AllDebrid) quando nem o título nem o
+  // nome do arquivo dizem 720p/1080p: um /link/unlock e até 8 MB por arquivo,
+  // uma vez, gravado no cache (`vres`). false desliga.
+  qualityProbe: String(process.env.DEBRID_QUALITY_PROBE || 'true') === 'true',
   // Teto dinâmico da checagem de cache no passo de resposta: o que sobra do
   // REPLY_DEADLINE menos esta margem (filtro + HMAC + serialização). Caso
   // medido: coleta fria de 162 itens consumiu os 6400ms do orçamento e a

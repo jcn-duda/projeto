@@ -119,6 +119,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // tamanho do episódio num pack e do filme numa coleção. Persistido para o
   // restart não zerar a lista (ver `debrid/file-sizes.ts`).
   fsz: 'v1',
+  // Resolução medida no cabeçalho do vídeo, por arquivo
+  // (`vres:v1:<hash>:<digest do caminho>`, registro `{ q, w, h }`).
+  vres: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

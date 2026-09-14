@@ -21,7 +21,9 @@ import type { DebridFile } from './file-selector.js';
 // ocupe a cota para sempre.
 const FILE_SIZES_TTL_SECONDS = 30 * 86400;
 
-type SizedFile = { path: string; size: number };
+// `link` só quando o serviço entrega o link do arquivo na lista (AllDebrid): é
+// por ele que a medição do cabeçalho (`video-quality.ts`) desbloqueia o vídeo.
+type SizedFile = { path: string; size: number; link?: string };
 
 const keyOf = (infoHash: string) => `${prefix('fsz')}${String(infoHash || '').toLowerCase()}`;
 
@@ -29,7 +31,11 @@ function recordFileSizes(infoHash: string, files: DebridFile[] | null | undefine
   const hash = String(infoHash || '').toLowerCase();
   if (!hash || !Array.isArray(files)) return;
   const videos = files
-    .map((file) => ({ path: String(file?.path || ''), size: Number(file?.size) || 0 }))
+    .map((file): SizedFile => ({
+      path: String(file?.path || ''),
+      size: Number(file?.size) || 0,
+      ...(typeof file?.link === 'string' && file.link ? { link: file.link } : {}),
+    }))
     .filter((file) => file.size > 0 && VIDEO_EXT.test(file.path) && !SAMPLE.test(file.path) && !isSiteAd(file.path));
   if (videos.length === 0) return;
   // Regravar renova o TTL e move a entrada para o fim do LRU do namespace.

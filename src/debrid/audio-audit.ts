@@ -1,5 +1,6 @@
-import { dubbedLieVerdict, audioFromTitle, strongEnSceneMark, qualityFromTitle } from '../utils/format.js';
+import { dubbedLieVerdict, audioFromTitle, strongEnSceneMark, qualityFromTitle, UNKNOWN_QUALITY } from '../utils/format.js';
 import { DubLieError, VIDEO_EXT, SAMPLE, isSiteAd, baseName } from './common.js';
+import { looksMultiWorkFiles } from './file-selector.js';
 import * as releaseIndex from '../utils/release-index.js';
 import type { DebridFile } from './common.js';
 import { recordFileSizes } from './file-sizes.js';
@@ -55,7 +56,14 @@ function recordFileEvidence(infoHash: string, files: DebridFile[]) {
   // A resolução vem do MAIOR vídeo: num pack, o arquivo dominante é o que
   // representa a release; num episódio solto, é o único.
   const maior = videos.reduce((a, b) => (b.size > a.size ? b : a));
-  const quality = qualityFromTitle(baseName(maior.path));
+  // Coleção de filmes não tem arquivo que represente a release: o maior é OUTRO
+  // filme ("13 - Sem Fronteiras - 2016" gravado como prova do hash da
+  // FILMOGRAFIA, 2026-09-14), e resolução/nome dele valeriam para todos. Nome
+  // sem resolução também não é prova: gravar "sem resolução" sobrescrevia o
+  // 1080p que o título do release anunciava.
+  const multiWork = looksMultiWorkFiles(videos);
+  const nameQuality = multiWork ? UNKNOWN_QUALITY : qualityFromTitle(baseName(maior.path));
+  const quality = nameQuality !== UNKNOWN_QUALITY ? nameQuality : '';
   // O RÓTULO de áudio, não um veredito próprio: quem combina rótulo com origem
   // BR é o toStremioStream, com a regra já calibrada ("DUAL só vale como
   // dublado em site BR"). Um veredito paralelo aqui divergiria dela — e
@@ -70,8 +78,8 @@ function recordFileEvidence(infoHash: string, files: DebridFile[]) {
   releaseIndex.markFileEvidence(infoHash, {
     a: audio,
     e: en ? 1 : 0,
-    q: quality || '',
-    n: baseName(maior.path).slice(0, 80),
+    q: quality,
+    n: multiWork ? '' : baseName(maior.path).slice(0, 80),
   });
 }
 

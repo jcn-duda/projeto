@@ -11,9 +11,9 @@
  * instância nova de cache.ts reusando o irmão cacheado, com o store alheio).
  */
 
-// A soma das cotas de namespaces conhecidos é 85.551 (inclui mag=50.000,
-// rdc=14.000, rdq=500, rdt=2.500, adprot=2.000, adsub=1.000, adrm=500 e
-// fsz=3.000), deixando 1.449 entradas de folga sob o teto global. O ledger RD
+// A soma das cotas de namespaces conhecidos é 86.551 (inclui mag=50.000,
+// rdc=14.000, rdq=500, rdt=2.500, adprot=2.000, adsub=1.000, adrm=500,
+// fsz=3.000 e vres=1.000), deixando 1.449 entradas de folga sob o teto global. O ledger RD
 // é global por hash e precisa reter muito mais histórico que os caches por conta;
 // os demais baldes foram calibrados para abrir esse espaço sem deixar o despejo
 // global invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB
@@ -25,7 +25,7 @@
 //
 // O teto global acompanha a soma: teto IGUAL OU ABAIXO dela reintroduz o
 // despejo global antes da repartição por namespace, que foi bug real.
-export const MAX_ENTRIES = 87000;
+export const MAX_ENTRIES = 88000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -99,6 +99,9 @@ autofetch: 2000,
   // temporada), então 3.000 ≈ 12 MB no pior caso. Persistir é o motivo do
   // namespace: em memória, cada restart zerava a lista.
   fsz: 3000,
+  // Resolução medida no cabeçalho do vídeo por arquivo (`vres:v1`): registro
+  // minúsculo `{ q, w, h }`, uma entrada por arquivo que o play tocaria.
+  vres: 1000,
   __default: 500,
 });
 
