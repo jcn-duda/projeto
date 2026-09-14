@@ -259,7 +259,14 @@ export interface DebridAdapter {
     hashes: string[],
     // `fileHashes`: packs cujos arquivos o memo ainda não conhece. Adapter que
     // sabe listar arquivos na checagem grava em `file-sizes.ts`; os outros ignoram.
-    opts?: { timeoutMs?: number; fileHashes?: string[] },
+    // `fileWaitTimeoutMs`: só para adapter não abortável com leitura de arquivos
+    // na checagem (AllDebrid) — orçamento DINÂMICO da resposta para limitar a
+    // ESPERA da leitura, sem tocar nos timeouts próprios de rede do adapter
+    // (o upload da AllDebrid não pode virar abortável por causa dele). Já chega
+    // com a margem (DEBRID_PACK_FILES_WAIT_MARGIN_MS) deduzida pelo
+    // nonAbortableCheck: a espera interna desiste ANTES do prazo da corrida
+    // externa, senão leitura lenta de pack virava known:false e apagava o ⚡.
+    opts?: { timeoutMs?: number; fileHashes?: string[]; fileWaitTimeoutMs?: number },
   ): Promise<Set<string> | { cached: Set<string>; complete?: boolean }>;
   resolveLink(
     apiKey: string,

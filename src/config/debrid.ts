@@ -1,5 +1,6 @@
 import { list, num } from './helpers.js';
 import { autofetchSeeds } from './debrid-autofetch-seeds.js';
+import { reconcile } from './debrid-reconcile.js';
 
 // Fábrica (não objeto pronto): módulo ESM é cacheado, e cada re-avaliação do
 // compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
@@ -68,6 +69,14 @@ export const debrid = () => ({
   // Quantos packs prontos a checagem da AllDebrid lê arquivos por busca antes
   // de liberar a limpeza: um /magnet/status cada.
   packFilesPerCheck: num(process.env.DEBRID_PACK_FILES_PER_CHECK, 6),
+  // Margem com que a espera interna dos arquivos de pack desiste ANTES do
+  // orçamento externo da corrida (nonAbortableCheck repassa
+  // fileWaitTimeoutMs = timeoutMs - margem). O timer externo começa antes da
+  // checagem e o upload consome parte do orçamento: se a espera interna
+  // igualasse o orçamento, uma leitura lenta de pack virava known:false
+  // (⚡ perdido) por causa de um tamanho cosmético. Upload e leitura seguem
+  // NÃO abortáveis, com os timeouts próprios de rede.
+  packFilesWaitMarginMs: Math.max(0, num(process.env.DEBRID_PACK_FILES_WAIT_MARGIN_MS, 150)),
   // Resolução lida no cabeçalho do vídeo (AllDebrid) quando nem o título nem o
   // nome do arquivo dizem 720p/1080p: um /link/unlock e até 8 MB por arquivo,
   // uma vez, gravado no cache (`vres`). false desliga.
@@ -148,30 +157,9 @@ export const debrid = () => ({
   // Piso de ocupação: só evicta acima disso. Conta folgada não apaga nada —
   // sem o piso, o addon corroeria o acervo em uso normal.
   harvestEvictFloor: Math.max(0, Math.trunc(num(process.env.HARVEST_EVICT_FLOOR, 600))),
-  // Reconcile da posse (`adsub`) com a conta real: ready + etiqueta ativa +
-  // não preexistente + prova de que o upload não é re-add do usuário sai da
-  // conta, com purga da posse e o marcador anti-reenchimento do 8.14. Fecha o
-  // canto que a limpeza por busca não alcança (lote estourado, delete
-  // recusado, hash omitido na resposta). Fire-and-forget, escopo B-2 (só
-  // operador), anti-reentrada e intervalo mínimo por conta. false desliga
-  // (rollback de uma linha).
-  reconcile: String(process.env.DEBRID_RECONCILE || 'false') === 'true',
-  // Intervalo mínimo entre rodadas POR CONTA: o gatilho é a checagem (que pode
-  // rodar várias vezes por minuto) e o /magnet/status em fundo não acompanha
-  // esse ritmo. Rodadas mais próximas que isso são puladas.
-  reconcileMinIntervalMs: Math.max(0, num(process.env.DEBRID_RECONCILE_MIN_INTERVAL_MS, 300_000)),
-  // Teto de remoções por rodada, na ordem dos mais antigos. Clamp 0..50;
-  // 0 desliga o reconcile mesmo com o knob acima ligado.
-  reconcileMaxPerRound: Math.min(50, Math.max(0, Math.trunc(num(process.env.DEBRID_RECONCILE_MAX_PER_ROUND, 25)))),
-  // Margem anti-re-add: magnet cujo upload é MAIS NOVO que a etiqueta de posse
-  // + esta margem é re-add do usuário e NUNCA sai. A margem cobre a defasagem
-  // de relógio entre a AllDebrid e este processo.
-  reconcileAgeMarginMs: Math.max(0, num(process.env.DEBRID_RECONCILE_AGE_MARGIN_MS, 600_000)),
-  // Piso de idade: só elegível se já existe há pelo menos isto. O incidente que
-  // motivou: o reconcile apagou um pack recém-esquentado pelo autofetch. 0 desliga.
-  reconcileMinAgeMs: Math.max(0, num(process.env.DEBRID_RECONCILE_MIN_AGE_MS, 24 * 3600 * 1000)),
-  // Piso de ocupação (como HARVEST_EVICT_FLOOR): conta folgada não apaga nada. 0 desliga.
-  reconcileFloor: Math.max(0, Math.trunc(num(process.env.DEBRID_RECONCILE_FLOOR, 0))),
+  // Bloco do reconcile da posse (adsub × conta real): src/config/debrid-reconcile.ts,
+  // espalhado aqui com as mesmas chaves (extração para caber no teto de linhas).
+  ...reconcile(),
   // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
   // "Expired", "File not available"). A limpeza por busca só alcança hashes
   // que estão na consulta do momento; um torrent que morreu e nunca mais é

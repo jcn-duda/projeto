@@ -11,6 +11,8 @@ import * as cache from '../src/utils/cache.js';
 import { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes } from '../src/providers/episode-size.js';
 import { recordFileSizes, peekFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
 import * as torbox from '../src/debrid/torbox.js';
+import * as runtime from '../src/runtime.js';
+import { applyDebrid } from '../src/providers/index.js';
 import { getMeta } from '../src/utils/cinemeta.js';
 import { stubFetch } from './helpers/stub.js';
 import type { Stream } from '../types/domain.js';
@@ -223,6 +225,90 @@ test('TorBox pede list_files só com pack sem arquivos e grava a lista na checag
     assert.equal(new URL(stub.calls[1].url).searchParams.get('list_files'), 'false', 'sem pack pendente, sem lista');
   } finally {
     stub.restore();
+    clearFileSizes();
+  }
+});
+
+test('fsz que só aparece na checagem anota o filme individual já na primeira resposta', async () => {
+  // Star Trek (2009) em pack multiobra, 2026-09-14: a lista de arquivos só é
+  // lida DENTRO da checagem da AllDebrid (o /magnet/status por id vem depois do
+  // upload). Com a leitura esperada dentro do orçamento da checagem e a
+  // reanotação pós-checagem no applyDebrid, o 💾 sai com o tamanho do FILME na
+  // primeira resposta — não com os 22.45 GB da coleção.
+  clearFileSizes();
+  const hash = 'c4'.repeat(20);
+  const colecao = {
+    name: 'DUB BR',
+    title: 'FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR\n👤 1 💾 22.45 GB ⚙️ AllDebrid',
+    infoHash: hash,
+    _multiWork: true,
+    _multiWorkAdmitted: true,
+  } as Stream;
+  const work = { n: ['Star Trek', 'Jornada nas Estrelas'], y: 2009 };
+  const opts = {
+    ...runtime.defaults(),
+    debridService: 'alldebrid',
+    debridApiKey: 'chave-episodio-tamanho-pack',
+  };
+  const realFetch = globalThis.fetch;
+  const caminhos: string[] = [];
+  globalThis.fetch = (async (url: any) => {
+    const u = new URL(String(url));
+    caminhos.push(u.pathname);
+    if (u.pathname.endsWith('/magnet/upload')) {
+      return {
+        ok: true,
+        json: async () => ({
+          status: 'success',
+          data: { magnets: [{ hash, ready: true, id: 42 }] },
+        }),
+      };
+    }
+    // /magnet/status: serve o inventário (lista) e a leitura de arquivos por id.
+    return {
+      ok: true,
+      json: async () => ({
+        status: 'success',
+        data: {
+          magnets: [{
+            id: 42,
+            hash,
+            status: 'Ready',
+            filename: 'FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS',
+            size: Math.round(22.45 * GB),
+            files: [{
+              n: 'Star Trek',
+              e: [
+                { n: 'Star.Trek.2009.1080p.BluRay.DUAL.mkv', s: 2.1 * GB, l: 'http://ad/link-1' },
+                { n: 'Star.Trek.Into.Darkness.2013.1080p.BluRay.DUAL.mkv', s: 2.4 * GB, l: 'http://ad/link-2' },
+              ],
+            }],
+          }],
+        },
+      }),
+    };
+  }) as unknown as typeof globalThis.fetch;
+  try {
+    const result = await runtime.run({ opts, encoded: 'ad-epsize' } as any, () =>
+      applyDebrid([colecao], {
+        season: null,
+        episode: null,
+        workHint: work,
+        deadlineAt: Date.now() + 8000,
+      } as any),
+    ) as Stream[];
+    assert.ok(caminhos.some((p) => p.endsWith('/magnet/upload')), 'a checagem consultou a conta');
+    assert.equal(result.length, 1);
+    assert.match(String(result[0].name), /\[AD⚡\]/, 'pack pronto toca na hora');
+    assert.match(String(result[0].title), /💾 2\.10 GB/, 'o 💾 mostra o tamanho do FILME escolhido');
+    assert.doesNotMatch(String(result[0].title), /22\.45 GB/, 'o total da coleção sai da linha');
+    assert.equal(
+      (result[0] as Stream & { _packBytes?: number })._packBytes,
+      Math.round(22.45 * GB),
+      'o total do download fica interno (o filtro de tamanho segue valendo)',
+    );
+  } finally {
+    globalThis.fetch = realFetch;
     clearFileSizes();
   }
 });

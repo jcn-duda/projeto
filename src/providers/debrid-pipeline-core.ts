@@ -23,7 +23,7 @@ import { queueDubAudit, collectAuditCandidates } from './dub-audit.js';
 import { countFirstBr, pruneKnownBroken, probeRdOracle, enrichInstantWithoutCacheCheck } from './debrid-pipeline-steps.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { dropTrace, type StreamTraceState } from '../utils/stream-trace.js';
-import { packHashesMissingFiles } from './episode-size.js';
+import { annotateEpisodeSizes, packHashesMissingFiles } from './episode-size.js';
 import { playDisposition } from './debrid-play-guard.js';
 
 /**
@@ -46,6 +46,8 @@ export interface ApplyDebridOptions {
   imdbId?: string | null;
   searchKey?: string | null;
   deadlineAt?: number | null;
+  /** Contagem de episódios por temporada (Cinemeta), para a média do pack. */
+  meta?: { episodes?: Record<string, number> } | null;
   /**
    * Só a passada REIVINDICADA como primeira resposta observa as métricas
    * `search.first.*`. Refresh de SWR/background e recaches tardios vêm sem este
@@ -64,7 +66,7 @@ export interface ApplyDebridOptions {
 }
 
 export async function applyDebrid(input: Array<Stream | null>, {
-  season, episode, imdbId, searchKey, deadlineAt, observeFirstPass = false, firstObserver, onCacheResult, workHint, trace,
+  season, episode, imdbId, searchKey, deadlineAt, meta, observeFirstPass = false, firstObserver, onCacheResult, workHint, trace,
 }: ApplyDebridOptions = {}) {
   let streams: Stream[] = input.filter((stream): stream is Stream => stream !== null);
   // Mentira de áudio (DubLieError / auditoria) já marcada no stream: corta ANTES
@@ -169,6 +171,12 @@ export async function applyDebrid(input: Array<Stream | null>, {
     return streams.filter((s) => !s._multiWorkAdmitted);
   }
 
+  // fsz aquecido na PRÓPRIA checagem (a AllDebrid lê os arquivos do pack na
+  // mesma passada, dentro do orçamento): reanota o tamanho do episódio/filme
+  // em quem ainda tem infoHash. Quem já saiu anotado do buildStreams é
+  // ignorado pelo guard do marcador no annotate; medida pura — `_size` não
+  // muda, o filtro de tamanho continua valendo para o download inteiro.
+  streams = annotateEpisodeSizes(streams, { season, episode, meta, work: workHint, trace });
   // Hit-rate do autofetch: hash cacheado que carrega marker ativo é download
   // que o chupim enfileirou e agora toca na hora — a métrica mede o retorno do
   // mecanismo. Contagem pura, fora do caminho da resposta: erro vira no-op.
@@ -243,18 +251,13 @@ export async function applyDebrid(input: Array<Stream | null>, {
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
   const viaDebrid = (s: Stream, instant: boolean): Stream => {
     if (!s.infoHash) return s;
-    // Pack multi-obra (heurística de título, fora da feature BR_MULTIWORK_PACKS):
-    // o /resolve NÃO pode cair no maior arquivo — comportamento pré-existente.
-    // `d` prova a promessa feita NA listagem e `i` permite que o play grave a
-    // evidência no índice da obra. Campos opcionais ficam dentro do hint já
-    // assinado; URLs antigas sem eles continuam verificando normalmente.
-    // O `i` entra SEMPRE que a obra é conhecida, não só em filme ou dublado.
-    // Medido: um pack BR não marcado como dublado chegava ao /resolve sem
-    // dica, o play provava o episódio errado com evidência do arquivo e a
-    // prova era jogada fora por não haver obra onde gravá-la — a fonte morta
-    // só saía da lista quando o tail chegasse nela (2 por busca, e só em
-    // cacheado). O clique do usuário é a evidência mais forte que existe;
-    // desperdiçá-la mantinha na tela uma fonte que jamais tocaria.
+    // Pack multi-obra: o /resolve NÃO pode cair no maior arquivo (comportamento
+    // pré-existente). `d` prova a promessa feita NA listagem e `i` permite que o
+    // play grave a evidência no índice da obra — o `i` entra SEMPRE que a obra é
+    // conhecida, não só em filme ou dublado (um pack BR sem dica provava o
+    // episódio errado no play e jogava a prova fora por falta de obra). Campos
+    // opcionais ficam dentro do hint já assinado; URLs antigas sem eles
+    // continuam verificando normalmente.
     const hint = workHint || s._dubbed || imdbId
       ? {
         ...(workHint || {}),
@@ -291,11 +294,9 @@ export async function applyDebrid(input: Array<Stream | null>, {
     return d === 'resolve' ? viaDebrid(s, instant) : d === 'p2p' ? s : null;
   };
 
-  // Serviço que não sabe informar cache (Real-Debrid, Debrid-Link) ou resposta
-  // incompleta (lote perdido no timeout): filtrar por "somente em cache"
-  // esconderia a lista inteira. Mandamos tudo pelo debrid — a resolução no play
-  // dirá se toca ou não. O ⚡ vai só em quem foi confirmado: numa resposta
-  // parcial os demais são "não perguntei", não "não tem", e viram "download".
+  // Serviço sem `cacheCheck` (ou resposta incompleta): tudo pelo debrid — a
+  // resolução no play dirá se toca. O ⚡ vai só em quem foi confirmado; numa
+  // resposta parcial os demais são "não perguntei", não "não tem".
   if (!known) {
     // Antes só virava log: o contador é o que deixa a degradação visível no
     // /metrics.json sem precisar reler saída do container.

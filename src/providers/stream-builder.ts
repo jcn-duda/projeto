@@ -139,6 +139,9 @@ export async function buildStreams(rawInput: RawItem[], {
     imdbId,
     searchKey,
     deadlineAt,
+    // Contagem de episódios por temporada: a reanotação pós-checagem (fsz
+    // aquecido na AllDebrid) usa a mesma média do annotate pré-debrid.
+    meta,
     // Só a passada reclamada e ainda não contada observa o `search.first.*`.
     observeFirstPass: Boolean(observeFirstPass && firstObserver && !firstObserver.firstCounted),
     firstObserver,

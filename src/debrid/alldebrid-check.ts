@@ -8,6 +8,7 @@ import { call, id, magnetFiles } from './alldebrid-api.js';
 import { recordFileSizes } from './file-sizes.js';
 import { preexisting, knownBefore, waitInventory, rememberSubmitted, forgetSubmitted } from './alldebrid-inventory.js';
 import { skipCleanup, deleteMagnets as dropMagnets } from './alldebrid-cleanup.js';
+import { raceWithDeadline } from '../utils/deadline.js';
 import { filterReuploadBlocked, unblockIfInventoryReady } from './alldebrid-reupload.js';
 import { scheduleEvict } from './alldebrid-evict.js';
 import { scheduleReconcile } from './alldebrid-reconcile.js';
@@ -46,8 +47,9 @@ async function readPackFiles(apiKey: string, items: Array<{ magnetId: string | n
 export async function checkCached(
   apiKey: string,
   infoHashes: string[],
-  { timeoutMs, fileHashes }: { timeoutMs?: number; fileHashes?: string[] } = {},
+  { timeoutMs, fileHashes, fileWaitTimeoutMs }: { timeoutMs?: number; fileHashes?: string[]; fileWaitTimeoutMs?: number } = {},
 ) {
+  const startedAt = Date.now();
   const wantFiles = new Set((fileHashes || []).map((hash) => String(hash).toLowerCase()));
   const filesToRead: Array<{ magnetId: string | number; hash: string }> = [];
   const dropReady: Array<string | number> = [];
@@ -199,8 +201,40 @@ export async function checkCached(
     if (config.debrid.dropReady) scheduleDrop(dropReady, 'prontos', readyHashById);
     if (config.debrid.dropUncached) scheduleDrop(dropDownload, 'downloads', downloadHashById);
   };
-  if (filesToRead.length > 0) void readPackFiles(apiKey, filesToRead).finally(scheduleCleanup);
-  else scheduleCleanup();
+  // Cadeia ÚNICA leitura→limpeza: o `finally` acopla a limpeza ao FIM da
+  // leitura (sucesso OU falha) e nenhuma promise derivada fica sem consumidor.
+  // A espera limitada, porém, só é AWAITADA depois de evicção/reconcile
+  // agendados (abaixo): a limpeza efetiva nunca começa antes de quem depende
+  // do estado da conta estar agendado.
+  //
+  // A leitura não é abortável (cancelar depois do upload perderia os ids). O
+  // limite da ESPERA chega como `fileWaitTimeoutMs` — orçamento dinâmico da
+  // resposta JÁ COM A MARGEM deduzida pelo nonAbortableCheck
+  // (DEBRID_PACK_FILES_WAIT_MARGIN_MS): o timer da corrida externa começa antes
+  // desta checagem, então esperar o orçamento cheio aqui viraria known:false
+  // (⚡ perdido) só porque a leitura do pack foi lenta. NUNCA é o `timeoutMs`
+  // de rede, que aqui fica `undefined` e devolve a cada chamada o teto próprio
+  // do adaptador (upload e leitura seguem com os timeouts normais). Estourou o
+  // orçamento, segue fail-open: o ⚡ já está no retorno e o fsz aquece para a
+  // reanotação na próxima leitura. Passe sem orçamento usa o timeout completo
+  // do adaptador como limite da espera.
+  let espera: Promise<void | 'prazo'> | null = null;
+  if (filesToRead.length > 0) {
+    const read = readPackFiles(apiKey, filesToRead).finally(scheduleCleanup);
+    const limite = fileWaitTimeoutMs ?? config.debrid.cacheCheckTimeout;
+    const restante = Math.max(0, limite - (Date.now() - startedAt));
+    if (restante > 0) {
+      espera = raceWithDeadline(read, restante, () => 'prazo' as const);
+    } else {
+      // Sem orçamento: não esperamos, mas a cadeia fica CONSUMIDA (handler
+      // anexado) para nunca haver rejeição unhandled; a limpeza segue no
+      // `finally` da mesma cadeia e o resultado sai na volta.
+      void read.catch(() => {});
+      espera = Promise.resolve('prazo' as const);
+    }
+  } else {
+    scheduleCleanup();
+  }
   // Destravados pelo inventário entram no Set de cache SEM upload: o pronto é
   // prova da própria conta, e o eco do upload os teria omitido de propósito.
   for (const hash of desbloqueados) result.cached.add(hash);
@@ -215,5 +249,17 @@ export async function checkCached(
   // anti-reentrada, dependência de drop ativo) moram todos no módulo — o
   // chamador paga só uma chamada síncrona.
   scheduleReconcile(apiKey, consultados);
+  if (espera) {
+    try {
+      if ((await espera) === 'prazo') {
+        metrics.count('debrid.packFiles.waitDeadline');
+        log.info(`[alldebrid] leitura de arquivos de ${filesToRead.length} pack(s) segue em fundo; limpeza acoplada ao fim dela`);
+      }
+    } catch (err) {
+      // Falha da leitura: a limpeza já correu no `finally` da MESMA cadeia e a
+      // checagem nunca a derruba — o ⚡ já está no retorno.
+      log.warn(`[alldebrid] leitura de arquivos de pack falhou: ${log.errorMessage(err)}`);
+    }
+  }
   return result;
 }

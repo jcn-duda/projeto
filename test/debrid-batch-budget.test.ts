@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { batched } from '../src/debrid/common.js';
 import debrid from '../src/debrid/index.js';
+import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as premiumize from '../src/debrid/premiumize.js';
@@ -12,9 +13,9 @@ const hashes = (n: any, prefix = 'h') => Array.from({ length: n }, (_, i) => `${
 const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) as Promise<T>;
 const forceFreshOpts: { timeoutMs?: number; forceFresh?: boolean } = { forceFresh: true };
 
-test('abortSafeCacheCheck:false com orçamento suficiente roda sem teto dinâmico', async () => {
+test('abortSafeCacheCheck:false repassa o orçamento como fileWaitTimeoutMs, sem timeoutMs', async () => {
   const original = debrid.BY_ID.get('premiumize') as DebridAdapter;
-  const calls: { apiKey: string; infoHashes: string[]; options: { timeoutMs?: number } | undefined }[] = [];
+  const calls: { apiKey: string; infoHashes: string[]; options: { timeoutMs?: number; fileWaitTimeoutMs?: number } | undefined }[] = [];
   debrid.BY_ID.set('premiumize', {
     id: 'premiumize',
     label: 'Adaptador com efeito colateral',
@@ -35,11 +36,25 @@ test('abortSafeCacheCheck:false com orçamento suficiente roda sem teto dinâmic
     const result = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
       // 750ms está acima do piso: a consulta disputa a corrida em vez de adiar
-      // a checagem inteira para o passe tardio.
-      () => debrid.checkCached(['hash-budget'], { timeoutMs: 750 }),
+      // a checagem inteira para o passe tardio. `forceFresh` contorna o davail
+      // persistido de runs anteriores (positivo de 900s faria a checagem nem
+      // chegar ao adaptador).
+      () => debrid.checkCached(['hash-budget'], { timeoutMs: 750, forceFresh: true }),
     );
     assert.equal(calls.length, 1, 'orçamento suficiente executa a consulta na primeira resposta');
-    assert.equal(calls[0].options, undefined, 'a consulta não recebe teto dinâmico');
+    // A consulta continua NÃO abortável: nenhum `timeoutMs` chega ao adaptador
+    // (os timeouts de rede são os dele). O orçamento dinâmico viaja SÓ como
+    // `fileWaitTimeoutMs` — o teto com que a AllDebrid espera a leitura de
+    // arquivos dentro da própria checagem (revisão 2026-09-14, 2ª rodada), já
+    // com a margem (packFilesWaitMarginMs) deduzida para a espera interna
+    // desistir ANTES do prazo da corrida externa (leitura lenta de pack não
+    // pode virar known:false e apagar o ⚡).
+    assert.equal(calls[0].options?.timeoutMs, undefined, 'a consulta NÃO recebe timeoutMs de rede');
+    assert.equal(
+      calls[0].options?.fileWaitTimeoutMs,
+      750 - config.debrid.packFilesWaitMarginMs,
+      'o orçamento chega como fileWaitTimeoutMs, com a margem deduzida',
+    );
     assert.equal(result.known, true);
     assert.deepEqual([...result.cached], ['hash-budget']);
   } finally {
