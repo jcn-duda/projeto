@@ -72,6 +72,30 @@ test('não marca MULTI, pt==original, idioma estrangeiro, legendado, lied ou tit
     }).ptTitleDual,
     undefined,
   );
+  // DUAL+MULTI (cena francesa) e tokens da lista mínima não podem regredir.
+  assert.equal(
+    marked('A.Rocha.1996.1080p.BluRay.DUAL.MULTi', {
+      pt: 'A Rocha',
+      original: 'The Rock',
+    }).ptTitleDual,
+    undefined,
+  );
+  assert.equal(
+    marked('A.Rocha.1996.BluRay.DUAL.VF', { pt: 'A Rocha', original: 'The Rock' }).ptTitleDual,
+    undefined,
+  );
+  assert.equal(
+    marked('A.Rocha.1996.DUAL.ESP', { pt: 'A Rocha', original: 'The Rock' }).ptTitleDual,
+    undefined,
+  );
+  // Prefixo pt sem fronteira de release: homônimo não herda a obra.
+  assert.equal(
+    marked('A Rocha Queimada Dual Audio 1080p', {
+      pt: 'A Rocha',
+      original: 'The Rock',
+    }).ptTitleDual,
+    undefined,
+  );
   assert.equal(
     marked('Moana.2026.1080p-Dual-Lat', { pt: 'Moana', original: 'Moana' }).ptTitleDual,
     undefined,

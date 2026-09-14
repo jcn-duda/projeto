@@ -141,13 +141,13 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
     // áudio estrangeiro, e nenhum lado tem prova de mentira.
     const winnerTitle = String(winner.title || winner.name || '').split('\n')[0];
     const loserTitle = String(loser.title || loser.name || '').split('\n')[0];
-    // Guarda AMPLA (`namesForeignDubLanguage`): a decisão só NEGA a vaga BR,
-    // não apaga da conta — por isso pode fechar LAT/ESP/cirílico/VFF além da
-    // lista mínima de condenação. PT explícito absolve (`foreignDub`): post
-    // "Dual Áudio PT-BR ENG" continua emprestando BR ao espelho STARCKFILMES.
-    // O perdedor precisa confirmar o que empresta: post BR sem dublado
-    // (_dubbed=false, ex. legendado) não autoriza a herança.
-    const foreignDub = (t: string) => !explicitPtAudio(t) && namesForeignDubLanguage(t);
+    // Guarda = mínima OR ampla: a decisão só NEGA BR (não apaga da conta),
+    // mas não pode ficar mais frouxa que `hasExplicitForeignAudio` — DUAL.VF
+    // / SUBITA / NL já eram barrados no a81de23. A ampla fecha LAT/ESP/MULTI/
+    // cirílico/VFF. PT explícito absolve (`foreignDub`): post "Dual Áudio
+    // PT-BR ENG" continua emprestando BR ao espelho STARCKFILMES.
+    const foreignDub = (t: string) =>
+      hasExplicitForeignAudio(t) || (!explicitPtAudio(t) && namesForeignDubLanguage(t));
     const inheritsBr = !isLied && !winner._br && Boolean(loser._br) && Boolean(loser._dubbed)
       && audioFromTitle(winnerTitle) === 'Dual' && !foreignDub(winnerTitle)
       && !foreignDub(loserTitle);

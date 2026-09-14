@@ -94,18 +94,18 @@ function genericDubProvesPt(text: string): boolean {
 }
 
 /**
- * Idioma estrangeiro nomeado no título — guarda AMPLA. Reusa a mesma lista
- * que desmente DUB genérico + cirílico, e acrescenta grafias curtas que a
- * lista mínima de condenação ainda não mede (`LAT`, VFF/VF2/VFQ, VOSTFR,
- * HDLIGHT). Só entra onde negar BR é barato: herança no dedupe e (depois)
- * pt-title-dual. Quem apaga da conta continua em `hasExplicitForeignAudio`.
+ * Idioma estrangeiro / cena não-BR no título — guarda AMPLA. Reusa a lista
+ * que desmente DUB genérico + cirílico, e acrescenta grafias que a lista
+ * mínima ainda não mede ou que só negam BR (`LAT`, `ESP`, `MULTI`, VFF…).
+ * Quem chama OR-a com `hasExplicitForeignAudio` (VF/SUBITA/NL…) para não
+ * regressar a condenação mínima. Só entra onde negar BR é barato.
  */
 function namesForeignDubLanguage(text: string): boolean {
   const raw = String(text || '');
   const t = raw.toUpperCase();
   return FOREIGN_DUB_LANG_RE.test(t)
     || CYRILLIC_RE.test(raw)
-    || /\bLAT\b/.test(t)
+    || /\b(LAT|ESP|MULTI)\b/.test(t)
     || /VFF|VF2|VFQ|VOSTFR|HDLIGHT/i.test(raw);
 }
 

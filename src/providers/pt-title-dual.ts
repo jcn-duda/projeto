@@ -7,7 +7,12 @@
  * MULTI sozinho NÃO entra: é faixa multiidioma de cena, não dublagem BR.
  */
 import type { RawItem } from '../../types/domain.js';
-import { looksPtBr, audioFromTitle, explicitPtAudio } from '../utils/audio-quality.js';
+import {
+  looksPtBr,
+  audioFromTitle,
+  explicitPtAudio,
+  hasExplicitForeignAudio,
+} from '../utils/audio-quality.js';
 import { namesForeignDubLanguage } from '../utils/audio-cleanup.js';
 import { normalizeTitle } from '../utils/title-normalization.js';
 import { LEADING_ARTICLES } from '../utils/matching-vocabulary.js';
@@ -20,6 +25,9 @@ const DUAL_LITERAL_RE = /\bDUAL\b|DUAL[- ]?AUDIO|AUDIO[- ]?DUPLO/i;
 // anunciado como legendado não pode virar vaga BR pela recuperação de título.
 const LEGENDADO_RE =
   /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/i;
+// Após o prefixo pt, o próximo token tem que ser ano/episódio/marca de
+// release — senão "A Rocha Queimada Dual" herdaria a obra "A Rocha".
+const AFTER_PT_OK_RE = /^(?:\d{4}|s\d{1,2}(?:e\d{1,3})?|\d{3,4}p|dual|audio|duplo|bluray|bdrip|webdl|web|hdtv|hdrip|remux|proper|repack|extended|complete|uhd|hdr|x264|x265|h264|h265|hevc|avc|aac|dts|atmos|truehd|ac3|eac3)$/;
 
 type TitlesCtx = {
   original?: string | null;
@@ -35,15 +43,25 @@ function stripLeadingArticle(norm: string): string {
   return norm;
 }
 
-function startsWithNorm(normTitle: string, prefix: string): boolean {
+function prefixThenRelease(normTitle: string, prefix: string): boolean {
   if (!prefix) return false;
-  return normTitle === prefix || normTitle.startsWith(`${prefix} `);
+  if (normTitle === prefix) return true;
+  if (!normTitle.startsWith(`${prefix} `)) return false;
+  const first = normTitle.slice(prefix.length + 1).split(' ')[0] || '';
+  return AFTER_PT_OK_RE.test(first);
 }
 
 function titleMatchesPt(normTitle: string, normPt: string): boolean {
-  if (startsWithNorm(normTitle, normPt)) return true;
+  if (prefixThenRelease(normTitle, normPt)) return true;
   const withoutArticle = stripLeadingArticle(normPt);
-  return withoutArticle !== normPt && startsWithNorm(normTitle, withoutArticle);
+  return withoutArticle !== normPt && prefixThenRelease(normTitle, withoutArticle);
+}
+
+function foreignDubTitle(title: string): boolean {
+  // Mínima OR ampla: VF/SUBITA/NL não podem regredir; LAT/ESP/MULTI/cirílico
+  // também negam. PT explícito absolve nos dois lados.
+  return hasExplicitForeignAudio(title)
+    || (!explicitPtAudio(title) && namesForeignDubLanguage(title));
 }
 
 function shouldMark(item: RawItem, titles: TitlesCtx): boolean {
@@ -55,7 +73,7 @@ function shouldMark(item: RawItem, titles: TitlesCtx): boolean {
   if (!DUAL_LITERAL_RE.test(title)) return false;
   if (audioFromTitle(title) === 'Legendado') return false;
   if (LEGENDADO_RE.test(title) && !explicitPtAudio(title)) return false;
-  if (namesForeignDubLanguage(title) && !explicitPtAudio(title)) return false;
+  if (foreignDubTitle(title)) return false;
 
   const normPt = normalizeTitle(titles.pt);
   if (!normPt) return false;

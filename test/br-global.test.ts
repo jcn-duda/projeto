@@ -238,8 +238,13 @@ test('dedupeByHash: espelho global com DUAL + idioma estrangeiro amplo NÃO herd
     'A.Rocha.1996.1080p.BluRay.DUAL.LATINO',
     'A Rocha 1996 Dual Audio Latino Ingles',
     'A.Rocha.1996.DUAL.ESP.ENG',
+    'A.Rocha.1996.DUAL.ESP',
     'A.Rocha.1996.1080p Dual Audio [Eng-Spa]',
     'A.Rocha.1996.1080p-Dual-Lat',
+    'A.Rocha.1996.BluRay.DUAL.VF',
+    'A.Rocha.1996.1080p.BluRay.DUAL.MULTi',
+    'A.Rocha.1996.1080p.BluRay.DUAL.SUBITA',
+    'A.Rocha.1996.1080p.BluRay.DUAL.NL',
     'А.Роша.1996.1080p.BluRay.DUAL',
   ];
   for (const title of estranhos) {
