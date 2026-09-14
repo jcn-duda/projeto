@@ -186,7 +186,7 @@ function toStremioStream(item: RawItem): Stream | null {
   // Origem BR pelo indexer E pelo título: tracker global também hospeda
   // dublado titulado em português, e é o título que denuncia. O flag muda o
   // chip BR, as vagas reservadas e a priorização de dublado.
-  const isBr = Boolean(item.isBr) || looksPtBr(title);
+  const isBr = Boolean(item.isBr || item.ptTitleDual) || looksPtBr(title);
   const seeders = Number(item.seeders ?? item.Seeders ?? 0) || 0;
   const rawSize = Number(item.size ?? item.Size);
   // Os indexers BR mandam 1 KB quando o post não publica tamanho: o Jackett

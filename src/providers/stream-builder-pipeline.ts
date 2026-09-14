@@ -24,6 +24,7 @@ import { stageTrace, dropTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
 import { applyProbedQuality } from './probed-quality.js';
+import { applyPtTitleDual } from './pt-title-dual.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 // Indexer id vindo da config do usuario (URL) precisa validar antes de
@@ -309,10 +310,8 @@ export function prepareCandidateStreams(
   // fecha como item de aviso e entrega ao Stremio. Um item sem `url`/`infoHash`/
   // `externalUrl` (e sem a marca interna `notice`) morre fora da união — o que
   // deixa explícito na origem o aviso que nenhum cliente renderizava.
-  // O que os arquivos provaram entra ANTES do mapeamento: o nome, o `_quality`
-  // e o `_dubbed` nascem do item, e sao eles que o filtro de resolucao, as cotas
-  // e o preferDubbed leem depois.
-  const evidencia = applyProbedQuality(applyFileEvidence(raw), { season, episode, workHint });
+  // Proven quality/audio + ptTitleDual (DUAL global com título TMDB pt) antes do map.
+  const evidencia = applyPtTitleDual(applyProbedQuality(applyFileEvidence(raw), { season, episode, workHint }), { titles, trace });
   const mappedStreams = evidencia.map((item) => {
     const stream = toStremioStream(item);
     // P5 — `toStremioStream` devolve NULL para item sem infoHash (link que

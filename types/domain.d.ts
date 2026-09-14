@@ -28,6 +28,12 @@ export interface RawItem {
   indexer?: string;
   Indexer?: string;
   isBr?: boolean;
+  /**
+   * DUAL em tracker global cujo título começa com o pt-BR do TMDB (pt distinto
+   * do original/en). Alimenta `_br`/`_dubbed` via toStremioStream — sem isto
+   * Dual sem acento perde a vaga BR para globais com mais seeders.
+   */
+  ptTitleDual?: boolean;
   /** Evidência observada no play/tail; sobrepõe o palpite do título. */
   provenQuality?: string;
   provenAudio?: string;
