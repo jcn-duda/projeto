@@ -35,6 +35,10 @@ export const tmdb = () => ({
   // são consultados em inglês e devolvem 0. 0 desliga o transitório (a busca
   // seguinte consulta novamente a API).
   transientMissTtl: num(process.env.TMDB_TRANSIENT_MISS_TTL, 30),
+  // Teto do bloco find→movie→collection (BR_MULTIWORK_PACKS). É um CAP (min
+  // com o deadline absoluto da requisição), não um timeout adicional; roda em
+  // paralelo com os metadados e é fail-open.
+  collectionTimeout: num(process.env.TMDB_COLLECTION_TIMEOUT_MS, 2500),
 });
 
 export const cinemeta = () => ({

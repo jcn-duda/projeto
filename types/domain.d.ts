@@ -56,6 +56,22 @@ export interface WorkHint {
   pack?: boolean;
 }
 
+/**
+ * Coleção multiobra descoberta por evidência (TMDB `belongs_to_collection`),
+ * sob o opt-in `BR_MULTIWORK_PACKS`. `root` é a raiz normalizada (tokens
+ * contíguos) que o título do pack precisa conter; `years` são os anos das
+ * partes. Só existe no contexto quando o opt-in está ligado, há debrid ativo,
+ * é filme e o ano é conhecido.
+ */
+export interface MultiWorkCollection {
+  /** Nome da coleção no TMDB (pt-BR), só para log/query. */
+  name: string;
+  /** Raiz normalizada (tokens contíguos) para a checagem de contiguidade. */
+  root: string;
+  /** Anos das partes da coleção (TMDB). */
+  years: number[];
+}
+
 export interface PlayHint {
   season?: number | null;
   episode?: number | null;
@@ -126,6 +142,15 @@ export interface StreamBase {
   _tracker?: string;
   _indexer?: string;
   _multiWork?: boolean;
+  /**
+   * Marca INTERNA do opt-in BR_MULTIWORK_PACKS: o pack foi admitido pela
+   * evidência de coleção (TMDB) com raiz contígua, nomes e cobertura do ano.
+   * Diferente de `_multiWork` (heurística de título, sempre presente), esta só
+   * existe quando a feature está ligada e admite o item — por isso todas as
+   * regras novas (nunca P2P inteiro, fora do autofetch/warmer) se apoiam nela,
+   * e o comportamento fica intacto com a flag desligada.
+   */
+  _multiWorkAdmitted?: boolean;
   /** Evidência medida de post dublado com arquivos EN; nunca vai ao cliente. */
   _lied?: boolean;
   /**
@@ -322,4 +347,6 @@ export interface MatchContext {
   isSeries: boolean;
   season: number | null;
   episode: number | null;
+  /** Opt-in multiobra: quando presente, packs da franquia podem ser admitidos. */
+  multiWork?: MultiWorkCollection | null;
 }

@@ -37,6 +37,9 @@ export async function collectRaw(
    * tarefa paralela. A regra de execução mora no queryIndexer (global sempre;
    * BR só sem fallback pt-BR). */
   originalQuery: string | null = null,
+  /** Raiz da coleção multiobra (TMDB), degrau SEQUENCIAL só nos indexers BR;
+   * null/ausente = opt-in desligado ou sem evidência de coleção. */
+  multiWorkQuery: string | null = null,
 ) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
@@ -116,6 +119,7 @@ export async function collectRaw(
         config.jackett.slowIndexers,
         sweepQuery,
         originalQuery,
+        multiWorkQuery,
       );
       for (const planned of plan) {
         const priority = planned.indexers.some((indexer) =>
@@ -127,6 +131,7 @@ export async function collectRaw(
           fallbackQuery: planned.fallback,
           variantQuery: planned.variant,
           franchiseQuery: planned.franchise,
+          multiWorkQuery: planned.multiWork,
           originalQuery: planned.original,
           matchContext,
           // A mesma busca principal atualiza o status deste indexer. Falha da

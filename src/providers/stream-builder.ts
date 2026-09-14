@@ -1,5 +1,6 @@
 import config from '../config.js';
 import type { RawItem, Stream } from '../../types/domain.js';
+import type { MultiWorkCollection } from '../../types/domain.js';
 import { limitReservingBr } from '../utils/format.js';
 import { prefix, origin } from '../runtime.js';
 import * as log from '../utils/logger.js';
@@ -59,6 +60,8 @@ export interface BuildStreamsOptions {
   isDemo?: boolean;
   searchKey?: string | null;
   deadlineAt?: number | null;
+  /** Opt-in multiobra: contexto da coleção TMDB (filme + debrid + ano). */
+  multiWork?: MultiWorkCollection | null;
   onDebridResult?: (result: { autofetchCount?: number; trustDropped?: number }) => void;
   /**
    * I0 — observabilidade da PRIMEIRA resposta. Vem `true` SÓ na passada
@@ -84,7 +87,7 @@ export interface BuildStreamsOptions {
 }
 
 export async function buildStreams(rawInput: RawItem[], {
-  meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, onDebridResult, observeFirstPass, observeLatePass, firstObserver, trace,
+  meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, multiWork, onDebridResult, observeFirstPass, observeLatePass, firstObserver, trace,
 }: BuildStreamsOptions = {}) {
   const pool = prepareCandidateStreams(rawInput, {
     meta,
@@ -93,6 +96,7 @@ export async function buildStreams(rawInput: RawItem[], {
     season,
     episode,
     isDemo,
+    multiWork,
     trace,
   });
 

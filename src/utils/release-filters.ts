@@ -14,6 +14,8 @@ import {
   matchesGlobalSeriesNoMarker,
   matchesTitleStructure,
 } from './release-title-rules.js';
+import { admitsMultiWorkPack } from './multiwork-pack.js';
+import type { MultiWorkCollection } from '../../types/domain.js';
 
 interface MatchOptions {
   names?: string[];
@@ -24,6 +26,8 @@ interface MatchOptions {
   allNames?: string[] | null;
   tokens?: string[] | null;
   universeTokens?: string[] | null;
+  /** Opt-in multiobra: quando presente, packs da franquia podem ser admitidos. */
+  multiWork?: MultiWorkCollection | null;
 }
 
 export type RelevanceRejectReason = 'title' | 'magnet-year' | 'episode' | 'series-work';
@@ -36,7 +40,7 @@ export type RelevanceRejectReason = 'title' | 'magnet-year' | 'episode' | 'serie
  */
 function filterRelevantRaw(
   items: RawItem[] = [],
-  { names = [], year = null, isSeries = false, season = null, episode = null }: MatchOptions = {},
+  { names = [], year = null, isSeries = false, season = null, episode = null, multiWork = null }: MatchOptions = {},
   onRejected?: (item: RawItem, reason: RelevanceRejectReason) => void,
 ) {
   if (!names.length) return items;
@@ -74,8 +78,15 @@ function filterRelevantRaw(
           matchesEpisodeWorkIdentity(title, names, tokens, universe),
     );
     if (!titleMatches) {
-      onRejected?.(item, 'title');
-      return false;
+      // Opt-in multiobra: o filtro estrito de título do filme isolado nunca
+      // casa "Indiana Jones - A Coleção Completa"; a admissão exige raiz
+      // contígua (evidência TMDB) E cobertura explícita do ano no título/dn.
+      // Admitido, o ano já foi validado aqui — não re-checa o magnet.
+      if (!admitsMultiWorkPack(item, { multiWork, year, isSeries, names })) {
+        onRejected?.(item, 'title');
+        return false;
+      }
+      return true;
     }
     // Filme: o dn= do magnet carrega o ano verdadeiro quando o título
     // mapeado não traz (e confirma quando traz). Séries ficam de fora — o

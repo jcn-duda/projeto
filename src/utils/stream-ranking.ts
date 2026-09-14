@@ -135,6 +135,10 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
       // pack, a marca precisa sobreviver ao merge — senão o perdedor BR com
       // título de coleção perderia o estrito para o vencedor EN sem marca.
       _multiWork: Boolean(winner._multiWork || loser._multiWork),
+      // Só o admitido (opt-in TMDB) aciona nunca-P2P/fora-do-autofetch; se
+      // QUALQUER lado foi admitido, o vencedor mantém a marca — perdê-la no
+      // merge devolveria o pack ao caminho P2P.
+      _multiWorkAdmitted: Boolean(winner._multiWorkAdmitted || loser._multiWorkAdmitted),
       _lied: isLied,
     };
     if (merged._quality !== winner._quality) {

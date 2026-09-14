@@ -287,6 +287,8 @@
     "test/index-evidence-fusion.test.js",
     "test/debrid-batch-budget.test.js",
     "test/magnet-db-ranking.test.js",
+    "test/multiwork-pack.test.js",
+    "test/multiwork-pack-apply.test.js",
     "test/comandotorrents-parser-titles.test.js",
     "test/debrid-pick-episodes.test.js",
     "test/br-resolvers-traversal.test.js",

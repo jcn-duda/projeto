@@ -19,6 +19,9 @@ export interface JackettSearchOptions {
   fallbackQuery?: string;
   /** Raiz da franquia sem marcador de sequência (plano BR: "Parte II" → raiz). */
   franchiseQuery?: string;
+  /** Raiz da coleção multiobra (TMDB): degrau SEQUENCIAL no MESMO deadline,
+   * aberto só quando a primária não trouxe resultado relevante. Só BR. */
+  multiWorkQuery?: string;
   /** Título original da obra (TMDB) como degrau SEQUENCIAL de último recurso
    * ("Adım Farah" quando a primária é "My Name Is Farah"). Global recebe
    * sempre; BR só quando NÃO há já uma cascata bilíngue útil (ver o gate
@@ -143,7 +146,7 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   // anterior não trouxe candidato útil, e compartilham o MESMO deadline
   // absoluto — nada de duas tentativas no ar dentro do orçamento.
   const shapedSeen = [found.searchQuery];
-  const cascade: { q: string; label: string; isOriginal?: boolean }[] = [];
+  const cascade: { q: string; label: string; isOriginal?: boolean; isMultiWork?: boolean }[] = [];
   if (isBr && options.variantQuery) cascade.push({ q: options.variantQuery, label: 'variante numérica' });
   // Título pt-BR SEM o ano. Medido ao vivo em tt1465522: "Tucker e Dale Contra
   // o Mal 2010" devolve 0 no comandotorrents e no torrentdosfilmesv2, e o mesmo
@@ -163,6 +166,12 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   // `shapedSeen` já descarta a duplicata quando a raiz coincide com um degrau
   // anterior já moldado.
   if (isBr && options.franchiseQuery) cascade.push({ q: options.franchiseQuery, label: 'raiz da franquia' });
+  // Coleção multiobra (opt-in BR_MULTIWORK_PACKS): degrau sequencial no MESMO
+  // deadline, depois da raiz de sequência e antes do fallback bilíngue. A raiz
+  // vem do TMDB (autoridade), não de cortar título. Só abre quando todos os
+  // degraus anteriores não trouxeram candidato relevante — a admissão do pack
+  // acontece depois, no filtro de título (que agora o conhece).
+  if (isBr && options.multiWorkQuery) cascade.push({ q: options.multiWorkQuery, label: 'coleção multiobra da franquia', isMultiWork: true });
   if (isBr && options.fallbackQuery) cascade.push({ q: options.fallbackQuery, label: 'fallback do plano BR' });
   // Degrau do título ORIGINAL da obra (TMDB): fonte real do caso Farah — os
   // trackers globais publicam "Adım Farah" e a query mainstream "My Name Is
@@ -207,6 +216,7 @@ export async function queryIndexer(indexer: string, query: string, type: string,
         // `step` conta a TENTATIVA (o degrau pode ser servido do raw cache ou
         // falhar na rede — o contador não distingue, é tentativa de degrau).
         if (step.isOriginal) metrics.count('jackett.original.step');
+        if (step.isMultiWork) metrics.count('jackett.multiwork.step');
         found = await fetchQuery(step.q, true);
         // `hit` conta só SOBREVIVENTE RELEVANTE do degrau — o MESMO filtro de
         // título do pipeline —, nunca item bruto irrelevante que o degrau

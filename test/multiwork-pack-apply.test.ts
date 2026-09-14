@@ -1,0 +1,221 @@
+// Integração de `applyDebrid` para o opt-in BR_MULTIWORK_PACKS (achados M4 e
+// H1): cachedOnly/showUncachedBr/resolveUncached, sem adapter, adapter
+// unusable e o warmer RD. O pack ADMITIDO (`_multiWorkAdmitted`) nunca vira
+// torrent P2P inteiro, nunca é oferecido sem dica de obra e nunca entra no
+// warmer/autofetch; `_multiWork` genérico (flag off) mantém o comportamento
+// anterior.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+process.env.CACHE_PERSIST = 'false';
+
+import debrid from '../src/debrid/index.js';
+import * as runtime from '../src/runtime.js';
+import config from '../src/config.js';
+import { applyDebrid } from '../src/providers/index.js';
+import rdWarmer from '../src/providers/rd-warmer.js';
+import type { Stream } from '../types/domain.js';
+
+const MOVIE_NAME = 'Indiana Jones e os Caçadores da Arca Perdida';
+const WORK_HINT = { n: [MOVIE_NAME], y: 1981 };
+const HASH = 'b'.repeat(40);
+const OTHER = 'c'.repeat(40);
+
+const admitted = (h: string): Stream => ({
+  name: '[AD] Indiana Jones - A Coleção Completa',
+  title: 'Indiana Jones - A Coleção Completa 1981-2008 Dublado 1080p',
+  infoHash: h,
+  _br: true,
+  _dubbed: true,
+  _quality: '1080p',
+  _seeders: 5,
+  _multiWork: true,
+  _multiWorkAdmitted: true,
+} as Stream);
+
+const normal = (h: string): Stream => ({
+  name: 'Coringa Dublado',
+  title: 'Coringa 2019 Dublado 1080p',
+  infoHash: h,
+  _br: true,
+  _dubbed: true,
+  _quality: '1080p',
+  _seeders: 50,
+} as Stream);
+
+function run<T>(opts: Record<string, unknown>, fn: () => Promise<T>): Promise<T> {
+  return runtime.run({ opts: { ...runtime.defaults(), ...opts }, encoded: 'cfg-mw' }, fn) as Promise<T>;
+}
+
+function withHarness(
+  { checkCached, publicUrl = 'http://addon.test', resolveUncached = false, originalUrl = config.debrid.publicUrl }:
+  { checkCached: any; publicUrl?: string; resolveUncached?: boolean; originalUrl?: string },
+  fn: () => Promise<void>,
+) {
+  const originalCheck = debrid.checkCached;
+  const originalEnqueue = debrid.enqueue;
+  const originalWarmEnqueue = rdWarmer.enqueue;
+  const originalResolveUncached = config.debrid.resolveUncached;
+  const warmCalls: string[] = [];
+  const enqueueCalls: string[] = [];
+  debrid.checkCached = checkCached;
+  debrid.enqueue = (async (_h: string) => { enqueueCalls.push(_h); return true; }) as any;
+  (rdWarmer as any).enqueue = (hashes: string[]) => { warmCalls.push(...hashes); };
+  config.debrid.publicUrl = publicUrl;
+  config.debrid.resolveUncached = resolveUncached;
+  return fn()
+    .finally(() => {
+      debrid.checkCached = originalCheck;
+      debrid.enqueue = originalEnqueue;
+      (rdWarmer as any).enqueue = originalWarmEnqueue;
+      config.debrid.resolveUncached = originalResolveUncached;
+      config.debrid.publicUrl = originalUrl;
+    })
+    .then(() => ({ warmCalls, enqueueCalls }));
+}
+
+test('applyDebrid sem adapter: pack admitido sai, genérico permanece', async () => {
+  const out = await run({ debridService: 'alldebrid', debridApiKey: '' }, () =>
+    applyDebrid([admitted(HASH), normal(OTHER)], { workHint: WORK_HINT, imdbId: 'tt0082971' } as any),
+  ) as Stream[];
+  assert.equal(out.some((s) => s.infoHash === HASH), false, 'multiobra admitido não pode ir P2P sem debrid');
+  assert.equal(out.some((s) => s.infoHash === OTHER), true);
+});
+
+test('applyDebrid adapter unusable: pack admitido sai, o resto volta P2P', async () => {
+  await withHarness(
+    { checkCached: async () => ({ cached: new Set(), known: false, unusable: { reason: 'auth' } }) },
+    async () => {
+      const out = await run({ debridService: 'alldebrid', debridApiKey: 'k' }, () =>
+        applyDebrid([admitted(HASH), normal(OTHER)], { workHint: WORK_HINT, imdbId: 'tt0082971' } as any),
+      ) as Stream[];
+      assert.equal(out.some((s) => s.infoHash === HASH), false);
+      assert.equal(out.some((s) => s.infoHash === OTHER), true);
+    },
+  );
+});
+
+test('applyDebrid cached: pack admitido vira URL /resolve com dica (p:1) e ⚡', async () => {
+  await withHarness(
+    { checkCached: async () => ({ cached: new Set([HASH]), known: true }) },
+    async () => {
+      const out = await run({ debridService: 'alldebrid', debridApiKey: 'k', debridCachedOnly: true, showUncachedBr: false }, () =>
+        applyDebrid([admitted(HASH)], { workHint: WORK_HINT, imdbId: 'tt0082971' } as any),
+      ) as Stream[];
+      assert.equal(out.length, 1);
+      const [first] = out;
+      assert.ok(first);
+      assert.equal(first.infoHash, undefined, 'nunca P2P inteiro');
+      assert.ok(String(first.name).includes('⚡'));
+      assert.ok(first.url?.includes('/resolve/'));
+      const w = decodeURIComponent(new URL(String(first.url)).searchParams.get('w') || '');
+      assert.ok(w.includes('"p":1'), 'dica assinada marca pack multiobra');
+      assert.ok(w.includes(MOVIE_NAME));
+    },
+  );
+});
+
+test('applyDebrid uncached sem resolveUncached: pack admitido é descartado (nem P2P nem URL)', async () => {
+  await withHarness(
+    { checkCached: async () => ({ cached: new Set(), known: true }), resolveUncached: false },
+    async () => {
+      const out = await run({ debridService: 'alldebrid', debridApiKey: 'k', debridCachedOnly: false, showUncachedBr: false }, () =>
+        applyDebrid([admitted(HASH), normal(OTHER)], { workHint: WORK_HINT, imdbId: 'tt0082971' } as any),
+      ) as Stream[];
+      assert.equal(out.some((s) => s.infoHash === HASH || s.url?.includes(HASH)), false, 'multiobra uncached não é oferecido');
+      assert.equal(out.some((s) => s.infoHash === OTHER), true);
+    },
+  );
+});
+
+test('applyDebrid uncached com resolveUncached: pack admitido sai por /resolve [download]', async () => {
+  await withHarness(
+    { checkCached: async () => ({ cached: new Set(), known: true }), resolveUncached: true },
+    async () => {
+      const out = await run({ debridService: 'alldebrid', debridApiKey: 'k', debridCachedOnly: false, showUncachedBr: false }, () =>
+        applyDebrid([admitted(HASH)], { workHint: WORK_HINT, imdbId: 'tt0082971' } as any),
+      ) as Stream[];
+      assert.equal(out.length, 1);
+      const [first] = out;
+      assert.ok(first);
+      assert.ok(first.url?.includes(`/resolve/${HASH}`));
+      assert.ok(String(first.name).includes('download'));
+      assert.equal(first.infoHash, undefined);
+    },
+  );
+});
+
+test('applyDebrid cachedOnly + showUncachedBr=false: pack admitido uncached não vaza como P2P', async () => {
+  await withHarness(
+    { checkCached: async () => ({ cached: new Set(), known: true }) },
+    async () => {
+      const out = await run({ debridService: 'alldebrid', debridApiKey: 'k', debridCachedOnly: true, showUncachedBr: false }, () =>
+        applyDebrid([admitted(HASH)], { workHint: WORK_HINT, imdbId: 'tt0082971' } as any),
+      ) as Stream[];
+      assert.equal(out.length, 0);
+    },
+  );
+});
+
+test('p:1 legado: multiobra genérico (sem admissão/flag) mantém a dica de pack', async () => {
+  // `p:1` é comportamento PRÉ-EXISTENTE e independente do BR_MULTIWORK_PACKS:
+  // nasce do `_multiWork` (heurística de título) e nunca foi feature-scoped.
+  const generic = { ...admitted(HASH), _multiWorkAdmitted: false } as Stream;
+  await withHarness(
+    { checkCached: async () => ({ cached: new Set([HASH]), known: true }) },
+    async () => {
+      const out = await run({ debridService: 'alldebrid', debridApiKey: 'k', debridCachedOnly: true, showUncachedBr: false }, () =>
+        applyDebrid([generic], { workHint: WORK_HINT, imdbId: 'tt0082971' } as any),
+      ) as Stream[];
+      const [first] = out;
+      assert.ok(first);
+      const w = decodeURIComponent(new URL(String(first.url)).searchParams.get('w') || '');
+      assert.ok(w.includes('"p":1'), 'p:1 pré-existente, fora do flag');
+    },
+  );
+});
+
+test('known:false degradado: coleção admitida fria não resolve sem resolveUncached', async () => {
+  await withHarness(
+    { checkCached: async () => ({ cached: new Set(), known: false }) },
+    async () => {
+      const out = await run({ debridService: 'alldebrid', debridApiKey: 'k', debridCachedOnly: false, showUncachedBr: false }, () =>
+        applyDebrid([admitted(HASH)], { workHint: WORK_HINT, imdbId: 'tt0082971' } as any),
+      ) as Stream[];
+      assert.equal(out.length, 0, 'coleção fria descartada no ramo degradado');
+    },
+  );
+});
+
+test('known:false degradado com resolveUncached: coleção admitida sai por /resolve', async () => {
+  await withHarness(
+    { checkCached: async () => ({ cached: new Set(), known: false }), resolveUncached: true },
+    async () => {
+      const out = await run({ debridService: 'alldebrid', debridApiKey: 'k', debridCachedOnly: false, showUncachedBr: false }, () =>
+        applyDebrid([admitted(HASH)], { workHint: WORK_HINT, imdbId: 'tt0082971' } as any),
+      ) as Stream[];
+      const [first] = out;
+      assert.ok(first);
+      assert.ok(String(first.url).includes(`/resolve/${HASH}`));
+    },
+  );
+});
+
+test('H1: warmer RD não recebe pack admitido — nenhum probe/addMagnet', async () => {
+  const spies = await withHarness(
+    { checkCached: async () => ({ cached: new Set(), known: true }) },
+    async () => {
+      const out = await run(
+        {
+          debridService: 'realdebrid', debridApiKey: 'k', debridCachedOnly: false, showUncachedBr: false,
+          autoFetchBr: true,
+        },
+        () => applyDebrid([admitted(HASH)], { workHint: WORK_HINT, imdbId: 'tt0082971', searchKey: 'mw-h1' } as any),
+      ) as Stream[];
+      assert.equal(out.length, 0, 'sem resolveUncached o admitido sai da lista');
+    },
+  );
+  // Nem o warmer (probe/addMagnet) nem o autofetch receberam o pack admitido.
+  assert.equal(spies.warmCalls.length, 0);
+  assert.equal(spies.enqueueCalls.length, 0);
+});

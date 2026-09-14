@@ -2,6 +2,8 @@ import config from '../config.js';
 import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import * as log from './logger.js';
+import { collectionRoot } from './multiwork-pack.js';
+import type { MultiWorkCollection } from '../../types/domain.js';
 
 const API = 'https://api.themoviedb.org/3';
 
@@ -203,4 +205,115 @@ async function getTitles(imdbId: string) {
   return promise;
 }
 
-export { getTitles };
+const COLLECTION_CACHE_PREFIX = 'tmdbc:';
+
+interface JsonResult {
+  ok: boolean;
+  status: number;
+  data: any;
+}
+
+async function fetchJson(url: URL, deadlineAt: number): Promise<JsonResult> {
+  const remaining = deadlineAt - Date.now();
+  if (!(remaining > 0)) return { ok: false, status: 0, data: null };
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(Math.max(1, remaining)),
+    });
+    if (!res.ok) return { ok: false, status: res.status, data: null };
+    return { ok: true, status: res.status, data: await res.json() };
+  } catch (err) {
+    log.warn('[tmdb]', err.message);
+    return { ok: false, status: 0, data: null };
+  }
+}
+
+// Distingue resposta AUTORITATIVA (mesmo "não tem coleção", cacheável pelo TTL
+// longo) de falha/prazo (TTL curto). Sem isso, um blip de rede congelaria a
+// ausência de coleção por 7 dias.
+type CollectionRead = { info: MultiWorkCollection | null; ok: boolean };
+
+/**
+ * Lê a coleção `belongs_to_collection` do filme e as partes dela. Três saltos
+ * sequenciais no MESMO `deadlineAt` (find → movie → collection); cada fetch só
+ * usa o que sobrou. Se o `/find` já trouxer `belongs_to_collection` (TMDB
+ * detalhado), o salto do `/movie` é poupado. Rede nunca derruba a busca:
+ * falha devolve `ok:false` e o chamador segue sem franquia.
+ */
+async function readCollection(imdbId: string, deadlineAt: number): Promise<CollectionRead> {
+  const findUrl = new URL(`${API}/find/${imdbId}`);
+  findUrl.searchParams.set('api_key', config.tmdb.apiKey);
+  findUrl.searchParams.set('external_source', 'imdb_id');
+  findUrl.searchParams.set('language', 'pt-BR');
+  const found = await fetchJson(findUrl, deadlineAt);
+  if (!found.ok) return { info: null, ok: false };
+  const movie = (found.data?.movie_results || [])[0];
+  // Série não tem `belongs_to_collection` e a feature é de filme; ausência
+  // autoritativa.
+  if (!movie?.id) return { info: null, ok: true };
+
+  let collection = movie.belongs_to_collection;
+  if (!collection?.id) {
+    const detailUrl = new URL(`${API}/movie/${movie.id}`);
+    detailUrl.searchParams.set('api_key', config.tmdb.apiKey);
+    detailUrl.searchParams.set('language', 'pt-BR');
+    const detail = await fetchJson(detailUrl, deadlineAt);
+    if (!detail.ok) return { info: null, ok: false };
+    collection = detail.data?.belongs_to_collection;
+  }
+  if (!collection?.id) return { info: null, ok: true };
+
+  const collUrl = new URL(`${API}/collection/${collection.id}`);
+  collUrl.searchParams.set('api_key', config.tmdb.apiKey);
+  collUrl.searchParams.set('language', 'pt-BR');
+  const coll = await fetchJson(collUrl, deadlineAt);
+  if (!coll.ok) return { info: null, ok: false };
+
+  const name = String(coll.data?.name || collection.name || '').trim();
+  const years: number[] = [...new Set<number>(
+    (coll.data?.parts || [])
+      .map((part: any) => Number(String(part?.release_date || '').slice(0, 4)))
+      .filter((year: number) => year > 1900),
+  )];
+  const root = collectionRoot(name);
+  // "Coleção" de uma obra só (raiz sem evidência ou menos de 2 partes) não é
+  // multiobra: admitir seria inventar franquia a partir de título solto.
+  if (!root || years.length < 2) return { info: null, ok: true };
+  return { info: { name, root, years }, ok: true };
+}
+
+const collectionInFlight = new Map<string, Promise<CollectionRead>>();
+
+/**
+ * Raiz da coleção multiobra do IMDb id, sob `deadlineAt`. Cacheada pelo TTL
+ * longo quando a resposta é autoritativa (inclusive "não tem"), curta quando é
+ * falha. Coalescing por id: episódios/buscas concorrentes da mesma obra
+ * compartilham a chamada. Fail-open: sem chave, sem rede ou prazo estourado,
+ * devolve `null` e a busca segue sem o degrau de franquia.
+ */
+async function getCollection(imdbId: string, deadlineAt: number): Promise<MultiWorkCollection | null> {
+  if (!config.tmdb.apiKey || !imdbId) return null;
+  const key = `${COLLECTION_CACHE_PREFIX}${imdbId}`;
+  const hit = cache.get(key);
+  if (hit) {
+    if (hit.miss) return null;
+    return (hit.info ?? null) as MultiWorkCollection | null;
+  }
+  const pending = collectionInFlight.get(key);
+  if (pending) return (await pending).info;
+
+  const promise = readCollection(imdbId, deadlineAt)
+    .then((read) => {
+      if (read.ok) cache.set(key, { info: read.info }, config.tmdb.cacheTtl);
+      else cache.set(key, { miss: true }, enRetryTtl());
+      return read;
+    })
+    .finally(() => {
+      collectionInFlight.delete(key);
+    });
+  collectionInFlight.set(key, promise);
+  return (await promise).info;
+}
+
+export { getTitles, getCollection };

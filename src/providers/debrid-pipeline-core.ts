@@ -24,6 +24,7 @@ import { countFirstBr, pruneKnownBroken, probeRdOracle, enrichInstantWithoutCach
 import type { FirstObserverState } from './stream-builder.js';
 import { dropTrace, type StreamTraceState } from '../utils/stream-trace.js';
 import { packHashesMissingFiles } from './episode-size.js';
+import { playDisposition } from './debrid-play-guard.js';
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -77,8 +78,11 @@ export async function applyDebrid(input: Array<Stream | null>, {
     streams = streams.filter((s) => s._lied !== true);
     metrics.count('search.lie.pre-debrid', preLieStreams.length);
   }
+  if (streams.length === 0) return streams;
   const adapter = debrid.current();
-  if (!adapter || streams.length === 0) return streams;
+  // Sem debrid nenhum, pack multiobra não tem play possível (o torrent P2P
+  // inteiro baixaria a coleção): a lista sai sem ele.
+  if (!adapter) return streams.filter((s) => !s._multiWorkAdmitted);
 
   const {
     debridCachedOnly: cachedOnly,
@@ -102,12 +106,8 @@ export async function applyDebrid(input: Array<Stream | null>, {
 
   // Recusa legal do Real-Debrid (ledger `blocked`) é DEFINITIVA: o serviço
   // jamais aceitará este hash, então ele não pode virar [RD⚡] nem sair pelo
-  // /resolve — ambos chamam addMagnet e morreriam em 451 de novo. Fora do
-  // cachedOnly volta como torrent P2P puro; sob cachedOnly o corte o remove.
-  // O conjunto alimenta as duas garantias: purgar o hash do `cached` (sem ⚡)
-  // e pular o `viaDebrid` na saída. É construído UMA vez e reusado, porque o
-  // hash pode ressurgir em `cached` por vários caminhos (memo davail,
-  // inventário, histórico alive) e a purga precisa pegá-lo em todos.
+  // /resolve. O conjunto purga o hash do `cached` e pula o `viaDebrid` na saída
+  // (construído UMA vez: o hash ressurgiria por memo davail/inventário/alive).
   const blockedHashes = new Set<string>();
   if (adapter.id === 'realdebrid' && config.debrid.rdLedger.enabled) {
     for (const s of streams) {
@@ -124,7 +124,8 @@ export async function applyDebrid(input: Array<Stream | null>, {
 
   // A escolha dos candidatos vem antes da checagem (cada hold protege o hash da
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
-  const candidates = autoFetchCandidates(streams, {
+  // Pack multiobra (opt-in) nunca vira candidato do Chupim: baixaria a coleção.
+  const candidates = autoFetchCandidates(streams.filter((s) => !s._multiWorkAdmitted), {
     season,
     imdbId: imdbId || undefined,
     searchKey: searchKey || undefined,
@@ -165,7 +166,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
       `[debrid] ${adapter.label} indisponível (${unusable.reason}); ` +
         `${streams.length} stream(s) devolvido(s) como P2P (sem ⚡)`,
     );
-    return streams;
+    return streams.filter((s) => !s._multiWorkAdmitted);
   }
 
   // Hit-rate do autofetch: hash cacheado que carrega marker ativo é download
@@ -218,17 +219,18 @@ export async function applyDebrid(input: Array<Stream | null>, {
     if (adapter.id === 'realdebrid' && trustApiKey) rdWarmer.noteCredential(trustApiKey);
     const cachedSet = new Set([...cached].map((h) => String(h).toLowerCase()));
     const topN = 10;
-    const brCands = pickBrDubbedCandidates(streams, cachedSet, topN)
+    const warmable = streams.filter((s) => !s._multiWorkAdmitted);
+    const brCands = pickBrDubbedCandidates(warmable, cachedSet, topN)
       .map((s) => String(s.infoHash || '').toLowerCase())
       .filter(Boolean);
     if (brCands.length) rdWarmer.enqueue(brCands, 100);
 
-    const anyDubbedCands = pickAnyDubbedCandidates(streams, cachedSet, topN)
+    const anyDubbedCands = pickAnyDubbedCandidates(warmable, cachedSet, topN)
       .map((s) => String(s.infoHash || '').toLowerCase())
       .filter(Boolean);
     if (anyDubbedCands.length) rdWarmer.enqueue(anyDubbedCands, 50);
 
-    const topSeededCands = pickTopSeededCandidates(streams, cachedSet, topN, { minSeeders: 1 })
+    const topSeededCands = pickTopSeededCandidates(warmable, cachedSet, topN, { minSeeders: 1 })
       .map((s) => String(s.infoHash || '').toLowerCase())
       .filter(Boolean);
     if (topSeededCands.length) rdWarmer.enqueue(topSeededCands, 10);
@@ -241,8 +243,8 @@ export async function applyDebrid(input: Array<Stream | null>, {
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
   const viaDebrid = (s: Stream, instant: boolean): Stream => {
     if (!s.infoHash) return s;
-    // Pack multi-obra: o /resolve precisa saber que aqui NÃO vale cair no maior
-    // arquivo. Vai dentro da dica, então está coberto pela assinatura.
+    // Pack multi-obra (heurística de título, fora do opt-in BR_MULTIWORK_PACKS):
+    // o /resolve NÃO pode cair no maior arquivo — comportamento pré-existente.
     // `d` prova a promessa feita NA listagem e `i` permite que o play grave a
     // evidência no índice da obra. Campos opcionais ficam dentro do hint já
     // assinado; URLs antigas sem eles continuam verificando normalmente.
@@ -282,7 +284,12 @@ export async function applyDebrid(input: Array<Stream | null>, {
   // torrent P2P puro. Sem este desvio, o hash bloqueado voltaria como
   // [RD⚡]/[RD download] e o play morreria em 451 outra vez — a invalidação do
   // cache feita no /resolve não surtiria efeito.
-  const materialize = (s: Stream, instant: boolean): Stream => (isBlocked(s) ? s : viaDebrid(s, instant));
+  // Multiobra admitida: nunca P2P; a coleção fria só resolve com `resolveUncached`.
+  const materialize = (s: Stream, instant: boolean): Stream | null => {
+    if (isBlocked(s)) return s._multiWorkAdmitted ? null : s;
+    const d = playDisposition(s, { cached: instant, resolveUncached: config.debrid.resolveUncached, degraded: true });
+    return d === 'resolve' ? viaDebrid(s, instant) : d === 'p2p' ? s : null;
+  };
 
   // Serviço que não sabe informar cache (Real-Debrid, Debrid-Link) ou resposta
   // incompleta (lote perdido no timeout): filtrar por "somente em cache"
@@ -340,13 +347,17 @@ export async function applyDebrid(input: Array<Stream | null>, {
       log.info(
         `[debrid] cachedOnly: ${corte.streams.length}/${streams.length} stream(s) com play instantaneo na conta ${adapter.label}`,
       );
-      return corte.streams.map((s) => materialize(s, Boolean(s.infoHash && cached.has(s.infoHash))));
+      return corte.streams
+        .map((s) => materialize(s, Boolean(s.infoHash && cached.has(s.infoHash))))
+        .filter((s): s is Stream => s != null);
     }
     // Sem corte (não-cachedOnly, ou cachedOnly sem conta/miss conhecidos): o BR
     // segue inteiro para a listagem. Estagia cached/hidden para a finalização
     // coerente; o brFound (funil) já foi registrado no buildStreams.
     countFirstBr(streams, cached, streams, observeFirstPass, firstObserver, { cachedOnly, showUncachedBr });
-    return streams.map((s) => materialize(s, Boolean(s.infoHash && cached.has(s.infoHash))));
+    return streams
+      .map((s) => materialize(s, Boolean(s.infoHash && cached.has(s.infoHash))))
+      .filter((s): s is Stream => s != null);
   }
 
   // O tempo entra no log porque ele é o que decide o teto: a checagem divide o
@@ -371,25 +382,18 @@ export async function applyDebrid(input: Array<Stream | null>, {
   queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(filtered.streams, cached, { season, episode, imdbId, workHint }), searchKey);
   const out: Stream[] = [];
   for (const s of filtered.streams) {
-    // Recusa legal: nunca aponta para o /resolve. Volta como P2P puro.
+    // Recusa legal do debrid: multiobra sai da lista (sem play), o resto volta
+    // como P2P puro — comportamento antigo.
     if (isBlocked(s)) {
-      out.push(s);
+      if (!s._multiWorkAdmitted) out.push(s);
       continue;
     }
-    if (s.infoHash && cached.has(s.infoHash)) {
-      out.push(viaDebrid(s, true));
-      continue;
-    }
-    // Fora do cache o padrão é devolver o torrent puro: não gasta a conta do
-    // usuário sem ele pedir. Só que cliente que não toca infoHash descarta
-    // esses streams, e num título sem nada em cache a lista inteira some da
-    // tela. Com resolveUncached eles saem pelo /resolve, marcados
-    // "[AD download]" — o play é quem adiciona o magnet.
-    if (config.debrid.resolveUncached) {
-      out.push(viaDebrid(s, false));
-      continue;
-    }
-    out.push(s);
+    // Pack multiobra nunca vira torrent P2P inteiro: cached sai pelo /resolve;
+    // fora do cache só sai com `resolveUncached`, senão nem é oferecido.
+    const instant = Boolean(s.infoHash && cached.has(s.infoHash));
+    const disposition = playDisposition(s, { cached: instant, resolveUncached: config.debrid.resolveUncached });
+    if (disposition === 'resolve') out.push(viaDebrid(s, instant));
+    else if (disposition === 'p2p') out.push(s);
   }
   return out;
 }

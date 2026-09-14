@@ -26,6 +26,8 @@ import { fuseIndexEnrichment } from './index-evidence.js';
 import type { RawBatch } from './search-index-path.js';
 import { schedulePtSweepTail } from './search-sweep-tail.js';
 import { createTailQueue } from './tail-enqueue.js';
+import { startMultiWorkDiscovery, resolveMultiWork } from './search-multiwork.js';
+import type { MultiWorkCollection } from '../../types/domain.js';
 
 // Fachada pós-split: `poolCovered`/`idxPoolCovered`/`idxReleasesToRaw` vivem em
 // `search-pool-coverage.ts`, `collectRaw` em `collect-orchestrator.ts`. As
@@ -58,11 +60,14 @@ export async function doSearch({
 }) {
   const isDemo = opts().providers.includes('demo');
   const { imdbId, season, episode } = parseStremioId(id);
+  // Opt-in multiobra: a coleção (TMDB) é lida em paralelo com os metadados.
+  const collectionPromise = startMultiWorkDiscovery({ imdbId, season, isDemo, deadlineAt });
   // Cinemeta e TMDB em paralelo: o título pt-BR não pode atrasar a busca.
   const metadataDone = metrics.timed('search.metadata');
   let metadataComplete = false;
   let meta: any;
   let titles: any;
+  let collection: MultiWorkCollection | null = null;
   const metadataStartedAt = Date.now();
   try {
     [meta, titles] = await Promise.all([getMeta(type, imdbId), tmdb.getTitles(imdbId)]);
@@ -82,10 +87,15 @@ export async function doSearch({
       progress.metadataConsumedProviderBudget = endedAt >= deadlineAt - config.debridReserve;
     }
   }
+  // M3: a espera da coleção acontece FORA do timer de metadados (não contamina
+  // `search.first.metadata`) e usa o deadline absoluto já em curso — a coleta
+  // segue com o que sobrou, sem timeout adicional.
+  collection = await collectionPromise;
   // Cinemeta é a fonte preferida, mas ele volta 404 em título obscuro/regional
   // ou lançamento novo demais — ver `resolveSearchNames`.
   const searchMeta = resolveSearchNames({ meta, titles, imdbId });
   const query = buildSearchQuery(searchMeta, { season, episode });
+  const { collection: multiWork, query: multiWorkQuery } = resolveMultiWork(collection, searchMeta.year);
 
   // Só vale uma query separada quando o título PT difere do original.
   const ptQuery =
@@ -133,6 +143,7 @@ export async function doSearch({
       const streams = await buildStreams(items, {
         meta, titles, imdbId, season, episode, isDemo, searchKey: cacheKey,
         deadlineAt: inputDeadline,   // presente SÓ no passo de resposta (orçamento do debrid e gate de prazo do first)
+        multiWork,
         observeFirstPass,             // só a passada reclamada
         observeLatePass,              // recache tardio com o first já contado
         firstObserver,                // estado persistido entre os passes do finish
@@ -207,6 +218,7 @@ export async function doSearch({
     isSeries: season != null,
     season,
     episode,
+    multiWork,
   };
   const episodePhase = finish.phase();
 
@@ -220,7 +232,7 @@ export async function doSearch({
   let raw: RawBatch = indexedRaw ?? await collectRaw(
     query, type, imdbId, ptQuery, matchContext,
     (items: any[], grew: boolean, partial?: boolean) => late(items, grew, episodePhase, partial),
-    sweepQuery, deadlineAt, undefined, firstObserver, collectionTrace, originalQuery,
+    sweepQuery, deadlineAt, undefined, firstObserver, collectionTrace, originalQuery, multiWorkQuery,
   );
 
   // Série sem candidato útil por episódio tenta o pack. Lote parcial não-vazio

@@ -22,6 +22,8 @@ import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { stageTrace, dropTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
+import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
+import type { MultiWorkCollection } from '../../types/domain.js';
 
 // Indexer id vindo da config do usuario (URL) precisa validar antes de
 // entrar em query, limite por id ou desempate -- id fora do padrao e
@@ -69,6 +71,8 @@ export interface PrepareCandidatesOptions {
   season?: number | null;
   episode?: number | null;
   isDemo?: boolean;
+  /** Opt-in multiobra: contexto da coleção (TMDB) para admissão do pack. */
+  multiWork?: MultiWorkCollection | null;
   trace?: StreamTraceState | null;
 }
 
@@ -93,7 +97,7 @@ export interface CandidatePoolResult {
  */
 export function prepareCandidateStreams(
   rawInput: RawItem[],
-  { meta, titles, imdbId, season, episode, isDemo, trace }: PrepareCandidatesOptions = {},
+  { meta, titles, imdbId, season, episode, isDemo, multiWork = null, trace }: PrepareCandidatesOptions = {},
 ): CandidatePoolResult {
   // P5 — primeiro estágio do funil: o lote cru que ENTROU na build. O ledger é
   // observacional: contar aqui não muda nada, e o que os cortes abaixo tirarem
@@ -138,7 +142,7 @@ export function prepareCandidateStreams(
     // deixou passar ("FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS" para Star
     // Trek). Os nomes são os mesmos do matchContext que filtrou lá.
     const fromAccount = raw.filter((r) => r.fromAccount);
-    const titleCtx = { names, year: catalogYear, isSeries: season != null };
+    const titleCtx = { names, year: catalogYear, isSeries: season != null, multiWork };
     const antesTitulo = raw;
     raw = fromAccount.length
       ? [...fromAccount, ...filterRelevantRaw(raw.filter((r) => !r.fromAccount), titleCtx)]
@@ -168,8 +172,19 @@ export function prepareCandidateStreams(
   // relevância — nada muda no caminho da resposta, a leitura vem depois. O
   // record é idempotente (merge por hash): os múltiplos passes (parcial,
   // tardio, pack, varredura) convergem para o mesmo conjunto.
+  // O pack multiobra admitido (opt-in) fica FORA: serve a RESPOSTA, mas não é
+  // evidência pública da obra isolada e reapareceria pela chave do filme.
+  const multiWorkAdmitted = multiWork
+    ? new Set(raw.filter((item) => admitsMultiWorkPack(item, { multiWork, year: catalogYear, isSeries: season != null, names })))
+    : null;
+  // Clona o admitido ao marcar: o item pode vir do raw cache (L1/L2)
+  // compartilhado, e mutá-lo persistiria `_multiWorkAdmitted` no registro. A
+  // marca é interna do Stream — `_multiWork` genérico NÃO basta.
+  if (multiWorkAdmitted?.size) {
+    raw = raw.map((item) => (multiWorkAdmitted.has(item) ? { ...item, _multiWorkAdmitted: true } : item));
+  }
   if (!isDemo && imdbId) {
-    releaseIndex.record(imdbId, { season, episode }, raw);
+    releaseIndex.record(imdbId, { season, episode }, raw.filter((item) => !item._multiWorkAdmitted));
   }
 
   // Guarda de coleção: pack multi-obra ("Todos os filmes 1979-2016") só é
@@ -203,6 +218,13 @@ export function prepareCandidateStreams(
       y: Number(String(catalogYear || '').match(/(?:19|20)\d{2}/)?.[0] || 0) || null,
     }
     : null;
+
+  // H2 (feature-scoped): sob o opt-in, pack de coleção sem dica de obra (nomes)
+  // não vai à lista — o /resolve cairia no maior arquivo. Sem `multiWork` nada
+  // muda; `_multiWork` genérico segue o caminho antigo.
+  if (multiWork && season == null && !isDemo && !workHint) {
+    raw = raw.filter((r) => !r._multiWorkAdmitted && !isMultiWorkCollection(r.title || r.Title || ''));
+  }
 
   // Série: o indexer responde a "Nome S01E01" com a temporada inteira, então
   // sem este corte a lista do E01 vinha cheia de E03/E04/E09. Packs (título com

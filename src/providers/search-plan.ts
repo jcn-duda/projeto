@@ -18,6 +18,8 @@ interface SearchPlanTask {
   /** Título original da obra (TMDB), degrau de último recurso. A regra de quem
    * o executa (queryIndexer): global recebe sempre; BR só sem fallback pt-BR. */
   original?: string;
+  /** Raiz da coleção multiobra (TMDB), degrau SEQUENCIAL só no indexer BR. */
+  multiWork?: string;
 }
 
 function planJackettQueries(
@@ -28,6 +30,7 @@ function planJackettQueries(
   isolateIndexers: string[] = [],
   sweepQuery: string | null = null,
   originalQuery: string | null = null,
+  multiWorkQuery: string | null = null,
 ): SearchPlanTask[] {
   const brSet = new Set(ptBrIndexers);
   const isolateSet = new Set([...ptBrIndexers, ...isolateIndexers]);
@@ -60,6 +63,11 @@ function planJackettQueries(
         const bare = task.query.replace(/\s+(?:19|20)\d{2}\s*$/, '').trim();
         const franchise = franchiseRoot(bare);
         if (franchise && franchise !== bare && endsWithSequenceMarker(bare)) task.franchise = franchise;
+        // Raiz da coleção multiobra (TMDB): degrau SEQUENCIAL SÓ no indexer BR
+        // — o dublado raro mora na coleção publicada por site BR, e a query do
+        // filme isolado nunca acha. Global não recebe: a franquia multiobra é
+        // um artefato da listagem BR (e o pack global iria P2P).
+        if (multiWorkQuery) task.multiWork = multiWorkQuery;
       }
       // O original é degrau de último recurso em AMBOS os caminhos; a regra de
       // quem NÃO o executa (BR com fallback pt-BR ativo) mora no queryIndexer,
