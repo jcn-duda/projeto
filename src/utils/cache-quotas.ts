@@ -11,9 +11,9 @@
  * instância nova de cache.ts reusando o irmão cacheado, com o store alheio).
  */
 
-// A soma das cotas de namespaces conhecidos é 82.551 (inclui mag=50.000,
-// rdc=14.000, rdq=500, rdt=2.500, adprot=2.000, adsub=1.000 e adrm=500),
-// deixando 1.450 entradas de folga sob o teto global. O ledger RD
+// A soma das cotas de namespaces conhecidos é 85.551 (inclui mag=50.000,
+// rdc=14.000, rdq=500, rdt=2.500, adprot=2.000, adsub=1.000, adrm=500 e
+// fsz=3.000), deixando 1.449 entradas de folga sob o teto global. O ledger RD
 // é global por hash e precisa reter muito mais histórico que os caches por conta;
 // os demais baldes foram calibrados para abrir esse espaço sem deixar o despejo
 // global invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB
@@ -25,7 +25,7 @@
 //
 // O teto global acompanha a soma: teto IGUAL OU ABAIXO dela reintroduz o
 // despejo global antes da repartição por namespace, que foi bug real.
-export const MAX_ENTRIES = 84000;
+export const MAX_ENTRIES = 87000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -93,6 +93,12 @@ autofetch: 2000,
   // por hash apagado de propósito, TTL de 3 dias — bloco minúsculo no tamanho
   // da rodada de limpeza (teto de 100/rodada), não do acervo inteiro.
   adrm: 500,
+  // Arquivos de vídeo por hash (`fsz:v1:<hash>`, lista {path,size}): dão o
+  // tamanho do episódio num pack de temporada e do filme numa coleção. Uma
+  // entrada fica em ~0,5–4 KB (13 filmes numa filmografia, 30 episódios numa
+  // temporada), então 3.000 ≈ 12 MB no pior caso. Persistir é o motivo do
+  // namespace: em memória, cada restart zerava a lista.
+  fsz: 3000,
   __default: 500,
 });
 

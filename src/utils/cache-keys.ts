@@ -115,6 +115,10 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // de propósito: só o AllDebrid marca, e a leitura por outras contas/keys
   // simplesmente não encontra registro.
   adrm: 'v1',
+  // Arquivos de vídeo por hash (`fsz:v1:<hash>`, lista `{ path, size }`): o
+  // tamanho do episódio num pack e do filme numa coleção. Persistido para o
+  // restart não zerar a lista (ver `debrid/file-sizes.ts`).
+  fsz: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

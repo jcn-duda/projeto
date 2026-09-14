@@ -65,10 +65,6 @@ export const debrid = () => ({
   // orçamento dinâmico abaixo; depois o fundo repete sem teto curto e grava a
   // lista completa com ⚡/cachedOnly restaurados.
   cacheCheckTimeout: num(process.env.DEBRID_CACHE_CHECK_TIMEOUT_MS, 10000),
-  // Teto do memo em memória de arquivos por hash, que dá o tamanho do EPISÓDIO
-  // dentro de um pack de temporada na listagem (LRU; uma entrada = os vídeos de
-  // um torrent).
-  fileSizesMax: num(process.env.DEBRID_FILE_SIZES_MAX, 3000),
   // Quantos packs prontos a checagem da AllDebrid lê arquivos por busca antes
   // de liberar a limpeza: um /magnet/status cada.
   packFilesPerCheck: num(process.env.DEBRID_PACK_FILES_PER_CHECK, 6),

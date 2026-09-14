@@ -7,7 +7,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes } from '../src/providers/episode-size.js';
 import { recordFileSizes, peekFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
@@ -174,20 +173,26 @@ test('a checagem recebe só os packs cujos arquivos ainda não são conhecidos',
   clearFileSizes();
 });
 
-test('memo guarda só vídeos e respeita o teto em LRU', () => {
+test('lista de arquivos vai ao namespace persistido fsz e guarda só vídeos', () => {
+  // Em memória, cada restart zerava a lista e a primeira abertura voltava a
+  // mostrar o total do pack (Star Trek 2009, 2026-09-14: três restarts no dia).
   clearFileSizes();
-  const original = config.debrid.fileSizesMax;
-  config.debrid.fileSizesMax = 2;
   try {
     recordFileSizes('c3'.repeat(20), [{ path: 'leia.txt', size: 10 }]);
     assert.equal(peekFileSizes('c3'.repeat(20)), null, 'torrent sem vídeo não entra');
-    recordFileSizes('d1'.repeat(20), [{ path: 'a.mkv', size: GB }]);
-    recordFileSizes('d2'.repeat(20), [{ path: 'b.mkv', size: GB }]);
-    recordFileSizes('d3'.repeat(20), [{ path: 'c.mkv', size: GB }]);
-    assert.equal(peekFileSizes('d1'.repeat(20)), null, 'o mais antigo sai');
-    assert.ok(peekFileSizes('D3'.repeat(20)), 'hash não diferencia maiúscula');
+    recordFileSizes('d1'.repeat(20), [
+      { path: 'Obra/a.mkv', size: GB },
+      { path: 'Obra/Sample/a.sample.mkv', size: 50 * 1024 ** 2 },
+    ]);
+    assert.ok(peekFileSizes('D1'.repeat(20)), 'hash não diferencia maiúscula');
+    assert.equal(peekFileSizes('d1'.repeat(20))?.length, 1, 'amostra fica de fora');
+    const keys = cache.keysMatching('fsz:');
+    assert.equal(keys.length, 1, 'uma entrada por hash no namespace fsz');
+    assert.ok((cache.peekRemaining(keys[0]) ?? 0) > 29 * 86400, 'TTL longo: o conteúdo de um hash não muda');
+    assert.equal(cache.QUOTAS.fsz, 3000);
+    clearFileSizes();
+    assert.equal(peekFileSizes('d1'.repeat(20)), null, 'clearFileSizes esvazia só o namespace');
   } finally {
-    config.debrid.fileSizesMax = original;
     clearFileSizes();
   }
 });
