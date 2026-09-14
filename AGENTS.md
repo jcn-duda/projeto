@@ -180,7 +180,7 @@ addon.ts  processo (listen, warmup)
              ├─ coalescing inFlight
              └─ doSearch
                   ├─ cinemeta.getMeta  ─┐ paralelo
-                  ├─ tmdb.getTitles    ─┘  (título pt-BR)
+                  ├─ tmdb.getTitles    ─┘  (pt-BR + inglês canônico via `/find` en-US)
                   ├─ collectRaw          ← search-plan + collection-window + graça BR
                   │    ├─ jackett.search (globais EN, agrupados)
                   │    ├─ jackett.search (BR/slow isolados, query em pt-BR nos BR)
@@ -244,6 +244,56 @@ inglês não o encontra. Ela tem **dois caminhos, e eles não são iguais**:
 
 Não "uniformize" os dois passando `ignoreBreaker` na inline: o breaker existe
 justamente para o indexer morto não comer o prazo da resposta.
+
+### Título canônico inglês (b223ffd)
+
+Quando o original da obra não é inglês (ex.: "Django Kill: Se Eu Vivo Spara" em
+italiano), o nome que os trackers globais publicam só existe na variante en-US.
+Sem ele, um timeout do Cinemeta prendia a busca ao título estrangeiro e perdia
+releases em inglês (recall medido 12 vs 43).
+
+O addon faz uma **SEGUNDA consulta `/find` em en-US** dentro do MESMO prazo
+(`deadlineAt`) da consulta pt-BR. Extrai SÓ o título canônico de `movie_results`/
+`tv_results` — o `title` do filme ou `name` da série já localizados em en-US.
+
+NUNCA `original_*` (que repetiria o idioma de origem) nem as `alternative_titles`,
+cujas grafias arbitrárias abririam matching genérico.
+
+**Cache:** TTL longo (TMDB_CACHE_TTL, default 7 dias) só quando a consulta en-US
+respondeu com `ok:true`. Falha/timeout recebe TTL curto (`enRetryTtl()` = mínimo
+entre `TMDB_CACHE_TTL` e `TMDB_TRANSIENT_MISS_TTL`, com piso de 1s): degradação
+precisa de releitura curta, não congelar por 7 dias.
+
+### Packs BR multiobra opt-in (d8bd23b)
+
+Suporte opcional a packs de coleção BR (`BR_MULTIWORK_PACKS=false` por padrão).
+Quando ativado, o addon descobre a coleção pelo `belongs_to_collection` do TMDB,
+emite query de franquia no caminho BR e admite o pack quando ele cobre o ano do
+filme.
+
+**Critérios de admissão:**
+1. `multiWork` não nulo (TMDB respondeu com coleção) e nomes da obra presentes —
+   sem eles o play não monta a dica `w` e o `pickFile` cairia no maior arquivo
+2. Filme (não série)
+3. Ano de catálogo conhecido
+4. Título reconhecido como coleção (`isMultiWorkCollection`)
+5. Raiz da coleção aparece como sequência contígua de tokens no título
+6. Título do pack ou magnet `dn=` declara o ano — faixa que o inclui, ou ano
+   avulso com tolerância de ±2
+
+**Comportamento:**
+- Pack nunca vai P2P inteiro
+- Pack nunca entra no índice público (`idx:v10`)
+- Pack nunca entra no autofetch nem no warmer RD
+- HMAC do `/resolve` inclui `p:1` para packs multiobra
+- `pickWorkFile` usa a dica de obra para escolher o filme correto no pack
+- `_multiWorkAdmitted` separa a admissão opt-in da heurística legada `_multiWork`
+
+**Configuração:**
+- `BR_MULTIWORK_PACKS` no `.env` (default false)
+- `TMDB_COLLECTION_TIMEOUT_MS` no `.env` (default 2500ms; é teto `min` com o
+  deadline absoluto da requisição — cap, não soma)
+- `multiWorkPacks` em `src/config/search.ts`
 
 ### Configuração por usuário (`src/runtime.ts`)
 
