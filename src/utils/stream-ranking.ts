@@ -95,8 +95,10 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
       hasCleanWinner.set(s.infoHash, !s._lied);
       continue;
     }
-    // Agregadores BR espelham magnets públicos: mesma hash não prova que o
-    // arquivo global tenha áudio PT. Origem e áudio ficam com o post vencedor.
+    // Agregadores BR espelham magnets públicos: mesma hash não prova, sozinha,
+    // que o arquivo global tenha áudio PT. Origem e áudio ficam com o post
+    // vencedor — salvo quando o título do vencedor CORROBORA o post BR (ver
+    // `inheritsBr` abaixo).
     const sClean = !s._lied;
     const prevClean = Boolean(hasCleanWinner.get(s.infoHash));
     const seedDiff = (s._seeders || 0) - (prev._seeders || 0);
@@ -122,14 +124,31 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
       ? loser
       : winner;
     const isLied = Boolean(winner._lied || loser._lied);
+    // Espelho global de post BR vencendo por seeders: a varredura pt-BR nos
+    // globais traz exatamente essas cópias, e a marca BR sumia no merge. Medido
+    // em A Rocha (tt0117500, 2026-09-14): "A.Rocha.1996.BluRay.1080p.x264.DUAL.
+    // 2.0-STARCKFILMES" (global, mais seeders) vencia o post da BLUDV "[1080p
+    // DUAL 2.80 GB]" e o dublado perdia a vaga reservada. O vencedor herda
+    // origem e áudio do post BR só quando o PRÓPRIO título declara DUAL e nenhum
+    // áudio estrangeiro, e nenhum lado tem prova de mentira.
+    const winnerTitle = String(winner.title || winner.name || '').split('\n')[0];
+    const loserTitle = String(loser.title || loser.name || '').split('\n')[0];
+    // O perdedor precisa confirmar o que empresta: post BR sem dublado
+    // (_dubbed=false, ex. legendado) não autoriza a herança, e o título do
+    // perdedor que declara áudio estrangeiro (DUAL + Hindi/French/…) desmente
+    // a vaga BR — os gates espelham, no lado do post, a checagem já feita no
+    // título do vencedor.
+    const inheritsBr = !isLied && !winner._br && Boolean(loser._br) && Boolean(loser._dubbed)
+      && audioFromTitle(winnerTitle) === 'Dual' && !hasExplicitForeignAudio(winnerTitle)
+      && !hasExplicitForeignAudio(loserTitle);
     const merged = {
       ...winner,
       _quality: richerQuality._quality,
       _seeders: Math.max(Number(winner._seeders) || 0, Number(loser._seeders) || 0),
       _size: winner._size || loser._size || 0,
       behaviorHints: richerQuality.behaviorHints || winner.behaviorHints,
-      _br: winner._br,
-      _dubbed: isLied ? false : Boolean(winner._dubbed),
+      _br: Boolean(winner._br || inheritsBr),
+      _dubbed: isLied ? false : Boolean(winner._dubbed || (inheritsBr && loser._dubbed)),
       _tracker: winner._tracker,
       // Hash idêntico tem o mesmo conteúdo: se QUALQUER listagem marcou como
       // pack, a marca precisa sobreviver ao merge — senão o perdedor BR com
@@ -141,10 +160,10 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
       _multiWorkAdmitted: Boolean(winner._multiWorkAdmitted || loser._multiWorkAdmitted),
       _lied: isLied,
     };
-    if (merged._quality !== winner._quality) {
+    if (merged._quality !== winner._quality || inheritsBr) {
       merged.name = relabel(merged, {
-        isBr: winner._br,
-        dubbedFrom: winner._br ? String(loser.name || '').split('\n')[0] : '',
+        isBr: merged._br,
+        dubbedFrom: merged._br ? String(loser.name || '').split('\n')[0] : '',
       });
     }
     best.set(s.infoHash, merged);

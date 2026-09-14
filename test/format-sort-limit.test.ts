@@ -62,13 +62,25 @@ test('dedupeByHash mantém origem e áudio do post vencedor', () => {
   const brSparse = stremioStream({
     title: 'Filme Dublado', infoHash: HASH, seeders: 1, tracker: 'Bludv', isBr: true,
   });
+  // Espelho global que DECLARA DUAL corrobora o post BR do mesmo hash: herda
+  // origem e áudio (A Rocha tt0117500, 2026-09-14 — sem isto o dublado da
+  // BLUDV sumia depois da varredura pt-BR nos globais).
   const [globalWinner] = dedupeByHash([globalPopular, brSparse]);
-  assert.equal(globalWinner._br, false);
-  assert.equal(globalWinner._dubbed, false);
-  // Dual global sem PT: sem chip DUAL (rótulo honesto); áudio Dual interno
-  // continua sem `_br`/`_dubbed` (invariante 8.12).
-  assert.equal(globalWinner.name, '1080p BluRay · The Pirate Bay · 👤 300');
-  assert.doesNotMatch(globalWinner.name, /BR|DUB|DUAL/);
+  assert.equal(globalWinner._br, true);
+  assert.equal(globalWinner._dubbed, true);
+  assert.match(globalWinner.name, /BR/);
+  assert.match(String(globalWinner.title), /^Movie 1080p BluRay DUAL/, 'o título continua o do vencedor');
+
+  // Sem DUAL no título global não há corroboração: a origem fica com o
+  // vencedor e o rótulo não anuncia BR/DUB (invariante 8.12).
+  const globalSemDual = stremioStream({
+    title: 'Movie 1080p BluRay', infoHash: HASH, seeders: 300, tracker: 'The Pirate Bay',
+  });
+  const [semDual] = dedupeByHash([globalSemDual, brSparse]);
+  assert.equal(semDual._br, false);
+  assert.equal(semDual._dubbed, false);
+  assert.equal(semDual.name, '1080p BluRay · The Pirate Bay · 👤 300');
+  assert.doesNotMatch(semDual.name, /BR|DUB|DUAL/);
   assert.equal(dedupeByHash([null]).length, 0);
 });
 
