@@ -58,9 +58,10 @@ export interface WorkHint {
 
 /**
  * Coleção multiobra descoberta por evidência (TMDB `belongs_to_collection`),
- * sob o opt-in `BR_MULTIWORK_PACKS`. `root` é a raiz normalizada (tokens
+ * sob `BR_MULTIWORK_PACKS`, nativa por padrão (`false` é o kill-switch). `root`
+ * é a raiz normalizada (tokens
  * contíguos) que o título do pack precisa conter; `years` são os anos das
- * partes. Só existe no contexto quando o opt-in está ligado, há debrid ativo,
+ * partes. Só existe no contexto quando a feature está ativa, há debrid ativo,
  * é filme e o ano é conhecido.
  */
 export interface MultiWorkCollection {
@@ -143,7 +144,7 @@ export interface StreamBase {
   _indexer?: string;
   _multiWork?: boolean;
   /**
-   * Marca INTERNA do opt-in BR_MULTIWORK_PACKS: o pack foi admitido pela
+   * Marca INTERNA da feature BR_MULTIWORK_PACKS (nativa por padrão): o pack foi admitido pela
    * evidência de coleção (TMDB) com raiz contígua, nomes e cobertura do ano.
    * Diferente de `_multiWork` (heurística de título, sempre presente), esta só
    * existe quando a feature está ligada e admite o item — por isso todas as

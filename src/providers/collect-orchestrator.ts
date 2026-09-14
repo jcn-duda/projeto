@@ -38,7 +38,7 @@ export async function collectRaw(
    * BR só sem fallback pt-BR). */
   originalQuery: string | null = null,
   /** Raiz da coleção multiobra (TMDB), degrau SEQUENCIAL só nos indexers BR;
-   * null/ausente = opt-in desligado ou sem evidência de coleção. */
+   * null/ausente = feature desligada (kill-switch) ou sem evidência de coleção. */
   multiWorkQuery: string | null = null,
 ) {
   const { providers } = opts();

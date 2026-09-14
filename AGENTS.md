@@ -264,12 +264,13 @@ respondeu com `ok:true`. Falha/timeout recebe TTL curto (`enRetryTtl()` = mínim
 entre `TMDB_CACHE_TTL` e `TMDB_TRANSIENT_MISS_TTL`, com piso de 1s): degradação
 precisa de releitura curta, não congelar por 7 dias.
 
-### Packs BR multiobra opt-in (d8bd23b)
+### Packs BR multiobra ativos por padrão (d8bd23b)
 
-Suporte opcional a packs de coleção BR (`BR_MULTIWORK_PACKS=false` por padrão).
-Quando ativado, o addon descobre a coleção pelo `belongs_to_collection` do TMDB,
-emite query de franquia no caminho BR e admite o pack quando ele cobre o ano do
-filme.
+Suporte nativo a packs de coleção BR (ativo por padrão; `BR_MULTIWORK_PACKS`
+assume `true` quando ausente). Com `BR_MULTIWORK_PACKS=false` o caminho inteiro
+é no-op e o comportamento é o anterior — é o kill-switch explícito. Quando
+ativo, o addon descobre a coleção pelo `belongs_to_collection` do TMDB, emite
+query de franquia no caminho BR e admite o pack quando ele cobre o ano do filme.
 
 **Critérios de admissão:**
 1. `multiWork` não nulo (TMDB respondeu com coleção) e nomes da obra presentes —
@@ -287,10 +288,10 @@ filme.
 - Pack nunca entra no autofetch nem no warmer RD
 - HMAC do `/resolve` inclui `p:1` para packs multiobra
 - `pickWorkFile` usa a dica de obra para escolher o filme correto no pack
-- `_multiWorkAdmitted` separa a admissão opt-in da heurística legada `_multiWork`
+- `_multiWorkAdmitted` separa a admissão da feature da heurística legada `_multiWork`
 
 **Configuração:**
-- `BR_MULTIWORK_PACKS` no `.env` (default false)
+- `BR_MULTIWORK_PACKS` no `.env` (default true; `false` é o kill-switch explícito)
 - `TMDB_COLLECTION_TIMEOUT_MS` no `.env` (default 2500ms; é teto `min` com o
   deadline absoluto da requisição — cap, não soma)
 - `multiWorkPacks` em `src/config/search.ts`

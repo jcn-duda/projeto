@@ -4,7 +4,8 @@ import * as tmdb from '../utils/tmdb.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 /**
- * Suporte opt-in a packs multiobra BR (BR_MULTIWORK_PACKS), extraído do
+ * Suporte nativo a packs multiobra BR (BR_MULTIWORK_PACKS, default true; `false`
+ * é o kill-switch), extraído do
  * `search-orchestrator` para não estourar o teto de linhas. Duas metades:
  *
  * - `startMultiWorkDiscovery` dispara a leitura do `belongs_to_collection` do

@@ -124,7 +124,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
 
   // A escolha dos candidatos vem antes da checagem (cada hold protege o hash da
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
-  // Pack multiobra (opt-in) nunca vira candidato do Chupim: baixaria a coleção.
+  // Pack multiobra admitido nunca vira candidato do Chupim: baixaria a coleção.
   const candidates = autoFetchCandidates(streams.filter((s) => !s._multiWorkAdmitted), {
     season,
     imdbId: imdbId || undefined,
@@ -243,7 +243,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
   const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
   const viaDebrid = (s: Stream, instant: boolean): Stream => {
     if (!s.infoHash) return s;
-    // Pack multi-obra (heurística de título, fora do opt-in BR_MULTIWORK_PACKS):
+    // Pack multi-obra (heurística de título, fora da feature BR_MULTIWORK_PACKS):
     // o /resolve NÃO pode cair no maior arquivo — comportamento pré-existente.
     // `d` prova a promessa feita NA listagem e `i` permite que o play grave a
     // evidência no índice da obra. Campos opcionais ficam dentro do hint já

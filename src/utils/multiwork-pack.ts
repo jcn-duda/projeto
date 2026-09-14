@@ -2,7 +2,8 @@ import type { MultiWorkCollection, RawItem } from '../../types/domain.js';
 import { titleTokens, LEADING_ARTICLES } from './matching-vocabulary.js';
 import { franchiseRoot, isMultiWorkCollection, containsTokenRun } from './release-name-matching.js';
 
-// Admissão OPT-IN de packs multiobra BR (BR_MULTIWORK_PACKS). O pack de coleção
+// Admissão de packs multiobra BR (BR_MULTIWORK_PACKS, nativo por padrão; `false`
+// é o kill-switch). O pack de coleção
 // ("Indiana Jones - A Coleção Completa 1981-2008") é o único lugar onde o
 // dublado BR de um filme isolado às vezes existe — e ele NUNCA casa o filtro
 // estrito de título do filme ("Indiana Jones e os Caçadores da Arca Perdida").
@@ -17,7 +18,8 @@ import { franchiseRoot, isMultiWorkCollection, containsTokenRun } from './releas
 //    (ano exato ou faixa que o inclui).
 //
 // Sem todas, o pack não é admitido. Tudo é puro; o contexto (`multiWork`) só
-// existe quando o opt-in está ligado, há debrid ativo, é filme e o ano é
+// existe quando a feature está ativa (default true; `false` é o kill-switch),
+// há debrid ativo, é filme e o ano é
 // conhecido — as demais condições de admissão vivem aqui.
 
 // Palavras que descrevem o EMPACOTAMENTO no NOME da coleção do TMDB, não a
@@ -113,7 +115,7 @@ export interface MultiWorkAdmissionContext {
 
 /**
  * Admite o item como pack multiobra da franquia. Recebe o contexto já decidido
- * pelo chamador (opt-in ligado + debrid ativo + ano conhecido ⇒ `multiWork`
+ * pelo chamador (feature ativa + debrid ativo + ano conhecido ⇒ `multiWork`
  * presente); aqui ficam as condições que não dependem de rede: filme, nomes
  * válidos, coleção reconhecida, raiz contígua (2+ tokens) e cobertura
  * explícita do ano.

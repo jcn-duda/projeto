@@ -90,12 +90,13 @@ export const search = () => ({
   // pack sem SxxEyy e a query do episódio nunca o acha. Fica no tail porque
   // duas varreduras de Jackett em série não cabem no deadline da resposta.
   packTail: String(process.env.SEARCH_PACK_TAIL || 'true') === 'true',
-  // Kill-switch (default false) do suporte a packs multiobra BR. Só com ele
-  // ligado o addon descobre a coleção pelo `belongs_to_collection` do TMDB,
-  // emite a query de franquia no caminho BR e admite o pack de coleção; o
-  // pack nunca vai P2P inteiro e não entra no índice público. Desligado, todo
-  // o caminho é no-op e o comportamento é o anterior.
-  multiWorkPacks: String(process.env.BR_MULTIWORK_PACKS || 'false') === 'true',
+  // Suporte a packs multiobra BR, NATIVO por padrão (default true). O addon
+  // descobre a coleção pelo `belongs_to_collection` do TMDB, emite a query de
+  // franquia no caminho BR e admite o pack de coleção; o pack nunca vai P2P
+  // inteiro e não entra no índice público. `BR_MULTIWORK_PACKS=false` é o
+  // kill-switch explícito: desligado, todo o caminho é no-op e o comportamento
+  // é o anterior.
+  multiWorkPacks: String(process.env.BR_MULTIWORK_PACKS || 'true') === 'true',
   // Sem uma fonte tocável, explica ao cliente por que a lista não ficou vazia.
   noticeStream: String(process.env.SEARCH_NOTICE_STREAM || 'true') === 'true',
   // Ledger observacional do pipeline de busca (P5): cada corte fica registrado

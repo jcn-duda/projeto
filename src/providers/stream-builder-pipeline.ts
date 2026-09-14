@@ -172,7 +172,7 @@ export function prepareCandidateStreams(
   // relevância — nada muda no caminho da resposta, a leitura vem depois. O
   // record é idempotente (merge por hash): os múltiplos passes (parcial,
   // tardio, pack, varredura) convergem para o mesmo conjunto.
-  // O pack multiobra admitido (opt-in) fica FORA: serve a RESPOSTA, mas não é
+  // O pack multiobra admitido (feature BR_MULTIWORK_PACKS) fica FORA: serve a RESPOSTA, mas não é
   // evidência pública da obra isolada e reapareceria pela chave do filme.
   const multiWorkAdmitted = multiWork
     ? new Set(raw.filter((item) => admitsMultiWorkPack(item, { multiWork, year: catalogYear, isSeries: season != null, names })))
@@ -219,7 +219,7 @@ export function prepareCandidateStreams(
     }
     : null;
 
-  // H2 (feature-scoped): sob o opt-in, pack de coleção sem dica de obra (nomes)
+  // H2 (feature-scoped): com a feature ativa, pack de coleção sem dica de obra (nomes)
   // não vai à lista — o /resolve cairia no maior arquivo. Sem `multiWork` nada
   // muda; `_multiWork` genérico segue o caminho antigo.
   if (multiWork && season == null && !isDemo && !workHint) {

@@ -1,9 +1,10 @@
-// Suporte opt-in a packs multiobra BR (BR_MULTIWORK_PACKS). Caso real:
+// Suporte nativo a packs multiobra BR (BR_MULTIWORK_PACKS). Caso real:
 // tt0082971 (Indiana Jones e os Caçadores da Arca Perdida, 1981) — o dublado BR
 // às vezes só existe no pack da coleção ("Indiana Jones - A Coleção Completa
 // 1981-2008"), que NUNCA casa o filtro estrito de título do filme isolado.
 //
-// A feature é fechada por padrão; os testes fixam: opt-in off/on, outra
+// A feature é NATIVA por padrão (BR_MULTIWORK_PACKS default true; `false` é o
+// kill-switch explícito). Os testes fixam: default on, kill-switch off, outra
 // franquia, faixa sem o ano, sem ano/sem debrid/série, admissão no filtro antes
 // do magnet, query de franquia só na tarefa BR (sem fan-out), não-indexação do
 // pack e não-P2P (nunca torrent inteiro).
@@ -17,6 +18,7 @@ process.env.CACHE_PERSIST = 'false';
 const config = (await import('../src/config.js')).default;
 const cache = await import('../src/utils/cache.js');
 const runtime = await import('../src/runtime.js');
+const debrid = (await import('../src/debrid/index.js')).default;
 const { collectionRoot, collectionRootTokens, admitsMultiWorkPack, coversYear, packYearSource } =
   await import('../src/utils/multiwork-pack.js');
 const { filterRelevantRaw, limitReservingBr, dedupeByHash } = await import('../src/utils/format.js');
@@ -55,6 +57,25 @@ function withFlags<T>(patch: { multiWorkPacks?: boolean }, fn: () => Promise<T>)
     }
   })();
 }
+
+test('config: BR_MULTIWORK_PACKS é nativo por padrão e false é kill-switch', async () => {
+  const { search } = await import('../src/config/search.js');
+  const original = process.env.BR_MULTIWORK_PACKS;
+  try {
+    // Ausente => default true (feature nativa).
+    delete process.env.BR_MULTIWORK_PACKS;
+    assert.equal(search().multiWorkPacks, true, 'ausente deve assumir true');
+    // `false` explícito é o kill-switch.
+    process.env.BR_MULTIWORK_PACKS = 'false';
+    assert.equal(search().multiWorkPacks, false, 'false explícito desliga');
+    // `true` explícito mantém ligado.
+    process.env.BR_MULTIWORK_PACKS = 'true';
+    assert.equal(search().multiWorkPacks, true, 'true explícito liga');
+  } finally {
+    if (original === undefined) delete process.env.BR_MULTIWORK_PACKS;
+    else process.env.BR_MULTIWORK_PACKS = original;
+  }
+});
 
 test('collectionRoot: nome do TMDB vira raiz contígua sem ruído de empacotamento', () => {
   assert.deepEqual(collectionRootTokens('Indiana Jones - Coleção'), ['indiana', 'jones']);
@@ -173,16 +194,49 @@ test('resolveMultiWork exige ano conhecido', () => {
   assert.deepEqual(resolveMultiWork(null, 1981), { collection: null, query: null });
 });
 
-test('startMultiWorkDiscovery: flag desligada não toca a rede', async () => {
+test('startMultiWorkDiscovery: kill-switch false não toca a rede (mesmo com debrid ativo)', async () => {
+  const originalKey = config.tmdb.apiKey;
+  config.tmdb.apiKey = 'test-tmdb-key';
   const stub = stubFetch(() => ({ ok: true, status: 200, json: async () => ({}) }));
   try {
-    const result = await withFlags({ multiWorkPacks: false }, () =>
-      startMultiWorkDiscovery({ imdbId: IMDB, season: null, isDemo: false, deadlineAt: Date.now() + 5000 }),
+    await runtime.run(
+      { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'k' }, encoded: 'cfg-mw-off' },
+      async () => {
+        // Precondição real do gate: debrid ativo. Sem isto o teste passaria com
+        // a rede bloqueada por falta de adapter, não pelo kill-switch.
+        assert.ok(debrid.current(), 'debrid ativo é precondição do gate');
+        const result = await withFlags({ multiWorkPacks: false }, () =>
+          startMultiWorkDiscovery({ imdbId: IMDB, season: null, isDemo: false, deadlineAt: Date.now() + 5000 }),
+        );
+        assert.equal(result, null);
+        assert.equal(stub.calls.length, 0, 'kill-switch desliga a descoberta');
+      },
     );
-    assert.equal(result, null);
-    assert.equal(stub.calls.length, 0);
   } finally {
     stub.restore();
+    config.tmdb.apiKey = originalKey;
+  }
+});
+
+test('startMultiWorkDiscovery: default nativo (multiWorkPacks on) consulta o TMDB', async () => {
+  const originalKey = config.tmdb.apiKey;
+  config.tmdb.apiKey = 'test-tmdb-key';
+  const stub = stubFetch(() => ({ ok: true, status: 200, json: async () => ({ movie_results: [] }) }));
+  try {
+    await runtime.run(
+      { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'k' }, encoded: 'cfg-mw-on' },
+      async () => {
+        assert.ok(debrid.current(), 'debrid ativo é precondição do gate');
+        await withFlags({ multiWorkPacks: true }, () =>
+          startMultiWorkDiscovery({ imdbId: IMDB, season: null, isDemo: false, deadlineAt: Date.now() + 5000 }),
+        );
+        assert.ok(stub.calls.length >= 1, 'feature ligada dispara a leitura do TMDB');
+      },
+    );
+  } finally {
+    stub.restore();
+    cache.forget(`tmdbc:${IMDB}`);
+    config.tmdb.apiKey = originalKey;
   }
 });
 

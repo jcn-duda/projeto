@@ -166,7 +166,7 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   // `shapedSeen` já descarta a duplicata quando a raiz coincide com um degrau
   // anterior já moldado.
   if (isBr && options.franchiseQuery) cascade.push({ q: options.franchiseQuery, label: 'raiz da franquia' });
-  // Coleção multiobra (opt-in BR_MULTIWORK_PACKS): degrau sequencial no MESMO
+  // Coleção multiobra (BR_MULTIWORK_PACKS, nativa por padrão): degrau sequencial no MESMO
   // deadline, depois da raiz de sequência e antes do fallback bilíngue. A raiz
   // vem do TMDB (autoridade), não de cortar título. Só abre quando todos os
   // degraus anteriores não trouxeram candidato relevante — a admissão do pack

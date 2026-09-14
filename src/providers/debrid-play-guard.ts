@@ -4,8 +4,9 @@ import type { Stream } from '../../types/domain.js';
  * Decisão de SAÍDA de um stream após a checagem de cache. Ponto ÚNICO da regra
  * "pack multiobra ADMITIDO nunca vira torrent P2P inteiro": o cliente baixaria
  * a coleção toda e tocaria o MAIOR arquivo, quase sempre o filme errado.
- * A marca é `_multiWorkAdmitted` (opt-in BR_MULTIWORK_PACKS), nunca o
- * `_multiWork` genérico: com a flag desligada nada é admitido e o
+ * A marca é `_multiWorkAdmitted` (feature BR_MULTIWORK_PACKS, nativa por
+ * padrão; `false` é o kill-switch), nunca o
+ * `_multiWork` genérico: com o kill-switch desligado nada é admitido e o
  * comportamento anterior é preservado. Extraída do `debrid-pipeline-core`
  * (que está no teto de 400 linhas) para manter a regra auditável e testável.
  *

@@ -1,8 +1,8 @@
-// Integração de `applyDebrid` para o opt-in BR_MULTIWORK_PACKS (achados M4 e
-// H1): cachedOnly/showUncachedBr/resolveUncached, sem adapter, adapter
+// Integração de `applyDebrid` para o pack BR multiobra nativo (BR_MULTIWORK_PACKS,
+// achados M4 e H1): cachedOnly/showUncachedBr/resolveUncached, sem adapter, adapter
 // unusable e o warmer RD. O pack ADMITIDO (`_multiWorkAdmitted`) nunca vira
 // torrent P2P inteiro, nunca é oferecido sem dica de obra e nunca entra no
-// warmer/autofetch; `_multiWork` genérico (flag off) mantém o comportamento
+// warmer/autofetch; `_multiWork` genérico (não admitido) mantém o comportamento
 // anterior.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -157,7 +157,7 @@ test('applyDebrid cachedOnly + showUncachedBr=false: pack admitido uncached não
   );
 });
 
-test('p:1 legado: multiobra genérico (sem admissão/flag) mantém a dica de pack', async () => {
+test('p:1 legado: multiobra genérico (sem admissão) mantém a dica de pack', async () => {
   // `p:1` é comportamento PRÉ-EXISTENTE e independente do BR_MULTIWORK_PACKS:
   // nasce do `_multiWork` (heurística de título) e nunca foi feature-scoped.
   const generic = { ...admitted(HASH), _multiWorkAdmitted: false } as Stream;

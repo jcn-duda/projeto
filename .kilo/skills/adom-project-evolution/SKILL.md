@@ -66,7 +66,8 @@ addon self-hosted
 **Mapa rapido do roadmap (confira no codigo, nao so no MD):** M0–M6 DONE;
 Fase 7 trilha C DONE, A/B operacionais na VPS; Fase 8 no codigo; Fase 9/P5
 commitada; titulo EN canonico (`b223ffd`, segunda `/find` en-US no mesmo deadline)
-e packs BR multiobra opt-in (`d8bd23b`, `BR_MULTIWORK_PACKS=false`). ESM total
+e packs BR multiobra nativos por padrao (`d8bd23b`; `BR_MULTIWORK_PACKS` default
+true, `false` e o kill-switch explicito). ESM total
 fechado em 2026-09-12 (`3c20c39` saneamento, `31ddac9`
 resolvers ESM, `1b3426c` clientes, `aec0a9a` resolvedores tipados em `.ts`,
 `5e28d7d` fim do CommonJS nos testes); os unicos `createRequire` restantes sao
@@ -105,12 +106,12 @@ Nao inicie refactor amplo com gates vermelhos. Nao misture subfases independente
 - Titulo global canonico sem Cinemeta vem da segunda consulta TMDB `/find` em
   `en-US`, no mesmo deadline da pt-BR; nao use `alternative_titles` como fonte
   de matching nem congele falha transitoria pelo TTL longo.
-- Pack BR multiobra e infraestrutura opt-in do operador, nao chave do schema de
-  usuario: exige `BR_MULTIWORK_PACKS=true`, filme, debrid, nomes, ano, colecao
-  TMDB, raiz contigua e cobertura do ano no titulo ou magnet (faixa que o inclui
-  ou ano avulso com tolerancia de ±2). O pack admitido (`_multiWorkAdmitted`) nao
-  vai para P2P, indice, autofetch ou warmer; o play usa `p:1` assinado e
-  `pickWorkFile`.
+- Pack BR multiobra e infraestrutura nativa do operador (default true; `false` e
+  o kill-switch explicito), nao chave do schema de usuario: exige `BR_MULTIWORK_PACKS`
+  ausente ou `true`, filme, debrid, nomes, ano, colecao TMDB, raiz contigua e
+  cobertura do ano no titulo ou magnet (faixa que o inclui ou ano avulso com
+  tolerancia de ±2). O pack admitido (`_multiWorkAdmitted`) nao vai para P2P,
+  indice, autofetch ou warmer; o play usa `p:1` assinado e `pickWorkFile`.
 - Trabalho tardio da request captura e restaura o contexto de runtime.
 - Preserve fachadas e contratos durante refactors; atualize alvos de harnesses movidos quando necessario.
 - Nao exponha `.env`, tokens ou chaves. Nao adicione dependencia sem necessidade real.
