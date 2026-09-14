@@ -249,6 +249,29 @@ test('pickFile com pack=true e obra identificável pelo ano escolhe certo', () =
   assert.equal(file!.path, 'Jornada nas Estrelas II A Ira de Khan (1982) Dublado 1080p.mkv');
 });
 
+test('coleção com a franquia só na pasta escolhe o filme pelo nome pt e o ano', () => {
+  // FILMOGRAFIA real da conta (2026-09-14): "star trek" mora na pasta e o
+  // subtítulo pt no arquivo. Star Trek: Sem Fronteiras lançava WorkPickError.
+  const pasta = 'FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR';
+  const colecao = [
+    f(`${pasta}/01 - Jornada nas Estrelas - O Filme - 1979.mp4`, 2.0 * 1024 ** 3),
+    f(`${pasta}/11 - Jornada nas Estrelas - Star Trek - 2009.mkv`, 1.53 * 1024 ** 3),
+    f(`${pasta}/12 - Jornada nas Estrelas - Além da Escuridão - 2013.mkv`, 1.54 * 1024 ** 3),
+    f(`${pasta}/13 - Jornada nas Estrelas - Sem Fronteiras - 2016.mp4`, 2.23 * 1024 ** 3),
+  ];
+  const beyond = pickFile(colecao, { work: { names: ['Star Trek Beyond', 'Star Trek: Sem Fronteiras'], year: 2016, pack: true } });
+  assert.match(String(beyond!.path), /13 - .*Sem Fronteiras - 2016/);
+  const darkness = pickFile(colecao, { work: { names: ['Star Trek Into Darkness', 'Além da Escuridão: Star Trek'], year: 2013, pack: true } });
+  assert.match(String(darkness!.path), /12 - .*Além da Escuridão - 2013/);
+  const reboot = pickFile(colecao, { work: { names: ['Star Trek'], year: 2009, pack: true } });
+  assert.match(String(reboot!.path), /11 - .*Star Trek - 2009/);
+  // Obra fora da coleção continua falhando explícito.
+  assert.throws(
+    () => pickFile(colecao, { work: { names: ['Star Trek Nemesis'], year: 2002, pack: true } }),
+    (err) => isWorkPickError(err),
+  );
+});
+
 // Caso real The Locals (tt0387357, 2003): release listada como 2003 com um
 // único vídeo no Premiumize de OUTRO filme ("Zlodej.iz.glubinki.2007.P.
 // DVDRip_INTERFILM.avi"). O pickFile permissivo tocava o filme errado em

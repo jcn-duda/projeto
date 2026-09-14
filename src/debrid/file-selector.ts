@@ -97,9 +97,14 @@ function workCoverage(fileName: string, name: string) {
   const longTokens = tokens.filter((w) => w.length > 2);
   const wanted = longTokens.length > 0 ? longTokens : tokens;
   if (wanted.length === 0) return 0;
-  const bnGot = new Set(normalizeTitle(baseName(fileName)).split(' ').filter(Boolean));
-  const bnHits = wanted.filter((w) => bnGot.has(w)).length;
-  if (bnHits > 0) return bnHits / wanted.length;
+  // Caminho inteiro: a pasta COMPLETA o nome do arquivo. Medido na coleção
+  // "FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR/13 - Jornada nas
+  // Estrelas - Sem Fronteiras - 2016.mp4" (2026-09-14): "star trek" só existe
+  // na pasta e "sem fronteiras" só no arquivo. Contar só o basename quando ele
+  // tinha ALGUM token dava 2/4 para "Star Trek: Sem Fronteiras", abaixo do
+  // mínimo, e o filme ficava sem escolha — WorkPickError no play e sem tamanho
+  // na lista. O ANO continua vindo só do basename (`declaredYears`), então a
+  // faixa de anos da pasta segue sem contaminar o desempate.
   const fullGot = new Set(normalizeTitle(fileName).split(' ').filter(Boolean));
   return wanted.filter((w) => fullGot.has(w)).length / wanted.length;
 }
