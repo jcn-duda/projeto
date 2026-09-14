@@ -90,8 +90,15 @@ test('filme em coleção mostra o tamanho exato do arquivo da obra', () => {
   ]);
   const trace = { stages: {} as Record<string, number>, items: [], accountItems: 0, startedAt: 0, finishedAt: null };
   const [out] = annotateEpisodeSizes([colecao as Stream], { season: null, episode: null, work, trace });
-  assert.match(titleOf(out), /💾 2\.10 GB 📦 pack 22\.45 GB ⚙️/);
-  assert.doesNotMatch(titleOf(out), /média/);
+  // Marca o FILME, não a coleção: só o tamanho do arquivo escolhido na linha.
+  assert.match(titleOf(out), /💾 2\.10 GB ⚙️/);
+  assert.doesNotMatch(titleOf(out), /📦 pack|22\.45 GB|média/);
+  assert.equal((out as Stream & { _packBytes?: number })._packBytes, Math.round(22.45 * GB), 'o total do download fica interno');
+  assert.equal(
+    titleOf(annotateEpisodeSizes([out], { season: null, episode: null, work, trace })[0]),
+    titleOf(out),
+    'passe seguinte não anota de novo',
+  );
   assert.equal(trace.stages['episodeSize.movie.exact'], 1);
 
   const avulso = { ...colecao, _multiWork: false } as Stream;

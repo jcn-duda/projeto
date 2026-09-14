@@ -67,6 +67,7 @@ function annotateMovieSizes<T extends Stream | null>(streams: T[], work: WorkHin
   const skip = (reason: string) => stageTrace(trace, `episodeSize.skip.movie-${reason}`, 1);
   return streams.map((stream) => {
     if (!stream || typeof stream.title !== 'string' || stream.title.includes(PACK_MARK)) return stream;
+    if ((stream as { _packBytes?: number })._packBytes) return stream;
     if (!isMultiWorkPack(stream)) return stream;
     if ((stream as { _indexer?: string })._indexer === 'torrentio') { skip('per-file-size'); return stream; }
     const match = stream.title.match(SIZE_MARK);
@@ -86,7 +87,15 @@ function annotateMovieSizes<T extends Stream | null>(streams: T[], work: WorkHin
     const label = bytesToSize(bytes);
     if (!label) { skip('no-label'); return stream; }
     stageTrace(trace, 'episodeSize.movie.exact', 1);
-    return { ...stream, title: stream.title.replace(SIZE_MARK, `💾 ${label} ${PACK_MARK} ${match[1]}`) };
+    // Filme marca só o FILME: quem escolhe um filme numa coleção quer o tamanho
+    // dele, e o total da coleção na linha fazia o cliente (Power Movie) mostrar
+    // 22.45 GB no chip. O total segue em `_packBytes`, interno, para quem
+    // precisa do tamanho do download (índice do autofetch).
+    return {
+      ...stream,
+      title: stream.title.replace(SIZE_MARK, `💾 ${label}`),
+      _packBytes: packBytes,
+    };
   }) as T[];
 }
 

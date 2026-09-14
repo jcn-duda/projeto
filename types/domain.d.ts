@@ -152,6 +152,9 @@ export interface StreamBase {
    * e o comportamento fica intacto com a flag desligada.
    */
   _multiWorkAdmitted?: boolean;
+  /** Total do download de um filme em coleção cujo 💾 foi trocado pelo tamanho
+   * do filme (episode-size). Interno: o índice do autofetch grava o total. */
+  _packBytes?: number;
   /** Evidência medida de post dublado com arquivos EN; nunca vai ao cliente. */
   _lied?: boolean;
   /**

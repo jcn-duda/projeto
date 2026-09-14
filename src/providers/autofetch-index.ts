@@ -41,7 +41,9 @@ export function recordAutofetchRelease(
     // O candidato vem depois do sortAndLimit, que apaga `_size`: sem o
     // fallback pelo título o índice gravava toda release do autofetch sem
     // tamanho, e o filtro de tamanho máximo não a enxergava na busca seguinte.
-    size: candidate._size || streamTitleBytes(candidate.title) || undefined,
+    // Filme em coleção anotado mostra o 💾 do filme: o total do download vem de
+    // `_packBytes`.
+    size: candidate._size || candidate._packBytes || streamTitleBytes(candidate.title) || undefined,
     indexer: candidate._indexer || candidate._tracker || 'autofetch',
     isBr: candidate.br ?? Boolean(candidate._br),
     dubbed: candidate.dubbed ?? Boolean(candidate._dubbed),
