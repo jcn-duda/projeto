@@ -54,8 +54,13 @@ const LANG_NOISE = ('portugues portuguesa portugueses brasil brasileiro brasilei
 // a vaga BR reservada; e o mesmo para "Zumbilandia (www ThePirateFilms.com)".
 // A franquia "Atire Duas Vezes" continua sendo outra obra: suas palavras
 // seguem medidas fora desta lista.
+// `fb` é a assinatura de grupo/encoders na cauda do post BR ("A Rocha (1996)
+// BDRip BluRay 720p dublado - FB"): cauda após o ruído técnico, 2 letras —
+// `firstSignificantToken` já a descarta como prefixo, então nunca nomeia
+// obra por outro caminho. Medida real: sem ela a precisão de "A Rocha" caía
+// a 0.50 (rocha+fb) e rejeitava a release dublada legítima.
 const WATERMARK_NOISE = new Set(
-  'derew www thepiratefilmes'.split(' '),
+  'derew www thepiratefilmes fb'.split(' '),
 );
 
 const RELEASE_NOISE = new Set([...TECH_NOISE, ...LINK_WORDS, ...LANG_NOISE, ...WATERMARK_NOISE]);

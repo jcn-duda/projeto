@@ -348,6 +348,23 @@ test('a franquia seguinte (Atire Duas Vezes) continua rejeitada', () => {
   );
 });
 
+// Assinatura de grupo na cauda ("…dublado - FB"): sem `fb` em WATERMARK_NOISE
+// ela contava como conteúdo, precisão 0.50, release dublada morria no filtro.
+test('assinatura de grupo "FB" na cauda não mata a release BR real (A Rocha)', () => {
+  const names = ['A Rocha'];
+  assert.equal(
+    matchesBrTitle('A Rocha (1996) BDRip BluRay 720p dublado - FB', 'A Rocha', 1996, { allNames: names }),
+    true,
+  );
+});
+test('token de conteúdo na cauda continua condenando (não é assinatura)', () => {
+  const names = ['A Rocha'];
+  assert.equal(
+    matchesBrTitle('A Rocha Ilha do Medo (2010) BDRip 720p dublado', 'A Rocha', 1996, { allNames: names }),
+    false,
+  );
+});
+
 // Classificador de baldes compartilhado (audio-quality): a limpeza da conta
 // (scripts/clean-undubbed.ts) e a busca decidem com a MESMA lógica — esses
 // testes travam os quatro baldes para as duas listas não divergirem.
