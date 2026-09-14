@@ -1333,6 +1333,20 @@ indexer BR ali para carimbar a origem pelo campo do provider, então o título �
 a única evidência que existe — o oposto do caso do Jackett, onde o flag do
 provider já resolve.
 
+**Extensão contextual (`ptTitleDual`).** Quando o título pt-BR do TMDB **difere**
+do original/en, um DUAL literal cujo título **começa** com esse pt vira BR via
+`ptTitleDual` / `applyPtTitleDual` — mesmo sem acento nem marca `DUBLADO`/`PT-BR`
+(`Lanternas Verdes…DUAL`, `A.Rocha…DUAL`). Sem o contexto da obra, Dual sozinho
+continua ambíguo (EN+qualquer idioma) e `looksPtBr` falha de propósito. Medido
+no índice de produção: **67/100** releases recuperáveis; MULTI e LAT/cena
+francesa ficam fora (30 MULTI franceses medidos — faixa multiidioma de cena,
+não dublagem BR). No dedupe, a herança (`inheritsBr`) usa a guarda **ampla**
+`namesForeignDubLanguage` (LATINO, LAT, ESP, Eng-Spa, cirílico, VFF/HDLight…)
+porque a decisão só **nega** BR — falso negativo de herança custa uma vaga, não
+apaga da conta. A lista **mínima** `hasExplicitForeignAudio` continua exclusiva
+dos caminhos destrutivos (sweep/limpeza): assimetria travada — não "uniformize"
+as duas listas.
+
 Não volte a inferir origem por `/BLUDV|DUBLADO/i` no título **no lugar** do
 flag do provider — releases de `comandotorrents`, `nerdfilmes` e
 `torrentdosfilmesv2` não citam nenhum dos dois, e mesmo assim são BR.
@@ -1341,10 +1355,13 @@ Campos com prefixo `_` (`_br`, `_seeders`, `_quality`, `_multiWork`, …) são
 **internos**. Se um deles vazar no objeto entregue ao Stremio, o player pode
 rejeitar o stream.
 
-Agregadores BR podem espelhar magnets globais: origem e áudio pertencem à
-listagem que vence o merge; nunca propague `_br`/`_dubbed` do perdedor.
-DUAL sem PT explícito não ganha vaga, prioridade nem autofetch só porque o
-post veio de site BR.
+Agregadores BR podem espelhar magnets globais: origem e áudio ficam com a
+listagem que vence o merge, **exceto** quando o espelho global declara DUAL e
+herda BR do post BR do mesmo hash (`inheritsBr` em a81de23), com a guarda ampla
+de idioma estrangeiro (`namesForeignDubLanguage`) — sem ela, LAT/ESP/VFF
+emprestavam a vaga reservada. DUAL sem PT/contexto (nem `looksPtBr`, nem
+`ptTitleDual`, nem herança) não ganha vaga, prioridade nem autofetch só porque
+o post veio de site BR ou porque o título diz Dual genérico.
 
 **3. Fontes BR não publicam seeders.**
 Elas entram com `seeders: 1` (0 seria descartado por `MIN_SEEDERS`). Consequência:
