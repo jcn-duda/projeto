@@ -12,6 +12,8 @@ import * as cache from '../src/utils/cache.js';
 import * as runtime from '../src/runtime.js';
 import * as brProbe from '../src/providers/br-probe.js';
 import * as autofetch from '../src/providers/autofetch.js';
+import * as releaseIndex from '../src/utils/release-index.js';
+import * as harvestQueue from '../src/providers/harvest-queue.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
 import { pickLowerPoolFallbacks } from '../src/providers/autofetch-fallback.js';
 import { takeDrainCandidate } from '../src/providers/autofetch-drain.js';
@@ -164,9 +166,32 @@ test('despacho de seeds (call site) defere sob pending sem purgar a fila', () =>
   }
 });
 
+test('gate de plausibilidade (C6): obra sem evidência isBr vira br-gap REGULAR, sem sonda/pending', () => {
+  const saved = setup();
+  try {
+    harvestQueue.clearQueue();
+    // Pool BR vazio + índice sem NENHUMA release BR: a sonda não é plausível.
+    runUser(() => autoFetchCandidates([seedsStream()], { imdbId: OBRA, season: null, episode: null, searchKey: 'sk-noevid' }));
+    assert.equal(brProbe.isBrProbePending(workMovie), false, 'sem evidência BR não grava pending');
+    assert.equal(brProbe.probeBlocksSeeds(workMovie), false, 'e não bloqueia seeds');
+    const q = harvestQueue.findQueued({ imdbId: OBRA, season: null, episode: null });
+    assert.ok(q, 'a obra entra como br-gap regular (rede de segurança de sempre)');
+    assert.equal(Boolean(q?.brProbe), false, 'sem modo dirigido');
+  } finally {
+    harvestQueue.clearQueue();
+    autofetch.dropQueue('sk-noevid');
+    restore(saved);
+  }
+});
+
 test('seleção de seeds (call site) é bloqueada pelo pending e volta a escolher sem ele', () => {
   const saved = setup();
   try {
+    // Gate de plausibilidade (C6): a sonda só é pedida com evidência BR no
+    // índice. Sem ela, o pool vazio vira `br-gap` REGULAR e não bloqueia seeds.
+    releaseIndex.record(OBRA, {}, [
+      { title: 'Probe Movie 2011 1080p LEGENDADO', infoHash: 'b'.repeat(40), seeders: 5, isBr: true, indexer: 'tracker' },
+    ], {});
     const streams = [seedsStream()];
     const bloqueado = runUser(() => autoFetchCandidates(streams, { imdbId: OBRA, season: null, episode: null, searchKey: 'sk-cand' }));
     assert.deepEqual(bloqueado, [], 'pending barra o pool seeds na seleção');

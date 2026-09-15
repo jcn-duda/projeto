@@ -13,7 +13,7 @@ import { SAFE_INDEXER_ID } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { collectRaw } from './collect-orchestrator.js';
 import { idxPoolCovered, idxReleasesToRaw } from './search-pool-coverage.js';
-import { shouldBrGap, hasBrDubbed } from '../utils/br-gap.js';
+import { shouldBrGap, hasBrDubbed, hasBrEvidence } from '../utils/br-gap.js';
 import { requestBrProbe } from './br-probe.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 
@@ -98,14 +98,25 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
         // Sem BR nenhum é `attempt` (lacuna original); BR só em faixa inferior
         // à alvo é `upgrade` (mesma fila, métrica separada para o diagnóstico
         // distinguir ausência de falta de 1080p).
-        metrics.count(hasBrDubbed(indexed) ? 'search.idx.brGap.upgrade' : 'search.idx.brGap.attempt');
-        // A sonda dirigida substitui o enqueue simples: ela agenda a MESMA
-        // entrada `br-gap` (com a flag brProbe) e, quando não é elegível
-        // (toggle off / sem interseção / índice off), devolve `fallbackBrGap`
-        // para o colhedor continuar sendo a rede de segurança de sempre —
-        // desligar a sonda não pode perder o br-gap normal.
-        const probe = requestBrProbe({ type: type as 'movie' | 'series', imdbId, season, episode });
-        if (probe.fallbackBrGap) {
+        const upgrade = hasBrDubbed(indexed);
+        metrics.count(upgrade ? 'search.idx.brGap.upgrade' : 'search.idx.brGap.attempt');
+        // Gate de plausibilidade (C6): a sonda dirigida só faz sentido quando o
+        // índice JÁ provou alguma release BR (dublada ou não) — sem vestígio
+        // nenhum, a ausência de dublado é o esperado e a sonda viraria crawl
+        // eterno. Obra sem evidência BR recebe o `br-gap` REGULAR, sem
+        // brProbe/pending e sem bloquear seeds; quando a sonda não é elegível
+        // (toggle off/índice off/sem interseção), `fallbackBrGap` mantém a
+        // mesma rede de segurança.
+        if (hasBrEvidence(indexed)) {
+          const probe = requestBrProbe(
+            { type: type as 'movie' | 'series', imdbId, season, episode },
+            { mode: upgrade ? 'upgrade' : 'evidence' },
+          );
+          if (probe.fallbackBrGap) {
+            harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'br-gap' });
+          }
+        } else {
+          metrics.count('search.idx.brGap.no-evidence');
           harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'br-gap' });
         }
       } else if (covered && hasBrDubbed(indexed)) {

@@ -33,6 +33,55 @@ export function hasBrDubbed(releases: readonly IndexedRelease[] | undefined | nu
   return (releases || []).some(isBrDubbed);
 }
 
+/**
+ * Evidência PÚBLICA de origem BR na obra, mesmo que legendada ou sem a faixa
+ * alvo. É o gate de plausibilidade da sonda dirigida (Fase 4): só faz sentido
+ * varrer os index-only BR quando o índice já provou que essa obra TEM release
+ * BR — numa obra sem vestígio nenhum, a ausência de dublado é o esperado e a
+ * sonda viraria crawl eterno sem poder provar nada. Entrada `source:'autofetch'`
+ * não conta: submissão do Chupim é visibilidade, não cobertura.
+ */
+export function hasBrEvidence(releases: readonly IndexedRelease[] | undefined | null): boolean {
+  return (releases || []).some((r) => r?.source !== 'autofetch' && Boolean(r?.isBr));
+}
+
+/**
+ * Releases BR dubladas que a execução da sonda ACRESCENTOU ao índice — a prova
+ * que `found` exige. `hasBrDubbed(after)` sozinho condena a sonda por BR ANTIGO
+ * que já estava lá antes dela rodar: uma release BR de 0 seeders no índice
+ * antigo fazia uma resposta vazia finalizar `found` e barrava seeds para
+ * sempre. Aqui só o delta por hash conta.
+ */
+export function newBrDubbedReleases(
+  before: readonly IndexedRelease[] | undefined | null,
+  after: readonly IndexedRelease[] | undefined | null,
+): IndexedRelease[] {
+  const prior = new Set((before || []).map((r) => String(r?.hash || '').toLowerCase()).filter(Boolean));
+  return (after || []).filter((r) => {
+    const hash = String(r?.hash || '').toLowerCase();
+    return hash.length > 0 && !prior.has(hash) && isBrDubbed(r);
+  });
+}
+
+/**
+ * `found` VIÁVEL da sonda: a evidência nova precisa estar tocável. Fontes BR
+ * usam `seeders: 1` como placeholder (nunca 0 — 0 já seria descartado por
+ * MIN_SEEDERS), então `seeders > 0` é o piso mínimo de viabilidade. No probe de
+ * UPGRADE exige-se ainda a faixa alvo (1080p): uma BR nova em 720p não fecha o
+ * upgrade que a sonda foi pedir.
+ */
+export function probeFoundViable(
+  before: readonly IndexedRelease[] | undefined | null,
+  after: readonly IndexedRelease[] | undefined | null,
+  { requireQuality }: { requireQuality?: string } = {},
+): boolean {
+  return newBrDubbedReleases(before, after).some((r) => {
+    if (!(Number(r?.seeders) > 0)) return false;
+    if (requireQuality && String(r?.quality || '').toLowerCase() !== requireQuality.toLowerCase()) return false;
+    return true;
+  });
+}
+
 // Alvo de upgrade do BR-gap: 1080p, a faixa dominante do catálogo e membro do
 // mesmo conjunto de faixas-alvo do Chupim (`AUTOFETCH_TARGET_QUALITIES`). Faixas
 // inferiores CONHECIDAS que justificam o upgrade; "sem resolução" (o "não sei"

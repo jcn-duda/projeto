@@ -266,7 +266,7 @@ export async function buildStreams(rawInput: RawItem[], {
     imdbId && isBrProbePending({ type: season != null ? 'series' : 'movie', imdbId, season, episode }),
   );
   const noticeText = () => {
-    if (probePending) return '⏳ Procurando dublado nos indexers BR — reabra em alguns minutos';
+    if (probePending) return '⏳ Busca de dublado BR na fila — aguarde a colheita';
     if (autofetchCount > 0) return '⏳ Baixando no debrid — reabra em alguns minutos';
     if (dubHiddenByCachedOnly) {
       return 'Fontes BR dubladas existem, mas ainda fora do cache — reabra em alguns minutos';

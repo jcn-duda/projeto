@@ -1045,9 +1045,13 @@ restaura FIFO **apenas entre as entradas regulares** — não desarma `next-epis
 O anti-fome opera **dentro do tier regular**: sob vazão sustentada ≥ capacidade dos urgentes, o
 backlog regular pode esperar (decisão consciente), e a janela de 1h limita cada `br-gap` individual —
 não é promessa de bound duro global. A promoção no enqueue sobe o motivo de identidade já na fila
-(`demais`→`br-gap`→`next-episode`, sem rebaixar), renova `enqueuedAt` e grava o dedupe de 12h só
-depois da promoção aceita. Formato da fila `harvest:v1:q` NÃO muda (a priorização é só reordenação no
-consumo, e a janela de capacidade preserva a cabeça prioritária já na fila).
+(`demais`→`br-gap`→`next-episode`, sem rebaixar) e grava o dedupe de 12h só depois da promoção aceita;
+ela **NÃO zera o `enqueuedAt`** (a fome do pedido original continua contando) — a janela própria do
+`br-gap` usa `priorityAt`, gravado no enqueue/promoção, com fallback para `enqueuedAt` em entrada
+antiga. Formato da fila `harvest:v1:q` NÃO muda (a priorização é só reordenação no consumo, e a janela
+de capacidade preserva a cabeça prioritária já na fila). Urgências (`next-episode` e trabalho
+`brProbe`) furam **apenas** o gate de inatividade/`recentUserTraffic` no `tick` e no `drain`: teto
+horário, intervalo por indexer, breaker, timeout dedicado e worker único continuam valendo.
 
 A **3.3** é um **gate de decisão documentado**, não auto-tuning: após ≥48h do baseline no ar, o operador
 decide a vazão com o bloco `f3` + `harvest.*` + `debrid.rd.warm.*` + `rdGate` (sobe colheita só se o
@@ -1069,6 +1073,12 @@ modo dirigido. **A sonda nunca declara cobertura completa sozinha:** o subset in
 inteira, então o registro dirigido preserva o `partial` de um registro existente e, quando não havia
 registro algum, nasce `partial:true` — nunca limpa o flag só porque o subset respondeu.
 
+**Gate de plausibilidade (dois call sites).** A sonda só é agendada quando o índice já tem **alguma
+evidência `isBr`** (mesmo legendada ou sem faixa-alvo) — o que cobre o upgrade (já há BR dublado) e a
+ausência de dublado DENTRO de uma obra com prova BR. Obra sem vestígio BR recebe o `br-gap` REGULAR, sem
+`brProbe`/`pending` e sem bloquear seeds; no `autoFetchCandidates` o índice é consultado quiet pela
+obra/location e o pool vazio NÃO dispara sonda sozinho.
+
 **Observabilidade por consulta (B1).** `jackett.search` engole falha e devolve `[]`; vazio sozinho não
 prova sucesso. `JackettSearchOptions.onQueryResult` (opcional, não muda a API pública nem o breaker)
 publica por consulta `responded: true` para resposta VÁLIDA (HTTP + envelope do Jackett sadios, mesmo
@@ -1079,18 +1089,25 @@ resposta real, `failed` (retry curto) — nunca `empty` por falha engolida.
 Estado/orquestração vive em `br-probe.ts` (nenhuma rede): identidade GLOBAL por obra
 `<type>:<imdbId>:<season>:<episode>` (filme sem S/E; série por episódio), chave
 `autofetch:v3:probe:<sha256>` — **sem config, conta ou segredo**. Estados `pending`/`found`/`empty`/
-`failed`/`capped` com timestamps. Só `pending` (lease curto de 10min, órfão por crash expira sozinho) e
-`found` (BR já existe) bloqueiam seeds; `empty` libera na hora mantendo o dedupe do estado,
-`failed`/`capped` liberam com retry curto (5min). `requestBrProbe` só grava `pending` **sincronamente**
+`failed`/`capped` com timestamps. **Só `pending`** (lease curto de 10min, órfão por crash expira sozinho)
+bloqueia seeds; `found` mantém o dedupe do estado por 12h mas **NÃO** segura swarm (a lista/índice decide na
+próxima abertura); `empty` libera na hora mantendo o dedupe do estado, `failed`/`capped` liberam com retry
+curto (5min). `requestBrProbe` só grava `pending` **sincronamente**
 quando a entrada realmente existe na fila com a flag dirigida — se o enqueue foi dedupe (12h) ou o
 colhedor está desligado, registra `skipped.<motivo>` e **não bloqueia** seeds. A flag é OR-aderente no
 `HarvestWork` (enqueue/`head`/`tail`): uma obra já na fila aceita o probe sem rebaixar um motivo mais
-forte (`next-episode` permanece no topo e a execução passa a ser dirigida). O colhedor finaliza o estado
-depois do `harvestOne` **nesta ordem**: `found` com BR no índice (vence até o teto — achou valor), `capped`
-quando o teto horário cortou, `empty` quando `responded > 0` e não há BR, `failed` em falha real; em todos
+forte (`next-episode` permanece no topo e a execução passa a ser dirigida). **Coalescing em voo** (módulo
+`harvest-inflight.ts`): sonda que chega enquanto a MESMA obra é colhida regularmente NÃO cria segunda
+entrada — a intenção é anexada OR-aderente à execução corrente e o resultado da colheita completa finaliza
+o estado; falha/preempção reenfileira preservando a flag. O colhedor finaliza o estado
+depois do `harvestOne` **nesta ordem**: `found` quando há **evidência nova e viável** (upgrade exige BR
+dublada nova na faixa alvo 1080p; ausência exige `seeders > 0` — placeholder BR é 1 e 0 é inviável; BR
+antiga de 0 seeders NÃO fecha found), `capped`
+quando o teto horário cortou, `empty` quando `responded > 0` (dirigido) ou `ok` (coalescido) e não há BR
+nova viável, `failed` em falha real; em todos
 **invalida as listas prontas da obra** para o aviso não congelar. Preempção por tráfego NÃO finaliza —
-renova o lease. O `found` não é revalidado por rede na leitura: vale pelo TTL do estado (risco documentado
-no módulo — se a release sair do índice dentro da janela, seeds seguem barrados até o TTL).
+e para as urgências (`next-episode`/`brProbe`) nem pausa: elas furam apenas o gate de inatividade — e
+renova o lease.
 
 Na política F1 do pool seeds, `br-probe-pending` é bloqueio **transitório**: barra seleção (`seedsSelectionBlock`),
 **o fallback PERSISTIDO** (`pickLowerPoolFallbacks`), despacho (`autoFetchBrDubbed`) e dreno (`deferFn` do
@@ -1098,14 +1115,25 @@ Na política F1 do pool seeds, `br-probe-pending` é bloqueio **transitório**: 
 como sempre — a sonda ainda é solicitada para achar BR. O `QueueCandidate` guarda a identidade da sonda
 (`probeSeason`/`probeEpisode`) separada da identidade de obra-cap: o pack tem `episode` nulo para cap, mas
 o dreno defere pelo EPISÓDIO solicitado (entrada antiga cai no `episode`). Durante o `pending` o `buildStreams` emite o aviso
-`⏳ Procurando dublado nos indexers BR — reabra em alguns minutos`; como a lista só-tem-aviso é
+`⏳ Busca de dublado BR na fila — aguarde a colheita`; como a lista só-tem-aviso é
 `complete:false` (TTL 60s) e a finalização invalida a obra, o aviso nunca sobrevive ao lease.
 Toggle de operador `AUTOFETCH_BR_PROBE` (default `true`, ajustável ao vivo em `autofetch-live.ts` e no
 dashboard, aba `[Chupim / Autofetch]`); TTL estático `BR_PROBE_TTL_S` (default 43200). Exige
 `RELEASE_INDEX=true` e interseção não vazia — desligado não agenda nem bloqueia. Métricas
-`autofetch.brProbe.run/transition/found/empty/failed/capped/skipped.<motivo>` e histograma
-`autofetch.brProbe.ms`. Testes: `test/br-probe.test.ts` (estado/política), `test/br-probe-worker.test.ts`
-(observabilidade/partial/tick) e `test/br-probe-fallback.test.ts` (fallback persistido/packs/call sites).
+`autofetch.brProbe.run/transition/found/empty/failed/capped/skipped.<motivo>`,
+`scheduled.<upgrade|evidence>`, `found.unviable`, `orphan`, `coalesced` e histogramas
+`autofetch.brProbe.ms` / `runWaitMs` (idade scheduled→run). Testes: `test/br-probe.test.ts`
+(estado/política), `test/br-probe-worker.test.ts` (observabilidade/partial/tick),
+`test/br-probe-viability.test.ts` (C4 encontro viável + C8 coalescing) e
+`test/br-probe-fallback.test.ts` (fallback persistido/packs/call sites).
+
+**Teto por OBRA no dreno (Fase 2 / C10 / C11).** O candidato que o cap da obra fecha NESTA janela é
+**deferido** — permanece na fila (`autofetch.drain.obra-cap-deferred`) enquanto a seleção procura outro
+elegível; descartá-lo apagava um BR que voltaria a caber assim que a vaga liberasse. O cap normal segue
+invariável; o **overflow de upgrade** concede UMA reserva extra (`cap+1`, `autofetch.obra.overflow-upgrade`)
+apenas quando o candidato é faixa-alvo AUSENTE no registro F2 e superior ao pior BR registrado (persiste
+`quality` por entrada; `overflow:true` marca a extra e limita a uma por janela). Não remove magnet antigo
+nem finge que foi removido; sem qualidade registrada o overflow degrada para conservador (não concede).
 
 **Fase 3 revisada — progresso real da AllDebrid (`src/providers/autofetch-progress.ts`).** A AllDebrid não
 publica `stalled`/dead objetivo por item, então o lote ficava "downloading" até o TTL sem repor nada quando a
@@ -1114,9 +1142,16 @@ parada não era detectável. A medição read-only do `/magnet/status` (2026-09-
 `processingPerc`, presentes SÓ em magnet ativo; **não existe campo `progress`**. O `torrentStatus` do adaptador
 (`alldebrid-play.ts`) só anexa `{ bytes, total, speed, seeders }` quando o status CRU é exatamente
 `"Downloading"` E os quatro campos são `typeof number && Number.isFinite` (null/''/false/ausente NÃO viram
-zero), com `total>0` e `bytes<total`. Marca `via:'id'` — a AllDebrid publica o hash, mas a marcação DELIBERADA
-mantém a remoção terminal sob `DEBRID_REMOVE_BY_ID` (default false), fechando o bypass que a revisão
-adversarial apontou. O adaptador **não deriva `stalled`**: a derivação é conservadora e mora no recheck.
+zero), com `total>0` e `bytes<total`. Marca `via:'hash'` — o status sai da listagem autoritativa por hash e
+é o que permite ao recheck remover dead/expired/`expired-unready` SEM depender de `DEBRID_REMOVE_BY_ID`
+(default false); o `id` continua sendo a âncora do `removeTorrent`. O ramo **progress-stalled** NÃO usa
+este campo (é sempre represado). O adaptador **não deriva `stalled`**: a derivação é conservadora e mora no
+recheck.
+
+O predicado compartilhado `DEAD` (`alldebrid-api.ts`) reconhece a frase exata **"Download took more than
+3 days"** (statusCode 10 MEDIDO) e vale para `torrentStatus` E `sweepDead`. O `statusCode` é
+documentado como medido mas **não decide**: `isDeadMagnet` condena pelo TEXTO apenas — `10` com texto
+`Downloading` NÃO é dead (e `ready` vence o DEAD nos dois consumidores).
 
 `deriveStall` (memória por `adapter:account:hash`) marca parada APENAS com state `downloading`, `bytes<total` e
 bytes parados com velocidade NÃO positiva (`speed>0` é movimento e zera o streak mesmo com `seeders:0`; seeders
@@ -1125,8 +1160,12 @@ crescendo zera; regressão de bytes ou troca do id da transferência reiniciam; 
 ausente/não numérico, `progress` ausente ou state `queued/processing/unknown/ready/dead` são SEM sinal (mantêm
 o legado). O hash derivado entra num ramo próprio que **nunca** chama `removeTorrent` direto: blacklista, limpa
 o registro da obra, libera holds e **registra a transferência na fila de represados** (`autofetch-suppressed`)
-para o knob/painel cobrar depois. O mesmo gate vale no caminho `expired-unready`: AllDebrid `via:'id'` sem
-`removeById` é represado, não apagado direto; adapter sem `via:'id'` preserva a remoção histórica. O estado é
+para o knob/painel cobrar depois. O caminho `expired-unready` também exige **posse provada** antes de
+remover direto: proteção vigente (`held`/`adprot`) bloqueia, e na AllDebrid o hash só é apagado com prova
+de que o addon o subiu (marker do enqueue ou etiqueta durável `adsub`) E com o snapshot de pré-existentes
+carregado sem ele — a mesma autoridade do `dropReady`/`dropUncached`; snapshot ausente fecha o fail-safe
+(não remove) e o caso não provado vai para represados. O ramo progress-stalled continua represado
+(derivação é prova de parada, não autorização de delete). O estado é
 limpo em `cleanLotHash`, no fim do lote e na evicção do LRU de settle — que usa o `adapterId` DO PRÓPRIO lote,
 nunca `debrid.current()` de outra request. É o mesmo espírito do contrato `responded` do B1: o que não foi
 medido não condena.
@@ -1193,9 +1232,13 @@ Cotas do L1 (`cache-quotas.ts`): `streams` 2000, `raw` 800, `dlmag` 4000,
 único dos contadores duráveis do banco de magnets), teto global 91000. `raw` é o namespace
 gordo (~100 KB no pior caso); não suba a cota sem refazer a conta de memória do
 container de 3g. O `mag` é o oposto — entrada minúscula (`1` + chave de ~70 B,
-~400 B com o overhead do Map), então 50.000 custa ~19 MB. A SOMA das cotas é
-89.551 — teto global **igual ou abaixo** da soma reintroduz o despejo global
-antes da repartição por namespace (foi bug real).
+~400 B com o overhead do Map), então 50.000 custa ~19 MB. A SOMA das cotas
+**nomeadas** é 89.551; a soma **operacional** inclui o balde `__default` (500),
+para onde cai toda chave sem namespace conhecido — 90.051, com folga de 949 sob
+o teto global. Teto global **igual ou abaixo** da soma operacional reintroduz o
+despejo global antes da repartição por namespace (foi bug real).
+(`__default` não tem quota explícita em `QUOTAS`: `quotaFor` devolve
+`QUOTAS.__default` para ele.)
 
 Cota é capacidade, não permanência: quem tira registro do `mag` no dia a dia é
 o TTL (`MAGNET_ALIVE_TTL`/`MAGNET_LIE_TTL` 7 dias, `MAGNET_BAD_TTL` 24 h).

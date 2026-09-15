@@ -11,23 +11,27 @@
  * instância nova de cache.ts reusando o irmão cacheado, com o store alheio).
  */
 
-// A soma das cotas de namespaces conhecidos é 89.551 (inclui mag=50.000,
-// rdc=14.000, autofetch=4.000, rdt=2.500, fsz=3.000, streams=2.000,
-// idx=2.000, adprot=2.000, adsub=1.000, davail=1.000, vres=1.000, raw=800,
+// A soma das cotas NOMEADAS é 89.551 (inclui mag=50.000, rdc=14.000,
+// autofetch=4.000, rdt=2.500, fsz=3.000, streams=2.000, idx=2.000,
+// adprot=2.000, adsub=1.000, davail=1.000, vres=1.000, raw=800,
 // dlmag=4.000, rdq=500, adrm=500, tmdb=500, meta=500, indexer-status=200 e
-// cfg=50), deixando 1.449 entradas de folga sob o teto global. O ledger RD
-// é global por hash e precisa reter muito mais histórico que os caches por conta;
-// os demais baldes foram calibrados para abrir esse espaço sem deixar o despejo
-// global invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB
-// ≈ 79 MB no pior caso) e o streams cresceu com o /stream-trace.json (cap de
-// 300 itens ≈ 27 KB por entrada): no teto teórico do namespace (2000 entradas)
-// soma ~54 MB — hoje observado ~13 MB em produção local. O idx (2.000 ×
-// ~14,7 KB ≈ 29 MB) fecha a conta dos gordos; rdc/davail/mag/rdt/adprot/
-// adsub/adrm/autofetch guardam só registros pequenos — mag 50k ≈ 19 MB e o
-// autofetch 4k ≈ poucos MB (o registro `o:` por obra é uma lista curta).
+// cfg=50). A soma OPERACIONAL inclui o balde `__default=500` (toda chave sem
+// namespace conhecido cai nele): 90.051, deixando 949 entradas de folga sob o
+// teto global de 91.000. O ledger RD é global por hash e precisa reter muito
+// mais histórico que os caches por conta; os demais baldes foram calibrados
+// para abrir esse espaço sem deixar o despejo global invalidar suas cotas antes
+// da hora. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior caso) e o
+// streams cresceu com o /stream-trace.json (cap de 300 itens ≈ 27 KB por
+// entrada): no teto teórico do namespace (2000 entradas) soma ~54 MB — hoje
+// observado ~13 MB em produção local. O idx (2.000 × ~14,7 KB ≈ 29 MB) fecha a
+// conta dos gordos; rdc/davail/mag/rdt/adprot/adsub/adrm/autofetch guardam só
+// registros pequenos — mag 50k ≈ 19 MB e o autofetch 4k ≈ poucos MB (o
+// registro `o:` por obra é uma lista curta).
 //
-// O teto global acompanha a soma: teto IGUAL OU ABAIXO dela reintroduz o
-// despejo global antes da repartição por namespace, que foi bug real.
+// O teto global acompanha a soma OPERACIONAL: teto IGUAL OU ABAIXO dela
+// reintroduz o despejo global antes da repartição por namespace, que foi bug
+// real. (`__default` TEM quota explícita 500 em `QUOTAS` e é para onde cai
+// toda chave sem namespace conhecido — `quotaFor` devolve `QUOTAS.__default`.)
 export const MAX_ENTRIES = 91000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
@@ -81,7 +85,8 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // markers/dead/queues/prefetch/sup, então 2.000 virou 4.000 (dobro) —
   // registro `o:` é uma lista curta de entradas minúsculas (hash+pool+at), e o
   // teto real de downloads por janela é a conta do debrid, não a cota. O teto
-  // global (91.000) continua ESTRITAMENTE ACIMA da soma (89.551).
+  // global (91.000) continua ESTRITAMENTE ACIMA da soma OPERACIONAL: 90.051 =
+  // 89.551 das cotas NOMEADAS + 500 do `__default`.
   autofetch: 4000,
   'indexer-status': 200,
   cfg: 50,

@@ -286,8 +286,8 @@ test('worker dirigido consulta SÓ a interseção, sequencial, e registra DUAL B
     assert.ok(invalidadasAntes, 'lista pronta existe antes de finalizar');
     brProbe.finalizeBrProbe(MOVIE, 'found');
     assert.equal(cache.peek('streams:v11:movie:tt0107953:cfg'), null, 'found invalida a lista da obra');
-    assert.equal(brProbe.probeBlocksSeeds(MOVIE), true, 'found bloqueia seeds: BR já existe');
-    assert.equal(seedsSelectionBlock(policy, [], { brProbePending: true }), 'br-probe-pending');
+    assert.equal(brProbe.probeBlocksSeeds(MOVIE), false, 'found NÃO bloqueia seeds: o índice decide na próxima abertura');
+    assert.equal(brProbe.requestBrProbe(MOVIE).skipped, 'found', 'mas o dedupe de 12h do estado permanece');
   } finally {
     stub.restore();
     jackett.search = originalSearch;
@@ -347,7 +347,7 @@ test('aviso de sonda aparece em pending e some ao finalizar', async () => {
     brProbe.requestBrProbe(MOVIE);
     const antes = await (runtime.run({ opts, encoded: 'segcfg' }, build) as Promise<any[]>);
     assert.equal(antes.length, 1);
-    assert.match(antes[0].name as string, /Procurando dublado nos indexers BR/);
+    assert.match(antes[0].name as string, /Busca de dublado BR na fila/);
 
     brProbe.finalizeBrProbe(MOVIE, 'empty');
     const depois = await (runtime.run({ opts, encoded: 'segcfg' }, build) as Promise<any[]>);

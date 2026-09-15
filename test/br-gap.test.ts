@@ -255,6 +255,45 @@ test('Fase 5: miss na cauda (posição 60) promovido a br-gap sobe para a frente
   }
 });
 
+test('Fase 5 (C9): promoção preserva enqueuedAt (anti-fome) e a janela do br-gap usa priorityAt', () => {
+  harvesterLive.reset();
+  try {
+    harvestQueue.clearQueue();
+    harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 6 * 3600 * 1000, harvestQueueMax: 100 });
+    const imdb = 'tt3400001';
+    harvestQueue.enqueue({ imdbId: imdb, type: 'movie', season: null, episode: null, reason: 'miss' });
+    const antes = filaPersistida().find((e) => e.imdbId === imdb);
+    const enqueuedAtAntes = antes.enqueuedAt;
+    harvestQueue.enqueue({ imdbId: imdb, type: 'movie', season: null, episode: null, reason: 'br-gap' });
+    const depois = filaPersistida().find((e) => e.imdbId === imdb);
+    assert.equal(depois.enqueuedAt, enqueuedAtAntes, 'promoção NÃO reseta o enqueuedAt (fome preservada)');
+    assert.ok(depois.priorityAt >= enqueuedAtAntes, 'priorityAt marca a janela própria do br-gap');
+    assert.equal(depois.reason, 'br-gap');
+
+    // Separação dos relógios: priorityAt recente mantém o tier br-gap...
+    const now = Date.now();
+    const starved = { imdbId: 'tt3400002', type: 'movie', reason: 'popular', season: null, episode: null, enqueuedAt: now - 7 * 3600 * 1000 };
+    const promoted = { imdbId: 'tt3400003', type: 'movie', reason: 'br-gap', season: null, episode: null, enqueuedAt: now - 7 * 3600 * 1000, priorityAt: now - 60_000 };
+    assert.deepEqual(
+      harvestQueue.prioritizeQueue([starved, promoted] as any).map((e: any) => e.imdbId),
+      ['tt3400003', 'tt3400002'],
+      'janela do br-gap (priorityAt) ainda ativa fura o starved',
+    );
+    // ...e passada a janela, a fome (enqueuedAt antigo) continua valendo — a
+    // promoção não zerou o relógio do pedido original.
+    const expired = { ...promoted, priorityAt: now - 2 * 3600 * 1000 };
+    const fresh = { imdbId: 'tt3400004', type: 'movie', reason: 'popular', season: null, episode: null, enqueuedAt: now };
+    assert.deepEqual(
+      harvestQueue.prioritizeQueue([fresh, expired, starved] as any).map((e: any) => e.imdbId),
+      ['tt3400003', 'tt3400002', 'tt3400004'],
+      'expirada a janela, o enqueuedAt antigo segue starved',
+    );
+  } finally {
+    harvesterLive.reset();
+    harvestQueue.clearQueue();
+  }
+});
+
 test('Fase 5: cohort — urgentes recentes precedem o starved; ao envelhecer, o starved sobe', () => {
   harvesterLive.reset();
   harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 6 * 3600 * 1000 });

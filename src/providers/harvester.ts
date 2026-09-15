@@ -29,6 +29,7 @@ import type { HarvestEntry } from './harvest-queue.js';
 import * as harvestWorker from './harvest-worker.js';
 import * as releaseIndex from '../utils/release-index.js';
 import { finalizeBrProbe, noteBrProbePreempted } from './br-probe.js';
+import * as harvestInflight from './harvest-inflight.js';
 
 let started = false;
 let inFlight = false;
@@ -143,7 +144,13 @@ async function tick() {
   // retorno precoce, senão uma fila vazia ou um freio de tráfego adiaria a
   // mudança para sempre.
   rearmTimer(live.harvestIntervalMs);
-  if (!live.harvestEnabled || paused || harvesterLive.isPaused() || inFlight || activity.recentUserTraffic(live.harvestIdleWindowMs)) return;
+  if (!live.harvestEnabled || paused || harvesterLive.isPaused() || inFlight) return;
+  // `next-episode` e brProbe são URGÊNCIAS: furam SÓ o gate de inatividade.
+  // Teto horário, intervalo por indexer, breaker e worker único continuam
+  // valendo — a colheita urgente usa a mesma infraestrutura educada.
+  const head = harvestQueue.preview(1)[0];
+  const urgentHead = Boolean(head && (head.reason === 'next-episode' || head.brProbe === true));
+  if (!urgentHead && activity.recentUserTraffic(live.harvestIdleWindowMs)) return;
   try { cache.maintain(); } catch {}
   checkQuotaWarning().catch(() => {});
   // Semente: descobre obra popular que o índice ainda não conhece. Fora do
@@ -164,15 +171,20 @@ async function tick() {
     if (!entry) return;
     harvestQueue.persist();
     const identity = obraIdentity(entry);
-    const { added, capped, preempted, brFound, responded } = await harvestWorker.harvestOne(entry);
+    // Coalescing (C8): marca a obra em voo para que uma sonda que chegue
+    // DURANTE esta colheita anexe a intenção em vez de enfileirar duplicata.
+    harvestInflight.begin(identity);
+    const { ok, added, capped, preempted, brFound, responded } = await harvestWorker.harvestOne(entry);
+    const coalescedProbe = harvestInflight.hasProbeIntent(identity);
+    const isProbe = entry.brProbe === true || coalescedProbe;
     // Sonda dirigida (Fase 4): o estado final é decidido AQUI, depois de o
     // worker ter rodado pelos controles do colhedor.
     // Ordem: achar BR vence teto (found prova valor, mesmo com a passada
-    // cortada); `responded > 0` é a prova de que AO MENOS UMA consulta teve
-    // resposta VÁLIDA — `jackett.search` engole falha e devolve `[]`, e vazio
-    // não autoriza `empty`. Preempção NÃO finaliza: a obra volta à fila e o
-    // lease é renovado. `partial`/`capped` nunca viram `empty` prematuro.
-    if (entry.brProbe) {
+    // cortada); `responded > 0` (dirigido) ou `ok` (coalescido, colheita
+    // completa) é a prova de que houve resposta VÁLIDA — `jackett.search`
+    // engole falha e devolve `[]`, e vazio não autoriza `empty`. Preempção NÃO
+    // finaliza: a obra volta à fila e o lease é renovado.
+    if (isProbe) {
       const work = {
         type: entry.type,
         imdbId: entry.imdbId,
@@ -182,7 +194,7 @@ async function tick() {
       if (preempted) noteBrProbePreempted(work);
       else if (brFound) finalizeBrProbe(work, 'found');
       else if (capped) finalizeBrProbe(work, 'capped');
-      else if (responded > 0) finalizeBrProbe(work, 'empty');
+      else if (entry.brProbe ? responded > 0 : ok) finalizeBrProbe(work, 'empty');
       else finalizeBrProbe(work, 'failed');
     }
     if (preempted) {
@@ -190,13 +202,16 @@ async function tick() {
       // falha). Até 3 preempções volta à frente; a 4ª vai para a cauda
       // (`harvest.preempted.deferred`) para não monopolizar a fila — sem
       // dropar. `resumed` só para o painel; enqueuedAt original preservado.
+      // A intenção dirigida VIAJA com a obra devolvida: o reagendamento não
+      // pode perder a sonda que chegou em voo.
       const tries = (preemptsByObra.get(identity) || 0) + 1;
       preemptsByObra.set(identity, tries);
       metrics.count('harvest.preempted');
+      const returned = { ...entry, resumed: true, ...(isProbe ? { brProbe: true } : {}) };
       if (tries <= 3) {
-        harvestQueue.head({ ...entry, resumed: true });
+        harvestQueue.head(returned);
       } else {
-        harvestQueue.tail({ ...entry, resumed: true });
+        harvestQueue.tail(returned);
         metrics.count('harvest.preempted.deferred');
         preemptsByObra.delete(identity);
       }
@@ -218,7 +233,8 @@ async function tick() {
         attemptsByObra.set(identity, tries);
         if (tries <= 3) {
           metrics.count('harvest.capped');
-          harvestQueue.head(entry);
+          // A intenção dirigida sobrevive ao retorno por teto.
+          harvestQueue.head(isProbe && !entry.brProbe ? { ...entry, brProbe: true } : entry);
           harvestQueue.persist();
         } else {
           // Drop da fila: limpa partial grudado (ex.: raiz semeada) antes de
@@ -234,14 +250,19 @@ async function tick() {
   } catch (err: unknown) {
     metrics.count('harvest.failed');
     if (entry) {
-      const tries = (attemptsByObra.get(obraIdentity(entry)) || 0) + 1;
-      attemptsByObra.set(obraIdentity(entry), tries);
+      const identity = obraIdentity(entry);
+      const coalescedProbe = harvestInflight.hasProbeIntent(identity);
+      const tries = (attemptsByObra.get(identity) || 0) + 1;
+      attemptsByObra.set(identity, tries);
       // Falha de rede pode ser transitória: volta pro fim da fila até 3 vezes.
-      if (tries <= 3) harvestQueue.tail(entry);
-      else attemptsByObra.delete(obraIdentity(entry));
+      // A intenção dirigida sobrevive ao reagendamento (mesmo contrato do
+      // caminho de preempção).
+      const returned = { ...entry, ...(coalescedProbe ? { brProbe: true } : {}) };
+      if (tries <= 3) harvestQueue.tail(returned);
+      else attemptsByObra.delete(identity);
       // A sonda finaliza como falha: libera seeds pelo retry curto e destrava
       // o aviso, em vez de ficar pending até o lease vencer.
-      if (entry.brProbe) {
+      if (entry.brProbe || coalescedProbe) {
         finalizeBrProbe(
           { type: entry.type, imdbId: entry.imdbId, season: entry.season ?? null, episode: entry.episode ?? null },
           'failed',
@@ -251,6 +272,7 @@ async function tick() {
     }
     log.warn('[harvest] ciclo falhou:', log.errorMessage(err));
   } finally {
+    if (entry) harvestInflight.end(obraIdentity(entry));
     inFlight = false;
   }
 }
@@ -272,7 +294,11 @@ async function drain(maxWorks?: number) {
   const limit = Math.max(0, Math.min(live.harvestDrainMaxWorks, Math.trunc(Number(maxWorks ?? live.harvestDrainMaxWorks) || 0)));
   let drained = 0;
   while (drained < limit && !harvestQueue.isEmpty() && !paused && !harvesterLive.isPaused() && !inFlight) {
-    if (activity.recentUserTraffic(live.harvestIdleWindowMs) || harvestWorker.queriesThisHour() >= live.harvestMaxPerHour) break;
+    // Urgências furam o freio de tráfego no dreno manual também — o teto
+    // horário continua valendo.
+    const head = harvestQueue.preview(1)[0];
+    const urgentHead = Boolean(head && (head.reason === 'next-episode' || head.brProbe === true));
+    if ((!urgentHead && activity.recentUserTraffic(live.harvestIdleWindowMs)) || harvestWorker.queriesThisHour() >= live.harvestMaxPerHour) break;
     const before = harvestQueue.depth();
     await tick();
     if (harvestQueue.depth() >= before) break;

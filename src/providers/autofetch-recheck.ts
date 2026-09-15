@@ -20,6 +20,7 @@ import { manageSettleLru } from './autofetch-settle.js';
 import { takeDrainCandidate } from './autofetch-drain.js';
 import { commitObra, releaseObra } from './autofetch-obra.js';
 import { collapseTerminal, cleanLotHash } from './autofetch-terminal.js';
+import { expiredRemovalAllowed } from './autofetch-expired.js';
 import { deriveStall, forgetLotProgress } from './autofetch-progress.js';
 import { seasonSearchKeys, seasonIndexKey, registerSeasonSearchKey } from './autofetch-season-index.js';
 export type SeasonHint = { imdbId?: string | null; season?: number | null; episode?: number | null; isPack?: boolean };
@@ -108,8 +109,8 @@ export function drainNext(searchKey: string, lot: any): boolean {
 
   // Seleção + reserva do teto por OBRA (Fase 2): obsoletos saem da fila,
   // holds transitórios são adiados e o candidato que o cap fecha nesta janela é
-  // descartado — a seleção segue para o próximo elegível. A fila remanescente
-  // já sai gravada pela própria seleção.
+  // DEFERIDO — permanece na fila enquanto a seleção segue para o próximo
+  // elegível. A fila remanescente já sai gravada pela própria seleção.
   const { next, remaining, lease } = takeDrainCandidate(searchKey, adapter, account);
   if (!next) return false;
 
@@ -154,6 +155,7 @@ export function drainNext(searchKey: string, lot: any): boolean {
           title: String(next.title || next.name || '').split('\n')[0].slice(0, 120),
           br: Boolean(next.br),
           dubbed: Boolean(next.dubbed),
+          quality: typeof next.quality === 'string' ? next.quality : undefined,
           ...(typeof ok === 'string' && ok ? { id: ok } : {}),
         });
         metrics.count('autofetch.queued');
@@ -341,17 +343,17 @@ export function runRecheck(searchKey: string) {
     const liveAfter = autofetchLive.effective();
     if (lot.isSettle && (Date.now() - (lot.createdAt || 0)) >= liveAfter.autoFetchTtl * 1000) {
       metrics.count('autofetch.expired-unready', lot.hashes.size);
-      // Expiração NÃO é passe livre para apagar por id: o mesmo gate do
-      // colapso terminal vale aqui. `via:'id'` sem `removeById` vai para a
-      // fila de represados (limpeza terminal com sweepDead/painel); adapter
-      // sem `via:'id'` (Premiumize/TorBox/RD/DL) preserva a remoção direta
-      // histórica. Sem id conhecido, nada é apagado.
+      // Expiração NÃO é passe livre para apagar: além do gate de remoção por
+      // id, exige POSSE provada (marker/adsub) e snapshot carregado sem o hash
+      // entre os pré-existentes — a mesma autoridade do dropReady/dropUncached.
+      // O que não passa vai para represados (limpeza terminal/painel).
       if (typeof adapter.removeTorrent === 'function') {
         for (const h of lot.hashes) {
           const st = statuses[h];
           const sid = st?.id;
           if (sid == null) continue;
-          if (st?.via !== 'id' || config.debrid.removeById) {
+          const policyOk = st?.via !== 'id' || config.debrid.removeById;
+          if (policyOk && expiredRemovalAllowed(adapter, account, h, opts().debridApiKey)) {
             adapter.removeTorrent(opts().debridApiKey, sid).catch(() => {});
           } else {
             metrics.count('autofetch.expired.suppressed');

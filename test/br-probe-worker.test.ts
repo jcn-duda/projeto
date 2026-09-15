@@ -244,23 +244,37 @@ test('tick: brFound precede capped — achou BR mesmo com a passada cortada', as
   }
 });
 
-test('tick: preempção por tráfego não finaliza e renova o pending', async () => {
+test('tick: tráfego recente NÃO pausa a sonda dirigida (urgência fura o gate de inatividade)', async () => {
   const s = setup();
   try {
     meta('Probe Movie');
     config.harvest.idleWindowMs = 60_000;
-    const stub = stubFetch((url: string) => {
-      if (url.includes('api.themoviedb.org')) {
-        activity.noteUserRequest(); // tráfego chega no MEIO da obra
-        return { ok: true, status: 200, json: async () => tmdbBody('Probe Movie', 'Probe Movie') };
-      }
-      return { ok: false, status: 404, json: async () => ({}) };
-    });
+    activity.noteUserRequest(); // tráfego recente ANTES do tick
+    const stub = netStub(emptyJackett);
     try {
       brProbe.requestBrProbe(work);
       await harvester.tick();
-      assert.equal(brProbe.isBrProbePending(work), true, 'pending renovado, não finalizado');
-      assert.equal(harvestQueue.depth(), 1, 'obra devolvida à fila');
+      assert.equal(brProbe.__probeStateForTest(work), 'empty', 'a sonda rodou mesmo com tráfego recente');
+      assert.equal(harvestQueue.depth(), 0, 'obra não voltou à fila');
+    } finally {
+      stub.restore();
+    }
+  } finally {
+    restore(s);
+  }
+});
+
+test('tick: tráfego recente pausa obra REGULAR (o bypass é só das urgências)', async () => {
+  const s = setup();
+  try {
+    meta('Probe Movie');
+    config.harvest.idleWindowMs = 60_000;
+    activity.noteUserRequest();
+    const stub = netStub(emptyJackett);
+    try {
+      harvestQueue.enqueue({ imdbId: MOVIE, type: 'movie', season: null, episode: null, reason: 'popular' });
+      await harvester.tick();
+      assert.equal(harvestQueue.depth(), 1, 'obra regular continua na fila sob tráfego');
     } finally {
       stub.restore();
     }

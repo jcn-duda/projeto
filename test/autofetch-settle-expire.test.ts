@@ -13,6 +13,7 @@ import debrid from '../src/debrid/index.js';
 import * as suppressed from '../src/providers/autofetch-suppressed.js';
 import { runRecheck, recheckLots } from '../src/providers/autofetch-recheck.js';
 import { accountScope } from '../src/utils/request-key.js';
+import { preexisting } from '../src/debrid/alldebrid-inventory.js';
 import { applyDebrid } from '../src/providers/index.js';
 import { pmAdapter, account, brDub, userOpts } from './helpers/autofetch-skip-common.js';
 import { sleep } from './helpers/autofetch-fixtures.js';
@@ -82,7 +83,7 @@ test('H2: settle expirado apaga o marcador junto do torrent (sem esperar o TTL)'
 
 // --- expired-unready: o gate de remoção por id vale na expiração ------------
 
-async function expireProbe(via: 'id' | 'hash', removeById: boolean) {
+async function expireProbe(via: 'id' | 'hash', removeById: boolean, preparar?: (account: string, hash: string) => void) {
   const originalCheck = debrid.checkCached;
   const originalTtl = config.debrid.autoFetchTtl;
   const originalRemoveById = config.debrid.removeById;
@@ -101,6 +102,7 @@ async function expireProbe(via: 'id' | 'hash', removeById: boolean) {
     ad.torrentStatus = async () => ({ [h]: { state: 'downloading', id: 555, via } });
     ad.removeTorrent = async () => { removals += 1; return true; };
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    preparar?.(account, h);
     recheckLots.set(searchKey, {
       hashes: new Set([h]), attempts: 9, timer: null, inFlight: false,
       ctx: { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: chave }, encoded: 'cfg-exp-ad' },
@@ -130,6 +132,8 @@ async function expireProbe(via: 'id' | 'hash', removeById: boolean) {
     cache.forget(autofetch.markerKey('alldebrid', account, h));
     cache.forget(autofetch.deadKey('alldebrid', account, h));
     held.release(h, account);
+    held.unprotect('alldebrid', account, h);
+    preexisting.delete(account);
     suppressed.forgetSuppressed('alldebrid', account, h);
   }
   if (!result) throw new Error('probe sem resultado');
@@ -143,8 +147,13 @@ test('expired-unready: AllDebrid via=id sem removeById NÃO remove direto — re
   assert.equal(r.suppressed, 1, 'o hash vai para a fila de represados');
 });
 
-test('expired-unready: via=hash preserva a remoção direta histórica', async () => {
-  const r = await expireProbe('hash', false);
-  assert.equal(r.removals, 1, 'adapter sem via:id mantém o comportamento');
+test('expired-unready: via=hash remove direto quando a posse é provada (marker + snapshot sem o hash)', async () => {
+  const r = await expireProbe('hash', false, (account, h) => {
+    // Prova de posse (marker do enqueue) + inventário carregado sem o hash.
+    // Sem isso o P1.2 manda para represados — ver autofetch-expired-ownership.
+    cache.set(autofetch.markerKey('alldebrid', account, h), 1, 3600);
+    preexisting.set(account, { hashes: new Set(), loadedAt: Date.now() });
+  });
+  assert.equal(r.removals, 1, 'posse provada mantém a remoção direta do via=hash');
   assert.equal(r.suppressed, 0, 'nada represado quando a remoção acontece');
 });

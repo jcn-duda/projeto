@@ -365,7 +365,7 @@ test('AllDebrid com progress: adapter só anexa progresso em Downloading com cam
     })) as unknown as typeof globalThis.fetch;
     const out = await ad.torrentStatus!('chave-de-teste', [ok, nullo, fila, completo]);
     assert.equal(out[ok].state, 'downloading');
-    assert.equal(out[ok].via, 'id', 'remoção terminal fica sob o gate removeById');
+    assert.equal(out[ok].via, 'hash', 'listagem por hash: remoção terminal fora do gate removeById');
     assert.deepEqual(out[ok].progress, { bytes: 250, total: 1000, speed: 0, seeders: 0 });
     assert.equal(out[ok].stalled, undefined, 'o adaptador NÃO deriva stalled');
     assert.equal(out[nullo].progress, undefined, 'campo cru null não vira zero');

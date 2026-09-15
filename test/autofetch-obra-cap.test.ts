@@ -298,7 +298,7 @@ test('seeds raro usa autoFetchRareMax como teto explícito', async () => {
   }
 });
 
-test('drainNext descarta o candidato bloqueado pelo teto e sobe o próximo elegível', async () => {
+test('drainNext DEFERE o candidato bloqueado pelo teto (não descarta) e sobe o próximo elegível', async () => {
   const apiKey = 'chave-obra-drain';
   const imdbId = 'tt7000009';
   const searchKey = 'obra-drain-search';
@@ -309,12 +309,13 @@ test('drainNext descarta o candidato bloqueado pelo teto e sobe o próximo eleg�
   trackKey(apiKey, { imdbId, season: 1, episode: 1 });
   const enqueued: string[] = [];
   const d = skipDelta('obra-cap');
+  const beforeDeferred = metrics.snapshot().counters['autofetch.drain.obra-cap-deferred'] || 0;
   try {
-    const lease = reserveObra({ ...identity(apiKey, { imdbId, season: 1, episode: 1 }), pool: 'br', hash: hCapped });
+    const lease = reserveObra({ ...identity(apiKey, { imdbId, season: 1, episode: 1 }), pool: 'br', hash: hCapped, quality: '720p' });
     assert.ok(lease);
-    commitObra(lease, { hash: hCapped, pool: 'br', title: 'BR no teto', br: true, dubbed: true });
+    commitObra(lease, { hash: hCapped, pool: 'br', title: 'BR no teto', br: true, dubbed: true, quality: '720p' });
     autofetch.writeQueue(searchKey, [
-      { infoHash: hCapped, pool: 'br', imdbId, season: 1, episode: 1, title: 'BR no teto', br: true, dubbed: true },
+      { infoHash: hCapped, pool: 'br', imdbId, season: 1, episode: 1, title: 'BR no teto', br: true, dubbed: true, quality: '720p' },
       { infoHash: hSeed, pool: 'seeds', imdbId, season: 1, episode: 1, title: 'Movie 1080p BluRay', br: false, dubbed: false, quality: '1080p', size: 2 * 1024 ** 3 },
     ], 3600, PM, account);
     pmAdapter.enqueue = async (_key, h) => { enqueued.push(String(h)); return true; };
@@ -323,12 +324,72 @@ test('drainNext descarta o candidato bloqueado pelo teto e sobe o próximo eleg�
       () => drainNext(searchKey, { refusals: 0, hashes: new Set<string>(), seasonHints: new Map() }),
     );
     await sleep(20);
-    assert.deepEqual(enqueued, [hSeed], 'o br no teto é descartado; o seeds elegível sobe');
-    assert.equal(d(), 1, 'descarte contabilizado como obra-cap');
-    assert.equal(autofetch.readQueue(searchKey).length, 0, 'fila consumida/dispensada');
+    assert.deepEqual(enqueued, [hSeed], 'o br no teto é DEFERIDO; o seeds elegível sobe');
+    assert.equal(d(), 0, 'defer NÃO é skip do painel (candidato segue na fila)');
+    assert.equal(
+      (metrics.snapshot().counters['autofetch.drain.obra-cap-deferred'] || 0) - beforeDeferred,
+      1,
+      'o defer tem métrica própria',
+    );
+    // Diferente do descarte antigo, o BR barrado PERMANECE disponível.
+    const fila = autofetch.readQueue(searchKey);
+    assert.deepEqual(fila.map((c) => String(c.infoHash).toLowerCase()), [hCapped], 'o BR barrado segue na fila para a próxima janela');
   } finally {
     pmAdapter.enqueue = async () => true;
     autofetch.dropQueue(searchKey);
     forgetHashes(apiKey, [hCapped, hSeed]);
+  }
+});
+
+test('overflow de upgrade: cap cheio por faixas baixas não bloqueia o 1080p novo; uma por janela', () => {
+  const apiKey = 'chave-obra-overflow';
+  const imdbId = 'tt7000010';
+  const o = { imdbId, season: 1, episode: 1 };
+  autofetchLive.set({ autoFetchMax: 3 });
+  trackKey(apiKey, o);
+  const lows: Array<[string, string]> = [[hx('c0'), '720p'], [hx('c1'), '480p'], [hx('c2'), 'sd']];
+  const extra = hx('c4');
+  const bloqueados = [hx('c3'), hx('c5'), hx('c6')];
+  try {
+    for (const [hash, quality] of lows) {
+      const lease = reserveObra({ ...identity(apiKey, o), pool: 'br', hash, quality });
+      assert.ok(lease, `cap ainda tinha vaga para ${quality}`);
+      commitObra(lease, { hash, pool: 'br', quality });
+    }
+    // Cap normal (cheio) barra faixa repetida/inferior.
+    assert.equal(reserveObra({ ...identity(apiKey, o), pool: 'br', hash: bloqueados[0], quality: '720p' }), null, 'faixa repetida não abre overflow');
+
+    // Faixa-alvo ausente e superior ao pior registrado (sd) → UMA extra.
+    const upgrade = reserveObra({ ...identity(apiKey, o), pool: 'br', hash: extra, quality: '1080p' });
+    assert.ok(upgrade, '1080p ausente abre a reserva extra de upgrade');
+    assert.equal(upgrade?.overflow, true, 'a reserva extra é marcada como overflow');
+    commitObra(upgrade, { hash: extra, pool: 'br', quality: '1080p' });
+
+    // Só UMA por janela.
+    assert.equal(reserveObra({ ...identity(apiKey, o), pool: 'br', hash: bloqueados[1], quality: '1080p' }), null, 'faixa já presente não repete');
+    assert.equal(reserveObra({ ...identity(apiKey, o), pool: 'br', hash: bloqueados[2], quality: '2160p' }), null, 'uma overflow por janela');
+
+    const rec = obraRecord(identity(apiKey, o));
+    assert.equal(rec.length, 4, 'três baixos + um overflow');
+    assert.equal(rec.filter((e) => e.overflow === true).length, 1);
+    assert.ok(rec.some((e) => e.hash === lows[0][0]), 'magnet antigo NÃO foi removido pelo overflow');
+
+    // Cap normal invariável: abaixo do teto, a faixa-alvo entra sem overflow.
+    const imdb2 = 'tt7000011';
+    const o2 = { imdbId: imdb2 };
+    trackKey(apiKey, o2);
+    const b1 = hx('d0'); const b2 = hx('d1'); const b3 = hx('d2');
+    for (const [hash, quality] of [[b1, '720p'], [b2, '720p']] as const) {
+      const l = reserveObra({ ...identity(apiKey, o2), pool: 'br', hash, quality });
+      assert.ok(l);
+      commitObra(l, { hash, pool: 'br', quality });
+    }
+    const normal = reserveObra({ ...identity(apiKey, o2), pool: 'br', hash: b3, quality: '1080p' });
+    assert.ok(normal, 'com vaga no cap, o 1080p entra normalmente');
+    assert.equal(normal?.overflow, undefined, 'cap normal não vira overflow');
+    commitObra(normal, { hash: b3, pool: 'br', quality: '1080p' });
+    forgetHashes(apiKey, [b1, b2, b3]);
+  } finally {
+    forgetHashes(apiKey, [...lows.map(([h]) => h), ...bloqueados, extra]);
   }
 });

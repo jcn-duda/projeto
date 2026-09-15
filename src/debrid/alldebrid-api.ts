@@ -71,7 +71,12 @@ export interface AllDebridMagnet {
   id?: string | number;
   hash?: string;
   status?: string;
-  /** Código numérico do estado (ex.: 4 = Downloading). Vem sempre. */
+  /**
+   * Código numérico do estado. MEDIDO (2026-09-15): `1 = Downloading`,
+   * `4 = Ready` e `10 = terminal` (download passou de 3 dias e a AllDebrid o
+   * encerrou). Vem sempre, mas o código é usado só onde foi provado — para o
+   * resto o texto do status continua autoridade.
+   */
   statusCode?: number;
   filename?: string;
   /** Em segundos, não milissegundos. */
@@ -94,8 +99,29 @@ export interface AllDebridMagnet {
 }
 
 // Estados dos quais a AllDebrid não volta: o torrent não vai baixar.
-export const DEAD = /no peer|expired|not available|error|failed/i;
+//
+// A frase "Download took more than 3 days" é terminal MEDIDO (statusCode 10,
+// 2026-09-15): o magnet passou de 3 dias baixando e a conta o encerra. O regex
+// antigo (`no peer|expired|…`) não a casava, então o magnet ficava na conta
+// para sempre — a limpeza da checagem não o alcançava (não estava na busca) e o
+// `sweepDead` também não. A frase EXATA entrou no predicado compartilhado para
+// valer nos dois caminhos.
+export const DEAD = /no peer|expired|not available|error|failed|download took more than 3 days/i;
 export const ACTIVE_STATES = /^(?:queued|downloading|processing|compressing|moving|uploading)$/i;
+
+/**
+ * Terminal do AllDebrid. A autoridade é o TEXTO do status (frase exata e as
+ * demais marcas do `DEAD`). O `statusCode` NÃO decide: o `10` foi medido nesse
+ * estado, mas condenar por código isolado derrubava magnet cujo texto ainda
+ * dizia `Downloading` — o código é documentação/informação, não prova. O
+ * chamador passa só o texto.
+ */
+export function isDeadMagnet(status: unknown, statusCode?: unknown): boolean {
+  // O 2º parâmetro é aceito e IGNORADO de propósito: assinatura estável para os
+  // consumidores históricos, sem devolver ao código o poder de condenar.
+  void statusCode;
+  return DEAD.test(String(status || ''));
+}
 
 /**
  * Na v4.1 os arquivos vêm como árvore, não como lista de links: `n` é o nome,

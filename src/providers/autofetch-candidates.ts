@@ -14,6 +14,9 @@ import * as autofetch from './autofetch.js';
 import { noteSkip } from './autofetch-gates.js';
 import { pickSeedsPool, purgeSeedsQueue } from './autofetch-seeds-pool.js';
 import { requestBrProbe, probeBlocksSeeds } from './br-probe.js';
+import { hasBrEvidence, hasBrDubbed } from '../utils/br-gap.js';
+import * as releaseIndex from '../utils/release-index.js';
+import * as harvestQueue from './harvest-queue.js';
 import { pickLowerPoolFallbacks, composeQueueEntries, toQueueCandidate } from './autofetch-fallback.js';
 import {
   filterSeedsUniverse,
@@ -133,10 +136,30 @@ export function autoFetchCandidates(
   const probeWork = imdbId
     ? { type: (season != null ? 'series' : 'movie') as 'movie' | 'series', imdbId, season: season ?? null, episode: episode ?? null }
     : null;
-  if (probeWork && candidates.length === 0) requestBrProbe(probeWork);
-  // `pending` (procurando) e `found` (BR já existe) bloqueiam seeds; empty/
-  // failed/capped liberam. O bloqueio por found é durável, mas correto: com BR
-  // dublado no índice, baixar swarm para a MESMA obra é desperdício.
+  if (probeWork && candidates.length === 0) {
+    // Gate de plausibilidade (C6): consulta QUIET o índice da obra/location.
+    // Pool vazio sozinho NÃO dispara a sonda — numa obra sem nenhuma evidência
+    // isBr, a ausência de dublado é o esperado e a varredura dirigida viraria
+    // crawl eterno. Nesse caso o pedido vira `br-gap` REGULAR (sem brProbe,
+    // sem pending, sem bloquear seeds). Com evidência BR, a sonda é upgrade
+    // (já há dublado) ou ausência de dublado dentro da obra com prova BR.
+    const releases = releaseIndex.lookupQuiet(imdbId as string, { season: season ?? null, episode: episode ?? null });
+    if (hasBrEvidence(releases)) {
+      requestBrProbe(probeWork, { mode: hasBrDubbed(releases) ? 'upgrade' : 'evidence' });
+    } else {
+      metrics.count('autofetch.brProbe.skipped.no-evidence');
+      harvestQueue.enqueue({
+        type: probeWork.type,
+        imdbId: probeWork.imdbId,
+        season: probeWork.season,
+        episode: probeWork.episode,
+        reason: 'br-gap',
+      });
+    }
+  }
+  // `pending` (procurando) bloqueia seeds de forma transitória; `found` NÃO —
+  // a lista/índice decide na próxima abertura, o TTL do estado não segura
+  // swarm. empty/failed/capped liberam.
   const probeBlocked = Boolean(probeWork && probeBlocksSeeds(probeWork));
   const dubbedGlobal = candidates.length === 0
     ? pickAnyDubbedCandidates(liveStreams, new Set(), totalMax, { season })

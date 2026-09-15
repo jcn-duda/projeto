@@ -21,6 +21,12 @@ export type HarvestEntry = {
   episode?: number | null;
   reason: string;
   enqueuedAt: number;
+  // Instante da JANELA DE PRIORIDADE da entrada `br-gap` (Fase 5). Separado do
+  // `enqueuedAt` de propósito: a promoção a `br-gap` NÃO pode resetar a fome —
+  // uma obra que espera há horas vira urgente por 1h sem perder o direito ao
+  // bound anti-fome. Ausente em entrada antiga: a leitura cai no `enqueuedAt`
+  // (janela conservadora, nunca maior que a real).
+  priorityAt?: number;
   // Sinal de painel (Etapa 2): entrada devolvida à FRENTE da fila por
   // preempção de tráfego. Não entra na ordenação — é o head() com o
   // enqueuedAt original que a coloca à frente do próprio rank.
@@ -76,7 +82,10 @@ function isPromotion(currentReason: string, incomingReason: string): boolean {
 
 /** `br-gap` promovido/enfileirado dentro da janela de prioridade própria. */
 function isRecentBrGap(entry: HarvestEntry, now: number): boolean {
-  return entry.reason === 'br-gap' && now - entry.enqueuedAt < BR_GAP_PRIORITY_WINDOW_MS;
+  if (entry.reason !== 'br-gap') return false;
+  // Fallback seguro para entrada antiga sem `priorityAt`: usa o `enqueuedAt`.
+  const since = entry.priorityAt ?? entry.enqueuedAt;
+  return now - since < BR_GAP_PRIORITY_WINDOW_MS;
 }
 
 /**
@@ -194,11 +203,13 @@ function markRecentlyQueued(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'epi
  * nunca bloqueia — é fogo-e-esquece por contrato.
  *
  * Fase 5: a obra já na fila aceita PROMOÇÃO de motivo (`next-episode` >
- * `br-gap` > demais), sem duplicar e sem rebaixar. A promoção renova o
- * `enqueuedAt` ("pedido agora") e a entrada sobe pela ordem efetiva (o
- * `br-gap` recente tem tier próprio em `prioritizeQueue`). O dedupe de 12h é
- * gravado/renovado DEPOIS da decisão — gravá-lo antes engolia a promoção
- * (obra enfileirada como `miss` nunca virava `br-gap`).
+ * `br-gap` > demais), sem duplicar e sem rebaixar. A promoção NÃO renova o
+ * `enqueuedAt` ("pedido agora"): a fome continua contando desde o pedido
+ * original e, quando o motivo é `br-gap`, a janela própria passa a contar do
+ * `priorityAt` gravado/atualizado na promoção. A entrada sobe pela ordem
+ * efetiva (o `br-gap` recente tem tier próprio em `prioritizeQueue`). O dedupe
+ * de 12h é gravado/renovado DEPOIS da decisão — gravá-lo antes engolia a
+ * promoção (obra enfileirada como `miss` nunca virava `br-gap`).
  */
 export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>): EnqueueOutcome {
   const live = harvesterLive.effective();
@@ -207,6 +218,7 @@ export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>): EnqueueOutcome
   if (!/^tt\d+$/.test(imdbId)) return { accepted: false, reason: 'invalid' };
   if (entry.type !== 'movie' && entry.type !== 'series') return { accepted: false, reason: 'invalid' };
   const full: HarvestEntry = { ...entry, imdbId, enqueuedAt: Date.now() };
+  if (full.reason === 'br-gap') full.priorityAt = full.enqueuedAt;
 
   // Duplicata/promoção ANTES do dedupe (Fase 5): o dedupe é por obra+motivo, e
   // gravá-lo antes de decidir deixava um pedido mais forte sem efeito quando o
@@ -224,9 +236,10 @@ export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>): EnqueueOutcome
     }
     const from = existing.reason;
     existing.reason = full.reason;
-    existing.enqueuedAt = full.enqueuedAt;
-    // Promoção aceita grava/renova o dedupe: sem isso a mesma busca repetiria a
-    // promoção (e o "pedido agora") a cada abertura.
+    // Promoção NÃO zera o `enqueuedAt`: sobe o motivo sem apagar a fome (o
+    // bound `harvestBrMaxWaitMs` continua contando desde o pedido original). A
+    // janela própria do `br-gap` passa a contar de `priorityAt`.
+    if (full.reason === 'br-gap') existing.priorityAt = full.enqueuedAt;
     markRecentlyQueued(full);
     reorder();
     persist();
@@ -320,8 +333,11 @@ export function head(entry: HarvestEntry): void {
   if (entry.brProbe) queued.brProbe = true;
   if (isPromotion(queued.reason, entry.reason)) {
     // Mantém `enqueuedAt`/`resumed` da entrada que já estava na fila; só o
-    // motivo sobe.
+    // motivo sobe — a fome não é resetada, e a janela do br-gap vem de
+    // `priorityAt`. Só copia quando a entrada JÁ tem o campo: inventar um
+    // instante aqui estenderia a janela de prioridade artificialmente.
     queued.reason = entry.reason;
+    if (entry.reason === 'br-gap' && entry.priorityAt != null) queued.priorityAt = entry.priorityAt;
   }
   queue.splice(idx, 1);
   queue.unshift(queued);
@@ -349,8 +365,9 @@ export function tail(entry: HarvestEntry): void {
   if (entry.brProbe) queued.brProbe = true;
   if (isPromotion(queued.reason, entry.reason)) {
     // Mantém `enqueuedAt`/`resumed` da entrada que já estava na fila; só o
-    // motivo sobe.
+    // motivo sobe — a fome não é resetada.
     queued.reason = entry.reason;
+    if (entry.reason === 'br-gap' && entry.priorityAt != null) queued.priorityAt = entry.priorityAt;
   }
 }
 

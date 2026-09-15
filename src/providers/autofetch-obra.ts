@@ -45,6 +45,7 @@ import { prefix } from '../utils/cache-keys.js';
 import * as cache from '../utils/cache.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import * as metrics from '../utils/metrics.js';
+import { overflowUpgradeAllowed } from './autofetch-obra-overflow.js';
 
 const OBRA_PREFIX = `${prefix('autofetch')}o:`;
 
@@ -62,6 +63,14 @@ export interface ObraEntry {
   br?: boolean;
   dubbed?: boolean;
   id?: string;
+  /**
+   * Faixa de qualidade do aceite (persistida para o overflow de upgrade — C11).
+   * Ausente em entrada antiga: o overflow degrada para conservador (não prova
+   * superioridade) e nunca é concedido.
+   */
+  quality?: string;
+  /** Marcada quando a vaga foi uma reserva EXTRA de upgrade (cap+1). */
+  overflow?: boolean;
 }
 
 export interface ObraIdentityInput {
@@ -87,6 +96,8 @@ export interface ObraReserveInput extends ObraIdentityInput {
   /** Candidato seeds do regime raro (slotLimit correspondente): sobe o teto. */
   rare?: boolean;
   slotLimit?: number;
+  /** Faixa de qualidade do candidato (para o overflow de upgrade — C11). */
+  quality?: string;
 }
 
 /** Reserva concedida. `key` vazio = sem identidade utilizável (teto não se aplica). */
@@ -96,9 +107,11 @@ export interface ObraLease {
   pool: string;
   hash: string;
   rare: boolean;
+  /** A vaga veio da reserva EXTRA de upgrade (cap+1). */
+  overflow?: boolean;
 }
 
-type Pending = { id: string; pool: string; rare: boolean; at: number };
+type Pending = { id: string; pool: string; rare: boolean; at: number; hash: string; quality?: string; overflow?: boolean };
 const pending = new Map<string, Pending[]>();
 let sequence = 0;
 
@@ -187,6 +200,8 @@ function readRecord(key: string): ObraEntry[] {
       br: e.br === true,
       dubbed: e.dubbed === true,
       ...(e.id != null && e.id !== '' ? { id: String(e.id) } : {}),
+      ...(e.quality != null && e.quality !== '' ? { quality: String(e.quality) } : {}),
+      ...(e.overflow === true ? { overflow: true } : {}),
     });
   }
   return out;
@@ -203,19 +218,35 @@ function pendingFor(key: string, now: number): Pending[] {
   return alive;
 }
 
+/** Entradas persistidas ainda dentro da janela (descartadas: vencidas). */
+function windowedRecord(key: string, now: number, span: number): ObraEntry[] {
+  if (span <= 0) return [];
+  return readRecord(key).filter((e) => e.acceptedAt > now - span);
+}
+
 /** Contagem por pool = persistido na janela + reservas vivas. */
-function countsFor(key: string, now: number, span: number): Record<string, number> {
+function countsFrom(entries: ObraEntry[], alive: Pending[]): Record<string, number> {
   const counts: Record<string, number> = {};
-  if (span > 0) {
-    for (const entry of readRecord(key)) {
-      if (entry.acceptedAt <= now - span) continue;
-      counts[entry.pool] = (counts[entry.pool] || 0) + 1;
-    }
-  }
-  for (const heldVaga of pendingFor(key, now)) {
-    counts[heldVaga.pool] = (counts[heldVaga.pool] || 0) + 1;
-  }
+  for (const entry of entries) counts[entry.pool] = (counts[entry.pool] || 0) + 1;
+  for (const heldVaga of alive) counts[heldVaga.pool] = (counts[heldVaga.pool] || 0) + 1;
   return counts;
+}
+
+/**
+ * Registro + reservas vivas como `ObraEntry`, para a decisão de overflow. Sem
+ * as PENDING, uma faixa-alvo recém-reservada (ainda não commitada) não aparecia
+ * e um segundo hash da MESMA faixa ganhava o slot cap+1 — reserva viva é vaga
+ * ocupada, com a qualidade dela.
+ */
+function combinedView(entries: ObraEntry[], alive: Pending[]): ObraEntry[] {
+  const heldEntries: ObraEntry[] = alive.map((p) => ({
+    hash: p.hash,
+    pool: p.pool,
+    acceptedAt: p.at,
+    ...(p.quality ? { quality: p.quality } : {}),
+    ...(p.overflow ? { overflow: true } : {}),
+  }));
+  return [...entries, ...heldEntries];
 }
 
 function noCapLease(pool: string, hash: string, rare: boolean): ObraLease {
@@ -239,17 +270,30 @@ export function reserveObra(input: ObraReserveInput): ObraLease | null {
 
   const key = obraKey(input);
   const now = Date.now();
-  const counts = countsFor(key, now, windowMs(live));
+  const span = windowMs(live);
+  const alive = pendingFor(key, now);
+  const record = windowedRecord(key, now, span);
+  const counts = countsFrom(record, alive);
   const cap = poolCap(pool, rare, live);
-  if ((counts[pool] || 0) >= cap) {
-    metrics.count('autofetch.obra.cap-blocked');
-    return null;
+  const current = counts[pool] || 0;
+  let overflow = false;
+  if (current >= cap) {
+    // Só o cap EXATO abre a reserva extra (cap+1): acima disso a janela já
+    // consumiu o overflow. A decisão vê registro + reservas PENDING vivas, com
+    // a qualidade delas — sem isso uma faixa-alvo recém-reservada não bloqueava
+    // a duplicata ainda-não-commitada.
+    if (current !== cap || !overflowUpgradeAllowed(combinedView(record, alive), input)) {
+      metrics.count('autofetch.obra.cap-blocked');
+      return null;
+    }
+    overflow = true;
+    metrics.count('autofetch.obra.overflow-upgrade');
   }
 
   sequence += 1;
-  const lease: ObraLease = { id: `${now}:${sequence}`, key, pool, hash, rare };
+  const lease: ObraLease = { id: `${now}:${sequence}`, key, pool, hash, rare, ...(overflow ? { overflow: true } : {}) };
   const list = pending.get(key) || [];
-  list.push({ id: lease.id, pool, rare, at: now });
+  list.push({ id: lease.id, pool, rare, at: now, hash, ...(input.quality ? { quality: String(input.quality) } : {}), ...(overflow ? { overflow: true } : {}) });
   pending.set(key, list);
   metrics.count('autofetch.obra.reserved');
   return lease;
@@ -279,7 +323,7 @@ export function releaseObra(lease: ObraLease | null | undefined): void {
  */
 export function commitObra(
   lease: ObraLease | null | undefined,
-  entry: { hash: string; pool: string; title?: string; br?: boolean; dubbed?: boolean; id?: string },
+  entry: { hash: string; pool: string; title?: string; br?: boolean; dubbed?: boolean; id?: string; quality?: string; overflow?: boolean },
 ): void {
   if (!lease || !lease.key) return;
   removePending(lease);
@@ -302,6 +346,8 @@ export function commitObra(
     br: entry.br === true,
     dubbed: entry.dubbed === true,
     ...(entry.id ? { id: entry.id } : {}),
+    ...(entry.quality ? { quality: String(entry.quality) } : {}),
+    ...((entry.overflow ?? lease.overflow) === true ? { overflow: true } : {}),
   });
   cache.set(lease.key, { entries: kept }, Math.max(1, Math.trunc(Number(live.autoFetchTtl) || 0)));
   metrics.count('autofetch.obra.committed');

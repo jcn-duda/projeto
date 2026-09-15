@@ -80,6 +80,7 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit, rare }: Aut
       obraLease = reserveObra({
         adapterId: adapter.id, account, imdbId, season, episode: isPack ? null : episode, isPack, searchKey,
         pool, hash: h, rare, slotLimit,
+        quality: streamQuality(stream) || undefined,
       });
       return obraLease != null;
     },
@@ -110,6 +111,7 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit, rare }: Aut
           title: String(stream.title || stream.name || '').split('\n')[0].slice(0, 120),
           br: Boolean(stream._br),
           dubbed: Boolean(stream._dubbed),
+          quality: streamQuality(stream) || undefined,
           ...(typeof ok === 'string' && ok ? { id: ok } : {}),
         });
         metrics.count('autofetch.enqueued');

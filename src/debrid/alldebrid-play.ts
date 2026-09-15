@@ -2,7 +2,7 @@ import config from '../config.js';
 import { accountScope } from '../utils/request-key.js';
 import { pickFile, wait } from './common.js';
 import * as log from '../utils/logger.js';
-import { call, flattenFiles, DEAD, ACTIVE_STATES, id, type AllDebridMagnet } from './alldebrid-api.js';
+import { call, flattenFiles, isDeadMagnet, ACTIVE_STATES, id, type AllDebridMagnet } from './alldebrid-api.js';
 import { rememberSubmitted, waitProvenanceReference } from './alldebrid-inventory.js';
 import { skipCleanup } from './alldebrid-cleanup.js';
 import { reuploadBlocked, unblockIfInventoryReady } from './alldebrid-reupload.js';
@@ -152,7 +152,7 @@ export async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
     const statusStr = String(magnet.status || '');
     if (magnet.ready || /^ready$/i.test(statusStr)) {
       state = 'ready';
-    } else if (DEAD.test(statusStr)) {
+    } else if (isDeadMagnet(statusStr)) {
       state = 'dead';
     } else if (ACTIVE_STATES.test(statusStr)) {
       state = 'downloading';
@@ -175,16 +175,18 @@ export async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
       && total > 0 && bytes < total
       ? { bytes, total, speed, seeders }
       : undefined;
-    // `via: 'id'` DELIBERADO mesmo com o hash publicado na listagem: é o que
-    // mantém a remoção terminal do AllDebrid sob o gate `DEBRID_REMOVE_BY_ID`
-    // (default false). O ramo destrutivo do recheck só apaga direto quando
-    // `via !== 'id'`; sem o campo, o recheck ignorava o freio de rollout e
-    // varria a conta que o autofetch enche. Aqui o `id` é o do próprio magnet,
-    // âncora do `removeTorrent`.
+    // `via: 'hash'` DELIBERADO: o status sai da listagem autoritativa por hash
+    // do `/magnet/status`, e o `id` já estava disponível nela. Marcar `via:id`
+    // aqui prendia a remoção terminal ao gate `DEBRID_REMOVE_BY_ID` (default
+    // false) SEM que a AllDebrid dependesse de id para o delete — resultado:
+    // morto/expirado ficava na conta e o `sweepDead`/painel era a única saída.
+    // Com `hash`, o recheck remove o terminal direto (o `id` continua sendo a
+    // âncora do `removeTorrent`); o ramo progress-stalled NÃO usa este campo,
+    // ele é sempre represado.
     out[hash] = {
       state,
       id: magnet.id,
-      via: 'id',
+      via: 'hash',
       ...(progress ? { progress } : {}),
     };
   }

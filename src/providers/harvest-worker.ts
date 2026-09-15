@@ -11,15 +11,15 @@ import bludv from './bludv.js';
 import { getMeta } from '../utils/cinemeta.js';
 import * as tmdb from '../utils/tmdb.js';
 import { resolveSearchNames, filterRelevantRaw } from '../utils/format.js';
-import { ptSweepIndexers, ptSweepQueryFor } from './search-plan.js';
+import { runPtSweep } from './harvest-sweep.js';
 import * as releaseIndex from '../utils/release-index.js';
-import { brTransition, invalidateStreamsForObra, hasBrDubbed } from '../utils/br-gap.js';
+import { brTransition, invalidateStreamsForObra, hasBrDubbed, newBrDubbedReleases, probeFoundViable, BR_GAP_TARGET_QUALITY } from '../utils/br-gap.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import { buildWorkQueries } from './harvest-queries.js';
 import { queueRdWarmForRelevant } from './harvest-warmer.js';
 import { applyPtTitleDual } from './pt-title-dual.js';
-import { probeIndexers } from './br-probe.js';
+import { probeIndexers, probeRunWaitMs } from './br-probe.js';
 import * as harvesterLive from '../utils/harvester-live.js';
 import * as cache from '../utils/cache.js';
 import { prefix } from '../utils/cache-keys.js';
@@ -102,30 +102,8 @@ async function awaitIndexerGap(indexer: string) {
   }
 }
 
-/**
- * Fatia circular da varredura pt-BR parcial. Quando o teto horário corta
- * (restante < targets.length), o ponto de partida rotaciona com o cursor para
- * o teto não congelar a varredura sempre nos MESMOS primeiros alvos — o
- * dublado titulado em PT mora em qualquer um deles, e uma fatia sempre-limitada
- * deixaria os de trás eternamente invisíveis. Quando o teto comporta tudo,
- * devolve a lista inteira (comportamento antigo) e o cursor zera.
- */
-export function sliceSweepFatia(targets: string[], restante: number, cursor: number): { fatia: string[]; next: number } {
-  const total = targets.length;
-  if (total === 0 || restante <= 0) return { fatia: [], next: cursor };
-  if (restante >= total) return { fatia: targets, next: 0 };
-  const start = cursor % total;
-  const fatia: string[] = [];
-  for (let i = 0; i < restante; i += 1) fatia.push(targets[(start + i) % total]);
-  return { fatia, next: (start + restante) % total };
-}
-
-let sweepCursor = 0;
-
-/** Zera o cursor do round-robin — os testes precisam de uma partida conhecida. */
-export function resetSweepCursor() {
-  sweepCursor = 0;
-}
+/** Reexportado do irmão para preservar a superfície pública (testes/painel). */
+export { sliceSweepFatia, resetSweepCursor } from './harvest-sweep.js';
 
 export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean; preempted: boolean; added: number; brFound: boolean; responded: number }> {
   const startedAt = Date.now();
@@ -135,6 +113,10 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // orçamento dedicado e o registro/transição do índice). Não é um segundo
   // worker — é o worker existente com escopo reduzido.
   const directed = entry.brProbe === true;
+  // Urgência operacional (Fase 4/5): `next-episode` é play real e brProbe é a
+  // lacuna provada pela sonda. AMBOS furam SÓ o gate de inatividade — teto
+  // horário, intervalo por indexer, breaker e worker único continuam valendo.
+  const urgent = directed || entry.reason === 'next-episode';
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
   const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
   if (!searchMeta?.name) return { ok: false, capped: false, preempted: false, added: 0, brFound: false, responded: 0 };
@@ -159,95 +141,37 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   let responded = 0;
   const collected: any[] = [];
 
-  // Varredura pt-BR nos globais, ANTES do laço de propósito: é a consulta de
-  // maior valor por unidade (uma chamada agrupada que acha o dublado titulado
-  // em PT, que a query em inglês nunca encontra), então quando o teto horário
-  // cortar, quem fica pelo caminho é a cauda do laço — não ela. Na ordem
-  // antiga o guard somava as consultas do laço e a varredura era a primeira
-  // sacrificada: com 19 indexers e 12 alvos contra teto de 30, ela NUNCA
-  // rodava.
-  //
-  // Varredura pt-BR nos globais, a mesma da busca ao vivo: o dublado
-  // titulado em PT mora em tracker global e a query em inglês não o encontra
-  // — sem isto o índice ficava sistematicamente cego para a release que só a
-  // varredura acha, e o colhedor não a entregava nunca. Divergência DE
-  // PROPÓSITO do caminho ao vivo: aqui o breaker é RESPEITADO (sem
-  // ignoreBreaker) — colheita de fundo não precisa acordar indexer
-  // recém-derrubado, o dublado raro espera o cooldown.
-  const sweepQuery = config.jackett.ptSweepGlobal ? ptSweepQueryFor({ titles }) : null;
-  // Index-only ficam fora da varredura de propósito: eles são consultados
-  // INDIVIDUALMENTE no laço abaixo (com orçamento dedicado de
-  // JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS) — pela varredura agrupada eles
-  // pagariam o budgetFor comum e voltariam a estourar o breaker que o
-  // isolamento deles existe para evitar. Os BR index-only seguem no laço.
-  // A varredura agrupada não roda no modo dirigido: ele já consulta a própria
-  // interseção individualmente, e repetir a query raiz nos globais seria
-  // trabalho fora do escopo da sonda.
-  const sweepTargets =
-    !directed && sweepQuery && !activity.recentUserTraffic(live.harvestIdleWindowMs)
-      ? ptSweepIndexers(indexers, config.jackett.ptBrIndexers, config.jackett.indexOnlyIndexers)
-      : [];
-  if (sweepQuery && sweepTargets.length > 0) {
-    // A varredura agrupada dispara uma consulta HTTP por alvo: conta no teto
-    // com a mesma moeda do loop acima, antes de decidir. A fatia parcial
-    // permite colher o que couber no orçamento em vez de tudo-ou-nada, e o
-    // round-robin (sliceSweepFatia + sweepCursor) rotaciona o ponto de partida
-    // para o teto não congelar a varredura sempre nos MESMOS primeiros alvos.
-    const restante = live.harvestMaxPerHour - queriesThisHour();
-    const { fatia, next } = sliceSweepFatia(sweepTargets, restante, sweepCursor);
-    sweepCursor = next;
-    // O breaker pertence ao caminho ao vivo; aqui ele é apenas consumido
-    // (recordStatus:false). Alvo com circuito aberto não sai nem debita cota —
-    // o próprio jackett.search economizaria a consulta, mas a contabilidade
-    // (attempted) não.
-    const ativos = fatia.filter((target) => !jackett.breakerTripped(target));
-    // partial = teto cortou a lista de alvos; breaker = circuito omitiu alvo
-    // da fatia. Antes misturavam `ativos < sweepTargets` e só contavam no
-    // ramo com consulta — breaker total ou fatia vazia sumiam das métricas.
-    if (fatia.length < sweepTargets.length) metrics.count('harvest.sweep.partial');
-    if (ativos.length < fatia.length) metrics.count('harvest.sweep.breaker');
-    if (!ativos.length) {
-      log.debug(
-        fatia.length > 0
-          ? `[harvest] varredura pt: ${fatia.length} alvo(s) com breaker aberto, nada a consultar`
-          : '[harvest] teto horário atingido antes da varredura pt',
-      );
-    } else {
-      for (const target of ativos) {
-        await awaitIndexerGap(target);
-      }
-      attempted += ativos.length;
-      metrics.count('harvest.sweep');
-      try {
-        const items = await jackett.search(sweepQuery, entry.type, ativos, {
-          matchContext,
-          recordStatus: false,
-          // Descoberta do índice: zero-sobrevivente aqui é sonda negativa,
-          // não desperdício do caminho de resposta (ver jackett.search).
-          background: true,
-        });
-        for (const target of ativos) {
-          lastQueryAt.set(target, Date.now());
-        }
-        succeeded += ativos.length;
-        collected.push(...items.filter((i: any) => !i.fromAccount));
-      } catch (err: unknown) {
-        for (const target of ativos) {
-          lastQueryAt.set(target, Date.now());
-        }
-        log.warn('[harvest] varredura pt falhou:', log.errorMessage(err));
-      }
-    }
-  }
+  // Varredura pt-BR nos globais, ANTES do laço de propósito: ver harvest-sweep.
+  const sweep = await runPtSweep({
+    entry,
+    titles,
+    matchContext,
+    indexers,
+    directed,
+    urgent,
+    harvestMaxPerHour: live.harvestMaxPerHour,
+    harvestIdleWindowMs: live.harvestIdleWindowMs,
+    queriesThisHour: queriesThisHour(),
+    awaitGap: awaitIndexerGap,
+    markQueried: (target) => lastQueryAt.set(target, Date.now()),
+  });
+  attempted += sweep.attempted;
+  succeeded += sweep.succeeded;
+  collected.push(...sweep.items);
 
-  if (directed) metrics.count('autofetch.brProbe.run');
+  if (directed) {
+    metrics.count('autofetch.brProbe.run');
+    // Idade scheduled -> run da sonda (do `pending` gravado até esta execução).
+    const wait = probeRunWaitMs(entry);
+    if (wait != null && wait >= 0) metrics.observe('autofetch.brProbe.runWaitMs', wait);
+  }
   for (const indexer of indexers) {
     // Freio de atividade no MEIO da obra também: tráfego chegou, solta o
     // Jackett na hora (o que já foi coletado entra no índice mesmo assim).
     // O sinal é preempção, não teto: o ciclo devolve a obra à frente da fila
     // sem contar tentativa (tráfego não é falha dela) nem eficácia de
     // meia-obra.
-    if (activity.recentUserTraffic(live.harvestIdleWindowMs)) {
+    if (!urgent && activity.recentUserTraffic(live.harvestIdleWindowMs)) {
       preempted = true;
       break;
     }
@@ -362,7 +286,16 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     }
   }
   queueRdWarmForRelevant(relevant);
-  const brFound = hasBrDubbed(afterReleases);
+  // `found` só de evidência NOVA e VIÁVEL produzida por esta execução. BR antiga
+  // no índice (ou nova de 0 seeders / faixa errada no upgrade) NÃO finaliza
+  // found: o tick decide empty/failed pelo `responded`. Upgrade exige a faixa
+  // alvo (1080p); ausência exige seeders > 0 (fontes BR usam placeholder 1, e
+  // 0 é inviável).
+  const upgradeProbe = hasBrDubbed(beforeReleases);
+  const brFound = probeFoundViable(beforeReleases, afterReleases, upgradeProbe ? { requireQuality: BR_GAP_TARGET_QUALITY } : {});
+  if (!brFound && newBrDubbedReleases(beforeReleases, afterReleases).length > 0) {
+    metrics.count('autofetch.brProbe.found.unviable');
+  }
   // Obra preemptada volta à fila: contar harvested / lastRunAt / recentWorks
   // aqui dobraria a eficácia (meia-colheita + conclusão) e listaria meia
   // obra no painel. O tempo gasto (harvest.ms) continua real em ambos.

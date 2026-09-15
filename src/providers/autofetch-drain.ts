@@ -4,10 +4,11 @@
 // a vaga da obra.
 //
 // Diferença de contrato em relação ao dreno antigo: o candidato que o teto da
-// obra fecha NESTA janela é DESCARTADO da fila (nunca enfileiraria até o TTL
-// vencer) e a seleção segue para o próximo elegível — sem requeue infinito e
-// sem loop sem limite (o laço roda no máximo o tamanho da fila). O descarte
-// conta no skip `obra-cap`, como o caminho imediato.
+// obra fecha NESTA janela é DEFERIDO — permanece na fila enquanto a seleção
+// procura outro elegível. Descartá-lo apagava um BR que voltaria a caber assim
+// que a vaga da obra liberasse (morte/parada), e o candidato era perdido até o
+// TTL. O adiamento conta na métrica própria `autofetch.drain.obra-cap-deferred`
+// — defer NÃO é skip do painel (o candidato segue na fila).
 
 import config from '../config.js';
 import * as cache from '../utils/cache.js';
@@ -24,7 +25,7 @@ import { reserveObra, type ObraLease } from './autofetch-obra.js';
 
 export type DrainSelection = {
   next: QueueCandidate | null;
-  /** Fila já sem os obsoletos e sem os candidatos descartados pelo teto. */
+  /** Fila já sem os obsoletos; os barrados pelo teto voltam à frente (deferidos). */
   remaining: QueueCandidate[];
   /** Reserva da vaga da obra para o `next`; `null` quando não há `next`. */
   lease: ObraLease | null;
@@ -90,40 +91,49 @@ export function takeDrainCandidate(
   let working: QueueCandidate[] = queue;
   let next: QueueCandidate | null = null;
   let remaining: QueueCandidate[] = [];
+  // Candidatos barrados pelo cap da obra: DEFERIDOS, voltam à fila no fim.
+  const deferredByCap: QueueCandidate[] = [];
   let lease: ObraLease | null = null;
-  // Bounded pelo tamanho da fila: cada volta descarta um cabeça ou termina.
+  // Bounded pelo tamanho da fila: cada volta remove um candidato de `working`.
   for (let i = 0; i <= queue.length; i += 1) {
     const picked = autofetch.takeNext(working, skipFn, deferFn);
-    next = picked.next;
+    const candidate = picked.next;
     remaining = picked.remaining;
-    if (!next) {
-      next = null;
-      break;
-    }
+    if (!candidate) break;
     lease = reserveObra({
       adapterId: adapter.id,
       account,
-      imdbId: next.imdbId,
-      season: next.season,
+      imdbId: candidate.imdbId,
+      season: candidate.season,
       // Pack de temporada usa a identidade da TEMPORADA; `rare`/`slotLimit`
       // preservam o cap do pool seeds que a seleção primária aplicou.
-      episode: next.isPack === true ? null : (next.episode ?? null),
-      isPack: next.isPack === true,
+      episode: candidate.isPack === true ? null : (candidate.episode ?? null),
+      isPack: candidate.isPack === true,
       searchKey,
-      pool: String(next.pool || ''),
-      hash: String(next.infoHash || ''),
-      rare: next.rare === true,
-      slotLimit: next.slotLimit,
+      pool: String(candidate.pool || ''),
+      hash: String(candidate.infoHash || ''),
+      rare: candidate.rare === true,
+      slotLimit: candidate.slotLimit,
+      quality: candidate.quality,
     });
-    if (lease) break;
-    // Teto da obra fechado nesta janela: o candidato nunca enfileiraria, então
-    // sai da fila em vez de voltar para a cabeça a cada recheck.
-    noteSkip('obra-cap', next as any, adapter.id, String(next.pool || ''));
-    metrics.count('autofetch.drain.obra-cap-discarded');
-    working = remaining;
-    next = null;
+    if (lease) {
+      next = candidate;
+      break;
+    }
+    // Cap da obra fechado nesta janela: bloqueio TRANSITÓRIO. O candidato é
+    // MANTIDO na fila (não descartado) e o laço segue para o próximo elegível —
+    // sem loop infinito porque cada volta encurta `working`. Aqui NÃO se chama
+    // `noteSkip`: defer não é desistência, e contar o mesmo candidato a cada
+    // passagem inflava o painel/trace (o trace é ring e seria inundado). A
+    // métrica própria é a canônica deste adiamento.
+    metrics.count('autofetch.drain.obra-cap-deferred');
+    deferredByCap.push(candidate);
+    working = picked.remaining;
   }
 
+  // Os barrados pelo cap voltam à FRENTE da fila (ordem relativa preservada):
+  // continuam disponíveis para a próxima janela, quando a vaga liberar.
+  remaining = [...deferredByCap, ...remaining];
   autofetch.writeQueue(searchKey, remaining, config.debrid.autoFetchQueueTtl, adapter.id, account);
   return { next, remaining, lease };
 }

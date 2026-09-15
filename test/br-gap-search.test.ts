@@ -144,7 +144,7 @@ test('br-gap: sonda ON enfileira dirigido (brProbe+pending); OFF mantém o br-ga
   const OBRA = 'tt9000299';
   try {
     releaseIndex.record(OBRA, {}, [
-      { title: 'Test Title 2024 1080p WEB-DL', infoHash: '99'.repeat(20), seeders: 120, indexer: 'thepiratebay' },
+      { title: 'Test Title 2024 1080p WEB-DL', infoHash: '99'.repeat(20), seeders: 120, isBr: true, indexer: 'thepiratebay' },
     ], {});
     harvestQueue.clearQueue();
     autofetchLive.reset();
@@ -162,7 +162,7 @@ test('br-gap: sonda ON enfileira dirigido (brProbe+pending); OFF mantém o br-ga
     harvestQueue.clearQueue();
     cache.clear();
     releaseIndex.record(OBRA, {}, [
-      { title: 'Test Title 2024 1080p WEB-DL', infoHash: '99'.repeat(20), seeders: 120, indexer: 'thepiratebay' },
+      { title: 'Test Title 2024 1080p WEB-DL', infoHash: '99'.repeat(20), seeders: 120, isBr: true, indexer: 'thepiratebay' },
     ], {});
     autofetchLive.set({ autoFetchBrProbe: false });
     try {
@@ -174,6 +174,26 @@ test('br-gap: sonda ON enfileira dirigido (brProbe+pending); OFF mantém o br-ga
     assert.equal(semSonda.length, 1, 'OFF ainda enfileira o br-gap de rede de segurança');
     assert.equal(semSonda[0].reason, 'br-gap');
     assert.equal(Boolean(semSonda[0].brProbe), false, 'sem modo dirigido');
+    assert.equal(brProbe.isBrProbePending({ type: 'movie', imdbId: OBRA }), false, 'e sem pending');
+  } finally {
+    cleanUp(stub);
+  }
+});
+
+test('br-gap: obra coberta SEM evidência isBr recebe br-gap REGULAR (gate C6, sem sonda)', async () => {
+  const stub = stubFetch(jackettVazio);
+  const OBRA = 'tt9000311';
+  try {
+    // Cobertura por release GLOBAL (sem isBr): lacuna de dublado real, mas a
+    // obra não tem vestígio BR nenhum — a sonda dirigida não é plausível.
+    releaseIndex.record(OBRA, {}, [
+      { title: 'Test Title 2024 1080p WEB-DL', infoHash: '11'.repeat(20), seeders: 120, indexer: 'thepiratebay' },
+    ], {});
+    harvestQueue.clearQueue();
+    await runSearch('movie', OBRA);
+    const fila = queueOf(OBRA);
+    assert.equal(fila.length, 1, 'a obra entra no colhedor');
+    assert.equal(Boolean(fila[0].brProbe), false, 'sem evidência BR não há modo dirigido');
     assert.equal(brProbe.isBrProbePending({ type: 'movie', imdbId: OBRA }), false, 'e sem pending');
   } finally {
     cleanUp(stub);

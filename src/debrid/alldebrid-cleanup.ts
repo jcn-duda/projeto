@@ -6,7 +6,7 @@ import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { foreignVerdict } from '../utils/audio-quality.js';
 import { markReuploadBlocked } from './alldebrid-reupload.js';
-import { call, id, DEAD, ACTIVE_STATES, type AllDebridMagnet } from './alldebrid-api.js';
+import { call, id, isDeadMagnet, ACTIVE_STATES, type AllDebridMagnet } from './alldebrid-api.js';
 import { preexistingHashes } from './alldebrid-inventory.js';
 
 /**
@@ -163,7 +163,11 @@ export async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweep
   const limite = Date.now() - Math.max(0, Number(minAgeMs) || 0);
 
   const alvo = list.filter((m) => {
-    if (!DEAD.test(String(m.status || ''))) return false;
+    // Pronto NUNCA é varrido — mesma precedência do `torrentStatus`: o estado
+    // `ready` vence o texto antes de o DEAD ser consultado (item pronto é
+    // acervo, não lixo). Sem esta guarda o sweep era assimétrico.
+    if (m.ready || /^ready$/i.test(String(m.status || ''))) return false;
+    if (!isDeadMagnet(m.status)) return false;
     if (!m.id) return false;
     // A proteção DURÁVEL NÃO bloqueia a varredura de mortos — estado terminal
     // é lixo que ocupa vaga, não acervo. Só o hold volátil segue adiando, para

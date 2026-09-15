@@ -27,6 +27,7 @@ import * as log from '../utils/logger.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import { invalidateStreamsForObra } from '../utils/br-gap.js';
 import * as harvestQueue from './harvest-queue.js';
+import * as harvestInflight from './harvest-inflight.js';
 
 export type BrProbeWork = {
   type: 'movie' | 'series';
@@ -112,24 +113,31 @@ function isPendingRecord(raw: BrProbeRecord | null, now = Date.now()): boolean {
 }
 
 /**
- * O que bloqueia o pool seeds: `pending` com lease vivo (a sonda está
- * procurando) ou `found` (BR existe — baixar seeds seria pular a fila).
- * `empty` libera (não há BR) e `failed`/`capped` liberam (retry curto e fila
- * de sementes segue). Toggle desligado não bloqueia nada.
- *
- * RISCO DOCUMENTADO do `found`: não é revalidado por rede a cada leitura. Ele
- * vale pelo TTL do estado (`BR_PROBE_TTL_S`, 12h) e, se a release BR sair do
- * índice nessa janela, seeds ficam barrados até o TTL vencer. Aceitável porque
- * o índice tem TTL longo (30d) e o custo de revalidar seria uma consulta por
- * busca — deliberadamente evitado. Se o operador quiser reabrir antes, basta
- * zerar `BR_PROBE_TTL_S` ou desligar `AUTOFETCH_BR_PROBE`.
+ * O que bloqueia o pool seeds: APENAS `pending` com lease vivo (a sonda está
+ * procurando AGORA). `found` NÃO bloqueia — BR dublado já existe no índice, e
+ * quem decide se baixar swarm para a mesma obra é a lista/índice na próxima
+ * abertura, não um TTL de 12h que o usuário não vê. `empty` libera (não há BR),
+ * `failed`/`capped` liberam (retry curto e fila de sementes segue). Toggle
+ * desligado não bloqueia nada.
  */
 export function probeBlocksSeeds(workInput: BrProbeWork): boolean {
   if (!probeEnabled()) return false;
   const work = normalize(workInput);
   if (!work) return false;
+  return isPendingRecord(readRecord(work));
+}
+
+/**
+ * Idade scheduled -> run da sonda: ms entre o `pending` gravado e a execução
+ * atual. `null` quando não há registro (ex.: execução dirigida sem pending).
+ * Usado pela métrica `autofetch.brProbe.runWaitMs`.
+ */
+export function probeRunWaitMs(workInput: BrProbeWork): number | null {
+  const work = normalize(workInput);
+  if (!work) return null;
   const raw = readRecord(work);
-  return isPendingRecord(raw) || raw?.state === 'found';
+  if (!raw || !Number.isFinite(Number(raw.at))) return null;
+  return Date.now() - Number(raw.at);
 }
 
 /** `pending` com lease vivo — bloqueio TRANSITÓRIO (o que a política F1 defere). */
@@ -165,7 +173,10 @@ function ineligibilityReason(): string {
  * (dedupe de 12h) não é reenfileirado e a sonda é skipped — e nesse caso NÃO
  * bloqueia seeds, porque o worker não vai executar o probe.
  */
-export function requestBrProbe(workInput: BrProbeWork): RequestBrProbeResult {
+export function requestBrProbe(
+  workInput: BrProbeWork,
+  opts: { mode?: 'upgrade' | 'evidence' } = {},
+): RequestBrProbeResult {
   const work = normalize(workInput);
   if (!work) {
     metrics.count('autofetch.brProbe.skipped.invalid');
@@ -179,19 +190,40 @@ export function requestBrProbe(workInput: BrProbeWork): RequestBrProbeResult {
 
   const now = Date.now();
   const raw = readRecord(work);
+  if (raw?.state === 'pending' && !isPendingRecord(raw, now)) {
+    // Lease órfão (crash/restart deixou `pending` sem worker): não bloqueia mais
+    // e a próxima solicitação reagenda. Métrica própria para o diagnóstico não
+    // confundir órfão com sonda ativa.
+    metrics.count('autofetch.brProbe.orphan');
+  }
   if (isPendingRecord(raw, now)) {
     metrics.count('autofetch.brProbe.skipped.pending');
     return { probe: true, pending: true, skipped: 'pending', fallbackBrGap: false };
   }
   if (raw?.state === 'found' || raw?.state === 'empty') {
-    // found: BR já provado. empty: sonda completou sem BR há pouco — o dedupe
-    // do próprio estado evita re-sondar, mas seeds seguem liberados.
+    // found: BR já provado (dedupe de 12h; NÃO bloqueia seeds). empty: sonda
+    // completou sem BR há pouco — o dedupe evita re-sondar, mas seeds liberam.
     metrics.count(`autofetch.brProbe.skipped.${raw.state}`);
     return { probe: false, pending: false, skipped: raw.state, fallbackBrGap: false };
   }
   if ((raw?.state === 'failed' || raw?.state === 'capped') && now - raw.at < RETRY_MS) {
     metrics.count('autofetch.brProbe.skipped.retry');
     return { probe: false, pending: false, skipped: 'retry', fallbackBrGap: false };
+  }
+
+  // Coalescing em voo (C8): a mesma obra já está sendo colhida AGORA. Anexa a
+  // intenção à execução corrente em vez de enfileirar uma segunda entrada; o
+  // tick finaliza o estado pelo resultado da colheita completa. A identidade
+  // tem que ser a MESMA do colhedor (`obraIdentity`, sem o tipo): incluir o
+  // tipo aqui nunca casaria com a obra em voo e criaria a duplicata que o
+  // coalescing existe para evitar.
+  const identity = harvestQueue.obraIdentity({ imdbId: work.imdbId, season: work.season, episode: work.episode });
+  if (harvestInflight.attachProbe(identity)) {
+    writePending(work);
+    metrics.count('autofetch.brProbe.coalesced');
+    metrics.count(`autofetch.brProbe.scheduled.${opts.mode || 'evidence'}`);
+    log.debug(`[br-probe] ${identity}: colheita em voo, intenção anexada`);
+    return { probe: true, pending: true, skipped: 'inflight', fallbackBrGap: false };
   }
 
   const outcome = harvestQueue.enqueue({
@@ -209,7 +241,10 @@ export function requestBrProbe(workInput: BrProbeWork): RequestBrProbeResult {
   }
   writePending(work);
   metrics.count('autofetch.brProbe.scheduled');
-  log.info(`[br-probe] sonda dirigida agendada: ${probeIdentity(work)} (${probeIndexers().join(',')})`);
+  // Razão do agendamento (upgrade × evidência BR): separa o diagnóstico sem
+  // inflar contadores — a decisão de plausibilidade mora nos call sites.
+  metrics.count(`autofetch.brProbe.scheduled.${opts.mode || 'evidence'}`);
+  log.info(`[br-probe] sonda dirigida agendada: ${identity} (${probeIndexers().join(',')})`);
   return { probe: true, pending: true, fallbackBrGap: false };
 }
 
