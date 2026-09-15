@@ -17,11 +17,10 @@ import * as rdLedger from '../debrid/rd-ledger.js';
 import { recordAutofetchRelease } from './autofetch-index.js';
 import * as releaseIndex from '../utils/release-index.js';
 import { manageSettleLru } from './autofetch-settle.js';
-import { noteSkip } from './autofetch-gates.js';
-import { seedsDrainRejection } from './autofetch-policy.js';
-import { seedsPolicyConfig } from './autofetch-candidates.js';
+import { takeDrainCandidate } from './autofetch-drain.js';
+import { commitObra, releaseObra, forgetObraHash } from './autofetch-obra.js';
 import { seasonSearchKeys, seasonIndexKey, registerSeasonSearchKey } from './autofetch-season-index.js';
-export type SeasonHint = { imdbId?: string | null; season?: number | null; isPack?: boolean };
+export type SeasonHint = { imdbId?: string | null; season?: number | null; episode?: number | null; isPack?: boolean };
 export type RecheckLot = {
   hashes: Set<string>;
   attempts: number;
@@ -104,44 +103,25 @@ export function drainNext(searchKey: string, lot: any): boolean {
     return false;
   }
 
-  // Obsoletos saem da fila de verdade (dead, marker de enqueue em voo,
-  // proteção durável — estados permanentes que nunca mais drenariam). Apenas
-  // ADIADOS (hold transitório, expira no autoFetchTtl) ficam: o `deferFn` os
-  // pula na escolha sem purgá-los do `remaining`.
-  const drainPolicy = seedsPolicyConfig();
-  const { next, remaining } = autofetch.takeNext(
-    queue,
-    (cand) => {
-      const h = String(cand.infoHash).toLowerCase();
-      const obsolete = (
-        autofetch.isDead(adapter.id, account, h) ||
-        Boolean(cache.get(autofetch.markerKey(adapter.id, account, h))) ||
-        held.isDurablyProtected(adapter.id, account, h)
-      );
-      if (obsolete) return true;
-      // Regras PERMANENTES do pool seeds (dubbedOnly/qualidade/tamanho) são
-      // revalidadas antes do enqueue: candidato inválido SAI da fila. Bloqueio
-      // transitório (br-probe futuro) pertenceria ao deferFn, não aqui.
-      const rejection = cand.pool === 'seeds' ? seedsDrainRejection(cand, drainPolicy) : null;
-      if (rejection) {
-        noteSkip(rejection, cand as any, adapter.id, 'seeds');
-        return true;
-      }
-      return false;
-    },
-    (cand) => held.isHeld(String(cand.infoHash).toLowerCase(), account),
-  );
-
-  autofetch.writeQueue(searchKey, remaining, config.debrid.autoFetchQueueTtl, adapter.id, account);
+  // Seleção + reserva do teto por OBRA (Fase 2): obsoletos saem da fila,
+  // holds transitórios são adiados e o candidato que o cap fecha nesta janela é
+  // descartado — a seleção segue para o próximo elegível. A fila remanescente
+  // já sai gravada pela própria seleção.
+  const { next, remaining, lease } = takeDrainCandidate(searchKey, adapter, account);
   if (!next) return false;
 
-  const requeue = () => autofetch.writeQueue(
-    searchKey,
-    [next, ...remaining],
-    config.debrid.autoFetchQueueTtl,
-    adapter.id,
-    account,
-  );
+  const requeue = () => {
+    // Desistência posterior (lock/orçamento/cooldown) devolve a reserva — ela só
+    // vale para o enqueue que ia acontecer agora.
+    releaseObra(lease);
+    autofetch.writeQueue(
+      searchKey,
+      [next, ...remaining],
+      config.debrid.autoFetchQueueTtl,
+      adapter.id,
+      account,
+    );
+  };
 
   const h = String(next.infoHash).toLowerCase();
   const mKey = autofetch.markerKey(adapter.id, account, h);
@@ -163,6 +143,16 @@ export function drainNext(searchKey: string, lot: any): boolean {
       autofetch.release(mKey);
       if (ok) {
         cache.set(mKey, autofetch.markerValue(ok), live.autoFetchTtl);
+        // Aceite confirmado: entrada durável do teto por obra (Fase 2), com o
+        // pool REAL do candidato — seeds nunca consome vaga br.
+        commitObra(lease, {
+          hash: h,
+          pool: String(next.pool || ''),
+          title: String(next.title || next.name || '').split('\n')[0].slice(0, 120),
+          br: Boolean(next.br),
+          dubbed: Boolean(next.dubbed),
+          ...(typeof ok === 'string' && ok ? { id: ok } : {}),
+        });
         metrics.count('autofetch.queued');
         metrics.count('autofetch.enqueued');
         recordAutofetchRelease(next.imdbId, next);
@@ -173,11 +163,13 @@ export function drainNext(searchKey: string, lot: any): boolean {
         lot.seasonHints.set(h, {
           imdbId: typeof next.imdbId === 'string' ? next.imdbId : undefined,
           season: next.season,
+          episode: next.isPack === true ? null : (next.episode ?? null),
           isPack: next.isPack === true,
         });
         lot.refusals = 0;
         log.info(`[autofetch] ${adapter.label} drenou da fila e baixando: ${next.title || next.name || h}`);
       } else {
+        releaseObra(lease);
         held.release(h, account);
         lot.refusals = (lot.refusals || 0) + 1;
         metrics.count('autofetch.refused');
@@ -187,6 +179,7 @@ export function drainNext(searchKey: string, lot: any): boolean {
     })
     .catch((err) => {
       autofetch.release(mKey);
+      releaseObra(lease);
       held.release(h, account);
       if (adapter.id === 'realdebrid' && isRateLimitError(err)) {
         const current = autofetch.readQueue(searchKey);
@@ -321,6 +314,20 @@ export function runRecheck(searchKey: string) {
           } else if (typeof adapter.removeTorrent === 'function' && statusInfo.id != null) {
             adapter.removeTorrent(opts().debridApiKey, statusInfo.id).catch(() => {});
           }
+          // Hash TERMINAL (morto/parado) libera a vaga da obra ANTES do dreno: a
+          // reposição SAME POOL precisa caber ainda na janela, sem esperar a
+          // eviction (F6). Ready NÃO passa por aqui — segue contando pelo TTL.
+          const obraHint = lot.seasonHints.get(hash);
+          forgetObraHash({
+            adapterId: adapter.id,
+            account,
+            imdbId: obraHint?.imdbId ?? null,
+            season: obraHint?.season ?? null,
+            episode: obraHint?.isPack ? null : (obraHint?.episode ?? null),
+            isPack: obraHint?.isPack === true,
+            searchKey,
+            hash,
+          });
           cleanLotHash(lot, hash);
           const destino = podeRemover ? 'removendo e drenando fila' : 'drenando fila (remoção por id desligada)';
           log.info(`[autofetch] torrent ${hash} detectado como ${isDead ? 'morto' : 'parado'} (${streak} rechecks consecutivos); ${destino}`);

@@ -65,6 +65,8 @@
     "test/autofetch-enqueue-cases.test.js",
     "test/autofetch-gate.test.js",
     "test/autofetch-holds.test.js",
+    "test/autofetch-obra-cap.test.js",
+    "test/autofetch-obra-terminal.test.js",
     "test/autofetch-pickers.test.js",
     "test/autofetch-recheck.test.js",
     "test/autofetch-seeds.test.js",

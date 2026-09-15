@@ -330,7 +330,7 @@ test('fallback global: sem BR dublado na busca, as melhores dubladas globais sã
       applyDebrid([globalDub(h3, '720p', 100), globalDub(h2, '1080p', 9), globalDub(h1, '1080p', 1)], { searchKey } as any),
     );
     await sleep(20);
-    assert.deepEqual(enqueued, [h2, h1, h3], 'sem BR na busca, as dubladas globais são enfileiradas');
+    assert.deepEqual(enqueued, [h2], 'sem BR na busca, só a melhor dublada global é enfileirada (teto any=1/obra)');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;

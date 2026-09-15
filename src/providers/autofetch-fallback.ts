@@ -21,8 +21,8 @@ import {
 export type AutoFetchStream = Stream & { infoHash: string };
 
 export type FallbackPool = 'any' | 'seeds';
-export type FallbackPick = { stream: AutoFetchStream; pool: FallbackPool };
-export type QueueEntry = { stream: AutoFetchStream; pool: string };
+export type FallbackPick = { stream: AutoFetchStream; pool: FallbackPool; rare?: boolean; slotLimit?: number };
+export type QueueEntry = { stream: AutoFetchStream; pool: string; rare?: boolean; slotLimit?: number };
 
 // Subconjunto de `autofetchLive.effective()` que a seleção de fallback lê.
 // Mantém o módulo testável sem depender do objeto inteiro.
@@ -129,7 +129,9 @@ export function pickLowerPoolFallbacks(
     );
     for (const s of seeds.candidates) {
       exclude.add(hashOf(s));
-      out.push({ stream: s, pool: 'seeds' });
+      // A marca de raro e o teto imediato viajam com o candidato: o dreno
+      // precisa da MESMA evidência para não apertar o cap para topSeedsMax.
+      out.push({ stream: s, pool: 'seeds', rare: seeds.rareUsed, slotLimit: seeds.immediateLimit });
     }
   }
 
@@ -156,8 +158,13 @@ export function composeQueueEntries(
 export function toQueueCandidate(
   stream: AutoFetchStream,
   pool: string,
-  { imdbId, season, seasonFill }: { imdbId?: string; season?: number | null; seasonFill: boolean },
+  { imdbId, season, episode, seasonFill, rare, slotLimit }:
+  { imdbId?: string; season?: number | null; episode?: number | null; seasonFill: boolean; rare?: boolean; slotLimit?: number },
 ): QueueCandidate {
+  // Pack de temporada: a identidade do teto por obra é a TEMPORADA, então o
+  // episódio persistido vira nulo — dois packs da mesma temporada (E01/E02)
+  // não podem ocupar vagas diferentes.
+  const isPack = Boolean(seasonFill && isSeasonPackFillEligible(stream, season ?? null));
   return {
     infoHash: hashOf(stream),
     name: stream.name,
@@ -171,7 +178,12 @@ export function toQueueCandidate(
     pool,
     imdbId,
     season,
-    episode: null,
-    isPack: Boolean(seasonFill && isSeasonPackFillEligible(stream, season ?? null)),
+    // O episódio viaja junto para o dreno reconstruir a MESMA identidade do
+    // teto por obra (Fase 2) — sem ele o candidato de série cairia num balde
+    // de temporada e não compartilharia a vaga com a busca que o enfileirou.
+    episode: isPack ? null : (episode ?? null),
+    isPack,
+    ...(rare ? { rare: true } : {}),
+    ...(slotLimit != null ? { slotLimit } : {}),
   };
 }

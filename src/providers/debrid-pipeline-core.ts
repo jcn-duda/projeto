@@ -128,7 +128,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
   // Pack multiobra admitido nunca vira candidato do Chupim: baixaria a coleção.
   const candidates = autoFetchCandidates(streams.filter((s) => !s._multiWorkAdmitted), {
-    season,
+    season, episode,
     imdbId: imdbId || undefined,
     searchKey: searchKey || undefined,
   });

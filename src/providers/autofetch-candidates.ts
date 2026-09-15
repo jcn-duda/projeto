@@ -81,7 +81,7 @@ function noteSeedsRejections(rejected: Map<string, number>, adapterId: string): 
  */
 export function autoFetchCandidates(
   streams: Stream[],
-  { season, imdbId, searchKey }: { season?: number | null; imdbId?: string; searchKey?: string } = {},
+  { season, episode, imdbId, searchKey }: { season?: number | null; episode?: number | null; imdbId?: string; searchKey?: string } = {},
 ) {
   const { autoFetchBr, debridApiKey } = opts();
   const adapter = debrid.current();
@@ -204,16 +204,23 @@ export function autoFetchCandidates(
       })
       : [];
     const entries = composeQueueEntries(
-      candidates.slice(immediateLimit).map((stream) => ({ stream, pool })),
+      candidates.slice(immediateLimit).map((stream) => ({
+        stream,
+        pool,
+        ...(pool === 'seeds' ? { rare: seedsRare, slotLimit: seedsImmediateLimit } : {}),
+      })),
       fallbacks,
       queueDepth,
     );
     autofetch.writeQueue(
       searchKey,
-      entries.map(({ stream, pool: entryPool }) => toQueueCandidate(stream, entryPool, {
+      entries.map(({ stream, pool: entryPool, rare, slotLimit }) => toQueueCandidate(stream, entryPool, {
         imdbId,
         season,
+        episode,
         seasonFill: Boolean(live.autoFetchSeasonFill && adapter?.cacheCheck),
+        rare,
+        slotLimit,
       })),
       config.debrid.autoFetchQueueTtl,
       adapter!.id,

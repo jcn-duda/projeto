@@ -59,7 +59,11 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva folga sob o
     assert.equal(cache.QUOTAS.idx, 2000);
     assert.equal(cache.QUOTAS.fsz, 3000);
     assert.equal(cache.QUOTAS.vres, 1000);
-    assert.equal(cache.MAX_ENTRIES, 88000);
+    // Fase 2 do Chupim: o teto por obra (`autofetch:v3:o:`) divide o balde com
+    // markers/dead/queues/prefetch/sup, então a cota dobrou e o teto global
+    // subiu junto — sempre estritamente acima da soma.
+    assert.equal(cache.QUOTAS.autofetch, 4000);
+    assert.equal(cache.MAX_ENTRIES, 91000);
     const sumQuotas = Object.entries(cache.QUOTAS).reduce((sum, [ns, quota]) => ns === '__default' ? sum : sum + (quota as number), 0);
     assert.ok(sumQuotas < cache.MAX_ENTRIES, `soma das cotas (${sumQuotas}) < teto (${cache.MAX_ENTRIES})`);
   } finally {

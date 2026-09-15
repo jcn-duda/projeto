@@ -140,7 +140,7 @@ interface QueueCandidate {
   lied?: boolean;
   pool?: string;
   imdbId?: string;
-  isPack?: boolean;
+  isPack?: boolean; rare?: boolean; slotLimit?: number; // evidência rara do pool seeds p/ o dreno
   season?: number | null;
   episode?: number | null;
   addedAt?: number;

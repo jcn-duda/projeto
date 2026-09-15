@@ -52,7 +52,11 @@ test('autofetch de série enfileira o pack em vez do episódio avulso', async ()
       ),
     );
     await sleep(20);
-    assert.deepEqual(enqueued, [pack, ep], 'série: o pack é enfileirado antes do episódio');
+    // Fase 2: o pool `any` tem teto de 1 por OBRA/janela, então o pack (que o
+    // seletor ordena primeiro) consome a vaga e o episódio avulso fica de fora —
+    // exatamente o "pack em vez do episódio" do título. Sem o teto os dois eram
+    // baixados, desperdiçando uma vaga da conta no mesmo conteúdo.
+    assert.deepEqual(enqueued, [pack], 'série: o pack é enfileirado e o episódio avulso não');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;

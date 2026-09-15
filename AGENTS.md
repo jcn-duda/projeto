@@ -1098,12 +1098,12 @@ TTL de resultado vazio é curto (`RAW_CACHE_EMPTY_TTL`): 200 com zero itens
 pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
 
 Cotas do L1 (`cache-quotas.ts`): `streams` 2000, `raw` 800, `dlmag` 4000,
-`idx` 2000, `rdc` 14000, `mag` 50000, `mag_meta` 1 (o agregado único dos
-contadores duráveis do banco de magnets), teto global 84000. `raw` é o namespace
+`idx` 2000, `rdc` 14000, `autofetch` 4000, `mag` 50000, `mag_meta` 1 (o agregado
+único dos contadores duráveis do banco de magnets), teto global 91000. `raw` é o namespace
 gordo (~100 KB no pior caso); não suba a cota sem refazer a conta de memória do
 container de 3g. O `mag` é o oposto — entrada minúscula (`1` + chave de ~70 B,
 ~400 B com o overhead do Map), então 50.000 custa ~19 MB. A SOMA das cotas é
-82.551 — teto global **igual ou abaixo** da soma reintroduz o despejo global
+89.551 — teto global **igual ou abaixo** da soma reintroduz o despejo global
 antes da repartição por namespace (foi bug real).
 
 Cota é capacidade, não permanência: quem tira registro do `mag` no dia a dia é

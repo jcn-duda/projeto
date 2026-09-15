@@ -17,6 +17,7 @@ import { accountScope } from '../utils/request-key.js';
 import { capture, opts } from '../runtime.js';
 import * as autofetch from './autofetch.js';
 import { classifyEnqueue, rollbackEnqueue, noteSkip, skipCountsSnapshot, warnAccountGated } from './autofetch-gates.js';
+import { reserveObra, commitObra, releaseObra, type ObraLease } from './autofetch-obra.js';
 import { applySeedsStopGate, purgeSeedsQueue } from './autofetch-seeds-pool.js';
 import { seedsPolicyConfig } from './autofetch-candidates.js';
 import type { AutoFetchCandidate, AutoFetchRequest } from './autofetch-candidates.js';
@@ -45,7 +46,7 @@ export function releaseAllHolds(candidates: AutoFetchCandidate[]) {
 }
 
 /** Enfileira UM candidato de forma fire-and-forget, com marker, orçamento e vaga por busca. */
-export function enqueueAutofetch({ stream, account, pool, slotLimit }: AutoFetchCandidate, { cached, season, episode, imdbId, searchKey }: AutoFetchRequest) {
+export function enqueueAutofetch({ stream, account, pool, slotLimit, rare }: AutoFetchCandidate, { cached, season, episode, imdbId, searchKey }: AutoFetchRequest) {
   const adapter = debrid.current() as DebridAdapter;
   const requestCtx = capture();
   const h = String(stream.infoHash || '').toLowerCase();
@@ -53,6 +54,13 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit }: AutoFetch
 
   const live = autofetchLive.effective();
   const key = autofetch.markerKey(adapter.id, account, h);
+  // Reserva do teto por OBRA (Fase 2). Fica numa variável própria porque os
+  // portões POSTERIORES (account-gate/budget) precisam devolvê-la no rollback.
+  let obraLease: ObraLease | null = null;
+  // Pack de temporada: identidade por TEMPORADA (episódio nulo). O mesmo
+  // predicado alimenta o hint do recheck, que é quem libera a vaga do hash
+  // terminal com a identidade certa.
+  const isPack = Boolean(live.autoFetchSeasonFill && adapter.cacheCheck && isSeasonPackFillEligible(stream, season ?? null));
   // Portões em UM ponto: checagens injetadas na ordem exata, rollback pela
   // tabela, e a desistência deixa rastro (contador + trace) em vez de um return mudo.
   const reason = classifyEnqueue({
@@ -65,12 +73,21 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit }: AutoFetch
     // se pools diferentes, o teto efetivo é o do pool que pediu por último.
     trySlot: () => !searchKey || autofetch.acquireSearchSlot(
       searchKey, slotLimit ?? (pool === 'seeds' ? live.autoFetchTopSeedsMax : live.autoFetchMax)),
+    // Teto por obra: reserva SÍNCRONA antes de qualquer await, para duas buscas
+    // concorrentes da MESMA obra enxergarem a vaga uma da outra.
+    tryObraCap: () => {
+      obraLease = reserveObra({
+        adapterId: adapter.id, account, imdbId, season, episode: isPack ? null : episode, isPack, searchKey,
+        pool, hash: h, rare, slotLimit,
+      });
+      return obraLease != null;
+    },
     accountBlocked: () => autofetch.accountGateBlocked(adapter, opts().debridApiKey),
     tryBudget: () => autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit),
   });
   if (reason) {
     noteSkip(reason, stream, adapter.id, pool);
-    rollbackEnqueue(reason, { lockKey: key, searchKey, holdHash: stream.infoHash, account });
+    rollbackEnqueue(reason, { lockKey: key, searchKey, holdHash: stream.infoHash, account, obraLease });
     if (reason === 'account-gate') warnAccountGated(adapter, account);
     return;
   }
@@ -84,6 +101,16 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit }: AutoFetch
       autofetch.release(key);
       if (ok) {
         cache.set(key, autofetch.markerValue(ok), live.autoFetchTtl);
+        // Aceite confirmado: o hash vira entrada durável do teto da obra (o que
+        // o F6 vai ler). Reserva recusada nunca é persistida.
+        commitObra(obraLease, {
+          hash: h,
+          pool,
+          title: String(stream.title || stream.name || '').split('\n')[0].slice(0, 120),
+          br: Boolean(stream._br),
+          dubbed: Boolean(stream._dubbed),
+          ...(typeof ok === 'string' && ok ? { id: ok } : {}),
+        });
         metrics.count('autofetch.enqueued');
         recordAutofetchRelease(imdbId, {
           ...stream,
@@ -107,11 +134,11 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit }: AutoFetch
         scheduleRecheck(searchKey || '', h, requestCtx, {
           imdbId,
           season,
-          isPack: Boolean(
-            live.autoFetchSeasonFill && adapter.cacheCheck && isSeasonPackFillEligible(stream, season ?? null),
-          ),
+          episode: isPack ? null : episode,
+          isPack,
         });
       } else {
+        releaseObra(obraLease);
         if (searchKey) autofetch.releaseSearchSlot(searchKey);
         held.release(h, account);
         metrics.count('autofetch.refused');
@@ -120,6 +147,7 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit }: AutoFetch
     })
     .catch((err) => {
       autofetch.release(key);
+      releaseObra(obraLease);
       if (searchKey) autofetch.releaseSearchSlot(searchKey);
       held.release(stream.infoHash, account);
       log.warn('[autofetch] falhou:', err?.message || err);

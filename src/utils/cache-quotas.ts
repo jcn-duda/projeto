@@ -11,9 +11,11 @@
  * instância nova de cache.ts reusando o irmão cacheado, com o store alheio).
  */
 
-// A soma das cotas de namespaces conhecidos é 86.551 (inclui mag=50.000,
-// rdc=14.000, rdq=500, rdt=2.500, adprot=2.000, adsub=1.000, adrm=500,
-// fsz=3.000 e vres=1.000), deixando 1.449 entradas de folga sob o teto global. O ledger RD
+// A soma das cotas de namespaces conhecidos é 89.551 (inclui mag=50.000,
+// rdc=14.000, autofetch=4.000, rdt=2.500, fsz=3.000, streams=2.000,
+// idx=2.000, adprot=2.000, adsub=1.000, davail=1.000, vres=1.000, raw=800,
+// dlmag=4.000, rdq=500, adrm=500, tmdb=500, meta=500, indexer-status=200 e
+// cfg=50), deixando 1.449 entradas de folga sob o teto global. O ledger RD
 // é global por hash e precisa reter muito mais histórico que os caches por conta;
 // os demais baldes foram calibrados para abrir esse espaço sem deixar o despejo
 // global invalidar suas cotas antes da hora. Memória: o raw domina (800 × ~100 KB
@@ -21,11 +23,12 @@
 // 300 itens ≈ 27 KB por entrada): no teto teórico do namespace (2000 entradas)
 // soma ~54 MB — hoje observado ~13 MB em produção local. O idx (2.000 ×
 // ~14,7 KB ≈ 29 MB) fecha a conta dos gordos; rdc/davail/mag/rdt/adprot/
-// adsub/adrm guardam só registros minúsculos — mag 50k ≈ 19 MB.
+// adsub/adrm/autofetch guardam só registros pequenos — mag 50k ≈ 19 MB e o
+// autofetch 4k ≈ poucos MB (o registro `o:` por obra é uma lista curta).
 //
 // O teto global acompanha a soma: teto IGUAL OU ABAIXO dela reintroduz o
 // despejo global antes da repartição por namespace, que foi bug real.
-export const MAX_ENTRIES = 88000;
+export const MAX_ENTRIES = 91000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -69,15 +72,17 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // (PLANO_SERVIDOR prometeu 4000; o código entregou 2000 — não inventar 4000
   // no comentário nem no fallback do painel.)
   idx: 2000,
-  // Fila do autofetch: markers vivos, dead/queues/prefetch e — desde a Etapa da
-// fila represada — os registros `sup:` com TTL próprio de 30 dias. Os represados
-// são lidos via `peek` (não promovem LRU) e ficam como os itens mais frios do
-// namespace: com cota 1000, a evicção apagaria justamente o acervo que a fila
-// existe para tornar retroativo. Registro `sup:` é minúsculo (chave ~70 B,
-// valor {id,at,fails,nextAt} ~120 B), por isso dobrar para 2000 custa ~0,8 MB.
-// O teto global (84000) precisa continuar ACIMA da soma das cotas (bug real de
-// despejo global) — 2000 é o maior múltiplo que cabe nessa conta.
-autofetch: 2000,
+  // Fila do autofetch: markers vivos, dead/queues/prefetch, os registros `sup:`
+  // com TTL próprio de 30 dias e — desde a Fase 2 — os registros por OBRA
+  // (`o:<sha256>`, teto por janela). Os represados são lidos via `peek` (não
+  // promovem LRU) e ficam como os itens mais frios do namespace: cota apertada
+  // ali evicta justamente o acervo que a fila existe para tornar retroativo.
+  // Recalculado na Fase 2: o registro `o:` soma ao balde que já carregava
+  // markers/dead/queues/prefetch/sup, então 2.000 virou 4.000 (dobro) —
+  // registro `o:` é uma lista curta de entradas minúsculas (hash+pool+at), e o
+  // teto real de downloads por janela é a conta do debrid, não a cota. O teto
+  // global (91.000) continua ESTRITAMENTE ACIMA da soma (89.551).
+  autofetch: 4000,
   'indexer-status': 200,
   cfg: 50,
   // Proteção durável dos BRs AllDebrid (`adprot:v1`): registro minúsculo por

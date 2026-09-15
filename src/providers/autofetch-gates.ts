@@ -21,6 +21,7 @@ import autofetchLive from '../utils/autofetch-live.js';
 import * as autofetchTrace from '../utils/autofetch-trace.js';
 import * as autofetch from './autofetch.js';
 import * as held from '../debrid/protected.js';
+import { releaseObra, type ObraLease } from './autofetch-obra.js';
 import type { DebridAdapter } from '../../types/domain.js';
 
 /** Motivo pelo qual um candidato não foi enfileirado nesta busca. */
@@ -31,6 +32,7 @@ export type SkipReason =
   | 'marker'
   | 'in-flight'
   | 'search-slot-busy'
+  | 'obra-cap'
   | 'account-gate'
   | 'budget';
 
@@ -42,11 +44,16 @@ export interface EnqueueGates {
   markerActive(): boolean;
   tryLock(): boolean;
   trySlot(): boolean;
+  /** Teto por OBRA (Fase 2): reserva a vaga do pool; `false` = teto fechado. */
+  tryObraCap(): boolean;
   accountBlocked(): boolean;
   tryBudget(): boolean;
 }
 
-/** Ordem EXATA dos portões de enqueueAutofetch — não reordenar. */
+/** Ordem EXATA dos portões de enqueueAutofetch — não reordenar. O teto por
+ *  obra vem DEPOIS de lock/slot e ANTES de account/gate/budget: ele já é uma
+ *  reserva, então os portões seguintes (que não enfileiram) precisam liberá-la
+ *  no rollback — daí `obra` na tabela abaixo. */
 export function classifyEnqueue(gates: EnqueueGates): SkipReason | null {
   if (gates.isPaused()) return 'paused';
   if (gates.isDead()) return 'dead';
@@ -54,12 +61,13 @@ export function classifyEnqueue(gates: EnqueueGates): SkipReason | null {
   if (gates.markerActive()) return 'marker';
   if (!gates.tryLock()) return 'in-flight';
   if (!gates.trySlot()) return 'search-slot-busy';
+  if (!gates.tryObraCap()) return 'obra-cap';
   if (gates.accountBlocked()) return 'account-gate';
   if (!gates.tryBudget()) return 'budget';
   return null;
 }
 
-type RollbackAction = 'lock' | 'slot' | 'hold';
+type RollbackAction = 'obra' | 'lock' | 'slot' | 'hold';
 
 /** O que cada desistência precisa liberar, na ordem dos returns de hoje. */
 export const ENQUEUE_ROLLBACK: Record<SkipReason, RollbackAction[]> = {
@@ -78,8 +86,13 @@ export const ENQUEUE_ROLLBACK: Record<SkipReason, RollbackAction[]> = {
   // soltar o hold aqui reabriria o hash à limpeza no meio do download.
   'in-flight': [],
   'search-slot-busy': ['lock', 'hold'],
-  'account-gate': ['lock', 'slot', 'hold'],
-  budget: ['lock', 'slot', 'hold'],
+  // obra-cap: a reserva NÃO foi concedida (o teto da obra fechou), então nada
+  // dela a liberar; o lock/slot/hold recém-adquiridos saem, como em account-gate.
+  'obra-cap': ['lock', 'slot', 'hold'],
+  // account-gate/budget vêm DEPOIS do teto da obra: a reserva foi concedida e
+  // precisa voltar — senão a obra fica com a vaga presa até o lease vencer.
+  'account-gate': ['obra', 'lock', 'slot', 'hold'],
+  budget: ['obra', 'lock', 'slot', 'hold'],
 };
 
 const skipCounts = new Map<string, number>();
@@ -89,9 +102,19 @@ const skipCounts = new Map<string, number>();
  * returns de hoje (marker/in-flight não liberam nada, de propósito).
  * Movida do runner para ficar ao lado da tabela que a define.
  */
-export function rollbackEnqueue(reason: SkipReason, r: { lockKey: string; searchKey: string | null | undefined; holdHash: string | null | undefined; account: string }) {
+export function rollbackEnqueue(
+  reason: SkipReason,
+  r: {
+    lockKey: string;
+    searchKey: string | null | undefined;
+    holdHash: string | null | undefined;
+    account: string;
+    obraLease?: ObraLease | null;
+  },
+) {
   for (const action of ENQUEUE_ROLLBACK[reason] || []) {
-    if (action === 'lock') autofetch.release(r.lockKey);
+    if (action === 'obra') releaseObra(r.obraLease);
+    else if (action === 'lock') autofetch.release(r.lockKey);
     else if (action === 'slot') { if (r.searchKey) autofetch.releaseSearchSlot(r.searchKey); }
     else held.release(String(r.holdHash || ''), r.account);
   }

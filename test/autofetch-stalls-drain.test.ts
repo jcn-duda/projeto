@@ -81,6 +81,9 @@ test('stall colapsa e drainNext sobe o 2º da mesma faixa (fila surplus)', async
     testMock.timers.tick(120_000);
     await flush();
     assert.equal(autofetch.isDead('premiumize', account, h1080), true, 'colapso blacklist o 1080 primário');
+    // Fase 2: o hash TERMINAL sai do registro da obra ANTES do dreno (dead
+    // libera a vaga na hora; só ready continua contando pela janela), então o
+    // surplus SAME POOL da fila volta a caber e sobe na reposição.
     assert.ok(enqueued.includes(h1080b), 'drainNext sobe o 2º 1080 da fila');
     assert.equal(autofetch.readQueue(searchKey).length, 0, 'cabeça consumida');
   } finally {
