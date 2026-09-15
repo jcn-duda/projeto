@@ -164,6 +164,34 @@ test('br-gap: índice com BR dublado NÃO enfileira (control served)', async () 
   }
 });
 
+test('br-gap: BR somente 720p enfileira upgrade para os index-only', async () => {
+  const stub = stubFetch(jackettVazio);
+  const OBRA = 'tt9000214';
+  try {
+    releaseIndex.record(OBRA, {}, [
+      {
+        title: 'Test Title 2024 720p DUBLADO',
+        infoHash: '77'.repeat(20),
+        seeders: 1,
+        isBr: true,
+        indexer: 'kickasstorrents-to',
+      },
+      { title: 'Test Title 2024 1080p WEB-DL', infoHash: '88'.repeat(20), seeders: 80, indexer: 'thepiratebay' },
+    ], {});
+    harvestQueue.clearQueue();
+    const dUpgrade = deltaOf('search.idx.brGap.upgrade');
+
+    await runSearch('movie', OBRA);
+
+    assert.equal(dUpgrade(), 1, 'a faixa BR inferior conta tentativa de upgrade');
+    const fila = queueOf(OBRA);
+    assert.equal(fila.length, 1, 'a obra entra uma vez no colhedor');
+    assert.equal(fila[0].reason, 'br-gap', 'reusa o dedupe e a prioridade do gap BR');
+  } finally {
+    cleanUp(stub);
+  }
+});
+
 test('índice → sortAndLimit: release BR dublada com 0 seeders sobrevive ao piso', async () => {
   const OBRA = 'tt9000213';
   try {

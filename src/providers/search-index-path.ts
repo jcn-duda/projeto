@@ -88,16 +88,16 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
       }
       metrics.count('search.idx.served', indexed.length);
       servedFromIndex = true;
-      // BR-gap: o pool está coberto mas o índice NÃO traz BR dublado comprovado
-      // (isBr && dubbed && !lied). Os index-only nunca entram pela busca viva
-      // nem pelo enriquecimento do tail — `idxPoolCovered` já deu true —, então
-      // o dublado BR dessa obra fica inalcançável salvo que o COLHEDOR o busque
-      // em background. O dedupe TTL do enqueue (obra+razão) evita re-enfileirar
-      // a cada busca; por isso a métrica conta a TENTATIVA (`attempt`), não um
-      // enqueue efetivo: `harvester.enqueue` é fogo-e-esquece e devolve void.
-      // Control: com BR presente não há lacuna e conta o caso servido.
+      // BR-gap: o pool está coberto, mas o índice não traz BR dublado comprovado
+      // ou só traz faixa conhecida abaixo de 1080p. Os index-only nunca entram
+      // pela busca viva nem pelo tail; o colhedor busca a ausência ou o upgrade
+      // em background. O dedupe TTL (obra+razão) evita repetir a fila a cada
+      // abertura; a métrica conta a tentativa porque `enqueue` devolve void.
       if (covered && shouldBrGap(indexed, config.jackett.indexOnlyIndexers.length > 0)) {
-        metrics.count('search.idx.brGap.attempt');
+        // Sem BR nenhum é `attempt` (lacuna original); BR só em faixa inferior
+        // à alvo é `upgrade` (mesma fila, métrica separada para o diagnóstico
+        // distinguir ausência de falta de 1080p).
+        metrics.count(hasBrDubbed(indexed) ? 'search.idx.brGap.upgrade' : 'search.idx.brGap.attempt');
         harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'br-gap' });
       } else if (covered && hasBrDubbed(indexed)) {
         metrics.count('search.idx.brGap.served');
