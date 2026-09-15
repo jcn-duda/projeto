@@ -2,6 +2,12 @@ import type { AccountStatus, DebridAdapter } from '../../types/domain.js';
 import * as runtime from '../../src/runtime.js';
 import { accountScope } from '../../src/utils/request-key.js';
 import { prefix } from '../../src/utils/cache-keys.js';
+import config from '../../src/config.js';
+import debrid from '../../src/debrid/index.js';
+import * as cache from '../../src/utils/cache.js';
+import * as held from '../../src/debrid/protected.js';
+import * as autofetch from '../../src/providers/autofetch.js';
+import { applyDebrid } from '../../src/providers/index.js';
 
 /** Hashes fixos compartilhados pelos testes de fila/dreno. */
 export const H1 = '1111111111111111111111111111111111111111';
@@ -77,4 +83,70 @@ export function premiumizeRunCtx(apiKey: string, encoded: string) {
 
 export function dinvKeyFor(adapterId: string, apiKey: string): string {
   return `${prefix('dinv')}${adapterId}:${accountScope(apiKey)}`;
+}
+
+export type DrainHarness = {
+  account: string;
+  enqueued: string[];
+  searchKey: string;
+  pmAdapter: DebridAdapter;
+  run: (streams: any[]) => Promise<void>;
+  setTorrentStatus: (fn: DebridAdapter['torrentStatus']) => void;
+  cleanup: (hashes: string[]) => void;
+};
+
+/**
+ * Harness de integração da fila/dreno do autofetch: stubs de enqueue,
+ * torrentStatus e checkCached sobre o Premiumize, com limpeza de cache,
+ * markers, holds e blacklist por hash. `stallStreak`/`recheckMax` são
+ * overrides de config restaurados no cleanup.
+ */
+export function makeDrainHarness(
+  key: string,
+  options: { stallStreak?: number; recheckMax?: number } = {},
+): DrainHarness {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalStall = config.debrid.autoFetchStallStreak;
+  const originalRecheckMax = config.debrid.autoFetchRecheckMax;
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const originalTorrentStatus = pmAdapter.torrentStatus;
+  const originalRemoveTorrent = pmAdapter.removeTorrent;
+  const account = accountScope(key);
+  const enqueued: string[] = [];
+  const searchKey = `busca-${key}`;
+  const userOpts = autofetchUserOpts(key);
+  config.debrid.publicUrl = 'http://addon.test';
+  if (options.stallStreak != null) config.debrid.autoFetchStallStreak = options.stallStreak;
+  if (options.recheckMax != null) config.debrid.autoFetchRecheckMax = options.recheckMax;
+  pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+  debrid.checkCached = async () => ({ cached: new Set(), known: true });
+  return {
+    account, enqueued, searchKey, pmAdapter,
+    async run(streams) {
+      cache.set(searchKey, { streams: [], partial: false }, 900);
+      await runtime.run({ opts: userOpts, encoded: `cfg-${key}` }, () =>
+        applyDebrid(streams, { searchKey } as any));
+      await flush();
+    },
+    setTorrentStatus(fn) { pmAdapter.torrentStatus = fn; },
+    cleanup(hashes) {
+      config.debrid.autoFetchStallStreak = originalStall;
+      config.debrid.autoFetchRecheckMax = originalRecheckMax;
+      config.debrid.publicUrl = originalPublicUrl;
+      debrid.checkCached = originalCheck;
+      pmAdapter.enqueue = originalEnqueue;
+      pmAdapter.torrentStatus = originalTorrentStatus;
+      pmAdapter.removeTorrent = originalRemoveTorrent;
+      autofetch.releaseSearch(searchKey);
+      autofetch.dropQueue(searchKey);
+      cache.forget(searchKey);
+      for (const h of hashes) {
+        cache.forget(autofetch.deadKey('premiumize', account, h));
+        cache.forget(autofetch.markerKey('premiumize', account, h));
+        held.release(h, account);
+      }
+    },
+  };
 }

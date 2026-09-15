@@ -16,6 +16,7 @@ import { isRateLimitError } from '../debrid/common.js';
 import * as rdLedger from '../debrid/rd-ledger.js';
 import { recordAutofetchRelease } from './autofetch-index.js';
 import * as releaseIndex from '../utils/release-index.js';
+import { manageSettleLru } from './autofetch-settle.js';
 export type SeasonHint = { imdbId?: string | null; season?: number | null; isPack?: boolean };
 export type RecheckLot = {
   hashes: Set<string>;
@@ -71,23 +72,6 @@ export function registerSeasonSearchKey(
   }
 }
 
-export function manageSettleLru() {
-  const settleLots: Array<{ key: string; createdAt: number; lot: RecheckLot }> = [];
-  for (const [k, lot] of recheckLots) {
-    if (lot.isSettle) settleLots.push({ key: k, createdAt: lot.createdAt || 0, lot });
-  }
-  const maxLots = config.debrid.autoFetchSettleMaxLots;
-  if (settleLots.length > maxLots) {
-    settleLots.sort((a, b) => a.createdAt - b.createdAt);
-    for (const { key, lot } of settleLots.slice(0, settleLots.length - maxLots)) {
-      if (lot.timer) clearTimeout(lot.timer);
-      const account = accountScope(lot.ctx?.opts?.debridApiKey || '');
-      for (const h of lot.hashes) held.release(h, account);
-      recheckLots.delete(key);
-    }
-  }
-}
-
 export function armRecheck(searchKey: string, lot: RecheckLot) {
   const live = autofetchLive.effective();
   const interval = lot.isSettle ? live.autoFetchSettleMs : live.autoFetchRecheckMs;
@@ -127,37 +111,48 @@ function cleanLotHash(lot: RecheckLot, hash: string) {
   lot.seasonHints.delete(hash);
 }
 
-export function drainNext(searchKey: string, lot: any) {
+// Devolve `true` apenas quando um candidato foi de fato iniciado (hold +
+// `enqueue` disparado); bloqueios (pausa, orçamento, gate de conta, cooldown
+// RD, lock, fila vazia) devolvem `false` — nenhum chamador pode tratar bloqueio
+// transitório como dreno consumado.
+export function drainNext(searchKey: string, lot: any): boolean {
   const live = autofetchLive.effective();
-  if (!searchKey || !live.autoFetchQueue || autofetchLive.isPaused()) return;
+  if (!searchKey || !live.autoFetchQueue || autofetchLive.isPaused()) return false;
   const queue = autofetch.readQueue(searchKey);
-  if (!queue.length) return;
+  if (!queue.length) return false;
   const adapter = debrid.current();
-  if (!adapter) return;
+  if (!adapter) return false;
   const account = accountScope(opts().debridApiKey);
-  if (autofetch.budgetBlockedUntil(adapter.id, account) > Date.now()) return;
-  if (adapter.id === 'realdebrid' && rdGate.isCoolingDown(account)) return;
-  if (autofetch.accountGateBlocked(adapter, opts().debridApiKey)) return;
+  if (autofetch.budgetBlockedUntil(adapter.id, account) > Date.now()) return false;
+  if (adapter.id === 'realdebrid' && rdGate.isCoolingDown(account)) return false;
+  if (autofetch.accountGateBlocked(adapter, opts().debridApiKey)) return false;
 
   // Teto de recusas: sem takeNext (sem requeue). A poda de obsoletos do
   // takeNext deixa de rodar enquanto o dreno está travado — roda na próxima passagem.
   if ((lot.refusals || 0) >= config.debrid.autoFetchDrainMaxRefusals) {
     log.warn(`[autofetch] drenagem interrompida após ${lot.refusals} recusas consecutivas`);
-    return;
+    return false;
   }
 
-  const { next, remaining } = autofetch.takeNext(queue, (cand) => {
-    const h = String(cand.infoHash).toLowerCase();
-    return (
-      autofetch.isDead(adapter.id, account, h) ||
-      Boolean(cache.get(autofetch.markerKey(adapter.id, account, h))) ||
-      held.isHeld(h, account) ||
-      held.isDurablyProtected(adapter.id, account, h)
-    );
-  });
+  // Obsoletos saem da fila de verdade (dead, marker de enqueue em voo,
+  // proteção durável — estados permanentes que nunca mais drenariam). Apenas
+  // ADIADOS (hold transitório, expira no autoFetchTtl) ficam: o `deferFn` os
+  // pula na escolha sem purgá-los do `remaining`.
+  const { next, remaining } = autofetch.takeNext(
+    queue,
+    (cand) => {
+      const h = String(cand.infoHash).toLowerCase();
+      return (
+        autofetch.isDead(adapter.id, account, h) ||
+        Boolean(cache.get(autofetch.markerKey(adapter.id, account, h))) ||
+        held.isDurablyProtected(adapter.id, account, h)
+      );
+    },
+    (cand) => held.isHeld(String(cand.infoHash).toLowerCase(), account),
+  );
 
   autofetch.writeQueue(searchKey, remaining, config.debrid.autoFetchQueueTtl, adapter.id, account);
-  if (!next) return;
+  if (!next) return false;
 
   const requeue = () => autofetch.writeQueue(
     searchKey,
@@ -171,14 +166,14 @@ export function drainNext(searchKey: string, lot: any) {
   const mKey = autofetch.markerKey(adapter.id, account, h);
   if (!autofetch.acquire(mKey)) {
     requeue();
-    return;
+    return false;
   }
 
   if (!autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit)) {
     autofetch.release(mKey);
     autofetch.blockBudget(adapter.id, account, config.debrid.autoFetchDrainBackoffMs);
     requeue();
-    return;
+    return false;
   }
 
   held.hold(h, live.autoFetchTtl, account);
@@ -223,6 +218,7 @@ export function drainNext(searchKey: string, lot: any) {
       lot.refusals = (lot.refusals || 0) + 1;
       log.warn('[autofetch] falha ao drenar da fila:', err?.message || err);
     });
+  return true;
 }
 
 export function runRecheck(searchKey: string) {
@@ -365,11 +361,7 @@ export function runRecheck(searchKey: string) {
     }
 
     const liveAfter = autofetchLive.effective();
-    if (!lot.isSettle && lot.attempts >= liveAfter.autoFetchRecheckMax) {
-      lot.isSettle = true;
-      manageSettleLru();
-      armRecheck(searchKey, lot);
-    } else if (lot.isSettle && (Date.now() - (lot.createdAt || 0)) >= liveAfter.autoFetchTtl * 1000) {
+    if (lot.isSettle && (Date.now() - (lot.createdAt || 0)) >= liveAfter.autoFetchTtl * 1000) {
       metrics.count('autofetch.expired-unready', lot.hashes.size);
       // Exceção deliberada do gate (cabeçalho de autofetch-suppressed.ts):
       // remove por id DIRETO, sem podeRemover/noteSuppressed — é o que expira
@@ -388,6 +380,14 @@ export function runRecheck(searchKey: string) {
       }
       recheckLots.delete(searchKey);
     } else {
+      if (!lot.isSettle && lot.attempts >= liveAfter.autoFetchRecheckMax) {
+        lot.isSettle = true;
+        manageSettleLru(recheckLots);
+      }
+      // Política da Fase 0 (Chupim 2.0): ENTRAR em settle sem evidência
+      // dead/stalled NÃO drena fila alguma. Drenar sem prova de colapso submete
+      // fallback sem necessidade e gasta orçamento da conta; a reposição de
+      // serviços sem sinal de `stalled` (AllDebrid) fica para a futura F3.
       armRecheck(searchKey, lot);
     }
   })).catch((err) => {

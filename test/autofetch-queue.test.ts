@@ -94,8 +94,7 @@ test('blacklist de torrents mortos: isDead e blacklist com TTL', () => {
   assert.equal(autofetch.isDead(adapterId, 'other_acc', H1), false);
 });
 
-test('takeNext pula hashes mortos, já cacheados ou protegidos', () => {
-  const searchKey = 'streams:v5:movie:tt123456';
+test('takeNext purga obsoletos (dead/marker) e ADIA held sem purgá-lo', () => {
   const adapterId = 'torbox';
   const account = 'acc_skip_test';
 
@@ -103,24 +102,15 @@ test('takeNext pula hashes mortos, já cacheados ou protegidos', () => {
   cache.set(autofetch.markerKey(adapterId, account, H2), 1, 3600);
   held.hold(H3, 3600, account);
 
-  const queue: autofetch.QueueCandidate[] = [
-    { infoHash: H1, title: 'Dead candidate' },
-    { infoHash: H2, title: 'Already marked candidate' },
-    { infoHash: H3, title: 'Currently held candidate' },
-    { infoHash: H4, title: 'Good candidate' },
-  ];
-
-  const { next, remaining } = autofetch.takeNext(queue, (cand) => {
-    const h = String(cand.infoHash).toLowerCase();
-    return (
-      autofetch.isDead(adapterId, account, h) ||
-      Boolean(cache.get(autofetch.markerKey(adapterId, account, h))) ||
-      held.isHeld(h, account)
-    );
-  });
+  const { next, remaining } = autofetch.takeNext(
+    [{ infoHash: H1 }, { infoHash: H2 }, { infoHash: H3 }, { infoHash: H4 }],
+    (cand) => autofetch.isDead(adapterId, account, cand.infoHash) ||
+      Boolean(cache.get(autofetch.markerKey(adapterId, account, cand.infoHash))),
+    (cand) => held.isHeld(cand.infoHash, account),
+  );
 
   assert.equal(next?.infoHash, H4, 'pula H1 (dead), H2 (marker) e H3 (held)');
-  assert.equal(remaining.length, 3);
+  assert.deepEqual(remaining.map((c) => c.infoHash), [H3], 'adiado (held) não é purgado');
   held.release(H3, account);
 });
 

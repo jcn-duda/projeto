@@ -13,8 +13,10 @@ import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { applyDebrid, findStreams } from '../src/providers/index.js';
+import { recheckLots } from '../src/providers/autofetch-recheck.js';
+import { drainNext } from '../src/providers/autofetch-runner.js';
 import type { DebridAdapter } from '../types/domain.js';
-import { flush, brDubCandidate, autofetchUserOpts } from './helpers/autofetch-fixtures.js';
+import { flush, brDubCandidate, autofetchUserOpts, makeDrainHarness, H1, H2, sleep, premiumizeRunCtx } from './helpers/autofetch-fixtures.js';
 
 function clearDead(adapterId: string, account: string, hashes: string[]) {
   for (const h of hashes) cache.forget(autofetch.deadKey(adapterId, account, h));
@@ -100,6 +102,163 @@ test('stall colapsa e drainNext sobe o 2º da mesma faixa (fila surplus)', async
   }
 });
 
+// --- Reposição por pool inferior (br → any → seeds) ---
+// O caso comum esgota os poucos candidatos BR no immediate e a fila nascia
+// vazia. O global fortão fica na fila marcado com o PRÓPRIO pool (seeds) e só
+// sobe no colapso COMPROVADO do primário (dead/stalled). Entrar em settle NÃO
+// drena — política da Fase 0: sem evidência de colapso, nada baixa até a
+// futura F3. Os cenários "sem sinal de `stalled`" abaixo simulam o comportamento
+// AllDebrid (só downloading, nunca stalled) sobre o stub do Premiumize.
+
+const seedsCandidate = (h: string, seeds: number) => ({
+  infoHash: h, name: 'Coringa 1080p BluRay', title: 'Coringa 1080p BluRay',
+  _br: false, _dubbed: false, _quality: '1080p', _seeders: seeds,
+});
+
+test('BR imediato + global forte: global não dispara agora, fica na fila com pool seeds', async () => {
+  autofetchLive.reset();
+  const h = makeDrainHarness('fallback-queue-x');
+  const hBr = 'd1'.repeat(20);
+  const hSeed = 'd2'.repeat(20);
+  try {
+    mock.timers.enable({ apis: ['setTimeout'] });
+    await h.run([seedsCandidate(hSeed, 500), brDubCandidate(hBr, { _quality: '1080p', _seeders: 5 })]);
+    assert.deepEqual(h.enqueued, [hBr], 'só o BR primário dispara imediatamente');
+    const queue = autofetch.readQueue(h.searchKey);
+    assert.equal(queue.length, 1, 'global forte preservado na fila');
+    assert.equal(String(queue[0].infoHash).toLowerCase(), hSeed);
+    assert.equal(queue[0].pool, 'seeds', 'a entrada carrega o pool real para o dreno');
+  } finally {
+    mock.timers.reset();
+    h.cleanup([hBr, hSeed]);
+  }
+});
+
+test('BR fica ready: a fila do fallback é descartada e o global não baixa', async () => {
+  autofetchLive.reset();
+  const h = makeDrainHarness('fallback-ready-x');
+  const hBr = 'd3'.repeat(20);
+  const hSeed = 'd4'.repeat(20);
+  try {
+    mock.timers.enable({ apis: ['setTimeout'] });
+    h.setTorrentStatus(async () => ({ [hBr]: { state: 'ready', id: 31 } }));
+    await h.run([seedsCandidate(hSeed, 500), brDubCandidate(hBr, { _quality: '1080p', _seeders: 5 })]);
+    assert.equal(autofetch.readQueue(h.searchKey).length, 1, 'fallback plantado antes do ready');
+    mock.timers.tick(120_000);
+    await flush();
+    assert.equal(autofetch.readQueue(h.searchKey).length, 0, 'lote assentou: fila descartada');
+    assert.deepEqual(h.enqueued, [hBr], 'global de fallback nunca baixou');
+  } finally {
+    mock.timers.reset();
+    h.cleanup([hBr, hSeed]);
+  }
+});
+
+test('BR dead/stalled: drainNext sobe o global de fallback automaticamente', async () => {
+  autofetchLive.reset();
+  const h = makeDrainHarness('fallback-drain-x', { stallStreak: 2 });
+  const hBr = 'd5'.repeat(20);
+  const hSeed = 'd6'.repeat(20);
+  try {
+    mock.timers.enable({ apis: ['setTimeout'] });
+    h.setTorrentStatus(async () => ({ [hBr]: { state: 'downloading', stalled: true, id: 41 } }));
+    h.pmAdapter.removeTorrent = async () => true;
+    await h.run([seedsCandidate(hSeed, 500), brDubCandidate(hBr, { _quality: '1080p', _seeders: 5 })]);
+    assert.equal(autofetch.readQueue(h.searchKey).length, 1, 'global de fallback na fila');
+    mock.timers.tick(120_000);
+    await flush();
+    assert.equal(h.enqueued.length, 1, '1ª observação de stall não drena');
+    mock.timers.tick(120_000);
+    await flush();
+    assert.equal(autofetch.isDead('premiumize', h.account, hBr), true, 'stall colapsa blacklist o BR');
+    assert.ok(h.enqueued.includes(hSeed), 'drainNext sobe o global de fallback');
+    assert.equal(autofetch.readQueue(h.searchKey).length, 0, 'cabeça do fallback consumida');
+  } finally {
+    mock.timers.reset();
+    h.cleanup([hBr, hSeed]);
+  }
+});
+
+test('sem sinal de stalled (comportamento AllDebrid): entrar em settle NÃO drena; fila preservada', async () => {
+  autofetchLive.reset();
+  const h = makeDrainHarness('fallback-settle-x', { recheckMax: 2 });
+  const hBr = 'd7'.repeat(20);
+  const hSeed = 'd8'.repeat(20);
+  try {
+    mock.timers.enable({ apis: ['setTimeout'] });
+    // Stub só-publicando `downloading`: sem dead, sem stalled — nunca cai no
+    // ramo morto/parado. A política da Fase 0 proíbe o dreno cego de settle,
+    // então o fallback permanece retido.
+    h.setTorrentStatus(async () => ({ [hBr]: { state: 'downloading', id: 51 } }));
+    await h.run([seedsCandidate(hSeed, 500), brDubCandidate(hBr, { _quality: '1080p', _seeders: 5 })]);
+    assert.deepEqual(h.enqueued, [hBr], 'só o BR primário dispara na abertura');
+    assert.equal(autofetch.readQueue(h.searchKey).length, 1, 'global de fallback na fila');
+    mock.timers.tick(120_000);
+    await flush();
+    assert.deepEqual(h.enqueued, [hBr], 'pré-settle não drena o fallback');
+    mock.timers.tick(120_000);
+    await flush();
+    assert.equal(recheckLots.get(h.searchKey)?.isSettle, true, 'lote entrou em settle');
+    assert.deepEqual(h.enqueued, [hBr], 'a transição para settle não drena nada');
+    assert.equal(autofetch.readQueue(h.searchKey).length, 1, 'fallback preservado na fila');
+    assert.equal(String(autofetch.readQueue(h.searchKey)[0].infoHash).toLowerCase(), hSeed, 'cabeça intacta');
+    mock.timers.tick(900_000);
+    await flush();
+    assert.deepEqual(h.enqueued, [hBr], 'ciclo de settle seguinte também não drena');
+    assert.equal(autofetch.readQueue(h.searchKey).length, 1, 'fila ainda intacta');
+  } finally {
+    mock.timers.reset();
+    h.cleanup([hBr, hSeed]);
+  }
+});
+
+test('dead/stalled no ciclo da transição para settle: o dreno com evidência continua', async () => {
+  autofetchLive.reset();
+  const h = makeDrainHarness('fallback-settle-coincide-x', { stallStreak: 2, recheckMax: 2 });
+  const hBr1080 = 'db'.repeat(20);
+  const hBr720 = 'dc'.repeat(20);
+  const seed1 = 'dd'.repeat(20);
+  const seed2 = 'de'.repeat(20);
+  try {
+    mock.timers.enable({ apis: ['setTimeout'] });
+    // O 1080p stallado no ciclo da transição; o 720p segue downloading e mantém
+    // o lote vivo — é o que permite a passagem chegar ao settle no mesmo ciclo.
+    h.setTorrentStatus(async () => ({
+      [hBr1080]: { state: 'downloading', stalled: true, id: 71 },
+      [hBr720]: { state: 'downloading', id: 72 },
+    }));
+    h.pmAdapter.removeTorrent = async () => true;
+    await h.run([
+      seedsCandidate(seed1, 500), seedsCandidate(seed2, 400),
+      brDubCandidate(hBr1080, { _quality: '1080p', _seeders: 5 }),
+      brDubCandidate(hBr720, { _quality: '720p', _seeders: 9 }),
+    ]);
+    assert.deepEqual(h.enqueued, [hBr1080, hBr720], 'só os BR imediatos na abertura');
+    assert.equal(autofetch.readQueue(h.searchKey).length, 2, 'dois fallbacks na fila');
+
+    mock.timers.tick(120_000);
+    await flush();
+    assert.deepEqual(h.enqueued, [hBr1080, hBr720], 'pré-threshold não drena');
+
+    // attempts=2: o stall colapsa E o lote entra em settle na MESMA passagem.
+    // O dreno aqui é do ramo morto/parado (evidência), não do settle.
+    mock.timers.tick(120_000);
+    await flush();
+    assert.deepEqual(h.enqueued, [hBr1080, hBr720, seed1], 'o ramo morto/parado drena uma cabeça');
+    assert.equal(autofetch.readQueue(h.searchKey).length, 1, 'a outra cabeça fica retida');
+    assert.equal(String(autofetch.readQueue(h.searchKey)[0].infoHash).toLowerCase(), seed2, 'seed2 preservado');
+
+    // Settle seguinte, SEM nova evidência: mais nada drena.
+    mock.timers.tick(900_000);
+    await flush();
+    assert.deepEqual(h.enqueued, [hBr1080, hBr720, seed1], 'settle sem evidência não drena o restante');
+    assert.equal(autofetch.readQueue(h.searchKey).length, 1, 'fila preservada no settle');
+  } finally {
+    mock.timers.reset();
+    h.cleanup([hBr1080, hBr720, seed1, seed2]);
+  }
+});
+
 test('ready de um hash NÃO zera a fila enquanto o lote ainda tem hashes vivos', async () => {
   autofetchLive.reset();
   const testMock = mock;
@@ -164,5 +323,45 @@ test('ready de um hash NÃO zera a fila enquanto o lote ainda tem hashes vivos',
       cache.forget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
+  }
+});
+
+test('drainNext: cabeca apenas em hold e adiada, nao purgada; o segundo sobe', async () => {
+  autofetchLive.reset();
+  const apiKey = 'chave-drain-defer';
+  const account = accountScope(apiKey);
+  const searchKey = 'streams:v6:movie:ttDrainDefer';
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const enqueued: string[] = [];
+
+  try {
+    autofetch.dropQueue(searchKey);
+    autofetch.resetBudget('premiumize', account);
+    // Marcadores de execucoes anteriores podem sobreviver no L2 do cache
+    // (os imports ESM sobem config antes do env de teste) - limpa antes.
+    for (const h of [H1, H2]) cache.forget(autofetch.markerKey('premiumize', account, h));
+    pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
+    // H1 esta em hold transitorio (candidato imediato ainda em voo em outra
+    // passagem): o dreno nao pode apaga-lo da fila, so pular na escolha.
+    held.hold(H1, 3600, account);
+    autofetch.writeQueue(searchKey, [
+      { infoHash: H1, title: 'A (held)' },
+      { infoHash: H2, title: 'B' },
+    ], 3600);
+
+    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-drain-defer'), async () => {
+      drainNext(searchKey, { refusals: 0, hashes: new Set<string>(), seasonHints: new Map() });
+    });
+    await sleep(10);
+
+    assert.deepEqual(enqueued, [H2], 'o dreno sobe o segundo candidato');
+    const fila = autofetch.readQueue(searchKey);
+    assert.deepEqual(fila.map((c) => c.infoHash), [H1], 'A (held) permanece na fila para drenar depois');
+  } finally {
+    held.release(H1, account);
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.dropQueue(searchKey);
+    autofetch.resetBudget('premiumize', account);
   }
 });

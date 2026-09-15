@@ -241,20 +241,19 @@ function reindexDead() {
 function takeNext(
   queue: QueueCandidate[],
   skipFn?: (item: QueueCandidate) => boolean,
+  deferFn?: (item: QueueCandidate) => boolean,
 ): { next: QueueCandidate | null; remaining: QueueCandidate[] } {
-  if (!Array.isArray(queue) || queue.length === 0) {
-    return { next: null, remaining: [] };
+  // skipFn = obsoleto (sai da fila). deferFn = apenas ADIADO (hold transitório):
+  // fica em `remaining`, pois purgá-lo perderia candidato que drenaria depois.
+  if (!Array.isArray(queue) || queue.length === 0) return { next: null, remaining: [] };
+  const kept: QueueCandidate[] = []; let next: QueueCandidate | null = null;
+  for (const candidate of queue) {
+    if (skipFn?.(candidate)) continue;
+    if (next === null && !deferFn?.(candidate)) next = candidate;
+    else kept.push(candidate);
   }
-  for (let i = 0; i < queue.length; i += 1) {
-    const candidate = queue[i];
-    if (!skipFn || !skipFn(candidate)) {
-      const remaining = [...queue.slice(0, i), ...queue.slice(i + 1)];
-      return { next: candidate, remaining };
-    }
-  }
-  return { next: null, remaining: queue };
+  return { next, remaining: kept };
 }
-
 /**
  * Orçamento deslizante de enqueues/hora por adapter:account.
  */

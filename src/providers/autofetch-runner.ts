@@ -22,6 +22,7 @@ import { capture, opts } from '../runtime.js';
 import * as autofetch from './autofetch.js';
 import { classifyEnqueue, rollbackEnqueue, noteSkip, skipCountsSnapshot, warnAccountGated } from './autofetch-gates.js';
 import { pickSeedsPool, applySeedsStopGate } from './autofetch-seeds-pool.js';
+import { pickLowerPoolFallbacks, composeQueueEntries, toQueueCandidate } from './autofetch-fallback.js';
 import * as autofetchTrace from '../utils/autofetch-trace.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -150,41 +151,46 @@ export function autoFetchCandidates(
 
   const immediateLimit = pool === 'seeds' ? seedsImmediateLimit : live.autoFetchMax;
   const immediate = candidates.slice(0, immediateLimit);
-  const queued = candidates.slice(immediateLimit);
 
   // Hold apenas nos candidatos imediatos que serão disparados
   for (const candidate of immediate) {
     held.hold(String(candidate.infoHash), live.autoFetchTtl, account);
   }
 
-  // Candidatos excedentes vão para a fila persistente (latest-writer)
+  // Fila persistente: excedente do pool primário + fallback dos pools
+  // inferiores habilitados (br → any → seeds). O fallback NÃO é disparado
+  // agora: fica RETIDO na fila para o `drainNext` subir SOMENTE no colapso
+  // comprovado do primário (dead/stalled). Entrar em settle não drena —
+  // política da Fase 0 (sem evidência de colapso, nada baixa até a futura F3).
+  // Ready antes disso descarta a fila inteira; cada entrada carrega o próprio pool.
   if (live.autoFetchQueue && searchKey) {
+    // Profundidade zero não executa seletores nem emite métricas de fallback inexistente.
+    const fallbacks = queueDepth > 0
+      ? pickLowerPoolFallbacks(liveStreams, live, {
+        primaryPool: pool,
+        excludeHashes: candidates.map((s) => String(s.infoHash || '')),
+        season,
+        viable: isViableForEnqueue,
+      })
+      : [];
+    const entries = composeQueueEntries(
+      candidates.slice(immediateLimit).map((stream) => ({ stream, pool })),
+      fallbacks,
+      queueDepth,
+    );
     autofetch.writeQueue(
       searchKey,
-      queued.map((s) => ({
-        infoHash: String(s.infoHash || '').toLowerCase(),
-        name: s.name,
-        title: s.title,
-        quality: s._quality,
-        seeders: s._seeders,
-        br: s._br,
-        dubbed: s._dubbed,
-        lied: s._lied,
-        pool,
+      entries.map(({ stream, pool: entryPool }) => toQueueCandidate(stream, entryPool, {
         imdbId,
         season,
-        episode: null,
-        isPack: Boolean(
-          live.autoFetchSeasonFill && adapter?.cacheCheck && isSeasonPackFillEligible(s, season ?? null),
-        ),
+        seasonFill: Boolean(live.autoFetchSeasonFill && adapter?.cacheCheck),
       })),
       config.debrid.autoFetchQueueTtl,
       adapter!.id,
       account,
     );
-    if (pool === 'br' && queued.length > 0) {
-      metrics.count('autofetch.queue.surplus', queued.length);
-    }
+    const brQueued = entries.filter((entry) => entry.pool === 'br').length;
+    if (brQueued > 0) metrics.count('autofetch.queue.surplus', brQueued);
   }
 
   return immediate.map((stream) => ({ stream, account, pool, ...(pool === 'seeds' ? { slotLimit: seedsImmediateLimit, rare: seedsRare } : {}) }));

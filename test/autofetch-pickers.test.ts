@@ -12,6 +12,7 @@ import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { applyDebrid } from '../src/providers/index.js';
+import { composeQueueEntries, pickLowerPoolFallbacks } from '../src/providers/autofetch-fallback.js';
 import type { Stream, DebridAdapter } from '../types/domain.js';
 
 const A = 'a'.repeat(40);
@@ -280,4 +281,61 @@ test('acquireSearch mantém compatibilidade com o teto antigo de uma vaga', () =
   autofetch.releaseSearch(searchKey);
   assert.equal(autofetch.acquireSearch(searchKey), true, 'release devolve o slot');
   autofetch.releaseSearch(searchKey);
+});
+
+test('pickLowerPoolFallbacks any: candidato waived não esconde o segundo dublado viável', () => {
+  // Mesma qualidade; o waived tem mais seeders, então o corte de limit=1 o
+  // escolheria sozinho. O filtro pós-pick o descartava e devolvia vazio.
+  const waived = { infoHash: A, name: 'Global Dual 1080p', _br: false, _dubbed: true, _quality: '1080p', _seeders: 500, _seedFloorWaived: true };
+  const viable = { infoHash: B, name: 'Global Dual 1080p', _br: false, _dubbed: true, _quality: '1080p', _seeders: 40 };
+  const live = {
+    autoFetchAnyDubbed: true,
+    autoFetchTopSeeds: false,
+    autoFetchMinSeeders: 3,
+    autoFetchTopSeedsMax: 2,
+    autoFetchSeedsPtFirst: true,
+    autoFetchRareMax: 4,
+    autoFetchRareThreshold: 6,
+    autoFetchRareMaxSeeders: 10,
+  };
+  const out = pickLowerPoolFallbacks([waived, viable] as any, live, {
+    primaryPool: 'br',
+    excludeHashes: [],
+    season: null,
+    viable: (s: any) => !s._seedFloorWaived,
+  });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].pool, 'any');
+  assert.equal(String(out[0].stream.infoHash).toLowerCase(), B);
+});
+
+test('fallback inferior não reclassifica excedente BR como any ou seeds', () => {
+  const brExtra = { infoHash: A, name: 'Filme Dual 1080p', _br: true, _dubbed: true, _quality: '1080p', _seeders: 50 };
+  const global = { infoHash: B, name: 'Movie 1080p', _br: false, _dubbed: false, _quality: '1080p', _seeders: 40 };
+  const out = pickLowerPoolFallbacks([brExtra, global] as any, {
+    autoFetchAnyDubbed: true,
+    autoFetchTopSeeds: true,
+    autoFetchMinSeeders: 1,
+    autoFetchTopSeedsMax: 2,
+    autoFetchSeedsPtFirst: true,
+    autoFetchRareMax: 2,
+    autoFetchRareThreshold: 0,
+    autoFetchRareMaxSeeders: 0,
+  }, {
+    primaryPool: 'br',
+    excludeHashes: [],
+    viable: () => true,
+  });
+  assert.deepEqual(out.map((entry) => entry.stream.infoHash), [B]);
+  assert.deepEqual(out.map((entry) => entry.pool), ['seeds']);
+});
+
+test('composeQueueEntries preserva excedente BR antes de fallback inferior', () => {
+  const primary = Array.from({ length: 3 }, (_, i) => ({
+    stream: { infoHash: String(i + 1).repeat(40) } as any,
+    pool: 'br',
+  }));
+  const fallback = [{ stream: { infoHash: 'a'.repeat(40) } as any, pool: 'seeds' as const }];
+  const out = composeQueueEntries(primary, fallback, 3);
+  assert.deepEqual(out.map((entry) => entry.pool), ['br', 'br', 'br']);
 });
