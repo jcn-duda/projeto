@@ -219,6 +219,7 @@
     "test/index-only-1337x.test.js",
     "test/index-only-timeout-clamp.test.js",
     "test/index-only-harvest.test.js",
+    "test/harvest-queue-inflight.test.js",
     "test/harvester.test.js",
     "test/harvester-priority.test.js",
     "test/harvester-sweep.test.js",

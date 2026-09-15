@@ -205,14 +205,28 @@ test("3.2: prioritizeQueue põe evidência BR antes e é estável (FIFO no mesmo
   assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000001', 'tt3000002', 'tt3000003'], 'next-episode > índice-BR > FIFO');
 });
 
-test("3.2: bound de fome — obra sem BR muito antiga sobe acima do next-episode", () => {
+test("Fase 5: bound de fome sobe a obra antiga, mas NÃO fura o next-episode", () => {
   harvesterLive.reset();
   harvesterLive.set({ harvestBrMaxWaitMs: 1000 });
   const now = Date.now();
   const old = { imdbId: 'tt3000010', type: 'movie', reason: 'popular' as any, season: null, episode: null, enqueuedAt: now - 5000 };
   const fresh = { imdbId: 'tt3000011', type: 'movie', reason: 'next-episode' as any, season: null, episode: null, enqueuedAt: now };
+  // A precedência revisada da Fase 5 é `next-episode > br-gap recente > … >
+  // anti-fome`: antes o fome-bound furava até o next-episode; agora o play real
+  // do usuário fica na frente. O bound continua valendo entre os demais.
   const out = (harvester as any).prioritizeQueue([fresh, old]);
-  assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000010', 'tt3000011'], 'starved rank-0 sobe na frente');
+  assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000011', 'tt3000010'], 'next-episode não é furado pela fome');
+  harvesterLive.reset();
+});
+
+test('Fase 5: bound de fome continua subindo a obra antiga sobre FIFO', () => {
+  harvesterLive.reset();
+  harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 1000 });
+  const now = Date.now();
+  const starved = { imdbId: 'tt3000014', type: 'movie', reason: 'popular' as any, season: null, episode: null, enqueuedAt: now - 5000 };
+  const fresh = { imdbId: 'tt3000015', type: 'movie', reason: 'popular' as any, season: null, episode: null, enqueuedAt: now };
+  const out = (harvester as any).prioritizeQueue([fresh, starved]);
+  assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000014', 'tt3000015'], 'a antiga (sem BR) fura a FIFO');
   harvesterLive.reset();
 });
 
@@ -226,14 +240,25 @@ test('3.2: harvestBrMaxWaitMs=0 desliga o bound de fome', () => {
   harvesterLive.reset();
 });
 
-test("3.2: harvestBrFirst=false restaura FIFO exato", () => {
+test("Fase 5: harvestBrFirst=false restaura FIFO entre as regulares (urgências seguem no topo)", () => {
   harvesterLive.reset();
   harvesterLive.set({ harvestBrFirst: false });
   const now = Date.now();
-  const a = { imdbId: 'tt3000020', type: 'movie', reason: 'next-episode' as any, season: null, episode: null, enqueuedAt: now - 100 };
-  const b = { imdbId: 'tt3000021', type: 'movie', reason: 'popular' as any, season: null, episode: null, enqueuedAt: now - 50 };
-  const out = (harvester as any).prioritizeQueue([b, a]);
-  assert.deepEqual(out.map((e: any) => e.imdbId), ['tt3000020', 'tt3000021'], 'sem priorização, ordem de chegada vence');
+  const maisAntiga = { imdbId: 'tt3000020', type: 'movie', reason: 'miss' as any, season: null, episode: null, enqueuedAt: now - 100 };
+  const maisNova = { imdbId: 'tt3000021', type: 'movie', reason: 'popular' as any, season: null, episode: null, enqueuedAt: now - 50 };
+  // FIFO entre as regulares: a ordem de chegada decide (a mais antiga primeiro).
+  assert.deepEqual(
+    (harvester as any).prioritizeQueue([maisNova, maisAntiga]).map((e: any) => e.imdbId),
+    ['tt3000020', 'tt3000021'],
+    'sem priorização, ordem de chegada entre as regulares',
+  );
+  const urgente = { imdbId: 'tt3000022', type: 'series', reason: 'next-episode' as any, season: 1, episode: 1, enqueuedAt: now };
+  // ...e next-episode continua sendo exceção operacional, acima do FIFO regular.
+  assert.deepEqual(
+    (harvester as any).prioritizeQueue([maisNova, maisAntiga, urgente]).map((e: any) => e.imdbId),
+    ['tt3000022', 'tt3000020', 'tt3000021'],
+    'next-episode não é desarmado pela flag off',
+  );
   harvesterLive.reset();
 });
 
@@ -270,17 +295,26 @@ test('3.2: lied (post prometeu PT, arquivo EN) NÃO prioriza', () => {
   harvesterLive.reset();
 });
 
-test('3.2: toggle false restaura FIFO de um array já priorizado', () => {
+test('Fase 5: toggle false restaura FIFO entre as regulares; next-episode segue no topo', () => {
   harvesterLive.reset();
-  harvesterLive.set({ harvestBrFirst: false });
-  const a = { imdbId: 'tt3000050', type: 'movie', reason: 'next-episode', season: null, episode: null, enqueuedAt: 2000 };
-  const b = { imdbId: 'tt3000051', type: 'movie', reason: 'popular', season: null, episode: null, enqueuedAt: 1000 };
-  // Primeiro prioriza (flag ligada): a ganha.
+  const antiga = { imdbId: 'tt3000051', type: 'movie', reason: 'miss', season: null, episode: null, enqueuedAt: 1000 };
+  const nova = { imdbId: 'tt3000050', type: 'movie', reason: 'popular', season: null, episode: null, enqueuedAt: 2000 };
+  const urgente = { imdbId: 'tt3000052', type: 'movie', reason: 'next-episode', season: null, episode: null, enqueuedAt: 3000 };
+  // Priorizado (flag ligada): next-episode no topo; FIFO entre as regulares.
   harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 0 });
-  assert.deepEqual((harvester as any).prioritizeQueue([a, b]).map((e: any) => e.imdbId), ['tt3000050', 'tt3000051'], 'priorizado: next-episode na frente');
-  // O toggle desliga ao vivo: FIFO exato volta, mesmo sobre a ordem priorizada anterior.
+  assert.deepEqual(
+    (harvester as any).prioritizeQueue([nova, antiga, urgente]).map((e: any) => e.imdbId),
+    ['tt3000052', 'tt3000051', 'tt3000050'],
+    'next-episode primeiro; regulares em FIFO',
+  );
+  // O toggle desliga ao vivo: FIFO volta só ENTRE as regulares e o next-episode
+  // continua acima — exceção operacional documentada, não um resíduo da flag.
   harvesterLive.set({ harvestBrFirst: false });
-  assert.deepEqual((harvester as any).prioritizeQueue([a, b]).map((e: any) => e.imdbId), ['tt3000051', 'tt3000050'], 'sem priorização a ordem de chegada original é restaurada');
+  assert.deepEqual(
+    (harvester as any).prioritizeQueue([nova, antiga, urgente]).map((e: any) => e.imdbId),
+    ['tt3000052', 'tt3000051', 'tt3000050'],
+    'flag off não desarma a urgência next-episode',
+  );
   harvesterLive.reset();
 });
 
@@ -289,6 +323,10 @@ test('3.2: capacidade com prioridade ativa NÃO remove a cabeça prioritária', 
   try {
     harvester.setPaused(true); // não consome nada durante o teste
     harvester.clearQueue();
+    // O dedupe por obra+motivo (`harvest:v1:seen:`) sobrevive entre execuções
+    // quando o cache persiste (focado fora do setup-env). Sem limpar, os ids
+    // fixos deste teste entram por dedupe, a fila não enche e o drop não conta.
+    cache.clearNamespace('harvest');
     harvesterLive.set({ harvestBrFirst: true, harvestBrMaxWaitMs: 0, harvestQueueMax: 10 });
     const cap = 'c'.repeat(40);
     releaseIndex.record('tt3000060', { season: 1, episode: 1 }, [

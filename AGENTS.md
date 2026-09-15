@@ -1034,13 +1034,20 @@ de movie/series) e as razões `popularCoverage` (cached/target), `discoveryRate`
 `F3_ENABLED=false` desliga a fase inteira; `F3_BR_ENABLED=false` desliga só o sampler, e
 `F3_BR_TOP_PER_TYPE` regula o tamanho da coorte.
 
-A **3.2** prioriza a fila do colhedor **só com evidência já conhecida, sem pré-sonda**: `next-episode`
-(play real, rank 3) ou release BR dublada **não-`lied`** já no índice (rank 2) saem antes do FIFO;
-obra sem evidência (pedida pelo usuário) fica no FIFO. **`lied` não prioriza.** `harvestBrMaxWaitMs`
-(default 6h) é o bound de fome que impede obra sem evidência de ficar para trás para sempre. São flip
-ao vivo no dashboard (`harvestBrFirst`/`harvestBrMaxWaitMs`, aba `[Colhedor / Harvester]`); desligar
-`harvestBrFirst` restaura a ordem FIFO exata. Formato da fila `harvest:v1:q` NÃO muda (a priorização é
-só reordenação no consumo, e a janela de capacidade preserva a cabeça prioritária já na fila).
+A **3.2/5** prioriza a fila do colhedor **só com evidência já conhecida, sem pré-sonda** e com duas
+**urgências operacionais incondicionais** no topo: `next-episode` (play real) acima de `br-gap`
+recente (<1h — a lacuna de dublado recém-provada, rede de segurança da sonda dirigida). Abaixo delas
+vem o **tier regular**: release BR dublada **não-`lied`** já no índice (rank 2) sai antes do FIFO e
+`harvestBrMaxWaitMs` (default 6h) é o bound de fome que impede a obra pedida de morrer atrás de
+conteúdo BR. **`lied` não prioriza.** São flip ao vivo no dashboard
+(`harvestBrFirst`/`harvestBrMaxWaitMs`, aba `[Colhedor / Harvester]`); desligar `harvestBrFirst`
+restaura FIFO **apenas entre as entradas regulares** — não desarma `next-episode`/`br-gap recente`.
+O anti-fome opera **dentro do tier regular**: sob vazão sustentada ≥ capacidade dos urgentes, o
+backlog regular pode esperar (decisão consciente), e a janela de 1h limita cada `br-gap` individual —
+não é promessa de bound duro global. A promoção no enqueue sobe o motivo de identidade já na fila
+(`demais`→`br-gap`→`next-episode`, sem rebaixar), renova `enqueuedAt` e grava o dedupe de 12h só
+depois da promoção aceita. Formato da fila `harvest:v1:q` NÃO muda (a priorização é só reordenação no
+consumo, e a janela de capacidade preserva a cabeça prioritária já na fila).
 
 A **3.3** é um **gate de decisão documentado**, não auto-tuning: após ≥48h do baseline no ar, o operador
 decide a vazão com o bloco `f3` + `harvest.*` + `debrid.rd.warm.*` + `rdGate` (sobe colheita só se o
