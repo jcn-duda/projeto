@@ -19,6 +19,7 @@ import * as releaseIndex from '../utils/release-index.js';
 import { manageSettleLru } from './autofetch-settle.js';
 import { takeDrainCandidate } from './autofetch-drain.js';
 import { commitObra, releaseObra } from './autofetch-obra.js';
+import { maybeEvictFallbacks, evictMarkerMeta } from './autofetch-evict.js';
 import { collapseTerminal, cleanLotHash } from './autofetch-terminal.js';
 import { expiredRemovalAllowed } from './autofetch-expired.js';
 import { deriveStall, forgetLotProgress } from './autofetch-progress.js';
@@ -146,7 +147,11 @@ export function drainNext(searchKey: string, lot: any): boolean {
     .then((ok) => {
       autofetch.release(mKey);
       if (ok) {
-        cache.set(mKey, autofetch.markerValue(ok), live.autoFetchTtl);
+        cache.set(mKey, autofetch.markerValue(ok, evictMarkerMeta({
+          adapterId: adapter.id, account, imdbId: next.imdbId, season: next.season, episode: next.episode,
+          isPack: next.isPack === true, pool: String(next.pool || ''), br: Boolean(next.br), dubbed: Boolean(next.dubbed),
+          title: String(next.title || next.name || '').split('\n')[0].slice(0, 120),
+        })), live.autoFetchTtl);
         // Aceite confirmado: entrada durável do teto por obra (Fase 2), com o
         // pool REAL do candidato — seeds nunca consome vaga br.
         commitObra(lease, {
@@ -290,6 +295,8 @@ export function runRecheck(searchKey: string) {
           }
           log.info(`[autofetch] download ficou pronto; próxima pergunta de ${searchKey} reconstrói com ⚡`);
         }
+        // Fase 6: captura o hint ANTES do cleanLotHash (que apaga o mapa).
+        const evictHint = lot.seasonHints.get(hash);
         cleanLotHash(lot, hash, adapter.id, account);
         // Só descarta a fila quando o lote inteiro assentou. Um 720p ready
         // não pode apagar o backup do 1080p ainda stallado — era exatamente
@@ -297,6 +304,9 @@ export function runRecheck(searchKey: string) {
         if (lot.hashes.size === 0) autofetch.dropQueue(searchKey);
         held.noteReady(adapter.id, account, hash);
         held.release(hash, account);
+        // Fase 6: só DEPOIS de o hold do próprio ready sair, para o fallback
+        // que ficou pronto agora poder ser reavaliado. Fire-and-forget.
+        maybeEvictFallbacks({ adapter, account, apiKey: opts().debridApiKey, hash, hint: evictHint });
         continue;
       }
 

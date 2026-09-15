@@ -155,7 +155,7 @@ export function obraIdentity(input: ObraIdentityInput): string {
 export function obraKey(input: ObraIdentityInput): string {
   return `${OBRA_PREFIX}${sha256(obraIdentity(input))}`;
 }
-
+export function obraDigest(input: ObraIdentityInput): string { return sha256(obraIdentity(input)); } // digest do marker F6
 /** Teto da vaga por pool. `br` acompanha a vaga por busca; `any` é 1; `seeds`
  *  sobe no regime raro; pool desconhecido é conservador (1). */
 function poolCap(pool: string, rare: boolean, live: ReturnType<typeof autofetchLive.effective>): number {

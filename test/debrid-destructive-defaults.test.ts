@@ -47,6 +47,12 @@ test('Convenção: knobs que apagam da conta nascem DESLIGADOS', () => {
     'DEBRID_RECONCILE (8.17): apagar posse órfã "pronta" sem eco da busca é destrutivo; ' +
     'nasce OFF (incidente bdf00ea→d6442b1) e liga só após janela de observação',
   );
+  assert.equal(
+    d.autoFetchEvictFallback, false,
+    'DEBRID_AUTO_FETCH_EVICT_FALLBACK (F6): remover fallbacks any/seeds da mesma obra na ' +
+    'conta AllDebrid é destrutivo e só dispara com prova total (adsub + marker + idade + ' +
+    'status real); nasce OFF',
+  );
 });
 
 test('Exceção declarada: limpezas ON por design — cada uma conserte um vazamento medido', () => {

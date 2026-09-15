@@ -18,6 +18,7 @@ import { capture, opts } from '../runtime.js';
 import * as autofetch from './autofetch.js';
 import { classifyEnqueue, rollbackEnqueue, noteSkip, skipCountsSnapshot, warnAccountGated } from './autofetch-gates.js';
 import { reserveObra, commitObra, releaseObra, type ObraLease } from './autofetch-obra.js';
+import { evictMarkerMeta } from './autofetch-evict.js';
 import { applySeedsStopGate, purgeSeedsQueue } from './autofetch-seeds-pool.js';
 import { probeBlocksSeeds } from './br-probe.js';
 import { seedsPolicyConfig } from './autofetch-candidates.js';
@@ -102,7 +103,11 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit, rare }: Aut
     .then((ok) => {
       autofetch.release(key);
       if (ok) {
-        cache.set(key, autofetch.markerValue(ok), live.autoFetchTtl);
+        cache.set(key, autofetch.markerValue(ok, evictMarkerMeta({
+          adapterId: adapter.id, account, imdbId, season, episode, isPack,
+          pool, title: String(stream.title || stream.name || '').split('\n')[0].slice(0, 120),
+          br: Boolean(stream._br), dubbed: Boolean(stream._dubbed),
+        })), live.autoFetchTtl);
         // Aceite confirmado: o hash vira entrada durável do teto da obra (o que
         // o F6 vai ler). Reserva recusada nunca é persistida.
         commitObra(obraLease, {

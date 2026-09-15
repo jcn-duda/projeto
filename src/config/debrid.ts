@@ -1,6 +1,7 @@
 import { list, num } from './helpers.js';
 import { autofetchSeeds } from './debrid-autofetch-seeds.js';
 import { reconcile } from './debrid-reconcile.js';
+import { evictFallback } from './debrid-evict.js';
 
 // Fábrica (não objeto pronto): módulo ESM é cacheado, e cada re-avaliação do
 // compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
@@ -160,6 +161,7 @@ export const debrid = () => ({
   // Bloco do reconcile da posse (adsub × conta real): src/config/debrid-reconcile.ts,
   // espalhado aqui com as mesmas chaves (extração para caber no teto de linhas).
   ...reconcile(),
+  ...evictFallback(),
   // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
   // "Expired", "File not available"). A limpeza por busca só alcança hashes
   // que estão na consulta do momento; um torrent que morreu e nunca mais é

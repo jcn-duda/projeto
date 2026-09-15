@@ -63,6 +63,8 @@
     "test/autofetch-adprot.test.js",
     "test/autofetch-enqueue.test.js",
     "test/autofetch-enqueue-cases.test.js",
+    "test/autofetch-evict.test.js",
+    "test/autofetch-evict-executor.test.js",
     "test/autofetch-gate.test.js",
     "test/autofetch-holds.test.js",
     "test/autofetch-obra-cap.test.js",

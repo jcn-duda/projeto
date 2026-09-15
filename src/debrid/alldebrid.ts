@@ -23,8 +23,10 @@ export {
   inventory,
 } from './alldebrid-api.js';
 export type { AllDebridMagnetRow } from './alldebrid-api.js';
-export { warmInventory, preexistingHashes } from './alldebrid-inventory.js';
+export { warmInventory, preexistingHashes, hasDurableOwnership } from './alldebrid-inventory.js';
 export { deleteMagnets, sweepDead, sweepUndubbed } from './alldebrid-cleanup.js';
+export { evictFallbacks } from './alldebrid-fallback-evict.js';
+export type { EvictFallbackResult } from './alldebrid-fallback-evict.js';
 export { checkCached } from './alldebrid-check.js';
 export { resolveLink, enqueue, torrentStatus, removeTorrent } from './alldebrid-play.js';
 

@@ -18,9 +18,35 @@ function markerKey(adapterId: string, account: string, infoHash: string) {
  * Premiumize é o caso medido). Os leitores testam TRUTHINESS, nunca `=== 1`,
  * então o objeto convive com os `1` já gravados: marker antigo apenas não tem
  * id, e o recheck volta a enxergá-lo no próximo enqueue.
+ *
+ * `meta` (Fase 6): o marker do Chupim guarda também pool/obra/acceptedAt/
+ * título/br/dubbed. `obra` é o DIGEST da identidade (sha256, mesma função do
+ * teto por obra) — nunca imdbId nem conta crus. O marker LEGADO (`1` ou
+ * `{id}`) continua truthy para todos os leitores antigos, mas é INELEGÍVEL à
+ * evicção dirigida: sem `obra` não há prova de identidade. `meta` ausente
+ * preserva byte a byte o valor antigo.
  */
-function markerValue(accepted: boolean | string) {
-  return typeof accepted === 'string' && accepted ? { id: accepted } : 1;
+export interface MarkerMeta {
+  pool?: string;
+  obra?: string;
+  acceptedAt?: number;
+  title?: string;
+  br?: boolean;
+  dubbed?: boolean;
+}
+
+function markerValue(accepted: boolean | string, meta?: MarkerMeta) {
+  const id = typeof accepted === 'string' && accepted ? accepted : '';
+  if (!meta) return id ? { id } : 1;
+  const out: Record<string, unknown> = {};
+  if (id) out.id = id;
+  if (meta.pool) out.pool = String(meta.pool);
+  if (meta.obra) out.obra = String(meta.obra);
+  out.acceptedAt = Number.isFinite(Number(meta.acceptedAt)) ? Number(meta.acceptedAt) : Date.now();
+  if (meta.title) out.title = String(meta.title).slice(0, 120);
+  out.br = meta.br === true;
+  out.dubbed = meta.dubbed === true;
+  return out;
 }
 
 /** ID da transferência guardado no marker, quando o adapter devolveu um. */
@@ -28,6 +54,17 @@ function markerTransferId(adapterId: string, account: string, infoHash: string):
   const value = cache.get(markerKey(adapterId, account, infoHash)) as { id?: unknown } | null;
   if (!value || typeof value !== 'object') return null;
   return value.id == null || value.id === '' ? null : String(value.id);
+}
+
+/**
+ * Digest da obra guardado no marker NOVO, ou `null` para marker legado (`1` ou
+ * `{id}`). É o predicado de elegibilidade da evicção (Fase 6): só marker com
+ * `obra` casa uma identidade provada.
+ */
+function markerObra(adapterId: string, account: string, infoHash: string): string | null {
+  const value = cache.peek(markerKey(adapterId, account, infoHash)) as { obra?: unknown } | null;
+  if (!value || typeof value !== 'object') return null;
+  return typeof value.obra === 'string' && value.obra ? value.obra : null;
 }
 
 /**
@@ -58,4 +95,4 @@ function markerIdIndex(adapterId: string, account: string): Map<string, string> 
   return out;
 }
 
-export { markerKey, markerValue, markerTransferId, markerIdIndex };
+export { markerKey, markerValue, markerTransferId, markerObra, markerIdIndex };

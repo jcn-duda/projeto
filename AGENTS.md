@@ -982,6 +982,69 @@ Real-Debrid e Debrid-Link (`cacheCheck: false`) não existe essa prova: pack
 pronto não marca nem semeia nada, sem promessa de ⚡, e a constatação fica para
 o `resolveLink` do play. Não "conserte" ligando o fill nesses dois.
 
+**Evicção dirigida dos fallbacks da mesma obra (Fase 6 do Chupim 2.0).**
+Quando um BR dublado aceito pelo Chupim fica `ready`, os `any`/`seeds` que o
+próprio Chupim baixou para a MESMA obra viram redundância e podem sair da conta
+AllDebrid. Nasce **OFF** (`DEBRID_AUTO_FETCH_EVICT_FALLBACK=false`) e é
+**AllDebrid-only** — OFF significa zero rede, zero leitura de status e zero
+delete. A idade mínima é `DEBRID_AUTO_FETCH_EVICT_FALLBACK_MIN_AGE_MS`
+(default 30 min), configurada em `src/config/debrid-evict.ts` (bloco extraído
+do compositor pela catraca de linhas, como `debrid-reconcile.ts`).
+
+A política vive em `src/providers/autofetch-evict.ts` (chamada fire-and-forget
+no ramo `ready` do `runRecheck`, com coalescing por `adapter:account:obra`) e só
+remove quando TODAS as provas existem: o BR ready está no registro F2
+(`autofetch-obra`) como pool `br`+`dubbed`; o candidato está no MESMO registro
+com pool `any`/`seeds`; o marker do Chupim está no formato NOVO (`markerValue`
+com `{pool, obra, acceptedAt, title, br, dubbed}`, `obra` = digest seguro da
+identidade, nunca imdbId cru) — marker legado `1`/`{id}` é **inelegível**; a
+posse durável `adsub:v1` existe (`hasDurableOwnership`, a mesma prova do 8.15);
+não há `held` nem `adprot`; `acceptedAt` existe e já passou da idade mínima; e o
+`uploadDate` REAL do magnet não é POSTERIOR à etiqueta `adsub` + margem
+(`reconcileAgeMarginMs`, mesma regra/margem do `alldebrid-reconcile`) — upload
+depois da etiqueta é re-add do usuário (`readded`), e sem `uploadDate` legível
+não há prova de que é o mesmo magnet (`no-upload-date`); ausência nunca autoriza.
+Ausência de qualquer prova pula o hash.
+
+A prova de **BR ready** nasce do EVENTO ready (nunca de "BR aceito"): o recheck
+chama isto DEPOIS de `cleanLotHash`/`held.release` do próprio hash, para o
+fallback que fica pronto agora estar livre. O hash ready comprovadamente
+`br`+`dubbed` grava a prova da obra (`autofetch:v3:er:<digest>`, TTL da janela,
+sem segredo, só com o knob ON); qualquer ready da obra reavalia os fallbacks já
+liberados. É o que fecha a corrida "BR ready antes do fallback ainda held": o
+fallback que chega pronto depois é removido pela prova, em vez de pular held
+para sempre. Sem prova BR ready, ready de fallback é no-op (`ready-not-br`).
+
+A última milha é o executor `src/debrid/alldebrid-fallback-evict.ts`
+(`adapter.evictFallbacks?`, método OPCIONAL do registry, irmão do `-evict.ts` do
+8.16): lê o `/magnet/status` autoritativo, exige `id`+`filename` REAIS, barra
+filename com `brOriginMark` (a mesma blindagem destrutiva do `sweepUndubbed`) e
+apaga pelo gate GLOBAL `deleteMagnets` (fila serializada por conta, retry de
+503) — **é proibido** `adapter.removeTorrent` nesse caminho. Só o que saiu de
+verdade (`removedIds`) recebe `adrm` com o filename real, tem a posse `adsub`
+purgada e o marker/registro esquecidos; falha/503 não purga prova nem marca.
+Não remover o BR ready atual, outro pool, outra obra nem hash preexistente do
+usuário: `adsub` é a autoridade durável criada só com prova de ausência no
+snapshot (`rememberSubmitted`), e a regra de proveniência do 8.15 permanece
+intacta. Entrada marcada `overflow: true` (a vaga extra de upgrade do C11)
+NUNCA é evictada — não há prova de que o BR ready cobre a faixa-alvo da reserva,
+e removê-la reverteria o corretivo. O caminho `via:'hash'`/posse do expirado
+(terminal/settle) é outro fluxo e não cruza com esta fase, que só dispara no
+ramo `ready`.
+Métricas `autofetch.evict.removed`, `autofetch.evict.brReady` e
+`autofetch.evict.skipped.<motivo>`
+(`ready-not-br`, `no-hint`, `no-fallback`, `overflow`, `marker-missing`, `no-ownership`,
+`held`, `protected`, `too-young`, `coalesced`; do executor: `status-error`,
+`not-in-account`, `no-id`, `no-filename`, `br-name`, `no-upload-date`, `readded`,
+`delete-failed`). Limitação residual: o fallback que continua held até o TTL
+(ou que nunca fica ready) não é reavaliado depois que a prova BR-ready expira
+com a janela — a próxima busca recomputa o registro e a evicção volta a valer.
+Coalescing é por `adapter:account:obra`: duas obras distintas rodam em paralelo
+(por desenho). Teste:
+`test/autofetch-evict.test.ts`; o executor já tinha prova em
+`test/alldebrid-evict.test.ts` + `test/alldebrid-delete-gate.test.ts`. F7 fará o
+painel completo.
+
 **Painel e configuração ao vivo do chupim (`src/utils/autofetch-live.ts`).**
 Configuração em nível de **operador** (afeta a conta de debrid do operador,
 enquanto `ab` na URL continua o opt-out individual). Mudanças aplicam ao vivo,
@@ -1622,6 +1685,8 @@ fire-and-forget) continua.
 | `src/providers/debrid-pipeline.ts` | `applyDebrid`, filtro pré-checagem, auditoria de áudio (`collectAuditCandidates`, `queueDubAudit`, `runDubAudit`) |
 | `src/providers/stream-builder.ts` | `buildStreams`, `applyFileEvidence`, `applyNoticeOrigin`, `onlyNotice` |
 | `src/providers/autofetch-runner.ts` | Seleção de candidatos, holds/markers, `drainNext`, recheck, settle, detecção de morte |
+| `src/providers/autofetch-obra.ts` | Teto por obra (F2): reserva volátil + registro persistido por hash (pool/acceptedAt/título/br/dubbed/id) e `obraDigest` — a identidade segura que o marker novo da Fase 6 guarda |
+| `src/providers/autofetch-evict.ts` | Evicção dirigida dos fallbacks `any`/`seeds` da mesma obra (Fase 6): política, travas, coalescing e chamada do `adapter.evictFallbacks`; `evictMarkerMeta` grava o marker novo |
 | `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
 | `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário, varredura pt-BR nos globais |
@@ -1642,7 +1707,7 @@ fire-and-forget) continua.
 | `src/debrid/file-selector.ts` | Seleção de arquivo no play: `pickFile`/`pickWorkFile`, `workCoverage`, `baseName`, erros (`WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError`) — extraído em 5.2, `common.ts` reexporta |
 | `src/debrid/common.ts` | `magnetFor`, fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
 | `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |
-| `src/debrid/alldebrid*.ts` | A AllDebrid não é um arquivo, é uma família (~1230 linhas): `alldebrid.ts` é só a fachada (38 linhas). `-api.ts` (chamada crua, `magnetList`, `ACTIVE_STATES`), `-check.ts` (a checagem que é upload — e por isso agenda as limpezas), `-inventory.ts` (snapshot `knownBefore` + posse durável `adsub`), `-cleanup.ts` (`skipCleanup`, gate único `deleteMagnets`, `sweepUndubbed`), `-reupload.ts` (marcador `adrm`), `-evict.ts` (evicção por busca), `-reconcile.ts` (posse órfã que a limpeza não alcançou), `-play.ts`. O tamanho é consequência de `/magnet/instant` não existir: consultar cache escreve na conta |
+| `src/debrid/alldebrid*.ts` | A AllDebrid não é um arquivo, é uma família (~1230 linhas): `alldebrid.ts` é só a fachada (38 linhas). `-api.ts` (chamada crua, `magnetList`, `ACTIVE_STATES`), `-check.ts` (a checagem que é upload — e por isso agenda as limpezas), `-inventory.ts` (snapshot `knownBefore` + posse durável `adsub`), `-cleanup.ts` (`skipCleanup`, gate único `deleteMagnets`, `sweepUndubbed`), `-reupload.ts` (marcador `adrm`), `-evict.ts` (evicção por busca, 8.16), `-fallback-evict.ts` (evicção dirigida dos fallbacks da mesma obra, Fase 6; executor do `adapter.evictFallbacks`), `-reconcile.ts` (posse órfã que a limpeza não alcançou), `-play.ts`. O tamanho é consequência de `/magnet/instant` não existir: consultar cache escreve na conta |
 | `src/debrid/*.ts` | Um adaptador por serviço |
 | `src/utils/format.ts` | Barrel pós split 5.3: reexporta os mesmos 58 nomes dos 7 submódulos (ver abaixo) |
 | `src/utils/indexer-priority.ts` | `priorityMap`/`compareIndexerPriority` |

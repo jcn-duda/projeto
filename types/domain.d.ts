@@ -338,6 +338,21 @@ export interface DebridAdapter {
     ids: Array<string | number>,
   ): Promise<{ ok: number; falhas: Array<{ message?: string }>; removedIds?: Array<string | number> }>;
   /**
+   * Remove fallbacks `any`/`seeds` POR HASH (Fase 6 do Chupim 2.0). Só o
+   * AllDebrid implementa: lê o status autoritativo da conta, exige `id` e
+   * `filename` reais, nunca remove nome com sinal BR e passa pelo gate global
+   * de delete (`deleteMagnets`). Devolve o que saiu e o motivo de cada pulo.
+   * Ausente = serviço não suporta; a evicção nem tenta.
+   */
+  evictFallbacks?(
+    apiKey: string,
+    hashes: string[],
+    opts?: { waitFn?: (ms: number) => Promise<unknown>; delays?: number[] },
+  ): Promise<{
+    removed: Array<{ hash: string; filename: string }>;
+    skipped: Array<{ hash: string; reason: string }>;
+  }>;
+  /**
    * Snapshot `knownBefore` AGUARDADO para limpezas de fundo (30s de teto).
    * `null` = inventário não chegou: fail-safe fecha, nada pode ser apagado.
    */
