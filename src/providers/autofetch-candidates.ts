@@ -16,7 +16,6 @@ import { pickSeedsPool, purgeSeedsQueue } from './autofetch-seeds-pool.js';
 import { requestBrProbe, probeBlocksSeeds } from './br-probe.js';
 import { hasBrEvidence, hasBrDubbed } from '../utils/br-gap.js';
 import * as releaseIndex from '../utils/release-index.js';
-import * as harvestQueue from './harvest-queue.js';
 import { pickLowerPoolFallbacks, composeQueueEntries, toQueueCandidate } from './autofetch-fallback.js';
 import {
   filterSeedsUniverse,
@@ -139,22 +138,17 @@ export function autoFetchCandidates(
   if (probeWork && candidates.length === 0) {
     // Gate de plausibilidade (C6): consulta QUIET o índice da obra/location.
     // Pool vazio sozinho NÃO dispara a sonda — numa obra sem nenhuma evidência
-    // isBr, a ausência de dublado é o esperado e a varredura dirigida viraria
-    // crawl eterno. Nesse caso o pedido vira `br-gap` REGULAR (sem brProbe,
-    // sem pending, sem bloquear seeds). Com evidência BR, a sonda é upgrade
-    // (já há dublado) ou ausência de dublado dentro da obra com prova BR.
+    // isBr, a ausência de dublado é o esperado. Enfileirar `br-gap` aqui era
+    // colheita COMPLETA (~30 consultas, tier de prioridade por 1h) para todo
+    // filme gringo aberto, limitada só pelo dedupe de 12h: mais caro que a
+    // sonda que o gate acabou de recusar. Sem vestígio, NADA sobe — o caminho
+    // regular de miss/gap da busca cuida da descoberta. Com evidência BR, a
+    // sonda é upgrade (já há dublado) ou ausência dentro da obra com prova BR.
     const releases = releaseIndex.lookupQuiet(imdbId as string, { season: season ?? null, episode: episode ?? null });
     if (hasBrEvidence(releases)) {
       requestBrProbe(probeWork, { mode: hasBrDubbed(releases) ? 'upgrade' : 'evidence' });
     } else {
       metrics.count('autofetch.brProbe.skipped.no-evidence');
-      harvestQueue.enqueue({
-        type: probeWork.type,
-        imdbId: probeWork.imdbId,
-        season: probeWork.season,
-        episode: probeWork.episode,
-        reason: 'br-gap',
-      });
     }
   }
   // `pending` (procurando) bloqueia seeds de forma transitória; `found` NÃO —

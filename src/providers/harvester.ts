@@ -145,11 +145,14 @@ async function tick() {
   // mudança para sempre.
   rearmTimer(live.harvestIntervalMs);
   if (!live.harvestEnabled || paused || harvesterLive.isPaused() || inFlight) return;
-  // `next-episode` e brProbe são URGÊNCIAS: furam SÓ o gate de inatividade.
-  // Teto horário, intervalo por indexer, breaker e worker único continuam
-  // valendo — a colheita urgente usa a mesma infraestrutura educada.
+  // Só o trabalho DIRIGIDO da sonda (brProbe, ~3 consultas na interseção
+  // index-only∩pt-BR) fura o gate de inatividade: o freio existe para o
+  // colhedor não disputar Jackett/FlareSolverr com a busca ao vivo, e o
+  // FlareSolverr atende UMA requisição por vez. `next-episode` é colheita
+  // COMPLETA (~30 consultas): rodá-la durante o uso repetia o problema que
+  // o freio resolve. Teto horário, intervalo, breaker e worker único seguem.
   const head = harvestQueue.preview(1)[0];
-  const urgentHead = Boolean(head && (head.reason === 'next-episode' || head.brProbe === true));
+  const urgentHead = Boolean(head && head.brProbe === true);
   if (!urgentHead && activity.recentUserTraffic(live.harvestIdleWindowMs)) return;
   try { cache.maintain(); } catch {}
   checkQuotaWarning().catch(() => {});
@@ -294,10 +297,11 @@ async function drain(maxWorks?: number) {
   const limit = Math.max(0, Math.min(live.harvestDrainMaxWorks, Math.trunc(Number(maxWorks ?? live.harvestDrainMaxWorks) || 0)));
   let drained = 0;
   while (drained < limit && !harvestQueue.isEmpty() && !paused && !harvesterLive.isPaused() && !inFlight) {
-    // Urgências furam o freio de tráfego no dreno manual também — o teto
+    // Só a sonda dirigida (brProbe) fura o freio de tráfego no dreno manual
+    // também — colheita completa sob uso briga com a busca ao vivo. O teto
     // horário continua valendo.
     const head = harvestQueue.preview(1)[0];
-    const urgentHead = Boolean(head && (head.reason === 'next-episode' || head.brProbe === true));
+    const urgentHead = Boolean(head && head.brProbe === true);
     if ((!urgentHead && activity.recentUserTraffic(live.harvestIdleWindowMs)) || harvestWorker.queriesThisHour() >= live.harvestMaxPerHour) break;
     const before = harvestQueue.depth();
     await tick();

@@ -102,11 +102,12 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
         metrics.count(upgrade ? 'search.idx.brGap.upgrade' : 'search.idx.brGap.attempt');
         // Gate de plausibilidade (C6): a sonda dirigida só faz sentido quando o
         // índice JÁ provou alguma release BR (dublada ou não) — sem vestígio
-        // nenhum, a ausência de dublado é o esperado e a sonda viraria crawl
-        // eterno. Obra sem evidência BR recebe o `br-gap` REGULAR, sem
-        // brProbe/pending e sem bloquear seeds; quando a sonda não é elegível
-        // (toggle off/índice off/sem interseção), `fallbackBrGap` mantém a
-        // mesma rede de segurança.
+        // nenhum, a ausência de dublado é o esperado. Enfileirar `br-gap` ali
+        // era colheita COMPLETA prioritizada para todo filme gringo coberto só
+        // por globais; hoje sem vestígio NÃO sobe nada (o caminho regular de
+        // miss/gap cuida da descoberta); quando a sonda não é elegível com
+        // evidência (toggle off/índice off/sem interseção), `fallbackBrGap`
+        // mantém a rede de segurança.
         if (hasBrEvidence(indexed)) {
           const probe = requestBrProbe(
             { type: type as 'movie' | 'series', imdbId, season, episode },
@@ -117,7 +118,6 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
           }
         } else {
           metrics.count('search.idx.brGap.no-evidence');
-          harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'br-gap' });
         }
       } else if (covered && hasBrDubbed(indexed)) {
         metrics.count('search.idx.brGap.served');

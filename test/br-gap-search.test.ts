@@ -107,23 +107,26 @@ function cleanUp(stub: { restore(): void }) {
   cache.clear();
 }
 
-test('br-gap: índice sem BR enfileira UNA vez (dedupe), conta tentativa e não consulta index-only', async () => {
+test('br-gap: índice sem BR NENHUM não enfileira (gate C6); métrica conta a lacuna', async () => {
   const stub = stubFetch(jackettVazio);
   const OBRA = 'tt9000211';
   try {
+    // Release GLOBAL sem isBr: sem vestígio BR, um br-gap seria colheita
+    // completa prioritizada para todo filme gringo — o gate C6 recusa.
     releaseIndex.record(OBRA, {}, [
       { title: 'Test Title 2024 1080p WEB-DL', infoHash: '11'.repeat(20), seeders: 120, indexer: 'thepiratebay' },
     ], {});
     harvestQueue.clearQueue();
     const dAttempt = deltaOf('search.idx.brGap.attempt');
+    const dNoEvidence = deltaOf('search.idx.brGap.no-evidence');
 
     await runSearch('movie', OBRA);
     await runSearch('movie', OBRA);
 
     assert.equal(dAttempt(), 2, 'cada abertura servida do índice sem BR conta a TENTATIVA (enqueue é void)');
+    assert.equal(dNoEvidence(), 2, 'e cada uma registra a recusa por falta de evidência BR');
     const fila = queueOf(OBRA);
-    assert.equal(fila.length, 1, 'o dedupe por obra+razão colapsa as duas aberturas');
-    assert.equal(fila[0].reason, 'br-gap');
+    assert.equal(fila.length, 0, 'obra sem vestígio BR não entra no colhedor');
 
     // Caminho crítico: os BR cards vivos são consultados, os index-only NUNCA.
     const urls = stub.calls.map((c) => c.url);
@@ -180,20 +183,20 @@ test('br-gap: sonda ON enfileira dirigido (brProbe+pending); OFF mantém o br-ga
   }
 });
 
-test('br-gap: obra coberta SEM evidência isBr recebe br-gap REGULAR (gate C6, sem sonda)', async () => {
+test('br-gap: obra coberta SEM evidência isBr NÃO enfileira nada (gate C6)', async () => {
   const stub = stubFetch(jackettVazio);
   const OBRA = 'tt9000311';
   try {
     // Cobertura por release GLOBAL (sem isBr): lacuna de dublado real, mas a
-    // obra não tem vestígio BR nenhum — a sonda dirigida não é plausível.
+    // obra não tem vestígio BR nenhum — br-gap seria colheita completa
+    // prioritizada para todo filme gringo; sem vestígio, nada sobe.
     releaseIndex.record(OBRA, {}, [
       { title: 'Test Title 2024 1080p WEB-DL', infoHash: '11'.repeat(20), seeders: 120, indexer: 'thepiratebay' },
     ], {});
     harvestQueue.clearQueue();
     await runSearch('movie', OBRA);
     const fila = queueOf(OBRA);
-    assert.equal(fila.length, 1, 'a obra entra no colhedor');
-    assert.equal(Boolean(fila[0].brProbe), false, 'sem evidência BR não há modo dirigido');
+    assert.equal(fila.length, 0, 'obra sem vestígio BR não entra no colhedor');
     assert.equal(brProbe.isBrProbePending({ type: 'movie', imdbId: OBRA }), false, 'e sem pending');
   } finally {
     cleanUp(stub);

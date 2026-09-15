@@ -166,17 +166,17 @@ test('despacho de seeds (call site) defere sob pending sem purgar a fila', () =>
   }
 });
 
-test('gate de plausibilidade (C6): obra sem evidência isBr vira br-gap REGULAR, sem sonda/pending', () => {
+test('gate de plausibilidade (C6): obra sem evidência isBr não enfileira nem sonda nem br-gap', () => {
   const saved = setup();
   try {
     harvestQueue.clearQueue();
-    // Pool BR vazio + índice sem NENHUMA release BR: a sonda não é plausível.
+    // Pool BR vazio + índice sem NENHUMA release BR: a sonda não é plausível
+    // e um br-gap seria colheita completa prioritizada — nada sobe.
     runUser(() => autoFetchCandidates([seedsStream()], { imdbId: OBRA, season: null, episode: null, searchKey: 'sk-noevid' }));
     assert.equal(brProbe.isBrProbePending(workMovie), false, 'sem evidência BR não grava pending');
     assert.equal(brProbe.probeBlocksSeeds(workMovie), false, 'e não bloqueia seeds');
     const q = harvestQueue.findQueued({ imdbId: OBRA, season: null, episode: null });
-    assert.ok(q, 'a obra entra como br-gap regular (rede de segurança de sempre)');
-    assert.equal(Boolean(q?.brProbe), false, 'sem modo dirigido');
+    assert.equal(q, undefined, 'obra sem vestígio BR não entra no colhedor');
   } finally {
     harvestQueue.clearQueue();
     autofetch.dropQueue('sk-noevid');
@@ -188,7 +188,7 @@ test('seleção de seeds (call site) é bloqueada pelo pending e volta a escolhe
   const saved = setup();
   try {
     // Gate de plausibilidade (C6): a sonda só é pedida com evidência BR no
-    // índice. Sem ela, o pool vazio vira `br-gap` REGULAR e não bloqueia seeds.
+    // índice. Com ela, o pending bloqueia seeds; sem ela, nada sobe.
     releaseIndex.record(OBRA, {}, [
       { title: 'Probe Movie 2011 1080p LEGENDADO', infoHash: 'b'.repeat(40), seeders: 5, isBr: true, indexer: 'tracker' },
     ], {});

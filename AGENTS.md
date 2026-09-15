@@ -1049,9 +1049,10 @@ não é promessa de bound duro global. A promoção no enqueue sobe o motivo de 
 ela **NÃO zera o `enqueuedAt`** (a fome do pedido original continua contando) — a janela própria do
 `br-gap` usa `priorityAt`, gravado no enqueue/promoção, com fallback para `enqueuedAt` em entrada
 antiga. Formato da fila `harvest:v1:q` NÃO muda (a priorização é só reordenação no consumo, e a janela
-de capacidade preserva a cabeça prioritária já na fila). Urgências (`next-episode` e trabalho
-`brProbe`) furam **apenas** o gate de inatividade/`recentUserTraffic` no `tick` e no `drain`: teto
-horário, intervalo por indexer, breaker, timeout dedicado e worker único continuam valendo.
+de capacidade preserva a cabeça prioritária já na fila). Só o trabalho **dirigido** `brProbe` (~3
+consultas na interseção) fura o gate de inatividade/`recentUserTraffic` no `tick` e no `drain`;
+`next-episode` é colheita COMPLETA (~30 consultas) e voltou a respeitar o freio — teto horário,
+intervalo por indexer, breaker, timeout dedicado e worker único continuam valendo para ambos.
 
 A **3.3** é um **gate de decisão documentado**, não auto-tuning: após ≥48h do baseline no ar, o operador
 decide a vazão com o bloco `f3` + `harvest.*` + `debrid.rd.warm.*` + `rdGate` (sobe colheita só se o
@@ -1075,8 +1076,10 @@ registro algum, nasce `partial:true` — nunca limpa o flag só porque o subset 
 
 **Gate de plausibilidade (dois call sites).** A sonda só é agendada quando o índice já tem **alguma
 evidência `isBr`** (mesmo legendada ou sem faixa-alvo) — o que cobre o upgrade (já há BR dublado) e a
-ausência de dublado DENTRO de uma obra com prova BR. Obra sem vestígio BR recebe o `br-gap` REGULAR, sem
-`brProbe`/`pending` e sem bloquear seeds; no `autoFetchCandidates` o índice é consultado quiet pela
+ausência de dublado DENTRO de uma obra com prova BR. Obra **sem vestígio BR não enfileira nada**: um
+`br-gap` ali era colheita completa prioritizada (~30 consultas, tier por 1h) para todo filme gringo
+aberto, mais caro que a sonda recusada — o caminho regular de miss/gap cuida da descoberta; no
+`autoFetchCandidates` o índice é consultado quiet pela
 obra/location e o pool vazio NÃO dispara sonda sozinho.
 
 **Observabilidade por consulta (B1).** `jackett.search` engole falha e devolve `[]`; vazio sozinho não
@@ -1106,7 +1109,7 @@ antiga de 0 seeders NÃO fecha found), `capped`
 quando o teto horário cortou, `empty` quando `responded > 0` (dirigido) ou `ok` (coalescido) e não há BR
 nova viável, `failed` em falha real; em todos
 **invalida as listas prontas da obra** para o aviso não congelar. Preempção por tráfego NÃO finaliza —
-e para as urgências (`next-episode`/`brProbe`) nem pausa: elas furam apenas o gate de inatividade — e
+(e só o `brProbe` furava o gate de inatividade; `next-episode` volta a ser preemptível) — e
 renova o lease.
 
 Na política F1 do pool seeds, `br-probe-pending` é bloqueio **transitório**: barra seleção (`seedsSelectionBlock`),

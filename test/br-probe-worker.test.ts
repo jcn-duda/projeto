@@ -264,7 +264,7 @@ test('tick: tráfego recente NÃO pausa a sonda dirigida (urgência fura o gate 
   }
 });
 
-test('tick: tráfego recente pausa obra REGULAR (o bypass é só das urgências)', async () => {
+test('tick: tráfego recente pausa obra REGULAR (o bypass é só da sonda dirigida)', async () => {
   const s = setup();
   try {
     meta('Probe Movie');
@@ -275,6 +275,31 @@ test('tick: tráfego recente pausa obra REGULAR (o bypass é só das urgências)
       harvestQueue.enqueue({ imdbId: MOVIE, type: 'movie', season: null, episode: null, reason: 'popular' });
       await harvester.tick();
       assert.equal(harvestQueue.depth(), 1, 'obra regular continua na fila sob tráfego');
+    } finally {
+      stub.restore();
+    }
+  } finally {
+    restore(s);
+  }
+});
+
+test('tick: next-episode TAMBÉM respeita o freio de tráfego (colheita completa não fura)', async () => {
+  const s = setup();
+  try {
+    meta('Probe Movie');
+    config.harvest.idleWindowMs = 60_000;
+    activity.noteUserRequest();
+    const stub = netStub(emptyJackett);
+    try {
+      // `next-episode` é play real, mas a colheita dele é COMPLETA (~30
+      // consultas): rodá-la durante o uso repetiria a disputa de
+      // Jackett/FlareSolverr que o freio existe para evitar. Só a sonda
+      // dirigida (~3 consultas) fura o gate.
+      harvestQueue.enqueue({ imdbId: MOVIE, type: 'movie', season: null, episode: null, reason: 'next-episode' });
+      await harvester.tick();
+      assert.equal(harvestQueue.depth(), 1, 'next-episode continua na fila sob tráfego');
+      const head = harvestQueue.preview(1)[0];
+      assert.equal(head?.reason, 'next-episode', 'e segue no topo para a janela ociosa');
     } finally {
       stub.restore();
     }

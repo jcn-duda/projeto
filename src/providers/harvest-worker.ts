@@ -113,10 +113,11 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // orçamento dedicado e o registro/transição do índice). Não é um segundo
   // worker — é o worker existente com escopo reduzido.
   const directed = entry.brProbe === true;
-  // Urgência operacional (Fase 4/5): `next-episode` é play real e brProbe é a
-  // lacuna provada pela sonda. AMBOS furam SÓ o gate de inatividade — teto
-  // horário, intervalo por indexer, breaker e worker único continuam valendo.
-  const urgent = directed || entry.reason === 'next-episode';
+  // Urgência operacional: só o modo DIRIGIDO da sonda (até 3 consultas) fura
+  // o gate de inatividade. `next-episode` é play real, mas a colheita dele é
+  // COMPLETA (~30 consultas) e não pode disputar FlareSolverr com a busca ao
+  // vivo — volta a respeitar o freio, com preempção no meio da obra.
+  const urgent = directed;
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
   const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
   if (!searchMeta?.name) return { ok: false, capped: false, preempted: false, added: 0, brFound: false, responded: 0 };
