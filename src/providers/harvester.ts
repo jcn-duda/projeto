@@ -137,15 +137,14 @@ async function tick() {
   // mudança para sempre.
   rearmTimer(live.harvestIntervalMs);
   if (!live.harvestEnabled || paused || harvesterLive.isPaused() || inFlight) return;
-  // Só o trabalho DIRIGIDO da sonda (brProbe, ~3 consultas na interseção
-  // index-only∩pt-BR) fura o gate de inatividade: o freio existe para o
-  // colhedor não disputar Jackett/FlareSolverr com a busca ao vivo, e o
-  // FlareSolverr atende UMA requisição por vez. `next-episode` é colheita
-  // COMPLETA (~30 consultas): rodá-la durante o uso repetia o problema que
-  // o freio resolve. Teto horário, intervalo, breaker e worker único seguem.
-  const head = harvestQueue.preview(1)[0];
-  const urgentHead = Boolean(head && head.brProbe === true);
-  if (!urgentHead && activity.recentUserTraffic(live.harvestIdleWindowMs)) return;
+  // Sob tráfego, SÓ a sonda dirigida (~3 consultas na interseção) colhe — e
+  // FORA DE TURNO (`takeProbe`): a ordenação põe `next-episode` acima de
+  // `br-gap`, então exigir que a sonda seja a CABEÇA nunca dispararia com a
+  // fila cheia de plays. O freio existe para o colhedor não disputar
+  // Jackett/FlareSolverr com a busca ao vivo (o FlareSolverr atende UMA
+  // requisição por vez); a colheita COMPLETA da cabeça espera a janela ociosa.
+  // Teto horário, intervalo, breaker e worker único seguem valendo.
+  const traffic = activity.recentUserTraffic(live.harvestIdleWindowMs);
   try { cache.maintain(); } catch {}
   checkQuotaWarning().catch(() => {});
   // Semente: descobre obra popular que o índice ainda não conhece. Fora do
@@ -157,12 +156,14 @@ async function tick() {
   if (harvestQueue.isEmpty()) return;
   if (harvestWorker.queriesThisHour() >= live.harvestMaxPerHour) return;
   inFlight = true;
-  let entry: HarvestEntry | undefined;
+  let entry: HarvestEntry | null | undefined;
   try {
     // Sempre prioriza: com a flag desligada restaura FIFO, com ligada respeita
     // o rank BR e a fome — independentemente da ordem em que a fila estava.
+    // Sob tráfego, só a sonda dirigida sai (fora de turno); sem sonda na fila,
+    // o freio vence e o tick encerra.
     harvestQueue.reorder();
-    entry = harvestQueue.takeHead();
+    entry = traffic ? harvestQueue.takeProbe() : harvestQueue.takeHead();
     if (!entry) return;
     harvestQueue.persist();
     const identity = obraIdentity(entry);
@@ -225,12 +226,10 @@ async function drain(maxWorks?: number) {
   const limit = Math.max(0, Math.min(live.harvestDrainMaxWorks, Math.trunc(Number(maxWorks ?? live.harvestDrainMaxWorks) || 0)));
   let drained = 0;
   while (drained < limit && !harvestQueue.isEmpty() && !paused && !harvesterLive.isPaused() && !inFlight) {
-    // Só a sonda dirigida (brProbe) fura o freio de tráfego no dreno manual
-    // também — colheita completa sob uso briga com a busca ao vivo. O teto
+    // Sob tráfego, o tick de dentro só colhe a sonda dirigida (takeProbe
+    // fora de turno); colheita completa espera a janela ociosa. O teto
     // horário continua valendo.
-    const head = harvestQueue.preview(1)[0];
-    const urgentHead = Boolean(head && head.brProbe === true);
-    if ((!urgentHead && activity.recentUserTraffic(live.harvestIdleWindowMs)) || harvestWorker.queriesThisHour() >= live.harvestMaxPerHour) break;
+    if ((activity.recentUserTraffic(live.harvestIdleWindowMs) && !harvestQueue.hasProbe()) || harvestWorker.queriesThisHour() >= live.harvestMaxPerHour) break;
     const before = harvestQueue.depth();
     await tick();
     if (harvestQueue.depth() >= before) break;

@@ -18,3 +18,18 @@ export function isPromotion(currentReason: string, incomingReason: string): bool
 export function obraIdentity(entry: { imdbId: string; season?: number | null; episode?: number | null }) {
   return `${entry.imdbId}:${entry.season ?? ''}:${entry.episode ?? ''}`;
 }
+
+// Janela de prioridade do `br-gap` recém-promovido (Fase 5): por até 1h a
+// lacuna recém-provada fura `popular`/`miss`; depois volta às regras normais.
+export const BR_GAP_PRIORITY_WINDOW_MS = 60 * 60 * 1000;
+
+/** `br-gap` promovido/enfileirado dentro da janela de prioridade própria. */
+export function isRecentBrGap(
+  entry: { reason: string; priorityAt?: number; enqueuedAt: number },
+  now: number,
+): boolean {
+  if (entry.reason !== 'br-gap') return false;
+  // Fallback seguro para entrada antiga sem `priorityAt`: usa o `enqueuedAt`.
+  const since = entry.priorityAt ?? entry.enqueuedAt;
+  return now - since < BR_GAP_PRIORITY_WINDOW_MS;
+}

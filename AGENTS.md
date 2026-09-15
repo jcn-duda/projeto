@@ -1115,7 +1115,10 @@ antiga. Formato da fila `harvest:v1:q` NÃO muda (a priorização é só reorden
 de capacidade preserva a cabeça prioritária já na fila). Só o trabalho **dirigido** `brProbe` (~3
 consultas na interseção) fura o gate de inatividade/`recentUserTraffic` no `tick` e no `drain`;
 `next-episode` é colheita COMPLETA (~30 consultas) e voltou a respeitar o freio — teto horário,
-intervalo por indexer, breaker, timeout dedicado e worker único continuam valendo para ambos.
+intervalo por indexer, breaker, timeout dedicado e worker único continuam valendo para ambos. Sob
+tráfego a sonda roda **FORA DE TURNO** (`takeProbe`): a ordenação põe `next-episode` acima de
+`br-gap`, então exigir que a sonda fosse a CABEÇA nunca dispararia com a fila cheia de plays; a
+colheita completa da cabeça espera a janela ociosa.
 
 A **3.3** é um **gate de decisão documentado**, não auto-tuning: após ≥48h do baseline no ar, o operador
 decide a vazão com o bloco `f3` + `harvest.*` + `debrid.rd.warm.*` + `rdGate` (sobe colheita só se o
@@ -1242,7 +1245,10 @@ preserva tudo. A chave da instalação nunca é persistida — após restart a p
 varre a fila `sup:` INTEIRA (todas as origens, não só progresso), respeita idade mínima e re-add
 (`uploadDate` × `adsub`), e é gateado pelo knob destrutivo `DEBRID_SUPPRESSED_REVALIDATE`
 (**default false** — desligado, zero rede; ligar autoriza delete por hash sem o freio
-`DEBRID_REMOVE_BY_ID`, limitado ao escopo da fila). O estado é
+`DEBRID_REMOVE_BY_ID`, limitado ao escopo da fila). Nota operacional: sem
+`DEBRID_OPERATOR_ENV_ACCOUNT` no `.env`, `envOperatorAccount` é falso — a conta do `.env` é tratada
+como BYO pelo `isByoAccount` e o `sweepDead` periódico também não roda; nesta configuração, ligar o
+knob é a única varredura de represados da instância. O estado é
 limpo em `cleanLotHash`, no fim do lote e na evicção do LRU de settle — que usa o `adapterId` DO PRÓPRIO lote,
 nunca `debrid.current()` de outra request. É o mesmo espírito do contrato `responded` do B1: o que não foi
 medido não condena.

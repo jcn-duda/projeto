@@ -14,9 +14,9 @@ import * as releaseIndex from '../utils/release-index.js';
 import * as harvesterLive from '../utils/harvester-live.js';
 import { hasBrDubbed } from '../utils/br-gap.js';
 import * as harvestInflight from './harvest-inflight.js';
-import { reasonPriority, isPromotion, obraIdentity } from './harvest-reason.js';
+import { reasonPriority, isPromotion, obraIdentity, isRecentBrGap, BR_GAP_PRIORITY_WINDOW_MS } from './harvest-reason.js';
 
-export { obraIdentity };
+export { obraIdentity, isRecentBrGap, BR_GAP_PRIORITY_WINDOW_MS };
 
 export type HarvestEntry = {
   imdbId: string;
@@ -25,20 +25,18 @@ export type HarvestEntry = {
   episode?: number | null;
   reason: string;
   enqueuedAt: number;
-  // Instante da JANELA DE PRIORIDADE da entrada `br-gap` (Fase 5). Separado do
-  // `enqueuedAt` de propósito: a promoção a `br-gap` NÃO pode resetar a fome —
-  // uma obra que espera há horas vira urgente por 1h sem perder o direito ao
-  // bound anti-fome. Ausente em entrada antiga: a leitura cai no `enqueuedAt`
-  // (janela conservadora, nunca maior que a real).
+  // Instante da JANELA DE PRIORIDADE do `br-gap` (Fase 5). Separado do
+  // `enqueuedAt`: a promoção NÃO reseta a fome — a obra vira urgente por 1h
+  // sem perder o bound anti-fome. Ausente em entrada antiga: cai no
+  // `enqueuedAt` (janela conservadora, nunca maior que a real).
   priorityAt?: number;
-  // Sinal de painel (Etapa 2): entrada devolvida à FRENTE da fila por
-  // preempção de tráfego. Não entra na ordenação — é o head() com o
-  // enqueuedAt original que a coloca à frente do próprio rank.
+  // Sinal de painel (Etapa 2): devolvida à FRENTE por preempção de tráfego.
+  // Não entra na ordenação — é o head() com o enqueuedAt original que a coloca
+  // à frente do próprio rank.
   resumed?: boolean;
-  // Sonda dirigida (Fase 4): OR-aderente. Uma vez marcada, o worker executa o
-  // modo probe (interseção index-only∩pt-BR) mesmo quando o motivo é mais
-  // forte, como `next-episode` — a precedência do reason na ordenação é
-  // preservada, só a execução passa a ser dirigida.
+  // Sonda dirigida (Fase 4): OR-aderente. Marcada, a execução roda o modo
+  // probe (interseção index-only∩pt-BR) mesmo com motivo mais forte — a
+  // precedência do reason na ordenação é preservada, só a execução muda.
   brProbe?: boolean;
   // Nasceu FULL e ganhou a flag por promoção: o desfecho reencaminha o `reason`
   // dela (o pedido completo) sem a flag.
@@ -62,26 +60,10 @@ const QUEUE_KEY = `${prefix('harvest')}q`;
 
 let queue: HarvestEntry[] = [];
 
-// Janela de prioridade própria de uma entrada `br-gap` recém-promovida (Fase 5).
-// A lacuna de dublado acabou de ser provada e o colhedor é a rede de segurança da
-// sonda dirigida: por até 1h o `br-gap` fura `popular`/`miss` — inclusive as que
-// furariam pelo bound de fome (`harvestBrMaxWaitMs`). Passada a janela a entrada
-// volta às regras normais (evidência BR, anti-fome, FIFO), para não monopolizar a
-// frente da fila para sempre.
-export const BR_GAP_PRIORITY_WINDOW_MS = 60 * 60 * 1000;
-
-/** `br-gap` promovido/enfileirado dentro da janela de prioridade própria. */
-function isRecentBrGap(entry: HarvestEntry, now: number): boolean {
-  if (entry.reason !== 'br-gap') return false;
-  // Fallback seguro para entrada antiga sem `priorityAt`: usa o `enqueuedAt`.
-  const since = entry.priorityAt ?? entry.enqueuedAt;
-  return now - since < BR_GAP_PRIORITY_WINDOW_MS;
-}
-
 /**
- * Evidência BR para priorizar a fila (Fase 3.2). Pura e barata (in-memory):
- * play real (`next-episode`) vence; na ausência, o índice já ter provado
- * release BR dublada conta; o resto segue FIFO. Nunca escreve no debrid.
+ * Evidência BR para priorizar a fila (Fase 3.2), pura e barata (in-memory):
+ * play real vence; na ausência, o índice já ter provado release BR dublada
+ * conta; o resto segue FIFO. Nunca escreve no debrid.
  */
 function brEvidenceRank(entry: HarvestEntry): number {
   if (entry.reason === 'next-episode') return 3;
@@ -92,17 +74,15 @@ function brEvidenceRank(entry: HarvestEntry): number {
 }
 
 /**
- * Tier de precedência (Fase 5). `next-episode` (play real) e `br-gap` recente
- * são URGÊNCIAS OPERACIONAIS: ficam acima do tier regular com `harvestBrFirst`
- * ligado OU desligado. Desligar a flag restaura FIFO apenas ENTRE as entradas
- * regulares — não desarma os dois pedidos explícitos. `next-episode` é o topo
- * absoluto (pedido real do usuário); `br-gap` recente é a lacuna de dublado
- * recém-provada, rede de segurança da sonda dirigida.
+ * Tier de precedência (Fase 5). `next-episode` (topo absoluto, play real) e
+ * `br-gap` recente (lacuna recém-provada, rede de segurança da sonda) são
+ * URGÊNCIAS OPERACIONAIS: ficam acima do tier regular com `harvestBrFirst`
+ * ligado OU desligado; o toggle restaura FIFO só ENTRE as regulares.
  *
  * O anti-fome (`harvestBrMaxWaitMs`) opera DENTRO do tier regular. Sob vazão
  * sustentada ≥ capacidade dos urgentes, backlog regular pode esperar — decisão
- * consciente. A janela de 1h limita CADA br-gap individual (depois disso ele cai
- * para o tier regular); não existe promessa de bound duro global.
+ * consciente. A janela de 1h limita CADA br-gap individual; não há bound duro
+ * global.
  */
 function priorityTier(entry: HarvestEntry, now: number): number {
   if (entry.reason === 'next-episode') return 2;
@@ -202,9 +182,8 @@ function markRecentlyQueued(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'epi
  * promoção (obra enfileirada como `miss` nunca virava `br-gap`).
  *
  * Item aberto 8: a obra EM VOO no `harvestOne` também aceita a intenção
- * (coalescing genérico, não só a sonda) — a execução corrente absorve o pedido
- * e o tick decide se ele foi satisfeito ou se precisa voltar à fila. Isso vale
- * para qualquer motivo e não cria segunda entrada.
+ * (coalescing genérico, qualquer motivo) — a execução corrente absorve o
+ * pedido, sem criar segunda entrada.
  */
 export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>): EnqueueOutcome {
   const live = harvesterLive.effective();
@@ -319,6 +298,23 @@ export function reorder(): void {
 
 export function takeHead(): HarvestEntry | undefined {
   return queue.shift();
+}
+
+/** Existe sonda dirigida esperando? (o dreno sob tráfego testa antes do tick) */
+export function hasProbe(): boolean {
+  return queue.some((q) => q.brProbe === true);
+}
+
+/**
+ * Primeira entrada DIRIGIDA (brProbe), removida — execução FORA DE TURNO sob
+ * tráfego: a sonda (~3 consultas) roda durante o uso mesmo sem ser a cabeça
+ * (`next-episode` ordena acima de `br-gap`; na fila cheia de plays a sonda
+ * nunca chegaria ao topo para furar o freio). `null` sem sonda na fila.
+ */
+export function takeProbe(): HarvestEntry | null {
+  const idx = queue.findIndex((q) => q.brProbe === true);
+  if (idx < 0) return null;
+  return queue.splice(idx, 1)[0] ?? null;
 }
 
 /**

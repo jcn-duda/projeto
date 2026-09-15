@@ -264,6 +264,32 @@ test('tick: tráfego recente NÃO pausa a sonda dirigida (urgência fura o gate 
   }
 });
 
+test('tick: sob tráfego, a sonda roda FORA DE TURNO mesmo com next-episode na cabeça', async () => {
+  const s = setup();
+  try {
+    meta('Probe Movie');
+    config.harvest.idleWindowMs = 60_000;
+    activity.noteUserRequest();
+    const stub = netStub(emptyJackett);
+    try {
+      // Ordenação põe next-episode (tier 2) acima do br-gap (tier 1): exigir
+      // que a sonda fosse a CABEÇA nunca dispararia com a fila cheia de plays.
+      // A sonda (~3 consultas) sai fora de turno; a colheita completa espera.
+      harvestQueue.enqueue({ imdbId: 'tt0107954', type: 'movie', season: null, episode: null, reason: 'next-episode' });
+      brProbe.requestBrProbe(work);
+      await harvester.tick();
+      assert.equal(brProbe.__probeStateForTest(work), 'empty', 'a sonda rodou fora de turno');
+      const fila = harvestQueue.preview(10);
+      assert.equal(fila.length, 1, 'a next-episode permanece para a janela ociosa');
+      assert.equal(fila[0].reason, 'next-episode');
+    } finally {
+      stub.restore();
+    }
+  } finally {
+    restore(s);
+  }
+});
+
 test('tick: tráfego recente pausa obra REGULAR (o bypass é só da sonda dirigida)', async () => {
   const s = setup();
   try {
