@@ -118,6 +118,30 @@ function noteSuppressed(
   knownSuppressed.add(key);
 }
 
+/**
+ * Leitura por adapter/conta APOIADA NO ÍNDICE de processo (`knownSuppressed`),
+ * não na varredura do L1. `listAllSuppressed` percorre o L1 inteiro por prefixo
+ * (O(L1)) e existe para passagens pontuais (painel/drain); o revalidate de fundo
+ * roda a cada busca e não pode pagar O(L1). O índice é populado por note/forget
+ * e reconstruído no boot (`reindexSuppressed`) — a MESMA garantia de durabilidade
+ * do painel. Chave expirada ainda não podada é descartada aqui.
+ */
+function listSuppressedForAccount(adapterId: string, account: string): Array<SuppressedRead & { hash: string }> {
+  const escopo = `${SUP_PREFIX}${adapterId}:${account}:`;
+  const out: Array<SuppressedRead & { hash: string }> = [];
+  for (const key of [...knownSuppressed]) {
+    if (!key.startsWith(escopo)) continue;
+    if (cache.peekRemaining(key) == null) {
+      knownSuppressed.delete(key);
+      continue;
+    }
+    const rec = readSuppressed(key);
+    if (!rec.id) continue;
+    out.push({ hash: key.slice(escopo.length), ...rec });
+  }
+  return out;
+}
+
 /** Leitura COMPLETA (com e sem elegibilidade), por adapter/conta. */
 function listAllSuppressed(adapterId: string, account: string): Array<SuppressedRead & { hash: string }> {
   const escopo = `${SUP_PREFIX}${adapterId}:${account}:`;
@@ -266,9 +290,11 @@ export {
   noteSuppressed,
   listSuppressed,
   listAllSuppressed,
+  listSuppressedForAccount,
   forgetSuppressed,
   countSuppressed,
   countAllSuppressed,
   drainSuppressed,
   suppressedKey,
+  reindexSuppressed,
 };

@@ -12,6 +12,7 @@ import { raceWithDeadline } from '../utils/deadline.js';
 import { filterReuploadBlocked, unblockIfInventoryReady } from './alldebrid-reupload.js';
 import { scheduleEvict } from './alldebrid-evict.js';
 import { scheduleReconcile } from './alldebrid-reconcile.js';
+import { scheduleSuppressedRevalidate } from './alldebrid-suppressed-revalidate.js';
 
 /**
  * O /magnet/instant foi removido, mas o próprio /magnet/upload responde
@@ -249,6 +250,11 @@ export async function checkCached(
   // anti-reentrada, dependência de drop ativo) moram todos no módulo — o
   // chamador paga só uma chamada síncrona.
   scheduleReconcile(apiKey, consultados);
+  // Item 1b — represados da conta BYO: a próxima busca da MESMA instalação
+  // reavalia em fundo o que a heurística de progresso adiou, com a apiKey
+  // corrente e sem chave persistida. AllDebrid-only; fail-safe e coalescido no
+  // módulo. Fire-and-forget, como o reconcile.
+  scheduleSuppressedRevalidate(apiKey);
   if (espera) {
     try {
       if ((await espera) === 'prazo') {

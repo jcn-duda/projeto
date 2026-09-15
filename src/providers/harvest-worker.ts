@@ -20,6 +20,8 @@ import { buildWorkQueries } from './harvest-queries.js';
 import { queueRdWarmForRelevant } from './harvest-warmer.js';
 import { applyPtTitleDual } from './pt-title-dual.js';
 import { probeIndexers, probeRunWaitMs } from './br-probe.js';
+import * as harvestInflight from './harvest-inflight.js';
+import { obraIdentity } from './harvest-reason.js';
 import * as harvesterLive from '../utils/harvester-live.js';
 import * as cache from '../utils/cache.js';
 import { prefix } from '../utils/cache-keys.js';
@@ -116,7 +118,10 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // Urgência operacional: só o modo DIRIGIDO da sonda (até 3 consultas) fura
   // o gate de inatividade. `next-episode` é play real, mas a colheita dele é
   // COMPLETA (~30 consultas) e não pode disputar FlareSolverr com a busca ao
-  // vivo — volta a respeitar o freio, com preempção no meio da obra.
+  // vivo — volta a respeitar o freio, com preempção no meio da obra. A
+  // urgência da sonda cai no decorrer do laço quando um pedido de colheita
+  // COMPLETA coalesce em voo: a obra passa a depender de uma colheita inteira
+  // (o subset dirigido não a cobre) e vale o mesmo freio do `next-episode`.
   const urgent = directed;
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
   const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
@@ -171,8 +176,12 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     // Jackett na hora (o que já foi coletado entra no índice mesmo assim).
     // O sinal é preempção, não teto: o ciclo devolve a obra à frente da fila
     // sem contar tentativa (tráfego não é falha dela) nem eficácia de
-    // meia-obra.
-    if (!urgent && activity.recentUserTraffic(live.harvestIdleWindowMs)) {
+    // meia-obra. A sonda dirigida só fura o freio enquanto NÃO recebeu um
+    // pedido de colheita completa em voo: assumido o pedido FULL, a obra
+    // depende de colheita inteira e a preempção é o que preserva o pedido
+    // (o desfecho reencaminha o FULL, nunca o subset dirigido).
+    const fullCoalesced = directed && Boolean(harvestInflight.pendingIntent(obraIdentity(entry))?.full);
+    if ((!urgent || fullCoalesced) && activity.recentUserTraffic(live.harvestIdleWindowMs)) {
       preempted = true;
       break;
     }

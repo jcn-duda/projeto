@@ -27,7 +27,6 @@ import * as log from '../utils/logger.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import { invalidateStreamsForObra } from '../utils/br-gap.js';
 import * as harvestQueue from './harvest-queue.js';
-import * as harvestInflight from './harvest-inflight.js';
 
 export type BrProbeWork = {
   type: 'movie' | 'series';
@@ -211,21 +210,13 @@ export function requestBrProbe(
     return { probe: false, pending: false, skipped: 'retry', fallbackBrGap: false };
   }
 
-  // Coalescing em voo (C8): a mesma obra já está sendo colhida AGORA. Anexa a
-  // intenção à execução corrente em vez de enfileirar uma segunda entrada; o
-  // tick finaliza o estado pelo resultado da colheita completa. A identidade
-  // tem que ser a MESMA do colhedor (`obraIdentity`, sem o tipo): incluir o
-  // tipo aqui nunca casaria com a obra em voo e criaria a duplicata que o
-  // coalescing existe para evitar.
+  // Coalescing GENÉRICO (item aberto 8): `enqueue` já funde a intenção na obra
+  // EM VOO (mesma identidade) quando ela está sendo colhida agora. A sonda é só
+  // mais um motivo na mesma esteira — antes havia um caminho próprio
+  // (`attachProbe`) que não cobria enqueues comuns, e a obra era raspada duas
+  // vezes. A identidade do `enqueue` é a MESMA do colhedor (`obraIdentity`, sem
+  // o tipo); incluir o tipo aqui nunca casaria com a obra em voo.
   const identity = harvestQueue.obraIdentity({ imdbId: work.imdbId, season: work.season, episode: work.episode });
-  if (harvestInflight.attachProbe(identity)) {
-    writePending(work);
-    metrics.count('autofetch.brProbe.coalesced');
-    metrics.count(`autofetch.brProbe.scheduled.${opts.mode || 'evidence'}`);
-    log.debug(`[br-probe] ${identity}: colheita em voo, intenção anexada`);
-    return { probe: true, pending: true, skipped: 'inflight', fallbackBrGap: false };
-  }
-
   const outcome = harvestQueue.enqueue({
     type: work.type,
     imdbId: work.imdbId,
@@ -234,6 +225,15 @@ export function requestBrProbe(
     reason: 'br-gap',
     brProbe: true,
   });
+  if (outcome.reason === 'coalesced') {
+    // A execução corrente cobre a sonda (run dirigido ou colheita completa com
+    // a flag anexada); o tick finaliza o estado pelo resultado.
+    writePending(work);
+    metrics.count('autofetch.brProbe.coalesced');
+    metrics.count(`autofetch.brProbe.scheduled.${opts.mode || 'evidence'}`);
+    log.debug(`[br-probe] ${identity}: colheita em voo, intenção anexada`);
+    return { probe: true, pending: true, skipped: 'inflight', fallbackBrGap: false };
+  }
   const queued = harvestQueue.findQueued(work);
   if (!queued?.brProbe) {
     metrics.count(`autofetch.brProbe.skipped.${outcome.reason}`);

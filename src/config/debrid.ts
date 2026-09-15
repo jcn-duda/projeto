@@ -2,6 +2,7 @@ import { list, num } from './helpers.js';
 import { autofetchSeeds } from './debrid-autofetch-seeds.js';
 import { reconcile } from './debrid-reconcile.js';
 import { evictFallback } from './debrid-evict.js';
+import { suppressedRevalidate } from './debrid-suppressed.js';
 
 // Fábrica (não objeto pronto): módulo ESM é cacheado, e cada re-avaliação do
 // compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
@@ -158,10 +159,10 @@ export const debrid = () => ({
   // Piso de ocupação: só evicta acima disso. Conta folgada não apaga nada —
   // sem o piso, o addon corroeria o acervo em uso normal.
   harvestEvictFloor: Math.max(0, Math.trunc(num(process.env.HARVEST_EVICT_FLOOR, 600))),
-  // Bloco do reconcile da posse (adsub × conta real): src/config/debrid-reconcile.ts,
-  // espalhado aqui com as mesmas chaves (extração para caber no teto de linhas).
+  // Bloco do reconcile da posse (adsub × conta real): src/config/debrid-reconcile.ts.
   ...reconcile(),
   ...evictFallback(),
+  ...suppressedRevalidate(),
   // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
   // "Expired", "File not available"). A limpeza por busca só alcança hashes
   // que estão na consulta do momento; um torrent que morreu e nunca mais é
@@ -171,8 +172,7 @@ export const debrid = () => ({
   // estado terminal não é escolha de ninguém, é lixo que consome quota.
   sweepDead: String(process.env.DEBRID_SWEEP_DEAD || 'true') === 'true',
   sweepDeadIntervalMs: num(process.env.DEBRID_SWEEP_DEAD_INTERVAL_MS, 6 * 3600 * 1000),
-  // Margem antes de considerar um estado terminal definitivo: evita varrer um
-  // magnet que a conta acabou de marcar e ainda pode reavaliar.
+  // Margem antes de considerar terminal definitivo (evita varrer recém-marcado).
   sweepDeadMinAgeMs: num(process.env.DEBRID_SWEEP_DEAD_MIN_AGE_MS, 30 * 60 * 1000),
   // Varredura dos magnets ANTIGOS sem áudio PT (balde `lixo` do audioBucket):
   // legendado/estrangeiro que o autofetch acumulou antes do filtro de áudio.

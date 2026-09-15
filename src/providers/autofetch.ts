@@ -8,6 +8,7 @@ import * as log from '../utils/logger.js';
 import { markerKey, markerValue, markerTransferId } from './autofetch-marker.js';
 import { accountGateBlocked, resetAccountGate, accountGateSnapshot } from './autofetch-gate.js';
 import { countAllSuppressed } from './autofetch-suppressed.js';
+import { deadKey } from './autofetch-keys.js';
 
 const pending = new Map();
 const searchSlots = new Map();
@@ -24,10 +25,6 @@ const knownDead = new Set<string>();
 
 function sha256(str: string) {
   return crypto.createHash('sha256').update(String(str || '')).digest('hex');
-}
-
-function deadKey(adapterId: string, account: string, infoHash: string) {
-  return `${prefix('autofetch')}dead:${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
 }
 
 const QUEUE_PREFIX = `${prefix('autofetch')}q:`;

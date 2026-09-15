@@ -1163,9 +1163,13 @@ quando a entrada realmente existe na fila com a flag dirigida — se o enqueue f
 colhedor está desligado, registra `skipped.<motivo>` e **não bloqueia** seeds. A flag é OR-aderente no
 `HarvestWork` (enqueue/`head`/`tail`): uma obra já na fila aceita o probe sem rebaixar um motivo mais
 forte (`next-episode` permanece no topo e a execução passa a ser dirigida). **Coalescing em voo** (módulo
-`harvest-inflight.ts`): sonda que chega enquanto a MESMA obra é colhida regularmente NÃO cria segunda
-entrada — a intenção é anexada OR-aderente à execução corrente e o resultado da colheita completa finaliza
-o estado; falha/preempção reenfileira preservando a flag. O colhedor finaliza o estado
+`harvest-inflight.ts`) é GENÉRICO por obra: qualquer enqueue que chega enquanto a MESMA identidade já é
+colhida funde o motivo de maior precedência e a flag `brProbe`, sem criar segunda entrada. Colheita completa
+bem-sucedida satisfaz tudo; falha/cap/preempção reenfileira UMA intenção fundida. Um run dirigido que recebeu
+pedido completo devolve só esse pedido à fila, porque o subset da sonda não cobre a colheita inteira — e,
+enquanto o FULL estiver pendente, a sonda DEIXA de furar o freio de tráfego (a colheita completa que ela
+gera cobre o subset, então o tráfego pode preemptá-la sem perder nada). Entrada FULL que recebe a flag por
+promoção (`fullBase`) tem o mesmo desfecho. O colhedor finaliza o estado
 depois do `harvestOne` **nesta ordem**: `found` quando há **evidência nova e viável** (upgrade exige BR
 dublada nova na faixa alvo 1080p; ausência exige `seeders > 0` — placeholder BR é 1 e 0 é inviável; BR
 antiga de 0 seeders NÃO fecha found), `capped`
@@ -1231,7 +1235,14 @@ remover direto: proteção vigente (`held`/`adprot`) bloqueia, e na AllDebrid o 
 de que o addon o subiu (marker do enqueue ou etiqueta durável `adsub`) E com o snapshot de pré-existentes
 carregado sem ele — a mesma autoridade do `dropReady`/`dropUncached`; snapshot ausente fecha o fail-safe
 (não remove) e o caso não provado vai para represados. O ramo progress-stalled continua represado
-(derivação é prova de parada, não autorização de delete). O estado é
+(derivação é prova de parada, não autorização de delete). Para conta BYO, cada `checkCached` posterior agenda
+`alldebrid-suppressed-revalidate.ts`: uma leitura autoritativa por conta, coalescida e com backoff, remove pelo
+gate `deleteMagnets` SÓ quando o texto fica terminal; `ready` cura suppressed+blacklist, ativo permanece e erro
+preserva tudo. A chave da instalação nunca é persistida — após restart a próxima busca retoma a rodada. O módulo
+varre a fila `sup:` INTEIRA (todas as origens, não só progresso), respeita idade mínima e re-add
+(`uploadDate` × `adsub`), e é gateado pelo knob destrutivo `DEBRID_SUPPRESSED_REVALIDATE`
+(**default false** — desligado, zero rede; ligar autoriza delete por hash sem o freio
+`DEBRID_REMOVE_BY_ID`, limitado ao escopo da fila). O estado é
 limpo em `cleanLotHash`, no fim do lote e na evicção do LRU de settle — que usa o `adapterId` DO PRÓPRIO lote,
 nunca `debrid.current()` de outra request. É o mesmo espírito do contrato `responded` do B1: o que não foi
 medido não condena.
@@ -1689,7 +1700,7 @@ fire-and-forget) continua.
 | `src/providers/autofetch-evict.ts` | Evicção dirigida dos fallbacks `any`/`seeds` da mesma obra (Fase 6): política, travas, coalescing e chamada do `adapter.evictFallbacks`; `evictMarkerMeta` grava o marker novo |
 | `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
-| `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário, varredura pt-BR nos globais |
+| `src/providers/harvester.ts` | Colhedor: fila persistente, freio de atividade e teto horário; `harvest-inflight.ts`/`harvest-outcome.ts` fundem intenção concorrente e reencaminham um único trabalho |
 | `src/utils/harvester-live.ts` | Camada de configuração ao vivo do Colhedor e Sementes IMDb persistida em SQLite |
 | `src/utils/release-index.ts` | Índice de releases por obra (`idx:v10`): record/lookup/status — o que faz o addon responder sem Jackett |
 | `src/utils/stream-trace.ts` / `trace-recompute.ts` | Funil por item (P5): ledger observacional na entrada `streams`, recompute offline com peeks quiet |
@@ -1707,7 +1718,7 @@ fire-and-forget) continua.
 | `src/debrid/file-selector.ts` | Seleção de arquivo no play: `pickFile`/`pickWorkFile`, `workCoverage`, `baseName`, erros (`WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError`) — extraído em 5.2, `common.ts` reexporta |
 | `src/debrid/common.ts` | `magnetFor`, fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
 | `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |
-| `src/debrid/alldebrid*.ts` | A AllDebrid não é um arquivo, é uma família (~1230 linhas): `alldebrid.ts` é só a fachada (38 linhas). `-api.ts` (chamada crua, `magnetList`, `ACTIVE_STATES`), `-check.ts` (a checagem que é upload — e por isso agenda as limpezas), `-inventory.ts` (snapshot `knownBefore` + posse durável `adsub`), `-cleanup.ts` (`skipCleanup`, gate único `deleteMagnets`, `sweepUndubbed`), `-reupload.ts` (marcador `adrm`), `-evict.ts` (evicção por busca, 8.16), `-fallback-evict.ts` (evicção dirigida dos fallbacks da mesma obra, Fase 6; executor do `adapter.evictFallbacks`), `-reconcile.ts` (posse órfã que a limpeza não alcançou), `-play.ts`. O tamanho é consequência de `/magnet/instant` não existir: consultar cache escreve na conta |
+| `src/debrid/alldebrid*.ts` | A AllDebrid não é um arquivo, é uma família: `alldebrid.ts` é fachada; `-api`, `-check`, `-inventory`, `-cleanup`, `-reupload`, `-evict`, `-fallback-evict`, `-reconcile`, `-suppressed-revalidate` (terminal autoritativo de BYO) e `-play` separam consulta, posse e caminhos destrutivos |
 | `src/debrid/*.ts` | Um adaptador por serviço |
 | `src/utils/format.ts` | Barrel pós split 5.3: reexporta os mesmos 58 nomes dos 7 submódulos (ver abaixo) |
 | `src/utils/indexer-priority.ts` | `priorityMap`/`compareIndexerPriority` |

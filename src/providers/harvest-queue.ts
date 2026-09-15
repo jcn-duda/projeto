@@ -13,6 +13,10 @@ import * as metrics from '../utils/metrics.js';
 import * as releaseIndex from '../utils/release-index.js';
 import * as harvesterLive from '../utils/harvester-live.js';
 import { hasBrDubbed } from '../utils/br-gap.js';
+import * as harvestInflight from './harvest-inflight.js';
+import { reasonPriority, isPromotion, obraIdentity } from './harvest-reason.js';
+
+export { obraIdentity };
 
 export type HarvestEntry = {
   imdbId: string;
@@ -36,6 +40,9 @@ export type HarvestEntry = {
   // forte, como `next-episode` — a precedência do reason na ordenação é
   // preservada, só a execução passa a ser dirigida.
   brProbe?: boolean;
+  // Nasceu FULL e ganhou a flag por promoção: o desfecho reencaminha o `reason`
+  // dela (o pedido completo) sem a flag.
+  fullBase?: boolean;
 };
 
 /**
@@ -45,7 +52,8 @@ export type HarvestEntry = {
  */
 export type EnqueueOutcome = {
   accepted: boolean;
-  reason: 'disabled' | 'invalid' | 'queued' | 'promoted' | 'duplicate' | 'dedupe';
+  // `coalesced`: a obra já estava em voo no `harvestOne` (item aberto 8) — nada novo na fila.
+  reason: 'disabled' | 'invalid' | 'queued' | 'promoted' | 'duplicate' | 'dedupe' | 'coalesced';
 };
 
 // A fila inteira vive numa chave só (ver cabeçalho). Persistência best-effort
@@ -54,10 +62,6 @@ const QUEUE_KEY = `${prefix('harvest')}q`;
 
 let queue: HarvestEntry[] = [];
 
-export function obraIdentity(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'episode'>) {
-  return `${entry.imdbId}:${entry.season ?? ''}:${entry.episode ?? ''}`;
-}
-
 // Janela de prioridade própria de uma entrada `br-gap` recém-promovida (Fase 5).
 // A lacuna de dublado acabou de ser provada e o colhedor é a rede de segurança da
 // sonda dirigida: por até 1h o `br-gap` fura `popular`/`miss` — inclusive as que
@@ -65,20 +69,6 @@ export function obraIdentity(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'ep
 // volta às regras normais (evidência BR, anti-fome, FIFO), para não monopolizar a
 // frente da fila para sempre.
 export const BR_GAP_PRIORITY_WINDOW_MS = 60 * 60 * 1000;
-
-// Precedência de promoção no enqueue (Fase 5): `next-episode` > `br-gap` >
-// demais. Só promove quem SOBE — trocar um `next-episode` por `br-gap` seria
-// rebaixar o play real do usuário, que é o pedido mais forte da fila.
-const REASON_PRIORITY: Record<string, number> = { 'next-episode': 2, 'br-gap': 1 };
-
-function reasonPriority(reason: string): number {
-  return REASON_PRIORITY[reason] ?? 0;
-}
-
-/** O motivo novo é mais forte que o corrente? (promoção só sobe, nunca rebaixa) */
-function isPromotion(currentReason: string, incomingReason: string): boolean {
-  return reasonPriority(incomingReason) > reasonPriority(currentReason);
-}
 
 /** `br-gap` promovido/enfileirado dentro da janela de prioridade própria. */
 function isRecentBrGap(entry: HarvestEntry, now: number): boolean {
@@ -210,6 +200,11 @@ function markRecentlyQueued(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'epi
  * efetiva (o `br-gap` recente tem tier próprio em `prioritizeQueue`). O dedupe
  * de 12h é gravado/renovado DEPOIS da decisão — gravá-lo antes engolia a
  * promoção (obra enfileirada como `miss` nunca virava `br-gap`).
+ *
+ * Item aberto 8: a obra EM VOO no `harvestOne` também aceita a intenção
+ * (coalescing genérico, não só a sonda) — a execução corrente absorve o pedido
+ * e o tick decide se ele foi satisfeito ou se precisa voltar à fila. Isso vale
+ * para qualquer motivo e não cria segunda entrada.
  */
 export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>): EnqueueOutcome {
   const live = harvesterLive.effective();
@@ -228,7 +223,10 @@ export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>): EnqueueOutcome
     // A flag dirigida é OR-aderente: uma vez pedida, a execução é probe mesmo
     // que o motivo não seja promovido (ex.: `next-episode` já presente).
     const probeUpgrade = Boolean(full.brProbe) && !existing.brProbe;
-    if (probeUpgrade) existing.brProbe = true;
+    if (probeUpgrade) {
+      existing.brProbe = true;
+      existing.fullBase = true; // a cobertura completa da entrada sobrevive ao desfecho
+    }
     if (!isPromotion(existing.reason, full.reason)) {
       if (!probeUpgrade) return { accepted: true, reason: 'duplicate' }; // duplicata simples
       persist();
@@ -248,6 +246,25 @@ export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>): EnqueueOutcome
     metrics.count('harvest.queue.promoted');
     log.debug(`[harvest] fila promovida: ${obraIdentity(existing)} ${from} -> ${full.reason}`);
     return { accepted: true, reason: 'promoted' };
+  }
+
+  // Coalescing GENÉRICO em voo (item aberto 8): a MESMA obra está sendo colhida
+  // AGORA — qualquer motivo funde a intenção na execução corrente em vez de
+  // criar segunda entrada. Roda ANTES do dedupe (pedido mais forte não pode ser
+  // engolido por um dedupe fraco); o dedupe é marcado como pedido aceito e
+  // `harvest.enqueued`/`promoted` não são inflados.
+  if (
+    harvestInflight.coalesce(obraIdentity(full), {
+      reason: full.reason,
+      rank: reasonPriority(full.reason),
+      brProbe: Boolean(full.brProbe),
+      priorityAt: full.priorityAt,
+    })
+  ) {
+    markRecentlyQueued(full);
+    metrics.count('harvest.coalesced');
+    log.debug(`[harvest] ${obraIdentity(full)} em voo: intenção ${full.reason} coalescida`);
+    return { accepted: true, reason: 'coalesced' };
   }
 
   if (wasRecentlyQueued(full)) return { accepted: false, reason: 'dedupe' };
@@ -330,7 +347,10 @@ export function head(entry: HarvestEntry): void {
   }
   const queued = queue[idx];
   // Flag dirigida OR-aderente: head/tail não podem apagar um pedido de probe.
-  if (entry.brProbe) queued.brProbe = true;
+  if (entry.brProbe && !queued.brProbe) {
+    queued.brProbe = true;
+    queued.fullBase = true;
+  }
   if (isPromotion(queued.reason, entry.reason)) {
     // Mantém `enqueuedAt`/`resumed` da entrada que já estava na fila; só o
     // motivo sobe — a fome não é resetada, e a janela do br-gap vem de
@@ -362,7 +382,10 @@ export function tail(entry: HarvestEntry): void {
     return;
   }
   const queued = queue[idx];
-  if (entry.brProbe) queued.brProbe = true;
+  if (entry.brProbe && !queued.brProbe) {
+    queued.brProbe = true;
+    queued.fullBase = true;
+  }
   if (isPromotion(queued.reason, entry.reason)) {
     // Mantém `enqueuedAt`/`resumed` da entrada que já estava na fila; só o
     // motivo sobe — a fome não é resetada.

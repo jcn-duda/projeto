@@ -17,7 +17,6 @@ import config from '../config.js';
 import * as cache from '../utils/cache.js';
 import { prefix } from '../utils/cache-keys.js';
 import * as activity from './activity.js';
-import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import * as harvesterDebrid from '../utils/harvester-debrid-live.js';
 import { notify } from '../utils/notify.js';
@@ -26,9 +25,9 @@ import * as harvesterLive from '../utils/harvester-live.js';
 import { enqueue, clearQueue, prioritizeQueue, obraIdentity } from './harvest-queue.js';
 import * as harvestQueue from './harvest-queue.js';
 import type { HarvestEntry } from './harvest-queue.js';
+import { reasonPriority } from './harvest-reason.js';
 import * as harvestWorker from './harvest-worker.js';
-import * as releaseIndex from '../utils/release-index.js';
-import { finalizeBrProbe, noteBrProbePreempted } from './br-probe.js';
+import { settleHarvest, settleHarvestFailure } from './harvest-outcome.js';
 import * as harvestInflight from './harvest-inflight.js';
 
 let started = false;
@@ -44,13 +43,6 @@ let armedIntervalMs = 0;
 // volta ao comportamento configurado no .env, sem uma ação temporária virar
 // desligamento esquecido.
 let paused = false;
-// Contador de tentativas por obra: uma obra cara (teto estourando sempre ou
-// rede morta) não pode segurar a fila para sempre.
-const attemptsByObra = new Map<string, number>();
-// Preempções por obra — Map SEPARADO do attemptsByObra: tráfego não é falha
-// (não dropa), mas após N preempções a obra vai para a cauda em vez de
-// monopolizar a frente da fila.
-const preemptsByObra = new Map<string, number>();
 
 async function checkQuotaWarning() {
   if (!config.notify.enabled || !config.notify.webhookUrl) return;
@@ -174,105 +166,41 @@ async function tick() {
     if (!entry) return;
     harvestQueue.persist();
     const identity = obraIdentity(entry);
-    // Coalescing (C8): marca a obra em voo para que uma sonda que chegue
-    // DURANTE esta colheita anexe a intenção em vez de enfileirar duplicata.
-    harvestInflight.begin(identity);
+    // Coalescing GENÉRICO (C8 + item aberto 8): marca a obra em voo com a
+    // intenção da entrada base. Qualquer `enqueue` da MESMA identidade que
+    // chegue durante este `harvestOne` — miss/gap/next-episode/br-gap OU sonda —
+    // funde a intenção aqui em vez de criar uma segunda entrada; o desfecho
+    // abaixo decide se ela precisa voltar à fila.
+    harvestInflight.begin(identity, {
+      reason: entry.reason,
+      rank: reasonPriority(entry.reason),
+      brProbe: entry.brProbe === true,
+      priorityAt: entry.priorityAt,
+    });
     const { ok, added, capped, preempted, brFound, responded } = await harvestWorker.harvestOne(entry);
-    const coalescedProbe = harvestInflight.hasProbeIntent(identity);
-    const isProbe = entry.brProbe === true || coalescedProbe;
-    // Sonda dirigida (Fase 4): o estado final é decidido AQUI, depois de o
-    // worker ter rodado pelos controles do colhedor.
-    // Ordem: achar BR vence teto (found prova valor, mesmo com a passada
-    // cortada); `responded > 0` (dirigido) ou `ok` (coalescido, colheita
-    // completa) é a prova de que houve resposta VÁLIDA — `jackett.search`
-    // engole falha e devolve `[]`, e vazio não autoriza `empty`. Preempção NÃO
-    // finaliza: a obra volta à fila e o lease é renovado.
-    if (isProbe) {
-      const work = {
-        type: entry.type,
-        imdbId: entry.imdbId,
-        season: entry.season ?? null,
-        episode: entry.episode ?? null,
-      };
-      if (preempted) noteBrProbePreempted(work);
-      else if (brFound) finalizeBrProbe(work, 'found');
-      else if (capped) finalizeBrProbe(work, 'capped');
-      else if (entry.brProbe ? responded > 0 : ok) finalizeBrProbe(work, 'empty');
-      else finalizeBrProbe(work, 'failed');
-    }
-    if (preempted) {
-      // Obra interrompida por tráfego: SEM custo em attemptsByObra (não é
-      // falha). Até 3 preempções volta à frente; a 4ª vai para a cauda
-      // (`harvest.preempted.deferred`) para não monopolizar a fila — sem
-      // dropar. `resumed` só para o painel; enqueuedAt original preservado.
-      // A intenção dirigida VIAJA com a obra devolvida: o reagendamento não
-      // pode perder a sonda que chegou em voo.
-      const tries = (preemptsByObra.get(identity) || 0) + 1;
-      preemptsByObra.set(identity, tries);
-      metrics.count('harvest.preempted');
-      const returned = { ...entry, resumed: true, ...(isProbe ? { brProbe: true } : {}) };
-      if (tries <= 3) {
-        harvestQueue.head(returned);
-      } else {
-        harvestQueue.tail(returned);
-        metrics.count('harvest.preempted.deferred');
-        preemptsByObra.delete(identity);
-      }
-      harvestQueue.persist();
-    } else {
-      // Conclusão sem preempção: zera o ciclo de preempções desta obra.
-      preemptsByObra.delete(identity);
-      // Contrato da Etapa 1 preservado: obra que CONCLUIU (ou foi cortada pelo
-      // teto) conta eficácia. A preemptada nunca chega aqui — voltou à fila e
-      // será recolhida como conclusão legítima depois.
-      metrics.count(added > 0 ? 'harvest.done' : 'harvest.empty');
-      if (capped) {
-        // Obra cortada no meio pelo teto volta para a FRENTE da fila: terminar
-        // o que já começou vale mais que abrir obra nova, porque um registro
-        // parcial no índice já conta como cobertura para o idxPoolCovered — a
-        // busca passaria a ser servida de uma lista incompleta. O contador de
-        // tentativas evita que uma obra cara segure a fila para sempre.
-        const tries = (attemptsByObra.get(identity) || 0) + 1;
-        attemptsByObra.set(identity, tries);
-        if (tries <= 3) {
-          metrics.count('harvest.capped');
-          // A intenção dirigida sobrevive ao retorno por teto.
-          harvestQueue.head(isProbe && !entry.brProbe ? { ...entry, brProbe: true } : entry);
-          harvestQueue.persist();
-        } else {
-          // Drop da fila: limpa partial grudado (ex.: raiz semeada) antes de
-          // apagar attempts — senão o flag bloqueia fast-path por ~30d.
-          metrics.count('harvest.capped.dropped');
-          releaseIndex.clearPartial(entry.imdbId, { season: entry.season, episode: entry.episode });
-          attemptsByObra.delete(identity);
-        }
-      } else {
-        attemptsByObra.delete(identity);
-      }
-    }
+    // Intenção efetiva (base + coalescida) lida DEPOIS do worker: o que chegou
+    // durante os awaits está aqui. `entry.brProbe` decide o MODO da execução;
+    // `intent.brProbe` diz se uma sonda foi anexada em voo.
+    const intent = harvestInflight.pendingIntent(identity);
+    const isProbe = entry.brProbe === true || Boolean(intent?.brProbe);
+    const mergedReason = intent?.reason ?? entry.reason;
+    // Entrada reencaminhada carrega o motivo de maior precedência fundido;
+    // `priorityAt` só viaja na janela do br-gap. A flag dirigida NÃO é montada
+    // aqui: ela pertence à EXECUÇÃO (`entry.brProbe`) e quem decide se ela
+    // sobrevive ao reencaminhamento é o desfecho (`reforwarded` em
+    // harvest-outcome.ts). Montá-la a partir de `isProbe` fazia uma sonda
+    // apenas COALESCIDA em voo (base FULL) rebaixar o retry a dirigido.
+    const returned: HarvestEntry = {
+      ...entry,
+      reason: mergedReason,
+      ...(mergedReason === 'br-gap' && intent?.priorityAt != null ? { priorityAt: intent.priorityAt } : {}),
+    };
+    // Desfecho: finalização da sonda e reencaminhamento de UMA entrada quando a
+    // execução não conclui — a política (teto/preempção/sucesso + pedido
+    // coalescido não coberto por run dirigido) vive em `harvest-outcome.ts`.
+    settleHarvest({ entry, identity, intent, isProbe, returned, ok, added, capped, preempted, brFound, responded });
   } catch (err: unknown) {
-    metrics.count('harvest.failed');
-    if (entry) {
-      const identity = obraIdentity(entry);
-      const coalescedProbe = harvestInflight.hasProbeIntent(identity);
-      const tries = (attemptsByObra.get(identity) || 0) + 1;
-      attemptsByObra.set(identity, tries);
-      // Falha de rede pode ser transitória: volta pro fim da fila até 3 vezes.
-      // A intenção dirigida sobrevive ao reagendamento (mesmo contrato do
-      // caminho de preempção).
-      const returned = { ...entry, ...(coalescedProbe ? { brProbe: true } : {}) };
-      if (tries <= 3) harvestQueue.tail(returned);
-      else attemptsByObra.delete(identity);
-      // A sonda finaliza como falha: libera seeds pelo retry curto e destrava
-      // o aviso, em vez de ficar pending até o lease vencer.
-      if (entry.brProbe || coalescedProbe) {
-        finalizeBrProbe(
-          { type: entry.type, imdbId: entry.imdbId, season: entry.season ?? null, episode: entry.episode ?? null },
-          'failed',
-        );
-      }
-      harvestQueue.persist();
-    }
+    if (entry) settleHarvestFailure(entry, harvestInflight.pendingIntent(obraIdentity(entry)));
     log.warn('[harvest] ciclo falhou:', log.errorMessage(err));
   } finally {
     if (entry) harvestInflight.end(obraIdentity(entry));
