@@ -81,6 +81,15 @@ async function search(query: string, type: string, indexersOverride: string[] | 
       }
       return false;
     });
+  // Quem ficou de fora pelo breaker também é reportado (responded:false): o
+  // consumidor da observabilidade enxerga a diferença entre "não respondeu" e
+  // "nem foi consultado", sem que isso toque no circuito.
+  if (options.onQueryResult && !ignoreBreaker) {
+    const active = new Set(activeIndexers);
+    for (const indexer of indexers) {
+      if (!active.has(indexer)) options.onQueryResult({ indexer, responded: false, reason: 'breaker' });
+    }
+  }
   if (activeIndexers.length === 0) return [];
 
   const settled = await Promise.allSettled(
@@ -92,6 +101,13 @@ async function search(query: string, type: string, indexersOverride: string[] | 
   for (let idx = 0; idx < settled.length; idx += 1) {
     const r = settled[idx];
     if (r.status === 'fulfilled') {
+      // Resposta VÁLIDA (mesmo que vazia) vs fonte morta dentro do HTTP 200.
+      // `sourceOk` já é o veredicto do queryIndexer; aqui só o publicamos.
+      options.onQueryResult?.({
+        indexer: r.value.indexer,
+        responded: r.value.sourceOk !== false,
+        ...(r.value.sourceOk === false ? { reason: 'source' } : {}),
+      });
       out.push(...r.value.items);
       if (recordStatus && !r.value.fromCache) {
         indexerStatus.record(r.value.indexer, {
@@ -142,6 +158,9 @@ async function search(query: string, type: string, indexersOverride: string[] | 
         }
       }
     } else {
+      // Rejeição (timeout/aborto/erro de rede): não respondeu. Reason fica
+      // genérico de propósito — quem decide o motivo do prazo é o queryIndexer.
+      options.onQueryResult?.({ indexer: activeIndexers[idx], responded: false, reason: 'error' });
       if (recordStatus) {
         indexerStatus.record(activeIndexers[idx], {
           ok: false,

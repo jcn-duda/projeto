@@ -188,6 +188,16 @@ export const debrid = () => ({
   // pra duas coisas: não reenviar o mesmo torrent a cada busca e por quanto
   // tempo ele fica protegido do dropUncached.
   autoFetchBr: String(process.env.DEBRID_AUTO_FETCH_BR || 'true') === 'true',
+  // Sonda dirigida (Fase 4 do Chupim 2.0): quando o pool BR fica vazio, procura
+  // dublado nos index-only BR (interseção JACKETT_INDEX_ONLY_INDEXERS ×
+  // JACKETT_PT_BR_INDEXERS) ANTES de liberar o pool de melhores sementes.
+  // Enquanto a sonda está pending o pool seeds fica DEFERIDO (não purgado).
+  // Default ligado e ajustável ao vivo pelo painel; false não agenda nem
+  // bloqueia seeds. Exige RELEASE_INDEX ativo e interseção não vazia.
+  autoFetchBrProbe: String(process.env.AUTOFETCH_BR_PROBE || 'true') === 'true',
+  // TTL dos estados da sonda (`autofetch:v3:probe:<sha256>`). O `pending` tem
+  // lease curto próprio: órfão por crash deixa de bloquear seeds sozinho.
+  brProbeTtl: Math.max(60, Math.trunc(num(process.env.BR_PROBE_TTL_S, 43200))),
   // Fallback quando a busca não achou NENHUMA fonte BR dublada (site fora,
   // domínio mudou, título não indexado): baixa a melhor global que anuncia
   // áudio PT explícito. Default on é o próprio caso de uso do

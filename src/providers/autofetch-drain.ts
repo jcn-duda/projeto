@@ -19,6 +19,7 @@ import type { QueueCandidate } from './autofetch.js';
 import { noteSkip } from './autofetch-gates.js';
 import { seedsPolicyConfig } from './autofetch-candidates.js';
 import { seedsDrainRejection } from './autofetch-policy.js';
+import { probeBlocksSeeds } from './br-probe.js';
 import { reserveObra, type ObraLease } from './autofetch-obra.js';
 
 export type DrainSelection = {
@@ -65,7 +66,26 @@ export function takeDrainCandidate(
     }
     return false;
   };
-  const deferFn = (cand: QueueCandidate) => held.isHeld(String(cand.infoHash).toLowerCase(), account);
+  const deferFn = (cand: QueueCandidate) => {
+    if (held.isHeld(String(cand.infoHash).toLowerCase(), account)) return true;
+    // Sonda dirigida (Fase 4): com pending da obra, o candidato seeds fica em
+    // `remaining` (ADIADO, não descartado) — a fila é preservada e volta a
+    // drenar quando o lease terminar. br/any não são afetados.
+    if (cand.pool === 'seeds' && cand.imdbId) {
+      // Identidade da SONDA, não a do teto por obra: no pack `episode` é nulo
+      // (cap da temporada), mas a sonda observa o EPISÓDIO solicitado. Entrada
+      // antiga sem `probeEpisode` cai no `episode` persistido.
+      const probeSeason = cand.probeSeason ?? cand.season ?? null;
+      const probeEpisode = cand.probeEpisode ?? (cand.isPack === true ? null : (cand.episode ?? null));
+      return probeBlocksSeeds({
+        type: (probeSeason != null || cand.isPack === true ? 'series' : 'movie') as 'movie' | 'series',
+        imdbId: String(cand.imdbId),
+        season: probeSeason,
+        episode: probeEpisode,
+      });
+    }
+    return false;
+  };
 
   let working: QueueCandidate[] = queue;
   let next: QueueCandidate | null = null;

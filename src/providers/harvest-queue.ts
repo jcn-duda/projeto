@@ -25,6 +25,21 @@ export type HarvestEntry = {
   // preempção de tráfego. Não entra na ordenação — é o head() com o
   // enqueuedAt original que a coloca à frente do próprio rank.
   resumed?: boolean;
+  // Sonda dirigida (Fase 4): OR-aderente. Uma vez marcada, o worker executa o
+  // modo probe (interseção index-only∩pt-BR) mesmo quando o motivo é mais
+  // forte, como `next-episode` — a precedência do reason na ordenação é
+  // preservada, só a execução passa a ser dirigida.
+  brProbe?: boolean;
+};
+
+/**
+ * Resultado do enqueue, para quem PRECISA saber se o pedido virou trabalho
+ * (a sonda só grava `pending` com a entrada apta na fila). Os consumidores
+ * antigos seguem ignorando o retorno.
+ */
+export type EnqueueOutcome = {
+  accepted: boolean;
+  reason: 'disabled' | 'invalid' | 'queued' | 'promoted' | 'duplicate' | 'dedupe';
 };
 
 // A fila inteira vive numa chave só (ver cabeçalho). Persistência best-effort
@@ -185,12 +200,12 @@ function markRecentlyQueued(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'epi
  * gravado/renovado DEPOIS da decisão — gravá-lo antes engolia a promoção
  * (obra enfileirada como `miss` nunca virava `br-gap`).
  */
-export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>) {
+export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>): EnqueueOutcome {
   const live = harvesterLive.effective();
-  if (!live.harvestEnabled || !config.releaseIndex.enabled) return;
+  if (!live.harvestEnabled || !config.releaseIndex.enabled) return { accepted: false, reason: 'disabled' };
   const imdbId = String(entry.imdbId || '');
-  if (!/^tt\d+$/.test(imdbId)) return;
-  if (entry.type !== 'movie' && entry.type !== 'series') return;
+  if (!/^tt\d+$/.test(imdbId)) return { accepted: false, reason: 'invalid' };
+  if (entry.type !== 'movie' && entry.type !== 'series') return { accepted: false, reason: 'invalid' };
   const full: HarvestEntry = { ...entry, imdbId, enqueuedAt: Date.now() };
 
   // Duplicata/promoção ANTES do dedupe (Fase 5): o dedupe é por obra+motivo, e
@@ -198,7 +213,15 @@ export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>) {
   // motivo fraco já estava na fila.
   const existing = queue.find((q) => obraIdentity(q) === obraIdentity(full));
   if (existing) {
-    if (!isPromotion(existing.reason, full.reason)) return; // duplicata simples
+    // A flag dirigida é OR-aderente: uma vez pedida, a execução é probe mesmo
+    // que o motivo não seja promovido (ex.: `next-episode` já presente).
+    const probeUpgrade = Boolean(full.brProbe) && !existing.brProbe;
+    if (probeUpgrade) existing.brProbe = true;
+    if (!isPromotion(existing.reason, full.reason)) {
+      if (!probeUpgrade) return { accepted: true, reason: 'duplicate' }; // duplicata simples
+      persist();
+      return { accepted: true, reason: 'queued' };
+    }
     const from = existing.reason;
     existing.reason = full.reason;
     existing.enqueuedAt = full.enqueuedAt;
@@ -211,10 +234,10 @@ export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>) {
     // `harvest.enqueued` (que mede entradas adicionadas à fila).
     metrics.count('harvest.queue.promoted');
     log.debug(`[harvest] fila promovida: ${obraIdentity(existing)} ${from} -> ${full.reason}`);
-    return;
+    return { accepted: true, reason: 'promoted' };
   }
 
-  if (wasRecentlyQueued(full)) return;
+  if (wasRecentlyQueued(full)) return { accepted: false, reason: 'dedupe' };
   markRecentlyQueued(full);
   if (live.harvestBrFirst) {
     // Com prioridade ativa, o teto NUNCA pode descartar a cabeça mais
@@ -238,6 +261,7 @@ export function enqueue(entry: Omit<HarvestEntry, 'enqueuedAt'>) {
   }
   persist();
   metrics.count('harvest.enqueued');
+  return { accepted: true, reason: 'queued' };
 }
 
 /** Esvazia a fila de colheita imediatamente a pedido do operador. */
@@ -268,6 +292,15 @@ export function takeHead(): HarvestEntry | undefined {
 }
 
 /**
+ * Entrada já enfileirada desta obra (cópia viva, dono é a fila). Usada pela
+ * sonda para confirmar que o pedido dirigido virou trabalho ANTES de gravar
+ * `pending` — sem entrada apta, o worker não executaria o modo probe.
+ */
+export function findQueued(entry: Pick<HarvestEntry, 'imdbId' | 'season' | 'episode'>): HarvestEntry | undefined {
+  return queue.find((q) => obraIdentity(q) === obraIdentity(entry));
+}
+
+/**
  * Volta a obra para a FRENTE da fila (cortada pelo teto: terminar primeiro).
  *
  * Corrida in-flight (Fase 5), espelhando o `tail`: a identidade pode ter sido
@@ -283,6 +316,8 @@ export function head(entry: HarvestEntry): void {
     return;
   }
   const queued = queue[idx];
+  // Flag dirigida OR-aderente: head/tail não podem apagar um pedido de probe.
+  if (entry.brProbe) queued.brProbe = true;
   if (isPromotion(queued.reason, entry.reason)) {
     // Mantém `enqueuedAt`/`resumed` da entrada que já estava na fila; só o
     // motivo sobe.
@@ -311,6 +346,7 @@ export function tail(entry: HarvestEntry): void {
     return;
   }
   const queued = queue[idx];
+  if (entry.brProbe) queued.brProbe = true;
   if (isPromotion(queued.reason, entry.reason)) {
     // Mantém `enqueuedAt`/`resumed` da entrada que já estava na fila; só o
     // motivo sobe.

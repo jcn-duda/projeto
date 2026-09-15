@@ -42,6 +42,16 @@ export interface JackettSearchOptions {
    * colhedor para index-only, que têm latência fora de qualquer orçamento de
    * resposta; quem não passa cai no budgetFor de sempre. */
   timeoutMs?: number;
+  /**
+   * Observabilidade por consulta, opcional. `responded: true` significa que o
+   * indexer deu uma resposta VÁLIDA (HTTP + envelope do Jackett sadios), mesmo
+   * que ela seja `[]`; `false` cobre breaker/timeout/erro de rede/fonte morta
+   * dentro do HTTP 200. Existe para a sonda dirigida (Fase 4) distinguir
+   * "vazio autoritativo" de "falhou e engoliu": `jackett.search` devolve `[]`
+   * nos dois casos, e `[]` sozinho não prova sucesso. Não altera status de
+   * indexer nem o breaker — é só leitura para o chamador.
+   */
+  onQueryResult?: (info: { indexer: string; responded: boolean; reason?: string }) => void;
 }
 
 export async function queryIndexer(indexer: string, query: string, type: string, timeoutOverride: number | null = null, options: JackettSearchOptions = {}) {

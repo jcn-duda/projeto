@@ -30,6 +30,8 @@ import * as harvesterLive from '../src/utils/harvester-live.js';
 import { attemptIndexFastPath } from '../src/providers/search-index-path.js';
 import { idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
 import { hasBrDubbed } from '../src/utils/br-gap.js';
+import autofetchLive from '../src/utils/autofetch-live.js';
+import * as brProbe from '../src/providers/br-probe.js';
 import { sortAndLimit, toStremioStream } from '../src/utils/format.js';
 import { stubFetch } from './helpers/stub.js';
 import type { RawItem } from '../types/domain.js';
@@ -132,6 +134,47 @@ test('br-gap: índice sem BR enfileira UNA vez (dedupe), conta tentativa e não 
     for (const idx of config.jackett.indexOnlyIndexers) {
       assert.ok(!urls.some((u) => u.includes(`/indexers/${idx}/`)), `${idx} fica fora da busca viva`);
     }
+  } finally {
+    cleanUp(stub);
+  }
+});
+
+test('br-gap: sonda ON enfileira dirigido (brProbe+pending); OFF mantém o br-gap normal', async () => {
+  const stub = stubFetch(jackettVazio);
+  const OBRA = 'tt9000299';
+  try {
+    releaseIndex.record(OBRA, {}, [
+      { title: 'Test Title 2024 1080p WEB-DL', infoHash: '99'.repeat(20), seeders: 120, indexer: 'thepiratebay' },
+    ], {});
+    harvestQueue.clearQueue();
+    autofetchLive.reset();
+
+    await runSearch('movie', OBRA);
+    const comSonda = queueOf(OBRA);
+    assert.equal(comSonda.length, 1, 'sonda ON agenda a entrada na fila existente');
+    assert.equal(comSonda[0].reason, 'br-gap');
+    assert.equal(comSonda[0].brProbe, true, 'e marca a execução dirigida');
+    assert.equal(brProbe.isBrProbePending({ type: 'movie', imdbId: OBRA }), true, 'pending gravado');
+
+    // Toggle OFF pelo call site: o fallback br-gap normal NÃO pode se perder.
+    // cache.clear() apaga o índice e o dedupe; recompõe a obra sem BR antes de
+    // reabrir, senão o fast-path nem chega ao enqueue.
+    harvestQueue.clearQueue();
+    cache.clear();
+    releaseIndex.record(OBRA, {}, [
+      { title: 'Test Title 2024 1080p WEB-DL', infoHash: '99'.repeat(20), seeders: 120, indexer: 'thepiratebay' },
+    ], {});
+    autofetchLive.set({ autoFetchBrProbe: false });
+    try {
+      await runSearch('movie', OBRA);
+    } finally {
+      autofetchLive.reset();
+    }
+    const semSonda = queueOf(OBRA);
+    assert.equal(semSonda.length, 1, 'OFF ainda enfileira o br-gap de rede de segurança');
+    assert.equal(semSonda[0].reason, 'br-gap');
+    assert.equal(Boolean(semSonda[0].brProbe), false, 'sem modo dirigido');
+    assert.equal(brProbe.isBrProbePending({ type: 'movie', imdbId: OBRA }), false, 'e sem pending');
   } finally {
     cleanUp(stub);
   }

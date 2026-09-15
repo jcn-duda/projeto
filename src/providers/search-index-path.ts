@@ -14,6 +14,7 @@ import type { FirstObserverState } from './stream-builder.js';
 import { collectRaw } from './collect-orchestrator.js';
 import { idxPoolCovered, idxReleasesToRaw } from './search-pool-coverage.js';
 import { shouldBrGap, hasBrDubbed } from '../utils/br-gap.js';
+import { requestBrProbe } from './br-probe.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 
 export interface IndexAttemptInput {
@@ -98,7 +99,15 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
         // à alvo é `upgrade` (mesma fila, métrica separada para o diagnóstico
         // distinguir ausência de falta de 1080p).
         metrics.count(hasBrDubbed(indexed) ? 'search.idx.brGap.upgrade' : 'search.idx.brGap.attempt');
-        harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'br-gap' });
+        // A sonda dirigida substitui o enqueue simples: ela agenda a MESMA
+        // entrada `br-gap` (com a flag brProbe) e, quando não é elegível
+        // (toggle off / sem interseção / índice off), devolve `fallbackBrGap`
+        // para o colhedor continuar sendo a rede de segurança de sempre —
+        // desligar a sonda não pode perder o br-gap normal.
+        const probe = requestBrProbe({ type: type as 'movie' | 'series', imdbId, season, episode });
+        if (probe.fallbackBrGap) {
+          harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'br-gap' });
+        }
       } else if (covered && hasBrDubbed(indexed)) {
         metrics.count('search.idx.brGap.served');
       }

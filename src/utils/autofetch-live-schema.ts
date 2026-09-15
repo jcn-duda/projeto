@@ -17,6 +17,7 @@ export interface AutofetchSchemaField {
 export function envDefaults(): Omit<AutofetchLiveConfig, 'paused' | 'pausedSince'> {
   return {
     autoFetchBr: config.debrid.autoFetchBr,
+    autoFetchBrProbe: config.debrid.autoFetchBrProbe,
     autoFetchAnyDubbed: config.debrid.autoFetchAnyDubbed,
     autoFetchTopSeeds: config.debrid.autoFetchTopSeeds,
     autoFetchSeedsPtFirst: config.debrid.autoFetchSeedsPtFirst,
@@ -51,6 +52,14 @@ export function schema(): AutofetchSchemaField[] {
       group: 'sources',
       envDefault: defaults.autoFetchBr,
       description: 'Baixa torrents dublados de trackers brasileiros quando a busca não encontrar play em cache.',
+    },
+    {
+      key: 'autoFetchBrProbe',
+      label: 'Sonda dirigida nos index-only BR',
+      type: 'boolean',
+      group: 'sources',
+      envDefault: defaults.autoFetchBrProbe,
+      description: 'Antes de liberar o pool de melhores sementes, procura dublado nos index-only BR. Enquanto procura, o pool de sementes fica deferido (não purgado). Exige RELEASE_INDEX ativo e interseção index-only × pt-BR.',
     },
     {
       key: 'autoFetchAnyDubbed',

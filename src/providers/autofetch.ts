@@ -135,14 +135,13 @@ interface QueueCandidate {
   quality?: string;
   size?: number; // bytes do download (política seeds do dreno); ausente = cai no 💾 do title
   seeders?: number;
-  br?: boolean;
-  dubbed?: boolean;
-  lied?: boolean;
+  br?: boolean; dubbed?: boolean; lied?: boolean;
   pool?: string;
   imdbId?: string;
   isPack?: boolean; rare?: boolean; slotLimit?: number; // evidência rara do pool seeds p/ o dreno
-  season?: number | null;
-  episode?: number | null;
+  // Sonda (Fase 4): a identidade ORIGINAL da busca fica em probeSeason/
+  // probeEpisode — o pack tem `episode` nulo para cap, mas a sonda olha o E.
+  season?: number | null; episode?: number | null; probeSeason?: number | null; probeEpisode?: number | null;
   addedAt?: number;
   [key: string]: unknown;
 }

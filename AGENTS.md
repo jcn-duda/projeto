@@ -1055,6 +1055,57 @@ warmer drena; sobe warmer só sem 429/quota e com conta abaixo do teto). A 3.3 *
 tuning sozinha** — nenhum knob dela ajusta nada automaticamente. Nunca subir a colheita além do que o
 warmer absorve — fila `rdq` crescendo é backlog, não valor.
 
+**Fase 4 revisada — sonda dirigida (`src/providers/br-probe.ts`).** Quando o pool BR do Chupim fica
+vazio (não existe BR dublada, ou todas foram cortadas pelo piso de seeders/viabilidade), a cascata caía
+direto no pool de melhores sementes — enquanto o dublado podia existir nos index-only BR, que não entram
+pela busca viva. A sonda procura esse BR **antes** de liberar seeds, mas **não cria um segundo worker
+Jackett**: ela agenda uma entrada `br-gap` com a flag `brProbe` na fila existente (`harvest:v1:q`) e o
+colhedor consome em **modo dirigido** — só a interseção `JACKETT_INDEX_ONLY_INDEXERS ∩
+JACKETT_PT_BR_INDEXERS`, um indexer por vez, pelos mesmos controles (`getMeta`/TMDB, `recentUserTraffic`,
+`harvestMaxPerHour`, `awaitIndexerGap`, breaker, `JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS`,
+`filterRelevantRaw`/`applyPtTitleDual`) e o mesmo desfecho de registro (`releaseIndex.record`, `brTransition`,
+`invalidateStreamsForObra`). Nada de orçamento é furado; a varredura pt-BR agrupada e o bludv não rodam no
+modo dirigido. **A sonda nunca declara cobertura completa sozinha:** o subset indexOnly∩pt-BR não é a obra
+inteira, então o registro dirigido preserva o `partial` de um registro existente e, quando não havia
+registro algum, nasce `partial:true` — nunca limpa o flag só porque o subset respondeu.
+
+**Observabilidade por consulta (B1).** `jackett.search` engole falha e devolve `[]`; vazio sozinho não
+prova sucesso. `JackettSearchOptions.onQueryResult` (opcional, não muda a API pública nem o breaker)
+publica por consulta `responded: true` para resposta VÁLIDA (HTTP + envelope do Jackett sadios, mesmo
+`[]`) e `responded: false` com `reason: 'error'` (timeout/aborto/HTTP ruím) ou `'breaker'` (nem
+consultado). O modo dirigido conta `responded` e só finaliza `empty` com `responded > 0`; sem nenhuma
+resposta real, `failed` (retry curto) — nunca `empty` por falha engolida.
+
+Estado/orquestração vive em `br-probe.ts` (nenhuma rede): identidade GLOBAL por obra
+`<type>:<imdbId>:<season>:<episode>` (filme sem S/E; série por episódio), chave
+`autofetch:v3:probe:<sha256>` — **sem config, conta ou segredo**. Estados `pending`/`found`/`empty`/
+`failed`/`capped` com timestamps. Só `pending` (lease curto de 10min, órfão por crash expira sozinho) e
+`found` (BR já existe) bloqueiam seeds; `empty` libera na hora mantendo o dedupe do estado,
+`failed`/`capped` liberam com retry curto (5min). `requestBrProbe` só grava `pending` **sincronamente**
+quando a entrada realmente existe na fila com a flag dirigida — se o enqueue foi dedupe (12h) ou o
+colhedor está desligado, registra `skipped.<motivo>` e **não bloqueia** seeds. A flag é OR-aderente no
+`HarvestWork` (enqueue/`head`/`tail`): uma obra já na fila aceita o probe sem rebaixar um motivo mais
+forte (`next-episode` permanece no topo e a execução passa a ser dirigida). O colhedor finaliza o estado
+depois do `harvestOne` **nesta ordem**: `found` com BR no índice (vence até o teto — achou valor), `capped`
+quando o teto horário cortou, `empty` quando `responded > 0` e não há BR, `failed` em falha real; em todos
+**invalida as listas prontas da obra** para o aviso não congelar. Preempção por tráfego NÃO finaliza —
+renova o lease. O `found` não é revalidado por rede na leitura: vale pelo TTL do estado (risco documentado
+no módulo — se a release sair do índice dentro da janela, seeds seguem barrados até o TTL).
+
+Na política F1 do pool seeds, `br-probe-pending` é bloqueio **transitório**: barra seleção (`seedsSelectionBlock`),
+**o fallback PERSISTIDO** (`pickLowerPoolFallbacks`), despacho (`autoFetchBrDubbed`) e dreno (`deferFn` do
+`takeDrainCandidate`) **mantendo/deferindo a fila, nunca purgando**. `dubbedOnly` continua barrando seeds
+como sempre — a sonda ainda é solicitada para achar BR. O `QueueCandidate` guarda a identidade da sonda
+(`probeSeason`/`probeEpisode`) separada da identidade de obra-cap: o pack tem `episode` nulo para cap, mas
+o dreno defere pelo EPISÓDIO solicitado (entrada antiga cai no `episode`). Durante o `pending` o `buildStreams` emite o aviso
+`⏳ Procurando dublado nos indexers BR — reabra em alguns minutos`; como a lista só-tem-aviso é
+`complete:false` (TTL 60s) e a finalização invalida a obra, o aviso nunca sobrevive ao lease.
+Toggle de operador `AUTOFETCH_BR_PROBE` (default `true`, ajustável ao vivo em `autofetch-live.ts` e no
+dashboard, aba `[Chupim / Autofetch]`); TTL estático `BR_PROBE_TTL_S` (default 43200). Exige
+`RELEASE_INDEX=true` e interseção não vazia — desligado não agenda nem bloqueia. Métricas
+`autofetch.brProbe.run/transition/found/empty/failed/capped/skipped.<motivo>` e histograma
+`autofetch.brProbe.ms`. Testes: `test/br-probe.test.ts` (estado/política), `test/br-probe-worker.test.ts`
+(observabilidade/partial/tick) e `test/br-probe-fallback.test.ts` (fallback persistido/packs/call sites).
 
 O registry também expõe `inventory()`: o que já está **pronto** na conta
 (AllDebrid/TorBox/RD/DL) entra na busca como mais uma fonte

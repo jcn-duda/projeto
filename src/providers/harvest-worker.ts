@@ -10,22 +10,16 @@ import jackett from './jackett.js';
 import bludv from './bludv.js';
 import { getMeta } from '../utils/cinemeta.js';
 import * as tmdb from '../utils/tmdb.js';
-import {
-  resolveSearchNames,
-  resolveOriginalStepName,
-  buildSearchQuery,
-  filterRelevantRaw,
-  extractInfoHash,
-  looksPtBr,
-  audioFromTitle,
-  explicitPtAudio,
-} from '../utils/format.js';
+import { resolveSearchNames, filterRelevantRaw } from '../utils/format.js';
 import { ptSweepIndexers, ptSweepQueryFor } from './search-plan.js';
 import * as releaseIndex from '../utils/release-index.js';
-import { brTransition, invalidateStreamsForObra } from '../utils/br-gap.js';
+import { brTransition, invalidateStreamsForObra, hasBrDubbed } from '../utils/br-gap.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
-import rdWarmer from './rd-warmer.js';
+import { buildWorkQueries } from './harvest-queries.js';
+import { queueRdWarmForRelevant } from './harvest-warmer.js';
+import { applyPtTitleDual } from './pt-title-dual.js';
+import { probeIndexers } from './br-probe.js';
 import * as harvesterLive from '../utils/harvester-live.js';
 import * as cache from '../utils/cache.js';
 import { prefix } from '../utils/cache-keys.js';
@@ -133,12 +127,17 @@ export function resetSweepCursor() {
   sweepCursor = 0;
 }
 
-export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean; preempted: boolean; added: number }> {
+export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; capped: boolean; preempted: boolean; added: number; brFound: boolean; responded: number }> {
   const startedAt = Date.now();
   const live = harvesterLive.effective();
+  // Modo dirigido da sonda (Fase 4): consulta SÓ a interseção index-only∩pt-BR,
+  // um por vez, pelos MESMOS controles do colhedor (teto, intervalo, breaker,
+  // orçamento dedicado e o registro/transição do índice). Não é um segundo
+  // worker — é o worker existente com escopo reduzido.
+  const directed = entry.brProbe === true;
   const [meta, titles] = await Promise.all([getMeta(entry.type, entry.imdbId), tmdb.getTitles(entry.imdbId)]);
   const searchMeta = resolveSearchNames({ meta, titles, imdbId: entry.imdbId });
-  if (!searchMeta?.name) return { ok: false, capped: false, preempted: false, added: 0 };
+  if (!searchMeta?.name) return { ok: false, capped: false, preempted: false, added: 0, brFound: false, responded: 0 };
   const matchContext = {
     names: searchMeta.names,
     year: searchMeta.year,
@@ -149,20 +148,15 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     season: entry.season ?? null,
     episode: entry.episode ?? null,
   };
-  const query = buildSearchQuery(searchMeta, { season: entry.season ?? null, episode: entry.episode ?? null });
-  const ptQuery = titles?.pt && titles.pt !== titles.original
-    ? buildSearchQuery({ name: titles.pt, year: titles.year }, { season: entry.season ?? null, episode: entry.episode ?? null })
-    : null;
-  // Degrau opcional do título original (caso Farah): o índice só converge
-  // quando o colhedor também o consulta. A regra de execução (global sempre;
-  // BR só sem fallback pt-BR) mora no queryIndexer.
-  const originalQuery = resolveOriginalStepName(titles?.original, searchMeta.name);
+  const { query, ptQuery, originalQuery } = buildWorkQueries(entry, searchMeta, titles);
 
-  const indexers = [...new Set(config.jackett.indexers)];
+  const indexers = directed ? probeIndexers() : [...new Set(config.jackett.indexers)];
   let attempted = 0;
   let capped = false;
   let preempted = false;
   let succeeded = 0;
+  // Sonda dirigida (Fase 4): só uma resposta VÁLIDA autoriza `empty`.
+  let responded = 0;
   const collected: any[] = [];
 
   // Varredura pt-BR nos globais, ANTES do laço de propósito: é a consulta de
@@ -186,8 +180,11 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS) — pela varredura agrupada eles
   // pagariam o budgetFor comum e voltariam a estourar o breaker que o
   // isolamento deles existe para evitar. Os BR index-only seguem no laço.
+  // A varredura agrupada não roda no modo dirigido: ele já consulta a própria
+  // interseção individualmente, e repetir a query raiz nos globais seria
+  // trabalho fora do escopo da sonda.
   const sweepTargets =
-    sweepQuery && !activity.recentUserTraffic(live.harvestIdleWindowMs)
+    !directed && sweepQuery && !activity.recentUserTraffic(live.harvestIdleWindowMs)
       ? ptSweepIndexers(indexers, config.jackett.ptBrIndexers, config.jackett.indexOnlyIndexers)
       : [];
   if (sweepQuery && sweepTargets.length > 0) {
@@ -243,6 +240,7 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     }
   }
 
+  if (directed) metrics.count('autofetch.brProbe.run');
   for (const indexer of indexers) {
     // Freio de atividade no MEIO da obra também: tráfego chegou, solta o
     // Jackett na hora (o que já foi coletado entra no índice mesmo assim).
@@ -296,9 +294,14 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
         // não desperdício do caminho de resposta (ver jackett.search).
         background: true,
         ...(indexOnly ? { timeoutMs: config.jackett.indexOnlyHarvestTimeout } : {}),
+        // Observabilidade da sonda: só conta resposta VÁLIDA do indexer (HTTP +
+        // envelope sadios). O callback não mexe em status nem no breaker.
+        ...(directed
+          ? { onQueryResult: (info: { responded: boolean }) => { if (info.responded) responded += 1; } }
+          : {}),
       });
       lastQueryAt.set(indexer, Date.now());
-      succeeded += 1;
+      if (!directed) succeeded += 1;
       collected.push(...items.filter((i: any) => !i.fromAccount));
     } catch (err: unknown) {
       lastQueryAt.set(indexer, Date.now());
@@ -307,7 +310,7 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   }
 
   const bludvQuery = ptQuery || query;
-  if (config.bludv.enabled && bludvQuery) {
+  if (!directed && config.bludv.enabled && bludvQuery) {
     try {
       collected.push(...(await bludv.search(bludvQuery)).filter((i: any) => !i.fromAccount));
     } catch (err: unknown) {
@@ -323,7 +326,14 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // varredura.
   noteQueries(attempted);
 
-  const relevant = filterRelevantRaw(collected, matchContext as any);
+  // No modo dirigido o DUAL titulado em PT de tracker global ganha a marca BR
+  // antes do filtro/registro: os sites BR já carimbam `isBr`, mas a prova por
+  // título é a mesma rede de segurança do pipeline vivo — sem ela a release só
+  // "Dual" ficaria de fora de um índice que a sonda existe para preencher.
+  const collectedForIndex = directed
+    ? applyPtTitleDual(collected, { titles }).map((item) => (item?.ptTitleDual ? { ...item, isBr: true } : item))
+    : collected;
+  const relevant = filterRelevantRaw(collectedForIndex, matchContext as any);
   // Registro PARCIAL quando a colheita saiu pela metade (teto horário ou
   // preempção por tráfego): a obra volta à fila e o fast-path da busca fica
   // bloqueado até uma gravação completa regravar (last-write-wins limpa o
@@ -333,37 +343,26 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // faixa não pode sobreviver até o TTL: a próxima abertura deve reconstruir
   // a resposta a partir do índice enriquecido pelo colhedor.
   const beforeReleases = releaseIndex.lookupQuiet(entry.imdbId, location);
-  const added = releaseIndex.record(entry.imdbId, location, relevant, { partial: capped || preempted });
-  const transition = brTransition(beforeReleases, releaseIndex.lookupQuiet(entry.imdbId, location));
+  // A sonda SUPLEMENTA o índice, não o cobre: o subset indexOnly∩pt-BR não é a
+  // obra inteira. Então o registro dirigido nunca LIMPA o partial de um
+  // registro existente e, quando não havia registro algum, nasce parcial —
+  // senão o fast-path trataria o subset como cobertura completa.
+  const directedPartial = directed && (releaseIndex.isPartial(entry.imdbId, location) || beforeReleases.length === 0);
+  const added = releaseIndex.record(entry.imdbId, location, relevant, {
+    partial: capped || preempted || directedPartial,
+  });
+  const afterReleases = releaseIndex.lookupQuiet(entry.imdbId, location);
+  const transition = brTransition(beforeReleases, afterReleases);
   if (transition !== 'none') {
     const cleared = invalidateStreamsForObra(entry.imdbId);
     metrics.count(transition === 'br' ? 'harvest.transition.br' : 'harvest.transition.brUpgrade');
+    if (directed) metrics.count('autofetch.brProbe.transition');
     if (cleared > 0) {
       metrics.count(transition === 'br' ? 'harvest.transition.br.invalidated' : 'harvest.transition.brUpgrade.invalidated', cleared);
     }
   }
-  if (config.debrid.rdWarm.enabled && rdWarmer.rdInPlay() && relevant.length) {
-    const scoresByHash = new Map<string, number>();
-    for (const r of relevant) {
-      const title = String(r.title || r.Title || '');
-      const hash = String(extractInfoHash(r.infoHash || r.magnet || r.MagnetUri || r.Guid || r.hash) || '').toLowerCase();
-      if (!/^[a-f0-9]{40}$/.test(hash)) continue;
-      const isBr = Boolean(r.isBr) || looksPtBr(title);
-      const audio = audioFromTitle(title);
-      const dubbed = Boolean(r.dubbed) || ['Dublado', 'Dual', 'Nacional'].includes(String(audio)) || explicitPtAudio(title);
-      const score = isBr && dubbed ? 80 : (dubbed ? 40 : 5);
-      const existing = scoresByHash.get(hash);
-      if (existing === undefined || score > existing) {
-        scoresByHash.set(hash, score);
-      }
-    }
-    const topReleases = [...scoresByHash.entries()]
-      .map(([hash, score]) => ({ hash, score }))
-      .sort((a, b) => b.score - a.score);
-    for (const item of topReleases.slice(0, 10)) {
-      rdWarmer.enqueue([item.hash], item.score);
-    }
-  }
+  queueRdWarmForRelevant(relevant);
+  const brFound = hasBrDubbed(afterReleases);
   // Obra preemptada volta à fila: contar harvested / lastRunAt / recentWorks
   // aqui dobraria a eficácia (meia-colheita + conclusão) e listaria meia
   // obra no painel. O tempo gasto (harvest.ms) continua real em ambos.
@@ -382,8 +381,12 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
       recentWorks.length = Math.min(recentWorks.length, config.harvest.dashboardLastWorks);
     }
   }
-  metrics.observe('harvest.ms', Date.now() - startedAt);
-  return { ok: added > 0 || succeeded > 0, capped, preempted, added };
+  const elapsed = Date.now() - startedAt;
+  metrics.observe('harvest.ms', elapsed);
+  if (directed) metrics.observe('autofetch.brProbe.ms', elapsed);
+  // `responded` só existe no modo dirigido; no normal vale a semântica antiga.
+  const ok = added > 0 || (directed ? responded > 0 : succeeded > 0);
+  return { ok, capped, preempted, added, brFound, responded };
 }
 
 /** Contadores do trabalho executado, para o status do painel. */

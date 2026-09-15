@@ -19,6 +19,7 @@ import * as autofetch from './autofetch.js';
 import { classifyEnqueue, rollbackEnqueue, noteSkip, skipCountsSnapshot, warnAccountGated } from './autofetch-gates.js';
 import { reserveObra, commitObra, releaseObra, type ObraLease } from './autofetch-obra.js';
 import { applySeedsStopGate, purgeSeedsQueue } from './autofetch-seeds-pool.js';
+import { probeBlocksSeeds } from './br-probe.js';
 import { seedsPolicyConfig } from './autofetch-candidates.js';
 import type { AutoFetchCandidate, AutoFetchRequest } from './autofetch-candidates.js';
 import * as autofetchTrace from '../utils/autofetch-trace.js';
@@ -180,6 +181,16 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
       return 0;
     }
   } else if (poolName === 'seeds') {
+    // Sonda dirigida (Fase 4): pending/found DEFEREM o despacho de seeds de
+    // forma TRANSITÓRIA — solta os holds dos candidatos imediatos, mas NÃO
+    // purga a fila persistente (ela volta a drenar quando o lease finalizar).
+    // Se a sonda nem foi agendada (toggle off/sem interseção), o predicado é
+    // falso e o caminho de sempre segue.
+    if (imdbId && probeBlocksSeeds({ type: (season != null ? 'series' : 'movie') as 'movie' | 'series', imdbId, season: season ?? null, episode: episode ?? null })) {
+      noteSkip('br-probe-pending', candidates[0]?.stream, adapter.id, poolName);
+      releaseAllHolds(candidates);
+      return 0;
+    }
     // Terceiro nível: parada por cache e exceção do título raro vivem na
     // política (decideSeedsStop) + applySeedsStopGate. A purga da fila remove
     // SÓ entradas seeds — a reposição br/any não é assunto deste pool.

@@ -63,6 +63,7 @@ export function pickLowerPoolFallbacks(
     season = null,
     viable,
     policy,
+    brProbePending = false,
   }: {
     primaryPool: string;
     excludeHashes: Iterable<string>;
@@ -71,6 +72,10 @@ export function pickLowerPoolFallbacks(
     /** Política do pool seeds (dubbedOnly / lista tocável / teto). Obrigatória:
      *  o fallback não pode burlar o que a seleção primária aplicaria. */
     policy: SeedsPolicyConfig;
+    /** Sonda dirigida (Fase 4): pending/found da obra também barra o fallback
+     *  PERSISTIDO do pool seeds — senão a fila reposta driblaria a política
+     *  que a seleção primária respeitou. */
+    brProbePending?: boolean;
   },
 ): FallbackPick[] {
   // seeds é o piso da cascata: não há pool abaixo para repor.
@@ -98,7 +103,7 @@ export function pickLowerPoolFallbacks(
 
   // Mesmo bloqueio de SELEÇÃO da primária (dubbedOnly / lista P2P tocável):
   // seeds é último recurso e o fallback não pode contornar isso.
-  if (live.autoFetchTopSeeds && !seedsSelectionBlock(policy, liveStreams)) {
+  if (live.autoFetchTopSeeds && !seedsSelectionBlock(policy, liveStreams, { brProbePending })) {
     // Tira o que o primário (e o fallback any) já escolheu ANTES do corte: o
     // pool seeds ordena dublado BR à frente via pt-first e consumiria as vagas
     // limitadas, escondendo o swarm real — mesmo defeito do `limit=1` do any.
@@ -166,6 +171,11 @@ export function toQueueCandidate(
   // não podem ocupar vagas diferentes.
   const isPack = Boolean(seasonFill && isSeasonPackFillEligible(stream, season ?? null));
   return {
+    // Identidade da SONDA separada da identidade do teto por obra: o pack tem
+    // `episode` nulo para cap, mas a sonda é do EPISÓDIO solicitado — o dreno
+    // precisa deferir o pack enquanto a sonda DAQUELE episódio está pendente.
+    probeSeason: season ?? null,
+    probeEpisode: episode ?? null,
     infoHash: hashOf(stream),
     name: stream.name,
     title: stream.title,

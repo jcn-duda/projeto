@@ -26,6 +26,7 @@ import {
 } from './stream-builder-first-observer.js';
 import type { FirstObserverState } from './stream-builder-first-observer.js';
 import { annotateEpisodeSizes } from './episode-size.js';
+import { isBrProbePending } from './br-probe.js';
 
 // Reexportações públicas com total compatibilidade
 export {
@@ -256,7 +257,16 @@ export async function buildStreams(rawInput: RawItem[], {
   // reabrir não tira hash da blacklist, e a promessa continua honesta.
   const dubHidden = Math.min(brHidden, Math.max(0, dubEnteredDebrid - dubIn.length));
   const dubHiddenByCachedOnly = dubHidden > 0 && dubIn.length === 0;
+  // Sonda dirigida (Fase 4): enquanto o colhedor procura dublado nos index-only
+  // BR, a lista vazia explica o estado. O TEXTO viaja no cache, mas a entrada
+  // só-tem-aviso é `complete:false` (TTL curto de 60s) e `finalizeBrProbe`
+  // invalida a obra ao sair do pending; o lease (10min) é bem maior que esse
+  // TTL, então o aviso nunca sobrevive à sonda. Toggle off não pinta nada.
+  const probePending = Boolean(
+    imdbId && isBrProbePending({ type: season != null ? 'series' : 'movie', imdbId, season, episode }),
+  );
   const noticeText = () => {
+    if (probePending) return '⏳ Procurando dublado nos indexers BR — reabra em alguns minutos';
     if (autofetchCount > 0) return '⏳ Baixando no debrid — reabra em alguns minutos';
     if (dubHiddenByCachedOnly) {
       return 'Fontes BR dubladas existem, mas ainda fora do cache — reabra em alguns minutos';

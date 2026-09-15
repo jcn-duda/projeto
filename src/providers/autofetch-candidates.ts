@@ -13,6 +13,7 @@ import { opts } from '../runtime.js';
 import * as autofetch from './autofetch.js';
 import { noteSkip } from './autofetch-gates.js';
 import { pickSeedsPool, purgeSeedsQueue } from './autofetch-seeds-pool.js';
+import { requestBrProbe, probeBlocksSeeds } from './br-probe.js';
 import { pickLowerPoolFallbacks, composeQueueEntries, toQueueCandidate } from './autofetch-fallback.js';
 import {
   filterSeedsUniverse,
@@ -124,6 +125,19 @@ export function autoFetchCandidates(
     .filter(isAutoFetchStream)
     .filter(isViableForEnqueue);
   let pool = 'br';
+  // Sonda dirigida (Fase 4): pool BR vazio — não existe BR dublada ou todas
+  // foram cortadas pelo piso de seeders. ANTES de decidir seeds, pede a sonda
+  // (index-only∩pt-BR). O tipo é inferido da temporada: série traz S/E, filme
+  // não. `requestBrProbe` só grava pending se a sonda tiver virado trabalho na
+  // fila — sem isso, nada bloqueia seeds.
+  const probeWork = imdbId
+    ? { type: (season != null ? 'series' : 'movie') as 'movie' | 'series', imdbId, season: season ?? null, episode: episode ?? null }
+    : null;
+  if (probeWork && candidates.length === 0) requestBrProbe(probeWork);
+  // `pending` (procurando) e `found` (BR já existe) bloqueiam seeds; empty/
+  // failed/capped liberam. O bloqueio por found é durável, mas correto: com BR
+  // dublado no índice, baixar swarm para a MESMA obra é desperdício.
+  const probeBlocked = Boolean(probeWork && probeBlocksSeeds(probeWork));
   const dubbedGlobal = candidates.length === 0
     ? pickAnyDubbedCandidates(liveStreams, new Set(), totalMax, { season })
         .filter(isAutoFetchStream)
@@ -144,10 +158,13 @@ export function autoFetchCandidates(
     // Política do pool seeds (dubbedOnly / lista P2P tocável) é decidida ANTES
     // de selecionar; o filtro de qualidade/tamanho roda no universo, antes do
     // pickSeedsPool. Nada aqui consulta cache — a parada por cache é do despacho.
-    const block = seedsSelectionBlock(policy, liveStreams);
+    const block = seedsSelectionBlock(policy, liveStreams, { brProbePending: probeBlocked });
     if (block) {
       seedsBlocked = true;
       noteSkip(block, liveStreams[0] || null, adapter?.id || '', 'seeds');
+      // Só `dubbed-only` purga (regra PERMANENTE). `br-probe-pending` é
+      // transitório: a fila seeds fica retida e volta a drenar quando o lease
+      // da sonda termina/finaliza.
       if (block === 'dubbed-only' && live.autoFetchQueue && searchKey) {
         purgeSeedsQueue(searchKey, {
           ttl: config.debrid.autoFetchQueueTtl,
@@ -201,6 +218,9 @@ export function autoFetchCandidates(
         season,
         viable: isViableForEnqueue,
         policy,
+        // A fila persistida herda o bloqueio da sonda: sem isto, o fallback
+        // seeds reposto driblaria a política que a seleção primária respeitou.
+        brProbePending: probeBlocked,
       })
       : [];
     const entries = composeQueueEntries(

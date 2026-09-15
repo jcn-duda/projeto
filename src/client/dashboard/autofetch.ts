@@ -8,7 +8,7 @@ import { applyOrigem, formatDate } from './render.js';
 import { hooks } from './hooks.js';
 
 export const AF_KEYS = [
-  'autoFetchBr', 'autoFetchAnyDubbed', 'autoFetchTopSeeds', 'autoFetchSeedsPtFirst',
+  'autoFetchBr', 'autoFetchBrProbe', 'autoFetchAnyDubbed', 'autoFetchTopSeeds', 'autoFetchSeedsPtFirst',
   'autoFetchMinSeeders', 'autoFetchMax', 'autoFetchTopSeedsMax', 'autoFetchRareMax',
   'autoFetchRareThreshold', 'autoFetchRareMaxSeeders', 'autoFetchEnqueueMaxHour',
   'autoFetchQueue', 'autoFetchQueueDepth', 'autoFetchPauseAt', 'autoFetchPauseRefreshMs',
@@ -17,7 +17,7 @@ export const AF_KEYS = [
 ];
 
 export const BOOLEAN_AF_KEYS = [
-  'autoFetchBr', 'autoFetchAnyDubbed', 'autoFetchTopSeeds', 'autoFetchSeedsPtFirst',
+  'autoFetchBr', 'autoFetchBrProbe', 'autoFetchAnyDubbed', 'autoFetchTopSeeds', 'autoFetchSeedsPtFirst',
   'autoFetchQueue', 'autoFetchSeasonFill',
 ];
 
@@ -114,7 +114,7 @@ export function renderAutofetchPanel(af: any, uptimeS?: any): void {
     // `dubbed-only`/`seeds-*` são razões de SELEÇÃO/POLÍTICA do pool seeds
     // (Fase 1 do Chupim 2.0): não passam pelo classifyEnqueue, mas contam em
     // `autofetch.skip.<motivo>` e por isso aparecem aqui.
-    const skKeys = ['account-gate', 'budget', 'obra-cap', 'dead', 'marker', 'already-cached', 'in-flight', 'search-slot-busy', 'paused', 'unknown-cache', 'stop-has-br', 'stop-has-cached', 'dubbed-only', 'seeds-playable', 'seeds-size-unknown', 'seeds-too-big', 'seeds-quality', 'no-candidate', 'no-candidates', 'disabled'];
+    const skKeys = ['account-gate', 'budget', 'obra-cap', 'dead', 'marker', 'already-cached', 'in-flight', 'search-slot-busy', 'paused', 'unknown-cache', 'stop-has-br', 'stop-has-cached', 'dubbed-only', 'br-probe-pending', 'seeds-playable', 'seeds-size-unknown', 'seeds-too-big', 'seeds-quality', 'no-candidate', 'no-candidates', 'disabled'];
     for (i = 0; i < skKeys.length; i += 1) {
       const n = Number(sk[skKeys[i]] || 0);
       if (n > 0) parts.push(skKeys[i] + ' ' + n);

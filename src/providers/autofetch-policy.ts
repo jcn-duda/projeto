@@ -15,7 +15,7 @@ import { streamTitleBytes } from './episode-size.js';
 // tomado antes da checagem.
 
 export type SeedsRejectReason = 'seeds-size-unknown' | 'seeds-too-big' | 'seeds-quality';
-export type SeedsSelectionBlock = 'dubbed-only' | 'seeds-playable';
+export type SeedsSelectionBlock = 'dubbed-only' | 'seeds-playable' | 'br-probe-pending';
 export type SeedsStopReason = 'stop-has-br' | 'stop-has-cached';
 export type SeedsDrainReason = SeedsRejectReason | 'dubbed-only';
 
@@ -169,14 +169,20 @@ export function hasPlayableStream(streams: Array<Stream | null | undefined>): bo
  *   que sobrou sem áudio PT;
  * - `seeds-playable`: fora do modo `cachedOnly` a lista já entrega P2P tocável,
  *   então baixar swarm é desperdício. No modo `cachedOnly` a lista visível pode
- *   estar vazia e o veredicto fica para DEPOIS da checagem.
+ *   estar vazia e o veredicto fica para DEPOIS da checagem;
+ * - `br-probe-pending`: a sonda dirigida está ativa (procurando nos index-only
+ *   BR ou com BR já provado). Enquanto isso a fila seeds é mantida/deferida,
+ *   NUNCA purgada — pending é transitório (volta ao fim do lease) e found
+ *   encerra a necessidade de swarm para a mesma obra.
  */
 export function seedsSelectionBlock(
   cfg: Pick<SeedsPolicyConfig, 'dubbedOnly' | 'cachedOnly'>,
   streams: Array<Stream | null | undefined>,
+  extra: { brProbePending?: boolean } = {},
 ): SeedsSelectionBlock | null {
   if (cfg.dubbedOnly) return 'dubbed-only';
   if (!cfg.cachedOnly && hasPlayableStream(streams)) return 'seeds-playable';
+  if (extra.brProbePending) return 'br-probe-pending';
   return null;
 }
 
@@ -208,8 +214,9 @@ export function decideSeedsStop(input: {
 /**
  * Regras PERMANENTES revalidadas no dreno: config que não vai mudar dentro da
  * vida da fila (`dubbedOnly`) e propriedade do próprio candidato (qualidade/
- * tamanho). Bloqueio transitório (cooldown, orçamento, br-probe futuro) NÃO
- * entra aqui — esses pertencem ao `deferFn` do `takeNext`.
+ * tamanho). Bloqueio transitório (cooldown, orçamento, br-probe pending) NÃO
+ * entra aqui — esses pertencem ao `deferFn` do `takeNext`, que ADIA a entrada
+ * mantendo-a na fila em vez de descartá-la.
  */
 export function seedsDrainRejection(candidate: SeedsCandidate | null | undefined, cfg: SeedsPolicyConfig): SeedsDrainReason | null {
   if (cfg.dubbedOnly) return 'dubbed-only';

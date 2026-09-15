@@ -5,6 +5,7 @@ import { envDefaults, schema, type AutofetchSchemaField } from './autofetch-live
 
 export interface AutofetchLiveConfig {
   autoFetchBr: boolean;
+  autoFetchBrProbe: boolean;
   autoFetchAnyDubbed: boolean;
   autoFetchTopSeeds: boolean;
   autoFetchSeedsPtFirst: boolean;
@@ -42,6 +43,7 @@ const INFINITE_TTL = 315_360_000; // 10 anos em segundos
 
 const BOOLEAN_KEYS = new Set<string>([
   'autoFetchBr',
+  'autoFetchBrProbe',
   'autoFetchAnyDubbed',
   'autoFetchTopSeeds',
   'autoFetchSeedsPtFirst',

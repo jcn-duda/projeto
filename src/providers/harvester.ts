@@ -28,6 +28,7 @@ import * as harvestQueue from './harvest-queue.js';
 import type { HarvestEntry } from './harvest-queue.js';
 import * as harvestWorker from './harvest-worker.js';
 import * as releaseIndex from '../utils/release-index.js';
+import { finalizeBrProbe, noteBrProbePreempted } from './br-probe.js';
 
 let started = false;
 let inFlight = false;
@@ -163,7 +164,27 @@ async function tick() {
     if (!entry) return;
     harvestQueue.persist();
     const identity = obraIdentity(entry);
-    const { added, capped, preempted } = await harvestWorker.harvestOne(entry);
+    const { added, capped, preempted, brFound, responded } = await harvestWorker.harvestOne(entry);
+    // Sonda dirigida (Fase 4): o estado final é decidido AQUI, depois de o
+    // worker ter rodado pelos controles do colhedor.
+    // Ordem: achar BR vence teto (found prova valor, mesmo com a passada
+    // cortada); `responded > 0` é a prova de que AO MENOS UMA consulta teve
+    // resposta VÁLIDA — `jackett.search` engole falha e devolve `[]`, e vazio
+    // não autoriza `empty`. Preempção NÃO finaliza: a obra volta à fila e o
+    // lease é renovado. `partial`/`capped` nunca viram `empty` prematuro.
+    if (entry.brProbe) {
+      const work = {
+        type: entry.type,
+        imdbId: entry.imdbId,
+        season: entry.season ?? null,
+        episode: entry.episode ?? null,
+      };
+      if (preempted) noteBrProbePreempted(work);
+      else if (brFound) finalizeBrProbe(work, 'found');
+      else if (capped) finalizeBrProbe(work, 'capped');
+      else if (responded > 0) finalizeBrProbe(work, 'empty');
+      else finalizeBrProbe(work, 'failed');
+    }
     if (preempted) {
       // Obra interrompida por tráfego: SEM custo em attemptsByObra (não é
       // falha). Até 3 preempções volta à frente; a 4ª vai para a cauda
@@ -218,6 +239,14 @@ async function tick() {
       // Falha de rede pode ser transitória: volta pro fim da fila até 3 vezes.
       if (tries <= 3) harvestQueue.tail(entry);
       else attemptsByObra.delete(obraIdentity(entry));
+      // A sonda finaliza como falha: libera seeds pelo retry curto e destrava
+      // o aviso, em vez de ficar pending até o lease vencer.
+      if (entry.brProbe) {
+        finalizeBrProbe(
+          { type: entry.type, imdbId: entry.imdbId, season: entry.season ?? null, episode: entry.episode ?? null },
+          'failed',
+        );
+      }
       harvestQueue.persist();
     }
     log.warn('[harvest] ciclo falhou:', log.errorMessage(err));
