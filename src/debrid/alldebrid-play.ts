@@ -131,6 +131,15 @@ export async function enqueue(apiKey: string, infoHash: string) {
 
 /**
  * Status detalhado de torrents na conta para o ciclo de recheck / detecção de mortos.
+ *
+ * `progress` sai dos campos REAIS medidos no `/magnet/status` (2026-09-15):
+ * `downloaded` (bytes), `size` (total em bytes), `downloadSpeed` (bytes/s) e
+ * `seeders`. Eles só existem em download ATIVO; magnet pronto ou terminal não
+ * os traz, e aí `progress` fica ausente de propósito — ausência é "sem sinal",
+ * não "parado". NÃO derivamos `stalled` aqui: a parada por progresso é
+ * conservadora e mora no recheck (`autofetch-progress`), que exige N
+ * observações consecutivas; o `stalled` nativo dos outros serviços continua
+ * saindo do próprio adaptador.
  */
 export async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   const data = await call(apiKey, '/magnet/status');
@@ -148,7 +157,36 @@ export async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
     } else if (ACTIVE_STATES.test(statusStr)) {
       state = 'downloading';
     }
-    out[hash] = { state, id: magnet.id };
+    // Progresso SÓ de download ATIVO e com os campos CRUS tipados como número
+    // finito. `Number(null)`/`Number('')`/`Number(false)` viram 0 e fabricariam
+    // uma parada inexistente — por isso o guard é `typeof === 'number'`, sem
+    // coerção. `size` é sempre presente; `downloaded`/`downloadSpeed`/`seeders`
+    // só existem em `status: "Downloading"` (medido 2026-09-15). `total > 0` e
+    // `bytes < total`: completo/limítrofe não é progresso útil (o `ready` cuida).
+    const num = (v: unknown): number | undefined =>
+      typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+    const bytes = num(magnet.downloaded);
+    const total = num(magnet.size);
+    const speed = num(magnet.downloadSpeed);
+    const seeders = num(magnet.seeders);
+    const ativo = String(magnet.status || '') === 'Downloading';
+    const progress = ativo && bytes !== undefined && total !== undefined
+      && speed !== undefined && seeders !== undefined
+      && total > 0 && bytes < total
+      ? { bytes, total, speed, seeders }
+      : undefined;
+    // `via: 'id'` DELIBERADO mesmo com o hash publicado na listagem: é o que
+    // mantém a remoção terminal do AllDebrid sob o gate `DEBRID_REMOVE_BY_ID`
+    // (default false). O ramo destrutivo do recheck só apaga direto quando
+    // `via !== 'id'`; sem o campo, o recheck ignorava o freio de rollout e
+    // varria a conta que o autofetch enche. Aqui o `id` é o do próprio magnet,
+    // âncora do `removeTorrent`.
+    out[hash] = {
+      state,
+      id: magnet.id,
+      via: 'id',
+      ...(progress ? { progress } : {}),
+    };
   }
   return out;
 }

@@ -137,7 +137,7 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit, rare }: Aut
           season,
           episode: isPack ? null : episode,
           isPack,
-        });
+        }, adapter.id);
       } else {
         releaseObra(obraLease);
         if (searchKey) autofetch.releaseSearchSlot(searchKey);

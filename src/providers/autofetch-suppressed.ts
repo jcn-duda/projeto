@@ -37,13 +37,10 @@
 //   só existe nesse chamador; nunca no automático. O `max` de FORA vence o
 //   `suppressedDrainMax`; sem `max`, vale o default do config.
 //
-// VERDADE COMPLETA do gate: a cobertura da fila não é total. O ramo
-// `expired-unready` do settle (autofetch-recheck.ts) remove por id DIRETO,
-// sem passar por `podeRemover`/`noteSuppressed` — é uma exceção deliberada do
-// gate (o que expira no settle é download que o próprio addon subiu e que
-// nunca tocou no TTL de settle; não é acervo represado pelo freio). Essa
-// exceção fica de fora desta fila DE PROPÓSITO: quem ler `countSuppressed` não
-// pode prometer que a fila cobre toda transferência removida por id da conta.
+// O gate também cobre `expired-unready`: transferência identificada só por id
+// é represada aqui quando `DEBRID_REMOVE_BY_ID=false`, em vez de ser apagada
+// diretamente ao vencer o settle. Assim o painel enxerga e cobra toda remoção
+// por id que o freio de rollout adiou.
 import { prefix } from '../utils/cache-keys.js';
 import * as cache from '../utils/cache.js';
 import config from '../config.js';

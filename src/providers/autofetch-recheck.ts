@@ -18,7 +18,9 @@ import { recordAutofetchRelease } from './autofetch-index.js';
 import * as releaseIndex from '../utils/release-index.js';
 import { manageSettleLru } from './autofetch-settle.js';
 import { takeDrainCandidate } from './autofetch-drain.js';
-import { commitObra, releaseObra, forgetObraHash } from './autofetch-obra.js';
+import { commitObra, releaseObra } from './autofetch-obra.js';
+import { collapseTerminal, cleanLotHash } from './autofetch-terminal.js';
+import { deriveStall, forgetLotProgress } from './autofetch-progress.js';
 import { seasonSearchKeys, seasonIndexKey, registerSeasonSearchKey } from './autofetch-season-index.js';
 export type SeasonHint = { imdbId?: string | null; season?: number | null; episode?: number | null; isPack?: boolean };
 export type RecheckLot = {
@@ -33,6 +35,12 @@ export type RecheckLot = {
   createdAt: number;
   isSettle: boolean;
   refusals: number;
+  /**
+   * Adapter DONO do lote, gravado no enqueue. A evicção do LRU de settle usa
+   * ESTE id — nunca `debrid.current()`, que no contexto de outra request pode
+   * ser outro serviço e limparia a memória do lote errado.
+   */
+  adapterId: string;
 };
 /** Lotes aceitos aguardando ficar tocáveis, morrer ou drenar a fila. */
 export const recheckLots = new Map<string, RecheckLot>();
@@ -53,6 +61,7 @@ export function scheduleRecheck(
   infoHash: string,
   requestCtx: RuntimeContext | null,
   hint: SeasonHint = {},
+  adapterId = '',
 ) {
   if (!searchKey || !infoHash || !requestCtx) return;
   const live = autofetchLive.effective();
@@ -62,7 +71,7 @@ export function scheduleRecheck(
     lot = {
       hashes: new Set<string>(), attempts: 0, timer: null, inFlight: false, ctx: requestCtx,
       deadStreak: new Map(), stallStreak: new Map(), seasonHints: new Map(),
-      createdAt: Date.now(), isSettle: false, refusals: 0,
+      createdAt: Date.now(), isSettle: false, refusals: 0, adapterId: String(adapterId || ''),
     };
     recheckLots.set(searchKey, lot);
   }
@@ -70,14 +79,8 @@ export function scheduleRecheck(
   lot.hashes.add(hash);
   lot.seasonHints.set(hash, hint);
   lot.ctx = requestCtx;
+  if (adapterId) lot.adapterId = String(adapterId);
   if (!lot.timer && !lot.inFlight) armRecheck(searchKey, lot);
-}
-
-function cleanLotHash(lot: RecheckLot, hash: string) {
-  lot.hashes.delete(hash);
-  lot.deadStreak.delete(hash);
-  lot.stallStreak.delete(hash);
-  lot.seasonHints.delete(hash);
 }
 
 // Devolve `true` apenas quando um candidato foi de fato iniciado (hold +
@@ -205,9 +208,17 @@ export function runRecheck(searchKey: string) {
   Promise.resolve(run(lot.ctx, async () => {
     const adapter = debrid.current();
     if (!adapter) {
+      forgetLotProgress(
+        lot.adapterId,
+        accountScope(lot.ctx?.opts?.debridApiKey || ''),
+        lot.hashes,
+      );
       recheckLots.delete(searchKey);
       return;
     }
+    // O lote passa a ter o adapter RESOLVIDO desta passagem; a evicção do
+    // settle usa este id, não o `debrid.current()` de outra request.
+    lot.adapterId = adapter.id;
     const account = accountScope(opts().debridApiKey);
 
     let checkResult: { cached: Set<string>; known: boolean } = { cached: new Set(), known: false };
@@ -242,6 +253,19 @@ export function runRecheck(searchKey: string) {
       }
     }
 
+    const live = autofetchLive.effective();
+    // Fase 3: parada DERIVADA por progresso. Só serviço que publica `progress`
+    // (hoje AllDebrid) entra; `stalled` NATIVO (TorBox/Premiumize) continua no
+    // campo do adaptador e não passa por aqui. O limiar é contado DENTRO do
+    // módulo, então o hash que volta marcado colapsa sem novo streak.
+    const derived = deriveStall(
+      { adapterId: adapter.id, account, hashes: [...lot.hashes], threshold: live.autoFetchStallStreak },
+      statuses,
+    );
+    if (derived.signals > 0) {
+      metrics.count('autofetch.progress.signals', derived.signals);
+    }
+
     for (const hash of [...lot.hashes]) {
       const statusInfo = statuses[hash];
       const isReady = (checkResult.known && checkResult.cached.has(hash)) || statusInfo?.state === 'ready';
@@ -254,7 +278,6 @@ export function runRecheck(searchKey: string) {
           debrid.noteAvailable(hash);
           metrics.count('autofetch.ready-note');
           const hint = lot.seasonHints.get(hash);
-          const live = autofetchLive.effective();
           if (live.autoFetchSeasonFill && hint?.isPack && hint.imdbId && hint.season != null) {
             const indexKey = seasonIndexKey(adapter.id, account, hint.imdbId, hint.season);
             const keys = [...(seasonSearchKeys.get(indexKey) || [])];
@@ -265,7 +288,7 @@ export function runRecheck(searchKey: string) {
           }
           log.info(`[autofetch] download ficou pronto; próxima pergunta de ${searchKey} reconstrói com ⚡`);
         }
-        cleanLotHash(lot, hash);
+        cleanLotHash(lot, hash, adapter.id, account);
         // Só descarta a fila quando o lote inteiro assentou. Um 720p ready
         // não pode apagar o backup do 1080p ainda stallado — era exatamente
         // o que esvaziava a reposição inteligente no meio do caminho.
@@ -275,7 +298,6 @@ export function runRecheck(searchKey: string) {
         continue;
       }
 
-      const live = autofetchLive.effective();
       const isDead = statusInfo?.state === 'dead';
       const stalledHere = statusInfo?.stalled === true && live.autoFetchStallStreak > 0;
       if (isDead || stalledHere) {
@@ -284,55 +306,23 @@ export function runRecheck(searchKey: string) {
         const streak = (counter.get(hash) || 0) + 1;
         counter.set(hash, streak);
         if (streak >= threshold) {
-          metrics.count(isDead ? 'autofetch.dead' : 'autofetch.stalled');
-          autofetch.blacklist(adapter.id, account, hash);
-          releaseIndex.forgetAutofetchHash(lot.seasonHints.get(hash)?.imdbId, hash);
-          held.unprotect(adapter.id, account, hash);
-          held.release(hash, account);
-          // A ponte pelo id expõe de uma vez transferências que a remoção
-          // automática NUNCA alcançou (58 de 60 na conta medida). Ligar visão e
-          // destruição no mesmo deploy faria a primeira rodada apagar um acervo
-          // inteiro sem ninguém ter olhado — então a remoção por via `id` nasce
-          // DESLIGADA.
-          //
-          // O que suprimir NÃO faz: conter o tamanho da conta. A blacklist só
-          // impede que ESTE hash volte, e o `drainNext` logo abaixo submete o
-          // próximo candidato — o saldo de transferências fica igual ou +1. O
-          // registro em `noteSuppressed` existe para que ligar o knob depois
-          // alcance o que ficou para trás; sem ele o hash sai do lote aqui e
-          // nunca mais é revisitado.
-          //
-          // `via` descreve o CANAL de identificação, não a confiança: o `id`
-          // vem do nosso próprio marker de enqueue e é prova de primeira mão.
-          // O gate abaixo é um freio de ROLLOUT, não um juízo sobre o id — a
-          // fila represada existe para o atraso ser cobrado depois sem ligar o
-          // knob (leitura: countSuppressed/countAllSuppressed; dreno: drainSuppressed).
-          const podeRemover = statusInfo.via !== 'id' || config.debrid.removeById;
-          if (!podeRemover) {
-            metrics.count(isDead ? 'autofetch.dead.suppressed' : 'autofetch.stalled.suppressed');
-            suppressed.noteSuppressed(adapter.id, account, hash, statusInfo.id);
-          } else if (typeof adapter.removeTorrent === 'function' && statusInfo.id != null) {
-            adapter.removeTorrent(opts().debridApiKey, statusInfo.id).catch(() => {});
-          }
-          // Hash TERMINAL (morto/parado) libera a vaga da obra ANTES do dreno: a
-          // reposição SAME POOL precisa caber ainda na janela, sem esperar a
-          // eviction (F6). Ready NÃO passa por aqui — segue contando pelo TTL.
-          const obraHint = lot.seasonHints.get(hash);
-          forgetObraHash({
-            adapterId: adapter.id,
-            account,
-            imdbId: obraHint?.imdbId ?? null,
-            season: obraHint?.season ?? null,
-            episode: obraHint?.isPack ? null : (obraHint?.episode ?? null),
-            isPack: obraHint?.isPack === true,
-            searchKey,
-            hash,
+          // A decisão de remoção e o porquê do gate vivem em autofetch-terminal.
+          collapseTerminal(lot, {
+            adapter, account, apiKey: opts().debridApiKey, hash, searchKey,
+            statusInfo, streak, mode: 'native', reason: isDead ? 'dead' : 'stalled',
           });
-          cleanLotHash(lot, hash);
-          const destino = podeRemover ? 'removendo e drenando fila' : 'drenando fila (remoção por id desligada)';
-          log.info(`[autofetch] torrent ${hash} detectado como ${isDead ? 'morto' : 'parado'} (${streak} rechecks consecutivos); ${destino}`);
           drainNext(searchKey, lot);
         }
+      } else if (derived.stalled.has(hash)) {
+        // Parada DERIVADA por progresso: o limiar já foi contado no módulo.
+        // Não remove direto NUNCA — `collapseTerminal` registra na fila de
+        // represados (quando há id) e deixa a limpeza terminal com
+        // `sweepDead`/painel.
+        collapseTerminal(lot, {
+          adapter, account, apiKey: opts().debridApiKey, hash, searchKey,
+          statusInfo, streak: live.autoFetchStallStreak, mode: 'progress', reason: 'progress',
+        });
+        drainNext(searchKey, lot);
       } else if (statusOk && statusInfo) {
         lot.deadStreak.set(hash, 0);
         lot.stallStreak.set(hash, 0);
@@ -351,13 +341,22 @@ export function runRecheck(searchKey: string) {
     const liveAfter = autofetchLive.effective();
     if (lot.isSettle && (Date.now() - (lot.createdAt || 0)) >= liveAfter.autoFetchTtl * 1000) {
       metrics.count('autofetch.expired-unready', lot.hashes.size);
-      // Exceção deliberada do gate (cabeçalho de autofetch-suppressed.ts):
-      // remove por id DIRETO, sem podeRemover/noteSuppressed — é o que expira
-      // no settle (download que o PRÓPRIO addon subiu), não acervo represado.
+      // Expiração NÃO é passe livre para apagar por id: o mesmo gate do
+      // colapso terminal vale aqui. `via:'id'` sem `removeById` vai para a
+      // fila de represados (limpeza terminal com sweepDead/painel); adapter
+      // sem `via:'id'` (Premiumize/TorBox/RD/DL) preserva a remoção direta
+      // histórica. Sem id conhecido, nada é apagado.
       if (typeof adapter.removeTorrent === 'function') {
         for (const h of lot.hashes) {
-          const sid = statuses[h]?.id;
-          if (sid != null) adapter.removeTorrent(opts().debridApiKey, sid).catch(() => {});
+          const st = statuses[h];
+          const sid = st?.id;
+          if (sid == null) continue;
+          if (st?.via !== 'id' || config.debrid.removeById) {
+            adapter.removeTorrent(opts().debridApiKey, sid).catch(() => {});
+          } else {
+            metrics.count('autofetch.expired.suppressed');
+            suppressed.noteSuppressed(adapter.id, account, h, sid);
+          }
         }
       }
       for (const h of lot.hashes) {
@@ -366,16 +365,18 @@ export function runRecheck(searchKey: string) {
         held.unprotect(adapter.id, account, h);
         held.release(h, account);
       }
+      // Fim de lote: a memória de progresso não sobrevive ao registro do lote.
+      forgetLotProgress(adapter.id, account, [...lot.hashes]);
       recheckLots.delete(searchKey);
     } else {
       if (!lot.isSettle && lot.attempts >= liveAfter.autoFetchRecheckMax) {
         lot.isSettle = true;
         manageSettleLru(recheckLots);
       }
-      // Política da Fase 0 (Chupim 2.0): ENTRAR em settle sem evidência
-      // dead/stalled NÃO drena fila alguma. Drenar sem prova de colapso submete
-      // fallback sem necessidade e gasta orçamento da conta; a reposição de
-      // serviços sem sinal de `stalled` (AllDebrid) fica para a futura F3.
+      // Política da Fase 0 PRESERVADA: entrar em settle NÃO drena fila alguma.
+      // Só evidência COMPROVADA repõe — morto/parado NATIVO do adaptador ou
+      // parada DERIVADA por progresso (Fase 3, AllDebrid). Lote sem sinal
+      // espera o TTL; drenar por "estar em settle" era o dreno cego removido.
       armRecheck(searchKey, lot);
     }
   })).catch((err) => {

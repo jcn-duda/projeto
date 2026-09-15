@@ -10,8 +10,13 @@ import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as runtime from '../src/runtime.js';
 import debrid from '../src/debrid/index.js';
+import * as suppressed from '../src/providers/autofetch-suppressed.js';
+import { runRecheck, recheckLots } from '../src/providers/autofetch-recheck.js';
+import { accountScope } from '../src/utils/request-key.js';
 import { applyDebrid } from '../src/providers/index.js';
 import { pmAdapter, account, brDub, userOpts } from './helpers/autofetch-skip-common.js';
+import { sleep } from './helpers/autofetch-fixtures.js';
+import type { DebridAdapter } from '../types/domain.js';
 
 test('H2: settle expirado apaga o marcador junto do torrent (sem esperar o TTL)', async () => {
   // Discrimina mantendo o marker (6h) vivo além do horizonte do settle.
@@ -73,4 +78,73 @@ test('H2: settle expirado apaga o marcador junto do torrent (sem esperar o TTL)'
     held.release(h, account);
     cache.forget(searchKey);
   }
+});
+
+// --- expired-unready: o gate de remoção por id vale na expiração ------------
+
+async function expireProbe(via: 'id' | 'hash', removeById: boolean) {
+  const originalCheck = debrid.checkCached;
+  const originalTtl = config.debrid.autoFetchTtl;
+  const originalRemoveById = config.debrid.removeById;
+  const ad = debrid.BY_ID.get('alldebrid') as DebridAdapter;
+  const originalStatus = ad.torrentStatus;
+  const originalRemove = ad.removeTorrent;
+  const chave = `chave-exp-ad-${via}`;
+  const account = accountScope(chave);
+  const searchKey = `busca-exp-ad-${via}`;
+  const h = (via === 'id' ? 'e7' : 'e8').repeat(20);
+  let removals = 0;
+  let result: { removals: number; suppressed: number; discarded: boolean; account: string; hash: string } | null = null;
+  try {
+    config.debrid.autoFetchTtl = 1;
+    config.debrid.removeById = removeById;
+    ad.torrentStatus = async () => ({ [h]: { state: 'downloading', id: 555, via } });
+    ad.removeTorrent = async () => { removals += 1; return true; };
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    recheckLots.set(searchKey, {
+      hashes: new Set([h]), attempts: 9, timer: null, inFlight: false,
+      ctx: { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: chave }, encoded: 'cfg-exp-ad' },
+      deadStreak: new Map(), stallStreak: new Map(), seasonHints: new Map(),
+      createdAt: Date.now() - 5000, isSettle: true, refusals: 0, adapterId: 'alldebrid',
+    });
+    runRecheck(searchKey);
+    await sleep(30);
+    result = {
+      removals,
+      suppressed: suppressed.listSuppressed('alldebrid', account).length,
+      discarded: !recheckLots.has(searchKey),
+      account,
+      hash: h,
+    };
+  } finally {
+    config.debrid.autoFetchTtl = originalTtl;
+    config.debrid.removeById = originalRemoveById;
+    debrid.checkCached = originalCheck;
+    ad.torrentStatus = originalStatus;
+    ad.removeTorrent = originalRemove;
+    const lote = recheckLots.get(searchKey);
+    if (lote?.timer) clearTimeout(lote.timer);
+    recheckLots.delete(searchKey);
+    autofetch.releaseSearch(searchKey);
+    autofetch.dropQueue(searchKey);
+    cache.forget(autofetch.markerKey('alldebrid', account, h));
+    cache.forget(autofetch.deadKey('alldebrid', account, h));
+    held.release(h, account);
+    suppressed.forgetSuppressed('alldebrid', account, h);
+  }
+  if (!result) throw new Error('probe sem resultado');
+  return result;
+}
+
+test('expired-unready: AllDebrid via=id sem removeById NÃO remove direto — represa', async () => {
+  const r = await expireProbe('id', false);
+  assert.equal(r.discarded, true, 'lote expirado é descartado');
+  assert.equal(r.removals, 0, 'nada é apagado da conta direto na expiração');
+  assert.equal(r.suppressed, 1, 'o hash vai para a fila de represados');
+});
+
+test('expired-unready: via=hash preserva a remoção direta histórica', async () => {
+  const r = await expireProbe('hash', false);
+  assert.equal(r.removals, 1, 'adapter sem via:id mantém o comportamento');
+  assert.equal(r.suppressed, 0, 'nada represado quando a remoção acontece');
 });

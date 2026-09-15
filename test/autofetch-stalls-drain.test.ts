@@ -13,8 +13,9 @@ import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { applyDebrid, findStreams } from '../src/providers/index.js';
-import { recheckLots } from '../src/providers/autofetch-recheck.js';
+import { recheckLots, runRecheck } from '../src/providers/autofetch-recheck.js';
 import { drainNext } from '../src/providers/autofetch-runner.js';
+import * as suppressed from '../src/providers/autofetch-suppressed.js';
 import type { DebridAdapter } from '../types/domain.js';
 import { flush, brDubCandidate, autofetchUserOpts, makeDrainHarness, H1, H2, sleep, premiumizeRunCtx } from './helpers/autofetch-fixtures.js';
 
@@ -107,12 +108,10 @@ test('stall colapsa e drainNext sobe o 2º da mesma faixa (fila surplus)', async
 
 // --- Reposição por pool inferior (br → any → seeds) ---
 // O caso comum esgota os poucos candidatos BR no immediate e a fila nascia
-// vazia. O global fortão fica na fila marcado com o PRÓPRIO pool (seeds) e só
-// sobe no colapso COMPROVADO do primário (dead/stalled). Entrar em settle NÃO
-// drena — política da Fase 0: sem evidência de colapso, nada baixa até a
-// futura F3. Os cenários "sem sinal de `stalled`" abaixo simulam o comportamento
-// AllDebrid (só downloading, nunca stalled) sobre o stub do Premiumize.
-
+// vazia. O global fortão fica na fila marcado com o PRÓPRIO pool (seeds) e sobe
+// no colapso COMPROVADO do primário: dead/stalled NATIVO do adaptador ou
+// parada DERIVADA por progresso (Fase 3, AllDebrid). O settle — com ou sem
+// progresso — nunca drena: a política conservadora da Fase 0 segue valendo.
 const seedsCandidate = (h: string, seeds: number) => ({
   infoHash: h, name: 'Coringa 1080p BluRay', title: 'Coringa 1080p BluRay',
   _br: false, _dubbed: false, _quality: '1080p', _seeders: seeds,
@@ -184,39 +183,6 @@ test('BR dead/stalled: drainNext sobe o global de fallback automaticamente', asy
   }
 });
 
-test('sem sinal de stalled (comportamento AllDebrid): entrar em settle NÃO drena; fila preservada', async () => {
-  autofetchLive.reset();
-  const h = makeDrainHarness('fallback-settle-x', { recheckMax: 2 });
-  const hBr = 'd7'.repeat(20);
-  const hSeed = 'd8'.repeat(20);
-  try {
-    mock.timers.enable({ apis: ['setTimeout'] });
-    // Stub só-publicando `downloading`: sem dead, sem stalled — nunca cai no
-    // ramo morto/parado. A política da Fase 0 proíbe o dreno cego de settle,
-    // então o fallback permanece retido.
-    h.setTorrentStatus(async () => ({ [hBr]: { state: 'downloading', id: 51 } }));
-    await h.run([seedsCandidate(hSeed, 500), brDubCandidate(hBr, { _quality: '1080p', _seeders: 5 })]);
-    assert.deepEqual(h.enqueued, [hBr], 'só o BR primário dispara na abertura');
-    assert.equal(autofetch.readQueue(h.searchKey).length, 1, 'global de fallback na fila');
-    mock.timers.tick(120_000);
-    await flush();
-    assert.deepEqual(h.enqueued, [hBr], 'pré-settle não drena o fallback');
-    mock.timers.tick(120_000);
-    await flush();
-    assert.equal(recheckLots.get(h.searchKey)?.isSettle, true, 'lote entrou em settle');
-    assert.deepEqual(h.enqueued, [hBr], 'a transição para settle não drena nada');
-    assert.equal(autofetch.readQueue(h.searchKey).length, 1, 'fallback preservado na fila');
-    assert.equal(String(autofetch.readQueue(h.searchKey)[0].infoHash).toLowerCase(), hSeed, 'cabeça intacta');
-    mock.timers.tick(900_000);
-    await flush();
-    assert.deepEqual(h.enqueued, [hBr], 'ciclo de settle seguinte também não drena');
-    assert.equal(autofetch.readQueue(h.searchKey).length, 1, 'fila ainda intacta');
-  } finally {
-    mock.timers.reset();
-    h.cleanup([hBr, hSeed]);
-  }
-});
-
 test('dead/stalled no ciclo da transição para settle: o dreno com evidência continua', async () => {
   autofetchLive.reset();
   const h = makeDrainHarness('fallback-settle-coincide-x', { stallStreak: 2, recheckMax: 2 });
@@ -226,8 +192,9 @@ test('dead/stalled no ciclo da transição para settle: o dreno com evidência c
   const seed2 = 'de'.repeat(20);
   try {
     mock.timers.enable({ apis: ['setTimeout'] });
-    // O 1080p stallado no ciclo da transição; o 720p segue downloading e mantém
-    // o lote vivo — é o que permite a passagem chegar ao settle no mesmo ciclo.
+    // O 1080p stallado (NATIVO) no ciclo da transição; o 720p segue baixando e
+    // mantém o lote vivo — é o que permite a passagem chegar ao settle. O lote
+    // não publica progresso: o settle NÃO drena por conta própria.
     h.setTorrentStatus(async () => ({
       [hBr1080]: { state: 'downloading', stalled: true, id: 71 },
       [hBr720]: { state: 'downloading', id: 72 },
@@ -246,7 +213,7 @@ test('dead/stalled no ciclo da transição para settle: o dreno com evidência c
     assert.deepEqual(h.enqueued, [hBr1080, hBr720], 'pré-threshold não drena');
 
     // attempts=2: o stall colapsa E o lote entra em settle na MESMA passagem.
-    // O dreno aqui é do ramo morto/parado (evidência), não do settle.
+    // O dreno é do ramo morto/parado (evidência); o settle em si não drena.
     mock.timers.tick(120_000);
     await flush();
     assert.deepEqual(h.enqueued, [hBr1080, hBr720, seed1], 'o ramo morto/parado drena uma cabeça');
@@ -368,5 +335,45 @@ test('drainNext: cabeca apenas em hold e adiada, nao purgada; o segundo sobe', a
     pmAdapter.enqueue = originalEnqueue;
     autofetch.dropQueue(searchKey);
     autofetch.resetBudget('premiumize', account);
+  }
+});
+
+// --- AllDebrid com progress (Fase 3) ----------------------------------------
+
+test('AllDebrid com progress: adapter só anexa progresso em Downloading com campos numéricos', async () => {
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  const ad = debrid.BY_ID.get('alldebrid') as DebridAdapter;
+  const ok = 'c3'.repeat(20);
+  const nullo = 'c4'.repeat(20);
+  const fila = 'c5'.repeat(20);
+  const completo = 'c6'.repeat(20);
+  try {
+    AbortSignal.timeout = () => new AbortController().signal;
+    globalThis.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'success', data: { magnets: [
+        { id: 9, hash: ok, status: 'Downloading', size: 1000, downloaded: 250, downloadSpeed: 0, seeders: 0 },
+        // null/ausente NÃO viram zero: sem os QUATRO campos numéricos não há progresso.
+        { id: 10, hash: nullo, status: 'Downloading', size: 1000, downloaded: null, downloadSpeed: 0, seeders: 0 },
+        // queued/processing não são Downloading: sem progresso (o state vira downloading).
+        { id: 11, hash: fila, status: 'queued', size: 1000, downloaded: 250, downloadSpeed: 5, seeders: 3 },
+        // bytes >= total (completo/limítrofe) também não publica progresso.
+        { id: 12, hash: completo, status: 'Downloading', size: 1000, downloaded: 1000, downloadSpeed: 0, seeders: 0 },
+      ] } }),
+    })) as unknown as typeof globalThis.fetch;
+    const out = await ad.torrentStatus!('chave-de-teste', [ok, nullo, fila, completo]);
+    assert.equal(out[ok].state, 'downloading');
+    assert.equal(out[ok].via, 'id', 'remoção terminal fica sob o gate removeById');
+    assert.deepEqual(out[ok].progress, { bytes: 250, total: 1000, speed: 0, seeders: 0 });
+    assert.equal(out[ok].stalled, undefined, 'o adaptador NÃO deriva stalled');
+    assert.equal(out[nullo].progress, undefined, 'campo cru null não vira zero');
+    assert.equal(out[fila].state, 'downloading');
+    assert.equal(out[fila].progress, undefined, 'queued não publica progresso');
+    assert.equal(out[completo].progress, undefined, 'bytes >= total não publica progresso');
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
   }
 });

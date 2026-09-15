@@ -92,6 +92,14 @@ export interface TorrentStatusEntry {
   stalled?: boolean;
   id?: string | number;
   /**
+   * Progresso MEDIDO da transferência (Fase 3 do Chupim 2.0). Presente só
+   * quando o serviço publica os campos (hoje só o AllDebrid); ausente =
+   * "sem sinal" e nenhuma parada é derivada dele. `bytes`/`total`/`speed` em
+   * bytes e bytes/s; `total` <= 0, campo ausente ou regressão de bytes não é
+   * sinal.
+   */
+  progress?: { bytes: number; total: number; speed: number; seeders: number };
+  /**
    * COMO a transferência foi ligada ao hash. `hash`: o próprio serviço
    * publicou o hash (src/nome/campo direto) — é a via histórica e a única
    * que o ciclo destrutivo sempre enxergou. `id`: só casou pelo id que o

@@ -11,12 +11,11 @@ import {
 
 // Reposição de pools inferiores do Chupim. O pool primário (br → any → seeds)
 // continua definindo os disparos IMEDIATOS; os pools abaixo dele não entram na
-// conta agora, mas ficam na fila persistente para o `drainNext` subir quando o
-// primário colapsar COM EVIDÊNCIA (dead/stalled). Entrar em settle NÃO drena —
-// política da Fase 0: sem prova de colapso, nada baixa. Serviços sem sinal de
-// `stalled` (AllDebrid) só reportam morto via estado terminal, e a reposição
-// deles no settle é a futura F3. O fluxo ready não toca nisso: quando o lote
-// assenta, o `runRecheck` descarta a fila inteira e o fallback nunca baixa.
+// conta agora, mas ficam na fila persistente para o `drainNext` subir somente
+// no colapso COMPROVADO (dead/stalled). Settle sem evidência não drena em
+// nenhum serviço; no AllDebrid, o progresso medido alimenta o ramo parado
+// derivado. Quando o lote assenta, o `runRecheck` descarta a fila inteira e o
+// fallback nunca baixa.
 
 export type AutoFetchStream = Stream & { infoHash: string };
 

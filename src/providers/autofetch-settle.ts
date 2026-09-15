@@ -1,6 +1,7 @@
 import config from '../config.js';
 import * as held from '../debrid/protected.js';
 import { accountScope } from '../utils/request-key.js';
+import { forgetLotProgress } from './autofetch-progress.js';
 import type { RuntimeContext } from '../runtime.js';
 
 // LRU dos lotes em estabilização (settle), extraído de `autofetch-recheck.ts`
@@ -16,6 +17,14 @@ type SettleLot = {
   timer: ReturnType<typeof setTimeout> | null;
   ctx: RuntimeContext | null;
   hashes: Set<string>;
+  /**
+   * Adapter DONO do lote, gravado no enqueue/recheck. A evicção usa ESTE id —
+   * nunca `debrid.current()`, que no contexto de outra request pode ser outro
+   * serviço: num lote misto, limpar com o adapter errado deixaria a memória de
+   * progresso do lote evictado para trás. Vazio = limpeza impossível (não
+   * inventa chave).
+   */
+  adapterId: string;
 };
 
 export function manageSettleLru(lots: Map<string, SettleLot>): void {
@@ -29,7 +38,11 @@ export function manageSettleLru(lots: Map<string, SettleLot>): void {
   for (const { key, lot } of settleLots.slice(0, settleLots.length - maxLots)) {
     if (lot.timer) clearTimeout(lot.timer);
     const account = accountScope(lot.ctx?.opts?.debridApiKey || '');
+    // Fim de lote também é fim da memória de progresso: limpa com o adapter do
+    // PRÓPRIO lote, ANTES do delete, para um hash reenfileirado não herdar
+    // streak residual de outra janela.
     for (const h of lot.hashes) held.release(h, account);
+    if (lot.adapterId) forgetLotProgress(lot.adapterId, account, lot.hashes);
     lots.delete(key);
   }
 }

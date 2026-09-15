@@ -205,10 +205,10 @@ export function autoFetchCandidates(
 
   // Fila persistente: excedente do pool primário + fallback dos pools
   // inferiores habilitados (br → any → seeds). O fallback NÃO é disparado
-  // agora: fica RETIDO na fila para o `drainNext` subir SOMENTE no colapso
-  // comprovado do primário (dead/stalled). Entrar em settle não drena —
-  // política da Fase 0 (sem evidência de colapso, nada baixa até a futura F3).
-  // Ready antes disso descarta a fila inteira; cada entrada carrega o próprio pool.
+  // agora: fica RETIDO na fila para o `drainNext` subir somente no colapso
+  // comprovado do primário (dead/stalled). Settle sem evidência não drena.
+  // Ready antes disso descarta a fila inteira; cada entrada
+  // carrega o próprio pool.
   if (live.autoFetchQueue && searchKey) {
     // Profundidade zero não executa seletores nem emite métricas de fallback inexistente.
     const fallbacks = queueDepth > 0

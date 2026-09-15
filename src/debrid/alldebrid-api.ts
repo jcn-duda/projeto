@@ -71,10 +71,25 @@ export interface AllDebridMagnet {
   id?: string | number;
   hash?: string;
   status?: string;
+  /** Código numérico do estado (ex.: 4 = Downloading). Vem sempre. */
+  statusCode?: number;
   filename?: string;
   /** Em segundos, não milissegundos. */
   uploadDate?: number;
+  /** Tamanho TOTAL do magnet, em bytes. Sempre presente. */
   size?: number;
+  /**
+   * Campos de progresso MEDIDOS em `/magnet/status` (2026-09-15). Presentes
+   * SÓ em magnet ativo (`status: "Downloading"`); pronto e terminal não os
+   * trazem. `downloaded` em bytes, `downloadSpeed`/`uploadSpeed` em bytes/s,
+   * `seeders` em pares e `processingPerc` em percentual. NÃO existe campo
+   * `progress`.
+   */
+  downloaded?: number;
+  downloadSpeed?: number;
+  uploadSpeed?: number;
+  seeders?: number;
+  processingPerc?: number;
   ready?: boolean;
 }
 

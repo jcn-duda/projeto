@@ -82,6 +82,7 @@
     "test/autofetch-occupancy.test.js",
     "test/autofetch-panel.test.js",
     "test/autofetch-policy.test.js",
+    "test/autofetch-progress.test.js",
     "test/autofetch-skip-trace.test.js",
     "test/autofetch-list-desist.test.js",
     "test/autofetch-trace-sanitize.test.js",

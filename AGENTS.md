@@ -1107,6 +1107,39 @@ dashboard, aba `[Chupim / Autofetch]`); TTL estático `BR_PROBE_TTL_S` (default 
 `autofetch.brProbe.ms`. Testes: `test/br-probe.test.ts` (estado/política), `test/br-probe-worker.test.ts`
 (observabilidade/partial/tick) e `test/br-probe-fallback.test.ts` (fallback persistido/packs/call sites).
 
+**Fase 3 revisada — progresso real da AllDebrid (`src/providers/autofetch-progress.ts`).** A AllDebrid não
+publica `stalled`/dead objetivo por item, então o lote ficava "downloading" até o TTL sem repor nada quando a
+parada não era detectável. A medição read-only do `/magnet/status` (2026-09-15) confirmou os campos reais:
+`downloaded` (bytes), `size` (total, sempre presente), `downloadSpeed`/`uploadSpeed` (bytes/s), `seeders` e
+`processingPerc`, presentes SÓ em magnet ativo; **não existe campo `progress`**. O `torrentStatus` do adaptador
+(`alldebrid-play.ts`) só anexa `{ bytes, total, speed, seeders }` quando o status CRU é exatamente
+`"Downloading"` E os quatro campos são `typeof number && Number.isFinite` (null/''/false/ausente NÃO viram
+zero), com `total>0` e `bytes<total`. Marca `via:'id'` — a AllDebrid publica o hash, mas a marcação DELIBERADA
+mantém a remoção terminal sob `DEBRID_REMOVE_BY_ID` (default false), fechando o bypass que a revisão
+adversarial apontou. O adaptador **não deriva `stalled`**: a derivação é conservadora e mora no recheck.
+
+`deriveStall` (memória por `adapter:account:hash`) marca parada APENAS com state `downloading`, `bytes<total` e
+bytes parados com velocidade NÃO positiva (`speed>0` é movimento e zera o streak mesmo com `seeders:0`; seeders
+zero nunca sobrepõe velocidade positiva) por `DEBRID_AUTO_FETCH_STALL_STREAK` rechecks CONSECUTIVOS. Bytes
+crescendo zera; regressão de bytes ou troca do id da transferência reiniciam; `total<=0`, `bytes>=total`, campo
+ausente/não numérico, `progress` ausente ou state `queued/processing/unknown/ready/dead` são SEM sinal (mantêm
+o legado). O hash derivado entra num ramo próprio que **nunca** chama `removeTorrent` direto: blacklista, limpa
+o registro da obra, libera holds e **registra a transferência na fila de represados** (`autofetch-suppressed`)
+para o knob/painel cobrar depois. O mesmo gate vale no caminho `expired-unready`: AllDebrid `via:'id'` sem
+`removeById` é represado, não apagado direto; adapter sem `via:'id'` preserva a remoção histórica. O estado é
+limpo em `cleanLotHash`, no fim do lote e na evicção do LRU de settle — que usa o `adapterId` DO PRÓPRIO lote,
+nunca `debrid.current()` de outra request. É o mesmo espírito do contrato `responded` do B1: o que não foi
+medido não condena.
+
+O **settle NÃO drena** — política conservadora da Fase 0 preservada: lote sem dead/stalled nativo e sem parada
+derivada comprovada espera o TTL; drenar por "estar em settle" era o dreno cego removido. A F3 serve para o
+AllDebrid repor uma cabeça SÓ quando a parada derivada é comprovada; adapter sem progresso mantém o
+comportamento pós-F0 (sem dreno). Métricas `autofetch.progress.signals` (hashes com progresso válido na
+passagem) e `autofetch.progress.stalled` (colapsos derivados), mais `autofetch.progress.suppressed`. Sem knob
+novo — o limiar é o `DEBRID_AUTO_FETCH_STALL_STREAK`; `0` desliga a derivação. Testes:
+`test/autofetch-progress.test.ts` (unit + settle conservador + LRU + AllDebrid) e
+`test/autofetch-stalls-drain.test.ts` (adapter AllDebrid com progress + limite de uma cabeça por evidência).
+
 O registry também expõe `inventory()`: o que já está **pronto** na conta
 (AllDebrid/TorBox/RD/DL) entra na busca como mais uma fonte
 (`src/providers/account.ts`), memoizado por serviço+conta sob `dinv:v1:`. A
