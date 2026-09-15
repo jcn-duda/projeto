@@ -113,6 +113,8 @@ test('stall colapsa e drainNext sobe o 2º da mesma faixa (fila surplus)', async
 const seedsCandidate = (h: string, seeds: number) => ({
   infoHash: h, name: 'Coringa 1080p BluRay', title: 'Coringa 1080p BluRay',
   _br: false, _dubbed: false, _quality: '1080p', _seeders: seeds,
+  // Política seeds da Fase 1: tamanho dentro do teto (desconhecido é recusado).
+  _size: 2 * 1024 ** 3,
 });
 
 test('BR imediato + global forte: global não dispara agora, fica na fila com pool seeds', async () => {

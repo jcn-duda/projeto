@@ -32,4 +32,20 @@ export const autofetchSeeds = () => ({
   // de seeders. É preferência, não filtro: sem nenhum candidato PT a ordem
   // por seeders continua valendo. false restaura a ordenação antiga.
   autoFetchSeedsPtFirst: String(process.env.DEBRID_AUTO_FETCH_SEEDS_PT_FIRST || 'true') === 'true',
+  // Teto de tamanho do pool seeds (Fase 1 do Chupim 2.0), em GB. O seeds é o
+  // ÚLTIMO recurso: baixar 60 GB de um 4K não "esquenta o play", enche a conta
+  // e demora. 0 desliga o teto de tamanho (o `maxSizeGb` do usuário continua
+  // valendo quando setado); tamanho desconhecido segue recusado.
+  autoFetchSeedsMaxGb: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_SEEDS_MAX_GB, 8)),
+  // Teto de qualidade do pool seeds. 4K/2160p e REMUX/BDREMUX ficam de fora, e
+  // qualidade DESCONHECIDA é recusada (não dá para provar que está no teto). A
+  // normalização vive em autofetch-policy.ts; valor fora do vocabulário cai em
+  // 1080p. Estático (sem tuning ao vivo nesta fase): mudar exige restart.
+  autoFetchSeedsMaxQuality: String(process.env.DEBRID_AUTO_FETCH_SEEDS_MAX_QUALITY || '1080p').trim() || '1080p',
+  // Exceção raro-sobre-cache (caso real Mortuary, tt0087746): com o regime raro
+  // REAL e cacheCheck efetivo, aquece as alternativas frias mesmo com um global
+  // não-dublado em cache. Default FALSE: qualquer cache tocável impede seeds.
+  // Ligar restaura a regressão de então sob as mesmas travas (dublado em cache
+  // segue abortando; hash cacheado nunca enfileira).
+  autoFetchRareOverCached: String(process.env.DEBRID_AUTO_FETCH_RARE_OVER_CACHED || 'false') === 'true',
 });

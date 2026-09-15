@@ -3,6 +3,7 @@ import * as log from '../utils/logger.js';
 import * as held from '../debrid/protected.js';
 import * as autofetch from './autofetch.js';
 import { topSeededPool } from '../utils/format.js';
+import { decideSeedsStop } from './autofetch-policy.js';
 import type { Stream } from '../../types/domain.js';
 
 // Seleção do pool "seeds" do Chupim (melhor swarm), extraída do runner para
@@ -175,14 +176,24 @@ export function applySeedsStopGate<T extends StopGateCandidate>(
     adapterCacheCheck: boolean;
     cached: Set<string>;
     hasCachedDubbed: boolean;
+    /** `DEBRID_AUTO_FETCH_RARE_OVER_CACHED`: sem o knob, a exceção raro-sobre-
+     *  cache não existe e qualquer cache para o pool com `stop-has-cached`. */
+    rareOverCached: boolean;
     queue: { searchKey: string; ttl: number; adapterId: string; account: string } | null;
   },
 ): SeedsStopGate {
-  if (opts.hasCachedDubbed) return { stop: 'stop-has-br', candidates, rareOverCached: false };
-  if (opts.cached.size === 0) return { stop: null, candidates, rareOverCached: false };
-  if (!(opts.rare && opts.rareThreshold > 0 && opts.adapterCacheCheck)) {
-    return { stop: 'stop-has-cached', candidates, rareOverCached: false };
-  }
+  // A decisão em si é pura e mora na policy; aqui fica só o efeito (purga da
+  // fila e liberação de hold) que ela não pode ter.
+  const decision = decideSeedsStop({
+    hasCachedDubbed: opts.hasCachedDubbed,
+    cachedCount: opts.cached.size,
+    rare: opts.rare,
+    rareThreshold: opts.rareThreshold,
+    adapterCacheCheck: opts.adapterCacheCheck,
+    rareOverCached: opts.rareOverCached,
+  });
+  if (decision.stop) return { stop: decision.stop, candidates, rareOverCached: false };
+  if (!decision.rareOverCached) return { stop: null, candidates, rareOverCached: false };
   metrics.count('autofetch.seeds.rareOverCached');
   log.info('[autofetch] seeds: título raro mantém o aquecimento apesar de cache global não-dublado');
   // A fila foi escrita na seleção, ANTES da checagem saber o que está em
@@ -203,4 +214,32 @@ export function applySeedsStopGate<T extends StopGateCandidate>(
     held.release(String(c.stream?.infoHash || ''), c.account);
   }
   return { stop: null, candidates: vivos, rareOverCached: true };
+}
+
+/**
+ * Purga entradas do pool `seeds` da fila persistente quando a seleção/despacho
+ * prova que elas não devem drenar (dubbed-only, stop por cache). Entradas
+ * `br`/`any` ficam INTACTAS: a reposição de dublado não é assunto da política
+ * do terceiro nível. `cached: null` remove todas as seeds; com um Set, remove
+ * só as cacheadas. Devolve quantas saíram (para o teste medir a purga).
+ */
+export function purgeSeedsQueue(
+  searchKey: string,
+  { ttl, adapterId, account, cached = null }:
+  { ttl: number; adapterId: string; account: string; cached?: Set<string> | null },
+): number {
+  if (!searchKey) return 0;
+  const fila = autofetch.readQueue(searchKey) as Array<{ pool?: string; infoHash?: string }>;
+  if (!fila.length) return 0;
+  const keep = fila.filter((item) => {
+    if (String(item?.pool || '') !== 'seeds') return true;
+    if (cached == null) return false;
+    return !cached.has(String(item?.infoHash || '').toLowerCase());
+  });
+  const removed = fila.length - keep.length;
+  if (removed > 0) {
+    autofetch.writeQueue(searchKey, keep as any, ttl, adapterId, account, false);
+    metrics.count('autofetch.queue.seeds-purged', removed);
+  }
+  return removed;
 }

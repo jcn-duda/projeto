@@ -69,6 +69,9 @@ export function autofetchUserOpts(apiKey: string, debridService = 'premiumize') 
     debridService,
     debridApiKey: apiKey,
     debridCachedOnly: true,
+    // Instalação que aceita não-dublado: os testes de fila/dreno exercitam o
+    // fallback seeds, que a Fase 1 bloqueia quando `d` é true (default).
+    dubbedOnly: false,
     autoFetchBr: true,
   };
 }

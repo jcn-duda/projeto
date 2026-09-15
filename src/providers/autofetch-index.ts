@@ -9,6 +9,7 @@ type AutofetchIndexCandidate = Partial<Stream> & {
   dubbed?: boolean;
   lied?: boolean;
   quality?: string;
+  size?: number;
   seeders?: number;
   pool?: string;
   imdbId?: string | null;
@@ -43,7 +44,7 @@ export function recordAutofetchRelease(
     // tamanho, e o filtro de tamanho máximo não a enxergava na busca seguinte.
     // Filme em coleção anotado mostra o 💾 do filme: o total do download vem de
     // `_packBytes`.
-    size: candidate._size || candidate._packBytes || streamTitleBytes(candidate.title) || undefined,
+    size: candidate._size || candidate._packBytes || candidate.size || streamTitleBytes(candidate.title) || undefined,
     indexer: candidate._indexer || candidate._tracker || 'autofetch',
     isBr: candidate.br ?? Boolean(candidate._br),
     dubbed: candidate.dubbed ?? Boolean(candidate._dubbed),

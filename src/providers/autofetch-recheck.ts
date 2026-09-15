@@ -17,6 +17,10 @@ import * as rdLedger from '../debrid/rd-ledger.js';
 import { recordAutofetchRelease } from './autofetch-index.js';
 import * as releaseIndex from '../utils/release-index.js';
 import { manageSettleLru } from './autofetch-settle.js';
+import { noteSkip } from './autofetch-gates.js';
+import { seedsDrainRejection } from './autofetch-policy.js';
+import { seedsPolicyConfig } from './autofetch-candidates.js';
+import { seasonSearchKeys, seasonIndexKey, registerSeasonSearchKey } from './autofetch-season-index.js';
 export type SeasonHint = { imdbId?: string | null; season?: number | null; isPack?: boolean };
 export type RecheckLot = {
   hashes: Set<string>;
@@ -33,44 +37,10 @@ export type RecheckLot = {
 };
 /** Lotes aceitos aguardando ficar tocáveis, morrer ou drenar a fila. */
 export const recheckLots = new Map<string, RecheckLot>();
-// Índice efêmero: só há consumidor enquanto o recheck vive no processo.
-export const seasonSearchKeys = new Map<string, Set<string>>();
-
-export function seasonIndexKey(adapterId: string, account: string, imdbId: string, season: number) {
-  return `${adapterId}:${account}:${imdbId}:${season}`;
-}
-
-export function registerSeasonSearchKey(
-  adapterId: string,
-  account: string,
-  imdbId: string,
-  season: number,
-  cacheKey: string,
-) {
-  const live = autofetchLive.effective();
-  const maxSeasons = config.debrid.autoFetchSeasonIndexMax;
-  if (!live.autoFetchSeasonFill || maxSeasons <= 0) return;
-  const maxKeys = config.debrid.autoFetchSeasonIndexKeys;
-  const key = seasonIndexKey(adapterId, account, imdbId, season);
-  let keys = seasonSearchKeys.get(key);
-  if (!keys) {
-    keys = new Set();
-    seasonSearchKeys.set(key, keys);
-  }
-  if (!keys.has(cacheKey) && keys.size >= maxKeys) {
-    const oldest = keys.values().next().value;
-    if (oldest) keys.delete(oldest);
-  }
-  keys.add(cacheKey);
-  // Map preserva inserção; mover para o fim implementa LRU por temporada.
-  seasonSearchKeys.delete(key);
-  seasonSearchKeys.set(key, keys);
-  while (seasonSearchKeys.size > maxSeasons) {
-    const oldest = seasonSearchKeys.keys().next().value;
-    if (oldest == null) break;
-    seasonSearchKeys.delete(oldest);
-  }
-}
+// Índice de temporadas do Season Pack Fill extraído para
+// autofetch-season-index.ts (catraca de linhas); reexportado para os
+// consumidores históricos que importavam daqui.
+export { seasonSearchKeys, seasonIndexKey, registerSeasonSearchKey };
 
 export function armRecheck(searchKey: string, lot: RecheckLot) {
   const live = autofetchLive.effective();
@@ -138,15 +108,26 @@ export function drainNext(searchKey: string, lot: any): boolean {
   // proteção durável — estados permanentes que nunca mais drenariam). Apenas
   // ADIADOS (hold transitório, expira no autoFetchTtl) ficam: o `deferFn` os
   // pula na escolha sem purgá-los do `remaining`.
+  const drainPolicy = seedsPolicyConfig();
   const { next, remaining } = autofetch.takeNext(
     queue,
     (cand) => {
       const h = String(cand.infoHash).toLowerCase();
-      return (
+      const obsolete = (
         autofetch.isDead(adapter.id, account, h) ||
         Boolean(cache.get(autofetch.markerKey(adapter.id, account, h))) ||
         held.isDurablyProtected(adapter.id, account, h)
       );
+      if (obsolete) return true;
+      // Regras PERMANENTES do pool seeds (dubbedOnly/qualidade/tamanho) são
+      // revalidadas antes do enqueue: candidato inválido SAI da fila. Bloqueio
+      // transitório (br-probe futuro) pertenceria ao deferFn, não aqui.
+      const rejection = cand.pool === 'seeds' ? seedsDrainRejection(cand, drainPolicy) : null;
+      if (rejection) {
+        noteSkip(rejection, cand as any, adapter.id, 'seeds');
+        return true;
+      }
+      return false;
     },
     (cand) => held.isHeld(String(cand.infoHash).toLowerCase(), account),
   );

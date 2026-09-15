@@ -29,8 +29,9 @@ test('terceiro nível: filme sem dublado nenhum enfileira os melhores por seeder
   const h3 = '3'.repeat(40);
   const cam = '4'.repeat(40);
   const morto = '5'.repeat(40);
+  // `_size` presente: a política seeds da Fase 1 recusa tamanho desconhecido.
   const leg = (h: any, name: any, seeds: any) => ({
-    infoHash: h, name, title: name, _br: false, _dubbed: false, _seeders: seeds,
+    infoHash: h, name, title: name, _br: false, _dubbed: false, _seeders: seeds, _size: 2 * 1024 ** 3,
   });
   const enqueued: string[] = [];
   pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
@@ -39,6 +40,9 @@ test('terceiro nível: filme sem dublado nenhum enfileira os melhores por seeder
     debridService: 'premiumize',
     debridApiKey: 'chave-seeds-filme',
     debridCachedOnly: true,
+    // Seeds só existe para instalação que aceita não-dublado (`d` desligado):
+    // o default `dubbedOnly=true` bloqueia o pool por contrato da Fase 1.
+    dubbedOnly: false,
     autoFetchBr: true,
   };
   const searchKey = 'busca-seeds-filme';
@@ -94,6 +98,7 @@ test('terceiro nível não dispara quando já existe qualquer fonte tocável', a
     debridService: 'premiumize',
     debridApiKey: 'chave-seeds-gate',
     debridCachedOnly: true,
+    dubbedOnly: false,
     autoFetchBr: true,
   };
   const searchKey = 'busca-seeds-gate';
@@ -147,6 +152,7 @@ test('ANY off + topSeeds: enfileira o maior swarm, não a dublada global', async
     debridService: 'premiumize',
     debridApiKey: 'chave-any-off-seeds',
     debridCachedOnly: true,
+    dubbedOnly: false,
     autoFetchBr: true,
   };
   const searchKey = 'busca-any-off-seeds';
@@ -165,12 +171,12 @@ test('ANY off + topSeeds: enfileira o maior swarm, não a dublada global', async
           // Dual sem sinal PT no título: entra no pool any via _dubbed, mas
           // no seeds não ganha preferência PT — o swarm maior vence.
           {
-            infoHash: hDub, name: 'Cult Film 2010 Dual', title: 'Cult Film 2010 Dual',
-            _br: false, _dubbed: true, _seeders: 20,
+            infoHash: hDub, name: 'Cult Film 2010 Dual 1080p', title: 'Cult Film 2010 Dual 1080p',
+            _br: false, _dubbed: true, _seeders: 20, _size: 2 * 1024 ** 3,
           },
           {
-            infoHash: hSwarm, name: 'Cult Film 2010 BluRay', title: 'Cult Film 2010 BluRay',
-            _br: false, _dubbed: false, _seeders: 80,
+            infoHash: hSwarm, name: 'Cult Film 2010 BluRay 1080p', title: 'Cult Film 2010 BluRay 1080p',
+            _br: false, _dubbed: false, _seeders: 80, _size: 2 * 1024 ** 3,
           },
         ],
         { searchKey } as any,
@@ -214,6 +220,7 @@ test('pool seeds: vaga usa autoFetchTopSeedsMax, não autoFetchMax', async () =>
     debridService: 'premiumize',
     debridApiKey: 'chave-seeds-slot',
     debridCachedOnly: true,
+    dubbedOnly: false,
     autoFetchBr: true,
   };
   const searchKey = 'busca-seeds-slot';
@@ -228,8 +235,8 @@ test('pool seeds: vaga usa autoFetchTopSeedsMax, não autoFetchMax', async () =>
     await runtime.run({ opts: userOpts, encoded: 'cfg-seeds-slot' }, () =>
       applyDebrid(
         [
-          { infoHash: h1, name: 'Obscure 1999 1080p', title: 'Obscure 1999 1080p', _seeders: 40 },
-          { infoHash: h2, name: 'Obscure 1999 720p', title: 'Obscure 1999 720p', _seeders: 55 },
+          { infoHash: h1, name: 'Obscure 1999 1080p', title: 'Obscure 1999 1080p', _seeders: 40, _size: 2 * 1024 ** 3 },
+          { infoHash: h2, name: 'Obscure 1999 720p', title: 'Obscure 1999 720p', _seeders: 55, _size: 2 * 1024 ** 3 },
         ],
         { searchKey } as any,
       ),

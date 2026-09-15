@@ -1,16 +1,12 @@
 import crypto from 'node:crypto';
 import config from '../config.js';
 import autofetchLive from '../utils/autofetch-live.js';
-import type { DebridAdapter, Stream } from '../../types/domain.js';
+import type { DebridAdapter } from '../../types/domain.js';
 import {
-  pickBrDubbedByTargetQualities,
-  pickAnyDubbedCandidates,
-  pickTopSeededCandidates,
   hasCachedBrDubbed,
   hasCachedAnyDubbed,
   cachedBrDubbedTargetQualities,
   isAutofetchTargetQuality,
-  canAutoFetchBr,
   isSeasonPackFillEligible,
   streamQuality,
 } from '../utils/format.js';
@@ -21,8 +17,9 @@ import { accountScope } from '../utils/request-key.js';
 import { capture, opts } from '../runtime.js';
 import * as autofetch from './autofetch.js';
 import { classifyEnqueue, rollbackEnqueue, noteSkip, skipCountsSnapshot, warnAccountGated } from './autofetch-gates.js';
-import { pickSeedsPool, applySeedsStopGate } from './autofetch-seeds-pool.js';
-import { pickLowerPoolFallbacks, composeQueueEntries, toQueueCandidate } from './autofetch-fallback.js';
+import { applySeedsStopGate, purgeSeedsQueue } from './autofetch-seeds-pool.js';
+import { seedsPolicyConfig } from './autofetch-candidates.js';
+import type { AutoFetchCandidate, AutoFetchRequest } from './autofetch-candidates.js';
 import * as autofetchTrace from '../utils/autofetch-trace.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -37,164 +34,11 @@ import {
 } from './autofetch-recheck.js';
 import { recordAutofetchRelease } from './autofetch-index.js';
 
-type AutoFetchStream = Stream & { infoHash: string };
-// `slotLimit`: teto da vaga por busca que o candidato leva do pool que o
-// escolheu (título raro no seeds sobe o limite imediato — a vaga precisa
-// acompanhar, senão o 3º disparo morreria em `slot`). Ausente = teto do pool.
-type AutoFetchCandidate = { stream: AutoFetchStream; account: string; pool: string; slotLimit?: number; rare?: boolean };
-type AutoFetchRequest = {
-  cached: Set<string>;
-  season?: number | null;
-  episode?: number | null;
-  imdbId?: string | null;
-  searchKey?: string | null;
-};
-
-function isAutoFetchStream(stream: Stream): stream is AutoFetchStream {
-  return typeof stream.infoHash === 'string' && stream.infoHash.length > 0;
-}
-
-/**
- * Sem fonte BR dublada tocável, manda o debrid baixar as melhores — o play passa
- * a funcionar minutos depois, sem o usuário pedir. Roda em TODA busca, então as
- * travas importam mais que a funcionalidade:
- *
- * - desligável (`autoFetchBr`), e desligado junto quando não há debrid;
- * - exige `known`: sem saber o que está em cache não há como saber o que falta,
- *   e sairíamos enfileirando torrent às cegas (Real-Debrid e Debrid-Link caem
- *   aqui — neles o /resolve do play já adiciona o magnet de qualquer forma);
- * - ATÉ `autoFetchMax` torrents por busca, com uma vaga por candidato
- *   compartilhada entre o passe parcial e o tardio (acquireSearchSlot);
- * - marca o hash no cache ANTES de chamar a API: a mesma busca é repetida pelo
- *   Stremio e ainda passa pelo passe tardio, e sem isso cada repetição mandaria
- *   o mesmo torrent de novo;
- * - nunca entra no caminho da resposta: erro só vira log.
- */
-export function autoFetchCandidates(
-  streams: Stream[],
-  { season, imdbId, searchKey }: { season?: number | null; imdbId?: string; searchKey?: string } = {},
-) {
-  const { autoFetchBr, debridApiKey } = opts();
-  const adapter = debrid.current();
-  if (!canAutoFetchBr({ autoFetchBr }, adapter)) {
-    noteSkip('disabled', streams[0] || null, adapter?.id || '', '');
-    return [];
-  }
-  const account = accountScope(debridApiKey);
-
-  // Torrent morto na blacklist é ignorado antes de montar os pools
-  const liveStreams = streams.filter((s) => !s.infoHash || !autofetch.isDead(adapter!.id, account, s.infoHash));
-  const live = autofetchLive.effective();
-
-  // Espelho do waiver do piso em sortAndLimit: o waiver existe para o item
-  // alcançar a CHECAGEM do debrid (cache não precisa de swarm) e a reserva BR —
-  // não para o Chupim BAIXAR o que ninguém semeia. Torrent abaixo do piso é
-  // download que não termina e, no pool br da AllDebrid, viraria acervo
-  // protegido (protectBr) eterno sem nunca tocar. O waiver viaja marcado
-  // (`_seedFloorWaived`, setado no próprio corte do piso), então o corte aqui é
-  // exato: sobrevivente do waiver não vira candidato; quem PASSOU pelo piso na
-  // listagem segue elegível como sempre. Vale para os TRÊS pools — inclusive o
-  // de swarm: com `autoFetchMinSeeders=0` o piso próprio do seeds não filtra e
-  // só este corte impede que o waiver seja baixado.
-  const isSeedFloorWaived = (s: AutoFetchStream) => Boolean(s._seedFloorWaived);
-  const isViableForEnqueue = (s: AutoFetchStream) => {
-    if (!isSeedFloorWaived(s)) return true;
-    metrics.count('autofetch.seed-floor-skipped');
-    return false;
-  };
-
-  const queueDepth = live.autoFetchQueue ? live.autoFetchQueueDepth : 0;
-  const totalMax = live.autoFetchMax + queueDepth;
-
-  // Cascata br → any → seeds: no pool BR pega 1 por qualidade-alvo
-  // (720/1080/4K); recusar o nível `any` não pode abortar a busca inteira —
-  // o corte antigo (`return []`) matava o terceiro nível justamente quando
-  // o operador pediu só a rede de segurança de swarm.
-  let candidates = pickBrDubbedByTargetQualities(liveStreams, new Set(), totalMax, { season })
-    .filter(isAutoFetchStream)
-    .filter(isViableForEnqueue);
-  let pool = 'br';
-  const dubbedGlobal = candidates.length === 0
-    ? pickAnyDubbedCandidates(liveStreams, new Set(), totalMax, { season })
-        .filter(isAutoFetchStream)
-        .filter(isViableForEnqueue)
-    : [];
-  if (dubbedGlobal.length > 0) {
-    if (live.autoFetchAnyDubbed) {
-      candidates = dubbedGlobal;
-      pool = 'any';
-      metrics.count('autofetch.any-dubbed');
-    } else {
-      metrics.count('autofetch.any-dubbed-skipped');
-    }
-  }
-  let seedsImmediateLimit = live.autoFetchTopSeedsMax, seedsRare = false;
-  if (candidates.length === 0 && live.autoFetchTopSeeds) {
-    // Seleção do pool seeds (estrito + complemento relaxado + título raro) vive
-    // em autofetch-seeds-pool.ts; o limite imediato e a marca de raro voltam de lá.
-    const seeds = pickSeedsPool(liveStreams, live, {
-      season,
-      queueDepth,
-      viable: isViableForEnqueue,
-      rare: { max: live.autoFetchRareMax, threshold: live.autoFetchRareThreshold, maxSeeders: live.autoFetchRareMaxSeeders },
-    });
-    candidates = seeds.candidates;
-    seedsImmediateLimit = seeds.immediateLimit;
-    seedsRare = seeds.rareUsed;
-    pool = 'seeds';
-    if (candidates.length > 0) metrics.count('autofetch.top-seeded');
-  }
-  if (candidates.length === 0) {
-    metrics.count('autofetch.no-candidate');
-    noteSkip('no-candidate', liveStreams[0] || null, adapter?.id || '', pool);
-  }
-
-  const immediateLimit = pool === 'seeds' ? seedsImmediateLimit : live.autoFetchMax;
-  const immediate = candidates.slice(0, immediateLimit);
-
-  // Hold apenas nos candidatos imediatos que serão disparados
-  for (const candidate of immediate) {
-    held.hold(String(candidate.infoHash), live.autoFetchTtl, account);
-  }
-
-  // Fila persistente: excedente do pool primário + fallback dos pools
-  // inferiores habilitados (br → any → seeds). O fallback NÃO é disparado
-  // agora: fica RETIDO na fila para o `drainNext` subir SOMENTE no colapso
-  // comprovado do primário (dead/stalled). Entrar em settle não drena —
-  // política da Fase 0 (sem evidência de colapso, nada baixa até a futura F3).
-  // Ready antes disso descarta a fila inteira; cada entrada carrega o próprio pool.
-  if (live.autoFetchQueue && searchKey) {
-    // Profundidade zero não executa seletores nem emite métricas de fallback inexistente.
-    const fallbacks = queueDepth > 0
-      ? pickLowerPoolFallbacks(liveStreams, live, {
-        primaryPool: pool,
-        excludeHashes: candidates.map((s) => String(s.infoHash || '')),
-        season,
-        viable: isViableForEnqueue,
-      })
-      : [];
-    const entries = composeQueueEntries(
-      candidates.slice(immediateLimit).map((stream) => ({ stream, pool })),
-      fallbacks,
-      queueDepth,
-    );
-    autofetch.writeQueue(
-      searchKey,
-      entries.map(({ stream, pool: entryPool }) => toQueueCandidate(stream, entryPool, {
-        imdbId,
-        season,
-        seasonFill: Boolean(live.autoFetchSeasonFill && adapter?.cacheCheck),
-      })),
-      config.debrid.autoFetchQueueTtl,
-      adapter!.id,
-      account,
-    );
-    const brQueued = entries.filter((entry) => entry.pool === 'br').length;
-    if (brQueued > 0) metrics.count('autofetch.queue.surplus', brQueued);
-  }
-
-  return immediate.map((stream) => ({ stream, account, pool, ...(pool === 'seeds' ? { slotLimit: seedsImmediateLimit, rare: seedsRare } : {}) }));
-}
+// Seleção (autoFetchCandidates) e política do pool seeds vivem em módulos
+// próprios; aqui ficam o disparo (enqueueAutofetch), o despacho pós-cache
+// (autoFetchBrDubbed) e o estado operacional do processo.
+export { autoFetchCandidates } from './autofetch-candidates.js';
+export type { AutoFetchCandidate, AutoFetchRequest } from './autofetch-candidates.js';
 
 export function releaseAllHolds(candidates: AutoFetchCandidate[]) {
   for (const { stream, account } of candidates) held.release(String(stream.infoHash || ''), account);
@@ -285,7 +129,6 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit }: AutoFetch
 
 export { registerSeasonSearchKey, scheduleRecheck, drainNext, type SeasonHint, type RecheckLot };
 
-
 export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, season, episode, imdbId, searchKey }: any) {
   const adapter = debrid.current() as DebridAdapter;
   if (!candidates || candidates.length === 0) {
@@ -309,15 +152,32 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
       return 0;
     }
   } else if (poolName === 'seeds') {
-    // Terceiro nível: decisão de parada (stop-has-br / stop-has-cached /
-    // exceção do título raro sobre cache não-dublado) vive em applySeedsStopGate.
+    // Terceiro nível: parada por cache e exceção do título raro vivem na
+    // política (decideSeedsStop) + applySeedsStopGate. A purga da fila remove
+    // SÓ entradas seeds — a reposição br/any não é assunto deste pool.
     const live = autofetchLive.effective();
+    const policy = seedsPolicyConfig();
+    const purgeSeeds = () => {
+      if (!live.autoFetchQueue || !searchKey) return;
+      purgeSeedsQueue(searchKey, {
+        ttl: config.debrid.autoFetchQueueTtl,
+        adapterId: adapter.id,
+        account: candidates[0]?.account || accountScope(opts().debridApiKey),
+      });
+    };
+    if (policy.dubbedOnly) {
+      noteSkip('dubbed-only', candidates[0]?.stream, adapter.id, poolName);
+      purgeSeeds();
+      releaseAllHolds(candidates);
+      return 0;
+    }
     const gate = applySeedsStopGate(candidates, {
       rare: Boolean(candidates[0]?.rare),
       rareThreshold: live.autoFetchRareThreshold,
       adapterCacheCheck: adapter.cacheCheck === true,
       cached,
       hasCachedDubbed: hasCachedBrDubbed(streams, cached) || hasCachedAnyDubbed(streams, cached),
+      rareOverCached: config.debrid.autoFetchRareOverCached,
       queue: live.autoFetchQueue && searchKey
         ? { searchKey, ttl: config.debrid.autoFetchQueueTtl, adapterId: adapter.id,
             account: candidates[0]?.account || accountScope(opts().debridApiKey) }
@@ -325,6 +185,7 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
     });
     if (gate.stop) {
       noteSkip(gate.stop, candidates[0]?.stream, adapter.id, poolName);
+      purgeSeeds();
       releaseAllHolds(candidates);
       return 0;
     }

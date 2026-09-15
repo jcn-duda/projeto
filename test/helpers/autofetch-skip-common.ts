@@ -50,6 +50,9 @@ export const userOpts = (extra: Record<string, unknown> = {}) => ({
   ...runtime.defaults(),
   debridService: 'premiumize',
   debridApiKey: API_KEY,
+  // Os testes de skip do pool seeds precisam de instalação que aceite
+  // não-dublado; `d` true (default) bloquearia o pool por contrato da Fase 1.
+  dubbedOnly: false,
   ...extra,
 });
 

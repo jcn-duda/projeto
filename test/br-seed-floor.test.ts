@@ -170,6 +170,10 @@ test('enqueue mantém o piso: sobrevivente do waiver não vira download; quem pa
         ...runtime.defaults(),
         debridService: 'premiumize',
         debridApiKey: API_KEY,
+        // Seeds exige instalação que aceite não-dublado (`d` desligado); e a
+        // lista precisa ser cachedOnly, senão o P2P tocável bloqueia o pool.
+        dubbedOnly: false,
+        debridCachedOnly: true,
         autoFetchBr: true,
       },
       encoded: 'cfg',
@@ -218,6 +222,10 @@ test('último recurso: seeds abaixo do piso ainda aquecem quando BR/any vazios',
         ...runtime.defaults(),
         debridService: 'premiumize',
         debridApiKey: API_KEY,
+        // Seeds exige instalação que aceite não-dublado (`d` desligado); e a
+        // lista precisa ser cachedOnly, senão o P2P tocável bloqueia o pool.
+        dubbedOnly: false,
+        debridCachedOnly: true,
         autoFetchBr: true,
       },
       encoded: 'cfg',
@@ -232,6 +240,7 @@ test('último recurso: seeds abaixo do piso ainda aquecem quando BR/any vazios',
       title: 'The Locals 2003 720p WEB-DL',
       _quality: '720p',
       _seeders: 1,
+      _size: 2 * 1024 ** 3,
     };
     const dRelaxed = deltaOf('autofetch.top-seeded-relaxed');
     const dNoCand = deltaOf('autofetch.no-candidate');
@@ -252,6 +261,7 @@ test('último recurso: seeds abaixo do piso ainda aquecem quando BR/any vazios',
       title: 'Popular Title 1080p WEB-DL',
       _quality: '1080p',
       _seeders: 12,
+      _size: 2 * 1024 ** 3,
     };
     const dRelaxed2 = deltaOf('autofetch.top-seeded-relaxed');
     const ok = (await run(() => autoFetchCandidates([healthy as any], {}))) as Array<
@@ -275,6 +285,10 @@ test('enqueue corta o waiver TAMBÉM no pool seeds (autoFetchMinSeeders=0)', asy
         ...runtime.defaults(),
         debridService: 'premiumize',
         debridApiKey: API_KEY,
+        // Seeds exige instalação que aceite não-dublado (`d` desligado); e a
+        // lista precisa ser cachedOnly, senão o P2P tocável bloqueia o pool.
+        dubbedOnly: false,
+        debridCachedOnly: true,
         autoFetchBr: true,
       },
       encoded: 'cfg',
@@ -290,6 +304,9 @@ test('enqueue corta o waiver TAMBÉM no pool seeds (autoFetchMinSeeders=0)', asy
       _br: true,
       _dubbed: true,
       _quality: '1080p',
+      // Tamanho dentro do teto: a política seeds filtra o universo ANTES do
+      // `viable`, então sem `_size` o waiver nem chegaria a ser avaliado no seeds.
+      _size: 2 * 1024 ** 3,
       ...(waived ? { _seedFloorWaived: true } : {}),
     });
 
@@ -308,6 +325,7 @@ test('enqueue corta o waiver TAMBÉM no pool seeds (autoFetchMinSeeders=0)', asy
       name: 'Event Horizon 1997 1080p WEB-DL 👤 12',
       title: 'Event Horizon 1997 1080p WEB-DL',
       _quality: '1080p',
+      _size: 2 * 1024 ** 3,
     };
     const ok = (await run(() => autoFetchCandidates([healthy as any], {}))) as Array<
       { stream: { infoHash?: string }; pool: string }

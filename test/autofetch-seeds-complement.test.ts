@@ -30,6 +30,9 @@ const deltaOf = (key: string) => {
 };
 
 const LIVE_KNOBS = { autoFetchMinSeeders: 3, autoFetchTopSeedsMax: 2, autoFetchQueueDepth: 0 };
+// Política seeds da Fase 1: tamanho desconhecido é recusado. Os fixtures destes
+// testes exercitam swarm/seeders, então recebem um tamanho dentro do teto.
+const withSize = (s: any) => ({ ...s, _size: 2 * 1024 ** 3 });
 
 function seedsHarness(key: string) {
   const originalCheck = debrid.checkCached;
@@ -44,6 +47,8 @@ function seedsHarness(key: string) {
     debridService: 'premiumize',
     debridApiKey: key,
     debridCachedOnly: true,
+    // Seeds exige instalação que aceite não-dublado (`d` desligado).
+    dubbedOnly: false,
     autoFetchBr: true,
   };
   return {
@@ -85,9 +90,9 @@ test('seeds: pool estrito cheio nao complementa com relaxado', async () => {
       applyDebrid(
         [
           { infoHash: h4, name: 'Strict Full 1988 DVDRip', title: 'Strict Full 1988 DVDRip', _seeders: 4 },
-          { infoHash: h5, name: 'Strict Full 1988 WEBRip', title: 'Strict Full 1988 WEBRip', _seeders: 5 },
+          { infoHash: h5, name: 'Strict Full 1988 720p WEBRip', title: 'Strict Full 1988 720p WEBRip', _seeders: 5 },
           { infoHash: h1seed, name: 'Strict Full 1988 VHSRip', title: 'Strict Full 1988 VHSRip', _seeders: 1 },
-        ],
+        ].map(withSize),
         { searchKey: harness.searchKey } as any,
       ),
     );
@@ -116,7 +121,7 @@ test('seeds: pool estrito parcial completa com relaxado distinto (estritos prime
         [
           { infoHash: h4, name: 'The Rejuvenator 1988 Rejuvenatrix DVDrip', title: 'The Rejuvenator 1988 Rejuvenatrix DVDrip', _seeders: 4 },
           { infoHash: h1seed, name: 'The Rejuvenator 1988 VHSRip', title: 'The Rejuvenator 1988 VHSRip', _seeders: 1 },
-        ],
+        ].map(withSize),
         { searchKey: harness.searchKey } as any,
       ),
     );
@@ -149,7 +154,7 @@ test('seeds: complemento relaxado nao duplica hash do pool estrito', async () =>
           // Unico candidato: estrito E topo do pick relaxado — o mesmo hash
           // NAO pode ocupar duas vagas nem ser enfileirado duas vezes.
           { infoHash: h4, name: 'Dedupe Case 1988 DVDrip', title: 'Dedupe Case 1988 DVDrip', _seeders: 4 },
-        ],
+        ].map(withSize),
         { searchKey: harness.searchKey } as any,
       ),
     );
@@ -177,7 +182,7 @@ test('seeds: autoFetchTopSeedsMax=1 preserva o comportamento antigo', async () =
         [
           { infoHash: h4, name: 'Max One 1988 DVDrip', title: 'Max One 1988 DVDrip', _seeders: 4 },
           { infoHash: h1seed, name: 'Max One 1988 VHSRip', title: 'Max One 1988 VHSRip', _seeders: 1 },
-        ],
+        ].map(withSize),
         { searchKey: harness.searchKey } as any,
       ),
     );
@@ -218,7 +223,7 @@ test('seeds: complemento relaxado ocupa imediatos E a fila ate seedsLimit', asyn
           { infoHash: s1, name: 'Queue Fill 1988 VHSRip A', title: 'Queue Fill 1988 VHSRip A', _seeders: 1 },
           { infoHash: s2, name: 'Queue Fill 1988 VHSRip B', title: 'Queue Fill 1988 VHSRip B', _seeders: 2 },
           { infoHash: s3, name: 'Queue Fill 1988 VHSRip C', title: 'Queue Fill 1988 VHSRip C', _seeders: 1 },
-        ],
+        ].map(withSize),
         { searchKey: harness.searchKey } as any,
       ),
     );
@@ -261,7 +266,7 @@ test('seeds: strict parcial completa so vagas imediatas, nao enche a fila fraca'
           { infoHash: h4, name: 'Partial Case 1988 DVDrip', title: 'Partial Case 1988 DVDrip', _seeders: 4 },
           { infoHash: w1, name: 'Partial Case 1988 VHSRip A', title: 'Partial Case 1988 VHSRip A', _seeders: 1 },
           { infoHash: w2, name: 'Partial Case 1988 VHSRip B', title: 'Partial Case 1988 VHSRip B', _seeders: 2 },
-        ],
+        ].map(withSize),
         { searchKey: harness.searchKey } as any,
       ),
     );
@@ -303,7 +308,7 @@ test('seeds: queue off nao cria capacidade de fallback relaxado', async () => {
           { infoHash: s1, name: 'Queue Off 1988 VHSRip A', title: 'Queue Off 1988 VHSRip A', _seeders: 1 },
           { infoHash: s2h, name: 'Queue Off 1988 VHSRip B', title: 'Queue Off 1988 VHSRip B', _seeders: 2 },
           { infoHash: s3, name: 'Queue Off 1988 VHSRip C', title: 'Queue Off 1988 VHSRip C', _seeders: 1 },
-        ],
+        ].map(withSize),
         { searchKey: harness.searchKey } as any,
       ),
     );

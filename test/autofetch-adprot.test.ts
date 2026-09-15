@@ -280,6 +280,8 @@ test('adprot integrado: pools any/seeds e o BR mentiroso (_lied) não criam prot
       debridService: 'alldebrid',
       debridApiKey: apiKey,
       debridCachedOnly: true,
+      // Seeds exige instalação que aceite não-dublado (`d` desligado).
+      dubbedOnly: false,
       autoFetchBr: true,
     };
     const run = (streams: any, searchKey: any) => runtime.run({ opts: userOpts, encoded: 'cfg-adprot-neg' }, () =>
@@ -291,7 +293,7 @@ test('adprot integrado: pools any/seeds e o BR mentiroso (_lied) não criam prot
     assert.deepEqual(enqueued, [hAny], 'pool any enfileira a dublada global');
     assert.equal(held.isDurablyProtected('alldebrid', account, hAny), false, 'pool any não cria proteção');
 
-    await run([{ infoHash: hSeeds, name: 'Filme 1080p', _br: false, _dubbed: false, _quality: '1080p', _seeders: 400 }], 'busca-adprot-seeds');
+    await run([{ infoHash: hSeeds, name: 'Filme 1080p', _br: false, _dubbed: false, _quality: '1080p', _seeders: 400, _size: 2 * 1024 ** 3 }], 'busca-adprot-seeds');
     await sleep(30);
     assert.deepEqual(enqueued, [hAny, hSeeds], 'pool seeds enfileira o melhor swarm');
     assert.equal(held.isDurablyProtected('alldebrid', account, hSeeds), false, 'pool seeds não cria proteção');

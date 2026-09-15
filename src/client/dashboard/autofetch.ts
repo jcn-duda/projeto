@@ -111,7 +111,10 @@ export function renderAutofetchPanel(af: any, uptimeS?: any): void {
   if (rsEl) {
     const parts: string[] = [];
     const sk = af.skips || {};
-    const skKeys = ['account-gate', 'budget', 'dead', 'marker', 'already-cached', 'in-flight', 'search-slot-busy', 'paused', 'unknown-cache', 'stop-has-br', 'stop-has-cached', 'no-candidate', 'no-candidates', 'disabled'];
+    // `dubbed-only`/`seeds-*` são razões de SELEÇÃO/POLÍTICA do pool seeds
+    // (Fase 1 do Chupim 2.0): não passam pelo classifyEnqueue, mas contam em
+    // `autofetch.skip.<motivo>` e por isso aparecem aqui.
+    const skKeys = ['account-gate', 'budget', 'dead', 'marker', 'already-cached', 'in-flight', 'search-slot-busy', 'paused', 'unknown-cache', 'stop-has-br', 'stop-has-cached', 'dubbed-only', 'seeds-playable', 'seeds-size-unknown', 'seeds-too-big', 'seeds-quality', 'no-candidate', 'no-candidates', 'disabled'];
     for (i = 0; i < skKeys.length; i += 1) {
       const n = Number(sk[skKeys[i]] || 0);
       if (n > 0) parts.push(skKeys[i] + ' ' + n);

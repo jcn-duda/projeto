@@ -19,6 +19,9 @@ const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
 const C = 'c'.repeat(40);
 const stream = (infoHash: any, extra = {}) => ({ infoHash, name: 'Release', ...extra });
+// Política seeds permissiva para os testes da cascata de fallback (Fase 1):
+// sem ela, o fallback seeds filtra por qualidade/tamanho e some.
+const SEEDS_POLICY = { dubbedOnly: false, cachedOnly: true, maxSizeGb: 0, seedsMaxGb: 8, seedsMaxQuality: '1080p' };
 
 test('applyDebrid limita a primeira checagem e mantém resposta não vazia quando cache é desconhecido', async () => {
   const originalCheck = debrid.checkCached;
@@ -303,6 +306,7 @@ test('pickLowerPoolFallbacks any: candidato waived não esconde o segundo dublad
     excludeHashes: [],
     season: null,
     viable: (s: any) => !s._seedFloorWaived,
+    policy: SEEDS_POLICY,
   });
   assert.equal(out.length, 1);
   assert.equal(out[0].pool, 'any');
@@ -311,7 +315,8 @@ test('pickLowerPoolFallbacks any: candidato waived não esconde o segundo dublad
 
 test('fallback inferior não reclassifica excedente BR como any ou seeds', () => {
   const brExtra = { infoHash: A, name: 'Filme Dual 1080p', _br: true, _dubbed: true, _quality: '1080p', _seeders: 50 };
-  const global = { infoHash: B, name: 'Movie 1080p', _br: false, _dubbed: false, _quality: '1080p', _seeders: 40 };
+  // `_size` presente: o pool seeds recusa tamanho desconhecido (Fase 1).
+  const global = { infoHash: B, name: 'Movie 1080p', _br: false, _dubbed: false, _quality: '1080p', _seeders: 40, _size: 2 * 1024 ** 3 };
   const out = pickLowerPoolFallbacks([brExtra, global] as any, {
     autoFetchAnyDubbed: true,
     autoFetchTopSeeds: true,
@@ -325,6 +330,7 @@ test('fallback inferior não reclassifica excedente BR como any ou seeds', () =>
     primaryPool: 'br',
     excludeHashes: [],
     viable: () => true,
+    policy: SEEDS_POLICY,
   });
   assert.deepEqual(out.map((entry) => entry.stream.infoHash), [B]);
   assert.deepEqual(out.map((entry) => entry.pool), ['seeds']);

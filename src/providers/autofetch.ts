@@ -133,6 +133,7 @@ interface QueueCandidate {
   name?: string;
   title?: string;
   quality?: string;
+  size?: number; // bytes do download (política seeds do dreno); ausente = cai no 💾 do title
   seeders?: number;
   br?: boolean;
   dubbed?: boolean;
@@ -157,7 +158,7 @@ function writeQueue(
   candidates: QueueCandidate[],
   ttlSeconds = config.debrid.autoFetchQueueTtl,
   adapterId?: string,
-  account?: string,
+  account?: string, countAdded = true,
 ) {
   if (!searchKey) return;
   const seen = new Set<string>();
@@ -178,7 +179,7 @@ function writeQueue(
     const key = queueKey(searchKey);
     cache.set(key, clean, ttlSeconds);
     knownQueues.set(key, clean.length);
-    metrics.count('autofetch.queue.added', clean.length);
+    if (countAdded) metrics.count('autofetch.queue.added', clean.length);
   } else {
     const key = queueKey(searchKey);
     cache.forget(key);

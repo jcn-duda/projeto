@@ -2,6 +2,12 @@ import type { Stream } from '../../types/domain.js';
 import type { QueueCandidate } from './autofetch.js';
 import { pickAnyDubbedCandidates, isSeasonPackFillEligible } from '../utils/format.js';
 import { pickSeedsPool } from './autofetch-seeds-pool.js';
+import {
+  filterSeedsUniverse,
+  seedsDownloadBytes,
+  seedsSelectionBlock,
+  type SeedsPolicyConfig,
+} from './autofetch-policy.js';
 
 // Reposição de pools inferiores do Chupim. O pool primário (br → any → seeds)
 // continua definindo os disparos IMEDIATOS; os pools abaixo dele não entram na
@@ -56,11 +62,15 @@ export function pickLowerPoolFallbacks(
     excludeHashes,
     season = null,
     viable,
+    policy,
   }: {
     primaryPool: string;
     excludeHashes: Iterable<string>;
     season?: number | null;
     viable: (s: Stream) => boolean;
+    /** Política do pool seeds (dubbedOnly / lista tocável / teto). Obrigatória:
+     *  o fallback não pode burlar o que a seleção primária aplicaria. */
+    policy: SeedsPolicyConfig;
   },
 ): FallbackPick[] {
   // seeds é o piso da cascata: não há pool abaixo para repor.
@@ -86,7 +96,9 @@ export function pickLowerPoolFallbacks(
     }
   }
 
-  if (live.autoFetchTopSeeds) {
+  // Mesmo bloqueio de SELEÇÃO da primária (dubbedOnly / lista P2P tocável):
+  // seeds é último recurso e o fallback não pode contornar isso.
+  if (live.autoFetchTopSeeds && !seedsSelectionBlock(policy, liveStreams)) {
     // Tira o que o primário (e o fallback any) já escolheu ANTES do corte: o
     // pool seeds ordena dublado BR à frente via pt-first e consumiria as vagas
     // limitadas, escondendo o swarm real — mesmo defeito do `limit=1` do any.
@@ -94,8 +106,11 @@ export function pickLowerPoolFallbacks(
       const h = typeof s.infoHash === 'string' ? s.infoHash.toLowerCase() : '';
       return h.length > 0 && !s._br && !exclude.has(h);
     });
+    // Filtra o universo ANTES do pickSeedsPool (qualidade/tamanho), como na
+    // seleção primária; o excedente recusado não vira lixo na fila.
+    const { eligible } = filterSeedsUniverse(seedsInput, policy);
     const seeds = pickSeedsPool(
-      seedsInput,
+      eligible,
       {
         autoFetchMinSeeders: live.autoFetchMinSeeders,
         autoFetchTopSeedsMax: live.autoFetchTopSeedsMax,
@@ -148,6 +163,7 @@ export function toQueueCandidate(
     name: stream.name,
     title: stream.title,
     quality: stream._quality,
+    size: seedsDownloadBytes(stream) || undefined,
     seeders: stream._seeders,
     br: stream._br,
     dubbed: stream._dubbed,

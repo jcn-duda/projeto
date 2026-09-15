@@ -111,9 +111,10 @@ test('switches principais têm role=switch e aria-checked', () => {
   });
 });
 
-test('texto do toggle BLUDV é específico da fonte direta', () => {
-  assert.ok(html.includes('Somente dublado na fonte direta BLUDV'), 'rótulo precisa citar a fonte direta BLUDV');
-  assert.match(html, /aria-label="Somente dublado na fonte direta BLUDV"/);
+test('texto de somente dublado explica BLUDV e bloqueio do seeds no Chupim', () => {
+  assert.match(html, /<strong>Somente dublado<\/strong>/);
+  assert.match(html, /Descarta versões legendadas do BLUDV e impede o Chupim de baixar torrents globais em inglês/);
+  assert.match(html, /aria-label="Somente dublado"/);
 });
 
 test('statusText é honesto sem medição e formata idade', async () => {
