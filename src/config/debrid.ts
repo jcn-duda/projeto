@@ -272,10 +272,9 @@ export const debrid = () => ({
   // não girar a mesma fila até a janela deslizante voltar a ter espaço.
   autoFetchDrainBackoffMs: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS, 60_000)),
   // Gate de ocupação da conta (backpressure): com este número de magnets ou
-  // mais, o autofetch para de enfileirar — conta no teto derruba a checagem
-  // de cache (upload, na AllDebrid) e o ⚡ some da lista inteira. 0 desliga.
-  // 2000 é decisão do operador (com 800 a conta real de 948 travava o Chupim
-  // inteiro); a Fase 8.1 aponta teto REAL de 1000 — ver o commit.
+  // mais, o autofetch para de enfileirar — conta no teto derruba a checagem de
+  // cache (upload, na AllDebrid) e o ⚡ some da lista. 2000 é decisão do
+  // operador; a Fase 8.1 aponta teto REAL de 1000 — ver o commit. 0 desliga.
   autoFetchPauseAt: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_PAUSE_AT, 2000))),
   // Validade do memo de ocupação do gate: vencida, a contagem é renovada em
   // background (fail-open enquanto o refresh não volta — nunca rede no
