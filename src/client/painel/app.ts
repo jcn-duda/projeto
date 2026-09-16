@@ -1,19 +1,43 @@
-import { html, useState } from './vendor/preact.js';
-import { Card } from './kit.js';
+import { html, useState, useEffect } from './vendor/preact.js';
+import {
+  getPainelState,
+  subscribePainelState,
+  setPainelToken,
+  type PainelState,
+} from './store.js';
+import { startPolling } from './poll.js';
+import { ViewSaude } from './view-saude.js';
+import { ViewConta } from './view-conta.js';
+import { ViewGate } from './view-gate.js';
 
 export interface AppProps {
-  token?: string;
+  initialTab?: string;
 }
 
 export function App(props: AppProps) {
-  const [token, setToken] = useState(props.token || (typeof localStorage !== 'undefined' ? localStorage.getItem('dash_token') || '' : ''));
-  const [activeTab, setActiveTab] = useState('saude');
+  const [appState, setAppState] = useState<PainelState>(getPainelState());
+  const [tokenInput, setTokenInput] = useState(appState.token);
+  const [activeTab, setActiveTab] = useState(props.initialTab || 'saude');
+
+  useEffect(() => {
+    const unsubscribe = subscribePainelState((next) => {
+      setAppState(next);
+      setTokenInput(next.token);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!appState.token) return;
+    const stop = startPolling();
+    return stop;
+  }, [appState.token, appState.refreshRateS]);
 
   const onSaveToken = () => {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('dash_token', token);
-    }
+    setPainelToken(tokenInput.trim());
   };
+
+  const p = appState.payload || {};
 
   return html`
     <div class="painel-shell">
@@ -21,14 +45,17 @@ export function App(props: AppProps) {
         <div class="painel-brand">
           <img class="painel-logo" src="/logo.png" alt="Adom Logo" />
           <h1 class="painel-title">Adom Power-Movie</h1>
+          <span class="painel-badge ${appState.connectionState === 'online' ? 'painel-badge-ok' : appState.connectionState === 'error' ? 'painel-badge-err' : 'painel-badge-neutral'}">
+            ${appState.loading ? 'SINCRONIZANDO...' : appState.connectionState.toUpperCase()}
+          </span>
         </div>
         <div class="painel-controls">
           <input
             type="password"
             class="painel-token-input"
             placeholder="Token operador..."
-            value=${token}
-            onInput=${(e: any) => setToken(e.target.value)}
+            value=${tokenInput}
+            onInput=${(e: any) => setTokenInput(e.target.value)}
           />
           <button class="painel-btn painel-btn-accent" onClick=${onSaveToken}>Salvar</button>
         </div>
@@ -56,19 +83,32 @@ export function App(props: AppProps) {
       </nav>
 
       <main class="painel-content">
-        ${!token ? html`
+        ${!appState.token ? html`
           <div class="painel-empty">
             <h2>Nenhum token configurado</h2>
             <p>Insira o token de diagnóstico no cabeçalho para carregar o status em tempo real.</p>
           </div>
-        ` : html`
-          <div class="painel-grid">
-            <${Card} title="Status Geral">
-              <p>Painel operacional carregado com sucesso.</p>
-            </${Card}>
+        ` : appState.error ? html`
+          <div class="painel-empty" style="border-color: var(--red);">
+            <h2 style="color: var(--red);">Falha ao carregar dados</h2>
+            <p>${appState.error}</p>
           </div>
+        ` : html`
+          ${activeTab === 'saude' ? html`
+            <${ViewSaude}
+              general=${p.general}
+              debrid=${p.debrid}
+              conta=${p.conta}
+              searchFirst=${p.searchFirst}
+            />
+          ` : activeTab === 'conta' ? html`
+            <${ViewConta} conta=${p.conta} debrid=${p.debrid} />
+          ` : activeTab === 'gate' ? html`
+            <${ViewGate} gate=${p.gate} />
+          ` : null}
         `}
       </main>
     </div>
   `;
 }
+

@@ -74,6 +74,15 @@ try {
     }
   }
 
+  // Preact vendor do painel precisa existir também no emit de Node (dist/src/client/painel/vendor)
+  // para permitir execução direta dos testes dos módulos no Node.
+  const vendorSrc = path.join(root, 'src/public/client/painel/vendor/preact.js');
+  const vendorNodeDst = path.join(distRoot, 'src/client/painel/vendor/preact.js');
+  if (fs.existsSync(vendorSrc)) {
+    fs.mkdirSync(path.dirname(vendorNodeDst), { recursive: true });
+    fs.copyFileSync(vendorSrc, vendorNodeDst);
+  }
+
   console.log('[build-assets] Assets não-compiláveis copiados para dist/ com sucesso.');
 } catch (err: any) {
   console.error('[build-assets] Falha crítica na cópia de assets:', err?.message || err);
