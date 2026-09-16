@@ -35,6 +35,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/', (_req, res) => res.redirect(302, '/configure'));
   app.get('/configure', publicHandlers.sendConfigure);
   app.get('/dashboard', publicHandlers.sendDashboard);
+  app.get('/painel', publicHandlers.sendPainel);
   app.get('/autofetch', (_req, res) => res.redirect(302, '/dashboard#autofetch'));
   app.get('/harvester', (_req, res) => res.redirect(302, '/dashboard#colhedor'));
   app.get('/defaults.json', publicHandlers.defaults);
@@ -61,6 +62,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/:userConfig/configure', publicHandlers.sendConfigure);
   app.get('/:userConfig/debrid-status.json', diagnosticHandlers.debridStatus);
   app.get('/:userConfig/dashboard', publicHandlers.sendDashboard);
+  app.get('/:userConfig/painel', publicHandlers.sendPainel);
   app.get('/:userConfig/autofetch', (req, res) => res.redirect(302, `/${req.params.userConfig}/dashboard#autofetch`));
   app.get('/:userConfig/harvester', (req, res) => res.redirect(302, `/${req.params.userConfig}/dashboard#colhedor`));
   app.get('/:userConfig/dashboard-status.json', diagnosticHandlers.dashboardStatus);

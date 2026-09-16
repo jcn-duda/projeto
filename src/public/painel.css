@@ -1,0 +1,258 @@
+/* Adom Power-Movie - /painel: Layout desktop-first da nova interface.
+ * Depende exclusivamente de dashboard-tokens.css e painel-tokens.css.
+ * Sem hex direto, sem nesting e sem color-mix. */
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.painel-shell {
+  max-width: var(--panel-max-width);
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.painel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-4);
+}
+
+.painel-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.painel-logo {
+  width: 32px;
+  height: 32px;
+}
+
+.painel-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.painel-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.painel-token-input {
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-floor);
+  width: 140px;
+}
+
+.painel-token-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+.painel-btn {
+  background: linear-gradient(180deg, var(--btn-bg-a), var(--btn-bg-b));
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--font-floor);
+  font-weight: 600;
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease;
+}
+
+.painel-btn:hover {
+  border-color: var(--card-border-hover);
+  background: linear-gradient(180deg, var(--btn-bg-hover-a), var(--btn-bg-hover-b));
+}
+
+.painel-btn-accent {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent-2);
+}
+
+.painel-btn-accent:hover {
+  background: var(--accent-2);
+}
+
+.painel-btn-danger {
+  background: var(--red-soft);
+  color: var(--red-ink);
+  border-color: var(--red);
+}
+
+.painel-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-2);
+}
+
+.painel-tab-btn {
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.painel-tab-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.painel-tab-btn.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.painel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.painel-card {
+  background: var(--panel-card-bg);
+  border: 1px solid var(--panel-card-border);
+  border-radius: var(--panel-card-radius);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: border-color 0.15s ease;
+}
+
+.painel-card:hover {
+  border-color: var(--panel-card-border-hover);
+}
+
+.painel-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.painel-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.painel-stat-group {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.painel-stat-num {
+  font-family: var(--font-mono);
+  font-size: var(--stat-number-size);
+  line-height: var(--stat-number-line);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.painel-stat-target {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--muted-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.painel-progress-track {
+  height: 8px;
+  background: var(--bar-track-bg);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  position: relative;
+}
+
+.painel-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width 0.3s ease;
+}
+
+.painel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  font-size: var(--font-floor);
+  font-weight: 600;
+}
+
+.painel-badge-ok { background: var(--status-ok-bg); color: var(--status-ok-text); }
+.painel-badge-warn { background: var(--status-warn-bg); color: var(--status-warn-text); }
+.painel-badge-err { background: var(--status-err-bg); color: var(--status-err-text); }
+.painel-badge-neutral { background: var(--status-neutral-bg); color: var(--status-neutral-text); }
+
+.painel-diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.painel-diff-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2);
+  background: var(--surface-2);
+  border-radius: var(--radius-xs);
+}
+
+.painel-empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

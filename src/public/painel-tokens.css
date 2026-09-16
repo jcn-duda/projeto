@@ -1,0 +1,44 @@
+/* Adom Power-Movie - /painel: TOKENS complementares.
+ * Carregado DEPOIS do dashboard-tokens.css e ANTES do painel.css.
+ * Nao declara cores hex diretamente: consome ou deriva dos tokens compartilhados.
+ * Desktop-first, sem nesting e sem color-mix. */
+
+:root {
+  /* Espacamento */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Superficies e Painel */
+  --panel-max-width: 1360px;
+  --panel-header-height: 56px;
+  --panel-card-bg: var(--surface);
+  --panel-card-border: var(--border);
+  --panel-card-border-hover: var(--card-border-hover);
+  --panel-card-radius: var(--radius);
+
+  /* Status Semanticos */
+  --status-ok-text: var(--green);
+  --status-ok-bg: var(--green-soft);
+  --status-warn-text: var(--amber);
+  --status-warn-bg: var(--amber-soft);
+  --status-err-text: var(--red);
+  --status-err-bg: var(--red-soft);
+  --status-neutral-text: var(--muted);
+  --status-neutral-bg: var(--surface-2);
+
+  /* Barras de progresso e ocupacao */
+  --bar-track-bg: var(--surface-2);
+  --bar-fill-ok: var(--green);
+  --bar-fill-warn: var(--amber);
+  --bar-fill-danger: var(--red);
+
+  /* Numeros em destaque */
+  --stat-number-size: 28px;
+  --stat-number-line: 32px;
+  --stat-label-size: 12px;
+}

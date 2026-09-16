@@ -314,6 +314,7 @@
     "test/observability-first.test.js",
     "test/dashboard-tokens.test.js",
     "test/dashboard-modernization.test.js",
-    "test/dashboard-fase3b.test.js"
+    "test/dashboard-fase3b.test.js",
+    "test/painel-esm.test.js"
   ]
 }

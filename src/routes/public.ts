@@ -14,9 +14,11 @@ const PAGE_ASSETS = [
   'configure-components.css',
   'dashboard-tokens.css',
   'dashboard.css',
+  'painel-tokens.css',
+  'painel.css',
 ];
 
-// Entry e filhos dos clientes ESM (/configure e /dashboard; fontes em
+// Entry e filhos dos clientes ESM (/configure, /dashboard e /painel; fontes em
 // src/client/<nome>, emitidos por tsconfig.client.json para
 // dist/src/public/client/). A lista é FECHADA: o caminho vem da URL e é juntado
 // ao diretório público — nome arbitrário abriria leitura fora de public/
@@ -25,6 +27,7 @@ const PAGE_ASSETS = [
 const CLIENT_ENTRIES = new Set([
   'client/configure/entry.js',
   'client/dashboard/entry.js',
+  'client/painel/entry.js',
 ]);
 const CLIENT_ASSETS = [
   'client/configure/entry.js',
@@ -66,6 +69,10 @@ const CLIENT_ASSETS = [
   'client/dashboard/debrid-test.js',
   'client/dashboard/trace.js',
   'client/dashboard/boot.js',
+  'client/painel/vendor/preact.js',
+  'client/painel/entry.js',
+  'client/painel/app.js',
+  'client/painel/kit.js',
 ];
 
 function makePublicHandlers(services: AppServices) {
@@ -102,11 +109,11 @@ function makePublicHandlers(services: AppServices) {
       // sem ela o match parava no `.css` sem consumir a aspa, a substituição
       // acrescentava outra e o HTML saía `href="/dashboard.css?v=abc""`. Casar a
       // aspa também ancora o fim real do valor.
-      .replace(/((?:src|href)="\/(?:configure|dashboard)[-\w]*\.(?:css|js))"/g, `$1?v=${assetVersion}"`)
+      .replace(/((?:src|href)="\/(?:configure|dashboard|painel)[-\w]*\.(?:css|js))"/g, `$1?v=${assetVersion}"`)
       // Os entries dos clientes são aninhados (`/client/<nome>/entry.js`), fora
       // do padrão acima. Eles também carregam o fingerprint corrente — e os seus
       // imports relativos (filhos) são resolvidos pelo browser a partir deles.
-      .replace(/(src="\/client\/(?:configure|dashboard)\/entry\.js)"/g, `$1?v=${assetVersion}"`);
+      .replace(/(src="\/client\/(?:configure|dashboard|painel)\/entry\.js)"/g, `$1?v=${assetVersion}"`);
     // O HTML é a raiz do acoplamento (inline ↔ módulos) e aponta para o
     // fingerprint vigente: um HTML velho no cache do cliente chamaria URLs ?v=
     // antigas e o boot ficaria preso numa versão que o deploy já não serve.
@@ -118,6 +125,7 @@ function makePublicHandlers(services: AppServices) {
   };
   const sendConfigure = sendVersionedHtml('configure.html');
   const sendDashboard = sendVersionedHtml('dashboard.html');
+  const sendPainel = sendVersionedHtml('painel.html');
 
   // Os HTML referenciam os assets por caminho absoluto porque a página responde
   // tanto em /configure quanto em /:userConfig/configure. A rota ignora a query
@@ -183,7 +191,7 @@ function makePublicHandlers(services: AppServices) {
     }
   };
 
-  return { sendConfigure, sendDashboard, sendPageAsset, pageAssets: PAGE_ASSETS, clientAssets: CLIENT_ASSETS, sendClientAsset, defaults, seal };
+  return { sendConfigure, sendDashboard, sendPainel, sendPageAsset, pageAssets: PAGE_ASSETS, clientAssets: CLIENT_ASSETS, sendClientAsset, defaults, seal };
 }
 
 export { makePublicHandlers, PAGE_ASSETS, CLIENT_ASSETS };
