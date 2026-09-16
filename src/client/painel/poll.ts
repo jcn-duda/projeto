@@ -1,7 +1,7 @@
 import { getPainelState, setPainelLoading, setPainelError, mergePainelPayload } from './store.js';
 import { fetchStatus } from './api.js';
 
-export const VITAL_BLOCKS = ['general', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics'];
+export const VITAL_BLOCKS = ['general', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics', 'cache', 'catalog', 'magnetdb'];
 
 let inFlight = false;
 let timerId: any = null;

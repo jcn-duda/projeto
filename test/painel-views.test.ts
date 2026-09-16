@@ -7,6 +7,9 @@ import { Card, StatNumber, ProgressBar } from '../src/client/painel/kit.js';
 import { ViewColhedor } from '../src/client/painel/view-colhedor.js';
 import { ViewSonda } from '../src/client/painel/view-sonda.js';
 import { ViewChupim } from '../src/client/painel/view-chupim.js';
+import { ViewCache } from '../src/client/painel/view-cache.js';
+import { ViewLimpeza } from '../src/client/painel/view-limpeza.js';
+import { ViewMagnets } from '../src/client/painel/view-magnets.js';
 
 test('ViewSaude retorna VNode válido com veredito e serviços', () => {
   const vnode = ViewSaude({
@@ -146,5 +149,53 @@ test('ViewChupim retorna VNode válido com h()', () => {
 
   assert.ok(vnode && typeof vnode === 'object');
   assert.equal(vnode.type, ViewChupim);
+  assert.ok(vnode.props);
+});
+
+test('ViewCache retorna VNode válido com h()', () => {
+  const vnode = h(ViewCache, {
+    cache: {
+      hits: 450,
+      misses: 50,
+      entries: 120,
+      max: 1000,
+      persistent: true,
+      l2: { sizeBytes: 1048576, entries: 500 },
+    },
+    metrics: { counters: {} },
+  });
+
+  assert.ok(vnode && typeof vnode === 'object');
+  assert.equal(vnode.type, ViewCache);
+  assert.ok(vnode.props);
+});
+
+test('ViewLimpeza retorna VNode válido com h()', () => {
+  const vnode = h(ViewLimpeza, {
+    catalog: {
+      works: 80,
+      magnets: 95,
+      duplicates: 15,
+    },
+    conta: { total: 933, cap: 1000 },
+  });
+
+  assert.ok(vnode && typeof vnode === 'object');
+  assert.equal(vnode.type, ViewLimpeza);
+  assert.ok(vnode.props);
+});
+
+test('ViewMagnets retorna VNode válido com h()', () => {
+  const vnode = h(ViewMagnets, {
+    magnetdb: {
+      entries: 350,
+      active: 345,
+      bad: 5,
+      persistent: true,
+    },
+  });
+
+  assert.ok(vnode && typeof vnode === 'object');
+  assert.equal(vnode.type, ViewMagnets);
   assert.ok(vnode.props);
 });

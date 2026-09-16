@@ -12,6 +12,9 @@ import { ViewGate } from './view-gate.js';
 import { ViewColhedor } from './view-colhedor.js';
 import { ViewSonda } from './view-sonda.js';
 import { ViewChupim } from './view-chupim.js';
+import { ViewCache } from './view-cache.js';
+import { ViewLimpeza } from './view-limpeza.js';
+import { ViewMagnets } from './view-magnets.js';
 
 export interface AppProps {
   initialTab?: string;
@@ -101,6 +104,24 @@ export function App(props: AppProps) {
         >
           Chupim
         </button>
+        <button
+          class=${'painel-tab-btn' + (activeTab === 'cache' ? ' active' : '')}
+          onClick=${() => setActiveTab('cache')}
+        >
+          Cache
+        </button>
+        <button
+          class=${'painel-tab-btn' + (activeTab === 'limpeza' ? ' active' : '')}
+          onClick=${() => setActiveTab('limpeza')}
+        >
+          Limpeza
+        </button>
+        <button
+          class=${'painel-tab-btn' + (activeTab === 'magnets' ? ' active' : '')}
+          onClick=${() => setActiveTab('magnets')}
+        >
+          Magnets
+        </button>
       </nav>
 
       <main class="painel-content">
@@ -132,6 +153,12 @@ export function App(props: AppProps) {
             <${ViewSonda} harvest=${p.harvest} f3=${p.f3} metrics=${p.metrics} />
           ` : activeTab === 'chupim' ? html`
             <${ViewChupim} autofetch=${p.autofetch} metrics=${p.metrics} />
+          ` : activeTab === 'cache' ? html`
+            <${ViewCache} cache=${p.cache} metrics=${p.metrics} />
+          ` : activeTab === 'limpeza' ? html`
+            <${ViewLimpeza} catalog=${p.catalog} conta=${p.conta} />
+          ` : activeTab === 'magnets' ? html`
+            <${ViewMagnets} magnetdb=${p.magnetdb} />
           ` : null}
         `}
       </main>
