@@ -1,10 +1,11 @@
 import config from '../config.js';
-import type { MatchContext } from '../../types/domain.js';
+import type { MatchContext, RawItem } from '../../types/domain.js';
 import * as cache from '../utils/cache.js';
 import { filterRelevantRaw, stripDiacritics } from '../utils/format.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { prefix } from '../utils/cache-keys.js';
+import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
 import { mapResults, indexerFailure, CATEGORY_UNFILTERED_INDEXERS, UNRELIABLE_CATEGORY_INDEXERS } from './jackett-results.js';
 import { shapeSearchQuery, budgetFor } from './jackett-query.js';
 import { remaining, MIN_RESOLVE_BUDGET, resolveCardigannDownloads } from './jackett-resolve.js';
@@ -19,8 +20,9 @@ export interface JackettSearchOptions {
   fallbackQuery?: string;
   /** Raiz da franquia sem marcador de sequência (plano BR: "Parte II" → raiz). */
   franchiseQuery?: string;
-  /** Raiz da coleção multiobra (TMDB): degrau SEQUENCIAL no MESMO deadline,
-   * aberto só quando a primária não trouxe resultado relevante. Só BR. */
+  /** Raiz da coleção multiobra (TMDB): degrau SEQUENCIAL no MESMO deadline e
+   * COMPLEMENTAR — abre mesmo com release relevante vinda da primária, mas só
+   * quando o acumulado ainda NÃO contém um pack admitido da obra. Só BR. */
   multiWorkQuery?: string;
   /** Título original da obra (TMDB) como degrau SEQUENCIAL de último recurso
    * ("Adım Farah" quando a primária é "My Name Is Farah"). Global recebe
@@ -52,6 +54,23 @@ export interface JackettSearchOptions {
    * indexer nem o breaker — é só leitura para o chamador.
    */
   onQueryResult?: (info: { indexer: string; responded: boolean; reason?: string }) => void;
+}
+
+/**
+ * O acumulado já contém um pack multiobra ADMITIDO para a obra? Quando sim, o
+ * degrau complementar da coleção não tem o que acrescentar: a query existe
+ * justamente para descobrir o pack, e ele já está na mão. A checagem reusa a
+ * MESMA `admitsMultiWorkPack` do filtro de título do pipeline — uma régua
+ * paralela divergiria em silêncio do que `buildStreams` vai admitir depois.
+ * Sem contexto multiWork nada é admitido, então o degrau segue abrindo.
+ */
+function hasAdmittedMultiWorkPack(items: RawItem[], matchContext: MatchContext | null | undefined): boolean {
+  const multiWork = matchContext?.multiWork;
+  const names = matchContext?.names;
+  if (!multiWork || !names?.length) return false;
+  const year = matchContext?.year ?? null;
+  const isSeries = matchContext?.isSeries ?? false;
+  return items.some((item) => admitsMultiWorkPack(item, { multiWork, year, isSeries, names }));
 }
 
 export async function queryIndexer(indexer: string, query: string, type: string, timeoutOverride: number | null = null, options: JackettSearchOptions = {}) {
@@ -178,8 +197,10 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   if (isBr && options.franchiseQuery) cascade.push({ q: options.franchiseQuery, label: 'raiz da franquia' });
   // Coleção multiobra (BR_MULTIWORK_PACKS, nativa por padrão): degrau sequencial no MESMO
   // deadline, depois da raiz de sequência e antes do fallback bilíngue. A raiz
-  // vem do TMDB (autoridade), não de cortar título. Só abre quando todos os
-  // degraus anteriores não trouxeram candidato relevante — a admissão do pack
+  // vem do TMDB (autoridade), não de cortar título. É COMPLEMENTAR: abre também
+  // com release relevante já na mão — o pack dublado costuma ser o único lugar
+  // onde a obra existe em PT — e por isso AGREGA em vez de substituir; só não
+  // abre quando o acumulado já tem um pack admitido. A admissão do pack
   // acontece depois, no filtro de título (que agora o conhece).
   if (isBr && options.multiWorkQuery) cascade.push({ q: options.multiWorkQuery, label: 'coleção multiobra da franquia', isMultiWork: true });
   if (isBr && options.fallbackQuery) cascade.push({ q: options.fallbackQuery, label: 'fallback do plano BR' });
@@ -219,15 +240,37 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     const relevant = options.matchContext?.names?.length
       ? filterRelevantRaw(found.items, options.matchContext)
       : found.items;
-    if (relevant.length === 0 && remaining(deadline) > MIN_RESOLVE_BUDGET) {
-      log.info(`[jackett] ${indexer}: nenhum resultado relevante; tentando ${step.label}`);
+    if (remaining(deadline) <= MIN_RESOLVE_BUDGET) continue;
+    // O degrau da coleção multiobra é COMPLEMENTAR: abre mesmo com release
+    // relevante já na mão, porque o dublado raro muitas vezes só existe no pack
+    // da franquia. Ele NÃO abre quando o acumulado já contém um pack ADMITIDO da
+    // obra — aí a query não teria o que acrescentar. Todos os demais degraus
+    // mantêm o gate clássico por `relevant.length === 0`.
+    const complementary = step.isMultiWork === true && relevant.length > 0;
+    const opens = step.isMultiWork
+      ? !hasAdmittedMultiWorkPack(found.items, options.matchContext)
+      : relevant.length === 0;
+    if (opens) {
+      log.info(complementary
+        ? `[jackett] ${indexer}: pack da franquia pode existir só na coleção; tentando ${step.label}`
+        : `[jackett] ${indexer}: nenhum resultado relevante; tentando ${step.label}`);
       shapedSeen.push(shaped);
       try {
         // `step` conta a TENTATIVA (o degrau pode ser servido do raw cache ou
         // falhar na rede — o contador não distingue, é tentativa de degrau).
         if (step.isOriginal) metrics.count('jackett.original.step');
         if (step.isMultiWork) metrics.count('jackett.multiwork.step');
-        found = await fetchQuery(step.q, true);
+        // Só o degrau COMPLEMENTAR (abriu com relevante já presente) conta aqui:
+        // é o custo novo da feature, separável do degrau clássico por vazio.
+        if (complementary) metrics.count('jackett.multiwork.complementary');
+        const accumulated = found.items;
+        const next = await fetchQuery(step.q, true);
+        // Complementar AGREGA ao que a primária trouxe — substituir descartaria
+        // as releases do filme que o usuário já tinha. Os demais degraus só
+        // rodam com a lista relevante vazia e substituem, como antes.
+        found = complementary
+          ? { searchQuery: next.searchQuery, items: [...accumulated, ...next.items] }
+          : next;
         // `hit` conta só SOBREVIVENTE RELEVANTE do degrau — o MESMO filtro de
         // título do pipeline —, nunca item bruto irrelevante que o degrau
         // tenha trazido e o filtro descartaria.

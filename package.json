@@ -204,6 +204,7 @@
     "test/jackett-download-link.test.js",
     "test/jackett-net-safety.test.js",
     "test/jackett-protector-magnet.test.js",
+    "test/jackett-multiwork-cascade.test.js",
     "test/jackett-query-cascade.test.js",
     "test/jackett-original-cascade.test.js",
     "test/jackett-raw-cache.test.js",

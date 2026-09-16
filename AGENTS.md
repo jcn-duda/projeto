@@ -277,16 +277,26 @@ query de franquia no caminho BR e admite o pack quando ele cobre o ano do filme.
    sem eles o play não monta a dica `w` e o `pickFile` cairia no maior arquivo
 2. Filme (não série)
 3. Ano de catálogo conhecido
-4. Título reconhecido como coleção (`isMultiWorkCollection`)
-5. Raiz da coleção aparece como sequência contígua de tokens no título
-6. Título do pack ou magnet `dn=` declara o ano — faixa que o inclui, ou ano
-   avulso com tolerância de ±2
+4. Texto de evidência reconhecido como coleção (`isMultiWorkCollection`)
+5. Raiz da coleção aparece como sequência contígua de tokens no texto de evidência
+6. O texto de evidência declara o ano — faixa que o inclui, ou ano avulso com
+   tolerância de ±2
+
+O **texto de evidência** é um só (`packYearSource`): título do post mais o `dn=`
+real do magnet decodificado, quando há magnet — URL de protetor não tem `dn=` e
+não carrega evidência de release. Os itens 4–6 leem o MESMO texto: post com título
+de filme isolado pode declarar a coleção só no `dn=`, e a admissão precisa dessa
+evidência inteira. Todas as demais travas (filme, nomes da obra, ano de catálogo,
+debrid ativo) seguem exigidas.
 
 **Comportamento:**
 - Pack nunca vai P2P inteiro
 - Pack nunca entra no índice público (`idx:v10`)
 - Pack nunca entra no autofetch nem no warmer RD
-- HMAC do `/resolve` inclui `p:1` para packs multiobra
+- HMAC do `/resolve` inclui `p:1` para TODO pack admitido: no Stream, `_multiWork`
+  é `isMultiWorkCollection(título) || _multiWorkAdmitted`, então o pack cuja
+  coleção só o `dn=` do magnet denuncia também recebe a dica (`p`) e o
+  `pickWorkFile` escolhe a obra em vez do maior arquivo
 - `pickWorkFile` usa a dica de obra para escolher o filme correto no pack
 - `_multiWorkAdmitted` separa a admissão da feature da heurística legada `_multiWork`
 

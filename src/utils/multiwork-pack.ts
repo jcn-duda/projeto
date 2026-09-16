@@ -119,6 +119,12 @@ export interface MultiWorkAdmissionContext {
  * presente); aqui ficam as condições que não dependem de rede: filme, nomes
  * válidos, coleção reconhecida, raiz contígua (2+ tokens) e cobertura
  * explícita do ano.
+ *
+ * O reconhecimento de coleção e a raiz contígua usam o MESMO `packYearSource`
+ * da cobertura de ano (título + `dn=` do magnet quando há magnet real): um post
+ * com título de filme isolado pode carregar no magnet o pack da franquia, e a
+ * palavra de empacotamento/faixa de anos mora justamente ali. Root, ano, filme
+ * e debrid continuam exigidos — o texto de evidência é que é um só.
  */
 function admitsMultiWorkPack(
   item: RawItem | null | undefined,
@@ -130,10 +136,10 @@ function admitsMultiWorkPack(
   if (!names.length) return false;
   const catalogYear = Number(String(year ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
   if (!catalogYear) return false;
-  const title = String(item?.title || item?.Title || '');
-  if (!isMultiWorkCollection(title)) return false;
-  if (!containsTokenRun(title, multiWork.root)) return false;
-  return coversYear(packYearSource(item), catalogYear);
+  const evidence = packYearSource(item);
+  if (!isMultiWorkCollection(evidence)) return false;
+  if (!containsTokenRun(evidence, multiWork.root)) return false;
+  return coversYear(evidence, catalogYear);
 }
 
 export {

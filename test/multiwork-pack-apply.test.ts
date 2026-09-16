@@ -13,6 +13,9 @@ import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import { applyDebrid } from '../src/providers/index.js';
+import { prepareCandidateStreams } from '../src/providers/stream-builder.js';
+import { pickFile } from '../src/debrid/file-selector.js';
+import * as cache from '../src/utils/cache.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
 import type { Stream } from '../types/domain.js';
 
@@ -218,4 +221,70 @@ test('H1: warmer RD não recebe pack admitido — nenhum probe/addMagnet', async
   // Nem o warmer (probe/addMagnet) nem o autofetch receberam o pack admitido.
   assert.equal(spies.warmCalls.length, 0);
   assert.equal(spies.enqueueCalls.length, 0);
+});
+
+// G1 — admissão SÓ pela evidência do `dn=` (título do filme isolado): o item tem
+// de chegar ao play como pack. `toStremioStream` derivava `_multiWork` do título
+// e o admitido ficava `_multiWorkAdmitted:true` mas `_multiWork:false` — o
+// `viaDebrid` omitia `p:1` e o `pickFile` caía no maior arquivo (filme errado).
+test('G1: admitido só pelo dn= vira pack no play (p:1) e escolhe o filme certo', async () => {
+  const HASH_G1 = 'd'.repeat(40);
+  const INDY = { name: 'Indiana Jones - Coleção', root: 'indiana jones', years: [1981, 1984, 1989, 2008] };
+  // Título do filme isolado (sem palavra/faixa de coleção) + magnet cujo `dn=`
+  // é quem declara a coleção.
+  const dnOnly = {
+    title: `${MOVIE_NAME} 1981 Dublado 1080p`,
+    infoHash: HASH_G1,
+    magnet: `magnet:?xt=urn:btih:${HASH_G1}&dn=Indiana.Jones.Collection.1981-2008.DUAL.1080p`,
+    isBr: true,
+    seeders: 3,
+    indexer: 'bludv-cardigann',
+  };
+  const savedUrl = config.debrid.publicUrl;
+  const originalCheck = debrid.checkCached;
+  config.debrid.publicUrl = 'http://addon.test';
+  debrid.checkCached = (async () => ({ cached: new Set([HASH_G1]), known: true })) as any;
+  try {
+    const { url } = await run(
+      {
+        debridService: 'alldebrid', debridApiKey: 'k', debridCachedOnly: true,
+        showUncachedBr: false, autoFetchBr: false,
+      },
+      async () => {
+        // 1) Pipeline real: a admissão tem de virar `_multiWork` (o blocker G1).
+        const pool = prepareCandidateStreams([dnOnly], {
+          meta: { name: MOVIE_NAME, year: 1981 },
+          titles: null,
+          imdbId: 'tt0082971',
+          season: null,
+          episode: null,
+          isDemo: false,
+          multiWork: INDY,
+        });
+        assert.equal(pool.streams.length, 1, 'o pack admitido pelo dn= entra na lista');
+        const admittedStream = pool.streams[0] as any;
+        assert.equal(admittedStream._multiWorkAdmitted, true);
+        assert.equal(admittedStream._multiWork, true, 'admitido pelo dn= também é pack');
+        // 2) O play assina a dica de pack.
+        const out = await applyDebrid(pool.streams, { workHint: pool.workHint, imdbId: 'tt0082971' } as any) as Stream[];
+        return { url: String(out[0]?.url || '') };
+      },
+    );
+    const w = JSON.parse(decodeURIComponent(new URL(url).searchParams.get('w') || ''));
+    assert.equal(w.p, 1, 'dica assinada marca pack (p:1)');
+
+    // 3) Com a dica decodificada, o pickFile escolhe a Arca Perdida — não o
+    //    maior arquivo (o outro filme nem entra no pool por cobertura < 0.7).
+    const files = [
+      { path: 'Indiana Jones e os Caçadores da Arca Perdida/Indiana.Jones.E.OS.Cacadores.Da.Arca.Perdida.1080p.mkv', size: 4 * 1024 ** 3 },
+      { path: 'Indiana Jones e o Templo da Perdição/Indiana.Jones.Templo.Da.Perdicao.1080p.mkv', size: 9 * 1024 ** 3 },
+    ];
+    const picked = pickFile(files, { work: { names: w.n, year: w.y, pack: w.p === 1 } });
+    assert.ok(picked && String(picked.path || '').includes('Arca Perdida'), 'tem de escolher o filme da obra, não o maior');
+    assert.ok(Number(picked?.size || 0) < 9 * 1024 ** 3, 'não pode ser o maior arquivo');
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = savedUrl;
+    cache.clearNamespace('idx');
+  }
 });

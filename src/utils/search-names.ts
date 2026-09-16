@@ -273,9 +273,9 @@ function toStremioStream(item: RawItem): Stream | null {
     _tracker: tracker,
     // ID estável do indexer (não o label mutável) para o desempate de prioridade.
     _indexer: String(item.indexer || tracker || '').trim().toLowerCase(),
-    // Pack multi-obra pelo título: o /resolve NÃO pode cair no maior arquivo.
-    // `_multiWorkAdmitted` é o opt-in (evidência TMDB) que aciona o nunca-P2P.
-    _multiWork: isMultiWorkCollection(title), _multiWorkAdmitted: Boolean(item._multiWorkAdmitted),
+    // Pack multi-obra: vira `p:1` na dica assinada. TODO admitido é pack mesmo
+    // quando só o `dn=` prova a coleção; o genérico (só título) segue idêntico.
+    _multiWork: isMultiWorkCollection(title) || Boolean(item._multiWorkAdmitted), _multiWorkAdmitted: Boolean(item._multiWorkAdmitted),
       _lied: Boolean(item.lied),
   };
 }

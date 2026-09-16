@@ -130,8 +130,31 @@ test('admissão: sem ano, série, sem nomes e título não-coleção são negado
   assert.equal(admitsMultiWorkPack(indyPack(), { multiWork: INDY, year: 1981, names: [] }), false);
   // Raiz de 1 token nunca é admitida (collectionRoot devolve '' e o gate fecha).
   assert.equal(admitsMultiWorkPack(indyPack(), { multiWork: { name: 'Rocky', root: '', years: [1976] }, year: 1981, names: [MOVIE_NAME] }), false);
-  const single = { ...indyPack(), title: 'Indiana Jones e os Caçadores da Arca Perdida 1981 Dublado' };
+  // Título de filme isolado E magnet SEM `dn=` que declare coleção: o filtro
+  // estrito não casa e o pack não é admitido. (Com `dn=` de coleção, o par
+  // título+dn vira evidência — ver o teste da faixa/indicação só no dn=.)
+  const single = { ...indyPack(), title: 'Indiana Jones e os Caçadores da Arca Perdida 1981 Dublado', magnet: '' };
   assert.equal(admitsMultiWorkPack(single, { multiWork: INDY, year: 1981, names: [MOVIE_NAME] }), false);
+});
+
+test('admissão: indicação/faixa de coleção só no dn= é evidência (mesmo texto da cobertura de ano)', () => {
+  // Caso real: post com título de filme isolado cujo magnet é o pack da coleção
+  // — a palavra de empacotamento e a faixa de anos aparecem só no dn=. O
+  // reconhecimento usa o MESMO `packYearSource` da checagem de ano; root, ano,
+  // filme e debrid seguem exigidos.
+  const HP_NAME = 'Harry Potter e a Pedra Filosofal';
+  const HP = { name: 'Harry Potter - Coleção', root: 'harry potter', years: [2001, 2002, 2004, 2005, 2007, 2009, 2010, 2011] };
+  const dnOnly = (dn: string) => ({
+    title: `${HP_NAME} 2001 Dublado 1080p`, infoHash: HASH, isBr: true, seeders: 3, indexer: 'bludv-cardigann',
+    magnet: `magnet:?xt=urn:btih:${HASH}&dn=${dn}`,
+  });
+  const ctx = (multiWork: { name: string; root: string; years: number[] }) => ({ multiWork, year: 2001, names: [HP_NAME] });
+  // Palavra fraca ("collection") + faixa, só no dn=: admitido. Palavra FORTE pt
+  // no dn= dispensa a faixa, mas a raiz contígua no MESMO texto é exigida.
+  assert.equal(admitsMultiWorkPack(dnOnly('Harry.Potter.Collection.2001-2011.DUAL.1080p'), ctx(HP)), true);
+  assert.equal(admitsMultiWorkPack(dnOnly('Harry.Potter.Colecao.DUAL.1080p'), ctx(HP)), true);
+  assert.equal(admitsMultiWorkPack(dnOnly('Harry.Potter.Collection.2001-2011.DUAL.1080p'), ctx({ name: 'Outra', root: 'outra franquia', years: [] })), false);
+  assert.equal(admitsMultiWorkPack(dnOnly('Harry.Potter.2001.1080p'), ctx(HP)), false);
 });
 
 test('filtro pré-magnet: o pack só passa o filtro com o contexto multiWork', () => {
