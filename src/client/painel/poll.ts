@@ -8,7 +8,12 @@ import { fetchStatus } from './api.js';
 // `catalog` NÃO entra no vital: `catalogStatusEnv()` varre as linhas do
 // catálogo (O(rows)) e o poll roda a cada refresh. A aba Limpeza carrega o
 // relatório sob demanda pela ação `catalog-report`, que já existe.
-export const VITAL_BLOCKS = ['general', 'searchFirst', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics', 'cache', 'magnetdb'];
+//
+// `indexers` entra porque a aba Saúde mostra o card por indexador. O loader do
+// catálogo é memoizado por ciclo de requisição e compartilhado com o bloco
+// `general` (que já o pede): o custo de Jackett extra é ZERO — é o mesmo
+// `getIndexers()`, e sem o bloco o card ficaria sempre vazio.
+export const VITAL_BLOCKS = ['general', 'searchFirst', 'indexers', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics', 'cache', 'magnetdb'];
 
 let inFlight = false;
 let timerId: any = null;

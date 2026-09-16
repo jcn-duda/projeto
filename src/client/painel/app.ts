@@ -64,6 +64,10 @@ export function App(props: AppProps) {
     : 'saude';
   const [activeTab, setActiveTab] = useState(tabFromHash(initialTab));
   const [focusRequest, setFocusRequest] = useState<{ id: string; seq: number } | null>(null);
+  // Pedido de teste de indexador vindo do chip da aba Saúde: leva à aba
+  // Diagnóstico com o id pré-preenchido. `seq` garante alvo novo a cada clique
+  // mesmo no MESMO indexer (a dependência do efeito é a seq, não o id).
+  const [indexerRequest, setIndexerRequest] = useState<{ id: string; seq: number } | null>(null);
 
   useEffect(() => {
     // Dois canais: o estado geral re-renderiza a página; o token só alimenta o
@@ -110,6 +114,15 @@ export function App(props: AppProps) {
     selectTab(tab);
     focusRequestSeq += 1;
     setFocusRequest({ id: configFieldId(key), seq: focusRequestSeq });
+  };
+
+  // Contrato de navegação Saúde → Diagnóstico: o chip do indexer troca a aba e
+  // entrega o id para o card de teste pré-preencher. Reusa o mesmo `seq` de
+  // pedidos de foco para um clique repetido continuar sendo um pedido novo.
+  const navigateToIndexer = (id: string) => {
+    selectTab('diagnostico');
+    focusRequestSeq += 1;
+    setIndexerRequest({ id, seq: focusRequestSeq });
   };
 
   useEffect(() => {
@@ -239,6 +252,8 @@ export function App(props: AppProps) {
               debrid=${p.debrid}
               conta=${p.conta}
               searchFirst=${p.searchFirst}
+              indexers=${p.indexers}
+              onSelectIndexer=${navigateToIndexer}
             />
           ` : activeTab === 'conta' ? html`
             <${ViewConta} conta=${p.conta} debrid=${p.debrid} />
@@ -257,7 +272,7 @@ export function App(props: AppProps) {
           ` : activeTab === 'magnets' ? html`
             <${ViewMagnets} magnetdb=${p.magnetdb} />
           ` : activeTab === 'diagnostico' ? html`
-            <${ViewDiagnostico} debrid=${p.debrid} />
+            <${ViewDiagnostico} debrid=${p.debrid} indexerRequest=${indexerRequest} />
           ` : null}
         `}
       </main>

@@ -1,12 +1,11 @@
 import { html, useState, useRef } from './vendor/preact.js';
-import { Card } from './kit.js';
+import { Card, statusVariant } from './kit.js';
 import { useAction, actionError } from './action.js';
 import { fetchStreamTrace } from './api.js';
 import { getPainelState } from './store.js';
 import { Button, FormActions, SelectField, TextField, ToggleField } from './form.js';
+import { ViewDiagnosticoIndexer, type IndexerRequest } from './view-diagnostico-indexer.js';
 import {
-  indexerTestRows,
-  indexerTestSummary,
   accountTestRows,
   traceStageRows,
   traceItemRows,
@@ -14,8 +13,6 @@ import {
   liveResultRows,
   traceSummaryRows,
   type DiagnosticRow,
-  type DiagnosticStatus,
-  type IndexerTestRow,
   type TraceItemRow,
   type LiveResultRow,
 } from './diagnostico-model.js';
@@ -23,18 +20,17 @@ import {
 // Aba Diagnóstico: teste sequencial de indexadores, validação de chave de
 // debrid e leitura offline/live do funil por item. Toda a normalização e a
 // higiene de texto de terceiro vivem em diagnostico-model.ts; aqui só há
-// montagem de VNode, estado local e despacho de ação.
+// montagem de VNode, estado local e despacho de ação. O teste de indexador
+// vive em view-diagnostico-indexer.ts (catraca de linhas).
 
 export interface ViewDiagnosticoProps {
   debrid?: Record<string, any>;
+  /** Pedido vindo do chip da aba Saúde: id já pré-preenchido no card de teste. */
+  indexerRequest?: IndexerRequest | null;
 }
 
 const MUTED = 'margin: 0 0 var(--space-2); font-size: var(--font-floor); color: var(--muted);';
 const TRACE_ID = /^tt\d+(?::\d+){0,2}$/;
-
-function statusVariant(status: DiagnosticStatus): string {
-  return status === 'err' ? 'err' : status === 'warn' ? 'warn' : status === 'ok' ? 'ok' : 'neutral';
-}
 
 /** Valor de linha com badge apenas quando o status é acionável (ok/warn/err).
  * `neutral` sai como texto puro para a tabela não virar uma parede de pills. */
@@ -57,87 +53,6 @@ function RowsTable({ rows }: { rows: DiagnosticRow[] }) {
         `)}
       </tbody>
     </table>
-  `;
-}
-
-// ---------------------------------------------------------------------------
-// Indexadores
-// ---------------------------------------------------------------------------
-
-function indexerStateText(row: IndexerTestRow): string {
-  return row.state === 'error' ? 'FALHA' : row.state === 'empty' ? 'SEM MAGNET' : 'OK';
-}
-
-function indexerDetail(row: IndexerTestRow): string {
-  return row.error || row.sample || row.query || '';
-}
-
-function DiagnosticoIndexers() {
-  const { pending, run } = useAction();
-  const [rows, setRows] = useState<IndexerTestRow[] | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const summary = indexerTestSummary(rows);
-
-  const badge = pending
-    ? { text: 'TESTANDO…', variant: 'warn' as const }
-    : rows == null
-      ? { text: 'NÃO EXECUTADO', variant: 'neutral' as const }
-      : { text: summary.downCount > 0 ? `${summary.downCount} FALHA(S)` : 'TODOS OK', variant: summary.downCount > 0 ? ('warn' as const) : ('ok' as const) };
-
-  const handleTest = async () => {
-    setFeedback(null);
-    const outcome = await run({
-      action: 'test-all-indexers',
-      successToast: (data) => `Teste concluído: ${Number(data.okCount || 0)} ok · ${Number(data.downCount || 0)} falha(s)`,
-    });
-    if (!outcome.ok) {
-      const error = actionError(outcome);
-      if (error) setFeedback(error);
-      return;
-    }
-    setRows(indexerTestRows(outcome.data));
-  };
-
-  return html`
-    <${Card} title="Teste de Indexadores" badge=${badge}>
-      <p style=${MUTED}>Executa o mesmo teste real, um indexador por vez. Pode levar alguns minutos.</p>
-      <${FormActions}>
-        <${Button} variant="accent" pending=${pending} onClick=${handleTest}>
-          ${pending ? 'Testando…' : 'Testar todos os indexadores'}
-        </${Button}>
-      </${FormActions}>
-      ${feedback ? html`<div class="painel-feedback painel-feedback-err" role="status">${feedback}</div>` : null}
-      ${pending ? html`
-        <div class="painel-empty painel-empty-sm" role="status" aria-live="polite">
-          Consultando os indexadores${rows == null ? '' : ' novamente'}…
-        </div>
-      ` : null}
-      ${rows == null ? null : html`
-        <p style=${MUTED}>
-          ${summary.total} testado(s) · ${summary.okCount} ok · ${summary.errorCount} erro(s) ·
-          ${summary.emptyCount} sem magnet · ${summary.overBudgetCount} acima do orçamento${summary.slowestId ? ` · mais lento: ${summary.slowestId}` : ''}
-        </p>
-        <table class="painel-table">
-          <thead>
-            <tr><th>Indexador</th><th>Estado</th><th>Tempo</th><th>Resultados</th><th>Amostra / erro</th></tr>
-          </thead>
-          <tbody>
-            ${rows.map((row) => html`
-              <tr key=${row.id}>
-                <td>
-                  ${row.id}
-                  ${row.br ? html` <span class="painel-badge painel-badge-neutral">BR</span>` : null}
-                </td>
-                <td><span class=${'painel-badge painel-badge-' + statusVariant(row.state === 'error' ? 'err' : row.state === 'empty' ? 'warn' : 'ok')}>${indexerStateText(row)}</span></td>
-                <td>${row.ms == null ? '—' : `${row.ms} ms${row.overBudget ? ' ⚠' : ''}`}</td>
-                <td>${row.results != null ? row.results : row.withMagnet != null ? row.withMagnet : '—'}</td>
-                <td title=${indexerDetail(row)}>${indexerDetail(row) || '—'}</td>
-              </tr>
-            `)}
-          </tbody>
-        </table>
-      `}
-    </${Card}>
   `;
 }
 
@@ -386,10 +301,10 @@ function DiagnosticoTrace() {
   `;
 }
 
-export function ViewDiagnostico({ debrid }: ViewDiagnosticoProps) {
+export function ViewDiagnostico({ debrid, indexerRequest }: ViewDiagnosticoProps) {
   return html`
     <div>
-      <${DiagnosticoIndexers} />
+      <${ViewDiagnosticoIndexer} request=${indexerRequest} />
       <${DiagnosticoConta} debrid=${debrid} />
       <${DiagnosticoTrace} />
     </div>

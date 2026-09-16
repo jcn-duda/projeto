@@ -228,6 +228,16 @@ body {
 .painel-badge-err { background: var(--status-err-bg); color: var(--status-err-text); }
 .painel-badge-neutral { background: var(--status-neutral-bg); color: var(--status-neutral-text); }
 
+/* Chips de indexador da aba Saúde: botão compacto (o clique leva ao teste na
+ * aba Diagnóstico) com o estado pelo badge interno. O circuito aberto é o
+ * único destaque de borda — é o indexer fora do orçamento de busca. Só tokens. */
+.painel-chip-list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.painel-chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-xs); color: var(--text); font-family: var(--font); font-size: var(--font-floor); cursor: pointer; }
+.painel-chip:hover { border-color: var(--field-border-hover); }
+.painel-chip-open { border-color: var(--red); }
+.painel-chip-label { font-weight: 600; }
+.painel-chip-ms { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+
 .painel-diff-list {
   display: flex;
   flex-direction: column;

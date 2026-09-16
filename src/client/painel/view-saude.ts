@@ -1,15 +1,81 @@
 import { html } from './vendor/preact.js';
 import { Card, StatNumber } from './kit.js';
 import { formatDurationMs } from './fmt.js';
+import { indexerRows, indexerSummary, indexerCardBadge, type SaudeIndexerRow } from './saude-model.js';
 
 export interface ViewSaudeProps {
   general?: Record<string, any>;
   debrid?: Record<string, any>;
   conta?: Record<string, any>;
   searchFirst?: Record<string, any>;
+  indexers?: Record<string, any>[];
+  /** Clique no chip: leva à aba Diagnóstico com o id pré-preenchido. */
+  onSelectIndexer?: (id: string) => void;
 }
 
-export function ViewSaude({ general, debrid, conta, searchFirst }: ViewSaudeProps) {
+// Chip de um indexador. O breaker aberto é o único destaque de borda (o
+// indexer está fora do orçamento de busca); o resto da leitura vem dos badges
+// de estado, com o rótulo fiel (degradado ≠ offline).
+function IndexerChip({ row, onSelect }: { row: SaudeIndexerRow; onSelect?: (id: string) => void }) {
+  const title = [
+    row.id,
+    row.stateLabel,
+    row.ms != null ? `${row.ms} ms` : null,
+    row.breakerOpen ? 'circuito aberto' : null,
+  ].filter(Boolean).join(' · ');
+  return html`
+    <button
+      type="button"
+      class=${'painel-chip' + (row.breakerOpen ? ' painel-chip-open' : '')}
+      title=${title}
+      onClick=${() => onSelect?.(row.id)}
+    >
+      <span class="painel-chip-label">${row.label}</span>
+      ${row.isBr ? html`<span class="painel-badge painel-badge-neutral">BR</span>` : null}
+      <span class=${'painel-badge painel-badge-' + row.variant}>${row.stateLabel}</span>
+      ${row.ms != null ? html`<span class="painel-chip-ms">${row.ms} ms</span>` : null}
+      ${row.breakerOpen ? html`<span class="painel-badge painel-badge-err">CIRCUITO</span>` : null}
+    </button>
+  `;
+}
+
+function IndexadoresCard({ indexers, onSelectIndexer }: { indexers?: Record<string, any>[]; onSelectIndexer?: (id: string) => void }) {
+  const rows = indexerRows(indexers);
+  const summary = indexerSummary(rows);
+  const parts = [
+    `${summary.total} indexador(es)`,
+    `${summary.online} online`,
+    `${summary.slow} lento`,
+    `${summary.degraded} degradado`,
+    `${summary.offline} offline`,
+  ];
+  if (summary.unknown > 0) parts.push(`${summary.unknown} desconhecido`);
+
+  return html`
+    <${Card} title="Indexadores (Jackett)" badge=${indexerCardBadge(summary)}>
+      ${rows.length === 0 ? html`
+        <div class="painel-empty painel-empty-sm">Catálogo de indexadores ainda não carregado.</div>
+      ` : html`
+        <p style="color: var(--muted); margin: 0; font-size: var(--font-floor);">${parts.join(' · ')}</p>
+        ${summary.breakerOpen > 0 ? html`
+          <p style="color: var(--red); margin: 0; font-size: var(--font-floor);">
+            ${summary.breakerOpen} com o circuito aberto — fora do orçamento de busca
+          </p>
+        ` : null}
+        ${summary.brOffline > 0 ? html`
+          <p style="color: var(--amber); margin: 0; font-size: var(--font-floor);">
+            ${summary.brOffline} fonte(s) BR offline — o dublado pode faltar
+          </p>
+        ` : null}
+        <div class="painel-chip-list">
+          ${rows.map((row) => html`<${IndexerChip} key=${row.id} row=${row} onSelect=${onSelectIndexer} />`)}
+        </div>
+      `}
+    </${Card}>
+  `;
+}
+
+export function ViewSaude({ general, debrid, conta, searchFirst, indexers, onSelectIndexer }: ViewSaudeProps) {
   const isOk = general?.ok && (conta?.ok || debrid?.account?.ok);
   const verdictVariant = isOk ? 'ok' : 'err';
   const verdictText = isOk ? 'SISTEMA OPERACIONAL' : 'ATENÇÃO REQUERIDA';
@@ -53,6 +119,8 @@ export function ViewSaude({ general, debrid, conta, searchFirst }: ViewSaudeProp
           </div>
         </div>
       </${Card}>
+
+      <${IndexadoresCard} indexers=${indexers} onSelectIndexer=${onSelectIndexer} />
 
       <${Card} title="Primeira Resposta (I0)">
         <${StatNumber}

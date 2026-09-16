@@ -108,6 +108,56 @@ export async function fetchStreamTrace(
   }
 }
 
+/**
+ * Teste de UM indexador (`GET /test-indexer.json`). Mesmo prefixo de instalação
+ * e mesmo token de header do `fetchStatus`; o backend valida o id contra o
+ * catálogo (400 `indexador desconhecido`) e devolve o resultado do `jackett.test`
+ * — o MESMO caminho da busca real, inclusive a resolução do magnet. Só roda no
+ * clique; nada sonda sozinho.
+ */
+export async function fetchTestIndexer(
+  token: string,
+  id: string,
+  options: { q?: string; type?: 'movie' | 'series' } = {},
+): Promise<{ ok: true; data: Record<string, any> } | { ok: false; status: number; error: string }> {
+  if (!token) {
+    return { ok: false, status: 401, error: 'Token não configurado' };
+  }
+
+  const params = new URLSearchParams();
+  params.set('id', id);
+  if (options.q) params.set('q', options.q);
+  params.set('type', options.type === 'series' ? 'series' : 'movie');
+  const url = `${basePrefix()}/test-indexer.json?${params.toString()}`;
+
+  try {
+    const res = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'X-Indexer-Test-Token': token,
+      },
+    });
+
+    if (res.status === 401) {
+      return { ok: false, status: 401, error: 'Token inválido ou não autorizado' };
+    }
+    if (res.status === 503) {
+      return { ok: false, status: 503, error: 'Serviço de diagnóstico desativado pelo operador' };
+    }
+    if (res.status === 429) {
+      return { ok: false, status: 429, error: 'Limite de concorrência atingido (429)' };
+    }
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: data?.error || `Erro HTTP ${res.status}` };
+    }
+    return { ok: true, data };
+  } catch (err: any) {
+    return { ok: false, status: 0, error: err?.message || 'Falha de conexão com o servidor' };
+  }
+}
+
 export async function postAction(
   token: string,
   action: string,

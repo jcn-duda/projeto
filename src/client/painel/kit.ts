@@ -65,6 +65,30 @@ export function Badge({ text, variant = 'neutral' }: BadgeProps) {
   return html`<span class=${'painel-badge painel-badge-' + variant}>${text}</span>`;
 }
 
+/**
+ * Estado → variante de badge. Cobre os estados do diagnóstico
+ * (`ok|warn|err|neutral`) e os do indexador (`online|slow|degraded|offline`).
+ * Valor desconhecido — incluindo `null` de indexador NUNCA medido — vira
+ * `neutral`: é o "não sei", nunca um veredito inventado (offline afirmaria uma
+ * falha que ninguém mediu).
+ */
+export function statusVariant(state: unknown): BadgeVariant {
+  switch (String(state ?? '')) {
+    case 'ok':
+    case 'online':
+      return 'ok';
+    case 'warn':
+    case 'slow':
+    case 'degraded':
+      return 'warn';
+    case 'err':
+    case 'offline':
+      return 'err';
+    default:
+      return 'neutral';
+  }
+}
+
 /** Skeleton de carregamento: `block` para área, linha por padrão. */
 export function Skeleton({ block = false }: { block?: boolean }) {
   return html`<div class=${'painel-skeleton ' + (block ? 'painel-skeleton-block' : 'painel-skeleton-line')}></div>`;
