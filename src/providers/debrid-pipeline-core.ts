@@ -130,7 +130,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
   const candidates = autoFetchCandidates(streams.filter((s) => !s._multiWorkAdmitted), {
     season, episode,
     imdbId: imdbId || undefined,
-    searchKey: searchKey || undefined,
+    searchKey: searchKey || undefined, trace,
   });
   const checkStarted = Date.now();
   // Teto dinâmico: o que resta do REPLY_DEADLINE menos margem para serialização.
@@ -218,7 +218,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
     season,
     episode,
     imdbId,
-    searchKey,
+    searchKey, trace,
   });
   // Warmer RD em fundo (F3): enfileira os top-N desconhecidos sem rede nem atraso na resposta.
   if (config.debrid.rdWarm.enabled && (adapter.id === 'realdebrid' || config.debrid.service === 'realdebrid')) {

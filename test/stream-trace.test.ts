@@ -10,9 +10,11 @@ import {
   cloneStreamTrace,
   stageTrace,
   setTraceStage,
+  setTraceChupim,
   dropTrace,
   finalizeTrace,
   serializeTrace,
+  STREAM_TRACE_CHUPIM_MAX,
 } from '../src/utils/stream-trace.js';
 import config from '../src/config.js';
 
@@ -205,4 +207,51 @@ test('rótulo vazio e item sem campo nenhum não quebram o payload', () => {
   assert.ok(payload);
   assert.equal(payload.items.length, 2);
   assert.deepEqual(payload.items.map((i) => i.label), ['', '']);
+});
+
+// Fase 7 do Chupim 2.0 — campo `chupim`: resumo de enum do autofetch. O que os
+// testes cobram é a higiene (nada de magnet/hash), o teto, a idempotência e a
+// compatibilidade com payload antigo.
+test('setTraceChupim: sanitiza, propaga no clone e mantém a idempotência', () => {
+  const t = createStreamTrace();
+  assert.equal(t.chupim ?? null, null);
+  setTraceChupim(t, `pool=br; seeds=n/a; probe=pending ${HASH} magnet:?xt=urn:btih:${HASH}`);
+  assert.ok(t.chupim && t.chupim.includes('pool=br'));
+  assert.doesNotMatch(t.chupim, /[a-f0-9]{40}/i, 'sem hash cru');
+  assert.doesNotMatch(t.chupim, /magnet:/i, 'sem URI de magnet');
+  assert.ok(t.chupim.includes('<hash>') && t.chupim.includes('<magnet>'));
+
+  const build = cloneStreamTrace(t);
+  assert.ok(build);
+  assert.equal(build.chupim, t.chupim, 'clone carrega o resumo');
+
+  const payload = serializeTrace(t);
+  assert.ok(payload);
+  assert.equal(payload.chupim, t.chupim);
+  assert.deepEqual(serializeTrace(payload), payload, 're-serializar é idempotente');
+
+  // Compat: payload antigo (sem o campo) não ganha a chave.
+  const antigo = { stages: { raw: 1 }, items: [], startedAt: 1, finishedAt: 2 };
+  const semChupim = serializeTrace(antigo);
+  assert.ok(semChupim);
+  assert.equal('chupim' in semChupim, false, 'entrada antiga segue sem o campo');
+});
+
+test('setTraceChupim respeita o teto e o kill-switch STREAM_TRACE=false', () => {
+  const t = createStreamTrace();
+  setTraceChupim(t, `pool=seeds; seeds=blocked:${'x'.repeat(300)}`);
+  const payload = serializeTrace(t);
+  assert.ok(payload && payload.chupim);
+  assert.ok(payload.chupim.length <= STREAM_TRACE_CHUPIM_MAX, `resumo truncado (${payload.chupim.length})`);
+
+  const original = config.search.streamTrace;
+  try {
+    config.search.streamTrace = false;
+    const off = createStreamTrace();
+    setTraceChupim(off, 'pool=br; seeds=n/a; probe=off');
+    assert.equal(off.chupim ?? null, null, 'captura desligada junto com a leitura');
+    assert.equal(serializeTrace(off), null, 'payload some com o kill-switch');
+  } finally {
+    config.search.streamTrace = original;
+  }
 });

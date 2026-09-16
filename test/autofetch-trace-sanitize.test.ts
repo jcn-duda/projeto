@@ -5,6 +5,9 @@ process.env.CACHE_PERSIST = 'false';
 
 import config from '../src/config.js';
 import * as autofetchTrace from '../src/utils/autofetch-trace.js';
+import * as cache from '../src/utils/cache.js';
+import { prefix } from '../src/utils/cache-keys.js';
+import { obraKey } from '../src/providers/autofetch-obra.js';
 import { noteSkip } from '../src/providers/autofetch-gates.js';
 import { autofetchRunnerStatus } from '../src/providers/autofetch-runner.js';
 import {
@@ -61,4 +64,41 @@ test('payload do status não expõe hash cru, searchKey, magnet nem apiKey', asy
   const skips = autofetchRunnerStatus().skips;
   assert.equal(typeof skips, 'object');
   assert.ok(Array.isArray(autofetchRunnerStatus().lastSkips));
+});
+
+// Fase 7 do Chupim 2.0 — resumo por OBRA do teto (F2) no status do runner.
+// O teste fixa a forma (digest de 12, pools, brReady, idade) e a higiene: o
+// bloco nunca identifica a obra (sem imdbId, conta, chave ou hash cru).
+test('obras no status: digest curto, pools contados e prova BR-ready sem vazar identidade', async () => {
+  const identity = { adapterId: 'premiumize', account: 'conta-secreta-f7', imdbId: 'tt7654321', season: 1, episode: 2 };
+  const key = obraKey(identity);
+  const now = Date.now();
+  cache.set(key, { entries: [
+    { hash: 'a'.repeat(40), pool: 'br', acceptedAt: now, br: true, dubbed: true },
+    { hash: 'b'.repeat(40), pool: 'seeds', acceptedAt: now - 1000 },
+    { hash: 'c'.repeat(40), pool: 'exotico', acceptedAt: now - 500 },
+  ] }, 900);
+  const obraPrefix = `${prefix('autofetch')}o:`;
+  const digest = key.slice(obraPrefix.length);
+  cache.set(`${prefix('autofetch')}er:${digest}`, { at: now }, 900);
+
+  try {
+    const status = autofetchRunnerStatus();
+    assert.ok(Array.isArray(status.obras), 'obras é array');
+    const alvo = status.obras.find((o) => o.digest === digest.slice(0, 12));
+    assert.ok(alvo, 'a obra semeada aparece no resumo');
+    assert.equal(alvo.digest.length, 12);
+    assert.deepEqual(alvo.pools, { br: 1, any: 0, seeds: 1 });
+    assert.equal(alvo.brReady, true, 'prova durável da Fase 6 refletida');
+    assert.equal(typeof alvo.ageMs, 'number');
+    assert.ok(alvo.ageMs >= 0 && alvo.ageMs < 5000);
+
+    const bloco = JSON.stringify(status.obras);
+    assert.doesNotMatch(bloco, /tt\d+/, 'nenhum imdbId no bloco de obras');
+    assert.equal(bloco.includes('conta-secreta-f7'), false, 'nenhuma conta no bloco');
+    assert.doesNotMatch(bloco, /[a-f0-9]{40}/i, 'nenhum hash cru no bloco');
+  } finally {
+    cache.forget(key);
+    cache.forget(`${prefix('autofetch')}er:${digest}`);
+  }
 });

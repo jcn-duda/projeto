@@ -18,9 +18,11 @@ import { capture, opts } from '../runtime.js';
 import * as autofetch from './autofetch.js';
 import { classifyEnqueue, rollbackEnqueue, noteSkip, skipCountsSnapshot, warnAccountGated } from './autofetch-gates.js';
 import { reserveObra, commitObra, releaseObra, type ObraLease } from './autofetch-obra.js';
+import { obraSummaries } from './autofetch-obra-summary.js';
 import { evictMarkerMeta } from './autofetch-evict.js';
 import { applySeedsStopGate, purgeSeedsQueue } from './autofetch-seeds-pool.js';
 import { probeBlocksSeeds } from './br-probe.js';
+import { writeChupimTrace, chupimProbeLabel } from './autofetch-chupim-trace.js';
 import { seedsPolicyConfig } from './autofetch-candidates.js';
 import type { AutoFetchCandidate, AutoFetchRequest } from './autofetch-candidates.js';
 import * as autofetchTrace from '../utils/autofetch-trace.js';
@@ -165,7 +167,7 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit, rare }: Aut
 
 export { registerSeasonSearchKey, scheduleRecheck, drainNext, type SeasonHint, type RecheckLot };
 
-export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, season, episode, imdbId, searchKey }: any) {
+export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, known, season, episode, imdbId, searchKey, trace }: any) {
   const adapter = debrid.current() as DebridAdapter;
   if (!candidates || candidates.length === 0) {
     noteSkip('no-candidates', null, debrid.current()?.id || '', '');
@@ -193,8 +195,12 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
     // purga a fila persistente (ela volta a drenar quando o lease finalizar).
     // Se a sonda nem foi agendada (toggle off/sem interseção), o predicado é
     // falso e o caminho de sempre segue.
+    const probe = chupimProbeLabel(imdbId
+      ? { type: (season != null ? 'series' : 'movie') as 'movie' | 'series', imdbId, season: season ?? null, episode: episode ?? null }
+      : null);
     if (imdbId && probeBlocksSeeds({ type: (season != null ? 'series' : 'movie') as 'movie' | 'series', imdbId, season: season ?? null, episode: episode ?? null })) {
       noteSkip('br-probe-pending', candidates[0]?.stream, adapter.id, poolName);
+      writeChupimTrace(trace, { pool: 'seeds', seeds: 'blocked:br-probe-pending', probe });
       releaseAllHolds(candidates);
       return 0;
     }
@@ -213,6 +219,7 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
     };
     if (policy.dubbedOnly) {
       noteSkip('dubbed-only', candidates[0]?.stream, adapter.id, poolName);
+      writeChupimTrace(trace, { pool: 'seeds', seeds: 'blocked:dubbed-only', probe });
       purgeSeeds();
       releaseAllHolds(candidates);
       return 0;
@@ -231,10 +238,12 @@ export function autoFetchBrDubbed(streams: any[], candidates: any[], { cached, k
     });
     if (gate.stop) {
       noteSkip(gate.stop, candidates[0]?.stream, adapter.id, poolName);
+      writeChupimTrace(trace, { pool: 'seeds', seeds: `blocked:${gate.stop}`, probe });
       purgeSeeds();
       releaseAllHolds(candidates);
       return 0;
     }
+    writeChupimTrace(trace, { pool: 'seeds', seeds: 'allowed', probe });
     candidates = gate.candidates;
   } else {
     // Pool br: cobertura POR qualidade-alvo. 720 Dual ⚡ não mata o 1080/4K.
@@ -300,6 +309,10 @@ export function autofetchRunnerStatus() {
     seasonSearchKeys: seasonSearchKeys.size,
     paused: live.paused,
     pausedSince: live.pausedSince,
+    // Fase 7 — resumo por OBRA do teto (F2): digest curto, pools, prova de BR
+    // pronto e idade da entrada mais recente. Leitura quiet do L1 (peek, sem
+    // LRU/hit) limitada às mais recentes, para payload estável.
+    obras: obraSummaries(),
     // Por que o Chupim desistiu: contagem por motivo + últimos registros do trace.
     skips: skipCountsSnapshot(),
     lastSkips: autofetchTrace.lastSkips(20),

@@ -146,6 +146,22 @@ export function isBrProbePending(workInput: BrProbeWork): boolean {
   return Boolean(work && isPendingRecord(readRecord(work)));
 }
 
+/**
+ * Estado da sonda para o diagnóstico (Fase 7): leitura QUIET, sem rede. `off`
+ * cobre toggle desligado, sem interseção, obra inválida ou nenhum registro —
+ * nunca inventa um estado. `pending` com lease vencido é órfão (crash/restart)
+ * e sai como `failed` para o painel não mostrar busca ativa que não existe.
+ */
+export function probeState(workInput: BrProbeWork): BrProbeState | 'off' {
+  if (!probeEnabled()) return 'off';
+  const work = normalize(workInput);
+  if (!work) return 'off';
+  const raw = readRecord(work);
+  if (!raw) return 'off';
+  if (raw.state === 'pending' && !isPendingRecord(raw)) return 'failed';
+  return raw.state;
+}
+
 function writeRecord(work: BrProbeWork, record: BrProbeRecord): void {
   cache.set(probeKey(work), record, config.debrid.brProbeTtl);
 }

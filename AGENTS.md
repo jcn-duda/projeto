@@ -776,7 +776,8 @@ hard-block (`ad-hard-blocked`: consulta = upload e detona limpeza); RD é
 recusado (`rd-live-refused`). Kill-switch `STREAM_TRACE=false` desliga captura,
 leitura, recompute **e** live. Aba no painel: `/dashboard#trace`
 (`src/client/dashboard/trace.ts`). Detalhe operacional e contratos: Fase 9 do
-`PLANO_MELHORIAS.md`.
+`PLANO_MELHORIAS.md`. O ledger ganhou também o campo `chupim` — resumo do
+autofetch da build (pool/seeds/sonda), documentado na Fase 7 do Chupim abaixo.
 
 Para adicionar um serviço: crie o adaptador, registre em `ADAPTERS` e pronto —
 `SERVICES` alimenta o seletor da página automaticamente.
@@ -1044,6 +1045,28 @@ Coalescing é por `adapter:account:obra`: duas obras distintas rodam em paralelo
 `test/autofetch-evict.test.ts`; o executor já tinha prova em
 `test/alldebrid-evict.test.ts` + `test/alldebrid-delete-gate.test.ts`. F7 fará o
 painel completo.
+
+**Observabilidade do Chupim no painel e no trace (Fase 7).** Duas leituras
+quiet fecham o que faltava ver — o bloco `obras` do `/dashboard-status.json` e
+o campo `chupim` do `/stream-trace.json`:
+
+- **`obras` (status do runner).** Uma entrada por registro ativo do teto por
+  obra (`autofetch:v3:o:`) com digest de 12 chars do `sha256` da identidade
+  (NUNCA imdbId/conta/chave), pools contados `{br, any, seeds}`, prova durável
+  de BR ready (Fase 6) e idade da entrada mais recente; limitado a
+  `OBRA_SUMMARY_MAX` (12) mais recentes. A varredura é `keysMatching` + `peek`
+  (L1, sem promover LRU nem contar `cache.hit`), só no status, nunca no caminho
+  de busca. Render na aba `[Chupim / Autofetch]` (`src/client/dashboard/autofetch.ts`,
+  tabela `#afObrasMetrics`). Módulo: `src/providers/autofetch-obra-summary.ts`.
+- **`chupim` (ledger do trace).** Resumo de UMA linha do autofetch daquela
+  build, gravado por `setTraceChupim` nos dois pontos de decisão (seleção em
+  `autofetch-candidates.ts`; despacho em `autoFetchBrDubbed`) e serializado no
+  MESMO payload do trace: `pool=br|any|seeds|none; seeds=allowed|blocked:<motivo>|n/a;
+  probe=pending|found|empty|failed|capped|off` — nunca hash/imdb/conta. Estado
+  da sonda é leitura quiet (`probeState` em `br-probe.ts`; `pending` com lease
+  vencido sai como `failed`). Entrada antiga sem o campo segue servindo e
+  `STREAM_TRACE=false` não grava nem devolve. Módulo:
+  `src/providers/autofetch-chupim-trace.ts`.
 
 **Painel e configuração ao vivo do chupim (`src/utils/autofetch-live.ts`).**
 Configuração em nível de **operador** (afeta a conta de debrid do operador,
@@ -1704,6 +1727,8 @@ fire-and-forget) continua.
 | `src/providers/autofetch-runner.ts` | Seleção de candidatos, holds/markers, `drainNext`, recheck, settle, detecção de morte |
 | `src/providers/autofetch-obra.ts` | Teto por obra (F2): reserva volátil + registro persistido por hash (pool/acceptedAt/título/br/dubbed/id) e `obraDigest` — a identidade segura que o marker novo da Fase 6 guarda |
 | `src/providers/autofetch-evict.ts` | Evicção dirigida dos fallbacks `any`/`seeds` da mesma obra (Fase 6): política, travas, coalescing e chamada do `adapter.evictFallbacks`; `evictMarkerMeta` grava o marker novo |
+| `src/providers/autofetch-obra-summary.ts` | Resumo por obra do teto F2 para o painel (Fase 7): `keysMatching`+`peek` quiet sobre `autofetch:v3:o:`, digest de 12 chars, pools `{br, any, seeds}`, prova BR-ready e idade; nunca expõe identidade |
+| `src/providers/autofetch-chupim-trace.ts` | Resumo do Chupim no trace (Fase 7): monta `pool=…; seeds=…; probe=…` e grava via `setTraceChupim` nos pontos de decisão; enums fechados, sem hash/imdb/conta |
 | `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
 | `src/providers/harvester.ts` | Colhedor: fila persistente, freio de atividade e teto horário; `harvest-inflight.ts`/`harvest-outcome.ts` fundem intenção concorrente e reencaminham um único trabalho |

@@ -7,9 +7,10 @@ import * as runtime from '../src/runtime.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as cache from '../src/utils/cache.js';
 import * as held from '../src/debrid/protected.js';
+import { createStreamTrace } from '../src/utils/stream-trace.js';
 import { autoFetchBrDubbed, autoFetchCandidates } from '../src/providers/autofetch-runner.js';
 import {
-  H1, H2, H3, H4, H5, H6,
+  H1, H2, H3, H4, H5, H6, H7, H8,
   pmAdapter, originalEnqueue, account, sleep, brDub, userOpts, delta, lastReason, resetSkipState, stubEnqueue,
 } from './helpers/autofetch-skip-common.js';
 
@@ -138,4 +139,41 @@ test('autoFetchCandidates deixa rastro em disabled e no-candidate', async () => 
   d = delta('no-candidate');
   await run({}, () => autoFetchCandidates([], { searchKey: 'kn' }));
   assert.equal(d(), 1, 'no-candidate');
+});
+
+// Fase 7 do Chupim 2.0 — o resumo do autofetch viaja no trace da build. A
+// captura é fire-and-forget: nunca muda o retorno nem bloqueia a seleção.
+test('Fase 7: seleção e despacho gravam o resumo do Chupim no trace', async () => {
+  const run = (opts: Record<string, unknown>, fn: () => unknown) =>
+    runtime.run({ opts: userOpts(opts), encoded: 'cfg' }, fn);
+
+  // Seleção com BR dublado: pool=br; o seeds nem é avaliado (n/a).
+  const trBr = createStreamTrace();
+  const outBr = await run({}, () => autoFetchCandidates([brDub(H7) as any], { searchKey: 'f7-br', trace: trBr }));
+  assert.ok(Array.isArray(outBr), 'seleção continua síncrona com o trace ligado');
+  assert.match(trBr.chupim || '', /pool=br/);
+  assert.match(trBr.chupim || '', /seeds=n\/a/);
+  assert.match(trBr.chupim || '', /probe=off/);
+  held.release(H7, account);
+
+  // Seleção sem candidato algum: a cascata chega ao seeds e o avalia, mas
+  // nenhum pool produziu candidato → pool=none.
+  const trNone = createStreamTrace();
+  await run({}, () => autoFetchCandidates([], { searchKey: 'f7-none', trace: trNone }));
+  assert.match(trNone.chupim || '', /pool=none/);
+  assert.match(trNone.chupim || '', /seeds=allowed/);
+
+  // Despacho do pool seeds com dubbedOnly: bloqueio por política, motivo curto.
+  const trSeeds = createStreamTrace();
+  await run({ dubbedOnly: true }, () => autoFetchBrDubbed(
+    [brDub(H8) as any],
+    [{ stream: brDub(H8) as any, account, pool: 'seeds' }],
+    { cached: new Set(), known: true, searchKey: 'f7-seeds', trace: trSeeds },
+  ));
+  assert.match(trSeeds.chupim || '', /pool=seeds/);
+  assert.match(trSeeds.chupim || '', /seeds=blocked:dubbed-only/);
+
+  // Sem trace: nenhum efeito e o retorno segue sendo a lista de candidatos.
+  const semTrace = autoFetchCandidates([], { searchKey: 'f7-notrace' });
+  assert.ok(Array.isArray(semTrace), 'seleção sem trace continua síncrona');
 });

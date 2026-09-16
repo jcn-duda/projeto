@@ -210,6 +210,7 @@ export function runTraceQuery(button?: any): void {
       renderTraceStages(trace.stages);
       renderTraceItems(trace.items);
       renderTraceReasons(trace.items);
+      renderTraceChupim(trace.chupim);
       if (isObject(data.recompute)) renderTraceRecompute(data.recompute);
       toggleTraceLive(data);
     })
@@ -285,4 +286,13 @@ function traceErrorLegivel(error: any): string {
   if (status === 429) return 'Outro diagnóstico está em andamento; tente de novo em instantes.';
   if (status === 503) return 'Diagnóstico desligado: defina JACKETT_TEST_TOKEN no .env do operador.';
   return error && error.message ? error.message : 'falha na consulta';
+}
+
+/** Resumo do Chupim da build (Fase 7): uma linha compacta, fail-open. */
+function renderTraceChupim(chupim: unknown): void {
+  const el = $('traceOutput');
+  if (!el) return;
+  const texto = String(chupim || '').trim();
+  if (!texto) return;
+  el.appendChild(element('p', 'guidance', 'Chupim: ' + texto + '.'));
 }

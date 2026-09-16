@@ -9,6 +9,12 @@
 // (mesma razão do cache-keys.ts). O único import é o config — leitura
 // estática de env, sem efeito colateral.
 //
+// Fase 7 do Chupim 2.0 acrescenta o campo `chupim`: um resumo de UMA linha da
+// decisão do autofetch daquela build (pool escolhido, decisão do pool seeds e
+// estado da sonda), preenchido pelos pontos de decisão via `setTraceChupim`.
+// É string fechada — nunca hash, obra, conta ou chave — e viaja no MESMO
+// payload serializado do ledger; STREAM_TRACE=false não a grava nem a devolve.
+//
 // Regra de ouro: `trace` undefined/null em QUALQUER função => nada acontece.
 // Nenhum call site é obrigado a checar o kill-switch antes de chamar.
 import config from '../config.js';
@@ -61,6 +67,9 @@ export interface StreamTraceState {
   accountItems: number;
   startedAt: number;
   finishedAt: number | null;
+  /** Resumo do Chupim (Fase 7): `pool=…; seeds=…; probe=…`. Ausente sem decisão
+   * (o literal legado de teste/build antiga não precisa do campo). */
+  chupim?: string | null;
 }
 
 /** Payload serializado — a única forma que atravessa para o cache. */
@@ -69,6 +78,8 @@ export interface SerializedStreamTrace {
   items: TraceItem[];
   startedAt: number;
   finishedAt: number | null;
+  /** Opcional por compatibilidade: entrada antiga não tem o campo. */
+  chupim?: string;
 }
 
 // Teto de detalhe por trace: uma busca fria pode arrastar centenas de itens
@@ -84,6 +95,11 @@ const STREAM_TRACE_MAX_ACCOUNT_ITEMS = 60;
 // Rótulo é título de release; 60 caracteres bastam para identificar o post
 // sem carregar a linha inteira (nem o que vier colado nela).
 const STREAM_TRACE_LABEL_MAX = 60;
+// Resumo do Chupim: três tokens de enum (`pool`, `seeds`, `probe`). O teto é
+// folgado para o motivo do bloqueio e curto para o payload não crescer com
+// dado de obra — o texto vem de call sites de confiança, mas passa pela mesma
+// higiene do rótulo (magnet/hash fora).
+const STREAM_TRACE_CHUPIM_MAX = 160;
 
 /** Kill-switch do operador: STREAM_TRACE=0/false desliga a captura inteira. */
 function traceEnabled(): boolean {
@@ -91,7 +107,7 @@ function traceEnabled(): boolean {
 }
 
 function createStreamTrace(): StreamTraceState {
-  return { stages: {}, items: [], accountItems: 0, startedAt: Date.now(), finishedAt: null };
+  return { stages: {}, items: [], accountItems: 0, startedAt: Date.now(), finishedAt: null, chupim: null };
 }
 
 /** Copia a parte de coleta para uma build independente. A busca pode ter uma
@@ -105,6 +121,7 @@ function cloneStreamTrace(source: StreamTraceState | null | undefined): StreamTr
     accountItems: source.accountItems,
     startedAt: source.startedAt,
     finishedAt: null,
+    chupim: source.chupim ?? null,
   };
 }
 
@@ -120,6 +137,27 @@ function stageTrace(t: StreamTraceState | null | undefined, stage: string, count
 function setTraceStage(t: StreamTraceState | null | undefined, stage: string, count: number): void {
   if (!t || !stage || !Number.isFinite(count) || count < 0) return;
   t.stages[stage] = Math.trunc(count);
+}
+
+/** Higiene do resumo do Chupim: o texto é curto e de enum fechado, mas passa
+ * pela MESMA defesa do rótulo (magnet/hash fora) antes de tocar o payload. */
+function sanitizeChupimNote(note: unknown): string {
+  const clean = String(note || '')
+    .replace(/magnet:\?\S*/gi, '<magnet>')
+    .replace(/[a-fA-F0-9]{40}/g, '<hash>');
+  return clean.length > STREAM_TRACE_CHUPIM_MAX
+    ? `${clean.slice(0, STREAM_TRACE_CHUPIM_MAX - 1)}…`
+    : clean;
+}
+
+/**
+ * Registra o resumo do autofetch (Fase 7). Last-writer: seleção e despacho
+ * escrevem o mesmo formato e a decisão final é a que sai. No-op sem trace e
+ * com STREAM_TRACE desligado (a captura também desliga, não só a leitura).
+ */
+function setTraceChupim(t: StreamTraceState | null | undefined, note: unknown): void {
+  if (!t || !traceEnabled()) return;
+  t.chupim = sanitizeChupimNote(note);
 }
 
 /** Rótulo legível a partir de qualquer forma de item (raw tem title, stream
@@ -207,6 +245,9 @@ function serializeTrace(
     items,
     startedAt: Number(t.startedAt) || 0,
     finishedAt: typeof t.finishedAt === 'number' ? t.finishedAt : null,
+    // Compat: entrada antiga (campo ausente) não ganha a chave; presente é
+    // re-sanitizado e mantém a idempotência do payload gravado no cache.
+    ...(t.chupim ? { chupim: sanitizeChupimNote(t.chupim) } : {}),
   };
 }
 
@@ -214,10 +255,12 @@ export {
   STREAM_TRACE_MAX_ITEMS,
   STREAM_TRACE_MAX_ACCOUNT_ITEMS,
   STREAM_TRACE_LABEL_MAX,
+  STREAM_TRACE_CHUPIM_MAX,
   createStreamTrace,
   cloneStreamTrace,
   stageTrace,
   setTraceStage,
+  setTraceChupim,
   dropTrace,
   finalizeTrace,
   sanitizeTraceLabel,

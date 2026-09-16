@@ -309,6 +309,50 @@ test('/stream-trace.json: trace:null para entrada antiga sem o campo e com kill-
   });
 });
 
+test('/stream-trace.json: resumo do Chupim (Fase 7) sai no payload e é compatível com entrada antiga', async () => {
+  await withMockFetch([], async () => {
+    config.jackett.testToken = 'tok-trace';
+    try {
+      const id = 'tt777';
+      const entry = entrada(false);
+      (entry.trace as any).chupim = 'pool=seeds; seeds=blocked:dubbed-only; probe=pending';
+      cache.set(chaveGlobal('movie', id), entry, 900);
+      const res = await server.request('GET', `/stream-trace.json?type=movie&id=${id}`, {
+        headers: { 'X-Indexer-Test-Token': 'tok-trace' },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.trace.chupim, 'pool=seeds; seeds=blocked:dubbed-only; probe=pending');
+      assert.equal(res.text.includes('dubbed-only'), true);
+      assert.doesNotMatch(res.text, /[a-f0-9]{40}/i, 'resumo não vaza hash');
+
+      // Entrada antiga (gravada antes do campo): segue servindo e sem chupim.
+      const idAntigo = 'tt778';
+      cache.set(chaveGlobal('movie', idAntigo), entrada(false), 900);
+      const res2 = await server.request('GET', `/stream-trace.json?type=movie&id=${idAntigo}`, {
+        headers: { 'X-Indexer-Test-Token': 'tok-trace' },
+      });
+      assert.equal(res2.status, 200);
+      assert.equal('chupim' in (res2.json.trace || {}), false, 'compat: campo ausente na antiga');
+
+      // Kill-switch desligado: o trace inteiro (e o chupim) não sai.
+      const saved = config.search.streamTrace;
+      config.search.streamTrace = false;
+      try {
+        const res3 = await server.request('GET', `/stream-trace.json?type=movie&id=${id}`, {
+          headers: { 'X-Indexer-Test-Token': 'tok-trace' },
+        });
+        assert.equal(res3.status, 200);
+        assert.equal(res3.json.trace, null);
+      } finally {
+        config.search.streamTrace = saved;
+      }
+    } finally {
+      config.jackett.testToken = '';
+      cache.clear();
+    }
+  });
+});
+
 test('/stream-trace.json: recompute sanitiza/trunca label antes de responder', async () => {
   await withMockFetch([], async () => {
     const savedIndexers = config.jackett.indexers;

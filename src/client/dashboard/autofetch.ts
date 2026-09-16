@@ -3,8 +3,8 @@
  * drenar/presets) vivem em autofetch-actions.ts. O painel de stall é hook
  * (af-stall.ts). Nada toca o DOM no import. */
 
-import { $, origemOf, origemValue } from './core.js';
-import { applyOrigem, formatDate } from './render.js';
+import { $, origemOf, origemValue, valueText } from './core.js';
+import { applyOrigem, element, formatDate, formatDuration } from './render.js';
 import { hooks } from './hooks.js';
 
 export const AF_KEYS = [
@@ -36,6 +36,33 @@ function paintAfOrigem(el: any, value: any, kind: string | null, uptimeS: any): 
   }
   el.textContent = origemValue(value, null);
   el.title = '';
+}
+
+// Fase 7: uma linha por obra ativa no teto (F2). O digest de 12 chars é o
+// digest da identidade (`autofetch:v3:o:<sha256>`), nunca o imdbId nem a conta.
+function afObrasTable(obras: any[]): any {
+  const table = element('table', 'timer-table');
+  const head = element('thead');
+  const headRow = element('tr');
+  const headers = ['obra', 'br', 'any', 'seeds', 'BR pronto', 'idade'];
+  for (let i = 0; i < headers.length; i += 1) headRow.appendChild(element('th', '', headers[i]));
+  head.appendChild(headRow);
+  table.appendChild(head);
+  const body = element('tbody');
+  for (let i = 0; i < obras.length; i += 1) {
+    const obra = obras[i] || {};
+    const pools = obra.pools || {};
+    const row = element('tr');
+    row.appendChild(element('td', 'timer-name', valueText(obra.digest)));
+    row.appendChild(element('td', 'num', valueText(pools.br)));
+    row.appendChild(element('td', 'num', valueText(pools.any)));
+    row.appendChild(element('td', 'num', valueText(pools.seeds)));
+    row.appendChild(element('td', '', obra.brReady ? 'sim' : '—'));
+    row.appendChild(element('td', 'num', formatDuration(obra.ageMs)));
+    body.appendChild(row);
+  }
+  table.appendChild(body);
+  return table;
 }
 
 export function renderAutofetchPanel(af: any, uptimeS?: any): void {
@@ -185,6 +212,18 @@ export function renderAutofetchPanel(af: any, uptimeS?: any): void {
     if (badge) {
       badge.style.display = overridden.indexOf(k) !== -1 ? 'inline-block' : 'none';
     }
+  }
+
+  // Fase 7 — resumo do teto por obra (F2) que já vem em `af.obras`.
+  const obrasEl = $('afObrasMetrics');
+  const obrasCountEl = $('afMetricObras');
+  const obras: any[] = Array.isArray(af.obras) ? af.obras : [];
+  if (obrasCountEl) obrasCountEl.textContent = obras.length + ' obra(s)';
+  if (obrasEl) {
+    obrasEl.textContent = '';
+    obrasEl.appendChild(obras.length
+      ? afObrasTable(obras)
+      : element('div', 'empty', 'Sem obras ativas no teto.'));
   }
 
   // Fase 3.5 do redesign: o diagnóstico de stall (lotes/slots/locks/skips) vem

@@ -22,6 +22,8 @@ import {
   seedsSelectionBlock,
   type SeedsPolicyConfig,
 } from './autofetch-policy.js';
+import { writeChupimTrace, chupimProbeLabel, type ChupimSeeds } from './autofetch-chupim-trace.js';
+import type { StreamTraceState } from '../utils/stream-trace.js';
 import * as metrics from '../utils/metrics.js';
 
 // Seleção do Chupim extraída do runner para a catraca de linhas. Continua sendo
@@ -40,6 +42,7 @@ export type AutoFetchRequest = {
   episode?: number | null;
   imdbId?: string | null;
   searchKey?: string | null;
+  trace?: StreamTraceState | null;
 };
 
 function isAutoFetchStream(stream: Stream): stream is AutoFetchStream {
@@ -84,12 +87,13 @@ function noteSeedsRejections(rejected: Map<string, number>, adapterId: string): 
  */
 export function autoFetchCandidates(
   streams: Stream[],
-  { season, episode, imdbId, searchKey }: { season?: number | null; episode?: number | null; imdbId?: string; searchKey?: string } = {},
+  { season, episode, imdbId, searchKey, trace }: { season?: number | null; episode?: number | null; imdbId?: string; searchKey?: string; trace?: StreamTraceState | null } = {},
 ) {
   const { autoFetchBr, debridApiKey } = opts();
   const adapter = debrid.current();
   if (!canAutoFetchBr({ autoFetchBr }, adapter)) {
     noteSkip('disabled', streams[0] || null, adapter?.id || '', '');
+    writeChupimTrace(trace, { pool: 'none', seeds: 'n/a', probe: 'off' });
     return [];
   }
   const account = accountScope(debridApiKey);
@@ -171,13 +175,19 @@ export function autoFetchCandidates(
   }
   let seedsImmediateLimit = live.autoFetchTopSeedsMax, seedsRare = false;
   let seedsBlocked = false;
+  // Fase 7: o pool seeds só tem decisão quando a cascata chega nele; `n/a`
+  // quando br/any já cobriram a busca. O motivo é rótulo curto de enum.
+  let seedsEvaluated = false;
+  let seedsReason = '';
   if (candidates.length === 0 && live.autoFetchTopSeeds) {
+    seedsEvaluated = true;
     // Política do pool seeds (dubbedOnly / lista P2P tocável) é decidida ANTES
     // de selecionar; o filtro de qualidade/tamanho roda no universo, antes do
     // pickSeedsPool. Nada aqui consulta cache — a parada por cache é do despacho.
     const block = seedsSelectionBlock(policy, liveStreams, { brProbePending: probeBlocked });
     if (block) {
       seedsBlocked = true;
+      seedsReason = String(block);
       noteSkip(block, liveStreams[0] || null, adapter?.id || '', 'seeds');
       // Só `dubbed-only` purga (regra PERMANENTE). `br-probe-pending` é
       // transitório: a fila seeds fica retida e volta a drenar quando o lease
@@ -266,6 +276,11 @@ export function autoFetchCandidates(
     const brQueued = entries.filter((entry) => entry.pool === 'br').length;
     if (brQueued > 0) metrics.count('autofetch.queue.surplus', brQueued);
   }
+
+  // Fase 7: resumo da decisão de SELEÇÃO (o despacho refina o seeds adiante).
+  const poolOut: 'br' | 'any' | 'seeds' | 'none' = candidates.length > 0 ? (pool as 'br' | 'any' | 'seeds') : 'none';
+  const seedsOut: ChupimSeeds = seedsEvaluated ? (seedsReason ? `blocked:${seedsReason}` : 'allowed') : 'n/a';
+  writeChupimTrace(trace, { pool: poolOut, seeds: seedsOut, probe: chupimProbeLabel(probeWork) });
 
   return immediate.map((stream) => ({ stream, account, pool, ...(pool === 'seeds' ? { slotLimit: seedsImmediateLimit, rare: seedsRare } : {}) }));
 }

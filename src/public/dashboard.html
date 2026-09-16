@@ -354,6 +354,7 @@
         <div class="metric"><span class="key">Filas ativas</span><span id="afMetricQueues" class="value">0 fila(s) / 0 item(ns)</span></div>
         <div class="metric"><span class="key">Lotes recheck</span><span id="afMetricRechecks" class="value">0 (0 settle)</span></div>
         <div class="metric"><span class="key">Blacklist mortos</span><span id="afMetricDead" class="value">0</span></div>
+        <div class="metric"><span class="key">Obras no teto (F2)</span><span id="afMetricObras" class="value">0 obra(s)</span></div>
         <div class="metric"><span class="key">Remoções represadas (aguardando decisão)</span><span id="afMetricSuppressed" class="value">0</span></div>
         <div class="metric"><span class="key">Orçamento hora</span><span id="afMetricBudget" class="value">0 / 0</span></div>
         <div class="metric"><span class="key">Última desistência</span><span id="afMetricGiveUp" class="value">—</span></div>
@@ -365,6 +366,13 @@
       <div class="subsection">
         <h3>Diagnóstico de stall</h3>
         <div id="afStallMetrics" class="metrics"><div class="empty">Sem dados de stall.</div></div>
+      </div>
+      <!-- Fase 7 (Chupim 2.0): resumo do teto por obra (F2) — digest curto do
+           registro, pools aceitos, prova de BR ready e idade da última entrada.
+           Nunca identifica a obra (sem imdbId/conta). -->
+      <div class="subsection">
+        <h3>Obras no teto (F2)</h3>
+        <div id="afObrasMetrics" class="metrics"><div class="empty">Sem obras ativas no teto.</div></div>
       </div>
     </section>
 

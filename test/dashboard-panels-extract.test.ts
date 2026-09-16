@@ -117,3 +117,27 @@ test('AF_KEYS cobre os knobs raros que o HTML expõe', async () => {
     assert.ok(mods.autofetch.AF_KEYS.includes(key), 'AF_KEYS lista ' + key);
   }
 });
+
+test('renderAutofetchPanel: bloco de obras (F2) compacto e fail-open sem o campo', async () => {
+  const { dom, mods } = await magnetEnv();
+  mods.hooks.hooks.register('renderAutofetchStall', () => {});
+  mods.autofetch.renderAutofetchPanel({
+    config: { effective: {}, envDefaults: {}, overriddenKeys: [] },
+    obras: [
+      { digest: 'abcdef012345', pools: { br: 2, any: 1, seeds: 0, other: 0 }, brReady: true, ageMs: 60000 },
+      { digest: '001122334455', pools: { br: 0, any: 0, seeds: 3, other: 0 }, brReady: false, ageMs: 120000 },
+    ],
+  }, 4000);
+  assert.equal(dom.byId['afMetricObras'].textContent, '2 obra(s)');
+  const text = flat(dom.byId['afObrasMetrics']);
+  assert.match(text, /abcdef012345/);
+  assert.match(text, /001122334455/);
+  assert.match(text, /sim/, 'prova BR-ready pintada');
+  assert.match(text, /1 min/, 'idade formatada');
+
+  // Sem o campo: contador zerado e aviso honesto (payload de versão anterior).
+  mods.autofetch.renderAutofetchPanel({ config: { effective: {}, envDefaults: {}, overriddenKeys: [] } }, 4000);
+  assert.equal(dom.byId['afMetricObras'].textContent, '0 obra(s)');
+  assert.match(flat(dom.byId['afObrasMetrics']), /Sem obras ativas/i);
+  dom.cleanup();
+});

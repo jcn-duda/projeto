@@ -76,7 +76,7 @@ function noteBrReady(digest: string): void {
   metrics.count('autofetch.evict.brReady');
 }
 
-function hasBrReady(digest: string): boolean {
+export function hasBrReady(digest: string): boolean {
   return cache.peek(`${brReadyPrefix}${digest}`) != null;
 }
 

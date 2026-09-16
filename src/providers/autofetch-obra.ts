@@ -47,7 +47,7 @@ import autofetchLive from '../utils/autofetch-live.js';
 import * as metrics from '../utils/metrics.js';
 import { overflowUpgradeAllowed } from './autofetch-obra-overflow.js';
 
-const OBRA_PREFIX = `${prefix('autofetch')}o:`;
+export const OBRA_PREFIX = `${prefix('autofetch')}o:`;
 
 // Lease curto da reserva: o suficiente para cobrir a chamada de enqueue. Não há
 // timer — a expiração é lida de `at` a cada consulta, o que mantém o módulo
