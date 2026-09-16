@@ -1,7 +1,7 @@
 // Persistência do MagnetDB extraída (magnetdb-persist.ts) + base da soma de
 // TTL restante (`ttlRemainingBasis`). Cobre: reexportação pela fachada pública,
-// degradação l1-rebuild → aggregate-estimate na primeira mutação e o
-// qualificador no painel (módulo ESM dashboard/magnets.ts).
+// degradação l1-rebuild → aggregate-estimate na primeira mutação e o valor do
+// qualificador exposto pelo status (consumido pelo modelo do /painel).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as magnetdb from '../src/utils/magnetdb.js';
@@ -50,27 +50,15 @@ test('restauração do agregado persistido (payload válido) é aggregate-estima
   assert.ok(magnetdb.status().sizeAlive >= 1, 'contagem restaurada do payload');
 });
 
-function flat(node: any): string {
-  if (!node) return '';
-  return [String(node.textContent || '')].concat((node.children || []).map(flat)).join(' ');
-}
-
-test('painel: qualificador da base junto das médias (módulo real)', async () => {
-  const { resetDashboardEnvironment } = await import('./helpers/dashboard.js');
-  const { dom, mods } = await resetDashboardEnvironment();
-  mods.magnets.renderMagnetDb({
-    enabled: true, l1Entries: 405, l1Max: 50000, sizeAlive: 73, sizeBad: 0, sizeLie: 1,
-    ttlRemainingBasis: 'l1-rebuild', ttlRemainingSeconds: { alive: 100, bad: null, lie: 50 }, byAdapter: {},
-  }, {}, 10);
-  const recalculada = flat(dom.byId['magnetMetrics']);
-  assert.match(recalculada, /recontada do L1/, 'l1-rebuild declarado no painel');
-  assert.match(recalculada, /restante real de cada chave/);
-  mods.magnets.renderMagnetDb(
-    { enabled: true, l1Entries: 1, l1Max: 1, sizeAlive: 1, sizeBad: 0, sizeLie: 0, ttlRemainingBasis: 'aggregate-estimate', byAdapter: {} },
-    {}, 10,
-  );
-  assert.match(flat(dom.byId['magnetMetrics']), /estimativa incremental ou restaurada/, 'default seguro: estimativa');
-  dom.cleanup();
+// O rótulo humano do qualificador ("recontada do L1" × "estimativa incremental
+// ou restaurada") vivia no cliente legado de /dashboard; o /painel consome
+// `ttlRemainingBasis` pelo modelo puro (view-magnets.ts), coberto em
+// painel-views.test.ts. Aqui o contrato do BACKEND continua o que importa: o
+// valor viaja estável e tipado pela fachada.
+test('painel: o status expõe ttlRemainingBasis consumível pelo modelo do painel', () => {
+  const basis = magnetdb.status().ttlRemainingBasis;
+  assert.equal(typeof basis, 'string');
+  assert.ok(basis.length > 0);
 });
 
 test('renewAlive sobre chave existente degrada l1-rebuild para aggregate-estimate', () => {

@@ -6,7 +6,7 @@ export {
   valueText,
   first,
   isObject,
-} from '../dashboard/core.js';
+} from './core.js';
 
 export function formatBytes(bytes: number | null | undefined): string {
   if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return '—';

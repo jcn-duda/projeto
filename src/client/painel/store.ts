@@ -124,6 +124,61 @@ export function resetPainelState(overrides: Partial<PainelState> = {}): void {
   notify();
 }
 
+export type ToastVariant = 'ok' | 'err' | 'info';
+
+export interface PainelToast {
+  id: number;
+  text: string;
+  variant: ToastVariant;
+}
+
+type ToastListener = (toasts: PainelToast[]) => void;
+
+// Fila global de toasts em canal PRÓPRIO (fora do PainelState): um toast novo
+// não pode re-renderizar a página nem disputar com a notificação do poll.
+const TOAST_MAX = 4;
+let toasts: PainelToast[] = [];
+let toastSeq = 0;
+const toastListeners = new Set<ToastListener>();
+
+function notifyToasts(): void {
+  for (const listener of toastListeners) listener(toasts);
+}
+
+export function getPainelToasts(): PainelToast[] {
+  return toasts;
+}
+
+export function subscribePainelToasts(listener: ToastListener): () => void {
+  toastListeners.add(listener);
+  return () => {
+    toastListeners.delete(listener);
+  };
+}
+
+/** Enfileira um toast e devolve o id (usado para fechar antes do auto-dismiss). */
+export function pushPainelToast(text: string, variant: ToastVariant = 'info'): number {
+  const id = ++toastSeq;
+  toasts = [...toasts, { id, text, variant }];
+  if (toasts.length > TOAST_MAX) toasts = toasts.slice(toasts.length - TOAST_MAX);
+  notifyToasts();
+  return id;
+}
+
+export function dismissPainelToast(id: number): void {
+  const next = toasts.filter((toast) => toast.id !== id);
+  if (next.length === toasts.length) return;
+  toasts = next;
+  notifyToasts();
+}
+
+/** Só para teste: reinicia a fila do singleton entre casos. */
+export function resetPainelToasts(): void {
+  toasts = [];
+  toastSeq = 0;
+  notifyToasts();
+}
+
 export function mergePainelPayload(partial: Record<string, any>): void {
   const now = Date.now();
   const nextMeta = { ...state.blockMeta };

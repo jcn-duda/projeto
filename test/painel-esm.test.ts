@@ -21,12 +21,23 @@ test('vendor preact.js confere exatamente com o hash no cabeçalho do preact.d.t
   assert.equal(actualHash, expectedHash, 'o sha256 do vendor precisa bater com o declarado no .d.ts');
 });
 
+/** Percorre o emit do painel recursivamente (o diretório `limpeza/` também
+ * publica módulos) — a allowlist é comparada com o conjunto INTEIRO, não só o
+ * topo, senão um módulo novo em subpasta fica sem rota sem ninguém notar. */
+function emittedPainelModules(dir: URL, prefix = ''): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      out.push(...emittedPainelModules(new URL(entry.name + '/', dir), prefix + entry.name + '/'));
+    } else if (entry.name.endsWith('.js')) {
+      out.push('client/painel/' + prefix + entry.name);
+    }
+  }
+  return out;
+}
+
 test('CLIENT_ASSETS cobre exatamente os arquivos do cliente /painel emitidos', () => {
-  const files = readdirSync(DIST_PAINEL_DIR).filter((f) => f.endsWith('.js')).map((f) => 'client/painel/' + f);
-  const vendorFiles = readdirSync(new URL('vendor/', DIST_PAINEL_DIR))
-    .filter((f) => f.endsWith('.js'))
-    .map((f) => 'client/painel/vendor/' + f);
-  const allEmitted = [...files, ...vendorFiles].sort();
+  const allEmitted = emittedPainelModules(DIST_PAINEL_DIR).sort();
 
   const allowlisted = CLIENT_ASSETS.filter((a) => a.startsWith('client/painel/')).sort();
   assert.deepEqual(allowlisted, allEmitted, 'todo módulo emitido do painel precisa constar na allowlist fechada');
@@ -35,6 +46,13 @@ test('CLIENT_ASSETS cobre exatamente os arquivos do cliente /painel emitidos', (
 test('PAGE_ASSETS inclui painel-tokens.css e painel.css', () => {
   assert.ok(PAGE_ASSETS.includes('painel-tokens.css'), 'PAGE_ASSETS precisa conter painel-tokens.css');
   assert.ok(PAGE_ASSETS.includes('painel.css'), 'PAGE_ASSETS precisa conter painel.css');
+  assert.ok(PAGE_ASSETS.includes('dashboard-tokens.css'), 'o painel consome dashboard-tokens.css');
+  assert.equal(PAGE_ASSETS.includes('dashboard.css'), false, 'o dashboard.css legado saiu da allowlist');
+});
+
+test('painel.css define o alias .painel-form-grid usado por view-config', () => {
+  const css = readFileSync(new URL('painel.css', PUBLIC_DIR), 'utf8');
+  assert.match(css, /\.painel-form-grid\s*\{/, '.painel-form-grid precisa existir no CSS');
 });
 
 test('painel.html tem UM <script type="module"> no entry e carrega tokens + CSS', () => {
@@ -52,8 +70,8 @@ test('painel.html tem UM <script type="module"> no entry e carrega tokens + CSS'
 });
 
 test('nenhum import nu ou require nos módulos do painel', () => {
-  const files = readdirSync(DIST_PAINEL_DIR).filter((f) => f.endsWith('.js'));
-  for (const file of files) {
+  for (const rel of emittedPainelModules(DIST_PAINEL_DIR)) {
+    const file = rel.replace('client/painel/', '');
     const js = readFileSync(new URL(file, DIST_PAINEL_DIR), 'utf8');
     const imports = [...js.matchAll(/\bfrom\s+['"](\.[^'"]+)['"]/g)].map((m) => m[1]);
     for (const spec of imports) {

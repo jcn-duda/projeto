@@ -7,18 +7,19 @@ import type express from 'express';
 // CSS dos painéis (Fase 3, PLANO_MELHORIAS §5.9). A lista é FECHADA de propósito:
 // publicPath() junta o nome ao diretório público, então aceitar nome arbitrário
 // vindo da URL abriria leitura fora de public/ (traversal). O JS dos painéis saiu
-// de src/public: /configure e /dashboard agora são ESM nativo emitido por
-// tsconfig.client.json, servido pela CLIENT_ASSETS abaixo.
+// de src/public: /configure e /painel agora são ESM nativo emitido por
+// tsconfig.client.json, servido pela CLIENT_ASSETS abaixo. O
+// `dashboard-tokens.css` permanece na allowlist porque o painel o consome.
 const PAGE_ASSETS = [
   'configure.css',
   'configure-components.css',
   'dashboard-tokens.css',
-  'dashboard.css',
   'painel-tokens.css',
   'painel.css',
+  'painel-limpeza.css',
 ];
 
-// Entry e filhos dos clientes ESM (/configure, /dashboard e /painel; fontes em
+// Entry e filhos dos clientes ESM (/configure e /painel; fontes em
 // src/client/<nome>, emitidos por tsconfig.client.json para
 // dist/src/public/client/). A lista é FECHADA: o caminho vem da URL e é juntado
 // ao diretório público — nome arbitrário abriria leitura fora de public/
@@ -26,7 +27,6 @@ const PAGE_ASSETS = [
 // no-cache para o ETag/304 pegar o deploy-skew sem congelar módulo velho.
 const CLIENT_ENTRIES = new Set([
   'client/configure/entry.js',
-  'client/dashboard/entry.js',
   'client/painel/entry.js',
 ]);
 const CLIENT_ASSETS = [
@@ -39,54 +39,38 @@ const CLIENT_ASSETS = [
   'client/configure/view.js',
   'client/configure/seal.js',
   'client/configure/init.js',
-  'client/dashboard/entry.js',
-  'client/dashboard/hooks.js',
-  'client/dashboard/state.js',
-  'client/dashboard/core.js',
-  'client/dashboard/render.js',
-  'client/dashboard/probes.js',
-  'client/dashboard/general.js',
-  'client/dashboard/af-stall.js',
-  'client/dashboard/f3.js',
-  'client/dashboard/timers.js',
-  'client/dashboard/catalog-panel.js',
-  'client/dashboard/catalog-render.js',
-  'client/dashboard/catalog-actions.js',
-  'client/dashboard/panels.js',
-  'client/dashboard/panels-l2.js',
-  'client/dashboard/panels-index.js',
-  'client/dashboard/status-issues.js',
-  'client/dashboard/status-actions.js',
-  'client/dashboard/status-root.js',
-  'client/dashboard/magnets.js',
-  'client/dashboard/autofetch.js',
-  'client/dashboard/autofetch-actions.js',
-  'client/dashboard/harvest.js',
-  'client/dashboard/harvest-actions.js',
-  'client/dashboard/harvest-debrid.js',
-  'client/dashboard/nav.js',
-  'client/dashboard/health.js',
-  'client/dashboard/debrid-test.js',
-  'client/dashboard/trace.js',
-  'client/dashboard/boot.js',
   'client/painel/vendor/preact.js',
   'client/painel/entry.js',
   'client/painel/app.js',
   'client/painel/kit.js',
   'client/painel/store.js',
   'client/painel/storage.js',
+  'client/painel/core.js',
   'client/painel/fmt.js',
   'client/painel/api.js',
   'client/painel/poll.js',
+  'client/painel/action.js',
+  'client/painel/confirm.js',
+  'client/painel/toast.js',
+  'client/painel/form.js',
+  'client/painel/limpeza-model.js',
+  'client/painel/config-model.js',
+  'client/painel/diagnostico-model.js',
   'client/painel/view-saude.js',
   'client/painel/view-conta.js',
   'client/painel/view-gate.js',
+  'client/painel/view-config.js',
   'client/painel/view-colhedor.js',
+  'client/painel/view-harvest-debrid.js',
   'client/painel/view-sonda.js',
   'client/painel/view-chupim.js',
   'client/painel/view-cache.js',
   'client/painel/view-limpeza.js',
+  'client/painel/view-diagnostico.js',
   'client/painel/view-magnets.js',
+  'client/painel/limpeza/catalogo-model.js',
+  'client/painel/limpeza/view-catalogo.js',
+  'client/painel/limpeza/view-manutencao.js',
 ];
 
 function makePublicHandlers(services: AppServices) {
@@ -121,13 +105,15 @@ function makePublicHandlers(services: AppServices) {
       .readFileSync(services.publicPath(name), 'utf8')
       // A aspa de fechamento faz parte do PADRÃO (e não só da substituição):
       // sem ela o match parava no `.css` sem consumir a aspa, a substituição
-      // acrescentava outra e o HTML saía `href="/dashboard.css?v=abc""`. Casar a
-      // aspa também ancora o fim real do valor.
+      // acrescentava outra e o HTML saía `href="/painel.css?v=abc""`. Casar a
+      // aspa também ancora o fim real do valor. A alternação mantém os nomes
+      // legados (`configure|dashboard|painel`) só para não perder um asset antigo
+      // que ainda apareça no HTML; o dashboard.css não existe mais.
       .replace(/((?:src|href)="\/(?:configure|dashboard|painel)[-\w]*\.(?:css|js))"/g, `$1?v=${assetVersion}"`)
       // Os entries dos clientes são aninhados (`/client/<nome>/entry.js`), fora
       // do padrão acima. Eles também carregam o fingerprint corrente — e os seus
       // imports relativos (filhos) são resolvidos pelo browser a partir deles.
-      .replace(/(src="\/client\/(?:configure|dashboard|painel)\/entry\.js)"/g, `$1?v=${assetVersion}"`);
+      .replace(/(src="\/client\/(?:configure|painel)\/entry\.js)"/g, `$1?v=${assetVersion}"`);
     // O HTML é a raiz do acoplamento (inline ↔ módulos) e aponta para o
     // fingerprint vigente: um HTML velho no cache do cliente chamaria URLs ?v=
     // antigas e o boot ficaria preso numa versão que o deploy já não serve.
@@ -138,7 +124,6 @@ function makePublicHandlers(services: AppServices) {
     };
   };
   const sendConfigure = sendVersionedHtml('configure.html');
-  const sendDashboard = sendVersionedHtml('dashboard.html');
   const sendPainel = sendVersionedHtml('painel.html');
 
   // Os HTML referenciam os assets por caminho absoluto porque a página responde
@@ -205,7 +190,7 @@ function makePublicHandlers(services: AppServices) {
     }
   };
 
-  return { sendConfigure, sendDashboard, sendPainel, sendPageAsset, pageAssets: PAGE_ASSETS, clientAssets: CLIENT_ASSETS, sendClientAsset, defaults, seal };
+  return { sendConfigure, sendPainel, sendPageAsset, pageAssets: PAGE_ASSETS, clientAssets: CLIENT_ASSETS, sendClientAsset, defaults, seal };
 }
 
 export { makePublicHandlers, PAGE_ASSETS, CLIENT_ASSETS };

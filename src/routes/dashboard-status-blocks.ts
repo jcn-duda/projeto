@@ -359,28 +359,39 @@ export async function computeStatusPayload(
     });
   }
 
-  // Bloco novo: gate (effective vs envDefaults vs overriddenKeys com diff do servidor)
+  // Bloco gate: divergências ao vivo do Chupim E do Colhedor, cada uma com o
+  // dono (`owner`) para o painel abrir a aba certa e focar o `cfg-field`. O dono
+  // vem da config que listou a chave — nada hardcoded no cliente. `paused`/
+  // `pausedSince` são estado de controle (botão), não campo de formulário.
   if (isReq('gate')) {
     const afSnap = services.autofetchLive.snapshot();
-    const effective = afSnap.effective;
-    const envDefaults = afSnap.envDefaults;
-    const overriddenKeys = afSnap.overriddenKeys;
-    const diffs = overriddenKeys.map((key: string) => ({
-      key,
-      effective: (effective as any)[key],
-      envDefault: (envDefaults as any)[key],
-    }));
+    const hSnap = services.harvesterLive.snapshot();
+    const diffs: Array<{ key: string; owner: string; effective: unknown; envDefault: unknown }> = [];
+    const seenKeys = new Set<string>();
+    for (const [owner, snap] of [['chupim', afSnap], ['colhedor', hSnap]] as const) {
+      for (const key of snap.overriddenKeys) {
+        if (key === 'paused' || key === 'pausedSince' || seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        diffs.push({
+          key,
+          owner,
+          effective: (snap.effective as any)[key],
+          envDefault: (snap.envDefaults as any)[key],
+        });
+      }
+    }
 
     out.gate = {
-      effective,
-      envDefaults,
-      overriddenKeys,
-      diffs,
+      effective: afSnap.effective,
+      envDefaults: afSnap.envDefaults,
+      overriddenKeys: afSnap.overriddenKeys,
+      diffs: diffs.sort((a, b) => a.key.localeCompare(b.key)),
+      fieldOwner: Object.fromEntries(diffs.map((d) => [d.key, d.owner] as const)),
       paused: afSnap.paused,
       pausedSince: afSnap.pausedSince,
-      autoFetchPauseAt: effective.autoFetchPauseAt,
-      envAutoFetchPauseAt: envDefaults.autoFetchPauseAt,
-      isAutoFetchPauseAtOverridden: overriddenKeys.includes('autoFetchPauseAt'),
+      autoFetchPauseAt: afSnap.effective.autoFetchPauseAt,
+      envAutoFetchPauseAt: afSnap.envDefaults.autoFetchPauseAt,
+      isAutoFetchPauseAtOverridden: afSnap.overriddenKeys.includes('autoFetchPauseAt'),
     };
   }
 

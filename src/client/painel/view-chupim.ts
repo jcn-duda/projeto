@@ -1,9 +1,8 @@
 ﻿import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber } from './kit.js';
-import { postAction } from './api.js';
-import { getPainelState } from './store.js';
-import { pollOnce } from './poll.js';
+import { useAction, actionError } from './action.js';
 import { formatAgeFromTimestamp } from './fmt.js';
+import { LiveConfigCard } from './view-config.js';
 
 export interface ViewChupimProps {
   autofetch?: Record<string, any>;
@@ -21,7 +20,7 @@ export function autoFetchTeto(af: Record<string, any> | null | undefined): numbe
 export function ViewChupim({ autofetch, metrics }: ViewChupimProps) {
   const af = autofetch || {};
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { pending, run } = useAction();
   const teto = autoFetchTeto(af);
 
   const paused = Boolean(af.paused);
@@ -33,24 +32,22 @@ export function ViewChupim({ autofetch, metrics }: ViewChupimProps) {
   const obras = Array.isArray(af.obras) ? af.obras : [];
   const lastSkips = Array.isArray(af.lastSkips) ? af.lastSkips : [];
 
-  const handleAction = async (action: string, bodyData: Record<string, any> = {}, confirmMsg?: string) => {
-    if (confirmMsg && !window.confirm(confirmMsg)) return;
-    const token = getPainelState().token;
-    if (!token) return;
-
-    setLoading(true);
-    setFeedback(null);
-    try {
-      const res = await postAction(token, action, bodyData);
-      if (res.ok) {
-        setFeedback({ text: 'Ação executada com sucesso', ok: true });
-        await pollOnce(['autofetch', 'metrics']);
-      } else {
-        setFeedback({ text: `Falha: ${res.error}`, ok: false });
-      }
-    } finally {
-      setLoading(false);
-    }
+  const handleAction = async (
+    action: string,
+    bodyData: Record<string, any> = {},
+    confirmMsg?: string,
+    successMsg = 'Ação executada',
+  ) => {
+    const outcome = await run({
+      action,
+      body: bodyData,
+      confirm: confirmMsg,
+      poll: ['autofetch', 'metrics'],
+      successToast: successMsg,
+    });
+    // O erro fica no card (feedback inline); o sucesso sai como toast global.
+    const error = actionError(outcome);
+    setFeedback(error ? { text: `Falha: ${error}`, ok: false } : null);
   };
 
   return html`
@@ -72,22 +69,22 @@ export function ViewChupim({ autofetch, metrics }: ViewChupimProps) {
           <div style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
             <button
               class="painel-btn ${paused ? 'painel-btn-accent' : 'painel-btn-danger'}"
-              disabled=${loading}
-              onClick=${() => handleAction('autofetch-pause', { paused: !paused })}
+              disabled=${pending}
+              onClick=${() => handleAction('autofetch-pause', { paused: !paused }, undefined, paused ? 'Chupim retomado' : 'Chupim pausado')}
             >
               ${paused ? 'Retomar Chupim' : 'Pausar Chupim'}
             </button>
             <button
               class="painel-btn"
-              disabled=${loading || recheckLots === 0}
-              onClick=${() => handleAction('autofetch-drain', { confirm: true }, 'Drenar lotes de recheck agora?')}
+              disabled=${pending || recheckLots === 0}
+              onClick=${() => handleAction('autofetch-drain', {}, 'Drenar lotes de recheck agora?', 'Rechecks drenados')}
             >
               Drenar Rechecks
             </button>
             <button
               class="painel-btn"
-              disabled=${loading || suppressed === 0}
-              onClick=${() => handleAction('autofetch-suppressed-drain', { confirm: true }, 'Drenar remoções represadas?')}
+              disabled=${pending || suppressed === 0}
+              onClick=${() => handleAction('autofetch-suppressed-drain', {}, 'Drenar remoções represadas?', 'Remoções represadas drenadas')}
             >
               Drenar Represadas (${suppressed})
             </button>
@@ -167,6 +164,17 @@ export function ViewChupim({ autofetch, metrics }: ViewChupimProps) {
             </table>
           `}
         </${Card}>
+      </div>
+
+      <div style="margin-top: var(--space-4);">
+        <${LiveConfigCard}
+          title="Configuração ao vivo do Chupim"
+          getAction="autofetch-config-get"
+          setAction="autofetch-config-set"
+          resetAction="autofetch-config-reset"
+          pollBlocks=${['autofetch', 'metrics']}
+          description="Ajustes do Chupim aplicados ao vivo (persistidos no SQLite, sem restart). Campo divergente do .env aparece marcado como 'ao vivo'."
+        />
       </div>
     </div>
   `;

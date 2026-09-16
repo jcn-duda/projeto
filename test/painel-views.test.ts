@@ -327,3 +327,49 @@ test('nextCatalogState não deixa o catálogo preso em "Carregando" após falha'
   // Resposta HTTP ok e vazia não pode virar null.
   assert.equal(nextCatalogState(null, { ok: true }).ok, false);
 });
+
+// ---------------------------------------------------------------------------
+// Extensao: aba Diagnostico, navegacao por hash e card de config ao vivo.
+// (Acrescimo puro; as assercoes existentes acima nao foram tocadas.)
+// ---------------------------------------------------------------------------
+
+import { readFileSync } from 'node:fs';
+import { ViewDiagnostico } from '../src/client/painel/view-diagnostico.js';
+import { TAB_IDS, tabFromHash } from '../src/client/painel/app.js';
+
+test('ViewDiagnostico retorna VNode valido com os servicos de debrid', () => {
+  const vnode = ViewDiagnostico({ debrid: { services: [{ id: 'alldebrid', label: 'AllDebrid' }] } });
+  assert.ok(vnode && typeof vnode === 'object');
+  assert.ok(vnode.props);
+});
+
+test('TAB_IDS cobre as dez abas e tabFromHash so aceita id valido', () => {
+  assert.deepEqual(
+    [...TAB_IDS],
+    ['saude', 'conta', 'gate', 'colhedor', 'sonda', 'chupim', 'cache', 'limpeza', 'magnets', 'diagnostico'],
+  );
+  assert.ok((TAB_IDS as readonly string[]).includes('diagnostico'));
+
+  const previousWindow = (globalThis as any).window;
+  try {
+    (globalThis as any).window = { location: { hash: '#diagnostico' } };
+    assert.equal(tabFromHash('saude'), 'diagnostico', 'hash valido abre a aba');
+    (globalThis as any).window = { location: { hash: '#../../etc' } };
+    assert.equal(tabFromHash('saude'), 'saude', 'hash fora da lista e ignorado');
+    (globalThis as any).window = { location: {} };
+    assert.equal(tabFromHash('chupim'), 'chupim', 'sem hash fica no fallback');
+  } finally {
+    if (previousWindow === undefined) delete (globalThis as any).window;
+    else (globalThis as any).window = previousWindow;
+  }
+});
+
+test('card de config ao vivo e reutilizado por Chupim e Colhedor (dirigido pelo schema)', () => {
+  const read = (rel: string) => readFileSync(new URL('../../src/client/painel/' + rel, import.meta.url), 'utf8');
+  assert.match(read('view-chupim.ts'), /\$\{LiveConfigCard\}/, 'Chupim usa o card');
+  assert.match(read('view-colhedor.ts'), /\$\{LiveConfigCard\}/, 'Colhedor usa o card');
+  const config = read('view-config.ts');
+  assert.match(config, /configRowsFromSnapshot/, 'as linhas nascem do schema do backend');
+  assert.match(config, /confirm:\s*\{[\s\S]{0,400}?danger:\s*true/, 'restaurar padroes e destrutivo e pede confirmacao');
+  assert.doesNotMatch(config, /\baf_/, 'sem lista hardcoded de campos');
+});

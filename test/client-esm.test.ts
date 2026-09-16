@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-// Infraestrutura C1+C2+C3: os clientes de /configure e /dashboard são ESM
+// Infraestrutura C1+C2+C3: os clientes de /configure e /painel são ESM
 // nativo compilado para o browser (dist/src/public/client) e, num segundo emit,
 // para o Node (dist/src/client) só para os testes. Sem AMD, sem loader, sem
 // bundle e sem suporte obrigatório a WebView sem ESM.
@@ -13,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..', '..');
 const CLIENTS = [
   { name: 'configure', browser: path.join(ROOT, 'dist', 'src', 'public', 'client', 'configure'), node: path.join(ROOT, 'dist', 'src', 'client', 'configure') },
-  { name: 'dashboard', browser: path.join(ROOT, 'dist', 'src', 'public', 'client', 'dashboard'), node: path.join(ROOT, 'dist', 'src', 'client', 'dashboard') },
+  { name: 'painel', browser: path.join(ROOT, 'dist', 'src', 'public', 'client', 'painel'), node: path.join(ROOT, 'dist', 'src', 'client', 'painel') },
 ];
 
 function readJson(rel: string): any {
@@ -43,9 +43,9 @@ test('build/typecheck cobrem os três programas', () => {
 
 test('browser emit dos dois clientes é ESM nativo (sem define/AMD/require)', () => {
   for (const client of CLIENTS) {
-    const files = fs.readdirSync(client.browser);
+    const files = fs.readdirSync(client.browser, { recursive: true } as any).filter((f: any) => String(f).endsWith('.js'));
     assert.ok(files.length >= 2, client.name + ' precisa de módulos no dist');
-    for (const file of files) {
+    for (const file of files as string[]) {
       const code = fs.readFileSync(path.join(client.browser, file), 'utf8');
       assert.doesNotMatch(code, /\bdefine\s*\(/, client.name + '/' + file + ' não pode ter AMD');
       assert.doesNotMatch(code, /\brequire\s*\(/, client.name + '/' + file + ' não pode ter require');
@@ -57,39 +57,43 @@ test('browser emit dos dois clientes é ESM nativo (sem define/AMD/require)', ()
   const configureEntry = fs.readFileSync(path.join(CLIENTS[0].browser, 'entry.js'), 'utf8');
   assert.match(configureEntry, /import\s*\{\s*init\s*\}\s*from\s*'\.\/init\.js'/);
   assert.match(configureEntry, /\binit\(\);/);
-  const dashboardEntry = fs.readFileSync(path.join(CLIENTS[1].browser, 'entry.js'), 'utf8');
-  assert.match(dashboardEntry, /from\s*'\.\/hooks\.js'/);
-  assert.match(dashboardEntry, /registerHooks\(\)/);
-  assert.match(dashboardEntry, /\bbind\(\);/);
+  const painelEntry = fs.readFileSync(path.join(CLIENTS[1].browser, 'entry.js'), 'utf8');
+  assert.match(painelEntry, /from\s*'\.\/app\.js'/);
+  assert.match(painelEntry, /export function bootstrap/);
+  assert.match(painelEntry, /\bbootstrap\(\);/);
 });
 
 test('segundo emit NodeNext existe em dist/src/client para os dois clientes', () => {
   for (const client of CLIENTS) {
     const expected = client.name === 'configure'
       ? ['entry.js', 'init.js', 'state.js', 'view.js', 'indexers.js']
-      : ['entry.js', 'hooks.js', 'state.js', 'core.js', 'render.js', 'status-root.js', 'boot.js'];
+      : ['entry.js', 'app.js', 'store.js', 'core.js', 'fmt.js', 'api.js', 'view-limpeza.js'];
     for (const file of expected) assert.ok(fs.existsSync(path.join(client.node, file)), 'faltou ' + client.name + '/' + file);
   }
 });
 
-test('módulos não têm efeito de DOM no import (entry é quem chama init/bind)', async () => {
+test('módulos não têm efeito de DOM no import (entry é quem chama init/bootstrap)', async () => {
   const configure = ['state.js', 'dom.js', 'keys.js', 'limits.js', 'indexers.js', 'view.js', 'seal.js', 'init.js'];
   for (const file of configure) {
     const mod = await import(pathToFileURL(path.join(CLIENTS[0].node, file)).href);
     assert.equal(typeof mod, 'object', file + ' precisa importar');
   }
-  // Dashboard: importa TODO o grafo, exceto o entry (que roda bind() no topo).
-  const dashboard = fs.readdirSync(CLIENTS[1].node).filter((f) => f.endsWith('.js') && f !== 'entry.js');
-  for (const file of dashboard) {
+  // Painel: importa TODO o grafo, exceto o entry (que chama bootstrap() no topo
+  // quando há DOM; sem DOM o guard `typeof document` o mantém inerte).
+  const painel = fs.readdirSync(CLIENTS[1].node, { recursive: true } as any)
+    .filter((f: any) => String(f).endsWith('.js') && !String(f).endsWith('entry.js'));
+  for (const file of painel as string[]) {
     const mod = await import(pathToFileURL(path.join(CLIENTS[1].node, file)).href);
     assert.equal(typeof mod, 'object', file + ' precisa importar sem DOM');
   }
 });
 
-test('allowlist fechada do servidor cobre todo o emit de browser (configure e dashboard)', async () => {
+test('allowlist fechada do servidor cobre todo o emit de browser (configure e painel)', async () => {
   const { CLIENT_ASSETS } = await import(pathToFileURL(path.join(ROOT, 'dist', 'src', 'routes', 'public.js')).href);
   for (const client of CLIENTS) {
-    const emitted = fs.readdirSync(client.browser).map((f) => 'client/' + client.name + '/' + f);
+    const emitted = fs.readdirSync(client.browser, { recursive: true } as any)
+      .filter((f: any) => String(f).endsWith('.js'))
+      .map((f: any) => 'client/' + client.name + '/' + String(f).replace(/\\/g, '/'));
     for (const rel of emitted) assert.ok(CLIENT_ASSETS.includes(rel), 'emit sem rota na allowlist: ' + rel);
   }
   for (const rel of CLIENT_ASSETS) {
@@ -97,38 +101,41 @@ test('allowlist fechada do servidor cobre todo o emit de browser (configure e da
   }
 });
 
-test('configure.html carrega o entry ESM; dashboard.html carrega UM module no entry', () => {
+test('configure.html e painel.html carregam UM module no entry', () => {
   const configure = fs.readFileSync(path.join(ROOT, 'dist', 'src', 'public', 'configure.html'), 'utf8');
   assert.match(configure, /<script type="module" src="\/client\/configure\/entry\.js"><\/script>/);
   assert.doesNotMatch(configure, /<script>\s*"use strict"/);
-  const dashboard = fs.readFileSync(path.join(ROOT, 'dist', 'src', 'public', 'dashboard.html'), 'utf8');
-  assert.equal((dashboard.match(/<script\b/g) || []).length, 1);
-  assert.match(dashboard, /<script type="module" src="\/client\/dashboard\/entry\.js"><\/script>/);
-  assert.doesNotMatch(dashboard, /src="\/dashboard-[\w-]+\.js/);
+  const painel = fs.readFileSync(path.join(ROOT, 'dist', 'src', 'public', 'painel.html'), 'utf8');
+  assert.equal((painel.match(/<script\b/g) || []).length, 1);
+  assert.match(painel, /<script type="module" src="\/client\/painel\/entry\.js"><\/script>/);
+  assert.doesNotMatch(painel, /src="\/painel-[\w-]+\.js/);
 });
 
-test('as cascas clássicas foram removidas do fonte', () => {
+test('as cascas clássicas e o cliente legado de /dashboard foram removidos do fonte', () => {
   assert.equal(fs.existsSync(path.join(ROOT, 'src', 'public', 'configure-app.js')), false);
+  assert.equal(fs.existsSync(path.join(ROOT, 'src', 'public', 'dashboard.html')), false);
+  assert.equal(fs.existsSync(path.join(ROOT, 'src', 'public', 'dashboard.css')), false);
+  assert.equal(fs.existsSync(path.join(ROOT, 'src', 'client', 'dashboard')), false);
   assert.equal(fs.readdirSync(path.join(ROOT, 'src', 'public')).some((f) => /^dashboard-.*\.js$/.test(f)), false);
 });
 
-test('emit de browser importa/executa os 30 módulos com DOM montado (inclui o entry)', async () => {
-  const { installDashboardDom, dashboardHtml } = await import('./helpers/dashboard-dom.js');
-  const dom = installDashboardDom(dashboardHtml());
+test('emit de browser do painel importa/executa sem DOM e o entry sobrevive sem #app', async () => {
+  // Os módulos do painel não tocam o DOM no import; o entry chama bootstrap()
+  // atrás do guard `typeof document !== 'undefined'` e sai cedo sem `#app`.
+  const files = fs.readdirSync(CLIENTS[1].browser, { recursive: true } as any)
+    .filter((f: any) => String(f).endsWith('.js') && String(f) !== 'entry.js');
+  assert.ok(files.length >= 20, 'o emit de browser do painel precisa dos módulos reais');
+  for (const file of files as string[]) {
+    const mod = await import(pathToFileURL(path.join(CLIENTS[1].browser, file)).href);
+    assert.equal(typeof mod, 'object', file + ' (browser emit) precisa importar/executar');
+  }
+  const previousDocument = (globalThis as any).document;
+  (globalThis as any).document = { getElementById: () => null };
   try {
-    const files = fs.readdirSync(CLIENTS[1].browser).filter((f) => f.endsWith('.js')).sort();
-    assert.equal(files.length, 30, 'o emit de browser do dashboard tem 30 módulos');
-    for (const file of files) {
-      const mod = await import(pathToFileURL(path.join(CLIENTS[1].browser, file)).href);
-      assert.equal(typeof mod, 'object', file + ' (browser emit) precisa importar/executar');
-    }
-    // O entry executou registerHooks()+bind() no import: prova de boot real.
     const entry = await import(pathToFileURL(path.join(CLIENTS[1].browser, 'entry.js')).href);
-    assert.equal(typeof entry.registerHooks, 'function');
-    const hooks = await import(pathToFileURL(path.join(CLIENTS[1].browser, 'hooks.js')).href);
-    assert.ok(hooks.hooks.has('loadStatus'), 'entry do browser registrou o hook loadStatus');
-    assert.ok(hooks.hooks.has('renderHealthStrip'));
+    assert.equal(typeof entry.bootstrap, 'function');
   } finally {
-    dom.cleanup();
+    if (previousDocument === undefined) delete (globalThis as any).document;
+    else (globalThis as any).document = previousDocument;
   }
 });

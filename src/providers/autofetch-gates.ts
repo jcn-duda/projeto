@@ -173,7 +173,7 @@ function warnAccountGated(adapter: DebridAdapter, account: string) {
   log.warn(
     `[autofetch] ${adapter.label} com conta cheia — nenhum download enfileirado; ` +
     'a varredura automática (DEBRID_SWEEP_UNDUBBED*) remove o excesso respeitando o acervo; ' +
-    'o painel /dashboard mostra a ocupação',
+    'o painel /painel mostra a ocupação',
   );
 }
 

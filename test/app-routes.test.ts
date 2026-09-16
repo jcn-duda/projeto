@@ -81,17 +81,18 @@ test('páginas referenciam assets com ?v=<hash> e a rota ignora a query', async 
   assert.match(configure.text, /href="\/configure\.css\?v=[0-9a-f]{10}"[^"]/);
   assert.match(configure.text, /src="\/client\/configure\/entry\.js\?v=[0-9a-f]{10}"[^"]/);
   assert.doesNotMatch(configure.text, /\?v=[0-9a-f]{10}""/);
-  const dashboard = await server.request('GET', '/dashboard');
-  assert.equal(dashboard.status, 200);
-  assert.match(dashboard.text, /src="\/client\/dashboard\/entry\.js\?v=[0-9a-f]{10}"[^"]/);
-  assert.doesNotMatch(dashboard.text, /\?v=[0-9a-f]{10}""/);
+  const painel = await server.request('GET', '/painel');
+  assert.equal(painel.status, 200);
+  assert.match(painel.text, /href="\/painel\.css\?v=[0-9a-f]{10}"[^"]/);
+  assert.match(painel.text, /src="\/client\/painel\/entry\.js\?v=[0-9a-f]{10}"[^"]/);
+  assert.doesNotMatch(painel.text, /\?v=[0-9a-f]{10}""/);
   // Paridade HTML ↔ allowlist fechada: TODO asset local referenciado pelas
   // páginas precisa ter rota. Os filhos ESM (importados pelo entry) não levam
-  // ?v= no HTML; a cobertura deles é feita por allowlist no dashboard-esm.test.
-  const assetUrls = [configure.text, dashboard.text]
-    .flatMap((html) => [...html.matchAll(/(?:src|href)="(\/(?:(?:configure|dashboard)[-\w]*\.css|client\/(?:configure|dashboard)\/entry\.js)\?v=[0-9a-f]{10})"/g)])
+  // ?v= no HTML; a cobertura deles é feita por allowlist no painel-esm.test.
+  const assetUrls = [configure.text, painel.text]
+    .flatMap((html) => [...html.matchAll(/(?:src|href)="(\/(?:(?:configure|painel)[-\w]*\.css|dashboard-tokens\.css|client\/(?:configure|painel)\/entry\.js)\?v=[0-9a-f]{10})"/g)])
     .map((match) => match[1]);
-  assert.ok(assetUrls.some((url) => url.startsWith('/client/dashboard/entry.js?v=')));
+  assert.ok(assetUrls.some((url) => url.startsWith('/client/painel/entry.js?v=')));
   assert.ok(assetUrls.some((url) => url.startsWith('/client/configure/entry.js?v=')));
   for (const url of assetUrls) {
     const asset = await server.request('GET', url);
@@ -103,7 +104,7 @@ test('contrato de cache: HTML no-store e asset imutável só com o fingerprint c
   // O HTML precisa ser sempre fresco: um HTML velho no cache do browser
   // chamaria URLs ?v= antigas e prenderia o boot numa versão que o deploy já
   // não emparelha. `no-store` fecha memória e disco.
-  for (const page of ['/configure', '/dashboard']) {
+  for (const page of ['/configure', '/painel']) {
     const res = await server.request('GET', page);
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('cache-control'), 'no-store', `${page} deve ser no-store`);
@@ -111,35 +112,35 @@ test('contrato de cache: HTML no-store e asset imutável só com o fingerprint c
   // A rota casa pelo path e aceita o entry sem query: o mesmo caminho sem o
   // hash aponta para conteúdo mutável, então `immutable` ali congelaria por um
   // ano. Só o ?v= CORRENTE ganha o cache longo.
-  const dashboard = await server.request('GET', '/dashboard');
-  const versioned = dashboard.text.match(/(\/client\/dashboard\/entry\.js\?v=[0-9a-f]{10})/);
+  const painel = await server.request('GET', '/painel');
+  const versioned = painel.text.match(/(\/client\/painel\/entry\.js\?v=[0-9a-f]{10})/);
   assert.ok(versioned, 'o HTML deve versionar o entry com o fingerprint');
   assert.ok(versioned[1]);
   const asset = await server.request('GET', versioned[1]);
   assert.equal(asset.status, 200);
   assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable');
-  const bare = await server.request('GET', '/client/dashboard/entry.js');
+  const bare = await server.request('GET', '/client/painel/entry.js');
   assert.equal(bare.status, 200);
   assert.equal(bare.headers.get('cache-control'), 'no-cache');
-  const wrong = await server.request('GET', '/client/dashboard/entry.js?v=0000000000');
+  const wrong = await server.request('GET', '/client/painel/entry.js?v=0000000000');
   assert.equal(wrong.status, 200);
   assert.doesNotMatch(String(wrong.headers.get('cache-control')), /immutable/);
 
-  // Cliente ESM de /dashboard: os filhos (importados sem ?v=) saem no-cache com
+  // Cliente ESM de /painel: os filhos (importados sem ?v=) saem no-cache com
   // ETag de CONTEÚDO (hash do byte) e revalidam por 304 quando o módulo não mudou.
-  const dashChild = await server.request('GET', '/client/dashboard/status-root.js');
-  assert.equal(dashChild.status, 200);
-  assert.equal(dashChild.headers.get('cache-control'), 'no-cache');
-  const dashEtag = String(dashChild.headers.get('etag'));
+  const painelChild = await server.request('GET', '/client/painel/fmt.js');
+  assert.equal(painelChild.status, 200);
+  assert.equal(painelChild.headers.get('cache-control'), 'no-cache');
+  const painelEtag = String(painelChild.headers.get('etag'));
   const expectedEtag = '"' + createHash('sha256')
-    .update(fs.readFileSync(new URL('../src/public/client/dashboard/status-root.js', import.meta.url)))
+    .update(fs.readFileSync(new URL('../src/public/client/painel/fmt.js', import.meta.url)))
     .digest('hex').slice(0, 32) + '"';
-  assert.equal(dashEtag, expectedEtag, 'ETag do filho é o hash de conteúdo, não stat');
-  assert.match(dashEtag, /^"[0-9a-f]{32}"$/);
-  const otherChild = await server.request('GET', '/client/dashboard/core.js');
-  assert.notEqual(String(otherChild.headers.get('etag')), dashEtag, 'módulos diferentes → ETags diferentes');
-  const dashRevalidated = await server.request('GET', '/client/dashboard/status-root.js', { headers: { 'if-none-match': dashEtag } });
-  assert.equal(dashRevalidated.status, 304);
+  assert.equal(painelEtag, expectedEtag, 'ETag do filho é o hash de conteúdo, não stat');
+  assert.match(painelEtag, /^"[0-9a-f]{32}"$/);
+  const otherChild = await server.request('GET', '/client/painel/core.js');
+  assert.notEqual(String(otherChild.headers.get('etag')), painelEtag, 'módulos diferentes → ETags diferentes');
+  const painelRevalidated = await server.request('GET', '/client/painel/fmt.js', { headers: { 'if-none-match': painelEtag } });
+  assert.equal(painelRevalidated.status, 304);
 
   // Cliente ESM de /configure: o entry versionado é immutable; os filhos
   // (importados sem ?v=) saem no-cache e revalidam por ETag → 304 quando o
@@ -228,4 +229,29 @@ test('Caddyfile e entrypoint não fecham /configure com basic_auth', () => {
   assert.doesNotMatch(caddy, /configure-auth/);
   assert.doesNotMatch(entry, /CONFIGURE_PAGE_PASSWORD/);
   assert.doesNotMatch(entry, /basic_auth/);
+});
+
+test('atalhos legados do painel: /autofetch e /harvester redirecionam para a aba certa', async () => {
+  const rootAf = await server.request('GET', '/autofetch');
+  assert.equal(rootAf.status, 302);
+  assert.equal(rootAf.headers.get('location'), '/painel#chupim');
+  const rootHarv = await server.request('GET', '/harvester');
+  assert.equal(rootHarv.status, 302);
+  assert.equal(rootHarv.headers.get('location'), '/painel#colhedor');
+
+  const segment = encodeConfig({ m: 3 });
+  const cfgAf = await server.request('GET', `/${segment}/autofetch`);
+  assert.equal(cfgAf.status, 302);
+  assert.equal(cfgAf.headers.get('location'), `/${segment}/painel#chupim`);
+  const cfgHarv = await server.request('GET', `/${segment}/harvester`);
+  assert.equal(cfgHarv.status, 302);
+  assert.equal(cfgHarv.headers.get('location'), `/${segment}/painel#colhedor`);
+});
+
+test('o dashboard legado saiu: /dashboard e /:userConfig/dashboard devolvem 404', async () => {
+  const root = await server.request('GET', '/dashboard');
+  assert.equal(root.status, 404);
+  const segment = encodeConfig({ m: 3 });
+  const cfg = await server.request('GET', `/${segment}/dashboard`);
+  assert.equal(cfg.status, 404);
 });

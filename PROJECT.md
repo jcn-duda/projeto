@@ -6,7 +6,7 @@
 
 > **ESM total + resolvedores em TypeScript (2026-09-12):** saneamento pré-ESM
 > (`3c20c39`), `resolvers/` e `*-resolver/` em ESM (`31ddac9`) e depois tipados
-> integralmente em `.ts` (`aec0a9a`), clientes `/configure`/`/dashboard` em ESM
+> integralmente em `.ts` (`aec0a9a`), clientes `/configure`/`/painel` em ESM
 > nativo `src/client/` (`1b3426c`) e fim do CommonJS nos testes (`5e28d7d`).
 > Validado no `5e28d7d`: 2269 testes, `test:complete` com 237 arquivos + 10
 > harnesses, adversarial 10/10, typecheck zero nos três programas e container
@@ -41,7 +41,7 @@
 > do topo.
 - **Process & Application Layer**:
   - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
-  - `src/app.ts`: Express application factory (`createApp()`); route *registration* lives in `src/routes/register.ts` since §5.5 (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/dashboard`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`, plus the closed `PAGE_ASSETS` allowlist of panel HTML/CSS/images and the `CLIENT_ASSETS` allowlist of the `/configure` and `/dashboard` ESM client modules).
+  - `src/app.ts`: Express application factory (`createApp()`); route *registration* lives in `src/routes/register.ts` since §5.5 (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/painel`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`, plus the closed `PAGE_ASSETS` allowlist of panel HTML/CSS/images and the `CLIENT_ASSETS` allowlist of the `/configure` and `/painel` ESM client modules).
 - **Providers & Orchestration Layer**:
   - `src/providers/search-orchestrator.ts`: Query planning, Cinemeta/TMDB metadata, raw provider fan-out (`collectRaw`), Brazilian priority grace, pack fallbacks, enrichment tails. Phase control stays implicit via `latest-writer`'s `finish.phase()`/`finish.advance()` — no explicit `SearchPhase` state machine (A3 not implemented).
   - `src/providers/search-cache.ts`: Stale-While-Revalidate (SWR) cache handling, request coalescing (`inFlight`), background revalidation (`scheduleStaleRefresh`).
@@ -69,7 +69,7 @@
   - `bludv-resolver`, `comandotorrents-resolver`, `nerdfilmes-resolver`, `torrentdosfilmes-resolver`, `vacatorrent-resolver`: Microservices running on internal ports 8700–8704 with shared core engine (`resolvers/` runtime).
 - **Panel Layer** (`src/public/` + `src/client/`):
   - `/configure`: `configure.html` + `configure.css` + the native-ESM client at `src/client/configure/*.ts` (`tsconfig.client.json` browser emit into `dist/src/public/client/`; `tsconfig.client.test.json` NodeNext emit into `dist/src/client/` only for tests). One `<script type="module" src="/client/configure/entry.js">`; the server injects `?v=<content hash>` into the entry (`immutable`), serves children in the closed `CLIENT_ASSETS` allowlist with `no-cache` + ETag/304, and the tests import the real modules via `test/helpers/client.ts` (no `new Function`/function-body regex).
-  - `/dashboard`: `dashboard.html` + `dashboard.css`/`dashboard-tokens.css` + the native-ESM client at `src/client/dashboard/*.ts` (C3 cutover). One `<script type="module" src="/client/dashboard/entry.js">`; the entry registers the closed hook set and calls `bind()` (modules have no top-level effect), `DashState` is an exported object mutated by property, the server injects `?v=<content hash>` into the entry (`immutable`) and serves children in the closed `CLIENT_ASSETS` allowlist with `no-cache` + ETag/304, and the tests import the real modules via `test/helpers/dashboard.ts` (no `new Function`/function-body regex). `PAGE_ASSETS` now holds only HTML/CSS/images.
+  - `/painel`: `painel.html` + `painel-tokens.css`/`painel.css`/`painel-limpeza.css` (reutilizando `dashboard-tokens.css`) + the native-ESM client at `src/client/painel/*.ts` (cutover do dashboard legado). One `<script type="module" src="/client/painel/entry.js">`; the entry boots the Preact app (`app.ts` + `store.ts`), the server injects `?v=<content hash>` into the entry (`immutable`) and serves children in the closed `CLIENT_ASSETS` allowlist with `no-cache` + ETag/304, and the tests import the real modules via `test/painel-*.test.ts` (with `test/painel-esm.test.ts` tying the client graph to the `CLIENT_ASSETS` allowlist). Tabs: Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico; the Chupim/Colhedor tabs carry the live operator config (the reusable `view-config.ts` card, driven by the backend schema), the Limpeza/Magnets tabs the cleanup routines, and the Diagnóstico tab the indexer test, debrid-key validation and `stream-trace` reading (`view-diagnostico.ts`). The gate diff links carry the owner (`owner`/`fieldOwner` in the `gate` block) and jump to the owning tab, focusing the matching `cfg-field` (`#chupim`/`#colhedor` routing preserved). The legacy `/dashboard` UI was replaced by `/painel`; the shortcuts `/autofetch` and `/harvester` redirect 302 to `/painel#chupim` and `/painel#colhedor`. The backend routes keep the historical names (`/dashboard-status.json`, `/dashboard-action.json`). `PAGE_ASSETS` holds only HTML/CSS/images.
 
 ---
 
@@ -83,7 +83,7 @@
 - `src/debrid/*.ts`: Debrid adapters, file selector, common helpers, live-check (P5).
 - `src/utils/*.ts`: Format submodules, cache, net-safety, magnetdb, release-index, stream-trace/trace-recompute.
 - `resolvers/*.ts`: Shared **TypeScript/ESM** core of the six Brazilian resolvers, compiled by `tsc` into `dist/resolvers/` (`is-main.ts` replaces `require.main`; profile config in `env-config.ts`; shared types in `types.ts`); `resolvers/profiles/*.ts`: per-site parsers and rules. The `*-resolver/server.ts` shims are ESM with a `default` lazy instance (`shim-instance.ts`), kept for tests and standalone mode.
-- `src/public/*`: Panel pages — `/configure` and `/dashboard` HTML/CSS/images (no build). Both client JS trees live under `src/client/<name>/*.ts` (native ESM, built by `tsconfig.client.json`; NodeNext test emit via `tsconfig.client.test.json`).
+- `src/public/*`: Panel pages — `/configure` and `/painel` HTML/CSS/images (no build). Both client JS trees live under `src/client/<name>/*.ts` (native ESM, built by `tsconfig.client.json`; NodeNext test emit via `tsconfig.client.test.json`).
 - `scripts/check-line-budget.ts` + `.line-budget.json`: 400-line ratchet over `.ts`/`.js`/`.css` (§5.8, scope extended to `.css` on 08-29); `npm run lint:lines`.
 - `test/**/*.test.ts`: testes unitários e e2e; `npm run test:complete` confere a lista do `package.json` e os harnesses.
 - `test/e2e/*.test.ts`: Opaque-box E2E test suite (Tiers 1–4).
@@ -99,7 +99,7 @@
 | 3 | S1 Unhandled Rejections & Async Routes | Top-level `unhandledRejection` handler + `asyncRoute` Express wrappers | M1 | PLANO_MELHORIAS §2 |
 | 4 | S2 SSRF Net Safety | Torznab `isSafeDownloadUrl` blocking private IPs and link-local addresses | M1 | PLANO_MELHORIAS §2 |
 | 5 | S3 Diagnostic Gate Enclosure | Enforce `diagnosticGate.enter('global')` on `/debrid-status.json` and `/metrics.json` | M1 | PLANO_MELHORIAS §2 |
-| 6 | S4 Destructive Action Confirmation | Require `{"confirm": true}` for `clear-cache` and `sweep-dead` dashboard actions | M1 | PLANO_MELHORIAS §2 |
+| 6 | S4 Destructive Action Confirmation | Require `{"confirm": true}` for `clear-cache` and `sweep-dead` painel actions | M1 | PLANO_MELHORIAS §2 |
 | 7 | S5 Node 22 Type Pinning | Pin `@types/node` to `^22.0.0` aligned with `node:22-alpine` runtime | M1 | PLANO_MELHORIAS §2 |
 | 8 | B4 Autofetch Drain Backoff | Queue cycling on hourly budget exhaustion + backoff via `DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS` | M1 | PLANO_MELHORIAS §2 |
 | 9 | Corrupted L2 SQLite Recovery | Auto-rename corrupted database to `cache.db.corrupt` and recreate clean DB on boot | M1 | PLANO_MELHORIAS §2.9 |

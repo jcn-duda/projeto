@@ -340,7 +340,7 @@ stremio adom/
 │   │   ├── addon-router.ts   # protocolo Stremio (substituiu o SDK no runtime)
 │   │   ├── stream.ts         # /stream por cima do findStreams
 │   │   ├── resolve.ts        # /resolve (HMAC)
-│   │   ├── public.ts         # /configure, /dashboard, /seal-config
+│   │   ├── public.ts         # /configure, /painel, /seal-config
 │   │   └── diagnostics.ts    # /metrics.json, /dashboard-*.json
 │   ├── providers/
 │   │   ├── index.ts          # fachada: reexporta os módulos irmãos
@@ -356,10 +356,10 @@ stremio adom/
 │   ├── debrid/               # adaptadores: premiumize, realdebrid, …
 │   ├── client/               # clientes ESM nativos (TS, compilados)
 │   │   ├── configure/        # entry, state, dom, keys, limits, indexers, view, seal, init
-│   │   └── dashboard/        # entry + hooks/state/core/render + painéis e abas
+│   │   └── painel/           # entry, app/store/api/action, config ao vivo, views (abas)
 │   ├── public/               # HTML/CSS/imagens estáticos (sem build)
 │   │   ├── configure.html    # + configure.css; JS em src/client/configure
-│   │   └── dashboard.html    # + dashboard.css/dashboard-tokens.css; JS em src/client/dashboard
+│   │   └── painel.html       # + painel.css/painel-tokens.css/dashboard-tokens.css; JS em src/client/painel
 │   └── utils/
 │       ├── cache.ts
 │       ├── cache-keys.ts     # versão dos namespaces (streams:v6, idx:v5, …)

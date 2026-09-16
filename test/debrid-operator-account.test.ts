@@ -141,41 +141,20 @@ test('falhas auth/rate/timeout preservam reason/fix e scrubam a credencial', asy
   mode = 'ok';
 });
 
-test('frontend: seção segura e teste não deixa a chave no DOM (módulo ESM real)', async () => {
-  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
-  assert.match(html, /id="debridTestService"/);
-  assert.match(html, /id="debridTestKey"[^>]*type="password"/);
-  assert.match(html, /não salva|não altera/i);
+test('frontend: a validação de chave do /painel não deixa a chave no DOM (modelo real)', async () => {
+  const view = readFileSync(new URL('../../src/client/painel/view-diagnostico.ts', import.meta.url), 'utf8');
+  assert.match(view, /action: 'debrid-account-test'/, 'o painel chama o gate de credencial');
+  assert.match(view, /type="password"/, 'a chave entra em campo password');
+  assert.match(view, /accountTestRows/, 'o resultado é normalizado pelo modelo do painel');
 
-  const { resetDashboardEnvironment } = await import('./helpers/dashboard.js');
-  const { dom, mods } = await resetDashboardEnvironment();
+  const { accountTestRows } = await import('../src/client/painel/diagnostico-model.js');
   const secret = 'chave-no-dom-1234';
-  const payload = {
+  const rows = accountTestRows({
     ok: true, service: 'accountfake', label: 'Conta Fake', last4: '1234', fingerprint: 'deadbeef',
+    apiKey: secret, key: secret,
     account: { magnets: 9, ready: 8, active: 1 }, capabilities: { cacheCheck: true, inventory: false },
-  };
-  const requests: any[] = [];
-  dom.setFetch((url: string, init: any) => {
-    requests.push({ url: String(url), init });
-    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(payload) });
   });
-  mods.state.DashState.token = 'tok';
-  dom.element('debridTestService').value = 'accountfake';
-  dom.element('debridTestKey').value = secret;
-  mods.debridTest.runDebridAccountTest();
-  await new Promise((resolve) => setTimeout(resolve, 15));
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, '/dashboard-action.json');
-  assert.deepEqual(JSON.parse(requests[0].init.body), { action: 'debrid-account-test', service: 'accountfake', key: secret });
-  assert.equal(dom.byId['debridTestKey'].value, '', 'input limpo em todo desfecho');
-  const rendered = collectText(dom.byId['debridTestOutput']) + ' ' + collectText(dom.byId['debridTestFeedback']);
-  assert.equal(rendered.includes(secret), false, 'chave não reaparece no DOM');
-  assert.match(rendered, /Conta Fake/);
-  assert.match(rendered, /Magnets/);
-  dom.cleanup();
+  assert.ok(rows.every((row) => !row.value.includes(secret)), 'a chave nunca vira valor de linha');
+  assert.ok(rows.some((row) => row.value === 'Chave validada'), 'o sucesso aparece como rótulo');
+  assert.ok(rows.some((row) => row.value.includes('Conta Fake')), 'o rótulo da conta aparece');
 });
-
-function collectText(node: any): string {
-  if (!node) return '';
-  return [String(node.textContent || '')].concat((node.children || []).map(collectText)).join(' ');
-}

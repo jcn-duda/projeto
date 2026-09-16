@@ -38,7 +38,7 @@ dos achados críticos). Autocontido: pode ser executado por um agente sem acesso
 | S1 | Sem `process.on('unhandledRejection')`; Express 4 não captura promise de rota async → crash derruba a stack inteira (via `wait -n` do entrypoint) | `src/addon.ts`; rotas async em `src/app.ts` |
 | S2 | SSRF: `fetch(item.downloadUrl)` do Link Torznab sem allowlist (site BR comprometido aponta para `169.254.169.254`/loopback) | `src/providers/jackett.ts` (`resolveDownloadMagnet`) |
 | S3 | `/debrid-status.json` e `/metrics.json` fora do `diagnosticGate` (as demais rotas de diagnóstico passam) | `src/app.ts` |
-| S4 | Ações globais destrutivas do dashboard (`clear-cache`, `sweep-dead`) sem confirmação; `basic_auth` do Caddyfile comentado | `src/app.ts`, `Caddyfile` |
+| S4 | Ações globais destrutivas do painel (`clear-cache`, `sweep-dead`) sem confirmação; `basic_auth` do Caddyfile comentado | `src/app.ts`, `Caddyfile` |
 | S5 | `@types/node@^26` com runtime `node:22-alpine`: typecheck aprova API inexistente no container | `package.json` |
 
 ### Dívida arquitetural
@@ -191,7 +191,7 @@ em fundo, e deixar a passada atual protegida.
 | 2.5 | B3: `collectRaw` aceita `deadlineAt` e calcula `budget` como tempo RESTANTE menos a reserva (`remainingCheckBudget(deadlineAt) - debridReserve`, piso 500ms) em vez de fatia fixa; `doSearch` passa o deadline nas duas coletas (normal e pack) | ✅ implementado |
 | 2.6 ✅ | S3: `/debrid-status.json` e `/metrics.json` passam pelo `diagnosticGate.enter()` (mesmo token e rate limit das outras rotas de diagnóstico) | `src/app.ts` |
 | 2.7 ✅ | S1 (parte 2): wrapper `asyncRoute(fn)` (catch → 500 + log) nas 6 rotas async de `src/app.ts` | `src/app.ts` |
-| 2.8 ✅ | S4: `clear-cache` e `sweep-dead` devolvem 400 `confirmation_required` sem `{"confirm": true}` | `src/app.ts`, `src/public/dashboard.html` |
+| 2.8 ✅ | S4: `clear-cache` e `sweep-dead` devolvem 400 `confirmation_required` sem `{"confirm": true}` | `src/app.ts`, `src/public/dashboard.html` (hoje `painel.html`) |
 | 2.9 ✅ | Cache L2 corrompido no boot vira `cache.db.corrupt` + banco novo — **só em corrupção real** (`SQLITE_CORRUPT`/`SQLITE_NOTADB`/"malformed"). `SQLITE_BUSY`, stall de I/O e `EACCES` caem em memória sem tocar no volume | `src/utils/cache.ts` |
 | 2.10 ✅ | `npm audit --omit=dev` como passo do CI | `.github/workflows/ci.yml` |
 
@@ -250,7 +250,7 @@ compilado. Esforço S–M.
 | # | Tarefa |
 |---|---|
 | 4.1 ✅ | Teste com cinemeta lento (2500ms) + TMDB miss (5000ms): resposta NÃO estoura o deadline. `test/search-budget-metadata.test.ts`, mais os dois T5 do `collection-window` |
-| 4.2 ✅ | `search.deadline` agora preserva o total e segmenta em `.metadata`/`.providers`. O corte é de metadata também quando ela termina depois da janela normal de coleta (`deadlineAt − debridReserve`): o piso de 500ms pode deixar provider em voo, mas não muda a causa. `search.metadata` é timer (avg/p95/max) no `/metrics.json`, consolidado no `/dashboard-status.json` e exibido no dashboard. Prova: `test/search-budget-metadata.test.ts` reproduz os dois lados, inclusive provider lento depois de metadata que já consumiu seu orçamento. |
+| 4.2 ✅ | `search.deadline` agora preserva o total e segmenta em `.metadata`/`.providers`. O corte é de metadata também quando ela termina depois da janela normal de coleta (`deadlineAt − debridReserve`): o piso de 500ms pode deixar provider em voo, mas não muda a causa. `search.metadata` é timer (avg/p95/max) no `/metrics.json`, consolidado no `/dashboard-status.json` e exibido no painel. Prova: `test/search-budget-metadata.test.ts` reproduz os dois lados, inclusive provider lento depois de metadata que já consumiu seu orçamento. |
 | 4.3 ✅ | Revisar `Math.max(500, …)`: **decisão — manter.** É intencional, não sobra de fatia fixa. `remainingCheckBudget(deadlineAt) − debridReserve` fica negativo quando metadados lentos já corroeram a reserva; sem o piso, `collectRaw` desistiria sem tentar e a resposta sairia known:false/vazia de bandeja. O piso não pode estourar o `replyDeadline`: o `raceWithDeadline` de `findStreams` corta `doSearch` no relógio absoluto (mesmo `deadlineAt`), **independente** do orçamento interno — pior caso é a resposta chegar até 500ms mais perto do corte externo, nunca depois. Trocar por devolver parcial na hora (orçamento 0) não evita corte nenhum (o relógio externo já protege) — só troca uma tentativa real de coleta por known:false garantido, pior para quem usa. Documentado em `src/providers/index.ts` junto do cálculo |
 
 **Risco:** médio — mexe no invariante 1. Qualquer mudança aqui exige releitura
@@ -477,7 +477,7 @@ manifest, `createStreamHandler` (de `routes/stream.ts`) e `registerRoutes`
 `streamsNeedRevalidation`. A montagem toda mora em `src/routes/`:
 `services.ts` (`buildServices()` → `AppServices`), `register.ts` (único ponto
 de montagem das rotas), `stream.ts`, `resolve.ts` (`makeResolveHandler`),
-`public.ts` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config`),
+`public.ts` (`/configure`, `/painel`, `/defaults.json`, `/seal-config`),
 `diagnostics.ts` (`/metrics.json`, `/dashboard-status.json`,
 `/dashboard-action.json`, `/test-indexer.json`, `/debrid-status.json`),
 `origin.ts`, `async.ts`, `state.ts` (`prefetchInFlight`) e `types.ts`
@@ -655,7 +655,7 @@ porque é nesses arquivos que o `--bless` vai aparecer):
 | 5 | `src/providers/debrid-pipeline.ts` | 726 | 14 | |
 | 6 | `src/debrid/realdebrid.ts` | 572 | 14 | |
 | 7 | `src/debrid/alldebrid.ts` | 784 | 13 | |
-| 8 | `src/routes/diagnostics.ts` | 492 | 13 | cresce a cada ação nova do dashboard; despacho por ação é a costura óbvia |
+| 8 | `src/routes/diagnostics.ts` | 492 | 13 | cresce a cada ação nova do painel; despacho por ação é a costura óbvia |
 
 Baixo churn/alto tamanho ficam para depois — a catraca não morde neles:
 `catalog.ts` (1.064 linhas / 5 commits), `vacatorrent.js` (1.024 / 2),
@@ -703,7 +703,7 @@ Resultado:
 | Arquivo | Antes | Depois | Extraído |
 |---|---|---|---|
 | `configure.html` | 1.771 | 1.056 | `configure.css` (505) + `configure-app.js` (221: el/estado, base64url, selo, wiring); na revisão C1+C2 o JS virou `src/client/configure/*.ts` (ESM nativo) |
-| `dashboard.html` | 2.429 | ~1.556 | `dashboard.css`/`dashboard-tokens.css` (estáticos) + o cliente ESM `src/client/dashboard/*.ts` (emit browser em `dist/src/public/client/dashboard/`); no cutover C3 o JS clássico saiu de `src/public/` |
+| `dashboard.html` | 2.429 | ~1.556 | `dashboard.css`/`dashboard-tokens.css` (estáticos) + o cliente ESM `src/client/dashboard/*.ts` (emit browser em `dist/src/public/client/dashboard/`); no cutover C3 o JS clássico saiu de `src/public/` — **hoje substituído por `painel.html`/`src/client/painel/`** |
 
 **O contrato que a extração revelou:** os testes regexam CORPOS de função e
 âncoras de texto DENTRO do html (`renderMagnetDb`, os painéis do
@@ -742,6 +742,20 @@ com `no-cache` + ETag/304. Os testes do dashboard deixaram de usar
 `new Function`, ordem de scripts e globals e importam o emit de Node via
 `test/helpers/dashboard.ts`; `test/dashboard-esm.test.ts` cobre import
 DOM-free, boot/wiring e grafo/allowlist/entry.
+
+**Cutover para o `/painel` (supersede o C3):** a superfície operacional passou
+a ser o `/painel` (`src/public/painel.html` + `src/client/painel/*.ts`, ESM
+nativo com Preact vendorizado em `client/painel/vendor/preact.js`), com abas
+que reúnem saúde, conta debrid, gate, colhedor, sonda BR, chupim, cache, limpeza
+e magnets — incluindo a configuração ao vivo do Chupim (`cfg:v1:autofetch`) e do
+Colhedor (`cfg:v1:harvester`) e as rotinas de catálogo/limpeza/magnets. Os
+atalhos `/autofetch` e `/harvester` (e as variantes `/:userConfig/...`)
+redirecionam 302 para `/painel#chupim` e `/painel#colhedor`. O cliente
+`src/client/dashboard/*.ts` é substituído pelo `src/client/painel/*.ts`; as
+rotas de backend mantêm o nome histórico (`/dashboard-status.json`,
+`/dashboard-action.json`, `src/routes/dashboard-actions*.ts`) e o
+`dashboard-tokens.css` segue na allowlist dos assets, reutilizado pelo
+`painel.html`.
 
 **Lição registrada** (tentativa descartada): a primeira extração foi feita num
 worktree criado sobre base desatualizada do `origin/esm` — o dashboard de lá
@@ -818,7 +832,7 @@ Trilha A (produção, 0 código)
 | 7.13 | `torrentStatus` falha não zera streak de dead/stall | C1 | S | dado (conta) | — | DONE | falha/`unknown` de status preserva streak; só evidência medida (ready/dead/stalled/movimento) altera |
 | 7.14 | Vaga por busca usa cota do pool (`autoFetchMax` / `autoFetchTopSeedsMax`) | C1 | S | dado (fila) | — | DONE | `acquireSearchSlot` respeita teto do pool ativo; seeds com teto próprio 1..4 |
 | 7.15 | `reindexQueues` no boot reconstrói índice de filas persistentes | C1 | S | dado (fila) | — | DONE | boot chama `reindexQueues`; `snapshot()`/`drainQueues()` do painel voltam a ver filas no SQLite (o `drainNext` já lia a chave direto) |
-| 7.16 | Docs/UI `autoFetchMax` 1..12 (`dashboard.html`, `AGENTS.md`) | C1 | S | nulo (docs) | 7.14 | DONE | campo `af_autoFetchMax` max=12; `af_autoFetchTopSeedsMax` permanece 1..4; docs alinhadas |
+| 7.16 | Docs/UI `autoFetchMax` 1..12 (`dashboard.html` na época, hoje `painel.html`; `AGENTS.md`) | C1 | S | nulo (docs) | 7.14 | DONE | campo `af_autoFetchMax` max=12; `af_autoFetchTopSeedsMax` permanece 1..4; docs alinhadas |
 
 ### Explicitamente fora (não fazer nesta fase)
 

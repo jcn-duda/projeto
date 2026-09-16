@@ -149,7 +149,7 @@ O mesmo token abre `/metrics.json`, `/test-indexer.json`,
 Sem `JACKETT_TEST_TOKEN`
 no `.env` a rota fica desligada (503, mesmo com header correto); com o token
 configurado, header errado ou ausente devolve 401 — o token vale só no
-header `X-Indexer-Test-Token`, nunca como `?token=` (a página `/dashboard` em
+header `X-Indexer-Test-Token`, nunca como `?token=` (a página `/painel` em
 si é pública e estática; o dado consolidado é que não).
 
 Para checar o código sem subir servidor (importar `src/addon.ts` **abre a porta**
@@ -729,11 +729,25 @@ existe percentual: ela tem dois tetos que não batem entre si (30 "ativos" na
 doc oficial, 1000 na mensagem de erro real) e nenhum é consultável — a versão
 anterior dizia "231% ocupado" para uma conta que respondia normalmente.
 
-**Painel (`/dashboard`).** A página é pública e estática; os dados vêm de
+**Painel (`/painel`).** A superfície operacional interativa substituiu o
+dashboard legado (`/dashboard`). A página é pública e estática, com cliente ESM
+nativo em `src/client/painel/*.ts` (Preact vendorizado); os dados vêm de
 `/dashboard-status.json` e as ações de `POST /dashboard-action.json`, ambos
 atrás do mesmo token de diagnóstico — só no header `X-Indexer-Test-Token`,
 `?token=` nunca autentica. O status consolida serviços, métricas, cache, debrid
-e resolvers para a página montar. As duas ações de estado (`clear-cache`,
+e resolvers para as abas montarem (Saúde, Conta Debrid, Gate, Colhedor,
+Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico — dez ao todo); a
+configuração ao vivo do Chupim e do Colhedor, as rotinas de
+catálogo/limpeza/magnets e o diagnóstico (teste de indexadores, validação de
+chave e leitura do `stream-trace`) moram nessas abas. O diff do gate é
+navegável ponta a ponta: cada chave traz o dono (`owner`/`fieldOwner` no bloco
+`gate`, derivado da config que listou o override) e o clique abre a aba
+Chupim/Colhedor e foca o `cfg-field` correspondente. Os
+atalhos `/autofetch` e `/harvester` (e as variantes `/:userConfig/...`)
+redirecionam 302 para `/painel#chupim` e `/painel#colhedor`. As rotas de backend
+mantêm o nome histórico (`/dashboard-status.json`, `/dashboard-action.json`,
+`src/routes/dashboard-actions*.ts`) e o `dashboard-tokens.css` segue na
+allowlist dos assets. As duas ações de estado (`clear-cache`,
 `sweep-dead`) são **globais**: agem sobre o estado do operador inteiro, não
 sobre a config de uma instalação — limpar o cache esfria a instância toda de
 uma vez.
@@ -774,8 +788,10 @@ explica entrada sem trace com peeks quiet (idx/raw/inventário). Live
 (`mode=live`) só TorBox/Premiumize via método cru do adaptador — AllDebrid é
 hard-block (`ad-hard-blocked`: consulta = upload e detona limpeza); RD é
 recusado (`rd-live-refused`). Kill-switch `STREAM_TRACE=false` desliga captura,
-leitura, recompute **e** live. Aba no painel: `/dashboard#trace`
-(`src/client/dashboard/trace.ts`). Detalhe operacional e contratos: Fase 9 do
+leitura, recompute **e** live. A leitura do funil continua em
+`/stream-trace.json`, consumida pelo cliente do `/painel` (`fetchStreamTrace`
+em `src/client/painel/api.ts`) e pelos modelos de `diagnostico-model.ts`.
+Detalhe operacional e contratos: Fase 9 do
 `PLANO_MELHORIAS.md`. O ledger ganhou também o campo `chupim` — resumo do
 autofetch da build (pool/seeds/sonda), documentado na Fase 7 do Chupim abaixo.
 
@@ -1056,8 +1072,8 @@ o campo `chupim` do `/stream-trace.json`:
   de BR ready (Fase 6) e idade da entrada mais recente; limitado a
   `OBRA_SUMMARY_MAX` (12) mais recentes. A varredura é `keysMatching` + `peek`
   (L1, sem promover LRU nem contar `cache.hit`), só no status, nunca no caminho
-  de busca. Render na aba `[Chupim / Autofetch]` (`src/client/dashboard/autofetch.ts`,
-  tabela `#afObrasMetrics`). Módulo: `src/providers/autofetch-obra-summary.ts`.
+  de busca. Render na aba `[Chupim]` (`src/client/painel/view-chupim.ts`).
+  Módulo: `src/providers/autofetch-obra-summary.ts`.
 - **`chupim` (ledger do trace).** Resumo de UMA linha do autofetch daquela
   build, gravado por `setTraceChupim` nos dois pontos de decisão (seleção em
   `autofetch-candidates.ts`; despacho em `autoFetchBrDubbed`) e serializado no
@@ -1072,7 +1088,7 @@ o campo `chupim` do `/stream-trace.json`:
 Configuração em nível de **operador** (afeta a conta de debrid do operador,
 enquanto `ab` na URL continua o opt-out individual). Mudanças aplicam ao vivo,
 persistidas no SQLite sob `cfg:v1:autofetch` com cópia em memória, sem restart.
-Integrado na aba `[Chupim / Autofetch]` do `/dashboard#autofetch` (as rotas
+Integrado na aba `[Chupim]` do `/painel#chupim` (as rotas
 `/autofetch` e `/:userConfig/autofetch` redirecionam 302 para lá).
 - `effective()` junta defaults do `.env` com overrides gravados;
 - `set(patch)` valida cada campo com os mesmos clamps do `config.ts` (`autoFetchMax` 1..12, `queueDepth` 0..12, etc.) e rejeita chaves desconhecidas (400);
@@ -1082,7 +1098,7 @@ Integrado na aba `[Chupim / Autofetch]` do `/dashboard#autofetch` (as rotas
 Ações protegidas atrás de `JACKETT_TEST_TOKEN` (`POST /dashboard-action.json`): `autofetch-pause`, `autofetch-drain`, `autofetch-config-get`, `autofetch-config-set`, `autofetch-config-reset`.
 
 **Painel e configuração ao vivo do colhedor (`src/utils/harvester-live.ts`).**
-Configuração em nível de **operador** para o colhedor em segundo plano e sementes populares do IMDb (`config.harvest` e `config.seed`). Mudanças aplicam ao vivo, persistidas no SQLite sob `cfg:v1:harvester` com cópia em memória, sem restart. Integrado na aba `[Colhedor / Harvester]` do `/dashboard#colhedor` (as rotas `/harvester` e `/:userConfig/harvester` redirecionam 302 para lá).
+Configuração em nível de **operador** para o colhedor em segundo plano e sementes populares do IMDb (`config.harvest` e `config.seed`). Mudanças aplicam ao vivo, persistidas no SQLite sob `cfg:v1:harvester` com cópia em memória, sem restart. Integrado na aba `[Colhedor]` do `/painel#colhedor` (as rotas `/harvester` e `/:userConfig/harvester` redirecionam 302 para lá).
 - `effective()` reúne defaults do `.env` com overrides gravados;
 - `set(patch)` valida cada campo com os mesmos clamps do `config.ts` (`harvestMaxPerHour` 1..1000, `harvestQueueMax` 10..1000, `harvestDrainMaxWorks` 1..50, `harvestIdleWindowMs` 0..3600000, `seedMaxPerCycle` 1..100, `seedMinVotes` 0..100000, `seedIntervalH` 1..168, etc.) e rejeita chaves desconhecidas (400);
 - `reset()` restaura os padrões do `.env`;
@@ -1125,8 +1141,8 @@ A **3.2/5** prioriza a fila do colhedor **só com evidência já conhecida, sem 
 recente (<1h — a lacuna de dublado recém-provada, rede de segurança da sonda dirigida). Abaixo delas
 vem o **tier regular**: release BR dublada **não-`lied`** já no índice (rank 2) sai antes do FIFO e
 `harvestBrMaxWaitMs` (default 6h) é o bound de fome que impede a obra pedida de morrer atrás de
-conteúdo BR. **`lied` não prioriza.** São flip ao vivo no dashboard
-(`harvestBrFirst`/`harvestBrMaxWaitMs`, aba `[Colhedor / Harvester]`); desligar `harvestBrFirst`
+conteúdo BR. **`lied` não prioriza.** São flip ao vivo no painel
+(`harvestBrFirst`/`harvestBrMaxWaitMs`, aba `[Colhedor]`); desligar `harvestBrFirst`
 restaura FIFO **apenas entre as entradas regulares** — não desarma `next-episode`/`br-gap recente`.
 O anti-fome opera **dentro do tier regular**: sob vazão sustentada ≥ capacidade dos urgentes, o
 backlog regular pode esperar (decisão consciente), e a janela de 1h limita cada `br-gap` individual —
@@ -1214,7 +1230,7 @@ o dreno defere pelo EPISÓDIO solicitado (entrada antiga cai no `episode`). Dura
 `⏳ Busca de dublado BR na fila — aguarde a colheita`; como a lista só-tem-aviso é
 `complete:false` (TTL 60s) e a finalização invalida a obra, o aviso nunca sobrevive ao lease.
 Toggle de operador `AUTOFETCH_BR_PROBE` (default `true`, ajustável ao vivo em `autofetch-live.ts` e no
-dashboard, aba `[Chupim / Autofetch]`); TTL estático `BR_PROBE_TTL_S` (default 43200). Exige
+painel, aba `[Chupim]`); TTL estático `BR_PROBE_TTL_S` (default 43200). Exige
 `RELEASE_INDEX=true` e interseção não vazia — desligado não agenda nem bloqueia. Métricas
 `autofetch.brProbe.run/transition/found/empty/failed/capped/skipped.<motivo>`,
 `scheduled.<upgrade|evidence>`, `found.unviable`, `orphan`, `coalesced` e histogramas
@@ -1710,7 +1726,7 @@ fire-and-forget) continua.
 | `src/routes/services.ts` | `buildServices()`: monta o `AppServices` (config, debrid, cache, metrics, jackett, …) que os handlers de rota recebem |
 | `src/routes/register.ts` | `registerRoutes()` — único ponto que monta as rotas (contrato de ordem: router do addon sem config, específicas, depois router com config) |
 | `src/routes/stream.ts` | `createStreamHandler`: o handler de `/stream` por cima do `findStreams` |
-| `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` / `stream-trace.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config`, os assets do painel pela allowlist **fechada** `PAGE_ASSETS` (HTML/CSS/imagens) e os módulos ESM dos clientes de `/configure` e `/dashboard` pela allowlist `CLIENT_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). O entry do cliente, com o `?v=` corrente, é `immutable`; os filhos importados sem query saem `no-cache` e revalidam por ETag/304. A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/stream-trace.json`) |
+| `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` / `stream-trace.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/painel`, `/defaults.json`, `/seal-config`, os assets do painel pela allowlist **fechada** `PAGE_ASSETS` (HTML/CSS/imagens) e os módulos ESM dos clientes de `/configure` e `/painel` pela allowlist `CLIENT_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). O entry do cliente, com o `?v=` corrente, é `immutable`; os filhos importados sem query saem `no-cache` e revalidam por ETag/304. A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/stream-trace.json`) |
 | `src/routes/addon-router.ts` | Router do protocolo Stremio que substituiu o `stremio-addon-sdk` no runtime (6.1): `createAddonInterface` + `makeAddonRouter` (manifest, `/stream`, CORS, `Cache-Control`). Lê o último segmento **cru** de `req.url`: `req.params` vem decodificado e quebraria a divisão dos extras |
 | `src/routes/origin.ts` / `async.ts` / `state.ts` / `types.ts` | `originOf`/`streamsNeedRevalidation`; `asyncRoute` (wrapper do Express 4); `prefetchInFlight`; `AppServices`/`HandlerFactory` |
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
@@ -1718,7 +1734,7 @@ fire-and-forget) continua.
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
 | `src/br-resolvers.ts` | Carrega os seis profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
 | `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
-| `src/public/dashboard.html` | Painel de operação: HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/dashboard/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu de `src/public/` para `src/client/dashboard/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `hooks.ts` (registro de hooks), `state.ts` (DashState mutado por propriedade), `core.ts`/`render.ts`, `panels*.ts`, `status-*.ts`, `magnets.ts`, `nav.ts`, `health.ts`, `trace.ts`, `autofetch*.ts`, `harvest*.ts`, `catalog*.ts`, `f3.ts`, `timers.ts`, `general.ts`, `af-stall.ts`, `debrid-test.ts` e o `entry.ts` que registra os hooks e chama `bind()`. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/dashboard/`; os testes importam o segundo emit NodeNext de `dist/src/client/dashboard/` via `test/helpers/dashboard.ts` (sem `new Function` para ESM) |
+| `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
 | `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
 | `src/providers/search-cache.ts` | `findStreams`, coalescing (`inFlight`), SWR (`debridRefreshSatisfied`, `staleRefreshEligible`, `scheduleStaleRefresh`), `hasPlayableStream` |
 | `src/providers/search-orchestrator.ts` | `doSearch`, `collectRaw`, `poolCovered`, `idxPoolCovered`, `idxReleasesToRaw` |
@@ -1764,7 +1780,7 @@ fire-and-forget) continua.
 | `src/utils/logger.ts` | Níveis via `ADDON_LOG_LEVEL` (não `LOG_LEVEL` — essa é do FlareSolverr) |
 | `src/utils/metrics.ts` | Contadores/histogramas do `/metrics.json` |
 | `src/utils/diagnostic-guard.ts` | Token + rate limit das rotas operacionais |
-| `src/utils/magnetdb.ts` | Fachada do banco de magnets por hash/adapter (alive/bad/lie): marcações, `is*`/`peek*`, `forgetBad`, `renewAlive`, `status()` (panorama do dashboard: tamanhos por adapter, TTLs com `ttlRemainingBasis` e taxa ⚡ — `debrid.check.cached`/`hashes`). Reexporta a persistência; nenhuma rota importa os módulos internos direto |
+| `src/utils/magnetdb.ts` | Fachada do banco de magnets por hash/adapter (alive/bad/lie): marcações, `is*`/`peek*`, `forgetBad`, `renewAlive`, `status()` (panorama do painel: tamanhos por adapter, TTLs com `ttlRemainingBasis` e taxa ⚡ — `debrid.check.cached`/`hashes`). Reexporta a persistência; nenhuma rota importa os módulos internos direto |
 | `src/utils/magnetdb-persist.ts` | Contadores duráveis O(1), agregado `mag_meta:v1`, hook `cache.onForget` e `ttlRemainingBasis` (`l1-rebuild` × `aggregate-estimate`). Extraído do `magnetdb.ts`, que encostou no teto de 400 linhas (ficou em 329) |
 | `src/utils/magnetdb-counts.ts` | Parse da chave `mag` (descarta o digest da conta na origem), `emptyAdapterTotals` e `rebuildFromL1` — O(namespace `mag`), roda uma vez no boot quando o agregado não abre, nunca no caminho de busca. Dependência de mão única (cache + cache-keys), sem ciclo com o `magnetdb` |
 | `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse compartilhado de `magnetdb-counts.ts`. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
@@ -1808,9 +1824,10 @@ sempre, sem escape; legado só reprova se CRESCER além do baseline — o escape
 do JSON entra no commit, visível na revisão. Quando o arquivo diminui, o script
 regrava o baseline para baixo sozinho: a folga não acumula. A extração do JS/CSS
 inline dos HTML do painel (§5.9) e o cutover C3 do dashboard já foram feitos: os
-clientes de `/configure` e `/dashboard` vivem em `src/client/<nome>/*.ts` (ESM
-nativo, imports com `.js`, fora de `src/public`), os `test/helpers/client.ts` e
-`test/helpers/dashboard*.ts` também são varridos, e o `dashboard.html` não tem
+clientes de `/configure` e `/painel` vivem em `src/client/<nome>/*.ts` (ESM
+nativo, imports com `.js`, fora de `src/public`), o `test/helpers/client.ts` e
+os testes do painel (`test/painel-*.test.ts`) também são varridos, e o
+`painel.html` não tem
 mais JS inline (só um `<script type="module">`). Os `.html` seguem fora da
 varredura (o filtro lê `.ts`/`.js`/`.css` — os módulos e o CSS estão sob a
 catraca). Sem o gatilho, arquivo novo nasce com mil linhas e ninguém percebe até
@@ -1991,7 +2008,7 @@ o orçamento com a resposta.
   silenciosamente para quem escolheu `cachedOnly` e o próprio log + métrica
   existem justamente para decidir com base na janela de dados.
 - **Fase 2 de timing da primeira resposta (métricas em `/metrics.json`).** Onde
-  o bloco `searchFirst` do dashboard conta **fontes**, cinco timers registram
+  o bloco `searchFirst` do painel conta **fontes**, cinco timers registram
   o **tempo** da mesma abertura: `search.first.metadata`, `search.first.collect.global`,
   `search.first.collect.br`, `search.first.debrid` e `search.first.total`. Os
   cinco são emitidos **atomicamente no mesmo bloco** e só quando o
@@ -2231,7 +2248,7 @@ o orçamento com a resposta.
   produção 2026-09-08 — `.env` em `alldebrid`, instalação em premiumize, fila
   de paradas crescendo sem timer nenhum alcançá-la.
 - **`src/public/` não passa por build.** É HTML/CSS/imagens servido cru. O
-  dashboard e o `/configure` NÃO têm mais JS clássico ali: ambos são clientes
+  painel e o `/configure` NÃO têm mais JS clássico ali: ambos são clientes
   ESM nativo em `src/client/<nome>/*.ts`, emitidos por `tsconfig.client.json`
   para `dist/src/public/client/`. Mexer neles é editar o `.ts`, nunca o `.js`
   emitido; nenhum bundler, loader ou sintaxe clássica é esperado — o cutover C3

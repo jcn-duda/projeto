@@ -73,10 +73,10 @@ beforeEach(() => {
   autofetchLive.reset();
 });
 
-test('GET /autofetch redireciona 302 para /dashboard#autofetch', async () => {
+test('GET /autofetch redireciona 302 para /painel#chupim', async () => {
   const res = await server.request('GET', '/autofetch');
   assert.equal(res.status, 302);
-  assert.equal(res.headers.get('location'), '/dashboard#autofetch');
+  assert.equal(res.headers.get('location'), '/painel#chupim');
 });
 
 test('POST /dashboard-action.json com autofetch-config-get exige token', async () => {
@@ -222,7 +222,7 @@ test('rotas escopadas /:userConfig/autofetch, status e action suportam Chupim', 
   try {
     const resRedirect = await server.request('GET', `/${userConfig}/autofetch`);
     assert.equal(resRedirect.status, 302);
-    assert.equal(resRedirect.headers.get('location'), `/${userConfig}/dashboard#autofetch`);
+    assert.equal(resRedirect.headers.get('location'), `/${userConfig}/painel#chupim`);
 
     const resStatus = await server.request('GET', `/${userConfig}/dashboard-status.json`, {
       headers: { 'X-Indexer-Test-Token': TOKEN },

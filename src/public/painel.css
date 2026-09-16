@@ -296,3 +296,60 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Base interativa reutilizável: formulários, modal de confirmação, fila de
+ * toasts, paginação e skeleton. Só tokens de dashboard-tokens.css e
+ * painel-tokens.css: sem hex, sem nesting e sem color-mix. */
+
+.painel-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.painel-form-row, .painel-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); }
+.painel-field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.painel-field-label { font-size: var(--font-floor); font-weight: 600; color: var(--muted-2); text-transform: uppercase; letter-spacing: 0.4px; }
+.painel-field-hint { font-size: var(--font-floor); color: var(--muted); }
+.painel-input, .painel-select { width: 100%; padding: var(--space-1) var(--space-2); background: var(--field-bg); border: 1px solid var(--field-border); border-radius: var(--radius-xs); color: var(--text); font-family: var(--font); font-size: var(--font-floor); }
+.painel-input:hover, .painel-select:hover { border-color: var(--field-border-hover); }
+.painel-input:focus, .painel-select:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+.painel-input:disabled, .painel-select:disabled { color: var(--disabled); cursor: not-allowed; }
+.painel-check { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--font-floor); color: var(--text); cursor: pointer; }
+.painel-check input { width: 15px; height: 15px; accent-color: var(--accent); }
+.painel-btn:disabled { opacity: 0.65; color: var(--disabled); cursor: not-allowed; }
+
+/* Modal: o ::before pinta --bg com opacidade (não existe token de overlay) e o
+ * cartão sobe para z-index 1, então o backdrop não apaga o diálogo. */
+.painel-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.painel-modal::before { content: ''; position: absolute; inset: 0; background: var(--bg); opacity: 0.82; }
+.painel-modal-card { position: relative; z-index: 1; width: min(520px, 100%); display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); background: var(--panel-card-bg); border: 1px solid var(--panel-card-border); border-radius: var(--radius); box-shadow: var(--shadow-2); }
+.painel-modal-title { margin: 0; font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--text); }
+.painel-modal-text { margin: 0; font-size: 13px; color: var(--text); }
+.painel-modal-detail { margin: 0; font-size: var(--font-floor); color: var(--muted); }
+.painel-modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+
+/* Toasts: canto inferior direito, empilhados. */
+.painel-toasts { position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: 1100; display: flex; flex-direction: column; gap: var(--space-2); width: min(380px, calc(100vw - var(--space-8))); }
+.painel-toast { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-xs); box-shadow: var(--shadow-2); font-size: var(--font-floor); color: var(--text); }
+.painel-toast-ok { background: var(--status-ok-bg); border-color: var(--green); color: var(--status-ok-text); }
+.painel-toast-err { background: var(--status-err-bg); border-color: var(--red); color: var(--status-err-text); }
+.painel-toast-info { background: var(--status-neutral-bg); border-color: var(--border); color: var(--status-neutral-text); }
+.painel-toast-text { flex: 1; }
+.painel-toast-close { padding: 0 var(--space-1); background: transparent; border: none; color: inherit; font-size: 14px; line-height: 1; cursor: pointer; }
+
+/* Paginação de listas longas. */
+.painel-pager { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-3); font-size: var(--font-floor); color: var(--muted); }
+.painel-pager-status { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Skeleton de carregamento. */
+.painel-skeleton { background: var(--surface-2); border-radius: var(--radius-xs); animation: painel-skeleton-pulse 1.2s ease-in-out infinite; }
+.painel-skeleton-line { height: 12px; margin-bottom: var(--space-2); }
+.painel-skeleton-block { height: 96px; }
+@keyframes painel-skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .painel-skeleton { animation: none; } }
+
+/* Salto do diff do gate para o campo da config ao vivo: link-fantasma na cor
+ * de accent, foco visível e realce curto no `cfg-field` de destino. Só tokens. */
+.painel-diff-key { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.painel-diff-link { padding: 0; background: none; border: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.painel-diff-link:focus-visible { outline: none; border-radius: var(--radius-xs); box-shadow: var(--ring); }
+.painel-config-field:focus-within { border-radius: var(--radius-sm); box-shadow: var(--ring); }
+.painel-field-flash { animation: painel-field-flash 1.2s ease-out; }
+@keyframes painel-field-flash { from { background: var(--accent-soft); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .painel-field-flash { animation: none; } }

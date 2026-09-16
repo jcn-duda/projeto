@@ -1,8 +1,6 @@
 ﻿import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber, ProgressBar } from './kit.js';
-import { postAction } from './api.js';
-import { getPainelState } from './store.js';
-import { pollOnce } from './poll.js';
+import { useAction, actionError } from './action.js';
 import { formatBytes } from './fmt.js';
 
 export interface ViewCacheProps {
@@ -52,7 +50,7 @@ export function cacheSummary(c: Record<string, any> | null | undefined): CacheSu
 export function ViewCache({ cache, metrics }: ViewCacheProps) {
   const c = cache || {};
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { pending, run } = useAction();
   const [targetNamespace, setTargetNamespace] = useState('');
 
   const { hits, misses, totalQueries, l1Entries, l1Max, l2Bytes, l2WalBytes, l2Pending, l2Enabled } = cacheSummary(c);
@@ -64,27 +62,16 @@ export function ViewCache({ cache, metrics }: ViewCacheProps) {
       : scope?.installation
       ? 'Limpar o cache desta instalação de usuário?'
       : 'ATENÇÃO: Limpar todo o cache global do sistema?';
-    if (!window.confirm(confirmMsg)) return;
-
-    const token = getPainelState().token;
-    if (!token) return;
-
-    setLoading(true);
-    setFeedback(null);
-    try {
-      const res = await postAction(token, 'clear-cache', {
-        confirm: true,
-        ...(scope ? { scope } : {}),
-      });
-      if (res.ok) {
-        setFeedback({ text: `Cache limpo com sucesso (${res.data.removed} entradas removidas)`, ok: true });
-        await pollOnce(['cache', 'metrics']);
-      } else {
-        setFeedback({ text: `Falha: ${res.error}`, ok: false });
-      }
-    } finally {
-      setLoading(false);
-    }
+    const outcome = await run({
+      action: 'clear-cache',
+      body: scope ? { scope } : {},
+      confirm: { message: confirmMsg, danger: true, confirmLabel: 'Limpar cache' },
+      poll: ['cache', 'metrics'],
+      successToast: (data) => `Cache limpo com sucesso (${Number(data.removed || 0)} entradas removidas)`,
+    });
+    // O erro fica no card (feedback inline); o sucesso sai como toast global.
+    const error = actionError(outcome);
+    setFeedback(error ? { text: `Falha: ${error}`, ok: false } : null);
   };
 
   return html`
@@ -138,7 +125,7 @@ export function ViewCache({ cache, metrics }: ViewCacheProps) {
               />
               <button
                 class="painel-btn"
-                disabled=${loading || !targetNamespace.trim()}
+                disabled=${pending || !targetNamespace.trim()}
                 onClick=${() => handleClear({ namespace: targetNamespace.trim() })}
               >
                 Limpar Namespace
@@ -148,7 +135,7 @@ export function ViewCache({ cache, metrics }: ViewCacheProps) {
             <div style="display: flex; gap: var(--space-2); margin-top: var(--space-2); border-top: 1px solid var(--border); padding-top: var(--space-3);">
               <button
                 class="painel-btn painel-btn-danger"
-                disabled=${loading}
+                disabled=${pending}
                 onClick=${() => handleClear()}
               >
                 Limpar Todo o Cache Global

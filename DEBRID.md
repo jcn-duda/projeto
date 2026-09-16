@@ -414,12 +414,12 @@ constatação fica para o `resolveLink` do play. Se o kill-switch do ledger
 (`DEBRID_RD_LEDGER=false`) ou do oráculo removerem a prova RD, o fill volta a
 não valer lá — a promessa só existe onde a confirmação existe.
 
-## Configuração ao vivo do autofetch (`/dashboard#autofetch`)
+## Configuração ao vivo do autofetch (`/painel#chupim`)
 
 Os limites operacionais do autofetch (cota imediata, profundidade da fila, teto
 horário de downloads, limiar de seeders, detecção de stall e pausa por ocupação)
-podem ser ajustados ao vivo pelo operador na aba `[Chupim / Autofetch]` do
-dashboard (`/dashboard#autofetch`), protegidos por `JACKETT_TEST_TOKEN`.
+podem ser ajustados ao vivo pelo operador na aba `[Chupim]` do
+painel (`/painel#chupim`), protegidos por `JACKETT_TEST_TOKEN`.
 
 As alterações persistem no cache (`cfg:v1:autofetch`) sem restart. O botão de
 pausa emergencial suspende o envio de novos downloads para a conta do debrid

@@ -178,14 +178,12 @@ test('autofetchLive: override dos knobs raros persiste no cfg e reset restaura o
   assert.equal(autofetchLive.snapshot().overriddenKeys.length, 0);
 });
 
-test('autofetchLive: painel expõe inputs e afKeys dos knobs do título raro', async () => {
-  const html = readFileSync(new URL('../src/public/dashboard.html', import.meta.url), 'utf8');
-  const { loadDashboardModules } = await import('./helpers/dashboard.js');
-  const mods = await loadDashboardModules();
-  for (const k of RARE_KEYS) {
-    assert.ok(html.includes(`id="af_${k}"`), `dashboard.html tem input af_${k}`);
-    assert.ok(html.includes(`id="env_${k}"`), `dashboard.html tem env_${k}`);
-    assert.ok(html.includes(`id="badge_${k}"`), `dashboard.html tem badge_${k}`);
-    assert.ok(mods.autofetch.AF_KEYS.includes(k), `autofetch.ts lista ${k} em AF_KEYS`);
-  }
+test('autofetchLive: a config ao vivo do painel é dirigida pelo schema (sem ids hardcoded)', () => {
+  // O cliente legado de /dashboard mantinha IDs `af_<key>`/`env_<key>`/
+  // `badge_<key>`; o card do /painel nasce do schema que o backend devolve.
+  const view = readFileSync(new URL('../../src/client/painel/view-config.ts', import.meta.url), 'utf8');
+  assert.match(view, /configRowsFromSnapshot/, 'as linhas nascem do schema do backend');
+  assert.match(view, /validateConfigForm/, 'validação local usa type/min/max do schema');
+  assert.doesNotMatch(view, /\baf_/, 'sem lista hardcoded de campos do Chupim');
+  assert.doesNotMatch(view, /\benv_/, 'sem badges hardcoded de envDefault');
 });

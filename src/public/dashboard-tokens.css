@@ -1,17 +1,17 @@
-/* Adom Power-Movie - /dashboard: TOKENS, reset e escala (Fase 1 do redesign).
- * Carregado ANTES do dashboard.css: aquele arquivo consome estas variaveis e
- * nao pode declarar cor nenhuma por conta propria (contrato testado em
- * test/dashboard-tokens.test.ts — zero literal hex nele).
+/* Adom Power-Movie - /painel: TOKENS, reset e escala.
+ * Carregado ANTES do painel.css/painel-limpeza.css: aqueles arquivos consomem
+ * estas variaveis e nao declaram cor literal por conta propria. O NOME do
+ * arquivo foi preservado de proposito: e o caminho publico/versionado que o
+ * HTML e a allowlist ja apontam, e renomea-lo so quebraria o cache do cliente.
  *
  * Os valores sao OS MESMOS que os Tokens espelhavam do design system do Power
  * Movie (lib/core/theme) e compartilhados com o configure.css de proposito — a
  * area operacional nao pode parecer uma segunda aplicacao. O que este arquivo
  * adiciona sao os aliases semanticos da camada de controles (campo, botao,
- * cartao, secao, tags de procedencia): antes eles viviam como literais
- * espalhados no dashboard.css.
+ * cartao, secao, tags de procedencia).
  *
  * Servido cru, sem build e sem bundler; referenciado por caminho ABSOLUTO
- * porque a pagina responde em /dashboard e em /:userConfig/dashboard. Sintaxe
+ * porque a pagina responde em /painel e em /:userConfig/painel. Sintaxe
  * compativel com o WebView das TVs (sem nesting, sem color-mix). */
 
 :root {

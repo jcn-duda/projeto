@@ -55,11 +55,67 @@ export async function fetchStatus(
   }
 }
 
+/**
+ * Leitura do funil por item (`GET /stream-trace.json`). Mesmo prefixo de
+ * instalação e mesmo token de header do `fetchStatus`: a rota existe nas duas
+ * formas (`/stream-trace.json` e `/:userConfig/stream-trace.json`) e o
+ * segmento de config tem que acompanhar o `/painel` aberto. O 404 da rota é
+ * RESPOSTA VÁLIDA (`ok:true, found:false` = obra fora do cache), não erro de
+ * transporte — tratá-lo como falha esconderia a causa real do "sumiu".
+ */
+export async function fetchStreamTrace(
+  token: string,
+  type: string,
+  id: string,
+  options: { live?: boolean } = {},
+): Promise<{ ok: true; data: Record<string, any> } | { ok: false; status: number; error: string }> {
+  if (!token) {
+    return { ok: false, status: 401, error: 'Token não configurado' };
+  }
+
+  const query = `?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${options.live ? '&mode=live' : ''}`;
+  const url = `${basePrefix()}/stream-trace.json${query}`;
+
+  try {
+    const res = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'X-Indexer-Test-Token': token,
+      },
+    });
+
+    if (res.status === 401) {
+      return { ok: false, status: 401, error: 'Token inválido ou não autorizado' };
+    }
+    if (res.status === 503) {
+      return { ok: false, status: 503, error: 'Serviço de diagnóstico desativado pelo operador' };
+    }
+    if (res.status === 429) {
+      return { ok: false, status: 429, error: 'Outro diagnóstico em andamento; tente de novo em instantes' };
+    }
+
+    const data = await res.json().catch(() => ({}));
+    // 404 é resposta do handler (`found:false`), não falha: preserva o corpo.
+    if (res.status === 404 && data && data.ok === true) {
+      return { ok: true, data };
+    }
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: data?.error || `Erro HTTP ${res.status}` };
+    }
+    return { ok: true, data };
+  } catch (err: any) {
+    return { ok: false, status: 0, error: err?.message || 'Falha de conexão com o servidor' };
+  }
+}
+
 export async function postAction(
   token: string,
   action: string,
   bodyData: Record<string, any> = {},
-): Promise<{ ok: true; data: Record<string, any> } | { ok: false; status: number; error: string }> {
+): Promise<
+  | { ok: true; data: Record<string, any> }
+  | { ok: false; status: number; error: string; data?: Record<string, any> }
+> {
   if (!token) {
     return { ok: false, status: 401, error: 'Token não configurado' };
   }
@@ -86,7 +142,9 @@ export async function postAction(
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      return { ok: false, status: res.status, error: data.error || `Erro HTTP ${res.status}` };
+      // O corpo inteiro segue no `data`: ações que devolvem `reason`/`fix`
+      // (ex.: harvester-debrid-set) precisam do motivo, não só do `error`.
+      return { ok: false, status: res.status, error: data.error || `Erro HTTP ${res.status}`, data };
     }
 
     return { ok: true, data };

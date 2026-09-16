@@ -1,8 +1,8 @@
 ﻿import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber } from './kit.js';
-import { postAction } from './api.js';
-import { getPainelState } from './store.js';
-import { pollOnce } from './poll.js';
+import { useAction, actionError } from './action.js';
+import { LiveConfigCard } from './view-config.js';
+import { HarvesterDebridCard } from './view-harvest-debrid.js';
 
 export interface ViewColhedorProps {
   harvest?: Record<string, any>;
@@ -12,7 +12,7 @@ export interface ViewColhedorProps {
 export function ViewColhedor({ harvest, metrics }: ViewColhedorProps) {
   const h = harvest || {};
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { pending, run } = useAction();
 
   const paused = Boolean(h.paused);
   const queueDepth = Number(h.queueDepth || 0);
@@ -24,24 +24,22 @@ export function ViewColhedor({ harvest, metrics }: ViewColhedorProps) {
   const preview = Array.isArray(h.queuePreview) ? h.queuePreview : [];
   const lastWorks = Array.isArray(h.lastWorks) ? h.lastWorks : [];
 
-  const handleAction = async (action: string, bodyData: Record<string, any> = {}, confirmMsg?: string) => {
-    if (confirmMsg && !window.confirm(confirmMsg)) return;
-    const token = getPainelState().token;
-    if (!token) return;
-
-    setLoading(true);
-    setFeedback(null);
-    try {
-      const res = await postAction(token, action, bodyData);
-      if (res.ok) {
-        setFeedback({ text: 'Ação executada com sucesso', ok: true });
-        await pollOnce(['harvest', 'metrics']);
-      } else {
-        setFeedback({ text: `Falha: ${res.error}`, ok: false });
-      }
-    } finally {
-      setLoading(false);
-    }
+  const handleAction = async (
+    action: string,
+    bodyData: Record<string, any> = {},
+    confirmMsg?: string,
+    successMsg = 'Ação executada',
+  ) => {
+    const outcome = await run({
+      action,
+      body: bodyData,
+      confirm: confirmMsg,
+      poll: ['harvest', 'metrics'],
+      successToast: successMsg,
+    });
+    // O erro fica no card (feedback inline); o sucesso sai como toast global.
+    const error = actionError(outcome);
+    setFeedback(error ? { text: `Falha: ${error}`, ok: false } : null);
   };
 
   return html`
@@ -63,22 +61,22 @@ export function ViewColhedor({ harvest, metrics }: ViewColhedorProps) {
           <div style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
             <button
               class="painel-btn ${paused ? 'painel-btn-accent' : 'painel-btn-danger'}"
-              disabled=${loading}
-              onClick=${() => handleAction('harvester-pause', { paused: !paused })}
+              disabled=${pending}
+              onClick=${() => handleAction('harvester-pause', { paused: !paused }, undefined, paused ? 'Colhedor retomado' : 'Colhedor pausado')}
             >
               ${paused ? 'Retomar Colhedor' : 'Pausar Colhedor'}
             </button>
             <button
               class="painel-btn"
-              disabled=${loading || queueDepth === 0}
-              onClick=${() => handleAction('harvester-drain', { confirm: true }, 'Drenar e processar a fila imediatamente?')}
+              disabled=${pending || queueDepth === 0}
+              onClick=${() => handleAction('harvester-drain', {}, 'Drenar e processar a fila imediatamente?', 'Fila drenada')}
             >
               Drenar Fila Agora
             </button>
             <button
               class="painel-btn painel-btn-danger"
-              disabled=${loading || queueDepth === 0}
-              onClick=${() => handleAction('harvester-clear-queue', { confirm: true }, 'Limpar todas as obras enfileiradas?')}
+              disabled=${pending || queueDepth === 0}
+              onClick=${() => handleAction('harvester-clear-queue', {}, 'Limpar todas as obras enfileiradas?', 'Fila limpa')}
             >
               Limpar Fila
             </button>
@@ -155,6 +153,21 @@ export function ViewColhedor({ harvest, metrics }: ViewColhedorProps) {
             </table>
           `}
         </${Card}>
+      </div>
+
+      <div style="margin-top: var(--space-4);">
+        <${LiveConfigCard}
+          title="Configuração ao vivo do Colhedor"
+          getAction="harvest-config-get"
+          setAction="harvest-config-set"
+          resetAction="harvest-config-reset"
+          pollBlocks=${['harvest', 'metrics']}
+          description="Ajustes do Colhedor aplicados ao vivo (persistidos no SQLite, sem restart). Campo divergente do .env aparece marcado como 'ao vivo'."
+        />
+      </div>
+
+      <div style="margin-top: var(--space-4);">
+        <${HarvesterDebridCard} account=${h.debridAccount} resolved=${h.debridResolved} />
       </div>
     </div>
   `;

@@ -1,8 +1,6 @@
 import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber } from './kit.js';
-import { postAction } from './api.js';
-import { getPainelState } from './store.js';
-import { pollOnce } from './poll.js';
+import { useAction, actionError } from './action.js';
 import { formatDurationMs } from './fmt.js';
 
 export interface ViewMagnetsProps {
@@ -60,35 +58,32 @@ export function magnetdbSummary(m: Record<string, any> | null | undefined): Magn
 export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
   const m = magnetdb || {};
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { pending, run } = useAction();
   const [inspectHash, setInspectHash] = useState('');
   const [inspectResult, setInspectResult] = useState<Record<string, any> | null>(null);
 
   const { enabled, l1Entries, l1Max, sizeAlive, sizeBad, sizeLie, evictedQuota } = magnetdbSummary(m);
 
   const handleClearBad = async () => {
-    if (!window.confirm('Limpar e desbloquear todos os registros marcados como "bad" no banco de magnets?')) return;
-    const token = getPainelState().token;
-    if (!token) return;
-
-    setLoading(true);
-    setFeedback(null);
-    try {
-      const res = await postAction(token, 'magnet-clear-bad', { confirm: true });
-      if (res.ok && res.data.ok !== false) {
-        const cleared = Number(res.data.cleared || 0);
-        const remaining = Number(res.data.remaining || 0);
-        setFeedback({
-          text: `Bad magnets limpos: ${cleared} registro(s)${remaining ? ` · ${remaining} restante(s) para a próxima passagem` : ''}`,
-          ok: true,
-        });
-        await pollOnce(['magnetdb']);
-      } else {
-        setFeedback({ text: `Falha: ${res.ok ? (res.data.error || 'ação indisponível') : res.error}`, ok: false });
-      }
-    } finally {
-      setLoading(false);
-    }
+    const outcome = await run({
+      action: 'magnet-clear-bad',
+      confirm: {
+        message: 'Limpar e desbloquear todos os registros marcados como "bad" no banco de magnets?',
+        danger: true,
+        confirmLabel: 'Limpar bad',
+      },
+      poll: ['magnetdb'],
+      successToast: (data) => {
+        const cleared = Number(data.cleared || 0);
+        const remaining = Number(data.remaining || 0);
+        return `Bad magnets limpos: ${cleared} registro(s)${
+          remaining ? ` · ${remaining} restante(s) para a próxima passagem` : ''
+        }`;
+      },
+    });
+    // O erro fica no card (feedback inline); o sucesso sai como toast global.
+    const error = actionError(outcome);
+    setFeedback(error ? { text: `Falha: ${error}`, ok: false } : null);
   };
 
   const handleInspect = async () => {
@@ -98,22 +93,14 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
       return;
     }
 
-    const token = getPainelState().token;
-    if (!token) return;
-
-    setLoading(true);
-    setFeedback(null);
-    try {
-      const res = await postAction(token, 'magnet-inspect', { hash });
-      if (res.ok && res.data.ok !== false) {
-        setInspectResult(res.data);
-        setFeedback({ text: `Inspeção concluída: ${res.data.items?.length || 0} registro(s) encontrado(s)`, ok: true });
-      } else {
-        setFeedback({ text: `Falha: ${res.ok ? (res.data.error || 'ação indisponível') : res.error}`, ok: false });
-      }
-    } finally {
-      setLoading(false);
+    const outcome = await run({ action: 'magnet-inspect', body: { hash } });
+    if (!outcome.ok) {
+      const error = actionError(outcome);
+      if (error) setFeedback({ text: `Falha: ${error}`, ok: false });
+      return;
     }
+    setInspectResult(outcome.data);
+    setFeedback({ text: `Inspeção concluída: ${outcome.data.items?.length || 0} registro(s) encontrado(s)`, ok: true });
   };
 
   return html`
@@ -158,7 +145,7 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
           </p>
           <button
             class="painel-btn painel-btn-danger"
-            disabled=${loading || sizeBad === 0}
+            disabled=${pending || sizeBad === 0}
             onClick=${handleClearBad}
           >
             Limpar Bad Magnets (${sizeBad})
@@ -178,7 +165,7 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
             />
             <button
               class="painel-btn"
-              disabled=${loading || inspectHash.trim().length !== 40}
+              disabled=${pending || inspectHash.trim().length !== 40}
               onClick=${handleInspect}
             >
               Inspecionar Hash
