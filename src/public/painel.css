@@ -252,6 +252,46 @@ body {
   border-radius: var(--radius);
 }
 
+.painel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-floor);
+  text-align: left;
+}
+
+.painel-table th {
+  padding: var(--space-2);
+  color: var(--muted-2);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.painel-table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.painel-feedback {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-floor);
+  margin-bottom: var(--space-3);
+}
+
+.painel-feedback-ok {
+  background: var(--status-ok-bg);
+  color: var(--status-ok-text);
+  border: 1px solid var(--green);
+}
+
+.painel-feedback-err {
+  background: var(--status-err-bg);
+  color: var(--status-err-text);
+  border: 1px solid var(--red);
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

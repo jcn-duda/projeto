@@ -9,6 +9,9 @@ import { startPolling } from './poll.js';
 import { ViewSaude } from './view-saude.js';
 import { ViewConta } from './view-conta.js';
 import { ViewGate } from './view-gate.js';
+import { ViewColhedor } from './view-colhedor.js';
+import { ViewSonda } from './view-sonda.js';
+import { ViewChupim } from './view-chupim.js';
 
 export interface AppProps {
   initialTab?: string;
@@ -80,6 +83,24 @@ export function App(props: AppProps) {
         >
           Gate
         </button>
+        <button
+          class=${'painel-tab-btn' + (activeTab === 'colhedor' ? ' active' : '')}
+          onClick=${() => setActiveTab('colhedor')}
+        >
+          Colhedor
+        </button>
+        <button
+          class=${'painel-tab-btn' + (activeTab === 'sonda' ? ' active' : '')}
+          onClick=${() => setActiveTab('sonda')}
+        >
+          Sonda BR
+        </button>
+        <button
+          class=${'painel-tab-btn' + (activeTab === 'chupim' ? ' active' : '')}
+          onClick=${() => setActiveTab('chupim')}
+        >
+          Chupim
+        </button>
       </nav>
 
       <main class="painel-content">
@@ -105,6 +126,12 @@ export function App(props: AppProps) {
             <${ViewConta} conta=${p.conta} debrid=${p.debrid} />
           ` : activeTab === 'gate' ? html`
             <${ViewGate} gate=${p.gate} />
+          ` : activeTab === 'colhedor' ? html`
+            <${ViewColhedor} harvest=${p.harvest} metrics=${p.metrics} />
+          ` : activeTab === 'sonda' ? html`
+            <${ViewSonda} harvest=${p.harvest} f3=${p.f3} metrics=${p.metrics} />
+          ` : activeTab === 'chupim' ? html`
+            <${ViewChupim} autofetch=${p.autofetch} metrics=${p.metrics} />
           ` : null}
         `}
       </main>

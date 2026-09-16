@@ -80,6 +80,9 @@ const CLIENT_ASSETS = [
   'client/painel/view-saude.js',
   'client/painel/view-conta.js',
   'client/painel/view-gate.js',
+  'client/painel/view-colhedor.js',
+  'client/painel/view-sonda.js',
+  'client/painel/view-chupim.js',
 ];
 
 function makePublicHandlers(services: AppServices) {

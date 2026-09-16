@@ -36,3 +36,43 @@ export async function fetchStatus(
     return { ok: false, status: 0, error: err?.message || 'Falha de conexão com o servidor' };
   }
 }
+
+export async function postAction(
+  token: string,
+  action: string,
+  bodyData: Record<string, any> = {},
+): Promise<{ ok: true; data: Record<string, any> } | { ok: false; status: number; error: string }> {
+  if (!token) {
+    return { ok: false, status: 401, error: 'Token não configurado' };
+  }
+
+  try {
+    const res = await fetch('/dashboard-action.json', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Indexer-Test-Token': token,
+      },
+      body: JSON.stringify({ action, ...bodyData }),
+    });
+
+    if (res.status === 401) {
+      return { ok: false, status: 401, error: 'Token inválido ou não autorizado' };
+    }
+    if (res.status === 503) {
+      return { ok: false, status: 503, error: 'Serviço de diagnóstico desativado' };
+    }
+    if (res.status === 429) {
+      return { ok: false, status: 429, error: 'Limite de concorrência atingido (429)' };
+    }
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: data.error || `Erro HTTP ${res.status}` };
+    }
+
+    return { ok: true, data };
+  } catch (err: any) {
+    return { ok: false, status: 0, error: err?.message || 'Falha ao executar ação' };
+  }
+}
