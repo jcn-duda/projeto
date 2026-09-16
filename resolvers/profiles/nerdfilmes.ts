@@ -196,7 +196,8 @@ function createResolver(overrides: ProfileOverrides = {}) {
     if (!isDetailHost(post.hostname)) throw new Error('not_detail_page');
     return cached(`post:${post.href}`, POST_CACHE_MS, async () => {
       const { html } = await fetchText(post.href);
-      return { post, links: parseDownloadLinks(html), date: parsePostDate(html) };
+      // baseUrl = origem do post: resolve /link.php relativo e valida same-origin.
+      return { post, links: parseDownloadLinks(html, post.href), date: parsePostDate(html) };
     });
   }
 

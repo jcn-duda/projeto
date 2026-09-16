@@ -134,6 +134,21 @@ function isProtectorHost(hostname: string | null | undefined): boolean {
   return hasAllowedHost(hostname, BASE_PROTECTOR_SUFFIXES);
 }
 
+// Plugin botoes-viatorrents: o post aponta para /link.php?id=<blob> no MESMO
+// host do detalhe; o magnet só aparece no HTML do gate. Aceitar qualquer path
+// do site como "protetor" abriria o domínio inteiro — só este path, e só com
+// a origem do post (baseUrl) conhecida.
+function isNerdSameOriginLinkPhp(url: URL, baseUrl: string): boolean {
+  let base: URL;
+  try {
+    base = new URL(baseUrl);
+  } catch {
+    return false;
+  }
+  if (url.origin !== base.origin) return false;
+  return url.pathname.toLowerCase() === '/link.php';
+}
+
 /** Cada botão protegido representa uma qualidade/tamanho diferente. Máquina
  * de estados do núcleo (createLinkCollector), com escopo anchor-local (o sinal
  * da âncora vale SÓ para o botão) e o par estreito de pack/episódio do nerd.
@@ -149,20 +164,32 @@ function createNerdDownloadLinks(options: { isProtectorHost?: (hostname: string)
   const checkProtector = options.isProtectorHost || isProtectorHost;
   const cfg: LinkCollectorConfig = {
     anchorRe: /<a\b[^>]*>[\s\S]*?<\/a>/gi,
-    resolveHref: (match) => {
+    resolveHref: (match, _html, baseUrl) => {
       const tag = match[0].match(/<a\b[^>]*>/i)?.[0] || '';
       const rawHref = attribute(tag, 'href');
       if (!rawHref) return { skip: true };
       const href = decodeEntities(rawHref);
       if (isValidDirectMagnet(href)) return { url: href };
+
+      // Protetor externo: URL absoluta (contrato histórico — relativo nunca
+      // era protetor). Mesma origem /link.php entra no ramo abaixo.
+      try {
+        const abs = new URL(href);
+        if (checkProtector(abs.hostname)) return { url: href };
+      } catch {
+        // relativo: cai no gate same-origin se houver baseUrl
+      }
+
+      if (!baseUrl) return { skip: true };
       let u: URL;
       try {
-        u = new URL(href);
+        u = new URL(href, baseUrl);
       } catch {
         return { skip: true };
       }
-      if (!checkProtector(u.hostname)) return { skip: true };
-      return { url: href };
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return { skip: true };
+      if (!isNerdSameOriginLinkPhp(u, baseUrl)) return { skip: true };
+      return { url: u.href };
     },
     anchorTextOf: (match) => stripTags(match[0]),
     stripTags,
@@ -199,6 +226,7 @@ export {
   isValidDirectMagnet,
   parsePostDate,
   isProtectorHost,
+  isNerdSameOriginLinkPhp,
   episodeStep,
   createNerdDownloadLinks,
   parseDownloadLinks,
