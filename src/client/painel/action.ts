@@ -27,10 +27,16 @@ export interface UseAction {
   run: (request: ActionRequest) => Promise<ActionOutcome>;
 }
 
+const BUSY_GATE_ERROR = 'já existe um teste em andamento';
+const BUSY_GATE_MESSAGE = 'Outra operação de diagnóstico está em andamento. Aguarde e tente novamente.';
+
 /** Texto de erro para o feedback inline do card; `null` quando cancelado/ok. */
 export function actionError(outcome: ActionOutcome): string | null {
   if (outcome.ok) return null;
   if (outcome.aborted) return null;
+  if (outcome.error.trim().toLocaleLowerCase('pt-BR') === BUSY_GATE_ERROR) {
+    return BUSY_GATE_MESSAGE;
+  }
   return outcome.error;
 }
 
