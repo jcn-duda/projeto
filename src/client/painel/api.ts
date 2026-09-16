@@ -9,6 +9,27 @@ export function prefixFromPathname(pathname: string): string {
   return match ? '/' + match[1] : '';
 }
 
+
+/**
+ * Recusa 429 do gate de diagnóstico. O corpo traz `reason` ESTÁVEL
+ * (`busy` = outra operação em voo; `rate` = teto por janela) — o texto do
+ * backend é parametrizável por chamador, então casá-lo aqui divergiria em
+ * silêncio. Lê o corpo antes de decidir: sem isso o motivo real se perde e
+ * toda recusa vira a mesma frase genérica.
+ */
+async function tooManyRequests(res: Response): Promise<{ ok: false; status: number; error: string }> {
+  const data = await res.json().catch(() => ({} as Record<string, any>));
+  const reason = typeof data?.reason === 'string' ? data.reason : '';
+  if (reason === 'busy') {
+    return { ok: false, status: 429, error: 'Outra operação de diagnóstico está em andamento. Aguarde e tente novamente.' };
+  }
+  if (reason === 'rate') {
+    return { ok: false, status: 429, error: 'Limite de diagnósticos por minuto atingido. Aguarde e tente novamente.' };
+  }
+  const text = typeof data?.error === 'string' ? data.error.trim() : '';
+  return { ok: false, status: 429, error: text || 'Limite de concorrência atingido (429)' };
+}
+
 export function basePrefix(): string {
   const pathname = typeof window !== 'undefined' ? window.location?.pathname : '';
   return prefixFromPathname(String(pathname || ''));
@@ -41,7 +62,7 @@ export async function fetchStatus(
       return { ok: false, status: 503, error: 'Serviço de diagnóstico desativado pelo operador' };
     }
     if (res.status === 429) {
-      return { ok: false, status: 429, error: 'Limite de concorrência atingido (429)' };
+      return tooManyRequests(res);
     }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -91,7 +112,7 @@ export async function fetchStreamTrace(
       return { ok: false, status: 503, error: 'Serviço de diagnóstico desativado pelo operador' };
     }
     if (res.status === 429) {
-      return { ok: false, status: 429, error: 'Outro diagnóstico em andamento; tente de novo em instantes' };
+      return tooManyRequests(res);
     }
 
     const data = await res.json().catch(() => ({}));
@@ -145,7 +166,7 @@ export async function fetchTestIndexer(
       return { ok: false, status: 503, error: 'Serviço de diagnóstico desativado pelo operador' };
     }
     if (res.status === 429) {
-      return { ok: false, status: 429, error: 'Limite de concorrência atingido (429)' };
+      return tooManyRequests(res);
     }
 
     const data = await res.json().catch(() => ({}));
@@ -187,7 +208,7 @@ export async function postAction(
       return { ok: false, status: 503, error: 'Serviço de diagnóstico desativado' };
     }
     if (res.status === 429) {
-      return { ok: false, status: 429, error: 'Limite de concorrência atingido (429)' };
+      return tooManyRequests(res);
     }
 
     const data = await res.json().catch(() => ({}));

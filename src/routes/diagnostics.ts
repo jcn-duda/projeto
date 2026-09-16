@@ -24,7 +24,7 @@ function makeDiagnosticHandlers(services: AppServices) {
   const metrics = (req: express.Request, res: express.Response) => {
     if (unavailable(services, req, res, 'métricas desativadas: defina JACKETT_TEST_TOKEN')) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
-    if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
+    if (!admission.ok) return res.status(admission.status).json({ error: admission.error, reason: admission.reason });
     try {
       return res.json({ ...services.metrics.snapshot(), logLevel: services.log.level(), cache: services.cache.snapshot() });
     } finally {
@@ -35,7 +35,7 @@ function makeDiagnosticHandlers(services: AppServices) {
   const dashboardStatus = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'dashboard desativado: defina JACKETT_TEST_TOKEN')) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
-    if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
+    if (!admission.ok) return res.status(admission.status).json({ error: admission.error, reason: admission.reason });
     try {
       const blocosParam = req.query.blocos != null ? String(req.query.blocos) : null;
       const result = await computeStatusPayload({ services, lastResolverProbes }, blocosParam);
@@ -59,7 +59,7 @@ function makeDiagnosticHandlers(services: AppServices) {
   const testIndexer = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'diagnóstico desativado pelo operador', { ok: false })) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
-    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
+    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error, reason: admission.reason });
     try {
       const id = String(req.query.id || '');
       const catalog = await services.jackettCatalog.load();
@@ -81,7 +81,7 @@ function makeDiagnosticHandlers(services: AppServices) {
   const testResolver = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'diagnóstico desativado pelo operador', { ok: false })) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
-    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
+    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error, reason: admission.reason });
     try {
       const id = String(req.query.id || '');
       const query = req.query.q ? String(req.query.q).slice(0, 80) : '';
@@ -114,7 +114,7 @@ function makeDiagnosticHandlers(services: AppServices) {
   const debridStatus = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'diagnóstico desativado pelo operador', { ok: false })) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
-    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
+    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error, reason: admission.reason });
     try {
       const status = await accountTimeout(services, services.debrid.accountStatus()) as any;
       if (status?.service === 'realdebrid') {

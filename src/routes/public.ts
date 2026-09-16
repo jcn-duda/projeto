@@ -182,7 +182,7 @@ function makePublicHandlers(services: AppServices) {
       return res.status(503).json({ error: 'RESOLVE_SECRET não configurado' });
     }
     const admission = services.sealGate.enter('global') as GateAdmission;
-    if (!admission.ok) return res.status(admission.status).json({ error: admission.error });
+    if (!admission.ok) return res.status(admission.status).json({ error: admission.error, reason: admission.reason });
     try {
       const sealed = services.runtime.sealSegment(String(req.body || '').trim());
       if (!sealed) return res.status(400).json({ error: 'configuração inválida' });

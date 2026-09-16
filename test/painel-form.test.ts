@@ -383,8 +383,10 @@ test('actionError: null em ok/abortado, mensagem quando a acao falha', () => {
   assert.equal(actionError({ ok: true, data: {} }), null);
   assert.equal(actionError({ ok: false, aborted: true }), null);
   assert.equal(actionError({ ok: false, status: 400, error: 'campo invalido' }), 'campo invalido');
+  // A recusa do gate chega JÁ traduzida do api.ts (que lê o `reason` do corpo);
+  // aqui o contrato é só repassar o texto sem inventar nada.
   assert.equal(
-    actionError({ ok: false, status: 429, error: 'já existe um teste em andamento' }),
+    actionError({ ok: false, status: 429, error: 'Outra operação de diagnóstico está em andamento. Aguarde e tente novamente.' }),
     'Outra operação de diagnóstico está em andamento. Aguarde e tente novamente.',
   );
 });

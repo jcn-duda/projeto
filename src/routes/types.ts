@@ -29,7 +29,10 @@ import type rdWarmer from '../providers/rd-warmer.js';
 
 export type GateAdmission =
   | { ok: true; release: () => void }
-  | { ok: false; status: number; error: string };
+  // `reason` acompanha a recusa para o cliente não ter que casar o TEXTO (que
+  // é parametrizável por chamador). Opcional: gates de teste que devolvem só
+  // `{ok,status,error}` continuam válidos.
+  | { ok: false; status: number; error: string; reason?: 'rate' | 'busy' };
 
 export type DiagnosticGate = ReturnType<typeof createDiagnosticGate>;
 

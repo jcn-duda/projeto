@@ -12,7 +12,7 @@ import {
 } from '../src/client/painel/store.js';
 import { pollOnce, VITAL_BLOCKS } from '../src/client/painel/poll.js';
 import { readStored, writeStored } from '../src/client/painel/storage.js';
-import { basePrefix, fetchStatus, prefixFromPathname } from '../src/client/painel/api.js';
+import { basePrefix, fetchStatus, postAction, prefixFromPathname } from '../src/client/painel/api.js';
 
 test('VITAL_BLOCKS inclui searchFirst (KPI I0 do cold)', () => {
   assert.ok(VITAL_BLOCKS.includes('searchFirst'));
@@ -108,6 +108,40 @@ test('prefixFromPathname preserva o segmento de config da install URL', () => {
   assert.equal(prefixFromPathname('/abc123/painel'), '/abc123');
   assert.equal(prefixFromPathname('/abc123/painel/'), '/abc123');
   assert.equal(prefixFromPathname('/dashboard'), '', 'só a rota /painel define prefixo');
+});
+
+// O gate de diagnóstico recusa com 429 e o motivo vai no CORPO (`reason`). Ler
+// o corpo é o ponto: sem isso toda recusa vira a mesma frase genérica e o
+// operador não sabe se esperou por concorrência ou bateu no teto da janela.
+test('429 do gate: a mensagem vem do reason do corpo, não do texto', async () => {
+  resetPainelState({ token: 'tok' });
+  const originalFetch = globalThis.fetch;
+  const call = async (reason: string | undefined, error?: string) => {
+    (globalThis as any).fetch = async () => ({
+      ok: false,
+      status: 429,
+      json: async () => ({ ok: false, error, reason }),
+    });
+    return postAction('tok', 'catalog-report', {});
+  };
+  try {
+    const busy = await call('busy', 'já existe um teste em andamento');
+    assert.equal(busy.ok, false);
+    assert.match((busy as any).error, /Outra operação de diagnóstico está em andamento/);
+
+    const rate = await call('rate', 'limite de testes atingido');
+    assert.match((rate as any).error, /Limite de diagnósticos por minuto/);
+
+    // Gate antigo (sem `reason`): cai no texto do backend em vez de mascarar.
+    const legado = await call(undefined, 'já existe um teste em andamento');
+    assert.equal((legado as any).error, 'já existe um teste em andamento');
+
+    // Sem reason e sem texto: sobra o genérico, nunca um motivo inventado.
+    const mudo = await call(undefined, undefined);
+    assert.match((mudo as any).error, /Limite de concorrência atingido/);
+  } finally {
+    (globalThis as any).fetch = originalFetch;
+  }
 });
 
 test('fetchStatus usa no-store e o prefixo da instalação', async () => {

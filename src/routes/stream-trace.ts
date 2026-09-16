@@ -48,7 +48,7 @@ export function makeStreamTraceHandler(services: AppServices): express.RequestHa
   return asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'diagnóstico desativado pelo operador', { ok: false })) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
-    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
+    if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error, reason: admission.reason });
     try {
       const type = String(req.query.type || '');
       const id = String(req.query.id || '');

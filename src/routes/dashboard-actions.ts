@@ -376,7 +376,7 @@ async function dispatchDashboardAction(services: AppServices, req: express.Reque
   }
   const admission = services.diagnosticGate.enter('global') as GateAdmission;
   if (!admission.ok) {
-    return void res.status(admission.status).json({ ok: false, error: admission.error });
+    return void res.status(admission.status).json({ ok: false, error: admission.error, reason: admission.reason });
   }
   try {
     await handler({ services, req, res, action });
