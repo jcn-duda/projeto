@@ -1,3 +1,19 @@
+/**
+ * Segmento de config em que a página foi aberta ("" na raiz, "/abc123" numa
+ * install URL). Paridade com o dashboard legado (`core.ts:basePrefix`): sem
+ * isto o /painel aberto a partir de uma instalação consultaria SEMPRE a conta
+ * do .env, mesmo o handler existindo em /:userConfig/dashboard-status.json.
+ */
+export function prefixFromPathname(pathname: string): string {
+  const match = String(pathname || '').match(/^\/(.+)\/painel\/?$/);
+  return match ? '/' + match[1] : '';
+}
+
+export function basePrefix(): string {
+  const pathname = typeof window !== 'undefined' ? window.location?.pathname : '';
+  return prefixFromPathname(String(pathname || ''));
+}
+
 export async function fetchStatus(
   token: string,
   blocos?: string[],
@@ -7,10 +23,12 @@ export async function fetchStatus(
   }
 
   const query = blocos && blocos.length > 0 ? `?blocos=${encodeURIComponent(blocos.join(','))}` : '';
-  const url = `/dashboard-status.json${query}`;
+  const url = `${basePrefix()}/dashboard-status.json${query}`;
 
   try {
     const res = await fetch(url, {
+      // Diagnóstico é estado vivo: cache do browser serviria uma leitura velha.
+      cache: 'no-store',
       headers: {
         'X-Indexer-Test-Token': token,
       },
@@ -47,7 +65,7 @@ export async function postAction(
   }
 
   try {
-    const res = await fetch('/dashboard-action.json', {
+    const res = await fetch(`${basePrefix()}/dashboard-action.json`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

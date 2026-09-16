@@ -1,3 +1,5 @@
+import { readStored, writeStored } from './storage.js';
+
 export interface BlockMeta {
   updatedAt: number;
 }
@@ -14,10 +16,19 @@ export interface PainelState {
 }
 
 type Listener = (state: PainelState) => void;
+type TokenListener = (token: string) => void;
+
+const TOKEN_KEY = 'adom.dashboard.test-token';
+const REFRESH_KEY = 'adom.dashboard.refresh-rate';
+
+function initialRefreshRate(): number {
+  const value = Number(readStored(REFRESH_KEY, '10'));
+  return Number.isFinite(value) && value > 0 ? value : 10;
+}
 
 let state: PainelState = {
-  token: typeof localStorage !== 'undefined' ? localStorage.getItem('adom.dashboard.test-token') || '' : '',
-  refreshRateS: typeof localStorage !== 'undefined' ? Number(localStorage.getItem('adom.dashboard.refresh-rate') || 10) : 10,
+  token: readStored(TOKEN_KEY, ''),
+  refreshRateS: initialRefreshRate(),
   payload: {},
   blockMeta: {},
   loading: false,
@@ -27,6 +38,10 @@ let state: PainelState = {
 };
 
 const listeners = new Set<Listener>();
+// Canal separado para o token: notificação de loading/erro/merge carrega o
+// MESMO token e não pode sobrescrever o que o operador está digitando. Só o
+// `setPainelToken` (mudança real) alimenta este canal.
+const tokenListeners = new Set<TokenListener>();
 
 export function getPainelState(): PainelState {
   return state;
@@ -39,6 +54,15 @@ export function subscribePainelState(listener: Listener): () => void {
   };
 }
 
+/** Só dispara quando o token PERSISTIDO muda — é o input do operador que
+ * acompanha, sem ser reescrito por cada poll. */
+export function subscribePainelToken(listener: TokenListener): () => void {
+  tokenListeners.add(listener);
+  return () => {
+    tokenListeners.delete(listener);
+  };
+}
+
 function notify(): void {
   for (const listener of listeners) {
     listener(state);
@@ -46,18 +70,18 @@ function notify(): void {
 }
 
 export function setPainelToken(token: string): void {
+  const changed = token !== state.token;
   state = { ...state, token };
-  if (typeof localStorage !== 'undefined') {
-    localStorage.setItem('adom.dashboard.test-token', token);
-  }
+  writeStored(TOKEN_KEY, token);
   notify();
+  if (changed) {
+    for (const listener of tokenListeners) listener(token);
+  }
 }
 
 export function setPainelRefreshRate(refreshRateS: number): void {
   state = { ...state, refreshRateS };
-  if (typeof localStorage !== 'undefined') {
-    localStorage.setItem('adom.dashboard.refresh-rate', String(refreshRateS));
-  }
+  writeStored(REFRESH_KEY, String(refreshRateS));
   notify();
 }
 
@@ -72,6 +96,30 @@ export function setPainelError(error: string | null): void {
     error,
     loading: false,
     connectionState: error ? 'error' : 'online',
+  };
+  notify();
+}
+
+/** Falha TRANSITÓRIA (429 do gate): preserva os dados já carregados e sai de
+ * `syncing` — sem isto, um 429 na primeira rodada deixava o badge preso em
+ * SINCRONIZANDO para sempre, sem indicar que a leitura não completou. */
+export function setPainelWarning(): void {
+  state = { ...state, error: null, loading: false, connectionState: 'warn' };
+  notify();
+}
+
+/** Só para teste: reinicia o singleton do módulo entre casos. */
+export function resetPainelState(overrides: Partial<PainelState> = {}): void {
+  state = {
+    token: '',
+    refreshRateS: 10,
+    payload: {},
+    blockMeta: {},
+    loading: false,
+    error: null,
+    lastSuccessAt: null,
+    connectionState: 'syncing',
+    ...overrides,
   };
   notify();
 }

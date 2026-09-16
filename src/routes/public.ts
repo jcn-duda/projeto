@@ -74,6 +74,7 @@ const CLIENT_ASSETS = [
   'client/painel/app.js',
   'client/painel/kit.js',
   'client/painel/store.js',
+  'client/painel/storage.js',
   'client/painel/fmt.js',
   'client/painel/api.js',
   'client/painel/poll.js',

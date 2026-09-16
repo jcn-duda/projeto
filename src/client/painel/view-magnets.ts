@@ -3,10 +3,58 @@ import { Card, StatNumber } from './kit.js';
 import { postAction } from './api.js';
 import { getPainelState } from './store.js';
 import { pollOnce } from './poll.js';
-import { formatAgeFromTimestamp } from './fmt.js';
+import { formatDurationMs } from './fmt.js';
 
 export interface ViewMagnetsProps {
   magnetdb?: Record<string, any>;
+}
+
+// Lado do banco → rótulo/cor do badge. O side é o que diz o ESTADO do registro
+// (`alive` confirmado, `bad` sem vídeo, `lie` tocou mas mentiu o áudio).
+const SIDE_STYLE: Record<string, { label: string; badge: string }> = {
+  alive: { label: 'vivo', badge: 'painel-badge-ok' },
+  bad: { label: 'bad', badge: 'painel-badge-err' },
+  lie: { label: 'mentiu', badge: 'painel-badge-warn' },
+};
+
+export function sideStyle(side: unknown): { label: string; badge: string } {
+  const key = String(side || '');
+  return SIDE_STYLE[key] || { label: key || '—', badge: 'painel-badge-neutral' };
+}
+
+/** TTL restante vem em SEGUNDOS do `/dashboard-action.json` (magnet-inspect):
+ * renderiza duração direta — montar um timestamp futuro e medir a idade
+ * invertia o sinal e saía sempre 0. */
+export function formatTtlRemaining(ttlRemainingSeconds: unknown): string {
+  return typeof ttlRemainingSeconds === 'number' && Number.isFinite(ttlRemainingSeconds)
+    ? formatDurationMs(ttlRemainingSeconds * 1000)
+    : '—';
+}
+
+export interface MagnetdbSummary {
+  enabled: boolean;
+  l1Entries: number;
+  l1Max: number;
+  sizeAlive: number;
+  sizeBad: number;
+  sizeLie: number;
+  evictedQuota: number;
+}
+
+/** Contrato real de `magnetdb.status()`: enabled/sizeAlive/sizeBad/sizeLie/
+ * l1Entries/l1Max. Os antigos entries/active/bad/persistent não existem no
+ * payload e renderizavam sempre 0/"memória apenas". */
+export function magnetdbSummary(m: Record<string, any> | null | undefined): MagnetdbSummary {
+  const x = m || {};
+  return {
+    enabled: Boolean(x.enabled),
+    l1Entries: Number(x.l1Entries || 0),
+    l1Max: Number(x.l1Max || 0),
+    sizeAlive: Number(x.sizeAlive || 0),
+    sizeBad: Number(x.sizeBad || 0),
+    sizeLie: Number(x.sizeLie || 0),
+    evictedQuota: Number(x.evictedQuota || 0),
+  };
 }
 
 export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
@@ -16,9 +64,7 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
   const [inspectHash, setInspectHash] = useState('');
   const [inspectResult, setInspectResult] = useState<Record<string, any> | null>(null);
 
-  const totalEntries = Number(m.entries || 0);
-  const activeEntries = Number(m.active || 0);
-  const badEntries = Number(m.bad || 0);
+  const { enabled, l1Entries, l1Max, sizeAlive, sizeBad, sizeLie, evictedQuota } = magnetdbSummary(m);
 
   const handleClearBad = async () => {
     if (!window.confirm('Limpar e desbloquear todos os registros marcados como "bad" no banco de magnets?')) return;
@@ -29,11 +75,16 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
     setFeedback(null);
     try {
       const res = await postAction(token, 'magnet-clear-bad', { confirm: true });
-      if (res.ok) {
-        setFeedback({ text: `Bad magnets limpos com sucesso (${res.data.cleared ?? res.data.removed ?? 0} removidos)`, ok: true });
+      if (res.ok && res.data.ok !== false) {
+        const cleared = Number(res.data.cleared || 0);
+        const remaining = Number(res.data.remaining || 0);
+        setFeedback({
+          text: `Bad magnets limpos: ${cleared} registro(s)${remaining ? ` · ${remaining} restante(s) para a próxima passagem` : ''}`,
+          ok: true,
+        });
         await pollOnce(['magnetdb']);
       } else {
-        setFeedback({ text: `Falha: ${res.error}`, ok: false });
+        setFeedback({ text: `Falha: ${res.ok ? (res.data.error || 'ação indisponível') : res.error}`, ok: false });
       }
     } finally {
       setLoading(false);
@@ -54,11 +105,11 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
     setFeedback(null);
     try {
       const res = await postAction(token, 'magnet-inspect', { hash });
-      if (res.ok) {
+      if (res.ok && res.data.ok !== false) {
         setInspectResult(res.data);
         setFeedback({ text: `Inspeção concluída: ${res.data.items?.length || 0} registro(s) encontrado(s)`, ok: true });
       } else {
-        setFeedback({ text: `Falha: ${res.error}`, ok: false });
+        setFeedback({ text: `Falha: ${res.ok ? (res.data.error || 'ação indisponível') : res.error}`, ok: false });
       }
     } finally {
       setLoading(false);
@@ -74,22 +125,29 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
       ` : null}
 
       <div class="painel-grid">
-        <${Card} title="Banco de Magnets (L1/L2)">
-          <${StatNumber} value=${totalEntries} label="registros totais" />
+        <${Card}
+          title="Banco de Magnets (L1/L2)"
+          badge=${{ text: enabled ? 'ATIVO' : 'DESLIGADO', variant: enabled ? 'ok' : 'neutral' }}
+        >
+          <${StatNumber} value=${l1Entries} target=${l1Max} label="chaves no L1" />
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
-            Persistência: ${m.persistent ? 'Ativa' : 'Memória apenas'}
+            Cota girada (despejos): ${evictedQuota}
           </p>
         </${Card}>
 
         <${Card} title="Composição do Banco">
           <div style="display: flex; flex-direction: column; gap: var(--space-2);">
             <div style="display: flex; justify-content: space-between;">
-              <span style="color: var(--green);">Ativos / Conhecidos</span>
-              <span style="font-weight: 600;">${activeEntries}</span>
+              <span style="color: var(--green);">Vivos (alive)</span>
+              <span style="font-weight: 600;">${sizeAlive}</span>
             </div>
             <div style="display: flex; justify-content: space-between;">
-              <span style="color: var(--red);">Bloqueados (Bad)</span>
-              <span style="font-weight: 600;">${badEntries}</span>
+              <span style="color: var(--red);">Bloqueados (bad)</span>
+              <span style="font-weight: 600;">${sizeBad}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--amber);">Mentiu o áudio (lie)</span>
+              <span style="font-weight: 600;">${sizeLie}</span>
             </div>
           </div>
         </${Card}>
@@ -100,10 +158,10 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
           </p>
           <button
             class="painel-btn painel-btn-danger"
-            disabled=${loading || badEntries === 0}
+            disabled=${loading || sizeBad === 0}
             onClick=${handleClearBad}
           >
-            Limpar Bad Magnets (${badEntries})
+            Limpar Bad Magnets (${sizeBad})
           </button>
         </${Card}>
       </div>
@@ -136,24 +194,25 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
                   <thead>
                     <tr>
                       <th>Adapter</th>
+                      <th>Hash</th>
                       <th>Lado</th>
                       <th>Estado</th>
                       <th>TTL Restante</th>
                     </tr>
                   </thead>
                   <tbody>
-                    ${inspectResult.items.map((it: any) => html`
-                      <tr>
-                        <td>${it.adapterId}</td>
-                        <td><span class="painel-badge painel-badge-neutral">${it.side}</span></td>
-                        <td>
-                          <span class="painel-badge ${it.bad ? 'painel-badge-err' : 'painel-badge-ok'}">
-                            ${it.bad ? 'bad' : 'ok'}
-                          </span>
-                        </td>
-                        <td>${it.ttlRemainingSeconds != null ? formatAgeFromTimestamp(Date.now() + it.ttlRemainingSeconds * 1000) : it.ttlRemainingMs != null ? formatAgeFromTimestamp(Date.now() + it.ttlRemainingMs) : '—'}</td>
-                      </tr>
-                    `)}
+                    ${inspectResult.items.map((it: any) => {
+                      const style = sideStyle(it.side);
+                      return html`
+                        <tr>
+                          <td>${it.adapterId}</td>
+                          <td><code>${it.hash}</code></td>
+                          <td><span class="painel-badge painel-badge-neutral">${it.side}</span></td>
+                          <td><span class=${'painel-badge ' + style.badge}>${style.label}</span></td>
+                          <td>${formatTtlRemaining(it.ttlRemainingSeconds)}</td>
+                        </tr>
+                      `;
+                    })}
                   </tbody>
                 </table>
               `}

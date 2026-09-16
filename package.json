@@ -316,6 +316,7 @@
     "test/dashboard-modernization.test.js",
     "test/dashboard-fase3b.test.js",
     "test/painel-esm.test.js",
+    "test/painel-client.test.js",
     "test/dashboard-status-blocks.test.js",
     "test/painel-views.test.js"
   ]

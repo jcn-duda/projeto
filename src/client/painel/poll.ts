@@ -1,7 +1,14 @@
-import { getPainelState, setPainelLoading, setPainelError, mergePainelPayload } from './store.js';
+import { getPainelState, setPainelLoading, setPainelError, setPainelWarning, mergePainelPayload } from './store.js';
 import { fetchStatus } from './api.js';
 
-export const VITAL_BLOCKS = ['general', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics', 'cache', 'catalog', 'magnetdb'];
+// `searchFirst` é o que alimenta o KPI I0 da aba Saúde: sem ele no pedido o
+// bloco nunca chega e o painel mostra 0/0 como se não houvesse primeira
+// resposta medida.
+//
+// `catalog` NÃO entra no vital: `catalogStatusEnv()` varre as linhas do
+// catálogo (O(rows)) e o poll roda a cada refresh. A aba Limpeza carrega o
+// relatório sob demanda pela ação `catalog-report`, que já existe.
+export const VITAL_BLOCKS = ['general', 'searchFirst', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics', 'cache', 'magnetdb'];
 
 let inFlight = false;
 let timerId: any = null;
@@ -19,9 +26,11 @@ export async function pollOnce(blocos: string[] = VITAL_BLOCKS): Promise<void> {
     if (res.ok) {
       mergePainelPayload(res.data);
     } else {
-      // No 429, preserva os dados existentes e apenas sinaliza no erro se necessário
+      // No 429, preserva os dados existentes e sai de `syncing` para `warn`:
+      // a leitura NÃO completou, e um badge "SINCRONIZANDO..." eterno esconde
+      // que o gate está recusando as consultas.
       if (res.status === 429) {
-        setPainelLoading(false);
+        setPainelWarning();
       } else {
         setPainelError(res.error);
       }

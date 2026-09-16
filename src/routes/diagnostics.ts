@@ -116,7 +116,7 @@ function makeDiagnosticHandlers(services: AppServices) {
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
     if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error });
     try {
-      const status = await Promise.race([services.debrid.accountStatus(), accountTimeout(services)]) as any;
+      const status = await accountTimeout(services, services.debrid.accountStatus()) as any;
       if (status?.service === 'realdebrid') {
         const rd = {
           ledger: services.rdLedger.status(),

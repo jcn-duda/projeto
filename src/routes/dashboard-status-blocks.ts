@@ -22,8 +22,9 @@ export const ALL_BLOCKS = [
 export type BlockName = (typeof ALL_BLOCKS)[number];
 const BLOCK_SET = new Set<string>(ALL_BLOCKS);
 
-function releaseIndexStatus(services: AppServices) {
-  const counters = services.metrics.snapshot().counters;
+type MetricSnapshot = ReturnType<AppServices['metrics']['snapshot']>;
+
+function releaseIndexStatus(services: AppServices, counters: MetricSnapshot['counters']) {
   return {
     ...services.releaseIndex.status(),
     hits: counters['search.idx.hit'] || 0,
@@ -42,9 +43,24 @@ function releaseIndexStatus(services: AppServices) {
   };
 }
 
-export function accountTimeout(services: AppServices) {
+interface TimeoutPayload {
+  ok: false;
+  reason: 'timeout';
+  error: string;
+  service?: string;
+  label?: string;
+  fix?: string;
+}
+
+/**
+ * Corre `operation` contra o prazo do painel e LIMPA o timer quando a operação
+ * vence. Sem o clear, o timeout continuava armado (unref só evita segurar o
+ * processo, não o disparo) e um `accountStatus` que responde rápido deixava
+ * um timer pendente por requisição.
+ */
+export function accountTimeout<T>(services: AppServices, operation: Promise<T>): Promise<T | TimeoutPayload> {
   const adapter = services.debrid.current?.() || null;
-  return new Promise((resolve) => {
+  return new Promise<T | TimeoutPayload>((resolve, reject) => {
     const timer = setTimeout(
       () => resolve({
         ok: false,
@@ -59,6 +75,16 @@ export function accountTimeout(services: AppServices) {
       services.config.debrid.dashboardAccountTimeoutMs,
     );
     timer.unref?.();
+    operation.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
   });
 }
 
@@ -71,6 +97,42 @@ export interface BlockContext {
   services: AppServices;
   lastResolverProbes: Map<string, any>;
   requestedBlocks?: Set<string>;
+}
+
+export interface ContaBlockOptions {
+  cap: number;
+  warnAt: number;
+  service?: string | null;
+  label?: string | null;
+}
+
+/**
+ * Bloco `conta` (puro, para teste). `oldestAt` é o magnet mais antigo da CONTA
+ * inteira — prontos incluídos. É contexto de ocupação, NÃO prova de download
+ * preso: um magnet pronto e antigo tem a mesma idade de um download travado.
+ * Derivar "preso >24h" daqui (como a versão anterior fazia com `stuckCount`)
+ * acendia o alerta em conta saudável; a evidência ativa por item não existe
+ * neste contrato sem consulta extra, então o bloco não afirma nada disso.
+ */
+export function contaBlock(account: any, opts: ContaBlockOptions) {
+  const total = Number(account?.magnets || 0);
+  const ready = Number(account?.ready || 0);
+  const downloading = Number(account?.active || 0);
+  const dead = Number(account?.error || 0);
+
+  return {
+    ok: Boolean(account?.ok),
+    service: account?.service || opts.service || null,
+    label: account?.label || opts.label || null,
+    total,
+    ready,
+    downloading,
+    dead,
+    cap: opts.cap,
+    warnAt: opts.warnAt,
+    usagePercent: opts.cap > 0 ? Math.round((total / opts.cap) * 100) : 0,
+    oldestAt: account?.oldestAt || null,
+  };
 }
 
 export async function computeStatusPayload(
@@ -102,11 +164,21 @@ export async function computeStatusPayload(
   const reqSet = requested ? new Set<string>(requested) : null;
   const isReq = (name: string) => reqSet === null || reqSet.has(name);
 
+  // Snapshot de métricas memoizado por ciclo de requisição: cada bloco que lê
+  // contadores/timers chamava `snapshot()` de novo (até 5 vezes por request
+  // completo, cada uma ordenando os anéis de amostra). Os blocos são coerentes
+  // o suficiente dividindo a MESMA foto, e o custo cai para uma leitura.
+  let memoMetrics: MetricSnapshot | null = null;
+  const getMetrics = (): MetricSnapshot => {
+    if (!memoMetrics) memoMetrics = services.metrics.snapshot();
+    return memoMetrics;
+  };
+
   // Lazy loaders memoizados por ciclo de requisição
   let memoAccount: Promise<any> | null = null;
   const getAccount = () => {
     if (!memoAccount) {
-      memoAccount = Promise.race([services.debrid.accountStatus(), accountTimeout(services)]) as Promise<any>;
+      memoAccount = accountTimeout(services, services.debrid.accountStatus()) as Promise<any>;
     }
     return memoAccount;
   };
@@ -127,24 +199,15 @@ export async function computeStatusPayload(
     out.blocos = requested;
   }
 
-  // Bloco: searchFirst
-  if (isReq('searchFirst')) {
-    const counters = services.metrics.snapshot().counters;
-    out.searchFirst = {
-      responses: counters['search.first.responses'] || 0,
-      brFound: counters['search.first.brFound'] || 0,
-      brCached: counters['search.first.brCached'] || 0,
-      brHidden: counters['search.first.brHidden'] || 0,
-      brVisible: counters['search.first.brVisible'] || 0,
-      brLate: counters['search.first.brLate'] || 0,
-    };
-  }
-
-  // Bloco: general
+  // Bloco: general. Vem ANTES do searchFirst de propósito: `getIndexers()` lê o
+  // catálogo e essa leitura conta `cache.miss`; o snapshot memoizado precisa
+  // nascer DEPOIS dela para o bloco `cache` continuar enxergando a leitura que
+  // a própria requisição fez — como enxergava quando cada bloco tirava a
+  // própria foto.
   if (isReq('general')) {
-    const metricSnapshot = services.metrics.snapshot();
     const memory = process.memoryUsage();
     const [account, indexers] = await Promise.all([getAccount(), getIndexers()]);
+    const metricSnapshot = getMetrics();
     const resolvers = services.brResolvers.RESOLVERS;
     const metadataTiming = metricSnapshot.timers['search.metadata'];
 
@@ -169,14 +232,27 @@ export async function computeStatusPayload(
     };
   }
 
+  // Bloco: searchFirst (KPI I0). Usa a mesma foto do general quando ele roda.
+  if (isReq('searchFirst')) {
+    const counters = getMetrics().counters;
+    out.searchFirst = {
+      responses: counters['search.first.responses'] || 0,
+      brFound: counters['search.first.brFound'] || 0,
+      brCached: counters['search.first.brCached'] || 0,
+      brHidden: counters['search.first.brHidden'] || 0,
+      brVisible: counters['search.first.brVisible'] || 0,
+      brLate: counters['search.first.brLate'] || 0,
+    };
+  }
+
   // Bloco: metrics
   if (isReq('metrics')) {
-    out.metrics = services.metrics.snapshot();
+    out.metrics = getMetrics();
   }
 
   // Bloco: cache
   if (isReq('cache')) {
-    const metricSnapshot = services.metrics.snapshot();
+    const metricSnapshot = getMetrics();
     const hits = metricSnapshot.counters['cache.hit'] || 0;
     const misses = metricSnapshot.counters['cache.miss'] || 0;
     out.cache = {
@@ -212,7 +288,7 @@ export async function computeStatusPayload(
 
   // Bloco: releaseIndex
   if (isReq('releaseIndex')) {
-    out.releaseIndex = releaseIndexStatus(services);
+    out.releaseIndex = releaseIndexStatus(services, getMetrics().counters);
   }
 
   // Bloco: harvest
@@ -270,33 +346,17 @@ export async function computeStatusPayload(
     });
   }
 
-  // Bloco novo: conta (total, ready, downloading, dead, cap, warnAt, idade mais antiga, presos)
+  // Bloco novo: conta (total, ready, downloading, dead, cap, warnAt, idade do
+  // magnet mais antigo). Sem inferência de "preso" — ver contaBlock.
   if (isReq('conta')) {
     const account = await getAccount();
-    const cap = services.config.debrid.accountCap || 1000;
-    const warnAt = services.config.debrid.accountWarnTotal || 800;
-    const total = Number(account?.magnets || 0);
-    const ready = Number(account?.ready || 0);
-    const downloading = Number(account?.active || 0);
-    const dead = Number(account?.error || 0);
-    const oldestAt = account?.oldestAt || null;
-    const oldestAgeMs = oldestAt ? Math.max(0, Date.now() - (oldestAt > 1e11 ? oldestAt : oldestAt * 1000)) : null;
-
-    out.conta = {
-      ok: Boolean(account?.ok),
-      service: account?.service || services.debrid.current()?.id || null,
-      label: account?.label || services.debrid.current()?.label || null,
-      total,
-      ready,
-      downloading,
-      dead,
-      cap,
-      warnAt,
-      usagePercent: cap > 0 ? Math.round((total / cap) * 100) : 0,
-      oldestAt,
-      oldestAgeMs,
-      stuckCount: downloading > 0 && oldestAgeMs && oldestAgeMs > 86_400_000 ? 1 : 0,
-    };
+    const adapter = services.debrid.current();
+    out.conta = contaBlock(account, {
+      cap: services.config.debrid.accountCap || 1000,
+      warnAt: services.config.debrid.accountWarnTotal || 800,
+      service: adapter?.id || null,
+      label: adapter?.label || null,
+    });
   }
 
   // Bloco novo: gate (effective vs envDefaults vs overriddenKeys com diff do servidor)

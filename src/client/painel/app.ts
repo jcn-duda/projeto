@@ -2,6 +2,7 @@ import { html, useState, useEffect } from './vendor/preact.js';
 import {
   getPainelState,
   subscribePainelState,
+  subscribePainelToken,
   setPainelToken,
   type PainelState,
 } from './store.js';
@@ -26,11 +27,16 @@ export function App(props: AppProps) {
   const [activeTab, setActiveTab] = useState(props.initialTab || 'saude');
 
   useEffect(() => {
-    const unsubscribe = subscribePainelState((next) => {
-      setAppState(next);
-      setTokenInput(next.token);
-    });
-    return unsubscribe;
+    // Dois canais: o estado geral re-renderiza a página; o token só alimenta o
+    // input quando o token PERSISTIDO muda. Ouvir o token no canal geral fazia
+    // cada poll (loading/erro/merge) reescrever o input e apagar o que o
+    // operador estava digitando.
+    const unsubscribeState = subscribePainelState((next) => setAppState(next));
+    const unsubscribeToken = subscribePainelToken((token) => setTokenInput(token));
+    return () => {
+      unsubscribeState();
+      unsubscribeToken();
+    };
   }, []);
 
   useEffect(() => {

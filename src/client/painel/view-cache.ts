@@ -10,20 +10,53 @@ export interface ViewCacheProps {
   metrics?: Record<string, any>;
 }
 
+export interface CacheSummary {
+  hits: number;
+  misses: number;
+  totalQueries: number;
+  hitRate: number;
+  l1Entries: number;
+  l1Max: number;
+  l2Bytes: number;
+  l2WalBytes: number;
+  l2Pending: number;
+  l2Enabled: boolean;
+  persistent: boolean;
+  swrServed: number;
+}
+
+/** Contrato real: `cache.snapshot()` devolve `entries`/`maxEntries` (L1);
+ * `l2Stats()` devolve `enabled`/`fileSizeBytes`/`walSizeBytes`/`pendingWrites`.
+ * A versão anterior lia `max`/`l2.sizeBytes`/`l2.entries`, que não existem. */
+export function cacheSummary(c: Record<string, any> | null | undefined): CacheSummary {
+  const x = c || {};
+  const hits = Number(x.hits || 0);
+  const misses = Number(x.misses || 0);
+  const totalQueries = hits + misses;
+  return {
+    hits,
+    misses,
+    totalQueries,
+    hitRate: totalQueries > 0 ? hits / totalQueries : 0,
+    l1Entries: Number(x.entries || 0),
+    l1Max: Number(x.maxEntries || 0),
+    l2Bytes: Number(x.l2?.fileSizeBytes || 0),
+    l2WalBytes: Number(x.l2?.walSizeBytes || 0),
+    l2Pending: Number(x.l2?.pendingWrites || 0),
+    l2Enabled: Boolean(x.l2?.enabled ?? x.persistent),
+    persistent: Boolean(x.persistent),
+    swrServed: Number(x.swrServed || 0),
+  };
+}
+
 export function ViewCache({ cache, metrics }: ViewCacheProps) {
   const c = cache || {};
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
   const [targetNamespace, setTargetNamespace] = useState('');
 
-  const hits = Number(c.hits || 0);
-  const misses = Number(c.misses || 0);
-  const totalQueries = hits + misses;
+  const { hits, misses, totalQueries, l1Entries, l1Max, l2Bytes, l2WalBytes, l2Pending, l2Enabled } = cacheSummary(c);
   const hitRate = totalQueries > 0 ? Math.round((hits / totalQueries) * 100) : 0;
-  const l1Entries = Number(c.entries || 0);
-  const l1Max = Number(c.max || 1000);
-  const l2Bytes = Number(c.l2?.sizeBytes || 0);
-  const l2Entries = Number(c.l2?.entries || 0);
 
   const handleClear = async (scope?: { namespace?: string; installation?: boolean }) => {
     const confirmMsg = scope?.namespace
@@ -85,9 +118,9 @@ export function ViewCache({ cache, metrics }: ViewCacheProps) {
         </${Card}>
 
         <${Card} title="Persistência L2 (Disco / SQLite)">
-          <${StatNumber} value=${formatBytes(l2Bytes)} label="${l2Entries} entradas" />
+          <${StatNumber} value=${formatBytes(l2Bytes)} label="${l2Enabled ? 'banco ativo' : 'desligado'}" />
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
-            Persistência ativa: ${c.persistent ? 'Sim' : 'Não'}
+            WAL: ${formatBytes(l2WalBytes)} · ${l2Pending} escrita(s) pendente(s)
           </p>
         </${Card}>
       </div>

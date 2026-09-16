@@ -10,10 +10,19 @@ export interface ViewChupimProps {
   metrics?: Record<string, any>;
 }
 
+/** Teto por busca da config AO VIVO. O snapshot do autofetch carrega
+ * `config: autofetchLive.snapshot()` → `config.effective.autoFetchMax`; o
+ * antigo `af.effective` não existe no payload e caía sempre no default. */
+export function autoFetchTeto(af: Record<string, any> | null | undefined): number | null {
+  const value = af?.config?.effective?.autoFetchMax;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 export function ViewChupim({ autofetch, metrics }: ViewChupimProps) {
   const af = autofetch || {};
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
+  const teto = autoFetchTeto(af);
 
   const paused = Boolean(af.paused);
   const recheckLots = Number(af.recheckLots || 0);
@@ -95,7 +104,7 @@ export function ViewChupim({ autofetch, metrics }: ViewChupimProps) {
         <${Card} title="Orçamento Horário">
           <${StatNumber} value=${af.budget?.used ?? 0} target=${af.budget?.limit ?? 15} label="downloads / h" />
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
-            Teto por busca: ${af.effective?.autoFetchMax ?? 2}
+            Teto por busca: ${teto ?? '—'}
           </p>
         </${Card}>
       </div>

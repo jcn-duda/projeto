@@ -6,10 +6,29 @@ import { ViewGate } from '../src/client/painel/view-gate.js';
 import { Card, StatNumber, ProgressBar } from '../src/client/painel/kit.js';
 import { ViewColhedor } from '../src/client/painel/view-colhedor.js';
 import { ViewSonda } from '../src/client/painel/view-sonda.js';
-import { ViewChupim } from '../src/client/painel/view-chupim.js';
-import { ViewCache } from '../src/client/painel/view-cache.js';
-import { ViewLimpeza } from '../src/client/painel/view-limpeza.js';
-import { ViewMagnets } from '../src/client/painel/view-magnets.js';
+import { ViewChupim, autoFetchTeto } from '../src/client/painel/view-chupim.js';
+import { ViewCache, cacheSummary } from '../src/client/painel/view-cache.js';
+import { ViewLimpeza, dedupPreviewSummary, catalogSummary, nextCatalogState } from '../src/client/painel/view-limpeza.js';
+import { ViewMagnets, magnetdbSummary, sideStyle, formatTtlRemaining } from '../src/client/painel/view-magnets.js';
+
+/** Texto visível de um VNode já expandido (a função do componente foi chamada
+ * direto). Percorre children e também title/badge/label dos componentes do kit —
+ * é assim que uma asserção de conteúdo deixa de ser "typeof object". */
+function vnodeText(node: any): string {
+  if (node == null || node === false) return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(vnodeText).join(' ');
+  if (typeof node === 'object') {
+    const props = node.props || {};
+    return [
+      typeof props.title === 'string' ? props.title : '',
+      typeof props.badge?.text === 'string' ? props.badge.text : '',
+      typeof props.label === 'string' ? props.label : '',
+      vnodeText(props.children),
+    ].join(' ');
+  }
+  return '';
+}
 
 test('ViewSaude retorna VNode válido com veredito e serviços', () => {
   const vnode = ViewSaude({
@@ -27,8 +46,8 @@ test('ViewSaude retorna VNode válido com veredito e serviços', () => {
   assert.ok(vnode.props, 'VNode deve conter props');
 });
 
-test('ViewConta renderiza métricas corretas (933/1000 - 93% e download preso)', () => {
-  const vnode = ViewConta({
+test('ViewConta não afirma "download preso" a partir da idade global do acervo', () => {
+  const text = vnodeText(ViewConta({
     conta: {
       total: 933,
       cap: 1000,
@@ -37,13 +56,40 @@ test('ViewConta renderiza métricas corretas (933/1000 - 93% e download preso)',
       downloading: 35,
       dead: 3,
       oldestAt: Date.now() - 57 * 3600 * 1000,
-      stuckCount: 1,
       warnAt: 800,
+    },
+  }));
+
+  assert.match(text, /Magnet mais antigo há/, 'a idade medida continua visível');
+  assert.match(text, /não serve|Não indica/i, 'a idade vem com ressalva explícita');
+  assert.doesNotMatch(text, /DOWNLOAD PRESO/, 'sem badge de preso derivado da idade global');
+  assert.doesNotMatch(text, /pelo menos 1 download ativo/i, 'sem a inferência falsa removida');
+});
+
+test('dedupPreviewSummary lê o contrato real plan.t1/t2 (sem o inexistente scanned)', () => {
+  const summary = dedupPreviewSummary({
+    ok: true,
+    plan: {
+      t1: [{ keep: { serviceId: 1 }, kill: [{ serviceId: 2, hash: 'a' }, { serviceId: 3, hash: 'a' }] }],
+      t2: [{ keep: { serviceId: 4 }, kill: [{ serviceId: 5, hash: 'b' }] }],
     },
   });
 
-  assert.ok(vnode, 'ViewConta deve retornar um VNode');
-  assert.equal(typeof vnode, 'object');
+  assert.equal(summary.ok, true);
+  assert.equal(summary.t1Groups, 1);
+  assert.equal(summary.t2Groups, 1);
+  assert.equal(summary.candidates.length, 3);
+  assert.equal(summary.candidates[0].group, 'T1 (mesmo hash)');
+  assert.equal(summary.candidates[2].group, 'T2 (mesmo arquivo)');
+  assert.equal('scanned' in summary, false, 'não inventa o campo que a versão anterior lia');
+});
+
+test('dedupPreviewSummary expõe falha do servidor (ok:false, sem plan)', () => {
+  const summary = dedupPreviewSummary({ ok: false, reason: 'sem-adapter' });
+  assert.equal(summary.ok, false);
+  assert.equal(summary.reason, 'sem-adapter');
+  assert.deepEqual(summary.candidates, []);
+  assert.equal(summary.t1Groups, 0);
 });
 
 test('ViewGate renderiza gate com override (999 vs 2000)', () => {
@@ -137,6 +183,8 @@ test('ViewChupim retorna VNode válido com h()', () => {
       deadBlacklistCount: 2,
       suppressed: 0,
       budget: { used: 4, limit: 15 },
+      // Shape real: o snapshot do autofetch carrega `config` do autofetchLive.
+      config: { effective: { autoFetchMax: 3 }, envDefaults: {}, overriddenKeys: [], paused: false, pausedSince: null, schema: {} },
       obras: [
         { digest: 'abc123def456', pools: { br: 1, any: 0, seeds: 0 }, brReady: true, ageMs: 60000 },
       ],
@@ -152,50 +200,130 @@ test('ViewChupim retorna VNode válido com h()', () => {
   assert.ok(vnode.props);
 });
 
-test('ViewCache retorna VNode válido com h()', () => {
-  const vnode = h(ViewCache, {
-    cache: {
-      hits: 450,
-      misses: 50,
-      entries: 120,
-      max: 1000,
-      persistent: true,
-      l2: { sizeBytes: 1048576, entries: 500 },
-    },
-    metrics: { counters: {} },
-  });
-
-  assert.ok(vnode && typeof vnode === 'object');
-  assert.equal(vnode.type, ViewCache);
-  assert.ok(vnode.props);
+test('autoFetchTeto lê af.config.effective.autoFetchMax (não af.effective)', () => {
+  assert.equal(autoFetchTeto({ config: { effective: { autoFetchMax: 5 } } }), 5);
+  assert.equal(autoFetchTeto({ effective: { autoFetchMax: 5 } }), null, 'af.effective não é o contrato');
+  assert.equal(autoFetchTeto({ config: { effective: { autoFetchMax: 'x' } } }), null);
+  assert.equal(autoFetchTeto({}), null);
 });
 
-test('ViewLimpeza retorna VNode válido com h()', () => {
-  const vnode = h(ViewLimpeza, {
-    catalog: {
-      works: 80,
+test('magnetdbSummary lê o status real (l1Entries/l1Max/sizeAlive/bad/lie)', () => {
+  const s = magnetdbSummary({
+    enabled: true,
+    sizeAlive: 345,
+    sizeBad: 5,
+    sizeLie: 2,
+    l1Entries: 350,
+    l1Max: 50000,
+    evictedQuota: 3,
+    // campos que NÃO existem no contrato — não podem ser lidos
+    entries: 999, active: 999, bad: 999, persistent: true,
+  });
+
+  assert.equal(s.enabled, true);
+  assert.equal(s.l1Entries, 350);
+  assert.equal(s.l1Max, 50000);
+  assert.equal(s.sizeAlive, 345);
+  assert.equal(s.sizeBad, 5);
+  assert.equal(s.sizeLie, 2);
+  assert.equal(s.evictedQuota, 3);
+  assert.equal('active' in s, false);
+  assert.equal('entries' in s, false);
+});
+
+test('sideStyle e formatTtlRemaining consomem o item real do magnet-inspect', () => {
+  assert.equal(sideStyle('alive').label, 'vivo');
+  assert.equal(sideStyle('bad').badge, 'painel-badge-err');
+  assert.equal(sideStyle('lie').badge, 'painel-badge-warn');
+  assert.equal(sideStyle('desconhecido').badge, 'painel-badge-neutral');
+
+  // O TTL vem em SEGUNDOS; montar timestamp futuro invertia o sinal e dava 0.
+  assert.equal(formatTtlRemaining(120), '2m');
+  assert.notEqual(formatTtlRemaining(120), '0s');
+  assert.equal(formatTtlRemaining(null), '—');
+  assert.equal(formatTtlRemaining(undefined), '—');
+});
+
+test('cacheSummary lê maxEntries e l2.fileSizeBytes reais', () => {
+  const s = cacheSummary({
+    entries: 120,
+    maxEntries: 1000,
+    persistent: true,
+    hits: 450,
+    misses: 50,
+    swrServed: 7,
+    // Chaves antigas: não existem no payload.
+    max: 999,
+    l2: { enabled: true, fileSizeBytes: 1048576, walSizeBytes: 4096, pendingWrites: 2, entries: 999, sizeBytes: 999 },
+  });
+
+  assert.equal(s.l1Entries, 120);
+  assert.equal(s.l1Max, 1000);
+  assert.equal(s.l2Bytes, 1048576);
+  assert.equal(s.l2WalBytes, 4096);
+  assert.equal(s.l2Pending, 2);
+  assert.equal(s.l2Enabled, true);
+  assert.equal(s.hits, 450);
+  assert.equal(s.misses, 50);
+  assert.equal(s.swrServed, 7);
+  assert.ok(Math.abs(s.hitRate - 0.9) < 1e-9);
+  assert.equal('max' in s, false);
+});
+
+test('catalogSummary lê catalog.report e trata ok:false como falha', () => {
+  const ok = catalogSummary({
+    ok: true,
+    report: {
       magnets: 95,
-      duplicates: 15,
+      ready: 90,
+      works: { known: 80, unknown: 15 },
+      totals: { count: 95, bytes: 123 },
+      byBucket: { dub: { count: 60, bytes: 100 }, dual: { count: 20, bytes: 20 } },
     },
-    conta: { total: 933, cap: 1000 },
   });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.magnets, 95);
+  assert.equal(ok.ready, 90);
+  assert.equal(ok.knownWorks, 80);
+  assert.equal(ok.unknownWorks, 15);
+  assert.equal(ok.totalCount, 95);
+  assert.equal(ok.byBucket.dub.count, 60);
 
-  assert.ok(vnode && typeof vnode === 'object');
-  assert.equal(vnode.type, ViewLimpeza);
-  assert.ok(vnode.props);
+  const fail = catalogSummary({ ok: false, reason: 'chave-operador-desativada', hint: 'ative DEBRID_OPERATOR_ENV_ACCOUNT' });
+  assert.equal(fail.ok, false);
+  assert.match(String(fail.reason), /chave-operador-desativada/);
+  assert.match(String(fail.reason), /DEBRID_OPERATOR_ENV_ACCOUNT/);
+  assert.equal(fail.magnets, 0);
+
+  // Payload antigo (campos no topo, sem `report`) não é mais lido como válido.
+  const legacy = catalogSummary({ works: 80, magnets: 95, duplicates: 15 });
+  assert.equal(legacy.magnets, 0);
+  assert.equal(legacy.ok, true, 'sem ok:false é tratado como resposta válida vazia');
 });
 
-test('ViewMagnets retorna VNode válido com h()', () => {
-  const vnode = h(ViewMagnets, {
-    magnetdb: {
-      entries: 350,
-      active: 345,
-      bad: 5,
-      persistent: true,
-    },
-  });
+test('nextCatalogState não deixa o catálogo preso em "Carregando" após falha', () => {
+  // Carga inicial silenciosa com 503/401/429/rede: sem relatório bom, o estado
+  // vira erro seguro — não `null` (que renderiza "Carregando…" para sempre).
+  for (const error of ['Serviço de diagnóstico desativado', 'Token inválido ou não autorizado', 'Limite de concorrência atingido (429)', 'Falha de conexão com o servidor']) {
+    const next = nextCatalogState(null, { ok: false, error });
+    assert.equal(next.ok, false);
+    assert.equal(next.reason, error);
+    assert.equal(next.retry, true, 'habilita o retry pelo botão existente');
+    // E o mapeamento alimenta o render: a causa aparece, sem "Carregando".
+    const summary = catalogSummary(next);
+    assert.equal(summary.ok, false);
+    assert.equal(summary.reason, error);
+  }
 
-  assert.ok(vnode && typeof vnode === 'object');
-  assert.equal(vnode.type, ViewMagnets);
-  assert.ok(vnode.props);
+  // Relatório bom já carregado + falha transitória (429 de refresh): preserva.
+  const bom = { ok: true, report: { magnets: 5 } };
+  assert.equal(nextCatalogState(bom, { ok: false, error: '429' }), bom);
+
+  // HTTP 200 com ok:false do servidor é RESPOSTA (conta indisponível): usa como veio.
+  const serverFail = nextCatalogState(null, { ok: true, data: { ok: false, reason: 'sem-adapter' } });
+  assert.deepEqual(serverFail, { ok: false, reason: 'sem-adapter' });
+  assert.equal('retry' in serverFail, false, 'erro de configuração não sugere retry cego');
+
+  // Resposta HTTP ok e vazia não pode virar null.
+  assert.equal(nextCatalogState(null, { ok: true }).ok, false);
 });

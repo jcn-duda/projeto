@@ -20,7 +20,6 @@ export function ViewConta({ conta, debrid }: ViewContaProps) {
   const dead = c.dead ?? debrid?.account?.error ?? 0;
 
   const oldestAge = c.oldestAt ? formatAgeFromTimestamp(c.oldestAt) : '—';
-  const hasStuck = c.stuckCount > 0;
 
   return html`
     <div class="painel-grid">
@@ -52,23 +51,14 @@ export function ViewConta({ conta, debrid }: ViewContaProps) {
         </div>
       </${Card}>
 
-      <${Card}
-        title="Saúde da Fila e Downloads"
-        badge=${hasStuck ? { text: 'DOWNLOAD PRESO', variant: 'warn' } : undefined}
-      >
+      <${Card} title="Idade do Acervo">
         <div class="painel-stat-group">
-          <span class="painel-stat-target">Mais antigo há:</span>
+          <span class="painel-stat-target">Magnet mais antigo há:</span>
           <strong style="font-family: var(--font-mono); color: var(--text);">${oldestAge}</strong>
         </div>
-        ${hasStuck ? html`
-          <p style="color: var(--amber); margin: 0; font-size: var(--font-floor);">
-            Há pelo menos 1 download ativo há mais de 24 horas na conta.
-          </p>
-        ` : html`
-          <p style="color: var(--muted); margin: 0; font-size: var(--font-floor);">
-            Nenhum download preso detectado.
-          </p>
-        `}
+        <p style="color: var(--muted); margin: 0; font-size: var(--font-floor);">
+          A idade acima é do registro mais antigo da conta — prontos incluídos. Não indica, por si só, download preso.
+        </p>
       </${Card}>
     </div>
   `;
