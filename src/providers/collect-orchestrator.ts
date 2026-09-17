@@ -9,7 +9,7 @@ import * as account from './account.js';
 import debrid from '../debrid/index.js';
 import { planJackettQueries, liveIndexers } from './search-plan.js';
 import { collectWithinWindow } from './collection-window.js';
-import { remainingCheckBudget } from '../utils/deadline.js';
+import { computeCollectionBudget, computePriorityGrace } from './collection-budget.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -185,34 +185,11 @@ export async function collectRaw(
     addTask(() => account.search(matchContext, trace), false, 'account');
   }
 
-  // Orçamento menor que o deadline da resposta: o resto do tempo é da checagem
-  // no debrid, que ainda precisa rodar em cima do que foi coletado.
-  //
-  // PLANO_MELHORIAS 4.3: o piso de 500ms é intencional, não sobra de fatia
-  // fixa. Quando metadados lentos (Cinemeta+TMDB) já corroeram a reserva, o
-  // valor calculado fica negativo — sem piso, a coleta abriria mão de tentar
-  // e a resposta sairia de bandeja para known:false/lista vazia. Isso NUNCA
-  // estoura o `replyDeadline`: o `raceWithDeadline` de `findStreams` corta
-  // `doSearch` no relógio absoluto (mesmo `deadlineAt`), independente do que
-  // este orçamento interno decide — o pior caso é a resposta chegar ATÉ 500ms
-  // mais perto do corte externo, nunca depois dele. Trocar por 0 no lugar do
-  // piso não evita esse corte (o relógio externo já protege), só troca uma
-  // tentativa de coleta real por known:false garantido — pior para o usuário.
-  const budget = deadlineAt == null
-    ? Math.max(1000, config.replyDeadline - config.debridReserve)
-    : Math.max(500, (remainingCheckBudget(deadlineAt) ?? 0) - config.debridReserve);
-  // A graça sai da reserva, mas nunca invade o piso configurado pro debrid. No
-  // caso
-  // medido de Disclosure Day, a primeira fonte BR chegava pouco depois dos 5s;
-  // sem esta janela a UI ficava para sempre com os 11 globais do passe parcial.
-  // Série também precisa dela (medido em A Casa do Dragão: os BR terminavam a
-  // 5,9-8,7s e o E01 dublado nunca entrava na primeira resposta), mas SÓ com
-  // itens no balde: balde vazio cai no fallback de pack, e consumir a graça
-  // nessa hora roubaria o tempo dele.
-  const priorityGrace = Math.min(
-    config.brPartialGrace,
-    Math.max(0, config.debridReserve - config.debridCheckFloor),
-  );
+  // Orçamento e graça vêm de `collection-budget.ts` — fórmula única, testada
+  // direto contra a produção (piso de 500ms do budget; graça sai da reserva sem
+  // invadir o piso do debrid). A justificativa completa mora no próprio módulo.
+  const budget = computeCollectionBudget(deadlineAt);
+  const priorityGrace = computePriorityGrace();
   let watchLate = false;
   let firstLateBatch = false;
   let lateQueue = Promise.resolve();
