@@ -208,3 +208,36 @@ describe('entrypoint: core dump não pode encher o disco', () => {
     assert.match(script, /ulimit -c 0 2>\/dev\/null \|\| true/);
   });
 });
+
+// `rutor` e `kickasstorrents-ws` respondiam `tab crashed` no FlareSolverr com
+// zero release — 28 crashes/hora, e o RuTor pendurando 100s por busca numa fila
+// SERIAL. Tirar do .env não bastava: a lista efetiva vem do `ji` da config
+// selada na URL, então instalação antiga continuava pedindo os dois.
+describe('entrypoint: indexers que derrubam o Chromium ficam estacionados', () => {
+  test('rutor e kickasstorrents-ws saem do diretório ativo', () => {
+    assert.ok(script.includes('park_stock_indexer rutor'), 'rutor precisa ser estacionado');
+    assert.ok(
+      script.includes('park_stock_indexer kickasstorrents-ws'),
+      'kickasstorrents-ws precisa ser estacionado',
+    );
+  });
+
+  test('kickasstorrents-to NÃO é estacionado (foi revalidado e entrega)', () => {
+    assert.ok(
+      !/park_stock_indexer kickasstorrents-to\b/.test(script),
+      'o -to foi religado depois de revalidado; estacioná-lo desfaria a decisão',
+    );
+    assert.ok(
+      !/seed_parked_card kickasstorrents-to\b/.test(script),
+      'nem semeado no diretório de desativados',
+    );
+  });
+
+  test('estacionar não apaga: o card vai para o irmão -disabled', () => {
+    // A mesma disciplina do Apache/HDR — reversível por um `mv` de volta.
+    const park = script.slice(script.indexOf('park_stock_indexer() {'));
+    const body = park.slice(0, park.indexOf('\n}\n'));
+    assert.doesNotMatch(body, /rm -rf/, 'estacionar nunca remove em bloco');
+    assert.match(body, /mv "\$stock" "\$backup"/);
+  });
+});

@@ -135,6 +135,21 @@ bootstrap_jackett_indexers() {
   # nas listas — sem redescobrir o domínio quando o site voltar.
   seed_parked_card hdrtorrent 'https://hdrtorrents.net/'
   park_stock_indexer hdrtorrent
+
+  # Chromium derrubando a aba: `rutor` e `kickasstorrents-ws` respondiam com
+  # `tab crashed` no FlareSolverr e ZERO release — 28 crashes/hora medidos em
+  # 2026-09-17, com o RuTor pendurando 100 SEGUNDOS por busca. O FlareSolverr
+  # atende em fila serial, entao cada um desses atrasa todas as outras fontes.
+  #
+  # Tirar do JACKETT_INDEXERS do .env NAO basta: a lista efetiva de uma busca
+  # vem do `ji` da config SELADA na URL de instalacao (collect-orchestrator lê
+  # `opts().jackettIndexers`), entao quem ja instalou continua pedindo os dois.
+  # Estacionar no Jackett corta na fonte, para qualquer instalacao.
+  #
+  # `kickasstorrents-to` fica FORA desta lista de proposito: foi revalidado e
+  # esta entregando (commit d218548).
+  park_stock_indexer rutor
+  park_stock_indexer kickasstorrents-ws
 }
 
 # Estaciona `<id>.json` do diretório ativo no irmão `-disabled` (senão o

@@ -119,6 +119,15 @@ Praticamente todo trabalho de código acontece no **Adom**.
   `src/config/jackett.ts`, deduplicando quando o `.env` cita os dois. O mapa é só
   de RENAME: um id que o operador escreve por decisão própria (religar o
   hdrtorrent) nunca entra ali.
+- **Indexer só sai da busca pelo Jackett, não pelo `.env`.** A lista efetiva de
+  uma busca vem do `ji` da config SELADA na URL de instalação
+  (`collect-orchestrator.ts` lê `opts().jackettIndexers`); `JACKETT_INDEXERS` do
+  `.env` é só o DEFAULT de instalações novas. Tirar um id do `.env` não muda nada
+  para quem já instalou — em 2026-09-17, `rutor` e `kickasstorrents-ws` seguiram
+  sendo consultados depois de removidos de lá, com `tab crashed` no FlareSolverr
+  e o RuTor pendurando 100s por busca numa fila serial. Para cortar de verdade,
+  estacione o card no Jackett (`park_stock_indexer` no entrypoint): vale para
+  qualquer instalação e é reversível por um `mv`.
 - **O HDR fica ESTACIONADO, não removido.** Em 2026-09-17 `hdrtorrents.net`
   (domínio novo do antigo `hdrtorrent.com`) devolvia a homepage para toda
   variante de busca, então o id está fora de TODAS as listas de
