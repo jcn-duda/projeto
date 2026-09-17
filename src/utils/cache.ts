@@ -71,8 +71,13 @@ function prune() {
     for (const hook of forgetHooks) hook(oldest);
     removeFromStore(oldest);
     dropped.push(oldest);
-    // Despejo por teto é o sinal de que MAX_ENTRIES ficou pequeno: subindo
-    // sempre, o cache está jogando fora coisa que ainda seria usada.
+    // Este laço é CANÁRIO, não regulador: com o teto estritamente acima da
+    // soma do universo de cotas (a conta está em cache-quotas.ts), a
+    // repartição por namespace acima já devolveu o store ao tamanho, e aqui
+    // não sobra nada para despejar. Se este contador subir, é porque algum
+    // namespace escapou da repartição — cota que virou fallback, chave sem
+    // `:`, teto rebaixado — e não porque MAX_ENTRIES ficou pequeno. Subir o
+    // teto esconde o sintoma sem tocar na causa.
     metrics.count('cache.evicted');
     metrics.count(`cache.evicted.${namespaceFor(oldest)}`);
   }

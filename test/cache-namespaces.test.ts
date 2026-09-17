@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import * as metrics from '../src/utils/metrics.js';
 import { NAMESPACE_VERSIONS } from '../src/utils/cache-keys.js';
+import { quotaFor, QUOTAS } from '../src/utils/cache-quotas.js';
 
 const DLMAG_QUOTA = 4000;
 const TTL_S = 3600;
@@ -279,4 +280,18 @@ test('getWithStale: três estados — fresco, expirado na graça, fora da janela
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
   }
+});
+
+test('quotaFor: cota declarada vale como está, inclusive 0', () => {
+  // Com `||`, um namespace declarado com 0 (nada retido) ganhava o fallback de
+  // 500 em silêncio — o oposto do pedido, e invisível para a soma do universo,
+  // que leria 0. Nome desconhecido continua caindo no `__default`.
+  // `QUOTAS` é congelado e `quotaFor` o lê direto, então não dá para injetar um
+  // namespace com 0 daqui: o que este teste prende é o contrato observável —
+  // cota declarada é devolvida como está (o `mag_meta: 1` é a menor que existe)
+  // e só nome AUSENTE cai no fallback.
+  assert.equal(quotaFor('mag_meta'), QUOTAS.mag_meta);
+  assert.notEqual(quotaFor('mag_meta'), QUOTAS.__default, 'cota pequena não vira fallback');
+  assert.equal(quotaFor('__nao_existe__'), QUOTAS.__default);
+  assert.equal(quotaFor('__default'), QUOTAS.__default);
 });

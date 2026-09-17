@@ -149,8 +149,14 @@ export function namespaceFor(key: string) {
   return separator === -1 ? '__default' : String(key).slice(0, separator);
 }
 
+/**
+ * `??`, não `||`: com `||`, uma cota `0` — escrita por quem quer um namespace
+ * que NÃO retém nada — cairia no fallback de 500 em silêncio, o oposto do
+ * pedido. Nome desconhecido continua no `__default`; cota declarada vale como
+ * está.
+ */
 export function quotaFor(namespace: string) {
-  return QUOTAS[namespace] || QUOTAS.__default;
+  return QUOTAS[namespace] ?? QUOTAS.__default;
 }
 
 export function incrementNamespace(namespaceCounts: Map<string, number>, namespace: string) {
