@@ -11,32 +11,53 @@
  * instância nova de cache.ts reusando o irmão cacheado, com o store alheio).
  */
 
-// A soma das cotas NOMEADAS é 89.551 (inclui mag=50.000, rdc=14.000,
-// autofetch=4.000, rdt=2.500, fsz=3.000, streams=2.000, idx=2.000,
-// adprot=2.000, adsub=1.000, davail=1.000, vres=1.000, raw=800,
-// dlmag=4.000, rdq=500, adrm=500, tmdb=500, meta=500, indexer-status=200 e
-// cfg=50). A soma OPERACIONAL inclui o balde `__default=500` (toda chave sem
-// namespace conhecido cai nele): 90.051, deixando 949 entradas de folga sob o
-// teto global de 91.000. O ledger RD é global por hash e precisa reter muito
-// mais histórico que os caches por conta; os demais baldes foram calibrados
-// para abrir esse espaço sem deixar o despejo global invalidar suas cotas antes
-// da hora. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior caso) e o
-// streams cresceu com o /stream-trace.json (cap de 300 itens ≈ 27 KB por
-// entrada): no teto teórico do namespace (2000 entradas) soma ~54 MB — hoje
-// observado ~13 MB em produção local. O idx (2.000 × ~14,7 KB ≈ 29 MB) fecha a
-// conta dos gordos; rdc/davail/mag/rdt/adprot/adsub/adrm/autofetch guardam só
-// registros pequenos — mag 50k ≈ 19 MB e o autofetch 4k ≈ poucos MB (o
-// registro `o:` por obra é uma lista curta).
+// A conta que tem que fechar NÃO é a soma de `QUOTAS`: `quotaFor` devolve
+// `__default` (500) para todo nome sem entrada própria, então cada namespace
+// que exista em `NAMESPACE_VERSIONS` sem cota nomeada soma mais 500 aqui. O
+// universo real é a união dos dois registros, mais o balde `__default` das
+// chaves sem `:`. Hoje: 90.721 + 500 = 91.221 entradas alcançáveis contra o
+// teto de 93.000 — folga de 1.779, ~3 baldes de 500 de namespaces novos antes
+// de o teto virar o garrote. A conta é refeita no teste
+// (test/cache-namespaces.test.ts), que também exige cota explícita para todo
+// namespace versionado. Foi a falta dessa segunda guarda que deixou `dinv`,
+// `harvest`, `notify` e `seed` vivendo de fallback até a soma real passar do
+// teto em 1.051 — medido no container: todos os namespaces dentro da própria
+// cota, store parado em 91.000 com `cache.evicted = 1051` e `streams` reduzido
+// a 949 de 2.000. Teto IGUAL OU ABAIXO da soma reintroduz o despejo global
+// antes da repartição por namespace, que foi bug real.
 //
-// O teto global acompanha a soma OPERACIONAL: teto IGUAL OU ABAIXO dela
-// reintroduz o despejo global antes da repartição por namespace, que foi bug
-// real. (`__default` TEM quota explícita 500 em `QUOTAS` e é para onde cai
-// toda chave sem namespace conhecido — `quotaFor` devolve `QUOTAS.__default`.)
-export const MAX_ENTRIES = 91000;
+// Cotas nomeadas: mag=50.000, rdc=14.000, dlmag=4.000, autofetch=4.000,
+// fsz=3.000, rdt=2.500, streams=2.000, idx=2.000, adprot=2.000, davail=1.000,
+// adsub=1.000, vres=1.000, raw=800, tmdb=500, tmdbc=500, meta=500, rdq=500,
+// adrm=500, harvest=500, indexer-status=200, notify=100, seed=20, dinv=50,
+// cfg=50, mag_meta=1. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior
+// caso) e o streams cresceu com o /stream-trace.json (cap de 300 itens ≈ 27 KB
+// por entrada): no teto teórico do namespace (2.000) soma ~54 MB — observado
+// ~13 MB. O idx (2.000 × ~14,7 KB ≈ 29 MB) fecha a conta dos gordos;
+// rdc/davail/mag/rdt/adprot/adsub/adrm/autofetch guardam registros pequenos —
+// mag 50k ≈ 19 MB. Os quatro que saíram do fallback cabem na conta porque a
+// população é fixa e minúscula (medido no L2: `dinv` 0 linhas, `notify` 0,
+// `seed` 2, `harvest` 2) — `dinv:v1:<adapter>:<conta>` é uma por conta, `seed`
+// são duas chaves fixas (`cohort`, `last`), `notify:v1:<evento>` uma por
+// evento. `harvest` fica em 500 porque `harvest:v1:seen:<sha>` cresce por obra.
+//
+// DÍVIDA CONHECIDA — não "uniformizar" sem ler cache-db.ts: `dlmag`, `tmdb`,
+// `meta`, `indexer-status` e `tmdbc` têm cota mas NÃO estão em
+// `NAMESPACE_VERSIONS`, porque montam a chave sem segmento de versão (`tmdbc:`
+// em src/utils/tmdb.ts:208) e o `maintain()` do boot
+// (src/utils/cache-db.ts:113-114) apaga todo `ns:%` que não bata com
+// `ns:<versão>:%`. Registrá-los na lista sem migrar as chaves primeiro custa o
+// cache deles no próximo restart.
+export const MAX_ENTRIES = 93000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
   tmdb: 500,
+  // Coleções do TMDB (chave `tmdbc:<imdbId>`, uma por filme com
+  // `belongs_to_collection`). Tem cota própria só para entrar na conta do
+  // universo acima: a chave é montada sem segmento de versão, então não pode ir
+  // para `NAMESPACE_VERSIONS` (ver a dívida conhecida no cabeçalho).
+  tmdbc: 500,
   meta: 500,
   // Resultado bruto da busca por indexer/scraper: cada entrada pode chegar a
   // ~100 KB (teto de itens no config), então a cota fica bem abaixo das de
@@ -85,8 +106,9 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // markers/dead/queues/prefetch/sup, então 2.000 virou 4.000 (dobro) —
   // registro `o:` é uma lista curta de entradas minúsculas (hash+pool+at), e o
   // teto real de downloads por janela é a conta do debrid, não a cota. O teto
-  // global (91.000) continua ESTRITAMENTE ACIMA da soma OPERACIONAL: 90.051 =
-  // 89.551 das cotas NOMEADAS + 500 do `__default`.
+  // global continua ESTRITAMENTE ACIMA da soma do universo — a conta está no
+  // cabeçalho deste arquivo e não se repete aqui de propósito: duplicar o
+  // número foi como o comentário ficou mentindo sozinho.
   autofetch: 4000,
   'indexer-status': 200,
   cfg: 50,
@@ -112,6 +134,13 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Resolução medida no cabeçalho do vídeo por arquivo (`vres:v1`): registro
   // minúsculo `{ q, w, h }`, uma entrada por arquivo que o play tocaria.
   vres: 1000,
+  // Estes quatro existiam em `NAMESPACE_VERSIONS` sem entrada própria e
+  // pagavam o fallback de 500 cada — foi o buraco que estourou o teto (conta
+  // no cabeçalho). População medida no L2 em 2026-09-17: 0 / 0 / 2 / 2.
+  dinv: 50,
+  notify: 100,
+  seed: 20,
+  harvest: 500,
   __default: 500,
 });
 

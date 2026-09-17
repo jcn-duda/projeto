@@ -1405,16 +1405,21 @@ pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
 
 Cotas do L1 (`cache-quotas.ts`): `streams` 2000, `raw` 800, `dlmag` 4000,
 `idx` 2000, `rdc` 14000, `autofetch` 4000, `mag` 50000, `mag_meta` 1 (o agregado
-único dos contadores duráveis do banco de magnets), teto global 91000. `raw` é o namespace
+único dos contadores duráveis do banco de magnets), teto global 93000. `raw` é o namespace
 gordo (~100 KB no pior caso); não suba a cota sem refazer a conta de memória do
 container de 3g. O `mag` é o oposto — entrada minúscula (`1` + chave de ~70 B,
-~400 B com o overhead do Map), então 50.000 custa ~19 MB. A SOMA das cotas
-**nomeadas** é 89.551; a soma **operacional** inclui o balde `__default` (500),
-para onde cai toda chave sem namespace conhecido — 90.051, com folga de 949 sob
-o teto global. Teto global **igual ou abaixo** da soma operacional reintroduz o
-despejo global antes da repartição por namespace (foi bug real).
-(`__default` não tem quota explícita em `QUOTAS`: `quotaFor` devolve
-`QUOTAS.__default` para ele.)
+~400 B com o overhead do Map), então 50.000 custa ~19 MB. A conta que fecha NÃO
+é a soma das chaves de `QUOTAS` (90.721): `quotaFor` devolve `__default` (500)
+para todo nome sem entrada própria, então o universo honesto é a **união** de
+`QUOTAS` com `NAMESPACE_VERSIONS`, mais o balde `__default` das chaves sem `:`
+— 91.221 contra o teto de 93.000, folga de 1.779 (~3 baldes de namespaces
+novos). Essa conta é refeita no teste (`cache-namespaces.test.ts`), que também
+exige **cota explícita para todo namespace versionado** — sem a segunda guarda,
+`dinv`, `harvest`, `notify` e `seed` viveram de fallback e a soma real passou do
+teto em 1.051 sem nenhum teste reclamar (medido no container: `cache.evicted =
+1051` com todos os namespaces dentro da própria cota). Teto global **igual ou
+abaixo** da soma do universo reintroduz o despejo global antes da repartição por
+namespace (foi bug real).
 
 Cota é capacidade, não permanência: quem tira registro do `mag` no dia a dia é
 o TTL (`MAGNET_ALIVE_TTL`/`MAGNET_LIE_TTL` 7 dias, `MAGNET_BAD_TTL` 24 h).

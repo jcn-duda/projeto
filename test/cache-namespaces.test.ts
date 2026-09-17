@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as metrics from '../src/utils/metrics.js';
+import { NAMESPACE_VERSIONS } from '../src/utils/cache-keys.js';
 
 const DLMAG_QUOTA = 4000;
 const TTL_S = 3600;
@@ -43,7 +44,7 @@ test('estouro de dlmag despeja só o próprio namespace e preserva streams', asy
   }
 });
 
-test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva folga sob o teto', async () => {
+test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do UNIVERSO sob o teto', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
@@ -63,9 +64,27 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva folga sob o
     // markers/dead/queues/prefetch/sup, então a cota dobrou e o teto global
     // subiu junto — sempre estritamente acima da soma.
     assert.equal(cache.QUOTAS.autofetch, 4000);
-    assert.equal(cache.MAX_ENTRIES, 91000);
-    const sumQuotas = Object.entries(cache.QUOTAS).reduce((sum, [ns, quota]) => ns === '__default' ? sum : sum + (quota as number), 0);
-    assert.ok(sumQuotas < cache.MAX_ENTRIES, `soma das cotas (${sumQuotas}) < teto (${cache.MAX_ENTRIES})`);
+    assert.equal(cache.MAX_ENTRIES, 93000);
+    // O que o teto precisa cobrir não é a lista de `QUOTAS`: `quotaFor` devolve
+    // `__default` para todo nome sem entrada própria, então namespace
+    // versionado sem cota some da soma nomeada e ocupa o store igual — foi
+    // assim que o teto ficou abaixo da conta real sem nenhum teste reclamar.
+    // O universo honesto é a união dos dois registros, mais o balde das chaves
+    // sem `:`.
+    const universo = new Set([...Object.keys(cache.QUOTAS), ...Object.keys(NAMESPACE_VERSIONS)]);
+    universo.delete('__default');
+    const deFallback = [...universo].filter((ns) => cache.QUOTAS[ns] === undefined);
+    assert.deepEqual(
+      deFallback,
+      [],
+      `namespace sem cota explícita soma ${cache.QUOTAS.__default} cada ao universo: ${deFallback.join(', ')}`,
+    );
+    const somaUniverso =
+      [...universo].reduce((sum, ns) => sum + cache.QUOTAS[ns], 0) + cache.QUOTAS.__default;
+    assert.ok(
+      somaUniverso < cache.MAX_ENTRIES,
+      `soma do universo (${somaUniverso}, ${universo.size} namespaces + __default) < teto (${cache.MAX_ENTRIES})`,
+    );
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
