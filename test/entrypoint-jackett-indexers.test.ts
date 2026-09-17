@@ -184,3 +184,27 @@ describe('entrypoint: HDR estacionado e pronto para religar', () => {
     );
   });
 });
+
+// Core dump desligado: o host grava `core.<pid>` no cwd (/app) e o Chromium do
+// FlareSolverr crasha de tempos em tempos. Sem este ulimit, cada crash deixava
+// ~700 MB na camada de escrita — foi o que encheu o disco da VPS e congelou o
+// deploy automático por 24h.
+describe('entrypoint: core dump não pode encher o disco', () => {
+  test('desliga core dump antes de subir qualquer serviço', () => {
+    const ulimit = script.match(/^ulimit -c 0\b/m);
+    assert.ok(ulimit, 'o entrypoint precisa zerar o limite de core dump');
+    // Início de linha: o cabeçalho do script CITA `run '[...]'` num comentário,
+    // e casar a citação compararia a posição errada.
+    const firstRun = script.match(/^run '\[/m);
+    assert.ok(firstRun, 'o script precisa subir serviços com run [nome]');
+    assert.ok(
+      (ulimit.index as number) < (firstRun.index as number),
+      'o ulimit precisa valer ANTES do primeiro serviço (ele herda do supervisor)',
+    );
+  });
+
+  test('a falha do ulimit não derruba o boot', () => {
+    // `set -u` está ligado e o shell pode recusar o ulimit em algum host.
+    assert.match(script, /ulimit -c 0 2>\/dev\/null \|\| true/);
+  });
+});

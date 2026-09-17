@@ -15,6 +15,26 @@
 # com 3 derruba o container com 3).
 set -uo pipefail
 
+# Core dump DESLIGADO para todos os subprocessos.
+#
+# O host tem `kernel.core_pattern=core` (arquivo, não pipe), o cwd do supervisor
+# é /app e o Chromium do FlareSolverr crasha de tempos em tempos — cada crash
+# despejava ~700 MB de `core.<pid>` na camada de escrita do container. Em
+# 2026-09-16 isso encheu os 38 GB do disco da VPS com 364 cores: o `git fetch`
+# do deploy automático passou a falhar por falta de espaço e a producao ficou
+# 24h congelada num commit velho, sem nem conseguir logar o erro (o log também
+# não tinha onde ser escrito).
+#
+# O que mascarava isso era o proprio deploy: `docker compose up -d --build`
+# recria o container e joga fora a camada de escrita, entao os cores sumiam a
+# cada push. Bastou passar um dia sem deploy para o disco estourar — e a partir
+# dai o problema se sustentava sozinho.
+#
+# `ulimit -c 0` nao esconde crash nenhum: o FlareSolverr continua logando a
+# falha e o supervisor continua derrubando o container se um serviço morrer. Só
+# impede que a autopsia de 700 MB vire um problema de infraestrutura.
+ulimit -c 0 2>/dev/null || true
+
 pids=()
 shutdown() {
   echo "[entrypoint] sinal recebido; encerrando subprocessos" >&2
