@@ -83,6 +83,16 @@ function makePublicHandlers(services: AppServices) {
   // deploy que muda o asset muda a URL junto. Lido uma vez por app: o addon serve
   // de dist/ e os arquivos não mudam no decorrer do processo.
   const fingerprint = createHash('sha256');
+  // Versão do PIPELINE de entrega, não do conteúdo. O fingerprint nasceu como
+  // hash dos bytes em disco, mas o que a URL promete é o corpo SERVIDO — e ele
+  // depende também de como servimos. Quando o carimbo de `?v=` nos imports
+  // entrou, os arquivos não mudaram: a mesma URL `?v=<hash>` passou a devolver
+  // corpo diferente, quebrando a promessa de `immutable`. Em produção a
+  // Cloudflare ficou com parte dos módulos na versão velha (imports sem query)
+  // e parte na nova, o browser carregou DUAS instâncias do preact e o painel
+  // abriu em branco (`Cannot read properties of undefined (reading '__H')`).
+  // Suba este número em qualquer mudança na FORMA de servir os assets.
+  fingerprint.update('serving-pipeline-v2');
   for (const name of [...PAGE_ASSETS, ...CLIENT_ASSETS]) {
     fingerprint.update(fs.readFileSync(services.publicPath(name)));
   }

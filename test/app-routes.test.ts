@@ -155,6 +155,22 @@ test('contrato de cache: HTML no-store e asset imutável só com o fingerprint c
   const painelRevalidated = await server.request('GET', '/client/painel/fmt.js', { headers: { 'if-none-match': painelEtag } });
   assert.equal(painelRevalidated.status, 304);
 
+  // O fingerprint precisa mudar quando a FORMA de servir muda, não só quando o
+  // byte em disco muda: a URL promete o corpo SERVIDO. Sem isso, o dia em que o
+  // carimbo entrou a mesma `?v=<hash>` passou a devolver conteúdo diferente, a
+  // CDN ficou com metade dos módulos velhos e o painel abriu em branco com duas
+  // instâncias do preact.
+  // A suíte roda de dist/: a fonte .ts está um nível acima do que o .js vê.
+  const publicSrc = ['../src/routes/public.ts', '../../src/routes/public.ts']
+    .map((rel) => new URL(rel, import.meta.url))
+    .find((url) => fs.existsSync(url));
+  assert.ok(publicSrc, 'fonte de public.ts não encontrada a partir do teste');
+  assert.match(
+    fs.readFileSync(publicSrc, 'utf8'),
+    /fingerprint\.update\('serving-pipeline-v\d+'\)/,
+    'o fingerprint precisa incluir a versão do pipeline de entrega',
+  );
+
   // Cliente ESM de /configure: o entry versionado é immutable; os filhos
   // (importados sem ?v=) saem no-cache e revalidam por ETag → 304 quando o
   // módulo não mudou. É o que pega deploy-skew sem congelar filho velho.
