@@ -12,6 +12,7 @@ import { createResolver as createNerd, DEFAULTS as NERD_DEFAULTS, META as NERD_M
 import { createResolver as createRede, DEFAULTS as REDE_DEFAULTS, META as REDE_META } from '../resolvers/profiles/redetorrent.js';
 import { createResolver as createTdf, DEFAULTS as TDF_DEFAULTS, META as TDF_META } from '../resolvers/profiles/torrentdosfilmes.js';
 import { createResolver as createVaca, DEFAULTS as VACA_DEFAULTS, META as VACA_META } from '../resolvers/profiles/vacatorrent.js';
+import { createResolver as createApache, DEFAULTS as APACHE_DEFAULTS, META as APACHE_META } from '../resolvers/profiles/apachetorrent.js';
 import { RESOLVERS } from '../src/br-resolvers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +25,7 @@ const SHIM_DIRS = [
   'torrentdosfilmes-resolver',
   'vacatorrent-resolver',
   'redetorrent-resolver',
+  'apachetorrent-resolver',
 ];
 
 /** Contrato do loader (src/br-resolvers) + shape mínimo que os testes leem. */
@@ -48,9 +50,10 @@ const U3_PROFILES: Array<{ name: string; factory: ResolverFactory; port: number;
   { name: 'redetorrent', factory: createRede, port: REDE_DEFAULTS.port, siteEnv: REDE_META.siteEnv },
   { name: 'torrentdosfilmes', factory: createTdf, port: TDF_DEFAULTS.port, siteEnv: TDF_META.siteEnv },
   { name: 'vacatorrent', factory: createVaca, port: VACA_DEFAULTS.port, siteEnv: VACA_META.siteEnv },
+  { name: 'apachetorrent', factory: createApache, port: APACHE_DEFAULTS.port, siteEnv: APACHE_META.siteEnv },
 ];
 
-describe('U3: os seis profiles constroem com o contrato real', () => {
+describe('U3: os sete profiles constroem com o contrato real', () => {
   for (const profile of U3_PROFILES) {
     test(`${profile.name}: DEFAULTS/META e shape da instância`, () => {
       assert.equal(typeof profile.factory, 'function');
@@ -91,8 +94,8 @@ describe('U3: os seis profiles constroem com o contrato real', () => {
     }
   });
 
-  test('compatibilidade com src/br-resolvers: os seis módulos são carregáveis', () => {
-    assert.equal(RESOLVERS.length, 6);
+  test('compatibilidade com src/br-resolvers: os sete módulos são carregáveis', () => {
+    assert.equal(RESOLVERS.length, 7);
     for (const entry of RESOLVERS) {
       assert.equal(typeof entry.createResolver, 'function', `${entry.name} sem createResolver`);
       const instance = entry.createResolver(LOADER_OVERRIDES);
@@ -120,7 +123,7 @@ describe('U4: helper genérico do Proxy lazy', () => {
     assert.equal(builds, 1, 'a mesma instância é reusada');
   });
 
-  test('os seis shims preservam default lazy + standalone isMain e import .js', () => {
+  test('os sete shims preservam default lazy + standalone isMain e import .js', () => {
     for (const dir of SHIM_DIRS) {
       const ts = fs.readFileSync(path.join(ROOT, dir, 'server.ts'), 'utf8');
       assert.match(ts, /createLazyInstance\(\(\) => createResolver\(\)\)/, `${dir} sem lazy instance`);

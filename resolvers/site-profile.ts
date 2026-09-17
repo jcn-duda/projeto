@@ -1,4 +1,4 @@
-// Bootstrap comum dos seis profiles de resolver (PLANO_MELHORIAS §5.8,
+// Bootstrap comum dos sete profiles de resolver (PLANO_MELHORIAS §5.8,
 // passo 1 da extração do núcleo). Os seis perfis repetiam ~60-80 linhas
 // idênticas de montagem — seletor de failover de domínio, conjuntos de
 // sufixos do protetor, trio de allowlist (assertAllowedUrl/isDetailHost/
@@ -74,7 +74,7 @@ export type FetchFollowingOptions = Omit<TransportOptions, 'assertAllowedUrl' | 
 export interface ProfileOptions {
   /** Nome curto do perfil ('bludv', ...) — tag do seletor e nome no log de boot. */
   name: string;
-  /** Porta do resolver standalone (8700-8705). */
+  /** Porta do resolver standalone (8700-8706). */
   port: number;
   /** SELF_URL efetivo (override/env/default já resolvidos). */
   selfUrl: string;

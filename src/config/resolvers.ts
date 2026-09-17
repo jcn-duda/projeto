@@ -10,7 +10,7 @@ import { BLUDV_DEFAULT_URL, list } from './helpers.js';
 export const resolvers = () => ({
   embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
   host: process.env.BR_RESOLVERS_HOST || '127.0.0.1',
-  // Desloca as portas dos resolvedores (8700..8705); o probe do painel usa a
+  // Desloca as portas dos resolvedores (8700..8706); o probe do painel usa a
   // mesma base para achar a porta certa de cada card.
   portOffset: Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0,
   // Teto do teste DIRETO do resolvedor pelo painel (/test-resolver.json). A
@@ -27,6 +27,7 @@ export const resolvers = () => ({
     torrentdosfilmes: 8703,
     vacatorrent: 8704,
     redetorrent: 8705,
+    apachetorrent: 8706,
   },
   bludvUrl: (process.env.BLUDV_URL || BLUDV_DEFAULT_URL).replace(/\/$/, ''),
   comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
@@ -43,5 +44,11 @@ export const resolvers = () => ({
   // Rede Torrent: atrás de desafio Cloudflare (o resolver resolve via
   // FlareSolverr), com magnets diretos no HTML do post.
   redetorrentUrl: (process.env.REDETORRENT_URL || 'https://www.redetorrent.xyz').replace(/\/$/, ''),
+  // Apache Torrent: buscador PHP próprio com sessão+token por sessão (o
+  // resolver mantém a sessão); magnets diretos no post, sem protetor. O apex
+  // apachetorrent.com faz 301 para o plural apachetorrents.com — os DOIS ficam
+  // na allowlist do profile, senão o redirect vira blocked_host e a fonte morre
+  // em silêncio (a env VENCE este default; confira o .env.example).
+  apachetorrentUrl: (process.env.APACHETORRENT_URL || 'https://apachetorrents.com').replace(/\/$/, ''),
   extraProtectors: list(process.env.EXTRA_ALLOWED_PROTECTORS),
 });

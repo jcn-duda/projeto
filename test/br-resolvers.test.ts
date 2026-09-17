@@ -9,6 +9,7 @@ import nerd from '../nerdfilmes-resolver/server.js';
 import tdf from '../torrentdosfilmes-resolver/server.js';
 import vaca from '../vacatorrent-resolver/server.js';
 import redetorrent from '../redetorrent-resolver/server.js';
+import apachetorrent from '../apachetorrent-resolver/server.js';
 import * as brResolvers from '../src/br-resolvers.js';
 
 describe('Feature 1: Dynamic Domain Validation', () => {
@@ -237,10 +238,10 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
 });
 
 describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => {
-  test('brResolvers exporta matriz RESOLVERS com 6 entradas padronizadas', () => {
-    assert.equal(brResolvers.RESOLVERS.length, 6);
+  test('brResolvers exporta matriz RESOLVERS com 7 entradas padronizadas', () => {
+    assert.equal(brResolvers.RESOLVERS.length, 7);
     const names = brResolvers.RESOLVERS.map((r) => r.name);
-    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent']);
+    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent']);
 
     const envs = brResolvers.RESOLVERS.map((r) => r.siteEnv);
     assert.deepEqual(envs, [
@@ -250,6 +251,7 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
       'TORRENTDOSFILMES_URL',
       'VACATORRENT_URL',
       'REDETORRENT_URL',
+      'APACHETORRENT_URL',
     ]);
   });
 
@@ -264,6 +266,7 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
       torrentdosfilmes: 8703,
       vacatorrent: 8704,
       redetorrent: 8705,
+      apachetorrent: 8706,
     });
     assert.ok(config.resolvers.bludvUrl);
     assert.ok(config.resolvers.comandotorrentsUrl);
@@ -271,6 +274,7 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
     assert.ok(config.resolvers.torrentdosfilmesUrl);
     assert.ok(config.resolvers.vacatorrentUrl);
     assert.ok(config.resolvers.redetorrentUrl);
+    assert.ok(config.resolvers.apachetorrentUrl);
     assert.ok(Array.isArray(config.resolvers.extraProtectors));
   });
 
@@ -316,6 +320,7 @@ describe('Protetores: lista base compartilhada', () => {
   const perfis: Array<[string, any]> = [
     ['bludv', bludv], ['comandotorrents', comando], ['nerdfilmes', nerd],
     ['torrentdosfilmes', tdf], ['vacatorrent', vaca], ['redetorrent', redetorrent],
+    ['apachetorrent', apachetorrent],
   ];
 
   test('temreceita.com é protetor reconhecido em todos os perfis', () => {

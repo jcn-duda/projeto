@@ -25,7 +25,7 @@
     "test/**/*.ts",
     "scripts/**/*.ts",
     "types/**/*.d.ts",
-    // A ilha dos resolvers (núcleo + os seis *-resolver) é compilada pelo
+    // A ilha dos resolvers (núcleo + os sete *-resolver) é compilada pelo
     // PRÓPRIO tsc: os .ts viram .js em dist/ e os *-resolver/ entram por glob
     // explícito (server/test/smoke-test). Só fontes .ts — os globs de .js
     // saíram (não há mais fonte JS na ilha) para não haver dupla fonte de emit.

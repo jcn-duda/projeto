@@ -12,6 +12,7 @@ import nerdfilmesShim from '../nerdfilmes-resolver/server.js';
 import torrentdosfilmesShim from '../torrentdosfilmes-resolver/server.js';
 import vacatorrentShim from '../vacatorrent-resolver/server.js';
 import redetorrentShim from '../redetorrent-resolver/server.js';
+import apachetorrentShim from '../apachetorrent-resolver/server.js';
 
 import * as bludvProfile from '../resolvers/profiles/bludv.js';
 import * as comandotorrentsProfile from '../resolvers/profiles/comandotorrents.js';
@@ -19,6 +20,7 @@ import * as nerdfilmesProfile from '../resolvers/profiles/nerdfilmes.js';
 import * as torrentdosfilmesProfile from '../resolvers/profiles/torrentdosfilmes.js';
 import * as vacatorrentProfile from '../resolvers/profiles/vacatorrent.js';
 import * as redetorrentProfile from '../resolvers/profiles/redetorrent.js';
+import * as apachetorrentProfile from '../resolvers/profiles/apachetorrent.js';
 
 import { isMain } from '../resolvers/is-main.js';
 import * as brResolvers from '../src/br-resolvers.js';
@@ -55,6 +57,7 @@ const SHIM_DIRS = [
   'torrentdosfilmes-resolver',
   'vacatorrent-resolver',
   'redetorrent-resolver',
+  'apachetorrent-resolver',
 ];
 
 function jsFilesUnder(dir: string): string[] {
@@ -95,7 +98,7 @@ describe('Ilha dos resolvers é ESM puro (Node 20/22)', () => {
     assert.equal(rootPkg.type, 'module', 'a raiz precisa continuar type: module');
   });
 
-  test('os seis shims carregam por import() nativo, sem interop CJS', () => {
+  test('os sete shims carregam por import() nativo, sem interop CJS', () => {
     // O caminho de carregamento no Node 20/22 é o import dinâmico nativo; se
     // algum módulo da ilha voltasse a ser CommonJS, `require(esm)`/interop
     // apareceria aqui como falha de resolução.
@@ -109,7 +112,7 @@ describe('Ilha dos resolvers é ESM puro (Node 20/22)', () => {
     assert.equal(res.stdout.trim(), 'ok');
   });
 
-  test('os seis shims declaram export default em TS (sem .d.ts redundante)', () => {
+  test('os sete shims declaram export default em TS (sem .d.ts redundante)', () => {
     for (const dir of SHIM_DIRS) {
       const ts = fs.readFileSync(path.join(ROOT, dir, 'server.ts'), 'utf8');
       assert.match(ts, /export default resolver;/, `${dir}/server.ts sem export default`);
@@ -129,6 +132,7 @@ describe('Shims preservam o default lazy; profiles exportam factory', () => {
     torrentdosfilmes: torrentdosfilmesShim,
     vacatorrent: vacatorrentShim,
     redetorrent: redetorrentShim,
+    apachetorrent: apachetorrentShim,
   };
 
   const profiles = {
@@ -138,6 +142,7 @@ describe('Shims preservam o default lazy; profiles exportam factory', () => {
     torrentdosfilmes: torrentdosfilmesProfile,
     vacatorrent: vacatorrentProfile,
     redetorrent: redetorrentProfile,
+    apachetorrent: apachetorrentProfile,
   };
 
   for (const [name, shim] of Object.entries(shims)) {
@@ -199,9 +204,9 @@ describe('resolvers/is-main.js', () => {
   });
 });
 
-describe('Carregador embutido: seis factories estáticas', () => {
-  test('RESOLVERS traz createResolver em todas as seis entradas', () => {
-    assert.equal(brResolvers.RESOLVERS.length, 6);
+describe('Carregador embutido: sete factories estáticas', () => {
+  test('RESOLVERS traz createResolver em todas as sete entradas', () => {
+    assert.equal(brResolvers.RESOLVERS.length, 7);
     for (const entry of brResolvers.RESOLVERS) {
       assert.equal(typeof entry.createResolver, 'function', `${entry.name} sem createResolver`);
       assert.equal(typeof entry.siteEnv, 'string');
@@ -209,7 +214,7 @@ describe('Carregador embutido: seis factories estáticas', () => {
     }
     assert.deepEqual(
       brResolvers.RESOLVERS.map((entry) => entry.name),
-      ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent'],
+      ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent'],
     );
   });
 });

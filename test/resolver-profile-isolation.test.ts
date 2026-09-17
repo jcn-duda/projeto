@@ -16,7 +16,7 @@ import * as nerdParsers from '../resolvers/profiles/nerdfilmes-parsers.js';
 //   2. duas instâncias do MESMO profile não compartilham cache nem seletor.
 const PROFILE_NAMES = [
   'bludv', 'comandotorrents', 'nerdfilmes',
-  'torrentdosfilmes', 'vacatorrent', 'redetorrent',
+  'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent',
 ];
 const PROFILES_DIR = fileURLToPath(new URL('../resolvers/profiles/', import.meta.url));
 
@@ -129,7 +129,7 @@ describe('Profiles de resolver: factory explícita e import-safe', () => {
       'PORT', 'SELF_URL', 'SITE_URL',
       'BLUDV_URL', 'BLUDV_URLS', 'BLUDV_MAX_POSTS',
       'COMANDOTORRENTS_URL', 'NERDFILMES_URL', 'TORRENTDOSFILMES_URL',
-      'VACATORRENT_URL', 'REDETORRENT_URL',
+      'VACATORRENT_URL', 'REDETORRENT_URL', 'APACHETORRENT_URL',
       'EXTRA_ALLOWED_PROTECTORS', 'EXTRA_PROTECTORS',
       'FLARE_SOLVERR_URL', 'FLARE_TIMEOUT_MS', 'FLARE_SESSION_TTL_MS',
       'TIMEOUT_MS', 'MAX_POSTS', 'POST_CACHE_MS', 'SEARCH_CACHE_MS',

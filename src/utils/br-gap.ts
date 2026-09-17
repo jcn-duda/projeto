@@ -2,8 +2,8 @@
 //
 // O problema que resolve: o índice guarda releases globais (inglês) que fazem
 // `idxPoolCovered` devolver true — a busca se serve do índice e o Jackett vivo
-// fica como enriquecimento no tail. Os index-only (ApacheTorrent, redetorrent,
-// hdrtorrent), que são justo onde pode morar o dublado titulado em PT, NUNCA
+// fica como enriquecimento no tail. Os index-only (ApacheTorrent Cardigann,
+// Rede Torrent e 1337x), que são justo onde pode morar o dublado titulado em PT, NUNCA
 // entram pela busca viva (os filtra `liveIndexers`) nem pelo enriquecimento do
 // tail (já está coberto), então o dublado BR dessa obra fica inalcançável para
 // sempre. A solução: detectar essa lacuna (`br-gap`) e enfileirar no colhedor —

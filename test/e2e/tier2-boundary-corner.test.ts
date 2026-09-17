@@ -226,15 +226,15 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
   // Feature 3: Standardized siteEnv Configuration
   // =========================================================================
   describe('Feature 3: Standardized siteEnv Configuration', () => {
-    it('F03-BND-01: RESOLVERS matrix defines all 6 resolvers with ports 8700..8705 and siteEnv', () => {
-      assert.equal(brResolvers.RESOLVERS.length, 6);
+    it('F03-BND-01: RESOLVERS matrix defines all 7 resolvers with ports 8700..8706 and siteEnv', () => {
+      assert.equal(brResolvers.RESOLVERS.length, 7);
       const names = brResolvers.RESOLVERS.map((r) => r.name);
       const ports = brResolvers.RESOLVERS.map((r) => r.port);
       const siteEnvs = brResolvers.RESOLVERS.map((r) => r.siteEnv);
 
-      assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent']);
-      assert.deepEqual(ports, [8700, 8701, 8702, 8703, 8704, 8705]);
-      assert.deepEqual(siteEnvs, ['BLUDV_URL', 'COMANDOTORRENTS_URL', 'NERDFILMES_URL', 'TORRENTDOSFILMES_URL', 'VACATORRENT_URL', 'REDETORRENT_URL']);
+      assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent']);
+      assert.deepEqual(ports, [8700, 8701, 8702, 8703, 8704, 8705, 8706]);
+      assert.deepEqual(siteEnvs, ['BLUDV_URL', 'COMANDOTORRENTS_URL', 'NERDFILMES_URL', 'TORRENTDOSFILMES_URL', 'VACATORRENT_URL', 'REDETORRENT_URL', 'APACHETORRENT_URL']);
     });
 
     it('F03-BND-03: Missing siteEnv variables fallback safely without errors', () => {

@@ -7,12 +7,13 @@ import { createResolver as createNerdfilmesResolver } from '../resolvers/profile
 import { createResolver as createTorrentdosfilmesResolver } from '../resolvers/profiles/torrentdosfilmes.js';
 import { createResolver as createVacatorrentResolver } from '../resolvers/profiles/vacatorrent.js';
 import { createResolver as createRedetorrentResolver } from '../resolvers/profiles/redetorrent.js';
+import { createResolver as createApachetorrentResolver } from '../resolvers/profiles/apachetorrent.js';
 
 /**
  * Carrega os resolvedores BR dentro do processo do addon.
  *
  * Cada um era um container só pra subir um servidor HTTP de ~200 linhas. Eles
- * continuam ouvindo nas mesmas portas (8700-8705) — o Jackett segue chamando
+ * continuam ouvindo nas mesmas portas (8700-8706) — o Jackett segue chamando
  * por HTTP, só que agora o host é o próprio addon.
  *
  * Cada profile é importado ESTATICAMENTE (ESM nativo, sem createRequire) e
@@ -53,6 +54,7 @@ const RESOLVERS: ResolverEntry[] = [
   { name: 'torrentdosfilmes', createResolver: createTorrentdosfilmesResolver, port: config.resolvers.ports.torrentdosfilmes, siteEnv: 'TORRENTDOSFILMES_URL', siteUrl: config.resolvers.torrentdosfilmesUrl },
   { name: 'vacatorrent', createResolver: createVacatorrentResolver, port: config.resolvers.ports.vacatorrent, siteEnv: 'VACATORRENT_URL', siteUrl: config.resolvers.vacatorrentUrl },
   { name: 'redetorrent', createResolver: createRedetorrentResolver, port: config.resolvers.ports.redetorrent, siteEnv: 'REDETORRENT_URL', siteUrl: config.resolvers.redetorrentUrl },
+  { name: 'apachetorrent', createResolver: createApachetorrentResolver, port: config.resolvers.ports.apachetorrent, siteEnv: 'APACHETORRENT_URL', siteUrl: config.resolvers.apachetorrentUrl },
 ];
 const servers: Server[] = [];
 // Módulo carregado de cada resolvedor, para ler o domínio ATIVO deles depois
@@ -85,14 +87,14 @@ function load(controls: ResolverControls = config.resolvers) {
         siteUrl: resolver.siteUrl || undefined,
         extraProtectors,
       });
-      // Os seis expõem createServer e só sobem sozinhos quando são o processo
+      // Os sete expõem createServer e só sobem sozinhos quando são o processo
       // principal — aqui o addon abre a porta no lugar deles.
       if (typeof instance?.createServer === 'function') {
         const server = instance.createServer();
         // listen() é assíncrono: EADDRINUSE/EACCES chegam como evento 'error'
         // depois do load() ter retornado. Sem handler, um resolver que não
         // sobe vira uncaughtException e o restart-loop derruba a stack inteira.
-        // O handler confina a falha ao próprio resolver; os outros cinco (e o
+        // O handler confina a falha ao próprio resolver; os outros seis (e o
         // addon) seguem de pé, e o probe do painel reporta o que subiu.
         server.on('error', (err: any) => {
           log.warn(`[br] resolvedor ${resolver.name} não subiu na porta ${port}:`, err?.message || err);
@@ -104,7 +106,7 @@ function load(controls: ResolverControls = config.resolvers) {
       loaded.push(`${resolver.name}:${port}`);
     } catch (err: any) {
       // Isolamento de falha por resolvedor: um profile quebrado não derruba os
-      // outros cinco nem a inicialização do addon.
+      // outros seis nem a inicialização do addon.
       log.warn(`[br] falha ao carregar o resolvedor ${resolver.name}:`, err.message);
     }
   }
@@ -150,7 +152,7 @@ type ResolverProbe = {
  *
  * - Nome fora da lista devolve null (a rota responde 400).
  * - HTTP 200 é saudável e `results` conta as `class="release"` do HTML — o
- *   mesmo marcador que os seis perfis renderizam, estável entre eles.
+ *   mesmo marcador que os sete perfis renderizam, estável entre eles.
  * - Não-2xx volta ok:false com o corpo do erro truncado (máx 200 chars): é
  *   a mensagem original do perfil (ex.: 502 do /search), diagnosticável.
  * - Timeout e erro de rede NÃO lançam: diagnóstico é dado, não exceção — um

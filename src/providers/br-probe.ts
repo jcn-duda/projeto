@@ -2,7 +2,7 @@
 //
 // Problema: quando o pool BR do autofetch fica vazio, a cascata cai no pool de
 // melhores sementes — enquanto o dublado pode existir, apenas fora da busca
-// viva, nos index-only BR (ApacheTorrent/redetorrent/hdrtorrent). Baixar seeds
+// viva, nos index-only BR (ApacheTorrent Cardigann/Rede Torrent). Baixar seeds
 // na frente disso aquece a obra errada e atrasa o dublado. A sonda procura o
 // BR ANTES de liberar seeds, dirigindo o colhedor EXISTENTE só para a
 // interseção `indexOnlyIndexers ∩ ptBrIndexers`.

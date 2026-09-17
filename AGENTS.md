@@ -68,16 +68,16 @@ Praticamente todo trabalho de código acontece no **Adom**.
   flaresolverr → addon) com `wait -n` + `pipefail`: qualquer um que morrer
   derruba o container e o `restart: unless-stopped` recria tudo. Logs saem
   prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`.
-- Os seis `*-resolver` **não são containers**. `src/br-resolvers.ts` importa
-  **estaticamente** os seis profiles no processo do addon, cada um na própria
-  porta (8700–8705), via factory com config explícita — sem ler
+- Os sete `*-resolver` **não são containers**. `src/br-resolvers.ts` importa
+  **estaticamente** os sete profiles no processo do addon, cada um na própria
+  porta (8700–8706), via factory com config explícita — sem ler
   `PORT`/`SITE_URL` no import e sem mutar/restaurar o ambiente.
   `BR_RESOLVERS_EMBEDDED=false` volta ao modo de processos separados (não é o
   caminho de produção). Cada `<nome>-resolver/server.ts` é um shim de
   compatibilidade/standalone (instância lazy por `resolvers/shim-instance.ts`,
   env lida no ponto de entrada e `isMain(import.meta.url)` no lugar do
   `require.main`); a lógica vive no `resolvers/` (**TypeScript/ESM**, sem
-  `resolvers/package.json`), e o `tsc` compila/emite `resolvers/` e os seis
+  `resolvers/package.json`), e o `tsc` compila/emite `resolvers/` e os sete
   `*-resolver/` inteiros para `dist/` (o build-assets só copia assets
   não-compiláveis — ver a armadilha do `dist/`).
 - O healthcheck do Dockerfile é **quádruplo** (`/manifest.json` na 7000 + API
@@ -1481,8 +1481,8 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   varredura pt-BR processa a fatia que couber no teto horário em vez de
   tudo-ou-nada (conta `harvest.sweep.partial`); e obra descartada após 3
   retentativas conta `harvest.capped.dropped` em vez de sumir sem rastro.
-- **Index-only** (`JACKETT_INDEX_ONLY_INDEXERS`, default: `redetorrent`,
-  `apachetorrent`, `hdrtorrent`, `1337x`): ficam FORA do caminho da resposta e
+- **Index-only** (`JACKETT_INDEX_ONLY_INDEXERS`, default:
+  `redetorrent-cardigann`, `apachetorrent-cardigann`, `1337x`): ficam FORA do caminho da resposta e
   DENTRO do sistema via colhedor. Latência medida de 8–31s contra orçamento
   total de 20s os derrubava no breaker a cada busca, e o retry PT→título
   original consumia o MESMO orçamento. O 1337x entrou por medição própria:
@@ -1497,7 +1497,10 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   colhedor/fundo — nunca na busca viva nem em indexer comum); a resolução do
   magnet permanece em `JACKETT_RESOLVE_DOWNLOAD_INDEXERS`. Separado de
   `JACKETT_SLOW_INDEXERS`: lá o problema é o agrupamento do plano; aqui é
-  PRESENÇA na resposta. Não "devolva" esses indexers à busca ao vivo sem
+  PRESENÇA na resposta. O `hdrtorrent` está estacionado fora das listas desde
+  2026-09-17: `hdrtorrents.net` devolvia a homepage sem filtrar toda variante
+  de busca; o indexer continua disponível para reativação quando a busca real
+  voltar. Não "devolva" esses indexers à busca ao vivo sem
   medir de novo — o breaker aberto era o sintoma, não a causa.
 - Kill-switches: `RELEASE_INDEX=false` / `RELEASE_INDEX_TTL=0` (índice),
   `ACCOUNT_FAST_PATH=false`, `HARVEST_ENABLED=false`.
@@ -1658,15 +1661,16 @@ qualidade do usuário não deixa nenhum candidato de pé
 **4. Sites BR indexam por título em português.**
 "Coringa", não "Joker". `tmdb.getTitles` resolve isso e a busca dispara **duas
 queries**: a em inglês para indexers globais e a em pt-BR para os listados em
-`JACKETT_PT_BR_INDEXERS` (default: os seis cards locais, `apachetorrent`,
-`hdrtorrent`). Todo caminho de busca precisa carregar as duas
+`JACKETT_PT_BR_INDEXERS` (default: os sete cards locais, incluindo
+`apachetorrent-cardigann`; `hdrtorrent` está estacionado). Todo caminho de busca precisa carregar as duas
 — inclusive fallbacks de pack. O filtro `matchesName` também aceita qualquer
 um dos nomes, senão a release dublada seria descartada por não bater com o
 título em inglês.
 
-BR e `JACKETT_BARE_TITLE_INDEXERS` (os três stock) **zeram** com token extra:
-além do SxxEyy, o ano do filme também sai ("Coringa 2019" → 0 no redetorrent).
-Os resolvers locais ficam **fora** dessa lista: lá o ano ajuda a relevância.
+`redetorrent-cardigann` e `apachetorrent-cardigann` também **zeram** com token
+extra: além do SxxEyy, o ano do filme sai. Os próprios resolvers normalizam a
+query como defesa dupla; os demais resolvers locais ficam fora dessa lista,
+porque neles o ano ajuda a relevância.
 Sequência em romano vira variante arábica (`numeralSearchVariant`) no mesmo
 indexer, dentro do deadline original.
 
@@ -1742,7 +1746,7 @@ fire-and-forget) continua.
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
-| `src/br-resolvers.ts` | Carrega os seis profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
+| `src/br-resolvers.ts` | Carrega os sete profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
 | `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
 | `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
 | `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
@@ -1795,7 +1799,7 @@ fire-and-forget) continua.
 | `src/utils/magnetdb-counts.ts` | Parse da chave `mag` (descarta o digest da conta na origem), `emptyAdapterTotals` e `rebuildFromL1` — O(namespace `mag`), roda uma vez no boot quando o agregado não abre, nunca no caminho de busca. Dependência de mão única (cache + cache-keys), sem ciclo com o `magnetdb` |
 | `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse compartilhado de `magnetdb-counts.ts`. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
-| `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — o laço de saltos do protetor, um só para os seis), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
+| `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — laço único para quem usa protetor), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
 | `*-resolver/` | Shims de compatibilidade/standalone (**TypeScript/ESM**, sem `package.json` de override): `<nome>/server.ts` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.ts`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)`. Os `server.d.ts` foram removidos — a implementação TS é o contrato; `nerdfilmes-resolver/test.ts` e `torrentdosfilmes-resolver/smoke-test.ts` também são compilados pelo tsc |
 | `types/domain.d.ts` | Tipos do domínio: `Stream` (união que exige ação), `ParsedSeasonEpisode`, `DebridAdapter`, `AccountStatus`, `MatchContext` |
 | `test/helpers/stub.ts` | Dublê de `fetch`, `patch()` de módulo e `testOpts()` — o cast mora aqui, não espalhado |
@@ -1803,7 +1807,7 @@ fire-and-forget) continua.
 | `Dockerfile` / `scripts/entrypoint.sh` / `docker-compose.yml` | Imagem única, supervisor, loopback |
 | `scripts/magnets.ts` | Inventário/limpeza da conta |
 | `scripts/check-test-list.ts` | Cobra a lista explícita do `npm test` |
-| `scripts/build-assets.ts` | Copia para `dist/` só assets não-compiláveis (`src/public`, `test/fixtures`, `jackett-bludv`); `resolvers/` e os seis `*-resolver/` são emitidos pelo próprio `tsc` e não são mais copiados |
+| `scripts/build-assets.ts` | Copia para `dist/` só assets não-compiláveis (`src/public`, `test/fixtures`, `jackett-bludv`); `resolvers/` e os sete `*-resolver/` são emitidos pelo próprio `tsc` e não são mais copiados |
 
 Pós split 5.3, `src/utils/format.ts` virou um barrel que reexporta os mesmos
 58 nomes de antes; a lógica mora nos 7 submódulos em `src/utils/` (sem ciclo,
@@ -1919,7 +1923,7 @@ o orçamento com a resposta.
 - **Caminho relativo mudou de profundidade com o `dist/`.** O código roda de
   `dist/src/...`, então `__dirname` e `require`/`import` relativos apontam para
   dentro de `dist/`. Dois casos já mordidos: o `DB_PATH` do cache precisa subir
-  **três** níveis para achar `data/cache.db`, e os seis profiles são importados
+  **três** níveis para achar `data/cache.db`, e os sete profiles são importados
   estaticamente de `resolvers/profiles/<nome>.ts` (import com a extensão do
   emit, `../resolvers/profiles/<nome>.js`; os shims
   `*-resolver/server.ts` seguem existindo para os testes e o modo standalone, e
@@ -2169,9 +2173,9 @@ o orçamento com a resposta.
   301 → `vaqueirofilmes.com`; os dois ficam na allowlist do perfil para o
   redirect não virar `blocked_host`.
 - **O laço de saltos do protetor é UM só, em `resolvers/transport.ts`.** Os
-  seis perfis chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
+  perfis que seguem protetor chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
   importa porque é ele que chama `assertAllowedUrl` a cada salto — o mutante
-  MUT-06 do harness adversarial cobre os seis por esse caminho. Se algum
+  MUT-06 do harness adversarial cobre esses perfis por esse caminho. Se algum
   perfil voltar a escrever o próprio laço, ele sai da cobertura sem que teste
   nenhum reclame. O teste do scheme é case-insensitive e a saída sai
   normalizada em `magnet:` minúsculo: o NerdFilmes publica `MAGNET:` em parte
@@ -2304,7 +2308,7 @@ o orçamento com a resposta.
   compilação. Em asserção intermediária use `assert.equal(lista.length, 0)`.
 - **`BR_RESOLVERS_HOST` é o único jeito de alcançar os resolvers.** Os cards
   Cardigann chamam `http://{{ ... }}/...` montado com essa env; no container
-  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8705 **só dentro do
+  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8706 **só dentro do
   container** — nenhuma dessas portas é publicada no host.
 - **Jackett no alpine é self-contained** (binário com libcoreclr embutida):
   precisa de `icu-libs`/`zlib`/`libstdc++` e das envs `XDG_CONFIG_HOME=/config`
