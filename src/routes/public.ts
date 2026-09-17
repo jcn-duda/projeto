@@ -58,6 +58,7 @@ const CLIENT_ASSETS = [
   'client/painel/config-model.js',
   'client/painel/diagnostico-model.js',
   'client/painel/saude-model.js',
+  'client/painel/conta-model.js',
   'client/painel/view-saude.js',
   'client/painel/view-conta.js',
   'client/painel/view-gate.js',

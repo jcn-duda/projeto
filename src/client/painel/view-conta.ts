@@ -1,6 +1,7 @@
 import { html } from './vendor/preact.js';
 import { Card, StatNumber, ProgressBar } from './kit.js';
 import { formatAgeFromTimestamp } from './fmt.js';
+import { contaView } from './conta-model.js';
 
 export interface ViewContaProps {
   conta?: Record<string, any>;
@@ -8,45 +9,38 @@ export interface ViewContaProps {
 }
 
 export function ViewConta({ conta, debrid }: ViewContaProps) {
-  const c = conta || {};
-  const total = c.total ?? debrid?.account?.magnets ?? 0;
-  const cap = c.cap ?? 1000;
-  const percent = c.usagePercent ?? (cap > 0 ? Math.round((total / cap) * 100) : 0);
-  const progressVariant = percent >= 90 ? 'danger' : percent >= 80 ? 'warn' : 'ok';
-  const badgeVariant = percent >= 90 ? 'err' : percent >= 80 ? 'warn' : 'ok';
-
-  const ready = c.ready ?? debrid?.account?.ready ?? 0;
-  const downloading = c.downloading ?? debrid?.account?.active ?? 0;
-  const dead = c.dead ?? debrid?.account?.error ?? 0;
-
-  const oldestAge = c.oldestAt ? formatAgeFromTimestamp(c.oldestAt) : '—';
+  const v = contaView(conta, debrid);
+  const progressVariant = v.percent >= 90 ? 'danger' : v.percent >= 80 ? 'warn' : 'ok';
+  const oldestAge = v.oldestAt ? formatAgeFromTimestamp(v.oldestAt) : '—';
 
   return html`
     <div class="painel-grid">
-      <${Card}
-        title="Ocupação da Conta"
-        badge=${{ text: `${percent}% DA CONTA`, variant: badgeVariant }}
-      >
-        <${StatNumber} value=${total} target=${cap} label="${percent}%" />
-        <${ProgressBar} percent=${percent} variant=${progressVariant} />
+      <${Card} title="Ocupação da Conta" badge=${v.badge}>
+        <${StatNumber} value=${v.total} target=${v.cap} label="${v.percent}%" />
+        <${ProgressBar} percent=${v.percent} variant=${progressVariant} />
         <p style="color: var(--muted); margin: 0; font-size: var(--font-floor);">
-          Limite de aviso do operador: ${c.warnAt ?? 800} magnets
+          Limite de aviso do operador: ${v.warnAt} magnets
         </p>
+        ${v.nota ? html`
+          <p style="color: var(--muted); margin: 0; font-size: var(--font-floor);">
+            ${v.nota}
+          </p>
+        ` : null}
       </${Card}>
 
       <${Card} title="Composição de Magnets">
         <div style="display: flex; flex-direction: column; gap: var(--space-2);">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="color: var(--green);">Prontos (disponíveis)</span>
-            <strong style="font-family: var(--font-mono);">${ready}</strong>
+            <strong style="font-family: var(--font-mono);">${v.ready}</strong>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="color: var(--amber);">Baixando / Ativos</span>
-            <strong style="font-family: var(--font-mono);">${downloading}</strong>
+            <strong style="font-family: var(--font-mono);">${v.downloading}</strong>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="color: var(--red);">Terminais / Mortos</span>
-            <strong style="font-family: var(--font-mono);">${dead}</strong>
+            <strong style="font-family: var(--font-mono);">${v.dead}</strong>
           </div>
         </div>
       </${Card}>

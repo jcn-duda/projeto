@@ -317,6 +317,7 @@
     "test/painel-limpeza.test.js",
     "test/painel-form.test.js",
     "test/painel-css.test.js",
-    "test/painel-saude-indexers.test.js"
+    "test/painel-saude-indexers.test.js",
+    "test/painel-conta.test.js"
   ]
 }
