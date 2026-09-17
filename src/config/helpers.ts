@@ -17,6 +17,35 @@ export function list(value: unknown) {
     .filter(Boolean);
 }
 
+// Ids de indexer APOSENTADOS → substituto. O id de um indexer vive no .env de
+// cada ambiente (local e VPS), e o volume do Jackett não expõe mais o antigo:
+// sem normalizar aqui, cada deploy exigiria editar o .env na mão e o id morto
+// reapareceria no catálogo como OFFLINE permanente. Mapa só de RENAME — um id
+// que o operador escreve por decisão própria (ex.: religar o hdrtorrent) nunca
+// entra aqui, porque sumir com a escolha dele em silêncio seria pior.
+export const RETIRED_INDEXERS: Readonly<Record<string, string>> = Object.freeze({
+  // O indexer C# stock foi aposentado; o card local é o `-cardigann` que o
+  // entrypoint registra no volume (scripts/entrypoint.sh).
+  apachetorrent: 'apachetorrent-cardigann',
+});
+
+/**
+ * `list()` para listas de INDEXER: aplica os renames aposentados e deduplica.
+ * O dedup é o ponto fino — um .env que já cita o id novo E o velho produziria
+ * a mesma entrada duas vezes, e o addon consultaria o indexer em dobro.
+ */
+export function indexerList(value: unknown) {
+  const out: string[] = [];
+  for (const id of list(value)) {
+    const mapped = Object.prototype.hasOwnProperty.call(RETIRED_INDEXERS, id)
+      ? RETIRED_INDEXERS[id]
+      : id;
+    if (!mapped || out.includes(mapped)) continue;
+    out.push(mapped);
+  }
+  return out;
+}
+
 // Default único do bludv. O resolvedor embutido e o scraper direto leem a
 // MESMA BLUDV_URL; com dois defaults diferentes, quem não define a env fazia
 // os dois buscarem em sites distintos. Trocar de domínio se faz aqui.

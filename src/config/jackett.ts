@@ -1,4 +1,4 @@
-import { list, num } from './helpers.js';
+import { indexerList, list, num } from './helpers.js';
 
 // Fábrica (não objeto pronto): módulo ESM é cacheado, e cada re-avaliação do
 // compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
@@ -13,7 +13,7 @@ export const jackett = () => ({
   // Consultados em paralelo, um timeout por indexer. Vazio = agregado /all.
   // LimeTorrents (id Jackett: limetorrents) é global EN — some nesta lista,
   // nunca em ptBr/slow/index-only: Cloudflare/Flare aborta tarde no Chromium.
-  indexers: list(process.env.JACKETT_INDEXERS),
+  indexers: indexerList(process.env.JACKETT_INDEXERS),
   indexerTimeout: num(process.env.JACKETT_INDEXER_TIMEOUT_MS, 4000),
   catalogTtl: num(process.env.JACKETT_CATALOG_TTL, 900),
   // Quanto tempo a última medição real aparece na configuração. O status
@@ -34,7 +34,7 @@ export const jackett = () => ({
   // ele é index-only), mas aceitável no play e no colhedor, onde não há
   // orçamento de resposta. Operador que define a env explícita substitui o
   // default inteiro (a escolha explícita vence).
-  resolveDownloadIndexers: list(
+  resolveDownloadIndexers: indexerList(
     process.env.JACKETT_RESOLVE_DOWNLOAD_INDEXERS ||
       'comandotorrents,nerdfilmes,bludv-cardigann,torrentdosfilmesv2,vacatorrent,magnetdownload,' +
       'limetorrents,1337x',
@@ -45,7 +45,7 @@ export const jackett = () => ({
   // O Link do indexer é input externo; destinos locais são SSRF salvo quando
   // o operador explicitamente usa um resolvedor privado nesse caminho.
   allowPrivateDownloadIps: String(process.env.JACKETT_ALLOW_PRIVATE_DOWNLOAD_IPS || 'false') === 'true',
-  ptBrIndexers: list(
+  ptBrIndexers: indexerList(
     // redetorrent-cardigann e apachetorrent-cardigann são os cards LOCAIS (os
     // resolvers embutidos nas portas 8705/8706; os indexers stock do Jackett
     // foram aposentados): recebem a query em pt-BR e entregam magnet direto,
@@ -65,7 +65,7 @@ export const jackett = () => ({
   // redetorrent-cardigann é igual, e os dois resolvers locais também normalizam
   // do lado deles (defesa dupla). Os outros resolvers locais ficam FORA desta
   // lista: lá o ano ajuda a relevância.
-  bareTitleIndexers: list(
+  bareTitleIndexers: indexerList(
     process.env.JACKETT_BARE_TITLE_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann',
   ),
   // Varredura TARDIA com o título pt-BR nos indexers globais: roda depois da
@@ -93,7 +93,7 @@ export const jackett = () => ({
   // O 1337x também usa FlareSolverr e era o exemplo clássico aqui; hoje ele
   // vive no JACKETT_INDEX_ONLY_INDEXERS (isolamento mais forte: NENHUMA
   // consulta ao vivo, só colhedor) — não o traga de volta para slow.
-  slowIndexers: list(
+  slowIndexers: indexerList(
     process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent-cardigann,apachetorrent-cardigann,magnetdownload',
   ),
   // Fora do caminho da resposta, DENTRO do sistema: estes indexers não
@@ -112,7 +112,7 @@ export const jackett = () => ({
   // resolução do magnet permanece (JACKETT_RESOLVE_DOWNLOAD_INDEXERS) e o
   // colhedor o consulta individualmente com orçamento dedicado
   // (JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS).
-  indexOnlyIndexers: list(
+  indexOnlyIndexers: indexerList(
     process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann,1337x',
   ),
   // Orçamento TOTAL (busca + resolução `/dl`) de UMA consulta do colhedor a

@@ -213,6 +213,7 @@
     "test/jackett-raw-cache.test.js",
     "test/jackett-wasted.test.js",
     "test/entrypoint-jackett-indexers.test.js",
+    "test/config-indexer-aliases.test.js",
     "test/torrentio-provider.test.js",
     "test/latest-writer.test.js",
     "test/magnet-db.test.js",

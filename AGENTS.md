@@ -111,6 +111,14 @@ Praticamente todo trabalho de código acontece no **Adom**.
   quando idêntico (divergência vai para `.legacy` ou é preservada). No segundo
   boot é no-op e não loga. `JACKETT_INDEXERS_DIR` existe só para teste do
   contrato; o default é o caminho real do volume.
+- **Id de indexer aposentado se normaliza no código, não no `.env`.** O `.env`
+  é gitignored e vive por ambiente: o deploy automático da VPS nunca o toca, então
+  um id renomeado exigiria editar cada servidor na mão e voltaria ao catálogo
+  como OFFLINE permanente. `RETIRED_INDEXERS` (`src/config/helpers.ts`) mapeia o
+  id velho para o novo e `indexerList()` aplica isso em TODAS as listas de
+  `src/config/jackett.ts`, deduplicando quando o `.env` cita os dois. O mapa é só
+  de RENAME: um id que o operador escreve por decisão própria (religar o
+  hdrtorrent) nunca entra ali.
 - **O HDR fica ESTACIONADO, não removido.** Em 2026-09-17 `hdrtorrents.net`
   (domínio novo do antigo `hdrtorrent.com`) devolvia a homepage para toda
   variante de busca, então o id está fora de TODAS as listas de
