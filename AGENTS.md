@@ -2273,8 +2273,12 @@ o orçamento com a resposta.
   estourar os 100s do `HttpClient` só por estar na fila, sem defeito no indexer
   testado. Medido em 2026-09-12: os 18 domínios do `kickasstorrents-ws`
   (links + legacylinks do definition) estavam inúteis — 10 com `tab crashed`,
-  4 sem DNS, 4 estacionados — e ele saiu do `JACKETT_INDEXERS` local; o
-  `kickasstorrents-to` voltou trocando o sitelink para `kickass.torrentsbay.org`.
+  4 sem DNS, 4 estacionados — e ele saiu do `JACKETT_INDEXERS`; o
+  `kickasstorrents-to` voltou com sitelink `kickass.torrentsbay.org`.
+  Revalidado em 2026-09-17: TO vivo (Flare ok no torrentsbay; filtra de
+  verdade) e religado no `JACKETT_INDEXERS` do operador; WS ainda `tab
+  crashed` nos espelhos testados — continua fora. Update do Jackett
+  (v0.24.2531 → v0.24.2601) não conserta o WS (só cats cosméticas no TO).
   Crash de aba aqui não é memória (o 1337x resolve desafio no mesmo
   FlareSolverr): teste os espelhos do definition antes de culpar a infra e
   tire da lista o que não tem espelho vivo.
