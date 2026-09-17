@@ -1,7 +1,10 @@
 import { html } from './vendor/preact.js';
 import { Card, StatNumber } from './kit.js';
 import { formatDurationMs } from './fmt.js';
-import { indexerRows, indexerSummary, indexerCardBadge, type SaudeIndexerRow } from './saude-model.js';
+import {
+  indexerRows, indexerSummary, indexerCardBadge, debridInfo, saudeVerdict,
+  type SaudeIndexerRow,
+} from './saude-model.js';
 
 export interface ViewSaudeProps {
   general?: Record<string, any>;
@@ -76,9 +79,8 @@ function IndexadoresCard({ indexers, onSelectIndexer }: { indexers?: Record<stri
 }
 
 export function ViewSaude({ general, debrid, conta, searchFirst, indexers, onSelectIndexer }: ViewSaudeProps) {
-  const isOk = general?.ok && (conta?.ok || debrid?.account?.ok);
-  const verdictVariant = isOk ? 'ok' : 'err';
-  const verdictText = isOk ? 'SISTEMA OPERACIONAL' : 'ATENÇÃO REQUERIDA';
+  const verdict = saudeVerdict(general, debrid, conta);
+  const dbrd = debridInfo(debrid, conta);
 
   const services = general?.services || {};
   const uptime = general?.uptimeS != null ? formatDurationMs(general.uptimeS * 1000) : '—';
@@ -87,10 +89,10 @@ export function ViewSaude({ general, debrid, conta, searchFirst, indexers, onSel
     <div class="painel-grid">
       <${Card}
         title="Veredito do Sistema"
-        badge=${{ text: verdictText, variant: verdictVariant }}
+        badge=${{ text: verdict.text, variant: verdict.variant }}
       >
         <div class="painel-stat-group">
-          <span class="painel-stat-num">${isOk ? 'Tudo certo' : 'Verifique alertas'}</span>
+          <span class="painel-stat-num">${verdict.headline}</span>
         </div>
         <p style="color: var(--muted); margin: 0;">Uptime do processo: ${uptime}</p>
       </${Card}>
@@ -108,11 +110,15 @@ export function ViewSaude({ general, debrid, conta, searchFirst, indexers, onSel
             </span>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span>Debrid (${debrid?.active || conta?.service || '—'})</span>
-            <span class=${'painel-badge ' + (conta?.ok || debrid?.account?.ok ? 'painel-badge-ok' : 'painel-badge-err')}>
-              ${conta?.ok || debrid?.account?.ok ? 'CONECTADO' : 'DESCONECTADO'}
-            </span>
+            <span>Debrid (${dbrd.service})</span>
+            <span class=${'painel-badge painel-badge-' + dbrd.variant}>${dbrd.label}</span>
           </div>
+          ${dbrd.state === 'por-instalacao' ? html`
+            <p class="painel-action-note" style="margin: 0;">
+              A chave do .env não é emprestada por padrão: cada instalação traz a sua.
+              ${dbrd.operatorAccount ? ' A conta do operador segue ativa no servidor.' : ''}
+            </p>
+          ` : null}
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span>Resolvers BR Embutidos</span>
             <span class="painel-badge painel-badge-ok">${services.resolvers || 0} ATIVOS</span>

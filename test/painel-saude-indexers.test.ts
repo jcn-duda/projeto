@@ -1,7 +1,7 @@
 // Bloco de indexadores da aba Saúde: modelo puro (contadores/ordenação),
 // variante de badge compartilhada, render dos chips e o teste de UM indexador
 // pela mesma rota do diagnóstico. Sem DOM e sem rede (fetch dublado).
-import { test } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
@@ -10,6 +10,8 @@ import {
   indexerCardBadge,
   indexerStateLabel,
   indexerStateVariant,
+  debridInfo,
+  saudeVerdict,
 } from '../src/client/painel/saude-model.js';
 import { statusVariant } from '../src/client/painel/kit.js';
 import { ViewSaude } from '../src/client/painel/view-saude.js';
@@ -329,4 +331,58 @@ test('wiring: app entrega indexers à Saúde e o pedido do chip ao Diagnóstico'
   const indexer = read('view-diagnostico-indexer.ts');
   assert.match(indexer, /fetchTestIndexer/, 'o teste de UM indexador usa a rota dedicada');
   assert.match(indexer, /test-all-indexers/, 'o teste em lote continua disponível');
+});
+
+// `sem-debrid` é CONFIGURAÇÃO, não falha: com DEBRID_ALLOW_ENV_KEY=false o
+// operador não empresta a própria chave como default, então o painel aberto na
+// raiz legitimamente não tem debrid. Antes isso deixava o veredito em "ATENÇÃO
+// REQUERIDA" para sempre — um alerta que nunca apaga não é lido por ninguém.
+describe('saude: debrid sem chave na requisição não é falha', () => {
+  const contaOk = { ok: true, service: 'alldebrid' };
+  const semDebrid = {
+    active: null,
+    account: { ok: false, reason: 'sem-debrid', service: null },
+    accounts: { alldebrid: { ok: true, magnets: 831 } },
+  };
+
+  test('conta viva continua CONECTADO e o veredito fica verde', () => {
+    const info = debridInfo({ active: 'alldebrid', account: { ok: true } }, contaOk);
+    assert.equal(info.state, 'conectado');
+    assert.equal(info.label, 'CONECTADO');
+    assert.equal(info.variant, 'ok');
+    assert.equal(saudeVerdict({ ok: true }, { account: { ok: true } }, contaOk).ok, true);
+  });
+
+  test('sem-debrid vira POR INSTALAÇÃO neutro, sem derrubar o veredito', () => {
+    const info = debridInfo(semDebrid, null);
+    assert.equal(info.state, 'por-instalacao');
+    assert.equal(info.label, 'POR INSTALAÇÃO');
+    assert.equal(info.variant, 'neutral', 'configuração não pode pintar de vermelho');
+    // A conta do operador medida no servidor prova que existe debrid montado.
+    assert.equal(info.operatorAccount, true);
+
+    const verdict = saudeVerdict({ ok: true }, semDebrid, null);
+    assert.equal(verdict.ok, true, 'escolha de configuração não é alerta');
+    assert.equal(verdict.text, 'SISTEMA OPERACIONAL');
+  });
+
+  test('falha de verdade continua vermelha e derruba o veredito', () => {
+    // Chave recusada/serviço fora: reason é OUTRO, não `sem-debrid`.
+    const caiu = { active: 'alldebrid', account: { ok: false, reason: 'chave-invalida' } };
+    const info = debridInfo(caiu, null);
+    assert.equal(info.state, 'desconectado');
+    assert.equal(info.variant, 'err');
+    assert.equal(saudeVerdict({ ok: true }, caiu, null).ok, false);
+  });
+
+  test('general fora derruba o veredito mesmo com debrid ok', () => {
+    assert.equal(saudeVerdict({ ok: false }, { account: { ok: true } }, contaOk).ok, false);
+  });
+
+  test('sem accounts, sem-debrid não inventa conta de operador', () => {
+    const info = debridInfo({ account: { ok: false, reason: 'sem-debrid' } }, null);
+    assert.equal(info.state, 'por-instalacao');
+    assert.equal(info.operatorAccount, false);
+    assert.equal(info.service, '—', 'serviço ausente não vira nome inventado');
+  });
 });

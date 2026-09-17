@@ -163,3 +163,73 @@ export function indexerCardBadge(summary: SaudeIndexerSummary): { text: string; 
   if (summary.unknown > 0) return { text: `${summary.online} ONLINE`, variant: 'ok' };
   return { text: 'TODOS ONLINE', variant: 'ok' };
 }
+
+/**
+ * Estado do debrid para o cabeçalho e para o veredito.
+ *
+ * `sem-debrid` NÃO é falha: é o que o backend responde quando a requisição não
+ * carrega serviço/chave. Acontece no caso normal de produção — com
+ * `DEBRID_ALLOW_ENV_KEY=false` o operador decide não emprestar a própria conta
+ * como default, então cada instalação traz a sua e o painel aberto na RAIZ
+ * legitimamente não tem debrid. Pintar isso de vermelho deixava o veredito em
+ * "ATENÇÃO REQUERIDA" para sempre, e um alerta que nunca apaga é um alerta que
+ * ninguém lê. Falha de verdade (chave recusada, serviço fora) continua `err`.
+ */
+export type DebridState = 'conectado' | 'por-instalacao' | 'desconectado';
+
+export interface SaudeDebridInfo {
+  state: DebridState;
+  label: string;
+  variant: BadgeVariant;
+  service: string;
+  /** Conta do operador viva no servidor, mesmo sem chave nesta requisição. */
+  operatorAccount: boolean;
+}
+
+export function debridInfo(debrid: unknown, conta: unknown): SaudeDebridInfo {
+  const d = asObject(debrid) || {};
+  const c = asObject(conta) || {};
+  const account = asObject(d.account) || {};
+  const service = String(d.active || c.service || account.service || '') || '—';
+
+  // Conta do operador medida no servidor: prova que existe debrid configurado
+  // por trás, e é o que separa "escolha de configuração" de "nada montado".
+  const accounts = asObject(d.accounts) || {};
+  const operatorAccount = Object.values(accounts).some(
+    (entry) => (asObject(entry) || {}).ok === true,
+  );
+
+  if (c.ok === true || account.ok === true) {
+    return { state: 'conectado', label: 'CONECTADO', variant: 'ok', service, operatorAccount };
+  }
+  if (String(account.reason || '') === 'sem-debrid') {
+    return {
+      state: 'por-instalacao',
+      label: 'POR INSTALAÇÃO',
+      variant: 'neutral',
+      service,
+      operatorAccount,
+    };
+  }
+  return { state: 'desconectado', label: 'DESCONECTADO', variant: 'err', service, operatorAccount };
+}
+
+/**
+ * Veredito geral. O debrid só derruba o veredito quando FALHOU de verdade —
+ * `por-instalacao` é configuração e não vira alerta.
+ */
+export function saudeVerdict(general: unknown, debrid: unknown, conta: unknown): {
+  ok: boolean;
+  text: string;
+  headline: string;
+  variant: BadgeVariant;
+} {
+  const g = asObject(general) || {};
+  const ok = g.ok === true && debridInfo(debrid, conta).state !== 'desconectado';
+  return {
+    ok,
+    text: ok ? 'SISTEMA OPERACIONAL' : 'ATENÇÃO REQUERIDA',
+    headline: ok ? 'Tudo certo' : 'Verifique alertas',
+    variant: ok ? 'ok' : 'err',
+  };
+}
