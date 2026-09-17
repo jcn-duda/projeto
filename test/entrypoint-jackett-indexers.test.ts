@@ -18,19 +18,31 @@ const root = fs.existsSync(path.join(here, '..', 'scripts', 'entrypoint.sh'))
   ? path.join(here, '..')
   : path.join(here, '..', '..');
 const script = fs.readFileSync(path.join(root, 'scripts', 'entrypoint.sh'), 'utf8');
+const jackettConfig = fs.readFileSync(path.join(root, 'src', 'config', 'jackett.ts'), 'utf8');
 
-// Bloco do JSON do card, isolado do heredoc `<<'JSON' … JSON` (payload sem
-// expansão: o operador nunca depende de env para o conteúdo).
+// Bloco do JSON do card, isolado do heredoc `<<JSON … JSON` do
+// `write_indexer_card`. O heredoc agora INTERPOLA — `${sitelink}` é o único
+// ponto variável, porque o mesmo molde serve a mais de um card. O teste injeta
+// um valor sentinela para poder validar a estrutura.
+const SENTINEL = 'https://exemplo.invalid/';
 const jsonPayload = (): any[] => {
-  const start = script.indexOf("<<'JSON'\n");
+  const start = script.indexOf('<<JSON\n');
   assert.notEqual(start, -1, 'o card precisa ser escrito por um heredoc JSON');
-  const body = script.slice(start + "<<'JSON'\n".length);
+  const body = script.slice(start + '<<JSON\n'.length);
   const end = body.indexOf('\nJSON\n');
   assert.notEqual(end, -1, 'o heredoc JSON precisa terminar com o delimitador JSON');
-  return JSON.parse(body.slice(0, end));
+  const raw = body.slice(0, end);
+  // O único `$` tolerado no molde é o do sitelink: qualquer outro viraria
+  // expansão silenciosa do shell dentro do JSON.
+  assert.equal(
+    (raw.match(/\$/g) || []).length,
+    1,
+    'o molde só pode interpolar ${sitelink}; outro $ viraria expansão no JSON',
+  );
+  return JSON.parse(raw.replace('${sitelink}', SENTINEL));
 };
 
-describe('entrypoint: bootstrap do Cardigann Apache no volume do Jackett', () => {
+describe('entrypoint: bootstrap de indexers no volume do Jackett', () => {
   test('roda antes de subir o Jackett', () => {
     const call = script.match(/^bootstrap_jackett_indexers\s*$/m);
     assert.ok(call, 'o bootstrap precisa ser chamado no topo do script');
@@ -55,7 +67,7 @@ describe('entrypoint: bootstrap do Cardigann Apache no volume do Jackett', () =>
 
   test('grava de forma atômica (temp no mesmo diretório + mv)', () => {
     assert.match(script, /local tmp="\$card\.tmp\.\$\$"/);
-    assert.match(script, /cat > "\$tmp" <<'JSON'/);
+    assert.match(script, /cat > "\$path" <<JSON/);
     assert.match(script, /mv "\$tmp" "\$card"/);
     // Nunca escreve direto no destino final.
     assert.doesNotMatch(script, /cat > "\$card"/);
@@ -65,20 +77,29 @@ describe('entrypoint: bootstrap do Cardigann Apache no volume do Jackett', () =>
     assert.match(script, /if \[ ! -e "\$card" \]; then/);
     assert.match(
       script,
-      /if mv "\$tmp" "\$card" 2>\/dev\/null; then\s*\n\s*chown node:node "\$card" 2>\/dev\/null \|\| true\s*\n\s*echo "\[entrypoint\]/,
+      /mv "\$tmp" "\$card" 2>\/dev\/null; then\s*\n\s*chown node:node "\$card" 2>\/dev\/null \|\| true\s*\n\s*echo "\[entrypoint\]/,
     );
-    // Falha no move descarta o temp sem deixar lixo.
-    assert.match(script, /else\s*\n\s*rm -f "\$tmp" 2>\/dev\/null \|\| true/);
+    // Falha de escrita ou de move descarta o temp e nunca aposenta o stock.
+    assert.match(script, /rm -f "\$tmp" 2>\/dev\/null \|\| true/);
     assert.match(script, /falha ao instalar o card apachetorrent-cardigann/);
-    // Falha de escrita nunca promove JSON parcial nem aposenta o stock.
-    assert.match(script, /if \[ \$\? -ne 0 \]; then[\s\S]*stock preservado[\s\S]*return/);
+    assert.match(script, /stock preservado[\s\S]*return/);
   });
 
   test('chown é best-effort: falha não derruba o boot', () => {
     assert.match(script, /chown node:node "\$card" 2>\/dev\/null \|\| true/);
   });
 
-  test('payload é a lista completa com os 4 campos e sitelink plural', () => {
+  test('molde único: um heredoc só, parametrizado pelo sitelink', () => {
+    // Duas cópias do JSON divergiriam na próxima mudança de shape.
+    assert.equal(
+      (script.match(/<<JSON\n/g) || []).length,
+      1,
+      'o molde do card precisa morar num único heredoc',
+    );
+    assert.match(script, /write_indexer_card\(\) \{\s*\n\s*local path="\$1" sitelink="\$2"/);
+  });
+
+  test('payload é a lista completa com os 4 campos do molde', () => {
     const payload = jsonPayload();
     assert.equal(payload.length, 4);
     const byId = new Map(payload.map((entry) => [entry.id, entry]));
@@ -92,7 +113,7 @@ describe('entrypoint: bootstrap do Cardigann Apache no volume do Jackett', () =>
     }
     assert.equal(byId.get('sitelink')?.type, 'inputstring');
     assert.equal(byId.get('sitelink')?.name, 'Site Link');
-    assert.equal(byId.get('sitelink')?.value, 'https://apachetorrents.com/');
+    assert.equal(byId.get('sitelink')?.value, SENTINEL);
     assert.equal(byId.get('cookieheader')?.type, 'hiddendata');
     assert.equal(byId.get('cookieheader')?.value, '');
     assert.equal(byId.get('lasterror')?.type, 'hiddendata');
@@ -101,14 +122,65 @@ describe('entrypoint: bootstrap do Cardigann Apache no volume do Jackett', () =>
     assert.equal(byId.get('tags')?.value, '');
   });
 
+  test('o card ativo do Apache nasce no domínio plural', () => {
+    assert.match(script, /write_indexer_card "\$tmp" 'https:\/\/apachetorrents\.com\/'/);
+  });
+
   test('arquiva o resíduo stock fora do diretório ativo, sem apagar divergência', () => {
-    assert.match(script, /local stock="\$dir\/apachetorrent\.json"/);
-    assert.match(script, /mv "\$stock" "\$disabled\/apachetorrent\.json"/);
+    // O estacionamento é parametrizado por id: os dois indexers usam a MESMA
+    // disciplina, em vez de uma cópia por indexer.
+    assert.match(script, /park_stock_indexer\(\) \{\s*\n\s*local id="\$1"/);
+    assert.match(script, /local stock="\$dir\/\$id\.json"/);
+    assert.match(script, /mv "\$stock" "\$backup"/);
     // Backup já existente: só remove o ativo quando é idêntico.
-    assert.match(script, /cmp -s "\$stock" "\$disabled\/apachetorrent\.json"/);
+    assert.match(script, /cmp -s "\$stock" "\$backup"/);
     // Divergência vai para um sufixo estável e reversível.
-    assert.match(script, /mv "\$stock" "\$disabled\/apachetorrent\.json\.legacy"/);
+    assert.match(script, /mv "\$stock" "\$backup\.legacy"/);
     assert.match(script, /preservado no diretório ativo/);
-    assert.match(script, /não foi possível estacionar o stock apachetorrent/);
+    assert.ok(
+      script.includes('park_stock_indexer apachetorrent'),
+      'o stock do Apache continua sendo estacionado',
+    );
+  });
+});
+
+// O HDR está PARADO, não removido: hdrtorrents.net devolvia a homepage para
+// toda variante de busca. O card fica pronto no `-disabled` com o domínio novo
+// para que religar seja um `mv` de volta mais o id nas listas — sem ter que
+// redescobrir o domínio quando o site voltar.
+describe('entrypoint: HDR estacionado e pronto para religar', () => {
+  test('semeia o card no diretório de desativados, nunca no ativo', () => {
+    assert.match(script, /seed_parked_card hdrtorrent 'https:\/\/hdrtorrents\.net\/'/);
+    assert.match(
+      script,
+      /seed_parked_card\(\) \{[\s\S]*?local disabled="\$\{JACKETT_INDEXERS_DIR%\/\}-disabled"[\s\S]*?local card="\$disabled\/\$id\.json"/,
+    );
+    // A semente NUNCA escreve no diretório ativo — semear não liga o indexer.
+    const seed = script.slice(script.indexOf('seed_parked_card() {'));
+    const body = seed.slice(0, seed.indexOf('\n}\n'));
+    assert.doesNotMatch(body, /"\$dir\//, 'semear não pode tocar no diretório ativo');
+  });
+
+  test('semente não sobrescreve card estacionado que o operador editou', () => {
+    const seed = script.slice(script.indexOf('seed_parked_card() {'));
+    assert.match(seed.slice(0, seed.indexOf('\n}\n')), /\[ -e "\$card" \] && return 0/);
+  });
+
+  test('o stock do HDR sai do diretório ativo', () => {
+    assert.ok(
+      script.includes('park_stock_indexer hdrtorrent'),
+      'o card ativo do HDR precisa ser estacionado junto',
+    );
+    const seedAt = script.indexOf('seed_parked_card hdrtorrent');
+    const parkAt = script.indexOf('park_stock_indexer hdrtorrent');
+    assert.ok(seedAt < parkAt, 'semear antes de estacionar evita sobrescrever a semente');
+  });
+
+  test('o id continua FORA de todas as listas do addon', () => {
+    assert.doesNotMatch(
+      jackettConfig,
+      /hdrtorrent(?![-\w])(?=[^\n]*')/,
+      'hdrtorrent não pode voltar às listas de indexers sem decisão explícita',
+    );
   });
 });

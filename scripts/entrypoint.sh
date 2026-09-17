@@ -48,26 +48,18 @@ run() {
 # real do volume e NÃO é um knob público do addon.
 JACKETT_INDEXERS_DIR="${JACKETT_INDEXERS_DIR:-/config/Jackett/Indexers}"
 
-bootstrap_jackett_indexers() {
-  local dir="${JACKETT_INDEXERS_DIR%/}"
-  local disabled="${dir}-disabled"
-  local card="$dir/apachetorrent-cardigann.json"
-  local stock="$dir/apachetorrent.json"
-
-  mkdir -p "$dir" "$disabled" 2>/dev/null || true
-
-  # Card ausente: grava no mesmo molde de redetorrent-cardigann.json. O temp
-  # nasce no MESMO diretório para o `mv` ser atômico (o Jackett nunca lê um
-  # arquivo meio escrito) e é descartado se o move falhar.
-  if [ ! -e "$card" ]; then
-    local tmp="$card.tmp.$$"
-    cat > "$tmp" <<'JSON'
+# Molde de card do Jackett (mesmo shape de redetorrent-cardigann.json), escrito
+# no caminho recebido. Único lugar com o JSON: o sitelink é o que varia entre
+# os cards, e duplicar o molde faria as cópias divergirem na próxima mudança.
+write_indexer_card() {
+  local path="$1" sitelink="$2"
+  cat > "$path" <<JSON
 [
   {
     "id": "sitelink",
     "type": "inputstring",
     "name": "Site Link",
-    "value": "https://apachetorrents.com/"
+    "value": "${sitelink}"
   },
   {
     "id": "cookieheader",
@@ -89,12 +81,22 @@ bootstrap_jackett_indexers() {
   }
 ]
 JSON
-    if [ $? -ne 0 ]; then
-      rm -f "$tmp" 2>/dev/null || true
-      echo "[entrypoint] aviso: falha ao gravar o card apachetorrent-cardigann; stock preservado" >&2
-      return
-    fi
-    if mv "$tmp" "$card" 2>/dev/null; then
+}
+
+bootstrap_jackett_indexers() {
+  local dir="${JACKETT_INDEXERS_DIR%/}"
+  local disabled="${dir}-disabled"
+  local card="$dir/apachetorrent-cardigann.json"
+  local stock="$dir/apachetorrent.json"
+
+  mkdir -p "$dir" "$disabled" 2>/dev/null || true
+
+  # Card ausente: grava no mesmo molde de redetorrent-cardigann.json. O temp
+  # nasce no MESMO diretório para o `mv` ser atômico (o Jackett nunca lê um
+  # arquivo meio escrito) e é descartado se o move falhar.
+  if [ ! -e "$card" ]; then
+    local tmp="$card.tmp.$$"
+    if write_indexer_card "$tmp" 'https://apachetorrents.com/' && mv "$tmp" "$card" 2>/dev/null; then
       chown node:node "$card" 2>/dev/null || true
       echo "[entrypoint] indexer Cardigann apachetorrent-cardigann registrado"
     else
@@ -104,32 +106,69 @@ JSON
     fi
   fi
 
-  # Resíduo stock: sai do diretório ativo (senão o catálogo carrega um id
-  # aposentado) para o irmão `-disabled`, com nome estável e reversível. Nunca
-  # apaga em silêncio conteúdo divergente: só remove o ativo quando é idêntico a
-  # um backup já existente.
-  if [ -e "$stock" ]; then
-    if [ ! -e "$disabled/apachetorrent.json" ]; then
-      if mv "$stock" "$disabled/apachetorrent.json" 2>/dev/null; then
-        echo "[entrypoint] indexer stock apachetorrent estacionado em ${disabled}"
-      else
-        echo "[entrypoint] aviso: não foi possível estacionar o stock apachetorrent" >&2
-      fi
-    elif cmp -s "$stock" "$disabled/apachetorrent.json"; then
-      rm -f "$stock" 2>/dev/null || true
-      echo "[entrypoint] resíduo stock apachetorrent idêntico ao backup removido"
-    elif [ ! -e "$disabled/apachetorrent.json.legacy" ]; then
-      if mv "$stock" "$disabled/apachetorrent.json.legacy" 2>/dev/null; then
-        echo "[entrypoint] variação stock apachetorrent estacionada em .legacy"
-      else
-        echo "[entrypoint] aviso: não foi possível estacionar a variação stock apachetorrent" >&2
-      fi
-    elif cmp -s "$stock" "$disabled/apachetorrent.json.legacy"; then
-      rm -f "$stock" 2>/dev/null || true
-      echo "[entrypoint] resíduo stock apachetorrent idêntico ao .legacy removido"
+  park_stock_indexer apachetorrent
+
+  # HDR estacionado, NÃO ligado: em 2026-09-17 hdrtorrents.net devolvia a
+  # homepage para toda variante de busca, então o id está fora de todas as
+  # listas do addon (src/config/jackett.ts). O card fica pronto no `-disabled`
+  # com o domínio NOVO já gravado, para religar ser um `mv` de volta mais o id
+  # nas listas — sem redescobrir o domínio quando o site voltar.
+  seed_parked_card hdrtorrent 'https://hdrtorrents.net/'
+  park_stock_indexer hdrtorrent
+}
+
+# Estaciona `<id>.json` do diretório ativo no irmão `-disabled` (senão o
+# catálogo carrega um id aposentado), com nome estável e reversível. Nunca
+# apaga em silêncio conteúdo divergente: só remove o ativo quando é idêntico a
+# um backup já existente.
+park_stock_indexer() {
+  local id="$1"
+  local dir="${JACKETT_INDEXERS_DIR%/}"
+  local disabled="${dir}-disabled"
+  local stock="$dir/$id.json"
+  local backup="$disabled/$id.json"
+
+  [ -e "$stock" ] || return 0
+
+  if [ ! -e "$backup" ]; then
+    if mv "$stock" "$backup" 2>/dev/null; then
+      echo "[entrypoint] indexer stock $id estacionado em ${disabled}"
     else
-      echo "[entrypoint] aviso: stock apachetorrent divergente preservado no diretório ativo" >&2
+      echo "[entrypoint] aviso: não foi possível estacionar o stock $id" >&2
     fi
+  elif cmp -s "$stock" "$backup"; then
+    rm -f "$stock" 2>/dev/null || true
+    echo "[entrypoint] resíduo stock $id idêntico ao backup removido"
+  elif [ ! -e "$backup.legacy" ]; then
+    if mv "$stock" "$backup.legacy" 2>/dev/null; then
+      echo "[entrypoint] variação stock $id estacionada em .legacy"
+    else
+      echo "[entrypoint] aviso: não foi possível estacionar a variação stock $id" >&2
+    fi
+  elif cmp -s "$stock" "$backup.legacy"; then
+    rm -f "$stock" 2>/dev/null || true
+    echo "[entrypoint] resíduo stock $id idêntico ao .legacy removido"
+  else
+    echo "[entrypoint] aviso: stock $id divergente preservado no diretório ativo" >&2
+  fi
+}
+
+# Semeia um card JÁ estacionado (diretório `-disabled`), pronto para religar.
+# Só grava se ausente: um card estacionado que o operador editou é config dele.
+# Não toca no diretório ativo — semear NUNCA liga o indexer.
+seed_parked_card() {
+  local id="$1" sitelink="$2"
+  local disabled="${JACKETT_INDEXERS_DIR%/}-disabled"
+  local card="$disabled/$id.json"
+
+  [ -e "$card" ] && return 0
+  local tmp="$card.tmp.$$"
+  if write_indexer_card "$tmp" "$sitelink" && mv "$tmp" "$card" 2>/dev/null; then
+    chown node:node "$card" 2>/dev/null || true
+    echo "[entrypoint] card $id semeado estacionado em ${disabled} (nao ligado)"
+  else
+    rm -f "$tmp" 2>/dev/null || true
+    echo "[entrypoint] aviso: falha ao semear o card estacionado $id" >&2
   fi
 }
 

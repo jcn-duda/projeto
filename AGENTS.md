@@ -111,6 +111,17 @@ Praticamente todo trabalho de código acontece no **Adom**.
   quando idêntico (divergência vai para `.legacy` ou é preservada). No segundo
   boot é no-op e não loga. `JACKETT_INDEXERS_DIR` existe só para teste do
   contrato; o default é o caminho real do volume.
+- **O HDR fica ESTACIONADO, não removido.** Em 2026-09-17 `hdrtorrents.net`
+  (domínio novo do antigo `hdrtorrent.com`) devolvia a homepage para toda
+  variante de busca, então o id está fora de TODAS as listas de
+  `src/config/jackett.ts`. O entrypoint semeia `Indexers-disabled/hdrtorrent.json`
+  com o domínio novo já gravado — semear nunca escreve no diretório ativo, então
+  isso não liga nada. **Para religar quando o site voltar**: `mv` o card de
+  `Indexers-disabled/` para `Indexers/`, some o id em `JACKETT_PT_BR_INDEXERS`,
+  `JACKETT_SLOW_INDEXERS`, `JACKETT_INDEX_ONLY_INDEXERS` e
+  `JACKETT_BARE_TITLE_INDEXERS`, e confirme com `/test-indexer.json?id=hdrtorrent`
+  ANTES de considerar a fonte viva — o sintoma antigo (homepage sem filtrar)
+  aparece como `ok:true` com releases irrelevantes, não como erro.
 - `shm_size: 1gb` (Chromium) e `mem_limit: 3g` no compose: no container único
   um OOM do FlareSolverr reinicia a stack inteira — é o trade-off inerente da
   unificação, mitigado pelo restart.
