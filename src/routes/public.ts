@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { asyncRoute } from './async.js';
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
+import { stampRelativeImports } from './client-imports.js';
 
 // CSS dos painéis (Fase 3, PLANO_MELHORIAS §5.9). A lista é FECHADA de propósito:
 // publicPath() junta o nome ao diretório público, então aceitar nome arbitrário
@@ -91,10 +92,23 @@ function makePublicHandlers(services: AppServices) {
   // (mtime/tamanho): um rebuild sem mudança de código rebaixaria o módulo de
   // novo. O hash do byte só muda quando o conteúdo muda — é ele que sustenta o
   // no-cache + 304 dos filhos.
+  // Corpo SERVIDO de cada módulo: o do disco com os imports relativos já
+  // carimbados com `?v=<assetVersion>`. Feito uma vez no boot (o addon serve de
+  // dist/ e os bytes não mudam no processo), então o request não paga nada.
+  // Sem o carimbo a URL do filho é a mesma entre deploys e qualquer cache no
+  // caminho — CDN, proxy, browser — pode servir módulo velho ao lado de um
+  // entry novo; foi o que a Cloudflare fez com `max-age=14400` por cima do
+  // nosso `no-cache`.
+  const clientBodies = new Map<string, Buffer>();
   const clientEtags = new Map<string, string>();
   for (const name of CLIENT_ASSETS) {
-    const hash = createHash('sha256').update(fs.readFileSync(services.publicPath(name))).digest('hex').slice(0, 32);
-    clientEtags.set(name, '"' + hash + '"');
+    const raw = fs.readFileSync(services.publicPath(name), 'utf8');
+    const body = Buffer.from(stampRelativeImports(raw, assetVersion), 'utf8');
+    clientBodies.set(name, body);
+    // ETag do corpo SERVIDO, não do arquivo em disco: os dois diferem depois do
+    // carimbo, e um ETag do disco faria o 304 confirmar um corpo que não é o
+    // que sai na resposta.
+    clientEtags.set(name, '"' + createHash('sha256').update(body).digest('hex').slice(0, 32) + '"');
   }
 
   // O HTML sai da memória, sempre fresco, referenciando os assets com
@@ -148,8 +162,15 @@ function makePublicHandlers(services: AppServices) {
   // um rebuild sem mudança de código não força o download. Sem isso, um filho
   // velho de 30 dias emparelharia com HTML novo no deploy.
   const sendClientAsset = (name: string) => (req: express.Request, res: express.Response) => {
-    if (CLIENT_ENTRIES.has(name) && req.query.v === assetVersion) {
-      return res.sendFile(services.publicPath(name), { maxAge: '365d', immutable: true });
+    // Sempre o corpo carimbado (da memória), nunca o arquivo cru: o do disco
+    // importaria os filhos sem `?v=` e desfaria o versionamento em cadeia.
+    const body = clientBodies.get(name);
+    res.type('application/javascript; charset=utf-8');
+    // Módulo pedido COM a versão corrente é imutável: essa URL nunca serve
+    // outro conteúdo. Vale para entry e filho — agora os dois carregam `?v=`.
+    if (req.query.v === assetVersion) {
+      res.set('Cache-Control', 'public, max-age=31536000, immutable');
+      return body ? res.send(body) : res.sendFile(services.publicPath(name));
     }
     const etag = clientEtags.get(name);
     res.set('Cache-Control', 'no-cache');
@@ -157,6 +178,7 @@ function makePublicHandlers(services: AppServices) {
       res.set('ETag', etag);
       if (req.headers['if-none-match'] === etag) return res.status(304).end();
     }
+    if (body) return res.send(body);
     // `etag:false`/`lastModified:false`: o send não sobrescreve o ETag de conteúdo
     // com o baseado em stat (que muda a cada build).
     return res.sendFile(services.publicPath(name), { cacheControl: false, etag: false, lastModified: false } as any);

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { stampRelativeImports } from '../src/routes/client-imports.js';
 
 // Persistência desligada ANTES dos requires: o app real abre o módulo de
 // cache e o data/cache.db do repo não pode ser tocado pelos testes.
@@ -132,10 +133,22 @@ test('contrato de cache: HTML no-store e asset imutável só com o fingerprint c
   assert.equal(painelChild.status, 200);
   assert.equal(painelChild.headers.get('cache-control'), 'no-cache');
   const painelEtag = String(painelChild.headers.get('etag'));
+  // O corpo SERVIDO é o do disco com os imports relativos carimbados com o
+  // fingerprint — sem isso a URL do filho seria a mesma entre deploys e um
+  // cache no caminho (a Cloudflare reescrevia nosso `no-cache` para 4h) serviria
+  // módulo velho ao lado de um entry novo. O ETag acompanha o corpo servido,
+  // não o arquivo em disco: um ETag do disco confirmaria um 304 sobre conteúdo
+  // que não é o que sai na resposta.
+  const fingerprint = versioned[1].split('?v=')[1];
+  const servedBody = stampRelativeImports(
+    fs.readFileSync(new URL('../src/public/client/painel/fmt.js', import.meta.url), 'utf8'),
+    fingerprint,
+  );
+  assert.match(painelChild.text, /from '\.\/core\.js\?v=[0-9a-f]{10}'/, 'import do filho carimbado');
   const expectedEtag = '"' + createHash('sha256')
-    .update(fs.readFileSync(new URL('../src/public/client/painel/fmt.js', import.meta.url)))
+    .update(Buffer.from(servedBody, 'utf8'))
     .digest('hex').slice(0, 32) + '"';
-  assert.equal(painelEtag, expectedEtag, 'ETag do filho é o hash de conteúdo, não stat');
+  assert.equal(painelEtag, expectedEtag, 'ETag é o hash do corpo SERVIDO, não do arquivo em disco');
   assert.match(painelEtag, /^"[0-9a-f]{32}"$/);
   const otherChild = await server.request('GET', '/client/painel/core.js');
   assert.notEqual(String(otherChild.headers.get('etag')), painelEtag, 'módulos diferentes → ETags diferentes');
