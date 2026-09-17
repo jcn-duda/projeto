@@ -153,6 +153,7 @@
     "test/debrid-status.test.js",
     "test/br-parsers-resolvers.test.js",
     "test/br-parsers-nerdfilmes.test.js",
+    "test/br-parsers-nerdfilmes-linkphp.test.js",
     "test/debrid-status-memo.test.js",
     "test/debrid-status-routes.test.js",
     "test/debrid-torrent-status.test.js",
