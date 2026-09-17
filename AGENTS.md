@@ -99,6 +99,18 @@ Praticamente todo trabalho de código acontece no **Adom**.
 - As definitions Cardigann vêm da **imagem** (`jackett-bludv/*.yml` copiados
   para `/app/Jackett/Definitions`); o volume `/config` é só estado. Nunca
   monte volume sobre as definitions.
+- **O entrypoint registra o Cardigann Apache no volume, antes de subir o
+  Jackett.** O `/config` nasce com o `apachetorrent.json` STOCK (C# aposentado)
+  e sem o card local — e o estado do volume sobrevive a rebuild, então a imagem
+  sozinha não expõe o id `apachetorrent-cardigann`. O bootstrap idempotente cria
+  `Indexers/apachetorrent-cardigann.json` (mesmo molde do redetorrent, sitelink
+  `https://apachetorrents.com/`) com escrita atômica (temp no próprio diretório +
+  `mv`) e arquiva o stock em `Indexers-disabled/`. **Config do operador vence**:
+  o card só é criado se ausente (nunca sobrescreve) e o stock só sai do
+  diretório ativo por `mv` — se o backup já existir, o ativo é removido apenas
+  quando idêntico (divergência vai para `.legacy` ou é preservada). No segundo
+  boot é no-op e não loga. `JACKETT_INDEXERS_DIR` existe só para teste do
+  contrato; o default é o caminho real do volume.
 - `shm_size: 1gb` (Chromium) e `mem_limit: 3g` no compose: no container único
   um OOM do FlareSolverr reinicia a stack inteira — é o trade-off inerente da
   unificação, mitigado pelo restart.
