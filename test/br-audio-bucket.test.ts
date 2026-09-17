@@ -31,6 +31,17 @@ test('audioBucket: Dual + idioma estrangeiro nomeado cai no lixo (triagem)', () 
   assert.equal(audioBucket('A Casa do Dragão S01E04 WEB-DL 1080p DUAL 5.1'), 'dub');
 });
 
+test('audioBucket: Dual + English NÃO cai no lixo (é PT+EN, o caso comum BR)', () => {
+  // Em torrents BR, "Dual Audio English" = PT+EN (o caso comum), não "só inglês".
+  // O Hindi/Tamil/etc é que são os falsos duals (o áudio é daquele idioma, não PT+Hindi).
+  // English/ENG foram excluídos da guarda do bucket por isso.
+  assert.equal(audioBucket('Dune.2021.1080p.BluRay.Dual.Audio.ENG-POR.mkv'), 'dual');
+  assert.equal(audioBucket('Dune.2021.Dual.Audio.English.Portuguese.mkv'), 'dual');
+  assert.equal(audioBucket('The.Boys.S05E01.Dual.Audio.English.mkv'), 'dual');
+  assert.equal(audioBucket('Movie.2024.DUAL.English.1080p'), 'dual');
+  assert.equal(audioBucket('Movie.2024.DUAL.ENG.1080p'), 'dual');
+});
+
 test('audioBucket: sem marca de áudio, mas com sinal de PT (pt)', () => {
   // Vocabulário de post BR sem marca de áudio: "Temporada"/"Completa".
   assert.equal(audioBucket('Show Temporada Completa'), 'pt');

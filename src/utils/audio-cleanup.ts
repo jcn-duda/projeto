@@ -97,17 +97,29 @@ function genericDubProvesPt(text: string): boolean {
 }
 
 /**
- * Núcleo da guarda ampla SEM o token `MULTI`: nome de idioma estrangeiro,
- * script cirílico ou grafia de cena não-BR (`LAT`/`ESP`/VFF…) — tudo que NOMEIA
- * uma língua que não é o português. `MULTI` fica de fora porque é rótulo de
- * «faixas múltiplas», não afirmação de idioma: carrega a faixa original e pode
- * muito bem incluir o PT-BR — é o contrato documentado em `audioFromTitle`, que
- * o joga no balde ambíguo `dual`.
+ * Núcleo da guarda ampla SEM o token `MULTI` e SEM `ENGLISH|ENG`: nome de
+ * idioma estrangeiro, script cirílico ou grafia de cena não-BR (`LAT`/`ESP`/
+ * VFF…) — tudo que NOMEIA uma língua que não é o português e não é o inglês.
+ * `MULTI` fica de fora porque é rótulo de «faixas múltiplas», não afirmação
+ * de idioma: carrega a faixa original e pode muito bem incluir o PT-BR — é o
+ * contrato documentado em `audioFromTitle`, que o joga no balde ambíguo
+ * `dual`. `ENGLISH|ENG` ficam de fora porque em torrents BR "Dual Audio
+ * English" = PT+EN (o caso comum), não "só inglês" — o Hindi/Tamil/etc é que
+ * são os falsos duals (o áudio é daquele idioma, não PT+Hindi).
  */
+const FOREIGN_LANG_FOR_BUCKET_RE = new RegExp(
+  '\\b(HINDI|TAMIL|TELUGU|MALAYALAM|KANNADA|BENGALI|PUNJABI|MARATHI'
+  + '|UKR|UKRAINIAN|RUS|RUSSIAN|POLISH|CZECH|SLOVAK|HUNGARIAN|ROMANIAN|BULGARIAN'
+  + '|GREEK|HEBREW|ARABIC|PERSIAN|TURKISH|THAI|VIETNAMESE'
+  + '|KOREAN|JAPANESE|CHINESE|MANDARIN|CANTONESE'
+  + '|GERMAN|FRENCH|TRUEFRENCH|ITALIAN|ITA|SPANISH|SPA|ESPANOL|CASTELLANO|LATINO'
+  + '|DUTCH|SWEDISH|NORWEGIAN|DANISH|FINNISH)\\b',
+);
+
 function foreignLangNamedForBucket(text: string): boolean {
   const raw = String(text || '');
   const t = raw.toUpperCase();
-  return FOREIGN_DUB_LANG_RE.test(t)
+  return FOREIGN_LANG_FOR_BUCKET_RE.test(t)
     || CYRILLIC_RE.test(raw)
     || /\b(LAT|ESP)\b/.test(t)
     || /VFF|VF2|VFQ|VOSTFR|HDLIGHT/i.test(raw);

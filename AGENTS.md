@@ -1637,14 +1637,15 @@ Audio] [Hindi DD 5.1]` ficava no balde ambíguo `dual` (misturado aos ~452 duals
 BR do painel) e o marcador `dual` de `hasPtAudioMark` **absolvia** o título no
 `foreignVerdict`, então `foreignProof` saía vazio e nem a Limpeza BR nem o sweep
 enxergavam o item. Hoje: Dual + idioma nomeado cai em `lixo` (predicado
-`foreignLangNamedForBucket` — o núcleo da guarda **ampla** sem `MULTI`, porque
-MULTI afirma «faixas», não idioma, e o contrato de `audioFromTitle` o mantém em
-`dual`), e o marcador `dual`/`dual audio` passou a sofrer a mesma guarda do
-`dub`/`dubbed` (idioma estrangeiro ou cirílico no path desmentem a promessa
-genérica). O que NÃO mudou: `audioFromTitle` devolve `'Dual'` (rótulo de áudio),
-o `…AMZN.WEB-DL.DUAL.5.1…` sem idioma continua absolvendo, e a **condenação
-destrutiva** segue exigindo a lista **mínima** — Dual+Tamil/Korean/cirílico são
-`lixo` de triagem e `unknown` no veredito, nunca apagam. Travado por
+`foreignLangNamedForBucket` — o núcleo da guarda **ampla** sem `MULTI` e sem
+`ENGLISH|ENG`, porque MULTI afirma «faixas», não idioma, e English/ENG em
+torrents BR significa PT+EN — o caso comum, não "só inglês"; o Hindi/Tamil/etc
+é que são os falsos duals), e o marcador `dual`/`dual audio` passou a sofrer a
+mesma guarda do `dub`/`dubbed` (idioma estrangeiro ou cirílico no path desmentem
+a promessa genérica). O que NÃO mudou: `audioFromTitle` devolve `'Dual'`
+(rótulo de áudio), o `…AMZN.WEB-DL.DUAL.5.1…` sem idioma continua absolvendo, e
+a **condenação destrutiva** segue exigindo a lista **mínima** — Dual+Tamil/Korean/
+cirílico são `lixo` de triagem e `unknown` no veredito, nunca apagam. Travado por
 `test/dual-foreign-language.test.ts`. Consequência operacional: as linhas do
 catálogo são **persistidas**, então o balde/`foreignProof` só recalcula no
 "Atualizar Catálogo" do painel.
