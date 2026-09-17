@@ -115,6 +115,7 @@
     "test/apachetorrent-cardigann.test.js",
     "test/br-title.test.js",
     "test/br-audio-bucket.test.js",
+    "test/dual-foreign-language.test.js",
     "test/br-coverage.test.js",
     "test/br-global.test.js",
     "test/pt-sweep-sem-hash.test.js",

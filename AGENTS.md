@@ -747,11 +747,15 @@ o `/magnet/delete` com 503.
 
 Lixo **tocável** tem a própria varredura: `sweepUndubbed`
 (`DEBRID_SWEEP_UNDUBBED`) remove magnets com mais de
-`DEBRID_SWEEP_UNDUBBED_MIN_AGE_MS` cujo título cai no balde `lixo` do
-`audioBucket` (legendado/estrangeiro que o autofetch acumulou). Por apagar
+`DEBRID_SWEEP_UNDUBBED_MIN_AGE_MS` cujo título o `foreignVerdict`
+**condena** — prova positiva de idioma estrangeiro (a lista mínima
+`hasExplicitForeignAudio`) ou grupo de cena EN sem dublagem declarada. O
+critério já foi o balde `lixo` do `audioBucket` e foi aposentado: ausência de
+marca PT condenava qualquer release nórdica e a conta inchou. Por apagar
 conteúdo que toca, as travas andam juntas — idade mínima, `held`, inventário
 `knownBefore` — e inventário frio pula a rodada inteira (mesmo fail-safe do
-`dropReady`).
+`dropReady`). O balde `lixo` continua sendo a mira do CLI `clean-undubbed`, que
+o operador roda à mão.
 
 Para comparação: o Comet/StremThru na AllDebrid **não mede** nada (o
 `/magnets/check` devolve palpite de base colaborativa) e só toca a conta no
@@ -1626,6 +1630,24 @@ mesma **prova positiva de origem** que o `brOriginMark` do 8.4 e a rede de
 segurança do ranking já usavam; não é palpite sobre o áudio. Nos 853 magnets da
 conta do operador, 42 dos 291 duals não reconhecidos viram BR, e 41 são
 inequívocos (site BR nomeado, "1ª Temporada", título em português).
+
+**Dual + idioma nomeado é o lado oposto da mesma moeda.** `audioBucket` aceitava
+`Dual`/`MULTI` sem olhar QUAL idioma acompanhava a faixa: `Serenity … [Dual
+Audio] [Hindi DD 5.1]` ficava no balde ambíguo `dual` (misturado aos ~452 duals
+BR do painel) e o marcador `dual` de `hasPtAudioMark` **absolvia** o título no
+`foreignVerdict`, então `foreignProof` saía vazio e nem a Limpeza BR nem o sweep
+enxergavam o item. Hoje: Dual + idioma nomeado cai em `lixo` (predicado
+`foreignLangNamedForBucket` — o núcleo da guarda **ampla** sem `MULTI`, porque
+MULTI afirma «faixas», não idioma, e o contrato de `audioFromTitle` o mantém em
+`dual`), e o marcador `dual`/`dual audio` passou a sofrer a mesma guarda do
+`dub`/`dubbed` (idioma estrangeiro ou cirílico no path desmentem a promessa
+genérica). O que NÃO mudou: `audioFromTitle` devolve `'Dual'` (rótulo de áudio),
+o `…AMZN.WEB-DL.DUAL.5.1…` sem idioma continua absolvendo, e a **condenação
+destrutiva** segue exigindo a lista **mínima** — Dual+Tamil/Korean/cirílico são
+`lixo` de triagem e `unknown` no veredito, nunca apagam. Travado por
+`test/dual-foreign-language.test.ts`. Consequência operacional: as linhas do
+catálogo são **persistidas**, então o balde/`foreignProof` só recalcula no
+"Atualizar Catálogo" do painel.
 
 O caminho do **inventário da conta** é o mais exposto, e vale saber por quê:
 `src/providers/account.ts` decide `isBr` **só** por este predicado. Não há

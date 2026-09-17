@@ -18,6 +18,19 @@ test('audioBucket: Dual sem PT ao lado é ambíguo (dual)', () => {
   assert.equal(audioBucket('Some.Movie.2024.Dual.Audio.PT-BR.1080p'), 'dub');
 });
 
+test('audioBucket: Dual + idioma estrangeiro nomeado cai no lixo (triagem)', () => {
+  // O balde `dual` não olhava QUAL idioma acompanhava o Dual: Hindi/Tamil/Spanish
+  // ficavam misturados aos duals BR ambíguos do painel. A guarda é a lista ampla
+  // SEM `MULTI` — MULTI puro afirma «faixas», não idioma.
+  assert.equal(audioBucket('Movie.2024.[Dual Audio] [Hindi DD 5.1]'), 'lixo');
+  assert.equal(audioBucket('Movie.2024.DUAL.Tamil.1080p'), 'lixo');
+  assert.equal(audioBucket('Movie.2024.DUAL.SPANISH.1080p'), 'lixo');
+  assert.equal(audioBucket('Movie.2024.MULTI.1080p.BluRay'), 'dual', 'MULTI puro permanece ambíguo');
+  assert.equal(audioBucket('Some.Movie.2024.DUAL.1080p.WEB.x264'), 'dual', 'sem idioma nomeado nada muda');
+  // Dual + PT em conjunção vence ANTES da guarda (looksPtBr).
+  assert.equal(audioBucket('A Casa do Dragão S01E04 WEB-DL 1080p DUAL 5.1'), 'dub');
+});
+
 test('audioBucket: sem marca de áudio, mas com sinal de PT (pt)', () => {
   // Vocabulário de post BR sem marca de áudio: "Temporada"/"Completa".
   assert.equal(audioBucket('Show Temporada Completa'), 'pt');

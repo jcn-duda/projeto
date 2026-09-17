@@ -1,6 +1,6 @@
 import { TECH_NOISE } from './release-matching.js';
 import { hasPtSigns, brOriginMark } from './br-origin.js';
-import { genericDubProvesPt, hasPtAudioMark, strongEnSceneMark, dubbedLieVerdict } from './audio-cleanup.js';
+import { genericDubProvesPt, hasPtAudioMark, strongEnSceneMark, dubbedLieVerdict, foreignLangNamedForBucket } from './audio-cleanup.js';
 
 // Resolução que o título não informa. Balde e cota próprios, separados do SD.
 const UNKNOWN_QUALITY = 'sem resolução';
@@ -239,15 +239,23 @@ type AudioBucket = 'dub' | 'dual' | 'pt' | 'lixo';
 /**
  * Balde de áudio por título:
  *   dub  — dublado/nacional/dual+PT explícito (looksPtBr);
- *   dual — Dual/Multi sem PT ao lado (ambíguo);
+ *   dual — Dual/Multi sem PT ao lado E sem idioma nomeado (ambíguo);
  *   pt   — sem marca de áudio, mas com sinal de português ou ORIGEM BR no
  *          título (brOriginMark, blindagem 8.4 — os 4 falsos positivos
  *          medidos eram site BR condenado por não citar "dublado");
- *   lixo — legendado, áudio estrangeiro explícito, ou sem marca NEM sinal de PT.
+ *   lixo — legendado, áudio estrangeiro explícito, dual com idioma estrangeiro
+ *          nomeado, ou sem marca NEM sinal de PT.
+ *
+ * Dual + idioma nomeado (`[Dual Audio] [Hindi DD 5.1]`) saiu do balde ambíguo:
+ * a faixa extra é Hindi/Tamil/Ukr, não o português — ficar em `dual` escondia o
+ * item da triagem do painel (~452 linhas misturadas) e a absolvição pelo
+ * marcador `dual` deixava `foreignProof` vazio. A guarda é o núcleo da lista
+ * AMPLA sem `MULTI`: MULTI puro continua `dual` (contrato de `audioFromTitle`),
+ * e Dual com PT ao lado sobe para `dub` antes daqui (looksPtBr).
  */
 function audioBucket(title = ''): AudioBucket {
   if (looksPtBr(title)) return 'dub';
-  if (audioFromTitle(title) === 'Dual') return 'dual';
+  if (audioFromTitle(title) === 'Dual') return foreignLangNamedForBucket(title) ? 'lixo' : 'dual';
   if (hasPtSigns(title) || brOriginMark(title)) return 'pt';
   return 'lixo';
 }

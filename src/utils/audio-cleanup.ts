@@ -9,6 +9,9 @@
  *   vaga BR (herança no dedupe + classificação pt-title-dual). Pode ser
  *   generosa porque não apaga da conta; `hasExplicitForeignAudio` permanece
  *   a lista MÍNIMA dos caminhos destrutivos (sweep/limpeza);
+ * - `foreignLangNamedForBucket` — o MESMO núcleo da ampla, sem o token `MULTI`:
+ *   nomeia um idioma que não é o português. É o predicado que rebaixa
+ *   Dual+idioma estrangeiro no balde do catálogo;
  * - `hasPtAudioMark` / `strongEnSceneMark` / `dubbedLieVerdict` — a auditoria
  *   de dublagem sobre o path real dos arquivos.
  *
@@ -94,6 +97,23 @@ function genericDubProvesPt(text: string): boolean {
 }
 
 /**
+ * Núcleo da guarda ampla SEM o token `MULTI`: nome de idioma estrangeiro,
+ * script cirílico ou grafia de cena não-BR (`LAT`/`ESP`/VFF…) — tudo que NOMEIA
+ * uma língua que não é o português. `MULTI` fica de fora porque é rótulo de
+ * «faixas múltiplas», não afirmação de idioma: carrega a faixa original e pode
+ * muito bem incluir o PT-BR — é o contrato documentado em `audioFromTitle`, que
+ * o joga no balde ambíguo `dual`.
+ */
+function foreignLangNamedForBucket(text: string): boolean {
+  const raw = String(text || '');
+  const t = raw.toUpperCase();
+  return FOREIGN_DUB_LANG_RE.test(t)
+    || CYRILLIC_RE.test(raw)
+    || /\b(LAT|ESP)\b/.test(t)
+    || /VFF|VF2|VFQ|VOSTFR|HDLIGHT/i.test(raw);
+}
+
+/**
  * Idioma estrangeiro / cena não-BR no título — guarda AMPLA. Reusa a lista
  * que desmente DUB genérico + cirílico, e acrescenta grafias que a lista
  * mínima ainda não mede ou que só negam BR (`LAT`, `ESP`, `MULTI`, VFF…).
@@ -101,23 +121,23 @@ function genericDubProvesPt(text: string): boolean {
  * regressar a condenação mínima. Só entra onde negar BR é barato.
  */
 function namesForeignDubLanguage(text: string): boolean {
-  const raw = String(text || '');
-  const t = raw.toUpperCase();
-  return FOREIGN_DUB_LANG_RE.test(t)
-    || CYRILLIC_RE.test(raw)
-    || /\b(LAT|ESP|MULTI)\b/.test(t)
-    || /VFF|VF2|VFQ|VOSTFR|HDLIGHT/i.test(raw);
+  return foreignLangNamedForBucket(text) || /\bMULTI\b/.test(String(text || '').toUpperCase());
 }
 
 // Lado marcador do mesmo intento, para o path: um marker de
 // AUDIO_AUDIT_PT_MARKERS é genérico quando normaliza para exatamente
-// 'dub'/'dubbed' — só ele sofre a guarda do HINDI/cirílico. Marcador
-// explícito ('dublado', 'dual', 'pt br'…) não prova menos por causa de
-// HINDI nem de cirílico. Limitação honesta: marcador genérico CUSTOMIZADO
-// novo (ex.: 'dubs') é tratado como explícito e escapa da guarda — o
-// fechamento cobre as formas genéricas conhecidas, não qualquer vocabulário
-// futuro.
-const GENERIC_DUB_MARKER_RE = /^dub(?:bed)?$/;
+// 'dub'/'dubbed'/'dual'/'dual audio' — só ele sofre a guarda do HINDI/cirílico.
+// `dual`/`dual audio` entraram na mesma guarda do `dub`: em release
+// internacional DUAL anuncia as faixas ORIGINAL + estrangeira, e o idioma
+// nomeado ao lado desmente a promessa exatamente como desmente um `DUB`. Medido
+// no painel de limpeza: `Serenity … [Dual Audio] [Hindi DD 5.1]` era ABSOLVIDO
+// pelo marcador `dual`, então `foreignProof` ficava vazio e nem a Limpeza BR nem
+// o sweep enxergavam o item. Os demais marcadores ('dublado', 'pt br'…)
+// afirmam o português e não provam menos por causa de HINDI nem de cirílico.
+// Limitação honesta: marcador genérico CUSTOMIZADO novo (ex.: 'dubs') é tratado
+// como explícito e escapa da guarda — o fechamento cobre as formas genéricas
+// conhecidas, não qualquer vocabulário futuro.
+const GENERIC_DUB_MARKER_RE = /^(?:dub(?:bed)?|dual(?: audio)?)$/;
 
 /** Marcador de áudio PT no path real do arquivo, não no título do post. */
 function hasPtAudioMark(path = '') {
@@ -162,6 +182,7 @@ function dubbedLieVerdict(videoPaths: string[] = [], promisedDubbed = false) {
 
 export {
   genericDubProvesPt,
+  foreignLangNamedForBucket,
   namesForeignDubLanguage,
   hasPtAudioMark,
   strongEnSceneMark,

@@ -32,10 +32,17 @@ test('Fase 0: release de cena EN sem marcador PT continua sendo lie', () => {
   for (const path of lies) assert.equal(dubbedLieVerdict([path], true).lie, true, path);
 });
 
-test('Fase 0: Dual Audio (Hindi) continua ambíguo — não é lie nem estrangeiro provado', () => {
-  const serenity = 'Serenity.2023.1080p.WEBRip.x264 [Dual Audio] [Hindi DD 5.1] [HDRip-1337x][TorrentCounter].mkv';
-  assert.equal(audioBucket(serenity), 'dual', 'dual sem PT ao lado é ambíguo');
-  assert.equal(dubbedLieVerdict([serenity], true).lie, false, 'dual audio é marcador PT auditivo conhecido');
+// Dual + idioma estrangeiro NOMEADO deixou de ser ambíguo (balde `lixo`,
+// veredito `condena`): o balde `dual` e a absolvição pelo marcador `dual`
+// escondiam o item da triagem do painel. Os casos vizinhos (MULTI, Tamil,
+// cirílico, guarda do path) estão em test/dual-foreign-language.test.ts.
+const SERENITY_HINDI = 'Serenity.2023.1080p.WEBRip.x264 [Dual Audio] [Hindi DD 5.1] [HDRip-1337x][TorrentCounter].mkv';
+
+test('Dual/HINDI: balde lixo e veredito condena, mas não é lie sem grupo de cena EN', () => {
+  assert.equal(audioBucket(SERENITY_HINDI), 'lixo', 'Dual com idioma nomeado não é ambíguo');
+  assert.equal(audioFromTitle(SERENITY_HINDI), 'Dual', 'o RÓTULO de áudio não muda — só balde e veredito');
+  assert.equal(foreignVerdict(SERENITY_HINDI), 'condena', 'HINDI está na lista mínima');
+  assert.equal(dubbedLieVerdict([SERENITY_HINDI], true).lie, false, 'sem grupo EN forte não prova mentira');
 });
 
 test('Fase 0: MULTI sozinho cai no balde dual, não no lixo', () => {
