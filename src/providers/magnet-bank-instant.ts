@@ -279,18 +279,24 @@ export function dropInstantFallbacks(items: any[]): number {
 }
 
 /**
- * A foto do idx fica no lote (é a mesma release do índice de sempre), mas a
- * coleta completa acabou de rodar: o selo 📦 dela sai. Devolve quantas marcas
- * saíram — com alguma, a lista precisa ser RECONSTRUÍDA, senão a promoção sem
- * novidade gravaria a lista antiga com o selo e TTL cheio.
+ * A foto do idx fica no lote (é a mesma release do índice de sempre) e perde o
+ * selo 📦 quando o indexer DELA respondeu à coleta completa — a mesma régua do
+ * fallback. Indexer que falhou (ou `/all` falho) mantém o selo: medido com o
+ * Jackett parado (2026-09-18), limpar tudo gravava a foto como lista viva
+ * completa, com `max-age=900` e seeders sem `~`. Devolve quantas marcas saíram
+ * — com alguma, a lista precisa ser RECONSTRUÍDA, senão a promoção sem novidade
+ * gravaria a lista antiga com o selo e TTL cheio.
  */
-export function clearInstantSnapshots(items: any[]): number {
+export function clearInstantSnapshots(items: any[], live: LiveIndexerState | null = null): number {
+  const allFailed = Boolean(live?.allFailed());
+  const failed = live ? live.failedIndexers() : new Set<string>();
   let cleared = 0;
   for (const item of items) {
-    if (item?.fromSnapshot) {
-      delete item.fromSnapshot;
-      cleared += 1;
-    }
+    if (!item?.fromSnapshot) continue;
+    const indexer = String(item.indexer || '').trim().toLowerCase();
+    if (allFailed || failed.has(indexer)) continue;
+    delete item.fromSnapshot;
+    cleared += 1;
   }
   return cleared;
 }
@@ -314,7 +320,7 @@ export async function promoteInstantTail(args: {
 }): Promise<LiveIndexerState | null> {
   const dropped = dropInstantFallbacks(args.rawItems);
   if (dropped > 0) metrics.count('search.bank.instant.dropped', dropped);
-  const cleared = clearInstantSnapshots(args.rawItems);
+  const cleared = clearInstantSnapshots(args.rawItems, args.live);
   const { fresh } = fuseIndexEnrichment(args.rawItems, args.liveItems);
   if (fresh.length) {
     log.info(`[search] instantâneo: ${fresh.length} resultado(s) vivo(s) novo(s); promovendo`);

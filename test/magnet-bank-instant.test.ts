@@ -387,3 +387,19 @@ test('tail instantâneo: foto do idx perde o 📦 e a lista é reconstruída mes
   assert.equal(calls[0].items[0].fromSnapshot, undefined, 'a foto do idx perde a marca');
   assert.equal(clearInstantSnapshots([{ title: 'x' }]), 0);
 });
+
+test('tail instantâneo: foto do idx de indexer que FALHOU mantém o 📦 (Jackett fora do ar)', () => {
+  const live: any = {
+    allFailed: () => false,
+    failedIndexers: () => new Set(['kickasstorrents-to']),
+    hasAnyFailure: () => true,
+  };
+  const caiu = { title: 'A', infoHash: hex('7'), indexer: 'kickasstorrents-to', fromSnapshot: true };
+  const vivo = { title: 'B', infoHash: hex('6'), indexer: 'yts', fromSnapshot: true };
+  assert.equal(clearInstantSnapshots([caiu, vivo], live), 1);
+  assert.equal(caiu.fromSnapshot, true, 'indexer falho: segue foto salva');
+  assert.equal((vivo as any).fromSnapshot, undefined, 'indexer respondeu: vira lista viva');
+  const tudo: any = { allFailed: () => true, failedIndexers: () => new Set(), hasAnyFailure: () => true };
+  const outra = { title: 'C', infoHash: hex('5'), indexer: 'yts', fromSnapshot: true };
+  assert.equal(clearInstantSnapshots([outra], tudo), 0, '/all falho: nada perde o selo');
+});

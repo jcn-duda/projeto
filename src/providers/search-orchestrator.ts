@@ -159,7 +159,7 @@ export async function doSearch({
         },
       });
       const isDebridKnown = debridKnown !== undefined ? Boolean(debridKnown && !needsDebridRefresh) : !needsDebridRefresh;
-      const fallbackInList = streams.some((s: any) => Boolean(s?._fromFallback));
+      const fallbackInList = streams.some((s: any) => Boolean(s?._fromFallback || s?._fromSnapshot)); // foto 📦 do idx de indexer falho também é reserva
       // `partial:true` com reserva: o handler responde cacheMaxAge:0 e o TTL
       // curto abaixo dá à próxima abertura a chance de reconsultar o vivo.
       return { streams, partial: partial || fallbackInList, needsDebridRefresh, autofetchCount, debridKnown: isDebridKnown, trace, fallback: fallbackInList };
