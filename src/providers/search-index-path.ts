@@ -14,6 +14,7 @@ import type { FirstObserverState } from './stream-builder.js';
 import { collectRaw } from './collect-orchestrator.js';
 import { collectInstantItems } from './magnet-bank-instant.js';
 import { idxPoolCovered, idxReleasesToRaw } from './search-pool-coverage.js';
+import { allowedSourceIndexer } from './allowed-source-indexer.js';
 import { shouldBrGap, hasBrDubbed, hasBrEvidence } from '../utils/br-gap.js';
 import { requestBrProbe } from './br-probe.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
@@ -159,7 +160,10 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
   // O índice é lido ANTES de qualquer indexer também para a via instantânea:
   // hash já indexado é evidência melhor e é excluído do 📦 (e somado na
   // cobertura). `partial` só bloqueia o fast-path do índice, nunca a instantânea.
-  const indexed = config.releaseIndex.enabled ? releaseIndex.lookup(imdbId, { season, episode }) : [];
+  // Índice é compartilhado entre instalações: filtra pela config do pedido
+  // (torrentio/`ji`) antes de cobertura, resposta e exclusão da via instantânea.
+  const indexed = (config.releaseIndex.enabled ? releaseIndex.lookup(imdbId, { season, episode }) : [])
+    .filter((r) => r?.source === 'autofetch' || allowedSourceIndexer(String(r.indexer || '')));
   const partial = indexed.length > 0 && config.releaseIndex.enabled && releaseIndex.isPartial(imdbId, { season, episode });
 
   // Via instantânea (banco vivo): quando a foto do acervo é confiável pela

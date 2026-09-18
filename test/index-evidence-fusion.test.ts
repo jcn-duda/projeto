@@ -156,8 +156,8 @@ test('enriquecimento do tail: cópia saudável resgata snapshot 0 antes do piso 
       // Snapshot velho do agregador (0) + fonte BR saudável que sustenta a
       // cobertura do pool para o fast-path servir do índice.
       releaseIndex.record(IMDB, {}, [
-        { title: RUSTED_TITLE, infoHash: RUSTED_HASH, seeders: 0, indexer: 'torrentio' },
-        { title: 'Mortuary 1982 1080p DUBLADO', infoHash: brHash, seeders: 4, indexer: 'indice-br', isBr: true },
+        { title: RUSTED_TITLE, infoHash: RUSTED_HASH, seeders: 0, indexer: 'thepiratebay' },
+        { title: 'Mortuary 1982 1080p DUBLADO', infoHash: brHash, seeders: 4, indexer: 'torrentdosfilmesv2', isBr: true },
       ]);
       assert.equal(releaseIndex.lookup(IMDB).find((r) => r.hash === RUSTED_HASH)?.seeders, 0);
 

@@ -213,7 +213,7 @@ test('br-gap: índice com BR dublado NÃO enfileira (control served)', async () 
         infoHash: '22'.repeat(20),
         seeders: 1,
         isBr: true,
-        indexer: 'redetorrent',
+        indexer: 'nerdfilmes',
       },
     ], {});
     harvestQueue.clearQueue();
@@ -240,7 +240,7 @@ test('br-gap: BR somente 720p enfileira upgrade para os index-only', async () =>
         infoHash: '77'.repeat(20),
         seeders: 1,
         isBr: true,
-        indexer: 'kickasstorrents-to',
+        indexer: 'nerdfilmes',
       },
       { title: 'Test Title 2024 1080p WEB-DL', infoHash: '88'.repeat(20), seeders: 80, indexer: 'thepiratebay' },
     ], {});

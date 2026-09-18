@@ -106,7 +106,7 @@ export function idxReleasesToRaw(releases: any[]) {
     seeders: r.seeders,
     size: r.size ?? undefined,
     indexer: r.indexer,
-    tracker: r.indexer,
+    tracker: r.tracker || r.indexer,
     isBr: r.isBr,
     dubbed: r.dubbed,
     lied: Boolean(r.lied),

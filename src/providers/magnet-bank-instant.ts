@@ -32,6 +32,7 @@ import type { MagnetRow, WorkRow } from '../utils/magnet-bank.js';
 import { obraTargets, pickSource, toRawItem, PER_INDEXER_MAX } from './magnet-bank-fallback.js';
 import type { Candidate } from './magnet-bank-fallback.js';
 import { idxPoolCovered, poolCovered } from './search-pool-coverage.js';
+import { allowedSourceIndexer } from './allowed-source-indexer.js';
 import { fuseIndexEnrichment } from './index-evidence.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
 import * as metrics from '../utils/metrics.js';
@@ -214,7 +215,8 @@ export function collectInstantItems(req: InstantRequest): InstantResult {
         metrics.count('search.bank.instant.skip.idx-hash');
         continue;
       }
-      const source = pickSource(sourcesByHash.get(hash) || [], new Set(), true);
+      const allowed = (sourcesByHash.get(hash) || []).filter((s) => allowedSourceIndexer(s.indexer));
+      const source = pickSource(allowed, new Set(), true);
       if (!source) continue;
       candidates.push({ magnet, source, work: worksByHash.get(hash)! });
     }

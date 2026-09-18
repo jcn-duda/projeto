@@ -28,6 +28,7 @@ import type { LiveIndexerState } from './live-indexer-state.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import { indexerFallbackMetricKey } from '../utils/metric-id.js';
+import { allowedSourceIndexer } from './allowed-source-indexer.js';
 
 export interface FallbackRequest {
   /** 'movie' | 'series' — filme só consulta a obra raiz. */
@@ -155,7 +156,8 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
     const candidates: Candidate[] = [];
     for (const [hash, magnet] of magnets) {
       if (req.liveHashes.has(hash)) { countCut('live-dedupe', magnet); continue; }
-      const source = pickSource(sourcesByHash.get(hash) || [], req.failedIndexers, req.allFailed);
+      const allowed = (sourcesByHash.get(hash) || []).filter((s) => allowedSourceIndexer(s.indexer));
+      const source = pickSource(allowed, req.failedIndexers, req.allFailed);
       if (!source) { countCut('no-source', magnet); continue; }
       candidates.push({ magnet, source, work: works.get(hash)! });
     }

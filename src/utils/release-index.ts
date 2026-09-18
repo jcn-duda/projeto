@@ -133,15 +133,15 @@ function record(
         hash,
         title: title || prior?.title || '',
         size: Number(item.size ?? item.Size) || null,
+        // indexer: id da origem (legado pode cair no tracker). tracker: rótulo real, se houver.
         indexer: String(item.indexer || item.tracker || prior?.indexer || ''),
+        tracker: String(item.tracker || prior?.tracker || '') || undefined,
         isBr,
         dubbed: Boolean(dubbed) || Boolean(prior?.dubbed),
-        // Só o autofetch confia na classificação do item; provider público mantém a regra pelo título.
         quality: String(itemSource === 'autofetch' && item.quality ? item.quality : qualityFromTitle(title)),
-        // Fusão por hash: teto de seeders observado é prova de swarm — snapshot pior não rebaixa (Mortuary).
+        // Fusão por hash: teto de seeders — snapshot pior não rebaixa (Mortuary).
         seeders: Math.max(Number(item.seeders ?? item.Seeders ?? 0) || 0, Number(prior?.seeders) || 0),
         seenAt: now,
-        // Campo aditivo: uma nova coleta não pode apagar prova de play/tail.
         lied: Boolean(item.lied) || Boolean(prior?.lied),
         source,
       });

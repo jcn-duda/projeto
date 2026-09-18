@@ -94,7 +94,7 @@ test('Fase 3: Jackett FORA DO AR — busca respondida pelo índice', async () =>
       title: i === 0 ? 'Test Title 2024 1080p DUBLADO' : 'Test Title 2024 720p DUAL',
       infoHash: h,
       seeders: 15,
-      indexer: 'recordado',
+      indexer: 'thepiratebay',
       isBr: true,
     })));
 
@@ -149,7 +149,7 @@ test('Fase 3: índice não esconde a primeira fonte BR viva dentro da janela cr�
         title: 'Zumbilândia 2009 720p DUBLADO',
         infoHash: indexedHash,
         seeders: 1,
-        indexer: 'indice',
+        indexer: 'torrentdosfilmesv2',
         isBr: true,
       }]);
       const res = await server.request('GET', `/${userCfg(key, { ji: ['torrentdosfilmesv2'], b: 2 })}/stream/movie/tt9000110.json`);
@@ -203,7 +203,7 @@ test('Fase 3: tail do índice reconcilia BR tardio antes da única promoção', 
       { match: 'themoviedb.org', handler: () => ({ movie_results: [{ title: 'Zumbilândia', original_title: 'Zombieland', release_date: '2009-09-25' }] }) },
     ], async () => {
       releaseIndex.record('tt9000111', {}, [{
-        title: 'Zumbilândia 2009 720p DUBLADO', infoHash: indexedHash, seeders: 1, indexer: 'indice', isBr: true,
+        title: 'Zumbilândia 2009 720p DUBLADO', infoHash: indexedHash, seeders: 1, indexer: 'torrentdosfilmesv2', isBr: true,
       }]);
       const res = await server.request('GET', `/${cfg}/stream/movie/tt9000111.json`);
       assert.equal(res.status, 200);
@@ -344,7 +344,7 @@ const idxItem = (h: string, i: number) => ({
   title: i === 0 ? 'Test Title 2024 1080p DUBLADO' : 'Test Title 2024 720p DUAL',
   infoHash: h,
   seeders: 15,
-  indexer: 'recordado',
+  indexer: 'thepiratebay',
   isBr: true,
 });
 

@@ -233,6 +233,7 @@
     "test/magnet-bank-search.test.js",
     "test/magnet-bank-instant.test.js",
     "test/magnet-bank-instant-tail.test.js",
+    "test/allowed-source-indexer.test.js",
     "test/memory-fallback.test.js",
     "test/memory-fallback-cache.test.js",
     "test/memory-fallback-suppress.test.js",

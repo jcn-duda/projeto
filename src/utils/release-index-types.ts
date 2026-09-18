@@ -3,6 +3,8 @@ export type IndexedRelease = {
   title: string;
   size: number | null;
   indexer: string;
+  /** Rótulo real da fonte (ex.: ThePirateBay no pool Torrentio). Não confundir com `indexer`. */
+  tracker?: string;
   isBr: boolean;
   dubbed: boolean;
   quality: string;
