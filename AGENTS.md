@@ -531,6 +531,28 @@ distintas e as métricas (`magnetdb.dropped.bad` / `magnetdb.dropped.dead`)
 separam para o diagnóstico não culpar o lado errado. Unificar só se um
 terceiro consumidor aparecer.
 
+**URI do magnet por hash (`src/utils/magnet-uri.ts`, namespace `muri`).** Não é
+evidência nem histórico de conta: a chave é `muri:v1:<hash>` (40-hex minúsculo,
+**sem** adapter/`accountScope` — a URI é do torrent, não da credencial) e o valor
+é a URI original do post (`dn=` + trackers), sanitizada. Alimenta só o play:
+`magnetForPlay(hash)` (`common.ts`) devolve `peekMagnet(hash) || magnetFor(hash)`,
+e os adaptadores que mandam URI ao serviço (Real-Debrid, TorBox, Premiumize,
+Debrid-Link) chamam ela no `resolveLink`/`enqueue` em vez de refazer o magnet cru
+— assim o debrid recebe os trackers do próprio post e um torrent frio com poucos
+seeds ganha vida. A **AllDebrid não usa**: seu `cacheCheck` é upload do HASH, não
+da URI, e enriquecer o magnet ali chega tarde (a checagem já criou o torrent).
+A sanitização é defensiva e **nunca piora o fallback**: rejeita `xs`/`as`/`ws`,
+remove trackers com credencial (passkey, `/announce/<token>`, `?auth=`, `uid=`) e
+mantém o conjunto padrão de `TRACKERS` como **piso** — uma URI guardada nunca fica
+abaixo do que `magnetFor` mandaria; corta em 2048 bytes preservando `xt=` e `dn=`.
+Devolve `null` quando o resultado é equivalente ao padrão, então a gravação só
+ocorre quando há `dn=` ou tracker extra real (não se guarda o recalculável). A
+captura é no `prepareCandidateStreams` (`stream-builder-pipeline.ts`), em lote por
+passe via `rememberMagnets`. TTL `MAGNET_URI_TTL` (default 14 dias, `0` desliga a
+gravação); cota `muri` 20.000 (~1 KB/entrada), que empurrou o teto global de
+93.000 para 113.000. O painel (`magnetdb-inspect.ts` → aba de magnets) expõe a URI
+na coluna **Magnet URI** (truncada com botão copiar).
+
 Kill-switches no `.env`: `MAGNET_DB=false` desliga o banco inteiro;
 `MAGNET_ALIVE_TTL=0`, `MAGNET_BAD_TTL=0` e `MAGNET_LIE_TTL=0` desligam cada lado;
 `MAGNET_LIE=false` fecha só a gravação/leitura do `lie` sem tocar em alive/bad.

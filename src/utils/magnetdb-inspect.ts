@@ -15,6 +15,7 @@ import * as cache from './cache.js';
 import * as magnetdb from './magnetdb.js';
 import { prefix } from './cache-keys.js';
 import { MAG_SIDES, parseMagKey, type MagSide, type ParsedMagKey } from './magnetdb-counts.js';
+import { peekMagnet } from './magnet-uri.js';
 
 export { MAG_SIDES };
 export type { MagSide };
@@ -26,6 +27,8 @@ export type MagEntryView = {
   side: MagSide;
   hash: string;
   ttlRemainingSeconds: number | null;
+  /** URI de magnet guardada (namespace `muri`). Null se ausente/expirada. */
+  magnet: string | null;
 };
 
 export type MagInspectResult = {
@@ -65,7 +68,7 @@ function inspect(filters: MagFilters, limit: number): MagInspectResult {
     if (!parsed || !matches(filters, parsed)) continue;
     matched += 1;
     if (items.length >= limit) continue;
-    items.push({ ...parsed, ttlRemainingSeconds: cache.peekRemaining(key) });
+    items.push({ ...parsed, ttlRemainingSeconds: cache.peekRemaining(key), magnet: peekMagnet(parsed.hash) });
   }
   return { items, matched, truncated: matched > items.length };
 }

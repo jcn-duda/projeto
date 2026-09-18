@@ -61,11 +61,14 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
     assert.equal(cache.QUOTAS.idx, 2000);
     assert.equal(cache.QUOTAS.fsz, 3000);
     assert.equal(cache.QUOTAS.vres, 1000);
+    assert.equal(cache.QUOTAS.muri, 20000);
     // Fase 2 do Chupim: o teto por obra (`autofetch:v3:o:`) divide o balde com
     // markers/dead/queues/prefetch/sup, então a cota dobrou e o teto global
     // subiu junto — sempre estritamente acima da soma.
     assert.equal(cache.QUOTAS.autofetch, 4000);
-    assert.equal(cache.MAX_ENTRIES, 93000);
+    // muri (URI de magnet por hash) somou 20.000 ao universo, empurrando o
+    // teto de 93.000 para 113.000.
+    assert.equal(cache.MAX_ENTRIES, 113000);
     // O que o teto precisa cobrir não é a lista de `QUOTAS`: `quotaFor` devolve
     // `__default` para todo nome sem entrada própria, então namespace
     // versionado sem cota some da soma nomeada e ocupa o store igual — foi

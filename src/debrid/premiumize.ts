@@ -4,7 +4,7 @@ import * as log from '../utils/logger.js';
 import * as held from './protected.js';
 import { accountScope } from '../utils/request-key.js';
 import {
-  magnetFor, json, pickFile, batched,
+  magnetForPlay, json, pickFile, batched,
   AuthError, QuotaError, RateLimitError,
 } from './common.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
@@ -79,7 +79,7 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
  * @param {*} [options.work]
  */
 async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
-  const body = new URLSearchParams({ src: magnetFor(infoHash) });
+  const body = new URLSearchParams({ src: magnetForPlay(infoHash) });
   const data = await call(apiKey, '/transfer/directdl', { method: 'POST', body });
   const file = pickFile(data.content || [], { season, episode, work });
   recordFileEvidence(infoHash, data.content || []);
@@ -99,7 +99,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
  * o que cegava o ciclo. String vazia/ausente continua sendo recusa.
  */
 async function enqueue(apiKey: string, infoHash: string) {
-  const body = new URLSearchParams({ src: magnetFor(infoHash) });
+  const body = new URLSearchParams({ src: magnetForPlay(infoHash) });
   const data = await call(apiKey, '/transfer/create', { method: 'POST', body });
   return data?.id == null || data.id === '' ? false : String(data.id);
 }

@@ -76,7 +76,9 @@ test('magnet-inspect lista entradas do L1 sem vazar chave nem digest de conta', 
     assert.ok(!raw.includes(accountScope(API_KEY)), 'accountScope não aparece no payload');
 
     const bad = res.json.items.find((i: any) => i.hash === HASH_BAD_1);
-    assert.deepEqual(Object.keys(bad).sort(), ['adapterId', 'hash', 'side', 'ttlRemainingSeconds']);
+    // `magnet` é a URI guardada no namespace muri (null quando ausente/expirada);
+    // sempre presente na view, por isso integra a forma esperada.
+    assert.deepEqual(Object.keys(bad).sort(), ['adapterId', 'hash', 'magnet', 'side', 'ttlRemainingSeconds']);
     assert.equal(bad.side, 'bad');
     assert.equal(bad.adapterId, ADAPTER);
     assert.equal(bad.ttlRemainingSeconds > 0, true);

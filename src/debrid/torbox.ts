@@ -1,5 +1,5 @@
 import config from '../config.js';
-import { magnetFor, json, pickFile, batched, wait, QuotaError, RateLimitError } from './common.js';
+import { magnetForPlay, json, pickFile, batched, wait, QuotaError, RateLimitError } from './common.js';
 import * as log from '../utils/logger.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { AccountStatus, PlayHint, TorrentStatusEntry } from '../../types/domain.js';
@@ -96,7 +96,7 @@ async function checkCached(
  */
 async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
   const form = new FormData();
-  form.append('magnet', magnetFor(infoHash));
+  form.append('magnet', magnetForPlay(infoHash));
   form.append('seed', '3'); // não semear: só queremos o link de leitura
   form.append('allow_zip', 'false');
 
@@ -137,7 +137,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
 /** Mesmo createtorrent do resolveLink, mas sem esperar ficar pronto. */
 async function enqueue(apiKey: string, infoHash: string) {
   const form = new FormData();
-  form.append('magnet', magnetFor(infoHash));
+  form.append('magnet', magnetForPlay(infoHash));
   form.append('seed', '3'); // não semear
   form.append('allow_zip', 'false');
   const created = await call(apiKey, '/torrents/createtorrent', { method: 'POST', body: form });

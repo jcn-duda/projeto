@@ -185,11 +185,13 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
                       <th>Lado</th>
                       <th>Estado</th>
                       <th>TTL Restante</th>
+                      <th>Magnet URI</th>
                     </tr>
                   </thead>
                   <tbody>
                     ${inspectResult.items.map((it: any) => {
                       const style = sideStyle(it.side);
+                      const magnetTrunc = it.magnet ? (it.magnet.length > 60 ? it.magnet.slice(0, 57) + '...' : it.magnet) : '—';
                       return html`
                         <tr>
                           <td>${it.adapterId}</td>
@@ -197,6 +199,16 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
                           <td><span class="painel-badge painel-badge-neutral">${it.side}</span></td>
                           <td><span class=${'painel-badge ' + style.badge}>${style.label}</span></td>
                           <td>${formatTtlRemaining(it.ttlRemainingSeconds)}</td>
+                          <td>
+                            ${it.magnet ? html`
+                              <code title=${it.magnet} style="cursor: help; font-size: 0.85em;">${magnetTrunc}</code>
+                              <button
+                                class="painel-btn painel-btn-small"
+                                style="margin-left: 4px; padding: 2px 6px; font-size: 0.75em;"
+                                onClick=${() => navigator.clipboard?.writeText(it.magnet || '')}
+                              >Copiar</button>
+                            ` : '—'}
+                          </td>
                         </tr>
                       `;
                     })}

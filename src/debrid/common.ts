@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { TRACKERS } from '../utils/format.js';
 import * as log from '../utils/logger.js';
+import { peekMagnet } from '../utils/magnet-uri.js';
 export {
   WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError,
   NoVideoError, isNoVideoError, DubLieError, isDubLieError,
@@ -15,6 +16,15 @@ export type MaybeError = any;
 function magnetFor(infoHash: string) {
   const trackers = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join('');
   return `magnet:?xt=urn:btih:${infoHash}${trackers}`;
+}
+
+/**
+ * URI para play/enqueue: prefere a guardada (com dn= e trackers do post),
+ * cai no magnet padrão se ausente. A URI guardada ajuda em torrent frio
+ * raro (trackers do post podem ter pares adicionais).
+ */
+function magnetForPlay(infoHash: string): string {
+  return peekMagnet(infoHash) || magnetFor(infoHash);
 }
 
 /**
@@ -156,7 +166,7 @@ async function batched(infoHashes: string[], size: number, fn: (batch: string[],
 function wait(ms: number) { return new Promise((resolve) => setTimeout(resolve, ms).unref()); }
 
 export {
-  magnetFor, json, batched, wait,
+  magnetFor, magnetForPlay, json, batched, wait,
   AuthError, isAuthError, QuotaError, isQuotaError, RateLimitError, isRateLimitError,
   parseRetryAfter, retryAfterMsOf,
   BlockedError, isBlockedError,

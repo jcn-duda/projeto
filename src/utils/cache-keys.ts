@@ -122,6 +122,11 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // Resolução medida no cabeçalho do vídeo, por arquivo
   // (`vres:v1:<hash>:<digest do caminho>`, registro `{ q, w, h }`).
   vres: 'v1',
+  // URI de magnet original do post, por hash (`muri:v1:<hash>`). Sem conta
+  // na chave: a URI é do torrent, não da credencial. TTL de 14 dias renovado
+  // a cada aparição do hash em busca. Não leva evidência alive/bad/lie (isso
+  // é o `mag` separado).
+  muri: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

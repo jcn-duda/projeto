@@ -222,6 +222,7 @@
     "test/magnet-db.test.js",
     "test/magnet-db-persistence.test.js",
     "test/magnetdb-persist-basis.test.js",
+    "test/magnet-uri.test.js",
     "test/magnet-db-empirical-challenge.test.js",
     "test/index-only-1337x.test.js",
     "test/index-only-timeout-clamp.test.js",
