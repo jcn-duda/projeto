@@ -189,7 +189,8 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
       () => [] as any[],
     );
     raw = {
-      items: [...idxReleasesToRaw(indexed), ...instantResult.items, ...accountItems],
+      // idx também é foto salva: exibe 📦/~N até o tail promover (lá a marca sai).
+      items: [...idxReleasesToRaw(indexed).map((item) => ({ ...item, fromSnapshot: true })), ...instantResult.items, ...accountItems],
       // `partial` de propósito: TTL curto/cacheMaxAge 0 até o tail promover.
       partial: true,
       completion: Promise.resolve(),

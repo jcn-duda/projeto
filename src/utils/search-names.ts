@@ -138,12 +138,16 @@ function toStremioStream(item: RawItem): Stream | null {
   // metadados a partir deles — com "•" eles não exibiam seeds nem a fonte.
   // Fallback do banco (Etapa 4): 📦 identifica a reserva e o seeders vira `~N`
   // (foto do acervo, não medição viva) — sem mentir o valor de `_seeders`.
+  // A foto do índice na resposta instantânea (`fromSnapshot`) exibe o MESMO selo:
+  // para quem olha a lista, idx e banco são igualmente dado salvo. Só o
+  // `fromFallback` carrega as exclusões (autofetch, índice, banco).
   const fromFallback = Boolean(item.fromFallback);
-  const seederBit = fromFallback
+  const stored = fromFallback || Boolean(item.fromSnapshot);
+  const seederBit = stored
     ? (seeders > 0 ? `👤 ~${seeders}` : '👤 ~')
     : `👤 ${seeders}`;
   const bits = [
-    ...(fromFallback ? ['📦'] : []),
+    ...(stored ? ['📦'] : []),
     seederBit,
     size ? `💾 ${size}` : null,
     tracker ? `⚙️ ${tracker}` : null,
@@ -161,7 +165,7 @@ function toStremioStream(item: RawItem): Stream | null {
       tracker,
       isBr,
       seeders,
-      fromFallback,
+      fromFallback: stored,
     }),
     title: `${displayTitle}\n${bits.join(' ')}`,
     infoHash,
@@ -206,6 +210,7 @@ function toStremioStream(item: RawItem): Stream | null {
       // propósito, para o `finish` marcar a lista como parcial/fallback, e é
       // REMOVIDA antes do protocolo (applyNoticeOrigin).
       ...(fromFallback ? { _fromFallback: true } : {}),
+      ...(stored && !fromFallback ? { _fromSnapshot: true } : {}),
   };
 }
 

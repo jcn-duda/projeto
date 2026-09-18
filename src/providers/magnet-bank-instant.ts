@@ -279,6 +279,23 @@ export function dropInstantFallbacks(items: any[]): number {
 }
 
 /**
+ * A foto do idx fica no lote (é a mesma release do índice de sempre), mas a
+ * coleta completa acabou de rodar: o selo 📦 dela sai. Devolve quantas marcas
+ * saíram — com alguma, a lista precisa ser RECONSTRUÍDA, senão a promoção sem
+ * novidade gravaria a lista antiga com o selo e TTL cheio.
+ */
+export function clearInstantSnapshots(items: any[]): number {
+  let cleared = 0;
+  for (const item of items) {
+    if (item?.fromSnapshot) {
+      delete item.fromSnapshot;
+      cleared += 1;
+    }
+  }
+  return cleared;
+}
+
+/**
  * Fecha o tail de uma resposta instantânea: derruba a ponte 📦, funde a
  * novidade viva e entrega ao `late` do orchestrator — que promove quando há
  * novidade e invalida a reserva quando o vivo respondeu sem falha. Fica aqui
@@ -297,11 +314,12 @@ export async function promoteInstantTail(args: {
 }): Promise<LiveIndexerState | null> {
   const dropped = dropInstantFallbacks(args.rawItems);
   if (dropped > 0) metrics.count('search.bank.instant.dropped', dropped);
+  const cleared = clearInstantSnapshots(args.rawItems);
   const { fresh } = fuseIndexEnrichment(args.rawItems, args.liveItems);
   if (fresh.length) {
     log.info(`[search] instantâneo: ${fresh.length} resultado(s) vivo(s) novo(s); promovendo`);
     args.rawItems.push(...fresh);
   }
-  await args.late(args.rawItems, fresh.length > 0, args.phase, false, args.live);
+  await args.late(args.rawItems, fresh.length > 0 || cleared > 0, args.phase, false, args.live);
   return args.live;
 }

@@ -87,8 +87,13 @@ function relabel(stream: any, { isBr, dubbedFrom }: { isBr?: boolean; dubbedFrom
     tracker: stream._tracker,
     isBr,
     seeders,
+    // Remontar o nome não pode apagar o selo 📦/~N de quem é foto salva.
+    fromFallback: Boolean(stream._fromFallback || stream._fromSnapshot),
   });
 }
+
+// Token de dublagem sem idioma. Separadores explícitos: `\b` não separa `_Dub`.
+const GENERIC_DUB = /(?:^|[\s._\-[(])(?:dub|dubbed)(?=$|[\s._\-\])])/i;
 
 /** Mesma release aparece em vários indexers; fica a de maior seeders. */
 function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: StreamTraceState | null) {
@@ -148,8 +153,16 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
     // PT-BR ENG" continua emprestando BR ao espelho STARCKFILMES.
     const foreignDub = (t: string) =>
       hasExplicitForeignAudio(t) || (!explicitPtAudio(t) && namesForeignDubLanguage(t));
+    // Dublagem GENÉRICA ("WEBRip_Dub", sem idioma) também corrobora: o post BR
+    // diz DUBLADO do MESMO hash e o espelho diz que há dublagem. Medido em Coyote
+    // vs. Acme (tt1756855, 2026-09-18): "Coyote_Vs_Acme_2026_1080p_WEBRip_Dub"
+    // (kickass, 160 seeders) vencia "[1080p DUBLADO 4.26 GB]" da vacatorrent e o
+    // único dublado da obra sumia nas cotas. Idioma estrangeiro nomeado segue
+    // barrando pelo `foreignDub` ("Latino Dub" não herda).
+    const winnerAudio = audioFromTitle(winnerTitle);
+    const corroborates = winnerAudio === 'Dual' || (winnerAudio === '' && GENERIC_DUB.test(winnerTitle));
     const inheritsBr = !isLied && !winner._br && Boolean(loser._br) && Boolean(loser._dubbed)
-      && audioFromTitle(winnerTitle) === 'Dual' && !foreignDub(winnerTitle)
+      && corroborates && !foreignDub(winnerTitle)
       && !foreignDub(loserTitle);
     const merged = {
       ...winner,

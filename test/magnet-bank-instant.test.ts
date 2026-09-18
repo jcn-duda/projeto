@@ -17,7 +17,7 @@ import * as harvestQueue from '../src/providers/harvest-queue.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import debrid from '../src/debrid/index.js';
 import { patch } from './helpers/stub.js';
-import { collectInstantItems, instantWindow, isRecentRelease, dropInstantFallbacks } from '../src/providers/magnet-bank-instant.js';
+import { collectInstantItems, instantWindow, isRecentRelease, dropInstantFallbacks, clearInstantSnapshots, promoteInstantTail } from '../src/providers/magnet-bank-instant.js';
 import { attemptIndexFastPath } from '../src/providers/search-index-path.js';
 import { prepareCandidateStreams } from '../src/providers/stream-builder-pipeline.js';
 import { toStremioStream } from '../src/utils/search-names.js';
@@ -367,4 +367,23 @@ test('packOnly: fast-path do banco com idx só de pack também fica limpo', asyn
   } finally {
     restoreInventory();
   }
+});
+
+test('tail instantâneo: foto do idx perde o 📦 e a lista é reconstruída mesmo sem novidade viva', async () => {
+  const snapshot = { title: 'Idx Release 1080p', infoHash: hex('9'), seeders: 5, fromSnapshot: true };
+  const reserva = { title: 'Banco Release 720p', infoHash: hex('8'), seeders: 3, fromFallback: true };
+  const rawItems: any[] = [snapshot, reserva];
+  const calls: Array<{ items: any[]; grew: boolean }> = [];
+  await promoteInstantTail({
+    rawItems,
+    liveItems: [],
+    live: null,
+    phase: 0,
+    late: (items, grew) => { calls.push({ items: [...items], grew }); },
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].grew, true, 'sem reconstruir, a promoção gravaria a lista antiga com o selo');
+  assert.deepEqual(calls[0].items.map((i) => i.infoHash), [hex('9')], 'a reserva 📦 sai; a foto do idx fica');
+  assert.equal(calls[0].items[0].fromSnapshot, undefined, 'a foto do idx perde a marca');
+  assert.equal(clearInstantSnapshots([{ title: 'x' }]), 0);
 });

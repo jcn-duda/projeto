@@ -322,7 +322,7 @@ export function applyNoticeOrigin(streams: Stream[] = []) {
   // todo stream — com ou sem aviso. O cache pode carregá-la (é como o `finish`
   // sabe que a lista contém reserva), mas o cliente nunca a vê.
   const cleaned = streams.map((stream) => {
-    const { _fromFallback, ...rest } = stream as Stream & { _fromFallback?: boolean };
+    const { _fromFallback, _fromSnapshot, ...rest } = stream as Stream & { _fromFallback?: boolean; _fromSnapshot?: boolean };
     return rest as Stream;
   });
   if (!cleaned.some((stream) => stream?.notice)) return cleaned;
