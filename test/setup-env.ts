@@ -13,10 +13,32 @@
  * `process.env.CACHE_PERSIST = 'false'` e mesmo assim abriam o SQLite de
  * verdade, tocando `data/cache.db` e compartilhando estado entre si.
  */
+import os from 'node:os';
+import path from 'node:path';
+import fs from 'node:fs';
+
 // Precisa vir antes do primeiro import de produção: `dotenv/config` resolve o
 // path no load. Assim `npm test` é hermético também fora do CI.
 process.env.DOTENV_CONFIG_PATH = 'test/fixtures/env-empty';
 process.env.CACHE_PERSIST = 'false';
+
+// O banco de magnets vivo tem default no VOLUME real (`data/magnets.db`): sem
+// apontar a suíte para um temporário, qualquer leitura (status, fallback,
+// warmup, via instantânea) abre o acervo REAL da máquina e o verde passa a
+// depender do conteúdo local. Cada PROCESSO de teste ganha o próprio
+// subdiretório (isola arquivos que `node --test` roda em paralelo); o
+// `run-tests` cria a base e a remove depois que todos os filhos encerram — a
+// remoção por processo aqui é o fallback para quem roda um teste direto
+// (`node dist/test/...`) e, se um handle SQLite ainda estiver aberto no
+// Windows, é best-effort (a via com limpeza garantida é o `run-tests`).
+if (!process.env.MAGNET_BANK_DB_PATH) {
+  const base = process.env.MAGNET_BANK_TEST_DIR || os.tmpdir();
+  const bankDir = fs.mkdtempSync(path.join(base, 'proc-'));
+  process.env.MAGNET_BANK_DB_PATH = path.join(bankDir, 'magnets.db');
+  process.on('exit', () => {
+    try { fs.rmSync(bankDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+  });
+}
 
 // O config le a .env do operador, entao um DEBRID_CACHED_ONLY=true na maquina
 // de quem roda a suite mudava o comportamento de applyDebrid e quebrava testes

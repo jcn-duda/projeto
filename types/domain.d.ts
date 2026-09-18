@@ -392,6 +392,10 @@ export interface MatchContext {
   isSeries: boolean;
   season: number | null;
   episode: number | null;
+  /** Data ISO de lançamento do filme (Cinemeta `released`), quando carregada. */
+  released?: string | null;
+  /** Data ISO de estreia (Cinemeta `firstAired`; em série, a data do EPISÓDIO pedido). */
+  firstAired?: string | null;
   /** Opt-in multiobra: quando presente, packs da franquia podem ser admitidos. */
   multiWork?: MultiWorkCollection | null;
 }

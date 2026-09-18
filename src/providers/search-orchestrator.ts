@@ -29,6 +29,7 @@ import { createTailQueue } from './tail-enqueue.js';
 import { startMultiWorkDiscovery, resolveMultiWork } from './search-multiwork.js';
 import type { MultiWorkCollection, MatchContext, RawItem } from '../../types/domain.js';
 import { collectFallbackForBuild } from './magnet-bank-fallback.js';
+import { promoteInstantTail } from './magnet-bank-instant.js';
 import { createLatePromoter } from './search-late-promoter.js';
 import { mergeLiveIndexerStates } from './live-indexer-state.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
@@ -203,6 +204,9 @@ export async function doSearch({
     isSeries: season != null,
     season,
     episode,
+    released: meta?.released ?? null,
+    // Série: data do EPISÓDIO pedido; `meta.firstAired` (vazio em série) cobre o filme.
+    firstAired: meta?.firstAired ?? (season != null && episode != null ? meta?.episodeAired?.[`${season}:${episode}`] ?? null : null),
     multiWork,
   };
   const episodePhase = finish.phase();
@@ -211,7 +215,7 @@ export async function doSearch({
   // qualquer indexer). Extraídas para `search-index-path.ts`; o facade só decide
   // se cai na coleta ao vivo quando o índice NÃO cobriu a obra.
   noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep });
-  const { servedFromIndex, raw: indexedRaw } = await attemptIndexFastPath({
+  const { servedFromIndex, instant, raw: indexedRaw } = await attemptIndexFastPath({
     query, type, id, imdbId, season, episode, ptQuery, originalQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver, trace: collectionTrace,
   });
   let raw: RawBatch = indexedRaw ?? await collectRaw(
@@ -268,13 +272,23 @@ export async function doSearch({
       const enrichStarted = Date.now();
       try {
         // As tarefas BR já rodaram na janela crítica acima. Não as repetimos no
-        // tail; só o restante enriquece o índice.
-        const enrichment = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery, null, 'nonpriority', undefined, collectionTrace, originalQuery);
+        // tail; só o restante enriquece o índice. Na via INSTANTÂNEA nada rodou
+        // na janela crítica (a resposta saiu do banco): o tail faz a coleta
+        // COMPLETA — BR + globais.
+        const enrichment = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery, null, instant ? 'all' : 'nonpriority', undefined, collectionTrace, originalQuery, multiWorkQuery);
         if (enrichment.partial && enrichment.completion) await enrichment.completion;
         // A janela crítica pode ter devolvido antes do BR terminar. Espera-o
         // aqui, no único writer do caminho do índice, para mesclar o lote no
         // `raw` compartilhado antes de promover a coleta completa.
         if (raw.partial && raw.completion) await raw.completion;
+        const mergedLive = mergeLiveIndexerStates([raw.live, enrichment.live]);
+        if (instant) {
+          // Live MESCLADO + sweepInline no raw: a fila tardia (refresh/pack/
+          // sweep) lê em runtime — sem 📦 nem varredura repetida.
+          raw.live = mergedLive; raw.sweepInline = raw.sweepInline || enrichment.sweepInline;
+          await promoteInstantTail({ rawItems: raw.items, liveItems: enrichment.items, live: mergedLive, phase: responsePhase, late });
+          return;
+        }
         // Fusão de evidência por hash (caso Mortuary): a cópia ao vivo mais
         // saudável resgata o snapshot velho em vez de ser descartada. A lógica
         // e as travas de origem/áudio vivem em `index-evidence.ts`.
@@ -284,9 +298,7 @@ export async function doSearch({
           raw.items.push(...fresh);
         }
         if (fused) metrics.count('search.idx.evidenceFused', fused);
-        // Etapa 4: a reserva considera a UNIÃO do que a resposta prioritária
-        // perdeu com o que o enriquecimento perdeu — não só `raw.live`.
-        await finish({ items: raw.items, partial: false, live: mergeLiveIndexerStates([raw.live, enrichment.live]) }, responsePhase);
+        await finish({ items: raw.items, partial: false, live: mergedLive }, responsePhase);
       } catch (err) {
         log.warn('[search] enriquecimento do índice falhou:', err?.message || err);
       } finally {
@@ -344,11 +356,11 @@ export async function doSearch({
     });
   }
 
-  // Quanto a coleta ainda levou DEPOIS de responder. É o número que diz se o
-  // passe tardio virou a regra — e ele só existe quando a resposta saiu
-  // parcial, então a contagem de `search.late` também é a contagem de buscas
-  // que não couberam no orçamento.
-  if (raw.partial && raw.completion) {
+  // Quanto a coleta ainda levou DEPOIS de responder — só existe quando a
+  // resposta saiu parcial, então a contagem de `search.late` também é a de
+  // buscas fora do orçamento. A via INSTANTÂNEA tem `completion` já resolvido:
+  // medir aí era amostra artificial de ~0ms afundando o p50.
+  if (!instant && raw.partial && raw.completion) {
     const tailStarted = Date.now();
     raw.completion
       .then(() => metrics.observe('search.late', Date.now() - tailStarted))
@@ -370,6 +382,11 @@ export async function doSearch({
         // O passe tardio pode já ter reconstruído a mesma lista. Não
         // repetimos a consulta cara (e, na AllDebrid, o upload) sem necessidade.
         if (debridRefreshSatisfied(refreshed)) return;
+        // Instantâneo com `raw.items` vazio (sem ponte 📦 e sem vivo): o tail
+        // já decidiu a reserva; reconstruir aqui regravaria lista vazia.
+        if (instant && raw.items.length === 0) return;
+        // Na via instantânea `raw.live` é o live MESCLADO do tail: é ele que
+        // reinjeta a reserva 📦 — com live nulo o TTL virava longo.
         await finish({ items: raw.items, partial: false, live: raw.live }, responsePhase);
       } catch (err) {
         log.warn('[search] atualização completa do debrid falhou:', err?.message || err);
@@ -377,9 +394,7 @@ export async function doSearch({
     });
   }
 
-  // Varredura pt-BR nos globais (fila tardia). Extraída para
-  // `search-sweep-tail.ts`; recebe a fila serial compartilhada e o writer da
-  // execução corrente. O facade só entrega as dependências fechadas.
+  // Varredura pt-BR nos globais (fila tardia serial compartilhada).
   schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, type, matchContext, sweepQuery, wantsJackettSweep, imdbId });
   return result;
 }

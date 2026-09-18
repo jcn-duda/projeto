@@ -92,6 +92,122 @@ test('getMeta usa config.cinemeta.timeout também na variante série', async () 
   }
 });
 
+test('getMeta carrega as datas REAIS (released/firstAired) sem inventar campo ausente', async () => {
+  const imdbId = `tt-dates-${process.pid}-${Date.now()}`;
+  const key = `meta:movie:${imdbId}`;
+  const stub = stubFetch(() => ({
+    ok: true,
+    json: async () => ({
+      meta: {
+        name: 'Lançamento', year: '2026', type: 'movie',
+        released: '2025-12-20T00:00:00.000Z',
+        firstAired: '2025-12-20T00:00:00.000Z',
+      },
+    }),
+  }));
+  try {
+    // A janela instantânea do banco usa estas datas para o teto de lançamento
+    // recente; sem elas o consumidor só veria o ANO e um lançamento de dezembro
+    // visto em janeiro escaparia do teto curto.
+    const meta: any = await getMeta('movie', imdbId);
+    assert.equal(meta.released, '2025-12-20T00:00:00.000Z');
+    assert.equal(meta.firstAired, '2025-12-20T00:00:00.000Z');
+  } finally {
+    stub.restore();
+    cache.forget(key);
+  }
+
+  // Campo ausente NÃO vira `undefined`/`null` no objeto — preserva o contrato
+  // antigo (e o deepEqual das suítes existentes).
+  const imdbId2 = `tt-dates2-${process.pid}-${Date.now()}`;
+  const stub2 = stubFetch(() => ({
+    ok: true,
+    json: async () => ({ meta: { name: 'SemData', year: '2019', type: 'movie' } }),
+  }));
+  try {
+    const meta: any = await getMeta('movie', imdbId2);
+    assert.equal('released' in meta, false);
+    assert.equal('firstAired' in meta, false);
+  } finally {
+    stub2.restore();
+    cache.forget(`meta:movie:${imdbId2}`);
+  }
+});
+
+test('getMeta série extrai a data por EPISÓDIO; sem vídeos o campo nem existe', async () => {
+  const imdbId = `tt-eps-${process.pid}-${Date.now()}`;
+  const stub = stubFetch(() => ({
+    ok: true,
+    json: async () => ({
+      meta: {
+        name: 'Série', year: '2020', type: 'series',
+        videos: [
+          { season: 1, episode: 1, number: 1, released: '2026-01-05T00:00:00.000Z' },
+          { season: 1, episode: 2, number: 2, firstAired: '2026-01-12T00:00:00.000Z' },
+          { season: 1, episode: 3, number: 3 },
+          { season: 0, episode: 1, number: 1, released: '2019-01-01T00:00:00.000Z' },
+        ],
+      },
+    }),
+  }));
+  try {
+    // O teto de episódio recente precisa da data do EPISÓDIO: a estreia da
+    // série (2020) é velha e não representa um E02 de 2026.
+    const meta: any = await getMeta('series', imdbId);
+    assert.deepEqual(meta.episodeAired, {
+      '1:1': '2026-01-05T00:00:00.000Z',
+      '1:2': '2026-01-12T00:00:00.000Z',
+    });
+  } finally {
+    stub.restore();
+    cache.forget(`meta:series:${imdbId}`);
+  }
+
+  const noVideos = `tt-eps0-${process.pid}-${Date.now()}`;
+  const stub2 = stubFetch(() => ({
+    ok: true,
+    json: async () => ({ meta: { name: 'SemVídeos', releaseInfo: '2024–' } }),
+  }));
+  try {
+    const meta: any = await getMeta('series', noVideos);
+    assert.equal('episodeAired' in meta, false, 'sem vídeos o campo fica ausente (contrato antigo)');
+  } finally {
+    stub2.restore();
+    cache.forget(`meta:series:${noVideos}`);
+  }
+});
+
+test('meta antiga (sem a marca de formato) é reconsultada uma vez no deploy', async () => {
+  const imdbId = `tt-oldmeta-${process.pid}-${Date.now()}`;
+  const key = `meta:movie:${imdbId}`;
+  // Metadado gravado pela versão anterior: sem a marca interna de formato (e
+  // sem `released`) — se fosse servido, a janela instantânea ficaria cega por
+  // até 24h após o deploy.
+  cache.set(key, { name: 'Velho', year: '2019', type: 'movie' }, 3600);
+  let fetches = 0;
+  const stub = stubFetch(() => {
+    fetches += 1;
+    return {
+      ok: true,
+      json: async () => ({ meta: { name: 'Novo', year: '2026', type: 'movie', released: '2025-12-20T00:00:00.000Z' } }),
+    };
+  });
+  try {
+    const meta: any = await getMeta('movie', imdbId);
+    assert.equal(fetches, 1, 'não serviu a entrada antiga sem datas');
+    assert.equal(meta.released, '2025-12-20T00:00:00.000Z');
+    // A releitura grava a marca: a segunda chamada não volta à rede e o objeto
+    // entregue continua sem a marca (shape público preservado).
+    const again: any = await getMeta('movie', imdbId);
+    assert.equal(fetches, 1, 'a marca evita reconsultar a cada abertura');
+    assert.equal('__metaV' in again, false, 'marca interna não vaza no retorno');
+    assert.equal(again.name, 'Novo');
+  } finally {
+    stub.restore();
+    cache.forget(key);
+  }
+});
+
 test('falha transitória do Cinemeta expira rápido e a busca seguinte consulta novamente', async () => {
   const originalMissTtl = config.cinemeta.missTtl;
   const originalTransient = config.cinemeta.transientMissTtl;

@@ -12,6 +12,7 @@ import { raceWithDeadline } from '../utils/deadline.js';
 import { SAFE_INDEXER_ID } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { collectRaw } from './collect-orchestrator.js';
+import { collectInstantItems } from './magnet-bank-instant.js';
 import { idxPoolCovered, idxReleasesToRaw } from './search-pool-coverage.js';
 import { shouldBrGap, hasBrDubbed, hasBrEvidence } from '../utils/br-gap.js';
 import { requestBrProbe } from './br-probe.js';
@@ -47,6 +48,11 @@ export interface RawBatch {
    * consultaram Jackett (ex.: demo).
    */
   live?: LiveIndexerState | null;
+  /**
+   * Resposta instantânea do banco vivo: a janela crítica NÃO esperou o BR
+   * prioritário; o tail roda a coleta completa (`'all'`) para promover.
+   */
+  instant?: boolean;
 }
 
 /**
@@ -69,67 +75,143 @@ export function noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep
 }
 
 /**
+ * Trabalho de fundo do índice/colhedor que a cobertura do `idx` exige: `miss`
+ * sem release nenhuma; `gap` quando há release mas não cobre o pool (ou é
+ * registro parcial); e a sonda dirigida dos index-only (`br-gap`) quando cobre
+ * mas falta BR dublado / a faixa alvo. É o MESMO critério do fast-path do
+ * índice, extraído para a via INSTANTÂNEA do banco poder preservá-lo: o acervo
+ * responde, mas a obra precisa continuar entrando no índice e no colhedor.
+ * `countMetrics:false` mantém o funil `search.idx` fora do caminho do banco.
+ */
+function enqueueIndexFollowUp(args: {
+  indexed: readonly any[];
+  partial: boolean;
+  covered: boolean;
+  type: string;
+  imdbId: string;
+  season: number | null;
+  episode: number | null;
+  countMetrics: boolean;
+}): void {
+  const { indexed, partial, covered, type, imdbId, season, episode, countMetrics } = args;
+  if (!config.releaseIndex.enabled) return;
+  const enqueue = (reason: 'miss' | 'gap' | 'br-gap') =>
+    harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason });
+  const autofetchSeeded = indexed.some((r) => r.source === 'autofetch');
+  if (indexed.length === 0) {
+    if (countMetrics) metrics.count('search.idx.miss');
+    enqueue('miss');
+    return;
+  }
+  if (!partial && (covered || autofetchSeeded)) {
+    if (covered) {
+      if (countMetrics) metrics.count('search.idx.hit');
+    } else {
+      // A release submetida pelo Chupim entra na resposta imediatamente, mas a
+      // coleta continua no tail: visibilidade não vira cobertura falsa.
+      if (countMetrics) {
+        metrics.count('search.idx.autofetchSeed');
+        metrics.count('search.idx.gap');
+      }
+      enqueue('gap');
+    }
+    if (covered && shouldBrGap(indexed, config.jackett.indexOnlyIndexers.length > 0)) {
+      const upgrade = hasBrDubbed(indexed);
+      if (countMetrics) metrics.count(upgrade ? 'search.idx.brGap.upgrade' : 'search.idx.brGap.attempt');
+      // Gate de plausibilidade (C6): a sonda só faz sentido quando o índice JÁ
+      // provou alguma release BR; sem vestígio, a colheita regular de gap cuida
+      // da descoberta. `fallbackBrGap` mantém a rede quando a sonda não é
+      // elegível com evidência (toggle off/índice off/sem interseção).
+      if (hasBrEvidence(indexed)) {
+        const probe = requestBrProbe(
+          { type: type as 'movie' | 'series', imdbId, season, episode },
+          { mode: upgrade ? 'upgrade' : 'evidence' },
+        );
+        if (probe.fallbackBrGap) enqueue('br-gap');
+      } else if (countMetrics) {
+        metrics.count('search.idx.brGap.no-evidence');
+      }
+    } else if (covered && hasBrDubbed(indexed) && countMetrics) {
+      metrics.count('search.idx.brGap.served');
+    }
+    return;
+  }
+  // Não cobre (ou é parcial): NUNCA impede a busca dublada de rodar — o
+  // caminho completo segue e o colhedor termina o trabalho.
+  if (partial && countMetrics) metrics.count('search.idx.partial');
+  if (countMetrics) metrics.count('search.idx.gap');
+  enqueue('gap');
+}
+
+/**
  * Fase 3: o índice é LIDO antes de qualquer indexer. Coberto pelo pool →
  * responde já e o Jackett vira segundo (tail que enriquece e promove pelo mesmo
  * SWR de sempre). Lacuna → o caminho atual roda inteiro, sem regressão (devolve
  * `servedFromIndex:false`, `raw:null`).
  */
-export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ servedFromIndex: boolean; raw: RawBatch | null }> {
+export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ servedFromIndex: boolean; instant: boolean; raw: RawBatch | null }> {
   const { query, type, id, imdbId, season, episode, ptQuery, originalQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver, trace } = input;
   let servedFromIndex = false;
+  let instant = false;
   let raw: RawBatch | null = null;
-  if (!isDemo && config.releaseIndex.enabled) {
-    const indexed = releaseIndex.lookup(imdbId, { season, episode });
-    const partial = indexed.length > 0 && releaseIndex.isPartial(imdbId, { season, episode });
+  if (isDemo) return { servedFromIndex, instant, raw };
+
+  // O índice é lido ANTES de qualquer indexer também para a via instantânea:
+  // hash já indexado é evidência melhor e é excluído do 📦 (e somado na
+  // cobertura). `partial` só bloqueia o fast-path do índice, nunca a instantânea.
+  const indexed = config.releaseIndex.enabled ? releaseIndex.lookup(imdbId, { season, episode }) : [];
+  const partial = indexed.length > 0 && config.releaseIndex.enabled && releaseIndex.isPartial(imdbId, { season, episode });
+
+  // Via instantânea (banco vivo): quando a foto do acervo é confiável pela
+  // janela adaptativa, a resposta sai JÁ com idx + banco + conta e a coleta ao
+  // vivo inteira (BR + globais) roda no tail. Não exige o índice cobrir — a
+  // cobertura é do pool formado por banco(passed_filter)+idx.
+  const instantResult = collectInstantItems({
+    type, imdbId, season, episode,
+    meta: { year: matchContext.year, released: matchContext.released, firstAired: matchContext.firstAired },
+    preferDubbed: opts().preferDubbed,
+    indexReleases: indexed,
+  });
+  if (instantResult.eligible) {
+    // A resposta sai do BANCO, mas a obra ainda precisa entrar no índice e no
+    // colhedor (inclusive os index-only): sem isto o acervo vira a única fonte
+    // e a busca nunca mais enxerga release nova. Métricas `search.idx.*` ficam
+    // FORA do caminho do banco (o dado é do acervo, não do índice).
+    if (config.releaseIndex.enabled) {
+      const covered = indexed.length > 0 && !partial && idxPoolCovered(indexed, { season, episode, countMetrics: false });
+      enqueueIndexFollowUp({ indexed, partial, covered, type, imdbId, season, episode, countMetrics: false });
+    }
+    // dinv entra junto (idx + banco + conta), com o mesmo teto curto da via do
+    // índice: a primeira leitura do inventário não pode segurar a resposta.
+    const accountItems = await raceWithDeadline(
+      account.search(matchContext, trace),
+      config.accountFastPath.waitMs,
+      () => [] as any[],
+    );
+    raw = {
+      items: [...idxReleasesToRaw(indexed), ...instantResult.items, ...accountItems],
+      // `partial` de propósito: TTL curto/cacheMaxAge 0 até o tail promover.
+      partial: true,
+      completion: Promise.resolve(),
+      sweepInline: false,
+      live: null,
+      instant: true,
+    };
+    instant = true;
+    servedFromIndex = true;
+    log.info(`[search] instantâneo do banco (${instantResult.items.length} item(ns)) para ${id}; coleta ao vivo no tail`);
+    return { servedFromIndex, instant, raw };
+  }
+
+  if (config.releaseIndex.enabled) {
     const covered = indexed.length > 0 && !partial && idxPoolCovered(indexed, { season, episode });
     const autofetchSeeded = indexed.some((r) => r.source === 'autofetch');
-    if (indexed.length === 0) {
-      metrics.count('search.idx.miss');
-      harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'miss' });
-    } else if (!partial && (covered || autofetchSeeded)) {
-      if (covered) metrics.count('search.idx.hit');
-      else {
-        // A release submetida pelo Chupim entra na resposta imediatamente,
-        // mas a coleta continua no tail: visibilidade não vira cobertura falsa.
-        metrics.count('search.idx.autofetchSeed');
-        metrics.count('search.idx.gap');
-        harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'gap' });
-      }
+    // Métricas + enqueue do índice/colhedor (miss/gap e a sonda br-gap dos
+    // index-only) num só lugar — o mesmo helper que a via instantânea usa.
+    enqueueIndexFollowUp({ indexed, partial, covered, type, imdbId, season, episode, countMetrics: true });
+    if (!partial && (covered || autofetchSeeded)) {
       metrics.count('search.idx.served', indexed.length);
       servedFromIndex = true;
-      // BR-gap: o pool está coberto, mas o índice não traz BR dublado comprovado
-      // ou só traz faixa conhecida abaixo de 1080p. Os index-only nunca entram
-      // pela busca viva nem pelo tail; o colhedor busca a ausência ou o upgrade
-      // em background. O dedupe TTL (obra+razão) evita repetir a fila a cada
-      // abertura; a métrica conta a tentativa porque `enqueue` devolve void.
-      if (covered && shouldBrGap(indexed, config.jackett.indexOnlyIndexers.length > 0)) {
-        // Sem BR nenhum é `attempt` (lacuna original); BR só em faixa inferior
-        // à alvo é `upgrade` (mesma fila, métrica separada para o diagnóstico
-        // distinguir ausência de falta de 1080p).
-        const upgrade = hasBrDubbed(indexed);
-        metrics.count(upgrade ? 'search.idx.brGap.upgrade' : 'search.idx.brGap.attempt');
-        // Gate de plausibilidade (C6): a sonda dirigida só faz sentido quando o
-        // índice JÁ provou alguma release BR (dublada ou não) — sem vestígio
-        // nenhum, a ausência de dublado é o esperado. Enfileirar `br-gap` ali
-        // era colheita COMPLETA prioritizada para todo filme gringo coberto só
-        // por globais; hoje sem vestígio NÃO sobe nada (o caminho regular de
-        // miss/gap cuida da descoberta); quando a sonda não é elegível com
-        // evidência (toggle off/índice off/sem interseção), `fallbackBrGap`
-        // mantém a rede de segurança.
-        if (hasBrEvidence(indexed)) {
-          const probe = requestBrProbe(
-            { type: type as 'movie' | 'series', imdbId, season, episode },
-            { mode: upgrade ? 'upgrade' : 'evidence' },
-          );
-          if (probe.fallbackBrGap) {
-            harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'br-gap' });
-          }
-        } else {
-          metrics.count('search.idx.brGap.no-evidence');
-        }
-      } else if (covered && hasBrDubbed(indexed)) {
-        metrics.count('search.idx.brGap.served');
-      }
       // dinv entra na resposta imediata junto (idx + conta): o que já está
       // pronto na conta vira ⚡ sem indexer nenhum. Teto curto: a primeira
       // leitura do inventário custa ~700ms e a resposta não pode esperá-la.
@@ -164,15 +246,7 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
       // abaixo. Mantém cache curto até o enriquecimento completar a lista.
       raw.partial = true;
       log.info(`[search] índice + ${raw.items.length - indexed.length - accountItems.length} resultado(s) BR ao vivo para ${id}`);
-    } else {
-      // Existe, mas não cobre o pool (ex.: só legendado) ou é registro
-      // PARCIAL (colheita interrompida): NUNCA impede a busca BR dublada de
-      // rodar — o caminho completo segue e o colhedor termina o trabalho.
-      // Partial só bloqueia o fast-path; ele nunca libera sozinho.
-      if (partial) metrics.count('search.idx.partial');
-      metrics.count('search.idx.gap');
-      harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason: 'gap' });
     }
   }
-  return { servedFromIndex, raw };
+  return { servedFromIndex, instant, raw };
 }

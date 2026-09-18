@@ -259,6 +259,9 @@ export function readEngine(): Engine | null {
   return engine();
 }
 
+/** Armazenamento JÁ aberto, SEM abrir nada (a via instantânea não cria o arquivo). */
+export function isOpen(): boolean { return currentEngine() !== null; }
+
 const clampLimit = (limit: number): number => Math.max(1, Math.min(500, Math.trunc(Number(limit)) || 100));
 
 /** Lookup síncrono por hash (PK). Alimenta o play na Etapa 3. */

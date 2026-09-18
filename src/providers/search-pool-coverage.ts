@@ -79,7 +79,7 @@ export function poolCovered(
  */
 export function idxPoolCovered(
   releases: any[],
-  { season = null, episode = null }: { season?: number | null; episode?: number | null } = {},
+  { season = null, episode = null, countMetrics = true }: { season?: number | null; episode?: number | null; countMetrics?: boolean } = {},
 ) {
   // O registro do Chupim fecha a memória da busca, não a cobertura da obra:
   // o enqueue prova que escolhemos uma release, mas ainda não que o índice tem
@@ -89,7 +89,9 @@ export function idxPoolCovered(
   if (season != null && episode != null) {
     const nomeados = coverageReleases.filter((r) => nomeiaEpisodio(r?.title, season, episode));
     if (nomeados.length === 0) {
-      metrics.count('search.idx.packOnly');
+      // `countMetrics:false` mantém o funil `search.idx` limpo quando quem
+      // pergunta é a via instantânea do banco (o dado não é do índice).
+      if (countMetrics) metrics.count('search.idx.packOnly');
       return false;
     }
   }

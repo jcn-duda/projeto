@@ -50,6 +50,14 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
     const sweepTargets = ptSweepIndexers(sweepSelectedIndexers, config.jackett.ptBrIndexers, config.jackett.indexOnlyIndexers);
     if (sweepTargets.length > 0) {
       if (raw.partial || !raw.sweepInline) enqueueTail(async () => {
+        // A via INSTANTÂNEA responde do banco e a coleta `all` do tail pode JÁ
+        // ter rodado a varredura inline. `raw.sweepInline` é setado em runtime
+        // (antes deste task na fila serial), então a marca aqui evita rodar a
+        // mesma varredura duas vezes.
+        if (raw.sweepInline) {
+          log.debug('[search] varredura pt-BR já rodou inline; cauda não repete');
+          return;
+        }
         metrics.count('search.pt-sweep.run');
         const sweepStarted = Date.now();
         try {
@@ -125,7 +133,9 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
           // Etapa 4: usa o estado da COLETA (raw.live) — a varredura é
           // `recordStatus:false` e por contrato NÃO alimenta o estado vivo
           // (falha dela não pode pintar um indexer que a busca principal viu de
-          // pé), então não há "live próprio" para mesclar aqui.
+          // pé), então não há "live próprio" para mesclar aqui. Na via
+          // instantânea, `raw.live` já é o live MESCLADO do tail (setado antes
+          // deste task pela fila serial): é o que reinjeta a reserva 📦.
           await finish({ items: raw.items, partial: false, live: raw.live }, responsePhase);
         } catch (err) {
           log.warn('[search] varredura pt-BR nos globais falhou:', err?.message || err);

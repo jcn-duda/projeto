@@ -36,6 +36,10 @@ const orig = {
   jackettApiKey: config.jackett.apiKey,
   ptSweepGlobal: config.jackett.ptSweepGlobal,
   releaseIndex: config.releaseIndex.enabled,
+  // Esta suíte testa a reserva do banco da Etapa 4 e o passe tardio, não a via
+  // instantânea: com `MAGNET_BANK_INSTANT` ligada a resposta sairia do acervo
+  // antes da coleta e o cenário medido deixaria de ser o alvo.
+  instantEnabled: config.magnetBank.instantEnabled,
 };
 
 function freshDir() {
@@ -50,6 +54,7 @@ beforeEach(() => {
   cache.clear();
   metrics.reset();
   config.magnetBank.enabled = true;
+  config.magnetBank.instantEnabled = false;
   config.magnetBank.fallbackEnabled = true;
   config.magnetBank.fallbackMaxPerIndexer = 40;
   config.magnetBank.fallbackGlobalMax = 40;
@@ -75,6 +80,7 @@ after(() => {
   config.jackett.apiKey = orig.jackettApiKey;
   config.jackett.ptSweepGlobal = orig.ptSweepGlobal;
   config.releaseIndex.enabled = orig.releaseIndex;
+  config.magnetBank.instantEnabled = orig.instantEnabled;
   for (const dir of tempDirs) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
   }

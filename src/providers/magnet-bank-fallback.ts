@@ -58,7 +58,7 @@ export type FallbackCut = 'lied' | 'no-hash' | 'live-dedupe' | 'no-source' | 'ca
 const TRACE_SAMPLE_MAX = 20;
 
 /** Piso do teto por indexer (o config já clampa em 1..40). */
-const PER_INDEXER_MAX = 40;
+export const PER_INDEXER_MAX = 40;
 
 const nIndexer = (value: unknown) => String(value || '').trim().toLowerCase();
 
@@ -67,7 +67,7 @@ const nIndexer = (value: unknown) => String(value || '').trim().toLowerCase();
  * Série: episódio pedido, pack da temporada e série completa — o pack achado
  * numa busca de episódio fica recuperável para os demais (release-work.ts).
  */
-function obraTargets(type: string, season: number | null, episode: number | null) {
+export function obraTargets(type: string, season: number | null, episode: number | null) {
   if (type === 'movie' || season == null) return [{ season: null, episode: null }];
   const out: Array<{ season: number | null; episode: number | null }> = [];
   if (episode != null) out.push({ season, episode });
@@ -76,10 +76,10 @@ function obraTargets(type: string, season: number | null, episode: number | null
   return out;
 }
 
-type Candidate = { magnet: MagnetRow; source: SourceRow; work: WorkRow };
+export type Candidate = { magnet: MagnetRow; source: SourceRow; work: WorkRow };
 
 /** Fonte elegível: indexer falho; com `allFailed`, qualquer source do banco. */
-function pickSource(sources: readonly SourceRow[], failedIndexers: ReadonlySet<string>, allFailed: boolean): SourceRow | null {
+export function pickSource(sources: readonly SourceRow[], failedIndexers: ReadonlySet<string>, allFailed: boolean): SourceRow | null {
   const eligible = allFailed
     ? sources
     : sources.filter((source) => failedIndexers.has(nIndexer(source.indexer)));
@@ -88,7 +88,7 @@ function pickSource(sources: readonly SourceRow[], failedIndexers: ReadonlySet<s
   return eligible.reduce((best, current) => (current.lastSeen > best.lastSeen ? current : best));
 }
 
-function toRawItem(candidate: Candidate): RawItem {
+export function toRawItem(candidate: Candidate): RawItem {
   const { magnet, source } = candidate;
   const uri = String(magnet.uri || '');
   return {
