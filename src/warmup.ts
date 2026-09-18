@@ -53,6 +53,11 @@ async function warmTitle({ imdbId, type }: WarmupTitle, deadlineAt: number) {
         originalQuery: task.original,
         recordStatus: false,
         skipResolve: true,
+        // Obra da captura: sem ela o banco de magnets guarda o hash órfão e o
+        // fallback (que consulta por imdb) nunca o encontra. Fundo não roda o
+        // filtro, então não reseta `passed_filter`.
+        imdbId,
+        ...episode,
       });
       if (config.warmup.indexerDelayMs > 0) await pause(config.warmup.indexerDelayMs);
     }
