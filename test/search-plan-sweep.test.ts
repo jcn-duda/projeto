@@ -11,7 +11,7 @@ test('planJackettQueries acrescenta sweep apenas aos globais', () => {
     planJackettQueries('Star Trek', 'Jornada nas Estrelas', ['thepiratebay', 'bludv-cardigann'], ['bludv-cardigann'], [], 'Jornada nas Estrelas'),
     [
       { query: 'Star Trek', indexers: ['thepiratebay'] },
-      { query: 'Jornada nas Estrelas', indexers: ['thepiratebay'] },
+      { query: 'Jornada nas Estrelas', indexers: ['thepiratebay'], sweep: true },
       { query: 'Jornada nas Estrelas', indexers: ['bludv-cardigann'], fallback: 'Star Trek' },
     ],
   );
@@ -40,12 +40,13 @@ test('planJackettQueries: sweepQuery vira UMA task extra dos globais, sem varian
 
   assert.deepEqual(plan, [
     { query: 'Joker 2019', indexers: ['thepiratebay', '1337x'] },
-    { query: 'Coringa', indexers: ['thepiratebay', '1337x'] },
+    { query: 'Coringa', indexers: ['thepiratebay', '1337x'], sweep: true },
     { query: 'Coringa 2019', fallback: 'Joker 2019', indexers: ['bludv-cardigann'] },
   ]);
 
   const sweeps = plan.filter((task) => task.query === 'Coringa');
   assert.equal(sweeps.length, 1, 'exatamente UMA task da varredura');
+  assert.equal(sweeps[0].sweep, true, 'a varredura é rotulada ESTRUTURALMENTE pelo plano');
   assert.deepEqual(sweeps[0].indexers, ['thepiratebay', '1337x']);
   assert.equal('variant' in sweeps[0], false, 'task de globais não carrega variante');
   assert.equal('fallback' in sweeps[0], false, 'task de globais não carrega fallback');

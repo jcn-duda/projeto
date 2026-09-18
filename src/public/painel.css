@@ -302,6 +302,25 @@ body {
   border: 1px solid var(--red);
 }
 
+/* Aviso da engine do banco vivo: a MEMÓRIA (fallback sem `node:sqlite`) tem
+ * teto LRU e despeja; o SQLite é acervo permanente. O amarelo marca a
+ * memória, o neutro marca a permanência. Só tokens. */
+.painel-bank-engine {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-floor);
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.painel-bank-engine-warn {
+  background: var(--status-warn-bg);
+  color: var(--status-warn-text);
+  border-color: var(--amber);
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

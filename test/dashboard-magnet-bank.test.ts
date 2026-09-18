@@ -101,6 +101,9 @@ test('magnet-bank-summary é leitura e devolve totais/byIndexer sem confirm', ()
     assert.equal(byId.get('bludv').hashes, 1);
     assert.equal(byId.get('nerdfilmes').hashes, 1);
     assert.equal(typeof res.json.queue, 'number');
+    // Engine de memória (forceMemory): o teto e os despejos viajam no payload.
+    assert.equal(res.json.memoryMax, config.magnetBank.memoryMax);
+    assert.equal(res.json.memoryEvictions, 0);
   });
 });
 
@@ -162,6 +165,8 @@ test('dashboard-status.json entrega o bloco magnetBank sem quebrar o magnetdb', 
   assert.equal(res.json.magnetBank.works, 2);
   assert.equal(res.json.magnetBank.engine, 'memory');
   assert.equal(res.json.magnetBank.byIndexer.length, 2);
+  assert.equal(res.json.magnetBank.memoryMax, config.magnetBank.memoryMax, 'bloco expõe o teto da memória');
+  assert.equal(res.json.magnetBank.memoryEvictions, 0);
 
   const ambos = await get('?blocos=magnetdb,magnetBank');
   assert.equal(ambos.status, 200);

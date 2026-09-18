@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   magnetBankSummary,
   bankIndexerRows,
+  bankEngineNotice,
   bankLastSeenLabel,
   bankSearchView,
   bankSearchModeLabel,
@@ -102,6 +103,33 @@ test('magnetBankSummary lê o contrato real e rotula a engine', () => {
   assert.equal(magnetBankSummary({}).engine, '—');
 });
 
+test('magnetBankSummary lê o teto/despejos da memória e bankEngineNotice distingue do SQLite', () => {
+  // Engine SQL: sem teto e sem despejo — `null`/0 são o contrato (não coagir 0).
+  const sql = magnetBankSummary({ enabled: true, engine: 'sql', memoryMax: null, memoryEvictions: 0 });
+  assert.equal(sql.memoryMax, null);
+  assert.equal(sql.memoryEvictions, 0);
+  const sqlNotice = bankEngineNotice(sql);
+  assert.ok(sqlNotice);
+  assert.equal(sqlNotice!.warn, false);
+  assert.match(sqlNotice!.text, /SQLite permanente/);
+  assert.match(sqlNotice!.text, /sem teto/);
+
+  // Engine de memória: teto explícito + despejos, marcado como ATENÇÃO.
+  const mem = magnetBankSummary({ enabled: true, engine: 'memory', memoryMax: 20000, memoryEvictions: 7 });
+  assert.equal(mem.memoryMax, 20000);
+  assert.equal(mem.memoryEvictions, 7);
+  const memNotice = bankEngineNotice(mem);
+  assert.ok(memNotice);
+  assert.equal(memNotice!.warn, true);
+  assert.match(memNotice!.text, /MEMÓRIA com teto de 20000 magnets/);
+  assert.match(memNotice!.text, /despejos desde o boot: 7/);
+
+  // Sem teto informado (engine antiga/parcial) não inventa número.
+  assert.match(bankEngineNotice(magnetBankSummary({ enabled: true, engine: 'memory' }))!.text, /teto não informado/);
+  // Banco desligado não gera aviso de engine (o badge já é DESLIGADO).
+  assert.equal(bankEngineNotice(magnetBankSummary({ enabled: false, engine: 'disabled' })), null);
+});
+
 test('bankIndexerRows ordena por último visto e aceita estado parcial', () => {
   const rows = bankIndexerRows([
     { indexer: 'a', hashes: '3', lastSeen: 10 },
@@ -185,6 +213,7 @@ test('MagnetBankView renderiza totais, tabela por indexer e o formulário de bus
   assert.match(text, /Banco de Magnets Vivo/);
   assert.match(text, /SQLITE/, 'o badge mostra a engine em caixa alta');
   assert.match(text, /magnets \(torrents\)/);
+  assert.match(text, /SQLite permanente/, 'o card distingue SQLite (permanente) da memória');
   assert.match(text, /bludv/);
   assert.match(text, /Buscar no Banco/);
 
@@ -235,6 +264,29 @@ test('MagnetBankView renderiza resultado com URI, fontes e obras', () => {
   const copy = expand(vnode).find((n) => n.type === 'button' && textOf(n).includes('Copiar'));
   assert.ok(copy, 'há botão de copiar a URI');
   assert.equal(copy.props.disabled, false);
+});
+
+test('MagnetBankView renderiza a engine de memória com teto e despejos (aviso explícito)', () => {
+  const vnode = MagnetBankView({
+    magnetBank: { enabled: true, engine: 'memory', magnets: 2, sources: 2, works: 2, memoryMax: 1500, memoryEvictions: 9 },
+    query: '',
+    onQuery: () => {},
+    onSearch: () => {},
+    pending: false,
+    feedback: null,
+    result: null,
+  });
+  const text = textOf(vnode);
+  assert.match(text, /MEMÓRIA/);
+  assert.match(text, /MEMÓRIA com teto de 1500 magnets/);
+  assert.match(text, /despejos desde o boot: 9/);
+  const warn = expand(vnode).find((n) => String(n.props?.class || '').includes('painel-bank-engine-warn'));
+  assert.ok(warn, 'a memória ganha o destaque de atenção');
+  const sqlWarn = expand(MagnetBankView({
+    magnetBank: { enabled: true, engine: 'sql', magnets: 2, memoryMax: null, memoryEvictions: 0 },
+    query: '', onQuery: () => {}, onSearch: () => {}, pending: false, feedback: null, result: null,
+  })).find((n) => String(n.props?.class || '').includes('painel-bank-engine-warn'));
+  assert.equal(sqlWarn, undefined, 'SQLite não leva o alerta de memória');
 });
 
 test('MagnetBankView sem banco mostra vazio e badge DESLIGADO', () => {

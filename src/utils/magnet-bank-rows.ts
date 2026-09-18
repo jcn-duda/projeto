@@ -25,6 +25,7 @@ import { createRequire } from 'node:module';
 import config from '../config.js';
 import { DEFAULT_MAGNET_BANK_DB_PATH } from '../config/helpers.js';
 import * as log from './logger.js';
+import * as metrics from './metrics.js';
 import {
   MAGNET_COLUMNS, SOURCE_COLUMNS, WORK_COLUMNS,
   renderMagnet, renderSource, renderWork,
@@ -74,6 +75,13 @@ export interface Engine {
   countMagnets(): number;
   countSources(): number;
   countWorks(): number;
+  /**
+   * Teto de linhas da engine de MEMÓRIA (`null` no SQLite, que é permanente e
+   * sem cota). Leitura O(1); alimenta o aviso do painel.
+   */
+  memoryMax(): number | null;
+  /** Evictions LRU da engine de memória desde o boot (`0` no SQLite). */
+  memoryEvictions(): number;
   clearRows(): void;
   closeEngine(): void;
 }
@@ -173,6 +181,9 @@ function sqliteEngine(dbPath: string): Engine | null {
 
     return {
       kind: 'sql',
+      // SQLite é o acervo PERMANENTE: sem cota e sem eviction por LRU.
+      memoryMax() { return null; },
+      memoryEvictions() { return 0; },
       getMagnet(hash) {
         const r = getMagnetStmt.get(String(hash || '').toLowerCase()) as Record<string, unknown> | null;
         return r ? parseMagnet(r) : null;
@@ -217,6 +228,8 @@ function sqliteEngine(dbPath: string): Engine | null {
           works: Number((countWorkStmt.get() as Record<string, unknown>)?.n) || 0,
           lastSeen: Math.max(magnetMax, sourceMax),
           byIndexer,
+          memoryMax: null,
+          memoryEvictions: 0,
         };
       },
       writeBatch(batch) {
@@ -259,7 +272,10 @@ function sqliteEngine(dbPath: string): Engine | null {
 }
 
 // A engine de memória (fallback) mora em `magnet-bank-memory.ts` desde a
-// catraca de 400 linhas; o hook de falha de escrita é injetado na fábrica.
+// catraca de 400 linhas; o hook de falha de escrita, o teto LRU e o callback
+// de eviction (métrica `magnetbank.memory.evicted`) são injetados na fábrica.
+// O teto é lido por GETTER: um knob baixado em runtime passa a valer na
+// próxima passagem do `enforceCap` sem recriar a engine.
 
 // --- Abertura lazy e estado global -----------------------------------------
 
@@ -292,8 +308,12 @@ export function disarmFailNextWrite(): void {
 export function open(dbPathOverride?: string, opts: { forceMemory?: boolean } = {}): void {
   if (store) return;
   const dbPath = dbPathOverride ?? config.magnetBank?.dbPath ?? DEFAULT_MAGNET_BANK_DB_PATH;
-  if (opts.forceMemory) { store = memoryEngine(consumeFailNextWrite); return; }
-  store = sqliteEngine(dbPath) ?? memoryEngine(consumeFailNextWrite);
+  const cap = () => config.magnetBank?.memoryMax ?? 20000;
+  // A eviction da engine de memória é observável (métrica + aviso no painel):
+  // o callback mora aqui para a engine não importar metrics/config.
+  const onEvict = (count: number) => metrics.count('magnetbank.memory.evicted', count);
+  if (opts.forceMemory) { store = memoryEngine(consumeFailNextWrite, cap, onEvict); return; }
+  store = sqliteEngine(dbPath) ?? memoryEngine(consumeFailNextWrite, cap, onEvict);
 }
 
 export function engine(): Engine {

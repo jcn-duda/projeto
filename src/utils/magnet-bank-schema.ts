@@ -45,13 +45,18 @@ export type IndexerStat = { indexer: string; hashes: number; sources: number; la
 
 /** Panorama do banco (uma leitura por poll): totais + último visto global +
  * quebra por indexer. A engine SQL resolve com COUNT/MAX/GROUP BY — nunca uma
- * consulta por indexer (sem N+1). */
+ * consulta por indexer (sem N+1). `memoryMax`/`memoryEvictions` descrevem o
+ * teto da engine de MEMÓRIA: no SQLite (permanente) são `null`/`0`. */
 export type BankStats = {
   magnets: number;
   sources: number;
   works: number;
   lastSeen: number;
   byIndexer: IndexerStat[];
+  /** Teto de linhas da engine de memória; `null` quando a engine é o SQLite. */
+  memoryMax: number | null;
+  /** Evictions LRU da engine de memória desde o boot; `0` no SQLite. */
+  memoryEvictions: number;
 };
 
 export const MAGNET_COLUMNS = [

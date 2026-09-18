@@ -143,7 +143,12 @@ export async function collectRaw(
         const priority = planned.indexers.some((indexer) =>
           config.jackett.ptBrIndexers.includes(indexer),
         );
-        const inlineSweep = Boolean(sweepQuery) && sweepQuery !== query && planned.query === sweepQuery;
+        // A varredura inline é a task AGRUPADA marcada ESTRUTURALMENTE pelo
+        // plano (`sweep:true`) — nunca inferida por `query === sweepQuery`: a
+        // task BR isolada pode ter exatamente a mesma query (filme sem ano, em
+        // que a raiz pt coincide com a varredura) e continua sendo consulta
+        // PRINCIPAL, que registra status e alimenta o fallback.
+        const inlineSweep = planned.sweep === true;
         if (inlineSweep) sweepInline = true;
         addTask(() => {
           // `recordStatus:false` (varredura inline) não alimenta o estado vivo:

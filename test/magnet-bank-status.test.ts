@@ -37,6 +37,9 @@ test('status agrega totais, por indexer (hashes distintos) e último visto globa
   assert.equal(byId.get('nerdfilmes')!.sources, 1);
   assert.ok(byId.get('nerdfilmes')!.lastSeen > 0);
   assert.equal(status.byIndexer[0].indexer, 'bludv', 'mais recente primeiro (empate por id)');
+  // Engine de memória: o painel distingue o teto LRU e os despejos do SQLite.
+  assert.equal(status.memoryMax, config.magnetBank.memoryMax, 'expõe o teto da memória');
+  assert.equal(status.memoryEvictions, 0, 'sem eviction neste seed');
 });
 
 test('status é memoizado por TTL, invalidado por escrita e desligável com 0', async () => {
@@ -104,4 +107,7 @@ test('engine SQL resolve a MESMA agregação', { skip: !hasNodeSqlite }, () => {
   assert.equal(byId.get('bludv')!.hashes, 3);
   assert.equal(byId.get('nerdfilmes')!.sources, 1);
   assert.equal(status.byIndexer[0].indexer, 'bludv');
+  // SQLite é acervo permanente: sem teto e sem despejo (distinção do painel).
+  assert.equal(status.memoryMax, null);
+  assert.equal(status.memoryEvictions, 0);
 });

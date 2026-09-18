@@ -18,6 +18,7 @@ import { formatBytes } from './fmt.js';
 import {
   BANK_SEARCH_RESULT_MAX,
   magnetBankSummary,
+  bankEngineNotice,
   bankLastSeenLabel,
   bankSearchView,
   bankSearchCountLabel,
@@ -94,6 +95,7 @@ export function MagnetBankView({ magnetBank, query, onQuery, onSearch, pending, 
   const badge = s.enabled
     ? { text: s.engine.toUpperCase(), variant: s.engine === 'MEMÓRIA' ? ('warn' as const) : ('ok' as const) }
     : { text: 'DESLIGADO', variant: 'neutral' as const };
+  const engineNotice = bankEngineNotice(s);
   const view = result ? bankSearchView(result) : null;
 
   return html`
@@ -103,6 +105,11 @@ export function MagnetBankView({ magnetBank, query, onQuery, onSearch, pending, 
           <p style="color: var(--muted); margin: 0 0 var(--space-2); font-size: var(--font-floor);">
             Clone permanente do que o Jackett já devolveu — sem cota, sem TTL. Separado do estoque por conta.
           </p>
+          ${engineNotice ? html`
+            <p class=${'painel-bank-engine' + (engineNotice.warn ? ' painel-bank-engine-warn' : '')} role="status">
+              ${engineNotice.text}
+            </p>
+          ` : null}
           <div style="display: flex; gap: var(--space-4); flex-wrap: wrap;">
             <${StatNumber} value=${s.magnets} label="magnets (torrents)" />
             <${StatNumber} value=${s.sources} label="fontes (indexer × hash)" />

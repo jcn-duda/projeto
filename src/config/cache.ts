@@ -66,6 +66,14 @@ export const catalog = () => ({
 export const magnetBank = () => ({
   enabled: String(process.env.MAGNET_BANK || 'true') !== 'false',
   dbPath: process.env.MAGNET_BANK_DB_PATH || DEFAULT_MAGNET_BANK_DB_PATH,
+  // Teto de LINHAS da engine de MEMÓRIA (o fallback quando `node:sqlite` não
+  // existe — Node 20 — ou o arquivo não abre). A unidade é magnets/hashes: o
+  // SQLite é permanente e NÃO tem cota, mas o `Map` de memória cresceria com o
+  // acervo inteiro até o OOM. 20000 é conservador porque a entrada daqui é
+  // maior que a do cache (URI + título) e o fallback só roda onde não há
+  // SQLite. Mínimo 1: NÃO existe modo ilimitado — desligar o teto reabriria o
+  // vazamento que ele existe para fechar.
+  memoryMax: Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_MEMORY_MAX, 20000))),
   // Teto da fila de captura. A gravação é uma transação em lote por busca, fora
   // do caminho da resposta; encheu, a captura é descartada com métrica
   // (`magnetbank.queue.dropped`) — a busca nunca espera o disco.

@@ -285,6 +285,16 @@ inglês não o encontra. Ela tem **dois caminhos, e eles não são iguais**:
 Não "uniformize" os dois passando `ignoreBreaker` na inline: o breaker existe
 justamente para o indexer morto não comer o prazo da resposta.
 
+**Quem é a varredura inline é uma marca ESTRUTURAL do plano, não texto.** O
+`planJackettQueries` rotula a task agrupada com `sweep:true` e o `collectRaw` usa
+só esse campo. Comparar `planned.query === sweepQuery` era frágil: no filme sem
+ano a raiz pt da varredura coincide com o `ptQuery`, e a task BR ISOLADA — que é
+consulta PRINCIPAL — era tratada como varredura, perdia
+`recordStatus`/`onQueryResult` e não alimentava o fallback do banco vivo. A
+task BR com a mesma query continua principal (`recordStatus` default e
+`onQueryResult`); a agrupada mantém `recordStatus:false` e não contamina o
+estado vivo. Cobertura: `test/sweep-inline-identity.test.ts`.
+
 ### Título canônico inglês (b223ffd)
 
 Quando o original da obra não é inglês (ex.: "Django Kill: Se Eu Vivo Spara" em
@@ -551,6 +561,16 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   addon. `magnet-bank-rows.ts` é a camada de linhas/engines;
   `magnet-bank-schema.ts` os tipos e o codec; `magnet-bank-merge.ts` as regras
   puras.
+- **A engine de memória tem teto LRU; o SQLite não.** O `Map` de fallback
+  (Node 20/abertura falha) acumularia o acervo inteiro até o OOM, então ele
+  respeita `MAGNET_BANK_MEMORY_MAX` (default 20000 magnets/hashes, mínimo 1 —
+  NÃO há modo ilimitado). A ordem do `Map` É o LRU: `getMagnet`/`listMagnetsMany`
+  e o upsert movem a chave para o fim (MRU) **sem tocar `lastSeen`**, que é a
+  última observação do SITE e não pode ser reescrita por leitura local. Ao
+  exceder, o mais antigo é evictado com TODAS as fontes e obras do hash (sem
+  órfão), a contagem sobe desde o boot e a métrica
+  `magnetbank.memory.evicted` incrementa. O SQLite é acervo PERMANENTE: sem
+  cota, sem LRU e `memoryMax`/`memoryEvictions` saem `null`/`0` no status.
 - **Três tabelas.** `magnet` (PK `hash`): `uri` sanitizada, `title`, `size`,
   `is_br`, `dubbed`, `quality`, `seeders_max`, `seeders_last`, `first_seen`,
   `last_seen`, `lied`. `magnet_source` (PK `hash,indexer`): `tracker`,
@@ -616,11 +636,13 @@ completa —, a mesma cobertura que o `release-work.ts` gravou. As travas:
   reconsulta o vivo.
 
 Knobs: `MAGNET_BANK` (kill-switch), `MAGNET_BANK_DB_PATH`,
-`MAGNET_BANK_QUEUE_MAX`, `MAGNET_BANK_STATUS_TTL_MS` (memo do painel, default
-60s), `MAGNET_BANK_FALLBACK`, `MAGNET_BANK_FALLBACK_MAX` (1..40, por indexer),
-`MAGNET_BANK_FALLBACK_GLOBAL_MAX` (1..500) e `FALLBACK_STREAMS_TTL`.
+`MAGNET_BANK_QUEUE_MAX`, `MAGNET_BANK_MEMORY_MAX` (teto de linhas da engine de
+memória; default 20000, mínimo 1), `MAGNET_BANK_STATUS_TTL_MS` (memo do painel,
+default 60s), `MAGNET_BANK_FALLBACK`, `MAGNET_BANK_FALLBACK_MAX` (1..40, por
+indexer), `MAGNET_BANK_FALLBACK_GLOBAL_MAX` (1..500) e `FALLBACK_STREAMS_TTL`.
 Métricas: `magnetbank.engine.sql|memory`, `magnetbank.upsert`,
-`magnetbank.queue.dropped`, `magnetbank.flush.failed`, `fallback.error`,
+`magnetbank.queue.dropped`, `magnetbank.memory.evicted` (despejos LRU, só na
+engine de memória), `magnetbank.flush.failed`, `fallback.error`,
 `fallback.items.injected`, `fallback.items.cut.<motivo>`
 (`lied`/`no-hash`/`live-dedupe`/`no-source`/`cap-indexer`/`cap-global`) e
 `fallback.indexer.<id>` (cobertura por indexer). No `/stream-trace.json` a fase
@@ -629,18 +651,25 @@ Métricas: `magnetbank.engine.sql|memory`, `magnetbank.upsert`,
 **Painel (aba Magnets + Saúde).** O card "Banco de Magnets Vivo (Jackett)"
 (`view-magnet-bank.ts` sobre `bank-model.ts`) lê o bloco `magnetBank` do
 `/dashboard-status.json` — totais (`magnets`/`sources`/`works`), engine
-(`SQLite`/`MEMÓRIA`/`DESLIGADO`), fila e a quebra por indexer —, e a busca
+(`SQLite`/`MEMÓRIA`/`DESLIGADO`), fila, a quebra por indexer e, na engine de
+memória, `memoryMax`/`memoryEvictions` —, e a busca
 read-only `magnet-bank-search` (hash de 40 hex OU substring de título; vazio =
 recentes; teto de 100) mostra URI copiável, fontes, obras e o selo de `lied`. É
-separada do `magnet-summary` (estoque por conta). O status é MEMOIZADO por
-`MAGNET_BANK_STATUS_TTL_MS` (60s) e invalidado a cada escrita efetiva, então o
+separada do `magnet-summary` (estoque por conta). O card traz um aviso explícito
+da engine: **MEMÓRIA com teto de N magnets · despejos desde o boot** (destaque
+de atenção) versus **SQLite permanente — sem teto e sem despejo**; o
+`memoryMax`/`memoryEvictions` do bloco é o mesmo dado. O status é MEMOIZADO por
+`MAGNET_BANK_STATUS_TTL_MS` (60s) e invalidado a cada escrita efetiva (e a
+qualquer eviction), então o
 poll repete a mesma foto sem pagar `COUNT/MAX/GROUP BY` por ciclo. Na aba Saúde,
 cada indexer mostra `MEM N` (`fallback.indexer.<id>` acumulado desde o boot) — é
 HISTÓRICO de cobertura, não o estado online.
 
 Limitações honestas: o contador `MEM`/`fallback.indexer.<id>` zera no restart; o
 banco cresce para sempre (sem TTL/cota — é acervo, por desenho) e vive no volume
-`/app/data`, então o rebuild do container o preserva; e `pending` no prazo pode
+`/app/data`, então o rebuild do container o preserva; a engine de MEMÓRIA
+(fallback) é limitada por `MAGNET_BANK_MEMORY_MAX` e pode despejar o mais
+antigo; e `pending` no prazo pode
 ativar o fallback por um instante — a resposta tardia do indexer derruba a
 reserva dele na reconstrução, mas uma lista já servida com reserva fica
 parcial/curta até a próxima abertura. Validar localmente:
@@ -1635,6 +1664,22 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   swarm). **Contagem pura nunca decide**: temporada só com legendado não pode
   impedir a busca BR dublada de rodar. Lacuna → caminho atual inteiro +
   colhedor enfileira a obra.
+- **Fast-path coberto consulta só BR/prioritários.** Quando o índice cobre a
+  obra, a janela crítica chama `collectRaw` com `taskScope:'priority'`: só as
+  tarefas BR isoladas rodam (elas já viram o `score` do índice; a fonte viva
+  atualiza a evidência). Os **globais já cobertos não são consultados nem
+  marcados falhos** — eles ficam no enriquecimento de fundo
+  (`taskScope:'nonpriority'`), que alimenta o índice e promove pelo mesmo
+  `latest-writer`, sem transformar um hit do índice em espera pelo caminho
+  inteiro. O `/all` agregado não participa desse caminho.
+- **`pending`/`slow` no contrato atual.** Como a resposta pode sair antes de
+  indexer lento terminar, o lote tardio pode gerar lista `partial` e itens de
+  fallback do acervo (selo 📦). O medidor para decidir calibração futura é
+  `fallback.items.injected` (acumulado desde o boot) no `/metrics.json` da VPS:
+  se ele estiver alto de forma sustentada, a próxima decisão pode ser ignorar
+  `JACKETT_SLOW_INDEXERS` quando o único motivo for `pending` (lento que ainda
+  não respondeu). **Não altere essa política agora** — é diagnóstico, não
+  auto-tuning; nenhum caminho lê esse contador para mudar comportamento.
 - **Colhedor** (`harvest:*`): fila persistente numa chave única
   (`harvest:v1:q`), alimentada por busca com lacuna e episódio seguinte
   (dedupe TTL 12h). Freio de atividade em JANELA DESLIZANTE

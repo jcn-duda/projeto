@@ -27,6 +27,10 @@ export interface MagnetBankSummary {
   lastSeen: number;
   queue: number;
   queueMax: number;
+  /** Teto de linhas da engine de MEMÓRIA; `null` no SQLite (permanente). */
+  memoryMax: number | null;
+  /** Evictions LRU da engine de memória desde o boot (0 no SQLite). */
+  memoryEvictions: number;
   byIndexer: BankIndexerRow[];
 }
 
@@ -121,8 +125,35 @@ export function magnetBankSummary(raw: unknown): MagnetBankSummary {
     lastSeen: num(obj.lastSeen),
     queue: num(obj.queue),
     queueMax: num(obj.queueMax),
+    // `null` é informação (SQLite permanente): não coagir para 0.
+    memoryMax: obj.memoryMax == null ? null : num(obj.memoryMax),
+    memoryEvictions: num(obj.memoryEvictions),
     byIndexer: bankIndexerRows(obj.byIndexer),
   };
+}
+
+export interface BankEngineNotice {
+  text: string;
+  /** `true` = engine de memória sob teto (atenção); `false` = SQLite permanente. */
+  warn: boolean;
+}
+
+/**
+ * Aviso explícito da engine no card. A engine de MEMÓRIA é fallback (sem
+ * `node:sqlite`): tem teto LRU e pode DESPEJAR magnets — o operador precisa
+ * saber que o acervo ali não é permanente. O SQLite é acervo permanente, sem
+ * cota: a frase existe para distinguir os dois, não para alarmar.
+ */
+export function bankEngineNotice(summary: MagnetBankSummary): BankEngineNotice | null {
+  if (!summary.enabled) return null;
+  if (summary.engine === 'MEMÓRIA') {
+    const teto = summary.memoryMax == null ? 'teto não informado' : `teto de ${summary.memoryMax} magnets`;
+    return { warn: true, text: `MEMÓRIA com ${teto} · despejos desde o boot: ${summary.memoryEvictions}` };
+  }
+  if (summary.engine === 'SQLite') {
+    return { warn: false, text: 'SQLite permanente — acervo sem teto e sem despejo' };
+  }
+  return null;
 }
 
 /** "há X" para o último visto; `0`/ausente sai "—" (nunca "há 56 anos"). */

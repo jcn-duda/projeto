@@ -20,6 +20,14 @@ interface SearchPlanTask {
   original?: string;
   /** Raiz da coleção multiobra (TMDB), degrau SEQUENCIAL só no indexer BR. */
   multiWork?: string;
+  /**
+   * Marca ESTRUTURAL da task de varredura pt-BR agrupada (só os globais do
+   * plano). O `collectRaw` usa ISTO — nunca a comparação de texto — para
+   * decidir `inlineSweep`: uma task BR isolada cuja query coincide com a raiz
+   * da varredura (`ptQuery === sweepQuery`, o caso do filme sem ano) continua
+   * sendo consulta PRINCIPAL e precisa alimentar `onQueryResult`/status.
+   */
+  sweep?: boolean;
 }
 
 function planJackettQueries(
@@ -87,7 +95,7 @@ function planJackettQueries(
     // ("My Name Is Farah") nunca encontra.
     if (originalQuery) main.original = originalQuery;
     plan.push(main);
-    if (sweepQuery && sweepQuery !== query) plan.push({ query: sweepQuery, indexers: [...grouped] });
+    if (sweepQuery && sweepQuery !== query) plan.push({ query: sweepQuery, indexers: [...grouped], sweep: true });
   }
   plan.push(...isolated);
   return plan;

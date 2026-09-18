@@ -299,7 +299,11 @@ export function findByIndexer(indexer: string, limit = 100): Array<{ source: Sou
  */
 const statusTtlMs = (): number => Math.max(0, Math.trunc(Number(config.magnetBank?.statusTtlMs ?? 60000)));
 type BankStatus = ReturnType<typeof computeStatus>;
-let statusMemo: { at: number; value: BankStatus } | null = null;
+// A foto guarda TAMBÉM as evictions do momento: a eviction muda os totais, e o
+// guarda O(1) abaixo derruba a foto se um `writeBatch` da engine não tiver
+// passado pelo `applyOps` (que já invalida) — o memo não fica preso a um só
+// caminho de escrita.
+let statusMemo: { at: number; value: BankStatus; evictions: number } | null = null;
 
 /** Derruba o memo: o próximo `status()` recalcula. */
 export function invalidateStatusCache(): void {
@@ -309,7 +313,9 @@ export function invalidateStatusCache(): void {
 function computeStatus() {
   const e = readEngine();
   if (e) reportEngine(e);
-  const stats: BankStats = e?.stats() ?? { magnets: 0, sources: 0, works: 0, lastSeen: 0, byIndexer: [] };
+  const stats: BankStats = e?.stats() ?? {
+    magnets: 0, sources: 0, works: 0, lastSeen: 0, byIndexer: [], memoryMax: null, memoryEvictions: 0,
+  };
   return {
     enabled: Boolean(config.magnetBank?.enabled),
     engine: e ? e.kind : 'disabled',
@@ -318,6 +324,10 @@ function computeStatus() {
     works: stats.works,
     lastSeen: stats.lastSeen,
     byIndexer: stats.byIndexer,
+    // Teto e despejos SÓ existem na engine de memória; o SQLite responde
+    // `null`/`0` (acervo permanente) e o painel distingue os dois.
+    memoryMax: stats.memoryMax,
+    memoryEvictions: stats.memoryEvictions,
     queue: queue.length,
     queueMax: Math.max(1, Math.trunc(config.magnetBank?.queueMax ?? 500)),
   };
@@ -331,9 +341,15 @@ function computeStatus() {
  */
 export function status(): BankStatus {
   const ttl = statusTtlMs();
+  if (ttl > 0 && statusMemo) {
+    const e = currentEngine();
+    // Eviction efetiva (inclusive a disparada fora do flush) invalida a foto
+    // antes de ela ser servida — a checagem é O(1).
+    if (e && e.memoryEvictions() !== statusMemo.evictions) invalidateStatusCache();
+  }
   if (ttl > 0 && statusMemo && Date.now() - statusMemo.at < ttl) return statusMemo.value;
   const value = computeStatus();
-  if (ttl > 0) statusMemo = { at: Date.now(), value };
+  if (ttl > 0) statusMemo = { at: Date.now(), value, evictions: currentEngine()?.memoryEvictions() ?? 0 };
   return value;
 }
 

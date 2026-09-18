@@ -135,7 +135,7 @@ test('degrau de franquia coexiste com a varredura pt-BR dos globais sem colidir'
 
   assert.deepEqual(plan, [
     { query: 'The Hangover Part II 2011', indexers: ['thepiratebay'] },
-    { query: 'Se Beber, Não Case', indexers: ['thepiratebay'] },
+    { query: 'Se Beber, Não Case', indexers: ['thepiratebay'], sweep: true },
     {
       query: 'Se Beber, Não Case! Parte II 2011',
       variant: 'Se Beber, Não Case! Parte 2 2011',
