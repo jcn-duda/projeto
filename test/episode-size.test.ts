@@ -175,6 +175,58 @@ test('a checagem recebe só os packs cujos arquivos ainda não são conhecidos',
   clearFileSizes();
 });
 
+// Beverly Hills Cop (1984), 2026-09-18: o Torrentdosfilmes publica o post
+// "opção 2" sem tamanho (Jackett carimba 1024 bytes) e o stream saía sem 💾
+// mesmo com o ⚡ — a AllDebrid já tinha a lista de arquivos.
+const SEM_TAMANHO = 'c3'.repeat(20);
+const semTamanhoStream = (title = 'Tira da Pesada (1984) BluRay 5.1 [1080p BLURAY DUBLADO opção 2]\n👤 1 ⚙️ torrentdosfilmesv2') => ({
+  name: '[AD⚡] 1080p BluRay',
+  title,
+  infoHash: SEM_TAMANHO,
+}) as Stream;
+
+test('stream sem 💾 entra na leitura de arquivos e ganha o tamanho do vídeo', () => {
+  clearFileSizes();
+  assert.deepEqual(packHashesMissingFiles([semTamanhoStream(), avulsoStream()], null), [SEM_TAMANHO]);
+  assert.deepEqual(packHashesMissingFiles([semTamanhoStream()], 3), [SEM_TAMANHO], 'série também pede');
+  recordFileSizes(SEM_TAMANHO, [
+    { path: 'Tira.da.Pesada.1984.1080p.mkv', size: 2.34 * GB },
+    { path: 'Sample/sample.mkv', size: 50 * 1024 ** 2 },
+  ]);
+  assert.equal(packHashesMissingFiles([semTamanhoStream()], null).length, 0, 'lista conhecida não relê');
+  const [out] = annotateEpisodeSizes([semTamanhoStream()], { season: null, episode: null });
+  assert.equal(titleOf(out), 'Tira da Pesada (1984) BluRay 5.1 [1080p BLURAY DUBLADO opção 2]\n👤 1 💾 2.34 GB ⚙️ torrentdosfilmesv2');
+  assert.equal(out?._size, undefined, '_size não muda: o filtro já tratou como desconhecido');
+  clearFileSizes();
+});
+
+test('episódio sem 💾 mede o arquivo do episódio; sem lista ou sem episódio fica como está', () => {
+  clearFileSizes();
+  const title = 'Serie S01E02 1080p DUBLADO\n👤 ~ ⚙️ comandotorrents';
+  assert.equal(titleOf(annotateEpisodeSizes([semTamanhoStream(title)], { season: 1, episode: 2 })[0]), title);
+  recordFileSizes(SEM_TAMANHO, [
+    { path: 'Serie.S01E01.mkv', size: 1 * GB },
+    { path: 'Serie.S01E02.mkv', size: 1.5 * GB },
+  ]);
+  const [out] = annotateEpisodeSizes([semTamanhoStream(title)], { season: 1, episode: 2 });
+  assert.match(titleOf(out), /👤 ~ 💾 1\.50 GB ⚙️ comandotorrents$/);
+  const [semEpisodio] = annotateEpisodeSizes([semTamanhoStream(title)], { season: 1, episode: null });
+  assert.equal(titleOf(semEpisodio), title);
+  clearFileSizes();
+});
+
+test('coleção sem 💾 e sem a obra marcada não chuta o maior arquivo', () => {
+  clearFileSizes();
+  recordFileSizes(SEM_TAMANHO, [
+    { path: 'Filme.1.mkv', size: 3 * GB },
+    { path: 'Filme.2.mkv', size: 4 * GB },
+  ]);
+  const colecao = { ...semTamanhoStream(), _multiWork: true } as Stream;
+  const [out] = annotateEpisodeSizes([colecao], { season: null, episode: null });
+  assert.equal(titleOf(out), titleOf(colecao));
+  clearFileSizes();
+});
+
 test('lista de arquivos vai ao namespace persistido fsz e guarda só vídeos', () => {
   // Em memória, cada restart zerava a lista e a primeira abertura voltava a
   // mostrar o total do pack (Star Trek 2009, 2026-09-14: três restarts no dia).

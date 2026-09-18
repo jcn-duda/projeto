@@ -58,6 +58,52 @@ function isMultiWorkPack(stream: Stream | null | undefined): boolean {
 
 type WorkHintInput = { n: string[]; y: number | null } | null | undefined;
 
+// Stream que chegou sem 💾: o indexer não publicou tamanho (o Torrentdosfilmes
+// carimba 1024 bytes em post "opção 2", e o `UNKNOWN_SIZE_MAX` descarta).
+// O magnet não carrega tamanho; só o debrid que já tem o hash sabe.
+const SEEDER_MARK = /👤 ~?\d*/u;
+
+function lacksSize(stream: Stream | null | undefined): boolean {
+  return Boolean(stream?.infoHash) && typeof stream?.title === 'string'
+    && !SIZE_MARK.test(stream.title) && SEEDER_MARK.test(stream.title);
+}
+
+/**
+ * Preenche o 💾 de quem veio sem tamanho, com o arquivo que o play tocaria
+ * (mesmo `pickFile`). Só medida exata: sem lista de arquivos, segue sem 💾.
+ * `_size` não muda — o filtro de tamanho já tratou o item como desconhecido.
+ */
+function fillMissingSizes<T extends Stream | null>(
+  streams: T[],
+  { season, episode, work, trace }: {
+    season?: number | null; episode?: number | null; work?: WorkHintInput; trace?: StreamTraceState | null;
+  },
+): T[] {
+  return streams.map((stream) => {
+    if (!stream || !lacksSize(stream)) return stream;
+    const multiWork = season == null && isMultiWorkPack(stream);
+    // Coleção sem a obra marcada: o maior arquivo não é o filme pedido.
+    if (multiWork && !work?.n?.length) return stream;
+    const files = peekFileSizes(String(stream.infoHash));
+    if (!files) return stream;
+    let bytes = 0;
+    try {
+      const hint = season != null
+        ? { season, episode }
+        : multiWork && work?.n?.length
+          ? { work: { names: work.n, year: work.y, pack: true } }
+          : {};
+      bytes = Number(pickFile(files, hint)?.size) || 0;
+    } catch {
+      bytes = 0;
+    }
+    const label = bytes ? bytesToSize(bytes) : '';
+    if (!label) { stageTrace(trace, 'episodeSize.skip.fill-pick-failed', 1); return stream; }
+    stageTrace(trace, 'episodeSize.filled', 1);
+    return { ...stream, title: String(stream.title).replace(SEEDER_MARK, (seeds) => `${seeds} 💾 ${label}`) };
+  }) as T[];
+}
+
 // Filme dentro de coleção ("FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS", 22.45 GB
 // em Star Trek 2009, 2026-09-13). Só a medida exata vale: filmes de uma coleção
 // não têm tamanhos parecidos, então não existe média honesta. O arquivo é o que
@@ -100,16 +146,18 @@ function annotateMovieSizes<T extends Stream | null>(streams: T[], work: WorkHin
 }
 
 /**
- * Hashes de pack da temporada que o memo ainda não conhece: é a lista que a
- * checagem de cache recebe para ler arquivos na mesma passada (só pack, para
- * não gastar chamada em episódio avulso, cujo total já é o do episódio).
+ * Hashes que o memo ainda não conhece — pack da temporada e item sem 💾: é a
+ * lista que a checagem de cache recebe para ler arquivos na mesma passada.
+ * Episódio avulso COM 💾 fica de fora: o total dele já é o do episódio.
  */
 function packHashesMissingFiles(streams: Array<Stream | null>, season: number | null | undefined): string[] {
   const out = new Set<string>();
   for (const stream of streams) {
     if (!stream) continue;
     // Em filme, o "pack" é a coleção de várias obras marcada no título.
-    if (!(season == null ? isMultiWorkPack(stream) : isPack(stream, season))) continue;
+    const pack = season == null ? isMultiWorkPack(stream) : isPack(stream, season);
+    // Sem 💾 também pede a lista: é a única fonte do tamanho desse item.
+    if (!pack && !lacksSize(stream)) continue;
     const hash = String(stream.infoHash).toLowerCase();
     if (!hasFileSizes(hash)) out.add(hash);
   }
@@ -151,7 +199,7 @@ function exactEpisodeBytes(infoHash: string, season: number, episode: number): n
   }
 }
 
-function annotateEpisodeSizes<T extends Stream | null>(
+function annotatePackSizes<T extends Stream | null>(
   streams: T[],
   {
     season, episode, meta, work, trace,
@@ -198,6 +246,17 @@ function annotateEpisodeSizes<T extends Stream | null>(
     const title = stream.title.replace(SIZE_MARK, `💾 ${label} ${PACK_MARK} ${match[1]}${note}`);
     return { ...stream, title };
   }) as T[];
+}
+
+type AnnotateOptions = Parameters<typeof annotatePackSizes>[1];
+
+/** Tamanho do episódio/filme em pack, e o 💾 de quem veio sem tamanho. */
+function annotateEpisodeSizes<T extends Stream | null>(streams: T[], options: AnnotateOptions = {}): T[] {
+  const { season, episode } = options;
+  const out = annotatePackSizes(streams, options);
+  // Série sem episódio não tem arquivo único para medir.
+  if (season != null && episode == null) return out;
+  return fillMissingSizes(out, options);
 }
 
 export { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes };
