@@ -23,16 +23,15 @@ test('sanitizeMagnet: btih divergente é recusado', () => {
   assert.equal(result, null, 'hash diferente deve recusar');
 });
 
-test('sanitizeMagnet: hash base32 é aceito e normalizado', () => {
-  // Base32 de 32 chars que corresponde a um hash hex
-  const base32Hash = 'IEBQMBQMBQMBQMBQMBQMBQMBQM'; // 32 chars base32
-  const uri = `magnet:?xt=urn:btih:${base32Hash}&dn=Test`;
-  // O sanitizeMagnet normaliza base32 para hex e compara com o hash fornecido
-  // Se o hash fornecido for o hex equivalente, deve aceitar
-  const result = sanitizeMagnet(uri, base32Hash.toLowerCase().replace(/[^a-f0-9]/g, (c) => c));
-  // Como base32Hash não é hex válido, o normalizeBtih tentará converter
-  // Para este teste, verificamos que a função não crasha
-  assert.ok(result === null || typeof result === 'string');
+test('sanitizeMagnet: btih base32 é aceito quando casa com o hash hex', () => {
+  // Base32 de 20 bytes zero -> os 40 hex '0'. extractInfoHash normaliza o
+  // btih do magnet, então a URI só entra se o hash da chave for o hex equivalente.
+  const b32 = 'A'.repeat(32);
+  const uri = `magnet:?xt=urn:btih:${b32}&dn=Base32.Movie&tr=${encodeURIComponent('udp://custom.tracker.org:1337/announce')}`;
+  const result = sanitizeMagnet(uri, '0'.repeat(40));
+  assert.ok(result, 'base32 que casa com o hex deve ser aceito');
+  assert.ok(result!.includes('dn=Base32.Movie'), 'dn preservado');
+  assert.equal(sanitizeMagnet(uri, 'a'.repeat(40)), null, 'hash divergente do hex recusa');
 });
 
 test('sanitizeMagnet: passkey é removida', () => {
@@ -65,13 +64,37 @@ test('sanitizeMagnet: uid= é removido', () => {
   assert.ok(result === null || !result!.includes('uid='));
 });
 
-test('sanitizeMagnet: xs/as/ws são rejeitados', () => {
-  const uriWithXs = `magnet:?xt=urn:btih:${HASH_A}&xs=http://example.com/file.torrent`;
-  const uriWithAs = `magnet:?xt=urn:btih:${HASH_A}&as=http://example.com/file.torrent`;
-  const uriWithWs = `magnet:?xt=urn:btih:${HASH_A}&ws=http://example.com/file.torrent`;
-  assert.equal(sanitizeMagnet(uriWithXs, HASH_A), null, 'xs deve rejeitar');
-  assert.equal(sanitizeMagnet(uriWithAs, HASH_A), null, 'as deve rejeitar');
-  assert.equal(sanitizeMagnet(uriWithWs, HASH_A), null, 'ws deve rejeitar');
+test('sanitizeMagnet: passkey ANTES do /announce é removida', () => {
+  const tok = 'deadbeefcafebabefood'; // 20 alfanuméricos no caminho, antes do announce
+  const uri = `magnet:?xt=urn:btih:${HASH_A}&tr=${encodeURIComponent(`https://tracker.example.com/${tok}/announce`)}`;
+  const result = sanitizeMagnet(uri, HASH_A);
+  assert.ok(result === null || !result.includes(tok), 'token no caminho antes do announce deve sair');
+});
+
+test('sanitizeMagnet: torrent_pass/authkey/key/pid/secure são removidos', () => {
+  const good = encodeURIComponent('udp://custom.tracker.org:1337/announce');
+  for (const param of ['torrent_pass', 'authkey', 'key', 'pid', 'secure']) {
+    const bad = encodeURIComponent(`https://tracker.example.com/announce?${param}=abcdef0123456789abcd`);
+    const uri = `magnet:?xt=urn:btih:${HASH_A}&dn=Movie&tr=${bad}&tr=${good}`;
+    const result = sanitizeMagnet(uri, HASH_A);
+    assert.ok(result, `${param}: com tracker limpo e dn, deve guardar`);
+    assert.ok(!result!.includes('abcdef0123456789abcd'), `${param} não deve vazar`);
+    assert.ok(result!.includes('dn=Movie'), `${param}: dn preservado`);
+    assert.ok(result!.includes('custom.tracker'), `${param}: tracker limpo preservado`);
+  }
+});
+
+test('sanitizeMagnet: xs/as/ws são ignorados sem descartar dn/trackers', () => {
+  const clean = encodeURIComponent('udp://custom.tracker.org:1337/announce');
+  for (const key of ['xs', 'as', 'ws']) {
+    const uri = `magnet:?xt=urn:btih:${HASH_A}&dn=Keep.Me&${key}=http://evil.example/payload.torrent&tr=${clean}`;
+    const result = sanitizeMagnet(uri, HASH_A);
+    assert.ok(result, `${key} não deve derrubar a URI inteira`);
+    assert.ok(!result!.includes(`${key}=`), `${key} não entra na URI remontada`);
+    assert.ok(!result!.includes('evil.example'), 'URL do parâmetro não vaza');
+    assert.ok(result!.includes('dn=Keep.Me'), 'dn preservado apesar do parâmetro');
+    assert.ok(result!.includes('custom.tracker'), 'tracker do post preservado');
+  }
 });
 
 test('sanitizeMagnet: corte por tamanho mantém dn=', () => {

@@ -6,16 +6,24 @@
  * credencial — a chave NÃO leva conta/adapter. O `mag` (evidência
  * alive/bad/lie) segue intacto e separado.
  *
- * Contrato de segurança:
- * - Só aceita `magnet:?` com `xt=urn:btih:` cujo btih bate com o hash
- *   (hex 40 ou base32 32 normalizado para hex).
- * - Remove trackers com credenciais (passkey, /announce/<token>=16 chars,
- *   ?auth=, uid=) e mantém SEMPRE o conjunto padrão de `TRACKERS` como piso —
- *   a URI guardada nunca fica abaixo do que `magnetFor` mandaria.
- * - Deduplica `tr=` e corta em 2048 bytes, preservando `xt=` e `dn=`.
- * - Rejeita `xs`/`as`/`ws` (podem carregar URLs adicionais indesejadas).
- * - Devolve `null` se o resultado for equivalente ao `magnetFor(hash)`
- *   (não vale guardar o que dá para recalcular).
+ * Contrato de segurança e qualidade:
+ * - Só aceita `magnet:?` cujo btih bate com o hash da chave. A normalização
+ *   (hex 40 / base32 32) vem do MESMO `extractInfoHash` do resto do código,
+ *   então a chave guardada casa com a que o play consulta.
+ * - Rejeita trackers que carreguem credencial: parâmetros conhecidos
+ *   (passkey/authkey/auth/torrent_pass/pid/key/uid/secure) e QUALQUER
+ *   segmento de caminho ou valor de query alfanumérico de 16+ chars — cobre
+ *   a passkey tanto DEPOIS (`/announce/<token>`) quanto ANTES
+ *   (`/<token>/announce`) do announce. O host é ignorado.
+ * - Remonta a URI só com `xt`, `dn` e `tr`; `xs`/`as`/`ws` nunca são lidos,
+ *   então ficam de fora sem precisar descartar o resto do magnet.
+ * - Mantém o conjunto padrão de `TRACKERS` como PISO (a URI guardada nunca
+ *   fica abaixo do que `magnetFor` mandaria) e põe os trackers do post À
+ *   FRENTE no corte de 2048 bytes: o que se perde no teto é público (o
+ *   `magnetFor` recoloca no play), nunca o tracker específico do post — que
+ *   é justamente a razão de existir do `muri`.
+ * - Devolve `null` se o resultado equivale ao `magnetFor(hash)` (não vale
+ *   guardar o que dá para recalcular).
  */
 import * as cache from './cache.js';
 import { prefix } from './cache-keys.js';
@@ -31,105 +39,8 @@ function defaultMagnet(infoHash: string): string {
   return `magnet:?xt=urn:btih:${infoHash}${trackers}`;
 }
 
-/**
- * Normaliza btih para 40 hex. Aceita hex 40 ou base32 32; devolve null se
- * o formato for inválido.
- */
-function normalizeBtih(raw: string): string | null {
-  const s = String(raw).trim().toLowerCase();
-  if (/^[a-f0-9]{40}$/.test(s)) return s;
-  if (/^[a-z2-7]{32}$/.test(s)) return base32ToHex(s);
-  return null;
-}
-
-const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-function base32ToHex(input: string): string | null {
-  const s = String(input).toUpperCase();
-  let bits = '';
-  for (const ch of s) {
-    const idx = BASE32_ALPHABET.indexOf(ch);
-    if (idx < 0) return null;
-    bits += idx.toString(2).padStart(5, '0');
-  }
-  let hex = '';
-  for (let i = 0; i + 4 <= 160; i += 4) hex += parseInt(bits.slice(i, i + 4), 2).toString(16);
-  return hex;
-}
-
-/**
- * Detecta se um tracker carrega credencial. Padrões reconhecidos:
- * - `passkey=` em qualquer posição da query
- * - `/announce/<token>=` com token de 16+ chars (passkey no caminho)
- * - `?auth=` ou `&auth=`
- * - `uid=` (identificador de usuário)
- */
-function trackerHasCredential(tr: string): boolean {
-  const decoded = safeDecode(tr);
-  if (/passkey=/i.test(decoded)) return true;
-  if (/\/announce\/[a-zA-Z0-9]{16,}/i.test(decoded)) return true;
-  if (/[?&]auth=/i.test(decoded)) return true;
-  if (/[?&]uid=/i.test(decoded)) return true;
-  return false;
-}
-
 function safeDecode(s: string): string {
   try { return decodeURIComponent(s); } catch { return s; }
-}
-
-/**
- * Sanitiza a URI de magnet: valida btih, remove trackers com credencial,
- * deduplica, corta em 2048 bytes preservando xt/dn. Devolve null se o
- * resultado for equivalente ao magnet padrão (não vale guardar).
- */
-function sanitizeMagnet(uri: string, hash: string): string | null {
-  const raw = String(uri || '').trim();
-  if (!raw.startsWith('magnet:?')) return null;
-
-  // Extrai btih do xt=
-  const xtMatch = raw.match(/[?&]xt=urn:btih:([a-zA-Z0-9]{32,40})(?:&|$)/i);
-  if (!xtMatch) return null;
-  const btih = normalizeBtih(xtMatch[1]);
-  if (!btih || btih !== hash.toLowerCase()) return null;
-
-  // Rejeita xs/as/ws (podem carregar URLs adicionais)
-  if (/[?&](xs|as|ws)=/i.test(raw)) return null;
-
-  // Extrai dn= (preservar)
-  const dnMatch = raw.match(/[?&]dn=([^&]*)/i);
-  const dn = dnMatch ? `&dn=${dnMatch[1]}` : '';
-
-  // Extrai e filtra trackers. O conjunto começa com os PADRÕES (o piso que
-  // magnetFor já mandaria) e só então acrescenta os limpos do post. Assim a URI
-  // guardada nunca fica ABAIXO do fallback: um post cujo único tracker carrega
-  // passkey não pode tirar o raio público do torrent frio no play.
-  const seenTrackers = new Set<string>();
-  const cleanTrackers: string[] = [];
-  for (const t of TRACKERS) {
-    seenTrackers.add(t);
-    cleanTrackers.push(`tr=${encodeURIComponent(t)}`);
-  }
-  const trMatches = raw.matchAll(/[?&]tr=([^&]+)/gi);
-  for (const m of trMatches) {
-    const tr = m[1];
-    if (trackerHasCredential(tr)) continue;
-    const decoded = safeDecode(tr);
-    if (seenTrackers.has(decoded)) continue;
-    seenTrackers.add(decoded);
-    cleanTrackers.push(`tr=${tr}`);
-  }
-
-  // Monta a URI: xt + dn + trackers, respeitando o teto de bytes
-  let result = `magnet:?xt=urn:btih:${btih}${dn}`;
-  for (const tr of cleanTrackers) {
-    const candidate = `${result}&${tr}`;
-    if (byteLength(candidate) > MAX_URI_BYTES) break;
-    result = candidate;
-  }
-
-  // Se ficou equivalente ao padrão, não vale guardar
-  if (result === defaultMagnet(hash)) return null;
-
-  return result;
 }
 
 function byteLength(s: string): number {
@@ -137,8 +48,83 @@ function byteLength(s: string): number {
 }
 
 /**
+ * Um tracker carrega credencial se nomeia um parâmetro de chave privado ou
+ * traz, em qualquer segmento de caminho ou valor de query, uma palavra
+ * alfanumérica de 16+ chars (o formato usual de passkey, antes OU depois do
+ * /announce). O host é ignorado: rótulos de domínio legítimos não são segredo.
+ * Falso-positivo custa só um tracker público a mais cortado, e o piso de
+ * TRACKERS garante que nunca ficamos abaixo do magnetFor.
+ */
+function trackerHasCredential(tr: string): boolean {
+  const decoded = safeDecode(tr);
+  if (/[?&](passkey|authkey|auth|torrent_pass|pid|key|uid|secure)=/i.test(decoded)) return true;
+  const pathAndQuery = decoded.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, ''); // fora scheme://host[:porta]
+  const [path, query = ''] = pathAndQuery.split(/[?#]/);
+  const longToken = /^[a-zA-Z0-9]{16,}$/;
+  for (const seg of path.split('/')) if (longToken.test(seg)) return true;
+  for (const kv of query.split('&')) {
+    const eq = kv.indexOf('=');
+    if (longToken.test(eq < 0 ? kv : kv.slice(eq + 1))) return true;
+  }
+  return false;
+}
+
+/**
+ * Sanitiza a URI de magnet: valida o hash, remove credenciais, deduplica e
+ * remonta com xt/dn/tr (piso de TRACKERS garantido, trackers do post à frente
+ * no corte). Devolve null se equivaler ao magnet padrão.
+ */
+function sanitizeMagnet(uri: string, hash: string): string | null {
+  const raw = String(uri || '').trim();
+  if (!raw.startsWith('magnet:?')) return null;
+
+  // Hash canônico (40 hex) pelo MESMO extrator do resto do código.
+  const btih = extractInfoHash(raw);
+  if (!btih || btih !== String(hash).toLowerCase()) return null;
+
+  const dnMatch = raw.match(/[?&]dn=([^&]*)/i);
+  const dn = dnMatch ? `&dn=${dnMatch[1]}` : '';
+
+  // Trackers do post: sem credencial, deduplicados, e sem os que já estão no
+  // piso (o piso é acrescentado por inteiro no fim, então um tracker igual a
+  // ele aqui seria só ruído).
+  const floorSet = new Set(TRACKERS);
+  const seen = new Set<string>();
+  const postTrackers: string[] = [];
+  for (const m of raw.matchAll(/[?&]tr=([^&]+)/gi)) {
+    const tr = m[1];
+    if (trackerHasCredential(tr)) continue;
+    const decoded = safeDecode(tr);
+    if (floorSet.has(decoded) || seen.has(decoded)) continue;
+    seen.add(decoded);
+    postTrackers.push(`tr=${tr}`);
+  }
+
+  // Piso garantido: reserva os bytes do floor (poucos, todos /announce) e
+  // preenche o resto do teto com os trackers do post. Se algum não couber, é
+  // ele que sai — o floor entra por inteiro e sempre igual ao defaultMagnet.
+  const head = `magnet:?xt=urn:btih:${btih}${dn}`;
+  const floor = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join('');
+  const budget = MAX_URI_BYTES - byteLength(head) - byteLength(floor);
+  let extra = '';
+  for (const tr of postTrackers) {
+    const piece = `&${tr}`;
+    if (byteLength(extra) + byteLength(piece) > budget) break;
+    extra += piece;
+  }
+  const result = `${head}${extra}${floor}`;
+
+  // Equivale ao que magnetFor já mandaria (nenhum dn, nenhum tracker extra)?
+  // Então não vale guardar.
+  if (result === defaultMagnet(btih)) return null;
+  return result;
+}
+
+/**
  * Grava URIs sanitizadas em lote. Entradas sem magnet válido são ignoradas.
- * TTL do config (default 14 dias), renovado a cada chamada.
+ * Renovação barata: pula a escrita quando a URI guardada já é exatamente esta
+ * e o TTL restante ainda passa da metade — evita tocar o cache.db a cada busca
+ * pelo mesmo título. Só regrava quando o valor mudou ou o TTL azedou.
  */
 function rememberMagnets(entries: Array<{ hash: string; magnet: string | undefined | null }>) {
   const ttl = config.magnetDb?.uriTtl ?? 14 * 24 * 3600;
@@ -149,7 +135,12 @@ function rememberMagnets(entries: Array<{ hash: string; magnet: string | undefin
     if (!hash || !magnet) continue;
     const sanitized = sanitizeMagnet(magnet, hash);
     if (!sanitized) continue;
-    toSet.push({ key: `${base}${hash.toLowerCase()}`, value: sanitized, ttlSeconds: ttl });
+    const key = `${base}${hash.toLowerCase()}`;
+    if (cache.peek(key) === sanitized) {
+      const remaining = cache.peekRemaining(key);
+      if (remaining != null && remaining > ttl / 2) continue;
+    }
+    toSet.push({ key, value: sanitized, ttlSeconds: ttl });
   }
   if (toSet.length > 0) cache.setMany(toSet);
 }
@@ -176,9 +167,9 @@ type MagnetCarrier = {
 /**
  * Captura em lote as URIs de magnet de uma leva de itens brutos, chaveadas
  * pelo mesmo hash que `toStremioStream` usa (`extractInfoHash` sobre
- * infoHash/magnet/MagnetUri/Guid). Existe para o `stream-builder-pipeline` só
- * precisar de uma linha por passe — a coleta por item e o `rememberMagnets` em
- * lote ficam aqui. Item sem hash ou sem magnet utilizável é ignorado.
+ * infoHash/magnet/MagnetUri/Guid). Existe para o chamador só precisar de uma
+ * linha — a coleta por item e o `rememberMagnets` em lote ficam aqui. Item sem
+ * hash ou sem magnet utilizável é ignorado.
  */
 function rememberMagnetsFromItems(items: readonly MagnetCarrier[]): void {
   const entries: Array<{ hash: string; magnet: string }> = [];

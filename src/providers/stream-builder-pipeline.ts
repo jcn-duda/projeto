@@ -25,7 +25,6 @@ import type { StreamTraceState } from '../utils/stream-trace.js';
 import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
 import { applyProbedQuality } from './probed-quality.js';
 import { applyPtTitleDual } from './pt-title-dual.js';
-import { rememberMagnetsFromItems } from '../utils/magnet-uri.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 // Indexer id vindo da config do usuario (URL) precisa validar antes de
@@ -312,7 +311,7 @@ export function prepareCandidateStreams(
   // `externalUrl` (e sem a marca interna `notice`) morre fora da união — o que
   // deixa explícito na origem o aviso que nenhum cliente renderizava.
   // Proven quality/audio + ptTitleDual (DUAL global com título TMDB pt) antes do map.
-  const evidencia = applyPtTitleDual(applyProbedQuality(applyFileEvidence(raw), { season, episode, workHint }), { titles, trace }); rememberMagnetsFromItems(evidencia); // muri: o debrid recebe trackers/dn= do post no play
+  const evidencia = applyPtTitleDual(applyProbedQuality(applyFileEvidence(raw), { season, episode, workHint }), { titles, trace });
   const mappedStreams = evidencia.map((item) => {
     const stream = toStremioStream(item);
     // P5 — `toStremioStream` devolve NULL para item sem infoHash (link que

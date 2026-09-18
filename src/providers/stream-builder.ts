@@ -27,6 +27,7 @@ import {
 import type { FirstObserverState } from './stream-builder-first-observer.js';
 import { annotateEpisodeSizes } from './episode-size.js';
 import { isBrProbePending } from './br-probe.js';
+import { rememberMagnetsFromItems } from '../utils/magnet-uri.js';
 
 // Reexportações públicas com total compatibilidade
 export {
@@ -90,6 +91,11 @@ export interface BuildStreamsOptions {
 export async function buildStreams(rawInput: RawItem[], {
   meta, titles, imdbId, season, episode, isDemo, searchKey, deadlineAt, multiWork, onDebridResult, observeFirstPass, observeLatePass, firstObserver, trace,
 }: BuildStreamsOptions = {}) {
+  // Captura as URIs de magnet dos posts no namespace `muri` (o debrid recebe os
+  // trackers/dn= do post no play). Lê do raw, antes dos filtros de título: o
+  // objetivo é lembrar a URI pelo hash, então vale até para item que o corte
+  // depois descarta. Escrita em lote e renovação barata dentro do helper.
+  rememberMagnetsFromItems(rawInput);
   const pool = prepareCandidateStreams(rawInput, {
     meta,
     titles,

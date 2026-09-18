@@ -541,14 +541,21 @@ Debrid-Link) chamam ela no `resolveLink`/`enqueue` em vez de refazer o magnet cr
 — assim o debrid recebe os trackers do próprio post e um torrent frio com poucos
 seeds ganha vida. A **AllDebrid não usa**: seu `cacheCheck` é upload do HASH, não
 da URI, e enriquecer o magnet ali chega tarde (a checagem já criou o torrent).
-A sanitização é defensiva e **nunca piora o fallback**: rejeita `xs`/`as`/`ws`,
-remove trackers com credencial (passkey, `/announce/<token>`, `?auth=`, `uid=`) e
-mantém o conjunto padrão de `TRACKERS` como **piso** — uma URI guardada nunca fica
-abaixo do que `magnetFor` mandaria; corta em 2048 bytes preservando `xt=` e `dn=`.
-Devolve `null` quando o resultado é equivalente ao padrão, então a gravação só
+A sanitização é defensiva e **nunca piora o fallback**: a URI é remontada só com
+`xt`/`dn`/`tr` (então `xs`/`as`/`ws` ficam de fora sem descartar o resto), remove
+trackers com credencial — nomes conhecidos (`passkey`/`authkey`/`auth`/
+`torrent_pass`/`pid`/`key`/`uid`/`secure`) **e** qualquer segmento de caminho ou
+valor de query alfanumérico de 16+ chars (cobre a passkey antes **ou** depois do
+`/announce`; o host é ignorado) — e mantém o conjunto padrão de `TRACKERS` como
+**piso**, com os trackers do post **à frente** no corte de 2048 bytes: o que se
+perde no teto é público (o `magnetFor` recoloca), nunca o tracker específico do
+post. Devolve `null` quando o resultado equivale ao padrão, então a gravação só
 ocorre quando há `dn=` ou tracker extra real (não se guarda o recalculável). A
-captura é no `prepareCandidateStreams` (`stream-builder-pipeline.ts`), em lote por
-passe via `rememberMagnets`. TTL `MAGNET_URI_TTL` (default 14 dias, `0` desliga a
+captura é no `buildStreams` (`stream-builder.ts`), lendo o `rawInput` (cobre até
+item que o filtro de título corta) e gravando em lote via
+`rememberMagnetsFromItems` → `rememberMagnets`, que **pula a reescrita** quando a
+URI já é a mesma e o TTL restante passa da metade (renovação barata, sem tocar o
+`cache.db` a cada busca). TTL `MAGNET_URI_TTL` (default 14 dias, `0` desliga a
 gravação); cota `muri` 20.000 (~1 KB/entrada), que empurrou o teto global de
 93.000 para 113.000. O painel (`magnetdb-inspect.ts` → aba de magnets) expõe a URI
 na coluna **Magnet URI** (truncada com botão copiar).
