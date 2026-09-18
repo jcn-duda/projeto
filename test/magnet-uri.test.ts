@@ -4,6 +4,7 @@
 // separado e intacto.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { sanitizeMagnet, rememberMagnets, rememberMagnetsFromItems, peekMagnet, defaultMagnet } from '../src/utils/magnet-uri.js';
@@ -204,4 +205,104 @@ test('rememberMagnetsFromItems: deriva hash do MagnetUri e ignora item sem magne
   assert.ok(peeked!.includes('extra.tracker'), 'tracker extra do post preservado');
   assert.equal(peekMagnet('e'.repeat(40)), null, 'item sem magnet não grava');
   cache.forget(`${base}${hash}`);
+});
+
+// --- Lacunas da revisão da etapa 1 -----------------------------------------
+
+test('sanitizeMagnet: credencial nomeada com valor curto/não alfanumérico sai', () => {
+  const clean = encodeURIComponent('udp://custom.tracker.org:1337/announce');
+  // A detecção é por NOME, não por forma do valor: `token=x` (1 char) e
+  // `passkey=!@#` (não alfanumérico) precisam sair como qualquer outro.
+  const names = ['token', 'auth_key', 'passkey', 'pass_key', 'authkey', 'auth', 'torrent_pass', 'apikey', 'api_key', 'key', 'pid', 'uid', 'secure'];
+  const values = ['x', 'a', '!@#'];
+  for (const name of names) {
+    for (const value of values) {
+      const bad = encodeURIComponent(`https://private.tracker.example/announce?${name}=${value}`);
+      const uri = `magnet:?xt=urn:btih:${HASH_A}&dn=Named.Cred&tr=${bad}&tr=${clean}`;
+      const result = sanitizeMagnet(uri, HASH_A);
+      assert.ok(result, `${name}=${value}: com tracker limpo deve guardar`);
+      assert.ok(!result!.includes('private.tracker.example'), `${name}=${value}: tracker com credencial não pode vazar`);
+      assert.ok(result!.includes('custom.tracker'), `${name}=${value}: tracker limpo preservado`);
+    }
+  }
+});
+
+test('sanitizeMagnet: segredo com hífen/underscore sai do path e da query', () => {
+  const clean = encodeURIComponent('udp://custom.tracker.org:1337/announce');
+  const secrets = ['passKey-1234567890_abc', '550e8400-e29b-41d4-a716-446655440000'];
+  for (const secret of secrets) {
+    // DEPOIS do announce: /announce/<segredo>
+    const after = encodeURIComponent(`https://private.tracker.example/announce/${secret}`);
+    const rAfter = sanitizeMagnet(`magnet:?xt=urn:btih:${HASH_A}&dn=Secret&tr=${after}&tr=${clean}`, HASH_A);
+    assert.ok(rAfter, `path depois: deve guardar com tracker limpo`);
+    assert.ok(!rAfter!.includes('private.tracker.example'), `path depois: segredo não pode vazar`);
+    // ANTES do announce: /<segredo>/announce
+    const before = encodeURIComponent(`https://private.tracker.example/${secret}/announce`);
+    const rBefore = sanitizeMagnet(`magnet:?xt=urn:btih:${HASH_A}&dn=Secret&tr=${before}&tr=${clean}`, HASH_A);
+    assert.ok(rBefore, `path antes: deve guardar com tracker limpo`);
+    assert.ok(!rBefore!.includes('private.tracker.example'), `path antes: segredo não pode vazar`);
+  }
+  // Valor de query (nome não conhecido) com hífen/underscore também é segredo.
+  const querySecret = encodeURIComponent('https://private.tracker.example/announce?pass=a-b_c-d_e-f_g-h_i-j');
+  const rQuery = sanitizeMagnet(`magnet:?xt=urn:btih:${HASH_A}&dn=Secret&tr=${querySecret}&tr=${clean}`, HASH_A);
+  assert.ok(rQuery, 'query: deve guardar com tracker limpo');
+  assert.ok(!rQuery!.includes('private.tracker.example'), 'query: segredo não pode vazar');
+});
+
+test('sanitizeMagnet: host longo com hífen NÃO é tratado como segredo', () => {
+  const host = 'udp://my-long-hostname-with-hyphens.example.com:1337/announce';
+  const uri = `magnet:?xt=urn:btih:${HASH_A}&dn=Host.Test&tr=${encodeURIComponent(host)}`;
+  const result = sanitizeMagnet(uri, HASH_A);
+  assert.ok(result, 'deve guardar');
+  assert.ok(result!.includes('my-long-hostname-with-hyphens'), 'o host é ignorado na regra genérica');
+});
+
+test('sanitizeMagnet: teto real de 2048 BYTES com dn multibyte', () => {
+  // 'Á' vira %C3%81 (6 bytes) no encodeURIComponent: 4 mil deles estouram o
+  // teto com folga e forçam o truncamento do dn.
+  const dn = 'Á'.repeat(4000);
+  const uri = `magnet:?xt=urn:btih:${HASH_A}&dn=${encodeURIComponent(dn)}&tr=${encodeURIComponent('udp://custom.tracker.org:1337/announce')}`;
+  const result = sanitizeMagnet(uri, HASH_A);
+  assert.ok(result, 'deve devolver URI truncada');
+  const bytes = Buffer.byteLength(result!, 'utf8');
+  assert.ok(bytes <= 2048, `teto real: ${bytes} <= 2048`);
+  assert.ok(result!.startsWith(`magnet:?xt=urn:btih:${HASH_A}`), 'xt preservado');
+  const floor = defaultMagnet(HASH_A).slice(`magnet:?xt=urn:btih:${HASH_A}`.length);
+  assert.ok(result!.endsWith(floor), 'piso de trackers entra por inteiro');
+  const dnValue = result!.match(/[?&]dn=([^&]*)/);
+  assert.ok(dnValue, 'dn truncado permanece presente');
+  assert.doesNotThrow(() => decodeURIComponent(dnValue![1]), 'dn truncado é decodificável (URI válida)');
+  assert.ok(!result!.includes('custom.tracker'), 'sem bytes sobrando, o tracker do post cede ao piso');
+});
+
+test('sanitizeMagnet: tracker grande demais não bloqueia um menor depois', () => {
+  // Caminho longo de segmentos curtos: passa na regra de credencial (nada de
+  // 16+ chars por segmento) mas não cabe no teto — o `continue` tenta o próximo.
+  const big = `udp://big.tracker.example:1337/${'aa/'.repeat(1000)}announce`;
+  const small = 'udp://small.tracker.example:1337/announce';
+  const uri = `magnet:?xt=urn:btih:${HASH_A}&dn=Big.Then.Small&tr=${encodeURIComponent(big)}&tr=${encodeURIComponent(small)}`;
+  const result = sanitizeMagnet(uri, HASH_A);
+  assert.ok(result, 'deve guardar');
+  assert.ok(!result!.includes('big.tracker.example'), 'grande demais não entra');
+  assert.ok(result!.includes('small.tracker.example'), 'o menor seguinte entra (continue, não break)');
+  assert.ok(Buffer.byteLength(result!, 'utf8') <= 2048, 'teto respeitado');
+});
+
+test('sanitizeMagnet: hash só vale no xt=urn:btih, não em outro parâmetro', () => {
+  const clean = encodeURIComponent('udp://custom.tracker.org:1337/announce');
+  // `dn=btih:<hash da chave>` com `xt` apontando para OUTRO hash: o xt manda e
+  // o `dn` não pode forjar a identidade (o extrator genérico aceitaria o do dn).
+  const forged = `magnet:?dn=btih:${HASH_A}&xt=urn:btih:${HASH_B}&tr=${clean}`;
+  assert.equal(sanitizeMagnet(forged, HASH_A), null, 'btih no dn não pode forjar o hash do xt');
+  // Sem nenhum `xt=urn:btih`, um btih solto em outro parâmetro não é magnet.
+  const noXt = `magnet:?dn=btih:${HASH_A}&xs=btih:${HASH_A}&tr=${clean}`;
+  assert.equal(sanitizeMagnet(noXt, HASH_A), null, 'sem xt=urn:btih não há magnet');
+  // xt de outro esquema também não conta.
+  const ed2k = `magnet:?xt=urn:ed2k:${HASH_A}&dn=Test&tr=${clean}`;
+  assert.equal(sanitizeMagnet(ed2k, HASH_A), null, 'xt de outro esquema não é btih');
+  // Controle positivo: xt correto é aceito mesmo com lixo btih no dn.
+  const ok = `magnet:?dn=btih:${HASH_A}&xt=urn:btih:${HASH_A}&tr=${clean}`;
+  const result = sanitizeMagnet(ok, HASH_A);
+  assert.ok(result, 'xt correto deve ser aceito');
+  assert.ok(result!.includes('custom.tracker'), 'tracker limpo preservado');
 });

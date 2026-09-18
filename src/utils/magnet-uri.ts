@@ -7,21 +7,26 @@
  * alive/bad/lie) segue intacto e separado.
  *
  * Contrato de segurança e qualidade:
- * - Só aceita `magnet:?` cujo btih bate com o hash da chave. A normalização
- *   (hex 40 / base32 32) vem do MESMO `extractInfoHash` do resto do código,
- *   então a chave guardada casa com a que o play consulta.
- * - Rejeita trackers que carreguem credencial: parâmetros conhecidos
- *   (passkey/authkey/auth/torrent_pass/pid/key/uid/secure) e QUALQUER
- *   segmento de caminho ou valor de query alfanumérico de 16+ chars — cobre
- *   a passkey tanto DEPOIS (`/announce/<token>`) quanto ANTES
- *   (`/<token>/announce`) do announce. O host é ignorado.
+ * - Só aceita `magnet:?` cujo `xt=urn:btih:` bate com o hash da chave. A
+ *   fonte é SÓ o `xt=`: hash que apareça em `dn`/`xs`/outro parâmetro não
+ *   forja a identidade (o `extractInfoHash` genérico aceitava `btih:` em
+ *   qualquer ponto da string). A normalização (hex 40 / base32 32) vem do
+ *   MESMO `extractInfoHash` do resto do código.
+ * - Rejeita trackers que carreguem credencial: parâmetros nomeados
+ *   (passkey/authkey/auth_key/token/auth/torrent_pass/apikey/pid/key/uid/
+ *   secure) com QUALQUER valor — curto ou não alfanumérico inclusive — e
+ *   QUALQUER segmento de caminho ou valor de query com 16+ chars de
+ *   `[A-Za-z0-9_-]`. O `-`/`_` cobre passkey/token reais e UUID, tanto
+ *   DEPOIS (`/announce/<token>`) quanto ANTES (`/<token>/announce`) do
+ *   announce. O host é ignorado: rótulo de domínio não é segredo.
  * - Remonta a URI só com `xt`, `dn` e `tr`; `xs`/`as`/`ws` nunca são lidos,
  *   então ficam de fora sem precisar descartar o resto do magnet.
  * - Mantém o conjunto padrão de `TRACKERS` como PISO (a URI guardada nunca
- *   fica abaixo do que `magnetFor` mandaria) e põe os trackers do post À
- *   FRENTE no corte de 2048 bytes: o que se perde no teto é público (o
- *   `magnetFor` recoloca no play), nunca o tracker específico do post — que
- *   é justamente a razão de existir do `muri`.
+ *   fica abaixo do que `magnetFor` mandaria) e impõe um teto REAL de
+ *   `MAX_URI_BYTES`: `xt` e o piso entram por inteiro, o `dn` que não couber
+ *   é truncado em limite de code point (re-codificado, sem partir `%XX` nem
+ *   UTF-8) ou omitido, e os trackers do post preenchem o resto — um tracker
+ *   grande demais é pulado para tentar um menor adiante.
  * - Devolve `null` se o resultado equivale ao `magnetFor(hash)` (não vale
  *   guardar o que dá para recalcular).
  */
@@ -47,43 +52,96 @@ function byteLength(s: string): number {
   return Buffer.byteLength(s, 'utf8');
 }
 
+// Nomes de parâmetro que carregam credencial. O valor não importa: a
+// presença do nome já é a prova, então `token=x` e `passkey=!@#` saem igual.
+// `token`/`auth_key` são tão comuns quanto `passkey` em tracker privado.
+const CREDENTIAL_PARAM = /[?&](?:passkey|pass_key|authkey|auth_key|token|torrent_pass|apikey|api_key|auth|pid|key|uid|secure)=/i;
+
+// Segredo genérico: 16+ chars de [A-Za-z0-9_-]. O `-`/`_` são essenciais —
+// passkey/token reais e UUID usam ambos; sem eles o segredo escapava.
+const LONG_TOKEN = /^[A-Za-z0-9_-]{16,}$/;
+
 /**
- * Um tracker carrega credencial se nomeia um parâmetro de chave privado ou
- * traz, em qualquer segmento de caminho ou valor de query, uma palavra
- * alfanumérica de 16+ chars (o formato usual de passkey, antes OU depois do
- * /announce). O host é ignorado: rótulos de domínio legítimos não são segredo.
+ * Um tracker carrega credencial se nomeia um parâmetro privado conhecido ou
+ * traz, em qualquer segmento de caminho ou valor de query, 16+ chars de
+ * [A-Za-z0-9_-] (formato usual de passkey/UUID, antes OU depois do
+ * /announce). O host é ignorado: rótulo de domínio legítimo não é segredo.
  * Falso-positivo custa só um tracker público a mais cortado, e o piso de
  * TRACKERS garante que nunca ficamos abaixo do magnetFor.
  */
 function trackerHasCredential(tr: string): boolean {
   const decoded = safeDecode(tr);
-  if (/[?&](passkey|authkey|auth|torrent_pass|pid|key|uid|secure)=/i.test(decoded)) return true;
+  if (CREDENTIAL_PARAM.test(decoded)) return true;
   const pathAndQuery = decoded.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, ''); // fora scheme://host[:porta]
   const [path, query = ''] = pathAndQuery.split(/[?#]/);
-  const longToken = /^[a-zA-Z0-9]{16,}$/;
-  for (const seg of path.split('/')) if (longToken.test(seg)) return true;
+  for (const seg of path.split('/')) if (LONG_TOKEN.test(seg)) return true;
   for (const kv of query.split('&')) {
     const eq = kv.indexOf('=');
-    if (longToken.test(eq < 0 ? kv : kv.slice(eq + 1))) return true;
+    if (LONG_TOKEN.test(eq < 0 ? kv : kv.slice(eq + 1))) return true;
   }
   return false;
 }
 
 /**
- * Sanitiza a URI de magnet: valida o hash, remove credenciais, deduplica e
- * remonta com xt/dn/tr (piso de TRACKERS garantido, trackers do post à frente
- * no corte). Devolve null se equivaler ao magnet padrão.
+ * Extrai o hash SÓ de `xt=urn:btih:`. O `extractInfoHash` aceita `btih:` em
+ * qualquer ponto da string, o que deixava `dn=btih:<hash>` forjar a
+ * identidade; aqui o parâmetro `xt` é a única fonte, e um `xt` de outro
+ * esquema (ed2k, sha1) não conta.
+ */
+function btihFromXt(raw: string): string | null {
+  for (const m of raw.matchAll(/[?&]xt=([^&]+)/gi)) {
+    const value = safeDecode(m[1]);
+    if (!/^urn:btih:/i.test(value)) continue;
+    const hash = extractInfoHash(value);
+    if (hash) return hash;
+  }
+  return null;
+}
+
+/**
+ * Ajusta o `dn=` (já percent-encoded na URI crua) ao teto de bytes. Se cabe
+ * inteiro, mantém o encoding original. Se não, decodifica e re-codifica por
+ * code point até o limite — assim o corte nunca parte um `%XX` nem um
+ * caractere multibyte, e o `decodeURIComponent` do resultado continua
+ * válido. `dn` com escape quebrado é omitido: melhor sem o nome do que com
+ * uma URI inválida.
+ */
+function fitDn(encoded: string, maxBytes: number): string {
+  if (byteLength(encoded) <= maxBytes) return encoded;
+  if (maxBytes <= 0) return '';
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(encoded);
+  } catch {
+    return '';
+  }
+  let out = '';
+  let used = 0;
+  for (const cp of decoded) {
+    const piece = encodeURIComponent(cp);
+    const bytes = byteLength(piece);
+    if (used + bytes > maxBytes) break;
+    out += piece;
+    used += bytes;
+  }
+  return out;
+}
+
+/**
+ * Sanitiza a URI de magnet: valida o hash pelo `xt`, remove credenciais,
+ * deduplica e remonta com xt/dn/tr sob teto real de `MAX_URI_BYTES` (piso de
+ * TRACKERS garantido, trackers do post preenchendo o resto). Devolve null se
+ * equivaler ao magnet padrão.
  */
 function sanitizeMagnet(uri: string, hash: string): string | null {
   const raw = String(uri || '').trim();
   if (!raw.startsWith('magnet:?')) return null;
 
-  // Hash canônico (40 hex) pelo MESMO extrator do resto do código.
-  const btih = extractInfoHash(raw);
+  // Hash canônico (40 hex) lido SÓ do xt, pelo MESMO extrator do resto do código.
+  const btih = btihFromXt(raw);
   if (!btih || btih !== String(hash).toLowerCase()) return null;
 
   const dnMatch = raw.match(/[?&]dn=([^&]*)/i);
-  const dn = dnMatch ? `&dn=${dnMatch[1]}` : '';
 
   // Trackers do post: sem credencial, deduplicados, e sem os que já estão no
   // piso (o piso é acrescentado por inteiro no fim, então um tracker igual a
@@ -101,18 +159,32 @@ function sanitizeMagnet(uri: string, hash: string): string | null {
   }
 
   // Piso garantido: reserva os bytes do floor (poucos, todos /announce) e
-  // preenche o resto do teto com os trackers do post. Se algum não couber, é
-  // ele que sai — o floor entra por inteiro e sempre igual ao defaultMagnet.
-  const head = `magnet:?xt=urn:btih:${btih}${dn}`;
+  // divide o resto do teto entre `dn` e trackers do post. O corte é por BYTE
+  // (o teto é real, não contagem de chars) e o `dn` é o primeiro a ceder.
+  const xt = `magnet:?xt=urn:btih:${btih}`;
   const floor = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join('');
-  const budget = MAX_URI_BYTES - byteLength(head) - byteLength(floor);
+  let available = MAX_URI_BYTES - byteLength(xt) - byteLength(floor);
+
+  let dn = '';
+  if (dnMatch) {
+    const value = fitDn(dnMatch[1], Math.max(0, available - '&dn='.length));
+    // `dn=` vazio original é preservado; truncado até zero vira omissão.
+    if (value.length > 0 || dnMatch[1].length === 0) {
+      dn = `&dn=${value}`;
+      available -= byteLength(dn);
+    }
+  }
+
   let extra = '';
   for (const tr of postTrackers) {
     const piece = `&${tr}`;
-    if (byteLength(extra) + byteLength(piece) > budget) break;
+    // Tracker grande demais não bloqueia um menor depois: segue tentando.
+    if (byteLength(piece) > available) continue;
     extra += piece;
+    available -= byteLength(piece);
   }
-  const result = `${head}${extra}${floor}`;
+
+  const result = `${xt}${dn}${extra}${floor}`;
 
   // Equivale ao que magnetFor já mandaria (nenhum dn, nenhum tracker extra)?
   // Então não vale guardar.
