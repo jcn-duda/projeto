@@ -1,13 +1,12 @@
-// Testes do namespace `muri:v1:<hash>`: URI de magnet guardada por hash para
-// reutilizar no play/enqueue do debrid. A URI é do TORRENT, não da credencial
-// — a chave NÃO leva conta/adapter. O `mag` (evidência alive/bad/lie) segue
-// separado e intacto.
+// Testes das regras PURAS de magnet-uri: sanitização da URI do post (valida o
+// hash pelo xt, remove credencial, monta com piso de trackers sob teto) e o
+// magnet padrão. A GRAVAÇÃO/LEITURA por hash deixou de ser namespace de cache
+// e vive no banco permanente (`test/magnet-bank*.test.ts`); o play é coberto
+// por `test/magnet-for-play.test.ts`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import * as cache from '../src/utils/cache.js';
-import { prefix } from '../src/utils/cache-keys.js';
-import { sanitizeMagnet, rememberMagnets, rememberMagnetsFromItems, peekMagnet, defaultMagnet } from '../src/utils/magnet-uri.js';
+import { sanitizeMagnet, defaultMagnet } from '../src/utils/magnet-uri.js';
 
 const HASH_A = 'a'.repeat(40);
 const HASH_B = 'b'.repeat(40);
@@ -134,77 +133,11 @@ test('sanitizeMagnet: deduplica trackers', () => {
   assert.ok(trCount >= 1, 'deve ter pelo menos um tracker');
 });
 
-test('rememberMagnets + peekMagnet: round-trip funciona', () => {
-  const base = prefix('muri');
-  const key = `${base}${HASH_A}`;
-  // Limpa qualquer estado anterior
-  cache.forget(key);
-
-  const uri = magnetWithDn(HASH_A, 'Test.Movie.2024', ['udp://custom.tracker.org:1337/announce']);
-  rememberMagnets([{ hash: HASH_A, magnet: uri }]);
-
-  const peeked = peekMagnet(HASH_A);
-  assert.ok(peeked, 'peekMagnet deve retornar a URI guardada');
-  assert.ok(peeked!.includes('dn='), 'URI guardada deve conter dn=');
-  assert.ok(peeked!.includes('custom.tracker'), 'URI guardada deve conter tracker customizado');
-
-  // Limpa
-  cache.forget(key);
-});
-
-test('peekMagnet: retorna null para hash ausente', () => {
-  const result = peekMagnet('c'.repeat(40));
-  assert.equal(result, null);
-});
-
-test('peekMagnet: retorna null para hash vazio', () => {
-  assert.equal(peekMagnet(''), null);
-  assert.equal(peekMagnet(null as any), null);
-});
-
-test('rememberMagnets: ignora entradas sem magnet', () => {
-  const before = peekMagnet(HASH_B);
-  rememberMagnets([{ hash: HASH_B, magnet: null }, { hash: HASH_B, magnet: '' }, { hash: '', magnet: 'magnet:?xt=urn:btih:abc' }]);
-  const after = peekMagnet(HASH_B);
-  assert.equal(after, before, 'entradas inválidas não devem gravar');
-});
-
-test('rememberMagnets: ignora entradas com magnet inválido', () => {
-  rememberMagnets([{ hash: HASH_A, magnet: 'http://notamagnet.com' }]);
-  // Não deve ter gravado nada
-  const base = prefix('muri');
-  const key = `${base}${HASH_A}_invalid_test`;
-  // O hash A pode ter sido gravado por outro teste, mas não com esta URI inválida
-  const peeked = peekMagnet(HASH_A);
-  // Se houver algo, não deve ser a URI inválida
-  if (peeked) {
-    assert.ok(!peeked.includes('notamagnet'), 'URI inválida não deve ser guardada');
-  }
-});
-
 test('defaultMagnet: formato correto', () => {
   const result = defaultMagnet(HASH_A);
   assert.ok(result.startsWith('magnet:?xt=urn:btih:'));
   assert.ok(result.includes(HASH_A));
   assert.ok(result.includes('&tr='));
-});
-
-test('rememberMagnetsFromItems: deriva hash do MagnetUri e ignora item sem magnet', () => {
-  const hash = 'f'.repeat(40);
-  const base = prefix('muri');
-  cache.forget(`${base}${hash}`);
-  const uri = magnetWithDn(hash, 'Extra.Show.S01E01', ['udp://extra.tracker.org:1337/announce']);
-  rememberMagnetsFromItems([
-    { MagnetUri: uri }, // hash vem do btih dentro da URI
-    { infoHash: 'e'.repeat(40) }, // sem magnet -> ignorado
-    {}, // vazio
-  ]);
-  const peeked = peekMagnet(hash);
-  assert.ok(peeked, 'URI via MagnetUri deve ser guardada sob o hash extraído');
-  assert.ok(peeked!.includes('Extra.Show'), 'dn preservado');
-  assert.ok(peeked!.includes('extra.tracker'), 'tracker extra do post preservado');
-  assert.equal(peekMagnet('e'.repeat(40)), null, 'item sem magnet não grava');
-  cache.forget(`${base}${hash}`);
 });
 
 // --- Lacunas da revisão da etapa 1 -----------------------------------------

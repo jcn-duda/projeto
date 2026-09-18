@@ -17,9 +17,6 @@ export const magnetDb = () => ({
   // promessa de áudio PT no post. É evidência própria, por conta.
   lieEnabled: String(process.env.MAGNET_LIE || 'true') === 'true',
   lieTtl: num(process.env.MAGNET_LIE_TTL, 7 * 24 * 3600),
-  // TTL da URI de magnet guardada por hash (`muri:v1`). 14 dias default,
-  // renovado a cada aparição do hash em busca. 0 desliga a gravação.
-  uriTtl: num(process.env.MAGNET_URI_TTL, 14 * 24 * 3600),
 });
 
 // Listas calibráveis sem deploy. Ausência de PT nunca condena sozinha: o

@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { TRACKERS } from '../utils/format.js';
 import * as log from '../utils/logger.js';
-import { peekMagnet } from '../utils/magnet-uri.js';
+import * as magnetBank from '../utils/magnet-bank.js';
 export {
   WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError,
   NoVideoError, isNoVideoError, DubLieError, isDubLieError,
@@ -19,12 +19,19 @@ function magnetFor(infoHash: string) {
 }
 
 /**
- * URI para play/enqueue: prefere a guardada (com dn= e trackers do post),
- * cai no magnet padrão se ausente. A URI guardada ajuda em torrent frio
- * raro (trackers do post podem ter pares adicionais).
+ * URI para play/enqueue: prefere a do banco permanente (`utils/magnet-bank.ts`),
+ * que guarda a URI do post (dn= e trackers do tracker) e ajuda em torrent frio
+ * raro. Cai no magnet padrão se o banco estiver desligado, sem aquele hash ou
+ * falhar — a leitura do banco nunca pode derrubar o play.
  */
 function magnetForPlay(infoHash: string): string {
-  return peekMagnet(infoHash) || magnetFor(infoHash);
+  try {
+    const stored = magnetBank.lookup(infoHash)?.uri;
+    if (stored) return stored;
+  } catch (err: unknown) {
+    log.warn('[debrid] leitura do banco de magnets falhou, usando magnet padrão:', log.errorMessage(err));
+  }
+  return magnetFor(infoHash);
 }
 
 /**

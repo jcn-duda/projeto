@@ -1,10 +1,10 @@
 /**
- * URI de magnet por hash — namespace `muri:v1:<hash>`.
+ * Magnet URI do post — sanitização e montagem do magnet padrão.
  *
- * Guarda a URI original do post (com `dn=` e trackers do tracker) para
- * reutilizar no play/enqueue do debrid. A URI é do TORRENT, não da
- * credencial — a chave NÃO leva conta/adapter. O `mag` (evidência
- * alive/bad/lie) segue intacto e separado.
+ * A URI ORIGINAL do post (com `dn=` e trackers do tracker) é guardada no banco
+ * permanente (`utils/magnet-bank.ts`), que não tem TTL nem cota. Aqui ficam só
+ * as regras PURAS que o banco usa ao gravar: validar/reconstruir a URI e montar
+ * o magnet padrão de fallback.
  *
  * Contrato de segurança e qualidade:
  * - Só aceita `magnet:?` cujo `xt=urn:btih:` bate com o hash da chave. A
@@ -27,12 +27,9 @@
  *   é truncado em limite de code point (re-codificado, sem partir `%XX` nem
  *   UTF-8) ou omitido, e os trackers do post preenchem o resto — um tracker
  *   grande demais é pulado para tentar um menor adiante.
- * - Devolve `null` se o resultado equivale ao `magnetFor(hash)` (não vale
+ * - Devolve `null` se o resultado equivale ao `defaultMagnet(hash)` (não vale
  *   guardar o que dá para recalcular).
  */
-import * as cache from './cache.js';
-import { prefix } from './cache-keys.js';
-import config from '../config.js';
 import { TRACKERS } from './search-names.js';
 import { extractInfoHash } from './title-normalization.js';
 
@@ -192,66 +189,4 @@ function sanitizeMagnet(uri: string, hash: string): string | null {
   return result;
 }
 
-/**
- * Grava URIs sanitizadas em lote. Entradas sem magnet válido são ignoradas.
- * Renovação barata: pula a escrita quando a URI guardada já é exatamente esta
- * e o TTL restante ainda passa da metade — evita tocar o cache.db a cada busca
- * pelo mesmo título. Só regrava quando o valor mudou ou o TTL azedou.
- */
-function rememberMagnets(entries: Array<{ hash: string; magnet: string | undefined | null }>) {
-  const ttl = config.magnetDb?.uriTtl ?? 14 * 24 * 3600;
-  if (ttl <= 0) return;
-  const base = prefix('muri');
-  const toSet: Array<{ key: string; value: string; ttlSeconds: number }> = [];
-  for (const { hash, magnet } of entries) {
-    if (!hash || !magnet) continue;
-    const sanitized = sanitizeMagnet(magnet, hash);
-    if (!sanitized) continue;
-    const key = `${base}${hash.toLowerCase()}`;
-    if (cache.peek(key) === sanitized) {
-      const remaining = cache.peekRemaining(key);
-      if (remaining != null && remaining > ttl / 2) continue;
-    }
-    toSet.push({ key, value: sanitized, ttlSeconds: ttl });
-  }
-  if (toSet.length > 0) cache.setMany(toSet);
-}
-
-/**
- * Lê a URI guardada para o hash. Sem efeito colateral (não promove LRU,
- * não conta hit/miss). Devolve null se ausente ou expirada.
- */
-function peekMagnet(hash: string): string | null {
-  if (!hash) return null;
-  const base = prefix('muri');
-  const value = cache.peek(`${base}${hash.toLowerCase()}`);
-  return typeof value === 'string' ? value : null;
-}
-
-/** Campos de um item bruto de post que carregam a URI de magnet. */
-type MagnetCarrier = {
-  infoHash?: string | null;
-  magnet?: string | null;
-  MagnetUri?: string | null;
-  Guid?: unknown;
-};
-
-/**
- * Captura em lote as URIs de magnet de uma leva de itens brutos, chaveadas
- * pelo mesmo hash que `toStremioStream` usa (`extractInfoHash` sobre
- * infoHash/magnet/MagnetUri/Guid). Existe para o chamador só precisar de uma
- * linha — a coleta por item e o `rememberMagnets` em lote ficam aqui. Item sem
- * hash ou sem magnet utilizável é ignorado.
- */
-function rememberMagnetsFromItems(items: readonly MagnetCarrier[]): void {
-  const entries: Array<{ hash: string; magnet: string }> = [];
-  for (const it of items) {
-    const guidStr = typeof it.Guid === 'string' ? it.Guid : '';
-    const hash = extractInfoHash(it.infoHash || it.magnet || it.MagnetUri || guidStr || '');
-    const magnet = it.magnet || it.MagnetUri || (guidStr.startsWith('magnet:') ? guidStr : '');
-    if (hash && magnet) entries.push({ hash: String(hash), magnet: String(magnet) });
-  }
-  if (entries.length > 0) rememberMagnets(entries);
-}
-
-export { sanitizeMagnet, rememberMagnets, rememberMagnetsFromItems, peekMagnet, defaultMagnet };
+export { sanitizeMagnet, defaultMagnet };

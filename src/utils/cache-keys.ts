@@ -122,18 +122,16 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // Resolução medida no cabeçalho do vídeo, por arquivo
   // (`vres:v1:<hash>:<digest do caminho>`, registro `{ q, w, h }`).
   vres: 'v1',
-  // URI de magnet original do post, por hash (`muri:v1:<hash>`). Sem conta
-  // na chave: a URI é do torrent, não da credencial. TTL de 14 dias renovado
-  // a cada aparição do hash em busca. Não leva evidência alive/bad/lie (isso
-  // é o `mag` separado).
-  muri: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e
 // `dinv1:` eram a versão colada no nome (sem `<ns>:<versão>:`); ao migrar para
 // `raw:v1:` / `dinv:v1:` os antigos virariam namespaces órfãos ocupando a cota
-// padrão para sempre.
-const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:']);
+// padrão para sempre. `muri:` é a aposentadoria da URI por hash no cache: o
+// dono do dado passou a ser o banco permanente (`utils/magnet-bank.ts`), e o
+// prefixo legado é descartado no boot por aqui — sair de `NAMESPACE_VERSIONS`
+// sozinho NÃO limpa o que já está no disco.
+const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:', 'muri:']);
 
 const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSIONS[ns]}:`;
 

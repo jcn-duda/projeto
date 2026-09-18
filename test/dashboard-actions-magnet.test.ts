@@ -1,17 +1,24 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
+import fs from 'node:fs';
 process.env.CACHE_PERSIST = 'false';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as bank from '../src/utils/magnet-bank.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { createTestServer } from './e2e/e2e-harness.js';
 
 // Fase 3: ações magnet-inspect / magnet-clear-bad / magnet-summary do
 // /dashboard-action.json. Semeia o banco de magnets por chaves reais
 // (markAlive/markBad/markLie) e verifica enumeração do L1, filtros, teto,
-// idempotência do clear-bad e ausência de credencial/digest no payload.
+// idempotência do clear-bad e ausência de credencial/digest no payload. A URI
+// de cada item vem do banco PERMANENTE (`magnet-bank`), não mais do extinto
+// namespace `muri`.
+const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'dash-magnet-'));
 
 const TOKEN = 'tok-magnetdb';
 const API_KEY = 'chave-secreta-do-operador-nao-vazar';
@@ -21,6 +28,7 @@ const HASH_BAD_1 = 'b'.repeat(40);
 const HASH_BAD_2 = 'c'.repeat(40);
 const HASH_LIE = 'd'.repeat(40);
 const HASH_BAD_OUTRO = 'e'.repeat(40);
+const BANK_DN = 'URI.Do.Posto.2024.1080p';
 
 let server: any;
 const saved: Record<string, any> = {};
@@ -33,20 +41,34 @@ function seed() {
   magnetdb.markBad('magfake2', API_KEY, HASH_BAD_OUTRO);
 }
 
+/** Só HASH_BAD_1 tem URI no banco: prova que a view vê o banco por hash. */
+function seedBank() {
+  bank.resetForTests();
+  bank.open(FRESH_DIR(), { forceMemory: true });
+  config.magnetBank.enabled = true;
+  const magnet = `magnet:?xt=urn:btih:${HASH_BAD_1}&dn=${encodeURIComponent(BANK_DN)}&tr=${encodeURIComponent('udp://custom.tracker.org:1337/announce')}`;
+  bank.captureItems([{ infoHash: HASH_BAD_1, magnet, title: 'URI do posto' }], ADAPTER, {});
+  bank.flushNow();
+}
+
 before(async () => {
   saved.enabled = config.magnetDb.enabled;
   saved.lieEnabled = config.magnetDb.lieEnabled;
   saved.testToken = config.jackett.testToken;
+  saved.bankEnabled = config.magnetBank.enabled;
   config.magnetDb.enabled = true;
   config.magnetDb.lieEnabled = true;
+  seedBank();
 
   server = await createTestServer(createApp().app);
 });
 
 after(async () => {
   await server.close();
+  bank.resetForTests();
   config.magnetDb.enabled = saved.enabled;
   config.magnetDb.lieEnabled = saved.lieEnabled;
+  config.magnetBank.enabled = saved.bankEnabled;
   config.jackett.testToken = saved.testToken;
 });
 
@@ -76,12 +98,15 @@ test('magnet-inspect lista entradas do L1 sem vazar chave nem digest de conta', 
     assert.ok(!raw.includes(accountScope(API_KEY)), 'accountScope não aparece no payload');
 
     const bad = res.json.items.find((i: any) => i.hash === HASH_BAD_1);
-    // `magnet` é a URI guardada no namespace muri (null quando ausente/expirada);
+    // `magnet` é a URI do banco permanente (null quando o hash não está lá);
     // sempre presente na view, por isso integra a forma esperada.
     assert.deepEqual(Object.keys(bad).sort(), ['adapterId', 'hash', 'magnet', 'side', 'ttlRemainingSeconds']);
     assert.equal(bad.side, 'bad');
     assert.equal(bad.adapterId, ADAPTER);
     assert.equal(bad.ttlRemainingSeconds > 0, true);
+    assert.ok(bad.magnet && bad.magnet.includes('dn='), 'URI vem do banco permanente');
+    const semBanco = res.json.items.find((i: any) => i.hash === HASH_BAD_2);
+    assert.equal(semBanco.magnet, null, 'hash fora do banco devolve magnet null');
   } finally {
     cache.clear();
     config.jackett.testToken = '';

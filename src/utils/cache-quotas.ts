@@ -15,8 +15,9 @@
 // `__default` (500) para todo nome sem entrada própria, então cada namespace
 // que exista em `NAMESPACE_VERSIONS` sem cota nomeada soma mais 500 aqui. O
 // universo real é a união dos dois registros, mais o balde `__default` das
-// chaves sem `:`. Hoje: 110.721 + 500 = 111.221 entradas alcançáveis contra o
-// teto de 113.000 — folga de 1.779. A conta é refeita no teste
+// chaves sem `:`. Hoje: 90.721 + 500 = 91.221 entradas alcançáveis contra o
+// teto de 93.000 — folga de 1.779, ~3 baldes de 500 de namespaces novos antes
+// de o teto virar o garrote. A conta é refeita no teste
 // (test/cache-namespaces.test.ts), que também exige cota explícita para todo
 // namespace versionado. Foi a falta dessa segunda guarda que deixou `dinv`,
 // `harvest`, `notify` e `seed` vivendo de fallback até a soma real passar do
@@ -47,7 +48,7 @@
 // (src/utils/cache-db.ts:113-114) apaga todo `ns:%` que não bata com
 // `ns:<versão>:%`. Registrá-los na lista sem migrar as chaves primeiro custa o
 // cache deles no próximo restart.
-export const MAX_ENTRIES = 113000;
+export const MAX_ENTRIES = 93000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -133,10 +134,6 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Resolução medida no cabeçalho do vídeo por arquivo (`vres:v1`): registro
   // minúsculo `{ q, w, h }`, uma entrada por arquivo que o play tocaria.
   vres: 1000,
-  // URI de magnet original do post por hash (`muri:v1:<hash>`): string
-  // sanitizada com `dn=` e trackers do tracker (sem credenciais). ~1 KB por
-  // entrada, 20.000 ≈ 20 MB no pior caso. Não leva conta/adapter de propósito.
-  muri: 20000,
   // Estes quatro existiam em `NAMESPACE_VERSIONS` sem entrada própria e
   // pagavam o fallback de 500 cada — foi o buraco que estourou o teto (conta
   // no cabeçalho). População medida no L2 em 2026-09-17: 0 / 0 / 2 / 2.

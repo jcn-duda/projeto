@@ -109,7 +109,9 @@ export function createPersistence() {
       // Versão de namespace é fonte única (cache-keys.js): apaga no banco, ANTES de
       // listar, tudo que não bate com a versão corrente — é mais barato apagar do
       // que carregar para descartar em JS, e a versão morta não ocupa cota até
-      // expirar. Prefixos aposentados (raw1:/dinv1:) somem do mesmo jeito no boot.
+      // expirar. Prefixos aposentados (raw1:/dinv1:/muri:) somem do mesmo jeito
+      // no boot — o `muri` só sai de `NAMESPACE_VERSIONS`, então o descarte
+      // depende desta passada de LEGACY_PREFIXES.
       for (const [ns, version] of Object.entries(NAMESPACE_VERSIONS)) {
         deleteStaleStmt.run(`${ns}:%`, `${ns}:${version}:%`);
       }
