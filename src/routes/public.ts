@@ -72,6 +72,8 @@ const CLIENT_ASSETS = [
   'client/painel/view-diagnostico.js',
   'client/painel/view-diagnostico-indexer.js',
   'client/painel/view-magnets.js',
+  'client/painel/bank-model.js',
+  'client/painel/view-magnet-bank.js',
   'client/painel/limpeza/catalogo-model.js',
   'client/painel/limpeza/view-catalogo.js',
   'client/painel/limpeza/view-manutencao.js',

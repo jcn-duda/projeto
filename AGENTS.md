@@ -466,8 +466,8 @@ declarar `true` sem endpoint funcional é o pior dos mundos.
 | Real-Debrid | ⚠️ dinâmico | `rdLedger.enabled && rdOracle.available()`. Com as duas, o `current()` do registry devolve `true` num clone; senão `false` (sem consulta; o play adiciona o magnet) |
 | Debrid-Link | `false` | idem |
 
-**Banco de magnets (`src/utils/magnetdb.ts`).** Histórico durável POR HASH,
-escopado por serviço+conta (`mag:v1:<lado>:<adapterId>:<sha256(apiKey)>:<hash>`) —
+**Banco de magnets por conta (`src/utils/magnetdb.ts`).** Histórico durável POR
+HASH, escopado por serviço+conta (`mag:v1:<lado>:<adapterId>:<sha256(apiKey)>:<hash>`) —
 nunca vaza credencial, não cruza contas. `magnetdb.ts` é a fachada; a família
 tem `magnetdb-persist.ts` (contadores, agregado `mag_meta`, hook `onForget`,
 `ttlRemainingBasis`), `magnetdb-counts.ts` (parse da chave + `rebuildFromL1`) e
@@ -531,34 +531,122 @@ distintas e as métricas (`magnetdb.dropped.bad` / `magnetdb.dropped.dead`)
 separam para o diagnóstico não culpar o lado errado. Unificar só se um
 terceiro consumidor aparecer.
 
-**URI do magnet por hash (`src/utils/magnet-uri.ts`, namespace `muri`).** Não é
-evidência nem histórico de conta: a chave é `muri:v1:<hash>` (40-hex minúsculo,
-**sem** adapter/`accountScope` — a URI é do torrent, não da credencial) e o valor
-é a URI original do post (`dn=` + trackers), sanitizada. Alimenta só o play:
-`magnetForPlay(hash)` (`common.ts`) devolve `peekMagnet(hash) || magnetFor(hash)`,
-e os adaptadores que mandam URI ao serviço (Real-Debrid, TorBox, Premiumize,
-Debrid-Link) chamam ela no `resolveLink`/`enqueue` em vez de refazer o magnet cru
-— assim o debrid recebe os trackers do próprio post e um torrent frio com poucos
-seeds ganha vida. A **AllDebrid não usa**: seu `cacheCheck` é upload do HASH, não
-da URI, e enriquecer o magnet ali chega tarde (a checagem já criou o torrent).
-A sanitização é defensiva e **nunca piora o fallback**: a URI é remontada só com
-`xt`/`dn`/`tr` (então `xs`/`as`/`ws` ficam de fora sem descartar o resto), remove
-trackers com credencial — nomes conhecidos (`passkey`/`authkey`/`auth`/
-`torrent_pass`/`pid`/`key`/`uid`/`secure`) **e** qualquer segmento de caminho ou
-valor de query alfanumérico de 16+ chars (cobre a passkey antes **ou** depois do
-`/announce`; o host é ignorado) — e mantém o conjunto padrão de `TRACKERS` como
-**piso**, com os trackers do post **à frente** no corte de 2048 bytes: o que se
-perde no teto é público (o `magnetFor` recoloca), nunca o tracker específico do
-post. Devolve `null` quando o resultado equivale ao padrão, então a gravação só
-ocorre quando há `dn=` ou tracker extra real (não se guarda o recalculável). A
-captura é no `buildStreams` (`stream-builder.ts`), lendo o `rawInput` (cobre até
-item que o filtro de título corta) e gravando em lote via
-`rememberMagnetsFromItems` → `rememberMagnets`, que **pula a reescrita** quando a
-URI já é a mesma e o TTL restante passa da metade (renovação barata, sem tocar o
-`cache.db` a cada busca). TTL `MAGNET_URI_TTL` (default 14 dias, `0` desliga a
-gravação); cota `muri` 20.000 (~1 KB/entrada), que empurrou o teto global de
-93.000 para 113.000. O painel (`magnetdb-inspect.ts` → aba de magnets) expõe a URI
-na coluna **Magnet URI** (truncada com botão copiar).
+**Banco de magnets VIVO (`src/utils/magnet-bank.ts`).** Clone PERMANENTE de tudo
+que o Jackett devolveu — o site some, o acervo fica. É irmão, não sinônimo, do
+`magnetdb` acima: aquele é histórico POR CONTA (`mag:alive/bad/lie`, com TTL e
+cota), este é o acervo PÚBLICO por hash, sem credencial, sem TTL, sem cota e sem
+versão de namespace. Alimenta duas coisas: a URI rica do play (via
+`magnetForPlay`, abaixo) e o fallback quando o indexer falha (Etapa 4). A
+`magnetForPlay(hash)` (`common.ts`) lê o banco (`magnet-bank.lookup`) e cai no
+`magnetFor` quando o banco está desligado, não tem o hash ou falha — a leitura
+nunca derruba o play. Os adaptadores que mandam URI ao serviço (Real-Debrid,
+TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
+**AllDebrid não usa**: seu `cacheCheck` é upload do HASH, não da URI.
+
+- **Armazenamento próprio.** SQLite em `data/magnets.db` (`MAGNET_BANK_DB_PATH`,
+  default em `DEFAULT_MAGNET_BANK_DB_PATH`, no volume `/app/data` — o mesmo do
+  `cache.db`), WAL. `node:sqlite` é carregado lazy com `createRequire`; sem o
+  módulo (Node 20) ou se a abertura falhar, a engine cai num `Map` em memória
+  (`magnet-bank-memory.ts`, loga warn) com os MESMOS verbos — nunca derruba o
+  addon. `magnet-bank-rows.ts` é a camada de linhas/engines;
+  `magnet-bank-schema.ts` os tipos e o codec; `magnet-bank-merge.ts` as regras
+  puras.
+- **Três tabelas.** `magnet` (PK `hash`): `uri` sanitizada, `title`, `size`,
+  `is_br`, `dubbed`, `quality`, `seeders_max`, `seeders_last`, `first_seen`,
+  `last_seen`, `lied`. `magnet_source` (PK `hash,indexer`): `tracker`,
+  `first_seen`, `last_seen`, `seeders_last`. `magnet_work` (PK
+  `hash,imdb,season,episode`): `first_seen`, `last_seen`, `passed_filter`.
+  `season`/`episode` nulos viram `-1` (parte da PK). Índices por obra e por
+  `indexer,last_seen`.
+- **Merge.** `first_seen` é fixo; `seeders_max` é máximo e `seeders_last` é a
+  última observação (item sem seeders PRESERVA a anterior; `0` é medição);
+  `title`/`size` ficam os primeiros não vazios; `is_br`/`dubbed`/`lied` só sobem
+  (OR, como no índice); a `uri` só troca por outra MAIS RICA (`dn=` ou mais
+  trackers) e nunca rebaixa para o magnet padrão; e `passed_filter` NÃO é OR —
+  reflete a última observação da obra (a captura nasce 0, o resultado do filtro
+  da mesma busca escreve 0/1; captura de FUNDO preserva o existente).
+- **`lied` é GLOBAL.** `magnet-bank-lie.ts` lê a união de `mag:v1:lie:` de
+  QUALQUER conta (peek quiet, sem memo) e promove o hash no merge; a evidência
+  por conta continua só no `mag`. `bad` por conta NUNCA é lido aqui.
+- **Captura total.** `captureItems` roda no `jackett.search` por indexer E no
+  ramo agregado `/all`, DEPOIS da resolução Cardigann e ANTES de qualquer filtro
+  de título/episódio: entra tudo que tem hash — inclusive hit do cache bruto.
+  Item de CONTA (`fromAccount`) e de FALLBACK (`fromFallback`) ficam de fora. A
+  fila é assíncrona (uma transação por lote, `magnetbank.upsert`) e a busca
+  NUNCA espera o disco: fila cheia (`MAGNET_BANK_QUEUE_MAX`) descarta a leva com
+  `magnetbank.queue.dropped`.
+- **Obra da release.** `release-work.ts` (`releaseWorkTargets`) espelha o
+  `destinoDe` do índice: o pack de temporada achado na busca de um episódio fica
+  recuperável para a temporada inteira. `markBankFilterOutcome`
+  (`magnet-bank-hook.ts`) grava o `passed_filter` da busca no stream-builder.
+
+**Fallback do acervo (Etapa 4).** `live-indexer-state.ts` acompanha o
+`onQueryResult` das consultas PRINCIPAIS do Jackett (a varredura pt-BR e o
+caminho de fundo ficam de fora, de propósito): `error`/`breaker`/`source` marcam
+o indexer como falho e **pendente NO PRAZO também conta como falho**; quando a
+resposta tardia chega (mesmo `[]` válido), o indexer sai do conjunto e o
+fallback dele deixa de ser injetado. O ramo `/all` não tem falha por indexer e
+emite o evento sintético `*all*`; em erro/pendente, `allFailed` deriva os
+candidatos das SOURCES do banco para a obra — nunca de uma config vazia.
+
+`collectFallbackForBuild` (chamado no `finish` do `search-orchestrator`) só
+consulta o banco quando o estado vivo aponta falha. Em filme alvo é a obra raiz;
+em série são até três alvos — o episódio pedido, o pack da temporada e a série
+completa —, a mesma cobertura que o `release-work.ts` gravou. As travas:
+
+- **Vivo vence sempre:** hash presente no lote vivo é cortado ANTES do build,
+  independentemente de seeders; o lote tardio reconstrói sem a reserva daquele
+  hash.
+- **`passed_filter` não é elegibilidade:** `1` é dado auxiliar; o item sempre
+  passa pelo filtro de título ATUAL no `buildStreams`.
+- **Mesma validação, sem bypass:** o item entra pelo MESMO `buildStreams`
+  (título/episódio/multiobra, `mag` bad/lie, debrid, cotas, `MIN_SEEDERS`) — a
+  reserva só acrescenta o selo e a origem.
+- **Zero auto-perpetuação:** `fromFallback` é excluído da captura do banco, do
+  `releaseIndex.record`, das pools/candidatos do autofetch, do warmer e da
+  auditoria de áudio. A reserva não realimenta o acervo que a originou.
+- **Seeders reais:** o número medido (`seeders_last`) atravessa inteiro e é o
+  que ranking e `MIN_SEEDERS` usam — o `~` é só exibição.
+- **Selo:** `📦` e `👤 ~N` no `name`/`title` (`stream-display.ts` e
+  `search-names.ts`); `_fromFallback` é marca INTERNA e sai em
+  `applyNoticeOrigin` antes do protocolo.
+- **TTL curto:** lista com reserva é `partial` (o handler responde
+  `cacheMaxAge: 0`) e é cacheada por `FALLBACK_STREAMS_TTL` (default 120s) —
+  nunca acima do `CACHE_TTL`; `CACHE_TTL <= 0` não grava. A próxima abertura
+  reconsulta o vivo.
+
+Knobs: `MAGNET_BANK` (kill-switch), `MAGNET_BANK_DB_PATH`,
+`MAGNET_BANK_QUEUE_MAX`, `MAGNET_BANK_STATUS_TTL_MS` (memo do painel, default
+60s), `MAGNET_BANK_FALLBACK`, `MAGNET_BANK_FALLBACK_MAX` (1..40, por indexer),
+`MAGNET_BANK_FALLBACK_GLOBAL_MAX` (1..500) e `FALLBACK_STREAMS_TTL`.
+Métricas: `magnetbank.engine.sql|memory`, `magnetbank.upsert`,
+`magnetbank.queue.dropped`, `magnetbank.flush.failed`, `fallback.error`,
+`fallback.items.injected`, `fallback.items.cut.<motivo>`
+(`lied`/`no-hash`/`live-dedupe`/`no-source`/`cap-indexer`/`cap-global`) e
+`fallback.indexer.<id>` (cobertura por indexer). No `/stream-trace.json` a fase
+`fallback` tem stage e motivo próprios.
+
+**Painel (aba Magnets + Saúde).** O card "Banco de Magnets Vivo (Jackett)"
+(`view-magnet-bank.ts` sobre `bank-model.ts`) lê o bloco `magnetBank` do
+`/dashboard-status.json` — totais (`magnets`/`sources`/`works`), engine
+(`SQLite`/`MEMÓRIA`/`DESLIGADO`), fila e a quebra por indexer —, e a busca
+read-only `magnet-bank-search` (hash de 40 hex OU substring de título; vazio =
+recentes; teto de 100) mostra URI copiável, fontes, obras e o selo de `lied`. É
+separada do `magnet-summary` (estoque por conta). O status é MEMOIZADO por
+`MAGNET_BANK_STATUS_TTL_MS` (60s) e invalidado a cada escrita efetiva, então o
+poll repete a mesma foto sem pagar `COUNT/MAX/GROUP BY` por ciclo. Na aba Saúde,
+cada indexer mostra `MEM N` (`fallback.indexer.<id>` acumulado desde o boot) — é
+HISTÓRICO de cobertura, não o estado online.
+
+Limitações honestas: o contador `MEM`/`fallback.indexer.<id>` zera no restart; o
+banco cresce para sempre (sem TTL/cota — é acervo, por desenho) e vive no volume
+`/app/data`, então o rebuild do container o preserva; e `pending` no prazo pode
+ativar o fallback por um instante — a resposta tardia do indexer derruba a
+reserva dele na reconstrução, mas uma lista já servida com reserva fica
+parcial/curta até a próxima abertura. Validar localmente:
+`npm run build && npm test` (`test/magnet-bank*.test.ts`,
+`test/dashboard-magnet-bank.test.ts`, `test/painel-magnet-bank.test.ts`) e, com o
+servidor de pé, `magnet-bank-summary`/`magnet-bank-search` na aba Magnets.
 
 Kill-switches no `.env`: `MAGNET_DB=false` desliga o banco inteiro;
 `MAGNET_ALIVE_TTL=0`, `MAGNET_BAD_TTL=0` e `MAGNET_LIE_TTL=0` desligam cada lado;
@@ -1450,6 +1538,12 @@ teto em 1.051 sem nenhum teste reclamar (medido no container: `cache.evicted =
 abaixo** da soma do universo reintroduz o despejo global antes da repartição por
 namespace (foi bug real).
 
+O banco de magnets VIVO (`data/magnets.db`) NÃO entra nesta conta: é SQLite
+próprio, sem cota, sem TTL e sem versão de namespace. A URI por hash que antes
+morava no cache (`muri:`) agora é do banco — não há namespace `muri` em `QUOTAS`
+nem em `NAMESPACE_VERSIONS`, e o prefixo legado é descartado no boot; o teto
+global segue **93.000**.
+
 Cota é capacidade, não permanência: quem tira registro do `mag` no dia a dia é
 o TTL (`MAGNET_ALIVE_TTL`/`MAGNET_LIE_TTL` 7 dias, `MAGNET_BAD_TTL` 24 h).
 Despejo por cota apaga do L1 **e do L2** (`forgetMany` roda `DELETE`), e o
@@ -1845,7 +1939,7 @@ fire-and-forget) continua.
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
 | `src/br-resolvers.ts` | Carrega os sete profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
 | `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
-| `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
+| `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. A aba Magnets (`view-magnets.ts`) monta o card do banco vivo (`view-magnet-bank.ts` sobre o modelo puro `bank-model.ts`), separado do estoque por conta. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
 | `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
 | `src/providers/search-cache.ts` | `findStreams`, coalescing (`inFlight`), SWR (`debridRefreshSatisfied`, `staleRefreshEligible`, `scheduleStaleRefresh`), `hasPlayableStream` |
 | `src/providers/search-orchestrator.ts` | `doSearch`, `collectRaw`, `poolCovered`, `idxPoolCovered`, `idxReleasesToRaw` |
@@ -1874,15 +1968,16 @@ fire-and-forget) continua.
 | `src/providers/demo.ts` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
 | `src/debrid/index.ts` | Registry + seleção por request + checagem com teto dinâmico + inventário |
 | `src/debrid/file-selector.ts` | Seleção de arquivo no play: `pickFile`/`pickWorkFile`, `workCoverage`, `baseName`, erros (`WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError`) — extraído em 5.2, `common.ts` reexporta |
-| `src/debrid/common.ts` | `magnetFor`, fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
+| `src/debrid/common.ts` | `magnetFor`/`magnetForPlay` (URI rica do banco via `magnet-bank.lookup`, com fallback ao magnet padrão), fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
 | `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |
 | `src/debrid/alldebrid*.ts` | A AllDebrid não é um arquivo, é uma família: `alldebrid.ts` é fachada; `-api`, `-check`, `-inventory`, `-cleanup`, `-reupload`, `-evict`, `-fallback-evict`, `-reconcile`, `-suppressed-revalidate` (terminal autoritativo de BYO) e `-play` separam consulta, posse e caminhos destrutivos |
 | `src/debrid/*.ts` | Um adaptador por serviço |
 | `src/utils/format.ts` | Barrel pós split 5.3: reexporta os mesmos 58 nomes dos 7 submódulos (ver abaixo) |
+| `src/utils/stream-display.ts` | Coluna estreita do `name` do Stremio (`streamDisplayName`), com o selo `📦`/`👤 ~N` do fallback do banco; extraído de `search-names.ts` pela catraca |
 | `src/utils/indexer-priority.ts` | `priorityMap`/`compareIndexerPriority` |
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
-| `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`) e `prefix(ns)` |
+| `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`/`muri:`) e `prefix(ns)` |
 | `src/utils/request-key.ts` | `streams:v11` + digest da conta (nunca a chave crua) |
 | `src/utils/secret-box.ts` | AES-256-GCM do `dk` no install URL |
 | `src/utils/sign.ts` | HMAC do `/resolve` (hash + ep + dica `w`) |
@@ -1895,6 +1990,17 @@ fire-and-forget) continua.
 | `src/utils/magnetdb-persist.ts` | Contadores duráveis O(1), agregado `mag_meta:v1`, hook `cache.onForget` e `ttlRemainingBasis` (`l1-rebuild` × `aggregate-estimate`). Extraído do `magnetdb.ts`, que encostou no teto de 400 linhas (ficou em 329) |
 | `src/utils/magnetdb-counts.ts` | Parse da chave `mag` (descarta o digest da conta na origem), `emptyAdapterTotals` e `rebuildFromL1` — O(namespace `mag`), roda uma vez no boot quando o agregado não abre, nunca no caminho de busca. Dependência de mão única (cache + cache-keys), sem ciclo com o `magnetdb` |
 | `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse compartilhado de `magnetdb-counts.ts`. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
+| `src/utils/magnet-bank.ts` | Fachada do banco VIVO (clone permanente do Jackett): `captureItems`/`markFilterResult`, fila assíncrona, `lookup`/`findByWork`/`findByIndexer`, `status()` memoizado por `MAGNET_BANK_STATUS_TTL_MS`, `openIfEnabled`/`close` (flush+checkpoint) e `inspectHash` |
+| `src/utils/magnet-bank-rows.ts` / `magnet-bank-schema.ts` | Linhas e engines (`sqliteEngine` lazy via `createRequire`, WAL; `memoryEngine` em `magnet-bank-memory.ts`) + tipos/codec (`render*`/`parse*`). Extraídos de `magnet-bank.ts` pela catraca de 400 linhas |
+| `src/utils/magnet-bank-merge.ts` | Regras PURAS do banco: `hashOf`, `inputFromItem`, `mergeMagnet`/`mergeSource`/`mergeWork`, `workTuple`, `parseSeeders`, `isRicherUri` |
+| `src/utils/magnet-bank-query.ts` / `magnet-bank-search.ts` | Consultas em LOTE do fallback (`worksForObraMany`/`sourcesForMany`, sem N+1) e busca READ-ONLY do painel (hash/título/recentes, allowlist de campos, teto 100) |
+| `src/utils/magnet-bank-lie.ts` | Lie GLOBAL (união de `mag:v1:lie:` de qualquer conta) que promove `lied` no merge do banco |
+| `src/utils/magnet-uri.ts` | Regras puras da URI do post: `sanitizeMagnet` (valida `xt=urn:btih:`, remove credencial, teto de 2048 B, piso de `TRACKERS`, devolve `null` se equivale ao padrão) e `defaultMagnet`; alimenta o banco, não mais o cache |
+| `src/utils/release-work.ts` | `releaseWorkTargets`: em quais obras (pedido + pack/série declarada) uma release é recuperável — mesma régua do `destinoDe` do índice |
+| `src/utils/metric-id.ts` | `safeMetricId`/`indexerFallbackMetricKey`: fonte única da chave `fallback.indexer.<id>` entre produtor e painel |
+| `src/providers/live-indexer-state.ts` | Estado vivo de falha por indexer da coleta (`error`/`breaker`/`source`, `pending` conta como falho, `*all*` agregado) e `mergeLiveIndexerStates` |
+| `src/providers/magnet-bank-hook.ts` | Ponte stream-builder → banco: hashes não-conta/não-fallback e `targetsFor` escrevem o `passed_filter` da obra |
+| `src/providers/magnet-bank-fallback.ts` | Reserva da Etapa 4: seleção por indexer falho/`allFailed`, live-dedupe, tetos por indexer/global, selo `fromFallback` e métricas `fallback.*` |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
 | `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — laço único para quem usa protetor), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
 | `*-resolver/` | Shims de compatibilidade/standalone (**TypeScript/ESM**, sem `package.json` de override): `<nome>/server.ts` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.ts`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)`. Os `server.d.ts` foram removidos — a implementação TS é o contrato; `nerdfilmes-resolver/test.ts` e `torrentdosfilmes-resolver/smoke-test.ts` também são compilados pelo tsc |

@@ -30,9 +30,17 @@ import {
   renderMagnet, renderSource, renderWork,
   parseMagnet, parseSource, parseWork,
 } from './magnet-bank-schema.js';
-import type { MagnetRow, SourceRow, WorkRow, Batch } from './magnet-bank-schema.js';
+import type { MagnetRow, SourceRow, WorkRow, Batch, BankStats, IndexerStat } from './magnet-bank-schema.js';
+import { memoryEngine } from './magnet-bank-memory.js';
 
-export type { MagnetRow, SourceRow, WorkRow, Batch } from './magnet-bank-schema.js';
+export type { MagnetRow, SourceRow, WorkRow, Batch, BankStats, IndexerStat } from './magnet-bank-schema.js';
+
+/** Padrão de LIKE para substring de título com escape dos curingas (`%`/`_`) e
+ * do próprio `\`. Sem escapar, um `%` digitado pelo operador varreria a tabela
+ * inteira; com ESCAPE, o texto é literal. */
+function likePattern(substring: string): string {
+  return `%${substring.replace(/[\\%_]/g, '\\$&')}%`;
+}
 
 const _require = createRequire(import.meta.url);
 
@@ -49,6 +57,19 @@ export interface Engine {
   listMagnetsMany(hashes: readonly string[]): MagnetRow[];
   /** Fontes de VÁRIOS hashes numa consulta (fallback sem N+1). */
   listSourcesMany(hashes: readonly string[]): SourceRow[];
+  /** Obras de VÁRIOS hashes numa consulta (busca do painel sem N+1). */
+  listWorksMany(hashes: readonly string[]): WorkRow[];
+  /** Magnets mais recentes (busca vazia do painel, limitada). */
+  listRecentMagnets(limit: number): MagnetRow[];
+  /**
+   * Magnets cujo título contém QUALQUER uma das variantes (mais recentes).
+   * A fachada manda as variantes de caixa (original/lower/upper) para o LIKE
+   * ASCII do SQLite casar acento (`Épico` × `épico`) sem schema novo; a memória
+   * espelha com `toLowerCase`.
+   */
+  searchMagnetsByTitle(variants: readonly string[], limit: number): MagnetRow[];
+  /** Panorama agregado numa passada (COUNT/MAX/GROUP BY, sem N+1). */
+  stats(): BankStats;
   writeBatch(batch: Batch): number;
   countMagnets(): number;
   countSources(): number;
@@ -113,6 +134,20 @@ function sqliteEngine(dbPath: string): Engine | null {
     const listWorksStmt = db.prepare('SELECT * FROM magnet_work WHERE hash = ? ORDER BY last_seen DESC');
     const listWorksObraStmt = db.prepare('SELECT * FROM magnet_work WHERE imdb = ? AND season = ? AND episode = ? ORDER BY last_seen DESC LIMIT ?');
     const listSourcesIndexerStmt = db.prepare('SELECT * FROM magnet_source WHERE indexer = ? ORDER BY last_seen DESC LIMIT ?');
+    const recentMagnetsStmt = db.prepare('SELECT * FROM magnet ORDER BY last_seen DESC LIMIT ?');
+    // Busca por título com OR de 1..3 variantes (original/lower/upper). O LIKE
+    // do SQLite só faz casefold ASCII; variar a caixa da QUERY fecha o acento
+    // (`É`/`é`) sem coluna normalizada nova. `IS`/placeholders fixos por aridade.
+    const searchTitleStmts = [1, 2, 3].map((n) => db.prepare(
+      `SELECT * FROM magnet WHERE ${new Array(n).fill("title LIKE ? ESCAPE '\\'").join(' OR ')} ORDER BY last_seen DESC LIMIT ?`,
+    ));
+    const maxMagnetSeenStmt = db.prepare('SELECT COALESCE(MAX(last_seen), 0) AS t FROM magnet');
+    const maxSourceSeenStmt = db.prepare('SELECT COALESCE(MAX(last_seen), 0) AS t FROM magnet_source');
+    // Agregação por indexer numa ÚNICA consulta (GROUP BY usa o índice
+    // magnet_source_indexer): o painel não paga uma query por indexer.
+    const indexerStatsStmt = db.prepare(
+      'SELECT indexer, COUNT(DISTINCT hash) AS hashes, COUNT(*) AS sources, MAX(last_seen) AS last_seen FROM magnet_source GROUP BY indexer ORDER BY last_seen DESC, indexer ASC',
+    );
     const countMagnetStmt = db.prepare('SELECT COUNT(*) AS n FROM magnet');
     const countSourceStmt = db.prepare('SELECT COUNT(*) AS n FROM magnet_source');
     const countWorkStmt = db.prepare('SELECT COUNT(*) AS n FROM magnet_work');
@@ -125,7 +160,7 @@ function sqliteEngine(dbPath: string): Engine | null {
     // Consulta em LOTE por lista de hashes (chunks de 200): o fallback lê N
     // magnets/fontes de uma vez em vez de N+1 queries. A tabela é literal
     // interna, nunca vinda de input.
-    const many = (table: 'magnet' | 'magnet_source', hashes: readonly string[]): Record<string, unknown>[] => {
+    const many = (table: 'magnet' | 'magnet_source' | 'magnet_work', hashes: readonly string[]): Record<string, unknown>[] => {
       const list = [...new Set(hashes.map((h) => String(h || '').toLowerCase()).filter(Boolean))];
       const out: Record<string, unknown>[] = [];
       for (let i = 0; i < list.length; i += 200) {
@@ -160,6 +195,30 @@ function sqliteEngine(dbPath: string): Engine | null {
       },
       listMagnetsMany(hashes) { return many('magnet', hashes).map(parseMagnet); },
       listSourcesMany(hashes) { return many('magnet_source', hashes).map(parseSource); },
+      listWorksMany(hashes) { return many('magnet_work', hashes).map(parseWork); },
+      listRecentMagnets(limit) { return all(recentMagnetsStmt, limit).map(parseMagnet); },
+      searchMagnetsByTitle(variants, limit) {
+        const list = (variants.length > 0 ? variants : ['']).slice(0, 3);
+        const patterns = list.map(likePattern);
+        return all(searchTitleStmts[patterns.length - 1], ...patterns, limit).map(parseMagnet);
+      },
+      stats() {
+        const magnetMax = Number((maxMagnetSeenStmt.get() as Record<string, unknown>)?.t) || 0;
+        const sourceMax = Number((maxSourceSeenStmt.get() as Record<string, unknown>)?.t) || 0;
+        const byIndexer: IndexerStat[] = all(indexerStatsStmt).map((r) => ({
+          indexer: String(r.indexer || ''),
+          hashes: Number(r.hashes) || 0,
+          sources: Number(r.sources) || 0,
+          lastSeen: Number(r.last_seen) || 0,
+        }));
+        return {
+          magnets: Number((countMagnetStmt.get() as Record<string, unknown>)?.n) || 0,
+          sources: Number((countSourceStmt.get() as Record<string, unknown>)?.n) || 0,
+          works: Number((countWorkStmt.get() as Record<string, unknown>)?.n) || 0,
+          lastSeen: Math.max(magnetMax, sourceMax),
+          byIndexer,
+        };
+      },
       writeBatch(batch) {
         // Uma transação por lote (uma busca/captura): fora do caminho da
         // resposta, mas atômico — ou o acervo inteiro da leva entra, ou nada.
@@ -199,75 +258,8 @@ function sqliteEngine(dbPath: string): Engine | null {
   }
 }
 
-// --- Memória engine (fallback) ---------------------------------------------
-
-function memoryEngine(): Engine {
-  const magnets = new Map<string, MagnetRow>();
-  const sources = new Map<string, SourceRow>();
-  const works = new Map<string, WorkRow>();
-  const h = (hash: string) => String(hash || '').toLowerCase();
-  const sourceKey = (hash: string, indexer: string) => `${h(hash)}\u0000${String(indexer || '')}`;
-  const workKey = (hash: string, imdb: string, season: number, episode: number) =>
-    `${h(hash)}\u0000${String(imdb || '')}\u0000${season}\u0000${episode}`;
-  return {
-    kind: 'memory',
-    getMagnet(hash) { return magnets.get(h(hash)) || null; },
-    getSource(hash, indexer) { return sources.get(sourceKey(hash, indexer)) || null; },
-    getWork(hash, imdb, season, episode) { return works.get(workKey(hash, imdb, season, episode)) || null; },
-    listSources(hash) {
-      const prefix = `${h(hash)}\u0000`;
-      const out: SourceRow[] = [];
-      for (const [k, row] of sources) if (k.startsWith(prefix)) out.push(row);
-      out.sort((a, b) => b.lastSeen - a.lastSeen);
-      return out;
-    },
-    listWorks(hash) {
-      const prefix = `${h(hash)}\u0000`;
-      const out: WorkRow[] = [];
-      for (const [k, row] of works) if (k.startsWith(prefix)) out.push(row);
-      out.sort((a, b) => b.lastSeen - a.lastSeen);
-      return out;
-    },
-    listWorksByObra(imdb, season, episode, limit) {
-      const out: WorkRow[] = [];
-      for (const row of works.values()) {
-        if (row.imdb === String(imdb || '') && row.season === season && row.episode === episode) out.push(row);
-      }
-      out.sort((a, b) => b.lastSeen - a.lastSeen);
-      return out.slice(0, limit);
-    },
-    listSourcesByIndexer(indexer, limit) {
-      const out: SourceRow[] = [];
-      for (const row of sources.values()) if (row.indexer === String(indexer || '')) out.push(row);
-      out.sort((a, b) => b.lastSeen - a.lastSeen);
-      return out.slice(0, limit);
-    },
-    listMagnetsMany(hashes) {
-      const set = new Set(hashes.map((x) => h(x)).filter(Boolean));
-      const out: MagnetRow[] = [];
-      for (const key of set) { const row = magnets.get(key); if (row) out.push(row); }
-      return out;
-    },
-    listSourcesMany(hashes) {
-      const set = new Set(hashes.map((x) => h(x)).filter(Boolean));
-      const out: SourceRow[] = [];
-      for (const row of sources.values()) if (set.has(h(row.hash))) out.push(row);
-      return out;
-    },
-    writeBatch(batch) {
-      if (consumeFailNextWrite()) throw new Error('falha de escrita injetada (teste)');
-      for (const row of batch.magnets) magnets.set(h(row.hash), row);
-      for (const row of batch.sources) sources.set(sourceKey(row.hash, row.indexer), row);
-      for (const row of batch.works) works.set(workKey(row.hash, row.imdb, row.season, row.episode), row);
-      return batch.magnets.length + batch.sources.length + batch.works.length;
-    },
-    countMagnets() { return magnets.size; },
-    countSources() { return sources.size; },
-    countWorks() { return works.size; },
-    clearRows() { magnets.clear(); sources.clear(); works.clear(); },
-    closeEngine() { magnets.clear(); sources.clear(); works.clear(); },
-  };
-}
+// A engine de memória (fallback) mora em `magnet-bank-memory.ts` desde a
+// catraca de 400 linhas; o hook de falha de escrita é injetado na fábrica.
 
 // --- Abertura lazy e estado global -----------------------------------------
 
@@ -300,8 +292,8 @@ export function disarmFailNextWrite(): void {
 export function open(dbPathOverride?: string, opts: { forceMemory?: boolean } = {}): void {
   if (store) return;
   const dbPath = dbPathOverride ?? config.magnetBank?.dbPath ?? DEFAULT_MAGNET_BANK_DB_PATH;
-  if (opts.forceMemory) { store = memoryEngine(); return; }
-  store = sqliteEngine(dbPath) ?? memoryEngine();
+  if (opts.forceMemory) { store = memoryEngine(consumeFailNextWrite); return; }
+  store = sqliteEngine(dbPath) ?? memoryEngine(consumeFailNextWrite);
 }
 
 export function engine(): Engine {

@@ -2,7 +2,7 @@ import { html } from './vendor/preact.js';
 import { Card, StatNumber } from './kit.js';
 import { formatDurationMs } from './fmt.js';
 import {
-  indexerRows, indexerSummary, indexerCardBadge, debridInfo, saudeVerdict,
+  indexerRows, indexerSummary, indexerCardBadge, debridInfo, saudeVerdict, indexerMemoryLabel,
   type SaudeIndexerRow,
 } from './saude-model.js';
 
@@ -20,11 +20,17 @@ export interface ViewSaudeProps {
 // indexer está fora do orçamento de busca); o resto da leitura vem dos badges
 // de estado, com o rótulo fiel (degradado ≠ offline).
 function IndexerChip({ row, onSelect }: { row: SaudeIndexerRow; onSelect?: (id: string) => void }) {
+  // O indicador de memória é HISTÓRICO de cobertura (contador desde o boot) e
+  // entra no title com a ressalva explícita — não é o estado online, que
+  // continua no badge de estado. Sem a distinção, um indexer ONLINE coberto no
+  // passado pareceria inconsistente.
+  const memoryTitle = indexerMemoryLabel(row);
   const title = [
     row.id,
     row.stateLabel,
     row.ms != null ? `${row.ms} ms` : null,
     row.breakerOpen ? 'circuito aberto' : null,
+    memoryTitle,
   ].filter(Boolean).join(' · ');
   return html`
     <button
@@ -38,6 +44,7 @@ function IndexerChip({ row, onSelect }: { row: SaudeIndexerRow; onSelect?: (id: 
       <span class=${'painel-badge painel-badge-' + row.variant}>${row.stateLabel}</span>
       ${row.ms != null ? html`<span class="painel-chip-ms">${row.ms} ms</span>` : null}
       ${row.breakerOpen ? html`<span class="painel-badge painel-badge-err">CIRCUITO</span>` : null}
+      ${row.servedFromMemory > 0 ? html`<span class="painel-badge painel-badge-neutral" title=${memoryTitle || ''}>MEM ${row.servedFromMemory}</span>` : null}
     </button>
   `;
 }

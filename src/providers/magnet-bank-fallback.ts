@@ -27,6 +27,7 @@ import type { StreamTraceState } from '../utils/stream-trace.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
+import { indexerFallbackMetricKey } from '../utils/metric-id.js';
 
 export interface FallbackRequest {
   /** 'movie' | 'series' — filme só consulta a obra raiz. */
@@ -60,12 +61,6 @@ const TRACE_SAMPLE_MAX = 20;
 const PER_INDEXER_MAX = 40;
 
 const nIndexer = (value: unknown) => String(value || '').trim().toLowerCase();
-
-/** Id de métrica seguro: o nome do indexer vem de config/terceiro. */
-function safeMetricId(value: unknown): string {
-  const clean = nIndexer(value).replace(/[^a-z0-9_.-]/g, '_').slice(0, 40);
-  return clean || 'unknown';
-}
 
 /**
  * Obras a consultar para o pedido. Filme: só a raiz (season/episode nulos).
@@ -180,7 +175,7 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
       if (usedByIndexer >= perIndexerMax) { countCut('cap-indexer', candidate.magnet); continue; }
       perIndexer.set(indexerId, usedByIndexer + 1);
       items.push(toRawItem(candidate));
-      metrics.count(`fallback.indexer.${safeMetricId(indexerId)}`);
+      metrics.count(indexerFallbackMetricKey(indexerId));
     }
 
     if (items.length > 0) metrics.count('fallback.items.injected', items.length);

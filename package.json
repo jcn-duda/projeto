@@ -134,6 +134,7 @@
     "test/configure-html.test.js",
     "test/dashboard-actions.test.js",
     "test/dashboard-actions-magnet.test.js",
+    "test/dashboard-magnet-bank.test.js",
     "test/debrid-operator-account.test.js",
     "test/deadline.test.js",
     "test/debrid-avail.test.js",
@@ -227,6 +228,8 @@
     "test/magnet-bank.test.js",
     "test/magnet-bank-integration.test.js",
     "test/magnet-bank-lifecycle.test.js",
+    "test/magnet-bank-status.test.js",
+    "test/magnet-bank-search.test.js",
     "test/memory-fallback.test.js",
     "test/memory-fallback-cache.test.js",
     "test/memory-fallback-suppress.test.js",
@@ -326,6 +329,7 @@
     "test/painel-form.test.js",
     "test/painel-css.test.js",
     "test/painel-saude-indexers.test.js",
+    "test/painel-magnet-bank.test.js",
     "test/painel-conta.test.js"
   ]
 }

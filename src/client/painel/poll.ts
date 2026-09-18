@@ -13,7 +13,14 @@ import { fetchStatus } from './api.js';
 // catálogo é memoizado por ciclo de requisição e compartilhado com o bloco
 // `general` (que já o pede): o custo de Jackett extra é ZERO — é o mesmo
 // `getIndexers()`, e sem o bloco o card ficaria sempre vazio.
-export const VITAL_BLOCKS = ['general', 'searchFirst', 'indexers', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics', 'cache', 'magnetdb'];
+//
+// `magnetBank` entra porque o card do banco vivo mostra totais/fila. A leitura
+// seria O(rows) (COUNT/MAX/GROUP BY) a cada ciclo, então ela é MEMOIZADA no
+// backend por MAGNET_BANK_STATUS_TTL_MS (default 60s, invalidada a cada
+// escrita): o poll repete a MESMA foto e a varredura não se repete. É o memo
+// que torna este bloco vital — sem ele, o lugar seria o carregamento sob
+// demanda do card (como `catalog`, O(rows) via `catalog-report`).
+export const VITAL_BLOCKS = ['general', 'searchFirst', 'indexers', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics', 'cache', 'magnetdb', 'magnetBank'];
 
 let inFlight = false;
 let timerId: any = null;

@@ -2,9 +2,12 @@ import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber } from './kit.js';
 import { useAction, actionError } from './action.js';
 import { formatDurationMs } from './fmt.js';
+import { ViewMagnetBank } from './view-magnet-bank.js';
 
 export interface ViewMagnetsProps {
   magnetdb?: Record<string, any>;
+  /** Banco VIVO do Jackett (bloco `magnetBank` do status) — card próprio. */
+  magnetBank?: Record<string, any>;
 }
 
 // Lado do banco → rótulo/cor do badge. O side é o que diz o ESTADO do registro
@@ -55,7 +58,7 @@ export function magnetdbSummary(m: Record<string, any> | null | undefined): Magn
   };
 }
 
-export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
+export function ViewMagnets({ magnetdb, magnetBank }: ViewMagnetsProps) {
   const m = magnetdb || {};
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const { pending, run } = useAction();
@@ -105,13 +108,15 @@ export function ViewMagnets({ magnetdb }: ViewMagnetsProps) {
 
   return html`
     <div>
+      <${ViewMagnetBank} magnetBank=${magnetBank} />
+
       ${feedback ? html`
         <div class="painel-feedback ${feedback.ok ? 'painel-feedback-ok' : 'painel-feedback-err'}">
           ${feedback.text}
         </div>
       ` : null}
 
-      <div class="painel-grid">
+      <div class="painel-grid" style="margin-top: var(--space-4);">
         <${Card}
           title="Banco de Magnets (L1/L2)"
           badge=${{ text: enabled ? 'ATIVO' : 'DESLIGADO', variant: enabled ? 'ok' : 'neutral' }}

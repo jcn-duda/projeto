@@ -270,7 +270,7 @@ export function App(props: AppProps) {
           ` : activeTab === 'limpeza' ? html`
             <${ViewLimpeza} catalog=${p.catalog} conta=${p.conta} />
           ` : activeTab === 'magnets' ? html`
-            <${ViewMagnets} magnetdb=${p.magnetdb} />
+            <${ViewMagnets} magnetdb=${p.magnetdb} magnetBank=${p.magnetBank} />
           ` : activeTab === 'diagnostico' ? html`
             <${ViewDiagnostico} debrid=${p.debrid} indexerRequest=${indexerRequest} />
           ` : null}

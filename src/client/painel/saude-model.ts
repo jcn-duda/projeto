@@ -62,6 +62,13 @@ export interface SaudeIndexerRow {
   breakerState: string | null;
   cooldownRemainingMs: number | null;
   checkedAt: string | null;
+  /**
+   * Quantas vezes o banco vivo SERVIU este indexer quando ele falhou
+   * (`fallback.indexer.<id>` acumulado desde o boot). É HISTÓRICO de cobertura,
+   * não o estado online: um indexer pode estar ONLINE e já ter sido coberto no
+   * passado. `0` = nunca servido de memória.
+   */
+  servedFromMemory: number;
 }
 
 function normalizeRow(raw: unknown): SaudeIndexerRow | null {
@@ -84,7 +91,15 @@ function normalizeRow(raw: unknown): SaudeIndexerRow | null {
     breakerState: breaker?.state != null ? String(breaker.state) : null,
     cooldownRemainingMs: finiteNumber(breaker?.cooldownRemainingMs),
     checkedAt: status?.checkedAt != null ? String(status.checkedAt) : null,
+    servedFromMemory: finiteNumber(obj.fallbackServed) ?? 0,
   };
+}
+
+/** Texto do indicador "servido de memória" (`null` quando 0/nunca). Deixa
+ * explícito que é acervo do banco, não estado do indexer. */
+export function indexerMemoryLabel(row: SaudeIndexerRow): string | null {
+  if (row.servedFromMemory <= 0) return null;
+  return `servido do banco ${row.servedFromMemory}× desde o boot — não é o status online`;
 }
 
 /** Faixa de ordenação: falha primeiro, desconhecido POR ÚLTIMO. */

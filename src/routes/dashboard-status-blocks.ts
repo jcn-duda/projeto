@@ -1,5 +1,7 @@
 import type { AppServices } from './types.js';
 import * as brCoverage from '../utils/br-coverage.js';
+import { indexerFallbackMetricKey } from '../utils/metric-id.js';
+import { releaseIndexStatus, jackettServiceFlag, type MetricSnapshot } from './dashboard-status-helpers.js';
 
 export const ALL_BLOCKS = [
   'general',
@@ -12,6 +14,7 @@ export const ALL_BLOCKS = [
   'harvest',
   'f3',
   'magnetdb',
+  'magnetBank',
   'catalog',
   'indexers',
   'resolvers',
@@ -21,27 +24,6 @@ export const ALL_BLOCKS = [
 
 export type BlockName = (typeof ALL_BLOCKS)[number];
 const BLOCK_SET = new Set<string>(ALL_BLOCKS);
-
-type MetricSnapshot = ReturnType<AppServices['metrics']['snapshot']>;
-
-function releaseIndexStatus(services: AppServices, counters: MetricSnapshot['counters']) {
-  return {
-    ...services.releaseIndex.status(),
-    hits: counters['search.idx.hit'] || 0,
-    misses: counters['search.idx.miss'] || 0,
-    gaps: counters['search.idx.gap'] || 0,
-    servedReleases: counters['search.idx.served'] || 0,
-    recordedReleases: counters['search.idx.recorded'] || 0,
-    wouldHit: counters['search.idx.wouldHit'] || 0,
-    wouldMiss: counters['search.idx.wouldMiss'] || 0,
-    wastedQueries: counters['search.jackett.wastedQueries'] || 0,
-    wastedMs: counters['search.jackett.wastedMs'] || 0,
-    wastedQueriesBackground: counters['search.jackett.wastedQueries.background'] || 0,
-    wastedMsBackground: counters['search.jackett.wastedMs.background'] || 0,
-    accountSufficient: counters['search.account.sufficient'] || 0,
-    fastPaths: counters['search.fastPath'] || 0,
-  };
-}
 
 interface TimeoutPayload {
   ok: false;
@@ -86,11 +68,6 @@ export function accountTimeout<T>(services: AppServices, operation: Promise<T>):
       },
     );
   });
-}
-
-function jackettServiceFlag(indexers: { length: number; source?: string }): boolean | 'naomedido' {
-  if (indexers?.source !== 'live') return 'naomedido';
-  return indexers.length > 0;
 }
 
 export interface BlockContext {
@@ -310,6 +287,13 @@ export async function computeStatusPayload(
     out.magnetdb = services.magnetdb.status();
   }
 
+  // Bloco: magnetBank (banco vivo do Jackett) — separado do `magnetdb` (estoque
+  // por conta). O status é agregação (COUNT/MAX/GROUP BY) na engine; nada de
+  // varredura por indexer no poll.
+  if (isReq('magnetBank')) {
+    out.magnetBank = services.magnetBank.status();
+  }
+
   // Bloco: catalog
   if (isReq('catalog')) {
     out.catalog = services.debrid.catalogStatusEnv();
@@ -318,10 +302,16 @@ export async function computeStatusPayload(
   // Bloco: indexers
   if (isReq('indexers')) {
     const indexers = await getIndexers();
+    // `fallbackServed` vem do contador `fallback.indexer.<id>` (desde o boot):
+    // quantas vezes o banco vivo SERVIU aquele indexer quando ele falhou. É
+    // histórico acumulado, NÃO o estado online — o painel mostra num badge
+    // próprio para não confundir as duas leituras.
+    const counters = getMetrics().counters;
     out.indexers = indexers.map((indexer: any) => ({
       ...indexer,
       breaker: services.jackett.breakerSnapshot(indexer.id),
       flagSlow: indexer.status == null ? null : indexer.status.state === 'slow',
+      fallbackServed: counters[indexerFallbackMetricKey(indexer.id)] || 0,
     }));
   }
 

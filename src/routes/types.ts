@@ -17,6 +17,7 @@ import type harvester from '../providers/harvester.js';
 import type * as harvesterLive from '../utils/harvester-live.js';
 import type * as harvesterDebrid from '../utils/harvester-debrid-live.js';
 import type * as magnetdb from '../utils/magnetdb.js';
+import type * as magnetBank from '../utils/magnet-bank.js';
 import type * as brResolvers from '../br-resolvers.js';
 import type * as providers from '../providers/index.js';
 import type * as debridCommon from '../debrid/common.js';
@@ -56,6 +57,7 @@ export interface AppServices {
   harvesterLive: typeof harvesterLive;
   harvesterDebrid: typeof harvesterDebrid;
   magnetdb: typeof magnetdb;
+  magnetBank: typeof magnetBank;
   brResolvers: typeof brResolvers;
   providers: typeof providers;
   debridCommon: typeof debridCommon;

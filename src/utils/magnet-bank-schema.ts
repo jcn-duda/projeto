@@ -38,6 +38,22 @@ export type WorkRow = {
 
 export type Batch = { magnets: MagnetRow[]; sources: SourceRow[]; works: WorkRow[] };
 
+/** Agregado por indexer do banco vivo (painel): `hashes` são torrents distintos,
+ * `sources` são as observações (uma por indexer+hash) e `lastSeen` é a última
+ * vez que aquele indexer entregou qualquer coisa. */
+export type IndexerStat = { indexer: string; hashes: number; sources: number; lastSeen: number };
+
+/** Panorama do banco (uma leitura por poll): totais + último visto global +
+ * quebra por indexer. A engine SQL resolve com COUNT/MAX/GROUP BY — nunca uma
+ * consulta por indexer (sem N+1). */
+export type BankStats = {
+  magnets: number;
+  sources: number;
+  works: number;
+  lastSeen: number;
+  byIndexer: IndexerStat[];
+};
+
 export const MAGNET_COLUMNS = [
   'hash', 'uri', 'title', 'size', 'is_br', 'dubbed', 'quality',
   'seeders_max', 'seeders_last', 'first_seen', 'last_seen', 'lied',

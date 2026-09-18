@@ -70,6 +70,11 @@ export const magnetBank = () => ({
   // do caminho da resposta; encheu, a captura é descartada com métrica
   // (`magnetbank.queue.dropped`) — a busca nunca espera o disco.
   queueMax: Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_QUEUE_MAX, 500))),
+  // Memo do status do painel (ms): `stats()` no /dashboard-status.json é
+  // agregação O(rows) (COUNT/MAX/GROUP BY) e o poll repetia a varredura a cada
+  // ciclo. O memo serve a MESMA foto por esta janela — invalidado a cada
+  // escrita efetiva (flush) e no reset. 0 desliga (recalcula a cada leitura).
+  statusTtlMs: Math.max(0, num(process.env.MAGNET_BANK_STATUS_TTL_MS, 60000)),
   /** Fallback quando o indexer falha (Etapa 4). */
   fallbackEnabled: String(process.env.MAGNET_BANK_FALLBACK || 'true') !== 'false',
   // Teto por indexer falho (1..40). O item de fallback é reserva; acima disso a

@@ -18,6 +18,7 @@ import * as releaseIndex from '../utils/release-index.js';
 import harvester from '../providers/harvester.js';
 import * as harvesterLive from '../utils/harvester-live.js';
 import * as magnetdb from '../utils/magnetdb.js';
+import * as magnetBank from '../utils/magnet-bank.js';
 import * as brResolvers from '../br-resolvers.js';
 import * as providers from '../providers/index.js';
 import * as debridCommon from '../debrid/common.js';
@@ -52,6 +53,7 @@ function buildServices(): AppServices {
     harvesterLive,
     harvesterDebrid,
     magnetdb,
+    magnetBank,
     brResolvers,
     providers,
     debridCommon,

@@ -18,15 +18,14 @@
 // `bad` por conta nunca é lido aqui.
 import type { RawItem } from '../../types/domain.js';
 import config from '../config.js';
-import * as cache from './cache.js';
 import * as log from './logger.js';
 import * as metrics from './metrics.js';
-import { prefix } from './cache-keys.js';
+import { globalLieHashes } from './magnet-bank-lie.js';
 import {
   open as openStore, close as closeStore, resetForTests as resetStore,
   engine, currentEngine, disarmFailNextWrite,
 } from './magnet-bank-rows.js';
-import type { Engine, MagnetRow, SourceRow, WorkRow, Batch } from './magnet-bank-rows.js';
+import type { Engine, MagnetRow, SourceRow, WorkRow, Batch, BankStats, IndexerStat } from './magnet-bank-rows.js';
 import {
   inputFromItem, workTuple, mergeInputs, mergeSourceInput, mergeMagnet, mergeSource, mergeWork,
 } from './magnet-bank-merge.js';
@@ -40,38 +39,6 @@ export type { WorkCtx, MagnetInput, SourceInput };
 const normHash = (hash: string): string => String(hash || '').toLowerCase();
 const workKey = (hash: string, imdb: string, season: number, episode: number) =>
   `${hash}\u0000${imdb}\u0000${season}\u0000${episode}`;
-
-// ---------------------------------------------------------------------------
-// Lie GLOBAL (união de contas)
-// ---------------------------------------------------------------------------
-
-/**
- * Hashes com `lie` VIVO no `mag` de QUALQUER conta. O banco é global, então a
- * evidência de mentira vira um booleano global (não se duplica a conta); o
- * `mag` continua sendo a autoridade por credencial.
- *
- * `keysMatching` filtra pelo prefixo do lado (`mag:v1:lie:`) e só chaves cujo
- * último segmento é um hash DA LEVA são lidas: `cache.peek` descarta a chave
- * EXPIRADA e nada mais é parseado. SEM memo: a varredura roda a cada flush com
- * hashes, então uma mentira recém-gravada antes do flush é vista. Sem
- * `infoHash`/`bad` por conta (isso é do `mag`).
- */
-function globalLieHashes(hashes: Set<string>): Set<string> {
-  const out = new Set<string>();
-  if (hashes.size === 0) return out;
-  if (!config.magnetDb?.enabled || !config.magnetDb?.lieEnabled) return out;
-  try {
-    // O prefixo já prova o lado `lie`; o último segmento da chave é o hash.
-    for (const key of cache.keysMatching(`${prefix('mag')}lie:`)) {
-      const hash = key.slice(key.lastIndexOf(':') + 1);
-      if (!hashes.has(hash)) continue;
-      if (cache.peek(key) === 1) out.add(hash);
-    }
-  } catch (err: unknown) {
-    log.warn('[magnetbank] leitura do lie global falhou:', log.errorMessage(err));
-  }
-  return out;
-}
 
 // ---------------------------------------------------------------------------
 // Fila assíncrona (uma transação por lote)
@@ -236,6 +203,8 @@ function applyOps(ops: Op[]): number {
   }
   if (batch.magnets.length + batch.sources.length + batch.works.length === 0) return 0;
   const written = e.writeBatch(batch);
+  // Escrita EFETIVA muda os totais: o memo do status não pode sobreviver a ela.
+  invalidateStatusCache();
   if (batch.magnets.length > 0) metrics.count('magnetbank.upsert', batch.magnets.length);
   return written;
 }
@@ -322,19 +291,50 @@ export function findByIndexer(indexer: string, limit = 100): Array<{ source: Sou
     .map((source) => ({ source, magnet: e.getMagnet(source.hash) }));
 }
 
-/** Panorama básico e detalhe de um hash para diagnóstico/painel. */
-export function status() {
+/**
+ * Memo do status. A leitura é síncrona (agregação na engine), então não há
+ * coalescing de promise: `MAGNET_BANK_STATUS_TTL_MS` (default 60s; 0 desliga)
+ * serve a MESMA foto a polls repetidos. Invalidado a cada escrita efetiva
+ * (`applyOps` → `writeBatch`) e no ciclo de vida (open/reset/close).
+ */
+const statusTtlMs = (): number => Math.max(0, Math.trunc(Number(config.magnetBank?.statusTtlMs ?? 60000)));
+type BankStatus = ReturnType<typeof computeStatus>;
+let statusMemo: { at: number; value: BankStatus } | null = null;
+
+/** Derruba o memo: o próximo `status()` recalcula. */
+export function invalidateStatusCache(): void {
+  statusMemo = null;
+}
+
+function computeStatus() {
   const e = readEngine();
   if (e) reportEngine(e);
+  const stats: BankStats = e?.stats() ?? { magnets: 0, sources: 0, works: 0, lastSeen: 0, byIndexer: [] };
   return {
     enabled: Boolean(config.magnetBank?.enabled),
     engine: e ? e.kind : 'disabled',
-    magnets: e?.countMagnets() ?? 0,
-    sources: e?.countSources() ?? 0,
-    works: e?.countWorks() ?? 0,
+    magnets: stats.magnets,
+    sources: stats.sources,
+    works: stats.works,
+    lastSeen: stats.lastSeen,
+    byIndexer: stats.byIndexer,
     queue: queue.length,
     queueMax: Math.max(1, Math.trunc(config.magnetBank?.queueMax ?? 500)),
   };
+}
+
+/**
+ * Panorama do banco para diagnóstico/painel: totais, último visto global e a
+ * quebra por indexer. A engine resolve tudo com COUNT/MAX/GROUP BY numa passada
+ * (`stats()`) — sem query por indexer — e o resultado é MEMOIZADO por
+ * `MAGNET_BANK_STATUS_TTL_MS` para o poll não repetir a varredura O(rows).
+ */
+export function status(): BankStatus {
+  const ttl = statusTtlMs();
+  if (ttl > 0 && statusMemo && Date.now() - statusMemo.at < ttl) return statusMemo.value;
+  const value = computeStatus();
+  if (ttl > 0) statusMemo = { at: Date.now(), value };
+  return value;
 }
 
 export function inspectHash(hash: string) {
@@ -349,6 +349,7 @@ export function inspectHash(hash: string) {
 
 export function open(dbPathOverride?: string, opts: { forceMemory?: boolean } = {}): void {
   openStore(dbPathOverride, opts);
+  invalidateStatusCache(); // engine nova: a foto anterior é de outro banco
 }
 
 /**
@@ -365,12 +366,14 @@ export function resetForTests(): void {
   flushScheduled = false;
   engineReported = false;
   resetStore();
+  invalidateStatusCache();
 }
 
 /** Flush + checkpoint (`wal_checkpoint` no engine SQL) antes de fechar. */
 export function close(): void {
   flushNow();
   closeStore();
+  invalidateStatusCache();
 }
 
-export type { MagnetRow, SourceRow, WorkRow, Engine };
+export type { MagnetRow, SourceRow, WorkRow, Engine, BankStats, IndexerStat };
