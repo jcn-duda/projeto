@@ -33,6 +33,14 @@ export function createLatePromoter({ finish, cacheKey, id }: { finish: FinishWri
       }
       return undefined;
     }
+    // Lista VAZIA com indexer falho não é "sem resultado", é "sem resposta":
+    // promovê-la gravava o vazio como completo por CACHE_TTL. Medido com o
+    // Jackett parado (Slugs, tt0093995, 2026-09-18): 15 min de "nenhum stream"
+    // depois que ele voltou. Fica parcial (TTL curto) e a próxima abertura tenta.
+    if (!hit.streams?.length && live?.hasAnyFailure()) {
+      log.info(`[search] coleta sem resposta dos indexers; lista vazia segue parcial para ${id}`);
+      return undefined;
+    }
     // Promover NÃO refaz a checagem de cache, então `debridKnown` é copiado
     // como está: promessa de completude da COLETA não é promessa de ⚡.
     // P5 — `hit.trace` copiado OBRIGATORIAMENTE: a promoção substitui a entrada

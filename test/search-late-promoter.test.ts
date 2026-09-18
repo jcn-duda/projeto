@@ -61,6 +61,31 @@ test('promove entrada parcial a completa quando a coleta encerra sem novidade', 
   }
 });
 
+test('lista vazia com indexer falho não é promovida a completa (Jackett fora do ar)', () => {
+  const { finish } = makeFinish(1);
+  const cacheKey = freshKey();
+  const originalTtl = config.cacheTtl;
+  config.cacheTtl = 900;
+  try {
+    cache.set(cacheKey, { streams: [], partial: true, debridKnown: true }, 60);
+    const promote = createLatePromoter({ finish, cacheKey, id: 'tt-vazio' });
+    promote([], false, 1, false, { hasAnyFailure: () => true } as any);
+    const hit: any = cache.get(cacheKey);
+    assert.equal(hit.partial, true, 'vazio por falha segue parcial');
+    assert.ok((cache.peekRemaining(cacheKey) || 0) <= 60, 'TTL curto preservado');
+
+    // Sem falha, vazio é resposta legítima ("não existe release"): promove.
+    const okKey = freshKey();
+    cache.set(okKey, { streams: [], partial: true, debridKnown: true }, 60);
+    createLatePromoter({ finish, cacheKey: okKey, id: 'tt-vazio-ok' })([], false, 1, false, { hasAnyFailure: () => false } as any);
+    assert.equal((cache.get(okKey) as any).partial, false);
+    cache.forget(okKey);
+  } finally {
+    config.cacheTtl = originalTtl;
+    cache.forget(cacheKey);
+  }
+});
+
 test('lote que cresceu refaz o build completo e não promove direto', () => {
   const { finish, calls } = makeFinish(7);
   const cacheKey = freshKey();
