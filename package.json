@@ -280,6 +280,7 @@
     "test/search-plan.test.js",
     "test/search-plan-franchise.test.js",
     "test/search-budget-metadata.test.js",
+    "test/search-late-promoter.test.js",
     "test/secret-box.test.js",
     "test/sign.test.js",
     "test/swr-streams.test.js",

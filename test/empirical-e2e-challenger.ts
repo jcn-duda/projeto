@@ -153,24 +153,23 @@ const mutations = [
     testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
   },
   {
-    // PLANO_MELHORIAS 5.1: doSearch (e o cache.set do finish) saiu de
-    // providers/index.js para providers/search-orchestrator.js no split de
-    // providers. O alvo segue este arquivo se ele mudar de novo. A feature de
-    // stream-trace acrescentou `trace: serializeTrace(trace), searchMeta` ao
-    // objeto do finish — o alvo antigo (sem o sufixo) deixou de existir como
-    // substring e o harness falhou silencioso (fora do CI). O prefixo até a
-    // vírgula é o trecho estável que decide o `partial` da escrita.
-    name: 'MUT-10: Break Tier 4 Scenario 2 Late-Pass Refreshed Cache Delivery (providers/search-orchestrator.js)',
-    file: 'dist/src/providers/search-orchestrator.js',
-    // O alvo é só o objeto de uma linha: existe como linha física no fonte
-    // (src/providers/search-orchestrator.ts) e sobrevive a qualquer reflow de
-    // linhas que o printer do tsc faça no dist — a chamada inteira colapsada
-    // quebraria no dia em que a formatação do emit mudasse. O mutante força
-    // partial:true em toda escrita do finish, então a entrada nunca transita
-    // para completa — mesma via de captura do mutante original (cenário 2).
-    target: '{ streams, partial, debridKnown: isDebridKnown,',
-    replacement: '{ streams, partial: true /* MUTATED */, debridKnown: isDebridKnown,',
-    testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
+    // A promoção tardia saiu de `search-orchestrator.ts` para
+    // `search-late-promoter.ts` (catraca de 400 linhas). O alvo é a escrita do
+    // ramo SEM novidade: a coleta estourou o orçamento, a resposta saiu parcial
+    // e o lote fechou sem item novo. É essa reescrita (`partial:false`) que faz
+    // a reabertura do Stremio sair do cache com TTL cheio; forçá-la a `true`
+    // deixa a entrada parcial para sempre.
+    //
+    // `testFile` dedicado: nenhuma suíte existente ALCANÇA esse ramo (o caminho
+    // quente responde completo e o ramo `grew` passa pelo `finish`, não por esta
+    // escrita). O tier3-runtime chegou a pegar a mutação, mas por uma falha
+    // pré-existente do próprio arquivo (4 pass / 1 fail SEM mutação) — captura
+    // vácua. `test/search-late-promoter.test.ts` fixa o contrato no símbolo.
+    name: 'MUT-10: Break Late-Pass Cache Promotion (providers/search-late-promoter.js)',
+    file: 'dist/src/providers/search-late-promoter.js',
+    target: '{ streams: hit.streams, partial: false, debridKnown',
+    replacement: '{ streams: hit.streams, partial: true /* MUTATED */, debridKnown',
+    testFile: 'dist/test/search-late-promoter.test.js'
   }
 ];
 
