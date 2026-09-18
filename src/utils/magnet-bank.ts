@@ -31,6 +31,7 @@ import {
   inputFromItem, workTuple, mergeInputs, mergeSourceInput, mergeMagnet, mergeSource, mergeWork,
 } from './magnet-bank-merge.js';
 import type { MagnetInput, SourceInput, WorkCtx, WorkMark } from './magnet-bank-merge.js';
+import { releaseWorkTargets } from './release-work.js';
 
 export { hashOf } from './magnet-bank-merge.js';
 export { failNextWriteForTests } from './magnet-bank-rows.js';
@@ -77,7 +78,19 @@ function globalLieHashes(hashes: Set<string>): Set<string> {
 // ---------------------------------------------------------------------------
 
 type CaptureOp = { kind: 'capture'; items: readonly RawItem[]; indexer: string; ctx: WorkCtx };
-type FilterOp = { kind: 'filter'; all: string[]; surviving: Set<string>; ctx: WorkCtx };
+type FilterOp = {
+  kind: 'filter';
+  all: string[];
+  surviving: Set<string>;
+  ctx: WorkCtx;
+  /**
+   * Obras por hash quando o item declara pack de temporada/série completa
+   * (`release-work.ts`): a MESMA cobertura que a captura gravou precisa receber
+   * o resultado do filtro, senão a obra extra (S,-1)/(-1,-1) ficaria em 0 e o
+   * pack nunca seria recuperável pelo fallback. Ausente = só a obra do pedido.
+   */
+  targets?: Map<string, Array<{ season: number; episode: number }>>;
+};
 type Op = CaptureOp | FilterOp;
 
 const queue: Op[] = [];
@@ -164,6 +177,8 @@ function applyOps(ops: Op[]): number {
     const { imdb, season, episode } = workTuple(op.ctx);
     if (op.kind === 'capture') {
       const reset = Boolean(op.ctx.resetPassedFilter);
+      // Obra do pedido em forma nula, para o roteador de pack/série completa.
+      const request = { season: op.ctx.season ?? null, episode: op.ctx.episode ?? null };
       for (const item of op.items) {
         const parsed = inputFromItem(item, op.indexer);
         if (!parsed) continue;
@@ -172,7 +187,18 @@ function applyOps(ops: Op[]): number {
         const sourceKey = `${parsed.source.hash}\u0000${parsed.source.indexer}`;
         const prevSource = sources.get(sourceKey);
         sources.set(sourceKey, prevSource ? mergeSourceInput(prevSource, parsed.source) : parsed.source);
-        if (imdb) markCaptureWork(parsed.magnet.hash, imdb, season, episode, reset);
+        if (imdb) {
+          // A obra do PEDIDO nunca se perde; pack de temporada/série completa
+          // acrescenta a obra declarada (mesma régua do release-index).
+          for (const target of releaseWorkTargets(String(item.title || item.Title || ''), request)) {
+            markCaptureWork(
+              parsed.magnet.hash, imdb,
+              target.season == null ? -1 : Math.trunc(target.season),
+              target.episode == null ? -1 : Math.trunc(target.episode),
+              reset,
+            );
+          }
+        }
       }
       continue;
     }
@@ -180,15 +206,19 @@ function applyOps(ops: Op[]): number {
     // Jackett (Prowlarr/Torrentio/BLUDV/idx) sem captura não cria work órfão.
     if (!imdb) continue;
     for (const hash of op.all) {
-      const key = workKey(hash, imdb, season, episode);
-      let mark = works.get(key);
-      if (!mark) {
-        const prev = e.getWork(hash, imdb, season, episode);
-        if (!prev) continue;
-        mark = { hash, imdb, season, episode, passedFilter: prev.passedFilter };
-        works.set(key, mark);
+      const targets = op.targets?.get(hash);
+      const list = targets && targets.length ? targets : [{ season, episode }];
+      for (const target of list) {
+        const key = workKey(hash, imdb, target.season, target.episode);
+        let mark = works.get(key);
+        if (!mark) {
+          const prev = e.getWork(hash, imdb, target.season, target.episode);
+          if (!prev) continue;
+          mark = { hash, imdb, season: target.season, episode: target.episode, passedFilter: prev.passedFilter };
+          works.set(key, mark);
+        }
+        mark.passedFilter = op.surviving.has(hash) ? 1 : 0;
       }
-      mark.passedFilter = op.surviving.has(hash) ? 1 : 0;
     }
   }
 
@@ -232,11 +262,16 @@ export function captureItems(items: readonly RawItem[], indexer = '', ctx: WorkC
  * garante que o resultado desta busca vence a captura que o alimentou e perde
  * para uma captura posterior.
  */
-export function markFilterResult(allHashes: Iterable<string>, survivingHashes: Iterable<string>, ctx: WorkCtx = {}): void {
+export function markFilterResult(
+  allHashes: Iterable<string>,
+  survivingHashes: Iterable<string>,
+  ctx: WorkCtx = {},
+  targets?: Map<string, Array<{ season: number; episode: number }>>,
+): void {
   const all = [...new Set([...allHashes].map(normHash).filter(Boolean))];
   if (all.length === 0) return;
   const surviving = new Set([...survivingHashes].map(normHash).filter(Boolean));
-  enqueue({ kind: 'filter', all, surviving, ctx });
+  enqueue({ kind: 'filter', all, surviving, ctx, targets });
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +283,7 @@ export function markFilterResult(allHashes: Iterable<string>, survivingHashes: I
  * DESLIGADO devolve null em vez de criar o SQLite à toa (status/consulta em
  * instância com a captura desligada não paga disco).
  */
-function readEngine(): Engine | null {
+export function readEngine(): Engine | null {
   const open = currentEngine();
   if (open) return open;
   if (!config.magnetBank?.enabled) return null;

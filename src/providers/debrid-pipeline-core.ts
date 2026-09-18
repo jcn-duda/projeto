@@ -126,8 +126,8 @@ export async function applyDebrid(input: Array<Stream | null>, {
 
   // A escolha dos candidatos vem antes da checagem (cada hold protege o hash da
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
-  // Pack multiobra admitido nunca vira candidato do Chupim: baixaria a coleção.
-  const candidates = autoFetchCandidates(streams.filter((s) => !s._multiWorkAdmitted), {
+  // Pack multiobra admitido e fallback do banco (Etapa 4) nunca viram candidato.
+  const candidates = autoFetchCandidates(streams.filter((s) => !s._multiWorkAdmitted && !s._fromFallback), {
     season, episode,
     imdbId: imdbId || undefined,
     searchKey: searchKey || undefined, trace,
@@ -227,7 +227,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
     if (adapter.id === 'realdebrid' && trustApiKey) rdWarmer.noteCredential(trustApiKey);
     const cachedSet = new Set([...cached].map((h) => String(h).toLowerCase()));
     const topN = 10;
-    const warmable = streams.filter((s) => !s._multiWorkAdmitted);
+    const warmable = streams.filter((s) => !s._multiWorkAdmitted && !s._fromFallback);
     const brCands = pickBrDubbedCandidates(warmable, cachedSet, topN)
       .map((s) => String(s.infoHash || '').toLowerCase())
       .filter(Boolean);

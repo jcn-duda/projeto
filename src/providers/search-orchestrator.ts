@@ -19,7 +19,7 @@ import { buildStreams, createFirstObserver, firstObserverClaim, stageFirstTiming
 import type { FirstObserverState } from './stream-builder.js';
 import { debridRefreshSatisfied, hasPlayableStream } from './search-cache.js';
 import { cloneStreamTrace, createStreamTrace, serializeTrace } from '../utils/stream-trace.js';
-import type { StreamTraceState, SerializedStreamTrace } from '../utils/stream-trace.js';
+import type { StreamTraceState } from '../utils/stream-trace.js';
 import { collectRaw } from './collect-orchestrator.js';
 import { attemptIndexFastPath, noteWouldHitIndex } from './search-index-path.js';
 import { fuseIndexEnrichment } from './index-evidence.js';
@@ -27,7 +27,11 @@ import type { RawBatch } from './search-index-path.js';
 import { schedulePtSweepTail } from './search-sweep-tail.js';
 import { createTailQueue } from './tail-enqueue.js';
 import { startMultiWorkDiscovery, resolveMultiWork } from './search-multiwork.js';
-import type { MultiWorkCollection } from '../../types/domain.js';
+import type { MultiWorkCollection, MatchContext, RawItem } from '../../types/domain.js';
+import { collectFallbackForBuild } from './magnet-bank-fallback.js';
+import { createLatePromoter } from './search-late-promoter.js';
+import { mergeLiveIndexerStates } from './live-indexer-state.js';
+import type { LiveIndexerState } from './live-indexer-state.js';
 
 // Fachada pós-split: `poolCovered`/`idxPoolCovered`/`idxReleasesToRaw` vivem em
 // `search-pool-coverage.ts`, `collectRaw` em `collect-orchestrator.ts`. As
@@ -127,20 +131,19 @@ export async function doSearch({
   // busca fria: com o que chegou dentro do prazo e, depois, com o lote completo
   // quando as fontes lentas terminam (aí só pra reescrever o cache).
   const finish = createLatestWriter(
-    async ({ items, partial, deadlineAt: inputDeadline }) => {
+    async ({ items, partial, deadlineAt: inputDeadline, live }: { items: RawItem[]; partial: boolean; deadlineAt?: number | null; live?: LiveIndexerState | null }) => {
       // I0 — reclama a passada first ATOMICAMENTE no início, antes de qualquer
       // await/build, via helper puro: só uma busca síncrona real com prazo de
-      // resposta presente reclama; recaches sem `inputDeadline` nunca — e, se
-      // correrem antes do first confirmar, não observam (firstCounted=false).
+      // resposta presente reclama; recaches sem `inputDeadline` nunca.
       const { observeFirstPass, observeLatePass } = firstObserverClaim(firstObserver, inputDeadline != null);
       let needsDebridRefresh = false;
       let autofetchCount = 0;
       let debridKnown: boolean | undefined = undefined;
-      // P5 — um ledger POR build. Criado só quando o kill-switch está ligado;
-      // desligado, `trace` null e toda a instrumentação é no-op. O estado
-      // observa os cortes SEM mudar nenhum deles.
+      // P5 — um ledger POR build. Kill-switch desligado => null (no-op).
       const trace: StreamTraceState | null = cloneStreamTrace(collectionTrace);
-      const streams = await buildStreams(items, {
+      const fallback = collectFallbackForBuild({ live, items, type, imdbId, season, episode, trace });
+      const buildInput = fallback.items.length ? [...items, ...fallback.items] : items;
+      const streams = await buildStreams(buildInput, {
         meta, titles, imdbId, season, episode, isDemo, searchKey: cacheKey,
         deadlineAt: inputDeadline,   // presente SÓ no passo de resposta (orçamento do debrid e gate de prazo do first)
         multiWork,
@@ -155,62 +158,44 @@ export async function doSearch({
         },
       });
       const isDebridKnown = debridKnown !== undefined ? Boolean(debridKnown && !needsDebridRefresh) : !needsDebridRefresh;
-      return { streams, partial, needsDebridRefresh, autofetchCount, debridKnown: isDebridKnown, trace };
+      const fallbackInList = streams.some((s: any) => Boolean(s?._fromFallback));
+      // `partial:true` com reserva: o handler responde cacheMaxAge:0 e o TTL
+      // curto abaixo dá à próxima abertura a chance de reconsultar o vivo.
+      return { streams, partial: partial || fallbackInList, needsDebridRefresh, autofetchCount, debridKnown: isDebridKnown, trace, fallback: fallbackInList };
     },
-    ({ streams, partial, needsDebridRefresh, debridKnown, trace }) => {
-      // Resultado vazio pode ser indexer temporariamente fora — cacheia por pouco
-      // tempo. Lote parcial idem: o passe tardio reescreve, mas se ele falhar o
-      // TTL curto evita servir a lista sem as fontes BR por 15 minutos.
+    ({ streams, partial, needsDebridRefresh, debridKnown, trace, fallback }: any) => {
       const isDebridKnown = debridKnown !== undefined ? Boolean(debridKnown && !needsDebridRefresh) : !needsDebridRefresh;
-      const complete = hasPlayableStream(streams) && !partial && isDebridKnown;
-      // `debridKnown` registra se ESTA lista nasceu de uma checagem de cache
-      // confiável. Sem ele, `partial:false` era usado como prova de "já
-      // processado" — e o passe tardio promove a entrada SEM refazer a
-      // checagem, o que congelava a lista sem ⚡ pelo TTL inteiro.
-      // P5 — o trace vai serializado (payload) junto da lista: é ele que o
-      // /stream-trace.json lê offline. Kill-switch desligado => null.
-      // P5 recompute — `searchMeta` (nomes + ano) viaja junto: é o mínimo que
-      // o diagnóstico precisa para re-aplicar o filtro de TÍTULO na matéria-
-      // prima local (idx/raw/inventário) sem refazer Cinemeta/TMDB. Aditivo:
-      // entrada antiga sem o campo => recompute nota 'no-names' e o filtro de
-      // título não roda (comportamento do pipeline com nomes vazios).
-      cache.set(
-        cacheKey,
-        { streams, partial, debridKnown: isDebridKnown, trace: serializeTrace(trace), searchMeta },
-        complete ? config.cacheTtl : Math.min(config.cacheTtl, 60),
-      );
-      log.info(`[search] ${streams.length} stream(s)${partial ? ' (parcial)' : ''} para ${id}`);
+      const hasFallback = Boolean(fallback);
+      // Lista com reserva NUNCA é completa: `partial` + TTL curto; promoção sem
+      // novidade não limpa a marca (ver `late`) — só o rebuild com o vivo de volta.
+      const complete = hasPlayableStream(streams) && !partial && isDebridKnown && !hasFallback;
+      // TTL do fallback RESPEITA o CACHE_TTL: cache desligado (<=0) não grava, e
+      // o teto nunca passa do TTL normal (CACHE_TTL menor que o fallback vence).
+      const fallbackTtl = Math.min(config.cacheTtl, config.fallbackStreamsTtl);
+      if (hasFallback && fallbackTtl <= 0) {
+        log.info(`[search] reserva sem cache (CACHE_TTL/FALLBACK_STREAMS_TTL <= 0); ${id}`);
+        return;
+      }
+      // `debridKnown` registra se a lista nasceu de checagem confiável; sem ele
+      // o passe tardio promovia sem refazer a checagem e congelava a lista sem ⚡.
+      // P5 — trace serializado (o /stream-trace.json lê offline) com `searchMeta`
+      // (nomes+ano) para o recompute de título sem refazer Cinemeta/TMDB.
+      const ttl = hasFallback ? fallbackTtl : complete ? config.cacheTtl : Math.min(config.cacheTtl, 60);
+      cache.set(cacheKey, {
+        streams,
+        partial: hasFallback ? true : partial,
+        debridKnown: isDebridKnown,
+        trace: serializeTrace(trace),
+        searchMeta,
+        ...(hasFallback ? { fallback: true } : {}),
+      }, ttl);
+      log.info(`[search] ${streams.length} stream(s)${hasFallback ? ' (fallback)' : partial ? ' (parcial)' : ''} para ${id}`);
     },
     (value) => Array.isArray(value?.streams) && value.streams.length > 0,
   );
 
-  /**
-   * Fim da coleta. Se as fontes lentas trouxeram algo, reconstrói tudo; se não
-   * trouxeram, só promove a entrada do cache a completa — sem refazer a
-   * checagem no debrid, que é a parte cara e não mudaria de resposta.
-   */
-  const late = (items: any[], grew: boolean, phase: any, partial = false) => {
-    if (grew) return finish({ items, partial }, phase);
-    if (partial) return undefined;
-    // Fase diferente = o fallback de pack assumiu; promover o lote antigo aqui
-    // marcaria como pronta uma busca que ainda está em andamento.
-    if (phase !== finish.phase()) return undefined;
-    const hit = cache.get(cacheKey);
-    if (!hit?.partial) return undefined;
-    // Promover NÃO refaz a checagem de cache, então `debridKnown` é copiado
-    // como está: promessa de completude da COLETA não é promessa de ⚡.
-    // P5 — `hit.trace` copiado OBRIGATORIAMENTE: a promoção substitui a entrada
-    // inteira, e sem o campo o ledger da primeira build seria apagado numa
-    // coleta que não trouxe nada novo — exatamente o caso que o endpoint lê.
-    const debridKnown = hit.debridKnown === true;
-    cache.set(
-      cacheKey,
-      { streams: hit.streams, partial: false, debridKnown, trace: (hit as { trace?: SerializedStreamTrace | null }).trace ?? null, searchMeta: (hit as { searchMeta?: unknown }).searchMeta ?? null },
-      debridKnown ? config.cacheTtl : Math.min(config.cacheTtl, 60),
-    );
-    log.info(`[search] coleta encerrada sem novidade; ${hit.streams.length} stream(s) para ${id}`);
-    return undefined;
-  };
+  // Fim da coleta (promoção tardia) extraído para `search-late-promoter.ts`.
+  const late = createLatePromoter({ finish, cacheKey, id });
 
   const matchContext = {
     names: searchMeta.names,
@@ -231,7 +216,7 @@ export async function doSearch({
   });
   let raw: RawBatch = indexedRaw ?? await collectRaw(
     query, type, imdbId, ptQuery, matchContext,
-    (items: any[], grew: boolean, partial?: boolean) => late(items, grew, episodePhase, partial),
+    (items: any[], grew: boolean, partial?: boolean, live?: LiveIndexerState | null) => late(items, grew, episodePhase, partial, live ?? null),
     sweepQuery, deadlineAt, undefined, firstObserver, collectionTrace, originalQuery, multiWorkQuery,
   );
 
@@ -260,8 +245,8 @@ export async function doSearch({
     log.info(
       `[search] sem resultados; tentando pack "${packQuery}"${ptPackQuery ? ` | pt-BR: "${ptPackQuery}"` : ''}`,
     );
-    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, (items: any[], grew: boolean, partial?: boolean) =>
-      late(items, grew, packPhase, partial),
+    raw = await collectRaw(packQuery, type, imdbId, ptPackQuery, matchContext, (items: any[], grew: boolean, partial?: boolean, live?: LiveIndexerState | null) =>
+      late(items, grew, packPhase, partial, live ?? null),
       sweepQuery,
       deadlineAt,
       undefined,
@@ -284,8 +269,8 @@ export async function doSearch({
       try {
         // As tarefas BR já rodaram na janela crítica acima. Não as repetimos no
         // tail; só o restante enriquece o índice.
-        const live = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery, null, 'nonpriority', undefined, collectionTrace, originalQuery);
-        if (live.partial && live.completion) await live.completion;
+        const enrichment = await collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery, null, 'nonpriority', undefined, collectionTrace, originalQuery);
+        if (enrichment.partial && enrichment.completion) await enrichment.completion;
         // A janela crítica pode ter devolvido antes do BR terminar. Espera-o
         // aqui, no único writer do caminho do índice, para mesclar o lote no
         // `raw` compartilhado antes de promover a coleta completa.
@@ -293,13 +278,15 @@ export async function doSearch({
         // Fusão de evidência por hash (caso Mortuary): a cópia ao vivo mais
         // saudável resgata o snapshot velho em vez de ser descartada. A lógica
         // e as travas de origem/áudio vivem em `index-evidence.ts`.
-        const { fresh, fused } = fuseIndexEnrichment(raw.items, live.items);
+        const { fresh, fused } = fuseIndexEnrichment(raw.items, enrichment.items);
         if (fresh.length) {
           log.info(`[search] enriquecimento do índice trouxe ${fresh.length} resultado(s) novo(s); recacheando`);
           raw.items.push(...fresh);
         }
         if (fused) metrics.count('search.idx.evidenceFused', fused);
-        await finish({ items: raw.items, partial: false }, responsePhase);
+        // Etapa 4: a reserva considera a UNIÃO do que a resposta prioritária
+        // perdeu com o que o enriquecimento perdeu — não só `raw.live`.
+        await finish({ items: raw.items, partial: false, live: mergeLiveIndexerStates([raw.live, enrichment.live]) }, responsePhase);
       } catch (err) {
         log.warn('[search] enriquecimento do índice falhou:', err?.message || err);
       } finally {
@@ -349,7 +336,8 @@ export async function doSearch({
         }
         if (fused) metrics.count('search.idx.evidenceFused', fused);
         log.info(`[search] pack tardio: ${fresh.length} novo(s), ${fused} evidência fundida; recacheando`);
-        await finish({ items: raw.items, partial: false }, responsePhase);
+        // Etapa 4: une o estado da resposta com o da própria coleta de pack.
+        await finish({ items: raw.items, partial: false, live: mergeLiveIndexerStates([raw.live, pack.live]) }, responsePhase);
       } finally {
         metrics.observe('search.pack-tail', Date.now() - started);
       }
@@ -382,7 +370,7 @@ export async function doSearch({
         // O passe tardio pode já ter reconstruído a mesma lista. Não
         // repetimos a consulta cara (e, na AllDebrid, o upload) sem necessidade.
         if (debridRefreshSatisfied(refreshed)) return;
-        await finish({ items: raw.items, partial: false }, responsePhase);
+        await finish({ items: raw.items, partial: false, live: raw.live }, responsePhase);
       } catch (err) {
         log.warn('[search] atualização completa do debrid falhou:', err?.message || err);
       }

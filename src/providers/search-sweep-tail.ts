@@ -24,7 +24,7 @@ import type { RawBatch } from './search-index-path.js';
  */
 export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, type, matchContext, sweepQuery, wantsJackettSweep, imdbId }: {
   raw: RawBatch;
-  finish: (input: { items: any[]; partial: boolean }, phase?: number) => Promise<any>;
+  finish: (input: { items: any[]; partial: boolean; live?: any }, phase?: number) => Promise<any>;
   responsePhase: number;
   enqueueTail: (task: () => any) => Promise<unknown>;
   type: string;
@@ -122,7 +122,11 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
           raw.items.push(...fresh);
           metrics.count('search.pt-sweep.hit');
           log.info(`[search] varredura pt-BR nos globais trouxe ${fresh.length} resultado(s) novo(s) (query "${sweepQuery}"); recacheando`);
-          await finish({ items: raw.items, partial: false }, responsePhase);
+          // Etapa 4: usa o estado da COLETA (raw.live) — a varredura é
+          // `recordStatus:false` e por contrato NÃO alimenta o estado vivo
+          // (falha dela não pode pintar um indexer que a busca principal viu de
+          // pé), então não há "live próprio" para mesclar aqui.
+          await finish({ items: raw.items, partial: false, live: raw.live }, responsePhase);
         } catch (err) {
           log.warn('[search] varredura pt-BR nos globais falhou:', err?.message || err);
         } finally {

@@ -1,5 +1,3 @@
-import config from '../config.js';
-import { opts } from '../runtime.js';
 import type { RawItem, Stream, StreamCandidate } from '../../types/domain.js';
 import { extractInfoHash, decodeEntities, bytesToSize, normalizeTitle, dedupeNames } from './title-normalization.js';
 import { LEADING_ARTICLES, isMultiWorkCollection } from './release-matching.js';
@@ -11,24 +9,10 @@ import {
   editionFromTitle,
   explicitPtAudio,
   looksPtBr,
-  compactAudio,
-  compactTracker,
   stripQualityTagBlob,
 } from './audio-quality.js';
 import { streamQuality } from './stream-quotas.js';
-
-interface StreamDisplayOptions {
-  title?: string;
-  quality?: string;
-  audio?: string;
-  source?: string;
-  edition?: string;
-  tracker?: string;
-  isBr?: boolean;
-  seeders?: number;
-  style?: string;
-  showSource?: boolean;
-}
+import { streamDisplayName } from './stream-display.js';
 
 interface SearchNamesOptions {
   meta?: { name?: string | null; title?: string; year?: number | string | null } | null;
@@ -58,73 +42,6 @@ const TRACKERS = [
   'udp://open.demonii.com:1337/announce',
   'udp://tracker.openbittorrent.com:6969/announce',
 ];
-
-/**
- * `name` ocupa a coluna estreita do Stremio: marca + qualidade, como Torrentio.
- * A release completa fica em `title`, na coluna larga de detalhes.
- *
- * A release já foi duplicada aqui por causa de cliente que renderiza SÓ o
- * `name`. O preço apareceu na tela: com o título inteiro ("Mestres do Universo
- * (2026) 5.1 WEB-DL | [2160p WEB-DL DUBLADO 20.17 GB]") mais o prefixo do
- * debrid, a coluna estreita quebrava em uma palavra por linha e CADA stream
- * ocupava ~11 linhas de altura — cabiam três na tela inteira. Compacto, o mesmo
- * item ocupa duas linhas e a lista volta a ser navegável.
- *
- * `STREAM_NAME_STYLE=full` devolve o comportamento antigo para quem depende de
- * um cliente que ignora o `title`.
- *
- */
-function streamDisplayName({
-  title = '',
-  quality,
-  audio,
-  source,
-  edition,
-  tracker,
-  isBr = false,
-  seeders = 0,
-  style,
-  showSource,
-}: StreamDisplayOptions = {}) {
-  let userOpts: { streamNameStyle?: string; streamNameShowSource?: boolean } | null = null;
-  try { userOpts = opts(); } catch {}
-  const effectiveStyle = style || userOpts?.streamNameStyle || config.streamNameStyle;
-  const effectiveShowSource = showSource !== undefined
-    ? showSource
-    : (userOpts?.streamNameShowSource !== undefined ? userOpts.streamNameShowSource : config.streamNameShowSource);
-
-  // A ordem é a da decisão: primeiro a resolução, depois QUAL corte do filme é,
-  // depois de onde veio. Sem corte e fonte, quatro releases 4K do mesmo filme
-  // saíam com a linha idêntica e a escolha virava sorteio pelo seed.
-  //
-  // Chip DUAL só com prova PT (isBr ou looksPtBr no título). Dual Audio YTS
-  // sem PT continua classificado Dual por dentro, mas o rótulo na lista não
-  // pode parecer dublado BR — invariante 8.12 (_br/_dubbed) não muda aqui.
-  const dualHasPtProof = isBr || looksPtBr(title);
-  const audioChip = audio === 'Dual' && !dualHasPtProof ? '' : compactAudio(audio);
-  const details = [
-    quality === UNKNOWN_QUALITY ? null : quality === '2160p' ? '4K' : quality,
-    edition || null,
-    source || null,
-    audioChip || null,
-    isBr ? 'BR' : null,
-  ].filter(Boolean).join(' ');
-  const stats = [
-    details,
-    effectiveShowSource ? compactTracker(tracker) : null,
-    Number(seeders) > 0 ? `👤 ${seeders}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
-  // Sem o nome do addon: o cliente já o exibe no badge do card ("Localhost:7000",
-  // "Power Movie"), e repeti-lo em toda linha só gastava a coluna estreita.
-  if (effectiveStyle === 'full') return [title, stats].filter(Boolean).join('\n');
-  // Release que não anuncia resolução, corte, fonte nem áudio não tem o que
-  // resumir: sobraria "👤 1", que não identifica nada. Aí o título é a única
-  // informação existente e vale mais que a coluna curta.
-  return details ? stats : [title, stats].filter(Boolean).join('\n');
-}
 
 /**
  * Prefixo no formato do Torrentio, com ⚡ no lugar do "+": a sigla é do DEBRID,
@@ -219,8 +136,15 @@ function toStremioStream(item: RawItem): Stream | null {
   // Convenção do Torrentio: 👤 seeders, 💾 tamanho, ⚙️ indexer. Os clientes
   // (Stremio e Power Movie) reconhecem esses marcadores e montam a linha de
   // metadados a partir deles — com "•" eles não exibiam seeds nem a fonte.
+  // Fallback do banco (Etapa 4): 📦 identifica a reserva e o seeders vira `~N`
+  // (foto do acervo, não medição viva) — sem mentir o valor de `_seeders`.
+  const fromFallback = Boolean(item.fromFallback);
+  const seederBit = fromFallback
+    ? (seeders > 0 ? `👤 ~${seeders}` : '👤 ~')
+    : `👤 ${seeders}`;
   const bits = [
-    `👤 ${seeders}`,
+    ...(fromFallback ? ['📦'] : []),
+    seederBit,
     size ? `💾 ${size}` : null,
     tracker ? `⚙️ ${tracker}` : null,
   ].filter(Boolean);
@@ -237,6 +161,7 @@ function toStremioStream(item: RawItem): Stream | null {
       tracker,
       isBr,
       seeders,
+      fromFallback,
     }),
     title: `${displayTitle}\n${bits.join(' ')}`,
     infoHash,
@@ -277,6 +202,10 @@ function toStremioStream(item: RawItem): Stream | null {
     // quando só o `dn=` prova a coleção; o genérico (só título) segue idêntico.
     _multiWork: isMultiWorkCollection(title) || Boolean(item._multiWorkAdmitted), _multiWorkAdmitted: Boolean(item._multiWorkAdmitted),
       _lied: Boolean(item.lied),
+      // Marca INTERNA do fallback (Etapa 4). Sobrevive ao limitReservingBr de
+      // propósito, para o `finish` marcar a lista como parcial/fallback, e é
+      // REMOVIDA antes do protocolo (applyNoticeOrigin).
+      ...(fromFallback ? { _fromFallback: true } : {}),
   };
 }
 

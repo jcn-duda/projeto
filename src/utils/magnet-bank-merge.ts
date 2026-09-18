@@ -201,12 +201,13 @@ export function mergeWork(prev: WorkRow | null, mark: WorkMark, now: number): Wo
 }
 
 /**
- * Item bruto → linhas de captura. Devolve null para item sem hash e para item
- * de CONTA (`fromAccount`): o inventário é conhecimento da credencial, não do
- * site, e não tem lugar no clone do Jackett.
+ * Item bruto → linhas de captura. Devolve null para item sem hash, item de
+ * CONTA (`fromAccount`) e item de FALLBACK (`fromFallback`): o inventário é
+ * conhecimento da credencial e o fallback é reserva derivada do próprio banco —
+ * nenhum dos dois é observação nova do site e ambos se perpetuariam (Etapa 4).
  */
 export function inputFromItem(item: RawItem, groupIndexer: string): { magnet: MagnetInput; source: SourceInput } | null {
-  if (!item || item.fromAccount) return null;
+  if (!item || item.fromAccount || item.fromFallback) return null;
   const hash = hashOf(item);
   if (!hash) return null;
   const rawMagnet = magnetUriOf(item);

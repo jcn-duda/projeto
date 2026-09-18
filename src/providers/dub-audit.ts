@@ -44,6 +44,10 @@ export function collectAuditCandidates(
   const work = (s: Stream): WorkHint | undefined => (workHint ? { names: workHint.n, year: workHint.y, pack: Boolean(s._multiWork) } : undefined);
   const byHash = new Map<string, DubAuditCandidate>();
   for (const s of list) {
+    // Fallback do banco (Etapa 4) fica FORA: auditar um item de reserva
+    // dispararia resolveLink/auditoria de áudio por um hash que o vivo não
+    // confirmou nesta coleta — a prova de áudio não pode vir da reserva.
+    if (s._fromFallback) continue;
     if (!s.infoHash || !s._dubbed || !cached.has(s.infoHash)) continue;
     byHash.set(String(s.infoHash), {
       hash: String(s.infoHash),
@@ -56,6 +60,7 @@ export function collectAuditCandidates(
   }
   if (season != null && episode != null) {
     for (const s of list) {
+      if (s._fromFallback) continue;
       if (!s.infoHash || !cached.has(s.infoHash)) continue;
       const hash = String(s.infoHash);
       // A variante dublada já interrogará este hash — e o resultado dela vale

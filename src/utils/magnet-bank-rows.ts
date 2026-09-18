@@ -25,44 +25,16 @@ import { createRequire } from 'node:module';
 import config from '../config.js';
 import { DEFAULT_MAGNET_BANK_DB_PATH } from '../config/helpers.js';
 import * as log from './logger.js';
+import {
+  MAGNET_COLUMNS, SOURCE_COLUMNS, WORK_COLUMNS,
+  renderMagnet, renderSource, renderWork,
+  parseMagnet, parseSource, parseWork,
+} from './magnet-bank-schema.js';
+import type { MagnetRow, SourceRow, WorkRow, Batch } from './magnet-bank-schema.js';
+
+export type { MagnetRow, SourceRow, WorkRow, Batch } from './magnet-bank-schema.js';
 
 const _require = createRequire(import.meta.url);
-
-export type MagnetRow = {
-  hash: string;
-  uri: string;
-  title: string;
-  size: number;
-  isBr: number;
-  dubbed: number;
-  quality: string;
-  seedersMax: number;
-  seedersLast: number;
-  firstSeen: number;
-  lastSeen: number;
-  lied: number;
-};
-
-export type SourceRow = {
-  hash: string;
-  indexer: string;
-  tracker: string;
-  firstSeen: number;
-  lastSeen: number;
-  seedersLast: number;
-};
-
-export type WorkRow = {
-  hash: string;
-  imdb: string;
-  season: number;
-  episode: number;
-  firstSeen: number;
-  lastSeen: number;
-  passedFilter: number;
-};
-
-export type Batch = { magnets: MagnetRow[]; sources: SourceRow[]; works: WorkRow[] };
 
 export interface Engine {
   readonly kind: 'sql' | 'memory';
@@ -73,70 +45,16 @@ export interface Engine {
   listWorks(hash: string): WorkRow[];
   listWorksByObra(imdb: string, season: number, episode: number, limit: number): WorkRow[];
   listSourcesByIndexer(indexer: string, limit: number): SourceRow[];
+  /** Magnets de VÁRIOS hashes numa consulta (fallback sem N+1). */
+  listMagnetsMany(hashes: readonly string[]): MagnetRow[];
+  /** Fontes de VÁRIOS hashes numa consulta (fallback sem N+1). */
+  listSourcesMany(hashes: readonly string[]): SourceRow[];
   writeBatch(batch: Batch): number;
   countMagnets(): number;
   countSources(): number;
   countWorks(): number;
   clearRows(): void;
   closeEngine(): void;
-}
-
-const MAGNET_COLUMNS = [
-  'hash', 'uri', 'title', 'size', 'is_br', 'dubbed', 'quality',
-  'seeders_max', 'seeders_last', 'first_seen', 'last_seen', 'lied',
-];
-const SOURCE_COLUMNS = ['hash', 'indexer', 'tracker', 'first_seen', 'last_seen', 'seeders_last'];
-const WORK_COLUMNS = ['hash', 'imdb', 'season', 'episode', 'first_seen', 'last_seen', 'passed_filter'];
-
-function renderMagnet(row: MagnetRow): (string | number)[] {
-  return [
-    row.hash, row.uri, row.title, row.size, row.isBr, row.dubbed, row.quality,
-    row.seedersMax, row.seedersLast, row.firstSeen, row.lastSeen, row.lied,
-  ];
-}
-function renderSource(row: SourceRow): (string | number)[] {
-  return [row.hash, row.indexer, row.tracker, row.firstSeen, row.lastSeen, row.seedersLast];
-}
-function renderWork(row: WorkRow): (string | number)[] {
-  return [row.hash, row.imdb, row.season, row.episode, row.firstSeen, row.lastSeen, row.passedFilter];
-}
-
-function parseMagnet(any: Record<string, unknown>): MagnetRow {
-  return {
-    hash: String(any.hash || ''),
-    uri: String(any.uri || ''),
-    title: String(any.title || ''),
-    size: Number(any.size) || 0,
-    isBr: Number(any.is_br ?? any.isBr) || 0,
-    dubbed: Number(any.dubbed) || 0,
-    quality: String(any.quality || ''),
-    seedersMax: Number(any.seeders_max ?? any.seedersMax) || 0,
-    seedersLast: Number(any.seeders_last ?? any.seedersLast) || 0,
-    firstSeen: Number(any.first_seen ?? any.firstSeen) || 0,
-    lastSeen: Number(any.last_seen ?? any.lastSeen) || 0,
-    lied: Number(any.lied) || 0,
-  };
-}
-function parseSource(any: Record<string, unknown>): SourceRow {
-  return {
-    hash: String(any.hash || ''),
-    indexer: String(any.indexer || ''),
-    tracker: String(any.tracker || ''),
-    firstSeen: Number(any.first_seen ?? any.firstSeen) || 0,
-    lastSeen: Number(any.last_seen ?? any.lastSeen) || 0,
-    seedersLast: Number(any.seeders_last ?? any.seedersLast) || 0,
-  };
-}
-function parseWork(any: Record<string, unknown>): WorkRow {
-  return {
-    hash: String(any.hash || ''),
-    imdb: String(any.imdb || ''),
-    season: Number(any.season ?? -1),
-    episode: Number(any.episode ?? -1),
-    firstSeen: Number(any.first_seen ?? any.firstSeen) || 0,
-    lastSeen: Number(any.last_seen ?? any.lastSeen) || 0,
-    passedFilter: Number(any.passed_filter ?? any.passedFilter) || 0,
-  };
 }
 
 // --- SQLite engine ---------------------------------------------------------
@@ -204,6 +122,19 @@ function sqliteEngine(dbPath: string): Engine | null {
 
     const all = (stmt: any, ...args: any[]): Record<string, unknown>[] =>
       (stmt.all(...args) as Record<string, unknown>[]);
+    // Consulta em LOTE por lista de hashes (chunks de 200): o fallback lê N
+    // magnets/fontes de uma vez em vez de N+1 queries. A tabela é literal
+    // interna, nunca vinda de input.
+    const many = (table: 'magnet' | 'magnet_source', hashes: readonly string[]): Record<string, unknown>[] => {
+      const list = [...new Set(hashes.map((h) => String(h || '').toLowerCase()).filter(Boolean))];
+      const out: Record<string, unknown>[] = [];
+      for (let i = 0; i < list.length; i += 200) {
+        const chunk = list.slice(i, i + 200);
+        const stmt = db.prepare(`SELECT * FROM ${table} WHERE hash IN (${chunk.map(() => '?').join(',')})`);
+        out.push(...all(stmt, ...chunk));
+      }
+      return out;
+    };
 
     return {
       kind: 'sql',
@@ -227,6 +158,8 @@ function sqliteEngine(dbPath: string): Engine | null {
       listSourcesByIndexer(indexer, limit) {
         return all(listSourcesIndexerStmt, String(indexer || ''), limit).map(parseSource);
       },
+      listMagnetsMany(hashes) { return many('magnet', hashes).map(parseMagnet); },
+      listSourcesMany(hashes) { return many('magnet_source', hashes).map(parseSource); },
       writeBatch(batch) {
         // Uma transação por lote (uma busca/captura): fora do caminho da
         // resposta, mas atômico — ou o acervo inteiro da leva entra, ou nada.
@@ -308,6 +241,18 @@ function memoryEngine(): Engine {
       for (const row of sources.values()) if (row.indexer === String(indexer || '')) out.push(row);
       out.sort((a, b) => b.lastSeen - a.lastSeen);
       return out.slice(0, limit);
+    },
+    listMagnetsMany(hashes) {
+      const set = new Set(hashes.map((x) => h(x)).filter(Boolean));
+      const out: MagnetRow[] = [];
+      for (const key of set) { const row = magnets.get(key); if (row) out.push(row); }
+      return out;
+    },
+    listSourcesMany(hashes) {
+      const set = new Set(hashes.map((x) => h(x)).filter(Boolean));
+      const out: SourceRow[] = [];
+      for (const row of sources.values()) if (set.has(h(row.hash))) out.push(row);
+      return out;
     },
     writeBatch(batch) {
       if (consumeFailNextWrite()) throw new Error('falha de escrita injetada (teste)');

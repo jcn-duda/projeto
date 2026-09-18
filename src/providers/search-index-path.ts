@@ -16,6 +16,7 @@ import { idxPoolCovered, idxReleasesToRaw } from './search-pool-coverage.js';
 import { shouldBrGap, hasBrDubbed, hasBrEvidence } from '../utils/br-gap.js';
 import { requestBrProbe } from './br-probe.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
+import type { LiveIndexerState } from './live-indexer-state.js';
 
 export interface IndexAttemptInput {
   query: string;
@@ -39,6 +40,13 @@ export interface RawBatch {
   partial: boolean;
   completion: Promise<void>;
   sweepInline: boolean;
+  /**
+   * Estado vivo de falha por indexer da coleta (Etapa 4). É o MESMO objeto que
+   * o `onQueryResult` muta: o build lê os falhos/pendentes para o fallback do
+   * banco e a resposta tardia do indexer o remove. Ausente em lotes que não
+   * consultaram Jackett (ex.: demo).
+   */
+  live?: LiveIndexerState | null;
 }
 
 /**

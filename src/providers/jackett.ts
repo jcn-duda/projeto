@@ -8,10 +8,21 @@ import { shapeSearchQuery, budgetFor, rawKeysFor, peekRawFor } from './jackett-q
 import { breakerTripped, breakerSnapshot, breakerAnnounced } from './jackett-breaker.js';
 import { queryIndexer, type JackettSearchOptions } from './jackett-query-indexer.js';
 import { captureItems } from '../utils/magnet-bank.js';
+import { ALL_QUERY_INDEXER } from './live-indexer-state.js';
 
 // Prazo do teste manual de indexador. Nada a ver com o da busca: aqui vale
 // esperar pra distinguir "indexer morto" de "indexer lento".
 const DIAGNOSTIC_TIMEOUT = 30000;
+
+/**
+ * Lista efetiva de indexers que `search` vai consultar. Fonte ÚNICA da regra do
+ * ramo agregado: `override == null` usa a config do operador; lista vazia é que
+ * cai no `/all`. Exportada para o `collectRaw` marcar pending/allFailed com a
+ * MESMA regra real (não com um palpite sobre `opts().jackettIndexers`).
+ */
+export function effectiveJackettIndexers(indexersOverride: string[] | null): string[] {
+  return indexersOverride == null ? config.jackett.indexers : indexersOverride;
+}
 
 /**
  * Consulta cada indexer em paralelo em vez do agregado /all do Jackett.
@@ -35,7 +46,7 @@ async function search(query: string, type: string, indexersOverride: string[] | 
   // dublado raro mora justamente ali. O breaker é um atalho de busca AO VIVO.
   const { url, apiKey } = config.jackett;
   const { recordStatus = true, ignoreBreaker = false } = options;
-  const indexers = indexersOverride == null ? config.jackett.indexers : indexersOverride;
+  const indexers = effectiveJackettIndexers(indexersOverride);
   if (!apiKey) {
     log.warn('[jackett] JACKETT_API_KEY não configurada');
     return [];
@@ -55,6 +66,10 @@ async function search(query: string, type: string, indexersOverride: string[] | 
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const items = mapResults(await res.json());
+      // O ramo agregado não tem falha por indexer (é uma consulta só). Para o
+      // fallback da Etapa 4, emitimos um evento SINTÉTICO: resposta VÁLIDA
+      // (mesmo vazia) é sucesso e não dispara reserva. O erro cai no catch.
+      options.onQueryResult?.({ indexer: ALL_QUERY_INDEXER, responded: true });
       // Clone total também no agregado `/all`: aqui não há `r.value.indexer`,
       // então a captura usa o indexer do próprio item (mapResults preenche com
       // TrackerId/Tracker) e cai em 'all' quando não há nem isso.
@@ -67,6 +82,9 @@ async function search(query: string, type: string, indexersOverride: string[] | 
       return items;
     } catch (err) {
       log.warn('[jackett]', err.message);
+      // Erro (HTTP/timeout/aborto) do ramo agregado: falha sintética — o
+      // consumidor deriva os indexers candidatos das sources do banco.
+      options.onQueryResult?.({ indexer: ALL_QUERY_INDEXER, responded: false, reason: 'error' });
       return [];
     }
   }

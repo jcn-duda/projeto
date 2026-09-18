@@ -188,7 +188,8 @@ export function prepareCandidateStreams(
     raw = raw.map((item) => (multiWorkAdmitted.has(item) ? { ...item, _multiWorkAdmitted: true } : item));
   }
   if (!isDemo && imdbId) {
-    releaseIndex.record(imdbId, { season, episode }, raw.filter((item) => !item._multiWorkAdmitted));
+    // Fallback do banco (Etapa 4) fica fora; realimentaria o índice.
+    releaseIndex.record(imdbId, { season, episode }, raw.filter((item) => !item._multiWorkAdmitted && !item.fromFallback));
   }
 
   // Guarda de coleção: pack multi-obra ("Todos os filmes 1979-2016") só é

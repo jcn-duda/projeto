@@ -1,7 +1,7 @@
 import config from '../config.js';
 import type { MatchContext } from '../../types/domain.js';
 import * as demo from './demo.js';
-import jackett from './jackett.js';
+import jackett, { effectiveJackettIndexers } from './jackett.js';
 import prowlarr from './prowlarr.js';
 import bludv from './bludv.js';
 import * as torrentio from './torrentio.js';
@@ -17,6 +17,8 @@ import { SAFE_INDEXER_ID, stageFirstTiming } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { poolCovered } from './search-pool-coverage.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
+import { createLiveIndexerState, ALL_QUERY_INDEXER } from './live-indexer-state.js';
+import type { LiveIndexerState } from './live-indexer-state.js';
 
 export async function collectRaw(
   query: string,
@@ -24,7 +26,7 @@ export async function collectRaw(
   imdbId: string,
   ptQuery: string | null,
   matchContext: MatchContext,
-  onLate: ((items: any[], grew: boolean, partial?: boolean) => any) | null,
+  onLate: ((items: any[], grew: boolean, partial?: boolean, live?: LiveIndexerState | null) => any) | null,
   sweepQuery: string | null = null,
   deadlineAt: number | null = null,
   taskScope: 'all' | 'priority' | 'nonpriority' = 'all',
@@ -53,6 +55,12 @@ export async function collectRaw(
   const grpBr = { present: false, pending: 0, maxSettle: 0 };
   const grpGlobal = { present: false, pending: 0, maxSettle: 0 };
   const tasks: { promise: Promise<any>; priority: boolean; source?: string }[] = [];
+  // Estado vivo de falha por indexer (Etapa 4). Alimentado pelo `onQueryResult`
+  // só nas consultas PRINCIPAIS (`recordStatus !== false`); a varredura pt-BR e
+  // o caminho de fundo ficam de fora para não contaminar o fallback. O objeto
+  // viaja no RawBatch e o callback tardio o muta — é isso que remove o fallback
+  // do indexer assim que ele responde.
+  const live = createLiveIndexerState();
   const addTask = (create: () => Promise<any>, priority = false, source?: string) => {
     if (taskScope === 'priority' && !priority) return;
     if (taskScope === 'nonpriority' && priority) return;
@@ -80,7 +88,7 @@ export async function collectRaw(
       stageFirstTiming(firstObserver, 'global', Date.now() - collectStart);
     }
     return {
-      items, partial: false, completion: Promise.resolve(), sweepInline: false,
+      items, partial: false, completion: Promise.resolve(), sweepInline: false, live: null,
     };
   }
 
@@ -104,12 +112,22 @@ export async function collectRaw(
       // inventário; a obra entra na fila do colhedor pelo caminho de sempre.
       metrics.count('search.indexonly.all');
     } else if (selectedIndexers.length === 0) {
-      // Sem seleção do usuário, `jackett.search(..., null, options)` usa
-      // `config.jackett.indexers` — no caso comum ainda vai por-indexer e
-      // consome `originalQuery`/`matchContext` normalmente. Só quando a config
-      // do operador está EFETIVAMENTE vazia é que cai no agregado puro `/all`,
-      // que não suporta a cascata (uma chamada só, sem segunda tentativa).
-      addTask(() => jackett.search(query, type, null, { originalQuery: originalQuery || undefined, matchContext, imdbId, season: matchContext.season, episode: matchContext.episode, resetPassedFilter: true }));
+      // Sem seleção do usuário, `jackett.search(..., null, options)` usa a
+      // config do operador — no caso comum ainda vai por-indexer e consome
+      // `originalQuery`/`matchContext` normalmente. Só quando a config está
+      // EFETIVAMENTE vazia é que cai no agregado puro `/all`, que não suporta
+      // a cascata (uma chamada só). A decisão usa a MESMA regra real do
+      // `jackett.search` (`effectiveJackettIndexers`): marcar `/all` com a
+      // config povoada deixaria um `all pending` fantasma e o fallback cobriria
+      // sources que nunca foram consultadas.
+      const effective = effectiveJackettIndexers(null);
+      if (effective.length === 0) live.noteAllStart();
+      else live.noteStart(effective);
+      addTask(() => jackett.search(query, type, null, {
+        originalQuery: originalQuery || undefined, matchContext, imdbId,
+        season: matchContext.season, episode: matchContext.episode, resetPassedFilter: true,
+        onQueryResult: (info: any) => live.noteResult(info),
+      }));
     } else {
       const plan = planJackettQueries(
         query,
@@ -127,27 +145,34 @@ export async function collectRaw(
         );
         const inlineSweep = Boolean(sweepQuery) && sweepQuery !== query && planned.query === sweepQuery;
         if (inlineSweep) sweepInline = true;
-        addTask(() => jackett.search(planned.query, type, planned.indexers, {
-          fallbackQuery: planned.fallback,
-          variantQuery: planned.variant,
-          franchiseQuery: planned.franchise,
-          multiWorkQuery: planned.multiWork,
-          originalQuery: planned.original,
-          matchContext,
-          // Obra da busca para o banco de magnets vivo (captura por item).
-          // Coleta viva: o build abaixo roda o filtro e escreve o resultado.
-          imdbId,
-          season: matchContext.season,
-          episode: matchContext.episode,
-          resetPassedFilter: true,
-          // A mesma busca principal atualiza o status deste indexer. Falha da
-          // variante pt-BR não pode sobrescrever aquele resultado como offline.
-          recordStatus: inlineSweep ? false : undefined,
-          // Coleta com prazo é caminho de resposta; sem prazo é cauda
-          // (enriquecimento do índice, pack tardio) — desperdício vai para o
-          // balde de fundo, não para o da resposta.
-          background: deadlineAt == null,
-        }), priority);
+        addTask(() => {
+          // `recordStatus:false` (varredura inline) não alimenta o estado vivo:
+          // a falha dela não pode pintar de falho um indexer que a busca
+          // principal viu de pé. O fallback só cobre consulta principal.
+          if (!inlineSweep) live.noteStart(planned.indexers);
+          return jackett.search(planned.query, type, planned.indexers, {
+            fallbackQuery: planned.fallback,
+            variantQuery: planned.variant,
+            franchiseQuery: planned.franchise,
+            multiWorkQuery: planned.multiWork,
+            originalQuery: planned.original,
+            matchContext,
+            // Obra da busca para o banco de magnets vivo (captura por item).
+            // Coleta viva: o build abaixo roda o filtro e escreve o resultado.
+            imdbId,
+            season: matchContext.season,
+            episode: matchContext.episode,
+            resetPassedFilter: true,
+            // A mesma busca principal atualiza o status deste indexer. Falha da
+            // variante pt-BR não pode sobrescrever aquele resultado como offline.
+            recordStatus: inlineSweep ? false : undefined,
+            ...(inlineSweep ? {} : { onQueryResult: (info: any) => live.noteResult(info) }),
+            // Coleta com prazo é caminho de resposta; sem prazo é cauda
+            // (enriquecimento do índice, pack tardio) — desperdício vai para o
+            // balde de fundo, não para o da resposta.
+            background: deadlineAt == null,
+          });
+        }, priority);
       }
     }
   }
@@ -170,10 +195,19 @@ export async function collectRaw(
   const validProvider = providers.some((name: string) =>
     ['jackett', 'prowlarr', 'torrentio', 'demo', 'both'].includes(name));
   if (tasks.length === 0 && providers.length > 0 && !validProvider) {
-    // Mesma semântica do branch acima: com `config.jackett.indexers` povoada,
-    // as options (cascata) valem normalmente; o agregado puro `/all` — só
-    // atingido com a config vazia — é que não as consome.
-    addTask(() => jackett.search(query, type, null, { originalQuery: originalQuery || undefined, matchContext, imdbId, season: matchContext.season, episode: matchContext.episode, resetPassedFilter: true }));
+    // Mesma semântica dos branches acima: com `config.jackett.indexers`
+    // povoada, as options (cascata) valem normalmente; o agregado puro `/all` —
+    // só atingido com a config vazia — é que não as consome. Seja por-indexer
+    // ou agregado, o estado vivo precisa refletir a consulta (o provider
+    // inválido AINDA passa pelo Jackett).
+    const effective = effectiveJackettIndexers(null);
+    if (effective.length === 0) live.noteAllStart();
+    else live.noteStart(effective);
+    addTask(() => jackett.search(query, type, null, {
+      originalQuery: originalQuery || undefined, matchContext, imdbId,
+      season: matchContext.season, episode: matchContext.episode, resetPassedFilter: true,
+      onQueryResult: (info: any) => live.noteResult(info),
+    }));
   }
 
   // Fonte BR dublada, independente do PROVIDER: entra no mesmo allSettled,
@@ -241,7 +275,7 @@ export async function collectRaw(
       log.info(`[search] primeira fonte tardia chegou; recacheando ${snapshot.length} resultado(s)`);
       // Atualiza cedo a lista que o cliente está repetindo, mas mantém partial:
       // outros indexers ainda trabalham e a promoção definitiva vem abaixo.
-      lateQueue = Promise.resolve(onLate(snapshot, true, true)).catch((err) => {
+      lateQueue = Promise.resolve(onLate(snapshot, true, true, live)).catch((err) => {
         log.warn('[search] passe tardio intermediário falhou:', err?.message || err);
       });
     },
@@ -288,12 +322,12 @@ export async function collectRaw(
           // saiu marcada como parcial (cacheMaxAge 0) e, sem esta chamada, ela
           // ficava parcial até o TTL expirar — o cliente repergunta em loop e
           // nunca recebe uma resposta que possa guardar.
-          return onLate(bucket, grew, false);
+          return onLate(bucket, grew, false, live);
         })
         .catch((err) => log.warn('[search] passe tardio falhou:', err?.message || err));
     }
   }
   // `partial` acompanha o lote até a resposta HTTP: quem recebe uma lista
   // incompleta não pode cacheá-la por 15 minutos (ver o handler em addon.js).
-  return { items: bucket, partial: !done, completion, sweepInline };
+  return { items: bucket, partial: !done, completion, sweepInline, live };
 }

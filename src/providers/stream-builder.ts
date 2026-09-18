@@ -318,10 +318,17 @@ export async function buildStreams(rawInput: RawItem[], {
  * "Nenhum stream disponível" enquanto a busca já tinha resultado.
  */
 export function applyNoticeOrigin(streams: Stream[] = []) {
-  if (!streams.some((stream) => stream?.notice)) return streams;
+  // Limite do protocolo: a marca interna do fallback (Etapa 4) sai AQUI, para
+  // todo stream — com ou sem aviso. O cache pode carregá-la (é como o `finish`
+  // sabe que a lista contém reserva), mas o cliente nunca a vê.
+  const cleaned = streams.map((stream) => {
+    const { _fromFallback, ...rest } = stream as Stream & { _fromFallback?: boolean };
+    return rest as Stream;
+  });
+  if (!cleaned.some((stream) => stream?.notice)) return cleaned;
   const base = (config.debrid.publicUrl || origin() || '').replace(/\/$/, '');
   const link = base ? `${base}${prefix()}/configure` : '';
-  return streams.flatMap((stream) => {
+  return cleaned.flatMap((stream) => {
     if (!stream?.notice) return [stream];
     if (!link) return [];
     // `notice` é marca interna: não faz parte do objeto que o Stremio recebe.

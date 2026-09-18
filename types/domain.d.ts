@@ -52,6 +52,9 @@ export interface RawItem {
   hash?: string;
   season?: number | null;
   episode?: number | null;
+  /** Item de reserva do banco (Etapa 4): indexer falho; nunca realimenta idx/banco/Chupim. */
+  fromFallback?: boolean;
+  fallbackIndexer?: string;
   [key: string]: unknown;
 }
 
@@ -177,6 +180,8 @@ export interface StreamBase {
    * cache não precisa de swarm, download sim. Morre no limitReservingBr.
    */
   _seedFloorWaived?: boolean;
+  /** Reserva do banco (Etapa 4): marca a lista como parcial/fallback; removida no protocolo. */
+  _fromFallback?: boolean;
   /** Marca interna do item de aviso — some antes do Stremio receber. */
   notice?: true;
 }

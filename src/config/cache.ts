@@ -10,6 +10,12 @@ export const cacheBase = () => ({
   // um refresh de fundo a reconstrói. Só vale para lista completa com debrid
   // conferido e stream tocável. 0 volta à semântica dura (expirou = busca nova).
   streamStaleGrace: num(process.env.STREAM_STALE_GRACE_SECONDS, 300),
+  // TTL da lista que CONTÉM item de fallback do banco de magnets (Etapa 4): a
+  // reserva é foto do acervo, não medição viva — nunca ganha o TTL cheio nem é
+  // promovida a completa enquanto o indexer falho não responder. Curto para a
+  // próxima abertura já reconsultar o vivo (o handler força cacheMaxAge 0 via
+  // `partial`, que a entrada de fallback também carrega).
+  fallbackStreamsTtl: Math.max(0, num(process.env.FALLBACK_STREAMS_TTL, 120)),
 });
 
 export const rawCache = () => ({
@@ -64,7 +70,12 @@ export const magnetBank = () => ({
   // do caminho da resposta; encheu, a captura é descartada com métrica
   // (`magnetbank.queue.dropped`) — a busca nunca espera o disco.
   queueMax: Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_QUEUE_MAX, 500))),
-  /** Fallback quando o indexer falha (Etapa 4) — reserva. */
+  /** Fallback quando o indexer falha (Etapa 4). */
   fallbackEnabled: String(process.env.MAGNET_BANK_FALLBACK || 'true') !== 'false',
-  fallbackMaxPerIndexer: Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_FALLBACK_MAX, 40))),
+  // Teto por indexer falho (1..40). O item de fallback é reserva; acima disso a
+  // conta do debrid vira depósito de candidato que o vivo provavelmente já tem.
+  fallbackMaxPerIndexer: Math.min(40, Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_FALLBACK_MAX, 40)))),
+  // Teto GLOBAL da reserva (1..500): sem ele, N indexers falhos × 40 encheriam o
+  // lote e a checagem do debrid. Conservador por default (igual ao por-indexer).
+  fallbackGlobalMax: Math.min(500, Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_FALLBACK_GLOBAL_MAX, 40)))),
 });

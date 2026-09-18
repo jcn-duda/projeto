@@ -45,6 +45,10 @@ export type TraceReason =
   | 'indexer-limit'
   | 'max-results'
   | 'br-guarantee-replaced'
+  // Corte na SELEÇÃO do fallback do banco de magnets (Etapa 4): live-dedupe,
+  // lied, no-source ou cap. O detalhe por item é amostrado dentro do teto do
+  // ledger; as contagens exatas vivem nas métricas `fallback.items.cut.*`.
+  | 'fallback'
   | 'notice';
 
 /** Um item cortado (ou o aviso de lista vazia) com o motivo do corte. */
