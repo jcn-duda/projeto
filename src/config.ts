@@ -16,7 +16,7 @@ import { jackett } from './config/jackett.js';
 import { prowlarr, torrentio, tmdb, cinemeta, bludv } from './config/providers.js';
 import { resolvers } from './config/resolvers.js';
 import { searchSettings, budgets, search } from './config/search.js';
-import { cacheBase, rawCache, cache, catalog } from './config/cache.js';
+import { cacheBase, rawCache, cache, catalog, magnetBank } from './config/cache.js';
 import { debrid } from './config/debrid.js';
 import { warmup, releaseIndex, accountFastPath, harvest, seed, f3 } from './config/harvest.js';
 import { magnetDb, audioAudit, notify } from './config/audit.js';
@@ -44,6 +44,7 @@ const config = {
   rawCache: rawCache(),
   cache: cache(),
   catalog: catalog(),
+  magnetBank: magnetBank(),
   debrid: debrid(),
   // searchTimeout, replyDeadline, debridReserve, debridCheckFloor
   ...budgets(),

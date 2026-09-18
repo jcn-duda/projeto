@@ -109,7 +109,7 @@ export async function collectRaw(
       // consome `originalQuery`/`matchContext` normalmente. Só quando a config
       // do operador está EFETIVAMENTE vazia é que cai no agregado puro `/all`,
       // que não suporta a cascata (uma chamada só, sem segunda tentativa).
-      addTask(() => jackett.search(query, type, null, { originalQuery: originalQuery || undefined, matchContext }));
+      addTask(() => jackett.search(query, type, null, { originalQuery: originalQuery || undefined, matchContext, imdbId, season: matchContext.season, episode: matchContext.episode, resetPassedFilter: true }));
     } else {
       const plan = planJackettQueries(
         query,
@@ -134,6 +134,12 @@ export async function collectRaw(
           multiWorkQuery: planned.multiWork,
           originalQuery: planned.original,
           matchContext,
+          // Obra da busca para o banco de magnets vivo (captura por item).
+          // Coleta viva: o build abaixo roda o filtro e escreve o resultado.
+          imdbId,
+          season: matchContext.season,
+          episode: matchContext.episode,
+          resetPassedFilter: true,
           // A mesma busca principal atualiza o status deste indexer. Falha da
           // variante pt-BR não pode sobrescrever aquele resultado como offline.
           recordStatus: inlineSweep ? false : undefined,
@@ -167,7 +173,7 @@ export async function collectRaw(
     // Mesma semântica do branch acima: com `config.jackett.indexers` povoada,
     // as options (cascata) valem normalmente; o agregado puro `/all` — só
     // atingido com a config vazia — é que não as consome.
-    addTask(() => jackett.search(query, type, null, { originalQuery: originalQuery || undefined, matchContext }));
+    addTask(() => jackett.search(query, type, null, { originalQuery: originalQuery || undefined, matchContext, imdbId, season: matchContext.season, episode: matchContext.episode, resetPassedFilter: true }));
   }
 
   // Fonte BR dublada, independente do PROVIDER: entra no mesmo allSettled,

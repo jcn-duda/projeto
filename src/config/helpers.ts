@@ -59,3 +59,7 @@ const CONFIG_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(CONFIG_DIR, '..', '..', '..');
 export const DEFAULT_CACHE_DB_PATH = path.join(REPO_ROOT, 'data', 'cache.db');
 export const DEFAULT_CATALOG_DB_PATH = path.join(REPO_ROOT, 'data', 'catalog.db');
+// Banco de magnets VIVO: clone permanente de tudo que o Jackett devolveu.
+// SQLite PRÓPRIO pelo mesmo motivo do catálogo — o cache do addon tem cota,
+// TTL e bump de namespace, e qualquer um dos três apagaria o acervo.
+export const DEFAULT_MAGNET_BANK_DB_PATH = path.join(REPO_ROOT, 'data', 'magnets.db');

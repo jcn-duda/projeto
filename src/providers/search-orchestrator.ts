@@ -392,6 +392,6 @@ export async function doSearch({
   // Varredura pt-BR nos globais (fila tardia). Extraída para
   // `search-sweep-tail.ts`; recebe a fila serial compartilhada e o writer da
   // execução corrente. O facade só entrega as dependências fechadas.
-  schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, type, matchContext, sweepQuery, wantsJackettSweep });
+  schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, type, matchContext, sweepQuery, wantsJackettSweep, imdbId });
   return result;
 }

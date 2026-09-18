@@ -22,7 +22,7 @@ import type { RawBatch } from './search-index-path.js';
  * não executar applyDebrid/upload concorrentes na mesma chave); `raw`/`finish`/
  * `responsePhase` vêm fechados sobre a execução corrente de `doSearch`.
  */
-export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, type, matchContext, sweepQuery, wantsJackettSweep }: {
+export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, type, matchContext, sweepQuery, wantsJackettSweep, imdbId }: {
   raw: RawBatch;
   finish: (input: { items: any[]; partial: boolean }, phase?: number) => Promise<any>;
   responsePhase: number;
@@ -31,6 +31,8 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
   matchContext: MatchContext;
   sweepQuery: string | null;
   wantsJackettSweep: boolean;
+  /** Obra da busca: alimenta o banco de magnets vivo (captura por item). */
+  imdbId?: string | null;
 }) {
   const configuredIndexers = opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers;
   const sweepSelectedIndexers: string[] = [...new Set((configuredIndexers || []).filter((idx: any) =>
@@ -58,6 +60,13 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
             matchContext,
             recordStatus: false,
             ignoreBreaker: true,
+            // Obra da busca para o banco de magnets vivo (captura por item).
+            // A varredura de cauda entra no `raw.items` e passa pelo build: o
+            // filtro roda e escreve o resultado, então a captura reseta.
+            imdbId,
+            season: matchContext.season,
+            episode: matchContext.episode,
+            resetPassedFilter: true,
             // Fora do caminho da resposta: o desperdício medido é trabalho de
             // fundo da caça pt-BR, não custo do orçamento crítico.
             background: true,

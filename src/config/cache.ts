@@ -1,4 +1,4 @@
-import { DEFAULT_CACHE_DB_PATH, DEFAULT_CATALOG_DB_PATH, num } from './helpers.js';
+import { DEFAULT_CACHE_DB_PATH, DEFAULT_CATALOG_DB_PATH, DEFAULT_MAGNET_BANK_DB_PATH, num } from './helpers.js';
 
 // Fábricas (não objetos prontos): módulo ESM é cacheado, e cada re-avaliação
 // do compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
@@ -51,4 +51,20 @@ export const catalog = () => ({
   auditMaxPerRound: Math.max(0, Math.trunc(num(process.env.CATALOG_AUDIT_MAX, 20))),
   // Workers paralelos da auditoria de arquivos (1..3).
   auditConcurrency: Math.min(3, Math.max(1, Math.trunc(num(process.env.CATALOG_AUDIT_CONCURRENCY, 2)))),
+});
+
+// Banco de magnets VIVO (clone permanente): SQLite próprio em data/magnets.db,
+// sem cota, sem TTL e sem bump de namespace — é acervo, não cache. Os flags de
+// fila valem já na Etapa 2; os de fallback ficam declarados aqui para o knob
+// existir no `.env` antes da feature (Etapa 4), sem nenhum caminho os consumir.
+export const magnetBank = () => ({
+  enabled: String(process.env.MAGNET_BANK || 'true') !== 'false',
+  dbPath: process.env.MAGNET_BANK_DB_PATH || DEFAULT_MAGNET_BANK_DB_PATH,
+  // Teto da fila de captura. A gravação é uma transação em lote por busca, fora
+  // do caminho da resposta; encheu, a captura é descartada com métrica
+  // (`magnetbank.queue.dropped`) — a busca nunca espera o disco.
+  queueMax: Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_QUEUE_MAX, 500))),
+  /** Fallback quando o indexer falha (Etapa 4) — reserva. */
+  fallbackEnabled: String(process.env.MAGNET_BANK_FALLBACK || 'true') !== 'false',
+  fallbackMaxPerIndexer: Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_FALLBACK_MAX, 40))),
 });

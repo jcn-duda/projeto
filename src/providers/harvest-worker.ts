@@ -222,6 +222,13 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
       const items = await jackett.search(query, entry.type, [indexer], {
         matchContext,
         recordStatus: false,
+        // Obra da busca para o banco de magnets vivo (captura por item).
+        // Coleta de FUNDO: não passa pelo stream-builder, então NÃO resetar o
+        // `passed_filter` — o valor da última avaliação viva é preservado.
+        imdbId: entry.imdbId,
+        season: entry.season ?? null,
+        episode: entry.episode ?? null,
+        resetPassedFilter: false,
         fallbackQuery: ptQuery && ptQuery !== query ? ptQuery : undefined,
         originalQuery: originalQuery || undefined,
         // Descoberta do índice: zero-sobrevivente aqui é sonda negativa,

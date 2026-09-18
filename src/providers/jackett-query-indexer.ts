@@ -54,6 +54,21 @@ export interface JackettSearchOptions {
    * indexer nem o breaker — é só leitura para o chamador.
    */
   onQueryResult?: (info: { indexer: string; responded: boolean; reason?: string }) => void;
+  /**
+   * Identidade da obra da busca. Viaja só para a captura do banco de magnets
+   * vivo (`magnet_work`): cada item do Jackett guarda para QUAL busca apareceu,
+   * e é isso que o fallback da Etapa 4 consulta quando um indexer cai. Nada no
+   * matching/plano lê estes campos.
+   */
+  imdbId?: string | null;
+  season?: number | null;
+  episode?: number | null;
+  /**
+   * `true` só na coleta VIVA: a captura reseta o `passed_filter` da obra para
+   * 0 e o `markFilterResult` do stream-builder escreve o resultado. Coleta de
+   * FUNDO (colhedor/varredura) omite: preserva o valor existente.
+   */
+  resetPassedFilter?: boolean;
 }
 
 /**

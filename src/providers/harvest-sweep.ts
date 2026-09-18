@@ -104,6 +104,13 @@ export async function runPtSweep(input: SweepInput): Promise<{ attempted: number
     const items = await jackett.search(sweepQuery, entry.type, ativos, {
       matchContext,
       recordStatus: false,
+      // Obra da busca para o banco de magnets vivo (captura por item).
+      // Coleta de FUNDO: não passa pelo stream-builder, então NÃO resetar o
+      // `passed_filter` — o valor da última avaliação viva é preservado.
+      imdbId: entry.imdbId,
+      season: entry.season ?? null,
+      episode: entry.episode ?? null,
+      resetPassedFilter: false,
       // Descoberta do índice: zero-sobrevivente aqui é sonda negativa, não
       // desperdício do caminho de resposta (ver jackett.search).
       background: true,

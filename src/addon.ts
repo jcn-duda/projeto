@@ -12,8 +12,15 @@ import harvester from './providers/harvester.js';
 import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
+import * as magnetBank from './utils/magnet-bank.js';
 
-const services = { magnetdb };
+const services = { magnetdb, magnetBank };
+
+// Banco de magnets vivo: abre o SQLite próprio no BOOT DO PROCESSO — só quando
+// LIGADO (`MAGNET_BANK=false` não cria arquivo/WAL). O `createApp` (./app,
+// importado pelos testes) não abre nada; só quem sobe o servidor paga o disco.
+// O fechamento com flush+checkpoint vai no shutdown abaixo.
+magnetBank.openIfEnabled();
 
 // O Express app + manifest + rotas vivem em ./app (sem listen), para os testes
 // poderem exercitar o roteamento real sem subir servidor.
@@ -86,6 +93,7 @@ function shutdown(signal: string) {
   server.close(() => {
     brResolvers.close();
     services.magnetdb.savePersistentCounts?.();
+    services.magnetBank.close();
     cache.close();
     log.info('[shutdown] addon encerrado');
     process.exit(0);

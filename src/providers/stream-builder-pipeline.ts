@@ -25,6 +25,7 @@ import type { StreamTraceState } from '../utils/stream-trace.js';
 import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
 import { applyProbedQuality } from './probed-quality.js';
 import { applyPtTitleDual } from './pt-title-dual.js';
+import { markBankFilterOutcome } from './magnet-bank-hook.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 // Indexer id vindo da config do usuario (URL) precisa validar antes de
@@ -164,10 +165,11 @@ export function prepareCandidateStreams(
       // P5 — cada descarte pelo título leva o motivo real no ledger. O diff é
       // por referência de objeto: itens do inventário e sobreviventes são os
       // MESMOS objetos antes/depois.
-      if (trace) {
-        for (const item of antesTitulo) if (!vivos.has(item)) dropTrace(trace, item, 'title-filter');
-      }
+      if (trace) for (const item of antesTitulo) if (!vivos.has(item)) dropTrace(trace, item, 'title-filter');
     }
+    // Banco de magnets vivo: o resultado do filtro de título escreve
+    // `passed_filter` 0/1 na obra (última observação; só work já capturada).
+    markBankFilterOutcome(antesTitulo, raw, { imdbId, season, episode });
   }
 
   // Fase 2: toda busca alimenta o índice com o que sobreviveu ao filtro de
@@ -204,10 +206,7 @@ export function prepareCandidateStreams(
       log.info(`[search] ${beforePack - raw.length} pack(s) multi-obra retido(s) sem escolha por arquivo`);
       // P5 — "retido" no vocabulário do pipeline: o pack SAIU da lista porque
       // ninguém saberia escolher o arquivo dentro dele.
-      if (trace) {
-        const vivos = new Set(raw);
-        for (const item of antesPack) if (!vivos.has(item)) dropTrace(trace, item, 'multiwork-retained');
-      }
+      if (trace) { const vivos = new Set(raw); for (const item of antesPack) if (!vivos.has(item)) dropTrace(trace, item, 'multiwork-retained'); }
     }
   }
 

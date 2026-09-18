@@ -7,6 +7,7 @@ import { mapResults } from './jackett-results.js';
 import { shapeSearchQuery, budgetFor, rawKeysFor, peekRawFor } from './jackett-query.js';
 import { breakerTripped, breakerSnapshot, breakerAnnounced } from './jackett-breaker.js';
 import { queryIndexer, type JackettSearchOptions } from './jackett-query-indexer.js';
+import { captureItems } from '../utils/magnet-bank.js';
 
 // Prazo do teste manual de indexador. Nada a ver com o da busca: aqui vale
 // esperar pra distinguir "indexer morto" de "indexer lento".
@@ -53,7 +54,17 @@ async function search(query: string, type: string, indexersOverride: string[] | 
         signal: AbortSignal.timeout(config.searchTimeout),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return mapResults(await res.json());
+      const items = mapResults(await res.json());
+      // Clone total também no agregado `/all`: aqui não há `r.value.indexer`,
+      // então a captura usa o indexer do próprio item (mapResults preenche com
+      // TrackerId/Tracker) e cai em 'all' quando não há nem isso.
+      captureItems(items, '', {
+        imdbId: options.imdbId,
+        season: options.season,
+        episode: options.episode,
+        resetPassedFilter: options.resetPassedFilter,
+      });
+      return items;
     } catch (err) {
       log.warn('[jackett]', err.message);
       return [];
@@ -109,6 +120,16 @@ async function search(query: string, type: string, indexersOverride: string[] | 
         ...(r.value.sourceOk === false ? { reason: 'source' } : {}),
       });
       out.push(...r.value.items);
+      // Banco de magnets vivo: TUDO que o indexer devolveu com hash entra,
+      // antes de qualquer filtro de título/episódio (o filtro decide a lista,
+      // não o acervo). Vale também para hit do cache bruto — ele É o que o
+      // Jackett devolveu. Item de conta nunca passa por aqui.
+      captureItems(r.value.items, r.value.indexer, {
+        imdbId: options.imdbId,
+        season: options.season,
+        episode: options.episode,
+        resetPassedFilter: options.resetPassedFilter,
+      });
       if (recordStatus && !r.value.fromCache) {
         indexerStatus.record(r.value.indexer, {
           // HTTP válido NÃO significa online: o Jackett devolve 200 com o
