@@ -53,4 +53,5 @@ export default {
   auditBackfillEnv: catalogEnv.auditBackfillEnv,
   cleanupPreviewEnv: catalogEnv.cleanupPreviewEnv,
   cleanupApplyEnv: catalogEnv.cleanupApplyEnv,
+  catalogVersionsEnv: catalogEnv.catalogVersionsEnv,
 };

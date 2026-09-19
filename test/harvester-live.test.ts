@@ -61,14 +61,16 @@ test('harvesterLive: persistência e restauração com reset', () => {
   harvesterLive.reset();
   const init = harvesterLive.effective();
 
-  harvesterLive.set({ harvestMaxPerHour: 250, seedEnabled: false });
+  harvesterLive.set({ harvestMaxPerHour: 250, seedEnabled: false, harvestIntervalMs: 5_000 });
   const updated = harvesterLive.effective();
   assert.equal(updated.harvestMaxPerHour, 250);
   assert.equal(updated.seedEnabled, false);
+  assert.equal(updated.harvestIntervalMs, 5_000, 'override de harvestIntervalMs é refletido no effective()');
 
   const resetResult = harvesterLive.reset();
   assert.equal(resetResult.harvestMaxPerHour, init.harvestMaxPerHour);
   assert.equal(resetResult.seedEnabled, init.seedEnabled);
+  assert.equal(resetResult.harvestIntervalMs, init.harvestIntervalMs);
 });
 
 test('harvesterLive: alternância de pausa e snapshot', () => {
@@ -86,5 +88,28 @@ test('harvesterLive: alternância de pausa e snapshot', () => {
   assert.equal(harvesterLive.isPaused(), false);
   assert.equal(harvesterLive.snapshot().pausedSince, null);
 
+  harvesterLive.reset();
+});
+
+test('harvesterLive: onConfigChange dispara em set/reset/setPaused (não em set inválido)', () => {
+  harvesterLive.reset();
+  harvesterLive.onConfigChange(null);
+  let hits = 0;
+  harvesterLive.onConfigChange(() => { hits += 1; });
+
+  const bad = harvesterLive.set({ harvestEnabled: 'talvez' } as any);
+  assert.equal(bad.ok, false);
+  assert.equal(hits, 0, 'set inválido não notifica');
+
+  assert.equal(harvesterLive.set({ harvestMaxPerHour: 200 }).ok, true);
+  assert.equal(hits, 1);
+
+  harvesterLive.setPaused(true);
+  assert.equal(hits, 2);
+
+  harvesterLive.reset();
+  assert.equal(hits, 3);
+
+  harvesterLive.onConfigChange(null);
   harvesterLive.reset();
 });

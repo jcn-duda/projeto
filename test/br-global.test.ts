@@ -121,6 +121,166 @@ test('dedupeByHash: empate de seeders fica com a listagem dublada', () => {
   assert.equal(winner._br, false);
 });
 
+test('dedupeByHash: espelho global com DUAL herda BR/dublado do post BR do mesmo hash', () => {
+  // A Rocha (tt0117500, 2026-09-14): a varredura pt-BR nos globais trouxe o
+  // mesmo torrent do post da BLUDV com mais seeders, e o dublado sumia da lista.
+  const post = toStremioStream({
+    title: 'A Rocha (1996) [1080p DUAL 2.80 GB]', infoHash: HASH_A, seeders: 1,
+    size: 2.8 * 1024 ** 3, tracker: 'BLUDV', indexer: 'bludv-cardigann', isBr: true,
+  })!;
+  const espelho = toStremioStream({
+    title: 'A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES', infoHash: HASH_A, seeders: 50,
+    size: 2.81 * 1024 ** 3, tracker: 'kickasstorrents.to', indexer: 'kickasstorrents-to', isBr: false,
+  })!;
+  assert.equal(espelho._br, false, 'sozinho o espelho global não é BR');
+  for (const order of [[post, espelho], [espelho, post]]) {
+    const [merged] = dedupeByHash(order);
+    assert.equal(merged._br, true, 'herda a origem BR do post');
+    assert.equal(merged._dubbed, true, 'herda o dublado do post');
+    assert.equal(merged._seeders, 50);
+    assert.match(String(merged.title), /STARCKFILMES/, 'o título continua o do vencedor');
+    assert.match(String(merged.name), /\bBR\b/, 'o nome ganha o chip BR');
+  }
+
+  // Sem DUAL no título global não há corroboração: a regra antiga vale.
+  const semDual = toStremioStream({ title: 'The.Rock.1996.1080p.BluRay.x264-SPARKS', infoHash: HASH_A, seeders: 50, indexer: 'thepiratebay' })!;
+  assert.equal(dedupeByHash([post, semDual])[0]._br, false);
+  // DUAL com áudio estrangeiro declarado também não herda.
+  const hindi = toStremioStream({ title: 'The.Rock.1996.1080p.BluRay.DUAL.Hindi.English.x264', infoHash: HASH_A, seeders: 50, indexer: 'thepiratebay' })!;
+  assert.equal(dedupeByHash([post, hindi])[0]._br, false);
+  // Post BR com prova de mentira não passa nada adiante.
+  const [mentira] = dedupeByHash([{ ...post, _lied: true }, espelho]);
+  assert.equal(mentira._dubbed, false);
+});
+
+test('dedupeByHash: perdedor BR sem dublado não transmite origem ao espelho global', () => {
+  // Perdedor _br=true/_dubbed=false (post legendado de site BR): o DUAL do
+  // vencedor global não prova áudio PT, então a vaga BR não pode ser herdada.
+  const post = toStremioStream({
+    title: 'A Rocha (1996) [1080p LEGENDADO 2.80 GB]', infoHash: HASH_A, seeders: 1,
+    size: 2.8 * 1024 ** 3, tracker: 'BLUDV', indexer: 'bludv-cardigann', isBr: true,
+  })!;
+  const espelho = toStremioStream({
+    title: 'A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES', infoHash: HASH_A, seeders: 50,
+    size: 2.81 * 1024 ** 3, tracker: 'kickasstorrents.to', indexer: 'kickasstorrents-to', isBr: false,
+  })!;
+  assert.equal(post._br, true);
+  assert.equal(post._dubbed, false);
+  for (const order of [[post, espelho], [espelho, post]]) {
+    const [merged] = dedupeByHash(order);
+    assert.equal(merged._br, false, 'sem dublado no perdedor não há herança');
+    assert.equal(merged._dubbed, false);
+  }
+});
+
+test('dedupeByHash: perdedor BR com DUAL + áudio estrangeiro declarado não herda', () => {
+  // O post BR que declara DUAL + Hindi/French desmente o próprio áudio PT:
+  // herdar origem/dublado dele entregaria vaga BR a release estrangeira.
+  const post = toStremioStream({
+    title: 'A Rocha (1996) [1080p DUAL Hindi English 2.80 GB]', infoHash: HASH_A, seeders: 1,
+    size: 2.8 * 1024 ** 3, tracker: 'BLUDV', indexer: 'bludv-cardigann', isBr: true,
+  })!;
+  const espelho = toStremioStream({
+    title: 'A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES', infoHash: HASH_A, seeders: 50,
+    size: 2.81 * 1024 ** 3, tracker: 'kickasstorrents.to', indexer: 'kickasstorrents-to', isBr: false,
+  })!;
+  for (const order of [[post, espelho], [espelho, post]]) {
+    const [merged] = dedupeByHash(order);
+    assert.equal(merged._br, false, 'áudio estrangeiro no post não autoriza herança');
+    assert.equal(merged._dubbed, false);
+  }
+});
+
+test('dedupeByHash: três clones do mesmo hash dão resultado idêntico em qualquer ordem', () => {
+  const post = toStremioStream({
+    title: 'A Rocha (1996) [1080p DUAL 2.80 GB]', infoHash: HASH_A, seeders: 1,
+    size: 2.8 * 1024 ** 3, tracker: 'BLUDV', indexer: 'bludv-cardigann', isBr: true,
+  })!;
+  const espelho = toStremioStream({
+    title: 'A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES', infoHash: HASH_A, seeders: 50,
+    size: 2.81 * 1024 ** 3, tracker: 'kickasstorrents.to', indexer: 'kickasstorrents-to', isBr: false,
+  })!;
+  // Gringo sem DUAL vence por seeders: sem corroboração, ninguém herda BR.
+  const gringo = toStremioStream({
+    title: 'The.Rock.1996.1080p.BluRay.x264-SPARKS', infoHash: HASH_A, seeders: 70,
+    indexer: 'thepiratebay', isBr: false,
+  })!;
+  const expect = { _seeders: 70, _br: false, _dubbed: false };
+  for (const order of [
+    [post, espelho, gringo], [post, gringo, espelho], [espelho, post, gringo],
+    [espelho, gringo, post], [gringo, post, espelho], [gringo, espelho, post],
+  ]) {
+    const [merged] = dedupeByHash(order);
+    assert.equal(merged._seeders, expect._seeders);
+    assert.equal(merged._br, expect._br);
+    assert.equal(merged._dubbed, expect._dubbed);
+    assert.match(String(merged.title), /SPARKS/, 'o título continua o do vencedor por seeders');
+  }
+  // Duas variantes do mesmo caso com A Rocha real: o espelho DUAL vence e o
+  // resultado também não depende da ordem de chegada.
+  for (const order of [[post, espelho], [espelho, post]]) {
+    const [merged] = dedupeByHash(order);
+    assert.equal(merged._seeders, 50);
+    assert.equal(merged._br, true);
+    assert.equal(merged._dubbed, true);
+  }
+});
+
+test('dedupeByHash: espelho global com DUAL + idioma estrangeiro amplo NÃO herda BR', () => {
+  // Guarda ampla (namesForeignDubLanguage): LATINO/LAT/ESP/Eng-Spa/cirílico
+  // negam a herança sem serem caminho destrutivo. Post BR limpo + espelho
+  // estrangeiro com mais seeders não pode ocupar vaga BR.
+  const post = toStremioStream({
+    title: 'A Rocha (1996) [1080p DUAL 2.80 GB]', infoHash: HASH_A, seeders: 1,
+    size: 2.8 * 1024 ** 3, tracker: 'BLUDV', indexer: 'bludv-cardigann', isBr: true,
+  })!;
+  const estranhos = [
+    'A.Rocha.1996.1080p.BluRay.DUAL.LATINO',
+    'A Rocha 1996 Dual Audio Latino Ingles',
+    'A.Rocha.1996.DUAL.ESP.ENG',
+    'A.Rocha.1996.DUAL.ESP',
+    'A.Rocha.1996.1080p Dual Audio [Eng-Spa]',
+    'A.Rocha.1996.1080p-Dual-Lat',
+    'A.Rocha.1996.BluRay.DUAL.VF',
+    'A.Rocha.1996.1080p.BluRay.DUAL.MULTi',
+    'A.Rocha.1996.1080p.BluRay.DUAL.SUBITA',
+    'A.Rocha.1996.1080p.BluRay.DUAL.NL',
+    'А.Роша.1996.1080p.BluRay.DUAL',
+  ];
+  for (const title of estranhos) {
+    const espelho = toStremioStream({
+      title, infoHash: HASH_A, seeders: 50,
+      size: 2.81 * 1024 ** 3, tracker: 'kickasstorrents.to', indexer: 'kickasstorrents-to', isBr: false,
+    })!;
+    for (const order of [[post, espelho], [espelho, post]]) {
+      const [merged] = dedupeByHash(order);
+      assert.equal(merged._br, false, `não herda BR: ${title}`);
+      assert.equal(merged._dubbed, false, `não herda dublado: ${title}`);
+    }
+  }
+});
+
+test('dedupeByHash: post BR com Dual Áudio PT-BR ENG ainda empresta ao espelho STARCKFILMES', () => {
+  // Isenção PT: ENG no perdedor é token estrangeiro na guarda ampla, mas
+  // explicitPtAudio (PT-BR) absolve — senão o post BR honesto deixaria de
+  // emprestar origem ao espelho global limpo.
+  const post = toStremioStream({
+    title: 'A Rocha (1996) Dual Áudio PT-BR ENG', infoHash: HASH_A, seeders: 1,
+    size: 2.8 * 1024 ** 3, tracker: 'BLUDV', indexer: 'bludv-cardigann', isBr: true,
+  })!;
+  const espelho = toStremioStream({
+    title: 'A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES', infoHash: HASH_A, seeders: 50,
+    size: 2.81 * 1024 ** 3, tracker: 'kickasstorrents.to', indexer: 'kickasstorrents-to', isBr: false,
+  })!;
+  assert.equal(post._dubbed, true, 'PT-BR no post marca dublado');
+  for (const order of [[post, espelho], [espelho, post]]) {
+    const [merged] = dedupeByHash(order);
+    assert.equal(merged._br, true, 'PT explícito absolve ENG no perdedor');
+    assert.equal(merged._dubbed, true);
+    assert.match(String(merged.title), /STARCKFILMES/);
+  }
+});
+
 test('isMultiWorkCollection: palavra forte dispensa faixa de anos', () => {
   assert.equal(isMultiWorkCollection('De Volta Para o Futuro Trilogia - [BluRay 720p Dublado]'), true);
   assert.equal(isMultiWorkCollection('Coleção Velozes e Furiosos bluray 1080p dublado'), true);

@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { TRACKERS } from '../utils/format.js';
 import * as log from '../utils/logger.js';
+import * as magnetBank from '../utils/magnet-bank.js';
 export {
   WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError,
   NoVideoError, isNoVideoError, DubLieError, isDubLieError,
@@ -15,6 +16,22 @@ export type MaybeError = any;
 function magnetFor(infoHash: string) {
   const trackers = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join('');
   return `magnet:?xt=urn:btih:${infoHash}${trackers}`;
+}
+
+/**
+ * URI para play/enqueue: prefere a do banco permanente (`utils/magnet-bank.ts`),
+ * que guarda a URI do post (dn= e trackers do tracker) e ajuda em torrent frio
+ * raro. Cai no magnet padrão se o banco estiver desligado, sem aquele hash ou
+ * falhar — a leitura do banco nunca pode derrubar o play.
+ */
+function magnetForPlay(infoHash: string): string {
+  try {
+    const stored = magnetBank.lookup(infoHash)?.uri;
+    if (stored) return stored;
+  } catch (err: unknown) {
+    log.warn('[debrid] leitura do banco de magnets falhou, usando magnet padrão:', log.errorMessage(err));
+  }
+  return magnetFor(infoHash);
 }
 
 /**
@@ -156,7 +173,7 @@ async function batched(infoHashes: string[], size: number, fn: (batch: string[],
 function wait(ms: number) { return new Promise((resolve) => setTimeout(resolve, ms).unref()); }
 
 export {
-  magnetFor, json, batched, wait,
+  magnetFor, magnetForPlay, json, batched, wait,
   AuthError, isAuthError, QuotaError, isQuotaError, RateLimitError, isRateLimitError,
   parseRetryAfter, retryAfterMsOf,
   BlockedError, isBlockedError,

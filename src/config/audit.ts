@@ -1,5 +1,10 @@
 import { list, num } from './helpers.js';
 
+// Espelho do banco de magnets vivo. A definição é UMA só (em `cache.ts`), e o
+// reexport existe para quem lê a auditoria de evidências (lie/TTLs) encontrar
+// o knob no mesmo lugar: duplicar aqui divergiria silenciosamente do `cache.ts`.
+export { magnetBank } from './cache.js';
+
 // Fábricas (não objetos prontos): módulo ESM é cacheado, e cada re-avaliação
 // do compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
 // process.env — a chamada re-executa, o objeto de módulo não.

@@ -30,9 +30,9 @@ Praticamente todo trabalho de código acontece no **Adom**.
   compila `src/` e `test/` para `dist/`, e é `dist/` que roda — `npm start` é
   `node dist/src/addon.js`. A imagem de produção é `node:22-alpine` (é ela que
   tem `node:sqlite`).
-  - **`noEmitOnError: true`**: build com erro de tipo não gera `dist/`. Se o
-    `npm run build` falhar, o `dist/` continua sendo o da compilação anterior —
-    não confie num `dist/` de build vermelho.
+  - **`noEmitOnError: true`**: build com erro de tipo não gera `dist/`. O
+    `npm run build` limpa `dist/` antes do `tsc`, então uma compilação vermelha
+    deixa a saída ausente ou incompleta — nunca tente executar esse `dist/`.
   - **Tipo em JSDoc é ignorado em `.ts`.** `@param {T}` e `/** @type {T} */`
     viram comentário inerte; o que vale é a sintaxe TS. Sobrou JSDoc de tipo
     pelo código — ele **descreve**, não verifica.
@@ -68,14 +68,18 @@ Praticamente todo trabalho de código acontece no **Adom**.
   flaresolverr → addon) com `wait -n` + `pipefail`: qualquer um que morrer
   derruba o container e o `restart: unless-stopped` recria tudo. Logs saem
   prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`.
-- Os cinco `*-resolver` **não são containers**. `src/br-resolvers.ts` os
-  carrega no processo do addon, cada um na própria porta (8700–8704), porque
-  todos leem `PORT`/`SITE_URL` no `require`. `BR_RESOLVERS_EMBEDDED=false`
-  volta ao modo de processos separados (não é o caminho de produção). Desde o
-  núcleo comum (PLANO_MELHORIAS 5.4), cada `<nome>-resolver/server.js` é um
-  shim que faz `require('../resolvers/profiles/<nome>')` — a lógica vive no
-  `resolvers/` (CommonJS puro), e o `npm run build` copia o diretório inteiro
-  para `dist/` junto dos shims.
+- Os sete `*-resolver` **não são containers**. `src/br-resolvers.ts` importa
+  **estaticamente** os sete profiles no processo do addon, cada um na própria
+  porta (8700–8706), via factory com config explícita — sem ler
+  `PORT`/`SITE_URL` no import e sem mutar/restaurar o ambiente.
+  `BR_RESOLVERS_EMBEDDED=false` volta ao modo de processos separados (não é o
+  caminho de produção). Cada `<nome>-resolver/server.ts` é um shim de
+  compatibilidade/standalone (instância lazy por `resolvers/shim-instance.ts`,
+  env lida no ponto de entrada e `isMain(import.meta.url)` no lugar do
+  `require.main`); a lógica vive no `resolvers/` (**TypeScript/ESM**, sem
+  `resolvers/package.json`), e o `tsc` compila/emite `resolvers/` e os sete
+  `*-resolver/` inteiros para `dist/` (o build-assets só copia assets
+  não-compiláveis — ver a armadilha do `dist/`).
 - O healthcheck do Dockerfile é **quádruplo** (`/manifest.json` na 7000 + API
   do Jackett na 9117 + FlareSolverr na 8191 + API admin do Caddy na 2019, num
   `node -e fetch` só). A API do Caddy fica em loopback e prova processo+config
@@ -95,6 +99,46 @@ Praticamente todo trabalho de código acontece no **Adom**.
 - As definitions Cardigann vêm da **imagem** (`jackett-bludv/*.yml` copiados
   para `/app/Jackett/Definitions`); o volume `/config` é só estado. Nunca
   monte volume sobre as definitions.
+- **O entrypoint registra o Cardigann Apache no volume, antes de subir o
+  Jackett.** O `/config` nasce com o `apachetorrent.json` STOCK (C# aposentado)
+  e sem o card local — e o estado do volume sobrevive a rebuild, então a imagem
+  sozinha não expõe o id `apachetorrent-cardigann`. O bootstrap idempotente cria
+  `Indexers/apachetorrent-cardigann.json` (mesmo molde do redetorrent, sitelink
+  `https://apachetorrents.com/`) com escrita atômica (temp no próprio diretório +
+  `mv`) e arquiva o stock em `Indexers-disabled/`. **Config do operador vence**:
+  o card só é criado se ausente (nunca sobrescreve) e o stock só sai do
+  diretório ativo por `mv` — se o backup já existir, o ativo é removido apenas
+  quando idêntico (divergência vai para `.legacy` ou é preservada). No segundo
+  boot é no-op e não loga. `JACKETT_INDEXERS_DIR` existe só para teste do
+  contrato; o default é o caminho real do volume.
+- **Id de indexer aposentado se normaliza no código, não no `.env`.** O `.env`
+  é gitignored e vive por ambiente: o deploy automático da VPS nunca o toca, então
+  um id renomeado exigiria editar cada servidor na mão e voltaria ao catálogo
+  como OFFLINE permanente. `RETIRED_INDEXERS` (`src/config/helpers.ts`) mapeia o
+  id velho para o novo e `indexerList()` aplica isso em TODAS as listas de
+  `src/config/jackett.ts`, deduplicando quando o `.env` cita os dois. O mapa é só
+  de RENAME: um id que o operador escreve por decisão própria (religar o
+  hdrtorrent) nunca entra ali.
+- **Indexer só sai da busca pelo Jackett, não pelo `.env`.** A lista efetiva de
+  uma busca vem do `ji` da config SELADA na URL de instalação
+  (`collect-orchestrator.ts` lê `opts().jackettIndexers`); `JACKETT_INDEXERS` do
+  `.env` é só o DEFAULT de instalações novas. Tirar um id do `.env` não muda nada
+  para quem já instalou — em 2026-09-17, `rutor` e `kickasstorrents-ws` seguiram
+  sendo consultados depois de removidos de lá, com `tab crashed` no FlareSolverr
+  e o RuTor pendurando 100s por busca numa fila serial. Para cortar de verdade,
+  estacione o card no Jackett (`park_stock_indexer` no entrypoint): vale para
+  qualquer instalação e é reversível por um `mv`.
+- **O HDR fica ESTACIONADO, não removido.** Em 2026-09-17 `hdrtorrents.net`
+  (domínio novo do antigo `hdrtorrent.com`) devolvia a homepage para toda
+  variante de busca, então o id está fora de TODAS as listas de
+  `src/config/jackett.ts`. O entrypoint semeia `Indexers-disabled/hdrtorrent.json`
+  com o domínio novo já gravado — semear nunca escreve no diretório ativo, então
+  isso não liga nada. **Para religar quando o site voltar**: `mv` o card de
+  `Indexers-disabled/` para `Indexers/`, some o id em `JACKETT_PT_BR_INDEXERS`,
+  `JACKETT_SLOW_INDEXERS`, `JACKETT_INDEX_ONLY_INDEXERS` e
+  `JACKETT_BARE_TITLE_INDEXERS`, e confirme com `/test-indexer.json?id=hdrtorrent`
+  ANTES de considerar a fonte viva — o sintoma antigo (homepage sem filtrar)
+  aparece como `ok:true` com releases irrelevantes, não como erro.
 - `shm_size: 1gb` (Chromium) e `mem_limit: 3g` no compose: no container único
   um OOM do FlareSolverr reinicia a stack inteira — é o trade-off inerente da
   unificação, mitigado pelo restart.
@@ -106,12 +150,12 @@ Praticamente todo trabalho de código acontece no **Adom**.
 ## Comandos
 
 ```bash
-npm run build             # tsc -> dist/ + copia assets (src/public, fixtures, resolvers)
+npm run build             # tsc -> dist/ (inclui resolvers/ e *-resolver/) + emits do cliente + copia assets (src/public, fixtures)
 npm start                 # sobe o addon de dist/ em http://127.0.0.1:7000/manifest.json
 npm run dev               # idem, com --watch
 npm test                  # node:test sobre dist/test/, lista explícita em package.json (sem rede)
 npm run test:complete     # cobra que todo test/**/*.test.ts esteja nessa lista
-npm run typecheck         # tsc --noEmit — precisa ficar em ZERO
+npm run typecheck         # tsc --noEmit nos três programas (raiz + cliente browser + cliente Node) — ZERO
 npm run smoke             # valida o pipeline de ponta a ponta (rede de verdade)
 npm run docker:up         # stack completa
 npm run docker:logs       # logs do addon
@@ -127,11 +171,11 @@ padrão a partir do Node 21. Arquivo `.test.ts` novo que não entra no
 `package.json` passa despercebido e o CI fica verde à toa — por isso existe o
 `test:complete`.
 
-**Cinco harnesses não passam pelo `npm test`** — `test:stress`,
-`test:adversarial`, `test:adversarial-m1`, `test:protector-m1` e
-`test:challenger-m2` rodam código de bancada que o CI nunca executa. Quebra
-neles só aparece no dia em que você precisar deles; rode antes de mexer em
-`test/` para ter linha de base.
+**Seis scripts de harness não passam pelo `npm test`** — `test:stress`,
+`test:adversarial`, `test:adversarial-m1`, `test:protector-m1`,
+`test:challenger-m2` e `test:ranking-challenger` — e juntos executam **10
+arquivos** de bancada que o CI nunca roda. Quebra neles só aparece no dia em
+que você precisar deles; rode antes de mexer em `test/` para ter linha de base.
 
 Quando "o ⚡ sumiu de todos os streams", comece por aqui — é diagnóstico, não
 adivinhação:
@@ -145,7 +189,7 @@ O mesmo token abre `/metrics.json`, `/test-indexer.json`,
 Sem `JACKETT_TEST_TOKEN`
 no `.env` a rota fica desligada (503, mesmo com header correto); com o token
 configurado, header errado ou ausente devolve 401 — o token vale só no
-header `X-Indexer-Test-Token`, nunca como `?token=` (a página `/dashboard` em
+header `X-Indexer-Test-Token`, nunca como `?token=` (a página `/painel` em
 si é pública e estática; o dado consolidado é que não).
 
 Para checar o código sem subir servidor (importar `src/addon.ts` **abre a porta**
@@ -153,8 +197,14 @@ e fica pendurado — não use isso como smoke test), use o `npm run typecheck`: 
 substituiu o `node --check`, que só via sintaxe.
 
 CI (`.github/workflows/ci.yml`) roda build + suíte em Node 20 e 22, e o
-`typecheck` só na 22 (não depende da versão de runtime). Build da imagem só
-dispara quando Dockerfile / compose / cards / lockfile mudam (`docker.yml`).
+`typecheck` só na 22 (não depende da versão de runtime). `npm audit --omit=dev`
+é bloqueante: falha na auditoria de produção reprova o job.
+O workflow `docker.yml` cobre Dockerfile, compose, `.dockerignore`, fontes,
+tipos, scripts, cards, `resolvers/**`, todos os `*-resolver/**` e manifests npm.
+Ao adicionar um `COPY`, confira os filtros de push **e** pull request.
+Builder e runtime usam o lockfile; no runtime, `npm ci --omit=dev` evita
+resolver versões diferentes das testadas. Build de imagem não prova saúde
+nem versão implantada: confira esses estados separadamente no deploy.
 
 ---
 
@@ -166,11 +216,11 @@ Um `stream` request do Stremio percorre exatamente este caminho:
 addon.ts  processo (listen, warmup)
    └─ app.ts  defineStreamHandler
         └─ providers/index.ts  findStreams
-             ├─ cache SWR (streams:v7)          ← só lista completa + debridKnown + tocável
+             ├─ cache SWR (streams:v11)          ← só lista completa + debridKnown + tocável
              ├─ coalescing inFlight
              └─ doSearch
                   ├─ cinemeta.getMeta  ─┐ paralelo
-                  ├─ tmdb.getTitles    ─┘  (título pt-BR)
+                  ├─ tmdb.getTitles    ─┘  (pt-BR + inglês canônico via `/find` en-US)
                   ├─ collectRaw          ← search-plan + collection-window + graça BR
                   │    ├─ jackett.search (globais EN, agrupados)
                   │    ├─ jackett.search (BR/slow isolados, query em pt-BR nos BR)
@@ -208,9 +258,15 @@ descreve.
 
 Série sem resultado por episódio tem fallback de pack no caminho crítico
 (`"Nome S01"`, com a variante pt-BR junto) — as fontes BR só publicam
-temporada inteira. Série com resultado **fraco** (ninguém atinge
-`SEARCH_PACK_MIN_SEEDERS`, e áudio estrangeiro explícito não conta como
-saudável) dispara o **pack tardio**, que mescla em vez de substituir.
+temporada inteira. Fora isso, **toda** busca de série roda o **pack tardio**
+(`SEARCH_PACK_TAIL`), que mescla em vez de substituir — inclusive a servida
+pelo índice. Ele já foi condicionado a episódio "fraco" (ninguém com 3+
+seeders) e isso deixava de fora exatamente o caso comum: em Goliath S03E01
+havia release de 43 seeders, nenhuma em cache na AllDebrid, e os packs
+"Goliath S03" — mais semeados e mais prováveis de já estarem em cache — nunca
+eram consultados, porque tracker titula pack sem `SxxEyy`. O custo fica
+limitado pelo cache cru por indexer+query (`RAW_CACHE_TTL`): uma consulta por
+temporada por janela, reaproveitada pelos outros episódios.
 
 A varredura pt-BR (`JACKETT_PT_SWEEP_GLOBAL`) consulta os indexers **globais**
 com a raiz do título em português (`franchiseRoot`: sem subtítulo, sem ano,
@@ -228,6 +284,77 @@ inglês não o encontra. Ela tem **dois caminhos, e eles não são iguais**:
 
 Não "uniformize" os dois passando `ignoreBreaker` na inline: o breaker existe
 justamente para o indexer morto não comer o prazo da resposta.
+
+**Quem é a varredura inline é uma marca ESTRUTURAL do plano, não texto.** O
+`planJackettQueries` rotula a task agrupada com `sweep:true` e o `collectRaw` usa
+só esse campo. Comparar `planned.query === sweepQuery` era frágil: no filme sem
+ano a raiz pt da varredura coincide com o `ptQuery`, e a task BR ISOLADA — que é
+consulta PRINCIPAL — era tratada como varredura, perdia
+`recordStatus`/`onQueryResult` e não alimentava o fallback do banco vivo. A
+task BR com a mesma query continua principal (`recordStatus` default e
+`onQueryResult`); a agrupada mantém `recordStatus:false` e não contamina o
+estado vivo. Cobertura: `test/sweep-inline-identity.test.ts`.
+
+### Título canônico inglês (b223ffd)
+
+Quando o original da obra não é inglês (ex.: "Django Kill: Se Eu Vivo Spara" em
+italiano), o nome que os trackers globais publicam só existe na variante en-US.
+Sem ele, um timeout do Cinemeta prendia a busca ao título estrangeiro e perdia
+releases em inglês (recall medido 12 vs 43).
+
+O addon faz uma **SEGUNDA consulta `/find` em en-US** dentro do MESMO prazo
+(`deadlineAt`) da consulta pt-BR. Extrai SÓ o título canônico de `movie_results`/
+`tv_results` — o `title` do filme ou `name` da série já localizados em en-US.
+
+NUNCA `original_*` (que repetiria o idioma de origem) nem as `alternative_titles`,
+cujas grafias arbitrárias abririam matching genérico.
+
+**Cache:** TTL longo (TMDB_CACHE_TTL, default 7 dias) só quando a consulta en-US
+respondeu com `ok:true`. Falha/timeout recebe TTL curto (`enRetryTtl()` = mínimo
+entre `TMDB_CACHE_TTL` e `TMDB_TRANSIENT_MISS_TTL`, com piso de 1s): degradação
+precisa de releitura curta, não congelar por 7 dias.
+
+### Packs BR multiobra ativos por padrão (d8bd23b)
+
+Suporte nativo a packs de coleção BR (ativo por padrão; `BR_MULTIWORK_PACKS`
+assume `true` quando ausente). Com `BR_MULTIWORK_PACKS=false` o caminho inteiro
+é no-op e o comportamento é o anterior — é o kill-switch explícito. Quando
+ativo, o addon descobre a coleção pelo `belongs_to_collection` do TMDB, emite
+query de franquia no caminho BR e admite o pack quando ele cobre o ano do filme.
+
+**Critérios de admissão:**
+1. `multiWork` não nulo (TMDB respondeu com coleção) e nomes da obra presentes —
+   sem eles o play não monta a dica `w` e o `pickFile` cairia no maior arquivo
+2. Filme (não série)
+3. Ano de catálogo conhecido
+4. Texto de evidência reconhecido como coleção (`isMultiWorkCollection`)
+5. Raiz da coleção aparece como sequência contígua de tokens no texto de evidência
+6. O texto de evidência declara o ano — faixa que o inclui, ou ano avulso com
+   tolerância de ±2
+
+O **texto de evidência** é um só (`packYearSource`): título do post mais o `dn=`
+real do magnet decodificado, quando há magnet — URL de protetor não tem `dn=` e
+não carrega evidência de release. Os itens 4–6 leem o MESMO texto: post com título
+de filme isolado pode declarar a coleção só no `dn=`, e a admissão precisa dessa
+evidência inteira. Todas as demais travas (filme, nomes da obra, ano de catálogo,
+debrid ativo) seguem exigidas.
+
+**Comportamento:**
+- Pack nunca vai P2P inteiro
+- Pack nunca entra no índice público (`idx:v10`)
+- Pack nunca entra no autofetch nem no warmer RD
+- HMAC do `/resolve` inclui `p:1` para TODO pack admitido: no Stream, `_multiWork`
+  é `isMultiWorkCollection(título) || _multiWorkAdmitted`, então o pack cuja
+  coleção só o `dn=` do magnet denuncia também recebe a dica (`p`) e o
+  `pickWorkFile` escolhe a obra em vez do maior arquivo
+- `pickWorkFile` usa a dica de obra para escolher o filme correto no pack
+- `_multiWorkAdmitted` separa a admissão da feature da heurística legada `_multiWork`
+
+**Configuração:**
+- `BR_MULTIWORK_PACKS` no `.env` (default true; `false` é o kill-switch explícito)
+- `TMDB_COLLECTION_TIMEOUT_MS` no `.env` (default 2500ms; é teto `min` com o
+  deadline absoluto da requisição — cap, não soma)
+- `multiWorkPacks` em `src/config/search.ts`
 
 ### Configuração por usuário (`src/runtime.ts`)
 
@@ -249,9 +376,9 @@ com `runtime.capture()` **dentro** da request e restaure com `runtime.run()`
 — senão `opts()` lê o `.env` e regrava o cache com a config errada.
 
 Para expor uma opção nova: adicione em `SCHEMA` + `defaults()` (chave **curta**,
-ela ocupa espaço na URL), consuma via `opts()`, e adicione o controle em
-`src/public/configure.html` — o mapa `KEYS` do front **precisa bater** com o
-`SCHEMA` do back.
+ela ocupa espaço na URL), consuma via `opts()`, e adicione o controle no cliente
+de `/configure` (`src/client/configure/`) — o mapa `KEYS`
+(`src/client/configure/keys.ts`) **precisa bater** com o `SCHEMA` do back.
 
 Schema atual (chave curta → campo):
 
@@ -312,8 +439,11 @@ Com `RESOLVE_SECRET` definido, a página manda o segmento para `POST /seal-confi
 e recebe o `dk` cifrado (`enc.v1.` + AES-256-GCM). Sem o segredo a chave viaja
 em texto puro no base64url. URL antiga (chave crua) continua abrindo. Trocar o
 `RESOLVE_SECRET` invalida os selos já emitidos — o usuário refaz o install em
-`/configure`. O selo protege a credencial, não o acesso (isso é o `basic_auth`
-do Caddyfile).
+`/configure`. O selo protege a credencial, não o acesso: `/configure` e
+`/defaults.json` são públicos no Caddy (qualquer um gera install URL nesta
+instância). A chave do `.env` continua sem herança anônima se
+`DEBRID_ALLOW_ENV_KEY=false`. O token de diagnóstico (`X-Indexer-Test-Token`)
+não autentica a página de configurar.
 
 `prefix()` devolve o segmento de config da requisição corrente. A rota
 `/resolve` depende dele: o link de play tem que voltar carregando a mesma
@@ -346,15 +476,19 @@ declarar `true` sem endpoint funcional é o pior dos mundos.
 | Real-Debrid | ⚠️ dinâmico | `rdLedger.enabled && rdOracle.available()`. Com as duas, o `current()` do registry devolve `true` num clone; senão `false` (sem consulta; o play adiciona o magnet) |
 | Debrid-Link | `false` | idem |
 
-**Banco de magnets (`src/utils/magnetdb.ts`).** Histórico durável POR HASH,
-escopado por serviço+conta (`mag:v1:<lado>:<adapterId>:<sha256(apiKey)>:<hash>`) —
-nunca vaza credencial, não cruza contas. Alimenta duas decisões da listagem: o
+**Banco de magnets por conta (`src/utils/magnetdb.ts`).** Histórico durável POR
+HASH, escopado por serviço+conta (`mag:v1:<lado>:<adapterId>:<sha256(apiKey)>:<hash>`) —
+nunca vaza credencial, não cruza contas. `magnetdb.ts` é a fachada; a família
+tem `magnetdb-persist.ts` (contadores, agregado `mag_meta`, hook `onForget`,
+`ttlRemainingBasis`), `magnetdb-counts.ts` (parse da chave + `rebuildFromL1`) e
+`magnetdb-inspect.ts` (ações do painel). Alimenta três decisões da listagem: o
 filtro pré-checagem do `applyDebrid` (descarta o que provou estar quebrado,
-antes de gastar lote — ou upload, na AllDebrid) e o desempate `instant` do
+antes de gastar lote — ou upload, na AllDebrid), o desempate `instant` do
 `sortAndLimit` (quem provou tocar na hora sobe acima dos seeders, DEPOIS de
-episódio/qualidade/dublado/prioridade — histórico desempata, não reordena).
-Regra de ouro: só evidência MEDIDA entra, e falso negativo (descartar magnet
-bom) é pior que falso positivo.
+episódio/qualidade/dublado/prioridade — histórico desempata, não reordena) e o
+rebaixamento das releases que **mentiram o áudio** (`lie`, ver abaixo — toca,
+mas não é o que o post prometia). Regra de ouro: só evidência MEDIDA entra, e
+falso negativo (descartar magnet bom) é pior que falso positivo.
 
 - **`alive`** (TTL `MAGNET_ALIVE_TTL`, 7 dias): positivo confirmado na checagem
   de cache ou play que resolveu de verdade no `/resolve`. O atalho do davail
@@ -386,6 +520,18 @@ bom) é pior que falso positivo.
   stream permanece; em `cachedOnly` o corte remove pelo ledger; fora dele volta
   P2P/sem ⚡). Métrica própria: `magnetdb.bad.clearedBlocked` — **não** conta
   como `magnetdb.dropped.bad`.
+- **`lie`** (TTL `MAGNET_LIE_TTL`, 7 dias; `MAGNET_LIE=false` desliga): há vídeo,
+  mas o play provou release EN num post que prometia áudio PT — origem é o
+  `DubLieError` do `pickFile` (a auditoria de áudio), nunca a checagem de cache.
+  Não é `bad`: o torrent toca, só que entrega outra coisa. O `lie` **rebaixa sem
+  apagar**: o hash sai do `instantSet` (não ganha ⚡ por memória), o merge do
+  `dedupeByHash` prefere a listagem limpa ao clone mentiroso do MESMO hash e
+  zera o `_dubbed` do vencedor, e no `sortAndLimit` a release mentirosa desaba
+  abaixo de qualquer alternativa da MESMA qualidade — antes de `preferDubbed`,
+  prioridade de indexador e o desempate ⚡. Com `dubbedOnly` (a chave `d` do
+  usuário) ela some da lista, não só desce. A mesma escrita destrava a retenção
+  `adprot` do hash e marca `markLied` no índice de releases (`resolve.ts`) — o
+  post que mentiu uma vez não reconquista a vaga BR pela janela do `alive`.
 
 A fronteira **bad × dead**: mesmo TTL de 24h, mesmo ponto de filtro
 (`applyDebrid`, pré-checagem), origens diferentes — bad é play sem vídeo
@@ -395,8 +541,145 @@ distintas e as métricas (`magnetdb.dropped.bad` / `magnetdb.dropped.dead`)
 separam para o diagnóstico não culpar o lado errado. Unificar só se um
 terceiro consumidor aparecer.
 
+**Banco de magnets VIVO (`src/utils/magnet-bank.ts`).** Clone PERMANENTE de tudo
+que o Jackett devolveu — o site some, o acervo fica. É irmão, não sinônimo, do
+`magnetdb` acima: aquele é histórico POR CONTA (`mag:alive/bad/lie`, com TTL e
+cota), este é o acervo PÚBLICO por hash, sem credencial, sem TTL, sem cota e sem
+versão de namespace. Alimenta duas coisas: a URI rica do play (via
+`magnetForPlay`, abaixo) e o fallback quando o indexer falha (Etapa 4). A
+`magnetForPlay(hash)` (`common.ts`) lê o banco (`magnet-bank.lookup`) e cai no
+`magnetFor` quando o banco está desligado, não tem o hash ou falha — a leitura
+nunca derruba o play. Os adaptadores que mandam URI ao serviço (Real-Debrid,
+TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
+**AllDebrid não usa**: seu `cacheCheck` é upload do HASH, não da URI.
+
+- **Armazenamento próprio.** SQLite em `data/magnets.db` (`MAGNET_BANK_DB_PATH`,
+  default em `DEFAULT_MAGNET_BANK_DB_PATH`, no volume `/app/data` — o mesmo do
+  `cache.db`), WAL. `node:sqlite` é carregado lazy com `createRequire`; sem o
+  módulo (Node 20) ou se a abertura falhar, a engine cai num `Map` em memória
+  (`magnet-bank-memory.ts`, loga warn) com os MESMOS verbos — nunca derruba o
+  addon. `magnet-bank-rows.ts` é a camada de linhas/engines;
+  `magnet-bank-schema.ts` os tipos e o codec; `magnet-bank-merge.ts` as regras
+  puras.
+- **A engine de memória tem teto LRU; o SQLite não.** O `Map` de fallback
+  (Node 20/abertura falha) acumularia o acervo inteiro até o OOM, então ele
+  respeita `MAGNET_BANK_MEMORY_MAX` (default 20000 magnets/hashes, mínimo 1 —
+  NÃO há modo ilimitado). A ordem do `Map` É o LRU: `getMagnet`/`listMagnetsMany`
+  e o upsert movem a chave para o fim (MRU) **sem tocar `lastSeen`**, que é a
+  última observação do SITE e não pode ser reescrita por leitura local. Ao
+  exceder, o mais antigo é evictado com TODAS as fontes e obras do hash (sem
+  órfão), a contagem sobe desde o boot e a métrica
+  `magnetbank.memory.evicted` incrementa. O SQLite é acervo PERMANENTE: sem
+  cota, sem LRU e `memoryMax`/`memoryEvictions` saem `null`/`0` no status.
+- **Três tabelas.** `magnet` (PK `hash`): `uri` sanitizada, `title`, `size`,
+  `is_br`, `dubbed`, `quality`, `seeders_max`, `seeders_last`, `first_seen`,
+  `last_seen`, `lied`. `magnet_source` (PK `hash,indexer`): `tracker`,
+  `first_seen`, `last_seen`, `seeders_last`. `magnet_work` (PK
+  `hash,imdb,season,episode`): `first_seen`, `last_seen`, `passed_filter`.
+  `season`/`episode` nulos viram `-1` (parte da PK). Índices por obra e por
+  `indexer,last_seen`.
+- **Merge.** `first_seen` é fixo; `seeders_max` é máximo e `seeders_last` é a
+  última observação (item sem seeders PRESERVA a anterior; `0` é medição);
+  `title`/`size` ficam os primeiros não vazios; `is_br`/`dubbed`/`lied` só sobem
+  (OR, como no índice); a `uri` só troca por outra MAIS RICA (`dn=` ou mais
+  trackers) e nunca rebaixa para o magnet padrão; e `passed_filter` NÃO é OR —
+  reflete a última observação da obra (a captura nasce 0, o resultado do filtro
+  da mesma busca escreve 0/1; captura de FUNDO preserva o existente).
+- **`lied` é GLOBAL.** `magnet-bank-lie.ts` lê a união de `mag:v1:lie:` de
+  QUALQUER conta (peek quiet, sem memo) e promove o hash no merge; a evidência
+  por conta continua só no `mag`. `bad` por conta NUNCA é lido aqui.
+- **Captura total.** `captureItems` roda no `jackett.search` por indexer E no
+  ramo agregado `/all`, DEPOIS da resolução Cardigann e ANTES de qualquer filtro
+  de título/episódio: entra tudo que tem hash — inclusive hit do cache bruto.
+  Item de CONTA (`fromAccount`) e de FALLBACK (`fromFallback`) ficam de fora. A
+  fila é assíncrona (uma transação por lote, `magnetbank.upsert`) e a busca
+  NUNCA espera o disco: fila cheia (`MAGNET_BANK_QUEUE_MAX`) descarta a leva com
+  `magnetbank.queue.dropped`.
+- **Obra da release.** `release-work.ts` (`releaseWorkTargets`) espelha o
+  `destinoDe` do índice: o pack de temporada achado na busca de um episódio fica
+  recuperável para a temporada inteira. `markBankFilterOutcome`
+  (`magnet-bank-hook.ts`) grava o `passed_filter` da busca no stream-builder.
+
+**Fallback do acervo (Etapa 4).** `live-indexer-state.ts` acompanha o
+`onQueryResult` das consultas PRINCIPAIS do Jackett (a varredura pt-BR e o
+caminho de fundo ficam de fora, de propósito): `error`/`breaker`/`source` marcam
+o indexer como falho e **pendente NO PRAZO também conta como falho**; quando a
+resposta tardia chega (mesmo `[]` válido), o indexer sai do conjunto e o
+fallback dele deixa de ser injetado. O ramo `/all` não tem falha por indexer e
+emite o evento sintético `*all*`; em erro/pendente, `allFailed` deriva os
+candidatos das SOURCES do banco para a obra — nunca de uma config vazia.
+
+`collectFallbackForBuild` (chamado no `finish` do `search-orchestrator`) só
+consulta o banco quando o estado vivo aponta falha. Em filme alvo é a obra raiz;
+em série são até três alvos — o episódio pedido, o pack da temporada e a série
+completa —, a mesma cobertura que o `release-work.ts` gravou. As travas:
+
+- **Vivo vence sempre:** hash presente no lote vivo é cortado ANTES do build,
+  independentemente de seeders; o lote tardio reconstrói sem a reserva daquele
+  hash.
+- **`passed_filter` não é elegibilidade:** `1` é dado auxiliar; o item sempre
+  passa pelo filtro de título ATUAL no `buildStreams`.
+- **Mesma validação, sem bypass:** o item entra pelo MESMO `buildStreams`
+  (título/episódio/multiobra, `mag` bad/lie, debrid, cotas, `MIN_SEEDERS`) — a
+  reserva só acrescenta o selo e a origem.
+- **Zero auto-perpetuação:** `fromFallback` é excluído da captura do banco, do
+  `releaseIndex.record`, das pools/candidatos do autofetch, do warmer e da
+  auditoria de áudio. A reserva não realimenta o acervo que a originou.
+- **Seeders reais:** o número medido (`seeders_last`) atravessa inteiro e é o
+  que ranking e `MIN_SEEDERS` usam — o `~` é só exibição.
+- **Selo:** `📦` e `👤 ~N` no `name`/`title` (`stream-display.ts` e
+  `search-names.ts`); `_fromFallback` é marca INTERNA e sai em
+  `applyNoticeOrigin` antes do protocolo.
+- **TTL curto:** lista com reserva é `partial` (o handler responde
+  `cacheMaxAge: 0`) e é cacheada por `FALLBACK_STREAMS_TTL` (default 120s) —
+  nunca acima do `CACHE_TTL`; `CACHE_TTL <= 0` não grava. A próxima abertura
+  reconsulta o vivo.
+
+Knobs: `MAGNET_BANK` (kill-switch), `MAGNET_BANK_DB_PATH`,
+`MAGNET_BANK_QUEUE_MAX`, `MAGNET_BANK_MEMORY_MAX` (teto de linhas da engine de
+memória; default 20000, mínimo 1), `MAGNET_BANK_STATUS_TTL_MS` (memo do painel,
+default 60s), `MAGNET_BANK_FALLBACK`, `MAGNET_BANK_FALLBACK_MAX` (1..40, por
+indexer), `MAGNET_BANK_FALLBACK_GLOBAL_MAX` (1..500) e `FALLBACK_STREAMS_TTL`.
+Métricas: `magnetbank.engine.sql|memory`, `magnetbank.upsert`,
+`magnetbank.queue.dropped`, `magnetbank.memory.evicted` (despejos LRU, só na
+engine de memória), `magnetbank.flush.failed`, `fallback.error`,
+`fallback.items.injected`, `fallback.items.cut.<motivo>`
+(`lied`/`no-hash`/`live-dedupe`/`no-source`/`cap-indexer`/`cap-global`) e
+`fallback.indexer.<id>` (cobertura por indexer). No `/stream-trace.json` a fase
+`fallback` tem stage e motivo próprios.
+
+**Painel (aba Magnets + Saúde).** O card "Banco de Magnets Vivo (Jackett)"
+(`view-magnet-bank.ts` sobre `bank-model.ts`) lê o bloco `magnetBank` do
+`/dashboard-status.json` — totais (`magnets`/`sources`/`works`), engine
+(`SQLite`/`MEMÓRIA`/`DESLIGADO`), fila, a quebra por indexer e, na engine de
+memória, `memoryMax`/`memoryEvictions` —, e a busca
+read-only `magnet-bank-search` (hash de 40 hex OU substring de título; vazio =
+recentes; teto de 100) mostra URI copiável, fontes, obras e o selo de `lied`. É
+separada do `magnet-summary` (estoque por conta). O card traz um aviso explícito
+da engine: **MEMÓRIA com teto de N magnets · despejos desde o boot** (destaque
+de atenção) versus **SQLite permanente — sem teto e sem despejo**; o
+`memoryMax`/`memoryEvictions` do bloco é o mesmo dado. O status é MEMOIZADO por
+`MAGNET_BANK_STATUS_TTL_MS` (60s) e invalidado a cada escrita efetiva (e a
+qualquer eviction), então o
+poll repete a mesma foto sem pagar `COUNT/MAX/GROUP BY` por ciclo. Na aba Saúde,
+cada indexer mostra `MEM N` (`fallback.indexer.<id>` acumulado desde o boot) — é
+HISTÓRICO de cobertura, não o estado online.
+
+Limitações honestas: o contador `MEM`/`fallback.indexer.<id>` zera no restart; o
+banco cresce para sempre (sem TTL/cota — é acervo, por desenho) e vive no volume
+`/app/data`, então o rebuild do container o preserva; a engine de MEMÓRIA
+(fallback) é limitada por `MAGNET_BANK_MEMORY_MAX` e pode despejar o mais
+antigo; e `pending` no prazo pode
+ativar o fallback por um instante — a resposta tardia do indexer derruba a
+reserva dele na reconstrução, mas uma lista já servida com reserva fica
+parcial/curta até a próxima abertura. Validar localmente:
+`npm run build && npm test` (`test/magnet-bank*.test.ts`,
+`test/dashboard-magnet-bank.test.ts`, `test/painel-magnet-bank.test.ts`) e, com o
+servidor de pé, `magnet-bank-summary`/`magnet-bank-search` na aba Magnets.
+
 Kill-switches no `.env`: `MAGNET_DB=false` desliga o banco inteiro;
-`MAGNET_ALIVE_TTL=0` e `MAGNET_BAD_TTL=0` desligam cada lado.
+`MAGNET_ALIVE_TTL=0`, `MAGNET_BAD_TTL=0` e `MAGNET_LIE_TTL=0` desligam cada lado;
+`MAGNET_LIE=false` fecha só a gravação/leitura do `lie` sem tocar em alive/bad.
 
 **Alive como cache no degradado (`DEBRID_ALIVE_AS_CACHE`, default `false`).**
 Evolução da sessão de limpeza de 2026-08-30, implementada em
@@ -446,11 +729,63 @@ regrediu a não-pronto. Kill-switch: `DEBRID_AUTO_FETCH_PROTECT_BR=false`
 
 **Panorama no painel** (`/dashboard-status.json` → `magnetdb`): além dos
 totais, o status agrega **por adapter** (`byAdapter`) os tamanhos de
-alive/bad/lie e o TTL médio restante de cada lado, e mostra a **taxa ⚡**
+alive/bad/lie e o TTL médio restante de cada lado (com o qualificador de base
+`ttlRemainingBasis`, ver abaixo), e mostra a **taxa ⚡**
 (`debrid.check.cached` / `debrid.check.hashes`). Ambos contam exclusivamente
 hashes enviados à rede: o numerador são positivos de resposta completa, e o
 denominador são consultas reais. Hit local de `davail` fica separado em
 `davail.servedHashes`; nunca entra na taxa, que assim não ultrapassa 100%.
+
+**Contadores duráveis O(1) (`mag_meta:v1`).** As contagens por adapter/side que
+o painel mostra não vêm de scan no SQLite nem de um `Map` que morre no restart:
+são incrementadas na escrita, decrementadas pelo hook `cache.onForget` (TTL e
+despejo por cota passam por ele) e persistidas num único agregado
+(`mag_meta:v1:counts`, cota 1) com `setImmediate` debounced + `unref`, salvo
+também no shutdown do processo (`src/addon.ts`). A contagem no dia a dia é
+O(1); a família `magnetdb-persist.ts`/`magnetdb-counts.ts` existe porque o
+`magnetdb.ts` encostou no teto de 400 linhas — a extração o devolveu a 329. No
+boot o `loadPersistentCounts` restaura o estado e decai o TTL restante pelo
+tempo decorrido (`updatedAt`); com o agregado ausente ou ilegível (versão
+estranha conta como ilegível) e o L1 cheio, ele **reconta do próprio L1**
+(`rebuildFromL1`) e regrava o agregado — devolver zero ali seria mentira
+rotulada de `duravel`, e o primeiro boot com `cache.db` herdado é o caso normal
+do rebuild do container. O rebuild é O(namespace `mag`): medido em 50 mil
+chaves (cota cheia do namespace), 29,6 ms, uma vez no boot (e no autocura do
+`status()`), nunca no caminho de busca; `status()` segue O(adapters).
+Aceitável na cota atual — **remedir se a cota `mag` crescer**. `status()` marca
+esses campos com `_origem: duravel`; só os contadores de *eventos*
+(`magnetdb.*.set`, `dropped`) continuam zerando no restart. A soma de TTL
+restante declara a própria base (`ttlRemainingBasis`): `l1-rebuild` = restante
+real de cada chave (`peekRemaining`), preciso só no instante do rebuild;
+`aggregate-estimate` = estimativa incremental/restaurada (escrita soma o TTL
+nominal, esquecimento/restauração subtraem o nominal ou o tempo decorrido).
+**Toda mutação degrada o rebuild para estimativa** — inclusive o `renewAlive`
+sem chave nova — e o painel mostra o qualificador em vez de chamar de exata uma
+média que envelheceu. As contagens são exatas, a média é conservadora. O
+`cache.has` (presença física, incluindo expirado aguardando prune) é o critério
+único de "existia": impede `markAlive`/`markBad`/`markLie` de contar duas vezes
+a mesma chave na janela entre vencimento e poda, e é o que o `forgetBadKey` usa
+desde `008eecd` — decidir por `peek` apagava bad expirado não podado e o
+`magnet-clear-bad` devolvia `cleared: 0` fantasma.
+
+**Ações do banco no painel** (`POST /dashboard-action.json`, atrás do mesmo
+token): `magnet-inspect` e `magnet-summary` são leitura; `magnet-clear-bad` é
+destrutiva (entra em `DESTRUCTIVE_ACTIONS`, exige `{"confirm": true}`) e apaga
+só o lado `bad`, preservando `alive`/`lie` do mesmo hash. Todas varrem o **L1**
+por prefixo (`keysMatching` + `peek`/`peekRemaining` — nenhuma query síncrona no
+SQLite, sem promover LRU nem inflar `cache.hit`), com teto de **100 itens** por
+resposta/passagem (default 50) e filtros `adapterId`/`side`/`hash` validados
+(valor inválido é 400, não ignorado em silêncio). O `clear-bad` é idempotente:
+repetir devolve `cleared: 0` — e a decisão de "existia" usa `cache.has`, não
+`peek` (`008eecd`: bad expirado ainda não podado É apagado e tem que contar no
+`cleared`, senão a ação reportava zero fantasma). A lógica mora em
+`src/utils/magnetdb-inspect.ts` e os handlers em
+`src/routes/dashboard-actions-magnet.ts`. Segurança de payload: o parse das
+chaves `mag` é **um só**, em `src/utils/magnetdb-counts.ts` (`008eecd` removeu
+a segunda cópia que o inspect mantinha — divergiria em silêncio na próxima
+versão do namespace), e **descarta o digest da conta** (`accountScope`) na
+origem — nenhuma resposta expõe apiKey, scope nem a chave completa; o hash
+devolvido é o de conteúdo (40-hex).
 
 AllDebrid **mede** ⚡, mas a consulta é um upload e **não é abortável**
 (`abortSafeCacheCheck: false`). A corrida da resposta não cancela o trabalho:
@@ -567,11 +902,15 @@ o `/magnet/delete` com 503.
 
 Lixo **tocável** tem a própria varredura: `sweepUndubbed`
 (`DEBRID_SWEEP_UNDUBBED`) remove magnets com mais de
-`DEBRID_SWEEP_UNDUBBED_MIN_AGE_MS` cujo título cai no balde `lixo` do
-`audioBucket` (legendado/estrangeiro que o autofetch acumulou). Por apagar
+`DEBRID_SWEEP_UNDUBBED_MIN_AGE_MS` cujo título o `foreignVerdict`
+**condena** — prova positiva de idioma estrangeiro (a lista mínima
+`hasExplicitForeignAudio`) ou grupo de cena EN sem dublagem declarada. O
+critério já foi o balde `lixo` do `audioBucket` e foi aposentado: ausência de
+marca PT condenava qualquer release nórdica e a conta inchou. Por apagar
 conteúdo que toca, as travas andam juntas — idade mínima, `held`, inventário
 `knownBefore` — e inventário frio pula a rodada inteira (mesmo fail-safe do
-`dropReady`).
+`dropReady`). O balde `lixo` continua sendo a mira do CLI `clean-undubbed`, que
+o operador roda à mão.
 
 Para comparação: o Comet/StremThru na AllDebrid **não mede** nada (o
 `/magnets/check` devolve palpite de base colaborativa) e só toca a conta no
@@ -590,11 +929,25 @@ existe percentual: ela tem dois tetos que não batem entre si (30 "ativos" na
 doc oficial, 1000 na mensagem de erro real) e nenhum é consultável — a versão
 anterior dizia "231% ocupado" para uma conta que respondia normalmente.
 
-**Painel (`/dashboard`).** A página é pública e estática; os dados vêm de
+**Painel (`/painel`).** A superfície operacional interativa substituiu o
+dashboard legado (`/dashboard`). A página é pública e estática, com cliente ESM
+nativo em `src/client/painel/*.ts` (Preact vendorizado); os dados vêm de
 `/dashboard-status.json` e as ações de `POST /dashboard-action.json`, ambos
 atrás do mesmo token de diagnóstico — só no header `X-Indexer-Test-Token`,
 `?token=` nunca autentica. O status consolida serviços, métricas, cache, debrid
-e resolvers para a página montar. As duas ações de estado (`clear-cache`,
+e resolvers para as abas montarem (Saúde, Conta Debrid, Gate, Colhedor,
+Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico — dez ao todo); a
+configuração ao vivo do Chupim e do Colhedor, as rotinas de
+catálogo/limpeza/magnets e o diagnóstico (teste de indexadores, validação de
+chave e leitura do `stream-trace`) moram nessas abas. O diff do gate é
+navegável ponta a ponta: cada chave traz o dono (`owner`/`fieldOwner` no bloco
+`gate`, derivado da config que listou o override) e o clique abre a aba
+Chupim/Colhedor e foca o `cfg-field` correspondente. Os
+atalhos `/autofetch` e `/harvester` (e as variantes `/:userConfig/...`)
+redirecionam 302 para `/painel#chupim` e `/painel#colhedor`. As rotas de backend
+mantêm o nome histórico (`/dashboard-status.json`, `/dashboard-action.json`,
+`src/routes/dashboard-actions*.ts`) e o `dashboard-tokens.css` segue na
+allowlist dos assets. As duas ações de estado (`clear-cache`,
 `sweep-dead`) são **globais**: agem sobre o estado do operador inteiro, não
 sobre a config de uma instalação — limpar o cache esfria a instância toda de
 uma vez.
@@ -627,6 +980,20 @@ caiu" de "o Jackett caiu". De propósito não toca `indexerStatus` nem o breaker
 (medida avulsa não abre circuito); o último probe vive em memória, por
 instância de app, e aparece no card do resolver no `/dashboard-status.json` —
 ausente significa "nunca medido neste processo", não medição falha.
+
+**Funil por item (`/stream-trace.json`, P5).** Responde "por que aquele stream
+sumiu?" sem refazer a busca: o ledger observacional viaja **dentro** da entrada
+`streams:v11`, a rota é só leitura (`getWithStale`), e o recompute offline
+explica entrada sem trace com peeks quiet (idx/raw/inventário). Live
+(`mode=live`) só TorBox/Premiumize via método cru do adaptador — AllDebrid é
+hard-block (`ad-hard-blocked`: consulta = upload e detona limpeza); RD é
+recusado (`rd-live-refused`). Kill-switch `STREAM_TRACE=false` desliga captura,
+leitura, recompute **e** live. A leitura do funil continua em
+`/stream-trace.json`, consumida pelo cliente do `/painel` (`fetchStreamTrace`
+em `src/client/painel/api.ts`) e pelos modelos de `diagnostico-model.ts`.
+Detalhe operacional e contratos: Fase 9 do
+`PLANO_MELHORIAS.md`. O ledger ganhou também o campo `chupim` — resumo do
+autofetch da build (pool/seeds/sonda), documentado na Fase 7 do Chupim abaixo.
 
 Para adicionar um serviço: crie o adaptador, registre em `ADAPTERS` e pronto —
 `SERVICES` alimenta o seletor da página automaticamente.
@@ -750,11 +1117,25 @@ próxima vez. Travas e arquitetura atuais (invariante 6):
   (Real-Debrid e Debrid-Link) habilita via `autofetchSource: true` com dedupe
   por `inventoryPeek()` síncrono da conta (`cache.get(dinvKey)` sem rede na
   resposta);
-- até `DEBRID_AUTO_FETCH_MAX` (1..4) torrents imediatos por busca, com os
+- até `DEBRID_AUTO_FETCH_MAX` (1..12) torrents imediatos por busca, com os
   excedentes indo para a **fila persistente** (`readQueue`/`writeQueue`, chave
   `autofetch:v3:q:sha256(searchKey)`);
-- pool BR vazio cai em dublada global (`DEBRID_AUTO_FETCH_ANY`) e, em série,
-  no pack de mais seeders (`DEBRID_AUTO_FETCH_TOP_SEEDS`);
+- pools em cascata `br > any > seeds`: BR dublado primeiro; se vazio, dublada
+  global (`DEBRID_AUTO_FETCH_ANY` / `autoFetchAnyDubbed`); se ainda vazio (ou
+  `any` desligado), o pool de melhores seeders (`DEBRID_AUTO_FETCH_TOP_SEEDS` /
+  `autoFetchTopSeeds`) continua — **desligar `autoFetchAnyDubbed` não corta
+  seeds**, desde que `autoFetchTopSeeds=true` (teto próprio `autoFetchTopSeedsMax`
+  1..4);
+- no pool `br` a cobertura é **por qualidade-alvo**, não global: 1 candidato para
+  cada faixa de `AUTOFETCH_TARGET_QUALITIES` (`1080p`, `720p`, `2160p`), e só as
+  três cobertas param o Chupim. Antes, QUALQUER BR dublado em cache parava tudo —
+  um 720 Dual ⚡ bloqueava o upgrade para 1080/4K. Unknown/SD não abrem nem fecham
+  vaga; pool sem nenhuma faixa-alvo cai no pick clássico, senão fonte BR sem
+  resolução no título deixaria de ser esquentada. Consequência de dimensionamento:
+  são no máximo 3 candidatos, então com `autoFetchMax=3` (default) `immediate`
+  consome todos e a **fila persistente do pool BR nasce vazia** — o `drainNext`
+  não tem o que drenar quando um torrent morre. Com `autoFetchMax` menor (preset
+  Conservador) a fila volta a receber os excedentes;
 - hold **por candidato imediato, antes** da checagem; marker só depois do aceite;
 - recheck em fundo (`DEBRID_AUTO_FETCH_RECHECK_MS`) com detecção de **torrent
   morto** (`adapter.torrentStatus`): duas observações consecutivas de estado terminal
@@ -796,6 +1177,19 @@ nome) cai nos campos seguintes; quem não casa com nenhum dos três volta `null`
 e é contado como órfã (`debrid.pm.status.unmatched`), em vez de o recheck
 inventar um hash com o qual limpar a conta por engano.
 
+A cascata sozinha **não basta**, e é aqui que ela falha: post de agregador
+entra na conta com nome humano (`[WWW.BLUDV.TV] ... [DUBLADO]`) — sem `btih`,
+sem 40 hex, sem campo `hash`. Por isso existe a ponte `id -> hash`: o recheck
+a monta a partir do lote (`markerTransferId`) e a varredura a reconstrói dos
+markers persistidos (`markerIdIndex`), porque o lote é de memória e o restart
+é justamente o cenário para o qual a varredura existe. Sem ela o `sweepDead`
+não conseguia sequer consultar o `held` e deixava essas transferências
+ocupando vaga para sempre — com `DEBRID_CACHED_ONLY=true` isso é a UI vazia,
+medido em produção em 2026-09-08. **Continua em aberto:** transferência
+travada no meio (`progress != 0`) escapa da varredura, e a varredura periódica
+não alcança conta de serviço diferente do `.env` (ver a seção da conta do
+operador).
+
 **Season Pack Fill só promete o que o recheck pode conferir.** Quando um pack
 de temporada enfileirado por autofetch fica pronto, o addon invalida as buscas
 da mesma temporada/conta e semeia a disponibilidade (`noteAvailable`) para o ⚡
@@ -805,21 +1199,106 @@ Real-Debrid e Debrid-Link (`cacheCheck: false`) não existe essa prova: pack
 pronto não marca nem semeia nada, sem promessa de ⚡, e a constatação fica para
 o `resolveLink` do play. Não "conserte" ligando o fill nesses dois.
 
+**Evicção dirigida dos fallbacks da mesma obra (Fase 6 do Chupim 2.0).**
+Quando um BR dublado aceito pelo Chupim fica `ready`, os `any`/`seeds` que o
+próprio Chupim baixou para a MESMA obra viram redundância e podem sair da conta
+AllDebrid. Nasce **OFF** (`DEBRID_AUTO_FETCH_EVICT_FALLBACK=false`) e é
+**AllDebrid-only** — OFF significa zero rede, zero leitura de status e zero
+delete. A idade mínima é `DEBRID_AUTO_FETCH_EVICT_FALLBACK_MIN_AGE_MS`
+(default 30 min), configurada em `src/config/debrid-evict.ts` (bloco extraído
+do compositor pela catraca de linhas, como `debrid-reconcile.ts`).
+
+A política vive em `src/providers/autofetch-evict.ts` (chamada fire-and-forget
+no ramo `ready` do `runRecheck`, com coalescing por `adapter:account:obra`) e só
+remove quando TODAS as provas existem: o BR ready está no registro F2
+(`autofetch-obra`) como pool `br`+`dubbed`; o candidato está no MESMO registro
+com pool `any`/`seeds`; o marker do Chupim está no formato NOVO (`markerValue`
+com `{pool, obra, acceptedAt, title, br, dubbed}`, `obra` = digest seguro da
+identidade, nunca imdbId cru) — marker legado `1`/`{id}` é **inelegível**; a
+posse durável `adsub:v1` existe (`hasDurableOwnership`, a mesma prova do 8.15);
+não há `held` nem `adprot`; `acceptedAt` existe e já passou da idade mínima; e o
+`uploadDate` REAL do magnet não é POSTERIOR à etiqueta `adsub` + margem
+(`reconcileAgeMarginMs`, mesma regra/margem do `alldebrid-reconcile`) — upload
+depois da etiqueta é re-add do usuário (`readded`), e sem `uploadDate` legível
+não há prova de que é o mesmo magnet (`no-upload-date`); ausência nunca autoriza.
+Ausência de qualquer prova pula o hash.
+
+A prova de **BR ready** nasce do EVENTO ready (nunca de "BR aceito"): o recheck
+chama isto DEPOIS de `cleanLotHash`/`held.release` do próprio hash, para o
+fallback que fica pronto agora estar livre. O hash ready comprovadamente
+`br`+`dubbed` grava a prova da obra (`autofetch:v3:er:<digest>`, TTL da janela,
+sem segredo, só com o knob ON); qualquer ready da obra reavalia os fallbacks já
+liberados. É o que fecha a corrida "BR ready antes do fallback ainda held": o
+fallback que chega pronto depois é removido pela prova, em vez de pular held
+para sempre. Sem prova BR ready, ready de fallback é no-op (`ready-not-br`).
+
+A última milha é o executor `src/debrid/alldebrid-fallback-evict.ts`
+(`adapter.evictFallbacks?`, método OPCIONAL do registry, irmão do `-evict.ts` do
+8.16): lê o `/magnet/status` autoritativo, exige `id`+`filename` REAIS, barra
+filename com `brOriginMark` (a mesma blindagem destrutiva do `sweepUndubbed`) e
+apaga pelo gate GLOBAL `deleteMagnets` (fila serializada por conta, retry de
+503) — **é proibido** `adapter.removeTorrent` nesse caminho. Só o que saiu de
+verdade (`removedIds`) recebe `adrm` com o filename real, tem a posse `adsub`
+purgada e o marker/registro esquecidos; falha/503 não purga prova nem marca.
+Não remover o BR ready atual, outro pool, outra obra nem hash preexistente do
+usuário: `adsub` é a autoridade durável criada só com prova de ausência no
+snapshot (`rememberSubmitted`), e a regra de proveniência do 8.15 permanece
+intacta. Entrada marcada `overflow: true` (a vaga extra de upgrade do C11)
+NUNCA é evictada — não há prova de que o BR ready cobre a faixa-alvo da reserva,
+e removê-la reverteria o corretivo. O caminho `via:'hash'`/posse do expirado
+(terminal/settle) é outro fluxo e não cruza com esta fase, que só dispara no
+ramo `ready`.
+Métricas `autofetch.evict.removed`, `autofetch.evict.brReady` e
+`autofetch.evict.skipped.<motivo>`
+(`ready-not-br`, `no-hint`, `no-fallback`, `overflow`, `marker-missing`, `no-ownership`,
+`held`, `protected`, `too-young`, `coalesced`; do executor: `status-error`,
+`not-in-account`, `no-id`, `no-filename`, `br-name`, `no-upload-date`, `readded`,
+`delete-failed`). Limitação residual: o fallback que continua held até o TTL
+(ou que nunca fica ready) não é reavaliado depois que a prova BR-ready expira
+com a janela — a próxima busca recomputa o registro e a evicção volta a valer.
+Coalescing é por `adapter:account:obra`: duas obras distintas rodam em paralelo
+(por desenho). Teste:
+`test/autofetch-evict.test.ts`; o executor já tinha prova em
+`test/alldebrid-evict.test.ts` + `test/alldebrid-delete-gate.test.ts`. F7 fará o
+painel completo.
+
+**Observabilidade do Chupim no painel e no trace (Fase 7).** Duas leituras
+quiet fecham o que faltava ver — o bloco `obras` do `/dashboard-status.json` e
+o campo `chupim` do `/stream-trace.json`:
+
+- **`obras` (status do runner).** Uma entrada por registro ativo do teto por
+  obra (`autofetch:v3:o:`) com digest de 12 chars do `sha256` da identidade
+  (NUNCA imdbId/conta/chave), pools contados `{br, any, seeds}`, prova durável
+  de BR ready (Fase 6) e idade da entrada mais recente; limitado a
+  `OBRA_SUMMARY_MAX` (12) mais recentes. A varredura é `keysMatching` + `peek`
+  (L1, sem promover LRU nem contar `cache.hit`), só no status, nunca no caminho
+  de busca. Render na aba `[Chupim]` (`src/client/painel/view-chupim.ts`).
+  Módulo: `src/providers/autofetch-obra-summary.ts`.
+- **`chupim` (ledger do trace).** Resumo de UMA linha do autofetch daquela
+  build, gravado por `setTraceChupim` nos dois pontos de decisão (seleção em
+  `autofetch-candidates.ts`; despacho em `autoFetchBrDubbed`) e serializado no
+  MESMO payload do trace: `pool=br|any|seeds|none; seeds=allowed|blocked:<motivo>|n/a;
+  probe=pending|found|empty|failed|capped|off` — nunca hash/imdb/conta. Estado
+  da sonda é leitura quiet (`probeState` em `br-probe.ts`; `pending` com lease
+  vencido sai como `failed`). Entrada antiga sem o campo segue servindo e
+  `STREAM_TRACE=false` não grava nem devolve. Módulo:
+  `src/providers/autofetch-chupim-trace.ts`.
+
 **Painel e configuração ao vivo do chupim (`src/utils/autofetch-live.ts`).**
 Configuração em nível de **operador** (afeta a conta de debrid do operador,
 enquanto `ab` na URL continua o opt-out individual). Mudanças aplicam ao vivo,
 persistidas no SQLite sob `cfg:v1:autofetch` com cópia em memória, sem restart.
-Integrado na aba `[Chupim / Autofetch]` do `/dashboard#autofetch` (as rotas
+Integrado na aba `[Chupim]` do `/painel#chupim` (as rotas
 `/autofetch` e `/:userConfig/autofetch` redirecionam 302 para lá).
 - `effective()` junta defaults do `.env` com overrides gravados;
-- `set(patch)` valida cada campo com os mesmos clamps do `config.ts` (`autoFetchMax` 1..4, `queueDepth` 0..12, etc.) e rejeita chaves desconhecidas (400);
+- `set(patch)` valida cada campo com os mesmos clamps do `config.ts` (`autoFetchMax` 1..12, `queueDepth` 0..12, etc.) e rejeita chaves desconhecidas (400);
 - `reset()` restaura os padrões do `.env`;
 - `setPaused(bool)` / `isPaused()` permite pausar novos downloads de emergência mantendo a infra viva;
 - `drainQueues()` esvazia todas as filas pendentes.
 Ações protegidas atrás de `JACKETT_TEST_TOKEN` (`POST /dashboard-action.json`): `autofetch-pause`, `autofetch-drain`, `autofetch-config-get`, `autofetch-config-set`, `autofetch-config-reset`.
 
 **Painel e configuração ao vivo do colhedor (`src/utils/harvester-live.ts`).**
-Configuração em nível de **operador** para o colhedor em segundo plano e sementes populares do IMDb (`config.harvest` e `config.seed`). Mudanças aplicam ao vivo, persistidas no SQLite sob `cfg:v1:harvester` com cópia em memória, sem restart. Integrado na aba `[Colhedor / Harvester]` do `/dashboard#colhedor` (as rotas `/harvester` e `/:userConfig/harvester` redirecionam 302 para lá).
+Configuração em nível de **operador** para o colhedor em segundo plano e sementes populares do IMDb (`config.harvest` e `config.seed`). Mudanças aplicam ao vivo, persistidas no SQLite sob `cfg:v1:harvester` com cópia em memória, sem restart. Integrado na aba `[Colhedor]` do `/painel#colhedor` (as rotas `/harvester` e `/:userConfig/harvester` redirecionam 302 para lá).
 - `effective()` reúne defaults do `.env` com overrides gravados;
 - `set(patch)` valida cada campo com os mesmos clamps do `config.ts` (`harvestMaxPerHour` 1..1000, `harvestQueueMax` 10..1000, `harvestDrainMaxWorks` 1..50, `harvestIdleWindowMs` 0..3600000, `seedMaxPerCycle` 1..100, `seedMinVotes` 0..100000, `seedIntervalH` 1..168, etc.) e rejeita chaves desconhecidas (400);
 - `reset()` restaura os padrões do `.env`;
@@ -857,13 +1336,28 @@ de movie/series) e as razões `popularCoverage` (cached/target), `discoveryRate`
 `F3_ENABLED=false` desliga a fase inteira; `F3_BR_ENABLED=false` desliga só o sampler, e
 `F3_BR_TOP_PER_TYPE` regula o tamanho da coorte.
 
-A **3.2** prioriza a fila do colhedor **só com evidência já conhecida, sem pré-sonda**: `next-episode`
-(play real, rank 3) ou release BR dublada **não-`lied`** já no índice (rank 2) saem antes do FIFO;
-obra sem evidência (pedida pelo usuário) fica no FIFO. **`lied` não prioriza.** `harvestBrMaxWaitMs`
-(default 6h) é o bound de fome que impede obra sem evidência de ficar para trás para sempre. São flip
-ao vivo no dashboard (`harvestBrFirst`/`harvestBrMaxWaitMs`, aba `[Colhedor / Harvester]`); desligar
-`harvestBrFirst` restaura a ordem FIFO exata. Formato da fila `harvest:v1:q` NÃO muda (a priorização é
-só reordenação no consumo, e a janela de capacidade preserva a cabeça prioritária já na fila).
+A **3.2/5** prioriza a fila do colhedor **só com evidência já conhecida, sem pré-sonda** e com duas
+**urgências operacionais incondicionais** no topo: `next-episode` (play real) acima de `br-gap`
+recente (<1h — a lacuna de dublado recém-provada, rede de segurança da sonda dirigida). Abaixo delas
+vem o **tier regular**: release BR dublada **não-`lied`** já no índice (rank 2) sai antes do FIFO e
+`harvestBrMaxWaitMs` (default 6h) é o bound de fome que impede a obra pedida de morrer atrás de
+conteúdo BR. **`lied` não prioriza.** São flip ao vivo no painel
+(`harvestBrFirst`/`harvestBrMaxWaitMs`, aba `[Colhedor]`); desligar `harvestBrFirst`
+restaura FIFO **apenas entre as entradas regulares** — não desarma `next-episode`/`br-gap recente`.
+O anti-fome opera **dentro do tier regular**: sob vazão sustentada ≥ capacidade dos urgentes, o
+backlog regular pode esperar (decisão consciente), e a janela de 1h limita cada `br-gap` individual —
+não é promessa de bound duro global. A promoção no enqueue sobe o motivo de identidade já na fila
+(`demais`→`br-gap`→`next-episode`, sem rebaixar) e grava o dedupe de 12h só depois da promoção aceita;
+ela **NÃO zera o `enqueuedAt`** (a fome do pedido original continua contando) — a janela própria do
+`br-gap` usa `priorityAt`, gravado no enqueue/promoção, com fallback para `enqueuedAt` em entrada
+antiga. Formato da fila `harvest:v1:q` NÃO muda (a priorização é só reordenação no consumo, e a janela
+de capacidade preserva a cabeça prioritária já na fila). Só o trabalho **dirigido** `brProbe` (~3
+consultas na interseção) fura o gate de inatividade/`recentUserTraffic` no `tick` e no `drain`;
+`next-episode` é colheita COMPLETA (~30 consultas) e voltou a respeitar o freio — teto horário,
+intervalo por indexer, breaker, timeout dedicado e worker único continuam valendo para ambos. Sob
+tráfego a sonda roda **FORA DE TURNO** (`takeProbe`): a ordenação põe `next-episode` acima de
+`br-gap`, então exigir que a sonda fosse a CABEÇA nunca dispararia com a fila cheia de plays; a
+colheita completa da cabeça espera a janela ociosa.
 
 A **3.3** é um **gate de decisão documentado**, não auto-tuning: após ≥48h do baseline no ar, o operador
 decide a vazão com o bloco `f3` + `harvest.*` + `debrid.rd.warm.*` + `rdGate` (sobe colheita só se o
@@ -871,6 +1365,141 @@ warmer drena; sobe warmer só sem 429/quota e com conta abaixo do teto). A 3.3 *
 tuning sozinha** — nenhum knob dela ajusta nada automaticamente. Nunca subir a colheita além do que o
 warmer absorve — fila `rdq` crescendo é backlog, não valor.
 
+**Fase 4 revisada — sonda dirigida (`src/providers/br-probe.ts`).** Quando o pool BR do Chupim fica
+vazio (não existe BR dublada, ou todas foram cortadas pelo piso de seeders/viabilidade), a cascata caía
+direto no pool de melhores sementes — enquanto o dublado podia existir nos index-only BR, que não entram
+pela busca viva. A sonda procura esse BR **antes** de liberar seeds, mas **não cria um segundo worker
+Jackett**: ela agenda uma entrada `br-gap` com a flag `brProbe` na fila existente (`harvest:v1:q`) e o
+colhedor consome em **modo dirigido** — só a interseção `JACKETT_INDEX_ONLY_INDEXERS ∩
+JACKETT_PT_BR_INDEXERS`, um indexer por vez, pelos mesmos controles (`getMeta`/TMDB, `recentUserTraffic`,
+`harvestMaxPerHour`, `awaitIndexerGap`, breaker, `JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS`,
+`filterRelevantRaw`/`applyPtTitleDual`) e o mesmo desfecho de registro (`releaseIndex.record`, `brTransition`,
+`invalidateStreamsForObra`). Nada de orçamento é furado; a varredura pt-BR agrupada e o bludv não rodam no
+modo dirigido. **A sonda nunca declara cobertura completa sozinha:** o subset indexOnly∩pt-BR não é a obra
+inteira, então o registro dirigido preserva o `partial` de um registro existente e, quando não havia
+registro algum, nasce `partial:true` — nunca limpa o flag só porque o subset respondeu.
+
+**Gate de plausibilidade (dois call sites).** A sonda só é agendada quando o índice já tem **alguma
+evidência `isBr`** (mesmo legendada ou sem faixa-alvo) — o que cobre o upgrade (já há BR dublado) e a
+ausência de dublado DENTRO de uma obra com prova BR. Obra **sem vestígio BR não enfileira nada**: um
+`br-gap` ali era colheita completa prioritizada (~30 consultas, tier por 1h) para todo filme gringo
+aberto, mais caro que a sonda recusada — o caminho regular de miss/gap cuida da descoberta; no
+`autoFetchCandidates` o índice é consultado quiet pela
+obra/location e o pool vazio NÃO dispara sonda sozinho.
+
+**Observabilidade por consulta (B1).** `jackett.search` engole falha e devolve `[]`; vazio sozinho não
+prova sucesso. `JackettSearchOptions.onQueryResult` (opcional, não muda a API pública nem o breaker)
+publica por consulta `responded: true` para resposta VÁLIDA (HTTP + envelope do Jackett sadios, mesmo
+`[]`) e `responded: false` com `reason: 'error'` (timeout/aborto/HTTP ruím) ou `'breaker'` (nem
+consultado). O modo dirigido conta `responded` e só finaliza `empty` com `responded > 0`; sem nenhuma
+resposta real, `failed` (retry curto) — nunca `empty` por falha engolida.
+
+Estado/orquestração vive em `br-probe.ts` (nenhuma rede): identidade GLOBAL por obra
+`<type>:<imdbId>:<season>:<episode>` (filme sem S/E; série por episódio), chave
+`autofetch:v3:probe:<sha256>` — **sem config, conta ou segredo**. Estados `pending`/`found`/`empty`/
+`failed`/`capped` com timestamps. **Só `pending`** (lease curto de 10min, órfão por crash expira sozinho)
+bloqueia seeds; `found` mantém o dedupe do estado por 12h mas **NÃO** segura swarm (a lista/índice decide na
+próxima abertura); `empty` libera na hora mantendo o dedupe do estado, `failed`/`capped` liberam com retry
+curto (5min). `requestBrProbe` só grava `pending` **sincronamente**
+quando a entrada realmente existe na fila com a flag dirigida — se o enqueue foi dedupe (12h) ou o
+colhedor está desligado, registra `skipped.<motivo>` e **não bloqueia** seeds. A flag é OR-aderente no
+`HarvestWork` (enqueue/`head`/`tail`): uma obra já na fila aceita o probe sem rebaixar um motivo mais
+forte (`next-episode` permanece no topo e a execução passa a ser dirigida). **Coalescing em voo** (módulo
+`harvest-inflight.ts`) é GENÉRICO por obra: qualquer enqueue que chega enquanto a MESMA identidade já é
+colhida funde o motivo de maior precedência e a flag `brProbe`, sem criar segunda entrada. Colheita completa
+bem-sucedida satisfaz tudo; falha/cap/preempção reenfileira UMA intenção fundida. Um run dirigido que recebeu
+pedido completo devolve só esse pedido à fila, porque o subset da sonda não cobre a colheita inteira — e,
+enquanto o FULL estiver pendente, a sonda DEIXA de furar o freio de tráfego (a colheita completa que ela
+gera cobre o subset, então o tráfego pode preemptá-la sem perder nada). Entrada FULL que recebe a flag por
+promoção (`fullBase`) tem o mesmo desfecho. O colhedor finaliza o estado
+depois do `harvestOne` **nesta ordem**: `found` quando há **evidência nova e viável** (upgrade exige BR
+dublada nova na faixa alvo 1080p; ausência exige `seeders > 0` — placeholder BR é 1 e 0 é inviável; BR
+antiga de 0 seeders NÃO fecha found), `capped`
+quando o teto horário cortou, `empty` quando `responded > 0` (dirigido) ou `ok` (coalescido) e não há BR
+nova viável, `failed` em falha real; em todos
+**invalida as listas prontas da obra** para o aviso não congelar. Preempção por tráfego NÃO finaliza —
+(e só o `brProbe` furava o gate de inatividade; `next-episode` volta a ser preemptível) — e
+renova o lease.
+
+Na política F1 do pool seeds, `br-probe-pending` é bloqueio **transitório**: barra seleção (`seedsSelectionBlock`),
+**o fallback PERSISTIDO** (`pickLowerPoolFallbacks`), despacho (`autoFetchBrDubbed`) e dreno (`deferFn` do
+`takeDrainCandidate`) **mantendo/deferindo a fila, nunca purgando**. `dubbedOnly` continua barrando seeds
+como sempre — a sonda ainda é solicitada para achar BR. O `QueueCandidate` guarda a identidade da sonda
+(`probeSeason`/`probeEpisode`) separada da identidade de obra-cap: o pack tem `episode` nulo para cap, mas
+o dreno defere pelo EPISÓDIO solicitado (entrada antiga cai no `episode`). Durante o `pending` o `buildStreams` emite o aviso
+`⏳ Busca de dublado BR na fila — aguarde a colheita`; como a lista só-tem-aviso é
+`complete:false` (TTL 60s) e a finalização invalida a obra, o aviso nunca sobrevive ao lease.
+Toggle de operador `AUTOFETCH_BR_PROBE` (default `true`, ajustável ao vivo em `autofetch-live.ts` e no
+painel, aba `[Chupim]`); TTL estático `BR_PROBE_TTL_S` (default 43200). Exige
+`RELEASE_INDEX=true` e interseção não vazia — desligado não agenda nem bloqueia. Métricas
+`autofetch.brProbe.run/transition/found/empty/failed/capped/skipped.<motivo>`,
+`scheduled.<upgrade|evidence>`, `found.unviable`, `orphan`, `coalesced` e histogramas
+`autofetch.brProbe.ms` / `runWaitMs` (idade scheduled→run). Testes: `test/br-probe.test.ts`
+(estado/política), `test/br-probe-worker.test.ts` (observabilidade/partial/tick),
+`test/br-probe-viability.test.ts` (C4 encontro viável + C8 coalescing) e
+`test/br-probe-fallback.test.ts` (fallback persistido/packs/call sites).
+
+**Teto por OBRA no dreno (Fase 2 / C10 / C11).** O candidato que o cap da obra fecha NESTA janela é
+**deferido** — permanece na fila (`autofetch.drain.obra-cap-deferred`) enquanto a seleção procura outro
+elegível; descartá-lo apagava um BR que voltaria a caber assim que a vaga liberasse. O cap normal segue
+invariável; o **overflow de upgrade** concede UMA reserva extra (`cap+1`, `autofetch.obra.overflow-upgrade`)
+apenas quando o candidato é faixa-alvo AUSENTE no registro F2 e superior ao pior BR registrado (persiste
+`quality` por entrada; `overflow:true` marca a extra e limita a uma por janela). Não remove magnet antigo
+nem finge que foi removido; sem qualidade registrada o overflow degrada para conservador (não concede).
+
+**Fase 3 revisada — progresso real da AllDebrid (`src/providers/autofetch-progress.ts`).** A AllDebrid não
+publica `stalled`/dead objetivo por item, então o lote ficava "downloading" até o TTL sem repor nada quando a
+parada não era detectável. A medição read-only do `/magnet/status` (2026-09-15) confirmou os campos reais:
+`downloaded` (bytes), `size` (total, sempre presente), `downloadSpeed`/`uploadSpeed` (bytes/s), `seeders` e
+`processingPerc`, presentes SÓ em magnet ativo; **não existe campo `progress`**. O `torrentStatus` do adaptador
+(`alldebrid-play.ts`) só anexa `{ bytes, total, speed, seeders }` quando o status CRU é exatamente
+`"Downloading"` E os quatro campos são `typeof number && Number.isFinite` (null/''/false/ausente NÃO viram
+zero), com `total>0` e `bytes<total`. Marca `via:'hash'` — o status sai da listagem autoritativa por hash e
+é o que permite ao recheck remover dead/expired/`expired-unready` SEM depender de `DEBRID_REMOVE_BY_ID`
+(default false); o `id` continua sendo a âncora do `removeTorrent`. O ramo **progress-stalled** NÃO usa
+este campo (é sempre represado). O adaptador **não deriva `stalled`**: a derivação é conservadora e mora no
+recheck.
+
+O predicado compartilhado `DEAD` (`alldebrid-api.ts`) reconhece a frase exata **"Download took more than
+3 days"** (statusCode 10 MEDIDO) e vale para `torrentStatus` E `sweepDead`. O `statusCode` é
+documentado como medido mas **não decide**: `isDeadMagnet` condena pelo TEXTO apenas — `10` com texto
+`Downloading` NÃO é dead (e `ready` vence o DEAD nos dois consumidores).
+
+`deriveStall` (memória por `adapter:account:hash`) marca parada APENAS com state `downloading`, `bytes<total` e
+bytes parados com velocidade NÃO positiva (`speed>0` é movimento e zera o streak mesmo com `seeders:0`; seeders
+zero nunca sobrepõe velocidade positiva) por `DEBRID_AUTO_FETCH_STALL_STREAK` rechecks CONSECUTIVOS. Bytes
+crescendo zera; regressão de bytes ou troca do id da transferência reiniciam; `total<=0`, `bytes>=total`, campo
+ausente/não numérico, `progress` ausente ou state `queued/processing/unknown/ready/dead` são SEM sinal (mantêm
+o legado). O hash derivado entra num ramo próprio que **nunca** chama `removeTorrent` direto: blacklista, limpa
+o registro da obra, libera holds e **registra a transferência na fila de represados** (`autofetch-suppressed`)
+para o knob/painel cobrar depois. O caminho `expired-unready` também exige **posse provada** antes de
+remover direto: proteção vigente (`held`/`adprot`) bloqueia, e na AllDebrid o hash só é apagado com prova
+de que o addon o subiu (marker do enqueue ou etiqueta durável `adsub`) E com o snapshot de pré-existentes
+carregado sem ele — a mesma autoridade do `dropReady`/`dropUncached`; snapshot ausente fecha o fail-safe
+(não remove) e o caso não provado vai para represados. O ramo progress-stalled continua represado
+(derivação é prova de parada, não autorização de delete). Para conta BYO, cada `checkCached` posterior agenda
+`alldebrid-suppressed-revalidate.ts`: uma leitura autoritativa por conta, coalescida e com backoff, remove pelo
+gate `deleteMagnets` SÓ quando o texto fica terminal; `ready` cura suppressed+blacklist, ativo permanece e erro
+preserva tudo. A chave da instalação nunca é persistida — após restart a próxima busca retoma a rodada. O módulo
+varre a fila `sup:` INTEIRA (todas as origens, não só progresso), respeita idade mínima e re-add
+(`uploadDate` × `adsub`), e é gateado pelo knob destrutivo `DEBRID_SUPPRESSED_REVALIDATE`
+(**default false** — desligado, zero rede; ligar autoriza delete por hash sem o freio
+`DEBRID_REMOVE_BY_ID`, limitado ao escopo da fila). Nota operacional: sem
+`DEBRID_OPERATOR_ENV_ACCOUNT` no `.env`, `envOperatorAccount` é falso — a conta do `.env` é tratada
+como BYO pelo `isByoAccount` e o `sweepDead` periódico também não roda; nesta configuração, ligar o
+knob é a única varredura de represados da instância. O estado é
+limpo em `cleanLotHash`, no fim do lote e na evicção do LRU de settle — que usa o `adapterId` DO PRÓPRIO lote,
+nunca `debrid.current()` de outra request. É o mesmo espírito do contrato `responded` do B1: o que não foi
+medido não condena.
+
+O **settle NÃO drena** — política conservadora da Fase 0 preservada: lote sem dead/stalled nativo e sem parada
+derivada comprovada espera o TTL; drenar por "estar em settle" era o dreno cego removido. A F3 serve para o
+AllDebrid repor uma cabeça SÓ quando a parada derivada é comprovada; adapter sem progresso mantém o
+comportamento pós-F0 (sem dreno). Métricas `autofetch.progress.signals` (hashes com progresso válido na
+passagem) e `autofetch.progress.stalled` (colapsos derivados), mais `autofetch.progress.suppressed`. Sem knob
+novo — o limiar é o `DEBRID_AUTO_FETCH_STALL_STREAK`; `0` desliga a derivação. Testes:
+`test/autofetch-progress.test.ts` (unit + settle conservador + LRU + AllDebrid) e
+`test/autofetch-stalls-drain.test.ts` (adapter AllDebrid com progress + limite de uma cabeça por evidência).
 
 O registry também expõe `inventory()`: o que já está **pronto** na conta
 (AllDebrid/TorBox/RD/DL) entra na busca como mais uma fonte
@@ -889,16 +1518,22 @@ operador).
 
 ## Cache multi-nível (fases 0–2 no código)
 
-A chave `streams:v7` isola config do usuário + digest da conta
+A chave `streams:v11` isola config do usuário + digest da conta
 (`request-key.ts`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
 — bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
-que não bate com a versão corrente). Duas instalações do mesmo título **não**
-compartilham a lista — ela carrega URLs de play assinadas. O trabalho caro
-(Jackett + scrapers) é compartilhado mais abaixo.
+que não bate com a versão corrente). `idx` está em **v10** porque o classificador
+de áudio/origem persiste no índice (merge OR-aderente): v9 fechou DUB genérico +
+cirílico; v10 fechou `ENGLISH|ENG` no mesmo predicado. `streams` subiu a **v11**
+por outro motivo: o `title` entregue ao cliente agora remove o blob de qualidades
+do HDRTorrent — as listas v10 ainda carregavam a cauda (`…, 2160p, 720p, …`) e
+clientes que reclassificam o título por conta própria exibiam 4K em botões
+1080p/720p. Duas instalações do mesmo título **não** compartilham a lista — ela
+carrega URLs de play assinadas. O trabalho caro (Jackett + scrapers) é
+compartilhado mais abaixo.
 
 | camada | chave | o que guarda | kill-switch |
 |---|---|---|---|
-| L1+L2 streams | `streams:v7:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
+| L1+L2 streams | `streams:v11:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
 | bruto por indexer | `raw:v1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
 | SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
 
@@ -914,11 +1549,35 @@ por `queryIndexer` e **não** usa o cache bruto — fora de escopo de propósito
 TTL de resultado vazio é curto (`RAW_CACHE_EMPTY_TTL`): 200 com zero itens
 pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
 
-Cotas do L1 (`cache.ts`): `streams` 2000, `raw` 800, `dlmag` 4000, `idx` 4000,
-teto global 36000. `raw` é o namespace gordo (~100 KB no pior caso); não suba a
-cota sem refazer a conta de memória do container de 3g. A SOMA das cotas é
-30.500 — teto global **igual ou abaixo** da soma reintroduz o despejo global
-antes da repartição por namespace (foi bug real).
+Cotas do L1 (`cache-quotas.ts`): `streams` 2000, `raw` 800, `dlmag` 4000,
+`idx` 2000, `rdc` 14000, `autofetch` 4000, `mag` 50000, `mag_meta` 1 (o agregado
+único dos contadores duráveis do banco de magnets), teto global 93000. `raw` é o namespace
+gordo (~100 KB no pior caso); não suba a cota sem refazer a conta de memória do
+container de 3g. O `mag` é o oposto — entrada minúscula (`1` + chave de ~70 B,
+~400 B com o overhead do Map), então 50.000 custa ~19 MB. A conta que fecha NÃO
+é a soma das chaves de `QUOTAS` (90.721): `quotaFor` devolve `__default` (500)
+para todo nome sem entrada própria, então o universo honesto é a **união** de
+`QUOTAS` com `NAMESPACE_VERSIONS`, mais o balde `__default` das chaves sem `:`
+— 91.221 contra o teto de 93.000, folga de 1.779 (~3 baldes de namespaces
+novos). Essa conta é refeita no teste (`cache-namespaces.test.ts`), que também
+exige **cota explícita para todo namespace versionado** — sem a segunda guarda,
+`dinv`, `harvest`, `notify` e `seed` viveram de fallback e a soma real passou do
+teto em 1.051 sem nenhum teste reclamar (medido no container: `cache.evicted =
+1051` com todos os namespaces dentro da própria cota). Teto global **igual ou
+abaixo** da soma do universo reintroduz o despejo global antes da repartição por
+namespace (foi bug real).
+
+O banco de magnets VIVO (`data/magnets.db`) NÃO entra nesta conta: é SQLite
+próprio, sem cota, sem TTL e sem versão de namespace. A URI por hash que antes
+morava no cache (`muri:`) agora é do banco — não há namespace `muri` em `QUOTAS`
+nem em `NAMESPACE_VERSIONS`, e o prefixo legado é descartado no boot; o teto
+global segue **93.000**.
+
+Cota é capacidade, não permanência: quem tira registro do `mag` no dia a dia é
+o TTL (`MAGNET_ALIVE_TTL`/`MAGNET_LIE_TTL` 7 dias, `MAGNET_BAD_TTL` 24 h).
+Despejo por cota apaga do L1 **e do L2** (`forgetMany` roda `DELETE`), e o
+`loadFromDisk` descarta o que passa da cota no boot — não existe reservatório
+maior no SQLite esperando.
 
 Fase 3 (cache de disponibilidade por hash) **está** no código, em
 `src/debrid/index.ts`: o namespace `davail` guarda `1`/`0` por
@@ -976,7 +1635,7 @@ v2, então a passada não se repete, e nada se perde funcionalmente: o Torrentio
 
 ---
 
-## Índice de releases e o addon como servidor (`idx:v7`, PLANO_MAGNETDB... ver
+## Índice de releases e o addon como servidor (`idx:v10`, PLANO_MAGNETDB... ver
 ## PLANO no repo)
 
 O addon responde do PRÓPRIO índice quando ele cobre a obra, e usa o Jackett
@@ -987,7 +1646,7 @@ RESPOSTA (<500ms):  /stream → idx + dinv → checagem no debrid → lista
 COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro → idx
 ```
 
-- **`src/utils/release-index.ts`** guarda por obra (`idx:v7:<imdbId>[:S:E]`) o
+- **`src/utils/release-index.ts`** guarda por obra (`idx:v10:<imdbId>[:S:E]`) o
   mínimo da release `{ hash, title, size, indexer, isBr, quality, seeders,
   seenAt }`. Invariantes: sem config/credencial na chave (compartilhado entre
   instalações DE PROPÓSITO — guarda o que EXISTE, nunca o que está pronto em
@@ -1005,6 +1664,22 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   swarm). **Contagem pura nunca decide**: temporada só com legendado não pode
   impedir a busca BR dublada de rodar. Lacuna → caminho atual inteiro +
   colhedor enfileira a obra.
+- **Fast-path coberto consulta só BR/prioritários.** Quando o índice cobre a
+  obra, a janela crítica chama `collectRaw` com `taskScope:'priority'`: só as
+  tarefas BR isoladas rodam (elas já viram o `score` do índice; a fonte viva
+  atualiza a evidência). Os **globais já cobertos não são consultados nem
+  marcados falhos** — eles ficam no enriquecimento de fundo
+  (`taskScope:'nonpriority'`), que alimenta o índice e promove pelo mesmo
+  `latest-writer`, sem transformar um hit do índice em espera pelo caminho
+  inteiro. O `/all` agregado não participa desse caminho.
+- **`pending`/`slow` no contrato atual.** Como a resposta pode sair antes de
+  indexer lento terminar, o lote tardio pode gerar lista `partial` e itens de
+  fallback do acervo (selo 📦). O medidor para decidir calibração futura é
+  `fallback.items.injected` (acumulado desde o boot) no `/metrics.json` da VPS:
+  se ele estiver alto de forma sustentada, a próxima decisão pode ser ignorar
+  `JACKETT_SLOW_INDEXERS` quando o único motivo for `pending` (lento que ainda
+  não respondeu). **Não altere essa política agora** — é diagnóstico, não
+  auto-tuning; nenhum caminho lê esse contador para mudar comportamento.
 - **Colhedor** (`harvest:*`): fila persistente numa chave única
   (`harvest:v1:q`), alimentada por busca com lacuna e episódio seguinte
   (dedupe TTL 12h). Freio de atividade em JANELA DESLIZANTE
@@ -1023,15 +1698,26 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   varredura pt-BR processa a fatia que couber no teto horário em vez de
   tudo-ou-nada (conta `harvest.sweep.partial`); e obra descartada após 3
   retentativas conta `harvest.capped.dropped` em vez de sumir sem rastro.
-- **Index-only** (`JACKETT_INDEX_ONLY_INDEXERS`, default: `redetorrent`,
-  `apachetorrent`, `hdrtorrent`): ficam FORA do caminho da resposta e DENTRO
-  do sistema via colhedor. Latência medida de 8–31s contra orçamento total de
-  20s os derrubava no breaker a cada busca, e o retry PT→título original
-  consumia o MESMO orçamento. O filtro roda antes do plano de busca; se todos
-  os selecionados forem index-only, NÃO há fallback `/all` — a obra entra na
-  fila do colhedor pelo caminho de sempre (miss/gap). Separado de
+- **Index-only** (`JACKETT_INDEX_ONLY_INDEXERS`, default:
+  `redetorrent-cardigann`, `apachetorrent-cardigann`, `1337x`): ficam FORA do caminho da resposta e
+  DENTRO do sistema via colhedor. Latência medida de 8–31s contra orçamento
+  total de 20s os derrubava no breaker a cada busca, e o retry PT→título
+  original consumia o MESMO orçamento. O 1337x entrou por medição própria:
+  busca fria de 12,2–19s (Cloudflare re-resolvido) e redirect `/dl/` de
+  1,8–6,5s contra orçamento de 4s. O filtro roda antes do plano de busca —
+  vale MESMO quando o usuário seleciona o indexer na config; se todos os
+  selecionados forem index-only, NÃO há fallback `/all` — a obra entra na
+  fila do colhedor pelo caminho de sempre (miss/gap). Index-only também ficam
+  FORA das varreduras pt-BR (tardia da busca e do colhedor): eles já são
+  consultados individualmente pela fila, com orçamento TOTAL dedicado
+  (`JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS`, default 35000, aplicado SÓ no
+  colhedor/fundo — nunca na busca viva nem em indexer comum); a resolução do
+  magnet permanece em `JACKETT_RESOLVE_DOWNLOAD_INDEXERS`. Separado de
   `JACKETT_SLOW_INDEXERS`: lá o problema é o agrupamento do plano; aqui é
-  PRESENÇA na resposta. Não "devolva" esses indexers à busca ao vivo sem
+  PRESENÇA na resposta. O `hdrtorrent` está estacionado fora das listas desde
+  2026-09-17: `hdrtorrents.net` devolvia a homepage sem filtrar toda variante
+  de busca; o indexer continua disponível para reativação quando a busca real
+  voltar. Não "devolva" esses indexers à busca ao vivo sem
   medir de novo — o breaker aberto era o sintoma, não a causa.
 - Kill-switches: `RELEASE_INDEX=false` / `RELEASE_INDEX_TTL=0` (índice),
   `ACCOUNT_FAST_PATH=false`, `HARVEST_ENABLED=false`.
@@ -1127,11 +1813,44 @@ segurança do ranking já usavam; não é palpite sobre o áudio. Nos 853 magnet
 conta do operador, 42 dos 291 duals não reconhecidos viram BR, e 41 são
 inequívocos (site BR nomeado, "1ª Temporada", título em português).
 
+**Dual + idioma nomeado é o lado oposto da mesma moeda.** `audioBucket` aceitava
+`Dual`/`MULTI` sem olhar QUAL idioma acompanhava a faixa: `Serenity … [Dual
+Audio] [Hindi DD 5.1]` ficava no balde ambíguo `dual` (misturado aos ~452 duals
+BR do painel) e o marcador `dual` de `hasPtAudioMark` **absolvia** o título no
+`foreignVerdict`, então `foreignProof` saía vazio e nem a Limpeza BR nem o sweep
+enxergavam o item. Hoje: Dual + idioma nomeado cai em `lixo` (predicado
+`foreignLangNamedForBucket` — o núcleo da guarda **ampla** sem `MULTI` e sem
+`ENGLISH|ENG`, porque MULTI afirma «faixas», não idioma, e English/ENG em
+torrents BR significa PT+EN — o caso comum, não "só inglês"; o Hindi/Tamil/etc
+é que são os falsos duals), e o marcador `dual`/`dual audio` passou a sofrer a
+mesma guarda do `dub`/`dubbed` (idioma estrangeiro ou cirílico no path desmentem
+a promessa genérica). O que NÃO mudou: `audioFromTitle` devolve `'Dual'`
+(rótulo de áudio), o `…AMZN.WEB-DL.DUAL.5.1…` sem idioma continua absolvendo, e
+a **condenação destrutiva** segue exigindo a lista **mínima** — Dual+Tamil/Korean/
+cirílico são `lixo` de triagem e `unknown` no veredito, nunca apagam. Travado por
+`test/dual-foreign-language.test.ts`. Consequência operacional: as linhas do
+catálogo são **persistidas**, então o balde/`foreignProof` só recalcula no
+"Atualizar Catálogo" do painel.
+
 O caminho do **inventário da conta** é o mais exposto, e vale saber por quê:
 `src/providers/account.ts` decide `isBr` **só** por este predicado. Não há
 indexer BR ali para carimbar a origem pelo campo do provider, então o título é
 a única evidência que existe — o oposto do caso do Jackett, onde o flag do
 provider já resolve.
+
+**Extensão contextual (`ptTitleDual`).** Quando o título pt-BR do TMDB **difere**
+do original/en, um DUAL literal cujo título **começa** com esse pt vira BR via
+`ptTitleDual` / `applyPtTitleDual` — mesmo sem acento nem marca `DUBLADO`/`PT-BR`
+(`Lanternas Verdes…DUAL`, `A.Rocha…DUAL`). Sem o contexto da obra, Dual sozinho
+continua ambíguo (EN+qualquer idioma) e `looksPtBr` falha de propósito. Medido
+no índice de produção: **67/100** releases recuperáveis; MULTI e LAT/cena
+francesa ficam fora (30 MULTI franceses medidos — faixa multiidioma de cena,
+não dublagem BR). No dedupe, a herança (`inheritsBr`) usa a guarda **ampla**
+`namesForeignDubLanguage` (LATINO, LAT, ESP, Eng-Spa, cirílico, VFF/HDLight…)
+porque a decisão só **nega** BR — falso negativo de herança custa uma vaga, não
+apaga da conta. A lista **mínima** `hasExplicitForeignAudio` continua exclusiva
+dos caminhos destrutivos (sweep/limpeza): assimetria travada — não "uniformize"
+as duas listas.
 
 Não volte a inferir origem por `/BLUDV|DUBLADO/i` no título **no lugar** do
 flag do provider — releases de `comandotorrents`, `nerdfilmes` e
@@ -1141,10 +1860,13 @@ Campos com prefixo `_` (`_br`, `_seeders`, `_quality`, `_multiWork`, …) são
 **internos**. Se um deles vazar no objeto entregue ao Stremio, o player pode
 rejeitar o stream.
 
-Agregadores BR podem espelhar magnets globais: origem e áudio pertencem à
-listagem que vence o merge; nunca propague `_br`/`_dubbed` do perdedor.
-DUAL sem PT explícito não ganha vaga, prioridade nem autofetch só porque o
-post veio de site BR.
+Agregadores BR podem espelhar magnets globais: origem e áudio ficam com a
+listagem que vence o merge, **exceto** quando o espelho global declara DUAL e
+herda BR do post BR do mesmo hash (`inheritsBr` em a81de23), com a guarda ampla
+de idioma estrangeiro (`namesForeignDubLanguage`) — sem ela, LAT/ESP/VFF
+emprestavam a vaga reservada. DUAL sem PT/contexto (nem `looksPtBr`, nem
+`ptTitleDual`, nem herança) não ganha vaga, prioridade nem autofetch só porque
+o post veio de site BR ou porque o título diz Dual genérico.
 
 **3. Fontes BR não publicam seeders.**
 Elas entram com `seeders: 1` (0 seria descartado por `MIN_SEEDERS`). Consequência:
@@ -1162,18 +1884,29 @@ centenas de seeders. Por isso:
 
 Inverter essa ordem faz as fontes BR sumirem silenciosamente.
 
+E o corolário que já custou uma correção: **`_seeders` de fonte BR é
+placeholder, não medição** — não o use como sinal de saúde. Um "piso saudável"
+(do tipo "só relaxa a regra se ninguém tiver ≥ 3 seeders") nunca é alcançado
+numa busca dominada por agregador BR, e a regra acaba relaxada em toda busca
+normal em vez de no caso raro. Quando precisar de um gatilho de último recurso
+no ranking, use **conjunto vazio**, não conjunto fraco: é o que
+`sortAndLimit` faz para reabrir SD/480p/sem-resolução quando o filtro de
+qualidade do usuário não deixa nenhum candidato de pé
+(`search.qualityFilter.relaxed`, teste em `test/format-quality-last-resort.test.ts`).
+
 **4. Sites BR indexam por título em português.**
 "Coringa", não "Joker". `tmdb.getTitles` resolve isso e a busca dispara **duas
 queries**: a em inglês para indexers globais e a em pt-BR para os listados em
-`JACKETT_PT_BR_INDEXERS` (default: os cinco cards locais + `redetorrent`,
-`apachetorrent`, `hdrtorrent`). Todo caminho de busca precisa carregar as duas
+`JACKETT_PT_BR_INDEXERS` (default: os sete cards locais, incluindo
+`apachetorrent-cardigann`; `hdrtorrent` está estacionado). Todo caminho de busca precisa carregar as duas
 — inclusive fallbacks de pack. O filtro `matchesName` também aceita qualquer
 um dos nomes, senão a release dublada seria descartada por não bater com o
 título em inglês.
 
-BR e `JACKETT_BARE_TITLE_INDEXERS` (os três stock) **zeram** com token extra:
-além do SxxEyy, o ano do filme também sai ("Coringa 2019" → 0 no redetorrent).
-Os resolvers locais ficam **fora** dessa lista: lá o ano ajuda a relevância.
+`redetorrent-cardigann` e `apachetorrent-cardigann` também **zeram** com token
+extra: além do SxxEyy, o ano do filme sai. Os próprios resolvers normalizam a
+query como defesa dupla; os demais resolvers locais ficam fora dessa lista,
+porque neles o ano ajuda a relevância.
 Sequência em romano vira variante arábica (`numeralSearchVariant`) no mesmo
 indexer, dentro do deadline original.
 
@@ -1227,7 +1960,7 @@ checagem de cache e só é liberado se o download não acontecer. Inverter essa
 ordem deixa a limpeza matar o download no meio da mesma busca — na AllDebrid a
 própria checagem apaga da conta o que não está pronto.
 
-Já não é "um torrent por busca": o teto é `DEBRID_AUTO_FETCH_MAX` (1..4), com
+Já não é "um torrent por busca": o teto é `DEBRID_AUTO_FETCH_MAX` (1..12), com
 uma vaga por candidato compartilhada entre os passes (`acquireSearchSlot`).
 `cachedOnly` deixou de ser trava — mesmo no modo misto, sem dublada em cache o
 play da próxima vez depende do download. O resto das travas (known, toggle,
@@ -1243,26 +1976,32 @@ fire-and-forget) continua.
 | `src/routes/services.ts` | `buildServices()`: monta o `AppServices` (config, debrid, cache, metrics, jackett, …) que os handlers de rota recebem |
 | `src/routes/register.ts` | `registerRoutes()` — único ponto que monta as rotas (contrato de ordem: router do addon sem config, específicas, depois router com config) |
 | `src/routes/stream.ts` | `createStreamHandler`: o handler de `/stream` por cima do `findStreams` |
-| `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config` e os assets do painel pela allowlist **fechada** `PAGE_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`) |
+| `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` / `stream-trace.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/painel`, `/defaults.json`, `/seal-config`, os assets do painel pela allowlist **fechada** `PAGE_ASSETS` (HTML/CSS/imagens) e os módulos ESM dos clientes de `/configure` e `/painel` pela allowlist `CLIENT_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). O entry do cliente, com o `?v=` corrente, é `immutable`; os filhos importados sem query saem `no-cache` e revalidam por ETag/304. A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/stream-trace.json`) |
 | `src/routes/addon-router.ts` | Router do protocolo Stremio que substituiu o `stremio-addon-sdk` no runtime (6.1): `createAddonInterface` + `makeAddonRouter` (manifest, `/stream`, CORS, `Cache-Control`). Lê o último segmento **cru** de `req.url`: `req.params` vem decodificado e quebraria a divisão dos extras |
 | `src/routes/origin.ts` / `async.ts` / `state.ts` / `types.ts` | `originOf`/`streamsNeedRevalidation`; `asyncRoute` (wrapper do Express 4); `prefetchInFlight`; `AppServices`/`HandlerFactory` |
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
-| `src/br-resolvers.ts` | Carrega os cinco `*-resolver` no processo do addon; `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
-| `src/public/configure.html` | Página de configuração (HTML/CSS/JS puro, ES5, zero build). Desde §5.9: `configure.css` + `configure-app.js` ao lado; o `KEYS` e o `collect`/`apply`/`fromUrl` seguem **inline** porque os testes regexam o corpo deles no html |
-| `src/public/dashboard.html` | Painel de operação (mesmas regras). Desde §5.9: `dashboard.css` + `dashboard-core.js` (estado, formatação, HTTP autenticado) + `dashboard-panels.js` (abas e painéis da Geral) + `dashboard-status.js` (consulta, polling, ações) + `dashboard-debrid-test.js` (teste seguro de conta de debrid). Os módulos são **top-level sem IIFE**, escopo global compartilhado, ordem core → panels → status → debrid-test → inline; `renderMagnetDb` e os painéis do Chupim/Colhedor ficam inline por contrato de teste |
+| `src/br-resolvers.ts` | Carrega os sete profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
+| `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
+| `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. A aba Magnets (`view-magnets.ts`) monta o card do banco vivo (`view-magnet-bank.ts` sobre o modelo puro `bank-model.ts`), separado do estoque por conta. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
 | `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
 | `src/providers/search-cache.ts` | `findStreams`, coalescing (`inFlight`), SWR (`debridRefreshSatisfied`, `staleRefreshEligible`, `scheduleStaleRefresh`), `hasPlayableStream` |
 | `src/providers/search-orchestrator.ts` | `doSearch`, `collectRaw`, `poolCovered`, `idxPoolCovered`, `idxReleasesToRaw` |
 | `src/providers/debrid-pipeline.ts` | `applyDebrid`, filtro pré-checagem, auditoria de áudio (`collectAuditCandidates`, `queueDubAudit`, `runDubAudit`) |
 | `src/providers/stream-builder.ts` | `buildStreams`, `applyFileEvidence`, `applyNoticeOrigin`, `onlyNotice` |
 | `src/providers/autofetch-runner.ts` | Seleção de candidatos, holds/markers, `drainNext`, recheck, settle, detecção de morte |
+| `src/providers/autofetch-obra.ts` | Teto por obra (F2): reserva volátil + registro persistido por hash (pool/acceptedAt/título/br/dubbed/id) e `obraDigest` — a identidade segura que o marker novo da Fase 6 guarda |
+| `src/providers/autofetch-evict.ts` | Evicção dirigida dos fallbacks `any`/`seeds` da mesma obra (Fase 6): política, travas, coalescing e chamada do `adapter.evictFallbacks`; `evictMarkerMeta` grava o marker novo |
+| `src/providers/autofetch-obra-summary.ts` | Resumo por obra do teto F2 para o painel (Fase 7): `keysMatching`+`peek` quiet sobre `autofetch:v3:o:`, digest de 12 chars, pools `{br, any, seeds}`, prova BR-ready e idade; nunca expõe identidade |
+| `src/providers/autofetch-chupim-trace.ts` | Resumo do Chupim no trace (Fase 7): monta `pool=…; seeds=…; probe=…` e grava via `setTraceChupim` nos pontos de decisão; enums fechados, sem hash/imdb/conta |
 | `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
-| `src/providers/harvester.ts` | Colhedor: fila persistente de obras colhidas em fundo, freio de atividade, teto horário, varredura pt-BR nos globais |
+| `src/providers/harvester.ts` | Colhedor: fila persistente, freio de atividade e teto horário; `harvest-inflight.ts`/`harvest-outcome.ts` fundem intenção concorrente e reencaminham um único trabalho |
 | `src/utils/harvester-live.ts` | Camada de configuração ao vivo do Colhedor e Sementes IMDb persistida em SQLite |
-| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v7`): record/lookup/status — o que faz o addon responder sem Jackett |
+| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v10`): record/lookup/status — o que faz o addon responder sem Jackett |
+| `src/utils/stream-trace.ts` / `trace-recompute.ts` | Funil por item (P5): ledger observacional na entrada `streams`, recompute offline com peeks quiet |
+| `src/debrid/live-check.ts` | Live read-only TorBox/Premiumize para `/stream-trace.json?mode=live` — AllDebrid/RD hard-block |
 | `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
 | `src/providers/jackett-catalog.ts` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
 | `src/providers/indexer-status.ts` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
@@ -1274,16 +2013,17 @@ fire-and-forget) continua.
 | `src/providers/demo.ts` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
 | `src/debrid/index.ts` | Registry + seleção por request + checagem com teto dinâmico + inventário |
 | `src/debrid/file-selector.ts` | Seleção de arquivo no play: `pickFile`/`pickWorkFile`, `workCoverage`, `baseName`, erros (`WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError`) — extraído em 5.2, `common.ts` reexporta |
-| `src/debrid/common.ts` | `magnetFor`, fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
+| `src/debrid/common.ts` | `magnetFor`/`magnetForPlay` (URI rica do banco via `magnet-bank.lookup`, com fallback ao magnet padrão), fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
 | `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |
-| `src/debrid/alldebrid*.ts` | A AllDebrid não é um arquivo, é uma família (~1230 linhas): `alldebrid.ts` é só a fachada (38 linhas). `-api.ts` (chamada crua, `magnetList`, `ACTIVE_STATES`), `-check.ts` (a checagem que é upload — e por isso agenda as limpezas), `-inventory.ts` (snapshot `knownBefore` + posse durável `adsub`), `-cleanup.ts` (`skipCleanup`, gate único `deleteMagnets`, `sweepUndubbed`), `-reupload.ts` (marcador `adrm`), `-evict.ts` (evicção por busca), `-reconcile.ts` (posse órfã que a limpeza não alcançou), `-play.ts`. O tamanho é consequência de `/magnet/instant` não existir: consultar cache escreve na conta |
+| `src/debrid/alldebrid*.ts` | A AllDebrid não é um arquivo, é uma família: `alldebrid.ts` é fachada; `-api`, `-check`, `-inventory`, `-cleanup`, `-reupload`, `-evict`, `-fallback-evict`, `-reconcile`, `-suppressed-revalidate` (terminal autoritativo de BYO) e `-play` separam consulta, posse e caminhos destrutivos |
 | `src/debrid/*.ts` | Um adaptador por serviço |
 | `src/utils/format.ts` | Barrel pós split 5.3: reexporta os mesmos 58 nomes dos 7 submódulos (ver abaixo) |
+| `src/utils/stream-display.ts` | Coluna estreita do `name` do Stremio (`streamDisplayName`), com o selo `📦`/`👤 ~N` do fallback do banco; extraído de `search-names.ts` pela catraca |
 | `src/utils/indexer-priority.ts` | `priorityMap`/`compareIndexerPriority` |
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
-| `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`) e `prefix(ns)` |
-| `src/utils/request-key.ts` | `streams:v7` + digest da conta (nunca a chave crua) |
+| `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`/`muri:`) e `prefix(ns)` |
+| `src/utils/request-key.ts` | `streams:v11` + digest da conta (nunca a chave crua) |
 | `src/utils/secret-box.ts` | AES-256-GCM do `dk` no install URL |
 | `src/utils/sign.ts` | HMAC do `/resolve` (hash + ep + dica `w`) |
 | `src/utils/deadline.ts` | `raceWithDeadline`, `remainingCheckBudget` |
@@ -1291,17 +2031,31 @@ fire-and-forget) continua.
 | `src/utils/logger.ts` | Níveis via `ADDON_LOG_LEVEL` (não `LOG_LEVEL` — essa é do FlareSolverr) |
 | `src/utils/metrics.ts` | Contadores/histogramas do `/metrics.json` |
 | `src/utils/diagnostic-guard.ts` | Token + rate limit das rotas operacionais |
-| `src/utils/magnetdb.ts` | Banco de magnets por hash/adapter; panorama no dashboard: tamanhos por adapter, TTLs (e restante) e taxa ⚡ (`debrid.check.cached`/`hashes`) |
+| `src/utils/magnetdb.ts` | Fachada do banco de magnets por hash/adapter (alive/bad/lie): marcações, `is*`/`peek*`, `forgetBad`, `renewAlive`, `status()` (panorama do painel: tamanhos por adapter, TTLs com `ttlRemainingBasis` e taxa ⚡ — `debrid.check.cached`/`hashes`). Reexporta a persistência; nenhuma rota importa os módulos internos direto |
+| `src/utils/magnetdb-persist.ts` | Contadores duráveis O(1), agregado `mag_meta:v1`, hook `cache.onForget` e `ttlRemainingBasis` (`l1-rebuild` × `aggregate-estimate`). Extraído do `magnetdb.ts`, que encostou no teto de 400 linhas (ficou em 329) |
+| `src/utils/magnetdb-counts.ts` | Parse da chave `mag` (descarta o digest da conta na origem), `emptyAdapterTotals` e `rebuildFromL1` — O(namespace `mag`), roda uma vez no boot quando o agregado não abre, nunca no caminho de busca. Dependência de mão única (cache + cache-keys), sem ciclo com o `magnetdb` |
+| `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse compartilhado de `magnetdb-counts.ts`. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
+| `src/utils/magnet-bank.ts` | Fachada do banco VIVO (clone permanente do Jackett): `captureItems`/`markFilterResult`, fila assíncrona, `lookup`/`findByWork`/`findByIndexer`, `status()` memoizado por `MAGNET_BANK_STATUS_TTL_MS`, `openIfEnabled`/`close` (flush+checkpoint) e `inspectHash` |
+| `src/utils/magnet-bank-rows.ts` / `magnet-bank-schema.ts` | Linhas e engines (`sqliteEngine` lazy via `createRequire`, WAL; `memoryEngine` em `magnet-bank-memory.ts`) + tipos/codec (`render*`/`parse*`). Extraídos de `magnet-bank.ts` pela catraca de 400 linhas |
+| `src/utils/magnet-bank-merge.ts` | Regras PURAS do banco: `hashOf`, `inputFromItem`, `mergeMagnet`/`mergeSource`/`mergeWork`, `workTuple`, `parseSeeders`, `isRicherUri` |
+| `src/utils/magnet-bank-query.ts` / `magnet-bank-search.ts` | Consultas em LOTE do fallback (`worksForObraMany`/`sourcesForMany`, sem N+1) e busca READ-ONLY do painel (hash/título/recentes, allowlist de campos, teto 100) |
+| `src/utils/magnet-bank-lie.ts` | Lie GLOBAL (união de `mag:v1:lie:` de qualquer conta) que promove `lied` no merge do banco |
+| `src/utils/magnet-uri.ts` | Regras puras da URI do post: `sanitizeMagnet` (valida `xt=urn:btih:`, remove credencial, teto de 2048 B, piso de `TRACKERS`, devolve `null` se equivale ao padrão) e `defaultMagnet`; alimenta o banco, não mais o cache |
+| `src/utils/release-work.ts` | `releaseWorkTargets`: em quais obras (pedido + pack/série declarada) uma release é recuperável — mesma régua do `destinoDe` do índice |
+| `src/utils/metric-id.ts` | `safeMetricId`/`indexerFallbackMetricKey`: fonte única da chave `fallback.indexer.<id>` entre produtor e painel |
+| `src/providers/live-indexer-state.ts` | Estado vivo de falha por indexer da coleta (`error`/`breaker`/`source`, `pending` conta como falho, `*all*` agregado) e `mergeLiveIndexerStates` |
+| `src/providers/magnet-bank-hook.ts` | Ponte stream-builder → banco: hashes não-conta/não-fallback e `targetsFor` escrevem o `passed_filter` da obra |
+| `src/providers/magnet-bank-fallback.ts` | Reserva da Etapa 4: seleção por indexer falho/`allFailed`, live-dedupe, tetos por indexer/global, selo `fromFallback` e métricas `fallback.*` |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
-| `resolvers/` | Núcleo comum dos resolvers (CommonJS puro). Processo: `runtime.js`, `site-selector.js` (failover de host), `cache.js`, `http-server.js`, `flare.js`. Rede e segurança: `transport.js` (`followProtectedUrl` — o laço de saltos do protetor, um só para os cinco), `protector.js` (allowlist de host), `nested-url.js`. Conteúdo: `text.js`, `matching.js`, `search-posts.js`, `torznab.js`, `concurrency.js`. Perfis por site em `profiles/*.js` |
-| `*-resolver/` | Shims de compatibilidade: `<nome>/server.js` faz `require('../resolvers/profiles/<nome>')` — a lógica está no núcleo em `resolvers/` |
+| `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — laço único para quem usa protetor), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
+| `*-resolver/` | Shims de compatibilidade/standalone (**TypeScript/ESM**, sem `package.json` de override): `<nome>/server.ts` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.ts`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)`. Os `server.d.ts` foram removidos — a implementação TS é o contrato; `nerdfilmes-resolver/test.ts` e `torrentdosfilmes-resolver/smoke-test.ts` também são compilados pelo tsc |
 | `types/domain.d.ts` | Tipos do domínio: `Stream` (união que exige ação), `ParsedSeasonEpisode`, `DebridAdapter`, `AccountStatus`, `MatchContext` |
 | `test/helpers/stub.ts` | Dublê de `fetch`, `patch()` de módulo e `testOpts()` — o cast mora aqui, não espalhado |
 | `test/e2e/e2e-harness.ts` | App real (`createApp`) + fetch dublê; zero rede externa |
 | `Dockerfile` / `scripts/entrypoint.sh` / `docker-compose.yml` | Imagem única, supervisor, loopback |
 | `scripts/magnets.ts` | Inventário/limpeza da conta |
 | `scripts/check-test-list.ts` | Cobra a lista explícita do `npm test` |
-| `scripts/build-assets.ts` | Copia para `dist/` os assets (`src/public`, `test/fixtures`, `jackett-bludv`), o `resolvers/` e os `*-resolver` |
+| `scripts/build-assets.ts` | Copia para `dist/` só assets não-compiláveis (`src/public`, `test/fixtures`, `jackett-bludv`); `resolvers/` e os sete `*-resolver/` são emitidos pelo próprio `tsc` e não são mais copiados |
 
 Pós split 5.3, `src/utils/format.ts` virou um barrel que reexporta os mesmos
 58 nomes de antes; a lógica mora nos 7 submódulos em `src/utils/` (sem ciclo,
@@ -1331,14 +2085,15 @@ sempre, sem escape; legado só reprova se CRESCER além do baseline — o escape
 `npm run lint:lines -- --bless`, que regrava o baseline daquele arquivo e o diff
 do JSON entra no commit, visível na revisão. Quando o arquivo diminui, o script
 regrava o baseline para baixo sozinho: a folga não acumula. A extração do JS/CSS
-inline dos HTML do painel (§5.9) já foi feita: os módulos resultantes
-(`configure-app.js`, `dashboard-*.js`) estão sob a catraca como qualquer `.js`;
-os `.html` seguem fora da varredura (o filtro lê `.ts`/`.js`/`.css` — os módulos
-extraídos e o CSS estão sob a catraca) — mas o
-JS ancorado pelos testes continua INLINE neles por contrato (os testes regexam
-corpos de função no html; mover seria quebra, ver §5.9). Sem o gatilho, arquivo
-novo nasce com mil linhas e ninguém percebe até a extração ficar cara:
-`vacatorrent.js` entrou com 1.025 linhas e nada reclamou.
+inline dos HTML do painel (§5.9) e o cutover C3 do dashboard já foram feitos: os
+clientes de `/configure` e `/painel` vivem em `src/client/<nome>/*.ts` (ESM
+nativo, imports com `.js`, fora de `src/public`), o `test/helpers/client.ts` e
+os testes do painel (`test/painel-*.test.ts`) também são varridos, e o
+`painel.html` não tem
+mais JS inline (só um `<script type="module">`). Os `.html` seguem fora da
+varredura (o filtro lê `.ts`/`.js`/`.css` — os módulos e o CSS estão sob a
+catraca). Sem o gatilho, arquivo novo nasce com mil linhas e ninguém percebe até
+a extração ficar cara: `vacatorrent.js` entrou com 1.025 linhas e nada reclamou.
 
 **Tipe o que a função PRODUZ, não só o que ela recebe.** O valor está aí: por
 muito tempo as anotações eram todas de entrada e nada cobrava o retorno — foi
@@ -1416,12 +2171,19 @@ o orçamento com a resposta.
 - **Caminho relativo mudou de profundidade com o `dist/`.** O código roda de
   `dist/src/...`, então `__dirname` e `require`/`import` relativos apontam para
   dentro de `dist/`. Dois casos já mordidos: o `DB_PATH` do cache precisa subir
-  **três** níveis para achar `data/cache.db`, e os cinco `*-resolver` são
-  carregados por `../<nome>-resolver/server` — no container eles têm que ser
-  copiados para **`/app/dist/`**, não `/app/`. **Localmente isso passa
-  despercebido** porque o `npm run build` já copia os resolvers para `dist/`; só
-  o `docker run` revela. Mesma armadilha vale para asset: o `tsc` não copia
-  `src/public/`, quem copia é o passo do `npm run build`.
+  **três** níveis para achar `data/cache.db`, e os sete profiles são importados
+  estaticamente de `resolvers/profiles/<nome>.ts` (import com a extensão do
+  emit, `../resolvers/profiles/<nome>.js`; os shims
+  `*-resolver/server.ts` seguem existindo para os testes e o modo standalone, e
+  importam o mesmo profile mais `resolvers/shim-instance.ts`) — no container o
+  `resolvers/` e os `*-resolver/` têm que chegar a **`/app/dist/resolvers/`** e
+  **`/app/dist/*-resolver/`**, o que o `tsc` faz (o build-assets parou de copiar
+  `resolvers/` e `*-resolver/`; só assets não-compiláveis passam por ele).
+  **Localmente isso passa
+  despercebido** porque o `npm run build` já compila os resolvers para `dist/`;
+  só o `docker run` revela. Mesma armadilha vale para
+  asset: o `tsc` não copia `src/public/`, quem copia é o passo do
+  `npm run build`.
 - **"Temporada Completa" no singular é pack de UMA temporada, não da série.**
   `2ª Temporada Completa` cobre só a 2ª; `Todas as Temporadas`, `Série Completa`
   e `Temporadas Completas` (plural) é que cobrem tudo. Tratar o singular como
@@ -1508,7 +2270,7 @@ o orçamento com a resposta.
   silenciosamente para quem escolheu `cachedOnly` e o próprio log + métrica
   existem justamente para decidir com base na janela de dados.
 - **Fase 2 de timing da primeira resposta (métricas em `/metrics.json`).** Onde
-  o bloco `searchFirst` do dashboard conta **fontes**, cinco timers registram
+  o bloco `searchFirst` do painel conta **fontes**, cinco timers registram
   o **tempo** da mesma abertura: `search.first.metadata`, `search.first.collect.global`,
   `search.first.collect.br`, `search.first.debrid` e `search.first.total`. Os
   cinco são emitidos **atomicamente no mesmo bloco** e só quando o
@@ -1578,7 +2340,7 @@ o orçamento com a resposta.
   vivo por um glitch.
 - **Mudou regra de matching? O rebuild do container NÃO invalida o cache.**
   `data/cache.db` é volume: sobrevive a `docker compose up -d --build`, e o
-  `streams:v7` (lista pronta) e o `idx:v7` (acervo de releases já aprovadas)
+  `streams:v11` (lista pronta) e o `idx:v10` (acervo de releases já aprovadas)
   continuam servindo o que o filtro **antigo** deixou passar. Custou uma
   validação falsa: a correção estava no container, o teste isolado passava, e
   a resposta HTTP continuava trazendo o item errado. Depois de mexer em
@@ -1593,26 +2355,32 @@ o orçamento com a resposta.
 
   O header é `X-Indexer-Test-Token` (não `Authorization`) e `confirm: true` é
   obrigatório. Escopo por namespace (`{"scope":{"namespace":"streams"}}`) NÃO
-  basta quando a regra afeta o índice — o `idx:v7` reentrega o item por outro
+  basta quando a regra afeta o índice — o `idx:v10` reentrega o item por outro
   caminho. Use o escopo global.
 - **Ação destrutiva do painel exige `{"confirm": true}`.** `clear-cache` e
   `sweep-dead` devolvem 400 `confirmation_required` sem ele. São globais: não
   há escopo por instalação hoje.
 - **Os sites BR trocam de domínio com frequência.** `BLUDV_URL`,
-  `COMANDOTORRENTS_URL`, `NERDFILMES_URL`, `TORRENTDOSFILMES_URL` são
-  configuráveis. Os resolvers ainda têm failover interno por saúde de **rede**
+  `COMANDOTORRENTS_URL`, `NERDFILMES_URL`, `TORRENTDOSFILMES_URL`,
+  `VACATORRENT_URL` e `REDETORRENT_URL` são configuráveis. Os resolvers ainda têm failover interno por saúde de **rede**
   (DNS/conexão/timeout — 0 resultados não troca de host). Parser quebrado
   geralmente é mudança de layout do WordPress, não bug de lógica.
 - **Redirect permanente para domínio fora da allowlist vira fonte morta
   silenciosa.** O nerdfilmes migrou `xnerdfilmes.net` → `nerdviatorrents.net`
-  (301) e o host novo não estava em `FALLBACK_SITE_SUFFIXES`: toda busca caía
+  → `filmesviatorrents.net` (301 em cada salto; o último em 2026-09) e o host
+  novo não estava em `FALLBACK_SITE_SUFFIXES`: toda busca caía
   em `blocked_host` — que o `isNetworkError` exclui de propósito (erro de
   aplicação prova que o host respondeu), então o failover nunca sondava e o
   sintoma era "0 resultados" para sempre. O domínio novo precisa entrar em
-  DOIS lugares: a allowlist (`FALLBACK_SITE_SUFFIXES` no
-  `<nome>-resolver/server.js`) e o default em `src/config.ts`
-  (`resolvers.<nome>Url`), que o carregador embutido injeta no `SITE_URL`
-  quando a env falta. Até 2026-08 esse default não era lido por ninguém e o
+  TRÊS lugares: a allowlist (`FALLBACK_SITE_SUFFIXES` no profile
+  `resolvers/profiles/<nome>.ts`; no redetorrent e no vacatorrent, em
+  `<nome>-parsers.ts`),
+  o default em `src/config/resolvers.ts` (`resolvers.<nome>Url`), que o
+  carregador embutido passa como `siteUrl` explícito à factory do profile, e o
+  `.env.example` — **a env VENCE o default**, então
+  deixar o exemplo no domínio velho faz a correção não chegar em quem copiou
+  o arquivo (foi o que sobrou por corrigir na migração de 2026-09).
+  Até 2026-08 esse default não era lido por ninguém e o
   modo embutido caía no default hardcoded do server.js: editar config.ts era
   um no-op silencioso. O painel também passou a mostrar o host EFETIVO
   (`activeSite`, do seletor) em vez da env crua.
@@ -1652,10 +2420,10 @@ o orçamento com a resposta.
   protetor, nunca descoberta). O domínio histórico `vacatorrentmov.com` faz
   301 → `vaqueirofilmes.com`; os dois ficam na allowlist do perfil para o
   redirect não virar `blocked_host`.
-- **O laço de saltos do protetor é UM só, em `resolvers/transport.js`.** Os
-  cinco perfis chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
+- **O laço de saltos do protetor é UM só, em `resolvers/transport.ts`.** Os
+  perfis que seguem protetor chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
   importa porque é ele que chama `assertAllowedUrl` a cada salto — o mutante
-  MUT-06 do harness adversarial cobre os cinco por esse caminho. Se algum
+  MUT-06 do harness adversarial cobre esses perfis por esse caminho. Se algum
   perfil voltar a escrever o próprio laço, ele sai da cobertura sem que teste
   nenhum reclame. O teste do scheme é case-insensitive e a saída sai
   normalizada em `magnet:` minúsculo: o NerdFilmes publica `MAGNET:` em parte
@@ -1676,7 +2444,7 @@ o orçamento com a resposta.
   reservada, enchia a cota de 4K com não-4K e dirigia o autofetch; (2) o
   índice de releases PERSISTE `dubbed`/`quality` com os mesmos classificadores
   e vive semanas — **corrigir classificador exige bump da versão do namespace
-  (`idx:v7`), senão o conserto não aparece em obra já indexada**.
+  (`idx:v10`), senão o conserto não aparece em obra já indexada**.
 - **Reserva BR é POR FAIXA, e pack cobre faixa sem dublado próprio.**
   `BR_RESERVED_PER_QUALITY` garante até N fontes BR por balde de qualidade —
   a reserva global antiga deixava o 1080p BR abundante consumir tudo e a faixa
@@ -1686,9 +2454,28 @@ o orçamento com a resposta.
   dentro do arquivo e o `pickFile` extrai o episódio. O pack nunca desloca
   dublado próprio nem ocupa duas vagas.
 - **Não adicione indexers com FlareSolverr a `JACKETT_SLOW_INDEXERS`**
-  (1337x, kickasstorrents…). O desafio Cloudflare é re-resolvido a cada busca
-  (13–24s medidos só pra abrir a primeira página); eles abortariam igual, só
-  mais tarde e gastando Chromium. Fora da lista de indexers é o lugar deles.
+  (kickasstorrents, limetorrents…). O desafio Cloudflare é re-resolvido a cada
+  busca (20–24s medidos só pra abrir a primeira página); eles abortariam
+  igual, só mais tarde e gastando Chromium. Fora da lista de indexers é o
+  lugar deles. O 1337x também usa FlareSolverr, mas o isolamento dele é mais
+  forte: index-only (nenhuma consulta ao vivo, só colhedor com orçamento
+  dedicado) — não o traga de volta nem para slow nem para a resposta.
+- **FlareSolverr atende uma requisição por vez — indexer morto atrasa todos.**
+  O Chromium do FlareSolverr é único e as requisições entram em fila. Um
+  indexer cujo desafio quebra (`tab crashed`) ocupa a fila ~10s por tentativa e
+  empurra 1337x, tokyotosho e os demais para trás; um teste do Jackett chega a
+  estourar os 100s do `HttpClient` só por estar na fila, sem defeito no indexer
+  testado. Medido em 2026-09-12: os 18 domínios do `kickasstorrents-ws`
+  (links + legacylinks do definition) estavam inúteis — 10 com `tab crashed`,
+  4 sem DNS, 4 estacionados — e ele saiu do `JACKETT_INDEXERS`; o
+  `kickasstorrents-to` voltou com sitelink `kickass.torrentsbay.org`.
+  Revalidado em 2026-09-17: TO vivo (Flare ok no torrentsbay; filtra de
+  verdade) e religado no `JACKETT_INDEXERS` do operador; WS ainda `tab
+  crashed` nos espelhos testados — continua fora. Update do Jackett
+  (v0.24.2531 → v0.24.2601) não conserta o WS (só cats cosméticas no TO).
+  Crash de aba aqui não é memória (o 1337x resolve desafio no mesmo
+  FlareSolverr): teste os espelhos do definition antes de culpar a infra e
+  tire da lista o que não tem espelho vivo.
 - **Buscador WordPress engasga com `:`** — `bludv.search` remove antes de
   consultar. Sintomas: título com subtítulo volta vazio.
 - **Buscador WordPress BR devolve 0 para QUALQUER query acentuada.** Medido
@@ -1720,17 +2507,27 @@ o orçamento com a resposta.
   painel funciona, anônimo fica em P2P. Não re-acople os dois flags: o motivo
   do catálogo quando a chave existe mas o gate está fechado é
   `chave-operador-desativada` (com `hint`), distinto de `sem-conta-operador`.
-- **`src/public/` não passa por build.** É HTML/CSS/JS servido cru, e o JS é ES5
-  por escolha (roda no WebView de Fire TV e smart TV). Não introduza sintaxe
-  moderna nem bundler ali.
+  **E as varreduras automáticas são do serviço do `.env`, não do que a
+  instalação usa:** `sweepDeadEnv` resolve o adapter por
+  `config.debrid.service`, então quem instala com outro `ds` na URL e chave
+  própria só é varrido pelo botão do painel (`sweepDeadCurrent`). Medido em
+  produção 2026-09-08 — `.env` em `alldebrid`, instalação em premiumize, fila
+  de paradas crescendo sem timer nenhum alcançá-la.
+- **`src/public/` não passa por build.** É HTML/CSS/imagens servido cru. O
+  painel e o `/configure` NÃO têm mais JS clássico ali: ambos são clientes
+  ESM nativo em `src/client/<nome>/*.ts`, emitidos por `tsconfig.client.json`
+  para `dist/src/public/client/`. Mexer neles é editar o `.ts`, nunca o `.js`
+  emitido; nenhum bundler, loader ou sintaxe clássica é esperado — o cutover C3
+  abandonou o suporte obrigatório a WebViews sem ESM.
 - **O cache persiste em SQLite** (`data/cache.db` via `node:sqlite`,
   experimental no Node 22). Se o runtime não tiver o módulo o addon segue só
   em memória sem derrubar nada; `CACHE_PERSIST=false` desliga de propósito.
   Entrada antiga que era só um array ainda é lida (`findStreams`).
 - **Suíte de testes cobre o que é puro e o e2e com fetch dublê.** `npm test`
   é a lista explícita; `npm run test:complete` cobra que nada tenha ficado de
-  fora — e também que os 6 harnesses existam, compilem para `dist/` e estejam
-  referenciados em algum script do `package.json` (eles ficam fora do CI, e
+  fora — e também que os 10 arquivos de harness (nos 6 scripts de bancada)
+  existam, compilem para `dist/` e estejam referenciados em algum script do
+  `package.json` (eles ficam fora do CI, e
   sem essa checagem apodreciam sem ninguém notar). `npm run test:nerdfilmes`
   cobre um resolver contra a rede. Ao mexer em matching, debrid, cache,
   runtime, rotas ou o fluxo de busca, estenda `test/` (incluindo o tier e2e se
@@ -1743,13 +2540,27 @@ o orçamento com a resposta.
   uma mutação, ela tem que entrar na mesma lista de snapshot — mutação fora
   dela deixa o `dist/` corrompido quando o harness é interrompido, e o sintoma
   seguinte é um teste "falhando" que não tem nada a ver com o seu commit.
+- **Split de módulo exige realinhar o `testFile` do mutante.** Quando o símbolo
+  muda de arquivo em `dist/`, o `testFile` que apontava para a suíte antiga
+  pode continuar passando **com a mutação injetada** — verde por vacuidade, não
+  por captura. Foi o estado do challenger após os splits 5.1/5.3/5.5: **8 das
+  10 mutações** estavam vacuamente verdes porque os alvos haviam saído dos
+  arquivos que aqueles e2e exercitavam. `9a8c6dd` realinhou 7 `testFile` para
+  as suítes que de fato alcançam o símbolo movido (tier1-title-cache,
+  tier2-invariants-security, tier2-providers-debrid, tier3-pipeline) e a
+  oitava exigiu teste novo: o **Step 5** do tier4-application-scenarios reabre
+  a MESMA chave dentro do TTL e exige `max-age=900` do cache completo — o
+  contrato que a MUT-10 (finish gravando `partial:true`) ataca e nenhuma
+  asserção anterior verificava. Cobertura voltou a 10/10. Ao mover um símbolo
+  entre arquivos de `dist/`, rode o challenger e confirme que o `testFile`
+  ainda o alcança — o harness verde à toa é pior que o vermelho.
 - **`assert.deepEqual` do `node:assert/strict` estreita o tipo.** A assinatura
   é `asserts actual is T`: depois de `assert.deepEqual(lista, [])`, o TS trata
   `lista` como `never[]` e qualquer uso posterior (`.includes(n)`) vira erro de
   compilação. Em asserção intermediária use `assert.equal(lista.length, 0)`.
 - **`BR_RESOLVERS_HOST` é o único jeito de alcançar os resolvers.** Os cards
   Cardigann chamam `http://{{ ... }}/...` montado com essa env; no container
-  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8704 **só dentro do
+  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8706 **só dentro do
   container** — nenhuma dessas portas é publicada no host.
 - **Jackett no alpine é self-contained** (binário com libcoreclr embutida):
   precisa de `icu-libs`/`zlib`/`libstdc++` e das envs `XDG_CONFIG_HOME=/config`
@@ -1775,6 +2586,11 @@ o orçamento com a resposta.
   três e2e que constroem um addon sintético; a cadeia
   `inquirer → external-editor → tmp` não entra na imagem nem em
   `npm audit --omit=dev`. Não faça `npm audit fix --force`.
+- **`overrides.qs` mantém Express 4 com o parser corrigido.** Express 4.22.2
+  e body-parser 1.20.6 pedem `~6.15.1`; o override `^6.16.0` fecha os
+  advisories `GHSA-x5fp-wj9c-mxmx` e `GHSA-4mjr-xmp4-gh2g` sem migrar
+  Express de major. Preserve o lockfile e valide suíte + audit de produção
+  ao atualizar ou remover o override.
 
 ## Git
 

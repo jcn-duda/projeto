@@ -1,7 +1,5 @@
-import config from '../config.js';
-import { opts } from '../runtime.js';
 import type { RawItem, Stream, StreamCandidate } from '../../types/domain.js';
-import { extractInfoHash, decodeEntities, bytesToSize, normalizeTitle } from './title-normalization.js';
+import { extractInfoHash, decodeEntities, bytesToSize, normalizeTitle, dedupeNames } from './title-normalization.js';
 import { LEADING_ARTICLES, isMultiWorkCollection } from './release-matching.js';
 import {
   UNKNOWN_QUALITY,
@@ -11,27 +9,14 @@ import {
   editionFromTitle,
   explicitPtAudio,
   looksPtBr,
-  compactAudio,
-  compactTracker,
+  stripQualityTagBlob,
 } from './audio-quality.js';
 import { streamQuality } from './stream-quotas.js';
-
-interface StreamDisplayOptions {
-  title?: string;
-  quality?: string;
-  audio?: string;
-  source?: string;
-  edition?: string;
-  tracker?: string;
-  isBr?: boolean;
-  seeders?: number;
-  style?: string;
-  showSource?: boolean;
-}
+import { streamDisplayName } from './stream-display.js';
 
 interface SearchNamesOptions {
   meta?: { name?: string | null; title?: string; year?: number | string | null } | null;
-  titles?: { original?: string | null; pt?: string | null; year?: number | string | null } | null;
+  titles?: { original?: string | null; pt?: string | null; en?: string | null; year?: number | string | null } | null;
   imdbId?: string | null;
 }
 
@@ -57,67 +42,6 @@ const TRACKERS = [
   'udp://open.demonii.com:1337/announce',
   'udp://tracker.openbittorrent.com:6969/announce',
 ];
-
-/**
- * `name` ocupa a coluna estreita do Stremio: marca + qualidade, como Torrentio.
- * A release completa fica em `title`, na coluna larga de detalhes.
- *
- * A release já foi duplicada aqui por causa de cliente que renderiza SÓ o
- * `name`. O preço apareceu na tela: com o título inteiro ("Mestres do Universo
- * (2026) 5.1 WEB-DL | [2160p WEB-DL DUBLADO 20.17 GB]") mais o prefixo do
- * debrid, a coluna estreita quebrava em uma palavra por linha e CADA stream
- * ocupava ~11 linhas de altura — cabiam três na tela inteira. Compacto, o mesmo
- * item ocupa duas linhas e a lista volta a ser navegável.
- *
- * `STREAM_NAME_STYLE=full` devolve o comportamento antigo para quem depende de
- * um cliente que ignora o `title`.
- *
- */
-function streamDisplayName({
-  title = '',
-  quality,
-  audio,
-  source,
-  edition,
-  tracker,
-  isBr = false,
-  seeders = 0,
-  style,
-  showSource,
-}: StreamDisplayOptions = {}) {
-  let userOpts: { streamNameStyle?: string; streamNameShowSource?: boolean } | null = null;
-  try { userOpts = opts(); } catch {}
-  const effectiveStyle = style || userOpts?.streamNameStyle || config.streamNameStyle;
-  const effectiveShowSource = showSource !== undefined
-    ? showSource
-    : (userOpts?.streamNameShowSource !== undefined ? userOpts.streamNameShowSource : config.streamNameShowSource);
-
-  // A ordem é a da decisão: primeiro a resolução, depois QUAL corte do filme é,
-  // depois de onde veio. Sem corte e fonte, quatro releases 4K do mesmo filme
-  // saíam com a linha idêntica e a escolha virava sorteio pelo seed.
-  const details = [
-    quality === UNKNOWN_QUALITY ? null : quality === '2160p' ? '4K' : quality,
-    edition || null,
-    source || null,
-    compactAudio(audio),
-    isBr ? 'BR' : null,
-  ].filter(Boolean).join(' ');
-  const stats = [
-    details,
-    effectiveShowSource ? compactTracker(tracker) : null,
-    Number(seeders) > 0 ? `👤 ${seeders}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
-  // Sem o nome do addon: o cliente já o exibe no badge do card ("Localhost:7000",
-  // "Power Movie"), e repeti-lo em toda linha só gastava a coluna estreita.
-  if (effectiveStyle === 'full') return [title, stats].filter(Boolean).join('\n');
-  // Release que não anuncia resolução, corte, fonte nem áudio não tem o que
-  // resumir: sobraria "👤 1", que não identifica nada. Aí o título é a única
-  // informação existente e vale mais que a coluna curta.
-  return details ? stats : [title, stats].filter(Boolean).join('\n');
-}
 
 /**
  * Prefixo no formato do Torrentio, com ⚡ no lugar do "+": a sigla é do DEBRID,
@@ -172,10 +96,14 @@ function toStremioStream(item: RawItem): Stream | null {
   if (!infoHash) return null;
 
   const title = decodeEntities(item.title || item.Title || 'Torrent');
+  // O blob do HDRTorrent descreve TODAS as opções do post, não esta release.
+  // O classificador já o ignora, mas expô-lo em `title` faz clientes que
+  // derivam o selo por conta própria encontrarem 2160p num botão 1080p/720p.
+  const displayTitle = stripQualityTagBlob(title);
   // Origem BR pelo indexer E pelo título: tracker global também hospeda
   // dublado titulado em português, e é o título que denuncia. O flag muda o
   // chip BR, as vagas reservadas e a priorização de dublado.
-  const isBr = Boolean(item.isBr) || looksPtBr(title);
+  const isBr = Boolean(item.isBr || item.ptTitleDual) || looksPtBr(title);
   const seeders = Number(item.seeders ?? item.Seeders ?? 0) || 0;
   const rawSize = Number(item.size ?? item.Size);
   // Os indexers BR mandam 1 KB quando o post não publica tamanho: o Jackett
@@ -208,8 +136,19 @@ function toStremioStream(item: RawItem): Stream | null {
   // Convenção do Torrentio: 👤 seeders, 💾 tamanho, ⚙️ indexer. Os clientes
   // (Stremio e Power Movie) reconhecem esses marcadores e montam a linha de
   // metadados a partir deles — com "•" eles não exibiam seeds nem a fonte.
+  // Fallback do banco (Etapa 4): 📦 identifica a reserva e o seeders vira `~N`
+  // (foto do acervo, não medição viva) — sem mentir o valor de `_seeders`.
+  // A foto do índice na resposta instantânea (`fromSnapshot`) exibe o MESMO selo:
+  // para quem olha a lista, idx e banco são igualmente dado salvo. Só o
+  // `fromFallback` carrega as exclusões (autofetch, índice, banco).
+  const fromFallback = Boolean(item.fromFallback);
+  const stored = fromFallback || Boolean(item.fromSnapshot);
+  const seederBit = stored
+    ? (seeders > 0 ? `👤 ~${seeders}` : '👤 ~')
+    : `👤 ${seeders}`;
   const bits = [
-    `👤 ${seeders}`,
+    ...(stored ? ['📦'] : []),
+    seederBit,
     size ? `💾 ${size}` : null,
     tracker ? `⚙️ ${tracker}` : null,
   ].filter(Boolean);
@@ -218,7 +157,7 @@ function toStremioStream(item: RawItem): Stream | null {
     // A coluna esquerda precisa ficar curta. O título bruto nesta posição fazia
     // o Stremio quebrar uma palavra por linha em telas estreitas.
     name: streamDisplayName({
-      title,
+      title: displayTitle,
       quality,
       audio,
       source,
@@ -226,8 +165,9 @@ function toStremioStream(item: RawItem): Stream | null {
       tracker,
       isBr,
       seeders,
+      fromFallback: stored,
     }),
-    title: `${title}\n${bits.join(' ')}`,
+    title: `${displayTitle}\n${bits.join(' ')}`,
     infoHash,
     sources: TRACKERS.map((t) => `tracker:${t}`),
     behaviorHints: {
@@ -262,10 +202,15 @@ function toStremioStream(item: RawItem): Stream | null {
     _tracker: tracker,
     // ID estável do indexer (não o label mutável) para o desempate de prioridade.
     _indexer: String(item.indexer || tracker || '').trim().toLowerCase(),
-    // Pack multi-obra detectado pelo título da listagem: o /resolve precisa
-    // saber que aqui NÃO vale cair no maior arquivo.
-      _multiWork: isMultiWorkCollection(title),
+    // Pack multi-obra: vira `p:1` na dica assinada. TODO admitido é pack mesmo
+    // quando só o `dn=` prova a coleção; o genérico (só título) segue idêntico.
+    _multiWork: isMultiWorkCollection(title) || Boolean(item._multiWorkAdmitted), _multiWorkAdmitted: Boolean(item._multiWorkAdmitted),
       _lied: Boolean(item.lied),
+      // Marca INTERNA do fallback (Etapa 4). Sobrevive ao limitReservingBr de
+      // propósito, para o `finish` marcar a lista como parcial/fallback, e é
+      // REMOVIDA antes do protocolo (applyNoticeOrigin).
+      ...(fromFallback ? { _fromFallback: true } : {}),
+      ...(stored && !fromFallback ? { _fromSnapshot: true } : {}),
   };
 }
 
@@ -274,32 +219,46 @@ function toStremioStream(item: RawItem): Stream | null {
  * três pontos que precisam disso (query principal, pack de temporada e o corte
  * por título) tinham que concordar — e não concordavam.
  *
- * O Cinemeta é a fonte preferida, mas ele não conhece todo id: título obscuro,
- * regional ou lançamento recente demais volta 404. Quando isso acontecia:
+ * O Cinemeta é a fonte preferida, mas não conhece todo id e pode estourar o
+ * prazo: título obscuro volta 404 ou timeout. Quando isso acontecia:
  *
  * - a query virava a string crua "tt1234567", mesmo com o TMDB (outra API) já
  *   tendo respondido com o nome;
- * - o filtro de título, preso a `meta?.name`, se desligava por inteiro e
- *   qualquer lixo que o indexador devolvesse ia direto pro usuário.
+ * - o filtro de título, preso a `meta?.name`, se desligava por inteiro.
  *
- * `name` prefere o título ORIGINAL: é o que os indexadores globais publicam.
- * O pt-BR tem query própria (`ptQuery`) e entra em `names` de qualquer forma.
- *
+ * O fallback mantém TODOS os títulos úteis: `en` (título canônico inglês do
+ * TMDB, quando o original é estrangeiro) precede o original e o pt-BR como nome
+ * da query, mas os três seguem em `names`. O título ORIGINAL tem degrau próprio
+ * na cascata (`resolveOriginalStepName`) e o pt-BR tem a query `ptQuery`.
  */
 function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): {
   name: string;
   year: number | string | null;
   names: string[];
 } {
-  const fallback = titles?.original || titles?.pt;
+  const fallback = titles?.en || titles?.original || titles?.pt;
   return {
     name: meta?.name || fallback || imdbId || '',
     year: meta?.year || titles?.year || null,
-    // `.filter(Boolean)` remove null/undefined/'' do array de nome; o cast
-    // torna explícito o que o filtro já garante no runtime (só strings não
-    // vazias sobram) para o consumidor `matchContext.names: string[]`.
-    names: [meta?.name, titles?.pt, titles?.original].filter(Boolean) as string[],
+    // `dedupeNames` remove null/undefined/'' e colapsa repetições normalizadas
+    // (o original do Cinemeta e o canônico inglês coincidem em obra anglófona),
+    // mantendo só strings não vazias para `matchContext.names: string[]`.
+    // Grafias arbitrárias dos `alternative_titles` (ex.: "Kill") NÃO entram.
+    names: dedupeNames([meta?.name, titles?.en, titles?.pt, titles?.original]),
   };
+}
+
+/**
+ * Nome do degrau opcional do título ORIGINAL (TMDB) na cascata de consulta:
+ * só existe quando ele difere do nome da query primária por normalização —
+ * ausente ou equivalente, o degrau é omitido (a query mainstream não troca).
+ * normalizeTitle dobra o ı turco ("Adım" = "Adim"), então o original só
+ * gera degrau quando difere de fato do nome mainstream; o matching, que usa o
+ * mesmo normalizeTitle via matchContext.names, aceita as duas grafias.
+ */
+function resolveOriginalStepName(original: string | null | undefined, primaryName: string | null | undefined): string | null {
+  if (!original || !primaryName) return null;
+  return normalizeTitle(original) !== normalizeTitle(primaryName) ? original : null;
 }
 
 function parseStremioId(id: string) {
@@ -368,6 +327,7 @@ export {
   passesQualityFilter,
   toStremioStream,
   resolveSearchNames,
+  resolveOriginalStepName,
   parseStremioId,
   buildSearchQuery,
   numeralSearchVariant,

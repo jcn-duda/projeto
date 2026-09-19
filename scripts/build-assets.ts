@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
- * Copia os assets estáticos e resolvers para dentro de dist/ após a compilação do TypeScript.
+ * Copia para dist/ apenas os ASSETS NÃO-COMPILÁVEIS após o tsc.
  *
  * Preserva exatamente o que a imagem Docker e os testes em runtime dependem:
- * - src/public -> dist/src/public (página /configure e dashboard)
+ * - src/public -> dist/src/public (HTML/CSS/imagens de /configure e dashboard)
  * - test/fixtures -> dist/test/fixtures (fixtures de teste)
  * - jackett-bludv -> dist/jackett-bludv (definições cardigann)
- * - resolvers/ -> dist/resolvers/ (núcleo CommonJS e profiles dos resolvers)
- * - *-resolver/ -> dist/*-resolver/ (os 4 micro-resolvers carregados pelo
- *   br-resolvers, mais o vacatorrent copiado como artefato de teste — NÃO é
- *   carregado no pool ao vivo)
+ *
+ * `resolvers/` e os seis `*-resolver/` NÃO são mais copiados: o próprio tsc
+ * compila a ilha inteira (include `resolvers/**` e `*-resolver/**`) e emite os
+ * .js em dist/. Copiar fontes aqui sobrescrevia o emit e vazava `.ts` para
+ * dentro da imagem. O filtro de `.ts` permanece como guarda-corpo para assets
+ * que um dia carreguem tipo.
  *
  * Falha em voz alta caso qualquer diretório essencial falhe ao ser copiado ou não exista.
  */
@@ -34,15 +36,6 @@ const assetsToCopy = [
   'src/public',
   'test/fixtures',
   'jackett-bludv',
-  'resolvers',
-];
-
-const resolversToCopy = [
-  'bludv-resolver',
-  'comandotorrents-resolver',
-  'nerdfilmes-resolver',
-  'torrentdosfilmes-resolver',
-  'vacatorrent-resolver',
 ];
 
 function copyAndVerify(relativeSrc: string, relativeDst?: string) {
@@ -55,7 +48,12 @@ function copyAndVerify(relativeSrc: string, relativeDst?: string) {
   }
 
   fs.mkdirSync(dstPath, { recursive: true });
-  fs.cpSync(srcPath, dstPath, { recursive: true });
+  // Nunca copia fonte `.ts`/`.d.ts`: esses arquivos pertencem ao tsc (emit) ou
+  // ao contrato de tipos, não ao runtime de dist/.
+  fs.cpSync(srcPath, dstPath, {
+    recursive: true,
+    filter: (source) => !source.endsWith('.ts'),
+  });
 
   if (!fs.existsSync(dstPath)) {
     console.error(`[build-assets] Erro: falha ao verificar destino copiado: ${dstPath}`);
@@ -76,13 +74,16 @@ try {
     }
   }
 
-  for (const resolver of resolversToCopy) {
-    if (fs.existsSync(path.join(root, resolver))) {
-      copyAndVerify(resolver);
-    }
+  // Preact vendor do painel precisa existir também no emit de Node (dist/src/client/painel/vendor)
+  // para permitir execução direta dos testes dos módulos no Node.
+  const vendorSrc = path.join(root, 'src/public/client/painel/vendor/preact.js');
+  const vendorNodeDst = path.join(distRoot, 'src/client/painel/vendor/preact.js');
+  if (fs.existsSync(vendorSrc)) {
+    fs.mkdirSync(path.dirname(vendorNodeDst), { recursive: true });
+    fs.copyFileSync(vendorSrc, vendorNodeDst);
   }
 
-  console.log('[build-assets] Todos os assets e resolvers foram copiados para dist/ com sucesso.');
+  console.log('[build-assets] Assets não-compiláveis copiados para dist/ com sucesso.');
 } catch (err: any) {
   console.error('[build-assets] Falha crítica na cópia de assets:', err?.message || err);
   process.exit(1);

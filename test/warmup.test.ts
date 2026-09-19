@@ -62,6 +62,48 @@ test('warmup consulta Jackett sem resolver protetores nem registrar status', asy
     assert.ok(calls.length > 0);
     assert.equal(calls[0][3].skipResolve, true);
     assert.equal(calls[0][3].recordStatus, false);
+    // Obra vai junto para o banco de magnets; fundo não reseta o filtro.
+    assert.equal(calls[0][3].imdbId, 'tt1234567');
+    assert.equal(calls[0][3].season, undefined);
+    assert.equal(calls[0][3].resetPassedFilter, undefined);
+  } finally {
+    jackett.search = realSearch;
+    global.fetch = originalFetch;
+    config.warmup.enabled = saved.enabled;
+    config.warmup.titles = saved.titles;
+    config.warmup.concurrency = saved.concurrency;
+    config.warmup.indexerDelayMs = saved.delay;
+    config.jackett.indexers = saved.indexers;
+    config.jackett.apiKey = saved.apiKey;
+  }
+});
+
+test('warmup de série grava a obra S01E01 no banco de magnets', async () => {
+  const saved = {
+    enabled: config.warmup.enabled, titles: config.warmup.titles, concurrency: config.warmup.concurrency,
+    delay: config.warmup.indexerDelayMs, indexers: config.jackett.indexers, apiKey: config.jackett.apiKey,
+  };
+  const realSearch = jackett.search;
+  const calls: any[] = [];
+  global.fetch = (async (url) => {
+    const text = String(url);
+    if (text.includes('cinemeta')) return response({ meta: { name: 'Série', year: 2020 } });
+    if (text.includes('themoviedb')) return response({ tv_results: [] });
+    return response({ Results: [] });
+  }) as typeof fetch;
+  try {
+    config.warmup.enabled = true;
+    config.warmup.titles = ['tt7654321:series'];
+    config.warmup.concurrency = 1;
+    config.warmup.indexerDelayMs = 0;
+    config.jackett.indexers = ['test-indexer'];
+    config.jackett.apiKey = 'test-key';
+    jackett.search = (async (...args: any[]) => { calls.push(args); return []; }) as typeof jackett.search;
+    await warmup.start();
+    assert.ok(calls.length > 0);
+    assert.equal(calls[0][3].imdbId, 'tt7654321');
+    assert.equal(calls[0][3].season, 1);
+    assert.equal(calls[0][3].episode, 1);
   } finally {
     jackett.search = realSearch;
     global.fetch = originalFetch;

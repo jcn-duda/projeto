@@ -19,13 +19,16 @@ function withTmdbKey(fn: any) {
   return async () => {
     const originalKey = config.tmdb.apiKey;
     const originalMissTtl = config.tmdb.missTtl;
+    const originalTransient = config.tmdb.transientMissTtl;
     config.tmdb.apiKey = 'test-tmdb-key';
     config.tmdb.missTtl = 300;
+    config.tmdb.transientMissTtl = 300;
     try {
       await fn();
     } finally {
       config.tmdb.apiKey = originalKey;
       config.tmdb.missTtl = originalMissTtl;
+      config.tmdb.transientMissTtl = originalTransient;
     }
   };
 }
@@ -40,14 +43,15 @@ test('getTitles resolve pt/original/year para filme e grava no cache', withTmdbK
   const stub = stubFetch(() =>
     tmdbOk({
       movie_results: [
-        { title: 'Coringa', original_title: 'Joker', release_date: '2019-10-04' },
+        { title: 'Coringa', original_title: 'Joker', original_language: 'en', release_date: '2019-10-04' },
       ],
       tv_results: [],
     }),
   );
   try {
     const titles = await getTitles(imdbId);
-    assert.deepEqual(titles, { pt: 'Coringa', original: 'Joker', year: '2019' });
+    // Original inglês: o próprio `original` já é o canônico EN — sem 2ª consulta.
+    assert.deepEqual(titles, { pt: 'Coringa', original: 'Joker', en: 'Joker', year: '2019' });
 
     // A query precisa viajar em pt-BR e com o imdb id certo, senão o título
     // português nunca vem.
@@ -74,13 +78,72 @@ test('getTitles usa tv_results (name/original_name/first_air_date) para série',
     tmdbOk({
       movie_results: [],
       tv_results: [
-        { name: 'Fallout', original_name: 'Fallout', first_air_date: '2024-04-10' },
+        { name: 'Fallout', original_name: 'Fallout', original_language: 'en', first_air_date: '2024-04-10' },
       ],
     }),
   );
   try {
     const titles = await getTitles(imdbId);
-    assert.deepEqual(titles, { pt: 'Fallout', original: 'Fallout', year: '2024' });
+    assert.deepEqual(titles, { pt: 'Fallout', original: 'Fallout', en: 'Fallout', year: '2024' });
+  } finally {
+    stub.restore();
+    cache.forget(key);
+  }
+}));
+
+test('getTitles busca o canônico inglês em /find en-US quando o original NÃO é inglês (Django Kill)', withTmdbKey(async () => {
+  // Caso tt0062082: o `/find` em pt-BR devolve pt "Django Vem Para Matar" e
+  // original italiano "Se sei vivo spara"; o nome que os trackers globais
+  // publicam ("Django Kill... If You Live, Shoot!") só existe na segunda
+  // consulta `/find` em en-US. Sem ele, um timeout do Cinemeta prendia a busca
+  // ao italiano e perdia ~25 releases (12 vs 43 medidos).
+  const imdbId = `tt-django-${process.pid}-${Date.now()}`;
+  const key = `tmdb:${imdbId}`;
+  const stub = stubFetch((url) => {
+    if (url.includes('language=en-US')) {
+      return tmdbOk({
+        movie_results: [
+          {
+            id: 12345,
+            title: 'Django Kill... If You Live, Shoot!',
+            original_title: 'Se sei vivo spara',
+            original_language: 'it',
+          },
+        ],
+        tv_results: [],
+      });
+    }
+    return tmdbOk({
+      movie_results: [
+        {
+          id: 12345,
+          title: 'Django Vem Para Matar',
+          original_title: 'Se sei vivo spara',
+          original_language: 'it',
+          release_date: '1967-01-01',
+        },
+      ],
+      tv_results: [],
+    });
+  });
+  try {
+    const titles = await getTitles(imdbId);
+    assert.deepEqual(titles, {
+      pt: 'Django Vem Para Matar',
+      original: 'Se sei vivo spara',
+      en: 'Django Kill... If You Live, Shoot!',
+      year: '1967',
+    });
+    const enCalls = stub.calls.filter((c) => c.url.includes('language=en-US'));
+    assert.equal(enCalls.length, 1, 'o canônico inglês é buscado uma vez e entra no cache');
+    assert.ok(enCalls[0].url.includes(`/find/${imdbId}`));
+    assert.ok(enCalls[0].url.includes('external_source=imdb_id'));
+
+    // A segunda chamada vem do cache positivo: não repete nem o find pt-BR nem
+    // o find en-US.
+    const again = await getTitles(imdbId);
+    assert.deepEqual(again, titles);
+    assert.equal(stub.calls.length, 2, 'find pt-BR + find en-US, uma vez só');
   } finally {
     stub.restore();
     cache.forget(key);
@@ -104,7 +167,7 @@ test('getTitles sem resultado cacheia o miss e não repete a busca', withTmdbKey
   }
 }));
 
-test('getTitles com HTTP de erro degrada para null e também cacheia o miss', withTmdbKey(async () => {
+test('getTitles com HTTP de erro degrada para null e cacheia miss transitório', withTmdbKey(async () => {
   const imdbId = `tt-http-${process.pid}-${Date.now()}`;
   const key = `tmdb:${imdbId}`;
   const stub = stubFetch(() => ({ ok: false, status: 429, json: async () => ({}) }));
@@ -127,12 +190,66 @@ test('getTitles com falha de rede degrada para null sem derrubar quem chama', wi
   });
   try {
     assert.equal(await getTitles(imdbId), null);
-    // Falha transitória também entra no cache negativo — sem isso o mesmo id
-    // morto seria reconsultado em todas as buscas até o erro passar.
+    // Miss transitório entra no cache negativo — sem isso o mesmo id morto
+    // seria reconsultado em todas as buscas até o erro passar.
     assert.deepEqual(cache.get(key), { miss: true });
   } finally {
     stub.restore();
     cache.forget(key);
+  }
+}));
+
+test('falha transitória expira no transientMissTtl e a busca seguinte consulta novamente', withTmdbKey(async () => {
+  // A regressão real do br: UM `[tmdb] fetch failed` isolado congelava o
+  // título pt-BR por missTtl (300s) inteiro — nessa janela os indexadores BR
+  // eram consultados em inglês e devolviam 0 post. O miss transitório
+  // expira rápido e a próxima busca consulta novamente a API.
+  const imdbId = `tt-transient-${process.pid}-${Date.now()}`;
+  const key = `tmdb:${imdbId}`;
+  let fetches = 0;
+  const stub = stubFetch(() => {
+    fetches += 1;
+    throw new Error('fetch failed');
+  });
+  config.tmdb.transientMissTtl = 1; // 1s é o mínimo prático do cache (segundos)
+  try {
+    assert.equal(await getTitles(imdbId), null);
+    assert.equal(fetches, 1);
+    // Dorme além do TTL transitório: o sentinela saiu, a rede volta a ser
+    // perguntada na próxima busca.
+    await new Promise((resolve) => setTimeout(resolve, 1150));
+    assert.equal(await getTitles(imdbId), null);
+    assert.equal(fetches, 2, 'miss transitório expirado consulta novamente a API');
+  } finally {
+    stub.restore();
+    cache.forget(key);
+    config.tmdb.transientMissTtl = 300;
+  }
+}));
+
+test('miss autoritativo (200 sem resultado) sobrevive ao TTL transitório', withTmdbKey(async () => {
+  // Contraste com o teste acima: "id não conhece" é decisão ESTÁVEL da API —
+  // 300s de missTtl, mesmo com o transientMissTtl apertado. É o que impede
+  // título desconhecido de pagar 5s de timeout a cada busca.
+  const imdbId = `tt-auth-${process.pid}-${Date.now()}`;
+  const key = `tmdb:${imdbId}`;
+  let fetches = 0;
+  const stub = stubFetch(() => {
+    fetches += 1;
+    return tmdbOk({ movie_results: [], tv_results: [] });
+  });
+  config.tmdb.transientMissTtl = 1;
+  config.tmdb.missTtl = 300;
+  try {
+    assert.equal(await getTitles(imdbId), null);
+    assert.equal(fetches, 1);
+    await new Promise((resolve) => setTimeout(resolve, 1150));
+    assert.equal(await getTitles(imdbId), null);
+    assert.equal(fetches, 1, 'miss autoritativo não consulta novamente dentro do missTtl');
+  } finally {
+    stub.restore();
+    cache.forget(key);
+    config.tmdb.transientMissTtl = 300;
   }
 }));
 

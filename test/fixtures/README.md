@@ -1,7 +1,9 @@
 # Fixtures dos parsers BR
 
 HTML congelado para exercitar `parsePosts`/`parseDownloadLinks`/`releaseTitle`
-dos quatro resolvedores sem rede.
+dos quatro profiles com fixture HTML (`bludv`, `comandotorrents`, `nerdfilmes`,
+`torrentdosfilmes`) sem rede. Vacatorrent e redetorrent não têm fixture HTML
+aqui.
 
 **O que estas fixtures pegam e o que não pegam.** Elas travam o *parser*: se
 alguém refatorar as regexes e a seção de áudio parar de valer para os botões
@@ -12,7 +14,8 @@ real volta vazia. Para esse caso o sinal é o status por indexador na página de
 configuração, não o CI.
 
 **Procedência.** Foram reconstruídas a partir do contrato dos parsers (as
-regexes e os comentários de cada `server.js`), não capturadas dos sites. Elas
+regexes e os comentários de cada profile em `resolvers/profiles/*.js`), não
+capturadas dos sites. Elas
 reproduzem a estrutura que o código espera e os casos difíceis que os
 comentários citam — codec entre a qualidade e o parêntese, tamanho com lixo
 depois, marcador de áudio válido para os botões seguintes.

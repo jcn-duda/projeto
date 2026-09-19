@@ -340,7 +340,7 @@ stremio adom/
 │   │   ├── addon-router.ts   # protocolo Stremio (substituiu o SDK no runtime)
 │   │   ├── stream.ts         # /stream por cima do findStreams
 │   │   ├── resolve.ts        # /resolve (HMAC)
-│   │   ├── public.ts         # /configure, /dashboard, /seal-config
+│   │   ├── public.ts         # /configure, /painel, /seal-config
 │   │   └── diagnostics.ts    # /metrics.json, /dashboard-*.json
 │   ├── providers/
 │   │   ├── index.ts          # fachada: reexporta os módulos irmãos
@@ -354,9 +354,12 @@ stremio adom/
 │   │   ├── bludv.ts          # scraper direto do BLUDV
 │   │   └── account.ts        # inventário pronto da conta como fonte
 │   ├── debrid/               # adaptadores: premiumize, realdebrid, …
-│   ├── public/               # painéis ES5, sem build (§5.9)
-│   │   ├── configure.html    # + configure.css, configure-app.js
-│   │   └── dashboard.html    # + dashboard.css, dashboard-{core,panels,status}.js
+│   ├── client/               # clientes ESM nativos (TS, compilados)
+│   │   ├── configure/        # entry, state, dom, keys, limits, indexers, view, seal, init
+│   │   └── painel/           # entry, app/store/api/action, config ao vivo, views (abas)
+│   ├── public/               # HTML/CSS/imagens estáticos (sem build)
+│   │   ├── configure.html    # + configure.css; JS em src/client/configure
+│   │   └── painel.html       # + painel.css/painel-tokens.css/dashboard-tokens.css; JS em src/client/painel
 │   └── utils/
 │       ├── cache.ts
 │       ├── cache-keys.ts     # versão dos namespaces (streams:v6, idx:v5, …)
@@ -371,11 +374,13 @@ stremio adom/
 │   └── entrypoint.sh         # supervisor dos 4 processos no container único
 ├── docker-compose.yml        # serviço único (adom)
 ├── jackett-bludv/            # definitions Cardigann dos cards BR (yml)
-├── resolvers/                # núcleo comum dos 5 resolvers BR + profiles/
-├── bludv-resolver/           # shim → resolvers/profiles/bludv.js
-├── comandotorrents-resolver/ # shim → resolvers/profiles/comandotorrents.js
-├── nerdfilmes-resolver/      # shim → resolvers/profiles/nerdfilmes.js
-├── torrentdosfilmes-resolver/ # shim → resolvers/profiles/torrentdosfilmes.js
+├── resolvers/                # núcleo comum dos 6 resolvers BR + profiles/
+├── bludv-resolver/           # shim → resolvers/profiles/bludv.ts
+├── comandotorrents-resolver/ # shim → resolvers/profiles/comandotorrents.ts
+├── nerdfilmes-resolver/      # shim → resolvers/profiles/nerdfilmes.ts
+├── torrentdosfilmes-resolver/ # shim → resolvers/profiles/torrentdosfilmes.ts
+├── vacatorrent-resolver/     # shim → resolvers/profiles/vacatorrent.ts
+├── redetorrent-resolver/     # shim → resolvers/profiles/redetorrent.ts
 ├── Caddyfile
 ├── Dockerfile
 ├── .env.example
@@ -399,20 +404,20 @@ stremio adom/
 |---------|--------|
 | `npm start` | sobe o addon local (de `dist/`) |
 | `npm run dev` | local com `--watch` |
-| `npm test` | suíte (node:test) sobre `dist/test/`: 87 arquivos, 1.509 testes, zero rede |
+| `npm test` | suíte (node:test) sobre a lista explícita em `dist/test/`, zero rede |
 | `npm run test:complete` | gate: cobra que todo `test/**/*.test.ts` esteja no `npm test` |
 | `npm run lint:lines` | catraca de 400 linhas sobre `.ts`/`.js`/`.css`, baseline em `.line-budget.json` (`-- --bless` regrava) |
-| `npm run typecheck` | `tsc --noEmit` — portão de tipos, precisa ficar em ZERO |
+| `npm run typecheck` | `tsc --noEmit` nos três programas (raiz + `tsconfig.client.json` browser + `tsconfig.client.test.json` Node) — portão de tipos, precisa ficar em ZERO |
 | `npm run smoke` | smoke test contra o addon rodando (rede de verdade) |
 | `npm run docker:up` | build + sobe o container único |
 | `npm run docker:down` | para tudo |
 | `npm run docker:logs` | logs da stack (addon/jackett/flaresolverr/caddy) |
 
 `npm test` roda de `dist/test/` com lista explícita no `package.json` — build
-antes. Além da suíte, há os **harnesses de bancada** que ficam fora do CI
-(`test:stress`, `test:adversarial`, `test:adversarial-m1`, `test:protector-m1`
-e o novo `test:challenger-m2`): rodam código de bancada (estresse/mutação) que
-o portão nunca executa.
+antes. Além da suíte, há os **harnesses de bancada** que ficam fora do CI: seis
+scripts (`test:stress`, `test:adversarial`, `test:adversarial-m1`,
+`test:protector-m1`, `test:challenger-m2` e `test:ranking-challenger`) que
+executam 10 arquivos de estresse/mutação que o portão nunca roda.
 
 ---
 

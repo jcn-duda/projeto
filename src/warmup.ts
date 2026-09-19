@@ -4,7 +4,7 @@ import { hasUserTraffic } from './providers/activity.js';
 import { planJackettQueries, ptSweepQueryFor } from './providers/search-plan.js';
 import { getMeta } from './utils/cinemeta.js';
 import * as tmdb from './utils/tmdb.js';
-import { buildSearchQuery, resolveSearchNames } from './utils/format.js';
+import { buildSearchQuery, resolveSearchNames, resolveOriginalStepName } from './utils/format.js';
 import { mapLimit } from './utils/concurrency.js';
 import * as log from './utils/logger.js';
 
@@ -36,9 +36,10 @@ async function warmTitle({ imdbId, type }: WarmupTitle, deadlineAt: number) {
     ? buildSearchQuery({ name: titles.pt, year: titles.year }, episode)
     : null;
   const sweepQuery = config.jackett.ptSweepGlobal ? ptSweepQueryFor({ titles }) : null;
+  const originalQuery = resolveOriginalStepName(titles?.original, searchMeta.name);
   const plan = planJackettQueries(
     query, ptQuery, config.jackett.indexers, config.jackett.ptBrIndexers,
-    config.jackett.slowIndexers, sweepQuery,
+    config.jackett.slowIndexers, sweepQuery, originalQuery,
   );
   const slow = new Set([...config.jackett.ptBrIndexers, ...config.jackett.slowIndexers]);
   for (const task of plan) {
@@ -48,8 +49,15 @@ async function warmTitle({ imdbId, type }: WarmupTitle, deadlineAt: number) {
       await jackett.search(task.query, type, [indexer], {
         variantQuery: task.variant,
         fallbackQuery: task.fallback,
+        franchiseQuery: task.franchise,
+        originalQuery: task.original,
         recordStatus: false,
         skipResolve: true,
+        // Obra da captura: sem ela o banco de magnets guarda o hash órfão e o
+        // fallback (que consulta por imdb) nunca o encontra. Fundo não roda o
+        // filtro, então não reseta `passed_filter`.
+        imdbId,
+        ...episode,
       });
       if (config.warmup.indexerDelayMs > 0) await pause(config.warmup.indexerDelayMs);
     }

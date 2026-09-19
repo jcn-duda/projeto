@@ -67,13 +67,9 @@ montar o link. Dois efeitos que valem saber antes:
   instalado precisa gerar outro em `/configure`.
 
 O selo protege a credencial, não o acesso: quem tem o link continua usando o seu
-debrid **através desta instância**. Para fechar isso é o `basic_auth` do
-`Caddyfile`.
-
-Não procure por uma variável de senha: elas não existem mais. `ADMIN_DASHBOARD_PASSWORD`
-e `CONFIGURE_PAGE_PASSWORD` ficaram no `.env.example` sem que nenhum código as
-lesse, o que é pior que não ter nada — quem preenchia achava que tinha fechado a
-instância. Saíram. O `basic_auth` do `Caddyfile` é o único caminho. Ver passo 6.
+debrid **através desta instância**. `/configure` e `/defaults.json` são públicos
+(passo 6). Instalações sem `dk` não herdam a chave do `.env` se
+`DEBRID_ALLOW_ENV_KEY=false`.
 
 ## 4. Subir
 
@@ -121,19 +117,19 @@ e cobra fonte BR em cada título. Busca fria estabiliza em 2–4 chamadas.
 curl -H "X-Indexer-Test-Token: $JACKETT_TEST_TOKEN" https://powermovie.net/metrics.json
 ```
 
-## 6. Fechar `/configure` (opcional)
+## 6. `/configure` é público
 
 `/configure` e `/defaults.json` são públicos. Eles **não** vazam a chave do
 debrid — o `/defaults.json` a zera, e há teste no smoke cobrindo isso — mas
-expõem sua lista de indexadores e deixam qualquer um gerar install URL na sua
-instância.
+expõem a lista de indexadores e deixam qualquer um gerar install URL nesta
+instância. A chave do `.env` **não** é herdada por instalação anônima se
+`DEBRID_ALLOW_ENV_KEY=false`.
 
-```bash
-docker exec stremio-adom caddy hash-password --plaintext 'suasenha'
-```
+O diálogo HTTP (`basic_auth` do Caddy) foi retirado de propósito: uma env
+`CONFIGURE_PAGE_PASSWORD` no `.env` da VPS, se ainda existir, **não é lida**.
+Métricas, status e ações do painel continuam atrás de `X-Indexer-Test-Token`.
 
-Cole o hash no bloco `basic_auth` que já está comentado no `Caddyfile` e
-recarregue.
+O `npm run smoke` cobra 200 em `/configure` e `/defaults.json`.
 
 ## 7. Instalar no cliente
 
@@ -156,10 +152,9 @@ provedor só aceita a porta 22 vindo do IP do operador, então CI batendo de
 fora (GitHub Actions) nunca chega — testado de 10 locais do mundo, todos
 bloqueados.
 
-> O cron do servidor que ainda observa `adon-power-movie` (a linha antiga,
-> pré-migração TS/ESM) precisa ser atualizado para `esm` — um sed/edição no
-> agendamento ou script — ou a `esm` precisa ser merged. Enquanto isso o
-> deploy automático continua olhando o branch antigo.
+> Verificado em 2026-09-06: o `~/adom-deploy.sh` da VPS já faz `git fetch origin
+> esm` + `checkout -f -B esm` — o deploy automático observa a branch certa
+> (HEAD da VPS == `origin/esm`).
 
 O script tem trava (`~/.adom-deploy.lock`) para o cron não sobrepor um build
 em andamento e registra tudo em `~/adom-deploy.log`. Para deploy na hora,

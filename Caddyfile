@@ -15,17 +15,9 @@
 	# A URL de instalação carrega a chave do debrid no segmento de config.
 	# É por isso que a porta 7000 fica no loopback (BIND_ADDR no compose) e
 	# tudo entra por aqui: fora do TLS essa chave iria em texto puro.
-	reverse_proxy 127.0.0.1:7000
-
-	# /configure e /defaults.json são públicos — o código não tem autenticação
-	# nenhuma (CONFIGURE_PAGE_PASSWORD no .env não é lido por ninguém). Eles não
-	# expõem a chave do debrid, mas deixam qualquer um ver seus indexadores e
-	# gerar install URL na sua instância. Pra fechar, gere o hash com
-	#   docker exec stremio-adom caddy hash-password --plaintext 'suasenha'
-	# e descomente:
 	#
-	# @admin path /configure* /defaults.json
-	# basic_auth @admin {
-	# 	SEU_USUARIO <COLE_O_HASH_AQUI>
-	# }
+	# /configure e /defaults.json são públicos de propósito (qualquer um gera
+	# install URL nesta instância). O token de diagnóstico do painel NÃO passa
+	# por aqui — ele continua só no header das rotas JSON do addon.
+	reverse_proxy 127.0.0.1:7000
 }

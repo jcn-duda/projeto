@@ -28,6 +28,12 @@ export interface RawItem {
   indexer?: string;
   Indexer?: string;
   isBr?: boolean;
+  /**
+   * DUAL em tracker global cujo título começa com o pt-BR do TMDB (pt distinto
+   * do original/en). Alimenta `_br`/`_dubbed` via toStremioStream — sem isto
+   * Dual sem acento perde a vaga BR para globais com mais seeders.
+   */
+  ptTitleDual?: boolean;
   /** Evidência observada no play/tail; sobrepõe o palpite do título. */
   provenQuality?: string;
   provenAudio?: string;
@@ -46,6 +52,11 @@ export interface RawItem {
   hash?: string;
   season?: number | null;
   episode?: number | null;
+  /** Item de reserva do banco (Etapa 4): indexer falho; nunca realimenta idx/banco/Chupim. */
+  fromFallback?: boolean;
+  fallbackIndexer?: string;
+  /** Foto salva (idx) na resposta instantânea: só EXIBE 📦/~N; não tem as exclusões do fallback. */
+  fromSnapshot?: boolean;
   [key: string]: unknown;
 }
 
@@ -54,6 +65,23 @@ export interface WorkHint {
   names?: string[];
   year?: number | null;
   pack?: boolean;
+}
+
+/**
+ * Coleção multiobra descoberta por evidência (TMDB `belongs_to_collection`),
+ * sob `BR_MULTIWORK_PACKS`, nativa por padrão (`false` é o kill-switch). `root`
+ * é a raiz normalizada (tokens
+ * contíguos) que o título do pack precisa conter; `years` são os anos das
+ * partes. Só existe no contexto quando a feature está ativa, há debrid ativo,
+ * é filme e o ano é conhecido.
+ */
+export interface MultiWorkCollection {
+  /** Nome da coleção no TMDB (pt-BR), só para log/query. */
+  name: string;
+  /** Raiz normalizada (tokens contíguos) para a checagem de contiguidade. */
+  root: string;
+  /** Anos das partes da coleção (TMDB). */
+  years: number[];
 }
 
 export interface PlayHint {
@@ -68,6 +96,23 @@ export interface TorrentStatusEntry {
   state: 'ready' | 'downloading' | 'dead' | 'unknown';
   stalled?: boolean;
   id?: string | number;
+  /**
+   * Progresso MEDIDO da transferência (Fase 3 do Chupim 2.0). Presente só
+   * quando o serviço publica os campos (hoje só o AllDebrid); ausente =
+   * "sem sinal" e nenhuma parada é derivada dele. `bytes`/`total`/`speed` em
+   * bytes e bytes/s; `total` <= 0, campo ausente ou regressão de bytes não é
+   * sinal.
+   */
+  progress?: { bytes: number; total: number; speed: number; seeders: number };
+  /**
+   * COMO a transferência foi ligada ao hash. `hash`: o próprio serviço
+   * publicou o hash (src/nome/campo direto) — é a via histórica e a única
+   * que o ciclo destrutivo sempre enxergou. `id`: só casou pelo id que o
+   * enqueue registrou no marker. A distinção existe porque a via `id`
+   * expõe de uma vez transferências que a remoção automática NUNCA
+   * alcançou; o `removeById` decide se ela pode agir sobre elas.
+   */
+  via?: 'hash' | 'id';
 }
 
 /** Entrada persistida da busca; arrays legados são tratados no leitor. */
@@ -117,8 +162,30 @@ export interface StreamBase {
   _tracker?: string;
   _indexer?: string;
   _multiWork?: boolean;
+  /**
+   * Marca INTERNA da feature BR_MULTIWORK_PACKS (nativa por padrão): o pack foi admitido pela
+   * evidência de coleção (TMDB) com raiz contígua, nomes e cobertura do ano.
+   * Diferente de `_multiWork` (heurística de título, sempre presente), esta só
+   * existe quando a feature está ligada e admite o item — por isso todas as
+   * regras novas (nunca P2P inteiro, fora do autofetch/warmer) se apoiam nela,
+   * e o comportamento fica intacto com a flag desligada.
+   */
+  _multiWorkAdmitted?: boolean;
+  /** Total do download de um filme em coleção cujo 💾 foi trocado pelo tamanho
+   * do filme (episode-size). Interno: o índice do autofetch grava o total. */
+  _packBytes?: number;
   /** Evidência medida de post dublado com arquivos EN; nunca vai ao cliente. */
   _lied?: boolean;
+  /**
+   * Sobreviveu ao piso de seeders pelo waiver BR dublado (sortAndLimit). Marca
+   * interna para o enqueue do autofetch NÃO baixar o que o piso dispensou —
+   * cache não precisa de swarm, download sim. Morre no limitReservingBr.
+   */
+  _seedFloorWaived?: boolean;
+  /** Reserva do banco (Etapa 4): marca a lista como parcial/fallback; removida no protocolo. */
+  _fromFallback?: boolean;
+  /** Foto salva exibida com 📦: o `relabel` do dedupe precisa preservar o selo; removida no protocolo. */
+  _fromSnapshot?: boolean;
   /** Marca interna do item de aviso — some antes do Stremio receber. */
   notice?: true;
 }
@@ -207,7 +274,16 @@ export interface DebridAdapter {
   checkCached(
     apiKey: string,
     hashes: string[],
-    opts?: { timeoutMs?: number },
+    // `fileHashes`: packs cujos arquivos o memo ainda não conhece. Adapter que
+    // sabe listar arquivos na checagem grava em `file-sizes.ts`; os outros ignoram.
+    // `fileWaitTimeoutMs`: só para adapter não abortável com leitura de arquivos
+    // na checagem (AllDebrid) — orçamento DINÂMICO da resposta para limitar a
+    // ESPERA da leitura, sem tocar nos timeouts próprios de rede do adapter
+    // (o upload da AllDebrid não pode virar abortável por causa dele). Já chega
+    // com a margem (DEBRID_PACK_FILES_WAIT_MARGIN_MS) deduzida pelo
+    // nonAbortableCheck: a espera interna desiste ANTES do prazo da corrida
+    // externa, senão leitura lenta de pack virava known:false e apagava o ⚡.
+    opts?: { timeoutMs?: number; fileHashes?: string[]; fileWaitTimeoutMs?: number },
   ): Promise<Set<string> | { cached: Set<string>; complete?: boolean }>;
   resolveLink(
     apiKey: string,
@@ -216,22 +292,42 @@ export interface DebridAdapter {
   ): Promise<string | null>;
   /** Ocupação da conta para o `/debrid-status.json`; ausente = não suportado. */
   accountStatus?(apiKey: string): Promise<AccountStatus>;
+  /**
+   * Interpreta a ocupação que REALMENTE barra escrita neste serviço. Ausente
+   * preserva o gate legado por `status.magnets >= autoFetchPauseAt`.
+   */
+  occupancy?(status: AccountStatus): { used: number; max: number } | null;
   /** Itens prontos na conta; ausente = no-op (serviço sem inventário legível). */
   inventory?(apiKey: string): Promise<InventoryItem[]>;
-  /** Enfileira download; ausente = autofetch/viaDebrid não usa. */
+  /**
+   * Enfileira download; ausente = autofetch/viaDebrid não usa.
+   *
+   * Retorno: `false` recusa. Aceite é qualquer valor verdadeiro — os
+   * chamadores testam truthiness, nunca `=== true`. Quem souber o id da
+   * transferência no serviço devolve a STRING do id: é a única âncora para
+   * reencontrá-la depois em serviço que não publica o hash de volta (o
+   * Premiumize é o caso; ver `transferHash` em premiumize.ts).
+   */
   enqueue?(
     apiKey: string,
     hash: string,
     episode?: unknown,
-  ): Promise<boolean>;
+  ): Promise<boolean | string>;
   warmInventory?(apiKey: string): Promise<unknown>;
   sweepDead?(apiKey: string): Promise<unknown>;
   /** Remove magnets antigos sem áudio PT da conta; ausente = não suportado. */
   sweepUndubbed?(apiKey: string): Promise<unknown>;
-  /** Mapa hash(minúsculo) -> { state: 'ready'|'downloading'|'dead'|'unknown', id?: any } */
+  /**
+   * Mapa hash(minúsculo) -> { state: 'ready'|'downloading'|'dead'|'unknown', id?: any }
+   *
+   * `ids` é hash -> id da transferência, como o enqueue o registrou. Serve a
+   * serviço que não devolve o hash na listagem: sem ele a maior parte da
+   * conta fica invisível ao recheck. Adapter que não precisa dele ignora.
+   */
   torrentStatus?(
     apiKey: string,
     infoHashes: string[],
+    ids?: Record<string, string | number>,
   ): Promise<Record<string, TorrentStatusEntry>>;
   /** Remove torrent pelo id no serviço; ausente = não suportado */
   removeTorrent?(apiKey: string, id: string | number): Promise<boolean>;
@@ -250,6 +346,21 @@ export interface DebridAdapter {
     apiKey: string,
     ids: Array<string | number>,
   ): Promise<{ ok: number; falhas: Array<{ message?: string }>; removedIds?: Array<string | number> }>;
+  /**
+   * Remove fallbacks `any`/`seeds` POR HASH (Fase 6 do Chupim 2.0). Só o
+   * AllDebrid implementa: lê o status autoritativo da conta, exige `id` e
+   * `filename` reais, nunca remove nome com sinal BR e passa pelo gate global
+   * de delete (`deleteMagnets`). Devolve o que saiu e o motivo de cada pulo.
+   * Ausente = serviço não suporta; a evicção nem tenta.
+   */
+  evictFallbacks?(
+    apiKey: string,
+    hashes: string[],
+    opts?: { waitFn?: (ms: number) => Promise<unknown>; delays?: number[] },
+  ): Promise<{
+    removed: Array<{ hash: string; filename: string }>;
+    skipped: Array<{ hash: string; reason: string }>;
+  }>;
   /**
    * Snapshot `knownBefore` AGUARDADO para limpezas de fundo (30s de teto).
    * `null` = inventário não chegou: fail-safe fecha, nada pode ser apagado.
@@ -285,4 +396,10 @@ export interface MatchContext {
   isSeries: boolean;
   season: number | null;
   episode: number | null;
+  /** Data ISO de lançamento do filme (Cinemeta `released`), quando carregada. */
+  released?: string | null;
+  /** Data ISO de estreia (Cinemeta `firstAired`; em série, a data do EPISÓDIO pedido). */
+  firstAired?: string | null;
+  /** Opt-in multiobra: quando presente, packs da franquia podem ser admitidos. */
+  multiWork?: MultiWorkCollection | null;
 }

@@ -99,6 +99,17 @@ function persistedSubmitted(account: string, hash: string): boolean {
 }
 
 /**
+ * Leitura LIMPA (peek, sem rede) da posse durável `adsub:v1`. É a autoridade
+ * que a evicção dirigida (Fase 6) exige por hash: sem prova de criação pelo
+ * addon não se remove nada. Preserva o contrato do 8.15 — a etiqueta só existe
+ * com prova de ausência no snapshot (`rememberSubmitted`), nunca por ausência
+ * simples. `alldebridSubmittedTtlMs = 0` desliga a prova e a evicção junto.
+ */
+export function hasDurableOwnership(account: string, hash: string): boolean {
+  return persistedSubmitted(account, String(hash || '').toLowerCase());
+}
+
+/**
  * Timestamp da posse ativa de um hash (o `at` do adsub), para o reconcile
  * distinguir "nosso desde a etiqueta" de re-add do usuário. Memória e registro
  * durável são consultados e o MAIS NOVO vence — o re-add do usuário acontece

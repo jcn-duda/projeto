@@ -38,7 +38,7 @@ dos achados críticos). Autocontido: pode ser executado por um agente sem acesso
 | S1 | Sem `process.on('unhandledRejection')`; Express 4 não captura promise de rota async → crash derruba a stack inteira (via `wait -n` do entrypoint) | `src/addon.ts`; rotas async em `src/app.ts` |
 | S2 | SSRF: `fetch(item.downloadUrl)` do Link Torznab sem allowlist (site BR comprometido aponta para `169.254.169.254`/loopback) | `src/providers/jackett.ts` (`resolveDownloadMagnet`) |
 | S3 | `/debrid-status.json` e `/metrics.json` fora do `diagnosticGate` (as demais rotas de diagnóstico passam) | `src/app.ts` |
-| S4 | Ações globais destrutivas do dashboard (`clear-cache`, `sweep-dead`) sem confirmação; `basic_auth` do Caddyfile comentado | `src/app.ts`, `Caddyfile` |
+| S4 | Ações globais destrutivas do painel (`clear-cache`, `sweep-dead`) sem confirmação; `basic_auth` do Caddyfile comentado | `src/app.ts`, `Caddyfile` |
 | S5 | `@types/node@^26` com runtime `node:22-alpine`: typecheck aprova API inexistente no container | `package.json` |
 
 ### Dívida arquitetural
@@ -75,47 +75,58 @@ dos achados críticos). Autocontido: pode ser executado por um agente sem acesso
 
 ---
 
-## Estado atual (2026-08-22, pós-auditoria de revisão)
+## Estado atual (2026-09-04)
 
-**Fases 1, 2 e 3 estão commitadas e verdes.** A decisão de "commitar ou
-descartar a árvore de trabalho" que este documento descrevia foi resolvida —
-o trabalho ficou, em cinco commits:
+**Fases 0–6 e M0–M6 estão no código.** Base da revisão local: `esm` @
+`94c8f7b`. Inventário atual pelo `npm run test:complete`, sem duplicar contagens
+manuais de arquivos. Estado de produção exige conferir a instância implantada.
 
-| Commit | Cobre |
+**Revisão Docker/CI (2026-09-04, alterações locais):** runtime instala com
+`npm ci --omit=dev` e lockfile; filtros de push/PR incluem `resolvers/**`,
+`*-resolver/**` e `.dockerignore`; audit de produção agora bloqueia o CI.
+O gate revelou `qs` vulnerável: override `^6.16.0` mantém Express 4 e corrige
+as transitivas do Express/body-parser. Skills e agentes de deploy/segurança
+acompanham esses contratos.
+
+**Validado localmente nesta revisão:** Node 22.19.0, build + typecheck verdes,
+1.858 testes passando (zero falhas), `test:complete` com 191 arquivos + 6
+harnesses inventariados, `lint:lines -- --check` verde e audit de produção
+sem vulnerabilidades. Imagem `adom-ci-review:20260904` construída; dependências
+do runtime inspecionadas sem iniciar a stack. Skills de deploy/segurança e
+YAML dos workflows validados. **Não validado nesta revisão:** execução dos
+harnesses adversariais, saúde da stack, GitHub Actions remoto e deploy na VPS.
+A auditoria completa ainda reporta 4 vulnerabilidades em dependências de
+desenvolvimento (3 baixas, 1 alta); não entram no runtime com `--omit=dev`.
+
+**O que continua aberto de verdade:**
+
+| Item | Estado |
 |---|---|
-| `bda6a7c` | B1, B2 — snapshot com TTL, lotes de drop separados |
-| `780809b` | S1 (completo), S2, S3, S4, 2.9, 2.10 |
-| `e69450c` | B3, B4, T6 |
-| `c9a7888` | T1, T2, T3, T7 |
-| `54239f3` | `PROJECT.md` + este plano |
+| **6.3 / 7.5** janela `davail` | Baseline de 7 dias **venceu** (2026-08-31 22:58). TTLs 900s/120s **não** foram mexidos — falta coleta autenticada na instância de produção + decisão explícita |
+| **6.7 / 7.10** `checkJs` nos resolvers | Medido (354 erros); **fora** dos 30 dias |
+| **Fase 7** trilha A (VPS) | 7.1 ✅ verificado na VPS (script já faz fetch/checkout da `esm`; HEAD == `origin/esm`, 2026-09-06). 7.3 ↩️ **reaberto** — operador pediu tirar o `basic_auth` de `/configure`/`/defaults.json` (página pública de novo; token de diagnóstico intacto). Restam 7.2/7.4 operacionais. 7.8 (Tier 5) ✅ |
+| **Fase 7** trilha C | 7.9 + 7.12–7.16 ✅ no código; 7.11 SearchPhase **não fazer** |
+| **Fase 8** | Código das peças duráveis ✅ (`adsub`/`adrm`/blindagem/evict/reconcile). Evicção e reconcile **default OFF**. Aceite de ocupação em produção depende de ativação + medição |
+| **Fase 9 / P5** | **Commitada** (`ea15894` → `cb934c9` → `9eb98f4`); `streams` em **v11** / `idx` em **v10**. Não alegar DONE em produção sem deploy autorizado |
 
-Baseline verificado: `typecheck` 0, build ok, **1.117/1.117 testes**,
-`test:complete` ok com os 6 harnesses validados.
+A meta histórica de `any` (<150) fechou em **143** (`e25ef29`). Catraca 5.8 e
+painel 5.9 estão no ar. Banco de magnets: cota L1 `mag=50000` + agregado único
+`mag_meta=1` (contadores duráveis O(1)), teto global `84000`, soma das cotas
+`82.551`.
 
-**Uma correção entrou depois, na revisão** (fase 1, ver 1.6 abaixo): o refresh
-do snapshot por TTL era **aguardado** dentro do `checkCached`, o que colocava
-um `/magnet/status` de até 6s dentro de uma reserva de debrid de 4500ms — uma
-vez a cada TTL, e em toda busca enquanto o endpoint estivesse fora do ar. O
-refresh passou a rodar em fundo; só o primeiro inventário da conta é esperado,
-com teto pelo `DEBRID_CHECK_FLOOR_MS`.
-
-**O que continua aberto (2026-08-24):** fases 0–6 estão no código (0.6 ✅ —
-o grafo antigo que dizia “exceto README” estava atrasado). Aberto de verdade:
-janela de 7 dias do **6.3** (TTL do `davail` ainda não se mexe), resíduo
-menor do **2.4** (rotação da fila com backoff já pausando), **6.7** (`checkJs`
-medido, não feito) e a **Fase 7** (operação / produção — só especificada, sem
-execução neste commit). A auditoria forense do Tier 5 (M4) não é gate.
-
-A meta de `any` está em **143** (`e25ef29`), medida com o contador de AST
-corrigido de §5.7 — o anterior varria 66 dos 72 arquivos e por isso reportava
-149 onde o número real era 156. As alegações de 147 e 149 foram substituídas.
-
-Duas conclusões desta rodada foram declaradas antes de estarem completas e
-ficaram registradas com a correção no lugar: **5.4** (três funções ainda eram
-duplicação real nos profiles, migradas em `48b6773`) e **5.7** (a meta só foi
-batida em `e25ef29`). Ambas seguem o mesmo padrão — o critério de conclusão era
-descritivo ("os arquivos existem") em vez de uma métrica verificável. Ver
-"Riscos do próprio plano".
+**MagnetDB Fases 1–3 no código (2026-09-09):** contadores duráveis O(1) em
+`mag_meta:v1` (Fase 1), rebaixamento/filtragem de releases `_lied` no ranking e
+no `instantSet` (Fase 2) e as ações autenticadas `magnet-inspect`/
+`magnet-summary`/`magnet-clear-bad` no painel (Fase 3, `magnet-clear-bad`
+destrutiva com `confirm` e teto de 100). `test:complete` agora inventaria **7**
+harnesses (entrou `scripts/empirical-ranking-challenger.ts`, exposto como
+`npm run test:ranking-challenger`). A releitura que a doc `fd4663d` motivou
+achou dois defeitos de **relato** — zero rotulado `duravel` no primeiro boot com
+`cache.db` herdado, e `cleared: 0` fantasma no `magnet-clear-bad` — fechados em
+`008eecd`. No working tree (ainda sem commit): a persistência saiu para
+`magnetdb-persist.ts` (`magnetdb.ts`: 400 → 329 linhas) e o status passou a
+declarar a base da média de TTL restante (`ttlRemainingBasis`, painel mostra o
+qualificador). Ver a seção **MagnetDB** abaixo.
 
 ---
 
@@ -180,7 +191,7 @@ em fundo, e deixar a passada atual protegida.
 | 2.5 | B3: `collectRaw` aceita `deadlineAt` e calcula `budget` como tempo RESTANTE menos a reserva (`remainingCheckBudget(deadlineAt) - debridReserve`, piso 500ms) em vez de fatia fixa; `doSearch` passa o deadline nas duas coletas (normal e pack) | ✅ implementado |
 | 2.6 ✅ | S3: `/debrid-status.json` e `/metrics.json` passam pelo `diagnosticGate.enter()` (mesmo token e rate limit das outras rotas de diagnóstico) | `src/app.ts` |
 | 2.7 ✅ | S1 (parte 2): wrapper `asyncRoute(fn)` (catch → 500 + log) nas 6 rotas async de `src/app.ts` | `src/app.ts` |
-| 2.8 ✅ | S4: `clear-cache` e `sweep-dead` devolvem 400 `confirmation_required` sem `{"confirm": true}` | `src/app.ts`, `src/public/dashboard.html` |
+| 2.8 ✅ | S4: `clear-cache` e `sweep-dead` devolvem 400 `confirmation_required` sem `{"confirm": true}` | `src/app.ts`, `src/public/dashboard.html` (hoje `painel.html`) |
 | 2.9 ✅ | Cache L2 corrompido no boot vira `cache.db.corrupt` + banco novo — **só em corrupção real** (`SQLITE_CORRUPT`/`SQLITE_NOTADB`/"malformed"). `SQLITE_BUSY`, stall de I/O e `EACCES` caem em memória sem tocar no volume | `src/utils/cache.ts` |
 | 2.10 ✅ | `npm audit --omit=dev` como passo do CI | `.github/workflows/ci.yml` |
 
@@ -239,7 +250,7 @@ compilado. Esforço S–M.
 | # | Tarefa |
 |---|---|
 | 4.1 ✅ | Teste com cinemeta lento (2500ms) + TMDB miss (5000ms): resposta NÃO estoura o deadline. `test/search-budget-metadata.test.ts`, mais os dois T5 do `collection-window` |
-| 4.2 ✅ | `search.deadline` agora preserva o total e segmenta em `.metadata`/`.providers`. O corte é de metadata também quando ela termina depois da janela normal de coleta (`deadlineAt − debridReserve`): o piso de 500ms pode deixar provider em voo, mas não muda a causa. `search.metadata` é timer (avg/p95/max) no `/metrics.json`, consolidado no `/dashboard-status.json` e exibido no dashboard. Prova: `test/search-budget-metadata.test.ts` reproduz os dois lados, inclusive provider lento depois de metadata que já consumiu seu orçamento. |
+| 4.2 ✅ | `search.deadline` agora preserva o total e segmenta em `.metadata`/`.providers`. O corte é de metadata também quando ela termina depois da janela normal de coleta (`deadlineAt − debridReserve`): o piso de 500ms pode deixar provider em voo, mas não muda a causa. `search.metadata` é timer (avg/p95/max) no `/metrics.json`, consolidado no `/dashboard-status.json` e exibido no painel. Prova: `test/search-budget-metadata.test.ts` reproduz os dois lados, inclusive provider lento depois de metadata que já consumiu seu orçamento. |
 | 4.3 ✅ | Revisar `Math.max(500, …)`: **decisão — manter.** É intencional, não sobra de fatia fixa. `remainingCheckBudget(deadlineAt) − debridReserve` fica negativo quando metadados lentos já corroeram a reserva; sem o piso, `collectRaw` desistiria sem tentar e a resposta sairia known:false/vazia de bandeja. O piso não pode estourar o `replyDeadline`: o `raceWithDeadline` de `findStreams` corta `doSearch` no relógio absoluto (mesmo `deadlineAt`), **independente** do orçamento interno — pior caso é a resposta chegar até 500ms mais perto do corte externo, nunca depois. Trocar por devolver parcial na hora (orçamento 0) não evita corte nenhum (o relógio externo já protege) — só troca uma tentativa real de coleta por known:false garantido, pior para quem usa. Documentado em `src/providers/index.ts` junto do cálculo |
 
 **Risco:** médio — mexe no invariante 1. Qualquer mudança aqui exige releitura
@@ -390,6 +401,15 @@ o módulo, então o carregador embutido da `br-resolvers.ts` (caminho histórico
 stage final para inspeção operacional. Testes de parser por site continuam
 apontando para os profiles.
 
+> **Supersedido (2026-09-12).** `resolvers/` deixou de ser CommonJS: virou ESM
+> (`31ddac9`) e depois TypeScript integral (`aec0a9a`, tipos compartilhados em
+> `resolvers/types.ts`). Os profiles são import-safe com config explícita
+> (`resolvers/env-config.ts`, `3c20c39`), `src/br-resolvers.ts` importa os seis
+> profiles estaticamente e o próprio `tsc` emite a ilha para `dist/` — não há
+> mais cópia em `/app/resolvers`, nem `server.d.ts` nos shims, nem
+> `types/resolver-shim.d.ts`. O caminho pelos shims ficou só para testes e modo
+> standalone.
+
 Núcleos compartilhados relevantes em `resolvers/`, com um dono único e sem
 cópia nos profiles:
 
@@ -457,7 +477,7 @@ manifest, `createStreamHandler` (de `routes/stream.ts`) e `registerRoutes`
 `streamsNeedRevalidation`. A montagem toda mora em `src/routes/`:
 `services.ts` (`buildServices()` → `AppServices`), `register.ts` (único ponto
 de montagem das rotas), `stream.ts`, `resolve.ts` (`makeResolveHandler`),
-`public.ts` (`/configure`, `/dashboard`, `/defaults.json`, `/seal-config`),
+`public.ts` (`/configure`, `/painel`, `/defaults.json`, `/seal-config`),
 `diagnostics.ts` (`/metrics.json`, `/dashboard-status.json`,
 `/dashboard-action.json`, `/test-indexer.json`, `/debrid-status.json`),
 `origin.ts`, `async.ts`, `state.ts` (`prefetchInFlight`) e `types.ts`
@@ -475,6 +495,10 @@ e os limiares de conta do debrid são a fonte dos consumidores TypeScript.
 `br-resolvers.ts` mantém apenas a ponte explícita de mutação/restauração de
 `process.env` para compatibilidade dos profiles CommonJS; seus valores vêm de
 `config` e ela não faz leitura de controle do ambiente.
+
+> **Supersedido (2026-09-12, `3c20c39`).** A ponte de mutação/restauração de
+> `process.env` saiu: `br-resolvers.ts` passa `port`/`selfUrl`/`siteUrl` como
+> argumento à factory de cada profile e não toca mais o ambiente.
 
 Critério de saída: `git grep -n 'process\.env' -- 'src/**/*.ts'` só pode
 encontrar `config.ts` e a ponte de compatibilidade documentada em
@@ -631,7 +655,7 @@ porque é nesses arquivos que o `--bless` vai aparecer):
 | 5 | `src/providers/debrid-pipeline.ts` | 726 | 14 | |
 | 6 | `src/debrid/realdebrid.ts` | 572 | 14 | |
 | 7 | `src/debrid/alldebrid.ts` | 784 | 13 | |
-| 8 | `src/routes/diagnostics.ts` | 492 | 13 | cresce a cada ação nova do dashboard; despacho por ação é a costura óbvia |
+| 8 | `src/routes/diagnostics.ts` | 492 | 13 | cresce a cada ação nova do painel; despacho por ação é a costura óbvia |
 
 Baixo churn/alto tamanho ficam para depois — a catraca não morde neles:
 `catalog.ts` (1.064 linhas / 5 commits), `vacatorrent.js` (1.024 / 2),
@@ -678,19 +702,60 @@ Resultado:
 
 | Arquivo | Antes | Depois | Extraído |
 |---|---|---|---|
-| `configure.html` | 1.771 | 1.056 | `configure.css` (505) + `configure-app.js` (221: el/estado, base64url, selo, wiring) |
-| `dashboard.html` | 2.429 | 1.556 | `dashboard.css` (201) + `dashboard-core.js` (324) + `dashboard-panels.js` (186) + `dashboard-status.js` (203) |
+| `configure.html` | 1.771 | 1.056 | `configure.css` (505) + `configure-app.js` (221: el/estado, base64url, selo, wiring); na revisão C1+C2 o JS virou `src/client/configure/*.ts` (ESM nativo) |
+| `dashboard.html` | 2.429 | ~1.556 | `dashboard.css`/`dashboard-tokens.css` (estáticos) + o cliente ESM `src/client/dashboard/*.ts` (emit browser em `dist/src/public/client/dashboard/`); no cutover C3 o JS clássico saiu de `src/public/` — **hoje substituído por `painel.html`/`src/client/painel/`** |
 
 **O contrato que a extração revelou:** os testes regexam CORPOS de função e
-âncoras de texto DENTRO do html (`collect`/`apply`/`render`/`fromUrl`,
-`renderMagnetDb`, os painéis do Chupim/Colhedor, a seção Conta/Catálogo inteira,
-bloco de limites, boot saved/else) — **essas partes continuam inline por
-contrato**, e só o não-ancorado sai. Scripts extraídos são top-level (a IIFE do
-inline foi desembrulhada para o escopo global compartilhado), ES5 puro, ordem
-core → panels → status → inline; caminhos absolutos (`/configure.css`) porque as
-páginas respondem em `/configure` e `/:userConfig/configure`. Servidor:
+âncoras de texto DENTRO do html (`renderMagnetDb`, os painéis do
+Chupim/Colhedor, a seção Conta/Catálogo inteira) — **essas partes do dashboard
+continuam inline por contrato**, e só o não-ancorado sai. Scripts extraídos são
+top-level, ES5 puro, ordem core → panels → status → inline; caminhos absolutos
+(`/configure.css`) porque as páginas respondem em `/configure` e
+`/:userConfig/configure`. Servidor:
 `PAGE_ASSETS` em `src/routes/public.ts` — allowlist FECHADA (nome arbitrário na
 URL abriria traversal), rotas no loop de `register.ts`.
+
+**Revisão C1+C2 (posterior, supersede o inline do configure):** o contrato
+inline valia para o `/configure` também, mas foi revogado de propósito. O JS do
+configure (inline + `configure-app.js`) saiu para `src/client/configure/*.ts`
+(ESM nativo, imports reais, ≤400 linhas por arquivo), com dois emits: browser
+em `dist/src/public/client/` (`tsconfig.client.json`) e Node para testes em
+`dist/src/client/` (`tsconfig.client.test.json`), sem AMD/loader/bundle. O HTML
+passou a carregar um único `<script type="module"
+src="/client/configure/entry.js">`; o servidor injeta o `?v=<fingerprint>` no
+entry (immutable) e serve os filhos por `CLIENT_ASSETS` com `no-cache` +
+ETag/304. Os testes do configure deixaram de regexar corpos de função e
+importam o emit de Node via `test/helpers/client.ts`; o que protege o browser é
+o `test/client-esm.test.ts` (ESM nativo no emitido).
+
+**Cutover C3 (posterior, supersede o dashboard clássico):** o mesmo tratamento
+foi aplicado ao `/dashboard`. Todo o `src/public/dashboard-*.js` migrou para
+`src/client/dashboard/*.ts` (ESM nativo, imports com `.js`, ≤400 linhas por
+arquivo), com os dois emits (browser em `dist/src/public/client/dashboard/`,
+Node para testes em `dist/src/client/dashboard/`). O `dashboard.html` passou a
+carregar um ÚNICO `<script type="module"
+src="/client/dashboard/entry.js">`; o entry registra o conjunto FECHADO de
+hooks e chama `bind()` (wiring explícito; módulos não têm efeito de topo), o
+`DashState` é objeto exportado mutado por propriedade, e o servidor injeta o
+`?v=<fingerprint>` no entry (immutable) e serve os filhos por `CLIENT_ASSETS`
+com `no-cache` + ETag/304. Os testes do dashboard deixaram de usar
+`new Function`, ordem de scripts e globals e importam o emit de Node via
+`test/helpers/dashboard.ts`; `test/dashboard-esm.test.ts` cobre import
+DOM-free, boot/wiring e grafo/allowlist/entry.
+
+**Cutover para o `/painel` (supersede o C3):** a superfície operacional passou
+a ser o `/painel` (`src/public/painel.html` + `src/client/painel/*.ts`, ESM
+nativo com Preact vendorizado em `client/painel/vendor/preact.js`), com abas
+que reúnem saúde, conta debrid, gate, colhedor, sonda BR, chupim, cache, limpeza
+e magnets — incluindo a configuração ao vivo do Chupim (`cfg:v1:autofetch`) e do
+Colhedor (`cfg:v1:harvester`) e as rotinas de catálogo/limpeza/magnets. Os
+atalhos `/autofetch` e `/harvester` (e as variantes `/:userConfig/...`)
+redirecionam 302 para `/painel#chupim` e `/painel#colhedor`. O cliente
+`src/client/dashboard/*.ts` é substituído pelo `src/client/painel/*.ts`; as
+rotas de backend mantêm o nome histórico (`/dashboard-status.json`,
+`/dashboard-action.json`, `src/routes/dashboard-actions*.ts`) e o
+`dashboard-tokens.css` segue na allowlist dos assets, reutilizado pelo
+`painel.html`.
 
 **Lição registrada** (tentativa descartada): a primeira extração foi feita num
 worktree criado sobre base desatualizada do `origin/esm` — o dashboard de lá
@@ -707,7 +772,7 @@ delegar trabalho que depende do estado corrente.
 |---|---|---|
 | 6.1 ✅ | `stremio-addon-sdk` saiu do runtime: router Express próprio preserva manifest/stream, CORS, `Cache-Control` e mounts raiz/config; SDK ficou em devDeps como referência dos 3 e2e | concluída após 5.5 |
 | 6.2 ✅ | Dashboard: `clear-cache` seletivo por namespace ou pela instalação corrente; sem `scope` preserva limpeza global | concluída após 5.5 |
-| 6.3 ✅ | `davail`: amostra local de 2026-08-24 (uptime 1.822s) teve 112/360 = **31,1%** de hashes repetidos e 186 servidos do L1; acima do gate histórico de 30%, mantém TTLs 900s/120s. **Baseline 0 (22:58 do mesmo dia, janela de 7 dias aberta):** contadores acumulados do container: `davail.servedHashes`=878 vs `debrid.check.hashes`=736 → **54,4%** das checagens de hash atendidas localmente; `debrid.check.cached`=507/736; gate antigo `repeated/hashes` em 154/736 = 20,9%. A métrica de decisão da janela é `servedHashes/(servedHashes+hashes)` — o ratio `repeated/hashes` mede redescobrimento, não valor do cache, e infla com corrida perdida/timeout sem reuse real. Coleta diária autenticada por 7 dias antes de tocar TTL | análise, sem código; decisão de TTL pendente da janela |
+| 6.3 ✅ | `davail`: amostra local de 2026-08-24 (uptime 1.822s) teve 112/360 = **31,1%** de hashes repetidos e 186 servidos do L1; acima do gate histórico de 30%, mantém TTLs 900s/120s. **Baseline 0 (22:58 do mesmo dia):** `davail.servedHashes`=878 vs `debrid.check.hashes`=736 → **54,4%** local; gate antigo `repeated/hashes` em 20,9%. Métrica de decisão: `servedHashes/(servedHashes+hashes)`. **Janela de 7 dias venceu em 2026-08-31 22:58 sem decisão de TTL registrada** — TTLs seguem 900s/120s; reabrir coleta autenticada via 7.5 antes de tocar config | análise; decisão de TTL **pendente** (não expirada como "manter", só como "ainda não decidida") |
 | 6.4 ✅ | Decode de config (máximo 8 KB, regex + base64 + JSON) é CPU limitado; risco aceito sem rate limit enquanto não houver abuso observado. `/seal-config` já tem gate próprio | decisão teórica, sem código |
 | 6.5 ✅ | Healthcheck passou a quádruplo: addon, Jackett, FlareSolverr e API admin loopback do Caddy (`:2019/config/`) | operacional |
 | 6.5b ✅ | A sonda do Caddy precisa de `Origin` explícito (`http://127.0.0.1:2019`): a API admin faz origin check e o `fetch` do Node não manda o header, então ela respondia **403** e reprovava o container com os quatro processos vivos. Não apareceu na hora porque o container em pé era anterior à quarta sonda; só quebraria no rebuild seguinte | `23c64c2` |
@@ -742,16 +807,16 @@ Trilha A (produção, 0 código)
 
 | # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
 |---|---|---|---|---|---|---|---|
-| 7.1 | Qual código está no ar. O cron em `DEPLOY.md` ainda pode observar `adon-power-movie` | A1 | S | deploy | — | PLANEJADO | script/`crontab` puxa `esm`; `git log -1` na VPS = `origin/esm`. Sem isso, melhoria local não chega na TV |
+| 7.1 | Qual código está no ar. O cron em `DEPLOY.md` ainda pode observar `adon-power-movie` | A1 | S | deploy | — | DONE (2026-09-06) | script/`crontab` puxa `esm`; `git log -1` na VPS = `origin/esm`. Verificado via SSH read-only: `adom-deploy.sh` faz `fetch origin esm` + `checkout -f -B esm`, cron `*/5` ativo, HEAD == `origin/esm` == `995f2e9` |
 | 7.2 | Saúde do debrid. “Sumiu o raio” quase nunca é bug (teto / chave) | A2 | S | dado | 7.1 ajuda o diagnóstico, não bloqueia o check | PLANEJADO | `GET /debrid-status.json` com `X-Indexer-Test-Token`; ocupação abaixo do aviso. Teto → `node dist/scripts/magnets.js` **só com autorização explícita** — este plano não autoriza |
-| 7.3 | Página de configurar na internet. `Caddyfile` tem `basic_auth` comentado; `CONFIGURE_PAGE_PASSWORD` não é lido por ninguém | A3 | S | acesso | VPS com `ADDON_DOMAIN` público | PLANEJADO | na VPS, `/configure` pede senha. Em LAN pode ficar aberto |
+| 7.3 | Página de configurar na internet. Operador pediu **abrir** de novo: sem `basic_auth` no Caddyfile; o entrypoint **não** lê `CONFIGURE_PAGE_PASSWORD`. `/configure` e `/defaults.json` → 200 sem senha; manifesto/Stremio já eram públicos; token de diagnóstico intacto | A3 | S | acesso | VPS com `ADDON_DOMAIN` público | REABERTO (2026-09-07) | Contrato novo no repo: Caddy só faz `reverse_proxy`. Produção (powermovie.net) só perde o diálogo HTTP depois de push `origin/esm` (cron `*/5`). Risco aceito: qualquer um gera install URL nesta instância; `DEBRID_ALLOW_ENV_KEY=false` continua sem herdar a chave do `.env` |
 | 7.4 | Fonte BR morta. BLUDV fora do ar (ACE / 522). Amostra local (`metrics_live.json`, **não commitado**): `bludv-cardigann` ~20s | A4 | S | prazo | mirror vivo **ou** fora da resposta | PLANEJADO | env com mirror **ou** indexer fora do caminho crítico (padrão `JACKETT_INDEX_ONLY_INDEXERS`). Sem mirror, não “consertar parser” |
 
 ### Trilha B — Medir (depois de A1)
 
 | # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
 |---|---|---|---|---|---|---|---|
-| 7.5 | Janela `davail` (continuação do 6.3). Baseline 0: 878 servidos vs 736 de rede (~54% local). Decisão: `servedHashes / (servedHashes + hashes)` — **não** `repeated/hashes` | B1 | S (coleta) | prazo se TTL errado | 7.1 (métrica da instância no ar) | PLANEJADO | 7 dias de coleta autenticada **antes** de mudar `DEBRID_AVAIL_POS_TTL` / `NEG_TTL`. Código só depois da janela |
+| 7.5 | Janela `davail` (continuação do 6.3). Baseline 0: 878 servidos vs 736 de rede (~54% local). Decisão: `servedHashes / (servedHashes + hashes)` — **não** `repeated/hashes` | B1 | S (coleta) | prazo se TTL errado | 7.1 (métrica da instância no ar) | **JANELA VENCIDA (2026-08-31) — decisão pendente** | Reabrir coleta autenticada na VPS; só então mudar `DEBRID_AVAIL_POS_TTL` / `NEG_TTL`. Código só depois da decisão |
 | 7.6 | Jackett desperdiçado (`search.jackett.wastedQueries` / `wastedMs` em `src/providers/jackett.ts`) | B2 | S | prazo | 7.1 | PLANEJADO | 7 dias de série; só então cortar indexer. Sem feeling |
 | 7.7 | Premiumize órfãos (`debrid.pm.status.unmatched` alto na amostra) | B3 | S | dado se reescrever `transferHash` no escuro | 7.1 | PLANEJADO | confirmar transferência sem hash casável (já em `AGENTS.md`) vs regressão. Sem evidência nova, não reescrever `transferHash` |
 | 7.8 | M4 / Tier 5 forense (HMAC adulterado, config maliciosa — `TEST_INFRA.md` item 14) | B4 | M | nulo se só auditoria | M3 feito; **não** é gate de deploy | DONE (2026-08-31) | executada fora de gate, por desenho: gates verdes (`typecheck` 0, `build`, `test:complete` 90+6, `lint:lines` baseline OK), camada de segurança **209/209** (HMAC adulterado/ausente → 403, `secret-box` fail-closed, config malformada → 404, `?token=` → 401, 429), regressão **1.563/1.563**, `test:adversarial` APPROVE com mutações **10/10** (MUT-03 HMAC, MUT-07 secretBox; 20 seq + 6 par; `dist/` restaurado), stress 19+135, adversarial-m1 69/69, protector 42/42, challenger 11/11. Sem correção. Não misturar com 7.1 |
@@ -760,9 +825,14 @@ Trilha A (produção, 0 código)
 
 | # | Tarefa | Trilha | Esforço | Risco | Dependência | Status | Aceite |
 |---|---|---|---|---|---|---|---|
-| 7.9 | Resíduo 2.4: orçamento cheio em `autofetch-runner.ts` escreve `[...remaining, next]` e rebaixa o melhor; `budgetBlockedUntil` já pausa | C1 | S | dado (fila) | A verde; não urgente | PLANEJADO | `[next, ...remaining]` + teste do `drainNext`. Um commit |
+| 7.9 | Resíduo 2.4: orçamento cheio em `autofetch-runner.ts` escrevia `[...remaining, next]` e rebaixava o melhor; `budgetBlockedUntil` já pausa | C1 | S | dado (fila) | A verde; não urgente | DONE | `drainNext` devolve `[next, ...remaining]` (cabeça volta à frente); teste do `drainNext` cobrindo orçamento cheio |
 | 7.10 | `checkJs` nos `resolvers/` (6.7): 354 erros, 306 `noImplicitAny` | C2 | L | build (`noEmitOnError`) | — | **FORA dos 30 dias** | anotar JS é tarefa própria, não ajuste de `tsconfig` |
 | 7.11 | `SearchPhase` explícito (A3). Fase já é `latest-writer` | C3 | M | passe tardio | bug concreto de corrida | **NÃO FAZER** sem bug | — |
+| 7.12 | Pool seeds com `anyDubbed=false`: cascata `br > any > seeds` — desligar any não corta seeds | C1 | S | dado (fila) | — | DONE | `autoFetchAnyDubbed=false` + `autoFetchTopSeeds=true` ainda enfileira seeds; testes de cascata |
+| 7.13 | `torrentStatus` falha não zera streak de dead/stall | C1 | S | dado (conta) | — | DONE | falha/`unknown` de status preserva streak; só evidência medida (ready/dead/stalled/movimento) altera |
+| 7.14 | Vaga por busca usa cota do pool (`autoFetchMax` / `autoFetchTopSeedsMax`) | C1 | S | dado (fila) | — | DONE | `acquireSearchSlot` respeita teto do pool ativo; seeds com teto próprio 1..4 |
+| 7.15 | `reindexQueues` no boot reconstrói índice de filas persistentes | C1 | S | dado (fila) | — | DONE | boot chama `reindexQueues`; `snapshot()`/`drainQueues()` do painel voltam a ver filas no SQLite (o `drainNext` já lia a chave direto) |
+| 7.16 | Docs/UI `autoFetchMax` 1..12 (`dashboard.html` na época, hoje `painel.html`; `AGENTS.md`) | C1 | S | nulo (docs) | 7.14 | DONE | campo `af_autoFetchMax` max=12; `af_autoFetchTopSeedsMax` permanece 1..4; docs alinhadas |
 
 ### Explicitamente fora (não fazer nesta fase)
 
@@ -818,9 +888,11 @@ tela já na busca seguinte).
 - Gates dos 4 commits: typecheck 0, build verde, 1594/1594 testes,
   `test:complete` 94+6, catraca verde, revisão independente APPROVE no 8.14
   (após corrigir o T1) e no 8.16.
-- **8.17 NO CÓDIGO** (`bdf00ea`): reconcile da posse órfã + fail-safe do
-  `dropDownload`. Fecha H1/H2 (abaixo). Default **ON**, teto 25/rodada,
-  intervalo mínimo 5min, só conta do operador. Ver a linha 8.17 na Trilha C.
+- **8.17 NO CÓDIGO** (`bdf00ea`, default invertido em `d6442b1`): reconcile da
+  posse órfã + fail-safe do `dropDownload`. Fecha H1/H2 (abaixo). Default
+  **OFF** (`DEBRID_RECONCILE`, ativação explícita — como o 8.16, remove magnet
+  pronto fora do eco da busca), teto 25/rodada, intervalo mínimo 5min, só conta
+  do operador. Ver a linha 8.17 na Trilha C.
 - **Painel** (`fba39e1`, `1c297ca`): `sem-debrid` do anônimo deixa de virar
   banner de problema numa instância pública segura, e conta do operador `ok`
   em `accounts` mostra online/warn em vez de "não medido". Testes de runtime
@@ -1146,21 +1218,304 @@ TTL 0) e expurgo por hash (`--unblock`); o 8.16 é revert de `a264b7c` ou só
 
 ---
 
+## Fase 9 — P5 observabilidade/diagnóstico: `/stream-trace.json` ✅ NO CÓDIGO (2026-09-01)
+
+> **Aviso de nome:** "P5" é o rótulo da auditoria para o eixo de
+> **observabilidade/diagnóstico** — não é a Fase 5 deste plano (refactor
+> 5.1–5.9, encerrada). Os dois conviveram na mesma janela; quem ler "P5"
+> aqui lê "funil por item".
+
+**Objetivo:** responder **"por que aquele stream sumiu?"** por item, sem
+refazer a busca. Antes disto, o funil era uma caixa-preta: `searchFirst`
+conta fontes e os timers `search.first.*` medem tempo, mas nenhum instrumento
+explicava o **caminho de um item** — quem foi cortado, em que estágio, por
+qual regra. A Fase 8 nasceu de arqueologia de log e métrica agregada; o P5 é
+a resposta estrutural a essa dor.
+
+**Status real (2026-09-04):**
+
+| Fatia | Conteúdo | Estado |
+|---|---|---|
+| Fase 0+1 — captura + leitura offline | ledger `src/utils/stream-trace.ts`; `GET /stream-trace.json` só leitura | ✅ `ea15894` |
+| P0 cirílico | guarda `CYRILLIC_RE` no DUB genérico; bump streams/idx v8→v9 | ✅ `cb934c9` |
+| Fatia A — recompute offline | `src/utils/trace-recompute.ts` | ✅ `cb934c9` |
+| Fatia B — live TB/PM | `src/debrid/live-check.ts` + `src/routes/stream-trace.ts` | ✅ `cb934c9` |
+| Fatia C — painel | `src/client/dashboard/trace.ts` (aba `/dashboard#trace`; era `src/public/dashboard-trace.js` no C3) | ✅ `cb934c9` |
+| Defesa de rótulos | sanitize+truncate no recompute e no live | ✅ `9eb98f4` |
+| Bump v10 | `ENGLISH\|ENG` na mesma guarda do DUB genérico | ✅ `ea4c8d5` (e comentário em `cache-keys.ts`) |
+
+Código commitado em `esm`. **Não alegar DONE em produção** — push/deploy
+exigem autorização explícita. Namespaces atuais: `streams:v11` / `idx:v10`.
+
+### Contratos duros (não podem regredir)
+
+1. **AllDebrid é hard-block no live.** Consultar cache na AllDebrid **é
+   upload** — e o upload detona as limpezas da Fase 8. A recusa é por
+   construção (`NEVER_LIVE`), não por knob: mesmo que a allowlist cresça por
+   engano, `alldebrid` não entra. Motivo legível: `ad-hard-blocked`.
+2. **Real-Debrid live é recusado.** O oráculo escreve ledger/`rdt` e pode
+   enviar a chave do usuário a terceiro; a leitura crua que existe é só o
+   ledger — e o recompute **já a faz quiet**. Motivo: `rd-live-refused`.
+3. **Debrid-Link não participa** — `cacheCheck: false`, não há o que
+   consultar. Motivo: `no-cachecheck`.
+4. **Live só TorBox/Premiumize, pelo método CRU do adaptador via
+   `registry.BY_ID`** — GET de lote instantâneo. **Nunca** a camada
+   `debrid.checkCached()`: a orquestrada grava `davail`, `magnetdb`, métricas
+   `debrid.check.*` e notify — diagnóstico não pode escrever em lugar
+   nenhum. `live-check.ts` não importa `cache-check` nem `rd-ledger`
+   (defesa estrutural, não convenção).
+5. **`STREAM_TRACE_LIVE` default VAZIO = desligado.** CSV de serviços
+   permitidos; o operador opta explicitamente porque cada GET ao serviço é
+   quota da conta efetiva.
+6. **O kill-switch `STREAM_TRACE` desliga o live junto** — é o interruptor do
+   diagnóstico inteiro (captura, leitura, recompute E live). A revisão
+   independente pegou exatamente isso como bloqueante (B1: `mode=live`
+   executava rede sem consultar a sonda de capacidade); corrigido — com o
+   knob desligado ou o serviço recusado, a rota **responde sem tocar a
+   rede**.
+7. **Recompute é rotulado `now` e nunca causa histórica.** Um item que a
+   build cortou por `title-filter` e que hoje tem `bad` aparece como `bad` no
+   recompute — a foto de HOJE, não o motivo do sumiço. Matéria-prima é só o
+   que está quente no cache local via peeks quiet (`cache.peek` — não promove
+   LRU nem conta hit/miss); sem material devolve `no-material`/`no-names`,
+   **nunca inventa**, e nunca reescreve a entrada nem toca o debrid.
+8. **O payload nunca carrega hash, magnet, chave ou cacheKey cru.** O
+   serializado sanitiza o rótulo (`magnet:?…` → `<magnet>`, 40-hex → `<hash>`);
+   o live recebe hash interno e devolve só `id`/rótulo/veredito.
+9. **Gate no header `X-Indexer-Test-Token`, nunca `?token=`** — mesmo padrão
+   dos diagnósticos: sem `JACKETT_TEST_TOKEN` no `.env` a rota fica 503; com
+   token configurado, header errado/ausente é 401; rate limit via
+   `diagnosticGate`.
+10. **Caps: 300 itens por trace, rótulo truncado a 60 chars** (com `…`
+    reservando o último char); o recompute usa o mesmo teto de 300; o live
+    tem teto próprio (`STREAM_TRACE_LIVE_MAX_HASHES`, default 100, clamp
+    1..300) e timeout `STREAM_TRACE_LIVE_TIMEOUT_MS` (1500).
+11. **Sizing honesto no L1:** com o cap de 300 itens, o trace soma ~27 KB por
+    entrada — no teto do namespace `streams` (2000) são **~54 MB teóricos**,
+    contra **~13 MB observados** em produção local. `raw` (~79 MB) segue o
+    maior balde; a soma `raw + streams + idx` (~59 MB no pior caso) cabe no
+    container de 3g. Registrado no comentário de `cache-quotas.ts`.
+
+### P0 cirílico — o primeiro achado do trace
+
+A guarda HINDI da `streams:v7` (DUB genérico + nome de idioma estrangeiro não
+prova PT) tinha um buraco do mesmo formato: `[DUB]` em título **cirílico** é
+dublagem russa/ucraniana, não pt-BR. Medido **pelo `/stream-trace.json` ao
+vivo** (2026-09-01): 826 títulos únicos no índice, 50 com cirílico, **11
+classificados `looksPtBr=true` + `audio='Dublado'` via DUB genérico** — todos
+disputando vaga BR reservada anunciando pt-BR (ex.: `Во все тяжкие … [DUB]
+[Selena/Телеканал Че]`, canal russo).
+
+A direção do conserto é **só de ranking/promessa**: tira a vaga reservada e o
+`_dubbed`, e **não cria condenação de limpeza** — cirílico NÃO entra em
+`hasExplicitForeignAudio` nem no `foreignVerdict` (script não é prova positiva
+de idioma; título cirílico sem marca fica `unknown` e permanece coberto pelo
+invariante da Fase 8 "condenar só com prova durável"). PT explícito ao lado
+(`[DUB] … PT-BR`, `DUBLADO`) continua vencendo, fora do predicado. A faixa
+`а-яё` + as variantes ucranianas/bielorrussas (`і ї є ґ ў`) fecham por
+**script** em vez de caçar nome de idioma um por um.
+
+O bump `streams` v8→**v9** e `idx` v8→**v9** é obrigatório: o índice persiste
+`dubbed`/`isBr` por release com merge OR-aderente, e sem o bump as releases
+dos 11 títulos cirílicos já indexados como Dublado permaneceriam erradas até o
+TTL de semanas — mesma regra que a armadilha do classificador de qualidade já
+documenta.
+
+### Validação real (medida 2026-09-01, working tree)
+
+- **Gates:** `typecheck` 0; build verde; **1682/1682** testes;
+  `test:complete` **106+6** (os 3 arquivos novos — recompute, live, painel —
+  na lista explícita); catraca **baseline OK** (todos os módulos novos ≤ 400
+  no nascimento: 180/149/117/162/303).
+- **Ao vivo (local, serviço efetivo AllDebrid):** busca real →
+  `/stream-trace.json` respondeu `origin:cached` com o funil completo
+  **30→6→4** (raw→após ordenação→entregue) e os **26 cortes explicados por
+  item** com motivo e rótulo; `mode=live` recusado com `ad-hard-blocked`
+  honesto — sem tocar a rede; resposta **sem** hash/magnet/chave (zero
+  vazamento verificado no corpo).
+- **Prova de não-consumidor (fase 0+1, `ea15894`):** pipeline com o dublê da
+  API da AllDebrid, trace ligado × desligado sobre conjuntos isomórficos —
+  uploads/status/deletes **idênticos**: o ledger não é um consumidor novo da
+  conta.
+- Revisão independente sobre o working tree: bloqueante B1 (live sem gate)
+  corrigido; nada mais aberto conhecido no código.
+
+### O que falta (administrativo / produção)
+
+1. Push/deploy **só com autorização explícita** — bumps de `streams`/`idx`
+   esfriam lista e índice no boot (custo conhecido).
+2. Ligar `STREAM_TRACE_LIVE=torbox,premiumize` na VPS é decisão do operador,
+   não consequência do deploy.
+
+**Explicitamente fora:** live na AllDebrid ou no RD (contratos 1–2),
+recompute com rede, qualquer escrita no debrid a partir do diagnóstico,
+expor hash/chave no payload.
+
+**Rollback:** `git revert` da cadeia `ea15894`…`9eb98f4` (e bumps posteriores
+de namespace). Em runtime, `STREAM_TRACE=false` desliga os quatro modos de uma
+vez.
+
+---
+
+## MagnetDB — contadores duráveis, rebaixamento de lie e ações do painel (Fases 1–3) ✅ NO CÓDIGO (2026-09-09)
+
+> **Aviso de nome:** as "Fases 1–3" aqui são a numeração **interna do trabalho
+> MagnetDB** (contadores duráveis → ranking de `lie` → ações do painel). Não são
+> a Fase 1/2/3 deste plano (bugs AllDebrid / robustez / rede de testes), que já
+> fecharam antes.
+
+**Objetivo:** o banco de magnets (`mag:v1`) já guardava `alive`/`bad`/`lie` por
+hash, mas três coisas doíam: (a) as contagens do painel vinham de um `Map` que
+morria no restart — o operador via "banco vazio" logo após um deploy que não
+esvaziou nada; (b) a release que **mentiu o áudio** (`lie`) tocava, mas era
+tratada como qualquer outra no ranking; (c) não havia porta de auditoria/limpeza
+do banco pelo painel — só o `magnets.js` de linha de comando. As três fases
+fecham esses três pontos.
+
+**Status real (2026-09-09):**
+
+| Fase | Conteúdo | Estado |
+|---|---|---|
+| 1 — contadores duráveis O(1) | `mag_meta:v1:counts` (cota 1), `cache.onForget` decrementa, `loadPersistentCounts` restaura no boot decaindo TTL pelo tempo decorrido, `savePersistentCounts` no shutdown; `cache.has` evita dupla contagem | ✅ `fe4cd8c` |
+| 2 — rebaixamento de `lie` | `markLie`/`isLie`/`peekLie`; `instantSet` exclui lied; `dedupeByHash` prefere listagem limpa ao clone mentiroso; `sortAndLimit` rebaixa `_lied` abaixo da mesma qualidade e filtra em `dubbedOnly`; destrava `adprot` + `markLied` no índice | ✅ `fe4cd8c` |
+| 2b — challenger de ranking | `scripts/empirical-ranking-challenger.ts` (exposto como `npm run test:ranking-challenger`) | ✅ `fe4cd8c` |
+| 3 — ações do painel | `src/utils/magnetdb-inspect.ts` (L1 só) + `src/routes/dashboard-actions-magnet.ts`: `magnet-inspect`/`magnet-summary` (leitura) e `magnet-clear-bad` (destrutiva, `confirm`, teto 100) | ✅ `0b5c538` |
+| 1b — correção de relato | `loadPersistentCounts` reconta do L1 quando o agregado não abre (`rebuildFromL1`, O(namespace `mag`): 29,6 ms medidos em 50 mil chaves — cota cheia — uma vez no boot; **remedir se a cota crescer**); `forgetBadKey` decide presença por `cache.has`, fim do `cleared: 0` fantasma; parse único em `magnetdb-counts.ts` (mão única, sem ciclo) | ✅ `008eecd` |
+| 1c — extração + base do TTL | `magnetdb-persist.ts` (contadores, `mag_meta`, `onForget`, `ttlRemainingBasis`) extraído do `magnetdb.ts` (400 → 329 linhas, folga na catraca); painel qualifica a média (`l1-rebuild` × `aggregate-estimate`) em vez de chamá-la de exata após mutação; `test/magnetdb-persist-basis.test.ts` | ⏳ working tree (sem commit) |
+
+Código F1–3 commitado em `esm` (`fe4cd8c` + `0b5c538` + `008eecd`). **Não alegar
+DONE em produção** — deploy exige autorização explícita. A extração 1c
+(persistência + `ttlRemainingBasis`) está no working tree, ainda sem commit.
+
+### Contratos duros (não podem regredir)
+
+1. **Contagem nunca é scan.** As contagens por adapter/side são incrementadas na
+   escrita e decrementadas pelo hook `cache.onForget` (TTL e despejo por cota
+   passam por ele) — nenhum `SELECT` no SQLite no caminho do painel. O agregado
+   vive numa única chave `mag_meta:v1:counts` (cota 1); o `ttlRemainingSums` é
+   aproximação operacional (subtrai o TTL nominal, não o restante exato), então
+   **contagens são exatas, a média é conservadora**. `cache.has` (presença
+   física, incluindo expirado aguardando prune) é o critério único de "existia"
+   — impede o `markAlive`/`markBad`/`markLie` de contar duas vezes a mesma
+   chave na janela entre vencimento e poda, e é o que o `forgetBadKey` usa desde
+   `008eecd` (decidir por `peek` devolvia `cleared: 0` fantasma no
+   `magnet-clear-bad`). Quando o agregado não abre com o L1 cheio (primeiro boot
+   com `cache.db` herdado — o caso normal do rebuild do container), a
+   reconstrução é `rebuildFromL1`: O(namespace `mag`), uma vez no boot e no
+   autocura do `status()`, nunca no caminho de busca; medido em 50 mil chaves
+   (cota cheia), 29,6 ms — aceitável na cota atual, **remedir se `mag`
+   crescer**. A soma declara a própria base (`ttlRemainingBasis`): `l1-rebuild`
+   é o restante real de cada chave e vale só até a **primeira mutação** —
+   inclusive o `renewAlive` sem chave nova degrada para `aggregate-estimate` — e
+   o painel mostra o qualificador em vez de chamar de exata uma média que
+   envelheceu.
+2. **`lie` rebaixa, não apaga.** Não é `bad`: há vídeo, só que o play provou EN
+   onde o post prometia PT. O hash sai do `instantSet`, perde `_dubbed` no merge
+   (a listagem limpa vence o clone mentiroso do MESMO hash) e desaba abaixo de
+   qualquer alternativa da MESMA qualidade — antes de `preferDubbed`, prioridade
+   e o desempate ⚡. Com `dubbedOnly` (chave `d`) some da lista. Origem é só o
+   `DubLieError`, nunca a checagem de cache. `MAGNET_LIE=false` fecha a
+   gravação/leitura sem tocar em alive/bad.
+3. **Ações do painel são L1-só e não vazam credencial.** `magnet-inspect`/
+   `magnet-summary`/`magnet-clear-bad` enumeram via `keysMatching` +
+   `peek`/`peekRemaining` (sem query síncrona, sem promover LRU nem inflar
+   `cache.hit`), teto de **100 itens** por resposta/passagem (default 50),
+   filtros `adapterId`/`side`/`hash` validados (inválido é 400, não ignorado). O
+   parse das chaves `mag` **descarta o digest da conta** (`accountScope`) na
+   origem — nenhuma resposta expõe apiKey, scope nem chave completa; o hash
+   devolvido é o de conteúdo (40-hex). `magnet-clear-bad` é destrutiva
+   (`DESTRUCTIVE_ACTIONS`, `{"confirm": true}`), apaga **só** `bad` (preserva
+   `alive`/`lie` do mesmo hash) e é idempotente (repetir devolve `cleared: 0`).
+
+### Validação (medida 2026-09-09)
+
+- **Gates:** `typecheck` 0; build verde; suíte completa passando;
+  `test:complete` agora com **7 harnesses** (entrou o challenger de ranking);
+  catraca `lint:lines` OK. Tamanhos conforme medido: nasceram `magnetdb-inspect.ts`
+  131 e `dashboard-actions-magnet.ts` 130; em `008eecd` o parse foi para
+  `magnetdb-counts.ts` (73) e o inspect caiu a 116 — `magnetdb.ts` ficou em 400,
+  exato no teto; a extração pendente (`magnetdb-persist.ts`, 157) devolve o
+  `magnetdb.ts` a 329 e abre folga na catraca.
+- **Validação adversarial — por que `9a8c6dd` foi necessário:** após os splits
+  5.1/5.3/5.5, **8 das 10 mutações** do `empirical-e2e-challenger` estavam
+  vacuamente verdes — o `testFile` de cada uma apontava para suíte que não
+  exercitava mais o símbolo mutado (o alvo havia mudado de arquivo em `dist/`),
+  então a suíte passava com a injeção dentro e o harness não provava nada.
+  `9a8c6dd` realinhou 7 `testFile` para as suítes que alcançam o símbolo movido
+  (tier1-title-cache, tier2-invariants-security, tier2-providers-debrid,
+  tier3-pipeline) e a oitava exigiu teste novo: o **Step 5** do
+  tier4-application-scenarios reabre a MESMA chave dentro do TTL e exige
+  `max-age=900` do cache completo — o contrato que a MUT-10 (finish gravando
+  `partial:true`) ataca. As **10/10 mutações** voltaram a ser capturadas, além
+  das 20 repetições sequenciais e 6 workers paralelos. Lição permanente em
+  AGENTS.md: split exige realinhar o `testFile` e rodar o challenger.
+- **Sequência da documentação (lição de workflow):** a doc `fd4663d` registrou
+  as fases **antes** da releitura do código resultante; foi a releitura que expôs
+  os dois defeitos de **relato** — o painel mostrando zero com rótulo `duravel`
+  no primeiro boot com `cache.db` herdado (nenhuma busca afetada: os contadores
+  nunca alimentaram decisão) e o `magnet-clear-bad` devolvendo `cleared: 0`
+  fantasma ao apagar bad expirado não podado. `008eecd` fechou os dois, e a doc
+  ficou verdadeira a posteriori. Sequência ideal: **releitura/correção primeiro,
+  documentação depois** — doc escrita antes congela a promessa, não o
+  comportamento.
+- **Testes novos:** `magnet-db-persistence.test.ts` (persistência/restart,
+  transição bad↔alive, `forgetBad` durável, prune sem vazamento, regravar
+  expirado não infla), `magnet-db-empirical-challenge.test.ts` (transições
+  rápidas, isolamento entre 5 adaptadores, idempotência contra double-increment,
+  underflow no `forgetMany`), `dashboard-actions-magnet.test.ts` (enumeração sem
+  vazamento, filtros+teto, 400 em filtro inválido, summary sem hash, `confirm`
+  central, idempotência do clear-bad) e o harness `empirical-ranking-challenger`
+  (demotion de `lie` vs `preferDubbed` em todas as qualidades). `008eecd`
+  reforçou os dois primeiros com os testes dos bugs de relato — verificados
+  contra o código ANTIGO (falham lá, passam aqui); o da reconstrução usa hash
+  40-hex real porque hash de brinquedo morre no parse e o teste passaria sem
+  provar nada. O working tree adiciona `magnetdb-persist-basis.test.ts`
+  (reexportação pela fachada, degradação `l1-rebuild`→`aggregate-estimate` —
+  inclusive renovação sem chave nova —, payload estranho caindo no rebuild,
+  reset com L1 vazio e o qualificador no painel no módulo real `magnets.ts`).
+
+### O que falta (administrativo / produção)
+
+1. Deploy só com autorização — o painel passa a oferecer `magnet-clear-bad`
+   (destrutiva) atrás do token de diagnóstico.
+2. Commitar a extração do working tree (1c): `magnetdb-persist.ts`,
+   `ttlRemainingBasis`, qualificador no painel e o teste novo. Não muda decisão
+   de busca/ranking — é folga na catraca + honestidade no relato.
+
+**Explicitamente fora:** scan SQLite para contagem, `lie` vindo de checagem de
+cache, expor credencial/digest em qualquer resposta do painel, apagar `alive` ou
+`lie` pela ação de limpeza.
+
+**Rollback:** `MAGNET_DB=false` desliga o banco inteiro; `MAGNET_LIE=false` ou
+`MAGNET_LIE_TTL=0` fecha só o lado `lie` sem tocar em alive/bad; os contadores
+duráveis somem com o `mag_meta` (não há migração — `loadPersistentCounts` é
+tolerante a ausência e, com o L1 cheio, reconta do próprio L1 via
+`rebuildFromL1`).
+
+---
+
 ## Grafo de dependências
 
 ```
 Fase 0 (docs)      ✅ (0.6 README: nada a fazer — envs no .env.example)
 Fase 1 (B1,B2)     ✅ + 1.6/1.7 (refresh em fundo, achado da revisão)
-Fase 2 (S*,B3,B4)  ✅ — resíduo menor no 2.4 (rotação + backoff; 7.9)
+Fase 2 (S*,B3,B4)  ✅ — resíduo 2.4 fechado em 7.9
 Fase 3 (T1–T7)     ✅ — GATE da fase 5 satisfeito
 Fase 4             ✅ 4.1–4.3
    │
-   └─→ Fase 5 (refactors) ─→ Fase 6 (6.1–6.8; 6.3 janela; 6.7 medido)
-                                └─→ Fase 7 (operação) PLANEJADA
-                                      └─→ Fase 8 EM EXECUÇÃO (derivada do
-                                          diagnóstico do 7.2 aplicado)
-                                          8.2 na VPS; 8.4/8.15/8.14/8.16
-                                          em commits locais validados, sem push
+   └─→ Fase 5 (refactors) ─→ Fase 6 (6.1–6.8; 6.3 janela vencida sem decisão TTL; 6.7 medido)
+                                 └─→ Fase 7 (operação) — trilha C ✅; A/B parciais na VPS
+                                       └─→ Fase 8 no código (default OFF nos knobs destrutivos)
+                                           8.2 na VPS; peças duráveis commitadas
+
+Fase 9 (P5 observabilidade) ✅ no código (`ea15894`…`9eb98f4` + bumps v9/v10).
+Deploy em produção continua autorização explícita.
+
+MagnetDB F1–3 (contadores duráveis, ranking de lie, ações do painel) ✅ no código
+(`fe4cd8c` + `0b5c538` + `008eecd`, que fechou os dois bugs de relato). A
+extração `magnetdb-persist.ts` + `ttlRemainingBasis` está no working tree (sem
+commit). Independente das fases numeradas deste plano; não alegar DONE em
+produção sem deploy.
 ```
 
 - 5.1–5.7 são sequenciais entre si (mesmos arquivos), mas 5.2, 5.4 e 5.5 são
@@ -1183,20 +1538,23 @@ linhas), os dois maiores arquivos do repo, não existem mais como monólito.
 ## Validação global (por fase)
 
 ```
-npm run typecheck      # portão: ZERO
+npm run typecheck      # portão: ZERO nos três programas (raiz + cliente)
 npm run build          # dist/ atual (test roda dist)
-npm test               # 1.193 testes hoje, zero falha
-npm run test:complete  # lista explícita fechada
+npm test               # lista explícita em package.json; zero falha
+npm run test:complete  # lista explícita fechada + 10 harnesses
+npm run lint:lines -- --check  # teto de 400 linhas (baseline vazio)
 # fase 2+ (tocou runtime de rede/debrid):
 node dist/scripts/smoke.js          # pipeline ponta a ponta, rede de verdade
 # fase 5 (todas as subfases):
 npm run test:stress && npm run test:adversarial && npm run test:adversarial-m1 \
-  && npm run test:protector-m1 && npm run test:challenger-m2
+  && npm run test:protector-m1 && npm run test:challenger-m2 && npm run test:ranking-challenger
+# MagnetDB (ranking / rebaixamento de lie):
+npm run test:ranking-challenger
 ```
 
 **Não pode regredir:** invariante 1 (orçamento), vagas BR no corte final,
 `_campos` internos fora da resposta, SWR só serve lista completa+tocável,
-soma de cotas < teto global (30.500 < 36.000), métricas `magnetdb.dropped.*`
+soma de cotas < teto global (82.551 < 84.000), métricas `magnetdb.dropped.*`
 separadas.
 
 ## Riscos do próprio plano

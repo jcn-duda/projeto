@@ -8,6 +8,8 @@ import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import * as cache from '../utils/cache.js';
 import { opts } from '../runtime.js';
+import { accountScope } from '../utils/request-key.js';
+import * as protectedApi from '../debrid/protected.js';
 import { isDubLieError, isEpisodePickError } from '../debrid/common.js';
 import type { ApplyDebridOptions } from './debrid-pipeline-core.js';
 
@@ -42,6 +44,10 @@ export function collectAuditCandidates(
   const work = (s: Stream): WorkHint | undefined => (workHint ? { names: workHint.n, year: workHint.y, pack: Boolean(s._multiWork) } : undefined);
   const byHash = new Map<string, DubAuditCandidate>();
   for (const s of list) {
+    // Fallback do banco (Etapa 4) fica FORA: auditar um item de reserva
+    // dispararia resolveLink/auditoria de áudio por um hash que o vivo não
+    // confirmou nesta coleta — a prova de áudio não pode vir da reserva.
+    if (s._fromFallback) continue;
     if (!s.infoHash || !s._dubbed || !cached.has(s.infoHash)) continue;
     byHash.set(String(s.infoHash), {
       hash: String(s.infoHash),
@@ -54,6 +60,7 @@ export function collectAuditCandidates(
   }
   if (season != null && episode != null) {
     for (const s of list) {
+      if (s._fromFallback) continue;
       if (!s.infoHash || !cached.has(s.infoHash)) continue;
       const hash = String(s.infoHash);
       // A variante dublada já interrogará este hash — e o resultado dela vale
@@ -140,6 +147,11 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
         lies += 1;
         const adapter = debrid.current() as DebridAdapter | null;
         if (adapter) magnetdb.markLie(adapter.id, opts().debridApiKey, cand.hash);
+        if (adapter) {
+          // Release provou EN apesar da promessa de dublado: não é acervo BR
+          // confiável — destrava a proteção durável daquela conta/adapter.
+          protectedApi.unprotect(adapter.id, accountScope(opts().debridApiKey), cand.hash);
+        }
         if (cand.imdbId) releaseIndex.markLied(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash);
         if (cand.key) liedKeys.add(cand.key);
         for (const extra of cand.extraKeys || []) if (extra) liedKeys.add(extra);

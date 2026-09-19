@@ -1,124 +1,100 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { stubFetch } from './helpers/stub.js';
+import { configureHtml, resetClientEnvironment, installConfigureDom, loadClientModules } from './helpers/client.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// A página /configure deixou de ser HTML+JS inline ES5: o JS virou módulos TS
+// em src/client/configure, emitidos como ESM nativo. Estes testes importam o
+// emit de Node de verdade (via test/helpers/client.ts, import dinâmico) em vez
+// de regexar corpos de função no HTML; os testes estruturais continuam lendo o
+// configure.html. O que protege o browser agora é o client-esm.test.ts.
 
-// configure.html é HTML + JS ES5 servido cru, sem build e sem dependência.
-// Este teste lê o arquivo e extrai as partes estáveis com regex (presets,
-// collect/render, ramo de URL salva e switches). Sem DOM e sem rede — a
-// regressão do front fica protegida pela suíte pura.
-const HTML_PATH = path.join(__dirname, '..', 'src', 'public', 'configure.html');
-const html = fs.readFileSync(HTML_PATH, 'utf8');
+const html = configureHtml();
 
-// O objeto literal usa chaves sem aspas (ES5); cita as chaves e vira JSON.
-function parseObjectLiteral(text: any) {
-  const quoted = text.replace(/([{,]\s*)([A-Za-z_$][A-Za-z0-9_$]*)\s*:/g, '$1"$2":');
-  return JSON.parse(quoted);
+async function env() {
+  return resetClientEnvironment(html);
 }
 
-function sliceFunction(name: any) {
-  const match = html.match(new RegExp('function ' + name + '\\(\\) \\{[\\s\\S]*?\\n  \\}'));
-  assert.ok(match, 'function ' + name + ' não encontrada no configure.html');
-  return match[0];
-}
-
-function sliceNamedFunction(name: any) {
-  const start = html.indexOf('function ' + name + '(');
-  assert.notEqual(start, -1, 'function ' + name + ' não encontrada no configure.html');
-  const bodyStart = html.indexOf('{', start);
-  let depth = 0;
-  for (let i = bodyStart; i < html.length; i += 1) {
-    if (html[i] === '{') depth += 1;
-    if (html[i] === '}') depth -= 1;
-    if (depth === 0) return html.slice(start, i + 1);
-  }
-  assert.fail('function ' + name + ' não foi fechada no configure.html');
-}
-
-test('preset BR recomendado carrega as escolhas comportamentais novas', () => {
-  const match = html.match(/var PRESET_BEHAVIORS = (\{[\s\S]*?\n  \});/);
-  assert.ok(match, 'PRESET_BEHAVIORS não encontrado');
-  const presets = parseObjectLiteral(match[1]);
-
+test('preset BR recomendado carrega as escolhas comportamentais novas', async () => {
+  const { mods } = await env();
+  const presets = mods.view.PRESET_BEHAVIORS;
   const rec = presets.recommended;
-  // A página passou a ter UM controle de vagas por qualidade no lugar de seis.
-  // O 6 aqui era a cota de 'sem resolução' -- o balde das fontes BR, que não
-  // publicam resolução no título. O controle único herdou esse 6 em vez do 4 das
-  // demais qualidades: uniformizar por baixo cortaria vaga de BR em silêncio.
-  assert.equal(rec.maxPerQuality, 6, 'BR recomendado não pode encolher a cota das fontes sem resolução');
-  assert.equal(presets.powerBr.maxPerQuality, 6, 'Power Movie usa a mesma cota');
+  // O preset NÃO pode cair abaixo da reserva BR: com maxPerQuality < 6 o BR
+  // ainda entra pelas vagas reservadas, que atravessam a cota sem consumi-la.
+  assert.equal(rec.maxPerQuality, 3, 'BR recomendado acompanha a cota da instância');
+  assert.equal(presets.powerBr.maxPerQuality, 3, 'Power Movie usa a mesma cota');
+  assert.ok(rec.brReservedSlots >= rec.maxPerQuality, 'a reserva BR não pode ser menor que a cota');
   assert.equal(rec.excludeCam, true, 'BR recomendado oculta CAM');
   assert.equal(rec.showUncachedBr, false, 'BR recomendado mantém fora-do-cache escondido');
   assert.equal(rec.autoFetchBr, true, 'BR recomendado liga o autofetch');
-
   assert.equal(presets.powerBr.showUncachedBr, true, 'Power Movie mostra BR fora do cache');
 });
 
-test('render codifica collect() completo e não usa compactConfig', () => {
-  const render = sliceFunction('render');
-  assert.match(render, /encodeConfig\(collect\(\)\)/, 'render precisa codificar o collect() inteiro');
-  assert.equal(html.includes('compactConfig'), false, 'compactConfig não pode existir na página');
-
-  // collect é a fonte da URL: as opções novas precisam estar no conjunto.
-  const collect = sliceFunction('collect');
-  ['maxUnknown', 'excludeCam', 'showUncachedBr', 'autoFetchBr', 'brReservedSlots', 'streamNameStyle', 'streamNameShowSource'].forEach((key) => {
-    assert.match(collect, new RegExp('KEYS\\.' + key + '\\b'), 'collect() precisa incluir ' + key);
-  });
+test('copy do switch bu aponta Dual/gringo e a chave bu quando cachedOnly esconde BR', () => {
+  assert.match(html, /id="showUncachedBr"/);
+  assert.match(html, /sobram Dual\/gringo/);
+  assert.match(html, /<code>bu<\/code>/);
 });
 
-test('URL existente entra no ramo saved e não aplica preset', () => {
-  const match = html.match(/if \(saved !== null\) \{([\s\S]*?)\} else \{([\s\S]*?)\n      \}/);
-  assert.ok(match, 'ramo saved/else do estado inicial não encontrado');
+test('collect codifica o estado inteiro e render publica o segmento', async () => {
+  const { mods } = await env();
+  const { KEYS } = mods.keys;
+  mods.state.state.el.maxPerQuality.value = '3';
+  mods.state.state.el.maxResults.value = '40';
+  mods.state.state.el.streamNameStyle.value = 'verbose';
+  mods.state.state.el.streamNameShowSource.value = 'false';
+  const cfg = mods.view.collect();
+  assert.equal(cfg[KEYS.maxResults], 40);
+  ['maxUnknown', 'excludeCam', 'showUncachedBr', 'autoFetchBr', 'brReservedSlots', 'streamNameStyle', 'streamNameShowSource']
+    .forEach((key) => assert.ok(KEYS[key] in cfg, 'collect() precisa incluir ' + key));
+  ['max2160p', 'max1080p', 'max720p', 'max480p', 'maxSd', 'maxUnknown']
+    .forEach((key) => assert.equal(cfg[KEYS[key]], 3, key + ' recebe o valor único'));
 
-  const savedBranch = match[1];
-  const elseBranch = match[2];
-  assert.match(savedBranch, /apply\(mergeState\(initial, saved\)\)/, 'saved branch aplica o estado da URL');
-  assert.match(savedBranch, /setPresetChoice\("custom"\)/, 'saved branch marca como personalizado');
-  assert.doesNotMatch(savedBranch, /applyPreset/, 'saved branch não pode aplicar preset sobre a URL');
-  assert.match(elseBranch, /apply\(initial\)/, 'configure novo parte dos defaults');
-  assert.match(elseBranch, /applyPreset\("recommended"\)/, 'configure novo parte do preset recomendado');
+  // render() monta a URL de install a partir de collect(): o segmento tem que
+  // decodificar de volta ao mesmo estado.
+  mods.view.render();
+  const url = mods.state.state.el.installUrl.textContent as string;
+  const segment = url.replace('http://localhost:7000/', '').replace('/manifest.json', '');
+  const decoded = mods.keys.decodeConfig(segment);
+  assert.equal(decoded[KEYS.maxResults], 40);
+  assert.equal(decoded[KEYS.maxPerQuality] ?? decoded[KEYS.max1080p], 3);
 });
 
-// A página é de quem INSTALA o addon, não de quem opera a instância: a escolha
-// de provider (jackett/prowlarr/demo) e o teste de indexador sob demanda saíram
-// daqui -- o teste vive no painel, que já pede o token. Fixar isso evita que
-// eles voltem por hábito na próxima edição.
+test('initialPlan: URL existente vira custom e não aplica preset', async () => {
+  const { mods } = await env();
+  const defaults = { maxResults: 40, jackettIndexers: [{ id: 'bludv' }], providers: ['jackett'] };
+  const saved = mods.init.initialPlan(defaults, { maxResults: 7 });
+  assert.equal(saved.preset, 'custom');
+  assert.equal(saved.initial.maxResults, 7, 'a URL salva vence os defaults');
+  assert.equal('jackettIndexers' in saved.initial, false, 'o catálogo não é uma seleção');
+  const fresh = mods.init.initialPlan(defaults, null);
+  assert.equal(fresh.preset, 'recommended');
+  assert.equal(fresh.initial.maxResults, 40);
+});
+
 test('página não tem escolha de provider nem diagnóstico de indexador', () => {
   assert.equal(html.includes('id="providers"'), false, 'chips de provider saíram da página');
   assert.equal(html.includes('id="testIndexers"'), false, 'teste de indexador sai da página');
   assert.equal(html.includes('id="jackettTestToken"'), false, 'token de teste não pode ficar na página');
-  // Sem chip, mas a fonte de quem já usa outra (prowlarr) não pode ser reescrita:
-  // collect() devolve o que veio do link salvo ou dos defaults da instância.
-  const collect = sliceFunction('collect');
-  assert.match(collect, /cfg\[KEYS\.providers\] = providerChoice\(\);/);
-  const apply = sliceNamedFunction('apply');
-  assert.match(apply, /providerBase = state\.providers\.filter/);
-  assert.match(apply, /return name !== "torrentio"/);
 });
 
-// Um controle no lugar de seis. As SEIS chaves continuam indo na URL: o backend
-// (SCHEMA em src/runtime.js) não mudou e link antigo com cotas diferentes ainda
-// abre -- apply() mostra a maior delas para nenhuma vaga sumir sem o usuário pedir.
-test('vagas por qualidade são um controle só, e ele alimenta as seis chaves', () => {
+test('vagas por qualidade são um controle só, e apply mostra a maior cota do link antigo', async () => {
   assert.match(html, /id="maxPerQuality"/, 'o controle único precisa existir');
-  ['max2160p', 'max1080p', 'max720p', 'max480p', 'maxSd', 'maxUnknown'].forEach((id) => {
-    assert.equal(html.includes('id="' + id + '"'), false, id + ' não pode ter controle próprio');
+  ['max2160p', 'max1080p', 'max720p', 'max480p', 'maxSd', 'maxUnknown']
+    .forEach((id) => assert.equal(html.includes('id="' + id + '"'), false, id + ' não pode ter controle próprio'));
+  const { mods } = await env();
+  mods.init.apply({
+    providers: ['jackett'], qualities: [], maxResults: 40, minSeeders: 1, maxPerIndexer: 0,
+    brReservedSlots: 6, brOnly: false, dubbedOnly: true, preferDubbed: true, excludeCam: false,
+    maxSizeGb: 0, brFirst: true, debridService: '', debridCachedOnly: true,
+    showUncachedBr: false, autoFetchBr: true, max2160p: 1, max1080p: 5,
+    max720p: 2, max480p: 2, maxSd: 2, maxUnknown: 2,
   });
-  const collect = sliceFunction('collect');
-  assert.match(collect, /var perQuality = Number\(el\.maxPerQuality\.value\);/);
-  ['max2160p', 'max1080p', 'max720p', 'max480p', 'maxSd', 'maxUnknown'].forEach((key) => {
-    assert.ok(collect.includes('cfg[KEYS.' + key + '] = perQuality;'), key + ' recebe o valor único');
-  });
-  const apply = sliceNamedFunction('apply');
-  assert.match(apply, /el\.maxPerQuality\.value = Math\.max\(/, 'link antigo entra pela maior cota');
+  assert.equal(mods.state.state.el.maxPerQuality.value, '5', 'link antigo entra pela maior cota');
 });
 
 test('copy do autofetch e aviso AllDebrid acompanham o código', () => {
   assert.match(html, /id="adMagnetNotice"/, 'aviso de magnets AllDebrid precisa existir');
-  assert.match(html, /svc\.id !== "alldebrid"/, 'aviso AllDebrid só com esse serviço');
   assert.equal(html.includes('Um torrent por título'), false, 'teto do autofetch não é mais 1');
   assert.match(html, /até quatro por busca/, 'copy do switch descreve o teto atual');
 });
@@ -128,7 +104,6 @@ test('switches principais têm role=switch e aria-checked', () => {
   const re = /<button\b[^>]*\bclass="switch"[^>]*>/g;
   let m;
   while ((m = re.exec(html)) !== null) tags.push(m[0]);
-
   assert.equal(tags.length, 9, 'esperava os 9 switches (8 + toggle do Torrentio)');
   tags.forEach((tag) => {
     assert.match(tag, /\brole="switch"/, 'switch sem role=switch: ' + tag);
@@ -136,151 +111,230 @@ test('switches principais têm role=switch e aria-checked', () => {
   });
 });
 
-test('texto do toggle BLUDV é específico da fonte direta', () => {
-  assert.ok(
-    html.includes('Somente dublado na fonte direta BLUDV'),
-    'rótulo precisa citar a fonte direta BLUDV, não só "dublado"'
-  );
-  assert.match(html, /aria-label="Somente dublado na fonte direta BLUDV"/);
+test('texto de somente dublado explica BLUDV e bloqueio do seeds no Chupim', () => {
+  assert.match(html, /<strong>Somente dublado<\/strong>/);
+  assert.match(html, /Descarta versões legendadas do BLUDV e impede o Chupim de baixar torrents globais em inglês/);
+  assert.match(html, /aria-label="Somente dublado"/);
 });
 
-test('status dos indexadores é atualizado periodicamente sem reaplicar configuração', () => {
-  const refresh = sliceNamedFunction('refreshIndexerStatuses');
-  const poll = sliceNamedFunction('pollIndexerStatuses');
+test('statusText é honesto sem medição e formata idade', async () => {
+  const { mods } = await env();
+  assert.equal(mods.indexers.statusText(null), 'ainda não consultado');
+  assert.match(mods.indexers.statusText({ state: 'online', ms: 1500, checkedAt: new Date().toISOString() }), /online · 1\.5s · medido agora/);
+  const twoMinAgo = new Date(Date.now() - 120000).toISOString();
+  assert.match(mods.indexers.statusText({ state: 'offline', ms: null, checkedAt: twoMinAgo }), /offline · medido há 2 min/);
+  assert.doesNotMatch(mods.indexers.statusText({ state: 'slow', ms: null, checkedAt: null }), /desconhecido/);
+});
 
-  const interval = html.match(/var INDEXER_STATUS_POLL_MS = (\d+);/);
-  assert.ok(interval, 'intervalo do polling não encontrado');
-  assert.ok(Number(interval[1]) >= 5000 && Number(interval[1]) <= 30000,
-    'polling precisa atualizar rápido sem sobrecarregar o endpoint');
-  assert.match(html, /setInterval\(pollIndexerStatuses, INDEXER_STATUS_POLL_MS\)/);
-  assert.match(poll, /fetch\("\/defaults\.json\?statusAt=" \+ new Date\(\)\.getTime\(\)\)/,
-    'polling precisa evitar resposta de status em cache');
-  assert.match(poll, /indexerStatusPollInFlight = true/);
-  assert.match(poll, /indexerStatusPollInFlight = false/);
+test('refreshIndexerStatuses atualiza a medição sem reaplicar configuração', async () => {
+  const { mods } = await env();
+  mods.indexers.fillJackettIndexers([{ id: 'bludv', label: 'BLUDV', isBr: true }]);
+  const chip = mods.state.state.el.jackettIndexers.querySelectorAll('.indexer-toggle')[0];
+  chip.setAttribute('aria-pressed', 'false');
+  mods.indexers.refreshIndexerStatuses({ jackettIndexers: [{ id: 'bludv', status: { state: 'online', ms: 800, checkedAt: new Date().toISOString() } }] });
+  assert.equal(chip.getAttribute('aria-pressed'), 'false', 'refresh não pode mexer na seleção');
+  const statusText = mods.state.state.el.jackettIndexers.querySelectorAll('.status-text')[0].textContent;
+  assert.match(statusText, /online/);
+});
 
-  assert.match(refresh, /setIndexerStatus\(item\.id, latest\[item\.id\]\)/);
-  ['apply(', 'applyPreset(', 'fillJackettIndexers(', 'setChips(', 'setOn('].forEach((call) => {
-    assert.equal(refresh.includes(call), false, 'refresh de status não pode chamar ' + call);
+test('pollIndexerStatuses evita resposta em cache e colapsa chamadas concorrentes', async () => {
+  const { mods } = await env();
+  mods.indexers.fillJackettIndexers([{ id: 'bludv', label: 'BLUDV' }]);
+  const stub = stubFetch(() => ({ ok: true, json: async () => ({ jackettIndexers: [{ id: 'bludv', status: { state: 'online' } }] }) }));
+  try {
+    mods.indexers.pollIndexerStatuses();
+    mods.indexers.pollIndexerStatuses();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(stub.calls.length, 1, 'chamada concorrente não pode duplicar o fetch');
+    assert.match(stub.calls[0].url, /\/defaults\.json\?statusAt=\d+/);
+    assert.equal(mods.state.state.jackettIndexers[0].status.state, 'online');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('KEYS mapeia o limite individual por indexador para jl', async () => {
+  const { mods } = await env();
+  assert.equal(mods.keys.KEYS.indexerLimits, 'jl');
+});
+
+test('collectIndexerLimits serializa overrides inclusive 0 e omite o padrão geral', async () => {
+  const { mods } = await env();
+  mods.indexers.fillJackettIndexers([{ id: 'bludv', label: 'BLUDV' }]);
+  const select = mods.state.state.el.jackettIndexers.querySelectorAll('.indexer-limit')[0];
+  select.value = '';
+  assert.equal(mods.limits.collectIndexerLimits(), '');
+  select.value = '0';
+  assert.equal(mods.limits.collectIndexerLimits(), 'bludv:0');
+  select.value = '5';
+  assert.equal(mods.limits.collectIndexerLimits(), 'bludv:5');
+  assert.equal(mods.limits.parseIndexerLimit('21'), 20, 'clampa no intervalo do backend');
+  assert.equal(mods.limits.parseIndexerLimit('-1'), 0);
+});
+
+test('card de indexador ganha select individual com padrão geral, sem limite e 1..20', async () => {
+  const { mods } = await env();
+  mods.indexers.fillJackettIndexers([{ id: 'bludv', label: 'BLUDV' }]);
+  const select = mods.state.state.el.jackettIndexers.querySelectorAll('.indexer-limit')[0];
+  assert.equal(select.tagName, 'select');
+  assert.equal(select.children.length, 22, 'padrão + sem limite + 20 opções');
+  assert.equal(select.children[0].value, '');
+  assert.equal(select.children[0].textContent, 'padrão geral');
+  assert.equal(select.children[1].value, '0');
+  assert.equal(select.children[1].textContent, 'sem limite');
+  assert.match(select.children[21].value, /^20$/);
+  assert.match(select.getAttribute('aria-label'), /Limite individual/);
+});
+
+test('fromUrl restaura os limites por card sem togglar seleção', async () => {
+  const { mods } = await env();
+  mods.indexers.fillJackettIndexers([{ id: 'bludv', label: 'BLUDV' }]);
+  const segment = mods.keys.encodeConfig({ ji: 'bludv', jl: 'bludv:0' });
+  (globalThis as any).location.pathname = '/' + segment + '/configure';
+  const chip = mods.state.state.el.jackettIndexers.querySelectorAll('.indexer-toggle')[0];
+  chip.setAttribute('aria-pressed', 'true');
+  const parsed = mods.init.fromUrl();
+  assert.deepEqual(parsed.indexerLimits, { bludv: 0 });
+  assert.equal(chip.getAttribute('aria-pressed'), 'true', 'fromUrl não pode togglar cards');
+});
+
+test('apply restaura o select individual sem togglar o card', async () => {
+  const { mods } = await env();
+  mods.indexers.fillJackettIndexers([{ id: 'bludv', label: 'BLUDV' }]);
+  const select = mods.state.state.el.jackettIndexers.querySelectorAll('.indexer-limit')[0];
+  mods.init.apply({
+    providers: ['jackett'], qualities: [], maxResults: 40, minSeeders: 1, maxPerIndexer: 0,
+    brReservedSlots: 6, brOnly: false, dubbedOnly: true, preferDubbed: true, excludeCam: false,
+    maxSizeGb: 0, brFirst: true, debridService: '', debridCachedOnly: true,
+    showUncachedBr: false, autoFetchBr: true, jackettIndexers: ['bludv'], indexerLimits: { bludv: 0 },
   });
+  assert.equal(select.value, '0', 'restaura o override, inclusive 0');
 });
 
-test('status sem medição é honesto e polling mantém JavaScript ES5', () => {
-  const statusText = sliceNamedFunction('statusText');
-  const refresh = sliceNamedFunction('refreshIndexerStatuses');
-  const poll = sliceNamedFunction('pollIndexerStatuses');
-  const addedJs = statusText + refresh + poll;
-
-  assert.match(statusText, /return "ainda não consultado"/);
-  assert.doesNotMatch(statusText, /desconhecido/);
-  assert.match(statusText, /medido há/);
-  assert.doesNotMatch(addedJs, /\b(?:const|let|class|async|await)\b|=>|`/,
-    'status precisa continuar compatível com WebViews ES5');
+test('providerChoice recompõe a lista: base intacta + torrentio quando há base de busca', async () => {
+  const { mods } = await env();
+  mods.state.state.providerBase = ['jackett'];
+  mods.state.state.torrentioOn = false;
+  assert.equal(mods.view.providerChoice(), 'jackett');
+  mods.state.state.torrentioOn = true;
+  assert.equal(mods.view.providerChoice(), 'jackett,torrentio');
+  mods.state.state.providerBase = ['demo'];
+  assert.equal(mods.view.providerChoice(), 'demo', 'demo isola o pool');
+  mods.state.state.providerBase = [];
+  assert.equal(mods.view.providerChoice(), 'torrentio', 'base vazia com toggle ligado é torrentio-only');
 });
 
-
-test('KEYS mapeia o limite individual por indexador para jl', () => {
-  assert.match(html, /indexerLimits: "jl"/);
+test('modo demo isola o pool do Torrentio (sem rede)', async () => {
+  const { mods } = await env();
+  mods.init.apply({
+    providers: ['demo'], qualities: [], maxResults: 40, minSeeders: 1, maxPerIndexer: 0,
+    brReservedSlots: 6, brOnly: false, dubbedOnly: true, preferDubbed: true, excludeCam: false,
+    maxSizeGb: 0, brFirst: true, debridService: '', debridCachedOnly: true, showUncachedBr: false, autoFetchBr: true,
+  });
+  assert.equal(mods.state.state.el.torrentioRow.hidden, true);
+  assert.equal(mods.state.state.torrentioOn, false);
 });
 
-test('collect inclui os limites individuais por indexador', () => {
-  const collect = sliceFunction('collect');
-  assert.match(collect, /KEYS\.indexerLimits\b/);
-  assert.match(collect, /collectIndexerLimits\(\)/);
+test('apply separa torrentio da base e restaura o toggle preservando a ordem', async () => {
+  const { mods } = await env();
+  // O elemento real tem role=switch; o getAttribute('role') decide entre
+  // aria-checked e aria-pressed no setOn.
+  mods.state.state.el.torrentioToggle.setAttribute('role', 'switch');
+  mods.init.apply({
+    providers: ['jackett', 'torrentio'], qualities: [], maxResults: 40, minSeeders: 1, maxPerIndexer: 0,
+    brReservedSlots: 6, brOnly: false, dubbedOnly: true, preferDubbed: true, excludeCam: false,
+    maxSizeGb: 0, brFirst: true, debridService: '', debridCachedOnly: true, showUncachedBr: false, autoFetchBr: true,
+  });
+  assert.deepEqual(mods.state.state.providerBase, ['jackett']);
+  assert.equal(mods.state.state.torrentioOn, true);
+  assert.equal(mods.state.state.el.torrentioToggle.getAttribute('aria-checked'), 'true');
 });
 
-test('card de indexador ganha select individual com padrão geral, sem limite e 1..20', () => {
-  const fill = sliceNamedFunction('fillJackettIndexers');
-  assert.match(fill, /createElement\("select"\)/);
-  assert.match(fill, /className = "indexer-limit"/);
-  assert.match(fill, /defaultOption\.value = ""/, 'padrão geral é vazio');
-  assert.match(fill, /defaultOption\.textContent = "padrão geral"/);
-  assert.match(fill, /unlimitedOption\.value = "0"/, '0 é override explícito de sem limite');
-  assert.match(fill, /unlimitedOption\.textContent = "sem limite"/);
-  assert.match(fill, /limitValue <= 20/, 'opções numéricas vão de 1 a 20');
-  assert.match(fill, /limit\.setAttribute\("aria-label"/);
+test('fromUrl reconhece `+` como separador de lista junto da vírgula', async () => {
+  const { mods } = await env();
+  const segment = mods.keys.encodeConfig({ p: 'jackett+torrentio' });
+  (globalThis as any).location.pathname = '/' + segment + '/configure';
+  const parsed = mods.init.fromUrl();
+  assert.deepEqual(parsed.providers, ['jackett', 'torrentio']);
 });
-
-test('collectIndexerLimits serializa overrides inclusive 0 e omite o padrão geral', () => {
-  const collectLimits = sliceNamedFunction('collectIndexerLimits');
-  assert.match(collectLimits, /querySelectorAll\("\.indexer-limit"\)/);
-  assert.match(collectLimits, /if \(value === ""\) return;/, 'só o padrão geral (vazio) fica fora');
-  assert.match(collectLimits, /result\.push\(id \+ ":" \+ limit\)/, 'serializa id:limite');
-  // parseIndexerLimit aceita "0": o override de sem limite entra na URL.
-  const parse = sliceNamedFunction('parseIndexerLimit');
-  assert.ok(parse.includes('/^-?\\d+$/'), 'aceita inteiro, incluindo "0"');
-  assert.match(parse, /Math\.min\(20, Math\.max\(0, number\)\)/, 'clampa no mesmo intervalo do backend');
-});
-
-test('fromUrl restaura os limites por card sem togglar seleção', () => {
-  const fromUrl = sliceNamedFunction('fromUrl');
-  assert.match(fromUrl, /KEYS\.indexerLimits/);
-  assert.match(fromUrl, /state\.indexerLimits = normalizeIndexerLimits\(/);
-  assert.equal(fromUrl.includes('setChips('), false, 'fromUrl não pode togglar cards');
-  assert.equal(fromUrl.includes('setOn('), false, 'fromUrl não pode togglar switches');
-});
-
-test('apply restaura o select individual sem togglar o card', () => {
-  const apply = sliceNamedFunction('apply');
-  const match = html.match(/var savedLimits = normalizeIndexerLimits\(state\.indexerLimits\);[\s\S]*?\n    \}\);?/);
-  assert.ok(match, 'bloco de restauração dos limites não encontrado');
-  const block = match[0];
-  assert.match(block, /querySelectorAll\("\.indexer-limit"\)/);
-  assert.match(block, /select\.value = Object\.prototype\.hasOwnProperty\.call\(savedLimits, id\)/);
-  assert.match(block, /String\(savedLimits\[id\]\)/, 'restaura o override, inclusive 0');
-  assert.match(block, /: ""/, 'sem override volta para o padrão geral');
-  assert.equal(block.includes('setChips('), false, 'restaurar limite não pode togglar cards');
-  assert.equal(block.includes('setOn('), false, 'restaurar limite não pode togglar switches');
-});
-
-test('código de limite por card mantém JavaScript ES5', () => {
-  const start = html.indexOf('function parseIndexerLimit');
-  const end = html.indexOf('function statusText');
-  assert.ok(start !== -1 && end !== -1 && end > start, 'funções do limite não encontradas');
-  const added = html.slice(start, end);
-  assert.doesNotMatch(added, /\b(?:const|let|class|async|await)\b|=>|`/,
-    'JS dos limites precisa continuar compatível com WebViews ES5');
-});
-
-// --- Pool global Torrentio (Fase 1): toggle específico, nunca seletor genérico. ---
-// A página não ganhou um seletor de fonte de novo; só um switch que liga/desliga
-// o 'torrentio' na lista de providers ('p'), preservando a base (jackett/prowlarr/
-// demo). O mesmo toggle fecha quando não há fonte de busca real (modo demo).
 
 test('toggle do pool global Torrentio existe e é switch específico, não seletor', () => {
   assert.match(html, /class="switch" id="torrentioToggle"/);
   assert.match(html, /aria-label="Pool global Torrentio"/);
-  assert.match(html, /role="switch"/);
-  // Continua SEM diagnóstico e SEM seletor genérico de fonte.
   assert.equal(html.includes('id="providers"'), false, 'seletor de fonte não pode reaparecer');
   assert.equal(html.includes('id="testIndexers"'), false, 'teste de indexador continua fora');
-  assert.equal(html.includes('id="jackettTokenTest"'), false, 'token de teste segue no painel');
 });
 
-test('providerChoice() recompõe a lista: base intacta + torrentio quando há base de busca', () => {
-  assert.match(html, /var providerBase = \["jackett"\]/);
-  assert.match(html, /var torrentioOn = false/);
-  assert.notEqual(html.indexOf('function providerChoice()'), -1, 'providerChoice passou a ser função');
-  assert.match(html, /if \(torrentioOn && hasSearchBase\(\)\) list\.push\("torrentio"\)/);
-  assert.match(html, /if \(!list\.length\) list\.push\("jackett"\)/);
+test('a página carrega só o entry ESM, sem script inline', () => {
+  assert.match(html, /<script type="module" src="\/client\/configure\/entry\.js"><\/script>/);
+  assert.equal(html.includes('configure-app.js'), false, 'a casca antiga saiu da página');
+  assert.equal(/<script>\s*"use strict"/.test(html), false, 'não pode sobrar script inline');
 });
 
-test('modo demo isola o pool do Torrentio (sem rede)', () => {
-  // A base exige uma fonte de busca real: só 'demo' não oferece o toggle.
-  assert.match(html, /providerBase\.some\(function \(name\) \{ return name !== "demo"; \}\)/);
-  const apply = sliceNamedFunction('apply');
-  assert.match(apply, /el\.torrentioRow\.hidden = !offerTorrentio/);
-  assert.match(apply, /if \(!offerTorrentio\) torrentioOn = false/);
+test('markup real expõe data-preset/data-value/aria que o cliente lê', () => {
+  // O Fake DOM do helper parseia este markup; ancorar os atributos impede que
+  // uma edição no HTML deixe o teste executando um DOM irreal.
+  assert.match(html, /<button type="button" class="preset" data-preset="recommended" aria-pressed="false">/);
+  assert.match(html, /<button type="button" class="preset" data-preset="powerBr"/);
+  assert.match(html, /<button type="button" class="preset" data-preset="custom"/);
+  ['2160p', '1080p', '720p', '480p'].forEach((value) => {
+    assert.match(html, new RegExp('<button type="button" class="chip" data-value="' + value + '"'));
+  });
+  assert.match(html, /class="switch" id="brFirst" role="switch" aria-checked="true"/);
+  assert.match(html, /class="switch" id="brOnly" role="switch" aria-checked="false"/);
 });
 
-test('aplica separa torrentio da base e restaura o toggle preservando a ordem', () => {
-  const d = sliceNamedFunction('apply');
-  assert.match(d, /providerBase = state\.providers\.filter/);
-  assert.match(d, /torrentioOn = state\.providers\.indexOf\("torrentio"\) !== -1/);
-  assert.match(d, /setOn\(el\.torrentioToggle, torrentioOn\)/);
-  assert.equal(d.includes('providerBase = state.providers.join'), false);
-});
-
-test('fromUrl reconhece `+` como separador de lista junto da vírgula', () => {
-  const fromUrl = sliceNamedFunction('fromUrl');
-  assert.ok(fromUrl.includes('split(/[,+]/)'), 'toList separa por `+` além da vírgula');
+test('init() liga o DOM, clica chip/preset e publica a URL a partir do markup real', async () => {
+  const dom = installConfigureDom(html);
+  const mods = await loadClientModules();
+  mods.state.resetConfigureState();
+  const originalSetInterval = (globalThis as any).setInterval;
+  // init() agenda o polling; o interval manteria o processo de teste vivo.
+  (globalThis as any).setInterval = () => 0;
+  const defaults = {
+    addonName: 'Adon Teste', providers: ['jackett'], qualities: ['1080p'],
+    jackettIndexers: [{ id: 'bludv', label: 'BLUDV', isBr: true }, { id: 'comando', label: 'Comando' }],
+    jackettIndexersSelected: ['bludv'],
+    maxResults: 40, minSeeders: 1, maxPerIndexer: 0, brReservedSlots: 6,
+    brOnly: false, dubbedOnly: true, preferDubbed: true, excludeCam: false, maxSizeGb: 0,
+    max2160p: 3, max1080p: 3, max720p: 3, max480p: 3, maxSd: 3, maxUnknown: 3,
+    brFirst: true, debridService: '', debridApiKey: '', debridCachedOnly: true,
+    showUncachedBr: false, autoFetchBr: true, streamNameStyle: 'compact', streamNameShowSource: true,
+    services: [{ id: 'alldebrid', label: 'AllDebrid', cacheCheck: true, keyUrl: 'https://alldebrid.com/' }],
+    sealKeyEnabled: false,
+  };
+  const stub = stubFetch(() => ({ ok: true, json: async () => defaults }));
+  try {
+    mods.init.init();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Binding pelo markup real: switch com role/aria e inputs do range.
+    assert.equal(mods.state.state.el.brFirst.getAttribute('role'), 'switch');
+    assert.equal(mods.state.state.el.brFirst.getAttribute('aria-checked'), 'true');
+    assert.equal(mods.state.state.el.debridService.children.length, 1, 'serviço populado no select');
+    assert.equal(mods.state.state.el.jackettIndexers.querySelectorAll('.indexer-toggle').length, 2, 'cards de indexador criados');
+    assert.equal(mods.state.state.el.maxResults.value, '40', 'apply escreve o valor do default');
+    assert.equal(dom.document.title, 'Adon Teste — Configurar', 'marca vem do defaults.json');
+    const chip1080 = mods.state.state.el.qualities.querySelectorAll('.chip').find((c: any) => c.getAttribute('data-value') === '1080p');
+    assert.equal(chip1080.getAttribute('aria-pressed'), 'true', 'qualities do defaults liga o chip');
+    // Clique de chip de qualidade: listener no container, ancestral chip.
+    const chip720 = mods.state.state.el.qualities.querySelectorAll('.chip').find((c: any) => c.getAttribute('data-value') === '720p');
+    mods.state.state.el.qualities.dispatch('click', { target: chip720 });
+    assert.equal(chip720.getAttribute('aria-pressed'), 'true');
+    // Clique de preset "recommended": reaplica e marca o botão.
+    const recommended = mods.state.state.el.presets.querySelectorAll('.preset').find((p: any) => p.getAttribute('data-preset') === 'recommended');
+    mods.state.state.el.presets.dispatch('click', { target: recommended });
+    assert.equal(recommended.getAttribute('aria-pressed'), 'true');
+    assert.equal(mods.state.state.el.brOnly.getAttribute('aria-checked'), 'false', 'preset recommended desliga brOnly');
+    // URL renderizada a partir do estado clicado.
+    const url = String(mods.state.state.el.installUrl.textContent);
+    const segment = url.replace('http://localhost:7000/', '').replace('/manifest.json', '');
+    const decoded = mods.keys.decodeConfig(segment);
+    assert.equal(decoded[mods.keys.KEYS.maxResults], 40);
+    assert.equal(decoded[mods.keys.KEYS.brOnly], 0);
+    assert.ok(String(decoded[mods.keys.KEYS.qualities]).includes('720p'), 'chip clicado entra na URL');
+  } finally {
+    stub.restore();
+    (globalThis as any).setInterval = originalSetInterval;
+    dom.cleanup();
+  }
 });

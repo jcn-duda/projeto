@@ -80,12 +80,37 @@ function decodeEntities(text = '') {
     });
 }
 
+// Letras latinas que são letra própria no Unicode, não base + acento: o NFD não
+// as separa e o replace das combining marks não as alcança. Medido em My Name
+// Is Farah (2026-09-13): o original "Adım Farah" tem o ı turco sem ponto, as
+// releases escrevem "Adim Farah", e o filtro de título recusava todas elas.
+const LATIN_FOLD: Record<string, string> = {
+  ı: 'i', ł: 'l', Ł: 'L', đ: 'd', Đ: 'D', ø: 'o', Ø: 'O',
+  ß: 'ss', ẞ: 'SS', æ: 'ae', Æ: 'AE', œ: 'oe', Œ: 'OE',
+};
+const LATIN_FOLD_RE = /[ıłŁđĐøØßẞæÆœŒ]/g;
+
+function foldLatinLetters(s: string) {
+  return s.replace(LATIN_FOLD_RE, (letter) => LATIN_FOLD[letter] ?? letter);
+}
+
 function normalizeTitle(s = '') {
-  return String(s)
-    .toLowerCase()
+  // \p{M} é obrigatório, não opcional: o .normalize('NFD') da linha anterior
+  // separa dakuten/vogais-marca (japonês, hindi, tailandês) como combining
+  // marks fora de ̀-ͯ; sem \p{M} elas viram espaço e "すずめの戸締まり" sairia
+  // "すす めの戸締まり". CJK/cirílico sem espaço vira UM token — casa só com
+  // release que escreve o título igual (restritivo, nunca permissivo); todo
+  // caso latino sai byte-idêntico ao filtro antigo.
+  //
+  // Além das combining marks, o segundo replace remove os compat chars do
+  // Latin-1 que o filtro antigo ([^a-z0-9]) também descartava: ordinais
+  // (ª º — "2ª Temporada" tem que virar "2"), superscritos numéricos
+  // (¹²³⁰⁴⁵⁶⁷⁸⁹), micro (µ) e fracções (¼½¾). Sem isso o ordinal viraria
+  // token e o parse de temporada perderia o número.
+  return foldLatinLetters(String(s).toLowerCase())
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[\u0300-\u036f\u00aa\u00ba\u00b2\u00b3\u00b9\u00b5\u00bc\u00bd\u00be\u2070\u2074-\u2079]/g, '')
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ')
     .trim();
 }
 
@@ -98,7 +123,30 @@ function normalizeTitle(s = '') {
  * 5 indexers BR); os globais lidam bem com acento e não passam por aqui.
  */
 function stripDiacritics(s = '') {
-  return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return foldLatinLetters(String(s)).normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics };
+/**
+ * Deduplica nomes de obra por forma NORMALIZADA, preservando a ordem e a
+ * primeira grafia de cada um. O Cinemeta repete o `original` no `title` e o
+ * canônico inglês coincide com o original em obra anglófona: sem isto o filtro
+ * e a dica `w` carregavam duplicatas.
+ *
+ * Nome que normaliza para vazio (título só de pontuação/CJK degenerado) NÃO
+ * entra no dedupe: removê-lo poderia esvaziar `names` e desligar o filtro de
+ * título — o gate tem que decidir "sem nome", não a deduplicação.
+ */
+function dedupeNames(names: Array<string | null | undefined>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (typeof name !== 'string' || !name) continue;
+    const norm = normalizeTitle(name);
+    if (norm && seen.has(norm)) continue;
+    if (norm) seen.add(norm);
+    out.push(name);
+  }
+  return out;
+}
+
+export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics, dedupeNames };

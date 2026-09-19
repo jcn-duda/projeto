@@ -32,6 +32,9 @@ o filtro pré-checagem do `applyDebrid` e o desempate `instant` do `sortAndLimit
    vídeo; `dead` = estado terminal no recheck do autofetch, chave
    `autofetch:v3:dead:`). Não unificar.
 5. Kill-switches: `MAGNET_DB=false`, `MAGNET_ALIVE_TTL=0`, `MAGNET_BAD_TTL=0`.
+6. Cota L1 `mag=50000` (teto global 84000). Capacidade ≠ permanência — quem
+   expira é o TTL. Painel: `magnetdb.l1Max` deve ser 50000 (via `QUOTAS.mag`;
+   fallback 0, nunca literal 2000). `l1Entries` ≠ amostra sizeAlive/Bad/Lie.
 
 ## Contrato de saída (auditoria)
 

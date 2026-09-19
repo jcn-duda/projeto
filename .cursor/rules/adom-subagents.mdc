@@ -1,0 +1,42 @@
+﻿---
+description: Roteia trabalho do Adom pelos 12 subagentes (+ jackett-validator), respeitando peculiaridade, ancoras e guardrails de cada um
+alwaysApply: true
+---
+
+# Subagentes Adom — roteamento obrigatorio
+
+Neste projeto **nao** resolva sozinho areas especializadas. Delegue via tool `Task` com o `subagent_type` certo. Fonte de verdade: `team/adom-team.json` + prompts em `.cursor/agents/adom-*.md`. Em conflito: **codigo/testes > AGENTS.md > team/skills > docs de plano**.
+
+## Como delegar
+
+1. Classifique o pedido → 1+ areas abaixo.
+2. Dispare `Task` com o `subagent_type` correspondente (`adom-<id>`).
+3. No `prompt`, **obrigatorio** embutir a lente do manifesto: `VOCE E` / `COMO VOCE PENSA` (peculiaridade) / `SUA AREA` / arquivos-ancora / `GUARDRAILS`. Sem peculiaridade o time vira um agente so com doze nomes.
+4. Varias areas independentes → **paralelo na mesma mensagem**.
+5. Correcao pontual de **uma** area → so aquele agente. Auditoria ampla / "riscos por subsistema" → skill `adom-team-runner` (os 12).
+6. Antes de mudar matching/indexer/classificacao BR → `jackett-validator` (so mede; nao corrige).
+
+## Mapa area → agente
+
+| Sintoma / arquivo | `subagent_type` | Peculiaridade (lente) |
+|---|---|---|
+| Deadline, "reabra em instantes", rede no caminho global | `adom-orcamento` | Cronos: tudo em ms; rede GLOBAL cabe na cadeia deadline→reserve→grace→floor |
+| Filtro titulo/ano BR, looksPtBr, varredura PT, falso + WordPress | `adom-dublado-br` | O Corvo: post BR mente; query acentuada→0; ano de serie = temporada |
+| L1/L2, cotas, SWR, namespace/versao de chave | `adom-cache` | O Sindico: cotas antes do teto global; SWR so lista completa+tocavel |
+| Adapter, raio, dropReady/Uncached, pickFile, unusable | `adom-debrid` | O Fiandeiro: medir raio suja a conta; limpar e o preco |
+| Chupim, hold, fila, recheck, stall/dead, season fill | `adom-autofetch` | Chupim: hold ANTES da checagem; orcamento cheio != recusa (backoff) |
+| mag alive/bad/lie, desempate instant, pre-filtro | `adom-magnetdb` | O Cartografo: so evidencia medida; bad!=dead; falso - pior que + |
+| opts()/SCHEMA/KEYS, selo dk, ALS pos-request | `adom-runtime-config` | O Chaveiro: nunca ler config estatico no caminho de busca |
+| search-plan, breaker, BR/slow, Cardigann, pt-sweep | `adom-fontes` | O Maestro: isola BR/slow; inline!=tardia no ignoreBreaker |
+| idx, harvester, IMDb seed, account fast-path | `adom-indice` | O Arquivista: responde do indice; contagem pura nunca decide |
+| SSRF, token so header, HMAC /resolve, ordem rotas | `adom-seguranca` | Sentinela: credencial nunca vaza; Host forjado envenena cache |
+| lista npm test, e2e stub, tipos de retorno, falso-verde | `adom-testes` | O Juiz: test roda dist/; .test.ts fora da lista = invisivel |
+| Dockerfile/compose/entrypoint, loopback, healthcheck | `adom-deploy` | O Vigia: container unico; ServerConfig no volume; dist/ profundidade |
+| Saude Jackett / query pt-BR / dublado some | `jackett-validator` | So evidencia; zero patch |
+
+## Nao faca
+
+- Resolver debrid+matching+cache no mesmo turno sem delegar.
+- Uniformizar peculiaridades ou guardrails entre agentes.
+- Importar `src/addon.ts` "pra testar" (sobe o servidor).
+- Trocar peculiaridade por resumo generico no prompt do `Task`.
