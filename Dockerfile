@@ -78,6 +78,7 @@ COPY jackett-bludv/torrentdosfilmesv2.yml /app/Jackett/Definitions/torrentdosfil
 COPY jackett-bludv/vacatorrent.yml /app/Jackett/Definitions/vacatorrent.yml
 COPY jackett-bludv/redetorrent-cardigann.yml /app/Jackett/Definitions/redetorrent-cardigann.yml
 COPY jackett-bludv/apachetorrent-cardigann.yml /app/Jackett/Definitions/apachetorrent-cardigann.yml
+COPY jackett-bludv/hdrtorrent-cardigann.yml /app/Jackett/Definitions/hdrtorrent-cardigann.yml
 
 # --- FlareSolverr: scripts são puro python; o chromedriver glibc da imagem
 # oficial NÃO roda em alpine. O código checa exatamente /app/chromedriver,

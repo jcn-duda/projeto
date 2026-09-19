@@ -144,14 +144,21 @@ describe('entrypoint: bootstrap de indexers no volume do Jackett', () => {
   });
 });
 
-// O HDR foi REATIVADO: o resolver local (porta 8707) contorna a busca
-// quebrada do site raspando as páginas de listagem. O card volta do
-// `-disabled` para o diretório ativo via `reactivate_parked_card`; o id
-// `hdrtorrent-cardigann` está nas listas do addon (src/config/jackett.ts).
-// O stock C# antigo continua estacionado se existir.
-describe('entrypoint: HDR reativado via resolver local', () => {
-  test('reativa o card do diretório de desativados para o ativo', () => {
-    assert.match(script, /reactivate_parked_card hdrtorrent/);
+// O HDR foi REATIVADO via o card Cardigann do resolver local (porta 8707), que
+// contorna a busca quebrada do site raspando as páginas de listagem. O card
+// ATIVO precisa do nome da DEFINIÇÃO (`hdrtorrent-cardigann.json` — é o
+// filename que vira o id no Jackett); o id `hdrtorrent-cardigann` está nas
+// listas do addon (src/config/jackett.ts) e o stock C# `hdrtorrent.json`
+// continua estacionado.
+//
+// Medido no Docker local (2026-09-19): o par antigo
+// `reactivate_parked_card hdrtorrent` + `park_stock_indexer hdrtorrent` era
+// ping-pong do MESMO arquivo stock — reativava e reestacionava em seguida, e o
+// catálogo do Jackett ficava SEM o `hdrtorrent-cardigann` enquanto o addon o
+// listava.
+describe('entrypoint: HDR via card Cardigann do resolver local', () => {
+  test('reativa o card do id Cardigann do diretório de desativados para o ativo', () => {
+    assert.match(script, /reactivate_parked_card hdrtorrent-cardigann/);
     assert.match(
       script,
       /reactivate_parked_card\(\) \{[\s\S]*?local card="\$dir\/\$id\.json"[\s\S]*?local parked="\$disabled\/\$id\.json"/,
@@ -162,14 +169,33 @@ describe('entrypoint: HDR reativado via resolver local', () => {
     assert.match(body, /\[ -e "\$card" \] && return 0/);
   });
 
-  test('o stock C# do HDR sai do diretório ativo (parked)', () => {
+  test('cria o card ativo se ausente, com o sitelink do domínio novo', () => {
+    assert.match(script, /local hdr_card="\$dir\/hdrtorrent-cardigann\.json"/);
+    assert.match(script, /if \[ ! -e "\$hdr_card" \]; then/);
+    assert.match(script, /write_indexer_card "\$hdr_tmp" 'https:\/\/hdrtorrents\.net\/'/);
+    assert.match(script, /mv "\$hdr_tmp" "\$hdr_card" 2>\/dev\/null; then/);
+    assert.match(script, /rm -f "\$hdr_tmp" 2>\/dev\/null \|\| true/);
+    assert.match(script, /indexer Cardigann hdrtorrent-cardigann registrado/);
+  });
+
+  test('o stock C# do HDR sai do diretório ativo e SEM ping-pong', () => {
     assert.ok(
       script.includes('park_stock_indexer hdrtorrent'),
       'o stock C# do HDR continua sendo estacionado',
     );
-    const reactivateAt = script.indexOf('reactivate_parked_card hdrtorrent');
-    const parkAt = script.indexOf('park_stock_indexer hdrtorrent');
+    const reactivateAt = script.search(/^\s*reactivate_parked_card hdrtorrent-cardigann\s*$/m);
+    const parkAt = script.search(/^\s*park_stock_indexer hdrtorrent\s*$/m);
+    assert.ok(reactivateAt !== -1 && parkAt !== -1, 'os dois calls precisam existir');
     assert.ok(reactivateAt < parkAt, 'reativar antes de estacionar o stock evita conflito');
+    // O par antigo reativava o MESMO arquivo stock e o reestacionava em seguida:
+    // o card ativo nunca nascia e o catálogo ficava sem o id novo. Busca
+    // ancorada em linha inteira: o prefixo `hdrtorrent-cardigann` não casa por
+    // engano e o comentário acima (que cita os dois calls inline) não conflita.
+    assert.doesNotMatch(
+      script,
+      /^\s*reactivate_parked_card hdrtorrent\s*$/m,
+      'o card ativo do HDR é o hdrtorrent-cardigann; reativar o id stock é ping-pong',
+    );
   });
 
   test('o id hdrtorrent-cardigann está nas listas do addon', () => {
@@ -178,6 +204,31 @@ describe('entrypoint: HDR reativado via resolver local', () => {
       /hdrtorrent-cardigann/,
       'hdrtorrent-cardigann precisa estar nas listas de indexers BR',
     );
+  });
+});
+
+// As definições Cardigann vêm da IMAGEM (`/app/Jackett/Definitions`); o volume
+// é só estado. O Dockerfile usa lista EXPLÍCITA de COPYs, então um yml novo em
+// `jackett-bludv/` que fica fora da lista não existe no container — foi o
+// defeito medido no Docker local em 2026-09-19: o addon listava
+// `hdrtorrent-cardigann` e o Jackett nem tinha a definição para carregar.
+describe('Dockerfile: definitions Cardigann copiadas para a imagem', () => {
+  const dockerfile = fs.readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+  const ymls = fs
+    .readdirSync(path.join(root, 'jackett-bludv'))
+    .filter((file) => file.endsWith('.yml'));
+
+  test('todo yml de jackett-bludv/ tem COPY para /app/Jackett/Definitions/', () => {
+    assert.ok(
+      ymls.length >= 8,
+      `esperado ao menos 8 ymls em jackett-bludv, encontrados ${ymls.length}`,
+    );
+    for (const file of ymls) {
+      assert.ok(
+        dockerfile.includes(`jackett-bludv/${file} /app/Jackett/Definitions/`),
+        `COPY ausente para jackett-bludv/${file} — a definição não existiria na imagem`,
+      );
+    }
   });
 });
 

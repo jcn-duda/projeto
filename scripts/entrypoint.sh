@@ -129,10 +129,28 @@ bootstrap_jackett_indexers() {
   park_stock_indexer apachetorrent
 
   # HDR reativado: o resolver local (porta 8707) contorna a busca quebrada do
-  # site raspando as páginas de listagem. O card volta do `-disabled` para o
-  # diretório ativo; o id `hdrtorrent-cardigann` já está nas listas do addon
-  # (src/config/jackett.ts). O stock C# antigo continua estacionado se existir.
-  reactivate_parked_card hdrtorrent
+  # site raspando as páginas de listagem. O card ATIVO precisa do nome da
+  # DEFINIÇÃO (`hdrtorrent-cardigann.json` — é o filename que vira o id no
+  # Jackett), e o fluxo é o mesmo molde do Apache: reativa card estacionado do
+  # id certo e cria se ausente, sem sobrescrever config do operador.
+  #
+  # Medido no Docker local (2026-09-19): o par `reactivate_parked_card hdrtorrent`
+  # + `park_stock_indexer hdrtorrent` era ping-pong do MESMO arquivo (stock C#
+  # `hdrtorrent.json`): reativava e reestacionava em seguida, e o catálogo do
+  # Jackett ficava SEM o `hdrtorrent-cardigann` enquanto o addon o listava. O
+  # stock C# segue estacionado; quem expõe o id novo é a definição da imagem.
+  reactivate_parked_card hdrtorrent-cardigann
+  local hdr_card="$dir/hdrtorrent-cardigann.json"
+  if [ ! -e "$hdr_card" ]; then
+    local hdr_tmp="$hdr_card.tmp.$$"
+    if write_indexer_card "$hdr_tmp" 'https://hdrtorrents.net/' && mv "$hdr_tmp" "$hdr_card" 2>/dev/null; then
+      chown node:node "$hdr_card" 2>/dev/null || true
+      echo "[entrypoint] indexer Cardigann hdrtorrent-cardigann registrado"
+    else
+      rm -f "$hdr_tmp" 2>/dev/null || true
+      echo "[entrypoint] aviso: falha ao instalar o card hdrtorrent-cardigann" >&2
+    fi
+  fi
   park_stock_indexer hdrtorrent
 
   # Chromium derrubando a aba: `rutor` e `kickasstorrents-ws` respondiam com

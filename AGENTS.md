@@ -128,17 +128,22 @@ Praticamente todo trabalho de código acontece no **Adom**.
   e o RuTor pendurando 100s por busca numa fila serial. Para cortar de verdade,
   estacione o card no Jackett (`park_stock_indexer` no entrypoint): vale para
   qualquer instalação e é reversível por um `mv`.
-- **O HDR fica ESTACIONADO, não removido.** Em 2026-09-17 `hdrtorrents.net`
-  (domínio novo do antigo `hdrtorrent.com`) devolvia a homepage para toda
-  variante de busca, então o id está fora de TODAS as listas de
-  `src/config/jackett.ts`. O entrypoint semeia `Indexers-disabled/hdrtorrent.json`
-  com o domínio novo já gravado — semear nunca escreve no diretório ativo, então
-  isso não liga nada. **Para religar quando o site voltar**: `mv` o card de
-  `Indexers-disabled/` para `Indexers/`, some o id em `JACKETT_PT_BR_INDEXERS`,
-  `JACKETT_SLOW_INDEXERS`, `JACKETT_INDEX_ONLY_INDEXERS` e
-  `JACKETT_BARE_TITLE_INDEXERS`, e confirme com `/test-indexer.json?id=hdrtorrent`
-  ANTES de considerar a fonte viva — o sintoma antigo (homepage sem filtrar)
-  aparece como `ok:true` com releases irrelevantes, não como erro.
+- **O HDR está ATIVO pelo card Cardigann, não pelo scraper do site.** Em
+  2026-09-17 `hdrtorrents.net` (domínio novo do antigo `hdrtorrent.com`)
+  devolvia a homepage para toda variante de busca — a busca direta do Jackett
+  segue quebrada. O resolver local (porta 8707) contorna isso raspando as
+  páginas de listagem, e o id `hdrtorrent-cardigann` está de volta às listas
+  de `src/config/jackett.ts`. O entrypoint reativa/cria
+  `Indexers/hdrtorrent-cardigann.json` (mesmo molde do Apache) e estaciona o
+  `hdrtorrent.json` stock C#: o card ATIVO precisa do nome da DEFINIÇÃO, é o
+  filename que vira o id no Jackett. Medido no Docker local (2026-09-19): sem
+  a linha `COPY … hdrtorrent-cardigann.yml` no Dockerfile e sem esse
+  bootstrap, o par antigo `reactivate_parked_card hdrtorrent` +
+  `park_stock_indexer hdrtorrent` era ping-pong do MESMO arquivo stock e o
+  catálogo do Jackett ficava SEM o id enquanto o addon o listava. Confirme com
+  `/test-indexer.json?id=hdrtorrent-cardigann` ANTES de considerar a fonte
+  viva — o sintoma antigo (homepage sem filtrar) aparece como `ok:true` com
+  releases irrelevantes, não como erro.
 - `shm_size: 1gb` (Chromium) e `mem_limit: 3g` no compose: no container único
   um OOM do FlareSolverr reinicia a stack inteira — é o trade-off inerente da
   unificação, mitigado pelo restart.
@@ -1699,7 +1704,8 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   tudo-ou-nada (conta `harvest.sweep.partial`); e obra descartada após 3
   retentativas conta `harvest.capped.dropped` em vez de sumir sem rastro.
 - **Index-only** (`JACKETT_INDEX_ONLY_INDEXERS`, default:
-  `redetorrent-cardigann`, `apachetorrent-cardigann`, `1337x`): ficam FORA do caminho da resposta e
+  `redetorrent-cardigann`, `apachetorrent-cardigann`, `hdrtorrent-cardigann`,
+  `1337x`): ficam FORA do caminho da resposta e
   DENTRO do sistema via colhedor. Latência medida de 8–31s contra orçamento
   total de 20s os derrubava no breaker a cada busca, e o retry PT→título
   original consumia o MESMO orçamento. O 1337x entrou por medição própria:
@@ -1714,11 +1720,11 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   colhedor/fundo — nunca na busca viva nem em indexer comum); a resolução do
   magnet permanece em `JACKETT_RESOLVE_DOWNLOAD_INDEXERS`. Separado de
   `JACKETT_SLOW_INDEXERS`: lá o problema é o agrupamento do plano; aqui é
-  PRESENÇA na resposta. O `hdrtorrent` está estacionado fora das listas desde
-  2026-09-17: `hdrtorrents.net` devolvia a homepage sem filtrar toda variante
-  de busca; o indexer continua disponível para reativação quando a busca real
-  voltar. Não "devolva" esses indexers à busca ao vivo sem
-  medir de novo — o breaker aberto era o sintoma, não a causa.
+  PRESENÇA na resposta. O `hdrtorrent-cardigann` entrou nesse tier em
+  2026-09-19, junto com o resolver local (porta 8707) que contorna a busca
+  direta quebrada do site (`hdrtorrents.net` devolvia a homepage). A fonte
+  NÃO volta ao caminho AO VIVO sem medir de novo — o breaker aberto era o
+  sintoma, não a causa.
 - Kill-switches: `RELEASE_INDEX=false` / `RELEASE_INDEX_TTL=0` (índice),
   `ACCOUNT_FAST_PATH=false`, `HARVEST_ENABLED=false`.
 - Critério de aceitação do plano: busca responde com o Jackett FORA do ar —
@@ -1897,8 +1903,8 @@ qualidade do usuário não deixa nenhum candidato de pé
 **4. Sites BR indexam por título em português.**
 "Coringa", não "Joker". `tmdb.getTitles` resolve isso e a busca dispara **duas
 queries**: a em inglês para indexers globais e a em pt-BR para os listados em
-`JACKETT_PT_BR_INDEXERS` (default: os sete cards locais, incluindo
-`apachetorrent-cardigann`; `hdrtorrent` está estacionado). Todo caminho de busca precisa carregar as duas
+`JACKETT_PT_BR_INDEXERS` (default: os oito cards locais, incluindo
+`apachetorrent-cardigann` e `hdrtorrent-cardigann`). Todo caminho de busca precisa carregar as duas
 — inclusive fallbacks de pack. O filtro `matchesName` também aceita qualquer
 um dos nomes, senão a release dublada seria descartada por não bater com o
 título em inglês.
