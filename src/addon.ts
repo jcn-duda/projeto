@@ -34,7 +34,9 @@ brResolvers.load();
 if (secretBox.enabled()) secretBox.seal('warmup');
 // Catálogo é usado na primeira abertura de /configure; aquecer só com credencial
 // evita uma chamada inútil para instalações em modo demo/P2P.
-if (config.jackett.apiKey) jackettCatalog.load().catch(() => {});
+// Também é quem preenche a lista automática de indexers (sem JACKETT_INDEXERS),
+// com nova tentativa a cada 30s até o Jackett responder.
+const catalogReady = jackettCatalog.startAutoRefresh();
 // Antes do primeiro /magnet/upload, para a conta do operador não classificar
 // os uploads da primeira busca como magnets que já eram do usuário.
 debrid.warmupEnv();
@@ -76,8 +78,13 @@ const server = app.listen(config.port, config.host, () => {
     log.info('Para torrents de verdade: configure .env (PROVIDER=jackett|prowlarr|both)');
     log.info('');
   }
-  warmup.start().catch((err) => log.warn('[warmup] falha no boot:', err?.message || err));
-  harvester.start();
+  // Lista automática: warmup e colhedor leem `config.jackett.indexers`, que só
+  // existe depois do primeiro catálogo vivo (espera limitada a 60s).
+  const afterIndexers = config.jackett.indexersAuto ? catalogReady : Promise.resolve();
+  afterIndexers.then(() => {
+    warmup.start().catch((err) => log.warn('[warmup] falha no boot:', err?.message || err));
+    harvester.start();
+  });
   rdWarmer.start();
   brCoverage.start();
 });

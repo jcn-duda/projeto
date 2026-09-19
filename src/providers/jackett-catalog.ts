@@ -142,10 +142,53 @@ async function load(): Promise<CatalogList> {
     cached = result.items;
     cachedSource = result.source;
     cachedAt = Date.now();
+    if (result.source === 'live') syncAutoIndexers(result.items);
     return result;
   }).finally(() => { inFlight = null; });
   inFlight = promise;
   return promise.then(({ items, source }) => attachSource(indexerStatus.decorate(items), source));
+}
+
+/**
+ * Modo automático (sem JACKETT_INDEXERS no .env): a lista padrão passa a ser
+ * todo indexer configurado no Jackett. Troca o CONTEÚDO do array no lugar —
+ * runtime, busca, warmup e colhedor leem a mesma referência. Catálogo vivo
+ * vazio não apaga a lista anterior (Jackett reiniciando não zera a busca).
+ */
+function syncAutoIndexers(items: readonly CatalogItem[]): boolean {
+  if (!config.jackett.indexersAuto || items.length === 0) return false;
+  const ids = [...new Set(items.map((item) => item.id))];
+  const current = config.jackett.indexers;
+  if (ids.length === current.length && ids.every((id, i) => current[i] === id)) return false;
+  current.splice(0, current.length, ...ids);
+  log.info(`[jackett] indexers automáticos pelo Jackett: ${ids.length} (${ids.join(', ')})`);
+  return true;
+}
+
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Mantém o catálogo (e a lista automática) em dia: no boot o Jackett costuma
+ * subir DEPOIS do addon, então tenta a cada 30s até a API responder e, dali
+ * em diante, a cada JACKETT_CATALOG_TTL. Resolve quando o primeiro catálogo
+ * vivo chega (ou desiste do await após `waitMs`, seguindo em fundo).
+ */
+function startAutoRefresh(waitMs = 60_000): Promise<void> {
+  if (!config.jackett.apiKey) return Promise.resolve();
+  let settle: () => void = () => {};
+  const firstLive = new Promise<void>((resolve) => { settle = resolve; });
+  const tick = async () => {
+    let live = false;
+    try { live = (await load()).source === 'live'; } catch { live = false; }
+    if (live) settle();
+    const next = live ? Math.max(60_000, config.jackett.catalogTtl * 1000) : FALLBACK_RETRY_MS;
+    refreshTimer = setTimeout(tick, next);
+    refreshTimer.unref?.();
+  };
+  if (!refreshTimer) void tick();
+  const giveUp = setTimeout(() => settle(), waitMs);
+  giveUp.unref?.();
+  return firstLive;
 }
 
 /** Testes: esvazia memo do catálogo (cada teste decide live vs fallback). */
@@ -156,5 +199,5 @@ function resetCatalogCache() {
   inFlight = null;
 }
 
-export { load, parseXml, fallback, resetCatalogCache };
+export { load, parseXml, fallback, resetCatalogCache, syncAutoIndexers, startAutoRefresh };
 export type { CatalogSource, CatalogList };

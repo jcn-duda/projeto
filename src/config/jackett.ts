@@ -14,6 +14,11 @@ export const jackett = () => ({
   // LimeTorrents (id Jackett: limetorrents) é global EN — some nesta lista,
   // nunca em ptBr/slow/index-only: Cloudflare/Flare aborta tarde no Chromium.
   indexers: indexerList(process.env.JACKETT_INDEXERS),
+  // Sem JACKETT_INDEXERS no .env, a lista padrão vem do próprio Jackett (todo
+  // indexer configurado): o catálogo vivo preenche `indexers` no lugar
+  // (`jackett-catalog.ts`). Adicionar/remover indexer no Jackett basta; o .env
+  // explícito continua mandando quando existe.
+  indexersAuto: !String(process.env.JACKETT_INDEXERS || '').trim(),
   indexerTimeout: num(process.env.JACKETT_INDEXER_TIMEOUT_MS, 4000),
   catalogTtl: num(process.env.JACKETT_CATALOG_TTL, 900),
   // Quanto tempo a última medição real aparece na configuração. O status

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 
 import config from '../src/config.js';
-import { parseXml, fallback, load, resetCatalogCache } from '../src/providers/jackett-catalog.js';
+import { parseXml, fallback, load, resetCatalogCache, syncAutoIndexers } from '../src/providers/jackett-catalog.js';
 
 test('parseXml lê catálogo Torznab sem expor campos extras', () => {
   const brId = config.jackett.ptBrIndexers[0] || 'comandotorrents';
@@ -134,6 +134,45 @@ test('fallback por falha de rede expira em 30s e o catálogo vivo volta (boot an
     config.jackett.apiKey = saved.apiKey;
     config.jackett.url = saved.url;
     config.jackett.catalogTtl = saved.ttl;
+    resetCatalogCache();
+  }
+});
+
+test('lista automática: sem JACKETT_INDEXERS o catálogo vivo vira a lista padrão, no lugar', async () => {
+  resetCatalogCache();
+  const saved = {
+    apiKey: config.jackett.apiKey, url: config.jackett.url,
+    auto: config.jackett.indexersAuto, indexers: [...config.jackett.indexers],
+  };
+  const realFetch = globalThis.fetch;
+  const ref = config.jackett.indexers;
+  config.jackett.apiKey = 'chave-teste-catalog';
+  config.jackett.url = 'http://jackett.test';
+  config.jackett.indexersAuto = true;
+  ref.splice(0, ref.length);
+  globalThis.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    text: async () => '<indexers><indexer id="limetorrents" configured="true"><title>LimeTorrents</title></indexer><indexer id="yts" configured="true"><title>YTS</title></indexer></indexers>',
+  })) as unknown as typeof fetch;
+  try {
+    await load();
+    assert.deepEqual(config.jackett.indexers, ['limetorrents', 'yts'], 'indexer do Jackett entra sem .env');
+    assert.equal(config.jackett.indexers, ref, 'mesma referência: quem já leu o array vê a lista nova');
+    assert.equal(syncAutoIndexers([]), false, 'catálogo vazio não apaga a lista');
+    assert.deepEqual(config.jackett.indexers, ['limetorrents', 'yts']);
+
+    // .env explícito manda: o catálogo não mexe na lista.
+    config.jackett.indexersAuto = false;
+    ref.splice(0, ref.length, 'thepiratebay');
+    assert.equal(syncAutoIndexers([{ id: 'yts', label: 'YTS', language: '', isBr: false }]), false);
+    assert.deepEqual(config.jackett.indexers, ['thepiratebay']);
+  } finally {
+    globalThis.fetch = realFetch;
+    config.jackett.apiKey = saved.apiKey;
+    config.jackett.url = saved.url;
+    config.jackett.indexersAuto = saved.auto;
+    ref.splice(0, ref.length, ...saved.indexers);
     resetCatalogCache();
   }
 });
