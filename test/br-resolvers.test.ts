@@ -10,6 +10,7 @@ import tdf from '../torrentdosfilmes-resolver/server.js';
 import vaca from '../vacatorrent-resolver/server.js';
 import redetorrent from '../redetorrent-resolver/server.js';
 import apachetorrent from '../apachetorrent-resolver/server.js';
+import hdrtorrents from '../hdrtorrents-resolver/server.js';
 import * as brResolvers from '../src/br-resolvers.js';
 
 describe('Feature 1: Dynamic Domain Validation', () => {
@@ -238,10 +239,10 @@ describe('Feature 2: In-Memory Caching & Request Coalescing', () => {
 });
 
 describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => {
-  test('brResolvers exporta matriz RESOLVERS com 7 entradas padronizadas', () => {
-    assert.equal(brResolvers.RESOLVERS.length, 7);
+  test('brResolvers exporta matriz RESOLVERS com 8 entradas padronizadas', () => {
+    assert.equal(brResolvers.RESOLVERS.length, 8);
     const names = brResolvers.RESOLVERS.map((r) => r.name);
-    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent']);
+    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent', 'hdrtorrents']);
 
     const envs = brResolvers.RESOLVERS.map((r) => r.siteEnv);
     assert.deepEqual(envs, [
@@ -252,6 +253,7 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
       'VACATORRENT_URL',
       'REDETORRENT_URL',
       'APACHETORRENT_URL',
+      'HDRTORRENTS_URL',
     ]);
   });
 
@@ -267,6 +269,7 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
       vacatorrent: 8704,
       redetorrent: 8705,
       apachetorrent: 8706,
+      hdrtorrents: 8707,
     });
     assert.ok(config.resolvers.bludvUrl);
     assert.ok(config.resolvers.comandotorrentsUrl);
@@ -275,6 +278,7 @@ describe('Feature 3: Standardized siteEnv Configuration & src/config.js', () => 
     assert.ok(config.resolvers.vacatorrentUrl);
     assert.ok(config.resolvers.redetorrentUrl);
     assert.ok(config.resolvers.apachetorrentUrl);
+    assert.ok(config.resolvers.hdrtorrentsUrl);
     assert.ok(Array.isArray(config.resolvers.extraProtectors));
   });
 

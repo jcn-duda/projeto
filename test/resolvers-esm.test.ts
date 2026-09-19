@@ -204,9 +204,9 @@ describe('resolvers/is-main.js', () => {
   });
 });
 
-describe('Carregador embutido: sete factories estáticas', () => {
-  test('RESOLVERS traz createResolver em todas as sete entradas', () => {
-    assert.equal(brResolvers.RESOLVERS.length, 7);
+describe('Carregador embutido: oito factories estáticas', () => {
+  test('RESOLVERS traz createResolver em todas as oito entradas', () => {
+    assert.equal(brResolvers.RESOLVERS.length, 8);
     for (const entry of brResolvers.RESOLVERS) {
       assert.equal(typeof entry.createResolver, 'function', `${entry.name} sem createResolver`);
       assert.equal(typeof entry.siteEnv, 'string');
@@ -214,7 +214,7 @@ describe('Carregador embutido: sete factories estáticas', () => {
     }
     assert.deepEqual(
       brResolvers.RESOLVERS.map((entry) => entry.name),
-      ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent'],
+      ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent', 'hdrtorrents'],
     );
   });
 });

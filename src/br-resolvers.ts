@@ -8,6 +8,7 @@ import { createResolver as createTorrentdosfilmesResolver } from '../resolvers/p
 import { createResolver as createVacatorrentResolver } from '../resolvers/profiles/vacatorrent.js';
 import { createResolver as createRedetorrentResolver } from '../resolvers/profiles/redetorrent.js';
 import { createResolver as createApachetorrentResolver } from '../resolvers/profiles/apachetorrent.js';
+import { createResolver as createHdrtorrentsResolver } from '../resolvers/profiles/hdrtorrents.js';
 
 /**
  * Carrega os resolvedores BR dentro do processo do addon.
@@ -55,6 +56,7 @@ const RESOLVERS: ResolverEntry[] = [
   { name: 'vacatorrent', createResolver: createVacatorrentResolver, port: config.resolvers.ports.vacatorrent, siteEnv: 'VACATORRENT_URL', siteUrl: config.resolvers.vacatorrentUrl },
   { name: 'redetorrent', createResolver: createRedetorrentResolver, port: config.resolvers.ports.redetorrent, siteEnv: 'REDETORRENT_URL', siteUrl: config.resolvers.redetorrentUrl },
   { name: 'apachetorrent', createResolver: createApachetorrentResolver, port: config.resolvers.ports.apachetorrent, siteEnv: 'APACHETORRENT_URL', siteUrl: config.resolvers.apachetorrentUrl },
+  { name: 'hdrtorrents', createResolver: createHdrtorrentsResolver, port: config.resolvers.ports.hdrtorrents, siteEnv: 'HDRTORRENTS_URL', siteUrl: config.resolvers.hdrtorrentsUrl },
 ];
 const servers: Server[] = [];
 // Módulo carregado de cada resolvedor, para ler o domínio ATIVO deles depois
@@ -198,4 +200,18 @@ function close() {
   }
 }
 
-export { load, close, activeSite, probe, RESOLVERS };
+/** Versão assíncrona do close(): espera todas as portas serem liberadas. */
+async function closeAsync() {
+  const pending = servers.splice(0).map((server) => new Promise<void>((resolve) => {
+    try {
+      server.closeIdleConnections?.();
+      server.close(() => resolve());
+    } catch (err) {
+      log.warn('[br] falha ao fechar resolvedor embutido:', err.message);
+      resolve();
+    }
+  }));
+  await Promise.all(pending);
+}
+
+export { load, close, closeAsync, activeSite, probe, RESOLVERS };

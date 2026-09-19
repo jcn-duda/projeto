@@ -128,12 +128,11 @@ bootstrap_jackett_indexers() {
 
   park_stock_indexer apachetorrent
 
-  # HDR estacionado, NÃO ligado: em 2026-09-17 hdrtorrents.net devolvia a
-  # homepage para toda variante de busca, então o id está fora de todas as
-  # listas do addon (src/config/jackett.ts). O card fica pronto no `-disabled`
-  # com o domínio NOVO já gravado, para religar ser um `mv` de volta mais o id
-  # nas listas — sem redescobrir o domínio quando o site voltar.
-  seed_parked_card hdrtorrent 'https://hdrtorrents.net/'
+  # HDR reativado: o resolver local (porta 8707) contorna a busca quebrada do
+  # site raspando as páginas de listagem. O card volta do `-disabled` para o
+  # diretório ativo; o id `hdrtorrent-cardigann` já está nas listas do addon
+  # (src/config/jackett.ts). O stock C# antigo continua estacionado se existir.
+  reactivate_parked_card hdrtorrent
   park_stock_indexer hdrtorrent
 
   # Chromium derrubando a aba: `rutor` e `kickasstorrents-ws` respondiam com
@@ -185,6 +184,26 @@ park_stock_indexer() {
     echo "[entrypoint] resíduo stock $id idêntico ao .legacy removido"
   else
     echo "[entrypoint] aviso: stock $id divergente preservado no diretório ativo" >&2
+  fi
+}
+
+# Reativa um card estacionado: move `<id>.json` do diretório `-disabled` de
+# volta para o ativo. Se o card já está no diretório ativo, é no-op. Se o
+# operador editou o card estacionado, a edição é preservada (o mv não
+# sobrescreve).
+reactivate_parked_card() {
+  local id="$1"
+  local dir="${JACKETT_INDEXERS_DIR%/}"
+  local disabled="${dir}-disabled"
+  local card="$dir/$id.json"
+  local parked="$disabled/$id.json"
+
+  [ -e "$parked" ] || return 0
+  [ -e "$card" ] && return 0
+  if mv "$parked" "$card" 2>/dev/null; then
+    echo "[entrypoint] card $id reativado de ${disabled}"
+  else
+    echo "[entrypoint] aviso: falha ao reativar o card $id" >&2
   fi
 }
 

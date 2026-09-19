@@ -28,6 +28,7 @@ export const resolvers = () => ({
     vacatorrent: 8704,
     redetorrent: 8705,
     apachetorrent: 8706,
+    hdrtorrents: 8707,
   },
   bludvUrl: (process.env.BLUDV_URL || BLUDV_DEFAULT_URL).replace(/\/$/, ''),
   comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
@@ -50,5 +51,9 @@ export const resolvers = () => ({
   // na allowlist do profile, senão o redirect vira blocked_host e a fonte morre
   // em silêncio (a env VENCE este default; confira o .env.example).
   apachetorrentUrl: (process.env.APACHETORRENT_URL || 'https://apachetorrents.com').replace(/\/$/, ''),
+  // HDR Torrents: busca nativa quebrada (devolve a homepage), o resolver
+  // raspa as páginas de listagem e casa a query contra o catálogo em cache.
+  // Magnets diretos no post, sem protetor de link.
+  hdrtorrentsUrl: (process.env.HDRTORRENTS_URL || 'https://hdrtorrents.net').replace(/\/$/, ''),
   extraProtectors: list(process.env.EXTRA_ALLOWED_PROTECTORS),
 });

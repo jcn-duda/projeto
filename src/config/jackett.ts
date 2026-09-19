@@ -57,13 +57,12 @@ export const jackett = () => ({
     // mas sem SxxEyy — o strip acontece em queryIndexer para todos os desta
     // lista. Nenhum dos dois entra em resolveDownloadIndexers: o magnet já é o
     // href da linha sintética, não há endpoint Link a salvar.
-    // hdrtorrent fica deliberadamente FORA: em 2026-09-17 o domínio novo
-    // hdrtorrents.net devolvia a homepage para toda variante de busca (GET,
-    // POST, ?s= e /pesquisa/). O indexer continua disponível para reativação
-    // quando uma busca real voltar a filtrar; mantê-lo ativo hoje só consome o
-    // colhedor com zero cobertura e nunca abre o breaker.
+    // hdrtorrent-cardigann é o card LOCAL (resolver na porta 8707): a busca
+    // nativa do hdrtorrents.net devolve a homepage, então o resolver raspa as
+    // páginas de listagem e casa a query contra o catálogo em cache. Magnets
+    // diretos no post, sem protetor de link.
     process.env.JACKETT_PT_BR_INDEXERS ||
-      'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,vacatorrent,redetorrent-cardigann,apachetorrent-cardigann',
+      'bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,vacatorrent,redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann',
   ),
   // Buscadores que zeram com QUALQUER token extra: além do SxxEyy, o ano do
   // filme também sai ("Coringa 2019" → 0 no buscador do apachetorrent). O
@@ -71,7 +70,7 @@ export const jackett = () => ({
   // do lado deles (defesa dupla). Os outros resolvers locais ficam FORA desta
   // lista: lá o ano ajuda a relevância.
   bareTitleIndexers: indexerList(
-    process.env.JACKETT_BARE_TITLE_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann',
+    process.env.JACKETT_BARE_TITLE_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann',
   ),
   // Varredura TARDIA com o título pt-BR nos indexers globais: roda depois da
   // resposta (fora do orçamento de coleta, que já estoura no caminho
@@ -99,7 +98,7 @@ export const jackett = () => ({
   // vive no JACKETT_INDEX_ONLY_INDEXERS (isolamento mais forte: NENHUMA
   // consulta ao vivo, só colhedor) — não o traga de volta para slow.
   slowIndexers: indexerList(
-    process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent-cardigann,apachetorrent-cardigann,magnetdownload',
+    process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload',
   ),
   // Fora do caminho da resposta, DENTRO do sistema: estes indexers não
   // recebem busca ao vivo de nenhum usuário (latência medida de 8–31s contra
@@ -118,7 +117,7 @@ export const jackett = () => ({
   // colhedor o consulta individualmente com orçamento dedicado
   // (JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS).
   indexOnlyIndexers: indexerList(
-    process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann,1337x',
+    process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,1337x',
   ),
   // Orçamento TOTAL (busca + resolução `/dl`) de UMA consulta do colhedor a
   // um indexer index-only. Aplicado SÓ no colhedor/fundo: a busca ao vivo

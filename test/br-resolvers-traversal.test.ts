@@ -238,11 +238,11 @@ describe('Feature 5: Failover dinâmico de domínio (siteSelector)', () => {
   });
 });
 
-describe('load() embutido: sete resolvers, isolamento de env e falha por porta', () => {
-  // Offset alto para não disputar 8700-8706 com uma instância real de pé na
+describe('load() embutido: oito resolvers, isolamento de env e falha por porta', () => {
+  // Offset alto para não disputar 8700-8707 com uma instância real de pé na
   // mesma máquina (é o caso do ambiente de desenvolvimento).
   const OFFSET = 2400;
-  const PORTAS = [8700, 8701, 8702, 8703, 8704, 8705, 8706].map((porta) => porta + OFFSET);
+  const PORTAS = [8700, 8701, 8702, 8703, 8704, 8705, 8706, 8707].map((porta) => porta + OFFSET);
   const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   // node:http de propósito, e não fetch: os testes acima dublam globalThis.fetch
@@ -262,7 +262,7 @@ describe('load() embutido: sete resolvers, isolamento de env e falha por porta',
 
   /**
    * Prova real do isolamento de env: com o ambiente global envenenado, o
-   * load embutido tem que subir as sete portas da CONFIG e o activeSite de
+   * load embutido tem que subir as oito portas da CONFIG e o activeSite de
    * cada resolver tem que seguir a config — nunca a env. Também confere que o
    * carregador não muta/restaura o ambiente (o veneno continua lá depois).
    */
@@ -290,8 +290,8 @@ describe('load() embutido: sete resolvers, isolamento de env e falha por porta',
 
   const hostSemWww = (url: string) => new URL(String(url)).hostname.replace(/^www\./, '');
 
-  test('abre as sete portas com env envenenado; activeSite segue a config', async () => {
-    assert.equal(brResolvers.RESOLVERS.length, 7, 'cardinalidade da matriz RESOLVERS');
+  test('abre as oito portas com env envenenado; activeSite segue a config', async () => {
+    assert.equal(brResolvers.RESOLVERS.length, 8, 'cardinalidade da matriz RESOLVERS');
     try {
       await comEnvEnvenenado(async () => {
         assert.doesNotThrow(() =>
@@ -304,8 +304,8 @@ describe('load() embutido: sete resolvers, isolamento de env e falha por porta',
         await settle(700);
         assert.deepEqual(
           await Promise.all(PORTAS.map(responde)),
-          [true, true, true, true, true, true, true],
-          'load() tem que abrir as sete portas da config',
+          [true, true, true, true, true, true, true, true],
+          'load() tem que abrir as oito portas da config',
         );
 
         for (const resolver of brResolvers.RESOLVERS) {
@@ -320,12 +320,11 @@ describe('load() embutido: sete resolvers, isolamento de env e falha por porta',
         }
       });
     } finally {
-      brResolvers.close();
-      await settle(400);
+      await brResolvers.closeAsync();
     }
   });
 
-  test('porta ocupada (EADDRINUSE) não derruba os outros seis', async () => {
+  test('porta ocupada (EADDRINUSE) não derruba os outros sete', async () => {
     const blocker = http.createServer(() => {});
     await new Promise<void>((resolve) => blocker.listen(PORTAS[0], '127.0.0.1', resolve));
     try {
@@ -338,27 +337,25 @@ describe('load() embutido: sete resolvers, isolamento de env e falha por porta',
       assert.equal(estados[0], false, 'a porta ocupada não pode responder pelo resolvedor');
       assert.deepEqual(
         estados.slice(1),
-        [true, true, true, true, true, true],
-        'os outros seis resolvers têm que subir mesmo com uma porta ocupada',
+        [true, true, true, true, true, true, true],
+        'os outros sete resolvers têm que subir mesmo com uma porta ocupada',
       );
     } finally {
-      brResolvers.close();
+      await brResolvers.closeAsync();
       await new Promise<void>((resolve) => blocker.close(() => resolve()));
-      await settle(400);
     }
   });
 
-  test('close() derruba as sete e é idempotente', async () => {
+  test('close() derruba as oito e é idempotente', async () => {
     brResolvers.load({ ...config.resolvers, embedded: true, host: '127.0.0.1', portOffset: OFFSET });
     await settle(700);
-    assert.deepEqual(await Promise.all(PORTAS.map(responde)), [true, true, true, true, true, true, true]);
+    assert.deepEqual(await Promise.all(PORTAS.map(responde)), [true, true, true, true, true, true, true, true]);
 
-    brResolvers.close();
-    await settle(400);
+    await brResolvers.closeAsync();
     assert.deepEqual(
       await Promise.all(PORTAS.map(responde)),
-      [false, false, false, false, false, false, false],
-      'close() tem que fechar as sete',
+      [false, false, false, false, false, false, false, false],
+      'close() tem que fechar as oito',
     );
 
     // O shutdown pode ser chamado duas vezes (SIGTERM seguido de SIGINT, ou o

@@ -13,6 +13,7 @@ import { createResolver as createRede, DEFAULTS as REDE_DEFAULTS, META as REDE_M
 import { createResolver as createTdf, DEFAULTS as TDF_DEFAULTS, META as TDF_META } from '../resolvers/profiles/torrentdosfilmes.js';
 import { createResolver as createVaca, DEFAULTS as VACA_DEFAULTS, META as VACA_META } from '../resolvers/profiles/vacatorrent.js';
 import { createResolver as createApache, DEFAULTS as APACHE_DEFAULTS, META as APACHE_META } from '../resolvers/profiles/apachetorrent.js';
+import { createResolver as createHDR, DEFAULTS as HDR_DEFAULTS, META as HDR_META } from '../resolvers/profiles/hdrtorrents.js';
 import { RESOLVERS } from '../src/br-resolvers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,6 +27,7 @@ const SHIM_DIRS = [
   'vacatorrent-resolver',
   'redetorrent-resolver',
   'apachetorrent-resolver',
+  'hdrtorrents-resolver',
 ];
 
 /** Contrato do loader (src/br-resolvers) + shape mínimo que os testes leem. */
@@ -51,9 +53,10 @@ const U3_PROFILES: Array<{ name: string; factory: ResolverFactory; port: number;
   { name: 'torrentdosfilmes', factory: createTdf, port: TDF_DEFAULTS.port, siteEnv: TDF_META.siteEnv },
   { name: 'vacatorrent', factory: createVaca, port: VACA_DEFAULTS.port, siteEnv: VACA_META.siteEnv },
   { name: 'apachetorrent', factory: createApache, port: APACHE_DEFAULTS.port, siteEnv: APACHE_META.siteEnv },
+  { name: 'hdrtorrents', factory: createHDR, port: HDR_DEFAULTS.port, siteEnv: HDR_META.siteEnv },
 ];
 
-describe('U3: os sete profiles constroem com o contrato real', () => {
+describe('U3: os oito profiles constroem com o contrato real', () => {
   for (const profile of U3_PROFILES) {
     test(`${profile.name}: DEFAULTS/META e shape da instância`, () => {
       assert.equal(typeof profile.factory, 'function');
@@ -94,8 +97,8 @@ describe('U3: os sete profiles constroem com o contrato real', () => {
     }
   });
 
-  test('compatibilidade com src/br-resolvers: os sete módulos são carregáveis', () => {
-    assert.equal(RESOLVERS.length, 7);
+  test('compatibilidade com src/br-resolvers: os oito módulos são carregáveis', () => {
+    assert.equal(RESOLVERS.length, 8);
     for (const entry of RESOLVERS) {
       assert.equal(typeof entry.createResolver, 'function', `${entry.name} sem createResolver`);
       const instance = entry.createResolver(LOADER_OVERRIDES);

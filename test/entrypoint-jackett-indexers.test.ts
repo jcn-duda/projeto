@@ -144,43 +144,39 @@ describe('entrypoint: bootstrap de indexers no volume do Jackett', () => {
   });
 });
 
-// O HDR está PARADO, não removido: hdrtorrents.net devolvia a homepage para
-// toda variante de busca. O card fica pronto no `-disabled` com o domínio novo
-// para que religar seja um `mv` de volta mais o id nas listas — sem ter que
-// redescobrir o domínio quando o site voltar.
-describe('entrypoint: HDR estacionado e pronto para religar', () => {
-  test('semeia o card no diretório de desativados, nunca no ativo', () => {
-    assert.match(script, /seed_parked_card hdrtorrent 'https:\/\/hdrtorrents\.net\/'/);
+// O HDR foi REATIVADO: o resolver local (porta 8707) contorna a busca
+// quebrada do site raspando as páginas de listagem. O card volta do
+// `-disabled` para o diretório ativo via `reactivate_parked_card`; o id
+// `hdrtorrent-cardigann` está nas listas do addon (src/config/jackett.ts).
+// O stock C# antigo continua estacionado se existir.
+describe('entrypoint: HDR reativado via resolver local', () => {
+  test('reativa o card do diretório de desativados para o ativo', () => {
+    assert.match(script, /reactivate_parked_card hdrtorrent/);
     assert.match(
       script,
-      /seed_parked_card\(\) \{[\s\S]*?local disabled="\$\{JACKETT_INDEXERS_DIR%\/\}-disabled"[\s\S]*?local card="\$disabled\/\$id\.json"/,
+      /reactivate_parked_card\(\) \{[\s\S]*?local card="\$dir\/\$id\.json"[\s\S]*?local parked="\$disabled\/\$id\.json"/,
     );
-    // A semente NUNCA escreve no diretório ativo — semear não liga o indexer.
-    const seed = script.slice(script.indexOf('seed_parked_card() {'));
-    const body = seed.slice(0, seed.indexOf('\n}\n'));
-    assert.doesNotMatch(body, /"\$dir\//, 'semear não pode tocar no diretório ativo');
+    // A reativação NUNCA sobrescreve card já ativo.
+    const reactivate = script.slice(script.indexOf('reactivate_parked_card() {'));
+    const body = reactivate.slice(0, reactivate.indexOf('\n}\n'));
+    assert.match(body, /\[ -e "\$card" \] && return 0/);
   });
 
-  test('semente não sobrescreve card estacionado que o operador editou', () => {
-    const seed = script.slice(script.indexOf('seed_parked_card() {'));
-    assert.match(seed.slice(0, seed.indexOf('\n}\n')), /\[ -e "\$card" \] && return 0/);
-  });
-
-  test('o stock do HDR sai do diretório ativo', () => {
+  test('o stock C# do HDR sai do diretório ativo (parked)', () => {
     assert.ok(
       script.includes('park_stock_indexer hdrtorrent'),
-      'o card ativo do HDR precisa ser estacionado junto',
+      'o stock C# do HDR continua sendo estacionado',
     );
-    const seedAt = script.indexOf('seed_parked_card hdrtorrent');
+    const reactivateAt = script.indexOf('reactivate_parked_card hdrtorrent');
     const parkAt = script.indexOf('park_stock_indexer hdrtorrent');
-    assert.ok(seedAt < parkAt, 'semear antes de estacionar evita sobrescrever a semente');
+    assert.ok(reactivateAt < parkAt, 'reativar antes de estacionar o stock evita conflito');
   });
 
-  test('o id continua FORA de todas as listas do addon', () => {
-    assert.doesNotMatch(
+  test('o id hdrtorrent-cardigann está nas listas do addon', () => {
+    assert.match(
       jackettConfig,
-      /hdrtorrent(?![-\w])(?=[^\n]*')/,
-      'hdrtorrent não pode voltar às listas de indexers sem decisão explícita',
+      /hdrtorrent-cardigann/,
+      'hdrtorrent-cardigann precisa estar nas listas de indexers BR',
     );
   });
 });
