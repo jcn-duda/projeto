@@ -13,9 +13,11 @@ import { SAFE_INDEXER_ID } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { collectRaw } from './collect-orchestrator.js';
 import { collectInstantItems } from './magnet-bank-instant.js';
+import { obraTargets } from './magnet-bank-fallback.js';
 import { idxPoolCovered, idxReleasesToRaw } from './search-pool-coverage.js';
 import { allowedSourceIndexer } from './allowed-source-indexer.js';
 import { shouldBrGap, hasBrDubbed, hasBrEvidence } from '../utils/br-gap.js';
+import { bankHasBrRow } from '../utils/magnet-bank-query.js';
 import { requestBrProbe } from './br-probe.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
@@ -119,11 +121,16 @@ function enqueueIndexFollowUp(args: {
     if (covered && shouldBrGap(indexed, config.jackett.indexOnlyIndexers.length > 0)) {
       const upgrade = hasBrDubbed(indexed);
       if (countMetrics) metrics.count(upgrade ? 'search.idx.brGap.upgrade' : 'search.idx.brGap.attempt');
-      // Gate de plausibilidade (C6): a sonda só faz sentido quando o índice JÁ
-      // provou alguma release BR; sem vestígio, a colheita regular de gap cuida
-      // da descoberta. `fallbackBrGap` mantém a rede quando a sonda não é
-      // elegível com evidência (toggle off/índice off/sem interseção).
-      if (hasBrEvidence(indexed)) {
+      // Gate de plausibilidade (C6): a sonda só faz sentido quando o índice OU
+      // o acervo JÁ provou alguma release BR — o BR que o corte do índice
+      // expulsou ainda vive no `magnets.db`. Sem vestígio NENHUM, a colheita
+      // regular de gap cuida da descoberta; `fallbackBrGap` mantém a rede quando
+      // a sonda não é elegível com evidência (toggle off/índice off/sem interseção).
+      const indexEvidence = hasBrEvidence(indexed);
+      // Curto-circuito: o banco só é lido quando o índice não prova.
+      const bankEvidence = !indexEvidence && bankHasBrRow(imdbId, obraTargets(type, season, episode));
+      if (indexEvidence || bankEvidence) {
+        if (bankEvidence && countMetrics) metrics.count('search.idx.brGap.bankEvidence');
         const probe = requestBrProbe(
           { type: type as 'movie' | 'series', imdbId, season, episode },
           { mode: upgrade ? 'upgrade' : 'evidence' },

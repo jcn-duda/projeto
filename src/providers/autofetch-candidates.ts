@@ -15,8 +15,10 @@ import { noteSkip } from './autofetch-gates.js';
 import { pickSeedsPool, purgeSeedsQueue } from './autofetch-seeds-pool.js';
 import { requestBrProbe, probeBlocksSeeds } from './br-probe.js';
 import { hasBrEvidence, hasBrDubbed } from '../utils/br-gap.js';
+import { bankHasBrRow } from '../utils/magnet-bank-query.js';
 import * as releaseIndex from '../utils/release-index.js';
 import { pickLowerPoolFallbacks, composeQueueEntries, toQueueCandidate } from './autofetch-fallback.js';
+import { obraTargets } from './magnet-bank-fallback.js';
 import {
   filterSeedsUniverse,
   seedsSelectionBlock,
@@ -145,11 +147,20 @@ export function autoFetchCandidates(
     // isBr, a ausência de dublado é o esperado. Enfileirar `br-gap` aqui era
     // colheita COMPLETA (~30 consultas, tier de prioridade por 1h) para todo
     // filme gringo aberto, limitada só pelo dedupe de 12h: mais caro que a
-    // sonda que o gate acabou de recusar. Sem vestígio, NADA sobe — o caminho
-    // regular de miss/gap da busca cuida da descoberta. Com evidência BR, a
-    // sonda é upgrade (já há dublado) ou ausência dentro da obra com prova BR.
+    // sonda que o gate acabou de recusar. Sem vestígio NENHUM (nem índice, nem
+    // acervo), NADA sobe — o caminho regular de miss/gap da busca cuida da
+    // descoberta. O BR que o corte do índice expulsou ainda vive no magnets.db:
+    // o acervo conta como evidência. Com evidência, a sonda é upgrade (já há
+    // dublado) ou ausência dentro da obra com prova BR.
     const releases = releaseIndex.lookupQuiet(imdbId as string, { season: season ?? null, episode: episode ?? null });
-    if (hasBrEvidence(releases)) {
+    const indexEvidence = hasBrEvidence(releases);
+    // Curto-circuito: o banco só é lido quando o índice não prova.
+    const bankEvidence = !indexEvidence && bankHasBrRow(
+      imdbId as string,
+      obraTargets(season != null ? 'series' : 'movie', season ?? null, episode ?? null),
+    );
+    if (indexEvidence || bankEvidence) {
+      if (bankEvidence) metrics.count('autofetch.brProbe.bankEvidence');
       requestBrProbe(probeWork, { mode: hasBrDubbed(releases) ? 'upgrade' : 'evidence' });
     } else {
       metrics.count('autofetch.brProbe.skipped.no-evidence');
