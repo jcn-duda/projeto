@@ -33,6 +33,7 @@ import { obraTargets, pickSource, toRawItem, PER_INDEXER_MAX } from './magnet-ba
 import type { Candidate } from './magnet-bank-fallback.js';
 import { idxPoolCovered, poolCovered } from './search-pool-coverage.js';
 import { allowedSourceIndexer } from './allowed-source-indexer.js';
+import { audioFromTitle, looksPtBr } from '../utils/audio-quality.js';
 import { fuseIndexEnrichment } from './index-evidence.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
 import * as metrics from '../utils/metrics.js';
@@ -220,7 +221,18 @@ export function collectInstantItems(req: InstantRequest): InstantResult {
       if (!source) continue;
       candidates.push({ magnet, source, work: worksByHash.get(hash)! });
     }
+    // Quem prefere dublado recebe o dublado do acervo ANTES do teto: ordenar só
+    // por seeders deixava o global mais semeado ocupar a vaga e cortava o
+    // dublado que o banco tinha. `magnet.dubbed` não é confiável (a captura não
+    // classifica áudio), então a leitura é pelo título, com a régua BR de sempre.
+    const dubRank = (m: MagnetRow) => {
+      if (!req.preferDubbed) return 0;
+      const audio = audioFromTitle(m.title || '');
+      return looksPtBr(m.title || '') || (m.isBr && (audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional')) ? 0 : 1;
+    };
     candidates.sort((a, b) => {
+      const dub = dubRank(a.magnet) - dubRank(b.magnet);
+      if (dub !== 0) return dub;
       if (b.magnet.seedersMax !== a.magnet.seedersMax) return b.magnet.seedersMax - a.magnet.seedersMax;
       return b.magnet.lastSeen - a.magnet.lastSeen;
     });
@@ -247,8 +259,12 @@ export function collectInstantItems(req: InstantRequest): InstantResult {
     // (inclusive `packOnly`) não pode ser poluído por ela.
     const coverage = [...items, ...(req.indexReleases || [])];
     if (!idxPoolCovered(coverage, { season: req.season, episode: req.episode, countMetrics: false })) return empty('not-covered', win.windowMs);
+    // Sem dublado no acervo NÃO trava mais a via: a última coleta viva (dentro da
+    // janela) já procurou e não achou, e esperar ~5-7s de BR ao vivo a cada
+    // abertura quase sempre confirmava o mesmo (Angel Heart/Chinatown,
+    // 2026-09-18). O tail segue buscando; dublado novo entra na abertura seguinte.
     if (req.preferDubbed && !poolCovered(coverage, { season: req.season, requireDubbed: true })) {
-      return empty('no-dubbed', win.windowMs);
+      metrics.count('search.bank.instant.noDubbed');
     }
 
     metrics.count('search.bank.instant');

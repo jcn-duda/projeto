@@ -182,7 +182,7 @@ test('cobertura: episódio exige release que NOMEIE o episódio (pack sozinho n�
   assert.ok(ok.items.some((i) => i.infoHash === ep));
 });
 
-test('preferDubbed sem pool dublado não responde (espera o BR ao vivo)', () => {
+test('preferDubbed sem pool dublado responde do acervo e só conta a métrica', () => {
   const imdb = 'tt203';
   const h = hex('c');
   // Fonte global sem marca de dublado: cobre o pool geral (swarm), não o dublado.
@@ -191,9 +191,12 @@ test('preferDubbed sem pool dublado não responde (espera o BR ao vivo)', () => 
   seed(h, 'idx-global', movieCtx(imdb), { title: 'Filme Teste 2024 1080p', isBr: false, seeders: 9 });
   const off = collectInstantItems({ type: 'movie', imdbId: imdb, season: null, episode: null, preferDubbed: false });
   assert.equal(off.eligible, true);
+  // A coleta viva recente já procurou e não achou dublado: esperar o BR ao vivo
+  // de novo custava ~5-7s por abertura (Angel Heart, 2026-09-18). O tail busca.
+  const before = metrics.snapshot().counters['search.bank.instant.noDubbed'] ?? 0;
   const on = collectInstantItems({ type: 'movie', imdbId: imdb, season: null, episode: null, preferDubbed: true });
-  assert.equal(on.eligible, false);
-  assert.equal(on.reason, 'no-dubbed');
+  assert.equal(on.eligible, true);
+  assert.equal(metrics.snapshot().counters['search.bank.instant.noDubbed'], before + 1);
 });
 
 test('janela: obra sem coleta viva é inelegível; coleta antiga fica stale', () => {
@@ -201,7 +204,7 @@ test('janela: obra sem coleta viva é inelegível; coleta antiga fica stale', ()
   seed(hex('d'), 'idx-br', movieCtx(imdb));
   const stale = collectInstantItems({
     type: 'movie', imdbId: imdb, season: null, episode: null, preferDubbed: false,
-    now: Date.now() + 2 * 3600000, // janela de piso = 1h
+    now: Date.now() + 8 * 86400000, // além do piso default (7d)
   });
   assert.equal(stale.eligible, false);
   assert.equal(stale.reason, 'stale');
@@ -275,19 +278,19 @@ test('fresh release: data real encurta a janela mesmo fora do ano corrente', () 
   assert.equal(win.windowMs, config.magnetBank.instantFreshMaxMs);
 });
 
-test('cobertura: calculada APÓS os caps (global corta o dublado e a via recusa)', () => {
+test('teto: com preferDubbed o dublado do acervo ocupa a vaga antes do global mais semeado', () => {
   const imdb = 'tt210';
   config.magnetBank.fallbackGlobalMax = 1;
   config.magnetBank.fallbackMaxPerIndexer = 1;
-  // Global com mais seeders ocupa o único slot; o BR dublado (menos seeders) cai
-  // no teto global. A cobertura pré-seleção ainda o enxergava e liberava a via.
+  // Ordenar só por seeders dava o único slot ao global e cortava o dublado.
   seed(hex('a'), 'idx-global', movieCtx(imdb), { title: `${NAME} 2024 1080p`, isBr: false, seeders: 9 });
   seed(hex('b'), 'idx-br', movieCtx(imdb), { title: `${NAME} 2024 1080p Dublado`, isBr: true, seeders: 4 });
   const dubbed = collectInstantItems({ type: 'movie', imdbId: imdb, season: null, episode: null, preferDubbed: true });
-  assert.equal(dubbed.eligible, false);
-  assert.equal(dubbed.reason, 'no-dubbed');
+  assert.equal(dubbed.eligible, true);
+  assert.deepEqual(dubbed.items.map((i) => i.infoHash), [hex('b')], 'o dublado leva a vaga');
   const any = collectInstantItems({ type: 'movie', imdbId: imdb, season: null, episode: null, preferDubbed: false });
-  assert.equal(any.eligible, true, 'sem o requisito de dublado o único item do cap cobre');
+  assert.equal(any.eligible, true);
+  assert.deepEqual(any.items.map((i) => i.infoHash), [hex('a')], 'sem preferência, seeders decidem');
 });
 
 test('banco fechado: leitura instantânea NÃO abre data/magnets.db', () => {

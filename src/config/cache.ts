@@ -68,7 +68,12 @@ export const magnetBank = () => {
   // e teto curto para lançamento recente. Os locais existem para o max nunca
   // ficar abaixo do min (knob invertido no `.env` vira clamp coerente, não janela
   // vazia) e o teto fresco nunca ultrapassar o max.
-  const instantMinMs = Math.max(1000, num(process.env.MAGNET_BANK_INSTANT_MIN_MS, 3600000));
+  // Piso = teto (7d) por default: toda resposta instantânea dispara a coleta
+  // completa no tail, então o custo de confiar no acervo é no máximo UMA abertura
+  // sem a novidade. Com piso de 1h, o banco recém-criado deixava quase tudo em
+  // `stale` e a abertura esperava ~5s de BR ao vivo (medido 2026-09-18). O
+  // lançamento recente segue no teto curto (`instantFreshMaxMs`).
+  const instantMinMs = Math.max(1000, num(process.env.MAGNET_BANK_INSTANT_MIN_MS, 7 * 86400000));
   const instantMaxMs = Math.max(instantMinMs, num(process.env.MAGNET_BANK_INSTANT_MAX_MS, 7 * 86400000));
   const instantFreshMaxMs = Math.min(instantMaxMs, Math.max(1000, num(process.env.MAGNET_BANK_INSTANT_FRESH_MAX_MS, 2 * 3600000)));
   return {
@@ -104,8 +109,8 @@ export const magnetBank = () => {
     // no tail. Kill-switch explícito; os tetos de itens são os mesmos do fallback
     // (acervo é acervo), então não há knob novo de cota.
     instantEnabled: String(process.env.MAGNET_BANK_INSTANT || 'true') !== 'false',
-    // Piso/teto da janela: estável confia até 7d; obra que ainda ganha release
-    // confia ~1h e quase sempre vai ao vivo.
+    // Piso/teto da janela (default 7d/7d): obra coletada na última semana
+    // responde do acervo; baixar o piso volta a exigir estabilidade.
     instantMinMs,
     instantMaxMs,
     // Lançamento recente (data < 30d/14d ou ano de catálogo corrente): teto curto.
