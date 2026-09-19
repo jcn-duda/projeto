@@ -209,7 +209,21 @@ export function collectInstantItems(req: InstantRequest): InstantResult {
       const magnet = row.magnet;
       if (!magnet || !row.work || !magnet.hash) continue;
       if (magnet.lied) continue;
-      if (magnets.has(magnet.hash)) continue;
+      if (magnets.has(magnet.hash)) {
+        // O MESMO magnet tem até três linhas na obra — episódio, temporada e
+        // obra raiz — e `obraTargets` lê o EPISÓDIO primeiro. O pack achado na
+        // busca do episódio fica `passed_filter=0` nessa linha mesmo quando a
+        // busca da TEMPORADA o validou em (S,-1)=1: ficar com a primeira linha
+        // tornava inelegível um magnet que o acervo tem como confirmado e ele
+        // SUMIA da reserva instantânea. Preferir a linha medida (1) resolve sem
+        // tocar no dedupe por hash, no `lied` nem na janela — que continua
+        // lendo TODAS as linhas.
+        const prior = worksByHash.get(magnet.hash);
+        if (prior && prior.passedFilter !== 1 && row.work.passedFilter === 1) {
+          worksByHash.set(magnet.hash, row.work);
+        }
+        continue;
+      }
       magnets.set(magnet.hash, magnet);
       worksByHash.set(magnet.hash, row.work);
     }

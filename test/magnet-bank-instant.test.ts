@@ -371,3 +371,29 @@ test('packOnly: fast-path do banco com idx só de pack também fica limpo', asyn
     restoreInventory();
   }
 });
+
+test('merge: mesmo hash prefere a linha passed_filter=1 (episódio × temporada)', () => {
+  const imdb = 'tt215', pack = hex('7');
+  const epCtx = { imdbId: imdb, season: 1, episode: 5 }, seasonCtx = { imdbId: imdb, season: 1, episode: null };
+  const item = { title: 'Serie Teste 1ª Temporada Completa 1080p Dublado', infoHash: pack, magnet: magnet(pack), seeders: 6, isBr: true };
+  // O MESMO pack em dois alvos: a captura do EPISÓDIO nasce sem filtro — linha
+  // (S,E)=0; a da TEMPORADA recaptura e o filtro valida — (S,-1)=1 (sem reset).
+  bank.captureItems([item], 'idx-br', epCtx);
+  bank.flushNow();
+  bank.captureItems([item], 'idx-br', seasonCtx);
+  bank.markFilterResult([pack], [pack], seasonCtx);
+  bank.flushNow();
+  // Cobertura: pack sozinho não cobre episódio — quem cobre é a release que o
+  // NOMEIA; sem ela a via morre em `not-covered` antes do merge importar.
+  const ep = hex('8');
+  seed(ep, 'idx-br', epCtx, { title: 'Serie Teste S01E05 1080p Dublado' });
+  // Prova de regressão do efd6f2c: sem preferir a linha 1, a PRIMEIRA lida
+  // (episódio, 0) deixa o pack inelegível e ele some da reserva instantânea.
+  const res = collectInstantItems({
+    type: 'series', imdbId: imdb, season: 1, episode: 5, preferDubbed: false,
+    names: ['Serie Teste'], year: 2024, isSeries: true,
+  });
+  assert.equal(res.eligible, true);
+  const hashes = new Set(res.items.map((i) => i.infoHash));
+  assert.equal(hashes.has(pack) && hashes.has(ep), true, 'pack validado na temporada e release do episódio');
+});
