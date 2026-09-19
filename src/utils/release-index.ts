@@ -20,8 +20,7 @@ import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { prefix } from './cache-keys.js';
 import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, parseTitleSeasonEpisode } from './format.js';
-// Prova de episódio errado (miss por episódio) mora no irmão, extraído pela
-// catraca de linhas; o pai reexporta para quem consome `releaseIndex.*`.
+// Prova de miss por episódio mora no irmão (extraído pela catraca); o pai reexporta.
 import { markMissing, isMissing, isMissingQuiet } from './release-index-miss.js';
 import type { IndexEntry, IndexedRelease, ObraLocation } from './release-index-types.js';
 export type { IndexedRelease } from './release-index-types.js';
@@ -40,8 +39,7 @@ function obraKey(imdbId: string, { season, episode }: ObraLocation = {}) {
 
 /**
  * Alimenta o índice com o que a busca provou existir. Idempotente: merge por
- * hash, registro mais recente vence. Itens sem hash e itens da conta são
- * ignorados — ver invariantes no cabeçalho.
+ * hash, mais recente vence; itens sem hash e da conta ficam fora.
  */
 /**
  * Onde a release PERTENCE, pelo que o título dela declara — não pela busca que
@@ -104,6 +102,7 @@ function record(
   let added = 0;
   for (const [key, lote] of porChave) {
     const existing = new Map<string, IndexedRelease>();
+    const novos = new Set<string>();
     const entry = cache.get(key);
     for (const rel of entry?.releases || []) existing.set(rel.hash, rel);
     for (const { item, hash, title } of lote) {
@@ -111,21 +110,18 @@ function record(
       const itemSource = item.indexSource === 'autofetch' ? 'autofetch' : opts.source;
       const promotesObserved = prior?.source === 'autofetch' && itemSource !== 'autofetch';
       if (prior && prior.seenAt >= now && !promotesObserved) continue;
-      if (!prior) added += 1;
-      // Mesma regra do toStremioStream: DUAL sem PT explícito não vale como
-      // dublado fora dos sites BR — o degrau "dublado global" depende deste flag.
+      if (!prior) novos.add(hash);
+      // DUAL sem PT explícito não vale como dublado fora dos sites BR (toStremioStream).
       const isBr = Boolean(item.isBr) || Boolean(prior?.isBr);
       const classifiedDubbed = isBr
         ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title)))
         : explicitPtAudio(title);
-      // No autofetch a classificação já atravessou toStremioStream e pode
-      // incluir prova de arquivo. Reclassificar só pelo título perderia essa
-      // evidência no exato momento em que fechamos o ciclo.
+      // No autofetch a classificação já atravessou toStremioStream e pode incluir
+      // prova de arquivo; reclassificar só pelo título perderia essa evidência.
       const dubbed = itemSource === 'autofetch' && item.dubbed !== undefined
         ? Boolean(item.dubbed)
         : classifiedDubbed;
-      // Uma observação pública anterior nunca é rebaixada para "só autofetch".
-      // Já o caminho normal promove a entrada marcada assim que volta a vê-la.
+      // Observação pública nunca rebaixa para "só autofetch"; o normal promove ao rever.
       const source = itemSource === 'autofetch' && (!prior || prior.source === 'autofetch')
         ? 'autofetch' as const
         : undefined;
@@ -147,9 +143,13 @@ function record(
       });
     }
     if (existing.size === 0) continue;
+    // Proteção: BR/dublado nunca cai no corte de recência — o colhedor é o único
+    // caminho de volta. `added` só conta hash novo SOBREVIVENTE do slice.
     const releases = [...existing.values()]
-      .sort((a, b) => b.seenAt - a.seenAt)
+      .sort((a, b) => Number(b.isBr || b.dubbed) - Number(a.isBr || a.dubbed)
+        || b.seenAt - a.seenAt || b.seeders - a.seeders)
       .slice(0, Math.max(1, config.releaseIndex.maxReleases));
+    added += releases.filter((r) => novos.has(r.hash)).length;
     cache.set(key, { at: now, partial, releases } satisfies IndexEntry, config.releaseIndex.ttl);
   }
   metrics.count('search.idx.recorded', added);
