@@ -11,6 +11,7 @@ import * as rdLedger from '../src/debrid/rd-ledger.js';
 import { rdGate } from '../src/debrid/rd-gate.js';
 import * as activity from '../src/providers/activity.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
+import { prefix as cachePrefix } from '../src/utils/cache-keys.js';
 
 const [H1, H2, H3, H4, H5] = ['1', '2', '3', '4', '5'].map(c => c.repeat(40));
 
@@ -243,7 +244,7 @@ test('rd-warmer: DELETE de limpeza que falha não transforma ⚡ em miss', async
 });
 
 test('rd-warmer: confirmação de ⚡ promove entrada [RD download] para [RD⚡] no cache ativo', async () => {
-  const searchKey = 'streams:v11:movie:ttWarmPromote:cfg';
+  const searchKey = `${cachePrefix('streams')}movie:ttWarmPromote:cfg`;
   cache.set(searchKey, {
     streams: [
       {
@@ -366,7 +367,7 @@ test('rd-warmer: reparo idempotente limpa só o bad RD correlacionado com ledger
   magnetdb.markBad('realdebrid', config.debrid.apiKey, noVideoHash);
   magnetdb.markBad('torbox', 'outra-conta', otherHash);
   rdLedger.noteBlocked(blockedHash);
-  const staleStreamKey = 'streams:v11:movie:ttBlockedRepair';
+  const staleStreamKey = `${cachePrefix('streams')}movie:ttBlockedRepair`;
   cache.set(staleStreamKey, { streams: [] }, 600);
   metrics.reset();
 

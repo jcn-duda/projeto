@@ -2,6 +2,7 @@ import type { RawItem } from '../../types/domain.js';
 import { matchesEpisode } from './episode-matching.js';
 import { titleTokens } from './matching-vocabulary.js';
 import { yearContradicts } from './matching-tokens.js';
+import { magnetDisplayName } from './title-normalization.js';
 import {
   containsTokenRun,
   franchiseRoots,
@@ -16,6 +17,7 @@ import {
 } from './release-title-rules.js';
 import { admitsMultiWorkPack } from './multiwork-pack.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
+import { parseTitleSeasonEpisode } from './episode-matching.js';
 
 interface MatchOptions {
   names?: string[];
@@ -30,7 +32,7 @@ interface MatchOptions {
   multiWork?: MultiWorkCollection | null;
 }
 
-export type RelevanceRejectReason = 'title' | 'magnet-year' | 'episode' | 'series-work';
+export type RelevanceRejectReason = 'title' | 'magnet-year' | 'episode' | 'series-work' | 'movie-is-series';
 
 /**
  * Classificação crua compartilhada pelo corte final e pelo gatilho de pack.
@@ -88,6 +90,47 @@ function filterRelevantRaw(
       }
       return true;
     }
+    // Filme: rejeita release de SÉRIE antes do ano e do episódio. O título do
+    // post BR muitas vezes não carrega marcador de temporada ("Resident Evil –
+    // A Série – 1ª Temporada"), mas o dn= do magnet sim (S01). Sem este veto,
+    // a série entra na lista do filme porque o título não tem ano (yearContradicts
+    // não corta) e nada rejeita marcador de temporada em filme.
+    //
+    // Exceção: se o NOME PROCURADO já tiver o mesmo marcador (ex.: "S1m0ne"),
+    // o parser lê temporada 1 no nome e a exceção protege o filme legítimo.
+    // "Complete" fica de fora: "Complete Collection" de filmes é legítimo.
+    if (!isSeries && season == null) {
+      const displayText = `${title} ${magnetDisplayName(item)}`;
+      // Remove anos E resoluções antes do parse de temporada:
+      // "Pack.Coisa.1994.e.2024.DUAL" normaliza para "pack coisa 1994 e 2024
+      // dual", e o parser lê "1994 e 2024" como T19 E94 + E20 E24 (temporada 19,
+      // episódios 94/20/24). Sem limpar, qualquer pack com dois anos seria
+      // rejeitado como série. O mesmo vale para resoluções: "Inception.2010.
+      // 1280x720.BluRay" normaliza para "inception 2010 1280x720 bluray", e o
+      // parser lê "80x720" como T80 E720. "1920x1080" escapava porque "1920"
+      // parece ano e era apagado; "1280x720" e "3840x2160" não escapam.
+      const withoutYears = displayText.replace(/(?:19|20)\d{2}/g, ' ').replace(/\d{3,4}x\d{3,4}/gi, ' ');
+      const parsed = parseTitleSeasonEpisode(withoutYears);
+      const hasSeasonMarker = parsed.seasons.length > 0 || parsed.episodes.length > 0 || parsed.seasonPack;
+      // "a série", "the série", "minissérie" — sem o "series" solto, que mata
+      // filmes com esse nome ("A Series of Unfortunate Events", "Series 7").
+      const SERIES_LABEL_RE = /\b(?:a|the)\s+s[eé]rie\b|\bminiss[eé]rie\b/i;
+      const hasSeriesLabel = SERIES_LABEL_RE.test(displayText);
+      if (hasSeasonMarker || hasSeriesLabel) {
+        // Exceção: o nome procurado NÃO pode ter o mesmo marcador (temporada)
+        // OU conter o mesmo rótulo de série (protege "Series of Unfortunate
+        // Events" e "S1m0ne").
+        const nameParsed = names.some((n) => {
+          const cleaned = n.replace(/(?:19|20)\d{2}/g, ' ').replace(/\d{3,4}x\d{3,4}/gi, ' ');
+          const np = parseTitleSeasonEpisode(cleaned);
+          return np.seasons.length > 0 || np.episodes.length > 0 || np.seasonPack || SERIES_LABEL_RE.test(n);
+        });
+        if (!nameParsed) {
+          onRejected?.(item, 'movie-is-series');
+          return false;
+        }
+      }
+    }
     // Filme: o dn= do magnet carrega o ano verdadeiro quando o título
     // mapeado não traz (e confirma quando traz). Séries ficam de fora — o
     // ano do post delas é o da temporada, com regra própria acima.
@@ -116,44 +159,32 @@ function filterRelevantRaw(
  * nome real da release. Medido no hdrtorrent: o MESMO post entrega magnets de
  * três filmes ("The Crow (2024)", "O Corvo 1994", "O Corvo (2012)") — e os
  * três se chamam "O Corvo" no Brasil, então nenhum filtro de título separa.
+ *
  * Um único ano explícito no magnet contradizendo o catálogo além de ±2 é
- * outra obra. Vários anos é ambíguo e passa, na mesma régua das regras de
- * título; resolução (1920x1080) não é ano.
+ * outra obra. Vários anos em FILME viram intervalo: há contradição quando
+ * NENHUM ano fica a ±2 do catálogo E o catálogo fica fora do intervalo
+ * [min, max]. Assim "Collection 2002 2016" com catálogo 2004 passa (pack
+ * contém o filme), mas "Collection 2002 2016" com catálogo 2026 morre.
+ * Resolução (1920x1080) não é ano.
  */
 function magnetYearContradicts(item: RawItem | null | undefined, catalogYear: number) {
-  const raw = String(item?.magnet || item?.MagnetUri || item?.Guid || '');
-  if (!raw || !catalogYear) return false;
-  // Só analisa o dn= de um magnet real. URLs de protetor de link (http/https)
-  // não contêm informação de release — o slug do post pode citar qualquer ano
-  // da franquia. Medido no nerdviatorrents: slug "exterminio-2025" mata o filme
-  // correto de 2002 porque |2025-2002|=23>2.
-  const isMagnet = /^magnet:/i.test(raw.trim());
-  let source: string;
-  if (isMagnet) {
-    // Extrai APENAS o dn= do magnet: é onde a release declara o nome/ano real.
-    const dnMatch = raw.match(/[&?]dn=([^&]+)/i);
-    source = dnMatch ? dnMatch[1] : '';
-  } else {
-    // URL de protetor/resolver: sem dn=, sem evidência de ano da release.
-    return false;
-  }
-  if (!source) return false;
-  // O dn= viaja percent-encoded ("O%20Corvo%201994"): sem decodificar, o '0'
-  // do %20 cola no ano e a fronteira de dígito esconde exatamente o ano
-  // verdadeiro que esta guarda procura. '+' é espaço na forma magnet.
-  source = source.replace(/\+/g, ' ');
-  try {
-    source = decodeURIComponent(source);
-  } catch {
-    /* sequência % malformada: segue com o texto que decodificou até aqui */
-  }
+  const source = magnetDisplayName(item);
+  if (!source || !catalogYear) return false;
   const cleaned = source.replace(/\d{3,4}x\d{3,4}/gi, ' ');
   const years = [
     ...new Set(
       [...cleaned.matchAll(/(?<!\d)(?:19|20)\d{2}(?!\d)/g)].map((m: any) => Number(m[0])),
     ),
   ];
-  return years.length === 1 && Math.abs(years[0] - catalogYear) > 2;
+  if (years.length === 0) return false;
+  if (years.length === 1) return Math.abs(years[0] - catalogYear) > 2;
+  // Vários anos: intervalo [min, max]. Há contradição quando NENHUM ano fica
+  // a ±2 do catálogo E o catálogo está fora do intervalo.
+  const minYear = Math.min(...years);
+  const maxYear = Math.max(...years);
+  const someNear = years.some((y) => Math.abs(y - catalogYear) <= 2);
+  if (someNear) return false;
+  return catalogYear < minYear || catalogYear > maxYear;
 }
 
 /**

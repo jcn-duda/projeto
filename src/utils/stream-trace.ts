@@ -25,6 +25,7 @@ export type TraceReason =
   | 'account-magnet-year'
   | 'account-episode'
   | 'account-series-work'
+  | 'account-movie-is-series'
   | 'title-filter'
   | 'multiwork-retained'
   | 'episode-mismatch'

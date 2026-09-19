@@ -25,6 +25,7 @@ import * as runtime from '../src/runtime.js';
 import jackett from '../src/providers/jackett.js';
 import debrid from '../src/debrid/index.js';
 import { stubFetch } from './helpers/stub.js';
+import { prefix as cachePrefix } from '../src/utils/cache-keys.js';
 
 const A = 'a'.repeat(40);
 const MOVIE = { type: 'movie' as const, imdbId: 'tt0107953' };
@@ -281,11 +282,11 @@ test('worker dirigido consulta SÓ a interseção, sequencial, e registra DUAL B
     const idx = releaseIndex.lookup(MOVIE.imdbId, {});
     assert.ok(idx.some((x) => x.isBr && x.dubbed), 'DUAL BR entrou no índice com isBr+dubbed');
 
-    cache.set('streams:v11:movie:tt0107953:cfg', { streams: [] }, 3600);
-    const invalidadasAntes = cache.peek('streams:v11:movie:tt0107953:cfg');
+    cache.set(`${cachePrefix('streams')}movie:tt0107953:cfg`, { streams: [] }, 3600);
+    const invalidadasAntes = cache.peek(`${cachePrefix('streams')}movie:tt0107953:cfg`);
     assert.ok(invalidadasAntes, 'lista pronta existe antes de finalizar');
     brProbe.finalizeBrProbe(MOVIE, 'found');
-    assert.equal(cache.peek('streams:v11:movie:tt0107953:cfg'), null, 'found invalida a lista da obra');
+    assert.equal(cache.peek(`${cachePrefix('streams')}movie:tt0107953:cfg`), null, 'found invalida a lista da obra');
     assert.equal(brProbe.probeBlocksSeeds(MOVIE), false, 'found NÃO bloqueia seeds: o índice decide na próxima abertura');
     assert.equal(brProbe.requestBrProbe(MOVIE).skipped, 'found', 'mas o dedupe de 12h do estado permanece');
   } finally {
@@ -299,7 +300,7 @@ test('saída de pending invalida as listas em empty, failed e capped', () => {
   const s = setup();
   try {
     for (const estado of ['empty', 'failed', 'capped'] as const) {
-      const key = `streams:v11:movie:tt0107953:${estado}`;
+      const key = `${cachePrefix('streams')}movie:tt0107953:${estado}`;
       cache.set(key, { streams: [] }, 3600);
       brProbe.finalizeBrProbe(MOVIE, estado);
       assert.equal(cache.peek(key), null, `${estado} invalida a lista da obra`);

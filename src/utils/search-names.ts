@@ -1,5 +1,5 @@
 import type { RawItem, Stream, StreamCandidate } from '../../types/domain.js';
-import { extractInfoHash, decodeEntities, bytesToSize, normalizeTitle, dedupeNames } from './title-normalization.js';
+import { extractInfoHash, decodeEntities, bytesToSize, normalizeTitle, dedupeNames, magnetDisplayName } from './title-normalization.js';
 import { LEADING_ARTICLES, isMultiWorkCollection } from './release-matching.js';
 import {
   UNKNOWN_QUALITY,
@@ -211,6 +211,10 @@ function toStremioStream(item: RawItem): Stream | null {
       // REMOVIDA antes do protocolo (applyNoticeOrigin).
       ...(fromFallback ? { _fromFallback: true } : {}),
       ...(stored && !fromFallback ? { _fromSnapshot: true } : {}),
+      // Campo INTERNO: dn= do magnet para o notCam do stream-ranking. O título
+      // do post BR pode esconder TELESYNC/TS; o dn= revela. Removido na limpeza
+      // final do stream-quotas antes do protocolo.
+      _magnetDn: magnetDisplayName(item),
   };
 }
 

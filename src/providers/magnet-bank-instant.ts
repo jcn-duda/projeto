@@ -35,6 +35,7 @@ import { idxPoolCovered, poolCovered } from './search-pool-coverage.js';
 import { allowedSourceIndexer } from './allowed-source-indexer.js';
 import { audioFromTitle, looksPtBr } from '../utils/audio-quality.js';
 import { fuseIndexEnrichment } from './index-evidence.js';
+import { filterRelevantRaw } from '../utils/release-filters.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
@@ -73,6 +74,10 @@ export interface InstantRequest {
   indexReleases?: readonly any[];
   /** Injetável para teste determinístico. */
   now?: number;
+  /** Contexto de matching para reaplicar o filtro (série/pack/CAM). */
+  names?: string[];
+  isSeries?: boolean;
+  year?: number | string | null;
 }
 
 export type InstantSkipReason =
@@ -247,9 +252,24 @@ export function collectInstantItems(req: InstantRequest): InstantResult {
       perIndexer.set(indexerId, used + 1);
       items.push(toRawItem(candidate));
     }
+    // Reaplica o filtro vivo nos itens do banco: o `passed_filter=1` grava a
+    // elegibilidade NA HORA da busca que capturou, mas regras mudam (série no
+    // filme, TS/PreDVD, pack fora do intervalo). Sem reaplicar, a lista errada
+    // sobrevive por até 7 dias no acervo. Barato: filtro é puro e os itens já
+    // estão em memória. Se o req não tem nomes, o filtro é no-op (names=[]).
+    const matchContext = {
+      names: req.names || [],
+      year: req.year ?? req.meta?.year ?? null,
+      isSeries: req.isSeries ?? (req.type === 'series'),
+      season: req.season,
+      episode: req.episode,
+    };
+    const filteredItems = req.names?.length
+      ? filterRelevantRaw(items, matchContext)
+      : items;
     // Sem foto confiável não há via instantânea: obra sem `passed_filter=1`
     // não gerou material, e o caminho vivo (índice/coleta) decide.
-    if (items.length === 0) return empty('no-live-collection', win.windowMs);
+    if (filteredItems.length === 0) return empty('no-live-collection', win.windowMs);
 
     // Cobertura: os itens JÁ CORTADOS (pós caps por indexer/global) somados ao
     // idx. Calcular sobre a pré-seleção prometia cobertura por item que o teto
@@ -257,7 +277,7 @@ export function collectInstantItems(req: InstantRequest): InstantResult {
     // Episódio exige release que NOMEIE o episódio (pack sozinho não cobre).
     // `countMetrics:false`: esta é a via do BANCO; o funil `search.idx.*`
     // (inclusive `packOnly`) não pode ser poluído por ela.
-    const coverage = [...items, ...(req.indexReleases || [])];
+    const coverage = [...filteredItems, ...(req.indexReleases || [])];
     if (!idxPoolCovered(coverage, { season: req.season, episode: req.episode, countMetrics: false })) return empty('not-covered', win.windowMs);
     // Sem dublado no acervo NÃO trava mais a via: a última coleta viva (dentro da
     // janela) já procurou e não achou, e esperar ~5-7s de BR ao vivo a cada
@@ -269,8 +289,8 @@ export function collectInstantItems(req: InstantRequest): InstantResult {
 
     metrics.count('search.bank.instant');
     metrics.observe('search.bank.instant.windowMs', win.windowMs);
-    log.info(`[instant] ${items.length} item(ns) do banco para ${imdbId} (janela ${Math.round(win.windowMs / 60000)}min)`);
-    return { eligible: true, items, windowMs: win.windowMs };
+    log.info(`[instant] ${filteredItems.length} item(ns) do banco para ${imdbId} (janela ${Math.round(win.windowMs / 60000)}min)`);
+    return { eligible: true, items: filteredItems, windowMs: win.windowMs };
   } catch (err: unknown) {
     log.warn('[instant] banco de magnets falhou; seguindo ao vivo:', log.errorMessage(err));
     return empty('error');

@@ -149,4 +149,29 @@ function dedupeNames(names: Array<string | null | undefined>): string[] {
   return out;
 }
 
-export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics, dedupeNames };
+/**
+ * Nome da release escondido no dn= do magnet. Sites BR publicam o post sem
+ * ano/tag no título mapeado, mas o dn= do magnet preserva o nome real
+ * ("Resident.Evil.2026.1080p.TELESYNC…"). URL de protetor (http/https) não
+ * carrega dn= — sem evidência, devolve vazio.
+ *
+ * Extrai APENAS o dn=: o slug do post pode citar qualquer ano da franquia
+ * (medido no nerdviatorrents: slug "exterminio-2025" mata o filme correto
+ * de 2002). '+' é espaço na forma magnet; % malformado segue com o texto
+ * que decodificou até aqui.
+ */
+function magnetDisplayName(item: { magnet?: string; MagnetUri?: string; Guid?: string } | null | undefined): string {
+  const raw = String(item?.magnet || item?.MagnetUri || item?.Guid || '');
+  if (!raw || !/^magnet:/i.test(raw.trim())) return '';
+  const dnMatch = raw.match(/[&?]dn=([^&]+)/i);
+  if (!dnMatch) return '';
+  let source = dnMatch[1].replace(/\+/g, ' ');
+  try {
+    source = decodeURIComponent(source);
+  } catch {
+    /* sequência % malformada: segue com o texto que decodificou até aqui */
+  }
+  return source;
+}
+
+export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics, dedupeNames, magnetDisplayName };

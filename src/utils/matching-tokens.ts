@@ -121,16 +121,27 @@ function episodeWorkTokens(tokens: string[]) {
  * lançamento nacional — e condena com um ÚNICO ano contraditório; série só
  * condena quando TODOS os anos do título são anteriores à estreia −2, porque
  * o ano do post de série é o da temporada ("Fallout 2ª Temporada (2025)"
- * contra catálogo 2024 passa). Dois ou mais anos em FILME deixam o campo
- * ambíguo ("Blade Runner 2049 (2017)") e a checagem é pulada; em série
- * basta um ano recente para liberar. Sem ano no catálogo nada é cortado.
+ * contra catálogo 2024 passa). Dois ou mais anos em FILME viram intervalo:
+ * há contradição quando NENHUM ano fica a ±2 do catálogo E o catálogo está
+ * fora do intervalo [min, max]. Assim "Blade Runner 2049 (2017)" com catálogo
+ * 2017 passa (ano próximo), e "Collection 2002 2016" com catálogo 2004 passa
+ * (pack contém o filme), mas "Collection 2002 2016" com catálogo 2026 morre.
+ * Em série basta um ano recente para liberar. Sem ano no catálogo nada é cortado.
  */
 function yearContradicts(tokens: string[], year: number | string | null, isSeries: boolean) {
   const catalogYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
   if (!catalogYear) return false;
   const years = tokens.filter((t) => /^(?:19|20)\d{2}$/.test(t)).map(Number);
-  if (isSeries) return years.length > 0 && years.every((y) => y < catalogYear - 2);
-  return years.length === 1 && Math.abs(years[0] - catalogYear) > 2;
+  if (years.length === 0) return false;
+  if (isSeries) return years.every((y) => y < catalogYear - 2);
+  if (years.length === 1) return Math.abs(years[0] - catalogYear) > 2;
+  // Vários anos: intervalo [min, max]. Há contradição quando NENHUM ano fica
+  // a ±2 do catálogo E o catálogo está fora do intervalo.
+  const minYear = Math.min(...years);
+  const maxYear = Math.max(...years);
+  const someNear = years.some((y) => Math.abs(y - catalogYear) <= 2);
+  if (someNear) return false;
+  return catalogYear < minYear || catalogYear > maxYear;
 }
 
 // Primeiro token relevante do título: pula ruído curto, artigo, empacotamento

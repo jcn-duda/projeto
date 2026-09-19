@@ -90,16 +90,27 @@ function qualityFromTitle(title = '') {
 }
 
 function sourceFromTitle(title = '') {
-  const t = title.toUpperCase();
+  // Remove extensão de arquivo do final (.ts, .mkv, .avi, .mp4, .mov) antes
+  // de classificar fonte: "Filme.2019.1080p.H264.ts" é arquivo .ts, não
+  // TELESYNC. Sem isso, o \bTS\b do CAM casa com o ".ts" final porque o "."
+  // conta como fronteira de palavra.
+  const t = title.toUpperCase().replace(/\.(?:TS|MKV|AVI|MP4|MOV|FLV|WMV|WEBM)$/i, '');
   if (/\b(BLURAY|BLU-RAY|BDREMUX|BD\b)/.test(t)) return 'BluRay';
   if (/\bWEB[-. ]?DL\b/.test(t)) return 'WEB-DL';
   if (/\bWEB[-. ]?RIP\b/.test(t)) return 'WEBRip';
   if (/\bHDTV\b/.test(t)) return 'HDTV';
-  // CAMRip e HDCAM não têm fronteira de palavra em volta de "CAM" e escapavam
-  // do teste anterior (`\bCAM\b`): passavam como fonte desconhecida. Isso pesa
-  // mais desde que o autofetch baixa por swarm — gravação de cinema é
-  // justamente o que costuma ter o maior número de seeders num lançamento.
+  // Gravações de cinema: HDCAM/CAMRip/CAM já eram reconhecidas; TS/TC/TELESYNC/
+  // TELECINE/PreDVD não eram tratados e releases "D.TS.1080p" ou "HQ PreDVD"
+  // passavam como fonte desconhecida. Medido no Resident Evil (2026): Kickass
+  // publicou "HQ PreDVD" e "D.TS.1080p" que o excludeCam=true do usuário não
+  // cortava. A ordem preserva a precedência: WEB-DL/WEBRip/HDTV continuam
+  // ganhando; TS/TC curtos exigem fronteira de token (\b) para não casar dentro
+  // de "DDP5.1" ou "H264". PreDVD/Pre-DVD cobre o estágio anterior ao DVD.
   if (/\b(?:HD[-. ]?)?CAM(?:[-. ]?RIP)?\b/.test(t)) return 'CAM';
+  if (/\b(?:HD[-. ]?)?(?:TS|TC)\b/.test(t)) return 'CAM';
+  if (/\bTELESYNC\b/.test(t)) return 'CAM';
+  if (/\bTELECINE\b/.test(t)) return 'CAM';
+  if (/\bPRE[-. ]?DVD\b/.test(t)) return 'CAM';
   return '';
 }
 

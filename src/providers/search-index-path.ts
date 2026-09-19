@@ -175,6 +175,9 @@ export async function attemptIndexFastPath(input: IndexAttemptInput): Promise<{ 
     meta: { year: matchContext.year, released: matchContext.released, firstAired: matchContext.firstAired },
     preferDubbed: opts().preferDubbed,
     indexReleases: indexed,
+    names: matchContext.names,
+    isSeries: matchContext.isSeries,
+    year: matchContext.year,
   });
   if (instantResult.eligible) {
     // A resposta sai do BANCO, mas a obra ainda precisa entrar no índice e no

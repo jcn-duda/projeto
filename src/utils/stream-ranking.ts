@@ -273,7 +273,7 @@ function sortAndLimit(
   // 1 fixo), então qualquer piso de saúde afrouxaria o filtro do usuário em
   // busca BR normal. O último recurso também escapa das cotas de
   // `qualityLimits` — é o preço de não devolver lista vazia.
-  const notCam = (s: any) => !excludeCam || sourceFromTitle(s.title) !== 'CAM';
+  const notCam = (s: any) => !excludeCam || (sourceFromTitle(s.title) !== 'CAM' && sourceFromTitle(s._magnetDn || '') !== 'CAM');
   // Tamanho ausente não é tratado como zero real: sem dado confiável, o
   // stream continua visível em vez de ser descartado silenciosamente.
   const fitsSize = (s: any) => !maxSizeBytes || !s._size || s._size <= maxSizeBytes;

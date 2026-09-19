@@ -37,7 +37,11 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // v11: o `title` entregue ao cliente deixa de carregar o blob de qualidades
   // do HDRTorrent. Listas v10 mantinham a cauda e clientes que classificam o
   // título por conta própria exibiam 4K em botões 1080p/720p.
-  streams: 'v11',
+  // v12: série/pack fora do intervalo/TS-PreDVD saem da lista de filme.
+  // Listas v11 carregavam a série da Netflix no filme Resident Evil (2026),
+  // pack 2002-2016 fora do intervalo e gravações de cinema (TELESYNC/PreDVD)
+  // que o excludeCam=true do usuário não cortava.
+  streams: 'v12',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',

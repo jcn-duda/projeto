@@ -186,6 +186,8 @@ export interface StreamBase {
   _fromFallback?: boolean;
   /** Foto salva exibida com 📦: o `relabel` do dedupe precisa preservar o selo; removida no protocolo. */
   _fromSnapshot?: boolean;
+  /** Campo INTERNO: dn= do magnet para o notCam do stream-ranking; removido antes do protocolo. */
+  _magnetDn?: string;
   /** Marca interna do item de aviso — some antes do Stremio receber. */
   notice?: true;
 }

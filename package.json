@@ -341,6 +341,7 @@
     "test/painel-css.test.js",
     "test/painel-saude-indexers.test.js",
     "test/painel-magnet-bank.test.js",
-    "test/painel-conta.test.js"
+    "test/painel-conta.test.js",
+    "test/movie-series-cam-guard.test.js"
   ]
 }
