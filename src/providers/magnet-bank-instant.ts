@@ -19,9 +19,11 @@
 //   banco, `releaseIndex.record`, autofetch/warmer e auditoria de áudio;
 // - item passa pelo MESMO `buildStreams` (título/episódio/multiobra, mag
 //   bad/lie, debrid, cotas, MIN_SEEDERS) — sem bypass;
-// - **`passed_filter=1` é ELEGIBILIDADE** (diferente do fallback, que aceita
-//   0): a resposta instantânea só entrega a foto que JÁ sobreviveu a uma busca
-//   viva; palpite do site que nunca passou pelo filtro não vira 📦;
+// - **`passed_filter=1` OU fonte index-only é ELEGIBILIDADE** (diferente do
+//   fallback, que aceita 0): a resposta instantânea só entrega a foto que JÁ
+//   sobreviveu a uma busca viva; palpite do site que nunca passou pelo filtro
+//   não vira 📦 — EXCETO o só-colhedor (index-only), que não passa pela busca
+//   viva e por isso fica com `passed_filter=0` para sempre; o acervo é a porta;
 // - fail-open: qualquer falha do banco devolve inelegível e a busca segue ao
 //   vivo — nunca derruba a resposta.
 import config from '../config.js';
@@ -194,15 +196,18 @@ export function collectInstantItems(req: InstantRequest): InstantResult {
     if (now - win.lastCollection > win.windowMs) return empty('stale', win.windowMs);
 
     // Seleção: qualquer source do banco (não há "indexer falho" aqui), sem
-    // lied, dedupe por hash, cap por indexer e global. Só `passed_filter=1`
-    // entra: a via instantânea exige a foto que sobreviveu ao filtro vivo
-    // (o fallback da Etapa 4 aceita 0 porque é rede de emergência; aqui não).
+    // lied, dedupe por hash, cap por indexer e global. Elegibilidade:
+    // `passed_filter=1` (a foto que sobreviveu ao filtro vivo; o fallback da
+    // Etapa 4 aceita 0 porque é rede de emergência) OU fonte index-only — o
+    // só-colhedor nunca passa pela busca viva, então o passedFilter dele fica
+    // 0 para sempre e o acervo é a única porta dele. A checagem desce para
+    // depois do filtro de config (`allowed`): é por fonte, não pela obra.
+    const indexOnlySet = new Set(config.jackett.indexOnlyIndexers.map((id) => String(id).trim().toLowerCase()));
     const magnets = new Map<string, MagnetRow>();
     const worksByHash = new Map<string, WorkRow>();
     for (const row of rows) {
       const magnet = row.magnet;
       if (!magnet || !row.work || !magnet.hash) continue;
-      if (row.work.passedFilter !== 1) continue;
       if (magnet.lied) continue;
       if (magnets.has(magnet.hash)) continue;
       magnets.set(magnet.hash, magnet);
@@ -222,9 +227,13 @@ export function collectInstantItems(req: InstantRequest): InstantResult {
         continue;
       }
       const allowed = (sourcesByHash.get(hash) || []).filter((s) => allowedSourceIndexer(s.indexer));
+      const work = worksByHash.get(hash)!;
+      const eligible = work.passedFilter === 1
+        || allowed.some((s) => indexOnlySet.has(String(s.indexer || '').trim().toLowerCase()));
+      if (!eligible) continue;
       const source = pickSource(allowed, new Set(), true);
       if (!source) continue;
-      candidates.push({ magnet, source, work: worksByHash.get(hash)! });
+      candidates.push({ magnet, source, work });
     }
     // Quem prefere dublado recebe o dublado do acervo ANTES do teto: ordenar só
     // por seeders deixava o global mais semeado ocupar a vaga e cortava o
@@ -267,8 +276,8 @@ export function collectInstantItems(req: InstantRequest): InstantResult {
     const filteredItems = req.names?.length
       ? filterRelevantRaw(items, matchContext)
       : items;
-    // Sem foto confiável não há via instantânea: obra sem `passed_filter=1`
-    // não gerou material, e o caminho vivo (índice/coleta) decide.
+    // Sem foto confiável não há via instantânea: nenhum candidato elegível
+    // (nem `passed_filter=1`, nem index-only) — o caminho vivo decide.
     if (filteredItems.length === 0) return empty('no-live-collection', win.windowMs);
 
     // Cobertura: os itens JÁ CORTADOS (pós caps por indexer/global) somados ao
