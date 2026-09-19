@@ -93,6 +93,22 @@ test('helper: ji explícito filtra Jackett; lista vazia passa tudo; origem não-
   });
 });
 
+test('helper: index-only passa mesmo fora do ji (só chega pelo idx/banco)', () => {
+  // VPS 2026-09-18: `.env` com `apachetorrent` (id inexistente) e a /configure
+  // desmarcando `apachetorrent-cardigann` — o filtro cortava a fonte de todos.
+  const savedIndexOnly = config.jackett.indexOnlyIndexers;
+  config.jackett.indexOnlyIndexers = ['apachetorrent-cardigann'];
+  try {
+    withOpts({ providers: ['jackett'], jackettIndexers: ['kickasstorrents-to'] }, () => {
+      assert.equal(allowedSourceIndexer('apachetorrent-cardigann'), true);
+      assert.equal(allowedSourceIndexer('Apachetorrent-Cardigann'), true);
+      assert.equal(allowedSourceIndexer('thepiratebay'), false, 'indexer comum segue o ji');
+    });
+  } finally {
+    config.jackett.indexOnlyIndexers = savedIndexOnly;
+  }
+});
+
 test('idxReleasesToRaw preserva tracker gravado (fallback para indexer)', () => {
   const withTracker = [{
     hash: hex('1'), title: 'Filme 1080p', seeders: 3, size: 1,
