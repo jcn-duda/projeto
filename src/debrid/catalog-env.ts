@@ -311,6 +311,13 @@ async function cleanupApplyEnv(max?: number, { includeKnown }: { includeKnown?: 
   }
 }
 
+/** Plano de versões da mesma obra (T3; leitura pura; nenhuma deleção). */
+function catalogVersionsEnv() {
+  const { adapter, guardos } = catalogContext();
+  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  return { ok: true, plan: catalog.planWorkVersions(accountScope(config.debrid.apiKey), adapter.id) };
+}
+
 export {
   catalogScanEnv,
   catalogStatusEnv,
@@ -322,4 +329,5 @@ export {
   auditRequeueEnv,
   cleanupPreviewEnv,
   cleanupApplyEnv,
+  catalogVersionsEnv,
 };

@@ -268,7 +268,7 @@ export function App(props: AppProps) {
           ` : activeTab === 'cache' ? html`
             <${ViewCache} cache=${p.cache} metrics=${p.metrics} />
           ` : activeTab === 'limpeza' ? html`
-            <${ViewLimpeza} catalog=${p.catalog} conta=${p.conta} />
+            <${ViewLimpeza} catalog=${p.catalog} conta=${p.conta} debrid=${p.debrid} />
           ` : activeTab === 'magnets' ? html`
             <${ViewMagnets} magnetdb=${p.magnetdb} magnetBank=${p.magnetBank} />
           ` : activeTab === 'diagnostico' ? html`

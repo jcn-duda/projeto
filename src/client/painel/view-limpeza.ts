@@ -1,5 +1,5 @@
 import { html, useState, useEffect } from './vendor/preact.js';
-import { Card, StatNumber } from './kit.js';
+import { Card, StatNumber, DataTable, Pager, type Column } from './kit.js';
 import { postAction } from './api.js';
 import { getPainelState, subscribePainelToken } from './store.js';
 import { useAction, actionError } from './action.js';
@@ -9,13 +9,14 @@ import {
   catalogSummary,
   catalogBucketRows,
   dedupPreviewSummary,
-  dedupTableRows,
   limpezaHeader,
   nextCatalogState,
   type DedupPlanView,
+  type DedupRowView,
 } from './limpeza-model.js';
 import { CatalogNav } from './limpeza/view-catalogo.js';
 import { CleanupMaintenance } from './limpeza/view-manutencao.js';
+import { WorkVersionsCard } from './limpeza/view-versoes.js';
 
 // Reexport: os testes e qualquer consumidor antigo importam os helpers daqui.
 export {
@@ -23,7 +24,6 @@ export {
   catalogSummary,
   catalogBucketRows,
   dedupPreviewSummary,
-  dedupTableRows,
   limpezaHeader,
   nextCatalogState,
   CATALOG_BUCKETS,
@@ -46,27 +46,78 @@ export {
   nextCatalogListState,
   selectableIds,
   toggleAllSelection,
+  applyCatalogFilter,
+  verdictFilterOptions,
+  emptyCatalogFilter,
   CATALOG_PAGE_SIZE,
 } from './limpeza/catalogo-model.js';
 export type {
   CatalogListRow, CatalogSelection, CleanupPreviewSummary, CleanupRowView, CleanupSkipped,
+  CatalogFilter, VerdictFilter, SortMode,
 } from './limpeza/catalogo-model.js';
 export { CatalogNav } from './limpeza/view-catalogo.js';
 export { CleanupMaintenance } from './limpeza/view-manutencao.js';
+export { WorkVersionsCard } from './limpeza/view-versoes.js';
 
 export interface ViewLimpezaProps {
   catalog?: Record<string, any>;
   conta?: Record<string, any>;
+  debrid?: Record<string, any>;
 }
 
 const MUTED_LINE = 'margin: 0 0 var(--space-2); font-size: var(--font-floor); color: var(--muted);';
 
-export function ViewLimpeza({ catalog, conta }: ViewLimpezaProps) {
+/** Renderiza a prévia de dedup agrupada por keep/kill, paginada. Cada grupo
+ * mostra o sobrevivente (FICA) e as linhas que saem (SAI) com checkbox. */
+function renderDedupGroups(
+  plan: DedupPlanView,
+  page: number,
+  pageSize: number,
+  setPage: (n: number) => void,
+) {
+  const allGroups = [
+    ...plan.t1.map((g: any) => ({ ...g, label: 'T1 (mesmo hash)' })),
+    ...plan.t2.map((g: any) => ({ ...g, label: 'T2 (mesmo arquivo)' })),
+  ];
+  const total = allGroups.length;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const clamped = Math.min(page, pages);
+  const slice = allGroups.slice((clamped - 1) * pageSize, clamped * pageSize);
+  return html`
+    ${slice.map((g: any) => {
+      const keepHash = g.keep?.hash ? String(g.keep.hash).slice(0, 8) : '#' + String(g.keep?.serviceId || '?');
+      const keepName = String(g.keep?.filename || '');
+      const kills = Array.isArray(g.kill) ? g.kill : [];
+      return html`
+        <div style="margin-bottom: var(--space-2); padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-xs);">
+          <div style="font-size: var(--font-floor); font-weight: 700; margin-bottom: var(--space-1);">
+            ${g.label} — FICA: <code>${keepHash}</code>
+            ${keepName ? html`<span class="painel-cell-release" style="margin-left: var(--space-2);" title=${keepName}>${keepName}</span>` : ''}
+          </div>
+          ${kills.map((k: any) => html`
+            <div style="font-size: var(--font-floor); color: var(--muted); padding-left: var(--space-3);">
+              ✕ <span class="painel-cell-release" title=${String(k.filename || '')}>${String(k.filename || '—')}</span>
+              (${formatBytes(Number(k.size || 0))})
+            </div>
+          `)}
+        </div>
+      `;
+    })}
+    <${Pager} page=${clamped} pages=${pages} total=${total} unit="grupo"
+      onPrev=${() => setPage(clamped - 1)} onNext=${() => setPage(clamped + 1)} />
+  `;
+}
+
+export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const { pending, run } = useAction();
   const [catalogData, setCatalogData] = useState<Record<string, any> | null>(catalog || null);
   const [previewResult, setPreviewResult] = useState<DedupPlanView | null>(null);
+  const [dedupPage, setDedupPage] = useState(1);
+  const [bucketTarget, setBucketTarget] = useState('');
+  const [bucketClicks, setBucketClicks] = useState(0);
+  const DEDUP_PAGE_SIZE = 10;
 
   // O catálogo tem carregamento PRÓPRIO (com reentrada própria): trocar de token
   // precisa disparar uma recarga mesmo com uma anterior em voo, e a trava do
@@ -106,7 +157,7 @@ export function ViewLimpeza({ catalog, conta }: ViewLimpezaProps) {
   }, []);
 
   const summary = catalogSummary(catalogData);
-  const head = limpezaHeader(previewResult, conta);
+  const head = limpezaHeader(previewResult, conta, debrid);
   const catalogBadge = catalogData == null
     ? { text: 'CARREGANDO', variant: 'neutral' as const }
     : summary.ok
@@ -152,7 +203,7 @@ export function ViewLimpeza({ catalog, conta }: ViewLimpezaProps) {
       setFeedback({ text: `Falha: ${preview.reason}`, ok: false });
       return;
     }
-    setPreviewResult({ t1Groups: preview.t1Groups, t2Groups: preview.t2Groups, candidates: preview.candidates });
+    setPreviewResult({ t1Groups: preview.t1Groups, t2Groups: preview.t2Groups, candidates: preview.candidates, t1: preview.t1, t2: preview.t2 });
     setFeedback({
       text: `Plano calculado: ${preview.candidates.length} alvo(s) em ${preview.t1Groups} grupo(s) T1 e ${preview.t2Groups} grupo(s) T2`,
       ok: true,
@@ -205,8 +256,8 @@ export function ViewLimpeza({ catalog, conta }: ViewLimpezaProps) {
           </span>
         </div>
         <div class="painel-summary-item">
-          <span class="painel-summary-label">Obras conhecidas</span>
-          <span class="painel-summary-value">${summary.knownWorks} / ${summary.knownWorks + summary.unknownWorks}</span>
+          <span class="painel-summary-label">Obra identificada</span>
+          <span class="painel-summary-value">${summary.knownWorks} / ${summary.magnets}</span>
         </div>
         <div class="painel-summary-item">
           <span class="painel-summary-label">Acervo</span>
@@ -239,15 +290,18 @@ export function ViewLimpeza({ catalog, conta }: ViewLimpezaProps) {
               ` : null}
             </div>
           ` : html`
-            <${StatNumber} value=${summary.magnets} target=${summary.knownWorks} label="magnets / obras conhecidas" />
-            <p style=${MUTED_LINE}>Prontos: ${summary.ready} · Obras desconhecidas: ${summary.unknownWorks}</p>
+            <${StatNumber} value=${summary.magnets} label="magnets na conta" />
+            <p style=${MUTED_LINE}>Com obra identificada: ${summary.knownWorks} · sem obra: ${summary.unknownWorks}</p>
             <table class="painel-table">
               <thead>
-                <tr><th>Áudio / origem</th><th>Magnets</th><th>Bytes</th></tr>
+                <tr><th>Áudio / origem</th><th>Magnets</th><th>Bytes</th><th></th></tr>
               </thead>
               <tbody>
                 ${catalogBucketRows(summary).map((b) => html`
-                  <tr><td>${b.label}</td><td>${b.count}</td><td>${formatBytes(b.bytes)}</td></tr>
+                  <tr style="cursor:pointer" onClick=${() => { setBucketTarget(b.key); setBucketClicks((n) => n + 1); }}>
+                    <td>${b.label}</td><td>${b.count}</td><td>${formatBytes(b.bytes)}</td>
+                    <td><span class="painel-badge painel-badge-neutral" style="cursor:pointer">Listar</span></td>
+                  </tr>
                 `)}
               </tbody>
             </table>
@@ -290,44 +344,19 @@ export function ViewLimpeza({ catalog, conta }: ViewLimpezaProps) {
         </${Card}>
       </div>
 
-      <${Card}
-        title="Prévia do Plano de Deduplicação"
-        badge=${previewResult == null ? undefined : { text: `${head.duplicates} ALVO(S)`, variant: head.duplicates > 0 ? 'warn' as const : 'ok' as const }}
-      >
-        ${previewResult == null ? html`
-          <div class="painel-empty painel-empty-sm">
-            Nenhuma prévia calculada. Use "Prévia de Deduplicação" para listar duplicatas T1 (mesmo hash) e T2 (mesmo arquivo) antes de aplicar.
-          </div>
-        ` : head.duplicates === 0 ? html`
-          <div class="painel-empty painel-empty-sm">
-            Nenhuma duplicata encontrada — catálogo limpo. ${head.t1Groups + head.t2Groups} grupo(s) verificado(s).
-          </div>
-        ` : html`
-          <p style=${MUTED_LINE}>
-            Grupos T1 (mesmo hash): ${head.t1Groups} · T2 (mesmo arquivo): ${head.t2Groups} · Alvos: ${head.duplicates}
-          </p>
-          <table class="painel-table">
-            <thead>
-              <tr><th>Release</th><th>Tamanho</th><th>Hash</th><th>Grupo</th></tr>
-            </thead>
-            <tbody>
-              ${dedupTableRows(previewResult.candidates).slice(0, 10).map((r) => html`
-                <tr>
-                  <td title=${r.filename}><span class="painel-cell-release">${r.filename}</span></td>
-                  <td>${formatBytes(r.sizeBytes)}</td>
-                  <td><code>${r.hashShort}</code></td>
-                  <td>${r.group}</td>
-                </tr>
-              `)}
-            </tbody>
-          </table>
-          ${head.duplicates > 10 ? html`
-            <p style=${MUTED_LINE}>Mostrando 10 de ${head.duplicates} alvos.</p>
-          ` : null}
-        `}
-      </${Card}>
+      ${previewResult == null
+        ? html`<p style=${MUTED_LINE}>Prévia de deduplicação: use o botão acima para calcular.</p>`
+        : head.duplicates === 0
+          ? html`<p style=${MUTED_LINE}>Catálogo limpo — ${head.t1Groups + head.t2Groups} grupo(s) verificado(s).</p>`
+          : html`
+            <p style=${MUTED_LINE}>
+              T1 (mesmo hash): ${head.t1Groups} · T2 (mesmo arquivo): ${head.t2Groups} · Alvos: ${head.duplicates}
+            </p>
+            ${renderDedupGroups(previewResult, dedupPage, DEDUP_PAGE_SIZE, setDedupPage)}
+          `}
 
-      <${CatalogNav} onChanged=${refresh} />
+      <${CatalogNav} key=${`${bucketTarget}-${bucketClicks}`} onChanged=${refresh} initialBucket=${bucketTarget} />
+      <${WorkVersionsCard} onChanged=${refresh} />
       <${CleanupMaintenance} onChanged=${refresh} />
     </div>
   `;

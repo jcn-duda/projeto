@@ -130,6 +130,50 @@ export function catalogPageSlice<T>(rows: T[], page: number, pageSize = CATALOG_
   return rows.slice(start, start + pageSize);
 }
 
+// Filtro local, busca e ordenação (puro, testável)
+
+export type VerdictFilter = '' | 'foreign' | 'pt' | 'unknown';
+export type SortMode = 'default' | 'size' | 'name';
+
+export interface CatalogFilter {
+  search: string;
+  verdict: VerdictFilter;
+  sort: SortMode;
+}
+
+const EMPTY_FILTER: CatalogFilter = { search: '', verdict: '', sort: 'default' };
+export function emptyCatalogFilter(): CatalogFilter { return { ...EMPTY_FILTER } };
+
+/** Opções do select de veredito (cliente). */
+export function verdictFilterOptions(): Array<{ value: string; label: string }> {
+  return [
+    { value: '', label: 'Todos os vereditos' },
+    { value: 'foreign', label: 'Estrangeiro' },
+    { value: 'pt', label: 'PT' },
+    { value: 'unknown', label: 'Sem prova' },
+  ];
+}
+
+/** Aplica filtro de texto (filename), veredito e ordenação. Roda ANTES do
+ * `catalogPageSlice` — a paginação vê só o resultado filtrado. */
+export function applyCatalogFilter(rows: CatalogListRow[], filter: CatalogFilter): CatalogListRow[] {
+  let out = rows;
+  const q = filter.search.trim().toLowerCase();
+  if (q) out = out.filter((r) => r.filename.toLowerCase().includes(q));
+  if (filter.verdict) {
+    out = out.filter((r) => {
+      const v = catalogVerdict(r);
+      if (filter.verdict === 'foreign') return v.variant === 'err';
+      if (filter.verdict === 'pt') return v.variant === 'ok';
+      if (filter.verdict === 'unknown') return v.variant === 'neutral';
+      return true;
+    });
+  }
+  if (filter.sort === 'size') out = [...out].sort((a, b) => b.sizeBytes - a.sizeBytes);
+  if (filter.sort === 'name') out = [...out].sort((a, b) => a.filename.localeCompare(b.filename));
+  return out;
+}
+
 // Limpeza BR (Etapa 5)
 
 export interface CleanupSkipped {

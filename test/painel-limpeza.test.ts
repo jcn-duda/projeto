@@ -6,15 +6,15 @@ import {
   catalogSummary,
   catalogBucketRows,
   dedupPreviewSummary,
-  dedupTableRows,
   limpezaHeader,
   CATALOG_BUCKETS,
   bucketLabel,
 } from '../src/client/painel/view-limpeza.js';
+import { dedupTableRows } from '../src/client/painel/limpeza-model.js';
 
-test('limpezaHeader resume prévia e conta sem inventar campo ausente', () => {
-  // Nunca rodou: idle, sem alvos, conta real do bloco `conta`.
-  const idle = limpezaHeader(null, { service: 'alldebrid', total: 933, cap: 1000, ready: 895, dead: 3 });
+test('limpezaHeader resume prévia e conta via contaView', () => {
+  // Nunca rodou: idle, sem alvos, conta real do bloco `conta` com ok:true.
+  const idle = limpezaHeader(null, { ok: true, service: 'alldebrid', total: 933, cap: 1000, ready: 895, dead: 3 });
   assert.equal(idle.previewState, 'idle');
   assert.equal(idle.duplicates, 0);
   assert.equal(idle.accountService, 'alldebrid');
@@ -23,19 +23,19 @@ test('limpezaHeader resume prévia e conta sem inventar campo ausente', () => {
   assert.equal(idle.accountReady, 895);
   assert.equal(idle.accountDead, 3);
 
-  // Rodou e não há o que remover: empty (estado vazio útil, não "idle").
-  const empty = limpezaHeader({ t1Groups: 0, t2Groups: 0, candidates: [] }, null);
+  // Rodou e não há o que remover: empty (estado vazio útil, não “idle”).
+  const empty = limpezaHeader({ t1Groups: 0, t2Groups: 0, candidates: [], t1: [], t2: [] }, null);
   assert.equal(empty.previewState, 'empty');
   assert.equal(empty.duplicates, 0);
   assert.equal(empty.accountService, '', 'sem conta não inventa serviço');
 
   // Rodou com alvos: ready e a contagem de kills.
-  const ready = limpezaHeader({ t1Groups: 1, t2Groups: 2, candidates: [{}, {}, {}] }, undefined);
+  const ready = limpezaHeader({ t1Groups: 1, t2Groups: 2, candidates: [{}, {}, {}], t1: [{}], t2: [{}, {}] }, undefined);
   assert.equal(ready.previewState, 'ready');
   assert.equal(ready.duplicates, 3);
   assert.equal(ready.t1Groups, 1);
   assert.equal(ready.t2Groups, 2);
-  assert.equal(ready.accountCap, 0, 'cap ausente vira 0, não 1000 inventado');
+  assert.equal(ready.accountCap, 1000, 'cap ausente cai no padrão (1000) via contaView');
 });
 
 test('catalogBucketRows cobre os quatro baldes com rótulo e zeros preenchidos', () => {
@@ -75,8 +75,8 @@ test('dedupTableRows normaliza o kill real (filename/tamanho/hash e sobrevivente
 test('canApplyDedup só libera a ação destrutiva com prévia não vazia', () => {
   assert.equal(canApplyDedup(null), false);
   assert.equal(canApplyDedup(undefined), false);
-  assert.equal(canApplyDedup({ t1Groups: 0, t2Groups: 0, candidates: [] }), false, 'zero alvos não habilita');
-  assert.equal(canApplyDedup({ t1Groups: 1, t2Groups: 0, candidates: [{ hash: 'a' }] }), true);
+  assert.equal(canApplyDedup({ t1Groups: 0, t2Groups: 0, candidates: [], t1: [], t2: [] }), false, 'zero alvos não habilita');
+  assert.equal(canApplyDedup({ t1Groups: 1, t2Groups: 0, candidates: [{ hash: 'a' }], t1: [{ keep: {}, kill: [{}] }], t2: [] }), true);
 });
 
 test('dedupPreviewSummary inclui o hint do backend no motivo da falha', () => {

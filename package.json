@@ -335,6 +335,8 @@
     "test/painel-config.test.js",
     "test/painel-diagnostico.test.js",
     "test/painel-limpeza.test.js",
+        "test/painel-limpeza-filtro.test.js",
+        "test/catalog-work-versions.test.js",
     "test/painel-form.test.js",
     "test/painel-css.test.js",
     "test/painel-saude-indexers.test.js",

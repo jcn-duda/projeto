@@ -4,7 +4,7 @@ import { postAction } from '../api.js';
 import { getPainelState, subscribePainelToken } from '../store.js';
 import { useAction, actionError } from '../action.js';
 import { formatBytes } from '../fmt.js';
-import { SelectField, NumberField } from '../form.js';
+import { SelectField, NumberField, TextField } from '../form.js';
 import {
   catalogBucketOptions,
   catalogListRows,
@@ -14,7 +14,13 @@ import {
   catalogVerdict,
   nextCatalogListState,
   toggleAllSelection,
+  applyCatalogFilter,
+  verdictFilterOptions,
+  emptyCatalogFilter,
   type CatalogListRow,
+  type CatalogFilter,
+  type VerdictFilter,
+  type SortMode,
 } from './catalogo-model.js';
 
 /** Callback de clique que dispara a promise sem `void` espalhado no markup. */
@@ -26,6 +32,7 @@ export function fire(handler: () => Promise<void> | void): () => void {
 
 export interface CatalogNavProps {
   onChanged?: () => void;
+  initialBucket?: string;
 }
 
 /**
@@ -35,14 +42,15 @@ export interface CatalogNavProps {
  * `filename` é só rótulo), e o relatório da conta é atualizado por `onChanged`
  * depois de cada mutação.
  */
-export function CatalogNav({ onChanged }: CatalogNavProps) {
-  const [bucket, setBucket] = useState('');
+export function CatalogNav({ onChanged, initialBucket }: CatalogNavProps) {
+  const [bucket, setBucket] = useState(initialBucket || '');
   const [max, setMax] = useState(100);
   const [page, setPage] = useState(1);
   const [listData, setListData] = useState<Record<string, any> | null>(null);
   const [listLoading, setListLoading] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
+  const [filter, setFilter] = useState<CatalogFilter>(emptyCatalogFilter());
   const { pending, run } = useAction();
   const loading = pending || listLoading;
 
@@ -120,9 +128,10 @@ export function CatalogNav({ onChanged }: CatalogNavProps) {
     setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
 
   const rows = catalogListRows(listData);
-  const selection = catalogSelection(rows, selected);
-  const pages = catalogPageCount(rows.length);
-  const pageRows = catalogPageSlice(rows, page);
+  const filteredRows = applyCatalogFilter(rows, filter);
+  const selection = catalogSelection(filteredRows, selected);
+  const pages = catalogPageCount(filteredRows.length);
+  const pageRows = catalogPageSlice(filteredRows, page);
   const allSelected = selection.eligible > 0 && selection.count === selection.eligible;
 
   const columns: Column<CatalogListRow>[] = [
@@ -145,7 +154,7 @@ export function CatalogNav({ onChanged }: CatalogNavProps) {
       header: '',
       render: (row) => html`
         <button
-          class="painel-btn painel-btn-danger"
+          class="painel-btn painel-btn-sm painel-btn-ghost-danger"
           disabled=${loading || Boolean(row.active)}
           onClick=${fire(() => deleteIds([row.serviceId]))}
         >Apagar</button>
@@ -160,8 +169,17 @@ export function CatalogNav({ onChanged }: CatalogNavProps) {
       <div class="painel-form">
         <div class="painel-form-row">
           <${SelectField} label="Balde de áudio" value=${bucket} options=${catalogBucketOptions()} onChange=${setBucket} />
-          <${NumberField} label="Máximo por listagem" value=${max} min=${1} max=${500} onChange=${setMax}
-            hint="Teto (max) enviado ao backend" />
+          <${NumberField} label="Máximo por listagem" value=${max} min=${1} max=${500}
+            onChange=${setMax} hint="Teto (max) enviado ao backend" />
+        </div>
+        <div class="painel-form-row">
+          <${TextField} label="Buscar" value=${filter.search} placeholder="nome do magnet..."
+            onChange=${(v: string) => { setFilter({ ...filter, search: v }); setPage(1); }} />
+          <${SelectField} label="Veredito" value=${filter.verdict} options=${verdictFilterOptions()}
+            onChange=${(v: string) => { setFilter({ ...filter, verdict: v as VerdictFilter }); setPage(1); }} />
+          <${SelectField} label="Ordenação" value=${filter.sort}
+            options=${[{ value: 'default', label: 'Padrão' }, { value: 'size', label: 'Tamanho' }, { value: 'name', label: 'Nome' }]}
+            onChange=${(v: string) => { setFilter({ ...filter, sort: v as SortMode }); setPage(1); }} />
         </div>
         <div class="painel-btn-row">
           <button class="painel-btn" disabled=${loading} onClick=${fire(loadList)}>Listar</button>
@@ -179,7 +197,7 @@ export function CatalogNav({ onChanged }: CatalogNavProps) {
             ? html`<div class="painel-empty painel-empty-sm">Nenhuma linha neste balde.</div>`
             : html`
               <${DataTable} columns=${columns} rows=${pageRows} rowKey=${(row: CatalogListRow) => row.serviceId} />
-              <${Pager} page=${page} pages=${pages} total=${rows.length}
+              <${Pager} page=${page} pages=${pages} total=${filteredRows.length}
                 onPrev=${() => setPage(page - 1)} onNext=${() => setPage(page + 1)} />
               <${ActionGroup} title="Deleção manual" badge="IRREVERSÍVEL" danger
                 note=${selection.count
@@ -187,7 +205,7 @@ export function CatalogNav({ onChanged }: CatalogNavProps) {
                   : 'nada selecionado'}>
                 <div class="painel-btn-row">
                   <button class="painel-btn" disabled=${loading || selection.eligible === 0}
-                    onClick=${() => setSelected(toggleAllSelection(rows, selected))}>
+                    onClick=${() => setSelected(toggleAllSelection(filteredRows, selected))}>
                     ${allSelected ? 'Limpar seleção' : 'Selecionar todos'}
                   </button>
                   <button class="painel-btn painel-btn-danger" disabled=${loading || selection.count === 0}
@@ -201,12 +219,13 @@ export function CatalogNav({ onChanged }: CatalogNavProps) {
   `;
 }
 
-/** Chip do veredito; `active`/`protected` viajam como flags sem afetar a cor. */
+/** Chip do veredito com `title` mostrando a prova medida. */
 function VerdictChip({ row }: { row: CatalogListRow }) {
   const verdict = catalogVerdict(row);
   const flags = [row.active ? 'baixando' : '', row.protected ? 'protegido' : ''].filter(Boolean).join(' · ');
+  const proof = row.foreignProof ? `Prova estrangeiro: ${row.foreignProof}` : row.ptProof ? `Prova PT: ${row.ptProof}` : 'Sem prova medida';
   return html`
-    <span>
+    <span title=${proof}>
       <${Badge} text=${verdict.text} variant=${verdict.variant} />
       ${flags ? ` (${flags})` : null}
     </span>

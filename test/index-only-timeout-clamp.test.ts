@@ -21,7 +21,7 @@ function lerComEnv(valor: string): string {
     process.execPath,
     ['--input-type=module', '-e', script],
     {
-      env: { ...process.env, DOTENV_CONFIG_PATH: 'test/fixtures/env-empty', JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS: valor },
+      env: { ...process.env, FORCE_COLOR: '0', DOTENV_CONFIG_PATH: 'test/fixtures/env-empty', JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS: valor },
       encoding: 'utf8',
     },
   ).trim();
@@ -45,7 +45,7 @@ test('JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS v√°lido passa sem saturar; default √
   const out = execFileSync(
     process.execPath,
     ['--input-type=module', '-e', script],
-    { env: { ...process.env, DOTENV_CONFIG_PATH: 'test/fixtures/env-empty' }, encoding: 'utf8' },
+    { env: { ...process.env, FORCE_COLOR: '0', DOTENV_CONFIG_PATH: 'test/fixtures/env-empty' }, encoding: 'utf8' },
   ).trim();
   assert.equal(out, '35000');
 });

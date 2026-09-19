@@ -360,6 +360,12 @@ const ACTIONS: Record<string, ActionHandler> = {
     services.log.info('[dashboard] limpeza BR aplicada ao catálogo');
     return res.json({ ...result, action });
   },
+
+  'catalog-versions': ({ services, res, action }) => {
+    const result = services.debrid.catalogVersionsEnv();
+    services.metrics.count('dashboard.catalog.versions', result.ok ? 1 : 0);
+    return res.json({ ...result, action });
+  },
 };
 
 // Allowlist do despacho: as próprias chaves do mapa. Ação fora dela é

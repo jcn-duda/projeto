@@ -159,6 +159,118 @@ export function planDedup(account: string, adapterId?: string): { t1: DedupGroup
   return { t1, t2 };
 }
 
+// ---------------------------------------------------------------------------
+// T3 — Versões da mesma obra (leitura pura; NENHUMA deleção daqui).
+// ---------------------------------------------------------------------------
+
+export type WorkVersionRow = {
+  serviceId: string;
+  hash: string;
+  filename: string;
+  size: number;
+  bucket: string;
+  foreignProof: string;
+  ptProof: string;
+  ready: boolean;
+  active: boolean;
+  protected: boolean;
+  workTitle: string;
+  season: number | null;
+  episode: number | null;
+};
+
+export type WorkVersionGroup = {
+  key: string;
+  workTitle: string;
+  season: number | null;
+  episode: number | null;
+  imdbId: string;
+  keep: WorkVersionRow;
+  kill: WorkVersionRow[];
+  recoverableBytes: number;
+};
+
+/** Ordem de preferência do sobrevivente: balde (dub>dual>pt>lixo), sem prova
+ * estrangeira, pronto, protegido, maior tamanho. */
+const BUCKET_RANK: Record<string, number> = { dub: 0, dual: 1, pt: 2, lixo: 3 };
+function bucketRank(bucket: string): number {
+  return BUCKET_RANK[bucket] ?? 4;
+}
+
+function pickWorkSurvivor(rows: WorkVersionRow[]): WorkVersionRow {
+  return [...rows].sort((a, b) => {
+    const br = bucketRank(a.bucket) - bucketRank(b.bucket);
+    if (br !== 0) return br;
+    const fp = (a.foreignProof ? 1 : 0) - (b.foreignProof ? 1 : 0);
+    if (fp !== 0) return fp;
+    if (a.ready !== b.ready) return a.ready ? -1 : 1;
+    if (a.protected !== b.protected) return a.protected ? -1 : 1;
+    return b.size - a.size;
+  })[0];
+}
+
+/**
+ * T3 — Agrupa linhas vivas com `imdbId` por obra + temporada + episódio (pack
+ * se sem episódio). Grupos com 2+ linhas entram. Linha sem `imdbId` fica de
+ * fora. Linha ATIVA ou PROTEGIDA nunca é sugerida para sair.
+ */
+export function planWorkVersions(account: string, adapterId?: string): { groups: WorkVersionGroup[]; withoutImdb: number } {
+  const e = engine();
+  const adapter = adapterId || configOperatorAdapter();
+  const active = e.listRows(adapter, account).filter((r) => r.deletedAt === 0);
+
+  let withoutImdb = 0;
+  const byKey = new Map<string, WorkVersionRow[]>();
+  for (const r of active) {
+    if (!r.imdbId) { withoutImdb += 1; continue; }
+    const ep = r.episode != null ? String(r.episode) : 'pack';
+    const season = r.season != null ? String(r.season) : '';
+    const key = `${r.imdbId}\u0000${season}\u0000${ep}`;
+    const wv: WorkVersionRow = {
+      serviceId: r.serviceId,
+      hash: r.hash,
+      filename: r.filename,
+      size: r.size,
+      bucket: r.bucket,
+      foreignProof: r.foreignProof,
+      ptProof: r.ptProof,
+      ready: Boolean(r.ready),
+      active: isActive(r.status),
+      protected: held.isCleanupProtected(r.hash, account, r.adapter || adapter),
+      workTitle: r.workTitle,
+      season: r.season,
+      episode: r.episode,
+    };
+    const list = byKey.get(key) || [];
+    list.push(wv);
+    byKey.set(key, list);
+  }
+
+  const groups: WorkVersionGroup[] = [];
+  for (const [key, members] of byKey) {
+    if (members.length < 2) continue;
+    const winner = pickWorkSurvivor(members);
+    const kill = members
+      .filter((m) => m.serviceId !== winner.serviceId)
+      .filter((m) => !m.active && !m.protected);
+    if (kill.length === 0) continue;
+    const [imdbId, seasonStr, epStr] = key.split('\u0000');
+    groups.push({
+      key,
+      workTitle: winner.workTitle,
+      season: seasonStr ? Number(seasonStr) : null,
+      episode: epStr !== 'pack' ? Number(epStr) : null,
+      imdbId: imdbId || '',
+      keep: winner,
+      kill,
+      recoverableBytes: kill.reduce((sum, k) => sum + k.size, 0),
+    });
+  }
+  // Ordena por GB recuperáveis (decrescente).
+  groups.sort((a, b) => b.recoverableBytes - a.recoverableBytes);
+  return { groups, withoutImdb };
+}
+
 export type Deletion = { serviceId: string | number; hash: string; reason: string; filename?: string; skipMark?: boolean };
 
 /**

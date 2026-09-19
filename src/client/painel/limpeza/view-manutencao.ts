@@ -1,5 +1,5 @@
 import { html, useState } from '../vendor/preact.js';
-import { Card, Feedback, ActionGroup, DataTable, type Column } from '../kit.js';
+import { Card, Feedback, ActionGroup, DataTable, Pager, type Column } from '../kit.js';
 import { useAction, actionError } from '../action.js';
 import { formatBytes } from '../fmt.js';
 import { NumberField, ToggleField } from '../form.js';
@@ -38,7 +38,9 @@ export function CleanupMaintenance({ onChanged }: CleanupMaintenanceProps) {
   const [max, setMax] = useState(50);
   const [cleanup, setCleanup] = useState<CleanupPreviewSummary | null>(null);
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
+  const [cleanupPage, setCleanupPage] = useState(1);
   const { pending, run } = useAction();
+  const CLEANUP_PAGE_SIZE = 20;
 
   const previewCleanup = async () => {
     setFeedback(null);
@@ -94,6 +96,8 @@ export function CleanupMaintenance({ onChanged }: CleanupMaintenanceProps) {
   };
 
   const previewRows = cleanupTableRows(cleanup?.targets);
+  const cleanupPages = Math.max(1, Math.ceil(previewRows.length / CLEANUP_PAGE_SIZE));
+  const cleanupPageRows = previewRows.slice((cleanupPage - 1) * CLEANUP_PAGE_SIZE, cleanupPage * CLEANUP_PAGE_SIZE);
 
   return html`
     <${Card} title="Limpeza BR, auditoria e warmer (operador)">
@@ -123,8 +127,10 @@ export function CleanupMaintenance({ onChanged }: CleanupMaintenanceProps) {
         : cleanup.targets.length === 0
           ? html`<div class="painel-empty painel-empty-sm">Nenhum alvo condenado. ${cleanupSkippedLine(cleanup.skipped)}</div>`
           : html`
-            <${DataTable} columns=${CLEANUP_COLUMNS} rows=${previewRows.slice(0, 10)}
+            <${DataTable} columns=${CLEANUP_COLUMNS} rows=${cleanupPageRows}
               rowKey=${(row: CleanupRowView) => row.hashShort + row.filename} />
+            <${Pager} page=${cleanupPage} pages=${cleanupPages} total=${previewRows.length}
+              onPrev=${() => setCleanupPage(cleanupPage - 1)} onNext=${() => setCleanupPage(cleanupPage + 1)} />
             <p style=${MUTED_LINE}>${cleanup.targets.length} alvo(s) · ${cleanupSkippedLine(cleanup.skipped)}</p>
           `}
 

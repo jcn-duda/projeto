@@ -2,6 +2,7 @@
 // derivação de resumo/tabela. Sem DOM, sem preact — só dado → dado, o que
 // torna cada função testável direto. Extraído de view-limpeza.ts pela catraca
 // de 400 linhas; o componente reexporta para preservar o import dos testes.
+import { contaView } from './conta-model.js';
 
 export interface DedupPreviewSummary {
   ok: boolean;
@@ -9,6 +10,8 @@ export interface DedupPreviewSummary {
   t1Groups: number;
   t2Groups: number;
   candidates: any[];
+  t1: any[];
+  t2: any[];
 }
 
 /**
@@ -20,7 +23,7 @@ export interface DedupPreviewSummary {
 export function dedupPreviewSummary(data: Record<string, any> | null | undefined): DedupPreviewSummary {
   if (!data || data.ok === false) {
     const reason = String(data?.reason || data?.error || 'erro') + (data?.hint ? ` — ${data.hint}` : '');
-    return { ok: false, reason, t1Groups: 0, t2Groups: 0, candidates: [] };
+    return { ok: false, reason, t1Groups: 0, t2Groups: 0, candidates: [], t1: [], t2: [] };
   }
   const plan = data.plan || {};
   const t1 = Array.isArray(plan.t1) ? plan.t1 : [];
@@ -29,7 +32,7 @@ export function dedupPreviewSummary(data: Record<string, any> | null | undefined
     ...t1.flatMap((g: any) => (Array.isArray(g?.kill) ? g.kill : []).map((k: any) => ({ ...k, group: 'T1 (mesmo hash)', keep: g.keep }))),
     ...t2.flatMap((g: any) => (Array.isArray(g?.kill) ? g.kill : []).map((k: any) => ({ ...k, group: 'T2 (mesmo arquivo)', keep: g.keep }))),
   ];
-  return { ok: true, reason: null, t1Groups: t1.length, t2Groups: t2.length, candidates };
+  return { ok: true, reason: null, t1Groups: t1.length, t2Groups: t2.length, candidates, t1, t2 };
 }
 
 export interface CatalogSummary {
@@ -126,6 +129,8 @@ export interface DedupPlanView {
   t1Groups: number;
   t2Groups: number;
   candidates: any[];
+  t1: any[];
+  t2: any[];
 }
 
 /** Só permite aplicar quando a prévia rodou E achou alvos: aplicar um plano
@@ -149,14 +154,16 @@ export interface LimpezaHeader {
 /**
  * Resumo operacional compacto. `preview` é a prévia JÁ calculada (não o payload
  * cru): `idle` = nunca rodou, `empty` = rodou e nada a remover, `ready` = há
- * alvos. A conta usa o bloco `conta` real (service/total/cap/ready/dead) — nada
- * inventado quando o campo falta.
+ * alvos. A conta usa `contaView(conta, debrid)` — o MESMO bloco que a aba
+ * Conta exibe — para não mostrar "Conta —" quando o bloco cru está vazio mas
+ * o operador tem conta no servidor.
  */
 export function limpezaHeader(
   preview: DedupPlanView | null | undefined,
   conta: Record<string, any> | null | undefined,
+  debrid?: Record<string, any> | null | undefined,
 ): LimpezaHeader {
-  const c = conta || {};
+  const cv = contaView(conta, debrid);
   const candidates = preview && Array.isArray(preview.candidates) ? preview.candidates : [];
   const t1Groups = Number(preview?.t1Groups || 0);
   const t2Groups = Number(preview?.t2Groups || 0);
@@ -165,11 +172,11 @@ export function limpezaHeader(
     t1Groups,
     t2Groups,
     previewState: preview == null ? 'idle' : candidates.length > 0 ? 'ready' : 'empty',
-    accountService: String(c.service || ''),
-    accountTotal: Number(c.total || 0),
-    accountCap: Number(c.cap || 0),
-    accountReady: Number(c.ready || 0),
-    accountDead: Number(c.dead || 0),
+    accountService: cv.service,
+    accountTotal: cv.total,
+    accountCap: cv.cap,
+    accountReady: cv.ready,
+    accountDead: cv.dead,
   };
 }
 

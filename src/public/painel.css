@@ -109,6 +109,22 @@ body {
   border-color: var(--red);
 }
 
+/* Botão pequeno p/ ações por linha — 100 botões cheios competem com o grupo destrutivo. */
+.painel-btn-sm {
+  padding: 1px var(--space-2);
+  font-size: var(--font-floor);
+}
+/* Fantasma destrutivo: só texto, sem fundo; a cor sobe no hover. */
+.painel-btn-ghost-danger {
+  background: transparent;
+  border-color: transparent;
+  color: var(--red-ink);
+}
+.painel-btn-ghost-danger:hover {
+  background: var(--red-soft);
+  border-color: var(--red);
+}
+
 .painel-tabs {
   display: flex;
   gap: var(--space-2);
