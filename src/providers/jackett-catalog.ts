@@ -101,8 +101,19 @@ function attachSource(items: ReturnType<typeof indexerStatus.decorate>, source: 
   return Object.assign(items, { source });
 }
 
+// Fallback do .env por falha de rede vale pouco: no boot o addon pede o
+// catálogo antes do Jackett terminar de subir, e com o TTL cheio a /configure
+// passava 15 min sem os indexers que só existem no Jackett (LimeTorrents na
+// VPS, 2026-09-18) — e quem gerava a URL nessa janela perdia o indexer.
+const FALLBACK_RETRY_MS = 30_000;
+
+function cacheTtlMs(): number {
+  const full = config.jackett.catalogTtl * 1000;
+  return cachedSource === 'fallback' && config.jackett.apiKey ? Math.min(full, FALLBACK_RETRY_MS) : full;
+}
+
 async function load(): Promise<CatalogList> {
-  if (cached && Date.now() - cachedAt < config.jackett.catalogTtl * 1000) {
+  if (cached && Date.now() - cachedAt < cacheTtlMs()) {
     return attachSource(indexerStatus.decorate(cached), cachedSource);
   }
   if (inFlight) {

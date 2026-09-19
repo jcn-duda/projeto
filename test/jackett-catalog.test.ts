@@ -94,3 +94,46 @@ test('API Jackett OK → source live (vazio = medido morto)', async () => {
     resetCatalogCache();
   }
 });
+
+test('fallback por falha de rede expira em 30s e o catálogo vivo volta (boot antes do Jackett)', async () => {
+  // VPS 2026-09-18: o addon subiu antes do Jackett, o fallback do .env ficou 15
+  // min em cache e a /configure escondeu o LimeTorrents (só existe no Jackett).
+  resetCatalogCache();
+  const saved = { apiKey: config.jackett.apiKey, url: config.jackett.url, ttl: config.jackett.catalogTtl };
+  const realFetch = globalThis.fetch;
+  const realNow = Date.now;
+  let now = 1_700_000_000_000;
+  let up = false;
+  let calls = 0;
+  Date.now = () => now;
+  config.jackett.apiKey = 'chave-teste-catalog';
+  config.jackett.url = 'http://jackett.test';
+  config.jackett.catalogTtl = 900;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    if (!up) throw new Error('ECONNREFUSED');
+    return { ok: true, status: 200, text: async () => '<indexers><indexer id="limetorrents" configured="true"><title>LimeTorrents</title><language>en-US</language></indexer></indexers>' };
+  }) as unknown as typeof fetch;
+  try {
+    assert.equal((await load()).source, 'fallback');
+    up = true;
+    now += 10_000;
+    assert.equal((await load()).source, 'fallback', 'dentro de 30s serve o fallback em cache');
+    assert.equal(calls, 1);
+    now += 25_000;
+    const live = await load();
+    assert.equal(live.source, 'live', 'passados 30s tenta o Jackett de novo');
+    assert.ok(live.some((i) => i.id === 'limetorrents'));
+    assert.equal(calls, 2);
+    now += 60_000;
+    await load();
+    assert.equal(calls, 2, 'catálogo vivo segue o TTL cheio');
+  } finally {
+    globalThis.fetch = realFetch;
+    Date.now = realNow;
+    config.jackett.apiKey = saved.apiKey;
+    config.jackett.url = saved.url;
+    config.jackett.catalogTtl = saved.ttl;
+    resetCatalogCache();
+  }
+});
