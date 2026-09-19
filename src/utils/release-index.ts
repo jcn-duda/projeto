@@ -22,6 +22,7 @@ import { prefix } from './cache-keys.js';
 import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, parseTitleSeasonEpisode } from './format.js';
 // Prova de miss por episódio mora no irmão (extraído pela catraca); o pai reexporta.
 import { markMissing, isMissing, isMissingQuiet } from './release-index-miss.js';
+import { cutProtected } from './release-index-cut.js';
 import type { IndexEntry, IndexedRelease, ObraLocation } from './release-index-types.js';
 export type { IndexedRelease } from './release-index-types.js';
 export { forgetAutofetchHash } from './release-index-maintenance.js';
@@ -143,12 +144,9 @@ function record(
       });
     }
     if (existing.size === 0) continue;
-    // Proteção: BR/dublado nunca cai no corte de recência — o colhedor é o único
-    // caminho de volta. `added` só conta hash novo SOBREVIVENTE do slice.
-    const releases = [...existing.values()]
-      .sort((a, b) => Number(b.isBr || b.dubbed) - Number(a.isBr || a.dubbed)
-        || b.seenAt - a.seenAt || b.seeders - a.seeders)
-      .slice(0, Math.max(1, config.releaseIndex.maxReleases));
+    // Corte do teto por obra com proteção BR/dublado — regras e trade-off em
+    // release-index-cut.ts. `added` só conta hash novo SOBREVIVENTE do corte.
+    const releases = cutProtected(existing.values(), Math.max(1, config.releaseIndex.maxReleases));
     added += releases.filter((r) => novos.has(r.hash)).length;
     cache.set(key, { at: now, partial, releases } satisfies IndexEntry, config.releaseIndex.ttl);
   }

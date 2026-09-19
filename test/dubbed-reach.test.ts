@@ -1,7 +1,8 @@
 // Fase 5 — alcance do dublado BR, com os títulos REAIS medidos em produção
 // (The Dead Zone / "A Hora da Zona Morta", tt0085407). Cada caso ancora um
 // commit da fase: b867c13 (dublado com `_`, contracção pt-BR e CAM lido no dn
-// do magnet), 7f5d5ef (proteção `isBr || dubbed` no corte do índice) e efd6f2c
+// do magnet), 7f5d5ef (proteção `isBr || dubbed` no corte do índice, revisada
+// depois com o teto de proteção 2/3) e efd6f2c
 // (só-colhedor index-only na via instantânea do banco).
 // Teste puro: sem rede, sem servidor, sem src/addon.ts.
 import { test, after } from 'node:test';
@@ -10,6 +11,9 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import config from '../src/config.js';
+import * as cache from '../src/utils/cache.js';
+import { prefix } from '../src/utils/cache-keys.js';
+import * as metrics from '../src/utils/metrics.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import { audioFromTitle } from '../src/utils/audio-quality.js';
 import { applyPtTitleDual } from '../src/providers/pt-title-dual.js';
@@ -65,7 +69,7 @@ test('applyPtTitleDual: pt largo, LEGENDADO DUAL e MULTI ficam de fora', () => {
   assert.equal(multi.ptTitleDual, undefined, 'MULTI sozinho não marca');
 });
 
-// ─── 3. release-index: proteção BR/dublado no corte do teto (7f5d5ef) ───────
+// ─── 3. release-index: proteção BR/dublado no corte do teto (7f5d5ef; cap 2/3) ───
 
 test('record: BR/dublado antigo sobrevive ao corte; globais antigos saem', () => {
   // Desvio mecânico necessário, registrado: `record` carimba `seenAt = now`
@@ -113,6 +117,65 @@ test('record: BR/dublado antigo sobrevive ao corte; globais antigos saem', () =>
   } finally {
     Date.now = realNow;
     config.releaseIndex.enabled = savedEnabled;
+  }
+});
+
+test('record: teto de proteção — excedente BR não estrela o global novo da obra', () => {
+  // Revisão do 7f5d5ef: proteger BR/dublado SEM limite fazia uma obra com mais
+  // BR do que vagas (série longa) expulsar TODO global recém-visto — o global
+  // era o (max+1)º da ordem (BR primeiro) e o corte o descartava. O cap 2/3
+  // reserva as vagas finais para o fluxo global; o excedente protegido só
+  // preenche o que sobrar (obra que só tem BR não encolhe).
+  const realNow = Date.now;
+  const savedEnabled = config.releaseIndex.enabled;
+  const base = realNow();
+  const max = Math.trunc(Number(config.releaseIndex.maxReleases) || 60);
+  const protectedCap = Math.max(1, Math.floor(max * 2 / 3));
+  const brHash = (i: number) => (i + 1).toString(16).padStart(2, '0').repeat(20);
+  const novoGlobal = hex('9');
+  try {
+    config.releaseIndex.enabled = true;
+    // O teste anterior compartilha o IMDB e deixa a chave cheia; limpar garante
+    // o cenário exato (max+5 BR + 1 global) em vez de herdar estado alheio.
+    cache.forget(`${prefix('idx')}${IMDB}`);
+    const before = metrics.snapshot().counters['search.idx.protCap'] || 0;
+
+    // max+5 BR numa ÚNICA chamada: mesmo seenAt (um `now` por chamada), seeders
+    // distintos desempatam. Sem o cap, as 60 vagas iam todas para BR.
+    let nowMs = base;
+    Date.now = () => nowMs;
+    record(IMDB, {}, Array.from({ length: max + 5 }, (_, i) => ({
+      title: `Serie Longa ${i + 1} 1080p DUBLADO`,
+      infoHash: brHash(i),
+      seeders: i + 1,
+      indexer: 'apachetorrent-cardigann',
+      isBr: true,
+    })));
+
+    // Relógio +1min: o global novo. Sem o teto de proteção ele seria o (max+1)º
+    // da ordem e o corte o expulsaria — é a prova de regressão.
+    nowMs += 60_000;
+    Date.now = () => nowMs;
+    record(IMDB, {}, [
+      { title: 'Global Novo 1080p', infoHash: novoGlobal, seeders: 7, indexer: 'globaltracker' },
+    ]);
+
+    const out = lookup(IMDB);
+    const hashes = new Set(out.map((r) => r.hash));
+    assert.ok(hashes.has(novoGlobal), 'o global novo sobrevive ao corte (sem o teto sairia)');
+    assert.equal(out.length, max, 'o índice segue cheio');
+    const protegidas = out.filter((r) => r.isBr || r.dubbed).length;
+    assert.ok(protegidas >= protectedCap, `protegidas preservadas (>= ${protectedCap}); veio ${protegidas}`);
+    assert.ok(protegidas <= max, 'protegidas não passam do teto total');
+    const after = metrics.snapshot().counters['search.idx.protCap'] || 0;
+    assert.ok(after > before, 'a métrica registra o excedente protegido não aproveitado');
+  } finally {
+    Date.now = realNow;
+    config.releaseIndex.enabled = savedEnabled;
+    // Devolve o balde vazio: o teste acima usa hashes determinísticos entre
+    // runs e o BR fresco deste cenário (protegido, visto agora) expulsaria os
+    // 2 BR antigos dele na execução seguinte. Balde limpo = teste acima estável.
+    cache.forget(`${prefix('idx')}${IMDB}`);
   }
 });
 
