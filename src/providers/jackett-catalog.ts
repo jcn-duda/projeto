@@ -31,8 +31,16 @@ function safeId(id: unknown) {
   return /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(String(id || ''));
 }
 
+// `-cardigann` é detalhe de IMPLEMENTAÇÃO do id (card local do Jackett, para
+// não disputar o nome com o indexer interno homônimo) e não pertence ao rótulo
+// que o usuário lê: "Hdrtorrent Cardigann" vira "Hdrtorrent". Só o fallback do
+// .env passa por aqui — no catálogo vivo o rótulo é o `name` do próprio Jackett
+// ("HDR Torrents"), que nunca carregou o sufixo. O id, esse, não muda.
 function labelFor(id: string) {
-  return String(id).replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return String(id)
+    .replace(/-cardigann$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function decodeXml(text: string) {

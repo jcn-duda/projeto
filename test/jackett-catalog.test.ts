@@ -32,6 +32,18 @@ test('parseXml ignora ids inseguros e fallback deduplica os configurados', () =>
   const out = fallback();
   assert.equal(new Set(out.map((item) => item.id)).size, out.length);
   assert.ok(out.every((item) => /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(item.id)));
+  // O rótulo do fallback nasce do id, e `-cardigann` é detalhe do card local:
+  // o usuário lê "Hdrtorrent", não "Hdrtorrent Cardigann". O ID permanece.
+  const cardigann = out.filter((item) => /-cardigann$/i.test(item.id));
+  assert.ok(cardigann.length > 0, 'o .env de teste tem ao menos um card local');
+  assert.ok(
+    cardigann.every((item) => !/cardigann/i.test(item.label)),
+    'sufixo de implementação não vaza para o rótulo',
+  );
+  assert.ok(
+    cardigann.some((item) => item.id === 'hdrtorrent-cardigann' && item.label === 'Hdrtorrent'),
+    'hdrtorrent-cardigann é rotulado Hdrtorrent',
+  );
 });
 
 test('parseXml decodifica entidades em atributos do catálogo', () => {
