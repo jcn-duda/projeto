@@ -29,6 +29,12 @@ const LEGENDADO_RE =
 // release — senão "A Rocha Queimada Dual" herdaria a obra "A Rocha".
 const AFTER_PT_OK_RE = /^(?:\d{4}|s\d{1,2}(?:e\d{1,3})?|\d{3,4}p|dual|audio|duplo|bluray|bdrip|webdl|web|hdtv|hdrip|remux|proper|repack|extended|complete|uhd|hdr|x264|x265|h264|h265|hevc|avc|aac|dts|atmos|truehd|ac3|eac3)$/;
 
+// Contração inicial pt-BR do TMDB ("Na Hora da Zona Morta", "Da Colina
+// Vermelha"): o post BR costuma escrever o mesmo nome com OUTRO determinante
+// ("A Hora Da Zona Morta") e, sem tirar a primeira palavra dos DOIS lados, os
+// prefixos nunca coincidem.
+const LEADING_CONTRACTIONS = new Set(['na', 'no', 'nas', 'nos', 'da', 'do', 'das', 'dos', 'em', 'pela', 'pelo']);
+
 type TitlesCtx = {
   original?: string | null;
   pt?: string | null;
@@ -37,7 +43,10 @@ type TitlesCtx = {
 
 function stripLeadingArticle(norm: string): string {
   const tokens = norm.split(' ').filter(Boolean);
-  if (tokens.length >= 2 && LEADING_ARTICLES.has(tokens[0])) {
+  // Guarda de 2+ tokens restantes: com só 2 no total, o primeiro é parte do
+  // NOME ("A Rocha") — tirá-lo deixaria "Na Rocha X" herdar a obra pelo
+  // prefixo "rocha". Só corta quando sobra nome de verdade.
+  if (tokens.length >= 3 && (LEADING_ARTICLES.has(tokens[0]) || LEADING_CONTRACTIONS.has(tokens[0]))) {
     return tokens.slice(1).join(' ');
   }
   return norm;
@@ -53,8 +62,18 @@ function prefixThenRelease(normTitle: string, prefix: string): boolean {
 
 function titleMatchesPt(normTitle: string, normPt: string): boolean {
   if (prefixThenRelease(normTitle, normPt)) return true;
+  // Caminho legado: o post OMITE o determinante do pt do TMDB ("Grande Truque
+  // (2006) …" para "O Grande Truque") — o pt sem o determinante casa sozinho.
   const withoutArticle = stripLeadingArticle(normPt);
-  return withoutArticle !== normPt && prefixThenRelease(normTitle, withoutArticle);
+  if (withoutArticle !== normPt && prefixThenRelease(normTitle, withoutArticle)) return true;
+  // Determinantes DIFERENTES nas duas pontas ("Na Hora da Zona Morta" do TMDB
+  // x "A Hora Da Zona Morta" do post): só tirando o primeiro token dos DOIS
+  // lados os prefixos coincidem ("hora da zona morta"). Exige as duas remoções
+  // — um lado mutilado contra o outro intacto deixaria "A Rocha" herdar
+  // "Na Rocha X" pelo prefixo "rocha".
+  const strippedTitle = stripLeadingArticle(normTitle);
+  const strippedPt = stripLeadingArticle(normPt);
+  return strippedTitle !== normTitle && strippedPt !== normPt && prefixThenRelease(strippedTitle, strippedPt);
 }
 
 function foreignDubTitle(title: string): boolean {
@@ -69,11 +88,16 @@ function shouldMark(item: RawItem, titles: TitlesCtx): boolean {
   if (item.isBr || item.lied || item._lied) return false;
 
   const title = String(item.title || item.Title || '');
-  if (!title || looksPtBr(title)) return false;
-  if (!DUAL_LITERAL_RE.test(title)) return false;
-  if (audioFromTitle(title) === 'Legendado') return false;
-  if (LEGENDADO_RE.test(title) && !explicitPtAudio(title)) return false;
-  if (foreignDubTitle(title)) return false;
+  // `_` é separador de fato nos posts BR ("… x264 DUAL_Misso"): é caractere de
+  // palavra para o \b, então o marcador colado nele morre. O probe troca por
+  // espaço só nos TESTES — o casamento por prefixo usa normalizeTitle, que já
+  // trata `_` como separador.
+  const probe = title.replace(/_/g, ' ');
+  if (!title || looksPtBr(probe)) return false;
+  if (!DUAL_LITERAL_RE.test(probe)) return false;
+  if (audioFromTitle(probe) === 'Legendado') return false;
+  if (LEGENDADO_RE.test(probe) && !explicitPtAudio(probe)) return false;
+  if (foreignDubTitle(probe)) return false;
 
   const normPt = normalizeTitle(titles.pt);
   if (!normPt) return false;

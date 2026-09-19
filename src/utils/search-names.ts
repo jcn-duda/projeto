@@ -119,7 +119,11 @@ function toStremioStream(item: RawItem): Stream | null {
   // arquivo é fato, o título é palpite — e mente sobre áudio e resolução.
   // Quem grava é o play/tail via releaseIndex; aqui só consumimos o campo.
   const quality = item.provenQuality || qualityFromTitle(title);
-  const source = sourceFromTitle(title);
+  // O dn= do magnet preserva o nome REAL do release quando o título do post
+  // esconde a gravação ("Resident Evil (2026) [1080p 2.60 GB]" com dn
+  // "…CAMRip…"). Fonte lida no dn é evidência do arquivo, não do WordPress.
+  const magnetDn = magnetDisplayName(item);
+  const source = sourceFromTitle(title) || sourceFromTitle(magnetDn);
   // Prova VAZIA (release EN sem marca PT no arquivo) é veredito sobre DUBLADO,
   // não sobre o rótulo. Quando o título já diz "Legendado" ele CONCORDA com a
   // prova — apagá-lo trocava "720p WEB-DL LEG BR" por "720p WEB-DL BR" e
@@ -214,7 +218,7 @@ function toStremioStream(item: RawItem): Stream | null {
       // Campo INTERNO: dn= do magnet para o notCam do stream-ranking. O título
       // do post BR pode esconder TELESYNC/TS; o dn= revela. Removido na limpeza
       // final do stream-quotas antes do protocolo.
-      _magnetDn: magnetDisplayName(item),
+      _magnetDn: magnetDn,
   };
 }
 

@@ -75,6 +75,9 @@ function qualityFromTitle(title = '') {
   // pack saía "sem resolução" e era cortado pelo filtro de qualidade.
   const t = stripQualityTagBlob(title)
     .toUpperCase()
+    // `_` separa de fato ("Filme_2026_1080p_…"): sem a troca, o \b1080P\b não
+    // vê fronteira antes/depois do underscore e a resolução some.
+    .replace(/_/g, ' ')
     .replace(/(RIP|DL|WEB|HDTV)(?=(?:2160|1080|720|480)P\b)/g, '$1 ');
   if (/\b(2160P|4K|UHD)\b/.test(t)) return '2160p';
   if (/\b1080P\b/.test(t)) return '1080p';
@@ -94,7 +97,9 @@ function sourceFromTitle(title = '') {
   // de classificar fonte: "Filme.2019.1080p.H264.ts" é arquivo .ts, não
   // TELESYNC. Sem isso, o \bTS\b do CAM casa com o ".ts" final porque o "."
   // conta como fronteira de palavra.
-  const t = title.toUpperCase().replace(/\.(?:TS|MKV|AVI|MP4|MOV|FLV|WMV|WEBM)$/i, '');
+  // `_` também é separador de release ("HDCAM_1080p", "D.TS_1080p"): vira
+  // espaço antes dos testes para o \b enxergar a fronteira.
+  const t = title.toUpperCase().replace(/\.(?:TS|MKV|AVI|MP4|MOV|FLV|WMV|WEBM)$/i, '').replace(/_/g, ' ');
   if (/\b(BLURAY|BLU-RAY|BDREMUX|BD\b)/.test(t)) return 'BluRay';
   if (/\bWEB[-. ]?DL\b/.test(t)) return 'WEB-DL';
   if (/\bWEB[-. ]?RIP\b/.test(t)) return 'WEBRip';
@@ -139,7 +144,9 @@ function editionFromTitle(title = '') {
 }
 
 function explicitPtAudio(title = '') {
-  const t = title.toUpperCase();
+  // Mesma troca do audioFromTitle: `_` é separador ("… DUAL_Misso") e o \b
+  // não enxerga fronteira dentro de caractere de palavra.
+  const t = title.toUpperCase().replace(/_/g, ' ');
   const isExplicitSub =
     /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
     /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
@@ -168,7 +175,9 @@ function explicitPtAudio(title = '') {
 function audioFromTitle(title = '') {
   // O blob de tags do fim não descreve áudio, mas pode citar "DUAL" entre as
   // tags — classifica sobre o título sem a cauda.
-  const t = stripQualityTagBlob(title).toUpperCase();
+  // `_` é separador de fato nos posts BR ("… x264 DUAL_Misso"): dentro do \b
+  // ele conta como caractere de palavra e o marcador colado nele não casava.
+  const t = stripQualityTagBlob(title).toUpperCase().replace(/_/g, ' ');
 
   // Convenção de nome de post (hdrtorrent medido): o PREFIXO é sempre
   // "... Dublada e Dual", mesmo quando o botão é LEGENDADA. O marcador do
