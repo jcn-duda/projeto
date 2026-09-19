@@ -64,6 +64,39 @@ test('aplica ptTitleDual quando o título começa com pt TMDB distinto + DUAL li
   );
 });
 
+// Regressão b867c13: a guarda de tokens do strip é POR CAMINHO. O legado (só
+// o pt perde o determinante) aceita 2 tokens ("O Corvo" → "corvo"); a dos
+// dois lados (título E pt mutilados) segue exigindo 3.
+test('regressão b867c13: pt de 2 tokens volta a marcar; guardas dos dois caminhos seguram', () => {
+  // Medido: "Corvo 1994 … DUAL" × pt "O Corvo" — com a guarda de 3 no legado
+  // o strip nem corta "o corvo" (2 tokens) e a marca some. Idem "A Origem".
+  assert.equal(
+    marked('Corvo 1994 1080p BluRay DUAL', { pt: 'O Corvo', original: 'The Crow' }).ptTitleDual,
+    true,
+  );
+  assert.equal(
+    marked('Origem 2010 1080p BluRay DUAL', { pt: 'A Origem', original: 'Inception' }).ptTitleDual,
+    true,
+  );
+  // Determinante presente nas duas pontas: caminho 1 (prefixo direto).
+  assert.equal(
+    marked('O Corvo 1994 1080p BluRay DUAL', { pt: 'O Corvo', original: 'The Crow' }).ptTitleDual,
+    true,
+  );
+  // Contraprova da guarda dos DOIS lados (3 tokens): "A Rocha" (2 tokens) NÃO
+  // pode virar "rocha" contra o título mutilado "Na Rocha Queimada".
+  assert.equal(
+    marked('Na Rocha Queimada Dual', { pt: 'A Rocha', original: 'The Rock' }).ptTitleDual,
+    undefined,
+  );
+  // Contraprova do legado: "rocha" casa o prefixo, mas "queimada" não é
+  // ano/qualidade — AFTER_PT_OK_RE segura o post mais largo.
+  assert.equal(
+    marked('Rocha Queimada Dual', { pt: 'A Rocha', original: 'The Rock' }).ptTitleDual,
+    undefined,
+  );
+});
+
 test('não marca MULTI, pt==original, idioma estrangeiro, legendado, lied ou titles null', () => {
   assert.equal(
     marked('Dr.House.S06.HDLight.1080p.Multi.HEVC.5.1-Uzil', {

@@ -41,12 +41,20 @@ type TitlesCtx = {
   en?: string | null;
 } | null | undefined;
 
-function stripLeadingArticle(norm: string): string {
+// A guarda de tokens é PARAMETRIZADA pelo caminho que chama, porque o risco
+// de mutilar o NOME é diferente em cada um:
+// - Legado (default 2): só o pt do TMDB perde o determinante, então 2 tokens
+//   bastam — "O Corvo" → "corvo" é o caso medido do post "Corvo 1994 … DUAL".
+// - Dois lados (3): o TÍTULO também é mutilado; com 2 tokens, "A Rocha" →
+//   "rocha" herdaria "Na Rocha Queimada Dual" pelo prefixo.
+// As DUAS classes (artigos ∪ contrações) valem nas DUAS guardas: o post troca
+// "Na"/"A" no nome da obra e o determinante cortado pode ser de qualquer uma.
+function stripLeadingArticle(norm: string, minTokens = 2): string {
   const tokens = norm.split(' ').filter(Boolean);
-  // Guarda de 2+ tokens restantes: com só 2 no total, o primeiro é parte do
-  // NOME ("A Rocha") — tirá-lo deixaria "Na Rocha X" herdar a obra pelo
-  // prefixo "rocha". Só corta quando sobra nome de verdade.
-  if (tokens.length >= 3 && (LEADING_ARTICLES.has(tokens[0]) || LEADING_CONTRACTIONS.has(tokens[0]))) {
+  if (
+    tokens.length >= minTokens
+    && (LEADING_ARTICLES.has(tokens[0]) || LEADING_CONTRACTIONS.has(tokens[0]))
+  ) {
     return tokens.slice(1).join(' ');
   }
   return norm;
@@ -68,11 +76,14 @@ function titleMatchesPt(normTitle: string, normPt: string): boolean {
   if (withoutArticle !== normPt && prefixThenRelease(normTitle, withoutArticle)) return true;
   // Determinantes DIFERENTES nas duas pontas ("Na Hora da Zona Morta" do TMDB
   // x "A Hora Da Zona Morta" do post): só tirando o primeiro token dos DOIS
-  // lados os prefixos coincidem ("hora da zona morta"). Exige as duas remoções
-  // — um lado mutilado contra o outro intacto deixaria "A Rocha" herdar
-  // "Na Rocha X" pelo prefixo "rocha".
-  const strippedTitle = stripLeadingArticle(normTitle);
-  const strippedPt = stripLeadingArticle(normPt);
+  // lados os prefixos coincidem ("hora da zona morta"). A guarda aqui é de 3
+  // tokens — MAIOR que a do legado — porque o título também é mutilado: "A
+  // Rocha" (2 tokens) não pode virar "rocha" contra "Na Rocha Queimada". As
+  // duas remoções continuam obrigatórias — um lado mutilado contra o outro
+  // intacto deixaria o mesmo "A Rocha" herdar "Na Rocha X" pelo prefixo
+  // "rocha".
+  const strippedTitle = stripLeadingArticle(normTitle, 3);
+  const strippedPt = stripLeadingArticle(normPt, 3);
   return strippedTitle !== normTitle && strippedPt !== normPt && prefixThenRelease(strippedTitle, strippedPt);
 }
 
