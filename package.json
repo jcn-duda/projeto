@@ -276,6 +276,7 @@
     "test/release-index.test.js",
     "test/pt-sweep-config.test.js",
     "test/pt-title-dual.test.js",
+    "test/dubbed-reach.test.js",
     "test/request-key.test.js",
     "test/resolver-button-id.test.js",
     "test/resolver-profile-isolation.test.js",
