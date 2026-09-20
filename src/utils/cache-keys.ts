@@ -99,11 +99,10 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // indexada sem o bump.
   // v10: ENGLISH|ENG na mesma guarda — release "English Dubbed" não pode
   // ficar gravada como `dubbed` no índice por até 30 dias.
-  // v11: `mediaSource` (CAM/WEB-DL/…) passa a persistir no índice — o caminho
-  // idx→raw só traz infoHash+título do post, sem magnet/dn=, e o rótulo caía
-  // em "1080p BR" com excludeCam cego. Entradas v10 sem o campo mentiriam
-  // até o TTL (~30d); o bump força recolheita com a evidência.
-  idx: 'v11',
+  // `mediaSource` (CAM/WEB-DL/…) é campo OPCIONAL na mesma v10: ausente =
+  // desconhecido (rótulo pelo título até a próxima gravação). Bumpar a v11
+  // descartaria ~30d de colheita só por rótulo cosmético — custo medido.
+  idx: 'v10',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

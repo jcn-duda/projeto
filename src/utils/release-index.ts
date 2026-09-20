@@ -20,7 +20,7 @@ import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { prefix } from './cache-keys.js';
 import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, parseTitleSeasonEpisode } from './format.js';
-import { mergeMediaSource } from './release-index-media.js';
+import { bankRowsForMediaSource, mergeMediaSource } from './release-index-media.js';
 // Prova de miss por episódio mora no irmão (extraído pela catraca); o pai reexporta.
 import { markMissing, isMissing, isMissingQuiet } from './release-index-miss.js';
 import { cutProtected } from './release-index-cut.js';
@@ -107,6 +107,8 @@ function record(
     const novos = new Set<string>();
     const entry = cache.get(key);
     for (const rel of entry?.releases || []) existing.set(rel.hash, rel);
+    // Bank em lote: só hashes sem dn= no item (evita N lookups no SQLite).
+    const bankByHash = bankRowsForMediaSource(lote);
     for (const { item, hash, title } of lote) {
       const prior = existing.get(hash);
       const itemSource = item.indexSource === 'autofetch' ? 'autofetch' : opts.source;
@@ -127,7 +129,7 @@ function record(
       const source = itemSource === 'autofetch' && (!prior || prior.source === 'autofetch')
         ? 'autofetch' as const
         : undefined;
-      const mediaSource = mergeMediaSource(item, title, hash, prior);
+      const mediaSource = mergeMediaSource(item, title, hash, prior, bankByHash);
       existing.set(hash, {
         hash,
         title: title || prior?.title || '',

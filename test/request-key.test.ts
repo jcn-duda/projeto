@@ -16,15 +16,14 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.startsWith('streams:v12:'), true);
 });
 
-test('versões correntes separam lista v12 do índice v11', () => {
+test('versões correntes separam lista v12 do índice v10', () => {
   // A correção BR_MARK (.org genérico), DUB/HINDI e a fronteira `bthd` mudam
-  // matching/ranking; o AGENTS.md manda invalidar streams+idx juntos. v11: o
-  // índice passa a persistir `mediaSource` (CAM do dn=) — sem bump, obra já
-  // indexada volta só com infoHash+título limpo e o rótulo mente "1080p BR".
-  // v10: ENGLISH|ENG na guarda do DUB genérico. A lista está em v12 (série/
-  // pack fora do intervalo e TS-PreDVD na lista de filme — Resident Evil 2026).
+  // matching/ranking; o AGENTS.md manda invalidar streams+idx juntos. v10: o
+  // ENGLISH|ENG entra na guarda do DUB genérico; `mediaSource` entrou como
+  // campo opcional na mesma v10 (sem bump — não descartar a colheita). A lista
+  // está em v12 (série/pack fora do intervalo e TS-PreDVD — Resident Evil 2026).
   assert.equal(prefix('streams'), 'streams:v12:');
-  assert.equal(prefix('idx'), 'idx:v11:');
+  assert.equal(prefix('idx'), 'idx:v10:');
 });
 
 test('streamsCacheKey preserva a separação por conteúdo e por modo sem conta', () => {
