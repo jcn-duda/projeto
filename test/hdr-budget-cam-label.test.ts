@@ -110,8 +110,9 @@ describe('Fase 1: HDR — orçamento de raspagem + SWR + warm', () => {
 
     (globalThis.fetch as any) = async () => {
       callCount++;
-      await new Promise((r) => setTimeout(r, 500));
-      const cards = Array.from({ length: 15 }, (_, i) => {
+      await new Promise((r) => setTimeout(r, 50));
+      // < 10 cards: scraper para após 1 página (scrape rápido para testar SWR).
+      const cards = Array.from({ length: 5 }, (_, i) => {
         const idx = callCount * 100 + i;
         return `<a href="https://hdr2.test/f${idx}/" class="media-card-link">
           <span class="media-card-title">Filme ${idx} 1080p</span>
@@ -155,6 +156,101 @@ describe('Fase 1: HDR — orçamento de raspagem + SWR + warm', () => {
       // SWR: devolve o lastGood imediatamente (< 50ms), não espera o refresh.
       assert.ok(elapsed < 200, `SWR devolveu em ${elapsed}ms (esperava < 200ms)`);
       assert.equal(second.items.length, firstCount, 'devolveu o mesmo catálogo do lastGood');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('inFlight: chamadas concorrentes de listagem compartilham a mesma raspagem', async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+
+    (globalThis.fetch as any) = async () => {
+      fetchCalls++;
+      await new Promise((r) => setTimeout(r, 100));
+      // < 10 cards: scraper para após 1 página (1 fetch = 1 scrape).
+      const cards = Array.from({ length: 5 }, (_, i) => {
+        const idx = fetchCalls * 100 + i;
+        return `<a href="https://hdr4.test/c${idx}/" class="media-card-link">
+          <span class="media-card-title">Conc ${idx} 1080p</span>
+          <span class="media-card-year">2026</span>
+          <span class="badge-tipo">Filme</span>
+          <span class="badge-qualidade">1080p</span>
+        </a>`;
+      }).join('\n');
+      return {
+        ok: true, status: 200,
+        headers: new Headers(),
+        text: async () => `<html><body>${cards}</body></html>`,
+      };
+    };
+
+    try {
+      const resolver = createHdrResolver({
+        port: 18711,
+        selfUrl: 'http://127.0.0.1:18711',
+        siteUrl: 'https://hdr4.test',
+        extraProtectors: [],
+      }) as any;
+
+      // 5 chamadas concorrentes: todas compartilham a mesma raspagem.
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () => resolver.fetchAllListingsDetailed()),
+      );
+
+      // Apenas 1 fetch de listagem (1 página, scraper para com < 10 cards).
+      assert.equal(fetchCalls, 1, `apenas 1 fetch (todas compartilharam), fez ${fetchCalls}`);
+      // Todas devolveram o mesmo resultado.
+      assert.equal(results[0].items.length, results[4].items.length, 'todas devolveram o mesmo catálogo');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  // Regressão e363954: o warm() chamava `scrapeListings` direto, fora do
+  // inFlight — no boot, uma busca chegando junto raspava o site em paralelo
+  // (2 varreduras, até 40 páginas). É o cenário que o aquecimento existe
+  // para evitar, então vale um teste próprio.
+  test('inFlight: warm() no boot e busca simultânea compartilham a raspagem', async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+
+    (globalThis.fetch as any) = async () => {
+      fetchCalls++;
+      await new Promise((r) => setTimeout(r, 100));
+      // < 10 cards: o scraper para na primeira página (1 fetch = 1 varredura).
+      const cards = Array.from({ length: 5 }, (_, i) => {
+        const idx = fetchCalls * 100 + i;
+        return `<a href="https://hdr5.test/b${idx}/" class="media-card-link">
+          <span class="media-card-title">Boot ${idx} 1080p</span>
+          <span class="media-card-year">2026</span>
+          <span class="badge-tipo">Filme</span>
+          <span class="badge-qualidade">1080p</span>
+        </a>`;
+      }).join('\n');
+      return {
+        ok: true, status: 200,
+        headers: new Headers(),
+        text: async () => `<html><body>${cards}</body></html>`,
+      };
+    };
+
+    try {
+      const resolver = createHdrResolver({
+        port: 18712,
+        selfUrl: 'http://127.0.0.1:18712',
+        siteUrl: 'https://hdr5.test',
+        extraProtectors: [],
+      }) as any;
+
+      // Boot: warm() dispara e uma busca chega no mesmo instante.
+      const [, busca] = await Promise.all([
+        resolver.warm(),
+        resolver.fetchAllListingsDetailed(),
+      ]);
+
+      assert.equal(fetchCalls, 1, `warm + busca = 1 varredura, fez ${fetchCalls}`);
+      assert.ok(busca.items.length > 0, 'a busca recebeu o catálogo da raspagem compartilhada');
     } finally {
       globalThis.fetch = originalFetch;
     }

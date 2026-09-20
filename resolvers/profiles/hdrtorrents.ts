@@ -162,53 +162,64 @@ function createResolver(overrides: ProfileOverrides = {}) {
   }
 
   /**
-   * Listagem com metadado de parcialidade. SWR: quando o TTL venceu, devolve
-   * o último catálogo bom na hora e dispara refresh em background.
+   * Listagem com metadado de parcialidade. SWR + inFlight: quando o TTL
+   * venceu, devolve o último catálogo bom na hora e dispara refresh em
+   * background; requisições concorrentes reaproveitam a MESMA promessa
+   * (inFlight['all']), evitando N raspagens simultâneas do site.
    */
   async function fetchAllListingsDetailed(): Promise<{ items: HDRWork[]; partial: boolean }> {
     const cached = listingCache.get('all');
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value as { items: HDRWork[]; partial: boolean };
     }
-    // SWR: serve o último resultado bom imediatamente (evita "expira duro").
-    if (lastGoodListings !== null) {
-      // Refresh em background — não bloqueia a resposta.
-      scrapeListings().then((result) => {
-        const ttl = result.partial ? LISTING_PARTIAL_CACHE_MS : LISTING_CACHE_MS;
-        listingCache.set('all', { value: result, expiresAt: Date.now() + ttl });
-        lastGoodListings = result.items;
-        lastGoodIsPartial = result.partial;
-      }).catch((err) => {
-        console.warn(`[br] hdrtorrents: refresh em background falhou (${err.message})`);
-      });
-      return { items: lastGoodListings, partial: lastGoodIsPartial };
+    type ListingResult = { items: HDRWork[]; partial: boolean };
+    const pending = inFlight.get('all') as Promise<ListingResult> | undefined;
+    if (pending) {
+      // Refresh já rodando (background SWR ou cold start concorrente).
+      if (lastGoodListings !== null) {
+        // SWR: não bloqueia a resposta, devolve o lastGood e deixa o
+        // refresh em andamento atualizar o cache quando terminar.
+        return { items: lastGoodListings, partial: lastGoodIsPartial };
+      }
+      // Cold start sem lastGood: tem que esperar a primeira raspagem.
+      return pending;
     }
-    // Primeira busca fria (sem lastGood): raspa agora e espera.
-    try {
-      const result = await scrapeListings();
+    // Monta a tarefa de scrape uma vez para todos os concorrentes.
+    const task = scrapeListings().then((result) => {
       const ttl = result.partial ? LISTING_PARTIAL_CACHE_MS : LISTING_CACHE_MS;
       listingCache.set('all', { value: result, expiresAt: Date.now() + ttl });
       lastGoodListings = result.items;
       lastGoodIsPartial = result.partial;
       return result;
-    } catch (err) {
-      // Falha sem lastGood: propaga para o breaker registrar.
-      throw err;
+    }).finally(() => inFlight.delete('all'));
+    inFlight.set('all', task);
+    // SWR: com lastGood disponível, devolve na hora e refresca em background.
+    if (lastGoodListings !== null) {
+      task.catch((err) => {
+        console.warn(`[br] hdrtorrents: refresh em background falhou (${err.message})`);
+      });
+      return { items: lastGoodListings, partial: lastGoodIsPartial };
     }
+    // Cold start (sem lastGood): bloqueia até a raspagem terminar.
+    return task;
   }
 
   /**
    * Aquece o catálogo em background. Disparado no boot do addon para a
    * primeira busca real já encontrar listagem pronta. Sem await, erro
    * engolido — se falhar, a primeira busca paga o custo normal.
+   * Se uma busca chegar junto, o inFlight do fetchAllListingsDetailed
+   * compartilha a raspagem; warm() não duplica.
    */
   async function warm(): Promise<void> {
     try {
-      const result = await scrapeListings();
-      const ttl = result.partial ? LISTING_PARTIAL_CACHE_MS : LISTING_CACHE_MS;
-      listingCache.set('all', { value: result, expiresAt: Date.now() + ttl });
-      lastGoodListings = result.items;
-      lastGoodIsPartial = result.partial;
+      // Passa pelo MESMO caminho da busca (não por `scrapeListings` direto):
+      // é ele que registra o `inFlight['all']`. Chamar o scrape à mão deixava
+      // o boot com duas raspagens paralelas — medido: warm + uma busca
+      // chegando junto = 2 varreduras do site (até 40 páginas), exatamente o
+      // desperdício que o aquecimento existe para evitar. Cache, TTL e
+      // lastGood também são dele; aqui sobra só o log.
+      const result = await fetchAllListingsDetailed();
       console.log(`[br] hdrtorrents: warm → ${result.items.length} item(s)${result.partial ? ' (parcial)' : ''}`);
     } catch (err: any) {
       console.warn(`[br] hdrtorrents: warm falhou (${err.message})`);
@@ -239,36 +250,47 @@ function createResolver(overrides: ProfileOverrides = {}) {
     const cached = searchCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.value as HDRItem[];
 
-    try {
-      const listingResult = await fetchAllListingsDetailed();
-      const allItems = listingResult.items;
-      // TTL da busca acompanha o da listagem: se o catálogo está parcial,
-      // a busca também expira rápido para tentar completar logo.
-      const searchTtl = listingResult.partial ? SEARCH_CACHE_MS / 3 : SEARCH_CACHE_MS;
-      siteSelector.noteSuccess();
-      // Match contra o catálogo: tokens da query presentes no título (60%
-      // de cobertura, mesmo threshold dos outros BR).
-      let posts = allItems.filter((item) => matchesResolverQuery(item, normalized));
-      if (requestedSeason) {
-        posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
-      }
-      posts = posts.slice(0, MAX_POSTS);
-      const chunks = await mapLimit(posts, async (post) => {
-        try {
-          return await postToItems(post);
-        } catch (err) {
-          console.warn(`[br] hdrtorrents: post sem magnets (${err.message})`);
-          return [];
+    // inFlight por query: requisições concorrentes para a MESMA query
+    // reaproveitam o mesmo trabalho (listagem + match + conteúdo).
+    const pending = inFlight.get(cacheKey) as Promise<HDRItem[]> | undefined;
+    if (pending) return pending;
+
+    const task = (async () => {
+      try {
+        const listingResult = await fetchAllListingsDetailed();
+        const allItems = listingResult.items;
+        // TTL da busca acompanha o da listagem: se o catálogo está parcial,
+        // a busca também expira rápido para tentar completar logo.
+        const searchTtl = listingResult.partial ? SEARCH_CACHE_MS / 3 : SEARCH_CACHE_MS;
+        siteSelector.noteSuccess();
+        // Match contra o catálogo: tokens da query presentes no título (60%
+        // de cobertura, mesmo threshold dos outros BR).
+        let posts = allItems.filter((item) => matchesResolverQuery(item, normalized));
+        if (requestedSeason) {
+          posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
         }
-      });
-      const items = chunks.flat();
-      console.log(`[br] hdrtorrents: "${normalized}" → ${posts.length} post(s), ${items.length} release(s)${listingResult.partial ? ' (catálogo parcial)' : ''}`);
-      searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + searchTtl });
-      return items;
-    } catch (err) {
-      if (isNetworkError(err)) await siteSelector.noteFailure();
-      throw err;
-    }
+        posts = posts.slice(0, MAX_POSTS);
+        const chunks = await mapLimit(posts, async (post) => {
+          try {
+            return await postToItems(post);
+          } catch (err) {
+            console.warn(`[br] hdrtorrents: post sem magnets (${err.message})`);
+            return [];
+          }
+        });
+        const items = chunks.flat();
+        console.log(`[br] hdrtorrents: "${normalized}" → ${posts.length} post(s), ${items.length} release(s)${listingResult.partial ? ' (catálogo parcial)' : ''}`);
+        searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + searchTtl });
+        return items;
+      } catch (err) {
+        if (isNetworkError(err)) await siteSelector.noteFailure();
+        throw err;
+      } finally {
+        inFlight.delete(cacheKey);
+      }
+    })();
+    inFlight.set(cacheKey, task);
+    return task;
   }
 
   // ---------------------------------------------------------------------------
