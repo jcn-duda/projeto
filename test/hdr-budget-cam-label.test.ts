@@ -257,6 +257,73 @@ describe('Fase 1: HDR — orçamento de raspagem + SWR + warm', () => {
     }
   });
 
+  // Medido em produção: com o prazo curto (10s) no aquecimento, o catálogo
+  // saía SEMPRE parcial e mudava de tamanho a cada raspagem (190, 285, 304),
+  // e a mesma busca achava "Superman" numa rodada e nada na seguinte. Quem
+  // espera é só o cold start; aquecimento e refresh de fundo levam o prazo
+  // longo e chegam ao fim do catálogo.
+  test('orçamento por regime: aquecimento raspa até o fim, busca fria para no prazo curto', async () => {
+    const originalFetch = globalThis.fetch;
+    const PAGINA_MS = 60;
+    let fetchCalls = 0;
+    // 15 cards por página: nunca dispara o corte de "fim do catálogo" (<10),
+    // então quem decide onde parar é o prazo ou o teto de páginas.
+    (globalThis.fetch as any) = async () => {
+      fetchCalls++;
+      await new Promise((r) => setTimeout(r, PAGINA_MS));
+      const cards = Array.from({ length: 15 }, (_, i) => {
+        const idx = fetchCalls * 100 + i;
+        return `<a href="https://hdr6.test/o${idx}/" class="media-card-link">
+          <span class="media-card-title">Orc ${idx} 1080p</span>
+          <span class="media-card-year">2026</span>
+          <span class="badge-tipo">Filme</span>
+          <span class="badge-qualidade">1080p</span>
+        </a>`;
+      }).join('\n');
+      return {
+        ok: true, status: 200,
+        headers: new Headers(),
+        text: async () => `<html><body>${cards}</body></html>`,
+      };
+    };
+
+    try {
+      const comum = {
+        selfUrl: 'http://127.0.0.1:18713',
+        siteUrl: 'https://hdr6.test',
+        extraProtectors: [],
+        // Prazos apertados de propósito: o curto cabe em ~2 páginas, o longo
+        // cobre as 20. A proporção é a mesma dos defaults (10s x 120s).
+        listingBudgetMs: PAGINA_MS * 2,
+        listingWarmBudgetMs: PAGINA_MS * 60,
+      };
+
+      // Busca fria (alguém esperando): para no prazo curto, catálogo parcial.
+      const frio = createHdrResolver({ ...comum, port: 18713 }) as any;
+      const buscaFria = await frio.fetchAllListingsDetailed();
+      assert.equal(buscaFria.partial, true, 'busca fria devolve catálogo parcial');
+      const paginasDaBusca = fetchCalls;
+
+      // Aquecimento (ninguém esperando): vai até o teto de páginas.
+      fetchCalls = 0;
+      const quente = createHdrResolver({ ...comum, port: 18714 }) as any;
+      await quente.warm();
+      const aquecido = quente.listingCache.get('all').value;
+
+      assert.equal(aquecido.partial, false, 'aquecimento completa o catálogo');
+      assert.ok(
+        fetchCalls > paginasDaBusca,
+        `aquecimento raspa mais páginas (${fetchCalls}) que a busca fria (${paginasDaBusca})`,
+      );
+      assert.ok(
+        aquecido.items.length > buscaFria.items.length,
+        `catálogo do aquecimento (${aquecido.items.length}) maior que o da busca fria (${buscaFria.items.length})`,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test('warm() popula o cache sem request de busca', async () => {
     const originalFetch = globalThis.fetch;
     let fetchCalls = 0;

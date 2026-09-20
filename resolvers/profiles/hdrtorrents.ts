@@ -45,6 +45,12 @@ const DEFAULTS = {
   // 10s deixa folga para os saltos seguintes (conteúdo dos posts). Quando
   // estoura, devolve o que já coletou (parcial) e cacheia por menos tempo.
   listingBudgetMs: 10_000,
+  // Orçamento do aquecimento e do refresh de FUNDO, onde ninguém espera a
+  // resposta. Medido em produção: com 10s o catálogo saía SEMPRE parcial e
+  // variava a cada raspagem (190, 285, 304 itens) — a mesma busca achava
+  // "Superman" numa rodada e nada na seguinte, porque o recorte mudava. O
+  // teto continua sendo `maxListingPages`; este prazo só deixa chegar lá.
+  listingWarmBudgetMs: 120_000,
   // TTL curto quando a listagem é parcial (incompleta): 2 min em vez de 30.
   // Assim a próxima busca tenta completar logo, sem ficar 30 min com catálogo
   // velho quando a fonte respondeu só a primeira página.
@@ -72,9 +78,15 @@ function createResolver(overrides: ProfileOverrides = {}) {
     extraProtectors: EXTRA_PROTECTORS = [],
   } = config;
   // Knobs próprios do perfil (não fazem parte do ResolverConfig padrão):
-  // usam o default estático, sem env override.
+  // usam o default estático, sem env override. Os dois prazos de raspagem
+  // aceitam `overrides` porque é o que o teste injeta para medir os regimes
+  // sem esperar 120s de relógio real.
   const MAX_LISTING_PAGES = DEFAULTS.maxListingPages;
   const LISTING_CACHE_MS = DEFAULTS.listingCacheMs;
+  const knob = (nome: 'listingBudgetMs' | 'listingWarmBudgetMs') => {
+    const valor = Number((overrides as Record<string, unknown>)[nome]);
+    return Number.isFinite(valor) && valor > 0 ? valor : DEFAULTS[nome];
+  };
 
   const bootstrap = createProfile({
     name: 'hdrtorrents',
@@ -129,12 +141,18 @@ function createResolver(overrides: ProfileOverrides = {}) {
     return parseListingHtml(html, siteSelector.url());
   }
 
-  const LISTING_BUDGET_MS = DEFAULTS.listingBudgetMs;
+  const LISTING_BUDGET_MS = knob('listingBudgetMs');
+  const LISTING_WARM_BUDGET_MS = knob('listingWarmBudgetMs');
   const LISTING_PARTIAL_CACHE_MS = DEFAULTS.listingPartialCacheMs;
 
-  /** Raspa a listagem com teto de tempo; devolve { items, partial }. */
-  async function scrapeListings(): Promise<{ items: HDRWork[]; partial: boolean }> {
-    const deadline = Date.now() + LISTING_BUDGET_MS;
+  /**
+   * Raspa a listagem com teto de tempo; devolve { items, partial }.
+   * `budgetMs` separa os dois regimes: a raspagem que uma BUSCA espera usa o
+   * prazo curto; aquecimento e refresh de fundo usam o longo, porque ninguém
+   * está esperando e catálogo pela metade é pior que demora invisível.
+   */
+  async function scrapeListings(budgetMs: number = LISTING_BUDGET_MS): Promise<{ items: HDRWork[]; partial: boolean }> {
+    const deadline = Date.now() + budgetMs;
     const all: HDRWork[] = [];
     const seen = new Set<string>();
     let partial = false;
@@ -167,7 +185,9 @@ function createResolver(overrides: ProfileOverrides = {}) {
    * background; requisições concorrentes reaproveitam a MESMA promessa
    * (inFlight['all']), evitando N raspagens simultâneas do site.
    */
-  async function fetchAllListingsDetailed(): Promise<{ items: HDRWork[]; partial: boolean }> {
+  async function fetchAllListingsDetailed(
+    { background = false }: { background?: boolean } = {},
+  ): Promise<{ items: HDRWork[]; partial: boolean }> {
     const cached = listingCache.get('all');
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value as { items: HDRWork[]; partial: boolean };
@@ -184,8 +204,12 @@ function createResolver(overrides: ProfileOverrides = {}) {
       // Cold start sem lastGood: tem que esperar a primeira raspagem.
       return pending;
     }
-    // Monta a tarefa de scrape uma vez para todos os concorrentes.
-    const task = scrapeListings().then((result) => {
+    // Monta a tarefa de scrape uma vez para todos os concorrentes. O prazo é
+    // o longo quando NINGUÉM espera: aquecimento (`background`) ou refresh de
+    // SWR (já existe `lastGood` para responder na hora). Só o cold start com
+    // busca pendurada paga o prazo curto.
+    const semEspera = background || lastGoodListings !== null;
+    const task = scrapeListings(semEspera ? LISTING_WARM_BUDGET_MS : LISTING_BUDGET_MS).then((result) => {
       const ttl = result.partial ? LISTING_PARTIAL_CACHE_MS : LISTING_CACHE_MS;
       listingCache.set('all', { value: result, expiresAt: Date.now() + ttl });
       lastGoodListings = result.items;
@@ -219,7 +243,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
       // chegando junto = 2 varreduras do site (até 40 páginas), exatamente o
       // desperdício que o aquecimento existe para evitar. Cache, TTL e
       // lastGood também são dele; aqui sobra só o log.
-      const result = await fetchAllListingsDetailed();
+      const result = await fetchAllListingsDetailed({ background: true });
       console.log(`[br] hdrtorrents: warm → ${result.items.length} item(s)${result.partial ? ' (parcial)' : ''}`);
     } catch (err: any) {
       console.warn(`[br] hdrtorrents: warm falhou (${err.message})`);
