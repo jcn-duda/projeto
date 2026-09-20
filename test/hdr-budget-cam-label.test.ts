@@ -12,8 +12,9 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import { toStremioStream } from '../src/utils/search-names.js';
 import { inputFromItem } from '../src/utils/magnet-bank-merge.js';
-import { sourceFromTitle } from '../src/utils/audio-quality.js';
+import { sourceFromTitle, UNKNOWN_QUALITY } from '../src/utils/audio-quality.js';
 import { magnetDisplayName } from '../src/utils/title-normalization.js';
+import { dedupeByHash } from '../src/utils/stream-ranking.js';
 import type { RawItem } from '../types/domain.js';
 
 const HASH = 'a'.repeat(40);
@@ -421,5 +422,36 @@ describe('Fase 3: Rótulo CAM do magnet', () => {
     const result = inputFromItem(item, 'comandotorrents');
     assert.ok(result, 'inputFromItem devolveu resultado');
     assert.equal(result!.magnet.title, 'Resident Evil (2026) [1080p 2.60 GB]');
+  });
+
+  test('dedupeByHash/relabel: título limpo + _magnetDn CAMRip mantém CAM no name', () => {
+    // Merge força relabel (qualidade do loser preenche unknown do winner).
+    const winner = {
+      infoHash: HASH,
+      title: 'Resident Evil (2026) [1080p LEGENDADO]',
+      name: 'Resident Evil\n👤 50',
+      _quality: UNKNOWN_QUALITY,
+      _seeders: 50,
+      _magnetDn: 'Resident.Evil.2026.1080p.CAMRip.x264',
+      _br: false,
+      _dubbed: false,
+      _tracker: 'kickass',
+      _indexer: 'kickasstorrents',
+    };
+    const loser = {
+      infoHash: HASH,
+      title: 'Resident Evil (2026) 1080p WEB-DL',
+      name: 'Resident Evil\n👤 5',
+      _quality: '1080p',
+      _seeders: 5,
+      _magnetDn: '',
+      _br: false,
+      _dubbed: false,
+      _tracker: 'tpb',
+      _indexer: 'thepiratebay',
+    };
+    const [merged] = dedupeByHash([winner, loser]);
+    assert.equal(merged._magnetDn, winner._magnetDn, '_magnetDn sobrevive ao merge');
+    assert.match(String(merged.name), /CAM/, `relabel preserva CAM: "${merged.name}"`);
   });
 });

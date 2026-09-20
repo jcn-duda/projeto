@@ -14,6 +14,8 @@ export type IndexedRelease = {
   lied?: boolean;
   /** Submissão do Chupim é visível, mas não declara cobertura da obra. */
   source?: 'autofetch';
+  /** BluRay/WEB-DL/CAM (sourceFromTitle). NÃO confundir com `source` (origem da entrada). */
+  mediaSource?: string;
 };
 
 export type IndexEntry = { at: number; releases: IndexedRelease[]; partial?: boolean };

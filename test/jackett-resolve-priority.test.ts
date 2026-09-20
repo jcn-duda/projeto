@@ -41,6 +41,18 @@ test('resolveCandidateScore prioriza qualidades superiores, dual áudio e fontes
   assert.ok(sDubSemRes > s4kLegBluray, `[DUBLADO] sem resolução (${sDubSemRes}) deve superar Legendado 4K BluRay (${s4kLegBluray})`);
   assert.ok(sNacSemRes > s4kLegBluray, `[NACIONAL] sem resolução (${sNacSemRes}) deve superar Legendado 4K BluRay (${s4kLegBluray})`);
 
+  // Faixas: dublado (qualquer) > legendado 1080p BluRay > CAM 1080p Dual/sem áudio.
+  // Qualidade ordena DENTRO da faixa (legendado 4K > legendado 720p; ambos > CAM).
+  const sCamDual = resolveCandidateScore({ title: 'Filme (2024) 1080p Dual Áudio CAM' });
+  const sCamNude = resolveCandidateScore({ title: 'Filme (2024) 1080p CAM' });
+  const sLeg720 = resolveCandidateScore({ title: 'Filme (2024) 720p LEGENDADO WEB-DL' });
+  assert.ok(s480pDub > s1080pLegBluray, `Dublado 480p (${s480pDub}) > Legendado 1080p BluRay (${s1080pLegBluray})`);
+  assert.ok(s1080pLegBluray > sCamDual, `Legendado 1080p BluRay (${s1080pLegBluray}) > CAM Dual (${sCamDual})`);
+  assert.ok(s1080pLegBluray > sCamNude, `Legendado 1080p BluRay (${s1080pLegBluray}) > CAM sem áudio (${sCamNude})`);
+  assert.ok(s4kLegBluray > sLeg720, `Legendado 4K (${s4kLegBluray}) > Legendado 720p (${sLeg720})`);
+  assert.ok(sLeg720 > sCamDual, `Legendado 720p (${sLeg720}) > qualquer CAM Dual (${sCamDual})`);
+  assert.ok(s4kLegBluray > sCamDual, `Legendado 4K (${s4kLegBluray}) > qualquer CAM Dual (${sCamDual})`);
+
   // Botões neutros sem metadados típicos de posts BR ([Opção 3]) não devem ficar atrás de legendado declarado
   assert.ok(sOpcaoNeutra > s1080pLegBluray, `Opção neutra (${sOpcaoNeutra}) deve superar Legendado 1080p BluRay (${s1080pLegBluray})`);
   assert.ok(sOpcaoNeutra > s4kLegBluray, `Opção neutra (${sOpcaoNeutra}) deve superar Legendado 4K BluRay (${s4kLegBluray})`);

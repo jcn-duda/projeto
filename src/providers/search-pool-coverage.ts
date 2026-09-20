@@ -112,5 +112,6 @@ export function idxReleasesToRaw(releases: any[]) {
     lied: Boolean(r.lied),
     quality: r.quality,
     indexSource: r.source,
+    mediaSource: r.mediaSource,
   }));
 }

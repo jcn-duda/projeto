@@ -1,6 +1,6 @@
 // Índice de releases por obra (`idx:v6`): a memória que faz o addon virar
-// servidor. O `raw:v1` guarda a raspagem por QUERY de indexer e vive minutos;
-// aqui guarda o que a obra TEM, filtrado e dedupado por hash, e vive semanas.
+// servidor. O `raw:v1` guarda a raspagem por QUERY; aqui guarda o que a obra
+// TEM, filtrado e dedupado por hash, e vive semanas.
 //
 // Invariantes (os mesmos do raw:v1, pelas mesmas razões):
 // 1. Sem config do usuário e sem chave de debrid na chave — o índice é
@@ -20,6 +20,7 @@ import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { prefix } from './cache-keys.js';
 import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, parseTitleSeasonEpisode } from './format.js';
+import { mergeMediaSource } from './release-index-media.js';
 // Prova de miss por episódio mora no irmão (extraído pela catraca); o pai reexporta.
 import { markMissing, isMissing, isMissingQuiet } from './release-index-miss.js';
 import { cutProtected } from './release-index-cut.js';
@@ -126,6 +127,7 @@ function record(
       const source = itemSource === 'autofetch' && (!prior || prior.source === 'autofetch')
         ? 'autofetch' as const
         : undefined;
+      const mediaSource = mergeMediaSource(item, title, hash, prior);
       existing.set(hash, {
         hash,
         title: title || prior?.title || '',
@@ -141,11 +143,11 @@ function record(
         seenAt: now,
         lied: Boolean(item.lied) || Boolean(prior?.lied),
         source,
+        ...(mediaSource ? { mediaSource } : {}),
       });
     }
     if (existing.size === 0) continue;
-    // Corte do teto por obra com proteção BR/dublado — regras e trade-off em
-    // release-index-cut.ts. `added` só conta hash novo SOBREVIVENTE do corte.
+    // Corte do teto com proteção BR/dublado — regras em release-index-cut.ts.
     const releases = cutProtected(existing.values(), Math.max(1, config.releaseIndex.maxReleases));
     added += releases.filter((r) => novos.has(r.hash)).length;
     cache.set(key, { at: now, partial, releases } satisfies IndexEntry, config.releaseIndex.ttl);

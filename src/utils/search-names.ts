@@ -127,9 +127,13 @@ function toStremioStream(item: RawItem): Stream | null {
   const magnetDn = magnetDisplayName(item);
   const titleSource = sourceFromTitle(title);
   const magnetSource = sourceFromTitle(magnetDn);
+  // Fallback do índice: raw sem magnet (só infoHash) carrega mediaSource gravado.
+  const indexedSource = typeof item.mediaSource === 'string' ? item.mediaSource : '';
   const source = (magnetSource === 'CAM' && titleSource !== 'CAM')
     ? (magnetSource || titleSource)
-    : (titleSource || magnetSource);
+    : (titleSource || magnetSource || indexedSource);
+  // excludeCam/notCam leem `_magnetDn`; sem magnet, sintético mínimo pra CAM do índice.
+  const magnetDnOut = magnetDn || (source === 'CAM' ? 'CAMRip' : '');
   // Prova VAZIA (release EN sem marca PT no arquivo) é veredito sobre DUBLADO,
   // não sobre o rótulo. Quando o título já diz "Legendado" ele CONCORDA com a
   // prova — apagá-lo trocava "720p WEB-DL LEG BR" por "720p WEB-DL BR" e
@@ -223,8 +227,9 @@ function toStremioStream(item: RawItem): Stream | null {
       ...(stored && !fromFallback ? { _fromSnapshot: true } : {}),
       // Campo INTERNO: dn= do magnet para o notCam do stream-ranking. O título
       // do post BR pode esconder TELESYNC/TS; o dn= revela. Removido na limpeza
-      // final do stream-quotas antes do protocolo.
-      _magnetDn: magnetDn,
+      // final do stream-quotas antes do protocolo. CAM só no mediaSource do
+      // índice → sintético 'CAMRip' (magnetDnOut) pra excludeCam continuar.
+      _magnetDn: magnetDnOut,
   };
 }
 

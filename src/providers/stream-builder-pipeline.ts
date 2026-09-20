@@ -21,7 +21,8 @@ import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { stageTrace, dropTrace } from '../utils/stream-trace.js';
-import type { StreamTraceState } from '../utils/stream-trace.js';
+import type { StreamTraceState, TraceReason } from '../utils/stream-trace.js';
+import type { RelevanceRejectReason } from '../utils/release-filters.js';
 import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
 import { applyProbedQuality } from './probed-quality.js';
 import { applyPtTitleDual } from './pt-title-dual.js';
@@ -147,9 +148,14 @@ export function prepareCandidateStreams(
     const fromAccount = raw.filter((r) => r.fromAccount);
     const titleCtx = { names, year: catalogYear, isSeries: season != null, multiWork };
     const antesTitulo = raw;
+    // Motivos específicos (named-sequel) no ledger; o resto continua title-filter.
+    const rejectReasons = new Map<RawItem, RelevanceRejectReason>();
+    const noteReject = (item: RawItem, reason: RelevanceRejectReason) => {
+      rejectReasons.set(item, reason);
+    };
     raw = fromAccount.length
-      ? [...fromAccount, ...filterRelevantRaw(raw.filter((r) => !r.fromAccount), titleCtx)]
-      : filterRelevantRaw(raw, titleCtx);
+      ? [...fromAccount, ...filterRelevantRaw(raw.filter((r) => !r.fromAccount), titleCtx, noteReject)]
+      : filterRelevantRaw(raw, titleCtx, noteReject);
     // "(M BR)" deixa explícito se o descarte do título tocou BR — M=0 aponta
     // o culpado para outro elo (ex.: cachedOnly), não para matchesBrTitle.
     if (before !== raw.length) {
@@ -165,7 +171,14 @@ export function prepareCandidateStreams(
       // P5 — cada descarte pelo título leva o motivo real no ledger. O diff é
       // por referência de objeto: itens do inventário e sobreviventes são os
       // MESMOS objetos antes/depois.
-      if (trace) for (const item of antesTitulo) if (!vivos.has(item)) dropTrace(trace, item, 'title-filter');
+      if (trace) {
+        for (const item of antesTitulo) {
+          if (vivos.has(item)) continue;
+          const reason = rejectReasons.get(item);
+          const mapped: TraceReason = reason === 'named-sequel' ? 'named-sequel' : 'title-filter';
+          dropTrace(trace, item, mapped);
+        }
+      }
     }
     // Banco de magnets vivo: o resultado do filtro de título escreve
     // `passed_filter` 0/1 na obra (última observação; só work já capturada).

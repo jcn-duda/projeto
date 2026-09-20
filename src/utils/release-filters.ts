@@ -1,7 +1,7 @@
 import type { RawItem } from '../../types/domain.js';
 import { matchesEpisode } from './episode-matching.js';
 import { titleTokens } from './matching-vocabulary.js';
-import { yearContradicts } from './matching-tokens.js';
+import { namedSequelContradicts, yearContradicts } from './matching-tokens.js';
 import { magnetDisplayName } from './title-normalization.js';
 import {
   containsTokenRun,
@@ -32,7 +32,13 @@ interface MatchOptions {
   multiWork?: MultiWorkCollection | null;
 }
 
-export type RelevanceRejectReason = 'title' | 'magnet-year' | 'episode' | 'series-work' | 'movie-is-series';
+export type RelevanceRejectReason =
+  | 'title'
+  | 'magnet-year'
+  | 'named-sequel'
+  | 'episode'
+  | 'series-work'
+  | 'movie-is-series';
 
 /**
  * Classificação crua compartilhada pelo corte final e pelo gatilho de pack.
@@ -131,11 +137,16 @@ function filterRelevantRaw(
         }
       }
     }
-    // Filme: o dn= do magnet carrega o ano verdadeiro quando o título
-    // mapeado não traz (e confirma quando traz). Séries ficam de fora — o
-    // ano do post delas é o da temporada, com regra própria acima.
+    // Filme: sequel nomeada com ano EXATO diferente (Apocalypse 2004 na
+    // busca do Resident Evil 2002) e, em seguida, o dn= do magnet. Séries e
+    // o ramo admitsMultiWorkPack (return true acima) ficam de fora.
+    // Ano nacional ±1 do post BR não é sequela; Apocalypse/Extinction são globais.
     if (!isSeries && season == null) {
       const catalogYear = Number(String(year ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+      if (catalogYear && !item?.isBr && namedSequelContradicts(tokens, universe, catalogYear)) {
+        onRejected?.(item, 'named-sequel');
+        return false;
+      }
       if (catalogYear && magnetYearContradicts(item, catalogYear)) {
         onRejected?.(item, 'magnet-year');
         return false;

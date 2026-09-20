@@ -345,6 +345,8 @@
     "test/painel-magnet-bank.test.js",
     "test/painel-conta.test.js",
     "test/movie-series-cam-guard.test.js",
-    "test/hdr-budget-cam-label.test.js"
+    "test/named-sequel.test.js",
+    "test/hdr-budget-cam-label.test.js",
+    "test/idx-media-source.test.js"
   ]
 }

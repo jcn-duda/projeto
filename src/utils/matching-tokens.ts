@@ -144,6 +144,47 @@ function yearContradicts(tokens: string[], year: number | string | null, isSerie
   return catalogYear < minYear || catalogYear > maxYear;
 }
 
+/**
+ * Sequel nomeada com ano EXATO diferente do catálogo: "Resident Evil:
+ * Apocalypse (2004)" na busca do filme de 2002. Exige as DUAS provas —
+ * token significativo fora do universo de nomes E ano declarado ≠ catálogo
+ * (===, sem ±2). Sem ano no título devolve false: SEQUENCE_WORDS / precisão
+ * já cuidam de "…Ressurge" sem data. Só filme (o caller aplica).
+ */
+function namedSequelContradicts(
+  tokens: string[],
+  universe: Iterable<string>,
+  catalogYear: number | string | null,
+) {
+  const catalog = Number(String(catalogYear || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  if (!catalog) return false;
+  const want = universe instanceof Set ? universe : new Set(universe);
+  const declaredYears: number[] = [];
+  let hasStrange = false;
+  for (const raw of tokens) {
+    if (!raw) continue;
+    // Mesmo espírito de extractSequenceMarkers: o que vem depois do ano /
+    // ruído técnico não é parte do nome da obra.
+    if (/^(?:19|20)\d{2}$/.test(raw)) {
+      declaredYears.push(Number(raw));
+      break;
+    }
+    if (STOP_AT.has(raw)) break;
+    if (
+      RELEASE_NOISE.has(raw) ||
+      PACK_WORDS.has(raw) ||
+      STRONG_PACK_WORDS.has(raw) ||
+      EPISODE_TOKEN.test(raw) ||
+      /^\d+$/.test(raw)
+    ) continue;
+    if (!want.has(raw)) hasStrange = true;
+  }
+  if (declaredYears.length === 0) return false;
+  // Ano difere só quando NENHUM declarado é exatamente o do catálogo.
+  if (declaredYears.some((y) => y === catalog)) return false;
+  return hasStrange;
+}
+
 // Primeiro token relevante do título: pula ruído curto, artigo, empacotamento
 // e marcador de episódio. Cai no primeiro token quando nada sobrevive — a
 // regra de prefixo precisa de UM ponto de comparação dos dois lados.
@@ -162,5 +203,6 @@ export {
   titlePrecision,
   episodeWorkTokens,
   yearContradicts,
+  namedSequelContradicts,
   firstSignificantToken,
 };

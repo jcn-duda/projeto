@@ -139,7 +139,7 @@ export function resolveCandidateScore(item: { title?: string }, { season = null,
   if (source === 'BluRay') score += 8;
   else if (source === 'WEB-DL') score += 6;
   else if (source === 'WEBRip' || source === 'HDTV') score += 4;
-  else if (source === 'CAM') score -= 20;
+  else if (source === 'CAM') score -= 200;
 
   return score;
 }
@@ -191,6 +191,7 @@ export async function resolveCardigannDownloads(indexer: string, items: any[], q
     .slice(0, config.jackett.maxDownloadResolves)
     .map(({ item }: any) => item);
   const resolved = await mapLimit(candidates, config.jackett.resolveConcurrency, async (item) => {
+    // Índice grava mediaSource (CAM do dn/bank); protetor em hash pronto não vale.
     if (item.infoHash || /^magnet:\?/i.test(item.magnet || '')) return item;
     // Cada salto cabe no que sobrou do orçamento: um protetor de link lento não
     // pode empurrar o indexer inteiro além do REPLY_DEADLINE.

@@ -54,6 +54,7 @@ function origemBrSemProvaDeAudio(title: string, ptAudio: boolean): boolean {
 const ACCOUNT_TRACE_REASON: Record<RelevanceRejectReason, TraceReason> = {
   title: 'account-title',
   'magnet-year': 'account-magnet-year',
+  'named-sequel': 'account-named-sequel',
   episode: 'account-episode',
   'series-work': 'account-series-work',
   'movie-is-series': 'account-movie-is-series',

@@ -78,11 +78,17 @@ function relabel(stream: any, { isBr, dubbedFrom }: { isBr?: boolean; dubbedFrom
   const seeders = Number(String(stats).match(/👤\s*(\d+)/)?.[1] || stream._seeders || 0);
   const borrowedTitle = isBr ? dubbedFrom : '';
   const audio = audioFromTitle(title) || audioFromTitle(borrowedTitle);
+  // Mesma precedência de search-names: magnet CAM vence título limpo.
+  const titleSource = sourceFromTitle(title);
+  const magnetSource = sourceFromTitle(stream._magnetDn || '');
+  const source = (magnetSource === 'CAM' && titleSource !== 'CAM')
+    ? magnetSource
+    : (titleSource || magnetSource || sourceFromTitle(borrowedTitle));
   return streamDisplayName({
     title,
     quality: stream._quality,
     audio,
-    source: sourceFromTitle(title) || sourceFromTitle(borrowedTitle),
+    source,
     edition: editionFromTitle(title) || editionFromTitle(borrowedTitle),
     tracker: stream._tracker,
     isBr,
@@ -173,6 +179,8 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
       _br: Boolean(winner._br || inheritsBr),
       _dubbed: isLied ? false : Boolean(winner._dubbed || inheritsBr),
       _tracker: winner._tracker,
+      // dn= do magnet: o rótulo CAM depende dele no relabel — não perder no merge.
+      _magnetDn: winner._magnetDn || loser._magnetDn || '',
       // Hash idêntico tem o mesmo conteúdo: se QUALQUER listagem marcou como
       // pack, a marca precisa sobreviver ao merge — senão o perdedor BR com
       // título de coleção perderia o estrito para o vencedor EN sem marca.

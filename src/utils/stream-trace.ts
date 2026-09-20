@@ -23,10 +23,12 @@ import config from '../config.js';
 export type TraceReason =
   | 'account-title'
   | 'account-magnet-year'
+  | 'account-named-sequel'
   | 'account-episode'
   | 'account-series-work'
   | 'account-movie-is-series'
   | 'title-filter'
+  | 'named-sequel'
   | 'multiwork-retained'
   | 'episode-mismatch'
   | 'no-hash'
