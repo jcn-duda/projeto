@@ -63,28 +63,56 @@ function extractSequenceMarkers(text: string) {
   return markers;
 }
 
-/**
- * Quanto do título do candidato está DENTRO da busca, ignorando ruído de
- * release, empacotamento e ano. 1 = o título não acrescenta nada; perto de 0 =
- * é outra obra que só começa com o mesmo nome.
- */
-function titlePrecision(tokens: string[], wanted: Iterable<string>) {
-  const want = new Set(wanted);
+function rawPrecision(tokens: string[], want: Set<string>) {
   const significant = tokens.filter(
     (w) =>
       !RELEASE_NOISE.has(w) &&
       !PACK_WORDS.has(w) &&
-      // STRONG_PACK_WORDS ("filmografia", "colecao", "trilogia", …) descreve
-      // EMPACOTAMENTO, não um nome de obra — "FILMOGRAFIA COMPLETA <Série>"
-      // é a mesma obra em pack, e sem este filtro "filmografia" contava como
-      // token fora do universo e derrubava a precisão de um pack legítimo.
       !STRONG_PACK_WORDS.has(w) &&
       !EPISODE_TOKEN.test(w) &&
-      !/^\d+$/.test(w), // número solto é temporada, ano ou tamanho
+      !/^\d+$/.test(w),
   );
-  // Título que só tem ruído não contradiz nada.
   if (significant.length === 0) return 1;
   return significant.filter((w) => want.has(w)).length / significant.length;
+}
+
+/**
+ * Quanto do título do candidato está DENTRO da busca, ignorando ruído de
+ * release, empacotamento e ano. 1 = o título não acrescenta nada; perto de 0 =
+ * é outra obra que só começa com o mesmo nome.
+ *
+ * Com cutTail=true (padrão), mede a obra parando no primeiro ano ou STOP_AT
+ * e devolve o Math.max entre a cabeça e a lista completa, evitando penalizar
+ * assinaturas de encoder/uploader na cauda.
+ */
+function titlePrecision(
+  tokens: string[],
+  wanted: Iterable<string>,
+  { cutTail = true }: { cutTail?: boolean } = {},
+) {
+  const want = new Set(wanted);
+  const fullScore = rawPrecision(tokens, want);
+  if (!cutTail) return fullScore;
+
+  let headStart = 0;
+  while (
+    headStart < tokens.length &&
+    (PACK_WORDS.has(tokens[headStart]) || STRONG_PACK_WORDS.has(tokens[headStart]))
+  ) {
+    headStart += 1;
+  }
+
+  let headEnd = headStart;
+  for (; headEnd < tokens.length; headEnd += 1) {
+    const raw = tokens[headEnd];
+    if (/^(?:19|20)\d{2}$/.test(raw) || STOP_AT.has(raw)) break;
+  }
+
+  // Guarda de cabeça vazia: primeiro token da obra já é ano/STOP_AT -> usa lista completa.
+  if (headEnd === headStart) return fullScore;
+
+  const headScore = rawPrecision(tokens.slice(headStart, headEnd), want);
+  return Math.max(headScore, fullScore);
 }
 
 /**

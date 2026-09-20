@@ -116,4 +116,8 @@ export const search = () => ({
   streamTraceLive: String(process.env.STREAM_TRACE_LIVE || '').split(',').map((s) => s.trim()).filter(Boolean),
   streamTraceLiveTimeoutMs: num(process.env.STREAM_TRACE_LIVE_TIMEOUT_MS, 1500),
   streamTraceLiveMaxHashes: Math.max(1, Math.min(300, num(process.env.STREAM_TRACE_LIVE_MAX_HASHES, 100))),
+  // Corte da cauda (ano/STOP_AT) na medição de precisão de título. Default true.
+  // TITLE_PRECISION_TAIL_CUT=false restaura o cálculo sobre o título inteiro
+  // e o piso de filme em 0.65.
+  titlePrecisionTailCut: String(process.env.TITLE_PRECISION_TAIL_CUT || 'true') !== 'false',
 });

@@ -1,3 +1,4 @@
+import config from '../config.js';
 import { parseTitleSeasonEpisode } from './episode-matching.js';
 import { titleTokens } from './matching-vocabulary.js';
 import {
@@ -16,9 +17,13 @@ import { matchesName, isMultiWorkCollection } from './release-name-matching.js';
 // post BR completo (`matchesBrTitle`), mais as duas guardas de identidade de
 // série (`matchesEpisodeWorkIdentity`, `matchesGlobalSeriesNoMarker`).
 
-// Calibrado nos casos reais deste repo: o documentário "A Última Vigília" dá
-// 0.60 e o pack "1ª até 8ª Temporada" dá 0.75 — o corte fica entre os dois.
-const TITLE_PRECISION_MIN = 0.65;
+// Calibrado nos casos reais deste repo com o corte de cauda na medição da obra
+// (titlePrecision com cutTail=true): releases legítimas sobem para ~1.00 e o
+// piso sobe para 0.70, convergindo com SERIES_TITLE_PRECISION_MIN e fechando
+// furos como "Era Uma Vez em Londres" sem derrubar releases provadas.
+// Com TITLE_PRECISION_TAIL_CUT=false, o piso volta a 0.65 e o corte de cauda
+// é desligado em titlePrecision.
+const TITLE_PRECISION_MIN = config.search?.titlePrecisionTailCut !== false ? 0.70 : 0.65;
 
 // Séries curtas são especialmente ambíguas: "Rick e Morty" cobre 2/3 de
 // "Rick e Morty O Anime", que passava no corte geral de 0,65 e tomava as
@@ -143,7 +148,8 @@ function matchesBrTitle(
       universeTokens || allNames.flatMap((n) => titleTokens(n)).filter(Boolean);
     const measured = episodeWork || own;
     const precisionMin = isSeries ? SERIES_TITLE_PRECISION_MIN : TITLE_PRECISION_MIN;
-    if (titlePrecision(measured, universo) < precisionMin) return false;
+    const cutTail = config.search?.titlePrecisionTailCut !== false;
+    if (titlePrecision(measured, universo, { cutTail }) < precisionMin) return false;
   }
 
   return matchesTitleStructure(title, name, year, { isSeries, tokens: own });
@@ -167,7 +173,8 @@ function matchesEpisodeWorkIdentity(
   if (!work) return true;
   const universe =
     universeTokens || allNames.flatMap((name) => titleTokens(name)).filter(Boolean);
-  return titlePrecision(work, universe) >= SERIES_TITLE_PRECISION_MIN;
+  const cutTail = config.search?.titlePrecisionTailCut !== false;
+  return titlePrecision(work, universe, { cutTail }) >= SERIES_TITLE_PRECISION_MIN;
 }
 
 /**
@@ -200,7 +207,8 @@ function matchesEpisodeWorkIdentity(
 function matchesGlobalSeriesNoMarker(title: string, tokens: string[], universe: string[]) {
   const p = parseTitleSeasonEpisode(title);
   if (p.seasons.length || p.episodes.length || p.complete || p.seasonPack) return true;
-  return titlePrecision(tokens, universe) >= SERIES_TITLE_PRECISION_MIN;
+  const cutTail = config.search?.titlePrecisionTailCut !== false;
+  return titlePrecision(tokens, universe, { cutTail }) >= SERIES_TITLE_PRECISION_MIN;
 }
 
 export {

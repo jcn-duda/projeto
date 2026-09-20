@@ -168,17 +168,25 @@ test('named-sequel: Apocalypse global (sem isBr) continua cortado', () => {
   assert.ok(rejected.includes('named-sequel'));
 });
 
-test('named-sequel: Apocalypse com isBr:true passa (ano nacional não é sequela)', () => {
+test('named-sequel: Apocalypse com isBr:true e ano nacional ±1 passa', () => {
+  // Nomes da obra pedida (Apocalypse), com ano de catálogo 2005 e post BR 2004 (±1).
   // Precisão BR aceita (±2); named-sequel exigiria ano EXATO e cortaria o
   // global — com isBr o predicado não engaja. BR com subtítulo+ano nacional
-  // é o caso a poupar; Apocalypse/Extinction globais continuam cortados.
+  // é o caso a poupar; Apocalypse global sem isBr continua cortado.
+  const ctx = {
+    names: ['Resident Evil: Apocalypse', 'Resident Evil: Apocalipse'],
+    year: 2005,
+    isSeries: false,
+    season: null,
+    episode: null,
+  };
   const apocalypse = {
     title: 'Resident Evil: Apocalypse (2004) 1080p BluRay Dual',
     magnet: magnet(HASH, 'Resident.Evil.Apocalypse.2004'),
     isBr: true,
   };
   const rejected: string[] = [];
-  const result = relevantRaw([apocalypse], RE_BASE, (_item, reason) => rejected.push(reason));
+  const result = relevantRaw([apocalypse], ctx, (_item, reason) => rejected.push(reason));
   assert.equal(result.length, 1, 'BR não é cortado por named-sequel');
   assert.ok(!rejected.includes('named-sequel'));
 });
