@@ -9,6 +9,7 @@ import {
   parseTitleSeasonEpisode,
   audioFromTitle,
   qualityFromTitle,
+  sourceFromTitle,
   UNKNOWN_QUALITY,
 } from '../utils/format.js';
 import { mapLimit } from '../utils/concurrency.js';
@@ -99,10 +100,23 @@ function dedupeResolveCandidates(items: any[]) {
 }
 
 /**
+ * Pontuação de candidatos a download antes de despachar a resolução no `/dl`.
+ *
+ * Na cena BR, posts de WordPress frequentemente agregam 4 a 6 botões de download
+ * por post (ex: Opção 1 [720p Dublado], Opção 2 [1080p Dual Áudio], 4K UHD Bluray,
+ * Versão CAM/TS etc.).
+ *
+ * Como o Adom limita as resoluções por indexer (`config.jackett.maxDownloadResolves`,
+ * padrão 20) e cada resolução consome requisições HTTP e orçamento de tempo
+ * contra protetores de links (/dl), ordenar antes de cortar pelo teto garante que
+ * botões dublados e de qualidades superiores (2160p, 1080p, Dual Áudio, Bluray/WEB-DL) não
+ * fiquem de fora da cota consumida por itens inferiores ou legendados
+ * no topo do HTML do site.
+ *
  * @param {{ title?: string }} item
  * @param {{ season?: (number|null), episode?: (number|null) }} [options]
  */
-function resolveCandidateScore(item: { title?: string }, { season = null, episode = null }: { season?: number | null; episode?: number | null } = {}) {
+export function resolveCandidateScore(item: { title?: string }, { season = null, episode = null }: { season?: number | null; episode?: number | null } = {}) {
   const title = item.title || '';
   const parsed = parseTitleSeasonEpisode(title);
   let score = 0;
@@ -113,9 +127,20 @@ function resolveCandidateScore(item: { title?: string }, { season = null, episod
     else if (!parsed.episodes.length && (parsed.complete || (parsed.seasonPack && !parsed.seasons.length))) score += 30;
   }
   const audio = audioFromTitle(title);
-  if (audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional') score += 20;
+  if (audio === 'Dual') score += 110;
+  else if (audio === 'Dublado') score += 100;
+  else if (audio === 'Nacional') score += 95;
+  else if (audio === 'Legendado') score -= 50;
+
   const quality = qualityFromTitle(title);
-  score += { '2160p': 6, '1080p': 5, '720p': 4, '480p': 3, SD: 1, [UNKNOWN_QUALITY]: 2 }[quality] || 0;
+  score += { '2160p': 15, '1080p': 12, '720p': 6, '480p': 3, SD: 1, [UNKNOWN_QUALITY]: 4 }[quality] || 0;
+
+  const source = sourceFromTitle(title);
+  if (source === 'BluRay') score += 8;
+  else if (source === 'WEB-DL') score += 6;
+  else if (source === 'WEBRip' || source === 'HDTV') score += 4;
+  else if (source === 'CAM') score -= 20;
+
   return score;
 }
 
