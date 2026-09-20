@@ -347,6 +347,7 @@
     "test/movie-series-cam-guard.test.js",
     "test/named-sequel.test.js",
     "test/hdr-budget-cam-label.test.js",
+    "test/cam-label-indexonly.test.js",
     "test/idx-media-source.test.js"
   ]
 }

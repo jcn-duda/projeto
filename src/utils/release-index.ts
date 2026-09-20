@@ -24,9 +24,11 @@ import { bankRowsForMediaSource, mergeMediaSource } from './release-index-media.
 // Prova de miss por episódio mora no irmão (extraído pela catraca); o pai reexporta.
 import { markMissing, isMissing, isMissingQuiet } from './release-index-miss.js';
 import { cutProtected } from './release-index-cut.js';
+import { markFileEvidence, fileEvidence } from './release-index-file.js';
 import type { IndexEntry, IndexedRelease, ObraLocation } from './release-index-types.js';
 export type { IndexedRelease } from './release-index-types.js';
 export { forgetAutofetchHash } from './release-index-maintenance.js';
+export type { FileEvidence } from './release-index-file.js';
 function enabled() {
   return config.releaseIndex.enabled && config.releaseIndex.ttl > 0;
 }
@@ -290,26 +292,6 @@ function markLied(imdbId: string, location: ObraLocation, hash: string) {
  * mundo — igual ao resto do índice, que guarda o que EXISTE, não o que está
  * pronto em qual conta.
  */
-type FileEvidence = { a: string; e?: 0 | 1; q: string; n: string };
-
-function fileKey(hash: string) {
-  return `${prefix('idx')}file:${String(hash || '').toLowerCase()}`;
-}
-
-function markFileEvidence(hash: string, evidence: FileEvidence) {
-  if (!enabled() || !hash || !evidence) return 0;
-  const key = fileKey(hash);
-  const isNew = cache.get(key) == null;
-  cache.set(key, evidence, config.releaseIndex.ttl);
-  if (isNew) metrics.count('search.idx.file');
-  return isNew ? 1 : 0;
-}
-
-function fileEvidence(hash: string): FileEvidence | null {
-  if (!enabled() || !hash) return null;
-  return (cache.get(fileKey(hash)) as FileEvidence) || null;
-}
-
 /** Para o painel: quanto do índice existe agora. */
 function status() {
   const ns = cache.snapshot().namespaces as Record<string, any>;
