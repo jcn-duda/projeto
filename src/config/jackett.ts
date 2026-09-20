@@ -98,7 +98,7 @@ export const jackett = () => ({
   // vive no JACKETT_INDEX_ONLY_INDEXERS (isolamento mais forte: NENHUMA
   // consulta ao vivo, só colhedor) — não o traga de volta para slow.
   slowIndexers: indexerList(
-    process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload',
+    process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann',
   ),
   // Fora do caminho da resposta, DENTRO do sistema: estes indexers não
   // recebem busca ao vivo de nenhum usuário (latência medida de 8–31s contra
@@ -117,7 +117,7 @@ export const jackett = () => ({
   // colhedor o consulta individualmente com orçamento dedicado
   // (JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS).
   indexOnlyIndexers: indexerList(
-    process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,1337x',
+    process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x',
   ),
   // Orçamento TOTAL (busca + resolução `/dl`) de UMA consulta do colhedor a
   // um indexer index-only. Aplicado SÓ no colhedor/fundo: a busca ao vivo

@@ -12,8 +12,9 @@
 // - `passed_filter` NÃO é OR: reflete a ÚLTIMA observação da obra (a captura
 //   nasce 0 e o resultado do filtro da mesma busca escreve 0/1).
 import type { RawItem } from '../../types/domain.js';
-import { extractInfoHash } from './title-normalization.js';
+import { extractInfoHash, magnetDisplayName } from './title-normalization.js';
 import { sanitizeMagnet, defaultMagnet } from './magnet-uri.js';
+import { sourceFromTitle } from './audio-quality.js';
 import type { MagnetRow, SourceRow, WorkRow } from './magnet-bank-rows.js';
 
 export type WorkCtx = {
@@ -221,7 +222,20 @@ export function inputFromItem(item: RawItem, groupIndexer: string): { magnet: Ma
     magnet: {
       hash,
       uri,
-      title: String(item.title || item.Title || ''),
+      // O título do post pode esconder a gravação ("Resident Evil (2026)
+      // [1080p 2.60 GB]"), mas o dn= do magnet revela ("…CAMRip…"). Quando
+      // o magnet prova CAM e o título não diz, guarda o nome do magnet como
+      // título: a evidência do arquivo vence o palpite do WordPress. Sem
+      // isso, o item servido do banco instantâneo perde a marca CAM e o
+      // excludeCam do usuário não corta.
+      title: (() => {
+        const postTitle = String(item.title || item.Title || '');
+        const dn = magnetDisplayName(item);
+        if (dn && sourceFromTitle(dn) === 'CAM' && sourceFromTitle(postTitle) !== 'CAM') {
+          return dn;
+        }
+        return postTitle;
+      })(),
       size: Number(item.size ?? item.Size) || 0,
       isBr: Boolean(item.isBr),
       dubbed: Boolean(item.dubbed),

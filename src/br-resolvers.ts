@@ -39,6 +39,7 @@ type ResolverProfileModule = {
 type ResolverInstance = {
   createServer?: () => Server;
   siteSelector?: { url?: () => string };
+  warm?: () => Promise<void>;
 };
 
 type ResolverEntry = ResolverProfileModule & {
@@ -114,6 +115,16 @@ function load(controls: ResolverControls = config.resolvers) {
   }
 
   if (loaded.length) log.info(`[br] resolvedores embutidos: ${loaded.join(', ')}`);
+
+  // Aquecimento em background: perfis que expõem warm() têm o catálogo
+  // raspado agora, sem bloquear o boot. A primeira busca real já encontra
+  // listagem pronta (HDR) ou cache aquecido. Erro é engolido — warm é
+  // best-effort, não crítico.
+  for (const [name, instance] of modules) {
+    if (typeof instance?.warm === 'function') {
+      instance.warm().catch(() => {});
+    }
+  }
 }
 
 /**

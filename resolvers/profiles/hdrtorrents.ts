@@ -41,6 +41,14 @@ const DEFAULTS = {
   // Teto de páginas de listagem raspadas por ciclo de cache. 20 páginas × 20
   // cards = 400 itens, suficiente para cobrir o catálogo corrente.
   maxListingPages: 20,
+  // Orçamento de tempo para raspagem da listagem. A busca BR tem 20s de teto;
+  // 10s deixa folga para os saltos seguintes (conteúdo dos posts). Quando
+  // estoura, devolve o que já coletou (parcial) e cacheia por menos tempo.
+  listingBudgetMs: 10_000,
+  // TTL curto quando a listagem é parcial (incompleta): 2 min em vez de 30.
+  // Assim a próxima busca tenta completar logo, sem ficar 30 min com catálogo
+  // velho quando a fonte respondeu só a primeira página.
+  listingPartialCacheMs: 2 * 60_000,
   postCacheMs: 10 * 60_000,
   searchCacheMs: 5 * 60_000,
   listingCacheMs: 30 * 60_000,
@@ -84,9 +92,9 @@ function createResolver(overrides: ProfileOverrides = {}) {
 
   // Cache (núcleo resolvers/cache.js): listagem, busca e post.
   const inFlight = new Map<string, Promise<unknown>>();
-  const { values: listingCache, cached: cachedListing } = createCache(10, { inFlight });
+  const { values: listingCache } = createCache(10, { inFlight });
   const { values: postCache, cached: cachedPost } = createCache(200, { inFlight });
-  const { values: searchCache, cached: cachedSearch } = createCache(100, { inFlight });
+  const { values: searchCache } = createCache(100, { inFlight });
 
   siteSelector.onDomainChange(() => {
     listingCache.clear();
@@ -96,7 +104,13 @@ function createResolver(overrides: ProfileOverrides = {}) {
 
   // ---------------------------------------------------------------------------
   // Listagem: raspa homepage + paginação, cache por 30 min.
+  // Orçamento de tempo (listingBudgetMs): ao estourar, devolve o que coletou
+  // e marca como parcial (TTL curto). SWR: quando o TTL vence, serve o último
+  // catálogo bom na hora e atualiza em segundo plano — nunca expira "duro".
   // ---------------------------------------------------------------------------
+  let lastGoodListings: HDRWork[] | null = null;
+  let lastGoodIsPartial = false;
+
   async function fetchText(url: string): Promise<string> {
     const res = await fetch(assertAllowedUrl(url), {
       redirect: 'follow',
@@ -115,23 +129,90 @@ function createResolver(overrides: ProfileOverrides = {}) {
     return parseListingHtml(html, siteSelector.url());
   }
 
-  async function fetchAllListings(): Promise<HDRWork[]> {
-    return cachedListing('all', LISTING_CACHE_MS, async () => {
-      const all: HDRWork[] = [];
-      const seen = new Set<string>();
-      for (let page = 1; page <= MAX_LISTING_PAGES; page++) {
-        const items = await fetchListingPage(page);
-        for (const item of items) {
-          if (!seen.has(item.url)) {
-            seen.add(item.url);
-            all.push(item);
-          }
-        }
-        // Página com menos de 10 cards (metade do normal) é fim do catálogo.
-        if (items.length < 10) break;
+  const LISTING_BUDGET_MS = DEFAULTS.listingBudgetMs;
+  const LISTING_PARTIAL_CACHE_MS = DEFAULTS.listingPartialCacheMs;
+
+  /** Raspa a listagem com teto de tempo; devolve { items, partial }. */
+  async function scrapeListings(): Promise<{ items: HDRWork[]; partial: boolean }> {
+    const deadline = Date.now() + LISTING_BUDGET_MS;
+    const all: HDRWork[] = [];
+    const seen = new Set<string>();
+    let partial = false;
+    for (let page = 1; page <= MAX_LISTING_PAGES; page++) {
+      if (Date.now() > deadline) {
+        partial = true;
+        break;
       }
-      return all;
-    });
+      const items = await fetchListingPage(page);
+      for (const item of items) {
+        if (!seen.has(item.url)) {
+          seen.add(item.url);
+          all.push(item);
+        }
+      }
+      // Página com menos de 10 cards (metade do normal) é fim do catálogo.
+      if (items.length < 10) break;
+    }
+    return { items: all, partial };
+  }
+
+  async function fetchAllListings(): Promise<HDRWork[]> {
+    const result = await fetchAllListingsDetailed();
+    return result.items;
+  }
+
+  /**
+   * Listagem com metadado de parcialidade. SWR: quando o TTL venceu, devolve
+   * o último catálogo bom na hora e dispara refresh em background.
+   */
+  async function fetchAllListingsDetailed(): Promise<{ items: HDRWork[]; partial: boolean }> {
+    const cached = listingCache.get('all');
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as { items: HDRWork[]; partial: boolean };
+    }
+    // SWR: serve o último resultado bom imediatamente (evita "expira duro").
+    if (lastGoodListings !== null) {
+      // Refresh em background — não bloqueia a resposta.
+      scrapeListings().then((result) => {
+        const ttl = result.partial ? LISTING_PARTIAL_CACHE_MS : LISTING_CACHE_MS;
+        listingCache.set('all', { value: result, expiresAt: Date.now() + ttl });
+        lastGoodListings = result.items;
+        lastGoodIsPartial = result.partial;
+      }).catch((err) => {
+        console.warn(`[br] hdrtorrents: refresh em background falhou (${err.message})`);
+      });
+      return { items: lastGoodListings, partial: lastGoodIsPartial };
+    }
+    // Primeira busca fria (sem lastGood): raspa agora e espera.
+    try {
+      const result = await scrapeListings();
+      const ttl = result.partial ? LISTING_PARTIAL_CACHE_MS : LISTING_CACHE_MS;
+      listingCache.set('all', { value: result, expiresAt: Date.now() + ttl });
+      lastGoodListings = result.items;
+      lastGoodIsPartial = result.partial;
+      return result;
+    } catch (err) {
+      // Falha sem lastGood: propaga para o breaker registrar.
+      throw err;
+    }
+  }
+
+  /**
+   * Aquece o catálogo em background. Disparado no boot do addon para a
+   * primeira busca real já encontrar listagem pronta. Sem await, erro
+   * engolido — se falhar, a primeira busca paga o custo normal.
+   */
+  async function warm(): Promise<void> {
+    try {
+      const result = await scrapeListings();
+      const ttl = result.partial ? LISTING_PARTIAL_CACHE_MS : LISTING_CACHE_MS;
+      listingCache.set('all', { value: result, expiresAt: Date.now() + ttl });
+      lastGoodListings = result.items;
+      lastGoodIsPartial = result.partial;
+      console.log(`[br] hdrtorrents: warm → ${result.items.length} item(s)${result.partial ? ' (parcial)' : ''}`);
+    } catch (err: any) {
+      console.warn(`[br] hdrtorrents: warm falhou (${err.message})`);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -151,37 +232,43 @@ function createResolver(overrides: ProfileOverrides = {}) {
     return links.map((link, index) => ({ post, link, index, count: links.length }));
   }
 
-  async function searchPosts(query: string) {
+  async function searchPosts(query: string): Promise<HDRItem[]> {
     const requestedSeason = requestedSeasonFromQuery(query);
     const normalized = normalizeQuery(query);
     const cacheKey = `search:${String(query || '')}`;
-    return cachedSearch(cacheKey, SEARCH_CACHE_MS, async () => {
-      try {
-        const allItems = await fetchAllListings();
-        siteSelector.noteSuccess();
-        // Match contra o catálogo: tokens da query presentes no título (60%
-        // de cobertura, mesmo threshold dos outros BR).
-        let posts = allItems.filter((item) => matchesResolverQuery(item, normalized));
-        if (requestedSeason) {
-          posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
-        }
-        posts = posts.slice(0, MAX_POSTS);
-        const chunks = await mapLimit(posts, async (post) => {
-          try {
-            return await postToItems(post);
-          } catch (err) {
-            console.warn(`[br] hdrtorrents: post sem magnets (${err.message})`);
-            return [];
-          }
-        });
-        const items = chunks.flat();
-        console.log(`[br] hdrtorrents: "${normalized}" → ${posts.length} post(s), ${items.length} release(s)`);
-        return items;
-      } catch (err) {
-        if (isNetworkError(err)) await siteSelector.noteFailure();
-        throw err;
+    const cached = searchCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.value as HDRItem[];
+
+    try {
+      const listingResult = await fetchAllListingsDetailed();
+      const allItems = listingResult.items;
+      // TTL da busca acompanha o da listagem: se o catálogo está parcial,
+      // a busca também expira rápido para tentar completar logo.
+      const searchTtl = listingResult.partial ? SEARCH_CACHE_MS / 3 : SEARCH_CACHE_MS;
+      siteSelector.noteSuccess();
+      // Match contra o catálogo: tokens da query presentes no título (60%
+      // de cobertura, mesmo threshold dos outros BR).
+      let posts = allItems.filter((item) => matchesResolverQuery(item, normalized));
+      if (requestedSeason) {
+        posts = posts.filter((post) => matchesSeasonSeason(post, requestedSeason));
       }
-    });
+      posts = posts.slice(0, MAX_POSTS);
+      const chunks = await mapLimit(posts, async (post) => {
+        try {
+          return await postToItems(post);
+        } catch (err) {
+          console.warn(`[br] hdrtorrents: post sem magnets (${err.message})`);
+          return [];
+        }
+      });
+      const items = chunks.flat();
+      console.log(`[br] hdrtorrents: "${normalized}" → ${posts.length} post(s), ${items.length} release(s)${listingResult.partial ? ' (catálogo parcial)' : ''}`);
+      searchCache.set(cacheKey, { value: items, expiresAt: Date.now() + searchTtl });
+      return items;
+    } catch (err) {
+      if (isNetworkError(err)) await siteSelector.noteFailure();
+      throw err;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -236,7 +323,8 @@ function createResolver(overrides: ProfileOverrides = {}) {
     requestedSeasonFromQuery, classifyAudio,
     stripTags, decodeEntities, escapeXml,
     assertAllowedUrl, isDetailHost, isNetworkError,
-    searchPosts, fetchText, fetchAllListings, getContentMagnets,
+    searchPosts, fetchText, fetchAllListings, fetchAllListingsDetailed, getContentMagnets,
+    warm,
     postCache, searchCache, listingCache, inFlight,
     serveMain: bootstrap.serveMain,
   };
