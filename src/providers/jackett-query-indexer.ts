@@ -103,6 +103,7 @@ export async function queryIndexer(indexer: string, query: string, type: string,
 
   const started = Date.now();
   const deadline = started + timeout;
+  const isResolving = config.jackett.resolveDownloadIndexers.includes(indexer) && !options.skipResolve;
   // O cache bruto memoiza SÓ a camada de rede: a cascata de fallback (decide
   // por relevância) e a resolução de magnets (filtra pelo episódio da query
   // original) continuam rodando por busca; num hit, cada salto de protetor
@@ -149,7 +150,13 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     if (sendCategoryInUrl && categoryBucket) {
       endpoint.searchParams.append('Category[]', String(categoryBucket));
     }
-    const budget = remaining(deadline);
+    // Se o indexer depende de resolver links via /dl (protetores WordPress como
+    // Bludv, Comando, NerdFilmes, TorrentDosFilmes, Vaca, MagnetDownload), o fetch
+    // não pode consumir o prazo inteiro até o fim: precisa sobrar pelo menos
+    // MIN_RESOLVE_BUDGET (400ms) para que resolveCardigannDownloads consiga
+    // extrair os magnets reais dos protetores em vez de descartar os itens no guard.
+    // A reserva vale tanto na primária quanto na cascata quando o indexer resolve.
+    const budget = remaining(deadline) - (isResolving ? MIN_RESOLVE_BUDGET : 0);
     if (budget <= 0) throw new Error('timeout');
     const res = await fetch(endpoint, {
       headers: { Accept: 'application/json', 'User-Agent': 'stremio-adom/1.0' },
@@ -255,7 +262,11 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     const relevant = options.matchContext?.names?.length
       ? filterRelevantRaw(found.items, options.matchContext)
       : found.items;
-    if (remaining(deadline) <= MIN_RESOLVE_BUDGET) continue;
+    // Para abrir um degrau de cascata precisa sobrar prazo para o próprio fetch do
+    // degrau (pelo menos MIN_RESOLVE_BUDGET) somado à reserva de resolução de magnets
+    // quando o indexer depende de /dl (outros MIN_RESOLVE_BUDGET = 400ms).
+    const minCascadeBudget = MIN_RESOLVE_BUDGET + (isResolving ? MIN_RESOLVE_BUDGET : 0);
+    if (remaining(deadline) <= minCascadeBudget) continue;
     // O degrau da coleção multiobra é COMPLEMENTAR: abre mesmo com release
     // relevante já na mão, porque o dublado raro muitas vezes só existe no pack
     // da franquia. Ele NÃO abre quando o acumulado já contém um pack ADMITIDO da

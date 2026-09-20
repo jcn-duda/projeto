@@ -286,3 +286,74 @@ test('tt1411697: cascata primary -> variante -> sem ano -> raiz da franquia para
     assert.equal(items[0].title, 'Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio 1080p By-LuaHarper');
   });
 });
+
+test('busca primária e cascata em indexer que precisa de resolve protegem MIN_RESOLVE_BUDGET no signal', async () => {
+  const fetchImpl = makeFetch();
+  const timeouts: number[] = [];
+  const originalTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = (ms) => {
+    timeouts.push(ms);
+    return originalTimeout(ms);
+  };
+
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      if (query === TREK_PT) return fakeResponse({ Results: [] });
+      if (query === TREK_VARIANT) {
+        return fakeResponse({ Results: [
+          { Title: 'Jornada nas Estrelas 2 A Ira de Khan 1982 DUBLADO 720p', Seeders: 2, MagnetUri: MAGNET },
+        ] });
+      }
+      return fakeResponse({ Results: [] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  try {
+    await withJackett(fetchImpl, async () => {
+      // bludv-cardigann está em resolveDownloadIndexers
+      const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+        variantQuery: TREK_VARIANT,
+        matchContext: TREK_CTX,
+      });
+      assert.equal(items.length, 1);
+      assert.equal(timeouts.length, 2);
+      // timeouts[0] é a query primária; timeouts[1] é a cascata (variante).
+      // Em indexadores que resolvem via /dl, tanto a busca primária quanto os
+      // degraus da cascata devem descontar MIN_RESOLVE_BUDGET (400ms) do prazo
+      // restante no AbortSignal.timeout. Assim, mesmo que a resposta do Jackett
+      // demore até o limite do timeout, sobram pelo menos 400ms para
+      // resolveCardigannDownloads extrair os magnets dos protetores.
+      //
+      // Com brIndexerTimeout inicial de 20000ms:
+      // - timeouts[0] (primária) deve ser <= 20000 - 400 = 19600ms
+      // - timeouts[1] (cascata) também reserva MIN_RESOLVE_BUDGET (400ms) sobre o tempo restante
+      const totalBudget = config.jackett.brIndexerTimeout;
+      assert.ok(
+        timeouts[0] <= totalBudget - 400,
+        `primária deveria reservar MIN_RESOLVE_BUDGET (400ms), esperado <= ${totalBudget - 400}ms, viu ${timeouts[0]}ms`,
+      );
+      assert.ok(
+        timeouts[1] <= totalBudget - 400,
+        `degrau de cascata deveria reservar MIN_RESOLVE_BUDGET (400ms), esperado <= ${totalBudget - 400}ms, viu ${timeouts[1]}ms`,
+      );
+
+      // Em indexador que NÃO precisa de resolve (ex.: redetorrent-cardigann),
+      // o orçamento inicial da primária NÃO desconta MIN_RESOLVE_BUDGET:
+      timeouts.length = 0;
+      await jackett.search(TREK_PT, 'movie', ['redetorrent-cardigann'], {
+        matchContext: TREK_CTX,
+      });
+      assert.equal(timeouts.length, 1);
+      assert.ok(
+        timeouts[0] > totalBudget - 400,
+        `indexer sem resolve não deveria reservar 400ms, esperado > ${totalBudget - 400}ms, viu ${timeouts[0]}ms`,
+      );
+    });
+  } finally {
+    AbortSignal.timeout = originalTimeout;
+  }
+});
+
+
