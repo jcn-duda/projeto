@@ -118,6 +118,40 @@ test('limiares convergidos: TITLE_PRECISION_MIN e SERIES_TITLE_PRECISION_MIN sã
   assert.equal(SERIES_TITLE_PRECISION_MIN, 0.70, 'SERIES_TITLE_PRECISION_MIN deve permanecer 0.70');
 });
 
+test('kill-switch: TITLE_PRECISION_TAIL_CUT=false reproduz pontuação de título inteiro e limiar 0.65', async () => {
+  const fightClubTokens = titleTokens('Fight Club (1999) 720p BrRip x264 -YIFY');
+  const fightClubUniverse = ['fight', 'club', 'clube', 'luta'];
+
+  // Com cutTail: false explícito em titlePrecision, reproduz o cálculo antigo (~0.67)
+  const fullScore = titlePrecision(fightClubTokens, fightClubUniverse, { cutTail: false });
+  assert.ok(Math.abs(fullScore - 2 / 3) < 0.01, `esperado ~0.67 em título inteiro, obteve ${fullScore}`);
+
+  // Teste de isolamento de processo com a env desativada:
+  // process.execPath rodando subprocesso que importa config e release-title-rules
+  const { execSync } = await import('node:child_process');
+  const code = `
+    import config from './dist/src/config.js';
+    import { TITLE_PRECISION_MIN, matchesBrTitle } from './dist/src/utils/release-title-rules.js';
+    import assert from 'node:assert/strict';
+
+    assert.equal(config.search?.titlePrecisionTailCut, false);
+    assert.equal(TITLE_PRECISION_MIN, 0.65);
+
+    // Com o corte desligado e piso 0.65, o antigo falso positivo Londres passa (0.67 >= 0.65):
+    const londresPassa = matchesBrTitle(
+      'Era Uma Vez em Londres [1080p WEB-DL DUAL]',
+      'Era Uma Vez em Hollywood',
+      2019,
+      { isSeries: false, allNames: ['Once Upon a Time in Hollywood', 'Era Uma Vez em Hollywood'] }
+    );
+    assert.equal(londresPassa, true, 'no modo legado (piso 0.65 e sem tail cut), Londres passava');
+  `;
+  execSync(`node --input-type=module -e "${code.replace(/\n/g, ' ')}"`, {
+    env: { ...process.env, TITLE_PRECISION_TAIL_CUT: 'false' },
+    stdio: 'pipe',
+  });
+});
+
 test('corpus de precisão de título: divergências reportadas de uma vez', () => {
   const divergencias: string[] = [];
   for (const item of CORPUS.itens) {
@@ -139,3 +173,4 @@ test('corpus de precisão de título: divergências reportadas de uma vez', () =
     `Corpus de precisão divergiu em ${divergencias.length} caso(s):\n` + divergencias.join('\n---\n'),
   );
 });
+
