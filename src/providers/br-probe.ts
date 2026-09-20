@@ -93,7 +93,8 @@ function probeKey(work: BrProbeWork): string {
  * recebem a query em português (pt-BR) — é onde mora o dublado titulado em PT.
  */
 export function probeIndexers(): string[] {
-  return config.jackett.indexOnlyIndexers.filter((id) => config.jackett.ptBrIndexers.includes(id));
+  const exempt = new Set(config.jackett.liveExemptIndexers);
+  return config.jackett.indexOnlyIndexers.filter((id) => config.jackett.ptBrIndexers.includes(id) && !exempt.has(id));
 }
 
 /** Sonda operante: RELEASE_INDEX ativo, toggle ligado e interseção não vazia. */

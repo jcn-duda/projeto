@@ -101,13 +101,34 @@ export const jackett = () => ({
     process.env.JACKETT_SLOW_INDEXERS || 'bludv-cardigann,redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann',
   ),
   // Fora do caminho da resposta, DENTRO do sistema: estes indexers não
-  // recebem busca ao vivo de nenhum usuário (latência medida de 8–31s contra
-  // orçamento total de 20s derrubava-os no breaker e ainda consumia o prazo
-  // com o retry PT→título original). Alimentam o índice pelo COLHEDOR, que
-  // tem fila persistente, orçamento largo e cujas falhas não pintam card —
+  // recebem busca ao vivo de nenhum usuário. Alimentam o índice pelo COLHEDOR,
+  // que tem fila persistente, orçamento largo e cujas falhas não pintam card —
   // e a busca ao vivo serve do índice quando ele cobre a obra. Separado de
   // JACKETT_SLOW_INDEXERS de propósito: lá o problema é o agrupamento do
   // plano; aqui é PRESENÇA na resposta.
+  //
+  // Os 8–31s que justificavam a entrada dos três cardigann BR eram dos
+  // indexers STOCK do Jackett, hoje aposentados. Os cards LOCAIS que os
+  // substituíram são rápidos (medido 2026-09-20, query fria, por indexer):
+  // apachetorrent 1,5–4,2s (p50 ~2,4s), redetorrent 0,65–1,4s, hdrtorrent
+  // 0,01–0,03s. Latência sozinha já NÃO sustenta a lista — o que sustenta é
+  // que a coleta viva tem 4700ms (budgets().debridReserve comeu o resto) e o
+  // passe tardio, com orçamento próprio de 20s, é o caminho natural deles.
+  //
+  // Os três NÃO são a mesma classe de risco, e a diferença importa para quem
+  // pensar em promover algum ao vivo:
+  //   - apachetorrent/hdrtorrent: fetch DIRETO, sem Cloudflare. São os únicos
+  //     candidatos defensáveis — se o orçamento da coleta subir, comece por
+  //     aqui e meça de novo;
+  //   - redetorrent: atrás de Cloudflare via FlareSolverr (ver
+  //     resolvers/profiles/redetorrent.ts). A sessão de 20min esconde o custo
+  //     na medição morna, mas fria ele entra na fila SERIAL do FlareSolverr e
+  //     atrasa todo mundo. Não promova pelo número acima.
+  //
+  // O buraco que a lista abre é conhecido e tem dono: obra nunca colhida mostra
+  // o dublado só na SEGUNDA abertura. Quem fecha isso é a sonda dirigida
+  // (br-probe.ts, interseção indexOnlyIndexers ∩ ptBrIndexers) somada ao
+  // instantâneo do banco de magnets — não uma consulta viva a estes indexers.
   //
   // O 1337x entrou medido: busca fria de 12,2–19s (com re-resolução do
   // desafio Cloudflare) e redirect `/dl/` de 1,8–6,5s contra orçamento de
@@ -118,6 +139,24 @@ export const jackett = () => ({
   // (JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS).
   indexOnlyIndexers: indexerList(
     process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x',
+  ),
+  // Exceção de PRESENÇA no plano ao vivo: indexers que continuam sendo
+  // index-only para todos os outros fins (allowedSourceIndexer não filtra por ji,
+  // magnet-bank-instant aceita passed_filter=0, colhedor dedica timeout de 35s),
+  // mas que PASSAM a ser consultados na resposta ao vivo.
+  //
+  // Medição de 2026-09-20 (15 amostras frias):
+  //   - apachetorrent-cardigann: 1,48–5,02s (p50 ~3,2s). Fetch direto, sem
+  //     Cloudflare. Janela da resposta = computeCollectionBudget (~4700ms) +
+  //     graça da 1ª fonte BR (1500ms) = ~6200ms. O máximo (5,02s) cabe nela!
+  //   - redetorrent-cardigann: 0,65–1,4s morno, mas usa FlareSolverr serial
+  //     (resolvers/profiles/redetorrent.ts); fila fria atrasa resposta. Fica fora.
+  //   - hdrtorrent-cardigann: 0,007–0,03s, mas catálogo frio devolve vazio e só
+  //     geraria wastedQueries e card verde mentindo cobertura. Fica fora.
+  //
+  // ?? e não ||: string vazia permite kill-switch total via env.
+  liveExemptIndexers: indexerList(
+    process.env.JACKETT_LIVE_EXEMPT_INDEXERS ?? 'apachetorrent-cardigann',
   ),
   // Orçamento TOTAL (busca + resolução `/dl`) de UMA consulta do colhedor a
   // um indexer index-only. Aplicado SÓ no colhedor/fundo: a busca ao vivo

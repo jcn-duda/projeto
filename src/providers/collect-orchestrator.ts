@@ -100,7 +100,7 @@ export async function collectRaw(
   // índice). O filtro é ANTES do plano: se o operador mandou todos os
   // selecionados embora, o resultado é NENHUMA consulta Jackett — cair no
   // fallback `/all` reabriria a porta que o filtro acabou de fechar.
-  const selectedIndexers = liveIndexers(rawSelected, config.jackett.indexOnlyIndexers);
+  const selectedIndexers = liveIndexers(rawSelected, config.jackett.indexOnlyIndexers, config.jackett.liveExemptIndexers);
   if (selectedIndexers.length < rawSelected.length) {
     metrics.count('search.indexonly.excluded', rawSelected.length - selectedIndexers.length);
   }

@@ -128,14 +128,23 @@ function ptSweepIndexers(selectedIndexers: string[], ptBrIndexers: string[], ind
  * mantém as releases deles frescas é o colhedor, cujas falhas não contam no
  * breaker nem pintam card. Lista vazia = comportamento antigo.
  *
+ * Exceções de presença (exempt): indexers que continuam sendo index-only para
+ * o resto do sistema (allowedSourceIndexer, magnet-bank-instant, timeout do
+ * colhedor), mas cuja busca cabe no orçamento ao vivo e devem ser consultados.
+ *
  * O 1337x é o caso global desta lista: busca fria de 12,2–19s (Cloudflare
- * re-resolvido) e redirect `/dl/` de 1,8–6,5s contra orçamento de 4s. Estar
+ * re-resolvido) e redirect /dl/ de 1,8–6,5s contra orçamento de 4s. Estar
  * aqui vale MESMO quando o usuário o seleciona na config — a exclusão roda
- * antes do plano, e todos-index-only não reabrem o fallback `/all`.
+ * antes do plano, e todos-index-only não reabrem o fallback /all.
  */
-function liveIndexers(selectedIndexers: string[], indexOnlyIndexers: string[] = []) {
+function liveIndexers(
+  selectedIndexers: string[],
+  indexOnlyIndexers: string[] = [],
+  exemptIndexers: string[] = [],
+) {
   const fora = new Set(indexOnlyIndexers);
-  return selectedIndexers.filter((indexer) => !fora.has(indexer));
+  const isentos = new Set(exemptIndexers);
+  return selectedIndexers.filter((indexer) => !fora.has(indexer) || isentos.has(indexer));
 }
 
 /**
