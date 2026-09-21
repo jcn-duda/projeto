@@ -136,15 +136,15 @@ function makeResolveHandler(services: AppServices) {
         );
         const sNum = Number(req.query.s);
         const eNum = Number(req.query.e);
+        // Sem evidence: 404 só — clear cego apagaria streams bons da série
+        // quando o pack só não nomeou o episódio (EpisodePickError sem prova).
         if (err.evidence && hintedImdbId && Number.isFinite(sNum) && Number.isFinite(eNum)) {
           services.releaseIndex.markMissing(hintedImdbId, { season: sNum, episode: eNum }, infoHash);
           if (err.evidence.declaredEpisodes.length === 0) {
             services.releaseIndex.markMissingSeason(hintedImdbId, sNum, infoHash);
           }
-        }
-        // Lista pronta ainda oferece o pack sem o episódio até o TTL — mesmo
-        // buraco do lie: markMissing sozinho não invalida streams.
-        if (hintedImdbId) {
+          // Lista pronta ainda oferece o pack sem o episódio até o TTL — mesmo
+          // buraco do lie: markMissing sozinho não invalida streams.
           const cleared = invalidateStreamsForObra(hintedImdbId);
           if (cleared > 0) {
             services.metrics.count('resolve.streamsInvalidated.missing');

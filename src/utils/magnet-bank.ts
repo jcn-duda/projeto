@@ -31,6 +31,7 @@ import {
 } from './magnet-bank-merge.js';
 import type { MagnetInput, SourceInput, WorkCtx, WorkMark } from './magnet-bank-merge.js';
 import { releaseWorkTargets } from './release-work.js';
+import { magnetDisplayName } from './title-normalization.js';
 
 export { hashOf } from './magnet-bank-merge.js';
 export { failNextWriteForTests } from './magnet-bank-rows.js';
@@ -156,8 +157,9 @@ function applyOps(ops: Op[]): number {
         sources.set(sourceKey, prevSource ? mergeSourceInput(prevSource, parsed.source) : parsed.source);
         if (imdb) {
           // A obra do PEDIDO nunca se perde; pack de temporada/série completa
-          // acrescenta a obra declarada (mesma régua do release-index).
-          for (const target of releaseWorkTargets(String(item.title || item.Title || ''), request)) {
+          // acrescenta a obra declarada (mesma régua do release-index). dn=
+          // mais específico que o título evita inventar pack de temporada.
+          for (const target of releaseWorkTargets(String(item.title || item.Title || ''), request, magnetDisplayName(item) || undefined)) {
             markCaptureWork(
               parsed.magnet.hash, imdb,
               target.season == null ? -1 : Math.trunc(target.season),

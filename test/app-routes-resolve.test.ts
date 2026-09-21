@@ -12,6 +12,8 @@ import debrid from '../src/debrid/index.js';
 import { WorkPickError, EpisodePickError, NoVideoError } from '../src/debrid/common.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as releaseIndex from '../src/utils/release-index.js';
+import * as cache from '../src/utils/cache.js';
+import { prefix } from '../src/utils/cache-keys.js';
 import type { DebridAdapter } from '../types/domain.js';
 import { createTestServer, encodeConfig } from './e2e/e2e-harness.js';
 
@@ -165,6 +167,28 @@ test('/resolve devolve 404 quando pickFile não identifica episódio no pack', a
     assert.equal(releaseIndex.isMissing('tt7700009', { season: 1, episode: 5 }, HASH), false, '!err.evidence não grava miss');
   } finally {
     FAKE_ADAPTER.resolveLink = originalResolve;
+  }
+});
+
+test('/resolve: EpisodePickError SEM evidence NÃO apaga streams da obra', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashMiss = '7'.repeat(40);
+  const imdbId = 'tt8800105';
+  const hint = JSON.stringify({ n: ['Serie Pack'], y: 2020, i: imdbId });
+  const sig = hmacSig('fake-key', `${hashMiss}?s=4&e=1&w=${hint}`);
+  const obraStreamsKey = `${prefix('streams')}series:${imdbId}:S4:E1:{}:account:a`;
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+  try {
+    cache.set(obraStreamsKey, { streams: [{ name: 'pack ambíguo', infoHash: hashMiss }] }, 900);
+    FAKE_ADAPTER.resolveLink = async () => { throw new EpisodePickError(); };
+    const res = await server.request(
+      'GET', `/${cfg}/resolve/${hashMiss}?s=4&e=1&w=${encodeURIComponent(hint)}&sig=${sig}`,
+    );
+    assert.equal(res.status, 404);
+    assert.ok(cache.peek(obraStreamsKey), 'sem evidence não invalida streams da obra');
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+    cache.forget(obraStreamsKey);
   }
 });
 

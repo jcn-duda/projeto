@@ -156,8 +156,8 @@ export function prepareCandidateStreams(
   }
 
   // Pack multiobra admitido (feature BR_MULTIWORK_PACKS): marca antes das
-  // retenções; o record do índice roda DEPOIS do corte de episódio — senão
-  // E03/E06 do Apache (título genérico "4ª Temporada") entravam sob S4E1.
+  // retenções e do record — pack multiobra não é evidência pública da obra
+  // isolada e reapareceria pela chave do filme.
   const multiWorkAdmitted = multiWork
     ? new Set(raw.filter((item) => admitsMultiWorkPack(item, { multiWork, year: catalogYear, isSeries: season != null, names })))
     : null;
@@ -166,6 +166,12 @@ export function prepareCandidateStreams(
   // marca é interna do Stream — `_multiWork` genérico NÃO basta.
   if (multiWorkAdmitted?.size) {
     raw = raw.map((item) => (multiWorkAdmitted.has(item) ? { ...item, _multiWorkAdmitted: true } : item));
+  }
+  // Índice ANTES do corte de episódio: destinoDe roteia E03/E06 (título ou dn
+  // mais específico) para a chave certa — record depois do corte descartava
+  // ~50% das releases de outro episódio em vez de indexá-las.
+  if (!isDemo && imdbId) {
+    releaseIndex.record(imdbId, { season, episode }, raw.filter((item) => !item._multiWorkAdmitted && !item.fromFallback));
   }
 
   // Guarda de coleção: pack multi-obra ("Todos os filmes 1979-2016") só é
@@ -228,13 +234,6 @@ export function prepareCandidateStreams(
       // ("o S03E04 publicado como S04"); no ledger ele fica com o título.
       if (trace) for (const item of dropped) dropTrace(trace, item, 'episode-mismatch');
     }
-  }
-
-  // Fase 2: alimenta o índice com o que SOBREVIVEU ao corte de episódio (e às
-  // retenções multiobra acima). Record antes indexava E03/E06 sob S4E1.
-  // Idempotente (merge por hash); pack multiobra admitido e fallback ficam fora.
-  if (!isDemo && imdbId) {
-    releaseIndex.record(imdbId, { season, episode }, raw.filter((item) => !item._multiWorkAdmitted && !item.fromFallback));
   }
 
   // Pool maior que MAX_RESULTS: o corte final é DEPOIS do debrid, senão fontes

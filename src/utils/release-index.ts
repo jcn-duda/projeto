@@ -19,8 +19,10 @@ import config from '../config.js';
 import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { prefix } from './cache-keys.js';
-import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, parseTitleSeasonEpisode } from './format.js';
+import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio } from './format.js';
+import { magnetDisplayName } from './title-normalization.js';
 import { bankRowsForMediaSource, mergeMediaSource } from './release-index-media.js';
+import { routeWorkLocation } from './release-work.js';
 // Prova de miss por episódio mora no irmão (extraído pela catraca); o pai reexporta.
 import { markMissing, markMissingSeason, isMissing, isMissingQuiet } from './release-index-miss.js';
 import { cutProtected } from './release-index-cut.js';
@@ -42,38 +44,31 @@ function obraKey(imdbId: string, { season, episode }: ObraLocation = {}) {
 }
 
 /**
+ * Onde a release PERTENCE — título e, se mais específico, o `dn=` do magnet.
+ * Roteia, não descarta: consulta Jackett já paga vira cobertura do episódio
+ * dela. Post "4ª Temporada" + dn `…S04E03…` → chave do E03, não do S4E1 pedido.
+ */
+function destinoDe(imdbId: string, pedido: ObraLocation, title: string, dn?: string) {
+  return obraKey(imdbId, routeWorkLocation(
+    { season: pedido.season ?? null, episode: pedido.episode ?? null },
+    title,
+    dn,
+  ));
+}
+
+/** dn do item; sem ele, URI/título do banco vivo (mesma fonte do mediaSource). */
+function dnForRecord(item: any, hash: string, bankByHash: Map<string, { uri?: string; title?: string }>): string {
+  const fromItem = magnetDisplayName(item);
+  if (fromItem) return fromItem;
+  const row = bankByHash.get(hash);
+  if (!row) return '';
+  return magnetDisplayName({ magnet: row.uri }) || String(row.title || '') || '';
+}
+
+/**
  * Alimenta o índice com o que a busca provou existir. Idempotente: merge por
  * hash, mais recente vence; itens sem hash e da conta ficam fora.
  */
-/**
- * Onde a release PERTENCE, pelo que o título dela declara — não pela busca que
- * a trouxe. É a diferença entre índice e despejo: a coleta de S04E07 arrasta
- * releases de S03 (o Jackett casa por nome, não por episódio), e gravá-las sob
- * a chave do episódio pedido envenenava o índice duas vezes — ocupando as
- * vagas do teto que pertenciam ao episódio certo, e dando cobertura FALSA ao
- * idxPoolCovered, que servia a busca de um balde cujo conteúdo o matchesEpisode
- * descartava na hora de exibir. Medido antes desta regra: 328 de 659 releases
- * (50%) estavam sob chave que não casavam, e TODOS declaravam onde pertenciam.
- *
- * Roteia, não descarta: a consulta ao Jackett já foi paga, então a release de
- * outro episódio vira cobertura de graça do episódio dela.
- */
-function destinoDe(imdbId: string, pedido: ObraLocation, title: string) {
-  // Filme não tem episódio: a chave é sempre a da obra.
-  if (pedido.season == null) return obraKey(imdbId, pedido);
-  const { seasons, episodes, complete } = parseTitleSeasonEpisode(title);
-  // Série inteira ou faixa de temporadas cobre qualquer episódio: chave da obra.
-  if (complete || seasons.length > 1) return obraKey(imdbId, {});
-  // Nada declarado é ambíguo, e o contexto da busca é a melhor evidência que
-  // existe: fica onde foi encontrada.
-  if (seasons.length === 0) return obraKey(imdbId, pedido);
-  const season = seasons[0];
-  // Um episódio só: chave dele. Vários (pack E01-E02) ou nenhum (pack de
-  // temporada): chave da TEMPORADA, que o lookup lê para qualquer episódio.
-  if (episodes.length === 1) return obraKey(imdbId, { season, episode: episodes[0] });
-  return obraKey(imdbId, { season });
-}
-
 function record(
   imdbId: string,
   location: ObraLocation,
@@ -86,20 +81,26 @@ function record(
   // chave escrita recebe o flag. Gravação completa/default limpa (last-write-wins).
   const partial = Boolean(opts.partial);
   const pedida = obraKey(imdbId, location);
-  // Primeiro passe: agrupa por DESTINO. O merge com o registro anterior precisa
-  // do estado da chave de destino, não da chave da busca.
-  const porChave = new Map<string, any[]>();
+  // Candidatos ANTES do agrupamento: o bank precisa alimentar destinoDe (dn
+  // mais específico que o título) — carregar depois do agrupamento chegava
+  // tarde e o pack genérico caía na chave errada / era descartado no corte.
+  const candidatos: { item: any; hash: string; title: string }[] = [];
   for (const item of items) {
     // Inventário da conta NÃO é evidência pública de existência: o que ele
     // tem pronto diz respeito à conta dele (davail/mag), nunca ao índice.
     if (item?.fromAccount) continue;
     const hash = String(extractInfoHash(item.infoHash || item.magnet || '') || '').toLowerCase();
     if (!hash) continue;
-    const title = String(item.title || item.Title || '').trim();
-    const destino = destinoDe(imdbId, location, title);
+    candidatos.push({ item, hash, title: String(item.title || item.Title || '').trim() });
+  }
+  const bankByHash = bankRowsForMediaSource(candidatos);
+  const porChave = new Map<string, typeof candidatos>();
+  for (const cand of candidatos) {
+    const dn = dnForRecord(cand.item, cand.hash, bankByHash);
+    const destino = destinoDe(imdbId, location, cand.title, dn);
     if (destino !== pedida) metrics.count('search.idx.routed');
     const lote = porChave.get(destino) || [];
-    lote.push({ item, hash, title });
+    lote.push(cand);
     porChave.set(destino, lote);
   }
 
@@ -109,8 +110,6 @@ function record(
     const novos = new Set<string>();
     const entry = cache.get(key);
     for (const rel of entry?.releases || []) existing.set(rel.hash, rel);
-    // Bank em lote: só hashes sem dn= no item (evita N lookups no SQLite).
-    const bankByHash = bankRowsForMediaSource(lote);
     for (const { item, hash, title } of lote) {
       const prior = existing.get(hash);
       const itemSource = item.indexSource === 'autofetch' ? 'autofetch' : opts.source;

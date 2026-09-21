@@ -279,6 +279,7 @@
     "test/notify.test.js",
     "test/observability.test.js",
     "test/release-index.test.js",
+    "test/release-index-dn-route.test.js",
     "test/release-index-miss-season.test.js",
     "test/pt-sweep-config.test.js",
     "test/pt-title-dual.test.js",
