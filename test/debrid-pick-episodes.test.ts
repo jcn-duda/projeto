@@ -2,9 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   pickFile,
-  pickWorkFile,
   NoVideoError,
-  isWorkPickError,
   isEpisodePickError,
 } from '../src/debrid/common.js';
 
@@ -111,25 +109,6 @@ test('pickFile: tag de áudio colada em dígito não vira temporada', () => {
     () => pickFile([f('Show.S02.1080p.DTS5.1.mkv', 1)], { season: 3, episode: 2 }),
     (err) => isEpisodePickError(err),
   );
-});
-
-test('pickWorkFile usa basename: pasta "Trilogia (1985-1990)" não contamina casamento de ano', () => {
-  // Paths reais do AllDebrid: a pasta raiz carrega a faixa de anos do pack.
-  const pack = [
-    f('Ritorno al futuro Trilogia (1985-1990)/Ritorno al futuro - Back to the Future 1 (1985) ITA 2160p.mkv', 3.7 * 1024 ** 3),
-    f('Ritorno al futuro Trilogia (1985-1990)/Ritorno al futuro - Back to the Future 2 (1989) ITA 2160p.mkv', 3.7 * 1024 ** 3),
-    f('Ritorno al futuro Trilogia (1985-1990)/Ritorno al futuro - Back to the Future 3 (1990) ITA 2160p.mkv', 3.8 * 1024 ** 3),
-  ];
-  // Pediu 1985: antes do fix, 1985 casava nos 3 (pasta) → maior → filme 3.
-  // Depois do fix, 1985 só casaria em Back to the Future 1 (1985) pelo basename.
-  // Mas "Back to the Future" tem cobertura com "De Volta para o Futuro"?
-  // workCoverage testa basename primeiro — basename não tem "Ritorno al futuro".
-  // Com basename: cobertura dos basenames "back to the future 1 (1985)" etc.
-  // contra names=["de volta para o futuro","back to the future"] → "back","to",
-  // "the","future" casam nos basenames → cobertura OK para os 3 → ano desempata.
-  const file = pickWorkFile(pack, { names: ['De Volta para o Futuro', 'Back to the Future'], year: 1985 });
-  assert.ok(file, 'deve encontrar um arquivo');
-  assert.match(String(file!.path), /1985/, 'deve escolher o filme de 1985, não o de 1990');
 });
 
 test('pickFile: layout de canais de áudio não vira episódio nu', () => {
@@ -245,11 +224,7 @@ test('pickFile: pasta com SxxEyy não deixa a ORDEM do torrent decidir o empate'
 test('pickFile: pack de temporada continua entregando o episódio PEDIDO, não o maior', () => {
   // A guarda de tamanho só desempata entre arquivos do MESMO episódio; num pack
   // com um episódio por arquivo, cada pedido tem um só candidato.
-  const temporada = [
-    f('Serie.S01.COMPLETA/Serie.S01E01.mkv', 1_000_000_000),
-    f('Serie.S01.COMPLETA/Serie.S01E02.mkv', 9_000_000_000),
-    f('Serie.S01.COMPLETA/Serie.S01E03.mkv', 2_000_000_000),
-  ];
+  const temporada = [f('Serie.S01.COMPLETA/Serie.S01E01.mkv', 1e9), f('Serie.S01.COMPLETA/Serie.S01E02.mkv', 9e9), f('Serie.S01.COMPLETA/Serie.S01E03.mkv', 2e9)];
   assert.equal(pickFile(temporada, { season: 1, episode: 1 })!.path, 'Serie.S01.COMPLETA/Serie.S01E01.mkv');
   assert.equal(pickFile(temporada, { season: 1, episode: 2 })!.path, 'Serie.S01.COMPLETA/Serie.S01E02.mkv');
 });
@@ -379,6 +354,42 @@ test('pickFile: se todos os arquivos forem extras, pool de fallback é usado', (
     (err: any) => {
       assert.ok(isEpisodePickError(err));
       assert.ok(err.evidence, 'fallback usou todos os arquivos e achou S1 unânime');
+      assert.deepEqual(err.evidence.declaredSeasons, [1]);
+      return true;
+    },
+  );
+});
+
+test('pickFile: vinhetas e créditos de uploader (<15MB ou com padrão uploader) são ignorados na unânime', () => {
+  // Caso real: pack S01 com vinheta "Lucas Firmo UPLOADER.mp4" (1.08 MB) sem temporada.
+  // Não deve impedir a detecção unânime da temporada 1 para rejeitar busca de temporada 2.
+  const pack = [
+    f('True.Detective.T01E01.mkv', 1.5 * 1024 ** 3),
+    f('True.Detective.T01E02.mkv', 1.5 * 1024 ** 3),
+    f('Lucas Firmo UPLOADER.mp4', 1.08 * 1024 * 1024),
+  ];
+  assert.throws(
+    () => pickFile(pack, { season: 2, episode: 1 }),
+    (err: any) => {
+      assert.ok(isEpisodePickError(err));
+      assert.ok(err.evidence, 'vinheta/uploader ignorada, episódios restantes são unânimes S1');
+      assert.deepEqual(err.evidence.declaredSeasons, [1]);
+      return true;
+    },
+  );
+});
+
+test('pickFile: vinheta com promo/trailer/isSiteAd ignorada mesmo se > 15MB quando houver outros vídeos', () => {
+  const pack = [
+    f('True.Detective.S01E01.mkv', 2 * 1024 ** 3),
+    f('True.Detective.S01E02.mkv', 2 * 1024 ** 3),
+    f('Promo.Special.Trailer.mp4', 30 * 1024 * 1024),
+  ];
+  assert.throws(
+    () => pickFile(pack, { season: 2, episode: 1 }),
+    (err: any) => {
+      assert.ok(isEpisodePickError(err));
+      assert.ok(err.evidence, 'promo ignorada, episódios restantes são unânimes S1');
       assert.deepEqual(err.evidence.declaredSeasons, [1]);
       return true;
     },

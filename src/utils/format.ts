@@ -30,6 +30,7 @@ export {
   filterInventoryRelevant,
   filterRelevantRaw,
   magnetYearContradicts,
+  magnetSeasonContradicts,
 } from './release-matching.js';
 
 export {

@@ -42,6 +42,7 @@ import {
   filterRelevantRaw,
   filterInventoryRelevant,
   magnetYearContradicts,
+  magnetSeasonContradicts,
 } from './release-filters.js';
 
 export {
@@ -61,4 +62,5 @@ export {
   filterInventoryRelevant,
   filterRelevantRaw,
   magnetYearContradicts,
+  magnetSeasonContradicts,
 };

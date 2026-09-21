@@ -14,6 +14,7 @@ import {
   extractInfoHash,
   sortAndLimit,
 } from '../utils/format.js';
+import { magnetDisplayName } from '../utils/title-normalization.js';
 import debrid from '../debrid/index.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import * as releaseIndex from '../utils/release-index.js';
@@ -231,6 +232,8 @@ export function prepareCandidateStreams(
     raw = raw.filter((r) => {
       const title = r.title || r.Title || '';
       if (!matchesEpisode(title, { season, episode })) return false;
+      const dn = magnetDisplayName(r);
+      if (dn && !matchesEpisode(dn, { season, episode })) return false;
       if (r.fromAccount || r.isBr) return true;
       return matchesGlobalSeriesNoMarker(title, normalizeTitle(title).split(' ').filter(Boolean), seriesUniverse);
     });

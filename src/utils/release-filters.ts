@@ -1,5 +1,5 @@
 import type { RawItem } from '../../types/domain.js';
-import { matchesEpisode } from './episode-matching.js';
+import { matchesEpisode, seasonCoverageExcludes, parseTitleSeasonEpisode } from './episode-matching.js';
 import { titleTokens } from './matching-vocabulary.js';
 import { namedSequelContradicts, yearContradicts } from './matching-tokens.js';
 import { magnetDisplayName } from './title-normalization.js';
@@ -17,7 +17,6 @@ import {
 } from './release-title-rules.js';
 import { admitsMultiWorkPack } from './multiwork-pack.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
-import { parseTitleSeasonEpisode } from './episode-matching.js';
 
 interface MatchOptions {
   names?: string[];
@@ -152,6 +151,11 @@ function filterRelevantRaw(
         return false;
       }
     }
+    // Séries: se o dn= do magnet contradizer a temporada ou episódio pedido, descarta.
+    if (isSeries && season != null && magnetSeasonContradicts(item, season, episode)) {
+      onRejected?.(item, 'episode');
+      return false;
+    }
     if (season == null || episode == null) return true;
     if (!matchesEpisode(title, { season, episode })) {
       onRejected?.(item, 'episode');
@@ -196,6 +200,21 @@ function magnetYearContradicts(item: RawItem | null | undefined, catalogYear: nu
   const someNear = years.some((y) => Math.abs(y - catalogYear) <= 2);
   if (someNear) return false;
   return catalogYear < minYear || catalogYear > maxYear;
+}
+
+/**
+ * Temporada e episódio no dn= do magnet: sites BR publicam posts com título
+ * genérico ("Série Dublada Torrent"), mas o dn= do magnet carrega a identificação
+ * real do arquivo ("Serie.S02E01..."). Se o dn= excluir a temporada ou apontar
+ * para outro episódio, descarta imediatamente na busca fria.
+ */
+function magnetSeasonContradicts(item: RawItem | null | undefined, season: number, episode: number | null | undefined) {
+  const dn = magnetDisplayName(item);
+  if (!dn) return false;
+  const parsed = parseTitleSeasonEpisode(dn);
+  if (seasonCoverageExcludes(parsed, season)) return true;
+  if (episode != null && !matchesEpisode(dn, { season, episode })) return true;
+  return false;
 }
 
 /**
@@ -250,4 +269,5 @@ export {
   filterRelevantRaw,
   filterInventoryRelevant,
   magnetYearContradicts,
+  magnetSeasonContradicts,
 };

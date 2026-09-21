@@ -100,12 +100,22 @@ function declaredFromFileName(path: string) {
   return parseTitleSeasonEpisode(clean);
 }
 
+const UPLOADER_OR_PROMO = /(?:^|[^a-z])(?:uploader|promo|trailer)(?:[^a-z]|$)/i;
+const VIGNETTE_MAX_SIZE = 15 * 1024 * 1024;
+
 function unanimousWrongSeason(videos: DebridFile[], wantedSeason: number): { season: number; sample: string } | null {
   const semExtra = videos.filter((file) => !EXTRA.test(file.path || ''));
   const pool = semExtra.length > 0 ? semExtra : videos;
+  const isVignette = (file: DebridFile) => {
+    const sz = Number(file.size || 0);
+    const p = file.path || '';
+    return (sz > 0 && sz < VIGNETTE_MAX_SIZE) || UPLOADER_OR_PROMO.test(p) || isSiteAd(p);
+  };
+  const semVignette = pool.filter((file) => !isVignette(file));
+  const candidatePool = semVignette.length > 0 ? semVignette : pool;
   const seasons = new Set<number>();
   let firstSample = '';
-  for (const file of pool) {
+  for (const file of candidatePool) {
     const bName = baseName(file.path || '');
     const declared = declaredFromFileName(bName);
     if (declared.seasons.length === 0) return null;

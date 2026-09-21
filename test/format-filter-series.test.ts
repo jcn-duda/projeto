@@ -305,3 +305,73 @@ test('filtro relevante cru: série não trata temporada como sequência de filme
   );
 });
 
+test('filtro relevante cru: série inspeciona dn= do magnet e descarta temporada contraditória', () => {
+  const ctx = {
+    names: ['The Last of Us'],
+    year: 2023,
+    isSeries: true,
+    season: 1,
+    episode: 1,
+  };
+  // Título genérico BR aprovado pelo matchesBrTitle, mas dn= aponta para temporada 2
+  const itemWrongSeason = {
+    title: 'The Last of Us Dublado Torrent (2023)',
+    magnet: 'magnet:?xt=urn:btih:1111111111111111111111111111111111111111&dn=The.Last.of.Us.S02E01.1080p.WEB-DL',
+    isBr: true,
+  };
+  // Título genérico BR com dn= da temporada 1 (correta)
+  const itemCorrectSeason = {
+    title: 'The Last of Us Dublado Torrent (2023)',
+    magnet: 'magnet:?xt=urn:btih:2222222222222222222222222222222222222222&dn=The.Last.of.Us.S01E01.1080p.WEB-DL',
+    isBr: true,
+  };
+  // Título genérico BR com dn= de pack multi-temporada cobrindo a temporada pedida
+  const itemMultiSeason = {
+    title: 'The Last of Us Dublado Torrent (2023)',
+    magnet: 'magnet:?xt=urn:btih:3333333333333333333333333333333333333333&dn=The.Last.of.Us.S01-S02.1080p.WEB-DL',
+    isBr: true,
+  };
+  // Título genérico BR sem dn= no magnet (mantém fail-open)
+  const itemNoDn = {
+    title: 'The Last of Us Dublado Torrent (2023)',
+    magnet: 'magnet:?xt=urn:btih:4444444444444444444444444444444444444444',
+    isBr: true,
+  };
+  const rejected: Array<{ item: any; reason: string }> = [];
+  const res = relevantRaw(
+    [itemWrongSeason, itemCorrectSeason, itemMultiSeason, itemNoDn],
+    ctx,
+    (item, reason) => rejected.push({ item, reason }),
+  );
+  assert.equal(res.length, 3);
+  assert.ok(!res.includes(itemWrongSeason), 'item com dn de outra temporada foi descartado');
+  assert.ok(res.includes(itemCorrectSeason), 'item com dn da temporada certa passou');
+  assert.ok(res.includes(itemMultiSeason), 'item com dn multi-temporada cobrindo S1 passou');
+  assert.ok(res.includes(itemNoDn), 'item sem dn passou fail-open');
+  assert.equal(rejected.length, 1);
+  assert.equal(rejected[0].item, itemWrongSeason);
+  assert.equal(rejected[0].reason, 'episode');
+});
+
+test('filtro relevante cru: série com busca de temporada (sem episódio) rejeita dn de outra temporada', () => {
+  const ctx = {
+    names: ['The Last of Us'],
+    year: 2023,
+    isSeries: true,
+    season: 1,
+    episode: null,
+  };
+  const itemWrongSeason = {
+    title: 'The Last of Us Dublado Torrent (2023)',
+    magnet: 'magnet:?xt=urn:btih:5555555555555555555555555555555555555555&dn=The.Last.of.Us.S02.1080p.WEB-DL',
+    isBr: true,
+  };
+  const itemCorrectSeason = {
+    title: 'The Last of Us Dublado Torrent (2023)',
+    magnet: 'magnet:?xt=urn:btih:6666666666666666666666666666666666666666&dn=The.Last.of.Us.S01.1080p.WEB-DL',
+    isBr: true,
+  };
+  const res = relevantRaw([itemWrongSeason, itemCorrectSeason], ctx);
+  assert.deepEqual(res, [itemCorrectSeason]);
+});
+

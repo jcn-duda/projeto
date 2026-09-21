@@ -352,6 +352,18 @@ test('pickFile preserva a obra quando há mistura de anos (um compatível)', () 
   assert.equal(file!.path, 'The Locals (2003) DVDRip.mkv');
 });
 
+test('pickWorkFile usa basename: pasta "Trilogia (1985-1990)" não contamina casamento de ano', () => {
+  // Paths reais do AllDebrid: a pasta raiz carrega a faixa de anos do pack.
+  const pack = [
+    f('Ritorno al futuro Trilogia (1985-1990)/Ritorno al futuro - Back to the Future 1 (1985) ITA 2160p.mkv', 3.7 * 1024 ** 3),
+    f('Ritorno al futuro Trilogia (1985-1990)/Ritorno al futuro - Back to the Future 2 (1989) ITA 2160p.mkv', 3.7 * 1024 ** 3),
+    f('Ritorno al futuro Trilogia (1985-1990)/Ritorno al futuro - Back to the Future 3 (1990) ITA 2160p.mkv', 3.8 * 1024 ** 3),
+  ];
+  const file = pickWorkFile(pack, { names: ['De Volta para o Futuro', 'Back to the Future'], year: 1985 });
+  assert.ok(file, 'deve encontrar um arquivo');
+  assert.match(String(file!.path), /1985/, 'deve escolher o filme de 1985, não o de 1990');
+});
+
 test('pickFile preserva URL antiga sem ano na dica', () => {
   // Dica sem `y` (URLs cacheadas nos clientes): o guard não decide nada.
   const file = pickFile([f('Zlodej.iz.glubinki.2007.P.DVDRip_INTERFILM.avi', 1 * 1024 ** 3)], { work: { names: ['The Locals'] } });
