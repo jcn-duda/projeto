@@ -277,12 +277,21 @@ const BOGUS_SIZE_MARK = /💾 \d+(?:\.\d+)? (?:B|KB)(?=\s|$)/u;
  * tamanho ou com o do .torrent. Roda ANTES da média do pack: pack sem tamanho
  * ganha o total aqui e a média do episódio logo em seguida, em vez de exibir a
  * temporada inteira. Medida do serviço, não do tracker — `_size` não muda.
+ *
+ * Com lista de arquivos do hash (`fsz`) o total NÃO entra: o `fillMissingSizes`
+ * do fim mede o episódio exato, e o total antes dele o bloqueava. Medido em
+ * True Detective S01E01 (2026-09-21): `c1ee2879` pelo Apache saía 3.30 GB (a
+ * temporada) com a lista local dizendo 450.9 MB por episódio. O 💾 em KB sai
+ * junto, para o exato poder preencher.
  */
 function fillTorrentTotals<T extends Stream | null>(streams: T[], trace?: StreamTraceState | null): T[] {
   return streams.map((stream) => {
     if (!stream?.infoHash || typeof stream.title !== 'string') return stream;
     const bogus = BOGUS_SIZE_MARK.test(stream.title);
     if (!bogus && !lacksSize(stream)) return stream;
+    if (hasFileSizes(String(stream.infoHash))) {
+      return bogus ? { ...stream, title: stream.title.replace(/ ?💾 \d+(?:\.\d+)? (?:B|KB)(?=\s|$)/u, '') } : stream;
+    }
     const label = bytesToSize(peekTorrentTotal(String(stream.infoHash)));
     if (!label) return stream;
     stageTrace(trace, 'episodeSize.torrentTotal', 1);
@@ -300,11 +309,19 @@ function annotateEpisodeSizes<T extends Stream | null>(streams: T[], options: An
   const annotated = annotatePackSizes(filled, options);
   // Pack (temporada ou coleção) que ganhou o TOTAL e a anotação não conseguiu
   // reduzir ao episódio/filme volta a ficar sem 💾: exibir a temporada inteira
-  // como tamanho do episódio foi justamente o defeito reportado.
+  // como tamanho do episódio foi justamente o defeito reportado. Em episódio de
+  // série, "pack" também é o título que não nomeia o episódio pedido — post BR
+  // sem marcador ("True Detective [720p BLU-RAY DUAL]") não é reconhecido pelo
+  // `isPack`, e o total dele é a temporada. Release de um episódio só nomeia o
+  // episódio no título, e o total dela é o do episódio.
+  const namesEpisode = (s: Stream) => episode != null
+    && parseTitleSeasonEpisode(String(s.title || '')).episodes.includes(episode);
   const out = annotated.map((stream, idx) => {
     const original = streams[idx];
     if (stream !== filled[idx] || filled[idx] === original || !original) return stream;
-    const pack = season != null ? isPack(original, season) : isMultiWorkPack(original);
+    const pack = season != null
+      ? isPack(original, season) || (episode != null && !namesEpisode(original))
+      : isMultiWorkPack(original);
     return pack ? original : stream;
   }) as T[];
   // Série sem episódio não tem arquivo único para medir.

@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 
 import * as premiumize from '../src/debrid/premiumize.js';
 import { annotateEpisodeSizes } from '../src/providers/episode-size.js';
-import { recordTorrentTotal, peekTorrentTotal, clearFileSizes } from '../src/debrid/file-sizes.js';
+import { recordTorrentTotal, peekTorrentTotal, clearFileSizes, recordFileSizes } from '../src/debrid/file-sizes.js';
 import { stubFetch } from './helpers/stub.js';
 import type { Stream } from '../types/domain.js';
 
@@ -90,4 +90,39 @@ test('💾 real do tracker não é tocado pelo total do serviço', () => {
   );
   assert.match(titleOf(out), /💾 1\.86 GB/);
   assert.doesNotMatch(titleOf(out), /900/);
+});
+
+// True Detective S01E01, 2026-09-21: `c1ee2879` pelo Apache ("True Detective
+// [720p BLU-RAY DUAL]", sem marcador de temporada) saía 3.30 GB — o total da T1.
+const SEM_MARCA = 'True Detective [720p BLU-RAY DUAL]\n👤 1 ⚙️ Apache Torrent';
+
+test('com lista de arquivos o total não entra: o episódio exato vence', () => {
+  clearFileSizes();
+  recordTorrentTotal(PACK, Math.round(3.30 * GB));
+  recordFileSizes(PACK, [
+    { path: 'True Detective 1ª Temporada/T01E01 - A Longa Escuridão.mkv', size: 441 * MB },
+    { path: 'True Detective 1ª Temporada/T01E02 - Vendo Coisas.mkv', size: 430 * MB },
+  ]);
+  const [out] = annotateEpisodeSizes([stream(PACK, SEM_MARCA)], { season: 1, episode: 1, meta: { episodes: { 1: 8 } } });
+  assert.match(titleOf(out), /💾 441\.00 MB/);
+  assert.doesNotMatch(titleOf(out), /3\.30 GB/);
+});
+
+test('post sem marcador e sem lista de arquivos fica sem 💾 em vez de exibir a temporada', () => {
+  clearFileSizes();
+  recordTorrentTotal(PACK, Math.round(3.30 * GB));
+  const [out] = annotateEpisodeSizes([stream(PACK, SEM_MARCA)], { season: 1, episode: 1, meta: { episodes: { 1: 8 } } });
+  assert.doesNotMatch(titleOf(out), /💾/);
+});
+
+test('💾 em KB com lista de arquivos vira o tamanho exato do episódio', () => {
+  clearFileSizes();
+  recordTorrentTotal(CACHED, 647765771);
+  recordFileSizes(CACHED, [{ path: 'True.Detective.S01E01.The.Long.Bright.Dark.1080p.HEVC.x265-MeGusta.mkv', size: 600 * MB }]);
+  const [out] = annotateEpisodeSizes(
+    [stream(CACHED, 'True.Detective.S01E01.The.Long.Bright.Dark.1080p.HEVC.x265-MeGusta\n👤 87 💾 65.95 KB ⚙️ TheRARBG')],
+    { season: 1, episode: 1, meta: { episodes: { 1: 8 } } },
+  );
+  assert.match(titleOf(out), /👤 87 💾 600\.00 MB/);
+  assert.doesNotMatch(titleOf(out), /KB/);
 });
