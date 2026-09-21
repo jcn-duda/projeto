@@ -359,3 +359,34 @@ test('/resolve: DubLieError com i na dica invalida streams da obra', async () =>
     cache.forget(otherStreamsKey);
   }
 });
+
+test('/resolve: EpisodePickError com i na dica invalida streams da obra', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashMiss = '6'.repeat(40);
+  const imdbId = 'tt8800103';
+  const hint = JSON.stringify({ n: ['Serie Pack'], y: 2020, i: imdbId });
+  const sig = hmacSig('fake-key', `${hashMiss}?s=4&e=1&w=${hint}`);
+  const obraStreamsKey = `${prefix('streams')}series:${imdbId}:S4:E1:{}:account:a`;
+  const otherStreamsKey = `${prefix('streams')}movie:tt8800104:{}:account:a`;
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+  try {
+    cache.set(obraStreamsKey, { streams: [{ name: 'pack errado', infoHash: hashMiss }] }, 900);
+    cache.set(otherStreamsKey, { streams: [{ name: 'outra', infoHash: 'a'.repeat(40) }] }, 900);
+    FAKE_ADAPTER.resolveLink = async () => {
+      throw new EpisodePickError({
+        wantedSeason: 4, wantedEpisode: 1, declaredSeasons: [4], declaredEpisodes: [3], sample: 'Serie.S04E03.mkv',
+      });
+    };
+    const res = await server.request(
+      'GET', `/${cfg}/resolve/${hashMiss}?s=4&e=1&w=${encodeURIComponent(hint)}&sig=${sig}`,
+    );
+    assert.equal(res.status, 404);
+    assert.equal(res.text, 'este episódio não foi encontrado no pack');
+    assert.equal(cache.peek(obraStreamsKey), null, 'streams da obra invalidados');
+    assert.ok(cache.peek(otherStreamsKey), 'outra obra intacta');
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+    cache.forget(obraStreamsKey);
+    cache.forget(otherStreamsKey);
+  }
+});

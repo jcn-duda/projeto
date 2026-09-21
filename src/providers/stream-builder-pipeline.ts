@@ -6,15 +6,12 @@ import {
   filterRelevantRaw,
   isMultiWorkCollection,
   looksPtBr,
-  matchesEpisode,
-  matchesGlobalSeriesNoMarker,
   normalizeTitle,
   UNKNOWN_QUALITY,
   toStremioStream,
   extractInfoHash,
   sortAndLimit,
 } from '../utils/format.js';
-import { magnetDisplayName } from '../utils/title-normalization.js';
 import debrid from '../debrid/index.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import * as releaseIndex from '../utils/release-index.js';
@@ -28,6 +25,7 @@ import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
 import { applyProbedQuality } from './probed-quality.js';
 import { applyPtTitleDual } from './pt-title-dual.js';
 import { markBankFilterOutcome } from './magnet-bank-hook.js';
+import { filterSeriesEpisodeRaw } from './stream-builder-episode-filter.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 // Indexer id vindo da config do usuario (URL) precisa validar antes de
@@ -65,10 +63,11 @@ export interface CandidatePoolResult {
 }
 
 /**
- * Normaliza o lote cru de entradas, aplica filtros de relevância, grava no
- * releaseIndex, descarta packs multi-obra inválidos, filtra por episódio, calcula
- * limites de indexer e cotas de qualidade, mapeia e pré-ordena os candidatos
- * que seguirão para a etapa de checagem do debrid.
+ * Normaliza o lote cru de entradas, aplica filtros de relevância, descarta
+ * packs multi-obra inválidos, filtra por episódio (com URI do magnet-bank
+ * quando o índice não traz magnet), grava no releaseIndex o que sobreviveu,
+ * calcula limites de indexer e cotas de qualidade, mapeia e pré-ordena os
+ * candidatos que seguirão para a etapa de checagem do debrid.
  */
 export function prepareCandidateStreams(
   rawInput: RawItem[],
@@ -156,12 +155,9 @@ export function prepareCandidateStreams(
     markBankFilterOutcome(antesTitulo, raw, { imdbId, season, episode });
   }
 
-  // Fase 2: toda busca alimenta o índice com o que sobreviveu ao filtro de
-  // relevância — nada muda no caminho da resposta, a leitura vem depois. O
-  // record é idempotente (merge por hash): os múltiplos passes (parcial,
-  // tardio, pack, varredura) convergem para o mesmo conjunto.
-  // O pack multiobra admitido (feature BR_MULTIWORK_PACKS) fica FORA: serve a RESPOSTA, mas não é
-  // evidência pública da obra isolada e reapareceria pela chave do filme.
+  // Pack multiobra admitido (feature BR_MULTIWORK_PACKS): marca antes das
+  // retenções; o record do índice roda DEPOIS do corte de episódio — senão
+  // E03/E06 do Apache (título genérico "4ª Temporada") entravam sob S4E1.
   const multiWorkAdmitted = multiWork
     ? new Set(raw.filter((item) => admitsMultiWorkPack(item, { multiWork, year: catalogYear, isSeries: season != null, names })))
     : null;
@@ -170,10 +166,6 @@ export function prepareCandidateStreams(
   // marca é interna do Stream — `_multiWork` genérico NÃO basta.
   if (multiWorkAdmitted?.size) {
     raw = raw.map((item) => (multiWorkAdmitted.has(item) ? { ...item, _multiWorkAdmitted: true } : item));
-  }
-  if (!isDemo && imdbId) {
-    // Fallback do banco (Etapa 4) fica fora; realimentaria o índice.
-    releaseIndex.record(imdbId, { season, episode }, raw.filter((item) => !item._multiWorkAdmitted && !item.fromFallback));
   }
 
   // Guarda de coleção: pack multi-obra ("Todos os filmes 1979-2016") só é
@@ -225,27 +217,24 @@ export function prepareCandidateStreams(
   // sobrevivia ao filtro de título (mesma franquia, sem homônimo parcial) e
   // ao `matchesEpisode` de baixo (abstém sem marcador) — as duas guardas
   // OMITEM exatamente o mesmo caso, e nenhuma das duas sozinha decide.
-  const seriesUniverse = names.flatMap((n) => normalizeTitle(n).split(' ')).filter(Boolean);
+  const seriesUniverse = names.flatMap((n) => normalizeTitle(n).split(' ').filter(Boolean));
   if (season != null && episode != null && !isDemo) {
     const before = raw.length;
-    const antesEpisodio = raw;
-    raw = raw.filter((r) => {
-      const title = r.title || r.Title || '';
-      if (!matchesEpisode(title, { season, episode })) return false;
-      const dn = magnetDisplayName(r);
-      if (dn && !matchesEpisode(dn, { season, episode })) return false;
-      if (r.fromAccount || r.isBr) return true;
-      return matchesGlobalSeriesNoMarker(title, normalizeTitle(title).split(' ').filter(Boolean), seriesUniverse);
-    });
+    const { kept, dropped } = filterSeriesEpisodeRaw(raw, season, episode, seriesUniverse);
+    raw = kept;
     if (before !== raw.length) {
       log.info(`[search] ${before - raw.length} resultado(s) de outro episódio descartado(s)`);
       // P5 — outro episódio/temporada é o corte mais traiçoeiro de diagnosticar
       // ("o S03E04 publicado como S04"); no ledger ele fica com o título.
-      if (trace) {
-        const vivos = new Set(raw);
-        for (const item of antesEpisodio) if (!vivos.has(item)) dropTrace(trace, item, 'episode-mismatch');
-      }
+      if (trace) for (const item of dropped) dropTrace(trace, item, 'episode-mismatch');
     }
+  }
+
+  // Fase 2: alimenta o índice com o que SOBREVIVEU ao corte de episódio (e às
+  // retenções multiobra acima). Record antes indexava E03/E06 sob S4E1.
+  // Idempotente (merge por hash); pack multiobra admitido e fallback ficam fora.
+  if (!isDemo && imdbId) {
+    releaseIndex.record(imdbId, { season, episode }, raw.filter((item) => !item._multiWorkAdmitted && !item.fromFallback));
   }
 
   // Pool maior que MAX_RESULTS: o corte final é DEPOIS do debrid, senão fontes

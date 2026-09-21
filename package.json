@@ -353,6 +353,7 @@
     "test/named-sequel.test.js",
     "test/hdr-budget-cam-label.test.js",
     "test/cam-label-indexonly.test.js",
-    "test/idx-media-source.test.js"
+    "test/idx-media-source.test.js",
+    "test/stream-builder-idx-episode.test.js"
   ]
 }

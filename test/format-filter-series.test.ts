@@ -389,6 +389,9 @@ test('magnetSeasonContradicts: faixa de cena e casos de dn', () => {
     ['The.Last.of.Us.S01E01.1080p', 1, 1, false],
     ['The.Last.of.Us.S01E02.1080p', 1, 1, true],
     ['The.Last.of.Us.S01.1080p', 1, null, false],
+    // Apache: post "4ª Temporada" genérico, dn com episódio errado.
+    ['Serie.S04E03.1080p.WEB-DL.DUBLADO', 4, 1, true],
+    ['Serie.S04E01.1080p.WEB-DL.DUBLADO', 4, 1, false],
   ];
   for (const [dn, season, episode, want] of cases) {
     assert.equal(magnetSeasonContradicts(mk(dn), season, episode), want, dn);

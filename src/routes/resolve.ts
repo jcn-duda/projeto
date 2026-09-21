@@ -142,6 +142,17 @@ function makeResolveHandler(services: AppServices) {
             services.releaseIndex.markMissingSeason(hintedImdbId, sNum, infoHash);
           }
         }
+        // Lista pronta ainda oferece o pack sem o episódio até o TTL — mesmo
+        // buraco do lie: markMissing sozinho não invalida streams.
+        if (hintedImdbId) {
+          const cleared = invalidateStreamsForObra(hintedImdbId);
+          if (cleared > 0) {
+            services.metrics.count('resolve.streamsInvalidated.missing');
+            services.log.info(
+              `[resolve] invalidou ${cleared} entrada(s) de streams da obra ${hintedImdbId} após episódio ausente no pack`,
+            );
+          }
+        }
         return res.status(404).send('este episódio não foi encontrado no pack');
       }
       services.log.error('[resolve]', errorMessage(err));
