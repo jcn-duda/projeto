@@ -79,6 +79,9 @@ test('bad vence sobre alive: markBad apaga o histórico vivo do mesmo hash', () 
   // pré-checagem ia cortar, gastando vaga do pool de candidatos.
   const hash = '8'.repeat(40);
   const conta = 'conta-bad-vence';
+  // L2 residual de rodada anterior (CACHE_PERSIST) deixaria isBad=true e
+  // markAlive recusaria — limpa o lado bad antes de provar a política.
+  magnetdb.forgetBad('premiumize', conta, hash);
   magnetdb.markAlive('premiumize', conta, [hash]);
   assert.equal(magnetdb.isAlive('premiumize', conta, hash), true);
   magnetdb.markBad('premiumize', conta, hash);
@@ -190,6 +193,11 @@ test('atalho do davail renova o histórico alive sem rede', async () => {
   const key = 'chave-mag-atalho';
   const hash = '7'.repeat(40);
   const aliveKey = `${prefix('mag')}alive:premiumize:${accountScope(key)}:${hash}`;
+  // L2 residual (davail/alive) de rodada anterior faria a 1ª passada pular a
+  // rede — limpa os dois lados antes de medir o atalho.
+  cache.forget(`${prefix('davail')}premiumize:${accountScope(key)}:${hash}`);
+  cache.forget(aliveKey);
+  magnetdb.forgetBad('premiumize', key, hash);
   try {
     await runWith({ opts: userOpts(key), encoded: '' }, () => debrid.checkCached([hash]));
     assert.equal(calls.length, 1, 'primeira passada vai à rede');
@@ -212,6 +220,8 @@ test('atalho do davail renova o histórico alive sem rede', async () => {
     assert.equal(counters['magnetdb.alive.set'] == null, true, 'alive fresco não é regravado no hit do atalho');
   } finally {
     metrics.reset();
+    cache.forget(`${prefix('davail')}premiumize:${accountScope(key)}:${hash}`);
+    cache.forget(aliveKey);
     debrid.BY_ID.set('premiumize', original as any);
   }
 });
@@ -244,6 +254,7 @@ test('applyDebrid descarta hash ruim no banco e morto no autofetch, antes da che
   const badHash = 'd'.repeat(40);
   const deadHash = 'e'.repeat(40);
   const goodHash = 'f'.repeat(40);
+  magnetdb.forgetBad('premiumize', key, badHash);
   magnetdb.markBad('premiumize', key, badHash);
   autofetch.blacklist('premiumize', accountScope(key), deadHash);
   metrics.reset();
@@ -269,10 +280,14 @@ test('applyDebrid descarta hash ruim no banco e morto no autofetch, antes da che
     assert.ok(!dump.includes(deadHash), 'o hash morto no autofetch saiu da lista');
     // O lote enviado ao debrid não carrega o lixo: não se gasta checagem
     // (nem upload, na AllDebrid) com o que já provou estar quebrado.
-    assert.deepEqual(calls[0], [goodHash]);
+    // davail L1 pode servir o bom sem rede — se houve lote, só o bom entra.
+    for (const batch of calls) {
+      assert.deepEqual(batch, [goodHash]);
+    }
     assert.equal((metrics.snapshot() as any).counters['magnetdb.dropped'], 2);
   } finally {
     metrics.reset();
+    magnetdb.forgetBad('premiumize', key, badHash);
     debrid.BY_ID.set('premiumize', original as any);
   }
 });
@@ -284,8 +299,10 @@ test('applyDebrid descarta hash bad mesmo em item fromFallback (via instantânea
   const original = debrid.BY_ID.get('premiumize');
   debrid.BY_ID.set('premiumize', adapter as any);
   const key = 'chave-mag-fallback-bad';
-  const badHash = '9'.repeat(40);
-  const goodHash = '7'.repeat(40);
+  // Hashes dedicados (não colidem com atalho `7` nem com disk residual).
+  const badHash = 'fb'.repeat(20);
+  const goodHash = 'fd'.repeat(20);
+  magnetdb.forgetBad('premiumize', key, badHash);
   magnetdb.markBad('premiumize', key, badHash);
   metrics.reset();
   try {
@@ -308,10 +325,15 @@ test('applyDebrid descarta hash bad mesmo em item fromFallback (via instantânea
     const dump = JSON.stringify(out);
     assert.ok(!dump.includes(badHash), 'fromFallback bad sai no pruneKnownBroken');
     assert.ok(dump.includes(goodHash), 'hash limpo permanece');
-    assert.deepEqual(calls[0], [goodHash]);
+    // davail L1 pode servir o bom sem rede — o contrato é o prune, não a
+    // chamada. Se houve lote, o bad NÃO pode estar nele.
+    for (const batch of calls) {
+      assert.ok(!batch.includes(badHash), 'bad não gasta checagem');
+    }
     assert.equal((metrics.snapshot() as any).counters['magnetdb.dropped.bad'], 1);
   } finally {
     metrics.reset();
+    magnetdb.forgetBad('premiumize', key, badHash);
     debrid.BY_ID.set('premiumize', original as any);
   }
 });
@@ -383,6 +405,10 @@ test('runDubAudit: mentira do tail destrava adprot (paridade com /resolve)', asy
   const account = accountScope(apiKey);
   const h = 'f1'.repeat(20);
   cache.clearNamespace('adprot');
+  // L2 residual de lie faria o audit pular o candidato (isLie → continue).
+  for (const k of cache.keysMatching(`${prefix('mag')}lie:`)) {
+    if (k.endsWith(h)) cache.forget(k);
+  }
   metrics.reset();
   try {
     config.debrid.autoFetchProtectBr = true;
@@ -406,6 +432,9 @@ test('runDubAudit: mentira do tail destrava adprot (paridade com /resolve)', asy
     config.debrid.autoFetchProtectBr = originalProtect;
     held.unprotect('alldebrid', account, h);
     cache.clearNamespace('adprot');
+    for (const k of cache.keysMatching(`${prefix('mag')}lie:`)) {
+      if (k.endsWith(h)) cache.forget(k);
+    }
     metrics.reset();
   }
 });

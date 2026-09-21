@@ -82,7 +82,7 @@ function makeResolveHandler(services: AppServices) {
         if (hintedImdbId) {
           const cleared = invalidateStreamsForObra(hintedImdbId);
           if (cleared > 0) {
-            services.metrics.count('resolve.streamsInvalidated.novideo');
+            services.metrics.count('resolve.streamsInvalidated.bad');
             services.log.info(
               `[resolve] invalidou ${cleared} entrada(s) de streams da obra ${hintedImdbId} após torrent sem vídeo`,
             );

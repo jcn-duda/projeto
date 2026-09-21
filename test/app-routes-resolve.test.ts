@@ -300,9 +300,10 @@ test('/resolve: NoVideoError grava bad e devolve 404 honesto', async () => {
 test('/resolve: NoVideoError com i na dica invalida streams da obra', async () => {
   // Bug medido 2026-09-21 (tt35538033): markBad sozinho deixava a lista
   // cacheada com [AD⚡]/📦 do hash sem vídeo até o TTL — o prune só roda
-  // na reconstrução.
+  // na reconstrução (e a URL bakeada já não tem infoHash).
   const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
-  const hashBad = '8'.repeat(40);
+  // Hash dedicado: não colide com magnet-db.test (`8`/`3`/`7`/`9` repetidos).
+  const hashBad = 'c8'.repeat(20);
   const imdbId = 'tt8800106';
   const hint = JSON.stringify({ n: ['Resident Evil'], y: 2026, i: imdbId });
   const sig = hmacSig('fake-key', `${hashBad}&w=${hint}`);
@@ -311,40 +312,11 @@ test('/resolve: NoVideoError com i na dica invalida streams da obra', async () =
   const originalResolve = FAKE_ADAPTER.resolveLink;
 
   try {
-    cache.set(obraStreamsKey, { streams: [{ name: 'lime sem video', url: `/resolve/${hashBad}` }] }, 900);
-    cache.set(otherStreamsKey, { streams: [{ name: 'outra', infoHash: 'a'.repeat(40) }] }, 900);
-    assert.ok(cache.peek(obraStreamsKey), 'precondição: streams da obra existem');
-    assert.ok(cache.peek(otherStreamsKey), 'precondição: streams de outra obra existem');
-
-    FAKE_ADAPTER.resolveLink = async () => { throw new NoVideoError(); };
-    const res = await server.request(
-      'GET',
-      `/${cfg}/resolve/${hashBad}?w=${encodeURIComponent(hint)}&sig=${sig}`,
-    );
-    assert.equal(res.status, 404);
-    assert.equal(res.text, 'nenhum arquivo de vídeo no torrent');
-    assert.equal(magnetdb.isBad('fakebrid', 'fake-key', hashBad), true, 'bad gravado no banco');
-    assert.equal(cache.peek(obraStreamsKey), null, 'streams da obra da dica foram invalidados');
-    assert.ok(cache.peek(otherStreamsKey), 'streams de outra obra intactos');
-  } finally {
-    FAKE_ADAPTER.resolveLink = originalResolve;
-    cache.forget(obraStreamsKey);
-    cache.forget(otherStreamsKey);
-  }
-});
-
-test('/resolve: NoVideoError com i na dica invalida streams da obra', async () => {
-  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
-  const hashBad = '3'.repeat(40);
-  const imdbId = 'tt8800201';
-  const hint = JSON.stringify({ n: ['Filme Sem Video'], y: 2024, i: imdbId });
-  const sig = hmacSig('fake-key', `${hashBad}&w=${hint}`);
-  const obraStreamsKey = `${prefix('streams')}movie:${imdbId}:{}:account:a`;
-  const otherStreamsKey = `${prefix('streams')}movie:tt8800202:{}:account:a`;
-  const originalResolve = FAKE_ADAPTER.resolveLink;
-
-  try {
-    cache.set(obraStreamsKey, { streams: [{ name: 'morto ⚡', infoHash: hashBad, _fromFallback: true }] }, 900);
+    // URL bakeada (sem infoHash) — o formato real após viaDebrid; e marca
+    // 📦 como no caminho instantâneo/fallback.
+    cache.set(obraStreamsKey, {
+      streams: [{ name: 'lime sem video 📦', url: `/resolve/${hashBad}`, _fromFallback: true }],
+    }, 900);
     cache.set(otherStreamsKey, { streams: [{ name: 'outra', infoHash: 'a'.repeat(40) }] }, 900);
     assert.ok(cache.peek(obraStreamsKey), 'precondição: streams da obra existem');
     assert.ok(cache.peek(otherStreamsKey), 'precondição: streams de outra obra existem');
