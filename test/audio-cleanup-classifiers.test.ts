@@ -304,6 +304,71 @@ test('DUB/idioma: guarda do path acompanha a do título', () => {
 });
 
 // ---------------------------------------------------------------------------
+// DUB/rutracker transliterado: formato ASCII do rutracker sem cirílico e sem
+// nome de idioma — FOREIGN_DUB_LANG_RE / CYRILLIC_RE não pegam. Medido em
+// produção (2026-09-21, tt0200550 Coyote Ugly, kickasstorrents.to): as 4
+// primeiras vagas (reserva BR) eram `DUB BR · kickass` com "Dub" =
+// Дублированный russo. Assimetria preservada: NÃO entra em
+// hasExplicitForeignAudio (não condena/apaga).
+// ---------------------------------------------------------------------------
+
+test('DUB/rutracker: títulos reais do Coyote Ugly não são dublado pt-BR', () => {
+  const titulos = [
+    'Coyote Ugly [2000, USA, drama, melodrama, comedy, music, BDRip] Dub + (Zhivov)',
+    'Coyote Ugly [2000, USA, drama, melodrama, comedy, music, HDRip] (Full version / Unrated Extended Cut) Dub',
+    'Coyote Ugly [2000, USA, drama, melodrama, comedy, music, BDRip] Dub + AVO (Zhivov) + Original',
+    'Coyote Ugly [2000, USA, drama, melodrama, comedy, music, HDRip] Dub',
+  ];
+  for (const t of titulos) {
+    assert.notEqual(audioFromTitle(t), 'Dublado', `${t}: Dub russo não é pt-BR`);
+    assert.equal(looksPtBr(t), false, `${t}: fora das vagas BR`);
+    assert.equal(hasExplicitForeignAudio(t), false, `${t}: não condena (assimetria)`);
+  }
+});
+
+test('DUB/rutracker: PT explícito ao lado do formato continua vencendo', () => {
+  assert.equal(
+    audioFromTitle('Coyote Ugly [2000, USA, drama, melodrama, comedy, music, BDRip] Dub DUBLADO'),
+    'Dublado',
+    'DUBLADO explícito vence o formato rutracker',
+  );
+});
+
+test('DUB/rutracker: Dual no formato cai em lixo (guarda ampla), não em dual', () => {
+  const dual = 'Coyote Ugly [2000, USA, drama, melodrama, comedy, music, BDRip] Dual';
+  assert.equal(audioBucket(dual), 'lixo', 'Dual + bloco rutracker = lixo de triagem');
+  assert.equal(hasExplicitForeignAudio(dual), false, 'não condena destrutivo');
+});
+
+test('DUB/rutracker: DUB genérico BR e colchete sem vírgula não regridem', () => {
+  assert.equal(audioFromTitle('Filme 2020 1080p DUB'), 'Dublado');
+  assert.equal(audioFromTitle('Filme (2020) [DUB]'), 'Dublado');
+  assert.equal(audioFromTitle('Filme [2020] Dublado'), 'Dublado', 'ano entre colchetes sem vírgula = BR intacto');
+  assert.equal(looksPtBr('Filme [2020] Dublado'), true);
+});
+
+test('DUB/rutracker: guarda do path acompanha a do título', () => {
+  const restore = patch(config.audioAudit, 'ptMarkers', ['dub', 'dublado']);
+  try {
+    // O predicado lê o path cru: a assinatura `[AAAA, País…` precisa sobreviver
+    // (ponto no lugar do espaço após a vírgula quebraria o casamento).
+    assert.equal(
+      hasPtAudioMark('Coyote.Ugly.[2000, USA, BDRip].Dub.1080p.mkv'),
+      false,
+      'genérico sob bloco rutracker',
+    );
+    assert.equal(
+      hasPtAudioMark('Coyote.Ugly.[2000, USA, BDRip].Dublado.1080p.mkv'),
+      true,
+      'marcador explícito segue valendo',
+    );
+    assert.equal(hasPtAudioMark('Show.2024.Dub.1080p.mkv'), true, 'sem assinatura, genérico prova PT');
+  } finally {
+    restore();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // DUB/cirílico: o SCRIPT cirílico desmente a promessa GENÉRICA do DUB/DUBBED,
 // como o nome de idioma desmente (HINDI acima). Medido pelo /stream-trace.json
 // ao vivo (2026-09-01): 11 dos 50 títulos cirílicos do índice (826 únicos)

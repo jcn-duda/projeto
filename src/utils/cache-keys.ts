@@ -41,7 +41,12 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // Listas v11 carregavam a série da Netflix no filme Resident Evil (2026),
   // pack 2002-2016 fora do intervalo e gravações de cinema (TELESYNC/PreDVD)
   // que o excludeCam=true do usuário não cortava.
-  streams: 'v12',
+  // v13: DUB genérico sob formato rutracker transliterado
+  // (`[AAAA, País, …, Fonte] Dub` / AVO|MVO|DVO|SVO) deixa de provar áudio
+  // PT — caso Coyote Ugly (tt0200550, 2026-09-21): 4 vagas BR com russo
+  // espelhado pelo kickasstorrents.to. Sem o bump, a lista cacheada
+  // continuaria servindo o rótulo DUB BR errado até o TTL.
+  streams: 'v13',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',

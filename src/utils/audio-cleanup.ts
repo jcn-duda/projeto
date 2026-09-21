@@ -2,9 +2,10 @@
  * audio-cleanup.ts — guardas da promessa GENÉRICA de dublagem e o caminho do
  * path real de arquivo (extraído de audio-quality.ts no split do teto de 400):
  *
- * - `FOREIGN_DUB_LANG_RE` / `CYRILLIC_RE` / `genericDubProvesPt` — só derrubam
- *   a prova GENÉRICA (`DUB`/`DUBBED`); marca PT explícita continua absolvendo
- *   pelas regras próprias dos chamadores, fora deste predicado;
+ * - `FOREIGN_DUB_LANG_RE` / `CYRILLIC_RE` / `RUTRACKER_TRANSLIT_RE` /
+ *   `genericDubProvesPt` — só derrubam a prova GENÉRICA (`DUB`/`DUBBED`);
+ *   marca PT explícita continua absolvendo pelas regras próprias dos
+ *   chamadores, fora deste predicado;
  * - `namesForeignDubLanguage` — guarda AMPLA usada onde a decisão SÓ nega a
  *   vaga BR (herança no dedupe + classificação pt-title-dual). Pode ser
  *   generosa porque não apaga da conta; `hasExplicitForeignAudio` permanece
@@ -82,17 +83,34 @@ const FOREIGN_DUB_LANG_RE = new RegExp(
 const CYRILLIC_RE = /[а-яёіїєґў]/i;
 
 /**
+ * Assinaturas do rutracker transliteradas em ASCII — sem cirílico e sem
+ * nome de idioma, então FOREIGN_DUB_LANG_RE / CYRILLIC_RE não pegam.
+ * Medido em produção (2026-09-21, tt0200550 Coyote Ugly, kickasstorrents.to):
+ * as 4 primeiras vagas (reserva BR) eram `DUB BR · kickass` com títulos
+ * `Coyote Ugly [2000, USA, drama, …, BDRip] Dub + (Zhivov)` — "Dub" ali é
+ * Дублированный russo. Duas formas inequívocas: o bloco de metadados
+ * `[AAAA, País, gêneros…, Fonte]` (ano + vírgula + palavra dentro do
+ * colchete; release BR/cena não usa essa forma) e os tipos de tradução
+ * russa AVO/MVO/DVO/SVO (voice-over autoral/multi/duplo/simples). Só
+ * derruba a prova GENÉRICA; DUBLADO/PT-BR explícito ao lado continua
+ * vencendo nos chamadores. NÃO entra em hasExplicitForeignAudio (lista
+ * mínima que condena/apaga — assimetria travada).
+ */
+const RUTRACKER_TRANSLIT_RE = /\[\s*(?:19|20)\d{2}\s*,\s*[A-Z]|\b(?:AVO|MVO|DVO|SVO)\b/i;
+
+/**
  * Guarda compartilhada da dublagem GENÉRICA (título e path usam o mesmo
  * intento). Marcador genérico de DUB/DUBBED NÃO prova áudio PT quando o
- * texto nomeia um idioma estrangeiro ou está escrito em cirílico. O PT
- * explícito ao lado (`HINDI… DUB PT-BR`, `Во все тяжкие … [DUB] PT-BR`)
- * continua vencendo FORA deste predicado, nas regras próprias de cada
- * chamador.
+ * texto nomeia um idioma estrangeiro, está escrito em cirílico ou carrega
+ * assinatura transliterada do rutracker. O PT explícito ao lado
+ * (`HINDI… DUB PT-BR`, `Во все тяжкие … [DUB] PT-BR`) continua vencendo
+ * FORA deste predicado, nas regras próprias de cada chamador.
  */
 function genericDubProvesPt(text: string): boolean {
   const t = String(text || '').toUpperCase();
   return !CYRILLIC_RE.test(t)
     && !FOREIGN_DUB_LANG_RE.test(t)
+    && !RUTRACKER_TRANSLIT_RE.test(t)
     && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
 }
 
@@ -121,6 +139,7 @@ function foreignLangNamedForBucket(text: string): boolean {
   const t = raw.toUpperCase();
   return FOREIGN_LANG_FOR_BUCKET_RE.test(t)
     || CYRILLIC_RE.test(raw)
+    || RUTRACKER_TRANSLIT_RE.test(raw)
     || /\b(LAT|ESP)\b/.test(t)
     || /VFF|VF2|VFQ|VOSTFR|HDLIGHT/i.test(raw);
 }
@@ -155,12 +174,15 @@ const GENERIC_DUB_MARKER_RE = /^(?:dub(?:bed)?|dual(?: audio)?)$/;
 function hasPtAudioMark(path = '') {
   const tokens = normalizeTitle(path).split(' ').filter(Boolean);
   const joined = ` ${tokens.join(' ')} `;
-  // Mesma regra do explicitPtAudio (FOREIGN_DUB_LANG_RE + CYRILLIC_RE):
-  // marcador genérico de dublagem não prova PT quando o path nomeia idioma
-  // estrangeiro ou está escrito em cirílico. Marcador explícito segue
-  // valendo — o idioma/script só desmente a promessa GENÉRICA.
+  // Mesma regra do explicitPtAudio (FOREIGN_DUB_LANG_RE + CYRILLIC_RE +
+  // RUTRACKER_TRANSLIT_RE): marcador genérico de dublagem não prova PT quando
+  // o path nomeia idioma estrangeiro, está escrito em cirílico ou carrega
+  // assinatura transliterada do rutracker. Marcador explícito segue valendo
+  // — o idioma/script/formato só desmente a promessa GENÉRICA.
   const raw = String(path);
-  const hasForeignLang = FOREIGN_DUB_LANG_RE.test(raw.toUpperCase()) || CYRILLIC_RE.test(raw);
+  const hasForeignLang = FOREIGN_DUB_LANG_RE.test(raw.toUpperCase())
+    || CYRILLIC_RE.test(raw)
+    || RUTRACKER_TRANSLIT_RE.test(raw);
   return config.audioAudit.ptMarkers.some((marker: string) => {
     const normalized = normalizeTitle(marker);
     if (!normalized) return false;

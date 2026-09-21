@@ -13,16 +13,16 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.includes('alice-secret'), false);
   assert.equal(bob.includes('bob-secret'), false);
   assert.equal(alice, streamsCacheKey('movie', 'tt123', { ...base, debridApiKey: 'alice-secret' }));
-  assert.equal(alice.startsWith('streams:v12:'), true);
+  assert.equal(alice.startsWith('streams:v13:'), true);
 });
 
-test('versões correntes separam lista v12 do índice v10', () => {
+test('versões correntes separam lista v13 do índice v10', () => {
   // A correção BR_MARK (.org genérico), DUB/HINDI e a fronteira `bthd` mudam
   // matching/ranking; o AGENTS.md manda invalidar streams+idx juntos. v10: o
   // ENGLISH|ENG entra na guarda do DUB genérico; `mediaSource` entrou como
   // campo opcional na mesma v10 (sem bump — não descartar a colheita). A lista
-  // está em v12 (série/pack fora do intervalo e TS-PreDVD — Resident Evil 2026).
-  assert.equal(prefix('streams'), 'streams:v12:');
+  // está em v13 (DUB genérico sob formato rutracker transliterado — Coyote Ugly).
+  assert.equal(prefix('streams'), 'streams:v13:');
   assert.equal(prefix('idx'), 'idx:v10:');
 });
 

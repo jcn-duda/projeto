@@ -111,15 +111,17 @@ const STREAMS_VERSION_DISCARD_SCRIPT = [
   "insert.run('streams:v8:movie:tt-meio:{}:account:none', JSON.stringify({ streams: ['meio'] }), now + 900000);",
   "insert.run('streams:v9:movie:tt-novo:{}:account:none', JSON.stringify({ streams: ['novo'] }), now + 900000);",
   "insert.run('streams:v10:movie:tt-pre-anterior:{}:account:none', JSON.stringify({ streams: ['pre-anterior'] }), now + 900000);",
-  "insert.run('streams:v11:movie:tt-anterior:{}:account:none', JSON.stringify({ streams: ['anterior'] }), now + 900000);",
-  "insert.run('streams:v12:movie:tt-atual:{}:account:none', JSON.stringify({ streams: ['atual'] }), now + 900000);",
+  "insert.run('streams:v11:movie:tt-v11:{}:account:none', JSON.stringify({ streams: ['v11'] }), now + 900000);",
+  "insert.run('streams:v12:movie:tt-anterior:{}:account:none', JSON.stringify({ streams: ['anterior'] }), now + 900000);",
+  "insert.run('streams:v13:movie:tt-atual:{}:account:none', JSON.stringify({ streams: ['atual'] }), now + 900000);",
   'seed.close();',
   '',
   `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
-  // TTL futuro nas seis: v7/v8/v9/v10/v11 somem por serem versão morta, não por expirar.
-  "assert.deepStrictEqual(cache.get('streams:v12:movie:tt-atual:{}:account:none'), { streams: ['atual'] }, 'v12 sobe do disco');",
-  "assert.strictEqual(cache.get('streams:v11:movie:tt-anterior:{}:account:none'), null, 'v11 nao entra no L1');",
+  // TTL futuro nas sete: v7..v12 somem por serem versão morta, não por expirar.
+  "assert.deepStrictEqual(cache.get('streams:v13:movie:tt-atual:{}:account:none'), { streams: ['atual'] }, 'v13 sobe do disco');",
+  "assert.strictEqual(cache.get('streams:v12:movie:tt-anterior:{}:account:none'), null, 'v12 nao entra no L1');",
+  "assert.strictEqual(cache.get('streams:v11:movie:tt-v11:{}:account:none'), null, 'v11 nao entra no L1');",
   "assert.strictEqual(cache.get('streams:v10:movie:tt-pre-anterior:{}:account:none'), null, 'v10 nao entra no L1');",
   "assert.strictEqual(cache.get('streams:v9:movie:tt-novo:{}:account:none'), null, 'v9 nao entra no L1');",
   "assert.strictEqual(cache.get('streams:v8:movie:tt-meio:{}:account:none'), null, 'v8 nao entra no L1');",
@@ -127,15 +129,15 @@ const STREAMS_VERSION_DISCARD_SCRIPT = [
   '',
   // Reabre o banco: o DELETE tem que ter corrido no SQLite, não só no Map.
   'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "const staleRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v7:%' OR key LIKE 'streams:v8:%' OR key LIKE 'streams:v9:%' OR key LIKE 'streams:v10:%' OR key LIKE 'streams:v11:%'\").all();",
-  "assert.strictEqual(staleRows.length, 0, 'linhas streams:v7/v8/v9/v10/v11 apagadas do disco');",
-  "const liveRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v12:%'\").all();",
-  "assert.strictEqual(liveRows.length, 1, 'linha streams:v12 preservada no disco');",
+  "const staleRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v7:%' OR key LIKE 'streams:v8:%' OR key LIKE 'streams:v9:%' OR key LIKE 'streams:v10:%' OR key LIKE 'streams:v11:%' OR key LIKE 'streams:v12:%'\").all();",
+  "assert.strictEqual(staleRows.length, 0, 'linhas streams:v7..v12 apagadas do disco');",
+  "const liveRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v13:%'\").all();",
+  "assert.strictEqual(liveRows.length, 1, 'linha streams:v13 preservada no disco');",
   'dbVerify.close();',
 ].join('\n');
 
 test(
-  'descarte de versão obsoleta no disco — streams: v7/v8/v9/v10/v11 somem, v12 sobe no boot',
+  'descarte de versão obsoleta no disco — streams: v7..v12 somem, v13 sobe no boot',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(STREAMS_VERSION_DISCARD_SCRIPT),
 );
