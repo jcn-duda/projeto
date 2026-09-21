@@ -38,6 +38,9 @@ function isDubLieError(error: MaybeError) { return error?.code === 'DUB_LIE'; }
 
 const VIDEO_EXT = /\.(mkv|mp4|avi|mov|m4v|ts|webm)$/i;
 const SAMPLE = /(^|[^a-z])sample([^a-z]|$)/i;
+// Nome típico de disco de bônus que não passa no EXTRA ("Episode 3, Scene #29",
+// "A Conversation with ..."): só pesa quando nenhum arquivo declara temporada.
+const EXTRAS_DISC = /(\bscene[\s._-]*#?\s*\d|\bconversation[\s._-]+with\b|\bcommentary\b|\bcoment[aá]rios?\b|\binside[\s._-]+the[\s._-]+episode\b)/i;
 const EXTRA = /(^|[^a-z])(extras?|b[oô]nus|bonus|featurettes?|interviews?|entrevistas?|behind[ ._-]?the[ ._-]?scenes|trailers?|deleted[ ._-]?scenes?|cenas[ ._-]?deletadas|bloopers?|gags?|making[ ._-]?of)([^a-z]|$)/i;
 function baseName(p: string) { return String(p || '').split(/[/\\]/).pop() || ''; }
 const SITE_AD_DOMAIN = '[a-z0-9][a-z0-9-]*\\.(?:com|net|org|tv|to|me|cc|info|xyz|biz|br|io|se|ws)(?:\\.[a-z]{2})?';
@@ -226,6 +229,21 @@ function pickFile(files: DebridFile[], { season, episode, work }: PlayHint = {})
           declaredSeasons: [wrong.season],
           declaredEpisodes: [],
           sample: wrong.sample.slice(0, 60),
+        }, context);
+      }
+      // Disco de extras (entrevistas, "Episode 3, Scene #29" comentadas): nenhum
+      // arquivo declara temporada e a maioria tem cara de bônus. É prova de que
+      // a temporada pedida não está aqui — sem ela o play falhava para sempre e
+      // a lista seguia oferecendo o hash (medido: True Detective S4, NerdFilmes).
+      const noSeason = videos.every((file) => !pathHasAnySeason.test(file.path || ''));
+      const extrasLike = videos.filter((file) => EXTRA.test(file.path || '') || EXTRAS_DISC.test(baseName(file.path || ''))).length;
+      if (noSeason && extrasLike * 2 >= videos.length) {
+        throw new EpisodePickError({
+          wantedSeason: season,
+          wantedEpisode: episode,
+          declaredSeasons: [],
+          declaredEpisodes: [],
+          sample: baseName(videos[0].path || '').slice(0, 60),
         }, context);
       }
       throw new EpisodePickError(undefined, context);

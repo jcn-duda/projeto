@@ -396,3 +396,35 @@ test('pickFile: vinheta com promo/trailer/isSiteAd ignorada mesmo se > 15MB quan
   );
 });
 
+
+test('pickFile: disco de extras sem temporada vira prova de temporada ausente', () => {
+  // Medido em prod: NerdFilmes listado como True Detective S4E1 era o disco de bônus.
+  const disc = [
+    f('A Conversation with Nic Pizzolatto and T Bone Burnett.mkv'),
+    f('Episode 3, Scene #29.mkv'),
+    f('Episode 5, Scene #10.mkv'),
+    f('Making of.mkv'),
+  ];
+  assert.throws(
+    () => pickFile(disc, { season: 4, episode: 1 }),
+    (err: any) => {
+      assert.ok(isEpisodePickError(err));
+      assert.ok(err.evidence, 'extras: evidence presente');
+      assert.deepEqual(err.evidence.declaredSeasons, []);
+      assert.deepEqual(err.evidence.declaredEpisodes, []);
+      return true;
+    },
+  );
+});
+
+test('pickFile: pack mudo sem cara de extras continua sem evidence', () => {
+  const pack = [f('Parte Um.mkv'), f('Parte Dois.mkv'), f('Parte Tres.mkv')];
+  assert.throws(
+    () => pickFile(pack, { season: 4, episode: 1 }),
+    (err: any) => {
+      assert.ok(isEpisodePickError(err));
+      assert.equal(err.evidence, undefined);
+      return true;
+    },
+  );
+});
