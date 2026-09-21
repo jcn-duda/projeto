@@ -291,6 +291,8 @@ test('/resolve: DubLieError destrava a proteção durável da conta/adapter do p
   const hashLie = '4'.repeat(40);
   const account = accountScope('fake-key');
   const markerKey = `${prefix('adprot')}fakebrid:${account}:${hashLie}`;
+  // Sem `i` na dica: lie grava, mas streams de OUTRA obra não são tocados.
+  const otherStreamsKey = `${prefix('streams')}movie:tt8800099:{}:account:a`;
   const sig = hmacSig('fake-key', hashLie);
   const originalResolve = FAKE_ADAPTER.resolveLink;
 
@@ -300,6 +302,8 @@ test('/resolve: DubLieError destrava a proteção durável da conta/adapter do p
     // o adaptador fake registrado no registry real.
     cache.set(markerKey, { acceptedAt: Date.now(), readyAt: null }, 3600);
     assert.ok(cache.peek(markerKey), 'precondição: retenção durável de pé');
+    cache.set(otherStreamsKey, { streams: [{ name: 'outra', infoHash: hashLie }] }, 900);
+    assert.ok(cache.peek(otherStreamsKey), 'precondição: streams de outra obra existem');
 
     FAKE_ADAPTER.resolveLink = async () => {
       throw new DubLieError({ videoCount: 1, matchedGroup: 'WEB', sample: 'Movie.2024.1080p.WEB.mkv' });
@@ -309,6 +313,7 @@ test('/resolve: DubLieError destrava a proteção durável da conta/adapter do p
     assert.equal(res.text, 'o torrent anunciado como dublado contém conteúdo em inglês');
     assert.equal(cache.get(markerKey), null, 'a prova de release EN destrava a retenção no play');
     assert.equal(magnetdb.isLie('fakebrid', 'fake-key', hashLie), true, 'a mentira também vai para o banco de magnets');
+    assert.ok(cache.peek(otherStreamsKey), 'sem i na dica: streams de outra obra permanecem');
 
     // Sem registro, a rota segue respondendo igual (idempotente: nada a limpar).
     const res2 = await server.request('GET', `/${cfg}/resolve/${hashLie}?sig=${sig}`);
@@ -316,5 +321,41 @@ test('/resolve: DubLieError destrava a proteção durável da conta/adapter do p
   } finally {
     FAKE_ADAPTER.resolveLink = originalResolve;
     cache.forget(markerKey);
+    cache.forget(otherStreamsKey);
+  }
+});
+
+test('/resolve: DubLieError com i na dica invalida streams da obra', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashLie = '5'.repeat(40);
+  const imdbId = 'tt8800101';
+  const hint = JSON.stringify({ n: ['Filme Mentiroso'], y: 2024, d: 1, i: imdbId });
+  const sig = hmacSig('fake-key', `${hashLie}&w=${hint}`);
+  const obraStreamsKey = `${prefix('streams')}series:${imdbId}:S1:E1:{}:account:a`;
+  const otherStreamsKey = `${prefix('streams')}movie:tt8800102:{}:account:a`;
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    cache.set(obraStreamsKey, { streams: [{ name: 'mentira', infoHash: hashLie }] }, 900);
+    cache.set(otherStreamsKey, { streams: [{ name: 'outra', infoHash: 'a'.repeat(40) }] }, 900);
+    assert.ok(cache.peek(obraStreamsKey), 'precondição: streams da obra existem');
+    assert.ok(cache.peek(otherStreamsKey), 'precondição: streams de outra obra existem');
+
+    FAKE_ADAPTER.resolveLink = async () => {
+      throw new DubLieError({ videoCount: 1, matchedGroup: 'WEB', sample: 'Movie.2024.1080p.WEB.mkv' });
+    };
+    const res = await server.request(
+      'GET',
+      `/${cfg}/resolve/${hashLie}?w=${encodeURIComponent(hint)}&sig=${sig}`,
+    );
+    assert.equal(res.status, 404);
+    assert.equal(res.text, 'o torrent anunciado como dublado contém conteúdo em inglês');
+    assert.equal(magnetdb.isLie('fakebrid', 'fake-key', hashLie), true, 'lie gravado no banco');
+    assert.equal(cache.peek(obraStreamsKey), null, 'streams da obra da dica foram invalidados');
+    assert.ok(cache.peek(otherStreamsKey), 'streams de outra obra intactos');
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+    cache.forget(obraStreamsKey);
+    cache.forget(otherStreamsKey);
   }
 });

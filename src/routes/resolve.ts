@@ -4,6 +4,7 @@ import type express from 'express';
 import config from '../config.js';
 import { errorMessage } from '../utils/logger.js';
 import { accountScope } from '../utils/request-key.js';
+import { invalidateStreamsForObra } from '../utils/br-gap.js';
 import * as protectedApi from '../debrid/protected.js';
 
 // O 451 só aparece no play: a lista pronta foi construída quando o ledger
@@ -105,6 +106,15 @@ function makeResolveHandler(services: AppServices) {
             season: req.query.s ? Number(req.query.s) : null,
             episode: req.query.e ? Number(req.query.e) : null,
           }, infoHash);
+          // Lista pronta ainda oferece o hash mentiroso com ⚡/vaga BR até o TTL.
+          // Só a obra da dica — sem `i` não há clearNamespace global.
+          const cleared = invalidateStreamsForObra(hintedImdbId);
+          if (cleared > 0) {
+            services.metrics.count('resolve.streamsInvalidated.lie');
+            services.log.info(
+              `[resolve] invalidou ${cleared} entrada(s) de streams da obra ${hintedImdbId} após mentira de áudio`,
+            );
+          }
         }
         services.metrics.count('debrid.audit.lie');
         services.log.warn(
