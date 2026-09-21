@@ -25,7 +25,7 @@ import {
   promoteFirstObserverEligible,
 } from './stream-builder-first-observer.js';
 import type { FirstObserverState } from './stream-builder-first-observer.js';
-import { annotateEpisodeSizes } from './episode-size.js';
+import { annotateEpisodeSizes, streamSizeLabel } from './episode-size.js';
 import { isBrProbePending } from './br-probe.js';
 
 // Reexportações públicas com total compatibilidade
@@ -321,9 +321,16 @@ export function applyNoticeOrigin(streams: Stream[] = []) {
   // Limite do protocolo: a marca interna do fallback (Etapa 4) sai AQUI, para
   // todo stream — com ou sem aviso. O cache pode carregá-la (é como o `finish`
   // sabe que a lista contém reserva), mas o cliente nunca a vê.
+  // `size` é o chip do Power Movie, que o lê ANTES do texto — ver
+  // `streamSizeLabel`. Derivado aqui, na resposta, e não na montagem: o `💾`
+  // final só existe depois da anotação do episódio, e a entrada já em cache
+  // ganha o campo sem bump de namespace. O Stremio ignora o campo. Tipado só
+  // aqui: no `StreamBase` ele colidiria com o `size` numérico dos candidatos
+  // do autofetch, que estendem `Partial<StreamBase>`.
   const cleaned = streams.map((stream) => {
     const { _fromFallback, _fromSnapshot, ...rest } = stream as Stream & { _fromFallback?: boolean; _fromSnapshot?: boolean };
-    return rest as Stream;
+    const size = streamSizeLabel(rest.title);
+    return (size ? { ...rest, size } : rest) as Stream;
   });
   if (!cleaned.some((stream) => stream?.notice)) return cleaned;
   const base = (config.debrid.publicUrl || origin() || '').replace(/\/$/, '');

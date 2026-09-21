@@ -269,6 +269,7 @@
     "test/title-normalization-fold.test.js",
     "test/title-precision-tail.test.js",
     "test/nerdfilmes-prefilter.test.js",
+    "test/stream-size-field.test.js",
     "test/stream-trace.test.js",
     "test/stream-trace-pipeline.test.js",
     "test/stream-trace-route.test.js",

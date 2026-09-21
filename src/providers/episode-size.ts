@@ -15,10 +15,16 @@ import type { StreamTraceState } from '../utils/stream-trace.js';
 //   2. média — total do pack ÷ episódios da temporada no Cinemeta, marcada
 //      como "(média)" para não passar por medida.
 //
-// O marcador `💾` continua seguido só de número e unidade: é por ele que o
-// Stremio e o Power Movie montam o chip de tamanho. O total do pack vai num
-// marcador separado. `_size` não muda — o filtro de tamanho máximo segue
-// valendo para o download inteiro.
+// O marcador `💾` continua seguido só de número e unidade, e o total do pack
+// vai num marcador separado. `_size` não muda — o filtro de tamanho máximo
+// segue valendo para o download inteiro.
+//
+// O Power Movie NÃO lê o `💾`: o chip sai de `json.size`, depois de
+// `behaviorHints.videoSize`, e por último do PRIMEIRO "N GB" do texto
+// (`_resolveStreamSize` em E:\POWER-MOVIE). Em pack BR o primeiro número é o do
+// nome do post ("[1080p DUBLADO 12.41 GB]"), e o chip mostrava o pack inteiro ao
+// lado de um `💾 1.55 GB` correto (True Detective S01E01, 2026-09-20). Por isso
+// `streamSizeLabel` expõe o rótulo do `💾` para a resposta publicar em `size`.
 
 type EpisodeMeta = { episodes?: Record<string, number> } | null | undefined;
 type PackCandidate = Parameters<typeof isSeasonPackRelease>[0];
@@ -46,6 +52,18 @@ function streamTitleBytes(title: unknown): number {
   const text = String(title || '');
   const match = text.match(PACK_TOTAL_MARK) || text.match(SIZE_MARK);
   return match ? parseSizeLabel(match[1]) : 0;
+}
+
+/**
+ * Rótulo do `💾` ("1.55 GB") para o campo `size` da resposta. Só MB/GB/TB: o
+ * tracker às vezes publica o tamanho do .torrent ("65.95 KB" num 1080p) e o
+ * app, que ignora KB no próprio regex, hoje não mostra chip nenhum ali —
+ * publicar o KB trocaria "sem tamanho" por um tamanho errado.
+ */
+function streamSizeLabel(title: unknown): string | null {
+  const match = String(title || '').match(SIZE_MARK);
+  if (!match || !/ (?:MB|GB|TB)$/.test(match[1])) return null;
+  return match[1];
 }
 
 function isPack(stream: Stream | null | undefined, season: number): boolean {
@@ -259,4 +277,4 @@ function annotateEpisodeSizes<T extends Stream | null>(streams: T[], options: An
   return fillMissingSizes(out, options);
 }
 
-export { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes };
+export { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes, streamSizeLabel };
