@@ -11,6 +11,7 @@ import {
   matchesBrTitle,
   matchesGlobalSeriesNoMarker,
   filterRelevantRaw as relevantRaw,
+  magnetSeasonContradicts,
 } from '../src/utils/format.js';
 import type { RawItem } from '../types/domain.js';
 
@@ -373,5 +374,24 @@ test('filtro relevante cru: série com busca de temporada (sem episódio) rejeit
   };
   const res = relevantRaw([itemWrongSeason, itemCorrectSeason], ctx);
   assert.deepEqual(res, [itemCorrectSeason]);
+});
+
+test('magnetSeasonContradicts: faixa de cena e casos de dn', () => {
+  const mk = (dn: string) => ({ magnet: `magnet:?xt=urn:btih:${HASH}&dn=${dn}` });
+  // O fix: S01-S04 NÃO contradiz S3E1 (antes lia [1,4] e cortava).
+  const cases: Array<[string, number, number | null, boolean]> = [
+    ['True.Detective.S01-S04.COMPLETE', 3, 1, false],
+    ['True.Detective.S01.COMPLETE', 3, 1, true],
+    ['The.Last.of.Us.S01-S02.1080p', 1, 1, false],
+    ['The.Last.of.Us.S01-S02.1080p', 2, 1, false],
+    ['The.Last.of.Us.S01-S02.1080p', 3, 1, true],
+    ['The.Last.of.Us.S02E01.1080p', 1, 1, true],
+    ['The.Last.of.Us.S01E01.1080p', 1, 1, false],
+    ['The.Last.of.Us.S01E02.1080p', 1, 1, true],
+    ['The.Last.of.Us.S01.1080p', 1, null, false],
+  ];
+  for (const [dn, season, episode, want] of cases) {
+    assert.equal(magnetSeasonContradicts(mk(dn), season, episode), want, dn);
+  }
 });
 

@@ -255,3 +255,47 @@ test('entidade HTML não pode apagar a temporada do pack', () => {
   assert.equal(decodeEntities('&Amp; teste'), '& teste');
 });
 
+test('parseTitleSeasonEpisode expande faixa de cena S01-S04', () => {
+  // normalizeTitle troca hífen por espaço; sem o pré-passe no cru o pack
+  // True.Detective.S01-S04 virava seasons=[1,4] e sumia do S03E01.
+  const pack = parseTitleSeasonEpisode('True.Detective.S01-S04.COMPLETE');
+  assert.deepEqual(pack.seasons, [1, 2, 3, 4]);
+  assert.equal(matchesEpisode('True.Detective.S01-S04.COMPLETE', { season: 3, episode: 1 }), true);
+  assert.deepEqual(parseTitleSeasonEpisode('show.s01-s02.1080p').seasons, [1, 2]);
+
+  // Forma curta S01-03 / S01-02 (sem o segundo s).
+  assert.deepEqual(parseTitleSeasonEpisode('Mr. Bean - La Serie Animata S01-03').seasons, [1, 2, 3]);
+  assert.deepEqual(parseTitleSeasonEpisode('House of the Dragon.2022.S01-02').seasons, [1, 2]);
+
+  // Anime: "S2 - 13" não é faixa (falta o segundo s); S02-13 estoura o teto 10.
+  assert.deepEqual(
+    parseTitleSeasonEpisode('[SubsPlease] Ace of Diamond Act II S2 - 13 (1080p)').seasons,
+    [2],
+  );
+  assert.deepEqual(parseTitleSeasonEpisode('Anime S02-13').seasons, [2]);
+
+  // Russo: S1-3E1-72 expande temporada, episódios ficam vazios (E solto preso).
+  const russo = parseTitleSeasonEpisode('True Detective / S1-3E1-72 of 72');
+  assert.deepEqual(russo.seasons, [1, 2, 3]);
+  assert.deepEqual(russo.episodes, []);
+
+  // Anos não viram temporada; S01-S03 no colchete sim.
+  assert.deepEqual(
+    parseTitleSeasonEpisode('House of the Dragon 2022-2025 [S01-S03]').seasons,
+    [1, 2, 3],
+  );
+  assert.deepEqual(parseTitleSeasonEpisode('Show.S2019-2022').seasons, []);
+
+  // Dois soltos: só as pontas; S01 S01 dedupe.
+  assert.deepEqual(parseTitleSeasonEpisode('My Name Is Earl S01 S04').seasons, [1, 4]);
+  assert.deepEqual(parseTitleSeasonEpisode('Serie S01 S01').seasons, [1]);
+
+  // Teto e ordem: faixa absurda / invertida não inventa o meio.
+  const absurda = parseTitleSeasonEpisode('Pack S01-S90 COMPLETE').seasons;
+  assert.equal(absurda.includes(2), false, 'S01-S90 não expande');
+  assert.ok(absurda.includes(1) && absurda.includes(90));
+  const invertida = parseTitleSeasonEpisode('Pack S04-S01 COMPLETE').seasons;
+  assert.equal(invertida.includes(2), false, 'S04-S01 não troca ordem');
+  assert.deepEqual(invertida, [4, 1]);
+});
+
