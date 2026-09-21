@@ -334,6 +334,7 @@
     "test/multiwork-pack-apply.test.js",
     "test/comandotorrents-parser-titles.test.js",
     "test/debrid-pick-episodes.test.js",
+    "test/debrid-pick-season-evidence.test.js",
     "test/br-resolvers-traversal.test.js",
     "test/debrid-rd-oracle-sources.test.js",
     "test/observability-first.test.js",
