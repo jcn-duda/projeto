@@ -15,8 +15,8 @@
 // `__default` (500) para todo nome sem entrada própria, então cada namespace
 // que exista em `NAMESPACE_VERSIONS` sem cota nomeada soma mais 500 aqui. O
 // universo real é a união dos dois registros, mais o balde `__default` das
-// chaves sem `:`. Hoje: 90.721 + 500 = 91.221 entradas alcançáveis contra o
-// teto de 93.000 — folga de 1.779, ~3 baldes de 500 de namespaces novos antes
+// chaves sem `:`. Hoje: 91.721 + 500 = 92.221 entradas alcançáveis contra o
+// teto de 93.000 — folga de 779, ~1 balde de 500 de namespace novo antes
 // de o teto virar o garrote. A conta é refeita no teste
 // (test/cache-namespaces.test.ts), que também exige cota explícita para todo
 // namespace versionado. Foi a falta dessa segunda guarda que deixou `dinv`,
@@ -28,7 +28,7 @@
 //
 // Cotas nomeadas: mag=50.000, rdc=14.000, dlmag=4.000, autofetch=4.000,
 // fsz=3.000, rdt=2.500, streams=2.000, idx=2.000, adprot=2.000, davail=1.000,
-// adsub=1.000, vres=1.000, raw=800, tmdb=500, tmdbc=500, meta=500, rdq=500,
+// adsub=1.000, vres=1.000, tsz=1.000, raw=800, tmdb=500, tmdbc=500, meta=500, rdq=500,
 // adrm=500, harvest=500, indexer-status=200, notify=100, seed=20, dinv=50,
 // cfg=50, mag_meta=1. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior
 // caso) e o streams cresceu com o /stream-trace.json (cap de 300 itens ≈ 27 KB
@@ -134,6 +134,10 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Resolução medida no cabeçalho do vídeo por arquivo (`vres:v1`): registro
   // minúsculo `{ q, w, h }`, uma entrada por arquivo que o play tocaria.
   vres: 1000,
+  // Tamanho total do torrent por hash (`tsz:v1`, 2026-09-20): um número por
+  // hash cacheado no Premiumize, ~25 por busca. Registro minúsculo; 1.000
+  // cobre ~40 buscas distintas até o LRU reciclar.
+  tsz: 1000,
   // Estes quatro existiam em `NAMESPACE_VERSIONS` sem entrada própria e
   // pagavam o fallback de 500 cada — foi o buraco que estourou o teto (conta
   // no cabeçalho). População medida no L2 em 2026-09-17: 0 / 0 / 2 / 2.

@@ -56,7 +56,33 @@ function hasFileSizes(infoHash: string) {
 
 function clearFileSizes() {
   cache.clearNamespace('fsz');
+  cache.clearNamespace('tsz');
 }
 
-export { recordFileSizes, peekFileSizes, hasFileSizes, clearFileSizes, FILE_SIZES_TTL_SECONDS };
+// Tamanho TOTAL do torrent (`tsz`), sem lista de arquivos. O Premiumize devolve
+// no `/cache/check` um `filesize` por hash que é o torrent inteiro — medido em
+// True Detective S01, 2026-09-20: o pack de 8 episódios veio 12.41 GB, igual ao
+// total do tracker, e as releases de um episódio vieram com o tamanho do
+// episódio (617.8 MB, 4.22 GB). Serve para dar 💾 a quem o tracker não deu
+// tamanho (ou deu o do .torrent, em KB); a média por episódio do pack continua
+// a cargo do `episode-size`. Namespace próprio: no `fsz` o `pickFile` leria o
+// total como um arquivo só.
+const totalKeyOf = (infoHash: string) => `${prefix('tsz')}${String(infoHash || '').toLowerCase()}`;
+
+function recordTorrentTotal(infoHash: string, bytes: unknown) {
+  const hash = String(infoHash || '').toLowerCase();
+  const size = Number(bytes) || 0;
+  if (!hash || size <= 0) return;
+  cache.set(totalKeyOf(hash), size, FILE_SIZES_TTL_SECONDS);
+}
+
+function peekTorrentTotal(infoHash: string): number {
+  if (!infoHash) return 0;
+  return Number(cache.peek(totalKeyOf(infoHash))) || 0;
+}
+
+export {
+  recordFileSizes, peekFileSizes, hasFileSizes, clearFileSizes, recordTorrentTotal, peekTorrentTotal,
+  FILE_SIZES_TTL_SECONDS,
+};
 export type { SizedFile };

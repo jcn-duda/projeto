@@ -1,7 +1,7 @@
 import type { Stream } from '../../types/domain.js';
 import { bytesToSize, isSeasonPackRelease, parseTitleSeasonEpisode } from '../utils/format.js';
 import { pickFile } from '../debrid/file-selector.js';
-import { peekFileSizes, hasFileSizes } from '../debrid/file-sizes.js';
+import { peekFileSizes, hasFileSizes, peekTorrentTotal } from '../debrid/file-sizes.js';
 import { stageTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 
@@ -268,10 +268,45 @@ function annotatePackSizes<T extends Stream | null>(
 
 type AnnotateOptions = Parameters<typeof annotatePackSizes>[1];
 
+// 💾 que não é tamanho de vídeo: o tracker às vezes publica o do .torrent
+// ("65.95 KB" num 1080p da TheRARBG, True Detective S01E01, 2026-09-20).
+const BOGUS_SIZE_MARK = /💾 \d+(?:\.\d+)? (?:B|KB)(?=\s|$)/u;
+
+/**
+ * 💾 do TOTAL do torrent (Premiumize, `tsz`) para quem o tracker deixou sem
+ * tamanho ou com o do .torrent. Roda ANTES da média do pack: pack sem tamanho
+ * ganha o total aqui e a média do episódio logo em seguida, em vez de exibir a
+ * temporada inteira. Medida do serviço, não do tracker — `_size` não muda.
+ */
+function fillTorrentTotals<T extends Stream | null>(streams: T[], trace?: StreamTraceState | null): T[] {
+  return streams.map((stream) => {
+    if (!stream?.infoHash || typeof stream.title !== 'string') return stream;
+    const bogus = BOGUS_SIZE_MARK.test(stream.title);
+    if (!bogus && !lacksSize(stream)) return stream;
+    const label = bytesToSize(peekTorrentTotal(String(stream.infoHash)));
+    if (!label) return stream;
+    stageTrace(trace, 'episodeSize.torrentTotal', 1);
+    const title = bogus
+      ? stream.title.replace(BOGUS_SIZE_MARK, `💾 ${label}`)
+      : stream.title.replace(SEEDER_MARK, (seeds) => `${seeds} 💾 ${label}`);
+    return { ...stream, title };
+  }) as T[];
+}
+
 /** Tamanho do episódio/filme em pack, e o 💾 de quem veio sem tamanho. */
 function annotateEpisodeSizes<T extends Stream | null>(streams: T[], options: AnnotateOptions = {}): T[] {
   const { season, episode } = options;
-  const out = annotatePackSizes(streams, options);
+  const filled = fillTorrentTotals(streams, options.trace);
+  const annotated = annotatePackSizes(filled, options);
+  // Pack (temporada ou coleção) que ganhou o TOTAL e a anotação não conseguiu
+  // reduzir ao episódio/filme volta a ficar sem 💾: exibir a temporada inteira
+  // como tamanho do episódio foi justamente o defeito reportado.
+  const out = annotated.map((stream, idx) => {
+    const original = streams[idx];
+    if (stream !== filled[idx] || filled[idx] === original || !original) return stream;
+    const pack = season != null ? isPack(original, season) : isMultiWorkPack(original);
+    return pack ? original : stream;
+  }) as T[];
   // Série sem episódio não tem arquivo único para medir.
   if (season != null && episode == null) return out;
   return fillMissingSizes(out, options);

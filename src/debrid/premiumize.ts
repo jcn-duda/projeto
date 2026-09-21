@@ -8,6 +8,7 @@ import {
   AuthError, QuotaError, RateLimitError,
 } from './common.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
+import { recordTorrentTotal } from './file-sizes.js';
 import { markerIdIndex } from '../providers/autofetch-marker.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
@@ -63,6 +64,11 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
       timeout: ctx?.timeoutMs ?? config.debrid.cacheCheckTimeout,
     });
     const flags = data.response || [];
+    // O `filesize` que vem junto é o torrent inteiro (ver `recordTorrentTotal`):
+    // é o 💾 de quem o tracker deixou sem tamanho. Só dos cacheados — o do
+    // não-cacheado é 0 ou ausente.
+    const sizes = Array.isArray(data.filesize) ? data.filesize : [];
+    batch.forEach((hash, idx) => { if (flags[idx]) recordTorrentTotal(hash, sizes[idx]); });
     return batch.filter((_, idx) => flags[idx]);
   }, { timeoutMs });
 }
