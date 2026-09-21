@@ -102,6 +102,9 @@ export function pruneKnownBroken(
   let droppedMiss = 0;
   const kept = streams.filter((s) => {
     if (!s.infoHash) return true;
+    // Corta por infoHash puro: item `fromFallback` / via instantânea do
+    // magnet-bank (selo 📦) também sai — não há exceção por origem. Sem isto
+    // a reserva reapresentaria hash que o play já provou sem vídeo.
     if (magnetdb.isBad(adapterId, apiKey, s.infoHash)) {
       // Autocorreção tardia do dano F3: um ramo antigo marcava `bad` no hash
       // que o Real-Debrid recusou por lei (HTTP 451/error_code 35). Recusa

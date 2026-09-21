@@ -277,6 +277,45 @@ test('applyDebrid descarta hash ruim no banco e morto no autofetch, antes da che
   }
 });
 
+test('applyDebrid descarta hash bad mesmo em item fromFallback (via instantânea)', async () => {
+  // A reserva 📦 do magnet-bank entra com fromFallback; o corte é por
+  // infoHash — origem não isenta. Sem isto o hash NoVideo voltava na lista.
+  const { adapter, calls } = makeFake();
+  const original = debrid.BY_ID.get('premiumize');
+  debrid.BY_ID.set('premiumize', adapter as any);
+  const key = 'chave-mag-fallback-bad';
+  const badHash = '9'.repeat(40);
+  const goodHash = '7'.repeat(40);
+  magnetdb.markBad('premiumize', key, badHash);
+  metrics.reset();
+  try {
+    const fallback = {
+      ...stream(badHash),
+      name: 'reserva 📦',
+      _fromFallback: true,
+    };
+    const out = await runWith({ opts: userOpts(key), encoded: '' }, () =>
+      applyDebrid([fallback, stream(goodHash)] as any, {
+        season: null,
+        episode: null,
+        imdbId: 'tt0000002',
+        searchKey: 'magnet-db-fallback-bad',
+        deadlineAt: Date.now() + 8000,
+        onCacheResult: null,
+        workHint: null,
+      } as any),
+    );
+    const dump = JSON.stringify(out);
+    assert.ok(!dump.includes(badHash), 'fromFallback bad sai no pruneKnownBroken');
+    assert.ok(dump.includes(goodHash), 'hash limpo permanece');
+    assert.deepEqual(calls[0], [goodHash]);
+    assert.equal((metrics.snapshot() as any).counters['magnetdb.dropped.bad'], 1);
+  } finally {
+    metrics.reset();
+    debrid.BY_ID.set('premiumize', original as any);
+  }
+});
+
 test('applyDebrid sem histórico não descarta nada (controle)', async () => {
   const { adapter } = makeFake();
   const original = debrid.BY_ID.get('premiumize');

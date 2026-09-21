@@ -76,6 +76,18 @@ function makeResolveHandler(services: AppServices) {
       if (services.debridCommon.isNoVideoError(err)) {
         const adapter = services.debrid.current();
         if (adapter) services.magnetdb.markBad(adapter.id, services.runtime.opts().debridApiKey, infoHash);
+        // Lista pronta (e a via instantânea/fallback do banco) ainda oferece o
+        // hash com ⚡ até o TTL — mesmo buraco do lie. Só a obra da dica;
+        // sem `i` não há clearNamespace global.
+        if (hintedImdbId) {
+          const cleared = invalidateStreamsForObra(hintedImdbId);
+          if (cleared > 0) {
+            services.metrics.count('resolve.streamsInvalidated.novideo');
+            services.log.info(
+              `[resolve] invalidou ${cleared} entrada(s) de streams da obra ${hintedImdbId} após torrent sem vídeo`,
+            );
+          }
+        }
         return res.status(404).send('nenhum arquivo de vídeo no torrent');
       }
       // 429 nao e culpa do torrent: o debrid pediu para esperar. Sem isto virava
