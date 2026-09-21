@@ -122,12 +122,15 @@ function makeResolveHandler(services: AppServices) {
           `[resolve] torrent ${infoHash.slice(0, 8)} não contém o episódio pedido` +
           `${req.query.s != null && req.query.e != null ? ` (S${req.query.s}E${req.query.e})` : ''}` +
           `${err.evidence ? ` — arquivo declara S${err.evidence.declaredSeasons.join(',') || '?'}E${err.evidence.declaredEpisodes.join(',') || '?'}${err.evidence.sample ? ` (${err.evidence.sample})` : ''}` : ''}` +
-          `${!err.evidence && err.context ? ` — ${err.context.videoCount} vídeo(s), nenhum identificável: ${err.context.samples.join(' | ')}` : ''}`,
+          `${err.context ? ` — ${err.context.videoCount} vídeo(s), nenhum identificável: ${err.context.samples.join(' | ')}` : ''}`,
         );
         const sNum = Number(req.query.s);
         const eNum = Number(req.query.e);
         if (err.evidence && hintedImdbId && Number.isFinite(sNum) && Number.isFinite(eNum)) {
           services.releaseIndex.markMissing(hintedImdbId, { season: sNum, episode: eNum }, infoHash);
+          if (err.evidence.declaredEpisodes.length === 0) {
+            services.releaseIndex.markMissingSeason(hintedImdbId, sNum, infoHash);
+          }
         }
         return res.status(404).send('este episódio não foi encontrado no pack');
       }

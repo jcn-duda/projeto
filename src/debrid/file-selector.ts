@@ -92,6 +92,32 @@ function workYearContradicts(pool: DebridFile[], year: number | null | undefined
   return declared.every(([declaredYear]) => Math.abs(declaredYear - cleanYear) > WORK_YEAR_TOLERANCE);
 }
 
+function declaredFromFileName(path: string) {
+  const clean = baseName(path)
+    .replace(/(?<![\dst])[125678]\.[012](?!\d)/gi, ' ')
+    .replace(/\b\d{3,4}x\d{3,4}\b/g, ' ')
+    .replace(/[a-z]s\d{1,2}(?![\de])/gi, ' ');
+  return parseTitleSeasonEpisode(clean);
+}
+
+function unanimousWrongSeason(videos: DebridFile[], wantedSeason: number): { season: number; sample: string } | null {
+  const semExtra = videos.filter((file) => !EXTRA.test(file.path || ''));
+  const pool = semExtra.length > 0 ? semExtra : videos;
+  const seasons = new Set<number>();
+  let firstSample = '';
+  for (const file of pool) {
+    const bName = baseName(file.path || '');
+    const declared = declaredFromFileName(bName);
+    if (declared.seasons.length === 0) return null;
+    for (const s of declared.seasons) seasons.add(s);
+    if (!firstSample) firstSample = bName;
+  }
+  if (seasons.size !== 1) return null;
+  const [s0] = seasons;
+  if (s0 === wantedSeason) return null;
+  return { season: s0, sample: firstSample };
+}
+
 function workCoverage(fileName: string, name: string) {
   const tokens = normalizeTitle(name).split(' ').filter(Boolean);
   const longTokens = tokens.filter((w) => w.length > 2);
@@ -180,9 +206,21 @@ function pickFile(files: DebridFile[], { season, episode, work }: PlayHint = {})
       const weak = videos.find((file) => weakPatterns.some((pattern) => pattern.test(epPath(file.path || ''))));
       if (weak) return weak;
     }
-    if (videos.length > 1) throw new EpisodePickError(undefined, { videoCount: videos.length, samples: videos.slice(0, 3).map((video) => baseName(video.path || '').slice(0, 70)) });
-    const singleName = baseName(videos[0].path || '').replace(/\b\d{3,4}x\d{3,4}\b/g, ' ').replace(/[a-z]s\d{1,2}(?![\de])/gi, ' ');
-    const declared = parseTitleSeasonEpisode(singleName);
+    if (videos.length > 1) {
+      const wrong = unanimousWrongSeason(videos, season);
+      const context = { videoCount: videos.length, samples: videos.slice(0, 3).map((video) => baseName(video.path || '').slice(0, 70)) };
+      if (wrong) {
+        throw new EpisodePickError({
+          wantedSeason: season,
+          wantedEpisode: episode,
+          declaredSeasons: [wrong.season],
+          declaredEpisodes: [],
+          sample: wrong.sample.slice(0, 60),
+        }, context);
+      }
+      throw new EpisodePickError(undefined, context);
+    }
+    const declared = declaredFromFileName(videos[0].path || '');
     if (!declared.complete || declared.seasons.length > 0) {
       const wrongEpisode = declared.episodes.length > 0 && !declared.episodes.includes(episode);
       const wrongSeason = declared.seasons.length > 0 && !declared.seasons.includes(season);

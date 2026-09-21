@@ -201,6 +201,37 @@ test('/resolve: EpisodePickError com evidência grava miss no índice da obra', 
   }
 });
 
+test('/resolve: EpisodePickError com evidência de temporada (sem episódios declarados) grava miss na temporada inteira', async () => {
+  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
+  const hashSeasonMiss = 'f'.repeat(40);
+  const hint = JSON.stringify({ n: ['True Detective'], y: 2014, i: 'tt7700010' });
+  const sig = hmacSig('fake-key', `${hashSeasonMiss}?s=3&e=1&w=${hint}`);
+  const originalResolve = FAKE_ADAPTER.resolveLink;
+
+  try {
+    FAKE_ADAPTER.resolveLink = async () => {
+      throw new EpisodePickError({
+        wantedSeason: 3,
+        wantedEpisode: 1,
+        declaredSeasons: [1],
+        declaredEpisodes: [],
+        sample: 'True Detective - T01E01 - A Longa e Luminosa Escuridao.mkv',
+      }, { videoCount: 8, samples: ['sample1.mkv'] });
+    };
+    const res = await server.request('GET', `/${cfg}/resolve/${hashSeasonMiss}?s=3&e=1&w=${encodeURIComponent(hint)}&sig=${sig}`);
+    assert.equal(res.status, 404);
+    assert.equal(res.text, 'este episódio não foi encontrado no pack');
+    // Gravou missSeason em S3: qualquer episódio de S3 deve reportar missing
+    assert.equal(releaseIndex.isMissing('tt7700010', { season: 3, episode: 1 }, hashSeasonMiss), true);
+    assert.equal(releaseIndex.isMissing('tt7700010', { season: 3, episode: 2 }, hashSeasonMiss), true);
+    assert.equal(releaseIndex.isMissing('tt7700010', { season: 3, episode: 8 }, hashSeasonMiss), true);
+    // Mas não em S1 (já que é um pack da S1)
+    assert.equal(releaseIndex.isMissing('tt7700010', { season: 1, episode: 1 }, hashSeasonMiss), false);
+  } finally {
+    FAKE_ADAPTER.resolveLink = originalResolve;
+  }
+});
+
 // Banco de magnets no /resolve: só a falha DETERMINÍSTICA (NoVideoError) grava
 // bad; null (transitório), pick falho e erro de rede não condenam o hash.
 // Cada caso usa hash próprio para não contaminar o estado entre testes.

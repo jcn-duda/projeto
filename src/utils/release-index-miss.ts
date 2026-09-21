@@ -19,6 +19,10 @@ function missKey(imdbId: string, { season, episode }: ObraLocation, hash: string
   return `${prefix('idx')}miss:${imdbId}:S${season}E${episode}:${hash.toLowerCase()}`;
 }
 
+function missSeasonKey(imdbId: string, season: number, hash: string) {
+  return `${prefix('idx')}missS:${imdbId}:S${season}:${hash.toLowerCase()}`;
+}
+
 function markMissing(imdbId: string, location: ObraLocation, hash: string) {
   if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !hash) return 0;
   // Sem temporada E episódio não há o que marcar: a prova é por episódio.
@@ -32,8 +36,18 @@ function markMissing(imdbId: string, location: ObraLocation, hash: string) {
   return isNew ? 1 : 0;
 }
 
+function markMissingSeason(imdbId: string, season: number, hash: string) {
+  if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !hash || season == null) return 0;
+  const key = missSeasonKey(imdbId, season, hash);
+  const isNew = cache.get(key) == null;
+  cache.set(key, { at: Date.now() }, config.releaseIndex.ttl);
+  if (isNew) metrics.count('search.idx.missSeason');
+  return isNew ? 1 : 0;
+}
+
 function isMissing(imdbId: string, location: ObraLocation, hash: string) {
   if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !hash) return false;
+  if (location.season != null && cache.get(missSeasonKey(imdbId, location.season, hash)) != null) return true;
   if (location.season == null || location.episode == null) return false;
   return cache.get(missKey(imdbId, location, hash)) != null;
 }
@@ -42,8 +56,10 @@ function isMissing(imdbId: string, location: ObraLocation, hash: string) {
  * `cache.peek` — sem promover LRU nem contar hit/miss. */
 function isMissingQuiet(imdbId: string, location: ObraLocation, hash: string) {
   if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !hash) return false;
+  if (location.season != null && cache.peek(missSeasonKey(imdbId, location.season, hash)) != null) return true;
   if (location.season == null || location.episode == null) return false;
   return cache.peek(missKey(imdbId, location, hash)) != null;
 }
 
-export { markMissing, isMissing, isMissingQuiet };
+export { markMissing, markMissingSeason, isMissing, isMissingQuiet };
+

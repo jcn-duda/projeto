@@ -160,3 +160,124 @@ test('tail prova que o pack de temporada contém OUTRO episódio e a busca segui
     await new Promise((resolve: any) => server.close(resolve));
   }
 });
+
+test('tail prova que o pack multi-arquivo é de OUTRA temporada e corta a temporada inteira', async () => {
+  const server: any = http.createServer(createTestApp());
+  await new Promise((resolve: any) => server.listen(0, '127.0.0.1', resolve));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const originalFetch = globalThis.fetch;
+  const originalPublicUrl = config.debrid.publicUrl;
+  config.debrid.publicUrl = baseUrl;
+
+  const wrongSeasonPackHash = 'c'.repeat(39) + '1'; // pack que diz ser da temporada 3 mas arquivos são da T01
+  const goodHash = 'd'.repeat(39) + '2'; // release legítimo da temporada 3
+  const userApiKey = 'pm-key-ep-audit-2';
+
+  const originalSearch = jackett.search;
+  jackett.search = async () => [
+    {
+      title: 'Serie Audit - 3ª Temporada Completa [720p DUAL]',
+      name: 'Serie Audit - 3ª Temporada Completa [720p DUAL]',
+      infoHash: wrongSeasonPackHash,
+      magnet: `magnet:?xt=urn:btih:${wrongSeasonPackHash}`,
+      seeders: 2,
+      size: 15 * 1024 ** 3,
+      isBr: true,
+      tracker: 'bludv-cardigann',
+    },
+    {
+      title: 'Serie Audit S03E01 Dublado (2025) 1080p WEB',
+      name: 'Serie Audit S03E01 Dublado (2025) 1080p WEB',
+      infoHash: goodHash,
+      magnet: `magnet:?xt=urn:btih:${goodHash}`,
+      seeders: 1,
+      size: 2 * 1024 ** 3,
+      isBr: true,
+      tracker: 'bludv-cardigann',
+    },
+  ];
+
+  globalThis.fetch = (async (input: any, init: any) => {
+    const url = typeof input === 'string' ? input : String((input as any)?.url || input);
+    if (url.startsWith(baseUrl)) return originalFetch(input, init);
+    if (url.includes('cinemeta.strem.io')) {
+      return { ok: true, json: async () => ({ meta: { name: 'Serie Audit', year: '2025–' } }) } as any;
+    }
+    if (url.includes('themoviedb.org')) {
+      return { ok: true, json: async () => ({ tv_results: [{ name: 'Serie Audit', original_name: 'Serie Audit', first_air_date: '2025-01-01' }] }) } as any;
+    }
+    if (url.includes('premiumize.me/api/cache/check')) {
+      return { ok: true, json: async () => ({ status: 'success', response: [true, true] }) } as any;
+    }
+    if (url.includes('premiumize.me/api/transfer/directdl')) {
+      const src = new URLSearchParams(String((init as any)?.body || '')).get('src') || '';
+      const isLiar = src.includes(wrongSeasonPackHash);
+      const content = isLiar
+        ? [
+            { path: 'Serie Audit 1 Temporada/Serie Audit - T01E01 - Pilot.mkv', size: 1.5 * 1024 ** 3, stream_link: 'https://pm.test/t01e01.mkv' },
+            { path: 'Serie Audit 1 Temporada/Serie Audit - T01E02 - Part 2.mkv', size: 1.5 * 1024 ** 3, stream_link: 'https://pm.test/t01e02.mkv' },
+            { path: 'Serie Audit 1 Temporada/Serie Audit - T01E03 - Part 3.mkv', size: 1.5 * 1024 ** 3, stream_link: 'https://pm.test/t01e03.mkv' },
+          ]
+        : [{ path: 'Serie Audit S03E01 Dublado 1080p/S03E01 - Dublado 1080p.mp4', size: 2 * 1024 ** 3, stream_link: 'https://pm.test/good3.mp4' }];
+      return { ok: true, json: async () => ({ status: 'success', content }) } as any;
+    }
+    return { ok: false, status: 404, json: async () => ({}) } as any;
+  }) as any;
+
+  const segment = runtime.encode({ ds: 'premiumize', dk: userApiKey, p: ['jackett'], ji: ['bludv-cardigann'], b: 2 });
+
+  try {
+    // 1) Primeira busca para S03E01: ambos aparecem
+    const res1 = await fetch(`${baseUrl}/${segment}/stream/series/tt7700003:3:1.json`);
+    const data1 = await res1.json();
+    const urls1 = JSON.stringify(data1.streams || []);
+    assert.ok(urls1.includes(wrongSeasonPackHash), 'primeira busca traz o pack');
+    assert.ok(urls1.includes(goodHash), 'primeira busca traz o release legítimo');
+
+    // 2) Aguarda tail provar temporada errada
+    const auditDeadline = Date.now() + 5000;
+    while (Date.now() < auditDeadline && !releaseIndex.isMissing('tt7700003', { season: 3, episode: 1 }, wrongSeasonPackHash)) {
+      await sleep(25);
+    }
+    assert.ok(
+      releaseIndex.isMissing('tt7700003', { season: 3, episode: 1 }, wrongSeasonPackHash),
+      'tail gravou miss em S03E01',
+    );
+    // Também deve ter gravado missSeason em S3: E02 e E03 de S3 também dão missing!
+    assert.ok(
+      releaseIndex.isMissing('tt7700003', { season: 3, episode: 2 }, wrongSeasonPackHash),
+      'missSeason cobre S03E02 sem precisar de novo play/audit',
+    );
+    assert.ok(
+      releaseIndex.isMissing('tt7700003', { season: 3, episode: 3 }, wrongSeasonPackHash),
+      'missSeason cobre S03E03',
+    );
+    // E NÃO condena a temporada 1
+    assert.equal(
+      releaseIndex.isMissing('tt7700003', { season: 1, episode: 1 }, wrongSeasonPackHash),
+      false,
+      'não condena S1',
+    );
+
+    // 3) Segunda busca para S03E01: nasce sem o pack
+    const res2 = await fetch(`${baseUrl}/${segment}/stream/series/tt7700003:3:1.json`);
+    const data2 = await res2.json();
+    const urls2 = JSON.stringify(data2.streams || []);
+    assert.ok(!urls2.includes(wrongSeasonPackHash), 'pack da temporada errada sumiu de S03E01');
+    assert.ok(urls2.includes(goodHash), 'release legítimo permanece');
+
+    // 4) Busca para S03E02: também nasce sem o pack graças ao missSeason
+    const res3 = await fetch(`${baseUrl}/${segment}/stream/series/tt7700003:3:2.json`);
+    const data3 = await res3.json();
+    const urls3 = JSON.stringify(data3.streams || []);
+    assert.ok(!urls3.includes(wrongSeasonPackHash), 'pack da temporada errada também sumiu de S03E02 pelo missSeason');
+  } finally {
+    jackett.search = originalSearch;
+    cache.clear();
+    metrics.reset();
+    globalThis.fetch = originalFetch;
+    config.debrid.publicUrl = originalPublicUrl;
+    await new Promise((resolve: any) => server.close(resolve));
+  }
+});
+

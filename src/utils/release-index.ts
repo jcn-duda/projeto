@@ -22,7 +22,7 @@ import { prefix } from './cache-keys.js';
 import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, parseTitleSeasonEpisode } from './format.js';
 import { bankRowsForMediaSource, mergeMediaSource } from './release-index-media.js';
 // Prova de miss por episódio mora no irmão (extraído pela catraca); o pai reexporta.
-import { markMissing, isMissing, isMissingQuiet } from './release-index-miss.js';
+import { markMissing, markMissingSeason, isMissing, isMissingQuiet } from './release-index-miss.js';
 import { cutProtected } from './release-index-cut.js';
 import { markFileEvidence, fileEvidence } from './release-index-file.js';
 import type { IndexEntry, IndexedRelease, ObraLocation } from './release-index-types.js';
@@ -381,4 +381,4 @@ function snapshotAllWorks(): Map<string, IndexedRelease[]> {
   return result;
 }
 
-export { record, lookup, lookupQuiet, isPartial, clearPartial, markLied, markMissing, isMissing, isMissingQuiet, markFileEvidence, fileEvidence, status, snapshotWorks, snapshotAllWorks };
+export { record, lookup, lookupQuiet, isPartial, clearPartial, markLied, markMissing, markMissingSeason, isMissing, isMissingQuiet, markFileEvidence, fileEvidence, status, snapshotWorks, snapshotAllWorks };
