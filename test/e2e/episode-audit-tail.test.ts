@@ -258,6 +258,7 @@ test('tail prova que o pack multi-arquivo é de OUTRA temporada e corta a tempor
       false,
       'não condena S1',
     );
+    assert.ok((metrics.snapshot().counters['debrid.audit.episode'] || 0) >= 1, 'métrica de auditoria de episódio registrada');
 
     // 3) Segunda busca para S03E01: nasce sem o pack
     const res2 = await fetch(`${baseUrl}/${segment}/stream/series/tt7700003:3:1.json`);

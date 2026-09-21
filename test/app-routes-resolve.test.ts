@@ -162,6 +162,7 @@ test('/resolve devolve 404 quando pickFile não identifica episódio no pack', a
     const res = await server.request('GET', `/${cfg}/resolve/${HASH}?s=1&e=5&sig=${sig}`);
     assert.equal(res.status, 404);
     assert.equal(res.text, 'este episódio não foi encontrado no pack');
+    assert.equal(releaseIndex.isMissing('tt7700009', { season: 1, episode: 5 }, HASH), false, '!err.evidence não grava miss');
   } finally {
     FAKE_ADAPTER.resolveLink = originalResolve;
   }
