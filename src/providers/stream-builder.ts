@@ -302,20 +302,35 @@ export async function buildStreams(rawInput: RawItem[], {
 // `buildStreams` sai exportado pelo mesmo motivo do `applyDebrid`: e o unico
 // jeito de testar o item de aviso sem subir uma busca inteira com Jackett.
 /**
- * Fecha o aviso de lista vazia na RESPOSTA, com o origin de quem está
- * perguntando agora. O texto é conteúdo da busca e fica no cache; o link não
- * pode: `streamsCacheKey` não carrega o origin, então montá-lo dentro do
- * `buildStreams` gravava na entrada compartilhada o endereço do primeiro
- * cliente — a TV que chama 192.168.0.23 deixava esse link para o celular que
- * chama pelo domínio, e um `Host` forjado envenenava a entrada para o próximo.
+ * Path+query de um `/resolve/` relativo ou absoluto legado no cache.
+ * Query (`sig`, `w`, ep) permanece intacta — o HMAC não cobre o host.
+ */
+function resolvePathAndQuery(url: string): string | null {
+  if (!url || !url.includes('/resolve/')) return null;
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url);
+      if (!parsed.pathname.includes('/resolve/')) return null;
+      return `${parsed.pathname}${parsed.search}`;
+    } catch {
+      return null;
+    }
+  }
+  return url.startsWith('/') ? url : `/${url}`;
+}
+
+/**
+ * Fecha na RESPOSTA o que o cache não pode carregar: link do aviso E host do
+ * play `/resolve`. Texto do aviso e path relativo do resolve viajam no cache;
+ * o host sai aqui com o origin de quem pergunta agora. `streamsCacheKey` não
+ * carrega o origin — bake absoluto no `viaDebrid`/`buildStreams` gravava o
+ * endereço do primeiro cliente (TV em 192.168.0.23 envenenava o celular no
+ * domínio; Host forjado idem). Listas antigas com URL absoluta também passam:
+ * troca só o origin, path+query intactos (sem bump de namespace).
  *
- * PUBLIC_URL (endereço público) tem precedência; sem ela vale o origin da
- * requisição, que por definição é um endereço que aquele cliente alcança.
- *
- * Sem origin nenhum (chamada interna, teste sem req) o item é DESCARTADO: sem
- * `url`/`infoHash`/`externalUrl` nenhum cliente Stremio renderiza a linha, então
- * ela só ocuparia a resposta e sumiria na tela — foi o que deixou o app com
- * "Nenhum stream disponível" enquanto a busca já tinha resultado.
+ * PUBLIC_URL (canônico) tem precedência; vazio = Host da requisição.
+ * Sem base: aviso e resolve-url sem infoHash são descartados — link quebrado
+ * ocuparia a tela e sumiria no play.
  */
 export function applyNoticeOrigin(streams: Stream[] = []) {
   // Limite do protocolo: a marca interna do fallback (Etapa 4) sai AQUI, para
@@ -332,15 +347,20 @@ export function applyNoticeOrigin(streams: Stream[] = []) {
     const size = streamSizeLabel(rest.title);
     return (size ? { ...rest, size } : rest) as Stream;
   });
-  if (!cleaned.some((stream) => stream?.notice)) return cleaned;
   const base = (config.debrid.publicUrl || origin() || '').replace(/\/$/, '');
   const link = base ? `${base}${prefix()}/configure` : '';
   return cleaned.flatMap((stream) => {
-    if (!stream?.notice) return [stream];
-    if (!link) return [];
-    // `notice` é marca interna: não faz parte do objeto que o Stremio recebe.
-    const { notice, ...rest } = stream;
-    return [{ ...rest, externalUrl: link }];
+    if (stream?.notice) {
+      if (!link) return [];
+      // `notice` é marca interna: não faz parte do objeto que o Stremio recebe.
+      const { notice, ...rest } = stream;
+      return [{ ...rest, externalUrl: link }];
+    }
+    const rawUrl = typeof stream?.url === 'string' ? stream.url : '';
+    const pathAndQuery = resolvePathAndQuery(rawUrl);
+    if (!pathAndQuery) return [stream];
+    if (!base) return [];
+    return [{ ...stream, url: `${base}${pathAndQuery}` }];
   });
 }
 

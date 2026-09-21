@@ -91,7 +91,6 @@ export async function applyDebrid(input: Array<Stream | null>, {
     showUncachedBr,
     brReservedSlots,
   } = opts();
-  const { publicUrl } = config.debrid;
 
   const trustApiKey = opts().debridApiKey;
   const trustScope = accountScope(trustApiKey);
@@ -267,16 +266,16 @@ export async function applyDebrid(input: Array<Stream | null>, {
       }
       : null;
     const hintJson = hint ? JSON.stringify(hint) : '';
-    // Assinatura cobre hash + temporada/episódio + dica: sem ela o /resolve
-    // rejeita, então conhecer a PUBLIC_URL e um hash não basta pra gastar o
-    // debrid — nem pra adulterar a escolha de arquivo.
+    // Assinatura cobre hash + temporada/episódio + dica (não o host): sem ela
+    // o /resolve rejeita. O host sai só na resposta (`applyNoticeOrigin`) —
+    // bake absoluto no cache envenenava play entre LAN/localhost/domínio.
     const sig = signResolve(s.infoHash, ep, hintJson);
     return {
       ...s,
       // Formato do Torrentio: [AD⚡] toca na hora, [AD download] ainda baixa.
       name: markDebridName(s.name, adapter.short || adapter.id, instant),
       url:
-        `${publicUrl}${prefix()}/resolve/${s.infoHash}${ep}${ep ? '&' : '?'}` +
+        `${prefix()}/resolve/${s.infoHash}${ep}${ep ? '&' : '?'}` +
         `${hintJson ? `w=${encodeURIComponent(hintJson)}&` : ''}sig=${sig}`,
       infoHash: undefined,
       sources: undefined,

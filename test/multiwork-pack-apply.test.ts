@@ -111,7 +111,7 @@ test('applyDebrid cached: pack admitido vira URL /resolve com dica (p:1) e ⚡',
       assert.equal(first.infoHash, undefined, 'nunca P2P inteiro');
       assert.ok(String(first.name).includes('⚡'));
       assert.ok(first.url?.includes('/resolve/'));
-      const w = decodeURIComponent(new URL(String(first.url)).searchParams.get('w') || '');
+      const w = decodeURIComponent(new URL(String(first.url), 'http://x').searchParams.get('w') || '');
       assert.ok(w.includes('"p":1'), 'dica assinada marca pack multiobra');
       assert.ok(w.includes(MOVIE_NAME));
     },
@@ -172,7 +172,7 @@ test('p:1 legado: multiobra genérico (sem admissão) mantém a dica de pack', a
       ) as Stream[];
       const [first] = out;
       assert.ok(first);
-      const w = decodeURIComponent(new URL(String(first.url)).searchParams.get('w') || '');
+      const w = decodeURIComponent(new URL(String(first.url), 'http://x').searchParams.get('w') || '');
       assert.ok(w.includes('"p":1'), 'p:1 pré-existente, fora do flag');
     },
   );
@@ -270,7 +270,7 @@ test('G1: admitido só pelo dn= vira pack no play (p:1) e escolhe o filme certo'
         return { url: String(out[0]?.url || '') };
       },
     );
-    const w = JSON.parse(decodeURIComponent(new URL(url).searchParams.get('w') || ''));
+    const w = JSON.parse(decodeURIComponent(new URL(url, 'http://x').searchParams.get('w') || ''));
     assert.equal(w.p, 1, 'dica assinada marca pack (p:1)');
 
     // 3) Com a dica decodificada, o pickFile escolhe a Arca Perdida — não o

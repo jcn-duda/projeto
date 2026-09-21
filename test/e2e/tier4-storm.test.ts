@@ -19,7 +19,7 @@ import * as cache from '../../src/utils/cache.js';
 import * as format from '../../src/utils/format.js';
 import { signResolve, verifyResolve } from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
-import { findStreams } from '../../src/providers/index.js';
+import { findStreams, applyNoticeOrigin } from '../../src/providers/index.js';
 import * as cinemeta from '../../src/utils/cinemeta.js';
 import * as tmdb from '../../src/utils/tmdb.js';
 import jackett from '../../src/providers/jackett.js';
@@ -90,11 +90,13 @@ function createTestApp() {
   builder.defineStreamHandler(async (args) => {
     try {
       const { streams, partial } = await findStreams({ type: args.type, id: args.id });
+      // Espelha stream.ts: host do /resolve e do aviso só na resposta.
+      const delivered = applyNoticeOrigin(streams);
       if (!streams.length || partial) {
-        return { streams, cacheMaxAge: 0 };
+        return { streams: delivered, cacheMaxAge: 0 };
       }
       return {
-        streams,
+        streams: delivered,
         cacheMaxAge: config.cacheTtl,
         staleRevalidate: config.cacheTtl * 4,
         staleError: 86400,

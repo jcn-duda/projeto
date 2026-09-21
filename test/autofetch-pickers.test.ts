@@ -61,7 +61,7 @@ test('applyDebrid limita a primeira checagem e mantém resposta não vazia quand
 
     assert.equal(first.length, 1, 'known:false não pode esvaziar a primeira resposta');
     assert.match(first[0].name as string, /^\[PM download\]/);
-    assert.match(first[0].url as string, new RegExp('/segcfg/resolve/' + A + '\\?s=1&e=2&sig=[a-f0-9]{64}$'));
+    assert.match(first[0].url as string, new RegExp('^/segcfg/resolve/' + A + '\\?s=1&e=2&sig=[a-f0-9]{64}$'));
     assert.equal(first[0].infoHash, undefined);
     assert.equal(first[0].sources, undefined);
     assert.deepEqual(calls[0].infoHashes, [A]);

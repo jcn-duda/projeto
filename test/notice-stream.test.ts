@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildStreams, applyNoticeOrigin, findStreams } from '../src/providers/index.js';
+import { buildStreams, applyNoticeOrigin, findStreams, applyDebrid } from '../src/providers/index.js';
 import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
@@ -116,6 +116,121 @@ test('PUBLIC_URL tem precedência sobre o origin da requisição', async () => {
   const streams = await build([], { publicUrl: 'https://publico.com', origin: 'http://192.168.0.23:7000' });
   assert.equal(streams.length, 1);
   assert.equal(streams[0].externalUrl, 'https://publico.com/segcfg/configure');
+});
+
+// --- Play /resolve: host na resposta, path relativo no cache ---
+
+/** Bake de play via applyDebrid (URL relativa) + egressão applyNoticeOrigin. */
+async function bakeResolve(opts: { publicUrl?: string; origin?: string } = {}): Promise<{ baked: Stream; delivered: Stream[] }> {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const { publicUrl = '', origin } = opts;
+  config.debrid.publicUrl = publicUrl;
+  debrid.checkCached = async () => ({ cached: new Set([A]), known: true });
+  const userOpts = {
+    ...runtime.defaults(),
+    debridService: 'premiumize',
+    debridApiKey: 'chave-fake',
+    debridCachedOnly: true,
+    autoFetchBr: false,
+  };
+  const input: Stream = {
+    name: '1080p\nTorrentio',
+    title: 'Filme 1080p',
+    infoHash: A,
+    sources: ['tracker:test'],
+  };
+  try {
+    const baked = (await runtime.run(
+      { opts: userOpts, encoded: 'segcfg', ...(origin === undefined ? {} : { origin }) },
+      () => applyDebrid([input], { searchKey: `resolve-bake-${Math.random()}` } as any),
+    )) as Stream[];
+    assert.equal(baked.length, 1);
+    const delivered = runtime.run(
+      { opts: userOpts, encoded: 'segcfg', ...(origin === undefined ? {} : { origin }) },
+      () => applyNoticeOrigin(baked),
+    ) as unknown as Stream[];
+    return { baked: baked[0], delivered };
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+  }
+}
+
+test('viaDebrid bakeia /resolve relativo (sem host) e a egressão injeta o origin', async () => {
+  const { baked, delivered } = await bakeResolve({ publicUrl: '', origin: 'http://192.168.0.23:7000' });
+  assert.match(baked.url as string, new RegExp(`^/segcfg/resolve/${A}\\?sig=[a-f0-9]{64}$`));
+  assert.doesNotMatch(baked.url as string, /^https?:\/\//);
+  assert.equal(delivered.length, 1);
+  assert.equal(delivered[0].url, `http://192.168.0.23:7000${baked.url}`);
+});
+
+test('mesma lista cacheada: origin LAN vs localhost → hosts diferentes no play', async () => {
+  // Entrada relativa compartilhada (como o cache guarda depois do bake).
+  const relative = `/segcfg/resolve/${A}?s=1&e=2&sig=${'ab'.repeat(32)}`;
+  const cached: Stream[] = [{ name: '[PM⚡] 1080p', url: relative }];
+  const userOpts = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: 'k' };
+  const originalPublicUrl = config.debrid.publicUrl;
+  config.debrid.publicUrl = '';
+  try {
+    const naTv = runtime.run(
+      { opts: userOpts, encoded: 'segcfg', origin: 'http://192.168.0.23:7000' },
+      () => applyNoticeOrigin(cached),
+    ) as unknown as Stream[];
+    const noLocal = runtime.run(
+      { opts: userOpts, encoded: 'segcfg', origin: 'http://127.0.0.1:7000' },
+      () => applyNoticeOrigin(cached),
+    ) as unknown as Stream[];
+    assert.equal(naTv[0].url, `http://192.168.0.23:7000${relative}`);
+    assert.equal(noLocal[0].url, `http://127.0.0.1:7000${relative}`);
+  } finally {
+    config.debrid.publicUrl = originalPublicUrl;
+  }
+});
+
+test('PUBLIC_URL canônico vence o Host no play /resolve', async () => {
+  const { delivered } = await bakeResolve({
+    publicUrl: 'https://publico.com',
+    origin: 'http://192.168.0.23:7000',
+  });
+  assert.equal(delivered.length, 1);
+  assert.match(delivered[0].url as string, new RegExp(`^https://publico\\.com/segcfg/resolve/${A}\\?sig=`));
+});
+
+test('rewrite de /resolve preserva a query (sig intacto) e aceita absoluto legado', async () => {
+  const sig = 'cd'.repeat(32);
+  const legacy = `http://10.0.0.5:7000/segcfg/resolve/${A}?w=%7B%22d%22%3A1%7D&sig=${sig}`;
+  const userOpts = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: 'k' };
+  const originalPublicUrl = config.debrid.publicUrl;
+  config.debrid.publicUrl = '';
+  try {
+    const out = runtime.run(
+      { opts: userOpts, encoded: 'segcfg', origin: 'http://192.168.0.23:7000' },
+      () => applyNoticeOrigin([{ name: '[PM⚡]', url: legacy }]),
+    ) as unknown as Stream[];
+    assert.equal(out.length, 1);
+    assert.equal(
+      out[0].url,
+      `http://192.168.0.23:7000/segcfg/resolve/${A}?w=%7B%22d%22%3A1%7D&sig=${sig}`,
+    );
+    assert.equal(new URL(out[0].url as string).searchParams.get('sig'), sig);
+  } finally {
+    config.debrid.publicUrl = originalPublicUrl;
+  }
+});
+
+test('resolve-url sem base é descartado (espelha o aviso sem link)', () => {
+  const originalPublicUrl = config.debrid.publicUrl;
+  config.debrid.publicUrl = '';
+  try {
+    const out = runtime.run(
+      { opts: runtime.defaults(), encoded: 'segcfg' },
+      () => applyNoticeOrigin([{ name: '[PM⚡]', url: `/segcfg/resolve/${A}?sig=1` }]),
+    ) as unknown as Stream[];
+    assert.deepEqual(out, []);
+  } finally {
+    config.debrid.publicUrl = originalPublicUrl;
+  }
 });
 
 test('o cache guarda o TEXTO do aviso, nunca o link de um cliente', async () => {

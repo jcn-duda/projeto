@@ -247,19 +247,22 @@ addon.ts  processo (listen, warmup)
                        └─ varredura pt-BR nos globais (se não rodou inline)
 ```
 
-**O aviso de lista vazia é montado em duas etapas, de propósito.** O
-`buildStreams` cria só o **texto** (`{ name, notice: true }`), que é conteúdo da
-busca e viaja para o cache; o **link** sai no `applyNoticeOrigin`, já na
-resposta, com o origin daquela requisição (`PUBLIC_URL` ou o `Host` que o
-cliente usou). Montar o link antes gravaria na entrada compartilhada o endereço
-de quem perguntou primeiro — a TV que chama `192.168.0.23` deixaria esse link
-para o celular que chama pelo domínio, e um `Host` forjado envenenaria o cache
-do próximo. Sem origin nenhum o item é **descartado**: stream sem
-`url`/`infoHash`/`externalUrl` não é renderizado por cliente nenhum e só
-ocuparia a resposta. Há um quarto texto que **não** nasce no `buildStreams`: o
-fallback do `raceWithDeadline`, para quando a busca estoura o prazo e continua
-em background — só ali existe a garantia que a promessa "reabra em instantes"
-descreve.
+**O aviso de lista vazia e o play `/resolve` montam o host na resposta, de
+propósito.** O `buildStreams` cria só o **texto** do aviso (`{ name, notice:
+true }`); o `viaDebrid` bakeia a URL de play **relativa**
+(`` `${prefix()}/resolve/…` ``, sem host). Ambos viajam no cache. O **host**
+sai no `applyNoticeOrigin`, já na resposta, com o origin daquela requisição
+(`PUBLIC_URL` canônico ou o `Host` que o cliente usou). Montar o host antes
+gravaria na entrada compartilhada o endereço de quem perguntou primeiro — a TV
+que chama `192.168.0.23` deixaria esse link para o celular que chama pelo
+domínio, e um `Host` forjado envenenaria o cache do próximo. Listas antigas com
+URL absoluta de resolve também são reescritas na egressão (só o origin muda;
+query/`sig` intactos). Sem origin nenhum o aviso e o resolve sem `infoHash` são
+**descartados**: stream sem `url`/`infoHash`/`externalUrl` não é renderizado
+por cliente nenhum e só ocuparia a resposta. Há um quarto texto que **não**
+nasce no `buildStreams`: o fallback do `raceWithDeadline`, para quando a busca
+estoura o prazo e continua em background — só ali existe a garantia que a
+promessa "reabra em instantes" descreve.
 
 Série sem resultado por episódio tem fallback de pack no caminho crítico
 (`"Nome S01"`, com a variante pt-BR junto) — as fontes BR só publicam
