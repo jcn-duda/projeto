@@ -84,7 +84,18 @@ function listarArquivos(): string[] {
     // .css entrou na varredura com a Fase 3 (5.9): os CSS passaram a ter
     // arquivo próprio depois de viverem inline no html (fora de qualquer
     // escopo). Sem isso, o configure.css de 505 linhas seria débito invisível.
-    if (!(caminho.endsWith('.ts') || caminho.endsWith('.js') || caminho.endsWith('.css'))) continue;
+    // .mjs entrou com o probe Jev (ETAPA 2): scripts de experimento também
+    // são código vivo sob o teto — só o gate não os via.
+    if (
+      !(
+        caminho.endsWith('.ts') ||
+        caminho.endsWith('.js') ||
+        caminho.endsWith('.css') ||
+        caminho.endsWith('.mjs')
+      )
+    ) {
+      continue;
+    }
     if (caminho.endsWith('.d.ts')) continue; // types/ é contrato declarativo, não código
     if (vistos.has(caminho)) continue;
     vistos.add(caminho);

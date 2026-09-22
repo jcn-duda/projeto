@@ -1,94 +1,53 @@
 #!/usr/bin/env node
 /**
- * Probe Jev dub-lie (ETAPA 2) — replay mensurável da hipótese
- * "post prometeu dublado BR × arquivos entregam outra coisa".
+ * Probe Jev audio-classify (ETAPA 3) — replay mensurável da classificação
+ * SÓ DE TÍTULO que a busca já usa para reservar vaga BR: `looksPtBr` /
+ * `audioFromTitle` (src/utils/audio-quality.ts).
+ *
+ * Irmão do probe dub-lie (scripts/jev-dub-lie-probe.mjs): mesmo cliente,
+ * mesma política de fan-out/retry/auth/fail-open, mesmo formato de
+ * relatório — só a PERGUNTA e o ESTADO mudam (aqui é só `post_title`,
+ * sem indexer nem arquivos, porque a pergunta que audita é anterior ao
+ * debrid: "esse título promete pt-BR de verdade, ou é uma das guardas
+ * medidas em produção — HINDI, [Ukr Dub], rutracker, cirílico, ENGLISH?").
+ * O cliente (`jev-dub-lie-client.mjs`) e as métricas
+ * (`jev-dub-lie-metrics.mjs`) são compartilhados: ambos são puros/
+ * genéricos por construção (sem `is_dub_lie` fixo — ver `questionId`).
  *
  * FORA DO CAMINHO CRÍTICO, POR CONSTRUÇÃO: nada daqui roda no addon,
  * nada é importado por `src/`, nenhuma decisão de busca depende deste
- * experimento (decisão registrada: TypeSafe não entra na primeira
- * resposta nem substitui regras determinísticas do Adom).
- *
- * Os módulos `.mjs` rodam DIRETO da fonte: editar não exige `npm run
- * build` (nada disto passa pelo tsc). Só o ARQUIVO DE TESTE precisa de
- * build antes de rodar (ele é `.ts` compilado para `dist/test`) — o
- * `.mjs` em si o teste lê da fonte.
- *
- * LIMITAÇÃO HONESTA: o contrato wire (endpoint, header, envelope de
- * resposta, formato de usage) herdou do protótipo da sessão anterior e
- * AINDA NÃO foi revalidado contra uma chamada real nesta versão. Não
- * existe métrica de modelo/acurácia publicada — este probe existe para
- * produzi-las, offline primeiro (--dry-run) e medido depois (online).
+ * experimento — mesma decisão registrada no probe dub-lie.
  *
  * Uso:
- *   node scripts/jev-dub-lie-probe.mjs --dry-run      # local, sem chave, sem rede
- *   node --env-file=.env scripts/jev-dub-lie-probe.mjs # online (usa a chave)
- *
- * A garantia de rede-zero do --dry-run é POR CONSTRUÇÃO: o caminho não
- * faz fetch nenhum (prova estrutural + teste), não é sandbox.
- *
- * O que a ETAPA 2 acrescenta ao protótipo original:
- *   1. corpus ampliado e assimétrico (viés honesto — FP é o erro caro),
- *      cobrindo Dual+Hindi/Tamil, rutracker/cirílico, ptTitleDual/DUAL,
- *      MULTI francês, 1ª Temporada, packs, promo e legendas (ver
- *      jev-dub-lie-cases.mjs);
- *   2. --dry-run: valida o corpus, monta o payload allowlist e imprime o
- *      plano de fan-out sem abrir rede nem exigir chave;
- *   3. métricas por corrida: latência por request (até o body parseado),
- *      tokens (se a API devolver usage), matriz expected × resposta,
- *      acordo/discordância, falsos positivos/negativos e custo estimado;
- *   4. fan-out limitado por concorrência (1 caso por request — contrato
- *      SystemOne é um state por chamada; empacotar casos no mesmo
- *      request inventaria formato que a API não tem);
- *   5. timeout por AbortSignal, tratamento 401/403/429/5xx e fail-open:
- *      a corrida inteira pode falhar e o relatório sai do mesmo jeito,
- *      com as falhas explícitas (ver jev-dub-lie-client.mjs);
- *   6. modelo configurável e fingerprint estável de pergunta+corpus
- *      (sha256 curto) para corridas comparáveis;
- *   7. allowlist: só post_title, indexer e video_files saem do processo.
- *
- * Custos: custo = tokens/1e6 × preço. Os preços são configuráveis em
- * USD por milhão de tokens (0/ausente = n/d, nunca inventado):
- *   JEV_DUB_LIE_COST_INPUT_PER_M, JEV_DUB_LIE_COST_OUTPUT_PER_M
+ *   node scripts/jev-audio-classify-probe.mjs --dry-run      # local, sem chave, sem rede
+ *   node --env-file=.env scripts/jev-audio-classify-probe.mjs # online (usa a chave)
  *
  * Knobs (env; todos opcionais):
- *   TYPESAFE_API_KEY               chave (SÓ modo online; nunca impressa)
- *   JEV_DUB_LIE_ENDPOINT           default https://api.typesafe.ai/v1/systemone
- *   JEV_DUB_LIE_MODEL              default jev-latest
- *   JEV_DUB_LIE_THRESHOLD          default 0.55 (noul >= → mentira)
- *   JEV_DUB_LIE_CONCURRENCY        default 4 (1..16)
- *   JEV_DUB_LIE_TIMEOUT_MS         default 30000 (1000..300000)
- *   JEV_DUB_LIE_MAX_ATTEMPTS       default 2 (1..5)
+ *   TYPESAFE_API_KEY                     chave (SÓ modo online; nunca impressa)
+ *   JEV_AUDIO_CLASSIFY_ENDPOINT          default https://api.typesafe.ai/v1/systemone
+ *   JEV_AUDIO_CLASSIFY_MODEL             default jev-latest
+ *   JEV_AUDIO_CLASSIFY_THRESHOLD         default 0.55 (noul >= → pt-BR dub)
+ *   JEV_AUDIO_CLASSIFY_CONCURRENCY       default 4 (1..16)
+ *   JEV_AUDIO_CLASSIFY_TIMEOUT_MS        default 30000 (1000..300000)
+ *   JEV_AUDIO_CLASSIFY_MAX_ATTEMPTS      default 2 (1..5)
  *
- * Argumentos: --dry-run, --json (sem valor); --model, --threshold,
- * --concurrency, --timeout-ms, --max-attempts (com valor; aceita a forma
- * --flag=value). Flag desconhecida, valor ausente ou fora da faixa sai
- * com código 3.
- *
- * Códigos de saída (sempre via process.exitCode — sem exit forçado, o
- * stdout do relatório flusha): 0 = corrida concluída com relatório
- * (mesmo com erros por caso); 1 = auth recusada (relatório parcial
- * impresso) ou falha inesperada; 2 = sem chave no modo online;
- * 3 = corpus/args inválidos.
+ * Argumentos, códigos de saída e forma dos flags: idênticos ao probe
+ * dub-lie (ver o cabeçalho de jev-dub-lie-probe.mjs).
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { CASES } from './jev-dub-lie-cases.mjs';
-import { QUESTIONS, PROMPT_VERSION, buildState, validateCorpus, corpusFingerprint } from './jev-dub-lie-payload.mjs';
+import { CASES } from './jev-audio-classify-cases.mjs';
+import { QUESTIONS, PROMPT_VERSION, buildState, validateCorpus, corpusFingerprint } from './jev-audio-classify-payload.mjs';
 import { summarize, renderReport } from './jev-dub-lie-metrics.mjs';
 import { runCorpus } from './jev-dub-lie-client.mjs';
 
 const DEFAULT_ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
 const DEFAULT_MODEL = 'jev-latest';
+const QUESTION_ID = 'is_ptbr_dub';
 
 const BOOLEAN_FLAGS = new Set(['--dry-run', '--json']);
 const VALUE_FLAGS = new Set(['--model', '--threshold', '--concurrency', '--timeout-ms', '--max-attempts']);
 
-/**
- * Parse estrito: flag desconhecida, valor ausente (fim da linha ou outra
- * flag) ou vazio viram { error }. Aceita a forma --flag=value. Flags
- * booleanas não aceitam valor. (Interno do CLI: importar este arquivo
- * executa main() — os testes exercitam via spawn do script real.)
- */
 function parseArgs(argv) {
   const flags = { dryRun: false, json: false };
   const values = {};
@@ -115,7 +74,6 @@ function parseArgs(argv) {
   return { flags, values };
 }
 
-/** Valida e converte um valor numérico de flag com faixa. */
 function numValue(values, name, { min, max, integer = false }) {
   const raw = values[name];
   if (raw == null) return {};
@@ -141,14 +99,14 @@ function loadConfig(values) {
   const modelRaw = values['--model'];
   return {
     cfg: {
-      endpoint: process.env.JEV_DUB_LIE_ENDPOINT?.trim() || DEFAULT_ENDPOINT,
-      model: (typeof modelRaw === 'string' ? modelRaw.trim() : '') || process.env.JEV_DUB_LIE_MODEL?.trim() || DEFAULT_MODEL,
-      threshold: threshold.value ?? clamp(Number(process.env.JEV_DUB_LIE_THRESHOLD), 0, 1, 0.55),
-      concurrency: concurrency.value ?? clamp(Number(process.env.JEV_DUB_LIE_CONCURRENCY), 1, 16, 4),
-      timeoutMs: timeoutMs.value ?? clamp(Number(process.env.JEV_DUB_LIE_TIMEOUT_MS), 1000, 300000, 30000),
-      maxAttempts: maxAttempts.value ?? clamp(Number(process.env.JEV_DUB_LIE_MAX_ATTEMPTS), 1, 5, 2),
-      costInputPerM: Number(process.env.JEV_DUB_LIE_COST_INPUT_PER_M || 0),
-      costOutputPerM: Number(process.env.JEV_DUB_LIE_COST_OUTPUT_PER_M || 0),
+      endpoint: process.env.JEV_AUDIO_CLASSIFY_ENDPOINT?.trim() || DEFAULT_ENDPOINT,
+      model: (typeof modelRaw === 'string' ? modelRaw.trim() : '') || process.env.JEV_AUDIO_CLASSIFY_MODEL?.trim() || DEFAULT_MODEL,
+      threshold: threshold.value ?? clamp(Number(process.env.JEV_AUDIO_CLASSIFY_THRESHOLD), 0, 1, 0.55),
+      concurrency: concurrency.value ?? clamp(Number(process.env.JEV_AUDIO_CLASSIFY_CONCURRENCY), 1, 16, 4),
+      timeoutMs: timeoutMs.value ?? clamp(Number(process.env.JEV_AUDIO_CLASSIFY_TIMEOUT_MS), 1000, 300000, 30000),
+      maxAttempts: maxAttempts.value ?? clamp(Number(process.env.JEV_AUDIO_CLASSIFY_MAX_ATTEMPTS), 1, 5, 2),
+      costInputPerM: Number(process.env.JEV_AUDIO_CLASSIFY_COST_INPUT_PER_M || 0),
+      costOutputPerM: Number(process.env.JEV_AUDIO_CLASSIFY_COST_OUTPUT_PER_M || 0),
     },
   };
 }
@@ -173,17 +131,17 @@ function loadKey() {
 
 function dryRun(cfg) {
   const fp = corpusFingerprint(CASES);
-  const lies = CASES.filter((c) => c.expectLie).length;
+  const ptbr = CASES.filter((c) => c.expectPtBr).length;
   const groups = [...new Set(CASES.map((c) => c.group))].sort();
   console.log('modo=dry-run (rede não é acionada neste caminho — garantia por construção, não sandbox)');
-  console.log(`corpus=${CASES.length} casos (${lies} lie / ${CASES.length - lies} honest) famílias=${groups.length} [${groups.join(', ')}]`);
+  console.log(`corpus=${CASES.length} casos (${ptbr} ptbr / ${CASES.length - ptbr} other) famílias=${groups.length} [${groups.join(', ')}]`);
   console.log(`prompt_version=${PROMPT_VERSION} corpus_sha256_12=${fp.short}`);
   console.log(`modelo=${cfg.model} threshold=${cfg.threshold} concorrência=${cfg.concurrency} timeout_ms=${cfg.timeoutMs} tentativas_máx=${cfg.maxAttempts}`);
   console.log(`fan-out planejado: ${CASES.length} requests (1 caso/request), no máximo ${cfg.concurrency} em voo`);
-  console.log(`allowlist=OK (${['post_title', 'indexer', 'video_files'].join(', ')}) — magnet/hash/config/conta/chave nunca saem do processo`);
+  console.log(`allowlist=OK (${['post_title'].join(', ')}) — indexer/arquivo/config/conta/chave nunca saem do processo`);
   console.log('payload de exemplo (primeiro caso):');
   console.log(JSON.stringify({ state: buildState(CASES[0]), model: cfg.model, questions: '…' }, null, 2));
-  console.log('custo: configure JEV_DUB_LIE_COST_INPUT_PER_M / JEV_DUB_LIE_COST_OUTPUT_PER_M (USD por 1M tokens)');
+  console.log('custo: configure JEV_AUDIO_CLASSIFY_COST_INPUT_PER_M / JEV_AUDIO_CLASSIFY_COST_OUTPUT_PER_M (USD por 1M tokens)');
   console.log('fora do caminho crítico — probe offline; nada disso roda em src/.');
 }
 
@@ -191,6 +149,7 @@ async function online(cfg, key) {
   const fp = corpusFingerprint(CASES);
   console.log(`casos=${CASES.length} threshold=${cfg.threshold} modelo=${cfg.model} concorrência=${cfg.concurrency}`);
   const meta = {
+    reportTitle: 'Jev audio-classify probe',
     model: cfg.model,
     threshold: cfg.threshold,
     concurrency: cfg.concurrency,
@@ -202,10 +161,16 @@ async function online(cfg, key) {
     generatedAt: new Date().toISOString(),
   };
   let authFatal = false;
+  // O cliente/métricas compartilhados falam em expectLie/predLie/tp-fp-fn-tn
+  // (positivo genérico); aqui a classe positiva é "título indica pt-BR
+  // dub" — expectPtBr entra como expectLie sem perder o nome próprio no
+  // corpus, que continua expectPtBr por clareza de leitura.
+  const casesForClient = CASES.map((c) => ({ ...c, expectLie: c.expectPtBr }));
   const rows = await runCorpus({
-    cases: CASES,
+    cases: casesForClient,
     buildState,
     questions: QUESTIONS,
+    questionId: QUESTION_ID,
     key,
     endpoint: cfg.endpoint,
     model: cfg.model,
@@ -223,8 +188,8 @@ async function online(cfg, key) {
         return;
       }
       const mark = row.ok ? 'OK' : 'MISS';
-      const expect = row.expectLie ? 'lie' : 'ok';
-      console.log(`${mark} ${row.id} expect=${expect} noul=${row.noul.toFixed(3)} pred=${row.predLie ? 'lie' : 'ok'} ${row.latencyMs}ms`);
+      const expect = row.expectLie ? 'ptbr' : 'other';
+      console.log(`${mark} ${row.id} expect=${expect} noul=${row.noul.toFixed(3)} pred=${row.predLie ? 'ptbr' : 'other'} ${row.latencyMs}ms`);
     },
   });
   const summary = summarize({ rows, meta });
@@ -268,8 +233,6 @@ async function main() {
     const authFatal = await online(cfg, key);
     if (authFatal) process.exitCode = 1;
   } catch (e) {
-    // Fail-open: falha inesperada não engole o processo — loga e marca
-    // exitCode (sem exit forçado, nada pendura flush pendente).
     console.error('falha inesperada na corrida:', e?.message || e);
     process.exitCode = 1;
   }
