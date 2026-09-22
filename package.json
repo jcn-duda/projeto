@@ -361,6 +361,8 @@
     "test/painel-esm.test.js",
     "test/painel-client.test.js",
     "test/painel-views.test.js",
+    "test/painel-jev.test.js",
+    "test/dashboard-actions-jev.test.js",
     "test/painel-config.test.js",
     "test/painel-diagnostico.test.js",
     "test/painel-limpeza.test.js",
