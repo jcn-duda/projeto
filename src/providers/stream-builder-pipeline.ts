@@ -25,6 +25,7 @@ import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
 import { applyProbedQuality } from './probed-quality.js';
 import { applyPtTitleDual } from './pt-title-dual.js';
 import { markBankFilterOutcome } from './magnet-bank-hook.js';
+import { shadowAudioJudgments } from '../ai/index.js';
 import { filterSeriesEpisodeRaw } from './stream-builder-episode-filter.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 import { globalLieHashes } from '../utils/magnet-bank-lie.js';
@@ -154,6 +155,10 @@ export function prepareCandidateStreams(
     // Banco de magnets vivo: o resultado do filtro de título escreve
     // `passed_filter` 0/1 na obra (última observação; só work já capturada).
     markBankFilterOutcome(antesTitulo, raw, { imdbId, season, episode });
+    // TypeSafe SHADOW (default OFF): enfileira títulos pós-filtro para medir
+    // concordância com o veredito determinístico — só métrica. Fire-and-forget:
+    // não awaita, não altera item/resultado, não toca o prazo da resposta.
+    shadowAudioJudgments(raw);
   }
 
   // Pack multiobra admitido (feature BR_MULTIWORK_PACKS): marca antes das

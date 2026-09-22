@@ -65,6 +65,10 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
     // markers/dead/queues/prefetch/sup, então a cota dobrou e o teto global
     // subiu junto — sempre estritamente acima da soma.
     assert.equal(cache.QUOTAS.autofetch, 4000);
+    // TypeSafe shadow (`tsj:v1`): julgamento cru minúsculo; com ele a conta do
+    // universo fecha em 92.721 (folga 279) — comentário-cabeçalho de
+    // cache-quotas.ts é a fonte da conta.
+    assert.equal(cache.QUOTAS.tsj, 500);
     // `muri` foi aposentado: a URI por hash saiu do cache para o banco
     // permanente, a cota (20.000) saiu do universo e o teto voltou a 93.000.
     assert.equal(cache.QUOTAS.muri, undefined, 'muri não é mais namespace de cache');

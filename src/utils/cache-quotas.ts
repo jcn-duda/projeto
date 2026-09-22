@@ -15,9 +15,10 @@
 // `__default` (500) para todo nome sem entrada própria, então cada namespace
 // que exista em `NAMESPACE_VERSIONS` sem cota nomeada soma mais 500 aqui. O
 // universo real é a união dos dois registros, mais o balde `__default` das
-// chaves sem `:`. Hoje: 91.721 + 500 = 92.221 entradas alcançáveis contra o
-// teto de 93.000 — folga de 779, ~1 balde de 500 de namespace novo antes
-// de o teto virar o garrote. A conta é refeita no teste
+// chaves sem `:`. Hoje: 91.721 + 500 = 92.221, mais o `tsj` (500) do TypeSafe
+// shadow = 92.721 entradas alcançáveis contra o teto de 93.000 — folga de
+// 279, margem curta: o PRÓXIMO namespace novo precisa vir acompanhado de
+// remoção ou subida de teto, não só da entrada na tabela. A conta é refeita no teste
 // (test/cache-namespaces.test.ts), que também exige cota explícita para todo
 // namespace versionado. Foi a falta dessa segunda guarda que deixou `dinv`,
 // `harvest`, `notify` e `seed` vivendo de fallback até a soma real passar do
@@ -145,6 +146,11 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   notify: 100,
   seed: 20,
   harvest: 500,
+  // Julgamento cru do TypeSafe shadow (`tsj:v1`, 14d de TTL): entrada
+  // minúscula `{ n, m, at }` (~60 B + chave 64-hex). Cota pequena de propósito
+  // — o runtime é shadow e default OFF; 500 julgamentos quentes bastam para o
+  // ciclo de buscas de um dia sem competir com baldes de produção.
+  tsj: 500,
   __default: 500,
 });
 

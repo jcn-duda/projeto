@@ -1,5 +1,6 @@
 import type { AppServices } from './types.js';
 import * as brCoverage from '../utils/br-coverage.js';
+import { aiStatus } from '../ai/index.js';
 import { indexerFallbackMetricKey } from '../utils/metric-id.js';
 import { releaseIndexStatus, jackettServiceFlag, type MetricSnapshot } from './dashboard-status-helpers.js';
 
@@ -20,6 +21,7 @@ export const ALL_BLOCKS = [
   'resolvers',
   'conta',
   'gate',
+  'typesafe',
 ] as const;
 
 export type BlockName = (typeof ALL_BLOCKS)[number];
@@ -383,6 +385,13 @@ export async function computeStatusPayload(
       envAutoFetchPauseAt: afSnap.envDefaults.autoFetchPauseAt,
       isAutoFetchPauseAtOverridden: afSnap.overriddenKeys.includes('autoFetchPauseAt'),
     };
+  }
+
+  // Bloco typesafe (SHADOW-ONLY, default OFF): resumo compacto do runtime de
+  // julgamento — fila, orçamento e breaker. Nunca decide nada; o detalhe
+  // vive em /metrics.json (typesafe.*) e docs/TYPESAFE_SYSTEM_ONE.md.
+  if (isReq('typesafe')) {
+    out.typesafe = aiStatus();
   }
 
   return { ok: true, data: out };

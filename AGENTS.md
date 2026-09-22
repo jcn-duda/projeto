@@ -1738,6 +1738,66 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
 
 ---
 
+## TypeSafe (System One) — runtime SHADOW-ONLY, default OFF (`src/ai/`)
+
+Integração de IA (modelo Jev) que **mede e nunca decide**: títulos pós-filtro
+são classificados em fila assíncrona e comparados com o veredito
+determinístico (`looksPtBr`/`_br`) — o resultado é **só métrica de
+concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
+(probes, resultados online 38/38 e 26/30 com limitações, e §15 do runtime).
+
+- **Kill-switch é o default.** `TYPESAFE_RUNTIME_ENABLED=false` (ou
+  `TYPESAFE_API_KEY` vazia) deixa o runtime INERTE por construção: o enqueue
+  curto-circuita ANTES do fingerprint — zero fetch, zero leitura e zero
+  escrita do cache `tsj`. Não "conserte" isso movendo o gate para depois.
+- **Zero influência é por grafo, não por disciplina.** Nenhum módulo de
+  decisão (matching/áudio, limpeza, lie/bad, índice, banco de magnets,
+  autofetch, debrid) importa `src/ai/`; no caminho de resposta só a fachada
+  `ai/index.js` é permitida — `test/typesafe-shadow-graph.test.ts` reprova
+  qualquer desvio. NÃO crie caminho de `src/utils/*` ou `src/debrid/*` para
+  `src/ai/`.
+- **Nunca awaited pela resposta.** O produtor é `prepareCandidateStreams`
+  (depois do filtro determinístico), com teto de 12 títulos únicos por build
+  (`SHADOW_PER_BUILD_MAX`); o drain roda em `setImmediate`, lê SÓ
+  `config.typesafe` (nunca `opts()`), 1 tentativa por item. O cliente tem
+  TETO de 3000 ms e segredo SÓ no header `Authorization: Bearer`.
+- **Orçamento e breaker próprios:** `TYPESAFE_QUEUE_MAX` (teto duro de fila —
+  excedente descarta, não existe fila infinita), `TYPESAFE_HOURLY_CAP` +
+  `TYPESAFE_DAILY_CAP` (janelas independentes), backoff exponencial na base
+  `TYPESAFE_COOLDOWN_MS`; auth 401/403 para 30 min com um warn único por
+  processo.
+- **Cache do julgamento cru (`tsj:v1`, cota 500):** chave
+  `sha256(título normalizado | model | promptVersion)`, valor `{ n, m, at }`
+  sem título/chave/config. O noul é gravado CRU; o threshold é aplicado SÓ na
+  comparação shadow de uma chamada NOVA (o cache-hit retorna cedo e não
+  re-contabiliza métrica). Guardar o valor cru é o que permite recomputar sem
+  re-pagar quando um recompute existir — hoje não existe consumidor de
+  recompute, então mudar `TYPESAFE_THRESHOLD` só afeta chamadas novas. O
+  `TYPESAFE_MODEL` default `jev-latest` é ALIAS MÓVEL do provedor — aceitável
+  porque shadow: o model usado viaja no valor (`m`) e na chave (fp), então
+  troca de alias não mistura julgamentos.
+- **Pergunta versionada:** `questions-audio.ts` é espelho EXATO do probe
+  validado online (`jev-audio-classify-payload.mjs`); a paridade é travada
+  por teste. Mudou a pergunta → bump de `PROMPT_VERSION` (fp novo, julgamentos
+  órfãos expiram sozinhos).
+- **Estado enviado ao modelo: SOMENTE `post_title`** — allowlist campo a
+  campo. indexer/arquivo/magnet/hash/credencial/config nunca saem do processo.
+  ATENÇÃO do operador: ligar o runtime envia TÍTULOS a um serviço de
+  TERCEIRO — é o aviso que deve acompanhar qualquer documentação de ativação.
+- **Resultados online (2026-09-22) e limitações:** `dub-lie` 38/38 (margem
+  estreita 0,67/0,54) e `audio-classify` 26/30 com 4 FN em títulos
+  contraditórios; o ground truth do audio-classify é o próprio `looksPtBr`
+  (validação circular) — por isso a fase é shadow e o overlay (monotônico,
+  só-promove) fica condicionado a revisão humana do corpus. Threshold 0,55
+  não baixa sem isso.
+- **Observabilidade:** métricas `typesafe.*` no `/metrics.json` (labels
+  FECHADOS — kinds de erro e lados de discordância são uniões fixas, nunca
+  texto de título) e bloco compacto `typesafe` no `/dashboard-status.json`.
+- **Knobs são de OPERADOR** (`src/config/typesafe.ts`), fora do SCHEMA da URL
+  de instalação — mudar um deles não mexe no link do usuário.
+
+---
+
 ## Os seis invariantes que mais quebram
 
 **1. O orçamento de tempo é sagrado.**
@@ -2057,6 +2117,7 @@ fire-and-forget) continua.
 | `src/providers/live-indexer-state.ts` | Estado vivo de falha por indexer da coleta (`error`/`breaker`/`source`, `pending` conta como falho, `*all*` agregado) e `mergeLiveIndexerStates` |
 | `src/providers/magnet-bank-hook.ts` | Ponte stream-builder → banco: hashes não-conta/não-fallback e `targetsFor` escrevem o `passed_filter` da obra |
 | `src/providers/magnet-bank-fallback.ts` | Reserva da Etapa 4: seleção por indexer falho/`allFailed`, live-dedupe, tetos por indexer/global, selo `fromFallback` e métricas `fallback.*` |
+| `src/ai/` | Runtime TypeSafe/System One **SHADOW-ONLY** (seção própria abaixo): `index.ts` é a fachada ÚNICA (`shadowAudioJudgments`/`aiStatus`), `typesafe-client.ts` a única dona do fetch, `audio-judgment-queue.ts` a fila com orçamento/breaker, `audio-judgment-cache.ts` o cache `tsj:v1`, `questions-audio.ts` o espelho da pergunta validada online, `types.ts` os tipos. Nenhum módulo de decisão importa `src/ai/` — travado por `test/typesafe-shadow-graph.test.ts` |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
 | `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — laço único para quem usa protetor), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
 | `*-resolver/` | Shims de compatibilidade/standalone (**TypeScript/ESM**, sem `package.json` de override): `<nome>/server.ts` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.ts`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)`. Os `server.d.ts` foram removidos — a implementação TS é o contrato; `nerdfilmes-resolver/test.ts` e `torrentdosfilmes-resolver/smoke-test.ts` também são compilados pelo tsc |

@@ -20,6 +20,7 @@ import { cacheBase, rawCache, cache, catalog, magnetBank } from './config/cache.
 import { debrid } from './config/debrid.js';
 import { warmup, releaseIndex, accountFastPath, harvest, seed, f3 } from './config/harvest.js';
 import { magnetDb, audioAudit, notify } from './config/audit.js';
+import { typesafe } from './config/typesafe.js';
 
 const config = {
   // port, host, addonName, addonId, version, provider, logging
@@ -54,6 +55,9 @@ const config = {
   audioAudit: audioAudit(),
   notify: notify(),
   f3: f3(),
+  // TypeSafe/System One SHADOW-ONLY (Jev): knobs de operador, fora do schema
+  // da URL de usuário. Default OFF — docs/TYPESAFE_SYSTEM_ONE.md.
+  typesafe: typesafe(),
 };
 
 export default config;

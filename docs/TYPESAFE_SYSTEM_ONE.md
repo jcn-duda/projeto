@@ -1,13 +1,16 @@
 # TypeSafe / System One — Probes Jev dub-lie e audio-classify (ETAPAS 2–3)
 
-> **Status desta validação:** o `--dry-run` foi executado localmente sem
-> chave e sem rede. **Nenhuma chamada real à API TypeSafe foi feita nesta
-> validação**: o contrato wire (endpoint, header, envelope de resposta,
-> formato de usage) herdou do protótipo anterior e **ainda não foi
-> revalidado contra uma chamada real** — e, por isso, **nenhuma métrica de
-> qualidade do modelo foi medida aqui**. O dry-run prova integridade do
-> corpus, allowlist do payload e o plano de fan-out — não acurácia, não
-> latência real, não tokens, não custo.
+> **Status desta validação:** corridas ONLINE reais executadas em 2026-09-22
+> (68 chamadas, 0 erro, latência média ~400–430 ms/chamada):
+> **`dub-lie` 38/38 (100%)** — menor positivo 0,67 / maior negativo 0,54 com
+> threshold 0,55, **margem estreita**; **`audio-classify` 26/30 (86,7%)** —
+> 8 TP, 18 TN e **4 FN em títulos contraditórios** (idioma estrangeiro + PT no
+> mesmo título). **Limitações:** o ground truth do audio-classify é o PRÓPRIO
+> `looksPtBr` (não humano — acordo com a regra que ele imita é validação
+> circular); threshold 0,55 mantido por causa da margem e dos FN; qualquer
+> rebaixo de threshold exige revisão humana do corpus contraditório. Os
+> probes validaram contrato wire, allowlist e latência — **não** validam
+> acurácia de produção nem autorizam decisão automática (ver §15).
 
 Este documento é a operação dos experimentos TypeSafe no Adom Power-Movie.
 Fonte conceitual obrigatória:
@@ -376,11 +379,16 @@ futura seria, por exemplo, `fp = 0` nas famílias sensíveis — **fora do
 escopo desta validação**.
 
 **Rollback / desligar o experimento:**
-- Não há kill-switch em runtime porque **nada em `src/` depende dele** —
-  rollback é simplesmente não rodar a CLI (ou remover os arquivos do
-  probe em commit próprio, se desejado).
+- Nos PROBES, não há kill-switch em runtime porque nada em `src/` depende
+  deles — rollback é simplesmente não rodar a CLI (ou remover os arquivos do
+  probe em commit próprio, se desejado). **O RUNTIME shadow (§15) tem
+  kill-switch próprio**: `TYPESAFE_RUNTIME_ENABLED=false` (default) descarta a
+  fila pendente e bloqueia novas leituras/escritas do cache `tsj` — sem limpar
+  o cache. Uma chamada JÁ EM VOO conclui (janela ≤ 3000 ms) e grava o
+  julgamento/métrica antes do desligamento; é ruído desprezível, não um
+  caminho de decisão.
 - `TYPESAFE_API_KEY` ausente → online aborta com exit 2; dry-run continua
-  funcionando.
+  funcionando; no runtime, ausência de chave equivale a desligado.
 - O `.env.example` mantém `TYPESAFE_API_KEY=` opcional e comentado; removê-la
   do `.env` local não afeta o addon.
 
@@ -417,3 +425,66 @@ CLI por spawn do script real (dry-run, exit 3, `--flag=value`). Nenhuma
 função abre socket.
 
 **Referências:** [Atomic questions, composed in code](https://docs.typesafe.ai/introduction#atomic-questions-composed-in-code) · [índice da docs](https://docs.typesafe.ai/llms.txt) · `.cursor/skills/typesafe-ai/SKILL.md` · `AGENTS.md` (regras do repo) · `.env.example` → `TYPESAFE_API_KEY`
+
+---
+
+## 15. RUNTIME SHADOW-ONLY (ETAPA 4) — mede, nunca decide
+
+A integração do TypeSafe no runtime do Adom é **SOMBRA**: classifica títulos
+pós-filtro em fila assíncrona e compara com o veredito determinístico
+(`looksPtBr`/`_br`) — produz **SÓ MÉTRICA de concordância**. **Default OFF**
+(`TYPESAFE_RUNTIME_ENABLED=false`): sem a flag (ou sem chave) o runtime é
+inerte **por construção** — zero fetch, zero leitura e zero escrita de cache
+(curto-circuito ANTES do fingerprint). Nenhuma decisão de busca, ranking,
+vaga BR, `_dubClaim`/`_dubbed`/`lie`, índice, banco de magnets, limpeza ou
+autofetch lê qualquer saída deste runtime — garantido por teste de grafo
+(`test/typesafe-shadow-graph.test.ts`), que reprova qualquer import de
+`src/ai/` nos módulos de decisão e só permite a fachada no caminho de
+resposta.
+
+**Arquivos** (`src/ai/`, todos sob o teto de linhas, sem dependência nova):
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `src/ai/types.ts` | Tipos públicos (`JevAudioJudgment`, `EnqueueResult`, `AskErrorKind`) |
+| `src/ai/questions-audio.ts` | Espelho TS da pergunta validada online (paridade travada por teste) |
+| `src/ai/typesafe-client.ts` | Única dona do fetch: Bearer no header, 1 tentativa, timeout ≤ 3000 ms, parse defensivo, fail-open |
+| `src/ai/audio-judgment-cache.ts` | Cache do julgamento CRU (`tsj:v1`, cota 500, TTL de config) |
+| `src/ai/audio-judgment-queue.ts` | Fila deduplicada + orçamento hora/DIA + breaker/auth-stop + comparação shadow |
+| `src/ai/index.ts` | Fachada ÚNICA (`shadowAudioJudgments` produtor, `aiStatus` resumo) |
+
+**Fluxo:** o produtor é `prepareCandidateStreams` (pós-filtro determinístico
+de título) — enfileira até 12 títulos únicos por build (teto
+`SHADOW_PER_BUILD_MAX`; excedente vira métrica `build-capped` e volta na
+próxima busca), fire-and-forget, **nunca awaited pela resposta**. O drain roda
+em `setImmediate`, lê SÓ `config.typesafe` (nunca `opts()`), com concorrência
+1..4 e **1 tentativa por item** (quem re-pede é a próxima busca; o cache evita
+re-chamada).
+
+**Limites de custo (todos de operador, em `src/config/typesafe.ts`):**
+`queueMax` teto DURO de fila (excedente descarta — não existe fila infinita),
+`hourlyCap`/`dailyCap` janelas independentes, `cooldownMs` base do backoff
+(fator 2^n até 32x), auth 401/403 para 30 min com um único warn por processo,
+rate 429 honra Retry-After (teto 5 min). O timeout do cliente tem TETO de
+3000 ms (contrato do slice).
+
+**Cache `tsj:v1`:** chave `sha256(título normalizado | model | promptVersion)`,
+valor `{ n, m, at }` — noul CRU (threshold aplicado só na comparação shadow),
+sem título, sem chave, sem config. Namespace registrado com cota explícita
+(500) e a conta do universo recalculada (92.721 ≤ teto 93.000, folga 279).
+
+**Observabilidade:** métricas `typesafe.*` no `/metrics.json` (enqueue por
+resultado, call ok/erro por kind FECHADO, budget hora/dia, breaker, cache
+hit/miss, shadow agree/disagree com lado fixo, latency, tokens, fila) e bloco
+compacto `typesafe` no `/dashboard-status.json` (`aiStatus()`: enabled, model,
+promptVersion, fila, orçamento, cooldown). Nenhuma métrica leva texto de
+título.
+
+**Por que shadow e não overlay (diferença do plano M1):** os resultados
+online recomendam cautela — o 26/30 tem 4 FN justamente nos títulos
+contraditórios que seriam o domínio do overlay, e o ground truth atual é
+circular (`looksPtBr`). Promover release por IA antes de ground truth humano
+arriscaria vaga BR em título que a própria regra rejeitaria com razão. A
+fase shadow mede a concordância EM PRODUÇÃO sem apostar nada; o overlay
+(monotônico, só-promove) continua sendo fase futura condicionada a revisão
+humana do corpus.

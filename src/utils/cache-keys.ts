@@ -141,6 +141,14 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // Resolução medida no cabeçalho do vídeo, por arquivo
   // (`vres:v1:<hash>:<digest do caminho>`, registro `{ q, w, h }`).
   vres: 'v1',
+  // Julgamento CRU do TypeSafe/System One, runtime SHADOW-ONLY
+  // (`tsj:v1:<sha256(título normalizado|model|promptVersion)>`, registro
+  // `{ n, m, at }` — noul cru, model, epoch ms). Sem título, sem chave, sem
+  // config na chave/valor. O fingerprint já isola model+prompt (bumpar a
+  // pergunta troca de chave sozinho); bumpar AQUI é só para mudar o FORMATO do
+  // valor. Default OFF do runtime: kill-switch desligado não lê nem escreve
+  // este namespace (docs/TYPESAFE_SYSTEM_ONE.md).
+  tsj: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e
