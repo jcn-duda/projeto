@@ -46,7 +46,10 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // PT — caso Coyote Ugly (tt0200550, 2026-09-21): 4 vagas BR com russo
   // espelhado pelo kickasstorrents.to. Sem o bump, a lista cacheada
   // continuaria servindo o rótulo DUB BR errado até o TTL.
-  streams: 'v13',
+  // v14: `_dubClaim` (promessa de título) ≠ `_dubbed` (prova de arquivo).
+  // Listas v13 pintavam chip/prioridade/Chupim com a promessa e, sob d:1,
+  // ou esvaziavam a 1ª abertura ou tratavam mentiroso como DUB confiável.
+  streams: 'v14',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',

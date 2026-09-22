@@ -120,7 +120,7 @@ export async function buildStreams(rawInput: RawItem[], {
   // BR legendado oculto o disparava mentindo. Medido em produção (tt6751668):
   // 5 dubladas no índice, nenhuma em cache, 2 legendadas servidas — o autofetch
   // já baixava a dublada e o usuário não via sinal nenhum disso.
-  const dubEnteredDebrid = streams.filter((s) => (s as any)._br && (s as any)._dubbed).length;
+  const dubEnteredDebrid = streams.filter((s) => (s as any)._br && ((s as any)._dubbed || (s as any)._dubClaim)).length;
   // I0 — funil da primeira resposta, contado AQUI (no buildStreams, não no
   // debrid): é o BR que ENTRARIA no debrid, independente de haver adapter. Por
   // ser estagiado no estado e finalizado no `onSelected` junto de brVisible,
@@ -225,7 +225,7 @@ export async function buildStreams(rawInput: RawItem[], {
   // corte apaga os campos internos que responderiam a pergunta. Conta ANTES do
   // notice: o brHidden alimenta o texto do aviso e o sufixo do log.
   const brIn = beforeCut.filter((s) => s._br);
-  const dubIn = brIn.filter((s) => s._dubbed);
+  const dubIn = brIn.filter((s) => s._dubbed || s._dubClaim);
   // pendingBrHidden já é o delta pós-trust (countFirstBr depois do prune):
   // bad/dead/lie não entram. Math.max com (brEnteredDebrid − brIn) misturava
   // trust drop com cachedOnly e o notice "reabra" mentia — reabrir não tira

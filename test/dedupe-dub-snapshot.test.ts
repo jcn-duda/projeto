@@ -23,7 +23,8 @@ test('dedupeByHash: espelho global com dublagem genérica (_Dub) herda BR/dublad
   for (const order of [[post, espelho], [espelho, post]]) {
     const [merged] = dedupeByHash(order);
     assert.equal(merged._br, true, 'herda a origem BR do post');
-    assert.equal(merged._dubbed, true, 'herda o dublado do post');
+    assert.equal(merged._dubClaim, true, 'herda a promessa do post');
+    assert.equal(merged._dubbed, false, 'herança não é prova de arquivo');
     assert.equal(merged._seeders, 160);
     assert.match(String(merged.name), /\bBR\b/);
   }

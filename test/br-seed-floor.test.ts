@@ -44,15 +44,16 @@ test('caso real: release global BR dublada com 0 seeders sobrevive ao piso e che
     tracker: 'The Pirate Bay',
     indexer: 'thepiratebay',
   });
-  // A marcação que produção mediu: origem pelo título, áudio declarado.
+  // A marcação que produção mediu: origem pelo título, áudio declarado (claim).
   assert.equal(rara._br, true, 'looksPtBr marca a origem pelo título');
-  assert.equal(rara._dubbed, true, 'DUBLADO declara o áudio');
+  assert.equal(rara._dubClaim, true, 'DUBLADO é promessa de título');
+  assert.equal(rara._dubbed, false, 'sem fileEvidence ainda não é prova');
 
   const dWaived = deltaOf('search.brDubbed.seedFloorWaived');
   const out = sortAndLimit([rara], { minSeeders: 1, maxResults: 10 });
-  assert.equal(out.length, 1, '0 seeders não pode matar a comprovada BR dublada');
+  assert.equal(out.length, 1, '0 seeders não pode matar a BR com claim de dublado');
   assert.equal(out[0]._br, true);
-  assert.equal(out[0]._dubbed, true);
+  assert.equal(out[0]._dubClaim, true);
   assert.equal(out[0]._seedFloorWaived, true, 'o waiver viaja marcado para o enqueue');
   assert.ok(!('_seeders' in out[0]), 'internos seguem o contrato do pool');
   assert.equal(dWaived(), 1, 'o waiver fica mensurado em /metrics.json');
@@ -72,9 +73,10 @@ test('controles negativos: global comum, Dual ambíguo, estrangeiro e `_lied` mo
   });
   assert.equal(comum._br, false);
   assert.equal(comum._dubbed, false);
+  assert.equal(comum._dubClaim, false);
   assert.equal(sortAndLimit([comum], { minSeeders }).length, 0);
 
-  // Dual ambíguo (sem PT ao lado): _br/_dubbed não nascem (invariante 8.12).
+  // Dual ambíguo (sem PT ao lado): _br/_dubClaim não nascem (invariante 8.12).
   const dual = globalStream({
     title: 'Event.Horizon.1997.1080p.DUAL.BDRip',
     infoHash: 'c'.repeat(40),
@@ -83,6 +85,7 @@ test('controles negativos: global comum, Dual ambíguo, estrangeiro e `_lied` mo
   });
   assert.equal(dual._br, false);
   assert.equal(dual._dubbed, false);
+  assert.equal(dual._dubClaim, false);
   assert.equal(sortAndLimit([dual], { minSeeders }).length, 0);
 
   // Estrangeiro explícito com sinal PT no título: TRUEFRENCH desmente o waiver.
@@ -93,7 +96,8 @@ test('controles negativos: global comum, Dual ambíguo, estrangeiro e `_lied` mo
     indexer: 'thepiratebay',
   });
   assert.equal(frances._br, true, 'o sinal PT marca origem, mas...');
-  assert.equal(frances._dubbed, true);
+  assert.equal(frances._dubClaim, true);
+  assert.equal(frances._dubbed, false);
   assert.equal(
     sortAndLimit([frances], { minSeeders }).length, 0,
     'áudio estrangeiro explícito não é comprovadamente BR dublada',

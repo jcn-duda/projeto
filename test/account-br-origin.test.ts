@@ -177,9 +177,10 @@ test('toStremioStream: Dual na origem-só não promove; provider/looksPtBr segue
     seeders: 1,
     indexer: 'comandotorrents',
   });
-  assert.equal((providerDual as any)._dubbed, true);
+  assert.equal((providerDual as any)._dubClaim, true);
+  assert.equal((providerDual as any)._dubbed, false);
 
-  // looksPtBr (Dublado no título): _dubbed de sempre.
+  // looksPtBr (Dublado no título): claim sem fileEvidence.
   const dublado = toStremioStream({
     title: T_DUB,
     infoHash: H_DUB,
@@ -187,7 +188,8 @@ test('toStremioStream: Dual na origem-só não promove; provider/looksPtBr segue
     seeders: 1,
     indexer: 'debrid',
   });
-  assert.equal((dublado as any)._dubbed, true);
+  assert.equal((dublado as any)._dubClaim, true);
+  assert.equal((dublado as any)._dubbed, false);
 });
 
 // --- Sobrevivência ao corte final (q1=2) -------------------------------------
@@ -203,6 +205,9 @@ function optsZombieland(extra: Record<string, unknown> = {}) {
     debridService: 'realdebrid',
     debridApiKey: 'chave-zombieland',
     debridCachedOnly: false,
+    // Este caso testa vaga `_br` (origem), não d:1 — o default do operador
+    // pode nascer com dubbedOnly e, com claim≠proven, esvazia a lista.
+    dubbedOnly: false,
     autoFetchBr: false,
     max1080p: 2,
     maxResults: 40,

@@ -48,6 +48,7 @@ async function build(raw: RawItem[], {
     autoFetchBr: false,
     minSeeders,
     maxResults,
+    dubbedOnly: false,
   };
   const trace = createStreamTrace();
   try {
@@ -289,6 +290,7 @@ test('alldebrid: trace ligado x desligado produz o MESMO tráfego de conta', asy
     // cachedOnly nem roda e o ledger não teria o que capturar.
     debridCachedOnly: true,
     autoFetchBr: false,
+    dubbedOnly: false,
   });
   const trafego = (raws: RawItem[]) => {
     const pronto = String(raws[1].infoHash ?? '');

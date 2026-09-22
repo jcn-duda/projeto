@@ -29,6 +29,7 @@ test('cachedOnly+bu=false: BR oculto anexa aviso de reabertura; Dual/gringo perm
     debridCachedOnly: true,
     showUncachedBr: false,
     autoFetchBr: false,
+    dubbedOnly: false,
   };
   const firstObserver = createFirstObserver(true);
   try {
@@ -85,6 +86,7 @@ test('cachedOnly+bu=true: BR uncached volta como P2P e sem aviso de reabertura p
     debridCachedOnly: true,
     showUncachedBr: true,
     autoFetchBr: false,
+    dubbedOnly: false,
   };
   try {
     const streams = await runtime.run({ opts: userOpts, encoded: 'segcfg' }, async () => {
@@ -133,6 +135,7 @@ test('filtro de título loga (M BR) — M=0 não culpa o matching pelo zero BR',
     debridApiKey: 'chave-fake',
     debridCachedOnly: true,
     autoFetchBr: false,
+    dubbedOnly: false,
   };
   try {
     await runtime.run({ opts: userOpts, encoded: 'segcfg' }, () =>
@@ -181,6 +184,7 @@ test('BR dropado por bad + Dual cacheado: sem notice de reabertura (pendingBrHid
     debridCachedOnly: true,
     showUncachedBr: false,
     autoFetchBr: false,
+    dubbedOnly: false,
   };
   try {
     const streams = await runtime.run({ opts: userOpts, encoded: 'segcfg' }, async () => {
@@ -249,6 +253,7 @@ test('BR legendado cacheado não cala o aviso quando TODA dublada sumiu no cache
     debridCachedOnly: true,
     showUncachedBr: false,
     autoFetchBr: false,
+    dubbedOnly: false,
   };
   try {
     const streams = await runtime.run({ opts: userOpts, encoded: 'segcfg' }, async () => {
@@ -302,6 +307,7 @@ test('só BR legendado oculto: não promete dublada que nunca existiu', async ()
     debridCachedOnly: true,
     showUncachedBr: false,
     autoFetchBr: false,
+    dubbedOnly: false,
   };
   try {
     const streams = await runtime.run({ opts: userOpts, encoded: 'segcfg' }, async () => {

@@ -41,6 +41,7 @@ export type TraceReason =
   | 'bad'
   | 'dead'
   | 'lie'
+  | 'dubbed-only'
   | 'idx-miss'
   | 'cached-only'
   | 'rd-miss'

@@ -157,6 +157,13 @@ export interface StreamBase {
   _seeders?: number;
   _quality?: string;
   _size?: number;
+  /**
+   * Post promete Dublado/Dual/Nacional (ou PT explícito no título). Lista sob
+   * `dubbedOnly`; NÃO é prova de áudio — chip/preferDubbed/Chupim/adprot usam
+   * só `_dubbed`. Removido em `limitReservingBr`.
+   */
+  _dubClaim?: boolean;
+  /** Áudio PT só com fileEvidence / provenAudio / provenName positivo. */
   _dubbed?: boolean;
   _br?: boolean;
   _tracker?: string;

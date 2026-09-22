@@ -184,6 +184,25 @@ function canAutoFetchBr({ autoFetchBr }: AutofetchOptions = {}, adapter?: Debrid
 }
 
 /**
+ * BR com áudio prometido ou provado — vagas P2P do `showUncachedBr`.
+ * Mais largo que `brDubbedPool` (só prova): claim precisa LISTAR sob d:1+bu,
+ * senão a 1ª abertura some atrás do cachedOnly. LEGENDADO/origem sem claim
+ * continua fora. Autofetch/Chupim segue só com prova (`brDubbedPool`).
+ */
+function brListableDubPool(streams: Stream[] = []) {
+  return streams.filter(
+    (s) =>
+      s &&
+      s.infoHash &&
+      !s._fromFallback &&
+      s._br &&
+      !s._lied &&
+      (s._dubbed || s._dubClaim) &&
+      sourceFromTitle(s.title || s.name || '') !== 'CAM',
+  );
+}
+
+/**
  * Exceção explícita ao cachedOnly: as fontes globais continuam instantâneas,
  * mas as vagas reservadas BR não viram um vazio quando o dublado ainda não
  * chegou ao debrid. O stream fica como torrent P2P, sem selo ⚡.
@@ -192,9 +211,11 @@ function uncachedBrHashes(streams: Stream[] = [], cachedHashes: Set<string> = ne
   const selected = new Set<string>();
   const max = Math.max(0, Math.trunc(Number(limit) || 0));
   const cached = hashSet(cachedHashes);
-  // Mesmo pool do autofetch: a vaga P2P tem que ser o torrent que vamos baixar,
-  // não um LEGENDADO que só estava mais acima na lista.
-  for (const stream of brDubbedPool(streams)) {
+  // Prova primeiro, depois claim — LEGENDADO não ocupa a vaga P2P.
+  const pool = brListableDubPool(streams).sort(
+    (a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0),
+  );
+  for (const stream of pool) {
     if (selected.size >= max) break;
     if (!cached.has(String(stream.infoHash || '').toLowerCase())) {
       selected.add(String(stream.infoHash));
@@ -224,7 +245,9 @@ function filterKnownCache(
 ) {
   const cached = hashSet(cachedHashes);
   const miss = missHashes ? hashSet(missHashes) : null;
-  const cachedBr = brDubbedPool(streams).filter((stream) =>
+  // Conta prova+claim já em cache: a vaga P2P é o que falta listar, não o
+  // que o Chupim ainda vai baixar (só prova).
+  const cachedBr = brListableDubPool(streams).filter((stream) =>
     cached.has(String(stream.infoHash || '').toLowerCase()),
   ).length;
   const uncachedSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0) - cachedBr);

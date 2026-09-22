@@ -11,6 +11,7 @@ import { opts } from '../runtime.js';
 import { accountScope } from '../utils/request-key.js';
 import * as protectedApi from '../debrid/protected.js';
 import { isDubLieError, isEpisodePickError } from '../debrid/common.js';
+import { invalidateStreamsForObra } from '../utils/br-gap.js';
 import type { ApplyDebridOptions } from './debrid-pipeline-core.js';
 
 // Fase D da auditoria de áudio: candidatos ⚡ dublados confirmados em cache
@@ -25,6 +26,8 @@ type DubAuditCandidate = {
   imdbId: string | null;
   work?: WorkHint;
   dubbed: boolean;
+  /** Claim sem prova: OK do resolve precisa invalidar pra reopen promover `_dubbed`. */
+  needsPromote?: boolean;
   key?: string | null;
   extraKeys?: string[];
 };
@@ -48,7 +51,7 @@ export function collectAuditCandidates(
     // dispararia resolveLink/auditoria de áudio por um hash que o vivo não
     // confirmou nesta coleta — a prova de áudio não pode vir da reserva.
     if (s._fromFallback) continue;
-    if (!s.infoHash || !s._dubbed || !cached.has(s.infoHash)) continue;
+    if (!s.infoHash || !(s._dubbed || s._dubClaim) || !cached.has(s.infoHash)) continue;
     byHash.set(String(s.infoHash), {
       hash: String(s.infoHash),
       season: season ?? null,
@@ -56,6 +59,8 @@ export function collectAuditCandidates(
       imdbId: imdbId || null,
       work: work(s),
       dubbed: true,
+      // Já `_dubbed`: lista honesta; OK não precisa forget (evita churn de TTL).
+      needsPromote: Boolean(s._dubClaim && !s._dubbed),
     });
   }
   if (season != null && episode != null) {
@@ -139,9 +144,18 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
   let lies = 0;
   let wrongEpisodes = 0;
   const liedKeys = new Set<string>();
+  const okKeys = new Set<string>();
+  const okImdb = new Set<string>();
   for (const cand of batch) {
     try {
       await debrid.resolveLink(cand.hash, { season: cand.season, episode: cand.episode, work: cand.work, dubbed: Boolean(cand.dubbed) });
+      // resolveLink OK com candidatura dublada: fileEvidence gravado —
+      // invalida só quando a lista ainda era claim (promover → `_dubbed`).
+      if (cand.dubbed && cand.needsPromote) {
+        if (cand.key) okKeys.add(cand.key);
+        for (const extra of cand.extraKeys || []) if (extra) okKeys.add(extra);
+        if (cand.imdbId) okImdb.add(cand.imdbId);
+      }
     } catch (err) {
       if (isDubLieError(err)) {
         lies += 1;
@@ -155,6 +169,7 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
         if (cand.imdbId) releaseIndex.markLied(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash);
         if (cand.key) liedKeys.add(cand.key);
         for (const extra of cand.extraKeys || []) if (extra) liedKeys.add(extra);
+        if (cand.imdbId) okImdb.add(cand.imdbId);
         metrics.count('debrid.audit.lie.tail');
         log.warn(`[audit] tail provou mentira ${String(cand.hash).slice(0, 8)}${err.evidence?.matchedGroup ? ` (${err.evidence.matchedGroup})` : ''}`);
       } else if (isEpisodePickError(err)) {
@@ -181,13 +196,16 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
         }
         if (cand.key) liedKeys.add(cand.key);
         for (const extra of cand.extraKeys || []) if (extra) liedKeys.add(extra);
+        if (cand.imdbId) okImdb.add(cand.imdbId);
         log.warn(`[audit] tail provou episódio errado ${String(cand.hash).slice(0, 8)} (declara S${err.evidence.declaredSeasons.join(',') || '?'}E${err.evidence.declaredEpisodes.join(',') || '?'})`);
       }
     }
   }
-  // A lista corrente ainda carrega o candidato provado-ruim: invalida para a
-  // próxima busca nascer limpa, sem esperar TTL nem play de ninguém.
+  // A lista corrente ainda carrega o candidato: invalida para a próxima
+  // busca nascer limpa (mentira) ou com `_dubbed` promovido (prova OK).
   for (const key of liedKeys) cache.forget(key);
+  for (const key of okKeys) cache.forget(key);
+  for (const imdb of okImdb) invalidateStreamsForObra(imdb);
   return { audited: batch.length, lies, wrongEpisodes };
 }
 

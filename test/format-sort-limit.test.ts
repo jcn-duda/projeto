@@ -53,7 +53,8 @@ test('dedupeByHash mantém origem e áudio do post vencedor', () => {
   });
   const [brWinner] = dedupeByHash([br, global]);
   assert.equal(brWinner._br, true);
-  assert.equal(brWinner._dubbed, true);
+  assert.equal(brWinner._dubClaim, true);
+  assert.equal(brWinner._dubbed, false);
   assert.match(brWinner.name, /BR/);
 
   const globalPopular = stremioStream({
@@ -63,11 +64,11 @@ test('dedupeByHash mantém origem e áudio do post vencedor', () => {
     title: 'Filme Dublado', infoHash: HASH, seeders: 1, tracker: 'Bludv', isBr: true,
   });
   // Espelho global que DECLARA DUAL corrobora o post BR do mesmo hash: herda
-  // origem e áudio (A Rocha tt0117500, 2026-09-14 — sem isto o dublado da
-  // BLUDV sumia depois da varredura pt-BR nos globais).
+  // origem e claim (A Rocha tt0117500) — prova de arquivo NÃO herda.
   const [globalWinner] = dedupeByHash([globalPopular, brSparse]);
   assert.equal(globalWinner._br, true);
-  assert.equal(globalWinner._dubbed, true);
+  assert.equal(globalWinner._dubClaim, true);
+  assert.equal(globalWinner._dubbed, false);
   assert.match(globalWinner.name, /BR/);
   assert.match(String(globalWinner.title), /^Movie 1080p BluRay DUAL/, 'o título continua o do vencedor');
 
@@ -79,6 +80,7 @@ test('dedupeByHash mantém origem e áudio do post vencedor', () => {
   const [semDual] = dedupeByHash([globalSemDual, brSparse]);
   assert.equal(semDual._br, false);
   assert.equal(semDual._dubbed, false);
+  assert.equal(semDual._dubClaim, false);
   assert.equal(semDual.name, '1080p BluRay · The Pirate Bay · 👤 300');
   assert.doesNotMatch(semDual.name, /BR|DUB|DUAL/);
   assert.equal(dedupeByHash([null]).length, 0);
@@ -87,11 +89,11 @@ test('dedupeByHash mantém origem e áudio do post vencedor', () => {
 test('dedupe usa indexador prioritário no empate sem depender da chegada', () => {
   const global = {
     infoHash: HASH, _seeders: 10, _indexer: 'thepiratebay',
-    _br: false, _dubbed: false, title: 'Filme 1080p',
+    _br: false, _dubbed: false, _dubClaim: false, title: 'Filme 1080p',
   };
   const preferred = {
     infoHash: HASH, _seeders: 10, _indexer: 'nerdfilmes',
-    _br: true, _dubbed: true, title: 'Filme Dublado 1080p',
+    _br: true, _dubbed: false, _dubClaim: true, title: 'Filme Dublado 1080p',
   };
 
   for (const input of [[global, preferred], [preferred, global]]) {
@@ -99,7 +101,8 @@ test('dedupe usa indexador prioritário no empate sem depender da chegada', () =
     assert.equal(out._indexer, 'nerdfilmes');
     assert.equal(out.title, 'Filme Dublado 1080p');
     assert.equal(out._br, true);
-    assert.equal(out._dubbed, true);
+    assert.equal(out._dubClaim, true);
+    assert.equal(out._dubbed, false);
   }
 });
 
@@ -119,7 +122,8 @@ test('dedupe prioritário preserva resolução e tamanho conhecidos do mesmo has
   assert.equal(out._size, 4 * 1024 ** 3);
   assert.equal(out.behaviorHints.bingeGroup, 'powerm-1080p-WEB-DL');
   assert.equal(out._br, true);
-  assert.equal(out._dubbed, true);
+  assert.equal(out._dubClaim, true);
+  assert.equal(out._dubbed, false);
 });
 
 test('sortAndLimit ordena por qualidade e seeders, filtra e limpa internos', () => {
@@ -167,10 +171,12 @@ test('preferência dublada vence prioridade de indexador na mesma qualidade', ()
     title: 'Filme Legendado 1080p', infoHash: HASH, seeders: 100,
     tracker: 'NerdFilmes', indexer: 'nerdfilmes',
   });
+  // preferDubbed só boosta `_dubbed` (prova); claim de título não basta.
   const dublado = stremioStream({
     title: 'Filme Dublado 1080p', infoHash: OTHER, seeders: 1,
     tracker: 'The Pirate Bay', indexer: 'thepiratebay',
-  });
+    provenAudio: 'Dublado',
+  } as any);
   const out = sortAndLimit([preferredLegendado, dublado], {
     preferDubbed: true,
     indexerPriority: ['nerdfilmes'] as never[],
@@ -192,7 +198,8 @@ test('sortAndLimit pode priorizar áudio dublado dentro da mesma qualidade', () 
   });
   const dublado = stremioStream({
     title: 'Filme Dublado 1080p', infoHash: OTHER, seeders: 5,
-  });
+    provenAudio: 'Dublado',
+  } as any);
 
   assert.match(sortAndLimit([legendado, dublado])[0].title, /Legendado/);
   assert.match(sortAndLimit([legendado, dublado], { preferDubbed: true })[0].title, /Dublado/);
@@ -204,7 +211,8 @@ test('sortAndLimit não promove DUAL global sobre dublado BR', () => {
   });
   const brDubbed = stremioStream({
     title: 'Filme 1080p Dublado', infoHash: OTHER, seeders: 1, isBr: true,
-  });
+    provenAudio: 'Dublado',
+  } as any);
 
   assert.equal(sortAndLimit([globalDual, brDubbed], { preferDubbed: true })[0].infoHash, OTHER);
 });

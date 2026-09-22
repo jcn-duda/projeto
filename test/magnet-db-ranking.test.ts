@@ -50,6 +50,9 @@ function userOpts(apiKey: string) {
     ...runtime.defaults(),
     debridService: 'premiumize',
     debridApiKey: apiKey,
+    // O default do operador pode nascer com d:1; estes testes medem ranking/
+    // magnetdb, não o filtro claim|proven.
+    dubbedOnly: false,
   };
 }
 
@@ -245,7 +248,7 @@ test('applyDebrid: blocked RD recém-gravado NUNCA sai pelo /resolve mesmo volta
   }
 });
 
-test('prepareCandidateStreams: stream _lied tem _dubbed false e perde preferDubbed boost', () => {
+test('prepareCandidateStreams: stream _lied some da lista (nunca listado)', () => {
   const liedHash = '1'.repeat(40);
   const cleanHash = '2'.repeat(40);
   const raw = [
@@ -255,15 +258,11 @@ test('prepareCandidateStreams: stream _lied tem _dubbed false e perde preferDubb
   const res = runWith({ opts: { ...userOpts('k1'), dubbedOnly: false }, encoded: 'seg' }, () =>
     prepareCandidateStreams(raw as any, {})
   );
-  const sLied = res.streams.find((s: any) => s.infoHash === liedHash) as any;
-  const sClean = res.streams.find((s: any) => s.infoHash === cleanHash) as any;
-  assert.ok(sLied && sClean);
-  assert.equal(sLied._lied, true);
-  assert.equal(sLied._dubbed, false, 'promessa de dublado anulada para release com mentira');
-  assert.equal(res.streams[0].infoHash, cleanHash, 'release limpa fica à frente da lied mesmo com menos seeders');
+  assert.equal(res.streams.find((s: any) => s.infoHash === liedHash), undefined, '_lied nunca entra na lista');
+  assert.equal(res.streams[0].infoHash, cleanHash);
 });
 
-test('sortAndLimit: release limpa precede release lied de mesma qualidade e seeders', () => {
+test('sortAndLimit: _lied é removido da lista sempre', () => {
   const hClean = '3'.repeat(40);
   const hLied = '4'.repeat(40);
   const streams = [
@@ -271,17 +270,19 @@ test('sortAndLimit: release limpa precede release lied de mesma qualidade e seed
     { infoHash: hClean, name: 'Filme Clean', title: 'Filme 1080p', _quality: '1080p', _seeders: 50, _lied: false },
   ];
   const out = sortAndLimit(streams as any, { preferDubbed: true });
-  assert.equal((out[0] as any).infoHash, hClean, 'stream limpo vence lied com mesma qualidade e seeders');
+  assert.equal(out.length, 1);
+  assert.equal((out[0] as any).infoHash, hClean, 'stream limpo sobrevive; lied some');
 });
 
 test('dedupeByHash: favorece release honesta sobre clone lied e limpa _dubbed', () => {
   const hash = '5'.repeat(40);
-  const cloneLied = { infoHash: hash, name: 'Lied Clone DUAL\n👤 80', title: 'Filme DUAL 1080p', _seeders: 80, _lied: true, _dubbed: true, _quality: '1080p' };
-  const cloneClean = { infoHash: hash, name: 'Clean EN\n👤 20', title: 'Filme EN 1080p', _seeders: 20, _lied: false, _dubbed: false, _quality: '1080p' };
+  const cloneLied = { infoHash: hash, name: 'Lied Clone DUAL\n👤 80', title: 'Filme DUAL 1080p', _seeders: 80, _lied: true, _dubbed: true, _dubClaim: true, _quality: '1080p' };
+  const cloneClean = { infoHash: hash, name: 'Clean EN\n👤 20', title: 'Filme EN 1080p', _seeders: 20, _lied: false, _dubbed: false, _dubClaim: false, _quality: '1080p' };
   const out1 = dedupeByHash([cloneLied, cloneClean]);
   assert.equal(out1.length, 1);
   assert.equal(out1[0]._lied, true, 'marca de mentira preservada');
   assert.equal(out1[0]._dubbed, false, 'dublado anulado na fusão com lied');
+  assert.equal(out1[0]._dubClaim, false, 'claim anulado na fusão com lied');
   assert.match(String(out1[0].name), /Clean EN/, 'clone limpo escolhido como winner');
 
   const out2 = dedupeByHash([cloneClean, cloneLied]);
@@ -291,7 +292,7 @@ test('dedupeByHash: favorece release honesta sobre clone lied e limpa _dubbed', 
   assert.match(String(out2[0].name), /Clean EN/);
 });
 
-test('prepareCandidateStreams: hashes em magnetdb.isLie são excluídos do instantSet', () => {
+test('prepareCandidateStreams: hashes em magnetdb.isLie são excluídos da lista', () => {
   const apiKey = 'test-key-lie-instant';
   const liedAliveHash = '6'.repeat(40);
   const cleanHash = '7'.repeat(40);
@@ -308,8 +309,8 @@ test('prepareCandidateStreams: hashes em magnetdb.isLie são excluídos do insta
     const res = runWith({ opts: { ...userOpts(apiKey), dubbedOnly: false }, encoded: 'seg' }, () =>
       prepareCandidateStreams(raw as any, {})
     );
-    assert.equal(res.streams[0].infoHash, cleanHash, 'lied não recebe instant boost e fica atrás de clean');
-    assert.equal((res.streams.find((s: any) => s.infoHash === liedAliveHash) as any)._lied, true);
+    assert.equal(res.streams.find((s: any) => s.infoHash === liedAliveHash), undefined, 'isLie some da lista');
+    assert.equal(res.streams[0].infoHash, cleanHash);
   } finally {
     debrid.BY_ID.set('premiumize', origAdapter as any);
   }
@@ -319,15 +320,15 @@ test('sortAndLimit: dubbedOnly descarta streams _lied antecipadamente', () => {
   const hClean = '8'.repeat(40);
   const hLied = '9'.repeat(40);
   const streams = [
-    { infoHash: hLied, name: 'Filme Lied', title: 'Filme 1080p', _quality: '1080p', _seeders: 100, _lied: true },
-    { infoHash: hClean, name: 'Filme Clean', title: 'Filme 1080p', _quality: '1080p', _seeders: 50, _lied: false },
+    { infoHash: hLied, name: 'Filme Lied', title: 'Filme 1080p', _quality: '1080p', _seeders: 100, _lied: true, _dubClaim: true },
+    { infoHash: hClean, name: 'Filme Clean', title: 'Filme 1080p', _quality: '1080p', _seeders: 50, _lied: false, _dubClaim: true },
   ];
   const out = sortAndLimit(streams as any, { dubbedOnly: true });
   assert.equal(out.length, 1);
   assert.equal((out[0] as any).infoHash, hClean, 'stream _lied foi expurgado pelo dubbedOnly');
 });
 
-test('sortAndLimit: preferDubbed demove stream _lied com 5000 seeders atras de stream EN com 1 seeder', () => {
+test('sortAndLimit: preferDubbed — _lied some; EN limpo sobra sozinho', () => {
   const hCleanEn = 'e'.repeat(40);
   const hLied = 'f'.repeat(40);
   const streams = [
@@ -335,8 +336,28 @@ test('sortAndLimit: preferDubbed demove stream _lied com 5000 seeders atras de s
     { infoHash: hCleanEn, name: 'Filme Clean EN\n👤 1', title: 'Filme 1080p EN', _quality: '1080p', _seeders: 1, _lied: false, _dubbed: false },
   ];
   const out = sortAndLimit(streams as any, { preferDubbed: true });
-  assert.equal((out[0] as any).infoHash, hCleanEn, 'stream EN com 1 seeder supera stream lied com 5000 seeders');
-  assert.equal((out[1] as any).infoHash, hLied);
+  assert.equal(out.length, 1);
+  assert.equal((out[0] as any).infoHash, hCleanEn, 'lied some; EN limpo permanece');
+});
+
+test('sortAndLimit: d:1 mantém claim, proven E global EN; só _lied some', () => {
+  const hClaim = 'b'.repeat(40);
+  const hEn = 'c'.repeat(40);
+  const hProven = 'd'.repeat(40);
+  const hLied = 'e'.repeat(40);
+  const streams = [
+    { infoHash: hClaim, name: 'Claim', title: 'Filme Dublado 1080p', _quality: '1080p', _seeders: 10, _dubClaim: true, _dubbed: false },
+    { infoHash: hEn, name: 'EN', title: 'Filme EN 1080p', _quality: '1080p', _seeders: 50, _dubClaim: false, _dubbed: false },
+    { infoHash: hProven, name: 'Proven', title: 'Filme Dual 1080p', _quality: '1080p', _seeders: 5, _dubClaim: true, _dubbed: true },
+    { infoHash: hLied, name: 'Lied', title: 'Filme Dublado 1080p', _quality: '1080p', _seeders: 100, _dubClaim: true, _dubbed: false, _lied: true },
+  ];
+  const out = sortAndLimit(streams as any, { dubbedOnly: true, preferDubbed: true });
+  const hashes = out.map((s: any) => s.infoHash);
+  assert.ok(hashes.includes(hClaim), 'claim lista sob d:1');
+  assert.ok(hashes.includes(hProven), 'proven lista sob d:1');
+  assert.ok(hashes.includes(hEn), 'global EN lista sob d:1 (swarm global)');
+  assert.ok(!hashes.includes(hLied), 'mentiroso nunca lista');
+  assert.equal(hashes[0], hProven, 'preferDubbed sobe prova antes do EN');
 });
 
 test('dedupeByHash: permutações de 3 clones preservam título honesto e 500 seeders do enxame', () => {
@@ -375,8 +396,8 @@ test('prepareCandidateStreams: release com lied: true em raw é excluída do ins
     const res = runWith({ opts: { ...userOpts(apiKey), dubbedOnly: false }, encoded: 'seg' }, () =>
       prepareCandidateStreams(raw as any, {})
     );
-    assert.equal(res.streams[0].infoHash, cleanHash, 'clean vence por seeders pois lied não entra no instantSet');
-    assert.equal(res.streams[1].infoHash, liedAliveHash);
+    assert.equal(res.streams.length, 1, '_lied some da lista');
+    assert.equal(res.streams[0].infoHash, cleanHash, 'só o clean sobrevive');
   } finally {
     debrid.BY_ID.set('premiumize', origAdapter as any);
   }

@@ -61,6 +61,7 @@ function userCfg(apiKey: string, overrides: Record<string, any> = {}) {
     q: ['2160p', '1080p', '720p', '480p'],
     ds: 'premiumize',
     dk: apiKey,
+    d: 0,
     ...overrides,
   });
 }

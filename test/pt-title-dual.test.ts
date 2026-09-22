@@ -167,7 +167,8 @@ test('toStremioStream de item marcado: _br, _dubbed e chip BR no name', () => {
   });
   const stream = toStremioStream(item)!;
   assert.equal(stream._br, true);
-  assert.equal(stream._dubbed, true);
+  assert.equal(stream._dubClaim, true);
+  assert.equal(stream._dubbed, false);
   assert.match(String(stream.name), /\bBR\b/);
 });
 

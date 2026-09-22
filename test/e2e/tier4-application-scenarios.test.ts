@@ -269,7 +269,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     // Mock Jackett Search
     const originalJackettSearch = jackett.search;
     jackett.search = async () => [
-      makeRawStream('O Auto da Compadecida (2000) 1080p Nacional BluRay', { infoHash: brHash, isBr: true, seeders: 1 }),
+      makeRawStream('O Auto da Compadecida (2000) 1080p Nacional BluRay', { infoHash: brHash, isBr: true, seeders: 1, provenAudio: 'Nacional' }),
       makeRawStream('A Dog\'s Will (2000) 720p English Subtitles', { infoHash: globalHash, isBr: false, seeders: 45 }),
     ];
 

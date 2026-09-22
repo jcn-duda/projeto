@@ -172,9 +172,12 @@ function limitReservingBr(
   // agir. `selectQualityCandidates` já faz essa passada BR no pool pré-debrid;
   // sem o mesmo cuidado no corte final, a reserva não valia nada.
   const reserved = brFirst ? Infinity : Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
+  // Prova primeiro, claim depois (LEGENDADO por último no pool BR).
+  const dubRank = (s: { _dubbed?: boolean; _dubClaim?: boolean }) =>
+    (s._dubbed ? 2 : 0) + (s._dubClaim ? 1 : 0);
   const priority = pool
     .filter((stream) => stream._br && !stream._lied)
-    .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0))
+    .sort((a, b) => dubRank(b) - dubRank(a))
     .slice(0, reserved);
   const prioritized = new Set(priority);
   // A reserva é o TAMANHO DE brReservedSlots, não todo o pool BR: com brFirst
@@ -193,7 +196,7 @@ function limitReservingBr(
   const reservedBr = new Set(
     pool
       .filter((stream) => stream._br && !stream._lied)
-      .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0))
+      .sort((a, b) => dubRank(b) - dubRank(a))
       .slice(0, brSlots),
   );
   const kept = new Set(
@@ -211,7 +214,7 @@ function limitReservingBr(
   const eligible = pool.filter((stream) => kept.has(stream));
   const brStreams = eligible
     .filter((stream) => stream._br && !stream._lied)
-    .sort((a, b) => (b._dubbed ? 1 : 0) - (a._dubbed ? 1 : 0));
+    .sort((a, b) => dubRank(b) - dubRank(a));
 
   // Reserva por faixa: até `brReservedPerQuality` BR por balde de qualidade,
   // escolhidos dubbed-first. É o seguro contra a abundância de 1080p BR
@@ -328,7 +331,7 @@ function limitReservingBr(
   if (onSelected) onSelected(selected);
 
   return selected
-    .map(({ _br, _seeders, _quality, _size, _dubbed, _indexer, _tracker, _multiWork, _multiWorkAdmitted, _packBytes, _lied, _seedFloorWaived, _magnetDn, ...stream }) => stream);
+    .map(({ _br, _seeders, _quality, _size, _dubbed, _dubClaim, _indexer, _tracker, _multiWork, _multiWorkAdmitted, _packBytes, _lied, _seedFloorWaived, _magnetDn, ...stream }) => stream);
 }
 
 export {

@@ -137,14 +137,30 @@ function toStremioStream(item: RawItem): Stream | null {
   // Prova VAZIA (release EN sem marca PT no arquivo) é veredito sobre DUBLADO,
   // não sobre o rótulo. Quando o título já diz "Legendado" ele CONCORDA com a
   // prova — apagá-lo trocava "720p WEB-DL LEG BR" por "720p WEB-DL BR" e
-  // escondia do usuário a única informação de áudio que existia, sem mudar
-  // decisão nenhuma (`_dubbed` é false dos dois jeitos). Rótulo que afirma
-  // dublado continua sendo derrubado pela prova, que é o motivo dela existir.
+  // escondia do usuário a única informação de áudio que existia. Rótulo que
+  // afirma dublado continua sendo derrubado pela prova, que é o motivo dela
+  // existir. `_dubClaim` = promessa do post; `_dubbed` = só prova positiva.
   const provenAudio = item.provenAudio;
   const titleAudio = audioFromTitle(title);
   const audio = provenAudio !== undefined
     ? provenAudio || (titleAudio === 'Legendado' ? 'Legendado' : '')
     : titleAudio;
+  const isDubLabel = (a: string) => a === 'Dublado' || a === 'Dual' || a === 'Nacional';
+  // Claim pelo TÍTULO (mesma regra que o antigo `_dubbed`), sem fileEvidence.
+  // `brOriginOnly` nunca claim: origem não prova áudio.
+  const titleClaim = item.brOriginOnly
+    ? false
+    : isBr
+      ? isDubLabel(titleAudio)
+      : explicitPtAudio(title);
+  // Prova POSITIVA só: provenAudio Dual/Dublado/Nacional, ou provenName com PT.
+  const positiveProof = provenAudio !== undefined
+    ? isDubLabel(provenAudio)
+    : Boolean(item.provenName && explicitPtAudio(item.provenName));
+  // Evidência que NÃO é dublado ('' = EN, 'Legendado', …) anula o claim.
+  const claimContradicted = provenAudio !== undefined && !isDubLabel(provenAudio);
+  // Chip DUB/DUAL/NAC só com prova — claim lista sob d:1 sem parecer confiável.
+  const audioForChip = positiveProof ? audio : (isDubLabel(audio) ? '' : audio);
   const edition = editionFromTitle(title);
 
   // Convenção do Torrentio: 👤 seeders, 💾 tamanho, ⚙️ indexer. Os clientes
@@ -173,7 +189,7 @@ function toStremioStream(item: RawItem): Stream | null {
     name: streamDisplayName({
       title: displayTitle,
       quality,
-      audio,
+      audio: audioForChip,
       source,
       edition,
       tracker,
@@ -194,19 +210,13 @@ function toStremioStream(item: RawItem): Stream | null {
     _size: knownSize,
     // Agregadores BR espelham magnets globais: DUAL sem PT explícito não pode
     // ganhar vaga, prioridade ou autofetch só porque o post foi marcado BR.
-    // A prova do arquivo troca a FONTE do rótulo, não a regra: "DUAL" segue
-    // valendo só em origem BR, e fora dela ainda exige PT explícito — agora
-    // lido no nome do arquivo, que é o que de fato existe dentro do torrent.
+    // `_dubClaim` = promessa do título; `_dubbed` = só fileEvidence positivo.
+    // Chip/preferDubbed/Chupim/adprot leem `_dubbed`; `dubbedOnly` aceita claim.
     //
     // Origem BR via `brOriginOnly` (inventário da conta, caso Zumbilândia)
-    // marca `_br` para a vaga reservada e NUNCA `_dubbed`: origem não prova
-    // áudio. O branch Dublado/Dual/Nacional fica para quem veio de looksPtBr
-    // ou do flag do provider; para a origem-só, `_dubbed` segue a prova
-    // explícita — que por construção é falsa (título que provasse PT já teria
-    // looksPtBr), salvo prova de arquivo futura via `provenName`.
-    _dubbed: isBr && !item.brOriginOnly
-      ? audio === 'Dublado' || audio === 'Dual' || audio === 'Nacional'
-      : explicitPtAudio(item.provenName || title),
+    // marca `_br` para a vaga reservada e NUNCA claim/dubbed: origem ≠ áudio.
+    _dubClaim: Boolean(titleClaim && !claimContradicted && !item.lied),
+    _dubbed: Boolean(positiveProof && !item.lied),
     // Origem BR vem marcada pelo provider OU pelo título (dublado em tracker
     // global). Release de site BR sem marca nenhuma no título continua valendo
     // pelo flag do provider: comandotorrents/nerdfilmes não citam "DUBLADO".

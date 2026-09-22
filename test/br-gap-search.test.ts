@@ -276,11 +276,12 @@ test('índice → sortAndLimit: release BR dublada com 0 seeders sobrevive ao pi
     const streams = raw.map((it) => toStremioStream(it as RawItem)).filter(Boolean) as any[];
     const br = streams.find((s: any) => s._br === true);
     assert.equal(br != null, true, 'release BR nasce do índice');
-    assert.equal(br._dubbed, true, 'e declara dublado');
+    assert.equal(br._dubClaim, true, 'e declara dublado (claim)');
+    assert.equal(br._dubbed, false, 'sem fileEvidence ainda');
 
     const out = sortAndLimit(streams, { minSeeders: 1, maxResults: 20 });
     const waivered = out.find((s: any) => s.infoHash === br.infoHash);
-    assert.equal(waivered != null, true, '0 seeders não mata a BR dublada vinda do índice');
+    assert.equal(waivered != null, true, '0 seeders não mata a BR com claim vinda do índice');
     assert.equal(waivered._seedFloorWaived, true, 'viaja marcada para que o download siga exigendo piso');
   } finally {
     cache.clear();

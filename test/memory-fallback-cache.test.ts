@@ -94,7 +94,7 @@ function seedFallback(hash: string, indexer: string, name: string) {
 }
 
 const NAME = 'Test Title';
-const userOpts = () => testOpts({ providers: ['jackett'], jackettIndexers: ['idx-fail'], preferDubbed: false, debridService: '', debridApiKey: '' });
+const userOpts = () => testOpts({ providers: ['jackett'], jackettIndexers: ['idx-fail'], preferDubbed: false, debridService: '', debridApiKey: '', dubbedOnly: false });
 const cacheKeyFor = () => streamsCacheKey('movie', 'tt1254207', { ...userOpts(), resolveUncached: config.debrid.resolveUncached });
 
 async function runWithJackett(impl: (options: any, call: number) => Promise<any[]>, fn: () => Promise<any>) {
@@ -211,7 +211,7 @@ test('/all: collectRaw com agregado em erro vira allFailed', async () => {
   config.jackett.indexers = [];
   globalThis.fetch = (async () => { throw new Error('rede'); }) as any;
   try {
-    const optsAll = testOpts({ providers: ['jackett'], jackettIndexers: [], debridService: '', debridApiKey: '' });
+    const optsAll = testOpts({ providers: ['jackett'], jackettIndexers: [], debridService: '', debridApiKey: '', dubbedOnly: false });
     const raw = await runtime.run({ opts: optsAll, encoded: 'cfg-all' }, () => collectRaw(
       'Filme Teste 2024', 'movie', 'tt300', null, matchContext('Filme Teste') as any, null, null, null,
     )) as any;
@@ -233,7 +233,7 @@ test('/all: cross config não vazia + runtime vazio NÃO marca agregado', async 
   config.jackett.indexers = ['cfg-idx'];
   globalThis.fetch = (async () => fakeResponse({ Results: [] })) as any;
   try {
-    const optsEmpty = testOpts({ providers: ['jackett'], jackettIndexers: [], debridService: '', debridApiKey: '' });
+    const optsEmpty = testOpts({ providers: ['jackett'], jackettIndexers: [], debridService: '', debridApiKey: '', dubbedOnly: false });
     const raw = await runtime.run({ opts: optsEmpty, encoded: 'cfg-cross' }, () => collectRaw(
       'Filme Teste 2024', 'movie', 'tt301', null, matchContext('Filme Teste') as any, null, null, null,
     )) as any;

@@ -44,6 +44,8 @@ async function build(raw: RawItem[], { season = 1, episode = 1, cached = [], cac
     debridApiKey: 'chave-fake',
     debridCachedOnly: cachedOnly,
     autoFetchBr: false,
+    // Suites de aviso/EN sem claim: defaults do operador podem ter d:1.
+    dubbedOnly: false,
   };
   try {
     // `origin` entra no patch só quando o teste manda: fora de request o store

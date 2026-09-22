@@ -213,7 +213,7 @@ describe('Feature 13: E2E Testing Suite (Tiers 1-4)', () => {
   });
 
   it('13.2: Endpoint /stream/movie/tt1254207.json com demo provider retorna streams válidos', async () => {
-    const configSegment = encodeConfig({ p: ['demo'] });
+    const configSegment = encodeConfig({ p: ['demo'], d: 0 });
     const res = await server.request('GET', `/${configSegment}/stream/movie/tt1254207.json`);
 
     assert.equal(res.status, 200);

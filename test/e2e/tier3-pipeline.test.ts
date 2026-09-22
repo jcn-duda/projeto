@@ -237,11 +237,11 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
 
   test('8A: Combined Strict Filter Pipeline (brOnly + preferDubbed + excludeCam + maxSizeGb)', () => {
     const rawStreams = [
-      makeRawStream('Movie.2024.CAM.1080p.DUBLADO', { isBr: true, _dubbed: true, sizeBytes: 1.5 * 1024 ** 3 }), // CAM
-      makeRawStream('Movie.2024.1080p.English.Only', { isBr: false, _dubbed: false, sizeBytes: 2.0 * 1024 ** 3 }), // Global
-      makeRawStream('Movie.2024.1080p.DUBLADO.Huge', { isBr: true, _dubbed: true, sizeBytes: 15.0 * 1024 ** 3 }), // Exceeds 5GB
-      makeRawStream('Movie.2024.1080p.LEGENDADO.BR', { isBr: true, _dubbed: false, sizeBytes: 2.0 * 1024 ** 3 }), // BR legendado
-      makeRawStream('Movie.2024.1080p.DUBLADO.Nacional', { isBr: true, _dubbed: true, sizeBytes: 3.5 * 1024 ** 3 }), // Compliant BR dubbed
+      makeRawStream('Movie.2024.CAM.1080p.DUBLADO', { isBr: true, provenAudio: 'Dublado', sizeBytes: 1.5 * 1024 ** 3 }), // CAM
+      makeRawStream('Movie.2024.1080p.English.Only', { isBr: false, sizeBytes: 2.0 * 1024 ** 3 }), // Global
+      makeRawStream('Movie.2024.1080p.DUBLADO.Huge', { isBr: true, provenAudio: 'Dublado', sizeBytes: 15.0 * 1024 ** 3 }), // Exceeds 5GB
+      makeRawStream('Movie.2024.1080p.LEGENDADO.BR', { isBr: true, sizeBytes: 2.0 * 1024 ** 3 }), // BR legendado
+      makeRawStream('Movie.2024.1080p.DUBLADO.Nacional', { isBr: true, provenAudio: 'Dublado', sizeBytes: 3.5 * 1024 ** 3 }), // Compliant BR dubbed
     ];
 
     const streams = format.sortAndLimit(rawStreams.map(format.toStremioStream), {

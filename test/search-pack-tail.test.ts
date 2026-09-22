@@ -48,6 +48,7 @@ function searchAs(id: string): Promise<Found> {
     jackettIndexers: ['thepiratebay'],
     debridService: '',
     debridApiKey: '',
+    dubbedOnly: false,
   };
   return runtime.run({ opts, encoded: `pack-tail-${id}` }, () => findStreams({ type: 'series', id })) as Promise<Found>;
 }

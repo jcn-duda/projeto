@@ -241,6 +241,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       ji: ['thepiratebay', 'bludv-cardigann'],
       bf: 1,
       b: 2,
+      d: 0,
     };
 
     const configSegment = runtime.encode(userConfig);

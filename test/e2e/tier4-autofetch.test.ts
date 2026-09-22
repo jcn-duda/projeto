@@ -244,6 +244,7 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
       ab: 1, // autoFetchBr
       dc: 1, // debridCachedOnly
       b: 2,
+      d: 0, // EN global precisa chegar na checagem pra provar dropUncached
     };
 
     const configSegment = runtime.encode(userConfig);
@@ -271,8 +272,8 @@ describe('Tier 4: Real-World End-to-End Application Scenarios', () => {
     // Mock Jackett Search
     const originalJackettSearch = jackett.search;
     jackett.search = async () => [
-      makeRawStream('Oppenheimer 2023 1080p DUAL Dublado Nacional', { infoHash: uncachedBrHash, isBr: true, seeders: 1, _dubbed: true }),
-      makeRawStream('Oppenheimer 2023 1080p BluRay English', { infoHash: uncachedGlobalHash, isBr: false, seeders: 100, _dubbed: false }),
+      makeRawStream('Oppenheimer 2023 1080p DUAL Dublado Nacional', { infoHash: uncachedBrHash, isBr: true, seeders: 1, provenAudio: 'Dublado' }),
+      makeRawStream('Oppenheimer 2023 1080p BluRay English', { infoHash: uncachedGlobalHash, isBr: false, seeders: 100 }),
     ];
 
     // Mock AllDebrid Adapter

@@ -237,6 +237,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       debridCachedOnly: true,
       showUncachedBr: true,
       brReservedSlots: 1,
+      dubbedOnly: false,
     };
 
     const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;

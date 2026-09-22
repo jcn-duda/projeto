@@ -72,7 +72,10 @@ test('título entregue ao cliente não expõe o blob de qualidades do HDRTorrent
 test('toStremioStream preserva a marca de origem BR do provider', () => {
   const s = stremioStream({ title: 'Coringa Dublado', infoHash: HASH, isBr: true, seeders: 1 });
   assert.equal(s._br, true);
-  assert.equal(s.name, 'DUB BR · 👤 1');
+  assert.equal(s._dubClaim, true);
+  assert.equal(s._dubbed, false);
+  // Chip DUB só com prova; claim lista sob d:1 sem parecer confiável.
+  assert.equal(s.name, 'BR · 👤 1');
 });
 
 test('name traz release e seeds; a coluna larga não duplica marcadores', () => {
@@ -102,10 +105,15 @@ test('layout compacto diferencia áudio e origem sem inferir dublado', () => {
   const brUnknown = stremioStream({ title: 'Pecadores 2025', infoHash: HASH, isBr: true });
   const dual = stremioStream({ title: 'Pecadores 1080p Dual Audio', infoHash: OTHER, isBr: true });
   const legendado = stremioStream({ title: 'Sinners 720p Legendado', infoHash: 'c'.repeat(40) });
+  const dualProven = stremioStream({
+    title: 'Pecadores 1080p Dual Audio', infoHash: 'd'.repeat(40), isBr: true, provenAudio: 'Dual',
+  } as any);
 
   // Sem seeders publicados (padrão das fontes BR) a linha não inventa "👤 0".
   assert.equal(brUnknown.name, 'BR');
-  assert.equal(dual.name, '1080p DUAL BR');
+  assert.equal(dual._dubClaim, true);
+  assert.equal(dual.name, '1080p BR', 'claim Dual sem prova: sem chip DUAL');
+  assert.equal(dualProven.name, '1080p DUAL BR', 'prova Dual: chip volta');
   assert.equal(legendado.name, '720p LEG');
 });
 
@@ -116,7 +124,7 @@ test('a coluna estreita cabe numa linha; STREAM_NAME_STYLE=full devolve a antiga
   const item = { title: release, infoHash: HASH, seeders: 1, size: 20.17 * 1024 ** 3, tracker: 'TorrentDosFilmes', isBr: true };
 
   const compacto = stremioStream(item);
-  assert.equal(compacto.name, '4K WEB-DL DUB BR · TorrentDos · 👤 1');
+  assert.equal(compacto.name, '4K WEB-DL BR · TorrentDos · 👤 1');
   assert.equal(compacto.name.includes('\n'), false, 'nada de quebra na coluna estreita');
   // A fonte é limitada antes de entrar na coluna estreita, para não esconder
   // qualidade nem seeders mesmo quando o indexer usa um domínio longo.
@@ -128,7 +136,7 @@ test('a coluna estreita cabe numa linha; STREAM_NAME_STYLE=full devolve a antiga
   const original = config.streamNameStyle;
   try {
     config.streamNameStyle = 'full';
-    assert.equal(stremioStream(item).name, `${release}\n4K WEB-DL DUB BR · TorrentDos · 👤 1`);
+    assert.equal(stremioStream(item).name, `${release}\n4K WEB-DL BR · TorrentDos · 👤 1`);
   } finally {
     config.streamNameStyle = original;
   }

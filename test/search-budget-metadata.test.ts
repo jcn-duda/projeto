@@ -162,6 +162,7 @@ test('B3: Cinemeta lento (2500ms) + TMDB miss (5000ms) devolve resposta parcial 
     providers: ['demo'],
     debridService: '',
     debridApiKey: '',
+    dubbedOnly: false,
   };
 
   try {

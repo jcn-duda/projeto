@@ -74,8 +74,8 @@ test('pickBrDubbedCandidate pega o melhor BR e ignora quem não é BR', () => {
   assert.equal(pickBrDubbedCandidate([]), null);
 });
 
-test('pickBrDubbedCandidate nunca escolhe um LEGENDADO explícito', () => {
-  // Nenhum BR tem marca de áudio: cai no padrão BR é dublado, menos o legendado.
+test('pickBrDubbedCandidate exige _dubbed (prova) — claim/sem marca não esquenta', () => {
+  // Sem `_dubbed`, o pool BR fica vazio (claim sozinho não é Chupim).
   const leg = stream(A, {
     name: '1080p LEG BR',
     title: 'Coringa (2019) [LEGENDADO opção 1]\n👤 1',
@@ -86,9 +86,16 @@ test('pickBrDubbedCandidate nunca escolhe um LEGENDADO explícito', () => {
     title: 'Coringa (2019) [opção 2]\n👤 1',
     _br: true,
   });
-  assert.equal(pickBrDubbedCandidate([leg, sem]), sem);
-  // Só legendado disponível: não baixa nada.
+  assert.equal(pickBrDubbedCandidate([leg, sem]), null);
   assert.equal(pickBrDubbedCandidate([leg]), null);
+  // Com prova de arquivo: entra no pool.
+  const proven = stream(C, {
+    name: '1080p DUB BR',
+    title: 'Coringa (2019) Dual\n👤 1',
+    _br: true,
+    _dubbed: true,
+  });
+  assert.equal(pickBrDubbedCandidate([leg, sem, proven]), proven);
 });
 
 test('pickBrDubbedCandidate exige infoHash', () => {
@@ -155,8 +162,8 @@ test('canAutoFetchBr liga com cachedOnly true OU false; trava só com toggle ou 
 
 test('fontes BR fora do cache ocupam só as vagas reservadas', () => {
   const global = stream(A, { name: 'Prometheus 1080p', _br: false });
-  const br1 = stream(B, { name: 'Prometheus Dublado', _br: true });
-  const br2 = stream(C, { name: 'Prometheus Dual', _br: true });
+  const br1 = stream(B, { name: 'Prometheus Dublado', _br: true, _dubbed: true });
+  const br2 = stream(C, { name: 'Prometheus Dual', _br: true, _dubbed: true });
 
   assert.deepEqual([...uncachedBrHashes([global, br1, br2], new Set(), 1)], [B]);
   assert.deepEqual([...uncachedBrHashes([global, br1, br2], new Set([B]), 2)], [C]);
@@ -181,7 +188,7 @@ test('vaga P2P prefere o dublado e ignora LEGENDADO no topo', () => {
 test('cachedOnly mantém cacheados e apenas a cota BR fora do cache', () => {
   const globalCached = stream(A, { _br: false });
   const globalUncached = stream(B, { _br: false });
-  const brUncached = stream(C, { _br: true });
+  const brUncached = stream(C, { _br: true, _dubbed: true });
   const out = filterKnownCache(
     [globalCached, globalUncached, brUncached],
     new Set([A]),
@@ -201,8 +208,8 @@ test('cachedOnly mantém cacheados e apenas a cota BR fora do cache', () => {
 });
 
 test('BR já cacheado desconta das vagas P2P', () => {
-  const brCached = stream(A, { _br: true });
-  const brUncached = stream(B, { _br: true });
+  const brCached = stream(A, { _br: true, _dubbed: true });
+  const brUncached = stream(B, { _br: true, _dubbed: true });
   const out = filterKnownCache(
     [brCached, brUncached],
     new Set([A]),
@@ -274,17 +281,19 @@ test('filterKnownCache ternário: visibleBr (vaga BR) sobrevive mesmo se constar
   assert.deepEqual([...out.visibleBr], [C]);
 });
 
-test('pipeline preserva _dubbed até o debrid e remove antes de responder', () => {
+test('pipeline preserva _dubClaim/_dubbed até o debrid e remove antes de responder', () => {
   const items = [
-    { title: 'Coringa Dublado 1080p', infoHash: A, seeders: 1, isBr: true },
+    { title: 'Coringa Dublado 1080p', infoHash: A, seeders: 1, isBr: true, provenAudio: 'Dublado' },
     { title: 'Coringa 1080p', infoHash: B, seeders: 2, isBr: true },
   ].map(toStremioStream);
   const candidates = sortAndLimit(items, { maxResults: 10 });
 
   assert.equal(candidates.find((item) => item.infoHash === A)._dubbed, true);
+  assert.equal(candidates.find((item) => item.infoHash === A)._dubClaim, true);
   assert.equal(pickBrDubbedCandidate(candidates).infoHash, A);
   const output = limitReservingBr(candidates, { maxResults: 10 });
   assert.equal('_dubbed' in output[0], false);
+  assert.equal('_dubClaim' in output[0], false);
 });
 
 test('protected: hold protege, release libera e o TTL expira', () => {

@@ -1,7 +1,6 @@
 import type { Stream } from '../../types/domain.js';
 import {
   UNKNOWN_QUALITY,
-  audioFromTitle,
   sourceFromTitle,
   hasExplicitForeignAudio,
   looksPtBr,
@@ -50,9 +49,7 @@ function isAutofetchTargetQuality(q: string): q is AutofetchTargetQuality {
  * - só olha o que tem infoHash (stream já resolvido não tem o que enfileirar);
  * - cobertura é POR qualidade-alvo (720/1080/4K): 720 Dual ⚡ não bloqueia
  *   o upgrade 1080/4K; as três faixas cobertas é que param o Chupim;
- * - BR sem marca de áudio no título entra como dublado só quando nenhum
- *   candidato tiver a marca: é o padrão dos sites BR ("Nome (2026) [opção 3]"),
- *   mas um "LEGENDADO" explícito nunca é tratado como dublado.
+ * - só `_dubbed` (prova de arquivo): claim sem evidence não esquenta o pool.
  *
  */
 function brDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
@@ -64,9 +61,10 @@ function brDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
   );
   if (br.length === 0) return [];
   const tagged = br.filter((s) => s._dubbed);
-  const candidates = tagged.length
-    ? tagged
-    : br.filter((s) => audioFromTitle(s.title || s.name || '') !== 'Legendado');
+  // Só prova de arquivo: claim sem evidence não esquenta o pool `br` nem
+  // conta como cobertura cached (regra claim≠proven). Sem tagged → vazio;
+  // a cascata cai em any/seeds.
+  const candidates = tagged;
 
   // Pré-computado uma vez: o sort consultaria o mesmo parse n·log n vezes.
   const packOf = season == null
@@ -98,13 +96,9 @@ function brDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
 
 /**
  * Pool do fallback global do autofetch: quando a busca não achou NENHUMA fonte
- * BR dublada, o que resta baixar são as releases com áudio dublado/dual/
- * nacional marcado no título (`_dubbed`). Sem a marca não entra — fora dos
- * sites BR o padrão é o contrário, legendado domina, e o fallback "sem marca
- * vale como dublado" do pool BR encheria a conta com o que o usuário não
- * pediu. (BR elegível aqui é impossível na prática: se existisse, o pool BR
- * já teria sido escolhido no lugar deste.)
- *
+ * BR dublada comprovada, o que resta baixar são releases com `_dubbed` (prova
+ * de arquivo). Claim sem evidence não entra — fora dos sites BR o padrão é o
+ * contrário, e o fallback "sem marca vale como dublado" encheria a conta.
  */
 function anyDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
   const candidates = streams.filter(

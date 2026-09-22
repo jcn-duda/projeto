@@ -30,7 +30,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const NAME = 'Test Title';
 const integOpts = (over: any = {}) => testOpts({
   providers: ['jackett'], jackettIndexers: ['idx-fail'], preferDubbed: false,
-  debridService: '', debridApiKey: '', ...over,
+  debridService: '', debridApiKey: '', dubbedOnly: false, ...over,
 });
 const integKey = (imdb: string, opts: any) => streamsCacheKey('movie', imdb, { ...opts, resolveUncached: config.debrid.resolveUncached });
 

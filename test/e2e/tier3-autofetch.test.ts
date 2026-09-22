@@ -107,8 +107,8 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     const account = accountScope(userApiKey);
 
     const streams = [
-      makeRawStream('Movie.2024.1080p.DUBLADO.Nacional', { infoHash: brCandidateHash, isBr: true, _dubbed: true }),
-      makeRawStream('Movie.2024.1080p.English', { infoHash: globalUncachedHash, isBr: false, _dubbed: false }),
+      makeRawStream('Movie.2024.1080p.DUBLADO.Nacional', { infoHash: brCandidateHash, isBr: true, provenAudio: 'Dublado' }),
+      makeRawStream('Movie.2024.1080p.English', { infoHash: globalUncachedHash, isBr: false }),
     ].map(format.toStremioStream);
 
     const userOpts = {

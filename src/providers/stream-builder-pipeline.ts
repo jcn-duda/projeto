@@ -27,6 +27,7 @@ import { applyPtTitleDual } from './pt-title-dual.js';
 import { markBankFilterOutcome } from './magnet-bank-hook.js';
 import { filterSeriesEpisodeRaw } from './stream-builder-episode-filter.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
+import { globalLieHashes } from '../utils/magnet-bank-lie.js';
 
 // Indexer id vindo da config do usuario (URL) precisa validar antes de
 // entrar em query, limite por id ou desempate -- id fora do padrao e
@@ -305,6 +306,13 @@ export function prepareCandidateStreams(
       .map((item) => String(extractInfoHash(item.infoHash || item.magnet || '') || '').toLowerCase())
       .filter(Boolean),
   );
+  // Lie GLOBAL (qualquer conta): mentira medida noutra instalação também
+  // condena o hash — o CDN/arquivo é o mesmo. União com raw.lied + isLie.
+  const mappedHashes = new Set(
+    mappedStreams.flatMap((s) => s?.infoHash ? [String(s.infoHash).toLowerCase()] : []),
+  );
+  const globalLies = globalLieHashes(mappedHashes);
+  for (const h of globalLies) liedHashes.add(h);
   // `toStremioStream` devolve NULL para item sem infoHash (link que nenhum
   // resolvedor abriu), e `sortAndLimit` recebe `(Stream | null)[]` de propósito
   // — o buraco tem que ser filtrado ANTES do acesso, senão um único resultado
@@ -333,7 +341,7 @@ export function prepareCandidateStreams(
     : liedHashes;
   const markedStreams = mappedStreams.map((stream) =>
     stream && liedSet.has(String(stream.infoHash || '').toLowerCase())
-      ? { ...stream, _lied: true, _dubbed: false }
+      ? { ...stream, _lied: true, _dubbed: false, _dubClaim: false }
       : stream,
   );
   const streams: Stream[] = sortAndLimit(markedStreams, {

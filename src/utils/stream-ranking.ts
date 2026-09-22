@@ -95,6 +95,7 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
     else if (seedDiff > 0) winner = s;
     else if (seedDiff < 0) winner = prev;
     else if (Boolean(s._dubbed) !== Boolean(prev._dubbed)) winner = s._dubbed ? s : prev;
+    else if (Boolean(s._dubClaim) !== Boolean(prev._dubClaim)) winner = s._dubClaim ? s : prev;
     else winner = compareIndexerPriority(s, prev, ranks) < 0 ? s : prev;
     hasCleanWinner.set(s.infoHash, sClean || prevClean);
     const loser = winner === s ? prev : s;
@@ -132,7 +133,7 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
     // barrando pelo `foreignDub` ("Latino Dub" não herda).
     const winnerAudio = audioFromTitle(winnerTitle);
     const corroborates = winnerAudio === 'Dual' || (winnerAudio === '' && GENERIC_DUB.test(winnerTitle));
-    const inheritsBr = !isLied && !winner._br && Boolean(loser._br) && Boolean(loser._dubbed)
+    const inheritsBr = !isLied && !winner._br && Boolean(loser._br) && Boolean(loser._dubClaim || loser._dubbed)
       && corroborates && !foreignDub(winnerTitle)
       && !foreignDub(loserTitle);
     const merged = {
@@ -142,7 +143,9 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
       _size: winner._size || loser._size || 0,
       behaviorHints: richerQuality.behaviorHints || winner.behaviorHints,
       _br: Boolean(winner._br || inheritsBr),
-      _dubbed: isLied ? false : Boolean(winner._dubbed || inheritsBr),
+      // Herança de espelho é PROMESSA do post BR, não prova de arquivo.
+      _dubClaim: isLied ? false : Boolean(winner._dubClaim || inheritsBr),
+      _dubbed: isLied ? false : Boolean(winner._dubbed),
       _tracker: winner._tracker,
       // dn= do magnet: o rótulo CAM depende dele no relabel — não perder no merge.
       _magnetDn: winner._magnetDn || loser._magnetDn || '',
@@ -210,25 +213,23 @@ function sortAndLimit(
   };
 
   let candidates = dedupeByHash(streams, indexerPriority, trace);
-  if (dubbedOnly) {
-    candidates = filtrar(candidates, 'lie', (s) => !s._lied);
-  }
-  // Piso de seeders: release COMPROVADAMENTE BR dublada (_br + _dubbed) sobrevive
-  // ao piso quando não há `_lied` (auditoria de áudio) nem idioma estrangeiro
-  // explícito no título. O piso existe para não oferecer torrent morto em P2P;
-  // mas no debrid a release em CACHE toca sem swarm nenhum — e se o item morresse
-  // aqui, a checagem nunca mediria o hash e a reserva BR nunca o veria. Medido
-  // em produção: Event Horizon (tt0119081)
-  // "Event.Horizon.1997.1080p.BDRip.DUBLADO.PT.BR" com 0 seeders no tracker
-  // global, cacheada no TorBox, eliminada antes do cachedOnly. O waiver NÃO
-  // afrouxa para Dual ambíguo (`_dubbed` já exige prova PT — invariante 8.12),
-  // para o global comum (sem `_br`), nem para o condenado pela auditoria. Ele
-  // não promove na ordenação: o item entra com o `_seeders` real e perde o
-  // desempate como sempre. BAIXAR continua exigindo o piso — espelho do corte
-  // em autofetch-runner (isSeedFloorWaived), porque cache dispensa swarm e
-  // download não.
+  // Mentiroso NUNCA entra na lista (applyDebrid também corta; aqui é cedo).
+  // d:1 (dubbedOnly) NÃO corta global/EN: o usuário ainda precisa ver Lime/
+  // EZTV/kickass em cache. O que d:1 muda é privilégio (preferDubbed já
+  // sobe prova; Chupim seeds bloqueia; chip DUB só com _dubbed) — não a
+  // presença do swarm global na lista. Cortar EN aqui esvaziava a UI.
+  candidates = filtrar(candidates, 'lie', (s) => !s._lied);
+  void dubbedOnly;
+  // Piso de seeders: BR com promessa ou prova de dublado sobrevive ao piso
+  // quando não há `_lied` nem idioma estrangeiro explícito. O piso existe para
+  // não oferecer torrent morto em P2P; no debrid a release em CACHE toca sem
+  // swarm — e se o item morresse aqui, a checagem nunca mediria o hash.
+  // Medido: Event Horizon (tt0119081) "…DUBLADO.PT.BR" com 0 seeders. O
+  // waiver NÃO afrouxa para Dual ambíguo sem claim, nem para global sem `_br`,
+  // nem para o condenado. Não promove na ordenação. BAIXAR continua exigindo
+  // o piso — espelho do corte em autofetch-runner (isSeedFloorWaived).
   const isProvenBrDubbed = (s: any) =>
-    Boolean(s?._br) && Boolean(s?._dubbed) && !s?._lied &&
+    Boolean(s?._br) && Boolean(s?._dubbed || s?._dubClaim) && !s?._lied &&
     !hasExplicitForeignAudio(String(s?.title || s?.name || ''));
   const waived = new Set<any>();
   candidates = filtrar(candidates, 'min-seeders', (s) => {
@@ -328,8 +329,7 @@ function sortAndLimit(
   return selecionados
     // `_quality` e `_br` precisam sobreviver ao debrid: as cotas e a reserva
     // são aplicadas só depois que cachedOnly remove os streams indisponíveis.
-    // `_dubbed` também precisa chegar ao autofetch: sem ele uma fonte BR sem
-    // marca de áudio venceria mesmo quando existe uma explicitamente dublada.
+    // `_dubbed`/`_dubClaim` também: autofetch e dubbedOnly leem os dois.
     // `_indexer` idem, para a cota por indexador do corte final; quem apaga
     // todos os campos internos é `limitReservingBr`.
     .map((s: any) => {

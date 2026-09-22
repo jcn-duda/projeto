@@ -78,11 +78,16 @@ test('audioFromTitle detecta dublado/dual/legendado e entra na linha', () => {
   assert.equal(audioFromTitle('Filme 1080p [LEG]'), 'Legendado');
   assert.equal(audioFromTitle('Movie 1080p'), '');
   const s = stremioStream({ title: 'Coringa Dublado 1080p', infoHash: HASH, seeders: 1 });
-  assert.ok(s.name.includes('1080p DUB'));
+  // Sem fileEvidence: claim lista, chip DUB só com prova.
+  assert.equal(s._dubClaim, true);
+  assert.equal(s._dubbed, false);
+  assert.doesNotMatch(s.name, /DUB/);
   assert.ok(s.title.includes('Dublado'));
   const sNac = stremioStream({ title: 'Filme Nacional 1080p', infoHash: HASH, isBr: true, seeders: 5 });
-  assert.equal(sNac._dubbed, true);
-  assert.ok(sNac.name.includes('1080p NAC BR'));
+  assert.equal(sNac._dubClaim, true);
+  assert.equal(sNac._dubbed, false);
+  assert.doesNotMatch(sNac.name, /NAC/);
+  assert.match(sNac.name, /BR/);
 });
 
 test('marca dublado só quando a origem global anuncia áudio PT explícito', () => {
@@ -112,19 +117,25 @@ test('marca dublado só quando a origem global anuncia áudio PT explícito', ()
   assert.equal(explicitPtAudio('Filme.DUBLADO1080p.mkv'), true);
   assert.equal(explicitPtAudio('Serie 2024 DUBLADOS'), true);
   assert.equal(explicitPtAudio('Movie DUBLADOR de vozes'), false);
+  assert.equal(globalDual._dubClaim, false);
   assert.equal(globalDual._dubbed, false);
   // Dual YTS sem PT: classifica Dual por dentro, mas o chip some da lista.
   assert.doesNotMatch(globalDual.name, /DUAL/);
+  assert.equal(ytsDual._dubClaim, false);
   assert.equal(ytsDual._dubbed, false);
   assert.doesNotMatch(ytsDual.name, /DUAL|BR/);
-  assert.equal(globalPt._dubbed, true);
-  assert.match(globalPt.name, /DUAL/);
-  assert.equal(globalDub._dubbed, true);
-  assert.equal(brDual._dubbed, true);
-  assert.match(brDual.name, /DUAL/);
+  assert.equal(globalPt._dubClaim, true);
+  assert.equal(globalPt._dubbed, false);
+  assert.doesNotMatch(globalPt.name, /DUAL/);
+  assert.equal(globalDub._dubClaim, true);
+  assert.equal(globalDub._dubbed, false);
+  assert.equal(brDual._dubClaim, true);
+  assert.equal(brDual._dubbed, false);
+  assert.doesNotMatch(brDual.name, /DUAL/);
   assert.match(brDual.name, /BR/);
-  assert.equal(brDub._dubbed, true);
-  assert.match(brDub.name, /DUB/);
+  assert.equal(brDub._dubClaim, true);
+  assert.equal(brDub._dubbed, false);
+  assert.doesNotMatch(brDub.name, /DUB/);
   assert.match(brDub.name, /BR/);
 });
 
@@ -190,7 +201,9 @@ test('prova de release EN não apaga o rótulo LEG de quem já é legendado', ()
   assert.match(comProva.name, /LEG/);
   assert.equal(comProva.name, semProva.name);
   assert.equal(comProva._dubbed, false);
+  assert.equal(comProva._dubClaim, false);
   assert.equal(semProva._dubbed, false);
+  assert.equal(semProva._dubClaim, false);
 });
 
 test('prova de release EN continua derrubando post que promete dublado', () => {
@@ -205,11 +218,16 @@ test('prova de release EN continua derrubando post que promete dublado', () => {
   };
   const comProva = stremioStream({ ...promete, provenAudio: '', provenName: '' } as any);
   assert.equal(comProva._dubbed, false);
+  assert.equal(comProva._dubClaim, false, 'prova EN anula o claim');
   assert.doesNotMatch(comProva.name, /DUB|DUAL|NAC/);
-  // Sem prova o post vale, e prova POSITIVA troca o rótulo em vez de apagá-lo.
-  assert.equal(stremioStream({ ...promete } as any)._dubbed, true);
+  // Sem prova o post vira claim (lista sob d:1); chip só com prova positiva.
+  const soClaim = stremioStream({ ...promete } as any);
+  assert.equal(soClaim._dubClaim, true);
+  assert.equal(soClaim._dubbed, false);
+  assert.doesNotMatch(soClaim.name, /DUB|DUAL|NAC/);
   const provaDual = stremioStream({ ...promete, provenAudio: 'Dual' } as any);
   assert.equal(provaDual._dubbed, true);
+  assert.equal(provaDual._dubClaim, true);
   assert.match(provaDual.name, /DUAL/);
 });
 
@@ -312,7 +330,10 @@ test('resolução desconhecida não vira rótulo nem grupo de binge do SD', () =
   const s = stremioStream({ title: 'Devoradores de Estrelas (2026) [opção 3] DUBLADO', infoHash: HASH, seeders: 1 });
   const details = s.name;
   assert.ok(!/sem resolução|SD/.test(details), `linha não anuncia resolução: ${details}`);
-  assert.ok(details.startsWith('DUB'), details);
+  // Sem fileEvidence: chip DUB some; claim+BR (looksPtBr) ainda listam.
+  assert.equal(s._dubClaim, true);
+  assert.equal(s._dubbed, false);
+  assert.doesNotMatch(details, /\bDUB\b/);
   assert.ok(!s.behaviorHints.bingeGroup.includes('SD'));
 });
 

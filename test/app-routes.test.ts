@@ -230,6 +230,7 @@ test('segmento base64url válido serve o manifest e o overlay chega na busca', a
         `/${encodeConfig({
           p: ['jackett'],
           m: maxResults,
+          d: 0,
           q: ['2160p', '1080p', '720p', '480p'],
           q1: 10,
         })}/stream/movie/tt1254207.json`,

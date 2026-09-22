@@ -150,7 +150,7 @@ test('buildStreams finaliza search.first.* da primeira build fria de forma coere
   try {
     const raw = [
       // BR (vira _br no toStremioStream) e global — mede o funil e a entrega.
-      { title: 'Filme BR', infoHash: 'a'.repeat(40), isBr: true, seeders: 1, dubbed: true },
+      { title: 'Filme BR Dublado', infoHash: 'a'.repeat(40), isBr: true, seeders: 1, provenAudio: 'Dublado' },
       { title: 'Global', infoHash: 'b'.repeat(40), isBr: false, seeders: 50 },
     ];
     const state = createFirstObserver(true);
@@ -160,7 +160,7 @@ test('buildStreams finaliza search.first.* da primeira build fria de forma coere
     stageFirstTiming(state, 'global', 200);
     stageFirstTiming(state, 'br', 40);
     stageFirstTiming(state, 'br', 10);
-    const userOpts = runtime.decode(runtime.encode({ ds: fake.id, dk: 'obs-funnel', dc: false }));
+    const userOpts = runtime.decode(runtime.encode({ ds: fake.id, dk: 'obs-funnel', dc: false, d: 0 }));
     await runtime.run({ opts: userOpts, encoded: '' }, () =>
       buildStreams(raw as any, {
         imdbId: 'tt0000001',

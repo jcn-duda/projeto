@@ -257,11 +257,11 @@ export async function applyDebrid(input: Array<Stream | null>, {
     // episódio errado no play e jogava a prova fora por falta de obra). Campos
     // opcionais ficam dentro do hint já assinado; URLs antigas sem eles
     // continuam verificando normalmente.
-    const hint = workHint || s._dubbed || imdbId
+    const hint = workHint || s._dubbed || s._dubClaim || imdbId
       ? {
         ...(workHint || {}),
         ...(workHint && s._multiWork ? { p: 1 } : {}),
-        ...(s._dubbed ? { d: 1 } : {}),
+        ...((s._dubbed || s._dubClaim) ? { d: 1 } : {}),
         ...(imdbId ? { i: imdbId } : {}),
       }
       : null;
