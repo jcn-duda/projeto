@@ -8,9 +8,11 @@
  * - DUAS janelas independentes de custo (hora e dia); excedente é decisão do
  *   chamador (`cap`/`day-cap`), nunca chamada;
  * - breaker próprio: falha arma cooldown com backoff exponencial (base
- *   `cooldownMs` de config, fator 2^n até 32x); `rate` honra Retry-After
- *   (teto 5min); `auth` (401/403) para 30min com UM warn por instância — a
- *   chave nunca aparece na mensagem;
+ *   `cooldownMs` de config, fator 2^n até 32x); QUALQUER kind não-auth honra
+ *   Retry-After quando o serviço mandou o header (429 e 529, §8.1 — teto
+ *   5min), com fallback por kind: `rate` usa piso fixo, os demais backoff;
+ *   `auth` (401/403) para 30min com UM warn por instância — a chave nunca
+ *   aparece na mensagem;
  * - sucesso zera o streak de falhas (mesma forma do breaker do Torrentio).
  *
  * Nenhum estado global: todo o estado mora no closure da instância, então
@@ -122,9 +124,17 @@ export function createJudgmentBudget(
       }
       return;
     }
+    // Retry-After do serviço vence o fallback de QUALQUER kind não-auth
+    // (§8.1: 429 e 529 mandam o header; 529 chega como kind 'http'). Só um
+    // valor finito e positivo arma cooldown — sem header, cada kind segue o
+    // caminho de baixo.
+    if (typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
+      armCooldown(now + Math.min(retryAfterMs, RATE_COOLDOWN_MAX_MS));
+      return;
+    }
     if (kind === 'rate') {
-      const retryAfter = retryAfterMs || RATE_COOLDOWN_MS;
-      armCooldown(now + Math.min(Math.max(0, retryAfter), RATE_COOLDOWN_MAX_MS));
+      // Fallback do rate sem header: piso fixo de 1min (o teto é o mesmo).
+      armCooldown(now + RATE_COOLDOWN_MS);
       return;
     }
     // timeout/network/http/shape: backoff exponencial com base de config —

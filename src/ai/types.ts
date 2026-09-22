@@ -33,8 +33,15 @@ export type EnqueueResult =
 /** Classe de falha do cliente — labels FECHOS, viram métrica fixa. */
 export type AskErrorKind = 'auth' | 'rate' | 'timeout' | 'http' | 'shape' | 'network';
 
-/** Resposta do cliente: noul validado em [0,1] + usage defensivo. */
+/** Resposta do cliente: noul validado em [0,1] + usage defensivo + eco do model. */
 export interface AskOk {
   noul: number;
   usage?: { input: number; output: number };
+  /**
+   * ID versionado que de fato respondeu (§5 da referência Jev), ecoado pelo
+   * serviço quando presente. O `model` de config é ALIAS móvel (`jev-latest`),
+   * então a auditoria do cache precisa do eco — nunca do alias — para saber
+   * quem julgou (§11: "Alias em produção só com o ID versionado registrado").
+   */
+  model?: string;
 }

@@ -159,6 +159,40 @@ test('parse genérico: noul é lido do questionId recebido, não de um id fixo',
   }
 });
 
+test('eco do model: ID versionado da resposta atravessa; ausente vira undefined', async () => {
+  const stub = stubFetch(() =>
+    okRes({ model: 'jev-1.13.0', answers: { is_ptbr_dub: { noul: 0.7 } } }),
+  );
+  try {
+    const res = await askJevAudio(BASE);
+    assert.equal(res.model, 'jev-1.13.0', 'o eco versionado é devolvido inteiro');
+  } finally {
+    stub.restore();
+  }
+  // Corpo SEM `model` (stub antigo): campo ausente, não string vazia.
+  const stub2 = stubFetch(() => okRes({ answers: { is_ptbr_dub: { noul: 0.7 } } }));
+  try {
+    const res = await askJevAudio(BASE);
+    assert.equal(res.model, undefined);
+  } finally {
+    stub2.restore();
+  }
+});
+
+test('529 Overloaded: kind http e Retry-After honrado', async () => {
+  const stub = stubFetch(() =>
+    okRes({}, 529, { get: (h: string) => (h.toLowerCase() === 'retry-after' ? '2' : null) }),
+  );
+  try {
+    await assert.rejects(
+      () => askJevAudio(BASE),
+      (e: any) => e instanceof AskError && e.kind === 'http' && e.retryAfterMs === 2000,
+    );
+  } finally {
+    stub.restore();
+  }
+});
+
 test('nenhum erro vaza a chave na mensagem', async () => {
   const stub = stubFetch(() => okRes({}, 401));
   try {

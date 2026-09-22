@@ -205,7 +205,7 @@ export function createJudgmentCore<S>(spec: JudgmentCoreSpec<S>): JudgmentCore<S
   function onOk(
     fp: string,
     entry: PendingEntry<S>,
-    res: { noul: number; usage?: { input: number; output: number } },
+    res: { noul: number; usage?: { input: number; output: number }; model?: string },
     latencyMs: number,
     cfg: typeof config.typesafe,
   ) {
@@ -217,7 +217,10 @@ export function createJudgmentCore<S>(spec: JudgmentCoreSpec<S>): JudgmentCore<S
       metrics.count(`${basePrefix}.tokens.out`, res.usage.output);
     }
     // Julgamento CRU no cache: threshold é aplicado SÓ na comparação abaixo.
-    store(fp, { n: res.noul, m: cfg.model, at: Date.now() }, cfg.judgmentTtlS);
+    // `m` grava o ID versionado ecoado pela resposta (§5/§11 da referência):
+    // o alias de config é móvel, e sem o eco o fallback preserva o alias —
+    // mesmo comportamento de antes para resposta sem o campo (stubs de teste).
+    store(fp, { n: res.noul, m: res.model || cfg.model, at: Date.now() }, cfg.judgmentTtlS);
     // Comparação SHADOW: só métrica. Nenhum item/resultado/decisão é tocado.
     const pred = res.noul >= cfg.threshold;
     if (pred === entry.det) {

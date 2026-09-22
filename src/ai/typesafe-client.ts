@@ -22,7 +22,7 @@ import type { AskErrorKind, AskOk } from './types.js';
 export class AskError extends Error {
   kind: AskErrorKind;
   status?: number;
-  /** Retry-After (ms) quando o 429 trouxer o header; null caso contrário. */
+  /** Retry-After (ms) quando 429 ou 529 trouxerem o header; null caso contrário. */
   retryAfterMs?: number | null;
 
   constructor(kind: AskErrorKind, message: string) {
@@ -62,10 +62,12 @@ function isAuthStatus(status: number) {
 }
 
 /**
- * Uma requisição. Resolve `{ noul, usage? }` ou rejeita `AskError` com kind
- * `auth` (401/403) | `rate` (429) | `http` (outro !ok) | `timeout` (estouro do
- * AbortSignal) | `network` (falha do fetch) | `shape` (corpo sem noul válido).
- * A mensagem nunca inclui a chave nem o corpo bruto do serviço.
+ * Uma requisição. Resolve `{ noul, usage?, model? }` ou rejeita `AskError` com
+ * kind `auth` (401/403) | `rate` (429) | `http` (outro !ok, inclusive 529
+ * Overloaded) | `timeout` (estouro do AbortSignal) | `network` (falha do
+ * fetch) | `shape` (corpo sem noul válido). 429 e 529 honram `retry-after`
+ * (§8.1: ambos pedem backoff, nunca retry imediato). A mensagem nunca inclui
+ * a chave nem o corpo bruto do serviço.
  */
 export async function askJevAudio({
   endpoint,
@@ -103,7 +105,10 @@ export async function askJevAudio({
       const kind: AskErrorKind = isAuthStatus(res.status) ? 'auth' : res.status === 429 ? 'rate' : 'http';
       const err = new AskError(kind, `HTTP ${res.status}`);
       err.status = res.status;
-      if (kind === 'rate') {
+      // 429 (rate) e 529 (Overloaded) pedem backoff com retry-after (§8.1). O
+      // 529 mantém kind 'http' — é sobrecarga transitória do serviço, não
+      // limite de taxa da chave; o header, quando veio, é honrado igual.
+      if (kind === 'rate' || res.status === 529) {
         const retryAfter = Number((res.headers as any)?.get?.('retry-after'));
         err.retryAfterMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : null;
       }
@@ -119,7 +124,13 @@ export async function askJevAudio({
     if (typeof noul !== 'number' || !Number.isFinite(noul) || noul < 0 || noul > 1) {
       throw new AskError('shape', 'resposta sem noul valido em [0,1]');
     }
-    return { noul, usage: usageOf(json) };
+    return {
+      noul,
+      usage: usageOf(json),
+      // Eco do model (§5): o serviço devolve o ID versionado que respondeu —
+      // com alias de config (`jev-latest`) é a única prova de quem julgou.
+      model: typeof json?.model === 'string' && json.model.trim() ? json.model.trim() : undefined,
+    };
   } finally {
     clearTimeout(timer);
   }
