@@ -26,10 +26,10 @@ function runTest(name: string, fn: () => void) {
 
 const QUALITIES = ['2160p', '1080p', '720p', UNKNOWN_QUALITY, '480p', 'SD'];
 
-// 1. Lie Demotion vs PreferDubbed across all qualities
-console.log('--- Phase 1: Lie Demotion vs PreferDubbed Across All Qualities ---');
+// 1. Lie purge vs PreferDubbed across all qualities
+console.log('--- Phase 1: Lie Purge vs PreferDubbed Across All Qualities ---');
 for (const q of QUALITIES) {
-  runTest(`1.${QUALITIES.indexOf(q) + 1} Quality ${q}: clean EN (1 seeder) beats lied (1M seeders, dubbed=true)`, () => {
+  runTest(`1.${QUALITIES.indexOf(q) + 1} Quality ${q}: lied is purged and clean EN survives`, () => {
     const hClean = `c_${q}_`.padEnd(40, '0');
     const hLied = `l_${q}_`.padEnd(40, '1');
     const streams: any[] = [
@@ -56,9 +56,10 @@ for (const q of QUALITIES) {
     ];
 
     const out = sortAndLimit(streams, { preferDubbed: true, maxResults: 10 });
-    assert.equal(out.length, 2);
-    assert.equal(out[0].infoHash, hClean, `Clean stream must precede lied stream in ${q}`);
-    assert.equal(out[1].infoHash, hLied);
+    // Desde 5fab4f8, `_lied` é inelegível mesmo fora de dubbedOnly: não deve
+    // apenas perder o ranking, e sim desaparecer antes de seeders/preferDubbed.
+    assert.equal(out.length, 1, `Lied stream must be purged in ${q}`);
+    assert.equal(out[0].infoHash, hClean, `Clean stream must survive in ${q}`);
   });
 }
 

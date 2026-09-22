@@ -10,7 +10,7 @@ import { BLUDV_DEFAULT_URL, list } from './helpers.js';
 export const resolvers = () => ({
   embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
   host: process.env.BR_RESOLVERS_HOST || '127.0.0.1',
-  // Desloca as portas dos resolvedores (8700..8706); o probe do painel usa a
+  // Desloca as portas dos resolvedores (8700..8707); o probe do painel usa a
   // mesma base para achar a porta certa de cada card.
   portOffset: Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0,
   // Teto do teste DIRETO do resolvedor pelo painel (/test-resolver.json). A

@@ -68,16 +68,16 @@ Praticamente todo trabalho de código acontece no **Adom**.
   flaresolverr → addon) com `wait -n` + `pipefail`: qualquer um que morrer
   derruba o container e o `restart: unless-stopped` recria tudo. Logs saem
   prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`.
-- Os sete `*-resolver` **não são containers**. `src/br-resolvers.ts` importa
-  **estaticamente** os sete profiles no processo do addon, cada um na própria
-  porta (8700–8706), via factory com config explícita — sem ler
+- Os oito `*-resolver` **não são containers**. `src/br-resolvers.ts` importa
+  **estaticamente** os oito profiles no processo do addon, cada um na própria
+  porta (8700–8707), via factory com config explícita — sem ler
   `PORT`/`SITE_URL` no import e sem mutar/restaurar o ambiente.
   `BR_RESOLVERS_EMBEDDED=false` volta ao modo de processos separados (não é o
   caminho de produção). Cada `<nome>-resolver/server.ts` é um shim de
   compatibilidade/standalone (instância lazy por `resolvers/shim-instance.ts`,
   env lida no ponto de entrada e `isMain(import.meta.url)` no lugar do
   `require.main`); a lógica vive no `resolvers/` (**TypeScript/ESM**, sem
-  `resolvers/package.json`), e o `tsc` compila/emite `resolvers/` e os sete
+  `resolvers/package.json`), e o `tsc` compila/emite `resolvers/` e os oito
   `*-resolver/` inteiros para `dist/` (o build-assets só copia assets
   não-compiláveis — ver a armadilha do `dist/`).
 - O healthcheck do Dockerfile é **quádruplo** (`/manifest.json` na 7000 + API
@@ -221,7 +221,7 @@ Um `stream` request do Stremio percorre exatamente este caminho:
 addon.ts  processo (listen, warmup)
    └─ app.ts  defineStreamHandler
         └─ providers/index.ts  findStreams
-             ├─ cache SWR (streams:v11)          ← só lista completa + debridKnown + tocável
+             ├─ cache SWR (streams:v14)          ← só lista completa + debridKnown + tocável
              ├─ coalescing inFlight
              └─ doSearch
                   ├─ cinemeta.getMeta  ─┐ paralelo
@@ -531,13 +531,14 @@ falso negativo (descartar magnet bom) é pior que falso positivo.
 - **`lie`** (TTL `MAGNET_LIE_TTL`, 7 dias; `MAGNET_LIE=false` desliga): há vídeo,
   mas o play provou release EN num post que prometia áudio PT — origem é o
   `DubLieError` do `pickFile` (a auditoria de áudio), nunca a checagem de cache.
-  Não é `bad`: o torrent toca, só que entrega outra coisa. O `lie` **rebaixa sem
-  apagar**: o hash sai do `instantSet` (não ganha ⚡ por memória), o merge do
+  Não é `bad`: o torrent toca, só que entrega outra coisa. O `lie` torna a
+  release **inelegível para a lista**: o hash sai do `instantSet` (não ganha ⚡
+  por memória), o merge do
   `dedupeByHash` prefere a listagem limpa ao clone mentiroso do MESMO hash e
-  zera o `_dubbed` do vencedor, e no `sortAndLimit` a release mentirosa desaba
-  abaixo de qualquer alternativa da MESMA qualidade — antes de `preferDubbed`,
-  prioridade de indexador e o desempate ⚡. Com `dubbedOnly` (a chave `d` do
-  usuário) ela some da lista, não só desce. A mesma escrita destrava a retenção
+  zera o `_dubbed` do vencedor; se o hash continuar marcado `_lied`, o
+  `sortAndLimit` o remove antes de `preferDubbed`, prioridade de indexador,
+  seeders e desempate ⚡ — com ou sem `dubbedOnly` (a chave `d` do usuário).
+  A mesma escrita destrava a retenção
   `adprot` do hash e marca `markLied` no índice de releases (`resolve.ts`) — o
   post que mentiu uma vez não reconquista a vaga BR pela janela do `alive`.
 
@@ -991,7 +992,7 @@ ausente significa "nunca medido neste processo", não medição falha.
 
 **Funil por item (`/stream-trace.json`, P5).** Responde "por que aquele stream
 sumiu?" sem refazer a busca: o ledger observacional viaja **dentro** da entrada
-`streams:v11`, a rota é só leitura (`getWithStale`), e o recompute offline
+`streams:v14`, a rota é só leitura (`getWithStale`), e o recompute offline
 explica entrada sem trace com peeks quiet (idx/raw/inventário). Live
 (`mode=live`) só TorBox/Premiumize via método cru do adaptador — AllDebrid é
 hard-block (`ad-hard-blocked`: consulta = upload e detona limpeza); RD é
@@ -1526,22 +1527,23 @@ operador).
 
 ## Cache multi-nível (fases 0–2 no código)
 
-A chave `streams:v11` isola config do usuário + digest da conta
+A chave `streams:v14` isola config do usuário + digest da conta
 (`request-key.ts`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
 — bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
 que não bate com a versão corrente). `idx` está em **v10** porque o classificador
 de áudio/origem persiste no índice (merge OR-aderente): v9 fechou DUB genérico +
-cirílico; v10 fechou `ENGLISH|ENG` no mesmo predicado. `streams` subiu a **v11**
-por outro motivo: o `title` entregue ao cliente agora remove o blob de qualidades
-do HDRTorrent — as listas v10 ainda carregavam a cauda (`…, 2160p, 720p, …`) e
-clientes que reclassificam o título por conta própria exibiam 4K em botões
-1080p/720p. Duas instalações do mesmo título **não** compartilham a lista — ela
+cirílico; v10 fechou `ENGLISH|ENG` no mesmo predicado. `streams` chegou à **v14**:
+v11 removeu do `title` entregue ao cliente o blob de qualidades do HDRTorrent;
+v12 cortou série/pack fora do intervalo e TS/PreDVD da lista de filme; v13
+deixou de promover `DUB` genérico de release rutracker transliterada; e v14
+separou `_dubClaim` (promessa no título/post) de `_dubbed` (áudio confirmado
+pela evidência de arquivo). Duas instalações do mesmo título **não** compartilham a lista — ela
 carrega URLs de play assinadas. O trabalho caro (Jackett + scrapers) é
 compartilhado mais abaixo.
 
 | camada | chave | o que guarda | kill-switch |
 |---|---|---|---|
-| L1+L2 streams | `streams:v11:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
+| L1+L2 streams | `streams:v14:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
 | bruto por indexer | `raw:v1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
 | SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
 
@@ -1563,11 +1565,11 @@ Cotas do L1 (`cache-quotas.ts`): `streams` 2000, `raw` 800, `dlmag` 4000,
 gordo (~100 KB no pior caso); não suba a cota sem refazer a conta de memória do
 container de 3g. O `mag` é o oposto — entrada minúscula (`1` + chave de ~70 B,
 ~400 B com o overhead do Map), então 50.000 custa ~19 MB. A conta que fecha NÃO
-é a soma das chaves de `QUOTAS` (90.721): `quotaFor` devolve `__default` (500)
+é a soma das chaves de `QUOTAS` (91.721): `quotaFor` devolve `__default` (500)
 para todo nome sem entrada própria, então o universo honesto é a **união** de
 `QUOTAS` com `NAMESPACE_VERSIONS`, mais o balde `__default` das chaves sem `:`
-— 91.221 contra o teto de 93.000, folga de 1.779 (~3 baldes de namespaces
-novos). Essa conta é refeita no teste (`cache-namespaces.test.ts`), que também
+— 92.221 contra o teto de 93.000, folga de 779 (um balde de 500 e margem curta).
+Essa conta é refeita no teste (`cache-namespaces.test.ts`), que também
 exige **cota explícita para todo namespace versionado** — sem a segunda guarda,
 `dinv`, `harvest`, `notify` e `seed` viveram de fallback e a soma real passou do
 teto em 1.051 sem nenhum teste reclamar (medido no container: `cache.evicted =
@@ -1991,7 +1993,7 @@ fire-and-forget) continua.
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
-| `src/br-resolvers.ts` | Carrega os sete profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
+| `src/br-resolvers.ts` | Carrega os oito profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
 | `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
 | `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. A aba Magnets (`view-magnets.ts`) monta o card do banco vivo (`view-magnet-bank.ts` sobre o modelo puro `bank-model.ts`), separado do estoque por conta. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
 | `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
@@ -2032,7 +2034,7 @@ fire-and-forget) continua.
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
 | `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`/`muri:`) e `prefix(ns)` |
-| `src/utils/request-key.ts` | `streams:v11` + digest da conta (nunca a chave crua) |
+| `src/utils/request-key.ts` | `streams:v14` + digest da conta (nunca a chave crua) |
 | `src/utils/secret-box.ts` | AES-256-GCM do `dk` no install URL |
 | `src/utils/sign.ts` | HMAC do `/resolve` (hash + ep + dica `w`) |
 | `src/utils/deadline.ts` | `raceWithDeadline`, `remainingCheckBudget` |
@@ -2064,7 +2066,7 @@ fire-and-forget) continua.
 | `Dockerfile` / `scripts/entrypoint.sh` / `docker-compose.yml` | Imagem única, supervisor, loopback |
 | `scripts/magnets.ts` | Inventário/limpeza da conta |
 | `scripts/check-test-list.ts` | Cobra a lista explícita do `npm test` |
-| `scripts/build-assets.ts` | Copia para `dist/` só assets não-compiláveis (`src/public`, `test/fixtures`, `jackett-bludv`); `resolvers/` e os sete `*-resolver/` são emitidos pelo próprio `tsc` e não são mais copiados |
+| `scripts/build-assets.ts` | Copia para `dist/` só assets não-compiláveis (`src/public`, `test/fixtures`, `jackett-bludv`); `resolvers/` e os oito `*-resolver/` são emitidos pelo próprio `tsc` e não são mais copiados |
 
 Pós split 5.3, `src/utils/format.ts` virou um barrel que reexporta os mesmos
 58 nomes de antes; a lógica mora nos 7 submódulos em `src/utils/` (sem ciclo,
@@ -2180,7 +2182,7 @@ o orçamento com a resposta.
 - **Caminho relativo mudou de profundidade com o `dist/`.** O código roda de
   `dist/src/...`, então `__dirname` e `require`/`import` relativos apontam para
   dentro de `dist/`. Dois casos já mordidos: o `DB_PATH` do cache precisa subir
-  **três** níveis para achar `data/cache.db`, e os sete profiles são importados
+  **três** níveis para achar `data/cache.db`, e os oito profiles são importados
   estaticamente de `resolvers/profiles/<nome>.ts` (import com a extensão do
   emit, `../resolvers/profiles/<nome>.js`; os shims
   `*-resolver/server.ts` seguem existindo para os testes e o modo standalone, e
@@ -2349,7 +2351,7 @@ o orçamento com a resposta.
   vivo por um glitch.
 - **Mudou regra de matching? O rebuild do container NÃO invalida o cache.**
   `data/cache.db` é volume: sobrevive a `docker compose up -d --build`, e o
-  `streams:v11` (lista pronta) e o `idx:v10` (acervo de releases já aprovadas)
+  `streams:v14` (lista pronta) e o `idx:v10` (acervo de releases já aprovadas)
   continuam servindo o que o filtro **antigo** deixou passar. Custou uma
   validação falsa: a correção estava no container, o teste isolado passava, e
   a resposta HTTP continuava trazendo o item errado. Depois de mexer em
@@ -2569,7 +2571,7 @@ o orçamento com a resposta.
   compilação. Em asserção intermediária use `assert.equal(lista.length, 0)`.
 - **`BR_RESOLVERS_HOST` é o único jeito de alcançar os resolvers.** Os cards
   Cardigann chamam `http://{{ ... }}/...` montado com essa env; no container
-  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8706 **só dentro do
+  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8707 **só dentro do
   container** — nenhuma dessas portas é publicada no host.
 - **Jackett no alpine é self-contained** (binário com libcoreclr embutida):
   precisa de `icu-libs`/`zlib`/`libstdc++` e das envs `XDG_CONFIG_HOME=/config`

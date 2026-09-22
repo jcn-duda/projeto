@@ -14,7 +14,7 @@ import { createResolver as createHdrtorrentsResolver } from '../resolvers/profil
  * Carrega os resolvedores BR dentro do processo do addon.
  *
  * Cada um era um container só pra subir um servidor HTTP de ~200 linhas. Eles
- * continuam ouvindo nas mesmas portas (8700-8706) — o Jackett segue chamando
+ * continuam ouvindo nas mesmas portas (8700-8707) — o Jackett segue chamando
  * por HTTP, só que agora o host é o próprio addon.
  *
  * Cada profile é importado ESTATICAMENTE (ESM nativo, sem createRequire) e
@@ -90,7 +90,7 @@ function load(controls: ResolverControls = config.resolvers) {
         siteUrl: resolver.siteUrl || undefined,
         extraProtectors,
       });
-      // Os sete expõem createServer e só sobem sozinhos quando são o processo
+      // Os oito expõem createServer e só sobem sozinhos quando são o processo
       // principal — aqui o addon abre a porta no lugar deles.
       if (typeof instance?.createServer === 'function') {
         const server = instance.createServer();

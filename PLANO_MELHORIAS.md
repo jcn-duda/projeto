@@ -75,11 +75,12 @@ dos achados críticos). Autocontido: pode ser executado por um agente sem acesso
 
 ---
 
-## Estado atual (2026-09-04)
+## Estado atual (atualizado em 2026-09-22)
 
-**Fases 0–6 e M0–M6 estão no código.** Base da revisão local: `esm` @
-`94c8f7b`. Inventário atual pelo `npm run test:complete`, sem duplicar contagens
-manuais de arquivos. Estado de produção exige conferir a instância implantada.
+**Fases 0–6 e M0–M6 estão no código.** Base sincronizada desta atualização:
+`esm` @ `0eb78b9`. Inventário atual pelo `npm run test:complete`, sem duplicar
+contagens manuais de arquivos. Estado de produção exige conferir a instância
+implantada e não é inferido do Git.
 
 **Revisão Docker/CI (2026-09-04, alterações locais):** runtime instala com
 `npm ci --omit=dev` e lockfile; filtros de push/PR incluem `resolvers/**`,
@@ -98,6 +99,15 @@ harnesses adversariais, saúde da stack, GitHub Actions remoto e deploy na VPS.
 A auditoria completa ainda reporta 4 vulnerabilidades em dependências de
 desenvolvimento (3 baixas, 1 alta); não entram no runtime com `--omit=dev`.
 
+**Revalidação local de 2026-09-22 (`0eb78b9` + sincronização documental):**
+typecheck e build verdes; 2.944 testes / 127 suítes, zero falha; 315 arquivos no
+`test:complete`; catraca com 695 arquivos e zero excedente; os seis scripts de
+bancada verdes (incluindo adversarial 10/10 e ranking 13/13 após alinhar o
+harness à purga incondicional de `_lied`). `docker compose up -d --build adom`
+recriou a imagem e chegou a `healthy`; manifest, configure, painel e módulos ESM
+responderam 200. Nenhuma busca, resolução, conta de debrid, indexer ou VPS foi
+exercitada nessa validação.
+
 **O que continua aberto de verdade:**
 
 | Item | Estado |
@@ -107,23 +117,23 @@ desenvolvimento (3 baixas, 1 alta); não entram no runtime com `--omit=dev`.
 | **Fase 7** trilha A (VPS) | 7.1 ✅ verificado na VPS (script já faz fetch/checkout da `esm`; HEAD == `origin/esm`, 2026-09-06). 7.3 ↩️ **reaberto** — operador pediu tirar o `basic_auth` de `/configure`/`/defaults.json` (página pública de novo; token de diagnóstico intacto). Restam 7.2/7.4 operacionais. 7.8 (Tier 5) ✅ |
 | **Fase 7** trilha C | 7.9 + 7.12–7.16 ✅ no código; 7.11 SearchPhase **não fazer** |
 | **Fase 8** | Código das peças duráveis ✅ (`adsub`/`adrm`/blindagem/evict/reconcile). Evicção e reconcile **default OFF**. Aceite de ocupação em produção depende de ativação + medição |
-| **Fase 9 / P5** | **Commitada** (`ea15894` → `cb934c9` → `9eb98f4`); `streams` em **v11** / `idx` em **v10**. Não alegar DONE em produção sem deploy autorizado |
+| **Fase 9 / P5** | **Commitada** (`ea15894` → `cb934c9` → `9eb98f4`); namespace corrente `streams` em **v14** / `idx` em **v10**. Não alegar DONE em produção sem deploy autorizado |
 
 A meta histórica de `any` (<150) fechou em **143** (`e25ef29`). Catraca 5.8 e
 painel 5.9 estão no ar. Banco de magnets: cota L1 `mag=50000` + agregado único
-`mag_meta=1` (contadores duráveis O(1)), teto global `84000`, soma das cotas
-`82.551`.
+`mag_meta=1` (contadores duráveis O(1)), teto global `93000` e universo
+alcançável de `92.221` entradas (folga 779).
 
 **MagnetDB Fases 1–3 no código (2026-09-09):** contadores duráveis O(1) em
 `mag_meta:v1` (Fase 1), rebaixamento/filtragem de releases `_lied` no ranking e
 no `instantSet` (Fase 2) e as ações autenticadas `magnet-inspect`/
 `magnet-summary`/`magnet-clear-bad` no painel (Fase 3, `magnet-clear-bad`
-destrutiva com `confirm` e teto de 100). `test:complete` agora inventaria **7**
-harnesses (entrou `scripts/empirical-ranking-challenger.ts`, exposto como
-`npm run test:ranking-challenger`). A releitura que a doc `fd4663d` motivou
+destrutiva com `confirm` e teto de 100). `test:complete` inventaria os **10**
+arquivos de bancada expostos pelos seis scripts, incluindo
+`npm run test:ranking-challenger`. A releitura que a doc `fd4663d` motivou
 achou dois defeitos de **relato** — zero rotulado `duravel` no primeiro boot com
 `cache.db` herdado, e `cleared: 0` fantasma no `magnet-clear-bad` — fechados em
-`008eecd`. No working tree (ainda sem commit): a persistência saiu para
+`008eecd`. A persistência, commitada em `4140fd3`, saiu para
 `magnetdb-persist.ts` (`magnetdb.ts`: 400 → 329 linhas) e o status passou a
 declarar a base da média de TTL restante (`ttlRemainingBasis`, painel mostra o
 qualificador). Ver a seção **MagnetDB** abaixo.
@@ -1245,7 +1255,7 @@ a resposta estrutural a essa dor.
 | Bump v10 | `ENGLISH\|ENG` na mesma guarda do DUB genérico | ✅ `ea4c8d5` (e comentário em `cache-keys.ts`) |
 
 Código commitado em `esm`. **Não alegar DONE em produção** — push/deploy
-exigem autorização explícita. Namespaces atuais: `streams:v11` / `idx:v10`.
+exigem autorização explícita. Namespaces atuais: `streams:v14` / `idx:v10`.
 
 ### Contratos duros (não podem regredir)
 
@@ -1377,15 +1387,15 @@ fecham esses três pontos.
 | Fase | Conteúdo | Estado |
 |---|---|---|
 | 1 — contadores duráveis O(1) | `mag_meta:v1:counts` (cota 1), `cache.onForget` decrementa, `loadPersistentCounts` restaura no boot decaindo TTL pelo tempo decorrido, `savePersistentCounts` no shutdown; `cache.has` evita dupla contagem | ✅ `fe4cd8c` |
-| 2 — rebaixamento de `lie` | `markLie`/`isLie`/`peekLie`; `instantSet` exclui lied; `dedupeByHash` prefere listagem limpa ao clone mentiroso; `sortAndLimit` rebaixa `_lied` abaixo da mesma qualidade e filtra em `dubbedOnly`; destrava `adprot` + `markLied` no índice | ✅ `fe4cd8c` |
-| 2b — challenger de ranking | `scripts/empirical-ranking-challenger.ts` (exposto como `npm run test:ranking-challenger`) | ✅ `fe4cd8c` |
+| 2 — histórico de `lie` | `markLie`/`isLie`/`peekLie`; `instantSet` exclui lied; `dedupeByHash` prefere listagem limpa ao clone mentiroso. Desde `5fab4f8`, `sortAndLimit` remove `_lied` sempre, antes de seeders/`preferDubbed`, em vez do rebaixamento condicional original; destrava `adprot` + `markLied` no índice | ✅ `fe4cd8c` + `5fab4f8` |
+| 2b — challenger de ranking | `scripts/empirical-ranking-challenger.ts` (exposto como `npm run test:ranking-challenger`), alinhado à purga incondicional | ✅ `fe4cd8c` + atualização 2026-09-22 |
 | 3 — ações do painel | `src/utils/magnetdb-inspect.ts` (L1 só) + `src/routes/dashboard-actions-magnet.ts`: `magnet-inspect`/`magnet-summary` (leitura) e `magnet-clear-bad` (destrutiva, `confirm`, teto 100) | ✅ `0b5c538` |
 | 1b — correção de relato | `loadPersistentCounts` reconta do L1 quando o agregado não abre (`rebuildFromL1`, O(namespace `mag`): 29,6 ms medidos em 50 mil chaves — cota cheia — uma vez no boot; **remedir se a cota crescer**); `forgetBadKey` decide presença por `cache.has`, fim do `cleared: 0` fantasma; parse único em `magnetdb-counts.ts` (mão única, sem ciclo) | ✅ `008eecd` |
-| 1c — extração + base do TTL | `magnetdb-persist.ts` (contadores, `mag_meta`, `onForget`, `ttlRemainingBasis`) extraído do `magnetdb.ts` (400 → 329 linhas, folga na catraca); painel qualifica a média (`l1-rebuild` × `aggregate-estimate`) em vez de chamá-la de exata após mutação; `test/magnetdb-persist-basis.test.ts` | ⏳ working tree (sem commit) |
+| 1c — extração + base do TTL | `magnetdb-persist.ts` (contadores, `mag_meta`, `onForget`, `ttlRemainingBasis`) extraído do `magnetdb.ts` (400 → 329 linhas, folga na catraca); painel qualifica a média (`l1-rebuild` × `aggregate-estimate`) em vez de chamá-la de exata após mutação; `test/magnetdb-persist-basis.test.ts` | ✅ `4140fd3` |
 
-Código F1–3 commitado em `esm` (`fe4cd8c` + `0b5c538` + `008eecd`). **Não alegar
-DONE em produção** — deploy exige autorização explícita. A extração 1c
-(persistência + `ttlRemainingBasis`) está no working tree, ainda sem commit.
+Código F1–3 e extração 1c commitados em `esm` (`fe4cd8c` + `0b5c538` +
+`008eecd` + `4140fd3`). **Não alegar DONE em produção** — deploy exige
+autorização explícita.
 
 ### Contratos duros (não podem regredir)
 
@@ -1554,7 +1564,7 @@ npm run test:ranking-challenger
 
 **Não pode regredir:** invariante 1 (orçamento), vagas BR no corte final,
 `_campos` internos fora da resposta, SWR só serve lista completa+tocável,
-soma de cotas < teto global (82.551 < 84.000), métricas `magnetdb.dropped.*`
+soma do universo de cotas < teto global (92.221 < 93.000), métricas `magnetdb.dropped.*`
 separadas.
 
 ## Riscos do próprio plano

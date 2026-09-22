@@ -9,7 +9,7 @@ Os **cinco** objetivos de uma vez:
 | # | Objetivo | Como |
 |---|----------|------|
 | 1 | Addon no Stremio | Adom, Node/Express — P2P puro ou via debrid |
-| 2 | Rodar na sua pasta | `npm start` → `http://127.0.0.1:7000/manifest.json` |
+| 2 | Rodar na sua pasta | `npm run build && npm start` → `http://127.0.0.1:7000/manifest.json` |
 | 3 | Criar o **seu** lado | código em `src/` (provedores, filtros, nome) |
 | 4 | Subir no Docker | `docker compose up -d --build` (container único) |
 | 5 | Stack completa em VPS | Caddy/HTTPS + addon + Jackett + resolvers BR, tudo num container |
@@ -37,8 +37,9 @@ os quatro processos e qualquer um que morrer derruba o container para o
 
 - **Adom** = addon Node deste repositório: busca em paralelo no Jackett
   (indexers globais + cards brasileiros), no Prowlarr e no scraper do BLUDV.
-- **Jackett** = gerenciador de indexers; os cards BR (Bludv, ComandoTorrents,
-  NerdFilmes, TorrentDosFilmes V2, VacaTorrent) vêm embutidos na imagem e
+- **Jackett** = gerenciador de indexers; os oito cards/resolvers BR (Bludv,
+  ComandoTorrents, NerdFilmes, TorrentDosFilmes V2, VacaTorrent, RedeTorrent,
+  ApacheTorrent e HDRTorrents) vêm embutidos na imagem e
   dependem dos microserviços `*-resolver` para seguir protetores de links.
 - **FlareSolverr** = resolve desafios Cloudflare dos indexers que exigem.
 - **Caddy** = HTTPS automático na frente do addon.
@@ -68,6 +69,7 @@ PORT=7000
 ```
 
 ```powershell
+npm run build
 npm start
 ```
 
@@ -111,11 +113,13 @@ Com `RESOLVE_SECRET` no `.env`, a API key vai **cifrada** no install URL.
 | Premiumize | sim | lote instantâneo, não escreve na conta |
 | TorBox | sim | lote instantâneo, não escreve na conta |
 | AllDebrid | sim | `ready` do `/magnet/upload` — **cria magnets** e precisa limpar |
-| Real-Debrid | não | endpoint instantâneo aposentado |
+| Real-Debrid | condicional | ledger + oráculo, quando fontes opt-in estão disponíveis |
 | Debrid-Link | não | endpoint instantâneo aposentado |
 
-Real-Debrid e Debrid-Link não informam o que toca na hora: todos os resultados
-passam pelo debrid, sem ⚡, e *somente em cache* fica desligado. AllDebrid
+O endpoint instantâneo do Real-Debrid foi aposentado. Com ledger e uma fonte
+do oráculo explicitamente configurada, o addon recupera veredictos e habilita
+o `cacheCheck` dinâmico; sem fonte utilizável, degrada honestamente para o modo
+sem consulta, como o Debrid-Link. AllDebrid
 **mede** o ⚡, mas a checagem é um upload — conta no teto de magnets faz o raio
 sumir de todos os streams (`node dist/scripts/magnets.js` / `/debrid-status.json`).
 Premiumize e TorBox checam em lote sem sujar a conta.
@@ -149,7 +153,8 @@ MAX_RESULTS=40
 # QUALITY_FILTER=1080p,720p
 ```
 
-4. `npm start` e reinstale/atualize o manifest no Stremio se precisar.
+4. `npm run build`, depois `npm start`, e reinstale/atualize o manifest no
+   Stremio se precisar.
 
 ### Opção B — stack Docker (recomendado no dia a dia)
 
@@ -374,13 +379,15 @@ stremio adom/
 │   └── entrypoint.sh         # supervisor dos 4 processos no container único
 ├── docker-compose.yml        # serviço único (adom)
 ├── jackett-bludv/            # definitions Cardigann dos cards BR (yml)
-├── resolvers/                # núcleo comum dos 6 resolvers BR + profiles/
+├── resolvers/                # núcleo comum dos 8 resolvers BR + profiles/
 ├── bludv-resolver/           # shim → resolvers/profiles/bludv.ts
 ├── comandotorrents-resolver/ # shim → resolvers/profiles/comandotorrents.ts
 ├── nerdfilmes-resolver/      # shim → resolvers/profiles/nerdfilmes.ts
 ├── torrentdosfilmes-resolver/ # shim → resolvers/profiles/torrentdosfilmes.ts
 ├── vacatorrent-resolver/     # shim → resolvers/profiles/vacatorrent.ts
 ├── redetorrent-resolver/     # shim → resolvers/profiles/redetorrent.ts
+├── apachetorrent-resolver/   # shim → resolvers/profiles/apachetorrent.ts
+├── hdrtorrents-resolver/     # shim → resolvers/profiles/hdrtorrents.ts
 ├── Caddyfile
 ├── Dockerfile
 ├── .env.example

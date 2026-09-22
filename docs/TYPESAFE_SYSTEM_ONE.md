@@ -1,4 +1,4 @@
-# TypeSafe / System One — Probe Jev dub-lie (ETAPA 2)
+# TypeSafe / System One — Probes Jev dub-lie e audio-classify (ETAPAS 2–3)
 
 > **Status desta validação:** o `--dry-run` foi executado localmente sem
 > chave e sem rede. **Nenhuma chamada real à API TypeSafe foi feita nesta
@@ -9,7 +9,7 @@
 > corpus, allowlist do payload e o plano de fan-out — não acurácia, não
 > latência real, não tokens, não custo.
 
-Este documento é a operação do experimento TypeSafe no Adom Power-Movie.
+Este documento é a operação dos experimentos TypeSafe no Adom Power-Movie.
 Fonte conceitual obrigatória:
 [Introduction — Atomic questions, composed in code](https://docs.typesafe.ai/introduction#atomic-questions-composed-in-code)
 e a documentação oficial correlata citada no código
@@ -48,6 +48,25 @@ custo estimado.
 | `scripts/jev-dub-lie-metrics.mjs` | `judge`, matriz, latência, tokens, custo, `renderReport` |
 | `scripts/jev-dub-lie-client.mjs` | `askOnce`/`runCorpus`: fan-out, timeout, retry, fail-open |
 | `test/jev-dub-lie-probe.test.ts` | Prova local SEM rede (na lista do `npm test`) |
+| `scripts/jev-audio-classify-probe.mjs` | CLI da ETAPA 3: audita o claim PT-BR só pelo título |
+| `scripts/jev-audio-classify-cases.mjs` | Corpus cujo esperado é o classificador determinístico atual |
+| `scripts/jev-audio-classify-payload.mjs` | Estado allowlist `post_title` e Noul `is_ptbr_dub` |
+| `test/jev-audio-classify-probe*.test.ts` | Contrato local e CLI da ETAPA 3, ambos sem rede |
+
+### ETAPA 3 — `audio-classify`
+
+O probe irmão `jev-audio-classify-probe.mjs` pergunta se o título anuncia
+dublagem pt-BR (`is_ptbr_dub`) antes de existir evidência de arquivo. Ele
+reutiliza cliente, fan-out, retry, métricas e fail-open da ETAPA 2, mas envia
+somente `post_title`: não envia indexer, arquivos, magnet, hash ou configuração.
+
+O `expectPtBr` do corpus foi extraído do `looksPtBr` atual. Portanto, essa etapa
+mede **concordância com a regra determinística viva**, não verdade externa nem
+acurácia de produção. Divergência é candidata a revisão; nunca autoriza mudar
+`_br`, `_dubClaim`, `_dubbed`, ranking ou limpeza automaticamente. Assim como
+o dub-lie, o probe não é importado por `src/`, só teve `--dry-run` validado e
+continua aguardando uma chamada real controlada para medir contrato wire,
+latência, tokens, custo e comportamento do modelo.
 
 ---
 
@@ -55,8 +74,8 @@ custo estimado.
 
 Por construção, não por configuração:
 
-- Nenhum arquivo do probe é importado por `src/` (afirmação repetida no
-  cabeçalho de todos os cinco `.mjs`).
+- Nenhum arquivo dos probes é importado por `src/` (afirmação repetida no
+  cabeçalho dos oito `.mjs`).
 - O caminho crítico de busca tem orçamento sagrado
   (`REPLY_DEADLINE_MS`, `DEBRID_RESERVE_MS` etc. em `AGENTS.md`); uma
   chamada a modelo por caso (~dezenas de ms a segundos) não caberia e não

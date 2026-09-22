@@ -12,14 +12,16 @@
 > harnesses, adversarial 10/10, typecheck zero nos três programas e container
 > Docker local healthy com os seis resolvers e o painel servindo.
 >
-> **Estado (2026-09-04):** M0–M6 e a metade regressão do M4 estão **DONE**.
-> Base da revisão local: `esm` @ `94c8f7b`; alterações Docker/CI nesta árvore.
+> **Estado do código (2026-09-22):** M0–M6 e a metade regressão do M4 estão
+> **DONE**. Base sincronizada desta atualização: `esm` @ `0eb78b9`; o estado
+> da VPS continua exigindo verificação própria e não é inferido do Git.
 > Inventário de testes: executar `npm run test:complete`; regressão: `npm test`.
 > Entrega: runtime com lockfile (`npm ci --omit=dev`), filtros Docker cobrindo
 > núcleo/shims de resolvers e audit de produção bloqueante. Isso não comprova
 > deploy na VPS; evidência de validação desta revisão em `PLANO_MELHORIAS.md`.
-> Namespaces `streams` em **v11** / `idx` em **v10** (`cache-keys.ts`); cota `mag=50000`,
-> teto global `84000`. Pós-M6 entregue e no código: Fase 8 (posse `adsub`,
+> Namespaces `streams` em **v14** / `idx` em **v10** (`cache-keys.ts`); cota
+> `mag=50000`, teto global `93000` e universo alcançável de 92.221 entradas.
+> Pós-M6 entregue e no código: Fase 8 (posse `adsub`,
 > anti-reupload `adrm`, evicção/reconcile default OFF, blindagem BR), Fase 9/P5
 > (`/stream-trace.json` + recompute + live TB/PM + painel — commitada desde
 > `cb934c9`/`9eb98f4`), Chupim (cobertura por qualidade 720/1080/4K, fila
@@ -28,6 +30,9 @@
 > (`DEBRID_SUPPRESSED_TTL`, 30 dias) e drain com teto/backoff por passagem
 > (`DEBRID_SUPPRESSED_DRAIN_MAX`, dado em 5 falhas) — a retroatividade do
 > `DEBRID_REMOVE_BY_ID` deixa de depender das 24h do `DEAD_TTL`.
+> Revalidação local de 2026-09-22: 2.944 testes/127 suítes, seis scripts de
+> bancada verdes, catraca 695/0 e stack Docker reconstruída `healthy`; nenhuma
+> busca real, conta de debrid ou VPS foi exercitada.
 > **Aberto operacional:** Fase 7 trilha A/B na VPS (7.1 branch do cron, 7.5
 > janela `davail` — baseline de 7 dias **venceu** em 2026-08-31 sem decisão de
 > TTL registrada; TTLs 900s/120s seguem); knobs destrutivos 8.16/8.17 só com
@@ -82,7 +87,7 @@
 - `src/providers/*.ts`: Provider search orchestration, autofetch runner, debrid pipeline, stream builder.
 - `src/debrid/*.ts`: Debrid adapters, file selector, common helpers, live-check (P5).
 - `src/utils/*.ts`: Format submodules, cache, net-safety, magnetdb, release-index, stream-trace/trace-recompute.
-- `resolvers/*.ts`: Shared **TypeScript/ESM** core of the six Brazilian resolvers, compiled by `tsc` into `dist/resolvers/` (`is-main.ts` replaces `require.main`; profile config in `env-config.ts`; shared types in `types.ts`); `resolvers/profiles/*.ts`: per-site parsers and rules. The `*-resolver/server.ts` shims are ESM with a `default` lazy instance (`shim-instance.ts`), kept for tests and standalone mode.
+- `resolvers/*.ts`: Shared **TypeScript/ESM** core of the eight Brazilian resolvers, compiled by `tsc` into `dist/resolvers/` (`is-main.ts` replaces `require.main`; profile config in `env-config.ts`; shared types in `types.ts`); `resolvers/profiles/*.ts`: per-site parsers and rules. The `*-resolver/server.ts` shims are ESM with a `default` lazy instance (`shim-instance.ts`), kept for tests and standalone mode.
 - `src/public/*`: Panel pages — `/configure` and `/painel` HTML/CSS/images (no build). Both client JS trees live under `src/client/<name>/*.ts` (native ESM, built by `tsconfig.client.json`; NodeNext test emit via `tsconfig.client.test.json`).
 - `scripts/check-line-budget.ts` + `.line-budget.json`: 400-line ratchet over `.ts`/`.js`/`.css` (§5.8, scope extended to `.css` on 08-29); `npm run lint:lines`.
 - `test/**/*.test.ts`: testes unitários e e2e; `npm run test:complete` confere a lista do `package.json` e os harnesses.
