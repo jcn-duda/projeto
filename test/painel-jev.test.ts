@@ -48,6 +48,9 @@ const COUNTERS = {
   'typesafe.shadow.dublie.disagree': 4,
   'typesafe.shadow.dublie.disagree.ai-lie': 2,
   'typesafe.shadow.dublie.disagree.rule-lie': 2,
+  'typesafe.overlay.consulted': 57,
+  'typesafe.overlay.cache-miss': 19,
+  'typesafe.overlay.applied': 6,
 };
 
 test('jevQuestionModel lÃª os 13 campos da pergunta e a concordÃ¢ncia (prefixo vazio)', () => {
@@ -151,6 +154,38 @@ test('jevModel preserva a concordÃ¢ncia histÃ³rica quando sÃ³ o bloco type
   assert.equal(m.dubLie.agree, 26);
 });
 
+test('jevModel lÃª o bloco overlay (ETAPA C) com fallback nos contadores', () => {
+  // Bloco dedicado do status tem precedÃªncia.
+  const m = jevModel(
+    {
+      enabled: true,
+      model: 'jev-latest',
+      audioClassify: AUDIO_SNAPSHOT,
+      dubLie: DUBLIE_SNAPSHOT,
+      overlay: { enabled: true, consulted: 100, cacheMiss: 40, applied: 7 },
+    },
+    { counters: COUNTERS },
+  );
+  assert.equal(m.overlay.enabled, true);
+  assert.equal(m.overlay.consulted, 100);
+  assert.equal(m.overlay.cacheMiss, 40);
+  assert.equal(m.overlay.applied, 7);
+
+  // Payload velho sem o bloco: cai nos contadores `typesafe.overlay.*`.
+  const porContador = jevModel(
+    { enabled: true, model: 'jev-latest', audioClassify: AUDIO_SNAPSHOT, dubLie: DUBLIE_SNAPSHOT },
+    { counters: COUNTERS },
+  );
+  assert.equal(porContador.overlay.enabled, false, 'sem bloco, enabled vem vazio (fallback sÃ³ nos nÃºmeros)');
+  assert.equal(porContador.overlay.consulted, 57);
+  assert.equal(porContador.overlay.cacheMiss, 19);
+  assert.equal(porContador.overlay.applied, 6);
+
+  // Sem nada: zeros defensivos.
+  const vazio = jevModel(undefined, { counters: {} });
+  assert.deepEqual(vazio.overlay, { enabled: false, consulted: 0, cacheMiss: 0, applied: 0 });
+});
+
 /** Texto visÃ­vel incluindo title/badge/label â€” INVOCA componentes de funÃ§Ã£o
  * sem hooks (mesmo padrÃ£o de test/painel-magnet-bank.test.ts), senÃ£o o
  * conteÃºdo de Card/QuestionCard ficaria preso dentro da funÃ§Ã£o. */
@@ -204,4 +239,28 @@ test('JevView cobre typesafe ausente sem quebrar (INATIVO)', () => {
   const text = textOf(JevView({ model: jevModel(undefined, { counters: {} }) }));
   assert.match(text, /INATIVO/, 'runtime desligado Ã© estado, nÃ£o erro');
   assert.match(text, /Pausar Jev/, 'sem pausa nenhuma o botÃ£o ofertado Ã© o de pausar');
+});
+
+test('JevView renderiza o card do overlay gateado com os trÃªs contadores', () => {
+  const ligado = jevModel(
+    {
+      enabled: true,
+      model: 'jev-latest',
+      audioClassify: AUDIO_SNAPSHOT,
+      dubLie: DUBLIE_SNAPSHOT,
+      overlay: { enabled: true, consulted: 100, cacheMiss: 40, applied: 7 },
+    },
+    { counters: COUNTERS },
+  );
+  const textOn = textOf(JevView({ model: ligado }));
+  assert.match(textOn, /Overlay Jev/, 'o card do overlay aparece');
+  assert.match(textOn, /GATEADO ON/, 'badge mostra o gate ligado');
+  assert.match(textOn, /100\s+\(\s*consultadas\s*\)/, 'contador consulted visÃ­vel');
+  assert.match(textOn, /40\s+\(\s*sem cache\s*\)/, 'contador cache-miss visÃ­vel');
+  assert.match(textOn, /7\s+\(\s*derrubadas\s*\)/, 'contador applied visÃ­vel');
+  assert.match(textOn, /Cache-only/, 'a garantia cache-only estÃ¡ explicada');
+
+  const desligado = jevModel(undefined, { counters: {} });
+  const textOff = textOf(JevView({ model: desligado }));
+  assert.match(textOff, /OFF/, 'overlay desligado Ã© estado, nÃ£o erro');
 });

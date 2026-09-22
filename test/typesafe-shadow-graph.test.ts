@@ -33,7 +33,6 @@ const ROOT = repoRoot();
 // invariantes do AGENTS.md (audio/lie/idx/banco/limpeza/autofetch/debrid) e os
 // classificadores determinísticos que o shadow compara.
 const DECISION_MODULES = [
-  'src/utils/audio-quality.ts',
   'src/utils/audio-cleanup.ts',
   'src/utils/release-index.ts',
   'src/utils/release-work.ts',
@@ -58,6 +57,12 @@ const DECISION_MODULES = [
   'src/debrid/file-selector.ts',
   'src/debrid/protected.ts',
 ];
+
+// ETAPA C — ÚNICA isenção: audio-quality.ts importa a FACHADA (`ai/index.js`)
+// para o overlay Jev no termo fraco de `explicitPtAudio`. A isenção é para a
+// fachada APENAS — cliente de fetch, fila e cache continuam proibidos em todo
+// o resto de src/ (cobrado pelo teste de grafo seguinte).
+const FACADE_EXEMPT_DECISION_MODULES = ['src/utils/audio-quality.ts'];
 
 // Sem a flag `g`: `.test()` com regex global é STATEFUL (`lastIndex` persiste) e
 // podia pular uma detecção depois de um match anterior. Cobre import estático
@@ -107,5 +112,21 @@ test('grafo: o pipeline importa a fachada UMA vez (produtor único)', () => {
   assert.ok(
     /shadowAudioJudgments/.test(pipeline),
     'o pipeline chama o produtor shadow após o filtro determinístico',
+  );
+});
+
+test('grafo: audio-quality é o ÚNICO módulo de decisão liberado — e só à fachada', () => {
+  // A isenção é mínima e nomeada: exatamente um arquivo, e o import dele é
+  // EXATAMENTE a fachada (`../ai/index.js`). Nada mais em src/utils nem nos
+  // demais módulos de decisão ganhou liberação (coberto pelo primeiro teste).
+  assert.deepEqual(FACADE_EXEMPT_DECISION_MODULES, ['src/utils/audio-quality.ts']);
+  const conteudo = readFileSync(join(ROOT, 'src', 'utils', 'audio-quality.ts'), 'utf8');
+  const imports = [...conteudo.matchAll(AI_IMPORT_ALL)].map((m) => m[1]);
+  assert.deepEqual(imports, ['../ai/index.js'], 'audio-quality só pode importar a fachada ai/index.js');
+  // O uso é em RUNTIME (função chamada dentro de explicitPtAudio), não em
+  // avaliação de módulo — é o que torna o ciclo ESM seguro.
+  assert.ok(
+    /overlayDropsDub/.test(conteudo),
+    'audio-quality consome overlayDropsDub da fachada',
   );
 });

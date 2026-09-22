@@ -2,7 +2,7 @@ import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber, ProgressBar } from './kit.js';
 import { useAction, actionError } from './action.js';
 import { formatDurationMs } from './fmt.js';
-import { jevModel, type JevModel, type JevQuestionView } from './jev-model.js';
+import { jevModel, type JevModel, type JevQuestionView, type JevOverlayView } from './jev-model.js';
 
 export interface ViewJevProps {
   typesafe?: Record<string, any>;
@@ -99,6 +99,38 @@ export interface JevViewProps {
   onCooldownReset?: () => void;
 }
 
+/** ETAPA C — overlay gateado: leitura cache-only no termo fraco do DUB
+ * genérico. Sem ação própria (o knob é do .env do operador). */
+function OverlayCard({ overlay }: { overlay: JevOverlayView }) {
+  const coberto = overlay.consulted > 0 ? Math.round(((overlay.consulted - overlay.cacheMiss) / overlay.consulted) * 100) : 0;
+  return html`
+    <${Card}
+      title="Overlay Jev (ETAPA C)"
+      badge=${overlay.enabled ? { text: 'GATEADO ON', variant: 'warn' } : { text: 'OFF', variant: 'neutral' }}
+    >
+      <div style="display: flex; gap: var(--space-4); flex-wrap: wrap;">
+        <${StatNumber} value=${overlay.consulted} label="consultadas" />
+        <${StatNumber} value=${overlay.cacheMiss} label="sem cache" />
+        <${StatNumber} value=${overlay.applied} label="derrubadas" />
+      </div>
+      <div style="margin-top: var(--space-2);">
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--muted);">Cobertura do cache</span>
+          <span style="font-weight: 600;">${coberto}%</span>
+        </div>
+        <${ProgressBar} percent=${coberto} variant="ok" />
+      </div>
+      <p style="color: var(--muted); margin: var(--space-2) 0 0; font-size: var(--font-floor);">
+        Cache-only e monotônico: nasce LIGADO por padrão, mas com o cache vazio é no-op (miss preserva true).
+        Uma negativa confiante do Jev (noul ≤ 0.15) derruba true→false SOMENTE no generic DUB isolado —
+        PT explícito é imune, e nada é buscado, enfileirado ou escrito aqui. TYPESAFE_OVERLAY_ENABLED=false
+        desliga (kill-switch / baseline determinística); o índice persistido fica determinístico
+        ({overlay:false}) e os caminhos destrutivos não são influenciados.
+      </p>
+    </${Card}>
+  `;
+}
+
 /**
  * Corpo PRESENTACIONAL da aba (sem hooks, como `MagnetBankView`): recebe o
  * modelo pronto e os callbacks — a casca `ViewJev` é quem tem estado/ação.
@@ -157,6 +189,10 @@ export function JevView({ model: m, pending = false, feedback = null, onPauseTog
       <div class="painel-grid" style="margin-top: var(--space-4);">
         <${QuestionCard} title="Pergunta 1 · audio-classify (is_ptbr_dub)" q=${m.audioClassify} sideLabel="PT-BR" />
         <${QuestionCard} title="Pergunta 2 · dub-lie (is_dub_lie)" q=${m.dubLie} sideLabel="lie" />
+      </div>
+
+      <div class="painel-grid" style="margin-top: var(--space-4);">
+        <${OverlayCard} overlay=${m.overlay} />
       </div>
     </div>
   `;

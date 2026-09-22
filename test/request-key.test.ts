@@ -13,16 +13,18 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.includes('alice-secret'), false);
   assert.equal(bob.includes('bob-secret'), false);
   assert.equal(alice, streamsCacheKey('movie', 'tt123', { ...base, debridApiKey: 'alice-secret' }));
-  assert.equal(alice.startsWith('streams:v14:'), true);
+  assert.equal(alice.startsWith('streams:v15:'), true);
 });
 
-test('versões correntes separam lista v14 do índice v10', () => {
+test('versões correntes separam lista v15 do índice v10', () => {
   // A correção BR_MARK (.org genérico), DUB/HINDI e a fronteira `bthd` mudam
   // matching/ranking; o AGENTS.md manda invalidar streams+idx juntos. v10: o
   // ENGLISH|ENG entra na guarda do DUB genérico; `mediaSource` entrou como
   // campo opcional na mesma v10 (sem bump — não descartar a colheita). A lista
-  // está em v14 (_dubClaim ≠ `_dubbed` comprovado).
-  assert.equal(prefix('streams'), 'streams:v14:');
+  // está em v15: o overlay Jev gateado (ETAPA C) pode mudar a classificação
+  // (`_br`/`_dubbed`) que a lista pronta carrega; o idx segue v10 porque a
+  // classificação dele é gravada com {overlay:false} (determinística).
+  assert.equal(prefix('streams'), 'streams:v15:');
   assert.equal(prefix('idx'), 'idx:v10:');
 });
 

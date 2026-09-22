@@ -118,9 +118,13 @@ function record(
       if (!prior) novos.add(hash);
       // DUAL sem PT explícito não vale como dublado fora dos sites BR (toStremioStream).
       const isBr = Boolean(item.isBr) || Boolean(prior?.isBr);
+      // {overlay:false}: o índice PERSISTE `dubbed`/`isBr` por semanas — a
+      // leitura viva do cache Jev (overlay gateado) não pode reescrever
+      // retroativamente o acervo, então a classificação do idx fica
+      // determinística (igual ao legado) e NÃO exige bump de namespace.
       const classifiedDubbed = isBr
-        ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title)))
-        : explicitPtAudio(title);
+        ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title, { overlay: false })))
+        : explicitPtAudio(title, { overlay: false });
       // No autofetch a classificação já atravessou toStremioStream e pode incluir
       // prova de arquivo; reclassificar só pelo título perderia essa evidência.
       const dubbed = itemSource === 'autofetch' && item.dubbed !== undefined

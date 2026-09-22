@@ -92,6 +92,31 @@ export interface JevModel {
   model: string;
   audioClassify: JevQuestionView;
   dubLie: JevQuestionView;
+  /** ETAPA C — overlay gateado: leitura cache-only no termo fraco. */
+  overlay: JevOverlayView;
+}
+
+/** Bloco `typesafe.overlay` do status (ou os contadores `typesafe.overlay.*`). */
+export interface JevOverlayView {
+  enabled: boolean;
+  /** Leituras com a flag ON (toda chamada conta). */
+  consulted: number;
+  /** Leituras sem julgamento no cache (não derrubam nada). */
+  cacheMiss: number;
+  /** Derrubadas efetivas true->false no generic DUB isolado. */
+  applied: number;
+}
+
+/** Leitura defensiva do overlay: bloco do status com fallback nos contadores. */
+function jevOverlayModel(overlay: unknown, counters: Record<string, any>): JevOverlayView {
+  const o = asObject(overlay) || {};
+  const num = (campo: string, chave: string) => Number(o[campo] ?? counters['typesafe.overlay.' + chave]) || 0;
+  return {
+    enabled: Boolean(o.enabled),
+    consulted: num('consulted', 'consulted'),
+    cacheMiss: num('cacheMiss', 'cache-miss'),
+    applied: num('applied', 'applied'),
+  };
 }
 
 /** Contadores de métrica a partir do bloco `metrics` do status. */
@@ -112,5 +137,6 @@ export function jevModel(typesafe: unknown, metrics: unknown): JevModel {
     model: String(t?.model || ''),
     audioClassify: jevQuestionModel(t?.audioClassify, counters, ''),
     dubLie: jevQuestionModel(t?.dubLie, counters, 'dublie.'),
+    overlay: jevOverlayModel(t?.overlay, counters),
   };
 }

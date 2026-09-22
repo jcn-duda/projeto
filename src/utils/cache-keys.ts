@@ -49,7 +49,13 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // v14: `_dubClaim` (promessa de título) ≠ `_dubbed` (prova de arquivo).
   // Listas v13 pintavam chip/prioridade/Chupim com a promessa e, sob d:1,
   // ou esvaziavam a 1ª abertura ou tratavam mentiroso como DUB confiável.
-  streams: 'v14',
+  // v15: a lista pronta carrega a CLASSIFICAÇÃO do título (`_br`/`_dubbed`/
+  // `_dubClaim`) e o overlay Jev gateado (TYPESAFE_OVERLAY_ENABLED, ETAPA C)
+  // pode derrubar a prova do generic DUB isolado na leitura viva do cache
+  // `tsj` — sem o bump, listas servidas antes do overlay congelariam o rótulo
+  // antigo até o TTL. O índice (`idx`) NÃO bumpa: a classificação dele é
+  // gravada com {overlay:false} (determinística, ver release-index.ts).
+  streams: 'v15',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',

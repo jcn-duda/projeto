@@ -30,6 +30,17 @@ const int = (n: number) => Math.trunc(n);
 
 export const typesafe = () => ({
   enabled: String(process.env.TYPESAFE_RUNTIME_ENABLED || 'false') === 'true',
+  // ETAPA C — overlay GATEADO do Jev no termo fraco `genericDubProvesPt` de
+  // `explicitPtAudio`. DEFAULT LIGADO (decisão do operador, 2026-09-22): com
+  // cache vazio o overlay é no-op honesto — todo lookup é miss e miss preserva
+  // `true`, então ligar por padrão não muda nada até o runtime shadow (§15)
+  // povoar o `tsj`. `TYPESAFE_OVERLAY_ENABLED=false` é o KILL-SWITCH (rollback
+  // imediato e baseline determinística; o idx já grava com {overlay:false}).
+  // O uso é cache-only, monotônico e portado pelos travas de docs/
+  // TYPESAFE_SYSTEM_ONE.md §16: PT explícito imune, só o generic DUB isolado
+  // pode derrubar true->false com negativa CONFIANTE (noul <= 0.15); NUNCA
+  // fetch, enqueue, escrita ou espera.
+  overlayEnabled: String(process.env.TYPESAFE_OVERLAY_ENABLED || 'true') === 'true',
   apiKey: String(process.env.TYPESAFE_API_KEY || '').trim(),
   endpoint:
     String(process.env.TYPESAFE_ENDPOINT || '').trim() ||

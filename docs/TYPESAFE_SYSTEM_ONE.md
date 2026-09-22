@@ -486,5 +486,109 @@ contraditórios que seriam o domínio do overlay, e o ground truth atual é
 circular (`looksPtBr`). Promover release por IA antes de ground truth humano
 arriscaria vaga BR em título que a própria regra rejeitaria com razão. A
 fase shadow mede a concordância EM PRODUÇÃO sem apostar nada; o overlay
-(monotônico, só-promove) continua sendo fase futura condicionada a revisão
-humana do corpus.
+(§16) foi além da fase de promessa: é monotônico no sentido de **só derrubar**
+uma promessa genérica fraca — nunca promove — e nasceu com kill-switch de
+fábrica.
+
+---
+
+## 16. OVERLAY GATEADO (ETAPA C) — o Jev no termo fraco do DUB genérico
+
+Primeira influência da IA numa decisão, e por isso o desenho mais conservador
+possível. **Default ON** — o default vive na fábrica de config
+(`src/config/typesafe.ts`; **adicionar manualmente `TYPESAFE_OVERLAY_ENABLED=true`
+ao `.env.example` local** — a linha não está no arquivo de exemplo do repo) e
+a env é **kill-switch**: `=false` desliga na hora (rollback imediato e
+baseline determinística; testes que precisam do legado desligam a flag
+explicitamente). Dois fatos tornam o default ON seguro:
+
+- **cache vazio é no-op honesto:** todo lookup é miss, e **ausência de cache
+  preserva `true`** — o overlay não muda nada até o runtime shadow (§15)
+  povoar o `tsj`;
+- com a flag desligada o caminho é byte-a-byte o legado — `overlayDropsDub`
+  devolve `false` ANTES de fingerprint e de qualquer leitura de cache (zero
+  trabalho, zero métrica; travado por teste em `test/typesafe-overlay.test.ts`).
+
+**O que muda com ON — só isto:** o Jev influencia SOMENTE o termo fraco
+`genericDubProvesPt` dentro de `explicitPtAudio` (`src/utils/audio-quality.ts`):
+
+- **marca PT forte => `true` SEM IA** (`DUBLAD[OA]`, `DUBLAGEM`, `DUB-BR`,
+  `AUDIO PT-BR`, `PT-BR` sem LEGENDADO ao lado) — o overlay nunca é consultado
+  para elas;
+- **sem generic DUB => `false`** — como sempre;
+- **generic DUB isolado (`[DUB]`, `Dubbed`, `DUB`) => `!overlayDropsDub`** —
+  a única porta de influência.
+
+`overlayDropsDub` (`src/ai/index.ts`, a fachada ÚNICA) é leitura **CACHE-ONLY
+e SÍNCRONA** do julgamento da pergunta 1 (`is_ptbr_dub`, fingerprint =
+`normalizeTitle(título) | model | PROMPT_VERSION`): **nunca faz fetch,
+enqueue, escrita ou espera** — quem popula o cache é o runtime shadow (§15).
+Regras da decisão:
+
+- **noul <= 0.15 derruba `true`->`false`** (negativa CONFIANTE do modelo);
+  o limiar é deliberadamente estreito porque o lado perigoso é o FP de
+  condenação (derrubar dublado de verdade — os 4 FN medidos estavam no lado
+  positivo do modelo);
+- **ausência de cache preserva `true`** (miss não decide nada);
+- **monotônico por construção:** o overlay só retira uma promessa genérica
+  fraca, nunca promove — `false` nunca vira `true`;
+- **memo curto** (512 fingerprints) guarda SOMENTE decisão vinda de HIT; miss
+  nunca é memoizado — a escrita posterior do shadow é vista na próxima
+  chamada, e `resetForTests` limpa o memo.
+
+**Propagação e travas.** A opção `{ overlay?: boolean }` (default: aplica,
+respeitando o kill-switch) atravessa `audioFromTitle` e `looksPtBr`. Três
+locais fixam `{ overlay: false }` de propósito:
+
+1. **`release-index.ts`** — o índice PERSISTE `dubbed`/`isBr` por semanas: a
+   leitura viva do cache não pode reescrever retroativamente o acervo, então a
+   classificação do idx fica determinística e **NÃO exige bump de namespace**
+   (`idx` segue `v10`);
+2. **`hasExplicitForeignAudio`** — lista MÍNIMA que CONDENA e apaga da conta
+   (sweep/limpeza): a absolvição do generic DUB não pode ser retirada por IA;
+3. **`foreignVerdict`** — o lado que ABSOLVE alimenta limpeza destrutiva;
+   travado no legado pelo mesmo motivo (assimetria do AGENTS.md: ausência de
+   PT nunca condena, condenação exige prova mínima).
+
+O resto (listagem, ranking, cotas, Chupim, selos) flui pelo default — é o
+efeito desejado: release que só se sustentava no `[DUB]` genérico perde vaga
+BR quando o Jev diz com confiança que não é pt-BR.
+
+**Cache version:** a lista pronta carrega a classificação (`_br`/`_dubbed`/
+`_dubClaim`), então `streams` foi de **v14 para v15** (listas servidas antes
+do overlay não podem congelar o rótulo antigo até o TTL).
+
+**Grafo:** `audio-quality.ts` saiu do `DECISION_MODULES` de
+`test/typesafe-shadow-graph.test.ts` e é o ÚNICO módulo de decisão liberado —
+e somente à fachada `ai/index.js` (teste novo no mesmo arquivo prova isso; o
+ciclo ESM `audio-quality <-> ai/index` é seguro porque o uso é em runtime, e o
+teste carrega `audio-quality` ANTES da fachada para exercitar os dois lados).
+
+**Métricas e painel:** `typesafe.overlay.consulted` (toda leitura com ON),
+`.cache-miss` (sem julgamento no cache) e `.applied` (derrubadas efetivas) no
+`/metrics.json`; bloco `overlay` no `typesafe` do `/dashboard-status.json`
+(`aiStatus()`), renderizado na aba Jev do `/painel` como card "Overlay Jev
+(ETAPA C)" com os três contadores e a cobertura do cache — sem ação nova
+(o knob é do `.env` do operador).
+
+**Portão de confiança** (o overlay está no ar; isto é o que acompanhar antes
+de CONFIAR nos números e decidir mantê-lo ligado em produção séria):
+
+1. **>= 200 julgamentos reais** da pergunta 1 acumulados pelo runtime shadow
+   (cache `tsj` vivo — o overlay é inútil sem acervo);
+2. **cobertura consulted/miss** no painel em nível saudável: alto `cache-miss`
+   significa overlay consultando títulos que o shadow ainda não julgou —
+   aumentar exposição do shadow antes de ligar;
+3. **zero FP em famílias sensíveis** — amostragem manual dos títulos
+   `applied`: nenhum generic DUB derrubado que fosse dublado pt-BR de verdade
+   (corpus `jev-audio-classify-cases.mjs` como checklist);
+4. **revisão humana dos 4 FN** do audio-classify (§ Status da validação):
+   são o limite conhecido do modelo no exato domínio do overlay;
+5. **reavaliar a cota `tsj`** (500) — o overlay multiplica as leituras por
+   busca; hit não promove LRU de forma anômala e o namespace não pode virar
+   gargalo de evicção com a contagem durável do `mag`.
+
+Rollback: `TYPESAFE_OVERLAY_ENABLED=false` — inércia total, comprovada por
+teste; nada do cache é apagado e o shadow segue medindo. O default ON com o
+shadow OFF (instalação nova) é o cenário mais comum e permanece no-op: sem
+runtime shadow, o cache nunca enche e o overlay nunca derruba nada.
