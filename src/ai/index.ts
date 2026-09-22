@@ -25,6 +25,7 @@ import {
   audioJudgmentCore,
 } from './audio-judgment-queue.js';
 import {
+  enqueueDubLieJudgment,
   dubLieStatusSnapshot,
   resetDubLieForTests,
   flushDubLieForTests,
@@ -135,6 +136,10 @@ export {
   shadowAudioJudgments,
   aiStatus,
   aiControl,
+  // Produtor da pergunta 2 (`is_dub_lie`): o único consumidor fora de src/ai/
+  // é o tail audit do play (`src/debrid/audio-audit.ts`), que só pode importar
+  // ESTA fachada (grafo travado por teste). Shadow: só métrica, nunca decisão.
+  enqueueDubLieJudgment,
   resetForTests as resetTypesafeForTests,
   flushForTests as flushTypesafeForTests,
 };

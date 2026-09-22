@@ -89,6 +89,15 @@ export interface PlayHint {
   episode?: number | null;
   work?: WorkHint | null;
   dubbed?: boolean;
+  /**
+   * Contexto shadow do tail audit (título do post + indexer de origem): com
+   * ele, o veredito REAL de mentira de áudio (`DubLieError` do
+   * `assertDubbedFiles`) mede a pergunta 2 shadow (`is_dub_lie`) para os DOIS
+   * lados (mentiu e honesto) — fire-and-forget, só métrica. Ausente/null =
+   * não medir (play interativo: o hint assinado da URL não carrega
+   * título/indexer). Nunca contém credencial nem identidade de obra.
+   */
+  dubLieShadow?: { title: string; indexer: string } | null;
 }
 
 /** Estado observado por hash durante o recheck do autofetch. */

@@ -47,7 +47,7 @@ async function checkCached() {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed, dubLieShadow }: PlayHint = {}) {
   const added = await call(apiKey, '/seedbox/add', {
     method: 'POST',
     body: new URLSearchParams({ url: magnetForPlay(infoHash), async: 'true' }),
@@ -72,7 +72,8 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
   }));
   const file = pickFile(files, { season, episode, work });
   recordFileEvidence(infoHash, files);
-  assertDubbedFiles(files, Boolean(dubbed));
+  // `dubLieShadow` só chega pelo tail audit (não há no hint assinado do play).
+  assertDubbedFiles(files, Boolean(dubbed), dubLieShadow);
   return file?.link || null;
 }
 

@@ -102,7 +102,7 @@ async function finishResolve(
   infoHash: string,
   torrentId: string | number,
   info: TorrentInfo,
-  { season, episode, work, dubbed }: PlayHint,
+  { season, episode, work, dubbed, dubLieShadow }: PlayHint,
 ) {
   // Já em cache o status vira "downloaded" quase imediatamente. Se ainda
   // estiver baixando, não há o que tocar agora — o play falharia num buffer
@@ -130,7 +130,9 @@ async function finishResolve(
   const selected = (info.files || []).filter((f: any) => f.selected);
   const normalizados = selected.map((f: any) => ({ ...f, path: f.path, size: f.bytes }));
   recordFileEvidence(infoHash, normalizados);
-  assertDubbedFiles(normalizados, Boolean(dubbed));
+  // `dubLieShadow` só chega pelo tail audit (o resolveLink repassa o hint
+  // inteiro): medição shadow da pergunta 2, sem mudar o veredito determinístico.
+  assertDubbedFiles(normalizados, Boolean(dubbed), dubLieShadow);
   const idx = selected.length > 1
     ? selected.indexOf(
         pickFile(selected.map((f: any) => ({ ...f, path: f.path, size: f.bytes })), { season, episode, work }),

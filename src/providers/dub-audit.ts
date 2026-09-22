@@ -30,6 +30,10 @@ type DubAuditCandidate = {
   needsPromote?: boolean;
   key?: string | null;
   extraKeys?: string[];
+  /** Contexto shadow da pergunta 2 (`is_dub_lie`): título do post e indexer de
+   * origem do Stream — quem enfileira a obra é quem sabe essa identidade. */
+  title?: string;
+  indexer?: string;
 };
 // Estado mutável com dono único: a fila pendente vive AQUI e em mais nenhum
 // módulo — o pipeline só enfileira candidatos, nunca toca o array direto.
@@ -61,6 +65,10 @@ export function collectAuditCandidates(
       dubbed: true,
       // Já `_dubbed`: lista honesta; OK não precisa forget (evita churn de TTL).
       needsPromote: Boolean(s._dubClaim && !s._dubbed),
+      // Identidade shadow: o título/indexer do Stream alimentam a pergunta 2
+      // (ambos os lados da comparação), sem hash/credencial na IA.
+      title: String(s.title || s.name || ''),
+      indexer: s._indexer || '',
     });
   }
   if (season != null && episode != null) {
@@ -79,6 +87,10 @@ export function collectAuditCandidates(
         imdbId: imdbId || null,
         work: work(s),
         dubbed: false,
+        // Mesma identidade shadow do grupo dublado: pack de temporada pode
+        // conter outra coisa, e o lado honesto da pergunta 2 também se mede.
+        title: String(s.title || s.name || ''),
+        indexer: s._indexer || '',
       });
     }
   }
@@ -148,7 +160,17 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
   const okImdb = new Set<string>();
   for (const cand of batch) {
     try {
-      await debrid.resolveLink(cand.hash, { season: cand.season, episode: cand.episode, work: cand.work, dubbed: Boolean(cand.dubbed) });
+      // `dubLieShadow` com o contexto do candidato: o veredito REAL do
+      // resolveLink (mentiu ou honesto) alimenta a comparação shadow da
+      // pergunta 2 nos DOIS lados. Título vazio ⇒ null ⇒ zero enfileiramento
+      // (o hint assinado do play interativo continua sem medição).
+      await debrid.resolveLink(cand.hash, {
+        season: cand.season,
+        episode: cand.episode,
+        work: cand.work,
+        dubbed: Boolean(cand.dubbed),
+        dubLieShadow: cand.title ? { title: cand.title, indexer: cand.indexer || '' } : null,
+      });
       // resolveLink OK com candidatura dublada: fileEvidence gravado —
       // invalida só quando a lista ainda era claim (promover → `_dubbed`).
       if (cand.dubbed && cand.needsPromote) {
