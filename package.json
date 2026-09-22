@@ -226,6 +226,7 @@
     "test/typesafe-client.test.js",
     "test/typesafe-queue.test.js",
     "test/typesafe-cache.test.js",
+    "test/typesafe-dublie.test.js",
     "test/typesafe-shadow-graph.test.js",
     "test/typesafe-shadow-inert.test.js",
     "test/entrypoint-jackett-indexers.test.js",
