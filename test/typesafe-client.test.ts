@@ -1,6 +1,8 @@
 /**
  * Cliente TypeSafe (única dona do fetch) — contratos do slice, SEM rede:
- *   1. allowlist: o estado enviado carrega SÓ `post_title`;
+ *   1. o cliente é GENÉRICO por pergunta: estado, perguntas e id chegam
+ *      prontos do chamador e vão ao corpo como `{ state, model, questions }` —
+ *      a allowlist do estado é política de quem define a pergunta;
  *   2. segredo SÓ no header `Authorization: Bearer` — nunca em mensagem de
  *      erro, nunca no corpo;
  *   3. kinds FECHADOS: 401/403→auth, 429→rate, outro !ok→http, abort→timeout,
@@ -12,9 +14,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { stubFetch, type FetchStub } from './helpers/stub.js';
 import { askJevAudio, AskError } from '../src/ai/typesafe-client.js';
+import { QUESTION_ID, QUESTIONS, buildState } from '../src/ai/questions-audio.js';
 
 const KEY = 'tsk-secret-abc123';
-const BASE = { endpoint: 'https://ts.test/v1/systemone', apiKey: KEY, model: 'jev-test', title: 'Filme Dublado 1080p', timeoutMs: 3000 };
+const TITLE = 'Filme Dublado 1080p';
+const BASE = {
+  endpoint: 'https://ts.test/v1/systemone',
+  apiKey: KEY,
+  model: 'jev-test',
+  state: buildState(TITLE),
+  questions: QUESTIONS,
+  questionId: QUESTION_ID,
+  timeoutMs: 3000,
+};
 
 const okRes = (body: any, status = 200, headers?: any) => ({
   ok: status >= 200 && status < 300,
@@ -35,7 +47,7 @@ test('sucesso: noul + usage, Bearer no header, estado só post_title', async () 
     assert.equal(call.options?.headers && (call.options.headers as any).Authorization, `Bearer ${KEY}`);
     const body = JSON.parse(String(call.options?.body));
     assert.deepEqual(Object.keys(body.state), ['post_title'], 'allowlist: só post_title');
-    assert.equal(body.state.post_title, BASE.title);
+    assert.equal(body.state.post_title, BASE.state.post_title);
     assert.equal(body.model, 'jev-test');
     assert.ok(body.questions.is_ptbr_dub, 'pergunta is_ptbr_dub vai no corpo');
   } finally {
@@ -132,6 +144,18 @@ test('shape: não-JSON, envelope estranho e noul fora de [0,1] não viram númer
     } finally {
       stub.restore();
     }
+  }
+});
+
+test('parse genérico: noul é lido do questionId recebido, não de um id fixo', async () => {
+  const stub = stubFetch(() =>
+    okRes({ answers: { is_ptbr_dub: { noul: 0.9 }, outra_pergunta: { noul: 0.7 } } }),
+  );
+  try {
+    const res = await askJevAudio({ ...BASE, questionId: 'outra_pergunta' });
+    assert.equal(res.noul, 0.7, 'o id parseado é o que o chamador mandou');
+  } finally {
+    stub.restore();
   }
 });
 

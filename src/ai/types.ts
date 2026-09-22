@@ -22,6 +22,7 @@ export interface JevAudioJudgment {
 export type EnqueueResult =
   | 'ok'
   | 'disabled'
+  | 'paused'
   | 'dedup'
   | 'cache-hit'
   | 'queue-full'

@@ -22,12 +22,25 @@ import { PROMPT_VERSION } from './questions-audio.js';
 import type { JevAudioJudgment } from './types.js';
 
 /**
+ * Hash canônico de um material JÁ pronto — sha256 hex SEM normalização
+ * adicional. Quem monta o material é o chamador (a fila genérica junta
+ * `material|model|promptVersion`); aqui só o digest. Sem questionId no
+ * material de propósito: a versão da pergunta (`promptVersion`) já isola
+ * chave por pergunta, e o formato do valor é o mesmo para todas.
+ */
+function fingerprintMaterial(material: string): string {
+  return createHash('sha256').update(material).digest('hex');
+}
+
+/**
  * Fingerprint estável: título NORMALIZADO (mesma normalização do matching) +
  * model + versão da pergunta. Mudou qualquer um → chave nova por construção.
+ * O default de `promptVersion` mantém a pergunta 1 compatível com as chaves
+ * já gravadas (nenhum bump de namespace).
  */
-function fingerprint(title: string, model: string): string {
-  const material = `${normalizeTitle(String(title || ''))}|${model}|${PROMPT_VERSION}`;
-  return createHash('sha256').update(material).digest('hex');
+function fingerprint(title: string, model: string, promptVersion: string = PROMPT_VERSION): string {
+  const material = `${normalizeTitle(String(title || ''))}|${model}|${promptVersion}`;
+  return fingerprintMaterial(material);
 }
 
 /** Chave completa no cache (`tsj:v1:<fp>`). */
@@ -36,8 +49,8 @@ function keyFor(fp: string): string {
 }
 
 /** Atalho para testes/diagnóstico: chave a partir do título. */
-function judgmentKey(title: string, model: string): string {
-  return keyFor(fingerprint(title, model));
+function judgmentKey(title: string, model: string, promptVersion: string = PROMPT_VERSION): string {
+  return keyFor(fingerprint(title, model, promptVersion));
 }
 
 /**
@@ -60,4 +73,4 @@ function store(fp: string, judgment: JevAudioJudgment, ttlS: number): void {
   set(keyFor(fp), { n: judgment.n, m: judgment.m, at: judgment.at }, ttl);
 }
 
-export { fingerprint, keyFor, judgmentKey, lookup, store };
+export { fingerprint, fingerprintMaterial, keyFor, judgmentKey, lookup, store };

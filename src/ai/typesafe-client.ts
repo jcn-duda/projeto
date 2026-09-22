@@ -12,10 +12,11 @@
  * - fail-open: lança `AskError` com `kind` FECHADO (vira métrica fixa) e a
  *   fila engole — chamador nenhum quebra.
  *
- * O estado enviado é `{ post_title }` (allowlist de questions-audio.ts); o
- * texto da pergunta é o espelho do probe validado online.
+ * O cliente é GENÉRICO por pergunta: estado, perguntas e id chegam prontos do
+ * chamador (o core monta via `JudgmentQuestion`). A allowlist do estado é
+ * política de quem define a pergunta (questions-audio.ts manda só
+ * `post_title`) — aqui não há conhecimento de pergunta alguma.
  */
-import { QUESTION_ID, QUESTIONS, buildState } from './questions-audio.js';
 import type { AskErrorKind, AskOk } from './types.js';
 
 export class AskError extends Error {
@@ -35,7 +36,12 @@ export interface AskJevOptions {
   endpoint: string;
   apiKey: string;
   model: string;
-  title: string;
+  /** Estado JÁ na allowlist da pergunta (saída de `buildState`). */
+  state: Record<string, unknown>;
+  /** Definição das perguntas no wire do System One. */
+  questions: unknown;
+  /** Id da pergunta no envelope de resposta (`answers.<id>.noul`). */
+  questionId: string;
   timeoutMs: number;
   /** Injetável para testes; default é o fetch global (dublável por stubFetch). */
   fetchImpl?: typeof fetch;
@@ -65,7 +71,9 @@ export async function askJevAudio({
   endpoint,
   apiKey,
   model,
-  title,
+  state,
+  questions,
+  questionId,
   timeoutMs,
   fetchImpl,
 }: AskJevOptions): Promise<AskOk> {
@@ -81,7 +89,7 @@ export async function askJevAudio({
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ state: buildState(title), model, questions: QUESTIONS }),
+        body: JSON.stringify({ state, model, questions }),
         signal: controller.signal,
       });
     } catch (e: any) {
@@ -107,7 +115,7 @@ export async function askJevAudio({
     } catch {
       json = null;
     }
-    const noul = json?.answers?.[QUESTION_ID]?.noul;
+    const noul = json?.answers?.[questionId]?.noul;
     if (typeof noul !== 'number' || !Number.isFinite(noul) || noul < 0 || noul > 1) {
       throw new AskError('shape', 'resposta sem noul valido em [0,1]');
     }
