@@ -33,6 +33,9 @@ const core = createJudgmentCore<string>({
     buildState: (title: string) => buildState(title),
     // Mesma normalização do matching: caixa/acentos não mudam a chave.
     fingerprintMaterial: (title: string) => normalizeTitle(String(title || '')),
+    // Amostra humana da discordância: a pergunta 1 só enxerga o título — sai
+    // exclusivamente pela ação autenticada `jev-disagreements`.
+    describe: (title: string) => String(title || ''),
   },
   // Orçamento/breaker COMPARTILHADOS com a pergunta 2 (mesma chave/limite do
   // provedor): a falha de uma arma o cooldown das duas.

@@ -1,8 +1,16 @@
 import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber, ProgressBar } from './kit.js';
 import { useAction, actionError } from './action.js';
-import { formatDurationMs } from './fmt.js';
-import { jevModel, overlayBlockedLabel, type JevModel, type JevQuestionView, type JevOverlayView } from './jev-model.js';
+import { formatDurationMs, formatAgeFromTimestamp } from './fmt.js';
+import {
+  jevModel,
+  jevDisagreementsModel,
+  overlayBlockedLabel,
+  type JevModel,
+  type JevQuestionView,
+  type JevOverlayView,
+  type JevDisagreementView,
+} from './jev-model.js';
 
 export interface ViewJevProps {
   typesafe?: Record<string, any>;
@@ -117,6 +125,10 @@ export interface JevViewProps {
   onPauseToggle?: () => void;
   onDrain?: () => void;
   onCooldownReset?: () => void;
+  /** Resposta crua da ação `jev-disagreements` (null antes do clique). */
+  disagreements?: Record<string, any> | null;
+  disagreementsPending?: boolean;
+  onLoadDisagreements?: () => void;
 }
 
 /** ETAPA C — overlay gateado: leitura cache-only no termo fraco do DUB
@@ -167,10 +179,40 @@ function OverlayCard({ overlay }: { overlay: JevOverlayView }) {
 }
 
 /**
+ * Tabela do anel de UMA pergunta. Sem linha: aviso curto — o anel nasce vazio
+ * e só é populado por divergências reais. A amostra (`sample`) é a descrição
+ * humana que a pergunta montou; o título SÓ aparece aqui, atrás do token.
+ */
+function DisagreementTable({ title, rows }: { title: string; rows: JevDisagreementView[] }) {
+  if (rows.length === 0) {
+    return html`<p class="painel-empty painel-empty-sm">${title}: nenhuma discordância registrada.</p>`;
+  }
+  return html`
+    <h4 style="margin: var(--space-3) 0 var(--space-1);">${title}</h4>
+    <table class="painel-table">
+      <thead>
+        <tr><th>Quando</th><th>Lado</th><th>noul</th><th>Origem</th><th>Amostra</th></tr>
+      </thead>
+      <tbody>
+        ${rows.map((r, i) => html`
+          <tr key=${i}>
+            <td>${formatAgeFromTimestamp(r.at)}</td>
+            <td>${r.side}</td>
+            <td>${r.n.toFixed(2)}</td>
+            <td>${r.dim}</td>
+            <td style="word-break: break-all;">${r.sample}</td>
+          </tr>
+        `)}
+      </tbody>
+    </table>
+  `;
+}
+
+/**
  * Corpo PRESENTACIONAL da aba (sem hooks, como `MagnetBankView`): recebe o
  * modelo pronto e os callbacks — a casca `ViewJev` é quem tem estado/ação.
  */
-export function JevView({ model: m, pending = false, feedback = null, onPauseToggle, onDrain, onCooldownReset }: JevViewProps) {
+export function JevView({ model: m, pending = false, feedback = null, onPauseToggle, onDrain, onCooldownReset, disagreements = null, disagreementsPending = false, onLoadDisagreements }: JevViewProps) {
   // Pausa GLOBAL: o controle do operador é único (custo/instabilidade do
   // serviço de uma vez), então qualquer pergunta pausada liga o estado.
   const pausedGlobal = m.audioClassify.paused || m.dubLie.paused;
@@ -178,6 +220,7 @@ export function JevView({ model: m, pending = false, feedback = null, onPauseTog
   const cooldownAtivo =
     m.audioClassify.cooldownMs > 0 || m.dubLie.cooldownMs > 0 ||
     m.audioClassify.consecutiveFail > 0 || m.dubLie.consecutiveFail > 0;
+  const dModel = jevDisagreementsModel(disagreements);
 
   return html`
     <div>
@@ -233,6 +276,29 @@ export function JevView({ model: m, pending = false, feedback = null, onPauseTog
       <div class="painel-grid" style="margin-top: var(--space-4);">
         <${OverlayCard} overlay=${m.overlay} />
       </div>
+
+      <div class="painel-grid" style="margin-top: var(--space-4);">
+        <${Card} title="Últimas discordâncias (memória)">
+          <p style="color: var(--muted); margin: 0 0 var(--space-2); font-size: var(--font-floor);">
+            Anel em memória (teto de 50 por pergunta) — some no restart. Leitura pura: nada é gravado nem apagado.
+            O título só sai nesta resposta autenticada; as métricas continuam com labels fechados.
+          </p>
+          <button class="painel-btn painel-btn-accent" disabled=${disagreementsPending} onClick=${onLoadDisagreements}>
+            ${disagreementsPending ? 'Carregando…' : 'Ver discordâncias'}
+          </button>
+          ${disagreements
+            ? html`
+              <div style="margin-top: var(--space-2);">
+                <${DisagreementTable}
+                  title="Pergunta 1 · audio-classify (is_ptbr_dub)"
+                  rows=${dModel.audioClassify}
+                />
+                <${DisagreementTable} title="Pergunta 2 · dub-lie (is_dub_lie)" rows=${dModel.dubLie} />
+              </div>
+            `
+            : null}
+        </${Card}>
+      </div>
     </div>
   `;
 }
@@ -240,6 +306,8 @@ export function JevView({ model: m, pending = false, feedback = null, onPauseTog
 export function ViewJev({ typesafe, metrics }: ViewJevProps) {
   const model = jevModel(typesafe, metrics);
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
+  const [disagreements, setDisagreements] = useState<Record<string, any> | null>(null);
+  const [loadingDisagreements, setLoadingDisagreements] = useState(false);
   const { pending, run } = useAction();
 
   const handleAction = async (action: string, successMsg: string) => {
@@ -253,6 +321,24 @@ export function ViewJev({ typesafe, metrics }: ViewJevProps) {
     setFeedback(error ? { text: `Falha: ${error}`, ok: false } : null);
   };
 
+  // Leitura SOB DEMANDA (fora do poll): só no clique, e sem `poll` — o anel é
+  // memória e o status não o carrega. O resultado fica no estado da casca.
+  const handleDisagreements = async () => {
+    setLoadingDisagreements(true);
+    try {
+      const outcome = await run({ action: 'jev-disagreements' });
+      if (outcome.ok) {
+        setDisagreements(outcome.data);
+        setFeedback(null);
+      } else {
+        const error = actionError(outcome);
+        if (error) setFeedback({ text: `Falha: ${error}`, ok: false });
+      }
+    } finally {
+      setLoadingDisagreements(false);
+    }
+  };
+
   const pausedGlobal = model.audioClassify.paused || model.dubLie.paused;
 
   return html`
@@ -263,6 +349,9 @@ export function ViewJev({ typesafe, metrics }: ViewJevProps) {
       onPauseToggle=${() => handleAction(pausedGlobal ? 'jev-resume' : 'jev-pause', pausedGlobal ? 'Jev retomado' : 'Jev pausado')}
       onDrain=${() => handleAction('jev-drain', 'Drenagem das filas do Jev reagendada')}
       onCooldownReset=${() => handleAction('jev-cooldown-reset', 'Cooldown do Jev zerado')}
+      disagreements=${disagreements}
+      disagreementsPending=${loadingDisagreements}
+      onLoadDisagreements=${handleDisagreements}
     />
   `;
 }

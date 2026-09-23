@@ -276,6 +276,20 @@ function aiStatus() {
 }
 
 /**
+ * Últimas discordâncias das DUAS perguntas (anel em memória, teto 50 por
+ * pergunta). NÃO entra no `aiStatus`/poll do painel de propósito: o `sample`
+ * carrega o título, que só pode sair na resposta autenticada da ação
+ * `jev-disagreements` — o polling público nunca o vê. As métricas continuam
+ * com labels FECHADOS. `at` mais recente por ÚLTIMO em cada lista.
+ */
+function jevDisagreements() {
+  return {
+    audioClassify: audioJudgmentCore.disagreements(),
+    dubLie: dubLieCore.disagreements(),
+  };
+}
+
+/**
  * Controle de OPERADOR sobre as DUAS filas — a pausa é global (ambas as
  * cores), porque o knob existe para cortar custo/instabilidade do serviço de
  * uma vez. `pause` é EFÊMERO (memória): a fila sobrevive para o `drainNow()`
@@ -333,6 +347,10 @@ export {
   deterministicLooksPtBr,
   aiStatus,
   aiControl,
+  // Anel em memória das últimas discordâncias (teto 50 por pergunta): só a
+  // ação autenticada `jev-disagreements` o devolve — nunca o poll do painel,
+  // porque o `sample` carrega título. O produtor shadow segue só-métrica.
+  jevDisagreements,
   // Produtor da pergunta 2 (`is_dub_lie`): o único consumidor fora de src/ai/
   // é o tail audit do play (`src/debrid/audio-audit.ts`), que só pode importar
   // ESTA fachada (grafo travado por teste). Shadow: só métrica, nunca decisão.

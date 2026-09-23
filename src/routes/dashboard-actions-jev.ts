@@ -1,6 +1,6 @@
 import type express from 'express';
 import type { AppServices } from './types.js';
-import { aiControl } from '../ai/index.js';
+import { aiControl, jevDisagreements as aiJevDisagreements } from '../ai/index.js';
 
 /**
  * Ações do Jev (runtime TypeSafe shadow), extraídas por arquivo seguindo o
@@ -9,8 +9,9 @@ import { aiControl } from '../ai/index.js';
  *
  * NENHUMA é destrutiva — por isso nenhuma entra em DESTRUCTIVE_ACTIONS: a
  * pausa é efêmera (memória) e reversível, o drain só REAGENDA o esvaziamento
- * da fila (nada é descartado) e o reset de cooldown limpa só o breaker,
- * sem tocar fila nem janelas de custo.
+ * da fila (nada é descartado), o reset de cooldown limpa só o breaker, sem
+ * tocar fila nem janelas de custo, e `jev-disagreements` é LEITURA pura do
+ * anel em memória (nada muda).
  *
  * O import da FACHADA (`../ai/index.js`) é a única porta para `src/ai/` fora
  * dela — o teste de grafo (test/typesafe-shadow-graph.test.ts) reprova
@@ -52,4 +53,16 @@ export const jevCooldownReset: JevAction = ({ services, res, action }) => {
   services.metrics.count('dashboard.jev.cooldown_reset');
   services.log.info('[dashboard] cooldown do Jev zerado');
   return res.json({ ok: true, action, status: aiControl.status() });
+};
+
+/**
+ * LEITURA do anel em memória das últimas discordâncias (teto 50 por pergunta).
+ * Não é destrutiva e não passa pelo poll: o `sample` carrega título, então só
+ * sai nesta resposta autenticada. Payload por allowlist — o anel já nasce
+ * `{ at, side, n, dim, sample }`, sem hash, credencial nem conta.
+ */
+export const jevDisagreements: JevAction = ({ services, res, action }) => {
+  const data = aiJevDisagreements();
+  services.metrics.count('dashboard.jev.disagreements');
+  return res.json({ ok: true, action, audioClassify: data.audioClassify, dubLie: data.dubLie });
 };

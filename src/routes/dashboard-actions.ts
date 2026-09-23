@@ -12,7 +12,7 @@ import {
   autofetchPause, autofetchDrain, autofetchConfigGet, autofetchConfigSet, autofetchConfigReset,
 } from './dashboard-actions-autofetch.js';
 import { autofetchSuppressedGet, autofetchSuppressedDrain } from './dashboard-actions-autofetch-suppressed.js';
-import { jevPause, jevResume, jevDrain, jevCooldownReset } from './dashboard-actions-jev.js';
+import { jevPause, jevResume, jevDrain, jevCooldownReset, jevDisagreements } from './dashboard-actions-jev.js';
 import { magnetInspect, magnetClearBad, magnetSummary, magnetBankSummary, magnetBankSearch } from './dashboard-actions-magnet.js';
 import { debridAccountTest } from './dashboard-actions-account.js';
 
@@ -217,6 +217,8 @@ const ACTIONS: Record<string, ActionHandler> = {
   'jev-resume': jevResume,
   'jev-drain': jevDrain,
   'jev-cooldown-reset': jevCooldownReset,
+  // Leitura do anel de discordâncias: sob demanda (fora do poll), autenticada.
+  'jev-disagreements': jevDisagreements,
 
   // Banco de magnets: handlers em dashboard-actions-magnet.js. Inspect,
   // summary, bank-summary e bank-search são leitura; clear-bad é destrutivo

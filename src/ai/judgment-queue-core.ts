@@ -48,6 +48,13 @@ export interface JudgmentQuestion<S> {
   buildState: (state: S) => Record<string, unknown>;
   /** Material canônico do fingerprint (pergunta 1: título normalizado). */
   fingerprintMaterial: (state: S) => string;
+  /**
+   * Amostra HUMANA da discordância (título e, quando a pergunta tiver, o
+   * contexto dela) — gravada no anel em memória e devolvida SÓ pela ação
+   * autenticada `jev-disagreements`. NUNCA vira label de métrica e não pode
+   * carregar hash, credencial ou conta; o título só sai sob token.
+   */
+  describe: (state: S) => string;
 }
 
 export interface JudgmentCoreSpec<S> {
@@ -85,9 +92,31 @@ export interface JudgmentCoreStatus extends JudgmentBudgetSnapshot {
   paused: boolean;
 }
 
+/**
+ * Uma discordância observada (anel em memória, teto 50 por pergunta). Fica
+ * FORA do `JudgmentCoreStatus` de propósito: o status vai no poll público do
+ * painel, o anel só sai pela ação autenticada `jev-disagreements`. `side` é o
+ * lado FECHO da divergência (o rótulo, não texto do item) e `sample` é a
+ * amostra descrita pela pergunta.
+ */
+export interface JudgmentDisagreement {
+  /** Epoch ms da resposta que divergiu. */
+  at: number;
+  /** Lado FECHO que a IA afirmou (`detLabels.ai`). */
+  side: string;
+  /** Noul cru da resposta. */
+  n: number;
+  /** Dimensão de ORIGEM da release (união fechada). */
+  dim: ShadowDimension;
+  /** Amostra humana descrita pela pergunta — só sai sob token. */
+  sample: string;
+}
+
 export interface JudgmentCore<S> {
   enqueue(order: { state: S; det: boolean; dim: ShadowDimension }): EnqueueResult;
   statusSnapshot(): JudgmentCoreStatus;
+  /** Anel das últimas discordâncias (mais recente por ÚLTIMO), cópia defensiva. */
+  disagreements(): JudgmentDisagreement[];
   resetForTests(): void;
   flushForTests(): Promise<void>;
   pause(): void;
@@ -106,6 +135,24 @@ export function createJudgmentCore<S>(spec: JudgmentCoreSpec<S>): JudgmentCore<S
   const inFlight = new Set<string>();
   let paused = false;
   let drainScheduled = false;
+
+  // Anel de discordâncias: teto fixo, ordem de inserção (mais recente por
+  // ÚLTIMO), overflow descarta o mais antigo. Só memória — some no restart.
+  const disagreements: JudgmentDisagreement[] = [];
+  const DISAGREEMENT_RING_MAX = 50;
+
+  function recordDisagreement(entry: PendingEntry<S>, side: string, noul: number) {
+    let sample = '';
+    try {
+      sample = String(question.describe(entry.state) || '');
+    } catch {
+      // `describe` é observabilidade: falha dela vira amostra vazia e o drain
+      // segue — nunca derruba o julgamento por causa do anel.
+      sample = '';
+    }
+    disagreements.push({ at: Date.now(), side, n: noul, dim: entry.dim, sample });
+    if (disagreements.length > DISAGREEMENT_RING_MAX) disagreements.shift();
+  }
 
   /**
    * Enfileira um material para julgamento shadow. Devolve o resultado
@@ -248,6 +295,8 @@ export function createJudgmentCore<S>(spec: JudgmentCoreSpec<S>): JudgmentCore<S
       // Mesma divergência, agora por ORIGEM (união fechada de dimensões): as
       // métricas antigas acima seguem intactas — esta é a leitura adicional.
       metrics.count(`${shadowPrefix}.disagree.${lado}.${entry.dim}`);
+      // Anel em memória: só a amostra humana sai dele, por ação autenticada.
+      recordDisagreement(entry, lado, res.noul);
     }
   }
 
@@ -279,6 +328,7 @@ export function createJudgmentCore<S>(spec: JudgmentCoreSpec<S>): JudgmentCore<S
     budget.reset();
     paused = false;
     drainScheduled = false;
+    disagreements.length = 0;
   }
 
   /** Só para teste: espera a fila esvaziar (teto de ticks para não pendurar). */
@@ -322,6 +372,7 @@ export function createJudgmentCore<S>(spec: JudgmentCoreSpec<S>): JudgmentCore<S
   return {
     enqueue,
     statusSnapshot,
+    disagreements: () => disagreements.slice(),
     resetForTests,
     flushForTests,
     pause,

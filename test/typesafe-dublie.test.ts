@@ -16,6 +16,8 @@
  *   6. DIMENSÃO: a divergência também grava `disagree.<lado>.origin-global`
  *      (dim FIXA da Q2 — o tail audit não carrega `isBr`); `origin-br` nunca
  *      aparece e a soma das dimensões bate com a métrica antiga por lado.
+ *   7. ANEL: as últimas 50 discordâncias ficam em memória (`{at,side,n,dim,
+ *      sample}`), mais recente por último; `agree` não grava e o reset zera.
  */
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -29,12 +31,14 @@ import { stubFetch, type FetchStub } from './helpers/stub.js';
 import {
   aiStatus,
   aiControl,
+  jevDisagreements,
   resetTypesafeForTests,
   flushTypesafeForTests,
 } from '../src/ai/index.js';
 import { enqueueAudioJudgment, statusSnapshot } from '../src/ai/audio-judgment-queue.js';
 import {
   enqueueDubLieJudgment,
+  dubLieCore,
   resetDubLieForTests,
   flushDubLieForTests,
 } from '../src/ai/dub-lie-judgment-queue.js';
@@ -296,6 +300,56 @@ test('higiene: resetDubLieForTests zera a fila sem despachar', async () => {
     resetDubLieForTests();
     await flushDubLieForTests();
     assert.equal(stub.calls.length, 0, 'fila zerada não despacha');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('anel de discordâncias: teto 50, ordem (recente por último) e amostra da Q2', async () => {
+  cfgOn();
+  const stub = stubFetch(() => okRes(0.9));
+  try {
+    for (let i = 0; i < 51; i++) {
+      // det=false com noul 0.9 → divergência no lado ai-lie em todas.
+      assert.equal(
+        enqueueDubLieJudgment(`Filme ${i} English 1080p`, 'tracker-x', [`file-${i}.mkv`, `extra-${i}.srt`], false),
+        'ok',
+      );
+    }
+    await flushDubLieForTests();
+    const ring = dubLieCore.disagreements();
+    assert.equal(ring.length, 50, 'teto de 50 no anel');
+    assert.match(ring[0].sample, /^Filme 1 English/, 'overflow descartou o mais antigo (Filme 0)');
+    assert.match(ring[49].sample, /^Filme 50 English/, 'mais recente por ÚLTIMO');
+    assert.equal(ring[49].side, 'ai-lie');
+    assert.equal(ring[49].dim, 'origin-global', 'dimensão FIXA da Q2');
+    assert.equal(ring[49].n, 0.9, 'noul cru');
+    assert.ok(ring[49].at > 0);
+    // describe da Q2: título · indexer · nº vídeos · 1º basename (sem caminho).
+    assert.equal(ring[49].sample, 'Filme 50 English 1080p · tracker-x · 2 vídeo(s) · file-50.mkv');
+    // A fachada agrega os DOIS anéis (a pergunta 1 não foi exercitada aqui).
+    assert.equal(jevDisagreements().dubLie.length, 50);
+    assert.ok(Array.isArray(jevDisagreements().audioClassify));
+  } finally {
+    stub.restore();
+  }
+});
+
+test('anel não grava concordância e resetTypesafeForTests zera o anel', async () => {
+  cfgOn();
+  const stub = stubFetch(() => okRes(0.9));
+  try {
+    // det=true com noul 0.9 → concordância: nada entra no anel.
+    assert.equal(enqueueDubLieJudgment('Filme DUBLADO 1080p', 'bludv', ['a.mkv'], true), 'ok');
+    await flushDubLieForTests();
+    assert.equal(counter('typesafe.shadow.dublie.agree'), 1);
+    assert.equal(dubLieCore.disagreements().length, 0, 'agree não grava no anel');
+    // Divergência entra; o reset da fachada limpa os dois anéis.
+    assert.equal(enqueueDubLieJudgment('Movie.English.2014.1080p.x264', 'tracker-y', ['b.mkv'], false), 'ok');
+    await flushDubLieForTests();
+    assert.equal(dubLieCore.disagreements().length, 1);
+    resetTypesafeForTests();
+    assert.equal(dubLieCore.disagreements().length, 0, 'reset zera o anel');
   } finally {
     stub.restore();
   }

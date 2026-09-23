@@ -257,6 +257,39 @@ test('JevView renderiza as duas perguntas shadow com concordÃ¢ncia e controles
   assert.equal((text.match(/Orçamento dia/g) || []).length, 1, 'a barra de orçamento não se repete por pergunta');
 });
 
+test('JevView renderiza a tabela de discordâncias quando o resultado chega', () => {
+  const model = jevModel(
+    { enabled: true, model: 'jev-latest', audioClassify: AUDIO_SNAPSHOT, dubLie: DUBLIE_SNAPSHOT },
+    { counters: COUNTERS },
+  );
+  // Resposta crua da ação: ordem de inserção (mais recente por último).
+  const disagreements = {
+    audioClassify: [
+      { at: 1700000000000, side: 'ai-pt', n: 0.91, dim: 'origin-br', sample: 'Movie.English · bludv · 2 vídeo(s) · a.mkv' },
+      { at: 1700000002000, side: 'rule-pt', n: 0.12, dim: 'origin-global', sample: 'Outro.English · tracker-y · 1 vídeo(s) · b.mkv' },
+    ],
+    dubLie: [
+      { at: 1700000001000, side: 'rule-lie', n: 0.2, dim: 'origin-global', sample: 'Filme DUBLADO · x · 1 vídeo(s) · c.mkv' },
+    ],
+  };
+  const text = textOf(JevView({ model, disagreements }));
+  assert.match(text, /Ver discordâncias/, 'o botão sob demanda aparece');
+  assert.match(text, /Últimas discordâncias/, 'o card do anel aparece');
+  assert.match(text, /nunca no poll|memória|teto de 50/, 'a nota de memória/teto aparece');
+  // Título e contexto da amostra só saem aqui (resposta autenticada).
+  assert.match(text, /Movie\.English/, 'amostra da pergunta 1 visível');
+  assert.match(text, /Outro\.English/, 'segunda amostra da pergunta 1 visível');
+  assert.match(text, /Filme DUBLADO · x · 1 vídeo\(s\) · c\.mkv/, 'amostra da pergunta 2 com indexer/nº vídeos/basename');
+  assert.match(text, /ai-pt/, 'lado fechado da divergência da pergunta 1');
+  assert.match(text, /rule-lie/, 'lado fechado da divergência da pergunta 2');
+  assert.match(text, /origin-br/, 'dimensão de origem visível');
+  assert.match(text, /0\.91/, 'noul cru visível');
+
+  // Sem clique ainda: só o botão, nenhuma tabela.
+  const semClique = textOf(JevView({ model }));
+  assert.doesNotMatch(semClique, /Movie\.English/, 'sem resultado não há amostra/tabela');
+});
+
 test('JevView cobre typesafe ausente sem quebrar (INATIVO)', () => {
   const text = textOf(JevView({ model: jevModel(undefined, { counters: {} }) }));
   assert.match(text, /INATIVO/, 'runtime desligado Ã© estado, nÃ£o erro');

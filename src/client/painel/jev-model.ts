@@ -163,3 +163,48 @@ export function jevModel(typesafe: unknown, metrics: unknown): JevModel {
     overlay: jevOverlayModel(t?.overlay, counters),
   };
 }
+
+/** Uma linha do anel de discordâncias (ação `jev-disagreements`). */
+export interface JevDisagreementView {
+  at: number;
+  side: string;
+  n: number;
+  dim: string;
+  sample: string;
+}
+
+export interface JevDisagreementsModel {
+  audioClassify: JevDisagreementView[];
+  dubLie: JevDisagreementView[];
+}
+
+/**
+ * Leitura defensiva de UMA lista do anel. A ordem devolvida é a de EXIBIÇÃO
+ * (mais recente PRIMEIRO): o backend entrega em ordem de inserção com a mais
+ * recente por último, então a lista é invertida aqui — o operador vê o caso
+ * novo no topo. Payload velho/ausente vira lista vazia, nunca quebra.
+ */
+function disagreementList(raw: unknown): JevDisagreementView[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => {
+      const e = asObject(entry) || {};
+      return {
+        at: Number(e.at) || 0,
+        side: String(e.side || ''),
+        n: Number(e.n) || 0,
+        dim: String(e.dim || ''),
+        sample: String(e.sample || ''),
+      };
+    })
+    .reverse();
+}
+
+/** Resposta inteira da ação `jev-disagreements` → modelo da aba. */
+export function jevDisagreementsModel(result: unknown): JevDisagreementsModel {
+  const r = asObject(result);
+  return {
+    audioClassify: disagreementList(r?.audioClassify),
+    dubLie: disagreementList(r?.dubLie),
+  };
+}

@@ -50,6 +50,14 @@ const core = createJudgmentCore<DubLieState>({
     // são julgamentos distintos — a chave tem que separar.
     fingerprintMaterial: (s) =>
       [normalizeTitle(String(s.title || '')), String(s.indexer || ''), ...(s.files || []).map(String)].join('|'),
+    // Amostra humana da discordância: título + indexer + nº de vídeos + 1º
+    // basename (sem o caminho da pasta) — o contexto mínimo que separa uma
+    // promessa honesta da mentirosa. Sem hash/conta; só sai sob token.
+    describe: (s) => {
+      const files = s.files || [];
+      const first = files[0] ? String(files[0]).split(/[\\/]/).pop() : '';
+      return [String(s.title || ''), String(s.indexer || ''), `${files.length} vídeo(s)`, first || '—'].join(' · ');
+    },
   },
   // Orçamento/breaker COMPARTILHADOS com a pergunta 1 (mesma chave/limite do
   // provedor): a falha de uma arma o cooldown das duas.

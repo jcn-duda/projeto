@@ -452,7 +452,7 @@ resposta.
 | `src/ai/audio-judgment-cache.ts` | Cache do julgamento CRU (`tsj:v1`, cota 500, TTL de config) |
 | `src/ai/judgment-budget.ts` | Fábrica PURA de orçamento/breaker (janelas hora/dia, backoff exponencial, auth-stop) |
 | `src/ai/judgment-shared-budget.ts` | Instância ÚNICA de orçamento/breaker das DUAS perguntas (mesma chave/limite do provedor) |
-| `src/ai/judgment-queue-core.ts` | Motor genérico da fila (dedupe, teto, drain, comparação shadow) — orçamento/breaker recebidos por `spec.budget` |
+| `src/ai/judgment-queue-core.ts` | Motor genérico da fila (dedupe, teto, drain, comparação shadow) — orçamento/breaker recebidos por `spec.budget`; anel em memória das 50 últimas discordâncias (`disagreements()`) |
 | `src/ai/audio-judgment-queue.ts` | Wrapper da pergunta 1 (`is_ptbr_dub`) — métricas `typesafe.*` |
 | `src/ai/dub-lie-judgment-queue.ts` | Wrapper da pergunta 2 (`is_dub_lie`) — métricas `typesafe.dublie.*` |
 | `src/ai/index.ts` | Fachada ÚNICA (`shadowAudioJudgments` produtor, `aiStatus` resumo) |
@@ -486,6 +486,20 @@ hit/miss, shadow agree/disagree com lado fixo, latency, tokens, fila) e bloco
 compacto `typesafe` no `/dashboard-status.json` (`aiStatus()`: enabled, model,
 promptVersion, fila, orçamento, cooldown). Nenhuma métrica leva texto de
 título.
+
+**Anel de discordâncias (ação autenticada `jev-disagreements`).** Além das
+métricas, cada pergunta guarda em MEMÓRIA as últimas **50** discordâncias num
+anel (`{ at, side, n, dim, sample }`; mais recente por ÚLTIMO; overflow
+descarta o mais antigo; some no restart). O `sample` é a descrição HUMANA da
+pergunta — `describe(state)` da Q1 devolve o título; a da Q2 devolve
+título · indexer · nº de vídeos · 1º basename (sem caminho de pasta). O anel
+fica FORA do `aiStatus` e do poll de propósito: o título é dado sensível e só
+sai na resposta AUTENTICADA da ação `POST /dashboard-action.json`
+`{"action":"jev-disagreements"}` (token `X-Indexer-Test-Token`; não é
+destrutiva, não exige `confirm` e não altera nada). No painel, a aba Jev traz
+um botão **Ver discordâncias** que busca sob demanda (nunca no poll) e monta
+uma tabela por pergunta. As métricas seguem com labels FECHADOS (lado e
+dimensão) — o anel é leitura de diagnóstico, não fonte de decisão.
 
 **Por que shadow e não overlay (diferença do plano M1):** os resultados
 online recomendam cautela — o 26/30 tem 4 FN justamente nos títulos
