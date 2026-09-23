@@ -69,6 +69,22 @@ test('logo do manifest é PNG e a rota serve o arquivo', async () => {
   assert.equal(png.status, 200);
 });
 
+test('sem PUBLIC_URL o logo do manifest usa o origin da requisição', async () => {
+  // O logo genérico do Stremio aparecia como peça de quebra-cabeça em toda
+  // instalação local (localhost/IP da LAN sem PUBLIC_URL).
+  const savedUrl = config.debrid.publicUrl;
+  config.debrid.publicUrl = '';
+  const local = await createTestServer(createApp().app);
+  try {
+    const res = await local.request('GET', '/manifest.json');
+    assert.match(res.json.logo, /^http:\/\/[^/]+\/logo\.png$/);
+    assert.doesNotMatch(res.json.logo, /stremio\.com/);
+  } finally {
+    await local.close();
+    config.debrid.publicUrl = savedUrl;
+  }
+});
+
 test('páginas referenciam assets com ?v=<hash> e a rota ignora a query', async () => {
   // O acoplamento HTML↔módulos anda nos dois sentidos (o inline chama funções
   // dos módulos; os módulos buscam IDs do HTML): sem o versionamento por hash,

@@ -1,5 +1,8 @@
 import express from 'express';
 import { parse as parseQuery } from 'node:querystring';
+import { originOf } from './origin.js';
+
+const FALLBACK_LOGO = 'https://www.stremio.com/website/stremio-logo-small.png';
 
 type AddonManifest = {
   resources: Array<string | { name: string }>;
@@ -85,8 +88,22 @@ function makeAddonRouter(addonInterface: AddonInterface) {
   router.use(applyCors);
 
   const manifestJson = JSON.stringify(addonInterface.manifest);
-  router.get('/manifest.json', (_req, res) => {
-    res.type('application/json').send(manifestJson);
+  const logo = addonInterface.manifest.logo;
+  const relativeLogo = typeof logo === 'string' && logo.startsWith('/') ? logo : null;
+  router.get('/manifest.json', (req, res) => {
+    if (!relativeLogo) {
+      res.type('application/json').send(manifestJson);
+      return;
+    }
+    // Logo relativo (sem PUBLIC_URL): o cliente exige URL absoluta. O host sai
+    // do originOf, que valida o Host antes de ecoá-lo; sem origin confiável cai
+    // no logo genérico do Stremio em vez de publicar um caminho quebrado.
+    const origin = originOf(req);
+    const body = {
+      ...addonInterface.manifest,
+      logo: origin ? `${origin}${relativeLogo}` : FALLBACK_LOGO,
+    };
+    res.type('application/json').send(JSON.stringify(body));
   });
 
   router.get('/stream/:type/:id/:extra?.json', async (req, res, next) => {
