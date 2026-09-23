@@ -230,6 +230,7 @@
     "test/typesafe-dublie.test.js",
     "test/typesafe-shadow-graph.test.js",
     "test/typesafe-shadow-inert.test.js",
+    "test/typesafe-shadow-tier.test.js",
     "test/typesafe-dublie-graph.test.js",
     "test/typesafe-dublie-inert.test.js",
     "test/typesafe-overlay.test.js",

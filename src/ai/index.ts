@@ -17,7 +17,7 @@
  */
 import config from '../config.js';
 import * as metrics from '../utils/metrics.js';
-import { looksPtBr } from '../utils/audio-quality.js';
+import { looksPtBr, weakGenericDubOnly } from '../utils/audio-quality.js';
 import type { RawItem } from '../../types/domain.js';
 import { isVersionedModel } from '../config/typesafe.js';
 import {
@@ -43,6 +43,20 @@ import { PROMPT_VERSION } from './questions-audio.js';
 // nada: reaparece na próxima busca (cache `tsj` evita re-chamada dos já vistos).
 const SHADOW_PER_BUILD_MAX = 12;
 
+// Camadas do produtor shadow, em ordem de PRIORIDADE estável: o termo FRACO
+// (`weakGenericDubOnly`) primeiro, porque é o ÚNICO caso que o overlay Jev pode
+// derrubar — medir a IA nele é o objetivo do slice; depois o lado BR (flag de
+// origem ou prova de áudio PT); por último o resto. O teto por build corta a
+// CAUDA do ranking, nunca o topo.
+type ShadowTier = 'weak' | 'br' | 'rest';
+const SHADOW_TIER_ORDER: Record<ShadowTier, number> = { weak: 0, br: 1, rest: 2 };
+
+function shadowTierOf(item: RawItem, title: string): ShadowTier {
+  if (weakGenericDubOnly(title)) return 'weak';
+  if (item.isBr || deterministicLooksPtBr(item, title)) return 'br';
+  return 'rest';
+}
+
 function shadowAudioJudgments(items: RawItem[]): void {
   const cfg = config.typesafe;
   // Inativo: uma contagem por build e nada mais — sem varrer itens, sem
@@ -52,7 +66,7 @@ function shadowAudioJudgments(items: RawItem[]): void {
     return;
   }
   const vistos = new Set<string>();
-  let capped = 0;
+  const candidatos: Array<{ item: RawItem; title: string; tier: ShadowTier }> = [];
   for (const item of items || []) {
     // `fromFallback` fica de fora pela mesma higiene do resto do pipeline: a
     // reserva não realimenta nada — aqui, nem a medição shadow.
@@ -61,18 +75,30 @@ function shadowAudioJudgments(items: RawItem[]): void {
     if (!title) continue;
     const norm = title.toLowerCase();
     if (vistos.has(norm)) continue;
-    if (vistos.size >= SHADOW_PER_BUILD_MAX) {
+    vistos.add(norm);
+    candidatos.push({ item, title, tier: shadowTierOf(item, title) });
+  }
+  // Array.sort é ESTÁVEL (spec ES2019): dentro da mesma camada a ordem de
+  // entrada é preservada — "estavelmente weak → br → rest".
+  candidatos.sort((a, b) => SHADOW_TIER_ORDER[a.tier] - SHADOW_TIER_ORDER[b.tier]);
+  let capped = 0;
+  let aceitos = 0;
+  for (const c of candidatos) {
+    if (aceitos >= SHADOW_PER_BUILD_MAX) {
       capped += 1;
       continue;
     }
-    vistos.add(norm);
-    const det = deterministicLooksPtBr(item, title);
+    aceitos += 1;
+    // Métrica por candidato ACEITO, eixo fechado (weak|br|rest). O teto corta
+    // a cauda: quem não entrou vira só `build-capped`, sem camada.
+    metrics.count(`typesafe.shadow.tier.${c.tier}`);
+    const det = deterministicLooksPtBr(c.item, c.title);
     try {
       // Origem NÃO é áudio: `origin-br` é o flag declarado do provider/índice
       // (`item.isBr`), a mesma evidência que reserva vaga BR — é ela que
       // permite ler a divergência shadow por origem. Sem o flag,
       // `origin-global` (lado fechado para "não sei a origem").
-      enqueueAudioJudgment(title, det, item.isBr ? 'origin-br' : 'origin-global');
+      enqueueAudioJudgment(c.title, det, c.item.isBr ? 'origin-br' : 'origin-global');
     } catch {
       // Fail-open: a fila não tem porque lançar, mas se lançar a busca segue.
     }

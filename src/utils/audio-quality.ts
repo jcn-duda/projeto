@@ -152,27 +152,40 @@ function editionFromTitle(title = '') {
   return '';
 }
 
+/** Marcador de LEGENDA (sub) no título já normalizado — compartilhado por
+ * `explicitPtAudio` e `weakGenericDubOnly` (mesma leitura, sem regex duplicada). */
+function explicitSubMark(t: string): boolean {
+  return (
+    /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
+    /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t)
+  );
+}
+
+/**
+ * Marca PT FORTE (prova positiva de áudio PT): dublado/nacional/dub-br declarado
+ * ou PT-BR explícito que não seja legenda. FONTE ÚNICA do termo forte — o
+ * overlay Jev só alcança o termo FRACO, então `weakGenericDubOnly` reusa ESTA
+ * função em vez de repetir o regex.
+ *
+ * `DUBLAD[OA]S?` exige só que não haja LETRA colada (`\b` morria com a resolução
+ * grudada: "Dublado720p mp4" é real). Dígito colado não desfaz a afirmação do
+ * dono; letra colada desfaz (evita casar dentro de outra palavra).
+ */
+function strongPtAudioMark(t: string, isExplicitSub: boolean): boolean {
+  return (
+    /(?<![A-Z])DUBLAD[OA]S?(?![A-Z])/.test(t) ||
+    /\b(DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR)\b/.test(t) ||
+    (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub)
+  );
+}
+
 function explicitPtAudio(title = '', opts: OverlayOpt = {}) {
   // Mesma troca do audioFromTitle: `_` é separador ("… DUAL_Misso") e o \b
   // não enxerga fronteira dentro de caractere de palavra.
   const t = title.toUpperCase().replace(/_/g, ' ');
-  const isExplicitSub =
-    /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
-    /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
-
+  const isExplicitSub = explicitSubMark(t);
   const isGenericDub = genericDubProvesPt(t);
-
-  // `DUBLAD[OA]S?` sai do `\b` e passa a exigir só que não haja LETRA colada.
-  // Com `\b` o marcador morria quando o release grudava a resolução no fim:
-  // "Tucker e Dale contra o mal Dublado720p mp4" é real e está no índice de
-  // produção — entrou como isBr=false/dubbed=false, um falso negativo mudo
-  // numa fonte dublada. Dígito colado não desfaz a afirmação do dono; letra
-  // colada desfaz (evita casar dentro de outra palavra). O `S?` alinha com o
-  // PT_VOCAB do br-origin, que já aceitava o plural.
-  const marcaForte =
-    /(?<![A-Z])DUBLAD[OA]S?(?![A-Z])/.test(t) ||
-    /\b(DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR)\b/.test(t) ||
-    (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub);
+  const marcaForte = strongPtAudioMark(t, isExplicitSub);
 
   // ETAPA C — o overlay Jev só toca o termo FRACO (generic DUB isolado).
   // Marca forte => true SEM IA; sem generic DUB => false; só no generic DUB
@@ -183,6 +196,18 @@ function explicitPtAudio(title = '', opts: OverlayOpt = {}) {
   if (!isGenericDub) return false;
   if (opts.overlay === false) return true;
   return !overlayDropsDub(title);
+}
+
+/**
+ * Termo FRACO isolado: generic DUB sem NENHUMA marca PT forte — EXATAMENTE o
+ * ramo em que `explicitPtAudio` consulta o overlay Jev. O produtor shadow usa
+ * isto para PRIORIZAR a camada `weak`. Reusa `strongPtAudioMark` (mesmo regex,
+ * nunca uma segunda lista) para não divergir de `explicitPtAudio`.
+ */
+function weakGenericDubOnly(title = ''): boolean {
+  const t = title.toUpperCase().replace(/_/g, ' ');
+  if (strongPtAudioMark(t, explicitSubMark(t))) return false;
+  return genericDubProvesPt(t);
 }
 
 /**
@@ -346,38 +371,6 @@ function compactAudio(audio = '') {
   return '';
 }
 
-const TRACKER_LABEL_MAX = 14;
-
-/**
- * Nome da fonte para a coluna estreita: o TLD não ajuda a reconhecer o site e,
- * passando de TRACKER_LABEL_MAX, o rótulo empurra o seeder para fora.
- *
- * A escada existe porque cortar seco parte a palavra no meio ("kickasstorrents"
- * virava "kickasstorrent"), e nome truncado assim é pior que nome curto: o
- * usuário lê como se fosse outra fonte.
- */
-function compactTracker(tracker = '') {
-  let label = String(tracker).trim().replace(/(?:\.[a-z]{2,})+$/i, '');
-  if (label.length <= TRACKER_LABEL_MAX) return label;
-
-  // Todos esses sites repetem "torrent(s)" no nome — é a parte que menos
-  // identifica ("ComandoTorrents" → "Comando", como o Torrentio exibe).
-  const withoutSuffix = label.replace(/[\s_-]*torrents?$/i, '');
-  if (withoutSuffix.length >= 4) label = withoutSuffix;
-  if (label.length <= TRACKER_LABEL_MAX) return label;
-
-  // Última fronteira que ainda cabe: separador ou transição camelCase
-  // ("NerdFilmesTorrent" → "NerdFilmes"). Sobrando menos de 4 chars o corte
-  // não identifica mais nada, e aí o corte seco é menos ruim.
-  const window = label.slice(0, TRACKER_LABEL_MAX + 1);
-  const boundaries = [...window.matchAll(/[\s_-]+|(?<=[a-z0-9])(?=[A-Z])/g)]
-    .map((m) => m.index)
-    .filter((index) => index >= 4);
-  if (boundaries.length) return label.slice(0, boundaries[boundaries.length - 1]);
-
-  return label.slice(0, TRACKER_LABEL_MAX);
-}
-
 export {
   UNKNOWN_QUALITY,
   stripQualityTagBlob,
@@ -385,6 +378,9 @@ export {
   sourceFromTitle,
   editionFromTitle,
   explicitPtAudio,
+  // Termo FRACO isolado (generic DUB sem marca forte): o produtor shadow usa
+  // isto para a camada `weak` — o único caso que o overlay Jev pode derrubar.
+  weakGenericDubOnly,
   hasPtAudioMark,
   strongEnSceneMark,
   dubbedLieVerdict,
@@ -394,7 +390,8 @@ export {
   audioBucket,
   foreignVerdict,
   compactAudio,
-  compactTracker,
 };
 export type { AudioBucket, ForeignVerdict };
 export { hasPtSigns, brOriginMark } from './br-origin.js';
+// Movido pela catraca de 400; reexportado para o consumidor (stream-display).
+export { compactTracker } from './stream-labels.js';
