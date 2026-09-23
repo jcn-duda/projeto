@@ -62,7 +62,7 @@ test('cache grava o ID versionado ecoado, não o alias de config', async () => {
       JSON.stringify({ model: 'jev-1.13.0', answers: { is_ptbr_dub: { noul: 0.9 } } }),
   }));
   try {
-    assert.equal(enqueueAudioJudgment('Filme Dublado 1080p', true), 'ok');
+    assert.equal(enqueueAudioJudgment('Filme Dublado 1080p', true, 'origin-global'), 'ok');
     await flushTypesafeForTests();
     // A chave continua derivada do model PEDIDO (alias): o eco muda o valor.
     const cached = cache.get(judgmentKey('Filme Dublado 1080p', 'jev-latest')) as any;
@@ -82,7 +82,7 @@ test('corpo sem eco do model: fallback preserva o alias de config', async () => 
     text: async () => JSON.stringify({ answers: { is_ptbr_dub: { noul: 0.8 } } }),
   }));
   try {
-    assert.equal(enqueueAudioJudgment('Filme Dublado 1080p', true), 'ok');
+    assert.equal(enqueueAudioJudgment('Filme Dublado 1080p', true, 'origin-global'), 'ok');
     await flushTypesafeForTests();
     const cached = cache.get(judgmentKey('Filme Dublado 1080p', 'jev-latest')) as any;
     assert.equal(cached?.m, 'jev-latest', 'sem eco, o alias é o melhor registro disponível');
@@ -100,7 +100,7 @@ test('529 com Retry-After arma cooldown pelo header, não pelo backoff', async (
     text: async () => 'x',
   }));
   try {
-    assert.equal(enqueueAudioJudgment('Filme A Dublado', true), 'ok');
+    assert.equal(enqueueAudioJudgment('Filme A Dublado', true, 'origin-global'), 'ok');
     await flushTypesafeForTests();
     assert.equal(counter('typesafe.call.error.http'), 1);
     // Backoff exponencial de http com cooldownMs=60000 daria ~120s; o header

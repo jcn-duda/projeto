@@ -78,6 +78,13 @@ function enqueueDubLieJudgment(
       files: Array.isArray(videoFiles) ? videoFiles.map(String) : [],
     },
     det: Boolean(det),
+    // Dimensão de origem FIXA em `origin-global`: o tail audit chama daqui com
+    // só título/indexer/arquivos — não carrega o flag `isBr` da listagem, e a
+    // dimensão é união FECHADA (não existe "desconhecido"). `origin-global` é o
+    // lado honesto para "não sei a origem" e mantém a soma das dimensões
+    // igual à métrica antiga `.disagree.<lado>`. Derivar `isBr` aqui exigiria
+    // propagar o flag pelo hint do play, fora do escopo desta medição.
+    dim: 'origin-global',
   });
 }
 

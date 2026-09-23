@@ -30,7 +30,7 @@ import * as metrics from '../utils/metrics.js';
 import { fingerprintMaterial, lookup, store } from './audio-judgment-cache.js';
 import { askJevAudio, AskError } from './typesafe-client.js';
 import type { JudgmentBudget, JudgmentBudgetSnapshot } from './judgment-budget.js';
-import type { AskErrorKind, EnqueueResult } from './types.js';
+import type { AskErrorKind, EnqueueResult, ShadowDimension } from './types.js';
 
 /**
  * Contrato de UMA pergunta shadow: o texto vai em `questions` (wire do System
@@ -71,6 +71,8 @@ interface PendingEntry<S> {
   state: S;
   /** Veredito determinístico (`looksPtBr`/`_br` etc.) capturado no enqueue. */
   det: boolean;
+  /** Origem declarada da release (união FECHADA) — dimensão da divergência. */
+  dim: ShadowDimension;
 }
 
 export interface JudgmentCoreStatus extends JudgmentBudgetSnapshot {
@@ -84,7 +86,7 @@ export interface JudgmentCoreStatus extends JudgmentBudgetSnapshot {
 }
 
 export interface JudgmentCore<S> {
-  enqueue(order: { state: S; det: boolean }): EnqueueResult;
+  enqueue(order: { state: S; det: boolean; dim: ShadowDimension }): EnqueueResult;
   statusSnapshot(): JudgmentCoreStatus;
   resetForTests(): void;
   flushForTests(): Promise<void>;
@@ -109,8 +111,11 @@ export function createJudgmentCore<S>(spec: JudgmentCoreSpec<S>): JudgmentCore<S
    * Enfileira um material para julgamento shadow. Devolve o resultado
    * SEMÂNTICO (virou métrica fixa em `${basePrefix}.enqueue.*`); `'ok'`
    * significa apenas "aceito na fila" — o processamento é todo em fundo.
+   * `dim` é a dimensão de ORIGEM (união fechada) da release, capturada no
+   * enqueue junto do veredito determinístico: a divergência vira métrica por
+   * lado E por origem, sem reler item nenhum no drain.
    */
-  function enqueue(order: { state: S; det: boolean }): EnqueueResult {
+  function enqueue(order: { state: S; det: boolean; dim: ShadowDimension }): EnqueueResult {
     const cfg = config.typesafe;
     metrics.gauge(`${basePrefix}.enabled`, cfg.enabled && cfg.apiKey ? 1 : 0);
     // Curto-circuito ANTES do fingerprint: sem enabled+chave não há nem leitura
@@ -149,7 +154,7 @@ export function createJudgmentCore<S>(spec: JudgmentCoreSpec<S>): JudgmentCore<S
       metrics.count(cappedByDay ? `${basePrefix}.enqueue.day-cap` : `${basePrefix}.enqueue.cap`);
       return cappedByDay ? 'day-cap' : 'cap';
     }
-    pending.set(fp, { state: order.state, det: Boolean(order.det) });
+    pending.set(fp, { state: order.state, det: Boolean(order.det), dim: order.dim });
     metrics.gauge(`${basePrefix}.queue.depth`, pending.size);
     metrics.count(`${basePrefix}.enqueue.ok`);
     scheduleDrain();
@@ -238,9 +243,11 @@ export function createJudgmentCore<S>(spec: JudgmentCoreSpec<S>): JudgmentCore<S
     } else {
       // Labels FIXOS (união fechada de dois lados) — nunca texto do item.
       metrics.count(`${shadowPrefix}.disagree`);
-      metrics.count(
-        pred ? `${shadowPrefix}.disagree.${detLabels.ai}` : `${shadowPrefix}.disagree.${detLabels.rule}`,
-      );
+      const lado = pred ? detLabels.ai : detLabels.rule;
+      metrics.count(`${shadowPrefix}.disagree.${lado}`);
+      // Mesma divergência, agora por ORIGEM (união fechada de dimensões): as
+      // métricas antigas acima seguem intactas — esta é a leitura adicional.
+      metrics.count(`${shadowPrefix}.disagree.${lado}.${entry.dim}`);
     }
   }
 

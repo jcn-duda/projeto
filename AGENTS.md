@@ -1815,7 +1815,19 @@ concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
   no `mapResults`); `deterministicLooksPtBr` trava a régua do produtor shadow
   — a IA nunca altera o baseline contra o qual é medida (o baseline é a versão
   determinística do `_br`, não o `_br` corrente da listagem, que PODE incluir
-  o overlay); `hasExplicitForeignAudio` e `foreignVerdict` seguem com
+  o overlay). **A régua é SÓ áudio:** `deterministicLooksPtBr` mede unicamente
+  `looksPtBr(t, {overlay:false})` — `isBr`/`ptTitleDual` NÃO entram, porque
+  (1) origem não é áudio (o `_br` corrente funde os dois eixos e medi-los
+  juntos compararia a IA com um proxy de ORIGEM, não com a leitura de idioma da
+  pergunta `is_ptbr_dub`) e (2) `ptTitleDual` só nasce no stream-builder
+  (`applyPtTitleDual`), DEPOIS do produtor shadow — lê-lo aqui seria sempre
+  `undefined`. O eixo de origem é medido SEPARADO, como dimensão: o enqueue
+  carrega `dim: 'origin-br' | 'origin-global'` (união fechada), Q1 deriva de
+  `item.isBr`, Q2 (tail audit, que não tem o flag) passa `origin-global` fixo;
+  a divergência grava, além de `typesafe.shadow.disagree.<lado>`, a leitura
+  por origem `typesafe.shadow.disagree.<lado>.<dim>` — as métricas antigas
+  seguem intactas e a soma das dimensões bate com o total por lado;
+  `hasExplicitForeignAudio` e `foreignVerdict` seguem com
   `{overlay:false}`. A métrica `typesafe.overlay.applied` conta TÍTULO
   distinto: dedupe por fingerprint com vencimento ALINHADO AO JULGAMENTO
   (`at + TYPESAFE_JUDGMENT_TTL_S` — exatamente o vencimento da entrada no

@@ -12,7 +12,10 @@
  *      mesmo limite do provedor);
  *   4. INÉRCIA: kill-switch OFF → 'disabled', zero fetch, zero cache;
  *   5. FACHADA: `aiStatus` agrega as duas perguntas e `aiControl` opera nas
- *      duas cores (pausa de operador é global).
+ *      duas cores (pausa de operador é global);
+ *   6. DIMENSÃO: a divergência também grava `disagree.<lado>.origin-global`
+ *      (dim FIXA da Q2 — o tail audit não carrega `isBr`); `origin-br` nunca
+ *      aparece e a soma das dimensões bate com a métrica antiga por lado.
  */
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -173,6 +176,39 @@ test('disagree: divergência vira métrica com lado fixo', async () => {
   }
 });
 
+test('disagree por dimensão: Q2 grava `<lado>.origin-global` nos DOIS lados', async () => {
+  cfgOn();
+  // A dimensão da Q2 é FIXA em origin-global (o tail audit chama só com
+  // título/indexer/arquivos — sem o flag `isBr` da listagem): a divergência
+  // aparece por lado E por origem, e `origin-br` nunca é escrito aqui.
+  let noul = 0.9;
+  const stub = stubFetch(() => okRes(noul));
+  try {
+    // Lado da IA: det=false, modelo diz lie (0.9 >= 0.55) → ai-lie.origin-global.
+    assert.equal(enqueueDubLieJudgment('Movie.English.2014.1080p.x264', 'tracker-y', ['a.mkv'], false), 'ok');
+    await flushDubLieForTests();
+    assert.equal(counter('typesafe.shadow.dublie.disagree'), 1);
+    assert.equal(counter('typesafe.shadow.dublie.disagree.ai-lie.origin-global'), 1);
+    assert.equal(counter('typesafe.shadow.dublie.disagree.rule-lie.origin-global'), 0);
+    assert.equal(counter('typesafe.shadow.dublie.disagree.ai-lie.origin-br'), 0, 'Q2 nunca declara origin-br');
+    // Lado da regra: det=true, modelo diz não-lie (0.1 < 0.55) → rule-lie.origin-global.
+    noul = 0.1;
+    assert.equal(enqueueDubLieJudgment('Filme DUBLADO 1080p', 'bludv', ['b.mkv'], true), 'ok');
+    await flushDubLieForTests();
+    assert.equal(counter('typesafe.shadow.dublie.disagree'), 2);
+    assert.equal(counter('typesafe.shadow.dublie.disagree.rule-lie'), 1);
+    assert.equal(counter('typesafe.shadow.dublie.disagree.rule-lie.origin-global'), 1);
+    // Soma das dimensões = métrica antiga por lado (nada some, nada duplica).
+    assert.equal(
+      counter('typesafe.shadow.dublie.disagree.ai-lie.origin-global') +
+        counter('typesafe.shadow.dublie.disagree.rule-lie.origin-global'),
+      counter('typesafe.shadow.dublie.disagree'),
+    );
+  } finally {
+    stub.restore();
+  }
+});
+
 test('isolamento: métricas da pergunta 1 não sobem com a pergunta 2', async () => {
   cfgOn();
   const stub = stubFetch(() => okResBoth(0.9));
@@ -187,7 +223,7 @@ test('isolamento: métricas da pergunta 1 não sobem com a pergunta 2', async ()
     assert.equal(counter('typesafe.shadow.disagree'), 0);
     assert.equal(statusSnapshot().queueDepth, 0);
     // E o caminho inverso também: enqueue da pergunta 1 não suja a pergunta 2.
-    assert.equal(enqueueAudioJudgment('Filme DUBLADO', true), 'ok');
+    assert.equal(enqueueAudioJudgment('Filme DUBLADO', true, 'origin-global'), 'ok');
     await flushTypesafeForTests();
     assert.equal(counter('typesafe.call.ok'), 1);
     assert.equal(counter('typesafe.dublie.call.ok'), 1, 'pergunta 2 não acumulou chamada da 1');
@@ -230,12 +266,12 @@ test('aiStatus agrega as duas perguntas; aiControl opera nas duas cores', async 
     // Pausa GLOBAL sincronamente após o enqueue: o item já enfileirado nas
     // duas cores NÃO pode se perder (pause é efêmero, não descarta).
     assert.equal(enqueueDubLieJudgment('Filme DUBLADO', 'bludv', ['a.mkv'], true), 'ok');
-    assert.equal(enqueueAudioJudgment('Filme DUBLADO', true), 'ok');
+    assert.equal(enqueueAudioJudgment('Filme DUBLADO', true, 'origin-global'), 'ok');
     aiControl.pause();
     assert.deepEqual(aiControl.status(), { audioClassify: true, dubLie: true });
     assert.equal(aiControl.isPaused(), true);
     assert.equal(enqueueDubLieJudgment('Outro DUBLADO', 'bludv', ['b.mkv'], true), 'paused');
-    assert.equal(enqueueAudioJudgment('Outro DUBLADO', true), 'paused');
+    assert.equal(enqueueAudioJudgment('Outro DUBLADO', true, 'origin-global'), 'paused');
 
     // Resume reagenda o drain nas duas; drainNow/resetCooldown não lançam.
     aiControl.resume();

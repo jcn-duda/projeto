@@ -24,7 +24,9 @@
  *      ficam idênticos;
  *   6. BASELINE SHADOW: `deterministicLooksPtBr` (régua do produtor) fica
  *      travada em {overlay:false} — o overlay não altera a régua contra a
- *      qual ele próprio é medido;
+ *      qual ele próprio é medido; e a fórmula lê SÓ áudio: `isBr`/`ptTitleDual`
+ *      do item NÃO promovem a régua (origem e extensão contextual são outros
+ *      eixos, medidos à parte);
  *   7. MÉTRICA: `applied` conta TÍTULO distinto (dedupe por fingerprint com
  *      vencimento ALINHADO AO JULGAMENTO — `at + judgmentTtlS`, exatamente o
  *      vencimento da entrada no `tsj`: dentro do TTL não há recontagem; o LRU
@@ -223,6 +225,23 @@ test('baseline shadow: overlay ligado + cache negativo NÃO muda a régua determ
   config.typesafe.overlayEnabled = false;
   assert.equal(deterministicLooksPtBr(item), true, 'baseline idêntica com overlay OFF');
   assert.equal(looksPtBr(titulo), true, 'com OFF, o caminho default volta ao legado');
+});
+
+test('baseline shadow: SÓ áudio — isBr e ptTitleDual do item não mudam a régua', () => {
+  // A régua é a leitura de ÁUDIO do título ({overlay:false}); o flag de origem
+  // do provider (`isBr`) e a extensão contextual (`ptTitleDual`, aplicada no
+  // stream-builder DEPOIS do produtor) são OUTROS eixos — entrar aqui faria a
+  // IA ser medida contra um proxy de origem, não contra `is_ptbr_dub`.
+  cfgOn();
+  const ingles = 'Movie Plain 2019 BluRay x264'; // sem marca PT: false no legado
+  assert.equal(looksPtBr(ingles, { overlay: false }), false, 'pré-condição: inglês sem marca PT');
+  assert.equal(deterministicLooksPtBr({ title: ingles, isBr: true }), false, 'isBr não promove a régua');
+  assert.equal(deterministicLooksPtBr({ title: ingles, ptTitleDual: true }), false, 'ptTitleDual não promove a régua');
+  assert.equal(
+    deterministicLooksPtBr({ title: ingles, isBr: true, ptTitleDual: true }),
+    false,
+    'os dois flags juntos também não promovem',
+  );
 });
 
 test('OFF (kill-switch): devolve false ANTES de fingerprint/cache e os classificadores ficam legado', () => {

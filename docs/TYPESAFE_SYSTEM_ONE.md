@@ -620,12 +620,27 @@ BR quando o Jev diz com confiança que não é pt-BR.
 
 **Baseline shadow determinística.** A régua do produtor
 (`deterministicLooksPtBr` em `src/ai/index.ts`) também é `{overlay:false}`
-travado. ATENÇÃO à semântica: NÃO é "a mesma fórmula do `_br` corrente" —
-com o overlay ligado, o `_br` da LISTAGEM pode derrubar o generic DUB e
-divergir daqui DE PROPÓSITO. O baseline é a versão determinística do
-classificador: o overlay não pode alterar a régua contra a qual ele próprio é
-medido — com a régua viva, cache negativo faria a comparação shadow medir a
-IA contra a influência dela mesma.
+travado, e mede SÓ a leitura de áudio: `looksPtBr(t, {overlay:false})`. NÃO é
+"a mesma fórmula do `_br` corrente" — com o overlay ligado, o `_br` da
+LISTAGEM pode derrubar o generic DUB e divergir daqui DE PROPÓSITO. O baseline
+é a versão determinística do classificador: o overlay não pode alterar a régua
+contra a qual ele próprio é medido — com a régua viva, cache negativo faria a
+comparação shadow medir a IA contra a influência dela mesma.
+
+O `isBr`/`ptTitleDual` do `_br` NÃO entram nessa régua, por dois motivos:
+origem não é áudio (o `_br` corrente funde os dois eixos; medi-los juntos
+compararia a IA com um proxy de ORIGEM, não com a leitura de idioma da pergunta
+`is_ptbr_dub`) e `ptTitleDual` ainda não existe no produtor — a extensão
+contextual nasce no stream-builder (`applyPtTitleDual`), depois dele.
+
+O eixo de origem é medido SEPARADO, como dimensão FECHADA
+(`'origin-br' | 'origin-global'`, `ShadowDimension` em `src/ai/types.ts`): o
+enqueue carrega `dim`, a pergunta 1 deriva de `item.isBr`, a pergunta 2 (tail
+audit, que não carrega o flag) passa `origin-global` fixo. Quando a predição
+diverge, o motor grava, além de `typesafe.shadow[.dublie].disagree.<lado>`, a
+leitura por origem `…disagree.<lado>.<dim>` — as métricas antigas seguem
+intactas e a soma das dimensões bate com o total por lado. A dimensão é rótulo
+de métrica, nunca decisão.
 
 **Cache version:** a lista pronta carrega a classificação (`_br`/`_dubbed`/
 `_dubClaim`), então `streams` foi de **v14 para v15** (listas servidas antes

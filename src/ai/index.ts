@@ -68,7 +68,11 @@ function shadowAudioJudgments(items: RawItem[]): void {
     vistos.add(norm);
     const det = deterministicLooksPtBr(item, title);
     try {
-      enqueueAudioJudgment(title, det);
+      // Origem NÃO é áudio: `origin-br` é o flag declarado do provider/índice
+      // (`item.isBr`), a mesma evidência que reserva vaga BR — é ela que
+      // permite ler a divergência shadow por origem. Sem o flag,
+      // `origin-global` (lado fechado para "não sei a origem").
+      enqueueAudioJudgment(title, det, item.isBr ? 'origin-br' : 'origin-global');
     } catch {
       // Fail-open: a fila não tem porque lançar, mas se lançar a busca segue.
     }
@@ -77,18 +81,31 @@ function shadowAudioJudgments(items: RawItem[]): void {
 }
 
 /**
- * Baseline determinística da comparação shadow — a fórmula base do `_br`,
- * travada em `{overlay:false}`. NÃO é "a mesma fórmula do `_br` corrente":
- * com o overlay ligado, o `_br` da listagem pode derrubar o generic DUB e
- * divergir daqui DE PROPÓSITO — o baseline é a versão determinística, para o
- * overlay não alterar a régua contra a qual ele próprio é medido (com o cache
- * vivo ligado, o generic DUB podia ser derrubado na listagem e o produtor
- * passaria a comparar a IA contra a própria influência dela). Extraída como
- * função pura para o teste provar a imunidade com cache negativo semeado.
+ * Baseline determinística da comparação shadow — SÓ a leitura de ÁUDIO do
+ * título, travada em `{overlay:false}`. NÃO é "a mesma fórmula do `_br`
+ * corrente": com o overlay ligado, o `_br` da listagem pode derrubar o generic
+ * DUB e divergir daqui DE PROPÓSITO — o baseline é a versão determinística,
+ * para o overlay não alterar a régua contra a qual ele próprio é medido (com o
+ * cache vivo ligado, o generic DUB podia ser derrubado na listagem e o
+ * produtor passaria a comparar a IA contra a própria influência dela).
+ *
+ * A FÓRMULA LÊ SÓ ÁUDIO, de propósito — o `isBr`/`ptTitleDual` do `_br` NÃO
+ * entra:
+ *  - origem não é áudio. O `_br` corrente mistura os dois eixos (flag de origem
+ *    do provider + prova de áudio); medi-los juntos faria a IA ser comparada
+ *    contra um proxy de ORIGEM, não contra a leitura de idioma que a pergunta
+ *    `is_ptbr_dub` de fato responde. O eixo de origem vira a dimensão separada
+ *    (`origin-br`/`origin-global` no enqueue) — medido ao lado, não fundido.
+ *  - `ptTitleDual` AINDA NÃO EXISTE neste ponto: a extensão contextual é
+ *    aplicada no stream-builder (`applyPtTitleDual`), DEPOIS do produtor
+ *    shadow; lê-lo aqui sempre daria `undefined` e sugeriria uma cobertura que
+ *    não há.
+ * Extraída como função pura para o teste provar a imunidade com cache negativo
+ * semeado.
  */
 function deterministicLooksPtBr(item: RawItem, title = ''): boolean {
   const t = String(title || item.title || item.Title || '').trim();
-  return Boolean(item.isBr || item.ptTitleDual) || looksPtBr(t, { overlay: false });
+  return looksPtBr(t, { overlay: false });
 }
 
 // --- Overlay GATEADO (ETAPA C) -------------------------------------------------

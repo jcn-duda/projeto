@@ -22,7 +22,7 @@ import { normalizeTitle } from '../utils/title-normalization.js';
 import { PROMPT_VERSION, QUESTION_ID, QUESTIONS, buildState } from './questions-audio.js';
 import { createJudgmentCore } from './judgment-queue-core.js';
 import { sharedJudgmentBudget } from './judgment-shared-budget.js';
-import type { EnqueueResult } from './types.js';
+import type { EnqueueResult, ShadowDimension } from './types.js';
 
 const core = createJudgmentCore<string>({
   question: {
@@ -42,8 +42,15 @@ const core = createJudgmentCore<string>({
   detLabels: { ai: 'ai-pt', rule: 'rule-pt' },
 });
 
-function enqueueAudioJudgment(title: string, det: boolean): EnqueueResult {
-  return core.enqueue({ state: String(title || ''), det: Boolean(det) });
+/**
+ * `dim` é a dimensão de ORIGEM da release (união fechada), calculada pelo
+ * produtor a partir de `item.isBr` — origem NÃO é áudio, é o eixo separado que
+ * permite ler a divergência shadow de dublado por vaga BR vs global. Obrigatório
+ * de propósito: `enqueueAudioJudgment` é o caminho do produtor, que sempre sabe
+ * a origem; um default silencioso esconderia a dimensão.
+ */
+function enqueueAudioJudgment(title: string, det: boolean, dim: ShadowDimension): EnqueueResult {
+  return core.enqueue({ state: String(title || ''), det: Boolean(det), dim });
 }
 
 function statusSnapshot() {

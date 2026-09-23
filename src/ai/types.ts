@@ -18,6 +18,17 @@ export interface JevAudioJudgment {
   at: number;
 }
 
+/**
+ * Dimensão FECHADA da comparação shadow — de ONDE veio a release medida, para
+ * a divergência poder ser lida por origem. É rótulo de MÉTRICA, nunca decisão:
+ * `origin-br` é a origem declarada (`item.isBr`, o flag do provider/índice — a
+ * mesma evidência que reserva vaga BR); `origin-global` é todo o resto,
+ * INCLUSIVE "não sei a origem". Origem NÃO é áudio: o eixo de origem e a
+ * leitura de áudio que o veredito determinístico mede são coisas diferentes, e
+ * a união fica fechada de propósito (nenhum texto de título/indexer entra).
+ */
+export type ShadowDimension = 'origin-br' | 'origin-global';
+
 /** Resultado do enqueue síncrono (nunca lança, nunca bloqueia a resposta). */
 export type EnqueueResult =
   | 'ok'
