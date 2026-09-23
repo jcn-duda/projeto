@@ -66,15 +66,16 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
     // subiu junto — sempre estritamente acima da soma.
     assert.equal(cache.QUOTAS.autofetch, 4000);
     // TypeSafe shadow (`tsj:v1`): julgamento cru minúsculo; com ele a conta do
-    // universo fecha em 92.721 (folga 279) — comentário-cabeçalho de
+    // universo fecha em 112.221 (folga 279) — comentário-cabeçalho de
     // cache-quotas.ts é a fonte da conta.
-    assert.equal(cache.QUOTAS.tsj, 500);
+    assert.equal(cache.QUOTAS.tsj, 20000);
     // `muri` foi aposentado: a URI por hash saiu do cache para o banco
-    // permanente, a cota (20.000) saiu do universo e o teto voltou a 93.000.
+    // permanente e a cota (20.000) saiu do universo — o teto corrente é o do
+    // assert logo abaixo (o `tsj` voltou a ocupar 20.000 no lugar do muri).
     assert.equal(cache.QUOTAS.muri, undefined, 'muri não é mais namespace de cache');
     assert.equal('muri' in NAMESPACE_VERSIONS, false, 'muri não é mais versionado');
     assert.ok(LEGACY_PREFIXES.includes('muri:'), 'prefixo legado é descartado no boot');
-    assert.equal(cache.MAX_ENTRIES, 93000);
+    assert.equal(cache.MAX_ENTRIES, 112500);
     // O que o teto precisa cobrir não é a lista de `QUOTAS`: `quotaFor` devolve
     // `__default` para todo nome sem entrada própria, então namespace
     // versionado sem cota some da soma nomeada e ocupa o store igual — foi

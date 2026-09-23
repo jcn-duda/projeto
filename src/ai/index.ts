@@ -108,7 +108,7 @@ const OVERLAY_NOUL_DROP_MAX = 0.15;
 // SEM memo global de decisão (P1 da revisão final): o memo anterior expirava
 // pelo MOMENTO DE CONSULTA (`R + judgmentTtlS`) enquanto o cache `tsj` expira
 // pelo momento de GRAVAÇÃO (`S + judgmentTtlS`) — como R >= S, a decisão
-// sobrevivia R-S além do julgamento; pior, a cota do `tsj` (500) pode EVICTAR
+// sobrevivia R-S além do julgamento; pior, a cota do `tsj` (20.000) pode EVICTAR
 // a entrada antes do TTL, e o memo que sobrevive à eviction vira AUTORIDADE,
 // mascarando julgamento NOVO do mesmo fingerprint (inclusive mudança do
 // `noul` na reescrita). A autoridade é sempre `lookup(fp)` — O(1) e síncrono,
@@ -122,9 +122,9 @@ const OVERLAY_NOUL_DROP_MAX = 0.15;
 // vencimento ALINHADO AO JULGAMENTO: `at + judgmentTtlS` é EXATAMENTE o
 // vencimento da entrada no cache `tsj` (a fila grava `at: Date.now()`), então
 // o dedupe nunca sobrevive ao julgamento que o originou — e um julgamento NOVO
-// (novo `at`, ex.: reescrita após eviction da cota 500) depois do vencimento é
-// nova ocorrência. Dentro do TTL, re-consultas do mesmo fp NÃO recontam.
-// (O antecessor LRU teto 512 era o bug: recontava título cujo julgamento
+// (novo `at`, ex.: reescrita após eviction da cota do `tsj`) depois do
+// vencimento é nova ocorrência. Dentro do TTL, re-consultas do mesmo fp NÃO
+// recontam. (O antecessor LRU teto 512 era o bug: recontava título cujo julgamento
 // ainda podia estar decisório no `tsj` — evictado ANTES do TTL e re-aplicado,
 // o contador inflava sem título novo.) Prune a partir do FRENTE do Map antes
 // de contar fp novo: com o vencimento derivado de `at`, a ordem de expiração
@@ -182,7 +182,7 @@ function overlayDropsDub(title: string): boolean {
     return false;
   }
   // O lookup É a decisão: sem memo global (P1 da revisão — ver nota acima), o
-  // cache `tsj` é a autoridade em TODA chamada. Eviction da cota 500 antes do
+  // cache `tsj` é a autoridade em TODA chamada. Eviction da cota antes do
   // TTL e reescrita do julgamento (novo `at`/`noul`) são vistos na hora; miss
   // NUNCA derruba: ausência de evidência preserva o `true` do legado.
   const judgment = lookup(fp);

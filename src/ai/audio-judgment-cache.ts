@@ -1,6 +1,6 @@
 /**
  * Cache do julgamento CRU do TypeSafe — namespace versionado `tsj:v1`, cota
- * própria (500), TTL de config. Serve para NÃO repetir chamada: o valor é o
+ * própria (20.000), TTL de config. Serve para NÃO repetir chamada: o valor é o
  * noul bruto, e o threshold é aplicado SÓ na comparação shadow de uma chamada
  * NOVA (cache-hit retorna cedo e não re-contabiliza métrica). Guardar o valor
  * cru é o que permite recomputar sem re-pagar quando existir consumidor de

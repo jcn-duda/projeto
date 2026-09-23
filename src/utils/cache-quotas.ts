@@ -15,9 +15,9 @@
 // `__default` (500) para todo nome sem entrada própria, então cada namespace
 // que exista em `NAMESPACE_VERSIONS` sem cota nomeada soma mais 500 aqui. O
 // universo real é a união dos dois registros, mais o balde `__default` das
-// chaves sem `:`. Hoje: 91.721 + 500 = 92.221, mais o `tsj` (500) do TypeSafe
-// shadow = 92.721 entradas alcançáveis contra o teto de 93.000 — folga de
-// 279, margem curta: o PRÓXIMO namespace novo precisa vir acompanhado de
+// chaves sem `:`. Hoje: 111.721 (soma das chaves nomeadas de `QUOTAS`) + 500
+// (`__default`) = 112.221 entradas alcançáveis contra o teto de 112.500 —
+// folga de 279, margem curta: o PRÓXIMO namespace novo precisa vir acompanhado de
 // remoção ou subida de teto, não só da entrada na tabela. A conta é refeita no teste
 // (test/cache-namespaces.test.ts), que também exige cota explícita para todo
 // namespace versionado. Foi a falta dessa segunda guarda que deixou `dinv`,
@@ -27,7 +27,7 @@
 // a 949 de 2.000. Teto IGUAL OU ABAIXO da soma reintroduz o despejo global
 // antes da repartição por namespace, que foi bug real.
 //
-// Cotas nomeadas: mag=50.000, rdc=14.000, dlmag=4.000, autofetch=4.000,
+// Cotas nomeadas: mag=50.000, tsj=20.000, rdc=14.000, dlmag=4.000, autofetch=4.000,
 // fsz=3.000, rdt=2.500, streams=2.000, idx=2.000, adprot=2.000, davail=1.000,
 // adsub=1.000, vres=1.000, tsz=1.000, raw=800, tmdb=500, tmdbc=500, meta=500, rdq=500,
 // adrm=500, harvest=500, indexer-status=200, notify=100, seed=20, dinv=50,
@@ -49,7 +49,7 @@
 // (src/utils/cache-db.ts:113-114) apaga todo `ns:%` que não bata com
 // `ns:<versão>:%`. Registrá-los na lista sem migrar as chaves primeiro custa o
 // cache deles no próximo restart.
-export const MAX_ENTRIES = 93000;
+export const MAX_ENTRIES = 112500;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
   dlmag: 4000,
@@ -147,10 +147,11 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   seed: 20,
   harvest: 500,
   // Julgamento cru do TypeSafe shadow (`tsj:v1`, 14d de TTL): entrada
-  // minúscula `{ n, m, at }` (~60 B + chave 64-hex). Cota pequena de propósito
-  // — o runtime é shadow e default OFF; 500 julgamentos quentes bastam para o
-  // ciclo de buscas de um dia sem competir com baldes de produção.
-  tsj: 500,
+  // minúscula `{ n, m, at }` (~60 B + chave 64-hex, ~400 B com o overhead do
+  // Map). Era 500, mas o TTL de 14 dias e o overlay cache-only pedem acervo:
+  // 20.000 julgamentos ≈ 8 MB — folgado no container de 3g e ainda menor que
+  // o `mag`. O teto global subiu junto (112.500).
+  tsj: 20000,
   __default: 500,
 });
 

@@ -31,7 +31,7 @@
  *      teto 512 que recontava título cujo julgamento segue decisório no cache
  *      não volta), `consulted` conta chamada;
  *   8. AUTORIDADE: NÃO há memo global de decisão (P1 da revisão — o memo que
- *      expira pelo momento de consulta sobrevive à eviction da cota 500 do
+ *      expira pelo momento de consulta sobrevive à eviction da cota do
  *      `tsj` e mascara julgamento NOVO do mesmo fp, inclusive mudança do
  *      `noul`): cada chamada faz `lookup` síncrono — miss NUNCA congelado
  *      (escrita posterior do shadow é vista na hora), eviction antes do TTL

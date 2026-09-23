@@ -1568,15 +1568,18 @@ TTL de resultado vazio é curto (`RAW_CACHE_EMPTY_TTL`): 200 com zero itens
 pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
 
 Cotas do L1 (`cache-quotas.ts`): `streams` 2000, `raw` 800, `dlmag` 4000,
-`idx` 2000, `rdc` 14000, `autofetch` 4000, `mag` 50000, `mag_meta` 1 (o agregado
-único dos contadores duráveis do banco de magnets), teto global 93000. `raw` é o namespace
+`idx` 2000, `rdc` 14000, `autofetch` 4000, `mag` 50000, `tsj` 20000 (julgamento
+cru do TypeSafe shadow — ~400 B por entrada, ~8 MB), `mag_meta` 1 (o agregado
+único dos contadores duráveis do banco de magnets), teto global 112500. `raw` é o namespace
 gordo (~100 KB no pior caso); não suba a cota sem refazer a conta de memória do
 container de 3g. O `mag` é o oposto — entrada minúscula (`1` + chave de ~70 B,
 ~400 B com o overhead do Map), então 50.000 custa ~19 MB. A conta que fecha NÃO
-é a soma das chaves de `QUOTAS` (91.721): `quotaFor` devolve `__default` (500)
+é a soma das chaves nomeadas de `QUOTAS` (111.721): `quotaFor` devolve `__default` (500)
 para todo nome sem entrada própria, então o universo honesto é a **união** de
 `QUOTAS` com `NAMESPACE_VERSIONS`, mais o balde `__default` das chaves sem `:`
-— 92.221 contra o teto de 93.000, folga de 779 (um balde de 500 e margem curta).
+— 112.221 contra o teto de 112.500, folga de 279 (margem curta — NÃO cabe mais
+um balde `__default` de 500 na folga; um namespace novo sem cota própria
+estouraria o teto e precisa de cota explícita junto).
 Essa conta é refeita no teste (`cache-namespaces.test.ts`), que também
 exige **cota explícita para todo namespace versionado** — sem a segunda guarda,
 `dinv`, `harvest`, `notify` e `seed` viveram de fallback e a soma real passou do
@@ -1589,7 +1592,7 @@ O banco de magnets VIVO (`data/magnets.db`) NÃO entra nesta conta: é SQLite
 próprio, sem cota, sem TTL e sem versão de namespace. A URI por hash que antes
 morava no cache (`muri:`) agora é do banco — não há namespace `muri` em `QUOTAS`
 nem em `NAMESPACE_VERSIONS`, e o prefixo legado é descartado no boot; o teto
-global segue **93.000**.
+global segue **112.500**.
 
 Cota é capacidade, não permanência: quem tira registro do `mag` no dia a dia é
 o TTL (`MAGNET_ALIVE_TTL`/`MAGNET_LIE_TTL` 7 dias, `MAGNET_BAD_TTL` 24 h).
@@ -1774,7 +1777,7 @@ concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
   `TYPESAFE_DAILY_CAP` (janelas independentes), backoff exponencial na base
   `TYPESAFE_COOLDOWN_MS`; auth 401/403 para 30 min com um warn único por
   processo.
-- **Cache do julgamento cru (`tsj:v1`, cota 500):** chave
+- **Cache do julgamento cru (`tsj:v1`, cota 20.000):** chave
   `sha256(título normalizado | model | promptVersion)`, valor `{ n, m, at }`
   sem título/chave/config. O noul é gravado CRU; o threshold é aplicado SÓ na
   comparação shadow de uma chamada NOVA (o cache-hit retorna cedo e não
@@ -1815,8 +1818,8 @@ concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
   (`at + TYPESAFE_JUDGMENT_TTL_S` — exatamente o vencimento da entrada no
   `tsj`, que a fila grava com `at: Date.now()`): dentro do TTL não há
   recontagem, e um julgamento novo (novo `at`, ex.: reescrita após eviction da
-  cota 500) depois do vencimento é nova ocorrência (um LRU teto 512 recontava
-  título cujo julgamento ainda podia estar decisório no `tsj`). O bound
+  cota do `tsj`) depois do vencimento é nova ocorrência (um LRU teto 512
+  recontava título cujo julgamento ainda podia estar decisório no `tsj`). O bound
   operacional é CAP diário × TTL, nunca uptime: os orçamentos do shadow
   (`TYPESAFE_HOURLY_CAP`/`TYPESAFE_DAILY_CAP`) limitam a entrada e o estado
   zera no restart. **NÃO há memo global de decisão** (P1 da revisão final): o

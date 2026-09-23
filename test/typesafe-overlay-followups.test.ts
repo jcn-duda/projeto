@@ -10,7 +10,9 @@
  *   B1 — `applied` conta TÍTULO distinto por fingerprint com dedupe
  *        TTL-aware (dentro do `judgmentTtlS` não há recontagem nem duplicata
  *        — o LRU teto 512 recontava título cujo julgamento podia seguir
- *        decisório no `tsj` — cota 500, TTL de semanas);
+ *        decisório no `tsj`, cujo TTL é de semanas). A eviction é provocada
+ *        pela COTA REAL do namespace (`QUOTAS.tsj`): depois dela a consulta
+ *        vira miss — o dedupe não reconta e a decisão não congela;
  *   B1b — o dedupe vence ALINHADO AO JULGAMENTO (`at + judgmentTtlS`, o mesmo
  *        vencimento da entrada no `tsj` — a fila grava `at: Date.now()`):
  *        dentro do TTL não reconta; cache expirado é miss honesto; novo
@@ -18,7 +20,7 @@
  *        (relógio avançado no teste e restaurado em `finally`);
  *   B5 — AUTORIDADE do cache (P1 da revisão final): NÃO há memo global de
  *        decisão — o memo anterior expirava pelo momento de consulta e
- *        sobrevivia à eviction da cota 500 do `tsj`, mascarando julgamento
+ *        sobrevivia à eviction da cota do `tsj`, mascarando julgamento
  *        NOVO do mesmo fp (inclusive mudança do `noul`). Cada chamada faz
  *        `lookup` síncrono: eviction antes do TTL vira miss (a decisão
  *        aplicada NÃO age como decisão) e reescrita do fp vale na hora, nos
@@ -112,18 +114,37 @@ test('B1 — applied: dedupe sem evicção; >512 títulos não recontam na recon
   cfgOn();
   const TOTAL = 520; // acima do antigo teto LRU 512 do dedupe
   const titulos = Array.from({ length: TOTAL }, (_, i) => `Filme Dedupe ${i} 2024 [DUB] 1080p`);
-  // Consulta logo após semear cada título: a cota do tsj (500) evicta os
-  // primeiros do cache, mas cada um foi APLICADO no próprio momento — o dedupe
-  // por processo guarda todos os fps. `at: Date.now()` é a âncora do dedupe
-  // (vencimento = at + judgmentTtlS, o mesmo do cache; `at: 1` nasceria já
-  // vencido e recontaria).
+  // Semeia e consulta cada título: cada um foi APLICADO no próprio momento —
+  // o dedupe por processo guarda todos os fps. `at: Date.now()` é a âncora do
+  // dedupe (vencimento = at + judgmentTtlS, o mesmo do cache; `at: 1` nasceria
+  // já vencido e recontaria). A cota do tsj (20.000) NÃO estoura em 520: a
+  // eviction real é provocada abaixo pela própria cota.
   for (const t of titulos) {
     store(fingerprint(t, MODEL), { n: 0.02, m: MODEL, at: Date.now() }, 600);
     assert.equal(overlayDropsDub(t), true);
   }
   assert.equal(counter('typesafe.overlay.applied'), TOTAL, 'cada título distinto contou exatamente uma vez');
-  // Re-julga e reconsulta a cabeça (a faixa que o LRU antigo teria evictado):
-  // com cache vivo de novo, o drop volta — mas o contador não pode inflar.
+  // Evicção REAL pela cota do namespace (API do cache, não `forget` manual):
+  // um lote de filler barato em `setMany` leva o tsj a QUOTAS.tsj + TOTAL e o
+  // quotaOverflow expulsa os 520 julgamentos mais antigos — mesma eviction
+  // que a cota de 500 provocava sozinha no laço, sem custar 20 mil
+  // fingerprints (um setMany = uma passada de evicção; o excedente fecha
+  // em TOTAL para qualquer cota).
+  const cota = cache.QUOTAS.tsj;
+  cache.setMany(
+    Array.from({ length: cota }, (_, i) => ({ key: `tsj:v1:cota-filler:${i}`, value: { filler: true }, ttlSeconds: 600 })),
+  );
+  assert.equal(cache.has(judgmentKey(titulos[0], MODEL)), false, 'julgamento evictionado pela cota ANTES do TTL');
+  assert.equal(counter('cache.evicted.quota.tsj'), TOTAL, 'a eviction saiu da cota real do tsj');
+  // Autoridade após eviction: sem a entrada, a consulta é miss honesto — a
+  // decisão aplicada NÃO age como decisão congelada (e miss não conta applied).
+  const consultado = counter('typesafe.overlay.consulted');
+  assert.equal(overlayDropsDub(titulos[0]), false, 'evicted antes do TTL: miss, nunca decisão congelada');
+  assert.equal(counter('typesafe.overlay.consulted'), consultado + 1, 'a chamada passou pelo lookup');
+  assert.ok(counter('typesafe.overlay.cache-miss') >= 1, 'eviction é visível como cache-miss');
+  assert.equal(counter('typesafe.overlay.applied'), TOTAL, 'miss não conta applied');
+  // Re-julga e reconsulta a cabeça: com cache vivo de novo, o drop volta —
+  // mas o contador não pode inflar (o dedupe sobreviveu à eviction do cache).
   for (const t of titulos.slice(0, 32)) store(fingerprint(t, MODEL), { n: 0.02, m: MODEL, at: Date.now() }, 600);
   for (const t of titulos.slice(0, 32)) {
     assert.equal(overlayDropsDub(t), true, `reconsulta com cache vivo decide de novo: ${t}`);
@@ -174,9 +195,10 @@ test('B5 — o cache tsj é a AUTORIDADE (sem memo): eviction antes do TTL vira 
     store(fingerprint(titulo, MODEL), { n: 0.02, m: MODEL, at: agora }, 3600);
     assert.equal(overlayDropsDub(titulo), true, 'primeira consulta aplica o drop via cache');
     assert.equal(counter('typesafe.overlay.applied'), 1);
-    // ...e a COTA (500) evicta a entrada ANTES do TTL: sem memo global, a
-    // próxima leitura é miss honesto — a decisão aplicada NÃO age como
-    // decisão (não mascara a eviction).
+    // ...e a eviction — simulada aqui com `cache.forget` (a prova com a COTA
+    // REAL do namespace está em B1) — tira a entrada ANTES do TTL: sem memo
+    // global, a próxima leitura é miss honesto — a decisão aplicada NÃO age
+    // como decisão (não mascara a eviction).
     cache.forget(chave);
     const consultado = counter('typesafe.overlay.consulted');
     assert.equal(overlayDropsDub(titulo), false, 'evicted antes do TTL: miss, nunca decisão congelada');
