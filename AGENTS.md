@@ -1783,11 +1783,9 @@ concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
   alias não pode derrubar dublado.
 - **Overlay do DUB genérico (ETAPA C) é opt-in, default OFF.**
   `TYPESAFE_OVERLAY_ENABLED=false` na fábrica de config — o portão formal
-  (>= 200 julgamentos + revisão humana) não foi cumprido. PENDÊNCIA: o
-  `.env.example` do repo ainda traz `TYPESAFE_OVERLAY_ENABLED=true` e
-  `TYPESAFE_MODEL=jev-latest` (a edição foi negada por permissão e NÃO foi
-  feita); quem copiar o exemplo liga o overlay por engano — são os portões
-  abaixo que impedem a decisão, não o exemplo. Com ligado, a decisão do
+  (>= 200 julgamentos + revisão humana) não foi cumprido; o `.env.example`
+  espelha isso (`TYPESAFE_OVERLAY_ENABLED=false`, `TYPESAFE_MODEL=jev-1.13.0`).
+  Com ligado, a decisão do
   `overlayDropsDub` ainda exige runtime shadow ON, chave presente (mesma
   exigência do produtor/drain), Jev não pausado (o `jev-pause` do painel
   desativa a DECISÃO, não só as filas), modelo versionado e o eco do modelo
