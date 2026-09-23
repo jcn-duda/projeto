@@ -252,6 +252,9 @@ test('JevView renderiza as duas perguntas shadow com concordÃ¢ncia e controles
   assert.match(text, /Retomar Jev/, 'a pergunta 1 pausada liga o estado global (botão vira retomar)');
   assert.match(text, /Drenar Fila \(\s*4\s*\)/, 'fila somada das duas perguntas');
   assert.match(text, /Zerar Cooldown/, 'reset do breaker ofertado com falha ativa');
+  assert.match(text, /Orçamento compartilhado/, 'o orçamento único aparece em card próprio');
+  assert.equal((text.match(/Orçamento hora/g) || []).length, 1, 'a barra de orçamento não se repete por pergunta');
+  assert.equal((text.match(/Orçamento dia/g) || []).length, 1, 'a barra de orçamento não se repete por pergunta');
 });
 
 test('JevView cobre typesafe ausente sem quebrar (INATIVO)', () => {

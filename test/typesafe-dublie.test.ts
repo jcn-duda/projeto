@@ -6,8 +6,10 @@
  *      o teste reclamar;
  *   2. FILA: enqueue 'ok', chamada ao modelo, julgamento CRU {n,m,at} no cache
  *      `tsj` e comparação shadow sob `typesafe.dublie.*`;
- *   3. ISOLAMENTO: as métricas históricas da pergunta 1 (`typesafe.*`) não
- *      sobem com a pergunta 2 — instâncias e orçamentos separados;
+ *   3. ISOLAMENTO: as métricas históricas de FILA/CHAMADA/SHADOW da pergunta 1
+ *      (`typesafe.*`) não sobem com a pergunta 2 — instâncias separadas (o
+ *      ORÇAMENTO e o BREAKER são compartilhados de propósito: mesma chave e
+ *      mesmo limite do provedor);
  *   4. INÉRCIA: kill-switch OFF → 'disabled', zero fetch, zero cache;
  *   5. FACHADA: `aiStatus` agrega as duas perguntas e `aiControl` opera nas
  *      duas cores (pausa de operador é global).

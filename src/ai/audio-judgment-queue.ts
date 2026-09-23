@@ -21,6 +21,7 @@
 import { normalizeTitle } from '../utils/title-normalization.js';
 import { PROMPT_VERSION, QUESTION_ID, QUESTIONS, buildState } from './questions-audio.js';
 import { createJudgmentCore } from './judgment-queue-core.js';
+import { sharedJudgmentBudget } from './judgment-shared-budget.js';
 import type { EnqueueResult } from './types.js';
 
 const core = createJudgmentCore<string>({
@@ -33,6 +34,9 @@ const core = createJudgmentCore<string>({
     // Mesma normalização do matching: caixa/acentos não mudam a chave.
     fingerprintMaterial: (title: string) => normalizeTitle(String(title || '')),
   },
+  // Orçamento/breaker COMPARTILHADOS com a pergunta 2 (mesma chave/limite do
+  // provedor): a falha de uma arma o cooldown das duas.
+  budget: sharedJudgmentBudget,
   basePrefix: 'typesafe',
   shadowPrefix: 'typesafe.shadow',
   detLabels: { ai: 'ai-pt', rule: 'rule-pt' },

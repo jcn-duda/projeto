@@ -132,8 +132,9 @@ const OVERLAY_NOUL_DROP_MAX = 0.15;
 // a correção do dedupe (não recontar enquanto o MESMO julgamento vive) vem do
 // get abaixo, não do prune. Bound operacional: só entra fp que DERRUBOU de
 // fato (subconjunto dos julgamentos do shadow, limitados pelos orçamentos
-// TYPESAFE_HOURLY_CAP/TYPESAFE_DAILY_CAP — 600/dia no default), e o acervo
-// vivo é ≈ cap diário × TTL (600 × 14 d ≈ 8.4 mil entradas de sha256 64-hex)
+// TYPESAFE_HOURLY_CAP/TYPESAFE_DAILY_CAP — 10.000/dia no default compartilhado),
+// e o acervo vivo é ≈ cap diário × TTL (10.000 × 14 d ≈ 140 mil ocorrências;
+// a cota `tsj` limita quantos julgamentos seguem disponíveis para decidir)
 // — depende de CAP × TTL, NUNCA do uptime, e zera no restart (deploy).
 // Nenhum título ou chave crua em Map/label/log (o fp já é digest).
 const appliedSeen = new Map<string, number>();

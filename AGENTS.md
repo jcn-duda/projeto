@@ -1772,11 +1772,14 @@ concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
   (`SHADOW_PER_BUILD_MAX`); o drain roda em `setImmediate`, lê SÓ
   `config.typesafe` (nunca `opts()`), 1 tentativa por item. O cliente tem
   TETO de 3000 ms e segredo SÓ no header `Authorization: Bearer`.
-- **Orçamento e breaker próprios:** `TYPESAFE_QUEUE_MAX` (teto duro de fila —
-  excedente descarta, não existe fila infinita), `TYPESAFE_HOURLY_CAP` +
-  `TYPESAFE_DAILY_CAP` (janelas independentes), backoff exponencial na base
-  `TYPESAFE_COOLDOWN_MS`; auth 401/403 para 30 min com um warn único por
-  processo.
+- **Orçamento e breaker COMPARTILHADOS pelas duas perguntas:** uma só instância
+  (`judgment-shared-budget.ts`) injetada nos dois cores — mesma chave e mesmo
+  limite do provedor, então um rate/auth em qualquer pergunta arma o cooldown
+  das duas. `TYPESAFE_QUEUE_MAX` é teto duro de fila POR pergunta (excedente
+  descarta, não existe fila infinita); `TYPESAFE_HOURLY_CAP` + `TYPESAFE_DAILY_CAP`
+  (default **1000/10000**) são o orçamento ÚNICO, por processo (zera no restart);
+  backoff exponencial na base `TYPESAFE_COOLDOWN_MS`; auth 401/403 para 30 min
+  com um warn único por processo.
 - **Cache do julgamento cru (`tsj:v1`, cota 20.000):** chave
   `sha256(título normalizado | model | promptVersion)`, valor `{ n, m, at }`
   sem título/chave/config. O noul é gravado CRU; o threshold é aplicado SÓ na
@@ -1820,8 +1823,9 @@ concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
   recontagem, e um julgamento novo (novo `at`, ex.: reescrita após eviction da
   cota do `tsj`) depois do vencimento é nova ocorrência (um LRU teto 512
   recontava título cujo julgamento ainda podia estar decisório no `tsj`). O bound
-  operacional é CAP diário × TTL, nunca uptime: os orçamentos do shadow
-  (`TYPESAFE_HOURLY_CAP`/`TYPESAFE_DAILY_CAP`) limitam a entrada e o estado
+  operacional é CAP diário × TTL, nunca uptime: o orçamento único do shadow
+  (`TYPESAFE_HOURLY_CAP`/`TYPESAFE_DAILY_CAP`, compartilhado pelas duas
+  perguntas por processo) limita a entrada e o estado
   zera no restart. **NÃO há memo global de decisão** (P1 da revisão final): o
   memo anterior expirava pelo momento de consulta e sobrevivia à eviction da
   cota do `tsj`, mascarando julgamento novo do mesmo fp (inclusive mudança do
@@ -2172,7 +2176,7 @@ fire-and-forget) continua.
 | `src/providers/live-indexer-state.ts` | Estado vivo de falha por indexer da coleta (`error`/`breaker`/`source`, `pending` conta como falho, `*all*` agregado) e `mergeLiveIndexerStates` |
 | `src/providers/magnet-bank-hook.ts` | Ponte stream-builder → banco: hashes não-conta/não-fallback e `targetsFor` escrevem o `passed_filter` da obra |
 | `src/providers/magnet-bank-fallback.ts` | Reserva da Etapa 4: seleção por indexer falho/`allFailed`, live-dedupe, tetos por indexer/global, selo `fromFallback` e métricas `fallback.*` |
-| `src/ai/` | Runtime TypeSafe/System One **SHADOW-ONLY** (seção própria abaixo): `index.ts` é a fachada ÚNICA (`shadowAudioJudgments`/`aiStatus`), `typesafe-client.ts` a única dona do fetch, `audio-judgment-queue.ts` a fila com orçamento/breaker, `audio-judgment-cache.ts` o cache `tsj:v1`, `questions-audio.ts` o espelho da pergunta validada online, `types.ts` os tipos. Nenhum módulo de decisão importa `src/ai/` — travado por `test/typesafe-shadow-graph.test.ts` |
+| `src/ai/` | Runtime TypeSafe/System One **SHADOW-ONLY** (seção própria abaixo): `index.ts` é a fachada ÚNICA (`shadowAudioJudgments`/`aiStatus`), `typesafe-client.ts` a única dona do fetch, `audio-judgment-queue.ts` e `dub-lie-judgment-queue.ts` as duas filas (orçamento/breaker compartilhados em `judgment-shared-budget.ts`, injetados pelo motor genérico `judgment-queue-core.ts`), `audio-judgment-cache.ts` o cache `tsj:v1`, `questions-audio.ts` o espelho da pergunta validada online, `types.ts` os tipos. Nenhum módulo de decisão importa `src/ai/` — travado por `test/typesafe-shadow-graph.test.ts` |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
 | `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — laço único para quem usa protetor), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
 | `*-resolver/` | Shims de compatibilidade/standalone (**TypeScript/ESM**, sem `package.json` de override): `<nome>/server.ts` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.ts`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)`. Os `server.d.ts` foram removidos — a implementação TS é o contrato; `nerdfilmes-resolver/test.ts` e `torrentdosfilmes-resolver/smoke-test.ts` também são compilados pelo tsc |

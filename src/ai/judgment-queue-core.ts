@@ -12,8 +12,11 @@
  * - kill-switch ANTES de tudo (nem leitura de cache): inércia por construção;
  * - teto DURO de fila (`queueMax`): excedente descarta — o item re-enfileira
  *   na próxima busca e o cache `tsj` evita re-chamada;
- * - orçamento/breaker delegados a judgment-budget.ts, com métricas
- *   prefixadas por `basePrefix` (pergunta 1 reproduz `typesafe.*` exato);
+ * - orçamento/breaker INJETADOS por `spec.budget` (judgment-budget.ts): em
+ *   produção as duas perguntas dividem a MESMA instância
+ *   (`judgment-shared-budget.ts`) — um rate/auth de uma arma o cooldown da
+ *   outra; as métricas de fila/chamada/shadow seguem prefixadas por
+ *   `basePrefix` (pergunta 1 reproduz `typesafe.*` exato);
  * - 1 tentativa por item: falha NÃO re-enfileira em voo (quem volta a pedir é
  *   a próxima busca com o mesmo material);
  * - comparação shadow (`noul >= threshold` vs veredito determinístico
@@ -26,7 +29,7 @@ import config from '../config.js';
 import * as metrics from '../utils/metrics.js';
 import { fingerprintMaterial, lookup, store } from './audio-judgment-cache.js';
 import { askJevAudio, AskError } from './typesafe-client.js';
-import { createJudgmentBudget, type JudgmentBudgetSnapshot } from './judgment-budget.js';
+import type { JudgmentBudget, JudgmentBudgetSnapshot } from './judgment-budget.js';
 import type { AskErrorKind, EnqueueResult } from './types.js';
 
 /**
@@ -49,7 +52,14 @@ export interface JudgmentQuestion<S> {
 
 export interface JudgmentCoreSpec<S> {
   question: JudgmentQuestion<S>;
-  /** Prefixo das métricas de fila/breaker: 'typesafe' | 'typesafe.dublie'. */
+  /**
+   * Orçamento/breaker da instância. Em produção as duas perguntas dividem a
+   * MESMA instância (`judgment-shared-budget.ts`): mesma chave e mesmo limite
+   * do provedor, então um rate/auth em qualquer pergunta arma o cooldown das
+   * duas. Injetar permite ao teste isolar sem tocar o singleton.
+   */
+  budget: JudgmentBudget;
+  /** Prefixo das métricas de fila/chamada/shadow: 'typesafe' | 'typesafe.dublie'. */
   basePrefix: string;
   /** Prefixo da comparação shadow: 'typesafe.shadow' | 'typesafe.shadow.dublie'. */
   shadowPrefix: string;
@@ -87,7 +97,7 @@ export interface JudgmentCore<S> {
 
 export function createJudgmentCore<S>(spec: JudgmentCoreSpec<S>): JudgmentCore<S> {
   const { question, basePrefix, shadowPrefix, detLabels } = spec;
-  const budget = createJudgmentBudget(() => config.typesafe, basePrefix);
+  const budget = spec.budget;
 
   // Estado ÚNICO da instância. FIFO por inserção do Map.
   const pending = new Map<string, PendingEntry<S>>();

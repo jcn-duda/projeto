@@ -6,9 +6,12 @@
  * ligação da pergunta validada online (questions-dub-lie.ts, espelho EXATO do
  * probe dub-lie 38/38) com a instância própria. As métricas saem sob
  * `typesafe.dublie.*` / `typesafe.shadow.dublie.*` — NUNCA nas históricas
- * `typesafe.*` da pergunta 1 (instâncias e orçamentos separados de propósito:
- * a falha de uma não pune a outra e a concordância de uma não contamina a
- * outra).
+ * `typesafe.*` da pergunta 1. As instâncias são SEPARADAS de propósito (a
+ * concordância de uma não contamina a outra); o ORÇAMENTO e o BREAKER, porém,
+ * são COMPARTILHADOS (`judgment-shared-budget.ts`): mesma chave e mesmo limite
+ * do provedor, então um rate/auth em qualquer pergunta arma o cooldown das
+ * duas. As métricas de orçamento/breaker ficam sob `typesafe.*` (prefixo
+ * histórico) — as de fila/chamada/shadow seguem sob `typesafe.dublie.*`.
  *
  * Contratos herdados do motor (idênticos aos da pergunta 1):
  * - `enqueueDubLieJudgment` é SÍNCRONO, nunca lança e NUNCA é awaited pela
@@ -25,6 +28,7 @@
 import { normalizeTitle } from '../utils/title-normalization.js';
 import { PROMPT_VERSION, QUESTION_ID, QUESTIONS, buildState } from './questions-dub-lie.js';
 import { createJudgmentCore, type JudgmentCore } from './judgment-queue-core.js';
+import { sharedJudgmentBudget } from './judgment-shared-budget.js';
 import type { EnqueueResult } from './types.js';
 
 /** Estado da pergunta 2: promessa (título+indexer) e evidência (arquivos). */
@@ -47,6 +51,9 @@ const core = createJudgmentCore<DubLieState>({
     fingerprintMaterial: (s) =>
       [normalizeTitle(String(s.title || '')), String(s.indexer || ''), ...(s.files || []).map(String)].join('|'),
   },
+  // Orçamento/breaker COMPARTILHADOS com a pergunta 1 (mesma chave/limite do
+  // provedor): a falha de uma arma o cooldown das duas.
+  budget: sharedJudgmentBudget,
   basePrefix: 'typesafe.dublie',
   shadowPrefix: 'typesafe.shadow.dublie',
   detLabels: { ai: 'ai-lie', rule: 'rule-lie' },

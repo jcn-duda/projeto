@@ -1,6 +1,6 @@
 /**
- * Orçamento e breaker do julgamento TypeSafe — fábrica PURA, uma instância
- * por pergunta. Extraído da fila original (audio-judgment-queue.ts) para o
+ * Orçamento e breaker do julgamento TypeSafe — fábrica PURA de instâncias.
+ * Extraído da fila original (audio-judgment-queue.ts) para o
  * motor genérico (judgment-queue-core.ts) reutilizar A MESMA lógica entre
  * perguntas sem duplicar nada aqui dentro.
  *
@@ -15,9 +15,11 @@
  *   aparece na mensagem;
  * - sucesso zera o streak de falhas (mesma forma do breaker do Torrentio).
  *
- * Nenhum estado global: todo o estado mora no closure da instância, então
- * duas perguntas têm orçamentos e breakers independentes de propósito — a
- * falha de uma não pune a outra.
+ * Nenhum estado global: todo o estado mora no closure da instância. A fábrica
+ * serve a qualquer número de instâncias independentes; em produção as duas
+ * perguntas usam UMA instância compartilhada (`judgment-shared-budget.ts`)
+ * de propósito — mesma chave, mesmo limite do provedor, então um rate/auth em
+ * qualquer pergunta arma o cooldown das duas.
  */
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -64,7 +66,7 @@ export function createJudgmentBudget(
   cfg: () => JudgmentBudgetCfg,
   basePrefix: string,
 ): JudgmentBudget {
-  // Estado ÚNICO da instância (por pergunta).
+  // Estado ÚNICO desta instância (ela pode ser injetada em mais de uma fila).
   let hourly = { start: 0, count: 0 };
   let daily = { day: '', count: 0 };
   let cooldownUntil = 0;

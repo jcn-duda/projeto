@@ -42,10 +42,10 @@ interface QuestionCardProps {
   sideLabel: string;
 }
 
-/** Uma pergunta shadow: fila, orçamento, breaker e concordância. */
+/** Uma pergunta shadow: fila, concordância e a linha de estado. O ORÇAMENTO e o
+ * breaker saem daqui de propósito — são um só para as duas perguntas
+ * (`SharedBudgetCard`), então não se repetem por card. */
 function QuestionCard({ title, q, sideLabel }: QuestionCardProps) {
-  const hourPct = usedPercent(q.hourlyUsed, q.hourlyCap);
-  const dayPct = usedPercent(q.dailyUsed, q.dailyCap);
   const ratePct = q.agreementRate == null ? 0 : Math.round(q.agreementRate * 100);
   return html`
     <${Card} title=${title} badge=${questionBadge(q)}>
@@ -54,6 +54,35 @@ function QuestionCard({ title, q, sideLabel }: QuestionCardProps) {
         <${StatNumber} value=${q.inFlight} label="em voo" />
       </div>
 
+      <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
+        Modelo: ${q.model || '—'} @ ${q.promptVersion || '—'}
+      </p>
+
+      <div style="margin-top: var(--space-2);">
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--muted);">Concordância shadow</span>
+          <span style="font-weight: 600;">${q.agree} concordam · ${q.disagree} divergem${rateSuffix(q.agreementRate)}</span>
+        </div>
+        <${ProgressBar} percent=${ratePct} variant="ok" />
+        <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
+          Divergências: IA afirma ${sideLabel}: ${q.aiSide} · regra afirma ${sideLabel}: ${q.ruleSide}
+        </p>
+      </div>
+    </${Card}>
+  `;
+}
+
+/** Orçamento/breaker ÚNICO das duas perguntas (mesma chave/limite do provedor).
+ * O bloco `typesafe` traz os MESMOS números em `audioClassify` e `dubLie`; o
+ * card aparece uma vez, não por pergunta. */
+function SharedBudgetCard({ q }: { q: JevQuestionView }) {
+  const hourPct = usedPercent(q.hourlyUsed, q.hourlyCap);
+  const dayPct = usedPercent(q.dailyUsed, q.dailyCap);
+  return html`
+    <${Card}
+      title="Orçamento compartilhado"
+      badge=${{ text: 'AS DUAS PERGUNTAS', variant: 'neutral' as const }}
+    >
       <div style="margin-top: var(--space-2);">
         <div style="display: flex; justify-content: space-between;">
           <span style="color: var(--muted);">Orçamento hora</span>
@@ -70,20 +99,11 @@ function QuestionCard({ title, q, sideLabel }: QuestionCardProps) {
         <${ProgressBar} percent=${dayPct} variant=${budgetVariant(dayPct)} />
       </div>
 
-      <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
-        Modelo: ${q.model || '—'} @ ${q.promptVersion || '—'} · Cooldown: ${cooldownText(q.cooldownMs)} · Falhas consecutivas: ${q.consecutiveFail}
+      <p style="color: var(--muted); margin: var(--space-2) 0 0; font-size: var(--font-floor);">
+        Um só orçamento e um só breaker para as duas perguntas (mesma chave, mesmo limite do provedor):
+        rate/auth em qualquer pergunta arma o cooldown das duas. Cooldown: ${cooldownText(q.cooldownMs)} ·
+        falhas consecutivas: ${q.consecutiveFail}. Contadores por processo — zeram no restart.
       </p>
-
-      <div style="margin-top: var(--space-2);">
-        <div style="display: flex; justify-content: space-between;">
-          <span style="color: var(--muted);">Concordância shadow</span>
-          <span style="font-weight: 600;">${q.agree} concordam · ${q.disagree} divergem${rateSuffix(q.agreementRate)}</span>
-        </div>
-        <${ProgressBar} percent=${ratePct} variant="ok" />
-        <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
-          Divergências: IA afirma ${sideLabel}: ${q.aiSide} · regra afirma ${sideLabel}: ${q.ruleSide}
-        </p>
-      </div>
     </${Card}>
   `;
 }
@@ -199,6 +219,10 @@ export function JevView({ model: m, pending = false, feedback = null, onPauseTog
             A pausa é GLOBAL (as duas perguntas) e efêmera: a fila sobrevive para o pós-retomar drenar. Os knobs do Jev são do .env do operador — não há config ao vivo nesta aba.
           </p>
         </${Card}>
+      </div>
+
+      <div class="painel-grid" style="margin-top: var(--space-4);">
+        <${SharedBudgetCard} q=${m.audioClassify} />
       </div>
 
       <div class="painel-grid" style="margin-top: var(--space-4);">

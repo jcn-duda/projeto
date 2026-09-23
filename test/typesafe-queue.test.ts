@@ -22,6 +22,11 @@ import {
   enqueueAudioJudgment,
   statusSnapshot,
 } from '../src/ai/audio-judgment-queue.js';
+import {
+  enqueueDubLieJudgment,
+  dubLieStatusSnapshot,
+  flushDubLieForTests,
+} from '../src/ai/dub-lie-judgment-queue.js';
 import { judgmentKey } from '../src/ai/audio-judgment-cache.js';
 
 const SAVED = { ...config.typesafe };
@@ -236,6 +241,56 @@ test('rate 429 honra Retry-After no cooldown', async () => {
     assert.equal(counter('typesafe.call.error.rate'), 1);
     const remaining = statusSnapshot().cooldownRemainingMs;
     assert.ok(remaining > 1000 && remaining <= 2000 + 200, `Retry-After ~2s, veio ${remaining}ms`);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('orçamento/breaker COMPARTILHADOS: rate na pergunta 1 bloqueia a pergunta 2', async () => {
+  cfgOn();
+  const stub = stubFetch(() => ({
+    ok: false,
+    status: 429,
+    headers: { get: (h: string) => (h.toLowerCase() === 'retry-after' ? '30' : null) },
+    text: async () => 'x',
+  }));
+  try {
+    assert.equal(enqueueAudioJudgment('Filme A Dublado', true), 'ok');
+    await flushTypesafeForTests();
+    assert.equal(counter('typesafe.call.error.rate'), 1);
+    assert.ok(statusSnapshot().cooldownRemainingMs > 0, 'o breaker arma cooldown');
+    // Orçamento é UMA instância: os dois snapshots leem os mesmos contadores.
+    assert.equal(
+      dubLieStatusSnapshot().hourlyUsed,
+      statusSnapshot().hourlyUsed,
+      'orçamento é o mesmo nas duas perguntas',
+    );
+    // A pergunta 2 é recusada pelo MESMO breaker (não pela fila dela): nenhuma
+    // segunda chamada sai.
+    assert.equal(enqueueDubLieJudgment('Filme B DUBLADO', 'bludv', ['b.mkv'], true), 'cooldown');
+    assert.equal(counter('typesafe.dublie.enqueue.cooldown'), 1);
+    assert.equal(stub.calls.length, 1);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('orçamento/breaker COMPARTILHADOS: rate na pergunta 2 bloqueia a pergunta 1', async () => {
+  cfgOn();
+  const stub = stubFetch(() => ({
+    ok: false,
+    status: 429,
+    headers: { get: (h: string) => (h.toLowerCase() === 'retry-after' ? '30' : null) },
+    text: async () => 'x',
+  }));
+  try {
+    assert.equal(enqueueDubLieJudgment('Filme A DUBLADO', 'bludv', ['a.mkv'], true), 'ok');
+    await flushDubLieForTests();
+    assert.equal(counter('typesafe.dublie.call.error.rate'), 1);
+    // Caminho inverso: o cooldown armado pela pergunta 2 recusa a pergunta 1.
+    assert.equal(enqueueAudioJudgment('Filme B Dublado', true), 'cooldown');
+    assert.equal(counter('typesafe.enqueue.cooldown'), 1);
+    assert.equal(stub.calls.length, 1);
   } finally {
     stub.restore();
   }

@@ -450,7 +450,11 @@ resposta.
 | `src/ai/questions-audio.ts` | Espelho TS da pergunta validada online (paridade travada por teste) |
 | `src/ai/typesafe-client.ts` | Única dona do fetch: Bearer no header, 1 tentativa, timeout ≤ 3000 ms, parse defensivo, fail-open |
 | `src/ai/audio-judgment-cache.ts` | Cache do julgamento CRU (`tsj:v1`, cota 500, TTL de config) |
-| `src/ai/audio-judgment-queue.ts` | Fila deduplicada + orçamento hora/DIA + breaker/auth-stop + comparação shadow |
+| `src/ai/judgment-budget.ts` | Fábrica PURA de orçamento/breaker (janelas hora/dia, backoff exponencial, auth-stop) |
+| `src/ai/judgment-shared-budget.ts` | Instância ÚNICA de orçamento/breaker das DUAS perguntas (mesma chave/limite do provedor) |
+| `src/ai/judgment-queue-core.ts` | Motor genérico da fila (dedupe, teto, drain, comparação shadow) — orçamento/breaker recebidos por `spec.budget` |
+| `src/ai/audio-judgment-queue.ts` | Wrapper da pergunta 1 (`is_ptbr_dub`) — métricas `typesafe.*` |
+| `src/ai/dub-lie-judgment-queue.ts` | Wrapper da pergunta 2 (`is_dub_lie`) — métricas `typesafe.dublie.*` |
 | `src/ai/index.ts` | Fachada ÚNICA (`shadowAudioJudgments` produtor, `aiStatus` resumo) |
 
 **Fluxo:** o produtor é `prepareCandidateStreams` (pós-filtro determinístico
@@ -462,8 +466,11 @@ em `setImmediate`, lê SÓ `config.typesafe` (nunca `opts()`), com concorrência
 re-chamada).
 
 **Limites de custo (todos de operador, em `src/config/typesafe.ts`):**
-`queueMax` teto DURO de fila (excedente descarta — não existe fila infinita),
-`hourlyCap`/`dailyCap` janelas independentes, `cooldownMs` base do backoff
+`queueMax` teto DURO de fila por pergunta (excedente descarta — não existe fila
+infinita), `hourlyCap`/`dailyCap` (default **1000/10000**) são o orçamento
+ÚNICO das DUAS perguntas, por processo (zera no restart) — uma só instância
+compartilhada (`judgment-shared-budget.ts`), então um rate/auth em qualquer
+pergunta arma o cooldown das duas. `cooldownMs` é a base do backoff
 (fator 2^n até 32x), auth 401/403 para 30 min com um único warn por processo,
 rate 429 honra Retry-After (teto 5 min). O timeout do cliente tem TETO de
 3000 ms (contrato do slice).
@@ -639,8 +646,9 @@ inserção e sem duplicata dentro do TTL — um LRU teto 512 recontava título c
 julgamento podia seguir decisório no `tsj` — cota 500, TTL de semanas;
 passado o TTL, novo julgamento do mesmo título é nova ocorrência. O bound
 operacional é CAP diário × TTL, nunca uptime: só entra fp que derrubou e o
-volume é limitado pelos orçamentos do shadow
-(`TYPESAFE_HOURLY_CAP`/`TYPESAFE_DAILY_CAP`), e o
+volume é limitado pelo orçamento único do shadow
+(`TYPESAFE_HOURLY_CAP`/`TYPESAFE_DAILY_CAP`, compartilhado pelas duas perguntas
+por processo), e o
 conjunto zera no restart; `consulted` segue contando chamada),
 `.model-blocked` (portão de modelo recusou alias móvel) e `.model-mismatch`
 (eco do modelo divergiu do ID da config — cache velho/estranho) no

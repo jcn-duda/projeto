@@ -3,8 +3,11 @@
  *
  * O bloco `typesafe` do backend agrega as DUAS perguntas shadow —
  * `audioClassify` (`is_ptbr_dub`, pergunta 1) e `dubLie` (`is_dub_lie`,
- * pergunta 2) — cada uma com a própria fila, orçamento e breaker (contrato de
- * `JudgmentCoreStatus` em src/ai/judgment-queue-core.ts: 13 campos). A
+ * pergunta 2) — cada uma com a própria fila (contrato de `JudgmentCoreStatus`
+ * em src/ai/judgment-queue-core.ts: 13 campos). O ORÇAMENTO e o BREAKER são
+ * COMPARTILHADOS pelas duas (mesma chave/limite do provedor), então os campos
+ * `hourly*`/`daily*`/`cooldownMs`/`consecutiveFail` chegam IGUAIS nos dois
+ * blocos — o painel mostra esse bloco uma vez só. A
  * concordância NÃO vem no bloco: vem dos contadores `typesafe.shadow.*` do
  * snapshot de métricas, com labels FECHOS por lado de divergência.
  *

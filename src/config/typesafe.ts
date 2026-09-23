@@ -74,9 +74,12 @@ export const typesafe = () => ({
   // busca, o cache `tsj` evita re-chamada) — não existe fila infinita.
   queueMax: int(clamp(process.env.TYPESAFE_QUEUE_MAX, 1, 1024, 64)),
   concurrency: int(clamp(process.env.TYPESAFE_CONCURRENCY, 1, 4, 2)),
-  // Orçamento de custo: chamadas por hora e por DIA (janelas independentes).
-  hourlyCap: int(clamp(process.env.TYPESAFE_HOURLY_CAP, 1, 1000, 120)),
-  dailyCap: int(clamp(process.env.TYPESAFE_DAILY_CAP, 1, 10000, 600)),
+  // Orçamento de custo ÚNICO das DUAS perguntas, por processo (zera no
+  // restart): mesma chave e mesmo limite do provedor, então o teto protege o
+  // VOLUME enviado ao terceiro, não dinheiro. Janelas independentes entre si
+  // (hora e dia).
+  hourlyCap: int(clamp(process.env.TYPESAFE_HOURLY_CAP, 1, 1000, 1000)),
+  dailyCap: int(clamp(process.env.TYPESAFE_DAILY_CAP, 1, 10000, 10000)),
   // Base do backoff após falhas (auth para 30 min independente desta base).
   cooldownMs: int(clamp(process.env.TYPESAFE_COOLDOWN_MS, 1000, 60 * 60 * 1000, 60000)),
   // TTL do julgamento CRU no cache `tsj` (namespace versionado, cota própria).
