@@ -157,3 +157,28 @@ test('matchesEpisodeWorkIdentity: rejeição estrita de spin-offs e preservaçã
   assert.equal(matchesEpisodeWorkIdentity('Rick and Morty S01E01', []), true);
 });
 
+
+test('matchesEpisodeWorkIdentity: etiqueta de uploader/site no prefixo não conta como obra', () => {
+  // Medido no True Detective S01E01: a única release global do episódio
+  // começava com "[ReQ]" e morria por 2/3 de precisão.
+  const names = ['True Detective'];
+  for (const title of [
+    '[ReQ]True Detective s01e01 hdtv x264-KILLERS MP4',
+    '[TGx] True Detective S01E01 1080p',
+    '[ OxTorrent.com ] True Detective S01E01',
+    'www.Torrenting.com - True Detective S01E01 720p',
+    '[ReQ] (Rip) True.Detective.S01E01.720p',
+  ]) {
+    assert.equal(matchesEpisodeWorkIdentity(title, names), true, title);
+  }
+
+  // Controles: o recorte só tira o PREFIXO — outra série e spin-off seguem
+  // reprovados com ou sem etiqueta.
+  for (const [title, wanted] of [
+    ['[TGx] True Crime Story Citizen Detective S01E01 1080p', names],
+    ['[ReQ] The.Walking.Dead.Daryl.Dixon.S01E01.1080p', ['The Walking Dead']],
+    ['www.Torrenting.com - Rick.and.Morty.The.Anime.S01E01', ['Rick and Morty']],
+  ] as const) {
+    assert.equal(matchesEpisodeWorkIdentity(title, [...wanted]), false, title);
+  }
+});

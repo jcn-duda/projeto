@@ -155,6 +155,15 @@ function matchesBrTitle(
   return matchesTitleStructure(title, name, year, { isSeries, tokens: own });
 }
 
+// Etiqueta de uploader/site ANTES do nome da obra: "[ReQ]", "[TGx]",
+// "[ OxTorrent.com ]", "www.Torrenting.com -". Ela não é obra, mas o trecho
+// até o SxxEyy é medido inteiro — medido no True Detective S01E01: a única
+// release global do episódio ("[ReQ]True Detective s01e01 hdtv x264-KILLERS")
+// fazia 2/3 de precisão e morria. Só o PREFIXO sai; etiqueta no meio ou na
+// cauda continua medida (a cauda já é cortada pelo titlePrecision).
+const LEADING_RELEASE_TAG_RE =
+  /^(?:\s*(?:\[[^\]]{1,40}\]|\([^)]{1,40}\)|\{[^}]{1,40}\}|www\.[a-z0-9-]+(?:\.[a-z]{2,})+\s*[-–:|]?))+\s*/i;
+
 /**
  * Guarda de identidade de obra em release GLOBAL por episódio: o trecho que o
  * marcador SxxEyy delimita tem que pertencer ao universo de nomes da obra.
@@ -167,8 +176,10 @@ function matchesEpisodeWorkIdentity(
 ) {
   if (!allNames?.length) return true;
   // `tokens`/`universeTokens` opcionais: o mesmo título passa por várias
-  // funções no filtro em lote e cada uma renormalizava a string.
-  const own = tokens || titleTokens(title);
+  // funções no filtro em lote e cada uma renormalizava a string. Com etiqueta
+  // no prefixo os tokens do lote a incluem, então renormaliza sem ela.
+  const untagged = title.replace(LEADING_RELEASE_TAG_RE, '');
+  const own = untagged !== title && untagged ? titleTokens(untagged) : tokens || titleTokens(title);
   const work = episodeWorkTokens(own);
   if (!work) return true;
   const universe =
