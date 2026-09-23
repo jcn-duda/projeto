@@ -1769,7 +1769,10 @@ concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
   `src/ai/`.
 - **Nunca awaited pela resposta.** O produtor é `prepareCandidateStreams`
   (depois do filtro determinístico), com teto de 12 títulos únicos por build
-  (`SHADOW_PER_BUILD_MAX`); o drain roda em `setImmediate`, lê SÓ
+  (`SHADOW_PER_BUILD_MAX`). A ordem é ESTÁVEL por camadas — `weak` (DUB genérico
+  isolado, o domínio do overlay) → `br` → `rest` —, então o teto corta a CAUDA
+  do ranking, nunca o topo, e `typesafe.shadow.tier.*` mede a cobertura que o
+  overlay terá. O drain roda em `setImmediate`, lê SÓ
   `config.typesafe` (nunca `opts()`), 1 tentativa por item. O cliente tem
   TETO de 3000 ms e segredo SÓ no header `Authorization: Bearer`.
 - **Orçamento e breaker COMPARTILHADOS pelas duas perguntas:** uma só instância
@@ -1864,6 +1867,10 @@ concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
 - **Observabilidade:** métricas `typesafe.*` no `/metrics.json` (labels
   FECHADOS — kinds de erro e lados de discordância são uniões fixas, nunca
   texto de título) e bloco compacto `typesafe` no `/dashboard-status.json`.
+  O anel em memória das 50 últimas discordâncias por pergunta NÃO entra no
+  poll: o `sample` carrega título e só sai pela ação autenticada
+  `jev-disagreements` (aba Jev, busca sob demanda); as métricas de discordância
+  continuam com labels fechados.
 - **Knobs são de OPERADOR** (`src/config/typesafe.ts`), fora do SCHEMA da URL
   de instalação — mudar um deles não mexe no link do usuário.
 

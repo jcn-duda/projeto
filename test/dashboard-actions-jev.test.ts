@@ -66,6 +66,7 @@ test('ações do Jev pausam, retomam, drenam e zeram o cooldown das filas shadow
   assert.equal(drain.status, 200);
   assert.equal(drain.json.ok, true);
   assert.equal(drain.json.action, 'jev-drain');
+  assert.equal(drain.json.drained, true, 'fora da pausa a drenagem é reagendada');
 
   const reset = await server.request('POST', '/dashboard-action.json', {
     headers: { 'X-Indexer-Test-Token': TOKEN },
@@ -74,6 +75,38 @@ test('ações do Jev pausam, retomam, drenam e zeram o cooldown das filas shadow
   assert.equal(reset.status, 200);
   assert.equal(reset.json.ok, true);
   assert.equal(reset.json.action, 'jev-cooldown-reset');
+});
+
+test('jev-drain com o Jev pausado responde drained:false reason:paused (no-op honesto)', async () => {
+  const pause = await server.request('POST', '/dashboard-action.json', {
+    headers: { 'X-Indexer-Test-Token': TOKEN },
+    body: { action: 'jev-pause' },
+  });
+  assert.equal(pause.json.paused, true);
+
+  // `drainNow()` é no-op com a fila pausada: a resposta não pode afirmar drenagem.
+  const drain = await server.request('POST', '/dashboard-action.json', {
+    headers: { 'X-Indexer-Test-Token': TOKEN },
+    body: { action: 'jev-drain' },
+  });
+  assert.equal(drain.status, 200);
+  assert.equal(drain.json.ok, true, 'a recusa é informativa, não erro de protocolo');
+  assert.equal(drain.json.action, 'jev-drain');
+  assert.equal(drain.json.drained, false, 'pausado não drena');
+  assert.equal(drain.json.reason, 'paused', 'motivo de união fechada');
+  assert.equal(drain.json.status.audioClassify, true);
+  assert.equal(drain.json.status.dubLie, true);
+
+  // Retomar libera a drenagem de verdade.
+  await server.request('POST', '/dashboard-action.json', {
+    headers: { 'X-Indexer-Test-Token': TOKEN },
+    body: { action: 'jev-resume' },
+  });
+  const drainOk = await server.request('POST', '/dashboard-action.json', {
+    headers: { 'X-Indexer-Test-Token': TOKEN },
+    body: { action: 'jev-drain' },
+  });
+  assert.equal(drainOk.json.drained, true, 'pós-resume a drenagem é reagendada');
 });
 
 test('jev-disagreements: 401 sem token; 200 com token devolve os dois anéis', async () => {

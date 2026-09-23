@@ -1,6 +1,7 @@
 import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber, ProgressBar } from './kit.js';
 import { useAction, actionError } from './action.js';
+import { pushPainelToast } from './store.js';
 import { formatDurationMs, formatAgeFromTimestamp } from './fmt.js';
 import {
   jevModel,
@@ -155,10 +156,15 @@ function OverlayCard({ overlay }: { overlay: JevOverlayView }) {
         </p>
       ` : null}
       <div style="display: flex; gap: var(--space-4); flex-wrap: wrap;">
-        <${StatNumber} value=${overlay.consulted} label="consultadas" />
-        <${StatNumber} value=${overlay.cacheMiss} label="sem cache" />
-        <${StatNumber} value=${overlay.applied} label="derrubadas" />
+        <${StatNumber} value=${overlay.consulted} label="chamadas" />
+        <${StatNumber} value=${overlay.cacheMiss} label="chamadas sem cache" />
+        <${StatNumber} value=${overlay.applied} label="títulos derrubados" />
       </div>
+      <p style="color: var(--muted); margin: var(--space-2) 0 0; font-size: var(--font-floor);">
+        Unidades diferentes: <strong>chamadas</strong> e <strong>chamadas sem cache</strong> contam cada
+        leitura (lookup); <strong>títulos derrubados</strong> conta TÍTULO DISTINTO — um por julgamento,
+        com dedupe por fingerprint, então o mesmo título re-consultado não infla.
+      </p>
       <div style="margin-top: var(--space-2);">
         <div style="display: flex; justify-content: space-between;">
           <span style="color: var(--muted);">Cobertura do cache</span>
@@ -321,6 +327,25 @@ export function ViewJev({ typesafe, metrics }: ViewJevProps) {
     setFeedback(error ? { text: `Falha: ${error}`, ok: false } : null);
   };
 
+  // Drenagem com o Jev PAUSADO é NO-OP: o backend responde `drained:false` com
+  // `reason:'paused'` (união fechada) e o toast de sucesso mentiria. Aqui o
+  // toast é escolhido pelo corpo: `info` quando nada foi drenado.
+  const handleDrain = async () => {
+    const outcome = await run({ action: 'jev-drain', poll: ['typesafe', 'metrics'] });
+    if (outcome.ok) {
+      const pausado = outcome.data.drained === false;
+      pushPainelToast(
+        pausado
+          ? 'Jev pausado: a fila não foi drenada — retome para esvaziá-la.'
+          : 'Drenagem das filas do Jev reagendada',
+        pausado ? 'info' : 'ok',
+      );
+      return;
+    }
+    const error = actionError(outcome);
+    if (error) setFeedback({ text: `Falha: ${error}`, ok: false });
+  };
+
   // Leitura SOB DEMANDA (fora do poll): só no clique, e sem `poll` — o anel é
   // memória e o status não o carrega. O resultado fica no estado da casca.
   const handleDisagreements = async () => {
@@ -347,7 +372,7 @@ export function ViewJev({ typesafe, metrics }: ViewJevProps) {
       pending=${pending}
       feedback=${feedback}
       onPauseToggle=${() => handleAction(pausedGlobal ? 'jev-resume' : 'jev-pause', pausedGlobal ? 'Jev retomado' : 'Jev pausado')}
-      onDrain=${() => handleAction('jev-drain', 'Drenagem das filas do Jev reagendada')}
+      onDrain=${handleDrain}
       onCooldownReset=${() => handleAction('jev-cooldown-reset', 'Cooldown do Jev zerado')}
       disagreements=${disagreements}
       disagreementsPending=${loadingDisagreements}

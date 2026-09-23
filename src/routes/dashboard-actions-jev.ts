@@ -42,10 +42,20 @@ export const jevResume: JevAction = ({ services, res, action }) => {
 };
 
 export const jevDrain: JevAction = ({ services, res, action }) => {
+  // Com o Jev pausado, `drainNow()` é NO-OP (o drain do core retorna cedo em
+  // `if (paused)`): responder `ok` sem drenar nada afirmaria uma drenagem que
+  // não aconteceu. `drained:false` + `reason:'paused'` (união fechada) é a
+  // resposta honesta — o painel troca o toast de sucesso. Não é erro de
+  // protocolo, então `ok` continua `true`.
+  if (aiControl.isPaused()) {
+    services.metrics.count('dashboard.jev.drain.paused');
+    services.log.info('[dashboard] drenagem do Jev não agendada: Jev pausado');
+    return res.json({ ok: true, action, drained: false, reason: 'paused', status: aiControl.status() });
+  }
   aiControl.drainNow();
   services.metrics.count('dashboard.jev.drain');
   services.log.info('[dashboard] drenagem das filas do Jev reagendada');
-  return res.json({ ok: true, action, status: aiControl.status() });
+  return res.json({ ok: true, action, drained: true, status: aiControl.status() });
 };
 
 export const jevCooldownReset: JevAction = ({ services, res, action }) => {

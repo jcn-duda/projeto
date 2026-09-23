@@ -449,7 +449,7 @@ resposta.
 | `src/ai/types.ts` | Tipos públicos (`JevAudioJudgment`, `EnqueueResult`, `AskErrorKind`) |
 | `src/ai/questions-audio.ts` | Espelho TS da pergunta validada online (paridade travada por teste) |
 | `src/ai/typesafe-client.ts` | Única dona do fetch: Bearer no header, 1 tentativa, timeout ≤ 3000 ms, parse defensivo, fail-open |
-| `src/ai/audio-judgment-cache.ts` | Cache do julgamento CRU (`tsj:v1`, cota 500, TTL de config) |
+| `src/ai/audio-judgment-cache.ts` | Cache do julgamento CRU (`tsj:v1`, cota 20.000, TTL de config) |
 | `src/ai/judgment-budget.ts` | Fábrica PURA de orçamento/breaker (janelas hora/dia, backoff exponencial, auth-stop) |
 | `src/ai/judgment-shared-budget.ts` | Instância ÚNICA de orçamento/breaker das DUAS perguntas (mesma chave/limite do provedor) |
 | `src/ai/judgment-queue-core.ts` | Motor genérico da fila (dedupe, teto, drain, comparação shadow) — orçamento/breaker recebidos por `spec.budget`; anel em memória das 50 últimas discordâncias (`disagreements()`) |
@@ -478,7 +478,7 @@ rate 429 honra Retry-After (teto 5 min). O timeout do cliente tem TETO de
 **Cache `tsj:v1`:** chave `sha256(título normalizado | model | promptVersion)`,
 valor `{ n, m, at }` — noul CRU (threshold aplicado só na comparação shadow),
 sem título, sem chave, sem config. Namespace registrado com cota explícita
-(500) e a conta do universo recalculada (92.721 ≤ teto 93.000, folga 279).
+(20.000) e a conta do universo recalculada (112.221 ≤ teto 112.500, folga 279).
 
 **Observabilidade:** métricas `typesafe.*` no `/metrics.json` (enqueue por
 resultado, call ok/erro por kind FECHADO, budget hora/dia, breaker, cache
@@ -518,11 +518,10 @@ fábrica.
 Primeira influência da IA numa decisão, e por isso o desenho mais conservador
 possível. **Default OFF — ligar é opt-in explícito do operador** (`TYPESAFE_OVERLAY_ENABLED=false`
 na fábrica de config): o portão formal de confiança (abaixo, itens 1–4) NÃO
-foi cumprido, então a fábrica nasce no estado determinístico. PENDÊNCIA: o
-`.env.example` do repo ainda traz `TYPESAFE_OVERLAY_ENABLED=true` e
-`TYPESAFE_MODEL=jev-latest` — a edição foi negada por permissão e NÃO foi
-feita; quem copiar o exemplo liga o overlay por engano, e são os portões
-abaixo que impedem a decisão, não o exemplo. A env é o interruptor: `=true`
+foi cumprido, então a fábrica nasce no estado determinístico. O `.env.example`
+está alinhado (`TYPESAFE_OVERLAY_ENABLED=false`, `TYPESAFE_MODEL=jev-1.13.0`) —
+quem copiar o exemplo não liga o overlay por engano; são os portões abaixo que
+impedem a decisão. A env é o interruptor: `=true`
 liga; voltar a `false` é rollback imediato com baseline determinística
 (testes que precisam do legado desligam a flag explicitamente). Com cache
 vazio o overlay ligado ainda é no-op honesto: **ausência de cache preserva
@@ -583,7 +582,7 @@ Regras da decisão:
 - **NÃO há memo global de decisão** (P1 da revisão final): o memo anterior
   expirava pelo MOMENTO DE CONSULTA (`R + TYPESAFE_JUDGMENT_TTL_S`) enquanto o
   cache `tsj` expira pelo momento de GRAVAÇÃO (`S + ...`) — como R >= S, a
-  decisão sobrevivia R-S além do julgamento; pior, a cota do `tsj` (500) pode
+  decisão sobrevivia R-S além do julgamento; pior, a cota do `tsj` (20.000) pode
   evictar a entrada antes do TTL, e um memo que sobrevive à eviction vira
   AUTORIDADE, mascarando julgamento NOVO do mesmo fingerprint (inclusive
   mudança do `noul` na reescrita). A autoridade é sempre `lookup(fp)` — O(1) e
@@ -608,7 +607,8 @@ GRAVAÇÃO — a regra é "o que PERSISTE fica determinístico":
    (`jackett-results.ts`) faria o `toStremioStream` herdar `isBr=true` pelo
    curto-circuito `Boolean(item.isBr)` e DESFARIA o efeito do overlay na vaga
    BR ao vivo. A classificação do idx fica determinística e **NÃO exige bump
-   de namespace** (`idx` segue `v10`);
+   de namespace por causa do overlay** (`idx` só subiu para `v11` na correção
+   da faixa de anos do rutracker — §17);
 2. **`audio-audit.ts` (`recordFileEvidence`)** — a evidência de ARQUIVO
    (`FileEvidence.a`/`q`) é medida no play e persiste no idx: o rótulo
    gravado usa `audioFromTitle(..., {overlay:false})` — o que o arquivo
@@ -657,8 +657,9 @@ intactas e a soma das dimensões bate com o total por lado. A dimensão é rótu
 de métrica, nunca decisão.
 
 **Cache version:** a lista pronta carrega a classificação (`_br`/`_dubbed`/
-`_dubClaim`), então `streams` foi de **v14 para v15** (listas servidas antes
-do overlay não podem congelar o rótulo antigo até o TTL).
+`_dubClaim`), então `streams` foi de **v14 para v15** pelo overlay (listas
+servidas antes dele não podem congelar o rótulo antigo até o TTL) e depois para
+**v16** pela correção da faixa de anos do rutracker (§17).
 
 **Grafo:** `audio-quality.ts` saiu do `DECISION_MODULES` de
 `test/typesafe-shadow-graph.test.ts` e é o ÚNICO módulo de decisão liberado —
@@ -672,7 +673,7 @@ portões abertos), `.cache-miss` (sem julgamento no cache), `.applied`
 TTL-aware; a entrada vive NO MÁXIMO o TTL do julgamento
 (`TYPESAFE_JUDGMENT_TTL_S`), o mesmo horizonte do `tsj`, com prune em ordem de
 inserção e sem duplicata dentro do TTL — um LRU teto 512 recontava título cujo
-julgamento podia seguir decisório no `tsj` — cota 500, TTL de semanas;
+julgamento podia seguir decisório no `tsj` — cota 20.000, TTL de semanas;
 passado o TTL, novo julgamento do mesmo título é nova ocorrência. O bound
 operacional é CAP diário × TTL, nunca uptime: só entra fp que derrubou e o
 volume é limitado pelo orçamento único do shadow
@@ -703,7 +704,7 @@ ligar em produção e o que acompanhar para mantê-lo ligado):
    (corpus `jev-audio-classify-cases.mjs` como checklist);
 4. **revisão humana dos 4 FN** do audio-classify (§ Status da validação):
    são o limite conhecido do modelo no exato domínio do overlay;
-5. **reavaliar a cota `tsj`** (500) — o overlay multiplica as leituras por
+5. **reavaliar a cota `tsj`** (20.000) — o overlay multiplica as leituras por
    busca; hit não promove LRU de forma anômala e o namespace não pode virar
    gargalo de evicção com a contagem durável do `mag`.
 
@@ -713,3 +714,52 @@ medindo. Com o overlay ligado e o shadow OFF (instalação nova), o portão 2
 fecha por conta própria: sem runtime shadow o cache nunca enche e o overlay
 nunca derruba nada — e, com modelo alias (`jev-latest`) configurado, o portão
 4 fecha mesmo com runtime e acervo presentes.
+
+---
+
+## 17. Achados da bateria de testes no Docker (2026-09-22/23) e mudanças
+
+A bateria de 18 buscas no container (commit `22395bf`) mostrou o runtime
+estável — sem erro, sem regressão de latência e com os portões do overlay
+corretos — mas o próprio shadow apontou um bug da regra determinística e expôs
+por que as métricas de então não cumpriam o portão do overlay (>= 200
+julgamentos, zero FP, revisão humana). Achados e o que cada correção mudou:
+
+1. **Guarda do rutracker com faixa de anos.** `[1999-2003, USA, …] Dub`,
+   `[2001 - 2003, …]` e `[1979–1997, …]` escapavam da guarda transliterada e
+   viravam Dublado BR. `RUTRACKER_TRANSLIT_RE` passou a aceitar a faixa
+   opcional após o ano. Medição no `cache.db`: só 1 título muda (Matrix
+   Trilogy do kickasstorrents-to); zero fontes BR afetadas. Bumps `streams`
+   v15→**v16** e `idx` v10→**v11**. Limitação: `magnets.db` guarda `is_br`
+   OR-aderente e sem versão — o rótulo velho só pesa no fallback do acervo.
+2. **Discordância inflada pela origem.** 8 das 12 discordâncias "regra diz PT"
+   eram release BR **LEGENDADA**: o baseline misturava `isBr` (origem) com a
+   pergunta do Jev (`is_ptbr_dub`, áudio). O baseline passou a ser só
+   `looksPtBr(t, {overlay:false})` e a origem virou a dimensão FECHADA
+   `origin-br`/`origin-global` (`…disagree.<lado>.<dim>`).
+3. **Cobertura do overlay.** Com overlay ligado a bateria mediu 295 consultas,
+   98,6% miss e 0 aplicações: dos 7.127 títulos brutos, só 26 eram DUB genérico
+   isolado (domínio do overlay) e apenas 2 tinham julgamento — o produtor
+   escolhia os 12 primeiros por ordem de chegada. Agora o produtor ordena as
+   camadas de forma ESTÁVEL — `weak` (DUB genérico isolado) → `br` → `rest` —
+   com métrica fechada `typesafe.shadow.tier.*`.
+4. **Cota do `tsj` e teto global.** `tsj` 500/500 com 112 despejos na sessão;
+   ~100 chamadas a cada 10 buscas e o teto 120/h esgotava em ~10 buscas. Cota
+   `tsj` 500→**20.000** (~8 MB) e teto global 93.000→**112.500** (universo
+   112.221, folga 279).
+5. **Orçamento único.** As duas perguntas tinham orçamento e breaker
+   independentes; um 429/auth numa não protegia a outra. Agora uma só instância
+   (`judgment-shared-budget.ts`) — falha em qualquer pergunta arma o cooldown
+   das duas — e caps 1.000/h e 10.000/dia.
+6. **Discordâncias acionáveis.** As 4/23 discordâncias do dub-lie eram
+   invisíveis (métrica sem título, por desenho). Anel em memória de 50
+   discordâncias por pergunta, exposto só sob token pela ação
+   `jev-disagreements` e renderizado na aba Jev sob demanda (§15).
+7. **Ajustes menores.** O painel passou a distinguir as unidades
+   (`consulted`/`cacheMiss` contam chamadas; `applied` conta título distinto) e
+   `jev-drain` com o Jev pausado responde `drained:false, reason:'paused'` em
+   vez de um `ok` mudo.
+
+**O que NÃO mudou:** o runtime segue SHADOW-ONLY e o overlay continua
+`TYPESAFE_OVERLAY_ENABLED=false` (opt-in explícito). A bateria não cumpriu o
+portão de confiança e nenhum resultado de IA passou a decidir.

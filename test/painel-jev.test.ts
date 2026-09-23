@@ -310,9 +310,10 @@ test('JevView renderiza o card do overlay gateado com os trÃªs contadores', ()
   const textOn = textOf(JevView({ model: ligado }));
   assert.match(textOn, /Overlay Jev/, 'o card do overlay aparece');
   assert.match(textOn, /GATEADO ON/, 'badge mostra o gate ligado');
-  assert.match(textOn, /100\s+\(\s*consultadas\s*\)/, 'contador consulted visÃ­vel');
-  assert.match(textOn, /40\s+\(\s*sem cache\s*\)/, 'contador cache-miss visÃ­vel');
-  assert.match(textOn, /7\s+\(\s*derrubadas\s*\)/, 'contador applied visÃ­vel');
+  assert.match(textOn, /100\s+\(\s*chamadas\s*\)/, 'contador consulted visÃ­vel, unidade = chamadas');
+  assert.match(textOn, /40\s+\(\s*chamadas sem cache\s*\)/, 'contador cache-miss visÃ­vel, unidade = chamadas');
+  assert.match(textOn, /7\s+\(\s*títulos derrubados\s*\)/, 'contador applied visÃ­vel como TÍTULO distinto');
+  assert.match(textOn, /TÍTULO DISTINTO/, 'a nota diferencia chamada de título');
   assert.match(textOn, /Cache-only/, 'a garantia cache-only estÃ¡ explicada');
 
   // Flag ligada com portÃ£o fechado NÃO Ã© "GATEADO ON": badge BLOQUEADO com o
