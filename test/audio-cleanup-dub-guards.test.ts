@@ -157,6 +157,72 @@ test('DUB/rutracker: guarda do path acompanha a do título', () => {
 });
 
 // ---------------------------------------------------------------------------
+// DUB/rutracker FAIXA DE ANOS: o bloco transliterado do rutracker também admite
+// `[AAAA-AAAA, País, …]` (hífen, en-dash ou em-dash, com ou sem espaços), que a
+// versão de ano único deixava escapar. Medido no corpus do container
+// (2026-09-22, cache.db, raw:v1 × idx:v10): dos 9.119 títulos únicos, SÓ
+// `The Matrix: Trilogy [1999-2003, USA, …] [Open Matte] Dub` mudou de
+// classificação (kickasstorrents-to, vaga reservada BR) e nenhum era de site
+// BR — os BR escrevem `(2009-2013)` entre PARÊNTESES, sem vírgula + palavra.
+// Assimetria preservada: NÃO entra em hasExplicitForeignAudio.
+// ---------------------------------------------------------------------------
+
+test('DUB/rutracker: faixa de anos no bloco derruba a prova genérica (caso medido 2026-09-22)', () => {
+  const faixas = [
+    'The Matrix: Trilogy [1999-2003, USA, sci-fi, action, adventure, WEBRip] [Open Matte] Dub',
+    'The Matrix: Trilogy [2001 - 2003, USA, sci-fi, action, BDRip-AVC] Dub',
+    'The Matrix: Trilogy [1979–1997, USA, Australia, sci-fi, action, DVD5] Dub',
+    'The Matrix: Trilogy [1999—2003, USA, sci-fi, action, DVD5] Dub',
+  ];
+  for (const t of faixas) {
+    assert.notEqual(audioFromTitle(t), 'Dublado', `${t}: faixa de anos + Dub russo não é pt-BR`);
+    assert.equal(looksPtBr(t), false, `${t}: fora das vagas BR`);
+    assert.equal(hasExplicitForeignAudio(t), false, `${t}: não condena (assimetria)`);
+  }
+});
+
+test('DUB/rutracker: PT explícito ao lado da faixa de anos continua vencendo', () => {
+  assert.equal(
+    audioFromTitle('The Matrix: Trilogy [1999-2003, USA, sci-fi, WEBRip] Dub DUBLADO'),
+    'Dublado',
+    'DUBLADO explícito vence a faixa de anos',
+  );
+  assert.equal(
+    foreignVerdict('The Matrix: Trilogy [1999-2003, USA, sci-fi, WEBRip] Dub PT-BR'),
+    'absolve',
+    'com PT explícito, absolve',
+  );
+});
+
+test('DUB/rutracker: faixa entre parênteses ou sem vírgula+palavra NÃO regride (BR intacto)', () => {
+  // O site BR publica o intervalo entre PARÊNTESES e sem o bloco de metadados:
+  // nenhuma das duas formas casa a assinatura transliterada.
+  assert.equal(audioFromTitle('Trilogia - Se Beber, Não Case! (2009-2013) BluRay Dublado 1080p'), 'Dublado');
+  assert.equal(looksPtBr('Trilogia - Se Beber, Não Case! (2009-2013) BluRay Dublado 1080p'), true);
+  assert.equal(audioFromTitle('Filme [2009-2013] Dublado'), 'Dublado', 'colchete sem vírgula+palavra = BR intacto');
+  assert.equal(looksPtBr('Filme [2009-2013] Dublado'), true);
+});
+
+test('DUB/rutracker: guarda do path também cobre a faixa de anos', () => {
+  const restore = patch(config.audioAudit, 'ptMarkers', ['dub', 'dublado']);
+  try {
+    assert.equal(
+      hasPtAudioMark('The.Matrix.Trilogy.[1999-2003, USA, WEBRip].Dub.1080p.mkv'),
+      false,
+      'genérico sob bloco com faixa de anos',
+    );
+    assert.equal(
+      hasPtAudioMark('The.Matrix.Trilogy.[1999 - 2003, USA, WEBRip].Dublado.1080p.mkv'),
+      true,
+      'marcador explícito segue valendo',
+    );
+    assert.equal(hasPtAudioMark('The.Matrix.Trilogy.1999-2003.Dub.1080p.mkv'), true, 'sem bloco, genérico prova PT');
+  } finally {
+    restore();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // DUB/cirílico: o SCRIPT cirílico desmente a promessa GENÉRICA do DUB/DUBBED,
 // como o nome de idioma desmente (HINDI acima). Medido pelo /stream-trace.json
 // ao vivo (2026-09-01): 11 dos 50 títulos cirílicos do índice (826 únicos)

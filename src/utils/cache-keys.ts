@@ -53,9 +53,16 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // `_dubClaim`) e o overlay Jev gateado (TYPESAFE_OVERLAY_ENABLED, ETAPA C)
   // pode derrubar a prova do generic DUB isolado na leitura viva do cache
   // `tsj` — sem o bump, listas servidas antes do overlay congelariam o rótulo
-  // antigo até o TTL. O índice (`idx`) NÃO bumpa: a classificação dele é
-  // gravada com {overlay:false} (determinística, ver release-index.ts).
-  streams: 'v15',
+  // antigo até o TTL. Para o overlay, o índice (`idx`) NÃO bumpa: a
+  // classificação dele é gravada com {overlay:false} (determinística, ver
+  // release-index.ts). O bump v11 abaixo é da guarda determinística de faixa.
+  // v16: a guarda do rutracker passou a aceitar FAIXA de anos
+  // (`[1999-2003, País, …] Dub`), que a v13 deixava escapar — medido no corpus
+  // do container (2026-09-22): `The Matrix: Trilogy [1999-2003, …] Dub` vinha
+  // como `DUB BR · kickass` e ocupava vaga reservada. As listas prontas
+  // carregam `_br`/`_dubbed` pintados pelo classificador antigo e não se
+  // corrigiriam só com o reboot.
+  streams: 'v16',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
@@ -114,9 +121,16 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // v10: ENGLISH|ENG na mesma guarda — release "English Dubbed" não pode
   // ficar gravada como `dubbed` no índice por até 30 dias.
   // `mediaSource` (CAM/WEB-DL/…) é campo OPCIONAL na mesma v10: ausente =
-  // desconhecido (rótulo pelo título até a próxima gravação). Bumpar a v11
-  // descartaria ~30d de colheita só por rótulo cosmético — custo medido.
-  idx: 'v10',
+  // desconhecido (rótulo pelo título até a próxima gravação). Bumpar por
+  // mediaSource sozinho descartaria ~30d de colheita só por rótulo cosmético
+  // — custo medido, não feito.
+  // v11: a guarda do rutracker passou a aceitar FAIXA de anos
+  // (`[1999-2003, País, …] Dub`) — a mesma classe da v13 (single year) e do
+  // Coyote Ugly. O índice PERSISTE `dubbed`/`isBr` por release e o merge é
+  // OR-aderente: sem o bump, `The Matrix: Trilogy [1999-2003, …]` (medido no
+  // corpus do container, 2026-09-22) permaneceria Dublado/BR até o TTL de
+  // semanas. Bump real (não cosmético) — ao contrário do mediaSource da v10.
+  idx: 'v11',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

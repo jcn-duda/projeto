@@ -95,8 +95,19 @@ const CYRILLIC_RE = /[а-яёіїєґў]/i;
  * derruba a prova GENÉRICA; DUBLADO/PT-BR explícito ao lado continua
  * vencendo nos chamadores. NÃO entra em hasExplicitForeignAudio (lista
  * mínima que condena/apaga — assimetria travada).
+ *
+ * O bloco também admite FAIXA de anos (`[1999-2003, …]`, `[1999 - 2003, …]`,
+ * `[1979–1997, …]`), que a primeira versão da regex deixava escapar: medido no
+ * corpus do container (2026-09-22, cache.db, raw:v1 × idx:v10) — `The Matrix:
+ * Trilogy [1999-2003, USA, sci-fi, …, WEBRip] [Open Matte] Dub` chegava como
+ * `DUB BR · kickass` e ocupava vaga reservada. A faixa é OPCIONAL após o ano e
+ * aceita hífen, en-dash e em-dash (com ou sem espaços). O site BR NÃO usa essa
+ * forma: escreve `(2009-2013)` ENTRE PARÊNTESES, sem vírgula + palavra depois —
+ * dos 9.119 títulos únicos do corpus, só 1 mudou de classificação e nenhum era
+ * de site BR. `magnets.db` guarda `is_br` OR-aderente e sem versão, então o
+ * rótulo antigo persiste lá (só pesa no fallback do acervo).
  */
-const RUTRACKER_TRANSLIT_RE = /\[\s*(?:19|20)\d{2}\s*,\s*[A-Z]|\b(?:AVO|MVO|DVO|SVO)\b/i;
+const RUTRACKER_TRANSLIT_RE = /\[\s*(?:19|20)\d{2}(?:\s*[-–—]\s*(?:19|20)\d{2})?\s*,\s*[A-Z]|\b(?:AVO|MVO|DVO|SVO)\b/i;
 
 /**
  * Guarda compartilhada da dublagem GENÉRICA (título e path usam o mesmo
