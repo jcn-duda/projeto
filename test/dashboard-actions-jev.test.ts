@@ -66,7 +66,8 @@ test('ações do Jev pausam, retomam, drenam e zeram o cooldown das filas shadow
   assert.equal(drain.status, 200);
   assert.equal(drain.json.ok, true);
   assert.equal(drain.json.action, 'jev-drain');
-  assert.equal(drain.json.drained, true, 'fora da pausa a drenagem é reagendada');
+  assert.equal(drain.json.scheduled, true, 'fora da pausa a drenagem é reagendada');
+  assert.equal(drain.json.drained, undefined, 'agendar não prova que a fila foi drenada');
 
   const reset = await server.request('POST', '/dashboard-action.json', {
     headers: { 'X-Indexer-Test-Token': TOKEN },
@@ -97,7 +98,7 @@ test('jev-drain com o Jev pausado responde drained:false reason:paused (no-op ho
   assert.equal(drain.json.status.audioClassify, true);
   assert.equal(drain.json.status.dubLie, true);
 
-  // Retomar libera a drenagem de verdade.
+  // Retomar permite reagendar, mas não prova que houve despacho.
   await server.request('POST', '/dashboard-action.json', {
     headers: { 'X-Indexer-Test-Token': TOKEN },
     body: { action: 'jev-resume' },
@@ -106,7 +107,8 @@ test('jev-drain com o Jev pausado responde drained:false reason:paused (no-op ho
     headers: { 'X-Indexer-Test-Token': TOKEN },
     body: { action: 'jev-drain' },
   });
-  assert.equal(drainOk.json.drained, true, 'pós-resume a drenagem é reagendada');
+  assert.equal(drainOk.json.scheduled, true, 'pós-resume a drenagem é reagendada');
+  assert.equal(drainOk.json.drained, undefined, 'o resultado assíncrono continua desconhecido');
 });
 
 test('jev-disagreements: 401 sem token; 200 com token devolve os dois anéis', async () => {
