@@ -21,7 +21,7 @@ import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
 import { shadowAudioJudgments, resetTypesafeForTests, flushTypesafeForTests } from '../src/ai/index.js';
-import { weakGenericDubOnly, explicitPtAudio, looksPtBr } from '../src/utils/audio-quality.js';
+import { weakGenericDubOnly, explicitPtAudio, looksPtBr, audioFromTitle } from '../src/utils/audio-quality.js';
 import { stubFetch, type FetchStub } from './helpers/stub.js';
 import type { RawItem } from '../types/domain.js';
 
@@ -73,7 +73,7 @@ after(() => {
   resetTypesafeForTests();
 });
 
-test('weakGenericDubOnly espelha EXATAMENTE o ramo fraco de explicitPtAudio', () => {
+test('weakGenericDubOnly espelha o ramo fraco após recortar convenções do post', () => {
   const fracos = ['Movie Name 2023 [DUB] 1080p', 'Movie Name 2023 Dubbed 1080p'];
   const fortes = ['Interestelar 2014 Dublado 1080p', 'Filme PT-BR 2018 1080p', 'Serie X DUBLAGEM 720p'];
   const rest = ['Movie Plain 2019 BluRay x264', 'Interestelar Dual Áudio 2014 1080p'];
@@ -88,6 +88,53 @@ test('weakGenericDubOnly espelha EXATAMENTE o ramo fraco de explicitPtAudio', ()
   }
   // Sempre que o fraco é true, `looksPtBr` no legado também é (mesma base).
   for (const t of fracos) assert.equal(looksPtBr(t, { overlay: false }), true);
+});
+
+test('weak cobre a convenção "DUBLADA E DUAL" recortada por audioFromTitle', () => {
+  // Bug de cobertura (item C): `audioFromTitle` recorta a convenção de prefixo
+  // ("DUBLADA E DUAL", presente mesmo no botão LEGENDADA) ANTES de consultar
+  // `explicitPtAudio`. O generic DUB que sobra dela ([DUB]) É elegível ao
+  // overlay — o tier tem que vê-lo; o "DUBLADA" do título CRU é só o prefixo do
+  // post, não uma marca PT real do botão.
+  const convencao = 'Foo DUBLADA E DUAL [DUB] 1080p';
+  assert.equal(weakGenericDubOnly(convencao), true, 'convenção + [DUB] é termo fraco');
+  // Classificação PÚBLICA inalterada: a marca forte do cru segue vencendo e o
+  // overlay não altera áudio nem looksPtBr (o overlay só atua no termo fraco).
+  assert.equal(explicitPtAudio(convencao, { overlay: false }), true);
+  assert.equal(explicitPtAudio(convencao), true);
+  assert.equal(audioFromTitle(convencao), 'Dual');
+  assert.equal(looksPtBr(convencao, { overlay: false }), true);
+  // Botão LEGENDADA com a MESMA convenção: o overlay pode virar o resultado —
+  // exatamente o caso que precisa da prioridade `weak`.
+  assert.equal(weakGenericDubOnly('Foo LEGENDADA DUBLADA E DUAL [DUB] 1080p'), true);
+
+  // Controles: sem generic DUB sobrante, ou com marca forte REAL além da
+  // convenção, continua NÃO-fraco — nada de falso positivo.
+  for (const t of [
+    'Foo DUBLADA E DUAL 1080p', // convenção sem generic DUB
+    'Foo DUBLADA 1080p', // marca forte real, sem generic DUB
+    'Foo DUBLADA E DUAL DUBLADO 1080p', // forte real sobrevive ao recorte
+    'Foo DUBLADA E DUAL Hindi Dubbed 1080p', // idioma estrangeiro desmente o generic
+    'Foo DUBLADA E DUAL Во все тяжкие [DUB] 720p', // cirílico desmente o generic
+  ]) {
+    assert.equal(weakGenericDubOnly(t), false, `não-fraco: ${t}`);
+  }
+});
+
+test('prioridade tier: título com convenção "DUBLADA E DUAL" entra como weak', async () => {
+  cfgOn();
+  const stub = okStub();
+  try {
+    const convencao = 'Foo DUBLADA E DUAL [DUB] 1080p';
+    const rest: RawItem = { title: 'Plain Rest 2019 BluRay x264', infoHash: hex(1) };
+    shadowAudioJudgments([rest, { title: convencao, infoHash: hex(2) }]);
+    await flushTypesafeForTests();
+    assert.deepEqual(dispatchedOrder(stub), [convencao, rest.title], 'weak entra antes do rest');
+    assert.equal(counter('typesafe.shadow.tier.weak'), 1);
+    assert.equal(counter('typesafe.shadow.tier.rest'), 1);
+  } finally {
+    stub.restore();
+  }
 });
 
 test('prioridade: fracos no FIM da entrada entram PRIMEIRO e ocupam o teto', async () => {

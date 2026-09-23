@@ -198,14 +198,16 @@ function explicitPtAudio(title = '', opts: OverlayOpt = {}) {
   return !overlayDropsDub(title);
 }
 
+// Convenção de post BR: prefixo "DUBLADA E DUAL" (mesmo em botão LEGENDADA) — recorte único.
+const stripDubConvention = (t: string): string => t.replace(/\bDUBLAD[OA]\s+E\s+DUAL\b/g, ' ');
+
 /**
- * Termo FRACO isolado: generic DUB sem NENHUMA marca PT forte — EXATAMENTE o
- * ramo em que `explicitPtAudio` consulta o overlay Jev. O produtor shadow usa
- * isto para PRIORIZAR a camada `weak`. Reusa `strongPtAudioMark` (mesmo regex,
- * nunca uma segunda lista) para não divergir de `explicitPtAudio`.
+ * Termo FRACO isolado: generic DUB sem marca PT forte — o ramo em que o
+ * overlay atua. O shadow prioriza `weak` medindo o título SEM "DUBLADA E DUAL"
+ * (audioFromTitle a recorta), reusando `strongPtAudioMark`/`genericDubProvesPt`.
  */
 function weakGenericDubOnly(title = ''): boolean {
-  const t = title.toUpperCase().replace(/_/g, ' ');
+  const t = stripDubConvention(title.toUpperCase().replace(/_/g, ' '));
   if (strongPtAudioMark(t, explicitSubMark(t))) return false;
   return genericDubProvesPt(t);
 }
@@ -228,7 +230,7 @@ function audioFromTitle(title = '', opts: OverlayOpt = {}) {
   // o título é legendado — o prefixo do post não pode mentir melhor que o
   // botão. Um DUBLADO/DUAL FORA da frase ("... COMPLETA DUBLADA Dual 1080P")
   // mantém o comportamento de sempre.
-  const semConvencao = t.replace(/\bDUBLAD[OA]\s+E\s+DUAL\b/g, ' ');
+  const semConvencao = stripDubConvention(t);
   const isExplicitSub =
     /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(semConvencao) ||
     /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(semConvencao);
