@@ -99,6 +99,10 @@ export interface JevModel {
 /** Bloco `typesafe.overlay` do status (ou os contadores `typesafe.overlay.*`). */
 export interface JevOverlayView {
   enabled: boolean;
+  /** Verdade operacional: flag ligada NÃO basta — portão fechado => false. */
+  active: boolean;
+  /** Motivo de bloqueio (enum FECHADO do backend; `''` quando ativo). */
+  blockedReason: string;
   /** Leituras com a flag ON (toda chamada conta). */
   consulted: number;
   /** Leituras sem julgamento no cache (não derrubam nada). */
@@ -107,12 +111,28 @@ export interface JevOverlayView {
   applied: number;
 }
 
+/** Rótulos PT do enum fechado `blockedReason` — nunca texto de credencial. */
+const BLOCKED_LABEL: Record<string, string> = {
+  'overlay-off': 'flag desligada',
+  'runtime-off': 'runtime shadow desligado',
+  'no-key': 'sem chave da API',
+  'paused': 'Jev pausado',
+  'model-alias': 'modelo não versionado (alias)',
+};
+
+/** Rótulo legível do motivo de bloqueio; motivo desconhecido não inventa texto. */
+export function overlayBlockedLabel(reason: string): string {
+  return BLOCKED_LABEL[reason] || '';
+}
+
 /** Leitura defensiva do overlay: bloco do status com fallback nos contadores. */
 function jevOverlayModel(overlay: unknown, counters: Record<string, any>): JevOverlayView {
   const o = asObject(overlay) || {};
   const num = (campo: string, chave: string) => Number(o[campo] ?? counters['typesafe.overlay.' + chave]) || 0;
   return {
     enabled: Boolean(o.enabled),
+    active: Boolean(o.active),
+    blockedReason: String(o.blockedReason || ''),
     consulted: num('consulted', 'consulted'),
     cacheMiss: num('cacheMiss', 'cache-miss'),
     applied: num('applied', 'applied'),

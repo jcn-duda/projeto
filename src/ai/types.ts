@@ -12,7 +12,7 @@
 export interface JevAudioJudgment {
   /** noul 0..1 cru, do `answers.is_ptbr_dub.noul`. */
   n: number;
-  /** Model que produziu o julgamento (o alias `jev-latest` é móvel). */
+  /** Model que produziu o julgamento (o default versionado é `jev-1.13.0`; config pode apontar alias móvel). */
   m: string;
   /** Epoch ms da resposta. */
   at: number;
@@ -39,9 +39,10 @@ export interface AskOk {
   usage?: { input: number; output: number };
   /**
    * ID versionado que de fato respondeu (§5 da referência Jev), ecoado pelo
-   * serviço quando presente. O `model` de config é ALIAS móvel (`jev-latest`),
-   * então a auditoria do cache precisa do eco — nunca do alias — para saber
-   * quem julgou (§11: "Alias em produção só com o ID versionado registrado").
+   * serviço quando presente. O `model` de config PODE ser alias móvel
+   * (`jev-latest`), então a auditoria do cache precisa do eco — nunca do
+   * alias — para saber quem julgou (§11: "Alias em produção só com o ID
+   * versionado registrado"; o overlay, aliás, se recusa a decidir com alias).
    */
   model?: string;
 }

@@ -162,14 +162,31 @@ test('jevModel lÃª o bloco overlay (ETAPA C) com fallback nos contadores', () 
       model: 'jev-latest',
       audioClassify: AUDIO_SNAPSHOT,
       dubLie: DUBLIE_SNAPSHOT,
-      overlay: { enabled: true, consulted: 100, cacheMiss: 40, applied: 7 },
+      overlay: { enabled: true, active: true, blockedReason: '', consulted: 100, cacheMiss: 40, applied: 7 },
     },
     { counters: COUNTERS },
   );
   assert.equal(m.overlay.enabled, true);
+  assert.equal(m.overlay.active, true);
+  assert.equal(m.overlay.blockedReason, '');
   assert.equal(m.overlay.consulted, 100);
   assert.equal(m.overlay.cacheMiss, 40);
   assert.equal(m.overlay.applied, 7);
+
+  // Flag ligada com portÃ£o FECHADO: o bloco carrega o motivo (enum fechado).
+  const bloqueado = jevModel(
+    {
+      enabled: true,
+      model: 'jev-latest',
+      audioClassify: AUDIO_SNAPSHOT,
+      dubLie: DUBLIE_SNAPSHOT,
+      overlay: { enabled: true, active: false, blockedReason: 'model-alias', consulted: 5, cacheMiss: 5, applied: 0 },
+    },
+    { counters: COUNTERS },
+  );
+  assert.equal(bloqueado.overlay.enabled, true);
+  assert.equal(bloqueado.overlay.active, false);
+  assert.equal(bloqueado.overlay.blockedReason, 'model-alias');
 
   // Payload velho sem o bloco: cai nos contadores `typesafe.overlay.*`.
   const porContador = jevModel(
@@ -183,7 +200,9 @@ test('jevModel lÃª o bloco overlay (ETAPA C) com fallback nos contadores', () 
 
   // Sem nada: zeros defensivos.
   const vazio = jevModel(undefined, { counters: {} });
-  assert.deepEqual(vazio.overlay, { enabled: false, consulted: 0, cacheMiss: 0, applied: 0 });
+  assert.deepEqual(vazio.overlay, {
+    enabled: false, active: false, blockedReason: '', consulted: 0, cacheMiss: 0, applied: 0,
+  });
 });
 
 /** Texto visÃ­vel incluindo title/badge/label â€” INVOCA componentes de funÃ§Ã£o
@@ -248,7 +267,7 @@ test('JevView renderiza o card do overlay gateado com os trÃªs contadores', ()
       model: 'jev-latest',
       audioClassify: AUDIO_SNAPSHOT,
       dubLie: DUBLIE_SNAPSHOT,
-      overlay: { enabled: true, consulted: 100, cacheMiss: 40, applied: 7 },
+      overlay: { enabled: true, active: true, blockedReason: '', consulted: 100, cacheMiss: 40, applied: 7 },
     },
     { counters: COUNTERS },
   );
@@ -259,6 +278,23 @@ test('JevView renderiza o card do overlay gateado com os trÃªs contadores', ()
   assert.match(textOn, /40\s+\(\s*sem cache\s*\)/, 'contador cache-miss visÃ­vel');
   assert.match(textOn, /7\s+\(\s*derrubadas\s*\)/, 'contador applied visÃ­vel');
   assert.match(textOn, /Cache-only/, 'a garantia cache-only estÃ¡ explicada');
+
+  // Flag ligada com portÃ£o fechado NÃO Ã© "GATEADO ON": badge BLOQUEADO com o
+  // motivo legÃ­vel (enum fechado, sem texto de credencial).
+  const bloqueado = jevModel(
+    {
+      enabled: true,
+      model: 'jev-latest',
+      audioClassify: AUDIO_SNAPSHOT,
+      dubLie: DUBLIE_SNAPSHOT,
+      overlay: { enabled: true, active: false, blockedReason: 'no-key', consulted: 0, cacheMiss: 0, applied: 0 },
+    },
+    { counters: COUNTERS },
+  );
+  const textBlocked = textOf(JevView({ model: bloqueado }));
+  assert.match(textBlocked, /BLOQUEADO/, 'portÃ£o fechado com flag ligada Ã© BLOQUEADO');
+  assert.match(textBlocked, /sem chave da API/, 'o motivo legÃ­vel aparece');
+  assert.doesNotMatch(textBlocked, /GATEADO ON/, 'o badge mentiroso nÃ£o aparece');
 
   const desligado = jevModel(undefined, { counters: {} });
   const textOff = textOf(JevView({ model: desligado }));

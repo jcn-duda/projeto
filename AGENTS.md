@@ -221,7 +221,7 @@ Um `stream` request do Stremio percorre exatamente este caminho:
 addon.ts  processo (listen, warmup)
    └─ app.ts  defineStreamHandler
         └─ providers/index.ts  findStreams
-             ├─ cache SWR (streams:v14)          ← só lista completa + debridKnown + tocável
+             ├─ cache SWR (streams:v15)          ← só lista completa + debridKnown + tocável
              ├─ coalescing inFlight
              └─ doSearch
                   ├─ cinemeta.getMeta  ─┐ paralelo
@@ -992,7 +992,7 @@ ausente significa "nunca medido neste processo", não medição falha.
 
 **Funil por item (`/stream-trace.json`, P5).** Responde "por que aquele stream
 sumiu?" sem refazer a busca: o ledger observacional viaja **dentro** da entrada
-`streams:v14`, a rota é só leitura (`getWithStale`), e o recompute offline
+`streams:v15`, a rota é só leitura (`getWithStale`), e o recompute offline
 explica entrada sem trace com peeks quiet (idx/raw/inventário). Live
 (`mode=live`) só TorBox/Premiumize via método cru do adaptador — AllDebrid é
 hard-block (`ad-hard-blocked`: consulta = upload e detona limpeza); RD é
@@ -1527,23 +1527,25 @@ operador).
 
 ## Cache multi-nível (fases 0–2 no código)
 
-A chave `streams:v14` isola config do usuário + digest da conta
+A chave `streams:v15` isola config do usuário + digest da conta
 (`request-key.ts`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
 — bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
 que não bate com a versão corrente). `idx` está em **v10** porque o classificador
 de áudio/origem persiste no índice (merge OR-aderente): v9 fechou DUB genérico +
-cirílico; v10 fechou `ENGLISH|ENG` no mesmo predicado. `streams` chegou à **v14**:
+cirílico; v10 fechou `ENGLISH|ENG` no mesmo predicado. `streams` chegou à **v15**:
 v11 removeu do `title` entregue ao cliente o blob de qualidades do HDRTorrent;
 v12 cortou série/pack fora do intervalo e TS/PreDVD da lista de filme; v13
-deixou de promover `DUB` genérico de release rutracker transliterada; e v14
+deixou de promover `DUB` genérico de release rutracker transliterada; v14
 separou `_dubClaim` (promessa no título/post) de `_dubbed` (áudio confirmado
-pela evidência de arquivo). Duas instalações do mesmo título **não** compartilham a lista — ela
+pela evidência de arquivo); e v15 travou a classificação da lista antes do
+overlay Jev derrubar generic DUB (listas servidas antes do overlay não podem
+congelar o rótulo antigo até o TTL). Duas instalações do mesmo título **não** compartilham a lista — ela
 carrega URLs de play assinadas. O trabalho caro (Jackett + scrapers) é
 compartilhado mais abaixo.
 
 | camada | chave | o que guarda | kill-switch |
 |---|---|---|---|
-| L1+L2 streams | `streams:v14:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
+| L1+L2 streams | `streams:v15:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
 | bruto por indexer | `raw:v1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
 | SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
 
@@ -1773,9 +1775,55 @@ concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
   re-contabiliza métrica). Guardar o valor cru é o que permite recomputar sem
   re-pagar quando um recompute existir — hoje não existe consumidor de
   recompute, então mudar `TYPESAFE_THRESHOLD` só afeta chamadas novas. O
-  `TYPESAFE_MODEL` default `jev-latest` é ALIAS MÓVEL do provedor — aceitável
-  porque shadow: o model usado viaja no valor (`m`) e na chave (fp), então
-  troca de alias não mistura julgamentos.
+  `TYPESAFE_MODEL` default é `jev-1.13.0` — ID versionado registrado em
+  `docs/JEV_REFERENCIA.md`. Alias móvel (`jev-latest`, `jev-preview`) serve à
+  fila shadow (o model usado viaja no valor `m` e na chave fp), mas NUNCA
+  decide: o overlay do DUB genérico falha FECHADO com modelo não versionado
+  (`isVersionedModel`, formato estrito `jev-x.y.z`) — troca silenciosa de
+  alias não pode derrubar dublado.
+- **Overlay do DUB genérico (ETAPA C) é opt-in, default OFF.**
+  `TYPESAFE_OVERLAY_ENABLED=false` na fábrica de config — o portão formal
+  (>= 200 julgamentos + revisão humana) não foi cumprido. PENDÊNCIA: o
+  `.env.example` do repo ainda traz `TYPESAFE_OVERLAY_ENABLED=true` e
+  `TYPESAFE_MODEL=jev-latest` (a edição foi negada por permissão e NÃO foi
+  feita); quem copiar o exemplo liga o overlay por engano — são os portões
+  abaixo que impedem a decisão, não o exemplo. Com ligado, a decisão do
+  `overlayDropsDub` ainda exige runtime shadow ON, chave presente (mesma
+  exigência do produtor/drain), Jev não pausado (o `jev-pause` do painel
+  desativa a DECISÃO, não só as filas), modelo versionado e o eco do modelo
+  (`m` do cache) igual ao ID da config — os portões fecham antes de qualquer
+  leitura, e cache velho, malformado ou de outro modelo falha FECHADO
+  (`typesafe.overlay.model-mismatch`). E é cache-only/monotônico (só derruba
+  `true`->`false` no generic DUB isolado, noul <= 0.15). **O que PERSISTE fica
+  determinístico, e a baseline shadow também:** `audioBucket`,
+  `recordFileEvidence` (evidência de arquivo no idx) e `noteAudit` (linha do
+  catálogo) gravam com `{overlay:false}`; o `release-index.record`
+  reclassifica o `isBr` do item com `{overlay:false}` antes de gravar (o item
+  CRU da listagem segue com o overlay — pinar o produtor em
+  `jackett-results.ts` derrubaria a vaga BR ao vivo e desfaria o efeito; por
+  isso a trava é no PONTO DE GRAVAÇÃO, idx e captura do banco de magnets, não
+  no `mapResults`); `deterministicLooksPtBr` trava a régua do produtor shadow
+  — a IA nunca altera o baseline contra o qual é medida (o baseline é a versão
+  determinística do `_br`, não o `_br` corrente da listagem, que PODE incluir
+  o overlay); `hasExplicitForeignAudio` e `foreignVerdict` seguem com
+  `{overlay:false}`. A métrica `typesafe.overlay.applied` conta TÍTULO
+  distinto: dedupe por fingerprint com vencimento ALINHADO AO JULGAMENTO
+  (`at + TYPESAFE_JUDGMENT_TTL_S` — exatamente o vencimento da entrada no
+  `tsj`, que a fila grava com `at: Date.now()`): dentro do TTL não há
+  recontagem, e um julgamento novo (novo `at`, ex.: reescrita após eviction da
+  cota 500) depois do vencimento é nova ocorrência (um LRU teto 512 recontava
+  título cujo julgamento ainda podia estar decisório no `tsj`). O bound
+  operacional é CAP diário × TTL, nunca uptime: os orçamentos do shadow
+  (`TYPESAFE_HOURLY_CAP`/`TYPESAFE_DAILY_CAP`) limitam a entrada e o estado
+  zera no restart. **NÃO há memo global de decisão** (P1 da revisão final): o
+  memo anterior expirava pelo momento de consulta e sobrevivia à eviction da
+  cota do `tsj`, mascarando julgamento novo do mesmo fp (inclusive mudança do
+  `noul`) — cada chamada de `overlayDropsDub` faz `lookup` síncrono e o cache
+  é a autoridade (eviction/reescrita vistos na hora). No
+  `/dashboard-status.json` o bloco `typesafe.overlay` expõe `active` e
+  `blockedReason` (união fechada: `overlay-off`/`runtime-off`/`no-key`/
+  `paused`/`model-alias`) — o painel mostra BLOQUEADO com o motivo em vez de
+  "GATEADO ON" quando a flag está ligada mas um portão fecha a decisão.
 - **Pergunta versionada:** `questions-audio.ts` é espelho EXATO do probe
   validado online (`jev-audio-classify-payload.mjs`); a paridade é travada
   por teste. Mudou a pergunta → bump de `PROMPT_VERSION` (fp novo, julgamentos
@@ -2094,7 +2142,7 @@ fire-and-forget) continua.
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
 | `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`/`muri:`) e `prefix(ns)` |
-| `src/utils/request-key.ts` | `streams:v14` + digest da conta (nunca a chave crua) |
+| `src/utils/request-key.ts` | `streams:v15` + digest da conta (nunca a chave crua) |
 | `src/utils/secret-box.ts` | AES-256-GCM do `dk` no install URL |
 | `src/utils/sign.ts` | HMAC do `/resolve` (hash + ep + dica `w`) |
 | `src/utils/deadline.ts` | `raceWithDeadline`, `remainingCheckBudget` |
@@ -2412,7 +2460,7 @@ o orçamento com a resposta.
   vivo por um glitch.
 - **Mudou regra de matching? O rebuild do container NÃO invalida o cache.**
   `data/cache.db` é volume: sobrevive a `docker compose up -d --build`, e o
-  `streams:v14` (lista pronta) e o `idx:v10` (acervo de releases já aprovadas)
+  `streams:v15` (lista pronta) e o `idx:v10` (acervo de releases já aprovadas)
   continuam servindo o que o filtro **antigo** deixou passar. Custou uma
   validação falsa: a correção estava no container, o teste isolado passava, e
   a resposta HTTP continuava trazendo o item errado. Depois de mexer em

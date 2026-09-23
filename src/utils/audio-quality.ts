@@ -294,8 +294,13 @@ type AudioBucket = 'dub' | 'dual' | 'pt' | 'lixo';
  * e Dual com PT ao lado sobe para `dub` antes daqui (looksPtBr).
  */
 function audioBucket(title = ''): AudioBucket {
-  if (looksPtBr(title)) return 'dub';
-  if (audioFromTitle(title) === 'Dual') return foreignLangNamedForBucket(title) ? 'lixo' : 'dual';
+  // Catálogo/triagem da Limpeza é PERSISTIDO e revisado à mão: o balde chama
+  // os DOIS classificadores com {overlay:false} — o cache Jev vivo não pode
+  // reescrever retroativamente o lado de um título (o `dub` que vira `lixo`
+  // por cache negativo some da revisão humana). A influência do overlay é só
+  // de ELEGIBILIDADE na listagem, nunca no catálogo gravado.
+  if (looksPtBr(title, { overlay: false })) return 'dub';
+  if (audioFromTitle(title, { overlay: false }) === 'Dual') return foreignLangNamedForBucket(title) ? 'lixo' : 'dual';
   if (hasPtSigns(title) || brOriginMark(title)) return 'pt';
   return 'lixo';
 }

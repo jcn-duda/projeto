@@ -233,6 +233,7 @@
     "test/typesafe-dublie-graph.test.js",
     "test/typesafe-dublie-inert.test.js",
     "test/typesafe-overlay.test.js",
+    "test/typesafe-overlay-followups.test.js",
     "test/entrypoint-jackett-indexers.test.js",
     "test/config-indexer-aliases.test.js",
     "test/client-imports-stamp.test.js",

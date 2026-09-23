@@ -1,20 +1,42 @@
 /**
- * ETAPA C — overlay GATEADO do Jev (`TYPESAFE_OVERLAY_ENABLED`, DEFAULT ON —
- * kill-switch para desligar):
- *   1. DEFAULT: a fábrica de config nasce ligada; `=false` é o kill-switch
- *      explícito (e a baseline determinística dos testes de inércia);
- *   2. INÉRCIA OFF: com a flag explicitamente desligada, `overlayDropsDub`
- *      devolve false ANTES de fingerprint/cache (nenhuma métrica, nenhuma
- *      leitura) e os classificadores ficam idênticos ao legado em corpus
+ * ETAPA C — overlay GATEADO do Jev (`TYPESAFE_OVERLAY_ENABLED`, DEFAULT OFF —
+ * ligar é opt-in explícito; o portão formal de >=200 julgamentos + revisão
+ * humana ainda não foi cumprido):
+ *   1. DEFAULT: a fábrica de config nasce DESLIGADA; `=true` é o opt-in
+ *      explícito do operador;
+ *   2. PORTÕES: com ligado, a decisão ainda exige runtime shadow ON, chave
+ *      presente (mesma exigência do produtor/drain), Jev não pausado global
+ *      (o `jev-pause` do painel desliga a DECISÃO; resume restaura) e modelo
+ *      versionado (`jev-x.y.z` — alias móvel como `jev-latest`/`jev-preview`
+ *      falha FECHADO); no cache, o eco do modelo (`m`) tem que conferir com o
+ *      ID da config — cache velho/divergente falha fechado. Os portões fecham
+ *      ANTES de fingerprint/leitura, sem métrica de consulta;
+ *   3. INÉRCIA OFF: com qualquer portão fechado, `overlayDropsDub` devolve
+ *      false e os classificadores ficam idênticos ao legado em corpus
  *      sintético — os testes que precisam da baseline DESLIGAM a flag;
- *   3. CACHE-ONLY: com ON, `overlayDropsDub` NUNCA faz fetch, enqueue ou
- *      escrita — só lê `tsj` (dublê de fetch registra ZERO chamadas);
- *   4. APLICAÇÃO/MONOTONICIDADE: negativa confiante (noul <= 0.15) derruba
+ *   4. CACHE-ONLY: com ON e portões abertos, `overlayDropsDub` NUNCA faz
+ *      fetch, enqueue ou escrita — só lê `tsj` (dublê de fetch registra ZERO
+ *      chamadas);
+ *   5. APLICAÇÃO/MONOTONICIDADE: negativa confiante (noul <= 0.15) derruba
  *      `true`->`false` SOMENTE no generic DUB isolado; marca PT forte é imune;
  *      ausência de cache preserva true; nunca há false->true; caminhos
- *      destrutivos (hasExplicitForeignAudio/foreignVerdict) ficam idênticos;
- *   5. MEMO: hit é memoizado; miss NUNCA congelado (escrita posterior do
- *      shadow é vista na hora); reset de teste limpa o memo.
+ *      destrutivos E o balde do catálogo (`audioBucket`, {overlay:false})
+ *      ficam idênticos;
+ *   6. BASELINE SHADOW: `deterministicLooksPtBr` (régua do produtor) fica
+ *      travada em {overlay:false} — o overlay não altera a régua contra a
+ *      qual ele próprio é medido;
+ *   7. MÉTRICA: `applied` conta TÍTULO distinto (dedupe por fingerprint com
+ *      vencimento ALINHADO AO JULGAMENTO — `at + judgmentTtlS`, exatamente o
+ *      vencimento da entrada no `tsj`: dentro do TTL não há recontagem; o LRU
+ *      teto 512 que recontava título cujo julgamento segue decisório no cache
+ *      não volta), `consulted` conta chamada;
+ *   8. AUTORIDADE: NÃO há memo global de decisão (P1 da revisão — o memo que
+ *      expira pelo momento de consulta sobrevive à eviction da cota 500 do
+ *      `tsj` e mascara julgamento NOVO do mesmo fp, inclusive mudança do
+ *      `noul`): cada chamada faz `lookup` síncrono — miss NUNCA congelado
+ *      (escrita posterior do shadow é vista na hora), eviction antes do TTL
+ *      vira miss honesto e reescrita vale imediatamente; reset de teste limpa
+ *      o dedupe (não há memo para limpar).
  *
  * O import de `audio-quality` vem PRIMEIRO de propósito: força a avaliação do
  * ciclo ESM `audio-quality -> ai/index -> audio-quality` pelo lado do módulo de
@@ -24,16 +46,19 @@
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
-import { typesafe as typesafeFactory } from '../src/config/typesafe.js';
+import { typesafe as typesafeFactory, isVersionedModel } from '../src/config/typesafe.js';
 import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
-import { explicitPtAudio, audioFromTitle, looksPtBr, hasExplicitForeignAudio, foreignVerdict } from '../src/utils/audio-quality.js';
-import { overlayDropsDub, resetTypesafeForTests } from '../src/ai/index.js';
+import { explicitPtAudio, audioFromTitle, looksPtBr, audioBucket, hasExplicitForeignAudio, foreignVerdict } from '../src/utils/audio-quality.js';
+import { overlayDropsDub, deterministicLooksPtBr, resetTypesafeForTests, aiControl } from '../src/ai/index.js';
 import { fingerprint, store, judgmentKey } from '../src/ai/audio-judgment-cache.js';
 import { stubFetch, type FetchStub } from './helpers/stub.js';
+import type { RawItem } from '../types/domain.js';
 
 const SAVED = { ...config.typesafe };
-const MODEL = 'jev-ov-test';
+// Modelo VERSIONADO (`jev-x.y.z`): o portão de modelo recusa alias móvel, então
+// os testes de comportamento usam ID com versão válida.
+const MODEL = 'jev-9.9.9';
 
 /** Corpus sintético com o valor LEGADO (OFF) — trava a semântica do refactor. */
 const CORPUS: Array<[string, boolean]> = [
@@ -64,16 +89,21 @@ function seedCorpus(noul: number) {
 const counter = (name: string) => Number(metrics.snapshot().counters[name] || 0);
 
 function cfgOn(over: Record<string, unknown> = {}) {
-  Object.assign(config.typesafe, { overlayEnabled: true, model: MODEL, ...over });
+  // `enabled: true` é portão próprio (runtime shadow ligado) e `apiKey`
+  // TAMBÉM é portão do overlay (mesma exigência do produtor/drain) — os
+  // testes de comportamento rodem herméticos (CI não tem .env); o teste do
+  // portão de chave o fecha explicitamente com `cfgOn({ apiKey: '' })`.
+  Object.assign(config.typesafe, { overlayEnabled: true, enabled: true, apiKey: 'k-test', model: MODEL, ...over });
 }
 
 beforeEach(() => {
   resetTypesafeForTests();
+  aiControl.resume(); // portão de pausa aberto (o teste de portões o fecha)
   cache.clearNamespace('tsj');
   metrics.reset();
-  Object.assign(config.typesafe, SAVED); // baseline = default do .env (overlay ON)
-  // Todo teste que precisa da baseline determinística DESLIGA a flag nele
-  // (cfgOn({ overlayEnabled: false })) — nada depende do estado anterior.
+  Object.assign(config.typesafe, SAVED); // baseline = default do .env (overlay OFF)
+  // Todo teste que liga o overlay o faz explicitamente (cfgOn) — nada depende
+  // do estado anterior.
 });
 
 after(() => {
@@ -81,22 +111,118 @@ after(() => {
   resetTypesafeForTests();
 });
 
-test('default do kill-switch é ON; `=false` desliga explicitamente', () => {
-  // A fábrica é avaliada com o env corrente: sem a env, o default é LIGADO.
+test('default do overlay é OFF; `=true` liga por opt-in explícito', () => {
+  // A fábrica é avaliada com o env corrente: sem a env, o default é DESLIGADO
+  // (o portão formal de >=200 julgamentos + revisão humana não foi cumprido).
   const saved = process.env.TYPESAFE_OVERLAY_ENABLED;
   try {
     delete process.env.TYPESAFE_OVERLAY_ENABLED;
-    assert.equal(typesafeFactory().overlayEnabled, true, 'overlay nasce LIGADO por padrão');
-    // Com cache vazio isso é no-op honesto (miss preserva true) — provado pelo
-    // teste de cache-only/monotonicidade abaixo.
+    assert.equal(typesafeFactory().overlayEnabled, false, 'overlay nasce DESLIGADO por padrão');
+    process.env.TYPESAFE_OVERLAY_ENABLED = 'true';
+    assert.equal(typesafeFactory().overlayEnabled, true, 'opt-in explícito liga');
     process.env.TYPESAFE_OVERLAY_ENABLED = 'false';
     assert.equal(typesafeFactory().overlayEnabled, false, 'kill-switch explícito desliga');
-    process.env.TYPESAFE_OVERLAY_ENABLED = 'true';
-    assert.equal(typesafeFactory().overlayEnabled, true);
   } finally {
     if (saved === undefined) delete process.env.TYPESAFE_OVERLAY_ENABLED;
     else process.env.TYPESAFE_OVERLAY_ENABLED = saved;
   }
+});
+
+test('helper de modelo versionado: `jev-x.y.z` estrito; alias móvel recusado', () => {
+  assert.equal(isVersionedModel('jev-1.13.0'), true);
+  assert.equal(isVersionedModel('jev-9.9.9'), true);
+  assert.equal(isVersionedModel('jev-latest'), false, 'alias móvel não é versionado');
+  assert.equal(isVersionedModel('jev-preview'), false);
+  assert.equal(isVersionedModel('jev-1.13'), false, 'versão incompleta não passa');
+  assert.equal(isVersionedModel('jev-1.13.0-rc1'), false, 'sufixo extra não passa');
+  assert.equal(isVersionedModel(''), false);
+});
+
+test('portões independentes: runtime OFF, Jev pausado e resume restauram a decisão', () => {
+  // Cache NEGATIVO semeado: se algum portão deixar passar, o título é derrubado
+  // e `consulted` acusa a leitura.
+  const titulo = 'Filme Portao 2024 [DUB] 1080p';
+  store(fingerprint(titulo, MODEL), { n: 0.01, m: MODEL, at: 1 }, 600);
+  // Portão 2 — runtime shadow desligado: overlay ligado, mas sem runtime não
+  // há fila povoando o cache e o overlay não decide.
+  cfgOn({ enabled: false });
+  assert.equal(overlayDropsDub(titulo), false, 'runtime OFF não decide');
+  assert.equal(counter('typesafe.overlay.consulted'), 0, 'runtime OFF não consulta');
+  // Portão 3 — pausa global: o botão jev-pause desliga a DECISÃO do overlay
+  // enquanto pausado (não só as filas); o resume restaura.
+  cfgOn();
+  aiControl.pause();
+  assert.equal(overlayDropsDub(titulo), false, 'pausado não decide');
+  assert.equal(counter('typesafe.overlay.consulted'), 0, 'pausado não consulta');
+  aiControl.resume();
+  assert.equal(overlayDropsDub(titulo), true, 'resume restaura a decisão');
+  assert.equal(counter('typesafe.overlay.consulted'), 1, 'só a chamada pós-resume consultou');
+});
+
+test('portão de modelo: alias móvel falha FECHADO; ID versionado decide', () => {
+  const titulo = 'Filme Modelo 2024 [DUB] 1080p';
+  store(fingerprint(titulo, 'jev-latest'), { n: 0.01, m: 'jev-latest', at: 1 }, 600);
+  store(fingerprint(titulo, 'jev-1.13.0'), { n: 0.01, m: 'jev-1.13.0', at: 1 }, 600);
+  cfgOn({ model: 'jev-latest' });
+  assert.equal(overlayDropsDub(titulo), false, 'jev-latest (alias) não derruba mesmo com cache negativo');
+  assert.equal(counter('typesafe.overlay.consulted'), 0, 'alias não chega a consultar');
+  assert.ok(counter('typesafe.overlay.model-blocked') >= 1, 'bloqueio de modelo é visível em métrica');
+  cfgOn({ model: 'jev-preview' });
+  assert.equal(overlayDropsDub(titulo), false, 'jev-preview também falha fechado');
+  cfgOn({ model: 'jev-1.13.0' });
+  assert.equal(overlayDropsDub(titulo), true, 'ID versionado com negativa confiante derruba');
+  assert.equal(counter('typesafe.overlay.consulted'), 1, 'só o modelo versionado consultou');
+});
+
+test('catálogo: audioBucket é determinístico ({overlay:false}) — cache negativo não muda o balde', () => {
+  // Reprodução do relato: `Movie Name 2023 [DUB] 1080p` com overlay + julgamento
+  // negativo (n=0.05) mudava o balde do catálogo de `dub` para `lixo` — o
+  // balde PERSISTIDO da revisão manual da Limpeza não pode seguir o cache vivo.
+  cfgOn();
+  const titulo = 'Movie Name 2023 [DUB] 1080p';
+  store(fingerprint(titulo, MODEL), { n: 0.05, m: MODEL, at: 1 }, 600);
+  // Na LISTAGEM o overlay derruba o generic DUB (efeito desejado)…
+  assert.equal(explicitPtAudio(titulo), false);
+  assert.equal(looksPtBr(titulo), false);
+  // …mas o balde do catálogo continua `dub`, com overlay ligado…
+  assert.equal(audioBucket(titulo), 'dub', 'balde persistido não é reescrito pelo cache vivo');
+  // …após desligar, e no veredito destrutivo (que nunca foi influenciado).
+  assert.equal(foreignVerdict(titulo), 'absolve', 'veredito destrutivo segue absolvendo');
+  config.typesafe.overlayEnabled = false;
+  assert.equal(audioBucket(titulo), 'dub', 'desligar o overlay não muda o balde');
+  assert.equal(foreignVerdict(titulo), 'absolve');
+});
+
+test('métrica applied conta TÍTULO distinto, não cada chamada', () => {
+  cfgOn();
+  const titulo = 'Filme Repetido 2024 [DUB] 1080p';
+  // `at: Date.now()` é a âncora do dedupe (idêntica à gravação da fila em
+  // produção): o vencimento é `at + judgmentTtlS`, o mesmo do cache.
+  store(fingerprint(titulo, MODEL), { n: 0.02, m: MODEL, at: Date.now() }, 600);
+  for (let i = 0; i < 5; i += 1) assert.equal(overlayDropsDub(titulo), true);
+  assert.equal(counter('typesafe.overlay.applied'), 1, 'mesmo título re-consultado não re-incrementa');
+  assert.equal(counter('typesafe.overlay.consulted'), 5, 'consulted segue contando chamada (cada uma faz lookup)');
+  const outro = 'Filme Distinto 2025 [DUB] 1080p';
+  store(fingerprint(outro, MODEL), { n: 0.02, m: MODEL, at: Date.now() }, 600);
+  assert.equal(overlayDropsDub(outro), true);
+  assert.equal(counter('typesafe.overlay.applied'), 2, 'título distinto incrementa');
+});
+
+test('baseline shadow: overlay ligado + cache negativo NÃO muda a régua determinística', () => {
+  // A régua do produtor shadow é {overlay:false} travado: a IA não pode
+  // alterar o baseline contra o qual ela própria é medida.
+  cfgOn();
+  const titulo = 'Movie Name 2023 [DUB] 1080p';
+  store(fingerprint(titulo, MODEL), { n: 0.01, m: MODEL, at: 1 }, 600);
+  const item: RawItem = { title: titulo };
+  // O overlay (mesma config, mesmo cache) DERRUBA o generic DUB na listagem…
+  assert.equal(overlayDropsDub(titulo), true);
+  // …e ainda assim a baseline que o produtor calcula continua true.
+  assert.equal(deterministicLooksPtBr(item), true, 'baseline imune ao overlay');
+  // E continua true com o overlay desligado — a régua não depende da flag.
+  config.typesafe.overlayEnabled = false;
+  assert.equal(deterministicLooksPtBr(item), true, 'baseline idêntica com overlay OFF');
+  assert.equal(looksPtBr(titulo), true, 'com OFF, o caminho default volta ao legado');
 });
 
 test('OFF (kill-switch): devolve false ANTES de fingerprint/cache e os classificadores ficam legado', () => {
@@ -120,8 +246,9 @@ test('OFF (kill-switch): devolve false ANTES de fingerprint/cache e os classific
 });
 
 test('ON: cache-only — ZERO fetch, ZERO enqueue, ZERO escrita', () => {
-  // Com o default ON, este teste é o estado de PRODUÇÃO; as asserções de
-  // zero-rede/zero-escrita valem para a configuração que vai ao ar.
+  // A fábrica nasce OFF; `cfgOn()` é o opt-in que ativa o overlay neste teste.
+  // As asserções de zero-rede/zero-escrita valem exatamente para a
+  // configuração que vai ao ar quando o operador liga.
   cfgOn();
   const stub: FetchStub = stubFetch(() => ({ ok: true, status: 200, text: async () => '' }));
   try {
@@ -210,18 +337,28 @@ test('ON: miss não congelado — escrita posterior do shadow é vista na hora',
   assert.equal(overlayDropsDub(t), true, 'o mesmo título vira drop após a escrita');
 });
 
-test('resetTypesafeForTests limpa o memo do overlay (decisão volta ao cache vivo)', () => {
+test('decisão sempre deriva do lookup — sem memo; reset limpa só o dedupe de applied', () => {
   cfgOn();
-  const t = 'Filme Memo 2024 [DUB] 1080p';
-  store(fingerprint(t, MODEL), { n: 0.02, m: MODEL, at: 1 }, 600);
+  const t = 'Filme SemMemo 2024 [DUB] 1080p';
+  store(fingerprint(t, MODEL), { n: 0.02, m: MODEL, at: Date.now() }, 600);
   assert.equal(overlayDropsDub(t), true, 'drop via cache');
   const consultado = counter('typesafe.overlay.consulted');
-  assert.equal(overlayDropsDub(t), true, 'segunda chamada usa o memo');
-  assert.equal(counter('typesafe.overlay.consulted'), consultado + 1, 'consulted conta toda chamada');
+  const aplicado = counter('typesafe.overlay.applied');
+  // Sem memo global: a segunda chamada consulta o cache DE NOVO (consulted
+  // sobe) e o dedupe segura o applied — decisão idêntica, sem atalho.
+  assert.equal(overlayDropsDub(t), true, 'segunda chamada decide de novo via lookup');
+  assert.equal(counter('typesafe.overlay.consulted'), consultado + 1, 'cada chamada consulta');
+  assert.equal(counter('typesafe.overlay.applied'), aplicado, 'dedupe de applied segura dentro do TTL');
+  // Cache apagado: miss honesto — a decisão aplicada NÃO age como decisão
+  // (não há memo para mascarar a eviction).
   cache.clearNamespace('tsj');
-  resetTypesafeForTests(); // limpa o memo junto com as filas
-  assert.equal(overlayDropsDub(t), false, 'sem cache nem memo: miss honesto');
+  assert.equal(overlayDropsDub(t), false, 'sem cache: miss honesto, applied não decide');
   assert.ok(counter('typesafe.overlay.cache-miss') >= 1);
+  // Reset zera o dedupe: re-semeando o cache, o applied re-incrementa.
+  resetTypesafeForTests();
+  store(fingerprint(t, MODEL), { n: 0.02, m: MODEL, at: Date.now() }, 600);
+  assert.equal(overlayDropsDub(t), true);
+  assert.equal(counter('typesafe.overlay.applied'), aplicado + 1, 'reset limpou o dedupe de applied');
 });
 
 test('ciclo ESM em runtime: audio-quality carregado primeiro executa os dois lados', () => {
@@ -233,3 +370,8 @@ test('ciclo ESM em runtime: audio-quality carregado primeiro executa os dois lad
   assert.equal(explicitPtAudio('Ciclo Dublado 1080p'), true);
   assert.equal(looksPtBr('Ciclo Interstellar 2014 Dublado 1080p'), true);
 });
+
+// Os follow-ups da revisão adversarial (portão de chave M1, eco do modelo B4,
+// dedupe sem evicção B1, writers persistidos M2, produtor/idx M3 e o status
+// active/blockedReason B3) moram em test/typesafe-overlay-followups.test.ts —
+// este arquivo é o contrato SEMÂNTICO do overlay; este, os portões e a régua.

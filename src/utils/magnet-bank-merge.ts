@@ -14,7 +14,7 @@
 import type { RawItem } from '../../types/domain.js';
 import { extractInfoHash, magnetDisplayName } from './title-normalization.js';
 import { sanitizeMagnet, defaultMagnet } from './magnet-uri.js';
-import { sourceFromTitle } from './audio-quality.js';
+import { sourceFromTitle, looksPtBr } from './audio-quality.js';
 import type { MagnetRow, SourceRow, WorkRow } from './magnet-bank-rows.js';
 
 export type WorkCtx = {
@@ -218,26 +218,27 @@ export function inputFromItem(item: RawItem, groupIndexer: string): { magnet: Ma
   const uri = (rawMagnet ? sanitizeMagnet(rawMagnet, hash) : null) ?? defaultMagnet(hash);
   const seeders = parseSeeders(item.seeders ?? item.Seeders);
   const indexer = (groupIndexer || String(item.indexer || item.Indexer || '')).toLowerCase().slice(0, 64) || 'all';
+  // O título do post pode esconder a gravação ("Resident Evil (2026)
+  // [1080p 2.60 GB]"), mas o dn= do magnet revela ("…CAMRip…"). Quando
+  // o magnet prova CAM e o título não diz, guarda o nome do magnet como
+  // título: a evidência do arquivo vence o palpite do WordPress. Sem
+  // isso, o item servido do banco instantâneo perde a marca CAM e o
+  // excludeCam do usuário não corta.
+  const postTitle = String(item.title || item.Title || '');
+  const dn = magnetDisplayName(item);
+  const title = dn && sourceFromTitle(dn) === 'CAM' && sourceFromTitle(postTitle) !== 'CAM' ? dn : postTitle;
   return {
     magnet: {
       hash,
       uri,
-      // O título do post pode esconder a gravação ("Resident Evil (2026)
-      // [1080p 2.60 GB]"), mas o dn= do magnet revela ("…CAMRip…"). Quando
-      // o magnet prova CAM e o título não diz, guarda o nome do magnet como
-      // título: a evidência do arquivo vence o palpite do WordPress. Sem
-      // isso, o item servido do banco instantâneo perde a marca CAM e o
-      // excludeCam do usuário não corta.
-      title: (() => {
-        const postTitle = String(item.title || item.Title || '');
-        const dn = magnetDisplayName(item);
-        if (dn && sourceFromTitle(dn) === 'CAM' && sourceFromTitle(postTitle) !== 'CAM') {
-          return dn;
-        }
-        return postTitle;
-      })(),
+      title,
       size: Number(item.size ?? item.Size) || 0,
-      isBr: Boolean(item.isBr),
+      // O isBr do item vem da LISTAGEM, onde o overlay Jev (gateado) pode ter
+      // derrubado um generic DUB ao vivo. `is_br` aqui é PERMANENTE e só sobe
+      // por OR: gravar 0 influenciado congelava a origem do magnet no banco.
+      // Reclassifica com {overlay:false} sobre o TÍTULO DO POST (o mesmo texto
+      // que o produtor classificou) — acervo determinístico, igual ao idx.
+      isBr: Boolean(item.isBr) || looksPtBr(postTitle, { overlay: false }),
       dubbed: Boolean(item.dubbed),
       lied: Boolean(item.lied),
       quality: String(item.quality || ''),

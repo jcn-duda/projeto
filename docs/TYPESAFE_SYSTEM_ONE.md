@@ -495,19 +495,46 @@ fábrica.
 ## 16. OVERLAY GATEADO (ETAPA C) — o Jev no termo fraco do DUB genérico
 
 Primeira influência da IA numa decisão, e por isso o desenho mais conservador
-possível. **Default ON** — o default vive na fábrica de config
-(`src/config/typesafe.ts`; **adicionar manualmente `TYPESAFE_OVERLAY_ENABLED=true`
-ao `.env.example` local** — a linha não está no arquivo de exemplo do repo) e
-a env é **kill-switch**: `=false` desliga na hora (rollback imediato e
-baseline determinística; testes que precisam do legado desligam a flag
-explicitamente). Dois fatos tornam o default ON seguro:
+possível. **Default OFF — ligar é opt-in explícito do operador** (`TYPESAFE_OVERLAY_ENABLED=false`
+na fábrica de config): o portão formal de confiança (abaixo, itens 1–4) NÃO
+foi cumprido, então a fábrica nasce no estado determinístico. PENDÊNCIA: o
+`.env.example` do repo ainda traz `TYPESAFE_OVERLAY_ENABLED=true` e
+`TYPESAFE_MODEL=jev-latest` — a edição foi negada por permissão e NÃO foi
+feita; quem copiar o exemplo liga o overlay por engano, e são os portões
+abaixo que impedem a decisão, não o exemplo. A env é o interruptor: `=true`
+liga; voltar a `false` é rollback imediato com baseline determinística
+(testes que precisam do legado desligam a flag explicitamente). Com cache
+vazio o overlay ligado ainda é no-op honesto: **ausência de cache preserva
+`true`** — ele não muda nada até o runtime shadow (§15) povoar o `tsj`.
 
-- **cache vazio é no-op honesto:** todo lookup é miss, e **ausência de cache
-  preserva `true`** — o overlay não muda nada até o runtime shadow (§15)
-  povoar o `tsj`;
-- com a flag desligada o caminho é byte-a-byte o legado — `overlayDropsDub`
-  devolve `false` ANTES de fingerprint e de qualquer leitura de cache (zero
-  trabalho, zero métrica; travado por teste em `test/typesafe-overlay.test.ts`).
+**Portões independentes fecham a decisão** (`overlayDropsDub` devolve `false`
+ANTES de fingerprint e de qualquer leitura de cache — zero trabalho, zero
+métrica de consulta; travados por teste em `test/typesafe-overlay.test.ts`):
+
+1. **kill-switch/opt-in** `TYPESAFE_OVERLAY_ENABLED=false` (default) — inércia
+   total, byte-a-byte o legado;
+2. **runtime shadow desligado ou chave ausente** (`TYPESAFE_RUNTIME_ENABLED`/
+   `TYPESAFE_API_KEY` — a MESMA exigência do produtor e do drain) — sem fila
+   a povoar o `tsj`, overlay não decide;
+3. **pausa global do Jev** (`jev-pause` no painel / `aiControl.pause()`): o
+   botão de pausa desativa a DECISÃO do overlay junto com as filas — não só o
+   drain; o `jev-resume` restaura;
+4. **modelo não versionado** (`jev-latest`, `jev-preview`, qualquer coisa fora
+   do formato estrito `jev-x.y.z` — helper `isVersionedModel`): falha FECHADA
+   mesmo com config explícita e conta `typesafe.overlay.model-blocked`. Só ID
+   versionado autoriza decisão; o default é `jev-1.13.0`
+   (docs/JEV_REFERENCIA.md). O default anterior `jev-latest` era ALIAS MÓVEL e
+   foi aposentado: troca silenciosa de alias não pode derrubar dublado por
+   julgamento de modelo não identificado;
+5. **eco do modelo no VALOR** (`typesafe.overlay.model-mismatch`): o
+   julgamento em cache só decide quando o `m` gravado é exatamente o ID
+   versionado da config. O fingerprint já isola model na CHAVE, mas cache
+   escrito por código antigo (sem eco) ou por eco divergente não prova que
+   AQUELE modelo disse isso — fail closed, e o eco é reverificado a cada
+   chamada (não há memo que congele o valor: reescrita do cache é vista na
+   hora; divergência congelada viraria decisão errada).
+   Resposta sem eco grava o
+   fallback `cfg.model` no client, então entradas novas sempre conferem.
 
 **O que muda com ON — só isto:** o Jev influencia SOMENTE o termo fraco
 `genericDubProvesPt` dentro de `explicitPtAudio` (`src/utils/audio-quality.ts`):
@@ -532,27 +559,66 @@ Regras da decisão:
 - **ausência de cache preserva `true`** (miss não decide nada);
 - **monotônico por construção:** o overlay só retira uma promessa genérica
   fraca, nunca promove — `false` nunca vira `true`;
-- **memo curto** (512 fingerprints) guarda SOMENTE decisão vinda de HIT; miss
-  nunca é memoizado — a escrita posterior do shadow é vista na próxima
-  chamada, e `resetForTests` limpa o memo.
+- **NÃO há memo global de decisão** (P1 da revisão final): o memo anterior
+  expirava pelo MOMENTO DE CONSULTA (`R + TYPESAFE_JUDGMENT_TTL_S`) enquanto o
+  cache `tsj` expira pelo momento de GRAVAÇÃO (`S + ...`) — como R >= S, a
+  decisão sobrevivia R-S além do julgamento; pior, a cota do `tsj` (500) pode
+  evictar a entrada antes do TTL, e um memo que sobrevive à eviction vira
+  AUTORIDADE, mascarando julgamento NOVO do mesmo fingerprint (inclusive
+  mudança do `noul` na reescrita). A autoridade é sempre `lookup(fp)` — O(1) e
+  síncrono, o mesmo custo do memo: cache miss preserva `true` e
+  eviction/reescrita são vistas IMEDIATAMENTE. Memo POR BUILD não há lifecycle
+  disponível (a leitura não sabe onde a build começa/termina);
+- o dedupe da métrica `typesafe.overlay.applied` vence ALINHADO AO JULGAMENTO
+  (`at + TYPESAFE_JUDGMENT_TTL_S`, exatamente o vencimento da entrada no `tsj`
+  — a fila grava `at: Date.now()`): dentro do TTL não reconta, e um julgamento
+  novo (novo `at`, ex.: reescrita após eviction) depois do vencimento é nova
+  ocorrência.
 
 **Propagação e travas.** A opção `{ overlay?: boolean }` (default: aplica,
-respeitando o kill-switch) atravessa `audioFromTitle` e `looksPtBr`. Três
-locais fixam `{ overlay: false }` de propósito:
+respeitando os portões acima) atravessa `audioFromTitle` e `looksPtBr`. Os
+locais que fixam `{ overlay: false }` de propósito são todos os PONTOS DE
+GRAVAÇÃO — a regra é "o que PERSISTE fica determinístico":
 
-1. **`release-index.ts`** — o índice PERSISTE `dubbed`/`isBr` por semanas: a
-   leitura viva do cache não pode reescrever retroativamente o acervo, então a
-   classificação do idx fica determinística e **NÃO exige bump de namespace**
-   (`idx` segue `v10`);
-2. **`hasExplicitForeignAudio`** — lista MÍNIMA que CONDENA e apaga da conta
+1. **`release-index.ts`** — o índice PERSISTE `dubbed` e `isBr` por semanas: a
+   leitura viva do cache não pode reescrever retroativamente o acervo. O
+   `record` reclassifica o `isBr` do item com `{overlay:false}` antes de
+   gravar — no PONTO DE GRAVAÇÃO, não no produtor: pinar o `mapResults`
+   (`jackett-results.ts`) faria o `toStremioStream` herdar `isBr=true` pelo
+   curto-circuito `Boolean(item.isBr)` e DESFARIA o efeito do overlay na vaga
+   BR ao vivo. A classificação do idx fica determinística e **NÃO exige bump
+   de namespace** (`idx` segue `v10`);
+2. **`audio-audit.ts` (`recordFileEvidence`)** — a evidência de ARQUIVO
+   (`FileEvidence.a`/`q`) é medida no play e persiste no idx: o rótulo
+   gravado usa `audioFromTitle(..., {overlay:false})` — o que o arquivo
+   provou não pode ser reescrito pelo cache vivo;
+3. **`catalog-audit.ts` (`noteAudit`)** — a linha do catálogo persiste
+   `audio`/balde para a revisão manual da Limpeza: `audioBucket` e o
+   `audioFromTitle` dos paths rodam travados (o cache negativo não move um
+   `dub` para `lixo` nem apaga o rótulo gravado — caso real: "Movie Name 2023
+   [DUB] 1080p" saía da triagem com overlay ligado);
+4. **captura do banco de magnets (`magnet-bank-merge.ts`)** — `is_br` é
+   PERMANENTE e só sobe por OR: gravar 0 influenciado congelava a origem do
+   magnet no acervo; o `inputFromItem` reclassifica o título do post com
+   `{overlay:false}`;
+5. **`hasExplicitForeignAudio`** — lista MÍNIMA que CONDENA e apaga da conta
    (sweep/limpeza): a absolvição do generic DUB não pode ser retirada por IA;
-3. **`foreignVerdict`** — o lado que ABSOLVE alimenta limpeza destrutiva;
+6. **`foreignVerdict`** — o lado que ABSOLVE alimenta limpeza destrutiva;
    travado no legado pelo mesmo motivo (assimetria do AGENTS.md: ausência de
    PT nunca condena, condenação exige prova mínima).
 
 O resto (listagem, ranking, cotas, Chupim, selos) flui pelo default — é o
 efeito desejado: release que só se sustentava no `[DUB]` genérico perde vaga
 BR quando o Jev diz com confiança que não é pt-BR.
+
+**Baseline shadow determinística.** A régua do produtor
+(`deterministicLooksPtBr` em `src/ai/index.ts`) também é `{overlay:false}`
+travado. ATENÇÃO à semântica: NÃO é "a mesma fórmula do `_br` corrente" —
+com o overlay ligado, o `_br` da LISTAGEM pode derrubar o generic DUB e
+divergir daqui DE PROPÓSITO. O baseline é a versão determinística do
+classificador: o overlay não pode alterar a régua contra a qual ele próprio é
+medido — com a régua viva, cache negativo faria a comparação shadow medir a
+IA contra a influência dela mesma.
 
 **Cache version:** a lista pronta carrega a classificação (`_br`/`_dubbed`/
 `_dubClaim`), então `streams` foi de **v14 para v15** (listas servidas antes
@@ -564,15 +630,31 @@ e somente à fachada `ai/index.js` (teste novo no mesmo arquivo prova isso; o
 ciclo ESM `audio-quality <-> ai/index` é seguro porque o uso é em runtime, e o
 teste carrega `audio-quality` ANTES da fachada para exercitar os dois lados).
 
-**Métricas e painel:** `typesafe.overlay.consulted` (toda leitura com ON),
-`.cache-miss` (sem julgamento no cache) e `.applied` (derrubadas efetivas) no
-`/metrics.json`; bloco `overlay` no `typesafe` do `/dashboard-status.json`
-(`aiStatus()`), renderizado na aba Jev do `/painel` como card "Overlay Jev
-(ETAPA C)" com os três contadores e a cobertura do cache — sem ação nova
-(o knob é do `.env` do operador).
+**Métricas e painel:** `typesafe.overlay.consulted` (toda leitura com os
+portões abertos), `.cache-miss` (sem julgamento no cache), `.applied`
+(derrubadas efetivas — conta TÍTULO DISTINTO: dedupe por fingerprint em Map
+TTL-aware; a entrada vive NO MÁXIMO o TTL do julgamento
+(`TYPESAFE_JUDGMENT_TTL_S`), o mesmo horizonte do `tsj`, com prune em ordem de
+inserção e sem duplicata dentro do TTL — um LRU teto 512 recontava título cujo
+julgamento podia seguir decisório no `tsj` — cota 500, TTL de semanas;
+passado o TTL, novo julgamento do mesmo título é nova ocorrência. O bound
+operacional é CAP diário × TTL, nunca uptime: só entra fp que derrubou e o
+volume é limitado pelos orçamentos do shadow
+(`TYPESAFE_HOURLY_CAP`/`TYPESAFE_DAILY_CAP`), e o
+conjunto zera no restart; `consulted` segue contando chamada),
+`.model-blocked` (portão de modelo recusou alias móvel) e `.model-mismatch`
+(eco do modelo divergiu do ID da config — cache velho/estranho) no
+`/metrics.json` — labels fechados, nenhum título ou chave cru em label/log.
+Bloco `overlay` no `typesafe` do `/dashboard-status.json` (`aiStatus()`) com
+`enabled`, `active` (portões todos abertos) e `blockedReason` (união FECHADA:
+`overlay-off`/`runtime-off`/`no-key`/`paused`/`model-alias`, sem texto de
+credencial), renderizado na aba Jev do `/painel` como card "Overlay Jev
+(ETAPA C)": flag ligada com portão fechado aparece BLOQUEADO com o motivo —
+nunca "GATEADO ON" —, junto dos contadores e da cobertura do cache. Sem ação
+nova (o knob é do `.env` do operador).
 
-**Portão de confiança** (o overlay está no ar; isto é o que acompanhar antes
-de CONFIAR nos números e decidir mantê-lo ligado em produção séria):
+**Portão de confiança** (o overlay nasce OFF; isto é o que cumprir ANTES de
+ligar em produção e o que acompanhar para mantê-lo ligado):
 
 1. **>= 200 julgamentos reais** da pergunta 1 acumulados pelo runtime shadow
    (cache `tsj` vivo — o overlay é inútil sem acervo);
@@ -588,7 +670,9 @@ de CONFIAR nos números e decidir mantê-lo ligado em produção séria):
    busca; hit não promove LRU de forma anômala e o namespace não pode virar
    gargalo de evicção com a contagem durável do `mag`.
 
-Rollback: `TYPESAFE_OVERLAY_ENABLED=false` — inércia total, comprovada por
-teste; nada do cache é apagado e o shadow segue medindo. O default ON com o
-shadow OFF (instalação nova) é o cenário mais comum e permanece no-op: sem
-runtime shadow, o cache nunca enche e o overlay nunca derruba nada.
+Rollback: `TYPESAFE_OVERLAY_ENABLED=false` (o default de fábrica) — inércia
+total, comprovada por teste; nada do cache é apagado e o shadow segue
+medindo. Com o overlay ligado e o shadow OFF (instalação nova), o portão 2
+fecha por conta própria: sem runtime shadow o cache nunca enche e o overlay
+nunca derruba nada — e, com modelo alias (`jev-latest`) configurado, o portão
+4 fecha mesmo com runtime e acervo presentes.

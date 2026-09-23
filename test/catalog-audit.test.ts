@@ -4,6 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import config from '../src/config.js';
+import * as cache from '../src/utils/cache.js';
+import { audioFromTitle } from '../src/utils/audio-quality.js';
+import { fingerprint, store } from '../src/ai/audio-judgment-cache.js';
 import * as catalog from '../src/utils/catalog.js';
 import * as held from '../src/debrid/protected.js';
 import * as releaseIndex from '../src/utils/release-index.js';
@@ -58,6 +61,31 @@ test('noteAudit atualiza a prova: path DUBLADO → pt_proof; -RARBG → foreign_
   catalog.noteAudit(ACCOUNT, '2', HASH_B, [{ path: 'dir/Movie.2021.RARBG.mkv' }]);
   assert.equal(catalog.row(ACCOUNT, '2')!.foreignProof, 'cena', 'path com -RARBG condena com marca de cena');
   assert.equal(catalog.row(ACCOUNT, '2')!.ptProof, '');
+});
+
+test('noteAudit grava o áudio com {overlay:false}: cache negativo do Jev não reescreve a linha', () => {
+  // M2 da revisão: `audioIdioma` ia para `existing.audio` (PERSISTIDO) com o
+  // classificador ao vivo — com overlay ligado e negativa confiante em cache,
+  // a linha gravava áudio vazio para título que o legado chama de Dublado.
+  const saved = { ...config.typesafe };
+  const MODEL = 'jev-9.9.9';
+  const titulo = 'Movie Name 2023 [DUB] 1080p';
+  try {
+    Object.assign(config.typesafe, { overlayEnabled: true, enabled: true, apiKey: 'k-test', model: MODEL });
+    store(fingerprint(titulo, MODEL), { n: 0.05, m: MODEL, at: 1 }, 600);
+    // Precondição: o rótulo de LISTAGEM é derrubado pelo overlay...
+    assert.equal(audioFromTitle(titulo), '', 'overlay vivo derruba o rótulo');
+    // ...mas a LINHA do catálogo persiste o valor legado.
+    const hash = '7c'.repeat(20);
+    scan(ACCOUNT, [magnet({ id: '7', hash, filename: titulo })]);
+    catalog.noteAudit(ACCOUNT, '7', hash, [{ path: `dir/${titulo}.mkv` }]);
+    const linha = catalog.row(ACCOUNT, '7')!;
+    assert.ok(linha, 'linha existe');
+    assert.equal(linha.audio, 'Dublado', 'audio persistido é o legado ({overlay:false})');
+  } finally {
+    Object.assign(config.typesafe, saved);
+    cache.clearNamespace('tsj');
+  }
 });
 
 // ---------------------------------------------------------------------------

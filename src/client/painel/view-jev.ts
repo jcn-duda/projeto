@@ -2,7 +2,7 @@ import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber, ProgressBar } from './kit.js';
 import { useAction, actionError } from './action.js';
 import { formatDurationMs } from './fmt.js';
-import { jevModel, type JevModel, type JevQuestionView, type JevOverlayView } from './jev-model.js';
+import { jevModel, overlayBlockedLabel, type JevModel, type JevQuestionView, type JevOverlayView } from './jev-model.js';
 
 export interface ViewJevProps {
   typesafe?: Record<string, any>;
@@ -100,14 +100,28 @@ export interface JevViewProps {
 }
 
 /** ETAPA C — overlay gateado: leitura cache-only no termo fraco do DUB
- * genérico. Sem ação própria (o knob é do .env do operador). */
+ * genérico. Sem ação própria (o knob é do .env do operador). O badge mostra a
+ * verdade operacional: flag ligada com portão fechado é BLOQUEADO (com o
+ * motivo), não "GATEADO ON". */
 function OverlayCard({ overlay }: { overlay: JevOverlayView }) {
   const coberto = overlay.consulted > 0 ? Math.round(((overlay.consulted - overlay.cacheMiss) / overlay.consulted) * 100) : 0;
+  const bloqueado = overlay.enabled && !overlay.active;
+  const motivo = bloqueado ? overlayBlockedLabel(overlay.blockedReason) : '';
+  const badge = !overlay.enabled
+    ? { text: 'OFF', variant: 'neutral' as const }
+    : overlay.active
+      ? { text: 'GATEADO ON', variant: 'warn' as const }
+      : { text: 'BLOQUEADO', variant: 'warn' as const };
   return html`
     <${Card}
       title="Overlay Jev (ETAPA C)"
-      badge=${overlay.enabled ? { text: 'GATEADO ON', variant: 'warn' } : { text: 'OFF', variant: 'neutral' }}
+      badge=${badge}
     >
+      ${bloqueado ? html`
+        <p style="color: var(--status-warn-text, var(--muted)); margin: 0 0 var(--space-2); font-weight: 600;">
+          Bloqueado: ${motivo || overlay.blockedReason} — não decide nada enquanto o portão estiver fechado.
+        </p>
+      ` : null}
       <div style="display: flex; gap: var(--space-4); flex-wrap: wrap;">
         <${StatNumber} value=${overlay.consulted} label="consultadas" />
         <${StatNumber} value=${overlay.cacheMiss} label="sem cache" />
@@ -121,11 +135,12 @@ function OverlayCard({ overlay }: { overlay: JevOverlayView }) {
         <${ProgressBar} percent=${coberto} variant="ok" />
       </div>
       <p style="color: var(--muted); margin: var(--space-2) 0 0; font-size: var(--font-floor);">
-        Cache-only e monotônico: nasce LIGADO por padrão, mas com o cache vazio é no-op (miss preserva true).
+        Cache-only e monotônico: nasce DESLIGADO (opt-in explícito no .env) e, com o cache vazio, é no-op (miss preserva true).
         Uma negativa confiante do Jev (noul ≤ 0.15) derruba true→false SOMENTE no generic DUB isolado —
-        PT explícito é imune, e nada é buscado, enfileirado ou escrito aqui. TYPESAFE_OVERLAY_ENABLED=false
-        desliga (kill-switch / baseline determinística); o índice persistido fica determinístico
-        ({overlay:false}) e os caminhos destrutivos não são influenciados.
+        PT explícito é imune, e nada é buscado, enfileirado ou escrito aqui. A decisão também exige runtime
+        ligado, chave presente, Jev não pausado, modelo versionado (jev-x.y.z — alias móvel falha fechado) e
+        julgamento cujo eco do modelo confere com o ID configurado. O índice, o catálogo e a evidência de
+        arquivo persistidos ficam determinísticos ({overlay:false}) e os caminhos destrutivos não são influenciados.
       </p>
     </${Card}>
   `;

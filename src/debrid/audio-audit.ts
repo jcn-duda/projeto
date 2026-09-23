@@ -87,7 +87,9 @@ function recordFileEvidence(infoHash: string, files: DebridFile[]) {
   // dublado em site BR"). Um veredito paralelo aqui divergiria dela — e
   // divergiu: `DUAL`, que é como os sites BR nomeiam o dublado, não casa nos
   // marcadores PT do audit de mentira, e o dublado do S03E03 saía sem áudio.
-  const audio = names.map((name) => audioFromTitle(name)).find(Boolean) || '';
+  // {overlay:false}: esta prova PERSISTE (idx `FileEvidence.a` e catálogo) — o
+  // cache Jev vivo não pode reescrever retroativamente o que o arquivo provou.
+  const audio = names.map((name) => audioFromTitle(name, { overlay: false })).find(Boolean) || '';
   // Release de cena reconhecida é a prova NEGATIVA: mesmo sem rótulo de áudio,
   // "H264-METCON" não é dublado, e sem isso ele continuaria empatado com o
   // dublado no rótulo "BR" do indexer.
