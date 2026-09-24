@@ -12,6 +12,13 @@ export interface DedupPreviewSummary {
   candidates: any[];
   t1: any[];
   t2: any[];
+  /** Soma dos tamanhos que saem (bytes); 0 quando o plano não traz tamanho. */
+  bytesFreed: number;
+}
+
+/** Bytes que o plano tiraria da conta: a soma dos `size` de cada kill. */
+function sumKillBytes(candidates: any[]): number {
+  return candidates.reduce((acc: number, k: any) => acc + (Number(k?.size) || 0), 0);
 }
 
 /**
@@ -23,7 +30,7 @@ export interface DedupPreviewSummary {
 export function dedupPreviewSummary(data: Record<string, any> | null | undefined): DedupPreviewSummary {
   if (!data || data.ok === false) {
     const reason = String(data?.reason || data?.error || 'erro') + (data?.hint ? ` — ${data.hint}` : '');
-    return { ok: false, reason, t1Groups: 0, t2Groups: 0, candidates: [], t1: [], t2: [] };
+    return { ok: false, reason, t1Groups: 0, t2Groups: 0, candidates: [], t1: [], t2: [], bytesFreed: 0 };
   }
   const plan = data.plan || {};
   const t1 = Array.isArray(plan.t1) ? plan.t1 : [];
@@ -32,7 +39,7 @@ export function dedupPreviewSummary(data: Record<string, any> | null | undefined
     ...t1.flatMap((g: any) => (Array.isArray(g?.kill) ? g.kill : []).map((k: any) => ({ ...k, group: 'T1 (mesmo hash)', keep: g.keep }))),
     ...t2.flatMap((g: any) => (Array.isArray(g?.kill) ? g.kill : []).map((k: any) => ({ ...k, group: 'T2 (mesmo arquivo)', keep: g.keep }))),
   ];
-  return { ok: true, reason: null, t1Groups: t1.length, t2Groups: t2.length, candidates, t1, t2 };
+  return { ok: true, reason: null, t1Groups: t1.length, t2Groups: t2.length, candidates, t1, t2, bytesFreed: sumKillBytes(candidates) };
 }
 
 export interface CatalogSummary {
@@ -131,6 +138,7 @@ export interface DedupPlanView {
   candidates: any[];
   t1: any[];
   t2: any[];
+  bytesFreed?: number;
 }
 
 /** Só permite aplicar quando a prévia rodou E achou alvos: aplicar um plano
@@ -143,6 +151,7 @@ export interface LimpezaHeader {
   duplicates: number;
   t1Groups: number;
   t2Groups: number;
+  bytesFreed: number;
   previewState: 'idle' | 'empty' | 'ready';
   accountService: string;
   accountTotal: number;
@@ -171,6 +180,7 @@ export function limpezaHeader(
     duplicates: candidates.length,
     t1Groups,
     t2Groups,
+    bytesFreed: Number(preview?.bytesFreed) || sumKillBytes(candidates),
     previewState: preview == null ? 'idle' : candidates.length > 0 ? 'ready' : 'empty',
     accountService: cv.service,
     accountTotal: cv.total,
@@ -207,4 +217,45 @@ export function dedupTableRows(candidates: any[] | null | undefined): DedupRowVi
       keepShort: keepHash !== '—' ? keepHash : (c?.keep?.serviceId != null ? '#' + String(c.keep.serviceId) : '—'),
     };
   });
+}
+
+export interface DedupGroupView {
+  kind: 'T1' | 'T2';
+  /** Por que são o mesmo conteúdo, em linguagem de operador. */
+  criterion: string;
+  keep: { name: string; ref: string; size: number };
+  kills: Array<{ name: string; size: number }>;
+  bytesFreed: number;
+}
+
+const CRITERION = {
+  T1: 'mesmo torrent (mesmo hash) em mais de uma entrada da conta',
+  T2: 'mesmo nome de arquivo e tamanho (diferença de até 0,5%)',
+} as const;
+
+/** Grupos da prévia prontos para a tela: o que FICA, o que SAI, por que e
+ * quanto espaço libera. Ordem: mais espaço liberado primeiro. */
+export function dedupGroupViews(plan: DedupPlanView | null | undefined): DedupGroupView[] {
+  if (!plan) return [];
+  const view = (kind: 'T1' | 'T2') => (g: any): DedupGroupView => {
+    const kills = (Array.isArray(g?.kill) ? g.kill : []).map((k: any) => ({
+      name: String(k?.filename || '') || '—',
+      size: Number(k?.size) || 0,
+    }));
+    return {
+      kind,
+      criterion: CRITERION[kind],
+      keep: {
+        name: String(g?.keep?.filename || '') || '—',
+        ref: shortHash(g?.keep?.hash) !== '—' ? shortHash(g?.keep?.hash) : '#' + String(g?.keep?.serviceId ?? '?'),
+        size: Number(g?.keep?.size) || 0,
+      },
+      kills,
+      bytesFreed: kills.reduce((acc: number, k: { size: number }) => acc + k.size, 0),
+    };
+  };
+  return [
+    ...(Array.isArray(plan.t1) ? plan.t1 : []).map(view('T1')),
+    ...(Array.isArray(plan.t2) ? plan.t2 : []).map(view('T2')),
+  ].sort((a, b) => b.bytesFreed - a.bytesFreed);
 }

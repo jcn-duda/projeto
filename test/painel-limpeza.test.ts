@@ -10,7 +10,7 @@ import {
   CATALOG_BUCKETS,
   bucketLabel,
 } from '../src/client/painel/view-limpeza.js';
-import { dedupTableRows } from '../src/client/painel/limpeza-model.js';
+import { dedupTableRows, dedupGroupViews } from '../src/client/painel/limpeza-model.js';
 
 test('limpezaHeader resume prévia e conta via contaView', () => {
   // Nunca rodou: idle, sem alvos, conta real do bloco `conta` com ok:true.
@@ -112,4 +112,36 @@ test('ViewLimpeza agrupa ações por risco e centraliza confirmação no useActi
   assert.ok((src.match(/confirm:\s*\{/g) || []).length >= 2, 'as destrutivas carregam bloco de confirmação');
   // Todos os botões têm rótulo legível (nenhum vazio).
   assert.doesNotMatch(src, /<button[^>]*>\s*<\/button>/);
+});
+
+test('dedupGroupViews: critério legível, o que fica/sai e espaço liberado, maior primeiro', () => {
+  const plan = {
+    t1Groups: 1, t2Groups: 1, candidates: [], bytesFreed: 0,
+    t1: [{ keep: { hash: 'a'.repeat(40), filename: 'Filme A.mkv', size: 100 }, kill: [{ filename: 'Filme A.mkv', size: 100 }] }],
+    t2: [{ keep: { serviceId: 7, filename: 'Filme B 1080p.mkv', size: 3000 }, kill: [{ filename: 'Filme.B.1080p.mkv', size: 3010 }, { size: 2990 }] }],
+  };
+  const groups = (dedupGroupViews as any)(plan);
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].kind, 'T2', 'o grupo que libera mais vem primeiro');
+  assert.equal(groups[0].bytesFreed, 6000);
+  assert.match(groups[0].criterion, /nome/);
+  assert.equal(groups[0].keep.ref, '#7', 'sem hash, o sobrevivente é citado pelo id');
+  assert.equal(groups[0].kills[1].name, '—', 'kill sem nome não some da lista');
+  assert.equal(groups[1].keep.ref, 'aaaaaaaa');
+  assert.match(groups[1].criterion, /hash/);
+  assert.deepEqual((dedupGroupViews as any)(null), []);
+});
+
+test('dedupPreviewSummary e limpezaHeader somam o espaço que a deduplicação libera', () => {
+  const preview = dedupPreviewSummary({ ok: true, plan: { t1: [], t2: [{ keep: {}, kill: [{ size: 1500 }, { size: 500 }] }] } });
+  assert.equal(preview.bytesFreed, 2000);
+  assert.equal(limpezaHeader(preview, null).bytesFreed, 2000);
+  assert.equal(dedupPreviewSummary({ ok: false, reason: 'x' }).bytesFreed, 0);
+});
+
+test('ViewLimpeza calcula a prévia sozinha ao abrir (leitura pura, sem toast)', () => {
+  const src = readFileSync(new URL('../../src/client/painel/view-limpeza.ts', import.meta.url), 'utf8');
+  assert.match(src, /postAction\(token, 'dedup-preview'\)/, 'prévia silenciosa por postAction direto');
+  assert.match(src, /useEffect\(\(\) => \{\s*refreshCatalog\(true\);\s*void refreshPreview\(\);/);
+  assert.match(src, /dedupGroupViews\(plan\)/);
 });

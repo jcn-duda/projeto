@@ -9,6 +9,7 @@ import {
   catalogSummary,
   catalogBucketRows,
   dedupPreviewSummary,
+  dedupGroupViews,
   limpezaHeader,
   nextCatalogState,
   type DedupPlanView,
@@ -67,42 +68,40 @@ export interface ViewLimpezaProps {
 
 const MUTED_LINE = 'margin: 0 0 var(--space-2); font-size: var(--font-floor); color: var(--muted);';
 
-/** Renderiza a prévia de dedup agrupada por keep/kill, paginada. Cada grupo
- * mostra o sobrevivente (FICA) e as linhas que saem (SAI) com checkbox. */
+/** Renderiza a prévia de dedup agrupada, paginada e ordenada por espaço
+ * liberado. Cada grupo diz POR QUE são o mesmo conteúdo, o que FICA e o que SAI,
+ * com tamanho — o operador decide olhando o plano, não o hash. */
 function renderDedupGroups(
   plan: DedupPlanView,
   page: number,
   pageSize: number,
   setPage: (n: number) => void,
 ) {
-  const allGroups = [
-    ...plan.t1.map((g: any) => ({ ...g, label: 'T1 (mesmo hash)' })),
-    ...plan.t2.map((g: any) => ({ ...g, label: 'T2 (mesmo arquivo)' })),
-  ];
+  const allGroups = dedupGroupViews(plan);
   const total = allGroups.length;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const clamped = Math.min(page, pages);
   const slice = allGroups.slice((clamped - 1) * pageSize, clamped * pageSize);
   return html`
-    ${slice.map((g: any) => {
-      const keepHash = g.keep?.hash ? String(g.keep.hash).slice(0, 8) : '#' + String(g.keep?.serviceId || '?');
-      const keepName = String(g.keep?.filename || '');
-      const kills = Array.isArray(g.kill) ? g.kill : [];
-      return html`
-        <div style="margin-bottom: var(--space-2); padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-xs);">
-          <div style="font-size: var(--font-floor); font-weight: 700; margin-bottom: var(--space-1);">
-            ${g.label} — FICA: <code>${keepHash}</code>
-            ${keepName ? html`<span class="painel-cell-release" style="margin-left: var(--space-2);" title=${keepName}>${keepName}</span>` : ''}
-          </div>
-          ${kills.map((k: any) => html`
-            <div style="font-size: var(--font-floor); color: var(--muted); padding-left: var(--space-3);">
-              ✕ <span class="painel-cell-release" title=${String(k.filename || '')}>${String(k.filename || '—')}</span>
-              (${formatBytes(Number(k.size || 0))})
-            </div>
-          `)}
+    ${slice.map((g) => html`
+      <div style="margin-bottom: var(--space-2); padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-xs);">
+        <div style="font-size: var(--font-floor); font-weight: 700; margin-bottom: var(--space-1);">
+          <span class="painel-badge painel-badge-neutral">${g.kind}</span>
+          libera ${formatBytes(g.bytesFreed)}
+          <span style="font-weight: 400; color: var(--muted); margin-left: var(--space-2);">${g.criterion}</span>
         </div>
-      `;
-    })}
+        <div style="font-size: var(--font-floor); padding-left: var(--space-3);">
+          ✓ FICA <code>${g.keep.ref}</code>
+          <span class="painel-cell-release" title=${g.keep.name}>${g.keep.name}</span>
+          ${g.keep.size ? `(${formatBytes(g.keep.size)})` : ''}
+        </div>
+        ${g.kills.map((k) => html`
+          <div style="font-size: var(--font-floor); color: var(--muted); padding-left: var(--space-3);">
+            ✕ SAI <span class="painel-cell-release" title=${k.name}>${k.name}</span> (${formatBytes(k.size)})
+          </div>
+        `)}
+      </div>
+    `)}
     <${Pager} page=${clamped} pages=${pages} total=${total} unit="grupo"
       onPrev=${() => setPage(clamped - 1)} onNext=${() => setPage(clamped + 1)} />
   `;
@@ -139,6 +138,18 @@ export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
     }
   };
 
+  // Prévia de dedup em SILÊNCIO: é leitura pura (nenhuma deleção), então a aba
+  // já abre sabendo quantas duplicatas e quantos GB há — antes, o resumo dizia
+  // "prévia pendente" até o operador lembrar de clicar.
+  const refreshPreview = async () => {
+    const token = getPainelState().token;
+    if (!token) return;
+    const res = await postAction(token, 'dedup-preview');
+    if (!res.ok) return;
+    const preview = dedupPreviewSummary(res.data);
+    if (preview.ok) setPreviewResult(preview);
+  };
+
   // A aba monta e carrega o relatório sob demanda. `catalog` saiu do poll vital
   // rápido: `catalogStatusEnv()` varre as linhas do catálogo (O(rows)) e não
   // precisa rodar a cada refresh; a ação `catalog-report` já existe.
@@ -148,11 +159,13 @@ export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
   // credencial nova. Se o prefixo mudar, é navegação nova (remonta a página).
   useEffect(() => {
     refreshCatalog(true);
+    void refreshPreview();
     return subscribePainelToken(() => {
       // Trocar de conta INVALIDA a prévia: o plano era da conta anterior, e o
       // botão destrutivo não pode aplicar kills calculados sobre outra credencial.
       setPreviewResult(null);
       refreshCatalog(true);
+      void refreshPreview();
     });
   }, []);
 
@@ -203,9 +216,10 @@ export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
       setFeedback({ text: `Falha: ${preview.reason}`, ok: false });
       return;
     }
-    setPreviewResult({ t1Groups: preview.t1Groups, t2Groups: preview.t2Groups, candidates: preview.candidates, t1: preview.t1, t2: preview.t2 });
+    setPreviewResult(preview);
+    setDedupPage(1);
     setFeedback({
-      text: `Plano calculado: ${preview.candidates.length} alvo(s) em ${preview.t1Groups} grupo(s) T1 e ${preview.t2Groups} grupo(s) T2`,
+      text: `Plano calculado: ${preview.candidates.length} alvo(s) em ${preview.t1Groups} grupo(s) T1 e ${preview.t2Groups} grupo(s) T2 · libera ${formatBytes(preview.bytesFreed)}`,
       ok: true,
     });
   };
@@ -229,6 +243,7 @@ export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
       setFeedback(null);
       setPreviewResult(null);
       await refreshCatalog(true);
+      await refreshPreview();
       return;
     }
     const error = actionError(outcome);
@@ -266,7 +281,7 @@ export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
         <div class="painel-summary-item">
           <span class="painel-summary-label">Duplicatas planejadas</span>
           <span class="painel-summary-value">
-            ${head.previewState === 'idle' ? 'prévia pendente' : `${head.duplicates} alvo(s)`}
+            ${!summary.ok ? '—' : head.previewState === 'idle' ? 'calculando…' : head.duplicates === 0 ? 'nenhuma' : `${head.duplicates} alvo(s) · ${formatBytes(head.bytesFreed)}`}
           </span>
         </div>
         <div class="painel-summary-item">
@@ -337,7 +352,7 @@ export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
                 Varrer e Limpar Mortos
               </button>
               <button class="painel-btn painel-btn-danger" disabled=${loading || !canApplyDedup(previewResult)} onClick=${handleDedupApply}>
-                ${previewResult ? `Aplicar Deduplicação (${previewResult.candidates.length})` : 'Aplicar Deduplicação'}
+                ${previewResult && previewResult.candidates.length ? `Aplicar Deduplicação (${previewResult.candidates.length} · ${formatBytes(head.bytesFreed)})` : 'Aplicar Deduplicação'}
               </button>
             </div>
           </div>
@@ -350,7 +365,7 @@ export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
           ? html`<p style=${MUTED_LINE}>Catálogo limpo — ${head.t1Groups + head.t2Groups} grupo(s) verificado(s).</p>`
           : html`
             <p style=${MUTED_LINE}>
-              T1 (mesmo hash): ${head.t1Groups} · T2 (mesmo arquivo): ${head.t2Groups} · Alvos: ${head.duplicates}
+              T1 (mesmo hash): ${head.t1Groups} · T2 (mesmo arquivo): ${head.t2Groups} · Alvos: ${head.duplicates} · Libera ${formatBytes(head.bytesFreed)}
             </p>
             ${renderDedupGroups(previewResult, dedupPage, DEDUP_PAGE_SIZE, setDedupPage)}
           `}
