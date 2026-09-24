@@ -353,13 +353,21 @@ describe('saude: debrid sem chave na requisição não é falha', () => {
     assert.equal(saudeVerdict({ ok: true }, { account: { ok: true } }, contaOk).ok, true);
   });
 
-  test('sem-debrid vira POR INSTALAÇÃO neutro, sem derrubar o veredito', () => {
+  test('sem-debrid com conta do operador medida ok fica VERDE, com o serviço dela', () => {
+    // Produção (DEBRID_ALLOW_ENV_KEY=false + DEBRID_OPERATOR_ENV_ACCOUNT=true):
+    // a requisição do painel não traz chave, mas o servidor mediu a conta.
     const info = debridInfo(semDebrid, null);
-    assert.equal(info.state, 'por-instalacao');
-    assert.equal(info.label, 'POR INSTALAÇÃO');
-    assert.equal(info.variant, 'neutral', 'configuração não pode pintar de vermelho');
-    // A conta do operador medida no servidor prova que existe debrid montado.
+    assert.equal(info.state, 'operador');
+    assert.equal(info.label, 'CONTA DO OPERADOR OK');
+    assert.equal(info.variant, 'ok');
+    assert.equal(info.service, '—', 'sem service/label na entrada, não inventa nome');
     assert.equal(info.operatorAccount, true);
+    const comNome = debridInfo({ ...semDebrid, accounts: { alldebrid: { ok: true, service: 'alldebrid' } } }, null);
+    assert.equal(comNome.service, 'alldebrid');
+    // Conta do operador que falhou não pinta verde: volta ao neutro.
+    const contaCaiu = debridInfo({ ...semDebrid, accounts: { alldebrid: { ok: false, reason: 'auth' } } }, null);
+    assert.equal(contaCaiu.state, 'por-instalacao');
+    assert.equal(contaCaiu.variant, 'neutral');
 
     const verdict = saudeVerdict({ ok: true }, semDebrid, null);
     assert.equal(verdict.ok, true, 'escolha de configuração não é alerta');

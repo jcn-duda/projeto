@@ -120,10 +120,10 @@ export function ViewSaude({ general, debrid, conta, searchFirst, indexers, onSel
             <span>Debrid (${dbrd.service})</span>
             <span class=${'painel-badge painel-badge-' + dbrd.variant}>${dbrd.label}</span>
           </div>
-          ${dbrd.state === 'por-instalacao' ? html`
+          ${dbrd.state === 'por-instalacao' || dbrd.state === 'operador' ? html`
             <p class="painel-action-note" style="margin: 0;">
               A chave do .env não é emprestada por padrão: cada instalação traz a sua.
-              ${dbrd.operatorAccount ? ' A conta do operador segue ativa no servidor.' : ''}
+              ${dbrd.operatorAccount ? ' A conta do operador (Chupim, Limpeza, varreduras) está verificada no servidor.' : ''}
             </p>
           ` : null}
           <div style="display: flex; justify-content: space-between; align-items: center;">

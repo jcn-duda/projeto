@@ -190,7 +190,10 @@ export function indexerCardBadge(summary: SaudeIndexerSummary): { text: string; 
  * "ATENÇÃO REQUERIDA" para sempre, e um alerta que nunca apaga é um alerta que
  * ninguém lê. Falha de verdade (chave recusada, serviço fora) continua `err`.
  */
-export type DebridState = 'conectado' | 'por-instalacao' | 'desconectado';
+// `operador`: a requisição não traz chave (por-instalação), mas a conta do
+// operador foi MEDIDA ok no servidor — é o estado normal de produção com
+// DEBRID_OPERATOR_ENV_ACCOUNT=true, e o cinza escondia a evidência boa na nota.
+export type DebridState = 'conectado' | 'operador' | 'por-instalacao' | 'desconectado';
 
 export interface SaudeDebridInfo {
   state: DebridState;
@@ -210,12 +213,15 @@ export function debridInfo(debrid: unknown, conta: unknown): SaudeDebridInfo {
   // Conta do operador medida no servidor: prova que existe debrid configurado
   // por trás, e é o que separa "escolha de configuração" de "nada montado".
   const accounts = asObject(d.accounts) || {};
-  const operatorAccount = Object.values(accounts).some(
-    (entry) => (asObject(entry) || {}).ok === true,
-  );
+  const operatorEntry = Object.values(accounts).map((entry) => asObject(entry) || {}).find((entry) => entry.ok === true);
+  const operatorAccount = Boolean(operatorEntry);
 
   if (c.ok === true || account.ok === true) {
     return { state: 'conectado', label: 'CONECTADO', variant: 'ok', service, operatorAccount };
+  }
+  if (String(account.reason || '') === 'sem-debrid' && operatorEntry) {
+    const operatorService = String(operatorEntry.service || operatorEntry.label || '') || service;
+    return { state: 'operador', label: 'CONTA DO OPERADOR OK', variant: 'ok', service: operatorService, operatorAccount };
   }
   if (String(account.reason || '') === 'sem-debrid') {
     return {
