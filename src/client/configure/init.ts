@@ -16,7 +16,7 @@ const INDEXER_STATUS_POLL_MS = 10000;
 // Preset de entrada quando /defaults.json falha; espelha os defaults do
 // servidor para a página não abrir vazia nem depender de rede.
 const DEFAULT_FALLBACK = {
-  providers: ['jackett'], qualities: [], maxResults: 40, minSeeders: 1,
+  providers: ['jackett'], qualities: ['2160p', '1080p', '720p'], maxResults: 40, minSeeders: 1,
   max2160p: 2, max1080p: 2, max720p: 2, max480p: 2, maxSd: 2, maxUnknown: 2, maxPerIndexer: 0,
   brReservedSlots: 6, brOnly: false, dubbedOnly: true,
   preferDubbed: true, excludeCam: false, maxSizeGb: 0,

@@ -18,7 +18,11 @@ export const searchSettings = () => ({
   // Mostra o indexer no `name`, além da linha de metadados. Alguns clientes
   // só exibem a fonte se ela vier neste campo, sem reconhecer o marcador ⚙️.
   streamNameShowSource: String(process.env.STREAM_NAME_SHOW_SOURCE || 'true') !== 'false',
-  qualityFilter: list(process.env.QUALITY_FILTER),
+  // Sem 480p e SD por padrão (decisão do operador, 2026-09-24). Env AUSENTE usa
+  // este padrão; `QUALITY_FILTER=` vazio de propósito volta a aceitar todas. O
+  // BR sem resolução passa pelo balde próprio, e o último recurso do
+  // sortAndLimit reabre SD/480p quando nada mais sobra.
+  qualityFilter: list(process.env.QUALITY_FILTER ?? '2160p,1080p,720p'),
   minSeeders: num(process.env.MIN_SEEDERS, 1),
   maxResults: num(process.env.MAX_RESULTS, 40),
   // 2 em todas (era 3; antes 6): decisão do operador em 2026-09-24 por lista
