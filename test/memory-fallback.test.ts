@@ -168,6 +168,40 @@ test('targets: mesmo hash com títulos distintos UNE as obras no filtro', () => 
   assert.equal(packWork?.passedFilter, 1, 'filtro marca a obra unida do pack (não só a última)');
 });
 
+test('captura: release de OUTRA temporada vai para a obra dela, não para a do pedido', () => {
+  // Indexer BR busca só o nome da série e devolve todas as temporadas. True
+  // Detective S01E01 (2026-09-24): 217 de 419 works eram de outra temporada.
+  const s04 = hex('4');
+  const s01 = hex('5');
+  const dnS04 = `${magnet(s04)}&dn=${encodeURIComponent('Serie.Teste.S04E05.1080p.WEB-DL.DUAL')}`;
+  const items = [
+    { title: 'Serie Teste - 4ª Temporada [1080p WEB-DL DUAL]', infoHash: s04, magnet: dnS04, seeders: 1, isBr: true },
+    { title: 'Serie Teste S01E01 1080p Dual', infoHash: s01, magnet: magnet(s01), seeders: 1, isBr: true },
+  ];
+  const ctx = { imdbId: 'tt702', season: 1, episode: 1, resetPassedFilter: true };
+  bank.captureItems(items, 'idx-br', ctx);
+  prepareCandidateStreams(items as any, { meta: { name: 'Serie Teste' }, imdbId: 'tt702', season: 1, episode: 1 } as any);
+  bank.flushNow();
+  const tuple = (w: any) => `${w.season}:${w.episode}`;
+  assert.deepEqual(bank.worksFor(s04).map(tuple), ['4:5'], 'S04E05 fica recuperável no próprio episódio');
+  assert.deepEqual(bank.worksFor(s01).map(tuple), ['1:1']);
+});
+
+test('seleção: linha legada de outra temporada é cortada antes dos tetos', () => {
+  // Linha gravada pela regra antiga: work 1:1 com magnet cujo dn é S04E05.
+  const legacy = hex('6');
+  const good = hex('7');
+  seed(legacy, 'idx-fail', { imdbId: 'tt703', season: 1, episode: 1 }, { title: 'Serie Teste 1080p', seeders: 50 });
+  const withDn = `${magnet(legacy)}&dn=${encodeURIComponent('Serie.Teste.S04E05.1080p')}`;
+  bank.captureItems([{ title: 'Serie Teste 1080p', infoHash: legacy, magnet: withDn, seeders: 50, isBr: true }], 'idx-fail', { imdbId: 'tt703', season: 4, episode: 5 });
+  bank.flushNow();
+  seed(good, 'idx-fail', { imdbId: 'tt703', season: 1, episode: 1 }, { title: 'Serie Teste S01E01 1080p', seeders: 1 });
+  config.magnetBank.fallbackMaxPerIndexer = 1;
+  const fb = collectFallbackItems({ type: 'series', imdbId: 'tt703', season: 1, episode: 1, liveHashes: new Set(), failedIndexers: new Set(['idx-fail']), allFailed: false });
+  assert.deepEqual(fb.items.map((i) => i.infoHash), [good], 'a vaga única fica com o episódio pedido');
+  assert.equal(fb.cut['episode-mismatch'], 1);
+});
+
 test('build: episódio errado do fallback é cortado como qualquer item', () => {
   seed(hex('f'), 'idx-fail', movieCtx('tt103'), { title: 'Serie Teste S01E02 1080p' });
   const item = { title: 'Serie Teste S01E02 1080p', infoHash: hex('f'), magnet: magnet(hex('f')), seeders: 5, fromFallback: true, fallbackIndexer: 'idx-fail' };

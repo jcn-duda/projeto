@@ -629,8 +629,16 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   `magnetbank.queue.dropped`.
 - **Obra da release.** `release-work.ts` (`releaseWorkTargets`) espelha o
   `destinoDe` do índice: o pack de temporada achado na busca de um episódio fica
-  recuperável para a temporada inteira. `markBankFilterOutcome`
-  (`magnet-bank-hook.ts`) grava o `passed_filter` da busca no stream-builder.
+  recuperável para a temporada inteira. A obra do PEDIDO só entra quando a
+  release cabe nela (`releaseFitsRequest`, título×`dn=` pela mesma
+  especificidade): os indexers BR buscam só o nome da série e devolvem todas as
+  temporadas, e gravar tudo no pedido deixou 217 de 419 works de OUTRA
+  temporada no True Detective S01E01 (2026-09-24). Release de outra obra vai
+  para a dela. O fallback repete o teste ANTES dos tetos
+  (`fallback.items.cut.episode-mismatch`), o que também neutraliza as linhas
+  legadas. `markBankFilterOutcome` (`magnet-bank-hook.ts`) grava o
+  `passed_filter` da busca no stream-builder — é o filtro de TÍTULO, não o de
+  episódio.
 
 **Fallback do acervo (Etapa 4).** `live-indexer-state.ts` acompanha o
 `onQueryResult` das consultas PRINCIPAIS do Jackett (a varredura pt-BR e o
@@ -676,7 +684,7 @@ Métricas: `magnetbank.engine.sql|memory`, `magnetbank.upsert`,
 `magnetbank.queue.dropped`, `magnetbank.memory.evicted` (despejos LRU, só na
 engine de memória), `magnetbank.flush.failed`, `fallback.error`,
 `fallback.items.injected`, `fallback.items.cut.<motivo>`
-(`lied`/`no-hash`/`live-dedupe`/`no-source`/`cap-indexer`/`cap-global`) e
+(`lied`/`no-hash`/`episode-mismatch`/`live-dedupe`/`no-source`/`cap-indexer`/`cap-global`) e
 `fallback.indexer.<id>` (cobertura por indexer). No `/stream-trace.json` a fase
 `fallback` tem stage e motivo próprios.
 

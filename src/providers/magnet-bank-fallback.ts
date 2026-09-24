@@ -29,6 +29,8 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import { indexerFallbackMetricKey } from '../utils/metric-id.js';
 import { allowedSourceIndexer } from './allowed-source-indexer.js';
+import { releaseFitsRequest } from '../utils/release-work.js';
+import { magnetDisplayName } from '../utils/title-normalization.js';
 
 export interface FallbackRequest {
   /** 'movie' | 'series' — filme só consulta a obra raiz. */
@@ -52,7 +54,7 @@ export interface FallbackResult {
 }
 
 /** Motivos de corte, na ordem em que são contados. */
-export type FallbackCut = 'lied' | 'no-hash' | 'live-dedupe' | 'no-source' | 'cap-indexer' | 'cap-global';
+export type FallbackCut = 'lied' | 'no-hash' | 'episode-mismatch' | 'live-dedupe' | 'no-source' | 'cap-indexer' | 'cap-global';
 
 /** Amostra de cortes no ledger: o teto global é 300 e a pré-seleção pode gerar
  * centenas — 20 preserva o diagnóstico sem consumir o payload das demais fases. */
@@ -149,6 +151,13 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
       const magnet = row.magnet;
       if (!magnet || !row.work || !magnet.hash) { if (row.work) countCut('no-hash'); continue; }
       if (magnet.lied) { countCut('lied', magnet); continue; }
+      // Linha gravada antes do roteamento por obra (release-work.ts) pode ser
+      // de outra temporada/episódio; cortar aqui, ANTES dos tetos, impede que
+      // ela ocupe a vaga de uma release do episódio pedido e morra no build.
+      if (!releaseFitsRequest(req, magnet.title, magnetDisplayName({ magnet: magnet.uri }) || undefined)) {
+        countCut('episode-mismatch', magnet);
+        continue;
+      }
       if (!magnets.has(magnet.hash)) { magnets.set(magnet.hash, magnet); works.set(magnet.hash, row.work); }
     }
 

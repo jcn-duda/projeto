@@ -7,12 +7,18 @@
 // de um episódio precisa ficar recuperável para QUALQUER episódio daquela
 // temporada — senão o fallback da Etapa 4 só acharia o pack se a busca repetisse
 // exatamente o episódio original. Aqui a release vira uma LISTA de obras:
-// a do pedido (nunca se perde) + a que o TÍTULO declara, quando é pack/coleção.
+// a do pedido (quando a release CABE nele) + a que o TÍTULO declara, quando é
+// pack/coleção.
+//
+// "Cabe" é o ponto que já sujou o banco: os indexers BR buscam só o nome da
+// série e devolvem TODAS as temporadas. Gravar tudo na obra do pedido deixou
+// 217 de 419 releases de OUTRA temporada no True Detective S01E01 (medido em
+// 2026-09-24), e o fallback lia e aplicava os tetos sobre elas antes do filtro
+// de episódio. Release que declara outra temporada/episódio vai para a obra
+// DELA (`routeWorkLocation`), não para a do pedido.
 //
 // Espelha `releaseIndex.destinoDe` de propósito (mesma régua): pack de uma
-// temporada → (S,-1); série inteira/faixa → (-1,-1). Episódio solto fica só na
-// obra do pedido — o fallback não precisa de work por episódio: a release foi
-// encontrada para aquele episódio e é ele que a busca repete.
+// temporada → (S,-1); série inteira/faixa → (-1,-1).
 //
 // O `dn=` do magnet vence o título quando é MAIS ESPECÍFICO (episódio único >
 // pack temporada > série/faixa > nada): post BR titula "4ª Temporada" e o
@@ -58,21 +64,40 @@ export function routeWorkLocation(request: WorkTarget, title: string, dn?: strin
   return { season, episode: null };
 }
 
+/** A release declarada (já escolhida entre título e dn) cobre o pedido? */
+function parsedFitsRequest(parsed: EpisodeParse, request: WorkTarget): boolean {
+  if (request?.season == null || parsed.complete || parsed.seasons.length === 0) return true;
+  if (!parsed.seasons.includes(request.season)) return false;
+  if (request.episode == null || parsed.episodes.length === 0) return true;
+  return parsed.episodes.includes(request.episode);
+}
+
 /**
- * Obras em que a release deve ser recuperável. Sempre inclui o pedido; para
- * pack de temporada/série completa acrescenta a obra declarada quando ela
- * difere do pedido. Filme (pedido sem temporada) devolve só o pedido.
- * `dn` opcional: mesma regra de especifidade do índice.
+ * A release pode servir o pedido? Falso só com PROVA de outra obra: título/dn
+ * sem temporada, pack da temporada e série completa cabem. Mesma escolha
+ * título×dn do roteamento — um post "1ª Temporada" cujo magnet é `S01E01` não
+ * serve o E02.
+ */
+export function releaseFitsRequest(request: WorkTarget, title: string, dn?: string): boolean {
+  if (request?.season == null) return true;
+  return parsedFitsRequest(chooseEpisodeParse(title, dn), request);
+}
+
+/**
+ * Obras em que a release deve ser recuperável: o pedido quando ela cabe nele,
+ * senão a obra que ela declara; para pack de temporada/série completa
+ * acrescenta a obra declarada quando ela difere do pedido. Filme (pedido sem
+ * temporada) devolve só o pedido. `dn` opcional: mesma regra de especifidade
+ * do índice.
  */
 export function releaseWorkTargets(title: string, request: WorkTarget, dn?: string): WorkTarget[] {
-  const out: WorkTarget[] = [{ season: request?.season ?? null, episode: request?.episode ?? null }];
-  if (request?.season == null) return out;
+  const asked: WorkTarget = { season: request?.season ?? null, episode: request?.episode ?? null };
+  if (request?.season == null) return [asked];
   const parsed = chooseEpisodeParse(title, dn);
+  const out: WorkTarget[] = [parsedFitsRequest(parsed, request) ? asked : routeWorkLocation(request, title, dn)];
   let declared: WorkTarget | null = null;
   // Mesma regra do `destinoDe`: série inteira/faixa cobre qualquer episódio;
   // uma temporada com pack/mais de um episódio é chave da temporada.
-  // Episódio único (mesmo via dn) NÃO acrescenta obra extra — o banco vivo
-  // mantém só o pedido; o índice é quem roteia o episódio declarado.
   if (parsed.complete || parsed.seasons.length > 1) declared = { season: null, episode: null };
   else if (parsed.seasons.length === 1 && parsed.episodes.length !== 1) {
     declared = { season: parsed.seasons[0], episode: null };
