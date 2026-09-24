@@ -185,9 +185,9 @@ function canAutoFetchBr({ autoFetchBr }: AutofetchOptions = {}, adapter?: Debrid
 
 /**
  * BR com áudio prometido ou provado — vagas P2P do `showUncachedBr`.
- * Mais largo que `brDubbedPool` (só prova): claim precisa LISTAR sob d:1+bu,
- * senão a 1ª abertura some atrás do cachedOnly. LEGENDADO/origem sem claim
- * continua fora. Autofetch/Chupim segue só com prova (`brDubbedPool`).
+ * Mesmo critério de áudio do `brDubbedPool` (prova ou claim): claim precisa
+ * LISTAR sob d:1+bu, senão a 1ª abertura some atrás do cachedOnly.
+ * LEGENDADO/origem sem claim continua fora.
  */
 function brListableDubPool(streams: Stream[] = []) {
   return streams.filter(

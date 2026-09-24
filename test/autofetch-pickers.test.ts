@@ -191,6 +191,25 @@ test('pickBrDubbedCandidate ordena por dublado→qualidade→seeders, independen
   assert.equal(pickBrDubbedCandidate([leg1080, dub720]).infoHash, B);
 });
 
+test('pool BR aceita promessa do post: dublado fora do cache vira candidato', () => {
+  // True Detective S03E01 (2026-09-24): o único dublado era "E01 [720p WEB-DL
+  // DUBLADO]", sem prova de arquivo (ela só nasce depois do download). Exigir
+  // `_dubbed` deixava o Chupim sem candidato em toda busca.
+  const claim720 = stream(A, { _br: true, _dubClaim: true, _dubbed: false, _quality: '720p', _seeders: 1 });
+  assert.equal(pickBrDubbedCandidate([claim720])?.infoHash, A);
+  assert.deepEqual(pickBrDubbedByTargetQualities([claim720]).map((s) => s.infoHash), [A]);
+  // Prova de arquivo vence a promessa na mesma faixa.
+  const proven720 = stream(B, { _br: true, _dubbed: true, _quality: '720p', _seeders: 1 });
+  assert.equal(pickBrDubbedCandidate([claim720, proven720]).infoHash, B);
+  // Legendado (sem claim), promessa que mentiu e global sem `_br` continuam fora.
+  const leg = stream(C, { _br: true, _dubClaim: false, _dubbed: false, _quality: '1080p' });
+  const lied = stream(C, { _br: true, _dubClaim: true, _lied: true, _quality: '1080p' });
+  const global = stream(C, { _br: false, _dubClaim: true, _quality: '1080p' });
+  assert.equal(pickBrDubbedCandidate([leg]), null);
+  assert.equal(pickBrDubbedCandidate([lied]), null);
+  assert.equal(pickBrDubbedCandidate([global]), null);
+});
+
 test('pickAnyDubbedCandidates só pega global com marca de áudio e sem CAM', () => {
   const dual = stream(A, { _dubbed: true, _quality: '1080p', _seeders: 2 });
   const cam = stream(B, { title: 'Filme CAM Dublado 1080p', _dubbed: true, _quality: '1080p', _seeders: 99 });

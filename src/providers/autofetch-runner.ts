@@ -132,7 +132,9 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit, rare }: Aut
         // Proteção durável SÓ no pool BR do AllDebrid com flags reais (não
         // `_lied`): é o acervo que o usuário quer retido. `any`/`seeds` não
         // passam — dublagem global ou melhor swarm não viram acervo a reter.
-        if (adapter.id === 'alldebrid' && pool === 'br' && Boolean(stream._br) && Boolean(stream._dubbed) && !stream._lied) {
+        // A promessa conta como o pool: sem retenção, o `dropReady` da busca
+        // seguinte apagava da conta o dublado que o Chupim acabou de esquentar.
+        if (adapter.id === 'alldebrid' && pool === 'br' && Boolean(stream._br) && Boolean(stream._dubbed || stream._dubClaim) && !stream._lied) {
           held.protectBr(adapter.id, account, h);
         }
         const poolLabel = pool === 'any'

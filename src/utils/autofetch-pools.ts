@@ -49,7 +49,8 @@ function isAutofetchTargetQuality(q: string): q is AutofetchTargetQuality {
  * - só olha o que tem infoHash (stream já resolvido não tem o que enfileirar);
  * - cobertura é POR qualidade-alvo (720/1080/4K): 720 Dual ⚡ não bloqueia
  *   o upgrade 1080/4K; as três faixas cobertas é que param o Chupim;
- * - só `_dubbed` (prova de arquivo): claim sem evidence não esquenta o pool.
+ * - `_dubbed` (prova de arquivo) ou `_dubClaim` (promessa do post BR); o
+ *   provado vence no desempate.
  *
  */
 function brDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
@@ -60,11 +61,13 @@ function brDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
     (s) => s && s.infoHash && !s._fromFallback && s._br && sourceFromTitle(s.title || s.name || '') !== 'CAM',
   );
   if (br.length === 0) return [];
-  const tagged = br.filter((s) => s._dubbed);
-  // Só prova de arquivo: claim sem evidence não esquenta o pool `br` nem
-  // conta como cobertura cached (regra claim≠proven). Sem tagged → vazio;
-  // a cascata cai em any/seeds.
-  const candidates = tagged;
+  // Prova de arquivo OU promessa do post BR. Exigir só `_dubbed` travava o
+  // Chupim: a prova nasce do play/auditoria, que só existe DEPOIS do download,
+  // então dublado fora do cache nunca virava candidato (True Detective S03E01,
+  // 2026-09-24: 37 buscas sem nenhum enqueue). O `_dubClaim` já exclui `dn=` de
+  // cena EN e `lie`; se o arquivo mentir, o play grava `lie` e o hash sai. O
+  // provado continua na frente pelo sort abaixo.
+  const candidates = br.filter((s) => (s._dubbed || s._dubClaim) && !s._lied);
 
   // Pré-computado uma vez: o sort consultaria o mesmo parse n·log n vezes.
   const packOf = season == null
