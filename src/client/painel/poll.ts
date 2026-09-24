@@ -20,11 +20,7 @@ import { fetchStatus } from './api.js';
 // escrita): o poll repete a MESMA foto e a varredura não se repete. É o memo
 // que torna este bloco vital — sem ele, o lugar seria o carregamento sob
 // demanda do card (como `catalog`, O(rows) via `catalog-report`).
-//
-// `typesafe` alimenta a aba Jev (fila, orçamento e concordância das duas
-// perguntas shadow): bloco barato — leitura O(1)/O(adapters) de snapshots em
-// memória, sem rede e sem disco.
-export const VITAL_BLOCKS = ['general', 'searchFirst', 'indexers', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics', 'cache', 'magnetdb', 'magnetBank', 'typesafe'];
+export const VITAL_BLOCKS = ['general', 'searchFirst', 'indexers', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics', 'cache', 'magnetdb', 'magnetBank'];
 
 let inFlight = false;
 let timerId: any = null;

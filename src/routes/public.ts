@@ -74,8 +74,6 @@ const CLIENT_ASSETS = [
   'client/painel/view-magnets.js',
   'client/painel/bank-model.js',
   'client/painel/view-magnet-bank.js',
-  'client/painel/jev-model.js',
-  'client/painel/view-jev.js',
   'client/painel/limpeza/catalogo-model.js',
   'client/painel/limpeza/view-catalogo.js',
   'client/painel/limpeza/view-manutencao.js',

@@ -94,7 +94,7 @@ async function checkCached(
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed, dubLieShadow }: PlayHint = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
   const form = new FormData();
   form.append('magnet', magnetForPlay(infoHash));
   form.append('seed', '3'); // não semear: só queremos o link de leitura
@@ -125,8 +125,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
   }));
   const file = pickFile(files, { season, episode, work });
   recordFileEvidence(infoHash, files);
-  // `dubLieShadow` só chega pelo tail audit (não há no hint assinado do play).
-  assertDubbedFiles(files, Boolean(dubbed), dubLieShadow);
+  assertDubbedFiles(files, Boolean(dubbed));
   if (!file) return null;
 
   const dl = await call(apiKey, '/torrents/requestdl', {

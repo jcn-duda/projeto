@@ -49,13 +49,7 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // v14: `_dubClaim` (promessa de título) ≠ `_dubbed` (prova de arquivo).
   // Listas v13 pintavam chip/prioridade/Chupim com a promessa e, sob d:1,
   // ou esvaziavam a 1ª abertura ou tratavam mentiroso como DUB confiável.
-  // v15: a lista pronta carrega a CLASSIFICAÇÃO do título (`_br`/`_dubbed`/
-  // `_dubClaim`) e o overlay Jev gateado (TYPESAFE_OVERLAY_ENABLED, ETAPA C)
-  // pode derrubar a prova do generic DUB isolado na leitura viva do cache
-  // `tsj` — sem o bump, listas servidas antes do overlay congelariam o rótulo
-  // antigo até o TTL. Para o overlay, o índice (`idx`) NÃO bumpa: a
-  // classificação dele é gravada com {overlay:false} (determinística, ver
-  // release-index.ts). O bump v11 abaixo é da guarda determinística de faixa.
+  // v15: bump do overlay Jev (removido); mantido só na história da versão.
   // v16: a guarda do rutracker passou a aceitar FAIXA de anos
   // (`[1999-2003, País, …] Dub`), que a v13 deixava escapar — medido no corpus
   // do container (2026-09-22): `The Matrix: Trilogy [1999-2003, …] Dub` vinha
@@ -161,14 +155,6 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // Resolução medida no cabeçalho do vídeo, por arquivo
   // (`vres:v1:<hash>:<digest do caminho>`, registro `{ q, w, h }`).
   vres: 'v1',
-  // Julgamento CRU do TypeSafe/System One, runtime SHADOW-ONLY
-  // (`tsj:v1:<sha256(título normalizado|model|promptVersion)>`, registro
-  // `{ n, m, at }` — noul cru, model, epoch ms). Sem título, sem chave, sem
-  // config na chave/valor. O fingerprint já isola model+prompt (bumpar a
-  // pergunta troca de chave sozinho); bumpar AQUI é só para mudar o FORMATO do
-  // valor. Default OFF do runtime: kill-switch desligado não lê nem escreve
-  // este namespace (docs/TYPESAFE_SYSTEM_ONE.md).
-  tsj: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

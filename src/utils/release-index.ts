@@ -19,7 +19,7 @@ import config from '../config.js';
 import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import { prefix } from './cache-keys.js';
-import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio, looksPtBr } from './format.js';
+import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio } from './format.js';
 import { magnetDisplayName } from './title-normalization.js';
 import { bankRowsForMediaSource, mergeMediaSource } from './release-index-media.js';
 import { routeWorkLocation } from './release-work.js';
@@ -117,20 +117,10 @@ function record(
       if (prior && prior.seenAt >= now && !promotesObserved) continue;
       if (!prior) novos.add(hash);
       // DUAL sem PT explícito não vale como dublado fora dos sites BR (toStremioStream).
-      // O item BRUTO chega com o isBr da LISTAGEM — que o overlay Jev (gateado)
-      // pode ter derrubado ao vivo num generic DUB isolado. Aqui o campo
-      // PERSISTE por semanas: reclassifica o título com {overlay:false} para o
-      // acervo nascer determinístico (igual ao legado) em QUALQUER produtor
-      // (jackett/colhedor/autofetch) — sem bump de namespace e sem tocar a
-      // listagem, que reclassifica em toStremioStream com o overlay.
-      const isBr = Boolean(item.isBr) || looksPtBr(title, { overlay: false }) || Boolean(prior?.isBr);
-      // {overlay:false}: o índice PERSISTE `dubbed` por semanas — a
-      // leitura viva do cache Jev (overlay gateado) não pode reescrever
-      // retroativamente o acervo, então a classificação do idx fica
-      // determinística (igual ao legado) e NÃO exige bump de namespace.
+      const isBr = Boolean(item.isBr) || Boolean(prior?.isBr);
       const classifiedDubbed = isBr
-        ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title, { overlay: false })))
-        : explicitPtAudio(title, { overlay: false });
+        ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title)))
+        : explicitPtAudio(title);
       // No autofetch a classificação já atravessou toStremioStream e pode incluir
       // prova de arquivo; reclassificar só pelo título perderia essa evidência.
       const dubbed = itemSource === 'autofetch' && item.dubbed !== undefined

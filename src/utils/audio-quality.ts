@@ -1,15 +1,6 @@
 import { TECH_NOISE } from './release-matching.js';
 import { hasPtSigns, brOriginMark } from './br-origin.js';
 import { genericDubProvesPt, hasPtAudioMark, strongEnSceneMark, dubbedLieVerdict, foreignLangNamedForBucket } from './audio-cleanup.js';
-// ÚNICO módulo de decisão liberado à fachada `src/ai/` (grafo travado por
-// test/typesafe-shadow-graph.test.ts): o overlay Jev (ETAPA C, cache-only) só
-// toca o termo FRACO `genericDubProvesPt` dentro de `explicitPtAudio`, abaixo.
-import { overlayDropsDub } from '../ai/index.js';
-
-/** Opção de chamada: default APLICA o overlay (respeita o kill-switch
- * `TYPESAFE_OVERLAY_ENABLED`); `{ overlay: false }` trava o comportamento
- * legado — usado nos caminhos determinísticos/destrutivos. */
-type OverlayOpt = { overlay?: boolean };
 
 // Resolução que o título não informa. Balde e cota próprios, separados do SD.
 const UNKNOWN_QUALITY = 'sem resolução';
@@ -152,71 +143,36 @@ function editionFromTitle(title = '') {
   return '';
 }
 
-/** Marcador de LEGENDA (sub) no título já normalizado — compartilhado por
- * `explicitPtAudio` e `weakGenericDubOnly` (mesma leitura, sem regex duplicada). */
-function explicitSubMark(t: string): boolean {
-  return (
-    /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
-    /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t)
-  );
-}
-
-/**
- * Marca PT FORTE (prova positiva de áudio PT): dublado/nacional/dub-br declarado
- * ou PT-BR explícito que não seja legenda. FONTE ÚNICA do termo forte — o
- * overlay Jev só alcança o termo FRACO, então `weakGenericDubOnly` reusa ESTA
- * função em vez de repetir o regex.
- *
- * `DUBLAD[OA]S?` exige só que não haja LETRA colada (`\b` morria com a resolução
- * grudada: "Dublado720p mp4" é real). Dígito colado não desfaz a afirmação do
- * dono; letra colada desfaz (evita casar dentro de outra palavra).
- */
-function strongPtAudioMark(t: string, isExplicitSub: boolean): boolean {
-  return (
-    /(?<![A-Z])DUBLAD[OA]S?(?![A-Z])/.test(t) ||
-    /\b(DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR)\b/.test(t) ||
-    (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub)
-  );
-}
-
-function explicitPtAudio(title = '', opts: OverlayOpt = {}) {
+function explicitPtAudio(title = '') {
   // Mesma troca do audioFromTitle: `_` é separador ("… DUAL_Misso") e o \b
   // não enxerga fronteira dentro de caractere de palavra.
   const t = title.toUpperCase().replace(/_/g, ' ');
-  const isExplicitSub = explicitSubMark(t);
+  const isExplicitSub =
+    /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
+    /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
+
   const isGenericDub = genericDubProvesPt(t);
-  const marcaForte = strongPtAudioMark(t, isExplicitSub);
 
-  // ETAPA C — o overlay Jev só toca o termo FRACO (generic DUB isolado).
-  // Marca forte => true SEM IA; sem generic DUB => false; só no generic DUB
-  // isolado a negativa CONFIANTE em cache (noul <= 0.15) derruba true->false,
-  // e ausência de cache preserva true — monotônico, nunca false->true. Com o
-  // kill-switch OFF (ou {overlay:false}) o caminho é byte-a-byte o legado.
-  if (marcaForte) return true;
-  if (!isGenericDub) return false;
-  if (opts.overlay === false) return true;
-  return !overlayDropsDub(title);
-}
-
-// Convenção de post BR: prefixo "DUBLADA E DUAL" (mesmo em botão LEGENDADA) — recorte único.
-const stripDubConvention = (t: string): string => t.replace(/\bDUBLAD[OA]\s+E\s+DUAL\b/g, ' ');
-
-/**
- * Termo FRACO isolado: generic DUB sem marca PT forte — o ramo em que o
- * overlay atua. O shadow prioriza `weak` medindo o título SEM "DUBLADA E DUAL"
- * (audioFromTitle a recorta), reusando `strongPtAudioMark`/`genericDubProvesPt`.
- */
-function weakGenericDubOnly(title = ''): boolean {
-  const t = stripDubConvention(title.toUpperCase().replace(/_/g, ' '));
-  if (strongPtAudioMark(t, explicitSubMark(t))) return false;
-  return genericDubProvesPt(t);
+  return (
+    // `DUBLAD[OA]S?` sai do `\b` e passa a exigir só que não haja LETRA colada.
+    // Com `\b` o marcador morria quando o release grudava a resolução no fim:
+    // "Tucker e Dale contra o mal Dublado720p mp4" é real e está no índice de
+    // produção — entrou como isBr=false/dubbed=false, um falso negativo mudo
+    // numa fonte dublada. Dígito colado não desfaz a afirmação do dono; letra
+    // colada desfaz (evita casar dentro de outra palavra). O `S?` alinha com o
+    // PT_VOCAB do br-origin, que já aceitava o plural.
+    /(?<![A-Z])DUBLAD[OA]S?(?![A-Z])/.test(t) ||
+    /\b(DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR)\b/.test(t) ||
+    isGenericDub ||
+    (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub)
+  );
 }
 
 /**
  * Áudio é a informação que mais importa neste addon (foco em dublado) e os
  * sites BR a escrevem no título. Sem ela o usuário abre o torrent pra descobrir.
  */
-function audioFromTitle(title = '', opts: OverlayOpt = {}) {
+function audioFromTitle(title = '') {
   // O blob de tags do fim não descreve áudio, mas pode citar "DUAL" entre as
   // tags — classifica sobre o título sem a cauda.
   // `_` é separador de fato nos posts BR ("… x264 DUAL_Misso"): dentro do \b
@@ -230,13 +186,13 @@ function audioFromTitle(title = '', opts: OverlayOpt = {}) {
   // o título é legendado — o prefixo do post não pode mentir melhor que o
   // botão. Um DUBLADO/DUAL FORA da frase ("... COMPLETA DUBLADA Dual 1080P")
   // mantém o comportamento de sempre.
-  const semConvencao = stripDubConvention(t);
+  const semConvencao = t.replace(/\bDUBLAD[OA]\s+E\s+DUAL\b/g, ' ');
   const isExplicitSub =
     /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(semConvencao) ||
     /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(semConvencao);
-  const isExplicitDub = explicitPtAudio(semConvencao, opts);
+  const isExplicitDub = explicitPtAudio(semConvencao);
 
-  if (isExplicitSub && explicitPtAudio(t, opts) && !isExplicitDub) return 'Legendado';
+  if (isExplicitSub && explicitPtAudio(t) && !isExplicitDub) return 'Legendado';
 
   // Dual / Multi áudio. MULTI sozinho entra aqui: o comentário do
   // hasExplicitForeignAudio já dizia que MULTI carrega a faixa original e não
@@ -263,10 +219,7 @@ function audioFromTitle(title = '', opts: OverlayOpt = {}) {
 // faixa original e não provam que o torrent não serve ao usuário.
 function hasExplicitForeignAudio(title = '') {
   const t = String(title).toUpperCase();
-  // Condenação destrutiva NÃO é influenciada pelo overlay Jev ({overlay:false}):
-  // a lista mínima que apaga da conta não pode ter a absolvição do generic DUB
-  // derrubada por IA — a influência do overlay é só de ELEGIBILidade na listagem.
-  if (explicitPtAudio(title, { overlay: false })) return false;
+  if (explicitPtAudio(title)) return false;
   // Esta lista é OUTRA coisa da guarda FOREIGN_DUB_LANG_RE: aqui é EVIDÊNCIA de
   // idioma estrangeiro (prova positiva que autoriza condenar), não guarda de
   // marcador PT — por isso a assimetria é deliberada, e por isso esta lista é
@@ -290,15 +243,15 @@ function hasExplicitForeignAudio(title = '') {
  * só conta com o PT explícito ao lado. Reusa os classificadores de áudio já
  * calibrados, em vez de uma segunda lista que divergiria.
  */
-function looksPtBr(title = '', opts: OverlayOpt = {}) {
-  const audio = audioFromTitle(title, opts);
+function looksPtBr(title = '') {
+  const audio = audioFromTitle(title);
   if (audio === 'Dublado' || audio === 'Nacional') return true;
   // `Dual` SOZINHO segue ambíguo (invariante 8.12): `hasPtSigns` entra em
   // CONJUNÇÃO, nunca no lugar da marca de áudio. Sem isto a release BR escrita
   // "Dual Áudio" (em vez de "Dublado") não era reconhecida e sumia da lista na
   // disputa de cota. Medição e cadeia causal em AGENTS.md, "Dual + título em
   // português".
-  return audio === 'Dual' && (explicitPtAudio(title, opts) || hasPtSigns(title));
+  return audio === 'Dual' && (explicitPtAudio(title) || hasPtSigns(title));
 }
 
 type AudioBucket = 'dub' | 'dual' | 'pt' | 'lixo';
@@ -321,13 +274,8 @@ type AudioBucket = 'dub' | 'dual' | 'pt' | 'lixo';
  * e Dual com PT ao lado sobe para `dub` antes daqui (looksPtBr).
  */
 function audioBucket(title = ''): AudioBucket {
-  // Catálogo/triagem da Limpeza é PERSISTIDO e revisado à mão: o balde chama
-  // os DOIS classificadores com {overlay:false} — o cache Jev vivo não pode
-  // reescrever retroativamente o lado de um título (o `dub` que vira `lixo`
-  // por cache negativo some da revisão humana). A influência do overlay é só
-  // de ELEGIBILIDADE na listagem, nunca no catálogo gravado.
-  if (looksPtBr(title, { overlay: false })) return 'dub';
-  if (audioFromTitle(title, { overlay: false }) === 'Dual') return foreignLangNamedForBucket(title) ? 'lixo' : 'dual';
+  if (looksPtBr(title)) return 'dub';
+  if (audioFromTitle(title) === 'Dual') return foreignLangNamedForBucket(title) ? 'lixo' : 'dual';
   if (hasPtSigns(title) || brOriginMark(title)) return 'pt';
   return 'lixo';
 }
@@ -350,10 +298,8 @@ type ForeignVerdict = 'absolve' | 'condena' | 'unknown';
 function foreignVerdict(filename = '', videoPaths: string[] = []): ForeignVerdict {
   const candidates = [String(filename || ''), ...videoPaths.map(String)].filter(Boolean);
   // brOriginMark (8.4) entra no lado que ABSOLVE: origem BR no nome protege
-  // mesmo sem marca de áudio — condenar aqui apaga acervo da conta. O lado de
-  // absolvição fica travado no legado ({overlay:false}): o veredito alimenta
-  // limpeza que APAGA, e a IA não pode retirar a proteção do generic DUB.
-  const temSinalPt = candidates.some((p) => looksPtBr(p, { overlay: false }) || hasPtSigns(p) || hasPtAudioMark(p) || brOriginMark(p));
+  // mesmo sem marca de áudio — condenar aqui apaga acervo da conta.
+  const temSinalPt = candidates.some((p) => looksPtBr(p) || hasPtSigns(p) || hasPtAudioMark(p) || brOriginMark(p));
   if (temSinalPt) return 'absolve';
   // Dublagem declarada no título (DUB/DUBBED/DUBLADO…): o dono afirma que o
   // áudio É dublado — o idioma pode ser qualquer um, mas não é prova de que
@@ -373,6 +319,38 @@ function compactAudio(audio = '') {
   return '';
 }
 
+const TRACKER_LABEL_MAX = 14;
+
+/**
+ * Nome da fonte para a coluna estreita: o TLD não ajuda a reconhecer o site e,
+ * passando de TRACKER_LABEL_MAX, o rótulo empurra o seeder para fora.
+ *
+ * A escada existe porque cortar seco parte a palavra no meio ("kickasstorrents"
+ * virava "kickasstorrent"), e nome truncado assim é pior que nome curto: o
+ * usuário lê como se fosse outra fonte.
+ */
+function compactTracker(tracker = '') {
+  let label = String(tracker).trim().replace(/(?:\.[a-z]{2,})+$/i, '');
+  if (label.length <= TRACKER_LABEL_MAX) return label;
+
+  // Todos esses sites repetem "torrent(s)" no nome — é a parte que menos
+  // identifica ("ComandoTorrents" → "Comando", como o Torrentio exibe).
+  const withoutSuffix = label.replace(/[\s_-]*torrents?$/i, '');
+  if (withoutSuffix.length >= 4) label = withoutSuffix;
+  if (label.length <= TRACKER_LABEL_MAX) return label;
+
+  // Última fronteira que ainda cabe: separador ou transição camelCase
+  // ("NerdFilmesTorrent" → "NerdFilmes"). Sobrando menos de 4 chars o corte
+  // não identifica mais nada, e aí o corte seco é menos ruim.
+  const window = label.slice(0, TRACKER_LABEL_MAX + 1);
+  const boundaries = [...window.matchAll(/[\s_-]+|(?<=[a-z0-9])(?=[A-Z])/g)]
+    .map((m) => m.index)
+    .filter((index) => index >= 4);
+  if (boundaries.length) return label.slice(0, boundaries[boundaries.length - 1]);
+
+  return label.slice(0, TRACKER_LABEL_MAX);
+}
+
 export {
   UNKNOWN_QUALITY,
   stripQualityTagBlob,
@@ -380,9 +358,6 @@ export {
   sourceFromTitle,
   editionFromTitle,
   explicitPtAudio,
-  // Termo FRACO isolado (generic DUB sem marca forte): o produtor shadow usa
-  // isto para a camada `weak` — o único caso que o overlay Jev pode derrubar.
-  weakGenericDubOnly,
   hasPtAudioMark,
   strongEnSceneMark,
   dubbedLieVerdict,
@@ -392,8 +367,7 @@ export {
   audioBucket,
   foreignVerdict,
   compactAudio,
+  compactTracker,
 };
 export type { AudioBucket, ForeignVerdict };
 export { hasPtSigns, brOriginMark } from './br-origin.js';
-// Movido pela catraca de 400; reexportado para o consumidor (stream-display).
-export { compactTracker } from './stream-labels.js';

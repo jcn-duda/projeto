@@ -4,10 +4,6 @@ import { looksMultiWorkFiles } from './file-selector.js';
 import * as releaseIndex from '../utils/release-index.js';
 import type { DebridFile } from './common.js';
 import { recordFileSizes } from './file-sizes.js';
-// Fachada ÚNICA de src/ai/ permitida fora dela (grafo travado por
-// test/typesafe-shadow-graph.test.ts): a medição shadow da pergunta 2 mora na
-// IA, mas o veredito que a alimenta nasce AQUI — e é só métrica.
-import { enqueueDubLieJudgment } from '../ai/index.js';
 
 /** Vídeos que são conteúdo: sem sample e sem a propaganda do site. */
 function contentPaths(files: DebridFile[]) {
@@ -19,25 +15,11 @@ function contentPaths(files: DebridFile[]) {
 /**
  * O adaptador já recebeu estes arquivos para resolver o play; só então existe
  * prova suficiente para confrontar a promessa `_dubbed` da listagem.
- *
- * `shadow` (título do post + indexer de origem) liga a medição shadow da
- * pergunta 2 (`is_dub_lie`) com o veredito REAL desta função — os DOIS lados:
- * mentiu (throw abaixo) e honesto (retorno sem throw). Só o tail audit passa
- * o campo (o candidato é quem sabe a obra/indexer); o play interativo não
- * carrega título/indexer no hint assinado, então não mede. Fire-and-forget em
- * try/catch: qualquer falha da IA não pode afetar o play.
  */
-function assertDubbedFiles(files: DebridFile[], promisedDubbed = false, shadow?: { title: string; indexer: string } | null) {
+function assertDubbedFiles(files: DebridFile[], promisedDubbed = false) {
   if (!promisedDubbed) return;
   const paths = contentPaths(files).map((f) => f.path);
   const verdict = dubbedLieVerdict(paths, promisedDubbed);
-  if (shadow?.title) {
-    try {
-      enqueueDubLieJudgment(shadow.title, shadow.indexer || '', paths, verdict.lie);
-    } catch {
-      // Fail-open: enfileiramento é observabilidade, nunca derruba o play.
-    }
-  }
   if (verdict.lie) {
     throw new DubLieError({
       matchedGroup: verdict.matchedGroup,
@@ -87,9 +69,7 @@ function recordFileEvidence(infoHash: string, files: DebridFile[]) {
   // dublado em site BR"). Um veredito paralelo aqui divergiria dela — e
   // divergiu: `DUAL`, que é como os sites BR nomeiam o dublado, não casa nos
   // marcadores PT do audit de mentira, e o dublado do S03E03 saía sem áudio.
-  // {overlay:false}: esta prova PERSISTE (idx `FileEvidence.a` e catálogo) — o
-  // cache Jev vivo não pode reescrever retroativamente o que o arquivo provou.
-  const audio = names.map((name) => audioFromTitle(name, { overlay: false })).find(Boolean) || '';
+  const audio = names.map((name) => audioFromTitle(name)).find(Boolean) || '';
   // Release de cena reconhecida é a prova NEGATIVA: mesmo sem rótulo de áudio,
   // "H264-METCON" não é dublado, e sem isso ele continuaria empatado com o
   // dublado no rótulo "BR" do indexer.

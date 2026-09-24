@@ -12,9 +12,7 @@ import {
   autofetchPause, autofetchDrain, autofetchConfigGet, autofetchConfigSet, autofetchConfigReset,
 } from './dashboard-actions-autofetch.js';
 import { autofetchSuppressedGet, autofetchSuppressedDrain } from './dashboard-actions-autofetch-suppressed.js';
-import { jevPause, jevResume, jevDrain, jevCooldownReset, jevDisagreements } from './dashboard-actions-jev.js';
 import { magnetInspect, magnetClearBad, magnetSummary, magnetBankSummary, magnetBankSearch } from './dashboard-actions-magnet.js';
-import { debridAccountTest } from './dashboard-actions-account.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -43,6 +41,10 @@ const DESTRUCTIVE_ACTIONS = new Set([
   'manual-delete',
   'magnet-clear-bad',
 ]);
+
+// Teto da chave no corpo do teste de conta: credencial tem dezenas de
+// caracteres; 512 cobre folgado e impede payload gigante contra a API.
+const MAX_TEST_KEY_LENGTH = 512;
 
 // `max` do corpo: número finito positivo vira inteiro; qualquer outra coisa
 // vira undefined (sem teto). Mesma normalização que as ações já aplicavam —
@@ -176,10 +178,52 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json({ ok: true, action, ...result });
   },
 
-  // Teste de conta (Fase 1 do debrid configurável): handler em
-  // dashboard-actions-account.js — diagnóstico de credencial ANTES de salvar,
-  // sem memo, sem persistir e sem trocar config de instalação.
-  'debrid-account-test': debridAccountTest,
+  // Teste de conta NÃO destrutivo e SEM estado (Fase 1 do debrid configurável):
+  // valida {service, key} contra o registry, consulta a saúde da chave
+  // informada e devolve payload seguro. De propósito NÃO memoiza (o memo do
+  // painel serve só às contas já configuradas), NÃO persiste nada (davail/
+  // magnetdb/ledger intocados) e NÃO troca config de instalação alguma — é
+  // diagnóstico de credencial ANTES de salvar, não aplicação dela. Não entra
+  // em DESTRUCTIVE_ACTIONS: nada na conta é criado, modificado ou apagado.
+  'debrid-account-test': async ({ services, req, res, action }) => {
+    const service = typeof req.body?.service === 'string' ? req.body.service.trim() : '';
+    const key = typeof req.body?.key === 'string' ? req.body.key.trim() : '';
+    const adapter = service ? services.debrid.BY_ID.get(service) : undefined;
+    if (!adapter) {
+      return res.status(400).json({
+        ok: false,
+        action,
+        reason: 'servico-desconhecido',
+        error: 'serviço desconhecido; use um id do registry de debrid',
+        fix: 'escolha um dos serviços suportados pelo addon',
+      });
+    }
+    if (!key) {
+      return res.status(400).json({
+        ok: false,
+        action,
+        reason: 'chave-ausente',
+        error: 'chave vazia; informe a chave da conta para testar',
+        fix: 'cole a chave da conta do serviço e teste novamente',
+      });
+    }
+    if (key.length > MAX_TEST_KEY_LENGTH) {
+      return res.status(400).json({
+        ok: false,
+        action,
+        reason: 'chave-invalida',
+        error: `chave acima de ${MAX_TEST_KEY_LENGTH} caracteres`,
+        fix: 'confira se a chave foi colada por inteiro, sem conteúdo extra',
+      });
+    }
+    const outcome = await services.debrid.testAccount(adapter, key);
+    services.metrics.count(outcome.ok ? 'dashboard.debrid.account_test.ok' : 'dashboard.debrid.account_test.fail');
+    // Log só service/result: credencial, last4 e impressão digital nunca entram.
+    services.log.info(
+      `[dashboard] teste de conta de debrid (${service}): ${outcome.ok ? 'ok' : `falha (${outcome.reason})`}`,
+    );
+    return res.json({ ...outcome, action });
+  },
 
   'test-all-indexers': async ({ services, res, action }) => {
     const catalog = await services.jackettCatalog.load();
@@ -210,15 +254,6 @@ const ACTIONS: Record<string, ActionHandler> = {
   // acima) e drena SEM ligar o knob global — a porta supervisionada.
   'autofetch-suppressed-get': autofetchSuppressedGet,
   'autofetch-suppressed-drain': autofetchSuppressedDrain,
-
-  // Ações do Jev (TypeSafe shadow): handlers em dashboard-actions-jev.js —
-  // nenhuma é destrutiva, logo nada entra em DESTRUCTIVE_ACTIONS.
-  'jev-pause': jevPause,
-  'jev-resume': jevResume,
-  'jev-drain': jevDrain,
-  'jev-cooldown-reset': jevCooldownReset,
-  // Leitura do anel de discordâncias: sob demanda (fora do poll), autenticada.
-  'jev-disagreements': jevDisagreements,
 
   // Banco de magnets: handlers em dashboard-actions-magnet.js. Inspect,
   // summary, bank-summary e bank-search são leitura; clear-bad é destrutivo

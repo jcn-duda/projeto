@@ -36,7 +36,7 @@ async function annotateUnavailable(apiKey: string, infoHash: string) {
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-export async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed, dubLieShadow }: PlayHint = {}) {
+export async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
   const account = accountScope(apiKey);
   const upload = await call(apiKey, '/magnet/upload', { 'magnets[]': infoHash });
   const magnet = (upload?.magnets || [])[0];
@@ -80,9 +80,7 @@ export async function resolveLink(apiKey: string, infoHash: string, { season, ep
   const files = flattenFiles(info.files);
   const file = pickFile(files, { season, episode, work });
   recordFileEvidence(infoHash, files);
-  // `dubLieShadow` só chega pelo tail audit (não há no hint assinado do play):
-  // liga a medição shadow da pergunta 2 sem mudar o veredito determinístico.
-  assertDubbedFiles(files, Boolean(dubbed), dubLieShadow);
+  assertDubbedFiles(files, Boolean(dubbed));
   if (!file) return null;
 
   const unlocked = await call(apiKey, '/link/unlock', { link: file.link });
