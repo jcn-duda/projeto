@@ -52,7 +52,8 @@ export interface Engine {
   getWork(hash: string, imdb: string, season: number, episode: number): WorkRow | null;
   listSources(hash: string): SourceRow[];
   listWorks(hash: string): WorkRow[];
-  listWorksByObra(imdb: string, season: number, episode: number, limit: number): WorkRow[];
+  /** `indexers` não vazio: só obras cujo hash tem fonte num deles. */
+  listWorksByObra(imdb: string, season: number, episode: number, limit: number, indexers?: readonly string[]): WorkRow[];
   listSourcesByIndexer(indexer: string, limit: number): SourceRow[];
   /** Magnets de VÁRIOS hashes numa consulta (fallback sem N+1). */
   listMagnetsMany(hashes: readonly string[]): MagnetRow[];
@@ -140,7 +141,18 @@ function sqliteEngine(dbPath: string): Engine | null {
     const getWorkStmt = db.prepare('SELECT * FROM magnet_work WHERE hash = ? AND imdb = ? AND season = ? AND episode = ?');
     const listSourcesStmt = db.prepare('SELECT * FROM magnet_source WHERE hash = ? ORDER BY last_seen DESC');
     const listWorksStmt = db.prepare('SELECT * FROM magnet_work WHERE hash = ? ORDER BY last_seen DESC');
-    const listWorksObraStmt = db.prepare('SELECT * FROM magnet_work WHERE imdb = ? AND season = ? AND episode = ? ORDER BY last_seen DESC LIMIT ?');
+    const listWorksObraStmt = db.prepare('SELECT * FROM magnet_work WHERE imdb = ? AND season = ? AND episode = ? ORDER BY passed_filter DESC, last_seen DESC LIMIT ?');
+    // Fallback de indexer FALHO: filtrar pela fonte ANTES do LIMIT. Sem isto a
+    // janela (last_seen desc) enchia de globais recém-vistos e o BR de 1 seeder
+    // nunca era lido — Star Trek Into Darkness: 339 obras, 0 BR nas 80 lidas.
+    // `passed_filter` na frente: o site BR devolve toda a franquia para a
+    // busca (102 posts de outra obra Star Trek contra 4 do filme, todos
+    // separados por ele). Ordena, não decide — o build refiltra.
+    const listWorksObraIxStmt = db.prepare(
+      'SELECT * FROM magnet_work w WHERE w.imdb = ? AND w.season = ? AND w.episode = ? AND EXISTS ('
+      + 'SELECT 1 FROM magnet_source s WHERE s.hash = w.hash AND s.indexer IN (SELECT value FROM json_each(?))'
+      + ') ORDER BY w.passed_filter DESC, w.last_seen DESC LIMIT ?',
+    );
     const listSourcesIndexerStmt = db.prepare('SELECT * FROM magnet_source WHERE indexer = ? ORDER BY last_seen DESC LIMIT ?');
     const recentMagnetsStmt = db.prepare('SELECT * FROM magnet ORDER BY last_seen DESC LIMIT ?');
     // Busca por título com OR de 1..3 variantes (original/lower/upper). O LIKE
@@ -198,7 +210,10 @@ function sqliteEngine(dbPath: string): Engine | null {
       },
       listSources(hash) { return all(listSourcesStmt, String(hash || '').toLowerCase()).map(parseSource); },
       listWorks(hash) { return all(listWorksStmt, String(hash || '').toLowerCase()).map(parseWork); },
-      listWorksByObra(imdb, season, episode, limit) {
+      listWorksByObra(imdb, season, episode, limit, indexers) {
+        if (indexers && indexers.length > 0) {
+          return all(listWorksObraIxStmt, String(imdb || ''), season, episode, JSON.stringify(indexers), limit).map(parseWork);
+        }
         return all(listWorksObraStmt, String(imdb || ''), season, episode, limit).map(parseWork);
       },
       listSourcesByIndexer(indexer, limit) {

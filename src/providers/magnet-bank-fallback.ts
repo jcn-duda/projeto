@@ -156,7 +156,10 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
     const readLimit = Math.min(200, Math.max(globalMax, perIndexerMax) * 2);
     const maxTotal = globalMax * 3;
 
-    const rows = worksForObraMany(imdbId, obraTargets(req.type, req.season, req.episode), readLimit, maxTotal);
+    // Só as obras com fonte num indexer FALHO: a janela de leitura não pode
+    // encher de hashes que o `pickSource` descartaria como `no-source`.
+    const onlyIndexers = req.allFailed ? undefined : [...req.failedIndexers];
+    const rows = worksForObraMany(imdbId, obraTargets(req.type, req.season, req.episode), readLimit, maxTotal, onlyIndexers);
     const magnets = new Map<string, MagnetRow>();
     const works = new Map<string, WorkRow>();
     for (const row of rows) {
@@ -185,8 +188,11 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
       candidates.push({ magnet, source, work: works.get(hash)!, brSource });
     }
 
-    // seedersMax desc, lastSeen desc (a ordenação que o pedido define).
+    // passed_filter desc (quem já passou no título da obra), seedersMax desc,
+    // lastSeen desc. O BR tem 1 seeder de placeholder: sem o primeiro critério
+    // o post de OUTRA obra da franquia disputava o teto de igual para igual.
     candidates.sort((a, b) => {
+      if (b.work.passedFilter !== a.work.passedFilter) return b.work.passedFilter - a.work.passedFilter;
       if (b.magnet.seedersMax !== a.magnet.seedersMax) return b.magnet.seedersMax - a.magnet.seedersMax;
       return b.magnet.lastSeen - a.magnet.lastSeen;
     });

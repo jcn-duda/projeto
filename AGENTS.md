@@ -652,7 +652,13 @@ candidatos das SOURCES do banco para a obra — nunca de uma config vazia.
 `collectFallbackForBuild` (chamado no `finish` do `search-orchestrator`) só
 consulta o banco quando o estado vivo aponta falha. Em filme alvo é a obra raiz;
 em série são até três alvos — o episódio pedido, o pack da temporada e a série
-completa —, a mesma cobertura que o `release-work.ts` gravou. As travas:
+completa —, a mesma cobertura que o `release-work.ts` gravou. A leitura filtra
+pelas FONTES dos indexers falhos antes do `LIMIT` (sem `allFailed`) e ordena
+`passed_filter DESC, last_seen DESC`: a janela por recência enchia de globais
+recém-vistos e o site BR devolve a franquia inteira para a busca — no Star Trek
+Into Darkness (2026-09-24), 339 obras, nenhum BR entre as 80 lidas, e 102 posts
+de outra obra Star Trek contra 4 do filme. `passed_filter` só ORDENA; o build
+refiltra. As travas:
 
 - **Vivo vence sempre:** hash presente no lote vivo é cortado ANTES do build,
   independentemente de seeders; o lote tardio reconstrói sem a reserva daquele

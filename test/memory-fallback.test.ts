@@ -187,6 +187,28 @@ test('captura: release de OUTRA temporada vai para a obra dela, não para a do p
   assert.deepEqual(bank.worksFor(s01).map(tuple), ['1:1']);
 });
 
+test('seleção: indexer BR falho acha o acervo dele mesmo atrás de muitas obras globais', async () => {
+  // Star Trek Into Darkness (2026-09-24): 339 obras, a janela de leitura
+  // (last_seen desc) enchia de globais recém-vistos e o BR nunca era lido.
+  const br = hex('a');
+  seed(br, 'comandotorrents', movieCtx('tt705'), { title: 'Filme Teste (2024) [1080p DUBLADO]' });
+  await sleep(5);
+  for (let i = 0; i < 120; i += 1) {
+    seed(hnum(1000 + i), 'kickasstorrents-to', movieCtx('tt705'), { title: `Filme Teste 2024 1080p WEB ${i}` });
+  }
+  const fb = collectFallbackItems({ type: 'movie', imdbId: 'tt705', season: null, episode: null, liveHashes: new Set(), failedIndexers: new Set(['comandotorrents']), allFailed: false });
+  assert.deepEqual(fb.items.map((i) => i.infoHash), [br]);
+
+  // O site BR devolve a franquia inteira para a busca: posts de OUTRA obra,
+  // mais recentes e com passed_filter=0, não podem tomar a vaga do filme.
+  for (let i = 0; i < 5; i += 1) {
+    seed(hnum(2000 + i), 'comandotorrents', movieCtx('tt705'), { title: `Outra Obra ${i} 1080p DUBLADO`, passed: false });
+  }
+  config.magnetBank.fallbackMaxPerIndexer = 1;
+  const capped = collectFallbackItems({ type: 'movie', imdbId: 'tt705', season: null, episode: null, liveHashes: new Set(), failedIndexers: new Set(['comandotorrents']), allFailed: false });
+  assert.deepEqual(capped.items.map((i) => i.infoHash), [br], 'quem passou no título da obra vem antes');
+});
+
 test('seleção: linha legada de outra temporada é cortada antes dos tetos', () => {
   // Linha gravada pela regra antiga: work 1:1 com magnet cujo dn é S04E05.
   const legacy = hex('6');

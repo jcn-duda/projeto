@@ -14,6 +14,7 @@ export function worksForObraMany(
   targets: ReadonlyArray<{ season: number | null; episode: number | null }>,
   limitPerTarget: number,
   maxTotal = Number.POSITIVE_INFINITY,
+  indexers?: readonly string[],
 ): Array<{ work: WorkRow; magnet: MagnetRow | null }> {
   const e = readEngine();
   if (!e) return [];
@@ -21,7 +22,7 @@ export function worksForObraMany(
   for (const target of targets) {
     if (works.length >= maxTotal) break;
     const ep = workTuple({ season: target.season, episode: target.episode });
-    works.push(...e.listWorksByObra(String(imdb || ''), ep.season, ep.episode, clampLimit(limitPerTarget)));
+    works.push(...e.listWorksByObra(String(imdb || ''), ep.season, ep.episode, clampLimit(limitPerTarget), indexers));
   }
   const magnets = new Map(e.listMagnetsMany(works.map((w) => w.hash)).map((m) => [m.hash, m]));
   return works.map((work) => ({ work, magnet: magnets.get(work.hash) ?? null }));

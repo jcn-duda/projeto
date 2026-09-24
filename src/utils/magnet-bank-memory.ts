@@ -104,12 +104,15 @@ export function memoryEngine(
       out.sort((a, b) => b.lastSeen - a.lastSeen);
       return out;
     },
-    listWorksByObra(imdb, season, episode, limit) {
+    listWorksByObra(imdb, season, episode, limit, indexers) {
       const out: WorkRow[] = [];
+      const wanted = indexers && indexers.length > 0 ? indexers : null;
       for (const row of works.values()) {
-        if (row.imdb === String(imdb || '') && row.season === season && row.episode === episode) out.push(row);
+        if (row.imdb !== String(imdb || '') || row.season !== season || row.episode !== episode) continue;
+        if (wanted && !wanted.some((ix) => sources.has(sourceKey(row.hash, ix)))) continue;
+        out.push(row);
       }
-      out.sort((a, b) => b.lastSeen - a.lastSeen);
+      out.sort((a, b) => (b.passedFilter - a.passedFilter) || (b.lastSeen - a.lastSeen));
       return out.slice(0, limit);
     },
     listSourcesByIndexer(indexer, limit) {
