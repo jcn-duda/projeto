@@ -30,6 +30,8 @@ export type TraceReason =
   | 'title-filter'
   // Release falsa: extensão executável no nome ou irmão de um (fake-release.ts).
   | 'fake-release'
+  // Pack que repete, byte a byte, o arquivo de um avulso da lista (duplicate-pack.ts).
+  | 'duplicate-file'
   | 'named-sequel'
   | 'multiwork-retained'
   | 'episode-mismatch'

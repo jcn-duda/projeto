@@ -331,7 +331,7 @@ function limitReservingBr(
   if (onSelected) onSelected(selected);
 
   return selected
-    .map(({ _br, _seeders, _quality, _size, _dubbed, _dubClaim, _indexer, _tracker, _multiWork, _multiWorkAdmitted, _packBytes, _lied, _seedFloorWaived, _magnetDn, ...stream }) => stream);
+    .map(({ _br, _seeders, _quality, _size, _dubbed, _dubClaim, _indexer, _tracker, _multiWork, _multiWorkAdmitted, _packBytes, _bytes, _lied, _seedFloorWaived, _magnetDn, ...stream }) => stream);
 }
 
 export {

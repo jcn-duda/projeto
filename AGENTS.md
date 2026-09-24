@@ -2498,6 +2498,17 @@ o orçamento com a resposta.
   nenhum reclame. O teste do scheme é case-insensitive e a saída sai
   normalizada em `magnet:` minúsculo: o NerdFilmes publica `MAGNET:` em parte
   dos botões, e foi só por causa disso que ele teve laço próprio um dia.
+- **Pack que repete o arquivo do avulso sai da lista.** `duplicate-pack.ts`,
+  chamado pelo `annotateEpisodeSizes` só com a checagem conhecida (`cached`):
+  o arquivo que o play tocaria no pack (`fsz` + `pickFile`) com os MESMOS bytes
+  de uma release avulsa da lista é o mesmo arquivo — sai o pack, fica o avulso,
+  e só se o avulso estiver tão pronto quanto ele (nunca troca ⚡ por download).
+  Byte exato, nunca rótulo arredondado; pack sem lista de arquivos nunca é
+  medido. O avulso sem `fsz` usa `_bytes` (total exato do torrent), campo
+  interno que sobrevive ao `sortAndLimit` e sai no `limitReservingBr`. Medido:
+  22 de 2.377 vídeos em packs tinham avulso idêntico, todos o mesmo arquivo
+  (Star Trek Beyond na coleção, The Last of Us 1ª Temporada × E01). Motivo
+  `duplicate-file`; métrica `search.duplicatePack.dropped`.
 - **⚡ não prova que há filme.** A AllDebrid guarda em cache o que qualquer um
   sobe: release FALSA de filme ainda no cinema ganha ⚡ e só o play descobre
   que não há vídeo (`bad`, por hash — o gêmeo seguinte escapa). A rede medida

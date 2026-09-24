@@ -244,6 +244,7 @@
     "test/allowed-source-indexer.test.js",
     "test/memory-fallback.test.js",
     "test/fake-release.test.js",
+    "test/duplicate-pack.test.js",
     "test/memory-fallback-cache.test.js",
     "test/memory-fallback-suppress.test.js",
     "test/magnet-db-empirical-challenge.test.js",

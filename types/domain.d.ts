@@ -157,6 +157,8 @@ export interface StreamBase {
   _seeders?: number;
   _quality?: string;
   _size?: number;
+  /** Total exato do torrent (bytes); sobrevive ao sortAndLimit, sai no limitReservingBr. */
+  _bytes?: number;
   /**
    * Post promete Dublado/Dual/Nacional (ou PT explícito no título). Lista sob
    * `dubbedOnly`; NÃO é prova de áudio — chip/preferDubbed/Chupim/adprot usam

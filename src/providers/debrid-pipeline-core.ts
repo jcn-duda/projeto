@@ -175,7 +175,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
   // em quem ainda tem infoHash. Quem já saiu anotado do buildStreams é
   // ignorado pelo guard do marcador no annotate; medida pura — `_size` não
   // muda, o filtro de tamanho continua valendo para o download inteiro.
-  streams = annotateEpisodeSizes(streams, { season, episode, meta, work: workHint, trace });
+  streams = annotateEpisodeSizes(streams, { season, episode, meta, work: workHint, trace, cached: known ? cached : null });
   // Hit-rate do autofetch: hash cacheado que carrega marker ativo é download
   // que o chupim enfileirou e agora toca na hora — a métrica mede o retorno do
   // mecanismo. Contagem pura, fora do caminho da resposta: erro vira no-op.

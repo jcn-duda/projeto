@@ -3,6 +3,7 @@ import { bytesToSize, isSeasonPackRelease, parseTitleSeasonEpisode } from '../ut
 import { pickFile } from '../debrid/file-selector.js';
 import { peekFileSizes, hasFileSizes, peekTorrentTotal } from '../debrid/file-sizes.js';
 import { stageTrace } from '../utils/stream-trace.js';
+import { dropDuplicatePackFiles } from './duplicate-pack.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 
 // Tamanho do EPISÓDIO numa release que é pack da temporada. O tracker publica
@@ -227,6 +228,8 @@ function annotatePackSizes<T extends Stream | null>(
     meta?: EpisodeMeta;
     work?: WorkHintInput;
     trace?: StreamTraceState | null;
+    /** Hashes com ⚡ da checagem; ausente/nulo = checagem desconhecida, sem dedupe. */
+    cached?: ReadonlySet<string> | null;
   } = {},
 ): T[] {
   if (season == null) return annotateMovieSizes(streams, work, trace);
@@ -326,7 +329,11 @@ function annotateEpisodeSizes<T extends Stream | null>(streams: T[], options: An
   }) as T[];
   // Série sem episódio não tem arquivo único para medir.
   if (season != null && episode == null) return out;
-  return fillMissingSizes(out, options);
+  const sized = fillMissingSizes(out, options);
+  // Com a checagem conhecida, o pack que repete o arquivo de um avulso sai.
+  return options.cached
+    ? dropDuplicatePackFiles(sized, { season, episode, work: options.work, trace: options.trace, cached: options.cached })
+    : sized;
 }
 
 export { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes, streamSizeLabel };

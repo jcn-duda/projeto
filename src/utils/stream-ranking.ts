@@ -141,6 +141,7 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
       _quality: richerQuality._quality,
       _seeders: Math.max(Number(winner._seeders) || 0, Number(loser._seeders) || 0),
       _size: winner._size || loser._size || 0,
+      _bytes: winner._bytes || loser._bytes || 0,
       behaviorHints: richerQuality.behaviorHints || winner.behaviorHints,
       _br: Boolean(winner._br || inheritsBr),
       // Herança de espelho é PROMESSA do post BR, não prova de arquivo.
