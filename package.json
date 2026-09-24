@@ -132,6 +132,8 @@
     "test/comandotorrents-resolver.test.js",
     "test/transport-cookiejar.test.js",
     "test/vacatorrent-resolver.test.js",
+    "test/vacatorrent-flare.test.js",
+    "test/vacatorrent-recovery.test.js",
     "test/concurrency.test.js",
     "test/configure-html.test.js",
     "test/dashboard-actions.test.js",

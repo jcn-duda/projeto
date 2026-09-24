@@ -209,14 +209,25 @@ export interface VacaWork {
   imdb?: string | null;
 }
 
+// O Chromium pode envolver AJAX em body/pre. Decodifica só o envelope HTML;
+// JSON cru pode conter entidades literais e não deve ser reescrito.
+function unwrapSearchJson(text: string): string {
+  const raw = text.trim();
+  if (!raw.startsWith('<')) return text;
+  const body = raw.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1] ?? raw;
+  const pre = body.trim().match(/^<pre\b[^>]*>([\s\S]*?)<\/pre>(?:\s*<div\b[^>]*\bclass=["']json-formatter-container["'][^>]*>[\s\S]*<\/div>)?\s*$/i);
+  return decodeEntities(pre ? pre[1] : body).trim();
+}
+
 // Parse da busca AJAX (search_posts).
 function parseSearchJson(text: string | null | undefined, baseUrl = 'https://vaqueirofilmes.com'): VacaWork[] {
   // `any` explícito: payload de terceiro (JSON de API) — a tipagem só existe
   // nos campos que este parser lê, abaixo.
   let parsed: any;
-  try { parsed = JSON.parse(String(text)); } catch { return []; }
+  try { parsed = JSON.parse(unwrapSearchJson(String(text))); }
+  catch { throw new Error('vacatorrent: resposta de busca inválida'); }
   const arr = Array.isArray(parsed) ? parsed : (parsed?.results ?? parsed?.posts);
-  if (!Array.isArray(arr)) return [];
+  if (!Array.isArray(arr)) throw new Error('vacatorrent: formato de busca inválido');
 
   const posts: VacaWork[] = [];
   const seen = new Set<string>();
@@ -354,7 +365,7 @@ export {
   defaultIsProtectorHost, defaultIsAssertOnlyHost, stripTags, extractMetaRefresh,
   normalizeQuery, requestedSeasonFromQuery, normalizeQuality, normalizeSource,
   classifyAudio, episodeRules, extractEpisode, episodeStep, extractMagnet,
-  createNextProtectedUrl, nextProtectedUrl, parseSearchJson, filterSearchPosts,
+  createNextProtectedUrl, nextProtectedUrl, unwrapSearchJson, parseSearchJson, filterSearchPosts,
   createParseDownloadLinks, parseDownloadLinks, extractMovieLinks, decodeDataU,
   seriesSeasonInternalUrl, parseSeasonInternal, filterSeasonCards, extractBatchTitle,
   cleanMarkTitle, releaseTitle, createVacaSearchPageHtml, searchPageHtml, scoreLink,

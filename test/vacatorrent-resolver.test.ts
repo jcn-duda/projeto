@@ -34,10 +34,19 @@ describe('VacaTorrent Parser: search JSON (admin-ajax / search_posts)', () => {
     assert.ok(works.every((w: any) => w.type === 'Filme'));
   });
 
-  test('parseSearchJson: tolera JSON vazio e entradas sem obrigatórios', () => {
-    assert.deepEqual(vaca.parseSearchJson('[]'), []);
-    assert.deepEqual(vaca.parseSearchJson(''), []);
-    assert.deepEqual(vaca.parseSearchJson('nan'), []);
+  test('parseSearchJson: vazio válido e envelopes conhecidos continuam válidos', () => {
+    for (const text of ['[]', '{"results":[]}', '{"posts":[]}']) {
+      assert.deepEqual(vaca.parseSearchJson(text), []);
+    }
+    assert.deepEqual(vaca.parseSearchJson('[null,{}, {"title":"Sem link"}]'), []);
+  });
+
+  test('parseSearchJson: resposta inválida não se confunde com busca vazia', () => {
+    for (const text of ['', 'nan', 'null', '0', '{}', '{"success":false}',
+      '{"results":{}}', '[{"title":', '<html><title>WordPress › Erro</title></html>',
+      '<html><title>Just a moment...</title></html>']) {
+      assert.throws(() => vaca.parseSearchJson(text), /vacatorrent:.*busca/i, text);
+    }
   });
 });
 

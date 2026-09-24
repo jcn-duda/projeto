@@ -1,6 +1,8 @@
-// Vaca Torrent (vaqueirofilmes.com) — perfil do resolver local.
+// Vaca Torrent (vaqueirofilmes.com) — perfil do resolver local. O site fica
+// atrás de desafio Cloudflare (fetch direto 403), então o fetch reusa Flare.
 import { USER_AGENT } from '../runtime.js';
 import { createCache } from '../cache.js';
+import { createFlareFetcher } from '../flare.js';
 import { createServer as createHttpServer } from '../http-server.js';
 import {
   decodeEntities,
@@ -30,22 +32,20 @@ import type { ResolverLink } from '../types.js';
 import {
   FALLBACK_SITE_SUFFIXES,
   ASSERT_ONLY_SUFFIXES,
-  ALL_PROTECTOR_SUFFIXES,
   extractMetaRefresh,
   normalizeQuery,
   requestedSeasonFromQuery,
   normalizeQuality,
   normalizeSource,
   classifyAudio,
-  episodeRules,
   extractEpisode,
-  episodeStep,
   extractMagnet,
   // Sem o `nextProtectedUrl` pronto do parsers as ele nasce com os
   // classificadores DEFAULT do módulo, e o que vale aqui são os do bootstrap
   // (isProtectorHost/isAssertOnlyHost do perfil) — ver a construção abaixo.
   createNextProtectedUrl,
   parseSearchJson,
+  unwrapSearchJson,
   filterSearchPosts,
   createParseDownloadLinks,
   extractMovieLinks,
@@ -60,6 +60,23 @@ import {
   scoreLink,
 } from './vacatorrent-parsers.js';
 import type { VacaWork } from './vacatorrent-parsers.js';
+import { createVacaContent } from './vacatorrent-content.js';
+import type { VacaSearchItem } from './vacatorrent-content.js';
+
+class IncompleteSearch extends Error {
+  constructor(readonly items: VacaSearchItem[]) {
+    super('vacatorrent: falha ao obter todos os posts');
+  }
+}
+
+// Evidência de desafio, não só o nome Cloudflare/um título de filme no corpo.
+function isVacaChallenge(body: string, headers?: Headers): boolean {
+  if (headers?.get('cf-mitigated') === 'challenge') return true;
+  if (/^[\[{]/.test(body.trim())) return false;
+  return /<script\b[^>]*\bsrc\s*=\s*["'][^"']*\/cdn-cgi\/challenge-platform\/(?![^"']*\/jsd\/)/i.test(body)
+    || /\b_cf_chl_opt\s*=/.test(body)
+    || (/Just a moment|Checking your browser/i.test(body) && /challenges\.cloudflare\.com/i.test(body));
+}
 
 const DEFAULTS = {
   port: 8704,
@@ -72,6 +89,7 @@ const DEFAULTS = {
   postCacheMs: 10 * 60_000,
   searchCacheMs: 5 * 60_000,
   magnetCacheMs: 30 * 60_000,
+  flare: { solverUrl: 'http://127.0.0.1:8191', timeoutMs: 55_000, sessionTtlMs: 20 * 60_000 },
 };
 const META = {
   name: 'vacatorrent', siteEnv: 'VACATORRENT_URL',
@@ -91,7 +109,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     postCacheMs: POST_CACHE_MS = DEFAULTS.postCacheMs,
     searchCacheMs: SEARCH_CACHE_MS = DEFAULTS.searchCacheMs,
     magnetCacheMs: MAGNET_CACHE_MS = DEFAULTS.magnetCacheMs,
-    extraProtectors: EXTRA_PROTECTORS,
+    extraProtectors: EXTRA_PROTECTORS, flare: FLARE = DEFAULTS.flare,
   } = config;
 
   // --- Bootstrap comum (site-profile) ---
@@ -104,19 +122,29 @@ function createResolver(overrides: ProfileOverrides = {}) {
     fallbackSuffixes: FALLBACK_SITE_SUFFIXES,
     extraProtectorSuffixes: [...VACA_EXTRA_PROTECTORS, ...EXTRA_PROTECTORS],
     assertOnlySuffixes: ASSERT_ONLY_SUFFIXES,
+    networkErrorExtra: '|flare_',
     concurrency: 3,
     decodeEntities,
   });
 
   const {
-    reply, siteSelector, CANDIDATE_HOSTS, createSiteSelector,
+    reply, siteSelector, createSiteSelector,
   } = bootstrap;
-  const { ALLOWED_SUFFIXES, unwrapResolverUrl, mapLimit } = bootstrap;
+  const { unwrapResolverUrl, mapLimit } = bootstrap;
   const {
     assertAllowedUrl, isDetailHost, isProtectorHost, isAssertOnlyHost,
     isNetworkError, stripTags,
   } = bootstrap;
   const SELF_URL_RESOLVED = bootstrap.selfUrl;
+
+  // --- FlareSolverr (Cloudflare) — mesma mecânica do bludv/redetorrent ---
+  const flare = createFlareFetcher({
+    solverUrl: FLARE.solverUrl,
+    timeoutMs: FLARE.timeoutMs,
+    sessionTtlMs: FLARE.sessionTtlMs,
+    userAgent: USER_AGENT,
+  });
+  const { sessions: flareSessions, getFlareSession, buildFlareHeaders, fetchTextViaFlare } = flare;
 
   const nextProtectedUrl = createNextProtectedUrl({
     isProtectorHost,
@@ -137,6 +165,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     postCache.clear();
     searchCache.clear();
     magnetCache.clear();
+    flareSessions.clear();
   });
 
   const searchPageHtml = createVacaSearchPageHtml({ selfUrl: SELF_URL_RESOLVED });
@@ -144,78 +173,33 @@ function createResolver(overrides: ProfileOverrides = {}) {
   // ---------------------------------------------------------------------------
   // Coleta de fontes por obra (filme/série/batch).
   // ---------------------------------------------------------------------------
+  // Accept customizável: a busca AJAX pede application/json (ver searchPosts).
   async function fetchText(url: string, accept = 'text/html,application/xhtml+xml'): Promise<string> {
-    const response = await fetch(url, {
-      headers: { 'User-Agent': USER_AGENT, Accept: accept },
+    const headers = { ...buildFlareHeaders(url), Accept: accept };
+    const res = await fetch(url, {
       redirect: 'follow',
+      headers,
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!response.ok) throw new Error(`http_${response.status}`);
-    return response.text();
-  }
-
-  const NO_LINKS_SIGNAL = new Error('vacatorrent: sem link de download na página');
-
-  async function fetchMovieLinks(post: VacaWork): Promise<ResolverLink[]> {
-    const cacheKey = `movie:${post.url}`;
-    try {
-      return await cachedPost(cacheKey, POST_CACHE_MS, async () => {
-        const pageHtml = await fetchText(post.url);
-        const linksUrl = extractMovieLinks(pageHtml, post.url);
-        if (!linksUrl) throw NO_LINKS_SIGNAL;
-        const linksHtml = await fetchText(linksUrl);
-        return parseDownloadLinks(linksHtml, linksUrl);
-      });
-    } catch (err) {
-      if (err === NO_LINKS_SIGNAL) return [];
-      throw err;
+    let body = await res.text();
+    if ((res.ok || res.status === 403 || res.status === 503) && isVacaChallenge(body, res.headers)) {
+      body = await fetchTextViaFlare(url);
+      if (isVacaChallenge(body)) {
+        // O núcleo memoriza a sessão antes de devolver o HTML. Não reutilizar
+        // cookies de uma solução que ainda é o desafio, nem tentar em laço.
+        flareSessions.clear();
+        throw new Error('vacatorrent: desafio Cloudflare não resolvido');
+      }
+    } else if (!res.ok) throw new Error(`http_${res.status}`);
+    if (/<body\b[^>]*\bid\s*=\s*["']error-page["']|<(?:div|p)\b[^>]*\bclass\s*=\s*["'][^"']*\bwp-die-message\b/i.test(body)) {
+      throw new Error('vacatorrent: página de erro do WordPress');
     }
+    return accept.includes('application/json') ? unwrapSearchJson(body) : body;
   }
 
-  async function fetchSeriesLinks(post: VacaWork, requestedSeason: RegExpMatchArray | null): Promise<ResolverLink[]> {
-    const seasonKey = requestedSeason ? String(requestedSeason[1]) : '';
-    const cacheKey = `serie:${post.url}:${seasonKey}`;
-    try {
-      return await cachedPost(cacheKey, POST_CACHE_MS, async () => {
-        const pageHtml = await fetchText(post.url);
-        const internalUrl = seriesSeasonInternalUrl(pageHtml, post.url);
-        if (!internalUrl) throw NO_LINKS_SIGNAL;
-        const internalHtml = await fetchText(internalUrl);
-        const cards = filterSeasonCards(parseSeasonInternal(internalHtml, internalUrl), requestedSeason);
-
-        const out: ResolverLink[] = [];
-        for (const card of cards) {
-          try {
-            const cardHtml = await fetchText(card.url);
-            if (card.isBatch) {
-              const realTitle = extractBatchTitle(cardHtml);
-              const links = parseDownloadLinks(cardHtml, card.url, {
-                season: card.season,
-                realTitle: realTitle || null,
-              });
-              out.push(...links);
-            } else {
-              const links = parseDownloadLinks(cardHtml, card.url, { season: card.season });
-              out.push(...links);
-            }
-          } catch (err) {
-            console.warn(`[vac] card ${card.url}: ${err.message}`);
-          }
-        }
-        return out;
-      });
-    } catch (err) {
-      if (err === NO_LINKS_SIGNAL) return [];
-      throw err;
-    }
-  }
-
-  async function postToItems(post: VacaWork, requestedSeason: RegExpMatchArray | null) {
-    const links = post.type === 'Série'
-      ? await fetchSeriesLinks(post, requestedSeason)
-      : await fetchMovieLinks(post);
-    return links.map((link, index) => ({ post, link, index, count: links.length }));
-  }
+  const { fetchMovieLinks, fetchSeriesLinks, postToItems } = createVacaContent({
+    cachedPost, postCacheMs: POST_CACHE_MS, fetchText, parseDownloadLinks,
+  });
 
   // ---------------------------------------------------------------------------
   // Busca: AJAX JSON → obras → fontes.
@@ -230,23 +214,32 @@ function createResolver(overrides: ProfileOverrides = {}) {
 
       const ajaxUrl = `${siteSelector.url()}/wp-admin/admin-ajax.php?action=search_posts&s=${encodeURIComponent(term)}&lang=pt-BR`;
       const text = await fetchText(ajaxUrl, 'application/json, text/html, */*');
+      const entries = parseSearchJson(text, siteSelector.url());
       siteSelector.noteSuccess();
 
       const posts = filterSearchPosts(
-        parseSearchJson(text, siteSelector.url()),
+        entries,
         browse ? '' : normalized,
         requestedSeason,
         MAX_POSTS,
       );
+      let incomplete = false;
       const chunks = await mapLimit(posts, async (post) => {
         try {
-          return await postToItems(post, requestedSeason);
+          return await postToItems(post, requestedSeason, () => { incomplete = true; });
         } catch (err) {
+          incomplete = true;
           console.warn(`[search] Falha ao obter links do post ${post.url}: ${err.message}`);
           return [];
         }
       });
-      return chunks.flat();
+      const items = chunks.flat();
+      // O cache grava qualquer retorno; só a rejeição impede congelar parcial.
+      if (incomplete) throw new IncompleteSearch(items);
+      return items;
+    }).catch((err) => {
+      if (err instanceof IncompleteSearch && err.items.length) return err.items;
+      throw err;
     });
   }
 
@@ -363,6 +356,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     computeWantedTokens,
     normalizeFilterText,
     isGenericListPost,
+    getFlareSession, buildFlareHeaders, fetchText, fetchTextViaFlare,
     postCache,
     searchCache,
     magnetCache,
