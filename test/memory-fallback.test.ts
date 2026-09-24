@@ -202,6 +202,19 @@ test('seleção: linha legada de outra temporada é cortada antes dos tetos', ()
   assert.equal(fb.cut['episode-mismatch'], 1);
 });
 
+test('seleção: origem BR é recalculada, não herdada do is_br gravado', () => {
+  // is_br do banco é OR-aderente: o seleZen gravado BR pelo classificador
+  // antigo não pode voltar como BR pelo fallback.
+  const russo = hex('8');
+  const siteBr = hex('9');
+  seed(russo, 'kickasstorrents-to', movieCtx('tt704'), { title: 'Filme.2026.DUB.NF.WEB-DLRip.x264.seleZen' });
+  seed(siteBr, 'comandotorrents', movieCtx('tt704'), { title: 'Filme Teste 2026 1080p' });
+  const fb = collectFallbackItems({ type: 'movie', imdbId: 'tt704', season: null, episode: null, liveHashes: new Set(), failedIndexers: new Set(), allFailed: true });
+  const isBr = Object.fromEntries(fb.items.map((i) => [i.infoHash, i.isBr]));
+  assert.equal(isBr[russo], false, 'DUB russo em tracker global não é BR');
+  assert.equal(isBr[siteBr], true, 'indexer BR mantém a origem mesmo sem marca no título');
+});
+
 test('build: episódio errado do fallback é cortado como qualquer item', () => {
   seed(hex('f'), 'idx-fail', movieCtx('tt103'), { title: 'Serie Teste S01E02 1080p' });
   const item = { title: 'Serie Teste S01E02 1080p', infoHash: hex('f'), magnet: magnet(hex('f')), seeders: 5, fromFallback: true, fallbackIndexer: 'idx-fail' };

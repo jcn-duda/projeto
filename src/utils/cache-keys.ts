@@ -56,7 +56,10 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // como `DUB BR · kickass` e ocupava vaga reservada. As listas prontas
   // carregam `_br`/`_dubbed` pintados pelo classificador antigo e não se
   // corrigiriam só com o reboot.
-  streams: 'v16',
+  // v17: `seleZen` (grupo russo, `…DUB.NF.WEB-DLRip…seleZen`) na mesma guarda:
+  // o DUB genérico dele é dublagem russa. 11 releases viravam BR (The Whisper
+  // Man, 2026-09-24).
+  streams: 'v17',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
@@ -124,7 +127,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // OR-aderente: sem o bump, `The Matrix: Trilogy [1999-2003, …]` (medido no
   // corpus do container, 2026-09-22) permaneceria Dublado/BR até o TTL de
   // semanas. Bump real (não cosmético) — ao contrário do mediaSource da v10.
-  idx: 'v11',
+  // v12: `seleZen` na guarda do rutracker (ver streams v17) — o índice
+  // persiste o `isBr`/`dubbed` pintado pelo DUB russo.
+  idx: 'v12',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

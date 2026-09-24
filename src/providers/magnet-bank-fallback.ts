@@ -31,6 +31,7 @@ import { indexerFallbackMetricKey } from '../utils/metric-id.js';
 import { allowedSourceIndexer } from './allowed-source-indexer.js';
 import { releaseFitsRequest } from '../utils/release-work.js';
 import { magnetDisplayName } from '../utils/title-normalization.js';
+import { looksPtBr } from '../utils/audio-quality.js';
 
 export interface FallbackRequest {
   /** 'movie' | 'series' — filme só consulta a obra raiz. */
@@ -79,7 +80,18 @@ export function obraTargets(type: string, season: number | null, episode: number
   return out;
 }
 
-export type Candidate = { magnet: MagnetRow; source: SourceRow; work: WorkRow };
+export type Candidate = { magnet: MagnetRow; source: SourceRow; work: WorkRow; brSource?: boolean };
+
+/**
+ * Origem BR recalculada com a MESMA regra do Jackett (`jackett-results.ts`):
+ * algum indexer BR publicou o hash, ou o título tem cara de PT. O `is_br` do
+ * banco é OR-aderente e sem versão — ficaria preso ao classificador antigo
+ * (seleZen, DUB russo, gravado BR antes de 2026-09-24).
+ */
+function fallbackIsBr(candidate: Candidate): boolean {
+  if (candidate.brSource === undefined) return Boolean(candidate.magnet.isBr);
+  return candidate.brSource || looksPtBr(candidate.magnet.title || '');
+}
 
 /** Fonte elegível: indexer falho; com `allFailed`, qualquer source do banco. */
 export function pickSource(sources: readonly SourceRow[], failedIndexers: ReadonlySet<string>, allFailed: boolean): SourceRow | null {
@@ -104,7 +116,7 @@ export function toRawItem(candidate: Candidate): RawItem {
     seeders: magnet.seedersLast,
     indexer: source.indexer,
     tracker: source.tracker || '',
-    isBr: Boolean(magnet.isBr),
+    isBr: fallbackIsBr(candidate),
     dubbed: Boolean(magnet.dubbed),
     quality: magnet.quality || '',
     fromFallback: true,
@@ -162,13 +174,15 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
     }
 
     const sourcesByHash = sourcesForMany([...magnets.keys()]);
+    const brIndexers = new Set((config.jackett.ptBrIndexers || []).map(nIndexer));
     const candidates: Candidate[] = [];
     for (const [hash, magnet] of magnets) {
       if (req.liveHashes.has(hash)) { countCut('live-dedupe', magnet); continue; }
       const allowed = (sourcesByHash.get(hash) || []).filter((s) => allowedSourceIndexer(s.indexer));
       const source = pickSource(allowed, req.failedIndexers, req.allFailed);
       if (!source) { countCut('no-source', magnet); continue; }
-      candidates.push({ magnet, source, work: works.get(hash)! });
+      const brSource = (sourcesByHash.get(hash) || []).some((s) => brIndexers.has(nIndexer(s.indexer)));
+      candidates.push({ magnet, source, work: works.get(hash)!, brSource });
     }
 
     // seedersMax desc, lastSeen desc (a ordenação que o pedido define).

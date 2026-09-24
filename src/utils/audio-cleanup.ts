@@ -106,8 +106,13 @@ const CYRILLIC_RE = /[а-яёіїєґў]/i;
  * dos 9.119 títulos únicos do corpus, só 1 mudou de classificação e nenhum era
  * de site BR. `magnets.db` guarda `is_br` OR-aderente e sem versão, então o
  * rótulo antigo persiste lá (só pesa no fallback do acervo).
+ *
+ * `seleZen` é grupo russo que assina `…2026.DUB.NF.WEB-DLRip.x264.seleZen` sem
+ * bloco nem cirílico: o `DUB` é dublagem RUSSA. Medido no magnets.db
+ * (2026-09-24): 11 releases seleZen viravam BR só pelo DUB genérico, nenhuma
+ * com marca PT real — e 2 delas ocupavam a vaga BR do The Whisper Man.
  */
-const RUTRACKER_TRANSLIT_RE = /\[\s*(?:19|20)\d{2}(?:\s*[-–—]\s*(?:19|20)\d{2})?\s*,\s*[A-Z]|\b(?:AVO|MVO|DVO|SVO)\b/i;
+const RUTRACKER_TRANSLIT_RE = /\[\s*(?:19|20)\d{2}(?:\s*[-–—]\s*(?:19|20)\d{2})?\s*,\s*[A-Z]|\b(?:AVO|MVO|DVO|SVO|SELEZEN)\b/i;
 
 /**
  * Guarda compartilhada da dublagem GENÉRICA (título e path usam o mesmo

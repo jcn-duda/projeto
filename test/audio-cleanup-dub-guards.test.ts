@@ -122,6 +122,23 @@ test('DUB/rutracker: PT explícito ao lado do formato continua vencendo', () => 
   );
 });
 
+test('DUB/seleZen: grupo russo sem bloco nem cirílico não é dublado pt-BR', () => {
+  // The Whisper Man (2026-09-24): as duas vagas BR da conta eram seleZen.
+  const titulos = [
+    'The.Whisper.Man.2026.DUB.NF.WEB-DLRip.x264.seleZen',
+    'The.Whisper.Man.2026.DUB.NF.WEB-DLRip-AVC.x264.seleZen.mkv',
+    'Disclosure Day.2026.DUB.BDRip.1080p.x264.seleZen',
+  ];
+  for (const t of titulos) {
+    assert.notEqual(audioFromTitle(t), 'Dublado', `${t}: DUB russo não é pt-BR`);
+    assert.equal(looksPtBr(t), false, `${t}: fora das vagas BR`);
+    assert.equal(hasExplicitForeignAudio(t), false, `${t}: não condena (assimetria)`);
+  }
+  // Marca PT explícita continua vencendo, e o nome não casa dentro de palavra.
+  assert.equal(audioFromTitle('Filme.2026.DUBLADO.1080p.seleZen'), 'Dublado');
+  assert.equal(looksPtBr('Filme.2026.DUB.1080p.WEB-DL.Selezenovo'), true);
+});
+
 test('DUB/rutracker: Dual no formato cai em lixo (guarda ampla), não em dual', () => {
   const dual = 'Coyote Ugly [2000, USA, drama, melodrama, comedy, music, BDRip] Dual';
   assert.equal(audioBucket(dual), 'lixo', 'Dual + bloco rutracker = lixo de triagem');
