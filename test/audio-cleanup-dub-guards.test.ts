@@ -139,6 +139,20 @@ test('DUB/seleZen: grupo russo sem bloco nem cirílico não é dublado pt-BR', (
   assert.equal(looksPtBr('Filme.2026.DUB.1080p.WEB-DL.Selezenovo'), true);
 });
 
+test('DUB/LAT: dublagem latina abreviada não é dublado pt-BR', () => {
+  // Moana 2 (2026-09-24): "LAT.DUB" do Cinecalidad saía como 1080p DUB BR.
+  for (const t of [
+    'Moana.2.2024.1080p.WEBRip.LAT.DUB.PINUP.mp4',
+    'The.Invite.2026.1080p.WEBRip.LAT.DUB.1XBET',
+  ]) {
+    assert.notEqual(audioFromTitle(t), 'Dublado', t);
+    assert.equal(looksPtBr(t), false, t);
+    assert.equal(hasExplicitForeignAudio(t), false, `${t}: não condena (assimetria)`);
+  }
+  assert.equal(audioFromTitle('Moana.2.2024.LAT.DUBLADO.1080p'), 'Dublado', 'PT explícito vence');
+  assert.equal(looksPtBr('Filme.2024.1080p.DUB.PLATINUM'), true, 'LAT dentro de palavra não conta');
+});
+
 test('DUB/rutracker: Dual no formato cai em lixo (guarda ampla), não em dual', () => {
   const dual = 'Coyote Ugly [2000, USA, drama, melodrama, comedy, music, BDRip] Dual';
   assert.equal(audioBucket(dual), 'lixo', 'Dual + bloco rutracker = lixo de triagem');

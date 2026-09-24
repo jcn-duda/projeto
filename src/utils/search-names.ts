@@ -12,7 +12,7 @@ import {
   stripQualityTagBlob,
 } from './audio-quality.js';
 import { streamQuality } from './stream-quotas.js';
-import { dnContradictsDubClaim } from './audio-cleanup.js';
+import { dnContradictsDubClaim, enSceneMirrorTitle } from './audio-cleanup.js';
 import { streamDisplayName } from './stream-display.js';
 
 interface SearchNamesOptions {
@@ -104,7 +104,13 @@ function toStremioStream(item: RawItem): Stream | null {
   // Origem BR pelo indexer E pelo título: tracker global também hospeda
   // dublado titulado em português, e é o título que denuncia. O flag muda o
   // chip BR, as vagas reservadas e a priorização de dublado.
-  const isBr = Boolean(item.isBr || item.ptTitleDual) || looksPtBr(title);
+  const titlePt = Boolean(item.ptTitleDual) || looksPtBr(title);
+  // Agregador BR republica magnet gringo com o nome de cena intacto ("Barbie
+  // (2023) 1080p WEBRip [YTS.MX]", "…-NTb[TGx]"): o flag do indexer dava vaga
+  // BR a release EN. Só o flag do provider cede, e só com prova contrária —
+  // grupo de cena EN no título e nenhum sinal PT. Medido no magnets.db
+  // (2026-09-24): 42 de 1.353 BR-só-pelo-indexer, todos EN.
+  const isBr = titlePt || (Boolean(item.isBr) && !enSceneMirrorTitle(title));
   const seeders = Number(item.seeders ?? item.Seeders ?? 0) || 0;
   const rawSize = Number(item.size ?? item.Size);
   // Os indexers BR mandam 1 KB quando o post não publica tamanho: o Jackett

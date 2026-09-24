@@ -59,7 +59,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // v17: `seleZen` (grupo russo, `…DUB.NF.WEB-DLRip…seleZen`) na mesma guarda:
   // o DUB genérico dele é dublagem russa. 11 releases viravam BR (The Whisper
   // Man, 2026-09-24).
-  streams: 'v17',
+  // v18: `LAT.DUB` (dublagem latina) deixa de provar PT, e agregador BR que
+  // republica nome de cena EN (`…[YTS.MX]`, `…-NTb[TGx]`) perde a vaga BR.
+  streams: 'v18',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
@@ -129,7 +131,8 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // semanas. Bump real (não cosmético) — ao contrário do mediaSource da v10.
   // v12: `seleZen` na guarda do rutracker (ver streams v17) — o índice
   // persiste o `isBr`/`dubbed` pintado pelo DUB russo.
-  idx: 'v12',
+  // v13: `LAT.DUB` fora do DUB genérico — mesmo motivo.
+  idx: 'v13',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

@@ -13,10 +13,10 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.includes('alice-secret'), false);
   assert.equal(bob.includes('bob-secret'), false);
   assert.equal(alice, streamsCacheKey('movie', 'tt123', { ...base, debridApiKey: 'alice-secret' }));
-  assert.equal(alice.startsWith('streams:v17:'), true);
+  assert.equal(alice.startsWith('streams:v18:'), true);
 });
 
-test('versões correntes separam lista v17 do índice v12', () => {
+test('versões correntes separam lista v18 do índice v13', () => {
   // A correção BR_MARK (.org genérico), DUB/HINDI e a fronteira `bthd` mudam
   // matching/ranking; o AGENTS.md manda invalidar streams+idx juntos. v11: a
   // guarda do rutracker passa a aceitar FAIXA de anos (`[1999-2003, …] Dub`),
@@ -24,9 +24,10 @@ test('versões correntes separam lista v17 do índice v12', () => {
   // e não se corrigiria só com o reboot. A lista está em v16 pelo MESMO
   // conserto (v15 foi o overlay Jev gateado, que muda `_br`/`_dubbed` da lista);
   // o idx bumpa agora porque a classificação determinística dele mudou.
-  // v17/v12: `seleZen` (DUB russo) entrou na mesma guarda.
-  assert.equal(prefix('streams'), 'streams:v17:');
-  assert.equal(prefix('idx'), 'idx:v12:');
+  // v17/v12: `seleZen` (DUB russo) entrou na mesma guarda. v18/v13: `LAT.DUB`
+  // e o espelho de cena EN publicado por site BR.
+  assert.equal(prefix('streams'), 'streams:v18:');
+  assert.equal(prefix('idx'), 'idx:v13:');
 });
 
 test('streamsCacheKey preserva a separação por conteúdo e por modo sem conta', () => {

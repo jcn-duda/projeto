@@ -318,3 +318,25 @@ test('contra-prova: sem a origem BR (estado de produção anterior) o q1=2 corta
   );
   assert.ok(titulos.some((t) => t.includes('YTS')), 'YTS ocupa as vagas');
 });
+
+test('toStremioStream: site BR republicando nome de cena EN perde a vaga BR', () => {
+  // magnets.db (2026-09-24): 42 releases assim, todas EN — "Barbie … [YTS.MX]"
+  // e "House of the Dragon … -NTb[TGx]" ocupavam a vaga reservada de dublado.
+  const h = 'e'.repeat(40);
+  const base = { infoHash: h, isBr: true, seeders: 1, indexer: 'comandotorrents', tracker: 'Comando' };
+  for (const title of [
+    'Barbie (2023) 720p WEBRip x264 2.0 [YTS.MX]',
+    'House of the Dragon S02E01 1080p MAX WEB-DL DDP5 1 x264-NTb[TGx]',
+    'Inside.Out.2.2024.720p.WEBRip.800MB.x264-GalaxyRG',
+  ]) {
+    assert.equal((toStremioStream({ ...base, title }) as any)._br, false, title);
+  }
+  // Qualquer sinal PT preserva a origem do indexer.
+  for (const title of [
+    'Barbie (2023) 1080p WEBRip DUAL [YTS.MX]',
+    'The Boys 1ª Temporada 720p x264-GalaxyRG',
+    'Comandotorrents - Coringa 2019 1080p',
+  ]) {
+    assert.equal((toStremioStream({ ...base, title }) as any)._br, true, title);
+  }
+});

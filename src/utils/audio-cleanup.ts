@@ -23,6 +23,7 @@
  */
 import config from '../config.js';
 import { normalizeTitle } from './title-normalization.js';
+import { hasPtSigns } from './br-origin.js';
 
 /**
  * Idiomas que desmentem a promessa GENÉRICA de dublagem. `[Ukr Dub]`,
@@ -124,9 +125,14 @@ const RUTRACKER_TRANSLIT_RE = /\[\s*(?:19|20)\d{2}(?:\s*[-–—]\s*(?:19|20)\d{
  */
 function genericDubProvesPt(text: string): boolean {
   const t = String(text || '').toUpperCase();
+  // `LAT` é a abreviação de LATINO (`…1080p.WEBRip.LAT.DUB.PINUP`,
+  // Cinecalidad/1XBET). Fica fora do FOREIGN_DUB_LANG_RE de propósito: token
+  // curto demais para a lista compartilhada; aqui e no path só desmente a
+  // promessa GENÉRICA, nunca condena.
   return !CYRILLIC_RE.test(t)
     && !FOREIGN_DUB_LANG_RE.test(t)
     && !RUTRACKER_TRANSLIT_RE.test(t)
+    && !/\bLAT\b/.test(t)
     && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
 }
 
@@ -198,7 +204,8 @@ function hasPtAudioMark(path = '') {
   const raw = String(path);
   const hasForeignLang = FOREIGN_DUB_LANG_RE.test(raw.toUpperCase())
     || CYRILLIC_RE.test(raw)
-    || RUTRACKER_TRANSLIT_RE.test(raw);
+    || RUTRACKER_TRANSLIT_RE.test(raw)
+    || /\bLAT\b/i.test(raw);
   return config.audioAudit.ptMarkers.some((marker: string) => {
     const normalized = normalizeTitle(marker);
     if (!normalized) return false;
@@ -246,8 +253,20 @@ function dnContradictsDubClaim(dn = '') {
   return Boolean(strongEnSceneMark(dn));
 }
 
+/**
+ * Título de post BR que é o nome de cena EN intacto ("Barbie (2023) 1080p
+ * WEBRip [YTS.MX]", "…-NTb[TGx]"): o agregador republicou o magnet gringo.
+ * Nega só a ORIGEM que o flag do indexer dava; qualquer sinal PT (acento,
+ * "Temporada", dublado/dual/legendado) preserva o BR.
+ */
+function enSceneMirrorTitle(title = '') {
+  if (!title || hasPtSigns(title)) return false;
+  return Boolean(strongEnSceneMark(title));
+}
+
 export {
   dnContradictsDubClaim,
+  enSceneMirrorTitle,
   genericDubProvesPt,
   foreignLangNamedForBucket,
   namesForeignDubLanguage,
