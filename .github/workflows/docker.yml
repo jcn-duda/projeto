@@ -57,12 +57,33 @@ jobs:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
 
+      # O build baixa quatro imagens base, e o lscr.io (Jackett) recusa com
+      # `toomanyrequests` em rajada — limite do registro, não defeito nosso.
+      # Reprovou o commit três vezes em 2026-09 (19, 20 e 24) com o MESMO
+      # digest passando em outra execução, então a primeira tentativa não
+      # derruba o job: só a segunda decide.
       - name: Construir imagem sem publicar
+        id: build
+        continue-on-error: true
         uses: docker/build-push-action@v6
         with:
           context: .
           # Sem push e sem load: o objetivo é provar que o build passa. Carregar
           # a imagem no daemon só gastaria tempo e disco do runner.
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Esperar o limite do registro ceder
+        if: steps.build.outcome == 'failure'
+        run: sleep 60
+
+      # Segunda tentativa SEM `continue-on-error`: falha aqui reprova o job.
+      - name: Construir imagem sem publicar (2ª tentativa)
+        if: steps.build.outcome == 'failure'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
