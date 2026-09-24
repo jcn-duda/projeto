@@ -27,6 +27,9 @@ const TECH_NOISE = ('web dl webdl bluray blu ray webrip bdrip brrip hdtv hdrip r
   'us uk ca au nz jp tv ' +
   'torrent torrents download baixar assistir online gratis ' +
   'dublado dublada dublagem legendado legendada legenda opcao opcoes versao estendida extendida ' +
+  // Edição do MESMO filme: "Apocalypse Now V.Exten (1979) [BluRay 1080p][DUAL]"
+  // (Versão Estendida abreviada) caía a 0,67 de precisão e morria no filtro BR.
+  'exten extended ' +
   'mkv mp4 avi gb mb kb ' +
   '480p 540p 576p 720p 1080p 1440p 2160p 4k uhd sd hd fullhd').split(' ');
 
@@ -141,8 +144,14 @@ const STRONG_PACK_WORDS = new Set(
 );
 
 /** Tokens normalizados e não vazios de um texto de título. */
+// "V." abreviando "Versão" ("V.Exten", "V. Estendida"): o `v` sozinho seria
+// conteúdo estranho na precisão, mas não pode virar ruído geral — "V" e
+// "V de Vingança" são obras. Só cai colado numa palavra de edição.
+const EDITION_AFTER_V = new Set(['exten', 'extended', 'estendida', 'extendida']);
+
 function titleTokens(text: string): string[] {
-  return normalizeTitle(text).split(' ').filter(Boolean);
+  const tokens = normalizeTitle(text).split(' ').filter(Boolean);
+  return tokens.filter((token, i) => !(token === 'v' && EDITION_AFTER_V.has(tokens[i + 1])));
 }
 
 export {

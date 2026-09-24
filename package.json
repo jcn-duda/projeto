@@ -116,6 +116,7 @@
     "test/apachetorrent-resolver.test.js",
     "test/apachetorrent-cardigann.test.js",
     "test/br-title.test.js",
+    "test/br-title-edition.test.js",
     "test/br-audio-bucket.test.js",
     "test/dual-foreign-language.test.js",
     "test/br-coverage.test.js",
