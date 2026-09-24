@@ -12,7 +12,7 @@
 import config from '../config.js';
 import * as activity from './activity.js';
 import jackett from './jackett.js';
-import { ptSweepIndexers, ptSweepQueryFor } from './search-plan.js';
+import { ptSweepIndexers, ptSweepQueryFor, dubbedSweepQueryFor } from './search-plan.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { HarvestEntry } from './harvest-queue.js';
@@ -70,7 +70,12 @@ export async function runPtSweep(input: SweepInput): Promise<{ attempted: number
     harvestMaxPerHour, harvestIdleWindowMs, queriesThisHour, awaitGap, markQueried,
   } = input;
   const out = { attempted: 0, succeeded: 0, items: [] as any[] };
-  const sweepQuery = config.jackett.ptSweepGlobal ? ptSweepQueryFor({ titles: titles as any }) : null;
+  // Título pt igual ao original: sem raiz pt para varrer, a variante
+  // "<título> dublado" ocupa o lugar dela (mesmo orçamento, mesmos alvos).
+  const sweepQuery = !config.jackett.ptSweepGlobal
+    ? null
+    : ptSweepQueryFor({ titles: titles as any })
+      || (config.harvest.dubbedQuery ? dubbedSweepQueryFor({ titles: titles as any }) : null);
   const sweepTargets =
     !directed && sweepQuery && (urgent || !activity.recentUserTraffic(harvestIdleWindowMs))
       ? ptSweepIndexers(indexers, config.jackett.ptBrIndexers, config.jackett.indexOnlyIndexers)
@@ -100,6 +105,7 @@ export async function runPtSweep(input: SweepInput): Promise<{ attempted: number
   }
   out.attempted += ativos.length;
   metrics.count('harvest.sweep');
+  if (/ dublado$/.test(sweepQuery) && !ptSweepQueryFor({ titles: titles as any })) metrics.count('harvest.sweep.dubbed');
   try {
     const items = await jackett.search(sweepQuery, entry.type, ativos, {
       matchContext,

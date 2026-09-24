@@ -257,6 +257,7 @@
     "test/harvester.test.js",
     "test/harvester-priority.test.js",
     "test/harvester-sweep.test.js",
+    "test/harvest-dubbed-sweep.test.js",
     "test/harvester-timer.test.js",
     "test/harvester-overrides.test.js",
     "test/harvester-edge.test.js",

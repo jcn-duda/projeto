@@ -2570,6 +2570,24 @@ o orçamento com a resposta.
   Crash de aba aqui não é memória (o 1337x resolve desafio no mesmo
   FlareSolverr): teste os espelhos do definition antes de culpar a infra e
   tire da lista o que não tem espelho vivo.
+- **O LimeTorrents classifica filme dublado como "Other" (8000).** Com
+  `Category[]=2000` na URL o Jackett escondia o release ANTES de chegar ao
+  addon — "Interestelar (2014) BluRay 1080p Dublado" (114 seeders) e o
+  "Apocalypse Now … 720p Dublado AndreTPF" (30) nunca apareciam.
+  `OTHER_AS_UNKNOWN_INDEXERS` (`jackett-results.ts`) manda a consulta sem
+  categoria e o filtro local trata Other como tipo desconhecido; áudio, jogo,
+  livro e o tipo errado seguem fora. Medido em 18 filmes: 0 relevante perdido,
+  16 a mais nas buscas EN e 11 dublados PT vivos. Mesma família do TPB
+  (`CATEGORY_UNFILTERED_INDEXERS`) e do MagnetDownload
+  (`UNRELIABLE_CATEGORY_INDEXERS`); a isenção é nominal de propósito.
+- **Título pt igual ao original não tem varredura pt — o colhedor usa
+  "<título> dublado".** `ptSweepQueryFor` devolve `null` quando pt ==
+  original ("Apocalypse Now"), e o dublado titulado só "Nome Dublado" ficava
+  atrás das edições gringas. `dubbedSweepQueryFor` (`search-plan.ts`) ocupa o
+  lugar dela SÓ no colhedor (`harvest-sweep.ts`, mesmo orçamento e alvos;
+  kill-switch `HARVEST_DUBBED_QUERY`; métrica `harvest.sweep.dubbed`) — nunca
+  na busca viva: p90 de 4,4s por consulta e o kickass disputa o FlareSolverr.
+  Medido em 15 filmes: 2 dublados reais e tocáveis só por ela.
 - **Buscador WordPress engasga com `:`** — `bludv.search` remove antes de
   consultar. Sintomas: título com subtítulo volta vazio.
 - **Buscador WordPress BR devolve 0 para QUALQUER query acentuada.** Medido

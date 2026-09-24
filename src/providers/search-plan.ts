@@ -178,4 +178,24 @@ function ptSweepQueryFor({ titles }: { titles?: any }) {
   return ptSweepQuery(titles.pt) || null;
 }
 
-export { planJackettQueries, ptSweepIndexers, ptSweepQuery, ptSweepQueryFor, liveIndexers };
+const comparable = (s: unknown) => String(s || '').toLowerCase().normalize('NFD')
+  .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * Variante "<título> dublado" para quando o pt é IGUAL ao original ("Apocalypse
+ * Now"): aí a varredura pt não existe (`ptSweepQueryFor` → null) e o tracker
+ * global, que pagina (LimeTorrents devolve 12), enterra o dublado atrás das
+ * edições gringas. Medido em 15 filmes assim (2026-09-24): 2 dublados reais e
+ * tocáveis só apareciam com ela (Apocalypse Now 720p AndreTPF, 30 seeders;
+ * Deadpool e Wolverine 720p WEB-DL). SÓ o colhedor usa — p90 de 4,4s por
+ * consulta, e o kickass passa pelo FlareSolverr serial.
+ */
+function dubbedSweepQueryFor({ titles }: { titles?: any }) {
+  if (!titles?.pt) return null;
+  const original = titles.en || titles.original;
+  if (!original || comparable(titles.pt) !== comparable(original)) return null;
+  const root = ptSweepQuery(titles.pt);
+  return root ? `${root} dublado` : null;
+}
+
+export { planJackettQueries, ptSweepIndexers, ptSweepQuery, ptSweepQueryFor, dubbedSweepQueryFor, liveIndexers };
