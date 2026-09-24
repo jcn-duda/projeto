@@ -51,7 +51,7 @@ test('getTitles resolve pt/original/year para filme e grava no cache', withTmdbK
   try {
     const titles = await getTitles(imdbId);
     // Original inglês: o próprio `original` já é o canônico EN — sem 2ª consulta.
-    assert.deepEqual(titles, { pt: 'Coringa', original: 'Joker', en: 'Joker', year: '2019' });
+    assert.deepEqual(titles, { pt: 'Coringa', original: 'Joker', en: 'Joker', br: [], year: '2019' });
 
     // A query precisa viajar em pt-BR e com o imdb id certo, senão o título
     // português nunca vem.
@@ -84,7 +84,7 @@ test('getTitles usa tv_results (name/original_name/first_air_date) para série',
   );
   try {
     const titles = await getTitles(imdbId);
-    assert.deepEqual(titles, { pt: 'Fallout', original: 'Fallout', en: 'Fallout', year: '2024' });
+    assert.deepEqual(titles, { pt: 'Fallout', original: 'Fallout', en: 'Fallout', br: [], year: '2024' });
   } finally {
     stub.restore();
     cache.forget(key);
@@ -132,6 +132,7 @@ test('getTitles busca o canônico inglês em /find en-US quando o original NÃO 
       pt: 'Django Vem Para Matar',
       original: 'Se sei vivo spara',
       en: 'Django Kill... If You Live, Shoot!',
+      br: [],
       year: '1967',
     });
     const enCalls = stub.calls.filter((c) => c.url.includes('language=en-US'));
@@ -143,7 +144,7 @@ test('getTitles busca o canônico inglês em /find en-US quando o original NÃO 
     // o find en-US.
     const again = await getTitles(imdbId);
     assert.deepEqual(again, titles);
-    assert.equal(stub.calls.length, 2, 'find pt-BR + find en-US, uma vez só');
+    assert.equal(stub.calls.length, 3, 'find pt-BR + find en-US + alternative_titles, uma vez só');
   } finally {
     stub.restore();
     cache.forget(key);

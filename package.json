@@ -322,6 +322,7 @@
     "test/swr-streams.test.js",
     "test/tmdb.test.js",
     "test/tmdb-english-title.test.js",
+    "test/tmdb-br-aliases.test.js",
     "test/warmup.test.js",
     "test/challenger-m1-adversarial.test.js",
     "test/challenger-m1-debrid.test.js",

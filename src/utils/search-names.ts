@@ -16,7 +16,7 @@ import { streamDisplayName } from './stream-display.js';
 
 interface SearchNamesOptions {
   meta?: { name?: string | null; title?: string; year?: number | string | null } | null;
-  titles?: { original?: string | null; pt?: string | null; en?: string | null; year?: number | string | null } | null;
+  titles?: { original?: string | null; pt?: string | null; en?: string | null; br?: string[] | null; year?: number | string | null } | null;
   imdbId?: string | null;
 }
 
@@ -272,8 +272,10 @@ function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): 
     // `dedupeNames` remove null/undefined/'' e colapsa repetições normalizadas
     // (o original do Cinemeta e o canônico inglês coincidem em obra anglófona),
     // mantendo só strings não vazias para `matchContext.names: string[]`.
-    // Grafias arbitrárias dos `alternative_titles` (ex.: "Kill") NÃO entram.
-    names: dedupeNames([meta?.name, titles?.en, titles?.pt, titles?.original]),
+    // Dos `alternative_titles` só entram os aliases BR já filtrados em
+    // tmdb-br-aliases.ts ("Operação: Lioness"); grafias arbitrárias de outros
+    // países ("Kill") continuam fora.
+    names: dedupeNames([meta?.name, titles?.en, titles?.pt, titles?.original, ...(titles?.br || [])]),
   };
 }
 

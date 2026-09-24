@@ -87,6 +87,7 @@ test('getTitles (TV): a 2ª consulta /find en-US traz o canônico de tv_results 
       pt: 'Meu Nome é Farah',
       original: 'Adım Farah',
       en: 'My Name Is Farah',
+      br: [],
       year: '2023',
     });
     const enCalls = stub.calls.filter((c) => c.url.includes('language=en-US'));
@@ -108,8 +109,9 @@ test('getTitles: original inglês não abre a 2ª consulta /find en-US', withTmd
   }));
   try {
     const titles = await getTitles(imdbId);
-    assert.deepEqual(titles, { pt: 'The Thing', original: 'The Thing', en: 'The Thing', year: '1982' });
-    assert.equal(stub.calls.length, 1, 'original inglês não paga chamada extra');
+    assert.deepEqual(titles, { pt: 'The Thing', original: 'The Thing', en: 'The Thing', br: [], year: '1982' });
+    // Só o find pt-BR + alternative_titles (aliases BR): nenhum /find en-US.
+    assert.equal(stub.calls.filter((c) => c.url.includes('language=en-US')).length, 0, 'original inglês não paga /find en-US');
   } finally {
     stub.restore();
     cache.forget(key);
@@ -247,7 +249,7 @@ test('getTitles: entrada com `en` mas ainda com `aliases` legado é relida e lim
     const titles = await getTitles(imdbId);
     assert.equal(titles.en, 'Django Kill... If You Live, Shoot!');
     assert.equal(titles.aliases, undefined);
-    assert.equal(stub.calls.length, 2, 'entrada com alias legado é relida uma vez');
+    assert.equal(stub.calls.length, 3, 'entrada com alias legado é relida uma vez (pt-BR + en-US + aliases BR)');
     assert.equal((cache.get(key) as any).aliases, undefined, 'campo arbitrário não sobrevive no cache');
   } finally {
     stub.restore();

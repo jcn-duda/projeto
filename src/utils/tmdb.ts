@@ -3,6 +3,7 @@ import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import * as log from './logger.js';
 import { collectionRoot } from './multiwork-pack.js';
+import { fetchBrAliases, filterBrAliases } from './tmdb-br-aliases.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 const API = 'https://api.themoviedb.org/3';
@@ -120,7 +121,9 @@ async function getTitles(imdbId: string) {
     // gravado é o mesmo, aditivo). Se a releitura falhar, a entrada antiga é
     // regravada por allowlist com TTL curto — pt/original sobrevivem e a API
     // não é martelada (ver catch).
-    if (hit.en !== undefined && hit.aliases === undefined) return hit;
+    // Mesma releitura única para entrada anterior ao campo `br` (aliases BR
+    // filtrados): sem ela, o conserto do "Operação Lioness" esperaria o TTL.
+    if (hit.en !== undefined && hit.br !== undefined && hit.aliases === undefined) return hit;
   }
   const pending = inFlight.get(key);
   if (pending) return pending;
@@ -159,20 +162,28 @@ async function getTitles(imdbId: string) {
       // segunda consulta `/find` em en-US no MESMO prazo (não estende o
       // orçamento). Não passamos o `id` do item: o `/find` responde a mesma
       // obra pelo imdb id e não depende de tipo (movie/tv) nem de id numérico.
-      const enResult = originalLanguage && originalLanguage !== 'en'
-        ? await fetchEnglishTitle(imdbId, deadlineAt)
-        : null;
+      // Aliases BR (`alternative_titles`, só país BR) em paralelo, no MESMO
+      // prazo — ver tmdb-br-aliases.ts.
+      const [enResult, brResult] = await Promise.all([
+        originalLanguage && originalLanguage !== 'en'
+          ? fetchEnglishTitle(imdbId, deadlineAt)
+          : Promise.resolve(null),
+        fetchBrAliases(Number(item.id), !movie, deadlineAt),
+      ]);
+      const pt = item.title || item.name || null;
+      const en = originalLanguage === 'en' ? original : enResult?.title ?? null;
       const titles = {
-        pt: item.title || item.name || null,
+        pt,
         original,
         // Em obra de original inglês o próprio `original` já é o canônico EN.
-        en: originalLanguage === 'en' ? original : enResult?.title ?? null,
+        en,
+        br: filterBrAliases(brResult.titles, [pt, original, en]),
         year: (item.release_date || item.first_air_date || '').slice(0, 4) || null,
       };
-      // Título não muda e vale o TTL longo SÓ quando a consulta en-US respondeu
-      // de verdade. Falha/timeout na busca do canônico é degradação: TTL curto
-      // para a próxima busca tentar de novo em vez de congelar por 7 dias.
-      if (enResult && !enResult.ok) {
+      // Título não muda e vale o TTL longo SÓ quando as consultas auxiliares
+      // responderam de verdade. Falha/timeout é degradação: TTL curto para a
+      // próxima busca tentar de novo em vez de congelar por 7 dias.
+      if ((enResult && !enResult.ok) || !brResult.ok) {
         cache.set(key, titles, enRetryTtl());
       } else {
         cache.set(key, titles, config.tmdb.cacheTtl);
@@ -185,7 +196,7 @@ async function getTitles(imdbId: string) {
       // campo legado do cache (`aliases`); `en:null` evita a releitura imediata
       // a cada busca.
       if (hit && !hit.miss) {
-        const healed = { pt: hit.pt ?? null, original: hit.original ?? null, en: hit.en ?? null, year: hit.year ?? null };
+        const healed = { pt: hit.pt ?? null, original: hit.original ?? null, en: hit.en ?? null, br: Array.isArray(hit.br) ? hit.br : [], year: hit.year ?? null };
         cache.set(key, healed, enRetryTtl());
         return healed;
       }

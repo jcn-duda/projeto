@@ -317,8 +317,20 @@ O addon faz uma **SEGUNDA consulta `/find` em en-US** dentro do MESMO prazo
 NUNCA `original_*` (que repetiria o idioma de origem) nem as `alternative_titles`,
 cujas grafias arbitrárias abririam matching genérico.
 
+**Exceção: aliases BR (`tmdb-br-aliases.ts`).** O pt-BR do TMDB às vezes não é o
+nome que os sites brasileiros publicam: Lioness volta "Lioness" e todo post BR
+diz "Operação Lioness" — a regra de prefixo do filtro BR cortava todos. Os
+`alternative_titles` entram em `names` (nunca como query) com três travas:
+só `iso_3166_1 = BR`, no máximo 2, e o alias precisa CONTER todas as palavras
+significativas de um nome canônico (pt/original/en) — "Kill" não contém "Django
+Kill… If You Live, Shoot!" e continua fora. Medido no acervo local (129 obras):
+15 com alias aceito, 108 releases recuperadas em 3 obras, 0 perdidas. Caveat:
+alias com número ("Todo Mundo em Pânico 6") carrega o marcador de sequência
+para aquela obra — certo quando o alias é da própria obra, que é o que o TMDB
+lista.
+
 **Cache:** TTL longo (TMDB_CACHE_TTL, default 7 dias) só quando a consulta en-US
-respondeu com `ok:true`. Falha/timeout recebe TTL curto (`enRetryTtl()` = mínimo
+e a de aliases BR responderam com `ok:true`. Falha/timeout recebe TTL curto (`enRetryTtl()` = mínimo
 entre `TMDB_CACHE_TTL` e `TMDB_TRANSIENT_MISS_TTL`, com piso de 1s): degradação
 precisa de releitura curta, não congelar por 7 dias.
 
