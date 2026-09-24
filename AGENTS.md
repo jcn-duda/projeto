@@ -1562,8 +1562,7 @@ v11 removeu do `title` entregue ao cliente o blob de qualidades do HDRTorrent;
 v12 cortou série/pack fora do intervalo e TS/PreDVD da lista de filme; v13
 deixou de promover `DUB` genérico de release rutracker transliterada; v14
 separou `_dubClaim` (promessa no título/post) de `_dubbed` (áudio confirmado
-pela evidência de arquivo); v15 travou a classificação da lista antes do
-overlay Jev derrubar generic DUB; e v16 aplicou à lista a MESMA faixa de anos da
+pela evidência de arquivo); v15 acompanhou o overlay Jev (já removido); e v16 aplicou à lista a MESMA faixa de anos da
 guarda rutracker do idx (medida no corpus do container, 2026-09-22:
 `The Matrix: Trilogy [1999-2003, …] Dub` vinha como DUB BR). **Limitação:** o
 `magnets.db` (banco vivo) guarda `is_br` OR-aderente e **sem versão** — o rótulo
@@ -1591,18 +1590,16 @@ TTL de resultado vazio é curto (`RAW_CACHE_EMPTY_TTL`): 200 com zero itens
 pode ser rate-limit, e herdar o TTL cheio congelaria o vazio.
 
 Cotas do L1 (`cache-quotas.ts`): `streams` 2000, `raw` 800, `dlmag` 4000,
-`idx` 2000, `rdc` 14000, `autofetch` 4000, `mag` 50000, `tsj` 20000 (julgamento
-cru do TypeSafe shadow — ~400 B por entrada, ~8 MB), `mag_meta` 1 (o agregado
-único dos contadores duráveis do banco de magnets), teto global 112500. `raw` é o namespace
+`idx` 2000, `rdc` 14000, `autofetch` 4000, `mag` 50000, `mag_meta` 1 (o agregado
+único dos contadores duráveis do banco de magnets), teto global 93000. `raw` é o namespace
 gordo (~100 KB no pior caso); não suba a cota sem refazer a conta de memória do
 container de 3g. O `mag` é o oposto — entrada minúscula (`1` + chave de ~70 B,
 ~400 B com o overhead do Map), então 50.000 custa ~19 MB. A conta que fecha NÃO
-é a soma das chaves nomeadas de `QUOTAS` (111.721): `quotaFor` devolve `__default` (500)
+é a soma das chaves nomeadas de `QUOTAS` (91.721): `quotaFor` devolve `__default` (500)
 para todo nome sem entrada própria, então o universo honesto é a **união** de
 `QUOTAS` com `NAMESPACE_VERSIONS`, mais o balde `__default` das chaves sem `:`
-— 112.221 contra o teto de 112.500, folga de 279 (margem curta — NÃO cabe mais
-um balde `__default` de 500 na folga; um namespace novo sem cota própria
-estouraria o teto e precisa de cota explícita junto).
+— 92.221 contra o teto de 93.000, folga de 779 (cabe ~1 balde `__default` de
+500; um segundo namespace novo sem cota própria estouraria o teto).
 Essa conta é refeita no teste (`cache-namespaces.test.ts`), que também
 exige **cota explícita para todo namespace versionado** — sem a segunda guarda,
 `dinv`, `harvest`, `notify` e `seed` viveram de fallback e a soma real passou do
@@ -1615,7 +1612,7 @@ O banco de magnets VIVO (`data/magnets.db`) NÃO entra nesta conta: é SQLite
 próprio, sem cota, sem TTL e sem versão de namespace. A URI por hash que antes
 morava no cache (`muri:`) agora é do banco — não há namespace `muri` em `QUOTAS`
 nem em `NAMESPACE_VERSIONS`, e o prefixo legado é descartado no boot; o teto
-global segue **112.500**.
+global segue **93.000**.
 
 Cota é capacidade, não permanência: quem tira registro do `mag` no dia a dia é
 o TTL (`MAGNET_ALIVE_TTL`/`MAGNET_LIE_TTL` 7 dias, `MAGNET_BAD_TTL` 24 h).
@@ -1769,133 +1766,6 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
 - Critério de aceitação do plano: busca responde com o Jackett FORA do ar —
   coberto pelo teste "Fase 3: Jackett FORA DO AR" em
   `test/index-fast-path.test.ts`.
-
----
-
-## TypeSafe (System One) — runtime SHADOW-ONLY, default OFF (`src/ai/`)
-
-Integração de IA (modelo Jev) que **mede e nunca decide**: títulos pós-filtro
-são classificados em fila assíncrona e comparados com o veredito
-determinístico (`looksPtBr`/`_br`) — o resultado é **só métrica de
-concordância**. Detalhe operacional completo em `docs/TYPESAFE_SYSTEM_ONE.md`
-(probes, resultados online 38/38 e 26/30 com limitações, e §15 do runtime).
-
-- **Kill-switch é o default.** `TYPESAFE_RUNTIME_ENABLED=false` (ou
-  `TYPESAFE_API_KEY` vazia) deixa o runtime INERTE por construção: o enqueue
-  curto-circuita ANTES do fingerprint — zero fetch, zero leitura e zero
-  escrita do cache `tsj`. Não "conserte" isso movendo o gate para depois.
-- **Zero influência é por grafo, não por disciplina.** Nenhum módulo de
-  decisão (matching/áudio, limpeza, lie/bad, índice, banco de magnets,
-  autofetch, debrid) importa `src/ai/`; no caminho de resposta só a fachada
-  `ai/index.js` é permitida — `test/typesafe-shadow-graph.test.ts` reprova
-  qualquer desvio. NÃO crie caminho de `src/utils/*` ou `src/debrid/*` para
-  `src/ai/`.
-- **Nunca awaited pela resposta.** O produtor é `prepareCandidateStreams`
-  (depois do filtro determinístico), com teto de 12 títulos únicos por build
-  (`SHADOW_PER_BUILD_MAX`). A ordem é ESTÁVEL por camadas — `weak` (DUB genérico
-  isolado, o domínio do overlay) → `br` → `rest` —, então o teto corta a CAUDA
-  do ranking, nunca o topo, e `typesafe.shadow.tier.*` mede a cobertura que o
-  overlay terá. O drain roda em `setImmediate`, lê SÓ
-  `config.typesafe` (nunca `opts()`), 1 tentativa por item. O cliente tem
-  TETO de 3000 ms e segredo SÓ no header `Authorization: Bearer`.
-- **Orçamento e breaker COMPARTILHADOS pelas duas perguntas:** uma só instância
-  (`judgment-shared-budget.ts`) injetada nos dois cores — mesma chave e mesmo
-  limite do provedor, então um rate/auth em qualquer pergunta arma o cooldown
-  das duas. `TYPESAFE_QUEUE_MAX` é teto duro de fila POR pergunta (excedente
-  descarta, não existe fila infinita); `TYPESAFE_HOURLY_CAP` + `TYPESAFE_DAILY_CAP`
-  (default **1000/10000**) são o orçamento ÚNICO, por processo (zera no restart);
-  backoff exponencial na base `TYPESAFE_COOLDOWN_MS`; auth 401/403 para 30 min
-  com um warn único por processo.
-- **Cache do julgamento cru (`tsj:v1`, cota 20.000):** chave
-  `sha256(título normalizado | model | promptVersion)`, valor `{ n, m, at }`
-  sem título/chave/config. O noul é gravado CRU; o threshold é aplicado SÓ na
-  comparação shadow de uma chamada NOVA (o cache-hit retorna cedo e não
-  re-contabiliza métrica). Guardar o valor cru é o que permite recomputar sem
-  re-pagar quando um recompute existir — hoje não existe consumidor de
-  recompute, então mudar `TYPESAFE_THRESHOLD` só afeta chamadas novas. O
-  `TYPESAFE_MODEL` default é `jev-1.13.0` — ID versionado registrado em
-  `docs/JEV_REFERENCIA.md`. Alias móvel (`jev-latest`, `jev-preview`) serve à
-  fila shadow (o model usado viaja no valor `m` e na chave fp), mas NUNCA
-  decide: o overlay do DUB genérico falha FECHADO com modelo não versionado
-  (`isVersionedModel`, formato estrito `jev-x.y.z`) — troca silenciosa de
-  alias não pode derrubar dublado.
-- **Overlay do DUB genérico (ETAPA C) é opt-in, default OFF.**
-  `TYPESAFE_OVERLAY_ENABLED=false` na fábrica de config — o portão formal
-  (>= 200 julgamentos + revisão humana) não foi cumprido; o `.env.example`
-  espelha isso (`TYPESAFE_OVERLAY_ENABLED=false`, `TYPESAFE_MODEL=jev-1.13.0`).
-  Com ligado, a decisão do
-  `overlayDropsDub` ainda exige runtime shadow ON, chave presente (mesma
-  exigência do produtor/drain), Jev não pausado (o `jev-pause` do painel
-  desativa a DECISÃO, não só as filas), modelo versionado e o eco do modelo
-  (`m` do cache) igual ao ID da config — os portões fecham antes de qualquer
-  leitura, e cache velho, malformado ou de outro modelo falha FECHADO
-  (`typesafe.overlay.model-mismatch`). E é cache-only/monotônico (só derruba
-  `true`->`false` no generic DUB isolado, noul <= 0.15). **O que PERSISTE fica
-  determinístico, e a baseline shadow também:** `audioBucket`,
-  `recordFileEvidence` (evidência de arquivo no idx) e `noteAudit` (linha do
-  catálogo) gravam com `{overlay:false}`; o `release-index.record`
-  reclassifica o `isBr` do item com `{overlay:false}` antes de gravar (o item
-  CRU da listagem segue com o overlay — pinar o produtor em
-  `jackett-results.ts` derrubaria a vaga BR ao vivo e desfaria o efeito; por
-  isso a trava é no PONTO DE GRAVAÇÃO, idx e captura do banco de magnets, não
-  no `mapResults`); `deterministicLooksPtBr` trava a régua do produtor shadow
-  — a IA nunca altera o baseline contra o qual é medida (o baseline é a versão
-  determinística do `_br`, não o `_br` corrente da listagem, que PODE incluir
-  o overlay). **A régua é SÓ áudio:** `deterministicLooksPtBr` mede unicamente
-  `looksPtBr(t, {overlay:false})` — `isBr`/`ptTitleDual` NÃO entram, porque
-  (1) origem não é áudio (o `_br` corrente funde os dois eixos e medi-los
-  juntos compararia a IA com um proxy de ORIGEM, não com a leitura de idioma da
-  pergunta `is_ptbr_dub`) e (2) `ptTitleDual` só nasce no stream-builder
-  (`applyPtTitleDual`), DEPOIS do produtor shadow — lê-lo aqui seria sempre
-  `undefined`. O eixo de origem é medido SEPARADO, como dimensão: o enqueue
-  carrega `dim: 'origin-br' | 'origin-global'` (união fechada), Q1 deriva de
-  `item.isBr`, Q2 (tail audit, que não tem o flag) passa `origin-global` fixo;
-  a divergência grava, além de `typesafe.shadow.disagree.<lado>`, a leitura
-  por origem `typesafe.shadow.disagree.<lado>.<dim>` — as métricas antigas
-  seguem intactas e a soma das dimensões bate com o total por lado;
-  `hasExplicitForeignAudio` e `foreignVerdict` seguem com
-  `{overlay:false}`. A métrica `typesafe.overlay.applied` conta TÍTULO
-  distinto: dedupe por fingerprint com vencimento ALINHADO AO JULGAMENTO
-  (`at + TYPESAFE_JUDGMENT_TTL_S` — exatamente o vencimento da entrada no
-  `tsj`, que a fila grava com `at: Date.now()`): dentro do TTL não há
-  recontagem, e um julgamento novo (novo `at`, ex.: reescrita após eviction da
-  cota do `tsj`) depois do vencimento é nova ocorrência (um LRU teto 512
-  recontava título cujo julgamento ainda podia estar decisório no `tsj`). O bound
-  operacional é CAP diário × TTL, nunca uptime: o orçamento único do shadow
-  (`TYPESAFE_HOURLY_CAP`/`TYPESAFE_DAILY_CAP`, compartilhado pelas duas
-  perguntas por processo) limita a entrada e o estado
-  zera no restart. **NÃO há memo global de decisão** (P1 da revisão final): o
-  memo anterior expirava pelo momento de consulta e sobrevivia à eviction da
-  cota do `tsj`, mascarando julgamento novo do mesmo fp (inclusive mudança do
-  `noul`) — cada chamada de `overlayDropsDub` faz `lookup` síncrono e o cache
-  é a autoridade (eviction/reescrita vistos na hora). No
-  `/dashboard-status.json` o bloco `typesafe.overlay` expõe `active` e
-  `blockedReason` (união fechada: `overlay-off`/`runtime-off`/`no-key`/
-  `paused`/`model-alias`) — o painel mostra BLOQUEADO com o motivo em vez de
-  "GATEADO ON" quando a flag está ligada mas um portão fecha a decisão.
-- **Pergunta versionada:** `questions-audio.ts` é espelho EXATO do probe
-  validado online (`jev-audio-classify-payload.mjs`); a paridade é travada
-  por teste. Mudou a pergunta → bump de `PROMPT_VERSION` (fp novo, julgamentos
-  órfãos expiram sozinhos).
-- **Estado enviado ao modelo: SOMENTE `post_title`** — allowlist campo a
-  campo. indexer/arquivo/magnet/hash/credencial/config nunca saem do processo.
-  ATENÇÃO do operador: ligar o runtime envia TÍTULOS a um serviço de
-  TERCEIRO — é o aviso que deve acompanhar qualquer documentação de ativação.
-- **Resultados online (2026-09-22) e limitações:** `dub-lie` 38/38 (margem
-  estreita 0,67/0,54) e `audio-classify` 26/30 com 4 FN em títulos
-  contraditórios; o ground truth do audio-classify é o próprio `looksPtBr`
-  (validação circular) — por isso a fase é shadow e o overlay (monotônico,
-  só-promove) fica condicionado a revisão humana do corpus. Threshold 0,55
-  não baixa sem isso.
-- **Observabilidade:** métricas `typesafe.*` no `/metrics.json` (labels
-  FECHADOS — kinds de erro e lados de discordância são uniões fixas, nunca
-  texto de título) e bloco compacto `typesafe` no `/dashboard-status.json`.
-  O anel em memória das 50 últimas discordâncias por pergunta NÃO entra no
-  poll: o `sample` carrega título e só sai pela ação autenticada
-  `jev-disagreements` (aba Jev, busca sob demanda); as métricas de discordância
-  continuam com labels fechados.
-- **Knobs são de OPERADOR** (`src/config/typesafe.ts`), fora do SCHEMA da URL
-  de instalação — mudar um deles não mexe no link do usuário.
 
 ---
 
@@ -2218,7 +2088,6 @@ fire-and-forget) continua.
 | `src/providers/live-indexer-state.ts` | Estado vivo de falha por indexer da coleta (`error`/`breaker`/`source`, `pending` conta como falho, `*all*` agregado) e `mergeLiveIndexerStates` |
 | `src/providers/magnet-bank-hook.ts` | Ponte stream-builder → banco: hashes não-conta/não-fallback e `targetsFor` escrevem o `passed_filter` da obra |
 | `src/providers/magnet-bank-fallback.ts` | Reserva da Etapa 4: seleção por indexer falho/`allFailed`, live-dedupe, tetos por indexer/global, selo `fromFallback` e métricas `fallback.*` |
-| `src/ai/` | Runtime TypeSafe/System One **SHADOW-ONLY** (seção própria abaixo): `index.ts` é a fachada ÚNICA (`shadowAudioJudgments`/`aiStatus`), `typesafe-client.ts` a única dona do fetch, `audio-judgment-queue.ts` e `dub-lie-judgment-queue.ts` as duas filas (orçamento/breaker compartilhados em `judgment-shared-budget.ts`, injetados pelo motor genérico `judgment-queue-core.ts`), `audio-judgment-cache.ts` o cache `tsj:v1`, `questions-audio.ts` o espelho da pergunta validada online, `types.ts` os tipos. Nenhum módulo de decisão importa `src/ai/` — travado por `test/typesafe-shadow-graph.test.ts` |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
 | `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — laço único para quem usa protetor), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
 | `*-resolver/` | Shims de compatibilidade/standalone (**TypeScript/ESM**, sem `package.json` de override): `<nome>/server.ts` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.ts`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)`. Os `server.d.ts` foram removidos — a implementação TS é o contrato; `nerdfilmes-resolver/test.ts` e `torrentdosfilmes-resolver/smoke-test.ts` também são compilados pelo tsc |

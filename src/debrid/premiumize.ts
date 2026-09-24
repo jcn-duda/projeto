@@ -84,13 +84,12 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
  * @param {?number} [options.episode]
  * @param {*} [options.work]
  */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed, dubLieShadow }: PlayHint = {}) {
+async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
   const body = new URLSearchParams({ src: magnetForPlay(infoHash) });
   const data = await call(apiKey, '/transfer/directdl', { method: 'POST', body });
   const file = pickFile(data.content || [], { season, episode, work });
   recordFileEvidence(infoHash, data.content || []);
-  // `dubLieShadow` só chega pelo tail audit (não há no hint assinado do play).
-  assertDubbedFiles(data.content || [], Boolean(dubbed), dubLieShadow);
+  assertDubbedFiles(data.content || [], Boolean(dubbed));
   return file ? file.stream_link || file.link : null;
 }
 

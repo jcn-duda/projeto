@@ -13,7 +13,6 @@ import { ViewGate } from './view-gate.js';
 import { ViewColhedor } from './view-colhedor.js';
 import { ViewSonda } from './view-sonda.js';
 import { ViewChupim } from './view-chupim.js';
-import { ViewJev } from './view-jev.js';
 import { ViewCache } from './view-cache.js';
 import { ViewLimpeza } from './view-limpeza.js';
 import { ViewMagnets } from './view-magnets.js';
@@ -49,7 +48,7 @@ function focusConfigField(element: HTMLElement): void {
 // Abas válidas: o hash (`/painel#diagnostico`) abre direto na aba e o clique a
 // atualiza — os atalhos legados apontam para `#chupim`/`#colhedor`. Hash fora
 // da lista é ignorado (nunca troca a aba por um valor arbitrário da URL).
-export const TAB_IDS = ['saude', 'conta', 'gate', 'colhedor', 'sonda', 'chupim', 'jev', 'cache', 'limpeza', 'magnets', 'diagnostico'] as const;
+export const TAB_IDS = ['saude', 'conta', 'gate', 'colhedor', 'sonda', 'chupim', 'cache', 'limpeza', 'magnets', 'diagnostico'] as const;
 
 export function tabFromHash(fallback: string): string {
   if (typeof window === 'undefined') return fallback;
@@ -210,12 +209,6 @@ export function App(props: AppProps) {
           Chupim
         </button>
         <button
-          class=${'painel-tab-btn' + (activeTab === 'jev' ? ' active' : '')}
-          onClick=${() => selectTab('jev')}
-        >
-          Jev
-        </button>
-        <button
           class=${'painel-tab-btn' + (activeTab === 'cache' ? ' active' : '')}
           onClick=${() => selectTab('cache')}
         >
@@ -272,8 +265,6 @@ export function App(props: AppProps) {
             <${ViewSonda} harvest=${p.harvest} f3=${p.f3} metrics=${p.metrics} />
           ` : activeTab === 'chupim' ? html`
             <${ViewChupim} autofetch=${p.autofetch} metrics=${p.metrics} />
-          ` : activeTab === 'jev' ? html`
-            <${ViewJev} typesafe=${p.typesafe} metrics=${p.metrics} />
           ` : activeTab === 'cache' ? html`
             <${ViewCache} cache=${p.cache} metrics=${p.metrics} />
           ` : activeTab === 'limpeza' ? html`

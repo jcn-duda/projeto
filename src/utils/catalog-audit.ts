@@ -89,11 +89,7 @@ export function noteAudit(
   const filename = existing.filename;
   const paths = (files || []).map((f) => String(f.path || '')).filter(Boolean);
   const bucket = audioBucket(filename);
-  // {overlay:false}: `existing.audio` é classificação PERSISTIDA na linha do
-  // catálogo — o cache Jev vivo não pode reescrevê-la com overlay ligado.
-  const audioIdioma = paths.length
-    ? paths.map((p) => audioFromTitle(p, { overlay: false })).find(Boolean) || ''
-    : '';
+  const audioIdioma = paths.length ? paths.map((p) => audioFromTitle(p)).find(Boolean) || '' : '';
   const verdict = foreignVerdict(filename, paths);
   let foreignProof = '';
   let ptProof = '';
