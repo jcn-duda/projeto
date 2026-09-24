@@ -163,8 +163,10 @@ const NAMESPACE_VERSIONS = Object.freeze({
 // padrão para sempre. `muri:` é a aposentadoria da URI por hash no cache: o
 // dono do dado passou a ser o banco permanente (`utils/magnet-bank.ts`), e o
 // prefixo legado é descartado no boot por aqui — sair de `NAMESPACE_VERSIONS`
-// sozinho NÃO limpa o que já está no disco.
-const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:', 'muri:']);
+// sozinho NÃO limpa o que já está no disco. `tsj:` é o julgamento do Jev
+// (runtime TypeSafe removido): sem o descarte, as entradas órfãs ocupariam o
+// balde `__default` até o TTL.
+const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:', 'muri:', 'tsj:']);
 
 const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSIONS[ns]}:`;
 

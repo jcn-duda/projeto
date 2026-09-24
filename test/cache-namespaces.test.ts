@@ -70,6 +70,9 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
     assert.equal(cache.QUOTAS.muri, undefined, 'muri não é mais namespace de cache');
     assert.equal('muri' in NAMESPACE_VERSIONS, false, 'muri não é mais versionado');
     assert.ok(LEGACY_PREFIXES.includes('muri:'), 'prefixo legado é descartado no boot');
+    // `tsj` saiu com o runtime Jev: julgamento órfão não pode ficar no disco.
+    assert.equal('tsj' in NAMESPACE_VERSIONS, false, 'tsj não é mais versionado');
+    assert.ok(LEGACY_PREFIXES.includes('tsj:'), 'julgamento do Jev é descartado no boot');
     assert.equal(cache.MAX_ENTRIES, 93000);
     // O que o teto precisa cobrir não é a lista de `QUOTAS`: `quotaFor` devolve
     // `__default` para todo nome sem entrada própria, então namespace
