@@ -21,8 +21,8 @@ test('preset BR recomendado carrega as escolhas comportamentais novas', async ()
   const rec = presets.recommended;
   // O preset NÃO pode cair abaixo da reserva BR: com maxPerQuality < 6 o BR
   // ainda entra pelas vagas reservadas, que atravessam a cota sem consumi-la.
-  assert.equal(rec.maxPerQuality, 3, 'BR recomendado acompanha a cota da instância');
-  assert.equal(presets.powerBr.maxPerQuality, 3, 'Power Movie usa a mesma cota');
+  assert.equal(rec.maxPerQuality, 2, 'BR recomendado acompanha a cota da instância (2 desde 2026-09-24)');
+  assert.equal(presets.powerBr.maxPerQuality, 2, 'Power Movie usa a mesma cota');
   assert.ok(rec.brReservedSlots >= rec.maxPerQuality, 'a reserva BR não pode ser menor que a cota');
   assert.equal(rec.excludeCam, true, 'BR recomendado oculta CAM');
   assert.equal(rec.showUncachedBr, false, 'BR recomendado mantém fora-do-cache escondido');

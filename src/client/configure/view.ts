@@ -8,21 +8,21 @@ import { KEYS, encodeConfig } from './keys.js';
 import { collectIndexerLimits } from './limits.js';
 import { applySegment, requestSeal } from './seal.js';
 
-// maxPerQuality: 3 desde 2026-09-01 (era 6) -- decisão do operador por lista
-// mais curta. O controle é único e vale também para o balde "sem resolução",
+// maxPerQuality: 2 desde 2026-09-24 (era 3; antes 6) -- decisão do operador
+// por lista mais curta, duas fontes gerais por qualidade. O controle é único e vale também para o balde "sem resolução",
 // o das fontes BR. O BR não fica desprotegido: a reserva (brReservedSlots)
 // atravessa a cota e não a consome.
 export const PRESET_BEHAVIORS: Record<string, any> = {
   recommended: {
     brFirst: true, preferDubbed: true, dubbedOnly: true, brOnly: false,
     excludeCam: true, brReservedSlots: 6, maxResults: 40,
-    maxPerQuality: 3, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
+    maxPerQuality: 2, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
     debridCachedOnly: true, showUncachedBr: false, autoFetchBr: true,
   },
   powerBr: {
     brFirst: true, preferDubbed: true, dubbedOnly: true, brOnly: false,
     excludeCam: true, brReservedSlots: 6, maxResults: 40,
-    maxPerQuality: 3, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
+    maxPerQuality: 2, maxPerIndexer: 0, minSeeders: 1, maxSizeGb: 0,
     debridCachedOnly: true, showUncachedBr: true, autoFetchBr: true,
   },
 };
