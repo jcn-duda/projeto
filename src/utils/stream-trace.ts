@@ -28,6 +28,8 @@ export type TraceReason =
   | 'account-series-work'
   | 'account-movie-is-series'
   | 'title-filter'
+  // Release falsa: extensão executável no nome ou irmão de um (fake-release.ts).
+  | 'fake-release'
   | 'named-sequel'
   | 'multiwork-retained'
   | 'episode-mismatch'

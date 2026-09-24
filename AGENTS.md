@@ -2499,6 +2499,17 @@ o orçamento com a resposta.
   nenhum reclame. O teste do scheme é case-insensitive e a saída sai
   normalizada em `magnet:` minúsculo: o NerdFilmes publica `MAGNET:` em parte
   dos botões, e foi só por causa disso que ele teve laço próprio um dia.
+- **⚡ não prova que há filme.** A AllDebrid guarda em cache o que qualquer um
+  sobe: release FALSA de filme ainda no cinema ganha ⚡ e só o play descobre
+  que não há vídeo (`bad`, por hash — o gêmeo seguinte escapa). A rede medida
+  publica `…1080p AMZN WEB-DL…-FLUX.exe` no magnetdownload e o MESMO nome sem
+  extensão no LimeTorrents. `src/providers/fake-release.ts` corta, antes do
+  filtro de título, o executável no título/`dn=` e o irmão de mesmo nome da
+  mesma obra (lote ou acervo) — este só quando o hash circula por UM indexer,
+  porque o falso copia nome de release real. Motivo `fake-release` no funil;
+  métricas `search.fake.executable`/`search.fake.twin`. Descartado como regra:
+  "WEB-DL antes do digital do TMDB" (The Odyssey tinha WEB-DL legítimo com
+  14.983 seeders e digital só em novembro no TMDB).
 - **Fontes BR não publicam tamanho por botão.** Os resolvedores mandam o
   sentinela "1 KB" (o Jackett exige o campo, e "0 B" invalida a release
   inteira no filtro de tamanho do cardigann); o addon trata ≤ 1 KB como

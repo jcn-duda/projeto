@@ -59,3 +59,18 @@ export function sourcesForMany(hashes: readonly string[]): Map<string, SourceRow
   }
   return out;
 }
+
+/**
+ * Títulos executáveis já vistos para a obra (`.exe`/`.scr`/…), para o corte do
+ * irmão de release falsa. Leitura pura e fail-open: banco fechado ou erro
+ * devolvem vazio e o corte fica só com o lote da busca.
+ */
+export function executableTitlesForObra(imdb: string, limit = 50): string[] {
+  const e = readEngine();
+  if (!e || !imdb) return [];
+  try {
+    return e.listExecutableTitles(String(imdb), clampLimit(limit));
+  } catch {
+    return [];
+  }
+}

@@ -25,6 +25,7 @@ import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
 import { applyProbedQuality } from './probed-quality.js';
 import { applyPtTitleDual } from './pt-title-dual.js';
 import { markBankFilterOutcome } from './magnet-bank-hook.js';
+import { dropFakeReleases } from './fake-release.js';
 import { filterSeriesEpisodeRaw } from './stream-builder-episode-filter.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 import { globalLieHashes } from '../utils/magnet-bank-lie.js';
@@ -92,6 +93,9 @@ export function prepareCandidateStreams(
     const limpo = decodeEntities(title);
     return limpo === title ? item : { ...item, title: limpo, ...(item.Title ? { Title: limpo } : {}) };
   });
+  // Release falsa (`….exe` e o irmão sem extensão) sai antes de tudo: nem
+  // título, nem índice, nem checagem de debrid devem gastar com ela.
+  if (!isDemo) raw = dropFakeReleases(raw, { imdbId, trace });
 
   // No modo demo, se não for BBB, lista vazia (esperado)
   if (isDemo && raw.length === 0) {

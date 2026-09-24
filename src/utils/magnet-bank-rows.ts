@@ -55,6 +55,8 @@ export interface Engine {
   /** `indexers` não vazio: só obras cujo hash tem fonte num deles. */
   listWorksByObra(imdb: string, season: number, episode: number, limit: number, indexers?: readonly string[]): WorkRow[];
   listSourcesByIndexer(indexer: string, limit: number): SourceRow[];
+  /** Títulos da obra (qualquer temporada) com extensão executável no título/URI. */
+  listExecutableTitles(imdb: string, limit: number): string[];
   /** Magnets de VÁRIOS hashes numa consulta (fallback sem N+1). */
   listMagnetsMany(hashes: readonly string[]): MagnetRow[];
   /** Fontes de VÁRIOS hashes numa consulta (fallback sem N+1). */
@@ -153,6 +155,13 @@ function sqliteEngine(dbPath: string): Engine | null {
       + 'SELECT 1 FROM magnet_source s WHERE s.hash = w.hash AND s.indexer IN (SELECT value FROM json_each(?))'
       + ') ORDER BY w.passed_filter DESC, w.last_seen DESC LIMIT ?',
     );
+    // Pré-filtro barato por LIKE; a regra exata (extensão no fim do nome) roda
+    // em JS no fake-release, que é quem decide.
+    const exeTitlesStmt = db.prepare(
+      "SELECT DISTINCT m.title FROM magnet_work w JOIN magnet m ON m.hash = w.hash WHERE w.imdb = ? AND ("
+      + ['exe', 'scr', 'lnk', 'bat', 'cmd', 'msi', 'pif', 'vbs'].map((x) => `m.title LIKE '%.${x}%' OR m.uri LIKE '%.${x}%'`).join(' OR ')
+      + ') LIMIT ?',
+    );
     const listSourcesIndexerStmt = db.prepare('SELECT * FROM magnet_source WHERE indexer = ? ORDER BY last_seen DESC LIMIT ?');
     const recentMagnetsStmt = db.prepare('SELECT * FROM magnet ORDER BY last_seen DESC LIMIT ?');
     // Busca por título com OR de 1..3 variantes (original/lower/upper). O LIKE
@@ -218,6 +227,9 @@ function sqliteEngine(dbPath: string): Engine | null {
       },
       listSourcesByIndexer(indexer, limit) {
         return all(listSourcesIndexerStmt, String(indexer || ''), limit).map(parseSource);
+      },
+      listExecutableTitles(imdb, limit) {
+        return all(exeTitlesStmt, String(imdb || ''), limit).map((r) => String(r.title || ''));
       },
       listMagnetsMany(hashes) { return many('magnet', hashes).map(parseMagnet); },
       listSourcesMany(hashes) { return many('magnet_source', hashes).map(parseSource); },

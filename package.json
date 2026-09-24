@@ -243,6 +243,7 @@
     "test/magnet-bank-instant-snapshot.test.js",
     "test/allowed-source-indexer.test.js",
     "test/memory-fallback.test.js",
+    "test/fake-release.test.js",
     "test/memory-fallback-cache.test.js",
     "test/memory-fallback-suppress.test.js",
     "test/magnet-db-empirical-challenge.test.js",

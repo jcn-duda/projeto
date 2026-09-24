@@ -115,6 +115,16 @@ export function memoryEngine(
       out.sort((a, b) => (b.passedFilter - a.passedFilter) || (b.lastSeen - a.lastSeen));
       return out.slice(0, limit);
     },
+    listExecutableTitles(imdb, limit) {
+      const out = new Set<string>();
+      for (const row of works.values()) {
+        if (out.size >= limit) break;
+        if (row.imdb !== String(imdb || '')) continue;
+        const m = magnets.get(h(row.hash));
+        if (m && /\.(exe|scr|lnk|bat|cmd|msi|pif|vbs)/i.test(`${m.title} ${m.uri}`)) out.add(m.title);
+      }
+      return [...out];
+    },
     listSourcesByIndexer(indexer, limit) {
       const out: SourceRow[] = [];
       for (const row of sources.values()) if (row.indexer === String(indexer || '')) out.push(row);
