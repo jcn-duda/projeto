@@ -225,7 +225,24 @@ function dubbedLieVerdict(videoPaths: string[] = [], promisedDubbed = false) {
     : { lie: false, videoCount: paths.length };
 }
 
+/**
+ * O `dn=` do magnet é o nome do PRÓPRIO torrent: mesmo hash com nome de cena
+ * EN ("True.Detective.S02E01.HDTV.x264-KILLERS[ettv]") é aquela release, não um
+ * dublado. Contradiz a PROMESSA de dublado do post já na listagem — só tira a
+ * prioridade de dublado (`_dubClaim`), nunca remove nem condena (o `lie`
+ * destrutivo continua exigindo os arquivos reais do `dubbedLieVerdict`).
+ * REMUX fica de fora: copia todas as faixas do disco, que pode ter PT.
+ * Medido no acervo: 8 de 1.413 posts BR com promessa de dublado, 7 mentiras
+ * reais (NerdFilmes True Detective S02) e o REMUX do Fallout.
+ */
+function dnContradictsDubClaim(dn = '') {
+  if (!config.audioAudit.enabled || !dn) return false;
+  if (/\bREMUX\b/i.test(dn)) return false;
+  return Boolean(strongEnSceneMark(dn));
+}
+
 export {
+  dnContradictsDubClaim,
   genericDubProvesPt,
   foreignLangNamedForBucket,
   namesForeignDubLanguage,

@@ -69,6 +69,27 @@ test('título entregue ao cliente não expõe o blob de qualidades do HDRTorrent
   } finally { config.streamNameStyle = original; }
 });
 
+test('dn= de cena EN do próprio torrent anula a promessa de dublado do post', () => {
+  // Medido no True Detective S02E01 (NerdFilmes): post "E01 [1080p DUBLADO]"
+  // cujo magnet é a release RARBG/KILLERS — mesmo hash, mesmo arquivo EN.
+  const mag = (dn: string) => `magnet:?xt=urn:btih:${HASH}&dn=${encodeURIComponent(dn)}`;
+  const title = 'True Detective 2ª Temporada Dual Audio – (2015) HDTV – – E01 [1080p DUBLADO]';
+  for (const dn of ['True.Detective.S02E01.1080p.WEBRip.x264.DD5.1-RARBG', 'True.Detective.S02E01.HDTV.x264-KILLERS[ettv]']) {
+    const s = stremioStream({ title, magnet: mag(dn), isBr: true, seeders: 1 });
+    assert.equal(s._dubClaim, false, dn);
+    assert.equal(s._br, true, 'origem BR segue — só a promessa de áudio cai');
+  }
+  // Controles: dn com marca PT, REMUX (faixas do disco) e dn sem grupo EN
+  // mantêm a promessa.
+  for (const dn of [
+    'True.Detective.S02E01.1080p.WEB-DL.DUAL-RARBG',
+    'Mission.Impossible.Fallout.2018.IMAX.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-FGT',
+    'True Detective 2 Temporada E01',
+  ]) {
+    assert.equal(stremioStream({ title, magnet: mag(dn), isBr: true, seeders: 1 })._dubClaim, true, dn);
+  }
+});
+
 test('toStremioStream preserva a marca de origem BR do provider', () => {
   const s = stremioStream({ title: 'Coringa Dublado', infoHash: HASH, isBr: true, seeders: 1 });
   assert.equal(s._br, true);

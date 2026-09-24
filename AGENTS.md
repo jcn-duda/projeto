@@ -554,6 +554,17 @@ falso negativo (descartar magnet bom) é pior que falso positivo.
   `adprot` do hash e marca `markLied` no índice de releases (`resolve.ts`) — o
   post que mentiu uma vez não reconquista a vaga BR pela janela do `alive`.
 
+  **Antes do play, o `dn=` já desmente a PROMESSA** (`dnContradictsDubClaim`,
+  `audio-cleanup.ts`): o `dn` é o nome do próprio torrent, e mesmo hash com nome
+  de cena EN (`…-KILLERS[ettv]`, `…-RARBG`, grupos de `AUDIO_AUDIT_EN_GROUPS`)
+  sem marca PT É aquela release. Em `toStremioStream` isso vira
+  `claimContradicted` → `_dubClaim:false` — o item perde a prioridade de dublado
+  mas continua na lista e com `_br`; não grava `lie`, não apaga nada (o `lie`
+  segue exigindo os arquivos reais). REMUX fica fora (copia as faixas do disco,
+  que pode ter PT). Medido no acervo local: 8 de 1.413 posts BR com promessa de
+  dublado, 7 mentiras (NerdFilmes True Detective S02: "E01 [1080p DUBLADO]" com
+  magnet RARBG/KILLERS no topo da lista) e o REMUX excluído.
+
 A fronteira **bad × dead**: mesmo TTL de 24h, mesmo ponto de filtro
 (`applyDebrid`, pré-checagem), origens diferentes — bad é play sem vídeo
 (banco de magnets), dead é estado terminal observado no recheck do autofetch

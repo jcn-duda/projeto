@@ -12,6 +12,7 @@ import {
   stripQualityTagBlob,
 } from './audio-quality.js';
 import { streamQuality } from './stream-quotas.js';
+import { dnContradictsDubClaim } from './audio-cleanup.js';
 import { streamDisplayName } from './stream-display.js';
 
 interface SearchNamesOptions {
@@ -157,8 +158,11 @@ function toStremioStream(item: RawItem): Stream | null {
   const positiveProof = provenAudio !== undefined
     ? isDubLabel(provenAudio)
     : Boolean(item.provenName && explicitPtAudio(item.provenName));
-  // Evidência que NÃO é dublado ('' = EN, 'Legendado', …) anula o claim.
-  const claimContradicted = provenAudio !== undefined && !isDubLabel(provenAudio);
+  // Evidência que NÃO é dublado ('' = EN, 'Legendado', …) anula o claim; sem
+  // prova de arquivo, o `dn=` de cena EN do próprio torrent também anula.
+  const claimContradicted = provenAudio !== undefined
+    ? !isDubLabel(provenAudio)
+    : dnContradictsDubClaim(magnetDn);
   // Chip DUB/DUAL/NAC só com prova — claim lista sob d:1 sem parecer confiável.
   const audioForChip = positiveProof ? audio : (isDubLabel(audio) ? '' : audio);
   const edition = editionFromTitle(title);
