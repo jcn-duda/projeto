@@ -147,6 +147,31 @@ test('thepiratebay consulta SEM Category[] e filtra o tipo na resposta', async (
   });
 });
 
+test('limetorrents consulta SEM Category[] e trata Other (8000) como desconhecido', async () => {
+  // Medido (2026-09-24): o uploader do LimeTorrents classifica filme dublado
+  // como Other/8000 ("Interestelar (2014) BluRay 1080p Dublado", 114 seeders),
+  // e o Category[]=2000 na URL o escondia antes de chegar ao addon.
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = () => fakeResponse({ Results: [
+    { Title: 'Beyond Re-Animator 2003 1080p BluRay', Seeders: 9, MagnetUri: MAGNET, Category: [2040, 104627] },
+    { Title: 'Beyond Re-Animator 2003 720p Dublado', Seeders: 30, MagnetUri: MAGNET, Category: [8000, 127246] },
+    // Áudio e série continuam fora: Other só vale quando é o ÚNICO tipo Torznab.
+    { Title: 'Beyond Re-Animator 2003 Soundtrack FLAC', Seeders: 4, MagnetUri: MAGNET, Category: [3000, 112972] },
+    { Title: 'Beyond Re-Animator 2003 TV Rip', Seeders: 3, MagnetUri: MAGNET, Category: [5050, 136409] },
+  ] });
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search('Beyond Re-Animator', 'movie', ['limetorrents'], {
+      matchContext: BEYOND_CTX,
+    });
+    assert.deepEqual(categoryParams(fetchImpl), [[]]);
+    assert.deepEqual(items.map((i: any) => i.title).sort(), [
+      'Beyond Re-Animator 2003 1080p BluRay',
+      'Beyond Re-Animator 2003 720p Dublado',
+    ]);
+  });
+});
+
 test('indexer normal continua mandando Category[] na URL', async () => {
   const fetchImpl = makeFetch();
   fetchImpl.handler = () => fakeResponse({ Results: [

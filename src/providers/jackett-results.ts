@@ -30,25 +30,43 @@ export const CATEGORY_UNFILTERED_INDEXERS = new Set(['thepiratebay']);
 export const UNRELIABLE_CATEGORY_INDEXERS = new Set(['magnetdownload']);
 
 /**
+ * Indexers cujo uploader classifica filme como "Other" (8000) — o
+ * `Category[]=2000` na URL escondia o release ANTES de chegar ao addon.
+ * Medido no LimeTorrents (2026-09-24, 18 filmes): sem a categoria, 0
+ * relevante perdido e 16 a mais nas buscas EN, e 11 dublados PT vivos que
+ * nunca apareciam — "Interestelar (2014) BluRay 1080p Dublado" com 114
+ * seeders, "Apocalypse Now (1979) … 720p Dublado AndreTPF" com 30, todos 8000.
+ * A consulta sai sem categoria e o filtro local trata Other como
+ * desconhecido; áudio/jogo/livro e o tipo errado (série na busca de filme)
+ * continuam fora.
+ */
+export const OTHER_AS_UNKNOWN_INDEXERS = new Set(['limetorrents']);
+
+/**
  * Balde Torznab do tipo: 2000–2999 = filme, 5000–5999 = TV. O `Category` do
  * Jackett traz o id fino (2040 = Movies/HD) junto de ids de tracker fora da
  * faixa Torznab (100207), então o teste é por faixa. Resultado sem categoria
  * nenhuma passa: perder release por metadado ausente é pior que deixar entrar
  * um fora de tipo, que o matchContext ainda descarta depois.
  */
-export function inCategoryBucket(categories: any, bucket: number) {
+export function inCategoryBucket(categories: any, bucket: number, { otherAsUnknown = false }: { otherAsUnknown?: boolean } = {}) {
   if (!Array.isArray(categories) || categories.length === 0) return true;
-  return categories.some((id: any) => Number(id) >= bucket && Number(id) < bucket + 1000);
+  if (categories.some((id: any) => Number(id) >= bucket && Number(id) < bucket + 1000)) return true;
+  if (!otherAsUnknown) return false;
+  // Só a faixa Torznab (< 10000) diz o tipo; ids do tracker (127246) não.
+  // Nenhum id Torznab além de Other (8000–8999) = tipo desconhecido, passa.
+  const torznab = categories.map(Number).filter((id: number) => id > 0 && id < 10000);
+  return torznab.every((id: number) => id >= 8000 && id < 9000);
 }
 
 export function mapResults(
   data: any,
-  { isBr = false, indexer = '', categoryBucket = 0 }:
-    { isBr?: boolean; indexer?: string; categoryBucket?: number } = {},
+  { isBr = false, indexer = '', categoryBucket = 0, otherAsUnknown = false }:
+    { isBr?: boolean; indexer?: string; categoryBucket?: number; otherAsUnknown?: boolean } = {},
 ) {
   const all = Array.isArray(data?.Results) ? data.Results : Array.isArray(data) ? data : [];
   const results = categoryBucket
-    ? all.filter((r: any) => inCategoryBucket(r?.Category, categoryBucket))
+    ? all.filter((r: any) => inCategoryBucket(r?.Category, categoryBucket, { otherAsUnknown }))
     : all;
   return results.map((r: any) => {
     // Decodifica na ENTRADA, não só na exibição: matchesEpisode,

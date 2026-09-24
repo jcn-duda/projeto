@@ -6,7 +6,7 @@ import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { prefix } from '../utils/cache-keys.js';
 import { admitsMultiWorkPack } from '../utils/multiwork-pack.js';
-import { mapResults, indexerFailure, CATEGORY_UNFILTERED_INDEXERS, UNRELIABLE_CATEGORY_INDEXERS } from './jackett-results.js';
+import { mapResults, indexerFailure, CATEGORY_UNFILTERED_INDEXERS, UNRELIABLE_CATEGORY_INDEXERS, OTHER_AS_UNKNOWN_INDEXERS } from './jackett-results.js';
 import { shapeSearchQuery, budgetFor } from './jackett-query.js';
 import { remaining, MIN_RESOLVE_BUDGET, resolveCardigannDownloads } from './jackett-resolve.js';
 
@@ -138,7 +138,8 @@ export async function queryIndexer(indexer: string, query: string, type: string,
     // 2000 = Movies, 5000 = TV nos indexers Torznab
     const categoryBucket = type === 'movie' ? 2000 : type === 'series' ? 5000 : 0;
     // Indexers que devolvem 0 com `Category[]` na URL saem sem categoria.
-    const noCategoryInUrl = CATEGORY_UNFILTERED_INDEXERS.has(indexer);
+    const otherAsUnknown = OTHER_AS_UNKNOWN_INDEXERS.has(indexer);
+    const noCategoryInUrl = CATEGORY_UNFILTERED_INDEXERS.has(indexer) || otherAsUnknown;
     // MagnetDownload nem tolera `Category[]` nem distingue o tipo no `Category` da
     // resposta (só Other/8000): além de sair sem categoria, pula o filtro
     // local por balde — senão o `mapResults` descartaria TODO o acervo. Um
@@ -178,6 +179,7 @@ export async function queryIndexer(indexer: string, query: string, type: string,
       isBr,
       indexer,
       categoryBucket: filterLocally ? categoryBucket : 0,
+      otherAsUnknown,
     });
     liveFetches += 1;
     // Vazio POR FALHA não vira entrada de cache: guardá-lo faria o indexer
