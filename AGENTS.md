@@ -434,9 +434,11 @@ consumido** no play — nenhum toque em file-selector/HMAC.
 Na configuração a fonte é um **toggle específico** (`torrentioToggle` na
 configure), jamais um seletor genérico: liga/desliga só a presença de
 `torrentio` na chave `p`, preservando base e ordem (jackett/prowlarr/demo vêm
-do link salvo ou dos defaults). O `defaults()` injeta `torrentio` **por padrão**
-na base real quando `TORRENTIO_ENABLED=true` (jackett/prowlarr/both ganham o
-pool junto); o modo **demo é isolado** — sem rede, não mistura com o pool e o
+do link salvo ou dos defaults). O `defaults()` só injeta `torrentio` na base
+real com `TORRENTIO_ENABLED=true` **e** `TORRENTIO_DEFAULT=true` — o padrão é
+`false` desde 2026-09-24 (decisão do operador: instalação nova nasce só com
+Jackett; o toggle liga por instalação, e `TORRENTIO_ENABLED` continua sendo o
+que desliga a fonte de vez); o modo **demo é isolado** — sem rede, não mistura com o pool e o
 toggle sequer é oferecido.
 
 `jackettIndexers` aceita qualquer string vinda da URL — o caminho de busca

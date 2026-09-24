@@ -15,6 +15,10 @@ export const prowlarr = () => ({
 // o toggle na página. Nenhuma chave do usuário sai do processo.
 export const torrentio = () => ({
   enabled: String(process.env.TORRENTIO_ENABLED || 'true') === 'true',
+  // Só o PADRÃO da instalação: com false a fonte segue disponível (o toggle da
+  // página liga por instalação), mas instalação nova nasce sem ela. Decisão do
+  // operador (2026-09-24): lista padrão só com Jackett.
+  defaultOn: String(process.env.TORRENTIO_DEFAULT || 'false') === 'true',
   url: (process.env.TORRENTIO_URL || 'https://torrentio.strem.fun').replace(/\/$/, ''),
   timeout: Math.max(1, num(process.env.TORRENTIO_TIMEOUT_MS, 1500)),
   breakerFailures: Math.max(1, Math.trunc(num(process.env.TORRENTIO_BREAKER_FAILURES, 3))),
