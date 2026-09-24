@@ -299,3 +299,18 @@ test('parseTitleSeasonEpisode expande faixa de cena S01-S04', () => {
   assert.deepEqual(invertida, [4, 1]);
 });
 
+
+test('intervalo com o segundo número nu ("S03E01-02") cobre os dois episódios', () => {
+  // dn real dos packs de dois episódios do comandotorrents (True Detective S03,
+  // Lioness S01): o pack sumia da busca do E02.
+  const dn = '[BAIXE OUTROS EPS. NO COMANDOTORRENTS.COM] True Detective S03E01-02 [720p] [WEB-DL] [DUAL]';
+  assert.deepEqual(parseTitleSeasonEpisode(dn).episodes, [1, 2]);
+  assert.equal(matchesEpisode(dn, { season: 3, episode: 2 }), true);
+  assert.equal(matchesEpisode(dn, { season: 3, episode: 3 }), false);
+  assert.equal(matchesEpisode('Operação - Lioness S01E01-02 WEB-DL 1080p', { season: 1, episode: 2 }), true);
+  // Controles: resolução, codec e número menor não viram faixa.
+  assert.deepEqual(parseTitleSeasonEpisode('Show S01E05-720p WEB').episodes, [5]);
+  assert.deepEqual(parseTitleSeasonEpisode('Show S01E05-1080p WEB').episodes, [5]);
+  assert.deepEqual(parseTitleSeasonEpisode('Show S01E05-264').episodes, [5]);
+  assert.deepEqual(parseTitleSeasonEpisode('Show S01E05-03 WEB').episodes, [5]);
+});

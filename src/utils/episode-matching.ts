@@ -44,6 +44,19 @@ function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
     }
   }
 
+  // Intervalo com o segundo número NU: "S03E01-02" (dn dos packs de dois
+  // episódios do comandotorrents/torrentdosfilmes). A normalização apaga o
+  // hífen, então o laço acima via só o E01 e o pack morria na busca do E02.
+  // Lido no cru; o segundo número não pode ser seguido de dígito nem de "p"
+  // ("S01E05-720p" é resolução, não faixa) e precisa ser maior que o primeiro.
+  for (const m of raw.matchAll(/s(\d{1,2})\s?e(\d{1,3})\s*[-–]\s*(\d{1,3})(?![\dp])/gi)) {
+    const lo = Number(m[2]);
+    const hi = Number(m[3]);
+    if (hi <= lo || hi - lo > 30) continue;
+    seasons.add(Number(m[1]));
+    for (let i = lo; i <= hi; i += 1) episodes.add(i);
+  }
+
   // Trackers BR usam "T01 E004" e "T01E004". Lemos a sequência no título
   // cru porque a normalização apaga hífen: E001-E010 é intervalo, enquanto
   // E001 e E002, E001, E002 e E001 E010 são listas.
