@@ -1764,7 +1764,7 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   fila do colhedor pelo caminho de sempre (miss/gap). Index-only também ficam
   FORA das varreduras pt-BR (tardia da busca e do colhedor): eles já são
   consultados individualmente pela fila, com orçamento TOTAL dedicado
-  (`JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS`, default 35000, aplicado SÓ no
+  (`JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS`, default 90000, aplicado SÓ no
   colhedor/fundo — nunca na busca viva nem em indexer comum); a resolução do
   magnet permanece em `JACKETT_RESOLVE_DOWNLOAD_INDEXERS`. Separado de
   `JACKETT_SLOW_INDEXERS`: lá o problema é o agrupamento do plano; aqui é

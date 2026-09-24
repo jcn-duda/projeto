@@ -162,11 +162,12 @@ export const jackett = () => ({
   // um indexer index-only. Aplicado SÓ no colhedor/fundo: a busca ao vivo
   // nunca consulta index-only (o filtro liveIndexers roda antes do plano) e
   // indexer comum continua com budgetFor (indexerTimeout/brIndexerTimeout).
-  // O 1337x medido precisa de 12–19s frio; 35s dá folga sem pendurar a fila
-  // do colhedor (trabalho de fundo, sem usuário esperando).
+  // O 1337x medido precisa de 12–19s frio. O magnetdownload (2026-09-24):
+  // busca ~10s e cada salto `/dl` de 7s a 60s+; com 35s quase nenhum
+  // resultado virava magnet. 90s é trabalho de fundo, sem usuário esperando.
   indexOnlyHarvestTimeout: Math.min(
     120_000,
-    Math.max(5_000, Math.trunc(num(process.env.JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS, 35_000))),
+    Math.max(5_000, Math.trunc(num(process.env.JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS, 90_000))),
   ),
   // Circuit breaker: indexer offline em N amostras seguidas deixa de
   // receber orçamento de busca (20s nos BR) até a falha esfriar — busca

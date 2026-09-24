@@ -26,8 +26,8 @@ test('a resolução /dl do 1337x permanece em JACKETT_RESOLVE_DOWNLOAD_INDEXERS'
   );
 });
 
-test('default do orçamento dedicado do colhedor é 35000ms', () => {
-  assert.equal(config.jackett.indexOnlyHarvestTimeout, 35000);
+test('default do orçamento dedicado do colhedor é 90000ms', () => {
+  assert.equal(config.jackett.indexOnlyHarvestTimeout, 90000);
 });
 
 test('liveIndexers remove o 1337x do plano ao vivo mesmo quando o usuário o seleciona', () => {

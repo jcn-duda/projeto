@@ -36,7 +36,7 @@ test('JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS acima do teto satura em 120000ms', (
   assert.equal(lerComEnv('999999'), '120000');
 });
 
-test('JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS válido passa sem saturar; default é 35000', () => {
+test('JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS válido passa sem saturar; default é 90000', () => {
   assert.equal(lerComEnv('40000'), '40000');
   const script = `
     const { jackett } = await import(${JSON.stringify(pathToFileURL(distPath).href)});
@@ -47,5 +47,5 @@ test('JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS válido passa sem saturar; default �
     ['--input-type=module', '-e', script],
     { env: { ...process.env, FORCE_COLOR: '0', DOTENV_CONFIG_PATH: 'test/fixtures/env-empty' }, encoding: 'utf8' },
   ).trim();
-  assert.equal(out, '35000');
+  assert.equal(out, '90000');
 });
