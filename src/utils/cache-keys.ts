@@ -61,7 +61,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // Man, 2026-09-24).
   // v18: `LAT.DUB` (dublagem latina) deixa de provar PT, e agregador BR que
   // republica nome de cena EN (`…[YTS.MX]`, `…-NTb[TGx]`) perde a vaga BR.
-  streams: 'v18',
+  // v19: `tgx`/`ethel` na lista de grupos EN — o espelho `…-ETHEL[TGx]` de
+  // site BR perde a vaga BR (idx intacto: o corte é na montagem da lista).
+  streams: 'v19',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',

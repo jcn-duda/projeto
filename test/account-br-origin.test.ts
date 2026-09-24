@@ -328,6 +328,9 @@ test('toStremioStream: site BR republicando nome de cena EN perde a vaga BR', ()
     'Barbie (2023) 720p WEBRip x264 2.0 [YTS.MX]',
     'House of the Dragon S02E01 1080p MAX WEB-DL DDP5 1 x264-NTb[TGx]',
     'Inside.Out.2.2024.720p.WEBRip.800MB.x264-GalaxyRG',
+    // tgx/ethel entraram na lista padrão de grupos EN.
+    'Barbie.2023.REPACK.2160p.WEB.h265-ETHEL[TGx]',
+    'Halo.S02E03.720p.WEB.h264-EDITH[TGx]',
   ]) {
     assert.equal((toStremioStream({ ...base, title }) as any)._br, false, title);
   }

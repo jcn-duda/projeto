@@ -221,7 +221,7 @@ Um `stream` request do Stremio percorre exatamente este caminho:
 addon.ts  processo (listen, warmup)
    └─ app.ts  defineStreamHandler
         └─ providers/index.ts  findStreams
-             ├─ cache SWR (streams:v18)          ← só lista completa + debridKnown + tocável
+             ├─ cache SWR (streams:v19)          ← só lista completa + debridKnown + tocável
              ├─ coalescing inFlight
              └─ doSearch
                   ├─ cinemeta.getMeta  ─┐ paralelo
@@ -1029,7 +1029,7 @@ ausente significa "nunca medido neste processo", não medição falha.
 
 **Funil por item (`/stream-trace.json`, P5).** Responde "por que aquele stream
 sumiu?" sem refazer a busca: o ledger observacional viaja **dentro** da entrada
-`streams:v18`, a rota é só leitura (`getWithStale`), e o recompute offline
+`streams:v19`, a rota é só leitura (`getWithStale`), e o recompute offline
 explica entrada sem trace com peeks quiet (idx/raw/inventário). Live
 (`mode=live`) só TorBox/Premiumize via método cru do adaptador — AllDebrid é
 hard-block (`ad-hard-blocked`: consulta = upload e detona limpeza); RD é
@@ -1564,14 +1564,14 @@ operador).
 
 ## Cache multi-nível (fases 0–2 no código)
 
-A chave `streams:v18` isola config do usuário + digest da conta
+A chave `streams:v19` isola config do usuário + digest da conta
 (`request-key.ts`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
 — bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
 que não bate com a versão corrente). `idx` está em **v13** porque o classificador
 de áudio/origem persiste no índice (merge OR-aderente): v9 fechou DUB genérico +
 cirílico; v10 fechou `ENGLISH|ENG` no mesmo predicado; e v11 fechou a FAIXA de
 anos do bloco rutracker transliterado (`[1999-2003, País, …] Dub`), que a v13
-deixava escapar; v12 pôs o grupo russo `seleZen` na mesma guarda; v13, o `LAT.DUB`. `streams` chegou à **v18**:
+deixava escapar; v12 pôs o grupo russo `seleZen` na mesma guarda; v13, o `LAT.DUB`. `streams` chegou à **v19**:
 v11 removeu do `title` entregue ao cliente o blob de qualidades do HDRTorrent;
 v12 cortou série/pack fora do intervalo e TS/PreDVD da lista de filme; v13
 deixou de promover `DUB` genérico de release rutracker transliterada; v14
@@ -1581,7 +1581,7 @@ guarda rutracker do idx (medida no corpus do container, 2026-09-22:
 `The Matrix: Trilogy [1999-2003, …] Dub` vinha como DUB BR); v17 fez o mesmo
 com `seleZen` (`…DUB.NF.WEB-DLRip…seleZen`: DUB russo, 11 releases BR falsas
 no acervo, 2026-09-24); v18 fez o mesmo com `LAT.DUB` e tirou a vaga BR do
-nome de cena EN republicado por site BR. **Limitação:** o `magnets.db` (banco vivo) guarda
+nome de cena EN republicado por site BR; v19 pôs `tgx`/`ethel` nos grupos EN. **Limitação:** o `magnets.db` (banco vivo) guarda
 `is_br` OR-aderente e **sem versão** — o rótulo antigo permanece lá. O fallback
 não o usa: recalcula a origem com a regra do Jackett (fonte em
 `JACKETT_PT_BR_INDEXERS` OU `looksPtBr` do título).
@@ -1591,7 +1591,7 @@ compartilhado mais abaixo.
 
 | camada | chave | o que guarda | kill-switch |
 |---|---|---|---|
-| L1+L2 streams | `streams:v18:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
+| L1+L2 streams | `streams:v19:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
 | bruto por indexer | `raw:v1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
 | SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
 
@@ -1933,9 +1933,8 @@ cena EN intacto (grupo de `AUDIO_AUDIT_EN_GROUPS`: `[YTS.MX]`, `-NTb`,
 `-GalaxyRG`, `[rarbg]`…) **e** não tem nenhum sinal PT (`hasPtSigns`:
 acento, Temporada, dublado/dual/legendado). É o agregador republicando o
 magnet gringo (`enSceneMirrorTitle`, aplicado no `toStremioStream`). Medido no
-magnets.db (2026-09-24): 42 de 1.353 BR-só-pelo-indexer, todos EN. `ETHEL`/`TGx`
-não estão na lista de grupos e seguem BR — a lista também alimenta o `lie`, e
-não foi ampliada. Na mesma rodada, `LAT` (abreviação de LATINO) passou a
+magnets.db (2026-09-24): 42 de 1.353 BR-só-pelo-indexer, todos EN. `tgx`/`ethel` entraram
+depois, medidos: 11 espelhos EN perdem o selo, nenhum dn/`lie` muda. Na mesma rodada, `LAT` (abreviação de LATINO) passou a
 desmentir o DUB genérico (`LAT.DUB` do Cinecalidad), só no título/path, sem
 condenar.
 
@@ -2094,7 +2093,7 @@ fire-and-forget) continua.
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
 | `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`/`muri:`) e `prefix(ns)` |
-| `src/utils/request-key.ts` | `streams:v18` + digest da conta (nunca a chave crua) |
+| `src/utils/request-key.ts` | `streams:v19` + digest da conta (nunca a chave crua) |
 | `src/utils/secret-box.ts` | AES-256-GCM do `dk` no install URL |
 | `src/utils/sign.ts` | HMAC do `/resolve` (hash + ep + dica `w`) |
 | `src/utils/deadline.ts` | `raceWithDeadline`, `remainingCheckBudget` |
@@ -2411,7 +2410,7 @@ o orçamento com a resposta.
   vivo por um glitch.
 - **Mudou regra de matching? O rebuild do container NÃO invalida o cache.**
   `data/cache.db` é volume: sobrevive a `docker compose up -d --build`, e o
-  `streams:v18` (lista pronta) e o `idx:v13` (acervo de releases já aprovadas)
+  `streams:v19` (lista pronta) e o `idx:v13` (acervo de releases já aprovadas)
   continuam servindo o que o filtro **antigo** deixou passar. Custou uma
   validação falsa: a correção estava no container, o teste isolado passava, e
   a resposta HTTP continuava trazendo o item errado. Depois de mexer em
