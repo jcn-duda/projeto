@@ -63,7 +63,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // republica nome de cena EN (`…[YTS.MX]`, `…-NTb[TGx]`) perde a vaga BR.
   // v19: `tgx`/`ethel` na lista de grupos EN — o espelho `…-ETHEL[TGx]` de
   // site BR perde a vaga BR (idx intacto: o corte é na montagem da lista).
-  streams: 'v19',
+  // v20: `yify` na mesma lista — "Coyote Ugly 2000 1080p BluRay x264 YIFY"
+  // republicado pelo Rede Torrent saía como BR.
+  streams: 'v20',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',

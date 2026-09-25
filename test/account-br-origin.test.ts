@@ -331,6 +331,9 @@ test('toStremioStream: site BR republicando nome de cena EN perde a vaga BR', ()
     // tgx/ethel entraram na lista padrão de grupos EN.
     'Barbie.2023.REPACK.2160p.WEB.h265-ETHEL[TGx]',
     'Halo.S02E03.720p.WEB.h264-EDITH[TGx]',
+    // yify (nome antigo do YTS) também.
+    'Coyote Ugly 2000 1080p BluRay x264 YIFY',
+    'Pulp Fiction (1994) 1080p BrRip x264 - 1.4GB -YIFY',
   ]) {
     assert.equal((toStremioStream({ ...base, title }) as any)._br, false, title);
   }

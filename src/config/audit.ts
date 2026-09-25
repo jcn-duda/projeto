@@ -40,7 +40,10 @@ export const audioAudit = () => ({
       // grupo de CENA prova idioma do conteúdo. `tgx` (TorrentGalaxy) e `ethel`
       // entraram medidos no magnets.db (2026-09-24): 11 espelhos EN de site BR
       // perdem o selo, nenhum dn/lie muda, e os 129 com sinal PT seguem BR.
-      'rarbg,killers,ettv,afm72,tovar,evo,megusta,galaxyrg,glxrc,yts,fgt,ntb,roarb,oxy,bae,drs,huzzah,tgx,ethel',
+      // `yify` (nome antigo do YTS) medido em 2026-09-25: 262 releases, 57 BR
+      // — espelhos do Rede Torrent ("Coyote Ugly 2000 1080p BluRay x264
+      // YIFY"); os 18 com sinal PT são posts LEGENDADO, sem yify no título.
+      'rarbg,killers,ettv,afm72,tovar,evo,megusta,galaxyrg,glxrc,yts,fgt,ntb,roarb,oxy,bae,drs,huzzah,tgx,ethel,yify',
   ),
 });
 
