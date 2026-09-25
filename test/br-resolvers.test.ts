@@ -49,6 +49,10 @@ describe('Feature 1: Dynamic Domain Validation', () => {
     assert.equal(nerd.isDetailHost('www.xnerdfilmes.net'), true);
     assert.equal(nerd.isDetailHost('nerdfilmestorrent.com'), true);
     assert.equal(nerd.isDetailHost('nerdfilmestorrent.org'), true);
+    // 2026-09-25: filmesviatorrenthd.org → 301 → filmesviatorrenthd.net.
+    assert.doesNotThrow(() => nerd.assertAllowedUrl('https://www.filmesviatorrenthd.net/?s=teste'));
+    assert.equal(nerd.isDetailHost('www.filmesviatorrenthd.net'), true);
+    assert.equal(nerd.isDetailHost('filmesviatorrenthd.org'), true);
     assert.equal(nerd.isDetailHost('videosad.net'), false);
     assert.equal(nerd.isDetailHost('google.com'), false);
     assert.equal(nerd.isDetailHost('fakefilmesviatorrents.net'), false);
