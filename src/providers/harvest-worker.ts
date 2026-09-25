@@ -8,6 +8,7 @@ import config from '../config.js';
 import * as activity from './activity.js';
 import jackett from './jackett.js';
 import bludv from './bludv.js';
+import * as mico from './mico.js';
 import { getMeta } from '../utils/cinemeta.js';
 import * as tmdb from '../utils/tmdb.js';
 import { resolveSearchNames, filterRelevantRaw } from '../utils/format.js';
@@ -257,6 +258,14 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     } catch (err: unknown) {
       log.warn('[harvest] bludv falhou:', log.errorMessage(err));
     }
+  }
+
+  // Mico: fonte só de fundo, fora do jackett.search (logo fora da captura do
+  // banco de magnets). Entra ANTES do filtro de relevância — o matching dele
+  // traz outras obras. Pula na preempção por tráfego; não conta no teto
+  // horário, que é moeda do Jackett.
+  if (!directed && !preempted && config.mico.harvest) {
+    collected.push(...(await mico.search({ type: entry.type, imdbId: entry.imdbId, season: entry.season, episode: entry.episode })));
   }
 
   // O teto horário só fecha a conta se as consultas forem ANOTADAS: este

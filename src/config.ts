@@ -13,7 +13,7 @@ import 'dotenv/config';
 
 import { server } from './config/server.js';
 import { jackett } from './config/jackett.js';
-import { prowlarr, torrentio, tmdb, cinemeta, bludv } from './config/providers.js';
+import { prowlarr, torrentio, mico, tmdb, cinemeta, bludv } from './config/providers.js';
 import { resolvers } from './config/resolvers.js';
 import { searchSettings, budgets, search } from './config/search.js';
 import { cacheBase, rawCache, cache, catalog, magnetBank } from './config/cache.js';
@@ -31,6 +31,7 @@ const config = {
   harvest: harvest(),
   prowlarr: prowlarr(),
   torrentio: torrentio(),
+  mico: mico(),
   tmdb: tmdb(),
   cinemeta: cinemeta(),
   resolvers: resolvers(),

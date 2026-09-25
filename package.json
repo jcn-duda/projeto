@@ -226,6 +226,7 @@
     "test/config-indexer-aliases.test.js",
     "test/client-imports-stamp.test.js",
     "test/torrentio-provider.test.js",
+    "test/mico.test.js",
     "test/latest-writer.test.js",
     "test/magnet-db.test.js",
     "test/magnet-db-apply-drop.test.js",

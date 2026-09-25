@@ -1781,6 +1781,10 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   direta quebrada do site (`hdrtorrents.net` devolvia a homepage). A fonte
   NÃO volta ao caminho AO VIVO sem medir de novo — o breaker aberto era o
   sintoma, não a causa.
+- **Mico Leão Dublado V2** (`src/providers/mico.ts`, `MICO_HARVEST`, default
+ off) é fonte SÓ do colhedor (`harvest-worker.ts`, depois do bludv), nunca da
+ resposta: matching fraco (medido 5/48 hashes úteis), então entra antes do
+ `filterRelevantRaw` e fora do `jackett.search` (sem captura no banco vivo).
 - Kill-switches: `RELEASE_INDEX=false` / `RELEASE_INDEX_TTL=0` (índice),
   `ACCOUNT_FAST_PATH=false`, `HARVEST_ENABLED=false`.
 - Critério de aceitação do plano: busca responde com o Jackett FORA do ar —

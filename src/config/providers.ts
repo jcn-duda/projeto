@@ -25,6 +25,17 @@ export const torrentio = () => ({
   breakerCooldown: Math.max(0, num(process.env.TORRENTIO_BREAKER_COOLDOWN_MS, 5 * 60_000)),
 });
 
+// Addon público "Mico Leão Dublado V2": fonte SÓ do colhedor (fundo), nunca da
+// resposta. Matching dele é fraco (medido: 5 de 48 hashes úteis em 5 obras), então
+// todo item é refiltrado pelo filtro de relevância antes de entrar no índice.
+export const mico = () => ({
+  harvest: String(process.env.MICO_HARVEST || 'false') === 'true',
+  url: (process.env.MICO_URL || 'https://mico-leao-dublado-apiv-2.vercel.app').replace(/\/$/, ''),
+  timeout: Math.max(1, num(process.env.MICO_TIMEOUT_MS, 15000)),
+  breakerFailures: Math.max(1, Math.trunc(num(process.env.MICO_BREAKER_FAILURES, 3))),
+  breakerCooldown: Math.max(0, num(process.env.MICO_BREAKER_COOLDOWN_MS, 10 * 60_000)),
+});
+
 export const tmdb = () => ({
   apiKey: process.env.TMDB_API_KEY || '',
   timeout: num(process.env.TMDB_TIMEOUT_MS, 5000),
