@@ -12,6 +12,7 @@ import { raceWithDeadline } from '../utils/deadline.js';
 import { SAFE_INDEXER_ID } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { collectRaw } from './collect-orchestrator.js';
+import { jackettOnly } from './mico.js';
 import { collectInstantItems } from './magnet-bank-instant.js';
 import { obraTargets } from './magnet-bank-fallback.js';
 import { idxPoolCovered, idxReleasesToRaw } from './search-pool-coverage.js';
@@ -69,7 +70,7 @@ export function noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep
 }) {
   if (!(config.releaseIndex.enabled && providerMode !== 'demo' && wantsJackettSweep)) return;
   const simIndexers: string[] = [...new Set(
-    ((opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers) || [])
+    jackettOnly((opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers) || [])
       .filter((i: any) => SAFE_INDEXER_ID.test(String(i))),
   )].map(String);
   if (simIndexers.length === 0) return;

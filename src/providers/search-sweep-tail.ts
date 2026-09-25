@@ -7,6 +7,7 @@ import * as metrics from '../utils/metrics.js';
 import { extractInfoHash } from '../utils/format.js';
 import { SAFE_INDEXER_ID } from './stream-builder.js';
 import { ptSweepIndexers } from './search-plan.js';
+import { jackettOnly } from './mico.js';
 import type { RawBatch } from './search-index-path.js';
 
 /**
@@ -35,7 +36,7 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
   imdbId?: string | null;
 }) {
   const configuredIndexers = opts().jackettIndexers?.length ? opts().jackettIndexers : config.jackett.indexers;
-  const sweepSelectedIndexers: string[] = [...new Set((configuredIndexers || []).filter((idx: any) =>
+  const sweepSelectedIndexers: string[] = [...new Set(jackettOnly(configuredIndexers || []).filter((idx: any) =>
     SAFE_INDEXER_ID.test(String(idx)),
   ))].map(String);
   // A query já foi anexada ao plano crítico: título pt-BASE para filme e série,

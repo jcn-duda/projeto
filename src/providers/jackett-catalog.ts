@@ -1,12 +1,15 @@
 import config from '../config.js';
 import * as indexerStatus from './indexer-status.js';
 import * as log from '../utils/logger.js';
+import * as mico from './mico.js';
 
 interface CatalogItem {
   id: string;
   label: string;
   language: string;
   isBr: boolean;
+  /** Card que não vem do Jackett (Mico): fora da prova de vida do catálogo. */
+  virtual?: boolean;
 }
 
 /** Procedência do catálogo: live = API Jackett respondeu; fallback = .env sem prova de rede. */
@@ -109,6 +112,13 @@ function attachSource(items: ReturnType<typeof indexerStatus.decorate>, source: 
   return Object.assign(items, { source });
 }
 
+/** Cards do Jackett + o card virtual do Mico (não vem do Jackett nem entra no
+ * modo automático de indexers — ver `syncAutoIndexers`). */
+function withVirtual(items: CatalogItem[]): CatalogItem[] {
+  const extra = mico.catalogEntry();
+  return extra && !items.some((item) => item.id === extra.id) ? [...items, extra] : items;
+}
+
 // Fallback do .env por falha de rede vale pouco: no boot o addon pede o
 // catálogo antes do Jackett terminar de subir, e com o TTL cheio a /configure
 // passava 15 min sem os indexers que só existem no Jackett (LimeTorrents na
@@ -122,10 +132,10 @@ function cacheTtlMs(): number {
 
 async function load(): Promise<CatalogList> {
   if (cached && Date.now() - cachedAt < cacheTtlMs()) {
-    return attachSource(indexerStatus.decorate(cached), cachedSource);
+    return attachSource(indexerStatus.decorate(withVirtual(cached)), cachedSource);
   }
   if (inFlight) {
-    return inFlight.then(({ items, source }) => attachSource(indexerStatus.decorate(items), source));
+    return inFlight.then(({ items, source }) => attachSource(indexerStatus.decorate(withVirtual(items)), source));
   }
   const promise = (async (): Promise<{ items: CatalogItem[]; source: CatalogSource }> => {
     try {
@@ -154,7 +164,7 @@ async function load(): Promise<CatalogList> {
     return result;
   }).finally(() => { inFlight = null; });
   inFlight = promise;
-  return promise.then(({ items, source }) => attachSource(indexerStatus.decorate(items), source));
+  return promise.then(({ items, source }) => attachSource(indexerStatus.decorate(withVirtual(items)), source));
 }
 
 /**

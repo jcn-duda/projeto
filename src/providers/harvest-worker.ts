@@ -260,12 +260,15 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
     }
   }
 
-  // Mico: fonte só de fundo, fora do jackett.search (logo fora da captura do
-  // banco de magnets). Entra ANTES do filtro de relevância — o matching dele
-  // traz outras obras. Pula na preempção por tráfego; não conta no teto
-  // horário, que é moeda do Jackett.
+  // Mico: no colhedor só com MICO_HARVEST. Entra ANTES do filtro de
+  // relevância — o matching dele traz outras obras. Pula na preempção por
+  // tráfego; não conta no teto horário, que é moeda do Jackett; não pinta o
+  // card e, como a colheita do Jackett, preserva o `passed_filter` do banco.
   if (!directed && !preempted && config.mico.harvest) {
-    collected.push(...(await mico.search({ type: entry.type, imdbId: entry.imdbId, season: entry.season, episode: entry.episode })));
+    collected.push(...(await mico.search(
+      { type: entry.type, imdbId: entry.imdbId, season: entry.season, episode: entry.episode },
+      { recordStatus: false, resetPassedFilter: false },
+    )));
   }
 
   // O teto horário só fecha a conta se as consultas forem ANOTADAS: este

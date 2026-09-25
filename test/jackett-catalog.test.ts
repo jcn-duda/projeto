@@ -3,6 +3,7 @@ import assert from 'node:assert';
 
 import config from '../src/config.js';
 import { parseXml, fallback, load, resetCatalogCache, syncAutoIndexers } from '../src/providers/jackett-catalog.js';
+import { jackettServiceFlag } from '../src/routes/dashboard-status-helpers.js';
 
 test('parseXml lê catálogo Torznab sem expor campos extras', () => {
   const brId = config.jackett.ptBrIndexers[0] || 'comandotorrents';
@@ -98,7 +99,8 @@ test('API Jackett OK → source live (vazio = medido morto)', async () => {
   try {
     const list = await load();
     assert.equal(list.source, 'live');
-    assert.equal(list.length, 0, 'XML vazio é medição vazia, não fallback');
+    assert.equal(list.filter((item) => !item.virtual).length, 0, 'XML vazio é medição vazia, não fallback');
+    assert.equal(jackettServiceFlag(list), false, 'o card virtual do Mico não prova Jackett vivo');
   } finally {
     globalThis.fetch = realFetch;
     config.jackett.apiKey = saved.apiKey;

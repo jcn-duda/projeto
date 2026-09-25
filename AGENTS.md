@@ -1781,10 +1781,21 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   direta quebrada do site (`hdrtorrents.net` devolvia a homepage). A fonte
   NÃO volta ao caminho AO VIVO sem medir de novo — o breaker aberto era o
   sintoma, não a causa.
-- **Mico Leão Dublado V2** (`src/providers/mico.ts`, `MICO_HARVEST`, default
- off) é fonte SÓ do colhedor (`harvest-worker.ts`, depois do bludv), nunca da
- resposta: matching fraco (medido 5/48 hashes úteis), então entra antes do
- `filterRelevantRaw` e fora do `jackett.search` (sem captura no banco vivo).
+- **Mico Leão Dublado V2** (`src/providers/mico.ts`) é um **card virtual** de
+  indexer: id `mico` no catálogo da `/configure` (`jackett-catalog.ts` o anexa),
+  governado por `ji`/`ip`/`jl` como os do Jackett, mas consultado por IMDb fora
+  do Jackett (o Cardigann só manda texto). Por isso `jackettOnly` o retira de
+  toda lista que vira consulta ao Jackett (`effectiveJackettIndexers`, plano da
+  coleta, varredura de cauda) — `ji` só com ele NÃO cai no ramo "sem seleção".
+  Na busca viva é tarefa BR prioritária (como o bludv); no colhedor só com
+  `MICO_HARVEST`. Matching fraco (medido 5/48 hashes úteis): sempre passa pelo
+  `filterRelevantRaw`. Como os indexers, grava TUDO que devolve no banco vivo
+  (`captureItems`, fonte `mico`, antes do filtro) com um magnet montado dos
+  trackers de `sources` — sem `dn=`, porque o título do Mico é texto do post,
+  não nome de torrent — e entra no estado vivo da coleta (`noteStart`/
+  `onQueryResult`), então a reserva 📦 cobre o Mico quando ele cai. `/test-indexer.json
+  ?id=mico` usa `mico.test()`. Knobs: `MICO_ENABLED` (default true, some o card),
+  `MICO_DEFAULT` (default false, entra no `ji` de instalação nova).
 - Kill-switches: `RELEASE_INDEX=false` / `RELEASE_INDEX_TTL=0` (índice),
   `ACCOUNT_FAST_PATH=false`, `HARVEST_ENABLED=false`.
 - Critério de aceitação do plano: busca responde com o Jackett FORA do ar —

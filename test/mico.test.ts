@@ -1,6 +1,7 @@
-// Mico Leão Dublado V2: fonte SÓ do colhedor. Parse do `title`, fail-open,
-// breaker local, id inválido e a garantia de que o lixo de outra obra morre no
-// filtro de relevância do colhedor antes do índice. Nada aqui toca rede.
+// Mico Leão Dublado V2: card virtual da /configure + fonte opcional do
+// colhedor. Parse do `title`, fail-open, breaker local, id inválido, o card no
+// catálogo, a separação do Jackett e a garantia de que o lixo de outra obra
+// morre no filtro de relevância antes do índice. Nada aqui toca rede.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -10,22 +11,32 @@ import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 config.seed.enabled = false;
 import * as mico from '../src/providers/mico.js';
+import jackett, { effectiveJackettIndexers } from '../src/providers/jackett.js';
+import * as indexerStatus from '../src/providers/indexer-status.js';
+import { collectRaw } from '../src/providers/search-orchestrator.js';
+import * as runtime from '../src/runtime.js';
 import * as harvestWorker from '../src/providers/harvest-worker.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import { stubFetch } from './helpers/stub.js';
+import * as bank from '../src/utils/magnet-bank.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const H1 = 'a'.repeat(40);
 const H2 = 'b'.repeat(40);
 const ok = (streams: unknown[]) => ({ ok: true, status: 200, json: async () => ({ streams }) });
 
 async function withMico<T>(fn: () => Promise<T>): Promise<T> {
-  const saved = config.mico.harvest;
+  const saved = { enabled: config.mico.enabled, harvest: config.mico.harvest };
+  config.mico.enabled = true;
   config.mico.harvest = true;
   mico._resetBreaker();
   try {
     return await fn();
   } finally {
-    config.mico.harvest = saved;
+    config.mico.enabled = saved.enabled;
+    config.mico.harvest = saved.harvest;
     mico._resetBreaker();
   }
 }
@@ -97,17 +108,95 @@ test('fail-open em HTTP 500 e erro de rede; breaker abre após N falhas', async 
   });
 });
 
-test('MICO_HARVEST=false: nenhum fetch', async () => {
-  const saved = config.mico.harvest;
-  config.mico.harvest = false;
+test('MICO_ENABLED=false: nenhum fetch e o card some do catálogo', async () => {
+  const saved = config.mico.enabled;
+  config.mico.enabled = false;
   const stub = stubFetch(() => ok([]));
   try {
     assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt7286456' }), []);
     assert.equal(stub.calls.length, 0);
+    assert.equal(mico.catalogEntry(), null);
   } finally {
     stub.restore();
-    config.mico.harvest = saved;
+    config.mico.enabled = saved;
   }
+});
+
+test('card: entra no catálogo como BR e nunca vira consulta ao Jackett', async () => {
+  await withMico(async () => {
+    assert.deepEqual(mico.catalogEntry(), { id: 'mico', label: 'Mico Leão Dublado', language: 'pt-BR', isBr: true, virtual: true });
+    assert.deepEqual(mico.jackettOnly(['bludv-cardigann', 'MICO', 'yts']), ['bludv-cardigann', 'yts']);
+    assert.deepEqual(effectiveJackettIndexers(['mico']), []);
+    const savedKey = config.jackett.apiKey;
+    config.jackett.apiKey = 'test-key';
+    const stub = stubFetch(() => ok([]));
+    try {
+      // Lista explícita só com o card: nenhuma chamada ao Jackett (nem /all).
+      assert.deepEqual(await jackett.search('Coringa', 'movie', ['mico']), []);
+      assert.equal(stub.calls.length, 0);
+    } finally {
+      stub.restore();
+      config.jackett.apiKey = savedKey;
+    }
+  });
+});
+
+test('collectRaw: ji só com o card consulta o Mico e não o Jackett', async () => {
+  await withMico(async () => {
+    const savedKey = config.jackett.apiKey;
+    const savedBludv = config.bludv.enabled;
+    config.jackett.apiKey = 'test-key';
+    config.bludv.enabled = false;
+    const stub = stubFetch((url) => {
+      assert.match(url, /mico-leao.*\/stream\/movie\/tt7286456\.json$/, 'só o Mico é consultado');
+      return ok([{ title: 'Coringa 2019 1080p Dublado 👥 7', infoHash: H1 }]);
+    });
+    const requestOpts = {
+      ...runtime.normalize(null),
+      providers: ['jackett'],
+      jackettIndexers: ['mico'],
+      debridService: '',
+      debridApiKey: '',
+    };
+    try {
+      const result = await runtime.run({ opts: requestOpts, encoded: 'mico-card' }, () =>
+        collectRaw(
+          'Joker 2019',
+          'movie',
+          'tt7286456',
+          'Coringa 2019',
+          { names: ['Joker', 'Coringa'], year: 2019, isSeries: false, season: null, episode: null } as any,
+          null,
+          null,
+          Date.now() + 3000,
+        ));
+      assert.equal(stub.calls.length, 1);
+      assert.deepEqual(result.items.map((i: any) => i.indexer), ['mico']);
+    } finally {
+      stub.restore();
+      config.jackett.apiKey = savedKey;
+      config.bludv.enabled = savedBludv;
+    }
+  });
+});
+
+test('card: busca viva pinta o status; a do colhedor não', async () => {
+  await withMico(async () => {
+    indexerStatus.clear();
+    const stub = stubFetch(() => ok([{ title: 'Coringa 2019 Dublado 👥 3', infoHash: H1 }]));
+    try {
+      await mico.search({ type: 'movie', imdbId: 'tt7286456' }, { recordStatus: false });
+      assert.equal(indexerStatus.get('mico'), null);
+      await mico.search({ type: 'movie', imdbId: 'tt7286456' });
+      assert.equal(indexerStatus.get('mico')?.state, 'online');
+      const diag = await jackett.test('mico', '', 'movie');
+      assert.equal(diag.ok, true);
+      assert.equal((diag as any).results, 1);
+    } finally {
+      stub.restore();
+      indexerStatus.clear();
+    }
+  });
 });
 
 test('colhedor: item do Mico da obra entra no índice, lixo de outra obra é cortado', async () => {
@@ -136,6 +225,55 @@ test('colhedor: item do Mico da obra entra no índice, lixo de outra obra é cor
       config.jackett.indexers = saved.indexers;
       config.tmdb.apiKey = saved.tmdb;
       config.bludv.enabled = saved.bludv;
+    }
+  });
+});
+
+test('banco vivo: item do Mico entra com fonte mico e os trackers de `sources`', async () => {
+  const savedBank = config.magnetBank.enabled;
+  config.magnetBank.enabled = true;
+  bank.resetForTests();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mico-bank-'));
+  bank.open(dir);
+  await withMico(async () => {
+    const stub = stubFetch(() => ok([{
+      title: 'Matrix 1999 1080p Dublado 👥 0',
+      infoHash: H1,
+      sources: ['tracker:udp://tracker.exemplo.org:1337/announce', 'dht:' + H1, 'lixo'],
+    }]));
+    try {
+      const out = await mico.search({ type: 'movie', imdbId: 'tt0133093' });
+      assert.match(String(out[0].magnet), /^magnet:\?xt=urn:btih:a{40}&tr=udp%3A%2F%2Ftracker\.exemplo\.org/);
+      assert.doesNotMatch(String(out[0].magnet), /[?&]dn=/, 'título do post não vira dn=');
+      bank.flushNow();
+      assert.deepEqual(bank.sourcesFor(H1).map((r: any) => r.indexer), ['mico']);
+      assert.match(String(bank.lookup(H1)?.uri), /tracker\.exemplo\.org/);
+      assert.ok(bank.worksFor(H1).some((w: any) => w.imdb === 'tt0133093'), 'obra do pedido registrada');
+    } finally {
+      stub.restore();
+      bank.resetForTests();
+      config.magnetBank.enabled = savedBank;
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+test('estado vivo: sucesso, falha e circuito aberto chegam ao onQueryResult', async () => {
+  await withMico(async () => {
+    const seen: string[] = [];
+    const onQueryResult = (info: { responded: boolean; reason?: string }) => { seen.push(info.responded ? 'ok' : String(info.reason)); };
+    let fail = false;
+    const stub = stubFetch(() => (fail ? { ok: false, status: 503, json: async () => ({}) } : ok([])));
+    try {
+      await mico.search({ type: 'movie', imdbId: 'tt0000002' }, { onQueryResult });
+      fail = true;
+      for (let i = 0; i < config.mico.breakerFailures; i += 1) {
+        await mico.search({ type: 'movie', imdbId: 'tt0000002' }, { onQueryResult });
+      }
+      await mico.search({ type: 'movie', imdbId: 'tt0000002' }, { onQueryResult });
+      assert.deepEqual(seen, ['ok', ...Array(config.mico.breakerFailures).fill('error'), 'breaker']);
+    } finally {
+      stub.restore();
     }
   });
 });

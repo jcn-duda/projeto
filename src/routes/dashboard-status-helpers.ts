@@ -26,7 +26,8 @@ export function releaseIndexStatus(services: AppServices, counters: MetricSnapsh
 }
 
 /** Tri-estado do serviço Jackett: `naomedido` quando o catálogo veio do .env. */
-export function jackettServiceFlag(indexers: { length: number; source?: string }): boolean | 'naomedido' {
+export function jackettServiceFlag(indexers: readonly { virtual?: boolean }[] & { source?: string }): boolean | 'naomedido' {
   if (indexers?.source !== 'live') return 'naomedido';
-  return indexers.length > 0;
+  // O card virtual do Mico não prova que o Jackett tem indexer.
+  return indexers.some((item) => !item?.virtual);
 }

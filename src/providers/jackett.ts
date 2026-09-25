@@ -9,6 +9,7 @@ import { breakerTripped, breakerSnapshot, breakerAnnounced } from './jackett-bre
 import { queryIndexer, type JackettSearchOptions } from './jackett-query-indexer.js';
 import { captureItems } from '../utils/magnet-bank.js';
 import { ALL_QUERY_INDEXER } from './live-indexer-state.js';
+import * as mico from './mico.js';
 
 // Prazo do teste manual de indexador. Nada a ver com o da busca: aqui vale
 // esperar pra distinguir "indexer morto" de "indexer lento".
@@ -21,7 +22,9 @@ const DIAGNOSTIC_TIMEOUT = 30000;
  * MESMA regra real (não com um palpite sobre `opts().jackettIndexers`).
  */
 export function effectiveJackettIndexers(indexersOverride: string[] | null): string[] {
-  return indexersOverride == null ? config.jackett.indexers : indexersOverride;
+  // O card virtual `mico` convive no `ji` com os ids do Jackett, mas não existe
+  // lá: consultá-lo daria erro e pintaria o card de offline.
+  return mico.jackettOnly(indexersOverride == null ? config.jackett.indexers : indexersOverride);
 }
 
 /**
@@ -222,6 +225,7 @@ async function search(query: string, type: string, indexersOverride: string[] | 
  * Devolve dado, não veredito: quem exibe decide como pintar.
  */
 async function test(indexer: string, query: string, type = 'movie') {
+  if (indexer === mico.MICO_ID) return mico.test();
   const started = Date.now();
   if (!config.jackett.apiKey) {
     return { indexer, ok: false, error: 'JACKETT_API_KEY não configurada', ms: 0 };

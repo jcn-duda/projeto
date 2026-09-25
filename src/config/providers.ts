@@ -25,10 +25,15 @@ export const torrentio = () => ({
   breakerCooldown: Math.max(0, num(process.env.TORRENTIO_BREAKER_COOLDOWN_MS, 5 * 60_000)),
 });
 
-// Addon público "Mico Leão Dublado V2": fonte SÓ do colhedor (fundo), nunca da
-// resposta. Matching dele é fraco (medido: 5 de 48 hashes úteis em 5 obras), então
-// todo item é refiltrado pelo filtro de relevância antes de entrar no índice.
+// Addon público "Mico Leão Dublado V2": card próprio na /configure (id `mico`,
+// fora do Jackett — consulta por IMDb) e, opcionalmente, fonte do colhedor.
+// Matching dele é fraco (medido: 5 de 48 hashes úteis em 5 obras), então todo
+// item passa pelo mesmo filtro de relevância das releases do Jackett.
 export const mico = () => ({
+  // Kill-switch da fonte inteira: sem ele o card some e nada consulta o Mico.
+  enabled: String(process.env.MICO_ENABLED || 'true') !== 'false',
+  // Instalação nova já nasce com o card marcado (entra no `ji` padrão).
+  default: String(process.env.MICO_DEFAULT || 'false') === 'true',
   harvest: String(process.env.MICO_HARVEST || 'false') === 'true',
   url: (process.env.MICO_URL || 'https://mico-leao-dublado-apiv-2.vercel.app').replace(/\/$/, ''),
   timeout: Math.max(1, num(process.env.MICO_TIMEOUT_MS, 15000)),

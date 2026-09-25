@@ -5,6 +5,7 @@ import jackett, { effectiveJackettIndexers } from './jackett.js';
 import prowlarr from './prowlarr.js';
 import bludv from './bludv.js';
 import * as torrentio from './torrentio.js';
+import * as mico from './mico.js';
 import * as account from './account.js';
 import debrid from '../debrid/index.js';
 import { planJackettQueries, liveIndexers } from './search-plan.js';
@@ -100,14 +101,20 @@ export async function collectRaw(
   // índice). O filtro é ANTES do plano: se o operador mandou todos os
   // selecionados embora, o resultado é NENHUMA consulta Jackett — cair no
   // fallback `/all` reabriria a porta que o filtro acabou de fechar.
-  const selectedIndexers = liveIndexers(rawSelected, config.jackett.indexOnlyIndexers, config.jackett.liveExemptIndexers);
-  if (selectedIndexers.length < rawSelected.length) {
-    metrics.count('search.indexonly.excluded', rawSelected.length - selectedIndexers.length);
+  // O card `mico` mora no `ji` mas não é do Jackett: sai daqui e vira tarefa
+  // própria abaixo. Selecionar SÓ ele não pode cair no ramo "sem seleção", que
+  // consultaria a lista inteira do operador.
+  const jackettSelected = mico.jackettOnly(rawSelected);
+  const selectedIndexers = liveIndexers(jackettSelected, config.jackett.indexOnlyIndexers, config.jackett.liveExemptIndexers);
+  if (selectedIndexers.length < jackettSelected.length) {
+    metrics.count('search.indexonly.excluded', jackettSelected.length - selectedIndexers.length);
   }
 
   // demo sempre disponível como fallback de teste se quiser both+demo — aqui só jackett/prowlarr
   if (wants('jackett')) {
-    if (rawSelected.length > 0 && selectedIndexers.length === 0) {
+    if (rawSelected.length > 0 && jackettSelected.length === 0) {
+      // Só o card do Mico selecionado: nenhuma consulta ao Jackett.
+    } else if (jackettSelected.length > 0 && selectedIndexers.length === 0) {
       // Todos os selecionados são index-only: a resposta sai do índice +
       // inventário; a obra entra na fila do colhedor pelo caminho de sempre.
       metrics.count('search.indexonly.all');
@@ -213,6 +220,25 @@ export async function collectRaw(
       season: matchContext.season, episode: matchContext.episode, resetPassedFilter: true,
       onQueryResult: (info: any) => live.noteResult(info),
     }));
+  }
+
+  // Card Mico: consulta por IMDb, fora do Jackett. Tarefa BR (prioritária)
+  // como a do bludv — acervo dublado, pode chegar depois do prazo e entrar no
+  // passe tardio. Sem `ji` na instalação, vale o padrão do operador.
+  const wantsMico = rawSelected.length > 0 ? rawSelected.includes(mico.MICO_ID) : config.mico.default;
+  if (wants('jackett') && wantsMico && config.mico.enabled) {
+    // Entra no estado vivo como um indexer: se o Mico cair ou não responder no
+    // prazo, a reserva do acervo (📦) cobre os hashes que ele já trouxe.
+    live.noteStart([mico.MICO_ID]);
+    addTask(() => mico.search({
+      type,
+      imdbId,
+      season: matchContext.season,
+      episode: matchContext.episode,
+    }, {
+      resetPassedFilter: true,
+      onQueryResult: (info) => live.noteResult(info),
+    }), true);
   }
 
   // Fonte BR dublada, independente do PROVIDER: entra no mesmo allSettled,

@@ -101,7 +101,12 @@ function defaults() {
     minSeeders: config.minSeeders,
     brReservedSlots: config.brReservedSlots,
     brFirst: true,
-    jackettIndexers: [...config.jackett.indexers],
+    // O card virtual do Mico entra no `ji` padrão só com MICO_DEFAULT: é assim
+    // que a instalação nova já nasce com ele marcado na /configure.
+    jackettIndexers: [
+      ...config.jackett.indexers,
+      ...(config.mico.enabled && config.mico.default && !config.jackett.indexers.includes('mico') ? ['mico'] : []),
+    ],
     indexerPriority: [],
     indexerLimits: {},
     brOnly: false,
