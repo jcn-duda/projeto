@@ -13,6 +13,8 @@ import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
 import * as magnetBank from './utils/magnet-bank.js';
+import * as crawlStore from './utils/crawl-store.js';
+import crawler from './providers/crawler.js';
 
 const services = { magnetdb, magnetBank };
 
@@ -87,6 +89,9 @@ const server = app.listen(config.port, config.host, () => {
   });
   rdWarmer.start();
   brCoverage.start();
+  // Raspagem total (piloto Vaca): desligada por padrão — ligar é decisão do
+  // operador (`CRAWL_ENABLED`). O motor é serial e só roda com o app ocioso.
+  if (config.crawl.enabled) crawler.start();
 });
 
 let shuttingDown = false;
@@ -101,6 +106,7 @@ function shutdown(signal: string) {
     brResolvers.close();
     services.magnetdb.savePersistentCounts?.();
     services.magnetBank.close();
+    crawlStore.close();
     cache.close();
     log.info('[shutdown] addon encerrado');
     process.exit(0);
