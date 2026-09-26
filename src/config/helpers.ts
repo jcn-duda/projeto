@@ -63,3 +63,7 @@ export const DEFAULT_CATALOG_DB_PATH = path.join(REPO_ROOT, 'data', 'catalog.db'
 // SQLite PRÓPRIO pelo mesmo motivo do catálogo — o cache do addon tem cota,
 // TTL e bump de namespace, e qualquer um dos três apagaria o acervo.
 export const DEFAULT_MAGNET_BANK_DB_PATH = path.join(REPO_ROOT, 'data', 'magnets.db');
+// Estado da raspagem dos sites BR (plano "Raspagem total"): fila de URLs por
+// site. SQLite PRÓPRIO pelo mesmo motivo dos irmãos — a fila é estado VIVO de
+// retomada, e o cache tem cota/TTL que a destruiriam a cada restart.
+export const DEFAULT_CRAWL_DB_PATH = path.join(REPO_ROOT, 'data', 'crawl.db');

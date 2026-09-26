@@ -19,6 +19,7 @@ import { searchSettings, budgets, search } from './config/search.js';
 import { cacheBase, rawCache, cache, catalog, magnetBank } from './config/cache.js';
 import { debrid } from './config/debrid.js';
 import { warmup, releaseIndex, accountFastPath, harvest, seed, f3 } from './config/harvest.js';
+import { crawl } from './config/crawl.js';
 import { magnetDb, audioAudit, notify } from './config/audit.js';
 
 const config = {
@@ -55,6 +56,8 @@ const config = {
   audioAudit: audioAudit(),
   notify: notify(),
   f3: f3(),
+  // Raspagem total dos sites BR (desligada por padrão; ver config/crawl.ts).
+  crawl: crawl(),
 };
 
 export default config;

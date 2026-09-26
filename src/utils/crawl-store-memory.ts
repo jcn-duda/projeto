@@ -1,0 +1,163 @@
+// Estado da raspagem — ENGINE DE MEMÓRIA (fallback quando `node:sqlite` não
+// existe no runtime (Node 20) ou o arquivo não abre). Irmã da engine de
+// memória do banco de magnets: implementa os MESMOS verbos da SQL e consome as
+// MESMAS regras puras (`crawl-store-rules.ts`), então o consumidor (motor,
+// painel) não sabe qual engine está ativa.
+//
+// O teto existe pelo mesmo motivo do banco de magnets: esta engine só roda
+// onde não há SQLite, e um `Map` ilimitado com o acervo de um site grande
+// (comandotorrents: dezenas de milhares de URLs) cresceria até OOM. A ordem do
+// próprio `Map` É a fila de eviction. Diferença honesta do banco de magnets:
+// aqui evictar NÃO perde conhecimento permanente — a URL evictada reaparece no
+// próximo ciclo de descoberta (o sitemap é re-lido), então a engine evicta a
+// entrada mais antiga sem cerimônia e CONTA a evicção, para o status admitir
+// a perda em vez de fingir persistência.
+import type {
+  CrawlUrlRow,
+  CrawlRunRow,
+  DiscoveredEntry,
+  MarkOpts,
+  MarkResultInput,
+  SiteCounters,
+  UpsertReport,
+} from '../providers/crawl-types.js';
+import type { CrawlEngine } from './crawl-store.js';
+import { applyResult, decideUpsert, emptyCounters, parseStatus } from './crawl-store-rules.js';
+
+/** Teto de URLs na engine de memória (entradas de ~200 B: ~20 MB no pior caso). */
+const MEMORY_MAX_URLS = 100_000;
+/** Rodadas são poucas por site; teto só por higiene (as mais antigas saem). */
+const MEMORY_MAX_RUNS = 1000;
+
+export function memoryCrawlEngine(): CrawlEngine {
+  // Chave `site\0url`; a ordem de inserção do Map é a fila de eviction.
+  const urls = new Map<string, CrawlUrlRow>();
+  const runs = new Map<number, CrawlRunRow>();
+  let evictions = 0;
+  let nextRunId = 1;
+
+  const key = (site: string, url: string) => `${String(site || '')}\u0000${String(url || '')}`;
+
+  const evictOldest = (): void => {
+    while (urls.size > MEMORY_MAX_URLS) {
+      const oldest = urls.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      urls.delete(oldest);
+      evictions += 1;
+    }
+  };
+
+  return {
+    kind: 'memory',
+    memoryMax() { return MEMORY_MAX_URLS; },
+    memoryEvictions() { return evictions; },
+    upsertUrls(site, entries: readonly DiscoveredEntry[], now): UpsertReport {
+      const s = String(site || '');
+      const report: UpsertReport = { added: 0, refreshed: 0, unchanged: 0 };
+      for (const entry of entries) {
+        const k = key(s, entry.url);
+        const { row, outcome } = decideUpsert(s, urls.get(k) ?? null, entry, now);
+        // Upsert promove a recência (delete+set): mesma convenção do banco de
+        // magnets — URL revisitada não é evictada como se fosse fria.
+        urls.delete(k);
+        urls.set(k, row);
+        report[outcome] += 1;
+      }
+      evictOldest();
+      return report;
+    },
+    takeNext(site, now): CrawlUrlRow | null {
+      const s = String(site || '');
+      let best: CrawlUrlRow | null = null;
+      for (const row of urls.values()) {
+        // MESMA elegibilidade da SQL: pending, ou error cujo backoff venceu.
+        if (row.site !== s) continue;
+        if (row.status !== 'pending' && row.status !== 'error') continue;
+        if (row.nextAt > now) continue;
+        // MESMA ordem da SQL: next_at, added_at, url — retomada determinística.
+        if (!best
+          || row.nextAt < best.nextAt
+          || (row.nextAt === best.nextAt && row.addedAt < best.addedAt)
+          || (row.nextAt === best.nextAt && row.addedAt === best.addedAt && row.url < best.url)) {
+          best = row;
+        }
+      }
+      if (!best) return null;
+      const claimed: CrawlUrlRow = { ...best, status: 'inflight', checkedAt: now };
+      urls.set(key(s, best.url), claimed);
+      return claimed;
+    },
+    getUrl(site, url) { return urls.get(key(site, url)) ?? null; },
+    markResult(site, url, result: MarkResultInput, now, opts: MarkOpts = {}): void {
+      const k = key(site, url);
+      const existing = urls.get(k);
+      if (!existing) return;
+      urls.set(k, applyResult(existing, result, now, opts));
+    },
+    requeueInflight(site, olderThanMs, now): number {
+      const s = String(site || '');
+      let n = 0;
+      for (const [k, row] of urls) {
+        if (row.site !== s || row.status !== 'inflight' || row.checkedAt > now - olderThanMs) continue;
+        urls.set(k, { ...row, status: 'pending', nextAt: 0 });
+        n += 1;
+      }
+      return n;
+    },
+    requeueErrors(site): number {
+      const s = String(site || '');
+      let n = 0;
+      for (const [k, row] of urls) {
+        if (row.site !== s || row.status !== 'error') continue;
+        urls.set(k, { ...row, status: 'pending', tries: 0, nextAt: 0, error: '' });
+        n += 1;
+      }
+      return n;
+    },
+    counters(site): SiteCounters {
+      const s = String(site || '');
+      const byStatus = emptyCounters();
+      let total = 0;
+      for (const row of urls.values()) {
+        if (row.site !== s) continue;
+        byStatus[parseStatus(row.status)] += 1;
+        total += 1;
+      }
+      return { total, byStatus };
+    },
+    startRun(site, phase, cursor, now): number {
+      const row: CrawlRunRow = {
+        id: nextRunId++,
+        site: String(site || ''),
+        phase: phase === 'incremental' ? 'incremental' : 'initial',
+        cursor: String(cursor || ''),
+        startedAt: now,
+        finishedAt: null,
+        counters: {},
+      };
+      runs.set(row.id, row);
+      while (runs.size > MEMORY_MAX_RUNS) {
+        const oldest = Math.min(...runs.keys());
+        runs.delete(oldest);
+      }
+      return row.id;
+    },
+    finishRun(runId, now, counters): void {
+      const row = runs.get(runId);
+      if (!row) return;
+      row.finishedAt = now;
+      row.counters = { ...(counters ?? {}) };
+    },
+    latestRun(site): CrawlRunRow | null {
+      const s = String(site || '');
+      let best: CrawlRunRow | null = null;
+      for (const row of runs.values()) {
+        if (row.site !== s) continue;
+        if (!best || row.startedAt > best.startedAt || (row.startedAt === best.startedAt && row.id > best.id)) best = row;
+      }
+      return best;
+    },
+    clearRows() { urls.clear(); runs.clear(); },
+    closeEngine() { urls.clear(); runs.clear(); },
+  };
+}
