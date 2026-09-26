@@ -327,4 +327,10 @@ async function getCollection(imdbId: string, deadlineAt: number): Promise<MultiW
   return (await promise).info;
 }
 
+// A busca por TÍTULO (identificação da raspagem, Fase 2) mora no irmão
+// tmdb-search.ts — este arquivo já vive perto da catraca de 400 linhas e o
+// import reverso criaria ciclo. Reexportado aqui para a superfície `tmdb.*`
+// continuar sendo a porta única do TMDB no addon.
 export { getTitles, getCollection };
+export { searchByTitle, externalImdbId } from './tmdb-search.js';
+export type { TmdbSearchHit, TmdbSearchResult, ExternalImdbResult, SearchWorkType } from './tmdb-search.js';

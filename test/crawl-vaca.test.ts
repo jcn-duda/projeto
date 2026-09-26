@@ -9,6 +9,9 @@
 //   movie-links-streaming.html   /movie-links/54688/ — SÓ o grupo Assistir;
 //   movie-page-no-imdb.html      /pt/movie/um-dia-de-sorte-em-nova-york/ — SEM
 //                                IMDb algum; movie-links 60009 com 1 botão;
+//   movie-page-entity.html       /pt/movie/a-gangsters-life/ — cauda SEM IMDb
+//                                ancorado e ENTIDADE HTML no <h1> (&#8217;),
+//                                capturada 2026-09-26; trava o decodeEntities;
 //   sitemap-index.xml            índice Yoast íntegro (38 sitemaps, 11 de filmes);
 //   movie-sitemap11.xml          sitemap de filmes ÍNTEGRO (118 URLs reais);
 //   protector-processar.html     hop REAL do protetor (const next → t.co);
@@ -28,7 +31,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createResolver } from '../resolvers/profiles/vacatorrent.js';
-import { createVacaCrawlSite, vacaCrawlSite } from '../src/providers/crawl-sites/vaca.js';
+import { createVacaCrawlSite, parseImdbId, parseTitleYear, vacaCrawlSite } from '../src/providers/crawl-sites/vaca.js';
 import type { VacaResolverSurface } from '../src/providers/crawl-sites/vaca.js';
 import { instance as loadedResolver } from '../src/br-resolvers.js';
 import { stubFetch, type FetchStub } from './helpers/stub.js';
@@ -286,5 +289,19 @@ describe('br-resolvers.instance: getter seguro (sem servidor, sem load)', () => 
 
   test('vacaCrawlSite() sem resolver embutido falha com erro claro', () => {
     assert.throws(() => vacaCrawlSite(), /resolvedor embutido não carregado/);
+  });
+});
+
+describe('fixture com entidade HTML no h1 (página real sem IMDb)', () => {
+  // Regressão do conserto da Fase 2: remover o decodeEntities de parseTitleYear
+  // fazia a query do TMDB sair com "&#8217;" crua e a página nunca identificava.
+  // O fixture é captura REAL de 2026-09-26 — se o parser regredir, este caso
+  // quebra antes da sonda precisar redescobrir o problema ao vivo.
+  test('parseTitleYear decodifica a entidade e parseImdbId segue null', () => {
+    const html = fixture('movie-page-entity.html');
+    const parsed = parseTitleYear(html);
+    assert.equal(parsed.title, 'A Gangster’s Life');
+    assert.equal(parsed.year, 2026);
+    assert.equal(parseImdbId(html), null, 'sem link imdb.com/title na página não há âncora');
   });
 });

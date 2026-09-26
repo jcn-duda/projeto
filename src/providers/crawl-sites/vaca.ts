@@ -31,6 +31,7 @@ import type { ReleaseTitleInput, ReleaseTitlePost } from '../../../resolvers/rel
 import type { CrawlDiscovery, CrawlSite, CrawlWorkResult, DiscoveredUrl } from '../crawl-types.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
+import { decodeEntities } from '../../utils/title-normalization.js';
 
 /**
  * Recorte da instância do profile vacatorrent que o adaptador consome. Declarar
@@ -82,10 +83,17 @@ function parseSitemapEntries(xml: string): { loc: string; lastmod: string }[] {
   return out;
 }
 
-/** Título e ano do `<h1>` da obra ("Expresso do Amanhã (2013)"). */
-function parseTitleYear(html: string): { title: string; year: number | null } {
+/** Título e ano do `<h1>` da obra ("Expresso do Amanhã (2013)"). Exportado
+ * para a sonda da Fase 2 (`scripts/crawl-identify-probe`) classificar página
+ * com a MESMA régua do adaptador — duplicar o parser divergiria em silêncio. */
+export function parseTitleYear(html: string): { title: string; year: number | null } {
   const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(String(html || ''))?.[1] ?? '';
-  const text = h1.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  // WordPress devolve o título com entidade crua ("A Gangster&#8217;s Life",
+  // "Mike &#038; Nick"): decodificar ANTES de tudo. A query do TMDB da Fase 2
+  // não encontra a obra com "&#8217;" no meio e o título herdado pelas
+  // releases carregaria o lixo — medido ao vivo na sonda da Fase 2: 2 de 30
+  // páginas sem IMDb perdiam a identificação só por isso.
+  const text = decodeEntities(h1.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
   const yearMatch = /\((\d{4})\)\s*$/.exec(text);
   const year = yearMatch ? Number(yearMatch[1]) : null;
   const title = (yearMatch ? text.slice(0, yearMatch.index) : text).replace(/\s+/g, ' ').trim();
@@ -97,8 +105,10 @@ function parseTitleYear(html: string): { title: string; year: number | null } {
  * dois ancorados distintos é página ambígua e SEM âncora nenhum tt entra —
  * um link solto pode ser de recomendação, e obra errada é pior que obra
  * nenhuma (a identificação por título/ano é fase 2, nunca IMDb alheio).
+ * Exportado para a sonda da Fase 2 (`scripts/crawl-identify-probe`) separar
+ * página "com IMDb" de "sem IMDb" com a MESMA régua do adaptador.
  */
-function parseImdbId(html: string): string | null {
+export function parseImdbId(html: string): string | null {
   const anchored = new Set(
     [...String(html || '').matchAll(IMDB_ANCHOR_RE)].map((m) => m[1]),
   );
