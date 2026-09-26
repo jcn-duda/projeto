@@ -148,6 +148,26 @@ function activeSite(name: string): string | null {
   return resolver.siteUrl || null;
 }
 
+/**
+ * Instância JÁ CARREGADA de um resolvedor, sem criar nada.
+ *
+ * Consumidores internos que falam com o site direto (o adaptador de raspagem
+ * `crawl-sites/vaca.ts`) reusam a MESMA instância que o `load()` criou — com o
+ * seletor de domínio vivo, os caches e a sessão do FlareSolverr já aquecidos.
+ * Criar uma segunda instância duplicaria tudo isso e leria a env congelada.
+ *
+ * Seguro por contrato: nome desconhecido ou resolvedor não carregado (modo
+ * embutido desligado, falha no boot) devolve `null` — nunca lança e nunca
+ * instancia sob demanda. Quem recebe `null` trata como fonte indisponível.
+ */
+function instance(name: string): unknown {
+  try {
+    return modules.get(String(name || '')) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Resultado do teste direto de um resolvedor; `error` só vem quando falhou. */
 type ResolverProbe = {
   resolver: string;
@@ -225,4 +245,4 @@ async function closeAsync() {
   await Promise.all(pending);
 }
 
-export { load, close, closeAsync, activeSite, probe, RESOLVERS };
+export { load, close, closeAsync, activeSite, instance, probe, RESOLVERS };
