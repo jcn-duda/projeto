@@ -115,6 +115,46 @@ test('seleção: falha do indexer injeta só o acervo dele; vazio válido não',
   assert.equal(none.injected, 0, 'resposta válida => sem fallback');
 });
 
+test('estado vivo: vazio suspeito — respondeu sem item relevante; quem serviu desfaz', () => {
+  const s = createLiveIndexerState();
+  s.noteStart(['a', 'b']);
+  s.noteResult({ indexer: 'a', responded: true, relevant: 0 });
+  s.noteResult({ indexer: 'b', responded: true });
+  assert.deepEqual([...s.suspectIndexers()], ['a'], 'sem `relevant` não é medição: b fica fora');
+  assert.equal(s.failedIndexers().size, 0, 'vazio não é falha provada');
+  assert.equal(s.hasAnyFailure(), false, 'vazio não é falha provada');
+  assert.equal(s.needsFallback(), true, 'mas justifica consultar o banco');
+  s.noteResult({ indexer: 'a', responded: true, relevant: 3 });
+  assert.equal(s.suspectIndexers().size, 0, 'resposta com item relevante desfaz a suspeita');
+  s.noteResult({ indexer: 'a', responded: true, relevant: 0 });
+  assert.equal(s.suspectIndexers().size, 0, 'quem já serviu na coleta não volta a ser suspeito');
+  const f = createLiveIndexerState();
+  f.noteResult({ indexer: 'c', responded: true, relevant: 0 });
+  f.noteResult({ indexer: 'c', responded: false, reason: 'error' });
+  assert.deepEqual([...f.failedIndexers()], ['c']);
+  assert.equal(f.suspectIndexers().size, 0, 'falha vence o vazio (cobertura mais ampla)');
+});
+
+test('seleção: vazio suspeito cobre só o acervo JÁ aprovado daquele indexer', () => {
+  const approved = hex('1');
+  const never = hex('2');
+  seed(approved, 'idx-vazio', movieCtx('tt150'));
+  seed(never, 'idx-vazio', movieCtx('tt150'), { passed: false, title: 'Filme Teste 2024 720p' });
+  seed(hex('3'), 'idx-outro', movieCtx('tt150'));
+  const fb = collectFallbackItems({
+    type: 'movie', imdbId: 'tt150', season: null, episode: null, liveHashes: new Set(),
+    failedIndexers: new Set(), allFailed: false, suspectIndexers: new Set(['idx-vazio']),
+  });
+  assert.deepEqual(fb.items.map((i) => i.infoHash), [approved], 'passed_filter=0 e outro indexer ficam fora');
+  assert.equal(fb.items[0].fallbackIndexer, 'idx-vazio');
+  assert.equal(metrics.snapshot().counters['fallback.items.suspectEmpty'], 1);
+  const live = collectFallbackItems({
+    type: 'movie', imdbId: 'tt150', season: null, episode: null, liveHashes: new Set([approved]),
+    failedIndexers: new Set(), allFailed: false, suspectIndexers: new Set(['idx-vazio']),
+  });
+  assert.equal(live.injected, 0, 'vivo vence também no vazio suspeito');
+});
+
 test('seleção: hash vivo vence sempre, mesmo com seeders menores', () => {
   const h = hex('c');
   seed(h, 'idx-fail', movieCtx('tt101'), { seeders: 999 });

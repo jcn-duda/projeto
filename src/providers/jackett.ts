@@ -135,10 +135,17 @@ async function search(query: string, type: string, indexersOverride: string[] | 
     if (r.status === 'fulfilled') {
       // Resposta VÁLIDA (mesmo que vazia) vs fonte morta dentro do HTTP 200.
       // `sourceOk` já é o veredicto do queryIndexer; aqui só o publicamos.
+      // `relevant` (itens que passam no filtro de título da obra) alimenta o
+      // "vazio suspeito" do estado vivo: site que trocou de domínio/layout
+      // responde 200 vazio (ou a homepage) sem erro nenhum.
+      const relevant = options.matchContext?.names?.length
+        ? filterRelevantRaw(r.value.items, options.matchContext).length
+        : undefined;
       options.onQueryResult?.({
         indexer: r.value.indexer,
         responded: r.value.sourceOk !== false,
         ...(r.value.sourceOk === false ? { reason: 'source' } : {}),
+        ...(relevant !== undefined && r.value.sourceOk !== false ? { relevant } : {}),
       });
       out.push(...r.value.items);
       // Banco de magnets vivo: TUDO que o indexer devolveu com hash entra,
@@ -187,9 +194,8 @@ async function search(query: string, type: string, indexersOverride: string[] | 
       // balde "a resposta queimou o que o índice deveria ter servido" antes de
       // qualquer usuário aparecer (medido: 137 wastes com ZERO buscas de
       // usuário no processo).
-      if (options.matchContext?.names?.length && !r.value.fromCache && r.value.ms > 0) {
-        const survived = filterRelevantRaw(r.value.items, options.matchContext);
-        if (survived.length === 0) {
+      if (relevant !== undefined && !r.value.fromCache && r.value.ms > 0) {
+        if (relevant === 0) {
           if (options.background) {
             metrics.count('search.jackett.wastedQueries.background');
             metrics.count('search.jackett.wastedMs.background', r.value.ms);

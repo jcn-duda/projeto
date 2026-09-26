@@ -17,6 +17,10 @@
 //    `releaseIndex.record`, das pools/candidatos do autofetch e do warmer.
 // 4. O item passa pelo MESMO `buildStreams` (título/episódio/multiobra, mag
 //    bad/lie/debrid/cotas/MIN_SEEDERS) — sem bypass além do selo/origem.
+// 5. Vazio suspeito (respondeu sem item relevante para uma obra em que o banco
+//    tem acervo DELE já aprovado) é coberto só com `passed_filter=1`: não é
+//    falha provada, então só volta o que uma busca viva já validou. É o caso do
+//    site que mudou de domínio/layout e responde vazio sem erro.
 import config from '../config.js';
 import type { RawItem } from '../../types/domain.js';
 import * as bank from '../utils/magnet-bank.js';
@@ -45,6 +49,8 @@ export interface FallbackRequest {
   failedIndexers: ReadonlySet<string>;
   /** Ramo `/all` em erro/pendente: todos os indexers do banco são candidatos. */
   allFailed: boolean;
+  /** Vazios suspeitos: cobertos só com acervo que já passou no filtro. */
+  suspectIndexers?: ReadonlySet<string>;
   trace?: StreamTraceState | null;
 }
 
@@ -80,7 +86,7 @@ export function obraTargets(type: string, season: number | null, episode: number
   return out;
 }
 
-export type Candidate = { magnet: MagnetRow; source: SourceRow; work: WorkRow; brSource?: boolean };
+export type Candidate = { magnet: MagnetRow; source: SourceRow; work: WorkRow; brSource?: boolean; suspect?: boolean };
 
 /**
  * Origem BR recalculada com a MESMA regra do Jackett (`jackett-results.ts`):
@@ -146,7 +152,8 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
     if (!config.magnetBank?.enabled || !config.magnetBank?.fallbackEnabled) return empty;
     const imdbId = String(req.imdbId || '');
     if (!imdbId || !imdbId.startsWith('tt')) return empty;
-    if (req.failedIndexers.size === 0 && !req.allFailed) return empty;
+    const suspect = req.suspectIndexers || new Set<string>();
+    if (req.failedIndexers.size === 0 && !req.allFailed && suspect.size === 0) return empty;
 
     const perIndexerMax = Math.max(1, Math.min(PER_INDEXER_MAX, Math.trunc(config.magnetBank.fallbackMaxPerIndexer) || PER_INDEXER_MAX));
     const globalMax = Math.max(1, Math.min(500, Math.trunc(config.magnetBank.fallbackGlobalMax) || 40));
@@ -158,7 +165,7 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
 
     // Só as obras com fonte num indexer FALHO: a janela de leitura não pode
     // encher de hashes que o `pickSource` descartaria como `no-source`.
-    const onlyIndexers = req.allFailed ? undefined : [...req.failedIndexers];
+    const onlyIndexers = req.allFailed ? undefined : [...new Set([...req.failedIndexers, ...suspect])];
     const rows = worksForObraMany(imdbId, obraTargets(req.type, req.season, req.episode), readLimit, maxTotal, onlyIndexers);
     const magnets = new Map<string, MagnetRow>();
     const works = new Map<string, WorkRow>();
@@ -182,10 +189,16 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
     for (const [hash, magnet] of magnets) {
       if (req.liveHashes.has(hash)) { countCut('live-dedupe', magnet); continue; }
       const allowed = (sourcesByHash.get(hash) || []).filter((s) => allowedSourceIndexer(s.indexer));
-      const source = pickSource(allowed, req.failedIndexers, req.allFailed);
+      const work = works.get(hash)!;
+      let source = pickSource(allowed, req.failedIndexers, req.allFailed);
+      let fromSuspect = false;
+      if (!source && suspect.size > 0 && work.passedFilter === 1) {
+        source = pickSource(allowed, suspect, false);
+        fromSuspect = Boolean(source);
+      }
       if (!source) { countCut('no-source', magnet); continue; }
       const brSource = (sourcesByHash.get(hash) || []).some((s) => brIndexers.has(nIndexer(s.indexer)));
-      candidates.push({ magnet, source, work: works.get(hash)!, brSource });
+      candidates.push({ magnet, source, work, brSource, suspect: fromSuspect });
     }
 
     // passed_filter desc (quem já passou no título da obra), seedersMax desc,
@@ -199,6 +212,7 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
 
     const items: RawItem[] = [];
     const perIndexer = new Map<string, number>();
+    let suspectInjected = 0;
     for (const candidate of candidates) {
       if (items.length >= globalMax) { countCut('cap-global', candidate.magnet); continue; }
       const indexerId = nIndexer(candidate.source.indexer) || 'unknown';
@@ -207,12 +221,14 @@ export function collectFallbackItems(req: FallbackRequest): FallbackResult {
       perIndexer.set(indexerId, usedByIndexer + 1);
       items.push(toRawItem(candidate));
       metrics.count(indexerFallbackMetricKey(indexerId));
+      if (candidate.suspect) suspectInjected += 1;
     }
+    if (suspectInjected > 0) metrics.count('fallback.items.suspectEmpty', suspectInjected);
 
     if (items.length > 0) metrics.count('fallback.items.injected', items.length);
     stageTrace(req.trace, 'fallback', items.length);
     if (items.length > 0) {
-      log.info(`[fallback] ${items.length} item(ns) do banco para ${imdbId}${req.season != null ? ` S${req.season}${req.episode != null ? `E${req.episode}` : ''}` : ''}`);
+      log.info(`[fallback] ${items.length} item(ns) do banco para ${imdbId}${req.season != null ? ` S${req.season}${req.episode != null ? `E${req.episode}` : ''}` : ''}${suspectInjected > 0 ? ` (${suspectInjected} por vazio suspeito: ${[...suspect].join(', ')})` : ''}`);
     }
     return { items, injected: items.length, cut };
   } catch (err: unknown) {
@@ -237,7 +253,7 @@ export function collectFallbackForBuild(args: {
   trace?: StreamTraceState | null;
 }): FallbackResult {
   const { live } = args;
-  if (!live || !live.hasAnyFailure()) return { items: [], injected: 0, cut: {} };
+  if (!live || !live.needsFallback()) return { items: [], injected: 0, cut: {} };
   const liveHashes = new Set<string>();
   for (const item of args.items) {
     const hash = bank.hashOf(item);
@@ -248,6 +264,7 @@ export function collectFallbackForBuild(args: {
     liveHashes,
     failedIndexers: live.failedIndexers(),
     allFailed: live.allFailed(),
+    suspectIndexers: live.suspectIndexers(),
     trace: args.trace,
   });
 }

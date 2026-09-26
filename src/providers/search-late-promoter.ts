@@ -23,11 +23,11 @@ export function createLatePromoter({ finish, cacheKey, id }: { finish: FinishWri
     const hit = cache.get(cacheKey);
     if (!hit?.partial) return undefined;
     // Reserva do banco (Etapa 4): se a falha que a justificava JÁ sumiu (indexer
-    // respondeu válido, inclusive vazio), a entrada não vale mais o TTL curto —
+    // respondeu com item relevante), a entrada não vale mais o TTL curto —
     // invalida para a próxima abertura reconstruir do vivo. Com a falha viva,
-    // mantém a reserva intacta.
+    // ou com o indexer ainda respondendo vazio suspeito, mantém a reserva.
     if ((hit as { fallback?: boolean }).fallback) {
-      if (live && !live.hasAnyFailure()) {
+      if (live && !live.needsFallback()) {
         cache.forget(cacheKey);
         log.info(`[search] reserva do banco invalidada (indexer respondeu); ${id}`);
       }

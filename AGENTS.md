@@ -651,8 +651,21 @@ fallback dele deixa de ser injetado. O ramo `/all` não tem falha por indexer e
 emite o evento sintético `*all*`; em erro/pendente, `allFailed` deriva os
 candidatos das SOURCES do banco para a obra — nunca de uma config vazia.
 
+**Vazio suspeito.** O `onQueryResult` também publica `relevant` — quantos
+itens daquele indexer passaram no filtro de título da obra (o Jackett mede
+com o `matchContext`; o Mico, idem). Resposta válida com `relevant: 0` não é
+falha (`hasAnyFailure` continua só com falha provada), mas marca o indexer em
+`suspectIndexers()`: é o sintoma do site BR que trocou de domínio/layout e
+passou a responder vazio (ou a homepage) sem erro. `needsFallback()` = falha
+OU suspeito, e é ele que decide consultar o banco e manter a reserva no
+`search-late-promoter`. O suspeito é coberto SÓ com `passed_filter=1` daquele
+indexer para a obra (acervo que uma busca viva já validou), nunca com o
+palpite do site; qualquer resposta com item relevante na mesma coleta desfaz a
+suspeita, e a foto instantânea de indexer suspeito segue 📦. Métrica
+`fallback.items.suspectEmpty`.
+
 `collectFallbackForBuild` (chamado no `finish` do `search-orchestrator`) só
-consulta o banco quando o estado vivo aponta falha. Em filme alvo é a obra raiz;
+consulta o banco quando o estado vivo aponta falha ou vazio suspeito. Em filme alvo é a obra raiz;
 em série são até três alvos — o episódio pedido, o pack da temporada e a série
 completa —, a mesma cobertura que o `release-work.ts` gravou. A leitura filtra
 pelas FONTES dos indexers falhos antes do `LIMIT` (sem `allFailed`) e ordena

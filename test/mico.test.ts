@@ -277,3 +277,21 @@ test('estado vivo: sucesso, falha e circuito aberto chegam ao onQueryResult', as
     }
   });
 });
+
+test('estado vivo: Mico mede `relevant` pelo filtro de título da obra', async () => {
+  await withMico(async () => {
+    const seen: Array<number | undefined> = [];
+    const stub = stubFetch(() => ok([
+      { title: 'Coringa 2019 1080p Dublado 👥 3', infoHash: H1 },
+      { title: 'Harley Quinn S01E01 1080p 👥 9', infoHash: H2 },
+    ]));
+    const matchContext = { names: ['Joker', 'Coringa'], year: 2019, isSeries: false, season: null, episode: null } as any;
+    try {
+      await mico.search({ type: 'movie', imdbId: 'tt7286456' }, { matchContext, onQueryResult: (i) => seen.push(i.relevant) });
+      await mico.search({ type: 'movie', imdbId: 'tt7286456' }, { onQueryResult: (i) => seen.push(i.relevant) });
+      assert.deepEqual(seen, [1, undefined], 'sem obra não há medição');
+    } finally {
+      stub.restore();
+    }
+  });
+});

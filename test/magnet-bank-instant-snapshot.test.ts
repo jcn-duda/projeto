@@ -31,6 +31,7 @@ test('tail instantâneo: foto do idx de indexer que FALHOU mantém o 📦 (Jacke
   const live: any = {
     allFailed: () => false,
     failedIndexers: () => new Set(['kickasstorrents-to']),
+    suspectIndexers: () => new Set(),
     hasAnyFailure: () => true,
   };
   const caiu = { title: 'A', infoHash: hex('7'), indexer: 'kickasstorrents-to', fromSnapshot: true };
@@ -38,7 +39,10 @@ test('tail instantâneo: foto do idx de indexer que FALHOU mantém o 📦 (Jacke
   assert.equal(clearInstantSnapshots([caiu, vivo], live), 1);
   assert.equal(caiu.fromSnapshot, true, 'indexer falho: segue foto salva');
   assert.equal((vivo as any).fromSnapshot, undefined, 'indexer respondeu: vira lista viva');
-  const tudo: any = { allFailed: () => true, failedIndexers: () => new Set(), hasAnyFailure: () => true };
+  const tudo: any = { allFailed: () => true, failedIndexers: () => new Set(), suspectIndexers: () => new Set(), hasAnyFailure: () => true };
   const outra = { title: 'C', infoHash: hex('5'), indexer: 'yts', fromSnapshot: true };
   assert.equal(clearInstantSnapshots([outra], tudo), 0, '/all falho: nada perde o selo');
+  const vazio: any = { allFailed: () => false, failedIndexers: () => new Set(), suspectIndexers: () => new Set(['nerdfilmes']) };
+  const foto = { title: 'D', infoHash: hex('4'), indexer: 'nerdfilmes', fromSnapshot: true };
+  assert.equal(clearInstantSnapshots([foto], vazio), 0, 'vazio suspeito não reconfirma a foto: segue 📦');
 });

@@ -1,6 +1,6 @@
 import config from '../config.js';
-import type { RawItem } from '../../types/domain.js';
-import { looksPtBr } from '../utils/format.js';
+import type { MatchContext, RawItem } from '../../types/domain.js';
+import { looksPtBr, filterRelevantRaw } from '../utils/format.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import * as indexerStatus from './indexer-status.js';
@@ -49,7 +49,10 @@ interface SearchOptions {
    * da obra (o build reescreve); a de fundo preserva a última avaliação. */
   resetPassedFilter?: boolean;
   /** Estado vivo da coleta (fallback do acervo): `responded` por consulta. */
-  onQueryResult?: (info: { indexer: string; responded: boolean; reason?: 'error' | 'breaker' }) => void;
+  onQueryResult?: (info: { indexer: string; responded: boolean; reason?: 'error' | 'breaker'; relevant?: number }) => void;
+  /** Obra da busca: mede quantos itens passam no filtro de título (`relevant`),
+   * a mesma régua do Jackett para o "vazio suspeito". */
+  matchContext?: MatchContext;
 }
 
 const INFO_HASH = /^[0-9a-f]{40}$/i;
@@ -149,7 +152,7 @@ function endpointUrl({ type, imdbId, season, episode }: SearchArgs): string | nu
  * como no Jackett: o acervo guarda o que a fonte devolveu, a lista decide.
  */
 async function search(args: SearchArgs, options: SearchOptions = {}): Promise<RawItem[]> {
-  const { recordStatus = true, resetPassedFilter = true, onQueryResult } = options;
+  const { recordStatus = true, resetPassedFilter = true, onQueryResult, matchContext } = options;
   if (!config.mico.enabled) return [];
   const url = endpointUrl(args);
   // Nada a perguntar (id/episódio inválido) não é falha da fonte; circuito
@@ -163,9 +166,14 @@ async function search(args: SearchArgs, options: SearchOptions = {}): Promise<Ra
     return [];
   }
   const started = Date.now();
-  const note = (ok: boolean, results = 0) => {
-    if (recordStatus) indexerStatus.record(MICO_ID, { ok, ms: Date.now() - started, budgetMs: config.mico.timeout, results });
-    onQueryResult?.(ok ? { indexer: MICO_ID, responded: true } : { indexer: MICO_ID, responded: false, reason: 'error' });
+  const note = (ok: boolean, items: RawItem[] = []) => {
+    if (recordStatus) indexerStatus.record(MICO_ID, { ok, ms: Date.now() - started, budgetMs: config.mico.timeout, results: items.length });
+    if (!ok) {
+      onQueryResult?.({ indexer: MICO_ID, responded: false, reason: 'error' });
+      return;
+    }
+    const relevant = matchContext?.names?.length ? filterRelevantRaw(items, matchContext).length : undefined;
+    onQueryResult?.({ indexer: MICO_ID, responded: true, ...(relevant !== undefined ? { relevant } : {}) });
   };
   try {
     const res = await fetch(url, {
@@ -199,7 +207,7 @@ async function search(args: SearchArgs, options: SearchOptions = {}): Promise<Ra
       resetPassedFilter,
     });
     metrics.count('mico.items', out.length);
-    note(true, out.length);
+    note(true, out);
     return out;
   } catch (err: any) {
     noteFailure();

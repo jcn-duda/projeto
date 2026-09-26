@@ -146,7 +146,7 @@ test('reserva do banco com indexer saudável é invalidada em vez de promovida',
   const cacheKey = freshKey();
   cache.set(cacheKey, { streams: [{ title: 'x' }], partial: true, debridKnown: true, fallback: true }, 120);
   try {
-    const liveHealthy = { hasAnyFailure: () => false } as any;
+    const liveHealthy = { hasAnyFailure: () => false, needsFallback: () => false } as any;
     const promote = createLatePromoter({ finish, cacheKey, id: 'fallback' });
     promote([{ title: 'x' }], false, 1, false, liveHealthy);
     assert.equal(cache.has(cacheKey), false, 'falha sumiu => reserva invalidada');
@@ -157,11 +157,22 @@ test('reserva do banco com indexer saudável é invalidada em vez de promovida',
   const keptKey = freshKey();
   cache.set(keptKey, { streams: [{ title: 'x' }], partial: true, debridKnown: true, fallback: true }, 120);
   try {
-    const liveFailing = { hasAnyFailure: () => true } as any;
+    const liveFailing = { hasAnyFailure: () => true, needsFallback: () => true } as any;
     const promote = createLatePromoter({ finish, cacheKey: keptKey, id: 'fallback-keep' });
     promote([{ title: 'x' }], false, 1, false, liveFailing);
     assert.equal((cache.get(keptKey) as any).partial, true, 'com falha viva a reserva fica intacta');
   } finally {
     cache.forget(keptKey);
+  }
+
+  const suspectKey = freshKey();
+  cache.set(suspectKey, { streams: [{ title: 'x' }], partial: true, debridKnown: true, fallback: true }, 120);
+  try {
+    const liveSuspect = { hasAnyFailure: () => false, needsFallback: () => true } as any;
+    const promote = createLatePromoter({ finish, cacheKey: suspectKey, id: 'fallback-suspect' });
+    promote([{ title: 'x' }], false, 1, false, liveSuspect);
+    assert.equal((cache.get(suspectKey) as any).partial, true, 'vazio suspeito mantém a reserva');
+  } finally {
+    cache.forget(suspectKey);
   }
 });

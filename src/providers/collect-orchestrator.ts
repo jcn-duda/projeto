@@ -237,6 +237,7 @@ export async function collectRaw(
       episode: matchContext.episode,
     }, {
       resetPassedFilter: true,
+      matchContext,
       onQueryResult: (info) => live.noteResult(info),
     }), true);
   }

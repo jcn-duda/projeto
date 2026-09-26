@@ -53,7 +53,7 @@ export interface JackettSearchOptions {
    * nos dois casos, e `[]` sozinho não prova sucesso. Não altera status de
    * indexer nem o breaker — é só leitura para o chamador.
    */
-  onQueryResult?: (info: { indexer: string; responded: boolean; reason?: string }) => void;
+  onQueryResult?: (info: { indexer: string; responded: boolean; reason?: string; relevant?: number }) => void;
   /**
    * Identidade da obra da busca. Viaja só para a captura do banco de magnets
    * vivo (`magnet_work`): cada item do Jackett guarda para QUAL busca apareceu,

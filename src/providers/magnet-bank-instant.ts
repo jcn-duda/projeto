@@ -351,11 +351,13 @@ export function dropInstantFallbacks(items: any[]): number {
 export function clearInstantSnapshots(items: any[], live: LiveIndexerState | null = null): number {
   const allFailed = Boolean(live?.allFailed());
   const failed = live ? live.failedIndexers() : new Set<string>();
+  // Vazio suspeito também não reconfirmou a foto: ela segue 📦.
+  const suspect = live ? live.suspectIndexers() : new Set<string>();
   let cleared = 0;
   for (const item of items) {
     if (!item?.fromSnapshot) continue;
     const indexer = String(item.indexer || '').trim().toLowerCase();
-    if (allFailed || failed.has(indexer)) continue;
+    if (allFailed || failed.has(indexer) || suspect.has(indexer)) continue;
     delete item.fromSnapshot;
     cleared += 1;
   }

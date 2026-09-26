@@ -15,6 +15,13 @@
 //    nunca de uma config possivelmente vazia. Resposta VÁLIDA (mesmo vazia) não
 //    dispara fallback.
 //
+// 3. "Vazio suspeito" — resposta VÁLIDA sem nenhum item que passe no filtro de
+//    título (`relevant: 0`) não é falha, mas é o sintoma de site que trocou de
+//    domínio/layout e passou a devolver vazio (ou a homepage) sem erro. O
+//    indexer fica em `empty` e o fallback o cobre SÓ com o acervo que já
+//    passou no filtro daquela obra. Qualquer resposta com item relevante na
+//    mesma coleta (`served`) desfaz a suspeita.
+//
 // `ignoreBreaker`/`recordStatus:false` (varredura pt-BR) NÃO alimentam este
 // estado: é o chamador que decide onde ligar o `onQueryResult`.
 
@@ -28,6 +35,8 @@ export interface LiveQueryResult {
   indexer: string;
   responded: boolean;
   reason?: string;
+  /** Itens desta consulta que passaram no filtro de título; ausente = não medido. */
+  relevant?: number;
 }
 
 type AllState = 'unknown' | 'pending' | 'ok' | 'error';
@@ -37,6 +46,10 @@ export interface LiveIndexerState {
   readonly pending: Set<string>;
   /** Indexers que responderam FALHA (error/breaker/source). */
   readonly failed: Map<string, string>;
+  /** Responderam válido mas SEM item relevante (vazio suspeito). */
+  readonly empty: Set<string>;
+  /** Entregaram ao menos um item relevante nesta coleta. */
+  readonly served: Set<string>;
   /** Estado do ramo agregado `/all`. */
   allState(): AllState;
   /** Marca as consultas que estão começando (pending). */
@@ -51,20 +64,28 @@ export interface LiveIndexerState {
   failedIndexers(): Set<string>;
   /** O ramo agregado está falho/pendente? Nesse caso todos são candidatos. */
   allFailed(): boolean;
-  /** Há qualquer falha (por indexer ou agregada) que justifique o fallback? */
+  /** Vazios suspeitos que não falharam: cobertos só com acervo já aprovado. */
+  suspectIndexers(): Set<string>;
+  /** Há falha PROVADA (por indexer ou agregada)? Vazio suspeito não conta. */
   hasAnyFailure(): boolean;
+  /** Falha provada OU vazio suspeito: o banco deve ser consultado/mantido. */
+  needsFallback(): boolean;
   /** Sanitiza para teste/log. */
-  snapshot(): { failed: string[]; pending: string[]; all: AllState };
+  snapshot(): { failed: string[]; pending: string[]; empty: string[]; all: AllState };
 }
 
 export function createLiveIndexerState(): LiveIndexerState {
   const pending = new Set<string>();
   const failed = new Map<string, string>();
+  const empty = new Set<string>();
+  const served = new Set<string>();
   let all: AllState = 'unknown';
 
   return {
     pending,
     failed,
+    empty,
+    served,
     allState: () => all,
     noteStart(indexers) {
       for (const id of indexers || []) {
@@ -84,8 +105,19 @@ export function createLiveIndexerState(): LiveIndexerState {
         return;
       }
       pending.delete(key);
-      if (info.responded) failed.delete(key);
-      else failed.set(key, String(info.reason || 'error'));
+      if (info.responded) {
+        failed.delete(key);
+        if (typeof info.relevant === 'number') {
+          if (info.relevant > 0) {
+            served.add(key);
+            empty.delete(key);
+          } else if (!served.has(key)) {
+            empty.add(key);
+          }
+        }
+      } else {
+        failed.set(key, String(info.reason || 'error'));
+      }
     },
     noteAllStart() {
       if (all !== 'ok' && all !== 'error') all = 'pending';
@@ -101,11 +133,19 @@ export function createLiveIndexerState(): LiveIndexerState {
     allFailed() {
       return all === 'error' || all === 'pending';
     },
+    suspectIndexers() {
+      const out = new Set<string>();
+      for (const key of empty) if (!failed.has(key) && !pending.has(key)) out.add(key);
+      return out;
+    },
     hasAnyFailure() {
       return this.failedIndexers().size > 0 || this.allFailed();
     },
+    needsFallback() {
+      return this.hasAnyFailure() || this.suspectIndexers().size > 0;
+    },
     snapshot() {
-      return { failed: [...failed.keys()].sort(), pending: [...pending].sort(), all };
+      return { failed: [...failed.keys()].sort(), pending: [...pending].sort(), empty: [...empty].sort(), all };
     },
   };
 }
@@ -119,6 +159,10 @@ export function createLiveIndexerState(): LiveIndexerState {
 export function mergeLiveIndexerStates(states: Array<LiveIndexerState | null | undefined>): LiveIndexerState {
   const merged = createLiveIndexerState();
   let all: AllState = 'unknown';
+  // Ordem importa: vazios primeiro, depois quem serviu (desfaz a suspeita em
+  // qualquer coleta), e só então falhas/pendentes, que vencem os dois.
+  for (const state of states) for (const indexer of state?.empty || []) merged.noteResult({ indexer, responded: true, relevant: 0 });
+  for (const state of states) for (const indexer of state?.served || []) merged.noteResult({ indexer, responded: true, relevant: 1 });
   for (const state of states) {
     if (!state) continue;
     for (const [indexer, reason] of state.failed) merged.noteResult({ indexer, responded: false, reason });
