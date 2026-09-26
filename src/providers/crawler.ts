@@ -1,34 +1,11 @@
-// Motor da raspagem total dos sites BR (plano "Raspagem total", Fase 3/4). O
-// adaptador de cada site sabe DESCOBRIR URLs e PROCESSAR uma página
-// (`crawl-sites/*`); aqui mora a ORQUESTRAÇÃO: fila, ritmo, teto horário,
-// freio de tráfego, retomada, pausa automática, status e o desfecho do ciclo
-// de descoberta/incremental.
-//
-// Invariantes da fase (não negociáveis):
-//
-//   - UM site e UMA URL por vez. O processo é serial de propósito: o crawl não
-//     disputa FlareSolverr nem a busca ao vivo (o adaptador usa fetch DIRETO).
-//   - Ritmo: `delayMs` entre requisições ao site (o timer usa o mesmo valor
-//     como cadência) + teto `maxPerHour` + freio
-//     `activity.recentUserTraffic(idleWindowMs)` — tráfego de usuário preempta.
-//   - Descoberta: upsert idempotente no `crawl.db`. O cursor incremental SÓ
-//     avança com `complete: true`; descoberta parcial pode ter perdido o
-//     lastmod que mudou, então o cursor fica e o próximo ciclo relê.
-//   - Retomada: no start, TODO `inflight` é órfão do processo anterior (processo
-//     novo não tem requisição em voo) e volta a `pending`.
-//   - Pausa automática: streak de erros de site e canário de layout (política
-//     pura em `crawl-pauses.ts`); qualquer um dos dois + a pausa manual param
-//     o tick.
-//
-// Fase 4: TODO knob de decisão vem da config ao VIVO (`crawler-live.ts`),
-// capturada UMA vez por tick (snapshot coerente) e repassada adiante — ligar,
-// pausar, mudar ritmo/dry-run pelo painel não exige restart. A pausa manual é
-// volátil por desenho (restart volta ao `.env`); os knobs persistem em
-// `cfg:v1:crawler`.
-//
-// Cursor em MEMÓRIA: após restart o ciclo recomeça como carga inicial (relê o
-// sitemap inteiro, upsert idempotente) — não é perda de dados, só uma passada
-// de descoberta a mais; documentado e sem novo verbo no store.
+// Motor da raspagem total (Fase 3/4): orquestra fila, ritmo, teto, freio,
+// retomada, pausa automática e ciclo descoberta/incremental. Adaptadores em
+// `crawl-sites/*`. Invariantes: serial (1 site/URL); `delayMs`+`maxPerHour`+
+// freio de tráfego; cursor incremental só com `complete`; retomada de
+// `inflight` no start E na 1ª passagem após religar ao vivo (enabled
+// false→true, mesmo com pending na fila); pausa auto (streak/canário) +
+// manual. Fase 4: knobs ao vivo (`crawler-live`). Cursor em memória —
+// restart relê o sitemap (upsert idempotente), sem verbo novo no store.
 import * as crawlerLive from '../utils/crawler-live.js';
 import * as store from '../utils/crawl-store.js';
 import * as activity from './activity.js';
@@ -48,8 +25,7 @@ import type { CrawlSite, CrawlUrlRow } from './crawl-types.js';
 
 let testSiteFactory: ((id: string) => CrawlSite | null) | null = null;
 
-/** Adaptador do id: a fábrica de teste vence; produção resolve o Vaca por
- * import DINÂMICO para o motor não arrastar o grafo dos resolvers nos testes. */
+/** Fábrica de teste vence; produção resolve Vaca por import dinâmico. */
 async function resolveSite(id: string): Promise<CrawlSite | null> {
   if (testSiteFactory) return testSiteFactory(id);
   if (id === 'vacatorrent') {
@@ -63,7 +39,7 @@ async function resolveSite(id: string): Promise<CrawlSite | null> {
 
 let started = false;
 let busy = false;
-/** Pausa MANUAL (operacional): não persiste — restart volta ao .env. */
+/** Pausa MANUAL: não persiste — restart volta ao .env. */
 let paused = false;
 /** Pausa automática (streak/canário): limpa só por `setPaused(false)`. */
 let autoPause: { reason: AutoPauseReason; at: number; detail: string } | null = null;
@@ -74,6 +50,9 @@ let cursor = '';
 let openRunId: number | null = null;
 let nextDiscoverAt = 0;
 let lastRequestAt = 0;
+/** 1ª passagem após enabled false→true: requeue inflight mesmo com pending. */
+let needInflightRecovery = false;
+let liveWasEnabled = false;
 
 interface CycleCounters {
   pages: number; done: number; noTorrent: number; noWork: number; errors: number; releases: number;
@@ -205,15 +184,19 @@ async function processClaimed(site: CrawlSite, row: CrawlUrlRow, live: CrawlerEf
 
 /** Um passo: descoberta quando devida, senão uma página. */
 async function step(site: CrawlSite, live: CrawlerEffectiveConfig): Promise<void> {
+  // Religar: órfã volta ANTES do takeNext (mesmo com pending — idle path não cobre).
+  if (needInflightRecovery) {
+    needInflightRecovery = false;
+    const n = store.engine().requeueInflight(site.id, 0, Date.now());
+    if (n > 0) log.info(`[crawl] ${n} URL(s) inflight retomada(s) ao religar`);
+  }
   if (openRunId == null) {
     const counters = store.engine().counters(site.id);
     if (counters.total === 0 || Date.now() >= nextDiscoverAt) {
       await runDiscovery(site, live);
-      return; // a página sai no próximo tick (ritmo entre requisições)
+      return;
     }
-    // Ocioso: só resta erro em backoff/inflight órfão. Como o tick é serial,
-    // inflight neste ponto é órfão (o claim é sempre seguido do markResult) —
-    // devolve à fila e tenta o vencido, SEM abrir ciclo novo.
+    // Ocioso: tick serial ⇒ inflight aqui é órfão; devolve e tenta o vencido.
     if (counters.byStatus.inflight > 0) {
       const recovered = store.engine().requeueInflight(site.id, 0, Date.now());
       if (recovered > 0) log.warn(`[crawl] ${recovered} URL(s) inflight órfã(s) devolvida(s)`);
@@ -233,8 +216,7 @@ async function step(site: CrawlSite, live: CrawlerEffectiveConfig): Promise<void
   await processClaimed(site, row, live);
 }
 
-// Timer REARMÁVEL (Fase 4): a cadência mora na config ao vivo e o painel pode
-// mudá-la sem restart. A fábrica isola o setInterval do resto do motor.
+// Timer rearmável (Fase 4): cadência viva; painel muda sem restart.
 const scheduler = createCrawlScheduler({
   isStarted: () => started,
   tick: () => tick(),
@@ -242,16 +224,10 @@ const scheduler = createCrawlScheduler({
   onDisabled: () => log.info('[crawl] desativado pela config ao vivo (enabled=false)'),
 });
 
-
-/**
- * Um ciclo do motor. Exportado para o teste dirigir o passo sem timer real.
- * Os guards rodam ANTES de qualquer requisição para o freio não ser furado.
- */
+/** Um ciclo do motor. Exportado para o teste dirigir o passo sem timer real. */
 async function tick(): Promise<void> {
   const live = crawlerLive.effective();
-  // Rearma ANTES de qualquer retorno precoce para uma mudança de cadência não
-  // ficar adiada por um freio/pausa. Com `enabled=false` o `rearm` é no-op (quem
-  // desarma é o `sync` via `onConfigChange`), então isto não religa o motor.
+  // Rearma antes de retorno precoce (cadência não fica presa a freio/pausa).
   scheduler.rearm(live);
   if (!live.enabled || paused || autoPause || busy) return;
   const siteId = String(live.sites[0] || '');
@@ -269,13 +245,18 @@ async function tick(): Promise<void> {
   }
 }
 
-/** Arma o motor. Sticky e só ativa com a config viva habilitada. */
+/** Arma o motor. Sticky; só ativa com a config viva habilitada. */
 function start(): void {
   if (started) return;
   started = true;
-  // live → crawler (callback); crawler já importa live — sem ciclo.
-  crawlerLive.onConfigChange(() => scheduler.sync(crawlerLive.effective()));
+  crawlerLive.onConfigChange(() => {
+    const next = crawlerLive.effective();
+    if (next.enabled && !liveWasEnabled) needInflightRecovery = true;
+    liveWasEnabled = next.enabled;
+    scheduler.sync(next);
+  });
   const live = crawlerLive.effective();
+  liveWasEnabled = live.enabled;
   if (!live.enabled) {
     log.info('[crawl] desativado (enabled=false)');
     return;
@@ -285,10 +266,10 @@ function start(): void {
     log.warn('[crawl] nenhum site configurado em CRAWL_SITES');
     return;
   }
-  // Retomada: processo novo não tem requisição em voo, então TODO inflight é
-  // órfão do processo anterior — volta a pending e é reclamado no tick.
+  // Start: processo novo ⇒ todo inflight é órfão. Painel usa needInflightRecovery.
   const recovered = store.engine().requeueInflight(siteId, 0, Date.now());
   if (recovered) log.info(`[crawl] ${recovered} URL(s) inflight retomada(s) do processo anterior`);
+  needInflightRecovery = false;
   scheduler.rearm(live);
   log.info(`[crawl] motor armado (site=${siteId}, delay=${live.delayMs}ms, dryRun=${live.dryRun})`);
 }
@@ -383,6 +364,8 @@ export function _resetForTest(): void {
   hourPages.clear();
   policy.reset();
   testSiteFactory = null;
+  needInflightRecovery = false;
+  liveWasEnabled = false;
   crawlerLive.onConfigChange(null);
 }
 

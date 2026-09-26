@@ -260,18 +260,20 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
 
       // Protetor → magnet, UM botão por vez, na ordem da página. Falha de um
       // botão não perde os demais — botão individual falho é tolerado quando
-      // outro rende release. TODOS falharem (erro OU cadeia resolvida sem
-      // magnet nenhum) é falha TOTAL da página: erro para o motor retentar
-      // com backoff, nunca `done` com 0 releases (mentiria "página lida") nem
-      // `no-torrent` (mentiria "não tem torrent" — quebra de layout/protetor
-      // tem os botões na página). O transporte valida cada salto; o assert na
-      // entrada só antecipa o erro por botão (magnet: não é buscado, segue
-      // direto como no transporte).
+      // outro rende release. TODOS com `protector_link_expired` (HTTP 400 +
+      // "Link inválido ou expirado") → `no-torrent` na 1ª tentativa (magnet
+      // morto, sem retry). Mistura com rede/timeout continua retentável.
+      // Demais falhas totais (layout/protetor sem magnet) seguem erro.
       const obra = { title, year };
       const releases: RawItem[] = [];
       const seen = new Set<string>();
       let followed = 0;
       let lastError: unknown = null;
+      let expiredFails = 0;
+      let otherFails = 0;
+      const isExpired = (err: unknown) => /protector_link_expired/i.test(
+        err instanceof Error ? err.message : String(err),
+      );
       for (const link of links) {
         try {
           if (!/^magnet:/i.test(link.url)) surface.assertAllowedUrl(link.url);
@@ -285,10 +287,16 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
           releases.push(releaseToRawItem(surface, obra, link, magnet));
         } catch (err) {
           lastError = err;
+          if (isExpired(err)) expiredFails += 1;
+          else otherFails += 1;
           log.warn(`[crawl] vacatorrent: botão falhou (${url}):`, log.errorMessage(err));
         }
       }
       if (!releases.length) {
+        // Todos os botões falharam SÓ com link expirado → sem torrent útil.
+        if (expiredFails === links.length && otherFails === 0 && followed === 0) {
+          return { url, status: 'no-torrent', imdb, title, year, type: 'movie' };
+        }
         // Nenhuma cadeia foi adiante: o erro real do transporte é a causa e
         // segue como está. Caso contrário, cadeias resolveram e nenhum magnet
         // veio — o motivo conta os dois lados (sem magnet × com falha) e cita

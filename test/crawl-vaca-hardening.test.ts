@@ -21,7 +21,11 @@ import { fileURLToPath } from 'node:url';
 import { createResolver } from '../resolvers/profiles/vacatorrent.js';
 import { createVacaCrawlSite } from '../src/providers/crawl-sites/vaca.js';
 import type { VacaResolverSurface } from '../src/providers/crawl-sites/vaca.js';
+import { createPageProcessor } from '../src/providers/crawl-page.js';
 import { stubFetch, type FetchStub } from './helpers/stub.js';
+import type { CrawlSite, CrawlUrlRow } from '../src/providers/crawl-types.js';
+
+const store = await import('../src/utils/crawl-store.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIX = path.join(__dirname, 'fixtures', 'crawl', 'vaca');
@@ -295,5 +299,64 @@ describe('crawl-sites/vaca: layout e multi-release', () => {
     } finally {
       stub.restore();
     }
+  });
+});
+
+describe('crawl-sites/vaca: protetor Link inválido ou expirado → no-torrent', () => {
+  test('HTTP 400 + texto real: todos os botões expirados = no-torrent (sem retry)', async () => {
+    // Texto REAL do protetor; status 400. Cadeia: página → movie-links → go.php.
+    const stub = stubRoutes({
+      [PAGE_TORRENT]: () => fixture('movie-page-torrent.html'),
+      [`${SITE}/movie-links/61616/`]: () => fixture('movie-links-torrent.html'),
+      'go.php': { body: 'Link inválido ou expirado', status: 400 },
+    });
+    try {
+      const vaca = createVacaCrawlSite(resolverSurface());
+      const result = await vaca.fetchWork(PAGE_TORRENT);
+      assert.equal(result.status, 'no-torrent', 'magnet morto não é erro retentável');
+      assert.equal(result.releases, undefined);
+      assert.ok(stub.calls.some((c) => c.url.includes('go.php')), 'protetor foi consultado');
+
+      // processPage: no-torrent terminal → tries fica 0 (não gasta maxTries).
+      store.resetForTests();
+      store.open(undefined, { forceMemory: true });
+      store.engine().upsertUrls('vacatorrent', [{ url: PAGE_TORRENT, lastmod: '', kind: 'movie' }], 1);
+      const row = store.engine().takeNext('vacatorrent', 10) as CrawlUrlRow;
+      const site: CrawlSite = {
+        id: 'vacatorrent', label: 'Vaca',
+        discover: async () => ({ urls: [], complete: true, failures: [] }),
+        fetchWork: async () => result,
+      };
+      const outcome = await createPageProcessor()(site, row, { dryRun: true, maxTries: 3 });
+      assert.equal(outcome.kind, 'no-torrent');
+      const saved = store.engine().getUrl('vacatorrent', PAGE_TORRENT);
+      assert.equal(saved?.status, 'no-torrent');
+      assert.equal(saved?.tries, 0, 'no-torrent não incrementa tries (sem 3 retries)');
+    } finally {
+      stub.restore();
+      store.resetForTests();
+    }
+  });
+
+  test('mistura expirado + rede continua erro retentável', async () => {
+    let n = 0;
+    const surface: VacaResolverSurface = {
+      ...resolverSurface(),
+      fetchTextDirect: async () => fixture('movie-page-torrent.html'),
+      extractMovieLinks: () => `${SITE}/movie-links/61616/`,
+      parseDownloadLinks: () => [
+        { url: 'https://systemtech.space/enc/go.php?id=a', quality: 1080, size: '1 GB', audio: 'dual', source: null, episode: null },
+        { url: 'https://systemtech.space/enc/go.php?id=b', quality: 720, size: '700 MB', audio: 'dual', source: null, episode: null },
+      ],
+      fetchFollowingAllowed: async () => {
+        n += 1;
+        if (n === 1) throw new Error('protector_link_expired');
+        throw new Error('timeout');
+      },
+    };
+    await assert.rejects(
+      () => createVacaCrawlSite(surface).fetchWork(PAGE_TORRENT),
+      /timeout|protector_link_expired/,
+    );
   });
 });

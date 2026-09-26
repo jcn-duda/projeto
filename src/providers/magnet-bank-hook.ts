@@ -7,7 +7,7 @@
 // realimentá-lo (Etapa 4). A extração de hash vive aqui para o pipeline não
 // ganhar linhas (ele opera no teto de 400).
 import type { RawItem } from '../../types/domain.js';
-import { hashOf, markFilterResult } from '../utils/magnet-bank.js';
+import { hashOf, markFilterResult, enqueueCaptureAndFilter } from '../utils/magnet-bank.js';
 import type { WorkCtx } from '../utils/magnet-bank.js';
 import { releaseWorkTargets } from '../utils/release-work.js';
 import { magnetDisplayName } from '../utils/title-normalization.js';
@@ -58,10 +58,28 @@ function targetsFor(items: readonly RawItem[], ctx: WorkCtx): Map<string, Array<
 /**
  * Escreve o resultado do filtro de título na obra: 1 para os sobreviventes, 0
  * para os demais que a captura registrou. Fonte que o Jackett não capturou não
- * tem work e é ignorada pelo banco (sem órfão).
+ * tem work e é ignorada pelo banco (sem órfão). Propaga o boolean de
+ * `markFilterResult` (fila cheia → `false`; kill-switch/vazio → `true`).
  */
-export function markBankFilterOutcome(entered: readonly RawItem[], survivors: readonly RawItem[], ctx: WorkCtx): void {
+export function markBankFilterOutcome(entered: readonly RawItem[], survivors: readonly RawItem[], ctx: WorkCtx): boolean {
   const all = hashesOf(entered);
-  if (all.length === 0) return;
-  markFilterResult(all, hashesOf(survivors), ctx, targetsFor(entered, ctx));
+  if (all.length === 0) return true;
+  return markFilterResult(all, hashesOf(survivors), ctx, targetsFor(entered, ctx));
+}
+
+/**
+ * Capture + mark do filtro ATOMICAMENTE (caminho do crawler). Ou os dois
+ * entram na fila, ou nenhum — evita half-write (capture sem passed_filter)
+ * quando a 2ª op estouraria a cota. Retorno: ver `enqueueCaptureAndFilter`.
+ */
+export function captureAndMarkFilter(
+  items: readonly RawItem[],
+  survivors: readonly RawItem[],
+  indexer: string,
+  ctx: WorkCtx,
+): boolean {
+  return enqueueCaptureAndFilter(
+    { items, indexer, ctx },
+    { all: hashesOf(items), surviving: hashesOf(survivors), ctx, targets: targetsFor(items, ctx) },
+  );
 }

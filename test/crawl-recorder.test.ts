@@ -125,13 +125,15 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
   const releases = [item('/a', 'Expresso do Amanhã'), item('/b', 'Expresso do Amanhã')]
     .map((rel) => ({ ...rel, title: 'Expresso do Amanhã (2013) 1080p DUBLADO' }));
 
-  test('captura → filtro → markFilterOutcome → flush → índice com partial em obra nova', async () => {
+  test('captura atômica → flush → índice com partial em obra nova', async () => {
     const calls: Record<string, unknown> = {};
     let flushed = 0;
     const recorder = createCrawlRecorder({
       buildContext: async () => context,
-      captureItems: (items, indexer, ctx) => { calls.capture = [items.length, indexer, ctx]; },
-      markFilterOutcome: (entered, survivors, ctx) => { calls.filter = [entered.length, survivors.length, ctx]; },
+      captureAndMark: (entered, survivors, indexer, ctx) => {
+        calls.batch = [entered.length, survivors.length, indexer, ctx];
+        return true;
+      },
       flush: () => { flushed += 1; return { ok: true, written: 2 }; },
       lookupQuiet: () => [],
       isPartial: () => false,
@@ -141,8 +143,11 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
       count: () => {},
     });
     const report = await recorder.record('vacatorrent', { imdb: 'tt1', title: 'T', year: 2013, kind: 'movie' }, releases);
-    assert.deepEqual(calls.capture, [2, 'vacatorrent', { imdbId: 'tt1', season: null, episode: null }]);
-    assert.ok((calls.filter as number[])[1] >= 1, 'o filtro deixou passar a obra certa');
+    assert.deepEqual(
+      (calls.batch as unknown[]).slice(0, 1).concat((calls.batch as unknown[]).slice(2)),
+      [2, 'vacatorrent', { imdbId: 'tt1', season: null, episode: null }],
+    );
+    assert.ok(((calls.batch as number[])[1]) >= 1, 'o filtro deixou passar a obra certa');
     assert.equal(flushed, 1, 'a barreira de persistência é chamada antes do índice');
     assert.equal((calls.record as unknown[])[0], 'tt1');
     assert.equal((calls.record as unknown[])[2], true, 'obra nova nasce partial');
@@ -156,8 +161,7 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
     let invalidated = 0;
     const recorder = createCrawlRecorder({
       buildContext: async () => context,
-      captureItems: () => {},
-      markFilterOutcome: () => {},
+      captureAndMark: () => true,
       flush: () => ({ ok: true, written: 0 }),
       lookupQuiet: () => [{ hash: 'x' }],
       isPartial: () => true,
@@ -178,7 +182,7 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
     let partial: unknown;
     const recorder = createCrawlRecorder({
       buildContext: async () => context,
-      captureItems: () => {}, markFilterOutcome: () => {},
+      captureAndMark: () => true,
       flush: () => ({ ok: true, written: 0 }),
       lookupQuiet: () => [{ hash: 'x' }],
       isPartial: () => false,
@@ -194,8 +198,7 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
     const counted: string[] = [];
     const recorder = createCrawlRecorder({
       buildContext: async () => context,
-      captureItems: () => {},
-      markFilterOutcome: () => {},
+      captureAndMark: () => true,
       flush: () => ({ ok: false, written: 0 }),
       lookupQuiet: () => [],
       isPartial: () => false,
@@ -214,7 +217,7 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
   test('sem nomes de catálogo a gravação é recusada (não contamina o índice)', async () => {
     const recorder = createCrawlRecorder({
       buildContext: async () => null,
-      captureItems: () => { throw new Error('não deveria capturar'); },
+      captureAndMark: () => { throw new Error('não deveria capturar'); },
     });
     await assert.rejects(
       () => recorder.record('vacatorrent', { imdb: 'tt1', title: 'T', year: 2013, kind: 'movie' }, releases),

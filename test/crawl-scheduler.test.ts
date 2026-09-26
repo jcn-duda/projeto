@@ -228,4 +228,26 @@ describe('crawler: enabled ao vivo (start desligado → ligar pelo painel)', () 
     live.set({ enabled: false });
     assert.equal(ft.entries.size, 0, 'enabled=false desarma sem restart');
   });
+
+  test('religar ao vivo: inflight órfã volta mesmo com pending na fila', async () => {
+    // Bug: requeueInflight só no start e no step ocioso (fila vazia). Com
+    // pending ainda na fila, a órfã ficava presa até esvaziar.
+    store.engine().upsertUrls('fake', [movie('/orphan'), movie('/pending')], 1);
+    assert.equal(store.engine().takeNext('fake', 2)?.url, '/orphan');
+    assert.equal(store.engine().getUrl('fake', '/orphan')?.status, 'inflight');
+    assert.equal(store.engine().counters('fake').byStatus.pending, 1, 'há pending — idle path não rodaria');
+
+    crawler.start(); // enabled=false: NÃO requeuea
+    assert.equal(store.engine().getUrl('fake', '/orphan')?.status, 'inflight', 'órfã continua');
+
+    live.set({ enabled: true });
+    await crawler.tick(); // recovery + descoberta (sem URLs novas)
+    assert.equal(store.engine().getUrl('fake', '/orphan')?.status, 'pending', 'órfã retomada na 1ª passagem');
+
+    await crawler.tick();
+    await crawler.tick();
+    const c = store.engine().counters('fake');
+    assert.equal(c.byStatus.inflight, 0, 'nenhuma URL ficou inflight');
+    assert.equal(c.byStatus.done, 2, 'órfã e pending foram processadas');
+  });
 });

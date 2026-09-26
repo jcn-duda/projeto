@@ -163,6 +163,73 @@ describe('crawl-recorder: integração real com o acervo e o índice', () => {
     assert.equal(releaseIndex.lookup(imdb).length, 0, 'índice não recebeu o lote que não persistiu');
     assert.ok((metrics.snapshot().counters['crawl.record.flushFailed'] ?? 0) >= 1, 'métrica própria de falha');
   });
+
+  test('fila cheia: drop atômico sem half-write (nada no acervo após flush)', async () => {
+    const imdb = 'tt7700004';
+    const hash = 'f'.repeat(40);
+    const prevMax = config.magnetBank.queueMax;
+    // needed=2 (capture+filter) com queueMax=1 → drop ANTES de qualquer push.
+    config.magnetBank.queueMax = 1;
+    config.crawl.enabled = true;
+    config.crawl.dryRun = false;
+    metrics.reset();
+    try {
+      store.engine().upsertUrls('fake', [{ url: '/q', lastmod: '', kind: 'movie' }], 1);
+      const row = store.engine().takeNext('fake', 10) as CrawlUrlRow;
+      const site: CrawlSite = {
+        id: 'fake',
+        label: 'Fake',
+        discover: async (): Promise<CrawlDiscovery> => ({ urls: [], complete: true, failures: [] }),
+        fetchWork: async (url: string) => ({
+          url, status: 'done', imdb, title: 'Expresso do Amanhã', year: 2013, type: 'movie',
+          releases: [{
+            title: 'Expresso do Amanhã (2013) 1080p DUBLADO', magnet: magnet(hash),
+            indexer: 'vacatorrent', tracker: 'Vaca Torrent', isBr: true, seeders: 1, size: 1000,
+          }],
+        }),
+      };
+
+      const recorder = createCrawlRecorder({ buildContext: async () => CONTEXT });
+      const process = createPageProcessor({ record: (siteId, obra, rel) => recorder.record(siteId, obra, rel) });
+      const outcome = await process(site, row, { dryRun: false });
+
+      assert.equal(outcome.kind, 'error', 'drop de fila é erro retentável');
+      assert.equal(store.engine().getUrl('fake', '/q')?.status, 'error', 'a URL NÃO ficou done');
+      assert.equal(releaseIndex.lookup(imdb).length, 0, 'índice não recebeu lote descartado');
+      assert.ok((metrics.snapshot().counters['crawl.record.queueDropped'] ?? 0) >= 1);
+      assert.ok((metrics.snapshot().counters['magnetbank.queue.dropped'] ?? 0) >= 1);
+
+      // Prova anti half-write: mesmo após o setImmediate do scheduleFlush (que
+      // NÃO foi armado — drop sem push), o hash da página não está no acervo.
+      await new Promise<void>((r) => setImmediate(r));
+      bank.flushNow();
+      assert.equal(bank.lookup(hash), null, 'nenhum half-write: capture não entrou sozinha');
+      assert.equal(bank.status().queue, 0, 'fila vazia após o drop atômico');
+    } finally {
+      config.magnetBank.queueMax = prevMax;
+      bank.flushNow();
+    }
+  });
+
+  test('captureItems no caminho vivo: retorno boolean é ignorável (não bloqueia)', () => {
+    // Contrato: busca ao vivo fire-and-forget — o boolean existe para o crawler;
+    // callers vivos podem descartar. Kill-switch e vazio devolvem true.
+    const prev = config.magnetBank.enabled;
+    try {
+      config.magnetBank.enabled = false;
+      assert.equal(bank.captureItems([{ title: 'X', infoHash: 'a'.repeat(40) }], 'x', {}), true);
+      config.magnetBank.enabled = true;
+      assert.equal(bank.captureItems([], 'x', {}), true, 'vazio é no-op aceito');
+      const ok = bank.captureItems([{
+        title: 'Y', infoHash: 'b'.repeat(40), magnet: magnet('b'.repeat(40)),
+      }], 'x', {});
+      assert.equal(typeof ok, 'boolean');
+      // Não await / não flush: prova que a API é síncrona e o caller segue.
+    } finally {
+      config.magnetBank.enabled = prev;
+      bank.flushNow();
+    }
+  });
 });
 
 describe('crawl-recorder: identidade do id do piloto', () => {

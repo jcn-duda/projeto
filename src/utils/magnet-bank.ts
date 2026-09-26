@@ -1,21 +1,7 @@
-// Banco de magnets vivo — FACHADA.
-//
-// Clone permanente de TUDO que o Jackett devolveu (o site some, o acervo
-// fica), com a obra/episódio de cada busca e a URI do post por hash. A camada
-// de linhas/engines mora em `magnet-bank-rows.ts` e as regras puras de merge /
-// extração em `magnet-bank-merge.ts` (extraídas pela catraca de 400 linhas);
-// aqui vivem a captura, o lie global e a fila assíncrona.
-//
-// A captura roda no `jackett.search` (por indexer e no `/all` agregado, depois
-// da resolução Cardigann) e é enfileirada — a busca NUNCA espera o disco. A
-// gravação acontece em UMA transação por lote, fora do caminho da resposta.
-//
-// `passed_filter` NÃO é OR: a captura nasce 0 e o resultado do filtro da mesma
-// busca escreve 0/1; uma captura futura que não sobreviver derruba para 0.
-//
-// `lied` inclui a leitura GLOBAL do `mag` (lie de qualquer conta, união): o
-// banco é global e NÃO duplica a evidência por conta — essa continua no `mag`.
-// `bad` por conta nunca é lido aqui.
+// Banco de magnets vivo — FACHADA. Clone permanente do Jackett; fila async
+// (busca nunca espera disco). Engines/merge em *-rows/-merge; leitura em
+// magnet-bank-read. `passed_filter`: captura=0, filtro da busca=0/1 (não OR).
+// `lied` = união global de `mag:lie` (bad por conta nunca entra).
 import type { RawItem } from '../../types/domain.js';
 import config from '../config.js';
 import * as log from './logger.js';
@@ -36,8 +22,6 @@ import { readEngine } from './magnet-bank-read.js';
 
 export { hashOf } from './magnet-bank-merge.js';
 export { failNextWriteForTests } from './magnet-bank-rows.js';
-// Reexporta a camada de leitura (extraída para `magnet-bank-read.ts`): o
-// contrato público de `magnet-bank.js` segue idêntico para os consumidores.
 export { readEngine, isOpen, lookup, sourcesFor, worksFor, findByWork, findByIndexer } from './magnet-bank-read.js';
 export type { WorkCtx, MagnetInput, SourceInput };
 
@@ -45,22 +29,13 @@ const normHash = (hash: string): string => String(hash || '').toLowerCase();
 const workKey = (hash: string, imdb: string, season: number, episode: number) =>
   `${hash}\u0000${imdb}\u0000${season}\u0000${episode}`;
 
-// ---------------------------------------------------------------------------
-// Fila assíncrona (uma transação por lote)
-// ---------------------------------------------------------------------------
-
 type CaptureOp = { kind: 'capture'; items: readonly RawItem[]; indexer: string; ctx: WorkCtx };
 type FilterOp = {
   kind: 'filter';
   all: string[];
   surviving: Set<string>;
   ctx: WorkCtx;
-  /**
-   * Obras por hash quando o item declara pack de temporada/série completa
-   * (`release-work.ts`): a MESMA cobertura que a captura gravou precisa receber
-   * o resultado do filtro, senão a obra extra (S,-1)/(-1,-1) ficaria em 0 e o
-   * pack nunca seria recuperável pelo fallback. Ausente = só a obra do pedido.
-   */
+  /** Obras extras (pack) — mesma cobertura da captura; ausente = só o pedido. */
   targets?: Map<string, Array<{ season: number; episode: number }>>;
 };
 type Op = CaptureOp | FilterOp;
@@ -75,17 +50,19 @@ function reportEngine(e: Engine): void {
   metrics.count(e.kind === 'sql' ? 'magnetbank.engine.sql' : 'magnetbank.engine.memory');
 }
 
-function enqueue(op: Op): void {
-  if (!config.magnetBank?.enabled) return;
+/** Enfileira 1+ ops atomicamente. true = ok/no-op; false = fila cheia (0 push). */
+function enqueue(ops: Op | Op[]): boolean {
+  if (!config.magnetBank?.enabled) return true;
+  const list = Array.isArray(ops) ? ops : [ops];
+  if (list.length === 0) return true;
   const max = Math.max(1, Math.trunc(config.magnetBank.queueMax));
-  if (queue.length >= max) {
-    // Busca nunca espera o disco: fila cheia descarta a leva e o operador vê
-    // no contador. A próxima captura do mesmo hash cobre o que ficou de fora.
+  if (queue.length + list.length > max) {
     metrics.count('magnetbank.queue.dropped');
-    return;
+    return false;
   }
-  queue.push(op);
+  for (const op of list) queue.push(op);
   scheduleFlush();
+  return true;
 }
 
 function scheduleFlush(): void {
@@ -251,43 +228,65 @@ function applyOps(ops: Op[]): number {
 // API de captura
 // ---------------------------------------------------------------------------
 
-/**
- * Captura TODOS os itens com hash de uma consulta ao Jackett. `indexer` é o do
- * plano (minúsculo); vazio (caminho `/all` agregado) usa o indexer do próprio
- * item. `ctx` leva a obra da busca — os itens viram `magnet_work` para o
- * fallback futuro.
- */
-export function captureItems(items: readonly RawItem[], indexer = '', ctx: WorkCtx = {}): void {
-  if (!items || items.length === 0) return;
-  enqueue({ kind: 'capture', items, indexer: String(indexer || '').toLowerCase(), ctx });
+/** Captura itens com hash (caminho vivo). true=ok/no-op; false=fila cheia. */
+export function captureItems(items: readonly RawItem[], indexer = '', ctx: WorkCtx = {}): boolean {
+  if (!items || items.length === 0) return true;
+  return enqueue({ kind: 'capture', items, indexer: String(indexer || '').toLowerCase(), ctx });
 }
 
-/**
- * Resultado do filtro de título para a obra: escreve `passed_filter` 1 nos
- * hashes sobreviventes e 0 nos demais da leva. Só toca work que JÁ existe (a
- * captura do Jackett cria; fonte não Jackett nunca cria órfão). A ordem na fila
- * garante que o resultado desta busca vence a captura que o alimentou e perde
- * para uma captura posterior.
- */
+/** Marca passed_filter (caminho vivo). true=ok/no-op; false=fila cheia. */
 export function markFilterResult(
   allHashes: Iterable<string>,
   survivingHashes: Iterable<string>,
   ctx: WorkCtx = {},
   targets?: Map<string, Array<{ season: number; episode: number }>>,
-): void {
+): boolean {
   const all = [...new Set([...allHashes].map(normHash).filter(Boolean))];
-  if (all.length === 0) return;
+  if (all.length === 0) return true;
   const surviving = new Set([...survivingHashes].map(normHash).filter(Boolean));
-  enqueue({ kind: 'filter', all, surviving, ctx, targets });
+  return enqueue({ kind: 'filter', all, surviving, ctx, targets });
+}
+
+/**
+ * Capture+filter ATOMICAMENTE (crawler): os dois ou nenhum. Sem pre-flush.
+ * needed = quantas ops reais (0..2); se não cabe → 1× `magnetbank.queue.dropped`.
+ */
+export function enqueueCaptureAndFilter(
+  capture: { items: readonly RawItem[]; indexer?: string; ctx?: WorkCtx },
+  filter: {
+    all: Iterable<string>;
+    surviving: Iterable<string>;
+    ctx?: WorkCtx;
+    targets?: Map<string, Array<{ season: number; episode: number }>>;
+  },
+): boolean {
+  if (!config.magnetBank?.enabled) return true;
+  const items = capture.items || [];
+  const all = [...new Set([...filter.all].map(normHash).filter(Boolean))];
+  const ops: Op[] = [];
+  if (items.length) {
+    ops.push({
+      kind: 'capture', items,
+      indexer: String(capture.indexer || '').toLowerCase(),
+      ctx: capture.ctx || {},
+    });
+  }
+  if (all.length) {
+    ops.push({
+      kind: 'filter', all,
+      surviving: new Set([...filter.surviving].map(normHash).filter(Boolean)),
+      ctx: filter.ctx || {},
+      targets: filter.targets,
+    });
+  }
+  return enqueue(ops);
 }
 
 // ---------------------------------------------------------------------------
 // Leitura
 // ---------------------------------------------------------------------------
 
-// Os helpers síncronos de leitura (readEngine/isOpen/lookup/sourcesFor/
-// worksFor/findByWork/findByIndexer) foram extraídos para `magnet-bank-read.ts`
-// pela catraca de 400 linhas; a fachada reexporta para os consumidores.
+// Helpers síncronos em magnet-bank-read.ts; a fachada reexporta.
 
 /**
  * Memo do status. A leitura é síncrona (agregação na engine), então não há

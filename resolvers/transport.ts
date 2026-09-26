@@ -130,7 +130,17 @@ async function followProtectedUrl(
       current = assertAllowedUrl(new URL(location, current).href);
       continue;
     }
-    if (!response.ok) throw new Error(`http_${response.status}`);
+    if (!response.ok) {
+      // Conservador: só HTTP 400 + texto real do protetor ("Link inválido ou
+      // expirado") é terminal — demais 4xx/5xx seguem `http_${status}`.
+      if (response.status === 400) {
+        const body = await response.text().catch(() => '');
+        if (/Link\s+inválido\s+ou\s+expirado/i.test(body)) {
+          throw new Error('protector_link_expired');
+        }
+      }
+      throw new Error(`http_${response.status}`);
+    }
 
     const html = await response.text();
     const magnet = extractMagnet(html);
