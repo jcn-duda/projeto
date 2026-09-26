@@ -13,8 +13,11 @@
 // entrada mais antiga sem cerimônia e CONTA a evicção, para o status admitir
 // a perda em vez de fingir persistência.
 import type {
+  CrawlErrorGroup,
+  CrawlResultStatus,
   CrawlUrlRow,
   CrawlRunRow,
+  ClearSiteReport,
   DiscoveredEntry,
   MarkOpts,
   MarkResultInput,
@@ -114,6 +117,13 @@ export function memoryCrawlEngine(): CrawlEngine {
       }
       return n;
     },
+    requeueUrl(site, url): boolean {
+      const k = key(site, url);
+      const row = urls.get(k);
+      if (!row) return false;
+      urls.set(k, { ...row, status: 'pending', nextAt: 0 });
+      return true;
+    },
     counters(site): SiteCounters {
       const s = String(site || '');
       const byStatus = emptyCounters();
@@ -124,6 +134,56 @@ export function memoryCrawlEngine(): CrawlEngine {
         total += 1;
       }
       return { total, byStatus };
+    },
+    listByStatus(site, status: CrawlResultStatus, limit) {
+      const s = String(site || '');
+      const cap = Math.max(0, Math.trunc(Number(limit) || 0));
+      if (cap <= 0) return [];
+      const rows: CrawlUrlRow[] = [];
+      for (const row of urls.values()) {
+        if (row.site !== s || row.status !== status) continue;
+        rows.push(row);
+      }
+      // MESMA ordem da SQL: `checked_at` desc, url asc.
+      rows.sort((a, b) => (b.checkedAt - a.checkedAt) || (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
+      return rows.slice(0, cap);
+    },
+    errorGroups(site, limit): CrawlErrorGroup[] {
+      const s = String(site || '');
+      const cap = Math.max(0, Math.trunc(Number(limit) || 0));
+      if (cap <= 0) return [];
+      const counts = new Map<string, number>();
+      for (const row of urls.values()) {
+        if (row.site !== s || row.status !== 'error') continue;
+        const reason = row.error || 'erro';
+        counts.set(reason, (counts.get(reason) || 0) + 1);
+      }
+      return [...counts.entries()]
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => (b.count - a.count) || a.reason.localeCompare(b.reason))
+        .slice(0, cap);
+    },
+    sumReleases(site): number {
+      const s = String(site || '');
+      let total = 0;
+      for (const row of urls.values()) if (row.site === s) total += row.releases || 0;
+      return total;
+    },
+    clearSite(site): ClearSiteReport {
+      const s = String(site || '');
+      let removedUrls = 0;
+      for (const [k, row] of [...urls]) {
+        if (row.site !== s) continue;
+        urls.delete(k);
+        removedUrls += 1;
+      }
+      let removedRuns = 0;
+      for (const [id, run] of [...runs]) {
+        if (run.site !== s) continue;
+        runs.delete(id);
+        removedRuns += 1;
+      }
+      return { urls: removedUrls, runs: removedRuns };
     },
     startRun(site, phase, cursor, now): number {
       const row: CrawlRunRow = {

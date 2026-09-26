@@ -25,9 +25,12 @@ import config from '../config.js';
 import { DEFAULT_CRAWL_DB_PATH } from '../config/helpers.js';
 import * as log from './logger.js';
 import type {
+  CrawlErrorGroup,
+  CrawlResultStatus,
   CrawlRunPhase,
   CrawlRunRow,
   CrawlUrlRow,
+  ClearSiteReport,
   DiscoveredEntry,
   MarkOpts,
   MarkResultInput,
@@ -40,8 +43,9 @@ import {
 import { memoryCrawlEngine } from './crawl-store-memory.js';
 
 export type {
-  CrawlPageKind, CrawlResultStatus, CrawlRunPhase, CrawlRunRow, CrawlUrlRow, CrawlUrlStatus,
-  DiscoveredEntry, MarkOpts, MarkResultInput, SiteCounters, UpsertReport,
+  CrawlErrorGroup, CrawlPageKind, CrawlResultStatus, CrawlRunPhase, CrawlRunRow, CrawlUrlRow,
+  CrawlUrlStatus, ClearSiteReport, DiscoveredEntry, MarkOpts, MarkResultInput, SiteCounters,
+  UpsertReport,
 } from '../providers/crawl-types.js';
 export { errorBackoffMs, CRAWL_GIVE_UP_MS } from './crawl-store-rules.js';
 
@@ -60,8 +64,21 @@ export interface CrawlEngine {
   requeueInflight(site: string, olderThanMs: number, now: number): number;
   /** "Reprocessar erros": zera tries/next_at e reenfileira (ação do painel). */
   requeueErrors(site: string): number;
+  /** Devolve UMA URL à fila (`pending`), preservando o resto — a simulação
+   * usa isto para não consumir a página do ciclo de verdade. */
+  requeueUrl(site: string, url: string): boolean;
   /** Contadores por status do site (progresso "x de N" no painel). */
   counters(site: string): SiteCounters;
+  /** Últimas linhas num status (ordem: `checked_at` desc), para as listas do
+   * painel (últimas obras, fila sem obra, erros). Teto obrigatório. */
+  listByStatus(site: string, status: CrawlResultStatus, limit: number): CrawlUrlRow[];
+  /** Erros agrupados por motivo, mais frequentes primeiro. */
+  errorGroups(site: string, limit: number): CrawlErrorGroup[];
+  /** Total de releases válidas vistas nas páginas do site (magnets gravados). */
+  sumReleases(site: string): number;
+  /** "Zerar site" (destrutivo): apaga SÓ o estado daquele site em `crawl.db`
+   * (`crawl_url` + `crawl_run`), nunca o banco de magnets. */
+  clearSite(site: string): ClearSiteReport;
   startRun(site: string, phase: CrawlRunPhase, cursor: string, now: number): number;
   finishRun(runId: number, now: number, counters?: Record<string, number>): void;
   latestRun(site: string): CrawlRunRow | null;
@@ -137,6 +154,18 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
     );
     const countersStmt = db.prepare('SELECT status, COUNT(*) AS n FROM crawl_url WHERE site = ? GROUP BY status');
     const totalStmt = db.prepare('SELECT COUNT(*) AS n FROM crawl_url WHERE site = ?');
+    const requeueUrlStmt = db.prepare(
+      "UPDATE crawl_url SET status = 'pending', next_at = 0 WHERE site = ? AND url = ?",
+    );
+    const listByStatusStmt = db.prepare(
+      'SELECT * FROM crawl_url WHERE site = ? AND status = ? ORDER BY checked_at DESC, url ASC LIMIT ?',
+    );
+    const errorGroupsStmt = db.prepare(
+      "SELECT error, COUNT(*) AS n FROM crawl_url WHERE site = ? AND status = 'error' GROUP BY error ORDER BY n DESC, error ASC LIMIT ?",
+    );
+    const sumReleasesStmt = db.prepare('SELECT COALESCE(SUM(releases), 0) AS n FROM crawl_url WHERE site = ?');
+    const clearSiteUrlsStmt = db.prepare('DELETE FROM crawl_url WHERE site = ?');
+    const clearSiteRunsStmt = db.prepare('DELETE FROM crawl_run WHERE site = ?');
     const insertRunStmt = db.prepare(
       'INSERT INTO crawl_run (id, site, phase, cursor, started_at, finished_at, counters) VALUES (?, ?, ?, ?, ?, NULL, ?)',
     );
@@ -213,6 +242,10 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
         const r = requeueErrorsStmt.run(String(site || '')) as { changes?: number | bigint };
         return Number(r?.changes) || 0;
       },
+      requeueUrl(site, url) {
+        const r = requeueUrlStmt.run(String(site || ''), String(url || '')) as { changes?: number | bigint };
+        return Number(r?.changes) > 0;
+      },
       counters(site) {
         const s = String(site || '');
         const byStatus = emptyCounters();
@@ -220,6 +253,27 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
         for (const r of rows) byStatus[parseStatus(r.status)] = Number(r.n) || 0;
         const total = Number((totalStmt.get(s) as Record<string, unknown>)?.n) || 0;
         return { total, byStatus };
+      },
+      listByStatus(site, status, limit) {
+        const cap = Math.max(0, Math.trunc(Number(limit) || 0));
+        if (cap <= 0) return [];
+        const rows = listByStatusStmt.all(String(site || ''), String(status || ''), cap) as Record<string, unknown>[];
+        return rows.map(parseUrlRow);
+      },
+      errorGroups(site, limit) {
+        const cap = Math.max(0, Math.trunc(Number(limit) || 0));
+        if (cap <= 0) return [];
+        const rows = errorGroupsStmt.all(String(site || ''), cap) as Record<string, unknown>[];
+        return rows.map((r) => ({ reason: String(r.error || 'erro'), count: Number(r.n) || 0 }));
+      },
+      sumReleases(site) {
+        return Number((sumReleasesStmt.get(String(site || '')) as Record<string, unknown>)?.n) || 0;
+      },
+      clearSite(site) {
+        const s = String(site || '');
+        const urls = Number((clearSiteUrlsStmt.run(s) as { changes?: number | bigint })?.changes) || 0;
+        const runs = Number((clearSiteRunsStmt.run(s) as { changes?: number | bigint })?.changes) || 0;
+        return { urls, runs };
       },
       startRun(site, phase, cursor, now) {
         const id = Number((nextRunIdStmt.get() as Record<string, unknown>)?.id) || 1;

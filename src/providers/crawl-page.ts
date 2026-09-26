@@ -34,8 +34,20 @@ export interface PageOutcome {
   siteLevelError: boolean;
   /** Releases válidas vistas na página (mesmo em `no-work`/erro de gravação). */
   releases: number;
+  /** Releases efetivamente NOVAS no índice (só no caminho com gravação). */
+  addedNew?: number;
   /** Motivo curto para log/painel (nunca credencial). */
   detail?: string;
+}
+
+/** Parâmetros do processamento que vêm da config VIVA do motor (snapshot do
+ * tick). O default cai no `config.crawl` estático para os testes e para quem
+ * chama sem motor. `noPersist` é da simulação: processa sem gravar NADA no
+ * `crawl.db` — a URL volta à fila depois (ver `crawler.simulate`). */
+export interface PageProcessOptions {
+  dryRun?: boolean;
+  maxTries?: number;
+  noPersist?: boolean;
 }
 
 export interface PageCollaborators {
@@ -48,41 +60,51 @@ const defaultCollaborators: PageCollaborators = {
   record: (siteId, obra, releases) => recordCrawlReleases.record(siteId, obra, releases),
 };
 
-function markError(row: CrawlUrlRow, message: string): void {
-  store.engine().markResult(
-    row.site,
-    row.url,
-    { status: 'error', error: String(message || 'erro').slice(0, 300) },
-    Date.now(),
-    // Sem `retryBaseMs` explícito vale a base default do store (1 min), com
-    // backoff exponencial e teto; `maxTries` do motor põe a URL para dormir.
-    { maxTries: config.crawl.maxTries },
-  );
+function markError(row: CrawlUrlRow, message: string, opts: PageProcessOptions = {}): void {
+  if (!opts.noPersist) {
+    store.engine().markResult(
+      row.site,
+      row.url,
+      { status: 'error', error: String(message || 'erro').slice(0, 300) },
+      Date.now(),
+      // Sem `retryBaseMs` explícito vale a base default do store (1 min), com
+      // backoff exponencial e teto; `maxTries` põe a URL para dormir.
+      { maxTries: opts.maxTries ?? config.crawl.maxTries },
+    );
+  }
   metrics.count('crawl.page.error');
 }
 
 /** Fábrica: o teste injeta `identify`/`record` dublês; produção usa os reais. */
 export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) {
   const collab: PageCollaborators = { ...defaultCollaborators, ...overrides };
-  return async function processPage(site: CrawlSite, row: CrawlUrlRow): Promise<PageOutcome> {
+  return async function processPage(
+    site: CrawlSite,
+    row: CrawlUrlRow,
+    opts: PageProcessOptions = {},
+  ): Promise<PageOutcome> {
+    const persist = !opts.noPersist;
+    const dryRun = opts.dryRun ?? config.crawl.dryRun;
     let result: Awaited<ReturnType<CrawlSite['fetchWork']>>;
     try {
       result = await site.fetchWork(row.url);
     } catch (err: unknown) {
       const message = log.errorMessage(err);
-      markError(row, message);
+      markError(row, message, opts);
       log.warn(`[crawl] página falhou (${row.url}):`, message);
       return { kind: 'error', siteLevelError: isSiteLevelError(message), releases: 0, detail: message };
     }
 
     if (result.status === 'error') {
       const message = String(result.error || 'erro da página');
-      markError(row, message);
+      markError(row, message, opts);
       return { kind: 'error', siteLevelError: isSiteLevelError(message), releases: 0, detail: message };
     }
 
     if (result.status === 'no-torrent') {
-      store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb: result.imdb ?? null, releases: 0 }, Date.now());
+      if (persist) {
+        store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb: result.imdb ?? null, releases: 0 }, Date.now());
+      }
       metrics.count('crawl.page.no-torrent');
       return { kind: 'no-torrent', siteLevelError: false, releases: 0 };
     }
@@ -92,7 +114,9 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     const releases = Array.isArray(result.releases) ? result.releases : [];
     const isSeries = result.type === 'series' || row.kind === 'tv_show';
     if (!releases.length) {
-      store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb: result.imdb ?? null, releases: 0 }, Date.now());
+      if (persist) {
+        store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb: result.imdb ?? null, releases: 0 }, Date.now());
+      }
       metrics.count('crawl.page.no-torrent');
       return { kind: 'no-torrent', siteLevelError: false, releases: 0 };
     }
@@ -109,39 +133,45 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       } else if (identification.outcome === 'unavailable') {
         // TMDB indisponível: retentável, não veredicto. Erro de página.
         const message = `tmdb-indisponivel:${identification.reason}`;
-        markError(row, message);
+        markError(row, message, opts);
         return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message };
       } else {
-        store.engine().markResult(
-          site.id, row.url,
-          { status: 'no-work', imdb: null, releases: 0 },
-          Date.now(),
-        );
+        if (persist) {
+          store.engine().markResult(
+            site.id, row.url,
+            { status: 'no-work', imdb: null, releases: 0 },
+            Date.now(),
+          );
+        }
         metrics.count('crawl.page.no-work');
         log.debug(`[crawl] sem obra (${row.url}): ${identification.reason}`);
         return { kind: 'no-work', siteLevelError: false, releases: 0, detail: identification.reason };
       }
     }
 
-    if (config.crawl.dryRun) {
-      store.engine().markResult(site.id, row.url, { status: 'done', imdb, releases: releases.length }, Date.now());
+    if (dryRun) {
+      if (persist) {
+        store.engine().markResult(site.id, row.url, { status: 'done', imdb, releases: releases.length }, Date.now());
+      }
       metrics.count('crawl.page.done');
       return { kind: 'done', siteLevelError: false, releases: releases.length };
     }
 
     try {
-      await collab.record(site.id, {
+      const report = await collab.record(site.id, {
         imdb: String(imdb),
         title: String(result.title || ''),
         year: result.year ?? null,
         kind: isSeries ? 'tv_show' : 'movie',
       }, releases);
-      store.engine().markResult(site.id, row.url, { status: 'done', imdb, releases: releases.length }, Date.now());
+      if (persist) {
+        store.engine().markResult(site.id, row.url, { status: 'done', imdb, releases: releases.length }, Date.now());
+      }
       metrics.count('crawl.page.done');
-      return { kind: 'done', siteLevelError: false, releases: releases.length };
+      return { kind: 'done', siteLevelError: false, releases: releases.length, addedNew: report.added };
     } catch (err: unknown) {
       const message = log.errorMessage(err);
-      markError(row, message);
+      markError(row, message, opts);
       log.warn(`[crawl] gravação falhou (${row.url}):`, message);
       return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message };
     }

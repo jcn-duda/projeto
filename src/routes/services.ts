@@ -28,6 +28,8 @@ import { authorized, createDiagnosticGate } from '../utils/diagnostic-guard.js';
 import * as rdLedger from '../debrid/rd-ledger.js';
 import { rdGate } from '../debrid/rd-gate.js';
 import rdWarmer from '../providers/rd-warmer.js';
+import crawler from '../providers/crawler.js';
+import * as crawlerLive from '../utils/crawler-live.js';
 import { prefetchInFlight } from './state.js';
 import type { AppServices } from './types.js';
 
@@ -73,6 +75,8 @@ function buildServices(): AppServices {
     rdLedger,
     rdGate,
     rdWarmer,
+    crawler,
+    crawlerLive,
   };
 }
 

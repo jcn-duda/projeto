@@ -12,6 +12,7 @@ export const ALL_BLOCKS = [
   'autofetch',
   'releaseIndex',
   'harvest',
+  'crawl',
   'f3',
   'magnetdb',
   'magnetBank',
@@ -274,6 +275,16 @@ export async function computeStatusPayload(
       ...services.harvester.status(),
       debridAccount: services.harvesterDebrid.snapshot(),
       debridResolved: services.harvesterDebrid.resolveQuota()?.adapter?.id ?? null,
+    };
+  }
+
+  // Bloco: crawl (Fase 4). Um card por site + config ao vivo (o painel monta o
+  // LiveConfigCard sem outra chamada). `crawler.status()` usa `currentEngine()`
+  // — nenhum bloco abre o `crawl.db` no poll.
+  if (isReq('crawl')) {
+    out.crawl = {
+      ...services.crawler.status(),
+      config: services.crawlerLive.snapshot(),
     };
   }
 

@@ -163,3 +163,16 @@ export interface SiteCounters {
   total: number;
   byStatus: Record<CrawlUrlStatus, number>;
 }
+
+/** Erros agrupados por motivo (o painel mostra o texto cru do último erro). */
+export interface CrawlErrorGroup {
+  /** Mensagem do erro, como gravada (`error` da linha). */
+  reason: string;
+  count: number;
+}
+
+/** Resultado do "Zerar site": só o estado daquele site em `crawl.db`. */
+export interface ClearSiteReport {
+  urls: number;
+  runs: number;
+}

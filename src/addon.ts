@@ -89,9 +89,13 @@ const server = app.listen(config.port, config.host, () => {
   });
   rdWarmer.start();
   brCoverage.start();
-  // Raspagem total (piloto Vaca): desligada por padrão — ligar é decisão do
-  // operador (`CRAWL_ENABLED`). O motor é serial e só roda com o app ocioso.
-  if (config.crawl.enabled) crawler.start();
+  // Raspagem total (piloto Vaca): armada SEMPRE, mesmo com `CRAWL_ENABLED=false`
+  // — o motor decide pelo overlay vivo (`crawler-live`) e o painel liga/desliga
+  // sem restart. Desligado, o tick não roda e o `crawl.db` nem é aberto. O
+  // habilitado pelo painel persiste em `cfg:v1:crawler` (decisão explícita do
+  // operador) e volta a valer neste `start`; `crawl-config-reset` restaura o
+  // default desligado do `.env`.
+  crawler.start();
 });
 
 let shuttingDown = false;

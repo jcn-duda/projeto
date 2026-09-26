@@ -11,6 +11,7 @@ import { ViewSaude } from './view-saude.js';
 import { ViewConta } from './view-conta.js';
 import { ViewGate } from './view-gate.js';
 import { ViewColhedor } from './view-colhedor.js';
+import { ViewRaspagens } from './view-raspagens.js';
 import { ViewSonda } from './view-sonda.js';
 import { ViewChupim } from './view-chupim.js';
 import { ViewCache } from './view-cache.js';
@@ -48,7 +49,7 @@ function focusConfigField(element: HTMLElement): void {
 // Abas válidas: o hash (`/painel#diagnostico`) abre direto na aba e o clique a
 // atualiza — os atalhos legados apontam para `#chupim`/`#colhedor`. Hash fora
 // da lista é ignorado (nunca troca a aba por um valor arbitrário da URL).
-export const TAB_IDS = ['saude', 'conta', 'gate', 'colhedor', 'sonda', 'chupim', 'cache', 'limpeza', 'magnets', 'diagnostico'] as const;
+export const TAB_IDS = ['saude', 'conta', 'gate', 'colhedor', 'raspagens', 'sonda', 'chupim', 'cache', 'limpeza', 'magnets', 'diagnostico'] as const;
 
 export function tabFromHash(fallback: string): string {
   if (typeof window === 'undefined') return fallback;
@@ -197,6 +198,12 @@ export function App(props: AppProps) {
           Colhedor
         </button>
         <button
+          class=${'painel-tab-btn' + (activeTab === 'raspagens' ? ' active' : '')}
+          onClick=${() => selectTab('raspagens')}
+        >
+          Raspagens
+        </button>
+        <button
           class=${'painel-tab-btn' + (activeTab === 'sonda' ? ' active' : '')}
           onClick=${() => selectTab('sonda')}
         >
@@ -261,6 +268,8 @@ export function App(props: AppProps) {
             <${ViewGate} gate=${p.gate} onNavigateField=${navigateToField} />
           ` : activeTab === 'colhedor' ? html`
             <${ViewColhedor} harvest=${p.harvest} metrics=${p.metrics} />
+          ` : activeTab === 'raspagens' ? html`
+            <${ViewRaspagens} crawl=${p.crawl} />
           ` : activeTab === 'sonda' ? html`
             <${ViewSonda} harvest=${p.harvest} f3=${p.f3} metrics=${p.metrics} />
           ` : activeTab === 'chupim' ? html`

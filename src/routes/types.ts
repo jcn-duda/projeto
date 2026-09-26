@@ -27,6 +27,8 @@ import type { authorized, createDiagnosticGate } from '../utils/diagnostic-guard
 import type * as rdLedger from '../debrid/rd-ledger.js';
 import type { rdGate } from '../debrid/rd-gate.js';
 import type rdWarmer from '../providers/rd-warmer.js';
+import type crawler from '../providers/crawler.js';
+import type * as crawlerLive from '../utils/crawler-live.js';
 
 export type GateAdmission =
   | { ok: true; release: () => void }
@@ -72,6 +74,8 @@ export interface AppServices {
   rdLedger: typeof rdLedger;
   rdGate: typeof rdGate;
   rdWarmer: typeof rdWarmer;
+  crawler: typeof crawler;
+  crawlerLive: typeof crawlerLive;
 }
 
 export type HandlerFactory<T = express.RequestHandler> = (services: AppServices) => T;

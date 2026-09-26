@@ -1,4 +1,4 @@
-// Motor da raspagem total dos sites BR (plano "Raspagem total", Fase 3). O
+// Motor da raspagem total dos sites BR (plano "Raspagem total", Fase 3/4). O
 // adaptador de cada site sabe DESCOBRIR URLs e PROCESSAR uma página
 // (`crawl-sites/*`); aqui mora a ORQUESTRAÇÃO: fila, ritmo, teto horário,
 // freio de tráfego, retomada, pausa automática, status e o desfecho do ciclo
@@ -8,12 +8,9 @@
 //
 //   - UM site e UMA URL por vez. O processo é serial de propósito: o crawl não
 //     disputa FlareSolverr nem a busca ao vivo (o adaptador usa fetch DIRETO).
-//     O piloto configura um site (`CRAWL_SITES`); ids extras ficam para a fase
-//     multi-site e são ignorados com aviso.
-//   - Ritmo: `CRAWL_DELAY_MS` entre requisições ao site (o timer do start usa o
-//     mesmo valor como cadência) + teto `CRAWL_MAX_PER_HOUR` + freio
-//     `activity.recentUserTraffic(CRAWL_IDLE_WINDOW_MS)` — tráfego de usuário
-//     preempta a raspagem.
+//   - Ritmo: `delayMs` entre requisições ao site (o timer usa o mesmo valor
+//     como cadência) + teto `maxPerHour` + freio
+//     `activity.recentUserTraffic(idleWindowMs)` — tráfego de usuário preempta.
 //   - Descoberta: upsert idempotente no `crawl.db`. O cursor incremental SÓ
 //     avança com `complete: true`; descoberta parcial pode ter perdido o
 //     lastmod que mudou, então o cursor fica e o próximo ciclo relê.
@@ -23,18 +20,28 @@
 //     pura em `crawl-pauses.ts`); qualquer um dos dois + a pausa manual param
 //     o tick.
 //
-// Cursor em MEMÓRIA: após restart o ciclo recomeça como carga inicial
-// (relê o sitemap inteiro, upsert idempotente) — não é perda de dados, só uma
-// passada de descoberta a mais; documentado e sem novo verbo no store.
-import config from '../config.js';
+// Fase 4: TODO knob de decisão vem da config ao VIVO (`crawler-live.ts`),
+// capturada UMA vez por tick (snapshot coerente) e repassada adiante — ligar,
+// pausar, mudar ritmo/dry-run pelo painel não exige restart. A pausa manual é
+// volátil por desenho (restart volta ao `.env`); os knobs persistem em
+// `cfg:v1:crawler`.
+//
+// Cursor em MEMÓRIA: após restart o ciclo recomeça como carga inicial (relê o
+// sitemap inteiro, upsert idempotente) — não é perda de dados, só uma passada
+// de descoberta a mais; documentado e sem novo verbo no store.
+import * as crawlerLive from '../utils/crawler-live.js';
 import * as store from '../utils/crawl-store.js';
 import * as activity from './activity.js';
 import { CrawlPausePolicy, maxLastmod } from './crawl-pauses.js';
 import { processCrawlPage } from './crawl-page.js';
+import { buildCrawlerStatus } from './crawl-status.js';
+import { createCrawlActions } from './crawl-actions.js';
+import { createCrawlScheduler } from './crawl-scheduler.js';
 import { DEFAULT_RETRY_BASE_MS } from '../utils/crawl-store-rules.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { AutoPauseReason, PauseLimits } from './crawl-pauses.js';
+import type { CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
 import type { CrawlSite, CrawlUrlRow } from './crawl-types.js';
 
 // --- Registro de adaptadores -------------------------------------------------
@@ -60,7 +67,6 @@ let busy = false;
 let paused = false;
 /** Pausa automática (streak/canário): limpa só por `setPaused(false)`. */
 let autoPause: { reason: AutoPauseReason; at: number; detail: string } | null = null;
-let timer: NodeJS.Timeout | null = null;
 let activeSite: CrawlSite | null = null;
 let activeSiteId = '';
 let adapterWarned = false;
@@ -71,13 +77,13 @@ let lastRequestAt = 0;
 
 interface CycleCounters {
   pages: number; done: number; noTorrent: number; noWork: number; errors: number; releases: number;
-  discoveryAdded: number; discoveryRefreshed: number; discoveryFailures: number;
+  newReleases: number; discoveryAdded: number; discoveryRefreshed: number; discoveryFailures: number;
 }
 
 function freshCycle(): CycleCounters {
   return {
     pages: 0, done: 0, noTorrent: 0, noWork: 0, errors: 0, releases: 0,
-    discoveryAdded: 0, discoveryRefreshed: 0, discoveryFailures: 0,
+    newReleases: 0, discoveryAdded: 0, discoveryRefreshed: 0, discoveryFailures: 0,
   };
 }
 
@@ -85,13 +91,8 @@ let cycle = freshCycle();
 const policy = new CrawlPausePolicy();
 const hourPages = new Map<number, number>();
 
-function limits(): PauseLimits {
-  return { errorPauseStreak: config.crawl.errorPauseStreak, layoutCanary: config.crawl.layoutCanary };
-}
-
-/** Cadência do timer: acompanha o delay, com piso (não martelar) e teto. */
-function intervalMs(): number {
-  return Math.max(500, Math.min(config.crawl.delayMs, 60_000));
+function limits(live: CrawlerEffectiveConfig): PauseLimits {
+  return { errorPauseStreak: live.errorPauseStreak, layoutCanary: live.layoutCanary };
 }
 
 /** Páginas processadas na hora civil atual (teto horário). */
@@ -137,7 +138,7 @@ async function ensureActiveSite(siteId: string): Promise<CrawlSite | null> {
 }
 
 /** Fecha a rodada aberta (se houver) e agenda a próxima descoberta. */
-function closeRun(siteId: string, nextDelayMs: number): void {
+function closeRun(nextDelayMs: number): void {
   if (openRunId == null) return;
   store.engine().finishRun(openRunId, Date.now(), { ...cycle });
   openRunId = null;
@@ -146,7 +147,7 @@ function closeRun(siteId: string, nextDelayMs: number): void {
 }
 
 /** Rodada de descoberta: upsert no store e, se completa, avanço do cursor. */
-async function runDiscovery(site: CrawlSite): Promise<void> {
+async function runDiscovery(site: CrawlSite, live: CrawlerEffectiveConfig): Promise<void> {
   const now = Date.now();
   lastRequestAt = now;
   const phase = cursor ? 'incremental' : 'initial';
@@ -175,34 +176,39 @@ async function runDiscovery(site: CrawlSite): Promise<void> {
     cycle.discoveryFailures += 1;
     metrics.count('crawl.discovery.error');
     log.warn('[crawl] descoberta falhou:', message);
-    const reason = policy.observeSiteFailure(message, limits());
+    const reason = policy.observeSiteFailure(message, limits(live));
     if (reason) triggerAutoPause(reason, message);
     // Falha total: fecha a rodada e re-tenta em breve (base do backoff do store),
     // em vez de esperar o ciclo incremental inteiro.
-    closeRun(site.id, DEFAULT_RETRY_BASE_MS);
+    closeRun(DEFAULT_RETRY_BASE_MS);
   }
 }
 
 /** Processa UMA página reclamada e alimenta a política de pausa. */
-async function processClaimed(site: CrawlSite, row: CrawlUrlRow): Promise<void> {
+async function processClaimed(site: CrawlSite, row: CrawlUrlRow, live: CrawlerEffectiveConfig): Promise<void> {
   lastRequestAt = Date.now();
   notePage();
-  const outcome = await processCrawlPage(site, row);
+  const outcome = await processCrawlPage(site, row, { dryRun: live.dryRun, maxTries: live.maxTries });
   cycle.pages += 1;
-  if (outcome.kind === 'done') { cycle.done += 1; cycle.releases += outcome.releases; }
-  else if (outcome.kind === 'no-torrent') cycle.noTorrent += 1;
+  if (outcome.kind === 'done') {
+    cycle.done += 1;
+    cycle.releases += outcome.releases;
+    cycle.newReleases += outcome.addedNew ?? 0;
+  } else if (outcome.kind === 'no-torrent') cycle.noTorrent += 1;
   else if (outcome.kind === 'no-work') cycle.noWork += 1;
   else cycle.errors += 1;
-  const reason = policy.observePage(row.url, outcome, limits());
+  const reason = policy.observePage(row.url, {
+    kind: outcome.kind, siteLevelError: outcome.siteLevelError, releases: outcome.releases,
+  }, limits(live));
   if (reason) triggerAutoPause(reason, outcome.detail || row.url);
 }
 
 /** Um passo: descoberta quando devida, senão uma página. */
-async function step(site: CrawlSite): Promise<void> {
+async function step(site: CrawlSite, live: CrawlerEffectiveConfig): Promise<void> {
   if (openRunId == null) {
     const counters = store.engine().counters(site.id);
     if (counters.total === 0 || Date.now() >= nextDiscoverAt) {
-      await runDiscovery(site);
+      await runDiscovery(site, live);
       return; // a página sai no próximo tick (ritmo entre requisições)
     }
     // Ocioso: só resta erro em backoff/inflight órfão. Como o tick é serial,
@@ -214,50 +220,67 @@ async function step(site: CrawlSite): Promise<void> {
     }
     if (counters.byStatus.error > 0 || counters.byStatus.inflight > 0) {
       const row = store.engine().takeNext(site.id, Date.now());
-      if (row) await processClaimed(site, row);
+      if (row) await processClaimed(site, row, live);
     }
     return;
   }
 
   const row = store.engine().takeNext(site.id, Date.now());
   if (!row) {
-    closeRun(site.id, config.crawl.incrementalIntervalMin * 60_000);
+    closeRun(live.incrementalIntervalMin * 60_000);
     return;
   }
-  await processClaimed(site, row);
+  await processClaimed(site, row, live);
 }
+
+// Timer REARMÁVEL (Fase 4): a cadência mora na config ao vivo e o painel pode
+// mudá-la sem restart. A fábrica isola o setInterval do resto do motor.
+const scheduler = createCrawlScheduler({
+  isStarted: () => started,
+  tick: () => tick(),
+  warn: (message) => log.warn('[crawl] tick falhou:', message),
+  onDisabled: () => log.info('[crawl] desativado pela config ao vivo (enabled=false)'),
+});
+
 
 /**
  * Um ciclo do motor. Exportado para o teste dirigir o passo sem timer real.
  * Os guards rodam ANTES de qualquer requisição para o freio não ser furado.
  */
 async function tick(): Promise<void> {
-  if (!config.crawl.enabled || paused || autoPause || busy) return;
-  const cfg = config.crawl;
-  const siteId = String(cfg.sites[0] || '');
+  const live = crawlerLive.effective();
+  // Rearma ANTES de qualquer retorno precoce para uma mudança de cadência não
+  // ficar adiada por um freio/pausa. Com `enabled=false` o `rearm` é no-op (quem
+  // desarma é o `sync` via `onConfigChange`), então isto não religa o motor.
+  scheduler.rearm(live);
+  if (!live.enabled || paused || autoPause || busy) return;
+  const siteId = String(live.sites[0] || '');
   if (!siteId) return;
   const site = await ensureActiveSite(siteId);
   if (!site) return;
-  if (pagesThisHour() >= cfg.maxPerHour) return;
-  if (activity.recentUserTraffic(cfg.idleWindowMs)) return;
-  if (Date.now() - lastRequestAt < cfg.delayMs) return;
+  if (pagesThisHour() >= live.maxPerHour) return;
+  if (activity.recentUserTraffic(live.idleWindowMs)) return;
+  if (Date.now() - lastRequestAt < live.delayMs) return;
   busy = true;
   try {
-    await step(site);
+    await step(site, live);
   } finally {
     busy = false;
   }
 }
 
-/** Arma o motor. Sticky e só liga com CRAWL_ENABLED=true. */
+/** Arma o motor. Sticky e só ativa com a config viva habilitada. */
 function start(): void {
   if (started) return;
   started = true;
-  if (!config.crawl.enabled) {
-    log.info('[crawl] desativado (CRAWL_ENABLED=false)');
+  // live → crawler (callback); crawler já importa live — sem ciclo.
+  crawlerLive.onConfigChange(() => scheduler.sync(crawlerLive.effective()));
+  const live = crawlerLive.effective();
+  if (!live.enabled) {
+    log.info('[crawl] desativado (enabled=false)');
     return;
   }
-  const siteId = String(config.crawl.sites[0] || '');
+  const siteId = String(live.sites[0] || '');
   if (!siteId) {
     log.warn('[crawl] nenhum site configurado em CRAWL_SITES');
     return;
@@ -266,43 +289,65 @@ function start(): void {
   // órfão do processo anterior — volta a pending e é reclamado no tick.
   const recovered = store.engine().requeueInflight(siteId, 0, Date.now());
   if (recovered) log.info(`[crawl] ${recovered} URL(s) inflight retomada(s) do processo anterior`);
-  timer = setInterval(() => { tick().catch((err) => log.warn('[crawl] tick falhou:', log.errorMessage(err))); }, intervalMs());
-  timer.unref();
-  log.info(`[crawl] motor armado (site=${siteId}, delay=${config.crawl.delayMs}ms, dryRun=${config.crawl.dryRun})`);
+  scheduler.rearm(live);
+  log.info(`[crawl] motor armado (site=${siteId}, delay=${live.delayMs}ms, dryRun=${live.dryRun})`);
 }
 
 /** Pausa manual; desligar limpa também a pausa automática (consentimento do operador). */
 function setPaused(value: boolean): { paused: boolean; autoPause: { reason: AutoPauseReason } | null } {
   paused = Boolean(value);
   if (!paused) autoPause = null;
+  metrics.count(paused ? 'crawl.pause' : 'crawl.resume');
   return { paused, autoPause: autoPause ? { reason: autoPause.reason } : null };
 }
 
-/** Foto do motor para o painel — sem credencial e sem segredo. */
+// --- Fase 4: ações do painel -------------------------------------------------
+
+/** ids dos sites vivos (config ao vivo), sem credencial. */
+function siteIds(): string[] {
+  return crawlerLive.effective().sites.map((s) => String(s || '')).filter(Boolean);
+}
+
+/** Descarta o ciclo aberto (o "Zerar site" apaga a rodada do store). */
+function forgetActiveRun(): void {
+  openRunId = null;
+  cycle = freshCycle();
+  cursor = '';
+  nextDiscoverAt = 0;
+}
+
+// As ações (simular/reprocessar/zerar) moram em `crawl-actions.ts`; o motor
+// injeta as closures — o módulo não importa `crawler.ts`, sem ciclo.
+const { simulate, reprocessErrors, resetSite } = createCrawlActions({
+  effective: () => crawlerLive.effective(),
+  isBusy: () => busy,
+  isPaused: () => paused || Boolean(autoPause),
+  ensureSite: (id) => ensureActiveSite(id),
+  forgetActiveRun,
+  count: (name, value) => metrics.count(name, value),
+});
+
+// --- Status ------------------------------------------------------------------
+
+/** Foto do motor para o painel — sem credencial e sem segredo. A montagem do
+ * formato (cards por site, ETA, listas) mora em `crawl-status.ts` (pura). */
 function status() {
-  const cfg = config.crawl;
-  const engine = store.currentEngine();
-  const siteId = activeSiteId || String(cfg.sites[0] || '');
-  return {
-    enabled: cfg.enabled,
-    dryRun: cfg.dryRun,
+  const live = crawlerLive.effective();
+  const configuredSites = siteIds();
+  return buildCrawlerStatus(store.currentEngine(), live, configuredSites, {
+    activeSiteId,
+    activeLabel: activeSite ? activeSite.label : null,
     paused,
-    autoPause: autoPause ? { reason: autoPause.reason, at: autoPause.at, detail: autoPause.detail } : null,
-    site: siteId || null,
-    siteReady: Boolean(activeSite),
-    engine: engine ? engine.kind : null,
-    cursor: cursor || null,
+    autoPause,
+    cursor,
     pagesThisHour: pagesThisHour(),
-    maxPerHour: cfg.maxPerHour,
-    delayMs: cfg.delayMs,
-    idleWindowMs: cfg.idleWindowMs,
+    openRunId,
     errorStreak: policy.errorStreakCount,
     canaryStreak: policy.canaryStreakCount,
-    runOpen: openRunId != null,
     cycle: { ...cycle },
-    counters: engine && siteId ? engine.counters(siteId) : null,
-    latestRun: engine && siteId ? engine.latestRun(siteId) : null,
-  };
+    currentSiteNewReleases: cycle.newReleases,
+    siteReady: Boolean(activeSite),
+  });
 }
 
 // --- Ganchos de teste --------------------------------------------------------
@@ -322,8 +367,7 @@ export function _forceDiscoveryForTest(): void {
 
 /** Estado limpo entre casos (o processo sobe `start()` uma vez só). */
 export function _resetForTest(): void {
-  if (timer) clearInterval(timer);
-  timer = null;
+  scheduler.disarm();
   started = false;
   busy = false;
   paused = false;
@@ -339,7 +383,8 @@ export function _resetForTest(): void {
   hourPages.clear();
   policy.reset();
   testSiteFactory = null;
+  crawlerLive.onConfigChange(null);
 }
 
-export { start, tick, status, setPaused };
-export default { start, tick, status, setPaused };
+export { start, tick, status, setPaused, simulate, reprocessErrors, resetSite };
+export default { start, tick, status, setPaused, simulate, reprocessErrors, resetSite };

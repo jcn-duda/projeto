@@ -20,7 +20,10 @@ import { fetchStatus } from './api.js';
 // escrita): o poll repete a MESMA foto e a varredura não se repete. É o memo
 // que torna este bloco vital — sem ele, o lugar seria o carregamento sob
 // demanda do card (como `catalog`, O(rows) via `catalog-report`).
-export const VITAL_BLOCKS = ['general', 'searchFirst', 'indexers', 'debrid', 'conta', 'gate', 'harvest', 'autofetch', 'f3', 'metrics', 'cache', 'magnetdb', 'magnetBank'];
+// O bloco `crawl` também entra: `crawler.status()` monta a foto a partir do
+// motor em memória (nada de abrir o `crawl.db` no poll) e a aba Raspagens
+// precisa dos cards por site já no primeiro render.
+export const VITAL_BLOCKS = ['general', 'searchFirst', 'indexers', 'debrid', 'conta', 'gate', 'harvest', 'crawl', 'autofetch', 'f3', 'metrics', 'cache', 'magnetdb', 'magnetBank'];
 
 let inFlight = false;
 let timerId: any = null;

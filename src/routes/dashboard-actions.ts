@@ -1,18 +1,16 @@
 // Despacho por AÇÃO do /dashboard-action.json (PLANO_MELHORIAS §5.8, item 8).
-// Extraído de diagnostics.ts: mapa ação→handler — cada ação nova entra sem
-// tocar o despacho. O guard de token fica NA FRENTE em diagnostics.ts; a
-// allowlist e o `confirm` das destrutivas rodam antes do admission do gate.
+// O guard de token fica NA FRENTE em diagnostics.ts; a allowlist e o `confirm`
+// das destrutivas rodam antes do admission do gate.
 
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 import { errorMessage } from '../utils/logger.js';
 import { streamsCacheScope } from '../utils/request-key.js';
 import { harvestDebridGet, harvestDebridSet } from './dashboard-actions-harvest-debrid.js';
-import {
-  autofetchPause, autofetchDrain, autofetchConfigGet, autofetchConfigSet, autofetchConfigReset,
-} from './dashboard-actions-autofetch.js';
+import { autofetchPause, autofetchDrain, autofetchConfigGet, autofetchConfigSet, autofetchConfigReset } from './dashboard-actions-autofetch.js';
 import { autofetchSuppressedGet, autofetchSuppressedDrain } from './dashboard-actions-autofetch-suppressed.js';
 import { magnetInspect, magnetClearBad, magnetSummary, magnetBankSummary, magnetBankSearch } from './dashboard-actions-magnet.js';
+import { crawlPause, crawlSimulate, crawlReprocessErrors, crawlReset, crawlConfigGet, crawlConfigSet, crawlConfigReset } from './dashboard-actions-crawl.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -22,8 +20,6 @@ type ActionDeps = {
 };
 
 // Cada handler devolve a própria resposta (res.json / res.status().json()).
-// O despacho não decide status — a decisão mora na ação, como antes da
-// extração.
 type ActionHandler = (deps: ActionDeps) => Promise<express.Response> | express.Response;
 
 // Ações destrutivas ou irreversíveis: exigem `{"confirm": true}` no corpo.
@@ -36,6 +32,8 @@ const DESTRUCTIVE_ACTIONS = new Set([
   'autofetch-suppressed-drain',
   'harvest-config-reset',
   'harvester-clear-queue',
+  'crawl-reset',
+  'crawl-config-reset',
   'dedup-apply',
   'cleanup-apply',
   'manual-delete',
@@ -47,10 +45,8 @@ const DESTRUCTIVE_ACTIONS = new Set([
 const MAX_TEST_KEY_LENGTH = 512;
 
 // `max` do corpo: número finito positivo vira inteiro; qualquer outra coisa
-// vira undefined (sem teto). Mesma normalização que as ações já aplicavam —
-// extraída porque seis ações repetiam o ternário idêntico. Mora no módulo
-// folha compartilhado com os arquivos de ações extraídos para não haver cópia
-// paralela que possa divergir (ciclo com o despacho é evitado assim).
+// vira undefined (sem teto). Mora no módulo folha compartilhado para os dois
+// lados do despacho usarem a MESMA normalização, sem cópia que possa divergir.
 import { maxFromBody } from './dashboard-actions-shared.js';
 
 const ACTIONS: Record<string, ActionHandler> = {
@@ -150,6 +146,16 @@ const ACTIONS: Record<string, ActionHandler> = {
   'harvester-debrid-get': harvestDebridGet,
   'harvester-debrid-set': harvestDebridSet,
 
+  // Raspagem total (Fase 4): handlers em dashboard-actions-crawl.js; o
+  // `crawl-reset` é destrutivo (confirm acima) e apaga só o site no `crawl.db`.
+  'crawl-pause': crawlPause,
+  'crawl-simulate': crawlSimulate,
+  'crawl-reprocess-errors': crawlReprocessErrors,
+  'crawl-reset': crawlReset,
+  'crawl-config-get': crawlConfigGet,
+  'crawl-config-set': crawlConfigSet,
+  'crawl-config-reset': crawlConfigReset,
+
   'warm-pause': ({ services, res, action }) => {
     services.rdWarmer.setPaused(true);
     services.metrics.count('dashboard.rd.warm.pause');
@@ -179,12 +185,9 @@ const ACTIONS: Record<string, ActionHandler> = {
   },
 
   // Teste de conta NÃO destrutivo e SEM estado (Fase 1 do debrid configurável):
-  // valida {service, key} contra o registry, consulta a saúde da chave
-  // informada e devolve payload seguro. De propósito NÃO memoiza (o memo do
-  // painel serve só às contas já configuradas), NÃO persiste nada (davail/
-  // magnetdb/ledger intocados) e NÃO troca config de instalação alguma — é
-  // diagnóstico de credencial ANTES de salvar, não aplicação dela. Não entra
-  // em DESTRUCTIVE_ACTIONS: nada na conta é criado, modificado ou apagado.
+  // valida {service, key} contra o registry e consulta a saúde daquela chave,
+  // sem memoizar/persistir nada nem trocar a config da instalação — é
+  // diagnóstico ANTES de salvar; por isso não entra em DESTRUCTIVE_ACTIONS.
   'debrid-account-test': async ({ services, req, res, action }) => {
     const service = typeof req.body?.service === 'string' ? req.body.service.trim() : '';
     const key = typeof req.body?.key === 'string' ? req.body.key.trim() : '';
@@ -241,17 +244,15 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json({ ok: true, action, results, total: results.length, okCount, downCount: results.length - okCount });
   },
 
-  // Ações do Chupim: handlers em dashboard-actions-autofetch.js (extração de
-  // arquivo, comportamento intacto — inclusive o confirm das destrutivas).
+  // Ações do Chupim: handlers em dashboard-actions-autofetch.js.
   'autofetch-pause': autofetchPause,
   'autofetch-drain': autofetchDrain,
   'autofetch-config-get': autofetchConfigGet,
   'autofetch-config-set': autofetchConfigSet,
   'autofetch-config-reset': autofetchConfigReset,
 
-  // Fila de remoções represadas: handlers em
-  // dashboard-actions-autofetch-suppressed.js. O drain é destrutivo (confirm
-  // acima) e drena SEM ligar o knob global — a porta supervisionada.
+  // Fila de remoções represadas: handlers em dashboard-actions-autofetch-suppressed.js.
+  // O drain é destrutivo (confirm acima) e drena SEM ligar o knob global.
   'autofetch-suppressed-get': autofetchSuppressedGet,
   'autofetch-suppressed-drain': autofetchSuppressedDrain,
 

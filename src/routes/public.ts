@@ -64,6 +64,8 @@ const CLIENT_ASSETS = [
   'client/painel/view-gate.js',
   'client/painel/view-config.js',
   'client/painel/view-colhedor.js',
+  'client/painel/raspagens-model.js',
+  'client/painel/view-raspagens.js',
   'client/painel/view-harvest-debrid.js',
   'client/painel/view-sonda.js',
   'client/painel/view-chupim.js',

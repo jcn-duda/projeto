@@ -4,8 +4,12 @@ import { DEFAULT_CRAWL_DB_PATH, list, num } from './helpers.js';
 // da fila em SQLite próprio (`data/crawl.db`, ver `utils/crawl-store.ts`).
 // DESLIGADA por padrão: ligar é decisão do operador, site a site, depois das
 // fases de validação (adaptador → identificação → motor em simulação → painel
-// → gravação de verdade). Os knobs já definem o contrato no `.env` antes do
-// código que os consome existir (mesmo padrão do `magnetBank.fallback*`).
+// → gravação de verdade). O painel pode sobrepor `enabled` ao vivo
+// (`cfg:v1:crawler`) e essa sobreposição PERSISTE como decisão explícita do
+// operador: um `crawl-config-set {enabled:true}` religa a raspagem após o
+// restart até um `crawl-config-reset`, que volta ao valor daqui. Os knobs já
+// definem o contrato no `.env` antes do código que os consome existir (mesmo
+// padrão do `magnetBank.fallback*`).
 // Fábrica (não objeto pronto): a re-avaliação do compositor precisa reler o
 // process.env.
 export const crawl = () => ({

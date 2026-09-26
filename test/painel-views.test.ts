@@ -343,11 +343,12 @@ test('ViewDiagnostico retorna VNode valido com os servicos de debrid', () => {
   assert.ok(vnode.props);
 });
 
-test('TAB_IDS cobre as dez abas e tabFromHash so aceita id valido', () => {
+test('TAB_IDS cobre as onze abas e tabFromHash so aceita id valido', () => {
   assert.deepEqual(
     [...TAB_IDS],
-    ['saude', 'conta', 'gate', 'colhedor', 'sonda', 'chupim', 'cache', 'limpeza', 'magnets', 'diagnostico'],
+    ['saude', 'conta', 'gate', 'colhedor', 'raspagens', 'sonda', 'chupim', 'cache', 'limpeza', 'magnets', 'diagnostico'],
   );
+  assert.ok((TAB_IDS as readonly string[]).includes('raspagens'));
   assert.ok((TAB_IDS as readonly string[]).includes('diagnostico'));
 
   const previousWindow = (globalThis as any).window;
