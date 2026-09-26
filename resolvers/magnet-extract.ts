@@ -37,6 +37,26 @@ const ENCODED_PREFIX_RE = /^magnet%3A%3F/i;
 // body da pasta final; decodificar e validar antes de devolver.
 const B64_LINK_RE = /data-link=["']([A-Za-z0-9+/=]{32,})["']/i;
 const B64_MAGNET_RE = /^magnet:\?xt=urn:btih:[a-zA-Z0-9]{32,40}/i;
+// Medido em 2026-09-26 (A Canção que me Salvou, A Raiz do Mal): o data-link
+// decodifica `magnet:?xt=urnbtih<40 hex>&tr=udptracker…80announce`.
+const B64_MANGLED_MAGNET_RE = /^magnet:\?xt=urn:?btih:?([a-f0-9]{40})(?![a-f0-9])/i;
+
+/**
+ * Gate-2 do vacadb cujo `data-link` base64 decodifica para uma URL http(s) — é
+ * download direto (Google Drive, medido em 2026-09-26: Blade Trinity, Efeito
+ * Borboleta, Coraline), não torrent. Só a forma PROVADA conta: sem data-link,
+ * ou base64 ilegível, é `false` e o laço segue como sempre.
+ */
+export function b64DataLinkIsHttp(html: string | null | undefined): boolean {
+  const match = String(html || '').match(B64_LINK_RE);
+  if (!match) return false;
+  try {
+    const decoded = Buffer.from(match[1].replace(/\s+/g, ''), 'base64').toString('utf8').trim();
+    return /^https?:\/\/[^\s"'<>]+$/i.test(decoded);
+  } catch {
+    return false;
+  }
+}
 
 // Valor capturado por um passo da variante rica: protetores publicam o magnet
 // nos dois formatos (e misturados: %3A na estrutura e & literal entre
@@ -125,6 +145,12 @@ function createMagnetExtractor({ decodeEntities, encodedVariants = false, b64Dat
           const value = b64Link[1].replace(/\s+/g, '');
           const decoded = Buffer.from(value, 'base64').toString('utf8').trim();
           if (B64_MAGNET_RE.test(decoded)) return decoded;
+          // Magnet que o site gravou SEM os dois-pontos (`xt=urnbtih<hash>`;
+          // trackers também sem `:`/`/`). O hash de 40 hex está íntegro e é o
+          // que identifica o torrent: remonta só o xt; os trackers mutilados
+          // não se reconstroem e o piso de TRACKERS entra no banco/play.
+          const mangled = B64_MANGLED_MAGNET_RE.exec(decoded);
+          if (mangled) return `magnet:?xt=urn:btih:${mangled[1].toLowerCase()}`;
         } catch {}
       }
     }

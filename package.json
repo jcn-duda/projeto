@@ -148,6 +148,7 @@
     "test/comandotorrents-parser.test.js",
     "test/comandotorrents-resolver.test.js",
     "test/transport-cookiejar.test.js",
+    "test/protector-non-magnet.test.js",
     "test/vacatorrent-resolver.test.js",
     "test/vacatorrent-season-episodes.test.js",
     "test/vacatorrent-flare.test.js",

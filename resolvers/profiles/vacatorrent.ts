@@ -40,7 +40,7 @@ import {
   normalizeSource,
   classifyAudio,
   extractEpisode,
-  extractMagnet,
+  extractMagnet, isNonMagnetTarget,
   // Sem o `nextProtectedUrl` pronto do parsers as ele nasce com os
   // classificadores DEFAULT do módulo, e o que vale aqui são os do bootstrap
   // (isProtectorHost/isAssertOnlyHost do perfil) — ver a construção abaixo.
@@ -279,7 +279,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
   // Resolve: segue o protetor até o magnet.
   // ---------------------------------------------------------------------------
   const fetchFollowingAllowed = bootstrap.fetchFollowingAllowed({
-    decodeEntities, extractMagnet, nextProtectedUrl,
+    decodeEntities, extractMagnet, nextProtectedUrl, isNonMagnetTarget,
     extractMetaRefresh,
     maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS,
     cookieJar: { seed: { 'vacadb.org': { enc_liberado: '1', enc_etapa1_visto: '1' } } },

@@ -302,6 +302,42 @@ describe('crawl-sites/vaca: layout e multi-release', () => {
   });
 });
 
+describe('crawl-sites/vaca: gate-2 com download direto (Drive) → no-torrent', () => {
+  test('todos os botões levam ao Drive = no-torrent na 1ª passada (sem erro retentável)', async () => {
+    // Página final REAL (Blade Trinity, 2026-09-26): o data-link base64 é um
+    // link do Google Drive. Antes caía em no_magnet e gastava 3 tentativas.
+    const stub = stubRoutes({
+      [PAGE_TORRENT]: () => fixture('movie-page-torrent.html'),
+      [`${SITE}/movie-links/61616/`]: () => fixture('movie-links-torrent.html'),
+      'go.php': () => fixture('protector-final-drive.html'),
+    });
+    try {
+      const result = await createVacaCrawlSite(resolverSurface()).fetchWork(PAGE_TORRENT);
+      assert.equal(result.status, 'no-torrent', 'download direto não é torrent nem erro');
+      assert.equal(result.releases, undefined);
+      assert.ok(stub.calls.some((c) => c.url.includes('go.php')), 'protetor foi consultado');
+    } finally {
+      stub.restore();
+    }
+  });
+
+  test('Drive num botão e magnet no outro: o magnet entra (página done)', async () => {
+    const stub = stubRoutes({
+      [PAGE_TORRENT]: () => fixture('movie-page-torrent.html'),
+      [`${SITE}/movie-links/61616/`]: () => fixture('movie-links-torrent.html'),
+      'go.php?id=4jcc': () => fixture('protector-final-drive.html'),
+      'go.php?id=rwis': () => `<html><body><a href="magnet:?xt=urn:btih:${ALT_BTIH}&dn=segundo">magnet</a></body></html>`,
+    });
+    try {
+      const result = await createVacaCrawlSite(resolverSurface()).fetchWork(PAGE_TORRENT);
+      assert.equal(result.status, 'done');
+      assert.equal(result.releases?.length, 1);
+    } finally {
+      stub.restore();
+    }
+  });
+});
+
 describe('crawl-sites/vaca: protetor Link inválido ou expirado → no-torrent', () => {
   test('HTTP 400 + texto real: todos os botões expirados = no-torrent (sem retry)', async () => {
     // Texto REAL do protetor; status 400. Cadeia: página → movie-links → go.php.

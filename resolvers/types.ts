@@ -129,6 +129,13 @@ export interface TransportOptions {
   extractMagnet(html: string | null | undefined): string | null;
   nextProtectedUrl(html: string | null | undefined, baseUrl?: string): string | null;
   extractMetaRefresh(html: string | null | undefined): string | null;
+  /**
+   * Opcional: a página PROVA que o destino final não é magnet (ex.: gate-2 do
+   * vacadb com `data-link` decodificando para um link do Google Drive). Com
+   * `true` o laço para com `protector_non_magnet` em vez de seguir saltos até
+   * `no_magnet` — quem chama distingue "não é torrent" de "falhou".
+   */
+  isNonMagnetTarget?(html: string | null | undefined): boolean;
   maxHops: number;
   timeoutMs: number;
   userAgent: string;

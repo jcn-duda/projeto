@@ -82,6 +82,7 @@ async function followProtectedUrl(
     extractMagnet,
     nextProtectedUrl,
     extractMetaRefresh,
+    isNonMagnetTarget,
     maxHops,
     timeoutMs,
     userAgent,
@@ -145,6 +146,9 @@ async function followProtectedUrl(
     const html = await response.text();
     const magnet = extractMagnet(html);
     if (magnet) return normalizeMagnet(magnet);
+    // Destino final PROVADO não-magnet (download direto): terminal, não é falha
+    // do protetor nem do parser — seguir adiante só gastaria saltos até no_magnet.
+    if (isNonMagnetTarget?.(html)) throw new Error('protector_non_magnet');
 
     const next = nextProtectedUrl(html, current.href);
     if (next) {

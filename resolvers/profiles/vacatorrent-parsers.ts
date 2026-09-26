@@ -12,7 +12,7 @@ import {
   buttonId,
 } from '../matching.js';
 import { BASE_PROTECTOR_SUFFIXES, hasAllowedHost } from '../protector.js';
-import { createMagnetExtractor, discoverNextUrl } from '../magnet-extract.js';
+import { createMagnetExtractor, discoverNextUrl, b64DataLinkIsHttp } from '../magnet-extract.js';
 import {
   createQualityRules,
   createSourceRules,
@@ -97,6 +97,10 @@ const episodeStep = createEpisodeStep({
 });
 
 // extractMagnet com decodificação base64 no atributo data-link do gate-2 vacadb.
+// Gate-2 cujo data-link é download direto (Drive), não magnet: o laço do
+// protetor para com `protector_non_magnet` em vez de gastar saltos.
+const isNonMagnetTarget = b64DataLinkIsHttp;
+
 const extractMagnet = createMagnetExtractor({
   decodeEntities,
   encodedVariants: true,
@@ -386,5 +390,5 @@ export {
   createParseDownloadLinks, parseDownloadLinks, extractMovieLinks, decodeDataU,
   seriesSeasonInternalUrl, parseSeasonInternal, filterSeasonCards, extractBatchTitle,
   normalizeEpisodeMarkup, isWatchAnchor,
-  cleanMarkTitle, releaseTitle, createVacaSearchPageHtml, searchPageHtml, scoreLink,
+  cleanMarkTitle, releaseTitle, createVacaSearchPageHtml, searchPageHtml, scoreLink, isNonMagnetTarget,
 };
