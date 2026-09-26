@@ -11,10 +11,13 @@ import type * as log from '../utils/logger.js';
 import type * as autofetch from '../providers/autofetch.js';
 import type * as autofetchRunner from '../providers/autofetch-runner.js';
 import type * as autofetchLive from '../utils/autofetch-live.js';
+import type * as autofetchSuppressed from '../providers/autofetch-suppressed.js';
 import type * as releaseIndex from '../utils/release-index.js';
 import type harvester from '../providers/harvester.js';
 import type * as harvesterLive from '../utils/harvester-live.js';
+import type * as harvesterDebrid from '../utils/harvester-debrid-live.js';
 import type * as magnetdb from '../utils/magnetdb.js';
+import type * as magnetBank from '../utils/magnet-bank.js';
 import type * as brResolvers from '../br-resolvers.js';
 import type * as providers from '../providers/index.js';
 import type * as debridCommon from '../debrid/common.js';
@@ -27,7 +30,10 @@ import type rdWarmer from '../providers/rd-warmer.js';
 
 export type GateAdmission =
   | { ok: true; release: () => void }
-  | { ok: false; status: number; error: string };
+  // `reason` acompanha a recusa para o cliente não ter que casar o TEXTO (que
+  // é parametrizável por chamador). Opcional: gates de teste que devolvem só
+  // `{ok,status,error}` continuam válidos.
+  | { ok: false; status: number; error: string; reason?: 'rate' | 'busy' };
 
 export type DiagnosticGate = ReturnType<typeof createDiagnosticGate>;
 
@@ -45,10 +51,13 @@ export interface AppServices {
   autofetch: typeof autofetch;
   autofetchRunner: typeof autofetchRunner;
   autofetchLive: typeof autofetchLive;
+  autofetchSuppressed: typeof autofetchSuppressed;
   releaseIndex: typeof releaseIndex;
   harvester: typeof harvester;
   harvesterLive: typeof harvesterLive;
+  harvesterDebrid: typeof harvesterDebrid;
   magnetdb: typeof magnetdb;
+  magnetBank: typeof magnetBank;
   brResolvers: typeof brResolvers;
   providers: typeof providers;
   debridCommon: typeof debridCommon;

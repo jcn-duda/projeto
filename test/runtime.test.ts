@@ -282,9 +282,16 @@ test('normalize le p com `+`/virgula e expande jackett+torrentio', () => {
 test('defaults() adiciona o pool do Torrentio a base real e o isola no demo', () => {
   const origProvider = config.provider;
   const origEnabled = config.torrentio.enabled;
+  const origDefaultOn = config.torrentio.defaultOn;
   try {
+    // Padrão do operador (2026-09-24): a fonte existe, mas a instalação nova
+    // nasce sem ela — o toggle da página liga.
     config.provider = 'jackett';
     config.torrentio.enabled = true;
+    config.torrentio.defaultOn = false;
+    assert.deepEqual(defaults().providers, ['jackett'], 'TORRENTIO_DEFAULT=false deixa o pool fora do padrao');
+
+    config.torrentio.defaultOn = true;
     assert.deepEqual(defaults().providers, ['jackett', 'torrentio'], 'busca real ganha o pool por padrao');
 
     config.provider = 'both';
@@ -305,5 +312,6 @@ test('defaults() adiciona o pool do Torrentio a base real e o isola no demo', ()
   } finally {
     config.provider = origProvider;
     config.torrentio.enabled = origEnabled;
+    config.torrentio.defaultOn = origDefaultOn;
   }
 });

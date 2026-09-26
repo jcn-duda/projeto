@@ -30,8 +30,13 @@ só log.
    não reenfileira a mesma cabeça a cada recheck (bug do giro infinito).
 3. `torrentStatus` honesto por serviço: Premiumize (heurística), TorBox
    (`download_state === "stalled"`), AllDebrid/RD/DL (sem `stalled`).
-4. Teto `DEBRID_AUTO_FETCH_MAX` (1..4) com vaga por candidato compartilhada
-   entre os passes (`acquireSearchSlot`).
+4. Teto `DEBRID_AUTO_FETCH_MAX` (1..12) com vaga por candidato compartilhada
+   entre os passes (`acquireSearchSlot`); pool `br` cobre por qualidade-alvo
+   (1×720 + 1×1080 + 1×4K), não por "já tem algum BR".
+5. Pool seeds (`autoFetchTopSeedsMax` 1..4) **não** some quando
+   `autoFetchAnyDubbed=false` — cascata `br > any > seeds`.
+6. Orçamento cheio devolve a cabeça à frente (`[next, ...remaining]`) e pausa
+   com backoff; falha de `torrentStatus` **não** zera streak.
 
 ## Contrato de saída (auditoria)
 

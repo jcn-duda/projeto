@@ -25,7 +25,10 @@ import config from '../config.js';
 import * as cache from '../utils/cache.js';
 import { prefix } from '../utils/cache-keys.js';
 import * as metrics from '../utils/metrics.js';
+import * as log from '../utils/logger.js';
 import { brOriginMark } from '../utils/br-origin.js';
+import { peek as inventoryMemoPeek, forget as inventoryMemoForget } from './inventory-memo.js';
+import { id as adapterId } from './alldebrid-api.js';
 
 const adrmPrefix = prefix('adrm');
 
@@ -58,13 +61,21 @@ function reuploadBlocked(account: string, hash: string): boolean {
 
 /**
  * Marca o hash como "apagado de propósito, não re-subir". Só chamado de
- * pontos de deleção INTENCIONAL (sweepUndubbed, catálogo/painel) e só com o
- * hash que saiu de verdade da conta — falha de delete não marca (o magnet
- * continua lá, e o marcador o esconderia da checagem à toa). Idempotente:
- * remarcar renova o TTL. Devolve true quando o registro foi gravado — false
- * nos no-ops (kill-switch, hash vazio) e na blindagem de origem BR.
+ * pontos de deleção INTENCIONAL (sweepUndubbed, evict, reconcile, catálogo/
+ * painel) e só com o hash que saiu de verdade da conta — falha de delete não
+ * marca (o magnet continua lá, e o marcador o esconderia da checagem à toa).
+ * Idempotente: remarcar renova o TTL. Devolve true quando o registro foi
+ * gravado — false nos no-ops (kill-switch, hash vazio) e na blindagem de
+ * origem BR.
+ *
+ * Com `apiKey` presente (os chamadores PRODUTIVOS passam; os antigos de teste
+ * podem omitir), a gravação bem-sucedida INVALIDA o hash no memo dinv: a
+ * conta acabou de perder o magnet, e um memo stale com o hash "pronto"
+ * destravaria a marca na busca seguinte (o H1 — a prova do inventário só é
+ * válida enquanto o hash está de fato lá). Falha da marca (blindagem BR,
+ * kill-switch) NÃO invalida: nada saiu de propósito.
  */
-function markReuploadBlocked(account: string, hash: string, filename?: string): boolean {
+function markReuploadBlocked(account: string, hash: string, filename?: string, apiKey?: string): boolean {
   if (!enabled() || !account) return false;
   const h = String(hash || '').toLowerCase();
   if (!h) return false;
@@ -79,6 +90,9 @@ function markReuploadBlocked(account: string, hash: string, filename?: string): 
   const nome = String(filename || '').trim();
   if (nome) registro.name = nome.slice(0, 160);
   cache.set(key(account, h), registro, Math.floor(config.debrid.alldebridReuploadBlockTtlMs / 1000));
+  // Memo dinv não pode sobreviver à deleção: hash "pronto" no memo com o
+  // magnet já fora da conta é a prova falsa que o H1 fecha aqui mesmo.
+  if (apiKey) inventoryMemoForget(adapterId, apiKey, h);
   metrics.count('debrid.reupload.marked');
   return true;
 }
@@ -89,6 +103,33 @@ function forgetReuploadBlock(account: string, hash: string): void {
   const h = String(hash || '').toLowerCase();
   if (!h) return;
   cache.forget(key(account, h));
+}
+
+/**
+ * Destrava o marcador quando o hash bloqueado reaparece PRONTO no memo do
+ * inventário da conta (`dinv`, leitura síncrona via cache.get — zero rede,
+ * zero in-flight). O `adrm` diz "apagado de propósito, não RE-SUBIR"; quando a
+ * conta prova que o hash voltou a estar pronto (reciclagem, re-add do usuário,
+ * outro caminho), a razão da marca deixou de existir — e mantê-la esconderia
+ * para sempre um ⚡ real da checagem e do chupim.
+ *
+ * Métrica e log ficam aqui para que os dois caminhos (checagem e enqueue)
+ * registrem EXATAMENTE uma vez por hash destravado. O expurgo usa a MESMA
+ * `forgetReuploadBlock` da deleção intencional. Adaptador não-AllDebrid não
+ * tem quem marque — memo vazio/frio devolve null e o hash segue bloqueado
+ * (falha ao provar NUNCA destrava).
+ */
+function unblockIfInventoryReady(apiKey: string, account: string, hash: string): boolean {
+  const h = String(hash || '').toLowerCase();
+  if (!h || !reuploadBlocked(account, h)) return false;
+  const memo = inventoryMemoPeek(adapterId, apiKey);
+  if (!Array.isArray(memo)) return false;
+  const pronto = memo.some((item) => String(item?.infoHash || '').toLowerCase() === h);
+  if (!pronto) return false;
+  forgetReuploadBlock(account, h);
+  metrics.count('debrid.reupload.unblockedByInventory');
+  log.info(`[alldebrid] unblockedByInventory ${h.slice(0, 8)}… pronto no inventário da conta: marca adrm removida`);
+  return true;
 }
 
 /**
@@ -112,4 +153,10 @@ function filterReuploadBlocked(account: string, hashes: string[]): { send: strin
   return { send, blocked };
 }
 
-export { reuploadBlocked, markReuploadBlocked, forgetReuploadBlock, filterReuploadBlocked };
+export {
+  reuploadBlocked,
+  markReuploadBlocked,
+  forgetReuploadBlock,
+  filterReuploadBlocked,
+  unblockIfInventoryReady,
+};

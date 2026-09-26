@@ -83,13 +83,13 @@ async function checkRoutes() {
 }
 
 function inspect(streams: any[]) {
-  const titles = streams.map((s: any) => String(s.title || ''));
   return {
     total: streams.length,
-    // As fontes BR são reconhecíveis pelo indexer no rodapé do título (a 2ª
-    // linha, formato "👤 seeds 💾 tamanho ⚙️ Indexer ..."), ou pelo rótulo
-    // antigo "bludv/comando" na 1ª linha.
-    br: titles.filter((t: string) => /bludv|comando|nerdfilmes|torrentdosfilmes|redetorrent|apachetorrent|hdrtorrent/i.test(t)).length,
+    // O selo `BR` no `name` é o que o addon marca (`_br`): cobre site BR,
+    // dublado da conta (AllDebrid), Vaca e dublado em tracker global. Casar
+    // nome de site no título deixava esses de fora — o Shawshank tinha 7 BR e
+    // o smoke contava 0.
+    br: streams.filter((s: any) => /\bBR\b/.test(String(s.name || ''))).length,
     cacheados: streams.filter((s: any) => String(s.name || '').includes('⚡')).length,
     viaDebrid: streams.filter((s: any) => s.url).length,
     p2p: streams.filter((s: any) => s.infoHash).length,
@@ -175,11 +175,16 @@ async function checkUserConfig() {
   // Filtro de qualidade.
   const only4k = encode({ q: '2160p' });
   const c = await get(`/${only4k}/stream/movie/tt7286456.json`);
-  const titles = (c.body?.streams || []).map((s: any) => String(s.title));
+  const streams4k = (c.body?.streams || []) as any[];
+  // BR sem resolução passa de propósito (`passesQualityFilter`): site BR não
+  // publica resolução, e o balde `qn` é quem decide. Qualquer outra resolução
+  // declarada no selo reprova.
+  const brSemResolucao = (s: any) => /\bBR\b/.test(String(s.name || ''))
+    && !/\b(2160p|4K|1080p|720p|480p|SD)\b/i.test(String(s.name || ''));
   ok(
     'config "só 2160p" filtrou',
-    titles.length === 0 || titles.every((t: string) => /2160p|4k|uhd/i.test(t)),
-    `${titles.length} stream(s)`,
+    streams4k.every((s: any) => /2160p|4k|uhd/i.test(String(s.title)) || brSemResolucao(s)),
+    `${streams4k.length} stream(s)`,
   );
 }
 

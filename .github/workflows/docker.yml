@@ -1,12 +1,12 @@
-# O Dockerfile copia resolvers e definitions por caminho individual
-# (bludv-resolver/server.js, jackett-bludv/*.yml, scripts/entrypoint.sh). A
+# O Dockerfile copia o núcleo resolvers/, todos os *-resolver/ e definitions. A
 # suíte Node não percebe um caminho quebrado: renomear um arquivo passa verde no
 # CI e só falha no deploy. Este workflow existe só para quebrar antes disso.
 #
 # Os filtros de caminho espelham a lista de COPY do Dockerfile: src/, types/ e
-# scripts/ alimentam o builder (tsc), e cada server.js/package.json de resolver
-# entra na imagem de runtime. Mudança em qualquer um deles sem estar aqui é
-# alteração de imagem que o workflow nunca vê.
+# scripts/ alimentam o builder (tsc), e os diretórios de resolvers
+# entram na imagem de runtime. .dockerignore também afeta esses COPYs.
+# Mudança em qualquer um deles sem estar aqui é alteração de imagem que o
+# workflow nunca vê.
 #
 # Workflow separado, e não um job no ci.yml, porque o filtro de caminho é por
 # workflow. Rodar isto em todo push custaria caro à toa: o build completo faz
@@ -18,41 +18,35 @@ on:
     paths:
       - 'Dockerfile'
       - 'docker-compose.yml'
+      - '.dockerignore'
       - 'scripts/**'
       - 'src/**'
       - 'types/**'
       - 'jackett-bludv/**'
-      - 'bludv-resolver/server.js'
-      - 'bludv-resolver/package.json'
-      - 'comandotorrents-resolver/server.js'
-      - 'comandotorrents-resolver/package.json'
-      - 'nerdfilmes-resolver/server.js'
-      - 'nerdfilmes-resolver/package.json'
-      - 'torrentdosfilmes-resolver/server.js'
-      - 'torrentdosfilmes-resolver/package.json'
+      - 'resolvers/**'
+      - '*-resolver/**'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'
+      - 'tsconfig.client.json'
+      - 'tsconfig.client.test.json'
       - '.github/workflows/docker.yml'
   pull_request:
     paths:
       - 'Dockerfile'
       - 'docker-compose.yml'
+      - '.dockerignore'
       - 'scripts/**'
       - 'src/**'
       - 'types/**'
       - 'jackett-bludv/**'
-      - 'bludv-resolver/server.js'
-      - 'bludv-resolver/package.json'
-      - 'comandotorrents-resolver/server.js'
-      - 'comandotorrents-resolver/package.json'
-      - 'nerdfilmes-resolver/server.js'
-      - 'nerdfilmes-resolver/package.json'
-      - 'torrentdosfilmes-resolver/server.js'
-      - 'torrentdosfilmes-resolver/package.json'
+      - 'resolvers/**'
+      - '*-resolver/**'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'
+      - 'tsconfig.client.json'
+      - 'tsconfig.client.test.json'
       - '.github/workflows/docker.yml'
   workflow_dispatch:
 
@@ -63,12 +57,33 @@ jobs:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
 
+      # O build baixa quatro imagens base, e o lscr.io (Jackett) recusa com
+      # `toomanyrequests` em rajada — limite do registro, não defeito nosso.
+      # Reprovou o commit três vezes em 2026-09 (19, 20 e 24) com o MESMO
+      # digest passando em outra execução, então a primeira tentativa não
+      # derruba o job: só a segunda decide.
       - name: Construir imagem sem publicar
+        id: build
+        continue-on-error: true
         uses: docker/build-push-action@v6
         with:
           context: .
           # Sem push e sem load: o objetivo é provar que o build passa. Carregar
           # a imagem no daemon só gastaria tempo e disco do runner.
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Esperar o limite do registro ceder
+        if: steps.build.outcome == 'failure'
+        run: sleep 60
+
+      # Segunda tentativa SEM `continue-on-error`: falha aqui reprova o job.
+      - name: Construir imagem sem publicar (2ª tentativa)
+        if: steps.build.outcome == 'failure'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max

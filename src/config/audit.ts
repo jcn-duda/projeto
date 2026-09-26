@@ -1,5 +1,10 @@
 import { list, num } from './helpers.js';
 
+// Espelho do banco de magnets vivo. A definição é UMA só (em `cache.ts`), e o
+// reexport existe para quem lê a auditoria de evidências (lie/TTLs) encontrar
+// o knob no mesmo lugar: duplicar aqui divergiria silenciosamente do `cache.ts`.
+export { magnetBank } from './cache.js';
+
 // Fábricas (não objetos prontos): módulo ESM é cacheado, e cada re-avaliação
 // do compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
 // process.env — a chamada re-executa, o objeto de módulo não.
@@ -32,8 +37,13 @@ export const audioAudit = () => ({
     process.env.AUDIO_AUDIT_EN_GROUPS ||
       // amzn/dsnp/smi saíram: são plataformas de streaming (Amazon, Disney+,
       // Showtime), presentes em release dublada e legenda igualmente — só
-      // grupo de CENA prova idioma do conteúdo.
-      'rarbg,killers,ettv,afm72,tovar,evo,megusta,galaxyrg,glxrc,yts,fgt,ntb,roarb,oxy,bae,drs,huzzah',
+      // grupo de CENA prova idioma do conteúdo. `tgx` (TorrentGalaxy) e `ethel`
+      // entraram medidos no magnets.db (2026-09-24): 11 espelhos EN de site BR
+      // perdem o selo, nenhum dn/lie muda, e os 129 com sinal PT seguem BR.
+      // `yify` (nome antigo do YTS) medido em 2026-09-25: 262 releases, 57 BR
+      // — espelhos do Rede Torrent ("Coyote Ugly 2000 1080p BluRay x264
+      // YIFY"); os 18 com sinal PT são posts LEGENDADO, sem yify no título.
+      'rarbg,killers,ettv,afm72,tovar,evo,megusta,galaxyrg,glxrc,yts,fgt,ntb,roarb,oxy,bae,drs,huzzah,tgx,ethel,yify',
   ),
 });
 

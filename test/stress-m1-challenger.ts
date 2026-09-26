@@ -1,53 +1,42 @@
 import assert from 'node:assert/strict';
-import path from 'node:path';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
 
-const _require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { createResolver as createBludvResolver } from '../resolvers/profiles/bludv.js';
+import { createResolver as createComandotorrentsResolver } from '../resolvers/profiles/comandotorrents.js';
+import { createResolver as createNerdfilmesResolver } from '../resolvers/profiles/nerdfilmes.js';
+import { createResolver as createTorrentdosfilmesResolver } from '../resolvers/profiles/torrentdosfilmes.js';
 
-// Helper to fresh-require a resolver module with specific environment variables
-function loadResolverWithEnv(resolverName: string, envOverrides: Record<string, string | undefined | null> = {}) {
-  const originalEnv = { ...process.env };
-  const modulePath = path.resolve(__dirname, `../${resolverName}-resolver/server.js`);
+/** Contrato mínimo consumido pelos cenários deste harness. */
+type LoadedResolver = {
+  isDetailHost(host: string | null | undefined): boolean;
+  assertAllowedUrl(url: string): URL;
+  isProtectorHost(host: string): boolean;
+  nextProtectedUrl(html: string, baseUrl: string): string | null;
+  getPostLinks(url: string): Promise<{ links: Array<unknown> }>;
+  postCache?: { clear(): void; size: number };
+  inFlight?: { clear(): void; size: number };
+};
 
-  // Delete cache
-  delete _require.cache[_require.resolve(modulePath)];
+const PROFILES: Record<string, (overrides?: Record<string, unknown>) => LoadedResolver> = {
+  bludv: createBludvResolver,
+  comandotorrents: createComandotorrentsResolver,
+  nerdfilmes: createNerdfilmesResolver,
+  torrentdosfilmes: createTorrentdosfilmesResolver,
+};
 
-  // Apply env overrides
-  for (const [k, v] of Object.entries(envOverrides)) {
-    if (v === undefined || v === null) {
-      delete process.env[k];
-    } else {
-      process.env[k] = v;
-    }
-  }
-
-  let mod;
-  try {
-    mod = _require(modulePath);
-  } finally {
-    // Restore process.env
-    for (const k of Object.keys(process.env)) {
-      if (!(k in originalEnv)) delete process.env[k];
-    }
-    for (const [k, v] of Object.entries(originalEnv)) {
-      process.env[k] = v;
-    }
-    // Delete cache again so subsequent default requires are clean
-    delete _require.cache[_require.resolve(modulePath)];
-  }
-
-  return mod;
+// Cada cenário constrói uma instância NOVA do profile com configuração
+// explícita. Sem mutar process.env e sem reload de módulo: duas instâncias do
+// mesmo resolver não compartilham cache nem seletores, e o isolamento do
+// harness não depende mais de cache-busting.
+function loadResolver(resolverName: string, overrides: Record<string, unknown> = {}) {
+  return PROFILES[resolverName](overrides);
 }
 
-interface TestResult {
-  suite: string;
-  name: string;
-  status: 'PASS' | 'FAIL';
-  error?: string;
-  stack?: string;
+/** Mesmo parse do EXTRA_ALLOWED_PROTECTORS: trim, minúsculas, vazios fora. */
+function parseExtra(value: string) {
+  return String(value || '').split(',').map((entry) => entry.trim().toLowerCase()).filter(Boolean);
 }
+
+interface TestResult { suite: string; name: string; status: "PASS" | "FAIL"; error?: string; stack?: string; }
 const results: TestResult[] = [];
 
 function runTest(suite: any, name: any, fn: any) {
@@ -87,7 +76,7 @@ async function main() {
   for (const r of RESOLVERS) {
     runTest('Suite 1: Dynamic Overrides', `${r}: aceita SITE_URL dinâmico customizado`, () => {
       const customUrl = `https://custom-mirror-${r}.online`;
-      const mod = loadResolverWithEnv(r, { SITE_URL: customUrl });
+      const mod = loadResolver(r, { siteUrl: customUrl });
 
       assert.equal(mod.isDetailHost(`custom-mirror-${r}.online`), true);
       assert.equal(mod.isDetailHost(`sub.custom-mirror-${r}.online`), true);
@@ -96,7 +85,7 @@ async function main() {
     });
 
     runTest('Suite 1: Dynamic Overrides', `${r}: preserva fallbacks históricos mesmo com SITE_URL customizado`, () => {
-      const mod = loadResolverWithEnv(r, { SITE_URL: 'https://new-mirror.cc' });
+      const mod = loadResolver(r, { siteUrl: 'https://new-mirror.cc' });
 
       if (r === 'bludv') {
         assert.equal(mod.isDetailHost('bludvfilmes.xyz'), true);
@@ -114,10 +103,9 @@ async function main() {
       }
     });
 
-    runTest('Suite 1: Dynamic Overrides', `${r}: respeita env específico (${r.toUpperCase()}_URL)`, () => {
-      const specificEnvKey = `${r.toUpperCase()}_URL`;
+    runTest('Suite 1: Dynamic Overrides', `${r}: respeita o siteUrl específico do perfil`, () => {
       const specificUrl = `https://specific-${r}.org`;
-      const mod = loadResolverWithEnv(r, { [specificEnvKey]: specificUrl, SITE_URL: undefined });
+      const mod = loadResolver(r, { siteUrl: specificUrl });
 
       assert.equal(mod.isDetailHost(`specific-${r}.org`), true);
       assert.equal(mod.isDetailHost(`www.specific-${r}.org`), true);
@@ -131,7 +119,7 @@ async function main() {
   console.log('\n--- Suite 2: Subdomain Matching Across All Resolvers ---');
 
   for (const r of RESOLVERS) {
-    const mod = loadResolverWithEnv(r, {});
+    const mod = loadResolver(r, {});
 
     runTest('Suite 2: Subdomain Matching', `${r}: aceita subdomínios simples (www., m., sub.)`, () => {
       if (r === 'bludv') {
@@ -173,7 +161,7 @@ async function main() {
   console.log('\n--- Suite 3: SSRF & Malicious Input Vectors Stress Test ---');
 
   for (const r of RESOLVERS) {
-    const mod = loadResolverWithEnv(r, {});
+    const mod = loadResolver(r, {});
 
     const ssrfVectors = [
       { name: 'localhost with port', url: 'http://localhost:8080/evil', expectedErr: /blocked_host/ },
@@ -240,7 +228,7 @@ async function main() {
   for (const r of RESOLVERS) {
     runTest('Suite 4: Extra Protectors', `${r}: faz parse de múltiplos protetores com espaços, maiúsculas e vírgulas extras`, () => {
       const extra = '   protector-one.com  ,  ,  PROTECTOR-TWO.NET , \t , sub.protector-three.org \n , ';
-      const mod = loadResolverWithEnv(r, { EXTRA_ALLOWED_PROTECTORS: extra });
+      const mod = loadResolver(r, { extraProtectors: parseExtra(extra) });
 
       // Protetores customizados devem ser aceitos em assertAllowedUrl
       assert.doesNotThrow(() => mod.assertAllowedUrl('https://protector-one.com/link/123'));
@@ -265,7 +253,7 @@ async function main() {
 
     runTest('Suite 4: Extra Protectors', `${r}: trata EXTRA_ALLOWED_PROTECTORS vazio, whitespace ou inexistente`, () => {
       for (const emptyVal of ['', '   ', ' \t\n ', ',,,,']) {
-        const mod = loadResolverWithEnv(r, { EXTRA_ALLOWED_PROTECTORS: emptyVal });
+        const mod = loadResolver(r, { extraProtectors: parseExtra(emptyVal) });
         // Protetores base ainda funcionam
         assert.equal(mod.isProtectorHost('systemads1.com'), true);
         assert.equal(mod.isProtectorHost('videosad.net'), true);
@@ -277,7 +265,7 @@ async function main() {
 
     runTest('Suite 4: Extra Protectors', `${r}: nextProtectedUrl extrai links apontando para protetores extras`, () => {
       const extra = 'new-safe-protector.com';
-      const mod = loadResolverWithEnv(r, { EXTRA_ALLOWED_PROTECTORS: extra });
+      const mod = loadResolver(r, { extraProtectors: parseExtra(extra) });
 
       const base = 'https://systemads1.com/step1';
       const htmlJs = '<script>var DEST_URL = "https://new-safe-protector.com/step2";</script>';
@@ -299,7 +287,7 @@ async function main() {
 
   for (const r of ['bludv', 'comandotorrents', 'torrentdosfilmes']) {
     await runAsyncTest('Suite 5: Concurrency Coalescing', `${r}: 50 requisições simultâneas disparam exatamente 1 fetch`, async () => {
-      const mod = loadResolverWithEnv(r, {});
+      const mod = loadResolver(r, {});
       if (mod.postCache) mod.postCache.clear();
       if (mod.inFlight) mod.inFlight.clear();
 
@@ -338,7 +326,7 @@ async function main() {
           assert.ok(res.links);
           assert.equal(res.links.length, 1);
         }
-        assert.equal(mod.inFlight.size, 0, 'inFlight deve estar vazio após conclusão');
+        assert.equal(mod.inFlight?.size, 0, 'inFlight deve estar vazio após conclusão');
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -352,7 +340,7 @@ async function main() {
 
   for (const r of RESOLVERS) {
     await runAsyncTest('Suite 6: Resilience', `${r}: getPostLinks propaga erro HTTP sem corromper estado ou inFlight`, async () => {
-      const mod = loadResolverWithEnv(r, {});
+      const mod = loadResolver(r, {});
       if (mod.postCache) mod.postCache.clear();
       if (mod.inFlight) mod.inFlight.clear();
 

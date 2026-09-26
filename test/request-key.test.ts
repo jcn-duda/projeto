@@ -13,15 +13,21 @@ test('streamsCacheKey isola contas de debrid sem expor a API key', () => {
   assert.equal(alice.includes('alice-secret'), false);
   assert.equal(bob.includes('bob-secret'), false);
   assert.equal(alice, streamsCacheKey('movie', 'tt123', { ...base, debridApiKey: 'alice-secret' }));
-  assert.equal(alice.startsWith('streams:v7:'), true);
+  assert.equal(alice.startsWith('streams:v20:'), true);
 });
 
-test('bump de matching invalida streams e idx (v7): mudança de evitamento BR/DUB exige limpeza global', () => {
-  // A correção BR_MARK (.org genérico) e DUB/HINDI muda matching/ranking; o
-  // AGENTS.md manda invalidar streams+idx juntos. Fixa a versão corrente dos
-  // dois nomespações para o bump não passar despercebido num próximo deploy.
-  assert.equal(prefix('streams'), 'streams:v7:');
-  assert.equal(prefix('idx'), 'idx:v7:');
+test('versões correntes separam lista v20 do índice v13', () => {
+  // A correção BR_MARK (.org genérico), DUB/HINDI e a fronteira `bthd` mudam
+  // matching/ranking; o AGENTS.md manda invalidar streams+idx juntos. v11: a
+  // guarda do rutracker passa a aceitar FAIXA de anos (`[1999-2003, …] Dub`),
+  // mesma classe do Coyote Ugly — o índice persiste `dubbed`/`isBr` OR-aderente
+  // e não se corrigiria só com o reboot. A lista está em v16 pelo MESMO
+  // conserto (v15 foi o overlay Jev gateado, que muda `_br`/`_dubbed` da lista);
+  // o idx bumpa agora porque a classificação determinística dele mudou.
+  // v17/v12: `seleZen` (DUB russo) entrou na mesma guarda. v18/v13: `LAT.DUB`
+  // e o espelho de cena EN publicado por site BR. v19: tgx/ethel nos grupos EN. v20: yify.
+  assert.equal(prefix('streams'), 'streams:v20:');
+  assert.equal(prefix('idx'), 'idx:v13:');
 });
 
 test('streamsCacheKey preserva a separação por conteúdo e por modo sem conta', () => {

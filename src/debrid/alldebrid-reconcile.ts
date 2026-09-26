@@ -22,7 +22,16 @@
 //      API manda uploadDate em segundos; o `magnetList` já normaliza para ms,
 //      então a comparação é direta em ms.)
 //   6. Nunca hash que ESTA busca consultou (o upload da própria checagem).
-//   7. Mais antigos primeiro (uploadDate crescente); teto por rodada.
+//   7. Piso de idade: só elegível se `Date.now() - uploadDate` já passou de
+//      `DEBRID_RECONCILE_MIN_AGE_MS`. O incidente medido: um pack que o
+//      autofetch terminou de baixar MINUTOS antes foi apagado — conteúdo
+//      recém-esquentado é caro e não é resíduo. Candidato pulado por aqui
+//      conta `debrid.reconcile.skippedAge` (por candidato).
+//   8. Piso de ocupação: `ocupação <= DEBRID_RECONCILE_FLOOR` faz a rodada
+//      INTEIRA desistir (`debrid.reconcile.skippedFloor`, uma vez por rodada)
+//      — sem pressão de espaço, varrer só destrói acervo aquecido. 0 no knob
+//      desliga o piso.
+//   9. Mais antigos primeiro (uploadDate crescente); teto por rodada.
 //
 // Segurança (as mesmas lições do evictor 8.16): fire-and-forget TOTAL, zero
 // await de rede no caminho da resposta; escopo B-2 — só a conta do operador;
@@ -125,6 +134,16 @@ async function runReconcile(apiKey: string, account: string, atuais: Set<string>
   // filename (para o adrm) e uploadDate (para a idade e o anti-re-add).
   const conta: AllDebridMagnetRow[] = await magnetList(apiKey);
   const margem = config.debrid.reconcileAgeMarginMs;
+  const minAge = config.debrid.reconcileMinAgeMs;
+  const agora = Date.now();
+
+  // Piso de ocupação ANTES de montar a seleção: conta folgada não apaga nada.
+  // Mesma forma do evictor por busca (`harvestEvictFloor`); `floor <= 0` deixa o
+  // piso desligado. O contador prova que o gate está vivo sem remover acervo.
+  if (config.debrid.reconcileFloor > 0 && conta.length <= config.debrid.reconcileFloor) {
+    metrics.count('debrid.reconcile.skippedFloor');
+    return;
+  }
 
   const elegiveis = conta.filter((m) => {
     const hash = String(m.hash || '').toLowerCase();
@@ -140,6 +159,14 @@ async function runReconcile(apiKey: string, account: string, atuais: Set<string>
     // usuário — NUNCA remove (N3). A margem cobre defasagem de relógio entre
     // a AllDebrid e este processo.
     if (m.uploadDate > posse + margem) return false;
+    // Piso de idade: por último, para contar skippedAge só no que passou por
+    // TODAS as demais regras (candidato real barrado pela idade, não ruído que
+    // já ia sair por outro motivo). `minAge = 0` restaura o comportamento
+    // anterior — `. < 0` só casa upload no futuro, que o anti-re-add já cobre.
+    if (agora - m.uploadDate < minAge) {
+      metrics.count('debrid.reconcile.skippedAge');
+      return false;
+    }
     return true;
   });
 
@@ -169,7 +196,7 @@ async function runReconcile(apiKey: string, account: string, atuais: Set<string>
   for (const rid of removedIds || []) {
     const m = porId.get(String(rid));
     if (!m) continue;
-    if (markReuploadBlocked(account, m.hash, m.filename)) marcados += 1;
+    if (markReuploadBlocked(account, m.hash, m.filename, apiKey)) marcados += 1;
     forgetSubmitted(account, m.hash);
     purgados += 1;
   }

@@ -1,0 +1,359 @@
+// --- Cascata de queries BR: variante numérica e degrau sem ano ---
+//
+// Sites BR indexam por título em português, e o algarismo importa: o pt-BR
+// romano ("Jornada nas Estrelas II") não casa com a release publicada com
+// algarismo arábico ("Jornada nas Estrelas 2"). A cascata tenta primária →
+// variante numérica → título sem ano → fallback original, com dedupe pós-shape
+// e orçamento de tempo respeitado.
+import { test } from 'node:test';
+import assert from 'node:assert';
+
+import jackett from '../src/providers/jackett.js';
+import config from '../src/config.js';
+import { fakeResponse, makeFetch, withJackett } from './helpers/jackett-fetch.js';
+
+// jackett.search(query, type, indexers, { fallbackQuery, matchContext }) é o
+// caminho real da busca, testado com fetch falso: config e fetch global são
+// trocados e restaurados em finally. Sem rede, sem servidor.
+
+const HASH = 'a'.repeat(40);
+const MAGNET = 'magnet:?xt=urn:btih:' + HASH + '&dn=Release';
+
+// Contexto do caso de recall BR (tt0084726): pt-BR romano é o que o addon
+// busca de verdade; a release BR "numerada" usa o algarismo arábico.
+const TREK_CTX = {
+  names: ['Jornada nas Estrelas II: A Ira de Khan', 'Star Trek II: The Wrath of Khan'],
+  year: 1982,
+  isSeries: false,
+  season: null,
+  episode: null,
+};
+const TREK_PT = 'Jornada nas Estrelas II: A Ira de Khan 1982';
+const TREK_VARIANT = 'Jornada nas Estrelas 2: A Ira de Khan 1982';
+const TREK_BARE = 'Jornada nas Estrelas II: A Ira de Khan';
+
+test('tt0084726: variante numérica recupera release BR publicada com algarismo arábico', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      // Query primária em romano: WP devolve 0 (posts de outro filme não casam
+      // "Ii" com "2"); só a variante arábica traz a release dublada.
+      if (query === TREK_PT) return fakeResponse({ Results: [] });
+      if (query === TREK_VARIANT) {
+        return fakeResponse({ Results: [
+          { Title: 'Jornada nas Estrelas 2 A Ira de Khan 1982 DUBLADO 720p', Seeders: 2, MagnetUri: MAGNET },
+        ] });
+      }
+      return fakeResponse({ Results: [] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+      variantQuery: TREK_VARIANT,
+      matchContext: TREK_CTX,
+    });
+    assert.ok(['Jornada nas Estrelas II: A Ira de Khan 1982', TREK_VARIANT].every(
+      (q) => fetchImpl.searchCalls().includes(q),
+    ), `cadeia deveria seguir primary -> variante, viu ${fetchImpl.searchCalls()}`);
+    assert.equal(items.length, 1);
+    assert.equal(items[0].title, 'Jornada nas Estrelas 2 A Ira de Khan 1982 DUBLADO 720p');
+  });
+});
+
+test('primary relevante NÃO abre variante numérica nem fallback original', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      return fakeResponse({ Results: [
+        { Title: 'Jornada nas Estrelas II A Ira de Khan 1982 Dublado 1080p', Seeders: 5, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+      variantQuery: TREK_VARIANT,
+      fallbackQuery: 'Star Trek II: The Wrath of Khan 1982',
+      matchContext: TREK_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT]);
+    assert.equal(items.length, 1);
+  });
+});
+
+test('variante numérica vazia segue para o fallback original', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      if (query === TREK_PT) return fakeResponse({ Results: [] });
+      if (query === TREK_VARIANT) return fakeResponse({ Results: [] });
+      if (query === TREK_BARE) return fakeResponse({ Results: [] });
+      return fakeResponse({ Results: [
+        { Title: 'Star Trek II: The Wrath of Khan 1982 DUBLADO 1080p', Seeders: 4, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+      variantQuery: TREK_VARIANT,
+      fallbackQuery: 'Star Trek II: The Wrath of Khan 1982',
+      matchContext: TREK_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_VARIANT, TREK_BARE, 'Star Trek II: The Wrath of Khan 1982']);
+    assert.equal(items.length, 1);
+  });
+});
+
+test('título pt-BR com ano zerado cai no degrau sem ano e acha o dublado', async () => {
+  // tt1465522 ao vivo: "Tucker e Dale Contra o Mal 2010" devolve 0 no
+  // comandotorrents e no torrentdosfilmesv2 (o post BR é de 2012), e o mesmo
+  // título sem o ano devolve 1 em cada um.
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      if (query === TREK_BARE) {
+        return fakeResponse({ Results: [
+          { Title: 'Jornada nas Estrelas II: A Ira de Khan 1982 DUBLADO 1080p', Seeders: 4, MagnetUri: MAGNET },
+        ] });
+      }
+      return fakeResponse({ Results: [] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['comandotorrents'], {
+      matchContext: TREK_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_BARE]);
+    assert.equal(items.length, 1);
+  });
+});
+
+test('prazo esgotado impede a variante numérica (sem chamada extra)', async () => {
+  const fetchImpl = makeFetch();
+  const savedTimeout = config.jackett.brIndexerTimeout;
+  // A primária PRECISA sair; quem não pode sair é o degrau seguinte. Um
+  // orçamento de 1ms fazia disso uma corrida: sob carga o prazo queimava entre
+  // `started` e o check da própria primária, ela lançava `timeout` e o teste
+  // via ZERO chamada. Aqui o orçamento é folgado na entrada (500ms, margem
+  // enorme para o agendamento) e é a RESPOSTA da primária que o consome —
+  // determinístico dos dois lados, sem depender da carga da máquina.
+  config.jackett.brIndexerTimeout = 500;
+  fetchImpl.handler = async (call) => {
+    if (!call.url.includes('/results')) return fakeResponse(null, { status: 404 });
+    // Volta com o prazo já vencido: a cascata exige `remaining > MIN_RESOLVE_BUDGET`.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return fakeResponse({ Results: [] });
+  };
+  try {
+    await withJackett(fetchImpl, async () => {
+      const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+        variantQuery: TREK_VARIANT,
+        fallbackQuery: 'Star Trek II: The Wrath of Khan 1982',
+        matchContext: TREK_CTX,
+      });
+      // Sem orçamento sobrando, a cadeia para na primária: nem variante, nem fallback.
+      assert.deepEqual(items, []);
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT]);
+  } finally {
+    config.jackett.brIndexerTimeout = savedTimeout;
+  }
+});
+
+test('dedupe pós-shape: variante que moldagem reduz ao primário não abre chamada', async () => {
+  // Com um bare-title, "batTitleIndexers" não está em jogo aqui; simulamos duas
+  // queries que moldam para o MESMO texto: a plain primary e uma variante igual.
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) return fakeResponse({ Results: [] });
+    return fakeResponse(null, { status: 404 });
+  };
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+      // Variante é literalmente igual à query já enviada: shapedSeen dedup.
+      variantQuery: TREK_PT,
+      matchContext: TREK_CTX,
+    });
+    // A variante some no dedup; sobra o degrau do título sem ano.
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_BARE]);
+    assert.deepEqual(items, []);
+  });
+});
+
+test('falha HTTP na variante opcional não derruba a primária nem impede fallback original', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      if (query === TREK_PT) return fakeResponse({ Results: [] });
+      if (query === TREK_VARIANT) return fakeResponse(null, { status: 503 });
+      if (query === TREK_BARE) return fakeResponse({ Results: [] });
+      return fakeResponse({ Results: [
+        { Title: 'Star Trek II: The Wrath of Khan 1982 DUBLADO 1080p', Seeders: 4, MagnetUri: MAGNET },
+      ] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+      variantQuery: TREK_VARIANT,
+      fallbackQuery: 'Star Trek II: The Wrath of Khan 1982',
+      matchContext: TREK_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [TREK_PT, TREK_VARIANT, TREK_BARE, 'Star Trek II: The Wrath of Khan 1982']);
+    assert.equal(items.length, 1);
+  });
+});
+
+
+// tt1411697: o WordPress BR devolve lixo para "Se Beber, Nao Case! Parte II
+// 2011" e para a variante "Parte 2"; so a RAIZ "Se Beber, Nao Case!" acha o
+// post da Trilogia (a colecao que contem o dublado da continuacao). A cascata
+// percorre primary -> variante -> sem ano -> raiz da franquia e PARA na raiz —
+// o fallback original EN nao e chamado. O matchContext REAL e o que mantem a
+// cascata viva: cada degrau anterior devolve posts "parecidos" que so o filtro
+// por titulo descarta (sem ele, a primaria ja teria suprimido a cadeia).
+const HANGOVER_CTX = {
+  names: ['Se Beber, Não Case! Parte II', 'The Hangover Part II'],
+  year: 2011,
+  isSeries: false,
+  season: null,
+  episode: null,
+};
+const HANGOVER_PT = 'Se Beber, Não Case! Parte II 2011';
+const HANGOVER_VARIANT = 'Se Beber, Não Case! Parte 2 2011';
+const HANGOVER_ROOT = 'Se Beber, Não Case!';
+
+test('tt1411697: cascata primary -> variante -> sem ano -> raiz da franquia para no post da Trilogia', async () => {
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      // Lixo "parecido" de WordPress: sem o matchContext real, qualquer um
+      // deles passaria por resultado e suprimiria a cascata na primaria.
+      if (query === 'Se Beber, Nao Case! Parte II 2011') {
+        return fakeResponse({ Results: [
+          { Title: 'Missao: Impossivel - Efeito Fallout (2018) DUBLADO 1080p', Seeders: 3, MagnetUri: MAGNET },
+        ] });
+      }
+      if (query === 'Se Beber, Nao Case! Parte 2 2011') {
+        return fakeResponse({ Results: [
+          { Title: 'Fallout 4 (PC) 2015 DUBLADO', Seeders: 2, MagnetUri: MAGNET },
+        ] });
+      }
+      if (query === 'Se Beber, Nao Case! Parte II') {
+        return fakeResponse({ Results: [
+          { Title: 'Cesium Fallout 1080p DUBLADO', Seeders: 1, MagnetUri: MAGNET },
+        ] });
+      }
+      if (query === 'Se Beber, Nao Case!') {
+        return fakeResponse({ Results: [
+          { Title: 'Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio 1080p By-LuaHarper', Seeders: 4, MagnetUri: MAGNET },
+        ] });
+      }
+      return fakeResponse({ Results: [] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(HANGOVER_PT, 'movie', ['bludv-cardigann'], {
+      variantQuery: HANGOVER_VARIANT,
+      franchiseQuery: HANGOVER_ROOT,
+      fallbackQuery: 'The Hangover Part II 2011',
+      matchContext: HANGOVER_CTX,
+    });
+    assert.deepEqual(fetchImpl.searchCalls(), [
+      'Se Beber, Nao Case! Parte II 2011',
+      'Se Beber, Nao Case! Parte 2 2011',
+      'Se Beber, Nao Case! Parte II',
+      'Se Beber, Nao Case!',
+    ]);
+    // A raiz encontrou a Trilogia; o fallback original EN nunca foi chamado
+    // (so as 4 chamadas acima). A cadeia parou por relevancia, nao por vazio.
+    assert.equal(items.length, 1);
+    assert.equal(items[0].title, 'Trilogia - Se Beber, Não Case! (2009-2013) 5.1 BluRay Dual Áudio 1080p By-LuaHarper');
+  });
+});
+
+test('busca primária e cascata em indexer que precisa de resolve protegem MIN_RESOLVE_BUDGET no signal', async () => {
+  const fetchImpl = makeFetch();
+  const timeouts: number[] = [];
+  const originalTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = (ms) => {
+    timeouts.push(ms);
+    return originalTimeout(ms);
+  };
+
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      if (query === TREK_PT) return fakeResponse({ Results: [] });
+      if (query === TREK_VARIANT) {
+        return fakeResponse({ Results: [
+          { Title: 'Jornada nas Estrelas 2 A Ira de Khan 1982 DUBLADO 720p', Seeders: 2, MagnetUri: MAGNET },
+        ] });
+      }
+      return fakeResponse({ Results: [] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  try {
+    await withJackett(fetchImpl, async () => {
+      // bludv-cardigann está em resolveDownloadIndexers
+      const items = await jackett.search(TREK_PT, 'movie', ['bludv-cardigann'], {
+        variantQuery: TREK_VARIANT,
+        matchContext: TREK_CTX,
+      });
+      assert.equal(items.length, 1);
+      assert.equal(timeouts.length, 2);
+      // timeouts[0] é a query primária; timeouts[1] é a cascata (variante).
+      // Em indexadores que resolvem via /dl, tanto a busca primária quanto os
+      // degraus da cascata devem descontar MIN_RESOLVE_BUDGET (400ms) do prazo
+      // restante no AbortSignal.timeout. Assim, mesmo que a resposta do Jackett
+      // demore até o limite do timeout, sobram pelo menos 400ms para
+      // resolveCardigannDownloads extrair os magnets dos protetores.
+      //
+      // Com brIndexerTimeout inicial de 20000ms:
+      // - timeouts[0] (primária) deve ser <= 20000 - 400 = 19600ms
+      // - timeouts[1] (cascata) também reserva MIN_RESOLVE_BUDGET (400ms) sobre o tempo restante
+      const totalBudget = config.jackett.brIndexerTimeout;
+      assert.ok(
+        timeouts[0] <= totalBudget - 400,
+        `primária deveria reservar MIN_RESOLVE_BUDGET (400ms), esperado <= ${totalBudget - 400}ms, viu ${timeouts[0]}ms`,
+      );
+      assert.ok(
+        timeouts[1] <= totalBudget - 400,
+        `degrau de cascata deveria reservar MIN_RESOLVE_BUDGET (400ms), esperado <= ${totalBudget - 400}ms, viu ${timeouts[1]}ms`,
+      );
+
+      // Em indexador que NÃO precisa de resolve (ex.: redetorrent-cardigann),
+      // o orçamento inicial da primária NÃO desconta MIN_RESOLVE_BUDGET:
+      timeouts.length = 0;
+      await jackett.search(TREK_PT, 'movie', ['redetorrent-cardigann'], {
+        matchContext: TREK_CTX,
+      });
+      assert.equal(timeouts.length, 1);
+      assert.ok(
+        timeouts[0] > totalBudget - 400,
+        `indexer sem resolve não deveria reservar 400ms, esperado > ${totalBudget - 400}ms, viu ${timeouts[0]}ms`,
+      );
+    });
+  } finally {
+    AbortSignal.timeout = originalTimeout;
+  }
+});
+
+

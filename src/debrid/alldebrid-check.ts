@@ -4,12 +4,15 @@ import { batched } from './common.js';
 import * as held from './protected.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { call, id } from './alldebrid-api.js';
+import { call, id, magnetFiles } from './alldebrid-api.js';
+import { recordFileSizes } from './file-sizes.js';
 import { preexisting, knownBefore, waitInventory, rememberSubmitted, forgetSubmitted } from './alldebrid-inventory.js';
 import { skipCleanup, deleteMagnets as dropMagnets } from './alldebrid-cleanup.js';
-import { filterReuploadBlocked } from './alldebrid-reupload.js';
+import { raceWithDeadline } from '../utils/deadline.js';
+import { filterReuploadBlocked, unblockIfInventoryReady } from './alldebrid-reupload.js';
 import { scheduleEvict } from './alldebrid-evict.js';
 import { scheduleReconcile } from './alldebrid-reconcile.js';
+import { scheduleSuppressedRevalidate } from './alldebrid-suppressed-revalidate.js';
 
 /**
  * O /magnet/instant foi removido, mas o próprio /magnet/upload responde
@@ -30,7 +33,26 @@ import { scheduleReconcile } from './alldebrid-reconcile.js';
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-export async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
+// Um /magnet/status por pack pronto, em grupos pequenos para não virar rajada
+// contra o limite de requisições da AllDebrid. Falha de um pack não derruba os
+// outros: sem a lista, a listagem cai na estimativa.
+async function readPackFiles(apiKey: string, items: Array<{ magnetId: string | number; hash: string }>) {
+  for (let i = 0; i < items.length; i += 3) {
+    await Promise.allSettled(items.slice(i, i + 3).map(async ({ magnetId, hash }) => {
+      recordFileSizes(hash, await magnetFiles(apiKey, magnetId));
+    }));
+  }
+  metrics.count('debrid.packFiles.read', items.length);
+}
+
+export async function checkCached(
+  apiKey: string,
+  infoHashes: string[],
+  { timeoutMs, fileHashes, fileWaitTimeoutMs }: { timeoutMs?: number; fileHashes?: string[]; fileWaitTimeoutMs?: number } = {},
+) {
+  const startedAt = Date.now();
+  const wantFiles = new Set((fileHashes || []).map((hash) => String(hash).toLowerCase()));
+  const filesToRead: Array<{ magnetId: string | number; hash: string }> = [];
   const dropReady: Array<string | number> = [];
   const dropDownload: Array<string | number> = [];
   // id → hash de cada lista de limpeza: o delete consome id, mas a purga da
@@ -75,9 +97,19 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
   // de cache — vazio conhecido é intencional, o hash foi apagado de propósito —
   // e nunca chega à resposta do upload, portanto não entra em dropReady/
   // dropDownload. Leitura é peek síncrono: zero rede adicional no prazo.
+  //
+  // EXCEÇÃO decisiva: bloqueado que o memo dinv prova estar PRONTO na conta
+  // NÃO vai ao upload, mas é destravado (adrm expurgado) e entra direto no Set
+  // de cache/ready — o ⚡ é real e a razão da marca acabou. Bloqueado AUSENTE
+  // do inventário continua fora de upload e de cache.
   const { send, blocked } = filterReuploadBlocked(account, infoHashes);
-  if (blocked.length) {
-    log.info(`[alldebrid] ${blocked.length} hash(es) bloqueado(s) para re-upload ficam fora da checagem`);
+  const desbloqueados: string[] = [];
+  for (const hash of blocked) {
+    if (unblockIfInventoryReady(apiKey, account, hash)) desbloqueados.push(hash);
+  }
+  const aindaBloqueados = blocked.length - desbloqueados.length;
+  if (aindaBloqueados) {
+    log.info(`[alldebrid] ${aindaBloqueados} hash(es) bloqueado(s) para re-upload ficam fora da checagem`);
   }
 
   const result = await batched(send, config.debrid.batchSize, async (batch: string[], ctx?: { timeoutMs?: number }) => {
@@ -97,6 +129,9 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
         // Ready de hash com registro durável assenta a proteção (noteReady): o
         // ⚡ já existe no serviço. É renovação/confirmação — nunca destrava.
         held.noteReady(id, account, hash);
+        if (magnet.id && wantFiles.has(hash) && filesToRead.length < config.debrid.packFilesPerCheck) {
+          filesToRead.push({ magnetId: magnet.id, hash });
+        }
         // Só entra na limpeza o que o inventário garante não ser do usuário e
         // não está protegido — volátil NEM durável (BR retido no acervo).
         if (config.debrid.dropReady && magnet.id && hash && !skipCleanup(account, hash)) {
@@ -160,8 +195,50 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
       log.info(`[alldebrid] ${ok} magnet(s) ${kind} da checagem removido(s) da conta`);
     });
   };
-  if (config.debrid.dropReady) scheduleDrop(dropReady, 'prontos', readyHashById);
-  if (config.debrid.dropUncached) scheduleDrop(dropDownload, 'downloads', downloadHashById);
+  // A lista de arquivos precisa do `id` do magnet, que some quando a limpeza o
+  // remove da conta. Ler antes e só então limpar não segura a resposta: a
+  // limpeza já era fire-and-forget, ela só espera a leitura terminar.
+  const scheduleCleanup = () => {
+    if (config.debrid.dropReady) scheduleDrop(dropReady, 'prontos', readyHashById);
+    if (config.debrid.dropUncached) scheduleDrop(dropDownload, 'downloads', downloadHashById);
+  };
+  // Cadeia ÚNICA leitura→limpeza: o `finally` acopla a limpeza ao FIM da
+  // leitura (sucesso OU falha) e nenhuma promise derivada fica sem consumidor.
+  // A espera limitada, porém, só é AWAITADA depois de evicção/reconcile
+  // agendados (abaixo): a limpeza efetiva nunca começa antes de quem depende
+  // do estado da conta estar agendado.
+  //
+  // A leitura não é abortável (cancelar depois do upload perderia os ids). O
+  // limite da ESPERA chega como `fileWaitTimeoutMs` — orçamento dinâmico da
+  // resposta JÁ COM A MARGEM deduzida pelo nonAbortableCheck
+  // (DEBRID_PACK_FILES_WAIT_MARGIN_MS): o timer da corrida externa começa antes
+  // desta checagem, então esperar o orçamento cheio aqui viraria known:false
+  // (⚡ perdido) só porque a leitura do pack foi lenta. NUNCA é o `timeoutMs`
+  // de rede, que aqui fica `undefined` e devolve a cada chamada o teto próprio
+  // do adaptador (upload e leitura seguem com os timeouts normais). Estourou o
+  // orçamento, segue fail-open: o ⚡ já está no retorno e o fsz aquece para a
+  // reanotação na próxima leitura. Passe sem orçamento usa o timeout completo
+  // do adaptador como limite da espera.
+  let espera: Promise<void | 'prazo'> | null = null;
+  if (filesToRead.length > 0) {
+    const read = readPackFiles(apiKey, filesToRead).finally(scheduleCleanup);
+    const limite = fileWaitTimeoutMs ?? config.debrid.cacheCheckTimeout;
+    const restante = Math.max(0, limite - (Date.now() - startedAt));
+    if (restante > 0) {
+      espera = raceWithDeadline(read, restante, () => 'prazo' as const);
+    } else {
+      // Sem orçamento: não esperamos, mas a cadeia fica CONSUMIDA (handler
+      // anexado) para nunca haver rejeição unhandled; a limpeza segue no
+      // `finally` da mesma cadeia e o resultado sai na volta.
+      void read.catch(() => {});
+      espera = Promise.resolve('prazo' as const);
+    }
+  } else {
+    scheduleCleanup();
+  }
+  // Destravados pelo inventário entram no Set de cache SEM upload: o pronto é
+  // prova da própria conta, e o eco do upload os teria omitido de propósito.
+  for (const hash of desbloqueados) result.cached.add(hash);
   // 8.16 — evicção por busca, irmã de dropReady/dropUncached: fire-and-forget
   // DEPOIS da checagem, zero await da seleção/rede no prazo da resposta. O
   // guard do knob mora aqui (custo zero quando OFF) e de novo dentro do módulo
@@ -173,5 +250,22 @@ export async function checkCached(apiKey: string, infoHashes: string[], { timeou
   // anti-reentrada, dependência de drop ativo) moram todos no módulo — o
   // chamador paga só uma chamada síncrona.
   scheduleReconcile(apiKey, consultados);
+  // Item 1b — represados da conta BYO: a próxima busca da MESMA instalação
+  // reavalia em fundo o que a heurística de progresso adiou, com a apiKey
+  // corrente e sem chave persistida. AllDebrid-only; fail-safe e coalescido no
+  // módulo. Fire-and-forget, como o reconcile.
+  scheduleSuppressedRevalidate(apiKey);
+  if (espera) {
+    try {
+      if ((await espera) === 'prazo') {
+        metrics.count('debrid.packFiles.waitDeadline');
+        log.info(`[alldebrid] leitura de arquivos de ${filesToRead.length} pack(s) segue em fundo; limpeza acoplada ao fim dela`);
+      }
+    } catch (err) {
+      // Falha da leitura: a limpeza já correu no `finally` da MESMA cadeia e a
+      // checagem nunca a derruba — o ⚡ já está no retorno.
+      log.warn(`[alldebrid] leitura de arquivos de pack falhou: ${log.errorMessage(err)}`);
+    }
+  }
   return result;
 }

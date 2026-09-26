@@ -84,13 +84,14 @@ function defaultProviders(): string[] {
   // operador escolhe isso explicitamente; nas demais fontes reais entra junto.
   if (base.includes('demo')) return ['demo'];
   const hasKnownSearchProvider = base.some((name) => ['jackett', 'prowlarr', 'torrentio'].includes(name));
-  if (config.torrentio.enabled && hasKnownSearchProvider && !base.includes('torrentio')) base.push('torrentio');
+  if (config.torrentio.enabled && config.torrentio.defaultOn && hasKnownSearchProvider && !base.includes('torrentio')) base.push('torrentio');
   return base.length ? base : ['demo'];
 }
 
 function defaults() {
   return {
-    // Pool global Torrentio entra por PADRÃO quando o operador usa uma fonte de
+    // Pool global Torrentio entra por PADRÃO só com TORRENTIO_DEFAULT=true (e
+    // TORRENTIO_ENABLED), quando o operador usa uma fonte de
     // busca real (jackett/prowlarr/both) e a env habilita — o demo segue
     // isolado (sem rede). O usuário ainda pode desligar/ligar por instalação
     // via o toggle da página (p... sem/com torrentio).
@@ -100,7 +101,12 @@ function defaults() {
     minSeeders: config.minSeeders,
     brReservedSlots: config.brReservedSlots,
     brFirst: true,
-    jackettIndexers: [...config.jackett.indexers],
+    // O card virtual do Mico entra no `ji` padrão só com MICO_DEFAULT: é assim
+    // que a instalação nova já nasce com ele marcado na /configure.
+    jackettIndexers: [
+      ...config.jackett.indexers,
+      ...(config.mico.enabled && config.mico.default && !config.jackett.indexers.includes('mico') ? ['mico'] : []),
+    ],
     indexerPriority: [],
     indexerLimits: {},
     brOnly: false,

@@ -1,4 +1,8 @@
 import { list, num } from './helpers.js';
+import { autofetchSeeds } from './debrid-autofetch-seeds.js';
+import { reconcile } from './debrid-reconcile.js';
+import { evictFallback } from './debrid-evict.js';
+import { suppressedRevalidate } from './debrid-suppressed.js';
 
 // Fábrica (não objeto pronto): módulo ESM é cacheado, e cada re-avaliação do
 // compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
@@ -64,6 +68,21 @@ export const debrid = () => ({
   // orçamento dinâmico abaixo; depois o fundo repete sem teto curto e grava a
   // lista completa com ⚡/cachedOnly restaurados.
   cacheCheckTimeout: num(process.env.DEBRID_CACHE_CHECK_TIMEOUT_MS, 10000),
+  // Quantos packs prontos a checagem da AllDebrid lê arquivos por busca antes
+  // de liberar a limpeza: um /magnet/status cada.
+  packFilesPerCheck: num(process.env.DEBRID_PACK_FILES_PER_CHECK, 6),
+  // Margem com que a espera interna dos arquivos de pack desiste ANTES do
+  // orçamento externo da corrida (nonAbortableCheck repassa
+  // fileWaitTimeoutMs = timeoutMs - margem). O timer externo começa antes da
+  // checagem e o upload consome parte do orçamento: se a espera interna
+  // igualasse o orçamento, uma leitura lenta de pack virava known:false
+  // (⚡ perdido) por causa de um tamanho cosmético. Upload e leitura seguem
+  // NÃO abortáveis, com os timeouts próprios de rede.
+  packFilesWaitMarginMs: Math.max(0, num(process.env.DEBRID_PACK_FILES_WAIT_MARGIN_MS, 150)),
+  // Resolução lida no cabeçalho do vídeo (AllDebrid) quando nem o título nem o
+  // nome do arquivo dizem 720p/1080p: um /link/unlock e até 8 MB por arquivo,
+  // uma vez, gravado no cache (`vres`). false desliga.
+  qualityProbe: String(process.env.DEBRID_QUALITY_PROBE || 'true') === 'true',
   // Teto dinâmico da checagem de cache no passo de resposta: o que sobra do
   // REPLY_DEADLINE menos esta margem (filtro + HMAC + serialização). Caso
   // medido: coleta fria de 162 itens consumiu os 6400ms do orçamento e a
@@ -140,25 +159,10 @@ export const debrid = () => ({
   // Piso de ocupação: só evicta acima disso. Conta folgada não apaga nada —
   // sem o piso, o addon corroeria o acervo em uso normal.
   harvestEvictFloor: Math.max(0, Math.trunc(num(process.env.HARVEST_EVICT_FLOOR, 600))),
-  // Reconcile da posse (`adsub`) com a conta real: ready + etiqueta ativa +
-  // não preexistente + prova de que o upload não é re-add do usuário sai da
-  // conta, com purga da posse e o marcador anti-reenchimento do 8.14. Fecha o
-  // canto que a limpeza por busca não alcança (lote estourado, delete
-  // recusado, hash omitido na resposta). Fire-and-forget, escopo B-2 (só
-  // operador), anti-reentrada e intervalo mínimo por conta. false desliga
-  // (rollback de uma linha).
-  reconcile: String(process.env.DEBRID_RECONCILE || 'false') === 'true',
-  // Intervalo mínimo entre rodadas POR CONTA: o gatilho é a checagem (que pode
-  // rodar várias vezes por minuto) e o /magnet/status em fundo não acompanha
-  // esse ritmo. Rodadas mais próximas que isso são puladas.
-  reconcileMinIntervalMs: Math.max(0, num(process.env.DEBRID_RECONCILE_MIN_INTERVAL_MS, 300_000)),
-  // Teto de remoções por rodada, na ordem dos mais antigos. Clamp 0..50;
-  // 0 desliga o reconcile mesmo com o knob acima ligado.
-  reconcileMaxPerRound: Math.min(50, Math.max(0, Math.trunc(num(process.env.DEBRID_RECONCILE_MAX_PER_ROUND, 25)))),
-  // Margem anti-re-add: magnet cujo upload é MAIS NOVO que a etiqueta de posse
-  // + esta margem é re-add do usuário e NUNCA sai. A margem cobre a defasagem
-  // de relógio entre a AllDebrid e este processo.
-  reconcileAgeMarginMs: Math.max(0, num(process.env.DEBRID_RECONCILE_AGE_MARGIN_MS, 600_000)),
+  // Bloco do reconcile da posse (adsub × conta real): src/config/debrid-reconcile.ts.
+  ...reconcile(),
+  ...evictFallback(),
+  ...suppressedRevalidate(),
   // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
   // "Expired", "File not available"). A limpeza por busca só alcança hashes
   // que estão na consulta do momento; um torrent que morreu e nunca mais é
@@ -168,8 +172,7 @@ export const debrid = () => ({
   // estado terminal não é escolha de ninguém, é lixo que consome quota.
   sweepDead: String(process.env.DEBRID_SWEEP_DEAD || 'true') === 'true',
   sweepDeadIntervalMs: num(process.env.DEBRID_SWEEP_DEAD_INTERVAL_MS, 6 * 3600 * 1000),
-  // Margem antes de considerar um estado terminal definitivo: evita varrer um
-  // magnet que a conta acabou de marcar e ainda pode reavaliar.
+  // Margem antes de considerar terminal definitivo (evita varrer recém-marcado).
   sweepDeadMinAgeMs: num(process.env.DEBRID_SWEEP_DEAD_MIN_AGE_MS, 30 * 60 * 1000),
   // Varredura dos magnets ANTIGOS sem áudio PT (balde `lixo` do audioBucket):
   // legendado/estrangeiro que o autofetch acumulou antes do filtro de áudio.
@@ -187,6 +190,16 @@ export const debrid = () => ({
   // pra duas coisas: não reenviar o mesmo torrent a cada busca e por quanto
   // tempo ele fica protegido do dropUncached.
   autoFetchBr: String(process.env.DEBRID_AUTO_FETCH_BR || 'true') === 'true',
+  // Sonda dirigida (Fase 4 do Chupim 2.0): quando o pool BR fica vazio, procura
+  // dublado nos index-only BR (interseção JACKETT_INDEX_ONLY_INDEXERS ×
+  // JACKETT_PT_BR_INDEXERS) ANTES de liberar o pool de melhores sementes.
+  // Enquanto a sonda está pending o pool seeds fica DEFERIDO (não purgado).
+  // Default ligado e ajustável ao vivo pelo painel; false não agenda nem
+  // bloqueia seeds. Exige RELEASE_INDEX ativo e interseção não vazia.
+  autoFetchBrProbe: String(process.env.AUTOFETCH_BR_PROBE || 'true') === 'true',
+  // TTL dos estados da sonda (`autofetch:v3:probe:<sha256>`). O `pending` tem
+  // lease curto próprio: órfão por crash deixa de bloquear seeds sozinho.
+  brProbeTtl: Math.max(60, Math.trunc(num(process.env.BR_PROBE_TTL_S, 43200))),
   // Fallback quando a busca não achou NENHUMA fonte BR dublada (site fora,
   // domínio mudou, título não indexado): baixa a melhor global que anuncia
   // áudio PT explícito. Default on é o próprio caso de uso do
@@ -196,24 +209,13 @@ export const debrid = () => ({
   // Quantos torrents BR dublados o autofetch baixa em background por busca
   // (uma vaga por candidato, compartilhada entre o passe parcial e o tardio).
   // Mais candidatos = mais chances de play pronto depois, ao custo de encher
-  // mais a conta. Clamp 1..4: 0 não desliga o recurso (quem desliga é o toggle
-  // DEBRID_AUTO_FETCH_BR); o teto superior 4 respeita o contrato de "até 4".
-  autoFetchMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 4)))),
-  // Rede de segurança quando o título não tem dublagem NENHUMA (filme antigo,
-  // cult, série sem áudio PT): sem isso a busca acaba sem baixar nada e, com
-  // "somente já em cache" ligado, o usuário vê zero opção para sempre. O
-  // limite é separado do autofetch dublado para não encher a conta com até
-  // quatro torrents apenas porque o título não tem áudio PT.
-  autoFetchTopSeeds: String(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS || 'true') === 'true',
-  autoFetchTopSeedsMax: Math.min(4, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_TOP_SEEDS_MAX, 2)))),
-  // Um torrent com poucos pares costuma morrer na fila do debrid; abaixo de
-  // três seeders o download não é uma alternativa saudável ao episódio vazio.
-  autoFetchMinSeeders: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MIN_SEEDERS, 3))),
-  // Preferência PT no pool de swarm: candidato com sinal de português
-  // (dublado/nacional ou título que denuncia pt-BR) vence a contagem bruta
-  // de seeders. É preferência, não filtro: sem nenhum candidato PT a ordem
-  // por seeders continua valendo. false restaura a ordenação antiga.
-  autoFetchSeedsPtFirst: String(process.env.DEBRID_AUTO_FETCH_SEEDS_PT_FIRST || 'true') === 'true',
+  // mais a conta. Clamp 1..12: 0 não desliga o recurso (quem desliga é o toggle
+  // DEBRID_AUTO_FETCH_BR). O teto 12 (2026-09-01) cobre o acervo BR de uma vez;
+  // o default 3 é o baseline conservador — o operador sobe ao vivo no painel.
+  autoFetchMax: Math.min(12, Math.max(1, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_MAX, 3)))),
+  // Terceiro nível (pool seeds: top seeds, piso, título raro, preferência PT):
+  // src/config/debrid-autofetch-seeds.ts, espalhado aqui com as mesmas chaves.
+  ...autofetchSeeds(),
   // Recheck pós-enfileiramento: depois de aceitar um torrent, o addon volta a
   // perguntar ao debrid se ele já toca (sem o teto do deadline — é um passe
   // de fundo). Quando fica pronto, o cache da busca é esquecido para a
@@ -229,6 +231,16 @@ export const debrid = () => ({
   // o recheck trata como morto (blacklist, remoção e dreno da fila). 0
   // desliga a detecção: parado nunca mais derruba um download.
   autoFetchStallStreak: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_STALL_STREAK, 3))),
+  // Remoção automática (morto/parado) sobre transferência identificada só pelo
+  // id do enqueue. Nasce DESLIGADO — freio de rollout: a ponte por id
+  // visibilizou a maior parte da conta, e a primeira rodada destrutiva não
+  // pode chegar no mesmo deploy. Leia os contadores antes de ligar.
+  removeById: String(process.env.DEBRID_REMOVE_BY_ID || 'false') === 'true',
+  // Fila de remoções represadas (autofetch-suppressed.ts): TTL do registro
+  // (30d = observação; id ruim é do backoff do drain) e teto por passagem.
+  // `suppressedTtl: 0` desliga a fila (sem retroatividade — a razão de ser).
+  suppressedTtl: num(process.env.DEBRID_SUPPRESSED_TTL, 2_592_000),
+  suppressedDrainMax: Math.max(1, Math.trunc(num(process.env.DEBRID_SUPPRESSED_DRAIN_MAX, 25))),
   // Pack de temporada pronto invalida os episódios já buscados daquela mesma
   // conta/temporada; a próxima lista usa o davail positivo sem esperar CACHE_TTL.
   autoFetchSeasonFill: String(process.env.DEBRID_AUTO_FETCH_SEASON_FILL || 'true') === 'true',
@@ -260,14 +272,18 @@ export const debrid = () => ({
   // não girar a mesma fila até a janela deslizante voltar a ter espaço.
   autoFetchDrainBackoffMs: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS, 60_000)),
   // Gate de ocupação da conta (backpressure): com este número de magnets ou
-  // mais, o autofetch para de enfileirar — conta no teto derruba a checagem
-  // de cache (upload, na AllDebrid) e o ⚡ some da lista inteira. Alinhado ao
-  // teto de aviso do /debrid-status.json. 0 desliga o gate.
-  autoFetchPauseAt: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_PAUSE_AT, 800))),
+  // mais, o autofetch para de enfileirar — conta no teto derruba a checagem de
+  // cache (upload, na AllDebrid) e o ⚡ some da lista. 2000 é decisão do
+  // operador; a Fase 8.1 aponta teto REAL de 1000 — ver o commit. 0 desliga.
+  autoFetchPauseAt: Math.max(0, Math.trunc(num(process.env.DEBRID_AUTO_FETCH_PAUSE_AT, 2000))),
   // Validade do memo de ocupação do gate: vencida, a contagem é renovada em
   // background (fail-open enquanto o refresh não volta — nunca rede no
   // caminho síncrono).
   autoFetchPauseRefreshMs: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_PAUSE_REFRESH_MS, 900_000)),
+  // Trace da desistência do Chupim: ring em memória com motivo + hash12 de cada
+  // portão que fechou. Barato por contrato — desligado, note() volta imediato e
+  // nenhum call site precisa checar o knob. Só memória, nunca grava no cache.
+  autoFetchTrace: String(process.env.AUTOFETCH_TRACE || 'true') === 'true',
   // Ledger durável GLOBAL do CDN Real-Debrid. Ao contrário do magnetdb,
   // disponibilidade do RD é do serviço, não da conta que a observou.
   rdLedger: {

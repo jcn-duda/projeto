@@ -1,4 +1,4 @@
-import { DEFAULT_CACHE_DB_PATH, DEFAULT_CATALOG_DB_PATH, num } from './helpers.js';
+import { DEFAULT_CACHE_DB_PATH, DEFAULT_CATALOG_DB_PATH, DEFAULT_MAGNET_BANK_DB_PATH, num } from './helpers.js';
 
 // Fábricas (não objetos prontos): módulo ESM é cacheado, e cada re-avaliação
 // do compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
@@ -10,6 +10,12 @@ export const cacheBase = () => ({
   // um refresh de fundo a reconstrói. Só vale para lista completa com debrid
   // conferido e stream tocável. 0 volta à semântica dura (expirou = busca nova).
   streamStaleGrace: num(process.env.STREAM_STALE_GRACE_SECONDS, 300),
+  // TTL da lista que CONTÉM item de fallback do banco de magnets (Etapa 4): a
+  // reserva é foto do acervo, não medição viva — nunca ganha o TTL cheio nem é
+  // promovida a completa enquanto o indexer falho não responder. Curto para a
+  // próxima abertura já reconsultar o vivo (o handler força cacheMaxAge 0 via
+  // `partial`, que a entrada de fallback também carrega).
+  fallbackStreamsTtl: Math.max(0, num(process.env.FALLBACK_STREAMS_TTL, 120)),
 });
 
 export const rawCache = () => ({
@@ -52,3 +58,62 @@ export const catalog = () => ({
   // Workers paralelos da auditoria de arquivos (1..3).
   auditConcurrency: Math.min(3, Math.max(1, Math.trunc(num(process.env.CATALOG_AUDIT_CONCURRENCY, 2)))),
 });
+
+// Banco de magnets VIVO (clone permanente): SQLite próprio em data/magnets.db,
+// sem cota, sem TTL e sem bump de namespace — é acervo, não cache. Os flags de
+// fila valem já na Etapa 2; os de fallback ficam declarados aqui para o knob
+// existir no `.env` antes da feature (Etapa 4), sem nenhum caminho os consumir.
+export const magnetBank = () => {
+  // Janela adaptativa da resposta instantânea: `clamp(estabilidade ÷ 2, min, max)`
+  // e teto curto para lançamento recente. Os locais existem para o max nunca
+  // ficar abaixo do min (knob invertido no `.env` vira clamp coerente, não janela
+  // vazia) e o teto fresco nunca ultrapassar o max.
+  // Piso = teto (7d) por default: toda resposta instantânea dispara a coleta
+  // completa no tail, então o custo de confiar no acervo é no máximo UMA abertura
+  // sem a novidade. Com piso de 1h, o banco recém-criado deixava quase tudo em
+  // `stale` e a abertura esperava ~5s de BR ao vivo (medido 2026-09-18). O
+  // lançamento recente segue no teto curto (`instantFreshMaxMs`).
+  const instantMinMs = Math.max(1000, num(process.env.MAGNET_BANK_INSTANT_MIN_MS, 7 * 86400000));
+  const instantMaxMs = Math.max(instantMinMs, num(process.env.MAGNET_BANK_INSTANT_MAX_MS, 7 * 86400000));
+  const instantFreshMaxMs = Math.min(instantMaxMs, Math.max(1000, num(process.env.MAGNET_BANK_INSTANT_FRESH_MAX_MS, 2 * 3600000)));
+  return {
+    enabled: String(process.env.MAGNET_BANK || 'true') !== 'false',
+    dbPath: process.env.MAGNET_BANK_DB_PATH || DEFAULT_MAGNET_BANK_DB_PATH,
+    // Teto de LINHAS da engine de MEMÓRIA (o fallback quando `node:sqlite` não
+    // existe — Node 20 — ou o arquivo não abre). A unidade é magnets/hashes: o
+    // SQLite é permanente e NÃO tem cota, mas o `Map` de memória cresceria com o
+    // acervo inteiro até o OOM. 20000 é conservador porque a entrada daqui é
+    // maior que a do cache (URI + título) e o fallback só roda onde não há
+    // SQLite. Mínimo 1: NÃO existe modo ilimitado — desligar o teto reabriria o
+    // vazamento que ele existe para fechar.
+    memoryMax: Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_MEMORY_MAX, 20000))),
+    // Teto da fila de captura. A gravação é uma transação em lote por busca, fora
+    // do caminho da resposta; encheu, a captura é descartada com métrica
+    // (`magnetbank.queue.dropped`) — a busca nunca espera o disco.
+    queueMax: Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_QUEUE_MAX, 500))),
+    // Memo do status do painel (ms): `stats()` no /dashboard-status.json é
+    // agregação O(rows) (COUNT/MAX/GROUP BY) e o poll repetia a varredura a cada
+    // ciclo. O memo serve a MESMA foto por esta janela — invalidado a cada
+    // escrita efetiva (flush) e no reset. 0 desliga (recalcula a cada leitura).
+    statusTtlMs: Math.max(0, num(process.env.MAGNET_BANK_STATUS_TTL_MS, 60000)),
+    /** Fallback quando o indexer falha (Etapa 4). */
+    fallbackEnabled: String(process.env.MAGNET_BANK_FALLBACK || 'true') !== 'false',
+    // Teto por indexer falho (1..40). O item de fallback é reserva; acima disso a
+    // conta do debrid vira depósito de candidato que o vivo provavelmente já tem.
+    fallbackMaxPerIndexer: Math.min(40, Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_FALLBACK_MAX, 40)))),
+    // Teto GLOBAL da reserva (1..500): sem ele, N indexers falhos × 40 encheriam o
+    // lote e a checagem do debrid. Conservador por default (igual ao por-indexer).
+    fallbackGlobalMax: Math.min(500, Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_FALLBACK_GLOBAL_MAX, 40)))),
+    // Resposta instantânea (Onda): quando a foto do acervo é confiável pela
+    // janela adaptativa, a abertura sai do banco e a coleta ao vivo inteira roda
+    // no tail. Kill-switch explícito; os tetos de itens são os mesmos do fallback
+    // (acervo é acervo), então não há knob novo de cota.
+    instantEnabled: String(process.env.MAGNET_BANK_INSTANT || 'true') !== 'false',
+    // Piso/teto da janela (default 7d/7d): obra coletada na última semana
+    // responde do acervo; baixar o piso volta a exigir estabilidade.
+    instantMinMs,
+    instantMaxMs,
+    // Lançamento recente (data < 30d/14d ou ano de catálogo corrente): teto curto.
+    instantFreshMaxMs,
+  };
+};

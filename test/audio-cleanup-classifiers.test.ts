@@ -2,10 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   audioBucket, dubbedLieVerdict, hasPtSigns, audioFromTitle, looksPtBr, foreignVerdict,
-  hasExplicitForeignAudio, hasPtAudioMark,
 } from '../src/utils/audio-quality.js';
-import config from '../src/config.js';
-import { patch } from './helpers/stub.js';
 
 // Regressão dos consertos de classificador da Fase 0 (catálogo + limpador BR).
 // Os casos vêm de medição real: 19 de 20 títulos BR sem acento caíam no balde
@@ -32,10 +29,17 @@ test('Fase 0: release de cena EN sem marcador PT continua sendo lie', () => {
   for (const path of lies) assert.equal(dubbedLieVerdict([path], true).lie, true, path);
 });
 
-test('Fase 0: Dual Audio (Hindi) continua ambíguo — não é lie nem estrangeiro provado', () => {
-  const serenity = 'Serenity.2023.1080p.WEBRip.x264 [Dual Audio] [Hindi DD 5.1] [HDRip-1337x][TorrentCounter].mkv';
-  assert.equal(audioBucket(serenity), 'dual', 'dual sem PT ao lado é ambíguo');
-  assert.equal(dubbedLieVerdict([serenity], true).lie, false, 'dual audio é marcador PT auditivo conhecido');
+// Dual + idioma estrangeiro NOMEADO deixou de ser ambíguo (balde `lixo`,
+// veredito `condena`): o balde `dual` e a absolvição pelo marcador `dual`
+// escondiam o item da triagem do painel. Os casos vizinhos (MULTI, Tamil,
+// cirílico, guarda do path) estão em test/dual-foreign-language.test.ts.
+const SERENITY_HINDI = 'Serenity.2023.1080p.WEBRip.x264 [Dual Audio] [Hindi DD 5.1] [HDRip-1337x][TorrentCounter].mkv';
+
+test('Dual/HINDI: balde lixo e veredito condena, mas não é lie sem grupo de cena EN', () => {
+  assert.equal(audioBucket(SERENITY_HINDI), 'lixo', 'Dual com idioma nomeado não é ambíguo');
+  assert.equal(audioFromTitle(SERENITY_HINDI), 'Dual', 'o RÓTULO de áudio não muda — só balde e veredito');
+  assert.equal(foreignVerdict(SERENITY_HINDI), 'condena', 'HINDI está na lista mínima');
+  assert.equal(dubbedLieVerdict([SERENITY_HINDI], true).lie, false, 'sem grupo EN forte não prova mentira');
 });
 
 test('Fase 0: MULTI sozinho cai no balde dual, não no lixo', () => {
@@ -213,85 +217,4 @@ test('8.4: estrangeiro genuíno continua condenável — blindagem não absolve 
   // permanece false e SOMENTE a blindagem nova tira o título da mira.
   assert.equal(hasPtSigns('Matrix.1999.filme.1080p.BluRay'), false);
   assert.equal(foreignVerdict('Matrix.1999.filme.1080p.BluRay'), 'absolve');
-});
-
-
-// ---------------------------------------------------------------------------
-// DUB HINDI (B): generic DUB/DUBBED não valida áudio PT quando há HINDI.
-// ---------------------------------------------------------------------------
-
-test('DUB/HINDI: HINDI.HQ.DUB e HINDI.DUBBED não são dublado pt-BR', () => {
-  for (const t of ['HINDI.HQ.DUB', 'HINDI.DUBBED']) {
-    assert.equal(audioFromTitle(t), '', `${t}: não vira Dublado`);
-    assert.equal(looksPtBr(t), false, `${t}: looksPtBr false`);
-    assert.equal(hasExplicitForeignAudio(t), true, `${t}: HINDI condena como estrangeiro`);
-    assert.equal(foreignVerdict(t), 'condena', `${t}: condenado (sem PT)`);
-  }
-});
-
-test('DUB/HINDI: PT-BR explícito ao lado vence (absolve), [DUB] genérico continua Dublado', () => {
-  assert.equal(audioFromTitle('HINDI.HQ.DUB PT-BR'), 'Dublado', 'marca PT explícita vence o HINDI');
-  assert.equal(foreignVerdict('HINDI.HQ.DUB PT-BR'), 'absolve', 'assimetria preservada: com PT, absolve');
-  assert.equal(audioFromTitle('Coringa 2019 DUB PT-BR 1080p'), 'Dublado', 'DUB genérico sem HINDI = PT');
-  assert.equal(foreignVerdict('[DUB] Some Movie 2024'), 'absolve', 'generic [DUB] sem idioma estrangeiro absolve');
-  assert.equal(audioFromTitle('Some.Movie.2024.[DUB]'), 'Dublado', 'generic [DUB] = Dublado');
-});
-
-test('DUB/HINDI: marcador genérico CUSTOMIZADO em AUDIO_AUDIT_PT_MARKERS sofre a mesma guarda do HINDI', () => {
-  // O fechamento é por construção: marcador que normaliza para 'dub'/'dubbed'
-  // exato é genérico, venha do default ou do env do operador.
-  const restore = patch(config.audioAudit, 'ptMarkers', [...config.audioAudit.ptMarkers, 'dub']);
-  try {
-    assert.equal(hasPtAudioMark('Show.2024.Dub.1080p.mkv'), true, 'dub genérico sem HINDI prova PT');
-    assert.equal(hasPtAudioMark('Show.2024.Hindi.Dub.1080p.mkv'), false, 'HINDI desmente o marcador genérico custom');
-  } finally {
-    restore();
-  }
-});
-
-// ---------------------------------------------------------------------------
-// `<idioma> Dub` (generalização do caso HINDI). Medido em produção
-// (powermovie.net, 2026-08-30, tt22084616): as três primeiras vagas de
-// "Spider-Man: Brand New Day" eram `[Ukr Dub]` rotuladas DUB BR e ocupavam as
-// TRÊS vagas reservadas de BR — o topo da lista entregava ucraniano.
-
-test('DUB/idioma: [Ukr Dub] não é dublado pt-BR (caso medido em produção)', () => {
-  const ukr = 'Spider-Man: Brand New Day 2026 1080p TELESYNC HEVC [Ukr Dub]';
-  assert.notEqual(audioFromTitle(ukr), 'Dublado', 'dublagem ucraniana não é pt-BR');
-  assert.equal(looksPtBr(ukr), false, 'não pode ocupar vaga reservada de BR');
-  assert.equal(hasExplicitForeignAudio(ukr), true, 'UKR condena como estrangeiro');
-});
-
-test('DUB/idioma: a guarda generaliza além do HINDI', () => {
-  // Mesma construção, idiomas diferentes: o predicado é sobre a FORMA
-  // `<idioma> Dub`, não sobre uma lista caçada caso a caso.
-  for (const t of ['Movie 2024 [Rus Dub]', 'Movie 2024 POLISH DUBBED', 'Movie 2024 [Turkish Dub]']) {
-    assert.notEqual(audioFromTitle(t), 'Dublado', `${t}: idioma estrangeiro desmente o DUB genérico`);
-    assert.equal(looksPtBr(t), false, `${t}: fora das vagas BR`);
-  }
-});
-
-test('DUB/idioma: PT explícito ao lado do idioma estrangeiro continua vencendo', () => {
-  // A assimetria do commit anterior vale para toda a lista, não só HINDI: a
-  // guarda derruba a prova GENÉRICA, e a marca PT explícita corre fora dela.
-  assert.equal(audioFromTitle('Movie 2024 [Ukr Dub] DUBLADO'), 'Dublado', 'DUBLADO explícito vence');
-  assert.equal(foreignVerdict('Movie 2024 [Ukr Dub] PT-BR'), 'absolve', 'com PT explícito, absolve');
-});
-
-test('DUB/idioma: release BR sem idioma estrangeiro não regride', () => {
-  // A lista não pode encolher o BR legítimo — o DUB genérico segue valendo.
-  assert.equal(audioFromTitle('Coringa 2019 DUB 1080p'), 'Dublado', 'DUB genérico sozinho = PT');
-  assert.equal(looksPtBr('Homem-Aranha: Um Novo Dia (2026) [1080p DUBLADO 4.32 GB]'), true);
-});
-
-test('DUB/idioma: guarda do path acompanha a do título', () => {
-  // hasPtAudioMark usa o MESMO predicado; marcador genérico no path não pode
-  // provar PT quando o arquivo nomeia idioma estrangeiro.
-  const restore = patch(config.audioAudit, 'ptMarkers', ['dub', 'dublado']);
-  try {
-    assert.equal(hasPtAudioMark('Movie.2024.Ukr.Dub.1080p.mkv'), false, 'genérico sob idioma estrangeiro');
-    assert.equal(hasPtAudioMark('Movie.2024.Dublado.1080p.mkv'), true, 'marcador explícito segue valendo');
-  } finally {
-    restore();
-  }
 });
